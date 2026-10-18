@@ -49,6 +49,7 @@ import process from "node:process";
 import { type Command, CommanderError } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import { PlanDocType } from "../contract/doc.ts";
+import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { FileExistenceInvariant } from "../contract/invariants.ts";
 import { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
@@ -132,10 +133,10 @@ export interface WorkScene extends DispatchScene {
   planText: string | null;
   type: TargetType;
   face: TargetFace;
-  target: { kind: "branch" } | { kind: "doc"; doc: string } | null;
+  target: { kind: "branch" } | { kind: "plan"; doc: string } | { kind: "spec"; doc: string } | null;
   state: RunState;
   router: NextStepRouter;
-  /** The plan's `**Spec:**` header link target (plan docs only) — the plan-review
+  /** The plan's `spec:` front-matter link target (plan docs only) — the plan-review
    *  round context's spec anchor; null off the plan face. */
   specLink: string | null;
 }
@@ -364,7 +365,7 @@ export class Cli {
    *  and renders the phase/program board + the `next:` derivation to stdout. A
    *  missing slug is a usage error (exit 2, commander's own byte); a slug matching
    *  nothing on disk renders the not-found face and exits 2; a present doc line
-   *  carrying no `- **Doc type**:` declaration renders its BLOCKED marker and exits 2
+   *  carrying no `doc-type:` key renders its BLOCKED marker and exits 2
    *  (spec §12 · D34). The host is detected once for the pipeline-entry ref render
    *  (REFS[ref][host], the same judgment the capsule injects — never hard-coded). */
   async #runBoard(node: Command, parsed: RunInput): Promise<number> {
@@ -455,7 +456,9 @@ export class Cli {
     // brand through the ONE conversion entry (`relativize` of the doc path; the
     // empty path relativizes to the empty `RepoPath`) — no cast (F3).
     const docRel = root.relativize(
-      scene.target !== null && scene.target.kind === "doc" ? scene.target.doc : "",
+      scene.target !== null && (scene.target.kind === "plan" || scene.target.kind === "spec")
+        ? scene.target.doc
+        : "",
     );
     const preflight = await this.#preflight.vet({
       verb: verb as "implement" | "review" | "fix",
@@ -468,8 +471,8 @@ export class Cli {
         type === "spec" || type === "plan"
           ? {
               // The ONE declaration reading face (spec §12 · D34) — both the spec and
-              // the plan dispatch read the doc's `- **Doc type**:` header declaration;
-              // a declaration-less doc reads null and the seam BLOCKs (zero command-type
+              // the plan dispatch read the doc's front-matter `doc-type:` key;
+              // a key-less doc reads null and the seam BLOCKs (zero command-type
               // carve-out, zero filename-suffix fallback).
               docKey: BoardView.readDocType(root, docRel),
               path: docRel,
@@ -754,39 +757,39 @@ export class Cli {
         if (specPath === null)
           this.#usage(node, `cdd ${verb} --type spec: missing required --spec <path>`);
         slug = Workspace.slugFromDoc(specPath);
-        target = { kind: "doc", doc: specPath };
+        target = { kind: "spec", doc: specPath };
         break;
       }
-      case "plan": {
+      case "plan":
+      // fallthrough to the shared plan-sourced derivation below
+      case "branch": {
+        // The plan-doc seam (shared by the plan + branch lines): the target plan
+        // must exist (a required fact for both — the branch review/fix faces carry
+        // `--plan`), its text is read ONCE, and the plan's design-spec reference
+        // (the `spec:` front-matter key — the §2.2 delivery seam: the ONE head-
+        // REQUIRED parse call site) is derived from that text as the round context's
+        // extra read input (no second file read). Rebased to repoRoot-relative
+        // (D46 · T3): the raw header form is markdown link-space (relative to the
+        // plan's own dir), so it is first resolved to an absolute path, then routed
+        // through the ONE value object (`RepoRoot.relativize`) — every round-context
+        // path token speaks ONE basis (the child is spawned at cwd = repoRoot). The
+        // plan review judges the plan doc; the branch line carries no commit identity
+        // (the audit target is the branch itself, its workspace identity is the plan
+        // path, and the review's scope anchor BASE_BRANCH is engine-injected from the
+        // base artifact) — both faces carry the plan + its spec anchor.
         if (planPath === null || planRel === null)
-          this.#usage(node, `cdd ${verb} --type plan: missing required --plan <path>`);
+          this.#usage(node, `cdd ${verb} --type ${type}: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
         planText = this.#artifacts.readText(node, root, planRel);
-        // The plan's design-spec reference — the `**Spec:**` header link target,
-        // derived from the plan text already read (the plan-review round context's
-        // extra read input; no second file read). Rebased to repoRoot-relative (D46 ·
-        // T3): the raw header form is markdown link-space (relative to the plan's own
-        // dir), so it is first resolved to an absolute path, then routed through the
-        // ONE value object (`RepoRoot.relativize`) — every round-context path token
-        // speaks ONE basis (the child is spawned at cwd = repoRoot).
+        const split = FrontMatterExtractor.split(planText);
         const rawSpecLink =
-          new PlanDocType("plan").parse(planText.split("\n")).chain.specLink?.target ?? null;
+          new PlanDocType("plan").parse(split.body.split("\n"), split.head).chain.specLink
+            ?.target ?? null;
         specLink =
           rawSpecLink === null
             ? null
             : root.relativize(this.#resolveSpecLink(repoRoot, planPath, rawSpecLink));
-        target = { kind: "doc", doc: planPath };
-        break;
-      }
-      case "branch": {
-        // The branch line carries no commit identity: the audit target is the
-        // branch itself, its workspace identity is the plan path (a required
-        // fact — the branch review/fix faces carry `--plan`), and the review's
-        // scope anchor (BASE_BRANCH) is engine-injected from the base artifact.
-        if (planPath === null)
-          this.#usage(node, `cdd ${verb} --type branch: missing required --plan <path>`);
-        slug = Workspace.slugFromDoc(planPath);
-        target = { kind: "branch" };
+        target = type === "plan" ? { kind: "plan", doc: planPath } : { kind: "branch" };
         break;
       }
     }
@@ -880,7 +883,7 @@ export class Cli {
     return root;
   }
 
-  /** The plan's `**Spec:**` link target resolved to an ABSOLUTE path (D46) — the
+  /** The plan's `spec:` link target resolved to an ABSOLUTE path (D46) — the
    *  plan-review round context's `INPUT_SPEC` (the round-context exit relativizes it
    *  to repoRoot along with every other path token). The raw header form is markdown
    *  link-space (relative to the plan's own dir — the skeleton's form) or a repoRoot

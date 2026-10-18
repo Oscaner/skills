@@ -1,9 +1,13 @@
-# 引擎文档工具（Engine Doc-Tooling）— P7 实施计划：单一实况判定面（commit-sha 全退役 + 物料无条件 extract + brief 镜像 + round/键/字段实况化）
-**Spec:** [2026-10-10-engine-doc-tooling-p7-design.md](../specs/2026-10-10-engine-doc-tooling-p7-design.md)
-- **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.9 · 2026-10-14
-- **Doc type**: plan
-- **Depends on**: P6（Done · v0.4 · hard）
+---
+title: 引擎文档工具（Engine Doc-Tooling）— P7 实施计划：单一实况判定面（commit-sha 全退役 + 物料无条件
+  extract + brief 镜像 + round/键/字段实况化）
+doc-type: plan
+version: v0.9
+date: 2026-10-14
+spec: ../specs/2026-10-10-engine-doc-tooling-p7-design.md
+parent-program: ../specs/2026-10-10-engine-doc-tooling-overall.md
+depends-on: P6（Done · v0.4 · hard）
+---
 
 ## Constraints
 

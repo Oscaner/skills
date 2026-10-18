@@ -13,19 +13,22 @@
 //   · schema      — a JSON Schema per doc type (properties keyed by anchor, the
 //                   required set from the required-presence elements, property
 //                   descriptions carrying presence · home · ref-kind);
-//   · slices      — the parse face: every element's anchor-literal slice (escaped
-//                   anchor, closed under parsing — each slice parses its anchor)
-//                   plus the declared value pattern compiled for line/cell
-//                   matching;
+//   · slices      — the parse face: every element's anchor-literal slice plus the
+//                   declared value pattern compiled for line/cell matching.
+//                   Frontmatter-home elements are exempt from both compilations —
+//                   their anchor is a YAML key, looked up directly against the
+//                   parsed front-matter, never scanned line-by-line (§3.3);
 //   · tokens      — the flat anchor lexicon, one token per registered element;
 //   · reference   — the per-element reference vocabulary (ref-kind + value
 //                   pattern), one entry per registered element;
-//   · skeleton    — the required-only doc-skeleton face (spec §4.1): every
-//                   required element classified into its placeholder-anchoring
-//                   slot kind (content / link / numeric-heading / generator-truth
-//                   / table-header / table-row / scaffold) in shape-group order —
-//                   the skeleton the `cdd schema get <type> --output skeleton`
-//                   render face (D19) assembles.
+//   · skeleton    — the doc-skeleton face (spec §4.1/§4.2): every required
+//                   element classified into its placeholder-anchoring slot kind
+//                   (content / link / numeric-heading / generator-truth /
+//                   table-header / table-row / scaffold) in shape-group order,
+//                   plus the independent front-matter emission list (the head's
+//                   required + optional keys) — the skeleton the
+//                   `cdd schema get <type> --output skeleton` render face (D19)
+//                   assembles.
 //
 // The module's whole behavior surface is the Projector class (the zero-bare-
 // function discipline: module-level exports are types / the class — the projection
@@ -151,12 +154,17 @@ export interface ElementSlice {
   /** The document surface the anchor lives in. */
   home: Home;
   /**
-   * The anchor-literal slice — the escaped anchor compiled. It parses the
-   * anchor itself (each slice parses its own anchor) and locates the literal
-   * token inside a document line.
+   * The anchor-literal slice — the escaped anchor compiled for body surfaces
+   * (home !== "frontmatter"). It parses the anchor itself (each slice parses its
+   * own anchor) and locates the literal token inside a document line.
+   * Frontmatter-home elements carry no compiled pattern — their anchor is a YAML
+   * key, looked up directly against the parsed front-matter, never a line scan
+   * (§3.3).
    */
-  anchorPattern: RegExp;
-  /** The value slice — the declared value pattern compiled; matches the element's line/cell in a document. */
+  anchorPattern?: RegExp;
+  /** The value slice — the declared value pattern compiled for body surfaces;
+   *  undefined on frontmatter-home elements (their values are judged against the
+   *  declared scalar pattern in the registry, not a compiled line slice). */
   valuePattern?: RegExp;
 }
 
@@ -231,7 +239,7 @@ export type SlotKind =
   /** A digit-family heading — `N.` / `N.M` / `Task N:` render with true numbers
    *  (a literal `N` would puncture the declared digit-shaped value pattern). */
   | "numeric-heading"
-  /** A pattern-typed truth row — an enum domain's first legal literal (`**Status**:
+  /** A pattern-typed truth row — an enum domain's first legal literal (`status:
    *  Draft`) or a graph row (hard edge / legend) — a conforming row, not a fill. */
   | "generator-truth"
   /** A table column-header row. */
@@ -242,11 +250,12 @@ export type SlotKind =
    *  the fixed structure headings — structural, never fill positions. */
   | "scaffold";
 
-/** One skeleton slot — a required element's contribution to the assembled skeleton. */
+/** One skeleton slot — an element's contribution to the assembled skeleton. */
 export interface SkeletonSlot {
   /** The machine anchor token. */
   anchor: string;
-  /** Required elements only — every projected slot is required. */
+  /** The element's declared presence — always required in the body slot list;
+   *  the front-matter emission list also carries the type's optional keys. */
   presence: Presence;
   /** The document surface the anchor lives in. */
   home: Home;
@@ -258,14 +267,22 @@ export interface SkeletonSlot {
   refKind: RefKind;
 }
 
-/** One doc type's skeleton projection — the required-only slot list in shape
- *  home-group order (optional/conditional elements generate no slot — the zero
- *  conditional-residue contract mirrored at the skeleton surface). */
+/** One doc type's skeleton projection — the body slot list in shape home-group
+ *  order (optional/conditional elements generate no slot — the zero
+ *  conditional-residue contract mirrored at the skeleton surface) plus the
+ *  independent front-matter emission list (spec §4.2: the required keys plus
+ *  the type's optional frontmatter-home keys — `base` / `depends-on` — which
+ *  never ride the slot channel). */
 export interface DocSkeleton {
   /** The doc-type identity the projection derives from. */
   docType: DocType;
-  /** The required elements' slots in shape home-group order. */
+  /** The required elements' slots in shape home-group order (body + the required
+   *  front-matter keys). */
   slots: readonly SkeletonSlot[];
+  /** The front-matter emission list in registry order — the required head keys
+   *  plus the type's optional frontmatter-home keys, minus the deliberately
+   *  omitted `parent-version` (§4.2's shape-typed exclusion). */
+  frontmatter: readonly SkeletonSlot[];
 }
 
 // ---------------------------------------------------------------------------
@@ -337,7 +354,8 @@ export class Projector {
     return this.#projectAll((registry) => this.#projectDocReference(registry));
   }
 
-  /** Derive all four doc types' required-only doc-skeleton faces. */
+  /** Derive all four doc types' doc-skeleton faces (body slots + the front-matter
+   *  emission list). */
   skeleton(): SkeletonProjection {
     return this.#projectAll((registry) => this.#projectDocSkeleton(registry));
   }
@@ -448,13 +466,19 @@ export class Projector {
   #projectDocSlices(registry: ElementRegistry): DocSlices {
     const slices: ElementSlice[] = [];
     for (const element of this.#deriveRegistry(registry)) {
+      // Frontmatter-home elements anchor on YAML keys — a key is looked up
+      // directly against the parsed front-matter, so both RegExp compilations
+      // (anchor + value) stop on the header leg (§3.3).
+      const header = element.home === "frontmatter";
       slices.push({
         anchor: element.anchor,
         presence: element.presence,
         home: element.home,
-        anchorPattern: new RegExp(Projector.#escapeRegExp(element.anchor)),
+        anchorPattern: header ? undefined : new RegExp(Projector.#escapeRegExp(element.anchor)),
         valuePattern:
-          element.valuePattern === undefined ? undefined : new RegExp(element.valuePattern),
+          element.valuePattern === undefined || header
+            ? undefined
+            : new RegExp(element.valuePattern),
       });
     }
     return { docType: registry.docType, slices };
@@ -486,14 +510,18 @@ export class Projector {
   }
 
   // -------------------------------------------------------------------------
-  // the skeleton face — the required-only doc-skeleton projection (spec §4.1)
+  // the skeleton face — the doc-skeleton projection (spec §4.1/§4.2)
   // -------------------------------------------------------------------------
 
   /** Project one registry onto its doc-skeleton face — the required elements'
    *  slots in the shape's home-group order (the shape walk is the ordering
    *  source: group sequence + within-group registry order, never a second order
    *  declaration). Optional/conditional elements generate no slot — the zero
-   *  conditional-residue contract mirrored at the skeleton surface. */
+   *  conditional-residue contract mirrored at the skeleton surface. The
+   *  front-matter emission list is projected independently of the slot channel
+   *  (§4.2: required head keys + the type's optional head keys; `parent-version`
+   *  is the one explicit exclusion — its `v<n>.<m>` domain admits no placeholder
+   *  form). */
   #projectDocSkeleton(registry: ElementRegistry): DocSkeleton {
     const byAnchor = new Map(
       this.#deriveRegistry(registry).map((element) => [element.anchor, element]),
@@ -506,7 +534,23 @@ export class Projector {
         slots.push(this.#skeletonSlot(derived));
       }
     }
-    return { docType: registry.docType, slots };
+    return { docType: registry.docType, slots, frontmatter: this.#frontmatterSlots(registry) };
+  }
+
+  /** The front-matter emission list — the independent line set §4.2 prescribes:
+   *  every frontmatter-home required key plus the type's optional head keys
+   *  (`base` / `depends-on`), in registry order. `parent-version` is the single
+   *  explicit exclusion: an optional shape-typed key whose domain admits neither
+   *  placeholder form, so absence is the only legal skeleton state (the consumer
+   *  fills it when the parent version is known). */
+  #frontmatterSlots(registry: ElementRegistry): SkeletonSlot[] {
+    const out: SkeletonSlot[] = [];
+    for (const element of this.#deriveRegistry(registry)) {
+      if (element.home !== "frontmatter") continue;
+      if (element.anchor === "parent-version") continue;
+      out.push(this.#skeletonSlot(element));
+    }
+    return out;
   }
 
   /** Project one derived element onto its skeleton slot row. */
@@ -531,7 +575,7 @@ export class Projector {
    *                       literal `N` (a literal `N` punctures the declared
    *                       digit-shaped value pattern);
    *   · generator-truth — a pattern-typed value row: a fully-anchored enum domain
-   *                       (the first legal literal — `**Status**` → Draft) or a
+   *                       (the first legal literal — `status: Draft`) or a
    *                       graph row (hard edge / legend conforming lines);
    *   · table-header / table-row / scaffold — the table column headers, the data
    *                       rows and the fixed scaffold rows (the version line, the
@@ -541,15 +585,16 @@ export class Projector {
    *                       fully-anchored enum / graph elements).
    */
   #skeletonSlotOf(element: DerivedElement): SlotKind {
-    // The link-typed anchor slots are the HEADER parent-program / spec-ref links
-    // (`**Parent program**` · the plan's `**Spec:**`) — the enum-typed table cells
-    // (a Design-spec cell, a markdown-link implementation-plan cell) ride the
-    // generator-truth class, never a link slot.
+    // The link-typed anchor slots are the front-matter link keys (`spec` · the
+    // `parent-program` of plan / phase-spec) — their values render as placeholder
+    // links (`<…>` targets on the exemption chain), never `:::fill`. The
+    // enum-typed table cells (a Design-spec cell, a markdown-link
+    // implementation-plan cell) ride the generator-truth class, never a link
+    // slot — the home + ref-kind pair keys the class (the frontmatter-home
+    // anchors are now YAML keys, so the old `\[`-shape probe no longer applies).
     if (
-      element.home === "header" &&
-      (element.refKind === "parent-program" || element.refKind === "spec-ref") &&
-      element.valuePattern !== undefined &&
-      /\\\[/.test(element.valuePattern)
+      element.home === "frontmatter" &&
+      (element.refKind === "parent-program" || element.refKind === "spec-ref")
     )
       return "link";
     if (
@@ -558,7 +603,9 @@ export class Projector {
       /\\d/.test(element.valuePattern)
     )
       return "numeric-heading";
-    if (element.anchor === "**Version**") return "scaffold";
+    // The front-matter version and date rows are fixed scaffold — the same class
+    // as the table version/date tokens.
+    if (element.anchor === "version" || element.anchor === "date") return "scaffold";
     if (element.home === "graph" || Projector.#isEnumPattern(element.valuePattern))
       return "generator-truth";
     if (element.home === "table") {
@@ -570,9 +617,11 @@ export class Projector {
       if (element.anchor === "Dependency cell") return "content";
       return "scaffold";
     }
-    // The doc title is the header's one free-text position (a fill slot) — every
-    // other remaining heading anchor is fixed structure.
-    if (element.anchor === "# Title") return "content";
+    // The front-matter content keys (the title plus the other free-text head
+    // scalars — author · depends-on · base) are the head's fill positions (`:::fill
+    // <key>` in the emitted front matter); the remaining heading anchors are fixed
+    // structure.
+    if (element.anchor === "title") return "content";
     if (element.anchor.startsWith("#")) return "scaffold";
     return "content";
   }

@@ -43,7 +43,7 @@ The determined base branch is persisted as a JSON file at the CDD workspace root
 {
   "base": "develop",
   "source": "plan-field",
-  "plan": "docs/kairos/plans/2026-10-02-doc-architecture-v2-p3.2.md",
+  "plan": "docs/kairos/plans/<program-slug>-p<N>.md",
   "recordedAt": "2026-10-09T09:30:00Z"
 }
 ```

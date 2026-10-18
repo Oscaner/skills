@@ -1,10 +1,14 @@
-# 引擎文档工具（Engine Doc-Tooling）— P5 设计：整引擎 + repo CI 验证脚本重整
-- **Version**: v0.8 · 2026-10-13
-- **Doc type**: phase-spec
-- **Status**: Draft
-- **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁定 · 2026-10-12）
-- **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
-- **Depends on**: P4（Done · v0.6 · hard——P4 拆分后的 face/lifecycle/gate/artifacts 晶体为 P5 整树 + CI 验证面重整基座）
+---
+title: 引擎文档工具（Engine Doc-Tooling）— P5 设计：整引擎 + repo CI 验证脚本重整
+doc-type: phase-spec
+version: v0.8
+date: 2026-10-13
+status: Draft
+author: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁定 · 2026-10-12）
+parent-program: 2026-10-10-engine-doc-tooling-overall.md
+depends-on: P4（Done · v0.6 · hard——P4 拆分后的 face/lifecycle/gate/artifacts 晶体为 P5
+  整树 + CI 验证面重整基座）
+---
 
 ## Design
 

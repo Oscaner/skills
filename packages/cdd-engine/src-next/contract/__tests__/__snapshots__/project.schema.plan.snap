@@ -2,38 +2,53 @@
   "docType": "plan",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "plan document structure",
-  "description": "Derived JSON Schema — 28 declared elements · 22 required",
+  "description": "Derived JSON Schema — 31 declared elements · 24 required",
   "type": "object",
   "properties": {
-    "# Title": {
+    "title": {
       "type": "string",
-      "pattern": "^# \\S.*$",
-      "description": "presence: required · home: header · ref: none"
+      "pattern": "^.+$",
+      "description": "presence: required · home: frontmatter · ref: none"
     },
-    "**Spec:**": {
+    "doc-type": {
       "type": "string",
-      "pattern": "^\\*\\*Spec:\\*\\*\\s+\\[[^\\]]+\\]\\([^)]+\\)$",
-      "description": "presence: required · home: header · ref: spec-ref"
+      "pattern": "^(overall-spec|plan|phase-spec|single-spec)$",
+      "description": "presence: required · home: frontmatter · ref: none"
     },
-    "**Parent program**": {
+    "version": {
       "type": "string",
-      "pattern": "^- \\*\\*Parent program\\*\\*:? \\[[^\\]]+\\]\\([^)]+\\)",
-      "description": "presence: required · home: header · ref: parent-program"
+      "pattern": "^v\\d+\\.\\d+$",
+      "description": "presence: required · home: frontmatter · ref: version-lineage"
     },
-    "**Version**": {
+    "date": {
       "type": "string",
-      "pattern": "^- \\*\\*Version\\*\\*: v\\d+\\.\\d+ · \\d{4}-\\d{2}-\\d{2}$",
-      "description": "presence: required · home: header · ref: version-lineage"
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "presence: required · home: frontmatter · ref: none"
     },
-    "**Depends on**": {
+    "spec": {
       "type": "string",
-      "pattern": "^- \\*\\*Depends on\\*\\*:",
-      "description": "presence: optional · home: header · ref: phase-id"
+      "pattern": "^.+$",
+      "description": "presence: required · home: frontmatter · ref: spec-ref"
     },
-    "**Base**": {
+    "parent-program": {
       "type": "string",
-      "pattern": "^- \\*\\*Base\\*\\*:",
-      "description": "presence: optional · home: header · ref: none"
+      "pattern": "^.+$",
+      "description": "presence: required · home: frontmatter · ref: parent-program"
+    },
+    "parent-version": {
+      "type": "string",
+      "pattern": "^v\\d+\\.\\d+$",
+      "description": "presence: optional · home: frontmatter · ref: version-lineage"
+    },
+    "depends-on": {
+      "type": "string",
+      "pattern": "^.+$",
+      "description": "presence: optional · home: frontmatter · ref: phase-id"
+    },
+    "base": {
+      "type": "string",
+      "pattern": "^.+$",
+      "description": "presence: optional · home: frontmatter · ref: none"
     },
     "## Constraints": {
       "type": "string",
@@ -147,10 +162,12 @@
     }
   },
   "required": [
-    "# Title",
-    "**Spec:**",
-    "**Parent program**",
-    "**Version**",
+    "title",
+    "doc-type",
+    "version",
+    "date",
+    "spec",
+    "parent-program",
     "## Constraints",
     "Constraint delta bullet",
     "### Task N:",

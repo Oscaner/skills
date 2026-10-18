@@ -1,10 +1,18 @@
-# 引擎文档工具（Engine Doc-Tooling）— P1 Plan（review face overall 键 · face 全层重塑 · help 展示面重建 · docKey 词表统一）
-**Spec:** [2026-10-10-engine-doc-tooling-p1-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p1-design.md)
-- **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.5](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.2 · 2026-10-11
-- **Doc type**: plan
-- **Depends on**: 依赖升级与 src 更名程序 P2（sweep 面关系 · D8 拆 pin——本 plan 引擎改动**先行实现于现行 `src-next/` 树**，rename sweep 随后全库覆盖本 phase 新文件面）；本程序 P2（schema gen 模板写作 · 引擎面已 Done v0.4）——P1 ‖ P2 无硬依赖（父总体 Dependency graph · 执行串行按注册序）· 前置 = P1 design spec v0.3 Approved（review-fix 链全闭 · F5 post-approval backfill 落定 6bf06863）
-- **Base**: develop
+---
+title: 引擎文档工具（Engine Doc-Tooling）— P1 Plan（review face overall 键 · face 全层重塑 ·
+  help 展示面重建 · docKey 词表统一）
+doc-type: plan
+version: v0.2
+date: 2026-10-11
+spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p1-design.md
+parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
+parent-version: v1.5
+depends-on: 依赖升级与 src 更名程序 P2（sweep 面关系 · D8 拆 pin——本 plan 引擎改动**先行实现于现行
+  `src-next/` 树**，rename sweep 随后全库覆盖本 phase 新文件面）；本程序 P2（schema gen 模板写作 · 引擎面已
+  Done v0.4）——P1 ‖ P2 无硬依赖（父总体 Dependency graph · 执行串行按注册序）· 前置 = P1 design spec
+  v0.3 Approved（review-fix 链全闭 · F5 post-approval backfill 落定 6bf06863）
+base: develop
+---
 
 ## Constraints
 

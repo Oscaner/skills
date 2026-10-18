@@ -12,6 +12,7 @@ import { Words } from "../face/words.ts";
 import { declaredRegistries } from "./declare.ts";
 import type { ParsedDoc } from "./doc.ts";
 import { docTypeParsers } from "./doc.ts";
+import { FrontMatterExtractor } from "./frontmatter.ts";
 import type { DocFs, Finding, Invariant, JudgeContext } from "./invariants.ts";
 import {
   ContinuityInvariant,
@@ -20,6 +21,7 @@ import {
   DomainInvariant,
   FileExistenceInvariant,
   HollowInvariant,
+  LinkShapeInvariant,
   NodeFs,
   OrderInvariant,
   PresenceInvariant,
@@ -56,16 +58,20 @@ export interface ContractInput {
  * strategy set is stateless (each strategy reads its judgment data from the
  * context), so construction is cheap and validates compose safely.
  *
- * The P7 structure-plane canonicalize seam (design spec §2.1): the Contract
- * self-holds a Translator, and validate() canonicalizes EVERY input line once at
- * the row source — the normalized view shared by parse and JudgeContext.lines.
- * Every valuePattern judgment face (presence occurrenceLines · domain
- * carrierLines · section-scoped · crosslink) matches the view, so the legacy
- * Chinese charter markers (the doc-arch decision-group / upstream-endorsements
- * leaves) match their English canonical element patterns through the recognition
- * face — never a second hand-written zh pattern. The view is never written back:
- * the source document stays byte-identical and the original lines remain in
- * input.content.
+ * The P7 structure-plane canonicalize seam (design spec §2.1) + the T6 front-matter
+ * delivery seam (§2.2): the Contract self-holds a Translator, and validate()
+ * canonicalizes EVERY body line once at the row source — the normalized view
+ * shared by parse and JudgeContext.lines. The split order is RAW-first: the raw
+ * content resolves its front-matter head BEFORE any canonicalize (front matter is
+ * data — the canonicalize view would silently rewrite registered Chinese aliases
+ * inside header values), then the post-fence body lines canonicalize and the SAME
+ * typed head rides into parse(lines, head) and JudgeContext.head. Every
+ * valuePattern judgment face (presence occurrenceLines · domain carrierLines ·
+ * section-scoped · crosslink) matches the view, so the legacy Chinese charter
+ * markers (the doc-arch decision-group / upstream-endorsements leaves) match their
+ * English canonical element patterns through the recognition face — never a second
+ * hand-written zh pattern. The view is never written back: the source document
+ * stays byte-identical and the original lines remain in input.content.
  */
 export class Contract {
   /** The per-doc-key policy sets — the declared composition of the strategy family.
@@ -87,15 +93,20 @@ export class Contract {
     this.#translator = new Translator(new Words());
   }
 
-  /** validate(doc) — parse, compose, run, aggregate. The single judgment entry.
-   *  Every input line canonicalizes ONCE at the row source (the normalized view);
-   *  parse and the judgment context read the same view, the source stays intact. */
+  /** validate(doc) — split, parse, compose, run, aggregate. The single judgment entry.
+   *  The RAW content resolves its front-matter head first (the data plane — never
+   *  canonicalized); the post-fence body lines canonicalize ONCE at the row source
+   *  (the normalized view), and the SAME typed head rides into parse(lines, head)
+   *  and JudgeContext.head (§2.2's delivery seam — the chain facts the head carries
+   *  are the same record the invariants judge). The source stays intact. */
   validate(input: ContractInput): Finding[] {
-    const lines = input.content.split("\n").map((line) => this.#translator.canonicalize(line));
-    const parsed = docTypeParsers[input.docKey].parse(lines);
+    const { head, body } = FrontMatterExtractor.split(input.content);
+    const lines = body.split("\n").map((line) => this.#translator.canonicalize(line));
+    const parsed = docTypeParsers[input.docKey].parse(lines, head);
     const context: JudgeContext = {
       docKey: input.docKey,
       parsed,
+      head,
       lines,
       path: input.path,
       root: input.root,
@@ -125,6 +136,7 @@ export class Contract {
       new ResidueInvariant(),
       new HollowInvariant(),
       new SelfBoundedInvariant(),
+      new LinkShapeInvariant(),
       new FileExistenceInvariant(),
       new SiblingScanInvariant(),
       new CrossDocChainInvariant(),

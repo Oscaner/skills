@@ -8,55 +8,56 @@
 // (spec §4.1: pure content slots take `:::fill`, link-shaped anchors a placeholder
 // link, structure is true value — the doc-contract pin judges the rendered bytes).
 //
-// The per-anchor forms (header lines · link placeholders · generator truths ·
-// table scaffolds) are declared constant data below; the document composition
-// walks them in document order. render() is a pure byte renderer — it never
-// appends a trailing newline (the CLI appends the single `\n`, so a redirected
-// fixture ends with exactly one newline). The composition is the judgment site
-// of the projection: after assembly render() asserts slot consumption — every
-// registered required slot emits a probe and every probe names a registered
-// slot, so a registry/composition drift is a loud throw in the renderer, never a
-// silent byte gap (the doc-contract pin judges the rendered bytes; this asserts
-// the same coverage in-process, before any bytes are produced).
+// The front-matter head is the ONE structured-metadata channel (spec §2.2's
+// standard parser): the frontmatter-home slots render as a `---`-fenced YAML
+// record emitted by `yaml.stringify` in one call — an independent line set, never
+// hand-spun header lines and never part of the slot/probe channel. §4.2's
+// placeholder three-way split: the link-typed keys (`spec` · `parent-program`)
+// emit a `<…>` scalar on the judge's placeholder-exemption chain; the content
+// keys (`title` · `author` · `depends-on` · `base`) emit `:::fill <key>`; the
+// truth keys (`doc-type` · `version` · `date` · `status`) emit true values. The
+// optional `parent-version` key is deliberately NOT emitted — its shape is typed
+// (`v<n>.<m>`, so a fill or a link scalar would violate the domain) and absence
+// is legal. The markdown body stays the registry-driven scaffold. render() is a
+// pure byte renderer — it never appends a trailing newline (the CLI appends the
+// single `\n`, so a redirected fixture ends with exactly one newline). The
+// composition is the judgment site of the projection: after assembly render()
+// asserts slot consumption over the BODY slots — every registered body slot emits
+// a probe and every probe names a registered body slot, so a registry/composition
+// drift is a loud throw in the renderer, never a silent byte gap (the front-matter
+// key set is registry-faithful by construction — the assertion domain is the body
+// the composition hand-assembles).
 //
 // Module-level exports are types / the class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 
+import { Pair, Scalar, stringify as stringifyYaml, YAMLMap } from "yaml";
 import type { DocSkeleton, SkeletonSlot } from "../contract/project.ts";
 
-/** The per-anchor header line forms — every registered header anchor of the four
- *  doc types except the link-typed anchors (their placeholder-link lines assemble
- *  from LINK_SLOTS): the title fill, the content marker fills, the generator-truth
- *  status line and the scaffold version row. The `{date}` slot carries the
- *  injected run date (the version-row date truth). */
-const HEADER_FORMS: Record<string, string> = {
-  "# Title": "# :::fill title",
-  "**Version**": "- **Version**: v0.1 · {date}",
-  "**Author**": "- **Author**: :::fill author",
-  "**Constraints**": "- **Constraints**: :::fill constraints",
-  "**Depends on**": "- **Depends on**: :::fill depends-on",
+/** The placeholder scalars of the front-matter link keys (spec §4.2 + D3) — the
+ *  link-typed head keys (`spec` · `parent-program`) render a `<…>`-shaped value
+ *  that rides the judge's placeholder-exemption chain (a bare `^<[^>]+>$` target
+ *  the file-existence / sibling-scan / cross-doc-chain strategies all skip),
+ *  never a `:::fill` (a fill in a link slot is a guaranteed finding). The
+ *  placeholder IS the fill contract (show-don't-tell — zero prose rules): its
+ *  inner shape is a BARE relative-path exemplar (`docs/kairos/specs/…-overall.md`),
+ *  the exact form the consumer must fill — the <>-shell keeps the exemption, the
+ *  path inside both bookends the value and doubles as the shape sample (#342: a
+ *  consumer copying the exemplar fills a bare path, never a markdown link). */
+const FRONT_MATTER_LINKS: Record<string, string> = {
+  spec: "<docs/kairos/specs/…-design.md>",
+  "parent-program": "<docs/kairos/specs/…-overall.md>",
 };
 
-/** The placeholder-link literals of the link-typed anchor slots (spec §4.1) — the
- *  `<…>` label/target pairs of the parent-program / spec links. The `<…>`-shaped
- *  target rides the judge's placeholder-exemption chain (file-existence /
- *  sibling-scan); the plan's Class-A `**Spec:**` takes label == target so the
- *  `label == basename` chain check holds. */
-const LINK_SLOTS: Record<string, { label: string; target: string }> = {
-  "**Parent program**": { label: "<parent overall>", target: "<parent path>" },
-  "**Spec:**": { label: "<spec path>", target: "<spec path>" },
-};
-
-/** The generator truths of the pattern-typed slots (spec §3.2/§4.1) — hand-pinned
- *  legal literals consistent with each declared value domain (`**Status**` →
- *  Draft, the first legal literal of its enum; the `none` issue-ref default; the
- *  `[Pending]` design cell — the only pending form its valuePattern admits, never
- *  bare `Pending` — and the bare `Pending` plan cell, a legal alternative of its
- *  domain) and the conforming graph rows (the `P1 -> P2` hard edge + the legend
- *  line). These are derived true values, guarded by the doc-contract pins that
- *  judge the rendered bytes — never fill positions. */
+/** The generator truths of the pattern-typed body slots (spec §3.2/§4.1) —
+ *  hand-pinned legal literals consistent with each declared value domain (the
+ *  `none` issue-ref default; the `[Pending]` design cell — the only pending form
+ *  its valuePattern admits, never bare `Pending` — and the bare `Pending` plan
+ *  cell, a legal alternative of its domain) and the conforming graph rows (the
+ *  `P1 -> P2` hard edge + the legend line). The head's `status` truth lives in
+ *  the front-matter emission (`status: Draft` — the first legal literal of every
+ *  status enum — via `#frontmatterTruth`, never a body fill). */
 const TRUTH_LINES: Record<string, string> = {
-  "**Status**": "Draft",
   "Issue ref cell": "none",
   "Implementation plan cell": "Pending",
   "Design spec cell": "[Pending]",
@@ -76,27 +77,33 @@ const HISTORY_HEADER = "| Version | date | summary | author |";
  * and the run date (the CLI injects the run day; tests inject a fixed date), the
  * instance is stateless after construction, so sharing one instance composes
  * safely. The composition per doc type mirrors the doc's section sequence; every
- * required element of the type lands in its structural position (the doc-contract
- * pin judges the rendered bytes — a missing required anchor is a finding).
+ * required element of the type lands in its structural position — the front-
+ * matter keys in the head record (the registry's frontmatter-home slot order),
+ * the body elements in the section scaffold (the doc-contract pin judges the
+ * rendered bytes — a missing required anchor is a finding).
  */
 export class SkeletonAssembler {
   /** The doc type of the projected skeleton. */
   readonly #docType: DocSkeleton["docType"];
-  /** The injected run date — the version-row date truth (`YYYY-MM-DD`). */
+  /** The injected run date — the front-matter `date:` truth (`YYYY-MM-DD`). */
   readonly #date: string;
-  /** The projection's slots in shape-group order. */
+  /** The projection's slots in shape-group order (the body slot channel). */
   readonly #slots: readonly SkeletonSlot[];
+  /** The front-matter emission list — the head's required + optional keys. */
+  readonly #frontmatterSlots: readonly SkeletonSlot[];
 
   constructor(projection: DocSkeleton, date: string) {
     this.#docType = projection.docType;
     this.#date = date;
     this.#slots = projection.slots;
+    this.#frontmatterSlots = projection.frontmatter;
   }
 
   /** Render the doc skeleton's markdown bytes — no trailing newline (the CLI owns
    *  the appended `\n`; the EOF-newline rule lands on the redirected fixture).
-   *  Every composed anchor registers a probe; the composition completes only when
-   *  the probes and the projection's required slots coincide (a drift is a loud
+   *  The front-matter head is emitted as the registry's key set (never probed);
+   *  every body anchor registers a probe; the composition completes only when
+   *  the probes and the projection's body slots coincide (a drift is a loud
    *  throw below, never silent bytes). */
   render(): string {
     const probe = new Set<string>();
@@ -123,14 +130,20 @@ export class SkeletonAssembler {
   /** The slot-consumption invariant — the composition-side tripwire of the
    *  registry-derived structure (the finding hardened in: the projection is the
    *  single structure source, the hand-written compositions must not drift from
-   *  it): every required slot of the projection is emitted by the composition,
+   *  it). The assertion domain is the BODY slots — the front-matter head is
+   *  emitted from the projection's independent emission list (the §2.2
+   *  structured channel, never probed), so the tripwire covers the
+   *  hand-assembled body:
+   *  every required body slot of the projection is emitted by the composition,
    *  and no composition probe names an anchor the registry does not require — a
    *  registered element with no composition position, or a composed anchor no
    *  longer required, is registry drift, loud never silent. */
   #assertConsumed(probe: ReadonlySet<string>): void {
-    const registered = new Set(this.#slots.map((slot) => slot.anchor));
+    const registered = new Set(
+      this.#slots.filter((slot) => slot.home !== "frontmatter").map((slot) => slot.anchor),
+    );
     const unemitted = this.#slots
-      .filter((slot) => !probe.has(slot.anchor))
+      .filter((slot) => slot.home !== "frontmatter" && !probe.has(slot.anchor))
       .map((slot) => slot.anchor);
     if (unemitted.length > 0) {
       throw new Error(
@@ -148,12 +161,13 @@ export class SkeletonAssembler {
   // the per-doc-type compositions — the doc section sequence + its scaffolds
   // -------------------------------------------------------------------------
 
-  /** The overall-spec skeleton — the header tuple, the section sequence (the four table
-   *  sections, the charter facets and the dependency graph) and the change-history
-   *  table: every required overall-spec element lands in its structural position. */
+  /** The overall-spec skeleton — the front-matter head, the section sequence
+   *  (the four table sections, the charter facets, the dependency graph, the
+   *  Form-A constraints surface and the change-history table): every required
+   *  overall-spec element lands in its structural position. */
   #renderOverallSpec(probe: Set<string>): string[] {
     const lines: string[] = [];
-    this.#pushHeader(lines, probe);
+    this.#pushFrontmatter(lines);
     lines.push(...this.#section("## Document scope", [":::fill document-scope"], probe));
     lines.push(...this.#section("## File paths", this.#filePathsTable(probe), probe));
     lines.push(...this.#section("## Program charter", this.#programCharter(probe), probe));
@@ -161,18 +175,34 @@ export class SkeletonAssembler {
     lines.push(...this.#section("## Phase inventory", this.#phaseTable(probe), probe));
     lines.push(...this.#section("## Dependency graph", this.#dependencyGraph(probe), probe));
     lines.push(...this.#section("## Boundary rules", ["- :::fill boundary-rule"], probe));
+    // The overall Constraints section — the Form-A delta-only surface shared
+    // with the plan/phase-spec: the heading + the `Constraint delta bullet`,
+    // composed at the declared registry position (between Boundary rules and
+    // Maintenance). The section heading line and its delta bullet land in the
+    // SAME composition step — the three same-order parts (the declared section
+    // anchor, the composed heading, the composed bullet) must move together, or
+    // the `#assertConsumed` tripwire throws (a heading without its bullet omits
+    // a registered required slot).
+    lines.push(
+      ...this.#section(
+        "## Constraints",
+        ["- :::fill constraint"],
+        probe,
+        "Constraint delta bullet",
+      ),
+    );
     lines.push(...this.#section("## Maintenance", ["- :::fill maintenance-note"], probe));
     lines.push(...this.#section("## Change history", this.#historyTable(probe), probe));
     return lines;
   }
 
-  /** The plan skeleton — the header tuple, the constraints section, the first task
-   *  block (`### Task 1:` with the seven required task fields) and the
+  /** The plan skeleton — the front-matter head, the constraints section, the first
+   *  task block (`### Task 1:` with the seven required task fields) and the
    *  change-history table (§3.2 — one task block, more blocks appended when
    *  filling). */
   #renderPlan(probe: Set<string>): string[] {
     const lines: string[] = [];
-    this.#pushHeader(lines, probe);
+    this.#pushFrontmatter(lines);
     lines.push(
       ...this.#section(
         "## Constraints",
@@ -186,13 +216,13 @@ export class SkeletonAssembler {
     return lines;
   }
 
-  /** The phase-spec skeleton — the header five-tuple, the Design double layer
+  /** The phase-spec skeleton — the front-matter head, the Design double layer
    *  (one `### 1.` group + one `#### 1.1` item + the acceptance surface), the
    *  constraints section and the change-history table (§3.2 — more groups/items
    *  appended in numeric order when filling). */
   #renderPhaseSpec(probe: Set<string>): string[] {
     const lines: string[] = [];
-    this.#pushHeader(lines, probe);
+    this.#pushFrontmatter(lines);
     lines.push(
       ...this.#section(
         "## Design",
@@ -229,14 +259,14 @@ export class SkeletonAssembler {
     return lines;
   }
 
-  /** The single-spec skeleton — the header five-tuple, the four prose sections
+  /** The single-spec skeleton — the front-matter head, the four prose sections
    *  (`:::fill` slots) and the change-history table: the lightweight scaffold of
    *  the free-form spec (P6 T2 · spec §2.1). No `### N.` double-layer outline and
-   *  no `**Parent program**` — the single-spec's deliberate deviations from the
+   *  no parent-program key — the single-spec's deliberate deviations from the
    *  phase-spec form. */
   #renderSingleSpec(probe: Set<string>): string[] {
     const lines: string[] = [];
-    this.#pushHeader(lines, probe);
+    this.#pushFrontmatter(lines);
     lines.push(
       ...this.#section("## Background & root cause", [":::fill background-root-cause"], probe),
     );
@@ -248,53 +278,81 @@ export class SkeletonAssembler {
   }
 
   // -------------------------------------------------------------------------
-  // the shared scaffolds — header, tables, sections, the join
+  // the shared scaffolds — the front-matter head, tables, sections, the join
   // -------------------------------------------------------------------------
 
-  /** The header block — the header-home slots in projection order (the registry
-   *  order — the title, then the version/status truths, the content markers, the
-   *  link placeholders), each probed, followed by the blank separator. The
-   *  `- **Doc type**: <key>` declaration line is emitted right AFTER the Version
-   *  line (the position every real doc carries it): it is the reader the
-   *  board/preflight/capsule faces require, and it is deliberately NOT a
-   *  registered slot (it is doc-identity metadata, not a projected element), so it
-   *  is composed structurally and never probed — the skeleton the engine produces
-   *  now passes its OWN preflight (§3.1 ⑩). */
-  #pushHeader(lines: string[], probe: Set<string>): void {
-    for (const slot of this.#slots) {
-      if (slot.home !== "header") continue;
-      lines.push(this.#headerLine(slot));
-      probe.add(slot.anchor);
-      if (slot.anchor === "**Version**") lines.push(`- **Doc type**: ${this.#docType}`);
+  /** The front-matter head block — the projection's front-matter emission list
+   *  (the head's required keys plus the type's optional keys) in registry order,
+   *  emitted by `yaml.stringify` in one call (§2.2's standard structured-metadata
+   *  channel): §4.2's placeholder three-way split — the link keys a `<…>` scalar,
+   *  the content keys a `:::fill <key>`, the truth keys their true values. An
+   *  independent line set — never part of the slot/probe channel (the
+   *  `#assertConsumed` domain is the body the composition hand-assembles). The
+   *  head's `doc-type:` key is the canonical machine read (spec §3.1 ⑩ · D34 —
+   *  the read faces consume the front-matter record, zero header-line marker
+   *  grammar). */
+  #pushFrontmatter(lines: string[]): void {
+    // The front-matter record is emitted by `yaml.stringify` in ONE call over the
+    // projection's emission list (spec §2.2's structured channel — the
+    // parsed-nodes form keeps the keys ordered and the emission single: D3 quotes
+    // the content-fill values so a consumer filling `[human] · …` / `Title: …`
+    // into the slot never breaks the scalar (the #341 fill class dies at the
+    // skeleton's default form, not at report time). The truth values stay plain,
+    // the link placeholders plain (the <>-bookended exemplar — exemption-shaped).
+    const fields = new YAMLMap();
+    // The emission list is the projection's independent front-matter set — the
+    // required head keys plus the type's optional keys (`base` / `depends-on`);
+    // `parent-version` never appears (the projection excludes it — §4.2's
+    // optional shape-typed key, whose `v<n>.<m>` domain admits no placeholder).
+    for (const slot of this.#frontmatterSlots) {
+      const value = new Scalar(this.#frontmatterValue(slot));
+      // D3: the content fills emit single-quoted — the consumer may fill
+      // `[human] · …` / `Title: …` into the slot; the quote keeps the scalar
+      // intact regardless of the leading character (the #341 class dies at the
+      // skeleton's default form). The truths and the link placeholders stay
+      // plain.
+      value.type = slot.slot === "content" ? Scalar.QUOTE_SINGLE : Scalar.PLAIN;
+      fields.items.push(new Pair(new Scalar(slot.anchor), value));
     }
-    lines.push("");
+    const block = stringifyYaml(fields).trimEnd().split("\n");
+    lines.push("---", ...block, "---", "");
   }
 
-  /** One header line — the anchor's declared form with the injected date (the
-   *  link-typed anchors assemble their placeholder-link line from the LINK_SLOTS
-   *  label/target pair; the header anchors are a closed set over the four
-   *  registries — an unknown header anchor is a registry drift, loud never
-   *  silent). */
-  #headerLine(slot: SkeletonSlot): string {
+  /** One front-matter value — the §4.2 placeholder three-way split over the slot
+   *  kind: the link keys a `<…>` placeholder scalar, the content keys a content
+   *  fill (`:::fill <key>`), the truth keys (the fixed version/date scaffold and
+   *  the doc-type / status patterns) their true values. */
+  #frontmatterValue(slot: SkeletonSlot): string {
     if (slot.slot === "link") {
-      const pair = LINK_SLOTS[slot.anchor];
-      if (pair === undefined) {
-        throw new Error(`no skeleton link slot for the ${slot.anchor} anchor`);
+      const placeholder = FRONT_MATTER_LINKS[slot.anchor];
+      if (placeholder === undefined) {
+        throw new Error(`no skeleton front-matter link placeholder for the ${slot.anchor} anchor`);
       }
-      const marker = slot.anchor === "**Spec:**" ? "**Spec:**" : `- ${slot.anchor}:`;
-      return `${marker} [${pair.label}](${pair.target})`;
+      return placeholder;
     }
-    if (slot.anchor === "**Status**") {
-      return `- **Status**: ${this.#truth("**Status**")}`;
-    }
-    const form = HEADER_FORMS[slot.anchor];
-    if (form === undefined) {
-      throw new Error(`no skeleton header form for the ${slot.anchor} anchor`);
-    }
-    return form.replace("{date}", this.#date);
+    if (slot.slot === "content") return `:::fill ${slot.anchor}`;
+    return this.#frontmatterTruth(slot);
   }
 
-  /** The generator truth of one pattern-typed slot — an unknown anchor is a
+  /** The true front-matter value of a fixed/patterned front-matter key — the doc
+   *  type from the projection, the injected run date, the fixed first version and
+   *  the first legal status literal (`Draft`, the shared head of every status
+   *  enum domain). An unknown truth key is a registry drift, loud never silent. */
+  #frontmatterTruth(slot: SkeletonSlot): string {
+    switch (slot.anchor) {
+      case "doc-type":
+        return this.#docType;
+      case "version":
+        return "v0.1";
+      case "date":
+        return this.#date;
+      case "status":
+        return "Draft";
+    }
+    throw new Error(`no skeleton front-matter truth for the ${slot.anchor} anchor`);
+  }
+
+  /** The generator truth of one pattern-typed body slot — an unknown anchor is a
    *  registry drift, loud never silent. */
   #truth(anchor: string): string {
     const truth = TRUTH_LINES[anchor];

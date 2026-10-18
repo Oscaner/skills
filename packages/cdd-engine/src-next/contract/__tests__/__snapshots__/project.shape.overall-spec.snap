@@ -2,30 +2,35 @@
   "docType": "overall-spec",
   "structure": [
     {
-      "home": "header",
+      "home": "frontmatter",
       "elements": [
         {
-          "anchor": "# Title",
+          "anchor": "title",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Version**",
+          "anchor": "doc-type",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "version",
           "presence": "required",
           "refKind": "version-lineage"
         },
         {
-          "anchor": "**Status**",
+          "anchor": "date",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Author**",
+          "anchor": "status",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Constraints**",
+          "anchor": "author",
           "presence": "required",
           "refKind": "none"
         }
@@ -66,6 +71,16 @@
         },
         {
           "anchor": "## Boundary rules",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "## Constraints",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "Constraint delta bullet",
           "presence": "required",
           "refKind": "none"
         },

@@ -27,7 +27,7 @@ Six `cdd-*` skills across three families:
 |-------|------|-------------|
 | `cdd-design` | Orchestrator | Brainstorm routing (mode/register/size gates); dispatches the parameterized spec-writer (single-spec / phase-spec / overall-spec charter) |
 | `cdd-spec-writer` | Spec-writer | The merged single-spec / phase-spec / overall-spec writer: authors, reviews, and commits the target spec under one parameterized flow |
-| `cdd-plan` | Orchestrator | Plan authoring (backfill-design gate · Plan Sole Writer); plan review-fix rhythm; hands off to `cdd-dev` |
+| `cdd-plan` | Orchestrator | Plan authoring (backfill-design gate · plan write authority); plan review-fix rhythm; hands off to `cdd-dev` |
 | `cdd-dev` | Orchestrator + Engine | Plan executor (CLI-only); dispatches the implement / review / fix chain + the `cdd base` artifact; final branch review |
 | `cdd-close` | Orchestrator | Branch finish / PR; ends at the finish gate + terminal; no worktrees; conventional commits |
 | `cdd-report` | Utility | Files one aggregate GitHub issue for CDD-session bugs and enhancement opportunities (gh CLI, dedup-aware); one-shot chain; manual trigger |

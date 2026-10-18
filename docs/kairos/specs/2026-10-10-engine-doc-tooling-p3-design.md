@@ -1,10 +1,14 @@
-# 引擎文档工具（Engine Doc-Tooling）— P3 设计：CLI 框架化收口 + 变更集归并
-- **Version**: v0.14 · 2026-10-12
-- **Doc type**: phase-spec
-- **Status**: Draft
-- **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P3] 会话 · 2026-10-11）
-- **Parent program**: [2026-10-10-engine-doc-tooling-overall](2026-10-10-engine-doc-tooling-overall.md)
-- **Depends on**: P1（Design Done · v0.4 · hard）· P2（Design Done · v0.5 · satisfied——deferred 变更集随本 phase 折叠归并）
+---
+title: 引擎文档工具（Engine Doc-Tooling）— P3 设计：CLI 框架化收口 + 变更集归并
+doc-type: phase-spec
+version: v0.14
+date: 2026-10-12
+status: Draft
+author: Oscar M. · Claude Opus 5（kairos:cdd-design [P3] 会话 · 2026-10-11）
+parent-program: 2026-10-10-engine-doc-tooling-overall.md
+depends-on: P1（Design Done · v0.4 · hard）· P2（Design Done · v0.5 ·
+  satisfied——deferred 变更集随本 phase 折叠归并）
+---
 
 ## Design
 

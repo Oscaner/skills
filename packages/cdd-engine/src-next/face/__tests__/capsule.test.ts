@@ -209,7 +209,7 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
 // ---------------------------------------------------------------------------
 
 /** The hermetic declaration repo — the spec docs the doc-class discrimination reads
- *  (spec §12 · D34: the declared `- **Doc type**:` line, never the filename). */
+ *  (spec §12 · D34: the declared front-matter `doc-type:` key, never the filename). */
 describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · the unified next face)", () => {
   let repo: string;
 
@@ -221,21 +221,21 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
     rmSync(repo, { recursive: true, force: true });
   });
 
-  /** A spec doc on disk declaring its doc type (the header declaration line). */
+  /** A spec doc on disk declaring its doc type (the front-matter head key). */
   const declareSpec = (name: string, docType: string | null): RouteTarget => {
     mkdirSync(path.dirname(path.join(repo, name)), { recursive: true });
-    const header =
+    const head =
       docType === null
-        ? ["# The doc", "", "- **Version**: v1.0", "- **Status**: Draft", ""]
+        ? ["---", "title: The doc", "version: v1.0", "status: Draft", "---"]
         : [
-            "# The doc",
-            "",
-            "- **Version**: v1.0",
-            "- **Status**: Draft",
-            `- **Doc type**: ${docType}`,
-            "",
+            "---",
+            "title: The doc",
+            "version: v1.0",
+            "status: Draft",
+            `doc-type: ${docType}`,
+            "---",
           ];
-    writeFileSync(path.join(repo, name), header.join("\n"), "utf8");
+    writeFileSync(path.join(repo, name), [...head, ""].join("\n"), "utf8");
     return { type: "spec", id: name } as const;
   };
 
@@ -273,10 +273,10 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
     expect(doneOf(overall)).toBe("done");
   });
 
-  it("a spec target declaring no Doc type renders the BLOCKED face — zero filename-suffix fallback", () => {
+  it("a spec target declaring no doc-type renders the BLOCKED face — zero filename-suffix fallback", () => {
     const undeclared = declareSpec("docs/kairos/specs/prog-p8-design.md", null);
     expect(doneOf(undeclared)).toBe(
-      "CDD_BLOCKED: the doc declares no `- **Doc type**:` line — add `- **Doc type**: <overall-spec|phase-spec|single-spec|plan>` to the doc's header (spec §12) and re-run",
+      "CDD_BLOCKED: the doc declares no `doc-type:` key — add `doc-type: <overall-spec|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
     );
   });
 

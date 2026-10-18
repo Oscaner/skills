@@ -185,7 +185,7 @@ const FIX_SHELL: readonly string[] = [
   "",
   ...FRAME_ITEMS,
   ...FIX_TYPED_INSTRUCTIONS,
-  "**fix:** read `INPUT_FINDINGS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_DOC` on the branch/doc lines — the plan document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_FINDINGS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  "**fix:** read `INPUT_FINDINGS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_PLAN` on the plan/branch lines — the plan document; `INPUT_SPEC` on the spec line — the spec document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_FINDINGS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
   // T5 (v0.3) — The work face's ONE strict-schema sentence: every top-level draft
@@ -206,7 +206,7 @@ const DOCS_FIX_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "**docs-fix:** apply `INPUT_FINDINGS` (all severities) directly to `INPUT_DOC`, removing fixed findings; record the path in `artifacts.doc`; empty `findings` = all fixed. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema`; the engine derives the conclusion from the residual findings; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  "**docs-fix:** apply `INPUT_FINDINGS` (all severities) directly to the judged doc — `INPUT_PLAN` on a plan-doc line, `INPUT_SPEC` on a spec-doc line — removing fixed findings; record the path in `artifacts.doc`; empty `findings` = all fixed. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema`; the engine derives the conclusion from the residual findings; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   ...LICENSE_ITEMS,
   // T5 (v0.3) — The findings face's ONE strict-schema sentence: same schema-first
   // directive as the work shell, naming the required `findings` (carried over from
@@ -221,20 +221,20 @@ const DOCS_FIX_SHELL: readonly string[] = [
 /** The review variants' shared instruction text — the review's mode rule (the
  *  criteria body + the lens vocabulary ride per-type fixed items below). */
 const REVIEW_ITEM =
-  "**review:** review the criteria below against the reference face named in the round context. Wave reviews judge `INPUT_WAVE_BRIEF` (the complete plan mirror); the branch/spec/plan reviews judge `INPUT_DOC`. Write findings into the draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them); empty `findings` = approved. The engine derives the conclusion from the draft's findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status.";
+  "**review:** review the criteria below against the reference face named in the round context. Wave reviews judge `INPUT_WAVE_BRIEF` (the complete plan mirror); the plan/branch reviews judge the plan at `INPUT_PLAN`, the spec review judges the spec at `INPUT_SPEC`. Write findings into the draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them); empty `findings` = approved. The engine derives the conclusion from the draft's findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status.";
 
 /** The review mode's shared reduced tail — the only dynamic region of every review
  *  variant (the criteria/lens are fixed-prefix per type, never here). Each review
- *  type carries its own referent (wave → `INPUT_WAVE_BRIEF`; branch/spec/plan →
- *  `INPUT_DOC`); the branch review additionally carries `BASE_BRANCH` (the scope
- *  anchor). Empty slots are dropped by the assembler. */
+ *  type carries its own judged-doc referent (wave → `INPUT_WAVE_BRIEF`; plan/branch
+ *  → `INPUT_PLAN`; spec → `INPUT_SPEC`); the branch review additionally carries
+ *  `BASE_BRANCH` (the scope anchor). Empty slots are dropped by the assembler. */
 const REVIEW_CONTEXT: readonly string[] = [
   "## Round context",
   "",
   "- `ROLE`: {{ROLE}}",
   "- `WAVE`: {{WAVE}}",
   "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
-  "- `INPUT_DOC`: {{INPUT_DOC}}",
+  "- `INPUT_PLAN`: {{INPUT_PLAN}}",
   "- `INPUT_SPEC`: {{INPUT_SPEC}}",
   "- `BASE_BRANCH`: {{BASE_BRANCH}}",
   "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
@@ -273,7 +273,8 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `ROLE`: {{ROLE}}",
       "- `WAVE`: {{WAVE}}",
       "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
-      "- `INPUT_DOC`: {{INPUT_DOC}}",
+      "- `INPUT_PLAN`: {{INPUT_PLAN}}",
+      "- `INPUT_SPEC`: {{INPUT_SPEC}}",
       "- `INPUT_FINDINGS`: {{INPUT_FINDINGS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
@@ -290,7 +291,8 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "",
       "- `ROLE`: {{ROLE}}",
       "- `WAVE`: {{WAVE}}",
-      "- `INPUT_DOC`: {{INPUT_DOC}}",
+      "- `INPUT_PLAN`: {{INPUT_PLAN}}",
+      "- `INPUT_SPEC`: {{INPUT_SPEC}}",
       "- `INPUT_FINDINGS`: {{INPUT_FINDINGS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -307,22 +309,22 @@ export const REVIEWS = {
   wave: {
     lensEnum: ["standards", "spec", "buildability"],
     axesGuide:
-      "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run `git diff origin/<BASE_BRANCH>..HEAD` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (`**Files:**` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding (severity by your judgment). The reviewer is the changed-surface judge — the engine reconciles nothing. Single agent, four axes.",
+      "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run `git diff origin/<BASE_BRANCH>..HEAD` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (`**Files:**` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding (severity by your judgment). The reviewer is the changed-surface judge — the engine reconciles nothing. The reviewed artifact is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable user would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust). Single agent, four axes.",
   },
   branch: {
     lensEnum: ["standards", "spec", "buildability"],
     axesGuide:
-      "Same four axes as task (branch-wide health: run `git diff origin/<BASE_BRANCH>..HEAD` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop.",
+      "Same four axes as task (branch-wide health: run `git diff origin/<BASE_BRANCH>..HEAD` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop. The reviewed artifact is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable user would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
   },
   spec: {
     lensEnum: ["completeness", "consistency", "clarity"],
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding",
+      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + The reviewed spec is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable downstream author would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at `INPUT_SPEC` (the plan's `**Spec:**` anchor): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding",
+      "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at `INPUT_SPEC` (the plan's `spec` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + The reviewed spec is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable implementer would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
   },
 } as const satisfies ReviewGuides;
 
@@ -434,7 +436,7 @@ const RETURN_ZONE: ReturnZone = {
 const TOKENS: readonly TemplateToken[] = [
   { name: "BASE_BRANCH", zone: "round-context" },
   { name: "HANDOFF_SCHEMA", zone: "shell" },
-  { name: "INPUT_DOC", zone: "round-context" },
+  { name: "INPUT_PLAN", zone: "round-context" },
   { name: "INPUT_SPEC", zone: "round-context" },
   { name: "INPUT_FINDINGS", zone: "round-context" },
   { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
@@ -468,12 +470,12 @@ export const CLAUSES = {
     "Self-validate before returning: run the validation/checks your change requires and record the evidence (command + exit code + result) in the report.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 7
- *  is the single-reference-face shape: one doc anchor per line (INPUT_DOC /
- *  INPUT_WAVE_BRIEF), the branch scope anchor BASE_BRANCH, the two-line return
- *  contract, and the per-type review criterion shells. */
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 8
+ *  is the kind-named doc-anchor shape (INPUT_PLAN / INPUT_SPEC replace the generic
+ *  INPUT_DOC; INPUT_WAVE_BRIEF), the branch scope anchor BASE_BRANCH, the two-line
+ *  return contract, and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 7,
+  $version: 8,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

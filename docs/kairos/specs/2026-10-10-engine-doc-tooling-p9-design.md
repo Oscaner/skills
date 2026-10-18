@@ -1,10 +1,14 @@
-# 引擎文档工具（Engine Doc-Tooling）— P9 设计：一事实无处 / 无门 / 有副本 通审施工（D26 法条 · 路径面单源统一 + 无门事实通审 + frontmatter 门）
-- **Version**: v0.7 · 2026-10-17
-- **Doc type**: phase-spec
-- **Status**: Draft
-- **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P9] 会话 · 用户裁定 · 2026-10-16）
-- **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
-- **Depends on**: P8（Done · v0.13 · hard——P8 全链闭合后重开路径面单源统一 · overall 依赖图 D41）
+---
+title: 引擎文档工具（Engine Doc-Tooling）— P9 设计：一事实无处 / 无门 / 有副本 通审施工（D26 法条 · 路径面单源统一
+  + 无门事实通审 + frontmatter 门）
+doc-type: phase-spec
+version: v0.7
+date: 2026-10-17
+status: Draft
+author: Oscar M. · Claude Opus 5（kairos:cdd-design [P9] 会话 · 用户裁定 · 2026-10-16）
+parent-program: 2026-10-10-engine-doc-tooling-overall.md
+depends-on: P8（Done · v0.13 · hard——P8 全链闭合后重开路径面单源统一 · overall 依赖图 D41）
+---
 
 ## Design
 

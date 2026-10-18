@@ -198,9 +198,15 @@ const planFor = (repoRoot: string, count = 1, name = "p3.md"): string => {
   writeFileSync(
     file,
     [
-      "# Test Plan",
-      "**Spec:** [p3-design.md](docs/kairos/specs/p3-design.md)",
-      "- **Parent program**: [p3-overall.md v1.0](docs/kairos/specs/p3-overall.md)",
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "spec: docs/kairos/specs/p3-design.md",
+      "parent-program: docs/kairos/specs/p3-overall.md",
+      "parent-version: v1.0",
+      "---",
       "",
       "## Constraints",
       "",
@@ -249,13 +255,17 @@ const conformingPlan = (
   writeFileSync(
     file,
     [
-      "# Test Plan",
-      `**Spec:** [p3-design.md](${specTarget})`,
-      "- **Parent program**: [p3-overall.md v1.0](docs/kairos/specs/p3-overall.md)",
-      "- **Version**: v1.0 · 2026-10-09",
-      "- **Doc type**: plan",
-      "- **Depends on**: P1",
-      "- **Base**: develop",
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      `spec: ${specTarget}`,
+      "parent-program: docs/kairos/specs/p3-overall.md",
+      "parent-version: v1.0",
+      "depends-on: P1",
+      "base: develop",
+      "---",
       "",
       "## Constraints",
       "",
@@ -299,12 +309,14 @@ const conformingOverall = (repoRoot: string): string => {
   writeFileSync(
     file,
     [
-      "# Test Overall",
-      "- **Version**: v1.21 · 2026-10-07",
-      "- **Status**: Approved",
-      "- **Doc type**: overall-spec",
-      "- **Author**: [human]",
-      "- **Constraints**: all cross-cutting constraints apply",
+      "---",
+      "title: Test Overall",
+      "doc-type: overall-spec",
+      "version: v1.21",
+      "date: 2026-10-07",
+      "status: Approved",
+      'author: "[human]"',
+      "---",
       "",
       "## Document scope",
       "scope prose",
@@ -342,6 +354,10 @@ const conformingOverall = (repoRoot: string): string => {
       "",
       "## Boundary rules",
       "- boundary rule",
+      "",
+      "## Constraints",
+      "",
+      "- 全部约定自动生效",
       "",
       "## Maintenance",
       "- maintenance note",
@@ -389,9 +405,15 @@ const independentPlan = (repoRoot: string, name: string, count: number): string 
   writeFileSync(
     file,
     [
-      "# Test Plan",
-      "**Spec:** [p3-design.md](docs/kairos/specs/p3-design.md)",
-      "- **Parent program**: [p3-overall.md v1.0](docs/kairos/specs/p3-overall.md)",
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "spec: docs/kairos/specs/p3-design.md",
+      "parent-program: docs/kairos/specs/p3-overall.md",
+      "parent-version: v1.0",
+      "---",
       "",
       "## Constraints",
       "",
@@ -405,22 +427,26 @@ const independentPlan = (repoRoot: string, name: string, count: number): string 
 };
 
 /** A doc-contract-clean phase-spec — every registered phase-spec element present
- *  (the header tuple + the version lineage + a Change-history table + the design
- *  skeleton), carrying the `- **Doc type**:` declaration line (spec §12 · D34) the
- *  capsule's doc-class discrimination reads (zero filename inference). */
+ *  (the head tuple + the version lineage + a Change-history table + the design
+ *  skeleton), carrying the `doc-type:` head key (spec §12 · D34) the capsule's
+ *  doc-class discrimination reads (zero filename inference). */
 const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
   const file = path.join(repoRoot, "docs", "kairos", "specs", name);
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(
     file,
     [
-      "# Test Spec",
-      "- **Version**: v1.0 · 2026-10-09",
-      "- **Status**: Draft",
-      "- **Doc type**: phase-spec",
-      "- **Author**: x",
-      "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
-      "- **Depends on**: P1",
+      "---",
+      "title: Test Spec",
+      "doc-type: phase-spec",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "status: Draft",
+      "author: x",
+      "parent-program: docs/kairos/specs/x-overall.md",
+      "parent-version: v1.0",
+      "depends-on: P1",
+      "---",
       "",
       "## Design",
       "",
@@ -446,7 +472,7 @@ const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
     ].join("\n"),
     "utf8",
   );
-  // The chain sibling — the `**Parent program**` link resolves into the specs dir.
+  // The chain sibling — the `parent-program:` link resolves into the specs dir.
   const sibling = path.join(repoRoot, "docs", "kairos", "specs", "x-overall.md");
   mkdirSync(path.dirname(sibling), { recursive: true });
   writeFileSync(sibling, "# x-overall\n", "utf8");
@@ -1365,9 +1391,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(firstBrief).toContain("### Task 1:");
       expect(firstBrief).toContain("## Constraints");
       expect(firstBrief).toContain("- delta");
-      // The plan's Constraints section moves between dispatches (the Plan Sole Writer
-      // amends mid-run): the review dispatch re-extracts the brief from the CURRENT
-      // plan — no "exists → leave it" reuse.
+      // The plan's Constraints section moves between dispatches (the plan write
+      // authority amends mid-run): the review dispatch re-extracts the brief from the
+      // CURRENT plan — no "exists → leave it" reuse.
       writeFileSync(
         plan,
         readFileSync(plan, "utf8").replace("- delta", "- delta (amended)"),
@@ -1777,10 +1803,11 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md"),
         ]);
         expect(spec).not.toContain("BASE_BRANCH");
-        expect(spec).not.toContain("INPUT_SPEC");
+        // the spec review's judged doc IS the spec — the kind-named anchor carries it
+        expect(spec).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
         const planReview = await promptOf(["review", "--type", "plan", "--plan", plan]);
         expect(planReview).not.toContain("BASE_BRANCH");
-        // the plan-review round context carries the plan's `**Spec:**` anchor
+        // the plan-review round context carries the plan's `spec:` anchor
         // (INPUT_SPEC) so the reviewer judges the plan against its design spec
         expect(planReview).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
       } finally {
@@ -1792,17 +1819,18 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     }
   });
 
-  it("D46 — INPUT_SPEC is rebased to a repoRoot-relative token from the plan's link-space `**Spec:**` form", async () => {
+  it("D46 — INPUT_SPEC is rebased to a repoRoot-relative token from the plan's plan-dir-relative `spec:` scalar", async () => {
     const sync = new FakeSync();
     sync.stdout = "status: APPROVED\n";
     const { command, repoRoot, cleanup } = fixture({ sync });
     try {
       gitInit(repoRoot);
-      // The live plan header form: the `**Spec:**` target is markdown link-space
-      // (`../specs/X.md`, relative to the plan's OWN dir) — the actual form every
-      // in-repo plan P6+ uses. The reviewer is spawned at cwd = repoRoot, so the raw
-      // link-space form would resolve OUTSIDE the repo; the scene rebases it to the
-      // repoRoot-relative token (the one basis every round-context path token speaks).
+      // The live plan header form: the `spec:` front-matter scalar may carry a
+      // plan-dir-relative value (`../specs/X.md`, relative to the plan's OWN dir) —
+      // the actual form every in-repo plan P6+ uses. The reviewer is spawned at
+      // cwd = repoRoot, so the raw plan-dir-relative form would resolve OUTSIDE
+      // the repo; the scene rebases it to the repoRoot-relative token (the one
+      // basis every round-context path token speaks).
       const plan = conformingPlan(repoRoot, "../specs/p3-design.md");
       const saved = process.env.CLAUDE_CODE_SESSION_ID;
       process.env.CLAUDE_CODE_SESSION_ID = "s";
@@ -1828,7 +1856,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     // §2.7 — every path token injected into the child speaks ONE basis (repoRoot-
     // relative): the child is spawned at cwd = repoRoot (T2), so a relative token
     // resolves identically for every token, input or output alike. Across the modes
-    // the 8-token set is WORKSPACE_DIR · INPUT_DOC · INPUT_SPEC · INPUT_FINDINGS ·
+    // the 8-token set is WORKSPACE_DIR · INPUT_PLAN · INPUT_SPEC · INPUT_FINDINGS ·
     // INPUT_WAVE_BRIEF · OUTPUT_REPORT · OUTPUT_EVIDENCE · OUTPUT_HANDOFF (the
     // non-path tokens excluded); each mode emits its own subset. This pin drives an
     // implement dispatch (the wave line's work face) and asserts EVERY emitted path
@@ -1855,7 +1883,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // Every emitted path token is repoRoot-relative: no absolute prefix, no escape.
       const PATH_TOKENS = [
         "WORKSPACE_DIR",
-        "INPUT_DOC",
+        "INPUT_PLAN",
         "INPUT_SPEC",
         "INPUT_FINDINGS",
         "INPUT_WAVE_BRIEF",
@@ -1915,8 +1943,8 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      // The declared, contract-clean spec doc — the `- **Doc type**:` header
-      // declaration (spec §12 · D34) the capsule's doc-class discrimination reads
+      // The declared, contract-clean spec doc — the `doc-type:` head key
+      // (spec §12 · D34) the capsule's doc-class discrimination reads
       // (zero filename inference).
       const spec = conformingSpec(repoRoot);
       const specCode = await command.runArgv([
@@ -1959,16 +1987,16 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      // A structurally contract-clean plan with its `- **Doc type**:` line stripped:
+      // A structurally contract-clean plan with its `doc-type:` key stripped:
       // the plan face keys the doc-contract target by the DECLARED type alone, never
-      // by the command verb — a missing declaration reads null and the seam BLOCKs.
+      // by the command verb — a missing key reads null and the seam BLOCKs.
       const plan = conformingPlan(repoRoot);
-      const stripped = readFileSync(plan, "utf8").replace("- **Doc type**: plan\n", "");
+      const stripped = readFileSync(plan, "utf8").replace("doc-type: plan\n", "");
       writeFileSync(plan, stripped, "utf8");
       const code = await command.runArgv(["review", "--type", "plan", "--plan", plan, "--dry-run"]);
       expect(code).toBe(1);
       expect(io.stderrText).toContain("CDD_BLOCKED");
-      expect(io.stderrText).toContain("the doc declares no `- **Doc type**:` line");
+      expect(io.stderrText).toContain("the doc declares no `doc-type:` key");
       // no phantom round lands — the BLOCK precedes any child dispatch
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-1.json"))).toBe(
         false,
@@ -1994,7 +2022,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(overallCode).toBe(0);
       expect(io.stdoutText).toContain("next: done");
       // The overall was judged under the overall-spec key (its declared
-      // `- **Doc type**:` line, spec §12 · D34) — a phase-spec misjudge would trip
+      // `doc-type:` key, spec §12 · D34) — a phase-spec misjudge would trip
       // the doc-contract gate: the charter fails the phase-spec face, the pre-flight
       // refuses over CDD_BLOCKED and no round lands. The exit 0 + round +
       // empty-findings carrier pin the zero misreport; the stderr stays free of the
@@ -2975,7 +3003,10 @@ describe("the pure commands — schema / issue / base", () => {
       expect(text).toContain("## Design");
       expect(text).toContain("### 1. :::fill group-title");
       expect(text).toContain("- `:::fill acceptance-entry`");
-      expect(text).toContain("- **Version**: v0.1 · ");
+      // the front-matter head — the doc-type/version/status truth keys
+      expect(text).toContain("doc-type: phase-spec");
+      expect(text).toContain("version: v0.1");
+      expect(text).toContain("status: Draft");
       expect(text).toContain("| v0.1 | ");
       // the written doc ends with exactly one newline — the EOF rule (render()
       // never appends; the D19 write path appends the single `\n`)
@@ -3012,12 +3043,14 @@ describe("the pure commands — schema / issue / base", () => {
       ]);
       expect(code).toBe(0);
       const text = readFileSync(target, "utf8");
-      // the header five-tuple without the phase-spec's Parent program
-      expect(text).toContain("- **Version**: v0.1 · ");
-      expect(text).toContain("- **Status**: Draft");
-      expect(text).toContain("- **Author**: :::fill author");
-      expect(text).toContain("- **Depends on**: :::fill depends-on");
-      expect(text).not.toContain("**Parent program**");
+      // the head key set without the phase-spec's parent-program key
+      expect(text).toContain("---");
+      expect(text).toContain("doc-type: single-spec");
+      expect(text).toContain("version: v0.1");
+      expect(text).toContain("status: Draft");
+      expect(text).toContain("author: ':::fill author'");
+      expect(text).toContain("depends-on: ':::fill depends-on'");
+      expect(text).not.toContain("parent-program");
       // the prose `:::fill` body + the change-history lineage — no `### N.` outline
       expect(text).toContain("## Background & root cause");
       expect(text).toContain(":::fill background-root-cause");
@@ -3250,17 +3283,17 @@ describe("T5 — cdd board <slug>: the pure-read board command", () => {
     mkdirSync(path.join(repoRoot, "docs/kairos/plans"), { recursive: true });
     writeFileSync(
       path.join(repoRoot, `docs/kairos/specs/${program}-overall.md`),
-      "# O\n\n- **Doc type**: overall-spec\n",
+      "---\ntitle: O\ndoc-type: overall-spec\n---\n",
       "utf8",
     );
     writeFileSync(
       path.join(repoRoot, `docs/kairos/specs/${program}-p1-design.md`),
-      "# S\n\n- **Doc type**: phase-spec\n",
+      "---\ntitle: S\ndoc-type: phase-spec\n---\n",
       "utf8",
     );
     writeFileSync(
       path.join(repoRoot, `docs/kairos/plans/${program}-p1.md`),
-      "# Plan\n\n- **Doc type**: plan\n",
+      "---\ntitle: Plan\ndoc-type: plan\n---\n",
       "utf8",
     );
   };
@@ -3527,8 +3560,8 @@ describe("T3 — the commander-native composition root: program parse + .action 
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      // The declared, contract-clean spec doc — the `- **Doc type**:` header
-      // declaration (spec §12 · D34) the capsule's doc-class discrimination reads
+      // The declared, contract-clean spec doc — the `doc-type:` head key
+      // (spec §12 · D34) the capsule's doc-class discrimination reads
       // (zero filename inference).
       const spec = conformingSpec(repoRoot);
       const code = await command.runArgv(["review", "--type", "spec", "--spec", spec, "--dry-run"]);
@@ -3586,7 +3619,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     type: "spec",
     phase: "review",
     round: 1,
-    target: { kind: "doc", doc: "docs/kairos/specs/s1-design.md" },
+    target: { kind: "spec", doc: "docs/kairos/specs/s1-design.md" },
     params: { round: 1 },
     key: "docs/kairos/specs/s1-design.md",
   };
@@ -4119,7 +4152,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const prompt = call.args[call.args.length - 1];
       expect(prompt).toContain("Follow URC:");
       expect(prompt).toContain("- `ROLE`: review");
-      expect(prompt).toContain("- `INPUT_DOC`: docs/kairos/specs/s1-design.md");
+      expect(prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
       // the v1.8 per-mode trimming: a review context carries no fix/work keys
       expect(prompt).not.toContain("- `INPUT_FINDINGS`");
       expect(prompt).not.toContain("- `INPUT_CRITERIA`");
@@ -4649,17 +4682,16 @@ describe("T9 — the destroy-list zero-residual sweep (spec §6.3 cross-referenc
 
   it("the retired commit-sha vocabulary carries zero residual across the engine source (spec §7.4)", () => {
     // The sha surface retired engine-wide (§2): no source file names the retired
-    // scope tokens (WAVE_BASE / FIX_BASE / INPUT_RANGE / INPUT_PLAN) or the
-    // retired git/BranchRef members (revParseHead / BranchRef) — the GitClient
-    // holds only topLevel + isClean, the review carries the single doc anchor
-    // (INPUT_DOC), and the branch scope rides the base artifact's BASE_BRANCH.
-    // The pin is construction-establishment-level: it fails if any retired name
-    // resurfaces in a non-test source file.
+    // scope tokens (WAVE_BASE / FIX_BASE / INPUT_RANGE) or the retired git/BranchRef
+    // members (revParseHead / BranchRef) — the GitClient holds only topLevel +
+    // isClean, the review carries the kind-named doc anchors (INPUT_PLAN / INPUT_SPEC,
+    // resurrected as the semantic round-context tokens), and the branch scope rides
+    // the base artifact's BASE_BRANCH. The pin is construction-establishment-level:
+    // it fails if any retired name resurfaces in a non-test source file.
     const retiredShaVocab = [
       "WAVE_BASE",
       "FIX_BASE",
       "INPUT_RANGE",
-      "INPUT_PLAN",
       "revParseHead",
       "BranchRef",
     ] as const;

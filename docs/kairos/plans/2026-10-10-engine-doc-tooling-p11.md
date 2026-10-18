@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P11 实施计划：dispatch contract 收口（child Return 去结构化 + `--dry-run` 真只读预览 + `RoundNaming` 命名单源）
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-10-18
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p11-design.md
 parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
@@ -21,6 +21,7 @@ base: develop
 - **D29 黑盒边界**：skill 文本零改动；本 phase 消费面可见变化仅限 README + flag help。
 - **变更先回填 parent overall**：spec 阶段已 discharge（D50/D51 + R1–R3 回填，见 spec/overall Change history）；本 plan 为格式无关的实现分解，保持 overall change-history 行字节不变。
 - **中间态红窗口**：A 组模板/解析翻面（T1/T2）期间，两行 fence pin 与 `returnFormats` pin 预期红，随 T1/T2 同批迁移收口；全量测试面绿收口于 T6。
+- **注册连带已落地**：本 plan 落仓引入第 23 条语料（`docs/kairos/plans/*.md` 10→11 · total 22→23），corpus form-pin（`packages/cdd-engine/src-next/contract/__tests__/corpus-form-pin.test.ts`）已随注册重锚（`plans` 10→11 · total 22→23 · `specs`=12 不变，standalone 连地带 commit `6b4e38b`，仿 `e062355e` 对 spec 侧同型重锚）；引擎套件回绿。T6 的 §2.4 测试面迁移**不含**本钉（§2.4 的 pin 面 = F1 双面 / smoke / 两行 fence / `returnFormats` / `Object.keys(template.return)` / `migrateJsonChild`）。
 - **不发布**：changeset（cdd-engine major）落 pending；tag / publish = 独立动作。
 - **English-primary**（SKILL.md / `docs/*.md`）· specs/plans 中文（Strategy B）· emit 产物派生（`pnpm run emit`）· EOF 恰一 newline。
 
@@ -38,17 +39,17 @@ base: develop
 - **DependsOn**: none
 
 ### Task 2: A 组引擎侧删除 + `stdoutTail` 通道——stdout 零解析 · 两失败面落 crash record
-- **Objective**: 删引擎对 child stdout 的全部解析——`face/lifecycle.ts#parseBlockReturn`（`:414`）整个方法 · `#dispatch` 的「exit 0 但无 `status:` 行 → BLOCKED」门（`:211-214`）· `#reconstruct` 第二参 `block` 与 `:526` 的 `artifacts: block.artifacts`（调用形状收为 `#reconstruct(frame)`）· `session/run.ts` 的 `DispatchOutcome.artifacts` 字段（`:104`）与 `#bookkeep` 两处传参（`:452`/`:455`）。同时**显式设计 `stdoutTail` 通道**——子进程非零退出（`:205-208`）与草稿缺失（经 `#reconstruct` 草稿缺失腿）两失败面统一经 `#reject`（`:534-548`）落 crash record，`stdoutTail` 存子进程输出**尾部**，长度以命名常量 `STDOUT_TAIL_MAX` 限界（今日 `:540` 恒空）。hermetic 注入 dispatch 改经既有 `carrier`（`run.ts:110`）表达产物。
-- **Files**: Modify `packages/cdd-engine/src-next/face/lifecycle.ts`（`:414` 方法删 · `:211-214` 门删 · `:445`/`:526` `#reconstruct` 签名与调用 · `:205-208`/`:211-214` 失败面接 `result.stdout` · `#reject` `:534-548` 写 tail + `STDOUT_TAIL_MAX` · `:540`）· Modify `packages/cdd-engine/src-next/session/run.ts`（`:104` 字段删 · `:452`/`:455` 传参删 · hermetic 注入经 `carrier` `:110`）
+- **Objective**: 删引擎对 child stdout 的全部解析——`face/lifecycle.ts#parseBlockReturn`（`:414`）整个方法 · `#dispatch` 的「exit 0 但无 `status:` 行 → BLOCKED」门（`:211-214`）· `#reconstruct` 第二参 `block` 与 `:526` 的 `artifacts: block.artifacts`（调用形状收为 `#reconstruct(frame)`）· `session/run.ts` 的 `DispatchOutcome.artifacts` 字段（`:104`）与 `#bookkeep` 两处传参（`:452`/`:455`）。同时**显式设计 `stdoutTail` 通道**——新增私有字段 `#stdoutTail`：`#dispatch` 在子进程返回后置 `#stdoutTail = result.stdout`；子进程非零退出（`:205-208`）与草稿缺失（经 `#reconstruct` 草稿缺失腿 `:460-462`）两失败面统一经 `#reject`（`:534-548`）**读该字段**落 crash record，`stdoutTail` 存子进程输出**尾部**，长度以命名常量 `STDOUT_TAIL_MAX` 限界（今日 `:540` 恒空）；`#reconstruct(frame)` 保持单参——stdout 不经重建签名传递（finding：`#reconstruct(frame, stdout)` 加宽与 §2.2 收口相抵，已否）。hermetic 注入 dispatch 改经既有 `carrier`（`run.ts:110`）表达产物。
+- **Files**: Modify `packages/cdd-engine/src-next/face/lifecycle.ts`（`:414` 方法删 · `:211-214` 门删 · `:445`/`:526` `#reconstruct` 签名与调用 · 新增私有字段 `#stdoutTail`（`#dispatch` set · `#reject` read）· `#reject` `:534-548` 读 tail + `STDOUT_TAIL_MAX` · `:540`）· Modify `packages/cdd-engine/src-next/session/run.ts`（`:104` 字段删 · `:452`/`:455` 传参删 · hermetic 注入经 `carrier` `:110`）
 - **Consumes**: Task 1（模板已无 stdout 契约）· spec §2.2 删除清单 · §2.3 hermetic carrier · §2.1 `stdoutTail` 通道
 - **Produces**: 引擎零解析 child stdout，唯一信号 `result.code !== 0`；`#reconstruct(frame)` 单参；两失败面产 crash record 且 `stdoutTail` 非空（`STDOUT_TAIL_MAX` 限界）；`DispatchOutcome.artifacts` 零残留
 - **Steps**:
   - 删 `#parseBlockReturn` 与 no-status 门；`#dispatch` 尾行改 `return this.#reconstruct(frame)` — checkable: `grep -n parseBlockReturn packages/cdd-engine/src-next/face/lifecycle.ts` 零命中；`tsc --noEmit -p packages/cdd-engine` 过
   - `#reconstruct` 去第二参，删 `:526` 的 `artifacts: block.artifacts` — checkable: `grep -n 'block.artifacts' packages/cdd-engine/src-next/face/lifecycle.ts` 零命中
   - 删 `DispatchOutcome.artifacts`（`run.ts:104`）与 `#bookkeep` 两处传参；hermetic 注入改经 `carrier` — checkable: `grep -rn 'artifacts' packages/cdd-engine/src-next/session/run.ts` 仅剩 carrier/非该字段命中
-  - `stdoutTail` 通道：两失败面把 `result.stdout` 交 `#reject`，按 `STDOUT_TAIL_MAX` 截尾写入 — checkable: 新 pin 用例「非零退出 / 无 draft → crash record `stdoutTail` 非空」PASS
+  - `stdoutTail` 通道：`#dispatch` 置私有字段 `#stdoutTail = result.stdout`，`#reject`（`:534-548`）读该字段按 `STDOUT_TAIL_MAX` 截尾写入 crash record（两失败面——非零退出与 `#reconstruct` 草稿缺失腿——统一经 `#reject` 取到该字段；`#reconstruct` 保持单参） — checkable: 新 pin 用例「非零退出 / 无 draft → crash record `stdoutTail` 非空」PASS
   - 全量 — checkable: `pnpm -C packages/cdd-engine test` 生命周期面 PASS
-- **Acceptance**: 引擎对 child stdout 零解析；「exit 0 无 status 行」门零残留；`DispatchOutcome.artifacts` 字段零残留、`#reconstruct` 第二参已删、`face/lifecycle.ts:526` 的 `block.artifacts` 零残留；crash record `stdoutTail` 非空 pin 在册
+- **Acceptance**: 引擎对 child stdout 零解析；「exit 0 无 status 行」门零残留；`DispatchOutcome.artifacts` 字段零残留、`#reconstruct` 第二参已删、`face/lifecycle.ts:526` 的 `block.artifacts` 零残留；crash record `stdoutTail` 非空 pin 在册（经私有字段 `#stdoutTail`：`#dispatch` set → `#reject` read；`#reconstruct(frame)` 单参）
 - **DependsOn**: 1
 
 ### Task 3: C 组 ensure/migrate 遗留退休——写点自 ensure · `#readBase` 走 `readJson` · `migrateJsonChild` 死码删除
@@ -57,7 +58,7 @@ base: develop
 - **Consumes**: R1/R2 裁定（写点自 ensure · `#readBase` 归一化）· spec §3.2 前两行 · §4.2
 - **Produces**: 显式 `ensure()` 调用点仅 `CliGate#renderBrief` 一处（首个写点）；`migrateJsonChild` 零残留；`#readBase` 经 `Workspace.readJson`
 - **Steps**:
-  - `#sceneOf`（`:797`）/`#runBase`（`:958`）的显式 `.ensure()` 退休；`renderBrief` 补 `Workspace.ensure()`（`gate.ts:117-118`）— checkable: `grep -rn '\.ensure()' packages/cdd-engine/src-next/face` 仅剩 `gate.ts` 一处
+  - `#sceneOf`（`:797`）/`#runBase`（`:958`）的显式 `.ensure()` 退休；`renderBrief` 补 `Workspace.ensure()`（`gate.ts:117-118`）— checkable: `grep -rn '\.ensure()' packages/cdd-engine/src-next/face --include='*.ts' | grep -v __tests__` 仅剩 `gate.ts` 一处（生产面；`face/__tests__/` 内既有 `board-view.test.ts`/`cli.test.ts` 的 `.ensure()` 不在该信号内）
   - `#readBase` 改走 `Workspace.readJson`（缺失文件 tri-state 回 `{kind:"missing"}`，不抛）— checkable: 新 pin「持 legacy 绝对 `plan` 的 base.json → `cdd base get` 报 repoRoot 相对形」PASS
   - 删三处 `migrateJsonChild` 调用（`cli.ts:803`/`:804`/`:962`）与方法本体（`workspace.ts:293`）+ 四直测（`infra.test.ts:332-359`）— checkable: `grep -rn migrateJsonChild packages/cdd-engine/src-next` 零命中
   - 只读 `base get` 零写 — checkable: fresh-repo pin「`cdd base get` 不建 `.kairos/`」PASS
@@ -78,16 +79,16 @@ base: develop
 - **DependsOn**: none
 
 ### Task 5: B 组 `--dry-run` 真只读预览——零写边界 · 预览输出形面 · 删合成 dispatch · 适用面收窄
-- **Objective**: `--dry-run` 从「book 一轮的模拟运行」改为**纯读的下一步预告**（issue #345 方案 b）：`face/cli.ts#dispatchOf`（`:640`）删除合成 `() => ({ status: "APPROVED", findings: [] })`；dry-run 路径跳过全部写点（`#sceneOf` 装配 · `renderBrief` · `#bookkeep` 的 `persistHandoff`/`recordRound`/`recordReviewedRevision`/`recordReviewedBrief` · `#reject`），只跑 pre-flight 四门（纯读）；输出**单块预览**（`step:` / `reads:` / `would write:` / `would record:` / `child:` 五行，无 `status:`/`next:` 行，路径 repoRoot-relative）；`child:` 行 = `<HostId>` + `" "` + `HOSTS.<id>.invoke`（invoke 实参串逐字照 `face/host.ts:149`）；`--dry-run` 收窄为 implement/review/fix 专用（其余命令 usage 报错 exit 2）；pre-flight 拒绝时输出与真实运行一致并 exit 1。
+- **Objective**: `--dry-run` 从「book 一轮的模拟运行」改为**纯读的下一步预告**（issue #345 方案 b）：`face/cli.ts#dispatchOf`（`:640`）删除合成 `() => ({ status: "APPROVED", findings: [] })`；dry-run 路径跳过全部写点（`#sceneOf` 装配 · `renderBrief` · `#bookkeep` 的 `persistHandoff`/`recordRound`/`recordReviewedRevision`/`recordReviewedBrief` · `#reject`），只跑 pre-flight 四门（纯读）；输出**单块预览**（`step:` / `reads:` / `would write:` / `would record:` / `child:` 五行，无 `status:`/`next:` 行，路径 repoRoot-relative）；`child:` 行 = 检出 host 时 `<HostId>` + `" "` + `HOSTS.<id>.invoke`（invoke 实参串逐字照 `face/host.ts:149`），未检出 host 时写字面量 `(no host detected — real run would BLOCK)`（不索引 `HOSTS[""]`）；`--dry-run` 收窄为 implement/review/fix 专用（其余命令 usage 报错 exit 2）；pre-flight 拒绝时输出与真实运行一致并 exit 1。
 - **Files**: Modify `packages/cdd-engine/src-next/face/cli.ts`（`#dispatchOf` `:640` 删合成 + dry-run 分支到预览单一路径 · `:492` renderBrief 调用点收口 · 收窄 usage 门）· Create `packages/cdd-engine/src-next/face/preview.ts`（预览渲染器，消费 `RoundNaming` 与 `HOSTS`）· Test `packages/cdd-engine/src-next/face/__tests__/preview.test.ts`
 - **Consumes**: Task 3（零写边界）· Task 4（`RoundNaming` 产物名）· spec §3.1–§3.5
 - **Produces**: dry-run 零 repo 写入、不占轮次；预览五行块（无 `status:`/`next:`）；收窄 exit 2；pre-flight 拒绝同真实面 exit 1
 - **Steps**:
   - 写 failing test（预览五行断言 + `git status --porcelain` 前后一致 + `.kairos/` 缺席 + 同一命令随后真实 review 可立即执行）— checkable: `pnpm -C packages/cdd-engine test preview` FAIL（今日 dry-run book 一轮）
   - 删合成 dispatch（`cli.ts:640`），dry-run 走预览单一路径（跳过所有写点）— checkable: 上述零写 pin PASS
-  - 预览输出形面（五行 + `child:` 行 `<HostId>` + `HOSTS.<id>.invoke`）— checkable: 五行断言 PASS
+  - 预览输出形面（五行 + `child:` 行：检出 host 时 `<HostId>` + `HOSTS.<id>.invoke`，未检出时字面量 `(no host detected — real run would BLOCK)`）— checkable: 五行断言 PASS
   - 收窄：非 implement/review/fix 携带 `--dry-run` → usage exit 2；pre-flight 拒绝 → 同真实面 exit 1 — checkable: 两条 pin PASS
-- **Acceptance**: dry-run 对本 repo 零字节修改（`git status --porcelain` 前后一致）；不占轮次（ledger `rounds.review` 未被预占）；预览含五行且无 `status:`/`next:`；`child:` 行为 `HostId`+invoke（非 `claude-code`）；非 implement/review/fix 的 `--dry-run` exit 2
+- **Acceptance**: dry-run 对本 repo 零字节修改（`git status --porcelain` 前后一致）；不占轮次（ledger `rounds.review` 未被预占）；预览含五行且无 `status:`/`next:`；`child:` 行 = 检出 host 时 `HostId`+invoke（非 `claude-code`）、未检出 host 时字面量 `(no host detected — real run would BLOCK)`；非 implement/review/fix 的 `--dry-run` exit 2
 - **DependsOn**: 3, 4
 
 ### Task 6: 测试面迁移（§2.4）+ 文档面 + 变更集
@@ -109,3 +110,4 @@ base: develop
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-18 | 初稿——P11 实施计划：A 组 child Return 去结构化（T1 模板/内省 + T2 引擎删除/`stdoutTail`）· B 组 `--dry-run` 真只读预览（T5）· C 组 `RoundNaming` 命名单源（T4）+ ensure/migrate 遗留退休（T3）；测试面迁移与文档面/变更集单列（T6）；D 组（D51 命名收口）已落地无实现面。波次：W1={1,3,4} · W2={2,5} · W3={6} | Oscar M. · Claude Opus 5（kairos:cdd-plan [P11] · 2026-10-18） |
+| v0.2 | 2026-10-18 | docs-fix round 1——落实 plan-review-1 四条：Constraints 增「注册连带已落地」行（plan-commit 第 23 条语料 → corpus form-pin 重锚 `plans` 10→11/total 22→23/`specs`=12，commit `6b4e38b`；T6 §2.4 不含本钉）· T2 `stdoutTail` 通道指名私有字段「`#dispatch` set → `#reject` read」（`#reconstruct(frame)` 保持单参，加宽签名被否）Objective/Files/Steps/Acceptance 同步 · T5 `child:` 行补未检出 host 分支字面量 `(no host detected — real run would BLOCK)` Objective/Steps/Acceptance 同步 · T3 step-1 grep checkable 收窄至生产面（`--include='*.ts' | grep -v __tests__`，排除 `face/__tests__/` 既有命中） | Oscar M. · Claude Opus 5（kairos:cdd-plan [P11] docs-fix round 1 · 2026-10-18） |

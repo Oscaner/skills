@@ -170,7 +170,7 @@ export interface RunInput {
   paths: PathArgs;
   /** The positional values (the schema <type> — the parseTypeKey-normalized key). */
   positionals: readonly string[];
-  /** The invocation's synthetic-dispatch scope (the --dry-run program flag). */
+  /** The invocation's read-only preview scope (the --dry-run program flag). */
   dryRun: boolean;
 }
 

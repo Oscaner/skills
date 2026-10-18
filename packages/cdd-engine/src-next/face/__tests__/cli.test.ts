@@ -23,7 +23,7 @@
 //     renderer's own suite lives in render/__tests__/render.test.ts, its T19
 //     home), base set/get (the single → artifact);
 //   · the composition root + HarnessDispatch — host detection, the dispatch prompt
-//     (template data plane), the child return-block parse (block + JSON).
+//     (template data plane), the handoff-draft readback into the outcome.
 // Fixtures are hermetic mkdtemp repos (git-inited — the engine resolves the repo
 // root from the git top level and the review binds its `next:` base there); the io is
 // captured, never the process.
@@ -2365,7 +2365,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     // implement now ALWAYS routes `{ kind: "review" }` — the live tree needs no sha — so
     // the same approved round yields its review hop, exit 0.
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: () => ({ status: "APPROVED" }),
+      dispatch: APPROVING,
     });
     try {
       gitInit(repoRoot);
@@ -2384,7 +2384,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
 
   it("the clean-tree gate blocks the three verbs on a dirty tree — CDD_BLOCKED · guidance · child zero (P4.1 T1)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: () => ({ status: "APPROVED" }), // a spy — must never run on a dirty tree
+      dispatch: APPROVING, // a spy — must never run on a dirty tree
     });
     try {
       gitInit(repoRoot);
@@ -3192,7 +3192,7 @@ describe("P11 T3 — the workspace write-point + the base read normalization", (
 
   it("a fresh repo's first REAL dispatch builds the workspace + renders the brief (zero ENOENT)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: () => ({ status: "APPROVED" }),
+      dispatch: APPROVING,
     });
     try {
       gitInit(repoRoot);
@@ -3550,7 +3550,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
     const savedCwd = process.cwd();
     process.chdir(nonRepo);
     const io = new CaptureIo();
-    const command = Cli.create({ io, dispatch: () => ({ status: "APPROVED", findings: [] }) });
+    const command = Cli.create({ io, dispatch: APPROVING });
     try {
       const code = await command.runArgv(["implement", "--tasks", "1", "--plan", "p3.md"]);
       expect(code).toBe(1);

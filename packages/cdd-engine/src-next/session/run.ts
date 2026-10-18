@@ -100,8 +100,6 @@ export interface DispatchOutcome {
   /** The round's findings (review: this round's own; fix: the source review's
    *  input findings, C5-1). */
   findings?: readonly RoundFinding[];
-  /** The artifact paths the round produced (brief/report/…). */
-  artifacts?: Record<string, string>;
   /** The materialized final carrier (the production dispatch's read-back
    *  reconstruct — §3.6: the child draft validated and built into the carrier the
    *  bookkeep persists verbatim, full-replace at the SAME path; agent draft →
@@ -449,11 +447,8 @@ export class Lifecycle {
         (face === "findings"
           ? this.#ledger.buildHandoff("findings", {
               findings: [...(outcome.findings ?? [])],
-              artifacts: outcome.artifacts,
             })
-          : this.#ledger.buildHandoff("work", {
-              artifacts: outcome.artifacts,
-            }));
+          : this.#ledger.buildHandoff("work", {}));
       // The work face ALONE persists the conclusion (the child's declared status); the
       // findings carrier holds no status — its conclusion derives at judgment time
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).

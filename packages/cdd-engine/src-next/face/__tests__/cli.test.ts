@@ -4487,7 +4487,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const sync = new FakeSync();
-      sync.stdout = "status: APPROVED\n";
+      sync.stdout = "done — the handoff draft is written\n";
       const dispatch = new HarnessDispatch({
         scene,
         io,
@@ -4499,9 +4499,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(outcome).toEqual({ status: "BLOCKED" });
       expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft was not written");
       // the crash record — the same-command resume's decision source
-      const crash = readJson<{ attemptedHandoff: string; next: string; cause: string }>(
-        path.join(scene.workspace.path, "crash-implement.wave-1.json"),
-      );
+      const crash = readJson<{
+        attemptedHandoff: string;
+        next: string;
+        cause: string;
+        stdoutTail: readonly string[];
+      }>(path.join(scene.workspace.path, "crash-implement.wave-1.json"));
       // the persisted attempted-handoff path is the canonical repoRoot-RELATIVE
       // shape (P9 T4 §2.7 — the absolute handoffPath syscall form never lands).
       expect(crash.attemptedHandoff).toBe(
@@ -4509,6 +4512,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       );
       expect(crash.next).toBe("cdd implement --tasks 1 --plan <plan>");
       expect(crash.cause).toBe("contract-violation");
+      // the child's stdout tail rides the crash record (P11 T2 — the diagnostic channel;
+      // the child's Return is prose, never parsed for the round's content).
+      expect(crash.stdoutTail).toEqual(["done — the handoff draft is written"]);
     } finally {
       cleanup();
     }

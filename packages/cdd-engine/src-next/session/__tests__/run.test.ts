@@ -101,7 +101,7 @@ const stub = (
 /** The approved-implement outcome — the canonical work-round result. */
 const APPROVED_IMPLEMENT: DispatchOutcome = {
   status: "APPROVED",
-  artifacts: { brief: "/tmp/brief.md" },
+  carrier: { artifacts: { brief: "/tmp/brief.md" } },
 };
 
 const finding = (severity: "blocker" | "warn" | "nit") => ({ severity, summary: "drift" });

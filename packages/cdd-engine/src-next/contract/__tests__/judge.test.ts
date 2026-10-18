@@ -966,7 +966,7 @@ describe("P10 W7 T11 — the migration judgment-regression pins (spec §6 · §5
       ...planTask(1),
     ].join("\n");
 
-  it("版本血缘 — a head version OUTSIDE the Change-history lineage still fires selfBounded", () => {
+  it("version lineage — a head version OUTSIDE the Change-history lineage still fires selfBounded", () => {
     // The T6 read flip made the version a head scalar — a version the Change-history
     // table never carries must STILL be reported (no false-green from a body scan
     // that can no longer see the head).
@@ -980,7 +980,7 @@ describe("P10 W7 T11 — the migration judgment-regression pins (spec §6 · §5
     expect(withKind(plan, "selfBounded", "version")).toBe(true);
   });
 
-  it("父血缘 — a parent-version outside the parent overall's lineage fires classB through the chainDocs seam", () => {
+  it("parent lineage — a parent-version outside the parent overall's lineage fires classB through the chainDocs seam", () => {
     const { head, body } = FrontMatterExtractor.split(GOOD_OVERALL);
     const parentParsed = new OverallDocType("overall-spec").parse(body.split("\n"), head);
     const plan = planWithParentVersion("v7.7");

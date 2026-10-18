@@ -111,14 +111,14 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
     expect(renderOf("phase-spec")).toBe(
       [
         "---",
-        "title: :::fill title",
+        "title: ':::fill title'",
         "doc-type: phase-spec",
         "version: v0.1",
         "date: 2026-10-11",
         "status: Draft",
-        "author: :::fill author",
-        "parent-program: <parent overall>",
-        "depends-on: :::fill depends-on",
+        "author: ':::fill author'",
+        "parent-program: <docs/kairos/specs/…-overall.md>",
+        "depends-on: ':::fill depends-on'",
         "---",
         "",
         "## Design",
@@ -150,12 +150,12 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
     expect(renderOf("plan")).toBe(
       [
         "---",
-        "title: :::fill title",
+        "title: ':::fill title'",
         "doc-type: plan",
         "version: v0.1",
         "date: 2026-10-11",
-        "spec: <spec path>",
-        "parent-program: <parent overall>",
+        "spec: <docs/kairos/specs/…-design.md>",
+        "parent-program: <docs/kairos/specs/…-overall.md>",
         "---",
         "",
         "## Constraints",
@@ -185,12 +185,12 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
     expect(renderOf("overall-spec")).toBe(
       [
         "---",
-        "title: :::fill title",
+        "title: ':::fill title'",
         "doc-type: overall-spec",
         "version: v0.1",
         "date: 2026-10-11",
         "status: Draft",
-        "author: :::fill author",
+        "author: ':::fill author'",
         "---",
         "",
         "## Document scope",
@@ -260,13 +260,13 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
     expect(renderOf("single-spec")).toBe(
       [
         "---",
-        "title: :::fill title",
+        "title: ':::fill title'",
         "doc-type: single-spec",
         "version: v0.1",
         "date: 2026-10-11",
         "status: Draft",
-        "author: :::fill author",
-        "depends-on: :::fill depends-on",
+        "author: ':::fill author'",
+        "depends-on: ':::fill depends-on'",
         "---",
         "",
         "## Background & root cause",
@@ -358,7 +358,7 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
       for (const slot of frontmatterSlotsOf(key)) {
         if (slot.slot === "content") {
           expect(block, `${key}: ${slot.anchor} content fill`).toContain(
-            `${slot.anchor}: :::fill ${slot.anchor}`,
+            `${slot.anchor}: ':::fill ${slot.anchor}'`,
           );
         }
       }
@@ -367,10 +367,10 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
 
   it("renders the link-typed anchors as placeholder scalars (the `<…>` exemption shape)", () => {
     const spec = renderOf("phase-spec");
-    expect(spec).toContain("parent-program: <parent overall>");
+    expect(spec).toContain("parent-program: <docs/kairos/specs/…-overall.md>");
     const plan = renderOf("plan");
-    expect(plan).toContain("spec: <spec path>");
-    expect(plan).toContain("parent-program: <parent overall>");
+    expect(plan).toContain("spec: <docs/kairos/specs/…-design.md>");
+    expect(plan).toContain("parent-program: <docs/kairos/specs/…-overall.md>");
   });
 });
 
@@ -394,7 +394,7 @@ describe("SkeletonAssembler — the front-matter head (spec §2.2/§4.2)", () =>
         expect(line, `${key}: ${slot.anchor} emitted`).toBeDefined();
         if (slot.slot === "content") {
           expect(line, `${key}: ${slot.anchor} content`).toBe(
-            `${slot.anchor}: :::fill ${slot.anchor}`,
+            `${slot.anchor}: ':::fill ${slot.anchor}'`,
           );
         } else if (slot.slot === "link") {
           expect(line, `${key}: ${slot.anchor} link`).toMatch(
@@ -463,8 +463,8 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "doc-type: plan",
       "version: v0.1",
       "date: 2026-10-11",
-      "spec: <spec path>",
-      "parent-program: <parent overall>",
+      "spec: <docs/kairos/specs/…-design.md>",
+      "parent-program: <docs/kairos/specs/…-overall.md>",
       "## Constraints",
       "## Change history",
       "| Version | date | summary | author |",
@@ -475,7 +475,7 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "version: v0.1",
       "date: 2026-10-11",
       "status: Draft",
-      "parent-program: <parent overall>",
+      "parent-program: <docs/kairos/specs/…-overall.md>",
       "## Design",
       "### Acceptance criteria",
       "## Constraints",
@@ -509,7 +509,7 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       // the front-matter truth keys carry no fill inside the head block
       for (const line of frontmatterBlockOf(key).split("\n")) {
         if (line.includes(":::fill")) {
-          expect(line, `${key} head fill`).toMatch(/: :::fill [a-z-]+$/);
+          expect(line, `${key} head fill`).toMatch(/':::fill [a-z-]+'$/);
         }
       }
     }

@@ -78,6 +78,21 @@ describe("FrontMatterExtractor.split — the fence split", () => {
     expect(body).toBe(content);
     expect(head.value("title")).toBeNull();
   });
+
+  it("carries the typed parse error with its position for the fill-class failure (D1 · #341 — a `[`-led value is a YAML flow sequence)", () => {
+    const content = "---\nauthor: [human] · Claude Opus 5\ndoc-type: phase-spec\n---\nbody";
+    const { head, body } = FrontMatterExtractor.split(content);
+    // the failure never collapses into a bare null head — the error rides along
+    expect(body).toBe(content);
+    expect(head.value("doc-type")).toBeNull();
+    const err = head.parseError;
+    expect(err).not.toBeNull();
+    expect(err?.line).toBe(1);
+    expect(err?.column).toBeGreaterThan(0);
+    expect(err?.reason).toContain("Unexpected scalar");
+    // the source excerpt is the offending front-matter line itself
+    expect(err?.source).toBe("author: [human] · Claude Opus 5");
+  });
 });
 
 describe("FrontMatterHead.value — the typed accessor", () => {

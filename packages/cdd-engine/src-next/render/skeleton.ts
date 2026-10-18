@@ -31,17 +31,22 @@
 // Module-level exports are types / the class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 
-import { stringify as stringifyYaml } from "yaml";
+import { Pair, Scalar, stringify as stringifyYaml, YAMLMap } from "yaml";
 import type { DocSkeleton, SkeletonSlot } from "../contract/project.ts";
 
-/** The placeholder scalars of the front-matter link keys (spec §4.2) — the
+/** The placeholder scalars of the front-matter link keys (spec §4.2 + D3) — the
  *  link-typed head keys (`spec` · `parent-program`) render a `<…>`-shaped value
  *  that rides the judge's placeholder-exemption chain (a bare `^<[^>]+>$` target
  *  the file-existence / sibling-scan / cross-doc-chain strategies all skip),
- *  never a `:::fill` (a fill in a link slot is a guaranteed finding). */
+ *  never a `:::fill` (a fill in a link slot is a guaranteed finding). The
+ *  placeholder IS the fill contract (show-don't-tell — zero prose rules): its
+ *  inner shape is a BARE relative-path exemplar (`docs/kairos/specs/…-overall.md`),
+ *  the exact form the consumer must fill — the <>-shell keeps the exemption, the
+ *  path inside both bookends the value and doubles as the shape sample (#342: a
+ *  consumer copying the exemplar fills a bare path, never a markdown link). */
 const FRONT_MATTER_LINKS: Record<string, string> = {
-  spec: "<spec path>",
-  "parent-program": "<parent overall>",
+  spec: "<docs/kairos/specs/…-design.md>",
+  "parent-program": "<docs/kairos/specs/…-overall.md>",
 };
 
 /** The generator truths of the pattern-typed body slots (spec §3.2/§4.1) —
@@ -282,13 +287,27 @@ export class SkeletonAssembler {
    *  (spec §3.1 ⑩ · D34 — the read faces consume the front-matter record, zero
    *  header-line marker grammar). */
   #pushFrontmatter(lines: string[]): void {
-    const fields: Record<string, string> = {};
+    // The front-matter record is emitted by `yaml.stringify` in ONE call over the
+    // registry's frontmatter-home keys (spec §2.2's structured channel — the
+    // parsed-nodes form keeps the keys ordered and the emission single: D3 quotes
+    // the content-fill values so a consumer filling `[human] · …` / `Title: …`
+    // into the slot never breaks the scalar (the #341 fill class dies at the
+    // skeleton's default form, not at report time). The truth values stay plain,
+    // the link placeholders plain (the <>-bookended exemplar — exemption-shaped).
+    const fields = new YAMLMap();
     for (const slot of this.#slots) {
       if (slot.home !== "frontmatter") continue;
       // The plan/phase-spec `parent-version` key is deliberately not emitted —
       // an optional shape-typed key (absence is legal) whose `v<n>.<m>` domain
       // admits neither placeholder form (§4.2).
-      fields[slot.anchor] = this.#frontmatterValue(slot);
+      const value = new Scalar(this.#frontmatterValue(slot));
+      // D3: the content fills emit single-quoted — the consumer may fill
+      // `[human] · …` / `Title: …` into the slot; the quote keeps the scalar
+      // intact regardless of the leading character (the #341 class dies at the
+      // skeleton's default form). The truths and the link placeholders stay
+      // plain.
+      value.type = slot.slot === "content" ? Scalar.QUOTE_SINGLE : Scalar.PLAIN;
+      fields.items.push(new Pair(new Scalar(slot.anchor), value));
     }
     const block = stringifyYaml(fields).trimEnd().split("\n");
     lines.push("---", ...block, "---", "");

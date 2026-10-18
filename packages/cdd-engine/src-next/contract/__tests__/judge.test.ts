@@ -900,6 +900,21 @@ describe("P4.1 T2 — `## Change history` presence required ×3", () => {
     const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "presence", "## Change history")).toBe(true);
   });
+
+  it("a phase-spec whose parent-program is a markdown link reports the shape rule ONCE — never the resolution cascade (D2 · #342)", () => {
+    const content = specLineage("v1.0", [ROW_100]).replace(
+      "parent-program: docs/kairos/specs/x-overall.md",
+      'parent-program: "[2026-10-02-x-overall.md](docs/kairos/specs/2026-10-02-x-overall.md)"',
+    );
+    const findings = judge("phase-spec", content);
+    // exactly the single link-shape finding — the malformed target is judged
+    // BEFORE resolution, so the file-existence dead-tail and the sibling-scan
+    // basename cascade never fire on top of it
+    expect(findings).toHaveLength(1);
+    expect(findings[0].kind).toBe("link-shape");
+    expect(findings[0].field).toBe("parent-program");
+    expect(findings[0].message).toContain("not a bare relative path");
+  });
 });
 
 describe("P4.1 T2 — selfBounded applies to spec/plan (header = the newest in-row)", () => {

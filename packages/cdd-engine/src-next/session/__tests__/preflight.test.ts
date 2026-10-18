@@ -468,6 +468,34 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
       cleanup();
     }
   });
+
+  it("an unparseable front-matter BLOCKs with the REAL YAML failure — never the no-doc-type misread (D1 · #341)", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const malformed = [
+        "---",
+        "title: Test Spec",
+        "doc-type: phase-spec",
+        "version: v1.0",
+        "status: Draft",
+        "author: [human] · Claude Opus 5",
+        "---",
+        "",
+        "## Design",
+      ].join("\n");
+      const preflight = preflightOf(memoryFs(malformed));
+      const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
+      expect(verdict.ok).toBe(false);
+      expect(verdict.gate).toBe("doc-contract");
+      expect(verdict.reason).toBe("doc-contract");
+      // the misread dies — the wording reports the parse position, never "no doc-type"
+      expect(verdict.message).toContain("not valid YAML");
+      expect(verdict.message).toMatch(/on line \d+, column \d+/);
+      expect(verdict.message).not.toContain("declares no `doc-type:` key");
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

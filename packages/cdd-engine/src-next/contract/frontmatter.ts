@@ -11,18 +11,56 @@
 // the line split/join are hand-rolled string walks and the YAML engine does all
 // value parsing.
 
-import { parse } from "yaml";
+import { LineCounter, parse } from "yaml";
+
+/** A front-matter YAML parse failure — the typed, position-carrying reason a
+ *  `FrontMatterExtractor.split` did not produce a head (D1, the 错误携位 contract:
+ *  the extractor never swallows a parse error into a null head — the review gate
+ *  surfaces the real failure, `yaml`'s `YAMLParseError` fed through a `LineCounter`
+ *  carries the line/column for free, we only stop throwing it away). */
+export class FrontMatterParseError {
+  /** The one-based line of the failure inside the front-matter block. */
+  readonly line: number;
+  /** The one-based column of the failure on that line. */
+  readonly column: number;
+  /** The engine's reason, without the position clause (`Unexpected scalar at node
+   *  end` — the position rides the typed fields, never a re-parse of the message). */
+  readonly reason: string;
+  /** The offending front-matter source line (the human-facing excerpt). */
+  readonly source: string;
+
+  constructor(line: number, column: number, reason: string, source: string) {
+    this.line = line;
+    this.column = column;
+    this.reason = reason;
+    this.source = source;
+  }
+}
 
 /** A parsed front-matter head — the typed accessor surface over the YAML record.
  *  A missing key, a non-scalar value (a list, a mapping, a bare number) and an
- *  unparseable block all read as `null`: the head carries only scalar facts. */
+ *  unparseable block all read as `null`: the head carries only scalar facts. An
+ *  UNPARSEABLE block additionally carries its `parseError` — the gate distinguishes
+ *  a genuinely absent key from a malformed block (D1, the 误报 fix). */
 export class FrontMatterHead {
   /** The parsed front-matter record, or null when no head was extracted. */
   readonly #data: Record<string, unknown> | null;
+  /** The front-matter parse failure that prevented a head, or null. */
+  readonly #parseError: FrontMatterParseError | null;
 
-  /** Wrap one parsed front-matter record (null for "no head"). */
-  constructor(data: Record<string, unknown> | null) {
+  /** Wrap one parsed front-matter record (null for "no head"); the parse error the
+   *  head carries when the block could not be parsed (null by default). */
+  constructor(
+    data: Record<string, unknown> | null,
+    parseError: FrontMatterParseError | null = null,
+  ) {
     this.#data = data;
+    this.#parseError = parseError;
+  }
+
+  /** The front-matter parse failure, or null when the block parsed (or no head). */
+  get parseError(): FrontMatterParseError | null {
+    return this.#parseError;
   }
 
   /** The scalar value of one front-matter key — null for a missing key, a
@@ -103,7 +141,9 @@ export class FrontMatterHead {
 export class FrontMatterExtractor {
   /** Split one document into its typed head and body. With no opening fence on
    *  line zero, no closing fence, an unparseable block or a non-record block,
-   *  every head value reads null and the body is the original content. */
+   *  every head value reads null and the body is the original content. An
+   *  UNPARSEABLE block (D1) additionally carries its `FrontMatterParseError` on
+   *  the head — the failure is typed and positioned, never a silent null. */
   static split(content: string): { head: FrontMatterHead; body: string } {
     const lines = FrontMatterExtractor.lineSplit(content);
     if (lines.length === 0 || lines[0].trim() !== "---") {
@@ -111,12 +151,20 @@ export class FrontMatterExtractor {
     }
     const closing = lines.findIndex((line, index) => index > 0 && line.trim() === "---");
     if (closing === -1) return { head: new FrontMatterHead(null), body: content };
-    const yamlText = FrontMatterExtractor.lineJoin(lines.slice(1, closing));
+    const yamlLines = lines.slice(1, closing);
+    const yamlText = FrontMatterExtractor.lineJoin(yamlLines);
+    const lineCounter = new LineCounter();
     let parsed: unknown;
     try {
-      parsed = parse(yamlText);
-    } catch {
-      return { head: new FrontMatterHead(null), body: content };
+      parsed = parse(yamlText, { lineCounter });
+    } catch (err) {
+      return {
+        // D1: the parse failure travels as a typed, positioned error — the gate
+        // reports the real YAML failure, never the "no doc-type" misread a null
+        // head would otherwise trigger.
+        head: new FrontMatterHead(null, FrontMatterExtractor.#parseErrorOf(err, yamlLines)),
+        body: content,
+      };
     }
     // A non-record parse (a scalar block, a sequence) is not a head — every
     // value reads null and the body stays the original content. A null parse
@@ -129,6 +177,21 @@ export class FrontMatterExtractor {
       head: new FrontMatterHead(parsed as Record<string, unknown> | null),
       body: FrontMatterExtractor.lineJoin(lines.slice(closing + 1)),
     };
+  }
+
+  /** One thrown YAML parse error → the typed failure: the position from the
+   *  engine's `linePos` (fed by the `LineCounter`), the reason without its
+   *  position clause (string ops — this module carries zero regexes) and the
+   *  offending source line from the block itself. */
+  static #parseErrorOf(err: unknown, yamlLines: readonly string[]): FrontMatterParseError {
+    const messageHead = err instanceof Error ? err.message.split("\n")[0] : "YAML parse error";
+    // The engine's message head ends with " at line <n>, column <m>: " — the
+    // position is a typed field below, so the reason drops the clause.
+    const reason = messageHead.split(" at line ")[0].trim();
+    const position = (err as { linePos?: readonly { line: number; col: number }[] }).linePos?.[0];
+    const line = position?.line ?? 0;
+    const source = line > 0 ? (yamlLines[line - 1] ?? "") : "";
+    return new FrontMatterParseError(line, position?.col ?? 0, reason, source);
   }
 
   /** Split a document into its lines — the hand-rolled split (the zero-regex

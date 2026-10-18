@@ -1013,6 +1013,45 @@ export class SelfBoundedInvariant extends Invariant {
 // the four context-seam strategies
 // ---------------------------------------------------------------------------
 
+/** The chain-link target shape contract (D2, 形态见型 at the boundary — the #342
+ *  fix): a link target must be a BARE relative path (the repo-root form
+ *  `docs/kairos/specs/…-overall.md` or a doc-relative file name) — never a
+ *  markdown-link shell (`[label](path)`), a URL or a collation token
+ *  (whitespace / parens / angle brackets). The ONE expression of the shape rule:
+ *  `of()` yields either the accepted (trimmed) target or the reason the shape is
+ *  invalid; the chain strategies judge the shape BEFORE any resolution, so a
+ *  malformed fill reports the shape rule once — the confusing resolution cascade
+ *  (#342's dead-tail `basename` + the file-existence double failure) never
+ *  fires. */
+export class LinkTargetShape {
+  /** The accepted, trimmed target — null when the shape is invalid. */
+  readonly target: string | null;
+  /** The shape-rule reason the target is invalid — null when accepted. */
+  readonly reason: string | null;
+
+  private constructor(target: string | null, reason: string | null) {
+    this.target = target;
+    this.reason = reason;
+  }
+
+  /** Judge one raw target — a bare relative path accepts; any collation token
+   *  rejects with the shape rule. */
+  static of(raw: string): LinkTargetShape {
+    const trimmed = raw.trim();
+    // The rejected collation tokens — whitespace, a markdown-link shell's
+    // brackets/parens (`[label](path)`), stray angle brackets and the `://`
+    // URL scheme. The path separators `/` and `:` alone stay legal (a bare
+    // relative path carries both) — only the URL-scheme pairing rejects.
+    if (/[\s()[\]<>]|:\/\//.test(trimmed)) {
+      return new LinkTargetShape(
+        null,
+        "the value must be a bare relative path (e.g. `docs/kairos/specs/…-overall.md` or `xxx-overall.md`), not a markdown link or URL",
+      );
+    }
+    return new LinkTargetShape(trimmed, null);
+  }
+}
+
 /** file-existence — every chain link target of the doc resolves to an existing file. */
 export class FileExistenceInvariant extends Invariant {
   readonly name: string = "file-existence";
@@ -1021,12 +1060,16 @@ export class FileExistenceInvariant extends Invariant {
     const findings: Finding[] = [];
     for (const { source, link } of this.chainLinks(ctx)) {
       if (this.isPlaceholder(link.target)) continue;
-      if (!this.#targetExists(ctx, link.target)) {
+      const shape = LinkTargetShape.of(link.target);
+      // D2: a malformed target is the link-shape face's call — the resolution
+      // faces never feed it to the path resolution as a literal.
+      if (shape.target === null) continue;
+      if (!this.#targetExists(ctx, shape.target)) {
         findings.push(
           this.finding(
             ctx,
             source,
-            `the chain link target does not resolve to an existing file: ${link.target}`,
+            `the chain link target does not resolve to an existing file: ${shape.target}`,
             `fix the link target (repo-root form ${DOC_ROOT_NAMESPACE}/... or a file-relative path)`,
           ),
         );
@@ -1107,6 +1150,34 @@ export class FileExistenceInvariant extends Invariant {
   }
 }
 
+/** link-shape — every chain link target of the doc is a bare relative path (D2 ·
+ *  #342). The shape rule reports ONCE here (single-responsibility strategy — the
+ *  shared `LinkTargetShape` declaration): a malformed fill (a markdown link, a
+ *  URL or a collation token) is judged BEFORE any resolution, so the
+ *  file-existence / sibling-scan resolution faces silently skip malformed
+ *  targets — the confusing per-strategy cascade never fires. */
+export class LinkShapeInvariant extends FileExistenceInvariant {
+  readonly name = "link-shape";
+
+  evaluate(ctx: JudgeContext): Finding[] {
+    const findings: Finding[] = [];
+    for (const { source, link } of this.chainLinks(ctx)) {
+      if (this.isPlaceholder(link.target)) continue;
+      const shape = LinkTargetShape.of(link.target);
+      if (shape.target !== null) continue;
+      findings.push(
+        this.finding(
+          ctx,
+          source,
+          `the chain link target is not a bare relative path: ${link.target}`,
+          shape.reason ?? "",
+        ),
+      );
+    }
+    return findings;
+  }
+}
+
 /** sibling-scan — every cross-linked doc must be a same-family sibling of this doc. */
 export class SiblingScanInvariant extends FileExistenceInvariant {
   readonly name = "sibling-scan";
@@ -1121,7 +1192,11 @@ export class SiblingScanInvariant extends FileExistenceInvariant {
     }
     for (const { source, link } of this.chainLinks(ctx)) {
       if (this.isPlaceholder(link.target)) continue;
-      const basename = path.basename(link.target);
+      const shape = LinkTargetShape.of(link.target);
+      // D2: a malformed target is the link-shape face's call — the sibling face
+      // never basenames a markdown shell (the dead-tail `…)` miss).
+      if (shape.target === null) continue;
+      const basename = path.basename(shape.target);
       if (!baseline.has(basename)) {
         findings.push(
           this.finding(

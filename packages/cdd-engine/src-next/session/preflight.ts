@@ -24,6 +24,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { PlanDocType } from "../contract/doc.ts";
+import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import type { DocFs } from "../contract/invariants.ts";
 import type { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
@@ -193,6 +194,27 @@ export class PreFlight {
       const docAbsolute = doc === null ? null : new RepoRoot(ctx.repoRoot).resolve(doc.path);
       const content = docAbsolute === null ? null : this.#fs.read(docAbsolute);
       if (content !== null && doc !== null && docAbsolute !== null) {
+        // D1 (错误携位): a front-matter block the `yaml` engine cannot parse is
+        // BLOCKed with the REAL failure (line · column · reason) BEFORE the
+        // doc-type judgment — an unparseable head also reads no doc-type, so the
+        // parse check must precede the missing-key check (the misread fix: a
+        // `[`-led author line reports "invalid YAML", never "no doc-type").
+        const { head } = FrontMatterExtractor.split(content);
+        const parseError = head.parseError;
+        if (parseError !== null) {
+          return {
+            ok: false,
+            gate: "doc-contract",
+            reason: "doc-contract",
+            message: this.#words
+              .routeWord("frontmatterParse")
+              .replace("{reason}", parseError.reason)
+              .replace("{line}", String(parseError.line))
+              .replace("{column}", String(parseError.column))
+              .replace("{source}", parseError.source),
+            order: gates,
+          };
+        }
         if (doc.docKey === null) {
           return {
             ok: false,

@@ -500,7 +500,7 @@ export class DomainInvariant extends Invariant {
       }
       if (slice.valuePattern === undefined) continue;
       // The element is judged by the SHAPE of the lines that carry it structurally —
-      // a `**Status**: Draft` line must match its declared pattern. A prose citation
+      // a table row or a heading must match its declared pattern. A prose citation
       // (a backticked code-span mention, or a table cell of a non-table element) is
       // not a carrier and is never judged as a value.
       for (const line of this.carrierLines(ctx, slice)) {
@@ -1054,16 +1054,15 @@ export class FileExistenceInvariant extends Invariant {
     if (ctx.docKey === "plan") {
       const data = this.plan(ctx);
       if (data !== null) {
-        if (data.chain.specLink !== null)
-          links.push({ source: "**Spec:**", link: data.chain.specLink });
+        if (data.chain.specLink !== null) links.push({ source: "spec", link: data.chain.specLink });
         if (data.chain.parentLink !== null)
-          links.push({ source: "**Parent program**", link: data.chain.parentLink });
+          links.push({ source: "parent-program", link: data.chain.parentLink });
       }
     }
     if (ctx.docKey === "phase-spec") {
       const data = this.phaseSpec(ctx);
       if (data !== null && data.chain.parentLink !== null) {
-        links.push({ source: "**Parent program**", link: data.chain.parentLink });
+        links.push({ source: "parent-program", link: data.chain.parentLink });
       }
     }
     return links;
@@ -1079,8 +1078,8 @@ export class FileExistenceInvariant extends Invariant {
 
   /** Whether the target exists — absolute targets directly; repo-root form first, the
    *  doc's own dir as the file-relative fallback. The resolution chain is
-   *  single-sourced in `targetPath` (the ONE home the CLI's plan `**Spec:**` link
-   *  rebase delegates to as well — P9 branch-review-1 F8: a future contract change
+   *  single-sourced in `targetPath` (the ONE home the CLI's plan `spec:` rebase
+   *  delegates to as well — P9 branch-review-1 F8: a future contract change
    *  cannot silently diverge from the CLI's mirror). */
   #targetExists(ctx: JudgeContext, target: string): boolean {
     return ctx.fs.exists(
@@ -1089,7 +1088,7 @@ export class FileExistenceInvariant extends Invariant {
   }
 
   /** The ONE chain-link target-resolution chain (the doc-contract's own judgment,
-   *  reused by the CLI's plan `**Spec:**` link rebase — F8): an absolute target as
+   *  reused by the CLI's plan `spec:` rebase — F8): an absolute target as
    *  itself; else the repoRoot-relative reading when it exists; else the doc-dir
    *  (file-relative) reading. `exists` is the caller's filesystem seam (the
    *  judgment's `ctx.fs`, the CLI's `fs.existsSync`) — the resolution is the shared
@@ -1184,7 +1183,7 @@ export class CrossDocChainInvariant extends Invariant {
     return [];
   }
 
-  /** The Class-A/Class-B plan chain: `**Spec:**` label == basename + the Class-B lineage. */
+  /** The Class-A/Class-B plan chain: the `spec:`/`parent-program:` head targets + the Class-B lineage. */
   private planChain(ctx: JudgeContext): Finding[] {
     const data = this.plan(ctx);
     if (data === null) return [];
@@ -1194,9 +1193,9 @@ export class CrossDocChainInvariant extends Invariant {
       findings.push(
         this.finding(
           ctx,
-          "**Spec:**",
-          "the plan carries no **Spec:** reference",
-          "add a **Spec:** link pointing at the phase design spec",
+          "spec",
+          "the plan carries no spec reference",
+          "add a spec value pointing at the phase design spec",
         ),
       );
     }
@@ -1206,9 +1205,9 @@ export class CrossDocChainInvariant extends Invariant {
       findings.push(
         this.finding(
           ctx,
-          "**Parent program**",
-          "the plan carries no **Parent program** link",
-          "add the **Parent program** link pointing at the parent overall",
+          "parent-program",
+          "the plan carries no parent-program reference",
+          "add a parent-program value pointing at the parent overall",
         ),
       );
     }
@@ -1225,9 +1224,9 @@ export class CrossDocChainInvariant extends Invariant {
       findings.push(
         this.finding(
           ctx,
-          "**Parent program**",
-          "the phase-spec carries no **Parent program** link",
-          "add the **Parent program** link pointing at the parent overall",
+          "parent-program",
+          "the phase-spec carries no parent-program reference",
+          "add a parent-program value pointing at the parent overall",
         ),
       );
     }
@@ -1251,8 +1250,8 @@ export class CrossDocChainInvariant extends Invariant {
         findings.push(
           this.finding(
             ctx,
-            "**Parent program**",
-            `the **Parent program** version token ${token} does not belong to the parent overall's lineage`,
+            "parent-program",
+            `the parent-program version token ${token} does not belong to the parent overall's lineage`,
             `use a version the parent overall declares (its version front-matter or a Change-history row): ${[...lineage].join(", ")}`,
           ),
         );

@@ -124,17 +124,17 @@ export interface ChainLink {
 export interface ChainRoot {
   /** The doc-type identity of the chain root's document. */
   docType: DocKey;
-  /** The `**Parent program**` link (Class-B) — the parent overall reference of a
+  /** The `parent-program:` link (Class-B) — the parent overall reference of a
    *  plan/spec document; null for the overall (the chain root itself). */
   parentLink: ChainLink | null;
-  /** The `**Spec:**` link (Class-A) — the plan's design-spec reference; null for the
+  /** The `spec:` link (Class-A) — the plan's design-spec reference; null for the
    *  overall (no spec to reference) and for a spec (the document IS the design spec). */
   specLink: ChainLink | null;
-  /** The version tokens carried on the `**Parent program**` line (Class-B lineage). */
+  /** The version tokens carried on the `parent-program:` key (Class-B lineage). */
   parentTokens: readonly string[];
   /** The overall's phase-inventory rows — the chain's anchor set (overall only). */
   phases: readonly ChainPhase[];
-  /** The `**Depends on**` header value (plan/spec), verbatim, when the line is present. */
+  /** The `depends-on:` front-matter value (plan/spec), verbatim, when the key is present. */
   dependsOn: string | null;
 }
 
@@ -147,8 +147,6 @@ export interface OverallParsed {
   head: FrontMatterHead | null;
   /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
-  /** The header bullet lines (between the title and the first section heading). */
-  headerLines: readonly string[];
   /** The `##`-ranked sections in document order. */
   sections: readonly SectionBlock[];
   /** The parsed overall tables (each present only when its section was found). */
@@ -199,7 +197,6 @@ export interface PlanParsed {
   head: FrontMatterHead | null;
   /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
-  headerLines: readonly string[];
   sections: readonly SectionBlock[];
   /** The `### Task N:` blocks in document order. */
   taskBlocks: readonly TaskBlock[];
@@ -231,7 +228,6 @@ export interface PhaseSpecParsed {
   head: FrontMatterHead | null;
   /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
-  headerLines: readonly string[];
   sections: readonly SectionBlock[];
   /** The `## Design` double-layer skeleton (groups + items), when the section is present. */
   design: readonly DesignGroup[];
@@ -245,7 +241,6 @@ export interface SingleSpecParsed {
   head: FrontMatterHead | null;
   /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
-  headerLines: readonly string[];
   sections: readonly SectionBlock[];
   chain: ChainRoot;
 }
@@ -392,14 +387,6 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return blocks;
   }
 
-  /** The header lines — the `# Title` block's body (metadata lines before the first
-   *  rank-2/rank-3 heading block; heading blocks split at every heading, so the title
-   *  block body already ends where the sections/task blocks begin). */
-  protected headerLines(blocks: readonly HeadingBlock[]): readonly string[] {
-    if (blocks.length === 0) return [];
-    return blocks[0].body;
-  }
-
   /** The rank-2 section blocks in document order. */
   protected sections(blocks: readonly HeadingBlock[]): SectionBlock[] {
     const out: SectionBlock[] = [];
@@ -541,7 +528,6 @@ export class OverallDocType extends DocType<OverallParsed> {
   parse(lines: readonly string[], head: FrontMatterHead | null = null): OverallParsed {
     const title = head?.title ?? "";
     const blocks = this.headingBlocks(lines);
-    const headerLines = this.headerLines(blocks);
     const sections = this.sections(blocks);
 
     const tables: OverallParsed["tables"] = {
@@ -556,7 +542,6 @@ export class OverallDocType extends DocType<OverallParsed> {
       docType: "overall-spec",
       head,
       title,
-      headerLines,
       sections,
       tables,
       graphEdges,
@@ -642,7 +627,7 @@ export class OverallDocType extends DocType<OverallParsed> {
 }
 
 /**
- * The plan doc type — parses the header (Class-A `**Spec:**` + Class-B parent
+ * The plan doc type — parses the head (Class-A `spec:` + Class-B parent
  * lineage) and the `### Task N:` task blocks.
  */
 export class PlanDocType extends DocType<PlanParsed> {
@@ -651,12 +636,10 @@ export class PlanDocType extends DocType<PlanParsed> {
   parse(lines: readonly string[], head: FrontMatterHead | null = null): PlanParsed {
     const title = head?.title ?? "";
     const blocks = this.headingBlocks(lines);
-    const headerLines = this.headerLines(blocks);
     return {
       docType: "plan",
       head,
       title,
-      headerLines,
       sections: this.sections(blocks),
       taskBlocks: this.taskBlocks(blocks),
       chain: this.chainRoot(head),
@@ -689,12 +672,10 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
   parse(lines: readonly string[], head: FrontMatterHead | null = null): PhaseSpecParsed {
     const title = head?.title ?? "";
     const blocks = this.headingBlocks(lines);
-    const headerLines = this.headerLines(blocks);
     return {
       docType: "phase-spec",
       head,
       title,
-      headerLines,
       sections: this.sections(blocks),
       design: this.designFromBlocks(blocks),
       chain: this.chainRoot(head),
@@ -767,7 +748,7 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
  * The single-spec doc type — parses the header five-tuple surface and the prose
  * section surface. A single-spec carries no parent overall and no `### N.`
  * design outline, so the parse degrades the chain root to its null-link face
- * (the `**Depends on**` header value is the only chain fact carried).
+ * (the `depends-on:` front-matter value is the only chain fact carried).
  */
 export class SingleSpecDocType extends DocType<SingleSpecParsed> {
   readonly docTypeName = "single-spec" as const;
@@ -775,12 +756,10 @@ export class SingleSpecDocType extends DocType<SingleSpecParsed> {
   parse(lines: readonly string[], head: FrontMatterHead | null = null): SingleSpecParsed {
     const title = head?.title ?? "";
     const blocks = this.headingBlocks(lines);
-    const headerLines = this.headerLines(blocks);
     return {
       docType: "single-spec",
       head,
       title,
-      headerLines,
       sections: this.sections(blocks),
       chain: this.chainRoot(head),
     };

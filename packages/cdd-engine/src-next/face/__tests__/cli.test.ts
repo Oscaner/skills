@@ -3042,14 +3042,14 @@ describe("the pure commands — schema / issue / base", () => {
       ]);
       expect(code).toBe(0);
       const text = readFileSync(target, "utf8");
-      // the head key set without the phase-spec's Parent program
+      // the head key set without the phase-spec's parent-program key
       expect(text).toContain("---");
       expect(text).toContain("doc-type: single-spec");
       expect(text).toContain("version: v0.1");
       expect(text).toContain("status: Draft");
       expect(text).toContain("author: :::fill author");
       expect(text).toContain("depends-on: :::fill depends-on");
-      expect(text).not.toContain("**Parent program**");
+      expect(text).not.toContain("parent-program");
       // the prose `:::fill` body + the change-history lineage — no `### N.` outline
       expect(text).toContain("## Background & root cause");
       expect(text).toContain(":::fill background-root-cause");

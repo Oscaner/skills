@@ -338,8 +338,8 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
       "  - write the registry — checkable: types compile",
     ]);
     // the front-matter head scalars never become line occurrences of a body anchor
-    expect(extracted["**Spec:**"]).toBeUndefined();
-    expect(extracted["**Parent program**"]).toBeUndefined();
+    expect(extracted["spec"]).toBeUndefined();
+    expect(extracted["parent-program"]).toBeUndefined();
   });
 
   it("DesignBodyExtractor — the numbered group/item headings and the design leaves", () => {

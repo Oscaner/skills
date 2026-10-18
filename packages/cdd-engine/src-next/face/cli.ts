@@ -136,7 +136,7 @@ export interface WorkScene extends DispatchScene {
   target: { kind: "branch" } | { kind: "doc"; doc: string } | null;
   state: RunState;
   router: NextStepRouter;
-  /** The plan's `**Spec:**` header link target (plan docs only) — the plan-review
+  /** The plan's `spec:` front-matter link target (plan docs only) — the plan-review
    *  round context's spec anchor; null off the plan face. */
   specLink: string | null;
 }
@@ -886,7 +886,7 @@ export class Cli {
     return root;
   }
 
-  /** The plan's `**Spec:**` link target resolved to an ABSOLUTE path (D46) — the
+  /** The plan's `spec:` link target resolved to an ABSOLUTE path (D46) — the
    *  plan-review round context's `INPUT_SPEC` (the round-context exit relativizes it
    *  to repoRoot along with every other path token). The raw header form is markdown
    *  link-space (relative to the plan's own dir — the skeleton's form) or a repoRoot

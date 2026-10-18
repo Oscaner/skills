@@ -16,7 +16,7 @@
 //     a suspect is always an existing task with a lower id whose edge was simply
 //     not declared (forward references are legal — no contradiction class).
 //
-// The cross-doc label-drift observation (Class-B `**Parent program**` label vs
+// The cross-doc label-drift observation (Class-B `parent-program:` label vs
 // target basename) retired with the ChainLink label face at the front-matter flip
 // (T6) — the chain facts ride the typed head scalars, a link label is not a fact.
 //

@@ -79,7 +79,7 @@ export class FrontMatterHead {
     return this.value("parent-version");
   }
 
-  /** The `**Depends on**` header value (`depends-on:`). */
+  /** The `depends-on:` front-matter key value. */
   get dependsOn(): string | null {
     return this.value("depends-on");
   }

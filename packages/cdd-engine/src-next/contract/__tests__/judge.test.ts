@@ -15,8 +15,13 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { Words } from "../../face/words.ts";
+import type { ParsedDoc } from "../doc.ts";
+import { OverallDocType } from "../doc.ts";
+import { FrontMatterExtractor } from "../frontmatter.ts";
 import type { DocFs, Finding } from "../invariants.ts";
 import { Contract } from "../judge.ts";
+import { Translator } from "../translate.ts";
 
 /** A conforming overall — every registered element present, lineage self-consistent. */
 const GOOD_OVERALL = [
@@ -550,7 +555,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
     // find #8: the old span-by-span strip consumed the outer quote's opener and left
     // the nested `…` citation naked — quoted prose was judged as `## Constraints`
     // values (the plan's front-matter `version:` is a head scalar: a body citation
-    // of `**Version**` is outside the judged surface entirely)
+    // of `version:` is outside the judged surface entirely)
     const content = [
       "---",
       "title: Test Plan",
@@ -578,7 +583,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
     ].join("\n");
     const findings = judge("plan", content, EMPTY_FS);
     expect(withKind(findings, "domain", "## Constraints")).toBe(false);
-    expect(withKind(findings, "domain", "**Version**")).toBe(false);
+    expect(withKind(findings, "domain", "version")).toBe(false);
   });
 
   it("two adjacent backtick spans read as ONE quoted region — the mid-span prose is not judged (the pinned first-last strip)", () => {
@@ -662,7 +667,7 @@ describe("the four context-seam invariants — one negative case each", () => {
     expect(seen.some((dir) => dir.endsWith("/docs/kairos/plans"))).toBe(true);
   });
 
-  it("T6 — the **Spec:** link-text drift judgment retired: a spec reference carries zero cross-doc-chain findings", () => {
+  it("T6 — the spec link-text drift judgment retired: a spec reference carries zero cross-doc-chain findings", () => {
     // The plan's spec reference is a HEAD scalar (the `spec:` key) — the link text
     // face is gone, so no Class-A drift judgment can fire. The cross-doc-chain
     // surface judges the chain FACTS (presence + lineage), never a textual match.
@@ -684,7 +689,7 @@ describe("the four context-seam invariants — one negative case each", () => {
       ...planTask(1),
     ].join("\n");
     const findings = judge("plan", content, EMPTY_FS);
-    expect(withKind(findings, "cross-doc-chain", "**Spec:**")).toBe(false);
+    expect(withKind(findings, "cross-doc-chain", "spec")).toBe(false);
     expect(findings.filter((finding) => finding.kind === "cross-doc-chain")).toEqual([]);
   });
 
@@ -936,6 +941,103 @@ describe("governance greps (the engine-zero criterion)", () => {
         source.match(/export\s+const\s+\w+\s*=\s*(?:\([^)]*\)|[\w]+)\s*=>/g) ?? [];
       expect(behaviorConstExports, name).toEqual([]);
     }
+  });
+});
+
+describe("P10 W7 T11 — the migration judgment-regression pins (spec §6 · §5.2)", () => {
+  /** A minimal plan carrying a caller-chosen `parent-version:` scalar (the
+   *  Class-B chain carrier under test). */
+  const planWithParentVersion = (parentVersion: string): string =>
+    [
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "spec: docs/kairos/specs/x-design.md",
+      "parent-program: docs/kairos/specs/x-overall.md",
+      `parent-version: ${parentVersion}`,
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      ...planTask(1),
+    ].join("\n");
+
+  it("版本血缘 — a head version OUTSIDE the Change-history lineage still fires selfBounded", () => {
+    // The T6 read flip made the version a head scalar — a version the Change-history
+    // table never carries must STILL be reported (no false-green from a body scan
+    // that can no longer see the head).
+    const overall = judge(
+      "overall-spec",
+      GOOD_OVERALL.replace("version: v1.21", "version: v9.9"),
+      GOOD_OVERALL_FS,
+    );
+    expect(withKind(overall, "selfBounded", "version")).toBe(true);
+    const plan = judge("plan", planLineage("v9.9", [ROW_100, ROW_101]));
+    expect(withKind(plan, "selfBounded", "version")).toBe(true);
+  });
+
+  it("父血缘 — a parent-version outside the parent overall's lineage fires classB through the chainDocs seam", () => {
+    const { head, body } = FrontMatterExtractor.split(GOOD_OVERALL);
+    const parentParsed = new OverallDocType("overall-spec").parse(body.split("\n"), head);
+    const plan = planWithParentVersion("v7.7");
+    // The production seam is not wired in this phase — without chainDocs the
+    // Class-B chain resolves nowhere and stays silent (the preflight call point
+    // does not pass the map).
+    expect(withKind(judge("plan", plan), "cross-doc-chain", "parent-program")).toBe(false);
+    const findings = new Contract().validate({
+      docKey: "plan",
+      path: PLAN_PATH,
+      content: plan,
+      root: ".",
+      chainDocs: new Map<string, ParsedDoc>([["docs/kairos/specs/x-overall.md", parentParsed]]),
+    });
+    // The parentTokens carrier is non-empty (`v7.7` rides the parent-version key)
+    // and the parent lineage is {v1.20, v1.21} — the classB early return is not
+    // the reason this fires; the token is genuinely outside the lineage.
+    expect(withKind(findings, "cross-doc-chain", "parent-program")).toBe(true);
+  });
+
+  it("presence — a doc missing the status key reports exactly one presence finding (typed head, not a line scan)", () => {
+    const presence = judge(
+      "phase-spec",
+      specLineage("v1.1", [ROW_100, ROW_101]).replace("\nstatus: Draft", ""),
+    ).filter((finding) => finding.kind === "presence");
+    expect(presence).toHaveLength(1);
+    expect(presence[0]!.field).toBe("status");
+  });
+
+  it("domain — a status outside the declared enum reports exactly one domain finding", () => {
+    const domain = judge(
+      "phase-spec",
+      specLineage("v1.1", [ROW_100, ROW_101]).replace("status: Draft", "status: Bogus"),
+    ).filter((finding) => finding.kind === "domain");
+    expect(domain).toHaveLength(1);
+    expect(domain[0]!.field).toBe("status");
+  });
+
+  it("RAW — the head value extracts verbatim while the body still canonicalizes (both sides of the same doc)", () => {
+    const content = GOOD_OVERALL.replace("title: 测试 Overall", "title: 任务组总体").replace(
+      "### Goal\n- goal text",
+      "### Goal\n- goal text\n\n#### M 组（skill-ref 映射，M1–M4 全关）\n- m leaf",
+    );
+    // The head channel reads the RAW content — the registered zh alias 组 rides
+    // the title verbatim, never the canonicalize view.
+    const { head } = FrontMatterExtractor.split(content);
+    expect(head.value("title")).toBe("任务组总体");
+    // The body channel canonicalizes in the SAME validate call — the zh 组 leaf
+    // conforms to the `#### [MFRBEN] group` facet only through the view.
+    const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
+    expect(withKind(findings, "presence", "#### [MFRBEN] group")).toBe(false);
+    expect(withKind(findings, "domain", "#### [MFRBEN] group")).toBe(false);
+    // The exact body-line face — the same Translator seam validate applies to
+    // every body row (the canonicalize target of the registered 组 alias).
+    expect(new Translator(new Words()).canonicalize("TaskGraph 分组派生")).toBe(
+      "TaskGraph 分group派生",
+    );
   });
 });
 

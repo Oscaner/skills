@@ -1,24 +1,26 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P11 设计：dispatch contract 收口（child Return 去结构化 + --dry-run 真只读预览）
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-10-18
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P11] 会话 · 用户两项 mandate · 2026-10-18）
 parent-program: 2026-10-10-engine-doc-tooling-overall.md
-parent-version: v2.51
+parent-version: v2.52
 depends-on: P10（Done · v0.10 · hard——P10 全链闭合后 dispatch contract 收口 · overall 依赖图 D50）
 ---
 
 ## Design
 
-本 phase 承接 P10 收口后的续 phase（2026-10-18 cdd-design [P11] 会话注册 D50），收口两处**引擎派发契约**的失真——同一个根：**契约声明的输入面与实际使用的输入面不是同一个东西**。
+本 phase 承接 P10 收口后的续 phase（2026-10-18 cdd-design [P11] 会话注册 D50），收口**引擎派发契约**上的三处失真——同一个根：**契约声明面与引擎实际消费/指称的面不是同一个东西**。
 
 **其一，child Return 是一份死契约。** 模板 `RETURN_ZONE` 要求 child stdout 以固定两行收尾（`status: <APPROVED|BLOCKED>` / `artifacts: report=<path> test_evidence=<path>`），`CliLifecycle#dispatch` 也确实 grep `^status:\s*\S+`，缺则 `CDD_BLOCKED: child <cli> returned no status line`。但**查证现状：该结构今天已是死数据 + 一道 presence 门**——`#parseBlockReturn` 解析出的 `status` 零消费者（`#reconstruct` 的结论完全从 `Task 草稿` 的 declared status / findings rollup 派生）；stdout 的 `artifacts:` 在草稿回读成功时被 `#canonicalArtifacts` 逐槽覆盖（仅 hermetic 注入 dispatch 的 fallback 分支使用）。换句话说：引擎**唯一**从这两行拿走的，是「有没有 `status:` 这一行」这一个布尔。而 agent 的 stdout 形态极不稳定——一行排版漂移即制造一次无意义 BLOCK，用户为本轮 mandate 的原话。
 
 **其二，`--dry-run` 声明的是只读，实际是写入 + 占槽。** `README.md` 写「simulate the dispatch without writing handoff artifacts」，而 `#dispatchOf` 在 `dryRun` 时替换为合成 `() => ({ status: "APPROVED", findings: [] })` 之后，**book 流程照常执行**：`#sceneOf` 的 `new Workspace(...).ensure()` 建目录 + 写 `.gitignore`、`migrateJsonChild` 改文件、`gate.renderBrief` 写 brief、`#bookkeep` 写 `<kind>-review-N.json` 并 `recordRound`。后果是 issue #345 记录的实害：一次例行试跑静默占掉文档唯一的 review 槽位，真实 review 被 `cannot dispatch a review round — already reviewed at vX` 拒绝，恢复路径只有 bump 版本。
 
-两处失真的同一根：**契约声明的输入面 ≠ 引擎实际消费的输入面**。本 phase 的判准即把两者对齐——child 契约只声明引擎真正消费的东西（没有），`--dry-run` 只做它声明的事（只读预览）。
+**其三，`--findings` 是一处命名背离。** `cdd fix` 的输入旗标指向的是评审轮的**产出文档**——其 carrier 载 `findings` / `artifacts` / `notes` 三面（`session/handoff-schema.ts` 的 `CARRIER_FINDINGS`），而旗标自身的 help 早已写作 "the source review handoff JSON path"（`face/declare.ts:59`）：**声明名窄于实际指称**（§5 · D51）。
+
+三处失真的同一根：**契约声明面与引擎实际消费/指称的面不是同一个东西**。本 phase 的判准即把两者对齐——child 契约只声明引擎真正消费的东西（没有），`--dry-run` 只做它声明的事（只读预览），输入旗标只指称它真正指向的物件（评审轮的产出文档）。
 
 ### 1. 目标与边界
 
@@ -26,7 +28,8 @@ depends-on: P10（Done · v0.10 · hard——P10 全链闭合后 dispatch contra
 
 - **设计输入**：本会话问答全裁定（kairos:cdd-design [P11] · 用户逐题裁定 Q1–Q13 全按推荐）· 已回填 overall D50 + 四表（v2.51）。
 - **重构授权**：用户六前提 mandate（1 允许破坏性变更 · 2 高维 OOP 抽象统一零裸函数 · 3 零技术债免散文堆砌免声明再抄 · 4 高内聚低耦合死码空壳清理 · 5 消费心智负担优先 · 6 最大重构整合最大精简 · 7 不造轮子优先第三方 pkg）。
-- **程序记录**：本 phase 无 out-of-band 热修面——全部裁定归 D50 主题内。issue #345 为唯一外部输入。
+- **会话期追加裁定（in-flight · 承 D50）**：dispatch 输入面命名收口——`--findings` → `--reviews` · `INPUT_FINDINGS` → `INPUT_REVIEWS`（D51 · 已回填 overall v2.52），见 §5。
+- **程序记录**：out-of-band 热修面 = D51 命名收口（会话期 · 独立提交），其余裁定归 D50 主题内；issue #345 为唯一外部输入。
 
 #### 1.2 判定基线
 
@@ -36,6 +39,7 @@ depends-on: P10（Done · v0.10 · hard——P10 全链闭合后 dispatch contra
 |---|---|---|
 | **死契约** | 契约声明一项输入，引擎不消费它 | `RETURN_ZONE` 的 `status:`/`artifacts:` 两行 |
 | **声明-行为背离** | 一个旗标的名字/文档与它的副作用不符 | `--dry-run` 写产物且占轮次 |
+| **命名背离** | 一个旗标/令牌的名字与它指向的物件不是同一个东西 | `--findings` 指向评审轮的产出文档（§5） |
 
 #### 1.3 保留面（冻结）
 
@@ -134,6 +138,33 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 
 见 §3.2 的前两行：`Workspace.ensure()` 的显式调用点（`#sceneOf`）与 `migrateJsonChild` 全调用点删除。`Workspace.ensure()` 方法本身保留（`writeJson` 内部调用它）。
 
+### 5. D 组 · dispatch 输入面命名收口（`--findings` → `--reviews`）
+
+#### 5.1 缺陷
+
+`cdd fix` 的输入旗标 `--findings`（`ARGV_CHANNEL.findings` · `face/declare.ts:56`）指向评审轮的**产出文档**：该 carrier 由 `CARRIER_FINDINGS` 声明，载 `findings` + `artifacts` + `notes` 三面（`session/handoff-schema.ts:85-93`）。旗标自身的 help 早已是 "the source review handoff JSON path"（`face/declare.ts:59`）——**声明名窄于实际指称**。同类背离还在 prompt 令牌 `INPUT_FINDINGS`（`face/lifecycle.ts:300` · `render/templates.ts:188`/`:209`/`:217`/`:278`/`:296`/`:441`）与内部路径字段（`face/cli.ts:152` 的 `PathArgs.findings` · `session/next.ts:53` 的 `Route` fix 跳 `findings` · `session/ledger.ts:93` 的 `Round.findingsPath`）。
+
+#### 5.2 裁定
+
+| 面 | 改前 | 改后 |
+|---|---|---|
+| 旗标（`ARGV_CHANNEL`） | `--findings` | **`--reviews`** |
+| prompt 令牌 | `INPUT_FINDINGS` | **`INPUT_REVIEWS`** |
+| 内部路径字段 | `PathArgs.findings` · `Route` fix 跳的 `findings` · `Round.findingsPath` | `reviews` · `reviews` · `reviewsPath` |
+| 引擎 `next:` 的 fix 跳字面 | `… --findings <path>` | `… --reviews <path>` |
+
+**保留**：carrier 的 `findings` 字段名——它声明的是评审产出的 findings 面，与旗标的指称对象不是同一个东西（改名会把它与 `DispatchOutcome.findings` 混为一谈）。`--dry-run` / `--type` / `--plan` / `--spec` / `--tasks` 不动。
+
+**活面 / 历史面**：活面 = 引擎 src（declare · cli · lifecycle · route-render · next · ledger · capsule 注释）· 引擎测试 · `render/templates.ts` 令牌族 · `docs/maintainers/02-naming.md`；**历史面不追改**——历史 spec/plan/changeset/CHANGELOG 是记录，原样保留（零残留断言只覆盖活面）。
+
+#### 5.3 消费面澄清（伴生裁定）
+
+整份 review handoff JSON **本就是 fix child 的读入面**（`INPUT_REVIEWS` 指向它，child 自读整档）。因此 carrier 的 `notes` 面（引擎 WARN + child 自写的 set-aside 清单与证据上报）**不是死通道**——其消费者是 child 与编排器；引擎内部 `grep notes` 零消费方是**设计事实**，不是「无门」缺陷。注册连带红灯写在 `notes` 面、由编排器处置，即该通道的正常用法。
+
+#### 5.4 落地与级次
+
+会话期 **in-flight 热修**（独立提交 · 承 D42/D44/D49 out-of-band 先例）；P11 spec 只登记裁定与落点，**不留剩余实现面**（P11 后续实现面 = A/B/C 组）。**变更集级次**：破坏性旗标改名 → cdd-engine **major**（升格 D50 的 minor 判定）。
+
 ### Acceptance criteria
 
 - 模板 `## Return` 为纯散文、zone key 为 `RETURN_PROSE`；`ReturnZone` / `returnFormats()` / `#parseBlockReturn` 零残留（grep pin）
@@ -144,10 +175,11 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 - 预览含 `step:` / `reads:` / `would write:` / `would record:` / `child:` 五行，且无 `status:` / `next:` 行
 - pre-flight 拒绝时 dry-run 输出与真实运行一致并 exit 1
 - 非 implement/review/fix 的 `--dry-run` exit 2
-- `RoundNaming` 为命名唯一来源（`#outputPath` / `#evidenceName` 零残留）
+- `RoundNaming` 为命名唯一来源（`#outputOf` / `#evidenceName` / `#evidencePrefix` 零残留）
 - `#sceneOf` 的 `ensure()` / `migrateJsonChild` 调用点零残留
+- `--findings` / `INPUT_FINDINGS` 在活面零残留（引擎 src · 测试 · `render/templates.ts` 令牌族 · `docs/maintainers/02-naming.md`）；引擎 `next:` 的 fix 跳字面用 `--reviews`；历史面不追改
 - `declare.ts` flag help + `README.md` + `README.zh-CN.md` 三处文案一致
-- 测试面全绿；cdd-engine minor changeset 在册；不发布
+- 测试面全绿；cdd-engine changeset 在册（§5 旗标改名破坏性 → 全 phase 级次 **major**）；不发布
 
 ## Constraints
 
@@ -156,9 +188,11 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 - **不造轮子**：预览输出用手写行（无第三方依赖适用）；不引入模板引擎。
 - **D29 黑盒边界**：skill 文本零改动；本 phase 的消费面可见变化仅限 README + flag help。
 - **单一行为路径**：不为 dry-run 做分支特判蔓延——写点的关闭要么是全局退休（`ensure`/`migrate`），要么集中在 preview 的单一路径上（`renderBrief`/`bookkeep`）。
+- **历史面不追改**：旗标/令牌改名的零残留断言只覆盖活面（引擎 src · 测试 · 模板 · maintainers 活文档）；历史 spec/plan/changeset/CHANGELOG 是记录，保持原样。
 
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-18 | 初稿——P11 phase-spec：child Return 去结构化（A 组）+ `--dry-run` 真只读预览（B 组）+ `RoundNaming` 与遗留读写清理（C 组）；裁定全承 D50 | Oscar M. · Claude Opus 5（kairos:cdd-design [P11] · 2026-10-18） |
+| v0.2 | 2026-10-18 | 会话期追加（in-flight · 承 D51）：新增 §5 D 组——dispatch 输入面命名收口（`--findings` → `--reviews` / `INPUT_FINDINGS` → `INPUT_REVIEWS`）＋ review handoff `notes` 消费面澄清；§1.2 判准增「命名背离」类；§1.1 记录会话期裁定；AC 增活面零残留 pin 并把 changeset 级次升格 **major**；Constraints 增「历史面不追改」；AC 的 `RoundNaming` pin 符号名校正为真实三法 | Oscar M. · Claude Opus 5（kairos:cdd-design [P11] 会话 in-flight · 2026-10-18） |

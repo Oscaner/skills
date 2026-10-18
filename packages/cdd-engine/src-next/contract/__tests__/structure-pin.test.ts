@@ -133,13 +133,13 @@ test("spec §6 structure pin — retired grammars zero-hit · retained primitive
   // 6 primitives / 7 landing points / 8 census lines: the table-split primitive
   // is ONE landing in two lines (the separator-row guard + the split); the
   // valuePattern-application primitive has TWO landing sites (sectionConforms
-  // and the rewritten #phaseId — the `落点由 1 处变 2 处` of spec §6 (b)), so the
+  // and the rewritten #phaseId — the landing point moves from one site to two (spec §6 b)), so the
   // remaining five primitives hold one census line each.
   const hitsPerPrimitive = new Map<string, number>();
   for (const id of owners) hitsPerPrimitive.set(id, (hitsPerPrimitive.get(id) ?? 0) + 1);
   expect(hits.length, "the migrated census line count (6 primitives / 7 landing points)").toBe(8);
   // the two double-hit primitives — valuePattern-application (sectionConforms +
-  // the rewritten #phaseId — the `落点由 1 处变 2 处` of spec §6 (b)) and the
+  // the rewritten #phaseId — the landing point moves from one site to two (spec §6 b)) and the
   // table-split (the separator-row guard + the split are ONE landing in two
   // census lines). The remaining four primitives hold one census line each.
   expect(hitsPerPrimitive.get("valuePattern-application")).toBe(2);

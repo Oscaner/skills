@@ -194,7 +194,7 @@ export class PreFlight {
       const docAbsolute = doc === null ? null : new RepoRoot(ctx.repoRoot).resolve(doc.path);
       const content = docAbsolute === null ? null : this.#fs.read(docAbsolute);
       if (content !== null && doc !== null && docAbsolute !== null) {
-        // D1 (错误携位): a front-matter block the `yaml` engine cannot parse is
+        // D1 (position-carrying error): a front-matter block the `yaml` engine cannot parse is
         // BLOCKed with the REAL failure (line · column · reason) BEFORE the
         // doc-type judgment — an unparseable head also reads no doc-type, so the
         // parse check must precede the missing-key check (the misread fix: a

@@ -14,7 +14,7 @@
 import { LineCounter, parse } from "yaml";
 
 /** A front-matter YAML parse failure — the typed, position-carrying reason a
- *  `FrontMatterExtractor.split` did not produce a head (D1, the 错误携位 contract:
+ *  `FrontMatterExtractor.split` did not produce a head (D1, the position-carrying error contract:
  *  the extractor never swallows a parse error into a null head — the review gate
  *  surfaces the real failure, `yaml`'s `YAMLParseError` fed through a `LineCounter`
  *  carries the line/column for free, we only stop throwing it away). */
@@ -41,7 +41,7 @@ export class FrontMatterParseError {
  *  A missing key, a non-scalar value (a list, a mapping, a bare number) and an
  *  unparseable block all read as `null`: the head carries only scalar facts. An
  *  UNPARSEABLE block additionally carries its `parseError` — the gate distinguishes
- *  a genuinely absent key from a malformed block (D1, the 误报 fix). */
+ *  a genuinely absent key from a malformed block (D1, the false-positive fix). */
 export class FrontMatterHead {
   /** The parsed front-matter record, or null when no head was extracted. */
   readonly #data: Record<string, unknown> | null;

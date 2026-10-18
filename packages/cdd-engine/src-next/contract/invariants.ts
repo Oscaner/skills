@@ -1013,7 +1013,7 @@ export class SelfBoundedInvariant extends Invariant {
 // the four context-seam strategies
 // ---------------------------------------------------------------------------
 
-/** The chain-link target shape contract (D2, 形态见型 at the boundary — the #342
+/** The chain-link target shape contract (D2, shape judged at the boundary — the #342
  *  fix): a link target must be a BARE relative path (the repo-root form
  *  `docs/kairos/specs/…-overall.md` or a doc-relative file name) — never a
  *  markdown-link shell (`[label](path)`), a URL or a collation token

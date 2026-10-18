@@ -31,7 +31,7 @@ Single registration point for the repo's governing terms; a term is in force whe
 | **review-cycle-cap** | A fix loop that exhausted its consecutive review cycles stops retrying. | the orchestrator failure surface |
 | **dispatch-timeout-cap** | A TIMEOUT category hitting its counter (≥ 2): `BLOCKED: dispatch-timeout-cap`. | `session/next.ts` (BLOCKED/TIMEOUT face) |
 | **engine-error** | Retained terminal marker for EXECUTION_FAILURE — explicitly **not** renamed. | `session/next.ts` · `BLOCKED: engine-error` |
-| **blocker** | `blocker` = review finding severity only; `BLOCKED` = round status; handoff `blocker` field = BLOCKED reason. Every op's capsule carries the count (review = own, fix = the `--findings` review, implement = 0). | `blocker` enum · `CDD_BLOCKED:` · `blocker: <n>` |
+| **blocker** | `blocker` = review finding severity only; `BLOCKED` = round status; handoff `blocker` field = BLOCKED reason. Every op's capsule carries the count (review = own, fix = the `--reviews` review, implement = 0). | `blocker` enum · `CDD_BLOCKED:` · `blocker: <n>` |
 | **Issue surface** | `issue` — the pure-rendering CLI row (`cdd issue render`: stdin JSON → body → stdout) + emit issue form yml from `formFieldDefs`. | `IssueReportRenderer` · `.github/ISSUE_TEMPLATE/*.yml` |
 | **Command-contract wording** | Command-contract vocabulary is single-sourced in the word table. | `face/words.ts` · `words.guard.test.ts` |
 | **backfill** | Land a durable fact into its owning doc (overall / spec / plan) — the destination of a ruling that asserts a project-level fact. Distinct from the per-round carrier action. | `cdd-plan` (backfill-design) · `cdd-close` (closeout-backfill) · cdd-dev I6 |

@@ -138,7 +138,7 @@ export class CliLifecycle {
   readonly #template: TemplateAssembler;
   readonly #io: CliIo;
   readonly #scene: DispatchScene;
-  readonly #findings: string | null;
+  readonly #reviews: string | null;
   /** The handoff-schema face — stateless, one shared instance (the read-back
    *  validator + the injected prompt text). */
   readonly #handoffSchema = new HandoffSchema();
@@ -150,7 +150,7 @@ export class CliLifecycle {
     template?: TemplateAssembler;
     io?: CliIo;
     scene: DispatchScene;
-    findings?: string | null;
+    reviews?: string | null;
   }) {
     this.#env = opts.env ?? process.env;
     this.#scene = opts.scene;
@@ -161,7 +161,7 @@ export class CliLifecycle {
       stdout: (t) => process.stdout.write(t),
       stderr: (t) => process.stderr.write(t),
     };
-    this.#findings = opts.findings ?? null;
+    this.#reviews = opts.reviews ?? null;
   }
 
   /** The host-harness id detected from the env — "claude" | "cursor" | "pi" | "" —
@@ -294,12 +294,12 @@ export class CliLifecycle {
       // read face of the wave line — §4.2); the non-wave faces carry no brief path
       // (the slot stays empty, never emitted).
       INPUT_WAVE_BRIEF: isWave ? this.#rel(scene.briefPath ?? "") : "",
-      // v1.9: INPUT_FINDINGS is fix/docs-fix only — the open findings of the source
-      // review; a review writes its own draft (INPUT_FINDINGS === OUTPUT_HANDOFF
+      // v1.9: INPUT_REVIEWS is fix/docs-fix only — the source review's handoff
+      // carrier; a review writes its own draft (INPUT_REVIEWS === OUTPUT_HANDOFF
       // would be a short-circuit).
-      INPUT_FINDINGS:
+      INPUT_REVIEWS:
         op === "fix"
-          ? this.#rel(this.#findings ?? scene.ledger.handoffPath("review", frame.type, params))
+          ? this.#rel(this.#reviews ?? scene.ledger.handoffPath("review", frame.type, params))
           : "",
       // The kind-named judged-doc anchors (the semantic retirement of the generic
       // INPUT_DOC): the plan/branch lines carry the plan document (INPUT_PLAN — the
@@ -352,7 +352,7 @@ export class CliLifecycle {
    *  cwd = repoRoot, so a relative token resolves from the same root for every
    *  token, input or output alike. The producers (`#outputOf`/`handoffPath`/
    *  `workspace.path`) yield absolute; `INPUT_SPEC` is resolved absolute at the CLI
-   *  seam; the post-T3 argv tokens (`INPUT_PLAN`/`INPUT_SPEC`/`INPUT_FINDINGS`) are repoRoot-relative
+   *  seam; the post-T3 argv tokens (`INPUT_PLAN`/`INPUT_SPEC`/`INPUT_REVIEWS`) are repoRoot-relative
    *  `RepoPath`s. So the exit takes an absolute-or-repoRoot-relative value and emits
    *  repoRoot-relative through the ONE value object (`RepoRoot.relativize` reads an
    *  absolute value as itself and a relative value as repoRoot-relative, collapsing
@@ -594,7 +594,7 @@ export class CliLifecycle {
     // face holds NO status field: its conclusion is DERIVED at judgment time
     // (`HandoffSchema.conclusionOf("findings", carrier)` → rollup(findings)), so the
     // persisted findings carrier stays the pure declaration plane
-    // (findings/artifacts/notes) and a fix child's INPUT_FINDINGS carrier is
+    // (findings/artifacts/notes) and a fix child's INPUT_REVIEWS carrier is
     // status-free (the judgment face is perpendicular to the input face · D27).
     const draftNotes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
     if (face === "work") {
@@ -740,12 +740,12 @@ export class CliLifecycle {
           frame.target.kind === "plan" || frame.target.kind === "spec"
             ? `--${frame.type === "spec" ? "spec" : "plan"} ${frame.target.doc}`
             : // The branch fix carries no refs — the source findings ride the
-              // --findings handoff; the workspace-identity `--plan` still rides
+              // --reviews handoff; the workspace-identity `--plan` still rides
               // (the plan is the branch line's identity, zero orchestrator fallback).
               frame.target.kind === "branch"
               ? `--plan ${plan}`
               : `--tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
-        return `cdd fix --type ${frame.type} ${target} --findings ${findings}`;
+        return `cdd fix --type ${frame.type} ${target} --reviews ${findings}`;
       }
     }
   }

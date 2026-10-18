@@ -216,7 +216,7 @@ describe("the preAction conditional-required groups (§4.2 · REQUIRED_GROUPS)",
     ).not.toThrow();
   });
 
-  it("rejects fix --type branch without --findings (the fix branch face)", () => {
+  it("rejects fix --type branch without --reviews (the fix branch face)", () => {
     const { program } = new CommandTreeBuilder();
     commandOf(program, "fix").action(() => undefined);
     const { code, message } = commanderError(() =>
@@ -225,7 +225,7 @@ describe("the preAction conditional-required groups (§4.2 · REQUIRED_GROUPS)",
     expect(code).toBe("commander.invalidArgument");
     // the branch fix carries both its findings carrier and the --plan workspace
     // identity (BranchRef retired — the plan is the branch line's identity · §2.3)
-    expect(message).toContain("--findings --plan required when --type branch");
+    expect(message).toContain("--reviews --plan required when --type branch");
   });
 
   it("rejects review --type branch without --plan (the branch review face)", () => {

@@ -53,8 +53,8 @@ export interface ChannelArgRow {
 export const ARGV_CHANNEL = {
   plan: { flag: "--plan", type: "path", help: "the CDD plan document path" },
   spec: { flag: "--spec", type: "path", help: "the design-spec document path" },
-  findings: {
-    flag: "--findings",
+  reviews: {
+    flag: "--reviews",
     type: "path",
     help: "the source review handoff JSON path",
   },
@@ -216,11 +216,11 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "fix",
     description: "fix review findings — task | branch | spec | plan",
-    example: "cdd fix --type wave --tasks 1 --findings tasks-1-review-1.json",
+    example: "cdd fix --type wave --tasks 1 --reviews tasks-1-review-1.json",
     keys: [
       { key: "type", required: true },
       { key: "tasks" },
-      { key: "findings" },
+      { key: "reviews" },
       { key: "spec" },
       { key: "plan" },
     ],
@@ -318,6 +318,6 @@ export const REQUIRED_GROUPS: Readonly<
     wave: ["--plan"],
     spec: ["--spec"],
     plan: ["--plan"],
-    branch: ["--findings", "--plan"],
+    branch: ["--reviews", "--plan"],
   },
 };

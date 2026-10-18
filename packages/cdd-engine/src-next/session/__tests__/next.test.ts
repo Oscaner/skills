@@ -78,9 +78,9 @@ describe("review rounds — zero findings flows the next wave on or closes the r
     expect(
       router.next(
         state([]),
-        round({ phase: "review", findings, findingsPath: "tasks-7,9-review-1.json" }),
+        round({ phase: "review", findings, reviewsPath: "tasks-7,9-review-1.json" }),
       ),
-    ).toEqual({ kind: "fix", findings: "tasks-7,9-review-1.json" });
+    ).toEqual({ kind: "fix", reviews: "tasks-7,9-review-1.json" });
 
     const blockers: Round["findings"] = [finding("blocker", "defect")];
     expect(router.next(state([]), round({ phase: "review", findings: blockers }))).toEqual({
@@ -307,7 +307,7 @@ describe("P4.1 T4 — the router's routes render parseable next literals (zero-e
   it.each([
     ["implement wave", { kind: "next-wave", tasks: "1,2" } as Route],
     ["re-review", { kind: "review" } as Route],
-    ["the one-way fix hop", { kind: "fix", findings: "tasks-1-review-1.json" } as Route],
+    ["the one-way fix hop", { kind: "fix", reviews: "tasks-1-review-1.json" } as Route],
     ["closure", { kind: "done" } as Route],
   ] as const)("%s — the route's literal argv parses", (_label, route) => {
     if (route.kind === "done") {

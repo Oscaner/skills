@@ -106,11 +106,11 @@ describe("the capsule byte pin — the single output face", () => {
     expect(
       capsule.emit("CHANGES_REQUESTED", "1", "/h.json", {
         kind: "fix",
-        findings: "tasks-1-review-1.json",
+        reviews: "tasks-1-review-1.json",
       }),
     ).toEqual([
       "status: CHANGES_REQUESTED · blocker: 1 · handoff: /h.json",
-      `next: fix --findings tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `next: fix --reviews tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
     ]);
     // a fix route without its input renders the bare classifier
     expect(capsule.emit("CHANGES_REQUESTED", "1", "/h.json", { kind: "fix" })).toEqual([
@@ -138,18 +138,18 @@ describe("the capsule byte pin — the single output face", () => {
       "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
       "next: review --type wave --tasks 1,2 --plan docs/kairos/plans/p.md",
     ]);
-    // the one-way fix hop — `fix --type wave --tasks {tasks} --plan <p> --findings <f>`
+    // the one-way fix hop — `fix --type wave --tasks {tasks} --plan <p> --reviews <f>`
     expect(
       capsule.emit(
         "CHANGES_REQUESTED",
         "1",
         "/h.json",
-        { kind: "fix", findings: "tasks-1,2-review-1.json" },
+        { kind: "fix", reviews: "tasks-1,2-review-1.json" },
         target,
       ),
     ).toEqual([
       "status: CHANGES_REQUESTED · blocker: 1 · handoff: /h.json",
-      `next: fix --type wave --tasks 1,2 --plan docs/kairos/plans/p.md --findings tasks-1,2-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `next: fix --type wave --tasks 1,2 --plan docs/kairos/plans/p.md --reviews tasks-1,2-review-1.json ${FIX_READBACK_SUFFIX}`,
     ]);
     // the other target types render their discriminator arg — branch (the
     // workspace --plan only — the review judges the live tree, no range rides the

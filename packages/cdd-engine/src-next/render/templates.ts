@@ -185,7 +185,7 @@ const FIX_SHELL: readonly string[] = [
   "",
   ...FRAME_ITEMS,
   ...FIX_TYPED_INSTRUCTIONS,
-  "**fix:** read `INPUT_FINDINGS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_PLAN` on the plan/branch lines — the plan document; `INPUT_SPEC` on the spec line — the spec document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_FINDINGS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  "**fix:** read `INPUT_REVIEWS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_PLAN` on the plan/branch lines — the plan document; `INPUT_SPEC` on the spec line — the spec document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_REVIEWS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
   // T5 (v0.3) — The work face's ONE strict-schema sentence: every top-level draft
@@ -206,7 +206,7 @@ const DOCS_FIX_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "**docs-fix:** apply `INPUT_FINDINGS` (all severities) directly to the judged doc — `INPUT_PLAN` on a plan-doc line, `INPUT_SPEC` on a spec-doc line — removing fixed findings; record the path in `artifacts.doc`; empty `findings` = all fixed. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema`; the engine derives the conclusion from the residual findings; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  "**docs-fix:** apply `INPUT_REVIEWS` (all severities) directly to the judged doc — `INPUT_PLAN` on a plan-doc line, `INPUT_SPEC` on a spec-doc line — removing fixed findings; record the path in `artifacts.doc`; empty `findings` = all fixed. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema`; the engine derives the conclusion from the residual findings; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   ...LICENSE_ITEMS,
   // T5 (v0.3) — The findings face's ONE strict-schema sentence: same schema-first
   // directive as the work shell, naming the required `findings` (carried over from
@@ -214,7 +214,7 @@ const DOCS_FIX_SHELL: readonly string[] = [
   // the sentence never contradicts the findings carrier's own required gate; the
   // work shell's field list is never copied here, and no field enumeration rides
   // the findings shell's prose either).
-  "**Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — `findings` (required) rides over from `INPUT_FINDINGS` verbatim, unmodified; the declaration is the field source, zero extra keys.",
+  "**Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — `findings` (required) rides over from `INPUT_REVIEWS` verbatim, unmodified; the declaration is the field source, zero extra keys.",
   ...SCHEMA_SECTION,
 ];
 
@@ -275,7 +275,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
       "- `INPUT_PLAN`: {{INPUT_PLAN}}",
       "- `INPUT_SPEC`: {{INPUT_SPEC}}",
-      "- `INPUT_FINDINGS`: {{INPUT_FINDINGS}}",
+      "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -293,7 +293,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `WAVE`: {{WAVE}}",
       "- `INPUT_PLAN`: {{INPUT_PLAN}}",
       "- `INPUT_SPEC`: {{INPUT_SPEC}}",
-      "- `INPUT_FINDINGS`: {{INPUT_FINDINGS}}",
+      "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
       "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
@@ -438,7 +438,7 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "HANDOFF_SCHEMA", zone: "shell" },
   { name: "INPUT_PLAN", zone: "round-context" },
   { name: "INPUT_SPEC", zone: "round-context" },
-  { name: "INPUT_FINDINGS", zone: "round-context" },
+  { name: "INPUT_REVIEWS", zone: "round-context" },
   { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
   // find #5 — the prescribed artifact write paths (the {family}-{key}-{artifact}
   // single naming; the brief is a pure read input with no write slot).

@@ -66,7 +66,7 @@ export class RouteRenderer {
 
   /** One embedded path value in the literal — normalized to the repoRoot-relative
    *  shape through the ONE value object (D47 · the ONE basis; a `null` root — the
-   *  hermetic default — short-circuits). Every `--plan`/`--findings`/doc-id in the
+   *  hermetic default — short-circuits). Every `--plan`/`--reviews`/doc-id in the
    *  rendered argv passes through here, so the board's `next:` and the engine's
    *  `next:` are byte-identical by construction. */
   #rel(value: string): string {
@@ -136,33 +136,33 @@ export class RouteRenderer {
     return verb;
   }
 
-  /** The one-way fix hop's literal — `fix --type <type> <type-arg> --findings <path>
+  /** The one-way fix hop's literal — `fix --type <type> <type-arg> --reviews <path>
    *  <readback>` (the readback suffix the declared constant, rendered by reference).
-   *  Every embedded path value (the doc-id for the spec/plan faces · `--findings`)
+   *  Every embedded path value (the doc-id for the spec/plan faces · `--reviews`)
    *  is normalized to the repoRoot-relative shape (D47); the wave face's `<type-arg>`
    *  is a task key, not a path — passed through as-is. */
   #fixText(route: Extract<Route, { kind: "fix" }>, target?: RouteTarget | null): string {
-    if (route.findings === undefined) return this.#words.routeWord("fix");
+    if (route.reviews === undefined) return this.#words.routeWord("fix");
     const verb = this.#words.routeWord("fix");
     const type = target?.type ?? null;
     const id = target?.id ?? "";
-    const findings = this.#rel(route.findings);
+    const reviews = this.#rel(route.reviews);
     if (type === "wave") {
-      return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${id} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("findings")} ${findings} ${FIX_READBACK_SUFFIX}`;
+      return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${id} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
     }
     if (type === "spec") {
-      return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${this.#rel(id)} ${this.#flag("findings")} ${findings} ${FIX_READBACK_SUFFIX}`;
+      return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${this.#rel(id)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
     }
     if (type === "plan") {
-      return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${this.#rel(id)} ${this.#flag("findings")} ${findings} ${FIX_READBACK_SUFFIX}`;
+      return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${this.#rel(id)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
     }
     if (type === "branch") {
       // The branch fix literal carries the workspace-identity `--plan` (isomorphic
       // with the wave fix branch — a plan-less target resolves to the empty
       // ref.short() directory, the workspace double identity).
-      return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("findings")} ${findings} ${FIX_READBACK_SUFFIX}`;
+      return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
     }
-    return `${verb} ${this.#flag("findings")} ${findings} ${FIX_READBACK_SUFFIX}`;
+    return `${verb} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
   }
 
   /** The face-to-face handoff render — the pipeline entry: a `ref` resolves

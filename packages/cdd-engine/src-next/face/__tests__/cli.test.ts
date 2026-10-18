@@ -617,14 +617,11 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
   });
 
   it("the fix face declares NO branch refs — the review judges the live tree (no re-declared range)", () => {
-    // fix --type branch parses with --plan + --findings alone (no base/head)
+    // fix --type branch parses with --plan + --reviews alone (no base/head)
     const fix = nodeOf("fix");
-    gate.parse(
-      ["fix", "--type", "branch", "--plan", "p.md", "--findings", "branch-review-x.json"],
-      {
-        from: "user",
-      },
-    );
+    gate.parse(["fix", "--type", "branch", "--plan", "p.md", "--reviews", "branch-review-x.json"], {
+      from: "user",
+    });
     expect((fix.opts() as Record<string, unknown>).base).toBeUndefined();
     expect((fix.opts() as Record<string, unknown>).head).toBeUndefined();
     // re-declaring the range on the fix CLI is rejected — the unknown-option
@@ -999,10 +996,10 @@ describe("the help/--help display face — the per-command render", () => {
     try {
       const code = await command.runArgv(["fix", "--help"]);
       expect(code).toBe(0);
-      expect(io.stdoutText).toContain("--findings <path>");
+      expect(io.stdoutText).toContain("--reviews <path>");
       expect(io.stdoutText).toContain("the source review handoff JSON path");
       expect(io.stdoutText).toContain(
-        "cdd fix --type wave --tasks 1 --findings tasks-1-review-1.json",
+        "cdd fix --type wave --tasks 1 --reviews tasks-1-review-1.json",
       );
     } finally {
       cleanup();
@@ -1562,7 +1559,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       // D47 — the next: literal's embedded paths are repoRoot-relative (the ONE shape).
       expect(io.stdoutText).toContain(
-        `next: fix --type wave --tasks 1 --plan ${path.relative(repoRoot, plan)} --findings ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.json"))} ${FIX_READBACK_SUFFIX}`,
+        `next: fix --type wave --tasks 1 --plan ${path.relative(repoRoot, plan)} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.json"))} ${FIX_READBACK_SUFFIX}`,
       );
     } finally {
       cleanup();
@@ -1617,7 +1614,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
       // Seed the branch line: a blocker branch-review round (the fix's C5-1 input)
-      // whose handoff carries the reviewed findings (the fix's --findings single
+      // whose handoff carries the reviewed findings (the fix's --reviews single
       // carrier).
       // find #9 — the branch line's workspace is the plan-slug (the fix dispatch's
       // --plan); the handoff file is the spine name `branch-review-{round}.json`.
@@ -1634,15 +1631,15 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // find #9 — the line key is the stable "branch" (round accumulates across
       // re-reviews; the old range-short key reset to 1 on every head move).
       ledger.recordRound("branch", "branch-review");
-      const findingsPath = workspace.resolve("branch-review-1.json");
+      const reviewsPath = workspace.resolve("branch-review-1.json");
       const code = await command.runArgv([
         "fix",
         "--type",
         "branch",
         "--plan",
         plan,
-        "--findings",
-        findingsPath,
+        "--reviews",
+        reviewsPath,
         "--dry-run",
       ]);
       expect(code).toBe(0);
@@ -1856,7 +1853,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     // §2.7 — every path token injected into the child speaks ONE basis (repoRoot-
     // relative): the child is spawned at cwd = repoRoot (T2), so a relative token
     // resolves identically for every token, input or output alike. Across the modes
-    // the 8-token set is WORKSPACE_DIR · INPUT_PLAN · INPUT_SPEC · INPUT_FINDINGS ·
+    // the 8-token set is WORKSPACE_DIR · INPUT_PLAN · INPUT_SPEC · INPUT_REVIEWS ·
     // INPUT_WAVE_BRIEF · OUTPUT_REPORT · OUTPUT_EVIDENCE · OUTPUT_HANDOFF (the
     // non-path tokens excluded); each mode emits its own subset. This pin drives an
     // implement dispatch (the wave line's work face) and asserts EVERY emitted path
@@ -1885,7 +1882,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
         "WORKSPACE_DIR",
         "INPUT_PLAN",
         "INPUT_SPEC",
-        "INPUT_FINDINGS",
+        "INPUT_REVIEWS",
         "INPUT_WAVE_BRIEF",
         "OUTPUT_REPORT",
         "OUTPUT_EVIDENCE",
@@ -2789,29 +2786,29 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
     parses(branchLiteral);
   });
 
-  it("fix × 4 types — `fix --type <type> <type-arg> --findings <handoff>` parses", () => {
-    const waveLiteral = literalOf({ kind: "fix", findings: "tasks-1-review-1.json" }, wave);
+  it("fix × 4 types — `fix --type <type> <type-arg> --reviews <handoff>` parses", () => {
+    const waveLiteral = literalOf({ kind: "fix", reviews: "tasks-1-review-1.json" }, wave);
     expect(waveLiteral).toBe(
-      "fix --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md --findings tasks-1-review-1.json " +
+      "fix --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md --reviews tasks-1-review-1.json " +
         FIX_READBACK_SUFFIX,
     );
     parses(waveLiteral);
-    const specLiteral = literalOf({ kind: "fix", findings: "s1-review-1.json" }, spec);
+    const specLiteral = literalOf({ kind: "fix", reviews: "s1-review-1.json" }, spec);
     expect(specLiteral).toBe(
-      "fix --type spec --spec docs/kairos/specs/p3-design.md --findings s1-review-1.json " +
+      "fix --type spec --spec docs/kairos/specs/p3-design.md --reviews s1-review-1.json " +
         FIX_READBACK_SUFFIX,
     );
     parses(specLiteral);
-    const planLiteral = literalOf({ kind: "fix", findings: "p1-review-1.json" }, planT);
+    const planLiteral = literalOf({ kind: "fix", reviews: "p1-review-1.json" }, planT);
     expect(planLiteral).toBe(
-      `fix --type plan --plan docs/kairos/plans/p3.md --findings p1-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `fix --type plan --plan docs/kairos/plans/p3.md --reviews p1-review-1.json ${FIX_READBACK_SUFFIX}`,
     );
     parses(planLiteral);
-    const branchLiteral = literalOf({ kind: "fix", findings: "br1-review-1.json" }, branch);
+    const branchLiteral = literalOf({ kind: "fix", reviews: "br1-review-1.json" }, branch);
     // find #8 F1b — the branch fix literal carries the workspace --plan
     // (user-decided; the orchestrator provides zero fallback · spec §5.7 fix (2))
     expect(branchLiteral).toBe(
-      `fix --type branch --plan docs/kairos/plans/p3.md --findings br1-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `fix --type branch --plan docs/kairos/plans/p3.md --reviews br1-review-1.json ${FIX_READBACK_SUFFIX}`,
     );
     parses(branchLiteral);
   });
@@ -2836,7 +2833,7 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
     expect(literalOf({ kind: "review" }, wave)).toMatch(
       new RegExp(`^${words.routeWord("review")} `),
     );
-    expect(literalOf({ kind: "fix", findings: "f.json" }, wave)).toMatch(
+    expect(literalOf({ kind: "fix", reviews: "f.json" }, wave)).toMatch(
       new RegExp(`^${words.routeWord("fix")} `),
     );
     expect(literalOf({ kind: "done" })).toBe(words.routeWord("done"));
@@ -2887,7 +2884,7 @@ describe("P4.1 T4 — the dry-run real chain: next literals dispatch the next ro
         ]),
       ).toBe(0);
       expect(nextOf()).toBe(
-        `fix --type wave --tasks 1 --plan ${planRel} --findings ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.json"))} ${FIX_READBACK_SUFFIX}`,
+        `fix --type wave --tasks 1 --plan ${planRel} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.json"))} ${FIX_READBACK_SUFFIX}`,
       );
       io.stdoutText = "";
 
@@ -4154,7 +4151,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).toContain("- `ROLE`: review");
       expect(prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
       // the v1.8 per-mode trimming: a review context carries no fix/work keys
-      expect(prompt).not.toContain("- `INPUT_FINDINGS`");
+      expect(prompt).not.toContain("- `INPUT_REVIEWS`");
       expect(prompt).not.toContain("- `INPUT_CRITERIA`");
     } finally {
       cleanup();

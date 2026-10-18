@@ -114,7 +114,7 @@ const runNode = (args: string[], cwd: string): { code: number; stdout: string; s
 /** The capsule contract — the last stdout block carries the status capsule + the
  *  `next:` suggestion line (the engine's single result surface). The route-face
  *  words (v1.25 dispatch-ready literals: `done` terminal · `implement wave {tasks}`
- *  · `review <type> <id> (base …)` · `fix <type> <id> --findings …` + the readback
+ *  · `review <type> <id> (base …)` · `fix <type> <id> --reviews …` + the readback
  *  suffix · the soft-cap message) — `none` is retired. */
 const assertCapsule = (stdout: string, command: string): void => {
   const lines = stdout.trim().split("\n");

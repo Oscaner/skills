@@ -149,7 +149,7 @@ export interface WorkScene extends DispatchScene {
 export interface PathArgs {
   plan: RepoPath | null;
   spec: RepoPath | null;
-  findings: RepoPath | null;
+  reviews: RepoPath | null;
 }
 
 /** The thin-shell → run-body input — the .action shell maps commander's parsed
@@ -403,7 +403,7 @@ export class Cli {
       args,
       // The path-typed values land empty — the funnel (`#funnel`) is the ONE
       // normalization site that fills them with the branded repoRoot-relative form.
-      paths: { plan: null, spec: null, findings: null },
+      paths: { plan: null, spec: null, reviews: null },
       positionals: command.processedArgs as string[],
       dryRun: this.#dryRun || globals.dryRun === true,
     };
@@ -434,7 +434,7 @@ export class Cli {
     }
     // The repo root (the ONE conversion point, T2) + the input funnel (T3 §2.3) run
     // FIRST — before the scene or any downstream face reads a path arg, so the whole
-    // run (scene + ledger + dispatch `--findings`) speaks ONE normalized argv shape.
+    // run (scene + ledger + dispatch `--reviews`) speaks ONE normalized argv shape.
     const repoRoot = await this.#rootOf();
     if (repoRoot === null) return 1;
     const root = new RepoRoot(repoRoot);
@@ -652,7 +652,7 @@ export class Cli {
         baseBranch: this.#baseBranchOf(scene),
         specLink: scene.specLink,
       },
-      findings: parsed.paths.findings,
+      reviews: parsed.paths.reviews,
     });
     return harness.step();
   }
@@ -825,7 +825,7 @@ export class Cli {
   /** The input funnel — the ONE path normalization landing (T3 · §2.3): every
    *  path-typed argv value is relativized to the repo root EXACTLY once, here,
    *  before the scene or any downstream face reads it, so no face ever sees a raw
-   *  argv path shape. The covered face: `--plan` · `--spec` · `--findings` (the
+   *  argv path shape. The covered face: `--plan` · `--spec` · `--reviews` (the
    *  schema `--output skeleton` `<target>` positional and base `--plan` reach the
    *  SAME landing through `#relativizePath` — branch-review-1 F6: one relativize+warn
    *  helper, one landing). An out-of-repo input (a `..` segment after relativize) is
@@ -837,14 +837,14 @@ export class Cli {
     // `paths` face (F7) — splitting them out means the raw path string exists in
     // exactly ONE form downstream (the normalized `RepoPath`), never duplicated
     // (the Data Clumps F2 targets).
-    const { plan, spec, findings, ...rest } = raw;
+    const { plan, spec, reviews, ...rest } = raw;
     return {
       ...parsed,
       args: rest,
       paths: {
         plan: plan === undefined ? null : this.#relativizePath(root, plan),
         spec: spec === undefined ? null : this.#relativizePath(root, spec),
-        findings: findings === undefined ? null : this.#relativizePath(root, findings),
+        reviews: reviews === undefined ? null : this.#relativizePath(root, reviews),
       },
     };
   }

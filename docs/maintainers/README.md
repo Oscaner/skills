@@ -15,7 +15,7 @@ The ledger tracks the maintainers family's byte convergence. P4.2 Task 9 merged 
 | File | Before (B) | After (B) | Note |
 |---|---|---|---|
 | 01-doctrine.md | 28,254 | 4,350 | folded from the retired 01 + 04 + 06 docs · template essence R1–R5 + I1–I4, skill-node facts-only, non-mechanical experience · smoke positioning sentence |
-| 02-naming.md | 9,180 | 5,261 | renamed from the retired 02 doc · mechanism map + migration history trimmed, term registry + banned table kept |
+| 02-naming.md | 9,180 | 5,260 | renamed from the retired 02 doc · mechanism map + migration history trimmed, term registry + banned table kept |
 | 03-cache-doctrine.md | 8,450 | 2,371 | renamed from the retired 03 doc · six axioms + C1–C7 kept, mechanism narration trimmed |
 | README.md | 2,671 | 2,066 | index + ledger re-anchored to the three-doc family |
-| **Total** | 48,555 | 14,048 | plan anchor ≤ 56,000 |
+| **Total** | 48,555 | 14,047 | plan anchor ≤ 56,000 |

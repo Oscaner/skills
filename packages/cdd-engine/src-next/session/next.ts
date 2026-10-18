@@ -49,8 +49,8 @@ export type Route =
   | { kind: "next-wave"; tasks: string }
   /** a review hop — a review judges the live tree, carrying no commit identity. */
   | { kind: "review" }
-  /** the one-way fix hop — findingsPath = the review handoff the fix reads (`--findings`). */
-  | { kind: "fix"; findings?: string }
+  /** the one-way fix hop — reviewsPath = the review handoff the fix reads (`--reviews`). */
+  | { kind: "fix"; reviews?: string }
   /** the review-cycle soft cap — the suggestion defers to user adjudication. */
   | { kind: "soft-cap"; message: string }
   /** the face-to-face handoff (D40) — the line's C5 frontier exhausted, so the next
@@ -179,7 +179,7 @@ export class NextStepRouter {
         // One-way: any findings (any severity) → the fix round — a review never previews
         // what the fix will do (C5-1). Zero findings (approved) → the unified closure: the
         // ready batch decides whether the next wave continues or the run is exhausted.
-        if (ref.findings.length > 0) return { kind: "fix", findings: ref.findingsPath };
+        if (ref.findings.length > 0) return { kind: "fix", reviews: ref.reviewsPath };
         return this.#close(state);
       case "fix": {
         // C5-1: the fix face is the re-review / closure decision point. The soft cap
@@ -200,7 +200,7 @@ export class NextStepRouter {
         // The branch terminal face — findings route the fix; zero findings close the line
         // through the same unified closure terminal.
         return ref.findings.length > 0
-          ? { kind: "fix", findings: ref.findingsPath }
+          ? { kind: "fix", reviews: ref.reviewsPath }
           : this.#close(state);
     }
   }

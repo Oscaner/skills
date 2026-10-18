@@ -15,7 +15,7 @@
 //     handoff carrier's union).
 //   · round — the round carrier: the handoff presented as the Round the dispatch
 //     next-router judges. A fix round carries the SOURCE review's findings (the
-//     `--findings` input content, C5-1), never its own; the consecutive-S1 run is
+//     `--reviews` input content, C5-1), never its own; the consecutive-S1 run is
 //     walked from the round history (the review-cycle soft-cap basis).
 //
 // Module-level exports are types / constant data / the class — zero behavior-
@@ -89,8 +89,8 @@ export interface Round {
   status?: RoundStatus;
   /** The findings the next-hop derivation judges. */
   findings: readonly RoundFinding[];
-  /** The findings handoff path (fix: the `--findings` input; review: its own handoff). */
-  findingsPath?: string;
+  /** The review handoff path (fix: the `--reviews` input; review: its own handoff). */
+  reviewsPath?: string;
   /** The consecutive-S1 run (the leading blocker-lead reviews, newest first) — the
    *  review-cycle soft-cap basis. */
   consecutiveS1: number;
@@ -615,7 +615,7 @@ export class Ledger {
       if (reviewed !== null && this.#briefDrift(waveKey, reviewed)) return { kind: "review" };
       return {
         kind: "fix",
-        findings: this.handoffPath("review", "wave", { tasks: waveKey, round: latestReview }),
+        reviews: this.handoffPath("review", "wave", { tasks: waveKey, round: latestReview }),
       };
     }
     return null;
@@ -974,7 +974,7 @@ export class Ledger {
    *  a rejected child's leftover draft is never read back as a completed round
    *  (the §2.8 gate; without it a BLOCKED round with a stale draft rendered a
    *  contradictory `status: BLOCKED · next: done`). A fix round carries the SOURCE
-   *  review's findings (C5-1: the `--findings` input content, never its own
+   *  review's findings (C5-1: the `--reviews` input content, never its own
    *  carrier); the consecutive-S1 run is walked from the review history.
    *  Missing/corrupt evaluated handoff → null too — a fix round whose source review
    *  is unreadable is never a zero-findings fabrication: a round whose blocker set
@@ -1007,7 +1007,7 @@ export class Ledger {
         // shared with the fix leg below (`HandoffSchema.conclusionOf`).
         status: this.#handoffSchema.conclusionOf("findings", carrier),
         findings: this.#findingsOf(carrier),
-        findingsPath: this.handoffPath("review", type, reviewParams),
+        reviewsPath: this.handoffPath("review", type, reviewParams),
         consecutiveS1: this.#consecutiveS1Run(type, params, round),
       };
     }
@@ -1027,7 +1027,7 @@ export class Ledger {
       // the same `conclusionOf` single source (D27).
       status: this.#handoffSchema.conclusionOf(this.handoffFaceOf("fix", type), fixCarrier),
       findings: this.#findingsOf(reviewCarrier),
-      findingsPath: this.handoffPath("review", type, reviewParams),
+      reviewsPath: this.handoffPath("review", type, reviewParams),
       consecutiveS1: this.#consecutiveS1Run(type, params, round),
     };
   }

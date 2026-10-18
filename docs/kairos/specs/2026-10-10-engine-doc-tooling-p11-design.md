@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P11 设计：dispatch contract 收口（child Return 去结构化 + --dry-run 真只读预览）
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-10-18
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P11] 会话 · 用户两项 mandate · 2026-10-18）
@@ -45,8 +45,8 @@ depends-on: P10（Done · v0.10 · hard——P10 全链闭合后 dispatch contra
 
 - **结论派生不变**：`HandoffSchema.conclusionOf` / `rollup` / `#reconstruct` 的草稿回读 + evidence 回读语义逐条不变——本 phase 只删 stdout 侧的并行通道，不动草稿侧。
 - **异常 child 的拦截面不变**：非零退出码 → `BLOCKED`；草稿缺失/畸形/schema 违约 → `#reject` + crash record。删掉的只是「exit 0 且无 `status:` 行」这一条**冗余**门。
-- **`next:` 字面 · 退出码表 0/1/2 · CDD_BLOCKED 通道**不变。
-- **pre-flight 四门判定语义不变**（本 phase 只改它们在 dry-run 下的**写入副作用**，不改判据）。
+- **`next:` 字面形态不变 · 退出码表 0/1/2 · CDD_BLOCKED 通道**不变——唯一例外 = §5 的 D51 fix 跳旗标 `--findings` → `--reviews`（`next:` 行其余字节不动）。
+- **pre-flight 四门判定语义不变**——`session/preflight.ts` 零写调用，四门为**纯读**；本 phase 不改其判据，也不经它们产生任何写入。真实写点唯四：**场景装配**（`#sceneOf` 的 ensure/migrate）· **`CliGate#renderBrief`** · **`#bookkeep`** · **`#reject`**——§3.2 逐项关闭。
 - **D29 黑盒边界守约**：skill 文本零引擎内部实现镜像；本 phase 的 skill 面改动为零（模板是引擎发射面，不是 skill 文本）。
 - **不发布**：changesets 收尾至可发布态即止。
 
@@ -54,7 +54,7 @@ depends-on: P10（Done · v0.10 · hard——P10 全链闭合后 dispatch contra
 
 #### 2.1 模板 `## Return` 改为纯散文
 
-`render/templates.ts` 的 `RETURN_ZONE` 改为单个散文契约块（zone key 由 `RETURN_STDOUT_BLOCK` 更名为 **`RETURN_PROSE`**——语义单源；pin 重锚 deliberate）：
+`render/templates.ts` 的 `RETURN_ZONE`（`:414`）改为单个散文契约块（zone key 由 `RETURN_STDOUT_BLOCK` 更名为 **`RETURN_PROSE`**——语义单源；pin 重锚 deliberate）：
 
 ```markdown
 ## Return
@@ -67,24 +67,39 @@ JSON, or any fixed block.
 (fail: an uncaught failure → exit non-zero with a one-line reason)
 ```
 
-- 散文**不转发**到 CLI stdout（stdout 是编排器的机器面，转发会污染抓取）；仅在 `BLOCKED` 时把尾部存入 crash record 的 `stdoutTail`（今日恒 `[]`——本次让它真正有内容）。
+- 散文**不转发**到 CLI stdout（stdout 是编排器的机器面，转发会污染抓取）。
+- **`stdoutTail` 通道显式设计**：子进程非零退出（`face/lifecycle.ts:205-208`）与「exit 0 但无 `status:` 行」（`face/lifecycle.ts:211-214`；其门本 phase 删——见 §2.2）两条失败面**都落崩溃记录**——`#dispatch` 把 `result.stdout` 交给失败面，二者统一经 `#reject`（no-status 情形经 `#reconstruct` 的草稿缺失腿落到同一个 `#reject`）写 crash record；`stdoutTail` 存子进程输出**尾部**，长度以命名常量 **`STDOUT_TAIL_MAX`** 限界。今日 `#reject` 恒写 `stdoutTail: []`（`face/lifecycle.ts:540`）——本次让它真正有内容。
 - `## Return` 小节保留（不整节删除）：它是 child 的收尾纪律，也是 host 日志的可读面。
 
 #### 2.2 引擎侧删除清单
 
 | 位置 | 删除物 | 理由 |
 |---|---|---|
-| `face/lifecycle.ts#parseBlockReturn` | 整个方法 | 死数据解析 |
-| `face/lifecycle.ts#dispatch` | `if (!/^status:\s*\S+/m.test(result.stdout)) → BLOCKED` 门 | 冗余门（草稿缺失已由 `#reject` 更准确拦截） |
-| `session/run.ts` `DispatchOutcome.artifacts` | 字段 + `#bookkeep` 的两处 `artifacts:` 传参 | 生产路径零消费者；hermetic 注入 dispatch 不再需要该槽（见 §2.3） |
-| `render/templates.ts` `ReturnZone` 接口 + `returnFormats()` | 接口与内省方法 | 单块后无「多形态」可枚举 |
-| `infra/__tests__/infra.test.ts` / `render/__tests__/render.test.ts` | `Object.keys(template.return)` / `returnFormats()` pin | 随删除物退役 |
+| `face/lifecycle.ts#parseBlockReturn`（`:414`） | 整个方法 | 死数据解析 |
+| `face/lifecycle.ts#dispatch`（`:211-214`） | `if (!/^status:\s*\S+/m.test(result.stdout)) → BLOCKED` 门 | 冗余门（草稿缺失已由 `#reject` 更准确拦截） |
+| `face/lifecycle.ts#reconstruct` | 第二参 `block: DispatchOutcome` + `:526` 的 `artifacts: block.artifacts` | 随 `#parseBlockReturn` 删除——调用形状变为 `#reconstruct(frame)` |
+| `session/run.ts` `DispatchOutcome.artifacts`（`:104`，消费点 `:452`/`:455`） | 字段 + `#bookkeep` 的两处 `artifacts:` 传参 | 生产路径零消费者；hermetic 注入 dispatch 不再需要该槽（见 §2.3） |
+| `render/templates.ts` `ReturnZone` 接口（`:68`）+ `returnFormats()`（`:505`，读于 `:527`/`:614`） | 接口与内省方法 | 单块后无「多形态」可枚举 |
+| `infra/__tests__/infra.test.ts` / `render/__tests__/render.test.ts` | `Object.keys(template.return)`（`infra.test.ts:111`）/ `returnFormats()` pin（`render.test.ts:48`） | 随删除物退役 |
 
-**保留**：`result.code !== 0 → BLOCKED` 作为唯一进程信号；`#reconstruct` 的草稿 + evidence 回读通道原样。
+**保留**：`result.code !== 0 → BLOCKED` 作为唯一进程信号（失败面落 crash record——见 §2.1）；`#reconstruct` 的草稿 + evidence 回读通道原样，唯第二参随 `#parseBlockReturn` 删除（调用形状 `#reconstruct(frame)`，`#dispatch` 尾行 `return this.#reconstruct(frame)`）。
 
 #### 2.3 hermetic 注入 dispatch 的产物面
 
-测试面的注入 dispatch 今天用 `artifacts` 字段向 `#bookkeep` 的 fallback 传产物。字段删除后，注入 dispatch 直接提供 **`carrier`**（`DispatchOutcome.carrier` 既有字段）表达产物，`#bookkeep` 的 fallback 只保留 `findings`（findings face）与空 work carrier 两条最简成型。**不接受第二种产物通道**——`carrier` 是引擎已声明的单一半成品面。
+测试面的注入 dispatch 今天用 `artifacts` 字段（`session/run.ts:104`）向 `#bookkeep` 的 fallback 传产物。字段删除后，注入 dispatch 直接提供 **`carrier`**（`DispatchOutcome.carrier` 既有字段，`session/run.ts:110`）表达产物，`#bookkeep` 的 fallback 只保留 `findings`（findings face）与空 work carrier 两条最简成型。**不接受第二种产物通道**——`carrier` 是引擎已声明的单一半成品面。
+
+#### 2.4 测试面迁移（逐条列名）
+
+本 phase 删掉的行为有四组 pin 仍锁着（「测试面全绿」是 AC，不逐条迁移则落地即红）。逐条就地重述，**以零写为准**：
+
+| pin 位置 | 今日断言 | 迁移后 |
+|---|---|---|
+| `face/__tests__/cli.test.ts:2586-2624`（P4.1 F1 回归） | `--dry-run implement` → `--dry-run review` 链断言 `.kairos/cdd/p3` 存在 · `.gitignore === '*\n'` · 第二腿 exit 0 | 拆两面：**真实运行腿**用空仓 fixture 真 dispatch（断言建目录 + 渲染 brief + `.gitignore` = `*`）· **`--dry-run` 腿**改「预览输出 + 断言零写（`.kairos/` 缺席）」，且链式 review 不再被拒（dry-run 不占轮） |
+| `src-next/__tests__/smoke.integration.test.ts:191-209`（发布门） | dry-run 链断言 `assertCapsule(res.stdout)` + `status:` 行 + `.kairos/cdd/fixture/` 行 | 以「preview 输出 + 零写」重述；`docs/maintainers/01-doctrine.md:41` 的发布门句同步 |
+| `render/__tests__/render.test.ts:69-87` | 两行 fence 逐字节 pin（`['status: <APPROVED\|BLOCKED>', 'artifacts: report=<path> test_evidence=<path>']`） | 换成**散文区**断言（`RETURN_PROSE` 块存在 + 无 `status:`/`artifacts:` 键值行） |
+| 合成批准块（`--dry-run` 调用点，`cli.test.ts` 内 72 处文本出现） | 经合成 dispatch `() => ({ status: 'APPROVED', findings: [] })` 造轮 | 改为注入 `dispatch:`/`carrier`，或转成 preview 行断言；`--dry-run` **调用点**计数与 D50 登记的 **23 处**对账后落定 |
+
+`--dry-run` 计数以「调用点」为准与 D50 的 23 处对账（`cli.test.ts` 的 72 处含历史语境文本出现，二者不同量纲，实现时对齐）——§2.2/§2.3 的实现面按对账结果收口。
 
 ### 3. B 组 · `--dry-run` 真只读预览
 
@@ -96,12 +111,12 @@ JSON, or any fixed block.
 
 | 写点（今日 dry-run 会触发） | 处置 |
 |---|---|
-| `#sceneOf` 的 `new Workspace(...).ensure()` | **全局退休**（不只 dry-run）——`writeJson` 已自行 ensure，`Workspace.ensure()` 的显式调用是重复 |
-| `#sceneOf` 的 `migrateJsonChild("progress.json"/"base.json")` | **全局退休**——P9 的读时归一化（`Workspace#normalizePaths`）已覆盖 straggler，migrate 的收益为零 |
-| `gate.renderBrief`（`writeFileSync` brief） | dry-run 跳过；预览以 `reads: <path> (would re-render from the current plan)` 陈述 |
-| `#bookkeep` 的 `persistHandoff` / `recordRound` / `recordReviewedRevision` / `recordReviewedBrief` | dry-run 跳过；预览以 `would record:` 陈述 |
+| `#sceneOf` 的 `new Workspace(...).ensure()`（`face/cli.ts:797`） | **场景装配不再代建 · 写点自 ensure**（不只 dry-run）——`Workspace.writeJson` 已自行 ensure；`CliGate#renderBrief` 在其裸 `writeFileSync` 之前补一次 ensure（`face/gate.ts:117-118`，它是真实运行的第一个写点，也是子进程 OUTPUT_REPORT / OUTPUT_HANDOFF 目标目录的建立者）。显式调用点两个（`face/cli.ts:797` · `:958`）均退休；`Workspace.ensure()` 方法本身保留（`writeJson` 内部调用它），仍是 `.kairos/.gitignore` keep-out 标记的唯一发布点，发布时机不变（首个写点） |
+| `#sceneOf` 的 `migrateJsonChild("progress.json"/"base.json")`（`face/cli.ts:803`/`:804`） | **全局退休**——`#readBase` 改走 `Workspace.readJson`（读写同一条归一化路径），P9 读时归一化真正覆盖 `base.json`；三调用点（`face/cli.ts:803` progress.json · `:804`/`:962` base.json）随本裁定退休，`Workspace.migrateJsonChild` 方法本体（`infra/workspace.ts:293`）成死码，连同其四个直测（`infra/__tests__/infra.test.ts:332-359`）一并删除（mandate 4） |
+| `gate.renderBrief`（`writeFileSync` brief，`face/gate.ts:117-118`；派发于 `face/cli.ts:492`） | dry-run 跳过；预览以 `reads: <path> (would re-render from the current plan)` 陈述 |
+| `#bookkeep` 的 `persistHandoff` / `recordRound` / `recordReviewedRevision` / `recordReviewedBrief`（写点 `session/run.ts:462`/`:467`/`:503`/`:517`） | dry-run 跳过；预览以 `would record:` 陈述 |
 | `#reject` 的 `writeCrash` | dry-run 跳过 |
-| `#dispatchOf` 的 synthetic `() => ({ status: "APPROVED", findings: [] })` | **删除**——dry-run 不再派发、不再伪造结论 |
+| `#dispatchOf` 的 synthetic `() => ({ status: "APPROVED", findings: [] })`（`face/cli.ts:640`） | **删除**——dry-run 不再派发、不再伪造结论 |
 
 #### 3.3 预览输出形面
 
@@ -113,10 +128,10 @@ cdd review: preview (no repo changes)
   reads:       .kairos/cdd/p3/tasks-1-brief.md (would re-render from the current plan)
   would write: .kairos/cdd/p3/tasks-1-review-1.json · .kairos/cdd/p3/tasks-1-review-1-report.md
   would record: progress.waves["1"].rounds.review += [1] · reviewedRevision(brief)
-  child:       claude -p (host: claude-code)
+  child:       claude -p --output-format text --dangerously-skip-permissions (host: claude)
 ```
 
-- `child:` 行展示 host 检测结果：`claude -p (host: claude-code)` 或 `(no host detected — real run would BLOCK)`。预览**不依赖** host 检测（不 spawn child）。
+- `child:` 行按引擎实际词汇 pin：`<HostId>` 值（`claude` / `cursor` / `pi`，`face/host.ts:34`）＋ `HOSTS.<id>.invoke` 的实参串（claude = `claude -p --output-format text --dangerously-skip-permissions`，`face/host.ts:149`）；未检出 host 时写 `(no host detected — real run would BLOCK)`。**不写 `claude-code`**——那是 `aiAgentPrefix` 的探测标记值（`face/host.ts:152`），非 host id。预览**不依赖** host 检测（不 spawn child）。
 - 不打印 `next:`：`next` 取决于本轮结论，打印即伪造。跨轮走向交给 `cdd board <slug>`。
 - 路径一律 repoRoot-relative（D47 单形态）。
 
@@ -132,17 +147,24 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 
 #### 4.1 `RoundNaming` 命名单源
 
-预期产物名今天由 `CliLifecycle#outputPath` / `#evidenceName` 私有计算。提取 `RoundNaming` 类（`session/round-naming.ts`），持有 frame → 产物名的全部派生（`handoff` / `report` / `evidence` / `brief`），由 `CliLifecycle`、dry-run preview、`#reconstruct` 三方共用。这是本 phase **唯一新增抽象**，正好消灭现有的私有命名散点。
+预期产物名今天由 `CliLifecycle` 的私有方法散点计算：`#outputOf`（`face/lifecycle.ts:379`，用于 `:337-338`/`:663`/`:665`）· `#evidenceName`（`:405`，用于 `:504`）· `#evidencePrefix`（`:687`，用于 `:680`）。提取 `RoundNaming` 类（`session/round-naming.ts`），持有 frame → 产物名（**report / evidence / brief**）的派生，由 `CliLifecycle` 与 dry-run preview **两面**共用（`#reconstruct` 是 `CliLifecycle` 的自身方法，属第三调用点而非第三面）。这是本 phase **唯一新增抽象**，正好消灭现有的私有命名散点。
+
+**handoff 名不另起推导**：委派 `Ledger#handoffName`（`session/ledger.ts:836`）的 `HANDOFF_FAMILIES` 表——该表声明「the naming table is the single truth, never a second list」（`session/ledger.ts:820`），族绑定仍读 config（`session/ledger.ts:335`/`:821`）；守 D26（一事实一处）。brief 名的产地是 `CliGate#renderBrief`（`face/gate.ts:118`）。
 
 #### 4.2 遗留读写路径退休
 
-见 §3.2 的前两行：`Workspace.ensure()` 的显式调用点（`#sceneOf`）与 `migrateJsonChild` 全调用点删除。`Workspace.ensure()` 方法本身保留（`writeJson` 内部调用它）。
+见 §3.2 的前两行，逐项退休：
+
+- **`Workspace.ensure()` 显式调用点两个，均退休**：`face/cli.ts:797`（`#sceneOf`，工作路径）· `face/cli.ts:958`（`#runBase`）。`base set` 经 `writeJson` 自带 ensure；只读的 `cdd base get` 不再建 `.kairos/`（与 B 组「只读命令零写」同向，消弭同类缺陷）。`Workspace.ensure()` 方法本身保留（`writeJson` 内部调用它），且仍是 `.kairos/.gitignore` keep-out 标记的唯一发布点，发布时机不变（首个写点）。
+- **`migrateJsonChild` 全调用点退休 + 死码删除**：`#readBase` 改走 `Workspace.readJson`（`face/artifacts.ts:221-223` 的裸 `JSON.parse(readFileSync(...))` 退役），使 P9 读时归一化真正覆盖 `base.json`——一事实一处，不留第二个疗伤点；三调用点（`face/cli.ts:803` progress.json · `:804`/`:962` base.json）随之退休，方法本体（`infra/workspace.ts:293`）成死码，连同其四个直测（`infra/__tests__/infra.test.ts:332-359`）一并删除（mandate 4）。
 
 ### 5. D 组 · dispatch 输入面命名收口（`--findings` → `--reviews`）
 
 #### 5.1 缺陷
 
 `cdd fix` 的输入旗标 `--findings`（`ARGV_CHANNEL.findings` · `face/declare.ts:56`）指向评审轮的**产出文档**：该 carrier 由 `CARRIER_FINDINGS` 声明，载 `findings` + `artifacts` + `notes` 三面（`session/handoff-schema.ts:85-93`）。旗标自身的 help 早已是 "the source review handoff JSON path"（`face/declare.ts:59`）——**声明名窄于实际指称**。同类背离还在 prompt 令牌 `INPUT_FINDINGS`（`face/lifecycle.ts:300` · `render/templates.ts:188`/`:209`/`:217`/`:278`/`:296`/`:441`）与内部路径字段（`face/cli.ts:152` 的 `PathArgs.findings` · `session/next.ts:53` 的 `Route` fix 跳 `findings` · `session/ledger.ts:93` 的 `Round.findingsPath`）。
+
+以上八个行号为 **D51 落地点**（改名前后同行号），故今日读到的字节已是 `reviews`（如 `face/declare.ts:56` = `reviews: {` · `session/ledger.ts:93` = `reviewsPath?: string`）；pre-rename 态（`ARGV_CHANNEL.findings` / `Route.findings` / `Round.findingsPath`）以 §5.2 的判准文字承载，**不引 pre-hot-fix 修订**——Constraints「历史面不追改」。
 
 #### 5.2 裁定
 
@@ -169,17 +191,20 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 
 - 模板 `## Return` 为纯散文、zone key 为 `RETURN_PROSE`；`ReturnZone` / `returnFormats()` / `#parseBlockReturn` 零残留（grep pin）
 - 引擎对 child stdout 零解析：唯一信号为 `result.code !== 0`；「exit 0 无 status 行」门零残留
-- `DispatchOutcome.artifacts` 字段零残留；hermetic 注入 dispatch 经 `carrier` 表达产物
-- `--dry-run` 对本 repo 零字节修改：`git status --porcelain` 前后一致 + `.kairos/` 目录不存在（fixture repo pin）
+- 子进程非零退出或无 draft 时产出 crash record 且 `stdoutTail` **非空**（尾部以命名常量 `STDOUT_TAIL_MAX` 限界）
+- `DispatchOutcome.artifacts` 字段零残留；`#reconstruct` 第二参已删（调用形状 `#reconstruct(frame)`，`face/lifecycle.ts:526` 的 `block.artifacts` 零残留）；hermetic 注入 dispatch 经 `carrier` 表达产物
+- 空仓首次**真实** dispatch：建出 workspace 并渲染 brief（零 ENOENT），`.kairos/.gitignore` = `*`（fresh-repo pin）
+- 同一空仓 `--dry-run` 后 `.kairos/` 目录**缺席**（零写）
+- `--dry-run` 对本 repo 零字节修改：`git status --porcelain` 前后一致（fixture repo pin）
 - `--dry-run` 不占轮次：同一命令随后真实 review 可立即执行（ledger `rounds.review` 未被预占）
-- 预览含 `step:` / `reads:` / `would write:` / `would record:` / `child:` 五行，且无 `status:` / `next:` 行
+- 预览含 `step:` / `reads:` / `would write:` / `would record:` / `child:` 五行，且无 `status:` / `next:` 行；`child:` 行为 `HostId` + `HOSTS.<id>.invoke` 实参串（非 `claude-code`）
 - pre-flight 拒绝时 dry-run 输出与真实运行一致并 exit 1
 - 非 implement/review/fix 的 `--dry-run` exit 2
-- `RoundNaming` 为命名唯一来源（`#outputOf` / `#evidenceName` / `#evidencePrefix` 零残留）
-- `#sceneOf` 的 `ensure()` / `migrateJsonChild` 调用点零残留
+- `RoundNaming` 为命名唯一来源（`#outputOf` / `#evidenceName` / `#evidencePrefix` 零残留），且 handoff 名委派 `Ledger#handoffName` 的 `HANDOFF_FAMILIES` 表（不另起推导）
+- `Workspace.ensure()` 显式调用点零残留（两个：`face/cli.ts:797` · `:958`）；`migrateJsonChild` 调用点与方法本体零残留（四直测一并删除）；持 legacy 绝对 `plan` 的 `base.json` 在 `cdd base get` 报 **repoRoot 相对形**
 - `--findings` / `INPUT_FINDINGS` 在活面零残留（引擎 src · 测试 · `render/templates.ts` 令牌族 · `docs/maintainers/02-naming.md`）；引擎 `next:` 的 fix 跳字面用 `--reviews`；历史面不追改
-- `declare.ts` flag help + `README.md` + `README.zh-CN.md` 三处文案一致
-- 测试面全绿；cdd-engine changeset 在册（§5 旗标改名破坏性 → 全 phase 级次 **major**）；不发布
+- `declare.ts` flag help + `packages/cdd-engine/README.md` + `packages/cdd-engine/README.zh-CN.md` 三处文案一致；`docs/maintainers/*` 内旧名 `RETURN_STDOUT_BLOCK` 全改 `RETURN_PROSE`（`02-naming.md:7`/`:40` · `03-cache-doctrine.md:21`）
+- 测试面全绿（含 §2.4 的逐条迁移：F1 双面 · 发布门 smoke 重述（`docs/maintainers/01-doctrine.md:41` 同步）· 两行 fence pin 换散文断言 · 合成批准块改注入/预览断言 · `--dry-run` 调用点计数与 D50 的 23 处对账）；cdd-engine changeset 在册（§5 旗标改名破坏性 → 全 phase 级次 **major**）；不发布
 
 ## Constraints
 
@@ -187,7 +212,7 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 - **零裸函数**：新增 `RoundNaming` 为类；模块级导出仅类型 / 数据 / 类。
 - **不造轮子**：预览输出用手写行（无第三方依赖适用）；不引入模板引擎。
 - **D29 黑盒边界**：skill 文本零改动；本 phase 的消费面可见变化仅限 README + flag help。
-- **单一行为路径**：不为 dry-run 做分支特判蔓延——写点的关闭要么是全局退休（`ensure`/`migrate`），要么集中在 preview 的单一路径上（`renderBrief`/`bookkeep`）。
+- **单一行为路径**：不为 dry-run 做分支特判蔓延——写点的关闭要么落在写点本身（`ensure` 显式调用点退休 · `migrate` 全退休），要么集中在 preview 的单一路径上（`renderBrief`/`bookkeep`）。
 - **历史面不追改**：旗标/令牌改名的零残留断言只覆盖活面（引擎 src · 测试 · 模板 · maintainers 活文档）；历史 spec/plan/changeset/CHANGELOG 是记录，保持原样。
 
 ## Change history
@@ -196,3 +221,4 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-18 | 初稿——P11 phase-spec：child Return 去结构化（A 组）+ `--dry-run` 真只读预览（B 组）+ `RoundNaming` 与遗留读写清理（C 组）；裁定全承 D50 | Oscar M. · Claude Opus 5（kairos:cdd-design [P11] · 2026-10-18） |
 | v0.2 | 2026-10-18 | 会话期追加（in-flight · 承 D51）：新增 §5 D 组——dispatch 输入面命名收口（`--findings` → `--reviews` / `INPUT_FINDINGS` → `INPUT_REVIEWS`）＋ review handoff `notes` 消费面澄清；§1.2 判准增「命名背离」类；§1.1 记录会话期裁定；AC 增活面零残留 pin 并把 changeset 级次升格 **major**；Constraints 增「历史面不追改」；AC 的 `RoundNaming` pin 符号名校正为真实三法 | Oscar M. · Claude Opus 5（kairos:cdd-design [P11] 会话 in-flight · 2026-10-18） |
+| v0.3 | 2026-10-18 | docs-fix round 2——落实 R1–R11：§3.2 首行改「场景装配不再代建 · 写点自 ensure」（`renderBrief` 补 ensure；两个 `ensure()` 调用点退休）· §3.2 次行改 `#readBase` 走 `readJson`（`migrateJsonChild` 全调用点 + 方法本体 + 四直测删除）· §1.3 写点重述（四门纯读）与 `next:` 限定 · §2.1 `stdoutTail` 通道显式设计（`STDOUT_TAIL_MAX`）· §2.2 补 `#reconstruct` 第二参删除行 · 新增 §2.4 测试面迁移逐条列名 · §3.3 `child:` 行按 `HostId` + invoke 实参串 pin · §4.1 符号校正 + handoff 名委派 `Ledger` · §4.2 双调用点 + `#readBase` 归一化 · §5.1 锚点标注 D51 落地点 · AC 增 fresh-repo / base.json / stdoutTail pins 与 doc 全路径 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] docs-fix round 2 · 2026-10-18） |

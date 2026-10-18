@@ -1,10 +1,13 @@
-# 引擎文档工具（Engine Doc-Tooling）— P10 设计：文档头部 front-matter 化 + 登记表驱动正文解析统一（Fork B）
-- **Version**: v0.8 · 2026-10-17
-- **Doc type**: phase-spec
-- **Status**: Draft
-- **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P10] 会话 · 用户裁定 · 2026-10-17）
-- **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
-- **Depends on**: P9（Done · v0.7 · hard——P9 全链闭合后重开文档形态与解析模型统一 · overall 依赖图 D48）
+---
+title: 引擎文档工具（Engine Doc-Tooling）— P10 设计：文档头部 front-matter 化 + 登记表驱动正文解析统一（Fork B）
+doc-type: phase-spec
+version: v0.8
+date: 2026-10-17
+status: Draft
+author: Oscar M. · Claude Opus 5（kairos:cdd-design [P10] 会话 · 用户裁定 · 2026-10-17）
+parent-program: 2026-10-10-engine-doc-tooling-overall.md
+depends-on: P9（Done · v0.7 · hard——P9 全链闭合后重开文档形态与解析模型统一 · overall 依赖图 D48）
+---
 
 ## Design
 

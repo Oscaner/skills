@@ -1,8 +1,12 @@
-# 引擎文档工具（Engine Doc-Tooling）— P6 实施计划：single-spec 骨架 + 命名统一 + kairos vitest 迁移 + 过时文档清理
-**Spec:** [2026-10-10-engine-doc-tooling-p6-design.md](../specs/2026-10-10-engine-doc-tooling-p6-design.md)
-- **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.4 · 2026-10-13
-- **Doc type**: plan
+---
+title: 引擎文档工具（Engine Doc-Tooling）— P6 实施计划：single-spec 骨架 + 命名统一 + kairos vitest
+  迁移 + 过时文档清理
+doc-type: plan
+version: v0.4
+date: 2026-10-13
+spec: ../specs/2026-10-10-engine-doc-tooling-p6-design.md
+parent-program: ../specs/2026-10-10-engine-doc-tooling-overall.md
+---
 
 ## Constraints
 

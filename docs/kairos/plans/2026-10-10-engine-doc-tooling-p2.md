@@ -1,11 +1,16 @@
-# 引擎文档工具（Engine Doc-Tooling）— P2 Plan（schema gen 模板写作）
-
-**Spec:** [2026-10-10-engine-doc-tooling-p2-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p2-design.md)
-- **Parent program**: [2026-10-10-engine-doc-tooling-overall.md v1.1](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.5 · 2026-10-11
-- **Doc type**: plan
-- **Depends on**: 依赖升级与 src 更名程序 P2（sweep 面关系 · D8 拆 pin——本 plan 引擎改动**先行实现于现行 `src-next/` 树**，rename sweep 随后全库覆盖新文件面）；本程序 P1 ‖ P2 并行无硬依赖（父总体 Dependency graph）· 前置 = P2 design spec v0.2 Approved（review-fix 链全闭 · 拆 pin 回填后）
-- **Base**: develop
+---
+title: 引擎文档工具（Engine Doc-Tooling）— P2 Plan（schema gen 模板写作）
+doc-type: plan
+version: v0.5
+date: 2026-10-11
+spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p2-design.md
+parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
+parent-version: v1.1
+depends-on: 依赖升级与 src 更名程序 P2（sweep 面关系 · D8 拆 pin——本 plan 引擎改动**先行实现于现行
+  `src-next/` 树**，rename sweep 随后全库覆盖新文件面）；本程序 P1 ‖ P2 并行无硬依赖（父总体 Dependency
+  graph）· 前置 = P2 design spec v0.2 Approved（review-fix 链全闭 · 拆 pin 回填后）
+base: develop
+---
 
 ## Constraints
 

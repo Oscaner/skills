@@ -1,8 +1,12 @@
-# 引擎文档工具（Engine Doc-Tooling）— P9 实施计划：一事实无处 / 无门 / 有副本 通审施工（D26 法条 · A 组路径面单源统一 + B 组 20 项无门事实通审 + frontmatter 门）
-**Spec:** [2026-10-10-engine-doc-tooling-p9-design.md](../specs/2026-10-10-engine-doc-tooling-p9-design.md)
-- **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](../specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.9 · 2026-10-17
-- **Doc type**: plan
+---
+title: 引擎文档工具（Engine Doc-Tooling）— P9 实施计划：一事实无处 / 无门 / 有副本 通审施工（D26 法条 · A
+  组路径面单源统一 + B 组 20 项无门事实通审 + frontmatter 门）
+doc-type: plan
+version: v0.9
+date: 2026-10-17
+spec: ../specs/2026-10-10-engine-doc-tooling-p9-design.md
+parent-program: ../specs/2026-10-10-engine-doc-tooling-overall.md
+---
 
 ## Constraints
 

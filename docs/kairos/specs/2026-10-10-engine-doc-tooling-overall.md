@@ -1,20 +1,11 @@
-# 引擎文档工具（Engine Doc-Tooling）— Overall Spec
-
-- **Version**: v2.47 · 2026-10-17
-- **Doc type**: overall-spec
-- **Status**: Draft
-- **Author**: [human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）
-- **Constraints**:
-  - **从「依赖升级与 src 更名」程序拆出（2026-10-10 用户拍板「这个问题和 P4 其实是同一类的吧？那把 P4 拆出来和这个问题一起放独立 overall 里」）**：本程序承接该程序原 **P4（review-face overall 键）** + 用户 2026-10-10 提出的**写文档方案重设计（schema gen 模板写作）**——同属**引擎 doc-tooling 能力面**（裁判侧缺口：引擎判不了 overall · 写侧缺口：引擎不给写作结构）
-  - **跨程序树协调（2026-10-11 用户裁定拆 pin → D8）**：~~强依赖~~ ——本程序 P1/P2 引擎改动**在 rename P2 落定前先行实现于现行 `src-next/` 树**，rename P2 的 sweep 随全库 grep 覆盖本程序新文件面（零登记豁免 · 豁免面清单仍为空——sweep 按字面量全局改，非登记列表）；本程序期引用沿用现行 `src-next/` 路径面（Q3→b 历史面全改语义 · rename sweep 覆盖本文件字面量 + 本程序实现新文件）
-  - **CLAUDE.md「cdd CLI 零新子命令」pin 连带修订（2026-10-10 用户拍板授权）**：现行唯一例外 = `schema get` + `issue render`；`schema gen` 属新能力面，pin 修订为本程序 P2 范围内落地（文档先行 · 实现随之，不可只实现不改文）
-  - **P2 grilling 定案（2026-10-11 · cdd-design [P2] · Q1/Q2/Q3 裁定）**：① **schema gen 输出 = stdout 纯渲染**，骨架落盘由编排器承担（`cdd schema gen phase-spec > specs/<name>.md`）；生成的骨架 = **完整结构**（标题树 · 表列头 · 版本/change-history 脚手架全须齐备），主体内容/description 槽位以**占位符提示**标出（填后零残留 pin）。② **CLAUDE.md 去 kairos/引擎流程（Q3→c · 直接删除，不迁不存）**——本仓库工作树逼近消费者环境，以验证消费者视角使用引擎的真实体验；消费面引导由 skills 承担（R4「先 gen 后填」）。③ **重构许可扩至整引擎 CLI 面（Q2→b · 六前提）**——schema gen 落地可重写代码、重组目录（OOP 统一 · 零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简）；许可不止 schema/template 面，涉整个 face/cli.ts 与目录级重组，Non-goal ④ 随之改写（跨程序树 pin 与 gate 零例外不变）
-  - **P1 grilling 定案（2026-10-11 · cdd-design [P1] · Q1–Q6 裁定）**：① **六前提重构许可扩至 P1 整 face 层**（Q3→c · 与 P2 同款许可）——cli.ts（六命令注册 · parse 通道 · run 分发 · preflight doc 构造 · help 渲染）+ capsule + words + graph-view + host 可重写/目录级重组（OOP 统一 · 零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简）；② **help/`--help` 展示面完整重建**（Q4→a 自研渲染——零运行时依赖姿态保持 · 维护文档 `05-third-party-dependencies.md` do-not-re-add 守约）——目标形面：顶层 `cdd` 命令总览 · 每命令 `--help` 旗标级说明 + 值域 · 子命令树（`base set|get` · `schema get|gen` · `issue render`）· review/fix `--type` 值域提示 · 错误路径智能提示；③ **usage 行重写**（Q5→b · deliberate pin break）——CLI_USAGE 六行全面重写为友好语法，cli.test.ts usage pins + smoke-cdd 锚同步更替；④ **docKey 推导共享化**（Q1→a · Q2→a）——契约层导出共享推导（类成员形态 · 零裸函数），`scripts/validate.ts` 改调（spec 树 = 共享推导 · plans 目录分支留在 validate 侧组合）
-  - **P1 docKey 词表统一裁定（2026-10-11 · 用户 backfill → P1 随 cli 面统一处理）**：**docKey/类型词表统一为单一拼写 `phase-spec`（kebab）**——治 D3 大小写坑本源（现「类型字面量 kebab / 门禁 docKey camel」两键系统）· 统一面 = declare 登记表行键 · judge DOC_KEYS/DocKey 类型 · invariants ctx 站点 · Projector 五投影键 · validate 派生 · cli preflight docKey · words 键 · schema get 值域（get/gen 一表两面）· **P2「schema get 字节不变」断言语义随统一更新**（deliberate pin break · 与 usage 重写 Q5→b 同级）· 因 P1 本就要重塑 cli 面，词表统一并入 P1（非独立议题 · 决策 D10）
-  - **P3 设计会话定案（2026-10-11 · kairos:cdd-design [P3] · 用户裁定 Q4–Q6 + 六前提）**：① **六前提整 face 许可（与 P1 同款）**——组合根 cli.ts 整体重建（OOP 统一 · 零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简）· 领域 run 类（Lifecycle/PreFlight/Capsule/host）保留经 `.action()` 薄壳调用 · guard channel-closure 结构性 pin 保 → 决策 D12。② **commander 原生为基（Q5 全变）**——错误消息字节 · did-you-mean 具现（#usageHint/#nearestFlag/#distance/CliUsageError.surface/自研渲染器整组销毁）· 帮助/usage 形面全交 commander 原生形态，测试 pins 整体重锚（deliberate）· 语义回归 pin 保留：did-you-mean 三 ID 用例 = 命令树结构保真（base get/set 各持 option 集 · implement 无 --spec 候选）· 值域/类型词表/条件必填 = **commander 原生**（parseArg + `preAction` hook · 零自研校验组件 · v0.6/v0.7 重审 · 声明面单源 face/declare.ts）。③ **语义契约三保（Q6）**——退出码 0/1/2 表（exitOverride 归一）· CDD_BLOCKED stderr 通道 · 裸 cdd usage 错语义（退 2 · 字节 commander 原生）。④ **变更集语义（major）**——合并变更集标 **major**（P1/P2 deferred + 框架化三主题归并 · breaking 段叙事：形面字节更替 · commander ^15 运行时依赖重准入 · 架构重写 · 终版 2.0.0 由存量 major 决定）· 存量积压 changesets 留守不折。
-  - **不发布**：changesets 收尾到可发布态即止；版本应用 / tag / publish = 独立动作
-  - **语言纪律保持**（Strategy B 内部 docs 中文 · 消费面 skill 文本英文主源）
-  - 变更先回填本 overall（backfill-as-version），再继续实现
+---
+title: 引擎文档工具（Engine Doc-Tooling）— Overall Spec
+doc-type: overall-spec
+version: v2.47
+date: 2026-10-17
+status: Draft
+author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）"
+---
 
 ## Document scope
 
@@ -156,6 +147,19 @@ Legend:
 - 需求变更在 phase 中发生时，**先回填本 overall**（version bump + change-history 行 + 同步受影响 phase 的 scope/acceptance/dependency），再继续实现
 - **模板结构保真**：schema gen 骨架 = declare.ts 派生（标题树/表列/脚手架 by construction），编辑器只填内容不重排——违反 = 保真破坏，视为 defect
 - **gate 零例外**：doc-contract 判定语义不变；模板 / 骨架不是 gate 豁免通道
+
+## Constraints
+
+- **从「依赖升级与 src 更名」程序拆出（2026-10-10 用户拍板「这个问题和 P4 其实是同一类的吧？那把 P4 拆出来和这个问题一起放独立 overall 里」）**：本程序承接该程序原 **P4（review-face overall 键）** + 用户 2026-10-10 提出的**写文档方案重设计（schema gen 模板写作）**——同属**引擎 doc-tooling 能力面**（裁判侧缺口：引擎判不了 overall · 写侧缺口：引擎不给写作结构）
+- **跨程序树协调（2026-10-11 用户裁定拆 pin → D8）**：~~强依赖~~ ——本程序 P1/P2 引擎改动**在 rename P2 落定前先行实现于现行 `src-next/` 树**，rename P2 的 sweep 随全库 grep 覆盖本程序新文件面（零登记豁免 · 豁免面清单仍为空——sweep 按字面量全局改，非登记列表）；本程序期引用沿用现行 `src-next/` 路径面（Q3→b 历史面全改语义 · rename sweep 覆盖本文件字面量 + 本程序实现新文件）
+- **CLAUDE.md「cdd CLI 零新子命令」pin 连带修订（2026-10-10 用户拍板授权）**：现行唯一例外 = `schema get` + `issue render`；`schema gen` 属新能力面，pin 修订为本程序 P2 范围内落地（文档先行 · 实现随之，不可只实现不改文）
+- **P2 grilling 定案（2026-10-11 · cdd-design [P2] · Q1/Q2/Q3 裁定）**：① **schema gen 输出 = stdout 纯渲染**，骨架落盘由编排器承担（`cdd schema gen phase-spec > specs/<name>.md`）；生成的骨架 = **完整结构**（标题树 · 表列头 · 版本/change-history 脚手架全须齐备），主体内容/description 槽位以**占位符提示**标出（填后零残留 pin）。② **CLAUDE.md 去 kairos/引擎流程（Q3→c · 直接删除，不迁不存）**——本仓库工作树逼近消费者环境，以验证消费者视角使用引擎的真实体验；消费面引导由 skills 承担（R4「先 gen 后填」）。③ **重构许可扩至整引擎 CLI 面（Q2→b · 六前提）**——schema gen 落地可重写代码、重组目录（OOP 统一 · 零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简）；许可不止 schema/template 面，涉整个 face/cli.ts 与目录级重组，Non-goal ④ 随之改写（跨程序树 pin 与 gate 零例外不变）
+- **P1 grilling 定案（2026-10-11 · cdd-design [P1] · Q1–Q6 裁定）**：① **六前提重构许可扩至 P1 整 face 层**（Q3→c · 与 P2 同款许可）——cli.ts（六命令注册 · parse 通道 · run 分发 · preflight doc 构造 · help 渲染）+ capsule + words + graph-view + host 可重写/目录级重组（OOP 统一 · 零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简）；② **help/`--help` 展示面完整重建**（Q4→a 自研渲染——零运行时依赖姿态保持 · 维护文档 `05-third-party-dependencies.md` do-not-re-add 守约）——目标形面：顶层 `cdd` 命令总览 · 每命令 `--help` 旗标级说明 + 值域 · 子命令树（`base set|get` · `schema get|gen` · `issue render`）· review/fix `--type` 值域提示 · 错误路径智能提示；③ **usage 行重写**（Q5→b · deliberate pin break）——CLI_USAGE 六行全面重写为友好语法，cli.test.ts usage pins + smoke-cdd 锚同步更替；④ **docKey 推导共享化**（Q1→a · Q2→a）——契约层导出共享推导（类成员形态 · 零裸函数），`scripts/validate.ts` 改调（spec 树 = 共享推导 · plans 目录分支留在 validate 侧组合）
+- **P1 docKey 词表统一裁定（2026-10-11 · 用户 backfill → P1 随 cli 面统一处理）**：**docKey/类型词表统一为单一拼写 `phase-spec`（kebab）**——治 D3 大小写坑本源（现「类型字面量 kebab / 门禁 docKey camel」两键系统）· 统一面 = declare 登记表行键 · judge DOC_KEYS/DocKey 类型 · invariants ctx 站点 · Projector 五投影键 · validate 派生 · cli preflight docKey · words 键 · schema get 值域（get/gen 一表两面）· **P2「schema get 字节不变」断言语义随统一更新**（deliberate pin break · 与 usage 重写 Q5→b 同级）· 因 P1 本就要重塑 cli 面，词表统一并入 P1（非独立议题 · 决策 D10）
+- **P3 设计会话定案（2026-10-11 · kairos:cdd-design [P3] · 用户裁定 Q4–Q6 + 六前提）**：① **六前提整 face 许可（与 P1 同款）**——组合根 cli.ts 整体重建（OOP 统一 · 零裸函数 · 死码/空壳清理 · 高内聚低耦合 · 消费者心智负担 · 最大精简）· 领域 run 类（Lifecycle/PreFlight/Capsule/host）保留经 `.action()` 薄壳调用 · guard channel-closure 结构性 pin 保 → 决策 D12。② **commander 原生为基（Q5 全变）**——错误消息字节 · did-you-mean 具现（#usageHint/#nearestFlag/#distance/CliUsageError.surface/自研渲染器整组销毁）· 帮助/usage 形面全交 commander 原生形态，测试 pins 整体重锚（deliberate）· 语义回归 pin 保留：did-you-mean 三 ID 用例 = 命令树结构保真（base get/set 各持 option 集 · implement 无 --spec 候选）· 值域/类型词表/条件必填 = **commander 原生**（parseArg + `preAction` hook · 零自研校验组件 · v0.6/v0.7 重审 · 声明面单源 face/declare.ts）。③ **语义契约三保（Q6）**——退出码 0/1/2 表（exitOverride 归一）· CDD_BLOCKED stderr 通道 · 裸 cdd usage 错语义（退 2 · 字节 commander 原生）。④ **变更集语义（major）**——合并变更集标 **major**（P1/P2 deferred + 框架化三主题归并 · breaking 段叙事：形面字节更替 · commander ^15 运行时依赖重准入 · 架构重写 · 终版 2.0.0 由存量 major 决定）· 存量积压 changesets 留守不折。
+- **不发布**：changesets 收尾到可发布态即止；版本应用 / tag / publish = 独立动作
+- **语言纪律保持**（Strategy B 内部 docs 中文 · 消费面 skill 文本英文主源）
+- 变更先回填本 overall（backfill-as-version），再继续实现
 
 ## Maintenance
 

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P11 设计：dispatch contract 收口（child Return 去结构化 + --dry-run 真只读预览）
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-10-18
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P11] 会话 · 用户两项 mandate · 2026-10-18）
@@ -131,7 +131,7 @@ cdd review: preview (no repo changes)
   child:       claude -p --output-format text --dangerously-skip-permissions (host: claude)
 ```
 
-- `child:` 行按引擎实际词汇 pin：`<HostId>` 值（`claude` / `cursor` / `pi`，`face/host.ts:34`）＋ `HOSTS.<id>.invoke` 的实参串（claude = `claude -p --output-format text --dangerously-skip-permissions`，`face/host.ts:149`）；未检出 host 时写 `(no host detected — real run would BLOCK)`。**不写 `claude-code`**——那是 `aiAgentPrefix` 的探测标记值（`face/host.ts:152`），非 host id。预览**不依赖** host 检测（不 spawn child）。
+- `child:` 行按引擎实际词汇 pin：行 = `<HostId>` ＋ `" "` ＋ `HOSTS.<id>.invoke`——leading token 是 `<HostId>` 值（`claude` / `cursor` / `pi`，`face/host.ts:34`），其后的实参串取 `HOSTS.<id>.invoke` 原值（claude = `-p --output-format text --dangerously-skip-permissions`，逐字照 `face/host.ts:149`；二进制名 `claude` 是 `HOSTS.claude.cli`，不在 invoke 值内）；未检出 host 时写 `(no host detected — real run would BLOCK)`。**不写 `claude-code`**——那是 `aiAgentPrefix` 的探测标记值（`face/host.ts:152`），非 host id。预览**不依赖** host 检测（不 spawn child）。
 - 不打印 `next:`：`next` 取决于本轮结论，打印即伪造。跨轮走向交给 `cdd board <slug>`。
 - 路径一律 repoRoot-relative（D47 单形态）。
 
@@ -155,7 +155,7 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 
 见 §3.2 的前两行，逐项退休：
 
-- **`Workspace.ensure()` 显式调用点两个，均退休**：`face/cli.ts:797`（`#sceneOf`，工作路径）· `face/cli.ts:958`（`#runBase`）。`base set` 经 `writeJson` 自带 ensure；只读的 `cdd base get` 不再建 `.kairos/`（与 B 组「只读命令零写」同向，消弭同类缺陷）。`Workspace.ensure()` 方法本身保留（`writeJson` 内部调用它），且仍是 `.kairos/.gitignore` keep-out 标记的唯一发布点，发布时机不变（首个写点）。
+- **`Workspace.ensure()` 显式调用点重述**：`#sceneOf`（`face/cli.ts:797`）与 `#runBase`（`face/cli.ts:958`）两条显式调用点退休；`CliGate#renderBrief` **新增一处**显式 `Workspace.ensure()`（`face/gate.ts:117-118`——真实运行的首个写点，dry-run 不触发）；`Workspace.writeJson` 内部自 ensure。`base set` 经 `writeJson` 自带 ensure；只读的 `cdd base get` 不再建 `.kairos/`（与 B 组「只读命令零写」同向，消弭同类缺陷）。`Workspace.ensure()` 方法本身保留（`writeJson` 内部调用它），且仍是 `.kairos/.gitignore` keep-out 标记的唯一发布点，发布时机不变（首个写点）。
 - **`migrateJsonChild` 全调用点退休 + 死码删除**：`#readBase` 改走 `Workspace.readJson`（`face/artifacts.ts:221-223` 的裸 `JSON.parse(readFileSync(...))` 退役），使 P9 读时归一化真正覆盖 `base.json`——一事实一处，不留第二个疗伤点；三调用点（`face/cli.ts:803` progress.json · `:804`/`:962` base.json）随之退休，方法本体（`infra/workspace.ts:293`）成死码，连同其四个直测（`infra/__tests__/infra.test.ts:332-359`）一并删除（mandate 4）。
 
 ### 5. D 组 · dispatch 输入面命名收口（`--findings` → `--reviews`）
@@ -201,9 +201,9 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 - pre-flight 拒绝时 dry-run 输出与真实运行一致并 exit 1
 - 非 implement/review/fix 的 `--dry-run` exit 2
 - `RoundNaming` 为命名唯一来源（`#outputOf` / `#evidenceName` / `#evidencePrefix` 零残留），且 handoff 名委派 `Ledger#handoffName` 的 `HANDOFF_FAMILIES` 表（不另起推导）
-- `Workspace.ensure()` 显式调用点零残留（两个：`face/cli.ts:797` · `:958`）；`migrateJsonChild` 调用点与方法本体零残留（四直测一并删除）；持 legacy 绝对 `plan` 的 `base.json` 在 `cdd base get` 报 **repoRoot 相对形**
+- 两条 `Workspace.ensure()` 显式调用点（`face/cli.ts:797` · `:958`）退休后零残留；`CliGate#renderBrief` 的显式 `ensure()`（`face/gate.ts:117-118`）为首个写点（dry-run 不触发）；`migrateJsonChild` 调用点与方法本体零残留（四直测一并删除）；持 legacy 绝对 `plan` 的 `base.json` 在 `cdd base get` 报 **repoRoot 相对形**
 - `--findings` / `INPUT_FINDINGS` 在活面零残留（引擎 src · 测试 · `render/templates.ts` 令牌族 · `docs/maintainers/02-naming.md`）；引擎 `next:` 的 fix 跳字面用 `--reviews`；历史面不追改
-- `declare.ts` flag help + `packages/cdd-engine/README.md` + `packages/cdd-engine/README.zh-CN.md` 三处文案一致；`docs/maintainers/*` 内旧名 `RETURN_STDOUT_BLOCK` 全改 `RETURN_PROSE`（`02-naming.md:7`/`:40` · `03-cache-doctrine.md:21`）
+- `declare.ts` flag help + `packages/cdd-engine/README.md` + `packages/cdd-engine/README.zh-CN.md` 三处文案一致；旧名 `RETURN_STDOUT_BLOCK` → `RETURN_PROSE` 在**全活面**零残留——引擎 src `render/templates.ts:37`/`:415`/`:425`/`:527`/`:614` · `infra/runtime.ts:76` · `face/lifecycle.ts:66`/`:411` ＋ 引擎测试 `infra/__tests__/infra.test.ts:55`/`:111` · `render/__tests__/render.test.ts:48` · `face/__tests__/sync-runner.test.ts:8` ＋ `docs/maintainers/02-naming.md:7`/`:40` · `03-cache-doctrine.md:21`（与 `ReturnZone` / `returnFormats()` / `#parseBlockReturn` 零残留并列；不设「保留旧字面」例外）
 - 测试面全绿（含 §2.4 的逐条迁移：F1 双面 · 发布门 smoke 重述（`docs/maintainers/01-doctrine.md:41` 同步）· 两行 fence pin 换散文断言 · 合成批准块改注入/预览断言 · `--dry-run` 调用点计数与 D50 的 23 处对账）；cdd-engine changeset 在册（§5 旗标改名破坏性 → 全 phase 级次 **major**）；不发布
 
 ## Constraints
@@ -222,3 +222,4 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 | v0.1 | 2026-10-18 | 初稿——P11 phase-spec：child Return 去结构化（A 组）+ `--dry-run` 真只读预览（B 组）+ `RoundNaming` 与遗留读写清理（C 组）；裁定全承 D50 | Oscar M. · Claude Opus 5（kairos:cdd-design [P11] · 2026-10-18） |
 | v0.2 | 2026-10-18 | 会话期追加（in-flight · 承 D51）：新增 §5 D 组——dispatch 输入面命名收口（`--findings` → `--reviews` / `INPUT_FINDINGS` → `INPUT_REVIEWS`）＋ review handoff `notes` 消费面澄清；§1.2 判准增「命名背离」类；§1.1 记录会话期裁定；AC 增活面零残留 pin 并把 changeset 级次升格 **major**；Constraints 增「历史面不追改」；AC 的 `RoundNaming` pin 符号名校正为真实三法 | Oscar M. · Claude Opus 5（kairos:cdd-design [P11] 会话 in-flight · 2026-10-18） |
 | v0.3 | 2026-10-18 | docs-fix round 2——落实 R1–R11：§3.2 首行改「场景装配不再代建 · 写点自 ensure」（`renderBrief` 补 ensure；两个 `ensure()` 调用点退休）· §3.2 次行改 `#readBase` 走 `readJson`（`migrateJsonChild` 全调用点 + 方法本体 + 四直测删除）· §1.3 写点重述（四门纯读）与 `next:` 限定 · §2.1 `stdoutTail` 通道显式设计（`STDOUT_TAIL_MAX`）· §2.2 补 `#reconstruct` 第二参删除行 · 新增 §2.4 测试面迁移逐条列名 · §3.3 `child:` 行按 `HostId` + invoke 实参串 pin · §4.1 符号校正 + handoff 名委派 `Ledger` · §4.2 双调用点 + `#readBase` 归一化 · §5.1 锚点标注 D51 落地点 · AC 增 fresh-repo / base.json / stdoutTail pins 与 doc 全路径 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] docs-fix round 2 · 2026-10-18） |
+| v0.4 | 2026-10-18 | docs-fix round 3——落实 R1–R3：§4.2 ensure() 清单重述（两条 `face/cli.ts:797`/`:958` 调用点退休 + `CliGate#renderBrief` 新增一处为首个写点 · `writeJson` 内部自 ensure）消除与 §3.2 的自相矛盾 · AC 的 ensure pin 由「零残留」改为「两调用点退休后零残留 + `renderBrief` 为首个写点」· §3.3 `child:` 行 pin 值归属校正（行 = `<HostId>` + `" "` + `HOSTS.<id>.invoke`，invoke 值逐字照 `face/host.ts:149`，`claude` 二进制名不属 invoke）· AC 的 `RETURN_STDOUT_BLOCK` → `RETURN_PROSE` 零残留 pin 面由「只圈 docs/maintainers」扩至引擎全活面（src + 测试 + templates token 族 + docs/maintainers） | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] docs-fix round 3 · 2026-10-18） |

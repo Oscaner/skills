@@ -317,6 +317,23 @@ describe("skeleton projection (Projector.skeleton)", () => {
     }
   });
 
+  it("projects the front-matter emission list — every head key but `parent-version`, required and optional alike", () => {
+    // §4.2: the head emission list is independent of the slot channel — it
+    // carries the required head keys plus the type's optional head keys, and
+    // excludes `parent-version` (its shape-typed domain admits no placeholder).
+    for (const [index, registry] of REGISTRIES.entries()) {
+      const doc = skeletons[DOC_KEYS[index]];
+      const expected = registry.elements
+        .filter((element) => element.home === "frontmatter" && element.anchor !== "parent-version")
+        .map((element) => element.anchor);
+      expect(doc.frontmatter.map((slot) => slot.anchor)).toEqual(expected);
+      expect(doc.frontmatter.some((slot) => slot.home !== "frontmatter")).toBe(false);
+    }
+    expect(skeletons.plan.frontmatter.map((slot) => slot.anchor)).toContain("base");
+    expect(skeletons.plan.frontmatter.map((slot) => slot.anchor)).toContain("depends-on");
+    expect(skeletons["single-spec"].frontmatter.map((slot) => slot.anchor)).toContain("issues");
+  });
+
   it("keeps the shape home-group order — the slot homes run the shape's group sequence", () => {
     for (const [index] of REGISTRIES.entries()) {
       const doc = skeletons[DOC_KEYS[index]];

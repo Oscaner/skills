@@ -26,6 +26,14 @@ export interface NumberedHeading {
   heading: string;
 }
 
+/** One scanned section — a rank-2 heading line plus its body lines. */
+export interface ScannedSection {
+  /** The section heading line verbatim. */
+  heading: string;
+  /** The body lines up to the next rank-2 heading. */
+  lines: readonly string[];
+}
+
 /**
  * The home-extractor base — the shared anchor-roster and the declared-pattern
  * application both classes build on. Stateless by design: `extract` reads the
@@ -261,6 +269,44 @@ export class TableExtractor extends HomeExtractor {
     }
     return trimmed.length > 2;
   }
+
+  /** Whether a line is a markdown table line — a `|`-wrapped row. */
+  static isTableLine(trimmed: string): boolean {
+    return trimmed.startsWith("|") && trimmed.endsWith("|");
+  }
+
+  /** The table lines of a line run in document order — the table home's fixed
+   *  structural rule (a `|`-wrapped row, the separator row excluded). The parse
+   *  face's table reader consumes this so the table-line / separator knowledge
+   *  lives here once, never re-derived at the parse face. */
+  tableLinesOf(lines: readonly string[]): readonly string[] {
+    const out: string[] = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!TableExtractor.isTableLine(trimmed)) continue;
+      if (TableExtractor.isSeparatorRow(trimmed)) continue;
+      out.push(trimmed);
+    }
+    return out;
+  }
+
+  /** The declared column-header line of a line run — the first table line the
+   *  registry's `… columns` anchors claim (their declared column vocabulary), or
+   *  null when the section's table declares no column anchor. The parse face
+   *  consumes this so the declared-home set, not a positional guess, identifies
+   *  the header row. */
+  headerLineOf(registry: ElementRegistry, lines: readonly string[]): string | null {
+    const tableLines = this.tableLinesOf(lines);
+    for (const element of this.elementsOf(registry, "table")) {
+      if (!element.anchor.endsWith(" columns")) continue;
+      const pattern = this.patternOf(element);
+      if (pattern === undefined) continue;
+      for (const line of tableLines) {
+        if (pattern.test(line)) return line;
+      }
+    }
+    return null;
+  }
 }
 
 /**
@@ -289,6 +335,52 @@ export class HeadingScanner extends HomeExtractor {
       }
       if (hits.length > 0) out[element.anchor] = hits;
     }
+    return out;
+  }
+
+  /** The registered rank-2 section headings of a line run, in document order —
+   *  the section surface's fixed structure rule (only `##`-ranked headings are
+   *  sections) over every registry anchor declared at that rank, whichever home
+   *  owns it (a section-home heading, the conditional-home headings and the
+   *  design-body `## Design` are all section surfaces). A heading whose text is
+   *  registered in no home (an undeclared prose section) is not a section. */
+  sectionsOf(registry: ElementRegistry, lines: readonly string[]): ScannedSection[] {
+    const declared = new Set<string>();
+    for (const element of registry.elements) {
+      if (HeadingScanner.#rankOf(element.anchor) !== 2) continue;
+      const pattern = this.patternOf(element);
+      for (const line of lines) {
+        if (HeadingScanner.#rankOf(line) !== 2) continue;
+        if (pattern === undefined ? line.startsWith(element.anchor) : pattern.test(line)) {
+          declared.add(line);
+        }
+      }
+    }
+    return HeadingScanner.#sectionBlocks(lines, declared);
+  }
+
+  /** The `##` block walk — a declared rank-2 heading line opens a section that
+   *  runs to the next rank-2 heading (the shape the parse face hands its
+   *  consumers); an undeclared rank-2 heading closes the open section without
+   *  opening one. */
+  static #sectionBlocks(lines: readonly string[], declared: ReadonlySet<string>): ScannedSection[] {
+    const out: ScannedSection[] = [];
+    let openHeading: string | null = null;
+    let openLines: string[] = [];
+    const close = (): void => {
+      if (openHeading !== null) out.push({ heading: openHeading, lines: openLines });
+      openHeading = null;
+      openLines = [];
+    };
+    for (const line of lines) {
+      if (HeadingScanner.#rankOf(line) === 2) {
+        close();
+        if (declared.has(line)) openHeading = line;
+        continue;
+      }
+      if (openHeading !== null) openLines.push(line);
+    }
+    close();
     return out;
   }
 

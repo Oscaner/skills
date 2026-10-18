@@ -1391,9 +1391,9 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       expect(firstBrief).toContain("### Task 1:");
       expect(firstBrief).toContain("## Constraints");
       expect(firstBrief).toContain("- delta");
-      // The plan's Constraints section moves between dispatches (the Plan Sole Writer
-      // amends mid-run): the review dispatch re-extracts the brief from the CURRENT
-      // plan — no "exists → leave it" reuse.
+      // The plan's Constraints section moves between dispatches (the plan write
+      // authority amends mid-run): the review dispatch re-extracts the brief from the
+      // CURRENT plan — no "exists → leave it" reuse.
       writeFileSync(
         plan,
         readFileSync(plan, "utf8").replace("- delta", "- delta (amended)"),

@@ -395,6 +395,54 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
     expect(extracted["### Goal"]).toEqual(["### Goal"]);
     expect(extracted["### Non-goals"]).toEqual(["### Non-goals"]);
   });
+
+  it("HeadingScanner.sectionsOf — the declared rank-2 sections in document order, an undeclared heading excluded", () => {
+    const scanner = new HeadingScanner();
+    const sections = scanner.sectionsOf(declaredRegistries["overall-spec"], [
+      "## Document scope",
+      "scope prose",
+      "## Review Focus",
+      "undeclared prose",
+      "## Change history",
+      "| v1.1 |",
+    ]);
+    // the undeclared rank-2 heading is not a section (and does not swallow the
+    // declared section that follows it)
+    expect(sections.map((section) => section.heading)).toEqual([
+      "## Document scope",
+      "## Change history",
+    ]);
+    expect(sections[0].lines).toEqual(["scope prose"]);
+    // the phase-spec's conditional `## Review record` is a declared section surface
+    const phaseSections = scanner.sectionsOf(declaredRegistries["phase-spec"], [
+      "## Design",
+      "## Review record",
+      "- note",
+    ]);
+    expect(phaseSections.map((section) => section.heading)).toEqual([
+      "## Design",
+      "## Review record",
+    ]);
+  });
+
+  it("TableExtractor.tableLinesOf / headerLineOf — the table rows and the registry-declared header row", () => {
+    const extractor = new TableExtractor();
+    const lines = [
+      "prose line",
+      "| Phase | Issue (ref) | Title summary |",
+      "| --- | --- | --- |",
+      "| P1 | #123 | issue one |",
+    ];
+    expect(extractor.tableLinesOf(lines)).toEqual([
+      "| Phase | Issue (ref) | Title summary |",
+      "| P1 | #123 | issue one |",
+    ]);
+    expect(extractor.headerLineOf(declaredRegistries["overall-spec"], lines)).toBe(
+      "| Phase | Issue (ref) | Title summary |",
+    );
+    // a table whose declared column anchor is absent has no declared header
+    expect(extractor.headerLineOf(declaredRegistries["overall-spec"], ["| a | b |"])).toBeNull();
+  });
 });
 
 describe("the doc-type composition root", () => {

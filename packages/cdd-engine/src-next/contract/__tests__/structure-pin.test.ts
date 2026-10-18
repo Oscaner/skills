@@ -130,22 +130,22 @@ test("spec §6 structure pin — retired grammars zero-hit · retained primitive
     new Set(owners),
     "the owning primitive set must equal the six retained primitives",
   ).toEqual(new Set(PRIMITIVES.map((primitive) => primitive.id)));
-  // 6 primitives / 7 landing points / 8 census lines: the table-split primitive
-  // is ONE landing in two lines (the separator-row guard + the split); the
-  // valuePattern-application primitive has TWO landing sites (sectionConforms
-  // and the rewritten #phaseId — the landing point moves from one site to two (spec §6 b)), so the
-  // remaining five primitives hold one census line each.
+  // 6 primitives / 7 landing points / 7 census lines: the valuePattern-application
+  // primitive has TWO landing sites (sectionConforms and the rewritten #phaseId —
+  // the landing point moves from one site to two, spec §6 b), so the remaining
+  // five primitives hold one census line each. The table-split primitive's
+  // separator-row guard is no longer inline here — it is the TableExtractor's
+  // hand-rolled `isSeparatorRow` (the table home's fixed structure rule), so the
+  // table-split landing is the `split("|")` line alone.
   const hitsPerPrimitive = new Map<string, number>();
   for (const id of owners) hitsPerPrimitive.set(id, (hitsPerPrimitive.get(id) ?? 0) + 1);
-  expect(hits.length, "the migrated census line count (6 primitives / 7 landing points)").toBe(8);
-  // the two double-hit primitives — valuePattern-application (sectionConforms +
-  // the rewritten #phaseId — the landing point moves from one site to two (spec §6 b)) and the
-  // table-split (the separator-row guard + the split are ONE landing in two
-  // census lines). The remaining four primitives hold one census line each.
+  expect(hits.length, "the migrated census line count (6 primitives / 7 landing points)").toBe(7);
+  // the double-landing primitive — valuePattern-application (sectionConforms +
+  // the rewritten #phaseId). The remaining five primitives hold one census line
+  // each.
   expect(hitsPerPrimitive.get("valuePattern-application")).toBe(2);
-  expect(hitsPerPrimitive.get("table-split")).toBe(2);
   for (const primitive of PRIMITIVES) {
-    if (primitive.id === "valuePattern-application" || primitive.id === "table-split") continue;
+    if (primitive.id === "valuePattern-application") continue;
     expect(hitsPerPrimitive.get(primitive.id), `${primitive.id} must own one census line`).toBe(1);
   }
 

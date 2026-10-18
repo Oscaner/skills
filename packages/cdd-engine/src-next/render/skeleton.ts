@@ -87,13 +87,16 @@ export class SkeletonAssembler {
   readonly #docType: DocSkeleton["docType"];
   /** The injected run date — the front-matter `date:` truth (`YYYY-MM-DD`). */
   readonly #date: string;
-  /** The projection's slots in shape-group order. */
+  /** The projection's slots in shape-group order (the body slot channel). */
   readonly #slots: readonly SkeletonSlot[];
+  /** The front-matter emission list — the head's required + optional keys. */
+  readonly #frontmatterSlots: readonly SkeletonSlot[];
 
   constructor(projection: DocSkeleton, date: string) {
     this.#docType = projection.docType;
     this.#date = date;
     this.#slots = projection.slots;
+    this.#frontmatterSlots = projection.frontmatter;
   }
 
   /** Render the doc skeleton's markdown bytes — no trailing newline (the CLI owns
@@ -128,8 +131,9 @@ export class SkeletonAssembler {
    *  registry-derived structure (the finding hardened in: the projection is the
    *  single structure source, the hand-written compositions must not drift from
    *  it). The assertion domain is the BODY slots — the front-matter head is
-   *  emitted as the registry's whole frontmatter key set (the §2.2 structured
-   *  channel, never probed), so the tripwire covers the hand-assembled body:
+   *  emitted from the projection's independent emission list (the §2.2
+   *  structured channel, never probed), so the tripwire covers the
+   *  hand-assembled body:
    *  every required body slot of the projection is emitted by the composition,
    *  and no composition probe names an anchor the registry does not require — a
    *  registered element with no composition position, or a composed anchor no
@@ -277,29 +281,30 @@ export class SkeletonAssembler {
   // the shared scaffolds — the front-matter head, tables, sections, the join
   // -------------------------------------------------------------------------
 
-  /** The front-matter head block — the registry's frontmatter-home required
-   *  keys in slot order, emitted by `yaml.stringify` in one call (§2.2's
-   *  standard structured-metadata channel): §4.2's placeholder three-way split —
-   *  the link keys a `<…>` scalar, the content keys a `:::fill <key>`, the truth
-   *  keys their true values. An independent line set — never part of the
-   *  slot/probe channel (the `#assertConsumed` domain is the body the composition
-   *  hand-assembles). The head's `doc-type:` key is the canonical machine read
-   *  (spec §3.1 ⑩ · D34 — the read faces consume the front-matter record, zero
-   *  header-line marker grammar). */
+  /** The front-matter head block — the projection's front-matter emission list
+   *  (the head's required keys plus the type's optional keys) in registry order,
+   *  emitted by `yaml.stringify` in one call (§2.2's standard structured-metadata
+   *  channel): §4.2's placeholder three-way split — the link keys a `<…>` scalar,
+   *  the content keys a `:::fill <key>`, the truth keys their true values. An
+   *  independent line set — never part of the slot/probe channel (the
+   *  `#assertConsumed` domain is the body the composition hand-assembles). The
+   *  head's `doc-type:` key is the canonical machine read (spec §3.1 ⑩ · D34 —
+   *  the read faces consume the front-matter record, zero header-line marker
+   *  grammar). */
   #pushFrontmatter(lines: string[]): void {
     // The front-matter record is emitted by `yaml.stringify` in ONE call over the
-    // registry's frontmatter-home keys (spec §2.2's structured channel — the
+    // projection's emission list (spec §2.2's structured channel — the
     // parsed-nodes form keeps the keys ordered and the emission single: D3 quotes
     // the content-fill values so a consumer filling `[human] · …` / `Title: …`
     // into the slot never breaks the scalar (the #341 fill class dies at the
     // skeleton's default form, not at report time). The truth values stay plain,
     // the link placeholders plain (the <>-bookended exemplar — exemption-shaped).
     const fields = new YAMLMap();
-    for (const slot of this.#slots) {
-      if (slot.home !== "frontmatter") continue;
-      // The plan/phase-spec `parent-version` key is deliberately not emitted —
-      // an optional shape-typed key (absence is legal) whose `v<n>.<m>` domain
-      // admits neither placeholder form (§4.2).
+    // The emission list is the projection's independent front-matter set — the
+    // required head keys plus the type's optional keys (`base` / `depends-on`);
+    // `parent-version` never appears (the projection excludes it — §4.2's
+    // optional shape-typed key, whose `v<n>.<m>` domain admits no placeholder).
+    for (const slot of this.#frontmatterSlots) {
       const value = new Scalar(this.#frontmatterValue(slot));
       // D3: the content fills emit single-quoted — the consumer may fill
       // `[human] · …` / `Title: …` into the slot; the quote keeps the scalar

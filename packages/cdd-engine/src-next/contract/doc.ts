@@ -8,8 +8,12 @@
 //                      Issue inventory / Phase inventory / Change history) + the
 //                      dependency-graph edge lines; plan → the `### Task N:` blocks
 //                      and their fields; phase-spec → the `## Design` double-layer
-//                      skeleton (groups + items). Nothing is decided here — parse
-//                      extracts, the invariant family judges.
+//                      skeleton (groups + items). The WHICH — which headings are
+//                      sections, which lines are table rows, which lines are the
+//                      declared column header — comes from the home extractors over
+//                      the registry's declared anchors (home-extractors.ts, spec
+//                      §3.2); this face only walks the resulting structure. Nothing
+//                      is decided here — parse extracts, the invariant family judges.
 //   · projection     — each class consumes the derived projection face (project.ts):
 //                      the slices (parse regexes) and the shape (section skeleton) of
 //                      its own doc type are the locating data every extraction walks.
@@ -27,7 +31,13 @@ import type { ElementRegistry } from "./declare.ts";
 import { declaredRegistries } from "./declare.ts";
 import type { FrontMatterHead } from "./frontmatter.ts";
 import type { ExtractionMap } from "./home-extractors.ts";
-import { DesignBodyExtractor, GraphExtractor, TaskExtractor } from "./home-extractors.ts";
+import {
+  DesignBodyExtractor,
+  GraphExtractor,
+  HeadingScanner,
+  TableExtractor,
+  TaskExtractor,
+} from "./home-extractors.ts";
 import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
 import { Projector } from "./project.ts";
 
@@ -36,10 +46,13 @@ import { Projector } from "./project.ts";
 const projector = new Projector(declaredRegistries);
 
 /** The home-driven extractors — the fixed structure rules of the task / design /
- *  graph homes (spec §3.2), shared by the parsers that read those surfaces. */
+ *  graph / table / section homes (spec §3.2), shared by the parsers that read
+ *  those surfaces. */
 const taskExtractor = new TaskExtractor();
 const designExtractor = new DesignBodyExtractor();
 const graphExtractor = new GraphExtractor();
+const tableExtractor = new TableExtractor();
+const headingScanner = new HeadingScanner();
 
 // ---------------------------------------------------------------------------
 // shared structural types
@@ -292,21 +305,24 @@ export abstract class MarkdownPrimitives {
   }
 
   /** The cells of one `|…|` table line (trimmed, wrapper bars excluded); null for a
-   *  non-table line or a separator row. */
+   *  non-table line or a separator row. The separator-row rule is the
+   *  TableExtractor's (the table home's fixed structure rule — one home). */
   protected tableRowCells(line: string): readonly string[] | null {
     const trimmed = line.trim();
     if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
-    if (/^\|[\s:|-]+\|$/.test(trimmed)) return null; // separator row
+    if (TableExtractor.isSeparatorRow(trimmed)) return null;
     return trimmed
       .split("|")
       .slice(1, -1)
       .map((cell) => cell.trim());
   }
 
-  /** The non-separator `|…|` rows of a line run (the first row is the column header). */
+  /** The non-separator `|…|` rows of a line run (the first row is the column
+   *  header). The table-line / separator recognition is the TableExtractor's
+   *  table-home rule; this method only splits the recognized rows into cells. */
   protected tableRows(lines: readonly string[]): readonly string[][] {
     const rows: string[][] = [];
-    for (const line of lines) {
+    for (const line of tableExtractor.tableLinesOf(lines)) {
       const cells = this.tableRowCells(line);
       if (cells !== null) rows.push([...cells]);
     }
@@ -387,14 +403,13 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return blocks;
   }
 
-  /** The rank-2 section blocks in document order. */
-  protected sections(blocks: readonly HeadingBlock[]): SectionBlock[] {
-    const out: SectionBlock[] = [];
-    for (const block of blocks) {
-      if (this.headingRank(block.heading) === 2)
-        out.push({ heading: block.heading, lines: block.body });
-    }
-    return out;
+  /** The rank-2 section blocks in document order — the HeadingScanner's section
+   *  walk over the registry's declared section anchors (spec §3.2: WHICH rank-2
+   *  headings are sections comes from the registry, never a second hand-written
+   *  filter here). An undeclared prose rank-2 heading is not a section, and a
+   *  declared conditional `##` heading is one. */
+  protected sections(lines: readonly string[]): SectionBlock[] {
+    return headingScanner.sectionsOf(this.registry, lines);
   }
 
   /** The `### Task N:` blocks in document order, with their field + step surfaces.
@@ -487,11 +502,22 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return steps;
   }
 
-  /** Parse a section's table: the column-header row + the data rows. */
+  /** Parse a section's table: the column-header row + the data rows. The header
+   *  row is the one the registry's `… columns` anchors claim (the TableExtractor's
+   *  declared-home set); a table with no registered column anchor falls back to
+   *  the first row, the shape's positional default. The data rows are every
+   *  remaining row plus any leading row ahead of the declared header — a
+   *  mispositioned header never silently drops a data row. */
   protected parseTable(lines: readonly string[]): ParsedTable {
     const rows = this.tableRows(lines);
-    const headerRow = rows.length > 0 ? rows[0] : null;
-    return { heading: "", headerRow, rows: rows.slice(1) };
+    const declaredHeader = tableExtractor.headerLineOf(this.registry, lines);
+    if (declaredHeader === null) {
+      const headerRow = rows.length > 0 ? rows[0] : null;
+      return { heading: "", headerRow, rows: rows.slice(1) };
+    }
+    const headerCells = this.tableRowCells(declaredHeader);
+    const dataRows = rows.filter((row) => row.join("|") !== (headerCells ?? []).join("|"));
+    return { heading: "", headerRow: headerCells, rows: dataRows };
   }
 
   /** The slice of one registered anchor (undefined when the anchor is not registered here). */
@@ -527,8 +553,7 @@ export class OverallDocType extends DocType<OverallParsed> {
 
   parse(lines: readonly string[], head: FrontMatterHead | null = null): OverallParsed {
     const title = head?.title ?? "";
-    const blocks = this.headingBlocks(lines);
-    const sections = this.sections(blocks);
+    const sections = this.sections(lines);
 
     const tables: OverallParsed["tables"] = {
       "File paths": this.#tableSection(sections, "## File paths"),
@@ -640,7 +665,7 @@ export class PlanDocType extends DocType<PlanParsed> {
       docType: "plan",
       head,
       title,
-      sections: this.sections(blocks),
+      sections: this.sections(lines),
       taskBlocks: this.taskBlocks(blocks),
       chain: this.chainRoot(head),
     };
@@ -676,7 +701,7 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
       docType: "phase-spec",
       head,
       title,
-      sections: this.sections(blocks),
+      sections: this.sections(lines),
       design: this.designFromBlocks(blocks),
       chain: this.chainRoot(head),
     };
@@ -755,12 +780,11 @@ export class SingleSpecDocType extends DocType<SingleSpecParsed> {
 
   parse(lines: readonly string[], head: FrontMatterHead | null = null): SingleSpecParsed {
     const title = head?.title ?? "";
-    const blocks = this.headingBlocks(lines);
     return {
       docType: "single-spec",
       head,
       title,
-      sections: this.sections(blocks),
+      sections: this.sections(lines),
       chain: this.chainRoot(head),
     };
   }

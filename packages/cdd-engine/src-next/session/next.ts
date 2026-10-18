@@ -60,7 +60,7 @@ export type Route =
 
 /** The review-cycle soft cap — the consecutive-S1 run length at which the fix face
  *  defers the next hop to user adjudication (soft by nature: a default suggestion,
- *  never a hard stop — the user / Plan Sole Writer override it). */
+ *  never a hard stop — the user / the plan write authority override it). */
 export const REVIEW_CYCLE_CAP = 20;
 
 /** The decision-edge words of the Route union — the C5 hop kinds that a review/fix

@@ -21,12 +21,14 @@
 //   · tokens      — the flat anchor lexicon, one token per registered element;
 //   · reference   — the per-element reference vocabulary (ref-kind + value
 //                   pattern), one entry per registered element;
-//   · skeleton    — the required-only doc-skeleton face (spec §4.1): every
-//                   required element classified into its placeholder-anchoring
-//                   slot kind (content / link / numeric-heading / generator-truth
-//                   / table-header / table-row / scaffold) in shape-group order —
-//                   the skeleton the `cdd schema get <type> --output skeleton`
-//                   render face (D19) assembles.
+//   · skeleton    — the doc-skeleton face (spec §4.1/§4.2): every required
+//                   element classified into its placeholder-anchoring slot kind
+//                   (content / link / numeric-heading / generator-truth /
+//                   table-header / table-row / scaffold) in shape-group order,
+//                   plus the independent front-matter emission list (the head's
+//                   required + optional keys) — the skeleton the
+//                   `cdd schema get <type> --output skeleton` render face (D19)
+//                   assembles.
 //
 // The module's whole behavior surface is the Projector class (the zero-bare-
 // function discipline: module-level exports are types / the class — the projection
@@ -248,11 +250,12 @@ export type SlotKind =
    *  the fixed structure headings — structural, never fill positions. */
   | "scaffold";
 
-/** One skeleton slot — a required element's contribution to the assembled skeleton. */
+/** One skeleton slot — an element's contribution to the assembled skeleton. */
 export interface SkeletonSlot {
   /** The machine anchor token. */
   anchor: string;
-  /** Required elements only — every projected slot is required. */
+  /** The element's declared presence — always required in the body slot list;
+   *  the front-matter emission list also carries the type's optional keys. */
   presence: Presence;
   /** The document surface the anchor lives in. */
   home: Home;
@@ -264,14 +267,22 @@ export interface SkeletonSlot {
   refKind: RefKind;
 }
 
-/** One doc type's skeleton projection — the required-only slot list in shape
- *  home-group order (optional/conditional elements generate no slot — the zero
- *  conditional-residue contract mirrored at the skeleton surface). */
+/** One doc type's skeleton projection — the body slot list in shape home-group
+ *  order (optional/conditional elements generate no slot — the zero
+ *  conditional-residue contract mirrored at the skeleton surface) plus the
+ *  independent front-matter emission list (spec §4.2: the required keys plus
+ *  the type's optional frontmatter-home keys — `base` / `depends-on` — which
+ *  never ride the slot channel). */
 export interface DocSkeleton {
   /** The doc-type identity the projection derives from. */
   docType: DocType;
-  /** The required elements' slots in shape home-group order. */
+  /** The required elements' slots in shape home-group order (body + the required
+   *  front-matter keys). */
   slots: readonly SkeletonSlot[];
+  /** The front-matter emission list in registry order — the required head keys
+   *  plus the type's optional frontmatter-home keys, minus the deliberately
+   *  omitted `parent-version` (§4.2's shape-typed exclusion). */
+  frontmatter: readonly SkeletonSlot[];
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +354,8 @@ export class Projector {
     return this.#projectAll((registry) => this.#projectDocReference(registry));
   }
 
-  /** Derive all four doc types' required-only doc-skeleton faces. */
+  /** Derive all four doc types' doc-skeleton faces (body slots + the front-matter
+   *  emission list). */
   skeleton(): SkeletonProjection {
     return this.#projectAll((registry) => this.#projectDocSkeleton(registry));
   }
@@ -498,14 +510,18 @@ export class Projector {
   }
 
   // -------------------------------------------------------------------------
-  // the skeleton face — the required-only doc-skeleton projection (spec §4.1)
+  // the skeleton face — the doc-skeleton projection (spec §4.1/§4.2)
   // -------------------------------------------------------------------------
 
   /** Project one registry onto its doc-skeleton face — the required elements'
    *  slots in the shape's home-group order (the shape walk is the ordering
    *  source: group sequence + within-group registry order, never a second order
    *  declaration). Optional/conditional elements generate no slot — the zero
-   *  conditional-residue contract mirrored at the skeleton surface. */
+   *  conditional-residue contract mirrored at the skeleton surface. The
+   *  front-matter emission list is projected independently of the slot channel
+   *  (§4.2: required head keys + the type's optional head keys; `parent-version`
+   *  is the one explicit exclusion — its `v<n>.<m>` domain admits no placeholder
+   *  form). */
   #projectDocSkeleton(registry: ElementRegistry): DocSkeleton {
     const byAnchor = new Map(
       this.#deriveRegistry(registry).map((element) => [element.anchor, element]),
@@ -518,7 +534,23 @@ export class Projector {
         slots.push(this.#skeletonSlot(derived));
       }
     }
-    return { docType: registry.docType, slots };
+    return { docType: registry.docType, slots, frontmatter: this.#frontmatterSlots(registry) };
+  }
+
+  /** The front-matter emission list — the independent line set §4.2 prescribes:
+   *  every frontmatter-home required key plus the type's optional head keys
+   *  (`base` / `depends-on`), in registry order. `parent-version` is the single
+   *  explicit exclusion: an optional shape-typed key whose domain admits neither
+   *  placeholder form, so absence is the only legal skeleton state (the consumer
+   *  fills it when the parent version is known). */
+  #frontmatterSlots(registry: ElementRegistry): SkeletonSlot[] {
+    const out: SkeletonSlot[] = [];
+    for (const element of this.#deriveRegistry(registry)) {
+      if (element.home !== "frontmatter") continue;
+      if (element.anchor === "parent-version") continue;
+      out.push(this.#skeletonSlot(element));
+    }
+    return out;
   }
 
   /** Project one derived element onto its skeleton slot row. */

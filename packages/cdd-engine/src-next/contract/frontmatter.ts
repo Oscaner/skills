@@ -8,8 +8,8 @@
 // `yaml.parse`) and the typed accessors.
 //
 // Zero bare functions and zero new regexes are hard guarantees of this module:
-// the line split/join are hand-rolled string walks and the YAML engine does all
-// value parsing.
+// the line split/join and the parse-error message slices are hand-rolled string
+// walks, and the YAML engine does all value parsing.
 
 import { LineCounter, parse } from "yaml";
 
@@ -184,14 +184,27 @@ export class FrontMatterExtractor {
    *  position clause (string ops — this module carries zero regexes) and the
    *  offending source line from the block itself. */
   static #parseErrorOf(err: unknown, yamlLines: readonly string[]): FrontMatterParseError {
-    const messageHead = err instanceof Error ? err.message.split("\n")[0] : "YAML parse error";
+    const message = err instanceof Error ? err.message : "YAML parse error";
     // The engine's message head ends with " at line <n>, column <m>: " — the
-    // position is a typed field below, so the reason drops the clause.
-    const reason = messageHead.split(" at line ")[0].trim();
+    // position is a typed field below, so the reason drops the clause. Both
+    // slices are hand-rolled string walks: this module carries zero regexes and
+    // the Task 1 checkable also pins the whole `String#split` family to zero.
+    const reason = FrontMatterExtractor.#beforeFirst(
+      FrontMatterExtractor.#beforeFirst(message, "\n"),
+      " at line ",
+    ).trim();
     const position = (err as { linePos?: readonly { line: number; col: number }[] }).linePos?.[0];
     const line = position?.line ?? 0;
     const source = line > 0 ? (yamlLines[line - 1] ?? "") : "";
     return new FrontMatterParseError(line, position?.col ?? 0, reason, source);
+  }
+
+  /** The text before the first occurrence of `separator` — the hand-rolled
+   *  slice (the whole string on no occurrence), the string-walk counterpart of
+   *  the retired `String#split` calls. */
+  static #beforeFirst(text: string, separator: string): string {
+    const index = text.indexOf(separator);
+    return index === -1 ? text : text.slice(0, index);
   }
 
   /** Split a document into its lines — the hand-rolled split (the zero-regex

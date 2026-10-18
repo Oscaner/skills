@@ -5,9 +5,10 @@
 //     pinned from the P2 first version (the assembler's date is the injectable
 //     run-day truth, fixed here — never a live clock);
 //   · the front-matter head (spec §2.2/§4.2) — a `---`-fenced YAML record whose
-//     key set is the registry's frontmatter-home required keys; the placeholder
-//     three-way split (link keys a `<…>` scalar · content keys `:::fill <key>` ·
-//     truth keys their true values; `parent-version` never emitted);
+//     key set is the projection's front-matter emission list (the head's required
+//     keys plus the type's optional head keys); the placeholder three-way split
+//     (link keys a `<…>` scalar · content keys `:::fill <key>` · truth keys their
+//     true values; `parent-version` never emitted);
 //   · the placeholder-anchoring probes (spec §4.1): pure content slots take
 //     `:::fill <slot>`, the link-shaped anchors the placeholder links, the
 //     pattern-typed rows the generator truths, and `:::fill` never lands on a
@@ -55,10 +56,10 @@ const requiredAnchorsOf = (key: DocKey): readonly string[] =>
     .filter((element) => element.presence === "required")
     .map((element) => element.anchor);
 
-/** The registered frontmatter-home required slots of one doc type (the live
- *  projection — the head key set the renderer emits). */
-const frontmatterSlotsOf = (key: DocKey): readonly SkeletonSlot[] =>
-  SKELETONS[key].slots.filter((slot) => slot.home === "frontmatter");
+/** The live front-matter emission list of one doc type (the head key set the
+ *  renderer emits — the projection's independent list: required head keys plus
+ *  the type's optional head keys, `parent-version` excluded). */
+const frontmatterSlotsOf = (key: DocKey): readonly SkeletonSlot[] => SKELETONS[key].frontmatter;
 
 /** The per-anchor skeleton probe of the semantic anchors — the anchors whose
  *  skeleton form is NOT their literal token (the numeric headings, the table row /
@@ -156,6 +157,8 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "date: 2026-10-11",
         "spec: <docs/kairos/specs/…-design.md>",
         "parent-program: <docs/kairos/specs/…-overall.md>",
+        "depends-on: ':::fill depends-on'",
+        "base: ':::fill base'",
         "---",
         "",
         "## Constraints",
@@ -267,6 +270,7 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "status: Draft",
         "author: ':::fill author'",
         "depends-on: ':::fill depends-on'",
+        "issues: ':::fill issues'",
         "---",
         "",
         "## Background & root cause",
@@ -375,7 +379,7 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
 });
 
 describe("SkeletonAssembler — the front-matter head (spec §2.2/§4.2)", () => {
-  it("emits the registry's frontmatter-home required key set — the head parses back key-identical, zero extras", () => {
+  it("emits the projection's front-matter key set — the head parses back key-identical, zero extras", () => {
     for (const key of KEYS) {
       const block = frontmatterBlockOf(key);
       const parsed = parse(block) as Record<string, unknown>;
@@ -421,6 +425,28 @@ describe("SkeletonAssembler — the front-matter head (spec §2.2/§4.2)", () =>
     for (const key of ["plan", "phase-spec"] as const) {
       expect(renderOf(key)).not.toContain("parent-version");
     }
+  });
+
+  it("emits the type's optional front-matter keys — `base` / `depends-on` on the plan head, `issues` on the single-spec head", () => {
+    // §4.2's independent emission list = the head's required keys PLUS the
+    // type's optional head keys — the optional keys never ride the slot channel
+    // (they are not required), so the head would silently drop them without the
+    // dedicated list.
+    for (const key of KEYS) {
+      const block = frontmatterBlockOf(key);
+      const optionalAnchors = declaredRegistries[key].elements
+        .filter((element) => element.home === "frontmatter" && element.presence === "optional")
+        .map((element) => element.anchor)
+        .filter((anchor) => anchor !== "parent-version");
+      for (const anchor of optionalAnchors) {
+        expect(block, `${key}: optional head key ${anchor} emitted`).toContain(
+          `${anchor}: ':::fill ${anchor}'`,
+        );
+      }
+    }
+    expect(frontmatterBlockOf("plan")).toContain("base: ':::fill base'");
+    expect(frontmatterBlockOf("plan")).toContain("depends-on: ':::fill depends-on'");
+    expect(frontmatterBlockOf("single-spec")).toContain("issues: ':::fill issues'");
   });
 });
 
@@ -542,6 +568,7 @@ describe("SkeletonAssembler — the slot-consumption invariant (composition vs r
     const plan = SKELETONS.plan;
     const tampered: DocSkeleton = {
       docType: plan.docType,
+      frontmatter: plan.frontmatter,
       slots: [
         ...plan.slots,
         {
@@ -562,6 +589,7 @@ describe("SkeletonAssembler — the slot-consumption invariant (composition vs r
     const plan = SKELETONS.plan;
     const tampered: DocSkeleton = {
       docType: plan.docType,
+      frontmatter: plan.frontmatter,
       slots: plan.slots.filter((slot) => slot.anchor !== "## Constraints"),
     };
     expect(() => new SkeletonAssembler(tampered, DATE).render()).toThrow(

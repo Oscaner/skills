@@ -115,7 +115,7 @@ const memoryFs = (content: string): DocFs => {
   return {
     exists: () => true,
     read: () => content,
-    // The sibling scan resolves the `**Parent program**` target basename — the
+    // The sibling scan resolves the `parent-program:` target basename — the
     // judged doc's family lists it.
     list: (_p: string) => ["x-overall.md"],
   };

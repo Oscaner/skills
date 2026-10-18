@@ -472,7 +472,7 @@ const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
     ].join("\n"),
     "utf8",
   );
-  // The chain sibling — the `**Parent program**` link resolves into the specs dir.
+  // The chain sibling — the `parent-program:` link resolves into the specs dir.
   const sibling = path.join(repoRoot, "docs", "kairos", "specs", "x-overall.md");
   mkdirSync(path.dirname(sibling), { recursive: true });
   writeFileSync(sibling, "# x-overall\n", "utf8");

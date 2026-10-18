@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P11 设计：dispatch contract 收口（child Return 去结构化 + --dry-run 真只读预览）
 doc-type: phase-spec
-version: v0.5
+version: v0.6
 date: 2026-10-18
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P11] 会话 · 用户两项 mandate · 2026-10-18）
@@ -193,7 +193,7 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 - 引擎对 child stdout 零解析：唯一信号为 `result.code !== 0`；「exit 0 无 status 行」门零残留
 - 子进程非零退出或无 draft 时产出 crash record 且 `stdoutTail` **非空**（尾部以命名常量 `STDOUT_TAIL_MAX` 限界）
 - `DispatchOutcome.artifacts` 字段零残留；`#reconstruct` 第二参已删（调用形状 `#reconstruct(frame)`，`face/lifecycle.ts:526` 的 `block.artifacts` 零残留）；hermetic 注入 dispatch 经 `carrier` 表达产物
-- 空仓首次**真实** dispatch：建出 workspace 并渲染 brief（零 ENOENT），`.kairos/.gitignore` = `*`（fresh-repo pin）
+- 空仓首次**真实** dispatch（wave + spec/plan/branch 各面）：子进程 spawn 前建出 workspace（所有面），wave 面并渲染 brief（零 ENOENT），`.kairos/.gitignore` = `*`（fresh-repo pin）
 - 同一空仓 `--dry-run` 后 `.kairos/` 目录**缺席**（零写）
 - `--dry-run` 对本 repo 零字节修改：`git status --porcelain` 前后一致（fixture repo pin）
 - `--dry-run` 不占轮次：同一命令随后真实 review 可立即执行（ledger `rounds.review` 未被预占）
@@ -201,7 +201,7 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 - pre-flight 拒绝时 dry-run 输出与真实运行一致并 exit 1
 - 非 implement/review/fix 的 `--dry-run` exit 2
 - `RoundNaming` 为命名唯一来源（`#outputOf` / `#evidenceName` / `#evidencePrefix` 零残留），且 handoff 名委派 `Ledger#handoffName` 的 `HANDOFF_FAMILIES` 表（不另起推导）
-- 两条 `Workspace.ensure()` 显式调用点（`face/cli.ts:797` · `:958`）退休后零残留；`CliGate#renderBrief` 的显式 `ensure()`（`face/gate.ts:117-118`）为首个写点（dry-run 不触发）；`migrateJsonChild` 调用点与方法本体零残留（四直测一并删除）；持 legacy 绝对 `plan` 的 `base.json` 在 `cdd base get` 报 **repoRoot 相对形**
+- 两条 `Workspace.ensure()` 显式调用点（`face/cli.ts:797` · `:958`）退休后零残留；`#runWork`（`face/cli.ts` 预检后、首个写点前）的显式 `ensure()` 为首个写点，覆盖所有面（wave/spec/plan/branch；dry-run 不触发）；`migrateJsonChild` 调用点与方法本体零残留（四直测一并删除）；持 legacy 绝对 `plan` 的 `base.json` 在 `cdd base get` 报 **repoRoot 相对形**
 - `--findings` / `INPUT_FINDINGS` 在活面零残留（引擎 src · 测试 · `render/templates.ts` 令牌族 · `docs/maintainers/02-naming.md`）；引擎 `next:` 的 fix 跳字面用 `--reviews`；历史面不追改
 - `declare.ts` flag help + `packages/cdd-engine/README.md` + `packages/cdd-engine/README.zh-CN.md` 三处文案一致；旧名 `RETURN_STDOUT_BLOCK` → `RETURN_PROSE` 在**全活面**零残留——引擎 src `render/templates.ts:37`/`:415`/`:425`/`:527`/`:614` · `infra/runtime.ts:76` · `face/lifecycle.ts:66`/`:411` ＋ 引擎测试 `infra/__tests__/infra.test.ts:55`/`:111` · `render/__tests__/render.test.ts:48` · `face/__tests__/sync-runner.test.ts:8` ＋ `docs/maintainers/02-naming.md:7`/`:40` · `03-cache-doctrine.md:21`（与 `ReturnZone` / `returnFormats()` / `#parseBlockReturn` 零残留并列；不设「保留旧字面」例外）
 - 测试面全绿（含 §2.4 的逐条迁移：F1 双面 · 发布门 smoke 重述（`docs/maintainers/01-doctrine.md:41` 同步）· 两行 fence pin 换散文断言 · 合成批准块改注入/预览断言 · `--dry-run` 调用点计数与 D50 的 23 处对账）；cdd-engine changeset 在册（§5 旗标改名破坏性 → 全 phase 级次 **major**）；不发布
@@ -224,3 +224,4 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 | v0.3 | 2026-10-18 | docs-fix round 2——落实 R1–R11：§3.2 首行改「场景装配不再代建 · 写点自 ensure」（`renderBrief` 补 ensure；两个 `ensure()` 调用点退休）· §3.2 次行改 `#readBase` 走 `readJson`（`migrateJsonChild` 全调用点 + 方法本体 + 四直测删除）· §1.3 写点重述（四门纯读）与 `next:` 限定 · §2.1 `stdoutTail` 通道显式设计（`STDOUT_TAIL_MAX`）· §2.2 补 `#reconstruct` 第二参删除行 · 新增 §2.4 测试面迁移逐条列名 · §3.3 `child:` 行按 `HostId` + invoke 实参串 pin · §4.1 符号校正 + handoff 名委派 `Ledger` · §4.2 双调用点 + `#readBase` 归一化 · §5.1 锚点标注 D51 落地点 · AC 增 fresh-repo / base.json / stdoutTail pins 与 doc 全路径 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] docs-fix round 2 · 2026-10-18） |
 | v0.4 | 2026-10-18 | docs-fix round 3——落实 R1–R3：§4.2 ensure() 清单重述（两条 `face/cli.ts:797`/`:958` 调用点退休 + `CliGate#renderBrief` 新增一处为首个写点 · `writeJson` 内部自 ensure）消除与 §3.2 的自相矛盾 · AC 的 ensure pin 由「零残留」改为「两调用点退休后零残留 + `renderBrief` 为首个写点」· §3.3 `child:` 行 pin 值归属校正（行 = `<HostId>` + `" "` + `HOSTS.<id>.invoke`，invoke 值逐字照 `face/host.ts:149`，`claude` 二进制名不属 invoke）· AC 的 `RETURN_STDOUT_BLOCK` → `RETURN_PROSE` 零残留 pin 面由「只圈 docs/maintainers」扩至引擎全活面（src + 测试 + templates token 族 + docs/maintainers） | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] docs-fix round 3 · 2026-10-18） |
 | v0.5 | 2026-10-19 | in-flight backfill（review blocker F1）——ensure 写点由「`CliGate#renderBrief` 一处（`type === "wave"` 门内）」扩面为「`#runWork` 真实运行派发入口对所有面一次（预检后、首个写点前，`dryRun` 分支不达）」：原设计仅在 wave 面经 `renderBrief` ensure，spec/plan/branch 面在空仓真实派发时 `.kairos/<slug>/` 缺席（子进程 OUTPUT_HANDOFF 指向不存在的目录，`.kairos/.gitignore` keep-out 标记未在子进程可污染前发布），`Workspace.ensure()` 首发时机被推迟到 wave 面；扩面后所有面同点 ensure。§3.2 首行 · §4.2 首条 · §1.3 写点重述同步 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] in-flight backfill · 2026-10-19） |
+| v0.6 | 2026-10-19 | branch review（REVIEW_FIX）裁定回填——AC 的「首个写点」句对齐全相：由「`CliGate#renderBrief` 的显式 `ensure()`（`face/gate.ts:117-118`）」改为「`#runWork`（`face/cli.ts` 预检后、首个写点前）的显式 `ensure()`，覆盖所有面（wave/spec/plan/branch；dry-run 不触发）」（v0.5 回填漏改 AC）；空仓首派 AC 同步扩至各面（spawn 前建 workspace；wave 面渲染 brief） | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] branch-review 回填 · 2026-10-19） |

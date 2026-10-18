@@ -49,12 +49,19 @@ const fixture = (): {
   return { ledger, workspace, repo, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
 };
 
-/** A plan document over `### Task N:` blocks + `- **DependsOn**:` values. */
+/** A plan document over `### Task N:` blocks + `- **DependsOn**:` values (the
+ *  front-matter head the plan parser reads). */
 const planDoc = (blocks: readonly (readonly string[])[]): string => {
   return [
-    "# Test Plan",
-    "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
-    "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
+    "---",
+    "title: Test Plan",
+    "doc-type: plan",
+    "version: v1.0",
+    "date: 2026-10-09",
+    "spec: docs/kairos/specs/x-design.md",
+    "parent-program: docs/kairos/specs/x-overall.md",
+    "parent-version: v1.0",
+    "---",
     "",
     "## Constraints",
     "",

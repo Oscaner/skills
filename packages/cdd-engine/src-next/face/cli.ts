@@ -365,7 +365,7 @@ export class Cli {
    *  and renders the phase/program board + the `next:` derivation to stdout. A
    *  missing slug is a usage error (exit 2, commander's own byte); a slug matching
    *  nothing on disk renders the not-found face and exits 2; a present doc line
-   *  carrying no `- **Doc type**:` declaration renders its BLOCKED marker and exits 2
+   *  carrying no `doc-type:` key renders its BLOCKED marker and exits 2
    *  (spec §12 · D34). The host is detected once for the pipeline-entry ref render
    *  (REFS[ref][host], the same judgment the capsule injects — never hard-coded). */
   async #runBoard(node: Command, parsed: RunInput): Promise<number> {
@@ -469,8 +469,8 @@ export class Cli {
         type === "spec" || type === "plan"
           ? {
               // The ONE declaration reading face (spec §12 · D34) — both the spec and
-              // the plan dispatch read the doc's `- **Doc type**:` header declaration;
-              // a declaration-less doc reads null and the seam BLOCKs (zero command-type
+              // the plan dispatch read the doc's front-matter `doc-type:` key;
+              // a key-less doc reads null and the seam BLOCKs (zero command-type
               // carve-out, zero filename-suffix fallback).
               docKey: BoardView.readDocType(root, docRel),
               path: docRel,

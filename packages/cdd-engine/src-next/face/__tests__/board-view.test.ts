@@ -6,7 +6,7 @@
 //   · BoardView.scanPhases — the phase-suffix set from the specs dir, sorted by the
 //     dot-separated numeric path, with NO on-disk-absent parent synthesized;
 //   · the artifact header read — `{version, status, docType}` from the doc's
-//     header block, the doc type read from the `- **Doc type**:` declaration line
+//     front-matter head record, the doc type read from the `doc-type:` key
 //     (spec §12 · D34 — null when absent, zero filename-suffix inference).
 // Fixtures are hermetic tmp dirs (no git needed — pure file-system reads).
 
@@ -144,17 +144,18 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
     rmSync(repo, { recursive: true, force: true });
   });
 
-  it("reads the Version/Status/Doc type markers from a plan doc's header block", () => {
+  it("reads the version / status / doc-type head keys from a plan doc's front-matter", () => {
     mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
     const planPath = path.join(repo, "docs/kairos/plans/prog-p8.md");
     writeFileSync(
       planPath,
       [
-        "# The plan",
-        "",
-        "- **Version**: v0.9 · …",
-        "- **Status**: Done",
-        "- **Doc type**: plan",
+        "---",
+        "title: The plan",
+        "version: v0.9",
+        "status: Done",
+        "doc-type: plan",
+        "---",
         "",
         "## Constraints",
         "",
@@ -168,17 +169,18 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
     });
   });
 
-  it("reads the declared docType from a phase-spec's `- **Doc type**:` declaration line", () => {
+  it("reads the declared docType from a phase-spec's front-matter `doc-type:` key", () => {
     mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
     const specPath = path.join(repo, "docs/kairos/specs/prog-p8-design.md");
     writeFileSync(
       specPath,
       [
-        "# The phase spec",
-        "",
-        "- **Version**: v1.2 · 2026-10-15",
-        "- **Status**: In review",
-        "- **Doc type**: phase-spec",
+        "---",
+        "title: The phase spec",
+        "version: v1.2",
+        "status: In review",
+        "doc-type: phase-spec",
+        "---",
         "",
         "## 1. The design group",
         "",
@@ -195,12 +197,12 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
     ).toBe("phase-spec");
   });
 
-  it("a doc without a Doc type declaration reads docType null — the consumer blocks, no suffix fallback", () => {
+  it("a doc without a `doc-type:` key reads docType null — the consumer blocks, no suffix fallback", () => {
     mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
     const specPath = path.join(repo, "docs/kairos/specs/prog-p8-design.md");
     writeFileSync(
       specPath,
-      ["# The phase spec", "", "- **Version**: v1.0", "- **Status**: Draft", ""].join("\n"),
+      ["---", "title: The phase spec", "version: v1.0", "status: Draft", "---", ""].join("\n"),
     );
 
     expect(BoardView.readHeader(specPath)).toEqual({
@@ -213,10 +215,10 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
     ).toBeNull();
   });
 
-  it("an out-of-domain Doc type value reads null — present facts, never a fabricated type", () => {
+  it("an out-of-domain doc-type value reads null — present facts, never a fabricated type", () => {
     mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
     const planPath = path.join(repo, "docs/kairos/plans/prog-p8.md");
-    writeFileSync(planPath, ["# The plan", "", "- **Doc type**: memo", ""].join("\n"));
+    writeFileSync(planPath, ["---", "title: The plan", "doc-type: memo", "---", ""].join("\n"));
 
     expect(
       BoardView.readDocType(new RepoRoot(repo), path.relative(repo, planPath) as RepoPath),
@@ -231,15 +233,17 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
     });
   });
 
-  it("a doc whose first line is not the `# Title` still reads its metadata block", () => {
+  it("a doc whose head is the front-matter block (never an `# Title` line) still reads its metadata", () => {
     mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
     const planPath = path.join(repo, "docs/kairos/plans/prog-p8.md");
     writeFileSync(
       planPath,
       [
-        "- **Version**: v0.9 · …",
-        "- **Status**: Done",
-        "- **Doc type**: plan",
+        "---",
+        "version: v0.9",
+        "status: Done",
+        "doc-type: plan",
+        "---",
         "",
         "## Constraints",
         "",
@@ -420,19 +424,26 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   };
 
   it("renders the phase board header + rows + the fixed legend tail", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
     writeDoc("docs/kairos/specs/prog-p1-design.md", [
-      "# S",
-      "",
-      "- **Version**: v0.14",
-      "- **Status**: Done",
-      "- **Doc type**: phase-spec",
+      "---",
+      "title: S",
+      "version: v0.14",
+      "status: Done",
+      "doc-type: phase-spec",
+      "---",
     ]);
     writeDoc("docs/kairos/plans/prog-p1.md", [
-      "# Plan",
-      "",
-      "- **Version**: v0.9",
-      "- **Doc type**: plan",
+      "---",
+      "title: Plan",
+      "version: v0.9",
+      "doc-type: plan",
+      "---",
     ]);
     seed("prog-p1", [{ wave: "spec", rounds: { review: [1, 2], fix: [1] } }]);
 
@@ -453,13 +464,24 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   });
 
   it("renders one wave line per derived wave with the ✔/▶ markers", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     // Two task blocks → two waves.
     writeDoc("docs/kairos/plans/prog-p1.md", [
-      "# Plan",
-      "",
-      "- **Doc type**: plan",
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "---",
       "",
       "## Constraints",
       "",
@@ -503,9 +525,19 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // so its ACTIVE hop is the review-lead the dispatch engine would run (Ledger#lineRoute
     // → {kind:"review"}), NOT the exhausted-face handoff `/kairos:cdd-plan`. board next ==
     // engine next (the retired shallow form rendered the face-to-face entry for an open line).
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
 
     const { text } = render("prog-p1");
 
@@ -516,9 +548,19 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   });
 
   it("phase board next: spec closed + plan not started → the plan line's active review hop", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
     // Close the spec line: a recorded zero-findings spec review.
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
@@ -540,9 +582,19 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // count-based closure judge reads the nonexistent fix cycle 1 → plan OPEN → the
     // plan entry; the engine's identity judge reads the fix at cycle 2 → plan CLOSED
     // → next advances past the plan face.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     // spec closed (a recorded zero-findings spec review)
@@ -567,9 +619,19 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // (the single judge) — a jump-number row `{review:[1,2], fix:[2]}` (D28) must read
     // CLOSED on BOTH faces. A count-based board judge (the retired hand-rolled form)
     // would read it OPEN and diverge from the engine.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "plan", { round: 2 }, { findings: [] });
@@ -586,12 +648,23 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   });
 
   it("D40 — the wave line's label carries the wave's task scope (W3 = tasks 5,11)", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     writeDoc("docs/kairos/plans/prog-p1.md", [
-      "# Plan",
-      "",
-      "- **Doc type**: plan",
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "---",
       "",
       "## Constraints",
       "",
@@ -634,12 +707,23 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // (`implement --plan <plan> --tasks 12,13,14`), NOT the exhausted-wave face handoff
     // (`review --type branch …`). A shallow `resolve(null, …)` renders the branch-review
     // handoff here — the bug (W4 in flight rendering branch review) this pin drives out.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     writeDoc("docs/kairos/plans/prog-p1.md", [
-      "# Plan",
-      "",
-      "- **Doc type**: plan",
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "---",
       "",
       "## Constraints",
       "",
@@ -710,12 +794,23 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   });
 
   it("D40 — the wave-line markers align into one fixed-width column across differing id-set widths", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     writeDoc("docs/kairos/plans/prog-p1.md", [
-      "# Plan",
-      "",
-      "- **Doc type**: plan",
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "---",
       "",
       "## Constraints",
       "",
@@ -785,8 +880,18 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // (a closed spec means "author the plan", not "the plan is done"). Rendering rides
     // the SAME RouteRenderer the Capsule's `done` face uses; host "" falls back to the
     // claude form (REFS[ref].claude) — never a bare plugin guess.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
@@ -803,14 +908,24 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // sub-states — the spec face never authored, and the spec face just closed with no
     // plan authored (the off-by-one the fork rendered as the absent plan's cdd-dev).
     // host=pi renders the flat `/skill:<bare>` form.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
     // The spec face is the frontier with no spec doc → PIPELINE_NEXT."phase-spec" → cdd-plan.
     expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-plan");
     expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-plan");
 
     // Close the spec line so the plan face is the frontier; no plan doc → the spec's OWN
     // exit (cdd-plan), never the absent plan's cdd-dev.
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
@@ -828,11 +943,17 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // Both resolve to the SAME pipeline entry through the ONE renderer, and both seams
     // read the SAME argv channel (the board is threaded ARGV_CHANNEL from the
     // composition root) — a flag-spelling change cannot silently split the two faces.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
     const specId = writeDoc("docs/kairos/specs/prog-p1-design.md", [
-      "# S",
-      "",
-      "- **Doc type**: phase-spec",
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
@@ -854,13 +975,19 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // values repoRoot-relative (the ONE shape, §2.13). Pin BOTH seams at a path-bearing
     // C5 hop — the spec review literal's `--spec` — feeding the capsule an ABSOLUTE
     // target path: the renderer must emit the repoRoot-relative form on both faces alike.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    const specId = writeDoc("docs/kairos/specs/prog-p1-design.md", [
-      "# S",
-      "",
-      "- **Doc type**: phase-spec",
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
     ]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    const specId = writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
     expect(path.isAbsolute(specId)).toBe(true);
 
     for (const host of ["claude", "pi"]) {
@@ -876,10 +1003,15 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   });
 
   it("a present doc without a Doc type declaration renders BLOCKED and exits 2", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    // The spec doc carries NO `- **Doc type**:` line.
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Version**: v1.0"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    // The spec doc carries NO `doc-type:` key.
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["---", "title: S", "version: v1.0", "---"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
 
     const { text, exitCode } = render("prog-p1");
 
@@ -889,17 +1021,24 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
   it("renders the program board with one phase summary line + next: done", () => {
     writeDoc("docs/kairos/specs/prog-overall.md", [
-      "# O",
-      "",
-      "- **Version**: v2.33",
-      "- **Doc type**: overall-spec",
+      "---",
+      "title: O",
+      "version: v2.33",
+      "doc-type: overall-spec",
+      "---",
     ]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     // Two task blocks → two waves, so the phase line carries its `wave W1…` token (spec §5.3).
     writeDoc("docs/kairos/plans/prog-p1.md", [
-      "# Plan",
-      "",
-      "- **Doc type**: plan",
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "---",
       "",
       "## Constraints",
       "",
@@ -946,11 +1085,16 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   });
 
   it("the program board propagates a phase doc-type BLOCK — a present phase spec without a declaration exits 2", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    // The phase spec carries NO `- **Doc type**:` line — the phase board BLOCKs it;
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    // The phase spec carries NO `doc-type:` key — the phase board BLOCKs it;
     // the program board must propagate the SAME BLOCK (no silent fallback, spec §12).
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Version**: v1.0"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["---", "title: S", "version: v1.0", "---"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
 
     const { text, exitCode } = render("prog");
 
@@ -959,8 +1103,18 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   });
 
   it("degrades without error — an absent plan leaves the wave segment empty", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
 
     const board = BoardView.render("prog-p1", repo, new Words(), "claude");
 

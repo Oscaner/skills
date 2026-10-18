@@ -20,15 +20,20 @@ import { describe, expect, it } from "vitest";
 /** The source bin under test — the engine's own entry (spawned, never imported). */
 const BIN = fileURLToPath(new URL("../bin.ts", import.meta.url));
 
-/** The fixture plan text — the canonical data-shaped task record (the markers the
- *  plan parser reads; the workspace slug derives `fixture` from the basename). */
+/** The fixture plan text — the canonical data-shaped task record (the front-matter
+ *  head the plan parser reads; the workspace slug derives `fixture` from the
+ *  basename). */
 const fixturePlan = (): string =>
   [
-    "# Fixture Plan",
-    "",
-    "**Spec:** [fixture-design.md](fixture-design.md)",
-    "",
-    "- **Parent program**: [fixture-overall.md v1.0](fixture-overall.md)",
+    "---",
+    "title: Fixture Plan",
+    "doc-type: plan",
+    "version: v1.0",
+    "date: 2026-10-09",
+    "spec: fixture-design.md",
+    "parent-program: fixture-overall.md",
+    "parent-version: v1.0",
+    "---",
     "",
     "## Constraints",
     "",
@@ -46,12 +51,16 @@ const fixturePlan = (): string =>
     "",
   ].join("\n");
 
-/** The fixture design spec — the plan's **Spec:** link target (existence only). */
+/** The fixture design spec — the plan's `spec:` link target (existence only). */
 const fixtureSpec = (): string =>
   [
-    "# Fixture Design",
-    "",
-    "- **Version**: v1.0",
+    "---",
+    "title: Fixture Design",
+    "doc-type: phase-spec",
+    "version: v1.0",
+    "date: 2026-10-09",
+    "status: Draft",
+    "---",
     "",
     "## Design",
     "",
@@ -61,12 +70,16 @@ const fixtureSpec = (): string =>
     "",
   ].join("\n");
 
-/** The fixture overall — the plan's **Parent program** link target (existence only). */
+/** The fixture overall — the plan's `parent-program:` link target (existence only). */
 const fixtureOverall = (): string =>
   [
-    "# Fixture Overall",
-    "",
-    "- **Version**: v1.0",
+    "---",
+    "title: Fixture Overall",
+    "doc-type: overall-spec",
+    "version: v1.0",
+    "date: 2026-10-09",
+    "status: Draft",
+    "---",
     "",
     "## Phase inventory",
     "",

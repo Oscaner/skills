@@ -11,8 +11,8 @@
 // derivation read-through, the header `{version, status, docType}` read, the
 // per-node progress projection, and the render face (the phase/program board
 // layouts + the `next:` derivation). The doc type is the DECLARED fact — the
-// `- **Doc type**:` header declaration line (spec §12 · D34) — never a
-// filename-suffix derivation; a missing declaration reads null and the consumer
+// front-matter `doc-type:` head key (spec §12 · D34) — never a
+// filename-suffix derivation; an absent key reads null and the consumer
 // blocks (zero dual-read fallback).
 //
 // D40 — the board's `next:` derivation walks the phase's faces in line order
@@ -29,9 +29,10 @@
 // Module-level exports are types / constants / the class — zero behavior-carrying
 // bare functions (the plan's zero-bare-function discipline).
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { MarkdownPrimitives, PlanDocType } from "../contract/doc.ts";
+import { PlanDocType } from "../contract/doc.ts";
+import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import type { DocKey } from "../contract/project.ts";
 import { DOC_KEYS } from "../contract/project.ts";
 import { ConfigLoader } from "../infra/config.ts";
@@ -45,16 +46,16 @@ import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
 import { type RouteChannelRow, RouteRenderer } from "./route-render.ts";
 import type { Words } from "./words.ts";
 
-/** One board node's header facts — the `**Version**` / `**Status**` / `**Doc type**`
- *  marker values read from the doc's header block (each null when the doc or the
- *  marker is absent). */
+/** One board node's header facts — the `version:` / `status:` / `doc-type:`
+ *  front-matter key values read from the doc's head record (each null when the
+ *  doc or the key is absent). */
 export interface BoardNodeHeader {
-  /** The doc's declared version (the `**Version**` header value). */
+  /** The doc's declared version (the front-matter `version:` value). */
   version: string | null;
-  /** The doc's declared status (the `**Status**` header value). */
+  /** The doc's declared status (the front-matter `status:` value). */
   status: string | null;
-  /** The doc's declared type (the `**Doc type**` header declaration — spec §12 ·
-   *  D34); null when the declaration is absent or outside the DocKey domain. */
+  /** The doc's declared type (the front-matter `doc-type:` key — spec §12 ·
+   *  D34); null when the key is absent or outside the DocKey domain. */
   docType: DocKey | null;
 }
 
@@ -63,7 +64,7 @@ export interface BoardNodeHeader {
 const VERB_ORDER: readonly string[] = ["implement", "review", "branch-review", "fix"];
 
 /** One rendered board — the stdout lines + the process exit code (0 on a clean
- *  board, 2 when a present doc line carried no `- **Doc type**:` declaration). */
+ *  board, 2 when a present doc line carried no `doc-type:` declaration). */
 export interface BoardRender {
   /** The board's stdout lines (the header, the body, the legend) — joined with `\n`. */
   lines: readonly string[];
@@ -113,7 +114,7 @@ export interface BoardProgress {
   lines: BoardLine[];
 }
 
-/** The DocKey domain of the `- **Doc type**:` declaration — the declared value must
+/** The DocKey domain of the `doc-type:` declaration — the declared value must
  *  be one of the four keys; anything else reads null (present facts, never a
  *  fabricated type). Derived from the ONE DocKey declaration (contract/project.ts
  *  re-exports declare.ts's canonical tuple) — never a second copy (spec §3.2 ③). */
@@ -164,35 +165,50 @@ export class BoardView {
     });
   }
 
-  /** readHeader(docPath) — the artifact's header facts: the header block is the
-   *  doc-type-shared marker face, scanned LOCALLY (title line → the first heading)
-   *  with no parser selection (spec §12 · D34 — a marker scan needs no doc-type
-   *  knowledge; the filename→parser derivation is retired). The extraction is LOCAL
-   *  marker slicing — the DocType/MarkdownPrimitives `markerValue`/`markerLine`
-   *  helpers are `protected` members unreachable from this independent class —
-   *  except the version token, which reads the shared grammar's public static
-   *  (`MarkdownPrimitives.versionTokensOf`, one grammar home). An absent file or
-   *  a missing marker yields null — never a fabricated value. */
+  /** readHeader(docPath) — the artifact's header facts: the front-matter head
+   *  record (spec §2.2's structured channel), read RAW through the shared
+   *  `FrontMatterExtractor` — the version/status/doc-type scalars ride the
+   *  head keys, never a header-line marker scan (spec §12 · D34 — the doc's
+   *  declared facts live in the head record, no marker grammar). An absent file
+   *  yields nulls on every fact — never a fabricated value. */
   static readHeader(docPath: string): BoardNodeHeader {
-    const headerLines = BoardView.#headerLinesOf(docPath);
-    const status = BoardView.#headerValue(headerLines, "**Status**");
-    const versionLine = BoardView.#headerLine(headerLines, "**Version**");
-    const version =
-      versionLine === null ? null : (MarkdownPrimitives.versionTokensOf(versionLine)[0] ?? null);
-    return { version, status, docType: BoardView.#docTypeOf(headerLines) };
+    const { head } = FrontMatterExtractor.split(BoardView.#read(docPath) ?? "");
+    return {
+      version: head.version,
+      status: head.status,
+      docType: BoardView.#docTypeOf(head.docType),
+    };
   }
 
-  /** readDocType(root, rel) — the doc's declared type alone (the `- **Doc type**:`
-   *  header declaration, spec §12 · D34): the ONE declaration reading face shared
+  /** readDocType(root, rel) — the doc's declared type alone (the front-matter
+   *  `doc-type:` key, spec §12 · D34): the ONE declaration reading face shared
    *  by the board and the capsule's doc-class discrimination. An absent file, a
-   *  missing declaration or an out-of-domain value reads null — the consumer
+   *  missing key or an out-of-domain value reads null — the consumer
    *  blocks (zero filename-suffix fallback, zero dual-read layer). The path is the
    *  repoRoot-relative branded `RepoPath`, erased to the absolute syscall form
    *  through the ONE value object (`root.resolve`) just before the read — the brand
    *  is REAL (the absolute state is unrepresentable as a `RepoPath`, T4 §2.2), the
    *  same shape as `artifacts.readText(node, root, file)`). */
   static readDocType(root: RepoRoot, rel: RepoPath): DocKey | null {
-    return BoardView.#docTypeOf(BoardView.#headerLinesOf(root.resolve(rel)));
+    return BoardView.#docTypeOf(
+      FrontMatterExtractor.split(BoardView.#read(root.resolve(rel)) ?? "").head.docType,
+    );
+  }
+
+  /** The doc file's raw text — an absent/unreadable file reads null (the reads
+   *  above degrade to null facts, never a throw). */
+  static #read(docPath: string): string | null {
+    try {
+      return readFileSync(docPath, "utf8");
+    } catch {
+      return null;
+    }
+  }
+
+  /** The declared doc type constrained to the DocKey domain (null otherwise). */
+  static #docTypeOf(declared: string | null): DocKey | null {
+    if (declared === null) return null;
+    return (DOC_TYPE_DOMAIN as readonly string[]).includes(declared) ? (declared as DocKey) : null;
   }
 
   // -------------------------------------------------------------------------
@@ -297,7 +313,7 @@ export class BoardView {
    *  shared `RouteRenderer` (the SAME channel the capsule's route render reads, so
    *  the board's `next:` and the engine's `next:` literal compose their argv from
    *  ONE flag-spelling source — never a second hard-coded format string). A present
-   *  doc line carrying no `- **Doc type**:` declaration renders its `doc-type:
+   *  doc line carrying no `doc-type:` key renders its `doc-type:
    *  missing (BLOCKED)` marker and the board exits 2 (spec §12 · D34 — the consumer
    *  blocks, zero filename fallback). Pure reads — zero tree writes, zero ledger
    *  writes, zero child dispatch. */
@@ -412,8 +428,9 @@ export class BoardView {
       const plan = node.lines.find((line) => line.label === "plan");
       const branch = node.lines.find((line) => line.label === "branch");
       // The phase line's doc-cell read: a present phase spec/plan without its
-      // `- **Doc type**:` declaration blocks the SAME way the phase board does —
-      // the marker renders on the phase line and the program board exits 2.
+      // A present spec/plan without its `doc-type:` key blocks the SAME way the
+      // phase board does — the marker renders on the phase line and the program
+      // board exits 2.
       const docs = Workspace.docsOfSlug(node.label, repoRoot);
       const phaseBlocked =
         BoardView.#docCell(docs.spec, spec!, root).blocked ||
@@ -443,7 +460,7 @@ export class BoardView {
 
   /** One doc line's cell text — the doc path, the header facts and the line's
    *  rounds (spec §5.3: `overall  <path>  v2.33 · Draft   review×4`); a present doc
-   *  carrying no `- **Doc type**:` declaration renders its `doc-type: missing
+   *  carrying no `doc-type:` key renders its `doc-type: missing
    *  (BLOCKED)` marker in place of the facts (blocked = true). An absent doc renders
    *  `(none)` (degradation, never a throw). The doc path renders repoRoot-relative
    *  through the ONE value object (D47 — `docsOfSlug` derives it absolute; the board
@@ -631,47 +648,5 @@ export class BoardView {
         marker,
       };
     });
-  }
-
-  /** The doc's header-block lines — an absent file scans empty; a present one
-   *  yields the lines between the `# Title` and the first heading (the same block
-   *  the doc-type parsers expose as `headerLines`, read without one). The leading
-   *  line is dropped only when it IS the document title (a rank-1 heading) — a doc
-   *  whose first line is already metadata keeps it (the marker scan needs no title). */
-  static #headerLinesOf(docPath: string): readonly string[] {
-    if (!existsSync(docPath)) return [];
-    const lines = readFileSync(docPath, "utf8").split("\n");
-    const body = /^#\s/.test(lines[0] ?? "") ? lines.slice(1) : lines;
-    const header: string[] = [];
-    for (const line of body) {
-      if (/^#+\s/.test(line)) break;
-      header.push(line);
-    }
-    return header;
-  }
-
-  /** The declared doc type of the header block — the `**Doc type**` marker value
-   *  constrained to the DocKey domain (null otherwise). */
-  static #docTypeOf(headerLines: readonly string[]): DocKey | null {
-    const declared = BoardView.#headerValue(headerLines, "**Doc type**");
-    if (declared === null) return null;
-    return (DOC_TYPE_DOMAIN as readonly string[]).includes(declared) ? (declared as DocKey) : null;
-  }
-
-  /** The first header line carrying the marker — the local line-level extraction
-   *  (null when no header line carries the marker). */
-  static #headerLine(headerLines: readonly string[], marker: string): string | null {
-    for (const line of headerLines) if (line.includes(marker)) return line;
-    return null;
-  }
-
-  /** The one-marker value slice — the local header extraction (the `- **Key**:
-   *  value` prefix form; null when no header line carries the marker). */
-  static #headerValue(headerLines: readonly string[], marker: string): string | null {
-    const line = BoardView.#headerLine(headerLines, marker);
-    if (line === null) return null;
-    const index = line.indexOf(marker);
-    const payload = line.slice(index + marker.length).trim();
-    return payload.replace(/^:\s*/, "").trim();
   }
 }

@@ -61,10 +61,10 @@ export interface PreFlightVerdict {
 
 /** The doc-contract target of a spec/plan dispatch. */
 export interface PreFlightDoc {
-  /** The target doc type's registry key — read from the doc's `- **Doc type**:`
-   *  header declaration (spec §12 · D34; both the spec and the plan faces key by
-   *  the declaration, zero command-type carve-out).
-   *  null when a present doc carries no declaration — the seam BLOCKs (zero
+  /** The target doc type's registry key — read from the doc's front-matter
+   *  `doc-type:` key (spec §12 · D34; both the spec and the plan faces key by
+   *  the head key, zero command-type carve-out).
+   *  null when a present doc carries no key — the seam BLOCKs (zero
    *  filename-suffix fallback, one declaration reading face `BoardView.readDocType`). */
   docKey: DocKey | null;
   /** The target doc's path — the branded repoRoot-relative `RepoPath` (T4 §2.2: a
@@ -183,7 +183,7 @@ export class PreFlight {
     //    Contract.validate (the interpreter's single judgment entry) before its
     //    review/fix round dispatches. An unreadable doc carries no judgment (no
     //    fabricated findings from an absent surface). A PRESENT doc carrying no
-    //    `- **Doc type**:` declaration BLOCKs (spec §12 · D34: the declared type is
+    //    `doc-type:` key BLOCKs (spec §12 · D34: the declared type is
     //    the one reading face, zero filename-suffix fallback).
     if (ctx.type === "spec" || ctx.type === "plan") {
       gates.push("doc-contract");

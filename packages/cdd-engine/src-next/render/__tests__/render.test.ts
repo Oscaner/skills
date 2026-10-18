@@ -326,11 +326,18 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
   });
 });
 
-/** A two-task plan — task 1 steps all checkable, task 2 carries a bare step. */
+/** A two-task plan — task 1 steps all checkable, task 2 carries a bare step (the
+ *  front-matter head the plan parser reads). */
 const PLAN = [
-  "# Test Plan",
-  "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
-  "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
+  "---",
+  "title: Test Plan",
+  "doc-type: plan",
+  "version: v1.0",
+  "date: 2026-10-09",
+  "spec: docs/kairos/specs/x-design.md",
+  "parent-program: docs/kairos/specs/x-overall.md",
+  "parent-version: v1.21",
+  "---",
   "",
   "### Task 1: one",
   "- **Objective**: objective",

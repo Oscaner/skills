@@ -278,12 +278,9 @@ export class SkeletonAssembler {
    *  the link keys a `<…>` scalar, the content keys a `:::fill <key>`, the truth
    *  keys their true values. An independent line set — never part of the
    *  slot/probe channel (the `#assertConsumed` domain is the body the composition
-   *  hand-assembles). The `- **Doc type**: <key>` declaration line right after
-   *  the closing fence is the reader the board/preflight/capsule faces require
-   *  (spec §3.1 ⑩): it is deliberately NOT a registered slot (doc-identity
-   *  metadata, not a projected element), composed structurally and never probed —
-   *  the canonical machine read is the front-matter `doc-type:` key; the line
-   *  keeps the pre-flight reader working until the board face re-points. */
+   *  hand-assembles). The head's `doc-type:` key is the canonical machine read
+   *  (spec §3.1 ⑩ · D34 — the read faces consume the front-matter record, zero
+   *  header-line marker grammar). */
   #pushFrontmatter(lines: string[]): void {
     const fields: Record<string, string> = {};
     for (const slot of this.#slots) {
@@ -294,7 +291,7 @@ export class SkeletonAssembler {
       fields[slot.anchor] = this.#frontmatterValue(slot);
     }
     const block = stringifyYaml(fields).trimEnd().split("\n");
-    lines.push("---", ...block, "---", `- **Doc type**: ${this.#docType}`, "");
+    lines.push("---", ...block, "---", "");
   }
 
   /** One front-matter value — the §4.2 placeholder three-way split over the slot

@@ -134,9 +134,9 @@ export class Capsule {
 
   /** The target → doc-class verdict of the unified next face — the doc-class
    *  discrimination face (D33): the spec doc's class reads its DECLARED type (the
-   *  `- **Doc type**:` header declaration, spec §12 · D34 — BoardView.readDocType,
+   *  front-matter `doc-type:` key, spec §12 · D34 — BoardView.readDocType,
    *  the one declaration reading face), never the filename suffix; the task-face
-   *  targets key by type. `blocked` — the declaration is missing (the caller
+   *  targets key by type. `blocked` — the key is missing (the caller
    *  renders the BLOCKED face); `terminal` — no pipeline seam carries the declared
    *  class (`single-spec`, the table's five keys exclude it — the bare word). */
   #docClassOf(target: RouteTarget): "blocked" | "terminal" | PipelineKey {

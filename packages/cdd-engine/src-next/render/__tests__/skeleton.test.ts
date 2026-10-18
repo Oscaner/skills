@@ -120,7 +120,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "parent-program: <parent overall>",
         "depends-on: :::fill depends-on",
         "---",
-        "- **Doc type**: phase-spec",
         "",
         "## Design",
         "",
@@ -158,7 +157,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "spec: <spec path>",
         "parent-program: <parent overall>",
         "---",
-        "- **Doc type**: plan",
         "",
         "## Constraints",
         "",
@@ -194,7 +192,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "status: Draft",
         "author: :::fill author",
         "---",
-        "- **Doc type**: overall-spec",
         "",
         "## Document scope",
         "",
@@ -271,7 +268,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "author: :::fill author",
         "depends-on: :::fill depends-on",
         "---",
-        "- **Doc type**: single-spec",
         "",
         "## Background & root cause",
         "",
@@ -439,7 +435,6 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "version: v0.1",
       "date: 2026-10-11",
       "status: Draft",
-      "- **Doc type**: overall-spec",
       "## Document scope",
       "## File paths",
       "| Artifact | Path |",
@@ -470,7 +465,6 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "date: 2026-10-11",
       "spec: <spec path>",
       "parent-program: <parent overall>",
-      "- **Doc type**: plan",
       "## Constraints",
       "## Change history",
       "| Version | date | summary | author |",
@@ -482,7 +476,6 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "date: 2026-10-11",
       "status: Draft",
       "parent-program: <parent overall>",
-      "- **Doc type**: phase-spec",
       "## Design",
       "### Acceptance criteria",
       "## Constraints",
@@ -495,7 +488,6 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "version: v0.1",
       "date: 2026-10-11",
       "status: Draft",
-      "- **Doc type**: single-spec",
       "## Background & root cause",
       "## Design decisions",
       "## Acceptance",
@@ -595,12 +587,10 @@ describe("SkeletonAssembler — the Doc type declaration (spec §3.1 ⑩ / D34)"
   it("the engine-produced skeleton passes its OWN doc-type reader — BoardView.readDocType (self-preflight regression)", () => {
     // The ⑩ defect: the engine's skeleton omitted the Doc type declaration, so a
     // skeleton it produced failed its own preflight (BoardView.readDocType → null
-    // → BLOCK). After the front-matter flip the canonical machine read is the
-    // head's `doc-type:` key; the `- **Doc type**:` seam line right after the
-    // closing fence keeps the pre-flight reader working until the board face
-    // re-points to the head key (§3.1 ⑩ regression). This pin writes each
-    // skeleton to disk and asserts the doc-type reader returns the matching key —
-    // the writer/reader pair now agrees.
+    // → BLOCK). After the front-matter flip the head's `doc-type:` key IS the
+    // canonical machine read — the board face reads the head record (§3.1 ⑩
+    // regression). This pin writes each skeleton to disk and asserts the doc-type
+    // reader returns the matching key — the writer/reader pair now agrees.
     const dir = mkdtempSync(path.join(tmpdir(), "skeleton-doctype-"));
     try {
       for (const key of KEYS) {

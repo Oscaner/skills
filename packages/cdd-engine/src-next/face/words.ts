@@ -98,7 +98,7 @@ export const CAPSULE_WORDS = {
     fix: "fix",
     implement: "implement",
     docType:
-      "the doc declares no `- **Doc type**:` line — add `- **Doc type**: <overall-spec|phase-spec|single-spec|plan>` to the doc's header (spec §12) and re-run",
+      "the doc declares no `doc-type:` key — add `doc-type: <overall-spec|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
   } as const,
   /** The wave-gate BLOCK wording rows (v1.21) — the highest-arity pre-flight refusal
    *  vocabulary, single-sourced (the gate fills the placeholders, never a re-type). */

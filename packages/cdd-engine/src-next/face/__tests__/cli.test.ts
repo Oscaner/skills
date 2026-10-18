@@ -4743,7 +4743,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const sync = new FakeSync();
-      sync.stdout = "status: APPROVED\nartifacts: report=/r test_evidence=/t\n";
+      // the child returns prose — the engine zero-parses stdout (the draft
+      // written below is the round's machine-readable result)
+      sync.stdout = "Implemented the branch fix; the handoff draft is written.\n";
       writeFileSync(
         path.join(scene.workspace.path, "branch-fix-1.json"),
         JSON.stringify({

@@ -4,9 +4,10 @@
 // output-buffer cap — the W1 truncation class — is gone: execa's sync face
 // buffers without bound by default):
 //   · >1 MiB output (exactly the retired default-ceiling byte count + 1) arrives
-//     whole — the tail block the read-back gate parses is intact;
-//   · a `status: APPROVED` return tail survives the biggest pipe —
-//     the W1 failure class (tail truncation losing the status line) is dead;
+//     whole — the child's stdout is byte-faithful (its consumers are the host log
+//     and the crash record's `stdoutTail`; nothing downstream parses it);
+//   · the round's closing prose survives the biggest pipe —
+//     the W1 failure class (tail truncation losing the child's last words) is dead;
 //   · stderr aggregates by the same face;
 //   · the fail-open semantics hold — a non-zero child rides its code, a broken
 //     command never throws.
@@ -30,21 +31,22 @@ describe("SyncRunner — the unbounded sync child-channel collection (spec §14 
     expect(result.stdout.length).toBe(1048577);
   });
 
-  it("keeps the `status: APPROVED` tail block intact behind a huge narrative — the W1 truncation class is dead", () => {
-    // A big narrative stdout followed by the canonical return block — the exact
-    // W1 incident shape (work fine, tail block lost). The status line MUST reach.
+  it("keeps the child's closing prose intact behind a huge narrative — the W1 truncation class is dead", () => {
+    // A big narrative stdout followed by the round's closing prose (the `## Return`
+    // contract: plain sentences, no key-value lines) — the exact W1 incident shape
+    // (work fine, tail lost). The closing lines MUST reach.
     const result = runner.run(
       "sh",
       [
         "-c",
-        "head -c 2000000 /dev/zero | tr '\\0' x; printf '\\nstatus: APPROVED\\nartifacts: report=/tmp/r.md\\n'",
+        "head -c 2000000 /dev/zero | tr '\\0' x; printf '\\nThe round succeeded; every check is green.\\nThe handoff draft is the machine-readable result.\\n'",
       ],
       process.cwd(),
     );
     expect(result.code).toBe(0);
     expect(result.stdout.length).toBeGreaterThan(2000000);
-    expect(result.stdout).toMatch(/^status: APPROVED$/m);
-    expect(result.stdout).toMatch(/^artifacts: report=\/tmp\/r\.md$/m);
+    expect(result.stdout).toMatch(/^The round succeeded; every check is green\.$/m);
+    expect(result.stdout).toMatch(/^The handoff draft is the machine-readable result\.$/m);
   });
 
   it("aggregates stderr by the same streaming face", () => {

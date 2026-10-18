@@ -1803,7 +1803,8 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
           path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md"),
         ]);
         expect(spec).not.toContain("BASE_BRANCH");
-        expect(spec).not.toContain("INPUT_SPEC");
+        // the spec review's judged doc IS the spec — the kind-named anchor carries it
+        expect(spec).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
         const planReview = await promptOf(["review", "--type", "plan", "--plan", plan]);
         expect(planReview).not.toContain("BASE_BRANCH");
         // the plan-review round context carries the plan's `spec:` anchor
@@ -1855,7 +1856,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
     // §2.7 — every path token injected into the child speaks ONE basis (repoRoot-
     // relative): the child is spawned at cwd = repoRoot (T2), so a relative token
     // resolves identically for every token, input or output alike. Across the modes
-    // the 8-token set is WORKSPACE_DIR · INPUT_DOC · INPUT_SPEC · INPUT_FINDINGS ·
+    // the 8-token set is WORKSPACE_DIR · INPUT_PLAN · INPUT_SPEC · INPUT_FINDINGS ·
     // INPUT_WAVE_BRIEF · OUTPUT_REPORT · OUTPUT_EVIDENCE · OUTPUT_HANDOFF (the
     // non-path tokens excluded); each mode emits its own subset. This pin drives an
     // implement dispatch (the wave line's work face) and asserts EVERY emitted path
@@ -1882,7 +1883,7 @@ describe("the work commands run the lifecycle/capsule/ledger — dry-run E2E", (
       // Every emitted path token is repoRoot-relative: no absolute prefix, no escape.
       const PATH_TOKENS = [
         "WORKSPACE_DIR",
-        "INPUT_DOC",
+        "INPUT_PLAN",
         "INPUT_SPEC",
         "INPUT_FINDINGS",
         "INPUT_WAVE_BRIEF",
@@ -3618,7 +3619,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     type: "spec",
     phase: "review",
     round: 1,
-    target: { kind: "doc", doc: "docs/kairos/specs/s1-design.md" },
+    target: { kind: "spec", doc: "docs/kairos/specs/s1-design.md" },
     params: { round: 1 },
     key: "docs/kairos/specs/s1-design.md",
   };
@@ -4151,7 +4152,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const prompt = call.args[call.args.length - 1];
       expect(prompt).toContain("Follow URC:");
       expect(prompt).toContain("- `ROLE`: review");
-      expect(prompt).toContain("- `INPUT_DOC`: docs/kairos/specs/s1-design.md");
+      expect(prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
       // the v1.8 per-mode trimming: a review context carries no fix/work keys
       expect(prompt).not.toContain("- `INPUT_FINDINGS`");
       expect(prompt).not.toContain("- `INPUT_CRITERIA`");
@@ -4681,17 +4682,16 @@ describe("T9 — the destroy-list zero-residual sweep (spec §6.3 cross-referenc
 
   it("the retired commit-sha vocabulary carries zero residual across the engine source (spec §7.4)", () => {
     // The sha surface retired engine-wide (§2): no source file names the retired
-    // scope tokens (WAVE_BASE / FIX_BASE / INPUT_RANGE / INPUT_PLAN) or the
-    // retired git/BranchRef members (revParseHead / BranchRef) — the GitClient
-    // holds only topLevel + isClean, the review carries the single doc anchor
-    // (INPUT_DOC), and the branch scope rides the base artifact's BASE_BRANCH.
-    // The pin is construction-establishment-level: it fails if any retired name
-    // resurfaces in a non-test source file.
+    // scope tokens (WAVE_BASE / FIX_BASE / INPUT_RANGE) or the retired git/BranchRef
+    // members (revParseHead / BranchRef) — the GitClient holds only topLevel +
+    // isClean, the review carries the kind-named doc anchors (INPUT_PLAN / INPUT_SPEC,
+    // resurrected as the semantic round-context tokens), and the branch scope rides
+    // the base artifact's BASE_BRANCH. The pin is construction-establishment-level:
+    // it fails if any retired name resurfaces in a non-test source file.
     const retiredShaVocab = [
       "WAVE_BASE",
       "FIX_BASE",
       "INPUT_RANGE",
-      "INPUT_PLAN",
       "revParseHead",
       "BranchRef",
     ] as const;

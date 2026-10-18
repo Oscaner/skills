@@ -70,8 +70,10 @@ export type AuditTarget =
   /** branch: the branch line itself (no commit identity — the review's scope anchor
    *  rides the engine-injected BASE_BRANCH, never a stored range). */
   | { kind: "branch" }
-  /** spec/plan: the audit document path. */
-  | { kind: "doc"; doc: string };
+  /** plan: the audit plan document path. */
+  | { kind: "plan"; doc: string }
+  /** spec: the audit spec document path. */
+  | { kind: "spec"; doc: string };
 
 /** One dispatch step's full identity — what the lifecycle dispatches. */
 export interface OpenFrame {
@@ -348,7 +350,7 @@ export class Lifecycle {
     target: AuditTarget,
     reviewLead: ReviewLead,
   ): DispatchPhase | null {
-    if (target.kind === "doc") {
+    if (target.kind === "plan" || target.kind === "spec") {
       const verdict = this.#ledger.reviewGate(key, target.doc, this.#face.type);
       if (verdict.kind === "open") return reviewLead;
       if (verdict.kind === "same" && verdict.pending) return "fix";
@@ -380,7 +382,7 @@ export class Lifecycle {
    *  relative) must not fork the same line into two ledger rows). The task face
    *  never routes here — frames key by the wave key. */
   #lineKey(target: AuditTarget): LedgerKey {
-    if (target.kind === "doc") return this.#face.type;
+    if (target.kind === "plan" || target.kind === "spec") return this.#face.type;
     return "branch";
   }
 
@@ -478,7 +480,8 @@ export class Lifecycle {
       // nothing (present facts only); a null plan path (no plan fact) leaves a legacy
       // wave row — null stays backward compatible.
       if (frame.phase === "review") {
-        if (frame.target.kind === "doc") this.#recordReviewedDocRevision(frame);
+        if (frame.target.kind === "plan" || frame.target.kind === "spec")
+          this.#recordReviewedDocRevision(frame);
         else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);
       }
       return count;
@@ -494,7 +497,7 @@ export class Lifecycle {
    *  void a reviewed wave). An unreadable input records nothing — the line keeps the
    *  legacy closed face (only present facts land, never an invented identity). */
   #recordReviewedDocRevision(frame: OpenFrame): void {
-    if (frame.target.kind !== "doc") return;
+    if (frame.target.kind !== "plan" && frame.target.kind !== "spec") return;
     try {
       const content = readFileSync(frame.target.doc, "utf8");
       this.#ledger.recordReviewedRevision(
@@ -600,7 +603,10 @@ export class Lifecycle {
         };
       case "spec":
       case "plan":
-        return { type: frame.type, id: (frame.target as { kind: "doc"; doc: string }).doc };
+        return {
+          type: frame.type,
+          id: (frame.target as { kind: "plan" | "spec"; doc: string }).doc,
+        };
     }
   }
 }

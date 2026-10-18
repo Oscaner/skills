@@ -26,7 +26,7 @@ const ALL_VALUES: Record<string, string> = {
   WAVE: "4,12",
   INPUT_WAVE_BRIEF: "/ws/tasks-4,12-brief.md",
   INPUT_FINDINGS: "",
-  INPUT_DOC: "",
+  INPUT_PLAN: "",
   INPUT_SPEC: "",
   BASE_BRANCH: "",
   OUTPUT_REPORT: "/ws/tasks-4,12-implement-report.md",
@@ -52,9 +52,10 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(assembler.declaredTokens()).toContain("OUTPUT_EVIDENCE");
     expect(assembler.declaredTokens()).toContain("BASE_BRANCH");
     expect(assembler.declaredTokens()).toContain("HANDOFF_SCHEMA");
-    // the retired reference tokens — the range/plan/brief range tokens are gone
+    // the retired reference tokens — the range/brief tokens are gone; INPUT_PLAN is
+    // resurrected as the semantic plan-doc anchor (the kind-named round context)
     expect(assembler.declaredTokens()).not.toContain("INPUT_RANGE");
-    expect(assembler.declaredTokens()).not.toContain("INPUT_PLAN");
+    expect(assembler.declaredTokens()).toContain("INPUT_PLAN");
     expect(assembler.declaredTokens()).not.toContain("FIX_BASE");
     expect(assembler.declaredTokens()).not.toContain("OUTPUT_BRIEF");
     expect(assembler.declaredTokens()).not.toContain("INPUT_CRITERIA");
@@ -121,11 +122,11 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const out = assembler.render({
       ...ALL_VALUES,
       ROLE: "docs-fix",
-      INPUT_DOC: "docs/x-design.md",
+      INPUT_SPEC: "docs/x-design.md",
     });
     expect(out.startsWith("# CDD dispatch — docs-fix round")).toBe(true);
-    expect(out).toContain("apply `INPUT_FINDINGS` (all severities) directly to `INPUT_DOC`");
-    expect(out).toContain("- `INPUT_DOC`: docs/x-design.md");
+    expect(out).toContain("apply `INPUT_FINDINGS` (all severities) directly to the judged doc");
+    expect(out).toContain("- `INPUT_SPEC`: docs/x-design.md");
     expect(out).not.toContain("BASE_BRANCH");
     // the review-only keys stay out of the docs-fix context
     expect(out).not.toContain("INPUT_CRITERIA");
@@ -171,7 +172,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const out = assembler.render({
       ...ALL_VALUES,
       ROLE: "docs-fix",
-      INPUT_DOC: "docs/x-design.md",
+      INPUT_SPEC: "docs/x-design.md",
     });
     // the findings face's ONE strict-schema directive — same schema-first wording,
     // the required `findings` told how to fill (the verbatim carry-over), so the
@@ -196,7 +197,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ROLE: "review",
       REVIEW_TYPE: "spec",
       INPUT_WAVE_BRIEF: "",
-      INPUT_DOC: "docs/kairos/specs/s1-design.md",
+      INPUT_SPEC: "docs/kairos/specs/s1-design.md",
       OUTPUT_HANDOFF: "/ws/spec-review-1.json",
     });
     expect(spec.startsWith("# CDD dispatch — review round")).toBe(true);
@@ -212,7 +213,8 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(spec).toContain("its silence is not permission");
     expect(spec).toContain("nothing set aside is dropped silently");
     expect(spec).toContain("accurate praise earns the rest of the report trust");
-    expect(spec).toContain("- `INPUT_DOC`: docs/kairos/specs/s1-design.md");
+    expect(spec).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
+    expect(spec).not.toContain("- `INPUT_PLAN`");
     expect(spec).not.toContain("- `INPUT_WAVE_BRIEF`");
     expect(spec).not.toContain("- `INPUT_FINDINGS`");
     expect(spec).not.toContain("- `FIX_BASE`");
@@ -244,11 +246,13 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ROLE: "review",
       REVIEW_TYPE: "branch",
       INPUT_WAVE_BRIEF: "",
-      INPUT_DOC: "docs/kairos/plans/p.md",
+      INPUT_PLAN: "docs/kairos/plans/p.md",
+      INPUT_SPEC: "docs/kairos/specs/p-design.md",
       BASE_BRANCH: "develop",
       OUTPUT_HANDOFF: "/ws/branch-review-1.json",
     });
-    expect(branch).toContain("- `INPUT_DOC`: docs/kairos/plans/p.md");
+    expect(branch).toContain("- `INPUT_PLAN`: docs/kairos/plans/p.md");
+    expect(branch).toContain("- `INPUT_SPEC`: docs/kairos/specs/p-design.md");
     expect(branch).toContain("- `BASE_BRANCH`: develop");
     // the branch variant carries the three review-quality clauses too (P10/D49)
     expect(branch).toContain("its silence is not permission");
@@ -262,7 +266,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ROLE: "review",
       REVIEW_TYPE: "plan",
       INPUT_WAVE_BRIEF: "",
-      INPUT_DOC: "docs/kairos/plans/p.md",
+      INPUT_PLAN: "docs/kairos/plans/p.md",
       INPUT_SPEC: "docs/kairos/specs/p-design.md",
       OUTPUT_HANDOFF: "/ws/plan-review-1.json",
     });
@@ -270,18 +274,20 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(plan).toContain("Claimed→pin");
     // a plan review carries the plan's design-spec anchor (INPUT_SPEC) so the
     // reviewer judges the plan against the spec it implements
+    expect(plan).toContain("- `INPUT_PLAN`: docs/kairos/plans/p.md");
     expect(plan).toContain("- `INPUT_SPEC`: docs/kairos/specs/p-design.md");
-    // the spec review carries no INPUT_SPEC slot (empty → dropped by the assembler)
-    expect(
-      assembler.render({
-        ...ALL_VALUES,
-        ROLE: "review",
-        REVIEW_TYPE: "spec",
-        INPUT_WAVE_BRIEF: "",
-        INPUT_DOC: "docs/kairos/specs/s1-design.md",
-        OUTPUT_HANDOFF: "/ws/spec-review-1.json",
-      }),
-    ).not.toContain("INPUT_SPEC");
+    // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
+    // review carries neither judged-doc anchor (the empty slots are dropped by the
+    // assembler)
+    const wave = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "review",
+      REVIEW_TYPE: "wave",
+      BASE_BRANCH: "develop",
+      OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
+    });
+    expect(wave).not.toContain("- `INPUT_PLAN`");
+    expect(wave).not.toContain("- `INPUT_SPEC`");
   });
 
   it("hard gates: a missing token value throws (named)", () => {

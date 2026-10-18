@@ -501,7 +501,7 @@ describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch
           new ConfigLoader(),
         ),
         dispatch,
-        target: { kind: "doc", doc: "docs/kairos/specs/x.md" },
+        target: { kind: "spec", doc: "docs/kairos/specs/x.md" },
         preflight: { gate: () => blocked },
       });
       const step = run.advance();

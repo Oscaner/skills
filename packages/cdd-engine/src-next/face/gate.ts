@@ -53,7 +53,7 @@ export class CliGate {
     verdict: "same" | "pending-fix" | null;
     reviewed: DocRevisionRef | null;
   } {
-    if (scene.target?.kind === "doc") {
+    if (scene.target?.kind === "plan" || scene.target?.kind === "spec") {
       const key = this.#lineKey(scene);
       if (key === null) return { phase: null, verdict: null, reviewed: null };
       const verdict = scene.ledger.reviewGate(key, scene.target.doc, scene.face.type);
@@ -86,7 +86,8 @@ export class CliGate {
    *  method family). Null off that face or with no identity ("target revision
    *  unchanged" is a present fact only there). */
   docLineBlock(scene: WorkScene, reviewed: DocRevisionRef | null): string | null {
-    if (reviewed === null || scene.target?.kind !== "doc") return null;
+    if (reviewed === null || (scene.target?.kind !== "plan" && scene.target?.kind !== "spec"))
+      return null;
     const version = this.#docVersionOf(this.#docContent(scene.target.doc));
     return `${scene.type} already reviewed at ${version ?? "the current version"} (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — target revision unchanged; amend body/version to open a new review`;
   }
@@ -98,7 +99,8 @@ export class CliGate {
    *  Review Convergence anti-spin); the message names the reviewed identity the
    *  gate judged. */
   pendingFixBlock(scene: WorkScene, reviewed: DocRevisionRef | null): string | null {
-    if (reviewed === null || scene.target?.kind !== "doc") return null;
+    if (reviewed === null || (scene.target?.kind !== "plan" && scene.target?.kind !== "spec"))
+      return null;
     return `the pending fix applies to the unchanged doc (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — run cdd fix first`;
   }
 
@@ -135,7 +137,7 @@ export class CliGate {
    *  the lifecycle's own key derivation (run.ts #lineKey). */
   #lineKey(scene: WorkScene): string | null {
     if (scene.target?.kind === "branch") return "branch";
-    if (scene.target?.kind === "doc") return scene.face.type;
+    if (scene.target?.kind === "plan" || scene.target?.kind === "spec") return scene.face.type;
     return null;
   }
 

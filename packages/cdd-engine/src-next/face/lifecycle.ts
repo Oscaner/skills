@@ -279,14 +279,15 @@ export class CliLifecycle {
     const role = this.#roleOf(frame);
     const params = frame.params;
     const isReview = frame.phase === "review" || frame.phase === "branch-review";
-    const docPath = frame.target.kind === "doc" ? frame.target.doc : null;
+    const docPath =
+      frame.target.kind === "plan" || frame.target.kind === "spec" ? frame.target.doc : null;
     const isWave = frame.type === "wave";
     return {
       ROLE: role,
       // v1.22 (wave-unitary): the wave face's scope IS the wave (the whole task list)
       // — the round context speaks the UNIT, `WAVE`; the line faces carry their own
-      // read-side identity (INPUT_DOC — the doc/branch line's own token under the
-      // wave-unitary model).
+      // read-side identity (INPUT_PLAN / INPUT_SPEC — the doc/branch line's kind-named
+      // tokens under the wave-unitary model).
       WAVE: isWave ? (params.tasks ?? "") : "",
       // The wave-brief read input — the ONE engine-rendered brief of the current
       // dispatch (the unconditional re-extract at every dispatch makes it the pure
@@ -300,16 +301,26 @@ export class CliLifecycle {
         op === "fix"
           ? this.#rel(this.#findings ?? scene.ledger.handoffPath("review", frame.type, params))
           : "",
-      // The doc anchor — the target doc for a doc line, the plan path for a branch
-      // line (the branch review/fix judge the plan document). Empty off those faces.
-      INPUT_DOC: this.#rel(
-        docPath ?? (frame.target.kind === "branch" ? (scene.planPath ?? "") : ""),
-      ),
-      // The plan's design-spec reference (the `spec:` front-matter link target the CLI
-      // seam derived from the plan doc) — a plan review judges the plan against its
-      // spec, so the plan-review round context carries the spec anchor. Empty off the
-      // plan face (the slot is dropped by the assembler).
-      INPUT_SPEC: frame.type === "plan" ? this.#rel(scene.specLink ?? "") : "",
+      // The kind-named judged-doc anchors (the semantic retirement of the generic
+      // INPUT_DOC): the plan/branch lines carry the plan document (INPUT_PLAN — the
+      // doc path on a plan line, the plan path on a branch line, whose review/fix
+      // judges the plan document) AND its design-spec reference (INPUT_SPEC — the
+      // `spec:` front-matter link target, so the plan/branch reviewer judges plan→
+      // spec conformance); the spec line carries its spec document (INPUT_SPEC; the
+      // judged doc IS the spec, no plan anchor). Empty off the off-faces (the slots
+      // are dropped by the assembler).
+      INPUT_PLAN:
+        frame.type === "plan"
+          ? this.#rel(docPath ?? "")
+          : frame.type === "branch"
+            ? this.#rel(scene.planPath ?? "")
+            : "",
+      INPUT_SPEC:
+        frame.type === "spec"
+          ? this.#rel(docPath ?? "")
+          : frame.type === "plan" || frame.type === "branch"
+            ? this.#rel(scene.specLink ?? "")
+            : "",
       // The branch/wave tree-review scope anchor (BASE_BRANCH) — engine-injected
       // from the base artifact at dispatch; empty off those faces (spec/plan reviews
       // carry none, and the empty slot is dropped by the assembler).
@@ -341,7 +352,7 @@ export class CliLifecycle {
    *  cwd = repoRoot, so a relative token resolves from the same root for every
    *  token, input or output alike. The producers (`#outputOf`/`handoffPath`/
    *  `workspace.path`) yield absolute; `INPUT_SPEC` is resolved absolute at the CLI
-   *  seam; the post-T3 argv tokens (`INPUT_DOC`/`INPUT_FINDINGS`) are repoRoot-relative
+   *  seam; the post-T3 argv tokens (`INPUT_PLAN`/`INPUT_SPEC`/`INPUT_FINDINGS`) are repoRoot-relative
    *  `RepoPath`s. So the exit takes an absolute-or-repoRoot-relative value and emits
    *  repoRoot-relative through the ONE value object (`RepoRoot.relativize` reads an
    *  absolute value as itself and a relative value as repoRoot-relative, collapsing
@@ -726,7 +737,7 @@ export class CliLifecycle {
       case "fix": {
         const findings = scene.ledger.handoffPath("review", frame.type, frame.params);
         const target =
-          frame.target.kind === "doc"
+          frame.target.kind === "plan" || frame.target.kind === "spec"
             ? `--${frame.type === "spec" ? "spec" : "plan"} ${frame.target.doc}`
             : // The branch fix carries no refs — the source findings ride the
               // --findings handoff; the workspace-identity `--plan` still rides
@@ -742,6 +753,6 @@ export class CliLifecycle {
   /** The doc path of a doc-target frame (the `""` never lands — the reject paths
    *  only frame docs). */
   #docOf(frame: OpenFrame): string {
-    return frame.target.kind === "doc" ? frame.target.doc : "";
+    return frame.target.kind === "plan" || frame.target.kind === "spec" ? frame.target.doc : "";
   }
 }

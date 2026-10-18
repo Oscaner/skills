@@ -437,7 +437,7 @@ describe("the task small loop — implement → review → the next ready group"
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
-        target: { kind: "doc", doc: DOC },
+        target: { kind: "spec", doc: DOC },
       });
       run.advance(); // review (warn + nit)
       const fix = run.advance();
@@ -468,7 +468,7 @@ describe("the task small loop — implement → review → the next ready group"
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
-        target: { kind: "doc", doc: DOC },
+        target: { kind: "spec", doc: DOC },
       });
 
       run.advance(); // review 1 (blocker)
@@ -606,7 +606,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
           state: EMPTY_RUN_STATE,
           ledger,
           dispatch: dispatch.step,
-          target: { kind: "doc", doc: DOC },
+          target: { kind: type, doc: DOC },
         });
 
         const review1 = run.advance();
@@ -644,7 +644,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
-        target: { kind: "doc", doc: DOC },
+        target: { kind: "spec", doc: DOC },
       });
       const step = run.advance();
       expect(step!.frame.phase).toBe("review");
@@ -690,7 +690,7 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
-        target: { kind: "doc", doc: DOC },
+        target: { kind: "spec", doc: DOC },
       });
       expect(run.advance()!.route!.kind).toBe("fix");
       run.advance();

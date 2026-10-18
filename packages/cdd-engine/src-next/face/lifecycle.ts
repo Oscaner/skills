@@ -26,7 +26,7 @@ import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
 import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
-import type { Ledger, OpType, RoundStatus } from "../session/ledger.ts";
+import type { CrashCause, Ledger, OpType, RoundStatus } from "../session/ledger.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { DISPATCH, HOSTS, HostDetect, type HostId, type HostReferenceTable, REFS } from "./host.ts";
@@ -227,6 +227,8 @@ export class CliLifecycle {
         frame,
         this.#scene.ledger.handoffPath(this.#opOf(frame), frame.type, frame.params),
         `child ${cliName} exited ${result.code}`,
+        // the dead child's OWN death facts — never the read-back face's defaults
+        { exitCode: result.code, cause: "child-exit" },
       );
     }
     return this.#reconstruct(frame);
@@ -499,19 +501,29 @@ export class CliLifecycle {
 
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the
    *  same-command resume's decision source: the attempted handoff + the resume
-   *  command) + NO carrier (the bookkeep leaves the draft untouched). */
-  #reject(frame: OpenFrame, path: string, reason: string): DispatchOutcome {
+   *  command) + NO carrier (the bookkeep leaves the draft untouched). The crash
+   *  record carries the caller's REAL death facts: an absent draft/schema violation
+   *  is the read-back face (exit 0 · `contract-violation` — the defaults), while a
+   *  dead child passes its own exit code + `child-exit` — one record shape, two
+   *  truthful callers (the record is the postmortem artifact; a misreported death
+   *  sends a maintainer hunting the wrong fault). */
+  #reject(
+    frame: OpenFrame,
+    path: string,
+    reason: string,
+    death: { exitCode: number; cause: CrashCause } = { exitCode: 0, cause: "contract-violation" },
+  ): DispatchOutcome {
     this.#io.stderr(`CDD_BLOCKED: ${reason}\n`);
     const op = this.#opOf(frame);
     this.#scene.ledger.writeCrash(`${op}.${frame.type}`, frame.round, {
-      exitCode: 0,
+      exitCode: death.exitCode,
       stderrTail: [reason],
       stdoutTail: this.#stdoutTail,
       // The persisted attempted-handoff path is the CANONICAL repoRoot-relative
       // shape (never the absolute `handoffPath` syscall form — §2.7).
       attemptedHandoff: this.#rel(path),
       next: this.#resumeOf(frame),
-      cause: "contract-violation",
+      cause: death.cause,
     });
     return { status: "BLOCKED" };
   }

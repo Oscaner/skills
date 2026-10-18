@@ -22,7 +22,7 @@ npm install @oscaner-skills/cdd-engine
 
 ## CLI
 
-Global option: `--dry-run` — simulate the dispatch without writing handoff artifacts.
+Global option: `--dry-run` — preview the next dispatch step without writing anything (implement/review/fix only).
 
 | Subcommand | Usage | Purpose |
 |------------|-------|---------|

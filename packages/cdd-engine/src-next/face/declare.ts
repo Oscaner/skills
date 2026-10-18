@@ -82,7 +82,7 @@ export const ARGV_CHANNEL = {
     flag: "--dry-run",
     type: "bool",
     scope: "program",
-    help: "synthetic dispatch — book the round without a child spawn",
+    help: "read-only preview — render the next dispatch step and its expected artifacts (implement/review/fix only)",
   },
   help: {
     flag: "--help",

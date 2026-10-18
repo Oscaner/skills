@@ -1090,7 +1090,8 @@ describe("the help/--help display face — the per-command render", () => {
       }
       // the tail note rides the commander afterAll surface — one line per help
       // face, listing --dry-run ALONE (the -h/--help redundant column unwritten)
-      const legend = /program flags \(accepted at any position\): --dry-run/g;
+      const legend =
+        /program flags \(accepted at any position\): --dry-run \(implement\/review\/fix only\)/g;
       expect(io.stdoutText.match(legend) ?? []).toHaveLength(7);
       expect(io.stdoutText).not.toContain("· --help / -h");
     } finally {
@@ -1129,7 +1130,9 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       // The program-flag tail note: --dry-run listed ALONE — the -h/--help
       // redundant column is not written (the built-in helpOption faces Options).
       const footer = io.stdoutText.split("\n").find((line) => line.startsWith("program flags"));
-      expect(footer).toBe("program flags (accepted at any position): --dry-run");
+      expect(footer).toBe(
+        "program flags (accepted at any position): --dry-run (implement/review/fix only)",
+      );
       expect(footer).not.toContain("--help");
       expect(footer).not.toContain("-h");
     } finally {
@@ -4575,6 +4578,40 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
+  it("a child that exits NON-ZERO → BLOCKED + the crash record reports the real death (exitCode / cause / stdoutTail)", () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new FakeSync();
+      // the child died with code 7 and wrote no draft — the death facts, not the
+      // read-back face's exit-0/contract-violation shape, ride the crash record
+      sync.code = 7;
+      sync.stdout = "boom — the child died before writing\n";
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = dispatch.step()(implementFrame);
+      expect(outcome).toEqual({ status: "BLOCKED" });
+      expect(io.stderrText).toContain("child");
+      const crash = readJson<{
+        exitCode: number;
+        cause: string;
+        stdoutTail: readonly string[];
+      }>(path.join(scene.workspace.path, "crash-implement.wave-1.json"));
+      // the record tells the truth: the dead child's OWN exit code and the child-exit
+      // cause — never the read-back face's 0 / contract-violation (T2 misreport fix).
+      expect(crash.exitCode).toBe(7);
+      expect(crash.cause).toBe("child-exit");
+      expect(crash.stdoutTail).toEqual(["boom — the child died before writing"]);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("a MALFORMED draft → BLOCKED reporting the true cause (malformed JSON), never the misleading 'not written' (D27)", () => {
     const { repoRoot, cleanup } = fixture();
     try {
@@ -4853,6 +4890,9 @@ describe("T9 — the destroy-list zero-residual sweep (spec §6.3 cross-referenc
 class FakeSync implements SyncProcess {
   calls: { command: string; args: string[]; cwd: string }[] = [];
   stdout = "";
+  /** The canned child exit code (default 0 = success) — a non-zero value drives the
+   *  crash-record face's death facts. */
+  code = 0;
 
   run(
     command: string,
@@ -4860,6 +4900,6 @@ class FakeSync implements SyncProcess {
     cwd: string,
   ): { code: number; stdout: string; stderr: string } {
     this.calls.push({ command, args: [...args], cwd });
-    return { code: 0, stdout: this.stdout, stderr: "" };
+    return { code: this.code, stdout: this.stdout, stderr: "" };
   }
 }

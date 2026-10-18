@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P10 实施计划：文档头部 front-matter 化 + 登记表驱动正文解析统一
 doc-type: plan
-version: v0.3
+version: v0.4
 date: 2026-10-17
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p10-design.md
 parent-program: ../specs/2026-10-10-engine-doc-tooling-overall.md
@@ -214,6 +214,7 @@ parent-program: ../specs/2026-10-10-engine-doc-tooling-overall.md
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.4 | 2026-10-18 | **front-matter 形态契约 backfill（D1/D2/D3 · github#341/#342 并入 P10 收尾 · 用户裁定 2026-10-18 立即独立一提交）**：engine 侧三面统一落地（standalone commits 96034c1 + 4aa973a）——① **D1 解析错误携位（#341）**：`FrontMatterExtractor.split` 捕获分支型化 `YAMLParseError`（经 `LineCounter` 喂 `linePos`）为 `FrontMatterParseError{line, column, reason, source}` 挂 head（`contract/frontmatter.ts`），pre-flight 报「not valid YAML: {reason} on line {line}, column {column}」BLOCK 而非误判「no doc-type」（`session/preflight.ts` · `face/words.ts` `routeWord "frontmatterParse"`）；② **D2 链接 target 形态见型（#342）**：`LinkTargetShape` 值类（`contract/invariants.ts`）一规则判——裸相对路径合法 / `[l](p)`·`://`·空白·`()[]<>` 拒绝，`LinkShapeInvariant`（kind `"link-shape"`）为唯一格式报告者、resolution 面静默 continue，`chainRoot` 不再以 `{target: 原始字符串}` 提交（`contract/judge.ts` 策略序）；③ **D3 骨架同源**：`render/skeleton.ts` 头部段改 `yaml` node API 焊接（`YAMLMap`+`Pair`+`Scalar` · content 槽 `Scalar.QUOTE_SINGLE` 强制单引号 · link 槽裸 `<docs/kairos/specs/…-overall.md>` 示例），占位符即头部形状规约。同步 spec v0.9（§2.1/§2.2/§4.2 · 版本键 v0.8→v0.9）· 本 plan 版本键 v0.3→v0.4 · changeset 并入 p10 frontmatter-head-major（单 major release）。 | Oscar M. · Claude Opus 5（orchestrator backfill · 2026-10-18） |
 | v0.3 | 2026-10-18 | **backfill（Task 10 review-1 nit 收口 · 用户裁定 2026-10-18 立即独立一提交）**：Task 10 卡口算术对账更新至迁移时刻 census——链接形 28→30（parent-program 20 + spec 10）· 产标量 129→134（version/date/doc-type/spec/parent-program 各 +1 · 随本 p10 plan 自身在册成 21 篇）· 干跑三卡口 3/28/0→3/30/0 · 验收 3/28/0/0/10→3/30/0/0/10；与 corpus-form-pin census 一致。 | Oscar M. · Claude Opus 5（orchestrator backfill · 2026-10-18） |
 | v0.2 | 2026-10-17 | **plan-fix-1（plan-review-1 findings 收口 · 2 warn + 2 nit · 零 blocker）**：① warn（buildability）——Task 4（W2）的 42/31/27/16 迁移后对账断言移出本 task（随 T5 改 declare.ts 才成立），步骤 3 只做双常量 + 分侧计数判 today live 计数（overall 34 正文/5 头 · plan 22/6 · phase-spec 18/7 · single-spec 8/5），消除 W2 红落在声明红窗口（T5–T8）之外的越窗断言；② warn（buildability）——Task 10 DependsOn 增 9（readDocType/readHeader 的 front-matter 重指向仅在 Task 9，须先于语料判压与 board 视图落位），Consumes 同步列 Task 9，波次随边重列（八波 → 九波：W7={9,11,12} · W8={10} · W9={13}）；③ nit（completeness）——Task 12 弃「24 处引号字面量」裸计数、改覆盖判据（judge · project · doc · cli · lint 五文件字段位引号字面量重锚至 key 形态，重锚后套件全绿、遗留任一字段位 `**…**` 即 FAIL），Objective/Files/Step 同位改写；④ nit（completeness）——Constraints「变更先回填 parent overall」标注 spec 阶段已 discharge（D48 语义回填 + 用户裁定 backfill 提交），对格式迁移不适用。 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P10] plan-fix-1） |
 | v0.1 | 2026-10-17 | 初稿：P10 实施计划——front-matter 迁移 13 任务 8 波（W1={1,2,3} · W2={4} · W3={5} · W4={6} · W5={7} · W6={8} · W7={9,10,11,12} · W8={13}）。源 spec v0.8；三条 plan-wave 裁定（declare.test.ts HOME_VALUES 副本保副本改名 · header valuePattern 保留在册重规格为标量形 · 双门数值 40/12）；中间态红窗口 T5–T8；本 plan 自身为 T10 迁移对象。 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P10]） |

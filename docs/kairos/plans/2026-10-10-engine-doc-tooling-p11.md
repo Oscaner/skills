@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P11 实施计划：dispatch contract 收口（child Return 去结构化 + `--dry-run` 真只读预览 + `RoundNaming` 命名单源）
 doc-type: plan
-version: v0.4
+version: v0.5
 date: 2026-10-18
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p11-design.md
 parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
@@ -93,17 +93,17 @@ base: develop
 - **DependsOn**: 3, 4
 
 ### Task 6: 测试面迁移（§2.4）+ 文档面 + 变更集
-- **Objective**: 把 §2.4 的四组 pin 逐条就地重述（F1 回归双面 · 发布门 smoke 重述 · 两行 fence pin 换散文断言 · 合成批准块改注入/预览断言 · `--dry-run` 调用点计数与 D50 的 23 处对账）；文档面同步（`declare.ts` flag help + `packages/cdd-engine/README.md` + `packages/cdd-engine/README.zh-CN.md` 三处文案一致为「preview the next dispatch step and its expected artifacts — zero repo writes, no round consumed」；`docs/maintainers/01-doctrine.md:41` 的发布门句随 smoke 重述同步）；变更集：cdd-engine **major** 在册（覆盖全 phase）。
-- **Files**: Modify `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（`:2586-2624` F1 拆两面 · 合成批准块 · `--dry-run` 调用点）· Modify `packages/cdd-engine/src-next/__tests__/smoke.integration.test.ts`（`:191-209` 改 preview+零写）· Modify `packages/cdd-engine/src-next/render/__tests__/render.test.ts`（`:69-87` 两行 fence → 散文区断言）· Modify `packages/cdd-engine/src-next/face/declare.ts`（flag help）· Modify `packages/cdd-engine/README.md` · Modify `packages/cdd-engine/README.zh-CN.md` · Modify `docs/maintainers/01-doctrine.md`（`:41`）· Modify `.changeset/*`（cdd-engine major）
+- **Objective**: 把 §2.4 的四组 pin 逐条就地重述（F1 回归双面 · 发布门 smoke 重述 · 两行 fence pin 换散文断言 · 合成批准块改注入/预览断言 · `--dry-run` 调用点计数与 D50 的 23 处对账 · `cli.test.ts` 的 25 处 dry-run-E2E 用例改 preview 块断言——W2 边界红，旧 book-轮 断言随 T5 退场）；文档面同步（`declare.ts` flag help + `packages/cdd-engine/README.md` + `packages/cdd-engine/README.zh-CN.md` 三处文案一致为「preview the next dispatch step and its expected artifacts — zero repo writes, no round consumed」；`docs/maintainers/01-doctrine.md:41` 的发布门句随 smoke 重述同步）；变更集：cdd-engine **major** 在册（覆盖全 phase）。
+- **Files**: Modify `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（`:2586-2624` F1 拆两面 · 合成批准块 · 25 处 dry-run-E2E 改 preview 断言 · `--dry-run` 调用点）· Modify `packages/cdd-engine/src-next/__tests__/smoke.integration.test.ts`（`:191-209` 改 preview+零写）· Modify `packages/cdd-engine/src-next/render/__tests__/render.test.ts`（`:69-87` 两行 fence → 散文区断言）· Modify `packages/cdd-engine/src-next/face/declare.ts`（flag help）· Modify `packages/cdd-engine/README.md` · Modify `packages/cdd-engine/README.zh-CN.md` · Modify `docs/maintainers/01-doctrine.md`（`:41`）· Modify `.changeset/*`（cdd-engine major）
 - **Consumes**: Task 1–5 的行为面 · spec §2.4 · AC 测试/文档面
 - **Produces**: 测试面全绿；README ×2 + flag help 文案一致；cdd-engine major changeset 在册
 - **Steps**:
   - F1 回归（`cli.test.ts:2586-2624`）拆两面（真实运行腿空仓 fixture 真 dispatch · `--dry-run` 腿预览 + 零写）— checkable: 该用例 PASS
   - smoke（`:191-209`）改「preview + 零写」；`docs/maintainers/01-doctrine.md:41` 同步 — checkable: `pnpm -C packages/cdd-engine run smoke` PASS
-  - 两行 fence pin（`render.test.ts:69-87`）→ 散文区断言；合成批准块改注入/预览断言；`--dry-run` 调用点计数与 D50 的 23 处对账 — checkable: `pnpm -C packages/cdd-engine test` PASS
+  - 两行 fence pin（`render.test.ts:69-87`）→ 散文区断言；合成批准块改注入/预览断言；`cli.test.ts` 25 处 dry-run-E2E 改 preview 断言（旧 book-轮 断言退场）；`--dry-run` 调用点计数与 D50 的 23 处对账 — checkable: `pnpm -C packages/cdd-engine test` PASS
   - README ×2 + flag help 文案一致；changeset 在册 — checkable: `grep -rn 'preview the next dispatch step' packages/cdd-engine/README.md packages/cdd-engine/README.zh-CN.md packages/cdd-engine/src-next/face/declare.ts` 三命中；`.changeset/*` 含 cdd-engine major
   - 全量 — checkable: `pnpm run validate` 退出 0
-- **Acceptance**: 测试面全绿（含 §2.4 逐条迁移）；README ×2 + flag help 文案一致；`RETURN_STDOUT_BLOCK` / `--findings` 全活面零残留综合作回归 pin 绿；cdd-engine major changeset 在册；不发布
+- **Acceptance**: 测试面全绿（含 §2.4 逐条迁移 + `cli.test.ts` 的 25 处 dry-run-E2E）；README ×2 + flag help 文案一致；`RETURN_STDOUT_BLOCK` / `--findings` 全活面零残留综合作回归 pin 绿；cdd-engine major changeset 在册；不发布
 - **DependsOn**: 1, 2, 3, 4, 5
 
 ## Change history
@@ -114,3 +114,4 @@ base: develop
 | v0.2 | 2026-10-18 | docs-fix round 1——落实 plan-review-1 四条：Constraints 增「注册连带已落地」行（plan-commit 第 23 条语料 → corpus form-pin 重锚 `plans` 10→11/total 22→23/`specs`=12，commit `6b4e38b`；T6 §2.4 不含本钉）· T2 `stdoutTail` 通道指名私有字段「`#dispatch` set → `#reject` read」（`#reconstruct(frame)` 保持单参，加宽签名被否）Objective/Files/Steps/Acceptance 同步 · T5 `child:` 行补未检出 host 分支字面量 `(no host detected — real run would BLOCK)` Objective/Steps/Acceptance 同步 · T3 step-1 grep checkable 收窄至生产面（`--include='*.ts' | grep -v __tests__`，排除 `face/__tests__/` 既有命中） | Oscar M. · Claude Opus 5（kairos:cdd-plan [P11] docs-fix round 1 · 2026-10-18） |
 | v0.3 | 2026-10-19 | in-flight backfill（review blocker F1 + T2 hotfix）：(a) ensure 扩面——T3 写点由「`CliGate#renderBrief` 一处（`type === "wave"` 门内）」改为「`#runWork` 真实运行派发入口对所有面一次（预检后、首个写点前，`dryRun` 跳过）」，对齐 spec v0.5 §3.2/§4.2/§1.3；T3 Objective/Files（去 `gate.ts`、归 `cli.ts`）/Steps/Acceptance 同步 + 空仓 spec/plan/branch 派发 pin。(b) T2 已 hotfix 落地（commit `6ac29ac`）：T1 单独落地致真实派发自锁（散文无 `status:` 行 vs 未删的 no-status 门），手动落地 T2 全量解锁；Constraints 记「T2 已 hotfix 落地」行（wave 不变 W1={1,3,4} · W2={2,5} · W3={6}；T2 代码已随 hotfix 落地，W2 实现面实际仅 T5）| Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] in-flight backfill · 2026-10-19） |
 | v0.4 | 2026-10-19 | W1 review（CHANGES_REQUESTED · blocker 1）裁定回填——(a) **F3 修复**：T3 `Produces` 行 v0.3 漏改，仍写「显式 `ensure()` 调用点仅 `CliGate#renderBrief` 一处」，与 Objective/Files/Steps/Acceptance 矛盾；已改为「`#runWork` 一处（真实运行首个写点，覆盖所有面）」。(b) **F2 裁定**：红窗口句澄清——`returnFormats` pin（`render.test.ts:48`）归 T1，两行 fence pin（`render.test.ts:66`，§2.4 在册）归 **T6**，红窗口延续至 T6（原文「随 T1/T2 同批迁移收口」有歧义）。F1（ensure 扩面未落码）为纯码修复，由 fix 回合落实，无需 plan 变更；F4/F5 为 nit，由 fix 回合落实 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] W1 review-ruling 回填 · 2026-10-19） |
+| v0.5 | 2026-10-19 | W2 review（REVIEW_FIX）note 回填——T6 scope 显式纳入 `cli.test.ts` 的 25 处 dry-run-E2E 用例（W2 边界红：旧 book-轮 断言随 T5 退场，改 preview 块断言），否则「全量测试面绿收口于 T6」不成立；T6 Objective/Files/Steps/Acceptance 同步 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] W2 review-note 回填 · 2026-10-19） |

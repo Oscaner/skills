@@ -153,19 +153,19 @@ parent-program: ../specs/2026-10-10-engine-doc-tooling-overall.md
 - **DependsOn**: 8
 
 ### Task 10: 语料一次性迁移——21 篇脚本跑完即删 · 五卡口 · 续行剥两格 · 单提交
-- **Objective**: 写**一次性 Node 迁移脚本（不入仓·跑完即删）**，对迁移时刻在册的 **21 篇**（`docs/kairos/specs/*.md` 11 = 1 overall + 10 phase-spec design 含本 p10 design · `docs/kairos/plans/*.md` 10 = 9 + 本 p10 实施计划）执行 §5.1 迁移：头部元组 → front-matter（一律 `yaml.stringify` 发射、零拼串）、正文 H1 删、`parent-version` 从 4 条带 token 的 `**Parent program**` 行提取（无 token 的 15 条不产出该键）、overall `**Constraints**` 10 行续行（两格缩进）剥两格搬为 `## Constraints` 正文 bullet（落位 `## Boundary rules` 与 `## Maintenance` 之间 · 文案字节与行序零改）、非元组头部行逐字节透传（当前 0 条/0 篇）、`Issues` 收编分支（当前 0 条，由单元用例钉「旧形头行 → `issues:` 键」）。**五卡口**：`[` 起首 `author` 3 · 链接形 28 · 截断类 0 · 非元组头 0 · 续行 10 行/1 篇。回环断言 `yaml.parse(yaml.stringify(head))` 逐篇深相等。**迁移结果 = 一个独立 commit**（Mid-Flight Backfill 纪律 · §5.1 一次提交）。
+- **Objective**: 写**一次性 Node 迁移脚本（不入仓·跑完即删）**，对迁移时刻在册的 **21 篇**（`docs/kairos/specs/*.md` 11 = 1 overall + 10 phase-spec design 含本 p10 design · `docs/kairos/plans/*.md` 10 = 9 + 本 p10 实施计划）执行 §5.1 迁移：头部元组 → front-matter（一律 `yaml.stringify` 发射、零拼串）、正文 H1 删、`parent-version` 从 4 条带 token 的 `**Parent program**` 行提取（无 token 的 15 条不产出该键）、overall `**Constraints**` 10 行续行（两格缩进）剥两格搬为 `## Constraints` 正文 bullet（落位 `## Boundary rules` 与 `## Maintenance` 之间 · 文案字节与行序零改）、非元组头部行逐字节透传（当前 0 条/0 篇）、`Issues` 收编分支（当前 0 条，由单元用例钉「旧形头行 → `issues:` 键」）。**五卡口**：`[` 起首 `author` 3 · 链接形 30 · 截断类 0 · 非元组头 0 · 续行 10 行/1 篇。回环断言 `yaml.parse(yaml.stringify(head))` 逐篇深相等。**迁移结果 = 一个独立 commit**（Mid-Flight Backfill 纪律 · §5.1 一次提交）。
 - **Files**: Script：`.tmp-p10-migrate/`（一次性）· Modified `docs/kairos/specs/*.md`（11）+ `docs/kairos/plans/*.md`（10）· Test `packages/cdd-engine/src-next/contract/__tests__/corpus-form-pin.test.ts`（常驻：21 篇逐篇首行 `---` · `yaml.parse` 键集 = 各自 registry frontmatter-home 集 · 头部元组零命中 grep · 「迁移前后 finding 集合逐条同集」守真判据；脚本删除后由它守住 §5.1/§6 形态 pin）
 - **Consumes**: Task 8（引擎套件全绿、判定面干净——迁移前后 finding 集合同集的判压基线成立）；**Task 9**（`BoardView.readDocType`/`readHeader` 重指 front-matter `doc-type`——迁移语料的判压与 board 视图都经它读型，T9 必须先于本 task）；**当前树干净**（本 plan 与前期 commit 已落，见 commit-plan）；p10 plan 自身迁移前的 0-finding 基线已在本 plan 自检阶段实测。
 - **Produces**: 21 篇 front-matter 化落盘的单个 commit；语料形态 pin 常驻（脚本删除后持续守住迁移结果）；`parent-version` 4 条在册。
 - **Steps**:
-  - 写迁移脚本（globs 扫 21 篇 · 按注册表 frontmatter-home 键集发射 · 三类非法形状卡口计数 · 续行处理 · 非元组透传）— checkable: 干跑（`--dry-run`）输出三卡口 = 3 / 28 / 0。
-  - 迁移 + 回环断言逐篇（`yaml.parse(yaml.stringify(head))` 与原 head record 深相等）— checkable: 21 篇回环全通；`[` 起首 3 处与链接形 28 处值 shape 正确且不丢字节（link 形按 §2.1 只保 target、label 主动退休）；产标量总计与 §5.1 对账 = 129（`version` 20 + `date` 20 + `status` 11 + `author` 11 + `parent-program` 19 + `depends-on` 13 + `spec` 9 + `base` 2 + `parent-version` 4 + `doc-type` 20）。
+  - 写迁移脚本（globs 扫 21 篇 · 按注册表 frontmatter-home 键集发射 · 三类非法形状卡口计数 · 续行处理 · 非元组透传）— checkable: 干跑（`--dry-run`）输出三卡口 = 3 / 30 / 0。
+  - 迁移 + 回环断言逐篇（`yaml.parse(yaml.stringify(head))` 与原 head record 深相等）— checkable: 21 篇回环全通；`[` 起首 3 处与链接形 30 处值 shape 正确且不丢字节（link 形按 §2.1 只保 target、label 主动退休）；产标量总计与 §5.1 对账 = 134（`version` 21 + `date` 21 + `status` 11 + `author` 11 + `parent-program` 20 + `depends-on` 13 + `spec` 10 + `base` 2 + `parent-version` 4 + `doc-type` 21）。
   - `**Constraints**` 续行剥两格搬移 + 落位 Boundary rules/Maintenance 之间 — checkable: `git diff` 该块逐行 `trimStart()` 后字节 diff 零差异（文案仅缩进）；迁移后 overall 的 `## Constraints` 体行全部命中 `^- `。
   - 非元组头部行透传核对 — checkable: 迁移前后非元组头集合逐行 diff 零差异（0 条/0 篇计数卡口）。
   - 迁移后逐篇 `Contract.validate` 零 finding + finding 集合同集判定（基线 0 → 迁移后 0）— checkable: 21 篇全部 0 finding。
   - 单元用例：`Issues` 收编分支（构造旧形 `Issues（收口时关闭）` 头行 → 迁移后落 `issues:` 键）— checkable: 用例 PASS。
   - 脚本删除 + 语料形态 pin 常驻入 engine suite + 单个 commit — checkable: `.tmp-p10-migrate/` 零残留；`git status` 只余迁移 diff；`git add docs/kairos + commit` 一次。
-- **Acceptance**: 21 篇 front-matter 化（首行 `---` · yaml.parse 键集 = 注册表 frontmatter-home 集 · 引擎 board/review 判压全绿）；五卡口达标（3/28/0/0/10 行 1 篇）；脚本不入仓；一次性 commit；形态 pin 常驻。
+- **Acceptance**: 21 篇 front-matter 化（首行 `---` · yaml.parse 键集 = 注册表 frontmatter-home 集 · 引擎 board/review 判压全绿）；五卡口达标（3/30/0/0/10 行 1 篇）；脚本不入仓；一次性 commit；形态 pin 常驻。
 - **DependsOn**: 8, 9
 
 ### Task 11: 判定回归——版本血缘 / 父血缘 / presence / domain / RAW 五用例 + INPUT_SPEC 保活
@@ -214,5 +214,6 @@ parent-program: ../specs/2026-10-10-engine-doc-tooling-overall.md
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.3 | 2026-10-18 | **backfill（Task 10 review-1 nit 收口 · 用户裁定 2026-10-18 立即独立一提交）**：Task 10 卡口算术对账更新至迁移时刻 census——链接形 28→30（parent-program 20 + spec 10）· 产标量 129→134（version/date/doc-type/spec/parent-program 各 +1 · 随本 p10 plan 自身在册成 21 篇）· 干跑三卡口 3/28/0→3/30/0 · 验收 3/28/0/0/10→3/30/0/0/10；与 corpus-form-pin census 一致。 | Oscar M. · Claude Opus 5（orchestrator backfill · 2026-10-18） |
 | v0.2 | 2026-10-17 | **plan-fix-1（plan-review-1 findings 收口 · 2 warn + 2 nit · 零 blocker）**：① warn（buildability）——Task 4（W2）的 42/31/27/16 迁移后对账断言移出本 task（随 T5 改 declare.ts 才成立），步骤 3 只做双常量 + 分侧计数判 today live 计数（overall 34 正文/5 头 · plan 22/6 · phase-spec 18/7 · single-spec 8/5），消除 W2 红落在声明红窗口（T5–T8）之外的越窗断言；② warn（buildability）——Task 10 DependsOn 增 9（readDocType/readHeader 的 front-matter 重指向仅在 Task 9，须先于语料判压与 board 视图落位），Consumes 同步列 Task 9，波次随边重列（八波 → 九波：W7={9,11,12} · W8={10} · W9={13}）；③ nit（completeness）——Task 12 弃「24 处引号字面量」裸计数、改覆盖判据（judge · project · doc · cli · lint 五文件字段位引号字面量重锚至 key 形态，重锚后套件全绿、遗留任一字段位 `**…**` 即 FAIL），Objective/Files/Step 同位改写；④ nit（completeness）——Constraints「变更先回填 parent overall」标注 spec 阶段已 discharge（D48 语义回填 + 用户裁定 backfill 提交），对格式迁移不适用。 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P10] plan-fix-1） |
 | v0.1 | 2026-10-17 | 初稿：P10 实施计划——front-matter 迁移 13 任务 8 波（W1={1,2,3} · W2={4} · W3={5} · W4={6} · W5={7} · W6={8} · W7={9,10,11,12} · W8={13}）。源 spec v0.8；三条 plan-wave 裁定（declare.test.ts HOME_VALUES 副本保副本改名 · header valuePattern 保留在册重规格为标量形 · 双门数值 40/12）；中间态红窗口 T5–T8；本 plan 自身为 T10 迁移对象。 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P10]） |

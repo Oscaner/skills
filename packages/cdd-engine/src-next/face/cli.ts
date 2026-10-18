@@ -682,10 +682,12 @@ export class Cli {
   }
 
   /** The dispatch seam — the injected override, else the harness production default.
-   *  A `--dry-run` invocation never reaches here: the preview path returns before any
-   *  dispatch (P11 T5 · §3.2), so the retired synthetic approval
-   *  (`() => ({ status: "APPROVED", findings: [] })`) has no remaining caller — a
-   *  preview books no round and fabricates no conclusion. */
+   *  The call itself is unconditional (the caller resolves the step before the
+   *  preview branch), but under `--dry-run` the preview path returns before the
+   *  step is INVOKED — `dispatch(frame)` is never called (P11 T5 · §3.2) — so the
+   *  retired synthetic approval (`() => ({ status: "APPROVED", findings: [] })`)
+   *  has no remaining caller: a preview books no round and fabricates no
+   *  conclusion. */
   #dispatchOf(scene: WorkScene, parsed: RunInput): DispatchStep {
     if (this.#dispatch !== null) return this.#dispatch;
     const harness = new CliLifecycle({

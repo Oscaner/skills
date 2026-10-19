@@ -23,7 +23,6 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import type { SampleRecord } from "../face/termination.ts";
 import type { ConfigLoader } from "../infra/config.ts";
 import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
@@ -155,6 +154,28 @@ export type LedgerKey = number | string;
  *  the wall-clock ceiling was reached; `signal` = an external signal killed the
  *  child (any signal, one semantic — never the SIGTERM literal). */
 export type TerminationCause = "stalled" | "over-budget" | "signal";
+
+/** The stall judge's verdict per sample tick: `progress` (a leg advanced), `unknown`
+ *  (a leg is unreadable — the fail-open state, never a kill), `idled` (no progress
+ *  yet, the idle window is open) and `stalled` (no progress and the window is spent
+ *  — the kill). */
+export type StallVerdict = "progress" | "unknown" | "idled" | "stalled";
+
+/** One sample tick's two legs — the process group's cumulative CPU (ms) and the
+ *  newest mtime (ms) of the scanned tree. `null` = that leg is unreadable (the
+ *  fail-open face: an unreadable leg never authorizes a kill). The field names are
+ *  the heartbeat record's names (one naming, two references). */
+export interface Sample {
+  groupCpuMs: number | null;
+  newestMtimeMs: number | null;
+}
+
+/** The recorded sample — a `Sample` extended with its tick's timestamp and the
+ *  judge's verdict (the heartbeat file's field set; the crash record embeds it). */
+export interface SampleRecord extends Sample {
+  sampledAt: number;
+  verdict: StallVerdict;
+}
 
 /** The lane-crash cause vocabulary — postmortem classification of why a dispatch
  *  terminated before the exit gate (zero behavior fork: resume never routes on it).

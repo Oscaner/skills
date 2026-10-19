@@ -35,11 +35,10 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import type { Sample, SampleRecord } from "../../session/ledger.ts";
 import {
   type ChildOutcome,
   type ChildRun,
-  type Sample,
-  type SampleRecord,
   Sampler,
   StallJudge,
   TerminationPolicy,
@@ -238,13 +237,7 @@ describe("Terminator.terminationOf — the four-way derivation and its priority 
   });
 
   const derive = (facts: ReturnType<typeof face>): unknown =>
-    Terminator.terminationOf(
-      facts.timedOut,
-      facts.killedByStall,
-      facts.signal,
-      facts.isTerminated,
-      lastSample,
-    );
+    Terminator.terminationOf({ ...facts, lastSample });
 
   const table: Array<{ label: string; facts: ReturnType<typeof face>; cause: string }> = [
     {
@@ -295,7 +288,8 @@ describe("Terminator.terminationOf — the four-way derivation and its priority 
   });
 
   it("carries the last sample as-is — including the honest `null` of no observation", () => {
-    expect(Terminator.terminationOf(false, false, undefined, true, null)).toEqual({
+    const facts = { ...face({ isTerminated: true }), lastSample: null };
+    expect(Terminator.terminationOf(facts)).toEqual({
       cause: "unknown",
       lastSample: null,
     });

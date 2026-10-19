@@ -21,33 +21,13 @@ import { execFileSync } from "node:child_process";
 import { readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
-import type { RoundPhase, TerminationCause } from "../session/ledger.ts";
-
-// ---------------------------------------------------------------------------
-// the sampling vocabulary — the two legs, shared with the heartbeat record
-// ---------------------------------------------------------------------------
-
-/** The stall judge's verdict per sample tick: `progress` (a leg advanced), `unknown`
- *  (a leg is unreadable — the fail-open state, never a kill), `idled` (no progress
- *  yet, the idle window is open) and `stalled` (no progress and the window is spent
- *  — the kill). */
-export type StallVerdict = "progress" | "unknown" | "idled" | "stalled";
-
-/** One sample tick's two legs — the process group's cumulative CPU (ms) and the
- *  newest mtime (ms) of the scanned tree. `null` = that leg is unreadable (the
- *  fail-open face: an unreadable leg never authorizes a kill). The field names are
- *  the heartbeat record's names (one naming, two references). */
-export interface Sample {
-  groupCpuMs: number | null;
-  newestMtimeMs: number | null;
-}
-
-/** The recorded sample — a `Sample` extended with its tick's timestamp and the
- *  judge's verdict (the heartbeat file's field set). */
-export interface SampleRecord extends Sample {
-  sampledAt: number;
-  verdict: StallVerdict;
-}
+import type {
+  RoundPhase,
+  Sample,
+  SampleRecord,
+  StallVerdict,
+  TerminationCause,
+} from "../session/ledger.ts";
 
 // ---------------------------------------------------------------------------
 // the seam — one dispatch's input, result and runner
@@ -59,6 +39,18 @@ export interface SampleRecord extends Sample {
  *  is the unattributable fallback of the derivation. */
 export interface Termination {
   cause: TerminationCause | "unknown";
+  lastSample: SampleRecord | null;
+}
+
+/** The facts the termination derivation rules on — the execa result face plus the
+ *  engine's own stall-kill flag and the sampling loop's last observation. Named
+ *  fields, because the three adjacent booleans/strings would swap silently as
+ *  positional parameters. */
+export interface TerminationFacts {
+  timedOut: boolean;
+  killedByStall: boolean;
+  signal: string | undefined;
+  isTerminated: boolean;
   lastSample: SampleRecord | null;
 }
 
@@ -490,13 +482,13 @@ export class Terminator implements ChildRunner {
     let endedByItself = false;
     try {
       const result = await subprocess;
-      const termination = Terminator.terminationOf(
-        result.timedOut,
+      const termination = Terminator.terminationOf({
+        timedOut: result.timedOut,
         killedByStall,
-        result.signal,
-        result.isTerminated,
-        sampling?.lastSample() ?? null,
-      );
+        signal: result.signal,
+        isTerminated: result.isTerminated,
+        lastSample: sampling?.lastSample() ?? null,
+      });
       endedByItself = termination === null;
       return {
         // The child's OWN exit code, unfolded: null means "never spawned / signalled",
@@ -559,14 +551,13 @@ export class Terminator implements ChildRunner {
    *     termination.
    *  The last sample rides whichever cause won: it is the sampling loop's own last
    *  observation, held in memory — never a re-read of the heartbeat file the engine
-   *  itself wrote. */
-  static terminationOf(
-    timedOut: boolean,
-    killedByStall: boolean,
-    signal: string | undefined,
-    isTerminated: boolean,
-    lastSample: SampleRecord | null,
-  ): Termination | null {
+   *  itself wrote.
+   *
+   *  Known boundary: `killedByStall` is set the instant the judge rules `stalled`, so a
+   *  child that ends by itself within that same tick still records `stalled` — the
+   *  criterion is the idle verdict, not the kill landing. */
+  static terminationOf(facts: TerminationFacts): Termination | null {
+    const { timedOut, killedByStall, signal, isTerminated, lastSample } = facts;
     if (timedOut) return { cause: "over-budget", lastSample };
     if (killedByStall) return { cause: "stalled", lastSample };
     if (signal !== undefined) return { cause: "signal", lastSample };

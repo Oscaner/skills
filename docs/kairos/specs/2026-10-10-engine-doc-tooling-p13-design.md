@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P13 设计：child dispatch 终止面跟进（stdin 闭合 + 终止 ⊥ 结论 + idle 可见性）
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-10-19
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P13] 会话 · 用户逐轮裁定 Q1–Q11 · 2026-10-19）
@@ -35,6 +35,19 @@ depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟�
 - 判官只认进程组 CPU 与 tree mtime：CPU 在涨即重置 idle 时钟；handoff 写入本身是一次 mtime 前进，同样重置。
 - 待 plan 阶段实机确认（不阻塞设计）：孙进程占管道的真实复现；`ps -g` 在 macOS / Linux 上是否覆盖后代进程。
 
+判定 pin 表（claim → path:line + 断言面，均已对源码确认）：
+
+| 断言（claim） | pin（path:line） | 断言面（assertion face） |
+| --- | --- | --- |
+| spawn 面唯一，三 harness 共用，未设 `stdin` | `face/termination.ts:467-473` | `execa(...)` 选项集无 `stdin` 键 |
+| 终止派生为 TIMEOUT | `face/lifecycle.ts:521` | `death.termination === null ? 'BLOCKED' : 'TIMEOUT'` |
+| 失败轮被 `!blocked` 门跳过 `recordRound` | `session/run.ts:436` | `outcome.status` 为 `BLOCKED` 或 `TIMEOUT` 时 `blocked=true` |
+| 失败轮 `blocker:` 恒 `0` | `face/__tests__/face.test.ts:199` | `emit('TIMEOUT','0',…)` → `status: TIMEOUT · blocker: 0 · handoff: /h.json` |
+| `timeoutCount` 键在 `lastStatus === 'TIMEOUT'` | `face/cli.ts:653-656` | `if (lastStatus === 'TIMEOUT') scene.ledger.incrementTimeoutCount()` |
+| 终止轮 outcome 严格等于 `{status:'TIMEOUT'}` | `face/__tests__/cli.test.ts:4500` · `:4543` | `expect(outcome).toEqual({ status: 'TIMEOUT' })`（两处） |
+| no-host BLOCKED 在任何记录前返回 | `face/lifecycle.ts:150-154` | `return { status: 'BLOCKED' }`（无 crash record） |
+| crash record schema 家 | `session/ledger.ts:192-213` | `interface CrashRecord`（含既有 `lastSample`） |
+
 #### 1.3 保留面（冻结）
 
 - D53 的 T26 双信号（进程组 CPU + workspace mtime）及其 fail-open 语义；idle 30 分钟、采样 60 秒、四键预算常量（implement 6h · review 3h · fix 3h · branch-review 3h）全部不变。
@@ -55,6 +68,7 @@ depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟�
 - 直接子进程退出后，引擎回收其所在进程组，使遗留的孙进程不再占着 stdout / stderr 管道拖住 `await`。这些孙进程按定义已是孤儿，回收无副作用。
 - 机制留 plan 阶段确认：优先 execa 现成能力；确无现成能力时才落一次对进程组的 kill。选型的判据是第七前提（不造轮子）与既有 `killDescendants` 语义不冲突（不得引入 `detached`，它会关掉 execa 的 `cleanup`）。
 - 回收不改变轮的归因：child 自己退出的轮仍是「自行结束」，不产生 termination 事实。
+- plan 时约束：回收的 kill 只作用于**仍归引擎所有的进程组**（spawn 时由 `killDescendants` 建立的那个组），不得因 pid/pgid 复用误伤他组；回收的「无副作用」由测试 pin——复用既有端到端 fixture，断言孙进程被回收且无旁观进程受损。
 
 ### 3. B 组 · 终止 ⊥ 结论
 
@@ -70,6 +84,7 @@ depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟�
 - 轮属 review 面；
 - 草稿存在，且通过载体 schema 校验；
 - 草稿含至少一条 finding。
+- 草稿被截断（child 在被终止时正写至一半）按**非法草稿**处理：它过不了载体 schema 校验，因而不满足第二条、不升格。
 
 理由：被杀的 child 写出的「无 findings」不可信（可能未审完即被终止），而带 findings 的草稿是可执行的证据，不论审得完整与否。
 
@@ -78,8 +93,8 @@ depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟�
 - 走与正常 review 轮相同的读回、持久化、`recordRound`、结论派生（`conclusionOf`），摘要行 `blocker:` 为 handoff 的真实计数，`next:` 照常给出（通常是 fix）；后续 `cdd fix --reviews` 因此被接受，消费方不必重跑整轮。
 - 退出码 0。
 - stderr 输出一条 `CDD_WARN`：说明终止原因，并说明 findings 自 handoff 草稿恢复。
-- crash record 照写，带末样本 `lastSample`、终止原因与「已升格」标记。
-- `timeoutCount` 照常递增：它统计终止事件，与轮次结论正交；递增的判据由「status 词为 TIMEOUT」改为「存在 termination 事实」，否则升格轮会漏计。
+- crash record 照写：既有末样本 `lastSample`、终止原因 `cause` 之外，另加两个**新字段** `promoted: true`（已升格标记）与 `idleMs`（终止时 idle 时长）。crash record 的 schema 家是 `session/ledger.ts:192` 的 `CrashRecord` 接口（`lastSample` 为该接口既有字段，非新增）。
+- `timeoutCount` 照常递增：它统计终止事件，与轮次结论正交。递增判据由「status 词为 TIMEOUT」改为「存在 termination 事实」——termination 事实的**唯一承载**是 `DispatchOutcome`（`session/run.ts:97`）新增的可选 `termination` 字段，由 `face/lifecycle.ts:521` 的单一派生点填入；`face/cli.ts:653-656` 改读该字段递增，否则升格轮会漏计（升格轮的 status 由 findings 推出，不再是 TIMEOUT 词）。升格轮结论是 findings 推出的**非失败**状态，故其 carrier 仍过 `session/run.ts:436` 的非失败门、照常进入 `#bookkeep` 记账，`termination` 事实随 outcome 并行保留。
 
 #### 3.4 不升格的终止轮
 
@@ -92,13 +107,13 @@ depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟�
 
 #### 4.1 失败状态摘要行去伪值
 
-- TIMEOUT 与 BLOCKED 的摘要行不输出 `blocker:` 键：`0` 读作「没发现问题」，实为「不知道」。
-- `handoff:` 一栏改指 crash record（失败轮没有可用 handoff，规范路径上并无文件）。
-- 键集来自 `words.capsuleKeys()` 单源，按状态分键集在该处表达，不在渲染点另加特例。
+- TIMEOUT 与 BLOCKED 的摘要行**不输出** `blocker:` 键：`0` 读作「没发现问题」，实为「不知道」。
+- `handoff:` 一栏**仅在该轮写了 crash record 时才输出**，且指向 crash record（失败轮没有可用 handoff，规范路径上并无文件）；未写 crash record 的失败轮省略该栏，避免悬空路径——`face/lifecycle.ts:150-154` 的 no-host BLOCKED 在任何记录写入前即返回，属此类，故其失败 capsule 不带 `handoff:` 栏。
+- 键集单源改为**按状态分键集**：`words.capsuleKeys(status)`（`face/words.ts:238`）按状态返回键集，渲染点不自加特例。既有 pin `face/__tests__/face.test.ts:32`（无条件键表）、`:73`（`keysOf` 等于 `capsuleKeys()`）、`:221`（`capsuleKeys()` + `next:` 字面序）与 `:199`（失败 capsule 现状）随之翻新为按状态断言。
 
 #### 4.2 idle 可见性
 
-- 仅在**终止时**把 idle 时长与末样本写入 TIMEOUT 的 stderr 与 crash record。
+- 仅在**终止时**把 idle 时长（crash record 新字段 `idleMs`）与末样本（既有 `lastSample`）写入 TIMEOUT 的 stderr 与 crash record。
 - 不加中途 stderr 进度行：skill 约定后台派发、等通知、不轮询，没有程序化消费方，中途信号只是稳定噪声。
 
 #### 4.3 已知边界（写明，不修）
@@ -110,13 +125,13 @@ depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟�
 ### Acceptance criteria
 
 - `Terminator.run` 的 execa 调用带 `stdin: 'ignore'`；行为 pin：读 stdin 至 EOF 的 child 在非 TTY 下正常退出，不再被挂到 stall 窗口。
-- 孙进程占 stdout / stderr 管道时，`await` 在直接子进程退出后及时返回（端到端 fixture，孙进程被回收）；引擎活面 `detached` 仍零命中。
-- review 面被终止且草稿合法含 findings → 升格：`recordRound` 已记，摘要 `blocker:` 为 handoff 真实计数，退出码 0，stderr 有 `CDD_WARN`，`timeoutCount` 递增，crash record 带升格标记，`next:` 给出，随后 `cdd fix --reviews` 被接受。
+- 孙进程占 stdout / stderr 管道时，`await` 在直接子进程退出后及时返回（端到端 fixture，孙进程被回收）；引擎活面无 `detached:` **选项键**（源码扫描 `detached:` 选项键形态、注释不计——`face/__tests__/cli.test.ts:4855` 的 `engineSourceTexts()` 扫描即该守卫；`termination.ts:440` 的注释词不触发）。
+- review 面被终止且草稿合法含 findings → 升格：`recordRound` 已记（升格轮 status 由 findings 推出、非失败，carrier 照进 `#bookkeep`），摘要 `blocker:` 为 handoff 真实计数，退出码 0，stderr 有 `CDD_WARN`，`timeoutCount` 由 `DispatchOutcome.termination` 非空递增，crash record 带 `promoted: true` 与 `idleMs`，`next:` 给出，随后 `cdd fix --reviews` 被接受。
 - implement / fix 轮被终止，或 review 面草稿缺失 / 非法 / 无 findings → TIMEOUT 失败面不变：无 `next:`、不记账、退出码 1。
-- TIMEOUT 与 BLOCKED 摘要行零 `blocker:` 键，`handoff:` 指 crash record。
-- 终止时 crash record 与 stderr 带 idle 时长与末样本。
+- TIMEOUT 与 BLOCKED 摘要行零 `blocker:` 键；`handoff:` 仅在该轮写了 crash record 时输出并指向之。
+- 终止时 crash record 与 stderr 带 idle 时长（`idleMs`）与末样本（`lastSample`）；crash record 另带 `promoted`。
 - D53 常量（idle 30min · 采样 60s · 四键预算）零变；活面无新旗标、环境变量或配置 JSON。
-- 翻新 pin：`cli.test.ts` 终止轮 outcome 严格等于 `{status:'TIMEOUT'}` 的三处断言；`face.test.ts` 的 capsule 断言；`next.test.ts` 的 TIMEOUT 路由断言；`timeoutCount` 的递增判据改为 termination 事实。
+- 翻新 pin：`cli.test.ts:4500`、`:4543`（终止轮 outcome 严格等于 `{status:'TIMEOUT'}`——实为两处，非三处）与 `:2259`（失败面测试：`:2272` 的 stdout `toContain('status: TIMEOUT')` 与 `timeoutCount`——注入式 dispatch 须带 `termination` 事实以适配新递增判据）；`face.test.ts:32`、`:73`、`:221`（键集按状态）与 `:199`（失败 capsule 去 `blocker:`）；`next.test.ts` 的 TIMEOUT 路由断言；`timeoutCount` 的递增判据改为「`DispatchOutcome.termination` 非空」。
 - 引擎 vitest 全绿；`pnpm run validate` ALL PASS；changeset cdd-engine **minor**；不发布。
 
 ## Constraints
@@ -134,3 +149,4 @@ depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟�
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-19 | 初稿——P13 phase-spec：A 组 child 进程生命周期（stdin `ignore` 统一 · 直接子进程退出后进程组回收）+ B 组终止 ⊥ 结论（review 面升格条件 · 升格轮收口 · 不升格轮保持失败面 · 轮号与产物覆盖接受）+ C 组摘要行去伪值与终止时 idle 可见性 + 已知边界（不加第二窗口 · CPU 空转盲区）；D53 Q12 有意收窄到非升格轮；changeset minor。 | Oscar M. · Claude Opus 5（kairos:cdd-design [P13]） |
+| v0.2 | 2026-10-19 | docs-fix round 1（spec-review-1 全裁定落地）：§1.2 补判定 pin 表；§2.2 加进程组回收的 plan 约束与测试 pin；§3.2 明确截断草稿=非法；§3.3 命名 termination 事实的承载（`DispatchOutcome.termination`）、crash record 新字段 `promoted`/`idleMs` 与 schema 家、升格轮记账路径；§4.1 失败 capsule 按状态键集（`capsuleKeys(status)`）与条件 `handoff:` 栏；§4.2 命名 `idleMs`；验收面明确 `detached:` 选项键守卫与 pin 行号。 | Oscar M. · Claude Opus 5（kairos:cdd-fix [P13]） |

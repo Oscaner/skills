@@ -503,11 +503,11 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
 // ---------------------------------------------------------------------------
 
 describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch)", () => {
-  it("advance() refuses a preflight-blocked frame without dispatching the child", () => {
+  it("advance() refuses a preflight-blocked frame without dispatching the child", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const calls: OpenFrame[] = [];
-      const dispatch: DispatchStep = (frame) => {
+      const dispatch: DispatchStep = async (frame) => {
         calls.push(frame);
         return { status: "APPROVED", findings: [] };
       };
@@ -532,12 +532,12 @@ describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch
         target: { kind: "spec", doc: "docs/kairos/specs/x.md" },
         preflight: { gate: () => blocked },
       });
-      const step = run.advance();
+      const step = await run.advance();
       expect(step).not.toBeNull();
       expect(step!.preflight).toEqual(blocked);
       expect(step!.route).toBeNull();
       expect(calls).toEqual([]); // child zero dispatch
-      expect(run.advance()).not.toBeNull(); // the refused frame re-offers (resume)
+      expect(await run.advance()).not.toBeNull(); // the refused frame re-offers (resume)
     } finally {
       cleanup();
     }

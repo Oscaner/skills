@@ -16,7 +16,6 @@
 // bare functions.
 
 import process from "node:process";
-import { execaSync } from "execa";
 import { printParseErrorCode } from "jsonc-parser";
 import { ConfigLoader } from "../infra/config.ts";
 import type { RepoRoot } from "../infra/root.ts";
@@ -30,6 +29,12 @@ import type { CrashCause, Ledger, OpType, RoundStatus } from "../session/ledger.
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { DISPATCH, HOSTS, HostDetect, type HostId, type HostReferenceTable, REFS } from "./host.ts";
+import {
+  type ChildRunner,
+  type Termination,
+  TerminationPolicy,
+  Terminator,
+} from "./termination.ts";
 
 /** The crash-record stdout-tail cap (P11 T2) — the child's last STDOUT_TAIL_MAX
  *  non-empty stdout lines ride the crash record's `stdoutTail` (the diagnostic
@@ -48,63 +53,8 @@ export interface CliIo {
 }
 
 // ---------------------------------------------------------------------------
-// the sync process seam + the harness dispatch (the production dispatch default)
+// the harness dispatch (the production dispatch default)
 // ---------------------------------------------------------------------------
-
-/** The sync child-process face — the fail-open subprocess seam the harness dispatch
- *  runs through (a non-zero/broken child rides the code, never a throw). */
-export interface SyncProcess {
-  run(
-    command: string,
-    args: readonly string[],
-    cwd: string,
-  ): { code: number; stdout: string; stderr: string };
-}
-
-/** SyncRunner — the unbounded sync child channel (spec §14 · D36): execa's
- *  synchronous face, which imposes no output-buffer ceiling — the whole-buffer
- *  cap class the retired built-in call hit (a fixed 1 MiB default, the W1
- *  `child claude returned no status line` truncation) does not exist here. The
- *  face stays synchronous (the T8 lifecycle's DispatchStep seam is one dispatch,
- *  one advance) and keeps the injected `SyncProcess` shape byte-for-byte: a
- *  non-zero/broken child rides the code, never a throw — `reject: false` surfaces
- *  the failure as a result, and `stripFinalNewline: false` keeps the child's
- *  stdout verbatim (the child's final output tail stays intact). The adapter is
- *  a pure `#collect` read: no buffering to bound, no worker, no concurrency. */
-export class SyncRunner implements SyncProcess {
-  run(
-    command: string,
-    args: readonly string[],
-    cwd: string,
-  ): { code: number; stdout: string; stderr: string } {
-    return this.#collect(command, args, cwd);
-  }
-
-  /** The synchronous collection — execa's sync face with the three options the
-   *  fail-open `SyncProcess` contract needs: `reject: false` (a failed child is a
-   *  result, never a throw), `stripFinalNewline: false` (byte-verbatim stdout), and
-   *  the default unbounded output buffer (the cap class is retired). The result
-   *  reads back into the same `{code, stdout, stderr}` face — `exitCode ?? 1` is the
-   *  exit code; stderr is the child's own stream when it wrote one, else the execa
-   *  diagnostic (a spawn failure like ENOENT writes nothing, so its reason rides the
-   *  `shortMessage` — the fail-open face keeps a reason text, never an empty block). */
-  #collect(
-    command: string,
-    args: readonly string[],
-    cwd: string,
-  ): { code: number; stdout: string; stderr: string } {
-    const result = execaSync(command, [...args], {
-      cwd,
-      reject: false,
-      stripFinalNewline: false,
-    });
-    return {
-      code: result.exitCode ?? 1,
-      stdout: result.stdout ?? "",
-      stderr: result.stderr || (result.failed ? (result.shortMessage ?? "") : ""),
-    };
-  }
-}
 
 /** The environment face the harness dispatch detects the host against. */
 export type ProcessEnvLike = Record<string, string | undefined>;
@@ -139,7 +89,7 @@ export interface DispatchScene {
  */
 export class CliLifecycle {
   readonly #env: ProcessEnvLike;
-  readonly #sync: SyncProcess;
+  readonly #sync: ChildRunner;
   readonly #config: ConfigLoader;
   readonly #template: TemplateAssembler;
   readonly #io: CliIo;
@@ -159,7 +109,7 @@ export class CliLifecycle {
 
   constructor(opts: {
     env?: ProcessEnvLike;
-    sync?: SyncProcess;
+    sync?: ChildRunner;
     config?: ConfigLoader;
     template?: TemplateAssembler;
     io?: CliIo;
@@ -169,7 +119,7 @@ export class CliLifecycle {
     this.#env = opts.env ?? process.env;
     this.#scene = opts.scene;
     this.#naming = new RoundNaming(opts.scene.workspace);
-    this.#sync = opts.sync ?? new SyncRunner();
+    this.#sync = opts.sync ?? new Terminator();
     this.#config = opts.config ?? new ConfigLoader();
     this.#template = opts.template ?? new TemplateAssembler();
     this.#io = opts.io ?? {
@@ -195,7 +145,7 @@ export class CliLifecycle {
   /** One dispatch — prompt from the template plane + the frame, host child via
    *  the harness-contract rows, the child's write-back read in (the draft at
    *  OUTPUT_HANDOFF is the round's content; the child's Return is prose, never parsed). */
-  #dispatch(frame: OpenFrame): DispatchOutcome {
+  async #dispatch(frame: OpenFrame): Promise<DispatchOutcome> {
     const host = this.detectHost();
     if (host === "") {
       this.#io.stderr(
@@ -213,22 +163,46 @@ export class CliLifecycle {
     // prompt positional (claude -p consumes the whole first positional as the prompt;
     // a standalone ref arg after the flags would be swallowed, losing everything after
     // the ref) — the prompt assembly is data, never a code assumption.
-    const result = this.#sync.run(
-      cliName,
-      [...args, this.#childPrompt(row.promptForm, ref, prompt)],
-      this.#scene.workspace.root.repoRoot,
-    );
+    const result = await this.#sync.run({
+      command: cliName,
+      args: [...args, this.#childPrompt(row.promptForm, ref, prompt)],
+      // The two paths the dispatch needs share ONE source (this workspace, held only
+      // here): the child's spawn directory is the repo root, and the heartbeat lands
+      // in this dispatch's workspace. The same `cwd` is also the tree-leg scan root,
+      // and the heartbeat path is the sampler's own write — the scan root ≡ child cwd
+      // correspondence is structural, never a convention.
+      cwd: this.#scene.workspace.root.repoRoot,
+      heartbeatPath: this.#scene.workspace.resolve("liveness.json"),
+      policy: TerminationPolicy.of(frame.phase),
+    });
     // The child's stdout rides the diagnostic channel — #reject reads it into the
     // crash record on either failure face. Child Return is prose: the engine never
     // parses it; the round's content is the OUTPUT_HANDOFF draft, read in #reconstruct.
     this.#stdoutTail = this.#tailOf(result.stdout);
+    // The termination leg FIRST (§4.3 — the judging order is a hard rule): a killed
+    // child's exit code is null, so `null !== 0` is true — judging the child-exit leg
+    // first would fold every terminated round into `child-exit` and falsify the crash
+    // cause. `termination !== null` → the round concludes TIMEOUT (the words table's
+    // status is already there), the reason rides the CDD_BLOCKED channel, and the
+    // failure face (no `next:` line) follows from the status alone.
+    if (result.termination !== null) {
+      return this.#reject(
+        frame,
+        this.#scene.ledger.handoffPath(this.#opOf(frame), frame.type, frame.params),
+        `child ${cliName} was terminated: ${result.termination.cause}`,
+        // the terminated round's OWN death facts — the termination rides whole
+        // (cause + last sample), the signalled child's code is null verbatim
+        { exitCode: result.code, cause: result.termination.cause, termination: result.termination },
+      );
+    }
     if (result.code !== 0) {
       return this.#reject(
         frame,
         this.#scene.ledger.handoffPath(this.#opOf(frame), frame.type, frame.params),
         `child ${cliName} exited ${result.code}`,
-        // the dead child's OWN death facts — never the read-back face's defaults
-        { exitCode: result.code, cause: "child-exit" },
+        // the dead child's OWN death facts — never the read-back face's defaults;
+        // this branch sits AFTER the termination leg, so the termination is null
+        { exitCode: result.code, cause: "child-exit", termination: null },
       );
     }
     return this.#reconstruct(frame);
@@ -503,15 +477,29 @@ export class CliLifecycle {
    *  same-command resume's decision source: the attempted handoff + the resume
    *  command) + NO carrier (the bookkeep leaves the draft untouched). The crash
    *  record carries the caller's REAL death facts: an absent draft/schema violation
-   *  is the read-back face (exit 0 · `contract-violation` — the defaults), while a
-   *  dead child passes its own exit code + `child-exit` — one record shape, two
+   *  is the read-back face (exit 0 · `contract-violation` — the defaults), a dead
+   *  child passes its own exit code + `child-exit`, and a terminated round passes
+   *  its whole `termination` fact (cause + last sample) — one record shape, three
    *  truthful callers (the record is the postmortem artifact; a misreported death
-   *  sends a maintainer hunting the wrong fault). */
+   *  sends a maintainer hunting the wrong fault).
+   *
+   *  The returned status derives from the death facts alone (§4.3 — no status
+   *  parameter): a termination rides it → `TIMEOUT`; otherwise → `BLOCKED` (the
+   *  read-back and child-exit callers pass `termination: null`, today's behavior
+   *  verbatim). */
   #reject(
     frame: OpenFrame,
     path: string,
     reason: string,
-    death: { exitCode: number; cause: CrashCause } = { exitCode: 0, cause: "contract-violation" },
+    death: {
+      exitCode: number | null;
+      cause: CrashCause;
+      termination: Termination | null;
+    } = {
+      exitCode: 0,
+      cause: "contract-violation",
+      termination: null,
+    },
   ): DispatchOutcome {
     this.#io.stderr(`CDD_BLOCKED: ${reason}\n`);
     const op = this.#opOf(frame);
@@ -523,9 +511,14 @@ export class CliLifecycle {
       // shape (never the absolute `handoffPath` syscall form — §2.7).
       attemptedHandoff: this.#rel(path),
       next: this.#resumeOf(frame),
-      cause: death.cause,
+      // The cause rides the termination fact when one is present (one of the three
+      // causes or the `unknown` fallback); without it, the caller's own cause.
+      cause: death.termination?.cause ?? death.cause,
+      // The last sample rides WITH the termination (in memory, zero re-read of the
+      // heartbeat file) — null on every non-terminated face.
+      lastSample: death.termination?.lastSample ?? null,
     });
-    return { status: "BLOCKED" };
+    return { status: death.termination === null ? "BLOCKED" : "TIMEOUT" };
   }
 
   /** Build the final carrier — the validated writable fields from the draft (the

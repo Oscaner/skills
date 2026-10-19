@@ -81,7 +81,9 @@ const taskGraph = (blocks: readonly (readonly string[])[]): TaskGraph => {
   return new TaskGraph(new PlanDocType("plan").parse(planDoc(blocks).split("\n")));
 };
 
-/** A dispatch stub — records every dispatched frame and answers per phase. */
+/** A dispatch stub — records every dispatched frame and answers per phase. The
+ *  script stays synchronous (the fixtures are plain outcome builders); the step
+ *  itself is the async seam the lifecycle awaits. */
 const stub = (
   script: (frame: OpenFrame) => DispatchOutcome,
 ): {
@@ -91,7 +93,7 @@ const stub = (
   const calls: OpenFrame[] = [];
   return {
     calls,
-    step: (frame) => {
+    step: async (frame) => {
       calls.push(frame);
       return script(frame);
     },
@@ -151,7 +153,7 @@ describe("the faces table — one row per target type", () => {
 });
 
 describe("the task small loop — implement → review → the next ready group", () => {
-  it("runs one dispatch per advance across the frontier to the exhausted null", () => {
+  it("runs one dispatch per advance across the frontier to the exhausted null", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = taskGraph([task(1, "none"), task(2, "1")]);
@@ -165,7 +167,7 @@ describe("the task small loop — implement → review → the next ready group"
         dispatch: dispatch.step,
       });
 
-      const step1 = run.advance();
+      const step1 = await run.advance();
       expect(step1).not.toBeNull();
       expect(step1!.frame.phase).toBe("implement");
       expect(step1!.frame.target).toEqual({ kind: "wave", tasks: [1] });
@@ -173,21 +175,21 @@ describe("the task small loop — implement → review → the next ready group"
       expect(step1!.round).toBe(1);
       expect(step1!.route).toEqual({ kind: "review" });
 
-      const step2 = run.advance();
+      const step2 = await run.advance();
       expect(step2!.frame.phase).toBe("review");
       expect(step2!.frame.round).toBe(1);
       expect(step2!.route).toEqual({ kind: "next-wave", tasks: "2" });
 
-      const step3 = run.advance();
+      const step3 = await run.advance();
       expect(step3!.frame.phase).toBe("implement");
       expect(step3!.frame.target).toEqual({ kind: "wave", tasks: [2] });
 
-      const step4 = run.advance();
+      const step4 = await run.advance();
       expect(step4!.frame.phase).toBe("review");
       expect(step4!.frame.round).toBe(1);
       expect(step4!.route).toEqual({ kind: "done" });
 
-      expect(run.advance()).toBeNull();
+      expect(await run.advance()).toBeNull();
 
       expect(dispatch.calls.map((f) => f.phase)).toEqual([
         "implement",
@@ -209,7 +211,7 @@ describe("the task small loop — implement → review → the next ready group"
     }
   });
 
-  it("a review with blockers routes the fix, the re-review and the closure", () => {
+  it("a review with blockers routes the fix, the re-review and the closure", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = taskGraph([task(1, "none")]);
@@ -230,17 +232,17 @@ describe("the task small loop — implement → review → the next ready group"
         dispatch: dispatch.step,
       });
 
-      const implement = run.advance();
+      const implement = await run.advance();
       expect(implement!.route).toEqual({ kind: "review" });
 
-      const review1 = run.advance();
+      const review1 = await run.advance();
       expect(review1!.frame.phase).toBe("review");
       expect(review1!.frame.round).toBe(1);
       expect(review1!.route!.kind).toBe("fix");
       // the closed review leaves the task not done — the re-review awaits
       expect(graph.doneTasks()).toEqual(new Set());
 
-      const fix = run.advance();
+      const fix = await run.advance();
       expect(fix!.frame.phase).toBe("fix");
       expect(fix!.frame.round).toBe(1);
       // the C5-1 re-review: the fix round carries the source review's blocker and
@@ -248,20 +250,20 @@ describe("the task small loop — implement → review → the next ready group"
       expect(fix!.route).toEqual({ kind: "review" });
       expect(graph.doneTasks()).toEqual(new Set());
 
-      const review2 = run.advance();
+      const review2 = await run.advance();
       expect(review2!.frame.phase).toBe("review");
       expect(review2!.frame.round).toBe(2);
       expect(review2!.route).toEqual({ kind: "done" });
       expect(graph.doneTasks()).toEqual(new Set([1]));
 
-      expect(run.advance()).toBeNull();
+      expect(await run.advance()).toBeNull();
       expect(phasesOf([review1!, fix!, review2!])).toEqual(["review", "fix", "review"]);
     } finally {
       cleanup();
     }
   });
 
-  it("a warn/nit review closes through the fix — the REVIEW_FIX closure, no re-review", () => {
+  it("a warn/nit review closes through the fix — the REVIEW_FIX closure, no re-review", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = taskGraph([task(1, "none")]);
@@ -277,19 +279,19 @@ describe("the task small loop — implement → review → the next ready group"
         dispatch: dispatch.step,
       });
 
-      run.advance();
-      run.advance(); // the nit review
-      const fix = run.advance();
+      await run.advance();
+      await run.advance(); // the nit review
+      const fix = await run.advance();
       expect(fix!.frame.phase).toBe("fix");
       expect(fix!.route).toEqual({ kind: "done" });
       expect(graph.doneTasks()).toEqual(new Set([1]));
-      expect(run.advance()).toBeNull();
+      expect(await run.advance()).toBeNull();
     } finally {
       cleanup();
     }
   });
 
-  it("a MID-RUN warn/nit wave routes the next wave after its fix — an early `done` is the {16,22,24}/rt/C5 regression (v1.29)", () => {
+  it("a MID-RUN warn/nit wave routes the next wave after its fix — an early `done` is the {16,22,24}/rt/C5 regression (v1.29)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       // The three-wave chain: {1} → {2} → {3}. Each review finds warn/nit; every fix
@@ -311,25 +313,25 @@ describe("the task small loop — implement → review → the next ready group"
       });
 
       // wave {1}: implement → review(warn) → fix(clean) → next-wave {2}
-      expect(run.advance()!.frame.target).toEqual({ kind: "wave", tasks: [1] });
-      expect(run.advance()!.route!.kind).toBe("fix");
-      expect(run.advance()!.route).toEqual({ kind: "next-wave", tasks: "2" });
+      expect((await run.advance())!.frame.target).toEqual({ kind: "wave", tasks: [1] });
+      expect((await run.advance())!.route!.kind).toBe("fix");
+      expect((await run.advance())!.route).toEqual({ kind: "next-wave", tasks: "2" });
       // wave {2}: implement → review(warn) → fix(clean) → next-wave {3}
-      expect(run.advance()!.frame.target).toEqual({ kind: "wave", tasks: [2] });
-      expect(run.advance()!.route!.kind).toBe("fix");
-      expect(run.advance()!.route).toEqual({ kind: "next-wave", tasks: "3" });
+      expect((await run.advance())!.frame.target).toEqual({ kind: "wave", tasks: [2] });
+      expect((await run.advance())!.route!.kind).toBe("fix");
+      expect((await run.advance())!.route).toEqual({ kind: "next-wave", tasks: "3" });
       // wave {3} (terminal): implement → review(warn) → fix(clean) → done
-      expect(run.advance()!.frame.target).toEqual({ kind: "wave", tasks: [3] });
-      expect(run.advance()!.route!.kind).toBe("fix");
-      expect(run.advance()!.route).toEqual({ kind: "done" });
-      expect(run.advance()).toBeNull();
+      expect((await run.advance())!.frame.target).toEqual({ kind: "wave", tasks: [3] });
+      expect((await run.advance())!.route!.kind).toBe("fix");
+      expect((await run.advance())!.route).toEqual({ kind: "done" });
+      expect(await run.advance()).toBeNull();
       expect(graph.doneTasks()).toEqual(new Set([1, 2, 3]));
     } finally {
       cleanup();
     }
   });
 
-  it("a MID-RUN wave's blocker loop closes to the NEXT wave after the blocker clears through a warn re-review — the full W1 three-type route (v1.29)", () => {
+  it("a MID-RUN wave's blocker loop closes to the NEXT wave after the blocker clears through a warn re-review — the full W1 three-type route (v1.29)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       // The user routing matrix (v1.29), wave type W1: review → (blocker>0) → fix →
@@ -356,29 +358,29 @@ describe("the task small loop — implement → review → the next ready group"
       });
 
       // wave {1}: implement → review(blocker) → fix → re-review(warn) → fix → next-wave
-      run.advance(); // implement 1
-      const review1 = run.advance();
+      await run.advance(); // implement 1
+      const review1 = await run.advance();
       expect(review1!.frame.round).toBe(1);
       expect(review1!.route!.kind).toBe("fix");
-      const fix1 = run.advance();
+      const fix1 = await run.advance();
       expect(fix1!.route!.kind).toBe("review"); // source blockers remain → re-review
-      const review2 = run.advance();
+      const review2 = await run.advance();
       expect(review2!.frame.round).toBe(2);
       expect(review2!.route!.kind).toBe("fix"); // warn rides the fix hop
-      const fix2 = run.advance();
+      const fix2 = await run.advance();
       expect(fix2!.route).toEqual({ kind: "next-wave", tasks: "2" }); // ← the W1 matrix row
       // wave {2} (terminal): implement → review(clean) → done
-      run.advance(); // implement 2
-      const review3 = run.advance();
+      await run.advance(); // implement 2
+      const review3 = await run.advance();
       expect(review3!.route).toEqual({ kind: "done" });
-      expect(run.advance()).toBeNull();
+      expect(await run.advance()).toBeNull();
       expect(graph.doneTasks()).toEqual(new Set([1, 2]));
     } finally {
       cleanup();
     }
   });
 
-  it("MIXED-severity reviews ride the same routing — a [blocker, warn] review re-reviews, a [warn, nit] re-review closes to the next wave (v1.29)", () => {
+  it("MIXED-severity reviews ride the same routing — a [blocker, warn] review re-reviews, a [warn, nit] re-review closes to the next wave (v1.29)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       // The blocker/non-blocker axis, not the mix: wave {1}'s first review carries a
@@ -406,26 +408,26 @@ describe("the task small loop — implement → review → the next ready group"
         dispatch: dispatch.step,
       });
 
-      run.advance(); // implement 1
-      const review1 = run.advance();
+      await run.advance(); // implement 1
+      const review1 = await run.advance();
       expect(review1!.route!.kind).toBe("fix"); // any mix with a blocker → fix
-      const fix1 = run.advance();
+      const fix1 = await run.advance();
       expect(fix1!.route).toEqual({ kind: "review" }); // blockers remain → re-review
-      const review2 = run.advance();
+      const review2 = await run.advance();
       expect(review2!.frame.round).toBe(2);
       expect(review2!.route!.kind).toBe("fix"); // the warn+nit re-review still fixes
-      const fix2 = run.advance();
+      const fix2 = await run.advance();
       expect(fix2!.route).toEqual({ kind: "next-wave", tasks: "2" }); // blocker-free mix closes
       // wave {2} (terminal): implement → review(clean) → done
-      run.advance(); // implement 2
-      expect(run.advance()!.route).toEqual({ kind: "done" });
-      expect(run.advance()).toBeNull();
+      await run.advance(); // implement 2
+      expect((await run.advance())!.route).toEqual({ kind: "done" });
+      expect(await run.advance()).toBeNull();
     } finally {
       cleanup();
     }
   });
 
-  it("MIXED warn+nit on a single-task line closes through the fix to done — the S2 mix (v1.29)", () => {
+  it("MIXED warn+nit on a single-task line closes through the fix to done — the S2 mix (v1.29)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const dispatch = stub((frame) => {
@@ -439,17 +441,17 @@ describe("the task small loop — implement → review → the next ready group"
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
-      run.advance(); // review (warn + nit)
-      const fix = run.advance();
+      await run.advance(); // review (warn + nit)
+      const fix = await run.advance();
       expect(fix!.frame.round).toBe(1);
       expect(fix!.route).toEqual({ kind: "done" });
-      expect(run.advance()).toBeNull();
+      expect(await run.advance()).toBeNull();
     } finally {
       cleanup();
     }
   });
 
-  it("the SINGLE-TASK line's blocker loop closes through a warn re-review to done — the full S1 three-type route (v1.29)", () => {
+  it("the SINGLE-TASK line's blocker loop closes through a warn re-review to done — the full S1 three-type route (v1.29)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       // The user routing matrix (v1.29), single-task type S1 (spec/plan/branch): review
@@ -471,22 +473,22 @@ describe("the task small loop — implement → review → the next ready group"
         target: { kind: "spec", doc: DOC },
       });
 
-      run.advance(); // review 1 (blocker)
-      const fix1 = run.advance();
+      await run.advance(); // review 1 (blocker)
+      const fix1 = await run.advance();
       expect(fix1!.route!.kind).toBe("review"); // source blockers remain → re-review
-      const review2 = run.advance();
+      const review2 = await run.advance();
       expect(review2!.frame.round).toBe(2);
       expect(review2!.route!.kind).toBe("fix"); // warn rides the fix hop
-      const fix2 = run.advance();
+      const fix2 = await run.advance();
       expect(fix2!.frame.round).toBe(2); // sources review round 2 (the C5-1 fix number)
       expect(fix2!.route).toEqual({ kind: "done" }); // ← the S1 matrix row (exhausted)
-      expect(run.advance()).toBeNull();
+      expect(await run.advance()).toBeNull();
     } finally {
       cleanup();
     }
   });
 
-  it("a BLOCKED review round never closes the task — the C5 route is the single terminal verdict", () => {
+  it("a BLOCKED review round never closes the task — the C5 route is the single terminal verdict", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = taskGraph([task(1, "none")]);
@@ -500,8 +502,8 @@ describe("the task small loop — implement → review → the next ready group"
         dispatch: dispatch.step,
       });
 
-      run.advance();
-      const blocked = run.advance();
+      await run.advance();
+      const blocked = await run.advance();
       expect(blocked!.frame.phase).toBe("review");
       // BLOCKED → no next line (the CDD_BLOCKED channel owns the face) and no
       // done-marking — a failed round is not a closure, whatever its findings hold
@@ -512,7 +514,7 @@ describe("the task small loop — implement → review → the next ready group"
     }
   });
 
-  it("a BLOCKED mid-run wave LOCKS the successor — wave {2} is unreachable while wave {1} holds an unclosed review (v1.29)", () => {
+  it("a BLOCKED mid-run wave LOCKS the successor — wave {2} is unreachable while wave {1} holds an unclosed review (v1.29)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       // The strict-wave discipline as a lock: wave {1}'s review BLOCKs (no next, no
@@ -530,13 +532,13 @@ describe("the task small loop — implement → review → the next ready group"
         dispatch: dispatch.step,
       });
 
-      run.advance(); // implement 1
-      const blocked = run.advance(); // review 1 BLOCKED → no next, no closure
+      await run.advance(); // implement 1
+      const blocked = await run.advance(); // review 1 BLOCKED → no next, no closure
       expect(blocked!.frame.target).toEqual({ kind: "wave", tasks: [1] });
       expect(blocked!.route).toBeNull();
       expect(graph.doneTasks()).toEqual(new Set());
       // resume: the same wave/phase re-opens — wave {2} stays locked behind it
-      const again = run.advance();
+      const again = await run.advance();
       expect(again).not.toBeNull();
       expect(again!.frame.target).toEqual({ kind: "wave", tasks: [1] });
       expect(again!.frame.phase).toBe("review");
@@ -547,7 +549,7 @@ describe("the task small loop — implement → review → the next ready group"
     }
   });
 
-  it("REVIEW_CYCLE_CAP consecutive blocker reviews hit the soft cap — the line stops for the user, not done (v1.29)", () => {
+  it("REVIEW_CYCLE_CAP consecutive blocker reviews hit the soft cap — the line stops for the user, not done (v1.29)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       // REVIEW_CYCLE_CAP: the fix round's consecutive-S1 run (walked from the review
@@ -568,19 +570,19 @@ describe("the task small loop — implement → review → the next ready group"
         dispatch: dispatch.step,
       });
 
-      run.advance(); // implement 1
+      await run.advance(); // implement 1
       for (let cycle = 1; cycle < REVIEW_CYCLE_CAP; cycle += 1) {
-        run.advance(); // review cycle (blocker) → fix
-        const fix = run.advance();
+        await run.advance(); // review cycle (blocker) → fix
+        const fix = await run.advance();
         expect(fix!.route!.kind).toBe("review"); // S1 run cycle < cap → re-review
       }
-      run.advance(); // review cap (blocker) → fix
-      const capFix = run.advance();
+      await run.advance(); // review cap (blocker) → fix
+      const capFix = await run.advance();
       expect(capFix!.route!.kind).toBe("soft-cap"); // S1 run == cap → user adjudicates
       expect(capFix!.route).toEqual({ kind: "soft-cap", message: SOFT_CAP_SUGGESTION });
       // the line HOLDS: neither closed (not done), nor re-reviewing (the cap defers)
       expect(graph.doneTasks()).toEqual(new Set());
-      expect(run.advance()).toBeNull();
+      expect(await run.advance()).toBeNull();
     } finally {
       cleanup();
     }
@@ -589,7 +591,7 @@ describe("the task small loop — implement → review → the next ready group"
 
 describe("the spec/plan small loop — review → fix → re-review → closure", () => {
   for (const type of ["spec", "plan"] as const) {
-    it(`drives the ${type} line to the closure without a task frontier`, () => {
+    it(`drives the ${type} line to the closure without a task frontier`, async () => {
       const { ledger, cleanup } = fixture();
       try {
         let reviews = 0;
@@ -609,22 +611,22 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
           target: { kind: type, doc: DOC },
         });
 
-        const review1 = run.advance();
+        const review1 = await run.advance();
         expect(review1!.frame.phase).toBe("review");
         expect(review1!.frame.round).toBe(1);
         expect(review1!.route!.kind).toBe("fix");
 
-        const fix = run.advance();
+        const fix = await run.advance();
         expect(fix!.frame.phase).toBe("fix");
         expect(fix!.frame.round).toBe(1);
         expect(fix!.route!.kind).toBe("review");
 
-        const review2 = run.advance();
+        const review2 = await run.advance();
         expect(review2!.frame.phase).toBe("review");
         expect(review2!.frame.round).toBe(2);
         expect(review2!.route).toEqual({ kind: "done" });
 
-        expect(run.advance()).toBeNull();
+        expect(await run.advance()).toBeNull();
         // the canonical doc handoff names are on record (round increments ride the family)
         expect(ledger.readHandoff("review", type, { round: 1 })).not.toBeNull();
         expect(ledger.readHandoff("fix", type, { round: 1 })).not.toBeNull();
@@ -635,7 +637,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
     });
   }
 
-  it("a clean first review closes the doc line with a single advance", () => {
+  it("a clean first review closes the doc line with a single advance", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const dispatch = stub(() => ({ status: "APPROVED", findings: [] }));
@@ -646,10 +648,10 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
-      const step = run.advance();
+      const step = await run.advance();
       expect(step!.frame.phase).toBe("review");
       expect(step!.route).toEqual({ kind: "done" });
-      expect(run.advance()).toBeNull();
+      expect(await run.advance()).toBeNull();
     } finally {
       cleanup();
     }
@@ -657,7 +659,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
 });
 
 describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
-  it("the work fallback builds a findings-free carrier — the persisted implement handoff carries zero findings keys (the work face)", () => {
+  it("the work fallback builds a findings-free carrier — the persisted implement handoff carries zero findings keys (the work face)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = taskGraph([task(1, "none")]);
@@ -668,7 +670,7 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
         ledger,
         dispatch: dispatch.step,
       });
-      run.advance();
+      await run.advance();
       const carrier = ledger.readHandoff("implement", "wave", { tasks: "1" });
       expect(carrier).not.toBeNull();
       expect(Object.keys(carrier!)).not.toContain("findings");
@@ -677,7 +679,7 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
     }
   });
 
-  it("the docs-fix fallback carries the findings face — the persisted fix handoff HAS the findings key (a work-shaped fallback would fail this)", () => {
+  it("the docs-fix fallback carries the findings face — the persisted fix handoff HAS the findings key (a work-shaped fallback would fail this)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const dispatch = stub((frame) =>
@@ -692,8 +694,8 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
-      expect(run.advance()!.route!.kind).toBe("fix");
-      run.advance();
+      expect((await run.advance())!.route!.kind).toBe("fix");
+      await run.advance();
       const carrier = ledger.readHandoff("fix", "spec", { round: 1 });
       expect(carrier).not.toBeNull();
       // the fix-doc family is the findings face — the fallback carrier declares the
@@ -705,7 +707,7 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
     }
   });
 
-  it("T6 — probe A: the wave-fix fallback also rides the work face — the persisted WAVE fix handoff carries zero findings keys (the fix leg of the zero-findings write path)", () => {
+  it("T6 — probe A: the wave-fix fallback also rides the work face — the persisted WAVE fix handoff carries zero findings keys (the fix leg of the zero-findings write path)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = taskGraph([task(1, "none")]);
@@ -720,9 +722,9 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
         ledger,
         dispatch: dispatch.step,
       });
-      run.advance(); // implement 1 — the work face
-      run.advance(); // review 1 (blocker) → routes the fix hop
-      run.advance(); // fix 1 — the WAVE fix face is the work face
+      await run.advance(); // implement 1 — the work face
+      await run.advance(); // review 1 (blocker) → routes the fix hop
+      await run.advance(); // fix 1 — the WAVE fix face is the work face
       const fixCarrier = ledger.readHandoff("fix", "wave", { tasks: "1", round: 1 });
       expect(fixCarrier).not.toBeNull();
       // the wave fix lands on the work face — the persisted fix carrier carries zero
@@ -739,7 +741,7 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
 });
 
 describe("the branch small loop — branch-review → fix → closure", () => {
-  it("drives the branch line over the live tree (the r{round} family names)", () => {
+  it("drives the branch line over the live tree (the r{round} family names)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       let reviews = 0;
@@ -759,19 +761,19 @@ describe("the branch small loop — branch-review → fix → closure", () => {
         target: { kind: "branch" },
       });
 
-      const review1 = run.advance();
+      const review1 = await run.advance();
       expect(review1!.frame.phase).toBe("branch-review");
       expect(review1!.frame.round).toBe(1);
       expect(review1!.frame.params).toEqual({ round: 1 });
       expect(review1!.route!.kind).toBe("fix");
 
-      const fix = run.advance();
+      const fix = await run.advance();
       expect(fix!.frame.phase).toBe("fix");
       expect(fix!.frame.round).toBe(1);
       // the warn/nit input closes — the closure round, no re-review preview
       expect(fix!.route).toEqual({ kind: "done" });
 
-      expect(run.advance()).toBeNull();
+      expect(await run.advance()).toBeNull();
       // the canonical branch family names ride the spine {round} increment (find #9 —
       // `branch-review-{round}.json` — the range token left the file name)
       expect(ledger.readHandoff("review", "branch", { round: 1 })).not.toBeNull();
@@ -781,7 +783,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
     }
   });
 
-  it("a branch target face without its fixed target holds the line", () => {
+  it("a branch target face without its fixed target holds the line", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const run = new Lifecycle({
@@ -790,13 +792,13 @@ describe("the branch small loop — branch-review → fix → closure", () => {
         ledger,
         dispatch: stub((_frame) => ({ status: "APPROVED", findings: [] })).step,
       });
-      expect(run.advance()).toBeNull();
+      expect(await run.advance()).toBeNull();
     } finally {
       cleanup();
     }
   });
 
-  it("round ACCUMULATES across a branch re-review loop — review-1 → fix-1 → review-2 → close (find #9 · lineKey fixed `branch`, the old range-key reset every re-review)", () => {
+  it("round ACCUMULATES across a branch re-review loop — review-1 → fix-1 → review-2 → close (find #9 · lineKey fixed `branch`, the old range-key reset every re-review)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       // The blocker-first line: review-1 finds a blocker → fix-1 keeps it (the fix
@@ -824,23 +826,23 @@ describe("the branch small loop — branch-review → fix → closure", () => {
       });
 
       // review-1 → fix-1
-      const review1 = run.advance();
+      const review1 = await run.advance();
       expect(review1!.frame.phase).toBe("branch-review");
       expect(review1!.frame.round).toBe(1);
       expect(review1!.route!.kind).toBe("fix");
-      const fix1 = run.advance();
+      const fix1 = await run.advance();
       expect(fix1!.frame.phase).toBe("fix");
       expect(fix1!.frame.round).toBe(1);
 
       // the re-review advances the SAME line to round 2 — the stable `branch` key
       // accumulates (the old range-key: the new head would have opened a fresh
       // progress row and reset the round to 1)
-      const review2 = run.advance();
+      const review2 = await run.advance();
       expect(review2!.frame.phase).toBe("branch-review");
       expect(review2!.frame.round).toBe(2);
       expect(review2!.route!.kind).toBe("done");
 
-      expect(run.advance()).toBeNull();
+      expect(await run.advance()).toBeNull();
       // the spine file names accumulate too — branch-review-1.json AND
       // branch-review-2.json exist (find #9: the round rides the name, never the range)
       expect(ledger.readHandoff("review", "branch", { round: 1 })).not.toBeNull();
@@ -853,7 +855,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
 });
 
 describe("the capsule interaction seam — non-hard consumption", () => {
-  it("advances output-less without a capsule; the attached seam renders the round facts", () => {
+  it("advances output-less without a capsule; the attached seam renders the round facts", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = taskGraph([task(1, "none")]);
@@ -865,14 +867,14 @@ describe("the capsule interaction seam — non-hard consumption", () => {
         dispatch: dispatch.step,
       });
 
-      const silent = run.advance();
+      const silent = await run.advance();
       expect(silent!.capsuleLines).toEqual([]);
 
       const capsule: CapsuleFace = {
         emit: (status, blocker, handoff) => [`${status}: ${blocker} · ${handoff}`],
       };
       run.attachCapsule(capsule);
-      const rendered = run.advance();
+      const rendered = await run.advance();
       expect(rendered!.capsuleLines.length).toBeGreaterThan(0);
       expect(rendered!.capsuleLines[0]).toContain("APPROVED");
     } finally {
@@ -891,7 +893,7 @@ describe("the capsule interaction seam — non-hard consumption", () => {
 });
 
 describe("T11/D30 — the wave review writes the reviewed BRIEF revision into the wave row", () => {
-  it("a completed wave review binds the lifecycle's RENDERED-brief revision to the wave line (D30)", () => {
+  it("a completed wave review binds the lifecycle's RENDERED-brief revision to the wave line (D30)", async () => {
     const { ledger, repo, cleanup } = fixture();
     try {
       const planPath = path.join(repo, "plan.md");
@@ -909,8 +911,8 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
         dispatch: dispatch.step,
         planPath,
       });
-      run.advance(); // implement
-      run.advance(); // review — the completion records the wave's RENDERED brief revision
+      await run.advance(); // implement
+      await run.advance(); // review — the completion records the wave's RENDERED brief revision
       const recorded = ledger.reviewedRevisionOf("1");
       expect(recorded).not.toBeNull();
       // D30 — the wave line binds its OWN ref kind (brief-revision), never the doc
@@ -932,7 +934,7 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
     }
   });
 
-  it("a plan-less lifecycle records no wave revision — the null #planPath leaves the legacy wave row", () => {
+  it("a plan-less lifecycle records no wave revision — the null #planPath leaves the legacy wave row", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = taskGraph([task(1, "none")]);
@@ -946,15 +948,15 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
         dispatch: dispatch.step,
         // no planPath — the wave review completes with no plan fact on record
       });
-      run.advance();
-      run.advance();
+      await run.advance();
+      await run.advance();
       expect(ledger.reviewedRevisionOf("1")).toBeNull();
     } finally {
       cleanup();
     }
   });
 
-  it("a wave-backfill edit reopens the wave at REVIEW on the lifecycle frontier — the gate's peer (D26 · D30)", () => {
+  it("a wave-backfill edit reopens the wave at REVIEW on the lifecycle frontier — the gate's peer (D26 · D30)", async () => {
     const { ledger, repo, cleanup } = fixture();
     try {
       const planPath = path.join(repo, "plan.md");
@@ -972,8 +974,8 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
         dispatch: dispatch.step,
         planPath,
       });
-      run.advance(); // implement
-      const review = run.advance(); // review — the blocker awaits its fix; the brief revision binds
+      await run.advance(); // implement
+      const review = await run.advance(); // review — the blocker awaits its fix; the brief revision binds
       expect(review!.frame.phase).toBe("review");
       expect(review!.route!.kind).toBe("fix");
       // the wave's OWN task section moves mid-flight (an orchestrator fill/fix) — the
@@ -983,14 +985,14 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
       // brief voids the findings bound to the old revision. Without the single-source
       // derivation the frontier held `fix` while the gate accepted `review` (the
       // deadlock). The gate-side twin lives in wave.test.ts.
-      const reopened = run.advance();
+      const reopened = await run.advance();
       expect(reopened!.frame.phase).toBe("review");
     } finally {
       cleanup();
     }
   });
 
-  it("an OUTSIDE-wave plan edit does NOT reopen the wave — the backfill's whole point (D30)", () => {
+  it("an OUTSIDE-wave plan edit does NOT reopen the wave — the backfill's whole point (D30)", async () => {
     const { ledger, repo, cleanup } = fixture();
     try {
       const planPath = path.join(repo, "plan.md");
@@ -1008,14 +1010,14 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
         dispatch: dispatch.step,
         planPath,
       });
-      run.advance(); // implement wave {1}
-      run.advance(); // review — binds wave {1}'s brief; the blocker awaits its fix
+      await run.advance(); // implement wave {1}
+      await run.advance(); // review — binds wave {1}'s brief; the blocker awaits its fix
       // the plan gains a task OUTSIDE wave {1} (an append-only backfill) — the
       // Constraints + Task 1 sections are byte-identical, so wave {1}'s brief is
       // unchanged and the pending fix MUST survive (the whole-plan hash wrongly
       // reopened it; D30 binds the brief)
       writeFileSync(planPath, planDoc([task(1, "none"), task(2, "1"), task(3, "1,2")]));
-      const kept = run.advance();
+      const kept = await run.advance();
       expect(kept!.frame.phase).toBe("fix");
     } finally {
       cleanup();

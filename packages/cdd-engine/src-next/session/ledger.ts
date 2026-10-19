@@ -147,25 +147,53 @@ export interface ProgressData {
 /** The ledger lookup key — a scalar task id or the group key string. */
 export type LedgerKey = number | string;
 
+/** The dispatch-termination vocabulary — why a round was cut short (single source:
+ *  the terminator derives the cause from the child's own result face, the crash
+ *  record carries it as a postmortem fact, zero behavior fork — resume never routes
+ *  on it). `stalled` = the engine's stall judgment killed the child; `over-budget` =
+ *  the wall-clock ceiling was reached; `signal` = an external signal killed the
+ *  child (any signal, one semantic — never the SIGTERM literal). */
+export type TerminationCause = "stalled" | "over-budget" | "signal";
+
+/** The stall judge's verdict per sample tick: `progress` (a leg advanced), `unknown`
+ *  (a leg is unreadable — the fail-open state, never a kill), `idled` (no progress
+ *  yet, the idle window is open) and `stalled` (no progress and the window is spent
+ *  — the kill). */
+export type StallVerdict = "progress" | "unknown" | "idled" | "stalled";
+
+/** One sample tick's two legs — the process group's cumulative CPU (ms) and the
+ *  newest mtime (ms) of the scanned tree. `null` = that leg is unreadable (the
+ *  fail-open face: an unreadable leg never authorizes a kill). The field names are
+ *  the heartbeat record's names (one naming, two references). */
+export interface Sample {
+  groupCpuMs: number | null;
+  newestMtimeMs: number | null;
+}
+
+/** The recorded sample — a `Sample` extended with its tick's timestamp and the
+ *  judge's verdict (the heartbeat file's field set; the crash record embeds it). */
+export interface SampleRecord extends Sample {
+  sampledAt: number;
+  verdict: StallVerdict;
+}
+
 /** The lane-crash cause vocabulary — postmortem classification of why a dispatch
  *  terminated before the exit gate (zero behavior fork: resume never routes on it).
- *  `contract-violation` is the read-back face: the child exited 0 but produced no
- *  draft or a schema-violating one (the engine BLOCKs + preserves the draft + stores
- *  the same-command resume — the read-back rejection's crash record). */
-export type CrashCause =
-  | "child-exit"
-  | "child-signal"
-  | "engine-over-budget"
-  | "engine-timeout"
-  | "contract-violation"
-  | "unknown";
+ *  The termination causes cover the round that was cut short; `child-exit` is the
+ *  child's own non-zero exit, `contract-violation` the read-back face (the child
+ *  exited 0 but produced no draft or a schema-violating one — the engine BLOCKs +
+ *  preserves the draft + stores the same-command resume), and `unknown` the
+ *  unattributable termination fallback. */
+export type CrashCause = TerminationCause | "child-exit" | "contract-violation" | "unknown";
 
 /** The crash record — the lane crash's recovery record (`crash-<lane>-<round>.json`):
  *  the same-command resume's decision source (the resume command + the dead child's
  *  tails), never the handoff carrier. */
 export interface CrashRecord {
-  /** The dead child's exit code (1 = run failure, 143 = SIGTERM — the shell convention). */
-  exitCode: number;
+  /** The dead child's exit code — null when the child never spawned (a broken
+   *  command) or was terminated by a signal (a signalled child has no exit code;
+   *  the signal semantics ride the `cause`). */
+  exitCode: number | null;
   /** The dead child's stderr tail (the "403 / abort without trace" tail — the
    *  caller's captured lines, no fixed tail-length constant). */
   stderrTail: readonly string[];
@@ -177,6 +205,11 @@ export interface CrashRecord {
   next: string;
   /** The unified termination cause — postmortem, zero behavior fork. */
   cause: CrashCause;
+  /** The terminated round's last observed sample (the stall face's postmortem pair) —
+   *  null when the round was not cut short or no sample was ever taken. The sample
+   *  rides the termination fact in memory (zero re-read of the heartbeat file the
+   *  engine itself wrote); the on-disk heartbeat stays for a human's postmortem. */
+  lastSample: SampleRecord | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -675,6 +708,15 @@ export class Ledger {
   /** Read one counter — a failure-category count on record (0 when the file is missing). */
   counterOf(key: ProgressCounterKey): number {
     return this.readProgress()?.[key] ?? 0;
+  }
+
+  /** Increment the timeout counter — the terminated-round write point (one TIMEOUT
+   *  round lands, the count goes up by one). The counter's only writer. */
+  incrementTimeoutCount(): number {
+    const data = this.readProgress() ?? this.emptyProgress();
+    data.timeoutCount += 1;
+    this.writeProgress(data);
+    return data.timeoutCount;
   }
 
   // -------------------------------------------------------------------------

@@ -313,6 +313,7 @@ describe("crash — the lane-crash recovery record", () => {
         attemptedHandoff: "tasks-1-implement.json",
         next: "cdd implement --tasks 1",
         cause: "child-exit" as const,
+        lastSample: null,
       };
       ledger.writeCrash("implement", 1, record);
       expect(ledger.readCrash("implement", 1)).toEqual(record);

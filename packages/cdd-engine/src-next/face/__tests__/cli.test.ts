@@ -48,15 +48,16 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
 import type { RouteTarget } from "../../session/faces.ts";
-import { Ledger } from "../../session/ledger.ts";
+import { Ledger, type SampleRecord } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
 import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
 import type { DispatchStep, OpenFrame } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
-import type { CliIo, CliOptions, DispatchScene, SyncProcess } from "../cli.ts";
+import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
 import { Cli, HarnessDispatch } from "../cli.ts";
 import { CLI_COMMANDS, type CliVerb } from "../declare.ts";
 import { CommandTreeBuilder } from "../projection.ts";
+import type { ChildOutcome, ChildRun, ChildRunner, Termination } from "../termination.ts";
 import { Words } from "../words.ts";
 import { negatedOf } from "./negation.ts";
 
@@ -144,7 +145,7 @@ afterEach(() => {
  *  conclusion derives APPROVED at judgment time). The E2E tests inject it and drop
  *  `--dry-run`, so the lifecycle (bookkeep · capsule · next hop) runs for real
  *  without spawning a child. */
-const APPROVING: DispatchStep = () => ({ status: "APPROVED", findings: [] });
+const APPROVING: DispatchStep = async () => ({ status: "APPROVED", findings: [] });
 
 /** A hermetic CLI fixture — a fresh temp repo, the io captured, the cwd isolated
  *  into the temp root (the engine resolves the repo root from `process.cwd()`, so
@@ -1493,7 +1494,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
 
   it("review with findings — the fix-route next: line carries the readback suffix", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: (frame: OpenFrame) =>
+      dispatch: async (frame: OpenFrame) =>
         frame.phase === "review"
           ? {
               status: "CHANGES_REQUESTED",
@@ -1562,7 +1563,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
 
   it("fix — the branch re-review next: carries the workspace --plan and re-dispatches through the runtime gate (find #8/#9)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: (frame: OpenFrame) =>
+      dispatch: async (frame: OpenFrame) =>
         frame.phase === "fix" ? { status: "APPROVED" } : { status: "APPROVED", findings: [] },
     });
     try {
@@ -1633,7 +1634,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
   });
 
   it("review --type branch — the CLI injects the base artifact's branch as BASE_BRANCH (the scope anchor value source)", async () => {
-    const sync = new FakeSync();
+    const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";
     const { command, repoRoot, cleanup } = fixture({ sync });
     try {
@@ -1679,7 +1680,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
   });
 
   it("BASE_BRANCH injection — the wave/branch tree-review faces carry the anchor; the spec/plan doc faces never do (§3.2)", async () => {
-    const sync = new FakeSync();
+    const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";
     const { command, repoRoot, cleanup } = fixture({ sync });
     try {
@@ -1757,7 +1758,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
   });
 
   it("D46 — INPUT_SPEC is rebased to a repoRoot-relative token from the plan's plan-dir-relative `spec:` scalar", async () => {
-    const sync = new FakeSync();
+    const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";
     const { command, repoRoot, cleanup } = fixture({ sync });
     try {
@@ -1798,7 +1799,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     // non-path tokens excluded); each mode emits its own subset. This pin drives an
     // implement dispatch (the wave line's work face) and asserts EVERY emitted path
     // token is relative — no absolute prefix, no `..` escape.
-    const sync = new FakeSync();
+    const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";
     const { command, repoRoot, cleanup } = fixture({ sync });
     try {
@@ -2038,7 +2039,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
 
   it("T8 — after an ABORTED fix the drifted doc re-reviews directly — the doc revision is the gate's primary criterion (judgment order = doc revision first)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: (frame: OpenFrame) =>
+      dispatch: async (frame: OpenFrame) =>
         frame.phase === "fix"
           ? { status: "BLOCKED" } // the aborted fix — its round never records
           : {
@@ -2149,7 +2150,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
 
   it("T8 — an UNCHANGED fix-awaited doc stays rejected — the pending fix is derived (doc same + not APPROVED), never an independent field", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: (frame: OpenFrame) =>
+      dispatch: async (frame: OpenFrame) =>
         frame.phase === "review"
           ? {
               status: "CHANGES_REQUESTED",
@@ -2180,7 +2181,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
 
   it("T8 — a COMPLETED fix on an UNCHANGED doc reopens the review through its C5-1 route — the doc-same face keeps the legacy rounds/routes judgment (the gate and the frame agree)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: (frame: OpenFrame) =>
+      dispatch: async (frame: OpenFrame) =>
         frame.phase === "fix"
           ? { status: "APPROVED" }
           : {
@@ -2241,13 +2242,38 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
   });
 
   it("a BLOCKED dispatch exits 1 with the capsule (the round outcome rides the face)", async () => {
-    const { command, io, repoRoot, cleanup } = fixture({ dispatch: () => ({ status: "BLOCKED" }) });
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: async () => ({ status: "BLOCKED" }),
+    });
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(1);
       expect(io.stdoutText).toContain("status: BLOCKED");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a TIMEOUT dispatch — the failure face: exit 1, NO next: line, and progress's timeoutCount increments (§4.2/§4.3)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: async () => ({ status: "TIMEOUT" }),
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      expect(ledger.counterOf("timeoutCount")).toBe(0);
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      // The failure face — exit 1 with the capsule naming the TIMEOUT status…
+      expect(code).toBe(1);
+      expect(io.stdoutText).toContain("status: TIMEOUT");
+      // …and NO next: line (the frozen failure face — a hung round never auto-retries).
+      expect(io.stdoutText).not.toContain("next:");
+      // §4.2 — the terminated round landed, the counter's only writer fired.
+      expect(ledger.counterOf("timeoutCount")).toBe(1);
     } finally {
       cleanup();
     }
@@ -2260,7 +2286,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     // the self-contradictory `status: BLOCKED · next: done`; the gated round-read
     // (§2.8) returns null for the unrecorded round → no next: line.
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: () => ({ status: "BLOCKED" }),
+      dispatch: async () => ({ status: "BLOCKED" }),
     });
     try {
       gitInit(repoRoot);
@@ -2697,7 +2723,7 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
 describe("P4.1 T4 — the real chain: next literals dispatch the next round (rev1→implement wave 2 · rev2→done)", () => {
   it("implement→review(fix)→fix(closure)→implement wave 2→review→done — every next literal re-dispatches", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: (frame: OpenFrame) => {
+      dispatch: async (frame: OpenFrame) => {
         // the first review finds a warn (one-way fix hop); everything else approves
         return frame.phase === "review" && frame.params.tasks === "1"
           ? {
@@ -3167,7 +3193,7 @@ describe("P11 T3 — the workspace write-point + the base read normalization", (
       let workspaceAtSpawn = false;
       let keepOutAtSpawn = false;
       const { command, repoRoot, cleanup } = fixture({
-        dispatch: () => {
+        dispatch: async () => {
           workspaceAtSpawn = existsSync(path.join(repoRoot, ".kairos", "cdd", entry.slug));
           const keepOut = path.join(repoRoot, ".kairos", ".gitignore");
           keepOutAtSpawn = existsSync(keepOut) && readFileSync(keepOut, "utf8") === "*\n";
@@ -3630,12 +3656,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("dispatches through the harness rows — the skill-ref slash form + the prompt, the draft read back into the outcome", () => {
+  it("dispatches through the harness rows — the skill-ref slash form + the prompt, the draft read back into the outcome", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       // the child's Return is prose (P11 · §2.1) — the engine never parses it; the
       // round's content is the OUTPUT_HANDOFF draft read back below.
       sync.stdout = "Implemented the task. All checks green.\n";
@@ -3676,7 +3702,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(implementFrame);
+      const outcome = await dispatch.step()(implementFrame);
       expect(sync.calls.length).toBe(1);
       const call = sync.calls[0];
       expect(call.command).toBe("claude");
@@ -3746,7 +3772,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("prescribes the implement artifact paths — REPORT/EVIDENCE carry the canonical {family}-{key}- names (find #5)", () => {
+  it("prescribes the implement artifact paths — REPORT/EVIDENCE carry the canonical {family}-{key}- names (find #5)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
@@ -3758,7 +3784,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         briefPath: path.join(workspace.path, "tasks-1-brief.md"),
       };
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
         scene,
@@ -3766,7 +3792,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      dispatch.step()(implementFrame);
+      await dispatch.step()(implementFrame);
       const prompt = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
       // the brief is a pure read input (INPUT_WAVE_BRIEF — no OUTPUT_BRIEF · spec §4.2);
       // the prescribed write paths ride the round context (report + evidence = the
@@ -3783,7 +3809,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("§4.2 — every wave frame (implement/review/fix) carries the scene's brief as INPUT_WAVE_BRIEF, never a disk-existence read", () => {
+  it("§4.2 — every wave frame (implement/review/fix) carries the scene's brief as INPUT_WAVE_BRIEF, never a disk-existence read", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
@@ -3798,7 +3824,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         briefPath,
       };
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
         scene,
@@ -3809,8 +3835,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the review + fix frames both carry the ONE scene brief (not implement-only).
       // D46 — the token is repoRoot-relative (the child spawned at cwd = repoRoot).
       const briefRel = path.relative(repoRoot, briefPath);
-      dispatch.step()(taskReviewFrame);
-      dispatch.step()(fixFrame);
+      await dispatch.step()(taskReviewFrame);
+      await dispatch.step()(fixFrame);
       for (const call of sync.calls) {
         const prompt = call.args[call.args.length - 1];
         expect(prompt).toContain(`- \`INPUT_WAVE_BRIEF\`: ${briefRel}`);
@@ -3820,7 +3846,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("the doc-family artifacts are round-keyed — a second review round prescribes a different report path, never an overwrite (find #5)", () => {
+  it("the doc-family artifacts are round-keyed — a second review round prescribes a different report path, never an overwrite (find #5)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
@@ -3832,7 +3858,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         briefPath: null,
       };
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
         scene,
@@ -3840,9 +3866,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      dispatch.step()(specReviewFrame);
+      await dispatch.step()(specReviewFrame);
       const first = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
-      dispatch.step()({ ...specReviewFrame, round: 2, params: { round: 2 } });
+      await dispatch.step()({ ...specReviewFrame, round: 2, params: { round: 2 } });
       const second = sync.calls[1]!.args[sync.calls[1]!.args.length - 1];
       // D46 — the token is repoRoot-relative (the child spawned at cwd = repoRoot).
       const wsRel = path.relative(repoRoot, workspace.path);
@@ -3857,12 +3883,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("a free-named declared artifact path is corrected to the canonical OUTPUT_* path + surfaced on the notes (find #5 self-derivation)", () => {
+  it("a free-named declared artifact path is corrected to the canonical OUTPUT_* path + surfaced on the notes (find #5 self-derivation)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const draftPath = path.join(scene.workspace.path, "tasks-1-implement.json");
       writeFileSync(
@@ -3892,7 +3918,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(implementFrame);
+      const outcome = await dispatch.step()(implementFrame);
       expect(outcome.status).toBe("APPROVED");
       // the engine books the canonical names — a child-reported free path never lands;
       // both deviations ride the carrier's notes (the review scope axis reads them).
@@ -3922,12 +3948,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("D39 — a trailing-comma draft reconstructs cleanly (the lenient read face; the round is not voided)", () => {
+  it("D39 — a trailing-comma draft reconstructs cleanly (the lenient read face; the round is not voided)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       // The child LLM writes a draft with a routine slip — a trailing comma in the
       // notes array (the W3 {5,11} block shape). The reconstruct's draft read is the
@@ -3959,7 +3985,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(implementFrame);
+      const outcome = await dispatch.step()(implementFrame);
       // The trailing comma is tolerated — the round lands APPROVED, never a malformed
       // reject; the notes the child wrote survive into the carrier.
       expect(outcome.status).toBe("APPROVED");
@@ -3970,12 +3996,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("§8.7 — a non-declared / engine-reserved draft field is dropped with a single WARN, never a BLOCK (materialize and the validator judge the same way)", () => {
+  it("§8.7 — a non-declared / engine-reserved draft field is dropped with a single WARN, never a BLOCK (materialize and the validator judge the same way)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       // A work draft carrying engine-reserved keys (commits — retired) + a child extra
       // (phase). The read-back validator drops them (never a refusal); materialize
@@ -4010,7 +4036,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(implementFrame);
+      const outcome = await dispatch.step()(implementFrame);
       // the round is NOT blocked (a non-declared extra field is not a semantic error)
       expect(outcome.status).toBe("APPROVED");
       expect(io.stderrText).toBe("");
@@ -4030,12 +4056,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("§8.7 — a findings-face draft carrying a stray `status` (+ another key) is dropped with a single WARN, never a BLOCK (the exact dogfood crash face)", () => {
+  it("§8.7 — a findings-face draft carrying a stray `status` (+ another key) is dropped with a single WARN, never a BLOCK (the exact dogfood crash face)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       // The §2.8/§8.7 dogfood crash face: a child-authored `status` (non-declared on
       // the findings face — the finding carrier holds no status; the conclusion derives
       // at judgment time) on a review draft, plus a stray extra key. The read-back
@@ -4057,7 +4083,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(specReviewFrame);
+      const outcome = await dispatch.step()(specReviewFrame);
       // the round is NOT blocked (a non-declared field is not a semantic error) — the
       // conclusion derives from the draft's findings (nit → REVIEW_FIX), never the
       // dropped child status
@@ -4079,12 +4105,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("the docs review — the block + draft face: findings flow back from the file, the status rolls up", () => {
+  it("the docs review — the block + draft face: findings flow back from the file, the status rolls up", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       // The review child states `status: APPROVED` in the block (its conclusion is the
       // draft's findings — never printed); the engine derives the capsule status.
       sync.stdout = "status: APPROVED\n";
@@ -4101,7 +4127,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(specReviewFrame);
+      const outcome = await dispatch.step()(specReviewFrame);
       // the rollup (v1.9: a review never declares its own status) + the findings from
       // the FILE — the read-back is the fix loop's only content channel
       expect(outcome.status).toBe("CHANGES_REQUESTED");
@@ -4130,12 +4156,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("a task review appends the review skill ref — the object {ref} row's slash form", () => {
+  it("a task review appends the review skill ref — the object {ref} row's slash form", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       writeFileSync(
         path.join(scene.workspace.path, "tasks-1-review-1.json"),
@@ -4150,7 +4176,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(taskReviewFrame);
+      const outcome = await dispatch.step()(taskReviewFrame);
       // the finding flows back from the FILE; the status rolls up from its severity
       // (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a
       // review never declares its own status, so the block's `status: APPROVED` is
@@ -4173,12 +4199,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("the fix face carries no skill ref — the prompt opens with the template header, never a slash ref (T1)", () => {
+  it("the fix face carries no skill ref — the prompt opens with the template header, never a slash ref (T1)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       writeFileSync(
         path.join(scene.workspace.path, "tasks-1-fix-1.json"),
@@ -4208,7 +4234,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(fixFrame);
+      const outcome = await dispatch.step()(fixFrame);
       expect(outcome.status).toBe("APPROVED");
       const call = sync.calls[0];
       const prompt = call.args[call.args.length - 1];
@@ -4221,12 +4247,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("T6 — probe B: the fix dispatch prompt carries the strict-schema single sentence — the declaration is the field source, zero extra keys (the child-facing fix shell)", () => {
+  it("T6 — probe B: the fix dispatch prompt carries the strict-schema single sentence — the declaration is the field source, zero extra keys (the child-facing fix shell)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       writeFileSync(
         path.join(scene.workspace.path, "tasks-1-fix-1.json"),
@@ -4256,7 +4282,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(fixFrame);
+      const outcome = await dispatch.step()(fixFrame);
       expect(outcome.status).toBe("APPROVED");
       const call = sync.calls[0];
       const prompt = call.args[call.args.length - 1];
@@ -4272,7 +4298,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("D46/§2.9 — the BEHAVIOR pin: every work face spawns the child at cwd = repoRoot (implement · review · fix)", () => {
+  it("D46/§2.9 — the BEHAVIOR pin: every work face spawns the child at cwd = repoRoot (implement · review · fix)", async () => {
     // The behavior pin guards the SPAWN cwd, the fact the round-context tokens'
     // repoRoot-relative basis rests on: a child spawned anywhere but the repo root
     // would resolve every relative token off-root. It stands apart from the
@@ -4284,7 +4310,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       // Deterministic read-back inputs per face (the spawn precedes the read-back,
       // so the cwd pin holds regardless — the drafts keep the outcome clean too).
@@ -4333,7 +4359,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       for (const frame of [implementFrame, taskReviewFrame, fixFrame]) {
-        dispatch.step()(frame);
+        await dispatch.step()(frame);
         const call = sync.calls[sync.calls.length - 1]!;
         // the load-bearing spawn fact: cwd IS the repo root, the basis every
         // repoRoot-relative round-context token resolves against.
@@ -4346,33 +4372,35 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("no host harness → BLOCKED over the CDD_BLOCKED channel; a broken child → BLOCKED too", () => {
+  it("no host harness → BLOCKED over the CDD_BLOCKED channel; a broken child → BLOCKED too", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const noHost = new HarnessDispatch({ scene, io, env: {} });
-      expect(noHost.step()(implementFrame)).toEqual({ status: "BLOCKED" });
+      expect(await noHost.step()(implementFrame)).toEqual({ status: "BLOCKED" });
       expect(io.stderrText).toContain("CDD_BLOCKED: no host harness detected");
       const failed = new HarnessDispatch({
         scene,
         io,
-        sync: { run: () => ({ code: 1, stdout: "", stderr: "boom" }) },
+        sync: {
+          run: async () => ({ code: 1, stdout: "", stderr: "boom", termination: null }),
+        },
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      expect(failed.step()(implementFrame)).toEqual({ status: "BLOCKED" });
+      expect(await failed.step()(implementFrame)).toEqual({ status: "BLOCKED" });
       expect(io.stderrText).toContain("child");
     } finally {
       cleanup();
     }
   });
 
-  it("a child that exits 0 without the handoff → BLOCKED + CDD_BLOCKED + crash record (nothing clobbered)", () => {
+  it("a child that exits 0 without the handoff → BLOCKED + CDD_BLOCKED + crash record (nothing clobbered)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "done — the handoff draft is written\n";
       const dispatch = new HarnessDispatch({
         scene,
@@ -4380,7 +4408,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(implementFrame);
+      const outcome = await dispatch.step()(implementFrame);
       // no carrier → the bookkeep persists nothing: the read-back rejection face
       expect(outcome).toEqual({ status: "BLOCKED" });
       expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft was not written");
@@ -4406,12 +4434,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("a child that exits NON-ZERO → BLOCKED + the crash record reports the real death (exitCode / cause / stdoutTail)", () => {
+  it("a child that exits NON-ZERO → BLOCKED + the crash record reports the real death (exitCode / cause / stdoutTail)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       // the child died with code 7 and wrote no draft — the death facts, not the
       // read-back face's exit-0/contract-violation shape, ride the crash record
       sync.code = 7;
@@ -4422,30 +4450,141 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(implementFrame);
+      const outcome = await dispatch.step()(implementFrame);
       expect(outcome).toEqual({ status: "BLOCKED" });
       expect(io.stderrText).toContain("child");
       const crash = readJson<{
         exitCode: number;
         cause: string;
         stdoutTail: readonly string[];
+        lastSample: SampleRecord | null;
       }>(path.join(scene.workspace.path, "crash-implement.wave-1.json"));
       // the record tells the truth: the dead child's OWN exit code and the child-exit
       // cause — never the read-back face's 0 / contract-violation (T2 misreport fix).
       expect(crash.exitCode).toBe(7);
       expect(crash.cause).toBe("child-exit");
       expect(crash.stdoutTail).toEqual(["boom — the child died before writing"]);
+      // the child-exit face explicitly passes `termination: null` — its crash record
+      // carries no last sample (§4.2: the sample rides WITH the termination).
+      expect(crash.lastSample).toBeNull();
     } finally {
       cleanup();
     }
   });
 
-  it("a MALFORMED draft → BLOCKED reporting the true cause (malformed JSON), never the misleading 'not written' (D27)", () => {
+  it("a TERMINATED round → TIMEOUT + the crash record carries the termination facts (cause / last sample / null exitCode)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
+      // The stub mimes the stalled kill exactly as the terminator reports it: the
+      // killed child's exit code is null, and the termination fact rides whole
+      // (cause + the in-memory last sample — zero heartbeat re-read).
+      const lastSample: SampleRecord = {
+        sampledAt: 1_700_000_000,
+        groupCpuMs: 120,
+        newestMtimeMs: 1_700_000_500,
+        verdict: "stalled",
+      };
+      sync.code = null;
+      sync.termination = { cause: "stalled", lastSample };
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = await dispatch.step()(implementFrame);
+      // §4.3 — the derived status: a termination ⇒ TIMEOUT (never BLOCKED).
+      expect(outcome).toEqual({ status: "TIMEOUT" });
+      // The reason rides the CDD_BLOCKED channel with its cause.
+      expect(io.stderrText).toContain("CDD_BLOCKED:");
+      expect(io.stderrText).toContain("stalled");
+      const crash = readJson<{
+        exitCode: number | null;
+        cause: string;
+        stdoutTail: readonly string[];
+        stderrTail: readonly string[];
+        lastSample: SampleRecord | null;
+        next: string;
+      }>(path.join(scene.workspace.path, "crash-implement.wave-1.json"));
+      // The record tells the truth: the killed child has NO exit code (null verbatim,
+      // never folded to 1), the derived cause, and the last sample riding in memory.
+      expect(crash.exitCode).toBeNull();
+      expect(crash.cause).toBe("stalled");
+      expect(crash.lastSample).toEqual(lastSample);
+      expect(crash.next).toBe("cdd implement --tasks 1 --plan <plan>");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the termination leg is judged BEFORE the child-exit leg — a killed child with a non-zero-null code never folds into `child-exit`", async () => {
+    // The judging-order hard rule (§4.3): a terminated round's outcome carries
+    // code null AND termination non-null — the termination check must win, or the
+    // crash cause would be falsified to `child-exit`. The pin below drives the
+    // aliasing case: even a stub that reports BOTH a non-zero code and a
+    // termination still concludes by the termination fact.
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new StubRunner();
+      sync.code = 143;
+      sync.termination = { cause: "over-budget", lastSample: null };
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = await dispatch.step()(implementFrame);
+      expect(outcome).toEqual({ status: "TIMEOUT" });
+      const crash = readJson<{ exitCode: number | null; cause: string }>(
+        path.join(scene.workspace.path, "crash-implement.wave-1.json"),
+      );
+      expect(crash.cause).toBe("over-budget");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the read-back rejection face keeps its BLOCKED conclusion verbatim — the death-facts default carries `termination: null`", async () => {
+    // §4.3 — the status derives from the death facts (no status parameter): the
+    // read-back caller passes the defaults (termination null) ⇒ BLOCKED, byte-for-
+    // byte today's behavior.
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new StubRunner();
+      sync.stdout = "done — the handoff draft is written\n";
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = await dispatch.step()(implementFrame);
+      expect(outcome).toEqual({ status: "BLOCKED" });
+      expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft was not written");
+      const crash = readJson<{ cause: string; lastSample: SampleRecord | null }>(
+        path.join(scene.workspace.path, "crash-implement.wave-1.json"),
+      );
+      expect(crash.cause).toBe("contract-violation");
+      expect(crash.lastSample).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a MALFORMED draft → BLOCKED reporting the true cause (malformed JSON), never the misleading 'not written' (D27)", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       // the child wrote an unparseable draft at OUTPUT_HANDOFF — present but corrupt.
       // The tri-state read reports the true cause; a corrupt draft is never misreported
@@ -4461,7 +4600,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(implementFrame);
+      const outcome = await dispatch.step()(implementFrame);
       expect(outcome).toEqual({ status: "BLOCKED" });
       expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft at");
       expect(io.stderrText).toContain("is malformed JSON");
@@ -4471,12 +4610,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("a schema-violating draft → BLOCKED with the draft preserved untouched (no-overwrite on failure)", () => {
+  it("a schema-violating draft → BLOCKED with the draft preserved untouched (no-overwrite on failure)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       // the child wrote a draft MISSING the required `status` — the `work` subset's
       // read-back refuses it
@@ -4488,7 +4627,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(implementFrame);
+      const outcome = await dispatch.step()(implementFrame);
       expect(outcome).toEqual({ status: "BLOCKED" });
       expect(io.stderrText).toContain("violates the work schema");
       expect(io.stderrText).toContain("status: required");
@@ -4502,12 +4641,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("a missing/violating test-evidence file rewrites the draft to BLOCKED (the evidence read-back)", () => {
+  it("a missing/violating test-evidence file rewrites the draft to BLOCKED (the evidence read-back)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       // the implement draft is valid, but NO evidence file was written — the evidence
       // gate (v1.9) turns the round BLOCKED with the carrier preserved
@@ -4525,7 +4664,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(implementFrame);
+      const outcome = await dispatch.step()(implementFrame);
       expect(outcome.status).toBe("BLOCKED");
       // the carrier is materialized (the child's work preserved) but rewritten BLOCKED.
       // The free-named declared paths are corrected to the canonical OUTPUT_* names
@@ -4560,12 +4699,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("a MALFORMED test-evidence file → BLOCKED reporting the true cause (malformed JSON), never the misleading 'missing' (D27)", () => {
+  it("a MALFORMED test-evidence file → BLOCKED reporting the true cause (malformed JSON), never the misleading 'missing' (D27)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       // a VALID draft + a PRESENT-but-corrupt evidence file — the tri-state read
       // reports the true cause; a corrupt file is never misreported as absent
@@ -4590,7 +4729,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      const outcome = dispatch.step()(implementFrame);
+      const outcome = await dispatch.step()(implementFrame);
       expect(outcome.status).toBe("BLOCKED");
       expect(outcome.carrier?.failure_category).toBe("evidence-contract");
       const notes = (outcome.carrier?.notes ?? []) as string[];
@@ -4602,12 +4741,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("find #9 — the branch fix's OUTPUT_* artifacts are the line-keyed names (report `branch-fix-{round}-report.md` · evidence `branch-test-evidence.json`), never the range", () => {
+  it("find #9 — the branch fix's OUTPUT_* artifacts are the line-keyed names (report `branch-fix-{round}-report.md` · evidence `branch-test-evidence.json`), never the range", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const sync = new FakeSync();
+      const sync = new StubRunner();
       // the child returns prose — the engine zero-parses stdout (the draft
       // written below is the round's machine-readable result)
       sync.stdout = "Implemented the branch fix; the handoff draft is written.\n";
@@ -4650,7 +4789,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         params: { round: 1 },
         key: "branch",
       };
-      const outcome = dispatch.step()(frame);
+      const outcome = await dispatch.step()(frame);
       expect(io.stderrText).toBe("");
       expect(outcome.status).toBe("APPROVED");
       const prompt = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
@@ -4712,22 +4851,47 @@ describe("T9 — the destroy-list zero-residual sweep (spec §6.3 cross-referenc
       }
     }
   });
+
+  it("the retired process-seam + dead-cause vocabulary carries zero residual across the engine source", () => {
+    // The child seam is asynchronous and value-shaped (P12 T1): the synchronous
+    // process face (SyncProcess/SyncRunner) and execa's synchronous entry
+    // (execaSync) are retired whole — the terminator holds the process lifecycle.
+    // The three dead crash causes (`engine-timeout` / `engine-over-budget` /
+    // `child-signal`) had zero writers and are retired in favour of the single
+    // termination-cause vocabulary. The user-facing `detached` option is never set
+    // (it would short-circuit execa's parent-exit cleanup — group kill rides
+    // `killDescendants` alone), so the option-key form must not appear either.
+    const retiredProcessVocab = [
+      "execaSync",
+      "SyncProcess",
+      "SyncRunner",
+      "engine-timeout",
+      "engine-over-budget",
+      "child-signal",
+      "detached:",
+    ] as const;
+    for (const [file, text] of engineSourceTexts()) {
+      for (const name of retiredProcessVocab) {
+        expect(text, `${name} must not survive in ${file}`).not.toContain(name);
+      }
+    }
+  });
 });
 
-/** The fake child-process seam — records every invocation, ans answers a canned stdout. */
-class FakeSync implements SyncProcess {
-  calls: { command: string; args: string[]; cwd: string }[] = [];
+/** The stub child-runner seam — records every dispatch's `ChildRun`, and answers a
+ *  canned stdout. */
+class StubRunner implements ChildRunner {
+  calls: ChildRun[] = [];
   stdout = "";
-  /** The canned child exit code (default 0 = success) — a non-zero value drives the
-   *  crash-record face's death facts. */
-  code = 0;
+  /** The canned child exit code (default 0 = success; null = the child was killed
+   *  and has no exit code) — drives the crash-record face's death facts. */
+  code: number | null = 0;
+  /** The canned termination fact (default null = the round ended by itself) — a
+   *  non-null value drives the terminated-round face's TIMEOUT + crash facts. */
+  termination: Termination | null = null;
 
-  run(
-    command: string,
-    args: readonly string[],
-    cwd: string,
-  ): { code: number; stdout: string; stderr: string } {
-    this.calls.push({ command, args: [...args], cwd });
-    return { code: this.code, stdout: this.stdout, stderr: "" };
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    return { code: this.code, stdout: this.stdout, stderr: "", termination: this.termination };
   }
 }

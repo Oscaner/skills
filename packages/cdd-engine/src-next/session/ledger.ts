@@ -184,6 +184,17 @@ export interface SampleRecord extends Sample {
  *  exited 0 but produced no draft or a schema-violating one — the engine BLOCKs +
  *  preserves the draft + stores the same-command resume), and `unknown` the
  *  unattributable termination fallback. */
+/** How a round ended when it did not end by itself — the derived cause plus the
+ *  last observed sample (the postmortem pair the crash record carries; the sample
+ *  rides the outcome in memory, never re-read from the heartbeat file). `unknown`
+ *  is the unattributable fallback of the derivation. */
+export interface Termination {
+  cause: TerminationCause | "unknown";
+  /** The judge's idle reading (ms) at the termination instant. */
+  idleMs: number;
+  lastSample: SampleRecord | null;
+}
+
 export type CrashCause = TerminationCause | "child-exit" | "contract-violation" | "unknown";
 
 /** The crash record — the lane crash's recovery record (`crash-<lane>-<round>.json`):

@@ -26,23 +26,14 @@ import type {
   Sample,
   SampleRecord,
   StallVerdict,
-  TerminationCause,
+  Termination,
 } from "../session/ledger.ts";
 
 // ---------------------------------------------------------------------------
 // the seam — one dispatch's input, result and runner
 // ---------------------------------------------------------------------------
 
-/** How a round ended when it did not end by itself — the derived cause plus the
- *  last observed sample (the postmortem pair the crash record carries; the sample
- *  rides the outcome in memory, never re-read from the heartbeat file). `unknown`
- *  is the unattributable fallback of the derivation. */
-export interface Termination {
-  cause: TerminationCause | "unknown";
-  /** The judge's idle reading (ms) at the termination instant. */
-  idleMs: number;
-  lastSample: SampleRecord | null;
-}
+export type { Termination };
 
 /** The facts the termination derivation rules on — the execa result face plus the
  *  engine's own stall-kill flag and the sampling loop's last observation. Named

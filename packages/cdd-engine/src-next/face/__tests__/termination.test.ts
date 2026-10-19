@@ -205,7 +205,7 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     expect(result.code).toBeNull();
   });
 
-  // Repro (macOS, pre-fix): a child that exits while a grandchild holds the inherited
+  // Repro (macOS, observed on the pre-fix code): a child that exits while a grandchild holds the inherited
   // stdout pipe leaves `await` hanging until the grandchild dies; `ps -g <pgid>` lists
   // the grandchild, so the engine-owned group covers descendants.
   it("reads stdin to EOF without hanging", async () => {

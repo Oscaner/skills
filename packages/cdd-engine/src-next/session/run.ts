@@ -27,8 +27,7 @@ import {
   type OpType,
   type RoundFinding,
   type RoundStatus,
-  type SampleRecord,
-  type TerminationCause,
+  type Termination,
 } from "./ledger.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
@@ -110,11 +109,7 @@ export interface DispatchOutcome {
   carrier?: Record<string, unknown>;
   /** The termination fact — present iff the round was cut short; a fact orthogonal to
    *  the conclusion (the status still derives from the handoff). */
-  termination?: {
-    cause: TerminationCause | "unknown";
-    idleMs: number;
-    lastSample: SampleRecord | null;
-  };
+  termination?: Termination;
 }
 
 /** The dispatch instruction — runs one round's actual work (the harness call in

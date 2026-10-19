@@ -25,16 +25,11 @@ import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
 import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
-import type { CrashCause, Ledger, OpType, RoundStatus } from "../session/ledger.ts";
+import type { CrashCause, Ledger, OpType, RoundStatus, Termination } from "../session/ledger.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { DISPATCH, HOSTS, HostDetect, type HostId, type HostReferenceTable, REFS } from "./host.ts";
-import {
-  type ChildRunner,
-  type Termination,
-  TerminationPolicy,
-  Terminator,
-} from "./termination.ts";
+import { type ChildRunner, TerminationPolicy, Terminator } from "./termination.ts";
 
 /** The crash-record stdout-tail cap (P11 T2) — the child's last STDOUT_TAIL_MAX
  *  non-empty stdout lines ride the crash record's `stdoutTail` (the diagnostic
@@ -521,8 +516,7 @@ export class CliLifecycle {
       idleMs: death.termination?.idleMs ?? null,
     });
     if (death.termination === null) return { status: "BLOCKED" };
-    const { cause, idleMs, lastSample } = death.termination;
-    return { status: "TIMEOUT", termination: { cause, idleMs, lastSample } };
+    return { status: "TIMEOUT", termination: death.termination };
   }
 
   /** Build the final carrier — the validated writable fields from the draft (the

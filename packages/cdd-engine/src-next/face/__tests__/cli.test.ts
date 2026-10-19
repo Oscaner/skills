@@ -3689,7 +3689,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // round's content is the OUTPUT_HANDOFF draft read back below.
       sync.stdout = "Implemented the task. All checks green.\n";
       // The child's write-back: the implement draft at OUTPUT_HANDOFF per the injected
-      // `work` schema + the canonical test-evidence file (the v1.9 read-back inputs).
+      // `delivery` schema + the canonical test-evidence file (the v1.9 read-back inputs).
       const draft = path.join(scene.workspace.path, "tasks-1-implement.json");
       // The compliant child follows the prescribed OUTPUT_* names (find #5): the
       // artifacts it declares are the canonical {family}-{key}-{artifact} paths (the
@@ -4646,7 +4646,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const io = new CaptureIo();
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
-      // the child wrote a draft MISSING the required `status` — the `work` subset's
+      // the child wrote a draft MISSING the required `status` — the `delivery` subset's
       // read-back refuses it
       const draftPath = path.join(scene.workspace.path, "tasks-1-implement.json");
       writeFileSync(draftPath, JSON.stringify({ artifacts: { report: "/r" } }), "utf8");
@@ -4658,7 +4658,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(implementFrame);
       expect(outcome).toEqual({ status: "BLOCKED" });
-      expect(io.stderrText).toContain("violates the work schema");
+      expect(io.stderrText).toContain("violates the delivery schema");
       expect(io.stderrText).toContain("status: required");
       // the draft is preserved byte-identically — the engine never clobbers the
       // child's work; the resume re-runs the same command and the child rewrites it

@@ -10,7 +10,7 @@
 //     evidenceViolations — the child draft is validated against exactly the same
 //     declared objects the prompt showed it).
 //   · faces: the per-family `schema` field of the handoff families (infra/runtime.ts)
-//     selects the face — `work` (implement/fix: status+artifacts, plus the separate
+//     selects the face — `delivery` (implement/fix: status+artifacts, plus the separate
 //     test-evidence file for task-family rounds) or `findings` (reviews: findings-only
 //     carrier — the engine rolls the status up from the findings, never a
 //     child-authored status).
@@ -30,7 +30,7 @@
 import type { FindingSeverity, RoundFinding, RoundStatus } from "./ledger.ts";
 
 /** The handoff schema faces — the `HandoffFamily.schema` selector values. */
-export type HandoffSchemaFace = "work" | "findings";
+export type HandoffSchemaFace = "delivery" | "findings";
 
 /** The declared schema node shape — the typed subset of JSON-schema this contract
  *  uses (the engine's validator walks exactly these objects). */
@@ -60,13 +60,13 @@ const FINDING: SchemaNode = {
   },
 };
 
-/** The `work` writable subset — implement/fix carrier. `status` and `artifacts` are
+/** The `delivery` writable subset — implement/fix carrier. `status` and `artifacts` are
  *  the round's required core; notes rides the declared optional field. Reserved
  *  fields (phase · tasks) are NOT declared and are DROPPED by materialize (never a
  *  BLOCK) — the engine stays the carrier's single author.
  *  `as const` preserves the literal property keys — the carrier type family
  *  (`CarrierOf<F>` below) derives its field set FROM these declared keys. */
-const CARRIER_WORK = {
+const CARRIER_DELIVERY = {
   type: "object",
   required: ["status", "artifacts"],
   properties: {
@@ -81,7 +81,7 @@ const CARRIER_WORK = {
  *  conclusion is derived from the findings at judgment time
  *  (`conclusionOf("findings", carrier)` → `rollup(findings)`), never a carrier field
  *  the child authors or the engine persists — the declaration plane IS the writable
- *  plane (one face, one field set). `as const` — see CARRIER_WORK. */
+ *  plane (one face, one field set). `as const` — see CARRIER_DELIVERY. */
 const CARRIER_FINDINGS = {
   type: "object",
   required: ["findings"],
@@ -122,7 +122,7 @@ const EVIDENCE: SchemaNode = {
  *  family's `[K in keyof (typeof BY_FACE)[F]["properties"]]` derives its field set from
  *  exactly these tables, so a schema edit reshapes the carrier types by construction. */
 const BY_FACE = {
-  work: CARRIER_WORK,
+  delivery: CARRIER_DELIVERY,
   findings: CARRIER_FINDINGS,
 } as const satisfies Readonly<Record<HandoffSchemaFace, SchemaNode>>;
 
@@ -147,19 +147,19 @@ export type CarrierValue = {
 
 /** The derived carrier-of: the mapped type whose field set comes FROM the face's
  *  declared `properties` keys (the face dispatcher resolves which declared table the
- *  mapped type reads — `WorkCarrier`/`FindingsCarrier` are the two faces'
+ *  mapped type reads — `DeliveryCarrier`/`FindingsCarrier` are the two faces'
  *  instantiations, so a schema declaration change reshapes the carrier types by
  *  construction, zero hand-maintained parallel field tables). `-readonly` keeps the
  *  carrier MUTABLE — the round conclusion (status) rides the caller's set below the
  *  skeleton, never a frozen build-time value. */
-export type CarrierOf<F extends HandoffSchemaFace> = F extends "work"
-  ? { -readonly [K in keyof (typeof BY_FACE)["work"]["properties"]]: CarrierValue[K] }
+export type CarrierOf<F extends HandoffSchemaFace> = F extends "delivery"
+  ? { -readonly [K in keyof (typeof BY_FACE)["delivery"]["properties"]]: CarrierValue[K] }
   : { -readonly [K in keyof (typeof BY_FACE)["findings"]["properties"]]: CarrierValue[K] };
 
-/** The work face's carrier — implement/fix write-back. Declared `findings`-free: the
- *  work writable subset declares no findings field, so the carrier type carries none —
- *  a `buildHandoff("work", { findings })` call is a compile-time refusal (Q1→c). */
-export type WorkCarrier = CarrierOf<"work">;
+/** The delivery face's carrier — implement/fix write-back. Declared `findings`-free: the
+ *  delivery writable subset declares no findings field, so the carrier type carries none —
+ *  a `buildHandoff("delivery", { findings })` call is a compile-time refusal (Q1→c). */
+export type DeliveryCarrier = CarrierOf<"delivery">;
 
 /** The findings face's carrier — review write-back. `findings` is schema-required, so
  *  the carrier type always carries it (the compile-time twin of the required gate). */

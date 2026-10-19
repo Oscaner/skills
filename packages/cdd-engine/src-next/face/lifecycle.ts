@@ -413,7 +413,7 @@ export class CliLifecycle {
   #probeDraft(frame: OpenFrame): Record<string, unknown> | null {
     const op = this.#opOf(frame);
     if (op !== "review") return null;
-    const face = this.#familyOf(op, frame.type).schema ?? "work";
+    const face = this.#familyOf(op, frame.type).schema ?? "delivery";
     if (face !== "findings") return null;
     const read = this.#readDraft(frame);
     if (read.kind !== "ok") return null;
@@ -477,7 +477,7 @@ export class CliLifecycle {
   #reconstruct(frame: OpenFrame, prefetched?: Record<string, unknown>): DispatchOutcome {
     const scene = this.#scene;
     const op = this.#opOf(frame);
-    const face = this.#familyOf(op, frame.type).schema ?? "work";
+    const face = this.#familyOf(op, frame.type).schema ?? "delivery";
     const schema = this.#handoffSchema;
     const path = scene.ledger.handoffPath(op, frame.type, frame.params);
     let draft: Record<string, unknown>;
@@ -536,7 +536,7 @@ export class CliLifecycle {
     // docs faces (review/docs-fix) carry no evidence file. The read-back is REAL — a
     // missing/malformed/schema-violating file rewrites the draft to BLOCKED (each
     // cause reported truly — the tri-state read, D27).
-    if (face === "work") {
+    if (face === "delivery") {
       const evidenceName = this.#naming.evidenceName(frame);
       const evidencePath = scene.workspace.resolve(evidenceName);
       const evidenceRead = scene.workspace.readJson<unknown>(evidenceName);
@@ -680,7 +680,7 @@ export class CliLifecycle {
             artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
             findings: this.#findingsList(draft.findings),
           })
-        : ledger.buildHandoff("work", {
+        : ledger.buildHandoff("delivery", {
             artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
           });
     // The work face ALONE persists the round conclusion — it is the child's own
@@ -691,7 +691,7 @@ export class CliLifecycle {
     // (findings/artifacts/notes) and a fix child's INPUT_REVIEWS carrier is
     // status-free (the judgment face is perpendicular to the input face · D27).
     const draftNotes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
-    if (face === "work") {
+    if (face === "delivery") {
       carrier.status = status;
       if (typeof draft.failure_category === "string")
         carrier.failure_category = draft.failure_category;
@@ -769,8 +769,8 @@ export class CliLifecycle {
    *  docs-fix fence only). */
   #schemaText(frame: OpenFrame): string {
     const op = this.#opOf(frame);
-    const face = this.#familyOf(op, frame.type).schema ?? "work";
-    const evidence = face === "work";
+    const face = this.#familyOf(op, frame.type).schema ?? "delivery";
+    const evidence = face === "delivery";
     const prefix = evidence ? this.#naming.prefix(frame) : "tasks";
     return this.#handoffSchema.schemaText(face, evidence, prefix);
   }

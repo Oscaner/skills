@@ -17,6 +17,10 @@
 // Zero module-level bare functions — the read/scan helpers are `const` (the P5
 // zero-`function`-declaration discipline).
 
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { HandoffSchema } from "../handoff-schema.ts";
@@ -24,7 +28,7 @@ import { HandoffSchema } from "../handoff-schema.ts";
 describe("the handoff-plane audit — the declared writable subsets (the engine's own declaration checks)", () => {
   it("① the role-distinctive exclusives — the findings exclusive never rides work; the work exclusives never ride findings", () => {
     const schema = new HandoffSchema();
-    const work = schema.faceSchema("work");
+    const work = schema.faceSchema("delivery");
     const findings = schema.faceSchema("findings");
     expect(work.properties ?? {}).not.toHaveProperty("findings");
     for (const key of ["status", "failure_category"] as const) {
@@ -32,9 +36,19 @@ describe("the handoff-plane audit — the declared writable subsets (the engine'
     }
   });
 
+  it('④ the live engine surface carries no face-semantic "work" literal — the carrier face is `delivery`', () => {
+    const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const sources = readdirSync(root, { recursive: true, withFileTypes: true })
+      .filter((e) => e.isFile() && e.name.endsWith(".ts") && !e.parentPath.includes("__tests__"))
+      .map((e) => join(e.parentPath, e.name));
+    expect(sources.length).toBeGreaterThan(0);
+    const offenders = sources.filter((p) => readFileSync(p, "utf8").includes('"work"'));
+    expect(offenders).toEqual([]);
+  });
+
   it("③ the prompt-injection projection — the schemaText fence parses to the declared writable subset", () => {
     const schema = new HandoffSchema();
-    for (const face of ["work", "findings"] as const) {
+    for (const face of ["delivery", "findings"] as const) {
       const text = schema.schemaText(face, false);
       const fence = text.split("```json\n")[1]?.split("\n```")[0];
       expect(fence, `the ${face} projection carries a \`\`\`json fence`).toBeDefined();

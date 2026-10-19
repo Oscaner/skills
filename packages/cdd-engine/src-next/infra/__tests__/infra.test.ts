@@ -56,8 +56,8 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
     // families (fix.spec/fix.plan) ride the findings face — §3.6's per-mode split.
     expect(HANDOFF_FAMILIES["review.branch"].schema).toBe("findings");
     expect(HANDOFF_FAMILIES["fix.plan"].schema).toBe("findings");
-    expect(HANDOFF_FAMILIES["implement.wave"].schema).toBe("work");
-    expect(HANDOFF_FAMILIES["fix.wave"].schema).toBe("work");
+    expect(HANDOFF_FAMILIES["implement.wave"].schema).toBe("delivery");
+    expect(HANDOFF_FAMILIES["fix.wave"].schema).toBe("delivery");
     for (const key of [
       "implement.wave",
       "review.wave",

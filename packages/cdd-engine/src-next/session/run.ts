@@ -461,11 +461,11 @@ export class Lifecycle {
           ? this.#ledger.buildHandoff("findings", {
               findings: [...(outcome.findings ?? [])],
             })
-          : this.#ledger.buildHandoff("work", {}));
+          : this.#ledger.buildHandoff("delivery", {}));
       // The work face ALONE persists the conclusion (the child's declared status); the
       // findings carrier holds no status — its conclusion derives at judgment time
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
-      if (face === "work" && carrier.status === undefined && outcome.status !== undefined)
+      if (face === "delivery" && carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
       this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
     }

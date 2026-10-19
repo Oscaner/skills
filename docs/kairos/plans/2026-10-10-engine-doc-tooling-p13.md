@@ -27,7 +27,8 @@ base: develop
   - 先实机复现：写一个 fixture child——派生一个继承 stdout 的长寿孙进程后自己立即退出——对现状跑，确认 `await` 在 child 退出后挂着；同时记录 macOS 上 `ps -g` 是否覆盖后代进程 — checkable: 复现结论（挂住 / 未挂住、`ps -g` 覆盖面）写进 fixture 测试的注释首行，不另立文档
   - 写失败测试 `reads stdin to EOF without hanging`：fixture child 读 stdin 至 EOF 后写 handoff 并退出，在非 TTY 下断言轮在远小于 idle 窗口内正常结束 — checkable: 现状下测试失败（挂住，以短超时断言）
   - 写失败测试 `reclaims the process group after the direct child exits`：直接子进程退出而孙进程持管道，断言 `Terminator.run` 在有限时间内返回、孙进程已不存活、且一个与引擎无关的旁观进程仍存活 — checkable: 现状下测试失败
-  - 在 execa 选项集加 `stdin: 'ignore'`；进程组回收先查 execa 10.1.1 现成选项（以 `killDescendants` 建立的组为准），确无现成能力时才在直接子进程退出后对该组做一次 kill，限定在引擎持有的组内；两种选型择一并在该处注释一行理由 — checkable: 两个新测试通过，`engineSourceTexts()` 的 `detached:` 扫描守卫仍绿
+  - 在 execa 选项集加 `stdin: 'ignore'`；进程组回收先查 execa 现成选项（版本以 `packages/cdd-engine/package.json` 的 `"execa": "^10.1.1"` 与 lockfile 解析版本为准；以 `killDescendants` 建立的组为准），确无现成能力时才在直接子进程退出后对该组做一次 kill，限定在引擎持有的组内；两种选型择一并在该处注释一行理由 — checkable: 两个新测试通过，`engineSourceTexts()` 的 `detached:` 扫描守卫仍绿
+  - 加 `stdin: 'ignore'` 后先跑既有 `termination.test.ts` 与 `cli.test.ts` 的终止用例，排查依赖开放 stdin 管道的既有 fixture 并改为不读 stdin — checkable: `pnpm -C packages/cdd-engine test -- termination` 无因 stdin 变更导致的失败
   - 断言「child 自行退出的轮不产生 termination 事实」（沿用既有终止面断言，不新增字段）— checkable: `pnpm -C packages/cdd-engine test -- termination` 全绿
 - **Acceptance**: execa 选项含 `stdin: 'ignore'`；孙进程占管道的端到端 fixture 通过且旁观进程无损；活面无 `detached:` 选项键；D53 常量零变。
 - **DependsOn**: none
@@ -68,18 +69,18 @@ base: develop
 - **Steps**:
   - 先翻新 pin：`face.test.ts:32`、`:73`、`:221` 由无条件键表改为按状态断言；`:199` 失败 capsule 断言 `status: TIMEOUT · handoff: crash-…json`（有 crash record）与 `status: BLOCKED`（无 crash record，无 `handoff:`）；`next.test.ts` 的 TIMEOUT 路由断言随之调整 — checkable: 这些测试因签名 / 输出变化而失败
   - 实现 `Words.capsuleKeys(status, withHandoff)`：键集数据以单一声明承载于 `CAPSULE_WORDS`，成功状态与失败状态各一行，不复制键名；`Capsule.emit` 按其渲染 — checkable: `face.test.ts` 通过
-  - `#capsuleLines` 对失败状态不再计算 `blocker`，并以 `ledger.readCrash` 是否非空决定 `handoff` 入参（指向 `ledger.crashPath`）；no-host BLOCKED（`lifecycle.ts:150-154`）不写 crash record，故不带 `handoff:` — checkable: 失败 capsule 零 `blocker:` 键，`cli.test.ts` 相关断言通过
+  - `#capsuleLines` 对失败状态不再计算 `blocker`，并以 `ledger.readCrash` 是否非空决定 `handoff` 入参（指向 `ledger.crashPath`）；`readCrash(lane, round)` 的 lane 取当前帧的 lane、round 取刚派发的那一轮；no-host BLOCKED（`lifecycle.ts:150-154`）不写 crash record，故不带 `handoff:` — checkable: 失败 capsule 零 `blocker:` 键，`cli.test.ts` 相关断言通过
   - 全局搜索 `capsuleKeys()` 无参调用点并迁移到双参签名，清除遗留的无参重载与死数据 — checkable: `grep -rn "capsuleKeys()" packages/cdd-engine/src-next` 零命中，`check:no-bare-functions` 通过
 - **Acceptance**: TIMEOUT 与 BLOCKED 摘要行零 `blocker:` 键；`handoff:` 仅在写了 crash record 时输出并指向之；键集单源 `Words.capsuleKeys(status, withHandoff)`；`next:` 字面形态不变。
 - **DependsOn**: 2
 
 ### Task 5: 终止时 idle 可见性与交付
 - **Objective**: 终止时把 `idleMs` 与末样本写入 TIMEOUT 的 stderr 与 crash record；补 changeset；全量验证收口。
-- **Files**: `packages/cdd-engine/src-next/face/cli.ts`（终止 stderr 输出处）；`packages/cdd-engine/src-next/face/words.ts`（终止诊断词条）；`.changeset/` 下新增 changeset 文件（slug 如 `engine-child-termination-followup.md`）；测试 `face/__tests__/cli.test.ts`。
+- **Files**: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#reject` 的终止分支，stderr 的唯一发射点；CLI 层不输出，故不改 `cli.ts`）；`packages/cdd-engine/src-next/face/words.ts`（终止诊断词条）；`.changeset/` 下新增 changeset 文件（slug 如 `engine-child-termination-followup.md`）；测试 `face/__tests__/cli.test.ts`。
 - **Consumes**: Task 2 的 `termination.idleMs` / `lastSample`；Task 3 的升格 `CDD_WARN`（本任务不重复输出）；Task 4 的失败摘要行。
-- **Produces**: 非升格终止轮的终止诊断 stderr 行（含原因、idle 时长、末样本裁决；升格轮的同类信息已在 Task 3 的唯一 `CDD_WARN` 中，不重复输出，每轮至多一行）；cdd-engine minor changeset；交付态可发布。
+- **Produces**: 非升格终止轮的终止诊断——不新增 stderr 行，而是在 `lifecycle.ts` `#reject` 终止分支已打印的那一条 `CDD_BLOCKED` / `TIMEOUT` 行上扩展，追加原因、`idleMs` 与末样本裁决（升格轮的同类信息已在 Task 3 的唯一 `CDD_WARN` 中，不重复输出，故每轮 stderr 至多一行，可直接计数断言）；cdd-engine minor changeset；交付态可发布。
 - **Steps**:
-  - 写失败测试 `terminated round reports idle duration and last sample on stderr and in the crash record`：非升格终止轮断言 stderr 含 idle 时长与末样本且仅一行诊断、crash record 含 `idleMs` 与 `lastSample`；升格轮断言 crash record 含二者、stderr 仅 Task 3 的一条 `CDD_WARN` — checkable: 现状下失败
+  - 写失败测试 `terminated round reports idle duration and last sample on stderr and in the crash record`：非升格终止轮断言 stderr 的那一条扩展后的 `CDD_BLOCKED` / `TIMEOUT` 行含 idle 时长与末样本且该轮 stderr 仅此一行、crash record 含 `idleMs` 与 `lastSample`；升格轮断言 crash record 含二者、stderr 仅 Task 3 的一条 `CDD_WARN` — checkable: 现状下失败
   - 实现终止诊断输出，词条走 `Words`（一张表）；不加中途进度行、不加第二窗口 — checkable: 测试通过
   - 手写 `.changeset/` 条目：`@oscaner-skills/cdd-engine` **minor**，正文英文，记录 stdin 闭合、进程组回收、review 面终止轮升格、失败摘要行去 `blocker:`、终止时 idle 可见性 — checkable: `pnpm exec changeset status` 识别该条目
   - 全量验证：`pnpm run emit` 后 `pnpm run emit:check`，再 `pnpm run validate`（先提交再跑含 tree 依赖黑盒的完整面——提交需用户明确同意）— checkable: `pnpm run validate` ALL PASS；引擎 vitest 全绿

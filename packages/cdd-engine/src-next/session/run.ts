@@ -450,9 +450,9 @@ export class Lifecycle {
       // `schema` selector, never the outcome's field presence): a findings-face round
       // (review / docs-fix) builds the findings carrier — its schema-required findings
       // key, empty on a conclusion-only round (a fix advances no new findings); a
-      // work-face round builds the findings-free work carrier — zero findings
+      // delivery-face round builds the findings-free delivery carrier — zero findings
       // injection. The review finding-severity route reads the round carrier's
-      // findings; the conclusion rides only the work face's declared status (the
+      // findings; the conclusion rides only the delivery face's declared status (the
       // findings face derives its conclusion at judgment time).
       const face = this.#ledger.handoffFaceOf(op, frame.type);
       const carrier: Record<string, unknown> =
@@ -462,7 +462,7 @@ export class Lifecycle {
               findings: [...(outcome.findings ?? [])],
             })
           : this.#ledger.buildHandoff("delivery", {}));
-      // The work face ALONE persists the conclusion (the child's declared status); the
+      // The delivery face ALONE persists the conclusion (the child's declared status); the
       // findings carrier holds no status — its conclusion derives at judgment time
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
       if (face === "delivery" && carrier.status === undefined && outcome.status !== undefined)

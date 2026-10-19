@@ -885,7 +885,7 @@ export class Ledger {
 
   /** The handoff FACE of an op/type pair — the family's `schema` selector (work when
    *  the family declares none). The face-aware read/write/bookkeep spine (T2): a
-   *  findings-face round rides the findings writable subset, a work-face round rides
+   *  findings-face round rides the findings writable subset, a delivery-face round rides
    *  the findings-free work subset — never the caller's guess. */
   handoffFaceOf(op: OpType, type: TargetType): HandoffSchemaFace {
     return this.#family(op, type).schema ?? "delivery";
@@ -904,7 +904,7 @@ export class Ledger {
   }
 
   /** The handoff carrier skeleton — the schema-declared writable fields the agent
-   *  round fills, SHAPED PER FACE: the work overload builds a `findings`-free carrier
+   *  round fills, SHAPED PER FACE: the delivery overload builds a `findings`-free carrier
    *  (the work writable subset declares no findings field — the type gate: a
    *  `buildHandoff("delivery", { findings })` call is a compile-time refusal, Q1→c), the
    *  findings overload REQUIRES the findings payload (the schema's required field).
@@ -1082,7 +1082,7 @@ export class Ledger {
     return {
       phase: "fix",
       // The fix round's conclusion derives from ITS OWN carrier's declared plane (the
-      // work face reads its status; a docs-fix findings face rolls its findings up) —
+      // delivery face reads its status; a docs-fix findings face rolls its findings up) —
       // the same `conclusionOf` single source (D27).
       status: this.#handoffSchema.conclusionOf(this.handoffFaceOf("fix", type), fixCarrier),
       findings: this.#findingsOf(reviewCarrier),

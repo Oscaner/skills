@@ -516,7 +516,7 @@ export class CliLifecycle {
       );
     }
     // T2 — the face-aware read: the findings face ALONE reads `draft.findings` (its
-    // own declared required field — rolled up to the conclusion); the work face
+    // own declared required field — rolled up to the conclusion); the delivery face
     // derives its status from the draft's declared status, never the findings plane
     // (the work writable subset declares no findings field — zero findings read).
     // The conclusion rides the ONE source (`HandoffSchema.conclusionOf`) the ledger
@@ -524,13 +524,13 @@ export class CliLifecycle {
     const findings =
       face === "findings" ? (Array.isArray(draft.findings) ? draft.findings : []) : [];
     // A validated draft's conclusion is total: the findings face rolls up its own
-    // required findings, and the work face's `status` passed the `required` gate above
+    // required findings, and the delivery face's `status` passed the `required` gate above
     // — so the `?? "BLOCKED"` never fires here (a work draft without a status never
     // reaches this line; the absent→undefined case exists only for on-disk legacy
     // carriers the ledger reads back, never a schema-validated draft).
     let status: RoundStatus = schema.conclusionOf(face, draft) ?? "BLOCKED";
     let reason: string | null = null;
-    // The evidence gate (v1.9) — the work faces (implement/fix task+branch) write
+    // The evidence gate (v1.9) — the delivery faces (implement/fix task+branch) write
     // the canonical `{family-prefix}-{key}-test-evidence.json` under the workspace
     // (§3.7 naming: tasks- for the task families, branch- for the branch fix); the
     // docs faces (review/docs-fix) carry no evidence file. The read-back is REAL — a
@@ -669,7 +669,7 @@ export class CliLifecycle {
     }
     // The per-face carrier — buildHandoff's typed overloads: the findings face REQUIRES
     // its findings payload (the schema-required field — cli.test pins the review
-    // carrier's findings + status), the work face builds a findings-FREE typed carrier
+    // carrier's findings + status), the delivery face builds a findings-FREE typed carrier
     // (the work writable subset declares no findings field — the materialized work
     // carrier carries zero findings keys). `Record<string, unknown>` local: the round
     // conclusion (status — a RoundStatus, wider than the carrier's declared union) and
@@ -683,7 +683,7 @@ export class CliLifecycle {
         : ledger.buildHandoff("delivery", {
             artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
           });
-    // The work face ALONE persists the round conclusion — it is the child's own
+    // The delivery face ALONE persists the round conclusion — it is the child's own
     // declared status (the schema enum pinned it to APPROVED | BLOCKED). The findings
     // face holds NO status field: its conclusion is DERIVED at judgment time
     // (`HandoffSchema.conclusionOf("findings", carrier)` → rollup(findings)), so the
@@ -695,7 +695,7 @@ export class CliLifecycle {
       carrier.status = status;
       if (typeof draft.failure_category === "string")
         carrier.failure_category = draft.failure_category;
-      // The evidence-contract override (work faces only — the evidence gate reads a
+      // The evidence-contract override (delivery faces only — the evidence gate reads a
       // work round's evidence file) rewrites the persisted conclusion to BLOCKED.
       if (reason !== null) {
         carrier.status = "BLOCKED";
@@ -764,7 +764,7 @@ export class CliLifecycle {
 
   /** The `## Handoff schema` section value — the mode's writable-subset fence
    *  (projection ①; byte-fixed per mode so the prompt's fixed prefix stays
-   *  cache-friendly). The family's `schema` field selects the face (§3.6: work →
+   *  cache-friendly). The family's `schema` field selects the face (§3.6: delivery →
    *  carrier + evidence fence for the implement/fix modes; findings → the review /
    *  docs-fix fence only). */
   #schemaText(frame: OpenFrame): string {

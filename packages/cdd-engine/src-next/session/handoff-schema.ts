@@ -180,7 +180,7 @@ export interface SchemaProblem {
  */
 export class HandoffSchema {
   /** Projection ① — the `## Handoff schema` section text: the face's writable
-   *  subset in a ```json fence + (work faces) the evidence file's schema in a second
+   *  subset in a ```json fence + (delivery faces) the evidence file's schema in a second
    *  fence. The text is byte-stable per (face, evidence, prefix) — the fixed bytes
    *  of the dispatch prompt's contract surface. The evidence prefix is the family
    *  spine (§3.7 naming: `tasks-` for the task families, `branch-` for the branch
@@ -224,14 +224,14 @@ export class HandoffSchema {
    *  single source the review/fix ledger legs read (D27 · judgment face ⊥ input face).
    *  The findings face rolls its conclusion UP from its findings (defined for every
    *  carrier — a review never carries a child-authored status, and the persisted
-   *  findings carrier holds none). The work face reads its DECLARED status, and the
+   *  findings carrier holds none). The delivery face reads its DECLARED status, and the
    *  absence of a declaration is itself a fact: an ABSENT status → `undefined` (no
    *  conclusion was declared — never an invented approval OR an invented failure ·
    *  D27 present-facts-only), while a PRESENT-but-invalid byte (outside the enum the
    *  schema pinned) degrades to BLOCKED — the conservative reading of a malformed
    *  declaration. `undefined` is DISTINCT from BLOCKED to the caller (the router
    *  treats undefined as "not a failure", a declared BLOCKED as the failure face), so
-   *  a work carrier that predates the status field never reads as a fabricated
+   *  a delivery carrier that predates the status field never reads as a fabricated
    *  failure. `carrier` is the on-disk carrier (or a freshly built one) — the
    *  conclusion is never a stored field, so any face's carrier derives it the same way. */
   conclusionOf(face: HandoffSchemaFace, carrier: Record<string, unknown>): RoundStatus | undefined {
@@ -239,7 +239,7 @@ export class HandoffSchema {
       const findings = Array.isArray(carrier.findings) ? carrier.findings : [];
       return this.rollup(findings);
     }
-    // The work face reads its DECLARED status. Absent → undefined (no declaration);
+    // The delivery face reads its DECLARED status. Absent → undefined (no declaration);
     // present-but-invalid → BLOCKED (a declared conclusion that is malformed is a
     // failure signal, never silently approved). This is the ONE ruling for a work
     // status: the reconstruct's work leg delegates here, so the read-back and the

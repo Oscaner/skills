@@ -84,8 +84,21 @@ export interface PreflightWords {
 
 /** The capsule word rows — every word the capsule face emits, one table. */
 export const CAPSULE_WORDS = {
-  /** The capsule emit keys in order (a reorder is a red test — the pinned face). */
-  keys: ["status", "blocker", "handoff"] as const satisfies readonly CapsuleKey[],
+  /** The capsule emit key rows — one declaration per status class (the summary
+   *  face's key-set single source; a reorder is a red test — the pinned face).
+   *  A success status renders `status · blocker · handoff`; a failure status renders
+   *  `status` alone, plus `handoff` only when the round wrote a crash record. */
+  keys: {
+    success: ["status", "blocker", "handoff"] as const,
+    failure: ["status"] as const,
+    handoff: "handoff" as const,
+  } as const satisfies {
+    success: readonly CapsuleKey[];
+    failure: readonly CapsuleKey[];
+    handoff: CapsuleKey;
+  },
+  /** The failure status vocabulary — the reduced summary-key class (TIMEOUT / BLOCKED). */
+  failureStatuses: ["BLOCKED", "TIMEOUT"] as const,
   /** The `·`-separator token of the capsule line. */
   separator: " · ",
   /** The status vocabulary — the five handoff-conclusion values. */
@@ -123,6 +136,14 @@ export const CAPSULE_WORDS = {
     graph: "the plan graph has {count} edge violation(s) — fix the **DependsOn** edges first",
     docContract: "the target document fails the doc-contract — fix its structural findings first",
   } as const satisfies PreflightWords,
+  /** The terminated-review promotion warning — the one CDD_WARN wording row the
+   *  lifecycle emits when a terminated review round's valid findings draft is
+   *  promoted. The braces are fill slots ({cause} / {idleMs} / {verdict} / {count}). */
+  promotionWarning:
+    "terminated review round promoted from its handoff draft — cause: {cause}, idleMs: {idleMs}, last sample verdict: {verdict}, findings recovered: {count}",
+  /** The terminated-round diagnostic suffix — appended to the one CDD_BLOCKED reason
+   *  line of a non-promoted terminated round. Fill slots: {idleMs} / {verdict}. */
+  terminationDetail: " — idleMs: {idleMs}, last sample verdict: {verdict}",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -233,10 +254,15 @@ export class Words implements WordLocaleFace {
   // capsule — the station-word family
   // -------------------------------------------------------------------------
 
-  /** The capsule emit keys in order — status · blocker · handoff (the pinned byte
-   *  order the capsule renders by). */
-  capsuleKeys(): readonly CapsuleKey[] {
-    return CAPSULE_WORDS.keys;
+  /** The capsule emit keys of one status class, in the pinned byte order — the key
+   *  set's single source. A success status renders `status · blocker · handoff`; a
+   *  failure status (TIMEOUT / BLOCKED) renders `status`, plus `handoff` only when
+   *  the round wrote a crash record (`withHandoff`). */
+  capsuleKeys(status: string, withHandoff: boolean): readonly CapsuleKey[] {
+    const rows = CAPSULE_WORDS.keys;
+    const failure = (CAPSULE_WORDS.failureStatuses as readonly string[]).includes(status);
+    if (!failure) return rows.success;
+    return withHandoff ? [...rows.failure, rows.handoff] : rows.failure;
   }
 
   /** The `·`-separator token of the capsule line. */
@@ -269,6 +295,29 @@ export class Words implements WordLocaleFace {
    *  source: the seam fills the placeholders from these rows, never re-types). */
   preflightWords(): PreflightWords {
     return CAPSULE_WORDS.preflight;
+  }
+
+  /** The terminated-review promotion warning, rendered from the termination facts —
+   *  the single source of both the wording row and its slot names. */
+  promotionWarning(facts: {
+    cause: string;
+    idleMs: number;
+    verdict: string;
+    count: number;
+  }): string {
+    return CAPSULE_WORDS.promotionWarning
+      .replace("{cause}", facts.cause)
+      .replace("{idleMs}", String(facts.idleMs))
+      .replace("{verdict}", facts.verdict)
+      .replace("{count}", String(facts.count));
+  }
+
+  /** The terminated-round diagnostic suffix, rendered from the termination facts —
+   *  idle time plus the last sample's verdict (`none` when no sample was taken). */
+  terminationDetail(facts: { idleMs: number; verdict: string }): string {
+    return CAPSULE_WORDS.terminationDetail
+      .replace("{idleMs}", String(facts.idleMs))
+      .replace("{verdict}", facts.verdict);
   }
 
   // -------------------------------------------------------------------------

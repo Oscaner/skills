@@ -16,7 +16,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
-import { HandoffSchema, type WorkCarrier } from "../handoff-schema.ts";
+import { type DeliveryCarrier, HandoffSchema } from "../handoff-schema.ts";
 import { Ledger } from "../ledger.ts";
 
 const schema = new HandoffSchema();
@@ -59,7 +59,7 @@ const EVIDENCE = {
 
 describe("projection ① — the injected writable-subset schema text", () => {
   it("renders the work face — the carrier fence + the evidence-file fence", () => {
-    const text = schema.schemaText("work", true);
+    const text = schema.schemaText("delivery", true);
     expect(text).toContain("```json");
     expect(text).toContain("Write the handoff draft at `OUTPUT_HANDOFF` per this writable subset");
     expect(text).toContain('"status"');
@@ -87,9 +87,9 @@ describe("projection ① — the injected writable-subset schema text", () => {
 
   it("is byte-stable per (face, evidence) — the prompt's contract surface never shifts", () => {
     // the SAME face renders identical text every dispatch (the prefix-tail cache fact)
-    expect(schema.schemaText("work", true)).toBe(schema.schemaText("work", true));
+    expect(schema.schemaText("delivery", true)).toBe(schema.schemaText("delivery", true));
     expect(schema.schemaText("findings", false)).toBe(schema.schemaText("findings", false));
-    expect(schema.schemaText("work", true)).not.toBe(schema.schemaText("findings", false));
+    expect(schema.schemaText("delivery", true)).not.toBe(schema.schemaText("findings", false));
   });
 
   it("the fence parses byte-identically to the declared face node — the one-hand projection pin (T3)", () => {
@@ -99,7 +99,7 @@ describe("projection ① — the injected writable-subset schema text", () => {
     // declaration IS the writable plane — zero engine-only metadata to strip) — the
     // prompt can never show a schema the engine does not enforce (the guard's
     // checkHandoffPlane ③ asserts the same fact against the live tree).
-    for (const face of ["work", "findings"] as const) {
+    for (const face of ["delivery", "findings"] as const) {
       const text = schema.schemaText(face, false);
       const parsed = JSON.parse(text.split("```json\n")[1]!.split("\n```")[0]!);
       expect(JSON.stringify(parsed)).toBe(JSON.stringify(schema.faceSchema(face)));
@@ -117,20 +117,20 @@ describe("projection ① — the injected writable-subset schema text", () => {
 
 describe("projection ② — the read-back validation (violations)", () => {
   it("accepts the canonical work draft and the canonical findings draft", () => {
-    expect(schema.violations("work", WORK)).toEqual([]);
+    expect(schema.violations("delivery", WORK)).toEqual([]);
     expect(schema.violations("findings", FINDINGS)).toEqual([]);
   });
 
   it("refuses a work draft missing the required status / artifacts", () => {
-    expect(schema.violations("work", { artifacts: { report: "/r" } })).toContain(
+    expect(schema.violations("delivery", { artifacts: { report: "/r" } })).toContain(
       "status: required",
     );
-    expect(schema.violations("work", { status: "APPROVED" })).toContain("artifacts: required");
+    expect(schema.violations("delivery", { status: "APPROVED" })).toContain("artifacts: required");
   });
 
   it("refuses a non-object draft and an out-of-enum status", () => {
-    expect(schema.violations("work", "nope")).toEqual(["expected an object"]);
-    expect(schema.violations("work", { status: "NEEDS_CONTEXT", artifacts: {} })).toEqual([
+    expect(schema.violations("delivery", "nope")).toEqual(["expected an object"]);
+    expect(schema.violations("delivery", { status: "NEEDS_CONTEXT", artifacts: {} })).toEqual([
       "status: must be one of APPROVED | BLOCKED",
     ]);
   });
@@ -139,15 +139,15 @@ describe("projection ② — the read-back validation (violations)", () => {
     // a work draft carrying engine-reserved or extra keys is dropped by materialize
     // and never refuses the draft (the drop-not-BLOCK ruling · §8.7)
     expect(
-      schema.violations("work", { status: "APPROVED", artifacts: {}, phase: "implement" }),
+      schema.violations("delivery", { status: "APPROVED", artifacts: {}, phase: "implement" }),
     ).toEqual([]);
-    expect(schema.violations("work", { status: "APPROVED", artifacts: {}, tasks: [1] })).toEqual(
-      [],
-    );
+    expect(
+      schema.violations("delivery", { status: "APPROVED", artifacts: {}, tasks: [1] }),
+    ).toEqual([]);
     // a child-authored `status` on a findings draft is non-declared — dropped, not refused
     expect(schema.violations("findings", { findings: [], status: "APPROVED" })).toEqual([]);
     // a stray `commits` key on a work draft is no longer declared — dropped
-    expect(schema.violations("work", { ...WORK, commits: { base: "short" } })).toEqual([]);
+    expect(schema.violations("delivery", { ...WORK, commits: { base: "short" } })).toEqual([]);
   });
 
   it("refuses a findings draft with a missing findings array or a bad severity", () => {
@@ -232,20 +232,20 @@ describe("the status rollup + the findings normalization", () => {
       schema.conclusionOf("findings", { findings: [{ severity: "blocker" }], status: "APPROVED" }),
     ).toBe("CHANGES_REQUESTED");
     // the work face reads its declared status verbatim
-    expect(schema.conclusionOf("work", { status: "APPROVED", artifacts: {} })).toBe("APPROVED");
-    expect(schema.conclusionOf("work", { status: "BLOCKED", artifacts: {} })).toBe("BLOCKED");
+    expect(schema.conclusionOf("delivery", { status: "APPROVED", artifacts: {} })).toBe("APPROVED");
+    expect(schema.conclusionOf("delivery", { status: "BLOCKED", artifacts: {} })).toBe("BLOCKED");
     // a PRESENT-but-invalid work status byte degrades to BLOCKED — a malformed
     // declaration is a failure signal, never silently approved
-    expect(schema.conclusionOf("work", { status: "garbage", artifacts: {} })).toBe("BLOCKED");
-    expect(schema.conclusionOf("work", { status: "CHANGES_REQUESTED", artifacts: {} })).toBe(
+    expect(schema.conclusionOf("delivery", { status: "garbage", artifacts: {} })).toBe("BLOCKED");
+    expect(schema.conclusionOf("delivery", { status: "CHANGES_REQUESTED", artifacts: {} })).toBe(
       "BLOCKED",
     );
     // an ABSENT status is NOT a failure declaration — undefined (no conclusion
     // declared), distinct from a declared BLOCKED. This is the legacy-carrier fact:
     // a work carrier predating the status field never reads as a fabricated failure
     // (the router treats undefined as "not failed"; BLOCKED as the failure face).
-    expect(schema.conclusionOf("work", {})).toBeUndefined();
-    expect(schema.conclusionOf("work", { artifacts: {} })).toBeUndefined();
+    expect(schema.conclusionOf("delivery", {})).toBeUndefined();
+    expect(schema.conclusionOf("delivery", { artifacts: {} })).toBeUndefined();
   });
 
   it("normalizes the draft findings — unknown severities dropped, severity + summary kept", () => {
@@ -263,12 +263,12 @@ describe("the derived carrier types — buildHandoff per-face shaping (T1)", () 
   it("the work carrier's flat keys equal the declared properties set, zero findings (the runtime fallback of the type derivation)", () => {
     const { ledger, cleanup } = ledgerFixture();
     try {
-      const carrier = ledger.buildHandoff("work", { artifacts: { report: "/r" } });
+      const carrier = ledger.buildHandoff("delivery", { artifacts: { report: "/r" } });
       carrier.status = "APPROVED";
       carrier.failure_category = "none";
       carrier.notes = ["one note"];
       expect(Object.keys(carrier).sort()).toEqual(
-        Object.keys(schema.faceSchema("work").properties ?? {}).sort(),
+        Object.keys(schema.faceSchema("delivery").properties ?? {}).sort(),
       );
       expect("findings" in carrier).toBe(false);
     } finally {
@@ -294,13 +294,13 @@ describe("the derived carrier types — buildHandoff per-face shaping (T1)", () 
     try {
       // The compile-time twin of the runtime key-set pin above — a negative TYPE
       // assertion (the repo's zero-debt escape ban forbids compile-error-suppression
-      // directives, so the gate is the assertion itself): `NoFindings<WorkCarrier>`
+      // directives, so the gate is the assertion itself): `NoFindings<DeliveryCarrier>`
       // only COMPILES while the work writable subset declares no findings field — a
       // schema edit adding findings to the work face breaks this file's typecheck
-      // (Q1→c), and the `buildHandoff("work", …)` overload refuses a findings init
+      // (Q1→c), and the `buildHandoff("delivery", …)` overload refuses a findings init
       // by construction.
       type NoFindings<T> = "findings" extends keyof T ? never : true;
-      const gate: NoFindings<WorkCarrier> = true;
+      const gate: NoFindings<DeliveryCarrier> = true;
       expect(gate).toBe(true);
       void ledger;
     } finally {

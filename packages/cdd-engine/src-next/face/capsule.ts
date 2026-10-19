@@ -3,8 +3,13 @@
 // · next:` word-face steady state). Capsule#emit renders the ALL-OP single stdout
 // face — the capsule the orchestrator greps / routes on without opening the handoff:
 //
-//   status: <status> · blocker: <blocker> · handoff: <handoff>
+//   status: <status> · blocker: <blocker> · handoff: <handoff>   (success statuses)
+//   status: <status> [· handoff: <crash>]                       (TIMEOUT / BLOCKED)
 //   next: <suggestion>          (optional — the C5 route / a caller-rendered text)
+//
+// The key set is the word table's single source (`Words.capsuleKeys(status,
+// withHandoff)`) — a failure status drops the blocker cell whose value would be a
+// filler, and keeps the handoff cell only when the round wrote a crash record.
 //
 // The byte face is v1-pinned: the key words (status · blocker · handoff) are
 // pin-enforced by the CapsuleKey type and the emit signature — a data-only change
@@ -78,19 +83,23 @@ export class Capsule {
     this.#route = new RouteRenderer(words, channels, host, root);
   }
 
-  /** emit(status, blocker, handoff, next, target) → the capsule stdout lines: the
-   *  pinned `status · blocker · handoff` capsule line, then the optional `next:`
-   *  line (a caller-rendered text, a C5 Route rendered as the complete executable
-   *  command, or null/absent → no line). The additive optional RouteTarget supplies
-   *  the frame's own type + id + plan for the executable literal (P4.1 T4); without
-   *  it the route renders its bare classifier fallbacks (the 4-param signature stays
-   *  byte-pinned). */
+  /** emit(status, blocker, handoff, next, target, withHandoff) → the capsule stdout
+   *  lines: the status-class key set from the word table (a success status renders
+   *  `status · blocker · handoff`; a failure status renders `status`, plus `handoff`
+   *  only when the round wrote a crash record), then the optional `next:` line (a
+   *  caller-rendered text, a C5 Route rendered as the complete executable command, or
+   *  null/absent → no line). The additive optional RouteTarget supplies the frame's
+   *  own type + id + plan for the executable literal (P4.1 T4); without it the route
+   *  renders its bare classifier fallbacks (the 4-param signature stays byte-pinned).
+   *  `withHandoff` is the caller's crash-record fact — the key set remains the table's
+   *  single source (this render adds no status special case). */
   emit(
     status: string,
     blocker: string,
     handoff: string,
     next?: Route | string | null,
     target?: RouteTarget | null,
+    withHandoff = false,
   ): string[] {
     const words = this.#words;
     // The `handoff:` cell is a path value — normalized to the repoRoot-relative
@@ -102,7 +111,7 @@ export class Capsule {
       handoff: this.#rel(handoff),
     };
     const capsuleLine = words
-      .capsuleKeys()
+      .capsuleKeys(status, withHandoff)
       .map((kind) => `${kind}: ${cells[kind]}`)
       .join(words.capsuleSeparator());
     const lines = [capsuleLine];

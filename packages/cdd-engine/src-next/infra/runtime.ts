@@ -43,10 +43,12 @@ export interface ContextContract {
 export interface HandoffFamily {
   /** The canonical file name — the `{placeholder}` pattern the ledger fills. */
   name: string;
-  /** The carrier schema face (work / findings) — the handoff-schema selector (§3.6:
-   *  the docs-fix families (fix.spec / fix.plan) ride the findings face — the
-   *  per-mode split: implement/fix → work + evidence · review/docs-fix → findings). */
-  schema?: "work" | "findings";
+  /** The carrier schema face — the handoff-schema selector, defined by the payload shape:
+   *  `delivery` — the child writes status + artifacts (plus the test-evidence file on
+   *  task-family rounds) and the conclusion is the child's own declared status;
+   *  `findings` — the child writes findings only and the engine rolls the conclusion
+   *  up from them. fix.spec / fix.plan revise documents, so they ride `findings`. */
+  schema?: "delivery" | "findings";
 }
 
 /** The handoff-name space — the workspace segment + the family naming table. */
@@ -74,12 +76,12 @@ export interface EngineRuntime {
  *  keyed by `op.type` (implement.wave / review.wave / … — the ledger's single
  *  naming truth, verbatim from the engine-config handoff namespace). The v1.9
  *  reparametrization: `returnFormat` is gone (RETURN_PROSE is the one return
- *  contract) and the `schema` faces are the handoff-schema selector (work / findings —
- *  §3.6, session/handoff-schema.ts). */
+ *  contract) and the `schema` faces are the handoff-schema selector (delivery / findings —
+ *  session/handoff-schema.ts). */
 export const HANDOFF_FAMILIES = {
   "implement.wave": {
     name: "tasks-{tasks}-implement.json",
-    schema: "work",
+    schema: "delivery",
   },
   "review.wave": {
     name: "tasks-{tasks}-review-{round}.json",
@@ -87,7 +89,7 @@ export const HANDOFF_FAMILIES = {
   },
   "fix.wave": {
     name: "tasks-{tasks}-fix-{round}.json",
-    schema: "work",
+    schema: "delivery",
   },
   "review.spec": {
     name: "spec-review-{round}.json",
@@ -114,7 +116,7 @@ export const HANDOFF_FAMILIES = {
   },
   "fix.branch": {
     name: "branch-fix-{round}.json",
-    schema: "work",
+    schema: "delivery",
   },
 } as const satisfies Readonly<Record<string, HandoffFamily>>;
 

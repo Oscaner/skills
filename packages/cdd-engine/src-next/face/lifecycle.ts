@@ -505,7 +505,7 @@ export class CliLifecycle {
     const op = this.#opOf(frame);
     this.#scene.ledger.writeCrash(`${op}.${frame.type}`, frame.round, {
       exitCode: death.exitCode,
-      stderrTail: [reason].slice(-STDOUT_TAIL_MAX),
+      stderrTail: [reason],
       stdoutTail: this.#stdoutTail,
       // The persisted attempted-handoff path is the CANONICAL repoRoot-relative
       // shape (never the absolute `handoffPath` syscall form — §2.7).

@@ -490,7 +490,7 @@ export class Terminator implements ChildRunner {
     let endedByItself = false;
     try {
       const result = await subprocess;
-      const termination = Terminator.#terminationOf(
+      const termination = Terminator.terminationOf(
         result.timedOut,
         killedByStall,
         result.signal,
@@ -545,7 +545,8 @@ export class Terminator implements ChildRunner {
   }
 
   /** Derive the termination fact from the child's own result face — the four-way
-   *  derivation (§4.1), in the order the causes claim a kill:
+   *  derivation (§4.1), in the order the causes claim a kill (package-visible, so the
+   *  table-driven pin can rule on every branch without a real child):
    *   · the wall-clock ceiling (execa's `timedOut`) → `over-budget`;
    *   · the engine's own stall kill → `stalled` (ahead of the signal leg: OUR kill
    *     also arrives as a signal, and misreading it as external would falsify the
@@ -559,7 +560,7 @@ export class Terminator implements ChildRunner {
    *  The last sample rides whichever cause won: it is the sampling loop's own last
    *  observation, held in memory — never a re-read of the heartbeat file the engine
    *  itself wrote. */
-  static #terminationOf(
+  static terminationOf(
     timedOut: boolean,
     killedByStall: boolean,
     signal: string | undefined,

@@ -208,6 +208,101 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
 });
 
 // ---------------------------------------------------------------------------
+// the derivation — the four-way table (§4.1)
+// ---------------------------------------------------------------------------
+
+describe("Terminator.terminationOf — the four-way derivation and its priority (spec §4.1)", () => {
+  /** The postmortem sample every non-null case must carry verbatim — the cause and
+   *  its evidence ride together. */
+  const lastSample: SampleRecord = {
+    sampledAt: 1234,
+    groupCpuMs: 42,
+    newestMtimeMs: 987,
+    verdict: "stalled",
+  };
+
+  /** One execa-result face with every fact independently set. */
+  const face = (
+    overrides: {
+      timedOut?: boolean;
+      killedByStall?: boolean;
+      signal?: string;
+      isTerminated?: boolean;
+    } = {},
+  ) => ({
+    timedOut: false,
+    killedByStall: false,
+    signal: undefined as string | undefined,
+    isTerminated: false,
+    ...overrides,
+  });
+
+  const derive = (facts: ReturnType<typeof face>): unknown =>
+    Terminator.terminationOf(
+      facts.timedOut,
+      facts.killedByStall,
+      facts.signal,
+      facts.isTerminated,
+      lastSample,
+    );
+
+  const table: Array<{ label: string; facts: ReturnType<typeof face>; cause: string }> = [
+    {
+      label: "the wall-clock ceiling alone → `over-budget`",
+      facts: face({ timedOut: true, isTerminated: true }),
+      cause: "over-budget",
+    },
+    {
+      // The causes claim a kill in order: the ceiling is checked first.
+      label: "the wall clock wins over our own kill too → `over-budget`",
+      facts: face({ timedOut: true, killedByStall: true, isTerminated: true }),
+      cause: "over-budget",
+    },
+    {
+      label: "the engine's own stall kill alone → `stalled`",
+      facts: face({ killedByStall: true, isTerminated: true }),
+      cause: "stalled",
+    },
+    {
+      // OUR kill also arrives as a signal: misreading it as external would falsify
+      // the postmortem, so the stall leg is checked ahead of the signal leg.
+      label: "our own kill wins over the signal it reports → `stalled`",
+      facts: face({ killedByStall: true, signal: "SIGTERM", isTerminated: true }),
+      cause: "stalled",
+    },
+    {
+      label: "any other signal → `signal`, the semantic never the literal",
+      facts: face({ signal: "SIGKILL", isTerminated: true }),
+      cause: "signal",
+    },
+    {
+      // The unattributable fallback: a terminated child that matches none of the
+      // three causes (no real child produces it — the branch is still pinned).
+      label: "terminated with no attributable cause → `unknown`",
+      facts: face({ isTerminated: true }),
+      cause: "unknown",
+    },
+  ];
+
+  for (const { label, facts, cause } of table) {
+    it(label, () => {
+      expect(derive(facts)).toEqual({ cause, lastSample });
+    });
+  }
+
+  it("derives `null` when the round ended by itself — no ceiling, no kill, no signal", () => {
+    expect(derive(face())).toBeNull();
+  });
+
+  it("carries the last sample as-is — including the honest `null` of no observation", () => {
+    expect(Terminator.terminationOf(false, false, undefined, true, null)).toEqual({
+      cause: "unknown",
+      lastSample: null,
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // the stall face — the judge's truth table and the sampler's two legs (§3.3)
 // ---------------------------------------------------------------------------
 

@@ -1,5 +1,11 @@
 # @oscaner-skills/cdd-engine
 
+## 3.1.0
+
+### Minor Changes
+
+- [#364](https://github.com/Oscaner/skills/pull/364) [`eb4298a`](https://github.com/Oscaner/skills/commit/eb4298ad07fb39de403330fd5aa185619e65d4d0) Thanks [@Oscaner](https://github.com/Oscaner)! - Child dispatch hardening for terminated rounds: the child's stdin is closed and its process group is reclaimed when it exits, so an open stdin or a grandchild holding the output pipes no longer hangs a round. The termination fact now rides `DispatchOutcome.termination` (cause, idle time, last sample), and `timeoutCount` increments from that fact alone. A terminated review round whose handoff draft is valid and carries at least one finding is promoted — read back normally, recorded, exit 0 with a single `CDD_WARN`, and its crash record is marked `promoted: true`; every other terminated round keeps the TIMEOUT failure face. TIMEOUT and BLOCKED summary lines no longer print a placeholder `blocker:` value, and `handoff:` appears only when the round wrote a crash record and then points at it. A terminated round now reports its idle time and last sample verdict on its single `CDD_BLOCKED` stderr line, and its crash record carries `idleMs` and `lastSample`.
+
 ## 3.0.1
 
 ### Patch Changes

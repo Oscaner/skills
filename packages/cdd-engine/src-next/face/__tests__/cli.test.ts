@@ -4834,6 +4834,333 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       cleanup();
     }
   });
+
+  // -------------------------------------------------------------------------
+  // P13 T3 — the terminated review round's promotion (the one termination ⊥
+  // conclusion exception): a valid findings draft is the round's work, so it is
+  // read back normally; every other terminated round keeps the TIMEOUT face.
+  // -------------------------------------------------------------------------
+
+  /** A hermetic workspace + ledger for the CLI E2E dispatch cases. */
+  function cliScene(repoRoot: string): { workspace: Workspace; ledger: Ledger } {
+    const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+    return { workspace, ledger: new Ledger(workspace, new ConfigLoader()) };
+  }
+
+  /** Seed the wave's review phase — the implement round recorded on the wave line. */
+  function seedImplement(ledger: Ledger): void {
+    ledger.recordRound(1, "implement");
+    ledger.persistHandoff(
+      "implement",
+      "wave",
+      { tasks: "1" },
+      { status: "APPROVED", artifacts: {} },
+    );
+  }
+
+  /** Seed the wave's fix phase — the implement + blocker review rounds recorded. */
+  function seedReview(ledger: Ledger): void {
+    seedImplement(ledger);
+    ledger.persistHandoff(
+      "review",
+      "wave",
+      { tasks: "1", round: 1 },
+      { findings: [{ severity: "blocker", lens: "code", summary: "drift" }] },
+    );
+    ledger.recordRound(1, "review");
+  }
+
+  /** Run one CLI invocation with the ambient host marker the production dispatch
+   *  detects (the CLI reads process.env — restored after the call). */
+  async function withHost(run: () => Promise<number>): Promise<number> {
+    const saved = process.env.CLAUDE_CODE_SESSION_ID;
+    process.env.CLAUDE_CODE_SESSION_ID = "s";
+    try {
+      return await run();
+    } finally {
+      if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+      else process.env.CLAUDE_CODE_SESSION_ID = saved;
+    }
+  }
+
+  /** The stalled-kill termination fact the stub child reports. */
+  const stalled = (): { termination: Termination; lastSample: SampleRecord } => {
+    const lastSample: SampleRecord = {
+      sampledAt: 1_700_000_000,
+      groupCpuMs: 120,
+      newestMtimeMs: 1_700_000_500,
+      verdict: "stalled",
+    };
+    return { termination: { cause: "stalled", idleMs: 1_800_000, lastSample }, lastSample };
+  };
+
+  it("promotes a terminated review round whose draft is valid and has findings", async () => {
+    const sync = new StubRunner();
+    const fact = stalled();
+    sync.code = null;
+    sync.termination = fact.termination;
+    const { command, io, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace, ledger } = cliScene(repoRoot);
+      seedImplement(ledger);
+      // the killed review child had already written its findings draft
+      writeFileSync(
+        path.join(workspace.path, "tasks-1-review-1.json"),
+        JSON.stringify({
+          findings: [{ severity: "blocker", lens: "code", summary: "drift" }],
+        }),
+        "utf8",
+      );
+      const code = await withHost(() =>
+        command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+      );
+      // the conclusion derives from the handoff — exit 0, a real blocker count, a
+      // next hop, and the round on record (the normal read-back path).
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("status: CHANGES_REQUESTED");
+      expect(io.stdoutText).toContain("blocker: 1");
+      expect(io.stdoutText).toMatch(/^next:/m);
+      expect(ledger.roundCount(1, "review")).toBe(1);
+      expect(ledger.counterOf("timeoutCount")).toBe(1);
+      // the ONE promoted WARN — never a CDD_BLOCKED (the failure channel stays silent)
+      expect(io.stderrText.match(/CDD_WARN:/g)).toHaveLength(1);
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+      expect(io.stderrText).toContain("stalled");
+      expect(io.stderrText).toContain("1800000");
+      expect(io.stderrText).toContain("findings recovered: 1");
+      // the crash record lands with the promotion fact + the termination's idle time
+      const crash = readJson<{
+        promoted: boolean;
+        idleMs: number | null;
+        cause: string;
+        lastSample: SampleRecord | null;
+      }>(path.join(workspace.path, "crash-review.wave-1.json"));
+      expect(crash.promoted).toBe(true);
+      expect(crash.idleMs).toBe(1_800_000);
+      expect(crash.cause).toBe("stalled");
+      expect(crash.lastSample).toEqual(fact.lastSample);
+    } finally {
+      cleanup();
+    }
+  });
+
+  describe("does not promote", () => {
+    it("an implement round — the terminated work face keeps TIMEOUT", async () => {
+      const sync = new StubRunner();
+      sync.code = null;
+      sync.termination = stalled().termination;
+      const { command, io, repoRoot, cleanup } = fixture({ sync });
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot);
+        const { workspace, ledger } = cliScene(repoRoot);
+        // even a valid work draft never promotes — the review face is the sole domain
+        writeFileSync(
+          path.join(workspace.path, "tasks-1-implement.json"),
+          JSON.stringify({ status: "APPROVED", artifacts: {} }),
+          "utf8",
+        );
+        const code = await withHost(() =>
+          command.runArgv(["implement", "--tasks", "1", "--plan", plan]),
+        );
+        expect(code).toBe(1);
+        expect(io.stdoutText).toContain("status: TIMEOUT");
+        expect(io.stdoutText).not.toMatch(/^next:/m);
+        expect(ledger.roundCount(1, "implement")).toBe(0);
+        expect(ledger.counterOf("timeoutCount")).toBe(1);
+        const crash = readJson<{ promoted: boolean; cause: string }>(
+          path.join(workspace.path, "crash-implement.wave-1.json"),
+        );
+        expect(crash.promoted).toBe(false);
+        // the true death cause, never the read-back `contract-violation`
+        expect(crash.cause).toBe("stalled");
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("a fix round — the terminated fix face keeps TIMEOUT", async () => {
+      const sync = new StubRunner();
+      sync.code = null;
+      sync.termination = stalled().termination;
+      const { command, io, repoRoot, cleanup } = fixture({ sync });
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot);
+        const { workspace, ledger } = cliScene(repoRoot);
+        seedReview(ledger);
+        const reviews = path.join(workspace.path, "tasks-1-review-1.json");
+        const code = await withHost(() =>
+          command.runArgv([
+            "fix",
+            "--type",
+            "wave",
+            "--tasks",
+            "1",
+            "--plan",
+            plan,
+            "--reviews",
+            reviews,
+          ]),
+        );
+        expect(code).toBe(1);
+        expect(io.stdoutText).toContain("status: TIMEOUT");
+        expect(io.stdoutText).not.toMatch(/^next:/m);
+        expect(ledger.roundCount(1, "fix")).toBe(0);
+        expect(ledger.counterOf("timeoutCount")).toBe(1);
+        const crash = readJson<{ promoted: boolean; cause: string }>(
+          path.join(workspace.path, "crash-fix.wave-1.json"),
+        );
+        expect(crash.promoted).toBe(false);
+        expect(crash.cause).toBe("stalled");
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("a review round whose draft is missing — TIMEOUT", async () => {
+      const sync = new StubRunner();
+      sync.code = null;
+      sync.termination = stalled().termination;
+      const { command, io, repoRoot, cleanup } = fixture({ sync });
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot);
+        const { workspace, ledger } = cliScene(repoRoot);
+        seedImplement(ledger);
+        const code = await withHost(() =>
+          command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+        );
+        expect(code).toBe(1);
+        expect(io.stdoutText).toContain("status: TIMEOUT");
+        expect(io.stdoutText).not.toMatch(/^next:/m);
+        expect(ledger.roundCount(1, "review")).toBe(0);
+        expect(ledger.counterOf("timeoutCount")).toBe(1);
+        const crash = readJson<{ promoted: boolean; cause: string }>(
+          path.join(workspace.path, "crash-review.wave-1.json"),
+        );
+        expect(crash.promoted).toBe(false);
+        expect(crash.cause).toBe("stalled");
+        // the failure summary carries the crash record as its handoff cell
+        expect(io.stdoutText).toContain("handoff: .kairos/cdd/p3/crash-review.wave-1.json");
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("a review round whose draft is truncated (invalid JSON) — TIMEOUT", async () => {
+      const sync = new StubRunner();
+      sync.code = null;
+      sync.termination = stalled().termination;
+      const { command, io, repoRoot, cleanup } = fixture({ sync });
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot);
+        const { workspace, ledger } = cliScene(repoRoot);
+        seedImplement(ledger);
+        // a truncated draft is an invalid draft — never a promotion
+        writeFileSync(
+          path.join(workspace.path, "tasks-1-review-1.json"),
+          '{"findings": [{"severity": "blocker", "lens": "code", "summary": "drift"',
+          "utf8",
+        );
+        const code = await withHost(() =>
+          command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+        );
+        expect(code).toBe(1);
+        expect(io.stdoutText).toContain("status: TIMEOUT");
+        expect(io.stdoutText).not.toMatch(/^next:/m);
+        expect(ledger.roundCount(1, "review")).toBe(0);
+        expect(ledger.counterOf("timeoutCount")).toBe(1);
+        const crash = readJson<{ promoted: boolean; cause: string }>(
+          path.join(workspace.path, "crash-review.wave-1.json"),
+        );
+        expect(crash.promoted).toBe(false);
+        expect(crash.cause).toBe("stalled");
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("a review round whose draft is valid but has zero findings — TIMEOUT", async () => {
+      const sync = new StubRunner();
+      sync.code = null;
+      sync.termination = stalled().termination;
+      const { command, io, repoRoot, cleanup } = fixture({ sync });
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot);
+        const { workspace, ledger } = cliScene(repoRoot);
+        seedImplement(ledger);
+        writeFileSync(
+          path.join(workspace.path, "tasks-1-review-1.json"),
+          JSON.stringify({ findings: [] }),
+          "utf8",
+        );
+        const code = await withHost(() =>
+          command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+        );
+        expect(code).toBe(1);
+        expect(io.stdoutText).toContain("status: TIMEOUT");
+        expect(io.stdoutText).not.toMatch(/^next:/m);
+        expect(ledger.roundCount(1, "review")).toBe(0);
+        expect(ledger.counterOf("timeoutCount")).toBe(1);
+        const crash = readJson<{ promoted: boolean; cause: string }>(
+          path.join(workspace.path, "crash-review.wave-1.json"),
+        );
+        expect(crash.promoted).toBe(false);
+        expect(crash.cause).toBe("stalled");
+      } finally {
+        cleanup();
+      }
+    });
+  });
+
+  it("a promoted round makes cdd fix --reviews accepted", async () => {
+    // The promotion records the review round (`roundCount(review) > 0`), which is
+    // exactly the fix gate's readiness fact — the fix verb no longer refuses.
+    const sync = new StubRunner();
+    sync.code = null;
+    sync.termination = stalled().termination;
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace, ledger } = cliScene(repoRoot);
+      seedImplement(ledger);
+      writeFileSync(
+        path.join(workspace.path, "tasks-1-review-1.json"),
+        JSON.stringify({
+          findings: [{ severity: "blocker", lens: "code", summary: "drift" }],
+        }),
+        "utf8",
+      );
+      const promoted = await withHost(() =>
+        command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+      );
+      expect(promoted).toBe(0);
+      // the fix gate accepts — an injected approving dispatch isolates the gate face
+      const fixIo = new CaptureIo();
+      const fixCommand = Cli.create({ io: fixIo, dispatch: APPROVING });
+      const fixCode = await fixCommand.runArgv([
+        "fix",
+        "--type",
+        "wave",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+        "--reviews",
+        path.join(workspace.path, "tasks-1-review-1.json"),
+      ]);
+      expect(fixIo.stderrText).not.toContain("cannot dispatch a fix round");
+      expect(fixCode).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 describe("T9 — the destroy-list zero-residual sweep (spec §6.3 cross-reference)", () => {

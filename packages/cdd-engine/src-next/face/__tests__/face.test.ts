@@ -29,7 +29,16 @@ const capsule = new Capsule(words);
 
 describe("the word table — one table, three families", () => {
   it("the capsule family — the pinned keys, the stations, the status vocabulary", () => {
-    expect(words.capsuleKeys()).toEqual(["status", "blocker", "handoff"]);
+    // The key set is a function of the status class + the crash-record fact: a
+    // success status renders the full face; a failure status (TIMEOUT / BLOCKED)
+    // drops the blocker cell and keeps handoff only when a crash record was written.
+    expect(words.capsuleKeys("APPROVED", true)).toEqual(["status", "blocker", "handoff"]);
+    expect(words.capsuleKeys("CHANGES_REQUESTED", false)).toEqual(["status", "blocker", "handoff"]);
+    expect(words.capsuleKeys("REVIEW_FIX", true)).toEqual(["status", "blocker", "handoff"]);
+    expect(words.capsuleKeys("TIMEOUT", false)).toEqual(["status"]);
+    expect(words.capsuleKeys("BLOCKED", false)).toEqual(["status"]);
+    expect(words.capsuleKeys("TIMEOUT", true)).toEqual(["status", "handoff"]);
+    expect(words.capsuleKeys("BLOCKED", true)).toEqual(["status", "handoff"]);
     expect(words.capsuleSeparator()).toBe(" · ");
     expect(words.statusVocab()).toEqual([
       "APPROVED",
@@ -70,7 +79,7 @@ describe("the word table — one table, three families", () => {
     const keysOf = emitted[0]
       .split(words.capsuleSeparator())
       .map((cell) => cell.slice(0, cell.indexOf(": ")));
-    expect(keysOf).toEqual([...words.capsuleKeys()]);
+    expect(keysOf).toEqual([...words.capsuleKeys("APPROVED", true)]);
     // the only station word in the output is the table's own `next:`
     expect(emitted[1].split(" ")[0]).toBe(words.station("next"));
     expect(Object.values(CAPSULE_WORDS.stations).length).toBe(4);
@@ -78,12 +87,18 @@ describe("the word table — one table, three families", () => {
 });
 
 describe("the capsule byte pin — the single output face", () => {
-  it("renders the capsule line byte-stably (status · blocker · handoff)", () => {
+  it("renders the capsule line byte-stably (the status-class key set)", () => {
     expect(capsule.emit("APPROVED", "0", "/ws/tasks-1-implement.json")).toEqual([
       "status: APPROVED · blocker: 0 · handoff: /ws/tasks-1-implement.json",
     ]);
+    // A failure status drops the blocker cell — its value would be a filler, never a
+    // fact (the summary line's de-faked face).
     expect(capsule.emit("BLOCKED", "1", "/ws/branch-review-a1b2c3d..e4f5g6h-r1.json")).toEqual([
-      "status: BLOCKED · blocker: 1 · handoff: /ws/branch-review-a1b2c3d..e4f5g6h-r1.json",
+      "status: BLOCKED",
+    ]);
+    // …and keeps handoff only when the round wrote a crash record (withHandoff).
+    expect(capsule.emit("TIMEOUT", "", "/ws/crash-improve.wave-1.json", null, null, true)).toEqual([
+      "status: TIMEOUT · handoff: /ws/crash-improve.wave-1.json",
     ]);
   });
 
@@ -123,10 +138,7 @@ describe("the capsule byte pin — the single output face", () => {
         kind: "soft-cap",
         message: "BLOCKED: review-cycle-cap — user adjudicates",
       }),
-    ).toEqual([
-      "status: BLOCKED · blocker: 0 · handoff: /h.json",
-      "next: BLOCKED: review-cycle-cap — user adjudicates",
-    ]);
+    ).toEqual(["status: BLOCKED", "next: BLOCKED: review-cycle-cap — user adjudicates"]);
   });
 
   it("renders the complete executable `next:` literal with the frame's RouteTarget (P4.1 T4)", () => {
@@ -193,17 +205,16 @@ describe("the capsule byte pin — the single output face", () => {
       "status: APPROVED · blocker: 0 · handoff: /h.json",
       "next: put /h.json back",
     ]);
-    expect(capsule.emit("BLOCKED", "engine over budget", "/h.json")).toEqual([
-      "status: BLOCKED · blocker: engine over budget · handoff: /h.json",
-    ]);
-    expect(capsule.emit("TIMEOUT", "0", "/h.json", null)).toEqual([
-      "status: TIMEOUT · blocker: 0 · handoff: /h.json",
-    ]);
+    expect(capsule.emit("BLOCKED", "engine over budget", "/h.json")).toEqual(["status: BLOCKED"]);
+    // a failure round without a crash record emits no handoff cell (no-host BLOCKED)
+    expect(capsule.emit("TIMEOUT", "0", "/h.json", null)).toEqual(["status: TIMEOUT"]);
   });
 
-  it("the blocker cell carries a count or a reason text — the cell stays a plain string", () => {
-    expect(capsule.emit("BLOCKED", "CDD_BLOCKED: resolve the finding", "/h.json")[0]).toBe(
-      "status: BLOCKED · blocker: CDD_BLOCKED: resolve the finding · handoff: /h.json",
+  it("the blocker cell carries a count or a reason text — the cell stays a plain string (success statuses)", () => {
+    expect(
+      capsule.emit("CHANGES_REQUESTED", "CDD_BLOCKED: resolve the finding", "/h.json")[0],
+    ).toBe(
+      "status: CHANGES_REQUESTED · blocker: CDD_BLOCKED: resolve the finding · handoff: /h.json",
     );
   });
 });
@@ -218,7 +229,7 @@ describe("the word-face comparison — v1 face vs the existing consumed face", (
     );
     // the four word cells of the face, in the emitted order — the existing consumed
     // order the comparison keys on
-    expect([...words.capsuleKeys(), words.station("next")]).toEqual([
+    expect([...words.capsuleKeys("APPROVED", false), words.station("next")]).toEqual([
       "status",
       "blocker",
       "handoff",

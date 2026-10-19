@@ -20,7 +20,7 @@ import { printParseErrorCode } from "jsonc-parser";
 import { ConfigLoader } from "../infra/config.ts";
 import type { RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
-import type { Workspace } from "../infra/workspace.ts";
+import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
 import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
@@ -29,7 +29,13 @@ import type { CrashCause, Ledger, OpType, RoundStatus, Termination } from "../se
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { DISPATCH, HOSTS, HostDetect, type HostId, type HostReferenceTable, REFS } from "./host.ts";
-import { type ChildRunner, TerminationPolicy, Terminator } from "./termination.ts";
+import {
+  type ChildOutcome,
+  type ChildRunner,
+  TerminationPolicy,
+  Terminator,
+} from "./termination.ts";
+import { Words } from "./words.ts";
 
 /** The crash-record stdout-tail cap (P11 T2) — the child's last STDOUT_TAIL_MAX
  *  non-empty stdout lines ride the crash record's `stdoutTail` (the diagnostic
@@ -90,6 +96,10 @@ export class CliLifecycle {
   readonly #io: CliIo;
   readonly #scene: DispatchScene;
   readonly #reviews: string | null;
+  /** The single word table (the promotion WARN wording + its station) — one instance,
+   *  injected at the composition root, so the lifecycle never re-types a user-facing
+   *  line. */
+  readonly #words: Words;
   /** The round-naming single source (P11 T4) — every prescribed artifact name of a
    *  frame derives here (the report/evidence/brief names + the family op), so the
    *  lifecycle and the dry-run preview name the same artifacts by one rule. */
@@ -110,6 +120,7 @@ export class CliLifecycle {
     io?: CliIo;
     scene: DispatchScene;
     reviews?: string | null;
+    words?: Words;
   }) {
     this.#env = opts.env ?? process.env;
     this.#scene = opts.scene;
@@ -117,6 +128,7 @@ export class CliLifecycle {
     this.#sync = opts.sync ?? new Terminator();
     this.#config = opts.config ?? new ConfigLoader();
     this.#template = opts.template ?? new TemplateAssembler();
+    this.#words = opts.words ?? new Words();
     this.#io = opts.io ?? {
       stdout: (t) => process.stdout.write(t),
       stderr: (t) => process.stderr.write(t),
@@ -180,7 +192,17 @@ export class CliLifecycle {
     // cause. `termination !== null` → the round concludes TIMEOUT (the words table's
     // status is already there), the reason rides the CDD_BLOCKED channel, and the
     // failure face (no `next:` line) follows from the status alone.
+    //
+    // The ONE promotion exception (D53 Q12's deliberate narrowing): a terminated
+    // REVIEW round whose draft already sits on disk — valid against the findings
+    // schema and carrying at least one finding — has done its work; its conclusion is
+    // derived from the handoff, never from the termination word (termination ⊥
+    // conclusion). Every other terminated round keeps the TIMEOUT failure face.
     if (result.termination !== null) {
+      const draft = this.#probeDraft(frame);
+      if (draft !== null) {
+        return this.#promote(frame, draft, result.termination, result);
+      }
       return this.#reject(
         frame,
         this.#scene.ledger.handoffPath(this.#opOf(frame), frame.type, frame.params),
@@ -371,6 +393,71 @@ export class CliLifecycle {
   // the read-back reconstruct (§3.6) — the draft is the round's content
   // -------------------------------------------------------------------------
 
+  /** The ONE draft-read point — the frame's handoff draft read with the lenient
+   *  child-authored dialect (D39). The reconstruct reports its tri-state outcome;
+   *  the terminated-round probe only asks "is there a promotable draft?". */
+  #readDraft(frame: OpenFrame): JsonRead<Record<string, unknown>> {
+    const op = this.#opOf(frame);
+    return this.#scene.workspace.readJsonLenient<Record<string, unknown>>(
+      this.#scene.ledger.handoffName(op, frame.type, frame.params),
+    );
+  }
+
+  /** The non-rejecting draft probe of the termination branch — a terminated REVIEW
+   *  round's draft is promotable iff it exists, parses, passes the findings schema,
+   *  and carries at least one finding. Returns the validated draft (the promotion
+   *  then rides the reconstruct's existing validation/persistence/conclusion path) or
+   *  null (the round keeps the TIMEOUT failure face). It calls no `#reject` and
+   *  produces no outcome — a probe is a question, never a verdict. Implement/fix
+   *  rounds are outside the promotion domain (their `op` is not the review family). */
+  #probeDraft(frame: OpenFrame): Record<string, unknown> | null {
+    const op = this.#opOf(frame);
+    if (op !== "review") return null;
+    const face = this.#familyOf(op, frame.type).schema ?? "work";
+    if (face !== "findings") return null;
+    const read = this.#readDraft(frame);
+    if (read.kind !== "ok") return null;
+    const draft = read.value;
+    if (this.#handoffSchema.violations(face, draft).length > 0) return null;
+    const findings = Array.isArray(draft.findings) ? draft.findings : [];
+    return findings.length >= 1 ? draft : null;
+  }
+
+  /** Promote a terminated review round whose draft is valid and carries findings —
+   *  the terminal ⊥ conclusion exception (D53 Q12): the conclusion derives from the
+   *  handoff, never from the termination word. The crash record still lands
+   *  (`promoted: true`, carrying the termination's `idleMs`/last sample), and the
+   *  lifecycle emits the ONE `CDD_WARN` line — the CLI layer emits none. The outcome
+   *  is the ordinary read-back outcome (carrier + findings + derived status) plus the
+   *  termination fact, so the bookkeep records the round and the route derives
+   *  normally. */
+  #promote(
+    frame: OpenFrame,
+    draft: Record<string, unknown>,
+    termination: Termination,
+    dead: ChildOutcome,
+  ): DispatchOutcome {
+    const op = this.#opOf(frame);
+    const path = this.#scene.ledger.handoffPath(op, frame.type, frame.params);
+    const outcome = this.#reconstruct(frame, draft);
+    this.#writeCrash(
+      frame,
+      path,
+      `child was terminated: ${termination.cause}`,
+      { exitCode: dead.code, cause: termination.cause, termination },
+      true,
+    );
+    const findings = outcome.findings ?? [];
+    const text = this.#words
+      .promotionWarning()
+      .replace("{cause}", termination.cause)
+      .replace("{idleMs}", String(termination.idleMs))
+      .replace("{verdict}", termination.lastSample?.verdict ?? "none")
+      .replace("{count}", String(findings.length));
+    this.#io.stderr(`${this.#words.station("warn")} ${text}\n`);
+    return { ...outcome, termination };
+  }
+
   /** The read-back reconstruct — the child's draft at OUTPUT_HANDOFF is the round's
    *  content source of truth: read it, validate it against the mode's writable
    *  subset (projection ② of session/handoff-schema.ts — the SAME declared objects
@@ -382,36 +469,44 @@ export class CliLifecycle {
    *  command, which re-offers the round). The test-evidence file (task-family work
    *  rounds only) is read back with the same stakes: a missing/violating file
    *  rewrites the carrier to BLOCKED (persisted — the child's work is kept, marked
-   *  bad), the second fix for a prose-only claim. */
-  #reconstruct(frame: OpenFrame): DispatchOutcome {
+   *  bad), the second fix for a prose-only claim.
+   *
+   *  `prefetched` is the terminated-review promotion's already-probed draft — the ONE
+   *  draft parse stays single-sourced (`#readDraft`), and the promotion rides this
+   *  same validation/persistence/conclusion path rather than a second implementation. */
+  #reconstruct(frame: OpenFrame, prefetched?: Record<string, unknown>): DispatchOutcome {
     const scene = this.#scene;
     const op = this.#opOf(frame);
     const face = this.#familyOf(op, frame.type).schema ?? "work";
     const schema = this.#handoffSchema;
     const path = scene.ledger.handoffPath(op, frame.type, frame.params);
-    // The tri-state draft read — a MISSING draft ("never written") and a MALFORMED one
-    // (present but unparseable JSON) are different facts: the rejection reports each
-    // truly, so a corrupt draft is never misreported as "not written" (D27). The read
-    // is LENIENT (D39): the draft is a child-LLM-authored carrier, and a trailing comma
-    // (a routine model slip) must not void the whole round — jsonc-parser tolerates the
-    // lenient dialect while a real break (a missing brace, …) still reports malformed.
-    const draftRead = scene.workspace.readJsonLenient<Record<string, unknown>>(
-      scene.ledger.handoffName(op, frame.type, frame.params),
-    );
-    if (draftRead.kind === "missing") {
-      return this.#reject(frame, path, `the handoff draft was not written at ${path}`);
+    let draft: Record<string, unknown>;
+    if (prefetched !== undefined) {
+      draft = prefetched;
+    } else {
+      // The tri-state draft read — a MISSING draft ("never written") and a MALFORMED
+      // one (present but unparseable JSON) are different facts: the rejection reports
+      // each truly, so a corrupt draft is never misreported as "not written" (D27).
+      // The read is LENIENT (D39): the draft is a child-LLM-authored carrier, and a
+      // trailing comma (a routine model slip) must not void the whole round —
+      // jsonc-parser tolerates the lenient dialect while a real break (a missing
+      // brace, …) still reports malformed.
+      const draftRead = this.#readDraft(frame);
+      if (draftRead.kind === "missing") {
+        return this.#reject(frame, path, `the handoff draft was not written at ${path}`);
+      }
+      if (draftRead.kind === "malformed") {
+        // The lenient face carries the parser's precise error codes (D39) — surface
+        // them in the rejection so a genuinely corrupt draft is diagnosable, not just
+        // "malformed".
+        const codes = (draftRead.errors ?? [])
+          .map((error) => printParseErrorCode(error.error))
+          .join(", ");
+        const detail = codes === "" ? "" : ` (${codes})`;
+        return this.#reject(frame, path, `the handoff draft at ${path} is malformed JSON${detail}`);
+      }
+      draft = draftRead.value;
     }
-    if (draftRead.kind === "malformed") {
-      // The lenient face carries the parser's precise error codes (D39) — surface
-      // them in the rejection so a genuinely corrupt draft is diagnosable, not just
-      // "malformed".
-      const codes = (draftRead.errors ?? [])
-        .map((error) => printParseErrorCode(error.error))
-        .join(", ");
-      const detail = codes === "" ? "" : ` (${codes})`;
-      return this.#reject(frame, path, `the handoff draft at ${path} is malformed JSON${detail}`);
-    }
-    const draft = draftRead.value;
     const problems = schema.violations(face, draft);
     if (problems.length > 0) {
       return this.#reject(
@@ -496,7 +591,27 @@ export class CliLifecycle {
       termination: null,
     },
   ): DispatchOutcome {
+    this.#writeCrash(frame, path, reason, death, false);
     this.#io.stderr(`CDD_BLOCKED: ${reason}\n`);
+    if (death.termination === null) return { status: "BLOCKED" };
+    return { status: "TIMEOUT", termination: death.termination };
+  }
+
+  /** Write the lane's crash record — the postmortem artifact and same-command
+   *  resume's decision source. One writer serves both the rejection face
+   *  (`promoted: false`) and the termination branch's promotion (`promoted: true`):
+   *  the record shape is identical, only the promotion fact differs. */
+  #writeCrash(
+    frame: OpenFrame,
+    path: string,
+    reason: string,
+    death: {
+      exitCode: number | null;
+      cause: CrashCause;
+      termination: Termination | null;
+    },
+    promoted: boolean,
+  ): void {
     const op = this.#opOf(frame);
     this.#scene.ledger.writeCrash(`${op}.${frame.type}`, frame.round, {
       exitCode: death.exitCode,
@@ -512,11 +627,9 @@ export class CliLifecycle {
       // The last sample rides WITH the termination (in memory, zero re-read of the
       // heartbeat file) — null on every non-terminated face.
       lastSample: death.termination?.lastSample ?? null,
-      promoted: false,
+      promoted,
       idleMs: death.termination?.idleMs ?? null,
     });
-    if (death.termination === null) return { status: "BLOCKED" };
-    return { status: "TIMEOUT", termination: death.termination };
   }
 
   /** Build the final carrier — the validated writable fields from the draft (the

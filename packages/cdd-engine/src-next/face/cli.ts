@@ -692,6 +692,7 @@ export class Cli {
       config: this.#config,
       template: this.#template,
       io: this.#io,
+      words: this.#words,
       scene: {
         workspace: scene.workspace,
         ledger: scene.ledger,

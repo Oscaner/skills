@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P12 设计：child dispatch 终止兜底（liveness + budget）
 doc-type: phase-spec
-version: v0.5
+version: v0.6
 date: 2026-10-19
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P12] 会话 · 用户逐轮裁定 Q1–Q14 · 2026-10-19）
@@ -96,7 +96,9 @@ depends-on: P11（Done · v0.7 · hard——P11 全链闭合后 child dispatch �
 
 一个 **`Terminator`** 类（新 · `face/` 面 · OOP · 零裸函数）承担一次派发的**进程生命周期**：spawn → 采样 → 判停 → 杀 → 收回结果。缝的接口是 **`ChildRunner`**（`run(...): Promise<ChildOutcome>`）：`Terminator` 是其**生产实现**、测试注入的是实现同一接口的**替身 `StubRunner`**——接口名 / 生产实现名 / 替身名三者对齐，`CliLifecycle` 只见接口。
 
-**`ChildOutcome` 形状**（缝的结果契约）：`{ code: number | null; stdout: string; stderr: string; termination: TerminationCause | null }`。`termination` 由 `Terminator` **内部**依 execa 结果面的 `timedOut` / `signal`（`lib/terminate/timeout.js:24-33` · `lib/methods/main-async.js:223`）再叠我方 kill 行动派生；§4.1 的派生面（三因 + `unknown` 兜底）因此落在 `Terminator` 内，`CliLifecycle` 只读结论、不见 execa 结果面。
+**`ChildOutcome` 形状**（缝的结果契约）：`{ code: number | null; stdout: string; stderr: string; termination: Termination | null }`。`Termination = { cause: TerminationCause | "unknown"; lastSample: SampleRecord | null }`——`cause` 由 `Terminator` **内部**依 execa 结果面的 `timedOut` / `signal`（`lib/terminate/timeout.js:24-33` · `lib/methods/main-async.js:223`）再叠我方 kill 行动派生（§4.1 的派生面因此落在 `Terminator` 内，`CliLifecycle` 只读结论、不见 execa 结果面）；`lastSample` 是采样循环的**末次观测**（`SampleRecord` · §3.4 的同一形状）。`termination === null` ⟺ 本轮有正常退出码：终止轮的一切下游判定（`status: TIMEOUT` · crash record 的因与末样本 · `timeoutCount` 递增）都从这一支读，**不从 `code` 反推**——被杀 child 的 `code` 为 `null`，与"正常退出"之外的一切无从区分。
+
+**`ChildRun` 形状**（缝的入参契约 = 一次派发的全部上下文）：`{ command: string; args: readonly string[]; cwd: string; heartbeatPath: string; policy: TerminationPolicy }`。两个路径**同源于派发会话工作区**：`CliLifecycle`（唯一持有 `scene.workspace` 的一方）在调用点 `face/lifecycle.ts:216` 派生 `cwd = scene.workspace.root.repoRoot`（child 的 cwd）与 `heartbeatPath = <scene.workspace.path>/liveness.json`（§3.4 落点）。`Terminator` **零会话态构造**——`face/cli.ts:235` 的默认接线处无需 scene，会话事实全走调用实参；且它以**同一个** `run.cwd` 既作 spawn 的 cwd、又作 §3.3 树腿的扫描根，「扫描根 ≡ child 的 cwd」因此是结构保证而非注释。
 
 **引擎自持的只有三样**——**没有一样是轮子**（前提 ⑦）：
 
@@ -182,10 +184,11 @@ progress | unknown | idled | stalled
 - **心跳文件**：每 tick **覆写**该 dispatch 的 workspace 目录（`.kairos/` 域内）下的 **`liveness.json`**（名固定——引擎是"一次派发、一次推进"，无并发派发）；该文件的**精确路径是 §3.3 树腿的显式排除项**——引擎自写不得自证"进展"：
 
 ```ts
+// SampleRecord —— Sample（§3.3 的两腿）扩展记录面的两字段：一处命名，扩展而非重抄
 { sampledAt: number; groupCpuMs: number | null; newestMtimeMs: number | null; verdict: StallVerdict }
 ```
 
-- **生命周期**：派发**正常完成**（child 自行退出）→ **删除**心跳文件；**被终止** → **保留**（供事后读），并把**末样本**并入 crash record（§4.2）。
+- **生命周期**：派发**正常完成**（child 自行退出）→ **删除**心跳文件；**被终止** → **保留**（供人事后读），并把**末样本**并入 crash record（§4.2）——末样本走 `ChildOutcome.termination.lastSample`（§3.1）**随因同行**，生产者在内存里已持有该观测，**不回读**盘上文件。
 - **为什么不写 stderr**：后台 dispatch 的 stderr 落在重定向输出里，不保证被看，且每 60s 一行噪声高。
 - **为什么不并进 `progress.json`**：那是轮次账本；采样噪声会撑大它的 schema（前提 ④ 高内聚）。
 
@@ -225,13 +228,15 @@ export type CrashCause = TerminationCause | "child-exit" | "contract-violation" 
 
 #### 4.2 crash record 与 `timeoutCount`
 
-- **crash record**：`#reject`（`face/lifecycle.ts:514-518`，唯一 `writeCrash` 调用点）扩为**终止轮也写**——`cause`（`session/ledger.ts:179` · 字段注释已写"The unified termination cause — postmortem, zero behavior fork"，本 phase 正是把它由死值换成活值）取 §4.1 的派生因（`stalled` / `over-budget` / `signal`，兜底 `unknown`）；`stdoutTail`/`stderrTail` 照 P11 的 `STDOUT_TAIL_MAX` 限界；新增**末样本**字段（§3.4 的心跳末态）。
+- **crash record**：`#reject`（`face/lifecycle.ts:514-518`，唯一 `writeCrash` 调用点）扩为**终止轮也写**——`cause`（`session/ledger.ts:179` · 字段注释已写"The unified termination cause — postmortem, zero behavior fork"，本 phase 正是把它由死值换成活值）取 §4.1 的派生因（`stalled` / `over-budget` / `signal`，兜底 `unknown`）；`stdoutTail`/`stderrTail` 照 P11 的 `STDOUT_TAIL_MAX` 限界；新增**末样本**字段，取 `outcome.termination.lastSample`（`SampleRecord` · 随因同行 · **零回读**——生产者在内存里已持有该观测，回读盘上心跳只会再造一个可漂移的第二来源）。
   - 现状注记：`Ledger.readCrash`（`session/ledger.ts:910`）**零调用者**——crash record 今天是一份"只写不读"的盘上事后件，其 `next`（`session/ledger.ts:177` · the same-command resume string）字段从未被消费。本 phase **不改这个性质**（消费方读盘自查），只让终止轮也产出它。
 - **`timeoutCount` 真递增**：`PROGRESS_COUNTER_ZERO`（`session/ledger.ts:104`）与 `ProgressData.timeoutCount`（`:139`）今日**零写入者**——终止轮落地时真递增（`face/cli.ts:661` 已有的 `TIMEOUT` 分支说明这条通道本来就为它留着）。
 
 #### 4.3 失败面（无 `next:` · 照旧）
 
 终止轮 = **`status: TIMEOUT`**（词表位 `face/words.ts:92` 已在）→ 走 `CDD_BLOCKED` stderr 通道携因 → **不产生 `next:` 行**（`session/next.ts:160-171`）。
+
+该状态**由 `termination !== null` 派生**（§3.1），**不新增入参**：`#reject`（唯一 `writeCrash` 点）据结果面的 `termination` 决定返回 `TIMEOUT`（有终止）还是 `BLOCKED`（无终止），`cause` 取 `termination?.cause ?? "child-exit"`；而 `#dispatch` 必须在 `result.code !== 0` 的 `child-exit` 分支**之前**先判 `termination !== null`——被杀 child 的 `code` 为 `null`，`null !== 0` 会把终止轮误落进 `child-exit`。
 
 **明确否决**：给终止轮一条自动重来的 `next:` 行。理由：挂起多半是环境性病变（探针僵死、依赖服务不回），自动重来只会再挂 30 分钟——而**无人值守的后台派发正是最没人拦的场景**。失败面就是失败面：由人定夺。这同时守住了 D18 ④ 冻结的 `next:` 语义。
 
@@ -275,3 +280,4 @@ export type CrashCause = TerminationCause | "child-exit" | "contract-violation" 
 | v0.3 | 2026-10-19 | docs-fix round 2——落实评审 2 一 warn / 两 nit：（warn）§2.3 删掉悬空的 **`§3.6` 引用**并明示 pin 去处——`sync-runner.test.ts` 的四条 D36 pin（>1 MiB 整取 1048577 · 尾段 prose 存活于 2 MB 叙事之后 · stderr 同面聚合 1100000 · fail-open 非零 child 走其 code / 坏命令不抛）不随 `SyncRunner` 退役而消失，改由终止器用例同一新文件承载，生产语义由 §3.2 选项面保住（`reject:false` · `stripFinalNewline:false` · 不设/不下调 `maxBuffer` · execa 默认 100 MB · sync/async 共用默认表 `lib/arguments/specific.js:121`）；AC 补「异步 `ChildRunner` 仍整取 >1 MiB 且 fail-open」；（nit）§2.1 行 pin 校正——注入包装 `face/cli.ts:575-579`（`dispatch` 常量 `:564`）· 派发循环 `:617`(`for (;;)`)/`:618`(`peekNext()`)；§3.3 cwd 引改 `face/lifecycle.ts:216-219`（`#sync.run(` 锚点 + cwd 实参）；（nit）§4.1 外部信号按**语义收口**（`res.signal` 为任何信号 · 我方未杀 · 非 `timedOut` → `signal`，SIGTERM/SIGKILL/SIGINT/SIGHUP 一视同仁），`unknown` 明列为**第四支兜底**并给明确生产者，§3.1/§4.2 的「三因」引用同步为「派生面（三因 + `unknown` 兜底）」 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P12] docs-fix round 2 · 2026-10-19） |
 | v0.4 | 2026-10-19 | 用户裁定 backfill（in-flight · overall D54）——**`corpus-form-pin.test.ts` 整体退役**，§2.3 相应行改写：语料完整性属引擎流程职责，测试面只校验引擎功能（`Contract.validate` 行为面由 `judge.test.ts` / `doc.test.ts` / `lint.test.ts` 覆盖）；本 phase 两次「注册连带」计数重锚（`c3521ff1` / `bc999471`）所服务的仪式随之消失。§1.2/§4.1 的设计裁定不变 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P12] in-flight user-ruling backfill · 2026-10-19） |
 | v0.5 | 2026-10-19 | 设计回填（plan-review-1 F2 漂移 · `backfill-design`）——§3.3 判官形态改写：`StallJudge` 由「`prev` + `sample` + `idleWindowMs` 的纯函数」改为**有状态 · 零 I/O**（自持 `#lastCpuMs` / `#maxMtimeMs` / `#idleSince`，观测入口 `observe(sample, now): StallVerdict`）——原措辞表达不出本节自己的判据（mtime「比**历史最大值**增长」与「`idleSince` 起点」都需要跨调用累加态）；并定义 `Sample = { groupCpuMs: number \| null; newestMtimeMs: number \| null }`（`null` = 腿不可读 · 与 §3.4 心跳记录面同字段名）。四条判据文字与其余各节逐条不变；front-matter `parent-version` 由 v2.56 校正至 **v2.57**（v0.4 的 D54 回填本就属 overall v2.57 变更波次——陈旧声明 pin 正是本 phase 要消灭的漂移类） | Oscar M. · Claude Opus 5（kairos:cdd-plan [P12] design-backfill · 2026-10-19） |
+| v0.6 | 2026-10-19 | 设计回填（plan-review-1 F1 漂移 · `backfill-design`）——§3.1 缝的两端形状补齐：**结果面** `ChildOutcome.termination` 由裸 `TerminationCause \| null` 升为值对象 **`Termination = { cause; lastSample }`**（因与证据同行，`termination === null` ⟺ 有正常退出码——终止轮的一切下游判定从此支读，**不从 `code` 反推**：被杀 child 的 `code` 为 `null`）；**入参面**新增 `ChildRun = { command, args, cwd, heartbeatPath, policy }` 并钉死 Two-Path 同源（`CliLifecycle` 由唯一持有的 `scene.workspace` 派生 `cwd`/`heartbeatPath`，`Terminator` 零会话态构造；同一 `run.cwd` 兼作 spawn cwd 与树腿扫描根 ⇒「扫描根 ≡ child 的 cwd」成结构保证）。§3.4 命名 `SampleRecord`（= `Sample` 扩展记录面两字段，一处命名）并明示末样本随因同行、零回读；§4.2 末样本字段改取 `termination.lastSample`；§4.3 补 `status` 的派生规则（`termination !== null` → `TIMEOUT`，无新入参）与 `#dispatch` 的判序必须（`child-exit` 分支须在 `termination` 判定之后）。判据/预算/词汇各节逐条不变 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P12] design-backfill · 2026-10-19） |

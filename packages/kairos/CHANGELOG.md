@@ -1,5 +1,11 @@
 # @oscaner-skills/kairos
 
+## 1.1.2
+
+### Patch Changes
+
+- [#359](https://github.com/Oscaner/skills/pull/359) [`79e5b92`](https://github.com/Oscaner/skills/commit/79e5b927b39fe73550cb1a245b793c173416180e) Thanks [@Oscaner](https://github.com/Oscaner)! - chore: drop the `@oscaner-skills/cdd-engine` workspace dependency; consumers invoke the engine through `npx`, so the plugin no longer declares it.
+
 ## 1.1.1
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @oscaner-skills/kairos
 
+## 1.1.1
+
+### Patch Changes
+
+- Updated dependencies [[`f8c93ab`](https://github.com/Oscaner/skills/commit/f8c93abe818ca5b64207e50681bc4694e222138d)]:
+  - @oscaner-skills/cdd-engine@3.0.1
+
 ## 1.1.0
 
 ### Minor Changes

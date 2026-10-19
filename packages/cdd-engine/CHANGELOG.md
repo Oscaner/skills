@@ -1,5 +1,11 @@
 # @oscaner-skills/cdd-engine
 
+## 3.0.1
+
+### Patch Changes
+
+- [#355](https://github.com/Oscaner/skills/pull/355) [`f8c93ab`](https://github.com/Oscaner/skills/commit/f8c93abe818ca5b64207e50681bc4694e222138d) Thanks [@Oscaner](https://github.com/Oscaner)! - fix: publish the compiled `dist/` instead of raw `.ts` sources, so `npx @oscaner-skills/cdd-engine` no longer fails with `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` on Node versions that refuse type stripping under `node_modules`.
+
 ## 3.0.0
 
 ### Major Changes

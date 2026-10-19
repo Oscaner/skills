@@ -592,7 +592,16 @@ export class CliLifecycle {
     },
   ): DispatchOutcome {
     this.#writeCrash(frame, path, reason, death, false);
-    this.#io.stderr(`CDD_BLOCKED: ${reason}\n`);
+    // A terminated round extends its ONE CDD_BLOCKED line with the idle time and the
+    // last sample's verdict (the crash record carries the full sample).
+    const detail =
+      death.termination === null
+        ? ""
+        : this.#words.terminationDetail({
+            idleMs: death.termination.idleMs,
+            verdict: death.termination.lastSample?.verdict ?? "none",
+          });
+    this.#io.stderr(`CDD_BLOCKED: ${reason}${detail}\n`);
     if (death.termination === null) return { status: "BLOCKED" };
     return { status: "TIMEOUT", termination: death.termination };
   }

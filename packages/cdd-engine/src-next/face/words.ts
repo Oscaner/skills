@@ -141,6 +141,9 @@ export const CAPSULE_WORDS = {
    *  promoted. The braces are fill slots ({cause} / {idleMs} / {verdict} / {count}). */
   promotionWarning:
     "terminated review round promoted from its handoff draft — cause: {cause}, idleMs: {idleMs}, last sample verdict: {verdict}, findings recovered: {count}",
+  /** The terminated-round diagnostic suffix — appended to the one CDD_BLOCKED reason
+   *  line of a non-promoted terminated round. Fill slots: {idleMs} / {verdict}. */
+  terminationDetail: " — idleMs: {idleMs}, last sample verdict: {verdict}",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -307,6 +310,14 @@ export class Words implements WordLocaleFace {
       .replace("{idleMs}", String(facts.idleMs))
       .replace("{verdict}", facts.verdict)
       .replace("{count}", String(facts.count));
+  }
+
+  /** The terminated-round diagnostic suffix, rendered from the termination facts —
+   *  idle time plus the last sample's verdict (`none` when no sample was taken). */
+  terminationDetail(facts: { idleMs: number; verdict: string }): string {
+    return CAPSULE_WORDS.terminationDetail
+      .replace("{idleMs}", String(facts.idleMs))
+      .replace("{verdict}", facts.verdict);
   }
 
   // -------------------------------------------------------------------------

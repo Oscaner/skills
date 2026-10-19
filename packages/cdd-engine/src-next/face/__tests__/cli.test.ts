@@ -4946,6 +4946,37 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
+  it("terminated round reports idle duration and last sample on stderr and in the crash record", async () => {
+    const sync = new StubRunner();
+    const fact = stalled();
+    sync.code = null;
+    sync.termination = fact.termination;
+    const { command, io, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace } = cliScene(repoRoot);
+      const code = await withHost(() =>
+        command.runArgv(["implement", "--tasks", "1", "--plan", plan]),
+      );
+      expect(code).toBe(1);
+      // the ONE extended CDD_BLOCKED line carries the cause, idle time and last sample
+      const lines = io.stderrText.split("\n").filter((line) => line.length > 0);
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain("CDD_BLOCKED:");
+      expect(lines[0]).toContain("stalled");
+      expect(lines[0]).toContain("idleMs: 1800000");
+      expect(lines[0]).toContain("last sample verdict: stalled");
+      const crash = readJson<{ idleMs: number | null; lastSample: SampleRecord | null }>(
+        path.join(workspace.path, "crash-implement.wave-1.json"),
+      );
+      expect(crash.idleMs).toBe(1_800_000);
+      expect(crash.lastSample).toEqual(fact.lastSample);
+    } finally {
+      cleanup();
+    }
+  });
+
   describe("does not promote", () => {
     it("an implement round — the terminated work face keeps TIMEOUT", async () => {
       const sync = new StubRunner();

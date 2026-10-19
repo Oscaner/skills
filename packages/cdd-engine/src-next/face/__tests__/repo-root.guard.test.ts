@@ -7,9 +7,10 @@
 // repo-root conversion) could re-seam the resolution silently. This guard fails
 // the moment a second site appears.
 //
-// The pin stands apart from the BEHAVIOR pin (cli.test.ts `FakeSync` `call.cwd
-// === repoRoot`): the structural pin guards the conversion point (§2.4/§2.9),
-// the behavior pin guards the spawn cwd — two different facts, two separate pins.
+// The pin stands apart from the BEHAVIOR pin (cli.test.ts's spawn-cwd behavior
+// pin — the child is constructed with `call.cwd === repoRoot`): the structural
+// pin guards the conversion point (§2.4/§2.9), the behavior pin guards the
+// spawn cwd — two different facts, two separate pins.
 //
 // The scan reads the engine's OWN source face (the src-next production tree,
 // `__tests__/` excluded — test fixtures spawn with their own `cwd` argv and are

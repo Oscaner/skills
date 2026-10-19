@@ -294,10 +294,19 @@ export class Words implements WordLocaleFace {
     return CAPSULE_WORDS.preflight;
   }
 
-  /** The terminated-review promotion warning row — single source (the lifecycle fills
-   *  the placeholders from the termination facts, never re-types the wording). */
-  promotionWarning(): string {
-    return CAPSULE_WORDS.promotionWarning;
+  /** The terminated-review promotion warning, rendered from the termination facts —
+   *  the single source of both the wording row and its slot names. */
+  promotionWarning(facts: {
+    cause: string;
+    idleMs: number;
+    verdict: string;
+    count: number;
+  }): string {
+    return CAPSULE_WORDS.promotionWarning
+      .replace("{cause}", facts.cause)
+      .replace("{idleMs}", String(facts.idleMs))
+      .replace("{verdict}", facts.verdict)
+      .replace("{count}", String(facts.count));
   }
 
   // -------------------------------------------------------------------------

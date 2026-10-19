@@ -448,12 +448,12 @@ export class CliLifecycle {
       true,
     );
     const findings = outcome.findings ?? [];
-    const text = this.#words
-      .promotionWarning()
-      .replace("{cause}", termination.cause)
-      .replace("{idleMs}", String(termination.idleMs))
-      .replace("{verdict}", termination.lastSample?.verdict ?? "none")
-      .replace("{count}", String(findings.length));
+    const text = this.#words.promotionWarning({
+      cause: termination.cause,
+      idleMs: termination.idleMs,
+      verdict: termination.lastSample?.verdict ?? "none",
+      count: findings.length,
+    });
     this.#io.stderr(`${this.#words.station("warn")} ${text}\n`);
     return { ...outcome, termination };
   }

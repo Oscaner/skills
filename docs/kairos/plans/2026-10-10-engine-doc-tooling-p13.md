@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P13 实施计划：child dispatch 终止面跟进（stdin 闭合 + 终止 ⊥ 结论 + idle 可见性）
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-10-19
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p13-design.md
 parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
@@ -106,3 +106,4 @@ base: develop
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-19 | 初稿——P13 实施计划：T1 spawn 面（stdin `ignore` + 进程组回收）· T2 终止事实载体与 crash record 新字段 · T3 review 面终止轮升格 · T4 失败摘要行去伪值与按状态键集 · T5 idle 可见性与交付（changeset minor · validate）。 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P13]） |
 | v0.2 | 2026-10-19 | 开发观测回填（D57 · cdd-dev [P13] wave 3,4 在飞时）：新增 T6 handoff 载体 face 改名 `work` → `delivery`（独立 task，DependsOn 5）。 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P13]） |
+| v0.3 | 2026-10-19 | closeout（cdd-close）——P13 全链闭合登记：四波实现链全绿（W1={1,2} → W2={3,4} → W3={5} → W4={6}；四波各经一轮 fix 收口——W1 `accbc782` · W2 `fe1f807e` · W3 `cd3a348a` · W4 `e787a3b4`） · 分支终审 → 分支 fix 闭环（branch-review-1 REVIEW_FIX（2 nit）→ branch-fix-1 `006caf19`） · 编排器回填（plan-review 2 轮 + D57 face 改名回填 `4c364011`） · 验收：`pnpm run validate` exit 0（cdd-engine 780/780 · kairos 83/83 · root 10/10 · typecheck ×3 · emit-check fresh · version-sync kairos 1.1.2 · cdd-engine 3.0.1 · 零裸函数）· changeset cdd-engine minor pending · 不发布 · **未验证面（如实记录）**：真实 pi/claude/cursor child 上的 stdin 阻塞与终止轮升格全流程未做实机验证（测试层 fixture 已绿） · 进程组回收在「无孙进程退出」下依赖 pgid 复用窗口极小的假设，已在 `termination.ts` 注释中如实限定，非已证明安全 · 父 overall → v2.62（P13 行 Done） | Oscar M. · Claude Opus 5（kairos:cdd-close · closeout-backfill · 2026-10-19） |

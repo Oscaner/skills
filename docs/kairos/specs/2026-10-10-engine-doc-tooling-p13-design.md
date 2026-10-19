@@ -1,12 +1,12 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P13 设计：child dispatch 终止面跟进（stdin 闭合 + 终止 ⊥ 结论 + idle 可见性）
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-10-19
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P13] 会话 · 用户逐轮裁定 Q1–Q11 · 2026-10-19）
 parent-program: 2026-10-10-engine-doc-tooling-overall.md
-parent-version: v2.61
+parent-version: v2.62
 depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟进缺陷 · overall 依赖图 D55）
 ---
 
@@ -160,3 +160,4 @@ depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟�
 | v0.1 | 2026-10-19 | 初稿——P13 phase-spec：A 组 child 进程生命周期（stdin `ignore` 统一 · 直接子进程退出后进程组回收）+ B 组终止 ⊥ 结论（review 面升格条件 · 升格轮收口 · 不升格轮保持失败面 · 轮号与产物覆盖接受）+ C 组摘要行去伪值与终止时 idle 可见性 + 已知边界（不加第二窗口 · CPU 空转盲区）；D53 Q12 有意收窄到非升格轮；changeset minor。 | Oscar M. · Claude Opus 5（kairos:cdd-design [P13]） |
 | v0.2 | 2026-10-19 | docs-fix round 1（spec-review-1 全裁定落地）：§1.2 补判定 pin 表；§2.2 加进程组回收的 plan 约束与测试 pin；§3.2 明确截断草稿=非法；§3.3 命名 termination 事实的承载（`DispatchOutcome.termination`）、crash record 新字段 `promoted`/`idleMs` 与 schema 家、升格轮记账路径；§4.1 失败 capsule 按状态键集（`capsuleKeys(status)`）与条件 `handoff:` 栏；§4.2 命名 `idleMs`；验收面明确 `detached:` 选项键守卫与 pin 行号。 | Oscar M. · Claude Opus 5（kairos:cdd-fix [P13]） |
 | v0.3 | 2026-10-19 | 开发观测回填（D57 · cdd-dev [P13] wave 3,4 在飞时）：新增 §5 D 组 handoff 载体 face 命名（`work` → `delivery`）与验收条；parent-version 同步 v2.61。 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P13]） |
+| v0.4 | 2026-10-19 | closeout（cdd-close）——P13 全链闭合登记：四波实现链全绿（W1={1,2} → W2={3,4} → W3={5} → W4={6}；四波各经一轮 fix 收口——W1 `accbc782` · W2 `fe1f807e` · W3 `cd3a348a` · W4 `e787a3b4`） · 分支终审 → 分支 fix 闭环（branch-review-1 REVIEW_FIX（2 nit）→ branch-fix-1 `006caf19`） · 编排器回填（plan-review 2 轮 + D57 face 改名回填 `4c364011`） · 验收：`pnpm run validate` exit 0（cdd-engine 780/780 · kairos 83/83 · root 10/10 · typecheck ×3 · emit-check fresh · version-sync kairos 1.1.2 · cdd-engine 3.0.1 · 零裸函数）· changeset cdd-engine minor pending · 不发布 · **未验证面（如实记录）**：真实 pi/claude/cursor child 上的 stdin 阻塞与终止轮升格全流程未做实机验证（测试层 fixture 已绿） · 进程组回收在「无孙进程退出」下依赖 pgid 复用窗口极小的假设，已在 `termination.ts` 注释中如实限定，非已证明安全 · 父 overall → v2.62（P13 行 Done · `parent-version` 随之 v2.61 → v2.62） | Oscar M. · Claude Opus 5（kairos:cdd-close · closeout-backfill · 2026-10-19） |

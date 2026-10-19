@@ -147,25 +147,31 @@ export interface ProgressData {
 /** The ledger lookup key — a scalar task id or the group key string. */
 export type LedgerKey = number | string;
 
+/** The dispatch-termination vocabulary — why a round was cut short (single source:
+ *  the terminator derives the cause from the child's own result face, the crash
+ *  record carries it as a postmortem fact, zero behavior fork — resume never routes
+ *  on it). `stalled` = the engine's stall judgment killed the child; `over-budget` =
+ *  the wall-clock ceiling was reached; `signal` = an external signal killed the
+ *  child (any signal, one semantic — never the SIGTERM literal). */
+export type TerminationCause = "stalled" | "over-budget" | "signal";
+
 /** The lane-crash cause vocabulary — postmortem classification of why a dispatch
  *  terminated before the exit gate (zero behavior fork: resume never routes on it).
- *  `contract-violation` is the read-back face: the child exited 0 but produced no
- *  draft or a schema-violating one (the engine BLOCKs + preserves the draft + stores
- *  the same-command resume — the read-back rejection's crash record). */
-export type CrashCause =
-  | "child-exit"
-  | "child-signal"
-  | "engine-over-budget"
-  | "engine-timeout"
-  | "contract-violation"
-  | "unknown";
+ *  The termination causes cover the round that was cut short; `child-exit` is the
+ *  child's own non-zero exit, `contract-violation` the read-back face (the child
+ *  exited 0 but produced no draft or a schema-violating one — the engine BLOCKs +
+ *  preserves the draft + stores the same-command resume), and `unknown` the
+ *  unattributable termination fallback. */
+export type CrashCause = TerminationCause | "child-exit" | "contract-violation" | "unknown";
 
 /** The crash record — the lane crash's recovery record (`crash-<lane>-<round>.json`):
  *  the same-command resume's decision source (the resume command + the dead child's
  *  tails), never the handoff carrier. */
 export interface CrashRecord {
-  /** The dead child's exit code (1 = run failure, 143 = SIGTERM — the shell convention). */
-  exitCode: number;
+  /** The dead child's exit code — null when the child never spawned (a broken
+   *  command) or was terminated by a signal (a signalled child has no exit code;
+   *  the signal semantics ride the `cause`). */
+  exitCode: number | null;
   /** The dead child's stderr tail (the "403 / abort without trace" tail — the
    *  caller's captured lines, no fixed tail-length constant). */
   stderrTail: readonly string[];

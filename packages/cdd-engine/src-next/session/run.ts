@@ -109,8 +109,11 @@ export interface DispatchOutcome {
 }
 
 /** The dispatch instruction — runs one round's actual work (the harness call in
- *  production; a stub in tests). The lifecycle never inspects how the work runs. */
-export type DispatchStep = (frame: OpenFrame) => DispatchOutcome;
+ *  production; a stub in tests). The lifecycle never inspects how the work runs.
+ *  Asynchronous by necessity: the child's process lifecycle (group kill · wall-clock
+ *  ceiling · parent-exit cleanup) lives on execa's asynchronous face alone — the
+ *  synchronous face forbids every one of those options. */
+export type DispatchStep = (frame: OpenFrame) => Promise<DispatchOutcome>;
 
 /** The capsule interaction seam — the face/capsule contact. T10's Capsule satisfies
  *  this shape; the lifecycle advances without a capsule (non-hard consumption) and
@@ -239,7 +242,7 @@ export class Lifecycle {
    *  exhausted or a capped line defers to the user). A refused pre-flight gate blocks
    *  the dispatch (child zero) and returns the frame as a preflight-blocked step —
    *  neither persisted nor recorded (the frontier re-offers it: resume). */
-  advance(): StepResult | null {
+  async advance(): Promise<StepResult | null> {
     const frame = this.#openFrame();
     if (frame === null) return null;
     if (this.#preflight !== null) {
@@ -254,7 +257,7 @@ export class Lifecycle {
         };
       }
     }
-    const outcome = this.#dispatch(frame);
+    const outcome = await this.#dispatch(frame);
     const round = this.#bookkeep(frame, outcome);
     // The closure verdict rides the recorded round's C5 route — mark the task done
     // when the route kind says the line closed (the router's single point, never a

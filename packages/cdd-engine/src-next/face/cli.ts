@@ -79,23 +79,18 @@ import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import { CliGate } from "./gate.ts";
 import { GraphView } from "./graph-view.ts";
 import { HostDetect } from "./host.ts";
-import {
-  type CliIo,
-  CliLifecycle,
-  type DispatchScene,
-  type SyncProcess,
-  SyncRunner,
-} from "./lifecycle.ts";
+import { type CliIo, CliLifecycle, type DispatchScene } from "./lifecycle.ts";
 import { Preview } from "./preview.ts";
 import { CommandTreeBuilder } from "./projection.ts";
+import { type ChildRunner, Terminator } from "./termination.ts";
 import { Words } from "./words.ts";
 
 // ---------------------------------------------------------------------------
 // the re-exported seams + the dispatch production default — the split contract's
 // lifecycle face owns the dispatch/readback plane (face/lifecycle.ts) and the
 // shared seams it rides; the composition root re-exports them here unchanged so
-// the module's public surface never drifts (CliIo · SyncProcess · SyncRunner ·
-// ProcessEnvLike · DispatchScene · BaseArtifact · HarnessDispatch).
+// the module's public surface never drifts (CliIo · ChildRunner · ProcessEnvLike ·
+// DispatchScene · BaseArtifact · HarnessDispatch).
 // ---------------------------------------------------------------------------
 
 export type { BaseArtifact } from "./artifacts.ts";
@@ -103,12 +98,9 @@ export type {
   CliIo,
   DispatchScene,
   ProcessEnvLike,
-  SyncProcess,
 } from "./lifecycle.ts";
-export {
-  CliLifecycle as HarnessDispatch,
-  SyncRunner,
-} from "./lifecycle.ts";
+export { CliLifecycle as HarnessDispatch } from "./lifecycle.ts";
+export type { ChildOutcome, ChildRun, ChildRunner } from "./termination.ts";
 /** The composition options — every collaborator injectable (tests substitute the
  *  hermetic ones: io / dispatch / stdin); the production defaults wire the living
  *  process. The repo root is NEVER injectable (T2): it derives from the ONE
@@ -120,7 +112,7 @@ export interface CliOptions {
   words?: Words;
   translator?: Translator;
   git?: GitClient;
-  sync?: SyncProcess;
+  sync?: ChildRunner;
   dryRun?: boolean;
   dispatch?: DispatchStep | null;
   preflight?: PreFlight;
@@ -187,7 +179,7 @@ export class Cli {
   readonly #projector: Projector;
   readonly #words: Words;
   readonly #git: GitClient;
-  readonly #sync: SyncProcess;
+  readonly #sync: ChildRunner;
   readonly #dryRun: boolean;
   readonly #dispatch: DispatchStep | null;
   readonly #template: TemplateAssembler;
@@ -232,7 +224,7 @@ export class Cli {
     this.#wireTreeOutput(this.#program);
     this.#wireActions();
     this.#git = opts.git ?? new GitClient();
-    this.#sync = opts.sync ?? new SyncRunner();
+    this.#sync = opts.sync ?? new Terminator();
     this.#dryRun = opts.dryRun ?? false;
     this.#dispatch = opts.dispatch ?? null;
     this.#template = opts.template ?? new TemplateAssembler();
@@ -572,8 +564,8 @@ export class Cli {
       // structurally never passed to the child (the lifecycle's hard "child zero-dispatch"
       // guarantee; the CLI already returned above when the seam refused).
       preflight: { gate: () => (preflight.ok ? null : preflight) },
-      dispatch: (frame) => {
-        const outcome = dispatch(frame);
+      dispatch: async (frame) => {
+        const outcome = await dispatch(frame);
         statuses.push(outcome.status ?? null);
         return outcome;
       },
@@ -639,7 +631,7 @@ export class Cli {
         for (const line of new Preview({ scene }).render(verb, frame)) this.#io.stdout(`${line}\n`);
         return 0;
       }
-      const step = run.advance();
+      const step = await run.advance();
       if (step === null) break;
       // The dispatch-entry gate's refusal (the lifecycle's hard child zero-dispatch wiring —
       // structurally unreachable here: the seam already returned above on refusal).

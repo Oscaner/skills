@@ -282,7 +282,7 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
   });
 
   it("consumes no round — the same line's real review still dispatches afterwards", async () => {
-    const dispatch = (): DispatchOutcome => ({ status: "APPROVED", findings: [] });
+    const dispatch = async (): Promise<DispatchOutcome> => ({ status: "APPROVED", findings: [] });
     const { command, cleanup, repoRoot } = fixture({ dispatch });
     try {
       gitInit(repoRoot);

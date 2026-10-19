@@ -14,7 +14,7 @@ base: develop
 - 终止是一条事实，结论只由 handoff 推出，不由终止状态词推出（承 D27）；升格只限 review 面，且只认「通过载体 schema 校验且含至少一条 finding」的草稿，截断草稿 = 非法草稿。
 - D53 常量零变：idle 30 分钟、采样 60 秒、四键预算（implement 6h · review 3h · fix 3h · branch-review 3h）；活面零新旗标、零环境变量、零配置 JSON。
 - 引擎活面禁用 `detached` 选项键（会关掉 execa 的 `cleanup`）；进程组回收优先 execa 现成能力，不自研；回收只作用于仍归引擎所有的进程组（spawn 时 `killDescendants` 建立的那个组），不得因 pid/pgid 复用误伤他组。
-- OOP 统一、零裸函数（`check:no-bare-functions` 守卫）；摘要键集单源 `words.capsuleKeys(status)`，渲染点不自加特例；死码随改随清。
+- OOP 统一、零裸函数（`check:no-bare-functions` 守卫）；摘要键集单源 `Words.capsuleKeys(status, withHandoff)`，渲染点不自加特例；死码随改随清。
 - 本 phase 不改 `next:` 字面形态、CLI 旗标面与退出码表 0/1/2 的语义；终止 ⊥ 结论的例外仅限升格轮（D53 Q12 的有意收窄）。
 - 引擎调用一律本地 `node packages/cdd-engine/src-next/bin.ts`，不用 npx；SKILL.md 与 docs 英文主源，本计划为内部文档中文主源（Strategy B）；不提交除非用户明确要求；不发布，changeset 收尾到可发布态即止。
 
@@ -34,51 +34,52 @@ base: develop
 
 ### Task 2: 终止事实载体与 crash record 新字段
 - **Objective**: 终止事实以 `DispatchOutcome.termination` 为唯一承载，由 `face/lifecycle.ts` 的单一派生点填入；`timeoutCount` 递增判据改为该字段非空；crash record 增 `promoted` 与 `idleMs`。
-- **Files**: `packages/cdd-engine/src-next/session/run.ts`（`DispatchOutcome`，约 `:97`）；`packages/cdd-engine/src-next/face/lifecycle.ts`（派生点约 `:521`，`#reject`）；`packages/cdd-engine/src-next/face/cli.ts`（`:653-656`）；`packages/cdd-engine/src-next/session/ledger.ts`（`CrashRecord`，约 `:192-213`）；测试 `face/__tests__/cli.test.ts`（`:2259` 失败面测试、`:4500`、`:4543`）。
+- **Files**: `packages/cdd-engine/src-next/session/run.ts`（`DispatchOutcome`，约 `:97`）；`packages/cdd-engine/src-next/face/lifecycle.ts`（派生点约 `:521`，`#reject`）；`packages/cdd-engine/src-next/face/cli.ts`（`:653-656`，递增位于 `lastStatus === BLOCKED || TIMEOUT` 失败块内）；`packages/cdd-engine/src-next/session/ledger.ts`（`CrashRecord`，约 `:192-213`）；测试 `face/__tests__/cli.test.ts`（`:2259` 失败面测试，pin 注入式失败 dispatch 后 `timeoutCount` 递增；`:4500`、`:4543` 的 `toEqual({ status: 'TIMEOUT' })`，pin 终止轮 outcome 仅含状态词）。
 - **Consumes**: Task 1 无接口依赖；既有 `TerminationCause`、`SampleRecord` 类型（`ledger.ts`）。
-- **Produces**: `DispatchOutcome.termination?: { cause: TerminationCause; idleMs: number; lastSample: SampleRecord | null }`（类型名由该字段内联或具名接口承载，Task 3 与 Task 4 读之）；`CrashRecord.promoted: boolean` 与 `CrashRecord.idleMs: number | null`（非终止的 crash record 取 `false` / `null`）；`cli.ts` 的递增判据 `step` 的 outcome 含 `termination` 非空。
+- **Produces**: `DispatchOutcome.termination?: { cause: TerminationCause; idleMs: number; lastSample: SampleRecord | null }`（类型名由该字段内联或具名接口承载，Task 3 与 Task 4 读之）；`CrashRecord.promoted: boolean` 与 `CrashRecord.idleMs: number | null`（非终止的 crash record 取 `false` / `null`）；`cli.ts` 的递增判据改为读该步 outcome 的 `termination` 非空，且位于失败状态块之外（升格轮为非失败状态也递增）；`step` 的返回值把 `outcome.termination` 透出给 `cli.ts`。
 - **Steps**:
   - 先翻新 pin：`cli.test.ts:4500`、`:4543` 的 `toEqual({ status: 'TIMEOUT' })` 改为断言 `status` 为 `TIMEOUT` 且 `termination` 带 `cause` / `idleMs` / `lastSample`；`:2259` 失败面测试的注入式 dispatch 带 `termination` 事实后断言 `timeoutCount` 递增 — checkable: 三处测试因字段缺失而失败
   - 在 `DispatchOutcome` 增可选 `termination` 字段（含 TSDoc 一行：终止是事实，与结论正交）；`lifecycle.ts` 单一派生点在终止分支填入，idle 时长取判官的终止时刻读数，`lastSample` 取内存中的末样本 — checkable: `:4500`、`:4543` 通过
   - 在 `ledger.ts` 的 `CrashRecord` 增 `promoted` 与 `idleMs`，`#reject` 写 crash record 时填入（终止轮取 termination 事实，非终止失败取 `false` / `null`）；修正所有既有 `CrashRecord` 构造点的类型 — checkable: 引擎 typecheck 通过
-  - `cli.ts:653-656` 改为读 `termination` 非空递增 `incrementTimeoutCount`，不再看 status 词；顺带核对 `session/run.ts` 的 `#bookkeep` 无需改动（升格轮 carrier 非失败，仍过 `:436` 门）— checkable: `:2259` 测试通过，`pnpm -C packages/cdd-engine test` 无回归
+  - `cli.ts:653-656` 把 `incrementTimeoutCount` 从 `lastStatus === BLOCKED || TIMEOUT` 失败块中提出，改为在该块之前读 `step` 透出的 `outcome.termination` 非空即递增，不再看 status 词（升格轮非失败状态也必须递增，退出码仍 0）；新增测试：升格轮递增 `timeoutCount` 且退出 0；顺带核对 `session/run.ts` 的 `#bookkeep` 无需改动（升格轮 carrier 非失败，仍过 `:436` 门）— checkable: `:2259` 与升格轮递增测试通过，`pnpm -C packages/cdd-engine test` 无回归
 - **Acceptance**: 终止事实唯一承载于 `DispatchOutcome.termination`；`timeoutCount` 只由该字段驱动；crash record 带 `promoted`、`idleMs`，既有 `lastSample` 不动；失败面行为与 P12 一致。
 - **DependsOn**: none
 
 ### Task 3: review 面终止轮升格
 - **Objective**: 被终止的 review 面轮先读 child 的 handoff 草稿；草稿合法且含至少一条 finding 即升格——走正常读回、持久化、`recordRound`、结论派生，退出码 0，stderr 一条 `CDD_WARN`，crash record 带 `promoted: true`；其余终止轮保持 TIMEOUT 失败面。
-- **Files**: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#dispatch` `:148-209` 的终止分支、`#reconstruct` `:391-474`、`#reject` `:490-522`）；`packages/cdd-engine/src-next/face/words.ts`（`CDD_WARN` 文案词条，沿用既有 `warn` station 词表，不另立第二张表）；测试 `face/__tests__/lifecycle.test.ts`（既有 lifecycle 测试文件；若不存在则落在 `face.test.ts` 或 `cli.test.ts` 同层的 lifecycle 用例处）。
+- **Files**: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#dispatch` `:148-209` 的终止分支、`#reconstruct` `:391-474`、`#reject` `:490-522`；crash record 写入拆为独立方法）；`packages/cdd-engine/src-next/face/words.ts`（`CDD_WARN` 文案词条，沿用既有 `warn` station 词表，不另立第二张表）；测试落在 `face/__tests__/cli.test.ts`（终止轮端到端用例，沿用 `termination.test.ts` 的 fixture 风格；`face/__tests__/` 下无 `lifecycle.test.ts`，不新建）。
 - **Consumes**: Task 2 的 `DispatchOutcome.termination` 与 `CrashRecord.promoted` / `idleMs`；既有 `#reconstruct` 的草稿校验（载体 schema）与 `HandoffSchema.conclusionOf`。
-- **Produces**: 终止分支的两条出路——升格轮返回非失败 outcome（带 carrier、findings、`termination`）；非升格轮返回 TIMEOUT outcome（带 `termination`，行为同 P12）；升格 `CDD_WARN` 词条经 `Words` 渲染。
+- **Produces**: 终止分支的两条出路——升格轮返回非失败 outcome（带 carrier、findings、`termination`）；非升格轮返回 TIMEOUT outcome（带 `termination`，行为同 P12）；升格 `CDD_WARN` 词条经 `Words` 渲染，由 lifecycle 唯一输出（CLI 层不输出）；`#probeDraft` 非拒绝草稿探针；独立的 crash record 写入方法（升格不打印 `CDD_BLOCKED`、不返回失败 outcome）。
 - **Steps**:
   - 写失败测试 `promotes a terminated review round whose draft is valid and has findings`：review 面被终止、草稿合法含 findings，断言 outcome 非 TIMEOUT 词、`recordRound` 已记、`blocker:` 为真实计数、`next:` 给出、退出码 0、stderr 含 `CDD_WARN`、`timeoutCount` 递增、crash record `promoted: true` 且带 `idleMs` — checkable: 现状下失败
   - 写失败测试组 `does not promote`：implement 轮被终止、fix 轮被终止、review 面草稿缺失、草稿截断（非法 JSON）、草稿合法但零 findings，各断言仍 TIMEOUT 失败面（无 `next:`、不记账、退出码 1）且 `timeoutCount` 仍递增 — checkable: 现状下通过或因 `termination` 缺字段而失败，实现后全绿
   - 写失败测试 `a promoted round makes cdd fix --reviews accepted`：升格后 `fix` 门禁不再拒绝（`roundCount(review) > 0`） — checkable: 现状下失败
-  - 在终止分支调用 `#reconstruct` 的读回校验，仅对 review 面（findings 载体）且合法含 findings 的草稿升格；复用既有校验与持久化，不新写第二套草稿解析；升格时 `#reject` 仍写 crash record（`promoted: true`），并由 CLI 层输出 `CDD_WARN`（说明终止原因与 findings 自草稿恢复）— checkable: 上述三类测试通过
+  - 重构 `#reconstruct`：抽出非拒绝草稿探针 `#probeDraft`（读草稿 + `schema.violations` + `findings.length >= 1`，只返回可升格 / 不可升格，不调用 `#reject`、不产生 outcome）；终止分支仅对 review 面调用该探针；可升格才走既有持久化与结论派生路径（复用既有校验与持久化，不新写第二套草稿解析）；不可升格（草稿缺失 / 非法 / 零 findings）落回既有 TIMEOUT `#reject`，携带 termination 事实，不得经 `#reconstruct` 的 `contract-violation` 拒绝路径 — checkable: `does not promote` 组全绿，非升格轮 crash record 的 cause 为终止原因而非 `contract-violation`
+  - 把 crash record 写入从 `#reject` 拆为独立方法：`#reject` 调用它后再打印 `CDD_BLOCKED` 并返回失败 outcome；升格轮只调用该方法（`promoted: true`，带 `idleMs`）并由 lifecycle 输出唯一一条 `CDD_WARN`，该行含终止原因、`idleMs` 与末样本裁决及 findings 自草稿恢复；CLI 层不输出 `CDD_WARN` — checkable: 升格测试断言 stderr 恰有一条 `CDD_WARN` 且无 `CDD_BLOCKED`；上述三类测试通过
   - 清理终止分支中因本改动而冗余的直接 `#reject` 路径与注释 — checkable: `pnpm -C packages/cdd-engine test` 无回归，`check:no-bare-functions` 通过
 - **Acceptance**: 升格条件三项（review 面 · 草稿合法 · ≥1 finding）全部满足才升格；截断 = 非法；implement / fix 轮永不升格；升格轮 `blocker:` 为真实计数、退出码 0、`timeoutCount` 递增、crash record `promoted: true`。
 - **DependsOn**: 2
 
 ### Task 4: 失败摘要行去伪值与按状态键集
 - **Objective**: TIMEOUT 与 BLOCKED 摘要行不输出 `blocker:` 键；`handoff:` 仅当该轮写了 crash record 时输出并指向之（no-host BLOCKED 属无 crash record，不带该栏）；键集单源改为 `words.capsuleKeys(status)`。
-- **Files**: `packages/cdd-engine/src-next/face/words.ts`（`CAPSULE_WORDS.keys` 与 `capsuleKeys()`，约 `:238`）；`packages/cdd-engine/src-next/face/capsule.ts`（`emit`）；`packages/cdd-engine/src-next/session/run.ts`（`#capsuleLines`，约 `:560-580`）；测试 `face/__tests__/face.test.ts`（`:32`、`:73`、`:199`、`:221`）、`session/__tests__/next.test.ts`（TIMEOUT 路由断言）。
+- **Files**: `packages/cdd-engine/src-next/face/words.ts`（`CAPSULE_WORDS.keys` 与 `capsuleKeys()`，约 `:238`）；`packages/cdd-engine/src-next/face/capsule.ts`（`emit`）；`packages/cdd-engine/src-next/session/run.ts`（`#capsuleLines`，约 `:560-580`）；测试 `face/__tests__/face.test.ts`（`:32`、`:73`、`:221` 当前 pin 无条件键表；`:199` pin 失败 capsule 的现有输出）、`session/__tests__/next.test.ts`（pin TIMEOUT 路由的 `next:`）。
 - **Consumes**: Task 2 的 crash record 写入事实（`ledger.readCrash` 是否非空决定 `handoff:` 栏是否输出）；既有 `Capsule.emit` 与 `CapsuleKey` 类型。
-- **Produces**: `Words.capsuleKeys(status: string): readonly CapsuleKey[]`——成功状态返回 `status · blocker · handoff`，失败状态（TIMEOUT / BLOCKED）返回 `status`（有 crash record 时加 `handoff`，由 `emit` 入参决定）；`Capsule.emit` 按该键集渲染，不自加特例。
+- **Produces**: `Words.capsuleKeys(status: string, withHandoff: boolean): readonly CapsuleKey[]`——status 与 withHandoff 的纯函数，键集单源于 `CAPSULE_WORDS` 内一张声明表；成功状态返回 `status · blocker · handoff`，失败状态（TIMEOUT / BLOCKED）返回 `status`，仅当 `withHandoff` 时加 `handoff`；`Capsule.emit` 接收同一 `withHandoff` 标志，按该键集渲染，不自加特例。
 - **Steps**:
   - 先翻新 pin：`face.test.ts:32`、`:73`、`:221` 由无条件键表改为按状态断言；`:199` 失败 capsule 断言 `status: TIMEOUT · handoff: crash-…json`（有 crash record）与 `status: BLOCKED`（无 crash record，无 `handoff:`）；`next.test.ts` 的 TIMEOUT 路由断言随之调整 — checkable: 这些测试因签名 / 输出变化而失败
-  - 实现 `Words.capsuleKeys(status)`：键集数据以单一声明承载于 `CAPSULE_WORDS`，成功状态与失败状态各一行，不复制键名；`Capsule.emit` 按其渲染 — checkable: `face.test.ts` 通过
+  - 实现 `Words.capsuleKeys(status, withHandoff)`：键集数据以单一声明承载于 `CAPSULE_WORDS`，成功状态与失败状态各一行，不复制键名；`Capsule.emit` 按其渲染 — checkable: `face.test.ts` 通过
   - `#capsuleLines` 对失败状态不再计算 `blocker`，并以 `ledger.readCrash` 是否非空决定 `handoff` 入参（指向 `ledger.crashPath`）；no-host BLOCKED（`lifecycle.ts:150-154`）不写 crash record，故不带 `handoff:` — checkable: 失败 capsule 零 `blocker:` 键，`cli.test.ts` 相关断言通过
-  - 全局搜索 `capsuleKeys()` 无参调用点并迁移，清除遗留的无参重载与死数据 — checkable: `grep -rn "capsuleKeys()" packages/cdd-engine/src-next` 零命中，`check:no-bare-functions` 通过
-- **Acceptance**: TIMEOUT 与 BLOCKED 摘要行零 `blocker:` 键；`handoff:` 仅在写了 crash record 时输出并指向之；键集单源 `words.capsuleKeys(status)`；`next:` 字面形态不变。
+  - 全局搜索 `capsuleKeys()` 无参调用点并迁移到双参签名，清除遗留的无参重载与死数据 — checkable: `grep -rn "capsuleKeys()" packages/cdd-engine/src-next` 零命中，`check:no-bare-functions` 通过
+- **Acceptance**: TIMEOUT 与 BLOCKED 摘要行零 `blocker:` 键；`handoff:` 仅在写了 crash record 时输出并指向之；键集单源 `Words.capsuleKeys(status, withHandoff)`；`next:` 字面形态不变。
 - **DependsOn**: 2
 
 ### Task 5: 终止时 idle 可见性与交付
 - **Objective**: 终止时把 `idleMs` 与末样本写入 TIMEOUT 的 stderr 与 crash record；补 changeset；全量验证收口。
 - **Files**: `packages/cdd-engine/src-next/face/cli.ts`（终止 stderr 输出处）；`packages/cdd-engine/src-next/face/words.ts`（终止诊断词条）；`.changeset/` 下新增 changeset 文件（slug 如 `engine-child-termination-followup.md`）；测试 `face/__tests__/cli.test.ts`。
-- **Consumes**: Task 2 的 `termination.idleMs` / `lastSample`；Task 3 的升格 `CDD_WARN`；Task 4 的失败摘要行。
-- **Produces**: 终止诊断 stderr 行（含原因、idle 时长、末样本裁决）；cdd-engine minor changeset；交付态可发布。
+- **Consumes**: Task 2 的 `termination.idleMs` / `lastSample`；Task 3 的升格 `CDD_WARN`（本任务不重复输出）；Task 4 的失败摘要行。
+- **Produces**: 非升格终止轮的终止诊断 stderr 行（含原因、idle 时长、末样本裁决；升格轮的同类信息已在 Task 3 的唯一 `CDD_WARN` 中，不重复输出，每轮至多一行）；cdd-engine minor changeset；交付态可发布。
 - **Steps**:
-  - 写失败测试 `terminated round reports idle duration and last sample on stderr and in the crash record`：终止轮（升格与非升格各一）断言 stderr 含 idle 时长与末样本、crash record 含 `idleMs` 与 `lastSample` — checkable: 现状下失败
+  - 写失败测试 `terminated round reports idle duration and last sample on stderr and in the crash record`：非升格终止轮断言 stderr 含 idle 时长与末样本且仅一行诊断、crash record 含 `idleMs` 与 `lastSample`；升格轮断言 crash record 含二者、stderr 仅 Task 3 的一条 `CDD_WARN` — checkable: 现状下失败
   - 实现终止诊断输出，词条走 `Words`（一张表）；不加中途进度行、不加第二窗口 — checkable: 测试通过
   - 手写 `.changeset/` 条目：`@oscaner-skills/cdd-engine` **minor**，正文英文，记录 stdin 闭合、进程组回收、review 面终止轮升格、失败摘要行去 `blocker:`、终止时 idle 可见性 — checkable: `pnpm exec changeset status` 识别该条目
   - 全量验证：`pnpm run emit` 后 `pnpm run emit:check`，再 `pnpm run validate`（先提交再跑含 tree 依赖黑盒的完整面——提交需用户明确同意）— checkable: `pnpm run validate` ALL PASS；引擎 vitest 全绿

@@ -1,5 +1,43 @@
 # @oscaner-skills/kairos
 
+## 1.1.0
+
+### Minor Changes
+
+- [#344](https://github.com/Oscaner/skills/pull/344) [`4148e01`](https://github.com/Oscaner/skills/commit/4148e017e175af474b5eae3d089a092e492f6994) Thanks [@Oscaner](https://github.com/Oscaner)! - feat: plan 头约定同步 front-matter `spec:` 键（cdd-plan / cdd-report）:
+  
+  - **cdd-plan author-plan 节点** — plan 头约定由「`**Spec:**` 第 2 行」改写为 front-matter `spec:` 键（目标路径，repo-root 形态），与 review 的 `--spec` 指针同源。
+  - **cdd-report 第一跳表述** — program-attribution 的「plan 头 `**Spec:**` 链」同步为 `spec:` 键。
+  - **pin 测试重锚** — `cdd-plan-spec.test.ts` 重锚（非删除）到 front-matter 措辞。
+
+- [#340](https://github.com/Oscaner/skills/pull/340) [`11cc93e`](https://github.com/Oscaner/skills/commit/11cc93e4917775dbfc0a16e7b93c59bf7464ae19) Thanks [@Oscaner](https://github.com/Oscaner)! - feat: author 后加 `self-review` 节点（cdd-spec-writer / cdd-plan · D44）:
+  
+  - **self-review 节点** — cdd-spec-writer 与 cdd-plan 的 digraph 在 `author-spec` / `author-plan` 与 commit 节点之间插入一个离散 `self-review` 操作节点（author.Exit → self-review → commit）：提交前自审 spec/plan（覆盖度 · 类型一致性 · 零 `:::fill` 残留 · 零链接锚外尖括号字面），发现的问题就地修复。原先嵌在 author 节点 Do 内的「pre-commit self-review」散文升格为一等流程节点（不再只是 inline 一句话），与引擎的 review 轮区分——它是 flow 内的提交前自检，不派发 `next:`、不产 findings carrier。
+
+### Patch Changes
+
+- [#351](https://github.com/Oscaner/skills/pull/351) [`8673202`](https://github.com/Oscaner/skills/commit/867320278924f09f595eadeb11ba1cd4712aa0ef) Thanks [@Oscaner](https://github.com/Oscaner)! - fix: P9 单源化通审——repoRoot 路径基准 / 值对象 / 缺门补齐（合并 P9 全部施工与 review 收口）:
+  
+  - **`--root` 退役（breaking）** — `implement`/`review`/`fix`/`board` 四命令的 `--root <path>` 旗标删除；残留 `cdd <cmd> --root X` 现落入 `error: unknown option '--root'`（退 2）。
+  - **repoRoot 唯一转换点** — 生产面 `process.cwd()` → repoRoot 转换恰 1 处（`Cli#rootOf`）；三注入缝退役，child spawn cwd 归一为 repoRoot。cwd 不在任何 git 仓内时 `CDD_BLOCKED` 退 1。
+  - **路径值对象** — 新增 `RepoRoot` + 品牌 `RepoPath`（`infra/root.ts`）：相对形态升为类型，唯一构造 `relativize` / 唯一擦除 `resolve`。输入漏斗（`Cli#funnel`）对 `--plan`/`--spec`/`--findings` 恰归一一次，仓库外路径接并经 `CDD_WARN:` 提示。
+  - **全面 repoRoot 相对** — child round-context 全部 8 个路径 token（含 link-space 回归的 `INPUT_SPEC`）、`next:` 字面、capsule `handoff:`、board 文档 cells、`base` 回显、graph title 内嵌路径一律 repoRoot 相对；落盘 `progress.json`/`base.json` 路径字段归一并带一次性迁移，写出字节规范（EOF `\n`）。
+  - **单源与缺门** — issue-body label 表、node floor（`engines` ↔ README）、`DocKey`、`base.md` ↔ `BaseArtifact`、`PHASE_SUFFIX_CORE`、`chore` 契约、`edgeConditionWords`、`INSTALL_ROWS` ↔ README、`PIPELINE_NEXT` ↔ `REFS` 各收归单源并补一致性门；skeleton 补 `**Doc type**` 头行；SKILL.md `description` 的裸 `: ` 改写并加 frontmatter 契约门；README node install floor 由 `>= 22.12.0` 校正为 `>= 24`。
+  - **死声明清理** — `HOSTS[*].cache`、`HandoffFamily` 死字段、`CRASH_TAIL_LINES` 幽灵注释等移除。
+
+- [#344](https://github.com/Oscaner/skills/pull/344) [`8f9314a`](https://github.com/Oscaner/skills/commit/8f9314a99be775e0d59ae6c0e91ce65c088d718d) Thanks [@Oscaner](https://github.com/Oscaner)! - fix(kairos): I3「Plan Sole Writer」→「Plan write authority」——触发判别写权，findings 记裁决通道保留（用户裁定 2026-10-17）:
+  
+  - **I3 更名 + claim 重写** — `cdd-plan`/`cdd-spec-writer`/`cdd-design`/`cdd-dev` 四份 SKILL 的 I3/I4/I5 引用去名化：「Plan Sole Writer」（plan 是 orchestrator 的 sole-writer surface）不成立——plan 的真实写权者有二，靠**触发判别**（review findings 只经 fix round 分发写；用户裁定/持久回填经 orchestrator 单独提交写），不靠身份；`fix/implement agents hold zero plan-modification authority` 保留。
+  - **findings 记裁决通道保留** — `FIX_READBACK_SUFFIX`（engine `next.ts`）语义澄清为真实通道：orchestrator 判定 findings 准确性、需要裁决时记录进 findings 文件，fix child 读取裁决；引擎零改动，仅 SKILL 措辞对齐。
+  - **消费心智负担** — fix hop 上 orchestrator 动作收敛为「照抄 `next:` 分发 +（如需）findings 记裁决」，不再有「findings 在手时编辑 plan 是否正当」的歧义。
+
+- [#344](https://github.com/Oscaner/skills/pull/344) [`9c8d543`](https://github.com/Oscaner/skills/commit/9c8d5436ce427f10ec64979973eb548172d6d5e0) Thanks [@Oscaner](https://github.com/Oscaner)! - docs(kairos): self-review 措辞强化——语义充分性五查先行、结构卫生降为尾部（用户裁定 2026-10-17）:
+  
+  - **`self-review` 的 Do 改写为五查 + 机械尾** — `cdd-plan` / `cdd-spec-writer` 两份 SKILL 的 `self-review` 节点从「覆盖度 + 类型一致性 + 零 `:::fill` + 零链接锚外尖括号」四项机械检查，改为**语义充分性先行**的五查：(1) 覆盖度——每条已批准 spec 需求都有对应任务；(2) **步骤可判定性**——每步都能让实施者写出唯一合理的东西（不决定任何事的句子、或签名与测试已定的转写，都是缺陷）；(3) 一致性——task id / `DependsOn` 边 / 命名一致；(4) **失败模式覆盖**——spec 隐含的每个失败模式都有任务、其 checkable 实际演练它；(5) **比例**——计划篇幅不与所实现的 spec 成倍失衡。机械卫生（零 `:::fill` 残留、链接锚外零尖括号字面）降为收尾两项。
+  - **语义零变化** — 节点位置（author → self-review → commit）、`next:` 不派发、不产 findings carrier 全部不变，只有 Do 的检查清单内容与先后。
+- Updated dependencies [[`5ca0510`](https://github.com/Oscaner/skills/commit/5ca05102f76e8a75ad0e755d5d9c53b4b156ab8e), [`4148e01`](https://github.com/Oscaner/skills/commit/4148e017e175af474b5eae3d089a092e492f6994), [`ef0276e`](https://github.com/Oscaner/skills/commit/ef0276e3eec397cd38c3628040f84df4b8c71234), [`481edb9`](https://github.com/Oscaner/skills/commit/481edb97552c5a0a30d2bd7438af75037914830d), [`8673202`](https://github.com/Oscaner/skills/commit/867320278924f09f595eadeb11ba1cd4712aa0ef), [`8d4f89b`](https://github.com/Oscaner/skills/commit/8d4f89b2c3377c0172dd0179e5e16779ca61004d), [`cf9bc16`](https://github.com/Oscaner/skills/commit/cf9bc169fc533556d794b81a814e7fa5c5a87020), [`b83b4ec`](https://github.com/Oscaner/skills/commit/b83b4ec55eb2491af379574f85089bc0a6e8e2e3)]:
+  - @oscaner-skills/cdd-engine@3.0.0
+
 ## 1.0.0
 
 ### Major Changes

@@ -1,6 +1,6 @@
 {
   "name": "@oscaner-skills/kairos",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": false,
   "type": "module",
   "description": "Standalone kairos skills: orchestration + cdd-* family + CDD engine.",

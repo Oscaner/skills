@@ -1,5 +1,74 @@
 # @oscaner-skills/cdd-engine
 
+## 3.0.0
+
+### Major Changes
+
+- [#344](https://github.com/Oscaner/skills/pull/344) [`4148e01`](https://github.com/Oscaner/skills/commit/4148e017e175af474b5eae3d089a092e492f6994) Thanks [@Oscaner](https://github.com/Oscaner)! - feat: 文档头部 front-matter 化 + 登记表驱动正文解析统一（major breaking · 零 legacy 兼容）:
+  
+  - **头部元组全量 front-matter 化** — 四类文档头部的 bullet 元组（`**Version**` / `**Status**` / `**Author**` / `**Spec:**` / `**Parent program**` / `**Depends on**` / `**Base**` / `- **Doc type**:`）整面退休，改为 YAML front-matter 键（`title` / `doc-type` / `version` / `date` / `status` / `author` / `spec` / `parent-program` / `parent-version` / `depends-on` / `base` / `issues`）；正文 H1 删除，`title:` 为唯一标题源。消费者需自行迁移既有文档（`schema get <type> --output skeleton` 可重吐头部）。
+  - **判定改走 typed head record** — presence / domain / 版本血缘 / 父血缘等头部判定从行扫改为读 `FrontMatterExtractor` 拆出的 typed head；`Finding.field` 改 front-matter key 形态、固定 message 去 bullet 字面量；`doc.ts` 死头成员（`headerLines` / `markerLine` / `markerValue` 家族）整删。
+  - **skeleton 吐 front-matter 头** — `schema get … --output skeleton` 的头部段经节点焊接（`yaml` 的 `YAMLMap`+`Pair`+`Scalar`）强制发射：content 填充槽单引号（`:::fill` 引号化，杜绝 YAML flow 歧义）、版本/链接/状态键保持裸标量，链接槽吐 `<docs/kairos/specs/…-overall.md>` / `<docs/kairos/specs/…-design.md>` 路径示例——占位符本身即头部形状规约（D3 骨架同源）。头部键集是**独立的发射清单**（投影的 `frontmatter` 列表：必填头键 + 该型的可选头键），故 plan 骨架吐 `depends-on:` / `base:`、single-spec 骨架吐 `issues:`；`parent-version` 是唯一的显式排除（optional shape-typed 键，`v<n>.<m>` 域不接受任何占位形态）。
+  - **front-matter 解析错误携位（[#341](https://github.com/Oscaner/skills/issues/341)）** — `FrontMatterExtractor.split` 不再把 YAML 解析失败吞成 null head：引擎的 `YAMLParseError` 经 `LineCounter` 喂出 `linePos`，型化为 `FrontMatterParseError{line, column, reason, source}` 挂在 head 上；pre-flight 对不可解析 front-matter 报「not valid YAML: {reason} on line {line}, column {column} (`{source}`)」BLOCK，不再误判为「declares no `doc-type:`」（D1 错误携位）。
+  - **链接形态见型单判（[#342](https://github.com/Oscaner/skills/issues/342)）** — `LinkTargetShape` 值类统一链接 target 形状：裸相对路径合法，markdown-shell `[l](p)`、URL `://`、空白与 `()[]<>` 拒绝；`link-shape` 是全解析面唯一的格式报告者，resolution 策略对非法 target 静默 `continue`，chainRoot 不再以 `{target: 原始字符串}` 提交双重失败（D2 形态见型，单 finding）。
+
+- [#347](https://github.com/Oscaner/skills/pull/347) [`ef0276e`](https://github.com/Oscaner/skills/commit/ef0276e3eec397cd38c3628040f84df4b8c71234) Thanks [@Oscaner](https://github.com/Oscaner)! - feat!: P11 dispatch contract 收口——child Return 去结构化 + `--dry-run` 真只读预览（D50）:
+  
+  - **① child Return 去结构化** — agent 的返回结构不稳定，引擎对 child stdout 固定两行（`status:` / `artifacts:`）的解析导致无意义 BLOCK，而该结构今日已是**死数据 + 一道 presence 门**（`#parseBlockReturn` 的 status 零消费者 · stdout 的 `artifacts:` 仅 hermetic fallback 用）。改为：模板 `## Return` 收为**单个散文契约块**（`RETURN_PROSE`，`RETURN_STDOUT_BLOCK` 更名）；引擎**零解析** child stdout——删 `#parseBlockReturn` · 删「exit 0 但无 status 行 → BLOCKED」门 · 删 `DispatchOutcome.artifacts` 与 `ReturnZone` 接口/`returnFormats()` 内省；唯一进程信号 = child 非零退出码，结论一律来自 **handoff 草稿 + test-evidence 回读**；散文不转发到 stdout（机器面），仅存入 crash record 的 `stdoutTail`（`STDOUT_TAIL_MAX` 限界）。
+  - **② `--dry-run` 真只读预览**（issue [#345](https://github.com/Oscaner/skills/issues/345) 采纳方案 b）— 旧语义是「模拟派发并 book 一轮」（写 `<kind>-review-N.json`、消耗 review 唯一槽位、经合成 dispatch `() => ({ status: "APPROVED", findings: [] })` 伪造结论），与「不写产物」的文档承诺相反。改为**纯读的下一步预告**：零 repo 写入（不 `Workspace.ensure()` · 不 `migrateJsonChild` · 不 `renderBrief` · 不 `persistHandoff`/`recordRound`/`recordReviewed*` · 不写 crash record）、不占轮次；输出单块 `cdd <verb>: preview (no repo changes)` + `step:` / `reads:` / `would write:` / `would record:` / `child:` 五行，**不打印 `status:` / `next:`**（结论未定，打印即伪造）。pre-flight 四门照常跑（纯读），拒绝则输出与真实运行一致的拒绝面并 exit 1。合成 dispatch 删除。收窄为 implement / review / fix 专用——其余命令（`base` / `schema` / `issue` / `board`）携带该旗标 → usage 报错、exit 2（静默忽略的旗标是消费者心智负担）。
+  - **③ 抽象与遗留清理** — 预期产物名由 `CliLifecycle` 的私有散点（`#outputOf` / `#evidenceName` / `#evidencePrefix`）提取为 `RoundNaming` 类（session 面），由 `CliLifecycle` 与 preview **两面共用**；写点自 ensure 收口——`#sceneOf` / `#runBase` 两处显式 `Workspace.ensure()` 调用点退休，`#runWork` 在预检后、首个写点前对**所有面**补一次（`dryRun` 跳过）；`migrateJsonChild` 全调用点 + 方法本体 + 直测退休（`#readBase` 改走 `Workspace.readJson`）。
+  - **④ 文档面** — `declare.ts` flag help + `README.md` + `README.zh-CN.md` 同批一致为「preview the next dispatch step and its expected artifacts — zero repo writes, no round consumed」。
+  - **⑤ dispatch 输入面命名收口（breaking）** — 旗标 `--findings` 指向的是评审轮的产出文档（`<kind>-review-<N>.json`）而非 findings 本身，改名 `--reviews`：argv 通道键、`PathArgs.findings` → `PathArgs.reviews`、prompt token `INPUT_FINDINGS` → `INPUT_REVIEWS`、`Route` 的 fix 跳、`Round.findingsPath` → `Round.reviewsPath` 同步。领域词 findings（`Round.findings` 行集、`CARRIER_FINDINGS`、严重度枚举）保留。
+
+### Minor Changes
+
+- [#350](https://github.com/Oscaner/skills/pull/350) [`481edb9`](https://github.com/Oscaner/skills/commit/481edb97552c5a0a30d2bd7438af75037914830d) Thanks [@Oscaner](https://github.com/Oscaner)! - feat: child-dispatch termination face (P12 · issue [#346](https://github.com/Oscaner/skills/issues/346)):
+  
+  - **Async dispatch** — `DispatchStep` is now asynchronous (internal type seam, not part of the package contract); the old synchronous signature is dropped with no compatibility shim. Process-group creation, group kill, SIGTERM→SIGKILL escalation, parent-exit cleanup and the wall-clock cap are all delegated to execa.
+  - **Stall judge and dual-signal sampler** — a stateful, zero-I/O `StallJudge` plus a two-leg I/O `Sampler`; an unreadable leg fails open (never kills).
+  - **Sampling loop with heartbeat** — immediate first sample, then an unref'd 60s tick; the heartbeat file is overwritten each sample, deleted on normal completion and kept on termination.
+  - **Stall kill trigger** — the sampling loop's first `stalled` verdict fires the terminator's group kill (`subprocess.kill()` via execa; zero engine signal logic, `detached` never set).
+  - **Three-cause derivation + fallback** — `over-budget` (execa `timedOut`), `stalled` (the engine's own kill, judged ahead of the signal leg), `signal` (any external signal, by semantic never the literal), `unknown` (the unattributable fallback).
+  - **Terminated rounds conclude `TIMEOUT`** — the lifecycle judges the termination fact BEFORE the child-exit branch (a killed child's code is null), the reason rides the CDD_BLOCKED channel, and the failure face is unchanged: no `next:` line, no auto-retry.
+  - **Crash record for terminated rounds** — the death-facts object gains the `termination` fact: derived cause, the in-memory last sample (`lastSample`), and an honest `exitCode: number | null`.
+  - **`timeoutCount` increments** — the progress counter's first real writer: one TIMEOUT round lands, the count goes up by one.
+  - **Known boundary** — execa's `killDescendants` is best-effort and does not reach descendants that created their own process group or session (e.g. `setsid` daemons).
+
+- [#340](https://github.com/Oscaner/skills/pull/340) [`8d4f89b`](https://github.com/Oscaner/skills/commit/8d4f89b2c3377c0172dd0179e5e16779ca61004d) Thanks [@Oscaner](https://github.com/Oscaner)! - feat: plan review round context 注入 spec doc（`INPUT_SPEC` · D44）:
+  
+  - **`INPUT_SPEC` token** — plan-review 的 round context 新增 `INPUT_SPEC`：从 plan 文档头的 `**Spec:**` 链（`PlanDocType.chainRoot.specLink`）派生的设计 spec 锚（spec 完全不可见 → 现可见），使 reviewer 能judge 计划是否与其设计 spec 对齐。
+  - **plan 评审判据** — `REVIEWS.plan.axesGuide` 增 spec conformance 轴：每条 spec 需求必须映射到一个 task；无 task 承接的 spec 需求 = completeness finding。
+  - **注入链** — `cli#sceneOf` 的 `case "plan"` 复用已读的 `planText` 派生 `specLink`（零二次文件读）→ `DispatchScene.specLink` → `Lifecycle#valuesOf` → `REVIEW_CONTEXT` + `TOKENS`；off-plan 面 slot 空（assembler 丢弃）。
+
+### Patch Changes
+
+- [#340](https://github.com/Oscaner/skills/pull/340) [`5ca0510`](https://github.com/Oscaner/skills/commit/5ca05102f76e8a75ad0e755d5d9c53b4b156ab8e) Thanks [@Oscaner](https://github.com/Oscaner)! - fix: board `next:` 单源于引擎面间派生（`NextStepRouter.walk` · D45 ⑳）:
+  
+  - **根因** — `board-view.ts#nextOf` 复制了引擎的面间派生规则：取「首条未闭合线」后用**该线自身**的 `PIPELINE_NEXT` 键 handoff。spec 闭合 + plan 未开始（`docs.plan === null`）时，board 取**未开始的 plan 线**自身键 → `cdd-dev`，而正确应为**刚闭合的 spec 面**的出口 → `cdd-plan`（面边界差一格）；同类：全 phase 闭合时 board 渲 `done` 而引擎吐 `/kairos:cdd-close`。
+  - **单源化** — `session/next.ts` 增 `NextStepRouter.walk(report)`：板报**观测事实**（每面的 closed / active / target · keyed by `PIPELINE_FACES`），router 判**下一步**（面序 + frontier + 入口 + 锚皆单源 · `PIPELINE_FACES` 序与 `PIPELINE_NEXT` 出口同栖一处）。`board-view.ts#nextOf` 退化为纯消费者（零 forked selector）。
+  - **回归** — `next.test.ts` 增 walk 用例（含 off-by-one 守卫 +6）· `board-view.test.ts` 三处 pin 重锚（`cdd-dev`→`cdd-plan`）。board 实测 `next: /kairos:cdd-plan`，与引擎一致。
+
+- [#351](https://github.com/Oscaner/skills/pull/351) [`8673202`](https://github.com/Oscaner/skills/commit/867320278924f09f595eadeb11ba1cd4712aa0ef) Thanks [@Oscaner](https://github.com/Oscaner)! - fix: P9 单源化通审——repoRoot 路径基准 / 值对象 / 缺门补齐（合并 P9 全部施工与 review 收口）:
+  
+  - **`--root` 退役（breaking）** — `implement`/`review`/`fix`/`board` 四命令的 `--root <path>` 旗标删除；残留 `cdd <cmd> --root X` 现落入 `error: unknown option '--root'`（退 2）。
+  - **repoRoot 唯一转换点** — 生产面 `process.cwd()` → repoRoot 转换恰 1 处（`Cli#rootOf`）；三注入缝退役，child spawn cwd 归一为 repoRoot。cwd 不在任何 git 仓内时 `CDD_BLOCKED` 退 1。
+  - **路径值对象** — 新增 `RepoRoot` + 品牌 `RepoPath`（`infra/root.ts`）：相对形态升为类型，唯一构造 `relativize` / 唯一擦除 `resolve`。输入漏斗（`Cli#funnel`）对 `--plan`/`--spec`/`--findings` 恰归一一次，仓库外路径接并经 `CDD_WARN:` 提示。
+  - **全面 repoRoot 相对** — child round-context 全部 8 个路径 token（含 link-space 回归的 `INPUT_SPEC`）、`next:` 字面、capsule `handoff:`、board 文档 cells、`base` 回显、graph title 内嵌路径一律 repoRoot 相对；落盘 `progress.json`/`base.json` 路径字段归一并带一次性迁移，写出字节规范（EOF `\n`）。
+  - **单源与缺门** — issue-body label 表、node floor（`engines` ↔ README）、`DocKey`、`base.md` ↔ `BaseArtifact`、`PHASE_SUFFIX_CORE`、`chore` 契约、`edgeConditionWords`、`INSTALL_ROWS` ↔ README、`PIPELINE_NEXT` ↔ `REFS` 各收归单源并补一致性门；skeleton 补 `**Doc type**` 头行；SKILL.md `description` 的裸 `: ` 改写并加 frontmatter 契约门；README node install floor 由 `>= 22.12.0` 校正为 `>= 24`。
+  - **死声明清理** — `HOSTS[*].cache`、`HandoffFamily` 死字段、`CRASH_TAIL_LINES` 幽灵注释等移除。
+
+- [#344](https://github.com/Oscaner/skills/pull/344) [`cf9bc16`](https://github.com/Oscaner/skills/commit/cf9bc169fc533556d794b81a814e7fa5c5a87020) Thanks [@Oscaner](https://github.com/Oscaner)! - fix: review-cycle 软上限 `REVIEW_CYCLE_CAP` 10 → 20（session 路由 · 用户裁定 2026-10-17）:
+  
+  - **review-cycle 软上限上调** — 连续 `consecutiveS1` review-cycle 达到上限时 fix face 将下一跳交给用户裁定（`soft-cap` 建议，soft by nature：可被用户 / plan write authority 覆写）。用户裁定把上限从 10 提高到 20：给长 review-fix 马拉松（多任务 plan）更多自主回合后才打扰用户。行为面零改动——`next.ts` 路由逻辑、`SOFT_CAP_SUGGESTION` 措辞、退出码与 `next:` 字面全部不变，仅阈值变化。
+  - **测试** — `next.test.ts` 的字面 pin（`toBe(20)` ×2 · 编译期 `const cap: 20`）同步；`run.test.ts` 的 cap 驱动 walk 自适应（注释声明「a cap change needs no test edit」）。
+
+- [#344](https://github.com/Oscaner/skills/pull/344) [`b83b4ec`](https://github.com/Oscaner/skills/commit/b83b4ec55eb2491af379574f85089bc0a6e8e2e3) Thanks [@Oscaner](https://github.com/Oscaner)! - refactor(cdd-engine): round context 退役 `INPUT_DOC` —— 语义化 `INPUT_PLAN` / `INPUT_SPEC` 双锚（用户 backfill 2026-10-18）:
+  
+  - **`INPUT_DOC` 退役** — 通用「judged doc」锚拆分：plan/branch 线带 `INPUT_PLAN`（计划文档）`+` `INPUT_SPEC`（计划 `spec:` design-spec 引用）；spec 线带 `INPUT_SPEC`（judged spec）；wave 线无 doc 锚（空槽由 assembler 丢弃）。
+  - **branch 双锚** — branch review round context 同时携带 `INPUT_PLAN` + `INPUT_SPEC`：branch 帧在 CLI seam 读计划、派生 spec-link（原 `case "plan"` 独享的 §2.2 seam 路径收归 plan/branch 共享），评审可判 plan→spec 一致性。
+  - **`AuditTarget.kind` 拆分** — `{ kind: "doc" }` 全部拆为 `{ kind: "plan" }` / `{ kind: "spec" }`（run.ts 类型 + cli/gate/lifecycle 13 消费判别 + 测试钉）：doc 身份语义显式化，`kind` 即被审文档类型。
+  - **模板契约 $version 8** — TOKENS 注册表 `INPUT_DOC` → `INPUT_PLAN`；review/fix/docs-fix 指令 prose 与 round-context 行改语义对；`INPUT_PLAN` 自退役词表复活为语义名。
+
 ## 2.0.0
 
 ### Major Changes

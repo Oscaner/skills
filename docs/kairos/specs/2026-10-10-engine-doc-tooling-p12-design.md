@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P12 设计：child dispatch 终止兜底（liveness + budget）
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-10-19
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P12] 会话 · 用户逐轮裁定 Q1–Q14 · 2026-10-19）
@@ -63,7 +63,7 @@ depends-on: P11（Done · v0.7 · hard——P11 全链闭合后 child dispatch �
 | `DispatchStep`（`session/run.ts:113`） | `(frame: OpenFrame) => DispatchOutcome` | **`(frame: OpenFrame) => Promise<DispatchOutcome>`** |
 | `Lifecycle.advance()`（`session/run.ts:242`；派发于 `:257` `const outcome = this.#dispatch(frame)`） | `StepResult \| null` | **`Promise<StepResult \| null>`**（`:257` await） |
 | `CliLifecycle.step()` / `#dispatch`（`face/lifecycle.ts:191`/`:198`） | 同步 | **async**（`step()` 返回 async step；`#dispatch` 返回 `Promise<DispatchOutcome>`） |
-| `Cli.#runWork`（`face/cli.ts:456` · 派发循环 `:566`/`:618`/`:642`） | 已 `async`；`:642` `const step = run.advance()` | `await run.advance()`（及其注入包装 `:566` 内的 `dispatch(frame)` 改 await） |
+| `Cli.#runWork`（`face/cli.ts:456` · 派发循环 `:617`/`:618`/`:642`） | 已 `async`；`:642` `const step = run.advance()` | `await run.advance()`（及其注入包装 `:575-579` 内的 `dispatch(frame)` 改 await——该包装的 `dispatch` 常量在 `:564`；派发循环即 `:617` 的 `for (;;)`，`:618` 的 `run.peekNext()`） |
 | action 壳（`face/cli.ts:335-340`） | 已 `async` | 不变（内层 await 自然上浮） |
 | `--dry-run` 预览分支（`face/cli.ts:638-641`） | 读 `peekNext()` 的 frame + 同步 `Preview.render` | 不变——`peekNext()` 仍同步（它只读 frontier，不派发） |
 
@@ -87,7 +87,7 @@ depends-on: P11（Done · v0.7 · hard——P11 全链闭合后 child dispatch �
 | `face/__tests__/cli.test.ts` 的 `dispatch:` fixture（**29 处**） | 同步 step | async step |
 | `session/__tests__/run.test.ts`（`DispatchStep` 类型 `:29`/`:88` · `stub()` 助手 · `dispatch:` **24 处**） | 同步 | async |
 | `session/__tests__/preflight.test.ts:510` 的单处 `DispatchStep` | 同步 | async |
-| `face/__tests__/sync-runner.test.ts`（用**真** `new SyncRunner()`） | 锁 `execaSync` 三选项 | 整体重写为终止器用例（§3.6） |
+| `face/__tests__/sync-runner.test.ts`（用**真** `new SyncRunner()`） | 锁 `execaSync` 三选项 + **四条行为 pin**（>1 MiB 整取 1048577 字节 · 尾段 prose 存活于 2 MB 叙事之后 · stderr 经同面聚合 1100000 · fail-open：非零 child 走其 code、坏命令不抛） | 整体重写为**终止器用例**（`ChildRunner` 面）——四条 pin **不随 `SyncRunner` 退役而消失**，改由**同一新文件**收录（异步 `ChildRunner` 仍整取无界输出 · 尾段不截断 · fail-open 不抛）；生产语义由 §3.2 选项面保住（`reject:false` · `stripFinalNewline:false` · 不设/不下调 `maxBuffer`——execa 默认 **100 MB**，sync/async 共用同一默认表 `lib/arguments/specific.js:121`） |
 | `src-next/contract/__tests__/corpus-form-pin.test.ts:70-72`（`docs/kairos/specs` 计数 12 · 合计 23） | 随本 spec 文档新增而必破 | 已**随行重锚**为 13 / 24（plans 11 不变）——本设计流内独立提交 `fix(cdd-engine): P12 注册连带——corpus form-pin 语料计数重锚至实况（specs 12→13 · total 23→24）`，与 P11 的 `e062355e` / `6b4e38b1` 同约定 |
 
 ### 3. B 组 · 终止器（stall + budget）
@@ -96,7 +96,7 @@ depends-on: P11（Done · v0.7 · hard——P11 全链闭合后 child dispatch �
 
 一个 **`Terminator`** 类（新 · `face/` 面 · OOP · 零裸函数）承担一次派发的**进程生命周期**：spawn → 采样 → 判停 → 杀 → 收回结果。缝的接口是 **`ChildRunner`**（`run(...): Promise<ChildOutcome>`）：`Terminator` 是其**生产实现**、测试注入的是实现同一接口的**替身 `StubRunner`**——接口名 / 生产实现名 / 替身名三者对齐，`CliLifecycle` 只见接口。
 
-**`ChildOutcome` 形状**（缝的结果契约）：`{ code: number | null; stdout: string; stderr: string; termination: TerminationCause | null }`。`termination` 由 `Terminator` **内部**依 execa 结果面的 `timedOut` / `signal`（`lib/terminate/timeout.js:24-33` · `lib/methods/main-async.js:223`）再叠我方 kill 行动派生；§4.1 的三因派生因此落在 `Terminator` 内，`CliLifecycle` 只读结论、不见 execa 结果面。
+**`ChildOutcome` 形状**（缝的结果契约）：`{ code: number | null; stdout: string; stderr: string; termination: TerminationCause | null }`。`termination` 由 `Terminator` **内部**依 execa 结果面的 `timedOut` / `signal`（`lib/terminate/timeout.js:24-33` · `lib/methods/main-async.js:223`）再叠我方 kill 行动派生；§4.1 的派生面（三因 + `unknown` 兜底）因此落在 `Terminator` 内，`CliLifecycle` 只读结论、不见 execa 结果面。
 
 **引擎自持的只有三样**——**没有一样是轮子**（前提 ⑦）：
 
@@ -168,9 +168,9 @@ progress | unknown | idled | stalled
 | 腿 | 取法 | fail 语义 |
 |---|---|---|
 | CPU | `execFileSync("ps", ["-o", "time=", "-g", String(subprocess.pid)])` → 多行输出求和（`time=` 格式解析为 ms） | 非零退出 / 解析失败 → `null`（腿不可读） |
-| 树 | 递归遍历 **repoRoot**（child 的 cwd——`face/lifecycle.ts:216` 的 `this.#scene.workspace.root.repoRoot`）· 跳过 `.git/` 与符号链接 · 深度上限，取 `statSync().mtimeMs` 最大值——**显式排除心跳文件本身**（§3.4） | 目录不可读 → `null` |
+| 树 | 递归遍历 **repoRoot**（child 的 cwd——`face/lifecycle.ts:216-219` 的 `this.#scene.workspace.root.repoRoot`，`:216` 的 `#sync.run(` 调用锚点 + `:219` 的 cwd 实参）· 跳过 `.git/` 与符号链接 · 深度上限，取 `statSync().mtimeMs` 最大值——**显式排除心跳文件本身**（§3.4） | 目录不可读 → `null` |
 
-**树腿扫描根 · 消歧（硬约束）**：扫描根 pin 为 **repoRoot**（= child 的 cwd，`face/lifecycle.ts:216`），**不是**会话工作区子目录——child 的真产物流向 repoRoot 工作树，含 `.kairos/cdd/<slug>/` 下的 handoff 草稿（那是真进展），故**不可**整目录排除 `.kairos/`。但引擎在派发窗口内的自写必须排除，否则心跳即自证"进展"：§3.4 的 `liveness.json` 恰落在 repoRoot 树内的 `.kairos/` 域，若计入，每 60s 的覆写就成为每一步样本的最新 mtime，上面「mtime 增长 ⇒ progress」每 tick 命中、idle 窗口永不耗尽——对 issue #346 的**零 CPU 静默挂死** child，`stalled` 将永不触发。故排除清单恰好两处：`.git/` 与**心跳文件的精确路径**；一次心跳 tick 的覆写**绝不计入** mtime 腿（AC pin）。
+**树腿扫描根 · 消歧（硬约束）**：扫描根 pin 为 **repoRoot**（= child 的 cwd，`face/lifecycle.ts:216-219`），**不是**会话工作区子目录——child 的真产物流向 repoRoot 工作树，含 `.kairos/cdd/<slug>/` 下的 handoff 草稿（那是真进展），故**不可**整目录排除 `.kairos/`。但引擎在派发窗口内的自写必须排除，否则心跳即自证"进展"：§3.4 的 `liveness.json` 恰落在 repoRoot 树内的 `.kairos/` 域，若计入，每 60s 的覆写就成为每一步样本的最新 mtime，上面「mtime 增长 ⇒ progress」每 tick 命中、idle 窗口永不耗尽——对 issue #346 的**零 CPU 静默挂死** child，`stalled` 将永不触发。故排除清单恰好两处：`.git/` 与**心跳文件的精确路径**；一次心跳 tick 的覆写**绝不计入** mtime 腿（AC pin）。
 
 **进程组 id 的来源**：因约束 ①（`killDescendants` 在 spawn 层强制 `detached`），child 即进程组长 → **pgid = `subprocess.pid`**（这正是 execa 内部 `process.kill(-subprocess.pid, …)` 所依赖的同一事实）。引擎**不重算** pgid。
 
@@ -217,13 +217,13 @@ export type TerminationCause = "stalled" | "over-budget" | "signal";
 export type CrashCause = TerminationCause | "child-exit" | "contract-violation" | "unknown";
 ```
 
-- **三因派生**（极干净，因为 §3.2 约束 ② 把 budget 交给了 execa）：`error.timedOut === true` → **`over-budget`**；我方 stall 判定后调 `subprocess.kill()` → **`stalled`**；外部信号（`res.signal === "SIGTERM"` 且我方未杀）→ **`signal`**。
+- **派生面：三因 + 一支兜底**（极干净，因为 §3.2 约束 ② 把 budget 交给了 execa）：`error.timedOut === true` → **`over-budget`**；我方 stall 判定后调 `subprocess.kill()` → **`stalled`**；外部信号（`res.signal` 为**任何**信号 · 我方未杀 · 非 `timedOut`）→ **`signal`**（按语义收口而非 SIGTERM 字面——SIGTERM / SIGKILL / SIGINT / SIGHUP 一视同仁）；**以上三支皆不匹配 → `unknown`**（第四支兜底 · 不可归因）。
 - **退役（三个死值）**：`engine-timeout` / `engine-over-budget` / `child-signal`——`engine-timeout` **名不符实**（它不是 timeout，是停滞），且与 `stalled` 语义重复；`child-signal` **整体退役**，语义归并到 `signal`（同一事实：child 被外部信号杀死——我方未杀、execa 未超时）。核实：`child-signal` 全库唯一出现即 union 成员本身（`session/ledger.ts:157`），零写入者。
-- **保留**：`child-exit`（child 非零退出）与 `contract-violation`（read-back 拒绝）是**另一维度**（正常终止但失败），不混进终止词表；`unknown` 亦保留——它是 fail-open 的兜底值，非死掉的具名语义。
+- **保留**：`child-exit`（child 非零退出）与 `contract-violation`（read-back 拒绝）是**另一维度**（正常终止但失败），不混进终止词表；`unknown` 亦保留——它是派生面的**第四支兜底**（以上三支皆不匹配才落到它），有明确的生产者，**不是**死枚举。
 
 #### 4.2 crash record 与 `timeoutCount`
 
-- **crash record**：`#reject`（`face/lifecycle.ts:514-518`，唯一 `writeCrash` 调用点）扩为**终止轮也写**——`cause`（`session/ledger.ts:179` · 字段注释已写"The unified termination cause — postmortem, zero behavior fork"，本 phase 正是把它由死值换成活值）取 §4.1 的三因之一；`stdoutTail`/`stderrTail` 照 P11 的 `STDOUT_TAIL_MAX` 限界；新增**末样本**字段（§3.4 的心跳末态）。
+- **crash record**：`#reject`（`face/lifecycle.ts:514-518`，唯一 `writeCrash` 调用点）扩为**终止轮也写**——`cause`（`session/ledger.ts:179` · 字段注释已写"The unified termination cause — postmortem, zero behavior fork"，本 phase 正是把它由死值换成活值）取 §4.1 的派生因（`stalled` / `over-budget` / `signal`，兜底 `unknown`）；`stdoutTail`/`stderrTail` 照 P11 的 `STDOUT_TAIL_MAX` 限界；新增**末样本**字段（§3.4 的心跳末态）。
   - 现状注记：`Ledger.readCrash`（`session/ledger.ts:910`）**零调用者**——crash record 今天是一份"只写不读"的盘上事后件，其 `next`（`session/ledger.ts:177` · the same-command resume string）字段从未被消费。本 phase **不改这个性质**（消费方读盘自查），只让终止轮也产出它。
 - **`timeoutCount` 真递增**：`PROGRESS_COUNTER_ZERO`（`session/ledger.ts:104`）与 `ProgressData.timeoutCount`（`:139`）今日**零写入者**——终止轮落地时真递增（`face/cli.ts:661` 已有的 `TIMEOUT` 分支说明这条通道本来就为它留着）。
 
@@ -237,6 +237,7 @@ export type CrashCause = TerminationCause | "child-exit" | "contract-violation" 
 
 - 派发链路**全异步**：`DispatchStep` 返回 `Promise<DispatchOutcome>` · `Lifecycle.advance()` 为 `Promise` 且其调用点 await · `CliLifecycle.step()`/`#dispatch` 为 async · `Cli.#runWork` 的 `advance()` await
 - `execaSync` 在引擎活面**零残留**；`SyncProcess` / `SyncRunner` 的同步签名与类名零残留（构造点 `face/lifecycle.ts:172` · `face/cli.ts:235` 一并退役）
+- **无界整取与 fail-open 传承**：异步 `ChildRunner` 仍整取 >1 MiB 输出（`1048577` 字节，尾段 prose 存活）且 fail-open 不抛（非零 child 走其 code、坏命令不抛）——`sync-runner.test.ts` 的四条 D36 pin 改由终止器用例承载、覆盖不丢
 - 生产 spawn 选项面 pin：`killDescendants: true` + `forceKillAfterDelay: 5000` + `timeout` 取该 op 的预算键；**`detached` 在引擎活面零命中**（它会关掉 `cleanup`）
 - **僵死 child 被真砍**（端到端）：合成 **CPU 静默的挂死 child**（零 CPU 增长 · 不触碰 workspace · 不产出——与 issue #346 现场同形：1h33m+ 无 CPU、无子进程）+ **注入极小时序**（`idleWindowMs` / `sampleIntervalMs`）→ 断言 `status: TIMEOUT` + `cause: "stalled"` + crash record 落盘（含末样本）+ `timeoutCount` 递增
 - **超 budget**：注入小 `budgetMs` → `cause: "over-budget"`（源自 `error.timedOut`）
@@ -269,3 +270,4 @@ export type CrashCause = TerminationCause | "child-exit" | "contract-violation" 
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-19 | 初稿——P12 phase-spec：A 组派发链路异步化（`DispatchStep`→`Promise` · `SyncProcess`/`SyncRunner` 退役 · 迁移面逐条列名）+ B 组终止器（stall 判官双信号 fail-open · 采样 60s · idle 30min · 心跳文件 · 四键预算常量 · 组杀与 escalation 全交 execa 的三条硬约束）+ C 组词汇统一与失败面（`TerminationCause` 三词单源 · crash record 扩终止轮 · `timeoutCount` 真递增 · 无 `next:` 照旧）；裁定全承 D52/D53 · parent overall sync 至 v2.56 | Oscar M. · Claude Opus 5（kairos:cdd-design [P12] · 2026-10-19） |
 | v0.2 | 2026-10-19 | docs-fix round 1——落实评审 1 blocker / 3 warn / 2 nit：（blocker）§3.3 树腿扫描根消歧为 **repoRoot** 并显式排除 `.git/` 与**心跳文件精确路径**（§3.4 标注交叉引用 · AC 增「一次心跳 tick 不得重置 idle 起点」pin），堵住引擎自写把静默挂死判成进展的漏洞；（warn）AC 端到端僵死 fixture 由「忙等」改正为 **CPU 静默挂死 child**（与 issue #346 同形）并另立**忙等正例**（CPU 增长 → progress → 不砍）· §2.3 登记 corpus 计数 pin 随行重锚（specs 12→13 · 合计 23→24）为已落事实 · §4.1 退役清单补齐第三值 `child-signal`（归并到 `signal`）且 `unknown` 明列保留（AC 词汇单源 grep pin 同步）；（nit）行 pin 校正 `ledger.ts:73`/`74`（OpType/RoundPhase）· `infra/runtime.ts:3-5` · `ledger.ts:155-161`（CrashCause）· `ledger.ts:104`（PROGRESS_COUNTER_ZERO）· 注入缝命名单一化（接口 `ChildRunner` · 生产实现 `Terminator` · 测试替身 `StubRunner`）+ `ChildOutcome` 形状定义（`{code,stdout,stderr,termination}`） | Oscar M. · Claude Opus 5（kairos:cdd-dev [P12] docs-fix round 1 · 2026-10-19） |
+| v0.3 | 2026-10-19 | docs-fix round 2——落实评审 2 一 warn / 两 nit：（warn）§2.3 删掉悬空的 **`§3.6` 引用**并明示 pin 去处——`sync-runner.test.ts` 的四条 D36 pin（>1 MiB 整取 1048577 · 尾段 prose 存活于 2 MB 叙事之后 · stderr 同面聚合 1100000 · fail-open 非零 child 走其 code / 坏命令不抛）不随 `SyncRunner` 退役而消失，改由终止器用例同一新文件承载，生产语义由 §3.2 选项面保住（`reject:false` · `stripFinalNewline:false` · 不设/不下调 `maxBuffer` · execa 默认 100 MB · sync/async 共用默认表 `lib/arguments/specific.js:121`）；AC 补「异步 `ChildRunner` 仍整取 >1 MiB 且 fail-open」；（nit）§2.1 行 pin 校正——注入包装 `face/cli.ts:575-579`（`dispatch` 常量 `:564`）· 派发循环 `:617`(`for (;;)`)/`:618`(`peekNext()`)；§3.3 cwd 引改 `face/lifecycle.ts:216-219`（`#sync.run(` 锚点 + cwd 实参）；（nit）§4.1 外部信号按**语义收口**（`res.signal` 为任何信号 · 我方未杀 · 非 `timedOut` → `signal`，SIGTERM/SIGKILL/SIGINT/SIGHUP 一视同仁），`unknown` 明列为**第四支兜底**并给明确生产者，§3.1/§4.2 的「三因」引用同步为「派生面（三因 + `unknown` 兜底）」 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P12] docs-fix round 2 · 2026-10-19） |

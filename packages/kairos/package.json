@@ -36,9 +36,6 @@
     "CHANGELOG.md",
     "package.json"
   ],
-  "dependencies": {
-    "@oscaner-skills/cdd-engine": "workspace:*"
-  },
   "devDependencies": {
     "vitest": "^5.0.5"
   },

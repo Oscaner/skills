@@ -15,7 +15,7 @@
 //     handoff carrier's union).
 //   · round — the round carrier: the handoff presented as the Round the dispatch
 //     next-router judges. A fix round carries the SOURCE review's findings (the
-//     `--findings` input content, C5-1), never its own; the consecutive-S1 run is
+//     `--reviews` input content, C5-1), never its own; the consecutive-S1 run is
 //     walked from the round history (the review-cycle soft-cap basis).
 //
 // Module-level exports are types / constant data / the class — zero behavior-
@@ -24,6 +24,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { ConfigLoader } from "../infra/config.ts";
+import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
@@ -88,8 +89,8 @@ export interface Round {
   status?: RoundStatus;
   /** The findings the next-hop derivation judges. */
   findings: readonly RoundFinding[];
-  /** The findings handoff path (fix: the `--findings` input; review: its own handoff). */
-  findingsPath?: string;
+  /** The review handoff path (fix: the `--reviews` input; review: its own handoff). */
+  reviewsPath?: string;
   /** The consecutive-S1 run (the leading blocker-lead reviews, newest first) — the
    *  review-cycle soft-cap basis. */
   consecutiveS1: number;
@@ -146,28 +147,57 @@ export interface ProgressData {
 /** The ledger lookup key — a scalar task id or the group key string. */
 export type LedgerKey = number | string;
 
+/** The dispatch-termination vocabulary — why a round was cut short (single source:
+ *  the terminator derives the cause from the child's own result face, the crash
+ *  record carries it as a postmortem fact, zero behavior fork — resume never routes
+ *  on it). `stalled` = the engine's stall judgment killed the child; `over-budget` =
+ *  the wall-clock ceiling was reached; `signal` = an external signal killed the
+ *  child (any signal, one semantic — never the SIGTERM literal). */
+export type TerminationCause = "stalled" | "over-budget" | "signal";
+
+/** The stall judge's verdict per sample tick: `progress` (a leg advanced), `unknown`
+ *  (a leg is unreadable — the fail-open state, never a kill), `idled` (no progress
+ *  yet, the idle window is open) and `stalled` (no progress and the window is spent
+ *  — the kill). */
+export type StallVerdict = "progress" | "unknown" | "idled" | "stalled";
+
+/** One sample tick's two legs — the process group's cumulative CPU (ms) and the
+ *  newest mtime (ms) of the scanned tree. `null` = that leg is unreadable (the
+ *  fail-open face: an unreadable leg never authorizes a kill). The field names are
+ *  the heartbeat record's names (one naming, two references). */
+export interface Sample {
+  groupCpuMs: number | null;
+  newestMtimeMs: number | null;
+}
+
+/** The recorded sample — a `Sample` extended with its tick's timestamp and the
+ *  judge's verdict (the heartbeat file's field set; the crash record embeds it). */
+export interface SampleRecord extends Sample {
+  sampledAt: number;
+  verdict: StallVerdict;
+}
+
 /** The lane-crash cause vocabulary — postmortem classification of why a dispatch
  *  terminated before the exit gate (zero behavior fork: resume never routes on it).
- *  `contract-violation` is the read-back face: the child exited 0 but produced no
- *  draft or a schema-violating one (the engine BLOCKs + preserves the draft + stores
- *  the same-command resume — the read-back rejection's crash record). */
-export type CrashCause =
-  | "child-exit"
-  | "child-signal"
-  | "engine-over-budget"
-  | "engine-timeout"
-  | "contract-violation"
-  | "unknown";
+ *  The termination causes cover the round that was cut short; `child-exit` is the
+ *  child's own non-zero exit, `contract-violation` the read-back face (the child
+ *  exited 0 but produced no draft or a schema-violating one — the engine BLOCKs +
+ *  preserves the draft + stores the same-command resume), and `unknown` the
+ *  unattributable termination fallback. */
+export type CrashCause = TerminationCause | "child-exit" | "contract-violation" | "unknown";
 
 /** The crash record — the lane crash's recovery record (`crash-<lane>-<round>.json`):
  *  the same-command resume's decision source (the resume command + the dead child's
  *  tails), never the handoff carrier. */
 export interface CrashRecord {
-  /** The dead child's exit code (1 = run failure, 143 = SIGTERM — the shell convention). */
-  exitCode: number;
-  /** The last CRASH_TAIL_LINES stderr lines (the "403 / abort without trace" tail). */
+  /** The dead child's exit code — null when the child never spawned (a broken
+   *  command) or was terminated by a signal (a signalled child has no exit code;
+   *  the signal semantics ride the `cause`). */
+  exitCode: number | null;
+  /** The dead child's stderr tail (the "403 / abort without trace" tail — the
+   *  caller's captured lines, no fixed tail-length constant). */
   stderrTail: readonly string[];
-  /** The last CRASH_TAIL_LINES stdout lines. */
+  /** The dead child's stdout tail. */
   stdoutTail: readonly string[];
   /** The handoff path the dead child was expected to write (null when the lane carries none). */
   attemptedHandoff: string | null;
@@ -175,6 +205,11 @@ export interface CrashRecord {
   next: string;
   /** The unified termination cause — postmortem, zero behavior fork. */
   cause: CrashCause;
+  /** The terminated round's last observed sample (the stall face's postmortem pair) —
+   *  null when the round was not cut short or no sample was ever taken. The sample
+   *  rides the termination fact in memory (zero re-read of the heartbeat file the
+   *  engine itself wrote); the on-disk heartbeat stays for a human's postmortem. */
+  lastSample: SampleRecord | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -338,6 +373,28 @@ export class Ledger {
     return this.#refs;
   }
 
+  /** The ledger's repo-basis value object — the ONE conversion exit every persisted
+   *  path field normalizes through (T1 `RepoRoot` · P9 T4 §2.7). The basis is the
+   *  workspace root's OWN value object (built once at the root's boundary) — never
+   *  re-wrapped here (branch-review-1 F2: one basis, one form). */
+  #basis(): RepoRoot {
+    return this.#workspace.root.basis;
+  }
+
+  /** Normalize a path value to the canonical repoRoot-relative `RepoPath` — the
+   *  comparison/write side of the shapes fix (a persisted relative value and an
+   *  incoming absolute argv value compare on ONE basis). */
+  #rel(value: string): RepoPath {
+    return this.#basis().relativize(value);
+  }
+
+  /** Erase a (possibly relative) path value to the absolute syscall string for a
+   *  read (a legacy relative persisted value resolves against the basis, never
+   *  `process.cwd()`). */
+  #abs(value: string): string {
+    return this.#basis().resolve(this.#basis().relativize(value));
+  }
+
   // ---- the single author's write/read primitives ----
 
   /** Persist a JSON artifact — the ledger's single write point (engine sole author). */
@@ -468,8 +525,10 @@ export class Ledger {
   #briefRevision(waveKey: string, planPath: string): BriefRevisionRef | null {
     try {
       const tasks = waveKey.split(",").map((part) => Number(part));
-      const brief = this.#brief.render(readFileSync(planPath, "utf8"), tasks);
-      return this.#refs.briefRevision(planPath, brief);
+      // The plan layer is stored repoRoot-relative (P9 T4 §2.7) — one basis with
+      // every persisted path field; the read erases to absolute at the syscall edge.
+      const brief = this.#brief.render(readFileSync(this.#abs(planPath), "utf8"), tasks);
+      return this.#refs.briefRevision(this.#rel(planPath), brief);
     } catch {
       return null;
     }
@@ -504,7 +563,11 @@ export class Ledger {
     const reviewed = this.reviewedDocRevisionOf(key);
     if (reviewed === null) return null;
     try {
-      const current = this.#refs.docRevision(doc, readFileSync(doc, "utf8"));
+      // Both sides on ONE basis (P9 T4 §2.7): the recorded ref is repoRoot-relative;
+      // the incoming target (an absolute argv-erasure) is relativized here so the
+      // false-drift comparison never reads one document as two.
+      const rel = this.#rel(doc);
+      const current = this.#refs.docRevision(rel, readFileSync(this.#abs(doc), "utf8"));
       return this.#refs.sameRef(reviewed, current) ? "same" : "drift";
     } catch {
       return null;
@@ -585,7 +648,7 @@ export class Ledger {
       if (reviewed !== null && this.#briefDrift(waveKey, reviewed)) return { kind: "review" };
       return {
         kind: "fix",
-        findings: this.handoffPath("review", "wave", { tasks: waveKey, round: latestReview }),
+        reviews: this.handoffPath("review", "wave", { tasks: waveKey, round: latestReview }),
       };
     }
     return null;
@@ -645,6 +708,15 @@ export class Ledger {
   /** Read one counter — a failure-category count on record (0 when the file is missing). */
   counterOf(key: ProgressCounterKey): number {
     return this.readProgress()?.[key] ?? 0;
+  }
+
+  /** Increment the timeout counter — the terminated-round write point (one TIMEOUT
+   *  round lands, the count goes up by one). The counter's only writer. */
+  incrementTimeoutCount(): number {
+    const data = this.readProgress() ?? this.emptyProgress();
+    data.timeoutCount += 1;
+    this.writeProgress(data);
+    return data.timeoutCount;
   }
 
   // -------------------------------------------------------------------------
@@ -944,7 +1016,7 @@ export class Ledger {
    *  a rejected child's leftover draft is never read back as a completed round
    *  (the §2.8 gate; without it a BLOCKED round with a stale draft rendered a
    *  contradictory `status: BLOCKED · next: done`). A fix round carries the SOURCE
-   *  review's findings (C5-1: the `--findings` input content, never its own
+   *  review's findings (C5-1: the `--reviews` input content, never its own
    *  carrier); the consecutive-S1 run is walked from the review history.
    *  Missing/corrupt evaluated handoff → null too — a fix round whose source review
    *  is unreadable is never a zero-findings fabrication: a round whose blocker set
@@ -977,7 +1049,7 @@ export class Ledger {
         // shared with the fix leg below (`HandoffSchema.conclusionOf`).
         status: this.#handoffSchema.conclusionOf("findings", carrier),
         findings: this.#findingsOf(carrier),
-        findingsPath: this.handoffPath("review", type, reviewParams),
+        reviewsPath: this.handoffPath("review", type, reviewParams),
         consecutiveS1: this.#consecutiveS1Run(type, params, round),
       };
     }
@@ -997,7 +1069,7 @@ export class Ledger {
       // the same `conclusionOf` single source (D27).
       status: this.#handoffSchema.conclusionOf(this.handoffFaceOf("fix", type), fixCarrier),
       findings: this.#findingsOf(reviewCarrier),
-      findingsPath: this.handoffPath("review", type, reviewParams),
+      reviewsPath: this.handoffPath("review", type, reviewParams),
       consecutiveS1: this.#consecutiveS1Run(type, params, round),
     };
   }

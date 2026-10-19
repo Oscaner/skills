@@ -1,8 +1,11 @@
-# P4 实现计划：引擎 handoff 平面卫生 + commander 引入面收敛
-**Spec:** [2026-10-10-engine-doc-tooling-p4-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p4-design.md)
-- **Parent program**: [2026-10-10-engine-doc-tooling-overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.6 · 2026-10-12
-- **Doc type**: plan
+---
+title: P4 实现计划：引擎 handoff 平面卫生 + commander 引入面收敛
+doc-type: plan
+version: v0.6
+date: 2026-10-12
+spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p4-design.md
+parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
+---
 
 ## Constraints
 

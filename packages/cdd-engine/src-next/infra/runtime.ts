@@ -24,6 +24,9 @@
 // carrying bare functions (the plan's zero-bare-function discipline).
 
 import { ARGV_CHANNEL, type ChannelArgRow } from "../face/declare.ts";
+import { type DocRoots, ENGINE_DOC_ROOTS } from "./doc-roots.ts";
+
+export type { DocRoots } from "./doc-roots.ts";
 
 /** The context contract — the live argv channel table (the single channel the new
  *  tree's command face consumes; the host-marker env closure lives in the harness
@@ -32,32 +35,18 @@ export interface ContextContract {
   readonly channels: Readonly<{ argv: Readonly<Record<string, ChannelArgRow>> }>;
 }
 
-/** One handoff-family record — the canonical file-name pattern + round policy + the
- *  carrier's schema face (the full family row the JSON plane carried — schema /
- *  fixFamily / prev are data the typed plane preserves). The v1.9 contract
- *  reparametrization: `returnFormat` is deleted (RETURN_STDOUT_BLOCK is the ONE
- *  return contract — the per-family field was the JSON/block selector, retired with
- *  the divided return faces) and the dead `schema` field is resurrected as the
- *  handoff-schema face selector (`work` — implement/fix carrier — vs `findings` —
- *  the review carrier, session/handoff-schema.ts). */
+/** One handoff-family record — the canonical file-name pattern + the carrier's
+ *  schema face. Only `name`/`schema` are read (ledger/lifecycle resolve the file
+ *  name and pick the writable-subset face); the retired round-policy / phase /
+ *  fix-family / fix-template / prev-derivation fields (zero readers — spec §3.4 ⑯)
+ *  are deleted, never left as dead declarations. */
 export interface HandoffFamily {
   /** The canonical file name — the `{placeholder}` pattern the ledger fills. */
   name: string;
-  /** The family's round policy (fixed / increment / source). */
-  round?: "fixed" | "increment" | "source";
-  /** The dispatch phase the family carries (implement/review/fix/branch-review). */
-  phase?: string;
   /** The carrier schema face (work / findings) — the handoff-schema selector (§3.6:
-   *  the field resurrected from the dead task/docs discrimination; the docs-fix
-   *  families (fix.spec / fix.plan) ride the findings face — §3.6's per-mode split:
-   *  implement/fix → work + evidence · review/docs-fix → findings). */
+   *  the docs-fix families (fix.spec / fix.plan) ride the findings face — the
+   *  per-mode split: implement/fix → work + evidence · review/docs-fix → findings). */
   schema?: "work" | "findings";
-  /** The fix-round family of a review family. */
-  fixFamily?: string;
-  /** The fix-template face of a fix family. */
-  fixTemplate?: string;
-  /** The previous-round family derivation of increment/source families. */
-  prev?: Readonly<Record<string, string>>;
 }
 
 /** The handoff-name space — the workspace segment + the family naming table. */
@@ -66,15 +55,6 @@ export interface HandoffNamespace {
   workspaceRoot: string;
   /** The handoff families keyed by `op.type` — the ledger's naming truth. */
   families: Readonly<Record<string, HandoffFamily>>;
-}
-
-/** The doc-root segments — the slug → doc-tree reverse derivation's root paths
- *  (relative to the repo root; the board's scan reads them, never re-declares). */
-export interface DocRoots {
-  /** The design-spec directory segment. */
-  specs: string;
-  /** The plan directory segment. */
-  plans: string;
 }
 
 /** The engine runtime — the typed engine-config surface (version + channels + names
@@ -93,78 +73,48 @@ export interface EngineRuntime {
 /** The handoff family naming table — the canonical per-family file-name patterns
  *  keyed by `op.type` (implement.wave / review.wave / … — the ledger's single
  *  naming truth, verbatim from the engine-config handoff namespace). The v1.9
- *  reparametrization: `returnFormat` is gone (RETURN_STDOUT_BLOCK is the one return
+ *  reparametrization: `returnFormat` is gone (RETURN_PROSE is the one return
  *  contract) and the `schema` faces are the handoff-schema selector (work / findings —
  *  §3.6, session/handoff-schema.ts). */
 export const HANDOFF_FAMILIES = {
   "implement.wave": {
     name: "tasks-{tasks}-implement.json",
-    round: "fixed",
     schema: "work",
-    phase: "implement",
   },
   "review.wave": {
     name: "tasks-{tasks}-review-{round}.json",
-    round: "increment",
     schema: "findings",
-    phase: "review",
-    fixFamily: "fix.wave",
-    prev: { round1: "implement.wave", roundR: "fix.wave:R-1" },
   },
   "fix.wave": {
     name: "tasks-{tasks}-fix-{round}.json",
-    round: "source",
     schema: "work",
-    fixTemplate: "fix",
-    phase: "fix",
-    prev: { roundR: "review.wave:R" },
   },
   "review.spec": {
     name: "spec-review-{round}.json",
-    round: "increment",
     schema: "findings",
-    phase: "review",
-    fixFamily: "fix.spec",
   },
   "fix.spec": {
     name: "spec-fix-{round}.json",
-    round: "source",
     schema: "findings",
-    fixTemplate: "docs",
-    phase: "fix",
-    prev: { roundR: "review.spec:R" },
   },
   "review.plan": {
     name: "plan-review-{round}.json",
-    round: "increment",
     schema: "findings",
-    phase: "review",
-    fixFamily: "fix.plan",
   },
   "fix.plan": {
     name: "plan-fix-{round}.json",
-    round: "source",
     schema: "findings",
-    fixTemplate: "docs",
-    phase: "fix",
-    prev: { roundR: "review.plan:R" },
   },
   "review.branch": {
     // find #9 (spec §6.5): the range token leaves the file name — the workspace
     // slug is the plan-slug (the fix face carries --plan) · round accumulates
     // across re-reviews (lineKey pins "branch").
     name: "branch-review-{round}.json",
-    round: "increment",
     schema: "findings",
-    phase: "branch-review",
   },
   "fix.branch": {
     name: "branch-fix-{round}.json",
-    round: "source",
     schema: "work",
-    fixTemplate: "fix",
-    phase: "fix",
-    prev: { roundR: "review.branch:R" },
   },
 } as const satisfies Readonly<Record<string, HandoffFamily>>;
 
@@ -178,8 +128,5 @@ export const ENGINE_RUNTIME = {
     workspaceRoot: ".kairos/cdd",
     families: HANDOFF_FAMILIES,
   },
-  docRoots: {
-    specs: "docs/kairos/specs",
-    plans: "docs/kairos/plans",
-  },
+  docRoots: ENGINE_DOC_ROOTS,
 } as const satisfies EngineRuntime;

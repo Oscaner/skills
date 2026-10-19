@@ -10,7 +10,7 @@ The engine runs the implement / review / fix phases of the CDD workflow against 
 
 ## Installation
 
-Requires Node.js `>= 22.12.0`.
+Requires Node.js `>= 24`.
 
 ```bash
 # global CLI (provides the `cdd` binary)
@@ -22,7 +22,7 @@ npm install @oscaner-skills/cdd-engine
 
 ## CLI
 
-Global option: `--dry-run` — simulate the dispatch without writing handoff artifacts.
+Global option: `--dry-run` — preview the next dispatch step and its expected artifacts — zero repo writes, no round consumed (implement/review/fix only).
 
 | Subcommand | Usage | Purpose |
 |------------|-------|---------|

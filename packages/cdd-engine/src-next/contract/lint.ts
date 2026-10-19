@@ -15,18 +15,17 @@
 //     unregistered targets (missing-id) and self-edges (self-loop) stay silent —
 //     a suspect is always an existing task with a lower id whose edge was simply
 //     not declared (forward references are legal — no contradiction class).
-//   · cross-doc label drift (plan / phase-spec) — the Class-B `**Parent
-//     program**` link whose label (version tokens stripped) drifts from the
-//     target's basename. The Class-A `**Spec:**` drift is the cross-doc-chain
-//     invariant's BLOCK, never re-observed here.
+//
+// The cross-doc label-drift observation (Class-B `parent-program:` label vs
+// target basename) retired with the ChainLink label face at the front-matter flip
+// (T6) — the chain facts ride the typed head scalars, a link label is not a fact.
 //
 // Every warning is a Warn — a WARN-only observation, never a Finding, never a
 // BLOCK. Module-level exports are types / the class — zero behavior-carrying
 // bare functions (the plan's zero-bare-function discipline).
 
-import path from "node:path";
 import { declaredRegistries } from "./declare.ts";
-import type { ChainLink, ParsedDoc, PlanParsed, TaskBlock } from "./doc.ts";
+import type { ParsedDoc, PlanParsed, TaskBlock } from "./doc.ts";
 import { MarkdownPrimitives } from "./doc.ts";
 import type { ReferenceEntry, ReferenceProjection } from "./project.ts";
 import { Projector } from "./project.ts";
@@ -91,7 +90,6 @@ export class LintPass extends MarkdownPrimitives {
       warns.push(...this.#numberingAdvisories(input, input.parsed));
       warns.push(...this.#transitiveAdvisories(input, input.parsed));
     }
-    warns.push(...this.#crossDocDriftWarns(input, input.parsed.chain.parentLink));
     return warns;
   }
 
@@ -223,40 +221,6 @@ export class LintPass extends MarkdownPrimitives {
   /** The line with its backtick-delimited inline code spans removed (a span cites a symbol, never prose). */
   #withoutCodeSpans(line: string): string {
     return line.replace(/`+[^`\n]*`+/g, "");
-  }
-
-  // -------------------------------------------------------------------------
-  // the cross-doc drift observation (plan / phase-spec)
-  // -------------------------------------------------------------------------
-
-  /** The Class-B `**Parent program**` link whose label (version tokens stripped)
-   *  drifts from the target basename — one WARN per offending link. */
-  #crossDocDriftWarns(input: LintInput, parent: ChainLink | null): Warn[] {
-    if (parent === null || parent.target.trim() === "") return [];
-    if (this.#labelWithoutVersion(parent.label) !== path.basename(parent.target)) {
-      return [
-        {
-          path: input.path,
-          field: "**Parent program**",
-          message: `the **Parent program** label ${JSON.stringify(parent.label.trim())} does not resolve to the target basename ${path.basename(parent.target)}`,
-          fix: "make the link label equal the resolved file's basename (a trailing version token is allowed)",
-          kind: "reference-lint",
-        },
-      ];
-    }
-    return [];
-  }
-
-  /** The label with a trailing version-token segment stripped (the canonical
-   *  `basename v<m>.<n>` Class-B form) — the shared token primitive parses the
-   *  tokens, never a re-typed version regex. */
-  #labelWithoutVersion(label: string): string {
-    const stripped = label.trim();
-    const tokens = this.versionTokens(stripped);
-    if (tokens.length === 0) return stripped;
-    const last = tokens[tokens.length - 1];
-    const index = stripped.lastIndexOf(last);
-    return index <= 0 ? "" : stripped.slice(0, index).trimEnd();
   }
 
   // -------------------------------------------------------------------------

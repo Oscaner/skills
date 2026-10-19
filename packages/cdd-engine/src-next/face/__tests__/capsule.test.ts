@@ -17,6 +17,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { RepoRoot } from "../../infra/root.ts";
 import type { RouteTarget } from "../../session/faces.ts";
 import type { Route } from "../../session/next.ts";
 import { FIX_READBACK_SUFFIX, PIPELINE_NEXT } from "../../session/next.ts";
@@ -57,7 +58,7 @@ const branch = {
 /** One verb × type row of the coverage table — the route + the frame facts + the
  *  runtime-required flags of the type (the flags the CLI run would demand: the
  *  declared required keys + the type's scene rules — wave demands --plan, spec/plan
- *  their doc flags, branch the workspace --plan/--findings face). */
+ *  their doc flags, branch the workspace --plan/--reviews face). */
 interface CoverageRow {
   label: string;
   route: Route;
@@ -98,30 +99,30 @@ const COVERAGE: readonly CoverageRow[] = [
   },
   {
     label: "fix wave",
-    route: { kind: "fix", findings: "tasks-1-review-1.json" },
+    route: { kind: "fix", reviews: "tasks-1-review-1.json" },
     target: wave,
-    required: ["--type", "--tasks", "--plan", "--findings"],
+    required: ["--type", "--tasks", "--plan", "--reviews"],
   },
   {
     label: "fix spec",
-    route: { kind: "fix", findings: "s1-review-1.json" },
+    route: { kind: "fix", reviews: "s1-review-1.json" },
     target: spec,
-    required: ["--type", "--spec", "--findings"],
+    required: ["--type", "--spec", "--reviews"],
   },
   {
     label: "fix plan",
-    route: { kind: "fix", findings: "p1-review-1.json" },
+    route: { kind: "fix", reviews: "p1-review-1.json" },
     target: planT,
-    required: ["--type", "--plan", "--findings"],
+    required: ["--type", "--plan", "--reviews"],
   },
   {
     // find #8 F1b — the branch fix carries the workspace-identity `--plan` plus the
-    // source review handoff `--findings` (the review judges the live tree — no
+    // source review handoff `--reviews` (the review judges the live tree — no
     // re-declared base/head on the CLI)
     label: "fix branch",
-    route: { kind: "fix", findings: "br1-review-1.json" },
+    route: { kind: "fix", reviews: "br1-review-1.json" },
     target: branch,
-    required: ["--type", "--findings", "--plan"],
+    required: ["--type", "--reviews", "--plan"],
   },
 ];
 
@@ -175,8 +176,31 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
   });
 
   it("the fix route keeps the FIX_READBACK_SUFFIX verbatim", () => {
-    const literal = literalOf({ kind: "fix", findings: "tasks-1-review-1.json" }, wave);
+    const literal = literalOf({ kind: "fix", reviews: "tasks-1-review-1.json" }, wave);
     expect(literal).toContain(FIX_READBACK_SUFFIX);
+  });
+
+  it("D47 — the next: literal's embedded paths render repoRoot-relative (absolute target + findings)", () => {
+    // §2.13 — the ONE renderer normalizes every embedded path value to the repoRoot-
+    // relative shape; an absolute target path and an absolute review path both come
+    // out relative, and the repo root never appears in the literal.
+    const repo = "/tmp/d47-repo";
+    const capsule = new Capsule(new Words(), {}, "", new RepoRoot(repo));
+    const lines = capsule.emit(
+      "CHANGES_REQUESTED",
+      "1",
+      `${repo}/.kairos/cdd/p3/tasks-1-review-1.json`,
+      { kind: "fix", reviews: `${repo}/.kairos/cdd/p3/tasks-1-review-1.json` },
+      { type: "plan", id: `${repo}/docs/kairos/plans/p3.md` },
+    );
+    const literal = lines[1]!.slice("next: ".length);
+    expect(literal).toBe(
+      `fix --type plan --plan docs/kairos/plans/p3.md --reviews .kairos/cdd/p3/tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
+    );
+    expect(literal).not.toContain(repo);
+    // The handoff: cell is the same basis — repoRoot-relative, never absolute.
+    expect(lines[0]).toContain("handoff: .kairos/cdd/p3/tasks-1-review-1.json");
+    expect(lines[0]).not.toContain(repo);
   });
 });
 
@@ -185,7 +209,7 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
 // ---------------------------------------------------------------------------
 
 /** The hermetic declaration repo — the spec docs the doc-class discrimination reads
- *  (spec §12 · D34: the declared `- **Doc type**:` line, never the filename). */
+ *  (spec §12 · D34: the declared front-matter `doc-type:` key, never the filename). */
 describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · the unified next face)", () => {
   let repo: string;
 
@@ -197,27 +221,27 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
     rmSync(repo, { recursive: true, force: true });
   });
 
-  /** A spec doc on disk declaring its doc type (the header declaration line). */
+  /** A spec doc on disk declaring its doc type (the front-matter head key). */
   const declareSpec = (name: string, docType: string | null): RouteTarget => {
     mkdirSync(path.dirname(path.join(repo, name)), { recursive: true });
-    const header =
+    const head =
       docType === null
-        ? ["# The doc", "", "- **Version**: v1.0", "- **Status**: Draft", ""]
+        ? ["---", "title: The doc", "version: v1.0", "status: Draft", "---"]
         : [
-            "# The doc",
-            "",
-            "- **Version**: v1.0",
-            "- **Status**: Draft",
-            `- **Doc type**: ${docType}`,
-            "",
+            "---",
+            "title: The doc",
+            "version: v1.0",
+            "status: Draft",
+            `doc-type: ${docType}`,
+            "---",
           ];
-    writeFileSync(path.join(repo, name), header.join("\n"), "utf8");
+    writeFileSync(path.join(repo, name), [...head, ""].join("\n"), "utf8");
     return { type: "spec", id: name } as const;
   };
 
   /** The done-text of a capsule emit for a host-injected capsule over the repo. */
   const doneOf = (target?: RouteTarget, host = ""): string => {
-    const lines = new Capsule(new Words(), {}, host, repo).emit(
+    const lines = new Capsule(new Words(), {}, host, new RepoRoot(repo)).emit(
       "APPROVED",
       "0",
       "/h.json",
@@ -249,10 +273,10 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
     expect(doneOf(overall)).toBe("done");
   });
 
-  it("a spec target declaring no Doc type renders the BLOCKED face — zero filename-suffix fallback", () => {
+  it("a spec target declaring no doc-type renders the BLOCKED face — zero filename-suffix fallback", () => {
     const undeclared = declareSpec("docs/kairos/specs/prog-p8-design.md", null);
     expect(doneOf(undeclared)).toBe(
-      "CDD_BLOCKED: the doc declares no `- **Doc type**:` line — add `- **Doc type**: <overall-spec|phase-spec|single-spec|plan>` to the doc's header (spec §12) and re-run",
+      "CDD_BLOCKED: the doc declares no `doc-type:` key — add `doc-type: <overall-spec|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
     );
   });
 

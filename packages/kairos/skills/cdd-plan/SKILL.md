@@ -1,6 +1,6 @@
 ---
 name: cdd-plan
-description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:writing-plans（pi：/skill:writing-plans） flow inline as this session's baseline, backfills the design spec on substantive drift before authoring, commits the authored plan before the review-fix loop, and runs the loop following the engine's next: line — the engine's next face carries the pipeline continuation. Callable standalone; invoke as kairos:cdd-plan（pi：/skill:cdd-plan）.
+description: Independent plan-writing orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:writing-plans（pi：/skill:writing-plans） flow inline as this session's baseline, backfills the design spec on substantive drift before authoring, commits the authored plan before the review-fix loop, and runs the loop following the engine's next face — the engine's next directive carries the pipeline continuation. Callable standalone; invoke as kairos:cdd-plan（pi：/skill:cdd-plan）.
 ---
 
 # Kairos CDD-Plan
@@ -16,7 +16,8 @@ flowchart TD
   A[run-cdd-plan-session] --> B[backfill-design]
   A --> Z1((BLOCKED: upstream plugin missing))
   B --> C[author-plan]
-  C --> K[commit-plan]
+  C --> S[self-review]
+  S --> K[commit-plan]
   K --> L[NEXT-LOOP]
   L -->|until next is terminal| L
   L -->|no next| Z2((BLOCKED))
@@ -40,14 +41,20 @@ flowchart TD
 
 ### `author-plan`
 
-- **Do**: Write the complete plan document to `docs/kairos/plans/YYYY-MM-DD-<feature>.md` — generate the canonical skeleton first (`npx -y @oscaner-skills/cdd-engine@latest schema get plan --output skeleton <target path>`) and fill its slots in place; the structure stays as generated. Plan header MUST carry the approved design link as **`**Spec:**` on line 2** (immediately after the `# Title`): `**Spec:** [<name>-design.md](docs/kairos/specs/<name>-design.md)` — the same source as the review's `--spec` pointer; `cdd-report` resolves program attribution through this header (workspace plan record → **Spec:** → overall → Related), the plan record being the first hop of its program chain.
+- **Do**: Write the complete plan document to `docs/kairos/plans/YYYY-MM-DD-<feature>.md` — generate the canonical skeleton first (`npx -y @oscaner-skills/cdd-engine@latest schema get plan --output skeleton <target path>`) and fill its slots in place; the structure stays as generated. Plan header MUST carry the approved design link in its front-matter `spec:` key — `spec: docs/kairos/specs/<name>-design.md` (the target path, repo-root form; the generated skeleton emits the `spec:` key for you to fill) — the same source as the review's `--spec` pointer; `cdd-report` resolves program attribution through this header (workspace plan record → `spec:` → overall → Related), the plan record being the first hop of its program chain.
   - **Constraints** — the `## Constraints` section declares the constraint surface the implement child reads — zero separately materialized constraints file; declaring no constraint rows never blocks a dispatch — no silent fallback, no phantom rules file.
   - **Dependencies** — declare each task's dependencies as the single directed edge on its task record — `- **DependsOn**: <n, n, …>` (any existing task id; forward references are legal; `none`/empty = the explicit no-dependency declaration); the declared edges group the tasks into dispatch waves.
-  - **Sole writer** — cross-task adjudication surfaced later (user adjudication / phase-level re-scope) is handled by the orchestrator as Plan Sole Writer: it amends the target task's `- **Objective**:` / `- **Steps**:` / `- **Acceptance**:` data fields directly; fix/implement agents hold zero plan-modification authority.
-  - **Self-review** — before committing, check spec coverage + type consistency + zero leftover `:::fill` markers + zero angle-bracket literals outside link-anchor slots; issues found are fixed inline, not looped or passed to review.
+  - **Write authority** — cross-task adjudication surfaced later (user adjudication / phase-level re-scope) is handled by the orchestrator under Plan write authority (I3): it amends the target task's `- **Objective**:` / `- **Steps**:` / `- **Acceptance**:` data fields directly.
 - **Read**: approved spec + `backfill-design` output + the plan's structural contract (the same structure fact the review reads)
-- **Exit**: File written → `commit-plan`
+- **Exit**: File written → `self-review`
 - **Fail**: Schema read fails or the draft plan is unusable → BLOCKED (missing plan input)
+
+### `self-review`
+
+- **Do**: Review the just-written plan before committing — run five checks, substance first: (1) **coverage** — every approved-spec requirement maps to a task; (2) **step decidability** — each step lets the implementer write exactly one reasonable thing (a line that decides nothing, or a signature-and-tests-determined transcript, is a defect); (3) **consistency** — task ids / `DependsOn` edges / naming agree; (4) **failure-mode coverage** — every failure mode the spec implies has a task whose checkable exercises it; (5) **proportion** — the plan is not many times the length of the spec it implements. Then the mechanical tail: zero leftover `:::fill` markers, zero angle-bracket literals outside link-anchor slots (cheap hygiene the doc-contract gate would otherwise flag). Issues found are fixed inline on the same file; this is a pre-commit self-check inside this flow, not a review round (no `next:` dispatch, no findings carrier).
+- **Read**: the written plan document + the approved spec it implements
+- **Exit**: Self-check clean (issues fixed inline) → `commit-plan`
+- **Fail**: Unresolvable defect needing design input → BLOCKED (missing plan input)
 
 ### `commit-plan`
 
@@ -69,7 +76,7 @@ flowchart TD
 |---|---|
 | I1 | **Review Convergence (next: is the dispatch)** — a review closes by its conclusion (APPROVED / CHANGES_REQUESTED / REVIEW_FIX), and the output's `next:` line carries the engine's default next step as a complete executable command; read the `next:` line and dispatch it as written — the literal is the dispatch, no kind→command mapping layer. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round, consuming the findings handoff; the orchestrator must not edit in place as a substitute; a fix commit opens a new review, never a re-run of a closed one |
 | I2 | **Plan commit discipline** — the authored plan commits before the first review round; each fix round commits its own changes — approval closes the loop on a committed state; do not wait for dev merge |
-| I3 | **Plan Sole Writer** — the plan document is the orchestrator's sole-writer surface: the orchestrator amends the target task's data fields directly on adjudication; fix/implement agents hold zero plan-modification authority |
+| I3 | **Plan write authority** — the plan's writes discriminate by trigger: review findings land through the fix round dispatch only; a user adjudication or durable backfill lands through the orchestrator's own standalone commit, amending the target task's data fields directly; fix/implement agents hold zero plan-modification authority |
 | I4 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band |
 
 ## Failure Modes

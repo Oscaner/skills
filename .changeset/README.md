@@ -35,12 +35,13 @@ Version mode (merging to `main` while opening a Version PR — `hasChangesets=tr
 
 ## Release wiring essentials (P4.2 first release, 2026-09-27)
 
-Five hard-won wiring constraints for anyone touching [release.yml](.github/workflows/release.yml) / the npm auth surface:
+Six hard-won wiring constraints for anyone touching [release.yml](.github/workflows/release.yml) / the npm auth surface:
 
 - **changesets/action v2 inputs are renamed** — use `version-script`, `publish-script`, `commit-message`, `pr-title`, `create-github-releases`. The old `version:`/`publish:`/`commit:`/`title:` names hard-fail in v2 ("The following inputs have been renamed").
 - **No `&&` inside `version-script`** — the action tokenizes the script by spaces and feeds the tail to `changeset version` as unused args (`CACError: Unused args`). Wrap compounds in a root npm script (`ci:version` = `changeset version && pnpm run emit`).
 - **npm auth = `actions/setup-node`, not a committed `.npmrc`** — give setup-node a `registry-url` and set `NODE_AUTH_TOKEN`; it writes a job-scoped, untracked `.npmrc` with the literal token. A committed project `.npmrc` with `${NPM_TOKEN}` interpolation is refused by pnpm (hardened against secret leakage) — the publish dies anonymously with `E404 PUT /@scope/package - Not found` for a new scoped package, indistinguishable from a permission error (this blocked P4.2's first release across several token swaps).
 - **The action's output is `has-changesets`** (kebab-case, v2) — the downstream `release-plugin` / `sync-develop` `if:` conditions read the job output wired to it; using the old `hasChangesets` name silently SKIPS tags/Releases/sync while the publish itself succeeds (packages land on npm, the release tail is missing).
 - **No hand-pinned versions in shipped docs** — the root README plugin table must not carry a literal version: it drifts on the versioned tree and red-lights a consistency probe on every Version PR. Version single source = `package.json` → emit products → npm.
+- **`changeset publish` must carry `--no-git-tag`** (2026-10-16) — `changeset publish` tags by default (`options?.gitTag ?? true`), emitting a **scoped** tag `<pkg-name>@<version>` (`@oscaner-skills/kairos@1.0.0`). The `release-plugin` matrix is the sole tag owner and emits the **bare** form (`kairos@<version>` / `cdd-engine@<version>`), so leaving both on yields **two tags per package** on every release. `release.yml`'s `publish-script` therefore reads `pnpm exec changeset publish --no-git-tag` — the action whitespace-tokenizes the string (`@actions/exec` `argStringToArray`), so the trailing flag reaches the CLI. If a scoped tag ever reappears, this flag has been dropped.
 
 See [CLAUDE.md](../CLAUDE.md) and [README.md](../README.md) for full details.

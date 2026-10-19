@@ -25,6 +25,7 @@ import type { DocKey } from "../../contract/project.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
+import type { RepoPath } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { targetFaces } from "../faces.ts";
 import { Ledger } from "../ledger.ts";
@@ -60,12 +61,19 @@ const dirty = (repoRoot: string): void => {
   writeFileSync(path.join(repoRoot, "dirty.txt"), "dirty\n", "utf8");
 };
 
-/** A plan literal over `### Task N:` blocks + `- **DependsOn**:` values. */
+/** A plan literal over `### Task N:` blocks + `- **DependsOn**:` values (the
+ *  front-matter head the plan parser reads). */
 const planDoc = (blocks: readonly (readonly string[])[]): string => {
   return [
-    "# Test Plan",
-    "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
-    "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
+    "---",
+    "title: Test Plan",
+    "doc-type: plan",
+    "version: v1.0",
+    "date: 2026-10-09",
+    "spec: docs/kairos/specs/x-design.md",
+    "parent-program: docs/kairos/specs/x-overall.md",
+    "parent-version: v1.0",
+    "---",
     "",
     "## Constraints",
     "",
@@ -107,22 +115,28 @@ const memoryFs = (content: string): DocFs => {
   return {
     exists: () => true,
     read: () => content,
-    // The sibling scan resolves the `**Parent program**` target basename — the
+    // The sibling scan resolves the `parent-program:` target basename — the
     // judged doc's family lists it.
     list: (_p: string) => ["x-overall.md"],
   };
 };
 
-/** A conforming phase-spec — every current + P4.1-T2 phase-spec element present (the
- *  header tuple + the version lineage + a Change-history table + the design
- *  skeleton), so the doc-contract gate passes it (zero structural findings). */
+/** A conforming phase-spec — every current + P4.1-T2 phase-spec element present
+ *  (the front-matter head (since T6) + the version lineage + a Change-history
+ *  table + the design skeleton), so the doc-contract gate passes it (zero
+ *  structural findings). */
 const CONFORMING_SPEC = [
-  "# Test Spec",
-  "- **Version**: v1.0 · 2026-10-09",
-  "- **Status**: Draft",
-  "- **Author**: x",
-  "- **Parent program**: [x-overall.md v1.0](docs/kairos/specs/x-overall.md)",
-  "- **Depends on**: P1",
+  "---",
+  "title: Test Spec",
+  "doc-type: phase-spec",
+  "version: v1.0",
+  "date: 2026-10-09",
+  "status: Draft",
+  "author: x",
+  "parent-program: docs/kairos/specs/x-overall.md",
+  "parent-version: v1.0",
+  "depends-on: P1",
+  "---",
   "",
   "## Design",
   "",
@@ -147,9 +161,18 @@ const CONFORMING_SPEC = [
   "| v1.0 | 2026-10-09 | initial | [human] |",
 ].join("\n");
 
-/** A defective phase-spec — a required section missing, so the doc-contract
- *  gate refuses it (the negative case). */
-const DEFECTIVE_SPEC = ["# Test Spec", "- **Version**: v1.0", "", "## Design"].join("\n");
+/** A defective phase-spec — the required sections/head keys missing, so the
+ *  doc-contract gate refuses it (the negative case). */
+const DEFECTIVE_SPEC = [
+  "---",
+  "title: Test Spec",
+  "doc-type: phase-spec",
+  "version: v1.0",
+  "status: Draft",
+  "---",
+  "",
+  "## Design",
+].join("\n");
 
 // ---------------------------------------------------------------------------
 // the seam's context builders
@@ -180,7 +203,7 @@ const waveCtx = (
 
 /** The doc-face context — the target doc judged by the doc-contract gate. `docKey`
  *  is the doc's declared type (spec §12 · D34); null models a present doc carrying
- *  no `- **Doc type**:` declaration (the seam BLOCKs). */
+ *  no `doc-type:` key (the seam BLOCKs). */
 const docCtx = (
   repoRoot: string,
   docKey: DocKey | null,
@@ -198,7 +221,10 @@ const docCtx = (
     planText: null,
     tasks: null,
     ledger,
-    doc: { docKey, path: `docs/kairos/specs/${docKey === "plan" ? "plan" : "spec"}.md` },
+    doc: {
+      docKey,
+      path: `docs/kairos/specs/${docKey === "plan" ? "plan" : "spec"}.md` as RepoPath,
+    },
   };
 };
 
@@ -436,8 +462,36 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
       expect(verdict.ok).toBe(false);
       expect(verdict.gate).toBe("doc-contract");
       expect(verdict.reason).toBe("doc-contract");
-      expect(verdict.message).toContain("declares no `- **Doc type**:` line");
+      expect(verdict.message).toContain("declares no `doc-type:` key");
       expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an unparseable front-matter BLOCKs with the REAL YAML failure — never the no-doc-type misread (D1 · #341)", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const malformed = [
+        "---",
+        "title: Test Spec",
+        "doc-type: phase-spec",
+        "version: v1.0",
+        "status: Draft",
+        "author: [human] · Claude Opus 5",
+        "---",
+        "",
+        "## Design",
+      ].join("\n");
+      const preflight = preflightOf(memoryFs(malformed));
+      const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
+      expect(verdict.ok).toBe(false);
+      expect(verdict.gate).toBe("doc-contract");
+      expect(verdict.reason).toBe("doc-contract");
+      // the misread dies — the wording reports the parse position, never "no doc-type"
+      expect(verdict.message).toContain("not valid YAML");
+      expect(verdict.message).toMatch(/on line \d+, column \d+/);
+      expect(verdict.message).not.toContain("declares no `doc-type:` key");
     } finally {
       cleanup();
     }
@@ -449,11 +503,11 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
 // ---------------------------------------------------------------------------
 
 describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch)", () => {
-  it("advance() refuses a preflight-blocked frame without dispatching the child", () => {
+  it("advance() refuses a preflight-blocked frame without dispatching the child", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const calls: OpenFrame[] = [];
-      const dispatch: DispatchStep = (frame) => {
+      const dispatch: DispatchStep = async (frame) => {
         calls.push(frame);
         return { status: "APPROVED", findings: [] };
       };
@@ -475,15 +529,15 @@ describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch
           new ConfigLoader(),
         ),
         dispatch,
-        target: { kind: "doc", doc: "docs/kairos/specs/x.md" },
+        target: { kind: "spec", doc: "docs/kairos/specs/x.md" },
         preflight: { gate: () => blocked },
       });
-      const step = run.advance();
+      const step = await run.advance();
       expect(step).not.toBeNull();
       expect(step!.preflight).toEqual(blocked);
       expect(step!.route).toBeNull();
       expect(calls).toEqual([]); // child zero dispatch
-      expect(run.advance()).not.toBeNull(); // the refused frame re-offers (resume)
+      expect(await run.advance()).not.toBeNull(); // the refused frame re-offers (resume)
     } finally {
       cleanup();
     }

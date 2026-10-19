@@ -3,9 +3,13 @@
 //   · the four tables of the overall parse as header + data rows;
 //   · the plan's `### Task N:` blocks parse into fields + steps;
 //   · the phase-spec's `## Design` double-layer skeleton parses into groups + items;
-//   · the cross-doc chain root parses the Class-A/B anchors verbatim (unresolved);
+//   · the cross-doc chain root parses the Class-A/B head scalars verbatim (unresolved);
 //   · the DocType class face carries zero judgment methods (spec §2.2 — the machine
 //     assertion surface: extract-only classes).
+// Since T6 the fixtures carry the front-matter head (the §2.2 delivery seam's
+// canonical document form) and every parse runs dual-param — the title face is the
+// head scalar, never the `---` fence line the split consumed, and the chain root
+// reads the head scalars (the `{ target }`-only ChainLink face).
 // The parse records and known-good document literals are the independent sources of
 // truth — every assertion compares against the fixture doc the parser must extract.
 
@@ -13,18 +17,30 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { SkeletonAssembler } from "../../render/skeleton.ts";
 import { declaredRegistries } from "../declare.ts";
+import type { DocType, ParsedDoc } from "../doc.ts";
 import { docTypeParsers, OverallDocType, PhaseSpecDocType, PlanDocType } from "../doc.ts";
+import { FrontMatterExtractor } from "../frontmatter.ts";
+import {
+  DesignBodyExtractor,
+  GraphExtractor,
+  HeadingScanner,
+  TableExtractor,
+  TaskExtractor,
+} from "../home-extractors.ts";
 import { Contract } from "../judge.ts";
 import type { DocKey } from "../project.ts";
 import { Projector } from "../project.ts";
 
-/** A conforming overall — the four tables, the dependency graph and the header tuple. */
+/** A conforming overall — the front-matter head, the four tables and the graph. */
 const OVERALL = [
-  "# 文档架构方法论 v2 — 测试 Overall",
-  "- **Version**: v1.1 · 2026-10-07",
-  "- **Status**: Approved",
-  "- **Author**: [human]",
-  "- **Constraints**: 全部约定自动生效",
+  "---",
+  "title: 文档架构方法论 v2 — 测试 Overall",
+  "doc-type: overall-spec",
+  "version: v1.1",
+  "date: 2026-10-07",
+  "status: Approved",
+  'author: "[human]"',
+  "---",
   "",
   "## Document scope",
   "scope prose",
@@ -73,14 +89,19 @@ const OVERALL = [
   "| v1.21 | 2026-10-07 | merged change |",
 ];
 
-/** A conforming plan — the header chain anchors + the `### Task N:` blocks. */
+/** A conforming plan — the front-matter head (Class-A/B chain scalars) + the `### Task N:` blocks. */
 const PLAN = [
-  "# 文档架构方法论 v2 — 测试 Plan",
-  "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
-  "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
-  "- **Version**: v1.1 · 2026-10-07",
-  "- **Depends on**: P1 design v1.1",
-  "- **Base**: develop",
+  "---",
+  "title: 文档架构方法论 v2 — 测试 Plan",
+  "doc-type: plan",
+  "version: v1.1",
+  "date: 2026-10-07",
+  "spec: docs/kairos/specs/x-design.md",
+  "parent-program: docs/kairos/specs/x-overall.md",
+  "parent-version: v1.21",
+  "depends-on: P1 design v1.1",
+  "base: develop",
+  "---",
   "",
   "## Constraints",
   "",
@@ -108,14 +129,19 @@ const PLAN = [
   "- **DependsOn**: 1",
 ];
 
-/** A conforming phase-spec — the header five-tuple + the double-layer design skeleton. */
+/** A conforming phase-spec — the front-matter head (the five-tuple scalars) + the design skeleton. */
 const PHASE_SPEC = [
-  "# 文档架构方法论 v2 — 测试 Design Spec",
-  "- **Version**: v1.2 · 2026-10-07",
-  "- **Status**: Draft",
-  "- **Author**: [human]",
-  "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
-  "- **Depends on**: P1（Done）",
+  "---",
+  "title: 文档架构方法论 v2 — 测试 Design Spec",
+  "doc-type: phase-spec",
+  "version: v1.2",
+  "date: 2026-10-07",
+  "status: Draft",
+  'author: "[human]"',
+  "parent-program: docs/kairos/specs/x-overall.md",
+  "parent-version: v1.21",
+  "depends-on: P1（Done）",
+  "---",
   "",
   "## Design",
   "",
@@ -139,13 +165,24 @@ const PHASE_SPEC = [
   "- review note",
 ];
 
-describe("OverallDocType.parse — the four tables + the chain root", () => {
-  const parsed = new OverallDocType("overall-spec").parse(OVERALL);
+/** Parse a known-good literal with its front-matter head — the §2.2 delivery seam
+ *  the judge's chain-docs producers use (RAW content → fence split → dual-param parse). */
+const parseWithHead = <P extends ParsedDoc>(parser: DocType<P>, doc: readonly string[]): P => {
+  const split = FrontMatterExtractor.split(doc.join("\n"));
+  return parser.parse(FrontMatterExtractor.lineSplit(split.body), split.head);
+};
 
-  it("parses the header lines and the section skeleton", () => {
+describe("OverallDocType.parse — the four tables + the chain root", () => {
+  const parsed = parseWithHead(new OverallDocType("overall-spec"), OVERALL);
+
+  it("parses the front-matter head and the section skeleton", () => {
     expect(parsed.docType).toBe("overall-spec");
-    expect(parsed.title).toBe("# 文档架构方法论 v2 — 测试 Overall");
-    expect(parsed.headerLines.some((line) => line.includes("**Version**"))).toBe(true);
+    // the title face is the head scalar — never the `---` fence line
+    expect(parsed.title).toBe("文档架构方法论 v2 — 测试 Overall");
+    expect(parsed.title).not.toBe("---");
+    expect(parsed.head?.docType).toBe("overall-spec");
+    expect(parsed.head?.version).toBe("v1.1");
+    expect(parsed.head?.status).toBe("Approved");
     expect(parsed.sections.map((section) => section.heading)).toEqual([
       "## Document scope",
       "## File paths",
@@ -202,11 +239,17 @@ describe("OverallDocType.parse — the four tables + the chain root", () => {
 });
 
 describe("PlanDocType.parse — the task blocks + the Class-A/B chain root", () => {
-  const parsed = new PlanDocType("plan").parse(PLAN);
+  const parsed = parseWithHead(new PlanDocType("plan"), PLAN);
 
-  it("parses the header lines including the chain anchors", () => {
+  it("parses the front-matter head and the section skeleton", () => {
     expect(parsed.docType).toBe("plan");
-    expect(parsed.headerLines.some((line) => line.includes("**Spec:**"))).toBe(true);
+    // the title face is the head scalar — never the `---` fence line
+    expect(parsed.title).toBe("文档架构方法论 v2 — 测试 Plan");
+    expect(parsed.title).not.toBe("---");
+    expect(parsed.head?.spec).toBe("docs/kairos/specs/x-design.md");
+    expect(parsed.head?.parentProgram).toBe("docs/kairos/specs/x-overall.md");
+    expect(parsed.head?.parentVersion).toBe("v1.21");
+    expect(parsed.head?.dependsOn).toBe("P1 design v1.1");
     expect(parsed.sections.map((section) => section.heading)).toEqual(["## Constraints"]);
   });
 
@@ -229,26 +272,25 @@ describe("PlanDocType.parse — the task blocks + the Class-A/B chain root", () 
     expect(dependsOn?.lines[0]).toBe("none");
   });
 
-  it("parses the Class-A `**Spec:**` + Class-B `**Parent program**` chain root verbatim", () => {
-    expect(parsed.chain.specLink).toEqual({
-      label: "x-design.md",
-      target: "docs/kairos/specs/x-design.md",
-    });
-    expect(parsed.chain.parentLink).toEqual({
-      label: "x-overall.md v1.21",
-      target: "docs/kairos/specs/x-overall.md",
-    });
+  it("parses the Class-A `spec:` + Class-B `parent-program:` chain root from the head scalars", () => {
+    expect(parsed.chain.specLink).toEqual({ target: "docs/kairos/specs/x-design.md" });
+    expect(parsed.chain.parentLink).toEqual({ target: "docs/kairos/specs/x-overall.md" });
     expect(parsed.chain.parentTokens).toEqual(["v1.21"]);
     expect(parsed.chain.dependsOn).toBe("P1 design v1.1");
   });
 });
 
 describe("PhaseSpecDocType.parse — the design skeleton + the Class-B chain root", () => {
-  const parsed = new PhaseSpecDocType("phase-spec").parse(PHASE_SPEC);
+  const parsed = parseWithHead(new PhaseSpecDocType("phase-spec"), PHASE_SPEC);
 
-  it("parses the header five-tuple surface", () => {
+  it("parses the front-matter head (the five-tuple scalars) and the section skeleton", () => {
     expect(parsed.docType).toBe("phase-spec");
-    expect(parsed.headerLines.some((line) => line.includes("**Parent program**"))).toBe(true);
+    // the title face is the head scalar — never the `---` fence line
+    expect(parsed.title).toBe("文档架构方法论 v2 — 测试 Design Spec");
+    expect(parsed.title).not.toBe("---");
+    expect(parsed.head?.status).toBe("Draft");
+    expect(parsed.head?.parentProgram).toBe("docs/kairos/specs/x-overall.md");
+    expect(parsed.head?.parentVersion).toBe("v1.21");
     expect(parsed.sections.map((section) => section.heading)).toEqual([
       "## Design",
       "## Constraints",
@@ -266,13 +308,140 @@ describe("PhaseSpecDocType.parse — the design skeleton + the Class-B chain roo
     expect(parsed.design.some((group) => group.heading.startsWith("Acceptance"))).toBe(false);
   });
 
-  it("parses the Class-B chain root — parent link + version tokens", () => {
-    expect(parsed.chain.parentLink).toEqual({
-      label: "x-overall.md v1.21",
-      target: "docs/kairos/specs/x-overall.md",
-    });
+  it("parses the Class-B chain root — parent link + version tokens from the head scalars", () => {
+    expect(parsed.chain.parentLink).toEqual({ target: "docs/kairos/specs/x-overall.md" });
     expect(parsed.chain.parentTokens).toEqual(["v1.21"]);
     expect(parsed.chain.specLink).toBeNull();
+    expect(parsed.chain.dependsOn).toBe("P1（Done）");
+  });
+});
+
+describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure rules over the registry's anchors", () => {
+  it("TaskExtractor — block heads + aligned id tokens + the scoped field/step occurrences", () => {
+    const extracted = new TaskExtractor().extract(declaredRegistries.plan, PLAN);
+    expect(extracted["### Task N:"]).toEqual(["### Task 1: skeleton", "### Task 2: registry"]);
+    expect(extracted["Task id token"]).toEqual(["1", "2"]);
+    expect(extracted["**Objective**"]).toEqual([
+      "- **Objective**: establish the skeleton",
+      "- **Objective**: declare the registries",
+    ]);
+    expect(extracted["**DependsOn**"]).toEqual(["- **DependsOn**: none", "- **DependsOn**: 1"]);
+    // the step bullets are scoped to the `**Steps**` field and matched on the
+    // trimmed form — the header / constraint bullets never leak in
+    expect(extracted["Step action"]).toEqual([
+      "  - step one",
+      "  - step two — checkable: second step check",
+      "  - write the registry — checkable: types compile",
+    ]);
+    expect(extracted["Step checkable"]).toEqual([
+      "  - step two — checkable: second step check",
+      "  - write the registry — checkable: types compile",
+    ]);
+    // the front-matter head scalars never become line occurrences of a body anchor
+    expect(extracted["spec"]).toBeUndefined();
+    expect(extracted["parent-program"]).toBeUndefined();
+  });
+
+  it("DesignBodyExtractor — the numbered group/item headings and the design leaves", () => {
+    const extracted = new DesignBodyExtractor().extract(
+      declaredRegistries["phase-spec"],
+      PHASE_SPEC,
+    );
+    expect(extracted["## Design"]).toEqual(["## Design"]);
+    expect(extracted["### N. group heading"]).toEqual(["### 1. 判定面", "### 2. 编排面"]);
+    expect(extracted["#### N.M item heading"]).toEqual(["#### 1.1 策略类族", "#### 2.1 波次"]);
+    expect(extracted["### Acceptance criteria"]).toEqual(["### Acceptance criteria"]);
+    expect(new DesignBodyExtractor().groupOf("### 1. 判定面")).toEqual({
+      number: "1",
+      heading: "判定面",
+    });
+    expect(new DesignBodyExtractor().itemOf("#### 2.1 波次")).toEqual({
+      number: "2.1",
+      heading: "波次",
+    });
+  });
+
+  it("GraphExtractor — the declared graph edge lines on their trimmed form", () => {
+    const sections = new OverallDocType("overall-spec").parse(OVERALL).sections;
+    const graphSection = sections.find((section) =>
+      section.heading.startsWith("## Dependency graph"),
+    );
+    expect(graphSection).toBeDefined();
+    const extracted = new GraphExtractor().extract(declaredRegistries["overall-spec"], [
+      ...(graphSection?.lines ?? []),
+    ]);
+    expect(extracted["Hard edge"]).toEqual(["P1 -> P2"]);
+    expect(extracted["Graph legend"]).toEqual(["-> = hard block"]);
+    expect(extracted["Soft edge"]).toBeUndefined();
+  });
+
+  it("TableExtractor — the declared column-header and data rows", () => {
+    const extracted = new TableExtractor().extract(declaredRegistries["overall-spec"], [
+      "| Phase | Issue (ref) | Title summary |",
+      "| --- | --- | --- |",
+      "| P1 | #123 | issue one |",
+    ]);
+    expect(extracted["Issue inventory columns"]).toEqual([
+      "| Phase | Issue (ref) | Title summary |",
+    ]);
+    expect(extracted["Issue row"]).toEqual(["| P1 | #123 | issue one |"]);
+    // the separator row never matches a data anchor
+    expect(extracted["Change history row"]).toBeUndefined();
+  });
+
+  it("HeadingScanner — the registered section/facet headings by their declared rank", () => {
+    const extracted = new HeadingScanner().extract(declaredRegistries["overall-spec"], OVERALL);
+    expect(extracted["## Document scope"]).toEqual(["## Document scope"]);
+    expect(extracted["### Goal"]).toEqual(["### Goal"]);
+    expect(extracted["### Non-goals"]).toEqual(["### Non-goals"]);
+  });
+
+  it("HeadingScanner.sectionsOf — the declared rank-2 sections in document order, an undeclared heading excluded", () => {
+    const scanner = new HeadingScanner();
+    const sections = scanner.sectionsOf(declaredRegistries["overall-spec"], [
+      "## Document scope",
+      "scope prose",
+      "## Review Focus",
+      "undeclared prose",
+      "## Change history",
+      "| v1.1 |",
+    ]);
+    // the undeclared rank-2 heading is not a section (and does not swallow the
+    // declared section that follows it)
+    expect(sections.map((section) => section.heading)).toEqual([
+      "## Document scope",
+      "## Change history",
+    ]);
+    expect(sections[0].lines).toEqual(["scope prose"]);
+    // the phase-spec's conditional `## Review record` is a declared section surface
+    const phaseSections = scanner.sectionsOf(declaredRegistries["phase-spec"], [
+      "## Design",
+      "## Review record",
+      "- note",
+    ]);
+    expect(phaseSections.map((section) => section.heading)).toEqual([
+      "## Design",
+      "## Review record",
+    ]);
+  });
+
+  it("TableExtractor.tableLinesOf / headerLineOf — the table rows and the registry-declared header row", () => {
+    const extractor = new TableExtractor();
+    const lines = [
+      "prose line",
+      "| Phase | Issue (ref) | Title summary |",
+      "| --- | --- | --- |",
+      "| P1 | #123 | issue one |",
+    ];
+    expect(extractor.tableLinesOf(lines)).toEqual([
+      "| Phase | Issue (ref) | Title summary |",
+      "| P1 | #123 | issue one |",
+    ]);
+    expect(extractor.headerLineOf(declaredRegistries["overall-spec"], lines)).toBe(
+      "| Phase | Issue (ref) | Title summary |",
+    );
+    // a table whose declared column anchor is absent has no declared header
+    expect(extractor.headerLineOf(declaredRegistries["overall-spec"], ["| a | b |"])).toBeNull();
   });
 });
 

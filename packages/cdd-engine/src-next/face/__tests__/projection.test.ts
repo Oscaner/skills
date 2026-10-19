@@ -68,12 +68,14 @@ describe("CommandTreeBuilder — the declaration projection (the constructor is 
   it("projects the review surface — every declared key option, --type as a requiredOption", () => {
     const { program } = new CommandTreeBuilder();
     const review = commandOf(program, "review");
-    for (const key of ["--type", "--tasks", "--plan", "--spec", "--round", "--root"]) {
+    for (const key of ["--type", "--tasks", "--plan", "--spec", "--round"]) {
       expect(
         review.options.some((option) => option.flags.startsWith(key)),
         `review declares ${key}`,
       ).toBe(true);
     }
+    // `--root` is retired (T2 · §2.5) — the review node no longer declares it.
+    expect(review.options.some((option) => option.flags.startsWith("--root"))).toBe(false);
     // the branch range flags retired with the commit-sha surface (P7)
     expect(review.options.some((option) => option.flags.startsWith("--base"))).toBe(false);
     expect(review.options.some((option) => option.flags.startsWith("--head"))).toBe(false);
@@ -214,7 +216,7 @@ describe("the preAction conditional-required groups (§4.2 · REQUIRED_GROUPS)",
     ).not.toThrow();
   });
 
-  it("rejects fix --type branch without --findings (the fix branch face)", () => {
+  it("rejects fix --type branch without --reviews (the fix branch face)", () => {
     const { program } = new CommandTreeBuilder();
     commandOf(program, "fix").action(() => undefined);
     const { code, message } = commanderError(() =>
@@ -223,7 +225,7 @@ describe("the preAction conditional-required groups (§4.2 · REQUIRED_GROUPS)",
     expect(code).toBe("commander.invalidArgument");
     // the branch fix carries both its findings carrier and the --plan workspace
     // identity (BranchRef retired — the plan is the branch line's identity · §2.3)
-    expect(message).toContain("--findings --plan required when --type branch");
+    expect(message).toContain("--reviews --plan required when --type branch");
   });
 
   it("rejects review --type branch without --plan (the branch review face)", () => {

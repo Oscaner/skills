@@ -1,6 +1,6 @@
 ---
 name: cdd-spec-writer
-description: Independent spec-writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） (writing-spec) design flow inline as this session's baseline, then authors the target spec (single-spec / phase-spec / overall-spec — one parameterized flow), commits it before the review-fix loop, and runs the loop following the engine's next: line — the engine's next face carries the pipeline continuation. Callable standalone; invoke as kairos:cdd-spec-writer（pi：/skill:cdd-spec-writer）.
+description: Independent spec-writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） (writing-spec) design flow inline as this session's baseline, then authors the target spec (single-spec / phase-spec / overall-spec — one parameterized flow), commits it before the review-fix loop, and runs the loop following the engine's next face — the engine's next directive carries the pipeline continuation. Callable standalone; invoke as kairos:cdd-spec-writer（pi：/skill:cdd-spec-writer）.
 ---
 
 # Kairos CDD-Spec-Writer
@@ -15,7 +15,8 @@ Writes the target spec from the writing-spec import — single-spec / phase-spec
 flowchart TD
   A[run-writing-spec-session] --> B[author-spec]
   A --> Z1((BLOCKED: upstream plugin missing))
-  B --> C[commit-spec]
+  B --> S[self-review]
+  S --> C[commit-spec]
   C --> L[NEXT-LOOP]
   L -->|until next is terminal| L
   L -->|no next| Z2((BLOCKED))
@@ -36,10 +37,16 @@ flowchart TD
   - **single-spec** — the free-form spec form; the docs-lane doc-contract gate asserts the version-lineage on every reviewed spec
   - **phase-spec** — the phase scope is an increment only: when the phase scope changed vs the parent overall, sync the parent overall (Issue/Phase inventory + Dependency graph + version bump + change history) BEFORE writing (the four-table sync ordering; the sync is the registration gate, never a silent skip)
   - **overall-spec** — the phase registration for a new phase is the parent's own table sync (see run-cdd-design's `run-cdd-charter · sync`)
-  Includes pre-commit self-review (spec coverage + type consistency + zero leftover `:::fill` markers + zero angle-bracket literals outside link-anchor slots) — issues found are fixed inline, not looped or passed to review.
 - **Read**: Session output + the target's structural contract (phase-spec/overall-spec variants also read the parent overall)
-- **Exit**: File written → `commit-spec`
+- **Exit**: File written → `self-review`
 - **Fail**: Session output unusable or write error → BLOCKED (missing design input)
+
+### `self-review`
+
+- **Do**: Review the just-written spec before committing — run five checks, substance first: (1) **capture** — every design decision the session landed is in the spec, every ruling recorded; (2) **sufficiency** — could the downstream plan author act without guessing? Name each place where a wrong guess would change what gets built; (3) **consistency** — doc-type / naming / cross-references agree; (4) **failure modes** — the design addresses the failure modes and edge conditions it implies; (5) **proportion** — the spec carries decisions, not a transcript of the work. Then the mechanical tail: zero leftover `:::fill` markers, zero angle-bracket literals outside link-anchor slots (cheap hygiene the doc-contract gate would otherwise flag). Issues found are fixed inline on the same file; this is a pre-commit self-check inside this flow, not a review round (no `next:` dispatch, no findings carrier).
+- **Read**: the written spec document + the session output it was authored from
+- **Exit**: Self-check clean (issues fixed inline) → `commit-spec`
+- **Fail**: Unresolvable defect needing upstream design input → BLOCKED (missing design input)
 
 ### `commit-spec`
 
@@ -61,7 +68,7 @@ flowchart TD
 |---|---|
 | I1 | **Review Convergence (next: is the dispatch)** — a review closes by its conclusion (APPROVED / CHANGES_REQUESTED / REVIEW_FIX), and the output's `next:` line carries the engine's default next step as a complete executable command; read the `next:` line and dispatch it as written — the literal is the dispatch, no kind→command mapping layer. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round, consuming the findings handoff; the orchestrator must not edit in place as a substitute; a fix commit opens a new review, never a re-run of a closed one |
 | I2 | **Spec commit discipline** — the authored spec commits before the first review round; each fix round commits its own changes — approval closes the loop on a committed state; do not wait for dev merge |
-| I3 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band; a backfill rewriting the current task's own plan/spec text routes through the orchestrator as Plan Sole Writer |
+| I3 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band; a backfill rewriting the current task's own plan/spec text routes through the orchestrator's plan write authority |
 
 ## Failure Modes
 

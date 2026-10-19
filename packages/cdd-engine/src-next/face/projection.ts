@@ -75,7 +75,10 @@ export class CommandTreeBuilder {
     // same thrown errors.
     this.program.exitOverride();
     this.program.description("the CDD engine's command line");
-    this.program.addHelpText("afterAll", "program flags (accepted at any position): --dry-run");
+    this.program.addHelpText(
+      "afterAll",
+      "program flags (accepted at any position): --dry-run (implement/review/fix only)",
+    );
     this.#bindProgramScopes(this.program);
     this.#injectProgramExamples();
     for (const spec of CLI_COMMANDS) this.#projectCommand(spec);

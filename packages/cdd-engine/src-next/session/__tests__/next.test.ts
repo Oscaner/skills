@@ -27,6 +27,7 @@ import {
   FIX_READBACK_SUFFIX,
   NextStepRouter,
   PIPELINE_NEXT,
+  type PipelineFaceReport,
   REVIEW_CYCLE_CAP,
   SOFT_CAP_SUGGESTION,
 } from "../next.ts";
@@ -77,9 +78,9 @@ describe("review rounds — zero findings flows the next wave on or closes the r
     expect(
       router.next(
         state([]),
-        round({ phase: "review", findings, findingsPath: "tasks-7,9-review-1.json" }),
+        round({ phase: "review", findings, reviewsPath: "tasks-7,9-review-1.json" }),
       ),
-    ).toEqual({ kind: "fix", findings: "tasks-7,9-review-1.json" });
+    ).toEqual({ kind: "fix", reviews: "tasks-7,9-review-1.json" });
 
     const blockers: Round["findings"] = [finding("blocker", "defect")];
     expect(router.next(state([]), round({ phase: "review", findings: blockers }))).toEqual({
@@ -167,8 +168,8 @@ describe("the failure face — BLOCKED/TIMEOUT produce no next line", () => {
 });
 
 describe("the pinned surface — Route/soft-cap constants (the brief's type-check checkable)", () => {
-  it("the soft-cap constant is the literal 10 and the wording is stable", () => {
-    expect(REVIEW_CYCLE_CAP).toBe(10);
+  it("the soft-cap constant is the literal 20 and the wording is stable", () => {
+    expect(REVIEW_CYCLE_CAP).toBe(20);
     expect(SOFT_CAP_SUGGESTION).toBe("BLOCKED: review-cycle-cap — user adjudicates");
   });
 
@@ -188,11 +189,11 @@ describe("the pinned surface — Route/soft-cap constants (the brief's type-chec
 
   it("the soft-cap constants keep their literal types at compile time", () => {
     // Compile-time pins — this file fails under `tsc --noEmit` if either constant's
-    // declared type drifts from the decision table's domain (cap == 10, verbatim wording).
-    const cap: 10 = REVIEW_CYCLE_CAP;
+    // declared type drifts from the decision table's domain (cap == 20, verbatim wording).
+    const cap: 20 = REVIEW_CYCLE_CAP;
     const wording: "BLOCKED: review-cycle-cap — user adjudicates" = SOFT_CAP_SUGGESTION;
     expect({ cap, wording }).toEqual({
-      cap: 10,
+      cap: 20,
       wording: "BLOCKED: review-cycle-cap — user adjudicates",
     });
   });
@@ -306,7 +307,7 @@ describe("P4.1 T4 — the router's routes render parseable next literals (zero-e
   it.each([
     ["implement wave", { kind: "next-wave", tasks: "1,2" } as Route],
     ["re-review", { kind: "review" } as Route],
-    ["the one-way fix hop", { kind: "fix", findings: "tasks-1-review-1.json" } as Route],
+    ["the one-way fix hop", { kind: "fix", reviews: "tasks-1-review-1.json" } as Route],
     ["closure", { kind: "done" } as Route],
   ] as const)("%s — the route's literal argv parses", (_label, route) => {
     if (route.kind === "done") {
@@ -364,5 +365,96 @@ describe("D40 — the face-to-face handoff route + the single resolver", () => {
     // The overall line / a bare terminal: no pipeline seam carries it — the terminal word.
     expect(NextStepRouter.resolve({ kind: "done" }, null)).toEqual({ kind: "done" });
     expect(NextStepRouter.resolve(null, null)).toEqual({ kind: "done" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D40 / D26 — walk(): the ONE face-to-face traversal. The board reports the
+// observed faces (keyed), the router decides the next step. This is the D26 guard
+// for the board off-by-one: a just-closed spec hands off to the SPEC's exit
+// (cdd-plan), never the absent plan's exit (cdd-dev).
+// ---------------------------------------------------------------------------
+
+describe("D40/D26 — walk(): the single face-to-face traversal", () => {
+  /** A face report with every face unentered/open by default (the caller overrides). */
+  const report = (over: Partial<PipelineFaceReport>): PipelineFaceReport => ({
+    "phase-spec": { closed: false, active: null, target: null },
+    plan: { closed: false, active: null, target: null },
+    wave: { closed: false, active: null, target: null },
+    branch: { closed: false, active: null, target: null },
+    ...over,
+  });
+  const tSpec = { type: "spec", id: "docs/kairos/specs/p-design.md" } as const;
+  const tPlan = {
+    type: "plan",
+    id: "docs/kairos/plans/p.md",
+    plan: "docs/kairos/plans/p.md",
+  } as const;
+
+  it("a face with an active C5 hop renders that hop (the in-flight work wins)", () => {
+    const next = NextStepRouter.walk(
+      report({
+        "phase-spec": { closed: true, active: null, target: tSpec },
+        plan: { closed: false, active: { kind: "review" }, target: tPlan },
+      }),
+    );
+    expect(next.route).toEqual({ kind: "review" });
+    expect(next.target).toEqual(tPlan);
+  });
+
+  it("the off-by-one D26 guard — a just-closed spec + an ABSENT plan hands off to the SPEC's exit", () => {
+    // The board's frontier is the plan face, but it was never entered (no doc). The
+    // retired fork used the frontier LINE's key → plan's exit (cdd-dev). The walk uses
+    // the PRECEDING entered face's exit → the spec's (cdd-plan).
+    const next = NextStepRouter.walk(
+      report({ "phase-spec": { closed: true, active: null, target: tSpec } }),
+    );
+    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT["phase-spec"] });
+    expect(next.target).toEqual(tSpec);
+  });
+
+  it("a frontier ENTERED but drained (a present doc, no active hop) renders its OWN exit", () => {
+    const next = NextStepRouter.walk(
+      report({
+        "phase-spec": { closed: true, active: null, target: tSpec },
+        plan: { closed: false, active: null, target: tPlan },
+      }),
+    );
+    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.plan });
+    expect(next.target).toEqual(tPlan);
+  });
+
+  it("no preceding entered face → the FIRST face's exit (the pipeline entrance)", () => {
+    const next = NextStepRouter.walk(report({}));
+    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT["phase-spec"] });
+  });
+
+  it("every face closed → the LAST entered face's exit (the pipeline terminus)", () => {
+    const next = NextStepRouter.walk(
+      report({
+        "phase-spec": { closed: true, active: null, target: tSpec },
+        plan: { closed: true, active: null, target: tPlan },
+        wave: { closed: true, active: null, target: { type: "wave", id: "1", plan: tPlan.plan } },
+        branch: {
+          closed: true,
+          active: null,
+          target: { type: "branch", id: "branch", plan: tPlan.plan },
+        },
+      }),
+    );
+    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.branch });
+  });
+
+  it("every face closed with nothing entered → the bare terminal `done`", () => {
+    expect(
+      NextStepRouter.walk(
+        report({
+          "phase-spec": { closed: true, active: null, target: null },
+          plan: { closed: true, active: null, target: null },
+          wave: { closed: true, active: null, target: null },
+          branch: { closed: true, active: null, target: null },
+        }),
+      ).route,
+    ).toEqual({ kind: "done" });
   });
 });

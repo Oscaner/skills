@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/render/templates.ts
 // T21 — the template-contract typed surface: the template-contract JSON's data-plane
 // home PLUS the TemplateAssembler (one module, one renderer). The dispatch prompt
-// data (the per-mode shell frames · the review variants · the return-format block ·
+// data (the per-mode shell frames · the review variants · the single prose return block ·
 // the round-context subsets · the token registry · the clause partials) and the
 // review criteria (the four-type axes guides — P4, extended to spec/plan by the
 // v1.8 review-closeout) are typed constant data here, imported never parsed:
@@ -34,7 +34,7 @@
 // in the same plane: the `## Handoff schema` section at every shell's tail carries
 // the {{HANDOFF_SCHEMA}} slot (projection ① of session/handoff-schema.ts — the same
 // declared objects the engine validates the draft against, projection ②). The
-// handoff-format prose is gone; RETURN_STDOUT_BLOCK is the ONE return contract.
+// handoff-format prose is gone; RETURN_PROSE is the ONE return contract.
 //
 // T15 v1.10/1.11 (the review-closeout batch — §3.7) refines the shell composition:
 // the work-mode tail is the shared EVIDENCE_ITEM cell (implement/fix carry it;
@@ -42,12 +42,13 @@
 // variants fold the criteria/lens in.
 //
 // P5 (M1) supersede: the implement mode's dispatch wording names the upstream
-// `mattpocock-skills:implement` skill (the ref the dispatch row now resolves to),
-// never the retired tdd alias.
+// implement skill ref (`DISPATCH.implement`, the ref the dispatch row resolves
+// to), never the retired tdd alias.
 //
 // Module-level exports are types / the declared constant data / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import { DISPATCH } from "../face/host.ts";
 import type { TargetType } from "../session/faces.ts";
 
 /** The per-dispatch slot values — one entry per declared template token. */
@@ -61,11 +62,6 @@ export interface TemplateToken {
   name: string;
   /** The zone the token belongs to (shell / return / round-context). */
   zone: string;
-}
-
-/** One per-return-format block — the `## Return` zone's declared variants. */
-export interface ReturnZone {
-  [format: string]: readonly string[];
 }
 
 /** The work-modes of the dispatch table — the ROLE values (fix's spec/plan face is
@@ -102,8 +98,10 @@ export interface TemplatePrompt {
   /** The review mode's per-type rows — each variant's fixed prefix carries its
    *  criteria + lens (folded in, never tokens). */
   reviews: Readonly<Record<TargetType, ModePromptRow>>;
-  /** The `## Return` zone — the single block contract (v1.9). */
-  return: ReturnZone;
+  /** The `## Return` zone — the single plain-prose block (P11: the child's stdout
+   *  contract is prose, never a fixed key=value block; the handoff draft is the
+   *  round's machine-readable result). */
+  return: { readonly RETURN_PROSE: readonly string[] };
   /** The token registry — the union across every mode's round context + the shell's
    *  schema slot (the gate's declared list). */
   tokens: readonly TemplateToken[];
@@ -164,7 +162,7 @@ const IMPLEMENT_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "**implement:** read `INPUT_WAVE_BRIEF` (the complete plan mirror — every `### Task N:` of the wave + the plan's `## Constraints` section, fresh-extracted at dispatch). `WAVE` = this round's wave (the task list); implement ALL tasks of the wave, never a subset. `CONFIRMED_SEAMS` in the brief → apply as-is; else propose test boundaries in the report, then invoke **`mattpocock-skills:implement`**. Write the handoff draft at `OUTPUT_HANDOFF` per `## Handoff schema` BEFORE the return block: `status` (APPROVED once applied, else BLOCKED + `failure_category`) and `artifacts` (the prescribed `OUTPUT_REPORT`/`OUTPUT_EVIDENCE` paths from the round context — the `{family}-{key}-` canonical names, zero free naming).",
+  `**implement:** read \`INPUT_WAVE_BRIEF\` (the complete plan mirror — every \`### Task N:\` of the wave + the plan's \`## Constraints\` section, fresh-extracted at dispatch). \`WAVE\` = this round's wave (the task list); implement ALL tasks of the wave, never a subset. \`CONFIRMED_SEAMS\` in the brief → apply as-is; else propose test boundaries in the report, then invoke **\`${DISPATCH.implement}\`**. Write the handoff draft at \`OUTPUT_HANDOFF\` per \`## Handoff schema\` BEFORE the return block: \`status\` (APPROVED once applied, else BLOCKED + \`failure_category\`) and \`artifacts\` (the prescribed \`OUTPUT_REPORT\`/\`OUTPUT_EVIDENCE\` paths from the round context — the \`{family}-{key}-\` canonical names, zero free naming).`,
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
   ...SCHEMA_SECTION,
@@ -184,7 +182,7 @@ const FIX_SHELL: readonly string[] = [
   "",
   ...FRAME_ITEMS,
   ...FIX_TYPED_INSTRUCTIONS,
-  "**fix:** read `INPUT_FINDINGS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_DOC` on the branch/doc lines — the plan document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_FINDINGS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  "**fix:** read `INPUT_REVIEWS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_PLAN` on the plan/branch lines — the plan document; `INPUT_SPEC` on the spec line — the spec document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_REVIEWS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
   // T5 (v0.3) — The work face's ONE strict-schema sentence: every top-level draft
@@ -205,7 +203,7 @@ const DOCS_FIX_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "**docs-fix:** apply `INPUT_FINDINGS` (all severities) directly to `INPUT_DOC`, removing fixed findings; record the path in `artifacts.doc`; empty `findings` = all fixed. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema`; the engine derives the conclusion from the residual findings; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  "**docs-fix:** apply `INPUT_REVIEWS` (all severities) directly to the judged doc — `INPUT_PLAN` on a plan-doc line, `INPUT_SPEC` on a spec-doc line — removing fixed findings; record the path in `artifacts.doc`; empty `findings` = all fixed. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema`; the engine derives the conclusion from the residual findings; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   ...LICENSE_ITEMS,
   // T5 (v0.3) — The findings face's ONE strict-schema sentence: same schema-first
   // directive as the work shell, naming the required `findings` (carried over from
@@ -213,27 +211,28 @@ const DOCS_FIX_SHELL: readonly string[] = [
   // the sentence never contradicts the findings carrier's own required gate; the
   // work shell's field list is never copied here, and no field enumeration rides
   // the findings shell's prose either).
-  "**Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — `findings` (required) rides over from `INPUT_FINDINGS` verbatim, unmodified; the declaration is the field source, zero extra keys.",
+  "**Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — `findings` (required) rides over from `INPUT_REVIEWS` verbatim, unmodified; the declaration is the field source, zero extra keys.",
   ...SCHEMA_SECTION,
 ];
 
 /** The review variants' shared instruction text — the review's mode rule (the
  *  criteria body + the lens vocabulary ride per-type fixed items below). */
 const REVIEW_ITEM =
-  "**review:** review the criteria below against the reference face named in the round context. Wave reviews judge `INPUT_WAVE_BRIEF` (the complete plan mirror); the branch/spec/plan reviews judge `INPUT_DOC`. Write findings into the draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them); empty `findings` = approved. The engine derives the conclusion from the draft's findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status.";
+  "**review:** review the criteria below against the reference face named in the round context. Wave reviews judge `INPUT_WAVE_BRIEF` (the complete plan mirror); the plan/branch reviews judge the plan at `INPUT_PLAN`, the spec review judges the spec at `INPUT_SPEC`. Write findings into the draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them); empty `findings` = approved. The engine derives the conclusion from the draft's findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status.";
 
 /** The review mode's shared reduced tail — the only dynamic region of every review
  *  variant (the criteria/lens are fixed-prefix per type, never here). Each review
- *  type carries its own referent (wave → `INPUT_WAVE_BRIEF`; branch/spec/plan →
- *  `INPUT_DOC`); the branch review additionally carries `BASE_BRANCH` (the scope
- *  anchor). Empty slots are dropped by the assembler. */
+ *  type carries its own judged-doc referent (wave → `INPUT_WAVE_BRIEF`; plan/branch
+ *  → `INPUT_PLAN`; spec → `INPUT_SPEC`); the branch review additionally carries
+ *  `BASE_BRANCH` (the scope anchor). Empty slots are dropped by the assembler. */
 const REVIEW_CONTEXT: readonly string[] = [
   "## Round context",
   "",
   "- `ROLE`: {{ROLE}}",
   "- `WAVE`: {{WAVE}}",
   "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
-  "- `INPUT_DOC`: {{INPUT_DOC}}",
+  "- `INPUT_PLAN`: {{INPUT_PLAN}}",
+  "- `INPUT_SPEC`: {{INPUT_SPEC}}",
   "- `BASE_BRANCH`: {{BASE_BRANCH}}",
   "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
   "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -271,8 +270,9 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `ROLE`: {{ROLE}}",
       "- `WAVE`: {{WAVE}}",
       "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
-      "- `INPUT_DOC`: {{INPUT_DOC}}",
-      "- `INPUT_FINDINGS`: {{INPUT_FINDINGS}}",
+      "- `INPUT_PLAN`: {{INPUT_PLAN}}",
+      "- `INPUT_SPEC`: {{INPUT_SPEC}}",
+      "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -288,8 +288,9 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "",
       "- `ROLE`: {{ROLE}}",
       "- `WAVE`: {{WAVE}}",
-      "- `INPUT_DOC`: {{INPUT_DOC}}",
-      "- `INPUT_FINDINGS`: {{INPUT_FINDINGS}}",
+      "- `INPUT_PLAN`: {{INPUT_PLAN}}",
+      "- `INPUT_SPEC`: {{INPUT_SPEC}}",
+      "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
       "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
@@ -305,22 +306,22 @@ export const REVIEWS = {
   wave: {
     lensEnum: ["standards", "spec", "buildability"],
     axesGuide:
-      "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run `git diff origin/<BASE_BRANCH>..HEAD` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (`**Files:**` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding (severity by your judgment). The reviewer is the changed-surface judge — the engine reconciles nothing. Single agent, four axes.",
+      "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run `git diff origin/<BASE_BRANCH>..HEAD` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (`**Files:**` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding (severity by your judgment). The reviewer is the changed-surface judge — the engine reconciles nothing. The reviewed artifact is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable user would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust). Single agent, four axes.",
   },
   branch: {
     lensEnum: ["standards", "spec", "buildability"],
     axesGuide:
-      "Same four axes as task (branch-wide health: run `git diff origin/<BASE_BRANCH>..HEAD` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop.",
+      "Same four axes as task (branch-wide health: run `git diff origin/<BASE_BRANCH>..HEAD` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop. The reviewed artifact is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable user would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
   },
   spec: {
     lensEnum: ["completeness", "consistency", "clarity"],
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding",
+      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + The reviewed spec is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable downstream author would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding",
+      "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at `INPUT_SPEC` (the plan's `spec` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + The reviewed spec is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable implementer would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
   },
 } as const satisfies ReviewGuides;
 
@@ -405,22 +406,19 @@ const REVIEW_VARIANTS: Readonly<Record<TargetType, ModePromptRow>> = {
   },
 };
 
-/** The `## Return` zone — the single block contract (v1.9: the child's content
- *  lives in the draft file, the block is the pointer every mode returns). */
-const RETURN_ZONE: ReturnZone = {
-  RETURN_STDOUT_BLOCK: [
+/** The `## Return` zone — the single plain-prose contract block (P11: the child
+ *  narrates the round in prose; nothing downstream parses its stdout — the handoff
+ *  draft at `OUTPUT_HANDOFF` is the round's machine-readable result). */
+const RETURN_ZONE: TemplatePrompt["return"] = {
+  RETURN_PROSE: [
     "## Return",
     "",
-    "Output exactly 2 lines — this block is the FINAL output; nothing may follow it:",
+    "Report in a few plain sentences what this round did, whether it succeeded, and — if it",
+    "did not — what blocked it. Nothing downstream parses this text; the handoff draft at",
+    "`OUTPUT_HANDOFF` is the round's machine-readable result. Do not emit key-value lines,",
+    "JSON, or any fixed block.",
     "",
-    "```",
-    "status: <APPROVED|BLOCKED>",
-    "artifacts: report=<path> test_evidence=<path>",
-    "```",
-    "",
-    "RETURN_STDOUT_BLOCK (one contract): the handoff content (findings/notes/evidence) lives in the draft at `OUTPUT_HANDOFF` — this block is the pointer. Review/docs-fix rounds state `status: APPROVED` (their conclusion derives from the draft's findings); work rounds state the concluding status. Never emit the 3rd `counters:` / 4th `next:` lines (the engine appends them). Any non-`APPROVED` status (e.g. `NEEDS_CONTEXT`) → collapsed to `BLOCKED` + exit 1.",
-    "",
-    "The `artifacts:` line's paths are the round context's prescribed `OUTPUT_REPORT`/`OUTPUT_EVIDENCE` values — copy them verbatim (zero free naming; a declared path deviating from the canonical name is corrected to it and flagged on the carrier's notes).",
+    "(fail: an uncaught failure → exit non-zero with a one-line reason)",
   ],
 };
 
@@ -432,8 +430,9 @@ const RETURN_ZONE: ReturnZone = {
 const TOKENS: readonly TemplateToken[] = [
   { name: "BASE_BRANCH", zone: "round-context" },
   { name: "HANDOFF_SCHEMA", zone: "shell" },
-  { name: "INPUT_DOC", zone: "round-context" },
-  { name: "INPUT_FINDINGS", zone: "round-context" },
+  { name: "INPUT_PLAN", zone: "round-context" },
+  { name: "INPUT_SPEC", zone: "round-context" },
+  { name: "INPUT_REVIEWS", zone: "round-context" },
   { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
   // find #5 — the prescribed artifact write paths (the {family}-{key}-{artifact}
   // single naming; the brief is a pure read input with no write slot).
@@ -465,12 +464,14 @@ export const CLAUSES = {
     "Self-validate before returning: run the validation/checks your change requires and record the evidence (command + exit code + result) in the report.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 7
- *  is the single-reference-face shape: one doc anchor per line (INPUT_DOC /
- *  INPUT_WAVE_BRIEF), the branch scope anchor BASE_BRANCH, the two-line return
- *  contract, and the per-type review criterion shells. */
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 9
+ *  is the kind-named doc-anchor shape (INPUT_PLAN / INPUT_SPEC replace the generic
+ *  INPUT_DOC; INPUT_WAVE_BRIEF), the branch scope anchor BASE_BRANCH, the single
+ *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
+ *  stdout), and the per-type review criterion shells. The bump from 8 marks the
+ *  return-shape change (the two-line key-value block retired). */
 export const TEMPLATE_PROMPT = {
-  $version: 7,
+  $version: 9,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,
@@ -495,12 +496,6 @@ export class TemplateAssembler {
     this.#contract = TEMPLATE_PROMPT;
   }
 
-  /** The return formats the contract declares — the single block contract (v1.9:
-   *  one format; every pre-v1.9 return variant is retired). */
-  returnFormats(): readonly string[] {
-    return Object.keys(this.#contract.return);
-  }
-
   /** The tokens the contract declares (the union across every mode — all zones). */
   declaredTokens(): readonly string[] {
     return this.#contract.tokens.map((token) => token.name);
@@ -519,7 +514,7 @@ export class TemplateAssembler {
     const row = this.#rowOf(values);
     const zones: Record<string, string> = {
       shell: this.#joinLines(row.shell),
-      return: this.#joinLines(this.#contract.return.RETURN_STDOUT_BLOCK),
+      return: this.#joinLines(this.#contract.return.RETURN_PROSE),
       "round-context": this.#contextLines(row, values),
     };
     return this.#fill([zones.shell, zones.return, zones["round-context"]].join("\n\n"), values);
@@ -606,7 +601,7 @@ export class TemplateAssembler {
     const namesOf = (text: string): string[] => text.match(naming) ?? [];
     const allowed = new Set<string>([
       ...row.roundContext.flatMap((line) => namesOf(line)),
-      ...namesOf(this.#joinLines(this.#contract.return.RETURN_STDOUT_BLOCK)),
+      ...namesOf(this.#joinLines(this.#contract.return.RETURN_PROSE)),
     ]);
     for (const name of new Set(namesOf(this.#joinLines(row.shell)))) {
       if (!allowed.has(name)) {

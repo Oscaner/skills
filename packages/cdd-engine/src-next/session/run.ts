@@ -70,8 +70,10 @@ export type AuditTarget =
   /** branch: the branch line itself (no commit identity — the review's scope anchor
    *  rides the engine-injected BASE_BRANCH, never a stored range). */
   | { kind: "branch" }
-  /** spec/plan: the audit document path. */
-  | { kind: "doc"; doc: string };
+  /** plan: the audit plan document path. */
+  | { kind: "plan"; doc: string }
+  /** spec: the audit spec document path. */
+  | { kind: "spec"; doc: string };
 
 /** One dispatch step's full identity — what the lifecycle dispatches. */
 export interface OpenFrame {
@@ -98,19 +100,20 @@ export interface DispatchOutcome {
   /** The round's findings (review: this round's own; fix: the source review's
    *  input findings, C5-1). */
   findings?: readonly RoundFinding[];
-  /** The artifact paths the round produced (brief/report/…). */
-  artifacts?: Record<string, string>;
   /** The materialized final carrier (the production dispatch's read-back
    *  reconstruct — §3.6: the child draft validated and built into the carrier the
    *  bookkeep persists verbatim, full-replace at the SAME path; agent draft →
    *  finalized, the engine stays the single author). Absent for the hermetic /
-   *  dry-run dispatchers — the bookkeep builds the carrier from the outcome fields. */
+   *  injected dispatchers — the bookkeep builds the carrier from the outcome fields. */
   carrier?: Record<string, unknown>;
 }
 
 /** The dispatch instruction — runs one round's actual work (the harness call in
- *  production; a stub in tests). The lifecycle never inspects how the work runs. */
-export type DispatchStep = (frame: OpenFrame) => DispatchOutcome;
+ *  production; a stub in tests). The lifecycle never inspects how the work runs.
+ *  Asynchronous by necessity: the child's process lifecycle (group kill · wall-clock
+ *  ceiling · parent-exit cleanup) lives on execa's asynchronous face alone — the
+ *  synchronous face forbids every one of those options. */
+export type DispatchStep = (frame: OpenFrame) => Promise<DispatchOutcome>;
 
 /** The capsule interaction seam — the face/capsule contact. T10's Capsule satisfies
  *  this shape; the lifecycle advances without a capsule (non-hard consumption) and
@@ -239,7 +242,7 @@ export class Lifecycle {
    *  exhausted or a capped line defers to the user). A refused pre-flight gate blocks
    *  the dispatch (child zero) and returns the frame as a preflight-blocked step —
    *  neither persisted nor recorded (the frontier re-offers it: resume). */
-  advance(): StepResult | null {
+  async advance(): Promise<StepResult | null> {
     const frame = this.#openFrame();
     if (frame === null) return null;
     if (this.#preflight !== null) {
@@ -254,7 +257,7 @@ export class Lifecycle {
         };
       }
     }
-    const outcome = this.#dispatch(frame);
+    const outcome = await this.#dispatch(frame);
     const round = this.#bookkeep(frame, outcome);
     // The closure verdict rides the recorded round's C5 route — mark the task done
     // when the route kind says the line closed (the router's single point, never a
@@ -348,7 +351,7 @@ export class Lifecycle {
     target: AuditTarget,
     reviewLead: ReviewLead,
   ): DispatchPhase | null {
-    if (target.kind === "doc") {
+    if (target.kind === "plan" || target.kind === "spec") {
       const verdict = this.#ledger.reviewGate(key, target.doc, this.#face.type);
       if (verdict.kind === "open") return reviewLead;
       if (verdict.kind === "same" && verdict.pending) return "fix";
@@ -380,7 +383,7 @@ export class Lifecycle {
    *  relative) must not fork the same line into two ledger rows). The task face
    *  never routes here — frames key by the wave key. */
   #lineKey(target: AuditTarget): LedgerKey {
-    if (target.kind === "doc") return this.#face.type;
+    if (target.kind === "plan" || target.kind === "spec") return this.#face.type;
     return "branch";
   }
 
@@ -420,8 +423,8 @@ export class Lifecycle {
    *  The persisted carrier is either the dispatch's materialized form (the production
    *  read-back reconstruct — outcome.carrier, full-replace at the SAME path, so the
    *  child's draft becomes the finalized carrier — the two-state single file, the engine is the single
-   *  author) or the engine-built fallback from the outcome fields (hermetic / dry-run
-   *  dispatchers). A BLOCKED/TIMEOUT round WITHOUT a carrier is neither persisted nor
+   *  author) or the engine-built fallback from the outcome fields (the hermetic /
+   *  injected dispatchers). A BLOCKED/TIMEOUT round WITHOUT a carrier is neither persisted nor
    *  recorded — the child's draft (if any) stays untouched (no-overwrite on failure) and the
    *  frontier re-offers the same round (resume = re-run the same command); a BLOCKED
    *  round WITH a carrier (e.g. the evidence-contract override — the child's work is
@@ -447,11 +450,8 @@ export class Lifecycle {
         (face === "findings"
           ? this.#ledger.buildHandoff("findings", {
               findings: [...(outcome.findings ?? [])],
-              artifacts: outcome.artifacts,
             })
-          : this.#ledger.buildHandoff("work", {
-              artifacts: outcome.artifacts,
-            }));
+          : this.#ledger.buildHandoff("work", {}));
       // The work face ALONE persists the conclusion (the child's declared status); the
       // findings carrier holds no status — its conclusion derives at judgment time
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
@@ -478,7 +478,8 @@ export class Lifecycle {
       // nothing (present facts only); a null plan path (no plan fact) leaves a legacy
       // wave row — null stays backward compatible.
       if (frame.phase === "review") {
-        if (frame.target.kind === "doc") this.#recordReviewedDocRevision(frame);
+        if (frame.target.kind === "plan" || frame.target.kind === "spec")
+          this.#recordReviewedDocRevision(frame);
         else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);
       }
       return count;
@@ -494,7 +495,7 @@ export class Lifecycle {
    *  void a reviewed wave). An unreadable input records nothing — the line keeps the
    *  legacy closed face (only present facts land, never an invented identity). */
   #recordReviewedDocRevision(frame: OpenFrame): void {
-    if (frame.target.kind !== "doc") return;
+    if (frame.target.kind !== "plan" && frame.target.kind !== "spec") return;
     try {
       const content = readFileSync(frame.target.doc, "utf8");
       this.#ledger.recordReviewedRevision(
@@ -600,7 +601,10 @@ export class Lifecycle {
         };
       case "spec":
       case "plan":
-        return { type: frame.type, id: (frame.target as { kind: "doc"; doc: string }).doc };
+        return {
+          type: frame.type,
+          id: (frame.target as { kind: "plan" | "spec"; doc: string }).doc,
+        };
     }
   }
 }

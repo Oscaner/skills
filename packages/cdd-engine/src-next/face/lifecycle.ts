@@ -16,18 +16,30 @@
 // bare functions.
 
 import process from "node:process";
-import { execaSync } from "execa";
 import { printParseErrorCode } from "jsonc-parser";
 import { ConfigLoader } from "../infra/config.ts";
+import type { RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
 import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
-import type { Ledger, OpType, RoundStatus } from "../session/ledger.ts";
+import type { CrashCause, Ledger, OpType, RoundStatus } from "../session/ledger.ts";
+import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { DISPATCH, HOSTS, HostDetect, type HostId, type HostReferenceTable, REFS } from "./host.ts";
+import {
+  type ChildRunner,
+  type Termination,
+  TerminationPolicy,
+  Terminator,
+} from "./termination.ts";
+
+/** The crash-record stdout-tail cap (P11 T2) — the child's last STDOUT_TAIL_MAX
+ *  non-empty stdout lines ride the crash record's `stdoutTail` (the diagnostic
+ *  channel; the child's Return is prose, never the round's content). */
+const STDOUT_TAIL_MAX = 40;
 
 // ---------------------------------------------------------------------------
 // the stable seams — the shared faces the composition root + the lifecycle ride
@@ -41,63 +53,8 @@ export interface CliIo {
 }
 
 // ---------------------------------------------------------------------------
-// the sync process seam + the harness dispatch (the production dispatch default)
+// the harness dispatch (the production dispatch default)
 // ---------------------------------------------------------------------------
-
-/** The sync child-process face — the fail-open subprocess seam the harness dispatch
- *  runs through (a non-zero/broken child rides the code, never a throw). */
-export interface SyncProcess {
-  run(
-    command: string,
-    args: readonly string[],
-    cwd: string,
-  ): { code: number; stdout: string; stderr: string };
-}
-
-/** SyncRunner — the unbounded sync child channel (spec §14 · D36): execa's
- *  synchronous face, which imposes no output-buffer ceiling — the whole-buffer
- *  cap class the retired built-in call hit (a fixed 1 MiB default, the W1
- *  `child claude returned no status line` truncation) does not exist here. The
- *  face stays synchronous (the T8 lifecycle's DispatchStep seam is one dispatch,
- *  one advance) and keeps the injected `SyncProcess` shape byte-for-byte: a
- *  non-zero/broken child rides the code, never a throw — `reject: false` surfaces
- *  the failure as a result, and `stripFinalNewline: false` keeps the child's
- *  stdout verbatim (the `RETURN_STDOUT_BLOCK` tail stays intact). The adapter is
- *  a pure `#collect` read: no buffering to bound, no worker, no concurrency. */
-export class SyncRunner implements SyncProcess {
-  run(
-    command: string,
-    args: readonly string[],
-    cwd: string,
-  ): { code: number; stdout: string; stderr: string } {
-    return this.#collect(command, args, cwd);
-  }
-
-  /** The synchronous collection — execa's sync face with the three options the
-   *  fail-open `SyncProcess` contract needs: `reject: false` (a failed child is a
-   *  result, never a throw), `stripFinalNewline: false` (byte-verbatim stdout), and
-   *  the default unbounded output buffer (the cap class is retired). The result
-   *  reads back into the same `{code, stdout, stderr}` face — `exitCode ?? 1` is the
-   *  exit code; stderr is the child's own stream when it wrote one, else the execa
-   *  diagnostic (a spawn failure like ENOENT writes nothing, so its reason rides the
-   *  `shortMessage` — the fail-open face keeps a reason text, never an empty block). */
-  #collect(
-    command: string,
-    args: readonly string[],
-    cwd: string,
-  ): { code: number; stdout: string; stderr: string } {
-    const result = execaSync(command, [...args], {
-      cwd,
-      reject: false,
-      stripFinalNewline: false,
-    });
-    return {
-      code: result.exitCode ?? 1,
-      stdout: result.stdout ?? "",
-      stderr: result.stderr || (result.failed ? (result.shortMessage ?? "") : ""),
-    };
-  }
-}
 
 /** The environment face the harness dispatch detects the host against. */
 export type ProcessEnvLike = Record<string, string | undefined>;
@@ -112,6 +69,11 @@ export interface DispatchScene {
   planPath: string | null;
   briefPath: string | null;
   baseBranch?: string | null;
+  /** The plan's design-spec reference (the `spec:` front-matter link target), read
+   *  from the plan document at the CLI seam — the plan-review round context's extra
+   *  read input (a plan review judges the plan against its spec). Null off the plan
+   *  scene (the slot stays empty and the assembler drops it). */
+  specLink?: string | null;
 }
 
 /**
@@ -120,45 +82,51 @@ export interface DispatchScene {
  * surface keeps its name). `step()` returns the DispatchStep the lifecycle runs, which
  * assembles the dispatch prompt (the render template-contract data plane) from the
  * frame, runs the host harness CLI (the harness-contract rows: cli + invoke flags +
- * the phase's skill-ref slash form) and parses the child's return block back into the
- * lifecycle's outcome. Detection reads the harness-contract detect markers from the
- * injected env — empty host → a BLOCKED outcome over the CDD_BLOCKED channel (never a
- * thrown dispatch).
+ * the phase's skill-ref slash form) and reads the child's OUTPUT_HANDOFF draft back
+ * into the lifecycle's outcome (the child's Return is prose, never parsed). Detection
+ * reads the harness-contract detect markers from the injected env — empty host → a
+ * BLOCKED outcome over the CDD_BLOCKED channel (never a thrown dispatch).
  */
 export class CliLifecycle {
   readonly #env: ProcessEnvLike;
-  readonly #cwd: string;
-  readonly #sync: SyncProcess;
+  readonly #sync: ChildRunner;
   readonly #config: ConfigLoader;
   readonly #template: TemplateAssembler;
   readonly #io: CliIo;
   readonly #scene: DispatchScene;
-  readonly #findings: string | null;
+  readonly #reviews: string | null;
+  /** The round-naming single source (P11 T4) — every prescribed artifact name of a
+   *  frame derives here (the report/evidence/brief names + the family op), so the
+   *  lifecycle and the dry-run preview name the same artifacts by one rule. */
+  readonly #naming: RoundNaming;
   /** The handoff-schema face — stateless, one shared instance (the read-back
    *  validator + the injected prompt text). */
   readonly #handoffSchema = new HandoffSchema();
+  /** The current dispatch's child-stdout diagnostic tail (the crash-record channel,
+   *  P11 T2) — set in #dispatch after the child returns, read by #reject. The child's
+   *  Return is prose; the engine never parses it — this is the failure channel only. */
+  #stdoutTail: readonly string[] = [];
 
   constructor(opts: {
     env?: ProcessEnvLike;
-    cwd?: string;
-    sync?: SyncProcess;
+    sync?: ChildRunner;
     config?: ConfigLoader;
     template?: TemplateAssembler;
     io?: CliIo;
     scene: DispatchScene;
-    findings?: string | null;
+    reviews?: string | null;
   }) {
     this.#env = opts.env ?? process.env;
-    this.#cwd = opts.cwd ?? process.cwd();
-    this.#sync = opts.sync ?? new SyncRunner();
+    this.#scene = opts.scene;
+    this.#naming = new RoundNaming(opts.scene.workspace);
+    this.#sync = opts.sync ?? new Terminator();
     this.#config = opts.config ?? new ConfigLoader();
     this.#template = opts.template ?? new TemplateAssembler();
     this.#io = opts.io ?? {
       stdout: (t) => process.stdout.write(t),
       stderr: (t) => process.stderr.write(t),
     };
-    this.#scene = opts.scene;
-    this.#findings = opts.findings ?? null;
+    this.#reviews = opts.reviews ?? null;
   }
 
   /** The host-harness id detected from the env — "claude" | "cursor" | "pi" | "" —
@@ -175,9 +143,9 @@ export class CliLifecycle {
   }
 
   /** One dispatch — prompt from the template plane + the frame, host child via
-   *  the harness-contract rows, the child's write-back read in (v1.9: the draft at
-   *  OUTPUT_HANDOFF is the round's content — the block is the pointer). */
-  #dispatch(frame: OpenFrame): DispatchOutcome {
+   *  the harness-contract rows, the child's write-back read in (the draft at
+   *  OUTPUT_HANDOFF is the round's content; the child's Return is prose, never parsed). */
+  async #dispatch(frame: OpenFrame): Promise<DispatchOutcome> {
     const host = this.detectHost();
     if (host === "") {
       this.#io.stderr(
@@ -195,27 +163,56 @@ export class CliLifecycle {
     // prompt positional (claude -p consumes the whole first positional as the prompt;
     // a standalone ref arg after the flags would be swallowed, losing everything after
     // the ref) — the prompt assembly is data, never a code assumption.
-    const result = this.#sync.run(
-      cliName,
-      [...args, this.#childPrompt(row.promptForm, ref, prompt)],
-      this.#cwd,
-    );
+    const result = await this.#sync.run({
+      command: cliName,
+      args: [...args, this.#childPrompt(row.promptForm, ref, prompt)],
+      // The two paths the dispatch needs share ONE source (this workspace, held only
+      // here): the child's spawn directory is the repo root, and the heartbeat lands
+      // in this dispatch's workspace. The same `cwd` is also the tree-leg scan root,
+      // and the heartbeat path is the sampler's own write — the scan root ≡ child cwd
+      // correspondence is structural, never a convention.
+      cwd: this.#scene.workspace.root.repoRoot,
+      heartbeatPath: this.#scene.workspace.resolve("liveness.json"),
+      policy: TerminationPolicy.of(frame.phase),
+    });
+    // The child's stdout rides the diagnostic channel — #reject reads it into the
+    // crash record on either failure face. Child Return is prose: the engine never
+    // parses it; the round's content is the OUTPUT_HANDOFF draft, read in #reconstruct.
+    this.#stdoutTail = this.#tailOf(result.stdout);
+    // The termination leg FIRST (§4.3 — the judging order is a hard rule): a killed
+    // child's exit code is null, so `null !== 0` is true — judging the child-exit leg
+    // first would fold every terminated round into `child-exit` and falsify the crash
+    // cause. `termination !== null` → the round concludes TIMEOUT (the words table's
+    // status is already there), the reason rides the CDD_BLOCKED channel, and the
+    // failure face (no `next:` line) follows from the status alone.
+    if (result.termination !== null) {
+      return this.#reject(
+        frame,
+        this.#scene.ledger.handoffPath(this.#opOf(frame), frame.type, frame.params),
+        `child ${cliName} was terminated: ${result.termination.cause}`,
+        // the terminated round's OWN death facts — the termination rides whole
+        // (cause + last sample), the signalled child's code is null verbatim
+        { exitCode: result.code, cause: result.termination.cause, termination: result.termination },
+      );
+    }
     if (result.code !== 0) {
-      this.#io.stderr(`CDD_BLOCKED: child ${cliName} exited ${result.code}\n`);
-      return { status: "BLOCKED" };
+      return this.#reject(
+        frame,
+        this.#scene.ledger.handoffPath(this.#opOf(frame), frame.type, frame.params),
+        `child ${cliName} exited ${result.code}`,
+        // the dead child's OWN death facts — never the read-back face's defaults;
+        // this branch sits AFTER the termination leg, so the termination is null
+        { exitCode: result.code, cause: "child-exit", termination: null },
+      );
     }
-    // The three-line block is the child's termination handshake — a child that exits 0
-    // without a status line misbehaved (the abnormal face owns it; no draft read).
-    if (!/^status:\s*\S+/m.test(result.stdout)) {
-      this.#io.stderr(`CDD_BLOCKED: child ${cliName} returned no status line\n`);
-      return { status: "BLOCKED" };
-    }
-    return this.#reconstruct(frame, this.#parseBlockReturn(result.stdout));
+    return this.#reconstruct(frame);
   }
 
-  /** The work-mode of a frame phase — branch-review rides the review family. */
+  /** The work-mode of a frame phase — branch-review rides the review family. The
+   *  mapping itself lives in `RoundNaming` (the artifact stems key on it); this is
+   *  the lifecycle's read of that single source. */
   #opOf(frame: OpenFrame): OpType {
-    return frame.phase === "branch-review" ? "review" : frame.phase;
+    return this.#naming.op(frame);
   }
 
   /** The dispatch-table work-mode (ROLE) of a frame — the spec/plan fix faces ride
@@ -276,30 +273,48 @@ export class CliLifecycle {
     const role = this.#roleOf(frame);
     const params = frame.params;
     const isReview = frame.phase === "review" || frame.phase === "branch-review";
-    const docPath = frame.target.kind === "doc" ? frame.target.doc : null;
+    const docPath =
+      frame.target.kind === "plan" || frame.target.kind === "spec" ? frame.target.doc : null;
     const isWave = frame.type === "wave";
     return {
       ROLE: role,
       // v1.22 (wave-unitary): the wave face's scope IS the wave (the whole task list)
       // — the round context speaks the UNIT, `WAVE`; the line faces carry their own
-      // read-side identity (INPUT_DOC — the doc/branch line's own token under the
-      // wave-unitary model).
+      // read-side identity (INPUT_PLAN / INPUT_SPEC — the doc/branch line's kind-named
+      // tokens under the wave-unitary model).
       WAVE: isWave ? (params.tasks ?? "") : "",
       // The wave-brief read input — the ONE engine-rendered brief of the current
       // dispatch (the unconditional re-extract at every dispatch makes it the pure
       // read face of the wave line — §4.2); the non-wave faces carry no brief path
       // (the slot stays empty, never emitted).
-      INPUT_WAVE_BRIEF: isWave ? (scene.briefPath ?? "") : "",
-      // v1.9: INPUT_FINDINGS is fix/docs-fix only — the open findings of the source
-      // review; a review writes its own draft (INPUT_FINDINGS === OUTPUT_HANDOFF
+      INPUT_WAVE_BRIEF: isWave ? this.#rel(scene.briefPath ?? "") : "",
+      // v1.9: INPUT_REVIEWS is fix/docs-fix only — the source review's handoff
+      // carrier; a review writes its own draft (INPUT_REVIEWS === OUTPUT_HANDOFF
       // would be a short-circuit).
-      INPUT_FINDINGS:
+      INPUT_REVIEWS:
         op === "fix"
-          ? (this.#findings ?? scene.ledger.handoffPath("review", frame.type, params))
+          ? this.#rel(this.#reviews ?? scene.ledger.handoffPath("review", frame.type, params))
           : "",
-      // The doc anchor — the target doc for a doc line, the plan path for a branch
-      // line (the branch review/fix judge the plan document). Empty off those faces.
-      INPUT_DOC: docPath ?? (frame.target.kind === "branch" ? (scene.planPath ?? "") : ""),
+      // The kind-named judged-doc anchors (the semantic retirement of the generic
+      // INPUT_DOC): the plan/branch lines carry the plan document (INPUT_PLAN — the
+      // doc path on a plan line, the plan path on a branch line, whose review/fix
+      // judges the plan document) AND its design-spec reference (INPUT_SPEC — the
+      // `spec:` front-matter link target, so the plan/branch reviewer judges plan→
+      // spec conformance); the spec line carries its spec document (INPUT_SPEC; the
+      // judged doc IS the spec, no plan anchor). Empty off the off-faces (the slots
+      // are dropped by the assembler).
+      INPUT_PLAN:
+        frame.type === "plan"
+          ? this.#rel(docPath ?? "")
+          : frame.type === "branch"
+            ? this.#rel(scene.planPath ?? "")
+            : "",
+      INPUT_SPEC:
+        frame.type === "spec"
+          ? this.#rel(docPath ?? "")
+          : frame.type === "plan" || frame.type === "branch"
+            ? this.#rel(scene.specLink ?? "")
+            : "",
       // The branch/wave tree-review scope anchor (BASE_BRANCH) — engine-injected
       // from the base artifact at dispatch; empty off those faces (spec/plan reviews
       // carry none, and the empty slot is dropped by the assembler).
@@ -313,11 +328,11 @@ export class CliLifecycle {
       // slot the frame's family does not consume stays empty and is dropped (only
       // present facts land). The brief is a pure read input (INPUT_WAVE_BRIEF) with
       // no write slot.
-      OUTPUT_REPORT: this.#outputOf(frame, "report"),
-      OUTPUT_EVIDENCE: this.#outputOf(frame, "evidence"),
-      OUTPUT_HANDOFF: scene.ledger.handoffPath(op, frame.type, params),
+      OUTPUT_REPORT: this.#rel(this.#naming.report(frame)),
+      OUTPUT_EVIDENCE: this.#rel(this.#naming.evidence(frame)),
+      OUTPUT_HANDOFF: this.#rel(scene.ledger.handoffPath(op, frame.type, params)),
       REVIEW_TYPE: isReview ? frame.type : "",
-      WORKSPACE_DIR: scene.workspace.path,
+      WORKSPACE_DIR: this.#rel(scene.workspace.path),
       WORKSPACE_ID: scene.workspace.slug,
       // v1.9 — the injected writable-subset schema (projection ①): the `## Handoff
       // schema` section of the mode's fixed prefix (byte-stable per mode; the work
@@ -326,60 +341,35 @@ export class CliLifecycle {
     };
   }
 
-  /** The canonical prescribed OUTPUT_* write path of one artifact kind (find #5 —
-   *  the {family}-{key}-{artifact} single naming scheme; find #9 — branch line
-   *  drops the range token: `branch-{op}{-round}-report.md` · `branch-test-evidence.json`,
-   *  the branch line carries no commit identity · doc = the {type}-{op}-{round} stem,
-   *  spec-review-1). "" when the frame's family does not consume the slot — only
-   *  present facts ride the prompt (the assembler drops the empty-valued keys). */
-  #outputOf(frame: OpenFrame, kind: "report" | "evidence"): string {
-    const workspace = this.#scene.workspace;
-    const op = this.#opOf(frame);
-    if (frame.type === "spec" || frame.type === "plan") {
-      // The doc family — the round-keyed {type}-{op}-{round} stem (spec-review-1):
-      // every review/docs-fix round books its own report (a re-review never
-      // overwrites its predecessor); evidence is a work-family face only.
-      if (kind !== "report") return "";
-      return workspace.resolve(`${frame.type}-${op}-${frame.round}-report.md`);
-    }
-    const family = frame.type === "wave" ? `tasks-${frame.params.tasks ?? ""}` : "branch";
-    if (kind === "report") {
-      const suffix = frame.phase === "implement" ? "" : `-${frame.round}`;
-      return workspace.resolve(`${family}-${op}${suffix}-report.md`);
-    }
-    // evidence — the work faces only (implement/fix write the canonical evidence file)
-    if (frame.phase !== "implement" && frame.phase !== "fix") return "";
-    return workspace.resolve(this.#evidenceName(frame));
+  /** The round-context path normalizer (D46) — EVERY path token injected into the
+   *  child prompt speaks ONE basis (repoRoot-relative): the child is spawned at
+   *  cwd = repoRoot, so a relative token resolves from the same root for every
+   *  token, input or output alike. The producers (`RoundNaming`/`handoffPath`/
+   *  `workspace.path`) yield absolute; `INPUT_SPEC` is resolved absolute at the CLI
+   *  seam; the post-T3 argv tokens (`INPUT_PLAN`/`INPUT_SPEC`/`INPUT_REVIEWS`) are repoRoot-relative
+   *  `RepoPath`s. So the exit takes an absolute-or-repoRoot-relative value and emits
+   *  repoRoot-relative through the ONE value object (`RepoRoot.relativize` reads an
+   *  absolute value as itself and a relative value as repoRoot-relative, collapsing
+   *  both to one basis — the single conversion point). */
+  #rel(value: string): string {
+    if (value === "") return "";
+    return this.#repoRootValue().relativize(value);
   }
 
-  /** The canonical evidence file name of a work frame (find #5/#9 — the
-   *  {line}-test-evidence.json form: `tasks-{tasks}-test-evidence.json` /
-   *  `branch-test-evidence.json` — the branch line's row-level current state,
-   *  overwritten each round (the range token left the name);
-   *  the same name the read-back gate reads). The line token joins when the frame
-   *  keys it (the task face) — a key-less line (branch) names the family alone. */
-  #evidenceName(frame: OpenFrame): string {
-    const key = frame.type === "wave" ? (frame.params.tasks ?? "") : "";
-    const line = key === "" ? this.#evidencePrefix(frame) : `${this.#evidencePrefix(frame)}-${key}`;
-    return `${line}-test-evidence.json`;
+  /** The repo-basis value object of this scene — the ONE conversion entry every
+   *  round-context token normalizes through. The basis is the scene workspace
+   *  root's OWN value object (built once at the root's boundary) — never re-wrapped
+   *  here (branch-review-1 F2: one basis, one form). */
+  #repoRootValue(): RepoRoot {
+    return this.#scene.workspace.root.basis;
   }
 
-  /** The RETURN_STDOUT_BLOCK child stdout → the outcome: the two canonical lines
-   *  (status / artifacts), each key=value tokens; a missing status line is a BLOCKED
-   *  outcome (only present facts land). */
-  #parseBlockReturn(stdout: string): DispatchOutcome {
-    const status = stdout.match(/^status:\s*(\S+)/m)?.[1];
-    if (status === undefined) return { status: "BLOCKED" };
-    const outcome: DispatchOutcome = { status: status as RoundStatus };
-    const artifacts = stdout.match(/^artifacts:(.*)$/m);
-    if (artifacts !== null) {
-      outcome.artifacts = {};
-      for (const pair of artifacts[1].trim().split(/\s+/)) {
-        const eq = pair.indexOf("=");
-        if (eq !== -1) outcome.artifacts[pair.slice(0, eq)] = pair.slice(eq + 1);
-      }
-    }
-    return outcome;
+  /** The child-stdout diagnostic tail (P11 T2) — the last STDOUT_TAIL_MAX non-empty
+   *  stdout lines, kept verbatim for the crash record. The child's Return is prose;
+   *  the engine never parses it — this is the failure-diagnosis channel only. */
+  #tailOf(stdout: string): readonly string[] {
+    const lines = stdout.split("\n").filter((line) => line.trim() !== "");
+    return lines.slice(-STDOUT_TAIL_MAX);
   }
 
   // -------------------------------------------------------------------------
@@ -398,7 +388,7 @@ export class CliLifecycle {
    *  rounds only) is read back with the same stakes: a missing/violating file
    *  rewrites the carrier to BLOCKED (persisted — the child's work is kept, marked
    *  bad), the second fix for a prose-only claim. */
-  #reconstruct(frame: OpenFrame, block: DispatchOutcome): DispatchOutcome {
+  #reconstruct(frame: OpenFrame): DispatchOutcome {
     const scene = this.#scene;
     const op = this.#opOf(frame);
     const face = this.#familyOf(op, frame.type).schema ?? "work";
@@ -457,7 +447,7 @@ export class CliLifecycle {
     // missing/malformed/schema-violating file rewrites the draft to BLOCKED (each
     // cause reported truly — the tri-state read, D27).
     if (face === "work") {
-      const evidenceName = this.#evidenceName(frame);
+      const evidenceName = this.#naming.evidenceName(frame);
       const evidencePath = scene.workspace.resolve(evidenceName);
       const evidenceRead = scene.workspace.readJson<unknown>(evidenceName);
       // The SAME tri-state discrimination as the draft leg (D27): a PRESENT-but-corrupt
@@ -479,26 +469,56 @@ export class CliLifecycle {
     return {
       status,
       findings: face === "findings" ? schema.findingsOf(findings) : undefined,
-      artifacts: block.artifacts,
       carrier: this.#materialize(frame, face, draft, status, reason),
     };
   }
 
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the
    *  same-command resume's decision source: the attempted handoff + the resume
-   *  command) + NO carrier (the bookkeep leaves the draft untouched). */
-  #reject(frame: OpenFrame, path: string, reason: string): DispatchOutcome {
+   *  command) + NO carrier (the bookkeep leaves the draft untouched). The crash
+   *  record carries the caller's REAL death facts: an absent draft/schema violation
+   *  is the read-back face (exit 0 · `contract-violation` — the defaults), a dead
+   *  child passes its own exit code + `child-exit`, and a terminated round passes
+   *  its whole `termination` fact (cause + last sample) — one record shape, three
+   *  truthful callers (the record is the postmortem artifact; a misreported death
+   *  sends a maintainer hunting the wrong fault).
+   *
+   *  The returned status derives from the death facts alone (§4.3 — no status
+   *  parameter): a termination rides it → `TIMEOUT`; otherwise → `BLOCKED` (the
+   *  read-back and child-exit callers pass `termination: null`, today's behavior
+   *  verbatim). */
+  #reject(
+    frame: OpenFrame,
+    path: string,
+    reason: string,
+    death: {
+      exitCode: number | null;
+      cause: CrashCause;
+      termination: Termination | null;
+    } = {
+      exitCode: 0,
+      cause: "contract-violation",
+      termination: null,
+    },
+  ): DispatchOutcome {
     this.#io.stderr(`CDD_BLOCKED: ${reason}\n`);
     const op = this.#opOf(frame);
     this.#scene.ledger.writeCrash(`${op}.${frame.type}`, frame.round, {
-      exitCode: 0,
+      exitCode: death.exitCode,
       stderrTail: [reason],
-      stdoutTail: [],
-      attemptedHandoff: path,
+      stdoutTail: this.#stdoutTail,
+      // The persisted attempted-handoff path is the CANONICAL repoRoot-relative
+      // shape (never the absolute `handoffPath` syscall form — §2.7).
+      attemptedHandoff: this.#rel(path),
       next: this.#resumeOf(frame),
-      cause: "contract-violation",
+      // The cause rides the termination fact when one is present (one of the three
+      // causes or the `unknown` fallback); without it, the caller's own cause.
+      cause: death.termination?.cause ?? death.cause,
+      // The last sample rides WITH the termination (in memory, zero re-read of the
+      // heartbeat file) — null on every non-terminated face.
+      lastSample: death.termination?.lastSample ?? null,
     });
-    return { status: "BLOCKED" };
+    return { status: death.termination === null ? "BLOCKED" : "TIMEOUT" };
   }
 
   /** Build the final carrier — the validated writable fields from the draft (the
@@ -548,7 +568,7 @@ export class CliLifecycle {
     // face holds NO status field: its conclusion is DERIVED at judgment time
     // (`HandoffSchema.conclusionOf("findings", carrier)` → rollup(findings)), so the
     // persisted findings carrier stays the pure declaration plane
-    // (findings/artifacts/notes) and a fix child's INPUT_FINDINGS carrier is
+    // (findings/artifacts/notes) and a fix child's INPUT_REVIEWS carrier is
     // status-free (the judgment face is perpendicular to the input face · D27).
     const draftNotes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
     if (face === "work") {
@@ -583,28 +603,40 @@ export class CliLifecycle {
     const out: Record<string, string> = {};
     for (const [key, value] of Object.entries(declared)) {
       const canonical = this.#prescribedArtifact(frame, key);
-      if (canonical !== "" && value !== canonical) {
+      if (canonical === "") {
+        // The non-prescribed slots (the pure read input `brief`, a docs-fix's `doc`,
+        // child extras) pass verbatim.
+        out[key] = value;
+        continue;
+      }
+      // A prescribed slot ALWAYS books the engine's canonical path in the CANONICAL
+      // shape (repoRoot-relative — never the absolute `workspace.resolve` form): the
+      // persisted carrier's artifacts map carries zero absolute strings (§2.7). The
+      // comparison runs on ONE basis (D46 — the child receives relative OUTPUT_*
+      // tokens, so a compliant declaration matches); a free-named OR absolute
+      // deviation is replaced and surfaced on the notes (the review scope axis reads
+      // them).
+      const relative = this.#rel(canonical);
+      if (this.#rel(value) !== relative) {
         notes.push(
           `artifact ${key}: declared path ${value} deviates from the prescribed ${canonical} — the canonical path is booked`,
         );
-        out[key] = canonical;
-      } else {
-        out[key] = value;
       }
+      out[key] = relative;
     }
     return Object.keys(out).length > 0 ? out : undefined;
   }
 
   /** The prescribed path of one block-artifact slot — a slot the frame's family
-   *  prescribes (report/test_evidence → the canonical OUTPUT_* name), "" for every
-   *  other slot (the pure read input `brief` is never a write slot, and a docs-fix's
-   *  `doc` is never prescribed — both pass verbatim). */
+   *  prescribes (report/test_evidence → the canonical name from `RoundNaming`), ""
+   *  for every other slot (the pure read input `brief` is never a write slot, and a
+   *  docs-fix's `doc` is never prescribed — both pass verbatim). */
   #prescribedArtifact(frame: OpenFrame, slot: string): string {
     switch (slot) {
       case "report":
-        return this.#outputOf(frame, "report");
+        return this.#naming.report(frame);
       case "test_evidence":
-        return this.#outputOf(frame, "evidence");
+        return this.#naming.evidence(frame);
       default:
         return "";
     }
@@ -619,15 +651,8 @@ export class CliLifecycle {
     const op = this.#opOf(frame);
     const face = this.#familyOf(op, frame.type).schema ?? "work";
     const evidence = face === "work";
-    const prefix = evidence ? this.#evidencePrefix(frame) : "tasks";
+    const prefix = evidence ? this.#naming.prefix(frame) : "tasks";
     return this.#handoffSchema.schemaText(face, evidence, prefix);
-  }
-
-  /** The evidence file's family prefix (§3.7 naming) — the task-family work rounds
-   *  use the canonical `tasks-` prefix; the branch fix uses the `branch-` family
-   *  prefix (never the misleading tasks- spine). */
-  #evidencePrefix(frame: OpenFrame): string {
-    return frame.type === "wave" ? "tasks" : "branch";
   }
 
   /** The op.type family record — the engine-config handoff namespace single truth
@@ -679,15 +704,15 @@ export class CliLifecycle {
       case "fix": {
         const findings = scene.ledger.handoffPath("review", frame.type, frame.params);
         const target =
-          frame.target.kind === "doc"
+          frame.target.kind === "plan" || frame.target.kind === "spec"
             ? `--${frame.type === "spec" ? "spec" : "plan"} ${frame.target.doc}`
             : // The branch fix carries no refs — the source findings ride the
-              // --findings handoff; the workspace-identity `--plan` still rides
+              // --reviews handoff; the workspace-identity `--plan` still rides
               // (the plan is the branch line's identity, zero orchestrator fallback).
               frame.target.kind === "branch"
               ? `--plan ${plan}`
               : `--tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
-        return `cdd fix --type ${frame.type} ${target} --findings ${findings}`;
+        return `cdd fix --type ${frame.type} ${target} --reviews ${findings}`;
       }
     }
   }
@@ -695,6 +720,6 @@ export class CliLifecycle {
   /** The doc path of a doc-target frame (the `""` never lands — the reject paths
    *  only frame docs). */
   #docOf(frame: OpenFrame): string {
-    return frame.target.kind === "doc" ? frame.target.doc : "";
+    return frame.target.kind === "plan" || frame.target.kind === "spec" ? frame.target.doc : "";
   }
 }

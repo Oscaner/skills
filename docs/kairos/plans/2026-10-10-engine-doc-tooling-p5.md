@@ -1,8 +1,11 @@
-# P5 整引擎 + repo CI 验证脚本重整
-**Spec:** [2026-10-10-engine-doc-tooling-p5-design.md](docs/kairos/specs/2026-10-10-engine-doc-tooling-p5-design.md)
-- **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md)
-- **Version**: v0.7 · 2026-10-13
-- **Doc type**: plan
+---
+title: P5 整引擎 + repo CI 验证脚本重整
+doc-type: plan
+version: v0.7
+date: 2026-10-13
+spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p5-design.md
+parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
+---
 
 ## Constraints
 

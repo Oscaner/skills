@@ -4,15 +4,16 @@
 //     with no matching `- **DependsOn**:` declaration WARNs once per block, while
 //     forward / self / unregistered / spec-item / code-span / declared-edge refs
 //     stay silent (the positive surface);
-//   · the cross-doc observation — the Class-B `**Parent program**` link whose
-//     version-stripped label drifts from the target basename WARNs, the canonical
-//     `basename v1.21` form stays silent;
+//   · the retired cross-doc drift observation (T6) — the Class-B link-text drift
+//     WARN retires with the ChainLink label face: parent references carry zero
+//     WARNs whatever their shape (the chain facts ride the front-matter head);
 //   · the WARN-only gate — the same defective document produces ZERO Contract
 //     findings (the lint never feeds the judgment face) and every warning carries
 //     the reference-lint shape, never a Finding.
 // Fixtures are known-good plan literals parsed through the shared PlanDocType
 // instance (the parse-once-reuse discipline — the lint consumes the same parse
-// record the dispatch and the graph read).
+// record the dispatch and the graph read). Since T6 the fixtures carry the
+// front-matter head (the §2.2 delivery seam's canonical document form).
 
 import { describe, expect, it } from "vitest";
 import type { ParsedDoc } from "../doc.ts";
@@ -55,15 +56,20 @@ const planTask = (
   ];
 };
 
-/** A full canonical plan document over the task blocks — the shared parse fixture. */
-const planDoc = (
-  blocks: readonly string[],
-  parent = "[x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
-): string => {
+/** A full canonical plan document over the task blocks — the shared parse fixture
+ *  (the front-matter head carries the chain scalars; the lint's scan surfaces are
+ *  the task blocks only). */
+const planDoc = (blocks: readonly string[]): string => {
   return [
-    "# Test Plan",
-    "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
-    `- **Parent program**: ${parent}`,
+    "---",
+    "title: Test Plan",
+    "doc-type: plan",
+    "version: v1.0",
+    "date: 2026-10-09",
+    "spec: docs/kairos/specs/x-design.md",
+    "parent-program: docs/kairos/specs/x-overall.md",
+    "parent-version: v1.21",
+    "---",
     "",
     "## Constraints",
     "",
@@ -188,9 +194,15 @@ describe("the silent surfaces (positive reference scanning)", () => {
 
   it("the scan surface is prospective prose — a reference inside Files / Consumes / Steps is never prose intent", () => {
     const content = [
-      "# Test Plan",
-      "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
-      "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "spec: docs/kairos/specs/x-design.md",
+      "parent-program: docs/kairos/specs/x-overall.md",
+      "parent-version: v1.21",
+      "---",
       "",
       "### Task 3: task 3",
       "- **Objective**: task three",
@@ -222,32 +234,33 @@ describe("the silent surfaces (positive reference scanning)", () => {
   });
 });
 
-describe("the cross-doc reference observation (Class-B label drift)", () => {
-  it("the canonical `basename v1.21` parent form stays silent", () => {
+describe("the retired cross-doc drift observation (T6 — zero WARNs)", () => {
+  it("the canonical parent reference stays silent (zero WARNs)", () => {
     const warns = lintPlan(planDoc([...planTask(1, "task one", "none")]));
     expect(warns).toEqual([]);
   });
 
-  it("a parent link whose version-stripped label drifts from the target basename WARNs", () => {
-    const warns = lintPlan(
-      planDoc(
-        [...planTask(1, "task one", "none")],
-        "[overall v1.21](docs/kairos/specs/x-overall.md)",
-      ),
-    );
-    expect(warns).toHaveLength(1);
-    expect(warns[0]!.field).toBe("**Parent program**");
-    expect(warns[0]!.message).toContain("x-overall.md");
+  it("a parent reference whose shape would have drifted WARNs no more — the link-text face is retired", () => {
+    // The Class-B link-text drift judgment retired with the ChainLink label face:
+    // the parent reference is a front-matter HEAD SCALAR (the `parent-program:`
+    // key) — there is no link text to compare, so no drift WARN can fire.
+    const warns = lintPlan(planDoc([...planTask(1, "task one", "none")]));
+    expect(warns).toEqual([]);
   });
 
-  it("the same drift observation applies to a phase-spec's parent link", () => {
+  it("the same retired surface applies to a phase-spec's parent reference — zero WARNs", () => {
     const lines = [
-      "# Test Spec",
-      "- **Version**: v1.0",
-      "- **Status**: Draft",
-      "- **Author**: x",
-      "- **Parent program**: [misnamed v1.0](docs/kairos/specs/x-overall.md)",
-      "- **Depends on**: P1",
+      "---",
+      "title: Test Spec",
+      "doc-type: phase-spec",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "status: Draft",
+      "author: x",
+      "parent-program: docs/kairos/specs/x-overall.md",
+      "parent-version: v1.0",
+      "depends-on: P1",
+      "---",
       "",
       "## Design",
       "",
@@ -263,7 +276,7 @@ describe("the cross-doc reference observation (Class-B label drift)", () => {
       path: SPEC_PATH,
       parsed: parseDoc("phase-spec", lines),
     });
-    expect(warns).toHaveLength(1);
+    expect(warns).toEqual([]);
   });
 
   it("the overall carries no reference-lint surface — the class is a silent no-op over an overall", () => {
@@ -297,10 +310,7 @@ describe("the WARN-only gate", () => {
 
   it("every warning carries the reference-lint shape, never a judge Finding kind", () => {
     const warns = lintPlan(
-      planDoc(
-        [...planTask(1, "task one", "none"), ...planTask(3, "extends Task 1", "none")],
-        "[overall v1.21](docs/kairos/specs/x-overall.md)",
-      ),
+      planDoc([...planTask(1, "task one", "none"), ...planTask(3, "extends Task 1", "none")]),
     );
     expect(warns.length).toBeGreaterThan(0);
     for (const warn of warns) {

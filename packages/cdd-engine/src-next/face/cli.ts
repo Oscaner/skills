@@ -43,17 +43,21 @@
 // Module-level exports are types / constant data / classes — zero behavior-carrying
 // bare functions (the composition root is the Cli class's static create factory).
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import process from "node:process";
 import { type Command, CommanderError } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import { PlanDocType } from "../contract/doc.ts";
+import { FrontMatterExtractor } from "../contract/frontmatter.ts";
+import { FileExistenceInvariant } from "../contract/invariants.ts";
 import { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
 import { Translator } from "../contract/translate.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { GitClient } from "../infra/git.ts";
+import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
@@ -75,22 +79,18 @@ import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import { CliGate } from "./gate.ts";
 import { GraphView } from "./graph-view.ts";
 import { HostDetect } from "./host.ts";
-import {
-  type CliIo,
-  CliLifecycle,
-  type DispatchScene,
-  type SyncProcess,
-  SyncRunner,
-} from "./lifecycle.ts";
+import { type CliIo, CliLifecycle, type DispatchScene } from "./lifecycle.ts";
+import { Preview } from "./preview.ts";
 import { CommandTreeBuilder } from "./projection.ts";
+import { type ChildRunner, Terminator } from "./termination.ts";
 import { Words } from "./words.ts";
 
 // ---------------------------------------------------------------------------
 // the re-exported seams + the dispatch production default — the split contract's
 // lifecycle face owns the dispatch/readback plane (face/lifecycle.ts) and the
 // shared seams it rides; the composition root re-exports them here unchanged so
-// the module's public surface never drifts (CliIo · SyncProcess · SyncRunner ·
-// ProcessEnvLike · DispatchScene · BaseArtifact · HarnessDispatch).
+// the module's public surface never drifts (CliIo · ChildRunner · ProcessEnvLike ·
+// DispatchScene · BaseArtifact · HarnessDispatch).
 // ---------------------------------------------------------------------------
 
 export type { BaseArtifact } from "./artifacts.ts";
@@ -98,15 +98,13 @@ export type {
   CliIo,
   DispatchScene,
   ProcessEnvLike,
-  SyncProcess,
 } from "./lifecycle.ts";
-export {
-  CliLifecycle as HarnessDispatch,
-  SyncRunner,
-} from "./lifecycle.ts";
+export { CliLifecycle as HarnessDispatch } from "./lifecycle.ts";
+export type { ChildOutcome, ChildRun, ChildRunner } from "./termination.ts";
 /** The composition options — every collaborator injectable (tests substitute the
- *  hermetic ones: io / dispatch / repoRoot / stdin); the production defaults wire
- *  the living process. */
+ *  hermetic ones: io / dispatch / stdin); the production defaults wire the living
+ *  process. The repo root is NEVER injectable (T2): it derives from the ONE
+ *  conversion point (the git top level of the working directory — §2.4/§2.6). */
 export interface CliOptions {
   io?: CliIo;
   config?: ConfigLoader;
@@ -114,9 +112,7 @@ export interface CliOptions {
   words?: Words;
   translator?: Translator;
   git?: GitClient;
-  sync?: SyncProcess;
-  cwd?: string;
-  repoRoot?: string;
+  sync?: ChildRunner;
   dryRun?: boolean;
   dispatch?: DispatchStep | null;
   preflight?: PreFlight;
@@ -130,9 +126,23 @@ export interface WorkScene extends DispatchScene {
   planText: string | null;
   type: TargetType;
   face: TargetFace;
-  target: { kind: "branch" } | { kind: "doc"; doc: string } | null;
+  target: { kind: "branch" } | { kind: "plan"; doc: string } | { kind: "spec"; doc: string } | null;
   state: RunState;
   router: NextStepRouter;
+  /** The plan's `spec:` front-matter link target (plan docs only) — the plan-review
+   *  round context's spec anchor; null off the plan face. */
+  specLink: string | null;
+}
+
+/** The path-typed argv values (T3 §2.3) — split out of the generic `args` record
+ *  so the funnel's normalized `RepoPath` brand reaches the scene/read faces with
+ *  NO downcast (branch-review-1 F7). The funnel is the ONE landing: before it runs
+ *  the three fields are null; after it they carry the branded repoRoot-relative
+ *  value (or null when the flag was absent). */
+export interface PathArgs {
+  plan: RepoPath | null;
+  spec: RepoPath | null;
+  reviews: RepoPath | null;
 }
 
 /** The thin-shell → run-body input — the .action shell maps commander's parsed
@@ -145,11 +155,14 @@ export interface WorkScene extends DispatchScene {
 export interface RunInput {
   /** The nested leaf word (schema get|gen · base set|get) — null on the verbs. */
   leaf: CliLeafName | null;
-  /** The declared keys' values — normalized strings (undefined-flagged keys absent). */
+  /** The declared keys' values — normalized strings (undefined-flagged keys absent;
+   *  the path-typed keys are split into `paths` by the funnel). */
   args: Record<string, string>;
+  /** The path-typed argv values — the funnel's branded `RepoPath` landing (F7). */
+  paths: PathArgs;
   /** The positional values (the schema <type> — the parseTypeKey-normalized key). */
   positionals: readonly string[];
-  /** The invocation's synthetic-dispatch scope (the --dry-run program flag). */
+  /** The invocation's read-only preview scope (the --dry-run program flag). */
   dryRun: boolean;
 }
 
@@ -166,9 +179,7 @@ export class Cli {
   readonly #projector: Projector;
   readonly #words: Words;
   readonly #git: GitClient;
-  readonly #sync: SyncProcess;
-  readonly #cwd: string;
-  readonly #repoRoot: string | null;
+  readonly #sync: ChildRunner;
   readonly #dryRun: boolean;
   readonly #dispatch: DispatchStep | null;
   readonly #template: TemplateAssembler;
@@ -213,9 +224,7 @@ export class Cli {
     this.#wireTreeOutput(this.#program);
     this.#wireActions();
     this.#git = opts.git ?? new GitClient();
-    this.#sync = opts.sync ?? new SyncRunner();
-    this.#cwd = opts.cwd ?? process.cwd();
-    this.#repoRoot = opts.repoRoot ?? null;
+    this.#sync = opts.sync ?? new Terminator();
     this.#dryRun = opts.dryRun ?? false;
     this.#dispatch = opts.dispatch ?? null;
     this.#template = opts.template ?? new TemplateAssembler();
@@ -334,7 +343,8 @@ export class Cli {
     leafNode("base", "get").action(async (_opts: unknown, command: Command) => {
       this.#exitCode = await this.#runBase(command, this.#runInput("get", command));
     });
-    leafNode("issue", "render").action(async () => {
+    leafNode("issue", "render").action(async (_opts: unknown, command: Command) => {
+      this.#assertDryRunScope(command, this.#dryRunOf(command));
       this.#exitCode = this.#artifacts.runIssue();
     });
     // the board observability command — a pure read (no preflight gate)
@@ -349,13 +359,15 @@ export class Cli {
    *  and renders the phase/program board + the `next:` derivation to stdout. A
    *  missing slug is a usage error (exit 2, commander's own byte); a slug matching
    *  nothing on disk renders the not-found face and exits 2; a present doc line
-   *  carrying no `- **Doc type**:` declaration renders its BLOCKED marker and exits 2
+   *  carrying no `doc-type:` key renders its BLOCKED marker and exits 2
    *  (spec §12 · D34). The host is detected once for the pipeline-entry ref render
    *  (REFS[ref][host], the same judgment the capsule injects — never hard-coded). */
   async #runBoard(node: Command, parsed: RunInput): Promise<number> {
+    this.#assertDryRunScope(node, parsed.dryRun);
     const slug = parsed.positionals[0];
     if (slug === undefined) this.#usage(node, "cdd board: missing <slug>");
-    const repoRoot = await this.#repoRootOf(parsed);
+    const repoRoot = await this.#rootOf();
+    if (repoRoot === null) return 1;
     if (!BoardView.hasNode(slug, repoRoot)) {
       this.#io.stderr(`cdd board: no docs match slug ${slug}\n`);
       return 2;
@@ -384,9 +396,35 @@ export class Cli {
     return {
       leaf,
       args,
+      // The path-typed values land empty — the funnel (`#funnel`) is the ONE
+      // normalization site that fills them with the branded repoRoot-relative form.
+      paths: { plan: null, spec: null, reviews: null },
       positionals: command.processedArgs as string[],
-      dryRun: this.#dryRun || globals.dryRun === true,
+      dryRun: this.#dryRunOf(command),
     };
+  }
+
+  /** The invocation's `--dry-run` scope — the constructor flag OR the program-scope
+   *  flag (the flag is declared on the program node, so a leaf's own opts would miss
+   *  it; `optsWithGlobals` merges the parent chain). The ONE derivation the run input
+   *  and the scope guard read — never a second copy of the merge rule. */
+  #dryRunOf(command: Command): boolean {
+    const globals = command.optsWithGlobals() as Record<string, unknown>;
+    return this.#dryRun || globals.dryRun === true;
+  }
+
+  /** The `--dry-run` scope guard (P11 T5 · §3.5) — the preview semantics belong to
+   *  the three work verbs alone. A pure command carrying the program flag is a usage
+   *  rejection (exit 2), never a silently ignored flag: a no-op flag the consumer has
+   *  to remember to skip is a mind-share defect, not a convenience. The usage byte is
+   *  the owning node's commander-native usage line (the same `#usage` face every run
+   *  body's rejection rides). */
+  #assertDryRunScope(node: Command, dryRun: boolean): void {
+    if (!dryRun) return;
+    this.#usage(
+      node,
+      "--dry-run previews the next dispatch step and its expected artifacts — it applies to implement / review / fix only",
+    );
   }
 
   /** Configure every node's output into the injected io (commander writes its
@@ -407,12 +445,20 @@ export class Cli {
 
   /** One work command's run — assemble the scene, advance the requested phase (the
    *  lifecycle's single dispatch step per frame), render the capsule lines. */
-  async #runWork(verb: CliVerb, node: Command, parsed: RunInput): Promise<number> {
-    const type = (parsed.args.type ?? "wave") as TargetType;
-    if (type === "wave" && parsed.args.tasks === undefined) {
+  async #runWork(verb: CliVerb, node: Command, raw: RunInput): Promise<number> {
+    const type = (raw.args.type ?? "wave") as TargetType;
+    if (type === "wave" && raw.args.tasks === undefined) {
       this.#usage(node, `cdd ${verb} --type wave: missing required --tasks <n|n,n,…>`);
     }
-    const scene = await this.#sceneOf(verb, type, node, parsed);
+    // The repo root (the ONE conversion point, T2) + the input funnel (T3 §2.3) run
+    // FIRST — before the scene or any downstream face reads a path arg, so the whole
+    // run (scene + ledger + dispatch `--reviews`) speaks ONE normalized argv shape.
+    const repoRoot = await this.#rootOf();
+    if (repoRoot === null) return 1;
+    const root = new RepoRoot(repoRoot);
+    const parsed = this.#funnel(root, raw);
+    const scene = await this.#sceneOf(verb, type, node, root, parsed);
+    if (scene === null) return 1;
 
     // THE pre-flight seam (P4.1 T1 · design §1): the single dispatch gate —
     // tree-clean → graph → wave → doc-contract — ONE call, the whole sequence
@@ -420,8 +466,18 @@ export class Cli {
     // + the verdict render (zero re-implemented gate here). A refused verdict
     // returns before any brief/lifecycle: no child dispatch ever runs. The
     // dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel; the
-    // graph / wave refusals keep the pre-existing refusal face.
-    const docPath = scene.target !== null && scene.target.kind === "doc" ? scene.target.doc : "";
+    // graph / wave refusals keep the pre-existing refusal face. The doc-face read
+    // path is the repoRoot-relative branded `RepoPath` (T4 §2.2 — a bare `string`
+    // never reaches the read faces `BoardView.readDocType`/`PreFlightDoc.path`; the
+    // CLI feeds the funnel-shaped relative value, each read face erasing to the
+    // absolute syscall form through its OWN `RepoRoot`). Both branches yield the
+    // brand through the ONE conversion entry (`relativize` of the doc path; the
+    // empty path relativizes to the empty `RepoPath`) — no cast (F3).
+    const docRel = root.relativize(
+      scene.target !== null && (scene.target.kind === "plan" || scene.target.kind === "spec")
+        ? scene.target.doc
+        : "",
+    );
     const preflight = await this.#preflight.vet({
       verb: verb as "implement" | "review" | "fix",
       type,
@@ -433,11 +489,11 @@ export class Cli {
         type === "spec" || type === "plan"
           ? {
               // The ONE declaration reading face (spec §12 · D34) — both the spec and
-              // the plan dispatch read the doc's `- **Doc type**:` header declaration;
-              // a declaration-less doc reads null and the seam BLOCKs (zero command-type
+              // the plan dispatch read the doc's front-matter `doc-type:` key;
+              // a key-less doc reads null and the seam BLOCKs (zero command-type
               // carve-out, zero filename-suffix fallback).
-              docKey: BoardView.readDocType(docPath),
-              path: docPath,
+              docKey: BoardView.readDocType(root, docRel),
+              path: docRel,
             }
           : null,
     });
@@ -446,11 +502,26 @@ export class Cli {
       return 1;
     }
 
+    // The real run's first write point (P11 · §4.2): the workspace — and the
+    // namespace's `.gitignore` keep-out marker — is built HERE, after the
+    // pre-flight verdict and before the brief render / the child dispatch, for
+    // EVERY face (wave / spec / plan / branch). Scene assembly no longer
+    // pre-creates it, so a read-only command leaves `.kairos/` absent while a
+    // real dispatch always lands in an existing workspace (the child's
+    // OUTPUT_REPORT / OUTPUT_HANDOFF targets, and the keep-out marker published
+    // before the child can dirty the tree). `Workspace.writeJson` keeps its own
+    // internal ensure; `CliGate#renderBrief` no longer ensures. The `--dry-run`
+    // preview never reaches it — the preview path returns before any write
+    // (P11 T5 · §3.2: a preview is a pure read).
+    if (!parsed.dryRun) scene.workspace.ensure();
+
     // The unconditional extract (§4.1): every wave-face dispatch re-renders the
     // brief from the CURRENT plan text — implement, review and fix alike (a
     // mid-run plan amendment reflects into the next dispatch; no "exists → leave
     // it" reuse). The doc/branch faces carry no wave brief (planText is null there).
-    if (type === "wave" && scene.planText !== null)
+    // The preview skips it — the brief is a WRITE (`Workspace#writeText`), and the
+    // preview names the same path through RoundNaming instead of rendering it.
+    if (!parsed.dryRun && type === "wave" && scene.planText !== null)
       scene.briefPath = this.#gate.renderBrief(scene, parsed);
     const expected =
       verb === "implement" ? "implement" : verb === "fix" ? "fix" : scene.face.product.reviewLead;
@@ -493,8 +564,8 @@ export class Cli {
       // structurally never passed to the child (the lifecycle's hard "child zero-dispatch"
       // guarantee; the CLI already returned above when the seam refused).
       preflight: { gate: () => (preflight.ok ? null : preflight) },
-      dispatch: (frame) => {
-        const outcome = dispatch(frame);
+      dispatch: async (frame) => {
+        const outcome = await dispatch(frame);
         statuses.push(outcome.status ?? null);
         return outcome;
       },
@@ -503,7 +574,7 @@ export class Cli {
         this.#words,
         ARGV_CHANNEL,
         HostDetect.detect(process.env),
-        scene.workspace.root.repoRoot,
+        scene.workspace.root.basis,
       ),
       planPath: scene.planPath,
     });
@@ -551,7 +622,16 @@ export class Cli {
         }
         break;
       }
-      const step = run.advance();
+      // The `--dry-run` preview (P11 T5 · §3.3) — the SAME frame the real run would
+      // dispatch, rendered as the five-row forecast instead of dispatched: the
+      // frontier read above is the preview's single step source (zero second
+      // derivation), and the early return means no write point below ever runs
+      // (`renderBrief` skipped above, `#bookkeep`/`#reject` never reached).
+      if (parsed.dryRun) {
+        for (const line of new Preview({ scene }).render(verb, frame)) this.#io.stdout(`${line}\n`);
+        return 0;
+      }
+      const step = await run.advance();
       if (step === null) break;
       // The dispatch-entry gate's refusal (the lifecycle's hard child zero-dispatch wiring —
       // structurally unreachable here: the seam already returned above on refusal).
@@ -571,6 +651,9 @@ export class Cli {
       // next was already consumed). The ledger-mirrored cursor above + markTerminal
       // together keep one wave phase per invocation.
       if (lastStatus === "BLOCKED" || lastStatus === "TIMEOUT") {
+        // The timeout counter's call site (§4.2): a TIMEOUT round lands, the count
+        // goes up by one — the counter's only production writer.
+        if (lastStatus === "TIMEOUT") scene.ledger.incrementTimeoutCount();
         for (const line of latest) this.#io.stdout(`${line}\n`);
         return 1;
       }
@@ -593,16 +676,17 @@ export class Cli {
     return 0;
   }
 
-  /** The dispatch seam — the injected override, else the dry-run synthetic approval,
-   *  else the harness production default. */
+  /** The dispatch seam — the injected override, else the harness production default.
+   *  The call itself is unconditional (the caller resolves the step before the
+   *  preview branch), but under `--dry-run` the preview path returns before the
+   *  step is INVOKED — `dispatch(frame)` is never called (P11 T5 · §3.2) — so the
+   *  retired synthetic approval (`() => ({ status: "APPROVED", findings: [] })`)
+   *  has no remaining caller: a preview books no round and fabricates no
+   *  conclusion. */
   #dispatchOf(scene: WorkScene, parsed: RunInput): DispatchStep {
     if (this.#dispatch !== null) return this.#dispatch;
-    if (parsed.dryRun || this.#dryRun) {
-      return () => ({ status: "APPROVED", findings: [] });
-    }
     const harness = new CliLifecycle({
       env: process.env,
-      cwd: this.#cwd,
       sync: this.#sync,
       config: this.#config,
       template: this.#template,
@@ -613,8 +697,9 @@ export class Cli {
         planPath: scene.planPath,
         briefPath: scene.briefPath,
         baseBranch: this.#baseBranchOf(scene),
+        specLink: scene.specLink,
       },
-      findings: parsed.args.findings ?? null,
+      reviews: parsed.paths.reviews,
     });
     return harness.step();
   }
@@ -659,8 +744,12 @@ export class Cli {
     if (verdict.gate === "wave" && verdict.reason === "split" && scene.planText !== null) {
       const graph = new TaskGraph(new PlanDocType("plan").parse(scene.planText.split("\n")));
       const closed = scene.ledger.closedWaves();
+      // The graph title's plan path renders repoRoot-relative (D47 · the ONE shape;
+      // `scene.planPath` is argv-origin) — normalized through the scene's OWN basis
+      // value object (F2: never a per-call re-wrap).
+      const titlePlan = scene.workspace.root.basis.relativize(scene.planPath ?? "");
       for (const line of this.#graphView
-        .render(graph.report(closed), `graph: ${scene.planPath ?? ""}`)
+        .render(graph.report(closed), `graph: ${titlePlan}`)
         .split("\n"))
         this.#io.stderr(`  ${line}\n`);
     }
@@ -672,60 +761,93 @@ export class Cli {
 
   /** Assemble one work command's scene: the workspace (repo root + the plan/spec
    *  slug), the ledger, the run state (TaskGraph from the plan parse for the task
-   *  face, the empty single-target state otherwise), the fixed target. */
+   *  face, the empty single-target state otherwise), the fixed target. The repo root
+   *  is derived at the ONE conversion point (T2) — a cwd outside a git repo returns
+   *  null, which the caller turns into the BLOCKED exit (§2.6). The path-typed argv
+   *  values ride the input funnel (T3 · `#funnel`) so the scene consumes canonical
+   *  repoRoot-relative `RepoPath`s. */
   async #sceneOf(
     verb: CliVerb,
     type: TargetType,
     node: Command,
+    root: RepoRoot,
     parsed: RunInput,
-  ): Promise<WorkScene> {
+  ): Promise<WorkScene | null> {
     const config = this.#config;
     const face = targetFaces[type];
-    const repoRoot = await this.#repoRootOf(parsed);
-    const root = new WorkspaceRoot(repoRoot, config.handoffNamespace().workspaceRoot);
-    const planPath = parsed.args.plan ?? null;
-    const specPath = parsed.args.spec ?? null;
+    const repoRoot = root.absolute;
+    const rootPath = new WorkspaceRoot(repoRoot, config.handoffNamespace().workspaceRoot);
+    // The argv paths ride the ONE funnel (T3 §2.3): the READ faces consume the branded
+    // `RepoPath` (`parsed.paths`), while the scene's own `planPath`/`target.doc` — the
+    // facts the ledger persists and the syscalls read — are the value object's `resolve`
+    // erasure (the absolute syscall form; their persisted shape is T4's face). Both
+    // derive from the same funnel, so there is zero second normalization — the brand
+    // reaches here with NO downcast (F7).
+    const planRel = parsed.paths.plan;
+    const planPath = planRel === null ? null : root.resolve(planRel);
+    const specRel = parsed.paths.spec;
+    const specPath = specRel === null ? null : root.resolve(specRel);
 
     let slug: string;
     let planText: string | null = null;
+    let specLink: string | null = null;
     let target: WorkScene["target"] = null;
     switch (type) {
       case "wave": {
-        if (planPath === null)
+        if (planPath === null || planRel === null)
           this.#usage(node, `cdd ${verb} --type wave: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
-        planText = this.#artifacts.readText(node, planPath);
+        planText = this.#artifacts.readText(node, root, planRel);
         break;
       }
       case "spec": {
         if (specPath === null)
           this.#usage(node, `cdd ${verb} --type spec: missing required --spec <path>`);
         slug = Workspace.slugFromDoc(specPath);
-        target = { kind: "doc", doc: specPath };
+        target = { kind: "spec", doc: specPath };
         break;
       }
-      case "plan": {
-        if (planPath === null)
-          this.#usage(node, `cdd ${verb} --type plan: missing required --plan <path>`);
-        slug = Workspace.slugFromDoc(planPath);
-        planText = this.#artifacts.readText(node, planPath);
-        target = { kind: "doc", doc: planPath };
-        break;
-      }
+      case "plan":
+      // fallthrough to the shared plan-sourced derivation below
       case "branch": {
-        // The branch line carries no commit identity: the audit target is the
-        // branch itself, its workspace identity is the plan path (a required
-        // fact — the branch review/fix faces carry `--plan`), and the review's
-        // scope anchor (BASE_BRANCH) is engine-injected from the base artifact.
-        if (planPath === null)
-          this.#usage(node, `cdd ${verb} --type branch: missing required --plan <path>`);
+        // The plan-doc seam (shared by the plan + branch lines): the target plan
+        // must exist (a required fact for both — the branch review/fix faces carry
+        // `--plan`), its text is read ONCE, and the plan's design-spec reference
+        // (the `spec:` front-matter key — the §2.2 delivery seam: the ONE head-
+        // REQUIRED parse call site) is derived from that text as the round context's
+        // extra read input (no second file read). Rebased to repoRoot-relative
+        // (D46 · T3): the raw header form is markdown link-space (relative to the
+        // plan's own dir), so it is first resolved to an absolute path, then routed
+        // through the ONE value object (`RepoRoot.relativize`) — every round-context
+        // path token speaks ONE basis (the child is spawned at cwd = repoRoot). The
+        // plan review judges the plan doc; the branch line carries no commit identity
+        // (the audit target is the branch itself, its workspace identity is the plan
+        // path, and the review's scope anchor BASE_BRANCH is engine-injected from the
+        // base artifact) — both faces carry the plan + its spec anchor.
+        if (planPath === null || planRel === null)
+          this.#usage(node, `cdd ${verb} --type ${type}: missing required --plan <path>`);
         slug = Workspace.slugFromDoc(planPath);
-        target = { kind: "branch" };
+        planText = this.#artifacts.readText(node, root, planRel);
+        const split = FrontMatterExtractor.split(planText);
+        const rawSpecLink =
+          new PlanDocType("plan").parse(split.body.split("\n"), split.head).chain.specLink
+            ?.target ?? null;
+        specLink =
+          rawSpecLink === null
+            ? null
+            : root.relativize(this.#resolveSpecLink(repoRoot, planPath, rawSpecLink));
+        target = type === "plan" ? { kind: "plan", doc: planPath } : { kind: "branch" };
         break;
       }
     }
 
-    const workspace = new Workspace(root, slug).ensure();
+    // The workspace is NOT built here (P11 · §4.2): scene assembly is a READ face —
+    // the real run's single write point builds it (`Cli#runWork`'s explicit ensure,
+    // every face), so a read-only command never creates `.kairos/`. The one-time
+    // legacy migration retired with this build: the `Workspace.readJson` read-time
+    // normalization is the ONE heal path, covering `base.json` alongside
+    // `progress.json` (a second healing point is gone).
+    const workspace = new Workspace(rootPath, slug);
     const ledger = new Ledger(workspace, config);
     const state =
       type === "wave"
@@ -742,14 +864,84 @@ export class Cli {
       state,
       router: new NextStepRouter(),
       briefPath: null,
+      specLink,
     };
   }
 
-  /** The repo root — the --root override, else the injected root, else the git top
-   *  level, else the cwd. */
-  async #repoRootOf(parsed?: RunInput): Promise<string> {
-    const override = parsed?.args.root;
-    return override ?? this.#repoRoot ?? (await this.#git.topLevel(this.#cwd)) ?? this.#cwd;
+  /** The input funnel — the ONE path normalization landing (T3 · §2.3): every
+   *  path-typed argv value is relativized to the repo root EXACTLY once, here,
+   *  before the scene or any downstream face reads it, so no face ever sees a raw
+   *  argv path shape. The covered face: `--plan` · `--spec` · `--reviews` (the
+   *  schema `--output skeleton` `<target>` positional and base `--plan` reach the
+   *  SAME landing through `#relativizePath` — branch-review-1 F6: one relativize+warn
+   *  helper, one landing). An out-of-repo input (a `..` segment after relativize) is
+   *  ACCEPTED with a stderr warning — the shape is what is judged, never the location
+   *  (§2.10). */
+  #funnel(root: RepoRoot, parsed: RunInput): RunInput {
+    const raw = parsed.args;
+    // The three path keys move OUT of the generic string record into the branded
+    // `paths` face (F7) — splitting them out means the raw path string exists in
+    // exactly ONE form downstream (the normalized `RepoPath`), never duplicated
+    // (the Data Clumps F2 targets).
+    const { plan, spec, reviews, ...rest } = raw;
+    return {
+      ...parsed,
+      args: rest,
+      paths: {
+        plan: plan === undefined ? null : this.#relativizePath(root, plan),
+        spec: spec === undefined ? null : this.#relativizePath(root, spec),
+        reviews: reviews === undefined ? null : this.#relativizePath(root, reviews),
+      },
+    };
+  }
+
+  /** The ONE path normalization landing (T3 §2.3 · F6) — relativize a raw argv path
+   *  to the branded repoRoot-relative `RepoPath` through the value object, then warn
+   *  on the stderr CDD_WARN channel when the result lies outside the repo. The
+   *  work-command funnel (`#funnel`) and the pure-command path argv (schema
+   *  `--output skeleton` `<target>` · base `--plan`) all reach THIS helper, so there
+   *  is literally ONE relativize+warn site. An out-of-repo input (a `..` segment after
+   *  relativize) is ACCEPTED — the shape is what is judged, never the location
+   *  (§2.10). An empty input normalizes to the empty path (no warning). */
+  #relativizePath(root: RepoRoot, raw: string): RepoPath {
+    const rel = root.relativize(raw);
+    if (rel.split(path.sep).includes("..")) {
+      this.#io.stderr(`${this.#words.station("warn")} path is outside the repository: ${rel}\n`);
+    }
+    return rel;
+  }
+
+  /** The repo root — the ONE conversion point (T2 · §2.4/§2.6): the single
+   *  working-dir → git-top-level resolution of the engine. Zero injection seams
+   *  (`--root` is retired; the composition options carry no root/cwd), zero
+   *  fallback. A cwd outside any git repository (a null top level) is a missing
+   *  run-environment fact: the existing CDD_BLOCKED channel carries the reason and
+   *  the caller exits 1 (never a usage error — exit 2). */
+  async #rootOf(): Promise<string | null> {
+    const root = await this.#git.topLevel(process.cwd());
+    if (root === null) {
+      const blocked = this.#words.station("blocked");
+      this.#io.stderr(
+        `${blocked} cannot resolve the repository root — the current directory is not inside a git repository (run cdd from within the repo)\n`,
+      );
+      return null;
+    }
+    return root;
+  }
+
+  /** The plan's `spec:` link target resolved to an ABSOLUTE path (D46) — the
+   *  plan-review round context's `INPUT_SPEC` (the round-context exit relativizes it
+   *  to repoRoot along with every other path token). The raw header form is markdown
+   *  link-space (relative to the plan's own dir — the skeleton's form) or a repoRoot
+   *  form; the resolution IS the doc-contract's own chain-link judgment, delegated
+   *  to its ONE home (`FileExistenceInvariant.targetPath`) so a future contract
+   *  change cannot silently diverge from this mirror (P9 branch-review-1 F8 — never
+   *  a re-implemented chain). The fallback (neither reading exists) resolves against
+   *  the plan's own dir — the link-space semantic — so the exit still receives an
+   *  absolute path (the doc-contract's file-existence finding owns the truly-missing
+   *  case). */
+  #resolveSpecLink(repoRoot: string, planPath: string, target: string): string {
+    return FileExistenceInvariant.targetPath(repoRoot, planPath, target, (p) => existsSync(p));
   }
 
   // ---------------------------------------------------------------------------
@@ -764,6 +956,7 @@ export class Cli {
    *  schema-type table (`SCHEMA_TYPE_KEYS` in face/declare.ts: the primary DocKey
    *  spellings + the legacy alias normalized to kebab, spec §5.3). */
   async #runSchema(node: Command, parsed: RunInput): Promise<number> {
+    this.#assertDryRunScope(node, parsed.dryRun);
     const [type, target] = parsed.positionals;
     if (type === undefined) this.#usage(node, "cdd schema get: missing <type>");
     const output = parsed.args.output ?? "json";
@@ -773,7 +966,14 @@ export class Cli {
       if (target === undefined) {
         this.#usage(node, "cdd schema get --output skeleton: missing <target>");
       }
-      return this.#artifacts.runSchemaSkeleton(node, type, target);
+      // The positional `<target>` reaches the SAME one normalization landing (T3 §2.3
+      // · F6) as the work-command path argv (`#relativizePath`), then is erased
+      // through the value object at the write boundary.
+      const repoRoot = await this.#rootOf();
+      if (repoRoot === null) return 1;
+      const root = new RepoRoot(repoRoot);
+      const targetPath = this.#relativizePath(root, target);
+      return this.#artifacts.runSchemaSkeleton(node, root, type, targetPath);
     }
     if (target !== undefined) {
       this.#usage(
@@ -788,20 +988,29 @@ export class Cli {
   /** `cdd base <set|get> --plan <path>` — the base artifact read/write (T20: the
    *  command face `base`; the artifact file carries the base face too). */
   async #runBase(node: Command, parsed: RunInput): Promise<number> {
-    const planPath = parsed.args.plan;
-    if (planPath === undefined) {
+    this.#assertDryRunScope(node, parsed.dryRun);
+    const planArg = parsed.args.plan;
+    if (planArg === undefined) {
       this.#usage(node, "cdd base: missing --plan — the sole target is --plan <path>");
     }
+    const repoRoot = await this.#rootOf();
+    if (repoRoot === null) return 1;
+    const root = new RepoRoot(repoRoot);
+    // The base `--plan` reaches the SAME one normalization landing (T3 §2.3 · F6) as
+    // the work-command path argv: the stored artifact's path field speaks the ONE
+    // canonical shape (repoRoot-relative).
+    const planPath = this.#relativizePath(root, planArg);
+    // The workspace is not built here (P11 · §4.2): `base set` builds it through
+    // `Workspace.writeJson`'s internal ensure, while the read-only `base get`
+    // creates nothing. The read rides `Workspace.readJson`, so the P9 read-time
+    // normalization covers `base.json` (the retired migration's job).
     const workspace = new Workspace(
-      new WorkspaceRoot(
-        await this.#repoRootOf(parsed),
-        this.#config.handoffNamespace().workspaceRoot,
-      ),
+      new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
       Workspace.slugFromDoc(planPath),
-    ).ensure();
-    const path = workspace.resolve("base.json");
-    if (parsed.leaf === "set") return this.#artifacts.baseSet(node, parsed, planPath, path);
-    if (parsed.leaf === "get") return this.#artifacts.baseGet(path);
+    );
+    if (parsed.leaf === "set")
+      return this.#artifacts.baseSet(node, parsed, planPath, workspace, root);
+    if (parsed.leaf === "get") return this.#artifacts.baseGet(workspace, root);
     this.#usage(node, "cdd base: missing <set|get> subcommand");
   }
 

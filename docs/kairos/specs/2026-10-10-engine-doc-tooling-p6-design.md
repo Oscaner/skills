@@ -1,10 +1,15 @@
-# 引擎文档工具（Engine Doc-Tooling）— P6 设计：single-spec 骨架 + 命名统一 + kairos vitest 迁移 + 过时文档清理
-- **Version**: v0.4 · 2026-10-13
-- **Doc type**: phase-spec
-- **Status**: Draft
-- **Author**: Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁定 · 2026-10-13）
-- **Parent program**: [引擎文档工具（Engine Doc-Tooling）Overall](2026-10-10-engine-doc-tooling-overall.md)
-- **Depends on**: P5（Done · v0.8 · hard——P5 整树 + CI 原生分身 + schema get 伴入为 P6 消费面 vitest 对齐 + single-spec 骨架补足基座）
+---
+title: 引擎文档工具（Engine Doc-Tooling）— P6 设计：single-spec 骨架 + 命名统一 + kairos vitest
+  迁移 + 过时文档清理
+doc-type: phase-spec
+version: v0.4
+date: 2026-10-13
+status: Draft
+author: Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁定 · 2026-10-13）
+parent-program: 2026-10-10-engine-doc-tooling-overall.md
+depends-on: P5（Done · v0.8 · hard——P5 整树 + CI 原生分身 + schema get 伴入为 P6 消费面
+  vitest 对齐 + single-spec 骨架补足基座）
+---
 
 ## Design
 

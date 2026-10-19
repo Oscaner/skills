@@ -15,6 +15,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
 import type { ElementRegistry, RegistryElement } from "./declare.ts";
 import type {
   ChainLink,
@@ -27,11 +28,24 @@ import type {
   TaskBlock,
 } from "./doc.ts";
 import { MarkdownPrimitives } from "./doc.ts";
+import type { FrontMatterHead } from "./frontmatter.ts";
 import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
 
 // ---------------------------------------------------------------------------
 // judgment records + the context
 // ---------------------------------------------------------------------------
+
+/** The doc-tree root namespace derived from the ONE doc-root declaration (the
+ *  common parent of the spec/plan roots) — the finding messages name the
+ *  repo-root form `<namespace>/…` from THIS, never a hard-coded copy (P9 T5 §2.8). */
+const DOC_ROOT_NAMESPACE = path.dirname(ENGINE_DOC_ROOTS.specs);
+
+/** The two doc-root segment names derived from the same ONE declaration — the
+ *  sibling-scan finding message's `<segments>` form names THIS, never a hard-coded
+ *  copy (P9 T5 §2.8). */
+const DOC_ROOT_SEGMENTS = Object.values(ENGINE_DOC_ROOTS)
+  .map((dir) => path.basename(dir))
+  .join("/");
 
 /** One contract finding — a single invariant violation, bound to a doc + field. */
 export interface Finding {
@@ -84,11 +98,15 @@ export interface JudgeContext {
   docKey: DocKey;
   /** The parsed structural record of the document. */
   parsed: ParsedDoc;
-  /** The judged document's normalized content lines — the canonicalize view the
-   *  row-source seam (Contract.validate) builds ONCE per judgment: every
-   *  valuePattern / anchor-literal face (occurrenceLines · carrierLines ·
-   *  anchorLines and the parsed records) matches the view. The view is never
-   *  written back — the source document stays byte-identical. */
+  /** The document's typed front-matter head — the §2.2 delivery seam: the SAME
+   *  record validate() fed into parse (front-matter-home elements judge THIS,
+   *  never a body line scan — front matter is data, not body structure). */
+  head: FrontMatterHead;
+  /** The judged document's normalized content lines — the post-fence body's
+   *  canonicalize view the row-source seam (Contract.validate) builds ONCE per
+   *  judgment: every valuePattern / anchor-literal face (occurrenceLines ·
+   *  carrierLines · anchorLines and the parsed records) matches the view. The
+   *  view is never written back — the source document stays byte-identical. */
   lines: readonly string[];
   /** The document's file path (message attribution + the doc's own dir for links). */
   path: string;
@@ -248,7 +266,7 @@ export abstract class Invariant extends MarkdownPrimitives {
 /** Home surfaces the presence invariant judges — the structural doc surface
  *  (table rows/columns/tokens are judged by hollow/section-scoped strategies). */
 const PRESENCE_HOMES = new Set([
-  "header",
+  "frontmatter",
   "section",
   "facet",
   "graph",
@@ -271,6 +289,21 @@ export class PresenceInvariant extends Invariant {
       const slice = this.sliceOf(ctx, element.anchor);
       if (slice === undefined) continue;
       if (this.#derivedPresenceHolds(ctx, slice)) continue;
+      // The front-matter-home elements judge the typed head record (the §2.2
+      // delivery seam — NEVER the body line scan: front matter is data, and a
+      // whitespace line or a body-line mention of a key is not an occurrence).
+      if (slice.home === "frontmatter") {
+        if (ctx.head.value(element.anchor) !== null) continue;
+        findings.push(
+          this.finding(
+            ctx,
+            element.anchor,
+            `missing required element: ${element.anchor}`,
+            `add the "${element.anchor}" key to the document's front matter`,
+          ),
+        );
+        continue;
+      }
       if (this.occurrenceLines(ctx, slice).length === 0) {
         findings.push(
           this.finding(
@@ -441,9 +474,33 @@ export class DomainInvariant extends Invariant {
     const findings: Finding[] = [];
     for (const element of this.elementsOf(ctx)) {
       const slice = this.sliceOf(ctx, element.anchor);
-      if (slice === undefined || slice.valuePattern === undefined) continue;
+      if (slice === undefined) continue;
+      // The front-matter-home elements judge the typed head SCALAR (the §2.2
+      // delivery seam — the registered value patterns are scalar shapes, §2.3).
+      // Absence is presence's surface; a present scalar outside the declared
+      // shape is the finding. The pattern is read from the REGISTRY ELEMENT
+      // (project.ts's header leg deliberately stops both slice RegExp
+      // compilations — the front-matter key is looked up against the head).
+      if (slice.home === "frontmatter") {
+        const value = ctx.head.value(element.anchor);
+        if (value === null) continue;
+        const rawPattern = element.valuePattern;
+        if (rawPattern === undefined) continue;
+        if (!new RegExp(rawPattern).test(value)) {
+          findings.push(
+            this.finding(
+              ctx,
+              element.anchor,
+              `value outside the declared domain: ${value}`,
+              `make the front-matter ${element.anchor} value match ${rawPattern}`,
+            ),
+          );
+        }
+        continue;
+      }
+      if (slice.valuePattern === undefined) continue;
       // The element is judged by the SHAPE of the lines that carry it structurally —
-      // a `**Status**: Draft` line must match its declared pattern. A prose citation
+      // a table row or a heading must match its declared pattern. A prose citation
       // (a backticked code-span mention, or a table cell of a non-table element) is
       // not a carrier and is never judged as a value.
       for (const line of this.carrierLines(ctx, slice)) {
@@ -876,7 +933,7 @@ export class SelfBoundedInvariant extends Invariant {
   readonly name = "selfBounded";
 
   evaluate(ctx: JudgeContext): Finding[] {
-    const headerVersion = this.#headerVersion(ctx);
+    const headerVersion = ctx.head.version;
     const historyVersions = this.#historyVersions(ctx);
     if (headerVersion === null || historyVersions.length === 0) return [];
     const findings: Finding[] = [];
@@ -885,9 +942,9 @@ export class SelfBoundedInvariant extends Invariant {
       findings.push(
         this.finding(
           ctx,
-          "**Version**",
+          "version",
           `the header version ${headerVersion} is not the change-history's newest row (${newest})`,
-          "bump both the **Version** header and the newest Change-history row together",
+          "bump both the version front-matter key and the newest Change-history row together",
         ),
       );
     }
@@ -895,9 +952,9 @@ export class SelfBoundedInvariant extends Invariant {
       findings.push(
         this.finding(
           ctx,
-          "**Version**",
+          "version",
           `the header version ${headerVersion} is outside the document's own lineage`,
-          `the **Version** header must belong to the Change-history row versions: ${historyVersions.join(", ")}`,
+          `the version front-matter key must belong to the Change-history row versions: ${historyVersions.join(", ")}`,
         ),
       );
     }
@@ -928,14 +985,6 @@ export class SelfBoundedInvariant extends Invariant {
       .filter((version) => version !== null) as readonly string[];
   }
 
-  #headerVersion(ctx: JudgeContext): string | null {
-    for (const line of this.anchorLines(ctx, "**Version**")) {
-      const tokens = this.versionTokens(line);
-      if (tokens.length > 0) return tokens[0];
-    }
-    return null;
-  }
-
   #firstVersion(text: string): string | null {
     const match = text.match(/v\d+\.\d+/);
     return match === null ? null : match[0];
@@ -964,6 +1013,45 @@ export class SelfBoundedInvariant extends Invariant {
 // the four context-seam strategies
 // ---------------------------------------------------------------------------
 
+/** The chain-link target shape contract (D2, shape judged at the boundary — the #342
+ *  fix): a link target must be a BARE relative path (the repo-root form
+ *  `docs/kairos/specs/…-overall.md` or a doc-relative file name) — never a
+ *  markdown-link shell (`[label](path)`), a URL or a collation token
+ *  (whitespace / parens / angle brackets). The ONE expression of the shape rule:
+ *  `of()` yields either the accepted (trimmed) target or the reason the shape is
+ *  invalid; the chain strategies judge the shape BEFORE any resolution, so a
+ *  malformed fill reports the shape rule once — the confusing resolution cascade
+ *  (#342's dead-tail `basename` + the file-existence double failure) never
+ *  fires. */
+export class LinkTargetShape {
+  /** The accepted, trimmed target — null when the shape is invalid. */
+  readonly target: string | null;
+  /** The shape-rule reason the target is invalid — null when accepted. */
+  readonly reason: string | null;
+
+  private constructor(target: string | null, reason: string | null) {
+    this.target = target;
+    this.reason = reason;
+  }
+
+  /** Judge one raw target — a bare relative path accepts; any collation token
+   *  rejects with the shape rule. */
+  static of(raw: string): LinkTargetShape {
+    const trimmed = raw.trim();
+    // The rejected collation tokens — whitespace, a markdown-link shell's
+    // brackets/parens (`[label](path)`), stray angle brackets and the `://`
+    // URL scheme. The path separators `/` and `:` alone stay legal (a bare
+    // relative path carries both) — only the URL-scheme pairing rejects.
+    if (/[\s()[\]<>]|:\/\//.test(trimmed)) {
+      return new LinkTargetShape(
+        null,
+        "the value must be a bare relative path (e.g. `docs/kairos/specs/…-overall.md` or `xxx-overall.md`), not a markdown link or URL",
+      );
+    }
+    return new LinkTargetShape(trimmed, null);
+  }
+}
+
 /** file-existence — every chain link target of the doc resolves to an existing file. */
 export class FileExistenceInvariant extends Invariant {
   readonly name: string = "file-existence";
@@ -972,13 +1060,17 @@ export class FileExistenceInvariant extends Invariant {
     const findings: Finding[] = [];
     for (const { source, link } of this.chainLinks(ctx)) {
       if (this.isPlaceholder(link.target)) continue;
-      if (!this.#targetExists(ctx, link.target)) {
+      const shape = LinkTargetShape.of(link.target);
+      // D2: a malformed target is the link-shape face's call — the resolution
+      // faces never feed it to the path resolution as a literal.
+      if (shape.target === null) continue;
+      if (!this.#targetExists(ctx, shape.target)) {
         findings.push(
           this.finding(
             ctx,
             source,
-            `the chain link target does not resolve to an existing file: ${link.target}`,
-            "fix the link target (repo-root form docs/kairos/... or a file-relative path)",
+            `the chain link target does not resolve to an existing file: ${shape.target}`,
+            `fix the link target (repo-root form ${DOC_ROOT_NAMESPACE}/... or a file-relative path)`,
           ),
         );
       }
@@ -1005,16 +1097,15 @@ export class FileExistenceInvariant extends Invariant {
     if (ctx.docKey === "plan") {
       const data = this.plan(ctx);
       if (data !== null) {
-        if (data.chain.specLink !== null)
-          links.push({ source: "**Spec:**", link: data.chain.specLink });
+        if (data.chain.specLink !== null) links.push({ source: "spec", link: data.chain.specLink });
         if (data.chain.parentLink !== null)
-          links.push({ source: "**Parent program**", link: data.chain.parentLink });
+          links.push({ source: "parent-program", link: data.chain.parentLink });
       }
     }
     if (ctx.docKey === "phase-spec") {
       const data = this.phaseSpec(ctx);
       if (data !== null && data.chain.parentLink !== null) {
-        links.push({ source: "**Parent program**", link: data.chain.parentLink });
+        links.push({ source: "parent-program", link: data.chain.parentLink });
       }
     }
     return links;
@@ -1029,13 +1120,61 @@ export class FileExistenceInvariant extends Invariant {
   }
 
   /** Whether the target exists — absolute targets directly; repo-root form first, the
-   *  doc's own dir as the file-relative fallback. */
+   *  doc's own dir as the file-relative fallback. The resolution chain is
+   *  single-sourced in `targetPath` (the ONE home the CLI's plan `spec:` rebase
+   *  delegates to as well — P9 branch-review-1 F8: a future contract change
+   *  cannot silently diverge from the CLI's mirror). */
   #targetExists(ctx: JudgeContext, target: string): boolean {
-    if (path.isAbsolute(target)) return ctx.fs.exists(target);
-    return (
-      ctx.fs.exists(path.join(ctx.root, target)) ||
-      ctx.fs.exists(path.join(path.dirname(ctx.path), target))
+    return ctx.fs.exists(
+      FileExistenceInvariant.targetPath(ctx.root, ctx.path, target, (p) => ctx.fs.exists(p)),
     );
+  }
+
+  /** The ONE chain-link target-resolution chain (the doc-contract's own judgment,
+   *  reused by the CLI's plan `spec:` rebase — F8): an absolute target as
+   *  itself; else the repoRoot-relative reading when it exists; else the doc-dir
+   *  (file-relative) reading. `exists` is the caller's filesystem seam (the
+   *  judgment's `ctx.fs`, the CLI's `fs.existsSync`) — the resolution is the shared
+   *  fact, the read is injected. When neither reading exists the doc-dir path is
+   *  returned (the link-space semantic — the caller owns the truly-missing case). */
+  static targetPath(
+    root: string,
+    docPath: string,
+    target: string,
+    exists: (path: string) => boolean,
+  ): string {
+    if (path.isAbsolute(target)) return target;
+    const fromRoot = path.join(path.resolve(root), target);
+    if (exists(fromRoot)) return fromRoot;
+    return path.join(path.dirname(path.resolve(docPath)), target);
+  }
+}
+
+/** link-shape — every chain link target of the doc is a bare relative path (D2 ·
+ *  #342). The shape rule reports ONCE here (single-responsibility strategy — the
+ *  shared `LinkTargetShape` declaration): a malformed fill (a markdown link, a
+ *  URL or a collation token) is judged BEFORE any resolution, so the
+ *  file-existence / sibling-scan resolution faces silently skip malformed
+ *  targets — the confusing per-strategy cascade never fires. */
+export class LinkShapeInvariant extends FileExistenceInvariant {
+  readonly name = "link-shape";
+
+  evaluate(ctx: JudgeContext): Finding[] {
+    const findings: Finding[] = [];
+    for (const { source, link } of this.chainLinks(ctx)) {
+      if (this.isPlaceholder(link.target)) continue;
+      const shape = LinkTargetShape.of(link.target);
+      if (shape.target !== null) continue;
+      findings.push(
+        this.finding(
+          ctx,
+          source,
+          `the chain link target is not a bare relative path: ${link.target}`,
+          shape.reason ?? "",
+        ),
+      );
+    }
+    return findings;
   }
 }
 
@@ -1046,21 +1185,25 @@ export class SiblingScanInvariant extends FileExistenceInvariant {
   evaluate(ctx: JudgeContext): Finding[] {
     const findings: Finding[] = [];
     const baseline = new Set<string>();
-    for (const root of SiblingScanInvariant.#scanRoots(ctx.path)) {
+    for (const root of SiblingScanInvariant.#scanRoots(ctx.root, ctx.path)) {
       for (const entry of ctx.fs.list(root)) {
         if (entry.endsWith(".md")) baseline.add(entry);
       }
     }
     for (const { source, link } of this.chainLinks(ctx)) {
       if (this.isPlaceholder(link.target)) continue;
-      const basename = path.basename(link.target);
+      const shape = LinkTargetShape.of(link.target);
+      // D2: a malformed target is the link-shape face's call — the sibling face
+      // never basenames a markdown shell (the dead-tail `…)` miss).
+      if (shape.target === null) continue;
+      const basename = path.basename(shape.target);
       if (!baseline.has(basename)) {
         findings.push(
           this.finding(
             ctx,
             source,
             `the cross-linked doc ${basename} is not a same-family sibling (not present in the sibling docs scan)`,
-            "link to a sibling doc under the same specs/plans family",
+            `link to a sibling doc under the same ${DOC_ROOT_SEGMENTS} family`,
           ),
         );
       }
@@ -1068,11 +1211,21 @@ export class SiblingScanInvariant extends FileExistenceInvariant {
     return findings;
   }
 
-  /** The doc's own dir + its sibling specs/plans dirs — the same-family scan roots. */
-  static #scanRoots(docPath: string): readonly string[] {
-    const own = path.dirname(docPath);
-    const grand = path.dirname(own);
-    return [own, path.join(grand, "specs"), path.join(grand, "plans")];
+  /** The doc's own dir + the sibling doc-root dirs — the same-family scan roots,
+   *  resolved on ONE basis (P9 T5 §2.8): the doc path and the doc roots
+   *  (`ENGINE_RUNTIME.docRoots` segments) compose through `root` (the absolute
+   *  basis) before they touch the filesystem — a relative string read without
+   *  `root` would resolve against `process.cwd()` (the engine never chdirs),
+   *  silently drifting off the repo root. `path.resolve(root, …)` reads an absolute
+   *  doc path as itself and a repoRoot-relative one as joined to the basis (both
+   *  callers — the pre-flight's absolute doc path and the judge's relative one — land
+   *  on the same basis). The doc-root segments are read from the ONE declaration
+   *  (never a hard-coded segment-name copy). */
+  static #scanRoots(root: string, docPath: string): readonly string[] {
+    return [
+      path.dirname(path.resolve(root, docPath)),
+      ...Object.values(ENGINE_DOC_ROOTS).map((dir) => path.join(root, dir)),
+    ];
   }
 }
 
@@ -1105,7 +1258,7 @@ export class CrossDocChainInvariant extends Invariant {
     return [];
   }
 
-  /** The Class-A/Class-B plan chain: `**Spec:**` label == basename + the Class-B lineage. */
+  /** The Class-A/Class-B plan chain: the `spec:`/`parent-program:` head targets + the Class-B lineage. */
   private planChain(ctx: JudgeContext): Finding[] {
     const data = this.plan(ctx);
     if (data === null) return [];
@@ -1115,28 +1268,21 @@ export class CrossDocChainInvariant extends Invariant {
       findings.push(
         this.finding(
           ctx,
-          "**Spec:**",
-          "the plan carries no **Spec:** reference",
-          "add a **Spec:** link pointing at the phase design spec",
-        ),
-      );
-    } else if (specLink.label.trim() !== path.basename(specLink.target)) {
-      findings.push(
-        this.finding(
-          ctx,
-          "**Spec:**",
-          `the **Spec:** link label ${specLink.label.trim()} does not equal the resolved basename ${path.basename(specLink.target)}`,
-          "make the link label equal the resolved file's basename",
+          "spec",
+          "the plan carries no spec reference",
+          "add a spec value pointing at the phase design spec",
         ),
       );
     }
+    // The link-label drift judgment retired with the ChainLink label face — the
+    // spec link is a head scalar now (the `spec:` key), the label is not a fact.
     if (data.chain.parentLink === null) {
       findings.push(
         this.finding(
           ctx,
-          "**Parent program**",
-          "the plan carries no **Parent program** link",
-          "add the **Parent program** link pointing at the parent overall",
+          "parent-program",
+          "the plan carries no parent-program reference",
+          "add a parent-program value pointing at the parent overall",
         ),
       );
     }
@@ -1153,9 +1299,9 @@ export class CrossDocChainInvariant extends Invariant {
       findings.push(
         this.finding(
           ctx,
-          "**Parent program**",
-          "the phase-spec carries no **Parent program** link",
-          "add the **Parent program** link pointing at the parent overall",
+          "parent-program",
+          "the phase-spec carries no parent-program reference",
+          "add a parent-program value pointing at the parent overall",
         ),
       );
     }
@@ -1179,9 +1325,9 @@ export class CrossDocChainInvariant extends Invariant {
         findings.push(
           this.finding(
             ctx,
-            "**Parent program**",
-            `the **Parent program** version token ${token} does not belong to the parent overall's lineage`,
-            `use a version the parent overall declares (its **Version** header or a Change-history row): ${[...lineage].join(", ")}`,
+            "parent-program",
+            `the parent-program version token ${token} does not belong to the parent overall's lineage`,
+            `use a version the parent overall declares (its version front-matter or a Change-history row): ${[...lineage].join(", ")}`,
           ),
         );
       }
@@ -1189,15 +1335,14 @@ export class CrossDocChainInvariant extends Invariant {
     return findings;
   }
 
-  /** The parent overall's lineage: its header version + every Change-history row version. */
+  /** The parent overall's lineage: its head `version:` scalar + every
+   *  Change-history row version (the T6 read point — the header fact rides the
+   *  typed head record, never a body line scan). */
   #parentLineage(parent: ParsedDoc): Set<string> {
     const lineage = new Set<string>();
     if (parent.docType !== "overall-spec") return lineage;
-    for (const line of (parent as OverallParsed).headerLines) {
-      if (line.includes("**Version**")) {
-        for (const token of this.versionTokens(line)) lineage.add(token);
-      }
-    }
+    const version = (parent as OverallParsed).head?.version;
+    if (version !== null && version !== undefined) lineage.add(version);
     for (const row of (parent as OverallParsed).tables["Change history"].rows) {
       const match = row[0]?.match(/v\d+\.\d+/);
       if (match !== null) lineage.add(match[0]);

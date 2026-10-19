@@ -8,28 +8,51 @@
 //                      Issue inventory / Phase inventory / Change history) + the
 //                      dependency-graph edge lines; plan → the `### Task N:` blocks
 //                      and their fields; phase-spec → the `## Design` double-layer
-//                      skeleton (groups + items). Nothing is decided here — parse
-//                      extracts, the invariant family judges.
+//                      skeleton (groups + items). The WHICH — which headings are
+//                      sections, which lines are table rows, which lines are the
+//                      declared column header — comes from the home extractors over
+//                      the registry's declared anchors (home-extractors.ts, spec
+//                      §3.2); this face only walks the resulting structure. Nothing
+//                      is decided here — parse extracts, the invariant family judges.
 //   · projection     — each class consumes the derived projection face (project.ts):
 //                      the slices (parse regexes) and the shape (section skeleton) of
 //                      its own doc type are the locating data every extraction walks.
-//   · chain root     — the Class-A/B anchors of the document (the plan's `**Spec:**`
-//                      link, the `**Parent program**` link + its version tokens, the
-//                      overall's Phase-inventory rows as the chain's anchor set) are
-//                      extracted into a ChainRoot and LEFT as an interface — the
+//   · chain root     — the Class-A/B anchors of the document (the plan/spec head
+//                      scalars `spec:` / `parent-program:` / `parent-version:` and
+//                      the overall's Phase-inventory rows as the chain's anchor set)
+//                      are extracted into a ChainRoot and LEFT as an interface — the
 //                      resolution judgment belongs to the cross-doc-chain invariant,
 //                      never to a DocType method.
 //
 // Module-level exports are types / the class family / one composition root — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import type { ElementRegistry } from "./declare.ts";
 import { declaredRegistries } from "./declare.ts";
+import type { FrontMatterHead } from "./frontmatter.ts";
+import type { ExtractionMap } from "./home-extractors.ts";
+import {
+  DesignBodyExtractor,
+  GraphExtractor,
+  HeadingScanner,
+  TableExtractor,
+  TaskExtractor,
+} from "./home-extractors.ts";
 import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
 import { Projector } from "./project.ts";
 
 /** The projection carrier — one Projector instance over the declared registries,
  *  shared by the four parser classes (each binds its own doc-type faces). */
 const projector = new Projector(declaredRegistries);
+
+/** The home-driven extractors — the fixed structure rules of the task / design /
+ *  graph / table / section homes (spec §3.2), shared by the parsers that read
+ *  those surfaces. */
+const taskExtractor = new TaskExtractor();
+const designExtractor = new DesignBodyExtractor();
+const graphExtractor = new GraphExtractor();
+const tableExtractor = new TableExtractor();
+const headingScanner = new HeadingScanner();
 
 // ---------------------------------------------------------------------------
 // shared structural types
@@ -84,52 +107,59 @@ export interface GraphEdge {
 export interface ChainPhase {
   /** The registered phase id (e.g. "P2.1"). */
   id: string;
-  /** The Design-spec cell text (link tokens, e.g. `[P2-design](docs/kairos/specs/x-design.md)`). */
+  /** The Design-spec cell text (link tokens, e.g. a spec-root link under the
+   *  declared spec doc root — `[P2-design](<spec-root>/x-design.md)`). */
   designCell: string;
-  /** The Implementation-plan cell text (link tokens, e.g. `[plan](docs/kairos/plans/x.md)`). */
+  /** The Implementation-plan cell text (link tokens, e.g. a plan-root link under
+   *  the declared plan doc root — `[plan](<plan-root>/x.md)`). */
   planCell: string;
   /** The Dependency cell text (e.g. "P1 -> P2"). */
   dependencyCell: string;
 }
 
-/** A `[label](target)` link parsed from a line. */
+/** A `[text](target)` link parsed from a line — only the target surfaces: the
+ *  link-text face retired with the front-matter flip (the chain root reads the
+ *  head scalars, and the drift judgments are gone — zero consumer ever reads the
+ *  text part). */
 export interface ChainLink {
-  /** The link's label text. */
-  label: string;
   /** The link's target path. */
   target: string;
 }
 
 /**
- * The cross-doc chain root — the Class-A/B anchors a document carries, extracted
- * verbatim and left unresolved. Every resolution judgment (target existence, label
- * vs. basename drift, version-token lineage membership) belongs to the
- * cross-doc-chain / file-existence / sibling-scan invariants.
+ * The cross-doc chain root — the Class-A/B anchors a document carries, read from
+ * the front-matter head scalars (the §2.3 key set: `spec:` · `parent-program:` ·
+ * `parent-version:` · `depends-on:`), plus the overall's Phase-inventory rows.
+ * Extracted and LEFT as an interface — every resolution judgment (target
+ * existence, version-token lineage membership) belongs to the cross-doc-chain /
+ * file-existence / sibling-scan invariants, never to a DocType method.
  */
 export interface ChainRoot {
   /** The doc-type identity of the chain root's document. */
-  docType: "overall-spec" | "plan" | "phase-spec" | "single-spec";
-  /** The `**Parent program**` link (Class-B) — the parent overall reference of a
+  docType: DocKey;
+  /** The `parent-program:` link (Class-B) — the parent overall reference of a
    *  plan/spec document; null for the overall (the chain root itself). */
   parentLink: ChainLink | null;
-  /** The `**Spec:**` link (Class-A) — the plan's design-spec reference; null for the
+  /** The `spec:` link (Class-A) — the plan's design-spec reference; null for the
    *  overall (no spec to reference) and for a spec (the document IS the design spec). */
   specLink: ChainLink | null;
-  /** The version tokens carried on the `**Parent program**` line (Class-B lineage). */
+  /** The version tokens carried on the `parent-program:` key (Class-B lineage). */
   parentTokens: readonly string[];
   /** The overall's phase-inventory rows — the chain's anchor set (overall only). */
   phases: readonly ChainPhase[];
-  /** The `**Depends on**` header value (plan/spec), verbatim, when the line is present. */
+  /** The `depends-on:` front-matter value (plan/spec), verbatim, when the key is present. */
   dependsOn: string | null;
 }
 
 /** The overall parse record — the four tables, the graph edges and the chain root. */
 export interface OverallParsed {
   docType: "overall-spec";
-  /** The `# Title` line verbatim. */
+  /** The document's front-matter head — the typed head record (the §2.3 key set),
+   *  or null when parsed without one (the chainDocs producers MUST parse
+   *  dual-param — a head-less plan/spec parse reads a null chain face). */
+  head: FrontMatterHead | null;
+  /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
-  /** The header bullet lines (between the title and the first section heading). */
-  headerLines: readonly string[];
   /** The `##`-ranked sections in document order. */
   sections: readonly SectionBlock[];
   /** The parsed overall tables (each present only when its section was found). */
@@ -176,8 +206,10 @@ export interface TaskBlock {
 /** The plan parse record — the header, the constraints section and the task blocks. */
 export interface PlanParsed {
   docType: "plan";
+  /** The document's front-matter head, or null when parsed without one. */
+  head: FrontMatterHead | null;
+  /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
-  headerLines: readonly string[];
   sections: readonly SectionBlock[];
   /** The `### Task N:` blocks in document order. */
   taskBlocks: readonly TaskBlock[];
@@ -205,8 +237,10 @@ export interface DesignItem {
 /** The phase-spec parse record — the header tuple and the design-body skeleton. */
 export interface PhaseSpecParsed {
   docType: "phase-spec";
+  /** The document's front-matter head, or null when parsed without one. */
+  head: FrontMatterHead | null;
+  /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
-  headerLines: readonly string[];
   sections: readonly SectionBlock[];
   /** The `## Design` double-layer skeleton (groups + items), when the section is present. */
   design: readonly DesignGroup[];
@@ -216,8 +250,10 @@ export interface PhaseSpecParsed {
 /** The single-spec parse record — the header five-tuple and the prose section surface. */
 export interface SingleSpecParsed {
   docType: "single-spec";
+  /** The document's front-matter head, or null when parsed without one. */
+  head: FrontMatterHead | null;
+  /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
-  headerLines: readonly string[];
   sections: readonly SectionBlock[];
   chain: ChainRoot;
 }
@@ -230,21 +266,23 @@ export type ParsedDoc = OverallParsed | PlanParsed | PhaseSpecParsed | SingleSpe
 // ---------------------------------------------------------------------------
 
 /**
- * The shared extraction primitives: `[label](target)` links, `v<n>.<m>` version
+ * The shared extraction primitives: `[text](target)` links, `v<n>.<m>` version
  * tokens and `|…|` table-row parsing. Both the parse face (DocType) and the
  * judgment face (the Invariant base in invariants.ts) extend this base — the
  * link/token/table parse logic lives in exactly one place of the new tree. The
  * version-token grammar additionally exposes the public static `versionTokensOf`
- * — the face plane's doc-line BLOCK reads the SAME grammar through it (one home,
- * zero dual-write).
+ * — the board's header-fact read (face/board-view.ts) reads the SAME grammar
+ * through it (one home, zero dual-write).
  */
 export abstract class MarkdownPrimitives {
-  /** The `[label](target)` pairs parsed from one line. */
+  /** The `[text](target)` pairs parsed from one line — the target only (the
+   *  retired link-text face; the remaining consumers — the overall's phase-cell
+   *  links — resolve targets, never the text). */
   protected linksOnLine(line: string): readonly ChainLink[] {
     const links: ChainLink[] = [];
     const linkPattern = /\[([^\]]*)\]\(([^)]+)\)/g;
     for (const match of line.matchAll(linkPattern)) {
-      links.push({ label: match[1], target: match[2] });
+      links.push({ target: match[2] });
     }
     return links;
   }
@@ -267,21 +305,24 @@ export abstract class MarkdownPrimitives {
   }
 
   /** The cells of one `|…|` table line (trimmed, wrapper bars excluded); null for a
-   *  non-table line or a separator row. */
+   *  non-table line or a separator row. The separator-row rule is the
+   *  TableExtractor's (the table home's fixed structure rule — one home). */
   protected tableRowCells(line: string): readonly string[] | null {
     const trimmed = line.trim();
     if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null;
-    if (/^\|[\s:|-]+\|$/.test(trimmed)) return null; // separator row
+    if (TableExtractor.isSeparatorRow(trimmed)) return null;
     return trimmed
       .split("|")
       .slice(1, -1)
       .map((cell) => cell.trim());
   }
 
-  /** The non-separator `|…|` rows of a line run (the first row is the column header). */
+  /** The non-separator `|…|` rows of a line run (the first row is the column
+   *  header). The table-line / separator recognition is the TableExtractor's
+   *  table-home rule; this method only splits the recognized rows into cells. */
   protected tableRows(lines: readonly string[]): readonly string[][] {
     const rows: string[][] = [];
-    for (const line of lines) {
+    for (const line of tableExtractor.tableLinesOf(lines)) {
       const cells = this.tableRowCells(line);
       if (cells !== null) rows.push([...cells]);
     }
@@ -297,18 +338,21 @@ export abstract class MarkdownPrimitives {
  * The abstract doc-type base. Each subclass binds its registry-derived projection
  * face (slices + shape) and implements parse — pure structural extraction into a
  * typed record. The base carries the shared extraction primitives (heading blocks,
- * table rows, header lines, `[label](target)` link parsing) as class methods: the
+ * table rows, header lines, `[text](target)` link parsing) as class methods: the
  * class face stays judgment-free (zero validate/audit/detect methods).
  */
 export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
   /** The doc-type record key — the projection-face identity. */
   readonly key: DocKey;
+  /** The declared registry of this doc type — the extractors read their anchor
+   *  rosters from it (the registry stays the single knowledge source). */
+  readonly registry: ElementRegistry;
   /** The derived parse face (per-element anchor slices) of this doc type. */
   readonly slices: DocSlices;
   /** The derived section skeleton (shape projection) of this doc type. */
   readonly shape: DocShape;
   /** The doc-type name as carried by a conforming document's parse record. */
-  abstract readonly docTypeName: "overall-spec" | "plan" | "phase-spec" | "single-spec";
+  abstract readonly docTypeName: DocKey;
 
   /** The per-anchor slice lookup — the parse face's locating patterns. */
   readonly #slicesByAnchor: ReadonlyMap<string, ElementSlice>;
@@ -316,13 +360,17 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
   constructor(key: DocKey) {
     super();
     this.key = key;
+    this.registry = declaredRegistries[key];
     this.slices = projector.slices()[key];
     this.shape = projector.shape()[key];
     this.#slicesByAnchor = new Map(this.slices.slices.map((slice) => [slice.anchor, slice]));
   }
 
-  /** The pure structural parse — what the invariants and the graph read. */
-  abstract parse(lines: readonly string[]): P;
+  /** The pure structural parse — what the invariants and the graph read. The head
+   *  is the typed front-matter head (the §2.2 delivery seam: the chain-docs
+   *  producers MUST parse dual-param, so the chain root reads the head scalars — a
+   *  single-param parse yields the null-head face: title "" and a null chain). */
+  abstract parse(lines: readonly string[], head?: FrontMatterHead | null): P;
 
   // -------------------------------------------------------------------------
   // shared extraction primitives (parse-only, never judgment)
@@ -355,44 +403,60 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return blocks;
   }
 
-  /** The header lines — the `# Title` block's body (metadata lines before the first
-   *  rank-2/rank-3 heading block; heading blocks split at every heading, so the title
-   *  block body already ends where the sections/task blocks begin). */
-  protected headerLines(blocks: readonly HeadingBlock[]): readonly string[] {
-    if (blocks.length === 0) return [];
-    return blocks[0].body;
+  /** The rank-2 section blocks in document order — the HeadingScanner's section
+   *  walk over the registry's declared section anchors (spec §3.2: WHICH rank-2
+   *  headings are sections comes from the registry, never a second hand-written
+   *  filter here). An undeclared prose rank-2 heading is not a section, and a
+   *  declared conditional `##` heading is one. */
+  protected sections(lines: readonly string[]): SectionBlock[] {
+    return headingScanner.sectionsOf(this.registry, lines);
   }
 
-  /** The rank-2 section blocks in document order. */
-  protected sections(blocks: readonly HeadingBlock[]): SectionBlock[] {
-    const out: SectionBlock[] = [];
-    for (const block of blocks) {
-      if (this.headingRank(block.heading) === 2)
-        out.push({ heading: block.heading, lines: block.body });
-    }
-    return out;
-  }
-
-  /** The `### Task N:` blocks in document order, with their field + step surfaces. */
+  /** The `### Task N:` blocks in document order, with their field + step surfaces.
+   *  The block-head / field-marker / step-line grammars live in the TaskExtractor
+   *  (the task home's fixed structure rules over the registry's declared anchors):
+   *  each block is extracted over its own lines, so the extractor's own scoping
+   *  (the fields, and the steps riding inside the `**Steps**` field) yields that
+   *  block's occurrence buckets directly — step recognition never re-appears here. */
   protected taskBlocks(blocks: readonly HeadingBlock[]): TaskBlock[] {
     const out: TaskBlock[] = [];
     for (const block of blocks) {
-      const match = block.heading.match(/^### Task (\d+):/);
-      if (match === null) continue;
-      const fields = this.parseTaskFields(block.body);
-      const stepsField = fields.find((field) => field.key === "Steps");
+      const lines = [block.heading, ...block.body];
+      const extracted = taskExtractor.extract(this.registry, lines);
+      const headings = extracted["### Task N:"] ?? [];
+      if (headings.length === 0) continue;
+      const ids = extracted["Task id token"] ?? [];
+      const id = Number(ids[0] ?? "");
+      if (Number.isNaN(id)) continue;
+      const fields = this.#taskFieldsOf(block.body, this.#taskFieldMarkers(extracted));
       out.push({
-        id: Number(match[1]),
+        id,
         heading: block.heading,
         fields,
-        steps: this.parseSteps(stepsField),
+        steps: this.#taskStepsOf(
+          extracted["Step action"] ?? [],
+          new Set(extracted["Step checkable"] ?? []),
+        ),
       });
     }
     return out;
   }
 
-  /** Parse a task block's body into keyed fields. */
-  protected parseTaskFields(body: readonly string[]): TaskField[] {
+  /** The task-field anchor lookup — each declared field anchor's marker line maps
+   *  to its anchor (the retired per-anchor field grammar collapses to one map). */
+  #taskFieldMarkers(extracted: ExtractionMap): ReadonlyMap<string, string> {
+    const markers = new Map<string, string>();
+    for (const [anchor, lines] of Object.entries(extracted)) {
+      if (!anchor.startsWith("**")) continue;
+      for (const line of lines) markers.set(line, anchor);
+    }
+    return markers;
+  }
+
+  /** Parse a task block's body into keyed fields — the marker membership comes
+   *  from the extractor's field-anchor map; the remainder and continuation
+   *  handling mirror the retired grammar's behavior exactly. */
+  #taskFieldsOf(body: readonly string[], markers: ReadonlyMap<string, string>): TaskField[] {
     const fields: TaskField[] = [];
     let openKey: string | null = null;
     let openLines: string[] = [];
@@ -402,11 +466,11 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
       openLines = [];
     };
     for (const line of body) {
-      const fieldMarker = line.match(/^-\s+\*\*([A-Za-z ]+)\*\*:\s*(.*)$/);
-      if (fieldMarker !== null) {
+      const anchor = markers.get(line);
+      if (anchor !== undefined) {
         close();
-        openKey = fieldMarker[1];
-        openLines = [fieldMarker[2].trim()];
+        openKey = anchor.slice(2, -2);
+        openLines = [line.slice(`- ${anchor}:`.length).trim()];
       } else if (openKey !== null && line.trim().length > 0) {
         openLines.push(line.trim());
       }
@@ -415,15 +479,17 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return fields;
   }
 
-  /** Parse a `**Steps**` field's value lines into step records. */
-  protected parseSteps(field: TaskField | undefined): TaskStep[] {
-    if (field === undefined) return [];
+  /** Parse a block's recognized step lines into step records — the lines come
+   *  from the extractor's `Step action` bucket (the registry's `^- ` shape, so
+   *  no `- `-bullet re-recognition here); the action cell is a value read after
+   *  the anchor's bullet prefix (mirroring the `#taskIdOf` slot read), and
+   *  membership in the `Step checkable` bucket marks which lines carry a
+   *  verbatim `— checkable:` clause that the split then reads off. */
+  #taskStepsOf(stepLines: readonly string[], checkableLines: ReadonlySet<string>): TaskStep[] {
     const steps: TaskStep[] = [];
-    for (const line of field.lines) {
-      const bullet = line.match(/^-\s+(.*)$/);
-      if (bullet === null) continue;
-      const text = bullet[1];
-      const checkableMarker = text.indexOf("— checkable:");
+    for (const line of stepLines) {
+      const text = line.trim().slice(2).trim();
+      const checkableMarker = checkableLines.has(line) ? text.indexOf("— checkable:") : -1;
       if (checkableMarker === -1) {
         steps.push({ action: text, checkable: null });
       } else {
@@ -436,31 +502,22 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return steps;
   }
 
-  /** Parse a section's table: the column-header row + the data rows. */
+  /** Parse a section's table: the column-header row + the data rows. The header
+   *  row is the one the registry's `… columns` anchors claim (the TableExtractor's
+   *  declared-home set); a table with no registered column anchor falls back to
+   *  the first row, the shape's positional default. The data rows are every
+   *  remaining row plus any leading row ahead of the declared header — a
+   *  mispositioned header never silently drops a data row. */
   protected parseTable(lines: readonly string[]): ParsedTable {
     const rows = this.tableRows(lines);
-    const headerRow = rows.length > 0 ? rows[0] : null;
-    return { heading: "", headerRow, rows: rows.slice(1) };
-  }
-
-  /** The first `**Marker**:`-style header line by its literal marker. */
-  protected markerLine(lines: readonly string[], marker: string): string | null {
-    for (const line of lines) if (line.includes(marker)) return line;
-    return null;
-  }
-
-  /** The value token of a `- **Key**: <value>` header line (the text after the marker). */
-  protected markerValue(line: string, marker: string): string {
-    const markerIndex = line.indexOf(marker);
-    if (markerIndex === -1) return "";
-    const payload = line.slice(markerIndex + marker.length).trim();
-    return payload.replace(/^:\s*/, "").trim();
-  }
-
-  /** The line number (1-indexed) the anchor first occurs on, or -1. */
-  protected indexOfLine(lines: readonly string[], text: string): number {
-    const index = lines.findIndex((line) => line.includes(text));
-    return index === -1 ? -1 : index + 1;
+    const declaredHeader = tableExtractor.headerLineOf(this.registry, lines);
+    if (declaredHeader === null) {
+      const headerRow = rows.length > 0 ? rows[0] : null;
+      return { heading: "", headerRow, rows: rows.slice(1) };
+    }
+    const headerCells = this.tableRowCells(declaredHeader);
+    const dataRows = rows.filter((row) => row.join("|") !== (headerCells ?? []).join("|"));
+    return { heading: "", headerRow: headerCells, rows: dataRows };
   }
 
   /** The slice of one registered anchor (undefined when the anchor is not registered here). */
@@ -494,11 +551,9 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
 export class OverallDocType extends DocType<OverallParsed> {
   readonly docTypeName = "overall-spec" as const;
 
-  parse(lines: readonly string[]): OverallParsed {
-    const title = lines[0] ?? "";
-    const blocks = this.headingBlocks(lines);
-    const headerLines = this.headerLines(blocks);
-    const sections = this.sections(blocks);
+  parse(lines: readonly string[], head: FrontMatterHead | null = null): OverallParsed {
+    const title = head?.title ?? "";
+    const sections = this.sections(lines);
 
     const tables: OverallParsed["tables"] = {
       "File paths": this.#tableSection(sections, "## File paths"),
@@ -510,8 +565,8 @@ export class OverallDocType extends DocType<OverallParsed> {
     const phases = this.#phaseRows(tables["Phase inventory"]);
     return {
       docType: "overall-spec",
+      head,
       title,
-      headerLines,
       sections,
       tables,
       graphEdges,
@@ -526,14 +581,22 @@ export class OverallDocType extends DocType<OverallParsed> {
     };
   }
 
-  /** The `## Dependency graph` edge lines, parsed into from/to tokens. */
+  /** The `## Dependency graph` edge lines — the graph-home occurrence map (the
+   *  declared Hard/Soft edge anchors) identified by the extractor; the from/to
+   *  token grammar stays the preserved graph-edge primitive. */
   #graphEdges(sections: readonly SectionBlock[]): GraphEdge[] {
     for (const section of sections) {
       if (!this.sectionConforms(section.heading, "## Dependency graph")) continue;
+      const extracted = graphExtractor.extract(this.registry, section.lines);
+      const edgeLines = new Set<string>([
+        ...(extracted["Hard edge"] ?? []),
+        ...(extracted["Soft edge"] ?? []),
+      ]);
       const edges: GraphEdge[] = [];
       const edgePattern = /^P(\d+(?:\.\d+)*)\s*->\s*P(\d+(?:\.\d+)*)$/;
       for (const line of section.lines) {
         const trimmed = line.trim();
+        if (!edgeLines.has(trimmed)) continue;
         const match = trimmed.match(edgePattern);
         if (match !== null) edges.push({ text: trimmed, from: `P${match[1]}`, to: `P${match[2]}` });
       }
@@ -567,11 +630,12 @@ export class OverallDocType extends DocType<OverallParsed> {
     return phases;
   }
 
-  /** The phase id of a Phase-inventory data row — the cell carrying a phase-id token
-   *  (the first `#` column cell in the canonical repo row form, where the `Phase`
-   *  column holds the phase name). A numeric-led row falls back to its `Phase` cell. */
+  /** The phase id of a Phase-inventory data row — the cell carrying a phase-id
+   *  token (the token shape judged through the declared `Phase id token` value
+   *  pattern — the retired literal grammar now sourced from the registry). */
   #phaseId(row: readonly string[]): string {
-    const idCell = row.find((cell) => /^P\d+(\.\d+)*$/.test(cell.trim()));
+    const pattern = this.sliceOf("Phase id token")?.valuePattern;
+    const idCell = row.find((cell) => pattern?.test(cell.trim()) === true);
     return idCell === undefined ? "" : idCell.trim();
   }
 
@@ -588,40 +652,37 @@ export class OverallDocType extends DocType<OverallParsed> {
 }
 
 /**
- * The plan doc type — parses the header (Class-A `**Spec:**` + Class-B parent
+ * The plan doc type — parses the head (Class-A `spec:` + Class-B parent
  * lineage) and the `### Task N:` task blocks.
  */
 export class PlanDocType extends DocType<PlanParsed> {
   readonly docTypeName = "plan" as const;
 
-  parse(lines: readonly string[]): PlanParsed {
-    const title = lines[0] ?? "";
+  parse(lines: readonly string[], head: FrontMatterHead | null = null): PlanParsed {
+    const title = head?.title ?? "";
     const blocks = this.headingBlocks(lines);
-    const headerLines = this.headerLines(blocks);
     return {
       docType: "plan",
+      head,
       title,
-      headerLines,
-      sections: this.sections(blocks),
+      sections: this.sections(lines),
       taskBlocks: this.taskBlocks(blocks),
-      chain: this.chainRoot(headerLines),
+      chain: this.chainRoot(head),
     };
   }
 
-  /** The plan's cross-doc chain root: Class-A `**Spec:**` + Class-B `**Parent program**`. */
-  chainRoot(headerLines: readonly string[]): ChainRoot {
-    const specLine = this.markerLine(headerLines, "**Spec:**");
-    const specLinks = specLine === null ? [] : this.linksOnLine(specLine);
-    const parentLine = this.markerLine(headerLines, "**Parent program**");
-    const parentLinks = parentLine === null ? [] : this.linksOnLine(parentLine);
-    const dependsOnLine = this.markerLine(headerLines, "**Depends on**");
+  /** The plan's cross-doc chain root — the Class-A `spec:` + Class-B
+   *  `parent-program:`/`parent-version:` head scalars (the §2.2 delivery seam:
+   *  the chain facts ride the typed head, never a body line scan). */
+  chainRoot(head: FrontMatterHead | null): ChainRoot {
     return {
       docType: "plan",
-      parentLink: parentLinks.length > 0 ? parentLinks[0] : null,
-      specLink: specLinks.length > 0 ? specLinks[0] : null,
-      parentTokens: parentLine === null ? [] : this.versionTokens(parentLine),
+      parentLink:
+        head === null || head.parentProgram === null ? null : { target: head.parentProgram },
+      specLink: head === null || head.spec === null ? null : { target: head.spec },
+      parentTokens: head === null || head.parentVersion === null ? [] : [head.parentVersion],
       phases: [],
-      dependsOn: dependsOnLine === null ? null : this.markerValue(dependsOnLine, "**Depends on**"),
+      dependsOn: head?.dependsOn ?? null,
     };
   }
 }
@@ -633,23 +694,30 @@ export class PlanDocType extends DocType<PlanParsed> {
 export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
   readonly docTypeName = "phase-spec" as const;
 
-  parse(lines: readonly string[]): PhaseSpecParsed {
-    const title = lines[0] ?? "";
+  parse(lines: readonly string[], head: FrontMatterHead | null = null): PhaseSpecParsed {
+    const title = head?.title ?? "";
     const blocks = this.headingBlocks(lines);
-    const headerLines = this.headerLines(blocks);
     return {
       docType: "phase-spec",
+      head,
       title,
-      headerLines,
-      sections: this.sections(blocks),
+      sections: this.sections(lines),
       design: this.designFromBlocks(blocks),
-      chain: this.chainRoot(headerLines),
+      chain: this.chainRoot(head),
     };
   }
 
-  /** The design double-layer skeleton — the `### N.` groups + their `#### N.M` items
-   *  between the `## Design` section and the next rank-2 heading. */
+  /** The design double-layer skeleton — the `### N.` groups + their `#### N.M`
+   *  items between the `## Design` section and the next rank-2 heading. The
+   *  numbered-heading grammars (and their number/text decomposition) live in the
+   *  DesignBodyExtractor; this method walks the declared groups/items from its
+   *  occurrence map. */
   designFromBlocks(blocks: readonly HeadingBlock[]): DesignGroup[] {
+    const lines = blocks.flatMap((block) => [block.heading, ...block.body]);
+    const extracted = designExtractor.extract(this.registry, lines);
+    const designHeadings = new Set(extracted["## Design"] ?? []);
+    const groupHeadings = new Set(extracted["### N. group heading"] ?? []);
+    const itemHeadings = new Set(extracted["#### N.M item heading"] ?? []);
     const groups: DesignGroup[] = [];
     let openNumber: string | null = null;
     let openHeading = "";
@@ -667,38 +735,36 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
       const rank = this.headingRank(block.heading);
       if (rank === 2) {
         if (inDesign) break;
-        if (this.sectionConforms(block.heading, "## Design")) inDesign = true;
+        if (designHeadings.has(block.heading)) inDesign = true;
         continue;
       }
       if (!inDesign || (rank !== 3 && rank !== 4)) continue;
-      const groupMatch = block.heading.match(/^### (\d+)\.\s+(.*)$/);
-      if (groupMatch !== null) {
+      if (groupHeadings.has(block.heading)) {
         close();
-        openNumber = groupMatch[1];
-        openHeading = groupMatch[2];
+        const group = designExtractor.groupOf(block.heading);
+        openNumber = group.number;
+        openHeading = group.heading;
         continue;
       }
-      const itemMatch = block.heading.match(/^#### (\d+)\.(\d+)\s+(.*)$/);
-      if (itemMatch !== null && openNumber !== null) {
-        openItems.push({ number: `${itemMatch[1]}.${itemMatch[2]}`, heading: itemMatch[3] });
+      if (openNumber !== null && itemHeadings.has(block.heading)) {
+        openItems.push(designExtractor.itemOf(block.heading));
       }
     }
     close();
     return groups;
   }
 
-  /** The phase-spec's cross-doc chain root: the Class-B `**Parent program**` lineage. */
-  chainRoot(headerLines: readonly string[]): ChainRoot {
-    const parentLine = this.markerLine(headerLines, "**Parent program**");
-    const parentLinks = parentLine === null ? [] : this.linksOnLine(parentLine);
-    const dependsOnLine = this.markerLine(headerLines, "**Depends on**");
+  /** The phase-spec's cross-doc chain root: the Class-B `parent-program:`
+   *  `parent-version:` head scalars. */
+  chainRoot(head: FrontMatterHead | null): ChainRoot {
     return {
       docType: "phase-spec",
-      parentLink: parentLinks.length > 0 ? parentLinks[0] : null,
+      parentLink:
+        head === null || head.parentProgram === null ? null : { target: head.parentProgram },
       specLink: null,
-      parentTokens: parentLine === null ? [] : this.versionTokens(parentLine),
+      parentTokens: head === null || head.parentVersion === null ? [] : [head.parentVersion],
       phases: [],
-      dependsOn: dependsOnLine === null ? null : this.markerValue(dependsOnLine, "**Depends on**"),
+      dependsOn: head?.dependsOn ?? null,
     };
   }
 }
@@ -707,35 +773,32 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
  * The single-spec doc type — parses the header five-tuple surface and the prose
  * section surface. A single-spec carries no parent overall and no `### N.`
  * design outline, so the parse degrades the chain root to its null-link face
- * (the `**Depends on**` header value is the only chain fact carried).
+ * (the `depends-on:` front-matter value is the only chain fact carried).
  */
 export class SingleSpecDocType extends DocType<SingleSpecParsed> {
   readonly docTypeName = "single-spec" as const;
 
-  parse(lines: readonly string[]): SingleSpecParsed {
-    const title = lines[0] ?? "";
-    const blocks = this.headingBlocks(lines);
-    const headerLines = this.headerLines(blocks);
+  parse(lines: readonly string[], head: FrontMatterHead | null = null): SingleSpecParsed {
+    const title = head?.title ?? "";
     return {
       docType: "single-spec",
+      head,
       title,
-      headerLines,
-      sections: this.sections(blocks),
-      chain: this.chainRoot(headerLines),
+      sections: this.sections(lines),
+      chain: this.chainRoot(head),
     };
   }
 
   /** The single-spec chain root — the degraded face: no parent link / no spec
-   *  link (the independent-program shape), the `**Depends on**` value only. */
-  chainRoot(headerLines: readonly string[]): ChainRoot {
-    const dependsOnLine = this.markerLine(headerLines, "**Depends on**");
+   *  link (the independent-program shape), the `depends-on:` value only. */
+  chainRoot(head: FrontMatterHead | null): ChainRoot {
     return {
       docType: "single-spec",
       parentLink: null,
       specLink: null,
       parentTokens: [],
       phases: [],
-      dependsOn: dependsOnLine === null ? null : this.markerValue(dependsOnLine, "**Depends on**"),
+      dependsOn: head?.dependsOn ?? null,
     };
   }
 }

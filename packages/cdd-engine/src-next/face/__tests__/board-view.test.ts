@@ -6,7 +6,7 @@
 //   · BoardView.scanPhases — the phase-suffix set from the specs dir, sorted by the
 //     dot-separated numeric path, with NO on-disk-absent parent synthesized;
 //   · the artifact header read — `{version, status, docType}` from the doc's
-//     header block, the doc type read from the `- **Doc type**:` declaration line
+//     front-matter head record, the doc type read from the `doc-type:` key
 //     (spec §12 · D34 — null when absent, zero filename-suffix inference).
 // Fixtures are hermetic tmp dirs (no git needed — pure file-system reads).
 
@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
+import { type RepoPath, RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
 import { BoardView } from "../board-view.ts";
@@ -143,17 +144,18 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
     rmSync(repo, { recursive: true, force: true });
   });
 
-  it("reads the Version/Status/Doc type markers from a plan doc's header block", () => {
+  it("reads the version / status / doc-type head keys from a plan doc's front-matter", () => {
     mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
     const planPath = path.join(repo, "docs/kairos/plans/prog-p8.md");
     writeFileSync(
       planPath,
       [
-        "# The plan",
-        "",
-        "- **Version**: v0.9 · …",
-        "- **Status**: Done",
-        "- **Doc type**: plan",
+        "---",
+        "title: The plan",
+        "version: v0.9",
+        "status: Done",
+        "doc-type: plan",
+        "---",
         "",
         "## Constraints",
         "",
@@ -167,17 +169,18 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
     });
   });
 
-  it("reads the declared docType from a phase-spec's `- **Doc type**:` declaration line", () => {
+  it("reads the declared docType from a phase-spec's front-matter `doc-type:` key", () => {
     mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
     const specPath = path.join(repo, "docs/kairos/specs/prog-p8-design.md");
     writeFileSync(
       specPath,
       [
-        "# The phase spec",
-        "",
-        "- **Version**: v1.2 · 2026-10-15",
-        "- **Status**: In review",
-        "- **Doc type**: phase-spec",
+        "---",
+        "title: The phase spec",
+        "version: v1.2",
+        "status: In review",
+        "doc-type: phase-spec",
+        "---",
         "",
         "## 1. The design group",
         "",
@@ -189,15 +192,17 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
       status: "In review",
       docType: "phase-spec",
     });
-    expect(BoardView.readDocType(specPath)).toBe("phase-spec");
+    expect(
+      BoardView.readDocType(new RepoRoot(repo), path.relative(repo, specPath) as RepoPath),
+    ).toBe("phase-spec");
   });
 
-  it("a doc without a Doc type declaration reads docType null — the consumer blocks, no suffix fallback", () => {
+  it("a doc without a `doc-type:` key reads docType null — the consumer blocks, no suffix fallback", () => {
     mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
     const specPath = path.join(repo, "docs/kairos/specs/prog-p8-design.md");
     writeFileSync(
       specPath,
-      ["# The phase spec", "", "- **Version**: v1.0", "- **Status**: Draft", ""].join("\n"),
+      ["---", "title: The phase spec", "version: v1.0", "status: Draft", "---", ""].join("\n"),
     );
 
     expect(BoardView.readHeader(specPath)).toEqual({
@@ -205,15 +210,19 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
       status: "Draft",
       docType: null,
     });
-    expect(BoardView.readDocType(specPath)).toBeNull();
+    expect(
+      BoardView.readDocType(new RepoRoot(repo), path.relative(repo, specPath) as RepoPath),
+    ).toBeNull();
   });
 
-  it("an out-of-domain Doc type value reads null — present facts, never a fabricated type", () => {
+  it("an out-of-domain doc-type value reads null — present facts, never a fabricated type", () => {
     mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
     const planPath = path.join(repo, "docs/kairos/plans/prog-p8.md");
-    writeFileSync(planPath, ["# The plan", "", "- **Doc type**: memo", ""].join("\n"));
+    writeFileSync(planPath, ["---", "title: The plan", "doc-type: memo", "---", ""].join("\n"));
 
-    expect(BoardView.readDocType(planPath)).toBeNull();
+    expect(
+      BoardView.readDocType(new RepoRoot(repo), path.relative(repo, planPath) as RepoPath),
+    ).toBeNull();
   });
 
   it("an absent doc yields nulls — never a fabricated value", () => {
@@ -224,15 +233,17 @@ describe("BoardView.readHeader — the artifact header `{version, status, docTyp
     });
   });
 
-  it("a doc whose first line is not the `# Title` still reads its metadata block", () => {
+  it("a doc whose head is the front-matter block (never an `# Title` line) still reads its metadata", () => {
     mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
     const planPath = path.join(repo, "docs/kairos/plans/prog-p8.md");
     writeFileSync(
       planPath,
       [
-        "- **Version**: v0.9 · …",
-        "- **Status**: Done",
-        "- **Doc type**: plan",
+        "---",
+        "version: v0.9",
+        "status: Done",
+        "doc-type: plan",
+        "---",
         "",
         "## Constraints",
         "",
@@ -413,19 +424,26 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   };
 
   it("renders the phase board header + rows + the fixed legend tail", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
     writeDoc("docs/kairos/specs/prog-p1-design.md", [
-      "# S",
-      "",
-      "- **Version**: v0.14",
-      "- **Status**: Done",
-      "- **Doc type**: phase-spec",
+      "---",
+      "title: S",
+      "version: v0.14",
+      "status: Done",
+      "doc-type: phase-spec",
+      "---",
     ]);
     writeDoc("docs/kairos/plans/prog-p1.md", [
-      "# Plan",
-      "",
-      "- **Version**: v0.9",
-      "- **Doc type**: plan",
+      "---",
+      "title: Plan",
+      "version: v0.9",
+      "doc-type: plan",
+      "---",
     ]);
     seed("prog-p1", [{ wave: "spec", rounds: { review: [1, 2], fix: [1] } }]);
 
@@ -436,18 +454,34 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain("  overall  ");
     expect(text).toContain("prog-p1-design.md   v0.14 · Done");
     expect(text).toContain("prog-p1.md   v0.9");
+    // D47 — the doc cells render repoRoot-relative (docsOfSlug derives them absolute;
+    // the board emits the ONE shape). No row carries the absolute repo prefix.
+    expect(text).toContain("  spec     docs/kairos/specs/prog-p1-design.md");
+    expect(text).toContain("  plan     docs/kairos/plans/prog-p1.md");
+    expect(text).not.toContain(repo);
     expect(text).toContain("  branch   ○ open");
     expect(text.split("\n").at(-1)).toBe("progress: ✔ done · ▶ current · ○ pending");
   });
 
   it("renders one wave line per derived wave with the ✔/▶ markers", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     // Two task blocks → two waves.
     writeDoc("docs/kairos/plans/prog-p1.md", [
-      "# Plan",
-      "",
-      "- **Doc type**: plan",
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "---",
       "",
       "## Constraints",
       "",
@@ -491,22 +525,42 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // so its ACTIVE hop is the review-lead the dispatch engine would run (Ledger#lineRoute
     // → {kind:"review"}), NOT the exhausted-face handoff `/kairos:cdd-plan`. board next ==
     // engine next (the retired shallow form rendered the face-to-face entry for an open line).
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
 
     const { text } = render("prog-p1");
 
     expect(text).toContain(
-      `  next:    review --type spec --spec ${path.join(repo, "docs/kairos/specs/prog-p1-design.md")}`,
+      `  next:    review --type spec --spec ${path.relative(repo, path.join(repo, "docs/kairos/specs/prog-p1-design.md"))}`,
     );
     expect(text).not.toContain("  next:    /kairos:cdd-plan");
   });
 
   it("phase board next: spec closed + plan not started → the plan line's active review hop", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
     // Close the spec line: a recorded zero-findings spec review.
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
@@ -518,7 +572,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // The spec face is exhausted → the plan line is the frontier; the plan line has not
     // started its C5 → its ACTIVE hop is the plan review (not the cdd-dev handoff).
     expect(text).toContain(
-      `  next:    review --type plan --plan ${path.join(repo, "docs/kairos/plans/prog-p1.md")}`,
+      `  next:    review --type plan --plan ${path.relative(repo, path.join(repo, "docs/kairos/plans/prog-p1.md"))}`,
     );
     expect(text).not.toContain("  next:    /kairos:cdd-dev");
   });
@@ -528,9 +582,19 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // count-based closure judge reads the nonexistent fix cycle 1 → plan OPEN → the
     // plan entry; the engine's identity judge reads the fix at cycle 2 → plan CLOSED
     // → next advances past the plan face.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     // spec closed (a recorded zero-findings spec review)
@@ -555,9 +619,19 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // (the single judge) — a jump-number row `{review:[1,2], fix:[2]}` (D28) must read
     // CLOSED on BOTH faces. A count-based board judge (the retired hand-rolled form)
     // would read it OPEN and diverge from the engine.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "plan", { round: 2 }, { findings: [] });
@@ -574,12 +648,23 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   });
 
   it("D40 — the wave line's label carries the wave's task scope (W3 = tasks 5,11)", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     writeDoc("docs/kairos/plans/prog-p1.md", [
-      "# Plan",
-      "",
-      "- **Doc type**: plan",
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "---",
       "",
       "## Constraints",
       "",
@@ -622,12 +707,23 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // (`implement --plan <plan> --tasks 12,13,14`), NOT the exhausted-wave face handoff
     // (`review --type branch …`). A shallow `resolve(null, …)` renders the branch-review
     // handoff here — the bug (W4 in flight rendering branch review) this pin drives out.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     writeDoc("docs/kairos/plans/prog-p1.md", [
-      "# Plan",
-      "",
-      "- **Doc type**: plan",
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "---",
       "",
       "## Constraints",
       "",
@@ -689,7 +785,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // 12,13,14`, never the exhausted-wave face handoff `review --type branch`).
 
     const { text } = render("prog-p1");
-    const planPath = path.join(repo, "docs/kairos/plans/prog-p1.md");
+    const planPath = path.relative(repo, path.join(repo, "docs/kairos/plans/prog-p1.md"));
 
     // The active wave hop — the not-yet-implemented wave renders its implement literal.
     expect(text).toContain(`  next:    implement --plan ${planPath} --tasks 12,13,14`);
@@ -698,12 +794,23 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   });
 
   it("D40 — the wave-line markers align into one fixed-width column across differing id-set widths", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     writeDoc("docs/kairos/plans/prog-p1.md", [
-      "# Plan",
-      "",
-      "- **Doc type**: plan",
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "---",
       "",
       "## Constraints",
       "",
@@ -764,14 +871,27 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(new Set(markerColumns).size).toBe(1);
   });
 
-  it("phase board next: a drained line hands off to the next face's skill ref (host fallback)", () => {
-    // D40 deep-solve — the spec line is closed and NO plan doc exists: the plan line
-    // (not closed — no row) holds no active C5 hop (no doc), so it hands off to its
-    // pipeline entry `PIPELINE_NEXT.plan` → the cdd-dev ref. The board renders that
-    // through the SAME RouteRenderer the Capsule's `done` face uses; host "" falls
-    // back to the claude form (REFS[ref].claude) — never a bare plugin guess.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+  it("phase board next: a just-closed spec hands off to its OWN exit (never the absent plan's)", () => {
+    // D40 deep-solve / D26 — the spec line is closed and NO plan doc exists yet: the
+    // plan face is the frontier but was NEVER ENTERED (no doc), so the transition is
+    // the PRECEDING face's exit — the spec's `PIPELINE_NEXT["phase-spec"]` → the
+    // cdd-plan ref. The retired board fork handed off via the frontier LINE's own key
+    // (the absent plan's `cdd-dev`) — a face-boundary off-by-one the ONE walk kills
+    // (a closed spec means "author the plan", not "the plan is done"). Rendering rides
+    // the SAME RouteRenderer the Capsule's `done` face uses; host "" falls back to the
+    // claude form (REFS[ref].claude) — never a bare plugin guess.
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
@@ -779,58 +899,119 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     const { text } = render("prog-p1", "");
 
-    expect(text).toContain("  next:    /kairos:cdd-dev");
+    expect(text).toContain("  next:    /kairos:cdd-plan");
   });
 
   it("board per-harness ref pins — a drained line renders REFS[ref][host] (host=pi → /skill:…)", () => {
     // The board's per-harness spelling rides REFS[ref][host] (never a claude-form
-    // constant). The reachable refs on the phase board's per-line walk: the spec face
-    // (no spec doc → the cdd-plan entry) and the plan face (spec closed + no plan doc
-    // → the cdd-dev entry). host=pi renders the flat `/skill:<bare>` form.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
+    // constant). The reachable ref at the spec boundary is cdd-plan through both
+    // sub-states — the spec face never authored, and the spec face just closed with no
+    // plan authored (the off-by-one the fork rendered as the absent plan's cdd-dev).
+    // host=pi renders the flat `/skill:<bare>` form.
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
     // The spec face is the frontier with no spec doc → PIPELINE_NEXT."phase-spec" → cdd-plan.
     expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-plan");
     expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-plan");
 
-    // Close the spec line so the plan face is the frontier; no plan doc → the cdd-dev ref.
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    // Close the spec line so the plan face is the frontier; no plan doc → the spec's OWN
+    // exit (cdd-plan), never the absent plan's cdd-dev.
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
     ledger.recordRound("spec", "review");
-    expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-dev");
-    expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-dev");
+    expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-plan");
+    expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-plan");
   });
 
   it("board next == the Capsule's done face — the shared renderer byte-identity (host claude / pi)", () => {
     // route-render.ts claims the board's `next:` and the capsule's `next:` are
-    // byte-identical by construction (ONE RouteRenderer). Pin it: a drained plan face
-    // hands off to the SAME pipeline entry through both seams, and both seams now read
-    // the SAME argv channel (the board is threaded ARGV_CHANNEL from the composition
-    // root) — a flag-spelling change cannot silently split the two faces.
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    // byte-identical by construction (ONE RouteRenderer). Pin it at the state BOTH
+    // seams agree on: the spec boundary. The board has a closed spec face + no plan doc
+    // (the plan face unentered → the spec's exit entry); the capsule's `done` face is
+    // fed the closed spec line's target (a phase-spec doc → `PIPELINE_NEXT["phase-spec"]`).
+    // Both resolve to the SAME pipeline entry through the ONE renderer, and both seams
+    // read the SAME argv channel (the board is threaded ARGV_CHANNEL from the
+    // composition root) — a flag-spelling change cannot silently split the two faces.
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    const specId = writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
     ledger.recordRound("spec", "review");
-    const planId = path.join(repo, "docs/kairos/plans/prog-p1.md");
 
     for (const host of ["claude", "pi"]) {
-      const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, repo)
-        .emit("APPROVED", "0", "/h.json", { kind: "done" }, { type: "plan", id: planId })[1]!
+      const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, new RepoRoot(repo))
+        .emit("APPROVED", "0", "/h.json", { kind: "done" }, { type: "spec", id: specId })[1]!
         .slice("next: ".length);
-      // The board's plan face is drained (spec closed + no plan doc) → the same entry.
+      // The board's spec face is drained (spec closed + no plan doc) → the same entry.
       expect(nextOf("prog-p1", host)).toBe(capsuleNext);
-      expect(capsuleNext).toBe(host === "pi" ? "/skill:cdd-dev" : "/kairos:cdd-dev");
+      expect(capsuleNext).toBe(host === "pi" ? "/skill:cdd-plan" : "/kairos:cdd-plan");
+    }
+  });
+
+  it("D47 — the next: literal's embedded paths are repoRoot-relative, byte-identical board↔capsule", () => {
+    // route-render.ts is the ONE renderer for both faces; D47 makes its embedded path
+    // values repoRoot-relative (the ONE shape, §2.13). Pin BOTH seams at a path-bearing
+    // C5 hop — the spec review literal's `--spec` — feeding the capsule an ABSOLUTE
+    // target path: the renderer must emit the repoRoot-relative form on both faces alike.
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    const specId = writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
+    expect(path.isAbsolute(specId)).toBe(true);
+
+    for (const host of ["claude", "pi"]) {
+      const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, new RepoRoot(repo))
+        .emit("APPROVED", "0", "/h.json", { kind: "review" }, { type: "spec", id: specId })[1]!
+        .slice("next: ".length);
+      // The reviewer's own hop renders the repoRoot-relative --spec (never the absolute).
+      expect(capsuleNext).toBe("review --type spec --spec docs/kairos/specs/prog-p1-design.md");
+      expect(capsuleNext).not.toContain(repo);
+      // The board's spec frontier renders the SAME byte-identical relative literal.
+      expect(nextOf("prog-p1", host)).toBe(capsuleNext);
     }
   });
 
   it("a present doc without a Doc type declaration renders BLOCKED and exits 2", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    // The spec doc carries NO `- **Doc type**:` line.
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Version**: v1.0"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    // The spec doc carries NO `doc-type:` key.
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["---", "title: S", "version: v1.0", "---"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
 
     const { text, exitCode } = render("prog-p1");
 
@@ -840,17 +1021,24 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
   it("renders the program board with one phase summary line + next: done", () => {
     writeDoc("docs/kairos/specs/prog-overall.md", [
-      "# O",
-      "",
-      "- **Version**: v2.33",
-      "- **Doc type**: overall-spec",
+      "---",
+      "title: O",
+      "version: v2.33",
+      "doc-type: overall-spec",
+      "---",
     ]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
     // Two task blocks → two waves, so the phase line carries its `wave W1…` token (spec §5.3).
     writeDoc("docs/kairos/plans/prog-p1.md", [
-      "# Plan",
-      "",
-      "- **Doc type**: plan",
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "---",
       "",
       "## Constraints",
       "",
@@ -897,11 +1085,16 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   });
 
   it("the program board propagates a phase doc-type BLOCK — a present phase spec without a declaration exits 2", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    // The phase spec carries NO `- **Doc type**:` line — the phase board BLOCKs it;
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    // The phase spec carries NO `doc-type:` key — the phase board BLOCKs it;
     // the program board must propagate the SAME BLOCK (no silent fallback, spec §12).
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Version**: v1.0"]);
-    writeDoc("docs/kairos/plans/prog-p1.md", ["# Plan", "", "- **Doc type**: plan"]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", ["---", "title: S", "version: v1.0", "---"]);
+    writeDoc("docs/kairos/plans/prog-p1.md", ["---", "title: Plan", "doc-type: plan", "---"]);
 
     const { text, exitCode } = render("prog");
 
@@ -910,8 +1103,18 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   });
 
   it("degrades without error — an absent plan leaves the wave segment empty", () => {
-    writeDoc("docs/kairos/specs/prog-overall.md", ["# O", "", "- **Doc type**: overall-spec"]);
-    writeDoc("docs/kairos/specs/prog-p1-design.md", ["# S", "", "- **Doc type**: phase-spec"]);
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "---",
+    ]);
 
     const board = BoardView.render("prog-p1", repo, new Words(), "claude");
 

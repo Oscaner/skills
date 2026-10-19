@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import { Translator } from "../../contract/translate.ts";
+import { DISPATCH } from "../../face/host.ts";
 import { Words } from "../../face/words.ts";
 import { BriefRenderer } from "../brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
@@ -24,8 +25,9 @@ const ALL_VALUES: Record<string, string> = {
   ROLE: "implement",
   WAVE: "4,12",
   INPUT_WAVE_BRIEF: "/ws/tasks-4,12-brief.md",
-  INPUT_FINDINGS: "",
-  INPUT_DOC: "",
+  INPUT_REVIEWS: "",
+  INPUT_PLAN: "",
+  INPUT_SPEC: "",
   BASE_BRANCH: "",
   OUTPUT_REPORT: "/ws/tasks-4,12-implement-report.md",
   OUTPUT_EVIDENCE: "/ws/tasks-4,12-test-evidence.json",
@@ -43,16 +45,16 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // v1.8 — the mode dispatch table; v1.9 — RETURN_JSON / DOCS_FIX retired; the
     // review criteria/lens tokens are gone (§3.7).
     expect(assembler.workModes()).toEqual(["implement", "fix", "review", "docs-fix"]);
-    expect(assembler.returnFormats()).toEqual(["RETURN_STDOUT_BLOCK"]);
     expect(assembler.declaredTokens()).toContain("ROLE");
     expect(assembler.declaredTokens()).toContain("OUTPUT_HANDOFF");
     expect(assembler.declaredTokens()).toContain("OUTPUT_REPORT");
     expect(assembler.declaredTokens()).toContain("OUTPUT_EVIDENCE");
     expect(assembler.declaredTokens()).toContain("BASE_BRANCH");
     expect(assembler.declaredTokens()).toContain("HANDOFF_SCHEMA");
-    // the retired reference tokens — the range/plan/brief range tokens are gone
+    // the retired reference tokens — the range/brief tokens are gone; INPUT_PLAN is
+    // resurrected as the semantic plan-doc anchor (the kind-named round context)
     expect(assembler.declaredTokens()).not.toContain("INPUT_RANGE");
-    expect(assembler.declaredTokens()).not.toContain("INPUT_PLAN");
+    expect(assembler.declaredTokens()).toContain("INPUT_PLAN");
     expect(assembler.declaredTokens()).not.toContain("FIX_BASE");
     expect(assembler.declaredTokens()).not.toContain("OUTPUT_BRIEF");
     expect(assembler.declaredTokens()).not.toContain("INPUT_CRITERIA");
@@ -61,23 +63,26 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(assembler.declaredTokens()).not.toContain("INPUT_RULES");
   });
 
-  it("renders the two-line return contract — exactly status + artifacts, the commits line retired (§2.4)", () => {
-    // The `## Return` zone prescribes exactly two command lines inside its fence:
-    // `status:` then `artifacts:`. The retired `commits:` line must not survive
-    // anywhere in the assembled prompt (the child returns status + artifacts; the
-    // engine appends the counters/next lines — never the child's).
+  it("renders the single prose return contract — the retired status/artifacts key block is gone (§2.4)", () => {
+    // P11 §2.1: the `## Return` zone is ONE plain-prose contract block — the child
+    // narrates the round in prose and nothing downstream parses its stdout (the
+    // handoff draft at OUTPUT_HANDOFF is the machine-readable result). The retired
+    // two-line key block (`status:` / `artifacts:` inside a fence) must not survive
+    // anywhere in the assembled prompt.
     const out = assembler.render(ALL_VALUES);
-    const fence = out.split("```")[1];
-    expect(fence).toBeDefined();
-    const commandLines = fence!
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-    expect(commandLines).toEqual([
-      "status: <APPROVED|BLOCKED>",
-      "artifacts: report=<path> test_evidence=<path>",
-    ]);
+    const returnZone = out.split("## Return")[1];
+    expect(returnZone).toBeDefined();
+    // the prose contract is present, byte-anchored on the RETURN_PROSE zone
+    expect(returnZone).toContain(
+      "Report in a few plain sentences what this round did, whether it succeeded",
+    );
+    expect(returnZone).toContain("`OUTPUT_HANDOFF` is the round's machine-readable result");
+    expect(returnZone).toContain("Do not emit key-value lines");
+    // zero key-value residue — no fenced command block, no `status:`/`artifacts:` line
+    expect(out).not.toContain("```");
     expect(out).not.toContain("commits:");
+    expect(out).not.toMatch(/^status: /m);
+    expect(out).not.toMatch(/^artifacts: /m);
   });
 
   it("assembles the implement mode — the fixed prefix + the reduced round context", () => {
@@ -106,20 +111,24 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).not.toContain("DOCS_FIX");
     // the per-mode trimming: an implement round's context carries no review/fix keys
     expect(out).not.toContain("INPUT_CRITERIA");
-    expect(out).not.toContain("INPUT_FINDINGS");
+    expect(out).not.toContain("INPUT_REVIEWS");
     expect(out).not.toContain("FIX_BASE");
     expect(out).not.toContain("BASE_BRANCH");
+    // ⑫ the implement dispatch ref is the DISPATCH single source — the rendered
+    // shell carries DISPATCH.implement's value (zero drift pin; the literal lives
+    // ONLY in the DISPATCH table, never re-spelled in the template prose).
+    expect(out).toContain(DISPATCH.implement);
   });
 
   it("renders the docs-fix mode through the same table — its own rules + subset", () => {
     const out = assembler.render({
       ...ALL_VALUES,
       ROLE: "docs-fix",
-      INPUT_DOC: "docs/x-design.md",
+      INPUT_SPEC: "docs/x-design.md",
     });
     expect(out.startsWith("# CDD dispatch — docs-fix round")).toBe(true);
-    expect(out).toContain("apply `INPUT_FINDINGS` (all severities) directly to `INPUT_DOC`");
-    expect(out).toContain("- `INPUT_DOC`: docs/x-design.md");
+    expect(out).toContain("apply `INPUT_REVIEWS` (all severities) directly to the judged doc");
+    expect(out).toContain("- `INPUT_SPEC`: docs/x-design.md");
     expect(out).not.toContain("BASE_BRANCH");
     // the review-only keys stay out of the docs-fix context
     expect(out).not.toContain("INPUT_CRITERIA");
@@ -129,7 +138,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const out = assembler.render({
       ...ALL_VALUES,
       ROLE: "fix",
-      INPUT_FINDINGS: "/ws/tasks-1-review-1.json",
+      INPUT_REVIEWS: "/ws/tasks-1-review-1.json",
     });
     expect(out.startsWith("# CDD dispatch — fix round")).toBe(true);
     // verify-then-apply — the receiving-code-review core: VERIFY each finding
@@ -145,7 +154,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const out = assembler.render({
       ...ALL_VALUES,
       ROLE: "fix",
-      INPUT_FINDINGS: "/ws/tasks-1-review-1.json",
+      INPUT_REVIEWS: "/ws/tasks-1-review-1.json",
     });
     // the work face's ONE strict-schema directive — the declared properties are the
     // draft's field source (the keyset rides the injected `## Handoff schema` fence,
@@ -155,17 +164,17 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     );
     expect(out).toContain("zero extra keys");
     // keyset zero-residue + the retired guard sentences are gone: the shell prose
-    // enumerates no field and names no explicit INPUT_FINDINGS mirror ban
+    // enumerates no field and names no explicit INPUT_REVIEWS mirror ban
     expect(out).not.toContain("**Writable fields:**");
     expect(out).not.toContain("accepts exactly");
     expect(out).not.toContain("**Findings read-only:**");
   });
 
-  it("T5 — the docs-fix shell carries the findings face's single strict-schema sentence — the required findings rides from INPUT_FINDINGS verbatim (no contradiction with the required gate)", () => {
+  it("T5 — the docs-fix shell carries the findings face's single strict-schema sentence — the required findings rides from INPUT_REVIEWS verbatim (no contradiction with the required gate)", () => {
     const out = assembler.render({
       ...ALL_VALUES,
       ROLE: "docs-fix",
-      INPUT_DOC: "docs/x-design.md",
+      INPUT_SPEC: "docs/x-design.md",
     });
     // the findings face's ONE strict-schema directive — same schema-first wording,
     // the required `findings` told how to fill (the verbatim carry-over), so the
@@ -173,7 +182,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).toContain(
       "every top-level field of the draft comes from the `## Handoff schema` declared `properties`",
     );
-    expect(out).toContain("`findings` (required) rides over from `INPUT_FINDINGS` verbatim");
+    expect(out).toContain("`findings` (required) rides over from `INPUT_REVIEWS` verbatim");
     expect(out).toContain("zero extra keys");
     // keyset zero-residue + the retired carried-as-is guard marker is gone
     expect(out).not.toContain("**Writable fields:**");
@@ -190,7 +199,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ROLE: "review",
       REVIEW_TYPE: "spec",
       INPUT_WAVE_BRIEF: "",
-      INPUT_DOC: "docs/kairos/specs/s1-design.md",
+      INPUT_SPEC: "docs/kairos/specs/s1-design.md",
       OUTPUT_HANDOFF: "/ws/spec-review-1.json",
     });
     expect(spec.startsWith("# CDD dispatch — review round")).toBe(true);
@@ -200,9 +209,16 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // the claimed→pin clause (T4) — every behavior claim must cite a colocated pin;
     // the spec + plan review variants carry it (the task/branch variants do not)
     expect(spec).toContain("Claimed→pin");
-    expect(spec).toContain("- `INPUT_DOC`: docs/kairos/specs/s1-design.md");
+    // the review-quality clauses (P10/D49) — every axis carries the vision-document
+    // rule (silence is not permission), the declined-to-judge ledger, and severity
+    // calibration; pinned per distinctive phrase
+    expect(spec).toContain("its silence is not permission");
+    expect(spec).toContain("nothing set aside is dropped silently");
+    expect(spec).toContain("accurate praise earns the rest of the report trust");
+    expect(spec).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
+    expect(spec).not.toContain("- `INPUT_PLAN`");
     expect(spec).not.toContain("- `INPUT_WAVE_BRIEF`");
-    expect(spec).not.toContain("- `INPUT_FINDINGS`");
+    expect(spec).not.toContain("- `INPUT_REVIEWS`");
     expect(spec).not.toContain("- `FIX_BASE`");
     expect(spec).not.toContain("BASE_BRANCH"); // spec review carries no scope anchor
     // a task review selects its own variant — the task axes + lens + the wave brief
@@ -220,6 +236,11 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(task).toContain("- `BASE_BRANCH`: develop");
     expect(task).not.toContain("Follow URC");
     expect(task).not.toContain("Claimed→pin"); // the task axes carry no clause
+    // every review axis (task/branch/spec/plan) carries the three review-quality
+    // clauses (P10/D49) — here on the wave variant
+    expect(task).toContain("its silence is not permission");
+    expect(task).toContain("nothing set aside is dropped silently");
+    expect(task).toContain("accurate praise earns the rest of the report trust");
     // a branch review carries the single doc anchor (the plan) + the scope anchor
     // BASE_BRANCH — the shared review layout carries the slot (§3.1/§3.2)
     const branch = assembler.render({
@@ -227,12 +248,18 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ROLE: "review",
       REVIEW_TYPE: "branch",
       INPUT_WAVE_BRIEF: "",
-      INPUT_DOC: "docs/kairos/plans/p.md",
+      INPUT_PLAN: "docs/kairos/plans/p.md",
+      INPUT_SPEC: "docs/kairos/specs/p-design.md",
       BASE_BRANCH: "develop",
       OUTPUT_HANDOFF: "/ws/branch-review-1.json",
     });
-    expect(branch).toContain("- `INPUT_DOC`: docs/kairos/plans/p.md");
+    expect(branch).toContain("- `INPUT_PLAN`: docs/kairos/plans/p.md");
+    expect(branch).toContain("- `INPUT_SPEC`: docs/kairos/specs/p-design.md");
     expect(branch).toContain("- `BASE_BRANCH`: develop");
+    // the branch variant carries the three review-quality clauses too (P10/D49)
+    expect(branch).toContain("its silence is not permission");
+    expect(branch).toContain("nothing set aside is dropped silently");
+    expect(branch).toContain("accurate praise earns the rest of the report trust");
     // a plan review carries the same claimed→pin clause as the spec variant; the
     // semantic spec/plan-absent anchor rule (the tree-review faces only) is the
     // lifecycle-injection concern — pinned at the CLI dispatch face (cli.test.ts)
@@ -241,11 +268,28 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ROLE: "review",
       REVIEW_TYPE: "plan",
       INPUT_WAVE_BRIEF: "",
-      INPUT_DOC: "docs/kairos/plans/p.md",
+      INPUT_PLAN: "docs/kairos/plans/p.md",
+      INPUT_SPEC: "docs/kairos/specs/p-design.md",
       OUTPUT_HANDOFF: "/ws/plan-review-1.json",
     });
     expect(plan).toContain("**Criteria — plan:**");
     expect(plan).toContain("Claimed→pin");
+    // a plan review carries the plan's design-spec anchor (INPUT_SPEC) so the
+    // reviewer judges the plan against the spec it implements
+    expect(plan).toContain("- `INPUT_PLAN`: docs/kairos/plans/p.md");
+    expect(plan).toContain("- `INPUT_SPEC`: docs/kairos/specs/p-design.md");
+    // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
+    // review carries neither judged-doc anchor (the empty slots are dropped by the
+    // assembler)
+    const wave = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "review",
+      REVIEW_TYPE: "wave",
+      BASE_BRANCH: "develop",
+      OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
+    });
+    expect(wave).not.toContain("- `INPUT_PLAN`");
+    expect(wave).not.toContain("- `INPUT_SPEC`");
   });
 
   it("hard gates: a missing token value throws (named)", () => {
@@ -285,16 +329,23 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // every real declared mode renders cleanly under the assertion
     expect(() => assembler.render(ALL_VALUES)).not.toThrow();
     expect(() =>
-      assembler.render({ ...ALL_VALUES, ROLE: "fix", INPUT_FINDINGS: "/f.json" }),
+      assembler.render({ ...ALL_VALUES, ROLE: "fix", INPUT_REVIEWS: "/f.json" }),
     ).not.toThrow();
   });
 });
 
-/** A two-task plan — task 1 steps all checkable, task 2 carries a bare step. */
+/** A two-task plan — task 1 steps all checkable, task 2 carries a bare step (the
+ *  front-matter head the plan parser reads). */
 const PLAN = [
-  "# Test Plan",
-  "**Spec:** [x-design.md](docs/kairos/specs/x-design.md)",
-  "- **Parent program**: [x-overall.md v1.21](docs/kairos/specs/x-overall.md)",
+  "---",
+  "title: Test Plan",
+  "doc-type: plan",
+  "version: v1.0",
+  "date: 2026-10-09",
+  "spec: docs/kairos/specs/x-design.md",
+  "parent-program: docs/kairos/specs/x-overall.md",
+  "parent-version: v1.21",
+  "---",
   "",
   "### Task 1: one",
   "- **Objective**: objective",

@@ -24,11 +24,13 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { PlanDocType } from "../contract/doc.ts";
+import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import type { DocFs } from "../contract/invariants.ts";
 import type { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import type { Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
+import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import type { TargetType } from "./faces.ts";
 import { TaskGraph } from "./graph.ts";
 import type { Ledger } from "./ledger.ts";
@@ -60,14 +62,19 @@ export interface PreFlightVerdict {
 
 /** The doc-contract target of a spec/plan dispatch. */
 export interface PreFlightDoc {
-  /** The target doc type's registry key — read from the doc's `- **Doc type**:`
-   *  header declaration (spec §12 · D34; both the spec and the plan faces key by
-   *  the declaration, zero command-type carve-out).
-   *  null when a present doc carries no declaration — the seam BLOCKs (zero
+  /** The target doc type's registry key — read from the doc's front-matter
+   *  `doc-type:` key (spec §12 · D34; both the spec and the plan faces key by
+   *  the head key, zero command-type carve-out).
+   *  null when a present doc carries no key — the seam BLOCKs (zero
    *  filename-suffix fallback, one declaration reading face `BoardView.readDocType`). */
   docKey: DocKey | null;
-  /** The target doc's path (the lifecycle's audit path). */
-  path: string;
+  /** The target doc's path — the branded repoRoot-relative `RepoPath` (T4 §2.2: a
+   *  bare `string` never reaches this read face; the caller feeds the funnel-shaped
+   *  relative value). The seam erases it to the absolute syscall form through its
+   *  OWN `RepoRoot(ctx.repoRoot)` just before the read — the brand is REAL (the
+   *  absolute state is unrepresentable as a `RepoPath`), the same shape as
+   *  `artifacts.readText(node, root, file: RepoPath)`). */
+  path: RepoPath;
 }
 
 /** One dispatch's pre-flight inputs — the facts the seam judges. */
@@ -177,13 +184,37 @@ export class PreFlight {
     //    Contract.validate (the interpreter's single judgment entry) before its
     //    review/fix round dispatches. An unreadable doc carries no judgment (no
     //    fabricated findings from an absent surface). A PRESENT doc carrying no
-    //    `- **Doc type**:` declaration BLOCKs (spec §12 · D34: the declared type is
+    //    `doc-type:` key BLOCKs (spec §12 · D34: the declared type is
     //    the one reading face, zero filename-suffix fallback).
     if (ctx.type === "spec" || ctx.type === "plan") {
       gates.push("doc-contract");
       const doc = ctx.doc;
-      const content = doc === null ? null : this.#fs.read(doc.path);
-      if (content !== null && doc !== null) {
+      // The relative `RepoPath` erases to the absolute syscall form through the ONE
+      // value object (the seam's OWN `RepoRoot(ctx.repoRoot)`) just before the read.
+      const docAbsolute = doc === null ? null : new RepoRoot(ctx.repoRoot).resolve(doc.path);
+      const content = docAbsolute === null ? null : this.#fs.read(docAbsolute);
+      if (content !== null && doc !== null && docAbsolute !== null) {
+        // D1 (position-carrying error): a front-matter block the `yaml` engine cannot parse is
+        // BLOCKed with the REAL failure (line · column · reason) BEFORE the
+        // doc-type judgment — an unparseable head also reads no doc-type, so the
+        // parse check must precede the missing-key check (the misread fix: a
+        // `[`-led author line reports "invalid YAML", never "no doc-type").
+        const { head } = FrontMatterExtractor.split(content);
+        const parseError = head.parseError;
+        if (parseError !== null) {
+          return {
+            ok: false,
+            gate: "doc-contract",
+            reason: "doc-contract",
+            message: this.#words
+              .routeWord("frontmatterParse")
+              .replace("{reason}", parseError.reason)
+              .replace("{line}", String(parseError.line))
+              .replace("{column}", String(parseError.column))
+              .replace("{source}", parseError.source),
+            order: gates,
+          };
+        }
         if (doc.docKey === null) {
           return {
             ok: false,
@@ -195,7 +226,7 @@ export class PreFlight {
         }
         const findings = this.#contract.validate({
           docKey: doc.docKey,
-          path: doc.path,
+          path: docAbsolute,
           content,
           root: ctx.repoRoot,
           fs: this.#fs,

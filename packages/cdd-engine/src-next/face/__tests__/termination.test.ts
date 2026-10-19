@@ -12,9 +12,32 @@
 //     broken command never throws (a spawn failure has NO exit code: it rides
 //     `code: null`, never a folded `1`, and its reason text survives on stderr).
 // The child is a real hermetic shell process (no network, no repo writes).
+//
+// The stall face's own pins live here too (spec §3.3): the judge's four-state truth
+// table (pure, window injected — the production window would make a case wait out the
+// real half hour) and the sampler's two legs (a real process group and a scratch tree).
 
-import { describe, expect, it } from "vitest";
-import { type ChildRun, TerminationPolicy, Terminator } from "../termination.ts";
+import { spawn } from "node:child_process";
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  type ChildRun,
+  type Sample,
+  Sampler,
+  StallJudge,
+  TerminationPolicy,
+  Terminator,
+} from "../termination.ts";
 
 /** One production-shaped child run — the phase's own policy, a scratch cwd and the
  *  heartbeat path the sampler (T3) writes; this suite never samples, so the paths
@@ -93,5 +116,217 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     expect(result.termination).not.toBeNull();
     expect(result.termination?.cause).toBe("over-budget");
     expect(result.code).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the stall face — the judge's truth table and the sampler's two legs (§3.3)
+// ---------------------------------------------------------------------------
+
+/** A fixed epoch for planted mtimes: every file's mtime is an explicit second, so a
+ *  leg's reading is exact and never `writeFileSync`'s wall clock. */
+const EPOCH = 1_700_000_000;
+
+const scratchRoots: string[] = [];
+
+/** A scratch directory (removed after each case). */
+const scratch = (): string => {
+  const dir = mkdtempSync(path.join(tmpdir(), "stall-"));
+  scratchRoots.push(dir);
+  return dir;
+};
+
+/** Plant a file at `rel` under `root` with an explicit mtime (seconds since epoch). */
+const plant = (root: string, rel: string, seconds: number): string => {
+  const target = path.join(root, rel);
+  mkdirSync(path.dirname(target), { recursive: true });
+  writeFileSync(target, `${rel}\n`);
+  utimesSync(target, seconds, seconds);
+  return target;
+};
+
+/** One sample tick of the two legs. */
+const tick = (groupCpuMs: number | null, newestMtimeMs: number | null): Sample => ({
+  groupCpuMs,
+  newestMtimeMs,
+});
+
+/** Spawn one detached child — its own process group (and session), the shape the
+ *  production `killDescendants` spawn gives every dispatch child. */
+const detachedChild = async (command: string, args: readonly string[]): Promise<number> => {
+  const child = spawn(command, [...args], { detached: true, stdio: "ignore" });
+  child.unref();
+  // The group/session is the child's own (setsid at spawn); give the kernel a beat to
+  // settle it before `ps` reads it.
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  return child.pid ?? 0;
+};
+
+/** SIGKILL a detached child and wait for its exit — a leaked spinner would keep the
+ *  suite's process alive. */
+const reap = (pid: number): void => {
+  if (pid === 0) return;
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    // Already gone — nothing to reap.
+  }
+};
+
+afterEach(() => {
+  for (const dir of scratchRoots.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
+
+describe("StallJudge — the four-state truth table (spec §3.3)", () => {
+  it("rules `idled` while the injected window is open and `stalled` once it is spent", () => {
+    const judge = new StallJudge(1000, 0);
+    // The first tick has no previous observation: neither leg can have advanced,
+    // and the idle clock runs from the spawn instant.
+    expect(judge.observe(tick(100, 500), 500)).toBe("idled");
+    expect(judge.observe(tick(100, 500), 999)).toBe("idled");
+    // The window is spent — inclusive bound.
+    expect(judge.observe(tick(100, 500), 1000)).toBe("stalled");
+  });
+
+  it("starts the idle clock at the spawn instant, never at the first sample", () => {
+    const judge = new StallJudge(1000, 100);
+    // A tree that already carried a fresh mtime at the first tick is not progress.
+    expect(judge.observe(tick(100, 900), 500)).toBe("idled");
+    expect(judge.observe(tick(100, 900), 1100)).toBe("stalled");
+  });
+
+  it("rules `progress` on the CPU leg's advance and restarts the window from that tick", () => {
+    const judge = new StallJudge(1000, 0);
+    expect(judge.observe(tick(100, 500), 0)).toBe("idled");
+    // The process group burned CPU — the flat tree does not matter.
+    expect(judge.observe(tick(120, 500), 400)).toBe("progress");
+    // The window now runs from 400.
+    expect(judge.observe(tick(120, 500), 900)).toBe("idled");
+    expect(judge.observe(tick(120, 500), 1400)).toBe("stalled");
+  });
+
+  it("rules `progress` on the tree leg's advance alone — a rewrite under a flat CPU group", () => {
+    const judge = new StallJudge(1000, 0);
+    judge.observe(tick(100, 500), 0);
+    expect(judge.observe(tick(100, 700), 200)).toBe("progress");
+  });
+
+  it("compares the tree leg against its historical maximum — a tree that only loses files makes no progress", () => {
+    const judge = new StallJudge(1000, 0);
+    judge.observe(tick(100, 900), 0);
+    // The newest file was deleted — the reading went backwards, never an advance.
+    expect(judge.observe(tick(100, 600), 500)).toBe("idled");
+    // Below the historical maximum — still not an advance.
+    expect(judge.observe(tick(100, 800), 900)).toBe("idled");
+    // Above it — an advance.
+    expect(judge.observe(tick(100, 950), 950)).toBe("progress");
+  });
+
+  it("rules `unknown` on an unreadable leg and never kills — however long the window has run", () => {
+    const judge = new StallJudge(10, 0);
+    expect(judge.observe(tick(null, 500), 10 ** 9)).toBe("unknown");
+    expect(judge.observe(tick(100, null), 10 ** 9)).toBe("unknown");
+    // An unreadable tick proves neither progress nor idleness: it never restarts the
+    // window, so the first readable flat tick rules on the window that has run.
+    expect(judge.observe(tick(100, 500), 10 ** 9)).toBe("stalled");
+  });
+});
+
+describe("Sampler — the two legs (spec §3.3)", () => {
+  it("reads the newest content mtime, excluding `.git/` and the heartbeat's exact path but not `.kairos/`", () => {
+    const root = scratch();
+    plant(root, "progress.md", EPOCH + 10);
+    // A child's handoff draft under `.kairos/` IS real progress — the domain is never
+    // excluded wholesale.
+    const draft = plant(root, ".kairos/cdd/slug/tasks-1-handoff.md", EPOCH + 20);
+    // The VCS internal and the engine's own heartbeat are newer, and neither counts.
+    plant(root, ".git/COMMIT_EDITMSG", EPOCH + 900);
+    const heartbeat = plant(root, ".kairos/cdd/slug/liveness.json", EPOCH + 1000);
+    const sampler = new Sampler({
+      pgid: 0,
+      scanRoot: root,
+      exclude: Sampler.excludesFor(root, heartbeat),
+    });
+    expect(sampler.probe().newestMtimeMs).toBe(statSync(draft).mtimeMs);
+  });
+
+  it("never follows a symlink — a linked-in file is not this tree's progress", () => {
+    const outside = scratch();
+    const target = plant(outside, "elsewhere.md", EPOCH + 5000);
+    const root = scratch();
+    const own = plant(root, "progress.md", EPOCH + 10);
+    symlinkSync(target, path.join(root, "link.md"));
+    symlinkSync(outside, path.join(root, "linkdir"));
+    const sampler = new Sampler({ pgid: 0, scanRoot: root, exclude: [] });
+    expect(sampler.probe().newestMtimeMs).toBe(statSync(own).mtimeMs);
+  });
+
+  it("stops descending at the declared depth ceiling", () => {
+    const root = scratch();
+    const shallow = plant(root, "a/b/deep.md", EPOCH + 10);
+    const buried = Array.from({ length: Sampler.MAX_DEPTH + 1 }, (_, i) => `d${i}`).join("/");
+    plant(root, `${buried}/too-deep.md`, EPOCH + 900);
+    const sampler = new Sampler({ pgid: 0, scanRoot: root, exclude: [] });
+    expect(sampler.probe().newestMtimeMs).toBe(statSync(shallow).mtimeMs);
+  });
+
+  it("fails open on an unreadable leg — `null` into the judge's `unknown`, never a kill", () => {
+    // The window is zero: any judged tick would be `stalled` on the spot.
+    const judge = new StallJudge(0, 0);
+    const sampler = new Sampler({
+      pgid: 2147483646,
+      scanRoot: path.join(scratch(), "gone"),
+      exclude: [],
+    });
+    const sample = sampler.probe();
+    expect(sample.groupCpuMs).toBeNull();
+    expect(sample.newestMtimeMs).toBeNull();
+    expect(judge.observe(sample, 10 ** 9)).toBe("unknown");
+  });
+
+  it("sums the process group's own CPU — the busy leg the judge rules on", async () => {
+    const pid = await detachedChild(process.execPath, ["-e", "while (true) {}"]);
+    try {
+      const sampler = new Sampler({ pgid: pid, scanRoot: scratch(), exclude: [] });
+      // `ps -o time=` truncates to whole seconds off macOS, so a busy group's first
+      // nonzero reading can take a moment — poll to the deadline rather than race it.
+      const deadline = Date.now() + 8000;
+      let cpuMs = sampler.probe().groupCpuMs;
+      while ((cpuMs === null || cpuMs === 0) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        cpuMs = sampler.probe().groupCpuMs;
+      }
+      expect(cpuMs ?? 0).toBeGreaterThan(0);
+    } finally {
+      reap(pid);
+    }
+  });
+
+  it("keeps the engine's own heartbeat out of the mtime leg — a tick never self-certifies progress", async () => {
+    const pid = await detachedChild("sleep", ["30"]);
+    try {
+      const root = scratch();
+      const draft = plant(root, ".kairos/cdd/slug/tasks-1-handoff.md", EPOCH + 100);
+      const heartbeat = plant(root, ".kairos/cdd/slug/liveness.json", EPOCH + 100);
+      const sampler = new Sampler({
+        pgid: pid,
+        scanRoot: root,
+        exclude: Sampler.excludesFor(root, heartbeat),
+      });
+      const judge = new StallJudge(1000, 0);
+      const first = sampler.probe();
+      // An idle group is readable at zero CPU — the leg's teeth are `null` vs a number.
+      expect(first.groupCpuMs).not.toBeNull();
+      expect(first.newestMtimeMs).toBe(statSync(draft).mtimeMs);
+      expect(judge.observe(first, 0)).toBe("idled");
+      // One heartbeat tick later: the ONLY thing that changed is the engine's own
+      // write, so the leg stays flat and the window is allowed to be spent.
+      utimesSync(heartbeat, EPOCH + 900, EPOCH + 900);
+      const second = sampler.probe();
+      expect(second.newestMtimeMs).toBe(first.newestMtimeMs);
+      expect(judge.observe(second, 1000)).toBe("stalled");
+    } finally {
+      reap(pid);
+    }
   });
 });

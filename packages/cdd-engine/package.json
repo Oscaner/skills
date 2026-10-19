@@ -7,19 +7,20 @@
     "node": ">=24"
   },
   "files": [
-    "src-next/",
+    "dist/",
     "templates/"
   ],
-  "main": "./src-next/bin.ts",
+  "main": "./dist/bin.js",
   "exports": {
-    ".": "./src-next/bin.ts",
+    ".": "./dist/bin.js",
     "./package.json": "./package.json"
   },
   "bin": {
-    "cdd": "./src-next/bin.ts"
+    "cdd": "./dist/bin.js"
   },
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepack": "pnpm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "vitest run src-next/__tests__/smoke.integration.test.ts"

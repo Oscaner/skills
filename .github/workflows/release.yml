@@ -53,6 +53,16 @@ jobs:
       # Version-agnostic — passes on both the 0.1.0 version push and the 1.0.0 publish push; a
       # failure here aborts before the action, leaving a clean tree to roll back from.
       - run: pnpm -C packages/cdd-engine run smoke
+      # Packed-tarball gate: install the engine as a consumer would (under node_modules, where
+      # Node refuses type stripping) and run the bin, so a regression to shipping raw .ts fails here.
+      - run: |
+          pack_dir=$(mktemp -d)
+          run_dir=$(mktemp -d)
+          pnpm -C packages/cdd-engine pack --pack-destination "$pack_dir"
+          cd "$run_dir"
+          npm init -y >/dev/null
+          npm install "$pack_dir"/*.tgz
+          npx cdd schema get overall-spec >/dev/null
       - uses: changesets/action@v2
         id: changesets
         with:

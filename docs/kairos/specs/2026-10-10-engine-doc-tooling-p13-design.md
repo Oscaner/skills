@@ -1,12 +1,12 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P13 设计：child dispatch 终止面跟进（stdin 闭合 + 终止 ⊥ 结论 + idle 可见性）
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-10-19
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P13] 会话 · 用户逐轮裁定 Q1–Q11 · 2026-10-19）
 parent-program: 2026-10-10-engine-doc-tooling-overall.md
-parent-version: v2.60
+parent-version: v2.61
 depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟进缺陷 · overall 依赖图 D55）
 ---
 
@@ -122,6 +122,14 @@ depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟�
 - **CPU 空转盲区**：阻塞在 stdin 上、但运行时空转（GC、定时器、轮询的孙进程）的 child，进程组 CPU 持续前进，不会被判 stalled。改信号会触动 D53 的 T26 双信号，不在本 phase。
 - 判官两腿任一不可读时每个 tick 都是 `unknown`，stall 杀永不触发，只剩预算上限兜底（fail-open 的固有代价）。
 
+### 5. D 组 · handoff 载体 face 命名
+
+- `HandoffFamily.schema` 选的是 child 草稿的**数据形状**：`findings` = child 写发现列表、不写 `status`，结论由引擎 `rollup(findings)` 汇总（review 与改文档的 fix 轮）；原 `work` = child 交付产物并自己声明 `status`（APPROVED / BLOCKED）（implement 与改代码的 fix 轮）。
+- 原名 `work` 描述场景而非形状（review 发现问题同样是在工作），与 `findings` 并列时区分不出两者。**改名为 `delivery`**，`findings` 不变（D57）。
+- 破坏性改名，范围：`HandoffSchemaFace` 取值 · `CARRIER_WORK` / `WorkCarrier` · `buildHandoff` 的重载 · `HANDOFF_FAMILIES` 三处 `schema: "work"` · `handoffFaceOf` 调用点 · 相关测试。非 face 语义的 `work` 词（如 `WorkInit`、变量名）逐处核对，不全局替换。
+- `HandoffFamily.schema` 的注释按载荷形状重写，并清除其中的 spec 章节号与重构叙述（程序历史不进代码注释）。
+- 不改 CLI 面、不改磁盘上的 handoff 文件格式（face 名不落盘）；changeset 仍 cdd-engine **minor**。
+
 ### Acceptance criteria
 
 - `Terminator.run` 的 execa 调用带 `stdin: 'ignore'`；行为 pin：读 stdin 至 EOF 的 child 在非 TTY 下正常退出，不再被挂到 stall 窗口。
@@ -132,6 +140,7 @@ depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟�
 - 终止时 crash record 与 stderr 带 idle 时长（`idleMs`）与末样本（`lastSample`）；crash record 另带 `promoted`。
 - D53 常量（idle 30min · 采样 60s · 四键预算）零变；活面无新旗标、环境变量或配置 JSON。
 - 翻新 pin：`cli.test.ts:4500`、`:4543`（终止轮 outcome 严格等于 `{status:'TIMEOUT'}`——实为两处，非三处）与 `:2259`（失败面测试：`:2272` 的 stdout `toContain('status: TIMEOUT')` 与 `timeoutCount`——注入式 dispatch 须带 `termination` 事实以适配新递增判据）；`face.test.ts:32`、`:73`、`:221`（键集按状态）与 `:199`（失败 capsule 去 `blocker:`）；`next.test.ts` 的 TIMEOUT 路由断言；`timeoutCount` 的递增判据改为「`DispatchOutcome.termination` 非空」。
+- 载体 face `work` 已改名 `delivery`：引擎活面零 `"work"` face 字面量残留（`WorkInit` 等非 face 语义词除外并逐处核对）；`HandoffFamily.schema` 注释按载荷形状重写、无 spec 章节号；引擎 vitest 全绿。
 - 引擎 vitest 全绿；`pnpm run validate` ALL PASS；changeset cdd-engine **minor**；不发布。
 
 ## Constraints
@@ -150,3 +159,4 @@ depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟�
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-19 | 初稿——P13 phase-spec：A 组 child 进程生命周期（stdin `ignore` 统一 · 直接子进程退出后进程组回收）+ B 组终止 ⊥ 结论（review 面升格条件 · 升格轮收口 · 不升格轮保持失败面 · 轮号与产物覆盖接受）+ C 组摘要行去伪值与终止时 idle 可见性 + 已知边界（不加第二窗口 · CPU 空转盲区）；D53 Q12 有意收窄到非升格轮；changeset minor。 | Oscar M. · Claude Opus 5（kairos:cdd-design [P13]） |
 | v0.2 | 2026-10-19 | docs-fix round 1（spec-review-1 全裁定落地）：§1.2 补判定 pin 表；§2.2 加进程组回收的 plan 约束与测试 pin；§3.2 明确截断草稿=非法；§3.3 命名 termination 事实的承载（`DispatchOutcome.termination`）、crash record 新字段 `promoted`/`idleMs` 与 schema 家、升格轮记账路径；§4.1 失败 capsule 按状态键集（`capsuleKeys(status)`）与条件 `handoff:` 栏；§4.2 命名 `idleMs`；验收面明确 `detached:` 选项键守卫与 pin 行号。 | Oscar M. · Claude Opus 5（kairos:cdd-fix [P13]） |
+| v0.3 | 2026-10-19 | 开发观测回填（D57 · cdd-dev [P13] wave 3,4 在飞时）：新增 §5 D 组 handoff 载体 face 命名（`work` → `delivery`）与验收条；parent-version 同步 v2.61。 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P13]） |

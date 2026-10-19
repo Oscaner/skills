@@ -210,6 +210,12 @@ export interface CrashRecord {
    *  rides the termination fact in memory (zero re-read of the heartbeat file the
    *  engine itself wrote); the on-disk heartbeat stays for a human's postmortem. */
   lastSample: SampleRecord | null;
+  /** Whether the terminated round's draft was promoted to a conclusion (false on every
+   *  non-terminated record). */
+  promoted: boolean;
+  /** The judge's idle reading (ms) at the termination instant — null when the round
+   *  was not cut short. */
+  idleMs: number | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -517,8 +517,12 @@ export class CliLifecycle {
       // The last sample rides WITH the termination (in memory, zero re-read of the
       // heartbeat file) — null on every non-terminated face.
       lastSample: death.termination?.lastSample ?? null,
+      promoted: false,
+      idleMs: death.termination?.idleMs ?? null,
     });
-    return { status: death.termination === null ? "BLOCKED" : "TIMEOUT" };
+    if (death.termination === null) return { status: "BLOCKED" };
+    const { cause, idleMs, lastSample } = death.termination;
+    return { status: "TIMEOUT", termination: { cause, idleMs, lastSample } };
   }
 
   /** Build the final carrier — the validated writable fields from the draft (the

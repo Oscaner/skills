@@ -314,6 +314,8 @@ describe("crash — the lane-crash recovery record", () => {
         next: "cdd implement --tasks 1",
         cause: "child-exit" as const,
         lastSample: null,
+        promoted: false,
+        idleMs: null,
       };
       ledger.writeCrash("implement", 1, record);
       expect(ledger.readCrash("implement", 1)).toEqual(record);

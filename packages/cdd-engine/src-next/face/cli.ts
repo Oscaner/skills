@@ -650,10 +650,11 @@ export class Cli {
       // (dry-run) and rendered every mid-run closure as `next: done` (the per-step
       // next was already consumed). The ledger-mirrored cursor above + markTerminal
       // together keep one wave phase per invocation.
+      // The timeout counter's call site (§4.2): a round that was cut short lands, the
+      // count goes up by one — driven by the termination fact alone, never the status
+      // word (the counter's only production writer).
+      if (step.termination !== undefined) scene.ledger.incrementTimeoutCount();
       if (lastStatus === "BLOCKED" || lastStatus === "TIMEOUT") {
-        // The timeout counter's call site (§4.2): a TIMEOUT round lands, the count
-        // goes up by one — the counter's only production writer.
-        if (lastStatus === "TIMEOUT") scene.ledger.incrementTimeoutCount();
         for (const line of latest) this.#io.stdout(`${line}\n`);
         return 1;
       }

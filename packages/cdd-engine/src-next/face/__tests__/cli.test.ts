@@ -2258,7 +2258,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
 
   it("a TIMEOUT dispatch — the failure face: exit 1, NO next: line, and progress's timeoutCount increments (§4.2/§4.3)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: async () => ({ status: "TIMEOUT" }),
+      dispatch: async () => ({
+        status: "TIMEOUT",
+        termination: { cause: "stalled", idleMs: 1, lastSample: null },
+      }),
     });
     try {
       gitInit(repoRoot);
@@ -2273,6 +2276,26 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // …and NO next: line (the frozen failure face — a hung round never auto-retries).
       expect(io.stdoutText).not.toContain("next:");
       // §4.2 — the terminated round landed, the counter's only writer fired.
+      expect(ledger.counterOf("timeoutCount")).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a terminated round concluding non-failed still increments timeoutCount and exits 0 — the counter reads the termination fact, not the status word", async () => {
+    const { command, repoRoot, cleanup } = fixture({
+      dispatch: async () => ({
+        status: "APPROVED",
+        termination: { cause: "over-budget", idleMs: 5, lastSample: null },
+      }),
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      expect(code).toBe(0);
       expect(ledger.counterOf("timeoutCount")).toBe(1);
     } finally {
       cleanup();
@@ -4488,7 +4511,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         verdict: "stalled",
       };
       sync.code = null;
-      sync.termination = { cause: "stalled", lastSample };
+      sync.termination = { cause: "stalled", idleMs: 1_800_000, lastSample };
       const dispatch = new HarnessDispatch({
         scene,
         io,
@@ -4497,7 +4520,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(implementFrame);
       // §4.3 — the derived status: a termination ⇒ TIMEOUT (never BLOCKED).
-      expect(outcome).toEqual({ status: "TIMEOUT" });
+      expect(outcome.status).toBe("TIMEOUT");
+      expect(outcome.termination).toEqual({ cause: "stalled", idleMs: 1_800_000, lastSample });
       // The reason rides the CDD_BLOCKED channel with its cause.
       expect(io.stderrText).toContain("CDD_BLOCKED:");
       expect(io.stderrText).toContain("stalled");
@@ -4507,6 +4531,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         stdoutTail: readonly string[];
         stderrTail: readonly string[];
         lastSample: SampleRecord | null;
+        promoted: boolean;
+        idleMs: number | null;
         next: string;
       }>(path.join(scene.workspace.path, "crash-implement.wave-1.json"));
       // The record tells the truth: the killed child has NO exit code (null verbatim,
@@ -4514,6 +4540,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(crash.exitCode).toBeNull();
       expect(crash.cause).toBe("stalled");
       expect(crash.lastSample).toEqual(lastSample);
+      expect(crash.promoted).toBe(false);
+      expect(crash.idleMs).toBe(1_800_000);
       expect(crash.next).toBe("cdd implement --tasks 1 --plan <plan>");
     } finally {
       cleanup();
@@ -4532,7 +4560,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const io = new CaptureIo();
       const sync = new StubRunner();
       sync.code = 143;
-      sync.termination = { cause: "over-budget", lastSample: null };
+      sync.termination = { cause: "over-budget", idleMs: 42, lastSample: null };
       const dispatch = new HarnessDispatch({
         scene,
         io,
@@ -4540,7 +4568,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = await dispatch.step()(implementFrame);
-      expect(outcome).toEqual({ status: "TIMEOUT" });
+      expect(outcome.status).toBe("TIMEOUT");
+      expect(outcome.termination).toEqual({ cause: "over-budget", idleMs: 42, lastSample: null });
       const crash = readJson<{ exitCode: number | null; cause: string }>(
         path.join(scene.workspace.path, "crash-implement.wave-1.json"),
       );

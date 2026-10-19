@@ -204,7 +204,76 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     expect(result.termination?.cause).toBe("signal");
     expect(result.code).toBeNull();
   });
+
+  // Repro (macOS, pre-fix): a child that exits while a grandchild holds the inherited
+  // stdout pipe leaves `await` hanging until the grandchild dies; `ps -g <pgid>` lists
+  // the grandchild, so the engine-owned group covers descendants.
+  it("reads stdin to EOF without hanging", async () => {
+    const root = scratch();
+    const dispatch = runner.run(
+      childRun(root, "sh", ["-c", "cat > /dev/null; echo drained"], new TerminationPolicy(60_000)),
+    );
+    const result = await Promise.race([dispatch, hangAfter(5000)]);
+    expect(result).not.toBe(HUNG);
+    expect((result as ChildOutcome).code).toBe(0);
+    expect((result as ChildOutcome).stdout).toBe("drained\n");
+    expect((result as ChildOutcome).termination).toBeNull();
+  });
+
+  it("reclaims the process group after the direct child exits", async () => {
+    const root = scratch();
+    // An unrelated bystander in its own group — it must survive the reclaim.
+    const bystander = spawn("sleep", ["60"], { detached: true, stdio: "ignore" });
+    bystander.unref();
+    let grandchild = 0;
+    try {
+      const dispatch = runner.run(
+        childRun(
+          root,
+          "sh",
+          ["-c", "sleep 60 & echo $! > gpid.txt; exit 0"],
+          new TerminationPolicy(60_000),
+        ),
+      );
+      const result = await Promise.race([dispatch, hangAfter(5000)]);
+      grandchild = Number(readFileSync(path.join(root, "gpid.txt"), "utf8").trim());
+      expect(result).not.toBe(HUNG);
+      // The child ended by itself: no termination fact.
+      expect((result as ChildOutcome).code).toBe(0);
+      expect((result as ChildOutcome).termination).toBeNull();
+      await waitUntilDead(grandchild);
+      expect(isAlive(grandchild)).toBe(false);
+      expect(isAlive(bystander.pid as number)).toBe(true);
+    } finally {
+      if (grandchild > 0 && isAlive(grandchild)) process.kill(grandchild, "SIGKILL");
+      bystander.kill("SIGKILL");
+    }
+  });
 });
+
+const HUNG = Symbol("hung");
+
+/** Resolves to `HUNG` after `ms` — the bounded stand-in for an `await` that never ends. */
+const hangAfter = (ms: number): Promise<symbol> =>
+  new Promise((resolve) => {
+    setTimeout(() => resolve(HUNG), ms).unref();
+  });
+
+const isAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const waitUntilDead = async (pid: number): Promise<void> => {
+  const deadline = Date.now() + 3000;
+  while (isAlive(pid) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+};
 
 // ---------------------------------------------------------------------------
 // the derivation — the four-way table (§4.1)
@@ -233,6 +302,7 @@ describe("Terminator.terminationOf — the four-way derivation and its priority 
     killedByStall: false,
     signal: undefined as string | undefined,
     isTerminated: false,
+    idleMs: 1234,
     ...overrides,
   });
 
@@ -279,7 +349,7 @@ describe("Terminator.terminationOf — the four-way derivation and its priority 
 
   for (const { label, facts, cause } of table) {
     it(label, () => {
-      expect(derive(facts)).toEqual({ cause, lastSample });
+      expect(derive(facts)).toEqual({ cause, idleMs: 1234, lastSample });
     });
   }
 
@@ -291,6 +361,7 @@ describe("Terminator.terminationOf — the four-way derivation and its priority 
     const facts = { ...face({ isTerminated: true }), lastSample: null };
     expect(Terminator.terminationOf(facts)).toEqual({
       cause: "unknown",
+      idleMs: 1234,
       lastSample: null,
     });
   });

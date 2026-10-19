@@ -39,6 +39,8 @@ import type {
  *  is the unattributable fallback of the derivation. */
 export interface Termination {
   cause: TerminationCause | "unknown";
+  /** The judge's idle reading (ms) at the termination instant. */
+  idleMs: number;
   lastSample: SampleRecord | null;
 }
 
@@ -51,6 +53,7 @@ export interface TerminationFacts {
   killedByStall: boolean;
   signal: string | undefined;
   isTerminated: boolean;
+  idleMs: number;
   lastSample: SampleRecord | null;
 }
 
@@ -171,6 +174,12 @@ export class StallJudge {
   constructor(idleWindowMs: number, spawnedAt: number) {
     this.#idleWindowMs = idleWindowMs;
     this.#idleSince = spawnedAt;
+  }
+
+  /** The idle time (ms) at `now` — how long since the last progress (the spawn instant
+   *  until the first one). */
+  idleMs(now: number): number {
+    return Math.max(0, now - this.#idleSince);
   }
 
   /** Judge one tick: feed the tick's sample and the instant it was taken. */
@@ -387,6 +396,11 @@ class SamplingLoop {
     return this.#last;
   }
 
+  /** The judge's idle reading (ms) at this instant — the termination fact's idle time. */
+  idleMs(): number {
+    return this.#judge.idleMs(Date.now());
+  }
+
   /** End the loop at the dispatch's terminal state: the cadence stops, and the
    *  heartbeat is removed iff the round ended by itself — a terminated round's file
    *  stays for a human's postmortem. */
@@ -468,9 +482,19 @@ export class Terminator implements ChildRunner {
       cwd: run.cwd,
       reject: false,
       stripFinalNewline: false,
+      // fd 0 on /dev/null: a child that reads stdin sees EOF at once, never a pipe nobody closes.
+      stdin: "ignore",
       killDescendants: true,
       forceKillAfterDelay: Terminator.FORCE_KILL_AFTER_DELAY_MS,
       timeout: run.policy.budgetMs,
+    });
+    // Reclaim the group the instant the direct child exits: a grandchild holding the stdout
+    // / stderr pipes would otherwise keep the `await` open. No execa option does this (its
+    // group kill is on-demand only), so execa's own group-aware `kill()` is called once, at
+    // the `exit` event — while the group is still reserved by its live members, so the
+    // pgid cannot have been reused, and never on a group the engine does not own.
+    subprocess.nodeChildProcess.once("exit", () => {
+      subprocess.kill();
     });
     const sampling = this.#startSampling(run, subprocess.pid, spawnedAt, () => {
       // The engine's own group kill — execa kills the process group and escalates
@@ -490,6 +514,7 @@ export class Terminator implements ChildRunner {
         killedByStall,
         signal: result.signal,
         isTerminated: result.isTerminated,
+        idleMs: sampling?.idleMs() ?? 0,
         lastSample: sampling?.lastSample() ?? null,
       });
       endedByItself = termination === null;
@@ -563,11 +588,11 @@ export class Terminator implements ChildRunner {
    *  signalled and read `stalled` — the idle verdict, not the kill landing, is the
    *  criterion. */
   static terminationOf(facts: TerminationFacts): Termination | null {
-    const { timedOut, killedByStall, signal, isTerminated, lastSample } = facts;
-    if (timedOut) return { cause: "over-budget", lastSample };
-    if (killedByStall) return { cause: "stalled", lastSample };
-    if (signal !== undefined) return { cause: "signal", lastSample };
-    if (isTerminated) return { cause: "unknown", lastSample };
+    const { timedOut, killedByStall, signal, isTerminated, idleMs, lastSample } = facts;
+    if (timedOut) return { cause: "over-budget", idleMs, lastSample };
+    if (killedByStall) return { cause: "stalled", idleMs, lastSample };
+    if (signal !== undefined) return { cause: "signal", idleMs, lastSample };
+    if (isTerminated) return { cause: "unknown", idleMs, lastSample };
     return null;
   }
 }

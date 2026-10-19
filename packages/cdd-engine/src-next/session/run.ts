@@ -27,6 +27,8 @@ import {
   type OpType,
   type RoundFinding,
   type RoundStatus,
+  type SampleRecord,
+  type TerminationCause,
 } from "./ledger.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
@@ -106,6 +108,13 @@ export interface DispatchOutcome {
    *  finalized, the engine stays the single author). Absent for the hermetic /
    *  injected dispatchers — the bookkeep builds the carrier from the outcome fields. */
   carrier?: Record<string, unknown>;
+  /** The termination fact — present iff the round was cut short; a fact orthogonal to
+   *  the conclusion (the status still derives from the handoff). */
+  termination?: {
+    cause: TerminationCause | "unknown";
+    idleMs: number;
+    lastSample: SampleRecord | null;
+  };
 }
 
 /** The dispatch instruction — runs one round's actual work (the harness call in
@@ -149,6 +158,9 @@ export interface StepResult {
    *  gate blocked the frame before ANY child dispatch (absent on ordinary steps).
    *  The refused frame is NOT recorded — the frontier re-offers it (resume). */
   preflight?: PreFlightVerdict;
+  /** The step's termination fact, passed through from the dispatch outcome (absent
+   *  when the round ended by itself). */
+  termination?: DispatchOutcome["termination"];
 }
 
 /**
@@ -272,6 +284,7 @@ export class Lifecycle {
       round,
       route,
       capsuleLines: this.#capsuleLines(frame, outcome, route),
+      termination: outcome.termination,
     };
   }
 

@@ -18,7 +18,7 @@
 // behavior-carrying bare functions.
 
 import { execFileSync } from "node:child_process";
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
 import type { RoundPhase, TerminationCause } from "../session/ledger.ts";
@@ -333,6 +333,95 @@ export class Sampler {
 }
 
 // ---------------------------------------------------------------------------
+// the sampling loop — the dispatch's heartbeat trail (§3.4)
+// ---------------------------------------------------------------------------
+
+/** The sampling loop of one dispatch — the cadence that wraps the running child: one
+ *  sample the moment the child is spawned, then one per `intervalMs`. Each tick reads
+ *  the two legs through the `Sampler`, has the `StallJudge` rule on them, and
+ *  overwrites the dispatch's heartbeat file with the resulting `SampleRecord` — the
+ *  trail a human reads after a round was cut short.
+ *
+ *  The interval is unref'd: the engine's own sampling must never be the reason the
+ *  parent process stays alive (the dispatch awaits the child, not the cadence). The
+ *  heartbeat write is a plain overwrite, deliberately NOT a write-then-rename: a
+ *  temporary file would sit inside the scanned tree and its own creation would certify
+ *  "progress" — the very self-report the exclusion exists to prevent. Both the write
+ *  and the removal are fail-open: the trail is a diagnostic, never a dispatch's fate.
+ *
+ *  The last observation is held in memory (`lastSample`): a terminated round's crash
+ *  record takes it from there, never by re-reading the file the engine itself wrote. */
+class SamplingLoop {
+  readonly #sampler: Sampler;
+  readonly #judge: StallJudge;
+  readonly #heartbeatPath: string;
+  readonly #intervalMs: number;
+  /** The most recent observation — the postmortem sample of a terminated round. */
+  #last: SampleRecord | null = null;
+  #timer: ReturnType<typeof setInterval> | null = null;
+
+  constructor(options: {
+    sampler: Sampler;
+    judge: StallJudge;
+    heartbeatPath: string;
+    intervalMs: number;
+  }) {
+    this.#sampler = options.sampler;
+    this.#judge = options.judge;
+    this.#heartbeatPath = options.heartbeatPath;
+    this.#intervalMs = options.intervalMs;
+  }
+
+  /** Sample at once (the spawn instant has just passed — a round is never observed
+   *  only from the first interval on) and start the cadence. */
+  start(): void {
+    this.#tick(Date.now());
+    this.#timer = setInterval(() => this.#tick(Date.now()), this.#intervalMs);
+    // Never hold the parent process open for the engine's own sampling.
+    this.#timer.unref();
+  }
+
+  /** The loop's last observation (null when no tick was ever taken) — the sample a
+   *  terminated round's crash record carries, from memory. */
+  lastSample(): SampleRecord | null {
+    return this.#last;
+  }
+
+  /** End the loop at the dispatch's terminal state: the cadence stops, and the
+   *  heartbeat is removed iff the round ended by itself — a terminated round's file
+   *  stays for a human's postmortem. */
+  stop(endedByItself: boolean): void {
+    if (this.#timer !== null) {
+      clearInterval(this.#timer);
+      this.#timer = null;
+    }
+    if (!endedByItself) return;
+    try {
+      rmSync(this.#heartbeatPath, { force: true });
+    } catch {
+      // Fail-open (see the class doc).
+    }
+  }
+
+  /** One tick: read both legs, judge them, and overwrite the heartbeat record. */
+  #tick(now: number): void {
+    const sample = this.#sampler.probe();
+    const record: SampleRecord = {
+      sampledAt: now,
+      groupCpuMs: sample.groupCpuMs,
+      newestMtimeMs: sample.newestMtimeMs,
+      verdict: this.#judge.observe(sample, now),
+    };
+    this.#last = record;
+    try {
+      writeFileSync(this.#heartbeatPath, `${JSON.stringify(record, null, 2)}\n`, "utf8");
+    } catch {
+      // Fail-open (see the class doc): an unwritable heartbeat slows nothing down.
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // the production runner — execa's asynchronous face
 // ---------------------------------------------------------------------------
 
@@ -349,7 +438,10 @@ export class Sampler {
  *   · `reject: false` + `stripFinalNewline: false` — the fail-open result face, the
  *     child's stdout kept byte-verbatim;
  *   · `maxBuffer` is never set or lowered — execa's own 100 MB default is the
- *     unbounded-face successor of the retired fixed 1 MiB cap.
+ *     unbounded-face successor of the retired fixed 1 MiB cap;
+ *   · the sampling loop — the child is sampled from the spawn instant and every
+ *     `policy.sampleIntervalMs` after (the heartbeat file is that loop's trail, and
+ *     the judge's verdict rides every record).
  *  The class holds zero session state: everything a dispatch needs rides the
  *  `ChildRun` argument, so the composition root wires it without a scene. */
 export class Terminator implements ChildRunner {
@@ -358,7 +450,9 @@ export class Terminator implements ChildRunner {
   static readonly FORCE_KILL_AFTER_DELAY_MS = 5000;
 
   async run(run: ChildRun): Promise<ChildOutcome> {
-    const result = await execa(run.command, [...run.args], {
+    // The spawn instant seeds the judge's idle clock (§3.3).
+    const spawnedAt = Date.now();
+    const subprocess = execa(run.command, [...run.args], {
       cwd: run.cwd,
       reject: false,
       stripFinalNewline: false,
@@ -366,28 +460,71 @@ export class Terminator implements ChildRunner {
       forceKillAfterDelay: Terminator.FORCE_KILL_AFTER_DELAY_MS,
       timeout: run.policy.budgetMs,
     });
-    return {
-      // The child's OWN exit code, unfolded: null means "never spawned / signalled",
-      // never a fabricated 1 (which would misreport both as an ordinary failed run).
-      code: result.exitCode ?? null,
-      stdout: result.stdout,
-      // The child's own stderr when it wrote one, else execa's diagnostic (a spawn
-      // failure like ENOENT writes nothing, so its reason rides the `shortMessage` —
-      // the fail-open face keeps a reason text, never an empty block).
-      stderr: result.stderr || (result.failed ? (result.shortMessage ?? "") : ""),
-      termination: Terminator.#terminationOf(result.timedOut, result.signal),
-    };
+    const sampling = this.#startSampling(run, subprocess.pid, spawnedAt);
+    // The round's heartbeat fate — terminated by default, so an unexpected throw keeps
+    // the trail as well; a round that ends by itself leaves no file behind.
+    let endedByItself = false;
+    try {
+      const result = await subprocess;
+      const termination = Terminator.#terminationOf(
+        result.timedOut,
+        result.signal,
+        sampling?.lastSample() ?? null,
+      );
+      endedByItself = termination === null;
+      return {
+        // The child's OWN exit code, unfolded: null means "never spawned / signalled",
+        // never a fabricated 1 (which would misreport both as an ordinary failed run).
+        code: result.exitCode ?? null,
+        stdout: result.stdout,
+        // The child's own stderr when it wrote one, else execa's diagnostic (a spawn
+        // failure like ENOENT writes nothing, so its reason rides the `shortMessage` —
+        // the fail-open face keeps a reason text, never an empty block).
+        stderr: result.stderr || (result.failed ? (result.shortMessage ?? "") : ""),
+        termination,
+      };
+    } finally {
+      // The cadence never outlives the dispatch.
+      sampling?.stop(endedByItself);
+    }
+  }
+
+  /** Start the dispatch's sampling loop, or null when the child never spawned (a
+   *  broken command has no pid: nothing to sample and nothing to postmortem). The
+   *  group id is the child's OWN pid, never recomputed — `killDescendants` forces the
+   *  spawn-layer detachment, so the child IS its process group leader (the same fact
+   *  execa's own group kill rides); the scan root is the same `cwd` the child was
+   *  spawned in. */
+  #startSampling(run: ChildRun, pid: number | undefined, spawnedAt: number): SamplingLoop | null {
+    if (pid === undefined) return null;
+    const sampling = new SamplingLoop({
+      sampler: new Sampler({
+        pgid: pid,
+        scanRoot: run.cwd,
+        exclude: Sampler.excludesFor(run.cwd, run.heartbeatPath),
+      }),
+      judge: new StallJudge(run.policy.idleWindowMs, spawnedAt),
+      heartbeatPath: run.heartbeatPath,
+      intervalMs: run.policy.sampleIntervalMs,
+    });
+    sampling.start();
+    return sampling;
   }
 
   /** Derive the termination fact from the child's own result face — the wall-clock
    *  ceiling first (execa's `timedOut`), then a signal (any signal: the external-kill
    *  semantic, never the SIGTERM literal). Neither → the round ended by itself
    *  (successfully or not), so there is no termination. The engine's own stall kill
-   *  takes its place in this derivation ahead of the signal leg; no sampler drives it
-   *  yet, so the two execa-owned legs are the whole derivation today. */
-  static #terminationOf(timedOut: boolean, signal: string | undefined): Termination | null {
-    if (timedOut) return { cause: "over-budget", lastSample: null };
-    if (signal !== undefined) return { cause: "signal", lastSample: null };
+   *  takes its place in this derivation ahead of the signal leg. The last sample rides
+   *  whichever cause won: it is the sampling loop's own last observation, held in
+   *  memory — never a re-read of the heartbeat file the engine itself wrote. */
+  static #terminationOf(
+    timedOut: boolean,
+    signal: string | undefined,
+    lastSample: SampleRecord | null,
+  ): Termination | null {
+    if (timedOut) return { cause: "over-budget", lastSample };
+    if (signal !== undefined) return { cause: "signal", lastSample };
     return null;
   }
 }

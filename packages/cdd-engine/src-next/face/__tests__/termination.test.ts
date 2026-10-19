@@ -16,11 +16,16 @@
 // The stall face's own pins live here too (spec §3.3): the judge's four-state truth
 // table (pure, window injected — the production window would make a case wait out the
 // real half hour) and the sampler's two legs (a real process group and a scratch tree).
+// The sampling loop's pins close the face (§3.4): every dispatch's heartbeat trail —
+// sampled at once, overwritten per tick, removed at a normal end, kept when the round
+// was terminated.
 
 import { spawn } from "node:child_process";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -31,24 +36,34 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  type ChildOutcome,
   type ChildRun,
   type Sample,
+  type SampleRecord,
   Sampler,
   StallJudge,
   TerminationPolicy,
   Terminator,
 } from "../termination.ts";
 
-/** One production-shaped child run — the phase's own policy, a scratch cwd and the
- *  heartbeat path the sampler (T3) writes; this suite never samples, so the paths
- *  are inert. */
-const childRun = (command: string, args: readonly string[]): ChildRun => ({
+/** One production-shaped child run over a scratch root — the child's cwd is the tree
+ *  leg's scan root, and the heartbeat lands inside it (the production wiring: the two
+ *  paths share one source, the dispatch's workspace). */
+const childRun = (
+  root: string,
+  command: string,
+  args: readonly string[],
+  policy: TerminationPolicy = TerminationPolicy.of("implement"),
+): ChildRun => ({
   command,
   args,
-  cwd: process.cwd(),
-  heartbeatPath: `${process.cwd()}/liveness.json`,
-  policy: TerminationPolicy.of("implement"),
+  cwd: root,
+  heartbeatPath: heartbeatOf(root),
+  policy,
 });
+
+/** The heartbeat path of a scratch dispatch (`childRun`'s own derivation). */
+const heartbeatOf = (root: string): string => path.join(root, "liveness.json");
 
 describe("Terminator — the asynchronous child-channel collection (spec §14 · D36)", () => {
   const runner = new Terminator();
@@ -57,7 +72,7 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     // 1 MiB + 1 byte of 'x' — the byte count that trips the retired default
     // output-buffer cap; every byte must arrive.
     const result = await runner.run(
-      childRun("sh", ["-c", "head -c 1048577 /dev/zero | tr '\\0' x"]),
+      childRun(scratch(), "sh", ["-c", "head -c 1048577 /dev/zero | tr '\\0' x"]),
     );
     expect(result.code).toBe(0);
     expect(result.stdout.length).toBe(1048577);
@@ -69,7 +84,7 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     // contract: plain sentences, no key-value lines) — the exact W1 incident shape
     // (work fine, tail lost). The closing lines MUST reach.
     const result = await runner.run(
-      childRun("sh", [
+      childRun(scratch(), "sh", [
         "-c",
         "head -c 2000000 /dev/zero | tr '\\0' x; printf '\\nThe round succeeded; every check is green.\\nThe handoff draft is the machine-readable result.\\n'",
       ]),
@@ -82,7 +97,7 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
 
   it("aggregates stderr by the same streaming face", async () => {
     const result = await runner.run(
-      childRun("sh", ["-c", "head -c 1100000 /dev/zero | tr '\\0' e >&2"]),
+      childRun(scratch(), "sh", ["-c", "head -c 1100000 /dev/zero | tr '\\0' e >&2"]),
     );
     expect(result.code).toBe(0);
     expect(result.stderr.length).toBe(1100000);
@@ -90,14 +105,14 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
   });
 
   it("stays fail-open — a non-zero child rides its code, a broken command never throws", async () => {
-    const nonZero = await runner.run(childRun("sh", ["-c", "echo partial; exit 7"]));
+    const nonZero = await runner.run(childRun(scratch(), "sh", ["-c", "echo partial; exit 7"]));
     expect(nonZero.code).toBe(7);
     expect(nonZero.stdout).toBe("partial\n");
     expect(nonZero.termination).toBeNull();
     // A broken command never spawned: it has no exit code (null, never the retired
     // folded `1`), no signal event — so it is NOT a termination, and it is reported
     // with a reason text (execa's own diagnostic) on stderr.
-    const broken = await runner.run(childRun("cdd-no-such-binary-xyz", []));
+    const broken = await runner.run(childRun(scratch(), "cdd-no-such-binary-xyz", []));
     expect(broken.code).toBeNull();
     expect(broken.stdout).toBe("");
     expect(broken.stderr.length).toBeGreaterThan(0);
@@ -109,10 +124,9 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     // never invents a second clock): a policy whose budget has already elapsed
     // terminates the sleeping child on execa's own kill path, and the outcome
     // reports the termination fact rather than a fabricated exit code.
-    const result = await runner.run({
-      ...childRun("sh", ["-c", "sleep 30"]),
-      policy: new TerminationPolicy(200),
-    });
+    const result = await runner.run(
+      childRun(scratch(), "sh", ["-c", "sleep 30"], new TerminationPolicy(200)),
+    );
     expect(result.termination).not.toBeNull();
     expect(result.termination?.cause).toBe("over-budget");
     expect(result.code).toBeNull();
@@ -328,5 +342,146 @@ describe("Sampler — the two legs (spec §3.3)", () => {
     } finally {
       reap(pid);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the sampling loop — the dispatch's heartbeat trail (§3.4)
+// ---------------------------------------------------------------------------
+
+/** The heartbeat file as the engine last wrote it — a reader racing an overwrite can
+ *  catch a partial file, so an unparsable read is "no observation", never a crash. */
+const readHeartbeat = (target: string): SampleRecord | null => {
+  try {
+    return JSON.parse(readFileSync(target, "utf8")) as SampleRecord;
+  } catch {
+    return null;
+  }
+};
+
+/** Watch a dispatch's heartbeat while it runs: the terminal cleanup removes the file
+ *  at a normal end, so the mid-dispatch face is the only place a tick is visible.
+ *  Polls until the dispatch settles and returns every distinct record it saw (keyed by
+ *  the tick's own `sampledAt`, so a repeated read of one tick collapses). */
+const watchHeartbeat = async (
+  dispatch: Promise<ChildOutcome>,
+  target: string,
+): Promise<{ result: ChildOutcome; records: SampleRecord[] }> => {
+  const seen = new Map<number, SampleRecord>();
+  let settled = false;
+  const poll = (async () => {
+    while (!settled) {
+      const record = readHeartbeat(target);
+      if (record !== null) seen.set(record.sampledAt, record);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  })();
+  try {
+    const result = await dispatch;
+    return { result, records: [...seen.values()] };
+  } finally {
+    settled = true;
+    await poll;
+  }
+};
+
+describe("SamplingLoop — the dispatch's heartbeat trail (spec §3.4)", () => {
+  const runner = new Terminator();
+
+  it("takes a sample the moment the child is spawned — not only from the first interval on", async () => {
+    const root = scratch();
+    plant(root, "work.md", EPOCH + 10);
+    // The cadence (60 s) outlives this child many times over: any record at all can
+    // only be the immediate first sample.
+    const { result, records } = await watchHeartbeat(
+      runner.run(
+        childRun(root, "sh", ["-c", "sleep 0.4"], new TerminationPolicy(60_000, 60_000, 60_000)),
+      ),
+      heartbeatOf(root),
+    );
+    expect(result.termination).toBeNull();
+    expect(records.length).toBe(1);
+  });
+
+  it("overwrites the heartbeat once per tick — the four-field SampleRecord", async () => {
+    const root = scratch();
+    const planted = statSync(plant(root, "work.md", EPOCH + 10)).mtimeMs;
+    const { result, records } = await watchHeartbeat(
+      runner.run(
+        childRun(root, "sh", ["-c", "sleep 0.8"], new TerminationPolicy(60_000, 60_000, 60)),
+      ),
+      heartbeatOf(root),
+    );
+    expect(result.termination).toBeNull();
+    // Several ticks of the declared 60 ms cadence fall inside the child's 800 ms.
+    expect(records.length).toBeGreaterThanOrEqual(3);
+    // Every observed tick is at least one interval after the previous one: the cadence
+    // IS the policy's `sampleIntervalMs`.
+    for (let index = 1; index < records.length; index += 1) {
+      expect(records[index].sampledAt - records[index - 1].sampledAt).toBeGreaterThanOrEqual(50);
+    }
+    for (const record of records) {
+      expect(Object.keys(record).sort()).toEqual([
+        "groupCpuMs",
+        "newestMtimeMs",
+        "sampledAt",
+        "verdict",
+      ]);
+      expect(["progress", "unknown", "idled", "stalled"]).toContain(record.verdict);
+    }
+    // The two legs are readable in this fixture (a real detached group, a real tree)…
+    expect(records[0].groupCpuMs).not.toBeNull();
+    // …and the engine's OWN heartbeat never enters the mtime leg: one tick's overwrite
+    // is not progress, however many ticks run (the §3.3 exclusion, wired end to end).
+    expect(records.every((record) => record.newestMtimeMs === planted)).toBe(true);
+  });
+
+  it("removes the heartbeat when the round ends by itself", async () => {
+    const root = scratch();
+    plant(root, "work.md", EPOCH + 10);
+    const heartbeat = heartbeatOf(root);
+    const { result, records } = await watchHeartbeat(
+      runner.run(
+        childRun(root, "sh", ["-c", "sleep 0.3"], new TerminationPolicy(60_000, 60_000, 60)),
+      ),
+      heartbeat,
+    );
+    expect(result.termination).toBeNull();
+    // The trail existed while the child ran…
+    expect(records.length).toBeGreaterThanOrEqual(1);
+    // …and is gone once the round ended by itself.
+    expect(existsSync(heartbeat)).toBe(false);
+  });
+
+  it("keeps the heartbeat when the round was terminated — the human's postmortem", async () => {
+    const root = scratch();
+    plant(root, "work.md", EPOCH + 10);
+    const heartbeat = heartbeatOf(root);
+    const { result } = await watchHeartbeat(
+      runner.run(childRun(root, "sh", ["-c", "sleep 30"], new TerminationPolicy(300, 60_000, 60))),
+      heartbeat,
+    );
+    expect(result.termination?.cause).toBe("over-budget");
+    expect(result.code).toBeNull();
+    // The file stays for a human to read…
+    expect(existsSync(heartbeat)).toBe(true);
+    const onDisk = readHeartbeat(heartbeat);
+    expect(Object.keys(onDisk ?? {}).sort()).toEqual([
+      "groupCpuMs",
+      "newestMtimeMs",
+      "sampledAt",
+      "verdict",
+    ]);
+    // …and the round's last sample rode the termination in memory — the same
+    // observation, never a re-read of the file the engine itself wrote.
+    expect(result.termination?.lastSample).toEqual(onDisk);
+  });
+
+  it("writes no heartbeat when the child never spawned — nothing to sample", async () => {
+    const root = scratch();
+    plant(root, "work.md", EPOCH + 10);
+    const result = await runner.run(childRun(root, "cdd-no-such-binary-xyz", []));
+    expect(result.termination).toBeNull();
+    expect(existsSync(heartbeatOf(root))).toBe(false);
   });
 });

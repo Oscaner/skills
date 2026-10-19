@@ -459,9 +459,10 @@ export class Terminator implements ChildRunner {
   async run(run: ChildRun): Promise<ChildOutcome> {
     // The spawn instant seeds the judge's idle clock (§3.3).
     const spawnedAt = Date.now();
-    // The engine's own stall kill — set by the sampling loop's trigger the moment the
-    // judge rules `stalled`; the derivation reads it to attribute the kill (the
-    // signal execa reports for OUR kill would otherwise read as an external one).
+    // The engine's own stall kill — set by the sampling loop's trigger when the
+    // judge rules `stalled` AND the kill is delivered; the derivation reads it to
+    // attribute the kill (the signal execa reports for OUR kill would otherwise
+    // read as an external one).
     let killedByStall = false;
     const subprocess = execa(run.command, [...run.args], {
       cwd: run.cwd,
@@ -472,10 +473,12 @@ export class Terminator implements ChildRunner {
       timeout: run.policy.budgetMs,
     });
     const sampling = this.#startSampling(run, subprocess.pid, spawnedAt, () => {
-      killedByStall = true;
       // The engine's own group kill — execa kills the process group and escalates
       // SIGTERM → SIGKILL after the grace. No signal logic of the engine's own.
-      subprocess.kill();
+      // The flag records DELIVERY, not intent: `kill()` returns false when the signal
+      // could not be sent (the child already exited), so a round that ended by itself
+      // in the same tick is not misattributed as `stalled`.
+      if (subprocess.kill()) killedByStall = true;
     });
     // The round's heartbeat fate — terminated by default, so an unexpected throw keeps
     // the trail as well; a round that ends by itself leaves no file behind.
@@ -553,9 +556,12 @@ export class Terminator implements ChildRunner {
    *  observation, held in memory — never a re-read of the heartbeat file the engine
    *  itself wrote.
    *
-   *  Known boundary: `killedByStall` is set the instant the judge rules `stalled`, so a
-   *  child that ends by itself within that same tick still records `stalled` — the
-   *  criterion is the idle verdict, not the kill landing. */
+   *  `killedByStall` records that OUR kill was delivered (execa's `kill()` returns
+   *  false when the signal could not be sent — a child that already exited is not
+   *  attributed here). Residual boundary: a child that exits within the same tick
+   *  while its process group still exists (a zombie not yet reaped) can still be
+   *  signalled and read `stalled` — the idle verdict, not the kill landing, is the
+   *  criterion. */
   static terminationOf(facts: TerminationFacts): Termination | null {
     const { timedOut, killedByStall, signal, isTerminated, lastSample } = facts;
     if (timedOut) return { cause: "over-budget", lastSample };

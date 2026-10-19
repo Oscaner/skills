@@ -482,8 +482,10 @@ export class Terminator implements ChildRunner {
     // Reclaim the group the instant the direct child exits: a grandchild holding the stdout
     // / stderr pipes would otherwise keep the `await` open. No execa option does this (its
     // group kill is on-demand only), so execa's own group-aware `kill()` is called once, at
-    // the `exit` event — while the group is still reserved by its live members, so the
-    // pgid cannot have been reused, and never on a group the engine does not own.
+    // the `exit` event, and only on the group the engine created (`killDescendants`). With
+    // live members the pgid is still reserved; with none (no grandchild) the kill is a no-op
+    // unless the pgid was reused inside a vanishingly small window. Every ordinary child exit in
+    // termination.test.ts (no grandchild) passes through this kill.
     subprocess.nodeChildProcess.once("exit", () => {
       subprocess.kill();
     });

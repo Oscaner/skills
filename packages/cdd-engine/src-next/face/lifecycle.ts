@@ -466,7 +466,7 @@ export class CliLifecycle {
    *  remains the carrier's single author). A missing or schema-violating draft →
    *  BLOCK over the CDD_BLOCKED channel + a crash record + the draft untouched
    *  (on failure, no overwrite — the child's work is never clobbered; resume re-runs the same
-   *  command, which re-offers the round). The test-evidence file (task-family work
+   *  command, which re-offers the round). The test-evidence file (task-family delivery
    *  rounds only) is read back with the same stakes: a missing/violating file
    *  rewrites the carrier to BLOCKED (persisted — the child's work is kept, marked
    *  bad), the second fix for a prose-only claim.
@@ -518,14 +518,14 @@ export class CliLifecycle {
     // T2 — the face-aware read: the findings face ALONE reads `draft.findings` (its
     // own declared required field — rolled up to the conclusion); the delivery face
     // derives its status from the draft's declared status, never the findings plane
-    // (the work writable subset declares no findings field — zero findings read).
+    // (the delivery writable subset declares no findings field — zero findings read).
     // The conclusion rides the ONE source (`HandoffSchema.conclusionOf`) the ledger
-    // legs read too — the reconstruct never rules a work status by a second path.
+    // legs read too — the reconstruct never rules a delivery status by a second path.
     const findings =
       face === "findings" ? (Array.isArray(draft.findings) ? draft.findings : []) : [];
     // A validated draft's conclusion is total: the findings face rolls up its own
     // required findings, and the delivery face's `status` passed the `required` gate above
-    // — so the `?? "BLOCKED"` never fires here (a work draft without a status never
+    // — so the `?? "BLOCKED"` never fires here (a delivery draft without a status never
     // reaches this line; the absent→undefined case exists only for on-disk legacy
     // carriers the ledger reads back, never a schema-validated draft).
     let status: RoundStatus = schema.conclusionOf(face, draft) ?? "BLOCKED";
@@ -670,7 +670,7 @@ export class CliLifecycle {
     // The per-face carrier — buildHandoff's typed overloads: the findings face REQUIRES
     // its findings payload (the schema-required field — cli.test pins the review
     // carrier's findings + status), the delivery face builds a findings-FREE typed carrier
-    // (the work writable subset declares no findings field — the materialized work
+    // (the delivery writable subset declares no findings field — the materialized delivery
     // carrier carries zero findings keys). `Record<string, unknown>` local: the round
     // conclusion (status — a RoundStatus, wider than the carrier's declared union) and
     // the engine's extended fields ride the caller's set below.
@@ -696,7 +696,7 @@ export class CliLifecycle {
       if (typeof draft.failure_category === "string")
         carrier.failure_category = draft.failure_category;
       // The evidence-contract override (delivery faces only — the evidence gate reads a
-      // work round's evidence file) rewrites the persisted conclusion to BLOCKED.
+      // delivery round's evidence file) rewrites the persisted conclusion to BLOCKED.
       if (reason !== null) {
         carrier.status = "BLOCKED";
         carrier.failure_category = "evidence-contract";

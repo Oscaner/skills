@@ -1,12 +1,12 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P12 设计：child dispatch 终止兜底（liveness + budget）
 doc-type: phase-spec
-version: v0.4
+version: v0.5
 date: 2026-10-19
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P12] 会话 · 用户逐轮裁定 Q1–Q14 · 2026-10-19）
 parent-program: 2026-10-10-engine-doc-tooling-overall.md
-parent-version: v2.56
+parent-version: v2.57
 depends-on: P11（Done · v0.7 · hard——P11 全链闭合后 child dispatch 终止兜底 · overall 依赖图 D52）
 ---
 
@@ -147,7 +147,9 @@ execa(command, args, {
 
 #### 3.3 stall 判官
 
-**`StallJudge`**（纯逻辑类 · 可注入时序）：输入上一样本 / 本样本 + `idleWindowMs`，输出四态之一的 `StallVerdict`。
+**`StallJudge`**（纯逻辑类 · **零 I/O · 有状态** · 窗口与节奏皆可注入）：判官不是"两个样本的纯比较"，而是一次派发期间的**运行判断**——它自持累加态，观测入口 `observe(sample: Sample, now: number): StallVerdict`，逐 tick 喂入样本、返回四态之一。
+
+`Sample = { groupCpuMs: number | null; newestMtimeMs: number | null }`——`null` = 该腿不可读；字段名与 §3.4 的心跳记录面**同一处命名**（一处命名、两处引用）。判官自持的累加态：`#lastCpuMs`（上一次观测的进程组 CPU）· `#maxMtimeMs`（历史最大 mtime）· `#idleSince`（最近一次"有进展"的时刻，首采置为 spawn 时刻）。
 
 ```
 progress | unknown | idled | stalled
@@ -157,9 +159,9 @@ progress | unknown | idled | stalled
 
 - **两条腿**：CPU 腿 = 进程组累计 CPU（ms）· 树腿 = **repoRoot** 工作树最新文件 mtime（ms，排除项见下）。
 - **可测性**：**两条腿都必须可读**才判；任一条不可读 → **`unknown` → 永不杀**（fail-open：未知不等于僵死）。
-- **有进展**：CPU 比**上一样本**增长 **或** mtime 比**历史最大值**增长 → 重置 idle 起点 → `progress`。
-- **无进展但未到期**：`now - idleSince < idleWindowMs` → `idled`。
-- **无进展且到期**：`now - idleSince >= idleWindowMs` → **`stalled` → 砍**。
+- **有进展**：CPU 比**上一次观测**（`#lastCpuMs`）增长 **或** mtime 比**历史最大值**（`#maxMtimeMs`）增长 → 重置 `#idleSince` → `progress`。
+- **无进展但未到期**：`now - #idleSince < idleWindowMs` → `idled`。
+- **无进展且到期**：`now - #idleSince >= idleWindowMs` → **`stalled` → 砍**。
 
 **明确否决的备选**：以 child 的 stdout / 输出活动为信号。`claude -p` 完全可以长时间静默思考——用输出当"有进展"会**误杀好 child**。CPU + mtime 是"在真干活"的**正面证据**。
 
@@ -272,3 +274,4 @@ export type CrashCause = TerminationCause | "child-exit" | "contract-violation" 
 | v0.2 | 2026-10-19 | docs-fix round 1——落实评审 1 blocker / 3 warn / 2 nit：（blocker）§3.3 树腿扫描根消歧为 **repoRoot** 并显式排除 `.git/` 与**心跳文件精确路径**（§3.4 标注交叉引用 · AC 增「一次心跳 tick 不得重置 idle 起点」pin），堵住引擎自写把静默挂死判成进展的漏洞；（warn）AC 端到端僵死 fixture 由「忙等」改正为 **CPU 静默挂死 child**（与 issue #346 同形）并另立**忙等正例**（CPU 增长 → progress → 不砍）· §2.3 登记 corpus 计数 pin 随行重锚（specs 12→13 · 合计 23→24）为已落事实 · §4.1 退役清单补齐第三值 `child-signal`（归并到 `signal`）且 `unknown` 明列保留（AC 词汇单源 grep pin 同步）；（nit）行 pin 校正 `ledger.ts:73`/`74`（OpType/RoundPhase）· `infra/runtime.ts:3-5` · `ledger.ts:155-161`（CrashCause）· `ledger.ts:104`（PROGRESS_COUNTER_ZERO）· 注入缝命名单一化（接口 `ChildRunner` · 生产实现 `Terminator` · 测试替身 `StubRunner`）+ `ChildOutcome` 形状定义（`{code,stdout,stderr,termination}`） | Oscar M. · Claude Opus 5（kairos:cdd-dev [P12] docs-fix round 1 · 2026-10-19） |
 | v0.3 | 2026-10-19 | docs-fix round 2——落实评审 2 一 warn / 两 nit：（warn）§2.3 删掉悬空的 **`§3.6` 引用**并明示 pin 去处——`sync-runner.test.ts` 的四条 D36 pin（>1 MiB 整取 1048577 · 尾段 prose 存活于 2 MB 叙事之后 · stderr 同面聚合 1100000 · fail-open 非零 child 走其 code / 坏命令不抛）不随 `SyncRunner` 退役而消失，改由终止器用例同一新文件承载，生产语义由 §3.2 选项面保住（`reject:false` · `stripFinalNewline:false` · 不设/不下调 `maxBuffer` · execa 默认 100 MB · sync/async 共用默认表 `lib/arguments/specific.js:121`）；AC 补「异步 `ChildRunner` 仍整取 >1 MiB 且 fail-open」；（nit）§2.1 行 pin 校正——注入包装 `face/cli.ts:575-579`（`dispatch` 常量 `:564`）· 派发循环 `:617`(`for (;;)`)/`:618`(`peekNext()`)；§3.3 cwd 引改 `face/lifecycle.ts:216-219`（`#sync.run(` 锚点 + cwd 实参）；（nit）§4.1 外部信号按**语义收口**（`res.signal` 为任何信号 · 我方未杀 · 非 `timedOut` → `signal`，SIGTERM/SIGKILL/SIGINT/SIGHUP 一视同仁），`unknown` 明列为**第四支兜底**并给明确生产者，§3.1/§4.2 的「三因」引用同步为「派生面（三因 + `unknown` 兜底）」 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P12] docs-fix round 2 · 2026-10-19） |
 | v0.4 | 2026-10-19 | 用户裁定 backfill（in-flight · overall D54）——**`corpus-form-pin.test.ts` 整体退役**，§2.3 相应行改写：语料完整性属引擎流程职责，测试面只校验引擎功能（`Contract.validate` 行为面由 `judge.test.ts` / `doc.test.ts` / `lint.test.ts` 覆盖）；本 phase 两次「注册连带」计数重锚（`c3521ff1` / `bc999471`）所服务的仪式随之消失。§1.2/§4.1 的设计裁定不变 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P12] in-flight user-ruling backfill · 2026-10-19） |
+| v0.5 | 2026-10-19 | 设计回填（plan-review-1 F2 漂移 · `backfill-design`）——§3.3 判官形态改写：`StallJudge` 由「`prev` + `sample` + `idleWindowMs` 的纯函数」改为**有状态 · 零 I/O**（自持 `#lastCpuMs` / `#maxMtimeMs` / `#idleSince`，观测入口 `observe(sample, now): StallVerdict`）——原措辞表达不出本节自己的判据（mtime「比**历史最大值**增长」与「`idleSince` 起点」都需要跨调用累加态）；并定义 `Sample = { groupCpuMs: number \| null; newestMtimeMs: number \| null }`（`null` = 腿不可读 · 与 §3.4 心跳记录面同字段名）。四条判据文字与其余各节逐条不变；front-matter `parent-version` 由 v2.56 校正至 **v2.57**（v0.4 的 D54 回填本就属 overall v2.57 变更波次——陈旧声明 pin 正是本 phase 要消灭的漂移类） | Oscar M. · Claude Opus 5（kairos:cdd-plan [P12] design-backfill · 2026-10-19） |

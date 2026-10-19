@@ -14,7 +14,7 @@
 // either a caller-rendered string or the C5 Route rendered through the route-word
 // table as a COMPLETE EXECUTABLE command (P4.1 T4 — the v1.39 semantic-literal
 // reversal): `implement --plan <path> --tasks 17` · `review --type spec --spec
-// <path>` · `fix --type spec --spec <path> --findings <handoff> (read file back to
+// <path>` · `fix --type spec --spec <path> --reviews <handoff> (read file back to
 // confirm)` · `done` (the bare terminal word) · the soft-cap message verbatim.
 // The argv is composed from the frame facts (the RouteTarget's type + id + plan)
 // through the argv-channel flag spellings (the same channel the CLI parse reads —

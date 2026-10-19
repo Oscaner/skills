@@ -1,21 +1,21 @@
 // packages/cdd-engine/src-next/__tests__/smoke.integration.test.ts
 // The engine smoke integration test — the consumer release gate migrated from
 // scripts/smoke-cdd.ts (P5 T7): boots the source bin (`node src-next/bin.ts`) over a
-// fresh fixture git repo and asserts the status-capsule contract on the dry-run
-// chain (`--dry-run implement` + `--dry-run review`) plus the `--help` commander
-// face. The engine carries no version assertion — `--expect-version` was withdrawn as
-// a no-op (user adjudication 2026-10-12); the `smoke` script (`pnpm -C
-// packages/cdd-engine run smoke`) is the release.yml gate's shared anchor.
+// fresh fixture git repo and asserts the `--help` commander face plus the read-only
+// `--dry-run` preview (the five-row next-step forecast at zero repo writes). The engine
+// carries no version assertion — `--expect-version` was withdrawn as a no-op (user
+// adjudication 2026-10-12); the `smoke` script (`pnpm -C packages/cdd-engine run smoke`)
+// is the release.yml gate's shared anchor.
 //
 // Zero module-level bare functions — the helpers are `const` (the P5
 // zero-`function`-declaration discipline).
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
 
 /** The source bin under test — the engine's own entry (spawned, never imported). */
 const BIN = fileURLToPath(new URL("../bin.ts", import.meta.url));
@@ -41,12 +41,12 @@ const fixturePlan = (): string =>
     "",
     "### Task 1: fixture task",
     "",
-    "- **Objective**: exercise the installed cdd engine under dry-run",
+    "- **Objective**: exercise the installed cdd engine under the read-only preview",
     "- **Files**: fixture-plan.md",
     "- **Steps**:",
-    "  1. run the new-tree engine under dry-run — checkable: the dry-run chain completes",
+    "  1. run the new-tree engine under `--dry-run` — checkable: the preview block completes",
     "- **Acceptance**:",
-    "  - the dry-run chain prints the status capsule",
+    "  - the preview forecasts the next step with zero repo writes",
     "- **DependsOn**: none",
     "",
   ].join("\n");
@@ -111,43 +111,13 @@ const runNode = (args: string[], cwd: string): { code: number; stdout: string; s
   };
 };
 
-/** The capsule contract — the last stdout block carries the status capsule + the
- *  `next:` suggestion line (the engine's single result surface). The route-face
- *  words (v1.25 dispatch-ready literals: `done` terminal · `implement wave {tasks}`
- *  · `review <type> <id> (base …)` · `fix <type> <id> --findings …` + the readback
- *  suffix · the soft-cap message) — `none` is retired. */
-const assertCapsule = (stdout: string, command: string): void => {
-  const lines = stdout.trim().split("\n");
-  const capsule = lines.find((l) => l.startsWith("status:") && l.includes("blocker:"));
-  assertOk(
-    capsule !== undefined,
-    `status capsule missing from ${command} stdout: ${JSON.stringify(stdout)}`,
-  );
-  assertOk(
-    /^status: (APPROVED|BLOCKED|REVIEW_FIX|CHANGES_REQUESTED) · blocker: \d+ · handoff: /.test(
-      capsule!,
-    ),
-    `status capsule malformed for ${command}: ${JSON.stringify(capsule)}`,
-  );
-  const next = lines.find((l) => l.startsWith("next:"));
-  assertOk(
-    next !== undefined && /^next: (done$|implement wave|review |fix($| )|BLOCKED:)/.test(next!),
-    `next: line missing or malformed for ${command}: ${JSON.stringify(next)}`,
-  );
-  // Zero old-shape stdout key lines (the 4-line block is retired).
-  assertOk(
-    lines.every((l) => !/^(commits|artifacts|counters):/.test(l)),
-    `old-shape stdout key line present for ${command}`,
-  );
-};
-
 /** Run git in the fixture repo (the temp repo's commit identity is injected inline). */
 const git = (repo: string, ...args: string[]): void => {
   execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", stdio: "ignore" });
 };
 
-describe("the engine smoke — the source bin dry-run chain over a fixture repo", () => {
-  it("boots the bin, asserts the `--help` face + the capsule contract on the dry-run chain", () => {
+describe("the engine smoke — the source bin over a fixture repo", () => {
+  it("boots the bin, asserts the `--help` face + the read-only `--dry-run` preview (zero writes)", () => {
     const repoRoot = mkdtempSync(path.join(tmpdir(), "cdd-smoke-"));
     try {
       writeFileSync(path.join(repoRoot, ".gitignore"), ".kairos\n");
@@ -188,26 +158,26 @@ describe("the engine smoke — the source bin dry-run chain over a fixture repo"
         `--help missing the commander-native face (code ${helpOut.code}) stdout=${JSON.stringify(helpOut.stdout.slice(0, 120))} stderr=${JSON.stringify(helpOut.stderr.slice(0, 120))}`,
       );
 
-      // The dry-run work chain — implement then review, each asserting the capsule.
-      let stdout = "";
-      const chain = [
-        ["--dry-run", "implement", "--tasks", "1", "--plan", "fixture-plan.md"],
-        ["--dry-run", "review", "--type", "wave", "--tasks", "1", "--plan", "fixture-plan.md"],
-      ];
-      for (const args of chain) {
-        const res = runNode([BIN, ...args], repoRoot);
-        assertOk(
-          res.code === 0,
-          `dry-run ${args.slice(1, 3).join(" ")} exited ${res.code}: ${res.stderr}`,
-        );
-        assertCapsule(res.stdout, args.join(" "));
-        stdout += res.stdout;
-      }
-
-      // The fixture repo's workspace slug + the status capsule (the smoke.test.ts
-      // assertions, migrated in place).
-      expect(stdout).toContain("status:");
-      expect(stdout).toContain(".kairos/cdd/fixture/");
+      // The `--dry-run` read-only preview — the release gate's zero-write face: the
+      // next dispatch step is forecast in five rows and nothing is written. The
+      // retired synthetic bookkeeping (a booked round + a fabricated capsule) is
+      // gone: a preview states the step, never a conclusion.
+      const preview = runNode(
+        [BIN, "--dry-run", "implement", "--tasks", "1", "--plan", "fixture-plan.md"],
+        repoRoot,
+      );
+      assertOk(preview.code === 0, `--dry-run implement exited ${preview.code}: ${preview.stderr}`);
+      assertOk(
+        preview.stdout.startsWith("cdd implement: preview (no repo changes)\n"),
+        `preview header missing: ${JSON.stringify(preview.stdout)}`,
+      );
+      for (const label of ["step:", "reads:", "would write:", "would record:", "child:"])
+        assertOk(preview.stdout.includes(`  ${label} `), `preview row ${label} missing`);
+      // a preview fabricates no conclusion and no next hop
+      assertOk(!preview.stdout.includes("status:"), "preview must not print a status: line");
+      assertOk(!/^next:/m.test(preview.stdout), "preview must not print a next: line");
+      // zero repo writes — the engine workspace (and its slug) never appear
+      assertOk(!existsSync(path.join(repoRoot, ".kairos")), ".kairos/ must stay absent");
     } finally {
       rmSync(repoRoot, { recursive: true, force: true });
     }

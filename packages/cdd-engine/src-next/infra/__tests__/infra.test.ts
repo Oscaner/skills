@@ -52,7 +52,7 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
     expect(HANDOFF_FAMILIES["review.wave"].name).toBe("tasks-{tasks}-review-{round}.json");
     // v1.9 — the family `schema` faces select the handoff-schema subset (§3.6: the
     // field resurrected from the dead task/docs discrimination), and the return-format
-    // field is gone (RETURN_STDOUT_BLOCK is the ONE return contract). The docs-fix
+    // field is gone (RETURN_PROSE is the ONE return contract). The docs-fix
     // families (fix.spec/fix.plan) ride the findings face — §3.6's per-mode split.
     expect(HANDOFF_FAMILIES["review.branch"].schema).toBe("findings");
     expect(HANDOFF_FAMILIES["fix.plan"].schema).toBe("findings");
@@ -108,7 +108,9 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     // (the review mode's ROLE resolves by REVIEW_TYPE)
     expect(Object.keys(template.modes)).toEqual(["implement", "fix", "docs-fix"]);
     expect(Object.keys(template.reviews)).toEqual(["wave", "branch", "spec", "plan"]);
-    expect(Object.keys(template.return)).toEqual(["RETURN_STDOUT_BLOCK"]);
+    // P11 — the return zone is ONE plain-prose block (the two-line stdout contract
+    // retired with the introspection that enumerated its formats)
+    expect(Object.keys(template.return)).toEqual(["RETURN_PROSE"]);
   });
 
   it("carries the P5 review criteria — the typed dispatch rows + axes guides with zero forbidden prose", () => {
@@ -324,39 +326,6 @@ describe("workspace — the root/workspace pair + the slug rule + JSON roundtrip
       expect(read.kind === "ok" && read.value.reviewedRevision.plan).toBe(
         "docs/kairos/plans/legacy.md",
       );
-    } finally {
-      rmSync(base, { recursive: true, force: true });
-    }
-  });
-
-  it("migrateJsonChild heals a legacy absolute path field in place, leaving a clean file byte-identical (P9 T4 §2.11)", () => {
-    const base = mkdtempSync(path.join(tmpdir(), "infra-ws-"));
-    try {
-      const workspace = new Workspace(new WorkspaceRoot(base, ".kairos/cdd"), "test-slug");
-      workspace.ensure();
-      const abs = path.join(base, "docs", "kairos", "plans", "old.md");
-      const target = path.join(workspace.path, "base.json");
-      // The legacy bytes are written byte-faithfully to the engine's own canonical
-      // EOF shape (a trailing `\n`) — the migration rewrite must preserve it, so the
-      // migrated file is a real engine-written byte shape (the zero-churn contract).
-      writeFileSync(target, `${JSON.stringify({ plan: abs }, null, 2)}\n`, "utf8");
-      workspace.migrateJsonChild("base.json");
-      const healed = readFileSync(target, "utf8");
-      expect(JSON.parse(healed)).toEqual({ plan: "docs/kairos/plans/old.md" });
-      expect(healed.endsWith("\n")).toBe(true);
-      // A second migration is a no-op — the already-clean file stays byte-identical.
-      const before = readFileSync(target, "utf8");
-      workspace.migrateJsonChild("base.json");
-      expect(readFileSync(target, "utf8")).toBe(before);
-      // The engine's OWN writer produces the same canonical bytes — a written file
-      // needs no migration at all (the writer/migration byte-shape agreement).
-      workspace.writeJson("base.json", { plan: abs });
-      const written = readFileSync(target, "utf8");
-      expect(written.endsWith("\n")).toBe(true);
-      workspace.migrateJsonChild("base.json");
-      expect(readFileSync(target, "utf8")).toBe(written);
-      // A missing file is a silent no-op (the read face owns the missing report).
-      expect(() => workspace.migrateJsonChild("absent.json")).not.toThrow();
     } finally {
       rmSync(base, { recursive: true, force: true });
     }

@@ -275,37 +275,22 @@ export class Workspace {
     writeFileSync(this.resolve(name), `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
   }
 
+  /** Write a text child — mkdir before write (the text twin of `writeJson`; the
+   *  engine-rendered brief is the one text artifact the engine authors itself).
+   *  Returns the resolved path. */
+  writeText(name: string, text: string): string {
+    this.ensure();
+    const target = this.resolve(name);
+    writeFileSync(target, text, "utf8");
+    return target;
+  }
+
   /** The workspace's repo-basis value object — the ONE conversion exit the
    *  read-time path backstop normalizes through. The basis is the root's OWN
    *  value object (`WorkspaceRoot.basis`, built once at the root's boundary) —
    *  never re-wrapped here (branch-review-1 F2: one basis, one form). */
   #repoBasis(): RepoRoot {
     return this.root.basis;
-  }
-
-  /** One-time legacy migration of a persisted JSON child (P9 T4 §2.11) — the
-   *  historical half of the shapes fix: a `progress.json` / `base.json` written by
-   *  an older build may carry an absolute (or otherwise redundant) path field. The
-   *  raw bytes are read, their declared path fields normalized, and the file is
-   *  REWRITTEN ONLY when the normalization actually changes bytes (an already-clean
-   *  file is left byte-identical — zero churn). A missing or unparseable file is a
-   *  no-op (the read face owns the malformed report; migration never fabricates). */
-  migrateJsonChild(name: string): void {
-    const target = this.resolve(name);
-    let raw: string;
-    try {
-      raw = readFileSync(target, "utf8");
-    } catch {
-      return;
-    }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return;
-    }
-    const normalized = `${JSON.stringify(this.#normalizePaths(parsed), null, 2)}\n`;
-    if (normalized !== raw) writeFileSync(target, normalized, "utf8");
   }
 
   /** The read-time path backstop (P9 T4 §2.11) — deep-normalize every DECLARED

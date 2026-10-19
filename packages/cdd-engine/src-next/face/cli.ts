@@ -86,6 +86,7 @@ import {
   type SyncProcess,
   SyncRunner,
 } from "./lifecycle.ts";
+import { Preview } from "./preview.ts";
 import { CommandTreeBuilder } from "./projection.ts";
 import { Words } from "./words.ts";
 
@@ -149,7 +150,7 @@ export interface WorkScene extends DispatchScene {
 export interface PathArgs {
   plan: RepoPath | null;
   spec: RepoPath | null;
-  findings: RepoPath | null;
+  reviews: RepoPath | null;
 }
 
 /** The thin-shell → run-body input — the .action shell maps commander's parsed
@@ -169,7 +170,7 @@ export interface RunInput {
   paths: PathArgs;
   /** The positional values (the schema <type> — the parseTypeKey-normalized key). */
   positionals: readonly string[];
-  /** The invocation's synthetic-dispatch scope (the --dry-run program flag). */
+  /** The invocation's read-only preview scope (the --dry-run program flag). */
   dryRun: boolean;
 }
 
@@ -350,7 +351,8 @@ export class Cli {
     leafNode("base", "get").action(async (_opts: unknown, command: Command) => {
       this.#exitCode = await this.#runBase(command, this.#runInput("get", command));
     });
-    leafNode("issue", "render").action(async () => {
+    leafNode("issue", "render").action(async (_opts: unknown, command: Command) => {
+      this.#assertDryRunScope(command, this.#dryRunOf(command));
       this.#exitCode = this.#artifacts.runIssue();
     });
     // the board observability command — a pure read (no preflight gate)
@@ -369,6 +371,7 @@ export class Cli {
    *  (spec §12 · D34). The host is detected once for the pipeline-entry ref render
    *  (REFS[ref][host], the same judgment the capsule injects — never hard-coded). */
   async #runBoard(node: Command, parsed: RunInput): Promise<number> {
+    this.#assertDryRunScope(node, parsed.dryRun);
     const slug = parsed.positionals[0];
     if (slug === undefined) this.#usage(node, "cdd board: missing <slug>");
     const repoRoot = await this.#rootOf();
@@ -403,10 +406,33 @@ export class Cli {
       args,
       // The path-typed values land empty — the funnel (`#funnel`) is the ONE
       // normalization site that fills them with the branded repoRoot-relative form.
-      paths: { plan: null, spec: null, findings: null },
+      paths: { plan: null, spec: null, reviews: null },
       positionals: command.processedArgs as string[],
-      dryRun: this.#dryRun || globals.dryRun === true,
+      dryRun: this.#dryRunOf(command),
     };
+  }
+
+  /** The invocation's `--dry-run` scope — the constructor flag OR the program-scope
+   *  flag (the flag is declared on the program node, so a leaf's own opts would miss
+   *  it; `optsWithGlobals` merges the parent chain). The ONE derivation the run input
+   *  and the scope guard read — never a second copy of the merge rule. */
+  #dryRunOf(command: Command): boolean {
+    const globals = command.optsWithGlobals() as Record<string, unknown>;
+    return this.#dryRun || globals.dryRun === true;
+  }
+
+  /** The `--dry-run` scope guard (P11 T5 · §3.5) — the preview semantics belong to
+   *  the three work verbs alone. A pure command carrying the program flag is a usage
+   *  rejection (exit 2), never a silently ignored flag: a no-op flag the consumer has
+   *  to remember to skip is a mind-share defect, not a convenience. The usage byte is
+   *  the owning node's commander-native usage line (the same `#usage` face every run
+   *  body's rejection rides). */
+  #assertDryRunScope(node: Command, dryRun: boolean): void {
+    if (!dryRun) return;
+    this.#usage(
+      node,
+      "--dry-run previews the next dispatch step and its expected artifacts — it applies to implement / review / fix only",
+    );
   }
 
   /** Configure every node's output into the injected io (commander writes its
@@ -434,7 +460,7 @@ export class Cli {
     }
     // The repo root (the ONE conversion point, T2) + the input funnel (T3 §2.3) run
     // FIRST — before the scene or any downstream face reads a path arg, so the whole
-    // run (scene + ledger + dispatch `--findings`) speaks ONE normalized argv shape.
+    // run (scene + ledger + dispatch `--reviews`) speaks ONE normalized argv shape.
     const repoRoot = await this.#rootOf();
     if (repoRoot === null) return 1;
     const root = new RepoRoot(repoRoot);
@@ -484,11 +510,26 @@ export class Cli {
       return 1;
     }
 
+    // The real run's first write point (P11 · §4.2): the workspace — and the
+    // namespace's `.gitignore` keep-out marker — is built HERE, after the
+    // pre-flight verdict and before the brief render / the child dispatch, for
+    // EVERY face (wave / spec / plan / branch). Scene assembly no longer
+    // pre-creates it, so a read-only command leaves `.kairos/` absent while a
+    // real dispatch always lands in an existing workspace (the child's
+    // OUTPUT_REPORT / OUTPUT_HANDOFF targets, and the keep-out marker published
+    // before the child can dirty the tree). `Workspace.writeJson` keeps its own
+    // internal ensure; `CliGate#renderBrief` no longer ensures. The `--dry-run`
+    // preview never reaches it — the preview path returns before any write
+    // (P11 T5 · §3.2: a preview is a pure read).
+    if (!parsed.dryRun) scene.workspace.ensure();
+
     // The unconditional extract (§4.1): every wave-face dispatch re-renders the
     // brief from the CURRENT plan text — implement, review and fix alike (a
     // mid-run plan amendment reflects into the next dispatch; no "exists → leave
     // it" reuse). The doc/branch faces carry no wave brief (planText is null there).
-    if (type === "wave" && scene.planText !== null)
+    // The preview skips it — the brief is a WRITE (`Workspace#writeText`), and the
+    // preview names the same path through RoundNaming instead of rendering it.
+    if (!parsed.dryRun && type === "wave" && scene.planText !== null)
       scene.briefPath = this.#gate.renderBrief(scene, parsed);
     const expected =
       verb === "implement" ? "implement" : verb === "fix" ? "fix" : scene.face.product.reviewLead;
@@ -589,6 +630,15 @@ export class Cli {
         }
         break;
       }
+      // The `--dry-run` preview (P11 T5 · §3.3) — the SAME frame the real run would
+      // dispatch, rendered as the five-row forecast instead of dispatched: the
+      // frontier read above is the preview's single step source (zero second
+      // derivation), and the early return means no write point below ever runs
+      // (`renderBrief` skipped above, `#bookkeep`/`#reject` never reached).
+      if (parsed.dryRun) {
+        for (const line of new Preview({ scene }).render(verb, frame)) this.#io.stdout(`${line}\n`);
+        return 0;
+      }
       const step = run.advance();
       if (step === null) break;
       // The dispatch-entry gate's refusal (the lifecycle's hard child zero-dispatch wiring —
@@ -631,13 +681,15 @@ export class Cli {
     return 0;
   }
 
-  /** The dispatch seam — the injected override, else the dry-run synthetic approval,
-   *  else the harness production default. */
+  /** The dispatch seam — the injected override, else the harness production default.
+   *  The call itself is unconditional (the caller resolves the step before the
+   *  preview branch), but under `--dry-run` the preview path returns before the
+   *  step is INVOKED — `dispatch(frame)` is never called (P11 T5 · §3.2) — so the
+   *  retired synthetic approval (`() => ({ status: "APPROVED", findings: [] })`)
+   *  has no remaining caller: a preview books no round and fabricates no
+   *  conclusion. */
   #dispatchOf(scene: WorkScene, parsed: RunInput): DispatchStep {
     if (this.#dispatch !== null) return this.#dispatch;
-    if (parsed.dryRun || this.#dryRun) {
-      return () => ({ status: "APPROVED", findings: [] });
-    }
     const harness = new CliLifecycle({
       env: process.env,
       sync: this.#sync,
@@ -652,7 +704,7 @@ export class Cli {
         baseBranch: this.#baseBranchOf(scene),
         specLink: scene.specLink,
       },
-      findings: parsed.paths.findings,
+      reviews: parsed.paths.reviews,
     });
     return harness.step();
   }
@@ -794,14 +846,13 @@ export class Cli {
       }
     }
 
-    const workspace = new Workspace(rootPath, slug).ensure();
-    // The one-time legacy migration (P9 T4 §2.11) — a `progress.json` / `base.json`
-    // written by an older build (absolute path fields) is healed to the canonical
-    // repoRoot-relative shape on first dispatch; an already-clean file is left
-    // byte-identical (zero churn). The read-time backstop (`Workspace.#normalizePaths`)
-    // covers any straggler regardless.
-    workspace.migrateJsonChild("progress.json");
-    workspace.migrateJsonChild("base.json");
+    // The workspace is NOT built here (P11 · §4.2): scene assembly is a READ face —
+    // the real run's single write point builds it (`Cli#runWork`'s explicit ensure,
+    // every face), so a read-only command never creates `.kairos/`. The one-time
+    // legacy migration retired with this build: the `Workspace.readJson` read-time
+    // normalization is the ONE heal path, covering `base.json` alongside
+    // `progress.json` (a second healing point is gone).
+    const workspace = new Workspace(rootPath, slug);
     const ledger = new Ledger(workspace, config);
     const state =
       type === "wave"
@@ -825,7 +876,7 @@ export class Cli {
   /** The input funnel — the ONE path normalization landing (T3 · §2.3): every
    *  path-typed argv value is relativized to the repo root EXACTLY once, here,
    *  before the scene or any downstream face reads it, so no face ever sees a raw
-   *  argv path shape. The covered face: `--plan` · `--spec` · `--findings` (the
+   *  argv path shape. The covered face: `--plan` · `--spec` · `--reviews` (the
    *  schema `--output skeleton` `<target>` positional and base `--plan` reach the
    *  SAME landing through `#relativizePath` — branch-review-1 F6: one relativize+warn
    *  helper, one landing). An out-of-repo input (a `..` segment after relativize) is
@@ -837,14 +888,14 @@ export class Cli {
     // `paths` face (F7) — splitting them out means the raw path string exists in
     // exactly ONE form downstream (the normalized `RepoPath`), never duplicated
     // (the Data Clumps F2 targets).
-    const { plan, spec, findings, ...rest } = raw;
+    const { plan, spec, reviews, ...rest } = raw;
     return {
       ...parsed,
       args: rest,
       paths: {
         plan: plan === undefined ? null : this.#relativizePath(root, plan),
         spec: spec === undefined ? null : this.#relativizePath(root, spec),
-        findings: findings === undefined ? null : this.#relativizePath(root, findings),
+        reviews: reviews === undefined ? null : this.#relativizePath(root, reviews),
       },
     };
   }
@@ -910,6 +961,7 @@ export class Cli {
    *  schema-type table (`SCHEMA_TYPE_KEYS` in face/declare.ts: the primary DocKey
    *  spellings + the legacy alias normalized to kebab, spec §5.3). */
   async #runSchema(node: Command, parsed: RunInput): Promise<number> {
+    this.#assertDryRunScope(node, parsed.dryRun);
     const [type, target] = parsed.positionals;
     if (type === undefined) this.#usage(node, "cdd schema get: missing <type>");
     const output = parsed.args.output ?? "json";
@@ -941,6 +993,7 @@ export class Cli {
   /** `cdd base <set|get> --plan <path>` — the base artifact read/write (T20: the
    *  command face `base`; the artifact file carries the base face too). */
   async #runBase(node: Command, parsed: RunInput): Promise<number> {
+    this.#assertDryRunScope(node, parsed.dryRun);
     const planArg = parsed.args.plan;
     if (planArg === undefined) {
       this.#usage(node, "cdd base: missing --plan — the sole target is --plan <path>");
@@ -952,17 +1005,17 @@ export class Cli {
     // the work-command path argv: the stored artifact's path field speaks the ONE
     // canonical shape (repoRoot-relative).
     const planPath = this.#relativizePath(root, planArg);
+    // The workspace is not built here (P11 · §4.2): `base set` builds it through
+    // `Workspace.writeJson`'s internal ensure, while the read-only `base get`
+    // creates nothing. The read rides `Workspace.readJson`, so the P9 read-time
+    // normalization covers `base.json` (the retired migration's job).
     const workspace = new Workspace(
       new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
       Workspace.slugFromDoc(planPath),
-    ).ensure();
-    // The one-time legacy migration (P9 T4 §2.11) — a legacy base.json with an
-    // absolute plan field is healed to the canonical repoRoot-relative shape before
-    // the read (an already-clean file is left byte-identical).
-    workspace.migrateJsonChild("base.json");
-    const path = workspace.resolve("base.json");
-    if (parsed.leaf === "set") return this.#artifacts.baseSet(node, parsed, planPath, path, root);
-    if (parsed.leaf === "get") return this.#artifacts.baseGet(path, root);
+    );
+    if (parsed.leaf === "set")
+      return this.#artifacts.baseSet(node, parsed, planPath, workspace, root);
+    if (parsed.leaf === "get") return this.#artifacts.baseGet(workspace, root);
     this.#usage(node, "cdd base: missing <set|get> subcommand");
   }
 

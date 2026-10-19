@@ -100,13 +100,11 @@ export interface DispatchOutcome {
   /** The round's findings (review: this round's own; fix: the source review's
    *  input findings, C5-1). */
   findings?: readonly RoundFinding[];
-  /** The artifact paths the round produced (brief/report/…). */
-  artifacts?: Record<string, string>;
   /** The materialized final carrier (the production dispatch's read-back
    *  reconstruct — §3.6: the child draft validated and built into the carrier the
    *  bookkeep persists verbatim, full-replace at the SAME path; agent draft →
    *  finalized, the engine stays the single author). Absent for the hermetic /
-   *  dry-run dispatchers — the bookkeep builds the carrier from the outcome fields. */
+   *  injected dispatchers — the bookkeep builds the carrier from the outcome fields. */
   carrier?: Record<string, unknown>;
 }
 
@@ -422,8 +420,8 @@ export class Lifecycle {
    *  The persisted carrier is either the dispatch's materialized form (the production
    *  read-back reconstruct — outcome.carrier, full-replace at the SAME path, so the
    *  child's draft becomes the finalized carrier — the two-state single file, the engine is the single
-   *  author) or the engine-built fallback from the outcome fields (hermetic / dry-run
-   *  dispatchers). A BLOCKED/TIMEOUT round WITHOUT a carrier is neither persisted nor
+   *  author) or the engine-built fallback from the outcome fields (the hermetic /
+   *  injected dispatchers). A BLOCKED/TIMEOUT round WITHOUT a carrier is neither persisted nor
    *  recorded — the child's draft (if any) stays untouched (no-overwrite on failure) and the
    *  frontier re-offers the same round (resume = re-run the same command); a BLOCKED
    *  round WITH a carrier (e.g. the evidence-contract override — the child's work is
@@ -449,11 +447,8 @@ export class Lifecycle {
         (face === "findings"
           ? this.#ledger.buildHandoff("findings", {
               findings: [...(outcome.findings ?? [])],
-              artifacts: outcome.artifacts,
             })
-          : this.#ledger.buildHandoff("work", {
-              artifacts: outcome.artifacts,
-            }));
+          : this.#ledger.buildHandoff("work", {}));
       // The work face ALONE persists the conclusion (the child's declared status); the
       // findings carrier holds no status — its conclusion derives at judgment time
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).

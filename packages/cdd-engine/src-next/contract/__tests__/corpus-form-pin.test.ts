@@ -21,8 +21,10 @@ import { Contract } from "../judge.ts";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../../..", import.meta.url));
 
-/** The two in-registry corpus directories (§5.1: docs/kairos/specs/*.md 11 +
- *  docs/kairos/plans/*.md 10 = 21 at migration time). */
+/** The two in-registry corpus directories (§5.1). The pin tracks the LIVE corpus
+ *  (docs/kairos/specs 12 + docs/kairos/plans 11 = 23 today): the migration-time
+ *  snapshot was 11 + 10 = 21, and every doc landing after it is checked by the
+ *  same per-doc shape loop — the counts re-anchor with the corpus, the shape does not. */
 const CORPUS_DIRS = ["docs/kairos/specs", "docs/kairos/plans"] as const;
 
 /** The §6 form-pin census pattern — the retired header tuples, zero-hit after
@@ -63,11 +65,11 @@ class CorpusInventory {
 }
 
 describe("corpus form pin (T10 · §5.1/§6)", () => {
-  it("holds the 21-file instrumented set with front-matter first lines and registry-bounded key sets", () => {
+  it("holds the in-registry corpus set with front-matter first lines and registry-bounded key sets", () => {
     const docs = CorpusInventory.docs();
-    expect(docs.filter((doc) => doc.startsWith("docs/kairos/specs"))).toHaveLength(11);
-    expect(docs.filter((doc) => doc.startsWith("docs/kairos/plans"))).toHaveLength(10);
-    expect(docs).toHaveLength(21);
+    expect(docs.filter((doc) => doc.startsWith("docs/kairos/specs"))).toHaveLength(12);
+    expect(docs.filter((doc) => doc.startsWith("docs/kairos/plans"))).toHaveLength(11);
+    expect(docs).toHaveLength(23);
 
     for (const rel of docs) {
       const content = readFileSync(`${REPO_ROOT}/${rel}`, "utf8");

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P12 设计：child dispatch 终止兜底（liveness + budget）
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-10-19
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P12] 会话 · 用户逐轮裁定 Q1–Q14 · 2026-10-19）
@@ -88,7 +88,7 @@ depends-on: P11（Done · v0.7 · hard——P11 全链闭合后 child dispatch �
 | `session/__tests__/run.test.ts`（`DispatchStep` 类型 `:29`/`:88` · `stub()` 助手 · `dispatch:` **24 处**） | 同步 | async |
 | `session/__tests__/preflight.test.ts:510` 的单处 `DispatchStep` | 同步 | async |
 | `face/__tests__/sync-runner.test.ts`（用**真** `new SyncRunner()`） | 锁 `execaSync` 三选项 + **四条行为 pin**（>1 MiB 整取 1048577 字节 · 尾段 prose 存活于 2 MB 叙事之后 · stderr 经同面聚合 1100000 · fail-open：非零 child 走其 code、坏命令不抛） | 整体重写为**终止器用例**（`ChildRunner` 面）——四条 pin **不随 `SyncRunner` 退役而消失**，改由**同一新文件**收录（异步 `ChildRunner` 仍整取无界输出 · 尾段不截断 · fail-open 不抛）；生产语义由 §3.2 选项面保住（`reject:false` · `stripFinalNewline:false` · 不设/不下调 `maxBuffer`——execa 默认 **100 MB**，sync/async 共用同一默认表 `lib/arguments/specific.js:121`） |
-| `src-next/contract/__tests__/corpus-form-pin.test.ts:70-72`（`docs/kairos/specs` 计数 12 · 合计 23） | 随本 spec 文档新增而必破 | 已**随行重锚**为 13 / 24（plans 11 不变）——本设计流内独立提交 `fix(cdd-engine): P12 注册连带——corpus form-pin 语料计数重锚至实况（specs 12→13 · total 23→24）`，与 P11 的 `e062355e` / `6b4e38b1` 同约定 |
+| `src-next/contract/__tests__/corpus-form-pin.test.ts` | 本 phase 落仓期间曾两次被迫重锚语料计数（specs 12→13 · plans 11→12） | **该 pin 已整体退役**（用户裁定 · overall **D54**）：语料完整性属**引擎流程**职责——spec/plan 各自 review 已逐篇判过，整体 spec 若要有门应加在 flow 侧；测试面只校验引擎功能，而 `Contract.validate` 的行为面由 `judge.test.ts` / `doc.test.ts` / `lint.test.ts` 覆盖。计数重锚「注册连带」仪式随之消失 |
 
 ### 3. B 组 · 终止器（stall + budget）
 
@@ -271,3 +271,4 @@ export type CrashCause = TerminationCause | "child-exit" | "contract-violation" 
 | v0.1 | 2026-10-19 | 初稿——P12 phase-spec：A 组派发链路异步化（`DispatchStep`→`Promise` · `SyncProcess`/`SyncRunner` 退役 · 迁移面逐条列名）+ B 组终止器（stall 判官双信号 fail-open · 采样 60s · idle 30min · 心跳文件 · 四键预算常量 · 组杀与 escalation 全交 execa 的三条硬约束）+ C 组词汇统一与失败面（`TerminationCause` 三词单源 · crash record 扩终止轮 · `timeoutCount` 真递增 · 无 `next:` 照旧）；裁定全承 D52/D53 · parent overall sync 至 v2.56 | Oscar M. · Claude Opus 5（kairos:cdd-design [P12] · 2026-10-19） |
 | v0.2 | 2026-10-19 | docs-fix round 1——落实评审 1 blocker / 3 warn / 2 nit：（blocker）§3.3 树腿扫描根消歧为 **repoRoot** 并显式排除 `.git/` 与**心跳文件精确路径**（§3.4 标注交叉引用 · AC 增「一次心跳 tick 不得重置 idle 起点」pin），堵住引擎自写把静默挂死判成进展的漏洞；（warn）AC 端到端僵死 fixture 由「忙等」改正为 **CPU 静默挂死 child**（与 issue #346 同形）并另立**忙等正例**（CPU 增长 → progress → 不砍）· §2.3 登记 corpus 计数 pin 随行重锚（specs 12→13 · 合计 23→24）为已落事实 · §4.1 退役清单补齐第三值 `child-signal`（归并到 `signal`）且 `unknown` 明列保留（AC 词汇单源 grep pin 同步）；（nit）行 pin 校正 `ledger.ts:73`/`74`（OpType/RoundPhase）· `infra/runtime.ts:3-5` · `ledger.ts:155-161`（CrashCause）· `ledger.ts:104`（PROGRESS_COUNTER_ZERO）· 注入缝命名单一化（接口 `ChildRunner` · 生产实现 `Terminator` · 测试替身 `StubRunner`）+ `ChildOutcome` 形状定义（`{code,stdout,stderr,termination}`） | Oscar M. · Claude Opus 5（kairos:cdd-dev [P12] docs-fix round 1 · 2026-10-19） |
 | v0.3 | 2026-10-19 | docs-fix round 2——落实评审 2 一 warn / 两 nit：（warn）§2.3 删掉悬空的 **`§3.6` 引用**并明示 pin 去处——`sync-runner.test.ts` 的四条 D36 pin（>1 MiB 整取 1048577 · 尾段 prose 存活于 2 MB 叙事之后 · stderr 同面聚合 1100000 · fail-open 非零 child 走其 code / 坏命令不抛）不随 `SyncRunner` 退役而消失，改由终止器用例同一新文件承载，生产语义由 §3.2 选项面保住（`reject:false` · `stripFinalNewline:false` · 不设/不下调 `maxBuffer` · execa 默认 100 MB · sync/async 共用默认表 `lib/arguments/specific.js:121`）；AC 补「异步 `ChildRunner` 仍整取 >1 MiB 且 fail-open」；（nit）§2.1 行 pin 校正——注入包装 `face/cli.ts:575-579`（`dispatch` 常量 `:564`）· 派发循环 `:617`(`for (;;)`)/`:618`(`peekNext()`)；§3.3 cwd 引改 `face/lifecycle.ts:216-219`（`#sync.run(` 锚点 + cwd 实参）；（nit）§4.1 外部信号按**语义收口**（`res.signal` 为任何信号 · 我方未杀 · 非 `timedOut` → `signal`，SIGTERM/SIGKILL/SIGINT/SIGHUP 一视同仁），`unknown` 明列为**第四支兜底**并给明确生产者，§3.1/§4.2 的「三因」引用同步为「派生面（三因 + `unknown` 兜底）」 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P12] docs-fix round 2 · 2026-10-19） |
+| v0.4 | 2026-10-19 | 用户裁定 backfill（in-flight · overall D54）——**`corpus-form-pin.test.ts` 整体退役**，§2.3 相应行改写：语料完整性属引擎流程职责，测试面只校验引擎功能（`Contract.validate` 行为面由 `judge.test.ts` / `doc.test.ts` / `lint.test.ts` 覆盖）；本 phase 两次「注册连带」计数重锚（`c3521ff1` / `bc999471`）所服务的仪式随之消失。§1.2/§4.1 的设计裁定不变 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P12] in-flight user-ruling backfill · 2026-10-19） |

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P12 实施计划：child dispatch 终止兜底（liveness + budget）
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-10-19
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p12-design.md
 parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
@@ -23,7 +23,7 @@ base: develop
 - **历史面不追改**：零残留断言只覆盖活面（引擎 src · 引擎测试 · 模板）。
 - **红窗口同任务收口**：T1 的 A 组异步翻面与它**强制的**测试面迁移（`FakeSync` 24 处 · `dispatch:` fixture 全 async · `sync-runner.test.ts` 四 pin 重落）同属 T1——引擎测试面在 T1 边界即回绿，不留跨任务红窗口；T2–T4 为新增面，不破既有 pin。
 - **时序可注入**：判官窗口 / 采样节奏是**参数**（生产取 `TerminationPolicy` 常量，测试注入极小值）——否则端到端僵死 case 要等 30 分钟。
-- **注册连带已落地**：本 plan 落仓引入第 25 条语料（`docs/kairos/plans` 11→12 · total 24→25 · `specs`=13 不变），corpus form-pin（`packages/cdd-engine/src-next/contract/__tests__/corpus-form-pin.test.ts`）已随注册重锚（standalone 连地带 commit，仿 P11 `6b4e38b1` / spec 侧 `c3521ff1`）；引擎套件回绿。
+- **语料 pin 已退役（overall D54 · 用户裁定）**：`corpus-form-pin.test.ts` 整体删除——语料完整性属**引擎流程**职责，测试面只校验引擎功能。故本 plan 落仓的语料注册**不再有计数重锚连带**（P11 `6b4e38b1` / spec 侧 `c3521ff1` 那类仪式随之消失）。
 - **不发布**：changeset（cdd-engine minor）落 pending；tag / publish = 独立动作。
 - **English-primary**（SKILL.md / `docs/*.md`）· specs/plans 中文（Strategy B）· emit 产物派生（`pnpm run emit`）· EOF 恰一 newline。
 
@@ -97,3 +97,4 @@ base: develop
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-19 | 初稿——P12 实施计划：A 组派发契约异步化 + 进程缝换血 + 终止词汇单源（T1，含强制的测试面迁移与 D36 四 pin 重落，红窗口同任务收口）· B 组 stall 判官 + 双信号采样器（T2）+ 采样循环 + 心跳落盘（T3）· C 组终止落地面（T4：三因派生 / `TIMEOUT` / crash record + 末样本 / `timeoutCount` / 失败面无 `next:`）· 交付面（T5：changeset minor + 全量 validate）；波次 W1={1} · W2={2} · W3={3} · W4={4} · W5={5} | Oscar M. · Claude Opus 5（kairos:cdd-plan [P12] · 2026-10-19） |
+| v0.2 | 2026-10-19 | 用户裁定 backfill（in-flight · overall D54）——Constraints「注册连带已落地」行改写为「语料 pin 已退役」：`corpus-form-pin.test.ts` 整体删除，语料完整性归引擎流程、测试面只校验引擎功能，故本 plan 落仓不再有计数重锚连带 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P12] in-flight user-ruling backfill · 2026-10-19） |

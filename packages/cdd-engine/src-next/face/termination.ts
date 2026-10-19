@@ -340,7 +340,9 @@ export class Sampler {
  *  sample the moment the child is spawned, then one per `intervalMs`. Each tick reads
  *  the two legs through the `Sampler`, has the `StallJudge` rule on them, and
  *  overwrites the dispatch's heartbeat file with the resulting `SampleRecord` — the
- *  trail a human reads after a round was cut short.
+ *  trail a human reads after a round was cut short. A `stalled` verdict fires the
+ *  loop's `onStall` callback once — the Terminator's kill trigger (the engine's own
+ *  group kill; the SIGTERM → SIGKILL escalation is execa's).
  *
  *  The interval is unref'd: the engine's own sampling must never be the reason the
  *  parent process stays alive (the dispatch awaits the child, not the cadence). The
@@ -356,6 +358,10 @@ class SamplingLoop {
   readonly #judge: StallJudge;
   readonly #heartbeatPath: string;
   readonly #intervalMs: number;
+  /** The stall trigger — called once on the first `stalled` verdict (the kill). */
+  readonly #onStall?: () => void;
+  /** Whether the stall verdict has already fired — one kill per dispatch. */
+  #stallFired = false;
   /** The most recent observation — the postmortem sample of a terminated round. */
   #last: SampleRecord | null = null;
   #timer: ReturnType<typeof setInterval> | null = null;
@@ -365,11 +371,13 @@ class SamplingLoop {
     judge: StallJudge;
     heartbeatPath: string;
     intervalMs: number;
+    onStall?: () => void;
   }) {
     this.#sampler = options.sampler;
     this.#judge = options.judge;
     this.#heartbeatPath = options.heartbeatPath;
     this.#intervalMs = options.intervalMs;
+    this.#onStall = options.onStall;
   }
 
   /** Sample at once (the spawn instant has just passed — a round is never observed
@@ -403,20 +411,27 @@ class SamplingLoop {
     }
   }
 
-  /** One tick: read both legs, judge them, and overwrite the heartbeat record. */
+  /** One tick: read both legs, judge them, and overwrite the heartbeat record. A
+   *  `stalled` verdict fires the kill trigger once (the first stall owns the kill;
+   *  later ticks of a dying child never re-fire). */
   #tick(now: number): void {
     const sample = this.#sampler.probe();
+    const verdict = this.#judge.observe(sample, now);
     const record: SampleRecord = {
       sampledAt: now,
       groupCpuMs: sample.groupCpuMs,
       newestMtimeMs: sample.newestMtimeMs,
-      verdict: this.#judge.observe(sample, now),
+      verdict,
     };
     this.#last = record;
     try {
       writeFileSync(this.#heartbeatPath, `${JSON.stringify(record, null, 2)}\n`, "utf8");
     } catch {
       // Fail-open (see the class doc): an unwritable heartbeat slows nothing down.
+    }
+    if (verdict === "stalled" && !this.#stallFired) {
+      this.#stallFired = true;
+      this.#onStall?.();
     }
   }
 }
@@ -452,6 +467,10 @@ export class Terminator implements ChildRunner {
   async run(run: ChildRun): Promise<ChildOutcome> {
     // The spawn instant seeds the judge's idle clock (§3.3).
     const spawnedAt = Date.now();
+    // The engine's own stall kill — set by the sampling loop's trigger the moment the
+    // judge rules `stalled`; the derivation reads it to attribute the kill (the
+    // signal execa reports for OUR kill would otherwise read as an external one).
+    let killedByStall = false;
     const subprocess = execa(run.command, [...run.args], {
       cwd: run.cwd,
       reject: false,
@@ -460,7 +479,12 @@ export class Terminator implements ChildRunner {
       forceKillAfterDelay: Terminator.FORCE_KILL_AFTER_DELAY_MS,
       timeout: run.policy.budgetMs,
     });
-    const sampling = this.#startSampling(run, subprocess.pid, spawnedAt);
+    const sampling = this.#startSampling(run, subprocess.pid, spawnedAt, () => {
+      killedByStall = true;
+      // The engine's own group kill — execa kills the process group and escalates
+      // SIGTERM → SIGKILL after the grace. No signal logic of the engine's own.
+      subprocess.kill();
+    });
     // The round's heartbeat fate — terminated by default, so an unexpected throw keeps
     // the trail as well; a round that ends by itself leaves no file behind.
     let endedByItself = false;
@@ -468,7 +492,9 @@ export class Terminator implements ChildRunner {
       const result = await subprocess;
       const termination = Terminator.#terminationOf(
         result.timedOut,
+        killedByStall,
         result.signal,
+        result.isTerminated,
         sampling?.lastSample() ?? null,
       );
       endedByItself = termination === null;
@@ -494,8 +520,14 @@ export class Terminator implements ChildRunner {
    *  group id is the child's OWN pid, never recomputed — `killDescendants` forces the
    *  spawn-layer detachment, so the child IS its process group leader (the same fact
    *  execa's own group kill rides); the scan root is the same `cwd` the child was
-   *  spawned in. */
-  #startSampling(run: ChildRun, pid: number | undefined, spawnedAt: number): SamplingLoop | null {
+   *  spawned in. The stall trigger rides through: the loop's first `stalled` verdict
+   *  is the kill's authorization. */
+  #startSampling(
+    run: ChildRun,
+    pid: number | undefined,
+    spawnedAt: number,
+    onStall?: () => void,
+  ): SamplingLoop | null {
     if (pid === undefined) return null;
     const sampling = new SamplingLoop({
       sampler: new Sampler({
@@ -506,25 +538,38 @@ export class Terminator implements ChildRunner {
       judge: new StallJudge(run.policy.idleWindowMs, spawnedAt),
       heartbeatPath: run.heartbeatPath,
       intervalMs: run.policy.sampleIntervalMs,
+      onStall,
     });
     sampling.start();
     return sampling;
   }
 
-  /** Derive the termination fact from the child's own result face — the wall-clock
-   *  ceiling first (execa's `timedOut`), then a signal (any signal: the external-kill
-   *  semantic, never the SIGTERM literal). Neither → the round ended by itself
-   *  (successfully or not), so there is no termination. The engine's own stall kill
-   *  takes its place in this derivation ahead of the signal leg. The last sample rides
-   *  whichever cause won: it is the sampling loop's own last observation, held in
-   *  memory — never a re-read of the heartbeat file the engine itself wrote. */
+  /** Derive the termination fact from the child's own result face — the four-way
+   *  derivation (§4.1), in the order the causes claim a kill:
+   *   · the wall-clock ceiling (execa's `timedOut`) → `over-budget`;
+   *   · the engine's own stall kill → `stalled` (ahead of the signal leg: OUR kill
+   *     also arrives as a signal, and misreading it as external would falsify the
+   *     postmortem);
+   *   · any other signal → `signal` (the external-kill semantic, never the SIGTERM
+   *     literal — SIGTERM / SIGKILL / SIGINT / SIGHUP read the same);
+   *   · none of the three but the child was terminated anyway → `unknown` (the
+   *     unattributable fallback);
+   *   · nothing of the above → the round ended by itself (successfully or not), no
+   *     termination.
+   *  The last sample rides whichever cause won: it is the sampling loop's own last
+   *  observation, held in memory — never a re-read of the heartbeat file the engine
+   *  itself wrote. */
   static #terminationOf(
     timedOut: boolean,
+    killedByStall: boolean,
     signal: string | undefined,
+    isTerminated: boolean,
     lastSample: SampleRecord | null,
   ): Termination | null {
     if (timedOut) return { cause: "over-budget", lastSample };
+    if (killedByStall) return { cause: "stalled", lastSample };
     if (signal !== undefined) return { cause: "signal", lastSample };
+    if (isTerminated) return { cause: "unknown", lastSample };
     return null;
   }
 }

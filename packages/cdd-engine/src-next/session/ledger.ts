@@ -23,6 +23,7 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import type { SampleRecord } from "../face/termination.ts";
 import type { ConfigLoader } from "../infra/config.ts";
 import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
@@ -183,6 +184,11 @@ export interface CrashRecord {
   next: string;
   /** The unified termination cause — postmortem, zero behavior fork. */
   cause: CrashCause;
+  /** The terminated round's last observed sample (the stall face's postmortem pair) —
+   *  null when the round was not cut short or no sample was ever taken. The sample
+   *  rides the termination fact in memory (zero re-read of the heartbeat file the
+   *  engine itself wrote); the on-disk heartbeat stays for a human's postmortem. */
+  lastSample: SampleRecord | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -681,6 +687,15 @@ export class Ledger {
   /** Read one counter — a failure-category count on record (0 when the file is missing). */
   counterOf(key: ProgressCounterKey): number {
     return this.readProgress()?.[key] ?? 0;
+  }
+
+  /** Increment the timeout counter — the terminated-round write point (one TIMEOUT
+   *  round lands, the count goes up by one). The counter's only writer. */
+  incrementTimeoutCount(): number {
+    const data = this.readProgress() ?? this.emptyProgress();
+    data.timeoutCount += 1;
+    this.writeProgress(data);
+    return data.timeoutCount;
   }
 
   // -------------------------------------------------------------------------

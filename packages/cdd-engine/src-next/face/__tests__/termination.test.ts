@@ -131,6 +131,80 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     expect(result.termination?.cause).toBe("over-budget");
     expect(result.code).toBeNull();
   });
+
+  it('kills a silently-hung child on the stall verdict — `cause: "stalled"` (issue #346 shape)', async () => {
+    // The end-to-end stall case: a CPU-silent hung child (zero CPU growth, no
+    // workspace writes, no output — the issue #346 field shape) with tiny injected
+    // timing. The judge rules `stalled`, the terminator kills the group, and the
+    // outcome attributes the kill to the engine's own judgment — never as an
+    // external signal, despite execa reporting the kill as one.
+    const root = scratch();
+    plant(root, "work.md", EPOCH + 10);
+    const result = await runner.run(
+      childRun(root, "sh", ["-c", "sleep 30"], new TerminationPolicy(60_000, 300, 60)),
+    );
+    expect(result.termination).not.toBeNull();
+    expect(result.termination?.cause).toBe("stalled");
+    expect(result.code).toBeNull();
+    // The last sample rode the termination in memory — the postmortem pair.
+    expect(result.termination?.lastSample).not.toBeNull();
+    expect(result.termination?.lastSample?.verdict).toBe("stalled");
+    // The heartbeat file stays on disk for a human's postmortem.
+    expect(existsSync(heartbeatOf(root))).toBe(true);
+  });
+
+  it("never kills a busy child — sustained CPU growth rules `progress`, the round ends by itself", async () => {
+    // The discriminating-power positive: a child whose process group keeps burning
+    // CPU is `progress` on every tick — the judge never rules `stalled`, no kill
+    // fires, and the round ends by itself (exit 0, no termination).
+    const result = await runner.run(
+      childRun(
+        scratch(),
+        "sh",
+        ["-c", "i=0; while [ $i -lt 4000000 ]; do i=$((i + 1)); done; echo busy-done"],
+        new TerminationPolicy(60_000, 300, 60),
+      ),
+    );
+    expect(result.termination).toBeNull();
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("busy-done");
+  });
+
+  it('attributes an external signal — `cause: "signal"`, the semantic, never the literal', async () => {
+    // A healthy child killed by an OUTSIDE actor: the terminator killed nothing
+    // (no stall fired, the production budget is hours away) — the external signal
+    // is the termination's attributed cause, by semantic, never the SIGTERM literal.
+    const root = scratch();
+    plant(root, "work.md", EPOCH + 10);
+    // The child writes its own pid (it IS its own process group leader under the
+    // killDescendants spawn shape) so the test — standing outside the seam — can
+    // signal the group the way a real outside actor would.
+    const dispatch = runner.run(
+      childRun(
+        root,
+        "sh",
+        ["-c", "echo $$ > pid.txt; sleep 30"],
+        TerminationPolicy.of("implement"),
+      ),
+    );
+    const pidFile = path.join(root, "pid.txt");
+    const deadline = Date.now() + 8000;
+    let pid = 0;
+    while (Date.now() < deadline) {
+      try {
+        pid = Number(readFileSync(pidFile, "utf8").trim());
+        if (pid > 0) break;
+      } catch {
+        // Not written yet — poll on.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    expect(pid).toBeGreaterThan(0);
+    process.kill(-pid, "SIGTERM");
+    const result = await dispatch;
+    expect(result.termination?.cause).toBe("signal");
+    expect(result.code).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

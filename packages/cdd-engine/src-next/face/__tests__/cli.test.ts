@@ -57,7 +57,13 @@ import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
 import { Cli, HarnessDispatch } from "../cli.ts";
 import { CLI_COMMANDS, type CliVerb } from "../declare.ts";
 import { CommandTreeBuilder } from "../projection.ts";
-import type { ChildOutcome, ChildRun, ChildRunner } from "../termination.ts";
+import type {
+  ChildOutcome,
+  ChildRun,
+  ChildRunner,
+  SampleRecord,
+  Termination,
+} from "../termination.ts";
 import { Words } from "../words.ts";
 import { negatedOf } from "./negation.ts";
 
@@ -2256,6 +2262,29 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("a TIMEOUT dispatch — the failure face: exit 1, NO next: line, and progress's timeoutCount increments (§4.2/§4.3)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: async () => ({ status: "TIMEOUT" }),
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      expect(ledger.counterOf("timeoutCount")).toBe(0);
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      // The failure face — exit 1 with the capsule naming the TIMEOUT status…
+      expect(code).toBe(1);
+      expect(io.stdoutText).toContain("status: TIMEOUT");
+      // …and NO next: line (the frozen failure face — a hung round never auto-retries).
+      expect(io.stdoutText).not.toContain("next:");
+      // §4.2 — the terminated round landed, the counter's only writer fired.
+      expect(ledger.counterOf("timeoutCount")).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("dogfood §2.8 — a rejected fix round with a leftover APPROVED draft renders NO next: line (the verdict is single-sourced; a stale draft is never read back)", async () => {
     // The round-verdict single-source pin: the child's fix write is REJECTED (the
     // round stays BLOCKED and unrecorded), yet a stale APPROVED draft sits on disk
@@ -4434,12 +4463,123 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         exitCode: number;
         cause: string;
         stdoutTail: readonly string[];
+        lastSample: SampleRecord | null;
       }>(path.join(scene.workspace.path, "crash-implement.wave-1.json"));
       // the record tells the truth: the dead child's OWN exit code and the child-exit
       // cause — never the read-back face's 0 / contract-violation (T2 misreport fix).
       expect(crash.exitCode).toBe(7);
       expect(crash.cause).toBe("child-exit");
       expect(crash.stdoutTail).toEqual(["boom — the child died before writing"]);
+      // the child-exit face explicitly passes `termination: null` — its crash record
+      // carries no last sample (§4.2: the sample rides WITH the termination).
+      expect(crash.lastSample).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a TERMINATED round → TIMEOUT + the crash record carries the termination facts (cause / last sample / null exitCode)", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new StubRunner();
+      // The stub mimes the stalled kill exactly as the terminator reports it: the
+      // killed child's exit code is null, and the termination fact rides whole
+      // (cause + the in-memory last sample — zero heartbeat re-read).
+      const lastSample: SampleRecord = {
+        sampledAt: 1_700_000_000,
+        groupCpuMs: 120,
+        newestMtimeMs: 1_700_000_500,
+        verdict: "stalled",
+      };
+      sync.code = null;
+      sync.termination = { cause: "stalled", lastSample };
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = await dispatch.step()(implementFrame);
+      // §4.3 — the derived status: a termination ⇒ TIMEOUT (never BLOCKED).
+      expect(outcome).toEqual({ status: "TIMEOUT" });
+      // The reason rides the CDD_BLOCKED channel with its cause.
+      expect(io.stderrText).toContain("CDD_BLOCKED:");
+      expect(io.stderrText).toContain("stalled");
+      const crash = readJson<{
+        exitCode: number | null;
+        cause: string;
+        stdoutTail: readonly string[];
+        stderrTail: readonly string[];
+        lastSample: SampleRecord | null;
+        next: string;
+      }>(path.join(scene.workspace.path, "crash-implement.wave-1.json"));
+      // The record tells the truth: the killed child has NO exit code (null verbatim,
+      // never folded to 1), the derived cause, and the last sample riding in memory.
+      expect(crash.exitCode).toBeNull();
+      expect(crash.cause).toBe("stalled");
+      expect(crash.lastSample).toEqual(lastSample);
+      expect(crash.next).toBe("cdd implement --tasks 1 --plan <plan>");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the termination leg is judged BEFORE the child-exit leg — a killed child with a non-zero-null code never folds into `child-exit`", async () => {
+    // The judging-order hard rule (§4.3): a terminated round's outcome carries
+    // code null AND termination non-null — the termination check must win, or the
+    // crash cause would be falsified to `child-exit`. The pin below drives the
+    // aliasing case: even a stub that reports BOTH a non-zero code and a
+    // termination still concludes by the termination fact.
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new StubRunner();
+      sync.code = 143;
+      sync.termination = { cause: "over-budget", lastSample: null };
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = await dispatch.step()(implementFrame);
+      expect(outcome).toEqual({ status: "TIMEOUT" });
+      const crash = readJson<{ exitCode: number | null; cause: string }>(
+        path.join(scene.workspace.path, "crash-implement.wave-1.json"),
+      );
+      expect(crash.cause).toBe("over-budget");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the read-back rejection face keeps its BLOCKED conclusion verbatim — the death-facts default carries `termination: null`", async () => {
+    // §4.3 — the status derives from the death facts (no status parameter): the
+    // read-back caller passes the defaults (termination null) ⇒ BLOCKED, byte-for-
+    // byte today's behavior.
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new StubRunner();
+      sync.stdout = "done — the handoff draft is written\n";
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = await dispatch.step()(implementFrame);
+      expect(outcome).toEqual({ status: "BLOCKED" });
+      expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft was not written");
+      const crash = readJson<{ cause: string; lastSample: SampleRecord | null }>(
+        path.join(scene.workspace.path, "crash-implement.wave-1.json"),
+      );
+      expect(crash.cause).toBe("contract-violation");
+      expect(crash.lastSample).toBeNull();
     } finally {
       cleanup();
     }
@@ -4749,12 +4889,15 @@ describe("T9 — the destroy-list zero-residual sweep (spec §6.3 cross-referenc
 class StubRunner implements ChildRunner {
   calls: ChildRun[] = [];
   stdout = "";
-  /** The canned child exit code (default 0 = success) — a non-zero value drives the
-   *  crash-record face's death facts. */
-  code = 0;
+  /** The canned child exit code (default 0 = success; null = the child was killed
+   *  and has no exit code) — drives the crash-record face's death facts. */
+  code: number | null = 0;
+  /** The canned termination fact (default null = the round ended by itself) — a
+   *  non-null value drives the terminated-round face's TIMEOUT + crash facts. */
+  termination: Termination | null = null;
 
   async run(run: ChildRun): Promise<ChildOutcome> {
     this.calls.push(run);
-    return { code: this.code, stdout: this.stdout, stderr: "", termination: null };
+    return { code: this.code, stdout: this.stdout, stderr: "", termination: this.termination };
   }
 }

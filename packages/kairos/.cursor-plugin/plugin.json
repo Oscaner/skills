@@ -3,7 +3,7 @@
   "name": "kairos",
   "displayName": "kairos",
   "description": "Standalone kairos skills: orchestration + cdd-* family + CDD engine.",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "author": {
     "name": "Oscaner Miao",
     "email": "oscaner1997@gmail.com"

@@ -1,8 +1,8 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P11 实施计划：dispatch contract 收口（child Return 去结构化 + `--dry-run` 真只读预览 + `RoundNaming` 命名单源）
 doc-type: plan
-version: v0.5
-date: 2026-10-18
+version: v0.6
+date: 2026-10-19
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p11-design.md
 parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
 depends-on: P10（Done · v0.10 · hard——P10 全链闭合后 dispatch contract 收口 · D50）
@@ -115,3 +115,4 @@ base: develop
 | v0.3 | 2026-10-19 | in-flight backfill（review blocker F1 + T2 hotfix）：(a) ensure 扩面——T3 写点由「`CliGate#renderBrief` 一处（`type === "wave"` 门内）」改为「`#runWork` 真实运行派发入口对所有面一次（预检后、首个写点前，`dryRun` 跳过）」，对齐 spec v0.5 §3.2/§4.2/§1.3；T3 Objective/Files（去 `gate.ts`、归 `cli.ts`）/Steps/Acceptance 同步 + 空仓 spec/plan/branch 派发 pin。(b) T2 已 hotfix 落地（commit `6ac29ac`）：T1 单独落地致真实派发自锁（散文无 `status:` 行 vs 未删的 no-status 门），手动落地 T2 全量解锁；Constraints 记「T2 已 hotfix 落地」行（wave 不变 W1={1,3,4} · W2={2,5} · W3={6}；T2 代码已随 hotfix 落地，W2 实现面实际仅 T5）| Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] in-flight backfill · 2026-10-19） |
 | v0.4 | 2026-10-19 | W1 review（CHANGES_REQUESTED · blocker 1）裁定回填——(a) **F3 修复**：T3 `Produces` 行 v0.3 漏改，仍写「显式 `ensure()` 调用点仅 `CliGate#renderBrief` 一处」，与 Objective/Files/Steps/Acceptance 矛盾；已改为「`#runWork` 一处（真实运行首个写点，覆盖所有面）」。(b) **F2 裁定**：红窗口句澄清——`returnFormats` pin（`render.test.ts:48`）归 T1，两行 fence pin（`render.test.ts:66`，§2.4 在册）归 **T6**，红窗口延续至 T6（原文「随 T1/T2 同批迁移收口」有歧义）。F1（ensure 扩面未落码）为纯码修复，由 fix 回合落实，无需 plan 变更；F4/F5 为 nit，由 fix 回合落实 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] W1 review-ruling 回填 · 2026-10-19） |
 | v0.5 | 2026-10-19 | W2 review（REVIEW_FIX）note 回填——T6 scope 显式纳入 `cli.test.ts` 的 25 处 dry-run-E2E 用例（W2 边界红：旧 book-轮 断言随 T5 退场，改 preview 块断言），否则「全量测试面绿收口于 T6」不成立；T6 Objective/Files/Steps/Acceptance 同步 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] W2 review-note 回填 · 2026-10-19） |
+| v0.6 | 2026-10-19 | closeout（cdd-close）——P11 全链闭合登记：三波实现链全绿（W1={1,3,4} A 组模板翻面 + C 组 ensure/migrate 退休 + `RoundNaming` 单源 · W2={2,5} 引擎侧删除/`stdoutTail` + `--dry-run` 真只读预览 · W3={6} 测试面迁移 + 文档面 + 变更集；T2 热修 `6ac29ac` 前置）· 分支终审 → 分支 fix 闭环（branch-fix-1 `5c9048e2`）· 验收全项交付（`pnpm run validate` exit 0 · cdd-engine 738/738 · kairos 83/83 · 零裸函数零命中 · changeset cdd-engine major pending · 不发布）· 父 overall → v2.54（P11 行 Done） | Oscar M. · Claude Opus 5（kairos:cdd-close · closeout-backfill · 2026-10-19） |

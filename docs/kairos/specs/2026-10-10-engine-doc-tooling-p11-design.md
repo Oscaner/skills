@@ -1,12 +1,12 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P11 设计：dispatch contract 收口（child Return 去结构化 + --dry-run 真只读预览）
 doc-type: phase-spec
-version: v0.6
-date: 2026-10-18
+version: v0.7
+date: 2026-10-19
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P11] 会话 · 用户两项 mandate · 2026-10-18）
 parent-program: 2026-10-10-engine-doc-tooling-overall.md
-parent-version: v2.52
+parent-version: v2.54
 depends-on: P10（Done · v0.10 · hard——P10 全链闭合后 dispatch contract 收口 · overall 依赖图 D50）
 ---
 
@@ -225,3 +225,4 @@ pre-flight 四门**照常跑**（纯读），任一门拒绝则输出与真实�
 | v0.4 | 2026-10-18 | docs-fix round 3——落实 R1–R3：§4.2 ensure() 清单重述（两条 `face/cli.ts:797`/`:958` 调用点退休 + `CliGate#renderBrief` 新增一处为首个写点 · `writeJson` 内部自 ensure）消除与 §3.2 的自相矛盾 · AC 的 ensure pin 由「零残留」改为「两调用点退休后零残留 + `renderBrief` 为首个写点」· §3.3 `child:` 行 pin 值归属校正（行 = `<HostId>` + `" "` + `HOSTS.<id>.invoke`，invoke 值逐字照 `face/host.ts:149`，`claude` 二进制名不属 invoke）· AC 的 `RETURN_STDOUT_BLOCK` → `RETURN_PROSE` 零残留 pin 面由「只圈 docs/maintainers」扩至引擎全活面（src + 测试 + templates token 族 + docs/maintainers） | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] docs-fix round 3 · 2026-10-18） |
 | v0.5 | 2026-10-19 | in-flight backfill（review blocker F1）——ensure 写点由「`CliGate#renderBrief` 一处（`type === "wave"` 门内）」扩面为「`#runWork` 真实运行派发入口对所有面一次（预检后、首个写点前，`dryRun` 分支不达）」：原设计仅在 wave 面经 `renderBrief` ensure，spec/plan/branch 面在空仓真实派发时 `.kairos/<slug>/` 缺席（子进程 OUTPUT_HANDOFF 指向不存在的目录，`.kairos/.gitignore` keep-out 标记未在子进程可污染前发布），`Workspace.ensure()` 首发时机被推迟到 wave 面；扩面后所有面同点 ensure。§3.2 首行 · §4.2 首条 · §1.3 写点重述同步 | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] in-flight backfill · 2026-10-19） |
 | v0.6 | 2026-10-19 | branch review（REVIEW_FIX）裁定回填——AC 的「首个写点」句对齐全相：由「`CliGate#renderBrief` 的显式 `ensure()`（`face/gate.ts:117-118`）」改为「`#runWork`（`face/cli.ts` 预检后、首个写点前）的显式 `ensure()`，覆盖所有面（wave/spec/plan/branch；dry-run 不触发）」（v0.5 回填漏改 AC）；空仓首派 AC 同步扩至各面（spawn 前建 workspace；wave 面渲染 brief） | Oscar M. · Claude Opus 5（kairos:cdd-dev [P11] branch-review 回填 · 2026-10-19） |
+| v0.7 | 2026-10-19 | closeout（cdd-close）——P11 全链闭合登记：三波实现链全绿（W1={1,3,4} → W2={2,5} → W3={6}）· 分支终审 → 分支 fix 闭环（branch-fix-1 `5c9048e2`）· 验收全项交付（`pnpm run validate` exit 0 · cdd-engine 738/738 · kairos 83/83 · 零裸函数零命中 · changeset cdd-engine major pending · 不发布）· 父 overall → v2.54（P11 行 Done） | Oscar M. · Claude Opus 5（kairos:cdd-close · closeout-backfill · 2026-10-19） |

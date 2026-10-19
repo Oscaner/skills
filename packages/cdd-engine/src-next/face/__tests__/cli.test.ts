@@ -2258,7 +2258,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
 
   it("a TIMEOUT dispatch — the failure face: exit 1, NO next: line, and progress's timeoutCount increments (§4.2/§4.3)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
-      dispatch: async () => ({ status: "TIMEOUT" }),
+      dispatch: async () => ({
+        status: "TIMEOUT",
+        termination: { cause: "stalled", idleMs: 1, lastSample: null },
+      }),
     });
     try {
       gitInit(repoRoot);
@@ -2273,6 +2276,26 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // …and NO next: line (the frozen failure face — a hung round never auto-retries).
       expect(io.stdoutText).not.toContain("next:");
       // §4.2 — the terminated round landed, the counter's only writer fired.
+      expect(ledger.counterOf("timeoutCount")).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a terminated round concluding non-failed still increments timeoutCount and exits 0 — the counter reads the termination fact, not the status word", async () => {
+    const { command, repoRoot, cleanup } = fixture({
+      dispatch: async () => ({
+        status: "APPROVED",
+        termination: { cause: "over-budget", idleMs: 5, lastSample: null },
+      }),
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      expect(code).toBe(0);
       expect(ledger.counterOf("timeoutCount")).toBe(1);
     } finally {
       cleanup();
@@ -3666,7 +3689,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // round's content is the OUTPUT_HANDOFF draft read back below.
       sync.stdout = "Implemented the task. All checks green.\n";
       // The child's write-back: the implement draft at OUTPUT_HANDOFF per the injected
-      // `work` schema + the canonical test-evidence file (the v1.9 read-back inputs).
+      // `delivery` schema + the canonical test-evidence file (the v1.9 read-back inputs).
       const draft = path.join(scene.workspace.path, "tasks-1-implement.json");
       // The compliant child follows the prescribed OUTPUT_* names (find #5): the
       // artifacts it declares are the canonical {family}-{key}-{artifact} paths (the
@@ -4488,7 +4511,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         verdict: "stalled",
       };
       sync.code = null;
-      sync.termination = { cause: "stalled", lastSample };
+      sync.termination = { cause: "stalled", idleMs: 1_800_000, lastSample };
       const dispatch = new HarnessDispatch({
         scene,
         io,
@@ -4497,7 +4520,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(implementFrame);
       // §4.3 — the derived status: a termination ⇒ TIMEOUT (never BLOCKED).
-      expect(outcome).toEqual({ status: "TIMEOUT" });
+      expect(outcome.status).toBe("TIMEOUT");
+      expect(outcome.termination).toEqual({ cause: "stalled", idleMs: 1_800_000, lastSample });
       // The reason rides the CDD_BLOCKED channel with its cause.
       expect(io.stderrText).toContain("CDD_BLOCKED:");
       expect(io.stderrText).toContain("stalled");
@@ -4507,6 +4531,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         stdoutTail: readonly string[];
         stderrTail: readonly string[];
         lastSample: SampleRecord | null;
+        promoted: boolean;
+        idleMs: number | null;
         next: string;
       }>(path.join(scene.workspace.path, "crash-implement.wave-1.json"));
       // The record tells the truth: the killed child has NO exit code (null verbatim,
@@ -4514,6 +4540,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(crash.exitCode).toBeNull();
       expect(crash.cause).toBe("stalled");
       expect(crash.lastSample).toEqual(lastSample);
+      expect(crash.promoted).toBe(false);
+      expect(crash.idleMs).toBe(1_800_000);
       expect(crash.next).toBe("cdd implement --tasks 1 --plan <plan>");
     } finally {
       cleanup();
@@ -4532,7 +4560,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const io = new CaptureIo();
       const sync = new StubRunner();
       sync.code = 143;
-      sync.termination = { cause: "over-budget", lastSample: null };
+      sync.termination = { cause: "over-budget", idleMs: 42, lastSample: null };
       const dispatch = new HarnessDispatch({
         scene,
         io,
@@ -4540,7 +4568,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = await dispatch.step()(implementFrame);
-      expect(outcome).toEqual({ status: "TIMEOUT" });
+      expect(outcome.status).toBe("TIMEOUT");
+      expect(outcome.termination).toEqual({ cause: "over-budget", idleMs: 42, lastSample: null });
       const crash = readJson<{ exitCode: number | null; cause: string }>(
         path.join(scene.workspace.path, "crash-implement.wave-1.json"),
       );
@@ -4617,7 +4646,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const io = new CaptureIo();
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
-      // the child wrote a draft MISSING the required `status` — the `work` subset's
+      // the child wrote a draft MISSING the required `status` — the `delivery` subset's
       // read-back refuses it
       const draftPath = path.join(scene.workspace.path, "tasks-1-implement.json");
       writeFileSync(draftPath, JSON.stringify({ artifacts: { report: "/r" } }), "utf8");
@@ -4629,7 +4658,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(implementFrame);
       expect(outcome).toEqual({ status: "BLOCKED" });
-      expect(io.stderrText).toContain("violates the work schema");
+      expect(io.stderrText).toContain("violates the delivery schema");
       expect(io.stderrText).toContain("status: required");
       // the draft is preserved byte-identically — the engine never clobbers the
       // child's work; the resume re-runs the same command and the child rewrites it
@@ -4801,6 +4830,364 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/branch-fix-1-report.md`);
       expect(prompt).toContain(`- \`OUTPUT_EVIDENCE\`: ${wsRel}/branch-test-evidence.json`);
       expect(prompt).not.toContain("aaaaaaaa..bbbbbbbb");
+    } finally {
+      cleanup();
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // P13 T3 — the terminated review round's promotion (the one termination ⊥
+  // conclusion exception): a valid findings draft is the round's work, so it is
+  // read back normally; every other terminated round keeps the TIMEOUT face.
+  // -------------------------------------------------------------------------
+
+  /** A hermetic workspace + ledger for the CLI E2E dispatch cases. */
+  function cliScene(repoRoot: string): { workspace: Workspace; ledger: Ledger } {
+    const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+    return { workspace, ledger: new Ledger(workspace, new ConfigLoader()) };
+  }
+
+  /** Seed the wave's review phase — the implement round recorded on the wave line. */
+  function seedImplement(ledger: Ledger): void {
+    ledger.recordRound(1, "implement");
+    ledger.persistHandoff(
+      "implement",
+      "wave",
+      { tasks: "1" },
+      { status: "APPROVED", artifacts: {} },
+    );
+  }
+
+  /** Seed the wave's fix phase — the implement + blocker review rounds recorded. */
+  function seedReview(ledger: Ledger): void {
+    seedImplement(ledger);
+    ledger.persistHandoff(
+      "review",
+      "wave",
+      { tasks: "1", round: 1 },
+      { findings: [{ severity: "blocker", lens: "code", summary: "drift" }] },
+    );
+    ledger.recordRound(1, "review");
+  }
+
+  /** Run one CLI invocation with the ambient host marker the production dispatch
+   *  detects (the CLI reads process.env — restored after the call). */
+  async function withHost(run: () => Promise<number>): Promise<number> {
+    const saved = process.env.CLAUDE_CODE_SESSION_ID;
+    process.env.CLAUDE_CODE_SESSION_ID = "s";
+    try {
+      return await run();
+    } finally {
+      if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+      else process.env.CLAUDE_CODE_SESSION_ID = saved;
+    }
+  }
+
+  /** The stalled-kill termination fact the stub child reports. */
+  const stalled = (): { termination: Termination; lastSample: SampleRecord } => {
+    const lastSample: SampleRecord = {
+      sampledAt: 1_700_000_000,
+      groupCpuMs: 120,
+      newestMtimeMs: 1_700_000_500,
+      verdict: "stalled",
+    };
+    return { termination: { cause: "stalled", idleMs: 1_800_000, lastSample }, lastSample };
+  };
+
+  it("promotes a terminated review round whose draft is valid and has findings", async () => {
+    const sync = new StubRunner();
+    const fact = stalled();
+    sync.code = null;
+    sync.termination = fact.termination;
+    const { command, io, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace, ledger } = cliScene(repoRoot);
+      seedImplement(ledger);
+      // the killed review child had already written its findings draft
+      writeFileSync(
+        path.join(workspace.path, "tasks-1-review-1.json"),
+        JSON.stringify({
+          findings: [{ severity: "blocker", lens: "code", summary: "drift" }],
+        }),
+        "utf8",
+      );
+      const code = await withHost(() =>
+        command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+      );
+      // the conclusion derives from the handoff — exit 0, a real blocker count, a
+      // next hop, and the round on record (the normal read-back path).
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("status: CHANGES_REQUESTED");
+      expect(io.stdoutText).toContain("blocker: 1");
+      expect(io.stdoutText).toMatch(/^next:/m);
+      expect(ledger.roundCount(1, "review")).toBe(1);
+      expect(ledger.counterOf("timeoutCount")).toBe(1);
+      // the ONE promoted WARN — never a CDD_BLOCKED (the failure channel stays silent)
+      expect(io.stderrText.match(/CDD_WARN:/g)).toHaveLength(1);
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+      expect(io.stderrText).toContain("stalled");
+      expect(io.stderrText).toContain("1800000");
+      expect(io.stderrText).toContain("findings recovered: 1");
+      // the crash record lands with the promotion fact + the termination's idle time
+      const crash = readJson<{
+        promoted: boolean;
+        idleMs: number | null;
+        cause: string;
+        lastSample: SampleRecord | null;
+      }>(path.join(workspace.path, "crash-review.wave-1.json"));
+      expect(crash.promoted).toBe(true);
+      expect(crash.idleMs).toBe(1_800_000);
+      expect(crash.cause).toBe("stalled");
+      expect(crash.lastSample).toEqual(fact.lastSample);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("terminated round reports idle duration and last sample on stderr and in the crash record", async () => {
+    const sync = new StubRunner();
+    const fact = stalled();
+    sync.code = null;
+    sync.termination = fact.termination;
+    const { command, io, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace } = cliScene(repoRoot);
+      const code = await withHost(() =>
+        command.runArgv(["implement", "--tasks", "1", "--plan", plan]),
+      );
+      expect(code).toBe(1);
+      // the ONE extended CDD_BLOCKED line carries the cause, idle time and last sample
+      const lines = io.stderrText.split("\n").filter((line) => line.length > 0);
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain("CDD_BLOCKED:");
+      expect(lines[0]).toContain("stalled");
+      expect(lines[0]).toContain("idleMs: 1800000");
+      expect(lines[0]).toContain("last sample verdict: stalled");
+      const crash = readJson<{ idleMs: number | null; lastSample: SampleRecord | null }>(
+        path.join(workspace.path, "crash-implement.wave-1.json"),
+      );
+      expect(crash.idleMs).toBe(1_800_000);
+      expect(crash.lastSample).toEqual(fact.lastSample);
+    } finally {
+      cleanup();
+    }
+  });
+
+  describe("does not promote", () => {
+    it("an implement round — the terminated work face keeps TIMEOUT", async () => {
+      const sync = new StubRunner();
+      sync.code = null;
+      sync.termination = stalled().termination;
+      const { command, io, repoRoot, cleanup } = fixture({ sync });
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot);
+        const { workspace, ledger } = cliScene(repoRoot);
+        // even a valid work draft never promotes — the review face is the sole domain
+        writeFileSync(
+          path.join(workspace.path, "tasks-1-implement.json"),
+          JSON.stringify({ status: "APPROVED", artifacts: {} }),
+          "utf8",
+        );
+        const code = await withHost(() =>
+          command.runArgv(["implement", "--tasks", "1", "--plan", plan]),
+        );
+        expect(code).toBe(1);
+        expect(io.stdoutText).toContain("status: TIMEOUT");
+        expect(io.stdoutText).not.toMatch(/^next:/m);
+        expect(ledger.roundCount(1, "implement")).toBe(0);
+        expect(ledger.counterOf("timeoutCount")).toBe(1);
+        const crash = readJson<{ promoted: boolean; cause: string }>(
+          path.join(workspace.path, "crash-implement.wave-1.json"),
+        );
+        expect(crash.promoted).toBe(false);
+        // the true death cause, never the read-back `contract-violation`
+        expect(crash.cause).toBe("stalled");
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("a fix round — the terminated fix face keeps TIMEOUT", async () => {
+      const sync = new StubRunner();
+      sync.code = null;
+      sync.termination = stalled().termination;
+      const { command, io, repoRoot, cleanup } = fixture({ sync });
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot);
+        const { workspace, ledger } = cliScene(repoRoot);
+        seedReview(ledger);
+        const reviews = path.join(workspace.path, "tasks-1-review-1.json");
+        const code = await withHost(() =>
+          command.runArgv([
+            "fix",
+            "--type",
+            "wave",
+            "--tasks",
+            "1",
+            "--plan",
+            plan,
+            "--reviews",
+            reviews,
+          ]),
+        );
+        expect(code).toBe(1);
+        expect(io.stdoutText).toContain("status: TIMEOUT");
+        expect(io.stdoutText).not.toMatch(/^next:/m);
+        expect(ledger.roundCount(1, "fix")).toBe(0);
+        expect(ledger.counterOf("timeoutCount")).toBe(1);
+        const crash = readJson<{ promoted: boolean; cause: string }>(
+          path.join(workspace.path, "crash-fix.wave-1.json"),
+        );
+        expect(crash.promoted).toBe(false);
+        expect(crash.cause).toBe("stalled");
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("a review round whose draft is missing — TIMEOUT", async () => {
+      const sync = new StubRunner();
+      sync.code = null;
+      sync.termination = stalled().termination;
+      const { command, io, repoRoot, cleanup } = fixture({ sync });
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot);
+        const { workspace, ledger } = cliScene(repoRoot);
+        seedImplement(ledger);
+        const code = await withHost(() =>
+          command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+        );
+        expect(code).toBe(1);
+        expect(io.stdoutText).toContain("status: TIMEOUT");
+        expect(io.stdoutText).not.toMatch(/^next:/m);
+        expect(ledger.roundCount(1, "review")).toBe(0);
+        expect(ledger.counterOf("timeoutCount")).toBe(1);
+        const crash = readJson<{ promoted: boolean; cause: string }>(
+          path.join(workspace.path, "crash-review.wave-1.json"),
+        );
+        expect(crash.promoted).toBe(false);
+        expect(crash.cause).toBe("stalled");
+        // the failure summary carries the crash record as its handoff cell
+        expect(io.stdoutText).toContain("handoff: .kairos/cdd/p3/crash-review.wave-1.json");
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("a review round whose draft is truncated (invalid JSON) — TIMEOUT", async () => {
+      const sync = new StubRunner();
+      sync.code = null;
+      sync.termination = stalled().termination;
+      const { command, io, repoRoot, cleanup } = fixture({ sync });
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot);
+        const { workspace, ledger } = cliScene(repoRoot);
+        seedImplement(ledger);
+        // a truncated draft is an invalid draft — never a promotion
+        writeFileSync(
+          path.join(workspace.path, "tasks-1-review-1.json"),
+          '{"findings": [{"severity": "blocker", "lens": "code", "summary": "drift"',
+          "utf8",
+        );
+        const code = await withHost(() =>
+          command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+        );
+        expect(code).toBe(1);
+        expect(io.stdoutText).toContain("status: TIMEOUT");
+        expect(io.stdoutText).not.toMatch(/^next:/m);
+        expect(ledger.roundCount(1, "review")).toBe(0);
+        expect(ledger.counterOf("timeoutCount")).toBe(1);
+        const crash = readJson<{ promoted: boolean; cause: string }>(
+          path.join(workspace.path, "crash-review.wave-1.json"),
+        );
+        expect(crash.promoted).toBe(false);
+        expect(crash.cause).toBe("stalled");
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("a review round whose draft is valid but has zero findings — TIMEOUT", async () => {
+      const sync = new StubRunner();
+      sync.code = null;
+      sync.termination = stalled().termination;
+      const { command, io, repoRoot, cleanup } = fixture({ sync });
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot);
+        const { workspace, ledger } = cliScene(repoRoot);
+        seedImplement(ledger);
+        writeFileSync(
+          path.join(workspace.path, "tasks-1-review-1.json"),
+          JSON.stringify({ findings: [] }),
+          "utf8",
+        );
+        const code = await withHost(() =>
+          command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+        );
+        expect(code).toBe(1);
+        expect(io.stdoutText).toContain("status: TIMEOUT");
+        expect(io.stdoutText).not.toMatch(/^next:/m);
+        expect(ledger.roundCount(1, "review")).toBe(0);
+        expect(ledger.counterOf("timeoutCount")).toBe(1);
+        const crash = readJson<{ promoted: boolean; cause: string }>(
+          path.join(workspace.path, "crash-review.wave-1.json"),
+        );
+        expect(crash.promoted).toBe(false);
+        expect(crash.cause).toBe("stalled");
+      } finally {
+        cleanup();
+      }
+    });
+  });
+
+  it("a promoted round makes cdd fix --reviews accepted", async () => {
+    // The promotion records the review round (`roundCount(review) > 0`), which is
+    // exactly the fix gate's readiness fact — the fix verb no longer refuses.
+    const sync = new StubRunner();
+    sync.code = null;
+    sync.termination = stalled().termination;
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace, ledger } = cliScene(repoRoot);
+      seedImplement(ledger);
+      writeFileSync(
+        path.join(workspace.path, "tasks-1-review-1.json"),
+        JSON.stringify({
+          findings: [{ severity: "blocker", lens: "code", summary: "drift" }],
+        }),
+        "utf8",
+      );
+      const promoted = await withHost(() =>
+        command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+      );
+      expect(promoted).toBe(0);
+      // the fix gate accepts — an injected approving dispatch isolates the gate face
+      const fixIo = new CaptureIo();
+      const fixCommand = Cli.create({ io: fixIo, dispatch: APPROVING });
+      const fixCode = await fixCommand.runArgv([
+        "fix",
+        "--type",
+        "wave",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+        "--reviews",
+        path.join(workspace.path, "tasks-1-review-1.json"),
+      ]);
+      expect(fixIo.stderrText).not.toContain("cannot dispatch a fix round");
+      expect(fixCode).toBe(0);
     } finally {
       cleanup();
     }

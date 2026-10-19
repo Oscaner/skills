@@ -27,6 +27,7 @@ import {
   type OpType,
   type RoundFinding,
   type RoundStatus,
+  type Termination,
 } from "./ledger.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
@@ -106,6 +107,9 @@ export interface DispatchOutcome {
    *  finalized, the engine stays the single author). Absent for the hermetic /
    *  injected dispatchers — the bookkeep builds the carrier from the outcome fields. */
   carrier?: Record<string, unknown>;
+  /** The termination fact — present iff the round was cut short; a fact orthogonal to
+   *  the conclusion (the status still derives from the handoff). */
+  termination?: Termination;
 }
 
 /** The dispatch instruction — runs one round's actual work (the harness call in
@@ -119,17 +123,19 @@ export type DispatchStep = (frame: OpenFrame) => Promise<DispatchOutcome>;
  *  this shape; the lifecycle advances without a capsule (non-hard consumption) and
  *  attachCapsule only renders the step's round facts when a capsule is connected. */
 export interface CapsuleFace {
-  /** Render the capsule lines for one round's facts — byte-stable `status · blocker
-   *  · handoff` plus the optional `next:` line (the words ride the face's word
-   *  table). The additive optional RouteTarget supplies the dispatch frame's own
-   *  type + id for the dispatch-ready `next:` literal (v1.25 — the 4-param call
-   *  stays valid: the target is an optional 5th). */
+  /** Render the capsule lines for one round's facts — the status-class key set
+   *  (`status · blocker · handoff` on success; `status` plus the crash `handoff` on
+   *  TIMEOUT/BLOCKED) via the face's word table. The additive optional RouteTarget
+   *  supplies the dispatch frame's own type + id for the dispatch-ready `next:`
+   *  literal (v1.25 — the 4-param call stays valid: the target is an optional 5th).
+   *  `withHandoff` is the round's crash-record fact (the failure handoff cell). */
   emit(
     status: string,
     blocker: string,
     handoff: string,
     next?: Route | string | null,
     target?: RouteTarget | null,
+    withHandoff?: boolean,
   ): string[];
 }
 
@@ -149,6 +155,9 @@ export interface StepResult {
    *  gate blocked the frame before ANY child dispatch (absent on ordinary steps).
    *  The refused frame is NOT recorded — the frontier re-offers it (resume). */
   preflight?: PreFlightVerdict;
+  /** The step's termination fact, passed through from the dispatch outcome (absent
+   *  when the round ended by itself). */
+  termination?: DispatchOutcome["termination"];
 }
 
 /**
@@ -272,6 +281,7 @@ export class Lifecycle {
       round,
       route,
       capsuleLines: this.#capsuleLines(frame, outcome, route),
+      termination: outcome.termination,
     };
   }
 
@@ -440,9 +450,9 @@ export class Lifecycle {
       // `schema` selector, never the outcome's field presence): a findings-face round
       // (review / docs-fix) builds the findings carrier — its schema-required findings
       // key, empty on a conclusion-only round (a fix advances no new findings); a
-      // work-face round builds the findings-free work carrier — zero findings
+      // delivery-face round builds the findings-free delivery carrier — zero findings
       // injection. The review finding-severity route reads the round carrier's
-      // findings; the conclusion rides only the work face's declared status (the
+      // findings; the conclusion rides only the delivery face's declared status (the
       // findings face derives its conclusion at judgment time).
       const face = this.#ledger.handoffFaceOf(op, frame.type);
       const carrier: Record<string, unknown> =
@@ -451,11 +461,11 @@ export class Lifecycle {
           ? this.#ledger.buildHandoff("findings", {
               findings: [...(outcome.findings ?? [])],
             })
-          : this.#ledger.buildHandoff("work", {}));
-      // The work face ALONE persists the conclusion (the child's declared status); the
+          : this.#ledger.buildHandoff("delivery", {}));
+      // The delivery face ALONE persists the conclusion (the child's declared status); the
       // findings carrier holds no status — its conclusion derives at judgment time
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
-      if (face === "work" && carrier.status === undefined && outcome.status !== undefined)
+      if (face === "delivery" && carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
       this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
     }
@@ -557,7 +567,10 @@ export class Lifecycle {
   }
 
   /** The capsule lines of one step — empty unless a capsule is attached (the non-hard
-   *  interaction point). The blocker cell carries the round's blocker count; the
+   *  interaction point). A success round carries the real blocker count and the
+   *  handoff carrier path. A failure round (TIMEOUT / BLOCKED) carries no blocker
+   *  cell (its count would be a filler); its handoff cell is the crash record and is
+   *  emitted only when that record exists (a no-host BLOCKED writes none). The
    *  dispatch-ready `next:` literal rides the frame's own RouteTarget identity
    *  (type + id — the v1.25 combination point: frame.type + params.tasks + route
    *  are all present here). */
@@ -568,16 +581,26 @@ export class Lifecycle {
   ): readonly string[] {
     if (this.#capsule === null) return [];
     const op = this.#opOf(frame.phase);
+    const failure = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
+    const lane = `${op}.${frame.type}`;
+    // The failure face's handoff is the crash record — the engine's own postmortem
+    // artifact, its existence the emission condition; the success face keeps the
+    // round's handoff carrier path.
+    const crash = failure ? this.#ledger.readCrash(lane, frame.round) : null;
     const blockers = (outcome.findings ?? []).filter(
       (finding) => finding.severity === "blocker",
     ).length;
-    const handoff = this.#ledger.handoffPath(op, frame.type, frame.params);
+    const handoff =
+      crash !== null
+        ? this.#ledger.crashPath(lane, frame.round)
+        : this.#ledger.handoffPath(op, frame.type, frame.params);
     return this.#capsule.emit(
       outcome.status,
       String(blockers),
       handoff,
       route,
       this.#routeTarget(frame),
+      crash !== null,
     );
   }
 

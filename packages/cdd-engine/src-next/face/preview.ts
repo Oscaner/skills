@@ -97,7 +97,7 @@ export class Preview {
   }
 
   /** The artifacts the round would write — the frame's prescribed output set (the
-   *  handoff carrier, the round report and the work faces' test evidence), named by
+   *  handoff carrier, the round report and the delivery faces' test evidence), named by
    *  the ONE naming source. A slot the frame's family does not consume (a review
    *  round prescribes no evidence file) is dropped, never rendered blank. */
   #writesOf(frame: OpenFrame): string {

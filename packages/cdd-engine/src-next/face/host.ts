@@ -18,7 +18,7 @@
 //     `/namespace:skill` form; pi the flat `/skill:<bare>` form — the pi flat
 //     namespace has no namespace-qualification syntax).
 //   · HostDetect — the module-level host judgment (the detection's single home):
-//     the dispatch face's detectHost delegates here; the work face's Capsule wiring
+//     the dispatch face's detectHost delegates here; the delivery face's Capsule wiring
 //     reads the same judgment over process.env.
 //
 // P5 lands here: the forbidden parallel-sub-agents prose is deleted from the review

@@ -185,7 +185,7 @@ const FIX_SHELL: readonly string[] = [
   "**fix:** read `INPUT_REVIEWS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_PLAN` on the plan/branch lines — the plan document; `INPUT_SPEC` on the spec line — the spec document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_REVIEWS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
-  // T5 (v0.3) — The work face's ONE strict-schema sentence: every top-level draft
+  // T5 (v0.3) — The delivery face's ONE strict-schema sentence: every top-level draft
   // field comes from the `## Handoff schema` declared properties (the fields'
   // single source is the injected fence below — never a second enumeration in the
   // shell prose; a fix child that mirrors the source review carrier's top-level

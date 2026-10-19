@@ -1,12 +1,12 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P12 设计：child dispatch 终止兜底（liveness + budget）
 doc-type: phase-spec
-version: v0.7
+version: v0.8
 date: 2026-10-19
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P12] 会话 · 用户逐轮裁定 Q1–Q14 · 2026-10-19）
 parent-program: 2026-10-10-engine-doc-tooling-overall.md
-parent-version: v2.57
+parent-version: v2.58
 depends-on: P11（Done · v0.7 · hard——P11 全链闭合后 child dispatch 终止兜底 · overall 依赖图 D52）
 ---
 
@@ -285,3 +285,4 @@ export type CrashCause = TerminationCause | "child-exit" | "contract-violation" 
 | v0.5 | 2026-10-19 | 设计回填（plan-review-1 F2 漂移 · `backfill-design`）——§3.3 判官形态改写：`StallJudge` 由「`prev` + `sample` + `idleWindowMs` 的纯函数」改为**有状态 · 零 I/O**（自持 `#lastCpuMs` / `#maxMtimeMs` / `#idleSince`，观测入口 `observe(sample, now): StallVerdict`）——原措辞表达不出本节自己的判据（mtime「比**历史最大值**增长」与「`idleSince` 起点」都需要跨调用累加态）；并定义 `Sample = { groupCpuMs: number \| null; newestMtimeMs: number \| null }`（`null` = 腿不可读 · 与 §3.4 心跳记录面同字段名）。四条判据文字与其余各节逐条不变；front-matter `parent-version` 由 v2.56 校正至 **v2.57**（v0.4 的 D54 回填本就属 overall v2.57 变更波次——陈旧声明 pin 正是本 phase 要消灭的漂移类） | Oscar M. · Claude Opus 5（kairos:cdd-plan [P12] design-backfill · 2026-10-19） |
 | v0.6 | 2026-10-19 | 设计回填（plan-review-1 F1 漂移 · `backfill-design`）——§3.1 缝的两端形状补齐：**结果面** `ChildOutcome.termination` 由裸 `TerminationCause \| null` 升为值对象 **`Termination = { cause; lastSample }`**（因与证据同行，`termination === null` ⟺ 有正常退出码——终止轮的一切下游判定从此支读，**不从 `code` 反推**：被杀 child 的 `code` 为 `null`）；**入参面**新增 `ChildRun = { command, args, cwd, heartbeatPath, policy }` 并钉死 Two-Path 同源（`CliLifecycle` 由唯一持有的 `scene.workspace` 派生 `cwd`/`heartbeatPath`，`Terminator` 零会话态构造；同一 `run.cwd` 兼作 spawn cwd 与树腿扫描根 ⇒「扫描根 ≡ child 的 cwd」成结构保证）。§3.4 命名 `SampleRecord`（= `Sample` 扩展记录面两字段，一处命名）并明示末样本随因同行、零回读；§4.2 末样本字段改取 `termination.lastSample`；§4.3 补 `status` 的派生规则（`termination !== null` → `TIMEOUT`，无新入参）与 `#dispatch` 的判序必须（`child-exit` 分支须在 `termination` 判定之后）。判据/预算/词汇各节逐条不变 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P12] design-backfill · 2026-10-19） |
 | v0.7 | 2026-10-19 | 设计回填（plan-review-3 F1/F2 漂移 · `backfill-design`）——两处spec 自身缺陷：(1) **§3.1 的终止判据改写**——原文「`termination === null` ⟺ 本轮有正常退出码」是**错的**：spawn 失败（坏命令/ENOENT）既无退出码也无终止事件，按原文会被判成终止（`unknown` → `TIMEOUT`），破坏今日「坏命令 → BLOCKED」的 fail-open 面；改为「`termination !== null` ⟺ **本轮被终止**（`timedOut` ∨ 我方 kill ∨ 结果面带信号）」；(2) **`code` 的折叠退役**——`SyncRunner.#collect` 今日的 `exitCode ?? 1` 把「从未启动」与「被杀死」都谎报成 `1`，§3.1 改 pin `code` 取 execa 原值、`CrashRecord.exitCode` 放宽为 `number | null` 且其「143 = SIGTERM 的 shell 约定」注释退役；§4.2 crash record 同步；§2.3 补 `run.advance()` 调用点迁移行（`run.test.ts` 91 处 · `preflight.test.ts:535`/`:540` 2 处）——该块是本次异步化最大的测试面，原表漏列；AC 的 fail-open 行与测试面行同步（坏命令 `code` 期望 `1` → `null`，pin 实质不变） | Oscar M. · Claude Opus 5（kairos:cdd-plan [P12] design-backfill · 2026-10-19） |
+| v0.8 | 2026-10-19 | closeout（cdd-close）——P12 全链闭合登记：五波实现链全绿（W1={1} → W2={2} → W3={3} → W4={4} → W5={5}；W1/W4/W5 各经一轮 fix 收口）· 分支终审 → 分支 fix 闭环（branch-review-1 REVIEW_FIX（1 warn + 3 nit）→ branch-fix-1 `cce5b15d`）· 验收全项交付（`pnpm run validate` exit 0 · cdd-engine 768/768 · kairos 83/83 · 零裸函数 grep 零命中 · changeset cdd-engine minor pending · 不发布）· 父 overall → v2.58（P12 行 Done · `parent-version` 随之 v2.57 → v2.58） | Oscar M. · Claude Opus 5（kairos:cdd-close · closeout-backfill · 2026-10-19） |

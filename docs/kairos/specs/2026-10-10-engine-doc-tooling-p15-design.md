@@ -1,13 +1,13 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P15 设计：文档身份面统一为 front-matter `slug:`（board 入口改路径 · 文件名推演与路径声明键整退）
 doc-type: phase-spec
-version: v0.6
+version: v0.7
 date: 2026-10-20
 slug: 2026-10-10-engine-doc-tooling-p15
 program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscaner M. · Claude（kairos:cdd-design [P15] 会话 · 用户七前提 mandate · grilling settled · 2026-10-20）
-parent-version: v2.65
+parent-version: v2.66
 depends-on: P14（Done · v0.3 · hard——P14 Design Done · overall 依赖图 P14 -> P15）
 ---
 
@@ -218,3 +218,4 @@ depends-on: P14（Done · v0.3 · hard——P14 Design Done · overall 依赖图
 | v0.4 | 2026-10-20 | **spec-fix-3（review-3 findings 收口 · 4 warn + 5 nit）**：① warn——§3.2 定案相位行主键由 P-id 改为 `slug:`（今日 P-id 由 `-pN` 尾缀派生，`face/board-view.ts:426`），属 deliberate pin 重锚；AC 字节清单收窄为板头 / 进度标记 / `next:` / legend，`board-view.test.ts:1022` 只作 program 板形状锚；② warn——§4.2 `File path row` 的 judge 半句由 `PresenceInvariant` 改指 hollow（`PRESENCE_HOMES` 不含 `table`，`PresenceInvariant` 直接 `continue`；`HollowInvariant.tableHollow` `contract/invariants.ts:850-868` · `:255`）；③ warn——§4.2 补骨架槽类接线（`slug-ref` 并入 `contract/project.ts:595-599` 的 link 槽判 + `FRONT_MATTER_LINKS` 补 `program:` 条目，否则骨架吐 `:::fill`）；④ warn——§4.1 `slug-ref` 断言面补占位豁免（`isPlaceholder` `contract/invariants.ts:1114-1119`），AC 补骨架字节不被硬门判；⑤ nit——§2.1 `valuePattern` 并入长度上限（`^(?=.{1,128}$)…`）；⑥ nit——§4.2 零读断言收窄为「board 零读，引擎只判形状 / 链接存在性」；⑦ nit——§1.2 旗标挂载枚举补 schema，与 pin 表对齐；⑧ nit——§3.1 重复类单列 `slug: duplicated (BLOCKED)` 形；⑨ nit——pin 范围改到元素边界（`contract/declare.ts:388-402` · `:434-440`） | Oscaner M. · Claude（kairos:cdd-spec-writer [P15] spec-fix-3） |
 | v0.5 | 2026-10-20 | **plan 面的 design backfill（cdd-plan 会话 · `backfill-design` 节点）**——规划期发现 approved 设计未覆盖的三处：① **plan 的归属键退役**（§2.2 新增两条）：`spec:` 退役后 `parent-program:` / `parent-version:` 一并退役——plan 的归属链已由「同 slug 的 spec」两跳蕴含，再声明即同一事实的第二处；plan 注册表键集同步收为 `slug` / `depends-on` / `base`（§4.1 新增条）；② **链面处置**（§4.1 新增条）：plan Class-A 臂改「同 slug 恰有一份身份文档」、Class-B 臂整体删除、phase-spec Class-B 臂的父锚由路径改 slug 查表且不再进文件存在判；③ **板形与节点板定案**（§3.1 / 新增 §3.1.1）：板形由入口文档 `doc-type:` 决定，两者皆给且 slug 一致时为单板（取 `--spec` 板形）；节点板行集沿用今日 phase 板，身份链缺项渲染 `(none)` 且不置 blocked（single-spec → `overall (none)`）。AC 同步三条 | Oscaner M. · Claude（kairos:cdd-plan [P15] backfill-design） |
 | v0.6 | 2026-10-21 | **实现期 design backfill（cdd-dev 会话 · W2 review-1 finding 5 裁定面）**——§4.2 骨架条的**内部自相矛盾**收口：同一 bullet 开头定 phase-spec 吐 `program: <overall-slug>`，结尾却指令 `FRONT_MATTER_LINKS` 补路径形条目，实现者按字面取后者，产出与 `program:` 值域（slug）相反的**形状样例**。现统一为值域形：占位尖括号内取父 overall 的 slug，并写明「占位即消费者照抄样例」的约束理由（沿旧路径范例的头会被 `DomainInvariant` 判违约且 board 恒显 `program: missing (BLOCKED)`）。§4.1 的 `slug-ref` 值域与 §6 AC 的「骨架占位不被硬门判」不变 | Oscaner M. · Claude（kairos:cdd-dev [P15] backfill） |
+| v0.7 | 2026-10-21 | **closeout（cdd-close）——P15 全链闭合登记**：五波实现链全绿（W1={1,2} · W2={3,5,6} · W3={4,7} · W4={8} · W5={9}；W1/W2/W3 各一轮 fix 收口——W1 implement `0eb3737c` · review 1 nit → fix `0e239e5e`；W2 implement `fcbd3888` · review 1 warn + 7 nit → fix `aff1a2df`；W3 implement `ce98f5b2` · review 1 warn + 7 nit → fix `81f4c3a9`；W4 implement `83786c20` · W5 implement `bd125f0e` + `e2f5617d`，两波 review 均 APPROVED 零 fix） · 分支终审 branch-review-1 REVIEW_FIX（2 warn + 4 nit）→ branch-fix-1 `0963327b` APPROVED · 文档链（注册 `5bb3a4d8` · 本 spec `5853c662` + spec-fix ×3 + plan 面 backfill `41397710` · plan `0a3c1b3d` + plan-fix ×2） · 实现期编排器文档面回填三笔（`bf0144a5` / `1f607018` / `cb5dffcc`） · 验收：`pnpm run validate` exit 0（cdd-engine 806/806 · kairos 87/87 · root 10/10 · typecheck ×3 · emit-check fresh · version-sync kairos 1.1.2 · cdd-engine 3.1.0 · 零裸函数）· changeset cdd-engine **major** + kairos **minor** pending · 不发布 · **未验证面（如实记录）**：未发布故无外部消费者实跑；旧工作区目录迁移按 §1.4 属非目标 · 父 overall → v2.66（P15 行 Done · `parent-version` 随之 v2.65 → v2.66） | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-10-21） |

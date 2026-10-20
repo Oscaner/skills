@@ -31,6 +31,7 @@ import type { DocKey } from "../contract/project.ts";
 import type { Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
+import { SlugIndex } from "../infra/slug-index.ts";
 import type { TargetType } from "./faces.ts";
 import { TaskGraph } from "./graph.ts";
 import type { Ledger } from "./ledger.ts";
@@ -221,6 +222,49 @@ export class PreFlight {
             gate: "doc-contract",
             reason: "doc-contract",
             message: this.#words.routeWord("docType"),
+            order: gates,
+          };
+        }
+        // The identity gates (spec §2.1/§2.2) — same face, same carrier: the
+        // workspace key is the declared `slug:`, and the index's uniqueness
+        // judgment is the SAME one the board renders (one fact, two carriers).
+        const slug = head.slug;
+        if (slug === null) {
+          return {
+            ok: false,
+            gate: "doc-contract",
+            reason: "doc-contract",
+            message: this.#words.routeWord("slugMissing"),
+            order: gates,
+          };
+        }
+        if (!SlugIndex.SLUG_PATTERN.test(slug)) {
+          return {
+            ok: false,
+            gate: "doc-contract",
+            reason: "doc-contract",
+            message: this.#words.routeWord("slugInvalid").replace("{slug}", slug),
+            order: gates,
+          };
+        }
+        const index = SlugIndex.build(ctx.repoRoot);
+        const entry = index.entryAt(doc.path);
+        const duplicated =
+          entry !== null &&
+          entry.slug === slug &&
+          index
+            .violations()
+            .some(
+              (violation) =>
+                violation.slug === slug &&
+                (violation.kind === "duplicate-identity" || violation.kind === "duplicate-plan"),
+            );
+        if (duplicated) {
+          return {
+            ok: false,
+            gate: "doc-contract",
+            reason: "doc-contract",
+            message: this.#words.routeWord("slugDuplicated").replace("{slug}", slug),
             order: gates,
           };
         }

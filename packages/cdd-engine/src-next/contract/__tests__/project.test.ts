@@ -45,8 +45,7 @@ const REF_KINDS = new Set([
   "markdown-link",
   "phase-id",
   "issue-ref",
-  "spec-ref",
-  "parent-program",
+  "slug-ref",
   "task-id",
 ]);
 
@@ -345,23 +344,23 @@ describe("skeleton projection (Projector.skeleton)", () => {
     }
   });
 
-  it("classifies the parent-program / spec-ref link anchors as link slots", () => {
+  it("classifies the phase-spec `program:` slug reference as the only link slot", () => {
     for (const [index, registry] of REGISTRIES.entries()) {
       const doc = skeletons[DOC_KEYS[index]];
       const linkSlots = doc.slots.filter((slot) => slot.slot === "link");
       for (const slot of linkSlots) {
         const element = registry.elements.find((e) => e.anchor === slot.anchor);
-        // the link class is exactly the frontmatter-home parent-program / spec-ref
-        // keys (never the enum-typed table cells that also mention spec/ref)
+        // the link class is exactly the frontmatter-home slug-reference key
+        // (never the enum-typed table cells that also mention spec/ref)
         expect(element?.home).toBe("frontmatter");
-        expect(["parent-program", "spec-ref"]).toContain(slot.refKind);
+        expect(slot.refKind).toBe("slug-ref");
       }
     }
-    expect(skeletons.plan.slots.find((s) => s.anchor === "spec")?.slot).toBe("link");
-    expect(skeletons.plan.slots.find((s) => s.anchor === "parent-program")?.slot).toBe("link");
-    expect(skeletons["phase-spec"].slots.find((s) => s.anchor === "parent-program")?.slot).toBe(
-      "link",
-    );
+    expect(skeletons["phase-spec"].slots.find((s) => s.anchor === "program")?.slot).toBe("link");
+    // `slug:` is a plain content key — never a link slot.
+    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
+      expect(skeletons[key].slots.find((s) => s.anchor === "slug")?.slot).toBe("content");
+    }
   });
 
   it("classifies the digit-family headings of the task-block / design-body surfaces as numeric-heading", () => {

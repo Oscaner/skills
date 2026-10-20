@@ -2,7 +2,7 @@
   "docType": "phase-spec",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "phase-spec document structure",
-  "description": "Derived JSON Schema — 27 declared elements · 19 required",
+  "description": "Derived JSON Schema — 28 declared elements · 20 required",
   "type": "object",
   "properties": {
     "title": {
@@ -25,6 +25,16 @@
       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
+    "slug": {
+      "type": "string",
+      "pattern": "^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "presence: required · home: frontmatter · ref: none"
+    },
+    "program": {
+      "type": "string",
+      "pattern": "^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "presence: required · home: frontmatter · ref: slug-ref"
+    },
     "status": {
       "type": "string",
       "pattern": "^(Draft|Approved|Plan pending|Shipped)$",
@@ -34,11 +44,6 @@
       "type": "string",
       "pattern": "^.+$",
       "description": "presence: required · home: frontmatter · ref: none"
-    },
-    "parent-program": {
-      "type": "string",
-      "pattern": "^.+$",
-      "description": "presence: required · home: frontmatter · ref: parent-program"
     },
     "parent-version": {
       "type": "string",
@@ -146,9 +151,10 @@
     "doc-type",
     "version",
     "date",
+    "slug",
+    "program",
     "status",
     "author",
-    "parent-program",
     "depends-on",
     "## Design",
     "### N. group heading",

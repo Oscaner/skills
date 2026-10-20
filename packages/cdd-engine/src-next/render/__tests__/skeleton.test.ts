@@ -85,7 +85,6 @@ const SEMANTIC_PROBES: Record<string, string> = {
   "Implementation plan cell": "| Pending |",
   "Design spec cell": "| [Pending] |",
   "Dependency cell": ":::fill dependency",
-  "File path row": "| overall-spec | `:::fill overall-path` |",
   "Change history row": "| v0.1 |",
   "Version token": "| v0.1 |",
   "Change history date": DATE,
@@ -116,9 +115,10 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "doc-type: phase-spec",
         "version: v0.1",
         "date: 2026-10-11",
+        "slug: ':::fill slug'",
+        "program: <docs/kairos/specs/…-overall.md>",
         "status: Draft",
         "author: ':::fill author'",
-        "parent-program: <docs/kairos/specs/…-overall.md>",
         "depends-on: ':::fill depends-on'",
         "---",
         "",
@@ -155,8 +155,7 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "doc-type: plan",
         "version: v0.1",
         "date: 2026-10-11",
-        "spec: <docs/kairos/specs/…-design.md>",
-        "parent-program: <docs/kairos/specs/…-overall.md>",
+        "slug: ':::fill slug'",
         "depends-on: ':::fill depends-on'",
         "base: ':::fill base'",
         "---",
@@ -192,6 +191,7 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "doc-type: overall-spec",
         "version: v0.1",
         "date: 2026-10-11",
+        "slug: ':::fill slug'",
         "status: Draft",
         "author: ':::fill author'",
         "---",
@@ -199,12 +199,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "## Document scope",
         "",
         ":::fill document-scope",
-        "",
-        "## File paths",
-        "",
-        "| Artifact | Path |",
-        "| --- | --- |",
-        "| overall-spec | `:::fill overall-path` |",
         "",
         "## Program charter",
         "",
@@ -267,6 +261,7 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "doc-type: single-spec",
         "version: v0.1",
         "date: 2026-10-11",
+        "slug: ':::fill slug'",
         "status: Draft",
         "author: ':::fill author'",
         "depends-on: ':::fill depends-on'",
@@ -369,12 +364,14 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
     }
   });
 
-  it("renders the link-typed anchors as placeholder scalars (the `<…>` exemption shape)", () => {
+  it("renders the slug-reference anchor as a placeholder scalar (the `<…>` exemption shape)", () => {
     const spec = renderOf("phase-spec");
-    expect(spec).toContain("parent-program: <docs/kairos/specs/…-overall.md>");
-    const plan = renderOf("plan");
-    expect(plan).toContain("spec: <docs/kairos/specs/…-design.md>");
-    expect(plan).toContain("parent-program: <docs/kairos/specs/…-overall.md>");
+    expect(spec).toContain("program: <docs/kairos/specs/…-overall.md>");
+    // `slug:` is a content key — a `:::fill` slot, never the `<>` link form.
+    for (const key of KEYS) {
+      expect(renderOf(key), `${key}: slug fill`).toContain("slug: ':::fill slug'");
+      expect(renderOf(key), `${key}: no slug link`).not.toContain("slug: <");
+    }
   });
 });
 
@@ -462,9 +459,6 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "date: 2026-10-11",
       "status: Draft",
       "## Document scope",
-      "## File paths",
-      "| Artifact | Path |",
-      "| --- | --- |",
       "## Program charter",
       "### Goal",
       "### Non-goals",
@@ -489,8 +483,6 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "doc-type: plan",
       "version: v0.1",
       "date: 2026-10-11",
-      "spec: <docs/kairos/specs/…-design.md>",
-      "parent-program: <docs/kairos/specs/…-overall.md>",
       "## Constraints",
       "## Change history",
       "| Version | date | summary | author |",
@@ -501,7 +493,7 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "version: v0.1",
       "date: 2026-10-11",
       "status: Draft",
-      "parent-program: <docs/kairos/specs/…-overall.md>",
+      "program: <docs/kairos/specs/…-overall.md>",
       "## Design",
       "### Acceptance criteria",
       "## Constraints",

@@ -16,8 +16,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Words } from "../../face/words.ts";
-import type { ParsedDoc } from "../doc.ts";
-import { OverallDocType } from "../doc.ts";
 import { FrontMatterExtractor } from "../frontmatter.ts";
 import type { DocFs, Finding } from "../invariants.ts";
 import { Contract } from "../judge.ts";
@@ -30,6 +28,7 @@ const GOOD_OVERALL = [
   "doc-type: overall-spec",
   "version: v1.21",
   "date: 2026-10-07",
+  "slug: x-overall",
   "status: Approved",
   'author: "[human]"',
   "---",
@@ -235,7 +234,7 @@ describe("base nine invariants — one negative case each", () => {
       "date: 2026-10-09",
       "status: Draft",
       "author: x",
-      "parent-program: docs/kairos/specs/x-overall.md",
+      "slug: x-p3",
       "parent-version: v1.0",
       "depends-on: P1",
       "---",
@@ -265,9 +264,7 @@ describe("base nine invariants — one negative case each", () => {
       "doc-type: plan",
       "version: v1.0",
       "date: 2026-10-09",
-      "spec: docs/kairos/specs/x-design.md",
-      "parent-program: docs/kairos/specs/x-overall.md",
-      "parent-version: v1.21",
+      "slug: x-p3",
       "---",
       "",
       ...planTask(1),
@@ -286,7 +283,7 @@ describe("base nine invariants — one negative case each", () => {
       "date: 2026-10-09",
       "status: Draft",
       "author: x",
-      "parent-program: docs/kairos/specs/x-overall.md",
+      "slug: x-p3",
       "parent-version: v1.0",
       "depends-on: P1",
       "---",
@@ -314,15 +311,34 @@ describe("base nine invariants — one negative case each", () => {
   it("hollow: a present table section with zero data rows is reported", () => {
     const content = GOOD_OVERALL.replace(
       [
-        "## File paths",
-        "| Artifact | Path |",
-        "| --- | --- |",
-        "| overall | docs/kairos/specs/x-overall.md |",
+        "## Issue inventory",
+        "| Phase | Issue (ref) | Title summary |",
+        "| --- | --- | --- |",
+        "| P1 | #123 | issue one |",
+        "| P2 | none | issue two |",
       ].join("\n"),
-      "## File paths\n",
+      "## Issue inventory\n",
     );
     const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
-    expect(withKind(findings, "hollow", "## File paths")).toBe(true);
+    expect(withKind(findings, "hollow", "## Issue inventory")).toBe(true);
+  });
+
+  it("a historical overall's retained File paths table is accepted — the section is optional and hollow-exempt", () => {
+    // The GOOD_OVERALL keeps its legacy File paths table; the optional section
+    // and row declarations leave the whole conforming doc at zero findings.
+    expect(GOOD_OVERALL).toContain("## File paths");
+    expect(judge("overall-spec", GOOD_OVERALL, GOOD_OVERALL_FS)).toEqual([]);
+    // An EMPTY retained File paths section is no longer a hollow finding — the
+    // hollow filter set is Issue inventory / Phase inventory / Change history.
+    const emptyTable = GOOD_OVERALL.replace(
+      ["| Artifact | Path |", "| --- | --- |", "| overall | docs/kairos/specs/x-overall.md |"].join(
+        "\n",
+      ),
+      "",
+    );
+    expect(
+      withKind(judge("overall-spec", emptyTable, GOOD_OVERALL_FS), "hollow", "## File paths"),
+    ).toBe(false);
   });
 
   it("selfBounded: the header version must be the change-history's newest row", () => {
@@ -357,9 +373,7 @@ describe("T6 — prose task mentions carry zero crosslink findings (the WARN-onl
       "doc-type: plan",
       "version: v1.1",
       "date: 2026-10-09",
-      "spec: docs/kairos/specs/x-design.md",
-      "parent-program: docs/kairos/specs/x-overall.md",
-      "parent-version: v1.21",
+      "slug: x-p3",
       "---",
       "",
       "## Constraints",
@@ -414,9 +428,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
       "doc-type: plan",
       "version: v1.0",
       "date: 2026-10-09",
-      "spec: docs/kairos/specs/x-design.md",
-      "parent-program: docs/kairos/specs/x-overall.md",
-      "parent-version: v1.21",
+      "slug: x-p3",
       "---",
       "",
       "## Constraints",
@@ -446,9 +458,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
       "doc-type: plan",
       "version: v1.0",
       "date: 2026-10-09",
-      "spec: docs/kairos/specs/x-design.md",
-      "parent-program: docs/kairos/specs/x-overall.md",
-      "parent-version: v1.21",
+      "slug: x-p3",
       "---",
       "",
       "## Constraints",
@@ -475,9 +485,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
       "doc-type: plan",
       "version: v1.0",
       "date: 2026-10-09",
-      "spec: docs/kairos/specs/x-design.md",
-      "parent-program: docs/kairos/specs/x-overall.md",
-      "parent-version: v1.21",
+      "slug: x-p3",
       "---",
       "",
       "## Constraints",
@@ -516,9 +524,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
       "doc-type: plan",
       "version: v1.0",
       "date: 2026-10-09",
-      "spec: docs/kairos/specs/x-design.md",
-      "parent-program: docs/kairos/specs/x-overall.md",
-      "parent-version: v1.21",
+      "slug: x-p3",
       "---",
       "",
       "## Constraints",
@@ -562,9 +568,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
       "doc-type: plan",
       "version: v1.0",
       "date: 2026-10-09",
-      "spec: docs/kairos/specs/x-design.md",
-      "parent-program: docs/kairos/specs/x-overall.md",
-      "parent-version: v1.21",
+      "slug: x-p3",
       "---",
       "",
       "## Constraints",
@@ -677,9 +681,7 @@ describe("the four context-seam invariants — one negative case each", () => {
       "doc-type: plan",
       "version: v1.0",
       "date: 2026-10-09",
-      "spec: docs/kairos/specs/x-design.md",
-      "parent-program: docs/kairos/specs/x-overall.md",
-      "parent-version: v1.21",
+      "slug: x-p3",
       "---",
       "",
       "## Constraints",
@@ -737,9 +739,10 @@ const specLineage = (headerVersion: string, rows: readonly string[]): string => 
     "doc-type: phase-spec",
     `version: ${headerVersion}`,
     "date: 2026-10-09",
+    "slug: x-p3",
+    "program: x-overall",
     "status: Draft",
     "author: x",
-    "parent-program: docs/kairos/specs/x-overall.md",
     "parent-version: v1.0",
     "depends-on: P1",
     "---",
@@ -776,9 +779,7 @@ const planLineage = (headerVersion: string, rows: readonly string[]): string => 
     "doc-type: plan",
     `version: ${headerVersion}`,
     "date: 2026-10-09",
-    "spec: docs/kairos/specs/x-design.md",
-    "parent-program: docs/kairos/specs/x-overall.md",
-    "parent-version: v1.0",
+    "slug: x-p3",
     "---",
     "",
     "## Constraints",
@@ -900,21 +901,6 @@ describe("P4.1 T2 — `## Change history` presence required ×3", () => {
     const findings = judge("overall-spec", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "presence", "## Change history")).toBe(true);
   });
-
-  it("a phase-spec whose parent-program is a markdown link reports the shape rule ONCE — never the resolution cascade (D2 · #342)", () => {
-    const content = specLineage("v1.0", [ROW_100]).replace(
-      "parent-program: docs/kairos/specs/x-overall.md",
-      'parent-program: "[2026-10-02-x-overall.md](docs/kairos/specs/2026-10-02-x-overall.md)"',
-    );
-    const findings = judge("phase-spec", content);
-    // exactly the single link-shape finding — the malformed target is judged
-    // BEFORE resolution, so the file-existence dead-tail and the sibling-scan
-    // basename cascade never fire on top of it
-    expect(findings).toHaveLength(1);
-    expect(findings[0].kind).toBe("link-shape");
-    expect(findings[0].field).toBe("parent-program");
-    expect(findings[0].message).toContain("not a bare relative path");
-  });
 });
 
 describe("P4.1 T2 — selfBounded applies to spec/plan (header = the newest in-row)", () => {
@@ -960,27 +946,6 @@ describe("governance greps (the engine-zero criterion)", () => {
 });
 
 describe("P10 W7 T11 — the migration judgment-regression pins (spec §6 · §5.2)", () => {
-  /** A minimal plan carrying a caller-chosen `parent-version:` scalar (the
-   *  Class-B chain carrier under test). */
-  const planWithParentVersion = (parentVersion: string): string =>
-    [
-      "---",
-      "title: Test Plan",
-      "doc-type: plan",
-      "version: v1.0",
-      "date: 2026-10-09",
-      "spec: docs/kairos/specs/x-design.md",
-      "parent-program: docs/kairos/specs/x-overall.md",
-      `parent-version: ${parentVersion}`,
-      "---",
-      "",
-      "## Constraints",
-      "",
-      "- delta",
-      "",
-      ...planTask(1),
-    ].join("\n");
-
   it("version lineage — a head version OUTSIDE the Change-history lineage still fires selfBounded", () => {
     // The T6 read flip made the version a head scalar — a version the Change-history
     // table never carries must STILL be reported (no false-green from a body scan
@@ -993,27 +958,6 @@ describe("P10 W7 T11 — the migration judgment-regression pins (spec §6 · §5
     expect(withKind(overall, "selfBounded", "version")).toBe(true);
     const plan = judge("plan", planLineage("v9.9", [ROW_100, ROW_101]));
     expect(withKind(plan, "selfBounded", "version")).toBe(true);
-  });
-
-  it("parent lineage — a parent-version outside the parent overall's lineage fires classB through the chainDocs seam", () => {
-    const { head, body } = FrontMatterExtractor.split(GOOD_OVERALL);
-    const parentParsed = new OverallDocType("overall-spec").parse(body.split("\n"), head);
-    const plan = planWithParentVersion("v7.7");
-    // The production seam is not wired in this phase — without chainDocs the
-    // Class-B chain resolves nowhere and stays silent (the preflight call point
-    // does not pass the map).
-    expect(withKind(judge("plan", plan), "cross-doc-chain", "parent-program")).toBe(false);
-    const findings = new Contract().validate({
-      docKey: "plan",
-      path: PLAN_PATH,
-      content: plan,
-      root: ".",
-      chainDocs: new Map<string, ParsedDoc>([["docs/kairos/specs/x-overall.md", parentParsed]]),
-    });
-    // The parentTokens carrier is non-empty (`v7.7` rides the parent-version key)
-    // and the parent lineage is {v1.20, v1.21} — the classB early return is not
-    // the reason this fires; the token is genuinely outside the lineage.
-    expect(withKind(findings, "cross-doc-chain", "parent-program")).toBe(true);
   });
 
   it("presence — a doc missing the status key reports exactly one presence finding (typed head, not a line scan)", () => {
@@ -1065,9 +1009,10 @@ const phaseSpec = (version: string): string => {
     "doc-type: phase-spec",
     `version: ${version}`,
     "date: 2026-10-09",
+    "slug: x-p3",
+    "program: x-overall",
     "status: Draft",
     "author: x",
-    "parent-program: docs/kairos/specs/x-overall.md",
     "parent-version: v1.0",
     "depends-on: P1",
     "---",

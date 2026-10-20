@@ -25,19 +25,9 @@
           "refKind": "none"
         },
         {
-          "anchor": "spec",
+          "anchor": "slug",
           "presence": "required",
-          "refKind": "spec-ref"
-        },
-        {
-          "anchor": "parent-program",
-          "presence": "required",
-          "refKind": "parent-program"
-        },
-        {
-          "anchor": "parent-version",
-          "presence": "optional",
-          "refKind": "version-lineage"
+          "refKind": "none"
         },
         {
           "anchor": "depends-on",

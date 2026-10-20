@@ -13,8 +13,8 @@
 // The element lines are enumerated from the methodology skeleton semantics (the
 // machine skeleton of each doc type as pinned by the four repo schema JSONs,
 // read as steady contract data) — freshly declared anchors, never cut from the
-// old tree's sources. Counts stand at overall-spec 42 / plan 31 / phase-spec 27 /
-// single-spec 16, each within the post-frontmatter band (single-spec below 20 —
+// old tree's sources. Counts stand at overall-spec 43 / plan 29 / phase-spec 28 /
+// single-spec 17, each within the post-frontmatter band (single-spec below 20 —
 // the lightweight-scaffold charter) and each element carrying all five fields
 // (a completeness contract enforced by the array shape below and by the test
 // suite, which pins presence/ref-kind domains and per-registry anchor
@@ -33,8 +33,7 @@ export type RefKind =
   | "markdown-link"
   | "phase-id"
   | "issue-ref"
-  | "spec-ref"
-  | "parent-program"
+  | "slug-ref"
   | "task-id";
 
 /** The document surface an element belongs to — where the anchor lives in a conforming document. */
@@ -92,8 +91,7 @@ const REF_KIND_VALUES = [
   "markdown-link",
   "phase-id",
   "issue-ref",
-  "spec-ref",
-  "parent-program",
+  "slug-ref",
   "task-id",
 ] as const satisfies readonly RefKind[];
 const HOME_VALUES = [
@@ -114,6 +112,16 @@ export const DOC_TYPE_VALUES = [
   "phase-spec",
   "single-spec",
 ] as const satisfies readonly DocType[];
+
+/** The legal `slug:` value shape (spec §2.1) — 1–128 characters, an alphanumeric
+ *  first character, then alphanumerics / `.` / `_` / `-`. The pattern rejects the
+ *  directory-escape values (`.` / `..`, path separators, whitespace) and the
+ *  Windows reserved characters at the value surface, because a slug doubles as a
+ *  workspace directory name. One declared constant — the `slug:` identity rows and
+ *  the phase-spec `program:` reference share the same value domain, and the
+ *  identity index (`SlugIndex.SLUG_PATTERN`) compiles this SAME source string, so
+ *  the shape judgment has one grammar (this module is the leaf both planes read). */
+export const SLUG_VALUE_PATTERN = "^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._-]*$";
 
 /**
  * The registry guards — the runtime contract that narrows an unknown candidate
@@ -199,6 +207,13 @@ const OVERALL_SPEC_ELEMENTS = [
     home: "frontmatter",
   },
   {
+    anchor: "slug",
+    presence: "required",
+    valuePattern: SLUG_VALUE_PATTERN,
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
     anchor: "status",
     presence: "required",
     valuePattern: "^(Draft|Approved|In progress|Complete)$",
@@ -222,7 +237,7 @@ const OVERALL_SPEC_ELEMENTS = [
   },
   {
     anchor: "## File paths",
-    presence: "required",
+    presence: "optional",
     valuePattern: "^## File paths$",
     refKind: "none",
     home: "section",
@@ -397,7 +412,7 @@ const OVERALL_SPEC_ELEMENTS = [
     anchor: "Design spec cell",
     presence: "required",
     valuePattern: "^(\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])$",
-    refKind: "spec-ref",
+    refKind: "none",
     home: "table",
   },
   {
@@ -433,7 +448,7 @@ const OVERALL_SPEC_ELEMENTS = [
   // File paths artifact table.
   {
     anchor: "File path row",
-    presence: "required",
+    presence: "optional",
     valuePattern: "^\\| [^|]+ \\| `[^`]+` \\|$",
     refKind: "none",
     home: "table",
@@ -471,7 +486,7 @@ const OVERALL_SPEC_ELEMENTS = [
     anchor: "Design claim token",
     presence: "conditional",
     valuePattern: "^P\\d+(\\.\\d+)*-design$",
-    refKind: "spec-ref",
+    refKind: "phase-id",
     home: "table",
   },
   {
@@ -519,24 +534,10 @@ const PLAN_ELEMENTS = [
     home: "frontmatter",
   },
   {
-    anchor: "spec",
+    anchor: "slug",
     presence: "required",
-    valuePattern: "^.+$",
-    refKind: "spec-ref",
-    home: "frontmatter",
-  },
-  {
-    anchor: "parent-program",
-    presence: "required",
-    valuePattern: "^.+$",
-    refKind: "parent-program",
-    home: "frontmatter",
-  },
-  {
-    anchor: "parent-version",
-    presence: "optional",
-    valuePattern: "^v\\d+\\.\\d+$",
-    refKind: "version-lineage",
+    valuePattern: SLUG_VALUE_PATTERN,
+    refKind: "none",
     home: "frontmatter",
   },
   {
@@ -763,6 +764,20 @@ const PHASE_SPEC_ELEMENTS = [
     home: "frontmatter",
   },
   {
+    anchor: "slug",
+    presence: "required",
+    valuePattern: SLUG_VALUE_PATTERN,
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
+    anchor: "program",
+    presence: "required",
+    valuePattern: SLUG_VALUE_PATTERN,
+    refKind: "slug-ref",
+    home: "frontmatter",
+  },
+  {
     anchor: "status",
     presence: "required",
     valuePattern: "^(Draft|Approved|Plan pending|Shipped)$",
@@ -774,13 +789,6 @@ const PHASE_SPEC_ELEMENTS = [
     presence: "required",
     valuePattern: "^.+$",
     refKind: "none",
-    home: "frontmatter",
-  },
-  {
-    anchor: "parent-program",
-    presence: "required",
-    valuePattern: "^.+$",
-    refKind: "parent-program",
     home: "frontmatter",
   },
   {
@@ -971,6 +979,13 @@ const SINGLE_SPEC_ELEMENTS = [
     anchor: "date",
     presence: "required",
     valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
+    anchor: "slug",
+    presence: "required",
+    valuePattern: SLUG_VALUE_PATTERN,
     refKind: "none",
     home: "frontmatter",
   },

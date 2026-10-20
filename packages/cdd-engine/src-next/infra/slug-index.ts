@@ -16,6 +16,7 @@
 
 import { type Dirent, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { SLUG_VALUE_PATTERN } from "../contract/declare.ts";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { DOC_KEYS, type DocKey } from "../contract/project.ts";
 import { ENGINE_RUNTIME } from "./runtime.ts";
@@ -71,8 +72,9 @@ export class SlugIndex {
   /** The legal `slug:` value form (spec §2.1): 1–128 characters, an alphanumeric
    *  first character, then alphanumerics / `.` / `_` / `-`. The slug doubles as a
    *  workspace directory name, so path separators and whitespace are rejected at
-   *  the value surface. */
-  static readonly SLUG_PATTERN = /^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._-]*$/;
+   *  the value surface. Compiled from the registry declaration's own source string
+   *  (`SLUG_VALUE_PATTERN`) — one grammar, zero second spelling. */
+  static readonly SLUG_PATTERN = new RegExp(SLUG_VALUE_PATTERN);
 
   /** Every indexed document, ordered by repo-relative path. */
   readonly entries: readonly DocEntry[];

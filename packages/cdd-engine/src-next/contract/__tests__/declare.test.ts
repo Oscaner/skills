@@ -44,8 +44,7 @@ const REF_KIND_VALUES = [
   "markdown-link",
   "phase-id",
   "issue-ref",
-  "spec-ref",
-  "parent-program",
+  "slug-ref",
   "task-id",
 ] as const satisfies readonly RefKind[];
 const HOME_VALUES = [
@@ -188,29 +187,21 @@ describe("declared registries", () => {
 describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
   // The canonical per-type front-matter key set of the contraction table (§2.3):
   // plan deliberately omits `status`/`author` (no plan head carries either row),
-  // single-spec adds the optional `issues` key, plan/phase-spec add the optional
-  // `parent-version`. The order mirrors the §2.1 front-matter emission shapes.
+  // single-spec adds the optional `issues` key, phase-spec alone carries
+  // `program:` and the optional `parent-version`. The order mirrors the §2.1
+  // front-matter emission shapes (the migrated corpus order).
   const HEADER_KEYS: Record<DocType, readonly string[]> = {
-    "overall-spec": ["title", "doc-type", "version", "date", "status", "author"],
-    plan: [
-      "title",
-      "doc-type",
-      "version",
-      "date",
-      "spec",
-      "parent-program",
-      "parent-version",
-      "depends-on",
-      "base",
-    ],
+    "overall-spec": ["title", "doc-type", "version", "date", "slug", "status", "author"],
+    plan: ["title", "doc-type", "version", "date", "slug", "depends-on", "base"],
     "phase-spec": [
       "title",
       "doc-type",
       "version",
       "date",
+      "slug",
+      "program",
       "status",
       "author",
-      "parent-program",
       "parent-version",
       "depends-on",
     ],
@@ -219,6 +210,7 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
       "doc-type",
       "version",
       "date",
+      "slug",
       "status",
       "author",
       "depends-on",
@@ -231,10 +223,10 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     "doc-type",
     "version",
     "date",
+    "slug",
+    "program",
     "status",
     "author",
-    "spec",
-    "parent-program",
     "parent-version",
     "depends-on",
     "base",
@@ -286,25 +278,39 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     expect(declaredRegistries.plan.elements.some((element) => element.anchor === "author")).toBe(
       false,
     );
-    // `spec` is plan-only (the plan's design-spec pointer).
-    expect(findKey("plan", "spec").presence).toBe("required");
-    for (const docType of ["overall-spec", "phase-spec", "single-spec"] as const) {
+    // `slug` is the identity key of every doc type.
+    for (const registry of ALL_REGISTRIES) {
+      expect(findKey(registry.docType, "slug").presence, `${registry.docType}:slug`).toBe(
+        "required",
+      );
+      expect(findKey(registry.docType, "slug").refKind, `${registry.docType}:slug`).toBe("none");
+    }
+    // `program` is phase-spec-only (the parent overall's slug reference).
+    expect(findKey("phase-spec", "program").presence).toBe("required");
+    expect(findKey("phase-spec", "program").refKind).toBe("slug-ref");
+    for (const docType of ["overall-spec", "plan", "single-spec"] as const) {
       expect(
-        declaredRegistries[docType].elements.some((element) => element.anchor === "spec"),
-        `${docType} has no spec key`,
+        declaredRegistries[docType].elements.some((element) => element.anchor === "program"),
+        `${docType} has no program key`,
       ).toBe(false);
     }
-    // `parent-program` required on the two Class-B carriers.
-    expect(findKey("plan", "parent-program").presence).toBe("required");
-    expect(findKey("phase-spec", "parent-program").presence).toBe("required");
+    // The retired path keys are gone from every registry.
+    for (const docType of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
+      for (const anchor of ["spec", "parent-program"]) {
+        expect(
+          declaredRegistries[docType].elements.some((element) => element.anchor === anchor),
+          `${docType} has no ${anchor} key`,
+        ).toBe(false);
+      }
+    }
     // `depends-on` per type.
     expect(findKey("plan", "depends-on").presence).toBe("optional");
     expect(findKey("phase-spec", "depends-on").presence).toBe("required");
     expect(findKey("single-spec", "depends-on").presence).toBe("required");
-    // The optional shape-typed keys: `parent-version` (Class-B), `base` (plan).
-    expect(findKey("plan", "parent-version").presence).toBe("optional");
+    // The optional shape-typed key: `parent-version` (phase-spec only; the plan's
+    // lineage keys retired with the path-declaration face).
     expect(findKey("phase-spec", "parent-version").presence).toBe("optional");
-    for (const docType of ["overall-spec", "single-spec"] as const) {
+    for (const docType of ["overall-spec", "plan", "single-spec"] as const) {
       expect(
         declaredRegistries[docType].elements.some((element) => element.anchor === "parent-version"),
         `${docType} has no parent-version key`,
@@ -352,9 +358,12 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
       ["phase-spec", "status", "Plan pending"],
       ["single-spec", "status", "Draft"],
       ["plan", "title", "A plan title"],
-      ["plan", "spec", "docs/kairos/specs/p3-design.md"],
-      ["plan", "parent-program", "docs/kairos/specs/overall.md"],
-      ["plan", "parent-version", "v2.46"],
+      ["overall-spec", "slug", "2026-10-10-engine-doc-tooling"],
+      ["plan", "slug", "2026-10-10-engine-doc-tooling-p15"],
+      ["phase-spec", "slug", "2026-10-10-engine-doc-tooling-p15"],
+      ["single-spec", "slug", "2026-09-28-cdd-review-contract-fix"],
+      ["phase-spec", "program", "2026-10-10-engine-doc-tooling"],
+      ["phase-spec", "parent-version", "v2.46"],
       ["plan", "base", "main"],
       ["phase-spec", "depends-on", "P9"],
       ["single-spec", "issues", "#302"],
@@ -372,11 +381,35 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     expect(new RegExp(findKey("plan", "title").valuePattern!).test("")).toBe(false);
   });
 
-  it("reconciles the post-migration element totals against the §2.3 arithmetic (42/31/27/16)", () => {
-    expect(declaredRegistries["overall-spec"].elements.length).toBe(42);
-    expect(declaredRegistries.plan.elements.length).toBe(31);
-    expect(declaredRegistries["phase-spec"].elements.length).toBe(27);
-    expect(declaredRegistries["single-spec"].elements.length).toBe(16);
+  it("pins the `slug:` value domain — the legal identity forms pass, the eight illegal classes fail", () => {
+    const pattern = new RegExp(findKey("plan", "slug").valuePattern!);
+    // The four doc types share ONE declared slug shape (one constant).
+    for (const registry of ALL_REGISTRIES) {
+      expect(findKey(registry.docType, "slug").valuePattern, `${registry.docType}:slug`).toBe(
+        findKey("plan", "slug").valuePattern,
+      );
+    }
+    // Legal identity values — the dotted program slug and the dated phase key.
+    for (const legal of ["2026-10-10-engine-doc-tooling", "prog", "a.b_c-d", "x1"]) {
+      expect(pattern.test(legal), `legal slug ${legal}`).toBe(true);
+    }
+    // Illegal values: the directory escapes, separators, whitespace, the empty
+    // string, the over-long value and the Windows reserved characters.
+    const illegal = [".", "..", "a/b", "a\\b", "a b", "", "x".repeat(129), 'a:b*?"<>|'];
+    for (const value of illegal) {
+      expect(pattern.test(value), `illegal slug ${JSON.stringify(value)}`).toBe(false);
+    }
+    // The `program:` reference shares the same value domain.
+    expect(findKey("phase-spec", "program").valuePattern).toBe(
+      findKey("phase-spec", "slug").valuePattern,
+    );
+  });
+
+  it("reconciles the post-migration element totals against the §2.3 arithmetic (43/29/28/17)", () => {
+    expect(declaredRegistries["overall-spec"].elements.length).toBe(43);
+    expect(declaredRegistries.plan.elements.length).toBe(29);
+    expect(declaredRegistries["phase-spec"].elements.length).toBe(28);
+    expect(declaredRegistries["single-spec"].elements.length).toBe(17);
   });
 });
 
@@ -450,8 +483,7 @@ describe("type-level contract", () => {
       | "markdown-link"
       | "phase-id"
       | "issue-ref"
-      | "spec-ref"
-      | "parent-program"
+      | "slug-ref"
       | "task-id"
     >();
   });

@@ -243,13 +243,6 @@ describe("workspace — the root/workspace pair + the slug rule + JSON roundtrip
     }
   });
 
-  it("derives the slug from a doc file name — single-layer -design/-plan strip", () => {
-    expect(Workspace.slugFromDoc("2026-10-02-x-p3-design.md")).toBe("2026-10-02-x-p3");
-    expect(Workspace.slugFromDoc("2026-10-02-x-p3-plan.md")).toBe("2026-10-02-x-p3");
-    expect(Workspace.slugFromDoc("2026-10-02-x-overall.md")).toBe("2026-10-02-x-overall");
-    expect(Workspace.slugFromDoc("notes.md")).toBe("notes");
-  });
-
   it("readJsonLenient tolerates the sub-agent draft dialect — trailing comma / comments (D39)", () => {
     const base = mkdtempSync(path.join(tmpdir(), "infra-ws-"));
     try {

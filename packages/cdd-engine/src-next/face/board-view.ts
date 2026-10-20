@@ -1,19 +1,16 @@
 // packages/cdd-engine/src-next/face/board-view.ts
-// The board face — the slug → node-tree progress board. The file system is the
-// ONLY truth: the node set comes from scanning the declared spec/plan doc roots
-// (single-sourced at ENGINE_RUNTIME.docRoots), the artifact existence
-// from existsSync, the header facts from the doc's header block — the overall's
-// declared Phase inventory / File paths tables are NEVER parsed (measured stale).
-// No on-disk-absent parent node is ever synthesized (`-p4.1` present with `-p4`
-// missing mounts `p4.1` directly at the program root).
+// The board face — the entry document → node progress board. The front-matter
+// identity index (`SlugIndex`) is the ONLY node source: the entry document's
+// `doc-type:` picks the board shape (overall-spec → program board; phase-spec /
+// single-spec / plan → node board), and every related node resolves through the
+// index by slug (`program:` → overall; same slug → paired spec / plan). Zero file
+// name derivation, zero path guessing (`-overall` / `-pN` grammar retired).
 //
-// This module carries the slug facts: the phase scan, the doc-tree reverse
-// derivation read-through, the header `{version, status, docType}` read, the
-// per-node progress projection, and the render face (the phase/program board
-// layouts + the `next:` derivation). The doc type is the DECLARED fact — the
-// front-matter `doc-type:` head key (spec §12 · D34) — never a
-// filename-suffix derivation; an absent key reads null and the consumer
-// blocks (zero dual-read fallback).
+// This module carries the header `{version, status, docType}` read, the per-node
+// progress projection, and the render face (the phase/program board layouts + the
+// `next:` derivation). The doc type is the DECLARED fact — the front-matter
+// `doc-type:` head key (spec §12 · D34) — never a filename-suffix derivation; an
+// absent key reads null and the consumer blocks (zero dual-read fallback).
 //
 // D40 — the board's `next:` derivation walks the phase's faces in line order
 // (spec → plan → wave → branch) and, for the FIRST non-closed face, derives that
@@ -29,8 +26,7 @@
 // Module-level exports are types / constants / the class — zero behavior-carrying
 // bare functions (the plan's zero-bare-function discipline).
 
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
+import { readFileSync } from "node:fs";
 import { PlanDocType } from "../contract/doc.ts";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import type { DocKey } from "../contract/project.ts";
@@ -38,26 +34,14 @@ import { DOC_KEYS } from "../contract/project.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
-import { PHASE_SUFFIX_BARE, type SlugDocs, Workspace, WorkspaceRoot } from "../infra/workspace.ts";
+import { type DocEntry, SlugIndex } from "../infra/slug-index.ts";
+import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { TaskGraph } from "../session/graph.ts";
 import { Ledger, type ProgressData } from "../session/ledger.ts";
 import { NextStepRouter, type PipelineFaceReport } from "../session/next.ts";
 import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
 import { type RouteChannelRow, RouteRenderer } from "./route-render.ts";
 import type { Words } from "./words.ts";
-
-/** One board node's header facts — the `version:` / `status:` / `doc-type:`
- *  front-matter key values read from the doc's head record (each null when the
- *  doc or the key is absent). */
-export interface BoardNodeHeader {
-  /** The doc's declared version (the front-matter `version:` value). */
-  version: string | null;
-  /** The doc's declared status (the front-matter `status:` value). */
-  status: string | null;
-  /** The doc's declared type (the front-matter `doc-type:` key — spec §12 ·
-   *  D34); null when the key is absent or outside the DocKey domain. */
-  docType: DocKey | null;
-}
 
 /** The verb render order of a line's `×N` cell — the stable display order the board's
  *  round cells follow (an unexpected verb appends after these, never dropped). */
@@ -91,27 +75,14 @@ export interface BoardLine {
   marker: string | null;
 }
 
-/** One node's progress projection (`cdd board` data plane · spec §5) — the node's
- *  own lines (each a `progress.json` row) plus the derived wave segment. The
- *  projection is a pure read of the node's OWN workspace `progress.json` (the wave
- *  markers ride the SAME `closedWaves()` read the pre-flight gate consumes — one
- *  live fact, zero new judgment). */
-export interface BoardProgress {
-  /** The node label — the node slug (its workspace unit `.kairos/cdd/<slug>/`). */
-  label: string;
-  /** The node's primary-doc version (null when the node carries no primary doc). */
-  version: string | null;
-  /** The node's primary-doc status. */
-  status: string | null;
-  /** The node's primary-doc declared type (spec §12 · D34). */
-  docType: DocKey | null;
-  /** The node's own primary-line rounds (the node's primary `progress.json` row). */
-  rounds: Record<string, number[]>;
-  /** The wave segment — one line per derived wave (empty when the node has no plan). */
-  waveLines?: BoardLine[];
-  /** The node's non-wave lines (overall/spec/plan/branch), each with its own rounds —
-   *  the full per-line breakdown the board layout composes from. */
-  lines: BoardLine[];
+/** The node's identity chain — the three indexed documents a board row set reads
+ *  (spec §2.2). `programMissing` is the phase-spec hard gate, surfaced on the spec
+ *  line as `program: missing (BLOCKED)`. */
+interface NodeSources {
+  readonly spec: DocEntry | null;
+  readonly plan: DocEntry | null;
+  readonly overall: DocEntry | null;
+  readonly programMissing: boolean;
 }
 
 /** The DocKey domain of the `doc-type:` declaration — the declared value must
@@ -120,66 +91,26 @@ export interface BoardProgress {
  *  re-exports declare.ts's canonical tuple) — never a second copy (spec §3.2 ③). */
 const DOC_TYPE_DOMAIN: readonly DocKey[] = DOC_KEYS;
 
+/** The board's blocked-marker vocabulary (spec §3.1) — one anchor + one `(BLOCKED)`
+ *  suffix per violation class, never a merged prose. */
+const MARK_SLUG_MISSING = "slug: missing (BLOCKED)";
+const MARK_SLUG_INVALID = "slug: invalid (BLOCKED)";
+const MARK_SLUG_DUPLICATED = "slug: duplicated (BLOCKED)";
+const MARK_PROGRAM_MISSING = "program: missing (BLOCKED)";
+const MARK_DOC_TYPE_MISSING = "doc-type: missing (BLOCKED)";
+
+/** The program board's phase-title annotation cap — the `title:` note renders
+ *  truncated to this many characters (an ellipsis marks the cut). */
+const PHASE_TITLE_MAX = 60;
+
 /**
- * BoardView — the slug → node-tree board face. The static fact readers of this
- * task's slice: the phase scan over the specs doc root and the artifact header
- * read. Pure reads — zero tree writes, zero ledger writes, zero child dispatch.
+ * BoardView — the entry-document → board face. The identity index (`SlugIndex`)
+ * is the ONLY node source: the entry document's declared `doc-type:` picks the
+ * board shape and every related node resolves by slug. Pure reads — zero tree
+ * writes, zero ledger writes, zero child dispatch.
  */
 // biome-ignore lint/complexity/noStaticOnlyClass: the board fact-read surface — the zero-bare-function discipline admits no standalone predicate functions.
 export class BoardView {
-  /** scanPhases(programSlug, repoRoot) — the phase-suffix set under the program:
-   *  every specs-dir entry whose stem is `<programSlug>-p<major>(.<minor>)*`
-   *  (optionally followed by a `-design`/`-overall` doc tail — `Workspace.slugFromDoc`
-   *  strips it) contributes its suffix, sorted by the dot-separated numeric path
-   *  (2 < 10, `p4.1` after `p4`). No parent node is synthesized — only the
-   *  suffixes actually found on disk return. */
-  static scanPhases(programSlug: string, repoRoot: string): string[] {
-    const specsDir = path.join(repoRoot, ENGINE_RUNTIME.docRoots.specs);
-    let entries: string[];
-    try {
-      entries = readdirSync(specsDir);
-    } catch {
-      return [];
-    }
-    const prefix = `${programSlug}-`;
-    const suffixes = new Set<string>();
-    for (const entry of entries) {
-      if (!/\.md$/.test(entry) || !entry.startsWith(prefix)) continue;
-      const slug = Workspace.slugFromDoc(entry);
-      if (slug === programSlug || !slug.startsWith(prefix)) continue;
-      const suffix = slug.slice(prefix.length);
-      if (PHASE_SUFFIX_BARE.test(suffix)) suffixes.add(`-${suffix}`);
-    }
-    return [...suffixes].sort((a, b) => {
-      const numsOf = (s: string) =>
-        s
-          .slice(2) // strip the leading `-p`
-          .split(".")
-          .map((part) => Number.parseInt(part, 10));
-      const aNums = numsOf(a);
-      const bNums = numsOf(b);
-      for (let i = 0; i < Math.min(aNums.length, bNums.length); i++) {
-        if (aNums[i] !== bNums[i]) return aNums[i] - bNums[i];
-      }
-      return aNums.length - bNums.length;
-    });
-  }
-
-  /** readHeader(docPath) — the artifact's header facts: the front-matter head
-   *  record (spec §2.2's structured channel), read RAW through the shared
-   *  `FrontMatterExtractor` — the version/status/doc-type scalars ride the
-   *  head keys, never a header-line marker scan (spec §12 · D34 — the doc's
-   *  declared facts live in the head record, no marker grammar). An absent file
-   *  yields nulls on every fact — never a fabricated value. */
-  static readHeader(docPath: string): BoardNodeHeader {
-    const { head } = FrontMatterExtractor.split(BoardView.#read(docPath) ?? "");
-    return {
-      version: head.version,
-      status: head.status,
-      docType: BoardView.#docTypeOf(head.docType),
-    };
-  }
-
   /** readDocType(root, rel) — the doc's declared type alone (the front-matter
    *  `doc-type:` key, spec §12 · D34): the ONE declaration reading face shared
    *  by the board and the capsule's doc-class discrimination. An absent file, a
@@ -215,52 +146,70 @@ export class BoardView {
   // the progress projection (spec §5) — the per-node progress.json single-source read
   // -------------------------------------------------------------------------
 
-  /** projectNodes(programSlug, repoRoot) — the program's node set projected: the
-   *  overall node (`<program>-overall`) followed by each on-disk phase node
-   *  (`<program>-p<N>`, the file-system-only phase scan). Each node projects its
-   *  OWN workspace `progress.json` — a pure read, zero new data, zero new judgment. */
-  static projectNodes(programSlug: string, repoRoot: string): BoardProgress[] {
-    const nodes = [
-      `${programSlug}-overall`,
-      ...BoardView.scanPhases(programSlug, repoRoot).map((suffix) => `${programSlug}${suffix}`),
-    ];
-    return nodes.map((slug) => BoardView.projectNode(slug, repoRoot));
+  /** The node's identity chain, resolved through the index by slug (spec §2.2):
+   *  the identity document (an overall/single/phase spec), the same-slug plan, and
+   *  the program overall the identity's `program:` names. An entry that is itself
+   *  a plan contributes the plan and resolves its spec by the same slug. The
+   *  `programMissing` fact is the phase-spec hard gate: a `program:` that names no
+   *  on-disk overall (or no `program:` at all). Zero filename derivation. */
+  static #nodeSources(index: SlugIndex, entry: DocEntry): NodeSources {
+    const slug = BoardView.#validSlug(entry);
+    const isPlan = entry.docType === "plan";
+    const spec = slug === null ? (isPlan ? null : entry) : isPlan ? index.identityDoc(slug) : entry;
+    const plan = isPlan ? entry : slug === null ? null : index.planOf(slug);
+    const overall =
+      spec?.docType === "phase-spec" && spec.program !== null
+        ? index.overallOf(spec.program)
+        : null;
+    return {
+      spec,
+      plan,
+      overall,
+      programMissing: spec?.docType === "phase-spec" && (spec.program === null || overall === null),
+    };
   }
 
-  /** projectNode(nodeSlug, repoRoot) — one node's progress projection. The node's
-   *  workspace is `<repoRoot>/.kairos/cdd/<nodeSlug>/`; its `progress.json` rows are
-   *  the ONLY progress source (the rounds ride their cycle-NUMBER arrays — D28
-   *  identity; the retired numeric form is out-of-format and renders no count). The
-   *  node's doc header facts derive from the file system alone (absent doc → nulls,
-   *  never synthesized); the wave segment derives from the node's plan (no plan →
-   *  empty segment, no throw). Pure reads — zero tree writes, zero ledger writes,
-   *  zero child dispatch. */
-  static projectNode(nodeSlug: string, repoRoot: string): BoardProgress {
-    const root = new WorkspaceRoot(repoRoot, ENGINE_RUNTIME.handoffNamespace.workspaceRoot);
-    const ledger = new Ledger(new Workspace(root, nodeSlug), new ConfigLoader());
-    const progress = ledger.readProgress();
-    const overall = BoardView.#isOverallNode(nodeSlug);
-    const programStem = overall ? nodeSlug.slice(0, -"-overall".length) : nodeSlug;
-    const docs = Workspace.docsOfSlug(programStem, repoRoot);
+  /** The entry's valid slug — the workspace key, or null when the declaration is
+   *  absent or illegal (an illegal value is a violation, never a directory name). */
+  static #validSlug(entry: DocEntry | null): string | null {
+    if (entry?.slug === null || entry === null) return null;
+    return SlugIndex.SLUG_PATTERN.test(entry.slug) ? entry.slug : null;
+  }
 
-    const lines: BoardLine[] = [];
-    if (overall) {
-      lines.push(BoardView.#docLine("overall", "spec", docs.overall, progress));
-    } else {
-      lines.push(BoardView.#docLine("spec", "spec", docs.spec, progress));
-      lines.push(BoardView.#docLine("plan", "plan", docs.plan, progress));
-    }
-    const primary = lines[0]!;
-    const waveLines = overall ? [] : BoardView.#waveLines(docs.plan, progress, ledger);
-    lines.push(BoardView.#roundsLine("branch", "branch", progress));
+  /** The line's violation marker (spec §3.1) — slug missing / illegal / duplicated,
+   *  then the missing type declaration. The duplicate probe reads the SAME index
+   *  judgment the dispatch pre-flight consumes (one fact, one place). */
+  static #entryMark(
+    index: SlugIndex,
+    entry: DocEntry | null,
+    role: "identity" | "plan",
+  ): string | null {
+    if (entry === null) return null;
+    if (entry.slug === null) return MARK_SLUG_MISSING;
+    if (!SlugIndex.SLUG_PATTERN.test(entry.slug)) return MARK_SLUG_INVALID;
+    if (entry.docType === null) return MARK_DOC_TYPE_MISSING;
+    const kind = role === "plan" ? "duplicate-plan" : "duplicate-identity";
+    const duplicated = index
+      .violations()
+      .some((violation) => violation.kind === kind && violation.slug === entry.slug);
+    return duplicated ? MARK_SLUG_DUPLICATED : null;
+  }
+
+  /** One doc line — the header facts read from the indexed entry + the row's
+   *  rounds keyed by the line's `progress.json` key. */
+  static #lineOf(
+    label: string,
+    key: string,
+    entry: DocEntry | null,
+    progress: ProgressData | null,
+  ): BoardLine {
     return {
-      label: nodeSlug,
-      version: primary.version,
-      status: primary.status,
-      docType: primary.docType,
-      rounds: primary.rounds,
-      ...(waveLines.length > 0 ? { waveLines } : {}),
-      lines,
+      label,
+      version: entry?.version ?? null,
+      status: entry?.status ?? null,
+      docType: entry?.docType ?? null,
+      rounds: BoardView.#rowRounds(progress, key),
+      marker: null,
     };
   }
 
@@ -278,53 +227,30 @@ export class BoardView {
     return cells.join(" · ");
   }
 
-  /** Whether a node slug names the program's overall node (its workspace unit is
-   *  `<program>-overall`, the overall doc's own review line keyed `spec`). A label
-   *  test on the node slug — NOT a filename→doc-type derivation (D34): the overall
-   *  node is fixed at the program root, never inferred from a doc filename. */
-  static #isOverallNode(nodeSlug: string): boolean {
-    return /-overall$/.test(nodeSlug);
-  }
-
   // -------------------------------------------------------------------------
-  // the render face (spec §5.3) — the slug → board layout + the next derivation
+  // the render face (spec §5.3) — the entry document → board layout + next derivation
   // -------------------------------------------------------------------------
 
-  /** Whether the slug names anything on disk — the file-system-only existence test
-   *  (the board's "no matching file → exit 2, never a wall on a ghost slug"). A
-   *  program slug matches its overall or any on-disk phase; a phase slug matches its
-   *  overall anchor, spec or plan. */
-  static hasNode(slug: string, repoRoot: string): boolean {
-    if (Workspace.phaseSuffixOf(slug) !== null) {
-      const docs = Workspace.docsOfSlug(slug, repoRoot);
-      return docs.overall !== null || docs.spec !== null || docs.plan !== null;
-    }
-    return (
-      Workspace.docsOfSlug(slug, repoRoot).overall !== null ||
-      BoardView.scanPhases(slug, repoRoot).length > 0
-    );
-  }
-
-  /** render(slug, repoRoot, words, host, channels) — the slug's progress board
-   *  (spec §5.3): the phase form (`overall/spec/plan/wave/branch` + one line per
-   *  derived wave + the fixed legend + the `next:` line) or the program form (the
-   *  overall line with its own rounds + one summary line per phase + `next: done` —
-   *  cross-phase never participates in next). The argv channel is threaded into the
-   *  shared `RouteRenderer` (the SAME channel the capsule's route render reads, so
-   *  the board's `next:` and the engine's `next:` literal compose their argv from
-   *  ONE flag-spelling source — never a second hard-coded format string). A present
-   *  doc line carrying no `doc-type:` key renders its `doc-type:
-   *  missing (BLOCKED)` marker and the board exits 2 (spec §12 · D34 — the consumer
-   *  blocks, zero filename fallback). Pure reads — zero tree writes, zero ledger
-   *  writes, zero child dispatch. */
+  /** render(index, entry, repoRoot, words, host, channels) — the entry document's
+   *  board (spec §3.1): the entry's declared `doc-type:` picks the shape —
+   *  `overall-spec` → the program board, every other type → the node board. The
+   *  index supplies every related node (`program:` → overall; same slug → spec /
+   *  plan), so no filename grammar participates. The argv channel is threaded into
+   *  the shared `RouteRenderer` (the SAME channel the capsule's route render reads,
+   *  so the board's `next:` and the engine's `next:` literal compose their argv from
+   *  ONE flag-spelling source). A present doc line carrying a violation renders the
+   *  matching `(BLOCKED)` marker and the board exits 2 (spec §3.1 — the board's
+   *  reject face is exit 2, never the dispatch CDD_BLOCKED channel). Pure reads —
+   *  zero tree writes, zero ledger writes, zero child dispatch. */
   static render(
-    slug: string,
+    index: SlugIndex,
+    entry: DocEntry,
     repoRoot: string,
     words: Words,
     host: string,
     channels: Readonly<Record<string, RouteChannelRow>> = {},
   ): BoardRender {
-    const lines: string[] = [`cdd board: ${slug}`, ""];
+    const lines: string[] = [`cdd board: ${entry.slug ?? "(none)"}`, ""];
     // The repo-basis value object — constructed ONCE at this boundary, the ONE
     // conversion exit the doc cells and the `next:` render normalize their embedded
     // paths through (T1 `RepoRoot` · D47). The raw string is threaded no further:
@@ -332,51 +258,69 @@ export class BoardView {
     // one form).
     const root = new RepoRoot(repoRoot);
     const exitCode =
-      Workspace.phaseSuffixOf(slug) !== null
-        ? BoardView.#phaseBoard(lines, slug, root, words, host, channels)
-        : BoardView.#programBoard(lines, slug, root);
+      entry.docType === "overall-spec"
+        ? BoardView.#programBoard(lines, index, entry, root)
+        : BoardView.#nodeBoard(lines, index, entry, root, words, host, channels);
     lines.push("", PROGRESS_LEGEND.board);
     return { lines, exitCode };
   }
 
-  /** The phase board render — the overall/spec/plan/wave/branch rows + the next
-   *  derivation. Returns the exit code (2 when a present doc line carries no type
-   *  declaration). The repo-basis `root` is threaded alone (F2) — its `absolute`
-   *  feeds the fs-facing helpers, its value object the path renders. */
-  static #phaseBoard(
+  /** The node board render — the overall/spec/plan/wave/branch rows + the next
+   *  derivation (spec §3.1.1). The node's identity chain comes from the index
+   *  (`program:` → overall; same slug → spec / plan); a missing link renders
+   *  `(none)` and stays exit 0, while a violated line renders its marker and exits
+   *  2. The repo-basis `root` is threaded alone (F2) — its `absolute` feeds the
+   *  fs-facing helpers, its value object the path renders. */
+  static #nodeBoard(
     lines: string[],
-    slug: string,
+    index: SlugIndex,
+    entry: DocEntry,
     root: RepoRoot,
     words: Words,
     host: string,
     channels: Readonly<Record<string, RouteChannelRow>>,
   ): number {
     const repoRoot = root.absolute;
-    const suffix = Workspace.phaseSuffixOf(slug)!;
-    const program = slug.slice(0, slug.length - suffix.length);
-    const docs = Workspace.docsOfSlug(slug, repoRoot);
-    const node = BoardView.projectNode(slug, repoRoot);
-    const overall = BoardView.projectNode(`${program}-overall`, repoRoot);
-    // Select each line by its label (never a positional index with a non-null
-    // assertion — a reorder of node.lines must not silently swap the facts).
-    const specLine = node.lines.find((line) => line.label === "spec");
-    const planLine = node.lines.find((line) => line.label === "plan");
-    const branchLine = node.lines.find((line) => line.label === "branch");
+    const sources = BoardView.#nodeSources(index, entry);
+    const nodeSlug = BoardView.#validSlug(entry);
+    const ledger = nodeSlug === null ? null : BoardView.#ledgerOf(nodeSlug, repoRoot);
+    const progress = ledger?.readProgress() ?? null;
+    const overallSlug = BoardView.#validSlug(sources.overall);
+    const overallProgress =
+      overallSlug === null ? null : BoardView.#ledgerOf(overallSlug, repoRoot).readProgress();
+
+    const overallLine = BoardView.#lineOf("overall", "spec", sources.overall, overallProgress);
+    const specLine = BoardView.#lineOf("spec", "spec", sources.spec, progress);
+    const planLine = BoardView.#lineOf("plan", "plan", sources.plan, progress);
+    const branchLine = BoardView.#roundsLine("branch", "branch", progress);
     let blocked = false;
 
-    const overallDoc = BoardView.#docCell(docs.overall, overall.lines[0]!, root);
+    const overallDoc = BoardView.#docCell(
+      sources.overall,
+      overallLine,
+      root,
+      BoardView.#entryMark(index, sources.overall, "identity"),
+    );
     lines.push(`  overall  ${overallDoc.text}`);
     blocked ||= overallDoc.blocked;
 
-    const specDoc = BoardView.#docCell(docs.spec, specLine!, root);
+    const specMark =
+      BoardView.#entryMark(index, sources.spec, "identity") ??
+      (sources.programMissing ? MARK_PROGRAM_MISSING : null);
+    const specDoc = BoardView.#docCell(sources.spec, specLine, root, specMark);
     lines.push(`  spec     ${specDoc.text}`);
     blocked ||= specDoc.blocked;
 
-    const planDoc = BoardView.#docCell(docs.plan, planLine!, root);
+    const planDoc = BoardView.#docCell(
+      sources.plan,
+      planLine,
+      root,
+      BoardView.#entryMark(index, sources.plan, "plan"),
+    );
     lines.push(`  plan     ${planDoc.text}`);
     blocked ||= planDoc.blocked;
 
-    const waves = node.waveLines ?? [];
+    const waves = BoardView.#waveLines(sources.plan?.path ?? null, progress, ledger);
     if (waves.length === 0) {
       lines.push("  wave     (none)");
     } else {
@@ -393,98 +337,125 @@ export class BoardView {
       });
     }
 
-    const ledger = BoardView.#ledgerOf(slug, repoRoot);
-    const branchClosed = ledger.lineClosed("branch", "branch");
-    const branchRounds = BoardView.roundsCell(branchLine!.rounds);
+    const branchClosed = ledger?.lineClosed("branch", "branch") ?? false;
+    const branchRounds = BoardView.roundsCell(branchLine.rounds);
     lines.push(
       `  branch   ${branchClosed ? `${PROGRESS_MARKERS.done} closed` : `${PROGRESS_MARKERS.pending} open`}${branchRounds === "" ? "" : `  ${branchRounds}`}`.trimEnd(),
     );
 
     lines.push("");
-    lines.push(`  next:    ${BoardView.#nextOf(ledger, node, docs, words, host, channels, root)}`);
+    const next =
+      ledger === null
+        ? "(none)"
+        : BoardView.#nextOf(ledger, waves, sources, words, host, channels, root);
+    lines.push(`  next:    ${next}`);
     return blocked ? 2 : 0;
   }
 
   /** The program board render — the overall line (its own rounds) + one summary line
-   *  per on-disk phase + `next: done` (cross-phase never participates in next, spec
-   *  §6.5). Returns the exit code (2 when the overall doc OR any present phase doc
-   *  carries no type declaration — the phase board's BLOCK propagates here, spec §12 ·
-   *  D34: zero silent fallback). */
-  static #programBoard(lines: string[], slug: string, root: RepoRoot): number {
+   *  per phase-spec whose `program:` names this overall + `next: done` (cross-phase
+   *  never participates in next, spec §6.5). The phase set derives from the ONE
+   *  index (`program:` grouping — no overall child-list array). A phase row's primary
+   *  key is its `slug:`, annotated with the truncated `title:`; any overall/phase
+   *  violation renders its marker and exits 2 (spec §3.1 — zero silent fallback). */
+  static #programBoard(lines: string[], index: SlugIndex, entry: DocEntry, root: RepoRoot): number {
     const repoRoot = root.absolute;
-    const nodes = BoardView.projectNodes(slug, repoRoot);
-    const overall = nodes[0]!;
+    const overallSlug = BoardView.#validSlug(entry);
+    const ledger = overallSlug === null ? null : BoardView.#ledgerOf(overallSlug, repoRoot);
+    const overallLine = BoardView.#lineOf("overall", "spec", entry, ledger?.readProgress() ?? null);
     const overallDoc = BoardView.#docCell(
-      Workspace.docsOfSlug(slug, repoRoot).overall,
-      overall.lines[0]!,
+      entry,
+      overallLine,
       root,
+      BoardView.#entryMark(index, entry, "identity"),
     );
     lines.push(`  overall  ${overallDoc.text}`);
     lines.push("");
     let blocked = overallDoc.blocked;
-    for (const node of nodes.slice(1)) {
-      const label = node.label.slice(slug.length).replace(/^-p/, "P");
-      const spec = node.lines.find((line) => line.label === "spec");
-      const plan = node.lines.find((line) => line.label === "plan");
-      const branch = node.lines.find((line) => line.label === "branch");
-      // The phase line's doc-cell read: a present phase spec/plan without its
-      // A present spec/plan without its `doc-type:` key blocks the SAME way the
-      // phase board does — the marker renders on the phase line and the program
-      // board exits 2.
-      const docs = Workspace.docsOfSlug(node.label, repoRoot);
-      const phaseBlocked =
-        BoardView.#docCell(docs.spec, spec!, root).blocked ||
-        BoardView.#docCell(docs.plan, plan!, root).blocked;
-      blocked ||= phaseBlocked;
-      const status = phaseBlocked ? "doc-type: missing (BLOCKED)" : (spec?.status ?? "Pending");
+    const phases = overallSlug === null ? [] : index.phaseSpecsOf(overallSlug);
+    for (const phase of phases) {
+      const phaseSlug = BoardView.#validSlug(phase);
+      const phaseLedger = phaseSlug === null ? null : BoardView.#ledgerOf(phaseSlug, repoRoot);
+      const phaseProgress = phaseLedger?.readProgress() ?? null;
+      const specLine = BoardView.#lineOf("spec", "spec", phase, phaseProgress);
+      const planEntry = phaseSlug === null ? null : index.planOf(phaseSlug);
+      const planLine = BoardView.#lineOf("plan", "plan", planEntry, phaseProgress);
+      const branchLine = BoardView.#roundsLine("branch", "branch", phaseProgress);
+      const mark =
+        BoardView.#entryMark(index, phase, "identity") ??
+        (BoardView.#programMissing(index, phase) ? MARK_PROGRAM_MISSING : null);
+      const planMark = BoardView.#entryMark(index, planEntry, "plan");
+      blocked ||= mark !== null || planMark !== null;
+      const status = mark ?? phase.status ?? "Pending";
       // The phase's wave summary token (spec §5.3): the wave segment's first wave
       // number + an ellipsis (`wave W1…`) — the phase's wave progress at a glance,
       // derived from the SAME wave segment the phase board renders (no second read).
-      const waves = node.waveLines ?? [];
+      const waves = BoardView.#waveLines(planEntry?.path ?? null, phaseProgress, phaseLedger);
       const waveCell = waves.length === 0 ? "" : `${waves[0]!.label.split(" ")[0]}…`;
       const parts: string[] = [];
       const cells: Array<[string, string]> = [
-        ["spec", BoardView.roundsCell(spec?.rounds ?? {})],
-        ["plan", BoardView.roundsCell(plan?.rounds ?? {})],
+        ["spec", BoardView.roundsCell(specLine.rounds)],
+        ["plan", BoardView.roundsCell(planLine.rounds)],
         ["wave", waveCell],
-        ["branch", BoardView.roundsCell(branch?.rounds ?? {})],
+        ["branch", BoardView.roundsCell(branchLine.rounds)],
       ];
       for (const [key, cell] of cells) if (cell !== "") parts.push(`${key} ${cell}`);
       const tail = parts.join(" · ");
-      lines.push(`  phase ${label}  ${status}${tail === "" ? "" : `   ${tail}`}`);
+      const note = BoardView.#titleNote(phase.title);
+      lines.push(
+        `  phase ${phase.slug ?? "(none)"}  ${status}${tail === "" ? "" : `   ${tail}`}${note === "" ? "" : `   title: ${note}`}`,
+      );
     }
     lines.push("");
     lines.push("  next:    done");
     return blocked ? 2 : 0;
   }
 
+  /** The phase-spec's `program:` gate (spec §2.2): a phase-spec naming no overall
+   *  (or carrying no `program:` at all) is a hard cancellation of the node. */
+  static #programMissing(index: SlugIndex, entry: DocEntry): boolean {
+    if (entry.docType !== "phase-spec") return false;
+    return entry.program === null || index.overallOf(entry.program) === null;
+  }
+
+  /** The phase row's `title:` annotation — trimmed and truncated to
+   *  `PHASE_TITLE_MAX` characters (an ellipsis marks the cut). An absent/blank
+   *  title notes nothing. */
+  static #titleNote(title: string | null): string {
+    if (title === null) return "";
+    const trimmed = title.trim();
+    if (trimmed === "") return "";
+    return trimmed.length <= PHASE_TITLE_MAX
+      ? trimmed
+      : `${trimmed.slice(0, PHASE_TITLE_MAX - 1)}…`;
+  }
+
   /** One doc line's cell text — the doc path, the header facts and the line's
-   *  rounds (spec §5.3: `overall  <path>  v2.33 · Draft   review×4`); a present doc
-   *  carrying no `doc-type:` key renders its `doc-type: missing
-   *  (BLOCKED)` marker in place of the facts (blocked = true). An absent doc renders
-   *  `(none)` (degradation, never a throw). The doc path renders repoRoot-relative
-   *  through the ONE value object (D47 — `docsOfSlug` derives it absolute; the board
-   *  emits the ONE shape). */
+   *  rounds (spec §5.3: `overall  <path>  v2.33 · Draft   review×4`); a violated
+   *  line renders its `(BLOCKED)` marker in place of the facts (blocked = true).
+   *  An absent doc renders `(none)` (degradation, never a throw). The doc path
+   *  renders repoRoot-relative through the ONE value object (D47). */
   static #docCell(
-    docPath: string | null,
+    entry: DocEntry | null,
     line: BoardLine,
     root: RepoRoot,
+    mark: string | null,
   ): { text: string; blocked: boolean } {
-    if (docPath === null) return { text: "(none)", blocked: false };
-    const rel = root.relativize(docPath);
-    if (line.docType === null) {
-      const facts: string[] = [];
-      if (line.version !== null) facts.push(line.version);
-      if (line.status !== null) facts.push(line.status);
+    if (entry === null) return { text: "(none)", blocked: false };
+    const rel = root.relativize(entry.path);
+    const facts: string[] = [];
+    if (line.version !== null) facts.push(line.version);
+    if (line.status !== null) facts.push(line.status);
+    if (mark !== null) {
       const head = facts.length === 0 ? "" : `${facts.join(" · ")}  `;
-      return { text: `${rel}  ${head}doc-type: missing (BLOCKED)`, blocked: true };
+      return { text: `${rel}  ${head}${mark}`, blocked: true };
     }
-    const facts: string[] = [rel];
+    const cells: string[] = [rel];
     const meta = [line.version, line.status].filter((part) => part !== null).join(" · ");
-    if (meta !== "") facts.push(meta);
+    if (meta !== "") cells.push(meta);
     const rounds = BoardView.roundsCell(line.rounds);
-    if (rounds !== "") facts.push(rounds);
-    return { text: facts.join("   "), blocked: false };
+    if (rounds !== "") cells.push(rounds);
+    return { text: cells.join("   "), blocked: false };
   }
 
   /** The node's ledger — the progress.json read face the render's closure/next
@@ -510,30 +481,31 @@ export class BoardView {
    *  faces closed renders the last face's exit (the pipeline terminus). */
   static #nextOf(
     ledger: Ledger,
-    node: BoardProgress,
-    docs: SlugDocs,
+    waves: readonly BoardLine[],
+    sources: NodeSources,
     words: Words,
     host: string,
     channels: Readonly<Record<string, RouteChannelRow>>,
     root: RepoRoot,
   ): string {
     const renderer = new RouteRenderer(words, channels, host, root);
-    const waves = node.waveLines ?? [];
+    const specPath = sources.spec?.path ?? null;
+    const planPath = sources.plan?.path ?? null;
     // The plan's open frontier wave — the SAME ready batch the dispatch engine's
     // task-graph frontier yields (frontier over closedWaves()).
-    const waveKey = BoardView.#waveFrontierKey(ledger, docs.plan);
+    const waveKey = BoardView.#waveFrontierKey(ledger, planPath);
     // The observed faces keyed by their `PIPELINE_FACES` key — the router owns the
     // order, so the board re-declares none (it only reports facts).
     const report: PipelineFaceReport = {
       "phase-spec": {
         closed: ledger.lineClosed("spec", "spec"),
-        active: docs.spec === null ? null : ledger.lineRoute("spec", "spec"),
-        target: docs.spec === null ? null : { type: "spec", id: docs.spec },
+        active: specPath === null ? null : ledger.lineRoute("spec", "spec"),
+        target: specPath === null ? null : { type: "spec", id: specPath },
       },
       plan: {
         closed: ledger.lineClosed("plan", "plan"),
-        active: docs.plan === null ? null : ledger.lineRoute("plan", "plan"),
-        target: docs.plan === null ? null : { type: "plan", id: docs.plan, plan: docs.plan },
+        active: planPath === null ? null : ledger.lineRoute("plan", "plan"),
+        target: planPath === null ? null : { type: "plan", id: planPath, plan: planPath },
       },
       wave: {
         // The wave face is exhausted (skipped) only when the plan yields a wave set
@@ -541,12 +513,12 @@ export class BoardView {
         // face (nothing was closed), so it stays the frontier and hands off.
         closed: waves.length > 0 && waves.every((wave) => wave.marker === PROGRESS_MARKERS.done),
         active: waveKey === null ? null : ledger.waveLineRoute(waveKey),
-        target: docs.plan === null ? null : { type: "wave", id: waveKey ?? "", plan: docs.plan },
+        target: planPath === null ? null : { type: "wave", id: waveKey ?? "", plan: planPath },
       },
       branch: {
         closed: ledger.lineClosed("branch", "branch"),
         active: ledger.lineRoute("branch", "branch"),
-        target: { type: "branch", id: "branch", plan: docs.plan ?? undefined },
+        target: { type: "branch", id: "branch", plan: planPath ?? undefined },
       },
     };
     const next = NextStepRouter.walk(report);
@@ -577,21 +549,6 @@ export class BoardView {
     } catch {
       return null;
     }
-  }
-
-  /** One doc line — the header facts read from the doc (absent → nulls) + the row's
-   *  rounds keyed by the line's `progress.json` key. */
-  static #docLine(
-    label: string,
-    key: string,
-    docPath: string | null,
-    progress: ProgressData | null,
-  ): BoardLine {
-    const header =
-      docPath === null
-        ? { version: null, status: null, docType: null }
-        : BoardView.readHeader(docPath);
-    return { label, ...header, rounds: BoardView.#rowRounds(progress, key), marker: null };
   }
 
   /** The branch line — a docless line whose rounds ride the `branch` row. */
@@ -625,11 +582,11 @@ export class BoardView {
   static #waveLines(
     planPath: string | null,
     progress: ProgressData | null,
-    ledger: Ledger,
+    ledger: Ledger | null,
   ): BoardLine[] {
     const graph = BoardView.#planGraph(planPath);
     if (graph === null) return [];
-    const report = graph.report(ledger.closedWaves());
+    const report = graph.report(ledger === null ? new Set<number>() : ledger.closedWaves());
     const done = new Set(report.done);
     const currentIndex = report.waves.findIndex((wave) => wave.some((id) => !done.has(id)));
     return report.waves.map((wave, index) => {

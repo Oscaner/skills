@@ -153,6 +153,19 @@ export abstract class Invariant extends MarkdownPrimitives {
     return { path: ctx.path, field, message, fix, kind: this.name };
   }
 
+  /** Whether a value's raw form marks it as a holder placeholder (no existence or
+   *  domain judgment): the empty value, the two pending forms, the `<…>` link
+   *  placeholder and the skeleton's `:::fill <slot>` content slot. The ONE
+   *  placeholder contract every strategy shares — the link-resolution faces skip a
+   *  placeholder target and the front-matter domain arm skips a placeholder scalar. */
+  protected isPlaceholder(target: string): boolean {
+    const trimmed = target.trim();
+    if (trimmed === "") return true;
+    if (trimmed === "Pending" || trimmed === "[Pending]") return true;
+    if (/^<[^>]+>$/.test(trimmed)) return true;
+    return /^:::fill(?:\s|$)/.test(trimmed);
+  }
+
   /** The judged doc type's declared registry. */
   protected registry(ctx: JudgeContext): ElementRegistry {
     return ctx.registries[ctx.docKey];
@@ -244,7 +257,7 @@ export abstract class Invariant extends MarkdownPrimitives {
     return ctx.docKey === "phase-spec" ? (ctx.parsed as PhaseSpecParsed) : null;
   }
 
-  /** The four-table section heading anchors of the overall (registry-declared). */
+  /** The three-table section heading anchors of the overall (registry-declared). */
   protected overallTableHeadings(ctx: JudgeContext): readonly string[] {
     const headings = this.overall(ctx);
     if (headings === null) return [];
@@ -252,7 +265,7 @@ export abstract class Invariant extends MarkdownPrimitives {
       .filter((element) => element.home === "section" && element.anchor.startsWith("## "))
       .map((element) => element.anchor);
     return declared.filter((anchor) =>
-      ["File paths", "Issue inventory", "Phase inventory", "Change history"].some((name) =>
+      ["Issue inventory", "Phase inventory", "Change history"].some((name) =>
         anchor.includes(name),
       ),
     );
@@ -484,6 +497,9 @@ export class DomainInvariant extends Invariant {
       if (slice.home === "frontmatter") {
         const value = ctx.head.value(element.anchor);
         if (value === null) continue;
+        // The skeleton's own placeholders (`:::fill <slot>` / `<…>`) are holder
+        // states, not values — the strict scalar shapes judge a CONCRETE value.
+        if (this.isPlaceholder(value)) continue;
         const rawPattern = element.valuePattern;
         if (rawPattern === undefined) continue;
         if (!new RegExp(rawPattern).test(value)) {
@@ -1111,14 +1127,6 @@ export class FileExistenceInvariant extends Invariant {
     return links;
   }
 
-  /** Whether a target's raw form marks it as a holder placeholder (no existence judgment). */
-  protected isPlaceholder(target: string): boolean {
-    const trimmed = target.trim();
-    if (trimmed === "") return true;
-    if (trimmed === "Pending" || trimmed === "[Pending]") return true;
-    return /^<[^>]+>$/.test(trimmed);
-  }
-
   /** Whether the target exists — absolute targets directly; repo-root form first, the
    *  doc's own dir as the file-relative fallback. The resolution chain is
    *  single-sourced in `targetPath` (the ONE home the CLI's plan `spec:` rebase
@@ -1258,13 +1266,15 @@ export class CrossDocChainInvariant extends Invariant {
     return [];
   }
 
-  /** The Class-A/Class-B plan chain: the `spec:`/`parent-program:` head targets + the Class-B lineage. */
+  /** The plan chain face — the retired path keys are judged only while the doc
+   *  type's registry still declares them (the plan's `spec:` / `parent-program:`
+   *  declarations are gone; the same-slug identity chain replaces them). */
   private planChain(ctx: JudgeContext): Finding[] {
     const data = this.plan(ctx);
     if (data === null) return [];
     const findings: Finding[] = [];
     const specLink = data.chain.specLink;
-    if (specLink === null) {
+    if (this.sliceOf(ctx, "spec") !== undefined && specLink === null) {
       findings.push(
         this.finding(
           ctx,
@@ -1276,25 +1286,30 @@ export class CrossDocChainInvariant extends Invariant {
     }
     // The link-label drift judgment retired with the ChainLink label face — the
     // spec link is a head scalar now (the `spec:` key), the label is not a fact.
-    if (data.chain.parentLink === null) {
-      findings.push(
-        this.finding(
-          ctx,
-          "parent-program",
-          "the plan carries no parent-program reference",
-          "add a parent-program value pointing at the parent overall",
-        ),
-      );
+    if (this.sliceOf(ctx, "parent-program") !== undefined) {
+      if (data.chain.parentLink === null) {
+        findings.push(
+          this.finding(
+            ctx,
+            "parent-program",
+            "the plan carries no parent-program reference",
+            "add a parent-program value pointing at the parent overall",
+          ),
+        );
+      }
+      findings.push(...this.classB(ctx, data.chain.parentLink, data.chain.parentTokens));
     }
-    findings.push(...this.classB(ctx, data.chain.parentLink, data.chain.parentTokens));
     return findings;
   }
 
-  /** The Class-B phase-spec chain: the parent-link lineage belongs to the parent overall. */
+  /** The phase-spec chain face — the Class-B parent link is judged only while the
+   *  registry declares the `parent-program:` key (retired for the `program:` slug
+   *  reference). */
   private specChain(ctx: JudgeContext): Finding[] {
     const data = this.phaseSpec(ctx);
     if (data === null) return [];
     const findings: Finding[] = [];
+    if (this.sliceOf(ctx, "parent-program") === undefined) return findings;
     if (data.chain.parentLink === null) {
       findings.push(
         this.finding(

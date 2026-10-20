@@ -54,6 +54,9 @@ export type RouteWordKind =
   | "fix"
   | "implement"
   | "docType"
+  | "slugMissing"
+  | "slugInvalid"
+  | "slugDuplicated"
   | "frontmatterParse";
 
 /** The wave-gate BLOCK wording rows — the vocabulary the WaveGate verdicts render
@@ -118,6 +121,12 @@ export const CAPSULE_WORDS = {
     implement: "implement",
     docType:
       "the doc declares no `doc-type:` key — add `doc-type: <overall-spec|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
+    slugMissing:
+      "the doc declares no `slug:` key — add `slug: <workspace-key>` to the doc's front-matter (the identity key the board and every work command share) and re-run",
+    slugInvalid:
+      'the doc\'s `slug:` value "{slug}" is illegal — use 1–128 characters, an alphanumeric first character, then alphanumerics, `.`, `_`, or `-` (the slug is the workspace directory name), then re-run',
+    slugDuplicated:
+      'the slug "{slug}" is declared by more than one document — keep exactly one identity document and at most one plan per slug, then re-run',
     frontmatterParse:
       "the doc's front-matter is not valid YAML: {reason} on line {line}, column {column} (`{source}`) — quote values that start with `[` or `{` (a YAML flow-sequence start) and re-run",
   } as const,

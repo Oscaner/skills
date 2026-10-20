@@ -2,7 +2,7 @@
   "docType": "overall-spec",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "overall-spec document structure",
-  "description": "Derived JSON Schema — 42 declared elements · 35 required",
+  "description": "Derived JSON Schema — 43 declared elements · 34 required",
   "type": "object",
   "properties": {
     "title": {
@@ -25,6 +25,11 @@
       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
+    "slug": {
+      "type": "string",
+      "pattern": "^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "presence: required · home: frontmatter · ref: none"
+    },
     "status": {
       "type": "string",
       "pattern": "^(Draft|Approved|In progress|Complete)$",
@@ -43,7 +48,7 @@
     "## File paths": {
       "type": "string",
       "pattern": "^## File paths$",
-      "description": "presence: required · home: section · ref: none"
+      "description": "presence: optional · home: section · ref: none"
     },
     "## Program charter": {
       "type": "string",
@@ -158,7 +163,7 @@
     "Design spec cell": {
       "type": "string",
       "pattern": "^(\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])$",
-      "description": "presence: required · home: table · ref: spec-ref"
+      "description": "presence: required · home: table · ref: none"
     },
     "Dependency cell": {
       "type": "string",
@@ -183,7 +188,7 @@
     "File path row": {
       "type": "string",
       "pattern": "^\\| [^|]+ \\| `[^`]+` \\|$",
-      "description": "presence: required · home: table · ref: none"
+      "description": "presence: optional · home: table · ref: none"
     },
     "Change history row": {
       "type": "string",
@@ -208,7 +213,7 @@
     "Design claim token": {
       "type": "string",
       "pattern": "^P\\d+(\\.\\d+)*-design$",
-      "description": "presence: conditional · home: table · ref: spec-ref"
+      "description": "presence: conditional · home: table · ref: phase-id"
     },
     "Phase range ref": {
       "type": "string",
@@ -221,10 +226,10 @@
     "doc-type",
     "version",
     "date",
+    "slug",
     "status",
     "author",
     "## Document scope",
-    "## File paths",
     "## Program charter",
     "## Issue inventory",
     "## Phase inventory",
@@ -248,7 +253,6 @@
     "Dependency cell",
     "Hard edge",
     "Graph legend",
-    "File path row",
     "Change history row",
     "Version token",
     "Change history date"

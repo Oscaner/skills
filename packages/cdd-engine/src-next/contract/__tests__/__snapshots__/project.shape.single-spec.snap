@@ -25,6 +25,11 @@
           "refKind": "none"
         },
         {
+          "anchor": "slug",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
           "anchor": "status",
           "presence": "required",
           "refKind": "none"

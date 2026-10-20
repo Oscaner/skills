@@ -152,6 +152,23 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     }
   });
 
+  it("every work shell forbids unbounded loops — a wait must carry its own exit condition", () => {
+    const pins = [
+      "`while True: pass`",
+      "`while true; do …; done`",
+      "bounded exit condition",
+    ] as const;
+    for (const role of ["implement", "fix", "review", "docs-fix"] as const) {
+      const out = assembler.render({
+        ...ALL_VALUES,
+        ROLE: role,
+        REVIEW_TYPE: "spec",
+        INPUT_SPEC: "docs/x-design.md",
+      });
+      for (const pin of pins) expect(out, role).toContain(pin);
+    }
+  });
+
   it("the fix shell carries the two typed fix-discipline sentences — verify-then-apply + conditional TDD (P5 §2.4)", () => {
     const out = assembler.render({
       ...ALL_VALUES,

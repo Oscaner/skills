@@ -244,7 +244,12 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
         expect(verdict.ok).toBe(false);
         expect(verdict.gate).toBe("tree-clean");
         expect(verdict.reason).toBe("dirty-tree");
+        // the refusal keeps its commit/discard guidance and names the
+        // orchestrator as the recovery owner; the engine only refuses
+        expect(verdict.message).toContain("dirty");
         expect(verdict.message).toContain("commit or discard");
+        expect(verdict.message).toContain("orchestrator");
+        expect(verdict.message).toMatch(/never stashes/);
         expect(verdict.order).toEqual(["tree-clean"]);
       }
     } finally {

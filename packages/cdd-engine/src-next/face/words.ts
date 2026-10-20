@@ -132,7 +132,7 @@ export const CAPSULE_WORDS = {
    *  single-sourced (the seam fills the {count} slot, never a re-type). */
   preflight: {
     dirtyTree:
-      "the working tree is dirty — commit or discard your changes, then re-run the same command",
+      "the working tree is dirty — commit or discard your changes (recovery is the orchestrator's job; the engine only refuses — it never stashes, makes a temporary commit, or resumes a dirty tree), then re-run the same command",
     graph: "the plan graph has {count} edge violation(s) — fix the **DependsOn** edges first",
     docContract: "the target document fails the doc-contract — fix its structural findings first",
   } as const satisfies PreflightWords,

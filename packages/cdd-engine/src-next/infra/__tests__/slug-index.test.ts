@@ -5,6 +5,8 @@
 //   · the lookup surface (identityDoc / planOf / phaseSpecsOf / overallOf / entryAt);
 //   · the five violation kinds (duplicate-identity / duplicate-plan / missing-slug /
 //     invalid-slug / missing-program-target) plus the legal spec-plan pair;
+//   · the four-way identity gate the pre-flight and the dispatch carrier share
+//     (missing / illegal / duplicated) plus the doc-root membership probe;
 //   · the filename-independence boundaries — a `slug:` value wins over the file
 //     name, and a document's directory never decides its identity class.
 
@@ -253,6 +255,44 @@ describe("SlugIndex — the violation classes", () => {
 
     expect(index.duplicatedRolesOf("prog-p1")).toEqual(["identity", "plan"]);
     expect(index.duplicatedRolesOf(PROGRAM)).toEqual([]);
+  });
+});
+
+describe("SlugIndex — the four-way identity gate", () => {
+  it("accepts the unique legal slug of an indexed document", () => {
+    const repo = newRepo();
+    seedProgram(repo);
+    const index = SlugIndex.build(repo);
+    expect(index.slugVerdict(`${SPECS}/prog-p1-design.md`, "prog-p1")).toEqual({
+      kind: "accepted",
+      slug: "prog-p1",
+    });
+  });
+
+  it("refuses a missing, illegal or duplicated slug with its own kind", () => {
+    const repo = newRepo();
+    writeDoc(repo, `${SPECS}/no-slug.md`, { "doc-type": "overall-spec" });
+    writeDoc(repo, `${SPECS}/bad-slug.md`, { "doc-type": "overall-spec", slug: "../x" });
+    writeDoc(repo, `${SPECS}/dup-a.md`, { "doc-type": "overall-spec", slug: "dup" });
+    writeDoc(repo, `${SPECS}/dup-b.md`, { "doc-type": "overall-spec", slug: "dup" });
+    const index = SlugIndex.build(repo);
+
+    expect(index.slugVerdict(`${SPECS}/no-slug.md`, null)).toEqual({ kind: "missing" });
+    expect(index.slugVerdict(`${SPECS}/bad-slug.md`, "../x")).toEqual({
+      kind: "illegal",
+      slug: "../x",
+    });
+    expect(index.slugVerdict(`${SPECS}/dup-b.md`, "dup")).toEqual({
+      kind: "duplicated",
+      slug: "dup",
+    });
+  });
+
+  it("recognises a path inside either doc root and nothing else", () => {
+    expect(SlugIndex.insideDocRoots(`${SPECS}/x.md`)).toBe(true);
+    expect(SlugIndex.insideDocRoots(`${PLANS}/x.md`)).toBe(true);
+    expect(SlugIndex.insideDocRoots("notes.md")).toBe(false);
+    expect(SlugIndex.insideDocRoots(`${SPECS}-archive/x.md`)).toBe(false);
   });
 });
 

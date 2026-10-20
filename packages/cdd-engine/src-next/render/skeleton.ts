@@ -259,7 +259,7 @@ export class SkeletonAssembler {
   /** The single-spec skeleton — the front-matter head, the four prose sections
    *  (`:::fill` slots) and the change-history table: the lightweight scaffold of
    *  the free-form spec (P6 T2 · spec §2.1). No `### N.` double-layer outline and
-   *  no parent-program key — the single-spec's deliberate deviations from the
+   *  no `program:` key — the single-spec's deliberate deviations from the
    *  phase-spec form. */
   #renderSingleSpec(probe: Set<string>): string[] {
     const lines: string[] = [];

@@ -1,6 +1,6 @@
 // packages/cdd-engine/src-next/contract/__tests__/judge.test.ts
 // T4 judge suite — the interpreter's acceptance surface:
-//   · one negative case per invariant class (base nine + the four context-seam
+//   · one negative case per invariant class (base nine + the six context-seam
 //     strategies) — each must fire a Finding on a non-conforming document;
 //   · a conforming overall under a sane fs resolves to ZERO findings (no false
 //     positives — the coordinator's single strongest assertion);
@@ -685,7 +685,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
   });
 });
 
-describe("the four context-seam invariants — one negative case each", () => {
+describe("the six context-seam invariants — one negative case each", () => {
   it("file-existence: a chain link target that does not resolve is reported", () => {
     const content = GOOD_OVERALL.replace(
       "[P1-design](docs/kairos/specs/x-p1-design.md)",

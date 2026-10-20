@@ -904,7 +904,7 @@ export class HollowInvariant extends Invariant {
     return findings;
   }
 
-  /** The overall's four tables: a present table section with zero data rows is hollow. */
+  /** The overall's three tables: a present table section with zero data rows is hollow. */
   private tableHollow(ctx: JudgeContext): Finding[] {
     const data = this.overall(ctx);
     if (data === null) return [];
@@ -1068,7 +1068,7 @@ export class SelfBoundedInvariant extends Invariant {
 }
 
 // ---------------------------------------------------------------------------
-// the four context-seam strategies
+// the six context-seam strategies
 // ---------------------------------------------------------------------------
 
 /** The chain-link target shape contract (D2, shape judged at the boundary — the #342

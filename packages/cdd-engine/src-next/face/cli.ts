@@ -43,7 +43,7 @@
 // Module-level exports are types / constant data / classes — zero behavior-carrying
 // bare functions (the composition root is the Cli class's static create factory).
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { type Command, CommanderError } from "commander";
@@ -372,19 +372,30 @@ export class Cli {
     const repoRoot = await this.#rootOf();
     if (repoRoot === null) return 1;
     const root = new RepoRoot(repoRoot);
-    const index = SlugIndex.build(repoRoot);
     const planRel = planArg === undefined ? null : this.#relativizePath(root, planArg);
     const specRel = specArg === undefined ? null : this.#relativizePath(root, specArg);
+    // The not-found face reads ZERO documents (spec §3.1): a path outside the two
+    // doc roots or absent on disk refuses BEFORE the identity scan — the scan is
+    // this face's only document-reading step, and it never runs for this verdict.
+    const planMissing =
+      planRel !== null &&
+      (!SlugIndex.insideDocRoots(planRel) || !existsSync(root.resolve(planRel)));
+    const specMissing =
+      specRel !== null &&
+      (!SlugIndex.insideDocRoots(specRel) || !existsSync(root.resolve(specRel)));
+    if (planMissing || specMissing)
+      return this.#boardNotFound([
+        planMissing ? `--plan ${planArg}` : null,
+        specMissing ? `--spec ${specArg}` : null,
+      ]);
+    const index = SlugIndex.build(repoRoot);
     const planEntry = planRel === null ? null : index.entryAt(planRel);
     const specEntry = specRel === null ? null : index.entryAt(specRel);
     const unmatched = [
       planRel !== null && planEntry === null ? `--plan ${planArg}` : null,
       specRel !== null && specEntry === null ? `--spec ${specArg}` : null,
     ].filter((part): part is string => part !== null);
-    if (unmatched.length > 0) {
-      this.#io.stderr(`cdd board: no docs match ${unmatched.join(" and ")}\n`);
-      return 2;
-    }
+    if (unmatched.length > 0) return this.#boardNotFound(unmatched);
     const planSlug = planEntry?.slug ?? null;
     const specSlug = specEntry?.slug ?? null;
     if (
@@ -405,6 +416,14 @@ export class Cli {
     const board = BoardView.render(index, entry, repoRoot, this.#words, host, ARGV_CHANNEL);
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;
+  }
+
+  /** The board's not-found face (spec §3.1) — the ONE stderr line + exit 2 the
+   *  pre-scan membership/existence probe and the post-scan entry lookup share. */
+  #boardNotFound(parts: readonly (string | null)[]): number {
+    const named = parts.filter((part): part is string => part !== null);
+    this.#io.stderr(`cdd board: no docs match ${named.join(" and ")}\n`);
+    return 2;
   }
 
   /** The thin shell's run input — commander's parsed opts mapped to the domain
@@ -931,16 +950,13 @@ export class Cli {
           .replace("{column}", String(parseError.column))
           .replace("{source}", parseError.source),
       );
-    const slug = head.slug;
-    if (slug === null) return this.#slugBlocked(this.#words.routeWord("slugMissing"));
-    if (!SlugIndex.isLegalSlug(slug))
-      return this.#slugBlocked(this.#words.routeWord("slugInvalid").replace("{slug}", slug));
-    const entry = index.entryAt(rel);
-    const duplicated =
-      entry !== null && entry.slug === slug && index.duplicatedRolesOf(slug).length > 0;
-    if (duplicated)
-      return this.#slugBlocked(this.#words.routeWord("slugDuplicated").replace("{slug}", slug));
-    return slug;
+    // The four-way identity gate (present · legal · indexed · unique) is the ONE
+    // `SlugIndex` judgment the pre-flight gate also reads — this carrier supplies
+    // only the CDD_BLOCKED channel, never a second spelling of the rule.
+    const verdict = index.slugVerdict(rel, head.slug);
+    return verdict.kind === "accepted"
+      ? verdict.slug
+      : this.#slugBlocked(this.#words.slugRefusal(verdict));
   }
 
   /** Read a dispatch target's text — null when the file is absent or unreadable.

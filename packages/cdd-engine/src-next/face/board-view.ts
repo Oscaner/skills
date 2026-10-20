@@ -166,7 +166,7 @@ export class BoardView {
       spec,
       plan,
       overall,
-      programMissing: spec?.docType === "phase-spec" && (spec.program === null || overall === null),
+      programMissing: spec !== null && BoardView.#programMissing(index, spec),
     };
   }
 

@@ -82,6 +82,18 @@ export interface SlugViolation {
   readonly program: string | null;
 }
 
+/** The identity gate's verdict for one document (spec §2.1): the declared `slug:`
+ *  is present, legal, indexed and unique — otherwise the violating fact. */
+export type SlugVerdict =
+  | { readonly kind: "accepted"; readonly slug: string }
+  | { readonly kind: "missing" }
+  | { readonly kind: "illegal"; readonly slug: string }
+  | { readonly kind: "duplicated"; readonly slug: string };
+
+/** The refused half of `SlugVerdict` — the gate's three refusal kinds (every kind
+ *  a carrier renders as the matching word row). */
+export type SlugRefusal = Exclude<SlugVerdict, { kind: "accepted" }>;
+
 /**
  * SlugIndex — the identity index over the two doc roots. Construct it through
  * `build` (the one scanning entry point); every lookup and the violation list
@@ -100,6 +112,18 @@ export class SlugIndex {
    *  pre-flight gate all read. Narrows a nullable raw value to a legal slug. */
   static isLegalSlug(value: string | null): value is string {
     return value !== null && SlugIndex.#SLUG_PATTERN.test(value);
+  }
+
+  /** Whether a repo-relative path lies inside either doc root — pure path
+   *  grammar, zero document reads. The board's not-found face uses this (plus an
+   *  existence probe) to refuse an outside-root or absent path BEFORE the identity
+   *  scan opens a single document (spec §3.1). */
+  static insideDocRoots(rel: string): boolean {
+    const normalized = path.normalize(rel);
+    return [ENGINE_RUNTIME.docRoots.specs, ENGINE_RUNTIME.docRoots.plans].some((root) => {
+      const prefix = path.normalize(root);
+      return normalized === prefix || normalized.startsWith(`${prefix}${path.sep}`);
+    });
   }
 
   /** Every indexed document, ordered by repo-relative path. */
@@ -199,6 +223,19 @@ export class SlugIndex {
       if (role !== null && !roles.includes(role)) roles.push(role);
     }
     return roles;
+  }
+
+  /** The identity gate for one document's declared `slug:` — the ONE four-way
+   *  judgment the dispatch pre-flight and the dispatch carrier share (spec §2.1):
+   *  present · legal · indexed · unique. The `entryAt` guard keeps a content read
+   *  the scan did not re-index from judging a stale value. */
+  slugVerdict(rel: string, slug: string | null): SlugVerdict {
+    if (slug === null) return { kind: "missing" };
+    if (!SlugIndex.isLegalSlug(slug)) return { kind: "illegal", slug };
+    const entry = this.entryAt(rel);
+    const duplicated =
+      entry !== null && entry.slug === slug && this.duplicatedRolesOf(slug).length > 0;
+    return duplicated ? { kind: "duplicated", slug } : { kind: "accepted", slug };
   }
 
   /** The phase ordinal a slug carries in its `-p<major>[.<minor>…]` tail — the

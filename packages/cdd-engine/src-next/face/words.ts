@@ -32,6 +32,7 @@
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import type { LocalizedWord, WordLocaleFace } from "../contract/translate.ts";
+import type { SlugRefusal } from "../infra/slug-index.ts";
 
 // ---------------------------------------------------------------------------
 // capsule — the station-word family (the declared steady word face)
@@ -292,6 +293,20 @@ export class Words implements WordLocaleFace {
   /** One route classifier word (`done` / `review` / `fix` / `implement`). */
   routeWord(kind: RouteWordKind): string {
     return CAPSULE_WORDS.routeWords[kind];
+  }
+
+  /** The identity-gate refusal wording for one refused slug verdict — the ONE
+   *  spelling the pre-flight gate and the dispatch carrier print (the row and its
+   *  `{slug}` fill are owned here, never re-typed at a carrier). */
+  slugRefusal(verdict: SlugRefusal): string {
+    switch (verdict.kind) {
+      case "missing":
+        return this.routeWord("slugMissing");
+      case "illegal":
+        return this.routeWord("slugInvalid").replace("{slug}", verdict.slug);
+      case "duplicated":
+        return this.routeWord("slugDuplicated").replace("{slug}", verdict.slug);
+    }
   }
 
   /** The wave-gate BLOCK wording rows — the vocabulary the WaveGate verdicts render

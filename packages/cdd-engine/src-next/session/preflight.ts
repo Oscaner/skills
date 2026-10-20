@@ -224,38 +224,18 @@ export class PreFlight {
             order: gates,
           };
         }
-        // The identity gates (spec §2.1/§2.2) — same face, same carrier: the
-        // workspace key is the declared `slug:`, and the index's uniqueness
-        // judgment is the SAME one the board renders (one fact, two carriers).
-        const slug = head.slug;
-        if (slug === null) {
-          return {
-            ok: false,
-            gate: "doc-contract",
-            reason: "doc-contract",
-            message: this.#words.routeWord("slugMissing"),
-            order: gates,
-          };
-        }
-        if (!SlugIndex.isLegalSlug(slug)) {
-          return {
-            ok: false,
-            gate: "doc-contract",
-            reason: "doc-contract",
-            message: this.#words.routeWord("slugInvalid").replace("{slug}", slug),
-            order: gates,
-          };
-        }
+        // The identity gate (spec §2.1/§2.2) — same face, same carrier: the
+        // workspace key is the declared `slug:`, and the four-way judgment is the
+        // SAME `SlugIndex` one the board and the dispatch carrier read (one fact,
+        // one rule; this carrier supplies the pre-flight verdict shape only).
         const index = SlugIndex.build(ctx.repoRoot, this.#fs);
-        const entry = index.entryAt(doc.path);
-        const duplicated =
-          entry !== null && entry.slug === slug && index.duplicatedRolesOf(slug).length > 0;
-        if (duplicated) {
+        const verdict = index.slugVerdict(doc.path, head.slug);
+        if (verdict.kind !== "accepted") {
           return {
             ok: false,
             gate: "doc-contract",
             reason: "doc-contract",
-            message: this.#words.routeWord("slugDuplicated").replace("{slug}", slug),
+            message: this.#words.slugRefusal(verdict),
             order: gates,
           };
         }

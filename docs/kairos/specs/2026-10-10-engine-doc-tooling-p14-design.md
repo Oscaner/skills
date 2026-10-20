@@ -1,12 +1,12 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P14 设计：one-shot CDD child 同步收工契约（handoff-absent + contractViolationCount）
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-10-20
 status: Draft
 author: Oscar M. · Claude（kairos:cdd-design [P14] 会话 · 用户七前提 mandate · grilling settled · 2026-10-20）
 parent-program: 2026-10-10-engine-doc-tooling-overall.md
-parent-version: v2.63
+parent-version: v2.64
 depends-on: P13（Done · v0.4 · hard——P13 终止面落地后的合作式提前退 · overall 依赖图 D58）
 ---
 
@@ -144,3 +144,4 @@ depends-on: P13（Done · v0.4 · hard——P13 终止面落地后的合作式�
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-20 | 初稿——P14 phase-spec：A 组同步收工契约（提示/契约面硬句 · implement/review/fix 三腿同一句 · 单源 clause）+ B 组机器因 `handoff-absent` 与 `contractViolationCount` 真递增（缺稿 vs 畸形/schema 拆分 · 与 `timeoutCount` 对称写点 · 零行为分叉）+ C 组 dirty-tree 文案归编排器（门语义零变）；Non-goals 明示不重造宿主 wake / 不等 nested / 不进消费禁令；承 D58 · #368 · P13 hard-dep；changeset minor · 不发布。 | Oscar M. · Claude（kairos:cdd-design [P14]） |
 | v0.2 | 2026-10-20 | docs-fix round 1：§3.2 裁定唯一记账缝优先 `#reject`/`#writeCrash` 按 cause 调用（备选扩展 `DispatchOutcome`）；明确排除无 crash-cause / evidence-gate BLOCKED，禁止只靠 status 递增；§3.1/验收要求扩展 `CrashCause` 时同步改写 JSDoc；§2.1 补英文候选硬句与必达 token。 | Oscar M. · Claude（kairos:cdd docs-fix） |
+| v0.3 | 2026-10-20 | closeout（cdd-close）——P14 全链闭合登记：两波实现链全绿（W1={1,2} → W2={3}；W1 经一轮 fix 收口——W1 implement `64dcf5da` · wave-review-1 REVIEW_FIX（1 nit · CrashCause JSDoc 落点）→ wave-fix-1 `e53d3077` · W2 implement `00da0d34` · wave-review APPROVED） · 分支终审 APPROVED（branch-review-1 · 零 branch-fix） · 文档链（注册 `96a48b98` · phase-spec `c47943e6` · docs-fix `2c711c32` · plan `35209eb5`） · 验收：`pnpm run validate` exit 0（cdd-engine 782/782 · kairos 83/83 · root 10/10 · typecheck ×3 · emit-check fresh · version-sync kairos 1.1.2 · cdd-engine 3.1.0 · 零裸函数）· changeset cdd-engine minor pending · 不发布 · **未验证面（如实记录）**：真实 pi `-p` child 上 `bg_run`/`bg_delegate` yield 路径导致缺稿的端到端实机路径未跑（提示面/lifecycle/ledger 单测与渲染 pin 已绿） · 父 overall → v2.64（P14 行 Done · `parent-version` 随之 v2.63 → v2.64） | Oscar M. · Claude（kairos:cdd-close · closeout-backfill · 2026-10-20） |

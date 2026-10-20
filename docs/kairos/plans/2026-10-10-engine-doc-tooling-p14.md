@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P14 实施计划：one-shot CDD child 同步收工契约（handoff-absent + contractViolationCount）
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-10-20
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p14-design.md
 parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
@@ -62,3 +62,4 @@ base: develop
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-20 | 初稿——P14 三任务：T1 提示面 `cl:sync-completion` 单源硬句；T2 `handoff-absent` + `incrementContractViolationCount` 于 `#reject`/`#writeCrash` 按 cause 记账；T3 dirty-tree 文案 + changeset + validate；承 design v0.2 / D58 / #368。 | Oscar M. · Claude（kairos:cdd-plan [P14]） |
+| v0.2 | 2026-10-20 | closeout（cdd-close）——P14 全链闭合登记：两波实现链全绿（W1={1,2} → W2={3}；W1 经一轮 fix 收口——W1 implement `64dcf5da` · wave-review-1 REVIEW_FIX（1 nit · CrashCause JSDoc 落点）→ wave-fix-1 `e53d3077` · W2 implement `00da0d34` · wave-review APPROVED） · 分支终审 APPROVED（branch-review-1 · 零 branch-fix） · 文档链（注册 `96a48b98` · phase-spec `c47943e6` · docs-fix `2c711c32` · plan `35209eb5`） · 验收：`pnpm run validate` exit 0（cdd-engine 782/782 · kairos 83/83 · root 10/10 · typecheck ×3 · emit-check fresh · version-sync kairos 1.1.2 · cdd-engine 3.1.0 · 零裸函数）· changeset cdd-engine minor pending · 不发布 · **未验证面（如实记录）**：真实 pi `-p` child 上 `bg_run`/`bg_delegate` yield 路径导致缺稿的端到端实机路径未跑（提示面/lifecycle/ledger 单测与渲染 pin 已绿） · 父 overall → v2.64（P14 行 Done） | Oscar M. · Claude（kairos:cdd-close · closeout-backfill · 2026-10-20） |

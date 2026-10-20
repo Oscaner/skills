@@ -3,6 +3,8 @@ title: 引擎文档工具（Engine Doc-Tooling）— P4 设计：引擎 handoff 
 doc-type: phase-spec
 version: v0.6
 date: 2026-10-12
+slug: 2026-10-10-engine-doc-tooling-p4
+program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P4] 会话 · 用户裁定 · 2026-10-12）
 parent-program: 2026-10-10-engine-doc-tooling-overall.md

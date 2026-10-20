@@ -4,6 +4,8 @@ title: 引擎文档工具（Engine Doc-Tooling）— P9 设计：一事实无处
 doc-type: phase-spec
 version: v0.7
 date: 2026-10-17
+slug: 2026-10-10-engine-doc-tooling-p9
+program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P9] 会话 · 用户裁定 · 2026-10-16）
 parent-program: 2026-10-10-engine-doc-tooling-overall.md

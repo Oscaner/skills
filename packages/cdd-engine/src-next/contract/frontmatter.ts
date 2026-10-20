@@ -82,6 +82,17 @@ export class FrontMatterHead {
     return this.value("doc-type");
   }
 
+  /** The document identity key (`slug:`) — the identity index's grouping fact,
+   *  never derived from the file name. */
+  get slug(): string | null {
+    return this.value("slug");
+  }
+
+  /** The phase-spec's parent-program slug reference (`program:`) — a slug, not a path. */
+  get program(): string | null {
+    return this.value("program");
+  }
+
   /** The version token (`version:`, the `v<major>.<minor>` form). */
   get version(): string | null {
     return this.value("version");

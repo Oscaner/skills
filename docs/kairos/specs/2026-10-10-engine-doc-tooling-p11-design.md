@@ -3,6 +3,8 @@ title: 引擎文档工具（Engine Doc-Tooling）— P11 设计：dispatch contr
 doc-type: phase-spec
 version: v0.7
 date: 2026-10-19
+slug: 2026-10-10-engine-doc-tooling-p11
+program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P11] 会话 · 用户两项 mandate · 2026-10-18）
 parent-program: 2026-10-10-engine-doc-tooling-overall.md

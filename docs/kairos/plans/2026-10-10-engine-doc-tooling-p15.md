@@ -3,6 +3,7 @@ title: 引擎文档工具（Engine Doc-Tooling）— P15 实施计划：文档�
 doc-type: plan
 version: v0.3
 date: 2026-10-20
+slug: 2026-10-10-engine-doc-tooling-p15
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p15-design.md
 parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
 depends-on: P14（Done · v0.3 · hard——P14 全链闭合 · overall 依赖图 D59）；前置 = P15 design spec v0.5（三轮 review 关闭 + plan 面 backfill）

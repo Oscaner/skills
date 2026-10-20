@@ -4,6 +4,7 @@ title: 引擎文档工具（Engine Doc-Tooling）— P9 实施计划：一事实
 doc-type: plan
 version: v0.9
 date: 2026-10-17
+slug: 2026-10-10-engine-doc-tooling-p9
 spec: ../specs/2026-10-10-engine-doc-tooling-p9-design.md
 parent-program: ../specs/2026-10-10-engine-doc-tooling-overall.md
 ---

@@ -4,6 +4,8 @@ title: 引擎文档工具（Engine Doc-Tooling）— P1 Design Spec（review fac
 doc-type: phase-spec
 version: v0.4
 date: 2026-10-11
+slug: 2026-10-10-engine-doc-tooling-p1
+program: 2026-10-10-engine-doc-tooling
 status: Approved
 author: "[human] · Claude Opus 5（kairos:cdd-design [P1] grilling 定案 →
   cdd-spec-writer · 词表统一 backfill 2026-10-11）"

@@ -3,18 +3,21 @@
 //   · the `---` fence split — the head/body boundary, the no-fence fallback;
 //   · the non-scalar downgrade — a list value reads null through the accessor;
 //   · the RAW channel — the extracted value equals the source string verbatim;
-//   · the twelve declared getters map the §2.3 key set.
+//   · the fourteen declared getters map the §2.3 key set (with the identity pair
+//     `slug:` / `program:`).
 
 import { describe, expect, it } from "vitest";
 import { FrontMatterExtractor, FrontMatterHead } from "../frontmatter.ts";
 
-/** The full §2.1 plan-shaped front matter — every one of the twelve declared keys. */
+/** The full §2.1 plan-shaped front matter — every one of the fourteen declared keys. */
 const FULL_HEAD = [
   "---",
   "title: 引擎文档工具（Engine Doc-Tooling）— 测试 Plan",
   "doc-type: plan",
   "version: v0.9",
   "date: 2026-10-17",
+  "slug: x-p10",
+  "program: x",
   "spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p10-design.md",
   "parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md",
   "parent-version: v2.46",
@@ -46,6 +49,8 @@ describe("FrontMatterExtractor.split — the fence split", () => {
       "doc-type",
       "version",
       "date",
+      "slug",
+      "program",
       "status",
       "author",
       "spec",
@@ -128,12 +133,14 @@ describe("the RAW channel — extraction matches the source verbatim", () => {
   });
 });
 
-describe("the twelve declared getters (§2.3 key set)", () => {
+describe("the fourteen declared getters (§2.3 key set)", () => {
   const { head } = FrontMatterExtractor.split(FULL_HEAD);
 
   it("exposes the kebab keys through the getter surface", () => {
     expect(head.title).toBe("引擎文档工具（Engine Doc-Tooling）— 测试 Plan");
     expect(head.docType).toBe("plan");
+    expect(head.slug).toBe("x-p10");
+    expect(head.program).toBe("x");
     expect(head.version).toBe("v0.9");
     expect(head.date).toBe("2026-10-17");
     expect(head.status).toBe("Draft");
@@ -150,6 +157,8 @@ describe("the twelve declared getters (§2.3 key set)", () => {
     const empty = new FrontMatterHead(null);
     expect(empty.title).toBeNull();
     expect(empty.docType).toBeNull();
+    expect(empty.slug).toBeNull();
+    expect(empty.program).toBeNull();
     expect(empty.version).toBeNull();
     expect(empty.date).toBeNull();
     expect(empty.status).toBeNull();

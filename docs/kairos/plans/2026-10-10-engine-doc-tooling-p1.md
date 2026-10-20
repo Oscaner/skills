@@ -4,6 +4,7 @@ title: 引擎文档工具（Engine Doc-Tooling）— P1 Plan（review face overa
 doc-type: plan
 version: v0.2
 date: 2026-10-11
+slug: 2026-10-10-engine-doc-tooling-p1
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p1-design.md
 parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
 parent-version: v1.5

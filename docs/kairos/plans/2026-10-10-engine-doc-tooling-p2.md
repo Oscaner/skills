@@ -3,6 +3,7 @@ title: 引擎文档工具（Engine Doc-Tooling）— P2 Plan（schema gen 模板
 doc-type: plan
 version: v0.5
 date: 2026-10-11
+slug: 2026-10-10-engine-doc-tooling-p2
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p2-design.md
 parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
 parent-version: v1.1

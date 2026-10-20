@@ -3,6 +3,7 @@ title: 引擎文档工具（Engine Doc-Tooling）— P12 实施计划：child di
 doc-type: plan
 version: v0.5
 date: 2026-10-19
+slug: 2026-10-10-engine-doc-tooling-p12
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p12-design.md
 parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
 depends-on: P11（Done · v0.7 · hard——P11 全链闭合后 child dispatch 终止兜底 · overall 依赖图 D52）

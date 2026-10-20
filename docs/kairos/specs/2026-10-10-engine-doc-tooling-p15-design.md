@@ -3,6 +3,8 @@ title: 引擎文档工具（Engine Doc-Tooling）— P15 设计：文档身份�
 doc-type: phase-spec
 version: v0.5
 date: 2026-10-20
+slug: 2026-10-10-engine-doc-tooling-p15
+program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscaner M. · Claude（kairos:cdd-design [P15] 会话 · 用户七前提 mandate · grilling settled · 2026-10-20）
 parent-program: 2026-10-10-engine-doc-tooling-overall.md

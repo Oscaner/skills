@@ -105,6 +105,23 @@ const EMPTY_FS: DocFs = {
   list: () => [],
 };
 
+/** The sibling-doc fs a conforming `x-p3` plan's identity chain resolves into: the
+ *  same-slug `x-p3-design.md` is its Class-A identity document, the program overall
+ *  is the phase-spec's `program:` target, every other name is an unrelated doc. */
+const PLAN_CHAIN_FS: DocFs = {
+  exists: () => true,
+  read: (p) =>
+    p.endsWith("/x-p3-design.md")
+      ? "---\ntitle: S\ndoc-type: phase-spec\nslug: x-p3\nprogram: x-overall\n---\n"
+      : p.endsWith("/x-overall.md")
+        ? "---\ntitle: O\ndoc-type: overall-spec\nslug: x-overall\nversion: v1.0\n---\n"
+        : "---\ntitle: X\ndoc-type: single-spec\nslug: x-other\n---\n",
+  list: (dir) =>
+    dir.endsWith("/specs") || dir.endsWith("specs")
+      ? ["x-overall.md", "x-p3-design.md"]
+      : ["x-p3.md"],
+};
+
 const judge = (
   docKey: "overall-spec" | "plan" | "phase-spec",
   content: string,
@@ -369,15 +386,9 @@ describe("base nine invariants — one negative case each", () => {
 
 describe("T6 — prose task mentions carry zero crosslink findings (the WARN-only observation surface)", () => {
   /** The sibling-doc fs a conforming plan's chain resolves into (exists + the
-   *  same-family listings the file-existence/sibling-scan surfaces judge). */
-  const GOOD_PLAN_FS: DocFs = {
-    exists: () => true,
-    read: () => null,
-    list: (dir) =>
-      dir.endsWith("/specs") || dir.endsWith("specs")
-        ? ["x-overall.md", "x-design.md", "x-p3-design.md"]
-        : ["x-p3.md"],
-  };
+   *  same-family listings the file-existence/sibling-scan surfaces judge) — the
+   *  shared identity-bearing fixture at the top of this file. */
+  const GOOD_PLAN_FS = PLAN_CHAIN_FS;
 
   /** A structurally conforming plan — every registered plan element present
    *  (front-matter head + version lineage + task fields + Change history) carrying
@@ -687,10 +698,32 @@ describe("the four context-seam invariants — one negative case each", () => {
     expect(seen.some((dir) => dir.endsWith("/docs/kairos/plans"))).toBe(true);
   });
 
-  it("T6 — the spec link-text drift judgment retired: a spec reference carries zero cross-doc-chain findings", () => {
-    // The plan's spec reference is a HEAD scalar (the `spec:` key) — the link text
-    // face is gone, so no Class-A drift judgment can fire. The cross-doc-chain
-    // surface judges the chain FACTS (presence + lineage), never a textual match.
+  it("a plan whose same-slug identity document is on disk carries zero cross-doc-chain findings (the Class-A positive half)", () => {
+    // The plan declares no chain key at all — its chain is the identity document
+    // sharing its `slug:`. The index resolves it, so the Class-A arm stays silent.
+    const content = [
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "slug: x-p3",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      ...planTask(1),
+    ].join("\n");
+    const findings = judge("plan", content, PLAN_CHAIN_FS);
+    expect(withKind(findings, "cross-doc-chain", "slug")).toBe(false);
+    expect(findings.filter((finding) => finding.kind === "cross-doc-chain")).toEqual([]);
+  });
+
+  it("a plan with no same-slug identity document is reported — the Class-A negative half names the `slug` key", () => {
+    // The same fixture over an EMPTY fs: nothing on disk carries the plan's slug,
+    // so the plan has no design spec to dispatch against.
     const content = [
       "---",
       "title: Test Plan",
@@ -707,8 +740,45 @@ describe("the four context-seam invariants — one negative case each", () => {
       ...planTask(1),
     ].join("\n");
     const findings = judge("plan", content, EMPTY_FS);
-    expect(withKind(findings, "cross-doc-chain", "spec")).toBe(false);
-    expect(findings.filter((finding) => finding.kind === "cross-doc-chain")).toEqual([]);
+    expect(withKind(findings, "cross-doc-chain", "slug")).toBe(true);
+  });
+
+  it("slug-ref: a `program:` naming no on-disk overall is reported exactly once", () => {
+    // The value is a SLUG (not a path): the judgment is an identity lookup over the
+    // two doc roots — a slug naming no overall is the hard gate, reported on the
+    // `program` key alone (zero path-resolution cascade).
+    const findings = judge("phase-spec", specLineage("v1.0", [ROW_100]), EMPTY_FS);
+    const slugRef = findings.filter((finding) => finding.kind === "slug-ref");
+    expect(slugRef).toHaveLength(1);
+    expect(slugRef[0].field).toBe("program");
+    expect(slugRef[0].message).toContain("x-overall");
+  });
+
+  it("slug-ref: a `program:` naming a registered overall is clean", () => {
+    const fs: DocFs = {
+      exists: () => true,
+      read: (p) =>
+        p.endsWith("/x-overall.md")
+          ? "---\ntitle: O\ndoc-type: overall-spec\nslug: x-overall\nversion: v1.0\n---\n"
+          : "---\ntitle: S\ndoc-type: phase-spec\nslug: x-p3\nprogram: x-overall\n---\n",
+      list: (dir) =>
+        dir.endsWith("/specs") || dir.endsWith("specs")
+          ? ["x-overall.md", "x-p3-design.md"]
+          : ["x-p3.md"],
+    };
+    const findings = judge("phase-spec", specLineage("v1.0", [ROW_100]), fs);
+    expect(withKind(findings, "slug-ref")).toBe(false);
+  });
+
+  it("slug-ref: the skeleton's placeholder forms are exempt (a freshly rendered doc is never blocked by its own placeholder)", () => {
+    for (const placeholder of ["<overall-slug>", ":::fill program", "Pending", ""]) {
+      const content = specLineage("v1.0", [ROW_100]).replace(
+        "program: x-overall",
+        `program: ${placeholder}`,
+      );
+      const findings = judge("phase-spec", content, EMPTY_FS);
+      expect(withKind(findings, "slug-ref"), placeholder).toBe(false);
+    }
   });
 
   it("cross-doc-chain: an unregistered dispatch phase is reported (face ④)", () => {

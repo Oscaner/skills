@@ -16,9 +16,10 @@
 //     a suspect is always an existing task with a lower id whose edge was simply
 //     not declared (forward references are legal — no contradiction class).
 //
-// The cross-doc label-drift observation (Class-B `parent-program:` label vs
-// target basename) retired with the ChainLink label face at the front-matter flip
-// (T6) — the chain facts ride the typed head scalars, a link label is not a fact.
+// The cross-doc label-drift observation retired with the ChainLink label face at
+// the front-matter flip (T6) — the chain facts ride the typed head scalars, a link
+// label is not a fact. A plan declares no chain key at all now (its chain is the
+// same-slug identity document), so no plan-side drift observation can exist.
 //
 // Every warning is a Warn — a WARN-only observation, never a Finding, never a
 // BLOCK. Module-level exports are types / the class — zero behavior-carrying

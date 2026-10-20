@@ -21,6 +21,18 @@ import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { DOC_KEYS, type DocKey } from "../contract/project.ts";
 import { ENGINE_RUNTIME } from "./runtime.ts";
 
+/** The scan seam `SlugIndex.build` reads through — the identity index's two
+ *  filesystem facts (list one directory's entries, read one document's content).
+ *  The judgment plane injects its own `DocFs` seam (structurally compatible), so a
+ *  contract judgment over an in-memory repository never touches the real disk;
+ *  absent, the node:fs dirent scan is the production default. */
+export interface SlugScanFs {
+  /** The entry names of a directory, or [] when unreadable. */
+  list(p: string): readonly string[];
+  /** The UTF-8 content of a path, or null when unreadable. */
+  read(p: string): string | null;
+}
+
 /** One indexed document — the front-matter identity facts plus its two path forms. */
 export interface DocEntry {
   /** The absolute on-disk path (the syscall form). */
@@ -111,11 +123,13 @@ export class SlugIndex {
     this.#violations = SlugIndex.#judge(entries, bySlug);
   }
 
-  /** Scan both doc roots once and index every `.md` document under them. */
-  static build(repoRoot: string): SlugIndex {
+  /** Scan both doc roots once and index every `.md` document under them. The
+   *  optional `fs` is the caller's scan seam (the judgment plane's in-memory
+   *  `DocFs`); absent, the node:fs dirent scan is the production default. */
+  static build(repoRoot: string, fs?: SlugScanFs): SlugIndex {
     const entries = [
-      ...SlugIndex.#scanRoot(repoRoot, ENGINE_RUNTIME.docRoots.specs),
-      ...SlugIndex.#scanRoot(repoRoot, ENGINE_RUNTIME.docRoots.plans),
+      ...SlugIndex.#scanRoot(repoRoot, ENGINE_RUNTIME.docRoots.specs, fs),
+      ...SlugIndex.#scanRoot(repoRoot, ENGINE_RUNTIME.docRoots.plans, fs),
     ].sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
     return new SlugIndex(entries);
   }
@@ -212,24 +226,19 @@ export class SlugIndex {
     return left.rel < right.rel ? -1 : left.rel > right.rel ? 1 : 0;
   }
 
-  /** Scan one doc root — the ONE `readdirSync` call site. A missing root indexes
-   *  nothing (ENOENT only: a permission or shape failure of an existing root is a
-   *  real break and rethrows); a non-regular or non-`.md` entry is not a document. */
-  static #scanRoot(repoRoot: string, root: string): DocEntry[] {
-    let dirents: Dirent[];
-    try {
-      dirents = readdirSync(path.join(repoRoot, root), { withFileTypes: true });
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
-      throw err;
-    }
+  /** Scan one doc root — the ONE `readdirSync` call site (the injected seam's
+   *  `list` otherwise). A missing root indexes nothing (ENOENT only: a permission
+   *  or shape failure of an existing root is a real break and rethrows); a
+   *  non-regular or non-`.md` entry is not a document. */
+  static #scanRoot(repoRoot: string, root: string, fs?: SlugScanFs): DocEntry[] {
     const entries: DocEntry[] = [];
-    for (const dirent of dirents) {
-      const name = dirent.name;
-      if (!dirent.isFile() || !name.endsWith(".md")) continue;
+    for (const name of SlugIndex.#entryNames(path.join(repoRoot, root), fs)) {
+      if (!name.endsWith(".md")) continue;
       const rel = path.join(root, name);
       const abs = path.join(repoRoot, rel);
-      const { head } = FrontMatterExtractor.split(readFileSync(abs, "utf8"));
+      const content = fs === undefined ? readFileSync(abs, "utf8") : fs.read(abs);
+      if (content === null) continue;
+      const { head } = FrontMatterExtractor.split(content);
       entries.push({
         path: abs,
         rel,
@@ -242,6 +251,23 @@ export class SlugIndex {
       });
     }
     return entries;
+  }
+
+  /** The regular-file names of one doc root — the dirent scan (the production
+   *  default) or the injected seam's flat entry list. A non-regular entry is never
+   *  a document, so the injected form's names are filtered through the same
+   *  existence-shaped reading: a name whose content is unreadable is skipped by the
+   *  caller (the `read === null` leg). */
+  static #entryNames(root: string, fs?: SlugScanFs): readonly string[] {
+    if (fs !== undefined) return fs.list(root);
+    let dirents: Dirent[];
+    try {
+      dirents = readdirSync(root, { withFileTypes: true });
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw err;
+    }
+    return dirents.filter((dirent) => dirent.isFile()).map((dirent) => dirent.name);
   }
 
   /** Narrow a raw `doc-type:` value to the declared domain (the ONE `DOC_KEYS`

@@ -108,11 +108,17 @@ const preflightOf = (fs?: DocFs): PreFlight => {
 
 /** A memory fs — every path resolves into the judged doc's own content (the
  *  context-seam backstop: chain/sibling reads return the judged content, so the
- *  doc-contract gate's judgment is the doc's own structure, not its neighbors). */
+ *  doc-contract gate's judgment is the doc's own structure, not its neighbors).
+ *  The one exception is the program overall (`x-overall.md`): the phase-spec's
+ *  `program:` reference is judged by an identity lookup, so the fixture serves the
+ *  minimal overall the reference names. */
 const memoryFs = (content: string): DocFs => {
   return {
     exists: () => true,
-    read: () => content,
+    read: (p) =>
+      p.endsWith("/x-overall.md") || p === "x-overall.md"
+        ? "---\ntitle: O\ndoc-type: overall-spec\nslug: x-overall\nversion: v1.0\n---\n"
+        : content,
     // The sibling scan lists the same-family docs of the judged document.
     list: (_p: string) => ["x-overall.md"],
   };

@@ -947,8 +947,8 @@ const PHASE_SPEC_ELEMENTS = [
 // than phase-spec: a front-matter key set (title / doc-type / version / date /
 // status / author / depends-on / issues), four prose body sections and the
 // change-history lineage. No `### N.` double-layer outline (the free-form has no
-// numbered design groups), no parent-program key (a single-spec has no parent
-// overall — an independent program shape). The fixed section sequence runs in
+// numbered design groups), no `program:` key (a single-spec is an independent
+// program — it names no parent overall). The fixed section sequence runs in
 // document order.
 const SINGLE_SPEC_ELEMENTS = [
   // Header block — YAML front-matter keys (the frontmatter-home anchor IS the

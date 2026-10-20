@@ -9,8 +9,8 @@
 // polymorphic strategy family judges, the coordinator assembles).
 
 import { Words } from "../face/words.ts";
+import type { SlugIndex } from "../infra/slug-index.ts";
 import { declaredRegistries } from "./declare.ts";
-import type { ParsedDoc } from "./doc.ts";
 import { docTypeParsers } from "./doc.ts";
 import { FrontMatterExtractor } from "./frontmatter.ts";
 import type { DocFs, Finding, Invariant, JudgeContext } from "./invariants.ts";
@@ -29,6 +29,7 @@ import {
   SectionScopedDomainInvariant,
   SelfBoundedInvariant,
   SiblingScanInvariant,
+  SlugRefInvariant,
   UniquenessInvariant,
 } from "./invariants.ts";
 import type { DocKey } from "./project.ts";
@@ -47,8 +48,9 @@ export interface ContractInput {
   root: string;
   /** The dispatch phase id — enables the face-④ phase-registration check. */
   phaseId?: string;
-  /** Pre-parsed chain/sibling docs (path → parsed record). */
-  chainDocs?: ReadonlyMap<string, ParsedDoc>;
+  /** The identity index the chain / slug-ref strategies look up through (the
+   *  caller's single scan; absent → the strategies build one over `fs`). */
+  slugIndex?: SlugIndex;
   /** The filesystem seam (defaults to node:fs). */
   fs?: DocFs;
 }
@@ -75,7 +77,7 @@ export interface ContractInput {
  */
 export class Contract {
   /** The per-doc-key policy sets — the declared composition of the strategy family.
-   *  All thirteen strategies are registry-driven and judge every doc type, so the
+   *  All fifteen strategies are registry-driven and judge every doc type, so the
    *  per-key sets are the same ordered family; the record keying is what a future
    *  per-type ordering/selection change would carry. */
   readonly #strategies: Record<DocKey, readonly Invariant[]>;
@@ -115,7 +117,7 @@ export class Contract {
       skeleton: this.#projector.skeleton()[input.docKey],
       registries: declaredRegistries,
       phaseId: input.phaseId,
-      chainDocs: input.chainDocs,
+      slugIndex: input.slugIndex,
       fs: input.fs ?? new NodeFs(),
     };
     const findings: Finding[] = [];
@@ -140,6 +142,7 @@ export class Contract {
       new LinkShapeInvariant(),
       new FileExistenceInvariant(),
       new SiblingScanInvariant(),
+      new SlugRefInvariant(),
       new CrossDocChainInvariant(),
       new SectionScopedDomainInvariant(),
     ];

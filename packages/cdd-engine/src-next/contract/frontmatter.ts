@@ -88,7 +88,7 @@ export class FrontMatterHead {
     return this.value("slug");
   }
 
-  /** The phase-spec's parent-program slug reference (`program:`) — a slug, not a path. */
+  /** The phase-spec's program slug reference (`program:`) — a slug, not a path. */
   get program(): string | null {
     return this.value("program");
   }
@@ -113,17 +113,7 @@ export class FrontMatterHead {
     return this.value("author");
   }
 
-  /** The plan's design-spec target path (`spec:`). */
-  get spec(): string | null {
-    return this.value("spec");
-  }
-
-  /** The Class-B parent-overall target path (`parent-program:`). */
-  get parentProgram(): string | null {
-    return this.value("parent-program");
-  }
-
-  /** The Class-B version token (`parent-version:`, the `v<major>.<minor>` form). */
+  /** The program version token (`parent-version:`, the `v<major>.<minor>` form). */
   get parentVersion(): string | null {
     return this.value("parent-version");
   }

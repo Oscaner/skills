@@ -247,7 +247,7 @@ export class PreFlight {
             order: gates,
           };
         }
-        const index = SlugIndex.build(ctx.repoRoot);
+        const index = SlugIndex.build(ctx.repoRoot, this.#fs);
         const entry = index.entryAt(doc.path);
         const duplicated =
           entry !== null && entry.slug === slug && index.duplicatedRolesOf(slug).length > 0;
@@ -265,6 +265,9 @@ export class PreFlight {
           path: docAbsolute,
           content,
           root: ctx.repoRoot,
+          // The SAME index the identity gates above read — one scan per dispatch,
+          // and the contract's chain / slug-ref lookups judge the identical facts.
+          slugIndex: index,
           fs: this.#fs,
         });
         if (findings.length > 0) {

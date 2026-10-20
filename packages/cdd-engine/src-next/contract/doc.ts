@@ -17,12 +17,14 @@
 //   · projection     — each class consumes the derived projection face (project.ts):
 //                      the slices (parse regexes) and the shape (section skeleton) of
 //                      its own doc type are the locating data every extraction walks.
-//   · chain root     — the Class-A/B anchors of the document (the plan/spec head
-//                      scalars `spec:` / `parent-program:` / `parent-version:` and
-//                      the overall's Phase-inventory rows as the chain's anchor set)
-//                      are extracted into a ChainRoot and LEFT as an interface — the
-//                      resolution judgment belongs to the cross-doc-chain invariant,
-//                      never to a DocType method.
+//   · chain root     — the chain anchors of the document (the phase-spec head
+//                      scalars `program:` / `parent-version:` and the overall's
+//                      Phase-inventory rows as the chain's anchor set) are extracted
+//                      into a ChainRoot and LEFT as an interface — the resolution
+//                      judgment belongs to the cross-doc-chain / slug-ref
+//                      invariants, never to a DocType method. A plan carries no
+//                      chain key: its ownership chain is implied by the identity
+//                      document sharing its `slug:` (zero second declaration).
 //
 // Module-level exports are types / the class family / one composition root — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
@@ -127,23 +129,21 @@ export interface ChainLink {
 }
 
 /**
- * The cross-doc chain root — the Class-A/B anchors a document carries, read from
- * the front-matter head scalars (the §2.3 key set: `spec:` · `parent-program:` ·
- * `parent-version:` · `depends-on:`), plus the overall's Phase-inventory rows.
- * Extracted and LEFT as an interface — every resolution judgment (target
- * existence, version-token lineage membership) belongs to the cross-doc-chain /
- * file-existence / sibling-scan invariants, never to a DocType method.
+ * The cross-doc chain root — the anchors a document carries, read from the
+ * front-matter head scalars (the §2.3 key set: `program:` · `parent-version:` ·
+ * `depends-on:`), plus the overall's Phase-inventory rows. Extracted and LEFT as
+ * an interface — every resolution judgment (slug-target existence, version-token
+ * lineage membership) belongs to the cross-doc-chain / slug-ref invariants, never
+ * to a DocType method.
  */
 export interface ChainRoot {
   /** The doc-type identity of the chain root's document. */
   docType: DocKey;
-  /** The `parent-program:` link (Class-B) — the parent overall reference of a
-   *  plan/spec document; null for the overall (the chain root itself). */
-  parentLink: ChainLink | null;
-  /** The `spec:` link (Class-A) — the plan's design-spec reference; null for the
-   *  overall (no spec to reference) and for a spec (the document IS the design spec). */
-  specLink: ChainLink | null;
-  /** The version tokens carried on the `parent-program:` key (Class-B lineage). */
+  /** The `program:` slug reference (phase-spec only) — the parent overall's
+   *  `slug:` value, never a path; null for every other doc type. */
+  programLink: ChainLink | null;
+  /** The version tokens carried on the `parent-version:` key (the lineage of the
+   *  program the `program:` reference names). */
   parentTokens: readonly string[];
   /** The overall's phase-inventory rows — the chain's anchor set (overall only). */
   phases: readonly ChainPhase[];
@@ -155,8 +155,8 @@ export interface ChainRoot {
 export interface OverallParsed {
   docType: "overall-spec";
   /** The document's front-matter head — the typed head record (the §2.3 key set),
-   *  or null when parsed without one (the chainDocs producers MUST parse
-   *  dual-param — a head-less plan/spec parse reads a null chain face). */
+   *  or null when parsed without one (every producer that reads the chain face MUST
+   *  parse dual-param — a head-less parse reads a null chain root). */
   head: FrontMatterHead | null;
   /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
@@ -572,8 +572,7 @@ export class OverallDocType extends DocType<OverallParsed> {
       graphEdges,
       chain: {
         docType: "overall-spec",
-        parentLink: null,
-        specLink: null,
+        programLink: null,
         parentTokens: [],
         phases,
         dependsOn: null,
@@ -652,8 +651,9 @@ export class OverallDocType extends DocType<OverallParsed> {
 }
 
 /**
- * The plan doc type — parses the head (Class-A `spec:` + Class-B parent
- * lineage) and the `### Task N:` task blocks.
+ * The plan doc type — parses the head and the `### Task N:` task blocks. A plan
+ * carries no chain key of its own: its ownership chain is implied by the identity
+ * document sharing its `slug:` (the same-slug Class-A arm).
  */
 export class PlanDocType extends DocType<PlanParsed> {
   readonly docTypeName = "plan" as const;
@@ -671,16 +671,14 @@ export class PlanDocType extends DocType<PlanParsed> {
     };
   }
 
-  /** The plan's cross-doc chain root — the Class-A `spec:` + Class-B
-   *  `parent-program:`/`parent-version:` head scalars (the §2.2 delivery seam:
-   *  the chain facts ride the typed head, never a body line scan). */
+  /** The plan's cross-doc chain root — the degraded face: the plan declares no
+   *  parent/spec key (the same-slug identity document is its chain), so the only
+   *  chain fact it carries is the `depends-on:` head scalar. */
   chainRoot(head: FrontMatterHead | null): ChainRoot {
     return {
       docType: "plan",
-      parentLink:
-        head === null || head.parentProgram === null ? null : { target: head.parentProgram },
-      specLink: head === null || head.spec === null ? null : { target: head.spec },
-      parentTokens: head === null || head.parentVersion === null ? [] : [head.parentVersion],
+      programLink: null,
+      parentTokens: [],
       phases: [],
       dependsOn: head?.dependsOn ?? null,
     };
@@ -754,14 +752,13 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
     return groups;
   }
 
-  /** The phase-spec's cross-doc chain root: the Class-B `parent-program:`
-   *  `parent-version:` head scalars. */
+  /** The phase-spec's cross-doc chain root: the `program:` slug reference plus the
+   *  `parent-version:` lineage tokens. The reference is a SLUG (the parent
+   *  overall's `slug:`), so it never rides the file-path resolution faces. */
   chainRoot(head: FrontMatterHead | null): ChainRoot {
     return {
       docType: "phase-spec",
-      parentLink:
-        head === null || head.parentProgram === null ? null : { target: head.parentProgram },
-      specLink: null,
+      programLink: head === null || head.program === null ? null : { target: head.program },
       parentTokens: head === null || head.parentVersion === null ? [] : [head.parentVersion],
       phases: [],
       dependsOn: head?.dependsOn ?? null,
@@ -789,13 +786,12 @@ export class SingleSpecDocType extends DocType<SingleSpecParsed> {
     };
   }
 
-  /** The single-spec chain root — the degraded face: no parent link / no spec
-   *  link (the independent-program shape), the `depends-on:` value only. */
+  /** The single-spec chain root — the degraded face: no program link (the
+   *  independent-program shape), the `depends-on:` value only. */
   chainRoot(head: FrontMatterHead | null): ChainRoot {
     return {
       docType: "single-spec",
-      parentLink: null,
-      specLink: null,
+      programLink: null,
       parentTokens: [],
       phases: [],
       dependsOn: head?.dependsOn ?? null,

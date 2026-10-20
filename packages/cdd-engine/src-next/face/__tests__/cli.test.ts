@@ -485,11 +485,16 @@ const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
     ].join("\n"),
     "utf8",
   );
-  // The same-slug program overall — a minimal identity document the SlugIndex
-  // reads (the phase-spec's `program:` reference target).
+  // The program overall — a minimal identity document the SlugIndex reads (the
+  // phase-spec's `program:` reference target). Its `version:` carries the lineage
+  // the fixture's `parent-version: v1.0` claims.
   const sibling = path.join(repoRoot, "docs", "kairos", "specs", "x-overall.md");
   mkdirSync(path.dirname(sibling), { recursive: true });
-  writeFileSync(sibling, "---\ntitle: O\ndoc-type: overall-spec\nslug: x-overall\n---\n", "utf8");
+  writeFileSync(
+    sibling,
+    "---\ntitle: O\ndoc-type: overall-spec\nslug: x-overall\nversion: v1.0\n---\n",
+    "utf8",
+  );
   return file;
 };
 

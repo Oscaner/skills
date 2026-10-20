@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P15 设计：文档身份面统一为 front-matter `slug:`（board 入口改路径 · 文件名推演与路径声明键整退）
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-10-20
 status: Draft
 author: Oscaner M. · Claude（kairos:cdd-design [P15] 会话 · 用户七前提 mandate · grilling settled · 2026-10-20）
@@ -39,7 +39,7 @@ depends-on: P14（Done · v0.3 · hard——P14 Design Done · overall 依赖图
 | 断言（claim） | pin（path:line） | 断言面（assertion face） |
 | --- | --- | --- |
 | board 零旗标、唯一 positional `<slug>` | `face/declare.ts:280-285` · `face/cli.ts:351` | board 登记行 `keys: []` + `positionals: [{ key: "slug", required: true }]`；`commandNode("board")` 只解 positional |
-| `--plan` / `--spec` 在 `ARGV_CHANNEL`，只在 work/base 命令挂载 | `face/declare.ts:53-55` · `:192-262` | 两行 flag 声明（`--plan` / `--spec`）；implement / review / fix / base 的 key 行出现 `plan`，board 行 `keys: []` |
+| `--plan` / `--spec` 在 `ARGV_CHANNEL`，挂载于 implement / review / fix / schema 的 key 行与 base set / base get / schema get 的 leaf 行 | `face/declare.ts:53-55` · `:192-262` | 两行 flag 声明（`--plan` / `--spec`）；implement / review / fix / schema 的 key 行出现 `plan`，base 顶层 `keys: []` 而 `--plan` 在 `set` / `get` leaf 行，board 行 `keys: []` |
 | 正向推演 `Workspace.slugFromDoc` | `infra/workspace.ts:131-134` | `path.basename` 剥 `.md` + 一个 `-(design\|plan)` 尾缀（锚定、互斥） |
 | 反向推演 `docsOfSlug` / `scanPhases` | `infra/workspace.ts:150-172` · `face/board-view.ts:136-151` | 路径按 `-pN` 后缀拼 `<slug>-design.md` / `<slug>.md` / `<slug>-overall.md` 后 `existsSync`；相位集按 specs 目录**文件名前缀**扫出 |
 | `spec:` / `parent-program:` 是路径键，skeleton 吐 link 占位 | `contract/declare.ts:522-534` · `render/skeleton.ts:47-50` | 两元素 `home: "frontmatter"`、`refKind` 为 `spec-ref` / `parent-program`；占位值是 `<docs/…-design.md>` / `<docs/…-overall.md>` 路径形 |
@@ -69,7 +69,7 @@ depends-on: P14（Done · v0.3 · hard——P14 Design Done · overall 依赖图
 | 规则 | 定案 |
 | --- | --- |
 | 谁有 | overall-spec / phase-spec / single-spec / plan 四类皆必填 |
-| 合法形 | 路径安全非空：禁 `/` `\` 与空白；长度上限 128；**不**强制 `-pN` 形貌 |
+| 合法形 | 可执行 `valuePattern: ^[A-Za-z0-9][A-Za-z0-9._-]*$`：首字符字母数字，其余字母数字 / `.` / `_` / `-`；长度上限 128；**不**强制 `-pN` 形貌。约束理由：`slug:` 同时是工作区目录名——`Workspace` 构造 `path.join(root.path, slug)`（`infra/workspace.ts:126`），故 `.` / `..` / `/` `\` / 空白 / Windows 保留字符（`: * ? " < > \|`）必须在取值面即被拒，不能交给 `path.join` 归一化 |
 | 缺/空 | 与缺 `doc-type:` 同级 → doc-contract **硬 BLOCKED**（载体随面：派发面 exit 1 + CDD_BLOCKED · board 纯读面该行渲染 `slug: missing (BLOCKED)` 标记 + exit 2——见 §3.1） |
 | 唯一性 | **docRoots 内唯一**：扫 `ENGINE_RUNTIME.docRoots.specs` + `.plans` 两目录（身份文档 overall-spec / phase-spec / single-spec 两两不得同 slug）；plan 与**恰好一份** spec 同 slug 为合法一对。判据单源 = `SlugIndex`（§4.1），扫面**不**越出 docRoots |
 | 写入 | authoring 入口给出；编排器校验后写入；**运行时零从文件名/title 派生** |
@@ -122,10 +122,10 @@ depends-on: P14（Done · v0.3 · hard——P14 Design Done · overall 依赖图
 
 #### 4.1 登记表
 
-- 四类增必填 `slug:`（frontmatter home · `refKind: "none"`——身份标量，形状由 `valuePattern` 卡、跨文档事实由唯一性门判）；phase-spec 增必填 `program:`（frontmatter home）；删 `spec:` / `parent-program:` 两元素。
-- **`RefKind` 处置**（`contract/declare.ts:30-38` 是闭集，今日无「slug 引用」档）：
-  - 退休 `spec-ref`（`contract/declare.ts:525`）与 `parent-program`（`:532` · `:783`）两档，含其全部消费点——`contract/project.ts:597` 的 link-slot 判、`contract/invariants.ts` 的 Class-A/Class-B 链、`contract/doc.ts` 的头部链访问子、`contract/frontmatter.ts` 与 `contract/lint.ts` 的 Class-B 标称面——逐点零残留。
-  - **新增 `slug-ref` 一档**承载 `program:`：其值是 slug 而**不是**路径，故**不**复用 `markdown-link`（后者的判据是文件存在性，对 slug 无意义）。断言面 = 该值等于 docRoots 内某篇 overall 的 `slug:`（按 slug 键查表，零路径解析、零文件名推演；命中 0 篇 → §2.2 的硬门）。
+- 四类增必填 `slug:`（frontmatter home · `refKind: "none"`——身份标量，形状由 §2.1 的 `valuePattern` 卡、跨文档事实由唯一性门判）；phase-spec 增必填 `program:`（frontmatter home）；删 `spec:` / `parent-program:` 两元素。
+- **`RefKind` 处置**（三处同改：union `contract/declare.ts:30-38` · 约束数组 `REF_KIND_VALUES` `:89-98` · 校验点 `:140-142`；今日无「slug 引用」档）：
+  - 退休 `spec-ref` 与 `parent-program` 两档：从 union 与 `REF_KIND_VALUES` 同步删除，全部消费点逐点零残留——`contract/declare.ts:525`（`spec:` 元素）与 `:532` / `:783`（`parent-program:` 元素）随键删除；`contract/declare.ts:400`（Design spec cell）改 `refKind: "none"`（人读混合枚举，引擎零解析）、`:474`（Design claim token）改 `refKind: "phase-id"`（`P<n>-design` 是相位 token）；`contract/project.ts:597` 的 link-slot 判、`contract/invariants.ts` 的 Class-A/Class-B 链、`contract/doc.ts` 的头部链访问子、`contract/frontmatter.ts` 与 `contract/lint.ts` 的 Class-B 标称面同步改/删。
+  - **新增 `slug-ref` 一档**（同时进 union 与 `REF_KIND_VALUES`）承载 `program:`：其值是 slug 而**不是**路径，故**不**复用 `markdown-link`（后者的判据是文件存在性，对 slug 无意义）。断言面 = 该值等于 docRoots 内某篇 overall 的 `slug:`（按 slug 键查表，零路径解析、零文件名推演；命中 0 篇 → §2.2 的硬门）。
 - **唯一性门的单源与执行点**：判据载体 = `SlugIndex`——扫 `ENGINE_RUNTIME.docRoots.specs` + `.plans` 下全部 `doc-type:` 文档，按 `slug:` 归并（**同一扫描**也供 §3.2 的 `program:` 归并：一次扫盘、一个索引）。判据**一处**，执行点**两处**、零重算：board 渲染读该索引（违规行 `(BLOCKED)` 标记 + exit 2）· 派发面 doc-contract pre-flight 读同一索引判目标文档的唯一性（违约 → CDD_BLOCKED + exit 1）。引擎 suite 只断言 `SlugIndex` 自身判据，**不**起第三套实现。
 - doc-contract / Presence 对缺键硬 BLOCKED（面与载体见 §3.1）。
 
@@ -133,11 +133,12 @@ depends-on: P14（Done · v0.3 · hard——P14 Design Done · overall 依赖图
 
 - 四类 skeleton 吐 `slug: <slug>` 占位（或等价 fill 槽）；phase-spec 另吐 `program: <overall-slug>` 占位。
 - **不加** `schema get` 的 `--slug` / `--from-spec` 旗标。
-- 新 overall 骨架：**去掉 File paths 路径表**（身份真源已是 slug + 扫盘）。三面**必须同批处置**（缺任一面则新 overall 骨架过不了契约门）：
-  - **骨架**：`render/skeleton.ts:172` 的 `## File paths` 段落删除（连同其 `docsOfSlug` 探针——`docsOfSlug` 已随 §3.3 退役）。
-  - **登记表**：`contract/declare.ts:223-229` 的 `## File paths` 由 `presence: "required"` 改 **`optional`**——**不**整条退役：§5 允许历史 overall 保留该表，退役会让存量 overall 的该 heading 落成 registry-external 而报错。
+- 新 overall 骨架：**去掉 File paths 路径表**（身份真源已是 slug + 扫盘）。**四面必须同批处置**（缺任一面则新 overall 骨架过不了契约门）：
+  - **骨架**：`render/skeleton.ts:172` 的 `## File paths` 段落删除（连同 `#filePathsTable` 的 `File path row` 探针，`render/skeleton.ts:381-384`；`skeleton.ts` 无 `docsOfSlug` 引用）。
+  - **登记表（section）**：`contract/declare.ts:223-229` 的 `## File paths` 由 `presence: "required"` 改 **`optional`**——**不**整条退役：§5 允许历史 overall 保留该表；退役会让存量 overall 的该 heading 失去顺序判据与语义登记（未登记 heading 在 `contract/invariants.ts:656-657` 是静默跳过，不报错）。
+  - **登记表（row）**：`contract/declare.ts:433-438` 的 `File path row`（`home: "table"` · `presence: "required"`）同批改 **`optional`**——它是 overall-spec 的独立 required 元素，也是 `#filePathsTable` 的唯一 probe 点；不改则 `#assertConsumed`（`render/skeleton.ts:141-157`）对新骨架抛 `skeleton composition omits the registered required slot(s): File path row`，且 `PresenceInvariant`（`contract/invariants.ts:281-317`）对每篇新 overall 报 `missing required element: File path row`。历史 overall 已存在的 row 在 optional 下合法；新骨架不再 compose 该 row。
   - **不变量**：`contract/invariants.ts:255` 的四表名过滤集去掉 `"File paths"`，hollow 判据收缩为 `Issue inventory` / `Phase inventory` / `Change history` 三表（否则 optional 表的空段仍被必填态的行判据判）。
-- Phase inventory：**保留人读** scope/验收列；**不写路径列**；引擎零读该表（与今「不解析 File paths」一致，且不再靠它补身份）。
+- Phase inventory：**保留人读** `Design spec` / `Implementation plan` 两列与 scope / 验收列；新骨架在这两列只吐真值占位（`[Pending]` design / `Pending` plan），**不吐路径**；两元素（`contract/declare.ts:392-402`）保持 `presence: "required"`、取值域不变——历史 overall 的 markdown-link 路径值继续合法（§5 不强制改写），仅 `Design spec cell` 的 `refKind` 由 `spec-ref` 改 `none`（§4.1）。引擎 / board 零读该表（与今「不解析 File paths」一致，且不再靠它补身份）。
 
 #### 4.3 编排器（kairos）
 
@@ -170,13 +171,14 @@ depends-on: P14（Done · v0.3 · hard——P14 Design Done · overall 依赖图
 
 - `cdd board --plan <path>` 与 `cdd board --spec <path>`（至少其一）渲染 phase/program 板；身份与关联只读 front-matter `slug:` / `program:` / `doc-type:`，不读文件名文法。**「与改前等价」的客观锚** = 既有渲染断言——`face/__tests__/board-view.test.ts:426`（phase 板头 + 行 + 固定 legend 尾）· `:1022`（program 板：一行相位摘要 + `next: done`）· `:1087`（present 无声明相位 → exit 2）· `face/__tests__/cli.test.ts:3289`（board 命令面 describe）· `:3311`（有效输入 → stdout + exit 0）：这些用例改写入参（`<slug>` → 路径旗标）与语料 key 后，**断言面的行文 / 进度标记 / `next:` 逐字节不变**。
 - positional `<slug>` 与 `docsOfSlug` / `slugFromDoc` / `phaseSuffixOf` / `scanPhases` / `PHASE_SUFFIX_*` 生产面零残留（grep pin）。
-- front-matter 活面零 `spec:` / `parent-program:`；登记表 · skeleton · judge · 消费面字面同步；`RefKind` 面 `spec-ref` / `parent-program` 零残留且 `slug-ref` 在册（`program:` 走 slug 键查表，非文件存在判）。
+- front-matter 活面零 `spec:` / `parent-program:`；登记表 · skeleton · judge · 消费面字面同步；`RefKind` 面 `spec-ref` / `parent-program` 零残留（`Design spec cell` → `none` · `Design claim token` → `phase-id`）且 `slug-ref` 在 union 与 `REF_KIND_VALUES` 在册（`program:` 走 slug 键查表，非文件存在判）。
 - `--plan` 与 `--spec` 同给且 `slug:` 不一致 → board 拒绝面 exit 2（stderr 携因）；缺二者 → usage exit 2；两者路径皆不在盘上 → not-found 面 exit 2（无 BLOCKED 标记）。
 - 同 slug 多 plan 或多身份文档 → 硬 BLOCKED（派发面 CDD_BLOCKED + exit 1 · board 面 `(BLOCKED)` 行标记 + exit 2，判据同源 `SlugIndex`）；0 plan → 板上 `plan (none)`；plan 无配对 spec → 板上 `spec (none)`；`program:` 目标缺失 → 硬 BLOCKED（载体同上双面）。
 - `implement` / `review` / `fix` / `base` 工作区目录 = `.kairos/cdd/<slug:>/`，与 board 同钥。
 - 仅 phase-spec 必填 `program:`；plan/single/overall 无该键。
+- `slug:` 合法面 pin：合法值（如 `2026-10-10-engine-doc-tooling-p15`）通过；非法值 `.` / `..` / 含 `/` `\` 空白 / 空串 / 超 128 字符 / Windows 保留字符 → 硬 BLOCKED（载体同 §3.1 双面）；`valuePattern` 断言覆盖 `.` / `..` 两个目录逃逸值。
 - 编排器落盘写入 `slug:`（plan 从 spec 继承）；phase-spec 写入 `program:`；skill 字面无旧键与 `board <slug>`。
-- 本仓语料迁移全绿；新 overall 骨架无 `## File paths` 段（登记表该元素 `presence: optional` · hollow 不变量过滤集收缩为 `Issue inventory` / `Phase inventory` / `Change history` 三表）；历史 overall 保留该表不报错；消费者迁移说明在册。
+- 本仓语料迁移全绿；新 overall 骨架无 `## File paths` 段与该表 `File path row`（登记表的 `## File paths` 与 `File path row` 均 `presence: optional` · hollow 不变量过滤集收缩为 `Issue inventory` / `Phase inventory` / `Change history` 三表）；历史 overall 保留该表与其 row 不报错；消费者迁移说明在册。
 - 引擎 vitest 全绿 · kairos suite 全绿 · `pnpm run validate` ALL PASS。
 - changeset：cdd-engine **major** + kairos **minor** · 不发布。
 - 附录调研不进入实现面；branch skill ref 零改。
@@ -197,3 +199,4 @@ depends-on: P14（Done · v0.3 · hard——P14 Design Done · overall 依赖图
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-20 | 初稿：D59 grilling settled 全形状落入 phase-spec（身份/关联/board/退役/契约/编排器/迁移/附录调研） | Oscaner M. · Claude（kairos:cdd-spec-writer [P15]） |
 | v0.2 | 2026-10-20 | **spec-fix-1（review-1 findings 收口 · 3 blocker + 2 warn + 2 nit）**：① blocker——§1.2 补判定 pin 表（8 条 claim → path:line + 断言面，含 board 入口 / ARGV 挂载 / 双向推演 / 路径键 / D34 缺键 exit 2 / not-found 面）；② blocker——§4.2 补 File paths 三面同批处置（骨架删段 · 登记表 `presence: optional` · hollow 不变量过滤集收缩为三表）；③ blocker——§4.1 补 `RefKind` 处置（退休 `spec-ref`/`parent-program` 两档 + 消费点逐点，新增 `slug-ref` 承载 `program:`）；④ warn——§3.1 定 board 纯读面退出码（三类拒绝面统一 exit 2 · 「缺 `slug:`」与「找不到文档」区分 · 硬 BLOCKED 载体随面而异）；⑤ warn——唯一性面统一为 docRoots 内扫描 + `SlugIndex` 单源双执行点（§2.1/§4.1/§6）；⑥ nit——front-matter `depends-on` 依赖边改 `P14 -> P15`（D59 仍只在 §1.1 输入面引用）；⑦ nit——AC 补「与改前等价」的基线 pin（`board-view.test.ts:426`/`:1022`/`:1087` · `cli.test.ts:3289`/`:3311`） | Oscaner M. · Claude（kairos:cdd-spec-writer [P15] spec-fix-1） |
+| v0.3 | 2026-10-20 | **spec-fix-2（review-2 findings 收口 · 1 blocker + 3 warn + 3 nit）**：① blocker——File paths 处置补第四面：`File path row`（`contract/declare.ts:433-438`）同批 `presence: optional`，并说明 `#assertConsumed` / `PresenceInvariant` 的失败面与历史 row 合法性，AC 同步；② warn——`RefKind` 清单补全：点名 `:400`（Design spec cell → `none`）· `:474`（Design claim token → `phase-id`）· union/`REF_KIND_VALUES`/校验点三处，并写明 `slug-ref` 同时入闭集数组；③ warn——§2.1 合法形落成可执行 `valuePattern`（首字符字母数字，拒 `.`/`..`/分隔符/Windows 保留字符），以「slug 即工作区目录名」为约束理由，AC 补非法值 pin；④ warn——Phase inventory 两列去留定案（保留 required、新骨架只吐真值占位、历史 markdown-link 值继续合法）；⑤ nit——§1.2 pin 表改述 `--plan`/`--spec` 精确挂载面（implement/review/fix/schema key 行 · base set/get leaf 行 · board `keys: []`）；⑥ nit——删去「skeleton 的 `docsOfSlug` 探针」误述，改指 `#filePathsTable` 的 `File path row` probe；⑦ nit——§4.2「不整条退役」理由改为真实约束（未登记 heading 静默跳过，不报错；退役只失去顺序判据与语义登记） | Oscaner M. · Claude（kairos:cdd-spec-writer [P15] spec-fix-2） |

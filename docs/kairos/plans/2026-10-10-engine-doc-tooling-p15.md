@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P15 实施计划：文档身份面统一为 front-matter `slug:`（board 路径入口 · 文件名推演与路径声明键整退）
 doc-type: plan
-version: v0.4
+version: v0.5
 date: 2026-10-20
 slug: 2026-10-10-engine-doc-tooling-p15
 depends-on: P14（Done · v0.3 · hard——P14 全链闭合 · overall 依赖图 D59）；前置 = P15 design spec v0.5（三轮 review 关闭 + plan 面 backfill）
@@ -127,11 +127,11 @@ base: develop
 - **Consumes**: Task 3 / 4（登记表已删键、链面已换线）；Task 5（board 路径入口与索引驱动节点解析）；Task 6（specLink 已由索引解析）。
 - **Produces**: 语料 front-matter 只剩新身份面；Task 9 的全量验证前提。
 - **Steps**:
-  - 写一次性删除脚本（临时，**不提交**）：按行精确匹配删上述键行（含 plan 的 `parent-version:`；`depends-on:` / `base:` 等保留）— checkable: `grep -rn '^spec:\|^parent-program:\|^parent-version:' docs/kairos/plans` 零命中；`grep -rn '^spec:\|^parent-program:' docs/kairos/specs` 零命中（phase-spec 的 `parent-version:` 是保留键）
+  - 写一次性删除脚本（临时，**不提交**）：按行精确匹配删上述键行（含 plan 的 `parent-version:`；`depends-on:` / `base:` 等保留）— checkable: **front-matter 作用域**零命中，按目录分判（判据只覆盖本任务授权的键行；正文与表格不在判据内）：`for f in docs/kairos/specs/*.md; do awk '/^---$/{n++; next} n==1' "$f" | grep -nE '^(spec|parent-program):' && echo "RESIDUE $f"; done` 输出为空（phase-spec 的 `parent-version:` 是保留键，不入本侧判据）；`for f in docs/kairos/plans/*.md; do awk '/^---$/{n++; next} n==1' "$f" | grep -nE '^(spec|parent-program|parent-version):' && echo "RESIDUE $f"; done` 输出为空。**不得**用整文件 `grep` 当判据——已废相位 `p10-design.md` 正文的 fenced yaml 示例（`:67-78`）含旧键行，属历史示例，按 Constraints 的窄授权不动
   - 校验 diff 形状：只删 front-matter 键行 — checkable: `git diff -U0 -- docs/kairos | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -vE '^-(spec|parent-program|parent-version):'` 输出为空
   - 真实仓冒烟：`node packages/cdd-engine/src-next/bin.ts board --spec docs/kairos/specs/2026-10-10-engine-doc-tooling-p15-design.md` 与 `--plan docs/kairos/plans/2026-10-10-engine-doc-tooling-p15.md` 各渲染一块节点板且 exit 0，`--spec docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md` 渲染 program 板且相位行主键为 slug — checkable: 三条命令 stdout 含板头 + `next:` 行，退出码 0
   - 抽两篇人工核对（本 phase 的 plan 与 spec 属同批）— checkable: `sed -n '1,14p'` 两篇均无旧键、`slug:` 在册
-- **Acceptance**: 旧路径键在语料零残留；正文零改；真实仓 board 两入口皆绿；临时脚本未入库。
+- **Acceptance**: 旧路径键在语料 **front-matter** 零残留（正文与表格按窄授权零改——历史示例不动）；真实仓 board 两入口皆绿；临时脚本未入库。
 - **DependsOn**: 3, 4, 5, 6
 
 ### Task 9: 消费面同步 · changeset · 全量验证
@@ -157,3 +157,4 @@ base: develop
 | v0.2 | 2026-10-20 | plan-fix-1——review-1 findings 全修（14/14）：派发面 slug 唯一性硬门补 owner · 语料计数 15 plan / 31 篇 · Task 3 / 4 的 grep 判据收窄 · 节点板 `#isOverallNode` / `-overall` 退役归属 · `DocEntry.title` · 非法 `slug:` 双面 pin · fixture 涟漪进 W2 · 占位豁免单源上提 · 契约门 pin 校正 · Task 8 `DependsOn` 补 5。 | Oscaner M. · Claude（kairos:cdd-fix [P15]） |
 | v0.3 | 2026-10-20 | plan-fix-2——review-2 findings 全修（4/4）：Task 6 补 base 半 owner（`#runBase` 同键读取 · 派发面拒绝载体 · `planFor` slug）· Task 3 / 4 的 conforming fixture 族换头与 Class-A 正半归属 · 词表 pin 按实测校正 · Task 9 README 迁移说明正向 pin。 | Oscaner M. · Claude（kairos:cdd-fix [P15]） |
 | v0.4 | 2026-10-21 | **实现期 backfill（cdd-dev 会话 · W2 review-1 finding 5）**——Task 3 步骤 3 的骨架 `program:` 占位措辞由「尖括号占位形，与既有 link 占位同形」改为点明**值域形**（括号内容 = 父 overall 的 slug，如 `<overall-slug>`，不沿用已退役路径键的路径范例）；同步 design §4.2 v0.6 的口径收口。纯措辞裁定，任务面与波序不变。 | Oscaner M. · Claude（kairos:cdd-dev [P15] backfill） |
+| v0.5 | 2026-10-21 | **实现期 backfill（cdd-dev 会话 · T8 implement 上报的计划内部冲突）**——Task 8 步骤 1 的零残留判据由整文件 `grep` 收窄为 **front-matter 作用域**（`awk` 取首个 `---` 块）：整文件 grep 会命中原 phase `p10-design.md` 正文 fenced yaml 示例里的旧键行（`:73`/`:74`），而删它们既超出本任务的窄授权（「**front-matter 键行**」）又违反同任务两处写明的「正文与表格零改」。判据是本条缺陷、语料不是——Acceptance 同步限定为 front-matter 零残留。判定方向与已记录的同类先例一致（design §1.2 pin 表、overall D59 行皆以历史叙述保留已退役形状） | Oscaner M. · Claude（kairos:cdd-dev [P15] backfill） |

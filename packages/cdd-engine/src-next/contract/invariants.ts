@@ -3,10 +3,10 @@
 // judgment face. Every structural judgment of the contract plane is one strategy:
 //   base nine  — presence / uniqueness / domain / crosslink / order / continuity /
 //                residue / hollow / selfBounded;
-//   context    — file-existence / sibling-scan / slug-ref / cross-doc-chain /
-//                section-scoped-domain (the five seam strategies that absorb the
-//                old doctype classes' contextual judgment — fourTableAudit,
-//                deviations, the identity chain, effectiveWaves).
+//   context    — file-existence / sibling-scan / link-shape / slug-ref /
+//                cross-doc-chain / section-scoped-domain (the six seam strategies
+//                that absorb the old doctype classes' contextual judgment —
+//                fourTableAudit, deviations, the identity chain, effectiveWaves).
 // Each strategy is one subclass of `abstract Invariant { evaluate(ctx) }`; the
 // judgment data is always the declared registries + the derived parse face (never
 // a hand-written structure prose). Judgment dispatch is the coordinator's
@@ -32,6 +32,7 @@ import { docTypeParsers, MarkdownPrimitives } from "./doc.ts";
 import type { FrontMatterHead } from "./frontmatter.ts";
 import { FrontMatterExtractor } from "./frontmatter.ts";
 import type { DocKey, DocShape, DocSkeleton, DocSlices, ElementSlice } from "./project.ts";
+import type { Translator } from "./translate.ts";
 
 // ---------------------------------------------------------------------------
 // judgment records + the context
@@ -69,7 +70,9 @@ export interface DocFs {
   exists(p: string): boolean;
   /** The UTF-8 content of a path, or null when unreadable. */
   read(p: string): string | null;
-  /** The entry names of a directory, or [] when unreadable. */
+  /** The entry names of a directory; [] when it does not exist (ENOENT). Any other
+   *  failure is a real break and rethrows — an unreadable directory never reads as
+   *  an empty one. */
   list(p: string): readonly string[];
 }
 
@@ -88,8 +91,9 @@ export class NodeFs implements DocFs {
   list(p: string): readonly string[] {
     try {
       return readdirSync(p);
-    } catch {
-      return [];
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw err;
     }
   }
 }
@@ -131,6 +135,11 @@ export interface JudgeContext {
   };
   /** The dispatch phase id — enables the face-④ phase-registration check. */
   phaseId?: string;
+  /** The row-source translator — the SAME canonicalize seam the judged document's
+   *  lines went through. A strategy that has to parse a FOREIGN on-disk document
+   *  (the chain lineage) reads it through this instance, so one alias registration
+   *  canonicalizes both faces alike. */
+  translator: Translator;
   /** The caller's identity index over the judged repo (the chain / slug-ref lookups'
    *  injected source). Absent → the strategies build one over `fs` (the same seam
    *  every other strategy reads, so the judgment stays hermetic). */
@@ -265,6 +274,14 @@ export abstract class Invariant extends MarkdownPrimitives {
   /** The parsed phase-spec record — when the judged doc is a phase-spec. */
   protected phaseSpec(ctx: JudgeContext): PhaseSpecParsed | null {
     return ctx.docKey === "phase-spec" ? (ctx.parsed as PhaseSpecParsed) : null;
+  }
+
+  /** The identity index every slug-keyed strategy looks up through — the caller's
+   *  injected index when present, else one scan over the SAME fs seam every other
+   *  strategy reads (the judgment stays hermetic: no second, real-filesystem scan).
+   *  The ONE home of that fallback. */
+  protected indexOf(ctx: JudgeContext): SlugIndex {
+    return ctx.slugIndex ?? SlugIndex.build(ctx.root, ctx.fs);
   }
 
   /** The three-table section heading anchors of the overall (registry-declared). */
@@ -1266,29 +1283,26 @@ export class SlugRefInvariant extends Invariant {
       if (element.refKind !== "slug-ref" || element.home !== "frontmatter") continue;
       const value = ctx.head.value(element.anchor);
       if (value === null || this.isPlaceholder(value)) continue;
-      if (this.#resolves(ctx, element.anchor, value)) continue;
-      const target = element.anchor === "program" ? "an overall" : "an identity document";
+      if (this.#resolves(ctx, value)) continue;
       findings.push(
         this.finding(
           ctx,
           element.anchor,
-          `the ${element.anchor} reference names no on-disk ${target}: ${value}`,
-          `name the slug: of an existing ${target} (${value} resolves to nothing)`,
+          `the ${element.anchor} reference names no on-disk overall-spec document: ${value}`,
+          `name the slug: of an existing overall-spec document (${value} resolves to nothing)`,
         ),
       );
     }
     return findings;
   }
 
-  /** Whether the reference resolves — `program:` names an overall-spec document by
-   *  its `slug:`; any other `slug-ref` anchor names an identity document by slug.
-   *  Both lookups read the ONE identity index (the board and the pre-flight read
-   *  the same judgment). */
-  #resolves(ctx: JudgeContext, anchor: string, value: string): boolean {
-    const index = ctx.slugIndex ?? SlugIndex.build(ctx.root, ctx.fs);
-    return anchor === "program"
-      ? index.overallOf(value) !== null
-      : index.identityDoc(value) !== null;
+  /** Whether the reference resolves — a `slug-ref` value names an on-disk document
+   *  by its `slug:`, never by a path. The registry declares exactly ONE slug-ref
+   *  key (`program`), whose target class is the overall, so the lookup is the
+   *  identity index's overall read. A second slug-ref key would have to carry its
+   *  target class into this resolution. */
+  #resolves(ctx: JudgeContext, value: string): boolean {
+    return this.indexOf(ctx).overallOf(value) !== null;
   }
 }
 
@@ -1361,12 +1375,13 @@ export class CrossDocChainInvariant extends Invariant {
     const program = this.#overallOf(ctx, programLink.target);
     if (program === null) return findings;
     const lineage = this.#parentLineage(ctx, program);
+    if (lineage === null) return findings;
     for (const token of data.chain.parentTokens) {
       if (!lineage.has(token)) {
         findings.push(
           this.finding(
             ctx,
-            "parent-version",
+            "program",
             `the parent-version token ${token} does not belong to the program's lineage: ${programLink.target}`,
             `use a version the program overall declares (its version front-matter or a Change-history row): ${[...lineage].join(", ")}`,
           ),
@@ -1379,32 +1394,29 @@ export class CrossDocChainInvariant extends Invariant {
   /** The identity document carrying the slug, or null — resolved through the one
    *  identity index the board and the pre-flight read (zero second scan). */
   #identityDocOf(ctx: JudgeContext, slug: string): DocEntry | null {
-    return this.#indexOf(ctx).identityDoc(slug);
+    return this.indexOf(ctx).identityDoc(slug);
   }
 
   /** The overall-spec document carrying the program slug, or null. */
   #overallOf(ctx: JudgeContext, slug: string): DocEntry | null {
-    return this.#indexOf(ctx).overallOf(slug);
-  }
-
-  /** The identity index the chain arms look up through — the caller's injected
-   *  index when present, else one scan over the SAME fs seam every other strategy
-   *  reads (the judgment stays hermetic: no second, real-filesystem scan). */
-  #indexOf(ctx: JudgeContext): SlugIndex {
-    return ctx.slugIndex ?? SlugIndex.build(ctx.root, ctx.fs);
+    return this.indexOf(ctx).overallOf(slug);
   }
 
   /** The program overall's lineage: its head `version:` scalar + every
    *  Change-history row version (the T6 read point — the header fact rides the
-   *  typed head record, never a body line scan). The overall is parsed through the
-   *  doc-type parser over the SAME fs seam (the index entry carries the head
-   *  facts; the Change-history rows need the body). */
-  #parentLineage(ctx: JudgeContext, entry: DocEntry): Set<string> {
-    const lineage = new Set<string>();
+   *  typed head record, never a body line scan). The overall parses through the
+   *  SAME row source the judged document went through (split → canonicalize →
+   *  parse), so an alias-registered table heading reads identically in both faces.
+   *  null when the parent is unreadable: a parent the seam cannot read is never
+   *  evidence that a version token is foreign (that absence belongs to the
+   *  slug-ref face's resolution). */
+  #parentLineage(ctx: JudgeContext, entry: DocEntry): Set<string> | null {
     const content = ctx.fs.read(entry.path);
-    if (content === null) return lineage;
+    if (content === null) return null;
     const { head, body } = FrontMatterExtractor.split(content);
-    const parsed = docTypeParsers["overall-spec"].parse(body.split("\n"), head) as OverallParsed;
+    const lines = body.split("\n").map((line) => ctx.translator.canonicalize(line));
+    const parsed = docTypeParsers["overall-spec"].parse(lines, head) as OverallParsed;
+    const lineage = new Set<string>();
     if (head.version !== null) lineage.add(head.version);
     for (const row of parsed.tables["Change history"].rows) {
       const match = row[0]?.match(/v\d+\.\d+/);

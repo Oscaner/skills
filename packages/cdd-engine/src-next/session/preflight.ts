@@ -22,10 +22,9 @@
 // Module-level exports are types / the class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { PlanDocType } from "../contract/doc.ts";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
-import type { DocFs } from "../contract/invariants.ts";
+import { type DocFs, NodeFs } from "../contract/invariants.ts";
 import type { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import type { Words } from "../face/words.ts";
@@ -285,26 +284,5 @@ export class PreFlight {
       }
     }
     return { ok: true, order: gates };
-  }
-}
-
-/** The node:fs default — the production seam for the doc-contract's file reads. */
-class NodeFs implements DocFs {
-  read(p: string): string | null {
-    try {
-      return readFileSync(p, "utf8");
-    } catch {
-      return null;
-    }
-  }
-  exists(p: string): boolean {
-    return existsSync(p);
-  }
-  list(p: string): readonly string[] {
-    try {
-      return readdirSync(p);
-    } catch {
-      return [];
-    }
   }
 }

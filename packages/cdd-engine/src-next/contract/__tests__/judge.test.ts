@@ -16,6 +16,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Words } from "../../face/words.ts";
+import { SlugIndex } from "../../infra/slug-index.ts";
 import { FrontMatterExtractor } from "../frontmatter.ts";
 import type { DocFs, Finding } from "../invariants.ts";
 import { Contract } from "../judge.ts";
@@ -137,6 +138,34 @@ const judge = (
     fs,
     phaseId,
   });
+
+/** The program overall a phase-spec's lineage resolves against — its head
+ *  `version:` plus its Change-history rows define the lineage set {v1.0, v1.1}. */
+const SPEC_CHAIN_FS: DocFs = {
+  exists: () => true,
+  read: (p) =>
+    p.endsWith("/x-overall.md")
+      ? [
+          "---",
+          "title: O",
+          "doc-type: overall-spec",
+          "version: v1.1",
+          "slug: x-overall",
+          "---",
+          "",
+          "## Change history",
+          "",
+          "| Version | date | summary | author |",
+          "|---|---|---|---|",
+          "| v1.1 | 2026-10-09 | merged | [human] |",
+          "| v1.0 | 2026-10-08 | prior | [human] |",
+        ].join("\n")
+      : "---\ntitle: S\ndoc-type: phase-spec\nslug: x-p3\nprogram: x-overall\n---\n",
+  list: (dir) =>
+    dir.endsWith("/specs") || dir.endsWith("specs")
+      ? ["x-overall.md", "x-p3-design.md"]
+      : ["x-p3.md"],
+};
 
 const withKind = (findings: readonly Finding[], kind: string, field?: string): boolean =>
   findings.some(
@@ -751,7 +780,10 @@ describe("the four context-seam invariants — one negative case each", () => {
     const slugRef = findings.filter((finding) => finding.kind === "slug-ref");
     expect(slugRef).toHaveLength(1);
     expect(slugRef[0].field).toBe("program");
-    expect(slugRef[0].message).toContain("x-overall");
+    expect(slugRef[0].message).toBe(
+      "the program reference names no on-disk overall-spec document: x-overall",
+    );
+    expect(slugRef[0].fix).toContain("of an existing overall-spec document");
   });
 
   it("slug-ref: a `program:` naming a registered overall is clean", () => {
@@ -779,6 +811,40 @@ describe("the four context-seam invariants — one negative case each", () => {
       const findings = judge("phase-spec", content, EMPTY_FS);
       expect(withKind(findings, "slug-ref"), placeholder).toBe(false);
     }
+  });
+
+  it("cross-doc-chain: a `parent-version` token the program's lineage carries is clean", () => {
+    const findings = judge("phase-spec", specLineage("v1.0", [ROW_100]), SPEC_CHAIN_FS);
+    expect(findings.filter((finding) => finding.kind === "cross-doc-chain")).toEqual([]);
+  });
+
+  it("cross-doc-chain: a `parent-version` token outside the program's lineage is reported on the `program` key", () => {
+    const content = specLineage("v1.0", [ROW_100]).replace(
+      "parent-version: v1.0",
+      "parent-version: v9.9",
+    );
+    const findings = judge("phase-spec", content, SPEC_CHAIN_FS).filter(
+      (finding) => finding.kind === "cross-doc-chain",
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.field).toBe("program");
+    expect(findings[0]?.message).toContain("x-overall");
+  });
+
+  it("cross-doc-chain: an unreadable parent overall judges NO lineage token (never a false per-token finding)", () => {
+    // The index resolved the parent already (so the slug-ref face is clean), but
+    // the lineage read then fails. An unreadable parent is the resolution face's
+    // call — this arm must stay silent instead of reporting every token as foreign.
+    const index = SlugIndex.build(".", SPEC_CHAIN_FS);
+    const findings = new Contract().validate({
+      docKey: "phase-spec",
+      path: SPEC_PATH,
+      content: specLineage("v1.0", [ROW_100]),
+      root: ".",
+      slugIndex: index,
+      fs: { ...SPEC_CHAIN_FS, read: () => null },
+    });
+    expect(findings.filter((finding) => finding.kind === "cross-doc-chain")).toEqual([]);
   });
 
   it("cross-doc-chain: an unregistered dispatch phase is reported (face ④)", () => {

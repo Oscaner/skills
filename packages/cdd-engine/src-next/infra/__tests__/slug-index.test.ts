@@ -8,10 +8,11 @@
 //   · the filename-independence boundaries — a `slug:` value wins over the file
 //     name, and a document's directory never decides its identity class.
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { NodeFs } from "../../contract/invariants.ts";
 import { SlugIndex } from "../slug-index.ts";
 
 const repos: string[] = [];
@@ -118,7 +119,7 @@ describe("SlugIndex — the lookup surface", () => {
     expect(index.violations()).toEqual([]);
   });
 
-  it("indexes only regular .md files — a directory named `x.md` and a non-md file are not documents", () => {
+  it("indexes only readable .md documents — a directory named `x.md` and a non-md file are not documents", () => {
     const repo = newRepo();
     seedProgram(repo);
     mkdirSync(path.join(repo, SPECS, "dir.md"), { recursive: true });
@@ -129,7 +130,38 @@ describe("SlugIndex — the lookup surface", () => {
   });
 
   it("indexes an absent doc root as empty instead of throwing", () => {
-    expect(SlugIndex.build(newRepo()).entries).toEqual([]);
+    const repo = newRepo();
+    expect(SlugIndex.build(repo).entries).toEqual([]);
+    expect(SlugIndex.build(repo, new NodeFs()).entries).toEqual([]);
+  });
+});
+
+describe("SlugIndex — the scan seam's two legs judge the same document set", () => {
+  /** One doc root seeded with every entry shape the scan has to classify: a
+   *  regular document, a symlink to it, a directory named `*.md`, a non-md file. */
+  const seedEntryShapes = (repo: string): void => {
+    seedProgram(repo);
+    const real = path.join(repo, SPECS, "prog-overall.md");
+    symlinkSync(real, path.join(repo, SPECS, "link.md"));
+    mkdirSync(path.join(repo, SPECS, "dir.md"), { recursive: true });
+    writeFileSync(path.join(repo, SPECS, "notes.txt"), "not a document\n", "utf8");
+  };
+
+  it("indexes the identical rel set through the node:fs leg and the injected leg", () => {
+    const repo = newRepo();
+    seedEntryShapes(repo);
+    const nodeFsLeg = SlugIndex.build(repo).entries.map((entry) => entry.rel);
+    const injected = SlugIndex.build(repo, new NodeFs()).entries.map((entry) => entry.rel);
+    expect(injected).toEqual(nodeFsLeg);
+  });
+
+  it("rethrows a non-ENOENT scan failure through either leg — never a silently empty index", () => {
+    const repo = newRepo();
+    // A doc root that exists but is not a directory: the scan's shape failure.
+    mkdirSync(path.join(repo, "docs/kairos"), { recursive: true });
+    writeFileSync(path.join(repo, SPECS), "not a directory\n", "utf8");
+    expect(() => SlugIndex.build(repo)).toThrow();
+    expect(() => SlugIndex.build(repo, new NodeFs())).toThrow();
   });
 });
 

@@ -117,6 +117,7 @@ export class Contract {
       skeleton: this.#projector.skeleton()[input.docKey],
       registries: declaredRegistries,
       phaseId: input.phaseId,
+      translator: this.#translator,
       slugIndex: input.slugIndex,
       fs: input.fs ?? new NodeFs(),
     };

@@ -34,7 +34,7 @@ flowchart TD
   - **root**: git top-level of the harness launch cwd (`git rev-parse --show-toplevel`). Captured once; never re-derived from the real-time cwd.
   - **workspace**: `.kairos/cdd/<run-slug>/` of the current CDD run — present only when this session is a CDD run. Cross-repo reuse is forbidden: the workspace must resolve under `root`.
   - **harness**: the harness this session runs in (e.g. `claude-code`) — the value of the Session region's `- Harness:` row.
-  - **program-owning issue** (CDD runs only): the phase-owning issue of the current program, resolved from the run workspace — `progress.json#plan` → plan-header `spec:` chain → the owning issue. A pure lookup feeding the Related region's Program link, never a routing decision.
+  - **program-owning issue** (CDD runs only): the phase-owning issue of the current program, resolved from the run workspace — `progress.json#plan` → that plan's `slug:` → the spec of the same slug → the spec's `program:` → the overall → the owning issue. A pure lookup feeding the Related region's Program link, never a routing decision.
 - **Read**: harness launch cwd; (when CDD run) the run workspace
 - **Exit**: snapshot complete → `collect`
 - **Fail**: workspace cannot resolve under `root` → BLOCKED (cross-repo reuse forbidden)

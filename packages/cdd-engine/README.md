@@ -32,9 +32,17 @@ Global option: `--dry-run` — preview the next dispatch step and its expected a
 | `base` | `cdd base set\|get` | Read/write the `base.json` artifact (single CDD `--plan` target) |
 | `schema` | `cdd schema get <type>` | Print the canonical doc-structure schema (discovery-only, zero enforcement) |
 | `issue` | `cdd issue render` | Render an aggregate issue body from stdin findings (pure rendering, zero enforcement) |
-| `board` | `cdd board <slug>` | Render the slug progress board (overall/spec/plan/wave/branch; pure read, zero enforcement) |
+| `board` | `cdd board --plan <path> / --spec <path>` | Render the entry document's progress board (overall/spec/plan/wave/branch; pure read, zero enforcement) |
 
 Use `cdd <command> --help` for a command's full option list (for example `cdd review --tasks` / `--spec` / `--plan` / `--round`).
+
+## Migration
+
+Document identity is the front-matter `slug:` key. This retired the file-name-derived identity: a **major breaking** change with **zero dual-read** — the retired forms are refused, never accepted for compatibility.
+
+- **Board entry is a document path.** `cdd board --plan <path>` / `cdd board --spec <path>` replace the retired positional-slug form.
+- **Identity is declared, not derived.** A document is keyed by the `slug:` its front matter carries — the file name carries no identity meaning at all. The retired path keys are gone; a plan's program chain resolves through the `program:` of the spec sharing its `slug:`.
+- **Per-run workspaces follow the key.** The `.kairos/cdd/<slug>/` directory is keyed by the plan document's `slug:`. A directory left under a retired file-name-derived key is **not reused** by any run — nothing reads or migrates it. Delete it by hand when you want the old ledger gone.
 
 ## Development
 

@@ -33,7 +33,7 @@ flowchart TD
 
 ### `author-spec`
 
-- **Do**: Write the target spec document to `docs/kairos/specs/` from the session output — generate the canonical skeleton first for the target type (`npx -y @oscaner-skills/cdd-engine@latest schema get <overall-spec|phase-spec|single-spec> --output skeleton <target path>`) and fill its slots in place; the structure stays as generated. Per the target variant:
+- **Do**: Write the target spec document to `docs/kairos/specs/` from the session output — generate the canonical skeleton first for the target type (`npx -y @oscaner-skills/cdd-engine@latest schema get <overall-spec|phase-spec|single-spec> --output skeleton <target path>`) and fill its slots in place; the structure stays as generated. The landed document carries its identity in the front-matter `slug:` key (the engine keys the workspace and the board on it, never on the file name); a **phase-spec** additionally carries `program:` — the parent overall's `slug:`, the phase's attribution to its program. Per the target variant:
   - **single-spec** — the free-form spec form; the docs-lane doc-contract gate asserts the version-lineage on every reviewed spec
   - **phase-spec** — the phase scope is an increment only: when the phase scope changed vs the parent overall, sync the parent overall (Issue/Phase inventory + Dependency graph + version bump + change history) BEFORE writing (the four-table sync ordering; the sync is the registration gate, never a silent skip)
   - **overall-spec** — the phase registration for a new phase is the parent's own table sync (see run-cdd-design's `run-cdd-charter · sync`)

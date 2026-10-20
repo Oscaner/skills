@@ -49,6 +49,11 @@ export type SlugViolationKind =
   | "invalid-slug"
   | "missing-program-target";
 
+/** The role a `slug:`-carrying document plays in the identity model: the identity
+ *  documents (overall / phase / single spec) and the plan — the two classes the
+ *  uniqueness rule judges separately (spec §2.1). */
+export type SlugRole = "identity" | "plan";
+
 /** One identity violation — the offending document plus the fact that broke. */
 export interface SlugViolation {
   /** The violation class. */
@@ -59,8 +64,6 @@ export interface SlugViolation {
   readonly slug: string | null;
   /** The document's `program:` reference (null when it carries none). */
   readonly program: string | null;
-  /** The one-line human-facing reason. */
-  readonly message: string;
 }
 
 /**
@@ -74,7 +77,14 @@ export class SlugIndex {
    *  workspace directory name, so path separators and whitespace are rejected at
    *  the value surface. Compiled from the registry declaration's own source string
    *  (`SLUG_VALUE_PATTERN`) — one grammar, zero second spelling. */
-  static readonly SLUG_PATTERN = new RegExp(SLUG_VALUE_PATTERN);
+  static readonly #SLUG_PATTERN = new RegExp(SLUG_VALUE_PATTERN);
+
+  /** Whether a raw `slug:` value is a legal identity value (spec §2.1) — the ONE
+   *  spelling of the value judgment the board marker, the dispatch carrier and the
+   *  pre-flight gate all read. Narrows a nullable raw value to a legal slug. */
+  static isLegalSlug(value: string | null): value is string {
+    return value !== null && SlugIndex.#SLUG_PATTERN.test(value);
+  }
 
   /** Every indexed document, ordered by repo-relative path. */
   readonly entries: readonly DocEntry[];
@@ -91,7 +101,7 @@ export class SlugIndex {
     const bySlug = new Map<string, DocEntry[]>();
     for (const entry of entries) {
       byRel.set(entry.rel, entry);
-      if (entry.slug === null || !SlugIndex.SLUG_PATTERN.test(entry.slug)) continue;
+      if (!SlugIndex.isLegalSlug(entry.slug)) continue;
       const group = bySlug.get(entry.slug);
       if (group === undefined) bySlug.set(entry.slug, [entry]);
       else group.push(entry);
@@ -132,11 +142,13 @@ export class SlugIndex {
     return null;
   }
 
-  /** The phase-spec documents whose `program:` names the program slug, in rel order. */
+  /** The phase-spec documents whose `program:` names the program slug, in program
+   *  order: the slugs' `-p<major>[.<minor>…]` tail numerically (p2 before p10,
+   *  `p4.1` after `p4`), then the slugs without that tail in rel order. */
   phaseSpecsOf(programSlug: string): readonly DocEntry[] {
-    return this.entries.filter(
-      (entry) => entry.docType === "phase-spec" && entry.program === programSlug,
-    );
+    return this.entries
+      .filter((entry) => entry.docType === "phase-spec" && entry.program === programSlug)
+      .sort(SlugIndex.#phaseCompare);
   }
 
   /** The overall-spec document carrying the program slug, or null. */
@@ -150,6 +162,54 @@ export class SlugIndex {
   /** The materialized violation list (deterministic over the rel-ordered scan). */
   violations(): readonly SlugViolation[] {
     return this.#violations;
+  }
+
+  /** The duplicate roles the slug carries in this scan — empty when the slug is
+   *  unique, `identity` when a second identity document declares it, `plan` when a
+   *  second plan does (spec §2.1's uniqueness rule). The ONE duplicate judgment the
+   *  board's row marker, the dispatch carrier and the pre-flight gate share. */
+  duplicatedRolesOf(slug: string): readonly SlugRole[] {
+    const roles: SlugRole[] = [];
+    for (const violation of this.#violations) {
+      if (violation.slug !== slug) continue;
+      const role =
+        violation.kind === "duplicate-identity"
+          ? "identity"
+          : violation.kind === "duplicate-plan"
+            ? "plan"
+            : null;
+      if (role !== null && !roles.includes(role)) roles.push(role);
+    }
+    return roles;
+  }
+
+  /** The phase ordinal a slug carries in its `-p<major>[.<minor>…]` tail — the
+   *  numeric segments in order, or null when the slug carries no such tail. The
+   *  segment is read off the IDENTITY value (never the file name). */
+  static #phaseOrdinal(slug: string | null): readonly number[] | null {
+    if (slug === null) return null;
+    const match = /-p(\d+(?:\.\d+)*)$/.exec(slug);
+    return match === null ? null : match[1]!.split(".").map(Number);
+  }
+
+  /** Program order for phase rows: numbered slugs numerically (p2 before p10,
+   *  `p4.1` after `p4`), then the unnumbered ones; rel path is the final tie-break
+   *  so the order stays deterministic over one scan. */
+  static #phaseCompare(left: DocEntry, right: DocEntry): number {
+    const leftOrdinal = SlugIndex.#phaseOrdinal(left.slug);
+    const rightOrdinal = SlugIndex.#phaseOrdinal(right.slug);
+    if (leftOrdinal !== null && rightOrdinal !== null) {
+      const width = Math.max(leftOrdinal.length, rightOrdinal.length);
+      for (let index = 0; index < width; index++) {
+        const delta = (leftOrdinal[index] ?? 0) - (rightOrdinal[index] ?? 0);
+        if (delta !== 0) return delta;
+      }
+    } else if (leftOrdinal !== null) {
+      return -1;
+    } else if (rightOrdinal !== null) {
+      return 1;
+    }
+    return left.rel < right.rel ? -1 : left.rel > right.rel ? 1 : 0;
   }
 
   /** Scan one doc root — the ONE `readdirSync` call site. A missing root indexes
@@ -209,15 +269,13 @@ export class SlugIndex {
           rel: entry.rel,
           slug: null,
           program: entry.program,
-          message: `missing slug: in ${entry.rel}`,
         });
-      } else if (!SlugIndex.SLUG_PATTERN.test(entry.slug)) {
+      } else if (!SlugIndex.isLegalSlug(entry.slug)) {
         violations.push({
           kind: "invalid-slug",
           rel: entry.rel,
           slug: entry.slug,
           program: entry.program,
-          message: `invalid slug value "${entry.slug}" in ${entry.rel}`,
         });
       }
     }
@@ -229,7 +287,6 @@ export class SlugIndex {
           rel: duplicate.rel,
           slug,
           program: duplicate.program,
-          message: `duplicate identity document for slug "${slug}" (first: ${identities[0]?.rel})`,
         });
       }
       const plans = group.filter((entry) => entry.docType === "plan");
@@ -239,7 +296,6 @@ export class SlugIndex {
           rel: duplicate.rel,
           slug,
           program: duplicate.program,
-          message: `duplicate plan document for slug "${slug}" (first: ${plans[0]?.rel})`,
         });
       }
     }
@@ -255,7 +311,6 @@ export class SlugIndex {
         rel: entry.rel,
         slug: entry.slug,
         program: entry.program,
-        message: `program "${entry.program}" has no overall document (${entry.rel})`,
       });
     }
     return violations;

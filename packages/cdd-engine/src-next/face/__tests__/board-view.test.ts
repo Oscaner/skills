@@ -845,6 +845,36 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain("  next:    done");
   });
 
+  it("orders the phase rows by their phase number, never by the rel-path lexicographic order", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "slug: prog-overall",
+      "---",
+    ]);
+    // The rel order of these files is p1-design · p10-design · p2-design; the
+    // board must render the program order (p1 · p2 · p10).
+    for (const phase of ["p10", "p2", "p1"]) {
+      writeDoc(`docs/kairos/specs/prog-${phase}-design.md`, [
+        "---",
+        "title: S",
+        "doc-type: phase-spec",
+        `slug: prog-${phase}`,
+        "program: prog-overall",
+        "---",
+      ]);
+    }
+
+    const { text } = render("prog-overall");
+    const rows = text
+      .split("\n")
+      .filter((line) => line.startsWith("  phase "))
+      .map((line) => line.split(/\s+/)[2]);
+
+    expect(rows).toEqual(["prog-p1", "prog-p2", "prog-p10"]);
+  });
+
   it("a phase spec whose `program:` names no overall renders `program: missing (BLOCKED)` and exits 2", () => {
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",

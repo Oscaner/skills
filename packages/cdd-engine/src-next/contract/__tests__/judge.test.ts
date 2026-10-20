@@ -218,6 +218,22 @@ describe("base nine invariants — one negative case each", () => {
     expect(withKind(findings, "domain", "status")).toBe(true);
   });
 
+  it("domain: the placeholder exemption covers only the keys the skeleton fills", () => {
+    // The keys the skeleton fills (§4.2: the slug-reference link slot and the
+    // content slots) ride the exemption chain.
+    const slugFill = GOOD_OVERALL.replace("slug: x-overall", "slug: ':::fill slug'");
+    expect(withKind(judge("overall-spec", slugFill, GOOD_OVERALL_FS), "domain", "slug")).toBe(
+      false,
+    );
+
+    // A truth key's value is a concrete literal — a hand-written placeholder there
+    // stays outside the declared domain.
+    const versionFill = GOOD_OVERALL.replace("version: v1.21", "version: <v1.21>");
+    expect(withKind(judge("overall-spec", versionFill, GOOD_OVERALL_FS), "domain", "version")).toBe(
+      true,
+    );
+  });
+
   it("crosslink: an issue row referencing an unregistered phase is reported", () => {
     const content = GOOD_OVERALL.replace("| P2 | none | issue two |", "| P9 | none | issue nine |");
     const findings = judge("overall-spec", content, GOOD_OVERALL_FS);

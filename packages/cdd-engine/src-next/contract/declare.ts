@@ -119,7 +119,7 @@ export const DOC_TYPE_VALUES = [
  *  Windows reserved characters at the value surface, because a slug doubles as a
  *  workspace directory name. One declared constant — the `slug:` identity rows and
  *  the phase-spec `program:` reference share the same value domain, and the
- *  identity index (`SlugIndex.SLUG_PATTERN`) compiles this SAME source string, so
+ *  identity index (`SlugIndex.isLegalSlug`) compiles this SAME source string, so
  *  the shape judgment has one grammar (this module is the leaf both planes read). */
 export const SLUG_VALUE_PATTERN = "^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._-]*$";
 

@@ -238,7 +238,7 @@ export class PreFlight {
             order: gates,
           };
         }
-        if (!SlugIndex.SLUG_PATTERN.test(slug)) {
+        if (!SlugIndex.isLegalSlug(slug)) {
           return {
             ok: false,
             gate: "doc-contract",
@@ -250,15 +250,7 @@ export class PreFlight {
         const index = SlugIndex.build(ctx.repoRoot);
         const entry = index.entryAt(doc.path);
         const duplicated =
-          entry !== null &&
-          entry.slug === slug &&
-          index
-            .violations()
-            .some(
-              (violation) =>
-                violation.slug === slug &&
-                (violation.kind === "duplicate-identity" || violation.kind === "duplicate-plan"),
-            );
+          entry !== null && entry.slug === slug && index.duplicatedRolesOf(slug).length > 0;
         if (duplicated) {
           return {
             ok: false,

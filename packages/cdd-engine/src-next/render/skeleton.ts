@@ -39,13 +39,12 @@ import type { DocSkeleton, SkeletonSlot } from "../contract/project.ts";
  *  the judge's placeholder-exemption chain (a bare `^<[^>]+>$` target the
  *  file-existence / sibling-scan / slug-reference strategies all skip), never a
  *  `:::fill` (a fill in a link slot is a guaranteed finding). The placeholder IS
- *  the fill contract (show-don't-tell — zero prose rules): its inner shape is a
- *  BARE relative-path exemplar (`docs/kairos/specs/…-overall.md`), the exact form
- *  the consumer must fill — the <>-shell keeps the exemption, the path inside both
- *  bookends the value and doubles as the shape sample (#342: a consumer copying
- *  the exemplar fills a bare path, never a markdown link). */
+ *  the fill contract (show-don't-tell — zero prose rules): its inner shape is the
+ *  SLUG of the parent overall document, the exact form the consumer must fill
+ *  (the value domain of `program:` is `SLUG_VALUE_PATTERN`, so a path exemplar
+ *  would seed a violating document). */
 const FRONT_MATTER_LINKS: Record<string, string> = {
-  program: "<docs/kairos/specs/…-overall.md>",
+  program: "<overall-slug>",
 };
 
 /** The generator truths of the pattern-typed body slots (spec §3.2/§4.1) —

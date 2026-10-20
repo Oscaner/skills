@@ -116,7 +116,7 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "version: v0.1",
         "date: 2026-10-11",
         "slug: ':::fill slug'",
-        "program: <docs/kairos/specs/…-overall.md>",
+        "program: <overall-slug>",
         "status: Draft",
         "author: ':::fill author'",
         "depends-on: ':::fill depends-on'",
@@ -366,7 +366,7 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
 
   it("renders the slug-reference anchor as a placeholder scalar (the `<…>` exemption shape)", () => {
     const spec = renderOf("phase-spec");
-    expect(spec).toContain("program: <docs/kairos/specs/…-overall.md>");
+    expect(spec).toContain("program: <overall-slug>");
     // `slug:` is a content key — a `:::fill` slot, never the `<>` link form.
     for (const key of KEYS) {
       expect(renderOf(key), `${key}: slug fill`).toContain("slug: ':::fill slug'");
@@ -493,7 +493,7 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "version: v0.1",
       "date: 2026-10-11",
       "status: Draft",
-      "program: <docs/kairos/specs/…-overall.md>",
+      "program: <overall-slug>",
       "## Design",
       "### Acceptance criteria",
       "## Constraints",

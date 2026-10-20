@@ -112,6 +112,7 @@ export class Contract {
       root: input.root,
       slices: this.#projector.slices()[input.docKey],
       shape: this.#projector.shape()[input.docKey],
+      skeleton: this.#projector.skeleton()[input.docKey],
       registries: declaredRegistries,
       phaseId: input.phaseId,
       chainDocs: input.chainDocs,

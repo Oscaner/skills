@@ -3,8 +3,9 @@
 // identity index (`SlugIndex`) is the ONLY node source: the entry document's
 // `doc-type:` picks the board shape (overall-spec → program board; phase-spec /
 // single-spec / plan → node board), and every related node resolves through the
-// index by slug (`program:` → overall; same slug → paired spec / plan). Zero file
-// name derivation, zero path guessing (`-overall` / `-pN` grammar retired).
+// index by slug (`program:` → overall; same slug → paired spec / plan). Identity
+// comes from the front-matter `slug:` alone: zero file-name derivation, zero path
+// guessing.
 //
 // This module carries the header `{version, status, docType}` read, the per-node
 // progress projection, and the render face (the phase/program board layouts + the
@@ -34,7 +35,7 @@ import { DOC_KEYS } from "../contract/project.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
-import { type DocEntry, SlugIndex } from "../infra/slug-index.ts";
+import { type DocEntry, SlugIndex, type SlugRole } from "../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { TaskGraph } from "../session/graph.ts";
 import { Ledger, type ProgressData } from "../session/ledger.ts";
@@ -172,27 +173,19 @@ export class BoardView {
   /** The entry's valid slug — the workspace key, or null when the declaration is
    *  absent or illegal (an illegal value is a violation, never a directory name). */
   static #validSlug(entry: DocEntry | null): string | null {
-    if (entry?.slug === null || entry === null) return null;
-    return SlugIndex.SLUG_PATTERN.test(entry.slug) ? entry.slug : null;
+    if (entry === null) return null;
+    return SlugIndex.isLegalSlug(entry.slug) ? entry.slug : null;
   }
 
   /** The line's violation marker (spec §3.1) — slug missing / illegal / duplicated,
    *  then the missing type declaration. The duplicate probe reads the SAME index
    *  judgment the dispatch pre-flight consumes (one fact, one place). */
-  static #entryMark(
-    index: SlugIndex,
-    entry: DocEntry | null,
-    role: "identity" | "plan",
-  ): string | null {
+  static #entryMark(index: SlugIndex, entry: DocEntry | null, role: SlugRole): string | null {
     if (entry === null) return null;
     if (entry.slug === null) return MARK_SLUG_MISSING;
-    if (!SlugIndex.SLUG_PATTERN.test(entry.slug)) return MARK_SLUG_INVALID;
+    if (!SlugIndex.isLegalSlug(entry.slug)) return MARK_SLUG_INVALID;
     if (entry.docType === null) return MARK_DOC_TYPE_MISSING;
-    const kind = role === "plan" ? "duplicate-plan" : "duplicate-identity";
-    const duplicated = index
-      .violations()
-      .some((violation) => violation.kind === kind && violation.slug === entry.slug);
-    return duplicated ? MARK_SLUG_DUPLICATED : null;
+    return index.duplicatedRolesOf(entry.slug).includes(role) ? MARK_SLUG_DUPLICATED : null;
   }
 
   /** One doc line — the header facts read from the indexed entry + the row's

@@ -207,6 +207,21 @@ describe("SlugIndex — the violation classes", () => {
       .map((violation) => violation.kind);
     expect(kinds).toEqual(["invalid-slug", "invalid-slug"]);
   });
+
+  it("reads the duplicate roles off the ONE judgment — per role, empty when unique", () => {
+    const repo = newRepo();
+    seedProgram(repo);
+    writeDoc(repo, `${SPECS}/dup-b-design.md`, {
+      "doc-type": "phase-spec",
+      slug: "prog-p1",
+      program: PROGRAM,
+    });
+    writeDoc(repo, `${PLANS}/prog-p1-copy.md`, { "doc-type": "plan", slug: "prog-p1" });
+    const index = SlugIndex.build(repo);
+
+    expect(index.duplicatedRolesOf("prog-p1")).toEqual(["identity", "plan"]);
+    expect(index.duplicatedRolesOf(PROGRAM)).toEqual([]);
+  });
 });
 
 describe("SlugIndex — the uncovered input faces", () => {

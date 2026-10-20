@@ -29,7 +29,7 @@ import type {
 } from "./doc.ts";
 import { MarkdownPrimitives } from "./doc.ts";
 import type { FrontMatterHead } from "./frontmatter.ts";
-import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
+import type { DocKey, DocShape, DocSkeleton, DocSlices, ElementSlice } from "./project.ts";
 
 // ---------------------------------------------------------------------------
 // judgment records + the context
@@ -116,6 +116,10 @@ export interface JudgeContext {
   slices: DocSlices;
   /** The derived section skeleton of the judged doc type. */
   shape: DocShape;
+  /** The judged doc type's skeleton projection — the slot classification the
+   *  placeholder exemption reads (§4.2: only the link and content slots the
+   *  skeleton fills with a holder are exempt from the strict scalar shapes). */
+  skeleton: DocSkeleton;
   /** The four declared registries — the element-level judgment data. */
   registries: {
     "overall-spec": ElementRegistry;
@@ -157,7 +161,9 @@ export abstract class Invariant extends MarkdownPrimitives {
    *  domain judgment): the empty value, the two pending forms, the `<…>` link
    *  placeholder and the skeleton's `:::fill <slot>` content slot. The ONE
    *  placeholder contract every strategy shares — the link-resolution faces skip a
-   *  placeholder target and the front-matter domain arm skips a placeholder scalar. */
+   *  placeholder target and the front-matter domain arm skips a placeholder scalar
+   *  on the keys the skeleton fills (its own §4.2 slot classification decides which,
+   *  so a truth key's placeholder is still judged). */
   protected isPlaceholder(target: string): boolean {
     const trimmed = target.trim();
     if (trimmed === "") return true;
@@ -499,7 +505,11 @@ export class DomainInvariant extends Invariant {
         if (value === null) continue;
         // The skeleton's own placeholders (`:::fill <slot>` / `<…>`) are holder
         // states, not values — the strict scalar shapes judge a CONCRETE value.
-        if (this.isPlaceholder(value)) continue;
+        // The exemption is SCOPED to the keys the skeleton actually fills (§4.2:
+        // the link slots and the content slots), so a hand-written placeholder on
+        // a truth key (a fixed version / date / status literal) stays a finding.
+        if (DomainInvariant.#skeletonFills(ctx, element.anchor) && this.isPlaceholder(value))
+          continue;
         const rawPattern = element.valuePattern;
         if (rawPattern === undefined) continue;
         if (!new RegExp(rawPattern).test(value)) {
@@ -533,6 +543,17 @@ export class DomainInvariant extends Invariant {
       }
     }
     return findings;
+  }
+
+  /** Whether the skeleton fills the front-matter anchor with a placeholder — the
+   *  projection's own §4.2 slot classification (the link slots' `<…>` scalar and
+   *  the content slots' `:::fill`), so the exemption covers exactly the keys that
+   *  can legally carry a holder form. A key absent from the emission list (a
+   *  shape-typed optional key) fills nothing and is never exempt. */
+  static #skeletonFills(ctx: JudgeContext, anchor: string): boolean {
+    const slot = ctx.skeleton.frontmatter.find((entry) => entry.anchor === anchor);
+    if (slot === undefined) return false;
+    return slot.slot === "link" || slot.slot === "content";
   }
 }
 

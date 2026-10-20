@@ -3137,7 +3137,12 @@ describe("the pure commands — schema / issue / base", () => {
         "--plan",
         "docs/kairos/plans/missing.md",
       ]);
-      expect(getMissing).toBe(2);
+      // An unreadable plan carries no identity: the key has no source, so `base`
+      // refuses on the dispatch carrier (CDD_BLOCKED + exit 1) — never a
+      // filename-derived key. The artifact-side missing/corrupt face (exit 2) is
+      // pinned separately, over a plan document that IS on disk.
+      expect(getMissing).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
     } finally {
       cleanup();
     }
@@ -3561,6 +3566,36 @@ describe("T6 — the dispatch surface reads the workspace key from `slug:`", () 
       ).toBe(1);
       expect(io.stderrText).toContain("CDD_BLOCKED");
       expect(io.stderrText).toContain("slug:");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("base on an unreadable plan is a CDD_BLOCK — exit 1, never a filename-derived key", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const ghost = path.join(repoRoot, "docs", "kairos", "plans", "ghost-plan.md");
+      io.stderrText = "";
+      expect(
+        await command.runArgv([
+          "base",
+          "set",
+          "--plan",
+          ghost,
+          "--base",
+          "develop",
+          "--source",
+          "plan-field",
+        ]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+      expect(io.stderrText).toContain("unreadable");
+      // The workspace key has no source — no filename-derived directory appears.
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "ghost-plan"))).toBe(false);
+      io.stderrText = "";
+      expect(await command.runArgv(["base", "get", "--plan", ghost])).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
     } finally {
       cleanup();
     }

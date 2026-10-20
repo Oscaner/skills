@@ -387,13 +387,11 @@ export class Cli {
     }
     const planSlug = planEntry?.slug ?? null;
     const specSlug = specEntry?.slug ?? null;
-    const legal = (slug: string | null): slug is string =>
-      slug !== null && SlugIndex.SLUG_PATTERN.test(slug);
     if (
       planEntry !== null &&
       specEntry !== null &&
-      legal(planSlug) &&
-      legal(specSlug) &&
+      SlugIndex.isLegalSlug(planSlug) &&
+      SlugIndex.isLegalSlug(specSlug) &&
       planSlug !== specSlug
     ) {
       this.#io.stderr(
@@ -842,10 +840,11 @@ export class Cli {
       case "spec": {
         if (specPath === null || specRel === null)
           this.#usage(node, `cdd ${verb} --type spec: missing required --spec <path>`);
-        // An unreadable spec doc is the doc-contract gate's own judgment (T7: the
-        // gate skips an absent doc and the ledger verdict stays null), so the key
-        // degrades to the document stem — never a second refusal here.
-        const resolved = this.#targetSlug(index, specRel, this.#readTolerant(root, specRel));
+        // An unreadable target declares no identity: the SAME slug carrier hard-refuses
+        // it (CDD_BLOCKED + exit 1, never a filename-derived key). The T7 null-verdict
+        // face covers the other shape — a document ON DISK that declares no
+        // `doc-type:` / `slug:`.
+        const resolved = this.#targetSlug(index, specRel, this.#readTarget(root, specRel));
         if (resolved === null) return null;
         slug = resolved;
         target = { kind: "spec", doc: specPath };
@@ -907,12 +906,12 @@ export class Cli {
 
   /** The dispatch target's workspace key — the document's declared `slug:`
    *  (spec §2.1 · §2.4). ONE read face shared by the three work verbs and `base`:
-   *  a missing `slug:`, an illegal value, or a slug the index judges duplicated
-   *  (identity or plan) each render the CDD_BLOCKED station and return null (exit 1
-   *  at the caller — never the board's exit 2). The duplicate judgment reads the
-   *  SAME `SlugIndex` the board renders, so the two faces never diverge (one fact,
-   *  two carriers). The caller passes the document text it already holds — the
-   *  identity read never opens the file a second time. */
+   *  an unreadable target, a missing `slug:`, an illegal value, or a slug the index
+   *  judges duplicated (identity or plan) each render the CDD_BLOCKED station and
+   *  return null (exit 1 at the caller — never the board's exit 2). The duplicate
+   *  judgment reads the SAME `SlugIndex` the board renders, so the two faces never
+   *  diverge (one fact, two carriers). The caller passes the document text it
+   *  already holds — the identity read never opens the file a second time. */
   #targetSlug(index: SlugIndex, rel: RepoPath, content: string | null): string | null {
     // An unreadable target document declares no identity — the workspace key has
     // no source, so the dispatch face refuses on the SAME carrier as a missing
@@ -934,28 +933,22 @@ export class Cli {
       );
     const slug = head.slug;
     if (slug === null) return this.#slugBlocked(this.#words.routeWord("slugMissing"));
-    if (!SlugIndex.SLUG_PATTERN.test(slug))
+    if (!SlugIndex.isLegalSlug(slug))
       return this.#slugBlocked(this.#words.routeWord("slugInvalid").replace("{slug}", slug));
     const entry = index.entryAt(rel);
     const duplicated =
-      entry !== null &&
-      entry.slug === slug &&
-      index
-        .violations()
-        .some(
-          (violation) =>
-            violation.slug === slug &&
-            (violation.kind === "duplicate-identity" || violation.kind === "duplicate-plan"),
-        );
+      entry !== null && entry.slug === slug && index.duplicatedRolesOf(slug).length > 0;
     if (duplicated)
       return this.#slugBlocked(this.#words.routeWord("slugDuplicated").replace("{slug}", slug));
     return slug;
   }
 
-  /** Read a document tolerantly — null when the file is absent or unreadable. The
-   *  ONE read behind the identity resolution's degradation arms (`spec` face and
-   *  `base`), where an absent document belongs to a downstream face's judgment. */
-  #readTolerant(root: RepoRoot, rel: RepoPath): string | null {
+  /** Read a dispatch target's text — null when the file is absent or unreadable.
+   *  The null is NOT a degradation: every caller hands it to `#targetSlug`, which
+   *  refuses the target on the slug carrier (CDD_BLOCKED + exit 1). A document
+   *  that IS readable and declares no `doc-type:` / `slug:` is the separate
+   *  T7 null-verdict shape. */
+  #readTarget(root: RepoRoot, rel: RepoPath): string | null {
     try {
       return readFileSync(root.resolve(rel), "utf8");
     } catch {
@@ -1090,15 +1083,13 @@ export class Cli {
     const planPath = this.#relativizePath(root, planArg);
     // The workspace key is the plan document's `slug:` — the SAME resolution point
     // (and rejection carrier) the work verbs use. `base` carries no pre-flight gate,
-    // so a missing / illegal / duplicated slug stops HERE: CDD_BLOCKED + exit 1.
-    // An unreadable plan document is not an identity fact: the base face keeps its
-    // own missing/corrupt-artifact judgment (exit 2), so the key degrades to the
-    // document stem and the artifact read decides.
-    const planText = this.#readTolerant(root, planPath);
-    const slug =
-      planText === null
-        ? path.basename(planPath, ".md")
-        : this.#targetSlug(SlugIndex.build(repoRoot), planPath, planText);
+    // so a missing / illegal / duplicated slug or an unreadable target stops HERE:
+    // CDD_BLOCKED + exit 1 (never a filename-derived key).
+    const slug = this.#targetSlug(
+      SlugIndex.build(repoRoot),
+      planPath,
+      this.#readTarget(root, planPath),
+    );
     if (slug === null) return 1;
     // The workspace is not built here (P11 · §4.2): `base set` builds it through
     // `Workspace.writeJson`'s internal ensure, while the read-only `base get`

@@ -148,6 +148,7 @@ const LICENSE_ITEMS: readonly string[] = [
   "- {{> cl:plan-freeze}}",
   "- {{> cl:atomic-commit}}",
   "- {{> cl:self-validate}}",
+  "- {{> cl:sync-completion}}",
 ];
 
 /** The `## Handoff schema` section — the injected writable-subset fence at every
@@ -462,16 +463,19 @@ export const CLAUSES = {
     "Commit each round's change as one atomic conventional commit scoped to the round — no mixed or out-of-scope content, no AI-generation trailers.",
   "cl:self-validate":
     "Self-validate before returning: run the validation/checks your change requires and record the evidence (command + exit code + result) in the report.",
+  "cl:sync-completion":
+    "Finish nested work in this same turn before writing the handoff. Do not `bg_run` / `bg_delegate` (or equivalent yield-and-wait paths) before the handoff draft is written — nested work must complete synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 9
- *  is the kind-named doc-anchor shape (INPUT_PLAN / INPUT_SPEC replace the generic
- *  INPUT_DOC; INPUT_WAVE_BRIEF), the branch scope anchor BASE_BRANCH, the single
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 10
+ *  adds the sync-completion discipline clause (P14 — one-shot CDD children must finish
+ *  nested work in-process before writing the handoff; no bg_run / bg_delegate yield).
+ *  $version 9 was the kind-named doc-anchor shape (INPUT_PLAN / INPUT_SPEC replace the
+ *  generic INPUT_DOC; INPUT_WAVE_BRIEF), the branch scope anchor BASE_BRANCH, the single
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
- *  stdout), and the per-type review criterion shells. The bump from 8 marks the
- *  return-shape change (the two-line key-value block retired). */
+ *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 9,
+  $version: 10,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

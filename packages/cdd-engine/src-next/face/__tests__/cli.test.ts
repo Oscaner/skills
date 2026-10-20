@@ -3966,6 +3966,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       // T2 — the materialized work carrier is the work face: zero findings key
       expect("findings" in outcome.carrier!).toBe(false);
+      // P14 — a successful round never ticks contractViolationCount.
+      expect(scene.ledger.counterOf("contractViolationCount")).toBe(0);
     } finally {
       cleanup();
     }
@@ -4403,6 +4405,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const noHost = new HarnessDispatch({ scene, io, env: {} });
       expect(await noHost.step()(implementFrame)).toEqual({ status: "BLOCKED" });
       expect(io.stderrText).toContain("CDD_BLOCKED: no host harness detected");
+      // P14 — no-crash BLOCKED (host missing) never ticks contractViolationCount.
+      expect(scene.ledger.counterOf("contractViolationCount")).toBe(0);
       const failed = new HarnessDispatch({
         scene,
         io,
@@ -4448,7 +4452,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         path.relative(repoRoot, path.join(scene.workspace.path, "tasks-1-implement.json")),
       );
       expect(crash.next).toBe("cdd implement --tasks 1 --plan <plan>");
-      expect(crash.cause).toBe("contract-violation");
+      // P14 — exit 0 + missing draft is handoff-absent (not the schema-violation cause).
+      expect(crash.cause).toBe("handoff-absent");
+      expect(scene.ledger.counterOf("contractViolationCount")).toBe(1);
       // the child's stdout tail rides the crash record (P11 T2 — the diagnostic channel;
       // the child's Return is prose, never parsed for the round's content).
       expect(crash.stdoutTail).toEqual(["done — the handoff draft is written"]);
@@ -4490,6 +4496,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the child-exit face explicitly passes `termination: null` — its crash record
       // carries no last sample (§4.2: the sample rides WITH the termination).
       expect(crash.lastSample).toBeNull();
+      // P14 — child-exit is not a contract-violation face; the counter stays at 0.
+      expect(scene.ledger.counterOf("contractViolationCount")).toBe(0);
     } finally {
       cleanup();
     }
@@ -4543,6 +4551,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(crash.promoted).toBe(false);
       expect(crash.idleMs).toBe(1_800_000);
       expect(crash.next).toBe("cdd implement --tasks 1 --plan <plan>");
+      // P14 — TIMEOUT still only moves timeoutCount; contractViolationCount stays 0.
+      expect(scene.ledger.counterOf("contractViolationCount")).toBe(0);
     } finally {
       cleanup();
     }
@@ -4601,8 +4611,10 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const crash = readJson<{ cause: string; lastSample: SampleRecord | null }>(
         path.join(scene.workspace.path, "crash-implement.wave-1.json"),
       );
-      expect(crash.cause).toBe("contract-violation");
+      // P14 — the absent-draft pin (same face as the exit-0 no-handoff case).
+      expect(crash.cause).toBe("handoff-absent");
       expect(crash.lastSample).toBeNull();
+      expect(scene.ledger.counterOf("contractViolationCount")).toBe(1);
     } finally {
       cleanup();
     }
@@ -4634,6 +4646,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft at");
       expect(io.stderrText).toContain("is malformed JSON");
       expect(io.stderrText).not.toContain("was not written");
+      // P14 — present-but-bad draft stays contract-violation; the counter still ticks.
+      const crash = readJson<{ cause: string }>(
+        path.join(scene.workspace.path, "crash-implement.wave-1.json"),
+      );
+      expect(crash.cause).toBe("contract-violation");
+      expect(scene.ledger.counterOf("contractViolationCount")).toBe(1);
     } finally {
       cleanup();
     }
@@ -4665,6 +4683,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(readJson<{ artifacts: { report: string } }>(draftPath)).toEqual({
         artifacts: { report: "/r" },
       });
+      // P14 — schema-violating draft is contract-violation with the counter tick.
+      const crash = readJson<{ cause: string }>(
+        path.join(scene.workspace.path, "crash-implement.wave-1.json"),
+      );
+      expect(crash.cause).toBe("contract-violation");
+      expect(scene.ledger.counterOf("contractViolationCount")).toBe(1);
     } finally {
       cleanup();
     }
@@ -4723,6 +4747,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // T2 — the materialized work carrier is the work face: zero findings key (the
       // evidence-contract rewrite never re-injects the work-carrier findings bridge)
       expect("findings" in outcome.carrier!).toBe(false);
+      // P14 — evidence-gate rewrite BLOCKED has no crash cause; counter stays 0.
+      expect(scene.ledger.counterOf("contractViolationCount")).toBe(0);
     } finally {
       cleanup();
     }

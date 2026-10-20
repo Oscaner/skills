@@ -292,6 +292,41 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(wave).not.toContain("- `INPUT_SPEC`");
   });
 
+  it("P14 — the sync-completion clause lands identically on implement / review / fix shells (single LICENSE_ITEMS source)", () => {
+    // Required tokens from design §2.1: bg_run, bg_delegate, before the handoff,
+    // synchronously / same turn — nested work finishes in-process before the draft.
+    const pins = [
+      "bg_run",
+      "bg_delegate",
+      "before the handoff",
+      "synchronously",
+      "same turn",
+    ] as const;
+    const implement = assembler.render(ALL_VALUES);
+    const review = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "review",
+      REVIEW_TYPE: "wave",
+      OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
+    });
+    const fix = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "fix",
+      INPUT_REVIEWS: "/ws/tasks-1-review-1.json",
+    });
+    for (const out of [implement, review, fix]) {
+      for (const pin of pins) {
+        expect(out).toContain(pin);
+      }
+    }
+    // single-source clause bytes — the three shells share one resolved hard sentence
+    const sentence =
+      "Finish nested work in this same turn before writing the handoff. Do not `bg_run` / `bg_delegate` (or equivalent yield-and-wait paths) before the handoff draft is written — nested work must complete synchronously in this process turn, then write the handoff and finish.";
+    expect(implement).toContain(sentence);
+    expect(review).toContain(sentence);
+    expect(fix).toContain(sentence);
+  });
+
   it("hard gates: a missing token value throws (named)", () => {
     const partial = { ...ALL_VALUES };
     delete partial.ROLE;

@@ -493,7 +493,11 @@ export class CliLifecycle {
       // brace, …) still reports malformed.
       const draftRead = this.#readDraft(frame);
       if (draftRead.kind === "missing") {
-        return this.#reject(frame, path, `the handoff draft was not written at ${path}`);
+        return this.#reject(frame, path, `the handoff draft was not written at ${path}`, {
+          exitCode: 0,
+          cause: "handoff-absent",
+          termination: null,
+        });
       }
       if (draftRead.kind === "malformed") {
         // The lenient face carries the parser's precise error codes (D39) — surface
@@ -566,10 +570,11 @@ export class CliLifecycle {
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the
    *  same-command resume's decision source: the attempted handoff + the resume
    *  command) + NO carrier (the bookkeep leaves the draft untouched). The crash
-   *  record carries the caller's REAL death facts: an absent draft/schema violation
-   *  is the read-back face (exit 0 · `contract-violation` — the defaults), a dead
+   *  record carries the caller's REAL death facts: an absent draft is the
+   *  `handoff-absent` read-back face (exit 0), a present-but-unqualified draft
+   *  (malformed JSON / schema) is `contract-violation` (the default), a dead
    *  child passes its own exit code + `child-exit`, and a terminated round passes
-   *  its whole `termination` fact (cause + last sample) — one record shape, three
+   *  its whole `termination` fact (cause + last sample) — one record shape, four
    *  truthful callers (the record is the postmortem artifact; a misreported death
    *  sends a maintainer hunting the wrong fault).
    *
@@ -622,6 +627,9 @@ export class CliLifecycle {
     promoted: boolean,
   ): void {
     const op = this.#opOf(frame);
+    // The cause rides the termination fact when one is present (one of the three
+    // causes or the `unknown` fallback); without it, the caller's own cause.
+    const cause: CrashCause = death.termination?.cause ?? death.cause;
     this.#scene.ledger.writeCrash(`${op}.${frame.type}`, frame.round, {
       exitCode: death.exitCode,
       stderrTail: [reason],
@@ -630,15 +638,18 @@ export class CliLifecycle {
       // shape (never the absolute `handoffPath` syscall form — §2.7).
       attemptedHandoff: this.#rel(path),
       next: this.#resumeOf(frame),
-      // The cause rides the termination fact when one is present (one of the three
-      // causes or the `unknown` fallback); without it, the caller's own cause.
-      cause: death.termination?.cause ?? death.cause,
+      cause,
       // The last sample rides WITH the termination (in memory, zero re-read of the
       // heartbeat file) — null on every non-terminated face.
       lastSample: death.termination?.lastSample ?? null,
       promoted,
       idleMs: death.termination?.idleMs ?? null,
     });
+    // P14 — the sole contractViolationCount write seam: observe the FINAL crash
+    // cause (termination override wins). Never keyed off status === "BLOCKED".
+    if (cause === "handoff-absent" || cause === "contract-violation") {
+      this.#scene.ledger.incrementContractViolationCount();
+    }
   }
 
   /** Build the final carrier — the validated writable fields from the draft (the

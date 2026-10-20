@@ -180,10 +180,11 @@ export interface SampleRecord extends Sample {
 /** The lane-crash cause vocabulary — postmortem classification of why a dispatch
  *  terminated before the exit gate (zero behavior fork: resume never routes on it).
  *  The termination causes cover the round that was cut short; `child-exit` is the
- *  child's own non-zero exit, `contract-violation` the read-back face (the child
- *  exited 0 but produced no draft or a schema-violating one — the engine BLOCKs +
- *  preserves the draft + stores the same-command resume), and `unknown` the
- *  unattributable termination fallback. */
+ *  child's own non-zero exit; `handoff-absent` is the read-back face when the child
+ *  exited 0 but wrote no draft at all; `contract-violation` is the read-back face
+ *  when a draft is present but unqualified (malformed JSON / schema); and `unknown`
+ *  is the unattributable termination fallback. Both read-back causes increment
+ *  `contractViolationCount` — never folded under one cause word. */
 /** How a round ended when it did not end by itself — the derived cause plus the
  *  last observed sample (the postmortem pair the crash record carries; the sample
  *  rides the outcome in memory, never re-read from the heartbeat file). `unknown`
@@ -195,7 +196,12 @@ export interface Termination {
   lastSample: SampleRecord | null;
 }
 
-export type CrashCause = TerminationCause | "child-exit" | "contract-violation" | "unknown";
+export type CrashCause =
+  | TerminationCause
+  | "child-exit"
+  | "handoff-absent"
+  | "contract-violation"
+  | "unknown";
 
 /** The crash record — the lane crash's recovery record (`crash-<lane>-<round>.json`):
  *  the same-command resume's decision source (the resume command + the dead child's
@@ -734,6 +740,16 @@ export class Ledger {
     data.timeoutCount += 1;
     this.writeProgress(data);
     return data.timeoutCount;
+  }
+
+  /** Increment the contract-violation counter — the read-back write point (one
+   *  `handoff-absent` or `contract-violation` crash lands, the count goes up by
+   *  one). The counter's only writer. */
+  incrementContractViolationCount(): number {
+    const data = this.readProgress() ?? this.emptyProgress();
+    data.contractViolationCount += 1;
+    this.writeProgress(data);
+    return data.contractViolationCount;
   }
 
   // -------------------------------------------------------------------------

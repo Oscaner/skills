@@ -110,6 +110,20 @@ describe("progress — the fixed key set", () => {
       cleanup();
     }
   });
+
+  it("incrementContractViolationCount is the sole writer — read → +=1 → write → return", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      expect(ledger.counterOf("contractViolationCount")).toBe(0);
+      expect(ledger.incrementContractViolationCount()).toBe(1);
+      expect(ledger.incrementContractViolationCount()).toBe(2);
+      expect(ledger.counterOf("contractViolationCount")).toBe(2);
+      // timeout counter stays untouched — the two faces are independent
+      expect(ledger.counterOf("timeoutCount")).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 describe("progress — the D28 round-identity face (cycles, not counts)", () => {

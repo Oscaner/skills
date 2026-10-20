@@ -90,7 +90,7 @@ Placeholder / literal vocabulary:
 
 | Placeholder | Meaning |
 |---|---|
-| `<slug>` | workspace slug — derived, lowercase |
+| `<slug>` | workspace directory key — the plan document's declared front-matter `slug:`, verbatim |
 | `<branch>` / `<source>` | `set`-command arguments mirroring the schema fields |
 | `<path>` / `<repoRoot>` | plan path (the sole `--plan` target) / repo-root prefix |
 | `source` enum literals | `plan-field` / `branch-upstream` / `conversation-context` / `user-confirmed` — full-word, scope-prefixed semantics |

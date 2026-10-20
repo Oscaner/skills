@@ -40,11 +40,11 @@ npm install @oscaner-skills/cdd-engine
 
 ## 迁移
 
-文档身份即 front-matter 的 `slug:` 键。这退役了「按文件名推演文档身份」：属于 **major breaking** 变更，且**零双读**——旧形态一律拒绝，不做兼容接受。
+文档身份即 front-matter 的 `slug:` 键。这退役了「按文件名推演文档身份」：属于 **major breaking** 变更，且**零双读**——旧键不再被读取，旧入口形也不再被接受。
 
 - **board 入口改为文档路径**：`cdd board --plan <path>` / `cdd board --spec <path>` 取代退役的 positional slug 形。
-- **身份是声明出来的，不是推演出来的**：文档由 front-matter 所写的 `slug:` 定位，文件名不承载任何身份含义。旧路径键退役；plan 的程序链经「与它同 slug 的 spec」的 `program:` 解析。
-- **按 run 的工作区随键走**：`.kairos/cdd/<slug>/` 目录以 plan 文档的 `slug:` 为键。遗留在旧键命名下的目录**不复用**——无人读取、也无人迁移它。要清掉旧台账时，手动删除即可。
+- **身份是声明出来的，不是推演出来的**：文档由 front-matter 所写的 `slug:` 定位，文件名不承载任何身份含义。旧路径键不再被读取（留着是惰性的，不报错）；plan 的程序链经「与它同 slug 的身份文档」解析——phase-spec 的 `program:` 指向其 overall，而 overall-spec / single-spec 自身即链根。
+- **按 run 的工作区随键走**：`.kairos/cdd/<slug>/` 目录以 plan 文档的 `slug:` 为键。遗留在旧键命名下的目录**不复用**——没有 run 会续用或迁移它。但报告会话的台账扫描仍会读其记录，故在不再需要那段历史时手动删除。
 
 ## 开发说明
 

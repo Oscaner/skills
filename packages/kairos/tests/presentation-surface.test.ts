@@ -285,6 +285,35 @@ test("P4.1 behavior: cdd-engine README documents every CLI subcommand (issue inc
   }
 });
 
+// P15 identity flip — the row-name loop above would stay green if a `board` row kept the
+// retired positional-slug form (the row is still named `board`), so the argument form is
+// pinned positively on both cdd-engine READMEs: the documented invocation must be the
+// path-flag form the engine's `board` command declares (zero positionals — a positional
+// argument is refused by the parser, so a stale row is a broken consumer instruction).
+const BOARD_USAGE_PINS: Record<string, { usage: RegExp; retired: RegExp }> = {
+  "packages/cdd-engine/README.md": {
+    usage: /^\|\s*`board`\s*\|\s*`cdd board --plan <path> \/ --spec <path>`\s*\|/m,
+    retired: /cdd board <slug>/,
+  },
+  "packages/cdd-engine/README.zh-CN.md": {
+    usage: /^\|\s*`board`\s*\|\s*`cdd board --plan <path> \/ --spec <path>`\s*\|/m,
+    retired: /cdd board <slug>/,
+  },
+};
+
+for (const [rel, pin] of Object.entries(BOARD_USAGE_PINS)) {
+  test(`P15 board usage: ${rel} documents the path-flag entry form`, () => {
+    const cli = sectionOf(read(rel), "## CLI");
+    expect(
+      cli,
+      `${rel} board row must document \`cdd board --plan <path> / --spec <path>\``,
+    ).toMatch(pin.usage);
+    expect(cli, `${rel} must not resurface the retired positional-slug board form`).not.toMatch(
+      pin.retired,
+    );
+  });
+}
+
 // P15 identity flip — the two cdd-engine READMEs (EN source + zh mirror, same judgment, the
 // per-language patterns below) must carry the consumer migration note. The flip is a major
 // breaking change with zero dual-read, and it moves the per-run workspace key: `.kairos/cdd/`

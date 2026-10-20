@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P15 实施计划：文档身份面统一为 front-matter `slug:`（board 路径入口 · 文件名推演与路径声明键整退）
 doc-type: plan
-version: v0.3
+version: v0.4
 date: 2026-10-20
 slug: 2026-10-10-engine-doc-tooling-p15
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p15-design.md
@@ -57,7 +57,7 @@ base: develop
 - **Steps**:
   - 翻新词表 pin：`declare.test.ts` 的 `REF_KIND_VALUES`（`:41`）· `HEADER_KEYS`（`:193`）· `KEY_VOCABULARY`（`:229`），`project.test.ts:42` 的 `REF_KINDS`，`structure-pin.test.ts:78` 的 `FRONTMATTER_KEYS` 全改到新词表 — checkable: 旧词表断言失败
   - 改 `RefKind` union（`declare.ts:29-38`）+ `REF_KIND_VALUES`（`:89-98`）+ 守卫（`:139-144` 逻辑不变）；删 plan 三元素（`:521-555`）与 phase-spec `parent-program`（`anchor: "parent-program"` `:780` · 元素 `:779-785`），四类各增 `slug` 行、phase-spec 增 `program` 行；`Design spec cell:397` → `none`、`Design claim token:471` → `phase-id` — checkable: `grep -rn '"spec-ref"\|"parent-program"' packages/cdd-engine/src-next --include=*.ts | grep -v __tests__` 只剩 Task 4 待改的链面消费点（`invariants.ts` / `doc.ts` / `frontmatter.ts`）；测试面残留（`judge.test.ts` / `lint.test.ts` / `doc.test.ts` 属 Task 4，其余在本任务 Files）随对应 pin 翻新退场
-  - link 槽与骨架：`project.ts:595-599` 判据改为 `refKind === "slug-ref"`（两旧档删除）；`skeleton.ts` 的 `FRONT_MATTER_LINKS`（`:47-50`）删两条、增 `program:` 一条（尖括号占位形，与既有 link 占位同形）；`slug:` 落 `:::fill slug` content 槽 — checkable: skeleton 测试断言四类头含 `slug:` 槽、phase-spec 头含 `program:` 占位形
+  - link 槽与骨架：`project.ts:595-599` 判据改为 `refKind === "slug-ref"`（两旧档删除）；`skeleton.ts` 的 `FRONT_MATTER_LINKS`（`:47-50`）删两条、增 `program:` 一条——尖括号形，括号内容取**本键值域形**（父 overall 的 slug，如 `<overall-slug>`），**不**沿用已退役路径键的路径范例（占位即消费者照抄样例；design §4.2）；`slug:` 落 `:::fill slug` content 槽 — checkable: skeleton 测试断言四类头含 `slug:` 槽、phase-spec 头含 `program:` 占位形
   - **占位豁免（AC「骨架占位不被硬门判」）**：把 `isPlaceholder`（现私有于 `FileExistenceInvariant`，`invariants.ts:1115`）上提到 `Invariant` 基类（既有消费点 `:1062` / `:1165` / `:1194` 不动），增 `:::fill` 形一支，成为占位契约的**单源**；`DomainInvariant` 的 front-matter 臂（`:484-500`）在判 `valuePattern` 前套同一豁免——否则骨架自产的 `slug: ':::fill slug'` 会被 §2.1 的严格模式判违约 — checkable: 骨架自产的 phase-spec 头（含 `slug:` / `program:` 占位）过 DomainInvariant 零 finding
   - **合法形 pin**：合法值（如 `2026-10-10-engine-doc-tooling-p15`）过；非法值 `.` · `..` · 含 `/` · 含 `\` · 含空白 · 空串 · 超 128 字符 · Windows 保留字符 → 各出一条 domain finding；`valuePattern` 源串覆盖 `.` / `..` 两目录逃逸值；board 面由 `SlugIndex` 的 `invalid-slug` 判据承载（Task 2 · Task 5 的呈现 pin） — checkable: 8 条非法值用例全绿
   - conforming fixture 补 `slug:`（`slug` 设 required 后引擎 suite 在 W2 收波即红）：`contract/__tests__/judge.test.ts` 的 `GOOD_OVERALL`（`:28-84`）· `session/__tests__/preflight.test.ts:66-77` 的 `planDoc` · `__tests__/smoke.integration.test.ts` 的 plan / phase-spec / overall 三 fixture；`face/__tests__/cli.test.ts` 的 conforming 族整体换头——`conformingPlan`（`:259-309`）增 `slug: p3` 并删 `spec:` / `parent-program:` / `parent-version:`，其两个桩 sibling（`:302` 的 `p3-design.md` / `p3-overall.md`）升为最小身份文档（`doc-type:` + `slug: p3` / `slug: p3-overall`，前者另写 `program: p3-overall`）；`conformingSpec`（`:443`）增 `slug: s1` 并以 `program: x-overall` 取代 `parent-program:`，其桩 sibling `x-overall.md`（`:486-488`）升为最小 overall 身份文档（`doc-type: overall-spec` + `slug: x-overall`）；`conformingOverall`（`:316`）增 `slug: o1-overall`（既有 `.kairos/cdd/o1-overall` 目录断言零改） — checkable: 上述 fixture 均带 `slug:`；`judge.test.ts` 的 conforming overall 用例零 findings；`cli.test.ts` 的 `conformingPlan` / `conformingSpec` 头各命中恰好一行 `^slug:`
@@ -158,3 +158,4 @@ base: develop
 | v0.1 | 2026-10-20 | 初稿——P15 九任务五波：W1 {T1 语料身份键先行 · T2 `SlugIndex` 索引单源} → W2 {T3 契约形状面 · T5 board 路径入口 · T6 派发面工作区钥} → W3 {T4 判定 / 链面 · T7 文件名推演面整退} → W4 {T8 语料旧键退场} → W5 {T9 消费面 + changeset + validate}；承 design v0.5 / D59。 | Oscaner M. · Claude（kairos:cdd-plan [P15]） |
 | v0.2 | 2026-10-20 | plan-fix-1——review-1 findings 全修（14/14）：派发面 slug 唯一性硬门补 owner · 语料计数 15 plan / 31 篇 · Task 3 / 4 的 grep 判据收窄 · 节点板 `#isOverallNode` / `-overall` 退役归属 · `DocEntry.title` · 非法 `slug:` 双面 pin · fixture 涟漪进 W2 · 占位豁免单源上提 · 契约门 pin 校正 · Task 8 `DependsOn` 补 5。 | Oscaner M. · Claude（kairos:cdd-fix [P15]） |
 | v0.3 | 2026-10-20 | plan-fix-2——review-2 findings 全修（4/4）：Task 6 补 base 半 owner（`#runBase` 同键读取 · 派发面拒绝载体 · `planFor` slug）· Task 3 / 4 的 conforming fixture 族换头与 Class-A 正半归属 · 词表 pin 按实测校正 · Task 9 README 迁移说明正向 pin。 | Oscaner M. · Claude（kairos:cdd-fix [P15]） |
+| v0.4 | 2026-10-21 | **实现期 backfill（cdd-dev 会话 · W2 review-1 finding 5）**——Task 3 步骤 3 的骨架 `program:` 占位措辞由「尖括号占位形，与既有 link 占位同形」改为点明**值域形**（括号内容 = 父 overall 的 slug，如 `<overall-slug>`，不沿用已退役路径键的路径范例）；同步 design §4.2 v0.6 的口径收口。纯措辞裁定，任务面与波序不变。 | Oscaner M. · Claude（kairos:cdd-dev [P15] backfill） |

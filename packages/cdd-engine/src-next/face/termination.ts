@@ -98,6 +98,12 @@ export class TerminationPolicy {
     fix: 3 * 60 * 60 * 1000,
     "branch-review": 3 * 60 * 60 * 1000,
   };
+  /** The child's per-command Bash ceiling (ms) — a DISCIPLINE constant, never a
+   *  phase budget: the child prompt tells the child to put a `timeout` on every
+   *  Bash invocation, no longer than this. It is deliberately not a `RoundPhase`
+   *  key (no dispatch phase maps to it) and not an engine-side kill: the engine
+   *  cannot see commands inside the child. */
+  static readonly CHILD_BASH_TIMEOUT_MS = 15 * 60 * 1000;
   /** The stall window (ms) — how long a round may make no progress before the
    *  judge rules it stalled (not per phase: "no progress" means the same thing on
    *  every phase). */

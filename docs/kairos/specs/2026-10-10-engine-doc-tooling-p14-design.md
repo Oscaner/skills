@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P14 设计：one-shot CDD child 同步收工契约（handoff-absent + contractViolationCount）
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-10-20
 status: Draft
 author: Oscar M. · Claude（kairos:cdd-design [P14] 会话 · 用户七前提 mandate · grilling settled · 2026-10-20）
@@ -73,6 +73,8 @@ depends-on: P13（Done · v0.4 · hard——P13 终止面落地后的合作式�
   - 嵌套活（依赖安装、code-review 子派发等）必须在**同一进程回合内同步做完**，再写 handoff、再收工；
   - 做了算违约——引擎侧以缺合法 handoff / 契约读回失败收口，不另开「bg 违规」法医通道。
 - 文案要对 **agent child** 可执行，短、硬、无程序史；**不**复制进消费面 skills。
+- **英文候选硬句**（plan 拥有最终措辞；必达 token：`bg_run` / `bg_delegate`、写出 handoff 前禁止 yield 式结束回合、嵌套活同回合同步完成）：
+  > Finish nested work in this same turn before writing the handoff. Do not `bg_run` / `bg_delegate` (or equivalent yield-and-wait paths) before the handoff draft is written — nested work must complete synchronously in this process turn, then write the handoff and finish.
 
 #### 2.2 形态选择（设计裁定）
 
@@ -94,12 +96,13 @@ depends-on: P13（Done · v0.4 · hard——P13 终止面落地后的合作式�
 - **不**要求证明 yield / 未完成 bg：缺稿是可观察事实；yield 只是 #368 的解释，不是机器谓词。
 - 缺稿分支调用 `#reject` 时必须**显式**传入 `cause: "handoff-absent"`，不得再吃默认 `contract-violation`。
 - 畸形 / schema 分支保持默认或显式 `contract-violation`——词义仍是「有稿但不合格」。
+- 扩展 `CrashCause` 时**同步改写**其 JSDoc（`session/ledger.ts`）：`handoff-absent` = 缺稿（草稿根本没写）；`contract-violation` = 有稿但不合格（畸形 JSON / schema）；与上表一致，禁止继续把「无稿或 schema 违约」一并归在 `contract-violation`。
 
 #### 3.2 计数写点
 
 - 在 `Ledger` 增对称写点（命名与 `incrementTimeoutCount` 同族，例如 `incrementContractViolationCount`）——**唯一**生产写入 `contractViolationCount` 的方法；禁止散落 `data.contractViolationCount += 1`。
-- 调用点与 TIMEOUT 对称，落在 CLI 收口（或生命周期与 CLI 之间**单一**记账缝）：当 round 以读回契约违约结束（crash cause ∈ {`handoff-absent`, `contract-violation`}）时递增一次。
-- 升格终止轮、普通成功轮、纯 `child-exit`、纯 TIMEOUT 失败面——**不**递增 `contractViolationCount`。
+- **唯一记账缝裁定**：现有 `DispatchOutcome` 仅有 `status` + 可选 `termination`，**无** `cause` 字段——CLI 收口若只看 `status === "BLOCKED"` 会误计无 crash-cause 的 BLOCKED（如 host 未检出）以及 evidence-gate 改写的 BLOCKED，无法与 TIMEOUT（靠 `termination` 观察）对称。裁定优先落点：在 `#reject` / `#writeCrash` 内，当写入的 crash `cause ∈ {handoff-absent, contract-violation}` 时调用该唯一 Ledger 写点（lifecycle 已持有 cause，观察面完整）。备选：扩展 `DispatchOutcome` 显式携带该 cause/旗标后再在 CLI 收口递增——本 phase 二选一即可，但必须单一缝、必须按 cause 观察，**禁止**只靠 status 字面递增。
+- 明确排除：无 crash-cause 的 BLOCKED、evidence-gate 改写的 BLOCKED、升格终止轮、普通成功轮、纯 `child-exit`、纯 TIMEOUT 失败面——**不**递增 `contractViolationCount`。
 - 计数是 postmortem / 观测面，**零行为分叉**：resume 路由不读该计数（与既有 crash cause「零行为分叉」同款）。
 
 #### 3.3 对外信号
@@ -115,13 +118,13 @@ depends-on: P13（Done · v0.4 · hard——P13 终止面落地后的合作式�
 
 ### Acceptance criteria
 
-- implement / review / fix（及共享该壳的 one-shot 派发）的渲染提示含**同一**同步收工硬句：写出 handoff 前禁止 `bg_run`/`bg_delegate` 类结束回合等通知路径；嵌套活同回合同步完成后再写 handoff；源面单源（clause/license/frame 之一），无三处复制长文。
+- implement / review / fix（及共享该壳的 one-shot 派发）的渲染提示含**同一**同步收工硬句：写出 handoff 前禁止 `bg_run`/`bg_delegate` 类结束回合等通知路径；嵌套活同回合同步完成后再写 handoff；源面单源（clause/license/frame 之一），无三处复制长文；必达 token 含 `bg_run`/`bg_delegate`、handoff 前禁止 yield 式结束回合、嵌套活同回合同步完成（最终英文措辞归 plan，候选句见 §2.1）。
 - 消费面 skills（kairos 已发布 skill 文本）零新增禁令文案；本 phase changeset 不改 skills 消费副本。
 - exit 0 + 缺稿 → crash record `cause: "handoff-absent"`（非 `contract-violation`）；`CDD_BLOCKED`；失败面退出码语义零变。
 - exit 0 + 畸形 / schema 违约 → `cause: "contract-violation"` 保持。
-- 上述两类均使 `contractViolationCount` 精确 +1；TIMEOUT 轮只动 `timeoutCount`；成功轮 / `child-exit` 不动契约计数。
-- `Ledger` 暴露唯一契约计数写点；活面无第二写入路径（测试或源扫描可 pin）。
-- `CrashCause` 类型含 `handoff-absent`；相关 vitest / 类型面翻新。
+- 上述两类均使 `contractViolationCount` 精确 +1；TIMEOUT 轮只动 `timeoutCount`；成功轮 / `child-exit` / 无 crash-cause 的 BLOCKED / evidence-gate 改写的 BLOCKED 不动契约计数。
+- `Ledger` 暴露唯一契约计数写点；活面无第二写入路径（测试或源扫描可 pin）；记账缝按 §3.2 裁定——`#reject`/`#writeCrash` 内按 cause 调用，或扩展 `DispatchOutcome` 携带 cause 后再 CLI 收口；禁止只靠 `status === "BLOCKED"` 递增。
+- `CrashCause` 类型含 `handoff-absent`；扩展时同步改写其 JSDoc（`handoff-absent` = 缺稿；`contract-violation` = 有稿但不合格）；相关 vitest / 类型面翻新。
 - dirty-tree 门仍拒绝派发；文案明示编排器恢复、引擎不自动清脏；零 stash / 临时 commit / dirty-resume 实现。
 - P13 终止/升格/`timeoutCount`/capsule 键集语义零回归；CLI 旗标 / 退出码表 / `next:` 字面零破。
 - 引擎 vitest 全绿；`pnpm run validate` ALL PASS；changeset cdd-engine **minor**；不发布。
@@ -140,3 +143,4 @@ depends-on: P13（Done · v0.4 · hard——P13 终止面落地后的合作式�
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-20 | 初稿——P14 phase-spec：A 组同步收工契约（提示/契约面硬句 · implement/review/fix 三腿同一句 · 单源 clause）+ B 组机器因 `handoff-absent` 与 `contractViolationCount` 真递增（缺稿 vs 畸形/schema 拆分 · 与 `timeoutCount` 对称写点 · 零行为分叉）+ C 组 dirty-tree 文案归编排器（门语义零变）；Non-goals 明示不重造宿主 wake / 不等 nested / 不进消费禁令；承 D58 · #368 · P13 hard-dep；changeset minor · 不发布。 | Oscar M. · Claude（kairos:cdd-design [P14]） |
+| v0.2 | 2026-10-20 | docs-fix round 1：§3.2 裁定唯一记账缝优先 `#reject`/`#writeCrash` 按 cause 调用（备选扩展 `DispatchOutcome`）；明确排除无 crash-cause / evidence-gate BLOCKED，禁止只靠 status 递增；§3.1/验收要求扩展 `CrashCause` 时同步改写 JSDoc；§2.1 补英文候选硬句与必达 token。 | Oscar M. · Claude（kairos:cdd docs-fix） |

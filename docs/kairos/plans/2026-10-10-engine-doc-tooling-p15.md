@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P15 实施计划：文档身份面统一为 front-matter `slug:`（board 路径入口 · 文件名推演与路径声明键整退）
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-10-20
 spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p15-design.md
 parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
@@ -54,12 +54,12 @@ base: develop
 - **Consumes**: 设计 §4.1（键集 + `RefKind` 三处同改）、§4.2（骨架槽类 · File paths 四面）。
 - **Produces**: 新登记表行（`slug` 四处 · `program` 一处）；`RefKind` 含 `slug-ref`、无 `spec-ref` / `parent-program`；`FRONT_MATTER_LINKS.program`；四类骨架吐 `slug:` 槽、phase-spec 另吐 `program:` 槽；`## File paths` 与 `File path row` 均 `presence: "optional"`、hollow 过滤集 = `Issue inventory` / `Phase inventory` / `Change history`。
 - **Steps**:
-  - 翻新词表 pin：`declare.test.ts` 的 `REF_KIND_VALUES`（`:48`）· `HEADER_KEYS`（`:200-201` / `:213`）· `KEY_VOCABULARY`（`:236-237`），`project.test.ts:49` 的 `REF_KINDS`，`structure-pin.test.ts:85-86` 的 `FRONTMATTER_KEYS` 全改到新词表 — checkable: 旧词表断言失败
-  - 改 `RefKind` union（`declare.ts:29-38`）+ `REF_KIND_VALUES`（`:89-98`）+ 守卫（`:139-144` 逻辑不变）；删 plan 三元素（`:521-555`）与 phase-spec `parent-program`（`:779-785`），四类各增 `slug` 行、phase-spec 增 `program` 行；`Design spec cell:400` → `none`、`Design claim token:474` → `phase-id` — checkable: `grep -rn '"spec-ref"\|"parent-program"' packages/cdd-engine/src-next --include=*.ts | grep -v __tests__` 只剩 Task 4 待改的链面消费点（`invariants.ts` / `doc.ts` / `frontmatter.ts`）；测试面残留（`judge.test.ts` / `lint.test.ts` / `doc.test.ts` 属 Task 4，其余在本任务 Files）随对应 pin 翻新退场
+  - 翻新词表 pin：`declare.test.ts` 的 `REF_KIND_VALUES`（`:41`）· `HEADER_KEYS`（`:193`）· `KEY_VOCABULARY`（`:229`），`project.test.ts:42` 的 `REF_KINDS`，`structure-pin.test.ts:78` 的 `FRONTMATTER_KEYS` 全改到新词表 — checkable: 旧词表断言失败
+  - 改 `RefKind` union（`declare.ts:29-38`）+ `REF_KIND_VALUES`（`:89-98`）+ 守卫（`:139-144` 逻辑不变）；删 plan 三元素（`:521-555`）与 phase-spec `parent-program`（`anchor: "parent-program"` `:780` · 元素 `:779-785`），四类各增 `slug` 行、phase-spec 增 `program` 行；`Design spec cell:397` → `none`、`Design claim token:471` → `phase-id` — checkable: `grep -rn '"spec-ref"\|"parent-program"' packages/cdd-engine/src-next --include=*.ts | grep -v __tests__` 只剩 Task 4 待改的链面消费点（`invariants.ts` / `doc.ts` / `frontmatter.ts`）；测试面残留（`judge.test.ts` / `lint.test.ts` / `doc.test.ts` 属 Task 4，其余在本任务 Files）随对应 pin 翻新退场
   - link 槽与骨架：`project.ts:595-599` 判据改为 `refKind === "slug-ref"`（两旧档删除）；`skeleton.ts` 的 `FRONT_MATTER_LINKS`（`:47-50`）删两条、增 `program:` 一条（尖括号占位形，与既有 link 占位同形）；`slug:` 落 `:::fill slug` content 槽 — checkable: skeleton 测试断言四类头含 `slug:` 槽、phase-spec 头含 `program:` 占位形
   - **占位豁免（AC「骨架占位不被硬门判」）**：把 `isPlaceholder`（现私有于 `FileExistenceInvariant`，`invariants.ts:1115`）上提到 `Invariant` 基类（既有消费点 `:1062` / `:1165` / `:1194` 不动），增 `:::fill` 形一支，成为占位契约的**单源**；`DomainInvariant` 的 front-matter 臂（`:484-500`）在判 `valuePattern` 前套同一豁免——否则骨架自产的 `slug: ':::fill slug'` 会被 §2.1 的严格模式判违约 — checkable: 骨架自产的 phase-spec 头（含 `slug:` / `program:` 占位）过 DomainInvariant 零 finding
   - **合法形 pin**：合法值（如 `2026-10-10-engine-doc-tooling-p15`）过；非法值 `.` · `..` · 含 `/` · 含 `\` · 含空白 · 空串 · 超 128 字符 · Windows 保留字符 → 各出一条 domain finding；`valuePattern` 源串覆盖 `.` / `..` 两目录逃逸值；board 面由 `SlugIndex` 的 `invalid-slug` 判据承载（Task 2 · Task 5 的呈现 pin） — checkable: 8 条非法值用例全绿
-  - conforming fixture 补 `slug:`（`slug` 设 required 后引擎 suite 在 W2 收波即红）：`contract/__tests__/judge.test.ts` 的 `GOOD_OVERALL`（`:28-84`）· `session/__tests__/preflight.test.ts:66-77` 的 `planDoc` · `face/__tests__/cli.test.ts` 的 minimal head · `__tests__/smoke.integration.test.ts` — checkable: 上述 fixture 均带 `slug:`；`judge.test.ts` 的 conforming overall 用例零 findings
+  - conforming fixture 补 `slug:`（`slug` 设 required 后引擎 suite 在 W2 收波即红）：`contract/__tests__/judge.test.ts` 的 `GOOD_OVERALL`（`:28-84`）· `session/__tests__/preflight.test.ts:66-77` 的 `planDoc` · `__tests__/smoke.integration.test.ts` 的 plan / phase-spec / overall 三 fixture；`face/__tests__/cli.test.ts` 的 conforming 族整体换头——`conformingPlan`（`:259-309`）增 `slug: p3` 并删 `spec:` / `parent-program:` / `parent-version:`，其两个桩 sibling（`:302` 的 `p3-design.md` / `p3-overall.md`）升为最小身份文档（`doc-type:` + `slug: p3` / `slug: p3-overall`，前者另写 `program: p3-overall`）；`conformingSpec`（`:443`）增 `slug: s1` 并以 `program: x-overall` 取代 `parent-program:`，其桩 sibling `x-overall.md`（`:486-488`）升为最小 overall 身份文档（`doc-type: overall-spec` + `slug: x-overall`）；`conformingOverall`（`:316`）增 `slug: o1-overall`（既有 `.kairos/cdd/o1-overall` 目录断言零改） — checkable: 上述 fixture 均带 `slug:`；`judge.test.ts` 的 conforming overall 用例零 findings；`cli.test.ts` 的 `conformingPlan` / `conformingSpec` 头各命中恰好一行 `^slug:`
   - File paths 四面：`declare.ts:223-229` 的 `## File paths` 与 `:434-440` 的 `File path row` 改 `presence: "optional"`；删 `skeleton.ts:172` 的段发射与 `:381-384` 的 `#filePathsTable`（连带 probe）；`invariants.ts:255` 名字集收缩为三表 — checkable: `schema get overall-spec --output skeleton` 产出的 overall 骨架无 `## File paths` 段；`#assertConsumed` 不抛
   - 自洽回归：骨架自产字节过自身 doc-type 与契约门（doc-type 门 `skeleton.test.ts:615` · 契约门 `:639`）— checkable: 两用例绿
 - **Acceptance**: 登记表与 design §4.1 / §4.2 逐条一致；`RefKind` 三处同改；骨架自产字节过自家门（含 `slug:` / `program:` 占位豁免）；合法形与非法值双面有 pin；形状载体零第三处；历史 overall 保留 File paths 表与其 row 不报错；conforming fixture 已补 `slug:`。
@@ -67,16 +67,16 @@ base: develop
 
 ### Task 4: 判定 / 链面——`ChainRoot` 收敛 · `slug-ref` 断言 · 旧链臂退役
 - **Objective**: 链根按新身份面重建——plan 无父链（Class-B 臂退役）、phase-spec 的父锚改 `program:` 的 slug；`FileExistenceInvariant.chainLinks` 不再把 `program:` 当文件路径判（slug 非路径）；新增 `slug-ref` 断言面（值等于 docRoots 内某篇 overall 的 `slug:`，命中 0 篇 → 硬门；占位形沿用 `isPlaceholder` 豁免）；`CrossDocChainInvariant` 的 `planChain` Class-A 改为「同 slug 恰有一份身份文档」、`specChain` 保留而字段名与文案改 `program`；删 `FrontMatterHead` 的 `spec` / `parentProgram` 取值子。
-- **Files**: `packages/cdd-engine/src-next/contract/doc.ts`（`ChainRoot` · `:681-683` / `:763-765` 链构造）；`packages/cdd-engine/src-next/contract/invariants.ts`（`chainLinks` `:1082-1112` · `planChain` `:1262-1291` · `specChain` `:1294-1310` · `classB` `:1313-1336`）；`packages/cdd-engine/src-next/contract/judge.ts`（策略族 + `ContractInput` 身份注入）；`packages/cdd-engine/src-next/contract/frontmatter.ts`（删旧取值子）；测试 `packages/cdd-engine/src-next/contract/__tests__/doc.test.ts`、`.../judge.test.ts`、`.../lint.test.ts`、`.../frontmatter.test.ts`。
+- **Files**: `packages/cdd-engine/src-next/contract/doc.ts`（`ChainRoot` · `:681-683` / `:763-765` 链构造）；`packages/cdd-engine/src-next/contract/invariants.ts`（`chainLinks` `:1082-1112` · `planChain` `:1262-1291` · `specChain` `:1294-1310` · `classB` `:1313-1336`）；`packages/cdd-engine/src-next/contract/judge.ts`（策略族 + `ContractInput` 身份注入）；`packages/cdd-engine/src-next/contract/frontmatter.ts`（删旧取值子）；测试 `packages/cdd-engine/src-next/contract/__tests__/doc.test.ts`、`.../judge.test.ts`、`.../lint.test.ts`、`.../frontmatter.test.ts`、`packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（conforming 族的 Class-A 正半）。
 - **Consumes**: Task 2 的 `SlugIndex`；Task 3 的 `slug-ref` 档。
 - **Produces**: `ChainRoot` 新面（`programLink: ChainLink | null` 取代 `parentLink`；`specLink` 退役；`parentTokens` 仅 phase-spec 保留）；`slug-ref` 判据（骨架占位豁免）；`planChain` / `specChain` 新臂。Task 5 / 6 消费 `chain` 面。
 - **Steps**:
   - 失败测试（未覆盖输入面 ④ 的判据半）：phase-spec 的 `program:` 指向不存在的 overall → 恰一条 `slug-ref` finding；指向在册 overall slug → 零 finding；值形为占位（空串 / `Pending` / 尖括号形 / `:::fill`）→ 零 finding — checkable: 现状无该 finding
-  - 失败测试：plan **无** `parent-program` / `parent-version` → 零 chain finding；plan 无同 slug 身份文档 → Class-A finding 字段 `slug` — checkable: 旧断言（`planChain` 的 parent-program 文案 pin）翻新后失败
+  - 失败测试：plan **无** `parent-program` / `parent-version` → 零 chain finding；plan 无同 slug 身份文档 → Class-A finding 字段 `slug`。正半由 Task 3 改造后的 `conformingPlan`（同 slug 的 `p3-design.md`）供——`cli.test.ts` 的 implement / review / fix doc-contract 用例在 W3 全绿；反半由去掉该身份文档的同 slug 态给出 — checkable: 旧断言（`planChain` 的 parent-program 文案 pin）翻新后失败；改造后的 fixture 过 `planChain` 零 finding、删其身份文档则出 Class-A finding（W3 红面的判据）
   - 改 `ChainRoot` 与 `doc.ts` 两处链构造（plan 面 `parentLink`/`parentTokens` 归零、phase-spec 面 `programLink` 承载 slug）；`chainLinks` 的 phase-spec 臂改指 `programLink` 且**不**进文件存在判 — checkable: `doc.test.ts:275` 的链断言按新面翻新后绿
   - 新增 `SlugRefInvariant`（具名策略，零裸函数）判 `program:` 对 docRoots 内 overall `slug:` 的命中，占位豁免沿用 `isPlaceholder`；`judge.ts` 策略族同批挂入，`ContractInput` 增身份来源 — checkable: 三条 `slug-ref` 用例全绿；`grep -rn 'isPlaceholder' packages/cdd-engine/src-next/contract/invariants.ts` 消费点数量与设计一致
   - 删 `FrontMatterHead.spec` / `.parentProgram`；`frontmatter.test.ts:51-52` 与 `lint.test.ts` 的 parent 面 pin 同步退役 — checkable: `grep -rn 'specLink\|parentProgram\|parentLink' packages/cdd-engine/src-next/contract --include=*.ts | grep -v __tests__` 零命中（`WorkScene.specLink` 等 `face/` 面 scene 字段保留，不入该 grep）
-- **Acceptance**: 链面无 plan Class-B；`program:` 走 slug 查表且占位豁免；`spec:` / `parent-program:` 在契约面零残留（`scene.specLink` 属派发面字段，保留）；`ChainRoot` 单一定义无别名；未覆盖输入面 ④ 有判据 pin。
+- **Acceptance**: 链面无 plan Class-B；`program:` 走 slug 查表且占位豁免；`spec:` / `parent-program:` 在契约面零残留（`scene.specLink` 属派发面字段，保留）；`ChainRoot` 单一定义无别名；未覆盖输入面 ④ 有判据 pin；`cli.test.ts` 的 conforming 族在 W3 无红面（同 slug 正半绿、无身份文档反半出 finding）。
 - **DependsOn**: 2, 3
 
 ### Task 5: board 面——路径入口 · 索引驱动节点解析
@@ -94,17 +94,19 @@ base: develop
 - **DependsOn**: 1, 2
 
 ### Task 6: 派发面——工作区钥与 spec 链接自 front-matter
-- **Objective**: `implement` / `review` / `fix` / `base` 的工作区目录键由 `Workspace.slugFromDoc`（文件名推演）改为读目标文档 front-matter 的 `slug:`；plan / branch 面的 `specLink` 由 plan 头 `spec:` 改为「同 slug 的身份文档」索引查表；派发目标缺 `slug:` → doc-contract 硬 BLOCKED（exit 1 + CDD_BLOCKED，措辞与缺 `doc-type:` 同级）；派发目标 slug 在 `SlugIndex` 命中 `duplicate-identity` / `duplicate-plan` → 同面硬 BLOCKED + exit 1。
-- **Files**: `packages/cdd-engine/src-next/face/cli.ts`（`#sceneOf` `:771-871` · 三处 slug 来源 `:801` / `:808` / `:831` · specLink `:833-840` · `:1011`）；`packages/cdd-engine/src-next/session/preflight.ts`（`:196-233` doc-contract 分支）；`packages/cdd-engine/src-next/face/words.ts`（新 route word）；测试 `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（`:1564` · `:1616` · `:1760` · `:1873`）、`packages/cdd-engine/src-next/session/__tests__/preflight.test.ts`。
+- **Objective**: `implement` / `review` / `fix` / `base` 的工作区目录键由 `Workspace.slugFromDoc`（文件名推演）改为读目标文档 front-matter 的 `slug:`；plan / branch 面的 `specLink` 由 plan 头 `spec:` 改为「同 slug 的身份文档」索引查表；派发目标缺 `slug:` → doc-contract 硬 BLOCKED（exit 1 + CDD_BLOCKED，措辞与缺 `doc-type:` 同级）；派发目标 slug 在 `SlugIndex` 命中 `duplicate-identity` / `duplicate-plan` → 同面硬 BLOCKED + exit 1；`base` 无 preflight gate，其缺 / 非法 `slug:` 在 `#runBase` 的同一 slug 解析点按派发面载体拒绝（exit 1 + CDD_BLOCKED）。
+- **Files**: `packages/cdd-engine/src-next/face/cli.ts`（`#sceneOf` `:771-871` · 三处 slug 来源 `:801` / `:808` / `:831` · specLink `:833-840` · `#runBase` `:992-1017` 的 `Workspace.slugFromDoc` 站点 `:1009-1011`）；`packages/cdd-engine/src-next/session/preflight.ts`（`:196-233` doc-contract 分支）；`packages/cdd-engine/src-next/face/words.ts`（新 route word）；测试 `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（`planFor` head `:211-219` · `:1564` · `:1616` · `:1760` · `:1873` · base 面 `:3053` 起）、`packages/cdd-engine/src-next/session/__tests__/preflight.test.ts`。
 - **Consumes**: Task 2 的 `SlugIndex`；Task 1 的语料 `slug:`。
-- **Produces**: 工作区钥 = 文档 `slug:`（四 verb 与 board 同一把）；`scene.specLink` 由索引解析（repoRoot 相对形）；缺 `slug:` 与同 slug 多身份文档 / 多 plan 的派发面 BLOCKED 文案。
+- **Produces**: 工作区钥 = 文档 `slug:`（四 verb 与 board 同一把）；`scene.specLink` 由索引解析（repoRoot 相对形）；缺 `slug:` 与同 slug 多身份文档 / 多 plan 的派发面 BLOCKED 文案；base 面同一把钥匙与同一拒绝载体（exit 1 + CDD_BLOCKED）。
 - **Steps**:
   - 失败测试（未覆盖输入面 ① 的派发半）：temp repo 的 plan 文件名为 `x-p1.md` 而头写 `slug: custom-key` → 工作区落在 `.kairos/cdd/custom-key/` — checkable: 现状落在 `x-p1`
   - 失败测试：`--plan` 指向的 plan 与 `--spec` 指向的 spec 各缺 `slug:` → 两条命令均 exit 1 + CDD_BLOCKED 文案含 `slug:` — checkable: 现状失败
   - 失败测试（AC「同 slug 多 plan 或多身份文档 → 硬 BLOCKED」的派发半）：temp repo 写两份同 slug 身份文档 → `--spec` 与 `--plan` 均 exit 1 + CDD_BLOCKED（文案含 duplicate，与缺 `slug:` 同面同形）；同 slug 两份 plan → 同形 — checkable: 现状失败
   - 失败测试：plan 头**无** `spec:`、盘上同 slug 有 phase-spec → 轮上下文 `INPUT_SPEC` 仍解析到该 spec 的 repoRoot 相对 token — checkable: 现状失败
+  - 失败测试（base 半：同钥 + 拒绝载体）：`base set --plan` 的目标 plan 头写 `slug: custom-key` 而文件名 `x-p1.md` → 工件落 `.kairos/cdd/custom-key/base.json`；同一 plan 缺 `slug:` / 非法 `slug:`（`../x`）→ exit 1 + `CDD_BLOCKED` 文案含 `slug:`（`base get` 同判）— checkable: 现状落 `x-p1`、缺键与非法值均 exit 0
   - 改 `#sceneOf`：三处 slug 改读索引身份（零文件名推演）；specLink 改「同 slug 身份文档」+ `RepoRoot.relativize`；`preflight.ts` 的 doc-contract 分支在缺 `doc-type:` 判之后增设缺 `slug:` 判与 `SlugIndex.violations()` 的 `duplicate-identity` / `duplicate-plan` 判（同面同形）— checkable: 上述四组用例绿；`cli.test.ts:1873` 的工作区目录断言按新语义翻新后绿
-- **Acceptance**: 四 verb 与 board 同钥；`slugFromDoc` 在活面零调用；缺 `slug:` 走 CDD_BLOCKED + exit 1（与 board 的 exit 2 分面）；path funnel 的 branded `RepoPath` 链零破。
+  - 改 `#runBase`（`:992-1017`）：`new Workspace(…, Workspace.slugFromDoc(planPath))`（`:1009-1011`）改走与 `#sceneOf` 同一处 slug 读取；base 无 preflight gate，缺 / 非法 `slug:` 在解析点前置拒绝，载体 = 派发面形（exit 1 + `CDD_BLOCKED`）；`cli.test.ts` 的 `planFor` head（`:211-219`）补 `slug: p3`，既有 `.kairos/cdd/p3` 断言零改 — checkable: base 面两用例绿；`grep -rn 'slugFromDoc' packages/cdd-engine/src-next/face --include=*.ts | grep -v __tests__` 零命中
+- **Acceptance**: 四 verb 与 board 同钥；`slugFromDoc` 在活面零调用；`implement` / `review` / `fix` 与 `base` 的缺 / 非法 `slug:` 均走 CDD_BLOCKED + exit 1（与 board 的 exit 2 分面）；path funnel 的 branded `RepoPath` 链零破。
 - **DependsOn**: 1, 2
 
 ### Task 7: 退役文件名推演面
@@ -140,12 +142,12 @@ base: develop
 - **Produces**: 消费面零旧键 / 零文件名派生措辞；changeset（双包在册）；`pnpm run validate` ALL PASS。
 - **Steps**:
   - 翻新 `packages/kairos/tests/cdd-plan-spec.test.ts:31` 的 pin：`author-plan` 节点体仍须点到身份键与「plan 记录是程序链第一跳」，但改判 `slug:` 继承与归属链，不再要求 `spec:` — checkable: 旧 pin 失败、新 pin 绿
-  - 改五处 skill 字面 + 两份 README（board 行 + 消费者迁移说明）；`board` 命令名与七命令词表零改 — checkable: `grep -rn 'board <slug>\|parent-program\|文件名派生\|slug resolution\|doc filename' packages/kairos/skills packages/cdd-engine/README.md packages/cdd-engine/README.zh-CN.md` 零命中；`packages/kairos/tests/presentation-surface.test.ts` 全绿
+  - 改五处 skill 字面 + 两份 README（board 行 + 消费者迁移说明）；`board` 命令名与七命令词表零改 — checkable: `grep -rn 'board <slug>\|parent-program\|文件名派生\|slug resolution\|doc filename' packages/kairos/skills packages/cdd-engine/README.md packages/cdd-engine/README.zh-CN.md` 零命中；`presentation-surface.test.ts` 补一条迁移说明正向 pin（两份引擎 README 同时命中 `.kairos/cdd/` 与「旧键目录不复用 / 可手删（major breaking）」语义，EN 与 zh-CN 同断）；`packages/kairos/tests/presentation-surface.test.ts` 全绿
   - 非目标面复核：`schema get` 零新旗标（无 `--slug` / `--from-spec`）；branch face 的 skill ref 与四轴零改 — checkable: 本 phase 全部提交的 `--name-only` 并集不含 `packages/cdd-engine/src-next/face/host.ts`；`cdd schema get --help` 旗标集与改前一致
   - 新增 changeset（cdd-engine **major** · kairos **minor** · 不发布）— checkable: 文件存在且两包 bump 类型正确
   - D29 黑盒边界核对：消费 skill 字面只承载行为契约，零引擎内部类名与推演函数名 — checkable: `grep -rn 'SlugIndex\|SlugViolation\|slugFromDoc' packages/kairos/skills` 零命中
   - 跑 `pnpm -C packages/cdd-engine test` · `pnpm -C packages/kairos test` · `pnpm run validate` — checkable: 三命令全绿 / ALL PASS
-- **Acceptance**: 消费面与 README 零旧键措辞；D29 边界守住；changeset 双包在册且不发布；附录调研不进实现面、branch skill ref 零改；`validate` ALL PASS。
+- **Acceptance**: 消费面零旧键措辞；两份引擎 README 的消费者迁移说明在册（`.kairos/cdd/` + 「旧键目录不复用 / 可手删（major breaking）」正向 pin）；D29 边界守住；changeset 双包在册且不发布；附录调研不进实现面、branch skill ref 零改；`validate` ALL PASS。
 - **DependsOn**: 8
 
 ## Change history
@@ -154,3 +156,4 @@ base: develop
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-20 | 初稿——P15 九任务五波：W1 {T1 语料身份键先行 · T2 `SlugIndex` 索引单源} → W2 {T3 契约形状面 · T5 board 路径入口 · T6 派发面工作区钥} → W3 {T4 判定 / 链面 · T7 文件名推演面整退} → W4 {T8 语料旧键退场} → W5 {T9 消费面 + changeset + validate}；承 design v0.5 / D59。 | Oscaner M. · Claude（kairos:cdd-plan [P15]） |
 | v0.2 | 2026-10-20 | plan-fix-1——review-1 findings 全修（14/14）：派发面 slug 唯一性硬门补 owner · 语料计数 15 plan / 31 篇 · Task 3 / 4 的 grep 判据收窄 · 节点板 `#isOverallNode` / `-overall` 退役归属 · `DocEntry.title` · 非法 `slug:` 双面 pin · fixture 涟漪进 W2 · 占位豁免单源上提 · 契约门 pin 校正 · Task 8 `DependsOn` 补 5。 | Oscaner M. · Claude（kairos:cdd-fix [P15]） |
+| v0.3 | 2026-10-20 | plan-fix-2——review-2 findings 全修（4/4）：Task 6 补 base 半 owner（`#runBase` 同键读取 · 派发面拒绝载体 · `planFor` slug）· Task 3 / 4 的 conforming fixture 族换头与 Class-A 正半归属 · 词表 pin 按实测校正 · Task 9 README 迁移说明正向 pin。 | Oscaner M. · Claude（kairos:cdd-fix [P15]） |

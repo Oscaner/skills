@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P15 实施计划：文档身份面统一为 front-matter `slug:`（board 路径入口 · 文件名推演与路径声明键整退）
 doc-type: plan
-version: v0.5
+version: v0.6
 date: 2026-10-20
 slug: 2026-10-10-engine-doc-tooling-p15
 depends-on: P14（Done · v0.3 · hard——P14 全链闭合 · overall 依赖图 D59）；前置 = P15 design spec v0.5（三轮 review 关闭 + plan 面 backfill）
@@ -18,6 +18,7 @@ base: develop
 - 冻结面零破：`next:` 字面形态（P5/P9）；退出码表 0/1/2 语义（board 三类拒绝面统一 exit 2 属既有形）；CDD_BLOCKED 通道**只**承载派发面硬门（exit 1），board 不入该通道；branch face 的 skill ref 与四轴零改（附录调研不施工）。
 - D29 黑盒边界：消费 skill 只承载行为契约（读 `slug:` / 写 `slug:` / 写 `program:` / board 路径入口），零引擎内部类名与推演函数名。
 - 引擎调用一律本地 `node packages/cdd-engine/src-next/bin.ts`；本计划为内部文档中文主源（Strategy B）；不发布，changeset 收尾到可发布态即止。
+- **计划外前置提交（归属声明）**：child-prompt Bash 纪律（每条 Bash 命令必带 `timeout` 与硬上限 `CHILD_BASH_TIMEOUT_MS` · 禁无界循环）随本分支在实现期落地（提交 `bdfeff35` / `9f740c62`：`render/templates.ts` 的 `cl:bash-stall-limit` 重写 + `cl:no-infinite-loop` 新增 + 模板契约 `$version` 10 → 12 · `face/termination.ts` 的 `CHILD_BASH_TIMEOUT_MS`，changeset `p15-child-bash-discipline-clauses.md`）——用户在本 phase 会话中明确要求的消费面子契约收紧，先于本计划成文；**不计入 P15 任务面**，本行即其归属记录（分支配额内每一改动文件均可归因，无未声明面）。
 - **未覆盖输入面（Review Focus，逐条已钉测试）**：① 文件名与 `slug:` 矛盾（`x-design.md` 内写 `slug: y`）→ 全链零文件名影响（Task 2 · 5 · 6）；② 同一 slug 出现两份**身份文档**（无论分居 specs / plans 两目录还是同一目录）→ BLOCKED；同 slug 的「一份身份文档 + 一份 plan」才是合法对（Task 2 · 5）；③ `--plan` 与 `--spec` 同 slug 异型 → 仍是一块板（取 `--spec` 板形）（Task 5）；④ phase-spec 的 `program:` 指向已改名 / 缺失的 overall → 硬 BLOCKED，不是 `(none)` 也不是崩溃（Task 4 判据 · Task 5 呈现）；⑤ 入口文档落在 docRoots 之外 → not-found 面 exit 2、stdout 零 `(BLOCKED)` 标记（Task 5）。
 
 ### Task 1: 语料身份键先行——全库声明 `slug:`（+ phase-spec 的 `program:`）
@@ -37,7 +38,7 @@ base: develop
 - **Objective**: 新增 `infra/slug-index.ts`：一次扫 `ENGINE_RUNTIME.docRoots`（specs + plans）下全部文档，读 front-matter 头，产出身份条目（path · rel · docType · slug · program · version · status · title）并按 slug 归并；暴露查表与违约判据（重复身份文档 / 重复 plan / 缺 `slug:` / 非法 `slug:` 值 / `program:` 命中 0 篇）。判据**一处**，board 与派发 pre-flight 都读它，零第二套实现。同时给 `FrontMatterHead` 补 `slug` / `program` 两个取值子（身份读取面）。
 - **Files**: 新建 `packages/cdd-engine/src-next/infra/slug-index.ts`；新建 `packages/cdd-engine/src-next/infra/__tests__/slug-index.test.ts`；`packages/cdd-engine/src-next/contract/frontmatter.ts`（`slug` / `program` 取值子）；`packages/cdd-engine/src-next/contract/__tests__/frontmatter.test.ts`（取值子 pin）。
 - **Consumes**: `ENGINE_RUNTIME.docRoots`（`infra/runtime.ts`）；`FrontMatterExtractor` / `FrontMatterHead`（`contract/frontmatter.ts`）；`DocKey` / `DOC_KEYS`（`contract/project.ts`）。
-- **Produces**: `export class SlugIndex`（`static build(repoRoot: string): SlugIndex` · `readonly entries: readonly DocEntry[]` · `entryAt(rel)` · `identityDoc(slug)` · `planOf(slug)` · `phaseSpecsOf(programSlug)` · `overallOf(programSlug)` · `violations(): readonly SlugViolation[]`）与 `DocEntry`（含 `title`，供板面旁注）/ `SlugViolation` 类型。Task 4 / 5 / 6 消费。
+- **Produces**: `export class SlugIndex`（`static build(repoRoot: string, fs?: SlugScanFs): SlugIndex` · `readonly entries: readonly DocEntry[]` · `entryAt(rel)` · `identityDoc(slug)` · `planOf(slug)` · `phaseSpecsOf(programSlug)` · `overallOf(programSlug)` · `violations(): readonly SlugViolation[]` · `static isLegalSlug(value)` · `duplicatedRolesOf(slug)` · `slugVerdict(rel, slug)` · `insideDocRoots(rel)`）与 `DocEntry`（含 `title`，供板面旁注）/ `SlugViolation` 类型。`fs?: SlugScanFs` 注入缝 = 判定面的内存仓储入口（判定面不落盘即可跑）；`isLegalSlug` / `duplicatedRolesOf` / `slugVerdict` 是 board 与派发 pre-flight 共用的判定读法（branch-fix-1 把两处各自拼写的四路门收敛至此）；`insideDocRoots` 服务 §3.1 的 not-found 短路（豁免面零文档读取）。Task 4 / 5 / 6 消费。
 - **Steps**:
   - 失败测试：temp repo 写 1 篇 overall + 2 篇 phase-spec（带 `program:`）+ 1 篇 plan，断言 `identityDoc` / `planOf` / `phaseSpecsOf` / `overallOf` / `entryAt` 的命中面与 rel 形 — checkable: 现状 `Cannot find module`
   - 失败测试（违约五型 + 合法一对）：同 slug 两份身份文档 → `duplicate-identity`；同 slug 两份 plan → `duplicate-plan`；无 `slug:` 的文档 → `missing-slug`；非法 `slug:` 值（`../x`）→ `invalid-slug`；`program:` 指向不存在的 overall → `missing-program-target`；spec + plan 同 slug → **零**违约 — checkable: 六例断言现状失败
@@ -158,3 +159,4 @@ base: develop
 | v0.3 | 2026-10-20 | plan-fix-2——review-2 findings 全修（4/4）：Task 6 补 base 半 owner（`#runBase` 同键读取 · 派发面拒绝载体 · `planFor` slug）· Task 3 / 4 的 conforming fixture 族换头与 Class-A 正半归属 · 词表 pin 按实测校正 · Task 9 README 迁移说明正向 pin。 | Oscaner M. · Claude（kairos:cdd-fix [P15]） |
 | v0.4 | 2026-10-21 | **实现期 backfill（cdd-dev 会话 · W2 review-1 finding 5）**——Task 3 步骤 3 的骨架 `program:` 占位措辞由「尖括号占位形，与既有 link 占位同形」改为点明**值域形**（括号内容 = 父 overall 的 slug，如 `<overall-slug>`，不沿用已退役路径键的路径范例）；同步 design §4.2 v0.6 的口径收口。纯措辞裁定，任务面与波序不变。 | Oscaner M. · Claude（kairos:cdd-dev [P15] backfill） |
 | v0.5 | 2026-10-21 | **实现期 backfill（cdd-dev 会话 · T8 implement 上报的计划内部冲突）**——Task 8 步骤 1 的零残留判据由整文件 `grep` 收窄为 **front-matter 作用域**（`awk` 取首个 `---` 块）：整文件 grep 会命中原 phase `p10-design.md` 正文 fenced yaml 示例里的旧键行（`:73`/`:74`），而删它们既超出本任务的窄授权（「**front-matter 键行**」）又违反同任务两处写明的「正文与表格零改」。判据是本条缺陷、语料不是——Acceptance 同步限定为 front-matter 零残留。判定方向与已记录的同类先例一致（design §1.2 pin 表、overall D59 行皆以历史叙述保留已退役形状） | Oscaner M. · Claude（kairos:cdd-dev [P15] backfill） |
+| v0.6 | 2026-10-21 | **分支终审 S1/S7 上报面的 plan 回填（cdd-dev 会话 · branch-fix-1 上报）**——① **归属声明**（Constraints 新增条）：child-prompt Bash 纪律（`bdfeff35` / `9f740c62` · `CHILD_BASH_TIMEOUT_MS` · 模板契约 `$version` 10 → 12 · 自带 changeset）是用户本会话明确要求、先于本计划成文的消费面收紧，记明不计入 P15 任务面，本行即其归属记录（分支上每一改动文件均可归因）；未采用「拆独立分支」——那要改写已受审提交集，收益不抵风险。② **T2 `Produces` 补记实交 API**：`isLegalSlug` / `duplicatedRolesOf` / `slugVerdict` / `insideDocRoots` / `build(repoRoot, fs?: SlugScanFs)` 注入缝——三处均有生产读者，删不可行、漏记则 API 面与 brief 不符。③ 同轮 branch-fix-1 的代码面 findings（S2–S6：changeset 末行换行 · 四处作废注释 · 派发面 slug 门收敛进 `SlugIndex.slugVerdict` + `Words.slugRefusal` · `#programMissing` 复用 · not-found 短路）已落地于 `0963327b`，本行不重复其内容 | Oscaner M. · Claude（kairos:cdd-dev [P15] backfill） |

@@ -4,8 +4,6 @@ doc-type: plan
 version: v0.2
 date: 2026-10-20
 slug: 2026-10-10-engine-doc-tooling-p14
-spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p14-design.md
-parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
 depends-on: P13（Done · hard——终止面与升格已落地 · overall D58）
 base: develop
 ---

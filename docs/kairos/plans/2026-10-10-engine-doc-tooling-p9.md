@@ -5,8 +5,6 @@ doc-type: plan
 version: v0.9
 date: 2026-10-17
 slug: 2026-10-10-engine-doc-tooling-p9
-spec: ../specs/2026-10-10-engine-doc-tooling-p9-design.md
-parent-program: ../specs/2026-10-10-engine-doc-tooling-overall.md
 ---
 
 ## Constraints

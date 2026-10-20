@@ -4,8 +4,6 @@ doc-type: plan
 version: v0.5
 date: 2026-10-17
 slug: 2026-10-10-engine-doc-tooling-p10
-spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p10-design.md
-parent-program: ../specs/2026-10-10-engine-doc-tooling-overall.md
 ---
 
 ## Constraints

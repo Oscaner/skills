@@ -7,7 +7,6 @@ slug: 2026-10-10-engine-doc-tooling-p13
 program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P13] 会话 · 用户逐轮裁定 Q1–Q11 · 2026-10-19）
-parent-program: 2026-10-10-engine-doc-tooling-overall.md
 parent-version: v2.62
 depends-on: P12（Done · v0.8 · hard——P12 终止面落地后的四个跟进缺陷 · overall 依赖图 D55）
 ---

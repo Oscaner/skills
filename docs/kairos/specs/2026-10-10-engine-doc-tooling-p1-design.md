@@ -9,7 +9,6 @@ program: 2026-10-10-engine-doc-tooling
 status: Approved
 author: "[human] · Claude Opus 5（kairos:cdd-design [P1] grilling 定案 →
   cdd-spec-writer · 词表统一 backfill 2026-10-11）"
-parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
 parent-version: v1.9
 depends-on: 依赖升级与 src 更名程序 P2（sweep 面关系 · D8 拆 pin——本 phase 先行实现于现行 `src-next/`
   树，rename sweep 随后全库覆盖本 phase 新文件字面量）；本程序 P2（schema gen 模板写作 · 引擎面已落 v0.4 ·

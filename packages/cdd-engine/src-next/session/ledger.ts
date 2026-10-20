@@ -177,14 +177,6 @@ export interface SampleRecord extends Sample {
   verdict: StallVerdict;
 }
 
-/** The lane-crash cause vocabulary — postmortem classification of why a dispatch
- *  terminated before the exit gate (zero behavior fork: resume never routes on it).
- *  The termination causes cover the round that was cut short; `child-exit` is the
- *  child's own non-zero exit; `handoff-absent` is the read-back face when the child
- *  exited 0 but wrote no draft at all; `contract-violation` is the read-back face
- *  when a draft is present but unqualified (malformed JSON / schema); and `unknown`
- *  is the unattributable termination fallback. Both read-back causes increment
- *  `contractViolationCount` — never folded under one cause word. */
 /** How a round ended when it did not end by itself — the derived cause plus the
  *  last observed sample (the postmortem pair the crash record carries; the sample
  *  rides the outcome in memory, never re-read from the heartbeat file). `unknown`
@@ -196,6 +188,14 @@ export interface Termination {
   lastSample: SampleRecord | null;
 }
 
+/** The lane-crash cause vocabulary — postmortem classification of why a dispatch
+ *  terminated before the exit gate (zero behavior fork: resume never routes on it).
+ *  The termination causes cover the round that was cut short; `child-exit` is the
+ *  child's own non-zero exit; `handoff-absent` is the read-back face when the child
+ *  exited 0 but wrote no draft at all; `contract-violation` is the read-back face
+ *  when a draft is present but unqualified (malformed JSON / schema); and `unknown`
+ *  is the unattributable termination fallback. Both read-back causes increment
+ *  `contractViolationCount` — never folded under one cause word. */
 export type CrashCause =
   | TerminationCause
   | "child-exit"

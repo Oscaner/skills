@@ -9,15 +9,15 @@
 import { describe, expect, it } from "vitest";
 import { FrontMatterExtractor, FrontMatterHead } from "../frontmatter.ts";
 
-/** The full §2.1 plan-shaped front matter — every one of the fourteen declared keys. */
-const FULL_HEAD = [
+/** A plan-shaped front matter — every plan-declared §2.3 key. `program:` belongs
+ *  only to phase-spec, so a conforming plan head never carries it. */
+const PLAN_HEAD = [
   "---",
   "title: 引擎文档工具（Engine Doc-Tooling）— 测试 Plan",
   "doc-type: plan",
   "version: v0.9",
   "date: 2026-10-17",
   "slug: x-p10",
-  "program: x",
   "spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p10-design.md",
   "parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md",
   "parent-version: v2.46",
@@ -31,9 +31,29 @@ const FULL_HEAD = [
   "body prose",
 ].join("\n");
 
+/** A phase-spec-shaped front matter — the one doc-type that declares `program:`
+ *  (the parent-program slug), plus the §2.3 keys it carries. */
+const PHASE_SPEC_HEAD = [
+  "---",
+  "title: 引擎文档工具（Engine Doc-Tooling）— 测试 Phase Spec",
+  "doc-type: phase-spec",
+  "version: v0.5",
+  "date: 2026-10-17",
+  "slug: x-p10",
+  "program: x",
+  "parent-program: 2026-10-10-engine-doc-tooling-overall.md",
+  "parent-version: v2.46",
+  "depends-on: P9",
+  "status: Draft",
+  'author: "[human] · Claude Opus 5（…）"',
+  "---",
+  "## Design",
+  "body prose",
+].join("\n");
+
 describe("FrontMatterExtractor.split — the fence split", () => {
   it("splits a fenced head from the body at the second `---` fence", () => {
-    const { head, body } = FrontMatterExtractor.split(FULL_HEAD);
+    const { head, body } = FrontMatterExtractor.split(PLAN_HEAD);
     expect(body).toBe("## Design\nbody prose");
     expect(head.title).toBe("引擎文档工具（Engine Doc-Tooling）— 测试 Plan");
     expect(head.docType).toBe("plan");
@@ -101,7 +121,7 @@ describe("FrontMatterExtractor.split — the fence split", () => {
 });
 
 describe("FrontMatterHead.value — the typed accessor", () => {
-  const { head } = FrontMatterExtractor.split(FULL_HEAD);
+  const { head } = FrontMatterExtractor.split(PLAN_HEAD);
 
   it("reads every declared scalar key through value(key)", () => {
     expect(head.value("title")).toBe("引擎文档工具（Engine Doc-Tooling）— 测试 Plan");
@@ -127,20 +147,21 @@ describe("FrontMatterHead.value — the typed accessor", () => {
 
 describe("the RAW channel — extraction matches the source verbatim", () => {
   it("reads a bracket-led author value byte-for-byte from the source string", () => {
-    const { head } = FrontMatterExtractor.split(FULL_HEAD);
+    const { head } = FrontMatterExtractor.split(PLAN_HEAD);
     expect(head.author).toBe("[human] · Claude Opus 5（…）");
     expect(head.value("author")).toBe(head.author);
   });
 });
 
 describe("the fourteen declared getters (§2.3 key set)", () => {
-  const { head } = FrontMatterExtractor.split(FULL_HEAD);
+  const { head } = FrontMatterExtractor.split(PLAN_HEAD);
 
-  it("exposes the kebab keys through the getter surface", () => {
+  it("exposes the plan-declared keys through the getter surface", () => {
     expect(head.title).toBe("引擎文档工具（Engine Doc-Tooling）— 测试 Plan");
     expect(head.docType).toBe("plan");
     expect(head.slug).toBe("x-p10");
-    expect(head.program).toBe("x");
+    // `program:` is phase-spec-only — a plan-shaped head reads null
+    expect(head.program).toBeNull();
     expect(head.version).toBe("v0.9");
     expect(head.date).toBe("2026-10-17");
     expect(head.status).toBe("Draft");
@@ -151,6 +172,13 @@ describe("the fourteen declared getters (§2.3 key set)", () => {
     expect(head.dependsOn).toBe("P9");
     expect(head.base).toBe("develop");
     expect(head.issues).toBe("close all issues");
+  });
+
+  it("reads `program:` from the phase-spec-shaped head (the only doc-type that declares it)", () => {
+    const { head: phaseSpecHead } = FrontMatterExtractor.split(PHASE_SPEC_HEAD);
+    expect(phaseSpecHead.docType).toBe("phase-spec");
+    expect(phaseSpecHead.slug).toBe("x-p10");
+    expect(phaseSpecHead.program).toBe("x");
   });
 
   it("reads null for every getter on an empty head", () => {

@@ -25,17 +25,17 @@
           "refKind": "none"
         },
         {
+          "anchor": "slug",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
           "anchor": "status",
           "presence": "required",
           "refKind": "none"
         },
         {
           "anchor": "author",
-          "presence": "required",
-          "refKind": "none"
-        },
-        {
-          "anchor": "depends-on",
           "presence": "required",
           "refKind": "none"
         },

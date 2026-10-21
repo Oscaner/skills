@@ -32,9 +32,17 @@ Global option: `--dry-run` — preview the next dispatch step and its expected a
 | `base` | `cdd base set\|get` | Read/write the `base.json` artifact (single CDD `--plan` target) |
 | `schema` | `cdd schema get <type>` | Print the canonical doc-structure schema (discovery-only, zero enforcement) |
 | `issue` | `cdd issue render` | Render an aggregate issue body from stdin findings (pure rendering, zero enforcement) |
-| `board` | `cdd board <slug>` | Render the slug progress board (overall/spec/plan/wave/branch; pure read, zero enforcement) |
+| `board` | `cdd board --plan <path> / --spec <path>` | Render the entry document's progress board (overall/spec/plan/wave/branch; pure read, zero enforcement) |
 
 Use `cdd <command> --help` for a command's full option list (for example `cdd review --tasks` / `--spec` / `--plan` / `--round`).
+
+## Migration
+
+Document identity is the front-matter `slug:` key. This retired the file-name-derived identity: a **major breaking** change with **zero dual-read** — the retired keys are simply not read, and the retired entry form is not accepted.
+
+- **Board entry is a document path.** `cdd board --plan <path>` / `cdd board --spec <path>` replace the retired positional-slug form.
+- **Identity is declared, not derived.** A document is keyed by the `slug:` its front matter carries — the file name carries no identity meaning at all. The retired path keys are no longer read (leaving one in place is inert, not an error); a plan's program chain resolves through the identity document sharing its `slug:` — a phase-spec's `program:` names its overall, while an overall or single-spec is its own chain root.
+- **Per-run workspaces follow the key.** The `.kairos/cdd/<slug>/` directory is keyed by the plan document's `slug:`. A directory left under a retired file-name-derived key is **not reused** by any run — no run resumes or migrates it. A reporting session's ledger scan still reads its records, so delete it by hand once you no longer need that history.
 
 ## Development
 

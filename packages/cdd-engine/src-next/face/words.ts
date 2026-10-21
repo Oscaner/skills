@@ -31,7 +31,9 @@
 // Module-level exports are types / the declared word data / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import { DOC_TYPE_VALUES } from "../contract/declare.ts";
 import type { LocalizedWord, WordLocaleFace } from "../contract/translate.ts";
+import type { SlugRefusal } from "../infra/slug-index.ts";
 
 // ---------------------------------------------------------------------------
 // capsule — the station-word family (the declared steady word face)
@@ -47,13 +49,18 @@ export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
  *  (v1.20: the `none` word is retired — closure is `done`, never "no suggestion";
  *  v1.25: `implement` — the dispatch-ready `next:` literal's verb for a ready wave;
  *  `docType` — the missing-declaration BLOCK wording the capsule's unified next face
- *  renders over the CDD_BLOCKED station, spec §12 · D34). */
+ *  renders over the CDD_BLOCKED station, spec §12 · D34; `docTypeValue` — the
+ *  declared-but-out-of-domain BLOCK wording, distinct from the missing key). */
 export type RouteWordKind =
   | "done"
   | "review"
   | "fix"
   | "implement"
   | "docType"
+  | "docTypeValue"
+  | "slugMissing"
+  | "slugInvalid"
+  | "slugDuplicated"
   | "frontmatterParse";
 
 /** The wave-gate BLOCK wording rows — the vocabulary the WaveGate verdicts render
@@ -67,6 +74,9 @@ export interface WaveGateWords {
   split: string;
   /** The wrong-phase BLOCK — the open wave is at a phase different from the requested verb. */
   wrongPhase: string;
+  /** The mixed-batch BLOCK — a requested task hits a derived batch that holds both
+   *  closed and open tasks (a batch closes as a unit; re-declare the edges). */
+  mixedBatch: string;
 }
 
 /** The pre-flight BLOCK wording rows — the lifecycle pre-flight seam's refusal
@@ -117,7 +127,15 @@ export const CAPSULE_WORDS = {
     fix: "fix",
     implement: "implement",
     docType:
-      "the doc declares no `doc-type:` key — add `doc-type: <overall-spec|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
+      "the doc declares no `doc-type:` key — add `doc-type: <overall|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
+    docTypeValue:
+      "the doc declares `doc-type: {value}`, which is outside the declared domain — use one of {domain} and re-run",
+    slugMissing:
+      "the doc declares no `slug:` key — add `slug: <workspace-key>` to the doc's front-matter (the identity key the board and every work command share) and re-run",
+    slugInvalid:
+      'the doc\'s `slug:` value "{slug}" is illegal — use 1–128 characters, an alphanumeric first character, then alphanumerics, `.`, `_`, or `-` (the slug is the workspace directory name), then re-run',
+    slugDuplicated:
+      'the slug "{slug}" is declared by more than one document — keep exactly one identity document and at most one plan per slug, then re-run',
     frontmatterParse:
       "the doc's front-matter is not valid YAML: {reason} on line {line}, column {column} (`{source}`) — quote values that start with `[` or `{` (a YAML flow-sequence start) and re-run",
   } as const,
@@ -127,12 +145,14 @@ export const CAPSULE_WORDS = {
     split:
       "the requested wave ({requested}) splits/mismatches the derived wave ({open}) — dispatch the full derived wave",
     wrongPhase: "the open wave is at {phase} — run cdd {phase} first",
+    mixedBatch:
+      "the derived batch ({batch}) mixes closed and open tasks ({closed} closed, {open} open) — a wave closes as a unit; re-declare the **DependsOn** edges so no task joins an already-executed batch",
   } as const satisfies WaveGateWords,
   /** The pre-flight BLOCK wording rows (P4.1 T1) — the seam's refusal vocabulary,
    *  single-sourced (the seam fills the {count} slot, never a re-type). */
   preflight: {
     dirtyTree:
-      "the working tree is dirty — commit or discard your changes, then re-run the same command",
+      "the working tree is dirty — commit or discard your changes (recovery is the orchestrator's job; the engine only refuses — it never stashes, makes a temporary commit, or resumes a dirty tree), then re-run the same command",
     graph: "the plan graph has {count} edge violation(s) — fix the **DependsOn** edges first",
     docContract: "the target document fails the doc-contract — fix its structural findings first",
   } as const satisfies PreflightWords,
@@ -283,6 +303,29 @@ export class Words implements WordLocaleFace {
   /** One route classifier word (`done` / `review` / `fix` / `implement`). */
   routeWord(kind: RouteWordKind): string {
     return CAPSULE_WORDS.routeWords[kind];
+  }
+
+  /** The out-of-domain `doc-type:` wording — the declared value named, the
+   *  allowed domain interpolated from the ONE `DOC_TYPE_VALUES` declaration
+   *  (never a second hand-written list). */
+  docTypeValueWord(value: string): string {
+    return this.routeWord("docTypeValue")
+      .replace("{value}", value)
+      .replace("{domain}", DOC_TYPE_VALUES.join(", "));
+  }
+
+  /** The identity-gate refusal wording for one refused slug verdict — the ONE
+   *  spelling the pre-flight gate and the dispatch carrier print (the row and its
+   *  `{slug}` fill are owned here, never re-typed at a carrier). */
+  slugRefusal(verdict: SlugRefusal): string {
+    switch (verdict.kind) {
+      case "missing":
+        return this.routeWord("slugMissing");
+      case "illegal":
+        return this.routeWord("slugInvalid").replace("{slug}", verdict.slug);
+      case "duplicated":
+        return this.routeWord("slugDuplicated").replace("{slug}", verdict.slug);
+    }
   }
 
   /** The wave-gate BLOCK wording rows — the vocabulary the WaveGate verdicts render

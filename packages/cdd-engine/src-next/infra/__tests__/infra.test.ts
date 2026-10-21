@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 import { ARGV_CHANNEL } from "../../face/declare.ts";
 import { DISPATCH, HOSTS, REFS } from "../../face/host.ts";
 import { REVIEWS, TEMPLATE_PROMPT } from "../../render/templates.ts";
+import { HandoffSchema } from "../../session/handoff-schema.ts";
 import { ConfigLoader } from "../config.ts";
 import { GitClient } from "../git.ts";
 import { ProcessRunner } from "../process.ts";
@@ -50,14 +51,12 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
   it("carries the handoff family naming table — every op.type the ledger resolves", () => {
     expect(HANDOFF_FAMILIES["implement.wave"].name).toBe("tasks-{tasks}-implement.json");
     expect(HANDOFF_FAMILIES["review.wave"].name).toBe("tasks-{tasks}-review-{round}.json");
-    // v1.9 — the family `schema` faces select the handoff-schema subset (§3.6: the
-    // field resurrected from the dead task/docs discrimination), and the return-format
-    // field is gone (RETURN_PROSE is the ONE return contract). The docs-fix
-    // families (fix.spec/fix.plan) ride the findings face — §3.6's per-mode split.
-    expect(HANDOFF_FAMILIES["review.branch"].schema).toBe("findings");
-    expect(HANDOFF_FAMILIES["fix.plan"].schema).toBe("findings");
-    expect(HANDOFF_FAMILIES["implement.wave"].schema).toBe("delivery");
-    expect(HANDOFF_FAMILIES["fix.wave"].schema).toBe("delivery");
+    // Each family is a pure name row — the carrier plane is derived from the op
+    // (`HandoffSchema.planeOf`), never declared per family. The return-format field is
+    // gone (RETURN_PROSE is the ONE return contract).
+    expect(HandoffSchema.planeOf("review")).toBe("judge");
+    expect(HandoffSchema.planeOf("implement")).toBe("work");
+    expect(HandoffSchema.planeOf("fix")).toBe("work");
     for (const key of [
       "implement.wave",
       "review.wave",
@@ -70,6 +69,7 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
       "fix.branch",
     ] as const satisfies readonly (keyof typeof HANDOFF_FAMILIES)[]) {
       expect(HANDOFF_FAMILIES[key], key).toBeDefined();
+      expect(Object.keys(HANDOFF_FAMILIES[key]), key).toEqual(["name"]);
     }
     // the return-format field is deleted with the divided return faces (the type-level
     // assertion — a re-added field would fail the compile)
@@ -125,6 +125,11 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     expect(REVIEWS.spec.axesGuide).toContain("verification evidence");
     expect(REVIEWS.plan.axesGuide).toContain("completeness/decomposition/buildability");
     expect(REVIEWS.spec.lensEnum).toEqual(["completeness", "consistency", "clarity"]);
+    // D61-5 — the spec axis carries the program conformance criterion (the phase
+    // judged against the scope its charter's Phase inventory registered); the
+    // completeness lens owns the verdict, so the lens set is unchanged.
+    expect(REVIEWS.spec.axesGuide).toContain("program conformance");
+    expect(REVIEWS.spec.axesGuide).toContain("INPUT_OVERALL");
     expect(REVIEWS.plan.lensEnum).toEqual(["completeness", "decomposition", "buildability"]);
     // The review prompts fold the criteria/lens into their fixed prefix — the
     // INPUT_CRITERIA/INPUT_LENS round-context tokens are gone (§3.7).
@@ -140,6 +145,22 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     // The axes guides carry the verification-evidence duty.
     expect(REVIEWS.wave.axesGuide).toContain("dual evidence");
     expect(REVIEWS.branch.axesGuide).toContain("dual evidence");
+    // P16/D60 — the axis face invariants: the single-agent fact lives in REVIEW_ITEM
+    // only (the wave axis's duplicate tail sentence is retired), and the branch axis
+    // carries the three judgment points a green run cannot show.
+    expect(REVIEWS.wave.axesGuide).not.toContain("Single agent");
+    expect(REVIEWS.branch.axesGuide).toContain("Three things a green run cannot show you");
+    expect(REVIEWS.branch.axesGuide).toContain("design —");
+    expect(REVIEWS.branch.axesGuide).toContain("test adequacy —");
+    expect(REVIEWS.branch.axesGuide).toContain("migration —");
+    expect(REVIEWS.branch.lensEnum).toEqual(["standards", "spec", "buildability"]);
+    // P16/D60 — the two hard review disciplines ride REVIEW_ITEM, so all four review
+    // shells carry them (the data-plane side of the render suite's assembled-face pins).
+    for (const type of ["wave", "branch", "spec", "plan"] as const) {
+      const shell = TEMPLATE_PROMPT.reviews[type].shell.join("\n");
+      expect(shell).toContain("**Read-only:**");
+      expect(shell).toContain("**Single agent:**");
+    }
     expect(TEMPLATE_PROMPT.modes.implement.shell.join("\n")).toContain(
       "mattpocock-skills:implement",
     );
@@ -241,13 +262,6 @@ describe("workspace — the root/workspace pair + the slug rule + JSON roundtrip
     } finally {
       rmSync(base, { recursive: true, force: true });
     }
-  });
-
-  it("derives the slug from a doc file name — single-layer -design/-plan strip", () => {
-    expect(Workspace.slugFromDoc("2026-10-02-x-p3-design.md")).toBe("2026-10-02-x-p3");
-    expect(Workspace.slugFromDoc("2026-10-02-x-p3-plan.md")).toBe("2026-10-02-x-p3");
-    expect(Workspace.slugFromDoc("2026-10-02-x-overall.md")).toBe("2026-10-02-x-overall");
-    expect(Workspace.slugFromDoc("notes.md")).toBe("notes");
   });
 
   it("readJsonLenient tolerates the sub-agent draft dialect — trailing comma / comments (D39)", () => {

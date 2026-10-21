@@ -8,10 +8,13 @@
 //
 // The gate's only read face is `open = frontier(closedWaves())` — the derived
 // wave over the ledger's C5 closure set (ledger.ts, the same closure predicate as
-// the lifecycle's #markTerminal). The two judgments:
-//   1. requested ≠ open      → the split/subset BLOCK (dispatch the full derived wave,
+// the lifecycle's #markTerminal). The three judgments:
+//   1. requested hits a derived static batch (graph.batches()) that mixes closed
+//      and open tasks → the mixed-batch BLOCK (a batch closes as a unit — a plan
+//      revision must not strand the rest of a partly-executed batch as its own wave);
+//   2. requested ≠ open      → the split/subset BLOCK (dispatch the full derived wave,
 //                              with the wave-board hint);
-//   2. the open wave's phase ≠ verb → the wrong-phase BLOCK (run the matching phase).
+//   3. the open wave's phase ≠ verb → the wrong-phase BLOCK (run the matching phase).
 // (v1.28 — the heterogeneous-phase row RETIRED: the wave-unitary ledger has ONE row
 // per wave, so mixed per-task phases are structurally impossible — a per-task phase
 // read was the T26 regression {16,22,24} exposed (the row key `16` never matched
@@ -28,8 +31,9 @@ import type { DispatchPhase } from "./faces.ts";
 import type { TaskGraph } from "./graph.ts";
 import type { Ledger } from "./ledger.ts";
 
-/** The verdict kinds — the named gate rows (the BLOCK reason each carries). */
-export type WaveGateReason = "split" | "wrong-phase";
+/** The verdict kinds — the named gate rows (the BLOCK reason each carries): the
+ *  static-batch mix guard · the split/subset refusal · the wrong-phase refusal. */
+export type WaveGateReason = "mixed-batch" | "split" | "wrong-phase";
 
 /** One open-wave task's phase row — every member carries the WAVE's single phase
  *  (the wave-unitary read: one ledger row per wave; a per-task read would miss the
@@ -41,10 +45,11 @@ export interface WavePhaseRow {
   phase: DispatchPhase | null;
 }
 
-/** The wave-gate verdict — approved or one of the three named BLOCK rows. */
+/** The wave-gate verdict — approved or one of the three named BLOCK rows
+ *  (mixed-batch · split · wrong-phase). */
 export interface WaveVerdict {
-  /** Whether the gate approves the dispatch (the requested wave = the open wave,
-   *  the wave's phase = the requested verb). */
+  /** Whether the gate approves the dispatch (requested = the open wave, no mixed
+   *  static batch, the wave's phase = the requested verb). */
   ok: boolean;
   /** The BLOCK reason kind (present when ok is false). */
   reason?: WaveGateReason;
@@ -61,8 +66,9 @@ export interface WaveVerdict {
 /**
  * WaveGate — the three-verb unified wave gate (implement / review / fix share the
  * single gate). One OOP method: vet(requested, verb) judges the request against
- * the derived open wave + the ledger's per-task phases; the CLI calls it before
- * ANY task-face dispatch, never a variant gate per verb.
+ * the plan's static batches, the derived open wave, and the ledger's per-task
+ * phases; the CLI calls it before ANY task-face dispatch, never a variant gate per
+ * verb.
  */
 export class WaveGate {
   /** vet(requested, verb, graph, ledger, words) — the three-verb gate: the verdict
@@ -82,7 +88,27 @@ export class WaveGate {
     const wordsGate = words.waveGateWords();
     const exact = asked.length === open.length && asked.every((id, index) => id === open[index]);
 
-    // 1. The split/subset BLOCK — requested ≠ open: a `--tasks` set that splits or
+    // 1. The static-batch mix BLOCK — the requested set hits a derived batch that
+    //    mixes closed and open tasks. A batch closes as a unit: a plan revision
+    //    that adds tasks to a partly-executed batch must re-declare the edges, not
+    //    let the leftover tasks ride out as their own wave. Judged BEFORE the exact
+    //    read (the derived open wave alone cannot see the closed batch siblings).
+    const batch = graph.batches().find((derived) => derived.some((id) => requested.has(id)));
+    if (batch?.some((id) => closed.has(id)) && batch.some((id) => !closed.has(id))) {
+      return {
+        ok: false,
+        reason: "mixed-batch",
+        message: this.#fill(wordsGate.mixedBatch, {
+          batch: batch.join(","),
+          closed: batch.filter((id) => closed.has(id)).join(","),
+          open: batch.filter((id) => !closed.has(id)).join(","),
+        }),
+        open,
+        phases: this.#phasesOf(ledger, open),
+      };
+    }
+
+    // 2. The split/subset BLOCK — requested ≠ open: a `--tasks` set that splits or
     //    mismatches the derived wave is refused for ANY verb (a subset never reorders
     //    the wave, never half-approves it). The full-wave hint rides the message.
     if (!exact) {
@@ -95,7 +121,7 @@ export class WaveGate {
       };
     }
 
-    // 2. The open wave's phase — the single phase of the wave's own row (wave-unitary:
+    // 3. The open wave's phase — the single phase of the wave's own row (wave-unitary:
     //    one ledger row per wave, so every member shares the phase; a per-task read
     //    never matches the wave row — the T26 migration regression).
     const phases = this.#phasesOf(ledger, open);

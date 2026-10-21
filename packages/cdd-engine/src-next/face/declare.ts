@@ -278,20 +278,20 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   },
   {
     name: "board",
-    description: "render the slug progress board (overall/spec/plan/wave/branch)",
-    example: "cdd board 2026-10-10-engine-doc-tooling-p7",
-    keys: [],
-    positionals: [{ key: "slug", required: true }],
+    description:
+      "render the progress board from a --plan or --spec entry (overall/spec/plan/wave/branch)",
+    example: `cdd board --plan ${ENGINE_DOC_ROOTS.plans}/p3.md`,
+    keys: [{ key: "plan" }, { key: "spec" }],
   },
 ];
 
 /** The schema `<type>` vocabulary — the get leaf's ONE table (spec §5.3): the
- *  primary DocKey spellings (overall-spec | plan | phase-spec | single-spec) plus
+ *  primary DocKey spellings (overall | plan | phase-spec | single-spec) plus
  *  the legacy `phaseSpec` alias row normalized to the kebab key. One normalizing
  *  vocabulary, never a second hand-written list — the builder's #parseTypeKey
  *  validates through it. */
 export const SCHEMA_TYPE_KEYS: Readonly<Record<string, DocKey>> = {
-  "overall-spec": "overall-spec",
+  overall: "overall",
   plan: "plan",
   "phase-spec": "phase-spec",
   "single-spec": "single-spec",

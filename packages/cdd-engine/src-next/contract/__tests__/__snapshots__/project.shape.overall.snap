@@ -1,5 +1,5 @@
 {
-  "docType": "overall-spec",
+  "docType": "overall",
   "structure": [
     {
       "home": "frontmatter",
@@ -25,6 +25,11 @@
           "refKind": "none"
         },
         {
+          "anchor": "slug",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
           "anchor": "status",
           "presence": "required",
           "refKind": "none"
@@ -46,7 +51,7 @@
         },
         {
           "anchor": "## File paths",
-          "presence": "required",
+          "presence": "optional",
           "refKind": "none"
         },
         {
@@ -172,7 +177,7 @@
         {
           "anchor": "Design spec cell",
           "presence": "required",
-          "refKind": "spec-ref"
+          "refKind": "none"
         },
         {
           "anchor": "Dependency cell",
@@ -181,7 +186,7 @@
         },
         {
           "anchor": "File path row",
-          "presence": "required",
+          "presence": "optional",
           "refKind": "none"
         },
         {
@@ -207,7 +212,7 @@
         {
           "anchor": "Design claim token",
           "presence": "conditional",
-          "refKind": "spec-ref"
+          "refKind": "phase-id"
         },
         {
           "anchor": "Phase range ref",

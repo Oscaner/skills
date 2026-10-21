@@ -37,7 +37,7 @@ import { SkeletonAssembler } from "../skeleton.ts";
 const DATE = "2026-10-11";
 const PROJECTOR = new Projector(declaredRegistries);
 const SKELETONS = PROJECTOR.skeleton();
-const KEYS = ["overall-spec", "plan", "phase-spec", "single-spec"] as const;
+const KEYS = ["overall", "plan", "phase-spec", "single-spec"] as const;
 
 /** The fixed-date rendered skeleton bytes of one doc type. */
 const renderOf = (key: DocKey): string => new SkeletonAssembler(SKELETONS[key], DATE).render();
@@ -85,7 +85,6 @@ const SEMANTIC_PROBES: Record<string, string> = {
   "Implementation plan cell": "| Pending |",
   "Design spec cell": "| [Pending] |",
   "Dependency cell": ":::fill dependency",
-  "File path row": "| overall-spec | `:::fill overall-path` |",
   "Change history row": "| v0.1 |",
   "Version token": "| v0.1 |",
   "Change history date": DATE,
@@ -116,10 +115,10 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "doc-type: phase-spec",
         "version: v0.1",
         "date: 2026-10-11",
+        "slug: ':::fill slug'",
+        "program: <overall-slug>",
         "status: Draft",
         "author: ':::fill author'",
-        "parent-program: <docs/kairos/specs/…-overall.md>",
-        "depends-on: ':::fill depends-on'",
         "---",
         "",
         "## Design",
@@ -155,9 +154,7 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "doc-type: plan",
         "version: v0.1",
         "date: 2026-10-11",
-        "spec: <docs/kairos/specs/…-design.md>",
-        "parent-program: <docs/kairos/specs/…-overall.md>",
-        "depends-on: ':::fill depends-on'",
+        "slug: ':::fill slug'",
         "base: ':::fill base'",
         "---",
         "",
@@ -185,13 +182,14 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
   });
 
   it("renders the overall skeleton — the front-matter head + the table sections + the dependency graph", () => {
-    expect(renderOf("overall-spec")).toBe(
+    expect(renderOf("overall")).toBe(
       [
         "---",
         "title: ':::fill title'",
-        "doc-type: overall-spec",
+        "doc-type: overall",
         "version: v0.1",
         "date: 2026-10-11",
+        "slug: ':::fill slug'",
         "status: Draft",
         "author: ':::fill author'",
         "---",
@@ -199,12 +197,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "## Document scope",
         "",
         ":::fill document-scope",
-        "",
-        "## File paths",
-        "",
-        "| Artifact | Path |",
-        "| --- | --- |",
-        "| overall-spec | `:::fill overall-path` |",
         "",
         "## Program charter",
         "",
@@ -267,9 +259,9 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "doc-type: single-spec",
         "version: v0.1",
         "date: 2026-10-11",
+        "slug: ':::fill slug'",
         "status: Draft",
         "author: ':::fill author'",
-        "depends-on: ':::fill depends-on'",
         "issues: ':::fill issues'",
         "---",
         "",
@@ -342,13 +334,13 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
   });
 
   it("renders the generator truths — the enum status key and the graph rows", () => {
-    for (const key of ["overall-spec", "phase-spec", "single-spec"] as const) {
+    for (const key of ["overall", "phase-spec", "single-spec"] as const) {
       expect(renderOf(key)).toContain("status: Draft");
     }
     // the plan head carries no status key (its registry omits it)
     expect(renderOf("plan")).not.toContain("status: ");
-    expect(renderOf("overall-spec")).toContain("P1 -> P2");
-    expect(renderOf("overall-spec")).toContain("- `->` = hard block");
+    expect(renderOf("overall")).toContain("P1 -> P2");
+    expect(renderOf("overall")).toContain("- `->` = hard block");
   });
 
   it("renders every content position as a `:::fill <slot>` slot — the body and the front-matter content keys", () => {
@@ -369,12 +361,14 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
     }
   });
 
-  it("renders the link-typed anchors as placeholder scalars (the `<…>` exemption shape)", () => {
+  it("renders the slug-reference anchor as a placeholder scalar (the `<…>` exemption shape)", () => {
     const spec = renderOf("phase-spec");
-    expect(spec).toContain("parent-program: <docs/kairos/specs/…-overall.md>");
-    const plan = renderOf("plan");
-    expect(plan).toContain("spec: <docs/kairos/specs/…-design.md>");
-    expect(plan).toContain("parent-program: <docs/kairos/specs/…-overall.md>");
+    expect(spec).toContain("program: <overall-slug>");
+    // `slug:` is a content key — a `:::fill` slot, never the `<>` link form.
+    for (const key of KEYS) {
+      expect(renderOf(key), `${key}: slug fill`).toContain("slug: ':::fill slug'");
+      expect(renderOf(key), `${key}: no slug link`).not.toContain("slug: <");
+    }
   });
 });
 
@@ -427,7 +421,7 @@ describe("SkeletonAssembler — the front-matter head (spec §2.2/§4.2)", () =>
     }
   });
 
-  it("emits the type's optional front-matter keys — `base` / `depends-on` on the plan head, `issues` on the single-spec head", () => {
+  it("emits the type's optional front-matter keys — `base` on the plan head, `issues` on the single-spec head", () => {
     // §4.2's independent emission list = the head's required keys PLUS the
     // type's optional head keys — the optional keys never ride the slot channel
     // (they are not required), so the head would silently drop them without the
@@ -445,7 +439,6 @@ describe("SkeletonAssembler — the front-matter head (spec §2.2/§4.2)", () =>
       }
     }
     expect(frontmatterBlockOf("plan")).toContain("base: ':::fill base'");
-    expect(frontmatterBlockOf("plan")).toContain("depends-on: ':::fill depends-on'");
     expect(frontmatterBlockOf("single-spec")).toContain("issues: ':::fill issues'");
   });
 });
@@ -456,15 +449,12 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
    *  lines, the version row, the Status truth, the link anchors, the graph rows
    *  and the table headers/separators. */
   const STRUCTURE_LINES: Record<string, readonly string[]> = {
-    "overall-spec": [
-      "doc-type: overall-spec",
+    overall: [
+      "doc-type: overall",
       "version: v0.1",
       "date: 2026-10-11",
       "status: Draft",
       "## Document scope",
-      "## File paths",
-      "| Artifact | Path |",
-      "| --- | --- |",
       "## Program charter",
       "### Goal",
       "### Non-goals",
@@ -489,8 +479,6 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "doc-type: plan",
       "version: v0.1",
       "date: 2026-10-11",
-      "spec: <docs/kairos/specs/…-design.md>",
-      "parent-program: <docs/kairos/specs/…-overall.md>",
       "## Constraints",
       "## Change history",
       "| Version | date | summary | author |",
@@ -501,7 +489,7 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "version: v0.1",
       "date: 2026-10-11",
       "status: Draft",
-      "parent-program: <docs/kairos/specs/…-overall.md>",
+      "program: <overall-slug>",
       "## Design",
       "### Acceptance criteria",
       "## Constraints",

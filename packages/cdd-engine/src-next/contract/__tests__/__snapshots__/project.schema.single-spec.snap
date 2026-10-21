@@ -12,7 +12,7 @@
     },
     "doc-type": {
       "type": "string",
-      "pattern": "^(overall-spec|plan|phase-spec|single-spec)$",
+      "pattern": "^(overall|plan|phase-spec|single-spec)$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
     "version": {
@@ -25,17 +25,17 @@
       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
+    "slug": {
+      "type": "string",
+      "pattern": "^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "presence: required · home: frontmatter · ref: none"
+    },
     "status": {
       "type": "string",
       "pattern": "^(Draft|Approved|In progress|Complete)$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
     "author": {
-      "type": "string",
-      "pattern": "^.+$",
-      "description": "presence: required · home: frontmatter · ref: none"
-    },
-    "depends-on": {
       "type": "string",
       "pattern": "^.+$",
       "description": "presence: required · home: frontmatter · ref: none"
@@ -91,9 +91,9 @@
     "doc-type",
     "version",
     "date",
+    "slug",
     "status",
     "author",
-    "depends-on",
     "## Background & root cause",
     "## Design decisions",
     "## Acceptance",

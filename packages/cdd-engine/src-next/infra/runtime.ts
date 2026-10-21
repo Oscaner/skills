@@ -14,8 +14,8 @@
 // The JSON plane's dead fields are not carried (the delete-dead-empties iron rule):
 //   · failureCategories — the new tree keeps no failure-category counter data; the
 //     ledger's progress key set is the declared code constant (PROGRESS_COUNTER_ZERO).
-//   · handoffNamespace.slugRule — the slug derivation is code (Workspace.slugFromDoc),
-//     never a prose data field.
+//   · handoffNamespace.slugRule — the workspace key is the document's declared
+//     `slug:` (judged by the identity index), never a prose data field.
 //   · contextContract channels.git / derived / transport / timeouts and the env-host
 //     channel — no live consumer; the host-marker closure is single-sourced by the
 //     harness detect rows (face/host.ts), never re-declared here.
@@ -35,20 +35,14 @@ export interface ContextContract {
   readonly channels: Readonly<{ argv: Readonly<Record<string, ChannelArgRow>> }>;
 }
 
-/** One handoff-family record — the canonical file-name pattern + the carrier's
- *  schema face. Only `name`/`schema` are read (ledger/lifecycle resolve the file
- *  name and pick the writable-subset face); the retired round-policy / phase /
- *  fix-family / fix-template / prev-derivation fields (zero readers — spec §3.4 ⑯)
- *  are deleted, never left as dead declarations. */
+/** One handoff-family record — the canonical file-name pattern. `name` is the whole
+ *  naming truth (ledger/lifecycle resolve the file name from it; the carrier plane is
+ *  DERIVED from the op by the session plane's `planeOf` — never declared per family).
+ *  The retired round-policy / phase / fix-family / fix-template / prev-derivation
+ *  fields (zero readers — spec §3.4 ⑯) are deleted, never left as dead declarations. */
 export interface HandoffFamily {
   /** The canonical file name — the `{placeholder}` pattern the ledger fills. */
   name: string;
-  /** The carrier schema face — the handoff-schema selector, defined by the payload shape:
-   *  `delivery` — the child writes status + artifacts (plus the test-evidence file on
-   *  task-family rounds) and the conclusion is the child's own declared status;
-   *  `findings` — the child writes findings only and the engine rolls the conclusion
-   *  up from them. fix.spec / fix.plan revise documents, so they ride `findings`. */
-  schema?: "delivery" | "findings";
 }
 
 /** The handoff-name space — the workspace segment + the family naming table. */
@@ -76,47 +70,38 @@ export interface EngineRuntime {
  *  keyed by `op.type` (implement.wave / review.wave / … — the ledger's single
  *  naming truth, verbatim from the engine-config handoff namespace). The v1.9
  *  reparametrization: `returnFormat` is gone (RETURN_PROSE is the one return
- *  contract) and the `schema` faces are the handoff-schema selector (delivery / findings —
- *  session/handoff-schema.ts). */
+ *  contract) and each family is a pure name row — the carrier plane derives from the
+ *  op, never from this table (`planeOf`, session plane). */
 export const HANDOFF_FAMILIES = {
   "implement.wave": {
     name: "tasks-{tasks}-implement.json",
-    schema: "delivery",
   },
   "review.wave": {
     name: "tasks-{tasks}-review-{round}.json",
-    schema: "findings",
   },
   "fix.wave": {
     name: "tasks-{tasks}-fix-{round}.json",
-    schema: "delivery",
   },
   "review.spec": {
     name: "spec-review-{round}.json",
-    schema: "findings",
   },
   "fix.spec": {
     name: "spec-fix-{round}.json",
-    schema: "findings",
   },
   "review.plan": {
     name: "plan-review-{round}.json",
-    schema: "findings",
   },
   "fix.plan": {
     name: "plan-fix-{round}.json",
-    schema: "findings",
   },
   "review.branch": {
     // find #9 (spec §6.5): the range token leaves the file name — the workspace
     // slug is the plan-slug (the fix face carries --plan) · round accumulates
     // across re-reviews (lineKey pins "branch").
     name: "branch-review-{round}.json",
-    schema: "findings",
   },
   "fix.branch": {
     name: "branch-fix-{round}.json",
-    schema: "delivery",
   },
 } as const satisfies Readonly<Record<string, HandoffFamily>>;
 

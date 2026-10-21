@@ -50,7 +50,6 @@ import { type Command, CommanderError } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import { PlanDocType } from "../contract/doc.ts";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
-import { FileExistenceInvariant } from "../contract/invariants.ts";
 import { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
@@ -58,6 +57,7 @@ import { Translator } from "../contract/translate.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { GitClient } from "../infra/git.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
+import { SlugIndex } from "../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
@@ -132,6 +132,10 @@ export interface WorkScene extends DispatchScene {
   /** The plan's `spec:` front-matter link target (plan docs only) — the plan-review
    *  round context's spec anchor; null off the plan face. */
   specLink: string | null;
+  /** The parent charter the spec's `program:` names (the same-slug overall's
+   *  repoRoot-relative path) — the review/fix round context's charter anchor; null
+   *  when the line's spec names no program. */
+  overallLink: string | null;
 }
 
 /** The path-typed argv values (T3 §2.3) — split out of the generic `args` record
@@ -348,34 +352,82 @@ export class Cli {
       this.#exitCode = this.#artifacts.runIssue();
     });
     // the board observability command — a pure read (no preflight gate)
-    commandNode("board").action(async (_slug: unknown, _opts: unknown, command: Command) => {
+    commandNode("board").action(async (_opts: unknown, command: Command) => {
       this.#exitCode = await this.#runBoard(command, this.#runInput(null, command));
     });
   }
 
-  /** `cdd board <slug>` — the slug progress board (spec §5 · §2.2): a PURE READ —
-   *  zero preflight gate, zero tree writes, zero ledger writes, zero child dispatch.
-   *  The slug (the one positional) resolves the repo root, assembles the node tree
-   *  and renders the phase/program board + the `next:` derivation to stdout. A
-   *  missing slug is a usage error (exit 2, commander's own byte); a slug matching
-   *  nothing on disk renders the not-found face and exits 2; a present doc line
-   *  carrying no `doc-type:` key renders its BLOCKED marker and exits 2
-   *  (spec §12 · D34). The host is detected once for the pipeline-entry ref render
-   *  (REFS[ref][host], the same judgment the capsule injects — never hard-coded). */
+  /** `cdd board --plan <path> / --spec <path>` — the entry document's progress board
+   *  (spec §3.1): a PURE READ — zero preflight gate, zero tree writes, zero ledger
+   *  writes, zero child dispatch. At least one path flag is required (missing →
+   *  usage exit 2); each path resolves through the ONE identity index (`SlugIndex`
+   *  scans every docRoot), so a path outside the docRoots or absent on disk is
+   *  the not-found face (exit 2, zero doc reads, zero BLOCKED markers). Two flags
+   *  naming different slugs are an argument conflict (exit 2, both values on
+   *  stderr); two flags on one slug render ONE board shaped by the `--spec`
+   *  document's `doc-type:`. The host is detected once for the pipeline-entry ref
+   *  render (REFS[ref][host], the same judgment the capsule injects). */
   async #runBoard(node: Command, parsed: RunInput): Promise<number> {
     this.#assertDryRunScope(node, parsed.dryRun);
-    const slug = parsed.positionals[0];
-    if (slug === undefined) this.#usage(node, "cdd board: missing <slug>");
+    const planArg = parsed.args.plan;
+    const specArg = parsed.args.spec;
+    if (planArg === undefined && specArg === undefined)
+      this.#usage(node, "cdd board: pass --plan and/or --spec");
     const repoRoot = await this.#rootOf();
     if (repoRoot === null) return 1;
-    if (!BoardView.hasNode(slug, repoRoot)) {
-      this.#io.stderr(`cdd board: no docs match slug ${slug}\n`);
+    const root = new RepoRoot(repoRoot);
+    const planRel = planArg === undefined ? null : this.#relativizePath(root, planArg);
+    const specRel = specArg === undefined ? null : this.#relativizePath(root, specArg);
+    // The not-found face reads ZERO documents (spec §3.1): a path outside the two
+    // doc roots or absent on disk refuses BEFORE the identity scan — the scan is
+    // this face's only document-reading step, and it never runs for this verdict.
+    const planMissing =
+      planRel !== null &&
+      (!SlugIndex.insideDocRoots(planRel) || !existsSync(root.resolve(planRel)));
+    const specMissing =
+      specRel !== null &&
+      (!SlugIndex.insideDocRoots(specRel) || !existsSync(root.resolve(specRel)));
+    if (planMissing || specMissing)
+      return this.#boardNotFound([
+        planMissing ? `--plan ${planArg}` : null,
+        specMissing ? `--spec ${specArg}` : null,
+      ]);
+    const index = SlugIndex.build(repoRoot);
+    const planEntry = planRel === null ? null : index.entryAt(planRel);
+    const specEntry = specRel === null ? null : index.entryAt(specRel);
+    const unmatched = [
+      planRel !== null && planEntry === null ? `--plan ${planArg}` : null,
+      specRel !== null && specEntry === null ? `--spec ${specArg}` : null,
+    ].filter((part): part is string => part !== null);
+    if (unmatched.length > 0) return this.#boardNotFound(unmatched);
+    const planSlug = planEntry?.slug ?? null;
+    const specSlug = specEntry?.slug ?? null;
+    if (
+      planEntry !== null &&
+      specEntry !== null &&
+      SlugIndex.isLegalSlug(planSlug) &&
+      SlugIndex.isLegalSlug(specSlug) &&
+      planSlug !== specSlug
+    ) {
+      this.#io.stderr(
+        `cdd board: --plan slug "${planSlug}" conflicts with --spec slug "${specSlug}"\n`,
+      );
       return 2;
     }
+    const entry = specEntry ?? planEntry;
+    if (entry === null) return 2;
     const host = HostDetect.detect(process.env);
-    const board = BoardView.render(slug, repoRoot, this.#words, host, ARGV_CHANNEL);
+    const board = BoardView.render(index, entry, repoRoot, this.#words, host, ARGV_CHANNEL);
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;
+  }
+
+  /** The board's not-found face (spec §3.1) — the ONE stderr line + exit 2 the
+   *  pre-scan membership/existence probe and the post-scan entry lookup share. */
+  #boardNotFound(parts: readonly (string | null)[]): number {
+    const named = parts.filter((part): part is string => part !== null);
+    this.#io.stderr(`cdd board: no docs match ${named.join(" and ")}\n`);
+    return 2;
   }
 
   /** The thin shell's run input — commander's parsed opts mapped to the domain
@@ -689,7 +741,6 @@ export class Cli {
     const harness = new CliLifecycle({
       env: process.env,
       sync: this.#sync,
-      config: this.#config,
       template: this.#template,
       io: this.#io,
       words: this.#words,
@@ -700,6 +751,7 @@ export class Cli {
         briefPath: scene.briefPath,
         baseBranch: this.#baseBranchOf(scene),
         specLink: scene.specLink,
+        overallLink: scene.overallLink,
       },
       reviews: parsed.paths.reviews,
     });
@@ -789,24 +841,44 @@ export class Cli {
     const planPath = planRel === null ? null : root.resolve(planRel);
     const specRel = parsed.paths.spec;
     const specPath = specRel === null ? null : root.resolve(specRel);
+    // The identity index — the ONE slug judgment (spec §2.1/§2.2). The workspace
+    // key is the target document's declared `slug:`; the same index supplies the
+    // same-slug spec link and the duplicate gates.
+    const index = SlugIndex.build(repoRoot);
 
     let slug: string;
     let planText: string | null = null;
     let specLink: string | null = null;
+    let overallLink: string | null = null;
     let target: WorkScene["target"] = null;
     switch (type) {
       case "wave": {
         if (planPath === null || planRel === null)
           this.#usage(node, `cdd ${verb} --type wave: missing required --plan <path>`);
-        slug = Workspace.slugFromDoc(planPath);
         planText = this.#artifacts.readText(node, root, planRel);
+        const resolved = this.#targetSlug(index, planRel, planText);
+        if (resolved === null) return null;
+        slug = resolved;
         break;
       }
       case "spec": {
-        if (specPath === null)
+        if (specPath === null || specRel === null)
           this.#usage(node, `cdd ${verb} --type spec: missing required --spec <path>`);
-        slug = Workspace.slugFromDoc(specPath);
+        // An unreadable target declares no identity: the SAME slug carrier hard-refuses
+        // it (CDD_BLOCKED + exit 1, never a filename-derived key). The T7 null-verdict
+        // face covers the other shape — a document ON DISK that declares no
+        // `doc-type:` / `slug:`.
+        const resolved = this.#targetSlug(index, specRel, this.#readTarget(root, specRel));
+        if (resolved === null) return null;
+        slug = resolved;
         target = { kind: "spec", doc: specPath };
+        // The judged spec's own `program:` — the parent charter (INPUT_OVERALL) the
+        // spec-scope reviewer judges the phase against. A spec without `program:`
+        // (a single-spec) leaves the slot null; an off-disk target reads null here
+        // and the existing slug-ref invariant reports it (never a second reporter).
+        const specEntry = index.entryAt(specRel);
+        const overallEntry = specEntry?.program == null ? null : index.overallOf(specEntry.program);
+        overallLink = overallEntry === null ? null : root.relativize(overallEntry.path);
         break;
       }
       case "plan":
@@ -814,30 +886,27 @@ export class Cli {
       case "branch": {
         // The plan-doc seam (shared by the plan + branch lines): the target plan
         // must exist (a required fact for both — the branch review/fix faces carry
-        // `--plan`), its text is read ONCE, and the plan's design-spec reference
-        // (the `spec:` front-matter key — the §2.2 delivery seam: the ONE head-
-        // REQUIRED parse call site) is derived from that text as the round context's
-        // extra read input (no second file read). Rebased to repoRoot-relative
-        // (D46 · T3): the raw header form is markdown link-space (relative to the
-        // plan's own dir), so it is first resolved to an absolute path, then routed
-        // through the ONE value object (`RepoRoot.relativize`) — every round-context
-        // path token speaks ONE basis (the child is spawned at cwd = repoRoot). The
-        // plan review judges the plan doc; the branch line carries no commit identity
-        // (the audit target is the branch itself, its workspace identity is the plan
-        // path, and the review's scope anchor BASE_BRANCH is engine-injected from the
-        // base artifact) — both faces carry the plan + its spec anchor.
+        // `--plan`), its text is read ONCE, and the same-slug identity document
+        // (the index's `identityDoc` — never a path scalar) supplies the round
+        // context's extra read input. The link is rebased to repoRoot-relative
+        // (D46 · T3) so every round-context path token speaks ONE basis (the child
+        // is spawned at cwd = repoRoot). The plan review judges the plan doc; the
+        // branch line carries no commit identity (the audit target is the branch
+        // itself, its workspace identity is the plan path, and the review's scope
+        // anchor BASE_BRANCH is engine-injected from the base artifact) — both
+        // faces carry the plan + its same-slug spec anchor.
         if (planPath === null || planRel === null)
           this.#usage(node, `cdd ${verb} --type ${type}: missing required --plan <path>`);
-        slug = Workspace.slugFromDoc(planPath);
         planText = this.#artifacts.readText(node, root, planRel);
-        const split = FrontMatterExtractor.split(planText);
-        const rawSpecLink =
-          new PlanDocType("plan").parse(split.body.split("\n"), split.head).chain.specLink
-            ?.target ?? null;
-        specLink =
-          rawSpecLink === null
-            ? null
-            : root.relativize(this.#resolveSpecLink(repoRoot, planPath, rawSpecLink));
+        const resolved = this.#targetSlug(index, planRel, planText);
+        if (resolved === null) return null;
+        slug = resolved;
+        const specEntry = index.identityDoc(slug);
+        specLink = specEntry === null ? null : root.relativize(specEntry.path);
+        // The plan/branch line reads the same-slug identity document's `program:` —
+        // the parent charter (INPUT_OVERALL) the reviewer judges the plan against.
+        const overallEntry = specEntry?.program == null ? null : index.overallOf(specEntry.program);
+        overallLink = overallEntry === null ? null : root.relativize(overallEntry.path);
         target = type === "plan" ? { kind: "plan", doc: planPath } : { kind: "branch" };
         break;
       }
@@ -867,7 +936,65 @@ export class Cli {
       router: new NextStepRouter(),
       briefPath: null,
       specLink,
+      overallLink,
     };
+  }
+
+  /** The dispatch target's workspace key — the document's declared `slug:`
+   *  (spec §2.1 · §2.4). ONE read face shared by the three work verbs and `base`:
+   *  an unreadable target, a missing `slug:`, an illegal value, or a slug the index
+   *  judges duplicated (identity or plan) each render the CDD_BLOCKED station and
+   *  return null (exit 1 at the caller — never the board's exit 2). The duplicate
+   *  judgment reads the SAME `SlugIndex` the board renders, so the two faces never
+   *  diverge (one fact, two carriers). The caller passes the document text it
+   *  already holds — the identity read never opens the file a second time. */
+  #targetSlug(index: SlugIndex, rel: RepoPath, content: string | null): string | null {
+    // An unreadable target document declares no identity — the workspace key has
+    // no source, so the dispatch face refuses on the SAME carrier as a missing
+    // `slug:` (never a filename-derived directory).
+    if (content === null)
+      return this.#slugBlocked(
+        `the target document ${rel} is unreadable — its declared \`slug:\` is the workspace key`,
+      );
+    const head = FrontMatterExtractor.split(content).head;
+    const parseError = head.parseError;
+    if (parseError !== null)
+      return this.#slugBlocked(
+        this.#words
+          .routeWord("frontmatterParse")
+          .replace("{reason}", parseError.reason)
+          .replace("{line}", String(parseError.line))
+          .replace("{column}", String(parseError.column))
+          .replace("{source}", parseError.source),
+      );
+    // The four-way identity gate (present · legal · indexed · unique) is the ONE
+    // `SlugIndex` judgment the pre-flight gate also reads — this carrier supplies
+    // only the CDD_BLOCKED channel, never a second spelling of the rule.
+    const verdict = index.slugVerdict(rel, head.slug);
+    return verdict.kind === "accepted"
+      ? verdict.slug
+      : this.#slugBlocked(this.#words.slugRefusal(verdict));
+  }
+
+  /** Read a dispatch target's text — null when the file is absent or unreadable.
+   *  The null is NOT a degradation: every caller hands it to `#targetSlug`, which
+   *  refuses the target on the slug carrier (CDD_BLOCKED + exit 1). A document
+   *  that IS readable and declares no `doc-type:` / `slug:` is the separate
+   *  T7 null-verdict shape. */
+  #readTarget(root: RepoRoot, rel: RepoPath): string | null {
+    try {
+      return readFileSync(root.resolve(rel), "utf8");
+    } catch {
+      return null;
+    }
+  }
+
+  /** The dispatch-face critical stop carrier — the CDD_BLOCKED station + the
+   *  reason row; the caller returns exit 1 (the CDD_BLOCKED channel carries
+   *  dispatch hard gates only, never a board reject face). */
+  #slugBlocked(message: string): null {
+    this.#io.stderr(`${this.#words.station("blocked")} ${message}\n`);
+    return null;
   }
 
   /** The input funnel — the ONE path normalization landing (T3 · §2.3): every
@@ -931,21 +1058,6 @@ export class Cli {
     return root;
   }
 
-  /** The plan's `spec:` link target resolved to an ABSOLUTE path (D46) — the
-   *  plan-review round context's `INPUT_SPEC` (the round-context exit relativizes it
-   *  to repoRoot along with every other path token). The raw header form is markdown
-   *  link-space (relative to the plan's own dir — the skeleton's form) or a repoRoot
-   *  form; the resolution IS the doc-contract's own chain-link judgment, delegated
-   *  to its ONE home (`FileExistenceInvariant.targetPath`) so a future contract
-   *  change cannot silently diverge from this mirror (P9 branch-review-1 F8 — never
-   *  a re-implemented chain). The fallback (neither reading exists) resolves against
-   *  the plan's own dir — the link-space semantic — so the exit still receives an
-   *  absolute path (the doc-contract's file-existence finding owns the truly-missing
-   *  case). */
-  #resolveSpecLink(repoRoot: string, planPath: string, target: string): string {
-    return FileExistenceInvariant.targetPath(repoRoot, planPath, target, (p) => existsSync(p));
-  }
-
   // ---------------------------------------------------------------------------
   // the pure commands — schema / issue / base
   // ---------------------------------------------------------------------------
@@ -1002,13 +1114,23 @@ export class Cli {
     // the work-command path argv: the stored artifact's path field speaks the ONE
     // canonical shape (repoRoot-relative).
     const planPath = this.#relativizePath(root, planArg);
+    // The workspace key is the plan document's `slug:` — the SAME resolution point
+    // (and rejection carrier) the work verbs use. `base` carries no pre-flight gate,
+    // so a missing / illegal / duplicated slug or an unreadable target stops HERE:
+    // CDD_BLOCKED + exit 1 (never a filename-derived key).
+    const slug = this.#targetSlug(
+      SlugIndex.build(repoRoot),
+      planPath,
+      this.#readTarget(root, planPath),
+    );
+    if (slug === null) return 1;
     // The workspace is not built here (P11 · §4.2): `base set` builds it through
     // `Workspace.writeJson`'s internal ensure, while the read-only `base get`
     // creates nothing. The read rides `Workspace.readJson`, so the P9 read-time
     // normalization covers `base.json` (the retired migration's job).
     const workspace = new Workspace(
       new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
-      Workspace.slugFromDoc(planPath),
+      slug,
     );
     if (parsed.leaf === "set")
       return this.#artifacts.baseSet(node, parsed, planPath, workspace, root);

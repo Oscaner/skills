@@ -15,8 +15,8 @@
 //       retired phase-id hand copy and the markerValue slice rode, without which
 //       those two retirement classes would be invisible to the census;
 //   (d) the registry side — every `home: "frontmatter"` anchor is a §3.3 key
-//       (title / doc-type / version / date / status / author / spec /
-//       parent-program / parent-version / depends-on / base / issues) and carries
+//       (title / doc-type / version / date / slug / program / status / author /
+//       parent-version / base / issues) and carries
 //       no bullet/heading literal (a bullet-anchored header element would fail
 //       the key-set membership); `Depends on ref` is zero-hit in the registry.
 
@@ -80,12 +80,11 @@ const FRONTMATTER_KEYS = new Set([
   "doc-type",
   "version",
   "date",
+  "slug",
+  "program",
   "status",
   "author",
-  "spec",
-  "parent-program",
   "parent-version",
-  "depends-on",
   "base",
   "issues",
 ]);
@@ -151,7 +150,7 @@ test("spec §6 structure pin — retired grammars zero-hit · retained primitive
 
   // (d) the registry side — the frontmatter-home anchor set is a key set.
   const registries = [
-    declaredRegistries["overall-spec"],
+    declaredRegistries.overall,
     declaredRegistries.plan,
     declaredRegistries["phase-spec"],
     declaredRegistries["single-spec"],

@@ -5,10 +5,10 @@ title: 引擎文档工具（Engine Doc-Tooling）— P8 设计：`cdd board <slu
 doc-type: phase-spec
 version: v1.10
 date: 2026-10-16
+slug: 2026-10-10-engine-doc-tooling-p8
+program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P8] 会话 · 用户裁定 · 2026-10-14）
-parent-program: 2026-10-10-engine-doc-tooling-overall.md
-depends-on: P7（Done · v0.9 · hard——P7 全链闭合后 plan-graph 升级一等公民 slug 进度板 · overall 依赖图 D32）
 ---
 
 ## Design

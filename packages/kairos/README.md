@@ -17,7 +17,7 @@ kairos is the distribution vehicle for a cdd-first methodology: it packages the 
 Six `cdd-*` skills across three families:
 
 - **kairos orchestration** — flow orchestrators that read upstream `superpowers` baselines and apply this plugin's personal rules (clarifying questions via `grilling`, the spec review-fix rhythm under the engine's `next:` route facts, and so on): `cdd-design` (brainstorm routing + a parameterized spec-writer dispatch), `cdd-plan` (plan authoring), `cdd-close` (branch finish)
-- **`cdd-spec-writer`** — the parameterized spec-writer (single-spec / phase-spec / overall-spec under one merged flow): authors, reviews, and commits the target spec
+- **`cdd-spec-writer`** — the parameterized spec-writer (single-spec / phase-spec / overall under one merged flow): authors, reviews, and commits the target spec
 - **`cdd-dev`** — the plan executor: the `cdd` engine CLI (`@oscaner-skills/cdd-engine`) implements / reviews / fixes each wave, driven by the engine's `next:` route facts
 - **cdd-report** — repository development utility that files one aggregate GitHub issue for CDD-session bugs and enhancement opportunities (gh CLI, dedup-aware, manual trigger, one-shot chain)
 
@@ -25,8 +25,8 @@ Six `cdd-*` skills across three families:
 
 | Skill | Type | Description |
 |-------|------|-------------|
-| `cdd-design` | Orchestrator | Brainstorm routing (mode/register/size gates); dispatches the parameterized spec-writer (single-spec / phase-spec / overall-spec charter) |
-| `cdd-spec-writer` | Spec-writer | The merged single-spec / phase-spec / overall-spec writer: authors, reviews, and commits the target spec under one parameterized flow |
+| `cdd-design` | Orchestrator | Brainstorm routing (mode/register/size gates); dispatches the parameterized spec-writer (single-spec / phase-spec / overall charter) |
+| `cdd-spec-writer` | Spec-writer | The merged single-spec / phase-spec / overall writer: authors, reviews, and commits the target spec under one parameterized flow |
 | `cdd-plan` | Orchestrator | Plan authoring (backfill-design gate · plan write authority); plan review-fix rhythm; hands off to `cdd-dev` |
 | `cdd-dev` | Orchestrator + Engine | Plan executor (CLI-only); dispatches the implement / review / fix chain + the `cdd base` artifact; final branch review |
 | `cdd-close` | Orchestrator | Branch finish / PR; ends at the finish gate + terminal; no worktrees; conventional commits |

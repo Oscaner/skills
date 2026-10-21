@@ -15,6 +15,8 @@
 /** The doc-root segments — the slug → doc-tree reverse derivation's root paths
  *  (relative to the repo root; the board's scan reads them, never re-declares). */
 export interface DocRoots {
+  /** The program-charter directory segment. */
+  overalls: string;
   /** The design-spec directory segment. */
   specs: string;
   /** The plan directory segment. */
@@ -24,6 +26,7 @@ export interface DocRoots {
 /** The doc-tree root segments — the ONE value of the doc-root fact (the runtime's
  *  `docRoots` and every derived literal read THIS constant). */
 export const ENGINE_DOC_ROOTS = {
+  overalls: "docs/kairos/overalls",
   specs: "docs/kairos/specs",
   plans: "docs/kairos/plans",
 } as const satisfies DocRoots;

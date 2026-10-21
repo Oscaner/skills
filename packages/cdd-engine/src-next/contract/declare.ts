@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/contract/declare.ts
 // T2 — the element-registry declaration (the design spec's single-declaration root).
 //
-// Each doc type (overall-spec / plan / phase-spec / single-spec) carries one typed
+// Each doc type (overall / plan / phase-spec / single-spec) carries one typed
 // element registry:
 // flat declared data, one row per element — anchor token · presence · value
 // pattern · ref kind · home surface. The registry is simultaneously the
@@ -13,7 +13,7 @@
 // The element lines are enumerated from the methodology skeleton semantics (the
 // machine skeleton of each doc type as pinned by the four repo schema JSONs,
 // read as steady contract data) — freshly declared anchors, never cut from the
-// old tree's sources. Counts stand at overall-spec 42 / plan 31 / phase-spec 27 /
+// old tree's sources. Counts stand at overall 43 / plan 28 / phase-spec 27 /
 // single-spec 16, each within the post-frontmatter band (single-spec below 20 —
 // the lightweight-scaffold charter) and each element carrying all five fields
 // (a completeness contract enforced by the array shape below and by the test
@@ -24,7 +24,7 @@
 export type Presence = "required" | "optional" | "conditional";
 
 /** The four doc types the engine validates. */
-export type DocType = "overall-spec" | "plan" | "phase-spec" | "single-spec";
+export type DocType = "overall" | "plan" | "phase-spec" | "single-spec";
 
 /** The referential kind an element participates in — what its value points at. */
 export type RefKind =
@@ -33,8 +33,7 @@ export type RefKind =
   | "markdown-link"
   | "phase-id"
   | "issue-ref"
-  | "spec-ref"
-  | "parent-program"
+  | "slug-ref"
   | "task-id";
 
 /** The document surface an element belongs to — where the anchor lives in a conforming document. */
@@ -72,7 +71,7 @@ export interface ElementRegistry {
 
 /** The declared-registries record surface (the brief's `declaredRegistries` shape). */
 export interface DeclaredRegistries {
-  "overall-spec": ElementRegistry;
+  overall: ElementRegistry;
   plan: ElementRegistry;
   "phase-spec": ElementRegistry;
   "single-spec": ElementRegistry;
@@ -92,8 +91,7 @@ const REF_KIND_VALUES = [
   "markdown-link",
   "phase-id",
   "issue-ref",
-  "spec-ref",
-  "parent-program",
+  "slug-ref",
   "task-id",
 ] as const satisfies readonly RefKind[];
 const HOME_VALUES = [
@@ -109,11 +107,21 @@ const HOME_VALUES = [
   "conditional",
 ] as const satisfies readonly Home[];
 export const DOC_TYPE_VALUES = [
-  "overall-spec",
+  "overall",
   "plan",
   "phase-spec",
   "single-spec",
 ] as const satisfies readonly DocType[];
+
+/** The legal `slug:` value shape (spec §2.1) — 1–128 characters, an alphanumeric
+ *  first character, then alphanumerics / `.` / `_` / `-`. The pattern rejects the
+ *  directory-escape values (`.` / `..`, path separators, whitespace) and the
+ *  Windows reserved characters at the value surface, because a slug doubles as a
+ *  workspace directory name. One declared constant — the `slug:` identity rows and
+ *  the phase-spec `program:` reference share the same value domain, and the
+ *  identity index (`SlugIndex.isLegalSlug`) compiles this SAME source string, so
+ *  the shape judgment has one grammar (this module is the leaf both planes read). */
+export const SLUG_VALUE_PATTERN = "^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._-]*$";
 
 /**
  * The registry guards — the runtime contract that narrows an unknown candidate
@@ -165,9 +173,9 @@ export class RegistryGuard {
 }
 
 // ---------------------------------------------------------------------------
-// overall-spec — the charter section surface
+// overall — the charter section surface
 // ---------------------------------------------------------------------------
-const OVERALL_SPEC_ELEMENTS = [
+const OVERALL_ELEMENTS = [
   // Header block — YAML front-matter keys (a frontmatter-home anchor IS the
   // front-matter key name; the value patterns are scalar shapes, §2.3).
   {
@@ -199,6 +207,13 @@ const OVERALL_SPEC_ELEMENTS = [
     home: "frontmatter",
   },
   {
+    anchor: "slug",
+    presence: "required",
+    valuePattern: SLUG_VALUE_PATTERN,
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
     anchor: "status",
     presence: "required",
     valuePattern: "^(Draft|Approved|In progress|Complete)$",
@@ -222,7 +237,7 @@ const OVERALL_SPEC_ELEMENTS = [
   },
   {
     anchor: "## File paths",
-    presence: "required",
+    presence: "optional",
     valuePattern: "^## File paths$",
     refKind: "none",
     home: "section",
@@ -397,7 +412,7 @@ const OVERALL_SPEC_ELEMENTS = [
     anchor: "Design spec cell",
     presence: "required",
     valuePattern: "^(\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])$",
-    refKind: "spec-ref",
+    refKind: "none",
     home: "table",
   },
   {
@@ -433,7 +448,7 @@ const OVERALL_SPEC_ELEMENTS = [
   // File paths artifact table.
   {
     anchor: "File path row",
-    presence: "required",
+    presence: "optional",
     valuePattern: "^\\| [^|]+ \\| `[^`]+` \\|$",
     refKind: "none",
     home: "table",
@@ -471,7 +486,7 @@ const OVERALL_SPEC_ELEMENTS = [
     anchor: "Design claim token",
     presence: "conditional",
     valuePattern: "^P\\d+(\\.\\d+)*-design$",
-    refKind: "spec-ref",
+    refKind: "phase-id",
     home: "table",
   },
   {
@@ -519,31 +534,10 @@ const PLAN_ELEMENTS = [
     home: "frontmatter",
   },
   {
-    anchor: "spec",
+    anchor: "slug",
     presence: "required",
-    valuePattern: "^.+$",
-    refKind: "spec-ref",
-    home: "frontmatter",
-  },
-  {
-    anchor: "parent-program",
-    presence: "required",
-    valuePattern: "^.+$",
-    refKind: "parent-program",
-    home: "frontmatter",
-  },
-  {
-    anchor: "parent-version",
-    presence: "optional",
-    valuePattern: "^v\\d+\\.\\d+$",
-    refKind: "version-lineage",
-    home: "frontmatter",
-  },
-  {
-    anchor: "depends-on",
-    presence: "optional",
-    valuePattern: "^.+$",
-    refKind: "phase-id",
+    valuePattern: SLUG_VALUE_PATTERN,
+    refKind: "none",
     home: "frontmatter",
   },
   {
@@ -732,8 +726,7 @@ const PLAN_ELEMENTS = [
 const PHASE_SPEC_ELEMENTS = [
   // Header block — YAML front-matter keys (the frontmatter-home anchor IS the
   // key name). The old line-scan phase-id fallback is retired — its anchor never
-  // appeared in any document literal and it had zero consumers; the phase-id
-  // reference class rides the plan `depends-on` row.
+  // appeared in any document literal and it had zero consumers.
   {
     anchor: "title",
     presence: "required",
@@ -763,6 +756,20 @@ const PHASE_SPEC_ELEMENTS = [
     home: "frontmatter",
   },
   {
+    anchor: "slug",
+    presence: "required",
+    valuePattern: SLUG_VALUE_PATTERN,
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
+    anchor: "program",
+    presence: "required",
+    valuePattern: SLUG_VALUE_PATTERN,
+    refKind: "slug-ref",
+    home: "frontmatter",
+  },
+  {
     anchor: "status",
     presence: "required",
     valuePattern: "^(Draft|Approved|Plan pending|Shipped)$",
@@ -777,24 +784,10 @@ const PHASE_SPEC_ELEMENTS = [
     home: "frontmatter",
   },
   {
-    anchor: "parent-program",
-    presence: "required",
-    valuePattern: "^.+$",
-    refKind: "parent-program",
-    home: "frontmatter",
-  },
-  {
     anchor: "parent-version",
     presence: "optional",
     valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
-    home: "frontmatter",
-  },
-  {
-    anchor: "depends-on",
-    presence: "required",
-    valuePattern: "^.+$",
-    refKind: "none",
     home: "frontmatter",
   },
   // The double-layer design body.
@@ -937,10 +930,10 @@ const PHASE_SPEC_ELEMENTS = [
 // The fourth doc type — the repair/ruling-oriented free-form document (the
 // 2026-09-28-cdd-review-contract-fix "single-spec" form). Deliberately lighter
 // than phase-spec: a front-matter key set (title / doc-type / version / date /
-// status / author / depends-on / issues), four prose body sections and the
+// status / author / issues), four prose body sections and the
 // change-history lineage. No `### N.` double-layer outline (the free-form has no
-// numbered design groups), no parent-program key (a single-spec has no parent
-// overall — an independent program shape). The fixed section sequence runs in
+// numbered design groups), no `program:` key (a single-spec is an independent
+// program — it names no parent overall). The fixed section sequence runs in
 // document order.
 const SINGLE_SPEC_ELEMENTS = [
   // Header block — YAML front-matter keys (the frontmatter-home anchor IS the
@@ -975,6 +968,13 @@ const SINGLE_SPEC_ELEMENTS = [
     home: "frontmatter",
   },
   {
+    anchor: "slug",
+    presence: "required",
+    valuePattern: SLUG_VALUE_PATTERN,
+    refKind: "none",
+    home: "frontmatter",
+  },
+  {
     anchor: "status",
     presence: "required",
     valuePattern: "^(Draft|Approved|In progress|Complete)$",
@@ -983,13 +983,6 @@ const SINGLE_SPEC_ELEMENTS = [
   },
   {
     anchor: "author",
-    presence: "required",
-    valuePattern: "^.+$",
-    refKind: "none",
-    home: "frontmatter",
-  },
-  {
-    anchor: "depends-on",
     presence: "required",
     valuePattern: "^.+$",
     refKind: "none",
@@ -1064,7 +1057,7 @@ const SINGLE_SPEC_ELEMENTS = [
 
 /** The four declared registries — the judge's judgment data and the projection surfaces' derivation source. */
 export const declaredRegistries: DeclaredRegistries = {
-  "overall-spec": { docType: "overall-spec", elements: OVERALL_SPEC_ELEMENTS },
+  overall: { docType: "overall", elements: OVERALL_ELEMENTS },
   plan: { docType: "plan", elements: PLAN_ELEMENTS },
   "phase-spec": { docType: "phase-spec", elements: PHASE_SPEC_ELEMENTS },
   "single-spec": { docType: "single-spec", elements: SINGLE_SPEC_ELEMENTS },

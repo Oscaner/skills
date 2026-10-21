@@ -1,11 +1,11 @@
 ---
 name: cdd-spec-writer
-description: Independent spec-writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） (writing-spec) design flow inline as this session's baseline, then authors the target spec (single-spec / phase-spec / overall-spec — one parameterized flow), commits it before the review-fix loop, and runs the loop following the engine's next face — the engine's next directive carries the pipeline continuation. Callable standalone; invoke as kairos:cdd-spec-writer（pi：/skill:cdd-spec-writer）.
+description: Independent spec-writer -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） (writing-spec) design flow inline as this session's baseline, then authors the target spec (single-spec / phase-spec / overall — one parameterized flow), commits it before the review-fix loop, and runs the loop following the engine's next face — the engine's next directive carries the pipeline continuation. Callable standalone; invoke as kairos:cdd-spec-writer（pi：/skill:cdd-spec-writer）.
 ---
 
 # Kairos CDD-Spec-Writer
 
-Writes the target spec from the writing-spec import — single-spec / phase-spec / overall-spec under one parameterized flow (the schema target + scope gates + authoring differ by variant; the review-fix rhythm and the Invariants are the single shared skeleton) — commits it before reviewing under the cdd spec contract; on closure the engine's `next:` face carries the pipeline continuation.
+Writes the target spec from the writing-spec import — single-spec / phase-spec / overall under one parameterized flow (the schema target + scope gates + authoring differ by variant; the review-fix rhythm and the Invariants are the single shared skeleton) — commits it before reviewing under the cdd spec contract; on closure the engine's `next:` face carries the pipeline continuation.
 
 **Invocation discipline** — every engine command runs as a background dispatch: launch it in the background and await the completion notification — never poll — then read the full output (stdout/stderr). Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Round rhythm** — one review pass per dispatch; a fix round re-enters the review while the route is not done; commit the authored spec before the first review round; ensure the working tree is clean before entering review (dirty → BLOCKED; the orchestrator writes no tree during dispatch). **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
 
@@ -26,18 +26,18 @@ flowchart TD
 
 ### `run-writing-spec-session`
 
-- **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming） (writing-spec import); it lands the design decisions this target spec will capture. The target (single-spec / phase-spec / overall-spec) is the session parameter: it selects the schema target, the scope gates and the handoff of the flow
+- **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming） (writing-spec import); it lands the design decisions this target spec will capture. The target (single-spec / phase-spec / overall) is the session parameter: it selects the schema target, the scope gates and the handoff of the flow
 - **Read**: nothing before the import; the import lands the design + the target
 - **Exit**: Import landed → `author-spec`
 - **Fail**: Upstream superpowers plugin missing → BLOCKED (no downgrade, no skip, no inline restatement)
 
 ### `author-spec`
 
-- **Do**: Write the target spec document to `docs/kairos/specs/` from the session output — generate the canonical skeleton first for the target type (`npx -y @oscaner-skills/cdd-engine@latest schema get <overall-spec|phase-spec|single-spec> --output skeleton <target path>`) and fill its slots in place; the structure stays as generated. Per the target variant:
+- **Do**: Write the target spec document from the session output — `overall` lands in `docs/kairos/overalls/`, `phase-spec` and `single-spec` in `docs/kairos/specs/` — generate the canonical skeleton first for the target type (`npx -y @oscaner-skills/cdd-engine@latest schema get <overall|phase-spec|single-spec> --output skeleton <target path>`) and fill its slots in place; the structure stays as generated. The landed document carries its identity in the front-matter `slug:` key (the engine keys the workspace and the board on it, never on the file name); a **phase-spec** additionally carries `program:` — the parent overall's `slug:`, the phase's attribution to its program. Per the target variant:
   - **single-spec** — the free-form spec form; the docs-lane doc-contract gate asserts the version-lineage on every reviewed spec
   - **phase-spec** — the phase scope is an increment only: when the phase scope changed vs the parent overall, sync the parent overall (Issue/Phase inventory + Dependency graph + version bump + change history) BEFORE writing (the four-table sync ordering; the sync is the registration gate, never a silent skip)
-  - **overall-spec** — the phase registration for a new phase is the parent's own table sync (see run-cdd-design's `run-cdd-charter · sync`)
-- **Read**: Session output + the target's structural contract (phase-spec/overall-spec variants also read the parent overall)
+  - **overall** — the phase registration for a new phase is the parent's own table sync (see run-cdd-design's `run-cdd-charter · sync`)
+- **Read**: Session output + the target's structural contract (phase-spec/overall variants also read the parent overall)
 - **Exit**: File written → `self-review`
 - **Fail**: Session output unusable or write error → BLOCKED (missing design input)
 

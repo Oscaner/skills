@@ -24,9 +24,9 @@ import type { ElementRegistry } from "../declare.ts";
 import { declaredRegistries } from "../declare.ts";
 import { Projector } from "../project.ts";
 
-const DOC_KEYS = ["overall-spec", "plan", "phase-spec", "single-spec"] as const;
+const DOC_KEYS = ["overall", "plan", "phase-spec", "single-spec"] as const;
 const REGISTRIES = [
-  declaredRegistries["overall-spec"],
+  declaredRegistries.overall,
   declaredRegistries.plan,
   declaredRegistries["phase-spec"],
   declaredRegistries["single-spec"],
@@ -45,8 +45,7 @@ const REF_KINDS = new Set([
   "markdown-link",
   "phase-id",
   "issue-ref",
-  "spec-ref",
-  "parent-program",
+  "slug-ref",
   "task-id",
 ]);
 
@@ -191,7 +190,7 @@ describe("slices projection (Projector.slices)", () => {
   });
 
   it("derives the anchor pattern from the anchor literal (known-good escapes)", () => {
-    const overall = slices["overall-spec"];
+    const overall = slices.overall;
     // The two leading rows are front-matter keys — the slice carries the key as
     // a literal, no compiled line scan.
     expect(overall.slices[0].anchor).toBe("title");
@@ -288,10 +287,10 @@ describe("skeleton projection (Projector.skeleton)", () => {
   const skeletons = PROJECTOR.skeleton();
 
   it("keys the projection record by the DocKey domain and carries each doc's type identity", () => {
-    // The skeleton record rides the projection DocKey domain (overall-spec | plan |
+    // The skeleton record rides the projection DocKey domain (overall | plan |
     // phase-spec | single-spec) — the same single spelling as the DocType literals (spec §5.2).
     expect(Object.keys(skeletons)).toEqual([...DOC_KEYS]);
-    expect(skeletons["overall-spec"].docType).toBe("overall-spec");
+    expect(skeletons.overall.docType).toBe("overall");
     expect(skeletons.plan.docType).toBe("plan");
     expect(skeletons["phase-spec"].docType).toBe("phase-spec");
     expect(skeletons["single-spec"].docType).toBe("single-spec");
@@ -330,7 +329,6 @@ describe("skeleton projection (Projector.skeleton)", () => {
       expect(doc.frontmatter.some((slot) => slot.home !== "frontmatter")).toBe(false);
     }
     expect(skeletons.plan.frontmatter.map((slot) => slot.anchor)).toContain("base");
-    expect(skeletons.plan.frontmatter.map((slot) => slot.anchor)).toContain("depends-on");
     expect(skeletons["single-spec"].frontmatter.map((slot) => slot.anchor)).toContain("issues");
   });
 
@@ -345,23 +343,23 @@ describe("skeleton projection (Projector.skeleton)", () => {
     }
   });
 
-  it("classifies the parent-program / spec-ref link anchors as link slots", () => {
+  it("classifies the phase-spec `program:` slug reference as the only link slot", () => {
     for (const [index, registry] of REGISTRIES.entries()) {
       const doc = skeletons[DOC_KEYS[index]];
       const linkSlots = doc.slots.filter((slot) => slot.slot === "link");
       for (const slot of linkSlots) {
         const element = registry.elements.find((e) => e.anchor === slot.anchor);
-        // the link class is exactly the frontmatter-home parent-program / spec-ref
-        // keys (never the enum-typed table cells that also mention spec/ref)
+        // the link class is exactly the frontmatter-home slug-reference key
+        // (never the enum-typed table cells that also mention spec/ref)
         expect(element?.home).toBe("frontmatter");
-        expect(["parent-program", "spec-ref"]).toContain(slot.refKind);
+        expect(slot.refKind).toBe("slug-ref");
       }
     }
-    expect(skeletons.plan.slots.find((s) => s.anchor === "spec")?.slot).toBe("link");
-    expect(skeletons.plan.slots.find((s) => s.anchor === "parent-program")?.slot).toBe("link");
-    expect(skeletons["phase-spec"].slots.find((s) => s.anchor === "parent-program")?.slot).toBe(
-      "link",
-    );
+    expect(skeletons["phase-spec"].slots.find((s) => s.anchor === "program")?.slot).toBe("link");
+    // `slug:` is a plain content key — never a link slot.
+    for (const key of ["overall", "plan", "phase-spec", "single-spec"] as const) {
+      expect(skeletons[key].slots.find((s) => s.anchor === "slug")?.slot).toBe("content");
+    }
   });
 
   it("classifies the digit-family headings of the task-block / design-body surfaces as numeric-heading", () => {
@@ -449,10 +447,10 @@ describe("Projector.registries — the composed six-projection surface", () => {
 
   it("carries each doc type's declaration identity (docType field)", () => {
     const projected = PROJECTOR.registries();
-    expect(projected.shape["overall-spec"].docType).toBe("overall-spec");
+    expect(projected.shape.overall.docType).toBe("overall");
     expect(projected.schema.plan.docType).toBe("plan");
     expect(projected.tokens["phase-spec"].docType).toBe("phase-spec");
-    expect(projected.skeleton["overall-spec"].docType).toBe("overall-spec");
+    expect(projected.skeleton.overall.docType).toBe("overall");
     expect(projected.skeleton.plan.docType).toBe("plan");
     expect(projected.skeleton["phase-spec"].docType).toBe("phase-spec");
     expect(projected.skeleton["single-spec"].docType).toBe("single-spec");

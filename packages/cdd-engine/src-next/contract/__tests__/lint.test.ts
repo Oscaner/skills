@@ -28,7 +28,12 @@ const SPEC_PATH = "docs/kairos/specs/x-p3-design.md";
 /** The sibling-doc fs a conforming chain resolves into (judge comparisons). */
 const GOOD_FS: DocFs = {
   exists: () => true,
-  read: () => null,
+  // The identity index reads through this seam: the same-slug `x-p3-design.md` is
+  // the plan's Class-A identity document.
+  read: (p) =>
+    p.endsWith("/x-p3-design.md")
+      ? "---\ntitle: S\ndoc-type: phase-spec\nslug: x-p3\nprogram: x-overall\n---\n"
+      : "---\ntitle: X\ndoc-type: single-spec\nslug: x-other\n---\n",
   list: (dir) =>
     dir.endsWith("/specs") || dir.endsWith("specs")
       ? ["x-overall.md", "x-design.md", "x-p3-design.md"]
@@ -57,7 +62,7 @@ const planTask = (
 };
 
 /** A full canonical plan document over the task blocks — the shared parse fixture
- *  (the front-matter head carries the chain scalars; the lint's scan surfaces are
+ *  (the front-matter head carries the identity keys; the lint's scan surfaces are
  *  the task blocks only). */
 const planDoc = (blocks: readonly string[]): string => {
   return [
@@ -66,9 +71,7 @@ const planDoc = (blocks: readonly string[]): string => {
     "doc-type: plan",
     "version: v1.0",
     "date: 2026-10-09",
-    "spec: docs/kairos/specs/x-design.md",
-    "parent-program: docs/kairos/specs/x-overall.md",
-    "parent-version: v1.21",
+    "slug: x-p3",
     "---",
     "",
     "## Constraints",
@@ -89,7 +92,7 @@ const lintPlan = (content: string): ReturnType<LintPass["run"]> => {
 };
 
 const lintParsed = (
-  docKey: "overall-spec" | "plan" | "phase-spec",
+  docKey: "overall" | "plan" | "phase-spec",
   lines: readonly string[],
 ): ReturnType<LintPass["run"]> => {
   // docKey selects the parser only — the lint input carries no re-typed doc key.
@@ -97,10 +100,8 @@ const lintParsed = (
 };
 
 /** The shared parse — the composition root consumers reuse (parse-once discipline). */
-const parseDoc = (
-  docKey: "overall-spec" | "plan" | "phase-spec",
-  lines: readonly string[],
-): ParsedDoc => docTypeParsers[docKey].parse(lines);
+const parseDoc = (docKey: "overall" | "plan" | "phase-spec", lines: readonly string[]): ParsedDoc =>
+  docTypeParsers[docKey].parse(lines);
 
 describe("the missing-edge suspect scan (the prose reference surface)", () => {
   it("a backward Task N citation with no matching edge → exactly one WARN per block", () => {
@@ -199,9 +200,7 @@ describe("the silent surfaces (positive reference scanning)", () => {
       "doc-type: plan",
       "version: v1.0",
       "date: 2026-10-09",
-      "spec: docs/kairos/specs/x-design.md",
-      "parent-program: docs/kairos/specs/x-overall.md",
-      "parent-version: v1.21",
+      "slug: x-p3",
       "---",
       "",
       "### Task 3: task 3",
@@ -241,25 +240,25 @@ describe("the retired cross-doc drift observation (T6 — zero WARNs)", () => {
   });
 
   it("a parent reference whose shape would have drifted WARNs no more — the link-text face is retired", () => {
-    // The Class-B link-text drift judgment retired with the ChainLink label face:
-    // the parent reference is a front-matter HEAD SCALAR (the `parent-program:`
-    // key) — there is no link text to compare, so no drift WARN can fire.
+    // The drift judgment retired with the ChainLink label face: a plan declares no
+    // parent key at all (its chain is the same-slug identity document) — there is
+    // no link text to compare, so no drift WARN can fire.
     const warns = lintPlan(planDoc([...planTask(1, "task one", "none")]));
     expect(warns).toEqual([]);
   });
 
-  it("the same retired surface applies to a phase-spec's parent reference — zero WARNs", () => {
+  it("the same retired surface applies to a phase-spec's program reference — zero WARNs", () => {
     const lines = [
       "---",
       "title: Test Spec",
       "doc-type: phase-spec",
       "version: v1.0",
       "date: 2026-10-09",
+      "slug: x-p3",
+      "program: x-overall",
       "status: Draft",
       "author: x",
-      "parent-program: docs/kairos/specs/x-overall.md",
       "parent-version: v1.0",
-      "depends-on: P1",
       "---",
       "",
       "## Design",
@@ -280,7 +279,7 @@ describe("the retired cross-doc drift observation (T6 — zero WARNs)", () => {
   });
 
   it("the overall carries no reference-lint surface — the class is a silent no-op over an overall", () => {
-    const warns = lintParsed("overall-spec", ["# Test Overall", "## Document scope", "scope"]);
+    const warns = lintParsed("overall", ["# Test Overall", "## Document scope", "scope"]);
     expect(warns).toEqual([]);
   });
 });

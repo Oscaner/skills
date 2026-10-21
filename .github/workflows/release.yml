@@ -62,7 +62,7 @@ jobs:
           cd "$run_dir"
           npm init -y >/dev/null
           npm install "$pack_dir"/*.tgz
-          npx cdd schema get overall-spec >/dev/null
+          npx cdd schema get overall >/dev/null
       - uses: changesets/action@v2
         id: changesets
         with:

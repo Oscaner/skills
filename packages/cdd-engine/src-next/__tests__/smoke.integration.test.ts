@@ -21,8 +21,7 @@ import { describe, it } from "vitest";
 const BIN = fileURLToPath(new URL("../bin.ts", import.meta.url));
 
 /** The fixture plan text — the canonical data-shaped task record (the front-matter
- *  head the plan parser reads; the workspace slug derives `fixture` from the
- *  basename). */
+ *  head the plan parser reads; the workspace slug is the declared `slug:`). */
 const fixturePlan = (): string =>
   [
     "---",
@@ -30,9 +29,7 @@ const fixturePlan = (): string =>
     "doc-type: plan",
     "version: v1.0",
     "date: 2026-10-09",
-    "spec: fixture-design.md",
-    "parent-program: fixture-overall.md",
-    "parent-version: v1.0",
+    "slug: fixture",
     "---",
     "",
     "## Constraints",
@@ -51,7 +48,7 @@ const fixturePlan = (): string =>
     "",
   ].join("\n");
 
-/** The fixture design spec — the plan's `spec:` link target (existence only). */
+/** The fixture design spec — the same-slug identity document paired with the plan. */
 const fixtureSpec = (): string =>
   [
     "---",
@@ -59,6 +56,8 @@ const fixtureSpec = (): string =>
     "doc-type: phase-spec",
     "version: v1.0",
     "date: 2026-10-09",
+    "slug: fixture",
+    "program: fixture-overall",
     "status: Draft",
     "---",
     "",
@@ -70,14 +69,15 @@ const fixtureSpec = (): string =>
     "",
   ].join("\n");
 
-/** The fixture overall — the plan's `parent-program:` link target (existence only). */
+/** The fixture overall — the phase-spec's `program:` reference target (identity only). */
 const fixtureOverall = (): string =>
   [
     "---",
     "title: Fixture Overall",
-    "doc-type: overall-spec",
+    "doc-type: overall",
     "version: v1.0",
     "date: 2026-10-09",
+    "slug: fixture-overall",
     "status: Draft",
     "---",
     "",

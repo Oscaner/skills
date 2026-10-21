@@ -64,11 +64,11 @@ const MIN_ELEMENTS = 20;
 /** The body-side element gate — every non-frontmatter home (section / facet / table /
  *  graph / task-block / task-field / task-step / design-body / conditional) tallies into
  *  the body side; a doc type's body side must stay at or below this count. The value (40)
- *  keeps today's live body-side highs (overall 34 · plan 22 · phase-spec 18 ·
+ *  keeps today's live body-side highs (overall 36 · plan 22 · phase-spec 18 ·
  *  single-spec 8) inside the gate with the post-migration additions' margin. */
 const MAX_BODY_ELEMENTS = 40;
 /** The header-side element gate — the frontmatter surface (H1 + metadata rows). Today's
- *  live header counts run overall 5 / plan 6 / phase-spec 7 / single-spec 5; 12 keeps
+ *  live header counts run overall 7 / plan 6 / phase-spec 9 / single-spec 8; 12 keeps
  *  the post-migration header additions inside the gate with margin. */
 const MAX_HEADER_ELEMENTS = 12;
 /** The two home partitions — the header side is the single `frontmatter` surface; the body

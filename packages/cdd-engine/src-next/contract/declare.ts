@@ -13,8 +13,8 @@
 // The element lines are enumerated from the methodology skeleton semantics (the
 // machine skeleton of each doc type as pinned by the four repo schema JSONs,
 // read as steady contract data) — freshly declared anchors, never cut from the
-// old tree's sources. Counts stand at overall 43 / plan 29 / phase-spec 28 /
-// single-spec 17, each within the post-frontmatter band (single-spec below 20 —
+// old tree's sources. Counts stand at overall 43 / plan 28 / phase-spec 27 /
+// single-spec 16, each within the post-frontmatter band (single-spec below 20 —
 // the lightweight-scaffold charter) and each element carrying all five fields
 // (a completeness contract enforced by the array shape below and by the test
 // suite, which pins presence/ref-kind domains and per-registry anchor

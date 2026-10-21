@@ -1,10 +1,11 @@
 // packages/cdd-engine/src-next/session/__tests__/handoff-schema.test.ts
-// T15 v1.9 — the handoff schema face suite (one declaration, two projections):
-//   · projection ① — schemaText: the per-face writable-subset fence (work vs
-//     findings), the evidence-file fence on the task-family work rounds, and the
-//     byte-stability of the injected prompt text;
+// The handoff schema face suite (one declaration, two projections):
+//   · the op-derived plane — planeOf: implement / fix → work, review → judge;
+//   · projection ① — schemaText: the per-plane writable-subset fence (work vs
+//     judge), the evidence-file fence on the evidence rounds, and the byte-stability
+//     of the injected prompt text;
 //   · projection ② — violations/evidenceViolations: the child draft's read-back
-//     validation (the SAME declared objects the prompt showed; a violation is the
+//     validation (the SAME projected objects the prompt showed; a violation is the
 //     engine's read-back BLOCK — no-overwrite on failure);
 //   · the status rollup — the review conclusion (blocker → CHANGES_REQUESTED ·
 //     warn/nit → REVIEW_FIX · none → APPROVED) + the findings normalization (the
@@ -16,13 +17,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
-import { type DeliveryCarrier, HandoffSchema } from "../handoff-schema.ts";
+import { HandoffSchema } from "../handoff-schema.ts";
 import { Ledger } from "../ledger.ts";
 
 const schema = new HandoffSchema();
 
 /** A hermetic ledger fixture — a fresh temp workspace (the buildHandoff carrier
- *  needs no on-disk state; the fixture keeps the per-face pins self-contained). */
+ *  needs no on-disk state; the fixture keeps the per-plane pins self-contained). */
 const ledgerFixture = (): { ledger: Ledger; cleanup: () => void } => {
   const repo = mkdtempSync(path.join(tmpdir(), "handoff-carrier-"));
   const workspace = new Workspace(
@@ -42,7 +43,7 @@ const WORK = {
   notes: ["one note"],
 };
 
-/** The canonical valid review draft — the findings-only write-back. */
+/** The canonical valid judge draft — the review's write-back. */
 const FINDINGS = {
   findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
   notes: [],
@@ -57,9 +58,31 @@ const EVIDENCE = {
   typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
 };
 
+describe("the op-derived plane — planeOf", () => {
+  it("derives work for implement / fix and judge for review — the ONE plane source", () => {
+    expect(HandoffSchema.planeOf("implement")).toBe("work");
+    expect(HandoffSchema.planeOf("fix")).toBe("work");
+    expect(HandoffSchema.planeOf("review")).toBe("judge");
+  });
+
+  it("projects the plane's writable subset — CARRIER's declaration order filtered per plane", () => {
+    const work = schema.planeSchema("work");
+    expect(Object.keys(work.properties ?? {})).toEqual(["status", "artifacts", "notes"]);
+    expect(work.required).toEqual(["status", "artifacts"]);
+    const judge = schema.planeSchema("judge");
+    expect(Object.keys(judge.properties ?? {})).toEqual(["findings", "artifacts", "notes"]);
+    expect(judge.required).toEqual(["findings"]);
+  });
+
+  it("keeps the plane exclusives — status never rides judge, findings never ride work", () => {
+    expect(schema.planeSchema("work").properties ?? {}).not.toHaveProperty("findings");
+    expect(schema.planeSchema("judge").properties ?? {}).not.toHaveProperty("status");
+  });
+});
+
 describe("projection ① — the injected writable-subset schema text", () => {
-  it("renders the work face — the carrier fence + the evidence-file fence", () => {
-    const text = schema.schemaText("delivery", true);
+  it("renders the work plane — the carrier fence + the evidence-file fence", () => {
+    const text = schema.schemaText("work", true);
     expect(text).toContain("```json");
     expect(text).toContain("Write the handoff draft at `OUTPUT_HANDOFF` per this writable subset");
     expect(text).toContain('"status"');
@@ -75,8 +98,8 @@ describe("projection ① — the injected writable-subset schema text", () => {
     });
   });
 
-  it("renders the findings face — findings only, no status, no evidence fence", () => {
-    const text = schema.schemaText("findings", false);
+  it("renders the judge plane — findings only, no status, no evidence fence", () => {
+    const text = schema.schemaText("judge", false);
     expect(text).toContain("```json");
     expect(text).toContain('"findings"');
     expect(text).not.toContain('"status"');
@@ -85,52 +108,51 @@ describe("projection ① — the injected writable-subset schema text", () => {
     expect(json).toMatchObject({ type: "object", required: ["findings"] });
   });
 
-  it("is byte-stable per (face, evidence) — the prompt's contract surface never shifts", () => {
-    // the SAME face renders identical text every dispatch (the prefix-tail cache fact)
-    expect(schema.schemaText("delivery", true)).toBe(schema.schemaText("delivery", true));
-    expect(schema.schemaText("findings", false)).toBe(schema.schemaText("findings", false));
-    expect(schema.schemaText("delivery", true)).not.toBe(schema.schemaText("findings", false));
+  it("is byte-stable per (plane, evidence) — the prompt's contract surface never shifts", () => {
+    // the SAME plane renders identical text every dispatch (the prefix-tail cache fact)
+    expect(schema.schemaText("work", true)).toBe(schema.schemaText("work", true));
+    expect(schema.schemaText("judge", false)).toBe(schema.schemaText("judge", false));
+    expect(schema.schemaText("work", true)).not.toBe(schema.schemaText("judge", false));
   });
 
-  it("the fence parses byte-identically to the declared face node — the one-hand projection pin (T3)", () => {
+  it("the fence parses byte-identically to the projected plane node — the one-hand projection pin (T3)", () => {
     // The prompt-injection projection (schemaText) and the read-back declaration
-    // (faceSchema) are the SAME declared object's two projections: parses of the
-    // ```` ```json ```` fences must round-trip to the declared nodes verbatim (the
-    // declaration IS the writable plane — zero engine-only metadata to strip) — the
-    // prompt can never show a schema the engine does not enforce (the guard's
-    // checkHandoffPlane ③ asserts the same fact against the live tree).
-    for (const face of ["delivery", "findings"] as const) {
-      const text = schema.schemaText(face, false);
+    // (planeSchema) are the SAME projected object's two readings: parses of the
+    // ```` ```json ```` fences must round-trip to the projected nodes verbatim (the
+    // projection IS the writable plane — zero engine-only metadata to strip) — the
+    // prompt can never show a schema the engine does not enforce.
+    for (const plane of ["work", "judge"] as const) {
+      const text = schema.schemaText(plane, false);
       const parsed = JSON.parse(text.split("```json\n")[1]!.split("\n```")[0]!);
-      expect(JSON.stringify(parsed)).toBe(JSON.stringify(schema.faceSchema(face)));
+      expect(JSON.stringify(parsed)).toBe(JSON.stringify(schema.planeSchema(plane)));
     }
   });
 
-  it("the findings fence carries no status — the conclusion is derived, never a child-writable field (D27)", () => {
-    // The findings carrier holds no status field: the declaration plane IS the
-    // writable plane, and the round conclusion derives at judgment time
-    // (`conclusionOf("findings", carrier)` → rollup(findings)). The child-visible
-    // fence therefore never surfaces a `"status"` slot on the findings face.
-    expect(schema.schemaText("findings", false)).not.toContain('"status"');
+  it("the judge fence carries no status — the conclusion is derived, never a child-writable field (D27)", () => {
+    // The judge carrier holds no status field: the projection IS the writable plane,
+    // and the round conclusion derives at judgment time
+    // (`conclusionOf("judge", carrier)` → rollup(findings)). The child-visible
+    // fence therefore never surfaces a `"status"` slot on the judge plane.
+    expect(schema.schemaText("judge", false)).not.toContain('"status"');
   });
 });
 
 describe("projection ② — the read-back validation (violations)", () => {
-  it("accepts the canonical work draft and the canonical findings draft", () => {
-    expect(schema.violations("delivery", WORK)).toEqual([]);
-    expect(schema.violations("findings", FINDINGS)).toEqual([]);
+  it("accepts the canonical work draft and the canonical judge draft", () => {
+    expect(schema.violations("work", WORK)).toEqual([]);
+    expect(schema.violations("judge", FINDINGS)).toEqual([]);
   });
 
   it("refuses a work draft missing the required status / artifacts", () => {
-    expect(schema.violations("delivery", { artifacts: { report: "/r" } })).toContain(
+    expect(schema.violations("work", { artifacts: { report: "/r" } })).toContain(
       "status: required",
     );
-    expect(schema.violations("delivery", { status: "APPROVED" })).toContain("artifacts: required");
+    expect(schema.violations("work", { status: "APPROVED" })).toContain("artifacts: required");
   });
 
   it("refuses a non-object draft and an out-of-enum status", () => {
-    expect(schema.violations("delivery", "nope")).toEqual(["expected an object"]);
-    expect(schema.violations("delivery", { status: "NEEDS_CONTEXT", artifacts: {} })).toEqual([
+    expect(schema.violations("work", "nope")).toEqual(["expected an object"]);
+    expect(schema.violations("work", { status: "NEEDS_CONTEXT", artifacts: {} })).toEqual([
       "status: must be one of APPROVED | BLOCKED",
     ]);
   });
@@ -139,29 +161,32 @@ describe("projection ② — the read-back validation (violations)", () => {
     // a work draft carrying engine-reserved or extra keys is dropped by materialize
     // and never refuses the draft (the drop-not-BLOCK ruling · §8.7)
     expect(
-      schema.violations("delivery", { status: "APPROVED", artifacts: {}, phase: "implement" }),
+      schema.violations("work", { status: "APPROVED", artifacts: {}, phase: "implement" }),
     ).toEqual([]);
-    expect(
-      schema.violations("delivery", { status: "APPROVED", artifacts: {}, tasks: [1] }),
-    ).toEqual([]);
-    // a child-authored `status` on a findings draft is non-declared — dropped, not refused
-    expect(schema.violations("findings", { findings: [], status: "APPROVED" })).toEqual([]);
+    expect(schema.violations("work", { status: "APPROVED", artifacts: {}, tasks: [1] })).toEqual(
+      [],
+    );
+    // a residual findings payload on a docs-fix work draft is non-declared — dropped,
+    // not refused (D62: the work plane carries no findings slot)
+    expect(schema.violations("work", { status: "APPROVED", artifacts: {}, findings: [] })).toEqual(
+      [],
+    );
     // a stray `commits` key on a work draft is no longer declared — dropped
-    expect(schema.violations("delivery", { ...WORK, commits: { base: "short" } })).toEqual([]);
+    expect(schema.violations("work", { ...WORK, commits: { base: "short" } })).toEqual([]);
   });
 
-  it("refuses a findings draft with a missing findings array or a bad severity", () => {
-    expect(schema.violations("findings", {})).toEqual(["findings: required"]);
-    expect(schema.violations("findings", { findings: "nope" })).toEqual([
+  it("refuses a judge draft with a missing findings array or a bad severity", () => {
+    expect(schema.violations("judge", {})).toEqual(["findings: required"]);
+    expect(schema.violations("judge", { findings: "nope" })).toEqual([
       "findings: expected an array",
     ]);
     expect(
-      schema.violations("findings", {
+      schema.violations("judge", {
         findings: [{ severity: "fatal", lens: "spec", summary: "x" }],
       }),
     ).toEqual(["findings[0].severity: must be one of blocker | warn | nit"]);
     expect(
-      schema.violations("findings", {
+      schema.violations("judge", {
         findings: [{ severity: "warn", lens: "spec" }],
       }),
     ).toEqual(["findings[0].summary: required"]);
@@ -218,34 +243,34 @@ describe("the status rollup + the findings normalization", () => {
     );
   });
 
-  it("conclusionOf derives the findings conclusion from the findings, the work conclusion from the declared status (D27)", () => {
-    // the findings face NEVER reads a carrier status — its conclusion rolls up from
-    // the findings alone (the persisted findings carrier holds no status field)
-    expect(schema.conclusionOf("findings", { findings: [{ severity: "blocker" }] })).toBe(
+  it("conclusionOf derives the judge conclusion from the findings, the work conclusion from the declared status (D27)", () => {
+    // the judge plane NEVER reads a carrier status — its conclusion rolls up from
+    // the findings alone (the persisted judge carrier holds no status field)
+    expect(schema.conclusionOf("judge", { findings: [{ severity: "blocker" }] })).toBe(
       "CHANGES_REQUESTED",
     );
-    expect(schema.conclusionOf("findings", { findings: [{ severity: "nit" }] })).toBe("REVIEW_FIX");
-    expect(schema.conclusionOf("findings", { findings: [] })).toBe("APPROVED");
-    expect(schema.conclusionOf("findings", {})).toBe("APPROVED");
-    // a stray status on a findings carrier is ignored — the derivation is from findings
+    expect(schema.conclusionOf("judge", { findings: [{ severity: "nit" }] })).toBe("REVIEW_FIX");
+    expect(schema.conclusionOf("judge", { findings: [] })).toBe("APPROVED");
+    expect(schema.conclusionOf("judge", {})).toBe("APPROVED");
+    // a stray status on a judge carrier is ignored — the derivation is from findings
     expect(
-      schema.conclusionOf("findings", { findings: [{ severity: "blocker" }], status: "APPROVED" }),
+      schema.conclusionOf("judge", { findings: [{ severity: "blocker" }], status: "APPROVED" }),
     ).toBe("CHANGES_REQUESTED");
-    // the work face reads its declared status verbatim
-    expect(schema.conclusionOf("delivery", { status: "APPROVED", artifacts: {} })).toBe("APPROVED");
-    expect(schema.conclusionOf("delivery", { status: "BLOCKED", artifacts: {} })).toBe("BLOCKED");
+    // the work plane reads its declared status verbatim
+    expect(schema.conclusionOf("work", { status: "APPROVED", artifacts: {} })).toBe("APPROVED");
+    expect(schema.conclusionOf("work", { status: "BLOCKED", artifacts: {} })).toBe("BLOCKED");
     // a PRESENT-but-invalid work status byte degrades to BLOCKED — a malformed
     // declaration is a failure signal, never silently approved
-    expect(schema.conclusionOf("delivery", { status: "garbage", artifacts: {} })).toBe("BLOCKED");
-    expect(schema.conclusionOf("delivery", { status: "CHANGES_REQUESTED", artifacts: {} })).toBe(
+    expect(schema.conclusionOf("work", { status: "garbage", artifacts: {} })).toBe("BLOCKED");
+    expect(schema.conclusionOf("work", { status: "CHANGES_REQUESTED", artifacts: {} })).toBe(
       "BLOCKED",
     );
     // an ABSENT status is NOT a failure declaration — undefined (no conclusion
     // declared), distinct from a declared BLOCKED. This is the legacy-carrier fact:
     // a work carrier predating the status field never reads as a fabricated failure
     // (the router treats undefined as "not failed"; BLOCKED as the failure face).
-    expect(schema.conclusionOf("delivery", {})).toBeUndefined();
-    expect(schema.conclusionOf("delivery", { artifacts: {} })).toBeUndefined();
+    expect(schema.conclusionOf("work", {})).toBeUndefined();
+    expect(schema.conclusionOf("work", { artifacts: {} })).toBeUndefined();
   });
 
   it("normalizes the draft findings — unknown severities dropped, severity + summary kept", () => {
@@ -259,16 +284,15 @@ describe("the status rollup + the findings normalization", () => {
   });
 });
 
-describe("the derived carrier types — buildHandoff per-face shaping (T1)", () => {
-  it("the work carrier's flat keys equal the declared properties set, zero findings (the runtime fallback of the type derivation)", () => {
+describe("the derived carrier types — buildHandoff per-plane shaping", () => {
+  it("the work carrier's runtime keys equal the work projection's declared properties set, zero findings", () => {
     const { ledger, cleanup } = ledgerFixture();
     try {
-      const carrier = ledger.buildHandoff("delivery", { artifacts: { report: "/r" } });
+      const carrier = ledger.buildHandoff("work", { artifacts: { report: "/r" } });
       carrier.status = "APPROVED";
-      carrier.failure_category = "none";
       carrier.notes = ["one note"];
       expect(Object.keys(carrier).sort()).toEqual(
-        Object.keys(schema.faceSchema("delivery").properties ?? {}).sort(),
+        Object.keys(schema.planeSchema("work").properties ?? {}).sort(),
       );
       expect("findings" in carrier).toBe(false);
     } finally {
@@ -276,33 +300,14 @@ describe("the derived carrier types — buildHandoff per-face shaping (T1)", () 
     }
   });
 
-  it("the findings carrier carries the schema-required findings key", () => {
+  it("the judge carrier carries the schema-required findings key", () => {
     const { ledger, cleanup } = ledgerFixture();
     try {
-      const carrier = ledger.buildHandoff("findings", {
+      const carrier = ledger.buildHandoff("judge", {
         findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
       });
       expect(Object.keys(carrier)).toContain("findings");
       expect(carrier.findings).toEqual([{ severity: "blocker", lens: "spec", summary: "drift" }]);
-    } finally {
-      cleanup();
-    }
-  });
-
-  it("the type gate — the work face refuses a findings payload at compile time", () => {
-    const { ledger, cleanup } = ledgerFixture();
-    try {
-      // The compile-time twin of the runtime key-set pin above — a negative TYPE
-      // assertion (the repo's zero-debt escape ban forbids compile-error-suppression
-      // directives, so the gate is the assertion itself): `NoFindings<DeliveryCarrier>`
-      // only COMPILES while the work writable subset declares no findings field — a
-      // schema edit adding findings to the work face breaks this file's typecheck
-      // (Q1→c), and the `buildHandoff("delivery", …)` overload refuses a findings init
-      // by construction.
-      type NoFindings<T> = "findings" extends keyof T ? never : true;
-      const gate: NoFindings<DeliveryCarrier> = true;
-      expect(gate).toBe(true);
-      void ledger;
     } finally {
       cleanup();
     }

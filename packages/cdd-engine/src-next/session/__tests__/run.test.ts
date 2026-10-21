@@ -656,8 +656,8 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
   });
 });
 
-describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
-  it("the work fallback builds a findings-free carrier — the persisted implement handoff carries zero findings keys (the work face)", async () => {
+describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", () => {
+  it("the work fallback builds a findings-free carrier — the persisted implement handoff carries zero findings keys (the work plane)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = taskGraph([task(1, "none")]);
@@ -677,7 +677,7 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
     }
   });
 
-  it("the docs-fix fallback carries the findings face — the persisted fix handoff HAS the findings key (a work-shaped fallback would fail this)", async () => {
+  it("the docs-fix fallback rides the work plane — the persisted fix handoff reports status, zero findings keys (D62)", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const dispatch = stub((frame) =>
@@ -696,10 +696,10 @@ describe("T2 — the bookkeep fallback rides the frame's declared face", () => {
       await run.advance();
       const carrier = ledger.readHandoff("fix", "spec", { round: 1 });
       expect(carrier).not.toBeNull();
-      // the fix-doc family is the findings face — the fallback carrier declares the
-      // findings key (empty: the fix outcome advances no new findings of its own)
-      expect(Object.keys(carrier!)).toContain("findings");
-      expect(carrier!.findings).toEqual([]);
+      // the fix op derives the work plane — the fallback carrier reports the round's
+      // status and declares no findings slot (a findings-shaped fallback fails this)
+      expect(Object.keys(carrier!)).not.toContain("findings");
+      expect(carrier!.status).toBe("APPROVED");
     } finally {
       cleanup();
     }

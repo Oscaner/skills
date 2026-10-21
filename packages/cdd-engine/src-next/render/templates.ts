@@ -154,7 +154,7 @@ const LICENSE_ITEMS: readonly string[] = [
 ];
 
 /** The `## Handoff schema` section — the injected writable-subset fence at every
- *  shell's tail (the {{HANDOFF_SCHEMA}} slot; the face's sets differ per mode, so
+ *  shell's tail (the {{HANDOFF_SCHEMA}} slot; the plane's sets differ per mode, so
  *  the section's bytes are fixed per mode — §3.5 prefix-cache grouping). */
 const SCHEMA_SECTION: readonly string[] = ["", "## Handoff schema", "", "{{HANDOFF_SCHEMA}}"];
 
@@ -165,7 +165,7 @@ const IMPLEMENT_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  `**implement:** read \`INPUT_WAVE_BRIEF\` (the complete plan mirror — every \`### Task N:\` of the wave + the plan's \`## Constraints\` section, fresh-extracted at dispatch). \`WAVE\` = this round's wave (the task list); implement ALL tasks of the wave, never a subset. \`CONFIRMED_SEAMS\` in the brief → apply as-is; else propose test boundaries in the report, then invoke **\`${DISPATCH.implement}\`**. Write the handoff draft at \`OUTPUT_HANDOFF\` per \`## Handoff schema\` BEFORE the return block: \`status\` (APPROVED once applied, else BLOCKED + \`failure_category\`) and \`artifacts\` (the prescribed \`OUTPUT_REPORT\`/\`OUTPUT_EVIDENCE\` paths from the round context — the \`{family}-{key}-\` canonical names, zero free naming).`,
+  `**implement:** read \`INPUT_WAVE_BRIEF\` (the complete plan mirror — every \`### Task N:\` of the wave + the plan's \`## Constraints\` section, fresh-extracted at dispatch). \`WAVE\` = this round's wave (the task list); implement ALL tasks of the wave, never a subset. \`CONFIRMED_SEAMS\` in the brief → apply as-is; else propose test boundaries in the report, then invoke **\`${DISPATCH.implement}\`**. Write the handoff draft at \`OUTPUT_HANDOFF\` per \`## Handoff schema\` BEFORE the return block: \`status\` (APPROVED once applied, else BLOCKED + the reason in \`notes\`) and \`artifacts\` (the prescribed \`OUTPUT_REPORT\`/\`OUTPUT_EVIDENCE\` paths from the round context — the \`{family}-{key}-\` canonical names, zero free naming).`,
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
   ...SCHEMA_SECTION,
@@ -188,7 +188,7 @@ const FIX_SHELL: readonly string[] = [
   "**fix:** read `INPUT_REVIEWS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_PLAN` on the plan/branch lines — the plan document; `INPUT_SPEC` on the spec line — the spec document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_REVIEWS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
-  // T5 (v0.3) — The delivery face's ONE strict-schema sentence: every top-level draft
+  // T5 (v0.3) — The work plane's ONE strict-schema sentence: every top-level draft
   // field comes from the `## Handoff schema` declared properties (the fields'
   // single source is the injected fence below — never a second enumeration in the
   // shell prose; a fix child that mirrors the source review carrier's top-level
@@ -199,22 +199,19 @@ const FIX_SHELL: readonly string[] = [
 ];
 
 /** The docs-fix row's fixed prefix — header + instructions (no evidence — the
- *  docs-fix face writes no evidence file). */
+ *  docs-fix round writes no evidence file). */
 const DOCS_FIX_SHELL: readonly string[] = [
   "# CDD dispatch — docs-fix round",
   "",
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "**docs-fix:** apply `INPUT_REVIEWS` (all severities) directly to the judged doc — `INPUT_PLAN` on a plan-doc line, `INPUT_SPEC` on a spec-doc line — removing fixed findings; record the path in `artifacts.doc`; empty `findings` = all fixed. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema`; the engine derives the conclusion from the residual findings; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  "**docs-fix:** apply `INPUT_REVIEWS` (all severities) directly to the judged doc — `INPUT_PLAN` on a plan-doc line, `INPUT_SPEC` on a spec-doc line — removing fixed findings; record the path in `artifacts.doc` and report the round in `status` (APPROVED once every finding is applied, else BLOCKED + the reason in `notes`). Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; retry = full re-run (idempotent).",
   ...LICENSE_ITEMS,
-  // T5 (v0.3) — The findings face's ONE strict-schema sentence: same schema-first
-  // directive as the work shell, naming the required `findings` (carried over from
-  // the source review carrier verbatim — the required key is told how to fill, so
-  // the sentence never contradicts the findings carrier's own required gate; the
-  // work shell's field list is never copied here, and no field enumeration rides
-  // the findings shell's prose either).
-  "**Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — `findings` (required) rides over from `INPUT_REVIEWS` verbatim, unmodified; the declaration is the field source, zero extra keys.",
+  // The generic strict-schema sentence — the SAME one the work shells carry: the
+  // injected declaration is the draft's single field source, zero per-mode field
+  // enumeration in the shell prose.
+  "**Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — the declaration is the field source, zero extra keys.",
   ...SCHEMA_SECTION,
 ];
 
@@ -474,7 +471,10 @@ export const CLAUSES = {
     "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 15
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 16
+ *  unifies the handoff carrier on one op-derived plane (work / judge — implement /
+ *  fix author a status-bearing work carrier, review a findings-only judge carrier)
+ *  and gives the docs-fix round a `status` to report its outcome in. $version 15
  *  carries the `INPUT_OVERALL` read face (the parent charter a spec's `program:`
  *  names, mirroring `INPUT_SPEC` — a face without `program:` drops the slot) and
  *  adds the spec axis's program-scope conformance criterion (the phase judged against
@@ -497,7 +497,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 15,
+  $version: 16,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

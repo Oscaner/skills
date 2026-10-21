@@ -287,7 +287,7 @@ describe("ledger.closedWaves — the C5 closure single read face", () => {
     const { ledger, cleanup } = fixture();
     try {
       // The regression pin: a work-face fix carrier written before the status field
-      // existed holds no `status`. `conclusionOf("delivery", carrier)` returns undefined
+      // existed holds no `status`. `conclusionOf("work", carrier)` returns undefined
       // (no conclusion declared), and the router treats undefined as NOT a failure —
       // so the fix round's clean source review closes the wave. A stricter
       // absent→BLOCKED reading would fabricate a failure and strand every such wave

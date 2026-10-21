@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 import { ARGV_CHANNEL } from "../../face/declare.ts";
 import { DISPATCH, HOSTS, REFS } from "../../face/host.ts";
 import { REVIEWS, TEMPLATE_PROMPT } from "../../render/templates.ts";
+import { HandoffSchema } from "../../session/handoff-schema.ts";
 import { ConfigLoader } from "../config.ts";
 import { GitClient } from "../git.ts";
 import { ProcessRunner } from "../process.ts";
@@ -50,14 +51,12 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
   it("carries the handoff family naming table — every op.type the ledger resolves", () => {
     expect(HANDOFF_FAMILIES["implement.wave"].name).toBe("tasks-{tasks}-implement.json");
     expect(HANDOFF_FAMILIES["review.wave"].name).toBe("tasks-{tasks}-review-{round}.json");
-    // v1.9 — the family `schema` faces select the handoff-schema subset (§3.6: the
-    // field resurrected from the dead task/docs discrimination), and the return-format
-    // field is gone (RETURN_PROSE is the ONE return contract). The docs-fix
-    // families (fix.spec/fix.plan) ride the findings face — §3.6's per-mode split.
-    expect(HANDOFF_FAMILIES["review.branch"].schema).toBe("findings");
-    expect(HANDOFF_FAMILIES["fix.plan"].schema).toBe("findings");
-    expect(HANDOFF_FAMILIES["implement.wave"].schema).toBe("delivery");
-    expect(HANDOFF_FAMILIES["fix.wave"].schema).toBe("delivery");
+    // Each family is a pure name row — the carrier plane is derived from the op
+    // (`HandoffSchema.planeOf`), never declared per family. The return-format field is
+    // gone (RETURN_PROSE is the ONE return contract).
+    expect(HandoffSchema.planeOf("review")).toBe("judge");
+    expect(HandoffSchema.planeOf("implement")).toBe("work");
+    expect(HandoffSchema.planeOf("fix")).toBe("work");
     for (const key of [
       "implement.wave",
       "review.wave",
@@ -70,6 +69,7 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
       "fix.branch",
     ] as const satisfies readonly (keyof typeof HANDOFF_FAMILIES)[]) {
       expect(HANDOFF_FAMILIES[key], key).toBeDefined();
+      expect(Object.keys(HANDOFF_FAMILIES[key]), key).toEqual(["name"]);
     }
     // the return-format field is deleted with the divided return faces (the type-level
     // assertion — a re-added field would fail the compile)

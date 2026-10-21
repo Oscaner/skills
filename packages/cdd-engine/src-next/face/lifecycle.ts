@@ -17,13 +17,12 @@
 
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
-import { ConfigLoader } from "../infra/config.ts";
+import type { ConfigLoader } from "../infra/config.ts";
 import type { RepoRoot } from "../infra/root.ts";
-import type { HandoffFamily } from "../infra/runtime.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
-import type { HandoffSchemaFace } from "../session/handoff-schema.ts";
+import type { CarrierPlane } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import type { CrashCause, Ledger, OpType, RoundStatus, Termination } from "../session/ledger.ts";
 import { RoundNaming } from "../session/round-naming.ts";
@@ -97,7 +96,6 @@ export interface DispatchScene {
 export class CliLifecycle {
   readonly #env: ProcessEnvLike;
   readonly #sync: ChildRunner;
-  readonly #config: ConfigLoader;
   readonly #template: TemplateAssembler;
   readonly #io: CliIo;
   readonly #scene: DispatchScene;
@@ -132,7 +130,6 @@ export class CliLifecycle {
     this.#scene = opts.scene;
     this.#naming = new RoundNaming(opts.scene.workspace);
     this.#sync = opts.sync ?? new Terminator();
-    this.#config = opts.config ?? new ConfigLoader();
     this.#template = opts.template ?? new TemplateAssembler();
     this.#words = opts.words ?? new Words();
     this.#io = opts.io ?? {
@@ -418,7 +415,7 @@ export class CliLifecycle {
   }
 
   /** The non-rejecting draft probe of the termination branch — a terminated REVIEW
-   *  round's draft is promotable iff it exists, parses, passes the findings schema,
+   *  round's draft is promotable iff it exists, parses, passes the judge plane's schema,
    *  and carries at least one finding. Returns the validated draft (the promotion
    *  then rides the reconstruct's existing validation/persistence/conclusion path) or
    *  null (the round keeps the TIMEOUT failure face). It calls no `#reject` and
@@ -427,12 +424,11 @@ export class CliLifecycle {
   #probeDraft(frame: OpenFrame): Record<string, unknown> | null {
     const op = this.#opOf(frame);
     if (op !== "review") return null;
-    const face = this.#familyOf(op, frame.type).schema ?? "delivery";
-    if (face !== "findings") return null;
+    const plane = HandoffSchema.planeOf(op);
     const read = this.#readDraft(frame);
     if (read.kind !== "ok") return null;
     const draft = read.value;
-    if (this.#handoffSchema.violations(face, draft).length > 0) return null;
+    if (this.#handoffSchema.violations(plane, draft).length > 0) return null;
     const findings = Array.isArray(draft.findings) ? draft.findings : [];
     return findings.length >= 1 ? draft : null;
   }
@@ -480,8 +476,8 @@ export class CliLifecycle {
    *  remains the carrier's single author). A missing or schema-violating draft →
    *  BLOCK over the CDD_BLOCKED channel + a crash record + the draft untouched
    *  (on failure, no overwrite — the child's work is never clobbered; resume re-runs the same
-   *  command, which re-offers the round). The test-evidence file (task-family delivery
-   *  rounds only) is read back with the same stakes: a missing/violating file
+   *  command, which re-offers the round). The test-evidence file (work-plane wave /
+   *  branch rounds only) is read back with the same stakes: a missing/violating file
    *  rewrites the carrier to BLOCKED (persisted — the child's work is kept, marked
    *  bad), the second fix for a prose-only claim.
    *
@@ -491,7 +487,7 @@ export class CliLifecycle {
   #reconstruct(frame: OpenFrame, prefetched?: Record<string, unknown>): DispatchOutcome {
     const scene = this.#scene;
     const op = this.#opOf(frame);
-    const face = this.#familyOf(op, frame.type).schema ?? "delivery";
+    const plane = HandoffSchema.planeOf(op);
     const schema = this.#handoffSchema;
     const path = scene.ledger.handoffPath(op, frame.type, frame.params);
     let draft: Record<string, unknown>;
@@ -525,36 +521,35 @@ export class CliLifecycle {
       }
       draft = draftRead.value;
     }
-    const problems = schema.violations(face, draft);
+    const problems = schema.violations(plane, draft);
     if (problems.length > 0) {
       return this.#reject(
         frame,
         path,
-        `the handoff draft at ${path} violates the ${face} schema: ${problems.join("; ")}`,
+        `the handoff draft at ${path} violates the ${plane} schema: ${problems.join("; ")}`,
       );
     }
-    // T2 — the face-aware read: the findings face ALONE reads `draft.findings` (its
-    // own declared required field — rolled up to the conclusion); the delivery face
-    // derives its status from the draft's declared status, never the findings plane
-    // (the delivery writable subset declares no findings field — zero findings read).
+    // T2 — the plane-aware read: the judge plane ALONE reads `draft.findings` (its
+    // own declared required field — rolled up to the conclusion); the work plane
+    // derives its status from the draft's declared status, never the findings slot
+    // (the work writable subset declares no findings field — zero findings read).
     // The conclusion rides the ONE source (`HandoffSchema.conclusionOf`) the ledger
-    // legs read too — the reconstruct never rules a delivery status by a second path.
-    const findings =
-      face === "findings" ? (Array.isArray(draft.findings) ? draft.findings : []) : [];
-    // A validated draft's conclusion is total: the findings face rolls up its own
-    // required findings, and the delivery face's `status` passed the `required` gate above
-    // — so the `?? "BLOCKED"` never fires here (a delivery draft without a status never
+    // legs read too — the reconstruct never rules a work status by a second path.
+    const findings = plane === "judge" ? (Array.isArray(draft.findings) ? draft.findings : []) : [];
+    // A validated draft's conclusion is total: the judge plane rolls up its own
+    // required findings, and the work plane's `status` passed the `required` gate above
+    // — so the `?? "BLOCKED"` never fires here (a work draft without a status never
     // reaches this line; the absent→undefined case exists only for on-disk legacy
     // carriers the ledger reads back, never a schema-validated draft).
-    let status: RoundStatus = schema.conclusionOf(face, draft) ?? "BLOCKED";
+    let status: RoundStatus = schema.conclusionOf(plane, draft) ?? "BLOCKED";
     let reason: string | null = null;
-    // The evidence gate (v1.9) — the delivery faces (implement/fix task+branch) write
-    // the canonical `{family-prefix}-{key}-test-evidence.json` under the workspace
-    // (§3.7 naming: tasks- for the task families, branch- for the branch fix); the
-    // docs faces (review/docs-fix) carry no evidence file. The read-back is REAL — a
-    // missing/malformed/schema-violating file rewrites the draft to BLOCKED (each
-    // cause reported truly — the tri-state read, D27).
-    if (face === "delivery") {
+    // The evidence gate (v1.9) — the work plane's wave / branch rounds (implement/fix
+    // task+branch) write the canonical `{family-prefix}-{key}-test-evidence.json` under
+    // the workspace (§3.7 naming: tasks- for the task families, branch- for the branch
+    // fix); the doc rounds (review/docs-fix) carry no evidence file. The read-back is
+    // REAL — a missing/malformed/schema-violating file rewrites the draft to BLOCKED
+    // (each cause reported truly — the tri-state read, D27).
+    if (plane === "work" && (frame.type === "wave" || frame.type === "branch")) {
       const evidenceName = this.#naming.evidenceName(frame);
       const evidencePath = scene.workspace.resolve(evidenceName);
       const evidenceRead = scene.workspace.readJson<unknown>(evidenceName);
@@ -576,8 +571,8 @@ export class CliLifecycle {
     }
     return {
       status,
-      findings: face === "findings" ? schema.findingsOf(findings) : undefined,
-      carrier: this.#materialize(frame, face, draft, status, reason),
+      findings: plane === "judge" ? schema.findingsOf(findings) : undefined,
+      carrier: this.#materialize(frame, plane, draft, status, reason),
     };
   }
 
@@ -670,11 +665,11 @@ export class CliLifecycle {
    *  engine-seated identity rides the canonical file name, never inline: phase/tasks
    *  are not declared and never written — v1.30), persisted by the bookkeep
    *  full-replace at the SAME path (agent draft → finalized). The evidence override
-   *  rewrites the status to BLOCKED + a failure_category + the reason note (the
-   *  child's work preserved, marked bad). */
+   *  rewrites the status to BLOCKED + the reason note (the child's work preserved,
+   *  marked bad). */
   #materialize(
     frame: OpenFrame,
-    face: HandoffSchemaFace,
+    plane: CarrierPlane,
     draft: Record<string, unknown>,
     status: RoundStatus,
     reason: string | null,
@@ -686,45 +681,43 @@ export class CliLifecycle {
     // AT MOST ONE WARN on the carrier's notes (auditable, non-interrupting — replacing
     // the retired "BLOCK + crash-resume + reopen" chain). The engine stays the carrier's
     // single author; a child's stray key is surfaced, not obeyed.
-    const dropped = this.#handoffSchema.droppedKeys(face, draft);
+    const dropped = this.#handoffSchema.droppedKeys(plane, draft);
     if (dropped.length > 0) {
       notes.push(
         `dropped non-declared draft field(s): ${dropped.join(", ")} — engine-reserved, never written`,
       );
     }
-    // The per-face carrier — buildHandoff's typed overloads: the findings face REQUIRES
+    // The per-plane carrier — buildHandoff's typed overloads: the judge plane REQUIRES
     // its findings payload (the schema-required field — cli.test pins the review
-    // carrier's findings + status), the delivery face builds a findings-FREE typed carrier
-    // (the delivery writable subset declares no findings field — the materialized delivery
-    // carrier carries zero findings keys). `Record<string, unknown>` local: the round
-    // conclusion (status — a RoundStatus, wider than the carrier's declared union) and
-    // the engine's extended fields ride the caller's set below.
+    // carrier's findings + status), the work plane builds a findings-FREE typed carrier
+    // (the work writable subset declares no findings field — a docs-fix draft's residual
+    // findings are dropped, never materialized). `Record<string, unknown>` local: the
+    // round conclusion (status — a RoundStatus, wider than the carrier's declared union)
+    // and the engine's extended fields ride the caller's set below.
     const carrier: Record<string, unknown> =
-      face === "findings"
-        ? ledger.buildHandoff("findings", {
+      plane === "judge"
+        ? ledger.buildHandoff("judge", {
             artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
             findings: this.#findingsList(draft.findings),
           })
-        : ledger.buildHandoff("delivery", {
+        : ledger.buildHandoff("work", {
             artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
           });
-    // The delivery face ALONE persists the round conclusion — it is the child's own
-    // declared status (the schema enum pinned it to APPROVED | BLOCKED). The findings
-    // face holds NO status field: its conclusion is DERIVED at judgment time
-    // (`HandoffSchema.conclusionOf("findings", carrier)` → rollup(findings)), so the
-    // persisted findings carrier stays the pure declaration plane
+    // The work plane ALONE persists the round conclusion — it is the child's own
+    // declared status (the schema enum pinned it to APPROVED | BLOCKED). The judge
+    // plane holds NO status field: its conclusion is DERIVED at judgment time
+    // (`HandoffSchema.conclusionOf("judge", carrier)` → rollup(findings)), so the
+    // persisted judge carrier stays the pure declaration plane
     // (findings/artifacts/notes) and a fix child's INPUT_REVIEWS carrier is
-    // status-free (the judgment face is perpendicular to the input face · D27).
+    // status-free (the judgment plane is perpendicular to the input plane · D27).
     const draftNotes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
-    if (face === "delivery") {
+    if (plane === "work") {
       carrier.status = status;
-      if (typeof draft.failure_category === "string")
-        carrier.failure_category = draft.failure_category;
-      // The evidence-contract override (delivery faces only — the evidence gate reads a
-      // delivery round's evidence file) rewrites the persisted conclusion to BLOCKED.
+      // The evidence-contract override (work-plane wave / branch rounds only — the
+      // evidence gate reads that round's evidence file) rewrites the persisted
+      // conclusion to BLOCKED.
       if (reason !== null) {
         carrier.status = "BLOCKED";
-        carrier.failure_category = "evidence-contract";
         draftNotes.push(reason);
       }
     }
@@ -789,25 +782,13 @@ export class CliLifecycle {
 
   /** The `## Handoff schema` section value — the mode's writable-subset fence
    *  (projection ①; byte-fixed per mode so the prompt's fixed prefix stays
-   *  cache-friendly). The family's `schema` field selects the face (§3.6: delivery →
-   *  carrier + evidence fence for the implement/fix modes; findings → the review /
-   *  docs-fix fence only). */
+   *  cache-friendly). The op-derived plane selects the subset: work → carrier +
+   *  evidence fence on the wave / branch rounds; judge → the review fence only. */
   #schemaText(frame: OpenFrame): string {
-    const op = this.#opOf(frame);
-    const face = this.#familyOf(op, frame.type).schema ?? "delivery";
-    const evidence = face === "delivery";
+    const plane = HandoffSchema.planeOf(this.#opOf(frame));
+    const evidence = plane === "work" && (frame.type === "wave" || frame.type === "branch");
     const prefix = evidence ? this.#naming.prefix(frame) : "tasks";
-    return this.#handoffSchema.schemaText(face, evidence, prefix);
-  }
-
-  /** The op.type family record — the engine-config handoff namespace single truth
-   *  (loud on an unknown family: never a second naming table). */
-  #familyOf(op: string, type: string): HandoffFamily {
-    const family = this.#config.engineConfig().handoffNamespace.families[`${op}.${type}`] as
-      | HandoffFamily
-      | undefined;
-    if (family === undefined) throw new Error(`unknown handoff family: ${op}.${type}`);
-    return family;
+    return this.#handoffSchema.schemaText(plane, evidence, prefix);
   }
 
   /** The artifacts field as a string-map (only string values land — non-string rows

@@ -4738,7 +4738,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const io = new CaptureIo();
       const sync = new StubRunner();
       // The §2.8/§8.7 dogfood crash face: a child-authored `status` (non-declared on
-      // the findings face — the finding carrier holds no status; the conclusion derives
+      // the judge plane — the judge carrier holds no status; the conclusion derives
       // at judgment time) on a review draft, plus a stray extra key. The read-back
       // validator drops both (never a refusal); materialize drops them from the carrier
       // and books ONE WARN on the notes.
@@ -4968,6 +4968,58 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "every top-level field of the draft comes from the `## Handoff schema` declared `properties`",
       );
       expect(prompt).toContain("zero extra keys");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("D62 — a docs-fix round writes a WORK carrier with `status` (no residual findings, no evidence gate)", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new StubRunner();
+      sync.stdout = "status: APPROVED\n";
+      // the docs-fix draft reports its outcome in `status`; the child's leftover
+      // `findings` key is a non-declared work-plane field — dropped by materialize,
+      // never written (the residual-findings dead path is gone)
+      writeFileSync(
+        path.join(scene.workspace.path, "spec-fix-1.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: { doc: "docs/kairos/specs/s1-design.md" },
+          findings: [],
+        }),
+        "utf8",
+      );
+      const docsFixFrame: OpenFrame = {
+        type: "spec",
+        phase: "fix",
+        round: 1,
+        target: { kind: "spec", doc: "docs/kairos/specs/s1-design.md" },
+        params: { round: 1 },
+        key: "docs/kairos/specs/s1-design.md",
+      };
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      // NO test-evidence file: the docs-fix round rides the work plane's status, and
+      // the evidence gate scopes to the wave / branch rounds only
+      const outcome = await dispatch.step()(docsFixFrame);
+      expect(outcome.status).toBe("APPROVED");
+      expect(outcome.carrier?.status).toBe("APPROVED");
+      expect("findings" in (outcome.carrier ?? {})).toBe(false);
+      expect(Object.keys(outcome.carrier ?? {}).sort()).toEqual(["artifacts", "notes", "status"]);
+      expect(((outcome.carrier?.notes ?? []) as string[]).join("\n")).toContain(
+        "dropped non-declared draft field(s): findings",
+      );
+      // the docs-fix prefix tells the child to report the round in `status`
+      const call = sync.calls[0];
+      const prompt = call.args[call.args.length - 1];
+      expect(prompt).toContain("report the round in `status`");
     } finally {
       cleanup();
     }
@@ -5326,7 +5378,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(implementFrame);
       expect(outcome).toEqual({ status: "BLOCKED" });
-      expect(io.stderrText).toContain("violates the delivery schema");
+      expect(io.stderrText).toContain("violates the work schema");
       expect(io.stderrText).toContain("status: required");
       // the draft is preserved byte-identically — the engine never clobbers the
       // child's work; the resume re-runs the same command and the child rewrites it
@@ -5387,7 +5439,6 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           ),
         },
         status: "BLOCKED",
-        failure_category: "evidence-contract",
         notes: [
           expect.stringContaining("artifact report"),
           expect.stringContaining("artifact test_evidence"),
@@ -5436,7 +5487,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(implementFrame);
       expect(outcome.status).toBe("BLOCKED");
-      expect(outcome.carrier?.failure_category).toBe("evidence-contract");
+      expect(outcome.carrier?.status).toBe("BLOCKED");
       const notes = (outcome.carrier?.notes ?? []) as string[];
       expect(notes.join("\n")).toContain("is malformed JSON");
       // the true cause, never the misleading "missing" the collapsed read produced

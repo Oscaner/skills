@@ -58,7 +58,7 @@ export class RoundNaming {
     return this.#workspace.resolve(`${family}-${this.op(frame)}${suffix}-report.md`);
   }
 
-  /** The prescribed test-evidence path of a round — "" off the delivery faces (the doc
+  /** The prescribed test-evidence path of a round — "" off the evidence rounds (the doc
    *  lines and the review rounds prescribe no evidence file). */
   evidence(frame: OpenFrame): string {
     const name = this.evidenceName(frame);
@@ -67,7 +67,7 @@ export class RoundNaming {
 
   /** The test-evidence file NAME of a work frame — the workspace-relative face the
    *  read-back gate reads it by (`{line}-test-evidence.json`: the task families key
-   *  the line, the branch line names the family alone). "" off the delivery faces. */
+   *  the line, the branch line names the family alone). "" off the evidence rounds. */
   evidenceName(frame: OpenFrame): string {
     if (frame.type === "spec" || frame.type === "plan") return "";
     if (frame.phase !== "implement" && frame.phase !== "fix") return "";

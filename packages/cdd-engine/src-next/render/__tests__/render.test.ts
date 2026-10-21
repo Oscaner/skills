@@ -219,20 +219,26 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).not.toContain("**Findings read-only:**");
   });
 
-  it("T5 — the docs-fix shell carries the findings face's single strict-schema sentence — the required findings rides from INPUT_REVIEWS verbatim (no contradiction with the required gate)", () => {
+  it("T5/D62 — the docs-fix shell carries the work plane's generic strict-schema sentence and reports its outcome in status", () => {
     const out = assembler.render({
       ...ALL_VALUES,
       ROLE: "docs-fix",
       INPUT_SPEC: "docs/x-design.md",
     });
-    // the findings face's ONE strict-schema directive — same schema-first wording,
-    // the required `findings` told how to fill (the verbatim carry-over), so the
-    // sentence never reads "findings required but do not write it"
+    // the SAME strict-schema directive the work shells carry — the injected
+    // declaration is the draft's single field source, zero per-mode field enumeration
     expect(out).toContain(
       "every top-level field of the draft comes from the `## Handoff schema` declared `properties`",
     );
-    expect(out).toContain("`findings` (required) rides over from `INPUT_REVIEWS` verbatim");
     expect(out).toContain("zero extra keys");
+    // D62 — the docs-fix round reports its conclusion in the work plane's `status`
+    // slot (the old residual-findings / derived-conclusion contradiction is gone)
+    expect(out).toContain("record the path in `artifacts.doc` and report the round in `status`");
+    expect(out).toContain(
+      "APPROVED once every finding is applied, else BLOCKED + the reason in `notes`",
+    );
+    expect(out).not.toContain("residual findings");
+    expect(out).not.toContain("`findings` (required) rides over from `INPUT_REVIEWS`");
     // keyset zero-residue + the retired carried-as-is guard marker is gone
     expect(out).not.toContain("**Writable fields:**");
     expect(out).not.toContain("accepts exactly");
@@ -370,8 +376,8 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(plan).toContain("**Read-only:**");
     expect(plan).toContain("**Single agent:**");
     // the template contract's version tracks the fixed-prefix text (P16/D60: 12 → 13;
-    // the sync-completion rewrite: 13 → 14)
-    expect(TEMPLATE_PROMPT.$version).toBe(15);
+    // the sync-completion rewrite: 13 → 14; the handoff-carrier plane unification: 15 → 16)
+    expect(TEMPLATE_PROMPT.$version).toBe(16);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)

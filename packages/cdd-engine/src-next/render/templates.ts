@@ -221,7 +221,7 @@ const DOCS_FIX_SHELL: readonly string[] = [
 /** The review variants' shared instruction text — the review's mode rule (the
  *  criteria body + the lens vocabulary ride per-type fixed items below). */
 const REVIEW_ITEM =
-  "**review:** review the criteria below against the reference face named in the round context. Wave reviews judge `INPUT_WAVE_BRIEF` (the complete plan mirror); the plan/branch reviews judge the plan at `INPUT_PLAN`, the spec review judges the spec at `INPUT_SPEC`. Write findings into the draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them); empty `findings` = approved. The engine derives the conclusion from the draft's findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status.";
+  "**review:** review the criteria below against the reference face named in the round context. Wave reviews judge `INPUT_WAVE_BRIEF` (the complete plan mirror); the plan/branch reviews judge the plan at `INPUT_PLAN`, the spec review judges the spec at `INPUT_SPEC`. Write findings into the draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them); empty `findings` = approved. The engine derives the conclusion from the draft's findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status. **Read-only:** never mutate tracked content, the index, HEAD, or branch state — the prescribed `OUTPUT_*` artifacts are a review's only writes, and committing belongs to the orchestrator — read history through `git show` / `git diff` / `git log`, and inspect another revision in a separate directory rather than moving HEAD here; repairs belong to the fix round, never to a review. **Single agent:** do the whole review yourself — never spawn a subagent for part of the diff or for a second opinion; this overrides any dispatched skill's parallel-sub-agent default.";
 
 /** The review mode's shared reduced tail — the only dynamic region of every review
  *  variant (the criteria/lens are fixed-prefix per type, never here). Each review
@@ -309,12 +309,12 @@ export const REVIEWS = {
   wave: {
     lensEnum: ["standards", "spec", "buildability"],
     axesGuide:
-      "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run `git diff origin/<BASE_BRANCH>..HEAD` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (`**Files:**` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding (severity by your judgment). The reviewer is the changed-surface judge — the engine reconciles nothing. The reviewed artifact is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable user would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust). Single agent, four axes.",
+      "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run `git diff origin/<BASE_BRANCH>..HEAD` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (`**Files:**` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding (severity by your judgment). The reviewer is the changed-surface judge — the engine reconciles nothing. The reviewed artifact is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable user would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
   },
   branch: {
     lensEnum: ["standards", "spec", "buildability"],
     axesGuide:
-      "Same four axes as task (branch-wide health: run `git diff origin/<BASE_BRANCH>..HEAD` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop. The reviewed artifact is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable user would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
+      "Same four axes as task (branch-wide health: run `git diff origin/<BASE_BRANCH>..HEAD` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop. The reviewed artifact is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable user would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust). Three things a green run cannot show you: design — does the changed structure fit this codebase and is it the simplest structure that solves the plan's problem (over-engineering is a finding, not a preference); test adequacy — would these tests fail if the code broke (a run that cannot go red is not evidence); migration — does every breaking change name the path a not-yet-migrated consumer takes.",
   },
   spec: {
     lensEnum: ["completeness", "consistency", "clarity"],
@@ -467,12 +467,19 @@ export const CLAUSES = {
   "cl:self-validate":
     "Self-validate before returning: run the validation/checks your change requires and record the evidence (command + exit code + result) in the report.",
   "cl:sync-completion":
-    "Finish nested work in this same turn before writing the handoff. Do not `bg_run` / `bg_delegate` (or equivalent yield-and-wait paths) before the handoff draft is written — nested work must complete synchronously in this process turn, then write the handoff and finish.",
+    "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 12
- *  adds the bounded-loop discipline clause (no `while True: pass` / spin-wait — every
- *  wait carries its own terminating condition). $version 11 makes the Bash discipline
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 14
+ *  rewrites the sync-completion clause to name the one-shot fact (ending your turn with
+ *  work still running exits the process — the work and the handoff die with it) and the
+ *  subagent class (a background subagent is a yield-and-wait path, exactly like a
+ *  background command; `bg_run` / `bg_delegate` were the only names before). $version 13
+ *  adds the two hard review disciplines (read-only — a review mutates no tracked
+ *  content, index, HEAD, or branch state; single agent — a review never spawns a
+ *  subagent) and the branch axis's three judgment points (design · test adequacy ·
+ *  migration). $version 12 adds the bounded-loop discipline clause (no `while True: pass` /
+ *  spin-wait — every wait carries its own terminating condition). $version 11 makes the Bash discipline
  *  clause a hard per-command ceiling (every Bash run carries a `timeout`, no invocation
  *  longer than `CHILD_BASH_TIMEOUT_MS`). $version 10 adds the sync-completion discipline
  *  clause (P14 — one-shot CDD children must finish nested work in-process before writing
@@ -482,7 +489,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 12,
+  $version: 14,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

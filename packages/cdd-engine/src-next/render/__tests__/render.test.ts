@@ -256,6 +256,10 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(spec).not.toContain("- `INPUT_REVIEWS`");
     expect(spec).not.toContain("- `FIX_BASE`");
     expect(spec).not.toContain("BASE_BRANCH"); // spec review carries no scope anchor
+    // P16/D60 — the two hard review disciplines ride the shared fixed prefix, so
+    // every review variant carries them (assembled-face pin)
+    expect(spec).toContain("**Read-only:**");
+    expect(spec).toContain("**Single agent:**");
     // a task review selects its own variant — the task axes + lens + the wave brief
     const task = assembler.render({
       ...ALL_VALUES,
@@ -271,6 +275,14 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(task).toContain("- `BASE_BRANCH`: develop");
     expect(task).not.toContain("Follow URC");
     expect(task).not.toContain("Claimed→pin"); // the task axes carry no clause
+    // P16/D60 — the read-only discipline names its boundary (the review's only
+    // writes are the prescribed OUTPUT_* drafts); the single-agent discipline
+    // overrides any dispatched skill's parallel-sub-agent default
+    expect(task).toContain("**Read-only:**");
+    expect(task).toContain("prescribed `OUTPUT_*` artifacts are a review's only writes");
+    expect(task).toContain("**Single agent:**");
+    expect(task).toContain("never spawn a subagent");
+    expect(task).toContain("overrides any dispatched skill's parallel-sub-agent default");
     // every review axis (task/branch/spec/plan) carries the three review-quality
     // clauses (P10/D49) — here on the wave variant
     expect(task).toContain("its silence is not permission");
@@ -291,6 +303,11 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(branch).toContain("- `INPUT_PLAN`: docs/kairos/plans/p.md");
     expect(branch).toContain("- `INPUT_SPEC`: docs/kairos/specs/p-design.md");
     expect(branch).toContain("- `BASE_BRANCH`: develop");
+    // P16/D60 — the branch axis carries the three judgment points; the single-agent
+    // fact does not ride the axis guide (it lives in the shared REVIEW_ITEM)
+    expect(branch).toContain("**Read-only:**");
+    expect(branch).toContain("**Single agent:**");
+    expect(branch).toContain("Three things a green run cannot show you");
     // the branch variant carries the three review-quality clauses too (P10/D49)
     expect(branch).toContain("its silence is not permission");
     expect(branch).toContain("nothing set aside is dropped silently");
@@ -313,6 +330,12 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // reviewer judges the plan against the spec it implements
     expect(plan).toContain("- `INPUT_PLAN`: docs/kairos/plans/p.md");
     expect(plan).toContain("- `INPUT_SPEC`: docs/kairos/specs/p-design.md");
+    // P16/D60 — the plan variant carries the shared two-discipline prefix too
+    expect(plan).toContain("**Read-only:**");
+    expect(plan).toContain("**Single agent:**");
+    // the template contract's version tracks the fixed-prefix text (P16/D60: 12 → 13;
+    // the sync-completion rewrite: 13 → 14)
+    expect(TEMPLATE_PROMPT.$version).toBe(14);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)
@@ -330,12 +353,17 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
   it("P14 — the sync-completion clause lands identically on implement / review / fix shells (single LICENSE_ITEMS source)", () => {
     // Required tokens from design §2.1: bg_run, bg_delegate, before the handoff,
     // synchronously / same turn — nested work finishes in-process before the draft.
+    // The rewrite (v14) additionally names the one-shot fact and the subagent class:
+    // the child must know WHY the ban is absolute, and that a nested agent counts.
     const pins = [
       "bg_run",
       "bg_delegate",
       "before the handoff",
       "synchronously",
       "same turn",
+      "one-shot",
+      "non-interactive",
+      "background subagent",
     ] as const;
     const implement = assembler.render(ALL_VALUES);
     const review = assembler.render({
@@ -356,7 +384,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     }
     // single-source clause bytes — the three shells share one resolved hard sentence
     const sentence =
-      "Finish nested work in this same turn before writing the handoff. Do not `bg_run` / `bg_delegate` (or equivalent yield-and-wait paths) before the handoff draft is written — nested work must complete synchronously in this process turn, then write the handoff and finish.";
+      "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.";
     expect(implement).toContain(sentence);
     expect(review).toContain(sentence);
     expect(fix).toContain(sentence);

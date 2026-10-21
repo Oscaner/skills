@@ -333,8 +333,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // P16/D60 — the plan variant carries the shared two-discipline prefix too
     expect(plan).toContain("**Read-only:**");
     expect(plan).toContain("**Single agent:**");
-    // the template contract's version tracks the fixed-prefix text (P16/D60: 12 → 13)
-    expect(TEMPLATE_PROMPT.$version).toBe(13);
+    // the template contract's version tracks the fixed-prefix text (P16/D60: 12 → 13;
+    // the sync-completion rewrite: 13 → 14)
+    expect(TEMPLATE_PROMPT.$version).toBe(14);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)
@@ -352,12 +353,17 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
   it("P14 — the sync-completion clause lands identically on implement / review / fix shells (single LICENSE_ITEMS source)", () => {
     // Required tokens from design §2.1: bg_run, bg_delegate, before the handoff,
     // synchronously / same turn — nested work finishes in-process before the draft.
+    // The rewrite (v14) additionally names the one-shot fact and the subagent class:
+    // the child must know WHY the ban is absolute, and that a nested agent counts.
     const pins = [
       "bg_run",
       "bg_delegate",
       "before the handoff",
       "synchronously",
       "same turn",
+      "one-shot",
+      "non-interactive",
+      "background subagent",
     ] as const;
     const implement = assembler.render(ALL_VALUES);
     const review = assembler.render({
@@ -378,7 +384,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     }
     // single-source clause bytes — the three shells share one resolved hard sentence
     const sentence =
-      "Finish nested work in this same turn before writing the handoff. Do not `bg_run` / `bg_delegate` (or equivalent yield-and-wait paths) before the handoff draft is written — nested work must complete synchronously in this process turn, then write the handoff and finish.";
+      "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.";
     expect(implement).toContain(sentence);
     expect(review).toContain(sentence);
     expect(fix).toContain(sentence);

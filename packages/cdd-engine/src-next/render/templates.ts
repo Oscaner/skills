@@ -467,10 +467,14 @@ export const CLAUSES = {
   "cl:self-validate":
     "Self-validate before returning: run the validation/checks your change requires and record the evidence (command + exit code + result) in the report.",
   "cl:sync-completion":
-    "Finish nested work in this same turn before writing the handoff. Do not `bg_run` / `bg_delegate` (or equivalent yield-and-wait paths) before the handoff draft is written — nested work must complete synchronously in this process turn, then write the handoff and finish.",
+    "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 13
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 14
+ *  rewrites the sync-completion clause to name the one-shot fact (ending your turn with
+ *  work still running exits the process — the work and the handoff die with it) and the
+ *  subagent class (a background subagent is a yield-and-wait path, exactly like a
+ *  background command; `bg_run` / `bg_delegate` were the only names before). $version 13
  *  adds the two hard review disciplines (read-only — a review mutates no tracked
  *  content, index, HEAD, or branch state; single agent — a review never spawns a
  *  subagent) and the branch axis's three judgment points (design · test adequacy ·
@@ -485,7 +489,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 13,
+  $version: 14,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

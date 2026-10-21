@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P16 实施计划：评审面纪律补强（只读 · 单代理 · branch 轴三判定点融入评审 prompt）
 doc-type: plan
-version: v0.3
+version: v0.4
 date: 2026-10-21
 slug: 2026-10-10-engine-doc-tooling-p16
 base: develop
@@ -52,3 +52,4 @@ base: develop
 | v0.1 | 2026-10-21 | 初稿——两任务两波：T1 评审面三条纪律文本 + `$version` 12→13 + infra/render 双面断言；T2 changeset minor + 全量验证 + 归因核对。文本逐字取自 phase-spec v0.2 §2.1–§2.3，冻结面零改 | Oscaner M. · Claude（kairos:cdd-plan [P16]）|
 | v0.2 | 2026-10-21 | plan-fix-1——review-1 findings 收口：`REVIEWS.branch.axesGuide` pin 校正 `:315`→`:317`；v13 头注落点由 `:477-483` 改引块顶 `:473`（倒序行文）；infra 面按 spec AC 与裁决补四腿各两条 `toContain`（数据面）；T2 归因集合显式纳入 overall spec（P16 注册面） | Oscaner M. · Claude（kairos:cdd-plan [P16]）|
 | v0.3 | 2026-10-21 | **dev 期归属声明（用户裁定 · 零任务面变更）**：Constraints 新增计划外落地行——`cl:sync-completion` 重写 + `$version` 13→14（提交 `0055cf29`，changeset 并入在册 minor）随本分支落地，不计入任务面，由 branch review 归因审计；T1/T2 任务面与 AC 零改 | Oscaner M. · Claude（kairos:cdd-dev [P16] · 用户裁定回填）|
+| v0.4 | 2026-10-21 | **closeout（cdd-close）**：P16 全链闭合——两任务两波全绿（W1 `c6e6b774` · wave-review APPROVED · W2 `f4f456db` + wave-fix-1（1 nit：changeset EOF 换行）· wave-review APPROVED）· 分支终审 branch-review-1 **APPROVED 零 finding**（`87024594`）· 计划外落地 `0055cf29` 归因审计通过 · `pnpm run validate` exit 0（engine 44 files/806 tests · kairos 87/87 · root 10/10 · typecheck ×3 · emit fresh · version-sync · 零裸函数）· changeset cdd-engine minor pending · 不发布 · **记账事实（如实记录）**：本计划 T1 AC 的 `$version === 13` 与实交 14 之差 = 计划外落地所致（Constraints 归属行 + 用户裁定），非 AC 失效 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill）|

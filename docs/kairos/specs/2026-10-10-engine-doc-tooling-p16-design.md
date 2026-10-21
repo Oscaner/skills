@@ -1,13 +1,13 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P16 设计：评审面纪律补强（branch review 策略融入 prompt · 只读 / 单代理 / 三判定点）
 doc-type: phase-spec
-version: v0.4
+version: v0.5
 date: 2026-10-21
 slug: 2026-10-10-engine-doc-tooling-p16
 program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: "[human] · Claude Opus 5（kairos:cdd-design [P16] grilling → cdd-spec-writer · 2026-10-21）"
-parent-version: v2.68
+parent-version: v2.69
 ---
 
 ## Design
@@ -112,3 +112,4 @@ branch 面另外派发 `mattpocock-skills:code-review`（`face/host.ts:199`）�
 | v0.2 | 2026-10-21 | **spec-fix-1（review-1 findings 收口 · 2 warn + 2 nit）**：① warn——只读条划界：正文改为「不得改 tracked 内容 / index / HEAD / 分支状态」，点名既定 `OUTPUT_*` 草稿是评审唯一的写、提交归编排面，§2.1 补边界句说明共享 `cl:atomic-commit` 在评审面零适用对象（消除与 `REVIEW_ITEM` 草稿写、共享 clause 的两处正面对撞）；② warn——version pin 落地：§2.5 与 AC 点名 `render/templates.ts:485` 为 `$version` pin，并要求 :473-483 版本叙事头注补 v13 行；③ nit——wave/spec/plan 不变量的 pin 由 `infra.test.ts:141-142`（实为 wave/branch 的 dual evidence）改引 :123-128（spec/plan 的 URC 判据 + `lensEnum`），D60-2 删除另在同块新增 `not.toContain("Single agent")` 断言；④ nit——九条共享纪律 clause 的 pin 由 `templates.ts:138-150` 改引 `:142-154`（`LICENSE_ITEMS` 块，九条行 :145-153） | Oscaner M. · Claude（kairos:cdd-spec-writer [P16] spec-fix-1） |
 | v0.3 | 2026-10-21 | **判据面回填（用户裁定 · dev 期 · 零规范变更）**：§2.2 落点理由补记 D60-2 的硬理由——评审面是 one-shot child，P14/D58（#368）已记录「yield 后结束回合等 wake → 进程退出 → 缺稿 → `contract-violation`」这一机制，而共享 `cl:sync-completion` 只封明确 yield 式路径且依赖 child 遵守，故「并行子代理」在 one-shot 模型下不是更差而是收不了工；并成文两条防线的分工（sync-completion 补救 vs 单代理消除）。规范面零改：三条 clause 文本 · AC · 任务面 · `$version` 13 均不变 | Oscaner M. · Claude（kairos:cdd-dev [P16] · 用户裁定回填）|
 | v0.4 | 2026-10-21 | **spec-fix-2（review-2 nit 收口 · 零规范变更）**：§2.2 判据面补两处 colocated pin——① one-shot child（`-p`）= `face/host.ts:149`（claude）/ `:174`（pi），cursor 为 `:159` 的 `--print`（同语义）；② `cl:sync-completion` 的 clause key + 正文 = `render/templates.ts:469-470`。规范面零改：三条 clause 文本 · AC · `$version` 均不变 | Oscaner M. · Claude（kairos:cdd-dev [P16] spec-fix-2）|
+| v0.5 | 2026-10-21 | **closeout（cdd-close）**：P16 全链闭合——实现链两波全绿（W1 `c6e6b774` → wave-review APPROVED · W2 `f4f456db` → wave-review REVIEW_FIX（1 nit：changeset EOF 换行）→ wave-fix-1 → APPROVED）· 分支终审 branch-review-1 APPROVED 零 finding（`87024594`）· 本文档链：v0.1 `a0c37d3e` → spec-fix-1 `fd83e6d1`（v0.2）→ v0.3 判据面回填 `ce23a724`（用户裁定 · 零规范变更）→ doc-drift 重开门下的 review round 2（1 nit：缺 colocated pin）→ spec-fix-2 `87024594`（v0.4）· 计划外落地 `0055cf29`（`cl:sync-completion` 重写 + `$version` 13→14，plan v0.3 归属声明）· 验收 `pnpm run validate` exit 0 · changeset cdd-engine minor pending · 不发布 · **记账事实（如实记录）**：本文 AC 的 `TEMPLATE_PROMPT.$version === 13` 与实交 14 之差来自计划外落地（plan v0.3 已裁定 · 不属 AC 失效），且本文档内 `render/templates.ts:485` 坐标 pin 因叙事行上插漂移（声明值在 :492），行为 pin（断言 === 14）有效——branch review 已逐条 set-aside | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill）|

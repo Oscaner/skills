@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P16 实施计划：评审面纪律补强（只读 · 单代理 · branch 轴三判定点融入评审 prompt）
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-10-21
 slug: 2026-10-10-engine-doc-tooling-p16
 base: develop
@@ -14,6 +14,7 @@ base: develop
 - **冻结面零破**：`session/handoff-schema.ts`（findings 字段与 severity 枚举）· 结论派生规则（blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · 空 → APPROVED）· `face/host.ts`（`DISPATCH.review.*` / `REFS`）· CLI 旗标与退出码表 · `contract/declare.ts` —— 全部零改。
 - **契约版本随文本走**：固定前缀文本变更即模板契约变更，`TEMPLATE_PROMPT.$version` 12 → 13 与文本同一次提交落地，不留「文本已改、版本仍 12」的中间态。
 - 引擎调用一律本地 `node packages/cdd-engine/src-next/bin.ts`；本计划为内部文档中文主源（Strategy B）；不发布，changeset 收尾到可发布态即止。
+- **计划外落地（归属声明 · 用户裁定）**：`cl:sync-completion` 重写（点名 one-shot 非交互事实 + 子代理类别 —— 后台子代理与后台命令同属 yield-and-wait 路径；旧文只枚举 `bg_run` / `bg_delegate`）+ 模板契约 `$version` 13 → 14 随本分支在实现期落地（提交 `0055cf29`，自带断言；其 changeset 并入在册 `.changeset/p16-review-discipline.md` 的同一 minor）。这是用户在 branch line 前明确裁定的消费面收紧（承 P14/D58 #368 的 one-shot 提前收工机制、P15 计划外提交先例），**不计入 P16 任务面**，本行即其归属记录（分支配额内每一改动文件均可归因，无未声明面）；由 branch review 在归因检查里 in-band 审计，不新开任务、不改 spec 定案。
 
 ### Task 1: 评审面三条纪律文本 + 契约版本 13 + 断言
 - **Objective**: `REVIEW_ITEM` 追加「只读」「单代理」两条硬纪律（四类评审共用同一常量，固定前缀自然同源）；`REVIEWS.wave.axesGuide` 尾句 `Single agent, four axes.` 删除；`REVIEWS.branch.axesGuide` 追加三判定点句（设计 / 测试充分性 / 迁移）；`TEMPLATE_PROMPT.$version` 12 → 13 并补版本叙事头注的 v13 行；断言落在 infra 与 render 两个既有用例旁。
@@ -50,3 +51,4 @@ base: develop
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-21 | 初稿——两任务两波：T1 评审面三条纪律文本 + `$version` 12→13 + infra/render 双面断言；T2 changeset minor + 全量验证 + 归因核对。文本逐字取自 phase-spec v0.2 §2.1–§2.3，冻结面零改 | Oscaner M. · Claude（kairos:cdd-plan [P16]）|
 | v0.2 | 2026-10-21 | plan-fix-1——review-1 findings 收口：`REVIEWS.branch.axesGuide` pin 校正 `:315`→`:317`；v13 头注落点由 `:477-483` 改引块顶 `:473`（倒序行文）；infra 面按 spec AC 与裁决补四腿各两条 `toContain`（数据面）；T2 归因集合显式纳入 overall spec（P16 注册面） | Oscaner M. · Claude（kairos:cdd-plan [P16]）|
+| v0.3 | 2026-10-21 | **dev 期归属声明（用户裁定 · 零任务面变更）**：Constraints 新增计划外落地行——`cl:sync-completion` 重写 + `$version` 13→14（提交 `0055cf29`，changeset 并入在册 minor）随本分支落地，不计入任务面，由 branch review 归因审计；T1/T2 任务面与 AC 零改 | Oscaner M. · Claude（kairos:cdd-dev [P16] · 用户裁定回填）|

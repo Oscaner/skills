@@ -226,6 +226,38 @@ describe("WaveGate.vet — the wave-unitary phase read (v1.28 regression)", () =
   });
 });
 
+describe("WaveGate.vet — the static-batch guard (D63)", () => {
+  it("a static batch mixing closed and open tasks BLOCKs as mixed-batch — before the exact read", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // One static batch {1,2}; task 1 closes while task 2 stays open. The derived
+      // open wave is {2}, so the exact read alone would approve the dispatch.
+      const graph = graphOf([task(1, "none"), task(2, "none")]);
+      ledger.recordRound(1, "implement");
+      cleanReviewCarrier(ledger, "1", 1);
+      const verdict = gate.vet(new Set([2]), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("mixed-batch");
+      expect(verdict.message).toContain("(1,2)");
+      expect(verdict.message).toContain("1 closed, 2 open");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an entirely open static batch still approves the implement dispatch", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(1, "none"), task(2, "none")]);
+      const verdict = gate.vet(new Set([1, 2]), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(true);
+      expect(verdict.open).toEqual([1, 2]);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("ledger.closedWaves — the C5 closure single read face", () => {
   it("an implement-only task is never closed (implement rounds carry no closure verdict)", () => {
     const { ledger, cleanup } = fixture();

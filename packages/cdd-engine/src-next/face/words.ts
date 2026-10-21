@@ -74,6 +74,9 @@ export interface WaveGateWords {
   split: string;
   /** The wrong-phase BLOCK — the open wave is at a phase different from the requested verb. */
   wrongPhase: string;
+  /** The mixed-batch BLOCK — a requested task hits a derived batch that holds both
+   *  closed and open tasks (a batch closes as a unit; re-declare the edges). */
+  mixedBatch: string;
 }
 
 /** The pre-flight BLOCK wording rows — the lifecycle pre-flight seam's refusal
@@ -142,6 +145,8 @@ export const CAPSULE_WORDS = {
     split:
       "the requested wave ({requested}) splits/mismatches the derived wave ({open}) — dispatch the full derived wave",
     wrongPhase: "the open wave is at {phase} — run cdd {phase} first",
+    mixedBatch:
+      "the derived batch ({batch}) mixes closed and open tasks ({closed} closed, {open} open) — a wave closes as a unit; re-declare the **DependsOn** edges so no task joins an already-executed batch",
   } as const satisfies WaveGateWords,
   /** The pre-flight BLOCK wording rows (P4.1 T1) — the seam's refusal vocabulary,
    *  single-sourced (the seam fills the {count} slot, never a re-type). */

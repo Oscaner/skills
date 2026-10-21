@@ -34,13 +34,14 @@ import { SlugIndex } from "../infra/slug-index.ts";
 import type { TargetType } from "./faces.ts";
 import { TaskGraph } from "./graph.ts";
 import type { Ledger } from "./ledger.ts";
-import { WaveGate } from "./wave.ts";
+import { WaveGate, type WaveGateReason } from "./wave.ts";
 
 /** The named gates the seam composes — the run evidence + the blocking gate label. */
 export type PreFlightGateName = "tree-clean" | "graph" | "wave" | "doc-contract";
 
-/** The named refusal rows — the BLOCK reason the CDD_BLOCKED wording fills. */
-export type PreFlightReason = "dirty-tree" | "graph" | "split" | "wrong-phase" | "doc-contract";
+/** The named refusal rows — the BLOCK reason the CDD_BLOCKED wording fills (the
+ *  wave-gate rows derive from `WaveGateReason` — one declaration, never a re-list). */
+export type PreFlightReason = "dirty-tree" | "graph" | WaveGateReason | "doc-contract";
 
 /** One pre-flight verdict — the single BLOCK carrier of the dispatch gates. */
 export interface PreFlightVerdict {

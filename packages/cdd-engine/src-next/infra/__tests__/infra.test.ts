@@ -140,6 +140,22 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     // The axes guides carry the verification-evidence duty.
     expect(REVIEWS.wave.axesGuide).toContain("dual evidence");
     expect(REVIEWS.branch.axesGuide).toContain("dual evidence");
+    // P16/D60 — the axis face invariants: the single-agent fact lives in REVIEW_ITEM
+    // only (the wave axis's duplicate tail sentence is retired), and the branch axis
+    // carries the three judgment points a green run cannot show.
+    expect(REVIEWS.wave.axesGuide).not.toContain("Single agent");
+    expect(REVIEWS.branch.axesGuide).toContain("Three things a green run cannot show you");
+    expect(REVIEWS.branch.axesGuide).toContain("design —");
+    expect(REVIEWS.branch.axesGuide).toContain("test adequacy —");
+    expect(REVIEWS.branch.axesGuide).toContain("migration —");
+    expect(REVIEWS.branch.lensEnum).toEqual(["standards", "spec", "buildability"]);
+    // P16/D60 — the two hard review disciplines ride REVIEW_ITEM, so all four review
+    // shells carry them (the data-plane side of the render suite's assembled-face pins).
+    for (const type of ["wave", "branch", "spec", "plan"] as const) {
+      const shell = TEMPLATE_PROMPT.reviews[type].shell.join("\n");
+      expect(shell).toContain("**Read-only:**");
+      expect(shell).toContain("**Single agent:**");
+    }
     expect(TEMPLATE_PROMPT.modes.implement.shell.join("\n")).toContain(
       "mattpocock-skills:implement",
     );

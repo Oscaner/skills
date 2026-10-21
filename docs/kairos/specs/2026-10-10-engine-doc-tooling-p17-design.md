@@ -1,13 +1,13 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P17 设计：文档类别面收口（doc-type `overall` · `overalls/` 第三 doc root · 评审读面 `INPUT_OVERALL`）· 承载面统一（D62）
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-10-21
 slug: 2026-10-10-engine-doc-tooling-p17
 program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: "[human] · Claude Opus 5（kairos:cdd-design [P17] grilling → cdd-spec-writer · 2026-10-21）"
-parent-version: v2.71
+parent-version: v2.72
 ---
 
 ## Design
@@ -201,6 +201,22 @@ parent-version: v2.71
 - severity / lens 枚举 / `DISPATCH` / `REFS` / CLI 旗标与退出码零改。
 - 不做旧 carrier 的兼容读：`.kairos` 内的 in-flight 会话不跨版本续跑（硬破）。
 
+### 4. 定案（D63）——波门静态批次守卫（hotfix · 2026-10-21）
+
+**缺口**：`WaveGate.vet`（`session/wave.ts:70-113`）的 open wave 是**动态前沿** `graph.frontier(closedWaves())`，只读「未闭合且依赖全闭合」的任务。于是当一次 plan 修订把新任务放进一个**已部分闭合**的静态批次（`TaskGraph.batches()`，`session/graph.ts:252-267`）时，余下任务会被当成一个独立 wave 放行——本 phase 实测：Task 3 闭合后，Task 4 被 `implement --tasks 4` 单独派发而未被拦。
+
+**为什么是缺陷**：静态批次由 `DependsOn` 派生，批次内任务共享一个提交纪律窗口（本 phase：Task 3「diff 只含 changeset 文件」与 Task 4「单原子提交」互斥）。开闭混合意味着该窗口已被拆散，而引擎的设计是波次**整体开闭**（wave-unitary：一行一轮，`ledger.closedWaves()` 按 wave 行判）。
+
+**定案**：`vet` 在 exact 判定**之前**先判静态批次——`batches().find((b) => b.some((id) => requested.has(id)))`；若该批次同时含已闭合与未闭合任务，返回新的 `mixed-batch` BLOCK，不进入 phase 判定。`WaveGateReason` 增 `"mixed-batch"`。
+
+**报文（`face/words.ts` 的 `CAPSULE_WORDS.waveGate.mixedBatch`，逐字）**：
+
+> the derived batch ({batch}) mixes closed and open tasks ({closed} closed, {open} open) — a wave closes as a unit; re-declare the **DependsOn** edges so no task joins an already-executed batch
+
+**边界**：未入批的任务（依赖幻影 / 环）不触发本判定（`batch === undefined`），仍走既有 `split` 面；整批开放照常放行；整批闭合本就不进 open wave。
+
+**同一裁定里的 plan 形状修正**：Task 4 的 `DependsOn` 由 `1, 2` 改为 `1, 2, 3`——产生混合态的源头要一起消灭，守卫只负责不再复发。
+
 ### Acceptance criteria
 
 - 引擎源码 `overall-spec` 零残留：`grep -rn "overall-spec" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 零命中——扫描面含模板字面与注释（注释随值同更，见 2.1）；命中面覆盖值 · `DocType` 联合 :27 · `DOC_TYPE_VALUES` :109 · 注册表键 :1060 · `docTypeName` doc.ts:550 · 解析器表键 :802 · 投影键 project.ts:408 · 11 处 docKey 判据 · slug-index :199/:383 · board-view :254 · words :124 · next.ts :80/:98/:107 · skeleton :117 · 允许域与 finding 文案 invariants.ts:1291-1292/:1360。
@@ -225,6 +241,7 @@ parent-version: v2.71
 - `failure_category` 零残留（`grep -rn "failure_category" packages/cdd-engine/src-next` 零命中，抽查面含模板与测试）。
 - review 面 `## Handoff schema` fence 与 review 前缀**字节不变**（pin：既有 render / cli 用例不改即绿）。
 - `TEMPLATE_PROMPT.$version === 16`（pin：`render/__tests__/render.test.ts`）。
+- **波门静态批次守卫（D63）**：任一静态批次不得开闭混合——`vet` 返回 `mixed-batch` 且报文点名批次与两侧成员（pin：`session/__tests__/wave.test.ts` 两用例：混合批次 → BLOCK · 整批开放 → 放行）；`WaveGateReason` 含 `"mixed-batch"`；`WaveGateWords` 含 `mixedBatch` 行。
 
 ## Constraints
 
@@ -243,3 +260,4 @@ parent-version: v2.71
 | v0.1 | 2026-10-21 | 初稿——P17 承接用户 mandate 两项（doc-type `overall-spec` → `overall` + 目录 `specs/` → `overalls/`；phase spec review 补 `INPUT_OVERALL`）。定案六条：D61-1 全拼写一次改到底（含 `OVERALL_SPEC_ELEMENTS` / `#renderOverallSpec` 两处死名随行）· D61-2 `overalls` 第三 doc root（四读者派生 + 两处手改 + `DOC_ROOT_SEGMENTS` 文案 pin break）· D61-3 硬破迁移与消费面更替（含拼写+迁移的原子性硬理由）· D61-4 `INPUT_OVERALL` 镜像 `INPUT_SPEC` · D61-5 spec 轴 program conformance 判据句 · D61-6 退役拼写报文拆分；模板 `$version` 14 → 15；changeset cdd-engine major + kairos | Oscaner M. · Claude（kairos:cdd-spec-writer [P17]）|
 | v0.2 | 2026-10-21 | **spec-fix-1（review-1 findings 收口 · 7 warn + 4 nit）**：① warn——§2.4 落表补 `DispatchScene`（`face/lifecycle.ts:67-78`）与 `#dispatchOf` hand-off（`face/cli.ts:744-751`），`WorkScene` pin 改 `:125-135`；② warn——§2.3 `File paths` 格改引 `contract/declare.ts:449-455`（`File path row` · `refKind: "none"`），link-shape 判据不触达该格、裸相对路径降为约定；③ warn——D61-1 纳入报文/注释面（`invariants.ts:1291-1292/:1360` + 引擎注释行），Acceptance 零残留 grep 放宽到全非测试行；④ warn——D61-3 消费面补 `packages/cdd-engine/README.zh-CN.md:46` 并进验收 grep；⑤ warn——快照面入 D61-1/Acceptance（两档 `*.overall-spec.snap` 改名并手工删旧、四份 schema snap 的 pattern 行重生成）；⑥ warn——`presentation-surface.test.ts` 移出编辑面（`OLD_KAIROS_SKILL_NAMES` 冻结），只作必绿面；⑦ warn——§2.2 `build` 由自动跟随表移入手改清单（「需手改三处」），漏改即静默失败；⑧ nit——§2.5 轴句写明插入点（`+` 链末项、两句元说明之前）；⑨ nit——两处 pin 校正（overall.md:13 · doc.ts:549）；⑩ nit——AC 的 `INPUT_OVERALL` 断言改为「声明槽 + 条件渲染」；⑪ nit——目录计数 18/1/17，删去「61 处」改记引用面构成 | Oscaner M. · Claude（kairos:cdd-spec-writer [P17] spec-fix-1）|
 | v0.3 | 2026-10-21 | **范围扩并：承载面统一（D62 · 用户裁定 · cdd-dev 实施期并入）**。新增 §3 九条定案：D62-1 一份 `CARRIER` 声明 + `#writable(plane)` 唯一投影（删 `CARRIER_DELIVERY` / `CARRIER_FINDINGS` / `BY_FACE` / `HandoffSchemaFace`）· D62-2 `CarrierPlane = work \| judge` 由 op 派生，`HandoffFamily` 退化为 `{ name }`，`handoffFaceOf(op, type)` → `planeOf(op)` · D62-3 必填集 / 可写槽按平面 · D62-4 结论派生语义不变 · D62-5 文档修复获得 `status`（残余 findings 死路径删除、`templates.ts:209` 自相矛盾消灭）· D62-6 证据门按 scope（wave / branch）派生，行为零变 · D62-7 死字段 `failure_category` 删除 · D62-8 两份前缀逐字改写 + `$version` 15 → 16 · §3.9 非目标（不合并 op · status 仍自报 · 特效面零改 · 无兼容读）。取证三条钉在 `next.ts:169-205` / `ledger.ts:1096+1104` / `lifecycle.ts:557+798`。Acceptance 补六条、Constraints 的冻结面与原子落地随之修订。`parent-version` v2.70 → v2.71 | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定并入 · I4 backfill）|
+| v0.4 | 2026-10-21 | **hotfix 并入：波门静态批次守卫（D63 · 用户裁定）**。新增 §4：`WaveGate.vet` 的 open wave 是动态前沿 `frontier(closedWaves())`，当 plan 修订把新任务放进已部分闭合的静态批次（`TaskGraph.batches()`）时，余下任务会被当作独立 wave 放行（本 phase 实测：Task 3 闭合后 Task 4 被单独派发）。定案：`vet` 在 exact 判定前先判静态批次，开闭混合 → 新增 `mixed-batch` BLOCK（`WaveGateReason` + `WaveGateWords.mixedBatch` 词表行，报文逐字在 §4）；未入批任务不触发、整批开放放行。同一裁定把 Task 4 的 `DependsOn` 由 `1, 2` 改为 `1, 2, 3`（消灭混合态源头）。Acceptance 补两条。`parent-version` v2.71 → v2.72 | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定 hotfix）|

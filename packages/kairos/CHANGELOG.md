@@ -1,5 +1,21 @@
 # @oscaner-skills/kairos
 
+## 1.2.0
+
+### Minor Changes
+
+- [#370](https://github.com/Oscaner/skills/pull/370) [`bd125f0`](https://github.com/Oscaner/skills/commit/bd125f0e23b93ccde273978606fa3d936dcf1fa2) Thanks [@Oscaner](https://github.com/Oscaner)! - P15: document identity moves to the declared front-matter `slug:` key, and the file-name-derived identity retires — a **major breaking** change with **zero dual-read**. The board command takes document paths (`cdd board --plan <path>` / `cdd board --spec <path>`) instead of a positional slug, per-run workspaces are keyed by `slug:` (`.kairos/cdd/<slug>/`, the same key the board renders from), and the retired path keys (`spec:` / `parent-program:`) are no longer read. The kairos skills follow the same key: the authoring nodes land `slug:` on every document (a phase-spec also lands `program:`), the plan header inherits its `slug:` from the approved spec it plans, and cdd-report resolves program attribution through `progress.json#plan` → the plan's `slug:` → the spec of that slug → the spec's `program:` → the overall.
+  
+  The redundant `depends-on:` front-matter key retires in the same major. It was declared on three doc types (optional on a plan, required on a phase-spec / single-spec) but read by nothing: the phase-level dependency edge is the overall spec's **Dependency graph** plus its **Phase inventory**, and the task-level edge is the plan body's `DependsOn` field — the only dependency fact the engine enforces. `schema get <doc-type> --output skeleton` no longer emits the key, the `ChainRoot` parse no longer carries it, and the doc-contract gate accepts documents with or without it — deleting the line from an existing document is the migration, and leaving it in place changes nothing.
+
+- [#372](https://github.com/Oscaner/skills/pull/372) [`6926baa`](https://github.com/Oscaner/skills/commit/6926baab3690850cbe39dffa0bc49a458af1a3c6) Thanks [@Oscaner](https://github.com/Oscaner)! - P17: the `overall-spec` doc type retires and the charter's class name becomes `overall` — a **major breaking** change with **zero dual-read**. The new value lands once in `DOC_TYPE_VALUES` and every derived surface follows it: the `doc-type:` front-matter value, the declaration registry key, the `cdd schema get overall` key, and the pipeline's doc-key branches. Overalls also move to a third doc root, `docs/kairos/overalls/` (alongside `docs/kairos/specs/` and `docs/kairos/plans/`). Migrating a consumer is two edits: change the document's `doc-type: overall-spec` to `doc-type: overall`, and move the file from `docs/kairos/specs/` to `docs/kairos/overalls/` — the engine reads no legacy spelling; the `docs/kairos/overalls/` location is the new convention that the kairos tooling and docs assume. The kairos skills and the README family follow the same spelling and doc-root move.
+  
+  The review read face gains `INPUT_OVERALL`: a face whose spec carries a `program:` now carries the parent charter, and the spec axis judges **program conformance** — the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. Template contract `$version` 15.
+  
+  A document declaring the retired `doc-type: overall-spec` now reports the accurate failure — the value sits outside the declared domain and the wording names the allowed domain — instead of the previous false "missing `doc-type:` key" finding.
+  
+  The handoff carrier is one op-derived plane instead of the face-bisected pair: `implement` / `fix` write the `work` plane (`status` · `artifacts` · `notes`) and `review` writes the `judge` plane (`findings` · `artifacts` · `notes`), so the `delivery` / `findings` carrier split and `HandoffFamily.schema` are gone. A docs-fix round now reports `status` like every other work round — the residual-findings encoding and the dead `failure_category` field are removed — and the template contract moves to `$version` 16. The wave gate also gains a static-batch guard: dispatching a `--tasks` set that hits a derived `DependsOn` batch mixing closed and open tasks returns a `mixed-batch` BLOCK (a batch closes as a unit) instead of letting the leftover tasks ride out as their own wave.
+
 ## 1.1.2
 
 ### Patch Changes

@@ -221,9 +221,7 @@ const planFor = (repoRoot: string): string => {
       "doc-type: plan",
       "version: v1.0",
       "date: 2026-10-09",
-      "spec: docs/kairos/specs/p3-design.md",
-      "parent-program: docs/kairos/specs/p3-overall.md",
-      "parent-version: v1.0",
+      "slug: p3",
       "---",
       "",
       "## Constraints",
@@ -360,7 +358,7 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
           "--dry-run",
         ],
         ["issue", "render", "--dry-run"],
-        ["board", "p3", "--dry-run"],
+        ["board", "--plan", "docs/kairos/plans/p3.md", "--dry-run"],
       ];
       for (const argv of cases) {
         io.stderrText = "";

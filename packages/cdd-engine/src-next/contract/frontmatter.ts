@@ -82,6 +82,17 @@ export class FrontMatterHead {
     return this.value("doc-type");
   }
 
+  /** The document identity key (`slug:`) — the identity index's grouping fact,
+   *  never derived from the file name. */
+  get slug(): string | null {
+    return this.value("slug");
+  }
+
+  /** The phase-spec's program slug reference (`program:`) — a slug, not a path. */
+  get program(): string | null {
+    return this.value("program");
+  }
+
   /** The version token (`version:`, the `v<major>.<minor>` form). */
   get version(): string | null {
     return this.value("version");
@@ -102,24 +113,9 @@ export class FrontMatterHead {
     return this.value("author");
   }
 
-  /** The plan's design-spec target path (`spec:`). */
-  get spec(): string | null {
-    return this.value("spec");
-  }
-
-  /** The Class-B parent-overall target path (`parent-program:`). */
-  get parentProgram(): string | null {
-    return this.value("parent-program");
-  }
-
-  /** The Class-B version token (`parent-version:`, the `v<major>.<minor>` form). */
+  /** The program version token (`parent-version:`, the `v<major>.<minor>` form). */
   get parentVersion(): string | null {
     return this.value("parent-version");
-  }
-
-  /** The `depends-on:` front-matter key value. */
-  get dependsOn(): string | null {
-    return this.value("depends-on");
   }
 
   /** The plan base-line value (`base:`). */

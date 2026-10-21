@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest";
 import { Translator } from "../../contract/translate.ts";
 import { DISPATCH } from "../../face/host.ts";
+import { TerminationPolicy } from "../../face/termination.ts";
 import { Words } from "../../face/words.ts";
 import { BriefRenderer } from "../brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
@@ -132,6 +133,40 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).not.toContain("BASE_BRANCH");
     // the review-only keys stay out of the docs-fix context
     expect(out).not.toContain("INPUT_CRITERIA");
+  });
+
+  it("every work shell carries the Bash discipline clause — a timeout on every command, ceiling from the constant", () => {
+    // The clause's minute value is DERIVED from the constant, never re-spelled in
+    // prose — the pin reads the constant, so a budget change cannot leave the
+    // prompt behind.
+    const ceiling = `${TerminationPolicy.CHILD_BASH_TIMEOUT_MS / 60_000} minutes`;
+    for (const role of ["implement", "fix", "review", "docs-fix"] as const) {
+      const out = assembler.render({
+        ...ALL_VALUES,
+        ROLE: role,
+        REVIEW_TYPE: "spec",
+        INPUT_SPEC: "docs/x-design.md",
+      });
+      expect(out, role).toContain("Put a `timeout` on every Bash command");
+      expect(out, role).toContain(ceiling);
+    }
+  });
+
+  it("every work shell forbids unbounded loops — a wait must carry its own exit condition", () => {
+    const pins = [
+      "`while True: pass`",
+      "`while true; do …; done`",
+      "bounded exit condition",
+    ] as const;
+    for (const role of ["implement", "fix", "review", "docs-fix"] as const) {
+      const out = assembler.render({
+        ...ALL_VALUES,
+        ROLE: role,
+        REVIEW_TYPE: "spec",
+        INPUT_SPEC: "docs/x-design.md",
+      });
+      for (const pin of pins) expect(out, role).toContain(pin);
+    }
   });
 
   it("the fix shell carries the two typed fix-discipline sentences — verify-then-apply + conditional TDD (P5 §2.4)", () => {
@@ -377,9 +412,7 @@ const PLAN = [
   "doc-type: plan",
   "version: v1.0",
   "date: 2026-10-09",
-  "spec: docs/kairos/specs/x-design.md",
-  "parent-program: docs/kairos/specs/x-overall.md",
-  "parent-version: v1.21",
+  "slug: x-p3",
   "---",
   "",
   "### Task 1: one",

@@ -4,9 +4,7 @@ title: 引擎文档工具（Engine Doc-Tooling）— P7 实施计划：单一实
 doc-type: plan
 version: v0.9
 date: 2026-10-14
-spec: ../specs/2026-10-10-engine-doc-tooling-p7-design.md
-parent-program: ../specs/2026-10-10-engine-doc-tooling-overall.md
-depends-on: P6（Done · v0.4 · hard）
+slug: 2026-10-10-engine-doc-tooling-p7
 ---
 
 ## Constraints

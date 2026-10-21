@@ -213,9 +213,7 @@ const planFor = (repoRoot: string, count = 1, name = "p3.md"): string => {
       "doc-type: plan",
       "version: v1.0",
       "date: 2026-10-09",
-      "spec: docs/kairos/specs/p3-design.md",
-      "parent-program: docs/kairos/specs/p3-overall.md",
-      "parent-version: v1.0",
+      "slug: p3",
       "---",
       "",
       "## Constraints",
@@ -256,10 +254,7 @@ const briefRevision = (repoRoot: string, plan: string, tasks: string) => {
  *  links resolving into existing same-family siblings. The P4.1 doc-contract
  *  dispatch gate (the spec/plan faces) requires it — a plain task-fixture plan is
  *  structurally defective and never dispatches a doc round. */
-const conformingPlan = (
-  repoRoot: string,
-  specTarget = "docs/kairos/specs/p3-design.md",
-): string => {
+const conformingPlan = (repoRoot: string): string => {
   const file = path.join(repoRoot, "docs", "kairos", "plans", "p3.md");
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(
@@ -270,10 +265,7 @@ const conformingPlan = (
       "doc-type: plan",
       "version: v1.0",
       "date: 2026-10-09",
-      `spec: ${specTarget}`,
-      "parent-program: docs/kairos/specs/p3-overall.md",
-      "parent-version: v1.0",
-      "depends-on: P1",
+      "slug: p3",
       "base: develop",
       "---",
       "",
@@ -299,11 +291,21 @@ const conformingPlan = (
     ].join("\n"),
     "utf8",
   );
-  for (const sibling of ["p3-design.md", "p3-overall.md"]) {
-    const siblingPath = path.join(repoRoot, "docs", "kairos", "specs", sibling);
-    mkdirSync(path.dirname(siblingPath), { recursive: true });
-    writeFileSync(siblingPath, `# ${sibling}\n`, "utf8");
-  }
+  // The same-slug spec and the program overall — minimal identity documents the
+  // SlugIndex reads (`slug:` + `doc-type:`, the phase-spec carrying `program:`).
+  const specPath = path.join(repoRoot, "docs", "kairos", "specs", "p3-design.md");
+  mkdirSync(path.dirname(specPath), { recursive: true });
+  writeFileSync(
+    specPath,
+    "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\nprogram: p3-overall\n---\n",
+    "utf8",
+  );
+  const overallPath = path.join(repoRoot, "docs", "kairos", "specs", "p3-overall.md");
+  writeFileSync(
+    overallPath,
+    "---\ntitle: O\ndoc-type: overall-spec\nslug: p3-overall\n---\n",
+    "utf8",
+  );
   return file;
 };
 
@@ -324,6 +326,7 @@ const conformingOverall = (repoRoot: string): string => {
       "doc-type: overall-spec",
       "version: v1.21",
       "date: 2026-10-07",
+      "slug: o1-overall",
       "status: Approved",
       'author: "[human]"',
       "---",
@@ -394,7 +397,7 @@ const conformingOverall = (repoRoot: string): string => {
 };
 
 /** A plan with N independent tasks (no deps — a single root wave of N members). */
-const independentPlan = (repoRoot: string, name: string, count: number): string => {
+const independentPlan = (repoRoot: string, name: string, count: number, slug = "p3"): string => {
   const file = path.join(repoRoot, "docs", "kairos", "plans", name);
   mkdirSync(path.dirname(file), { recursive: true });
   const blocks: string[] = [];
@@ -420,9 +423,7 @@ const independentPlan = (repoRoot: string, name: string, count: number): string 
       "doc-type: plan",
       "version: v1.0",
       "date: 2026-10-09",
-      "spec: docs/kairos/specs/p3-design.md",
-      "parent-program: docs/kairos/specs/p3-overall.md",
-      "parent-version: v1.0",
+      `slug: ${slug}`,
       "---",
       "",
       "## Constraints",
@@ -451,11 +452,11 @@ const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
       "doc-type: phase-spec",
       "version: v1.0",
       "date: 2026-10-09",
+      "slug: s1",
+      "program: x-overall",
       "status: Draft",
       "author: x",
-      "parent-program: docs/kairos/specs/x-overall.md",
       "parent-version: v1.0",
-      "depends-on: P1",
       "---",
       "",
       "## Design",
@@ -482,10 +483,16 @@ const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
     ].join("\n"),
     "utf8",
   );
-  // The chain sibling — the `parent-program:` link resolves into the specs dir.
+  // The program overall — a minimal identity document the SlugIndex reads (the
+  // phase-spec's `program:` reference target). Its `version:` carries the lineage
+  // the fixture's `parent-version: v1.0` claims.
   const sibling = path.join(repoRoot, "docs", "kairos", "specs", "x-overall.md");
   mkdirSync(path.dirname(sibling), { recursive: true });
-  writeFileSync(sibling, "# x-overall\n", "utf8");
+  writeFileSync(
+    sibling,
+    "---\ntitle: O\ndoc-type: overall-spec\nslug: x-overall\nversion: v1.0\n---\n",
+    "utf8",
+  );
   return file;
 };
 
@@ -1574,10 +1581,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // carrier).
       // find #9 — the branch line's workspace is the plan-slug (the fix dispatch's
       // --plan); the handoff file is the spine name `branch-review-{round}.json`.
-      const workspace = new Workspace(
-        new WorkspaceRoot(repoRoot, ".kairos/cdd"),
-        Workspace.slugFromDoc(plan),
-      ).ensure();
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
       const ledger = new Ledger(workspace, new ConfigLoader());
       const params = { round: 1 };
       ledger.persistHandoff("review", "branch", params, {
@@ -1626,7 +1630,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stdoutText).toContain("next: /kairos:cdd-close");
       // the branch line's workspace is the plan-slug (the fix dispatch's --plan) and
       // the handoff is the spine `branch-review-1.json` (no range token in the name)
-      const workspace = path.join(repoRoot, ".kairos", "cdd", Workspace.slugFromDoc(plan));
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(workspace, "branch-review-1.json"))).toBe(true);
     } finally {
       cleanup();
@@ -1738,15 +1742,16 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           "--type",
           "spec",
           "--spec",
-          path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md"),
+          conformingSpec(repoRoot),
         ]);
         expect(spec).not.toContain("BASE_BRANCH");
         // the spec review's judged doc IS the spec — the kind-named anchor carries it
         expect(spec).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
         const planReview = await promptOf(["review", "--type", "plan", "--plan", plan]);
         expect(planReview).not.toContain("BASE_BRANCH");
-        // the plan-review round context carries the plan's `spec:` anchor
-        // (INPUT_SPEC) so the reviewer judges the plan against its design spec
+        // the plan-review round context carries the same-slug identity document
+        // as its INPUT_SPEC anchor so the reviewer judges the plan against its
+        // design spec (the index resolves it — no plan-header path scalar)
         expect(planReview).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
       } finally {
         if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
@@ -1757,19 +1762,17 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
-  it("D46 — INPUT_SPEC is rebased to a repoRoot-relative token from the plan's plan-dir-relative `spec:` scalar", async () => {
+  it("D46 — INPUT_SPEC is resolved to a repoRoot-relative token from the plan's same-slug identity document", async () => {
     const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";
     const { command, repoRoot, cleanup } = fixture({ sync });
     try {
       gitInit(repoRoot);
-      // The live plan header form: the `spec:` front-matter scalar may carry a
-      // plan-dir-relative value (`../specs/X.md`, relative to the plan's OWN dir) —
-      // the actual form every in-repo plan P6+ uses. The reviewer is spawned at
-      // cwd = repoRoot, so the raw plan-dir-relative form would resolve OUTSIDE
-      // the repo; the scene rebases it to the repoRoot-relative token (the one
-      // basis every round-context path token speaks).
-      const plan = conformingPlan(repoRoot, "../specs/p3-design.md");
+      // The plan header carries NO path scalar: the design-spec anchor is the
+      // same-slug identity document the SlugIndex finds. The reviewer is spawned
+      // at cwd = repoRoot, and the scene emits the repoRoot-relative token (the
+      // one basis every round-context path token speaks).
+      const plan = conformingPlan(repoRoot);
       const saved = process.env.CLAUDE_CODE_SESSION_ID;
       process.env.CLAUDE_CODE_SESSION_ID = "s";
       try {
@@ -2000,11 +2003,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
-  it("a closed doc line with an UNREADABLE target keeps the generic BLOCK — the null-verdict face (T7)", async () => {
+  it("a closed doc line with an unbound target revision keeps the generic BLOCK — the null-verdict face (T7)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      const specPath = path.join(repoRoot, "docs", "kairos", "specs", "s1-design.md");
+      const specPath = conformingSpec(repoRoot);
       // Seed a CLOSED spec line: a clean completed review round keyed under the
       // line-type constant (§3.7), zero reviewed revision bound. The line's identity
       // is the line type, never the argv path.
@@ -2012,10 +2015,9 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const ledger = new Ledger(workspace, new ConfigLoader());
       ledger.persistHandoff("review", "spec", { round: 1 }, { phase: "review", findings: [] });
       ledger.recordRound("spec", "review");
-      // The target doc is unreadable (never written) — the doc-contract gate skips
-      // an absent doc and the ledger verdict is null, not "same": the "target
-      // revision unchanged" claim would be fabricated (only present facts land).
-      // The gate keeps the generic closed-line message.
+      // The closed round bound no reviewed revision, so the ledger verdict is null,
+      // not "same": the "target revision unchanged" claim would be fabricated (only
+      // present facts land). The gate keeps the generic closed-line message.
       io.stderrText = "";
       const blocked = await command.runArgv([
         "review",
@@ -2032,6 +2034,29 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "spec-review-2.json"))).toBe(
         false,
       );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an UNREADABLE dispatch target has no workspace key — CDD_BLOCKED with the `slug:` wording, exit 1", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      // The spec path never lands on disk: the identity read has no source, so the
+      // dispatch face refuses on the slug carrier (never a filename-derived key).
+      io.stderrText = "";
+      const code = await command.runArgv([
+        "review",
+        "--type",
+        "spec",
+        "--spec",
+        path.join(repoRoot, "docs", "kairos", "specs", "ghost-design.md"),
+        "--dry-run",
+      ]);
+      expect(code).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+      expect(io.stderrText).toContain("slug:");
     } finally {
       cleanup();
     }
@@ -2377,7 +2402,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      const planPath = independentPlan(repoRoot, "two.md", 2);
+      const planPath = independentPlan(repoRoot, "two.md", 2, "two");
       // the WAVE row carries the implement round — review is the open phase for the whole
       // wave (the retired per-task build could never hold a mixed-phase wave-unitary row).
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "two").ensure();
@@ -2912,14 +2937,14 @@ describe("the pure commands — schema / issue / base", () => {
       ]);
       expect(code).toBe(0);
       const text = readFileSync(target, "utf8");
-      // the head key set without the phase-spec's parent-program key
+      // the head key set without the phase-spec's `program:` key
       expect(text).toContain("---");
       expect(text).toContain("doc-type: single-spec");
       expect(text).toContain("version: v0.1");
+      expect(text).toContain("slug: ':::fill slug'");
       expect(text).toContain("status: Draft");
       expect(text).toContain("author: ':::fill author'");
-      expect(text).toContain("depends-on: ':::fill depends-on'");
-      expect(text).not.toContain("parent-program");
+      expect(text).not.toContain("program:");
       // the prose `:::fill` body + the change-history lineage — no `### N.` outline
       expect(text).toContain("## Background & root cause");
       expect(text).toContain(":::fill background-root-cause");
@@ -3114,7 +3139,12 @@ describe("the pure commands — schema / issue / base", () => {
         "--plan",
         "docs/kairos/plans/missing.md",
       ]);
-      expect(getMissing).toBe(2);
+      // An unreadable plan carries no identity: the key has no source, so `base`
+      // refuses on the dispatch carrier (CDD_BLOCKED + exit 1) — never a
+      // filename-derived key. The artifact-side missing/corrupt face (exit 2) is
+      // pinned separately, over a plan document that IS on disk.
+      expect(getMissing).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
     } finally {
       cleanup();
     }
@@ -3281,65 +3311,593 @@ describe("T9 — the composition-root entry is the Cli.create static factory (de
 });
 
 // ---------------------------------------------------------------------------
-// T5 — `cdd board <slug>`: the pure-read observability command (no preflight
-// gate, zero side effects; missing slug → usage exit 2 · a ghost slug → exit 2 ·
-// a valid slug → the board to stdout, exit 0).
+// T6 — the dispatch surface: the workspace key is the target document's declared
+// `slug:` (never a filename derivation); the plan/branch `INPUT_SPEC` is the
+// same-slug identity document; a missing / illegal / duplicated slug is the
+// CDD_BLOCKED dispatch face (exit 1) on `implement` / `review` / `fix` and on
+// `base` (which carries no pre-flight gate — the same key, the same carrier).
 // ---------------------------------------------------------------------------
 
-describe("T5 — cdd board <slug>: the pure-read board command", () => {
-  /** Seed a minimal phase's docs + overall (declared doc-types) in a fixture repo. */
-  const seedPhaseDocs = (repoRoot: string, program: string): void => {
-    mkdirSync(path.join(repoRoot, "docs/kairos/specs"), { recursive: true });
-    mkdirSync(path.join(repoRoot, "docs/kairos/plans"), { recursive: true });
-    writeFileSync(
-      path.join(repoRoot, `docs/kairos/specs/${program}-overall.md`),
-      "---\ntitle: O\ndoc-type: overall-spec\n---\n",
-      "utf8",
-    );
-    writeFileSync(
-      path.join(repoRoot, `docs/kairos/specs/${program}-p1-design.md`),
-      "---\ntitle: S\ndoc-type: phase-spec\n---\n",
-      "utf8",
-    );
-    writeFileSync(
-      path.join(repoRoot, `docs/kairos/plans/${program}-p1.md`),
-      "---\ntitle: Plan\ndoc-type: plan\n---\n",
-      "utf8",
-    );
+describe("T6 — the dispatch surface reads the workspace key from `slug:`", () => {
+  const writeDoc = (repoRoot: string, rel: string, lines: readonly string[]): string => {
+    const file = path.join(repoRoot, rel);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${lines.join("\n")}\n`, "utf8");
+    return file;
   };
 
-  it("a valid slug renders the board to stdout and exits 0", async () => {
+  /** A dispatchable plan (head + one no-dep task) whose `slug:` is caller-chosen. */
+  const slugPlan = (repoRoot: string, opts: { name?: string; slug?: string | null }): string => {
+    const head = [
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      ...(opts.slug === undefined || opts.slug === null ? [] : [`slug: ${opts.slug}`]),
+      "---",
+    ];
+    return writeDoc(repoRoot, `docs/kairos/plans/${opts.name ?? "x-p1.md"}`, [
+      ...head,
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: a",
+      "- **Objective**: o",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+    ]);
+  };
+
+  it("the workspace key is the declared `slug:`, not the file name (x-p1.md → custom-key)", async () => {
+    const { command, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = slugPlan(repoRoot, { slug: "custom-key" });
+      // A real run (the injected approving dispatch) — the workspace write is the
+      // assertion surface (`--dry-run` is read-only by contract).
+      await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "custom-key"))).toBe(true);
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "x-p1"))).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a plan without `slug:` is a dispatch BLOCK — exit 1, CDD_BLOCKED with the `slug:` wording", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = slugPlan(repoRoot, { slug: null });
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+      expect(io.stderrText).toContain("slug:");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a spec without `slug:` is a dispatch BLOCK — exit 1, CDD_BLOCKED with the `slug:` wording", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const spec = writeDoc(repoRoot, "docs/kairos/specs/no-slug-design.md", [
+        "---",
+        "title: S",
+        "doc-type: phase-spec",
+        "program: x-overall",
+        "---",
+      ]);
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "spec", "--spec", spec])).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+      expect(io.stderrText).toContain("slug:");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("two identity documents on one slug are a dispatch BLOCK — exit 1 on both --spec and --plan", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const spec = writeDoc(repoRoot, "docs/kairos/specs/dup-design.md", [
+        "---",
+        "title: S",
+        "doc-type: phase-spec",
+        "slug: dup",
+        "program: x-overall",
+        "---",
+      ]);
+      writeDoc(repoRoot, "docs/kairos/specs/dup-copy.md", [
+        "---",
+        "title: Copy",
+        "doc-type: phase-spec",
+        "slug: dup",
+        "program: x-overall",
+        "---",
+      ]);
+      const plan = slugPlan(repoRoot, { name: "dup.md", slug: "dup" });
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "spec", "--spec", spec])).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+      expect(io.stderrText.toLowerCase()).toContain("dup");
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+      expect(io.stderrText.toLowerCase()).toContain("dup");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("two plans on one slug are a dispatch BLOCK — exit 1, CDD_BLOCKED", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      writeDoc(repoRoot, "docs/kairos/specs/dup-design.md", [
+        "---",
+        "title: S",
+        "doc-type: phase-spec",
+        "slug: dup",
+        "program: x-overall",
+        "---",
+      ]);
+      const plan = slugPlan(repoRoot, { name: "dup-a.md", slug: "dup" });
+      slugPlan(repoRoot, { name: "dup-b.md", slug: "dup" });
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a plan with NO `spec:` scalar still resolves INPUT_SPEC from the same-slug identity doc", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      // A doc-contract-clean plan (it must pass the plan doc gate to dispatch),
+      // renamed so the FILE NAME carries no relation to the slug: the plan header
+      // carries no `spec:` scalar, so the anchor can only come from the index.
+      const original = conformingPlan(repoRoot);
+      const plan = path.join(repoRoot, "docs", "kairos", "plans", "unrelated-name.md");
+      writeFileSync(plan, readFileSync(original, "utf8"), "utf8");
+      rmSync(original);
+      expect(readFileSync(plan, "utf8")).not.toContain("spec:");
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["review", "--type", "plan", "--plan", plan]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const prompt =
+        sync.calls[sync.calls.length - 1]!.args[sync.calls[sync.calls.length - 1]!.args.length - 1];
+      expect(prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("base set/get share the workspace key — a declared `slug:` wins over the file name", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      seedPhaseDocs(repoRoot, "prog");
-      const code = await command.runArgv(["board", "prog-p1"]);
+      const plan = slugPlan(repoRoot, { slug: "custom-key" });
+      expect(
+        await command.runArgv([
+          "base",
+          "set",
+          "--plan",
+          plan,
+          "--base",
+          "develop",
+          "--source",
+          "plan-field",
+        ]),
+      ).toBe(0);
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "custom-key", "base.json"))).toBe(
+        true,
+      );
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "x-p1"))).toBe(false);
+      io.stdoutText = "";
+      expect(await command.runArgv(["base", "get", "--plan", plan])).toBe(0);
+      expect(io.stdoutText).toContain('"base": "develop"');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("base set on a plan without `slug:` is a CDD_BLOCK — exit 1 (base carries no pre-flight gate)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = slugPlan(repoRoot, { slug: null });
+      io.stderrText = "";
+      expect(
+        await command.runArgv([
+          "base",
+          "set",
+          "--plan",
+          plan,
+          "--base",
+          "develop",
+          "--source",
+          "plan-field",
+        ]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+      expect(io.stderrText).toContain("slug:");
+      io.stderrText = "";
+      expect(await command.runArgv(["base", "get", "--plan", plan])).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("base on an illegal `slug:` value is a CDD_BLOCK — exit 1", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = slugPlan(repoRoot, { slug: "../x" });
+      io.stderrText = "";
+      expect(
+        await command.runArgv([
+          "base",
+          "set",
+          "--plan",
+          plan,
+          "--base",
+          "develop",
+          "--source",
+          "plan-field",
+        ]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+      expect(io.stderrText).toContain("slug:");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("base on an unreadable plan is a CDD_BLOCK — exit 1, never a filename-derived key", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const ghost = path.join(repoRoot, "docs", "kairos", "plans", "ghost-plan.md");
+      io.stderrText = "";
+      expect(
+        await command.runArgv([
+          "base",
+          "set",
+          "--plan",
+          ghost,
+          "--base",
+          "develop",
+          "--source",
+          "plan-field",
+        ]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+      expect(io.stderrText).toContain("unreadable");
+      // The workspace key has no source — no filename-derived directory appears.
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "ghost-plan"))).toBe(false);
+      io.stderrText = "";
+      expect(await command.runArgv(["base", "get", "--plan", ghost])).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T5 — `cdd board --plan/--spec <path>`: the pure-read observability command
+// (no preflight gate, zero side effects). Three reject faces, all exit 2 and all
+// distinguishable: argument conflict (two slugs), unresolvable entry (not-found,
+// zero doc reads, zero BLOCKED markers), document violation (a line-level
+// `(BLOCKED)` marker). The legal `(none)` degradations stay exit 0.
+// ---------------------------------------------------------------------------
+
+describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
+  /** Write one doc under the fixture repo (created on demand). */
+  const writeDoc = (repoRoot: string, rel: string, lines: readonly string[]): void => {
+    const file = path.join(repoRoot, rel);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${lines.join("\n")}\n`, "utf8");
+  };
+
+  /** The canonical program fixture: overall, phase spec, and same-slug plan. */
+  const seedPhaseDocs = (repoRoot: string): void => {
+    writeDoc(repoRoot, "docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall-spec",
+      "slug: prog-overall",
+      "---",
+    ]);
+    writeDoc(repoRoot, "docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+    writeDoc(repoRoot, "docs/kairos/plans/prog-p1.md", [
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "slug: prog-p1",
+      "---",
+    ]);
+  };
+
+  const PLAN = "docs/kairos/plans/prog-p1.md";
+  const SPEC = "docs/kairos/specs/prog-p1-design.md";
+  const OVERALL = "docs/kairos/specs/prog-overall.md";
+
+  it("a --plan path renders the node board to stdout and exits 0", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      const code = await command.runArgv(["board", "--plan", PLAN]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("cdd board: prog-p1");
+      expect(io.stdoutText).toContain("  spec     docs/kairos/specs/prog-p1-design.md");
       expect(io.stdoutText.split("\n").at(-2)).toBe("progress: ✔ done · ▶ current · ○ pending");
     } finally {
       cleanup();
     }
   });
 
-  it("a missing slug is a usage error — exit 2 (commander's required positional)", async () => {
-    const { command, io, cleanup } = fixture();
+  it("an overall --spec path renders the program board", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
     try {
-      const code = await command.runArgv(["board"]);
-      expect(code).toBe(2);
-      expect(io.stderrText).toContain("missing required argument 'slug'");
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      const code = await command.runArgv(["board", "--spec", OVERALL]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("cdd board: prog-overall");
+      expect(io.stdoutText).toContain("  phase prog-p1  Pending");
+      expect(io.stdoutText).toContain("  next:    done");
     } finally {
       cleanup();
     }
   });
 
-  it("a ghost slug matches nothing on disk — exit 2, no wall", async () => {
+  it("missing both path flags is a usage error — exit 2", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const code = await command.runArgv(["board"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("--plan and/or --spec");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a ghost path matches nothing on disk — exit 2, not-found face, zero BLOCKED", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
-      const code = await command.runArgv(["board", "nonexistent-slug"]);
+      seedPhaseDocs(repoRoot);
+      const code = await command.runArgv(["board", "--plan", "docs/kairos/plans/ghost.md"]);
       expect(code).toBe(2);
-      expect(io.stderrText).toContain("no docs match slug nonexistent-slug");
+      expect(io.stderrText).toContain("no docs match --plan docs/kairos/plans/ghost.md");
+      expect(io.stdoutText).not.toContain("(BLOCKED)");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a path outside the docRoots is the SAME not-found face — zero BLOCKED", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      writeDoc(repoRoot, "notes.md", [
+        "---",
+        "title: Notes",
+        "doc-type: plan",
+        "slug: notes",
+        "---",
+      ]);
+      const code = await command.runArgv(["board", "--spec", "notes.md"]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain("no docs match --spec notes.md");
+      expect(io.stdoutText).not.toContain("(BLOCKED)");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("both flags on one slug render ONE board shaped by the --spec document", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      const code = await command.runArgv(["board", "--plan", PLAN, "--spec", SPEC]);
+      expect(code).toBe(0);
+      // one header, one board — the node shape taken from the phase-spec entry
+      expect(io.stdoutText.match(/^cdd board: /gm)).toHaveLength(1);
+      expect(io.stdoutText).toContain("cdd board: prog-p1");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("two flags on different slugs are an argument conflict — exit 2, both values on stderr", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      writeDoc(repoRoot, "docs/kairos/specs/prog-p2-design.md", [
+        "---",
+        "title: Other",
+        "doc-type: phase-spec",
+        "slug: prog-p2",
+        "program: prog-overall",
+        "---",
+      ]);
+      const code = await command.runArgv([
+        "board",
+        "--plan",
+        PLAN,
+        "--spec",
+        "docs/kairos/specs/prog-p2-design.md",
+      ]);
+      expect(code).toBe(2);
+      expect(io.stderrText).toContain('"prog-p1"');
+      expect(io.stderrText).toContain('"prog-p2"');
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a node doc without `slug:` renders `slug: missing (BLOCKED)` and exits 2", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      writeDoc(repoRoot, "docs/kairos/specs/prog-p1-design.md", [
+        "---",
+        "title: S",
+        "doc-type: phase-spec",
+        "program: prog-overall",
+        "---",
+      ]);
+      const code = await command.runArgv(["board", "--spec", SPEC]);
+      expect(code).toBe(2);
+      expect(io.stdoutText).toContain("slug: missing (BLOCKED)");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an illegal `slug:` value renders `slug: invalid (BLOCKED)` and exits 2", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      writeDoc(repoRoot, "docs/kairos/specs/prog-p1-design.md", [
+        "---",
+        "title: S",
+        "doc-type: phase-spec",
+        "slug: ../x",
+        "program: prog-overall",
+        "---",
+      ]);
+      const code = await command.runArgv(["board", "--spec", SPEC]);
+      expect(code).toBe(2);
+      expect(io.stdoutText).toContain("slug: invalid (BLOCKED)");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("two identity docs on one slug render `slug: duplicated (BLOCKED)` and exit 2", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      writeDoc(repoRoot, "docs/kairos/specs/prog-p1-copy.md", [
+        "---",
+        "title: Copy",
+        "doc-type: phase-spec",
+        "slug: prog-p1",
+        "program: prog-overall",
+        "---",
+      ]);
+      const code = await command.runArgv(["board", "--spec", SPEC]);
+      expect(code).toBe(2);
+      expect(io.stdoutText).toContain("slug: duplicated (BLOCKED)");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a phase spec whose `program:` names no overall renders `program: missing (BLOCKED)` and exits 2", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      writeDoc(repoRoot, "docs/kairos/specs/prog-p1-design.md", [
+        "---",
+        "title: S",
+        "doc-type: phase-spec",
+        "slug: prog-p1",
+        "program: ghost-overall",
+        "---",
+      ]);
+      const code = await command.runArgv(["board", "--spec", SPEC]);
+      expect(code).toBe(2);
+      expect(io.stdoutText).toContain("program: missing (BLOCKED)");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a zero-plan node renders `plan (none)` and exits 0", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      rmSync(path.join(repoRoot, PLAN));
+      const code = await command.runArgv(["board", "--spec", SPEC]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("  plan     (none)");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a single-spec entry renders `overall (none)` and exits 0", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      writeDoc(repoRoot, "docs/kairos/specs/single.md", [
+        "---",
+        "title: Single",
+        "doc-type: single-spec",
+        "slug: single",
+        "---",
+      ]);
+      const code = await command.runArgv(["board", "--spec", "docs/kairos/specs/single.md"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("  overall  (none)");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a plan without a paired spec renders `spec (none)` and exits 0", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      writeDoc(repoRoot, "docs/kairos/plans/lonely.md", [
+        "---",
+        "title: Lonely",
+        "doc-type: plan",
+        "slug: lonely",
+        "---",
+      ]);
+      const code = await command.runArgv(["board", "--plan", "docs/kairos/plans/lonely.md"]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("  spec     (none)");
     } finally {
       cleanup();
     }

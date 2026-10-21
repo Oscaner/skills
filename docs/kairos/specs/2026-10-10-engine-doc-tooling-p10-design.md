@@ -3,10 +3,10 @@ title: 引擎文档工具（Engine Doc-Tooling）— P10 设计：文档头部 f
 doc-type: phase-spec
 version: v0.10
 date: 2026-10-17
+slug: 2026-10-10-engine-doc-tooling-p10
+program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P10] 会话 · 用户裁定 · 2026-10-17）
-parent-program: 2026-10-10-engine-doc-tooling-overall.md
-depends-on: P9（Done · v0.7 · hard——P9 全链闭合后重开文档形态与解析模型统一 · overall 依赖图 D48）
 ---
 
 ## Design

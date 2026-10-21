@@ -3,11 +3,10 @@ title: 引擎文档工具（Engine Doc-Tooling）— P5 设计：整引擎 + rep
 doc-type: phase-spec
 version: v0.8
 date: 2026-10-13
+slug: 2026-10-10-engine-doc-tooling-p5
+program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁定 · 2026-10-12）
-parent-program: 2026-10-10-engine-doc-tooling-overall.md
-depends-on: P4（Done · v0.6 · hard——P4 拆分后的 face/lifecycle/gate/artifacts 晶体为 P5
-  整树 + CI 验证面重整基座）
 ---
 
 ## Design

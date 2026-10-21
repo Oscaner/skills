@@ -14,8 +14,8 @@
 // The JSON plane's dead fields are not carried (the delete-dead-empties iron rule):
 //   · failureCategories — the new tree keeps no failure-category counter data; the
 //     ledger's progress key set is the declared code constant (PROGRESS_COUNTER_ZERO).
-//   · handoffNamespace.slugRule — the slug derivation is code (Workspace.slugFromDoc),
-//     never a prose data field.
+//   · handoffNamespace.slugRule — the workspace key is the document's declared
+//     `slug:` (judged by the identity index), never a prose data field.
 //   · contextContract channels.git / derived / transport / timeouts and the env-host
 //     channel — no live consumer; the host-marker closure is single-sourced by the
 //     harness detect rows (face/host.ts), never re-declared here.

@@ -49,6 +49,7 @@
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import { DISPATCH } from "../face/host.ts";
+import { TerminationPolicy } from "../face/termination.ts";
 import type { TargetType } from "../session/faces.ts";
 
 /** The per-dispatch slot values — one entry per declared template token. */
@@ -145,6 +146,7 @@ const LICENSE_ITEMS: readonly string[] = [
   "- {{> cl:eof-newline}}",
   "- {{> cl:no-full-tree-find}}",
   "- {{> cl:bash-stall-limit}}",
+  "- {{> cl:no-infinite-loop}}",
   "- {{> cl:plan-freeze}}",
   "- {{> cl:atomic-commit}}",
   "- {{> cl:self-validate}}",
@@ -455,8 +457,9 @@ export const CLAUSES = {
     "Every text file must end with exactly one newline (EOF newline): no missing final newline and no trailing blank lines.",
   "cl:no-full-tree-find":
     "Never run an unbounded full-tree `find` over a large directory and never bare-read a large file — constrain to explicit paths with `maxdepth`/`-path`, or read only the needed range.",
-  "cl:bash-stall-limit":
-    "If a Bash command stalls without progress for more than 10 minutes, terminate it and substitute an equivalent, lighter command.",
+  "cl:bash-stall-limit": `Put a \`timeout\` on every Bash command — no single invocation may run longer than ${TerminationPolicy.CHILD_BASH_TIMEOUT_MS / 60_000} minutes; a command that stalls without progress is terminated and replaced with an equivalent, lighter command.`,
+  "cl:no-infinite-loop":
+    "Never run an unbounded loop — no `while True: pass`, no `while true; do …; done`, no spin-wait or tail-follow that only a human can stop. A wait must carry a bounded exit condition (a timeout, a max-attempt counter, or a terminating predicate) that ends the loop on its own.",
   "cl:plan-freeze":
     "Approved plan/spec files are frozen — zero modification authority; any change needed is reported to the orchestrator through findings, never edited in place.",
   "cl:atomic-commit":
@@ -467,15 +470,19 @@ export const CLAUSES = {
     "Finish nested work in this same turn before writing the handoff. Do not `bg_run` / `bg_delegate` (or equivalent yield-and-wait paths) before the handoff draft is written — nested work must complete synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 10
- *  adds the sync-completion discipline clause (P14 — one-shot CDD children must finish
- *  nested work in-process before writing the handoff; no bg_run / bg_delegate yield).
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 12
+ *  adds the bounded-loop discipline clause (no `while True: pass` / spin-wait — every
+ *  wait carries its own terminating condition). $version 11 makes the Bash discipline
+ *  clause a hard per-command ceiling (every Bash run carries a `timeout`, no invocation
+ *  longer than `CHILD_BASH_TIMEOUT_MS`). $version 10 adds the sync-completion discipline
+ *  clause (P14 — one-shot CDD children must finish nested work in-process before writing
+ *  the handoff; no bg_run / bg_delegate yield).
  *  $version 9 was the kind-named doc-anchor shape (INPUT_PLAN / INPUT_SPEC replace the
  *  generic INPUT_DOC; INPUT_WAVE_BRIEF), the branch scope anchor BASE_BRANCH, the single
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 10,
+  $version: 12,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

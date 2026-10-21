@@ -3,10 +3,10 @@
 // judgment face. Every structural judgment of the contract plane is one strategy:
 //   base nine  — presence / uniqueness / domain / crosslink / order / continuity /
 //                residue / hollow / selfBounded;
-//   context    — file-existence / sibling-scan / cross-doc-chain /
-//                section-scoped-domain (the four seam strategies that absorb the
-//                old doctype classes' contextual judgment — fourTableAudit,
-//                deviations, Class-A/B, effectiveWaves).
+//   context    — file-existence / sibling-scan / link-shape / slug-ref /
+//                cross-doc-chain / section-scoped-domain (the six seam strategies
+//                that absorb the old doctype classes' contextual judgment —
+//                fourTableAudit, deviations, the identity chain, effectiveWaves).
 // Each strategy is one subclass of `abstract Invariant { evaluate(ctx) }`; the
 // judgment data is always the declared registries + the derived parse face (never
 // a hand-written structure prose). Judgment dispatch is the coordinator's
@@ -16,6 +16,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
+import { type DocEntry, SlugIndex } from "../infra/slug-index.ts";
 import type { ElementRegistry, RegistryElement } from "./declare.ts";
 import type {
   ChainLink,
@@ -27,9 +28,11 @@ import type {
   SectionBlock,
   TaskBlock,
 } from "./doc.ts";
-import { MarkdownPrimitives } from "./doc.ts";
+import { docTypeParsers, MarkdownPrimitives } from "./doc.ts";
 import type { FrontMatterHead } from "./frontmatter.ts";
-import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
+import { FrontMatterExtractor } from "./frontmatter.ts";
+import type { DocKey, DocShape, DocSkeleton, DocSlices, ElementSlice } from "./project.ts";
+import type { Translator } from "./translate.ts";
 
 // ---------------------------------------------------------------------------
 // judgment records + the context
@@ -67,7 +70,9 @@ export interface DocFs {
   exists(p: string): boolean;
   /** The UTF-8 content of a path, or null when unreadable. */
   read(p: string): string | null;
-  /** The entry names of a directory, or [] when unreadable. */
+  /** The entry names of a directory; [] when it does not exist (ENOENT). Any other
+   *  failure is a real break and rethrows — an unreadable directory never reads as
+   *  an empty one. */
   list(p: string): readonly string[];
 }
 
@@ -86,8 +91,9 @@ export class NodeFs implements DocFs {
   list(p: string): readonly string[] {
     try {
       return readdirSync(p);
-    } catch {
-      return [];
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
+      throw err;
     }
   }
 }
@@ -116,6 +122,10 @@ export interface JudgeContext {
   slices: DocSlices;
   /** The derived section skeleton of the judged doc type. */
   shape: DocShape;
+  /** The judged doc type's skeleton projection — the slot classification the
+   *  placeholder exemption reads (§4.2: only the link and content slots the
+   *  skeleton fills with a holder are exempt from the strict scalar shapes). */
+  skeleton: DocSkeleton;
   /** The four declared registries — the element-level judgment data. */
   registries: {
     "overall-spec": ElementRegistry;
@@ -125,8 +135,15 @@ export interface JudgeContext {
   };
   /** The dispatch phase id — enables the face-④ phase-registration check. */
   phaseId?: string;
-  /** Pre-parsed chain/sibling docs (path → parsed record). */
-  chainDocs?: ReadonlyMap<string, ParsedDoc>;
+  /** The row-source translator — the SAME canonicalize seam the judged document's
+   *  lines went through. A strategy that has to parse a FOREIGN on-disk document
+   *  (the chain lineage) reads it through this instance, so one alias registration
+   *  canonicalizes both faces alike. */
+  translator: Translator;
+  /** The caller's identity index over the judged repo (the chain / slug-ref lookups'
+   *  injected source). Absent → the strategies build one over `fs` (the same seam
+   *  every other strategy reads, so the judgment stays hermetic). */
+  slugIndex?: SlugIndex;
   /** The filesystem seam (defaults to node:fs). */
   fs: DocFs;
 }
@@ -151,6 +168,21 @@ export abstract class Invariant extends MarkdownPrimitives {
   /** The single finding-construction point. */
   protected finding(ctx: JudgeContext, field: string, message: string, fix: string): Finding {
     return { path: ctx.path, field, message, fix, kind: this.name };
+  }
+
+  /** Whether a value's raw form marks it as a holder placeholder (no existence or
+   *  domain judgment): the empty value, the two pending forms, the `<…>` link
+   *  placeholder and the skeleton's `:::fill <slot>` content slot. The ONE
+   *  placeholder contract every strategy shares — the link-resolution faces skip a
+   *  placeholder target and the front-matter domain arm skips a placeholder scalar
+   *  on the keys the skeleton fills (its own §4.2 slot classification decides which,
+   *  so a truth key's placeholder is still judged). */
+  protected isPlaceholder(target: string): boolean {
+    const trimmed = target.trim();
+    if (trimmed === "") return true;
+    if (trimmed === "Pending" || trimmed === "[Pending]") return true;
+    if (/^<[^>]+>$/.test(trimmed)) return true;
+    return /^:::fill(?:\s|$)/.test(trimmed);
   }
 
   /** The judged doc type's declared registry. */
@@ -244,7 +276,15 @@ export abstract class Invariant extends MarkdownPrimitives {
     return ctx.docKey === "phase-spec" ? (ctx.parsed as PhaseSpecParsed) : null;
   }
 
-  /** The four-table section heading anchors of the overall (registry-declared). */
+  /** The identity index every slug-keyed strategy looks up through — the caller's
+   *  injected index when present, else one scan over the SAME fs seam every other
+   *  strategy reads (the judgment stays hermetic: no second, real-filesystem scan).
+   *  The ONE home of that fallback. */
+  protected indexOf(ctx: JudgeContext): SlugIndex {
+    return ctx.slugIndex ?? SlugIndex.build(ctx.root, ctx.fs);
+  }
+
+  /** The three-table section heading anchors of the overall (registry-declared). */
   protected overallTableHeadings(ctx: JudgeContext): readonly string[] {
     const headings = this.overall(ctx);
     if (headings === null) return [];
@@ -252,7 +292,7 @@ export abstract class Invariant extends MarkdownPrimitives {
       .filter((element) => element.home === "section" && element.anchor.startsWith("## "))
       .map((element) => element.anchor);
     return declared.filter((anchor) =>
-      ["File paths", "Issue inventory", "Phase inventory", "Change history"].some((name) =>
+      ["Issue inventory", "Phase inventory", "Change history"].some((name) =>
         anchor.includes(name),
       ),
     );
@@ -484,6 +524,13 @@ export class DomainInvariant extends Invariant {
       if (slice.home === "frontmatter") {
         const value = ctx.head.value(element.anchor);
         if (value === null) continue;
+        // The skeleton's own placeholders (`:::fill <slot>` / `<…>`) are holder
+        // states, not values — the strict scalar shapes judge a CONCRETE value.
+        // The exemption is SCOPED to the keys the skeleton actually fills (§4.2:
+        // the link slots and the content slots), so a hand-written placeholder on
+        // a truth key (a fixed version / date / status literal) stays a finding.
+        if (DomainInvariant.#skeletonFills(ctx, element.anchor) && this.isPlaceholder(value))
+          continue;
         const rawPattern = element.valuePattern;
         if (rawPattern === undefined) continue;
         if (!new RegExp(rawPattern).test(value)) {
@@ -517,6 +564,17 @@ export class DomainInvariant extends Invariant {
       }
     }
     return findings;
+  }
+
+  /** Whether the skeleton fills the front-matter anchor with a placeholder — the
+   *  projection's own §4.2 slot classification (the link slots' `<…>` scalar and
+   *  the content slots' `:::fill`), so the exemption covers exactly the keys that
+   *  can legally carry a holder form. A key absent from the emission list (a
+   *  shape-typed optional key) fills nothing and is never exempt. */
+  static #skeletonFills(ctx: JudgeContext, anchor: string): boolean {
+    const slot = ctx.skeleton.frontmatter.find((entry) => entry.anchor === anchor);
+    if (slot === undefined) return false;
+    return slot.slot === "link" || slot.slot === "content";
   }
 }
 
@@ -846,7 +904,7 @@ export class HollowInvariant extends Invariant {
     return findings;
   }
 
-  /** The overall's four tables: a present table section with zero data rows is hollow. */
+  /** The overall's three tables: a present table section with zero data rows is hollow. */
   private tableHollow(ctx: JudgeContext): Finding[] {
     const data = this.overall(ctx);
     if (data === null) return [];
@@ -1010,7 +1068,7 @@ export class SelfBoundedInvariant extends Invariant {
 }
 
 // ---------------------------------------------------------------------------
-// the four context-seam strategies
+// the six context-seam strategies
 // ---------------------------------------------------------------------------
 
 /** The chain-link target shape contract (D2, shape judged at the boundary — the #342
@@ -1078,7 +1136,9 @@ export class FileExistenceInvariant extends Invariant {
     return findings;
   }
 
-  /** The chain links of the judged doc type (overall design/plan cells; plan/spec lineage links). */
+  /** The chain links of the judged doc type — the overall's Phase-inventory cells.
+   *  The doc-level chain keys (`program:` · the retired path keys) never appear
+   *  here: a slug reference is not a path. */
   protected chainLinks(ctx: JudgeContext): readonly { source: string; link: ChainLink }[] {
     const links: { source: string; link: ChainLink }[] = [];
     if (ctx.docKey === "overall-spec") {
@@ -1094,49 +1154,28 @@ export class FileExistenceInvariant extends Invariant {
         }
       }
     }
-    if (ctx.docKey === "plan") {
-      const data = this.plan(ctx);
-      if (data !== null) {
-        if (data.chain.specLink !== null) links.push({ source: "spec", link: data.chain.specLink });
-        if (data.chain.parentLink !== null)
-          links.push({ source: "parent-program", link: data.chain.parentLink });
-      }
-    }
-    if (ctx.docKey === "phase-spec") {
-      const data = this.phaseSpec(ctx);
-      if (data !== null && data.chain.parentLink !== null) {
-        links.push({ source: "parent-program", link: data.chain.parentLink });
-      }
-    }
+    // A plan carries no chain key (its chain is the same-slug identity document) and
+    // the phase-spec's `program:` is a SLUG, not a path — neither feeds the
+    // file-existence / sibling-scan / link-shape faces. The phase-spec reference is
+    // judged by the `slug-ref` strategy.
     return links;
-  }
-
-  /** Whether a target's raw form marks it as a holder placeholder (no existence judgment). */
-  protected isPlaceholder(target: string): boolean {
-    const trimmed = target.trim();
-    if (trimmed === "") return true;
-    if (trimmed === "Pending" || trimmed === "[Pending]") return true;
-    return /^<[^>]+>$/.test(trimmed);
   }
 
   /** Whether the target exists — absolute targets directly; repo-root form first, the
    *  doc's own dir as the file-relative fallback. The resolution chain is
-   *  single-sourced in `targetPath` (the ONE home the CLI's plan `spec:` rebase
-   *  delegates to as well — P9 branch-review-1 F8: a future contract change
-   *  cannot silently diverge from the CLI's mirror). */
+   *  single-sourced in `targetPath` (the ONE home of the link-space reading). */
   #targetExists(ctx: JudgeContext, target: string): boolean {
     return ctx.fs.exists(
       FileExistenceInvariant.targetPath(ctx.root, ctx.path, target, (p) => ctx.fs.exists(p)),
     );
   }
 
-  /** The ONE chain-link target-resolution chain (the doc-contract's own judgment,
-   *  reused by the CLI's plan `spec:` rebase — F8): an absolute target as
-   *  itself; else the repoRoot-relative reading when it exists; else the doc-dir
-   *  (file-relative) reading. `exists` is the caller's filesystem seam (the
-   *  judgment's `ctx.fs`, the CLI's `fs.existsSync`) — the resolution is the shared
-   *  fact, the read is injected. When neither reading exists the doc-dir path is
-   *  returned (the link-space semantic — the caller owns the truly-missing case). */
+  /** The ONE chain-link target-resolution chain: an absolute target as itself; else
+   *  the repoRoot-relative reading when it exists; else the doc-dir (file-relative)
+   *  reading. `exists` is the caller's filesystem seam (the judgment's `ctx.fs`) —
+   *  the resolution is the shared fact, the read is injected. When neither reading
+   *  exists the doc-dir path is returned (the link-space semantic — the caller owns
+   *  the truly-missing case). */
   static targetPath(
     root: string,
     docPath: string,
@@ -1229,7 +1268,49 @@ export class SiblingScanInvariant extends FileExistenceInvariant {
   }
 }
 
-/** cross-doc-chain — the Class-A/B chain resolves and its lineage tokens belong to the parent. */
+/** slug-ref — a `slug-ref` value names an on-disk identity document by `slug:`
+ *  (the phase-spec's `program:` → an overall). The value is a SLUG, never a path,
+ *  so this face judges it by identity lookup alone (zero path resolution, zero
+ *  filename derivation); the skeleton's placeholder forms ride the shared
+ *  `isPlaceholder` exemption so a freshly rendered document is never blocked by the
+ *  hard gate its own skeleton emitted. */
+export class SlugRefInvariant extends Invariant {
+  readonly name = "slug-ref";
+
+  evaluate(ctx: JudgeContext): Finding[] {
+    const findings: Finding[] = [];
+    for (const element of this.elementsOf(ctx)) {
+      if (element.refKind !== "slug-ref" || element.home !== "frontmatter") continue;
+      const value = ctx.head.value(element.anchor);
+      if (value === null || this.isPlaceholder(value)) continue;
+      if (this.#resolves(ctx, value)) continue;
+      findings.push(
+        this.finding(
+          ctx,
+          element.anchor,
+          `the ${element.anchor} reference names no on-disk overall-spec document: ${value}`,
+          `name the slug: of an existing overall-spec document (${value} resolves to nothing)`,
+        ),
+      );
+    }
+    return findings;
+  }
+
+  /** Whether the reference resolves — a `slug-ref` value names an on-disk document
+   *  by its `slug:`, never by a path. The registry declares exactly ONE slug-ref
+   *  key (`program`), whose target class is the overall, so the lookup is the
+   *  identity index's overall read. A second slug-ref key would have to carry its
+   *  target class into this resolution. */
+  #resolves(ctx: JudgeContext, value: string): boolean {
+    return this.indexOf(ctx).overallOf(value) !== null;
+  }
+}
+
+/** cross-doc-chain — the identity chain resolves and its lineage tokens belong to the
+ *  program the document names. The chain is expressed in identity keys only: a plan
+ *  is chained to the identity document sharing its `slug:` (Class-A), and a
+ *  phase-spec is chained to the overall its `program:` names (the `slug-ref`
+ *  strategy judges that reference resolves; this strategy judges its lineage). */
 export class CrossDocChainInvariant extends Invariant {
   readonly name = "cross-doc-chain";
 
@@ -1258,76 +1339,51 @@ export class CrossDocChainInvariant extends Invariant {
     return [];
   }
 
-  /** The Class-A/Class-B plan chain: the `spec:`/`parent-program:` head targets + the Class-B lineage. */
+  /** The plan chain face (Class-A) — the plan's identity chain is the identity
+   *  document sharing its `slug:`: a plan with no same-slug identity document has
+   *  no design spec to dispatch against, and the finding names the `slug` key (the
+   *  identity fact that is missing its pair). The positive half is any identity
+   *  document (overall-spec / phase-spec / single-spec) carrying the same slug — a
+   *  single-spec pair carries no program, so the chain simply ends there. */
   private planChain(ctx: JudgeContext): Finding[] {
     const data = this.plan(ctx);
     if (data === null) return [];
-    const findings: Finding[] = [];
-    const specLink = data.chain.specLink;
-    if (specLink === null) {
-      findings.push(
-        this.finding(
-          ctx,
-          "spec",
-          "the plan carries no spec reference",
-          "add a spec value pointing at the phase design spec",
-        ),
-      );
-    }
-    // The link-label drift judgment retired with the ChainLink label face — the
-    // spec link is a head scalar now (the `spec:` key), the label is not a fact.
-    if (data.chain.parentLink === null) {
-      findings.push(
-        this.finding(
-          ctx,
-          "parent-program",
-          "the plan carries no parent-program reference",
-          "add a parent-program value pointing at the parent overall",
-        ),
-      );
-    }
-    findings.push(...this.classB(ctx, data.chain.parentLink, data.chain.parentTokens));
-    return findings;
+    const slug = ctx.head.slug;
+    // A placeholder or missing slug is presence's surface, never this arm's.
+    if (slug === null || this.isPlaceholder(slug)) return [];
+    if (this.#identityDocOf(ctx, slug) !== null) return [];
+    return [
+      this.finding(
+        ctx,
+        "slug",
+        `the plan carries no identity document with the same slug: ${slug}`,
+        `add a spec document declaring slug: ${slug} (its doc-type is overall-spec / phase-spec / single-spec)`,
+      ),
+    ];
   }
 
-  /** The Class-B phase-spec chain: the parent-link lineage belongs to the parent overall. */
+  /** The phase-spec chain face — the `program:` reference's lineage tokens must
+   *  belong to the overall it names. The reference's own resolution (the slug
+   *  naming an on-disk overall) is the `slug-ref` strategy's judgment; this arm
+   *  only judges the version facts once the target is resolved. */
   private specChain(ctx: JudgeContext): Finding[] {
     const data = this.phaseSpec(ctx);
     if (data === null) return [];
     const findings: Finding[] = [];
-    if (data.chain.parentLink === null) {
-      findings.push(
-        this.finding(
-          ctx,
-          "parent-program",
-          "the phase-spec carries no parent-program reference",
-          "add a parent-program value pointing at the parent overall",
-        ),
-      );
-    }
-    findings.push(...this.classB(ctx, data.chain.parentLink, data.chain.parentTokens));
-    return findings;
-  }
-
-  /** Class-B: the parent version tokens must belong to the parent overall's lineage. */
-  private classB(
-    ctx: JudgeContext,
-    parentLink: ChainLink | null,
-    parentTokens: readonly string[],
-  ): Finding[] {
-    const findings: Finding[] = [];
-    if (parentLink === null || parentTokens.length === 0) return findings;
-    const parentParsed = ctx.chainDocs?.get(parentLink.target);
-    if (parentParsed === undefined) return findings;
-    const lineage = this.#parentLineage(parentParsed);
-    for (const token of parentTokens) {
+    const programLink = data.chain.programLink;
+    if (programLink === null) return findings;
+    const program = this.#overallOf(ctx, programLink.target);
+    if (program === null) return findings;
+    const lineage = this.#parentLineage(ctx, program);
+    if (lineage === null) return findings;
+    for (const token of data.chain.parentTokens) {
       if (!lineage.has(token)) {
         findings.push(
           this.finding(
             ctx,
-            "parent-program",
-            `the parent-program version token ${token} does not belong to the parent overall's lineage`,
-            `use a version the parent overall declares (its version front-matter or a Change-history row): ${[...lineage].join(", ")}`,
+            "program",
+            `the parent-version token ${token} does not belong to the program's lineage: ${programLink.target}`,
+            `use a version the program overall declares (its version front-matter or a Change-history row): ${[...lineage].join(", ")}`,
           ),
         );
       }
@@ -1335,15 +1391,34 @@ export class CrossDocChainInvariant extends Invariant {
     return findings;
   }
 
-  /** The parent overall's lineage: its head `version:` scalar + every
+  /** The identity document carrying the slug, or null — resolved through the one
+   *  identity index the board and the pre-flight read (zero second scan). */
+  #identityDocOf(ctx: JudgeContext, slug: string): DocEntry | null {
+    return this.indexOf(ctx).identityDoc(slug);
+  }
+
+  /** The overall-spec document carrying the program slug, or null. */
+  #overallOf(ctx: JudgeContext, slug: string): DocEntry | null {
+    return this.indexOf(ctx).overallOf(slug);
+  }
+
+  /** The program overall's lineage: its head `version:` scalar + every
    *  Change-history row version (the T6 read point — the header fact rides the
-   *  typed head record, never a body line scan). */
-  #parentLineage(parent: ParsedDoc): Set<string> {
+   *  typed head record, never a body line scan). The overall parses through the
+   *  SAME row source the judged document went through (split → canonicalize →
+   *  parse), so an alias-registered table heading reads identically in both faces.
+   *  null when the parent is unreadable: a parent the seam cannot read is never
+   *  evidence that a version token is foreign (that absence belongs to the
+   *  slug-ref face's resolution). */
+  #parentLineage(ctx: JudgeContext, entry: DocEntry): Set<string> | null {
+    const content = ctx.fs.read(entry.path);
+    if (content === null) return null;
+    const { head, body } = FrontMatterExtractor.split(content);
+    const lines = body.split("\n").map((line) => ctx.translator.canonicalize(line));
+    const parsed = docTypeParsers["overall-spec"].parse(lines, head) as OverallParsed;
     const lineage = new Set<string>();
-    if (parent.docType !== "overall-spec") return lineage;
-    const version = (parent as OverallParsed).head?.version;
-    if (version !== null && version !== undefined) lineage.add(version);
-    for (const row of (parent as OverallParsed).tables["Change history"].rows) {
+    if (head.version !== null) lineage.add(head.version);
+    for (const row of parsed.tables["Change history"].rows) {
       const match = row[0]?.match(/v\d+\.\d+/);
       if (match !== null) lineage.add(match[0]);
     }

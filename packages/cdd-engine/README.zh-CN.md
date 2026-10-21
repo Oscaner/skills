@@ -1,6 +1,6 @@
 # @oscaner-skills/cdd-engine
 
-> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-09-26。
+> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-10-21。
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -34,9 +34,17 @@ npm install @oscaner-skills/cdd-engine
 | `base` | `cdd base set\|get` | 读写 `base.json` 产物（单一 CDD `--plan` 目标） |
 | `schema` | `cdd schema get <type>` | 打印 canonical 文档结构 schema（发现型、零执法） |
 | `issue` | `cdd issue render` | 依据 stdin 发现渲染聚合 issue 正文（纯渲染、零执法） |
-| `board` | `cdd board <slug>` | 渲染 slug 进度板（overall/spec/plan/wave/branch；纯读、零执法） |
+| `board` | `cdd board --plan <path> / --spec <path>` | 渲染入口文档的进度板（overall/spec/plan/wave/branch；纯读、零执法） |
 
 用 `cdd <command> --help` 查看某命令的完整选项列表（例如 `cdd review --tasks` / `--spec` / `--plan` / `--round`）。
+
+## 迁移
+
+文档身份即 front-matter 的 `slug:` 键。这退役了「按文件名推演文档身份」：属于 **major breaking** 变更，且**零双读**——旧键不再被读取，旧入口形也不再被接受。
+
+- **board 入口改为文档路径**：`cdd board --plan <path>` / `cdd board --spec <path>` 取代退役的 positional slug 形。
+- **身份是声明出来的，不是推演出来的**：文档由 front-matter 所写的 `slug:` 定位，文件名不承载任何身份含义。旧路径键不再被读取（留着是惰性的，不报错）；plan 的程序链经「与它同 slug 的身份文档」解析——phase-spec 的 `program:` 指向其 overall，而 overall-spec / single-spec 自身即链根。
+- **按 run 的工作区随键走**：`.kairos/cdd/<slug>/` 目录以 plan 文档的 `slug:` 为键。遗留在旧键命名下的目录**不复用**——没有 run 会续用或迁移它。但报告会话的台账扫描仍会读其记录，故在不再需要那段历史时手动删除。
 
 ## 开发说明
 

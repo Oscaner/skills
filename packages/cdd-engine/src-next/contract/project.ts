@@ -233,8 +233,8 @@ export interface DocReference {
 export type SlotKind =
   /** A free-text value position — the ONLY `:::fill <slot>` landing class. */
   | "content"
-  /** A link-shaped anchor slot — the parent-program / spec-ref links render as a
-   *  placeholder link (a `<…>` target on the exemption chain), never `:::fill`. */
+  /** A link-shaped anchor slot — the phase-spec `program:` slug reference renders as
+   *  a placeholder link (a `<…>` target on the exemption chain), never `:::fill`. */
   | "link"
   /** A digit-family heading — `N.` / `N.M` / `Task N:` render with true numbers
    *  (a literal `N` would puncture the declared digit-shaped value pattern). */
@@ -271,7 +271,7 @@ export interface SkeletonSlot {
  *  order (optional/conditional elements generate no slot — the zero
  *  conditional-residue contract mirrored at the skeleton surface) plus the
  *  independent front-matter emission list (spec §4.2: the required keys plus
- *  the type's optional frontmatter-home keys — `base` / `depends-on` — which
+ *  the type's optional frontmatter-home keys — `base` / `issues` — which
  *  never ride the slot channel). */
 export interface DocSkeleton {
   /** The doc-type identity the projection derives from. */
@@ -539,7 +539,7 @@ export class Projector {
 
   /** The front-matter emission list — the independent line set §4.2 prescribes:
    *  every frontmatter-home required key plus the type's optional head keys
-   *  (`base` / `depends-on`), in registry order. `parent-version` is the single
+   *  (`base` / `issues`), in registry order. `parent-version` is the single
    *  explicit exclusion: an optional shape-typed key whose domain admits neither
    *  placeholder form, so absence is the only legal skeleton state (the consumer
    *  fills it when the parent version is known). */
@@ -567,9 +567,10 @@ export class Projector {
 
   /** Classify one required element's slot kind — the placeholder-anchoring
    *  semantics of the element's value (spec §4.1):
-   *   · link            — the parent-program / spec-ref link-shaped anchors render
-   *                       as placeholder links (`:::fill` never lands on them — a
-   *                       fill in a link slot is a guaranteed finding);
+   *   · link            — the front-matter slug-reference anchors (the phase-spec
+   *                       `program:` key) render as placeholder links (`:::fill`
+   *                       never lands on them — a fill in a link slot is a
+   *                       guaranteed finding);
    *   · numeric-heading — the digit-family headings (`N.` / `N.M` / `Task N:`)
    *                       whose numbers are true values in the skeleton, never a
    *                       literal `N` (a literal `N` punctures the declared
@@ -585,18 +586,14 @@ export class Projector {
    *                       fully-anchored enum / graph elements).
    */
   #skeletonSlotOf(element: DerivedElement): SlotKind {
-    // The link-typed anchor slots are the front-matter link keys (`spec` · the
-    // `parent-program` of plan / phase-spec) — their values render as placeholder
-    // links (`<…>` targets on the exemption chain), never `:::fill`. The
-    // enum-typed table cells (a Design-spec cell, a markdown-link
-    // implementation-plan cell) ride the generator-truth class, never a link
-    // slot — the home + ref-kind pair keys the class (the frontmatter-home
-    // anchors are now YAML keys, so the old `\[`-shape probe no longer applies).
-    if (
-      element.home === "frontmatter" &&
-      (element.refKind === "parent-program" || element.refKind === "spec-ref")
-    )
-      return "link";
+    // The link-typed anchor slots are the front-matter slug references (the
+    // phase-spec `program:` key) — their values render as placeholder links
+    // (`<…>` targets on the exemption chain), never `:::fill`. The enum-typed
+    // table cells (a Design-spec cell, a markdown-link implementation-plan cell)
+    // ride the generator-truth class, never a link slot — the home + ref-kind pair
+    // keys the class (the frontmatter-home anchors are now YAML keys, so the old
+    // `\[`-shape probe no longer applies).
+    if (element.home === "frontmatter" && element.refKind === "slug-ref") return "link";
     if (
       (element.anchor.startsWith("#") || element.anchor === "Task id token") &&
       element.valuePattern !== undefined &&
@@ -618,7 +615,7 @@ export class Projector {
       return "scaffold";
     }
     // The front-matter content keys (the title plus the other free-text head
-    // scalars — author · depends-on · base) are the head's fill positions (`:::fill
+    // scalars — author · slug · base) are the head's fill positions (`:::fill
     // <key>` in the emitted front matter); the remaining heading anchors are fixed
     // structure.
     if (element.anchor === "title") return "content";

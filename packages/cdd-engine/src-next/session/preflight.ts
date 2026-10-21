@@ -22,15 +22,15 @@
 // Module-level exports are types / the class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { PlanDocType } from "../contract/doc.ts";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
-import type { DocFs } from "../contract/invariants.ts";
+import { type DocFs, NodeFs } from "../contract/invariants.ts";
 import type { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import type { Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
+import { SlugIndex } from "../infra/slug-index.ts";
 import type { TargetType } from "./faces.ts";
 import { TaskGraph } from "./graph.ts";
 import type { Ledger } from "./ledger.ts";
@@ -224,11 +224,29 @@ export class PreFlight {
             order: gates,
           };
         }
+        // The identity gate (spec §2.1/§2.2) — same face, same carrier: the
+        // workspace key is the declared `slug:`, and the four-way judgment is the
+        // SAME `SlugIndex` one the board and the dispatch carrier read (one fact,
+        // one rule; this carrier supplies the pre-flight verdict shape only).
+        const index = SlugIndex.build(ctx.repoRoot, this.#fs);
+        const verdict = index.slugVerdict(doc.path, head.slug);
+        if (verdict.kind !== "accepted") {
+          return {
+            ok: false,
+            gate: "doc-contract",
+            reason: "doc-contract",
+            message: this.#words.slugRefusal(verdict),
+            order: gates,
+          };
+        }
         const findings = this.#contract.validate({
           docKey: doc.docKey,
           path: docAbsolute,
           content,
           root: ctx.repoRoot,
+          // The SAME index the identity gates above read — one scan per dispatch,
+          // and the contract's chain / slug-ref lookups judge the identical facts.
+          slugIndex: index,
           fs: this.#fs,
         });
         if (findings.length > 0) {
@@ -246,26 +264,5 @@ export class PreFlight {
       }
     }
     return { ok: true, order: gates };
-  }
-}
-
-/** The node:fs default — the production seam for the doc-contract's file reads. */
-class NodeFs implements DocFs {
-  read(p: string): string | null {
-    try {
-      return readFileSync(p, "utf8");
-    } catch {
-      return null;
-    }
-  }
-  exists(p: string): boolean {
-    return existsSync(p);
-  }
-  list(p: string): readonly string[] {
-    try {
-      return readdirSync(p);
-    } catch {
-      return [];
-    }
   }
 }

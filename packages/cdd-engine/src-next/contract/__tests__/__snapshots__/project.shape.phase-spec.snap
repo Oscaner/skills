@@ -25,6 +25,16 @@
           "refKind": "none"
         },
         {
+          "anchor": "slug",
+          "presence": "required",
+          "refKind": "none"
+        },
+        {
+          "anchor": "program",
+          "presence": "required",
+          "refKind": "slug-ref"
+        },
+        {
           "anchor": "status",
           "presence": "required",
           "refKind": "none"
@@ -35,19 +45,9 @@
           "refKind": "none"
         },
         {
-          "anchor": "parent-program",
-          "presence": "required",
-          "refKind": "parent-program"
-        },
-        {
           "anchor": "parent-version",
           "presence": "optional",
           "refKind": "version-lineage"
-        },
-        {
-          "anchor": "depends-on",
-          "presence": "required",
-          "refKind": "none"
         }
       ]
     },

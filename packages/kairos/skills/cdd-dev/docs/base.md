@@ -61,11 +61,11 @@ The 4-value `source` enum is a verified count — the engine schema and this tab
 
 The scope path segment is fixed to `cdd`; the artifact always lives at `.kairos/cdd/<slug>/base.json`. The only per-session variable is the `slug`:
 
-| Slug source | Derivation |
+| Slug source | How it resolves |
 |---|---|
-| CDD workspace slug | derived by the engine's workspace slug resolution: plan doc filename with `.md` and a single trailing `-design` / `-plan` stripped |
+| CDD workspace slug | the plan document's front-matter `slug:` key (the identity the engine indexes documents by) |
 
-One root, one slug: the workspace root is the single authority for where artifacts live — the path is derived, never hand-supplied.
+One root, one slug: the workspace root is the single authority for where artifacts live — the path resolves from the plan document's declared `slug:`, never from a hand-supplied path segment and never from the file name.
 
 ## Section 4: CLI usage
 
@@ -90,7 +90,7 @@ Placeholder / literal vocabulary:
 
 | Placeholder | Meaning |
 |---|---|
-| `<slug>` | workspace slug — derived, lowercase |
+| `<slug>` | workspace directory key — the plan document's declared front-matter `slug:`, verbatim |
 | `<branch>` / `<source>` | `set`-command arguments mirroring the schema fields |
 | `<path>` / `<repoRoot>` | plan path (the sole `--plan` target) / repo-root prefix |
 | `source` enum literals | `plan-field` / `branch-upstream` / `conversation-context` / `user-confirmed` — full-word, scope-prefixed semantics |

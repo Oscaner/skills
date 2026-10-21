@@ -70,9 +70,7 @@ const planDoc = (blocks: readonly (readonly string[])[]): string => {
     "doc-type: plan",
     "version: v1.0",
     "date: 2026-10-09",
-    "spec: docs/kairos/specs/x-design.md",
-    "parent-program: docs/kairos/specs/x-overall.md",
-    "parent-version: v1.0",
+    "slug: x-p3",
     "---",
     "",
     "## Constraints",
@@ -110,13 +108,18 @@ const preflightOf = (fs?: DocFs): PreFlight => {
 
 /** A memory fs — every path resolves into the judged doc's own content (the
  *  context-seam backstop: chain/sibling reads return the judged content, so the
- *  doc-contract gate's judgment is the doc's own structure, not its neighbors). */
+ *  doc-contract gate's judgment is the doc's own structure, not its neighbors).
+ *  The one exception is the program overall (`x-overall.md`): the phase-spec's
+ *  `program:` reference is judged by an identity lookup, so the fixture serves the
+ *  minimal overall the reference names. */
 const memoryFs = (content: string): DocFs => {
   return {
     exists: () => true,
-    read: () => content,
-    // The sibling scan resolves the `parent-program:` target basename — the
-    // judged doc's family lists it.
+    read: (p) =>
+      p.endsWith("/x-overall.md") || p === "x-overall.md"
+        ? "---\ntitle: O\ndoc-type: overall-spec\nslug: x-overall\nversion: v1.0\n---\n"
+        : content,
+    // The sibling scan lists the same-family docs of the judged document.
     list: (_p: string) => ["x-overall.md"],
   };
 };
@@ -131,11 +134,11 @@ const CONFORMING_SPEC = [
   "doc-type: phase-spec",
   "version: v1.0",
   "date: 2026-10-09",
+  "slug: x-p3",
+  "program: x-overall",
   "status: Draft",
   "author: x",
-  "parent-program: docs/kairos/specs/x-overall.md",
   "parent-version: v1.0",
-  "depends-on: P1",
   "---",
   "",
   "## Design",
@@ -162,12 +165,14 @@ const CONFORMING_SPEC = [
 ].join("\n");
 
 /** A defective phase-spec — the required sections/head keys missing, so the
- *  doc-contract gate refuses it (the negative case). */
+ *  doc-contract gate refuses it (the negative case). It carries a legal `slug:`
+ *  so the identity gates pass and the structural findings are what BLOCK. */
 const DEFECTIVE_SPEC = [
   "---",
   "title: Test Spec",
   "doc-type: phase-spec",
   "version: v1.0",
+  "slug: defective",
   "status: Draft",
   "---",
   "",
@@ -469,6 +474,39 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
       expect(verdict.reason).toBe("doc-contract");
       expect(verdict.message).toContain("declares no `doc-type:` key");
       expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a present doc carrying no `slug:` declaration BLOCKs on the SAME face as a missing doc-type", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const noSlug = CONFORMING_SPEC.split("\n")
+        .filter((line) => !line.startsWith("slug:"))
+        .join("\n");
+      const preflight = preflightOf(memoryFs(noSlug));
+      const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
+      expect(verdict.ok).toBe(false);
+      expect(verdict.gate).toBe("doc-contract");
+      expect(verdict.reason).toBe("doc-contract");
+      expect(verdict.message).toContain("declares no `slug:` key");
+      expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an illegal `slug:` value BLOCKs before any workspace is built", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const badSlug = CONFORMING_SPEC.replace("slug: x-p3", "slug: ../x");
+      const preflight = preflightOf(memoryFs(badSlug));
+      const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
+      expect(verdict.ok).toBe(false);
+      expect(verdict.gate).toBe("doc-contract");
+      expect(verdict.message).toContain('"../x"');
+      expect(verdict.message).toContain("illegal");
     } finally {
       cleanup();
     }

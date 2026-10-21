@@ -4,11 +4,10 @@ title: 引擎文档工具（Engine Doc-Tooling）— P7 设计：单一实况判
 doc-type: phase-spec
 version: v0.14
 date: 2026-10-14
+slug: 2026-10-10-engine-doc-tooling-p7
+program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P7] 会话 · 用户裁定 · 2026-10-13）
-parent-program: 2026-10-10-engine-doc-tooling-overall.md
-depends-on: P6（Done · v0.4 · hard——P6 全链闭合后开启评测面 commit-sha 退役 + 物料无条件 extract
-  续修 · overall 依赖图 D23）
 ---
 
 ## Design

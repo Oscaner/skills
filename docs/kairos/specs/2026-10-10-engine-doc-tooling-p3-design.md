@@ -3,11 +3,10 @@ title: 引擎文档工具（Engine Doc-Tooling）— P3 设计：CLI 框架化�
 doc-type: phase-spec
 version: v0.14
 date: 2026-10-12
+slug: 2026-10-10-engine-doc-tooling-p3
+program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P3] 会话 · 2026-10-11）
-parent-program: 2026-10-10-engine-doc-tooling-overall.md
-depends-on: P1（Design Done · v0.4 · hard）· P2（Design Done · v0.5 ·
-  satisfied——deferred 变更集随本 phase 折叠归并）
 ---
 
 ## Design

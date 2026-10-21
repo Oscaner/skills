@@ -212,7 +212,7 @@ const ZH_HEADING_SEQUENCES: Record<string, string[]> = {
     "维护者文档",
     "许可",
   ],
-  "packages/cdd-engine/README.zh-CN.md": ["包定位", "安装", "CLI", "开发说明", "许可"],
+  "packages/cdd-engine/README.zh-CN.md": ["包定位", "安装", "CLI", "迁移", "开发说明", "许可"],
 };
 
 for (const [en, zh] of MIRROR_PAIRS) {
@@ -284,6 +284,81 @@ test("P4.1 behavior: cdd-engine README documents every CLI subcommand (issue inc
     );
   }
 });
+
+// P15 identity flip — the row-name loop above would stay green if a `board` row kept the
+// retired positional-slug form (the row is still named `board`), so the argument form is
+// pinned positively on both cdd-engine READMEs: the documented invocation must be the
+// path-flag form the engine's `board` command declares (zero positionals — a positional
+// argument is refused by the parser, so a stale row is a broken consumer instruction).
+const BOARD_USAGE_PINS: Record<string, { usage: RegExp; retired: RegExp }> = {
+  "packages/cdd-engine/README.md": {
+    usage: /^\|\s*`board`\s*\|\s*`cdd board --plan <path> \/ --spec <path>`\s*\|/m,
+    retired: /cdd board <slug>/,
+  },
+  "packages/cdd-engine/README.zh-CN.md": {
+    usage: /^\|\s*`board`\s*\|\s*`cdd board --plan <path> \/ --spec <path>`\s*\|/m,
+    retired: /cdd board <slug>/,
+  },
+};
+
+for (const [rel, pin] of Object.entries(BOARD_USAGE_PINS)) {
+  test(`P15 board usage: ${rel} documents the path-flag entry form`, () => {
+    const cli = sectionOf(read(rel), "## CLI");
+    expect(
+      cli,
+      `${rel} board row must document \`cdd board --plan <path> / --spec <path>\``,
+    ).toMatch(pin.usage);
+    expect(cli, `${rel} must not resurface the retired positional-slug board form`).not.toMatch(
+      pin.retired,
+    );
+  });
+}
+
+// P15 identity flip — the two cdd-engine READMEs (EN source + zh mirror, same judgment, the
+// per-language patterns below) must carry the consumer migration note. The flip is a major
+// breaking change with zero dual-read, and it moves the per-run workspace key: `.kairos/cdd/`
+// directories are keyed by the document's declared `slug:`, so a directory left under a
+// retired file-name-derived key is not reused and the consumer may delete it by hand. The
+// claim is only honest if a consumer reading either language learns all of it — the note is
+// pinned section-scoped, so a heading rename or a dropped bullet fails here.
+const MIGRATION_NOTES: Record<
+  string,
+  { heading: string; notReused: RegExp; deleteByHand: RegExp }
+> = {
+  "packages/cdd-engine/README.md": {
+    heading: "## Migration",
+    notReused: /not reused/i,
+    deleteByHand: /delete it by hand/i,
+  },
+  "packages/cdd-engine/README.zh-CN.md": {
+    heading: "## 迁移",
+    notReused: /不复用/,
+    deleteByHand: /手动删除/,
+  },
+};
+
+for (const [rel, pin] of Object.entries(MIGRATION_NOTES)) {
+  test(`P15 migration note: ${rel} documents the breaking identity flip for consumers`, () => {
+    const section = sectionOf(read(rel), pin.heading);
+    expect(section, `${rel} migration note must name the per-run workspace root`).toMatch(
+      /\.kairos\/cdd\//,
+    );
+    expect(section, `${rel} migration note must mark the change major breaking`).toMatch(
+      /major breaking/,
+    );
+    expect(section, `${rel} migration note must retire the file-name-derived identity`).toMatch(
+      /file-name-derived|按文件名推演/,
+    );
+    expect(
+      section,
+      `${rel} migration note must state a stale workspace directory is not reused`,
+    ).toMatch(pin.notReused);
+    expect(
+      section,
+      `${rel} migration note must tell the consumer the stale directory is deletable by hand`,
+    ).toMatch(pin.deleteByHand);
+  });
+}
 
 test("P4.1 behavior: kairos README names the full CLI surface (issue render included)", () => {
   const md = read("packages/kairos/README.md");

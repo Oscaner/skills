@@ -3,8 +3,7 @@ title: 引擎文档工具（Engine Doc-Tooling）— P3 实施计划：CLI 框�
 doc-type: plan
 version: v0.14
 date: 2026-10-12
-spec: docs/kairos/specs/2026-10-10-engine-doc-tooling-p3-design.md
-parent-program: docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md
+slug: 2026-10-10-engine-doc-tooling-p3
 ---
 
 ## Constraints

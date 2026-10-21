@@ -84,14 +84,14 @@ flowchart TD
 
 ### `run-cdd-spec`
 
-- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the target parameter (single-spec / phase-spec — the two near-identical dispatch variants are ONE node)
+- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the target parameter (single-spec / phase-spec — the two near-identical dispatch variants are ONE node). The delegated writer lands the document's front-matter identity — `slug:` on either target, plus `program:` (the parent overall's `slug:`) on the phase-spec target
 - **Read**: grilling output + exploration context
 - **Exit**: Handoff executed → `handoff-next`
 - **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
 
 ### `run-cdd-charter`
 
-- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the overall-spec target
+- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the overall-spec target; the delegated writer lands the document's front-matter `slug:` — an overall-spec declares no `program:` (it is the program)
 - **Read**: grilling output + parent overall (oversized phase-within-program case)
 - **Exit**: Handoff executed → `handoff-phase-design`
 - **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)

@@ -12,9 +12,9 @@
 // standard parser): the frontmatter-home slots render as a `---`-fenced YAML
 // record emitted by `yaml.stringify` in one call — an independent line set, never
 // hand-spun header lines and never part of the slot/probe channel. §4.2's
-// placeholder three-way split: the link-typed keys (`spec` · `parent-program`)
-// emit a `<…>` scalar on the judge's placeholder-exemption chain; the content
-// keys (`title` · `author` · `depends-on` · `base`) emit `:::fill <key>`; the
+// placeholder three-way split: the slug-reference key (`program`) emits a `<…>`
+// scalar on the judge's placeholder-exemption chain; the content keys (`title` ·
+// `author` · `base` · `slug`) emit `:::fill <key>`; the
 // truth keys (`doc-type` · `version` · `date` · `status`) emit true values. The
 // optional `parent-version` key is deliberately NOT emitted — its shape is typed
 // (`v<n>.<m>`, so a fill or a link scalar would violate the domain) and absence
@@ -34,19 +34,17 @@
 import { Pair, Scalar, stringify as stringifyYaml, YAMLMap } from "yaml";
 import type { DocSkeleton, SkeletonSlot } from "../contract/project.ts";
 
-/** The placeholder scalars of the front-matter link keys (spec §4.2 + D3) — the
- *  link-typed head keys (`spec` · `parent-program`) render a `<…>`-shaped value
- *  that rides the judge's placeholder-exemption chain (a bare `^<[^>]+>$` target
- *  the file-existence / sibling-scan / cross-doc-chain strategies all skip),
- *  never a `:::fill` (a fill in a link slot is a guaranteed finding). The
- *  placeholder IS the fill contract (show-don't-tell — zero prose rules): its
- *  inner shape is a BARE relative-path exemplar (`docs/kairos/specs/…-overall.md`),
- *  the exact form the consumer must fill — the <>-shell keeps the exemption, the
- *  path inside both bookends the value and doubles as the shape sample (#342: a
- *  consumer copying the exemplar fills a bare path, never a markdown link). */
+/** The placeholder scalars of the front-matter slug-reference keys (spec §4.2 + D3)
+ *  — the phase-spec `program:` head key renders a `<…>`-shaped value that rides
+ *  the judge's placeholder-exemption chain (a bare `^<[^>]+>$` target the
+ *  file-existence / sibling-scan / slug-reference strategies all skip), never a
+ *  `:::fill` (a fill in a link slot is a guaranteed finding). The placeholder IS
+ *  the fill contract (show-don't-tell — zero prose rules): its inner shape is the
+ *  SLUG of the parent overall document, the exact form the consumer must fill
+ *  (the value domain of `program:` is `SLUG_VALUE_PATTERN`, so a path exemplar
+ *  would seed a violating document). */
 const FRONT_MATTER_LINKS: Record<string, string> = {
-  spec: "<docs/kairos/specs/…-design.md>",
-  "parent-program": "<docs/kairos/specs/…-overall.md>",
+  program: "<overall-slug>",
 };
 
 /** The generator truths of the pattern-typed body slots (spec §3.2/§4.1) —
@@ -162,14 +160,13 @@ export class SkeletonAssembler {
   // -------------------------------------------------------------------------
 
   /** The overall-spec skeleton — the front-matter head, the section sequence
-   *  (the four table sections, the charter facets, the dependency graph, the
+   *  (the three table sections, the charter facets, the dependency graph, the
    *  Form-A constraints surface and the change-history table): every required
    *  overall-spec element lands in its structural position. */
   #renderOverallSpec(probe: Set<string>): string[] {
     const lines: string[] = [];
     this.#pushFrontmatter(lines);
     lines.push(...this.#section("## Document scope", [":::fill document-scope"], probe));
-    lines.push(...this.#section("## File paths", this.#filePathsTable(probe), probe));
     lines.push(...this.#section("## Program charter", this.#programCharter(probe), probe));
     lines.push(...this.#section("## Issue inventory", this.#issueTable(probe), probe));
     lines.push(...this.#section("## Phase inventory", this.#phaseTable(probe), probe));
@@ -262,7 +259,7 @@ export class SkeletonAssembler {
   /** The single-spec skeleton — the front-matter head, the four prose sections
    *  (`:::fill` slots) and the change-history table: the lightweight scaffold of
    *  the free-form spec (P6 T2 · spec §2.1). No `### N.` double-layer outline and
-   *  no parent-program key — the single-spec's deliberate deviations from the
+   *  no `program:` key — the single-spec's deliberate deviations from the
    *  phase-spec form. */
   #renderSingleSpec(probe: Set<string>): string[] {
     const lines: string[] = [];
@@ -301,7 +298,7 @@ export class SkeletonAssembler {
     // the link placeholders plain (the <>-bookended exemplar — exemption-shaped).
     const fields = new YAMLMap();
     // The emission list is the projection's independent front-matter set — the
-    // required head keys plus the type's optional keys (`base` / `depends-on`);
+    // required head keys plus the type's optional keys (`base` / `issues`);
     // `parent-version` never appears (the projection excludes it — §4.2's
     // optional shape-typed key, whose `v<n>.<m>` domain admits no placeholder).
     for (const slot of this.#frontmatterSlots) {
@@ -374,13 +371,6 @@ export class SkeletonAssembler {
     probe.add(heading);
     for (const anchor of bodyAnchors) probe.add(anchor);
     return [heading, "", ...body, ""];
-  }
-
-  /** The File-paths artifact table — the two-column header + the minimal one-row
-   *  scaffold (the backticked path cell keeps the `File path row` shape). */
-  #filePathsTable(probe: Set<string>): string[] {
-    probe.add("File path row");
-    return ["| Artifact | Path |", "| --- | --- |", "| overall-spec | `:::fill overall-path` |"];
   }
 
   /** The charter facets — the three required `###` facet headings with their

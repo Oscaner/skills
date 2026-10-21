@@ -1,6 +1,6 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— Overall Spec
-doc-type: overall-spec
+doc-type: overall
 version: v2.70
 date: 2026-10-20
 slug: 2026-10-10-engine-doc-tooling
@@ -16,7 +16,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 
 | Artifact | Path |
 |---|---|
-| Overall | `specs/2026-10-10-engine-doc-tooling-overall.md` |
+| Overall | `overalls/2026-10-10-engine-doc-tooling-overall.md` |
 | Phase spec | `specs/2026-10-10-engine-doc-tooling-p<N>-design.md` |
 | Phase plan | `plans/2026-10-10-engine-doc-tooling-p<N>.md` |
 

@@ -1,5 +1,5 @@
 // packages/cdd-engine/src-next/infra/__tests__/slug-index.test.ts
-// T2 — the identity index pins (spec §2.1/§2.2): one scan over the two doc roots
+// T2 — the identity index pins (spec §2.1/§2.2): one scan over the doc roots
 // groups every document by its front-matter `slug:` and derives the identity
 // lookups the board and the dispatch pre-flight share. The suites pin:
 //   · the lookup surface (identityDoc / planOf / phaseSpecsOf / overallOf / entryAt);
@@ -40,13 +40,14 @@ const writeDoc = (repo: string, rel: string, fields: Readonly<Record<string, str
 
 const SPECS = "docs/kairos/specs";
 const PLANS = "docs/kairos/plans";
+const OVERALLS = "docs/kairos/overalls";
 const PROGRAM = "prog";
 
 /** The program fixture: one overall + two phase-specs + one paired plan. */
 const seedProgram = (repo: string): void => {
   writeDoc(repo, `${SPECS}/prog-overall.md`, {
     title: "Program",
-    "doc-type": "overall-spec",
+    "doc-type": "overall",
     version: "v1.0",
     status: "Draft",
     slug: PROGRAM,
@@ -171,7 +172,7 @@ describe("SlugIndex — the violation classes", () => {
   it("flags each of the five violation kinds", () => {
     const repo = newRepo();
     // the program target the phase-specs below legitimately point at.
-    writeDoc(repo, `${SPECS}/prog-overall.md`, { "doc-type": "overall-spec", slug: PROGRAM });
+    writeDoc(repo, `${SPECS}/prog-overall.md`, { "doc-type": "overall", slug: PROGRAM });
     // duplicate identity documents — one slug, two identity docs.
     writeDoc(repo, `${SPECS}/dup-a-design.md`, {
       "doc-type": "phase-spec",
@@ -189,7 +190,7 @@ describe("SlugIndex — the violation classes", () => {
     // a document without `slug:`.
     writeDoc(repo, `${PLANS}/no-slug.md`, { title: "No slug", "doc-type": "plan" });
     // an illegal slug value.
-    writeDoc(repo, `${SPECS}/bad-slug.md`, { "doc-type": "overall-spec", slug: "../x" });
+    writeDoc(repo, `${SPECS}/bad-slug.md`, { "doc-type": "overall", slug: "../x" });
     // a phase-spec whose program target does not exist.
     writeDoc(repo, `${SPECS}/orphan-design.md`, {
       "doc-type": "phase-spec",
@@ -234,8 +235,8 @@ describe("SlugIndex — the violation classes", () => {
 
   it("does not group an invalid slug value as a duplicate", () => {
     const repo = newRepo();
-    writeDoc(repo, `${SPECS}/bad-a.md`, { "doc-type": "overall-spec", slug: "../x" });
-    writeDoc(repo, `${SPECS}/bad-b.md`, { "doc-type": "overall-spec", slug: "../x" });
+    writeDoc(repo, `${SPECS}/bad-a.md`, { "doc-type": "overall", slug: "../x" });
+    writeDoc(repo, `${SPECS}/bad-b.md`, { "doc-type": "overall", slug: "../x" });
     const kinds = SlugIndex.build(repo)
       .violations()
       .map((violation) => violation.kind);
@@ -271,10 +272,10 @@ describe("SlugIndex — the four-way identity gate", () => {
 
   it("refuses a missing, illegal or duplicated slug with its own kind", () => {
     const repo = newRepo();
-    writeDoc(repo, `${SPECS}/no-slug.md`, { "doc-type": "overall-spec" });
-    writeDoc(repo, `${SPECS}/bad-slug.md`, { "doc-type": "overall-spec", slug: "../x" });
-    writeDoc(repo, `${SPECS}/dup-a.md`, { "doc-type": "overall-spec", slug: "dup" });
-    writeDoc(repo, `${SPECS}/dup-b.md`, { "doc-type": "overall-spec", slug: "dup" });
+    writeDoc(repo, `${SPECS}/no-slug.md`, { "doc-type": "overall" });
+    writeDoc(repo, `${SPECS}/bad-slug.md`, { "doc-type": "overall", slug: "../x" });
+    writeDoc(repo, `${SPECS}/dup-a.md`, { "doc-type": "overall", slug: "dup" });
+    writeDoc(repo, `${SPECS}/dup-b.md`, { "doc-type": "overall", slug: "dup" });
     const index = SlugIndex.build(repo);
 
     expect(index.slugVerdict(`${SPECS}/no-slug.md`, null)).toEqual({ kind: "missing" });
@@ -288,18 +289,30 @@ describe("SlugIndex — the four-way identity gate", () => {
     });
   });
 
-  it("recognises a path inside either doc root and nothing else", () => {
+  it("recognises a path inside any doc root and nothing else", () => {
+    expect(SlugIndex.insideDocRoots(`${OVERALLS}/x.md`)).toBe(true);
     expect(SlugIndex.insideDocRoots(`${SPECS}/x.md`)).toBe(true);
     expect(SlugIndex.insideDocRoots(`${PLANS}/x.md`)).toBe(true);
     expect(SlugIndex.insideDocRoots("notes.md")).toBe(false);
     expect(SlugIndex.insideDocRoots(`${SPECS}-archive/x.md`)).toBe(false);
+  });
+
+  it("scans the overalls root into the index (the third doc root)", () => {
+    const repo = newRepo();
+    writeDoc(repo, `${OVERALLS}/prog-overall.md`, {
+      "doc-type": "overall",
+      slug: PROGRAM,
+    });
+    const index = SlugIndex.build(repo);
+    expect(index.overallOf(PROGRAM)?.rel).toBe(`${OVERALLS}/prog-overall.md`);
+    expect(index.entryAt(`${OVERALLS}/prog-overall.md`)?.docType).toBe("overall");
   });
 });
 
 describe("SlugIndex — the uncovered input faces", () => {
   it("reads identity from `slug:`, never from the file name (face ①)", () => {
     const repo = newRepo();
-    writeDoc(repo, `${SPECS}/x-design.md`, { "doc-type": "overall-spec", slug: "y" });
+    writeDoc(repo, `${SPECS}/x-design.md`, { "doc-type": "overall", slug: "y" });
     const index = SlugIndex.build(repo);
     expect(index.identityDoc("y")?.rel).toBe(`${SPECS}/x-design.md`);
     expect(index.identityDoc("x")).toBeNull();
@@ -307,7 +320,7 @@ describe("SlugIndex — the uncovered input faces", () => {
 
   it("judges identity by doc-type, never by the directory it lives in (face ②)", () => {
     const repo = newRepo();
-    writeDoc(repo, `${SPECS}/prog-overall.md`, { "doc-type": "overall-spec", slug: PROGRAM });
+    writeDoc(repo, `${SPECS}/prog-overall.md`, { "doc-type": "overall", slug: PROGRAM });
     // The legal pair split across the two roots stays legal.
     writeDoc(repo, `${SPECS}/split-design.md`, {
       "doc-type": "phase-spec",
@@ -319,7 +332,7 @@ describe("SlugIndex — the uncovered input faces", () => {
 
     // Two identity documents split across the two roots are still duplicates —
     // the plan-root file is an identity document because its doc-type says so.
-    writeDoc(repo, `${PLANS}/split-overall.md`, { "doc-type": "overall-spec", slug: "split" });
+    writeDoc(repo, `${PLANS}/split-overall.md`, { "doc-type": "overall", slug: "split" });
     const violations = SlugIndex.build(repo).violations();
     expect(violations.map((violation) => violation.kind)).toEqual(["duplicate-identity"]);
     expect(violations[0]?.rel).toBe(`${SPECS}/split-design.md`);

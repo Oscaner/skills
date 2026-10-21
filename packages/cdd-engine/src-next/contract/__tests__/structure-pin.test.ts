@@ -150,7 +150,7 @@ test("spec §6 structure pin — retired grammars zero-hit · retained primitive
 
   // (d) the registry side — the frontmatter-home anchor set is a key set.
   const registries = [
-    declaredRegistries["overall-spec"],
+    declaredRegistries["overall"],
     declaredRegistries.plan,
     declaredRegistries["phase-spec"],
     declaredRegistries["single-spec"],

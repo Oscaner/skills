@@ -357,7 +357,7 @@ export class Cli {
    *  (spec §3.1): a PURE READ — zero preflight gate, zero tree writes, zero ledger
    *  writes, zero child dispatch. At least one path flag is required (missing →
    *  usage exit 2); each path resolves through the ONE identity index (`SlugIndex`
-   *  scans the two docRoots), so a path outside the docRoots or absent on disk is
+   *  scans every docRoot), so a path outside the docRoots or absent on disk is
    *  the not-found face (exit 2, zero doc reads, zero BLOCKED markers). Two flags
    *  naming different slugs are an argument conflict (exit 2, both values on
    *  stderr); two flags on one slug render ONE board shaped by the `--spec`

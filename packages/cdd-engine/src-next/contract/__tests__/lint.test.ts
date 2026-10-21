@@ -92,7 +92,7 @@ const lintPlan = (content: string): ReturnType<LintPass["run"]> => {
 };
 
 const lintParsed = (
-  docKey: "overall-spec" | "plan" | "phase-spec",
+  docKey: "overall" | "plan" | "phase-spec",
   lines: readonly string[],
 ): ReturnType<LintPass["run"]> => {
   // docKey selects the parser only — the lint input carries no re-typed doc key.
@@ -100,10 +100,8 @@ const lintParsed = (
 };
 
 /** The shared parse — the composition root consumers reuse (parse-once discipline). */
-const parseDoc = (
-  docKey: "overall-spec" | "plan" | "phase-spec",
-  lines: readonly string[],
-): ParsedDoc => docTypeParsers[docKey].parse(lines);
+const parseDoc = (docKey: "overall" | "plan" | "phase-spec", lines: readonly string[]): ParsedDoc =>
+  docTypeParsers[docKey].parse(lines);
 
 describe("the missing-edge suspect scan (the prose reference surface)", () => {
   it("a backward Task N citation with no matching edge → exactly one WARN per block", () => {
@@ -281,7 +279,7 @@ describe("the retired cross-doc drift observation (T6 — zero WARNs)", () => {
   });
 
   it("the overall carries no reference-lint surface — the class is a silent no-op over an overall", () => {
-    const warns = lintParsed("overall-spec", ["# Test Overall", "## Document scope", "scope"]);
+    const warns = lintParsed("overall", ["# Test Overall", "## Document scope", "scope"]);
     expect(warns).toEqual([]);
   });
 });

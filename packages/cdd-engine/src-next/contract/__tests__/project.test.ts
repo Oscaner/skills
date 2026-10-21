@@ -24,9 +24,9 @@ import type { ElementRegistry } from "../declare.ts";
 import { declaredRegistries } from "../declare.ts";
 import { Projector } from "../project.ts";
 
-const DOC_KEYS = ["overall-spec", "plan", "phase-spec", "single-spec"] as const;
+const DOC_KEYS = ["overall", "plan", "phase-spec", "single-spec"] as const;
 const REGISTRIES = [
-  declaredRegistries["overall-spec"],
+  declaredRegistries["overall"],
   declaredRegistries.plan,
   declaredRegistries["phase-spec"],
   declaredRegistries["single-spec"],
@@ -190,7 +190,7 @@ describe("slices projection (Projector.slices)", () => {
   });
 
   it("derives the anchor pattern from the anchor literal (known-good escapes)", () => {
-    const overall = slices["overall-spec"];
+    const overall = slices["overall"];
     // The two leading rows are front-matter keys — the slice carries the key as
     // a literal, no compiled line scan.
     expect(overall.slices[0].anchor).toBe("title");
@@ -287,10 +287,10 @@ describe("skeleton projection (Projector.skeleton)", () => {
   const skeletons = PROJECTOR.skeleton();
 
   it("keys the projection record by the DocKey domain and carries each doc's type identity", () => {
-    // The skeleton record rides the projection DocKey domain (overall-spec | plan |
+    // The skeleton record rides the projection DocKey domain (overall | plan |
     // phase-spec | single-spec) — the same single spelling as the DocType literals (spec §5.2).
     expect(Object.keys(skeletons)).toEqual([...DOC_KEYS]);
-    expect(skeletons["overall-spec"].docType).toBe("overall-spec");
+    expect(skeletons["overall"].docType).toBe("overall");
     expect(skeletons.plan.docType).toBe("plan");
     expect(skeletons["phase-spec"].docType).toBe("phase-spec");
     expect(skeletons["single-spec"].docType).toBe("single-spec");
@@ -357,7 +357,7 @@ describe("skeleton projection (Projector.skeleton)", () => {
     }
     expect(skeletons["phase-spec"].slots.find((s) => s.anchor === "program")?.slot).toBe("link");
     // `slug:` is a plain content key — never a link slot.
-    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
+    for (const key of ["overall", "plan", "phase-spec", "single-spec"] as const) {
       expect(skeletons[key].slots.find((s) => s.anchor === "slug")?.slot).toBe("content");
     }
   });
@@ -447,10 +447,10 @@ describe("Projector.registries — the composed six-projection surface", () => {
 
   it("carries each doc type's declaration identity (docType field)", () => {
     const projected = PROJECTOR.registries();
-    expect(projected.shape["overall-spec"].docType).toBe("overall-spec");
+    expect(projected.shape["overall"].docType).toBe("overall");
     expect(projected.schema.plan.docType).toBe("plan");
     expect(projected.tokens["phase-spec"].docType).toBe("phase-spec");
-    expect(projected.skeleton["overall-spec"].docType).toBe("overall-spec");
+    expect(projected.skeleton["overall"].docType).toBe("overall");
     expect(projected.skeleton.plan.docType).toBe("plan");
     expect(projected.skeleton["phase-spec"].docType).toBe("phase-spec");
     expect(projected.skeleton["single-spec"].docType).toBe("single-spec");

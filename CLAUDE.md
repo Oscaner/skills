@@ -72,7 +72,7 @@ Three strategies implement this, depending on file type:
 
 #### Strategy B — Chinese-primary, no mirror (specs and plans)
 
-`docs/kairos/specs/*.md` and `docs/kairos/plans/*.md` are internal developer documents written **in Chinese** (the user's working language). No `.zh-CN.md` mirror is needed or maintained for these files.
+`docs/kairos/overalls/*.md`, `docs/kairos/specs/*.md`, and `docs/kairos/plans/*.md` are internal developer documents written **in Chinese** (the user's working language). No `.zh-CN.md` mirror is needed or maintained for these files.
 
 #### Strategy B extension — maintainer docs (docs/maintainers/)
 

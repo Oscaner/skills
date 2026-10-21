@@ -1,6 +1,6 @@
 ---
 name: cdd-design
-description: Independent brainstorm orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） flow inline as this session's baseline (one import per session), gates on mode and phase registration, runs grilling, and dispatches the parameterized spec-writer（/kairos:cdd-spec-writer） under one template (single-spec / phase-spec / overall-spec charter). Callable standalone; invoke as kairos:cdd-design（pi：/skill:cdd-design）.
+description: Independent brainstorm orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） flow inline as this session's baseline (one import per session), gates on mode and phase registration, runs grilling, and dispatches the parameterized spec-writer（/kairos:cdd-spec-writer） under one template (single-spec / phase-spec / overall charter). Callable standalone; invoke as kairos:cdd-design（pi：/skill:cdd-design）.
 ---
 
 # Kairos CDD-Design
@@ -57,7 +57,7 @@ flowchart TD
 ### `phase-registered?`
 
 - **Do**: Read the parent overall's Phase inventory — is the requested phase registered? `new-program` never passes through this node (`mode?` routes it directly to grilling). Not registered → run the register-reflow node, then re-judge
-- **Read**: parent overall (`docs/kairos/specs/*-overall.md`) Phase inventory
+- **Read**: parent overall (`docs/kairos/overalls/*-overall.md`) Phase inventory
 - **Exit**: registered → `run-grilling-session`; not registered → `run-cdd-charter · sync` → re-judge
 - **Fail**: Phase inventory missing or unparseable → BLOCKED (overall-sync-failed); **serial-phase** — registering a new phase whose hard-dependency predecessor has **Design spec ≠ `Done`** in the parent inventory → BLOCKED (never release grilling for an unmet phase)
 
@@ -79,7 +79,7 @@ flowchart TD
 
 - **Do**: Judge the scope size to route the write target: on the `new-program` path — does the program fit one single spec or become an overall program (`single-spec` → one spec · `multi`/`oversized` → a charter); on the `phase-within-program` path — does this phase fit one phase spec (`fit` → phase-spec · `oversized` → a charter that syncs the sub-phase split into the parent)
 - **Read**: grilling output + exploration context + parent overall (phase-within-program mode)
-- **Exit**: `single-spec` → `run-cdd-spec` (single-spec target); `fit` → `run-cdd-spec` (phase-spec target); `multi`/`oversized` → `run-cdd-charter` (the overall-spec / charter target)
+- **Exit**: `single-spec` → `run-cdd-spec` (single-spec target); `fit` → `run-cdd-spec` (phase-spec target); `multi`/`oversized` → `run-cdd-charter` (the overall / charter target)
 - **Fail**: —
 
 ### `run-cdd-spec`
@@ -91,7 +91,7 @@ flowchart TD
 
 ### `run-cdd-charter`
 
-- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the overall-spec target; the delegated writer lands the document's front-matter `slug:` — an overall-spec declares no `program:` (it is the program)
+- **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the overall target; the delegated writer lands the document's front-matter `slug:` — an overall declares no `program:` (it is the program)
 - **Read**: grilling output + parent overall (oversized phase-within-program case)
 - **Exit**: Handoff executed → `handoff-phase-design`
 - **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)

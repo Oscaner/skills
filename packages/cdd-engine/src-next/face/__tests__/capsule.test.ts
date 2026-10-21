@@ -253,7 +253,7 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
 
   it("PIPELINE_NEXT carries exactly the five pipeline keys", () => {
     expect(Object.keys(PIPELINE_NEXT).sort()).toEqual(
-      ["branch", "overall-spec", "phase-spec", "plan", "wave"].sort(),
+      ["branch", "overall", "phase-spec", "plan", "wave"].sort(),
     );
   });
 
@@ -268,15 +268,15 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
     expect(doneOf(phaseSpec)).toBe("/kairos:cdd-plan");
   });
 
-  it("an overall-spec-declared target renders the bare terminal word (the pipeline terminal)", () => {
-    const overall = declareSpec("docs/kairos/specs/prog-overall.md", "overall-spec");
+  it("an overall-declared target renders the bare terminal word (the pipeline terminal)", () => {
+    const overall = declareSpec("docs/kairos/specs/prog-overall.md", "overall");
     expect(doneOf(overall)).toBe("done");
   });
 
   it("a spec target declaring no doc-type renders the BLOCKED face — zero filename-suffix fallback", () => {
     const undeclared = declareSpec("docs/kairos/specs/prog-p8-design.md", null);
     expect(doneOf(undeclared)).toBe(
-      "CDD_BLOCKED: the doc declares no `doc-type:` key — add `doc-type: <overall-spec|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
+      "CDD_BLOCKED: the doc declares no `doc-type:` key — add `doc-type: <overall|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
     );
   });
 

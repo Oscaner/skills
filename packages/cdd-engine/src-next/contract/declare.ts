@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/contract/declare.ts
 // T2 — the element-registry declaration (the design spec's single-declaration root).
 //
-// Each doc type (overall-spec / plan / phase-spec / single-spec) carries one typed
+// Each doc type (overall / plan / phase-spec / single-spec) carries one typed
 // element registry:
 // flat declared data, one row per element — anchor token · presence · value
 // pattern · ref kind · home surface. The registry is simultaneously the
@@ -13,7 +13,7 @@
 // The element lines are enumerated from the methodology skeleton semantics (the
 // machine skeleton of each doc type as pinned by the four repo schema JSONs,
 // read as steady contract data) — freshly declared anchors, never cut from the
-// old tree's sources. Counts stand at overall-spec 43 / plan 29 / phase-spec 28 /
+// old tree's sources. Counts stand at overall 43 / plan 29 / phase-spec 28 /
 // single-spec 17, each within the post-frontmatter band (single-spec below 20 —
 // the lightweight-scaffold charter) and each element carrying all five fields
 // (a completeness contract enforced by the array shape below and by the test
@@ -24,7 +24,7 @@
 export type Presence = "required" | "optional" | "conditional";
 
 /** The four doc types the engine validates. */
-export type DocType = "overall-spec" | "plan" | "phase-spec" | "single-spec";
+export type DocType = "overall" | "plan" | "phase-spec" | "single-spec";
 
 /** The referential kind an element participates in — what its value points at. */
 export type RefKind =
@@ -71,7 +71,7 @@ export interface ElementRegistry {
 
 /** The declared-registries record surface (the brief's `declaredRegistries` shape). */
 export interface DeclaredRegistries {
-  "overall-spec": ElementRegistry;
+  overall: ElementRegistry;
   plan: ElementRegistry;
   "phase-spec": ElementRegistry;
   "single-spec": ElementRegistry;
@@ -107,7 +107,7 @@ const HOME_VALUES = [
   "conditional",
 ] as const satisfies readonly Home[];
 export const DOC_TYPE_VALUES = [
-  "overall-spec",
+  "overall",
   "plan",
   "phase-spec",
   "single-spec",
@@ -173,9 +173,9 @@ export class RegistryGuard {
 }
 
 // ---------------------------------------------------------------------------
-// overall-spec — the charter section surface
+// overall — the charter section surface
 // ---------------------------------------------------------------------------
-const OVERALL_SPEC_ELEMENTS = [
+const OVERALL_ELEMENTS = [
   // Header block — YAML front-matter keys (a frontmatter-home anchor IS the
   // front-matter key name; the value patterns are scalar shapes, §2.3).
   {
@@ -1057,7 +1057,7 @@ const SINGLE_SPEC_ELEMENTS = [
 
 /** The four declared registries — the judge's judgment data and the projection surfaces' derivation source. */
 export const declaredRegistries: DeclaredRegistries = {
-  "overall-spec": { docType: "overall-spec", elements: OVERALL_SPEC_ELEMENTS },
+  overall: { docType: "overall", elements: OVERALL_ELEMENTS },
   plan: { docType: "plan", elements: PLAN_ELEMENTS },
   "phase-spec": { docType: "phase-spec", elements: PHASE_SPEC_ELEMENTS },
   "single-spec": { docType: "single-spec", elements: SINGLE_SPEC_ELEMENTS },

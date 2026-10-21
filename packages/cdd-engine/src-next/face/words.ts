@@ -31,6 +31,7 @@
 // Module-level exports are types / the declared word data / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import { DOC_TYPE_VALUES } from "../contract/declare.ts";
 import type { LocalizedWord, WordLocaleFace } from "../contract/translate.ts";
 import type { SlugRefusal } from "../infra/slug-index.ts";
 
@@ -48,13 +49,15 @@ export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
  *  (v1.20: the `none` word is retired — closure is `done`, never "no suggestion";
  *  v1.25: `implement` — the dispatch-ready `next:` literal's verb for a ready wave;
  *  `docType` — the missing-declaration BLOCK wording the capsule's unified next face
- *  renders over the CDD_BLOCKED station, spec §12 · D34). */
+ *  renders over the CDD_BLOCKED station, spec §12 · D34; `docTypeValue` — the
+ *  declared-but-out-of-domain BLOCK wording, distinct from the missing key). */
 export type RouteWordKind =
   | "done"
   | "review"
   | "fix"
   | "implement"
   | "docType"
+  | "docTypeValue"
   | "slugMissing"
   | "slugInvalid"
   | "slugDuplicated"
@@ -121,7 +124,9 @@ export const CAPSULE_WORDS = {
     fix: "fix",
     implement: "implement",
     docType:
-      "the doc declares no `doc-type:` key — add `doc-type: <overall-spec|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
+      "the doc declares no `doc-type:` key — add `doc-type: <overall|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
+    docTypeValue:
+      "the doc declares `doc-type: {value}`, which is outside the declared domain — use one of {domain} and re-run",
     slugMissing:
       "the doc declares no `slug:` key — add `slug: <workspace-key>` to the doc's front-matter (the identity key the board and every work command share) and re-run",
     slugInvalid:
@@ -293,6 +298,15 @@ export class Words implements WordLocaleFace {
   /** One route classifier word (`done` / `review` / `fix` / `implement`). */
   routeWord(kind: RouteWordKind): string {
     return CAPSULE_WORDS.routeWords[kind];
+  }
+
+  /** The out-of-domain `doc-type:` wording — the declared value named, the
+   *  allowed domain interpolated from the ONE `DOC_TYPE_VALUES` declaration
+   *  (never a second hand-written list). */
+  docTypeValueWord(value: string): string {
+    return this.routeWord("docTypeValue")
+      .replace("{value}", value)
+      .replace("{domain}", DOC_TYPE_VALUES.join(", "));
   }
 
   /** The identity-gate refusal wording for one refused slug verdict — the ONE

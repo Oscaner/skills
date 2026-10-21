@@ -35,7 +35,7 @@ import { Projector } from "../project.ts";
 const OVERALL = [
   "---",
   "title: 文档架构方法论 v2 — 测试 Overall",
-  "doc-type: overall-spec",
+  "doc-type: overall",
   "version: v1.1",
   "date: 2026-10-07",
   "status: Approved",
@@ -48,7 +48,7 @@ const OVERALL = [
   "## File paths",
   "| Artifact | Path |",
   "| --- | --- |",
-  "| overall-spec | docs/kairos/specs/test-overall.md |",
+  "| overall | docs/kairos/specs/test-overall.md |",
   "",
   "## Program charter",
   "### Goal",
@@ -171,14 +171,14 @@ const parseWithHead = <P extends ParsedDoc>(parser: DocType<P>, doc: readonly st
 };
 
 describe("OverallDocType.parse — the four tables + the chain root", () => {
-  const parsed = parseWithHead(new OverallDocType("overall-spec"), OVERALL);
+  const parsed = parseWithHead(new OverallDocType("overall"), OVERALL);
 
   it("parses the front-matter head and the section skeleton", () => {
-    expect(parsed.docType).toBe("overall-spec");
+    expect(parsed.docType).toBe("overall");
     // the title face is the head scalar — never the `---` fence line
     expect(parsed.title).toBe("文档架构方法论 v2 — 测试 Overall");
     expect(parsed.title).not.toBe("---");
-    expect(parsed.head?.docType).toBe("overall-spec");
+    expect(parsed.head?.docType).toBe("overall");
     expect(parsed.head?.version).toBe("v1.1");
     expect(parsed.head?.status).toBe("Approved");
     expect(parsed.sections.map((section) => section.heading)).toEqual([
@@ -197,7 +197,7 @@ describe("OverallDocType.parse — the four tables + the chain root", () => {
   it("parses the File-paths table into a header row + data rows", () => {
     const table = parsed.tables["File paths"];
     expect(table.headerRow).toEqual(["Artifact", "Path"]);
-    expect(table.rows).toEqual([["overall-spec", "docs/kairos/specs/test-overall.md"]]);
+    expect(table.rows).toEqual([["overall", "docs/kairos/specs/test-overall.md"]]);
   });
 
   it("parses the Issue-inventory table rows", () => {
@@ -229,7 +229,7 @@ describe("OverallDocType.parse — the four tables + the chain root", () => {
   });
 
   it("parses the chain root — the overall is the root (no program link)", () => {
-    expect(parsed.chain.docType).toBe("overall-spec");
+    expect(parsed.chain.docType).toBe("overall");
     expect(parsed.chain.programLink).toBeNull();
     expect(parsed.chain.parentTokens).toEqual([]);
   });
@@ -351,12 +351,12 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
   });
 
   it("GraphExtractor — the declared graph edge lines on their trimmed form", () => {
-    const sections = new OverallDocType("overall-spec").parse(OVERALL).sections;
+    const sections = new OverallDocType("overall").parse(OVERALL).sections;
     const graphSection = sections.find((section) =>
       section.heading.startsWith("## Dependency graph"),
     );
     expect(graphSection).toBeDefined();
-    const extracted = new GraphExtractor().extract(declaredRegistries["overall-spec"], [
+    const extracted = new GraphExtractor().extract(declaredRegistries["overall"], [
       ...(graphSection?.lines ?? []),
     ]);
     expect(extracted["Hard edge"]).toEqual(["P1 -> P2"]);
@@ -365,7 +365,7 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
   });
 
   it("TableExtractor — the declared column-header and data rows", () => {
-    const extracted = new TableExtractor().extract(declaredRegistries["overall-spec"], [
+    const extracted = new TableExtractor().extract(declaredRegistries["overall"], [
       "| Phase | Issue (ref) | Title summary |",
       "| --- | --- | --- |",
       "| P1 | #123 | issue one |",
@@ -379,7 +379,7 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
   });
 
   it("HeadingScanner — the registered section/facet headings by their declared rank", () => {
-    const extracted = new HeadingScanner().extract(declaredRegistries["overall-spec"], OVERALL);
+    const extracted = new HeadingScanner().extract(declaredRegistries["overall"], OVERALL);
     expect(extracted["## Document scope"]).toEqual(["## Document scope"]);
     expect(extracted["### Goal"]).toEqual(["### Goal"]);
     expect(extracted["### Non-goals"]).toEqual(["### Non-goals"]);
@@ -387,7 +387,7 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
 
   it("HeadingScanner.sectionsOf — the declared rank-2 sections in document order, an undeclared heading excluded", () => {
     const scanner = new HeadingScanner();
-    const sections = scanner.sectionsOf(declaredRegistries["overall-spec"], [
+    const sections = scanner.sectionsOf(declaredRegistries["overall"], [
       "## Document scope",
       "scope prose",
       "## Review Focus",
@@ -426,17 +426,17 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
       "| Phase | Issue (ref) | Title summary |",
       "| P1 | #123 | issue one |",
     ]);
-    expect(extractor.headerLineOf(declaredRegistries["overall-spec"], lines)).toBe(
+    expect(extractor.headerLineOf(declaredRegistries["overall"], lines)).toBe(
       "| Phase | Issue (ref) | Title summary |",
     );
     // a table whose declared column anchor is absent has no declared header
-    expect(extractor.headerLineOf(declaredRegistries["overall-spec"], ["| a | b |"])).toBeNull();
+    expect(extractor.headerLineOf(declaredRegistries["overall"], ["| a | b |"])).toBeNull();
   });
 });
 
 describe("the doc-type composition root", () => {
   it("exposes one parser per doc key", () => {
-    expect(docTypeParsers["overall-spec"]).toBeInstanceOf(OverallDocType);
+    expect(docTypeParsers["overall"]).toBeInstanceOf(OverallDocType);
     expect(docTypeParsers.plan).toBeInstanceOf(PlanDocType);
     expect(docTypeParsers["phase-spec"]).toBeInstanceOf(PhaseSpecDocType);
   });
@@ -466,7 +466,7 @@ describe("P2 — the four doc skeletons judge clean (spec §7.2 colocated pin)",
   const contract = new Contract();
   const projector = new Projector(declaredRegistries);
   const PATH_OF: Record<DocKey, string> = {
-    "overall-spec": "docs/kairos/specs/x-overall.md",
+    overall: "docs/kairos/specs/x-overall.md",
     plan: "docs/kairos/plans/x-p1.md",
     "phase-spec": "docs/kairos/specs/x-p1-design.md",
     "single-spec": "docs/kairos/specs/x-single-spec.md",
@@ -479,7 +479,7 @@ describe("P2 — the four doc skeletons judge clean (spec §7.2 colocated pin)",
     new SkeletonAssembler(projector.skeleton()[key], DATE).render();
 
   it("judges each type's skeleton clean — zero findings (the §4.1 placeholder-anchored by-construction green)", () => {
-    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
+    for (const key of ["overall", "plan", "phase-spec", "single-spec"] as const) {
       const findings = contract.validate({
         docKey: key,
         path: PATH_OF[key],
@@ -492,7 +492,7 @@ describe("P2 — the four doc skeletons judge clean (spec §7.2 colocated pin)",
   });
 
   it("keeps every `:::fill` inside the content positions — zero hits on the link anchors / structure rows", () => {
-    for (const key of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
+    for (const key of ["overall", "plan", "phase-spec", "single-spec"] as const) {
       for (const line of renderOf(key).split("\n")) {
         if (!line.includes(":::fill")) continue;
         // the placeholder-link anchors (`](<`), the version/status truths, the

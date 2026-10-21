@@ -14,7 +14,7 @@ const REPO = path.resolve(HERE, "..", "..", "..");
 // must exclude them. Single source: these grep sweeps are the only consumer (the old
 // scripts/lib/doc-root.ts helper died with the cutover — the values fold here).
 const DOC_ROOT_SEGMENTS = ["docs", "kairos"] as const;
-const DOC_ROOT_EXCLUDE_PATHS = ["specs", "plans"].map(
+const DOC_ROOT_EXCLUDE_PATHS = ["overalls", "specs", "plans"].map(
   (seg) => `${DOC_ROOT_SEGMENTS.join("/")}/${seg}/`,
 );
 

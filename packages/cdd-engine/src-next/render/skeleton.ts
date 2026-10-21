@@ -114,8 +114,8 @@ export class SkeletonAssembler {
    *  the probe set (each composition helper probes the anchors it emits). */
   #compose(probe: Set<string>): string[] {
     switch (this.#docType) {
-      case "overall-spec":
-        return this.#renderOverallSpec(probe);
+      case "overall":
+        return this.#renderOverall(probe);
       case "plan":
         return this.#renderPlan(probe);
       case "phase-spec":
@@ -159,11 +159,11 @@ export class SkeletonAssembler {
   // the per-doc-type compositions — the doc section sequence + its scaffolds
   // -------------------------------------------------------------------------
 
-  /** The overall-spec skeleton — the front-matter head, the section sequence
+  /** The overall skeleton — the front-matter head, the section sequence
    *  (the three table sections, the charter facets, the dependency graph, the
    *  Form-A constraints surface and the change-history table): every required
-   *  overall-spec element lands in its structural position. */
-  #renderOverallSpec(probe: Set<string>): string[] {
+   *  overall element lands in its structural position. */
+  #renderOverall(probe: Set<string>): string[] {
     const lines: string[] = [];
     this.#pushFrontmatter(lines);
     lines.push(...this.#section("## Document scope", [":::fill document-scope"], probe));

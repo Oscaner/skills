@@ -154,7 +154,7 @@ parent-version: v2.71
 | plane | required | writable |
 | --- | --- | --- |
 | work | `status` · `artifacts` | `status` · `artifacts` · `notes` |
-| judge | `findings` · `artifacts` | `findings` · `artifacts` · `notes` |
+| judge | `findings` | `findings` · `artifacts` · `notes` |
 
 `status` 枚举仍 `APPROVED | BLOCKED`——work 轮不产生 `REVIEW_FIX` / `CHANGES_REQUESTED`，路由在 fix 轮本就不读它们（取证 1）。
 

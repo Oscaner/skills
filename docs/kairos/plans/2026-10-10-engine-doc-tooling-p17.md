@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P17 实施计划：文档类别面收口（doc-type `overall` · `overalls/` 第三 doc root · 评审读面 `INPUT_OVERALL`）
 doc-type: plan
-version: v0.3
+version: v0.4
 date: 2026-10-21
 slug: 2026-10-10-engine-doc-tooling-p17
 base: develop

@@ -3,7 +3,7 @@
 //   · the `---` fence split — the head/body boundary, the no-fence fallback;
 //   · the non-scalar downgrade — a list value reads null through the accessor;
 //   · the RAW channel — the extracted value equals the source string verbatim;
-//   · the twelve declared getters map the §2.3 key set (with the identity pair
+//   · the eleven declared getters map the §2.3 key set (with the identity pair
 //     `slug:` / `program:`).
 
 import { describe, expect, it } from "vitest";
@@ -18,7 +18,6 @@ const PLAN_HEAD = [
   "version: v0.9",
   "date: 2026-10-17",
   "slug: x-p10",
-  "depends-on: P9",
   "base: develop",
   "status: Draft",
   'author: "[human] · Claude Opus 5（…）"',
@@ -39,7 +38,6 @@ const PHASE_SPEC_HEAD = [
   "slug: x-p10",
   "program: x",
   "parent-version: v2.46",
-  "depends-on: P9",
   "status: Draft",
   'author: "[human] · Claude Opus 5（…）"',
   "---",
@@ -70,7 +68,6 @@ describe("FrontMatterExtractor.split — the fence split", () => {
       "status",
       "author",
       "parent-version",
-      "depends-on",
       "base",
       "issues",
     ])
@@ -120,7 +117,6 @@ describe("FrontMatterHead.value — the typed accessor", () => {
   it("reads every declared scalar key through value(key)", () => {
     expect(head.value("title")).toBe("引擎文档工具（Engine Doc-Tooling）— 测试 Plan");
     expect(head.value("version")).toBe("v0.9");
-    expect(head.value("depends-on")).toBe("P9");
     expect(head.value("base")).toBe("develop");
     expect(head.value("issues")).toBe("close all issues");
   });
@@ -147,7 +143,7 @@ describe("the RAW channel — extraction matches the source verbatim", () => {
   });
 });
 
-describe("the twelve declared getters (§2.3 key set)", () => {
+describe("the eleven declared getters (§2.3 key set)", () => {
   const { head } = FrontMatterExtractor.split(PLAN_HEAD);
 
   it("exposes the plan-declared keys through the getter surface", () => {
@@ -161,7 +157,6 @@ describe("the twelve declared getters (§2.3 key set)", () => {
     expect(head.status).toBe("Draft");
     expect(head.author).toBe("[human] · Claude Opus 5（…）");
     expect(head.parentVersion).toBeNull();
-    expect(head.dependsOn).toBe("P9");
     expect(head.base).toBe("develop");
     expect(head.issues).toBe("close all issues");
   });
@@ -185,7 +180,6 @@ describe("the twelve declared getters (§2.3 key set)", () => {
     expect(empty.status).toBeNull();
     expect(empty.author).toBeNull();
     expect(empty.parentVersion).toBeNull();
-    expect(empty.dependsOn).toBeNull();
     expect(empty.base).toBeNull();
     expect(empty.issues).toBeNull();
   });

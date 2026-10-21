@@ -271,7 +271,7 @@ export interface SkeletonSlot {
  *  order (optional/conditional elements generate no slot — the zero
  *  conditional-residue contract mirrored at the skeleton surface) plus the
  *  independent front-matter emission list (spec §4.2: the required keys plus
- *  the type's optional frontmatter-home keys — `base` / `depends-on` — which
+ *  the type's optional frontmatter-home keys — `base` / `issues` — which
  *  never ride the slot channel). */
 export interface DocSkeleton {
   /** The doc-type identity the projection derives from. */
@@ -539,7 +539,7 @@ export class Projector {
 
   /** The front-matter emission list — the independent line set §4.2 prescribes:
    *  every frontmatter-home required key plus the type's optional head keys
-   *  (`base` / `depends-on`), in registry order. `parent-version` is the single
+   *  (`base` / `issues`), in registry order. `parent-version` is the single
    *  explicit exclusion: an optional shape-typed key whose domain admits neither
    *  placeholder form, so absence is the only legal skeleton state (the consumer
    *  fills it when the parent version is known). */
@@ -615,7 +615,7 @@ export class Projector {
       return "scaffold";
     }
     // The front-matter content keys (the title plus the other free-text head
-    // scalars — author · depends-on · base) are the head's fill positions (`:::fill
+    // scalars — author · slug · base) are the head's fill positions (`:::fill
     // <key>` in the emitted front matter); the remaining heading anchors are fixed
     // structure.
     if (element.anchor === "title") return "content";

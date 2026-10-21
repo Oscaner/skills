@@ -130,8 +130,8 @@ export interface ChainLink {
 
 /**
  * The cross-doc chain root — the anchors a document carries, read from the
- * front-matter head scalars (the §2.3 key set: `program:` · `parent-version:` ·
- * `depends-on:`), plus the overall's Phase-inventory rows. Extracted and LEFT as
+ * front-matter head scalars (the §2.3 key set: `program:` · `parent-version:`),
+ * plus the overall's Phase-inventory rows. Extracted and LEFT as
  * an interface — every resolution judgment (slug-target existence, version-token
  * lineage membership) belongs to the cross-doc-chain / slug-ref invariants, never
  * to a DocType method.
@@ -147,8 +147,6 @@ export interface ChainRoot {
   parentTokens: readonly string[];
   /** The overall's phase-inventory rows — the chain's anchor set (overall only). */
   phases: readonly ChainPhase[];
-  /** The `depends-on:` front-matter value (plan/spec), verbatim, when the key is present. */
-  dependsOn: string | null;
 }
 
 /** The overall parse record — the four tables, the graph edges and the chain root. */
@@ -575,7 +573,6 @@ export class OverallDocType extends DocType<OverallParsed> {
         programLink: null,
         parentTokens: [],
         phases,
-        dependsOn: null,
       },
     };
   }
@@ -672,15 +669,14 @@ export class PlanDocType extends DocType<PlanParsed> {
   }
 
   /** The plan's cross-doc chain root — the degraded face: the plan declares no
-   *  parent/spec key (the same-slug identity document is its chain), so the only
-   *  chain fact it carries is the `depends-on:` head scalar. */
-  chainRoot(head: FrontMatterHead | null): ChainRoot {
+   *  parent/spec key (the same-slug identity document is its chain), so it carries
+   *  no chain anchor at all. */
+  chainRoot(_head: FrontMatterHead | null): ChainRoot {
     return {
       docType: "plan",
       programLink: null,
       parentTokens: [],
       phases: [],
-      dependsOn: head?.dependsOn ?? null,
     };
   }
 }
@@ -761,7 +757,6 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
       programLink: head === null || head.program === null ? null : { target: head.program },
       parentTokens: head === null || head.parentVersion === null ? [] : [head.parentVersion],
       phases: [],
-      dependsOn: head?.dependsOn ?? null,
     };
   }
 }
@@ -770,7 +765,7 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
  * The single-spec doc type — parses the header five-tuple surface and the prose
  * section surface. A single-spec carries no parent overall and no `### N.`
  * design outline, so the parse degrades the chain root to its null-link face
- * (the `depends-on:` front-matter value is the only chain fact carried).
+ * (no chain anchor rides the head).
  */
 export class SingleSpecDocType extends DocType<SingleSpecParsed> {
   readonly docTypeName = "single-spec" as const;
@@ -786,15 +781,14 @@ export class SingleSpecDocType extends DocType<SingleSpecParsed> {
     };
   }
 
-  /** The single-spec chain root — the degraded face: no program link (the
-   *  independent-program shape), the `depends-on:` value only. */
-  chainRoot(head: FrontMatterHead | null): ChainRoot {
+  /** The single-spec chain root — the degraded face: no program link and no
+   *  lineage token (the independent-program shape). */
+  chainRoot(_head: FrontMatterHead | null): ChainRoot {
     return {
       docType: "single-spec",
       programLink: null,
       parentTokens: [],
       phases: [],
-      dependsOn: head?.dependsOn ?? null,
     };
   }
 }

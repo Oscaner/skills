@@ -8,7 +8,6 @@ program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P11] 会话 · 用户两项 mandate · 2026-10-18）
 parent-version: v2.54
-depends-on: P10（Done · v0.10 · hard——P10 全链闭合后 dispatch contract 收口 · overall 依赖图 D50）
 ---
 
 ## Design

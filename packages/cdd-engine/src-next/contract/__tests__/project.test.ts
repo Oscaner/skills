@@ -329,7 +329,6 @@ describe("skeleton projection (Projector.skeleton)", () => {
       expect(doc.frontmatter.some((slot) => slot.home !== "frontmatter")).toBe(false);
     }
     expect(skeletons.plan.frontmatter.map((slot) => slot.anchor)).toContain("base");
-    expect(skeletons.plan.frontmatter.map((slot) => slot.anchor)).toContain("depends-on");
     expect(skeletons["single-spec"].frontmatter.map((slot) => slot.anchor)).toContain("issues");
   });
 

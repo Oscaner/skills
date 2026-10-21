@@ -4,7 +4,6 @@ doc-type: plan
 version: v0.6
 date: 2026-10-19
 slug: 2026-10-10-engine-doc-tooling-p11
-depends-on: P10（Done · v0.10 · hard——P10 全链闭合后 dispatch contract 收口 · D50）
 base: develop
 ---
 

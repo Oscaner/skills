@@ -2,7 +2,7 @@
   "docType": "plan",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "plan document structure",
-  "description": "Derived JSON Schema — 29 declared elements · 23 required",
+  "description": "Derived JSON Schema — 28 declared elements · 23 required",
   "type": "object",
   "properties": {
     "title": {
@@ -29,11 +29,6 @@
       "type": "string",
       "pattern": "^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._-]*$",
       "description": "presence: required · home: frontmatter · ref: none"
-    },
-    "depends-on": {
-      "type": "string",
-      "pattern": "^.+$",
-      "description": "presence: optional · home: frontmatter · ref: phase-id"
     },
     "base": {
       "type": "string",

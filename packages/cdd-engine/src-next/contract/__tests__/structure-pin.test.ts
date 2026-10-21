@@ -16,7 +16,7 @@
 //       those two retirement classes would be invisible to the census;
 //   (d) the registry side — every `home: "frontmatter"` anchor is a §3.3 key
 //       (title / doc-type / version / date / slug / program / status / author /
-//       parent-version / depends-on / base / issues) and carries
+//       parent-version / base / issues) and carries
 //       no bullet/heading literal (a bullet-anchored header element would fail
 //       the key-set membership); `Depends on ref` is zero-hit in the registry.
 
@@ -85,7 +85,6 @@ const FRONTMATTER_KEYS = new Set([
   "status",
   "author",
   "parent-version",
-  "depends-on",
   "base",
   "issues",
 ]);

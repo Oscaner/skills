@@ -192,7 +192,7 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
   // front-matter emission shapes (the migrated corpus order).
   const HEADER_KEYS: Record<DocType, readonly string[]> = {
     "overall-spec": ["title", "doc-type", "version", "date", "slug", "status", "author"],
-    plan: ["title", "doc-type", "version", "date", "slug", "depends-on", "base"],
+    plan: ["title", "doc-type", "version", "date", "slug", "base"],
     "phase-spec": [
       "title",
       "doc-type",
@@ -203,19 +203,8 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
       "status",
       "author",
       "parent-version",
-      "depends-on",
     ],
-    "single-spec": [
-      "title",
-      "doc-type",
-      "version",
-      "date",
-      "slug",
-      "status",
-      "author",
-      "depends-on",
-      "issues",
-    ],
+    "single-spec": ["title", "doc-type", "version", "date", "slug", "status", "author", "issues"],
   };
   /** The closed §3.3 key vocabulary — the registry's sole legal front-matter anchor set. */
   const KEY_VOCABULARY = new Set([
@@ -228,7 +217,6 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     "status",
     "author",
     "parent-version",
-    "depends-on",
     "base",
     "issues",
   ]);
@@ -296,17 +284,13 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     }
     // The retired path keys are gone from every registry.
     for (const docType of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
-      for (const anchor of ["spec", "parent-program"]) {
+      for (const anchor of ["spec", "parent-program", "depends-on"]) {
         expect(
           declaredRegistries[docType].elements.some((element) => element.anchor === anchor),
           `${docType} has no ${anchor} key`,
         ).toBe(false);
       }
     }
-    // `depends-on` per type.
-    expect(findKey("plan", "depends-on").presence).toBe("optional");
-    expect(findKey("phase-spec", "depends-on").presence).toBe("required");
-    expect(findKey("single-spec", "depends-on").presence).toBe("required");
     // The optional shape-typed key: `parent-version` (phase-spec only; the plan's
     // lineage keys retired with the path-declaration face).
     expect(findKey("phase-spec", "parent-version").presence).toBe("optional");
@@ -365,7 +349,6 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
       ["phase-spec", "program", "2026-10-10-engine-doc-tooling"],
       ["phase-spec", "parent-version", "v2.46"],
       ["plan", "base", "main"],
-      ["phase-spec", "depends-on", "P9"],
       ["single-spec", "issues", "#302"],
       ["overall-spec", "author", "[human] · Claude Opus 5（…）"],
     ];
@@ -405,11 +388,11 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     );
   });
 
-  it("reconciles the post-migration element totals against the §2.3 arithmetic (43/29/28/17)", () => {
+  it("reconciles the post-migration element totals against the §2.3 arithmetic (43/28/27/16)", () => {
     expect(declaredRegistries["overall-spec"].elements.length).toBe(43);
-    expect(declaredRegistries.plan.elements.length).toBe(29);
-    expect(declaredRegistries["phase-spec"].elements.length).toBe(28);
-    expect(declaredRegistries["single-spec"].elements.length).toBe(17);
+    expect(declaredRegistries.plan.elements.length).toBe(28);
+    expect(declaredRegistries["phase-spec"].elements.length).toBe(27);
+    expect(declaredRegistries["single-spec"].elements.length).toBe(16);
   });
 });
 

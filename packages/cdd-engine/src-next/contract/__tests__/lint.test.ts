@@ -261,7 +261,6 @@ describe("the retired cross-doc drift observation (T6 — zero WARNs)", () => {
       "status: Draft",
       "author: x",
       "parent-version: v1.0",
-      "depends-on: P1",
       "---",
       "",
       "## Design",

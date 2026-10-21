@@ -139,7 +139,6 @@ const CONFORMING_SPEC = [
   "status: Draft",
   "author: x",
   "parent-version: v1.0",
-  "depends-on: P1",
   "---",
   "",
   "## Design",

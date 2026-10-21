@@ -541,13 +541,6 @@ const PLAN_ELEMENTS = [
     home: "frontmatter",
   },
   {
-    anchor: "depends-on",
-    presence: "optional",
-    valuePattern: "^.+$",
-    refKind: "phase-id",
-    home: "frontmatter",
-  },
-  {
     anchor: "base",
     presence: "optional",
     valuePattern: "^.+$",
@@ -733,8 +726,7 @@ const PLAN_ELEMENTS = [
 const PHASE_SPEC_ELEMENTS = [
   // Header block — YAML front-matter keys (the frontmatter-home anchor IS the
   // key name). The old line-scan phase-id fallback is retired — its anchor never
-  // appeared in any document literal and it had zero consumers; the phase-id
-  // reference class rides the plan `depends-on` row.
+  // appeared in any document literal and it had zero consumers.
   {
     anchor: "title",
     presence: "required",
@@ -796,13 +788,6 @@ const PHASE_SPEC_ELEMENTS = [
     presence: "optional",
     valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
-    home: "frontmatter",
-  },
-  {
-    anchor: "depends-on",
-    presence: "required",
-    valuePattern: "^.+$",
-    refKind: "none",
     home: "frontmatter",
   },
   // The double-layer design body.
@@ -945,7 +930,7 @@ const PHASE_SPEC_ELEMENTS = [
 // The fourth doc type — the repair/ruling-oriented free-form document (the
 // 2026-09-28-cdd-review-contract-fix "single-spec" form). Deliberately lighter
 // than phase-spec: a front-matter key set (title / doc-type / version / date /
-// status / author / depends-on / issues), four prose body sections and the
+// status / author / issues), four prose body sections and the
 // change-history lineage. No `### N.` double-layer outline (the free-form has no
 // numbered design groups), no `program:` key (a single-spec is an independent
 // program — it names no parent overall). The fixed section sequence runs in
@@ -998,13 +983,6 @@ const SINGLE_SPEC_ELEMENTS = [
   },
   {
     anchor: "author",
-    presence: "required",
-    valuePattern: "^.+$",
-    refKind: "none",
-    home: "frontmatter",
-  },
-  {
-    anchor: "depends-on",
     presence: "required",
     valuePattern: "^.+$",
     refKind: "none",

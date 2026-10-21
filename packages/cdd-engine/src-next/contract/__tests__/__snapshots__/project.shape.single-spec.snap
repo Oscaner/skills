@@ -40,11 +40,6 @@
           "refKind": "none"
         },
         {
-          "anchor": "depends-on",
-          "presence": "required",
-          "refKind": "none"
-        },
-        {
           "anchor": "issues",
           "presence": "optional",
           "refKind": "none"

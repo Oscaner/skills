@@ -1,10 +1,9 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P15 实施计划：文档身份面统一为 front-matter `slug:`（board 路径入口 · 文件名推演与路径声明键整退）
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-10-20
 slug: 2026-10-10-engine-doc-tooling-p15
-depends-on: P14
 base: develop
 ---
 
@@ -161,3 +160,4 @@ base: develop
 | v0.5 | 2026-10-21 | **实现期 backfill（cdd-dev 会话 · T8 implement 上报的计划内部冲突）**——Task 8 步骤 1 的零残留判据由整文件 `grep` 收窄为 **front-matter 作用域**（`awk` 取首个 `---` 块）：整文件 grep 会命中原 phase `p10-design.md` 正文 fenced yaml 示例里的旧键行（`:73`/`:74`），而删它们既超出本任务的窄授权（「**front-matter 键行**」）又违反同任务两处写明的「正文与表格零改」。判据是本条缺陷、语料不是——Acceptance 同步限定为 front-matter 零残留。判定方向与已记录的同类先例一致（design §1.2 pin 表、overall D59 行皆以历史叙述保留已退役形状） | Oscaner M. · Claude（kairos:cdd-dev [P15] backfill） |
 | v0.6 | 2026-10-21 | **分支终审 S1/S7 上报面的 plan 回填（cdd-dev 会话 · branch-fix-1 上报）**——① **归属声明**（Constraints 新增条）：child-prompt Bash 纪律（`bdfeff35` / `9f740c62` · `CHILD_BASH_TIMEOUT_MS` · 模板契约 `$version` 10 → 12 · 自带 changeset）是用户本会话明确要求、先于本计划成文的消费面收紧，记明不计入 P15 任务面，本行即其归属记录（分支上每一改动文件均可归因）；未采用「拆独立分支」——那要改写已受审提交集，收益不抵风险。② **T2 `Produces` 补记实交 API**：`isLegalSlug` / `duplicatedRolesOf` / `slugVerdict` / `insideDocRoots` / `build(repoRoot, fs?: SlugScanFs)` 注入缝——三处均有生产读者，删不可行、漏记则 API 面与 brief 不符。③ 同轮 branch-fix-1 的代码面 findings（S2–S6：changeset 末行换行 · 四处作废注释 · 派发面 slug 门收敛进 `SlugIndex.slugVerdict` + `Words.slugRefusal` · `#programMissing` 复用 · not-found 短路）已落地于 `0963327b`，本行不重复其内容 | Oscaner M. · Claude（kairos:cdd-dev [P15] backfill） |
 | v0.7 | 2026-10-21 | **closeout（cdd-close）——P15 全链闭合登记**：九任务五波全部交付（W1 {T1,T2} · W2 {T3,T5,T6} · W3 {T4,T7} · W4 {T8} · W5 {T9}；W1/W2/W3 各一轮 fix 收口——W1 implement `0eb3737c` · wave-review-1 1 nit → `0e239e5e`；W2 implement `fcbd3888` · 1 warn + 7 nit → `aff1a2df`；W3 implement `ce98f5b2` · 1 warn + 7 nit → `81f4c3a9`；W4 implement `83786c20` · W5 implement `bd125f0e` + `e2f5617d`，两波 review 均 APPROVED 零 fix） · 分支终审 branch-review-1 REVIEW_FIX（2 warn + 4 nit）→ branch-fix-1 `0963327b` APPROVED（其 S1/S7 两条 plan 面 findings 由编排者以 v0.6 回填收口） · 验收：`pnpm run validate` exit 0（cdd-engine 806/806 · kairos 87/87 · root 10/10 · typecheck ×3 · emit-check fresh · version-sync kairos 1.1.2 · cdd-engine 3.1.0 · 零裸函数）· changeset cdd-engine **major** + kairos **minor** pending · 不发布 · **未验证面（如实记录）**：本计划为内部文档、非发布面；未发布故无外部消费者实跑 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-10-21） |
+| v0.8 | 2026-10-21 | **hotfix（用户裁定「直接 hotfix」）——`depends-on:` 整键退役的归属声明**：该键在 plan / phase-spec / single-spec 三型登记（plan `optional` · 另两型 `required`），但**零读者**——相位级依赖的真源是 overall 的 Dependency graph 与 Phase inventory，任务级依赖的真源是 plan 正文 `DependsOn` 字段（唯一被不变量强制的边）；`ChainRoot.dependsOn` 是构造后无人读的死字段。本轮：删三处 registry 行 · `Frontmatter.dependsOn` getter · `ChainRoot.dependsOn` 字段与四处构造 · 骨架发射位随之消失（`#frontmatterSlots` 只排除 `parent-version`，键退即不发射）· 6 个 byte snapshot 重生成 · 语料 23 篇 front-matter 键行同步扫除（正文历史叙述按 T8 先例零改）· 变更并入已挂起的 cdd-engine **major** changeset（未发布，消费者一次迁移）。**不计入 P15 任务面**，本行即其归属记录（同 v0.6 先例）；分支上每一改动文件均可归因 | Oscaner M. · Claude（hotfix · 2026-10-21） |

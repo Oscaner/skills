@@ -8,7 +8,6 @@ program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscaner M. · Claude（kairos:cdd-design [P15] 会话 · 用户七前提 mandate · grilling settled · 2026-10-20）
 parent-version: v2.66
-depends-on: P14（Done · v0.3 · hard——P14 Design Done · overall 依赖图 P14 -> P15）
 ---
 
 ## Design

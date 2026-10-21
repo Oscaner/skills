@@ -118,11 +118,6 @@ export class FrontMatterHead {
     return this.value("parent-version");
   }
 
-  /** The `depends-on:` front-matter key value. */
-  get dependsOn(): string | null {
-    return this.value("depends-on");
-  }
-
   /** The plan base-line value (`base:`). */
   get base(): string | null {
     return this.value("base");

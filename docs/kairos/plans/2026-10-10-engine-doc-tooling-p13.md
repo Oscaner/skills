@@ -4,7 +4,6 @@ doc-type: plan
 version: v0.3
 date: 2026-10-19
 slug: 2026-10-10-engine-doc-tooling-p13
-depends-on: P12（Done · hard——终止面 `face/termination.ts` 已落地）
 base: develop
 ---
 

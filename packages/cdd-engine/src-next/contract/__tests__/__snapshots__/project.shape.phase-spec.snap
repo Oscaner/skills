@@ -48,11 +48,6 @@
           "anchor": "parent-version",
           "presence": "optional",
           "refKind": "version-lineage"
-        },
-        {
-          "anchor": "depends-on",
-          "presence": "required",
-          "refKind": "none"
         }
       ]
     },

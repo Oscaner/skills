@@ -266,7 +266,6 @@ const conformingPlan = (repoRoot: string): string => {
       "version: v1.0",
       "date: 2026-10-09",
       "slug: p3",
-      "depends-on: P1",
       "base: develop",
       "---",
       "",
@@ -458,7 +457,6 @@ const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
       "status: Draft",
       "author: x",
       "parent-version: v1.0",
-      "depends-on: P1",
       "---",
       "",
       "## Design",
@@ -2946,7 +2944,6 @@ describe("the pure commands — schema / issue / base", () => {
       expect(text).toContain("slug: ':::fill slug'");
       expect(text).toContain("status: Draft");
       expect(text).toContain("author: ':::fill author'");
-      expect(text).toContain("depends-on: ':::fill depends-on'");
       expect(text).not.toContain("program:");
       // the prose `:::fill` body + the change-history lineage — no `### N.` outline
       expect(text).toContain("## Background & root cause");

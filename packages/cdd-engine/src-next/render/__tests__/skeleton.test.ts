@@ -119,7 +119,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "program: <overall-slug>",
         "status: Draft",
         "author: ':::fill author'",
-        "depends-on: ':::fill depends-on'",
         "---",
         "",
         "## Design",
@@ -156,7 +155,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "version: v0.1",
         "date: 2026-10-11",
         "slug: ':::fill slug'",
-        "depends-on: ':::fill depends-on'",
         "base: ':::fill base'",
         "---",
         "",
@@ -264,7 +262,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "slug: ':::fill slug'",
         "status: Draft",
         "author: ':::fill author'",
-        "depends-on: ':::fill depends-on'",
         "issues: ':::fill issues'",
         "---",
         "",
@@ -424,7 +421,7 @@ describe("SkeletonAssembler — the front-matter head (spec §2.2/§4.2)", () =>
     }
   });
 
-  it("emits the type's optional front-matter keys — `base` / `depends-on` on the plan head, `issues` on the single-spec head", () => {
+  it("emits the type's optional front-matter keys — `base` on the plan head, `issues` on the single-spec head", () => {
     // §4.2's independent emission list = the head's required keys PLUS the
     // type's optional head keys — the optional keys never ride the slot channel
     // (they are not required), so the head would silently drop them without the
@@ -442,7 +439,6 @@ describe("SkeletonAssembler — the front-matter head (spec §2.2/§4.2)", () =>
       }
     }
     expect(frontmatterBlockOf("plan")).toContain("base: ':::fill base'");
-    expect(frontmatterBlockOf("plan")).toContain("depends-on: ':::fill depends-on'");
     expect(frontmatterBlockOf("single-spec")).toContain("issues: ':::fill issues'");
   });
 });

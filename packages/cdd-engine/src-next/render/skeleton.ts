@@ -14,7 +14,7 @@
 // hand-spun header lines and never part of the slot/probe channel. §4.2's
 // placeholder three-way split: the slug-reference key (`program`) emits a `<…>`
 // scalar on the judge's placeholder-exemption chain; the content keys (`title` ·
-// `author` · `depends-on` · `base` · `slug`) emit `:::fill <key>`; the
+// `author` · `base` · `slug`) emit `:::fill <key>`; the
 // truth keys (`doc-type` · `version` · `date` · `status`) emit true values. The
 // optional `parent-version` key is deliberately NOT emitted — its shape is typed
 // (`v<n>.<m>`, so a fill or a link scalar would violate the domain) and absence
@@ -298,7 +298,7 @@ export class SkeletonAssembler {
     // the link placeholders plain (the <>-bookended exemplar — exemption-shaped).
     const fields = new YAMLMap();
     // The emission list is the projection's independent front-matter set — the
-    // required head keys plus the type's optional keys (`base` / `depends-on`);
+    // required head keys plus the type's optional keys (`base` / `issues`);
     // `parent-version` never appears (the projection excludes it — §4.2's
     // optional shape-typed key, whose `v<n>.<m>` domain admits no placeholder).
     for (const slot of this.#frontmatterSlots) {

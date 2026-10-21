@@ -89,8 +89,8 @@ const OVERALL = [
   "| v1.21 | 2026-10-07 | merged change |",
 ];
 
-/** A conforming plan — the front-matter head (identity + the `depends-on:` scalar;
- *  a plan carries no chain key) + the `### Task N:` blocks. */
+/** A conforming plan — the front-matter head (identity only; a plan carries no
+ *  chain key) + the `### Task N:` blocks. */
 const PLAN = [
   "---",
   "title: 文档架构方法论 v2 — 测试 Plan",
@@ -98,7 +98,6 @@ const PLAN = [
   "version: v1.1",
   "date: 2026-10-07",
   "slug: x-p1",
-  "depends-on: P1 design v1.1",
   "base: develop",
   "---",
   "",
@@ -140,7 +139,6 @@ const PHASE_SPEC = [
   "status: Draft",
   'author: "[human]"',
   "parent-version: v1.21",
-  "depends-on: P1（Done）",
   "---",
   "",
   "## Design",
@@ -246,7 +244,6 @@ describe("PlanDocType.parse — the task blocks + the degraded chain root", () =
     expect(parsed.title).toBe("文档架构方法论 v2 — 测试 Plan");
     expect(parsed.title).not.toBe("---");
     expect(parsed.head?.slug).toBe("x-p1");
-    expect(parsed.head?.dependsOn).toBe("P1 design v1.1");
     expect(parsed.sections.map((section) => section.heading)).toEqual(["## Constraints"]);
   });
 
@@ -272,7 +269,6 @@ describe("PlanDocType.parse — the task blocks + the degraded chain root", () =
   it("parses the degraded chain root — a plan carries no program link (its chain is the same-slug identity document)", () => {
     expect(parsed.chain.programLink).toBeNull();
     expect(parsed.chain.parentTokens).toEqual([]);
-    expect(parsed.chain.dependsOn).toBe("P1 design v1.1");
   });
 });
 
@@ -307,7 +303,6 @@ describe("PhaseSpecDocType.parse — the design skeleton + the program chain roo
   it("parses the program chain root — the `program:` slug reference + the version tokens", () => {
     expect(parsed.chain.programLink).toEqual({ target: "x-overall" });
     expect(parsed.chain.parentTokens).toEqual(["v1.21"]);
-    expect(parsed.chain.dependsOn).toBe("P1（Done）");
   });
 });
 
@@ -334,7 +329,6 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
     ]);
     // the front-matter head scalars never become line occurrences of a body anchor
     expect(extracted.slug).toBeUndefined();
-    expect(extracted["depends-on"]).toBeUndefined();
   });
 
   it("DesignBodyExtractor — the numbered group/item headings and the design leaves", () => {

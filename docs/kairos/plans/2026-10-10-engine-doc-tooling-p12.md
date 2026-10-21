@@ -4,7 +4,6 @@ doc-type: plan
 version: v0.5
 date: 2026-10-19
 slug: 2026-10-10-engine-doc-tooling-p12
-depends-on: P11（Done · v0.7 · hard——P11 全链闭合后 child dispatch 终止兜底 · overall 依赖图 D52）
 base: develop
 ---
 

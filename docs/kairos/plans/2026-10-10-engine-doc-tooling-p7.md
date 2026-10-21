@@ -5,7 +5,6 @@ doc-type: plan
 version: v0.9
 date: 2026-10-14
 slug: 2026-10-10-engine-doc-tooling-p7
-depends-on: P6（Done · v0.4 · hard）
 ---
 
 ## Constraints

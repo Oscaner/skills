@@ -30,11 +30,6 @@
           "refKind": "none"
         },
         {
-          "anchor": "depends-on",
-          "presence": "optional",
-          "refKind": "phase-id"
-        },
-        {
           "anchor": "base",
           "presence": "optional",
           "refKind": "none"

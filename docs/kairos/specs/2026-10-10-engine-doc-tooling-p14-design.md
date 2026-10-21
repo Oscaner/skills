@@ -8,7 +8,6 @@ program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: Oscar M. · Claude（kairos:cdd-design [P14] 会话 · 用户七前提 mandate · grilling settled · 2026-10-20）
 parent-version: v2.64
-depends-on: P13（Done · v0.4 · hard——P13 终止面落地后的合作式提前退 · overall 依赖图 D58）
 ---
 
 ## Design

@@ -2,7 +2,7 @@
   "docType": "phase-spec",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "phase-spec document structure",
-  "description": "Derived JSON Schema — 28 declared elements · 20 required",
+  "description": "Derived JSON Schema — 27 declared elements · 19 required",
   "type": "object",
   "properties": {
     "title": {
@@ -49,11 +49,6 @@
       "type": "string",
       "pattern": "^v\\d+\\.\\d+$",
       "description": "presence: optional · home: frontmatter · ref: version-lineage"
-    },
-    "depends-on": {
-      "type": "string",
-      "pattern": "^.+$",
-      "description": "presence: required · home: frontmatter · ref: none"
     },
     "## Design": {
       "type": "string",
@@ -155,7 +150,6 @@
     "program",
     "status",
     "author",
-    "depends-on",
     "## Design",
     "### N. group heading",
     "#### N.M item heading",

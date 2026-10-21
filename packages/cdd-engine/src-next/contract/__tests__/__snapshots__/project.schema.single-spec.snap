@@ -2,7 +2,7 @@
   "docType": "single-spec",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "single-spec document structure",
-  "description": "Derived JSON Schema — 17 declared elements · 16 required",
+  "description": "Derived JSON Schema — 16 declared elements · 15 required",
   "type": "object",
   "properties": {
     "title": {
@@ -36,11 +36,6 @@
       "description": "presence: required · home: frontmatter · ref: none"
     },
     "author": {
-      "type": "string",
-      "pattern": "^.+$",
-      "description": "presence: required · home: frontmatter · ref: none"
-    },
-    "depends-on": {
       "type": "string",
       "pattern": "^.+$",
       "description": "presence: required · home: frontmatter · ref: none"
@@ -99,7 +94,6 @@
     "slug",
     "status",
     "author",
-    "depends-on",
     "## Background & root cause",
     "## Design decisions",
     "## Acceptance",

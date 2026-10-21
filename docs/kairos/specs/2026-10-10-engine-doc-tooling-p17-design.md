@@ -1,13 +1,13 @@
 ---
-title: 引擎文档工具（Engine Doc-Tooling）— P17 设计：文档类别面收口（doc-type `overall` · `overalls/` 第三 doc root · 评审读面 `INPUT_OVERALL`）
+title: 引擎文档工具（Engine Doc-Tooling）— P17 设计：文档类别面收口（doc-type `overall` · `overalls/` 第三 doc root · 评审读面 `INPUT_OVERALL`）· 承载面统一（D62）
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-10-21
 slug: 2026-10-10-engine-doc-tooling-p17
 program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: "[human] · Claude Opus 5（kairos:cdd-design [P17] grilling → cdd-spec-writer · 2026-10-21）"
-parent-version: v2.70
+parent-version: v2.71
 ---
 
 ## Design
@@ -125,6 +125,82 @@ parent-version: v2.70
 - changeset **cdd-engine major**（breaking：doc-type 值退役 + doc root 增改 + 模板契约版本）+ **kairos** 同步（SKILL 文本与 README 家族路径更替）；
 - 不发布——changesets 收尾到可发布态即止。
 
+### 3. 定案（D62）——承载面统一（用户裁定并入 · 2026-10-21）
+
+**由来**：Task 3 闭合后，用户提出「review 的产物是 findings、implement / fix 的产物是 delivery，应该更合理」。追查代码后，真正的切分轴不是「评审 vs 干活」，而是**结论怎么来**与**有没有测试证据**；且 fix 载体的残余 findings 是只写不读的死数据。用户裁定把该收口**并入 P17**（原拟独立注册 P18），overall / phase-spec / plan 一起落。
+
+**取证三条**（决定下面的形状）：
+
+1. `session/next.ts:169-205` —— `case "fix"` 的判据只有软上限、`#blockerCount(ref)`、`readyBatch()`；`ref.status` 全程只在 `:171` 被 `FAILED_STATUS`（`{BLOCKED, TIMEOUT}`）读一次。`REVIEW_FIX` / `APPROVED` / `CHANGES_REQUESTED` 三种在 fix 轮**等价**。
+2. `session/next.ts:190` 数的 `ref.findings`，在 fix 轮取自 **review** carrier（`ledger.ts:1104`）；fix carrier 的唯一读者是 `ledger.ts:1096`，只做一次 `conclusionOf`（`:1103`）——fix carrier 里的残余 findings **零消费**。
+3. `face/lifecycle.ts:557` / `:798` 的证据门判据是 `face === "delivery"`——这是「文档修复不能走 delivery」的唯一硬理由，也是 `render/templates.ts:209` 让 docs-fix 去写一个**不存在**的 `status` 槽的根因。
+
+#### 3.1 D62-1 一份声明，两条投影
+
+现状：`CARRIER_DELIVERY`（`handoff-schema.ts:69-78`）与 `CARRIER_FINDINGS`（`:85-93`）是两张互斥表，`BY_FACE`（`:124-127`）选择，`HandoffSchemaFace`（`:33`）是二者的联合。
+
+改为：单份 `CARRIER` 声明四槽 `status` / `findings` / `artifacts` / `notes`（**声明序即投影序**：`status` · `findings` · `artifacts` · `notes`），`#writable(plane)` 按平面投影出可写子集（properties ∩ 平面槽 + 平面 required）。**prompt fence · `violations` · `droppedKeys` 三处同读这一投影**——零第二份表。
+
+#### 3.2 D62-2 平面由 op 派生，不声明
+
+`CarrierPlane = "work" | "judge"`；`planeOf(op)`：`implement` / `fix` → `work`，`review` → `judge`。
+
+`HandoffFamily.schema`（`infra/runtime.ts:51`）删除，`HANDOFF_FAMILIES`（`:81-121`）九行退化为纯命名真相 `{ name }`——与「类别名只在 `DOC_TYPE_VALUES` 声明」同构。
+
+`ledger.handoffFaceOf(op, type)`（`ledger.ts:906-908`）→ `HandoffSchema.planeOf(op)`：**参数由二降一**——`type` 与平面无关（wave / branch / spec / plan 都不改变 work / judge 的归属）。
+
+#### 3.3 D62-3 必填集与可写槽
+
+| plane | required | writable |
+| --- | --- | --- |
+| work | `status` · `artifacts` | `status` · `artifacts` · `notes` |
+| judge | `findings` · `artifacts` | `findings` · `artifacts` · `notes` |
+
+`status` 枚举仍 `APPROVED | BLOCKED`——work 轮不产生 `REVIEW_FIX` / `CHANGES_REQUESTED`，路由在 fix 轮本就不读它们（取证 1）。
+
+#### 3.4 D62-4 结论派生
+
+`conclusionOf(plane, carrier)`：judge → `rollup(findings)`（blocker → `CHANGES_REQUESTED` · 有 → `REVIEW_FIX` · 空 → `APPROVED`）；work → 声明的 `status`（缺 → `undefined`；越域 → `BLOCKED`）。语义与今日逐条一致。
+
+#### 3.5 D62-5 文档修复获得 `status`（洞闭合）
+
+`fix.spec` / `fix.plan` 现可写 `status`，`docs-fix` 前缀改报本轮结论；**残余 findings 的编码整条删除**。
+
+今天 `templates.ts:209` 同时要求「残余 findings 推结论」与「draft 写失败 → `status: BLOCKED`」，而 `CARRIER_FINDINGS` 没有 `status` 槽（写了会被 `materialize` 当未声明键丢弃）——自相矛盾随本条消灭。
+
+#### 3.6 D62-6 证据门按 scope 派生
+
+`evidence = op ∈ {implement, fix} && type ∈ {wave, branch}`。删除 `lifecycle.ts:557` / `:798` 的 `face === "delivery"` 两处判据。
+
+**行为零变**：wave / branch 轮有证据文件、spec / plan 轮无——与今日 family 表逐一对应。「代码域 / 文档域」由 family key（`op.type`）承载，**不新增声明位**。
+
+#### 3.7 D62-7 死字段清理
+
+`failure_category`：全仓唯一写入点是 `lifecycle.ts:721-722`（自我拷贝）与 `:727`（常量），**零消费者**。删除声明槽（`handoff-schema.ts:74`）、`CarrierValue` 条目（`:135`）、搬运代码与 `IMPLEMENT_SHELL`（`templates.ts:168`）的 `+ \`failure_category\`` 子句。BLOCKED 的理由已由 `notes` 承载（`reason` 入 `draftNotes`）。
+
+#### 3.8 D62-8 文本与契约版本
+
+修改 / 新增的固定前缀文本（逐字落盘，不得改写）：
+
+- `IMPLEMENT_SHELL`（`templates.ts:168`）末段：`status` (APPROVED once applied, else BLOCKED + the reason in `notes`) and `artifacts`（该句其余字句不变）。
+- `DOCS_FIX_SHELL`（`:209`）整句改为：
+
+  > **docs-fix:** apply `INPUT_REVIEWS` (all severities) directly to the judged doc — `INPUT_PLAN` on a plan-doc line, `INPUT_SPEC` on a spec-doc line — removing fixed findings; record the path in `artifacts.doc` and report the round in `status` (APPROVED once every finding is applied, else BLOCKED + the reason in `notes`). Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; retry = full re-run (idempotent).
+
+- `DOCS_FIX_SHELL` 的 Draft fields 句（`:217`）收为与 work shell **同一句**：
+
+  > **Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — the declaration is the field source, zero extra keys.
+
+- `TEMPLATE_PROMPT.$version`（`:492`）15 → 16，版本叙事头注（`:473-491`）补 v16 行（`handoff carrier 单平面（op 派生 work/judge）· docs-fix 拿到 status`）。
+- **review 面前缀与 fence 字节不变**：judge 投影的槽集与顺序（`findings` · `artifacts` · `notes`）与今日 `CARRIER_FINDINGS` 一致。
+
+#### 3.9 非目标
+
+- 不合并 `implement` 与 `fix` 两个 op——CLI 动词是消费者接触面，合并只换来内部整齐。
+- fix 轮的 `status` 仍自报，不从 evidence 派生（会把既有的 flaky 失败混同为本轮失败，另案）。
+- severity / lens 枚举 / `DISPATCH` / `REFS` / CLI 旗标与退出码零改。
+- 不做旧 carrier 的兼容读：`.kairos` 内的 in-flight 会话不跨版本续跑（硬破）。
+
 ### Acceptance criteria
 
 - 引擎源码 `overall-spec` 零残留：`grep -rn "overall-spec" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 零命中——扫描面含模板字面与注释（注释随值同更，见 2.1）；命中面覆盖值 · `DocType` 联合 :27 · `DOC_TYPE_VALUES` :109 · 注册表键 :1060 · `docTypeName` doc.ts:550 · 解析器表键 :802 · 投影键 project.ts:408 · 11 处 docKey 判据 · slug-index :199/:383 · board-view :254 · words :124 · next.ts :80/:98/:107 · skeleton :117 · 允许域与 finding 文案 invariants.ts:1291-1292/:1360。
@@ -143,13 +219,19 @@ parent-version: v2.70
 - 冻结面零破：findings 载体 schema / severity 枚举 / `REVIEWS.*.lensEnum` / 结论派生规则（blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · 空 → APPROVED）/ `DISPATCH.review.*` skill ref / CLI 旗标与退出码表 —— 全部零改。
 - `pnpm run validate` ALL PASS（emit fresh · root 套件 · kairos 套件 · 引擎套件 · typecheck ×3 · version-sync · 零裸函数）。
 - changeset cdd-engine **major** + kairos 在册，不发布。
+- **承载面统一（D62）**：handoff carrier 只有一份声明——`grep -rn "CARRIER_DELIVERY\|CARRIER_FINDINGS\|BY_FACE\|HandoffSchemaFace" packages/cdd-engine/src-next` 零命中；`HandoffFamily` 只余 `name`（`grep -n "schema" packages/cdd-engine/src-next/infra/runtime.ts` 零命中）；`planeOf` 由 op 派生（`implement` / `fix` → work · `review` → judge；pin：`session/__tests__/handoff-schema.test.ts` 三值断言）。
+- 文档修复 carrier 落 `status`、不再写残余 findings（pin：`face/__tests__/cli.test.ts` 的 docs-fix 轮 carrier 键集 + `conclusionOf("work", …)` 的缺省 / 越域两形）。
+- 证据门行为不变：wave / branch 轮缺证据 → BLOCKED，spec / plan 轮无证据文件仍按声明 status 收口（pin：`face/__tests__/cli.test.ts` 既有 evidence 用例 + docs-fix 无证据新用例）。
+- `failure_category` 零残留（`grep -rn "failure_category" packages/cdd-engine/src-next` 零命中，抽查面含模板与测试）。
+- review 面 `## Handoff schema` fence 与 review 前缀**字节不变**（pin：既有 render / cli 用例不改即绿）。
+- `TEMPLATE_PROMPT.$version === 16`（pin：`render/__tests__/render.test.ts`）。
 
 ## Constraints
 
 - **一事实一处**：类别名只在 `DOC_TYPE_VALUES` 声明一次（四处 `valuePattern`、schema 词表、报文域都由它派生）· doc root 只在 `ENGINE_DOC_ROOTS` 声明一次（`DOC_ROOT_NAMESPACE` / sibling 扫描 / SKILL 路径合法集自动派生，`build` / `insideDocRoots` 两处显式枚举）· `INPUT_OVERALL` 只在 `REVIEW_CONTEXT` / 两个 mode 的 round context 各一行，值源只经 `SlugIndex.overallOf` 一处。
-- **原子落地**：2.3 的拼写 + 迁移同一次提交（自伤中间态见 2.3 的判据面硬理由）；四个缓存面（`src-next` 引擎源码 · 引擎测试 · kairos 测试 · 消费面文档）同批更替。
-- **散文节制**：新增固定前缀文本 = `REVIEW_ITEM` 半句 + `REVIEWS.spec.axesGuide` 一句 + 一条新报文词；句子承载判定动作与事实，不写理由与方法论。
-- **冻结面**：`session/handoff-schema.ts` · findings severity 枚举 · `lensEnum` · 结论派生规则 · `face/host.ts`（`DISPATCH` / `REFS`）· CLI 旗标与退出码表 —— 零改。
+- **原子落地**：2.3 的拼写 + 迁移同一次提交（自伤中间态见 2.3 的判据面硬理由）；四个缓存面（`src-next` 引擎源码 · 引擎测试 · kairos 测试 · 消费面文档）同批更替。D62 同理：载体形状 · 两份前缀文本 · `$version` 16 落**同一次提交**——`#writable` 一改，fence 与版本同一事实源。
+- **散文节制**：新增固定前缀文本 = `REVIEW_ITEM` 半句 + `REVIEWS.spec.axesGuide` 一句 + 一条新报文词；D62 只**改写** implement / docs-fix 两条既有前缀（逐字见 3.8），不新增散文面。句子承载判定动作与事实，不写理由与方法论。
+- **冻结面**：findings severity 枚举 · `lensEnum` · 结论派生规则（rollup 三段语义）· `face/host.ts`（`DISPATCH` / `REFS`）· CLI 旗标与退出码表 —— 零改；`session/handoff-schema.ts` 由 D62 收口（face 二分 → op 派生单平面），其 carrier 槽语义与结论派生语义不变。
 - **硬破无窗口**：不做 `overall-spec` 别名读、不作废期告警、不留双根扫描。
 - **零新依赖**；引擎调用一律本地 `node packages/cdd-engine/src-next/bin.ts`。
 - 本计划为内部文档中文主源（Strategy B）；不发布，changeset 收尾到可发布态即止。
@@ -160,3 +242,4 @@ parent-version: v2.70
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-21 | 初稿——P17 承接用户 mandate 两项（doc-type `overall-spec` → `overall` + 目录 `specs/` → `overalls/`；phase spec review 补 `INPUT_OVERALL`）。定案六条：D61-1 全拼写一次改到底（含 `OVERALL_SPEC_ELEMENTS` / `#renderOverallSpec` 两处死名随行）· D61-2 `overalls` 第三 doc root（四读者派生 + 两处手改 + `DOC_ROOT_SEGMENTS` 文案 pin break）· D61-3 硬破迁移与消费面更替（含拼写+迁移的原子性硬理由）· D61-4 `INPUT_OVERALL` 镜像 `INPUT_SPEC` · D61-5 spec 轴 program conformance 判据句 · D61-6 退役拼写报文拆分；模板 `$version` 14 → 15；changeset cdd-engine major + kairos | Oscaner M. · Claude（kairos:cdd-spec-writer [P17]）|
 | v0.2 | 2026-10-21 | **spec-fix-1（review-1 findings 收口 · 7 warn + 4 nit）**：① warn——§2.4 落表补 `DispatchScene`（`face/lifecycle.ts:67-78`）与 `#dispatchOf` hand-off（`face/cli.ts:744-751`），`WorkScene` pin 改 `:125-135`；② warn——§2.3 `File paths` 格改引 `contract/declare.ts:449-455`（`File path row` · `refKind: "none"`），link-shape 判据不触达该格、裸相对路径降为约定；③ warn——D61-1 纳入报文/注释面（`invariants.ts:1291-1292/:1360` + 引擎注释行），Acceptance 零残留 grep 放宽到全非测试行；④ warn——D61-3 消费面补 `packages/cdd-engine/README.zh-CN.md:46` 并进验收 grep；⑤ warn——快照面入 D61-1/Acceptance（两档 `*.overall-spec.snap` 改名并手工删旧、四份 schema snap 的 pattern 行重生成）；⑥ warn——`presentation-surface.test.ts` 移出编辑面（`OLD_KAIROS_SKILL_NAMES` 冻结），只作必绿面；⑦ warn——§2.2 `build` 由自动跟随表移入手改清单（「需手改三处」），漏改即静默失败；⑧ nit——§2.5 轴句写明插入点（`+` 链末项、两句元说明之前）；⑨ nit——两处 pin 校正（overall.md:13 · doc.ts:549）；⑩ nit——AC 的 `INPUT_OVERALL` 断言改为「声明槽 + 条件渲染」；⑪ nit——目录计数 18/1/17，删去「61 处」改记引用面构成 | Oscaner M. · Claude（kairos:cdd-spec-writer [P17] spec-fix-1）|
+| v0.3 | 2026-10-21 | **范围扩并：承载面统一（D62 · 用户裁定 · cdd-dev 实施期并入）**。新增 §3 九条定案：D62-1 一份 `CARRIER` 声明 + `#writable(plane)` 唯一投影（删 `CARRIER_DELIVERY` / `CARRIER_FINDINGS` / `BY_FACE` / `HandoffSchemaFace`）· D62-2 `CarrierPlane = work \| judge` 由 op 派生，`HandoffFamily` 退化为 `{ name }`，`handoffFaceOf(op, type)` → `planeOf(op)` · D62-3 必填集 / 可写槽按平面 · D62-4 结论派生语义不变 · D62-5 文档修复获得 `status`（残余 findings 死路径删除、`templates.ts:209` 自相矛盾消灭）· D62-6 证据门按 scope（wave / branch）派生，行为零变 · D62-7 死字段 `failure_category` 删除 · D62-8 两份前缀逐字改写 + `$version` 15 → 16 · §3.9 非目标（不合并 op · status 仍自报 · 特效面零改 · 无兼容读）。取证三条钉在 `next.ts:169-205` / `ledger.ts:1096+1104` / `lifecycle.ts:557+798`。Acceptance 补六条、Constraints 的冻结面与原子落地随之修订。`parent-version` v2.70 → v2.71 | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定并入 · I4 backfill）|

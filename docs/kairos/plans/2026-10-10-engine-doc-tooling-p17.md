@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P17 实施计划：文档类别面收口（doc-type `overall` · `overalls/` 第三 doc root · 评审读面 `INPUT_OVERALL`）
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-10-21
 slug: 2026-10-10-engine-doc-tooling-p17
 base: develop
@@ -11,10 +11,10 @@ base: develop
 
 - 七前提整评：破坏性许可（本 phase 正是硬破，见下）；OOP 统一、零裸函数（本变更只动常量字面量、注册表键、判据分支与固定前缀文本，零新增函数——新增的 `INPUT_OVERALL` 槽与 `doc-key` 分支都是既有成员的形状延伸）；**一事实一处**——类别名只在 `DOC_TYPE_VALUES` 声明（四处 `valuePattern` / schema 词表 / 报文允许域全派生）、doc root 只在 `ENGINE_DOC_ROOTS` 声明（四读者派生）、`INPUT_OVERALL` 的值只经 `SlugIndex.overallOf` 一处；散文节制——新增固定前缀文本 = `REVIEW_ITEM` 半句 + `REVIEWS.spec.axesGuide` 一句 + 一条新报文词；死名随改清理（`OVERALL_SPEC_ELEMENTS` / `#renderOverallSpec` 两处不留「值改了、名还叫 Spec」的中间态）；消费者只感「类别名更准 + 评审看见父 charter + 一条说反了的报文被修好」；能收敛到既有面则不做平行子系统；不造轮子（零新依赖）。
 - **原子性（本 phase 的硬约束 · spec §2.3）**：拼写收口与 overall 迁移**必须同一次提交**。引擎一旦不认 `overall-spec`，`SlugIndex.#docTypeOf`（`infra/slug-index.ts:328-331`）对未迁移的 overall 读 `null` → `overallOf`（`:197-201`）读 `null` → 仓内**每一篇** phase-spec 的 `program:` slug-ref 判据（`contract/invariants.ts:1305`）当场转红、preflight doc-contract 全线 BLOCK。分两次提交 = 自伤中间态。Task 1 内的全部改动落一个 commit。
-- **文本逐字取 spec**：两处新增英文的唯一来源是 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p17-design.md` v0.2 的 §2.4 RULE 块与 §2.5 文本块——实现期只允许逐字落盘，不得改写措辞、不得删句内子句（`the parent charter at` / `program conformance` / `Phase inventory registered for it` / `completeness finding` 为必达 token）。
-- **冻结面零破**：`session/handoff-schema.ts`（findings 字段与 severity 枚举）· 结论派生规则（blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · 空 → APPROVED）· `REVIEWS.*.lensEnum` · `face/host.ts`（`DISPATCH` / `REFS`）· CLI 旗标与退出码表 —— 全部零改。
+- **文本逐字取 spec**：两处新增英文的唯一来源是 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p17-design.md` v0.3 的 §2.4 RULE 块与 §2.5 文本块，D62 的两条前缀改写取自 §3.8——实现期只允许逐字落盘，不得改写措辞、不得删句内子句（`the parent charter at` / `program conformance` / `Phase inventory registered for it` / `completeness finding` / `report the round in \`status\`` 为必达 token）。
+- **冻结面零破**：findings 字段与 severity 枚举 · 结论派生规则（blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · 空 → APPROVED）· `REVIEWS.*.lensEnum` · `face/host.ts`（`DISPATCH` / `REFS`）· CLI 旗标与退出码表 —— 全部零改；`session/handoff-schema.ts` 的**载体形状**由 Task 4（D62）收口，其 findings 字段语义与 severity 枚举仍零改。
 - **冻结历史不动**：`docs/kairos/{specs,plans}` 下 33 篇过往 spec/plan 正文里的路径与拼写引用是 Strategy B 内部文档的历史面，零改（P15 窄授权先例）。`packages/kairos/tests/presentation-surface.test.ts` 的 `OLD_KAIROS_SKILL_NAMES`（`:419-429`，含 `writing-overall-spec`）是**退役 skill 名禁用行**，冻结不改；该文件本 phase 只作必绿面。
-- **契约版本随文本走**：固定前缀文本变更即模板契约变更，`TEMPLATE_PROMPT.$version` 14 → 15 与文本同一次提交落地，不留「文本已改、版本仍 14」的中间态。
+- **契约版本随文本走**：固定前缀文本变更即模板契约变更，`TEMPLATE_PROMPT.$version` 14 → 15 与文本同一次提交落地（Task 2），15 → 16 与载体统一同一次提交落地（Task 4）——不留「文本已改、版本未跟」的中间态。
 - 引擎调用一律本地 `node packages/cdd-engine/src-next/bin.ts`；本计划为内部文档中文主源（Strategy B）；不发布，changeset 收尾到可发布态即止。
 
 ### Task 1: 类别名收口 + `overalls` 第三 doc root + 仓内迁移 + 退役拼写报文拆分（原子）
@@ -67,9 +67,43 @@ base: develop
 - **Acceptance**: 双包 changeset 在册且不发布；`pnpm run validate` ALL PASS；分支改动面 100% 可归因。
 - **DependsOn**: 1, 2
 
+### Task 4: 承载面统一——一份声明 + op 派生平面 + `$version` 16
+
+- **Objective**: `HandoffSchema` 由两张互斥载体表（`CARRIER_DELIVERY` / `CARRIER_FINDINGS` + `BY_FACE`）收为一份 `CARRIER` 声明 + `#writable(plane)` 唯一投影；`CarrierPlane = work | judge` 由 op 派生（`implement` / `fix` → work · `review` → judge）；`HandoffFamily` 退化为 `{ name }`；`handoffFaceOf(op, type)` → `planeOf(op)`；证据门按 scope（wave / branch）判；文档修复 carrier 获得 `status`、残余 findings 与死字段 `failure_category` 删除；两份前缀逐字改写、`$version` 15 → 16。**全部落一个 commit**（载体形状 · fence 文本 · 版本同属一个事实源）。
+- **Files**: Modify `packages/cdd-engine/src-next/session/handoff-schema.ts`（删 `:33` `HandoffSchemaFace` · `:69-78` `CARRIER_DELIVERY` · `:85-93` `CARRIER_FINDINGS` · `:124-127` `BY_FACE` · `:74`/`:135` `failure_category`；新增 `CarrierPlane` + 单份 `CARRIER`（声明序 `status` · `findings` · `artifacts` · `notes`）+ `#writable(plane)`；`:155-166` `CarrierOf` / `DeliveryCarrier` / `FindingsCarrier` 收为一个 `Carrier`；`:188-195` `schemaText` · `:205-211` `violations` · `:237-250` `conclusionOf` · `:281-283` `faceSchema`→`planeSchema` · `:291-295` `droppedKeys` 的 face 参数 → plane；头注 `:1-28`）· `infra/runtime.ts`（`HandoffFamily` `:43-52` 收敛为 `{ name }`；`HANDOFF_FAMILIES` `:81-121` 九行删 `schema:`；注释 `:40-42`/`:46-50`/`:79-80`）· `session/ledger.ts`（`handoffFaceOf` `:906-908` → `planeOf(op: OpType): CarrierPlane`；`:934-937` `buildHandoff` 重载按 plane；`:1083` review 腿取 `"judge"`；`:1103` fix 腿取 `planeOf("fix")`；`:36` import、`:377-379` 字段注释、`:925` 注释）· `face/lifecycle.ts`（`:26` import；`#probeDraft` `:430`；`#reconstruct` `:494` + 证据门 `:557`；`#materialize` `:677`/`:697-730` 单次 `buildHandoff` + status 只落 work + findings 只落 judge + 删 `failure_category` 搬运 `:721-727`；`#schemaText` `:795-801`；注释 `:544-556`/`:714`）· `session/run.ts`（`:456-470` 回填 carrier 单路 + status 只落 work；注释 `:450-456`）· `render/templates.ts`（`IMPLEMENT_SHELL` `:168` 删 `failure_category` 改「the reason in `notes`」；`DOCS_FIX_SHELL` `:209` 整句逐字替换、`:217` 换通用 Draft fields 句；`$version` `:492` 15 → 16；叙事头注 `:473-491` 补 v16 行；注释 `:201-202`/`:211-216`）；Test `session/__tests__/handoff-schema.test.ts` · `session/__tests__/handoff-plane.guard.test.ts` · `session/__tests__/ledger.test.ts` · `infra/__tests__/infra.test.ts`（`:59-60`）· `render/__tests__/render.test.ts`（`ALL_VALUES` · `$version` pin 15 → 16）· `face/__tests__/cli.test.ts`（docs-fix 轮 carrier 断言）；Modify `docs/kairos/specs/2026-10-10-engine-doc-tooling-p17-design.md` **不动**（v0.3 已 ratified，本任务只消费）· `docs/kairos/plans/2026-10-10-engine-doc-tooling-p17.md` **不动**。
+- **Consumes**: phase-spec v0.3 §3.1–§3.9（逐字文本取 §3.8）· Task 1 落地的 doc-root 面与 Task 2 落地的模板面（`$version === 15` 基线）。
+- **Produces**: `HandoffSchema` 单份载体声明 + `#writable(plane)` 投影 + `planeOf(op)`；`HandoffFamily = { name }`；文档修复 carrier 带 `status`；证据门按 scope；`$version === 16`。Task 5 在此基座上只动 changeset。
+- **Steps**:
+  - 先写平面派生断言（`session/__tests__/handoff-schema.test.ts`）：`planeOf("implement")` / `planeOf("fix")` → `"work"`、`planeOf("review")` → `"judge"`；`writable("work")` 的 properties 键序 `[status, artifacts, notes]` 与 required `[status, artifacts]`；`writable("judge")` 的键序 `[findings, artifacts, notes]` 与 required `[findings, artifacts]` — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/handoff-schema.test.ts` 现状红（`planeOf` 不存在）
+  - 改 `handoff-schema.ts`（spec §3.1 / §3.3 / §3.4 / §3.7）：单份 `CARRIER`（声明序 `status` · `findings` · `artifacts` · `notes`——**声明序即投影序**，`#writable` 按序过滤故 judge 投影与今日 `CARRIER_FINDINGS` 字节一致）+ `#writable(plane)`；`schemaText` / `violations` / `droppedKeys` / `conclusionOf` / `planeSchema` 的 face 参数改 plane；`Carrier` 单型替代三型；删 `failure_category` — checkable: 上一步转绿；`grep -rn "CARRIER_DELIVERY\|CARRIER_FINDINGS\|BY_FACE\|HandoffSchemaFace" packages/cdd-engine/src-next` 零命中
+  - 改 `infra/runtime.ts`（spec §3.2）：`HandoffFamily` = `{ name }`，九行删 `schema:`，注释随改 — checkable: `grep -n "schema" packages/cdd-engine/src-next/infra/runtime.ts` 零命中；`infra/__tests__/infra.test.ts:59-60` 的两条 face pin 换成平面断言并转绿
+  - 改 `ledger.ts`（spec §3.2 / §3.4）：`handoffFaceOf(op, type)` → `planeOf(op)`（委托 `HandoffSchema.planeOf`）；`buildHandoff` 两重载按 plane；review 腿取 `"judge"`、fix 腿取 `planeOf("fix")` — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/ledger.test.ts src-next/session/__tests__/handoff-schema.test.ts` 绿
+  - 改 `lifecycle.ts`（spec §3.1 / §3.6）：`#probeDraft` / `#reconstruct` / `#schemaText` 三处 `#familyOf(...).schema` 换 `planeOf(op)`；证据门改 `plane === "work" && (frame.type === "wave" || frame.type === "branch")`；`#materialize` 单次 `buildHandoff(plane, …)`，`status` 只落 work、`findings` 只落 judge，删 `failure_category` 搬运 — checkable: `grep -rn 'face === "delivery"\|face === "findings"\|handoffFaceOf' packages/cdd-engine/src-next` 零命中；`pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__` 绿
+  - 改 `run.ts`（spec §3.1 / §3.4）：回填 carrier 单路 + `status` 只落 work — checkable: `pnpm -C packages/cdd-engine test` 全绿（session 面含回填用例）
+  - 改 `render/templates.ts`（spec §3.7 / §3.8）：`IMPLEMENT_SHELL` 去 `failure_category`；`DOCS_FIX_SHELL` 整句逐字替换；`:217` 收为通用 Draft fields 句；`$version` → 16；头注补 v16 行 — checkable: `grep -rn "failure_category" packages/cdd-engine/src-next` 零命中；`grep -c "report the round in \`status\`" packages/cdd-engine/src-next/render/templates.ts` 输出 `1`；`$version === 16` pin 绿；**review 面的 fence 与 review 前缀既有断言不改即绿**（字节不变）
+  - 跑引擎与 kairos 套件 — checkable: `pnpm -C packages/cdd-engine test` 与 `pnpm -C packages/kairos test` 全绿
+  - 提交（`refactor(cdd-engine)!: unify the handoff carrier on an op-derived plane ($version 15→16)`） — checkable: `git log --oneline -1` 单原子提交；`git show --stat HEAD` 同时含载体声明 · 两处调用面 · 两份前缀文本 · `$version` 与测试面
+- **Acceptance**: 一份声明 + `#writable(plane)` 唯一投影（`CARRIER_DELIVERY` / `CARRIER_FINDINGS` / `BY_FACE` / `HandoffSchemaFace` 零命中）· `planeOf` 由 op 派生（三值 pin）· `HandoffFamily` 只余 `name`（`infra/runtime.ts` 的 `schema` 零命中）· 文档修复 carrier 带 `status` 且不写 findings（pin：`cli.test.ts` docs-fix 轮键集）· `failure_category` 零残留 · 证据门行为不变（wave / branch 缺证据 → BLOCKED；spec / plan 无证据文件仍按声明 status 收口）· review 面前缀与 fence 字节不变 · `$version === 16` 且头注含 v16 行 · 引擎 + kairos 套件全绿 · 单原子提交。
+- **DependsOn**: 1, 2
+
+### Task 5: changeset 刷新 + 全量验证 + 归因（D62 并入后）
+
+- **Objective**: 把 Task 4 的载体契约变更写进 P17 的 changeset 正文（Task 3 落的 `.changeset/p17-overall-doc-class.md` 只覆盖 D61）；`pnpm run validate` ALL PASS；分支改动面 100% 可归因。
+- **Files**: Modify `.changeset/p17-overall-doc-class.md`；零源码改动。
+- **Consumes**: Task 3 的 changeset 基线（双包 front-matter）+ Task 4 落地的行为面。
+- **Produces**: 正文覆盖 D61 + D62 的在册 changeset；validate 全绿证据。
+- **Steps**:
+  - 正文补第三段（英文，逐条）：handoff carrier 由 face 二分（`delivery` / `findings`）收为 op 派生单平面（`work` / `judge`），`HandoffFamily.schema` 删除；文档修复轮改报 `status`（残余 findings 编码与 `failure_category` 删除）；模板契约 `$version` 16 — checkable: 正文含三项；front-matter 双包行不变（`cdd-engine: major` + `kairos: minor`）
+  - 归因核对：`git diff --name-only origin/develop...HEAD` 逐行落在声明集合内（Task 1 / 2 / 4 的源码与测试面 · 消费面四篇 SKILL 与 README 家族 · `CLAUDE.md` · `.github/workflows/release.yml` · `packages/kairos/tests/grep-sweep-regression.test.ts` · `docs/kairos/overalls/…-overall.md` · 文档面三篇 · 本 changeset） — checkable: 零未声明文件
+  - 跑全量验证 — checkable: `pnpm run validate` ALL PASS（emit fresh · root 套件 · kairos 套件 · 引擎套件 · typecheck ×3 · version-sync · 零裸函数）
+  - 提交（`chore(cdd-engine): P17 changeset 刷新——承载面统一（major）`） — checkable: `git log --oneline -1` 单原子提交，diff 只含 changeset 文件
+- **Acceptance**: 双包 changeset 在册且正文覆盖 D61 + D62；`pnpm run validate` ALL PASS；分支改动面 100% 可归因。
+- **DependsOn**: 4
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-21 | 初稿——三任务三波：T1 类别名收口 + `overalls` 第三 doc root + 仓内迁移 + 退役拼写报文拆分（**单原子提交**，spec §2.3 的自伤中间态约束）→ T2 `INPUT_OVERALL` 读面 + spec 轴 program conformance + `$version` 14→15 → T3 changesets（cdd-engine major + kairos minor）+ 全量验证 + 归因核对。两处新增英文逐字取自 phase-spec v0.2 §2.4 / §2.5；冻结面零改 | Oscaner M. · Claude（kairos:cdd-plan [P17]）|
 | v0.2 | 2026-10-21 | **plan-fix-1（review-1 findings 收口 · 4 warn + 5 nit）**：① warn——`.github/workflows/release.yml:65` 的 packed-tarball smoke 随值更替入 Task 1 消费面与零残留 grep、入 Task 3 归因集；② warn——`cdd-spec-writer/SKILL.md:36` 落地目录改变体感知（overall → `docs/kairos/overalls/`、phase/single → `docs/kairos/specs/`），并加 `overalls` 路径 pin；③ warn——`slug-index.test.ts:291-296` 补 overalls 三根覆盖（`insideDocRoots` 与 `build` fixture、"either doc root" 改题）；④ warn——`overallLink` 定可选性（`DispatchScene` 可选 / `WorkScene` 必填）、补 `face/cli.ts:911-923` 返回字面量、写明 `preview.test.ts` 零改；⑤ nit——`invariants.ts:1076`/`:1106` 两处示例路径注释手工随迁 + checkable；⑥ nit——`render.test.ts:338` pin 由 14 改 15（非新增）且 `ALL_VALUES` 增 `INPUT_OVERALL`；⑦ nit——补三条断言（fix/docs-fix 声明、四腿 `REVIEW_ITEM`、`axesGuide` 的 token）；⑧ nit——撤销 `PATH_TOKENS` 8→9（implement 不产该 token）；⑨ nit——stale「two/both doc roots」注释四行入 Task 1 注释清扫 | Oscaner M. · Claude（kairos:cdd-plan [P17] plan-fix-1）|
+| v0.3 | 2026-10-21 | **范围扩并（用户裁定 · I4 mid-flight backfill）**：Task 3 波次闭合后由用户裁定把「承载面统一」并入 P17（原拟 P18），phase-spec 同步升 v0.3（§3 · D62-1..D62-8）。新增 **Task 4**（一份 `CARRIER` 声明 + `#writable(plane)` + `planeOf(op)` 派生 · `HandoffFamily` 退化 · 证据门按 scope · 文档修复获得 `status` · `failure_category` 删除 · 两份前缀逐字改写 · `$version` 15 → 16，单原子提交，DependsOn 1,2）与 **Task 5**（changeset 正文补 D62 段 + 全量 validate + 归因，DependsOn 4；Task 3 的 changeset 基线保留）。Constraints 的「冻结面」「文本逐字取 spec」「契约版本随文本走」三条随之修订（`handoff-schema.ts` 的载体形状解冻、文本源扩到 §3.8、版本线两段化） | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定并入）|

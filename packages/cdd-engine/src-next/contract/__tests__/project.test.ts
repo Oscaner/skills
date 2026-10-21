@@ -26,7 +26,7 @@ import { Projector } from "../project.ts";
 
 const DOC_KEYS = ["overall", "plan", "phase-spec", "single-spec"] as const;
 const REGISTRIES = [
-  declaredRegistries["overall"],
+  declaredRegistries.overall,
   declaredRegistries.plan,
   declaredRegistries["phase-spec"],
   declaredRegistries["single-spec"],
@@ -190,7 +190,7 @@ describe("slices projection (Projector.slices)", () => {
   });
 
   it("derives the anchor pattern from the anchor literal (known-good escapes)", () => {
-    const overall = slices["overall"];
+    const overall = slices.overall;
     // The two leading rows are front-matter keys — the slice carries the key as
     // a literal, no compiled line scan.
     expect(overall.slices[0].anchor).toBe("title");
@@ -290,7 +290,7 @@ describe("skeleton projection (Projector.skeleton)", () => {
     // The skeleton record rides the projection DocKey domain (overall | plan |
     // phase-spec | single-spec) — the same single spelling as the DocType literals (spec §5.2).
     expect(Object.keys(skeletons)).toEqual([...DOC_KEYS]);
-    expect(skeletons["overall"].docType).toBe("overall");
+    expect(skeletons.overall.docType).toBe("overall");
     expect(skeletons.plan.docType).toBe("plan");
     expect(skeletons["phase-spec"].docType).toBe("phase-spec");
     expect(skeletons["single-spec"].docType).toBe("single-spec");
@@ -447,10 +447,10 @@ describe("Projector.registries — the composed six-projection surface", () => {
 
   it("carries each doc type's declaration identity (docType field)", () => {
     const projected = PROJECTOR.registries();
-    expect(projected.shape["overall"].docType).toBe("overall");
+    expect(projected.shape.overall.docType).toBe("overall");
     expect(projected.schema.plan.docType).toBe("plan");
     expect(projected.tokens["phase-spec"].docType).toBe("phase-spec");
-    expect(projected.skeleton["overall"].docType).toBe("overall");
+    expect(projected.skeleton.overall.docType).toBe("overall");
     expect(projected.skeleton.plan.docType).toBe("plan");
     expect(projected.skeleton["phase-spec"].docType).toBe("phase-spec");
     expect(projected.skeleton["single-spec"].docType).toBe("single-spec");

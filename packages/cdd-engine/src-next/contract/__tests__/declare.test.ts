@@ -88,7 +88,7 @@ const countByHome = (registry: ElementRegistry, homes: ReadonlySet<Home>): numbe
 const LIGHTWEIGHT_DOC_TYPES: ReadonlySet<string> = new Set(["single-spec"]);
 
 const ALL_REGISTRIES = [
-  declaredRegistries["overall"],
+  declaredRegistries.overall,
   declaredRegistries.plan,
   declaredRegistries["phase-spec"],
   declaredRegistries["single-spec"],
@@ -96,7 +96,7 @@ const ALL_REGISTRIES = [
 
 describe("declared registries", () => {
   it("declares exactly the four doc types with their docType identity", () => {
-    expect(declaredRegistries["overall"].docType).toBe("overall");
+    expect(declaredRegistries.overall.docType).toBe("overall");
     expect(declaredRegistries.plan.docType).toBe("plan");
     expect(declaredRegistries["phase-spec"].docType).toBe("phase-spec");
     expect(declaredRegistries["single-spec"].docType).toBe("single-spec");
@@ -389,7 +389,7 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
   });
 
   it("reconciles the post-migration element totals against the §2.3 arithmetic (43/28/27/16)", () => {
-    expect(declaredRegistries["overall"].elements.length).toBe(43);
+    expect(declaredRegistries.overall.elements.length).toBe(43);
     expect(declaredRegistries.plan.elements.length).toBe(28);
     expect(declaredRegistries["phase-spec"].elements.length).toBe(27);
     expect(declaredRegistries["single-spec"].elements.length).toBe(16);
@@ -439,7 +439,7 @@ describe("RegistryGuard type guards", () => {
   });
 
   it("recognizes the four declared registries and rejects registry-shaped non-registries", () => {
-    expect(RegistryGuard.isRegistry(declaredRegistries["overall"])).toBe(true);
+    expect(RegistryGuard.isRegistry(declaredRegistries.overall)).toBe(true);
     expect(RegistryGuard.isRegistry(declaredRegistries.plan)).toBe(true);
     expect(RegistryGuard.isRegistry(declaredRegistries["phase-spec"])).toBe(true);
     expect(RegistryGuard.isRegistry(declaredRegistries["single-spec"])).toBe(true);

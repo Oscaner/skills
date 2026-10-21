@@ -356,7 +356,7 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
       section.heading.startsWith("## Dependency graph"),
     );
     expect(graphSection).toBeDefined();
-    const extracted = new GraphExtractor().extract(declaredRegistries["overall"], [
+    const extracted = new GraphExtractor().extract(declaredRegistries.overall, [
       ...(graphSection?.lines ?? []),
     ]);
     expect(extracted["Hard edge"]).toEqual(["P1 -> P2"]);
@@ -365,7 +365,7 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
   });
 
   it("TableExtractor — the declared column-header and data rows", () => {
-    const extracted = new TableExtractor().extract(declaredRegistries["overall"], [
+    const extracted = new TableExtractor().extract(declaredRegistries.overall, [
       "| Phase | Issue (ref) | Title summary |",
       "| --- | --- | --- |",
       "| P1 | #123 | issue one |",
@@ -379,7 +379,7 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
   });
 
   it("HeadingScanner — the registered section/facet headings by their declared rank", () => {
-    const extracted = new HeadingScanner().extract(declaredRegistries["overall"], OVERALL);
+    const extracted = new HeadingScanner().extract(declaredRegistries.overall, OVERALL);
     expect(extracted["## Document scope"]).toEqual(["## Document scope"]);
     expect(extracted["### Goal"]).toEqual(["### Goal"]);
     expect(extracted["### Non-goals"]).toEqual(["### Non-goals"]);
@@ -387,7 +387,7 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
 
   it("HeadingScanner.sectionsOf — the declared rank-2 sections in document order, an undeclared heading excluded", () => {
     const scanner = new HeadingScanner();
-    const sections = scanner.sectionsOf(declaredRegistries["overall"], [
+    const sections = scanner.sectionsOf(declaredRegistries.overall, [
       "## Document scope",
       "scope prose",
       "## Review Focus",
@@ -426,17 +426,17 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
       "| Phase | Issue (ref) | Title summary |",
       "| P1 | #123 | issue one |",
     ]);
-    expect(extractor.headerLineOf(declaredRegistries["overall"], lines)).toBe(
+    expect(extractor.headerLineOf(declaredRegistries.overall, lines)).toBe(
       "| Phase | Issue (ref) | Title summary |",
     );
     // a table whose declared column anchor is absent has no declared header
-    expect(extractor.headerLineOf(declaredRegistries["overall"], ["| a | b |"])).toBeNull();
+    expect(extractor.headerLineOf(declaredRegistries.overall, ["| a | b |"])).toBeNull();
   });
 });
 
 describe("the doc-type composition root", () => {
   it("exposes one parser per doc key", () => {
-    expect(docTypeParsers["overall"]).toBeInstanceOf(OverallDocType);
+    expect(docTypeParsers.overall).toBeInstanceOf(OverallDocType);
     expect(docTypeParsers.plan).toBeInstanceOf(PlanDocType);
     expect(docTypeParsers["phase-spec"]).toBeInstanceOf(PhaseSpecDocType);
   });

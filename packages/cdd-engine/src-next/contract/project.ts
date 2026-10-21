@@ -405,7 +405,7 @@ export class Projector {
   /** Map a per-registry projector across the four injected registries, keyed by their record identity. */
   #projectAll<T>(project: (registry: ElementRegistry) => T): Record<DocKey, T> {
     return {
-      overall: project(this.#registries["overall"]),
+      overall: project(this.#registries.overall),
       plan: project(this.#registries.plan),
       "phase-spec": project(this.#registries["phase-spec"]),
       "single-spec": project(this.#registries["single-spec"]),

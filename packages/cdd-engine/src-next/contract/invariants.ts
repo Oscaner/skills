@@ -288,7 +288,7 @@ export abstract class Invariant extends MarkdownPrimitives {
   protected overallTableHeadings(ctx: JudgeContext): readonly string[] {
     const headings = this.overall(ctx);
     if (headings === null) return [];
-    const declared = ctx.registries["overall"].elements
+    const declared = ctx.registries.overall.elements
       .filter((element) => element.home === "section" && element.anchor.startsWith("## "))
       .map((element) => element.anchor);
     return declared.filter((anchor) =>
@@ -1415,7 +1415,7 @@ export class CrossDocChainInvariant extends Invariant {
     if (content === null) return null;
     const { head, body } = FrontMatterExtractor.split(content);
     const lines = body.split("\n").map((line) => ctx.translator.canonicalize(line));
-    const parsed = docTypeParsers["overall"].parse(lines, head) as OverallParsed;
+    const parsed = docTypeParsers.overall.parse(lines, head) as OverallParsed;
     const lineage = new Set<string>();
     if (head.version !== null) lineage.add(head.version);
     for (const row of parsed.tables["Change history"].rows) {

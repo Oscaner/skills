@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P16 设计：评审面纪律补强（branch review 策略融入 prompt · 只读 / 单代理 / 三判定点）
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-10-21
 slug: 2026-10-10-engine-doc-tooling-p16
 program: 2026-10-10-engine-doc-tooling
@@ -23,7 +23,7 @@ parent-version: v2.68
 - `REVIEW_ITEM`（:223）—— 评审规则：读准则面、把 findings 写进 handoff 草稿、**结论由引擎从 findings 派生**（blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · 空 → APPROVED），评审者从不自报状态；
 - 每类的 `REVIEWS` 分型轴行（:308-330，经 :333-340 引到各评审变体 :345-408）—— 判定轴与判定方法；
 - findings 载体 schema（`session/handoff-schema.ts:47-59`）—— `severity ∈ {blocker, warn, nit}` + `lens`，`section` / `line` / `fix` 可选；
-- 九条共享纪律 clause（`templates.ts:138-150`）。
+- 九条共享纪律 clause（`templates.ts:142-154` 的 `LICENSE_ITEMS` 块，九条 `{{> cl:…}}` 行在 :145-153）。
 
 branch 面另外派发 `mattpocock-skills:code-review`（`face/host.ts:199`），该 skill 自带的 Fowler 坏味道基线与 Standards/Spec 双轴随之进场。
 
@@ -40,11 +40,11 @@ branch 面另外派发 `mattpocock-skills:code-review`（`face/host.ts:199`）�
 
 #### 2.1 D60-1 只读纪律 → `REVIEW_ITEM`（四类评审共享）
 
-一条硬纪律，语义三点：评审期间不得改工作树 / index / HEAD / 分支状态；历史只经 `git show` / `git diff` / `git log` 读；要看别的版本另开目录，不在这里移 HEAD。**落点理由**：只读是 review 模式的属性、不是某一类的属性；修复属于 fix 轮，review 面无写权。
+一条硬纪律，语义三点：评审期间不得改 tracked 内容 / index / HEAD / 分支状态；历史只经 `git show` / `git diff` / `git log` 读；要看别的版本另开目录，不在这里移 HEAD。**落点理由**：只读是 review 模式的属性、不是某一类的属性；修复属于 fix 轮，review 面无写权。**边界**：条内点名两个豁免面——既定的 `OUTPUT_*` 草稿是评审唯一的写（评审必须能把 findings 写进 `OUTPUT_HANDOFF`，该路径落在 keep-out 的 `.kairos/` 下），提交归编排面；故共享 `cl:atomic-commit` 在评审面无适用对象（评审轮零 tracked 改动），两条硬指令的边界成文。
 
 **文本（追加到 `REVIEW_ITEM`）**：
 
-> **Read-only:** never mutate the working tree, the index, HEAD, or branch state — read history through `git show` / `git diff` / `git log`, and inspect another revision in a separate directory rather than moving HEAD here; repairs belong to the fix round, never to a review.
+> **Read-only:** never mutate tracked content, the index, HEAD, or branch state — the prescribed `OUTPUT_*` artifacts are a review's only writes, and committing belongs to the orchestrator — read history through `git show` / `git diff` / `git log`, and inspect another revision in a separate directory rather than moving HEAD here; repairs belong to the fix round, never to a review.
 
 #### 2.2 D60-2 单代理纪律 → `REVIEW_ITEM`，并收回 wave 轴重复句
 
@@ -82,16 +82,16 @@ branch 面另外派发 `mattpocock-skills:code-review`（`face/host.ts:199`）�
 
 #### 2.5 版本与打包
 
-- 模板契约 `TEMPLATE_PROMPT.$version` 12 → 13（固定前缀文本变更即契约版本变更）；
+- 模板契约 `TEMPLATE_PROMPT.$version` 12 → 13（`render/templates.ts:485` 的声明值；固定前缀文本变更即契约版本变更），并同步 :473-483 的版本叙事头注（补 v13 行——只读纪律 · 单代理纪律 · branch 轴三判定点）；
 - changeset **cdd-engine minor**——prompt 行为面收紧，零 API / CLI 旗标 / 退出码 / skill ref 变化；
 - kairos 无改动。
 
 ### Acceptance criteria
 
 - `REVIEW_ITEM` 携带只读与单代理两条硬纪律；wave / branch / spec / plan 四类评审的固定前缀均含（pin 落 `infra/__tests__/infra.test.ts` 与 `render/__tests__/render.test.ts` 现有断言旁，逐句 `toContain`）。
-- `REVIEWS.branch.axesGuide` 含设计 · 测试充分性 · 迁移三个判定点；`lensEnum` 仍为 `standards | spec | buildability`，轴名零变化；wave / spec / plan 三轴判定点零变化（现有断言 `infra.test.ts:141-142` 保持绿）。
-- 单代理事实只在 `REVIEW_ITEM` 一处：`REVIEWS.wave.axesGuide` 尾部不再含「Single agent」（grep pin）。
-- `TEMPLATE_PROMPT.$version === 13`，其 pin 同步。
+- `REVIEWS.branch.axesGuide` 含设计 · 测试充分性 · 迁移三个判定点；`lensEnum` 仍为 `standards | spec | buildability`，轴名零变化；wave / spec / plan 三轴判定点零变化（现有断言 `infra/__tests__/infra.test.ts:123-128`——spec/plan 的 URC 判据 + `lensEnum`——保持绿）。
+- 单代理事实只在 `REVIEW_ITEM` 一处：`REVIEWS.wave.axesGuide` 尾部不再含「Single agent」（同处新增断言 `expect(REVIEWS.wave.axesGuide).not.toContain("Single agent")`，与 :123-128 的 spec/plan 判据同块）。
+- `TEMPLATE_PROMPT.$version === 13`（pin：`render/templates.ts:485` 的声明值）；:473-483 的版本叙事头注含 v13 行（只读纪律 · 单代理纪律 · branch 轴三判定点）。
 - 冻结面零破：findings schema 字段与 severity 枚举不变 · 结论派生规则不变 · `DISPATCH.review.*` skill ref 不变 · CLI 旗标与退出码不变。
 - `pnpm run validate` ALL PASS（引擎套件 · kairos suite · emit fresh · typecheck ×3 · 零裸函数）。
 - changeset cdd-engine **minor** 在册，不发布。
@@ -108,3 +108,4 @@ branch 面另外派发 `mattpocock-skills:code-review`（`face/host.ts:199`）�
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-21 | 初稿——P16 承接 P15 §7 附录调研：录三条（只读 · 单代理 · branch 三判定点）· 拒四条（merge verdict · 分级 · 版式 · Fowler 基线）；模板 `$version` 12 → 13；changeset cdd-engine minor | Oscaner M. · Claude（kairos:cdd-spec-writer [P16]）|
+| v0.2 | 2026-10-21 | **spec-fix-1（review-1 findings 收口 · 2 warn + 2 nit）**：① warn——只读条划界：正文改为「不得改 tracked 内容 / index / HEAD / 分支状态」，点名既定 `OUTPUT_*` 草稿是评审唯一的写、提交归编排面，§2.1 补边界句说明共享 `cl:atomic-commit` 在评审面零适用对象（消除与 `REVIEW_ITEM` 草稿写、共享 clause 的两处正面对撞）；② warn——version pin 落地：§2.5 与 AC 点名 `render/templates.ts:485` 为 `$version` pin，并要求 :473-483 版本叙事头注补 v13 行；③ nit——wave/spec/plan 不变量的 pin 由 `infra.test.ts:141-142`（实为 wave/branch 的 dual evidence）改引 :123-128（spec/plan 的 URC 判据 + `lensEnum`），D60-2 删除另在同块新增 `not.toContain("Single agent")` 断言；④ nit——九条共享纪律 clause 的 pin 由 `templates.ts:138-150` 改引 `:142-154`（`LICENSE_ITEMS` 块，九条行 :145-153） | Oscaner M. · Claude（kairos:cdd-spec-writer [P16] spec-fix-1） |

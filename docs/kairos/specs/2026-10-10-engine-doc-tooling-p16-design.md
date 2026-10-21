@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P16 设计：评审面纪律补强（branch review 策略融入 prompt · 只读 / 单代理 / 三判定点）
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-10-21
 slug: 2026-10-10-engine-doc-tooling-p16
 program: 2026-10-10-engine-doc-tooling
@@ -50,6 +50,7 @@ branch 面另外派发 `mattpocock-skills:code-review`（`face/host.ts:199`）�
 
 一条硬纪律：评审者独自做完整评审，不为 diff 分片或第二意见派子代理；**该纪律压过所派发 skill 的并行子代理默认**。同时删除 `REVIEWS.wave.axesGuide` 尾部的「Single agent, four axes.」——单代理事实此后只有 `REVIEW_ITEM` 一处（一事实一处）。
 **落点理由**：lens 与 findings 载体按「一条 finding 一个 lens」建模，多代理聚合会拆散判定权；上下文成本翻倍，而收益（互不污染）在四轴同源时并不成立。
+**更硬的一条（判据面 · 用户裁定补记）**：评审面派发的是 **one-shot child**（`-p`，无交互）。P14 / D58（issue #368）已记录同一机制：child 在 `bg_run` / `bg_delegate` 一类 yield 路径后结束回合等 follow-up wake，而进程随即退出 → 通知无处可落 → 缺稿 → 引擎判 `contract-violation`。共享 `cl:sync-completion` 只封「明确 yield 式」路径，且**依赖 child 遵守**；只要用了任何会 yield 的并行子代理机制，一轮仍会在等结果时自行结束。于是「并行子代理」这条处方在 one-shot 模型下不是「更差」，而是**这一轮根本收不了工**——D60-2 是这把口的唯一封堵：不产生嵌套活，就不存在等待，也不存在提前收工。两条防线不重复：`cl:sync-completion` 管「已有嵌套活时怎么收工」（补救 · 依赖遵守），单代理纪律管「不产生嵌套活」（消除 · 不依赖遵守）。
 
 **文本（追加到 `REVIEW_ITEM`）**：
 
@@ -109,3 +110,4 @@ branch 面另外派发 `mattpocock-skills:code-review`（`face/host.ts:199`）�
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-21 | 初稿——P16 承接 P15 §7 附录调研：录三条（只读 · 单代理 · branch 三判定点）· 拒四条（merge verdict · 分级 · 版式 · Fowler 基线）；模板 `$version` 12 → 13；changeset cdd-engine minor | Oscaner M. · Claude（kairos:cdd-spec-writer [P16]）|
 | v0.2 | 2026-10-21 | **spec-fix-1（review-1 findings 收口 · 2 warn + 2 nit）**：① warn——只读条划界：正文改为「不得改 tracked 内容 / index / HEAD / 分支状态」，点名既定 `OUTPUT_*` 草稿是评审唯一的写、提交归编排面，§2.1 补边界句说明共享 `cl:atomic-commit` 在评审面零适用对象（消除与 `REVIEW_ITEM` 草稿写、共享 clause 的两处正面对撞）；② warn——version pin 落地：§2.5 与 AC 点名 `render/templates.ts:485` 为 `$version` pin，并要求 :473-483 版本叙事头注补 v13 行；③ nit——wave/spec/plan 不变量的 pin 由 `infra.test.ts:141-142`（实为 wave/branch 的 dual evidence）改引 :123-128（spec/plan 的 URC 判据 + `lensEnum`），D60-2 删除另在同块新增 `not.toContain("Single agent")` 断言；④ nit——九条共享纪律 clause 的 pin 由 `templates.ts:138-150` 改引 `:142-154`（`LICENSE_ITEMS` 块，九条行 :145-153） | Oscaner M. · Claude（kairos:cdd-spec-writer [P16] spec-fix-1） |
+| v0.3 | 2026-10-21 | **判据面回填（用户裁定 · dev 期 · 零规范变更）**：§2.2 落点理由补记 D60-2 的硬理由——评审面是 one-shot child，P14/D58（#368）已记录「yield 后结束回合等 wake → 进程退出 → 缺稿 → `contract-violation`」这一机制，而共享 `cl:sync-completion` 只封明确 yield 式路径且依赖 child 遵守，故「并行子代理」在 one-shot 模型下不是更差而是收不了工；并成文两条防线的分工（sync-completion 补救 vs 单代理消除）。规范面零改：三条 clause 文本 · AC · 任务面 · `$version` 13 均不变 | Oscaner M. · Claude（kairos:cdd-dev [P16] · 用户裁定回填）|

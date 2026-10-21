@@ -1758,6 +1758,102 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("D61-4 — INPUT_OVERALL carries the parent charter the spec's `program:` names", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      // A phase-spec names its parent program via `program:`; the fixture's overall
+      // (`x-overall`) is on disk, so the spec-line review carries the charter path
+      // beside INPUT_SPEC — both on the one repoRoot-relative basis.
+      const spec = conformingSpec(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["review", "--type", "spec", "--spec", spec]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const prompt =
+        sync.calls[sync.calls.length - 1]!.args[sync.calls[sync.calls.length - 1]!.args.length - 1];
+      expect(prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
+      expect(prompt).toContain("- `INPUT_OVERALL`: docs/kairos/specs/x-overall.md");
+      // the shared review fixed prefix names the token's existence condition
+      expect(prompt).toContain("the parent charter at `INPUT_OVERALL`");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("D61-4 — a single-spec names no `program:`: the INPUT_OVERALL line is dropped", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      // A doc-contract-clean single-spec — the independent document class that names
+      // no parent overall (no `program:` key), so the slot stays empty.
+      const file = path.join(repoRoot, "docs", "kairos", "specs", "ss1-design.md");
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(
+        file,
+        [
+          "---",
+          "title: Test Single Spec",
+          "doc-type: single-spec",
+          "version: v1.0",
+          "date: 2026-10-09",
+          "slug: ss1",
+          "status: Draft",
+          "author: x",
+          "---",
+          "",
+          "## Background & root cause",
+          "",
+          "Text.",
+          "",
+          "## Design decisions",
+          "",
+          "Text.",
+          "",
+          "## Acceptance",
+          "",
+          "Text.",
+          "",
+          "## Constraints",
+          "",
+          "Text.",
+          "",
+          "## Change history",
+          "",
+          "| Version | date | summary | author |",
+          "|---|---|---|---|",
+          "| v1.0 | 2026-10-09 | initial | [human] |",
+        ].join("\n"),
+        "utf8",
+      );
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["review", "--type", "spec", "--spec", file]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const prompt =
+        sync.calls[sync.calls.length - 1]!.args[sync.calls[sync.calls.length - 1]!.args.length - 1];
+      expect(prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/ss1-design.md");
+      // empty slot → the assembler drops the line (only present facts land)
+      expect(prompt).not.toContain("- `INPUT_OVERALL`");
+      // the fixed prefix still names the existence condition
+      expect(prompt).toContain("the parent charter at `INPUT_OVERALL`");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("D46 — INPUT_SPEC is resolved to a repoRoot-relative token from the plan's same-slug identity document", async () => {
     const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";

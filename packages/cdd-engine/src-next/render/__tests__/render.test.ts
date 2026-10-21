@@ -15,7 +15,7 @@ import { TerminationPolicy } from "../../face/termination.ts";
 import { Words } from "../../face/words.ts";
 import { BriefRenderer } from "../brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
-import { TEMPLATE_PROMPT, TemplateAssembler } from "../templates.ts";
+import { REVIEWS, TEMPLATE_PROMPT, TemplateAssembler } from "../templates.ts";
 
 /** The full per-dispatch slot values — every declared template token (the v1.8
  *  INPUT_/OUTPUT_/WORKSPACE_/BASE_BRANCH/ROLE/WAVE vocabulary), optional slots
@@ -29,6 +29,7 @@ const ALL_VALUES: Record<string, string> = {
   INPUT_REVIEWS: "",
   INPUT_PLAN: "",
   INPUT_SPEC: "",
+  INPUT_OVERALL: "",
   BASE_BRANCH: "",
   OUTPUT_REPORT: "/ws/tasks-4,12-implement-report.md",
   OUTPUT_EVIDENCE: "/ws/tasks-4,12-test-evidence.json",
@@ -56,6 +57,13 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // resurrected as the semantic plan-doc anchor (the kind-named round context)
     expect(assembler.declaredTokens()).not.toContain("INPUT_RANGE");
     expect(assembler.declaredTokens()).toContain("INPUT_PLAN");
+    expect(assembler.declaredTokens()).toContain("INPUT_OVERALL");
+    // D61-4 — the four review legs share REVIEW_CONTEXT; fix / docs-fix declare the
+    // same slot beside INPUT_SPEC (implement carries no spec anchor, so no slot)
+    for (const mode of ["fix", "docs-fix"] as const) {
+      expect(TEMPLATE_PROMPT.modes[mode].roundContext.join("\n")).toContain("{{INPUT_OVERALL}}");
+    }
+    expect(TEMPLATE_PROMPT.modes.implement.roundContext.join("\n")).not.toContain("INPUT_OVERALL");
     expect(assembler.declaredTokens()).not.toContain("FIX_BASE");
     expect(assembler.declaredTokens()).not.toContain("OUTPUT_BRIEF");
     expect(assembler.declaredTokens()).not.toContain("INPUT_CRITERIA");
@@ -126,10 +134,13 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ...ALL_VALUES,
       ROLE: "docs-fix",
       INPUT_SPEC: "docs/x-design.md",
+      INPUT_OVERALL: "docs/kairos/overalls/x-overall.md",
     });
     expect(out.startsWith("# CDD dispatch — docs-fix round")).toBe(true);
     expect(out).toContain("apply `INPUT_REVIEWS` (all severities) directly to the judged doc");
     expect(out).toContain("- `INPUT_SPEC`: docs/x-design.md");
+    // D61-4 — the docs-fix round context declares the parent charter slot too
+    expect(out).toContain("- `INPUT_OVERALL`: docs/kairos/overalls/x-overall.md");
     expect(out).not.toContain("BASE_BRANCH");
     // the review-only keys stay out of the docs-fix context
     expect(out).not.toContain("INPUT_CRITERIA");
@@ -174,8 +185,11 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       ...ALL_VALUES,
       ROLE: "fix",
       INPUT_REVIEWS: "/ws/tasks-1-review-1.json",
+      INPUT_OVERALL: "docs/kairos/overalls/x-overall.md",
     });
     expect(out.startsWith("# CDD dispatch — fix round")).toBe(true);
+    // D61-4 — the fix round context declares the parent charter slot too
+    expect(out).toContain("- `INPUT_OVERALL`: docs/kairos/overalls/x-overall.md");
     // verify-then-apply — the receiving-code-review core: VERIFY each finding
     // against the codebase's actual state, apply only what is technically sound
     expect(out).toContain("technically sound");
@@ -235,6 +249,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       REVIEW_TYPE: "spec",
       INPUT_WAVE_BRIEF: "",
       INPUT_SPEC: "docs/kairos/specs/s1-design.md",
+      INPUT_OVERALL: "docs/kairos/overalls/s1-overall.md",
       OUTPUT_HANDOFF: "/ws/spec-review-1.json",
     });
     expect(spec.startsWith("# CDD dispatch — review round")).toBe(true);
@@ -251,6 +266,17 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(spec).toContain("nothing set aside is dropped silently");
     expect(spec).toContain("accurate praise earns the rest of the report trust");
     expect(spec).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
+    // D61-4 — the parent charter the spec's `program:` names rides the same round
+    // context (INPUT_OVERALL mirrors INPUT_SPEC; the spec face carries it)
+    expect(spec).toContain("- `INPUT_OVERALL`: docs/kairos/overalls/s1-overall.md");
+    // the shared REVIEW_ITEM half-sentence names the token's existence condition, so
+    // an empty slot reads "no parent charter", never "not applicable"
+    expect(spec).toContain("the parent charter at `INPUT_OVERALL`");
+    // D61-5 — the spec axis carries its program conformance criterion (the phase
+    // judged against its charter's registered Phase inventory), lens set unchanged
+    expect(REVIEWS.spec.axesGuide).toContain("program conformance");
+    expect(REVIEWS.spec.axesGuide).toContain("INPUT_OVERALL");
+    expect(REVIEWS.spec.lensEnum).toEqual(["completeness", "consistency", "clarity"]);
     expect(spec).not.toContain("- `INPUT_PLAN`");
     expect(spec).not.toContain("- `INPUT_WAVE_BRIEF`");
     expect(spec).not.toContain("- `INPUT_REVIEWS`");
@@ -273,6 +299,10 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(task).toContain("standards | spec | buildability");
     expect(task).toContain("- `INPUT_WAVE_BRIEF`: /ws/tasks-4,12-brief.md");
     expect(task).toContain("- `BASE_BRANCH`: develop");
+    // the wave face carries no `program:` spec — the INPUT_OVERALL slot is empty
+    // and dropped (the fixed-prefix half-sentence still names the condition)
+    expect(task).not.toContain("- `INPUT_OVERALL`");
+    expect(task).toContain("the parent charter at `INPUT_OVERALL`");
     expect(task).not.toContain("Follow URC");
     expect(task).not.toContain("Claimed→pin"); // the task axes carry no clause
     // P16/D60 — the read-only discipline names its boundary (the review's only
@@ -303,6 +333,10 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(branch).toContain("- `INPUT_PLAN`: docs/kairos/plans/p.md");
     expect(branch).toContain("- `INPUT_SPEC`: docs/kairos/specs/p-design.md");
     expect(branch).toContain("- `BASE_BRANCH`: develop");
+    // the shared REVIEW_ITEM names the INPUT_OVERALL existence condition on every
+    // review leg; the leg's own slot stays empty when its spec names no program
+    expect(branch).toContain("the parent charter at `INPUT_OVERALL`");
+    expect(branch).not.toContain("- `INPUT_OVERALL`");
     // P16/D60 — the branch axis carries the three judgment points; the single-agent
     // fact does not ride the axis guide (it lives in the shared REVIEW_ITEM)
     expect(branch).toContain("**Read-only:**");
@@ -330,12 +364,14 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // reviewer judges the plan against the spec it implements
     expect(plan).toContain("- `INPUT_PLAN`: docs/kairos/plans/p.md");
     expect(plan).toContain("- `INPUT_SPEC`: docs/kairos/specs/p-design.md");
+    expect(plan).toContain("the parent charter at `INPUT_OVERALL`");
+    expect(plan).not.toContain("- `INPUT_OVERALL`");
     // P16/D60 — the plan variant carries the shared two-discipline prefix too
     expect(plan).toContain("**Read-only:**");
     expect(plan).toContain("**Single agent:**");
     // the template contract's version tracks the fixed-prefix text (P16/D60: 12 → 13;
     // the sync-completion rewrite: 13 → 14)
-    expect(TEMPLATE_PROMPT.$version).toBe(14);
+    expect(TEMPLATE_PROMPT.$version).toBe(15);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)
@@ -348,6 +384,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     });
     expect(wave).not.toContain("- `INPUT_PLAN`");
     expect(wave).not.toContain("- `INPUT_SPEC`");
+    expect(wave).not.toContain("- `INPUT_OVERALL`");
   });
 
   it("P14 — the sync-completion clause lands identically on implement / review / fix shells (single LICENSE_ITEMS source)", () => {

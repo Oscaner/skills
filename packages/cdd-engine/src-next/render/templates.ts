@@ -221,7 +221,7 @@ const DOCS_FIX_SHELL: readonly string[] = [
 /** The review variants' shared instruction text — the review's mode rule (the
  *  criteria body + the lens vocabulary ride per-type fixed items below). */
 const REVIEW_ITEM =
-  "**review:** review the criteria below against the reference face named in the round context. Wave reviews judge `INPUT_WAVE_BRIEF` (the complete plan mirror); the plan/branch reviews judge the plan at `INPUT_PLAN`, the spec review judges the spec at `INPUT_SPEC`. Write findings into the draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them); empty `findings` = approved. The engine derives the conclusion from the draft's findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status. **Read-only:** never mutate tracked content, the index, HEAD, or branch state — the prescribed `OUTPUT_*` artifacts are a review's only writes, and committing belongs to the orchestrator — read history through `git show` / `git diff` / `git log`, and inspect another revision in a separate directory rather than moving HEAD here; repairs belong to the fix round, never to a review. **Single agent:** do the whole review yourself — never spawn a subagent for part of the diff or for a second opinion; this overrides any dispatched skill's parallel-sub-agent default.";
+  "**review:** review the criteria below against the reference face named in the round context. Wave reviews judge `INPUT_WAVE_BRIEF` (the complete plan mirror); the plan/branch reviews judge the plan at `INPUT_PLAN`, the spec review judges the spec at `INPUT_SPEC`, and a face whose spec carries a `program:` also carries the parent charter at `INPUT_OVERALL`. Write findings into the draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them); empty `findings` = approved. The engine derives the conclusion from the draft's findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status. **Read-only:** never mutate tracked content, the index, HEAD, or branch state — the prescribed `OUTPUT_*` artifacts are a review's only writes, and committing belongs to the orchestrator — read history through `git show` / `git diff` / `git log`, and inspect another revision in a separate directory rather than moving HEAD here; repairs belong to the fix round, never to a review. **Single agent:** do the whole review yourself — never spawn a subagent for part of the diff or for a second opinion; this overrides any dispatched skill's parallel-sub-agent default.";
 
 /** The review mode's shared reduced tail — the only dynamic region of every review
  *  variant (the criteria/lens are fixed-prefix per type, never here). Each review
@@ -236,6 +236,7 @@ const REVIEW_CONTEXT: readonly string[] = [
   "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
   "- `INPUT_PLAN`: {{INPUT_PLAN}}",
   "- `INPUT_SPEC`: {{INPUT_SPEC}}",
+  "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
   "- `BASE_BRANCH`: {{BASE_BRANCH}}",
   "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
   "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -275,6 +276,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
       "- `INPUT_PLAN`: {{INPUT_PLAN}}",
       "- `INPUT_SPEC`: {{INPUT_SPEC}}",
+      "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
       "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
@@ -293,6 +295,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `WAVE`: {{WAVE}}",
       "- `INPUT_PLAN`: {{INPUT_PLAN}}",
       "- `INPUT_SPEC`: {{INPUT_SPEC}}",
+      "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
       "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -319,7 +322,7 @@ export const REVIEWS = {
   spec: {
     lensEnum: ["completeness", "consistency", "clarity"],
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + The reviewed spec is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable downstream author would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
+      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at `INPUT_OVERALL` (the charter its `program:` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding + The reviewed spec is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable downstream author would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
@@ -435,6 +438,7 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "HANDOFF_SCHEMA", zone: "shell" },
   { name: "INPUT_PLAN", zone: "round-context" },
   { name: "INPUT_SPEC", zone: "round-context" },
+  { name: "INPUT_OVERALL", zone: "round-context" },
   { name: "INPUT_REVIEWS", zone: "round-context" },
   { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
   // find #5 — the prescribed artifact write paths (the {family}-{key}-{artifact}
@@ -470,7 +474,11 @@ export const CLAUSES = {
     "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 14
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 15
+ *  carries the `INPUT_OVERALL` read face (the parent charter a spec's `program:`
+ *  names, mirroring `INPUT_SPEC` — a face without `program:` drops the slot) and
+ *  adds the spec axis's program-scope conformance criterion (the phase judged against
+ *  the scope its charter's Phase inventory registered for it). $version 14
  *  rewrites the sync-completion clause to name the one-shot fact (ending your turn with
  *  work still running exits the process — the work and the handoff die with it) and the
  *  subagent class (a background subagent is a yield-and-wait path, exactly like a
@@ -489,7 +497,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 14,
+  $version: 15,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

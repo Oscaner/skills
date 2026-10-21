@@ -75,6 +75,12 @@ export interface DispatchScene {
    *  read input (a plan review judges the plan against its spec). Null off the plan
    *  scene (the slot stays empty and the assembler drops it). */
   specLink?: string | null;
+  /** The parent charter the spec's `program:` names (the same-slug overall's
+   *  repoRoot-relative path) — the review/fix round context's extra read input
+   *  (the spec-scope reviewer judges the phase against its charter). Null when the
+   *  line's spec carries no `program:` (the slot stays empty and the assembler
+   *  drops it). */
+  overallLink?: string | null;
 }
 
 /**
@@ -332,6 +338,14 @@ export class CliLifecycle {
           : frame.type === "plan" || frame.type === "branch"
             ? this.#rel(scene.specLink ?? "")
             : "",
+      // The parent charter of the spec the face reads (INPUT_OVERALL) — the same
+      // value condition as INPUT_SPEC, one face (spec = its own `program:`; plan/
+      // branch = the same-slug identity doc's `program:`); empty off those faces and
+      // when the spec names no program (the assembler drops the empty slot).
+      INPUT_OVERALL:
+        frame.type === "spec" || frame.type === "plan" || frame.type === "branch"
+          ? this.#rel(scene.overallLink ?? "")
+          : "",
       // The branch/wave tree-review scope anchor (BASE_BRANCH) — engine-injected
       // from the base artifact at dispatch; empty off those faces (spec/plan reviews
       // carry none, and the empty slot is dropped by the assembler).

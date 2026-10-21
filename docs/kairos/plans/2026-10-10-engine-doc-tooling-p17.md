@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P17 实施计划：文档类别面收口（doc-type `overall` · `overalls/` 第三 doc root · 评审读面 `INPUT_OVERALL`）
 doc-type: plan
-version: v0.5
+version: v0.6
 date: 2026-10-21
 slug: 2026-10-10-engine-doc-tooling-p17
 base: develop
@@ -124,3 +124,4 @@ base: develop
 | v0.3 | 2026-10-21 | **范围扩并（用户裁定 · I4 mid-flight backfill）**：Task 3 波次闭合后由用户裁定把「承载面统一」并入 P17（原拟 P18），phase-spec 同步升 v0.3（§3 · D62-1..D62-8）。新增 **Task 4**（一份 `CARRIER` 声明 + `#writable(plane)` + `planeOf(op)` 派生 · `HandoffFamily` 退化 · 证据门按 scope · 文档修复获得 `status` · `failure_category` 删除 · 两份前缀逐字改写 · `$version` 15 → 16，单原子提交，DependsOn 1,2）与 **Task 5**（changeset 正文补 D62 段 + 全量 validate + 归因，DependsOn 4；Task 3 的 changeset 基线保留）。Constraints 的「冻结面」「文本逐字取 spec」「契约版本随文本走」三条随之修订（`handoff-schema.ts` 的载体形状解冻、文本源扩到 §3.8、版本线两段化） | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定并入）|
 | v0.4 | 2026-10-21 | **波次分解修正**：Task 4 的 `DependsOn` 由 `1, 2` 改为 `1, 2, 3`。原声明把 Task 3 与 Task 4 放进同一个静态批次（`graph.batches()` 的 wave2），而两者的提交纪律互斥——Task 3 要求「diff 只含 changeset 文件」，Task 4 要求「单原子提交」。运行期门没暴露它（`WaveGate.vet` 读的是动态前沿 `frontier(closedWaves())`，Task 4 派发时 T3 已作为行 `"3"` 闭合，前沿只剩 `[4]`），但整份 plan 从头跑一遍必然在 wave2 自相矛盾。改后静态批次为 `{1} {2} {3} {4} {5} {6}`，与真实执行序一致。**同批并入 hotfix（用户裁定）**：新增 **Task 5 = 波门静态批次守卫（D63）**——`WaveGate.vet` 在 exact 判定前先判静态批次，开闭混合 → `mixed-batch` BLOCK（phase-spec v0.4 §4），`DependsOn: 4`；原 Task 5（changeset 刷新）顺延为 **Task 6**，`DependsOn: 4, 5`（Task 6 尚未派发过，重编号无账本残留） | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定并入）|
 | v0.5 | 2026-10-21 | **Task 5 Files 缝修正（tasks-5 review-1 nit · 编排器 I3 直改）**：落地多出一个文件 `session/preflight.ts`——`PreFlightReason` 原手抄了 `WaveGateReason` 的两个成员，新增 `mixed-batch` 会破 typecheck，实现方改为从 `WaveGateReason` 派生（一事实一处）。Task 5 的 Files 列表与 Step 5 的 `git show --stat HEAD` 校验随之补入该文件；**零代码改动** | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定 hotfix）|
+| v0.6 | 2026-10-22 | **closeout（cdd-close）**：P17 全链闭合——六任务六波全绿（W1 `115714b0` · W2 `bdd0c1c6` · W3 `6926baab` · W4 `e869714e` + wave-fix `9b8e7e72`（死 `ConfigLoader` 缝）· W5 `f07fcc04` · W6 `6e72cd86` + wave-fix `5e46c064`（`overall` 键点访问）· 各波评审 APPROVED）· 分支终审 branch-review-1 **REVIEW_FIX**（1 nit：changeset 的 legacy-path 承诺超出引擎行为——三根均匀扫描、身份只看 front-matter）→ branch-fix-1 APPROVED（`1ebcf3f0`）· `pnpm run validate` exit 0（cdd-engine 44 files/815 tests · kairos 87/87 · root 10/10 · typecheck ×3 · emit-check fresh · version-sync kairos 1.1.2 / cdd-engine 3.1.0 · 零裸函数零命中）· changeset cdd-engine **major** + kairos **minor** pending（`.changeset/p17-overall-doc-class.md`）· 不发布 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill）|

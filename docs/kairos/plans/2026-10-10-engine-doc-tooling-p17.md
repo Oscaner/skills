@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P17 实施计划：文档类别面收口（doc-type `overall` · `overalls/` 第三 doc root · 评审读面 `INPUT_OVERALL`）
 doc-type: plan
-version: v0.4
+version: v0.5
 date: 2026-10-21
 slug: 2026-10-10-engine-doc-tooling-p17
 base: develop
@@ -89,7 +89,7 @@ base: develop
 ### Task 5: 波门静态批次守卫（D63 · hotfix）
 
 - **Objective**: `WaveGate.vet` 在 exact 判定**之前**先判静态批次——`TaskGraph.batches()` 中任一被 `--tasks` 命中的批次若同时含已闭合与未闭合任务，返回新的 `mixed-batch` BLOCK（不进入 phase 判定）；报文走词表新增行（`WaveGateReason` + `WaveGateWords.mixedBatch`）。该守卫与 Task 4 的 `DependsOn` 收起配套：后者消灭已发生的混合态，前者防复发。
-- **Files**: Modify `packages/cdd-engine/src-next/session/wave.ts`（`WaveGateReason` `:32` 增 `"mixed-batch"`；`vet` `:70-113` 增批次判定，位置先于 `exact`；类头注 `:9-21` 补第三判定；`WaveVerdict` 注释 `:44-59`）· `face/words.ts`（`WaveGateWords` `:72-77` 增 `mixedBatch`；`CAPSULE_WORDS.waveGate` `:141-145` 增行）；Test `packages/cdd-engine/src-next/session/__tests__/wave.test.ts`（两用例）。
+- **Files**: Modify `packages/cdd-engine/src-next/session/wave.ts`（`WaveGateReason` `:32` 增 `"mixed-batch"`；`vet` `:70-113` 增批次判定，位置先于 `exact`；类头注 `:9-21` 补第三判定；`WaveVerdict` 注释 `:44-59`）· `face/words.ts`（`WaveGateWords` `:72-77` 增 `mixedBatch`；`CAPSULE_WORDS.waveGate` `:141-145` 增行）· `session/preflight.ts`（`PreFlightReason` 的 wave 侧成员改为从 `WaveGateReason` 派生——一事实一处，新增门类不再手抄第二份联合）；Test `packages/cdd-engine/src-next/session/__tests__/wave.test.ts`（两用例）。
 - **Consumes**: phase-spec v0.4 §4 的报文文本（逐字落盘）。
 - **Produces**: `mixed-batch` BLOCK 面（reason 枚举成员 · 词表行 · 两 pin）。
 - **Steps**:
@@ -97,7 +97,7 @@ base: develop
   - 改 `wave.ts`：取 `graph.batches().find((b) => b.some((id) => requested.has(id)))`；混合判定 `batch !== undefined && batch.some((id) => closed.has(id)) && batch.some((id) => !closed.has(id))`；命中即返回（**先于** `exact`）— checkable: 上一步转绿
   - 改 `words.ts`：`WaveGateWords` 增 `mixedBatch`，`CAPSULE_WORDS.waveGate` 增行（逐字取 spec §4）— checkable: `grep -c "mixes closed and open tasks" packages/cdd-engine/src-next/face/words.ts` 输出 `1`
   - 跑引擎套件 — checkable: `pnpm -C packages/cdd-engine test` 全绿
-  - 提交（`fix(cdd-engine): block a dispatch that mixes closed and open tasks in one derived batch`） — checkable: `git log --oneline -1` 单原子提交，`git show --stat HEAD` 只含 `wave.ts` / `words.ts` / `wave.test.ts`
+  - 提交（`fix(cdd-engine): block a dispatch that mixes closed and open tasks in one derived batch`） — checkable: `git log --oneline -1` 单原子提交，`git show --stat HEAD` 只含 `wave.ts` / `words.ts` / `wave.test.ts` / `preflight.ts`
 - **Acceptance**: 静态批次开闭混合 → `mixed-batch` BLOCK（先于 split / wrong-phase）· 整批开放照常放行 · 未入批任务不触发（仍走 `split` 面）· 报文点名批次 + 两侧成员且逐字取 spec §4 · `pnpm -C packages/cdd-engine test` 全绿 · 单原子提交。
 - **DependsOn**: 4
 
@@ -123,3 +123,4 @@ base: develop
 | v0.2 | 2026-10-21 | **plan-fix-1（review-1 findings 收口 · 4 warn + 5 nit）**：① warn——`.github/workflows/release.yml:65` 的 packed-tarball smoke 随值更替入 Task 1 消费面与零残留 grep、入 Task 3 归因集；② warn——`cdd-spec-writer/SKILL.md:36` 落地目录改变体感知（overall → `docs/kairos/overalls/`、phase/single → `docs/kairos/specs/`），并加 `overalls` 路径 pin；③ warn——`slug-index.test.ts:291-296` 补 overalls 三根覆盖（`insideDocRoots` 与 `build` fixture、"either doc root" 改题）；④ warn——`overallLink` 定可选性（`DispatchScene` 可选 / `WorkScene` 必填）、补 `face/cli.ts:911-923` 返回字面量、写明 `preview.test.ts` 零改；⑤ nit——`invariants.ts:1076`/`:1106` 两处示例路径注释手工随迁 + checkable；⑥ nit——`render.test.ts:338` pin 由 14 改 15（非新增）且 `ALL_VALUES` 增 `INPUT_OVERALL`；⑦ nit——补三条断言（fix/docs-fix 声明、四腿 `REVIEW_ITEM`、`axesGuide` 的 token）；⑧ nit——撤销 `PATH_TOKENS` 8→9（implement 不产该 token）；⑨ nit——stale「two/both doc roots」注释四行入 Task 1 注释清扫 | Oscaner M. · Claude（kairos:cdd-plan [P17] plan-fix-1）|
 | v0.3 | 2026-10-21 | **范围扩并（用户裁定 · I4 mid-flight backfill）**：Task 3 波次闭合后由用户裁定把「承载面统一」并入 P17（原拟 P18），phase-spec 同步升 v0.3（§3 · D62-1..D62-8）。新增 **Task 4**（一份 `CARRIER` 声明 + `#writable(plane)` + `planeOf(op)` 派生 · `HandoffFamily` 退化 · 证据门按 scope · 文档修复获得 `status` · `failure_category` 删除 · 两份前缀逐字改写 · `$version` 15 → 16，单原子提交，DependsOn 1,2）与 **Task 5**（changeset 正文补 D62 段 + 全量 validate + 归因，DependsOn 4；Task 3 的 changeset 基线保留）。Constraints 的「冻结面」「文本逐字取 spec」「契约版本随文本走」三条随之修订（`handoff-schema.ts` 的载体形状解冻、文本源扩到 §3.8、版本线两段化） | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定并入）|
 | v0.4 | 2026-10-21 | **波次分解修正**：Task 4 的 `DependsOn` 由 `1, 2` 改为 `1, 2, 3`。原声明把 Task 3 与 Task 4 放进同一个静态批次（`graph.batches()` 的 wave2），而两者的提交纪律互斥——Task 3 要求「diff 只含 changeset 文件」，Task 4 要求「单原子提交」。运行期门没暴露它（`WaveGate.vet` 读的是动态前沿 `frontier(closedWaves())`，Task 4 派发时 T3 已作为行 `"3"` 闭合，前沿只剩 `[4]`），但整份 plan 从头跑一遍必然在 wave2 自相矛盾。改后静态批次为 `{1} {2} {3} {4} {5} {6}`，与真实执行序一致。**同批并入 hotfix（用户裁定）**：新增 **Task 5 = 波门静态批次守卫（D63）**——`WaveGate.vet` 在 exact 判定前先判静态批次，开闭混合 → `mixed-batch` BLOCK（phase-spec v0.4 §4），`DependsOn: 4`；原 Task 5（changeset 刷新）顺延为 **Task 6**，`DependsOn: 4, 5`（Task 6 尚未派发过，重编号无账本残留） | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定并入）|
+| v0.5 | 2026-10-21 | **Task 5 Files 缝修正（tasks-5 review-1 nit · 编排器 I3 直改）**：落地多出一个文件 `session/preflight.ts`——`PreFlightReason` 原手抄了 `WaveGateReason` 的两个成员，新增 `mixed-batch` 会破 typecheck，实现方改为从 `WaveGateReason` 派生（一事实一处）。Task 5 的 Files 列表与 Step 5 的 `git show --stat HEAD` 校验随之补入该文件；**零代码改动** | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定 hotfix）|

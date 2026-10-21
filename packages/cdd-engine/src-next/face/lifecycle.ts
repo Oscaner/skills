@@ -17,7 +17,6 @@
 
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
-import type { ConfigLoader } from "../infra/config.ts";
 import type { RepoRoot } from "../infra/root.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
@@ -119,7 +118,6 @@ export class CliLifecycle {
   constructor(opts: {
     env?: ProcessEnvLike;
     sync?: ChildRunner;
-    config?: ConfigLoader;
     template?: TemplateAssembler;
     io?: CliIo;
     scene: DispatchScene;

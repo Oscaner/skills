@@ -741,7 +741,6 @@ export class Cli {
     const harness = new CliLifecycle({
       env: process.env,
       sync: this.#sync,
-      config: this.#config,
       template: this.#template,
       io: this.#io,
       words: this.#words,

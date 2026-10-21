@@ -151,7 +151,7 @@ export interface ChainRoot {
 
 /** The overall parse record — the four tables, the graph edges and the chain root. */
 export interface OverallParsed {
-  docType: "overall-spec";
+  docType: "overall";
   /** The document's front-matter head — the typed head record (the §2.3 key set),
    *  or null when parsed without one (every producer that reads the chain face MUST
    *  parse dual-param — a head-less parse reads a null chain root). */
@@ -547,7 +547,7 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
  * graph, and exposes the Phase-inventory rows as the chain's anchor set.
  */
 export class OverallDocType extends DocType<OverallParsed> {
-  readonly docTypeName = "overall-spec" as const;
+  readonly docTypeName = "overall" as const;
 
   parse(lines: readonly string[], head: FrontMatterHead | null = null): OverallParsed {
     const title = head?.title ?? "";
@@ -562,14 +562,14 @@ export class OverallDocType extends DocType<OverallParsed> {
     const graphEdges = this.#graphEdges(sections);
     const phases = this.#phaseRows(tables["Phase inventory"]);
     return {
-      docType: "overall-spec",
+      docType: "overall",
       head,
       title,
       sections,
       tables,
       graphEdges,
       chain: {
-        docType: "overall-spec",
+        docType: "overall",
         programLink: null,
         parentTokens: [],
         phases,
@@ -799,7 +799,7 @@ export class SingleSpecDocType extends DocType<SingleSpecParsed> {
 
 /** The composed doc-type parsers — the judge's ctx-loading parsers (one per doc key). */
 export const docTypeParsers: Record<DocKey, DocType<ParsedDoc>> = {
-  "overall-spec": new OverallDocType("overall-spec"),
+  overall: new OverallDocType("overall"),
   plan: new PlanDocType("plan"),
   "phase-spec": new PhaseSpecDocType("phase-spec"),
   "single-spec": new SingleSpecDocType("single-spec"),

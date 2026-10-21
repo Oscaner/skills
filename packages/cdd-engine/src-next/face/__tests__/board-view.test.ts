@@ -94,7 +94,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -138,7 +138,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -203,7 +203,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -235,7 +235,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -278,7 +278,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -324,7 +324,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -362,7 +362,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -427,7 +427,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -518,7 +518,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -608,7 +608,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -639,7 +639,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -677,7 +677,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -712,7 +712,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -749,7 +749,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -781,7 +781,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "---",
       "title: O",
       "version: v2.33",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -849,7 +849,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -879,7 +879,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -905,7 +905,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);

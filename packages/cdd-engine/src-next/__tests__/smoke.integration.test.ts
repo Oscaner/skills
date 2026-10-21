@@ -74,7 +74,7 @@ const fixtureOverall = (): string =>
   [
     "---",
     "title: Fixture Overall",
-    "doc-type: overall-spec",
+    "doc-type: overall",
     "version: v1.0",
     "date: 2026-10-09",
     "slug: fixture-overall",

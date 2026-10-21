@@ -154,7 +154,7 @@ const LICENSE_ITEMS: readonly string[] = [
 ];
 
 /** The `## Handoff schema` section — the injected writable-subset fence at every
- *  shell's tail (the {{HANDOFF_SCHEMA}} slot; the face's sets differ per mode, so
+ *  shell's tail (the {{HANDOFF_SCHEMA}} slot; the plane's sets differ per mode, so
  *  the section's bytes are fixed per mode — §3.5 prefix-cache grouping). */
 const SCHEMA_SECTION: readonly string[] = ["", "## Handoff schema", "", "{{HANDOFF_SCHEMA}}"];
 
@@ -165,7 +165,7 @@ const IMPLEMENT_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  `**implement:** read \`INPUT_WAVE_BRIEF\` (the complete plan mirror — every \`### Task N:\` of the wave + the plan's \`## Constraints\` section, fresh-extracted at dispatch). \`WAVE\` = this round's wave (the task list); implement ALL tasks of the wave, never a subset. \`CONFIRMED_SEAMS\` in the brief → apply as-is; else propose test boundaries in the report, then invoke **\`${DISPATCH.implement}\`**. Write the handoff draft at \`OUTPUT_HANDOFF\` per \`## Handoff schema\` BEFORE the return block: \`status\` (APPROVED once applied, else BLOCKED + \`failure_category\`) and \`artifacts\` (the prescribed \`OUTPUT_REPORT\`/\`OUTPUT_EVIDENCE\` paths from the round context — the \`{family}-{key}-\` canonical names, zero free naming).`,
+  `**implement:** read \`INPUT_WAVE_BRIEF\` (the complete plan mirror — every \`### Task N:\` of the wave + the plan's \`## Constraints\` section, fresh-extracted at dispatch). \`WAVE\` = this round's wave (the task list); implement ALL tasks of the wave, never a subset. \`CONFIRMED_SEAMS\` in the brief → apply as-is; else propose test boundaries in the report, then invoke **\`${DISPATCH.implement}\`**. Write the handoff draft at \`OUTPUT_HANDOFF\` per \`## Handoff schema\` BEFORE the return block: \`status\` (APPROVED once applied, else BLOCKED + the reason in \`notes\`) and \`artifacts\` (the prescribed \`OUTPUT_REPORT\`/\`OUTPUT_EVIDENCE\` paths from the round context — the \`{family}-{key}-\` canonical names, zero free naming).`,
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
   ...SCHEMA_SECTION,
@@ -188,7 +188,7 @@ const FIX_SHELL: readonly string[] = [
   "**fix:** read `INPUT_REVIEWS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_PLAN` on the plan/branch lines — the plan document; `INPUT_SPEC` on the spec line — the spec document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_REVIEWS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
-  // T5 (v0.3) — The delivery face's ONE strict-schema sentence: every top-level draft
+  // T5 (v0.3) — The work plane's ONE strict-schema sentence: every top-level draft
   // field comes from the `## Handoff schema` declared properties (the fields'
   // single source is the injected fence below — never a second enumeration in the
   // shell prose; a fix child that mirrors the source review carrier's top-level
@@ -199,29 +199,26 @@ const FIX_SHELL: readonly string[] = [
 ];
 
 /** The docs-fix row's fixed prefix — header + instructions (no evidence — the
- *  docs-fix face writes no evidence file). */
+ *  docs-fix round writes no evidence file). */
 const DOCS_FIX_SHELL: readonly string[] = [
   "# CDD dispatch — docs-fix round",
   "",
   "## Instructions",
   "",
   ...FRAME_ITEMS,
-  "**docs-fix:** apply `INPUT_REVIEWS` (all severities) directly to the judged doc — `INPUT_PLAN` on a plan-doc line, `INPUT_SPEC` on a spec-doc line — removing fixed findings; record the path in `artifacts.doc`; empty `findings` = all fixed. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema`; the engine derives the conclusion from the residual findings; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  "**docs-fix:** apply `INPUT_REVIEWS` (all severities) directly to the judged doc — `INPUT_PLAN` on a plan-doc line, `INPUT_SPEC` on a spec-doc line — removing fixed findings; record the path in `artifacts.doc` and report the round in `status` (APPROVED once every finding is applied, else BLOCKED + the reason in `notes`). Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; retry = full re-run (idempotent).",
   ...LICENSE_ITEMS,
-  // T5 (v0.3) — The findings face's ONE strict-schema sentence: same schema-first
-  // directive as the work shell, naming the required `findings` (carried over from
-  // the source review carrier verbatim — the required key is told how to fill, so
-  // the sentence never contradicts the findings carrier's own required gate; the
-  // work shell's field list is never copied here, and no field enumeration rides
-  // the findings shell's prose either).
-  "**Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — `findings` (required) rides over from `INPUT_REVIEWS` verbatim, unmodified; the declaration is the field source, zero extra keys.",
+  // The generic strict-schema sentence — the SAME one the work shells carry: the
+  // injected declaration is the draft's single field source, zero per-mode field
+  // enumeration in the shell prose.
+  "**Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — the declaration is the field source, zero extra keys.",
   ...SCHEMA_SECTION,
 ];
 
 /** The review variants' shared instruction text — the review's mode rule (the
  *  criteria body + the lens vocabulary ride per-type fixed items below). */
 const REVIEW_ITEM =
-  "**review:** review the criteria below against the reference face named in the round context. Wave reviews judge `INPUT_WAVE_BRIEF` (the complete plan mirror); the plan/branch reviews judge the plan at `INPUT_PLAN`, the spec review judges the spec at `INPUT_SPEC`. Write findings into the draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them); empty `findings` = approved. The engine derives the conclusion from the draft's findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status. **Read-only:** never mutate tracked content, the index, HEAD, or branch state — the prescribed `OUTPUT_*` artifacts are a review's only writes, and committing belongs to the orchestrator — read history through `git show` / `git diff` / `git log`, and inspect another revision in a separate directory rather than moving HEAD here; repairs belong to the fix round, never to a review. **Single agent:** do the whole review yourself — never spawn a subagent for part of the diff or for a second opinion; this overrides any dispatched skill's parallel-sub-agent default.";
+  "**review:** review the criteria below against the reference face named in the round context. Wave reviews judge `INPUT_WAVE_BRIEF` (the complete plan mirror); the plan/branch reviews judge the plan at `INPUT_PLAN`, the spec review judges the spec at `INPUT_SPEC`, and a face whose spec carries a `program:` also carries the parent charter at `INPUT_OVERALL`. Write findings into the draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them); empty `findings` = approved. The engine derives the conclusion from the draft's findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status. **Read-only:** never mutate tracked content, the index, HEAD, or branch state — the prescribed `OUTPUT_*` artifacts are a review's only writes, and committing belongs to the orchestrator — read history through `git show` / `git diff` / `git log`, and inspect another revision in a separate directory rather than moving HEAD here; repairs belong to the fix round, never to a review. **Single agent:** do the whole review yourself — never spawn a subagent for part of the diff or for a second opinion; this overrides any dispatched skill's parallel-sub-agent default.";
 
 /** The review mode's shared reduced tail — the only dynamic region of every review
  *  variant (the criteria/lens are fixed-prefix per type, never here). Each review
@@ -236,6 +233,7 @@ const REVIEW_CONTEXT: readonly string[] = [
   "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
   "- `INPUT_PLAN`: {{INPUT_PLAN}}",
   "- `INPUT_SPEC`: {{INPUT_SPEC}}",
+  "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
   "- `BASE_BRANCH`: {{BASE_BRANCH}}",
   "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
   "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -275,6 +273,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
       "- `INPUT_PLAN`: {{INPUT_PLAN}}",
       "- `INPUT_SPEC`: {{INPUT_SPEC}}",
+      "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
       "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
@@ -293,6 +292,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `WAVE`: {{WAVE}}",
       "- `INPUT_PLAN`: {{INPUT_PLAN}}",
       "- `INPUT_SPEC`: {{INPUT_SPEC}}",
+      "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
       "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -319,7 +319,7 @@ export const REVIEWS = {
   spec: {
     lensEnum: ["completeness", "consistency", "clarity"],
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + The reviewed spec is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable downstream author would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
+      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at `INPUT_OVERALL` (the charter its `program:` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding + The reviewed spec is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable downstream author would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
@@ -435,6 +435,7 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "HANDOFF_SCHEMA", zone: "shell" },
   { name: "INPUT_PLAN", zone: "round-context" },
   { name: "INPUT_SPEC", zone: "round-context" },
+  { name: "INPUT_OVERALL", zone: "round-context" },
   { name: "INPUT_REVIEWS", zone: "round-context" },
   { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
   // find #5 — the prescribed artifact write paths (the {family}-{key}-{artifact}
@@ -470,7 +471,14 @@ export const CLAUSES = {
     "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 14
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 16
+ *  unifies the handoff carrier on one op-derived plane (work / judge — implement /
+ *  fix author a status-bearing work carrier, review a findings-only judge carrier)
+ *  and gives the docs-fix round a `status` to report its outcome in. $version 15
+ *  carries the `INPUT_OVERALL` read face (the parent charter a spec's `program:`
+ *  names, mirroring `INPUT_SPEC` — a face without `program:` drops the slot) and
+ *  adds the spec axis's program-scope conformance criterion (the phase judged against
+ *  the scope its charter's Phase inventory registered for it). $version 14
  *  rewrites the sync-completion clause to name the one-shot fact (ending your turn with
  *  work still running exits the process — the work and the handoff die with it) and the
  *  subagent class (a background subagent is a yield-and-wait path, exactly like a
@@ -489,7 +497,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 14,
+  $version: 16,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

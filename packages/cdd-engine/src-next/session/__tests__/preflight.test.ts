@@ -117,7 +117,7 @@ const memoryFs = (content: string): DocFs => {
     exists: () => true,
     read: (p) =>
       p.endsWith("/x-overall.md") || p === "x-overall.md"
-        ? "---\ntitle: O\ndoc-type: overall-spec\nslug: x-overall\nversion: v1.0\n---\n"
+        ? "---\ntitle: O\ndoc-type: overall\nslug: x-overall\nversion: v1.0\n---\n"
         : content,
     // The sibling scan lists the same-family docs of the judged document.
     list: (_p: string) => ["x-overall.md"],
@@ -467,12 +467,34 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
   it("a present doc carrying no Doc type declaration BLOCKs — zero filename-suffix fallback (spec §12 · D34)", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
-      const preflight = preflightOf(memoryFs(CONFORMING_SPEC));
+      const noDocType = CONFORMING_SPEC.split("\n")
+        .filter((line) => !line.startsWith("doc-type:"))
+        .join("\n");
+      const preflight = preflightOf(memoryFs(noDocType));
       const verdict = await preflight.vet(docCtx(repoRoot, null, "review"));
       expect(verdict.ok).toBe(false);
       expect(verdict.gate).toBe("doc-contract");
       expect(verdict.reason).toBe("doc-contract");
       expect(verdict.message).toContain("declares no `doc-type:` key");
+      expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a present doc declaring an out-of-domain doc-type BLOCKs naming the value and the domain", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const retired = CONFORMING_SPEC.replace("doc-type: phase-spec", "doc-type: overall-spec");
+      const preflight = preflightOf(memoryFs(retired));
+      const verdict = await preflight.vet(docCtx(repoRoot, null, "review"));
+      expect(verdict.ok).toBe(false);
+      expect(verdict.gate).toBe("doc-contract");
+      expect(verdict.reason).toBe("doc-contract");
+      expect(verdict.message).toContain("`doc-type: overall-spec`");
+      expect(verdict.message).toContain("outside the declared domain");
+      expect(verdict.message).toContain("overall, plan, phase-spec, single-spec");
+      expect(verdict.message).not.toContain("declares no `doc-type:` key");
       expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
     } finally {
       cleanup();

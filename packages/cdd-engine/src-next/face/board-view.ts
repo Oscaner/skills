@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/face/board-view.ts
 // The board face — the entry document → node progress board. The front-matter
 // identity index (`SlugIndex`) is the ONLY node source: the entry document's
-// `doc-type:` picks the board shape (overall-spec → program board; phase-spec /
+// `doc-type:` picks the board shape (overall → program board; phase-spec /
 // single-spec / plan → node board), and every related node resolves through the
 // index by slug (`program:` → overall; same slug → paired spec / plan). Identity
 // comes from the front-matter `slug:` alone: zero file-name derivation, zero path
@@ -226,7 +226,7 @@ export class BoardView {
 
   /** render(index, entry, repoRoot, words, host, channels) — the entry document's
    *  board (spec §3.1): the entry's declared `doc-type:` picks the shape —
-   *  `overall-spec` → the program board, every other type → the node board. The
+   *  `overall` → the program board, every other type → the node board. The
    *  index supplies every related node (`program:` → overall; same slug → spec /
    *  plan), so no filename grammar participates. The argv channel is threaded into
    *  the shared `RouteRenderer` (the SAME channel the capsule's route render reads,
@@ -251,7 +251,7 @@ export class BoardView {
     // one form).
     const root = new RepoRoot(repoRoot);
     const exitCode =
-      entry.docType === "overall-spec"
+      entry.docType === "overall"
         ? BoardView.#programBoard(lines, index, entry, root)
         : BoardView.#nodeBoard(lines, index, entry, root, words, host, channels);
     lines.push("", PROGRESS_LEGEND.board);

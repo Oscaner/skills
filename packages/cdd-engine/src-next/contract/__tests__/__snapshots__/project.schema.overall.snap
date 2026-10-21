@@ -1,7 +1,7 @@
 {
-  "docType": "overall-spec",
+  "docType": "overall",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "overall-spec document structure",
+  "title": "overall document structure",
   "description": "Derived JSON Schema — 43 declared elements · 34 required",
   "type": "object",
   "properties": {
@@ -12,7 +12,7 @@
     },
     "doc-type": {
       "type": "string",
-      "pattern": "^(overall-spec|plan|phase-spec|single-spec)$",
+      "pattern": "^(overall|plan|phase-spec|single-spec)$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
     "version": {

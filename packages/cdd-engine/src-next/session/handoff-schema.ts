@@ -1,17 +1,17 @@
 // packages/cdd-engine/src-next/session/handoff-schema.ts
-// T15 v1.9 — the handoff schema face (design spec §3.6): the child's writable handoff
-// contract as ONE typed declaration with TWO projections. The cutover deleted the old
+// The handoff schema face: the child's writable handoff contract as ONE typed
+// declaration projected onto the two carrier planes. The cutover deleted the old
 // JSON schema file together with its Ajv loader; the structural constraint now lives
 // here as a typed declaration — zero JSON schema files, one source, two consumers:
 //
 //   · projections: ① the prompt-injection text (schemaText — the ```json fences
-//     byte-fixed per face, so the fixed prefix tail of the dispatch prompt stays
+//     byte-fixed per plane, so the fixed prefix tail of the dispatch prompt stays
 //     cache-friendly) and ② the engine read-back validator (violations /
 //     evidenceViolations — the child draft is validated against exactly the same
-//     declared objects the prompt showed it).
-//   · faces: the per-family `schema` field of the handoff families (infra/runtime.ts)
-//     selects the face — `delivery` (implement/fix: status+artifacts, plus the separate
-//     test-evidence file for task-family rounds) or `findings` (reviews: findings-only
+//     projected objects the prompt showed it).
+//   · planes: the carrier plane is DERIVED from the op (planeOf), never declared per
+//     family — `work` (implement/fix: status + artifacts, plus the separate
+//     test-evidence file for task-family rounds) or `judge` (reviews: findings-only
 //     carrier — the engine rolls the status up from the findings, never a
 //     child-authored status).
 //
@@ -27,10 +27,10 @@
 // Module-level exports are types / the declared schema objects / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
-import type { FindingSeverity, RoundFinding, RoundStatus } from "./ledger.ts";
+import type { FindingSeverity, OpType, RoundFinding, RoundStatus } from "./ledger.ts";
 
-/** The handoff schema faces — the `HandoffFamily.schema` selector values. */
-export type HandoffSchemaFace = "delivery" | "findings";
+/** The carrier planes — the op-derived writable halves (`planeOf`). */
+export type CarrierPlane = "work" | "judge";
 
 /** The declared schema node shape — the typed subset of JSON-schema this contract
  *  uses (the engine's validator walks exactly these objects). */
@@ -44,7 +44,7 @@ interface SchemaNode {
   maxLength?: number;
 }
 
-/** One finding row — the shared base declaration of the findings face (severity +
+/** One finding row — the shared base declaration of the judge plane (severity +
  *  lens + summary required; the extra review columns — section / line / fix — are
  *  declared optional, and unknown extra fields ride along). */
 const FINDING: SchemaNode = {
@@ -60,42 +60,45 @@ const FINDING: SchemaNode = {
   },
 };
 
-/** The `delivery` writable subset — implement/fix carrier. `status` and `artifacts` are
- *  the round's required core; notes rides the declared optional field. Reserved
+/** The ONE carrier declaration — the four child-writable slots. DECLARATION ORDER IS
+ *  PROJECTION ORDER: `#writable(plane)` filters these properties in this order, so the
+ *  judge fence keeps its `findings` · `artifacts` · `notes` byte order. Reserved
  *  fields (phase · tasks) are NOT declared and are DROPPED by materialize (never a
  *  BLOCK) — the engine stays the carrier's single author.
- *  `as const` preserves the literal property keys — the carrier type family
- *  (`CarrierOf<F>` below) derives its field set FROM these declared keys. */
-const CARRIER_DELIVERY = {
+ *  `as const` preserves the literal property keys — the `Carrier` type family below
+ *  derives its field set FROM these declared keys. */
+const CARRIER = {
   type: "object",
-  required: ["status", "artifacts"],
   properties: {
     status: { type: "string", enum: ["APPROVED", "BLOCKED"] },
-    failure_category: { type: "string" },
-    artifacts: { type: "object" },
-    notes: { type: "array", items: { type: "string" } },
-  },
-} as const satisfies SchemaNode;
-
-/** The `findings` writable subset — review + docs-fix carrier. NO status: the
- *  conclusion is derived from the findings at judgment time
- *  (`conclusionOf("findings", carrier)` → `rollup(findings)`), never a carrier field
- *  the child authors or the engine persists — the declaration plane IS the writable
- *  plane (one face, one field set). `as const` — see CARRIER_DELIVERY. */
-const CARRIER_FINDINGS = {
-  type: "object",
-  required: ["findings"],
-  properties: {
     findings: { type: "array", items: FINDING },
     artifacts: { type: "object" },
     notes: { type: "array", items: { type: "string" } },
   },
 } as const satisfies SchemaNode;
 
+/** The plane → writable slot table — the ONE projection source (`#writable`) the
+ *  prompt fence, the read-back validator and the dropped-key walk all read. The
+ *  shared slots (artifacts · notes) are both-plane by design; the exclusive slot IS
+ *  the plane (`status` for work, `findings` for judge). */
+const PLANE_SLOTS: Readonly<Record<CarrierPlane, readonly string[]>> = {
+  work: ["status", "artifacts", "notes"],
+  judge: ["findings", "artifacts", "notes"],
+};
+
+/** The plane → required slot table. The work plane's round conclusion is the child's
+ *  own declared status, so status + artifacts are the required core. The judge plane
+ *  requires the findings its conclusion rolls up from; artifacts / notes ride as
+ *  declared optional slots (a review writes only what it has). */
+const PLANE_REQUIRED: Readonly<Record<CarrierPlane, readonly string[]>> = {
+  work: ["status", "artifacts"],
+  judge: ["findings"],
+};
+
 /** The test-evidence file schema — the evidence gate's engine read-back contract
  *  (the second fix for a prose-only claim: the old prompt asserted an engine read-back
- *  that the engine never performed; now both projections are real). A task-family
- *  work round missing or violating this file rewrites the round to BLOCKED. */
+ *  that the engine never performed; now both projections are real). A work-plane wave /
+ *  branch round missing or violating this file rewrites the round to BLOCKED. */
 const EVIDENCE: SchemaNode = {
   type: "object",
   required: ["command", "exit_code", "passed", "warnings_count", "typecheck"],
@@ -117,22 +120,12 @@ const EVIDENCE: SchemaNode = {
   },
 };
 
-/** The face → declared writable-subset table (the single source both projections read).
- *  `as const` keeps the declarations' literal property keys visible — the carrier type
- *  family's `[K in keyof (typeof BY_FACE)[F]["properties"]]` derives its field set from
- *  exactly these tables, so a schema edit reshapes the carrier types by construction. */
-const BY_FACE = {
-  delivery: CARRIER_DELIVERY,
-  findings: CARRIER_FINDINGS,
-} as const satisfies Readonly<Record<HandoffSchemaFace, SchemaNode>>;
-
 /** The carrier value-type mapping — every declared carrier field's value type. This
  *  is the ONE hand-maintained byte table (the type-level twin of the schema property
- *  values); `CarrierOf<F>` maps each declared key through it. A wrong entry reads as a
+ *  values); `Carrier` maps each declared key through it. A wrong entry reads as a
  *  build error at the first carrier read/write — it cannot silently pass. */
 export type CarrierValue = {
   status: "APPROVED" | "BLOCKED";
-  failure_category: string;
   artifacts: Record<string, string>;
   notes: string[];
   findings: {
@@ -145,25 +138,14 @@ export type CarrierValue = {
   }[];
 };
 
-/** The derived carrier-of: the mapped type whose field set comes FROM the face's
- *  declared `properties` keys (the face dispatcher resolves which declared table the
- *  mapped type reads — `DeliveryCarrier`/`FindingsCarrier` are the two faces'
- *  instantiations, so a schema declaration change reshapes the carrier types by
- *  construction, zero hand-maintained parallel field tables). `-readonly` keeps the
+/** The derived carrier: the mapped type whose field set comes FROM the ONE
+ *  declaration's `properties` keys, so a schema edit reshapes the carrier by
+ *  construction (zero hand-maintained parallel field tables). `-readonly` keeps the
  *  carrier MUTABLE — the round conclusion (status) rides the caller's set below the
  *  skeleton, never a frozen build-time value. */
-export type CarrierOf<F extends HandoffSchemaFace> = F extends "delivery"
-  ? { -readonly [K in keyof (typeof BY_FACE)["delivery"]["properties"]]: CarrierValue[K] }
-  : { -readonly [K in keyof (typeof BY_FACE)["findings"]["properties"]]: CarrierValue[K] };
-
-/** The delivery face's carrier — implement/fix write-back. Declared `findings`-free: the
- *  delivery writable subset declares no findings field, so the carrier type carries none —
- *  a `buildHandoff("delivery", { findings })` call is a compile-time refusal (Q1→c). */
-export type DeliveryCarrier = CarrierOf<"delivery">;
-
-/** The findings face's carrier — review write-back. `findings` is schema-required, so
- *  the carrier type always carries it (the compile-time twin of the required gate). */
-export type FindingsCarrier = CarrierOf<"findings">;
+export type Carrier = {
+  -readonly [K in keyof (typeof CARRIER)["properties"]]: CarrierValue[K];
+};
 
 /** One formed problem of a schema violation — the `path: reason` wording. */
 export interface SchemaProblem {
@@ -172,21 +154,28 @@ export interface SchemaProblem {
 }
 
 /**
- * HandoffSchema — one declaration, two projections. `violations(face, value)` is
+ * HandoffSchema — one declaration, two projections. `violations(plane, value)` is
  * the read-back validator (projection ② — the engine's seat, session plane);
- * `schemaText(face, evidence)` is the injected prompt text (projection ① — fixed
- * prefix tail, byte-stable per face so the dispatch prompt stays cache-friendly).
+ * `schemaText(plane, evidence)` is the injected prompt text (projection ① — fixed
+ * prefix tail, byte-stable per plane so the dispatch prompt stays cache-friendly).
  * `rollup(findings)` derives the review conclusion the old JSON face rolled up.
  */
 export class HandoffSchema {
-  /** Projection ① — the `## Handoff schema` section text: the face's writable
-   *  subset in a ```json fence + (delivery faces) the evidence file's schema in a second
-   *  fence. The text is byte-stable per (face, evidence, prefix) — the fixed bytes
+  /** The carrier plane of an op — the ONE derivation, never a per-family declaration.
+   *  implement / fix author a work carrier (status + artifacts); review authors a
+   *  judge carrier (findings — conclusion rolled up). */
+  static planeOf(op: OpType): CarrierPlane {
+    return op === "review" ? "judge" : "work";
+  }
+
+  /** Projection ① — the `## Handoff schema` section text: the plane's writable
+   *  subset in a ```json fence + (work plane) the evidence file's schema in a second
+   *  fence. The text is byte-stable per (plane, evidence, prefix) — the fixed bytes
    *  of the dispatch prompt's contract surface. The evidence prefix is the family
    *  spine (§3.7 naming: `tasks-` for the task families, `branch-` for the branch
    *  fix — a branch evidence file never carries the misleading tasks- prefix). */
-  schemaText(face: HandoffSchemaFace, evidence: boolean, evidencePrefix = "tasks"): string {
-    const carrier = this.#json(BY_FACE[face]);
+  schemaText(plane: CarrierPlane, evidence: boolean, evidencePrefix = "tasks"): string {
+    const carrier = this.#json(this.#writable(plane));
     let text = `Write the handoff draft at \`OUTPUT_HANDOFF\` per this writable subset — the engine validates it, then materializes the final carrier in place; fields not listed here are engine-reserved, do not write them.\n\n\`\`\`json\n${carrier}\n\`\`\``;
     if (evidence) {
       text += `\n\nThe evidence file (\`${evidencePrefix}-{key}-test-evidence.json\` under \`WORKSPACE_DIR\`) must comply with this schema — the engine reads it back with the same stakes:\n\n\`\`\`json\n${this.#json(EVIDENCE)}\n\`\`\``;
@@ -199,18 +188,18 @@ export class HandoffSchema {
     return this.#json(EVIDENCE);
   }
 
-  /** Projection ② — validate a child draft against a face's writable subset. Every
+  /** Projection ② — validate a child draft against a plane's writable subset. Every
    *  problem is a read-back BLOCK; the draft is left untouched for the child's
    *  resume (never overwritten — the engine never clobbers a child's work). */
-  violations(face: HandoffSchemaFace, value: unknown): string[] {
+  violations(plane: CarrierPlane, value: unknown): string[] {
     const problems: SchemaProblem[] = [];
-    this.#check(BY_FACE[face], value, "", problems);
+    this.#check(this.#writable(plane), value, "", problems);
     return problems.map((problem) =>
       problem.path.length === 0 ? problem.reason : `${problem.path}: ${problem.reason}`,
     );
   }
 
-  /** Projection ② — validate the test-evidence file (task-family work rounds). */
+  /** Projection ② — validate the test-evidence file (work-plane wave / branch rounds). */
   evidenceViolations(value: unknown): string[] {
     if (value === null || value === undefined) return ["the evidence file is missing"];
     const problems: SchemaProblem[] = [];
@@ -220,26 +209,26 @@ export class HandoffSchema {
     );
   }
 
-  /** The round conclusion, DERIVED at judgment time from the face's own plane — the
-   *  single source the review/fix ledger legs read (D27 · judgment face ⊥ input face).
-   *  The findings face rolls its conclusion UP from its findings (defined for every
+  /** The round conclusion, DERIVED at judgment time from the plane — the single
+   *  source the review/fix ledger legs read (D27 · judgment face ⊥ input face).
+   *  The judge plane rolls its conclusion UP from its findings (defined for every
    *  carrier — a review never carries a child-authored status, and the persisted
-   *  findings carrier holds none). The delivery face reads its DECLARED status, and the
+   *  findings carrier holds none). The work plane reads its DECLARED status, and the
    *  absence of a declaration is itself a fact: an ABSENT status → `undefined` (no
    *  conclusion was declared — never an invented approval OR an invented failure ·
    *  D27 present-facts-only), while a PRESENT-but-invalid byte (outside the enum the
    *  schema pinned) degrades to BLOCKED — the conservative reading of a malformed
    *  declaration. `undefined` is DISTINCT from BLOCKED to the caller (the router
    *  treats undefined as "not a failure", a declared BLOCKED as the failure face), so
-   *  a delivery carrier that predates the status field never reads as a fabricated
+   *  a work carrier that predates the status field never reads as a fabricated
    *  failure. `carrier` is the on-disk carrier (or a freshly built one) — the
-   *  conclusion is never a stored field, so any face's carrier derives it the same way. */
-  conclusionOf(face: HandoffSchemaFace, carrier: Record<string, unknown>): RoundStatus | undefined {
-    if (face === "findings") {
+   *  conclusion is never a stored field, so any plane's carrier derives it the same way. */
+  conclusionOf(plane: CarrierPlane, carrier: Record<string, unknown>): RoundStatus | undefined {
+    if (plane === "judge") {
       const findings = Array.isArray(carrier.findings) ? carrier.findings : [];
       return this.rollup(findings);
     }
-    // The delivery face reads its DECLARED status. Absent → undefined (no declaration);
+    // The work plane reads its DECLARED status. Absent → undefined (no declaration);
     // present-but-invalid → BLOCKED (a declared conclusion that is malformed is a
     // failure signal, never silently approved). This is the ONE ruling for a work
     // status: the reconstruct's work leg delegates here, so the read-back and the
@@ -276,22 +265,35 @@ export class HandoffSchema {
     return rows;
   }
 
-  /** The declared schema object of a face — the single-source introspection of this
-   *  module's reparametrized `HandoffFamily.schema` value. */
-  faceSchema(face: HandoffSchemaFace): SchemaNode {
-    return BY_FACE[face];
+  /** The plane's writable subset — the ONE projection every consumer reads (prompt
+   *  fence · read-back validator · dropped-key walk). The properties are CARRIER's
+   *  own slot declarations filtered in declaration order; the required set comes from
+   *  the plane table — zero second declaration. */
+  planeSchema(plane: CarrierPlane): SchemaNode {
+    return this.#writable(plane);
   }
 
-  /** The draft keys materialize drops — every key the face does not declare as a
-   *  child-writable `properties` slot (extra child fields such as a findings-draft
-   *  `status`). The read-back validator judges these the same way (drop, never a
+  /** The draft keys materialize drops — every key the plane does not declare as a
+   *  child-writable `properties` slot (extra child fields such as a work draft
+   *  `findings`). The read-back validator judges these the same way (drop, never a
    *  BLOCK) — materialize surfaces them as the single §8.7 WARN on the carrier's
    *  notes. A non-object draft drops nothing here (its shape is the validator's
    *  semantic refusal). */
-  droppedKeys(face: HandoffSchemaFace, value: unknown): string[] {
+  droppedKeys(plane: CarrierPlane, value: unknown): string[] {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return [];
-    const declared = new Set(Object.keys(BY_FACE[face].properties ?? {}));
+    const declared = new Set(Object.keys(this.#writable(plane).properties ?? {}));
     return Object.keys(value as Record<string, unknown>).filter((key) => !declared.has(key));
+  }
+
+  /** The plane's writable subset — CARRIER's declared slots filtered to the plane's
+   *  writable set (declaration order preserved) + the plane's required slots. */
+  #writable(plane: CarrierPlane): SchemaNode {
+    const slots = PLANE_SLOTS[plane];
+    const properties: Record<string, SchemaNode> = {};
+    for (const [key, node] of Object.entries(CARRIER.properties)) {
+      if (slots.includes(key)) properties[key] = node;
+    }
+    return { type: "object", required: [...PLANE_REQUIRED[plane]], properties };
   }
 
   /** Serialize a declared schema object into the prompt's fence — COMPACT (no pretty
@@ -323,11 +325,10 @@ export class HandoffSchema {
         for (const [key, sub] of Object.entries(node.properties ?? {})) {
           if (obj[key] !== undefined) this.#check(sub, obj[key], this.#at(path, key), problems);
         }
-        // Non-declared keys (extra child fields such as a findings-draft
-        // `status`) are DROPPED by materialize, never a BLOCK — the validator
-        // and materialize judge the same field the same way (§8.7). Only
-        // semantic errors on declared fields (required / type / enum / length)
-        // refuse the draft.
+        // Non-declared keys (extra child fields such as a work-draft `findings`) are
+        // DROPPED by materialize, never a BLOCK — the validator and materialize judge
+        // the same field the same way (§8.7). Only semantic errors on declared fields
+        // (required / type / enum / length) refuse the draft.
         return;
       }
       if (node.type === "array") {

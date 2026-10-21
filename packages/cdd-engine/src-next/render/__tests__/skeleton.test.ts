@@ -37,7 +37,7 @@ import { SkeletonAssembler } from "../skeleton.ts";
 const DATE = "2026-10-11";
 const PROJECTOR = new Projector(declaredRegistries);
 const SKELETONS = PROJECTOR.skeleton();
-const KEYS = ["overall-spec", "plan", "phase-spec", "single-spec"] as const;
+const KEYS = ["overall", "plan", "phase-spec", "single-spec"] as const;
 
 /** The fixed-date rendered skeleton bytes of one doc type. */
 const renderOf = (key: DocKey): string => new SkeletonAssembler(SKELETONS[key], DATE).render();
@@ -182,11 +182,11 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
   });
 
   it("renders the overall skeleton — the front-matter head + the table sections + the dependency graph", () => {
-    expect(renderOf("overall-spec")).toBe(
+    expect(renderOf("overall")).toBe(
       [
         "---",
         "title: ':::fill title'",
-        "doc-type: overall-spec",
+        "doc-type: overall",
         "version: v0.1",
         "date: 2026-10-11",
         "slug: ':::fill slug'",
@@ -334,13 +334,13 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
   });
 
   it("renders the generator truths — the enum status key and the graph rows", () => {
-    for (const key of ["overall-spec", "phase-spec", "single-spec"] as const) {
+    for (const key of ["overall", "phase-spec", "single-spec"] as const) {
       expect(renderOf(key)).toContain("status: Draft");
     }
     // the plan head carries no status key (its registry omits it)
     expect(renderOf("plan")).not.toContain("status: ");
-    expect(renderOf("overall-spec")).toContain("P1 -> P2");
-    expect(renderOf("overall-spec")).toContain("- `->` = hard block");
+    expect(renderOf("overall")).toContain("P1 -> P2");
+    expect(renderOf("overall")).toContain("- `->` = hard block");
   });
 
   it("renders every content position as a `:::fill <slot>` slot — the body and the front-matter content keys", () => {
@@ -449,8 +449,8 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
    *  lines, the version row, the Status truth, the link anchors, the graph rows
    *  and the table headers/separators. */
   const STRUCTURE_LINES: Record<string, readonly string[]> = {
-    "overall-spec": [
-      "doc-type: overall-spec",
+    overall: [
+      "doc-type: overall",
       "version: v0.1",
       "date: 2026-10-11",
       "status: Draft",

@@ -132,6 +132,10 @@ export interface WorkScene extends DispatchScene {
   /** The plan's `spec:` front-matter link target (plan docs only) — the plan-review
    *  round context's spec anchor; null off the plan face. */
   specLink: string | null;
+  /** The parent charter the spec's `program:` names (the same-slug overall's
+   *  repoRoot-relative path) — the review/fix round context's charter anchor; null
+   *  when the line's spec names no program. */
+  overallLink: string | null;
 }
 
 /** The path-typed argv values (T3 §2.3) — split out of the generic `args` record
@@ -357,7 +361,7 @@ export class Cli {
    *  (spec §3.1): a PURE READ — zero preflight gate, zero tree writes, zero ledger
    *  writes, zero child dispatch. At least one path flag is required (missing →
    *  usage exit 2); each path resolves through the ONE identity index (`SlugIndex`
-   *  scans the two docRoots), so a path outside the docRoots or absent on disk is
+   *  scans every docRoot), so a path outside the docRoots or absent on disk is
    *  the not-found face (exit 2, zero doc reads, zero BLOCKED markers). Two flags
    *  naming different slugs are an argument conflict (exit 2, both values on
    *  stderr); two flags on one slug render ONE board shaped by the `--spec`
@@ -737,7 +741,6 @@ export class Cli {
     const harness = new CliLifecycle({
       env: process.env,
       sync: this.#sync,
-      config: this.#config,
       template: this.#template,
       io: this.#io,
       words: this.#words,
@@ -748,6 +751,7 @@ export class Cli {
         briefPath: scene.briefPath,
         baseBranch: this.#baseBranchOf(scene),
         specLink: scene.specLink,
+        overallLink: scene.overallLink,
       },
       reviews: parsed.paths.reviews,
     });
@@ -845,6 +849,7 @@ export class Cli {
     let slug: string;
     let planText: string | null = null;
     let specLink: string | null = null;
+    let overallLink: string | null = null;
     let target: WorkScene["target"] = null;
     switch (type) {
       case "wave": {
@@ -867,6 +872,13 @@ export class Cli {
         if (resolved === null) return null;
         slug = resolved;
         target = { kind: "spec", doc: specPath };
+        // The judged spec's own `program:` — the parent charter (INPUT_OVERALL) the
+        // spec-scope reviewer judges the phase against. A spec without `program:`
+        // (a single-spec) leaves the slot null; an off-disk target reads null here
+        // and the existing slug-ref invariant reports it (never a second reporter).
+        const specEntry = index.entryAt(specRel);
+        const overallEntry = specEntry?.program == null ? null : index.overallOf(specEntry.program);
+        overallLink = overallEntry === null ? null : root.relativize(overallEntry.path);
         break;
       }
       case "plan":
@@ -891,6 +903,10 @@ export class Cli {
         slug = resolved;
         const specEntry = index.identityDoc(slug);
         specLink = specEntry === null ? null : root.relativize(specEntry.path);
+        // The plan/branch line reads the same-slug identity document's `program:` —
+        // the parent charter (INPUT_OVERALL) the reviewer judges the plan against.
+        const overallEntry = specEntry?.program == null ? null : index.overallOf(specEntry.program);
+        overallLink = overallEntry === null ? null : root.relativize(overallEntry.path);
         target = type === "plan" ? { kind: "plan", doc: planPath } : { kind: "branch" };
         break;
       }
@@ -920,6 +936,7 @@ export class Cli {
       router: new NextStepRouter(),
       briefPath: null,
       specLink,
+      overallLink,
     };
   }
 

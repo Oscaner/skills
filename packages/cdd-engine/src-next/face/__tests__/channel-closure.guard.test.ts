@@ -114,7 +114,7 @@ describe("the dispatch/refs derivation — every dispatch-slot ref registered + 
       .filter((entry): entry is { kind: "ref"; ref: string } => entry.kind === "ref")
       .map((entry) => entry.ref);
     // The ref-shaped subset is non-empty (the phase-spec/plan/branch seams all route
-    // through refs; only the overall-spec seam is the `done` terminal + wave a literal).
+    // through refs; only the overall seam is the `done` terminal + wave a literal).
     expect(pipelineRefs.length).toBeGreaterThan(0);
     for (const ref of pipelineRefs) {
       const form = REFS[ref as keyof typeof REFS];

@@ -1,5 +1,5 @@
 // packages/cdd-engine/src-next/infra/slug-index.ts
-// The identity index (spec §2.1/§2.2): ONE scan over the two doc roots
+// The identity index (spec §2.1/§2.2): ONE scan over the doc roots
 // (`ENGINE_RUNTIME.docRoots`) groups every document by its front-matter facts.
 // The index is the single judgment surface for document identity:
 //   · lookups — `identityDoc` / `planOf` / `phaseSpecsOf` / `overallOf` / `entryAt`;
@@ -95,7 +95,7 @@ export type SlugVerdict =
 export type SlugRefusal = Exclude<SlugVerdict, { kind: "accepted" }>;
 
 /**
- * SlugIndex — the identity index over the two doc roots. Construct it through
+ * SlugIndex — the identity index over the doc roots. Construct it through
  * `build` (the one scanning entry point); every lookup and the violation list
  * read the single materialized scan.
  */
@@ -114,13 +114,13 @@ export class SlugIndex {
     return value !== null && SlugIndex.#SLUG_PATTERN.test(value);
   }
 
-  /** Whether a repo-relative path lies inside either doc root — pure path
+  /** Whether a repo-relative path lies inside any doc root — pure path
    *  grammar, zero document reads. The board's not-found face uses this (plus an
    *  existence probe) to refuse an outside-root or absent path BEFORE the identity
    *  scan opens a single document (spec §3.1). */
   static insideDocRoots(rel: string): boolean {
     const normalized = path.normalize(rel);
-    return [ENGINE_RUNTIME.docRoots.specs, ENGINE_RUNTIME.docRoots.plans].some((root) => {
+    return Object.values(ENGINE_RUNTIME.docRoots).some((root) => {
       const prefix = path.normalize(root);
       return normalized === prefix || normalized.startsWith(`${prefix}${path.sep}`);
     });
@@ -151,11 +151,12 @@ export class SlugIndex {
     this.#violations = SlugIndex.#judge(entries, bySlug);
   }
 
-  /** Scan both doc roots once and index every `.md` document under them. The
+  /** Scan every doc root once and index every `.md` document under them. The
    *  optional `fs` is the caller's scan seam (the judgment plane's in-memory
    *  `DocFs`); absent, the node:fs scan is the production default. */
   static build(repoRoot: string, fs?: SlugScanFs): SlugIndex {
     const entries = [
+      ...SlugIndex.#scanRoot(repoRoot, ENGINE_RUNTIME.docRoots.overalls, fs),
       ...SlugIndex.#scanRoot(repoRoot, ENGINE_RUNTIME.docRoots.specs, fs),
       ...SlugIndex.#scanRoot(repoRoot, ENGINE_RUNTIME.docRoots.plans, fs),
     ].sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
@@ -167,7 +168,7 @@ export class SlugIndex {
     return this.#byRel.get(rel) ?? null;
   }
 
-  /** The identity document (overall-spec / phase-spec / single-spec) carrying the
+  /** The identity document (overall / phase-spec / single-spec) carrying the
    *  slug, or null when no identity document does. */
   identityDoc(slug: string): DocEntry | null {
     for (const entry of this.#bySlug.get(slug) ?? []) {
@@ -193,10 +194,10 @@ export class SlugIndex {
       .sort(SlugIndex.#phaseCompare);
   }
 
-  /** The overall-spec document carrying the program slug, or null. */
+  /** The overall document carrying the program slug, or null. */
   overallOf(programSlug: string): DocEntry | null {
     for (const entry of this.#bySlug.get(programSlug) ?? []) {
-      if (entry.docType === "overall-spec") return entry;
+      if (entry.docType === "overall") return entry;
     }
     return null;
   }
@@ -380,7 +381,7 @@ export class SlugIndex {
     }
     const overallSlugs = new Set<string>();
     for (const entry of entries) {
-      if (entry.docType === "overall-spec" && entry.slug !== null) overallSlugs.add(entry.slug);
+      if (entry.docType === "overall" && entry.slug !== null) overallSlugs.add(entry.slug);
     }
     for (const entry of entries) {
       if (entry.docType !== "phase-spec" || entry.program === null) continue;

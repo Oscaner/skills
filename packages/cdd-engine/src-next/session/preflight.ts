@@ -34,13 +34,14 @@ import { SlugIndex } from "../infra/slug-index.ts";
 import type { TargetType } from "./faces.ts";
 import { TaskGraph } from "./graph.ts";
 import type { Ledger } from "./ledger.ts";
-import { WaveGate } from "./wave.ts";
+import { WaveGate, type WaveGateReason } from "./wave.ts";
 
 /** The named gates the seam composes — the run evidence + the blocking gate label. */
 export type PreFlightGateName = "tree-clean" | "graph" | "wave" | "doc-contract";
 
-/** The named refusal rows — the BLOCK reason the CDD_BLOCKED wording fills. */
-export type PreFlightReason = "dirty-tree" | "graph" | "split" | "wrong-phase" | "doc-contract";
+/** The named refusal rows — the BLOCK reason the CDD_BLOCKED wording fills (the
+ *  wave-gate rows derive from `WaveGateReason` — one declaration, never a re-list). */
+export type PreFlightReason = "dirty-tree" | "graph" | WaveGateReason | "doc-contract";
 
 /** One pre-flight verdict — the single BLOCK carrier of the dispatch gates. */
 export interface PreFlightVerdict {
@@ -65,8 +66,10 @@ export interface PreFlightDoc {
   /** The target doc type's registry key — read from the doc's front-matter
    *  `doc-type:` key (spec §12 · D34; both the spec and the plan faces key by
    *  the head key, zero command-type carve-out).
-   *  null when a present doc carries no key — the seam BLOCKs (zero
-   *  filename-suffix fallback, one declaration reading face `BoardView.readDocType`). */
+   *  null when a present doc carries no key OR carries a value outside the
+   *  declared domain — the seam BLOCKs either way, with a distinct word per
+   *  shape (zero filename-suffix fallback, one declaration reading face
+   *  `BoardView.readDocType`). */
   docKey: DocKey | null;
   /** The target doc's path — the branded repoRoot-relative `RepoPath` (T4 §2.2: a
    *  bare `string` never reaches this read face; the caller feeds the funnel-shaped
@@ -216,11 +219,18 @@ export class PreFlight {
           };
         }
         if (doc.docKey === null) {
+          // Two shapes, one gate: a head carrying no `doc-type:` key reads the
+          // missing-key word; a head carrying an out-of-domain value reads the
+          // word that names the value and lists the declared domain.
+          const message =
+            head.docType === null
+              ? this.#words.routeWord("docType")
+              : this.#words.docTypeValueWord(head.docType);
           return {
             ok: false,
             gate: "doc-contract",
             reason: "doc-contract",
-            message: this.#words.routeWord("docType"),
+            message,
             order: gates,
           };
         }

@@ -14,7 +14,7 @@ import { DOC_TYPE_VALUES } from "../declare.ts";
 import { DOC_KEYS } from "../project.ts";
 
 /** The canonical value domain — the ONE declaration (declare.ts). */
-const CANONICAL = ["overall-spec", "plan", "phase-spec", "single-spec"];
+const CANONICAL = ["overall", "plan", "phase-spec", "single-spec"];
 
 describe("DocKey single-source derivation (spec §3.2 ③)", () => {
   it("the canonical declaration carries the four keys in order", () => {
@@ -35,10 +35,10 @@ describe("DocKey single-source derivation (spec §3.2 ③)", () => {
       readFileSync(`${contractRoot}/${rel}`, "utf8"),
     );
     for (const [index, src] of files.entries()) {
-      // The literal "[ \"overall-spec\", ... ]" re-typed in a consumer is the drift
+      // The literal "[ \"overall\", ... ]" re-typed in a consumer is the drift
       // signature; the canonical declare.ts keeps its ONE declaration and the two
       // consumers must not carry a second literal array.
-      const literalArrays = src.match(/"overall-spec"\s*,\s*"plan"\s*,\s*"phase-spec"/g) ?? [];
+      const literalArrays = src.match(/"overall"\s*,\s*"plan"\s*,\s*"phase-spec"/g) ?? [];
       if (index === 1) {
         // declare.ts is the declaration root — its one literal is the single source.
         expect(literalArrays.length).toBeLessThanOrEqual(1);
@@ -52,7 +52,7 @@ describe("DocKey single-source derivation (spec §3.2 ③)", () => {
     const docSrc = readFileSync(fileURLToPath(new URL("../doc.ts", import.meta.url)), "utf8");
     // The collapsed inline unions read `DocKey`; a re-typed four-member union in
     // doc.ts is the drift this gate bans.
-    const inlineUnion = docSrc.match(/docType\w*:\s*"overall-spec"\s*\|\s*"plan"/g) ?? [];
+    const inlineUnion = docSrc.match(/docType\w*:\s*"overall"\s*\|\s*"plan"/g) ?? [];
     expect(inlineUnion).toEqual([]);
   });
 });

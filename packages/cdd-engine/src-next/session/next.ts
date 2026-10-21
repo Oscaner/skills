@@ -77,7 +77,7 @@ export const ROUTE_DECISION_WORDS = ["done", "next-wave", "review", "fix", "soft
 
 /** The doc-class keys of the unified next face — one row per pipeline seam a face
  *  `done` can land on (the capsule's doc-class lookup reads them). */
-export type PipelineKey = "phase-spec" | "overall-spec" | "plan" | "wave" | "branch";
+export type PipelineKey = "phase-spec" | "overall" | "plan" | "wave" | "branch";
 
 /** One pipeline-next row — the skill ref to dispatch (`ref`), a literal command
  *  (`literal`, the wave→branch transition — the wiring literal with its `<plan>`
@@ -95,16 +95,16 @@ export type PipelineEntry =
  *  frame's plan fact. */
 export const PIPELINE_NEXT: Readonly<Record<PipelineKey, PipelineEntry>> = {
   "phase-spec": { kind: "ref", ref: "kairos:cdd-plan" },
-  "overall-spec": { kind: "done" },
+  overall: { kind: "done" },
   plan: { kind: "ref", ref: "kairos:cdd-dev" },
   wave: { kind: "literal", literal: "review --type branch --plan <plan>" },
   branch: { kind: "ref", ref: "kairos:cdd-close" },
 };
 
 /** The pipeline's phase-level face keys (D40) — `PipelineKey` minus the program-level
- *  `overall-spec` (whose closure is the pipeline terminus, rendered by the capsule,
+ *  `overall` (whose closure is the pipeline terminus, rendered by the capsule,
  *  never walked). */
-export type PhaseFaceKey = Exclude<PipelineKey, "overall-spec">;
+export type PhaseFaceKey = Exclude<PipelineKey, "overall">;
 
 /** The pipeline's phase-level face order (D40) — the face-to-face traversal
  *  `spec → plan → wave → branch`, the ONE order declaration; `NextStepRouter.walk`

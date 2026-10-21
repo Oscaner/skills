@@ -446,26 +446,26 @@ export class Lifecycle {
     const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     if (outcome.carrier !== undefined || !blocked) {
       const op = this.#opOf(frame.phase);
-      // T2 — the engine-built fallback rides the FRAME's declared face (the family's
-      // `schema` selector, never the outcome's field presence): a findings-face round
-      // (review / docs-fix) builds the findings carrier — its schema-required findings
-      // key, empty on a conclusion-only round (a fix advances no new findings); a
-      // delivery-face round builds the findings-free delivery carrier — zero findings
+      // T2 — the engine-built fallback rides the FRAME's op-derived plane (never the
+      // outcome's field presence): a judge-plane round (review) builds the findings
+      // carrier — its schema-required findings key, empty on a conclusion-only round
+      // (a review advances no new findings); a work-plane round (implement / fix,
+      // docs-fix included) builds the findings-free work carrier — zero findings
       // injection. The review finding-severity route reads the round carrier's
-      // findings; the conclusion rides only the delivery face's declared status (the
-      // findings face derives its conclusion at judgment time).
-      const face = this.#ledger.handoffFaceOf(op, frame.type);
+      // findings; the conclusion rides only the work plane's declared status (the
+      // judge plane derives its conclusion at judgment time).
+      const plane = this.#ledger.planeOf(op);
       const carrier: Record<string, unknown> =
         outcome.carrier ??
-        (face === "findings"
-          ? this.#ledger.buildHandoff("findings", {
+        (plane === "judge"
+          ? this.#ledger.buildHandoff("judge", {
               findings: [...(outcome.findings ?? [])],
             })
-          : this.#ledger.buildHandoff("delivery", {}));
-      // The delivery face ALONE persists the conclusion (the child's declared status); the
-      // findings carrier holds no status — its conclusion derives at judgment time
+          : this.#ledger.buildHandoff("work", {}));
+      // The work plane ALONE persists the conclusion (the child's declared status); the
+      // judge carrier holds no status — its conclusion derives at judgment time
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
-      if (face === "delivery" && carrier.status === undefined && outcome.status !== undefined)
+      if (plane === "work" && carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
       this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
     }

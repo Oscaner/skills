@@ -29,12 +29,7 @@ import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { type TargetType, targetFaces } from "./faces.ts";
-import {
-  type DeliveryCarrier,
-  type FindingsCarrier,
-  HandoffSchema,
-  type HandoffSchemaFace,
-} from "./handoff-schema.ts";
+import { type Carrier, type CarrierPlane, HandoffSchema } from "./handoff-schema.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
@@ -43,17 +38,17 @@ import { EMPTY_RUN_STATE } from "./run.ts";
 // the round carrier — what NextStepRouter.next (T7) judges
 // ---------------------------------------------------------------------------
 
-/** The delivery face's writable init — the schema-declared optional fields a delivery carrier
+/** The work plane's writable init — the schema-declared optional fields a work carrier
  *  starts from. The round conclusion (status) rides the CALLER's set — never a
  *  build-time value: the skeleton holds only the schema's declared writable plane. */
-type DeliveryInit = {
+type WorkInit = {
   artifacts?: Record<string, string>;
 };
 
-/** The findings face's writable init — `findings` is the schema-REQUIRED field of the
- *  findings face (the compile-time twin of the read-back required gate — a findings
+/** The judge plane's writable init — `findings` is the schema-REQUIRED field of the
+ *  judge plane (the compile-time twin of the read-back required gate — a judge
  *  init omitting it is a type error), artifacts optional. */
-type FindingsInit = {
+type JudgeInit = {
   findings: unknown[];
   artifacts?: Record<string, string>;
 };
@@ -375,7 +370,7 @@ export class Ledger {
    *  the `closedWaves()` read face and the wave gate share the same router). */
   readonly #router = new NextStepRouter();
   /** The handoff-schema face — the conclusion single source (`conclusionOf`), one
-   *  instance per ledger (the round verdict derives from the face's own plane at
+   *  instance per ledger (the round verdict derives from the op's carrier plane at
    *  judgment time · D27). */
   readonly #handoffSchema = new HandoffSchema();
   /** The review-reference face (T25) — the refKind classification + the same-ref
@@ -899,12 +894,12 @@ export class Ledger {
     return family;
   }
 
-  /** The handoff FACE of an op/type pair — the family's `schema` selector (work when
-   *  the family declares none). The face-aware read/write/bookkeep spine (T2): a
-   *  findings-face round rides the findings writable subset, a delivery-face round rides
-   *  the findings-free work subset — never the caller's guess. */
-  handoffFaceOf(op: OpType, type: TargetType): HandoffSchemaFace {
-    return this.#family(op, type).schema ?? "delivery";
+  /** The carrier PLANE of an op — the ONE op-derived derivation (`HandoffSchema.planeOf`).
+   *  The plane-aware read/write/bookkeep spine: a judge-plane round (review) rides the
+   *  findings writable subset, a work-plane round (implement / fix) rides the
+   *  status-bearing work subset — never the caller's guess, never a per-family declaration. */
+  planeOf(op: OpType): CarrierPlane {
+    return HandoffSchema.planeOf(op);
   }
 
   /** The canonical handoff file name — the family's `{placeholder}` pattern, filled. */
@@ -920,10 +915,10 @@ export class Ledger {
   }
 
   /** The handoff carrier skeleton — the schema-declared writable fields the agent
-   *  round fills, SHAPED PER FACE: the delivery overload builds a `findings`-free carrier
+   *  round fills, SHAPED PER PLANE: the work overload builds a `findings`-free carrier
    *  (the work writable subset declares no findings field — the type gate: a
-   *  `buildHandoff("delivery", { findings })` call is a compile-time refusal, Q1→c), the
-   *  findings overload REQUIRES the findings payload (the schema's required field).
+   *  `buildHandoff("work", { findings })` call is a compile-time refusal, Q1→c), the
+   *  judge overload REQUIRES the findings payload (the schema's required field).
    *  The engine-seated identity (phase · tasks) rides the CANONICAL FILE NAME
    *  (`tasks-{wave}-*.json` / the range / doc family), never inline: phase/tasks are
    *  NOT declared and never written (v1.30 — the inline identity seeded a mimicking
@@ -931,15 +926,12 @@ export class Ledger {
    *  tripped the reserved-field gate it could never pass; single declaration, single
    *  author — the carrier holds only the schema's declared plane, and status STILL
    *  rides the caller's set — the round conclusion is the engine's, not the skeleton's). */
-  buildHandoff(face: "delivery", init?: DeliveryInit): DeliveryCarrier;
-  buildHandoff(face: "findings", init: FindingsInit): FindingsCarrier;
-  buildHandoff(
-    face: HandoffSchemaFace,
-    init: DeliveryInit & { findings?: unknown[] } = {},
-  ): DeliveryCarrier | FindingsCarrier {
+  buildHandoff(plane: "work", init?: WorkInit): Carrier;
+  buildHandoff(plane: "judge", init: JudgeInit): Carrier;
+  buildHandoff(plane: CarrierPlane, init: WorkInit & { findings?: unknown[] } = {}): Carrier {
     const carrier: Record<string, unknown> = { artifacts: init.artifacts ?? {} };
-    if (face === "findings" || init.findings !== undefined) carrier.findings = init.findings;
-    return carrier as DeliveryCarrier | FindingsCarrier;
+    if (plane === "judge" || init.findings !== undefined) carrier.findings = init.findings;
+    return carrier as Carrier;
   }
 
   /** Persist a handoff payload at the canonical name — the single-author full-replace
@@ -1078,9 +1070,9 @@ export class Ledger {
       return {
         phase: "review",
         // The conclusion is DERIVED from the review carrier's own findings at judgment
-        // time (D27 · the findings carrier holds no status field) — the single source
-        // shared with the fix leg below (`HandoffSchema.conclusionOf`).
-        status: this.#handoffSchema.conclusionOf("findings", carrier),
+        // time (D27 · the judge-plane carrier holds no status field) — the single
+        // source shared with the fix leg below (`HandoffSchema.conclusionOf`).
+        status: this.#handoffSchema.conclusionOf("judge", carrier),
         findings: this.#findingsOf(carrier),
         reviewsPath: this.handoffPath("review", type, reviewParams),
         consecutiveS1: this.#consecutiveS1Run(type, params, round),
@@ -1098,9 +1090,8 @@ export class Ledger {
     return {
       phase: "fix",
       // The fix round's conclusion derives from ITS OWN carrier's declared plane (the
-      // delivery face reads its status; a docs-fix findings face rolls its findings up) —
-      // the same `conclusionOf` single source (D27).
-      status: this.#handoffSchema.conclusionOf(this.handoffFaceOf("fix", type), fixCarrier),
+      // work plane reads its status) — the same `conclusionOf` single source (D27).
+      status: this.#handoffSchema.conclusionOf(this.planeOf("fix"), fixCarrier),
       findings: this.#findingsOf(reviewCarrier),
       reviewsPath: this.handoffPath("review", type, reviewParams),
       consecutiveS1: this.#consecutiveS1Run(type, params, round),

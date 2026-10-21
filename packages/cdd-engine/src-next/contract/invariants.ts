@@ -128,7 +128,7 @@ export interface JudgeContext {
   skeleton: DocSkeleton;
   /** The four declared registries — the element-level judgment data. */
   registries: {
-    "overall-spec": ElementRegistry;
+    overall: ElementRegistry;
     plan: ElementRegistry;
     "phase-spec": ElementRegistry;
     "single-spec": ElementRegistry;
@@ -263,7 +263,7 @@ export abstract class Invariant extends MarkdownPrimitives {
 
   /** The parsed overall record — when the judged doc is an overall. */
   protected overall(ctx: JudgeContext): OverallParsed | null {
-    return ctx.docKey === "overall-spec" ? (ctx.parsed as OverallParsed) : null;
+    return ctx.docKey === "overall" ? (ctx.parsed as OverallParsed) : null;
   }
 
   /** The parsed plan record — when the judged doc is a plan. */
@@ -288,7 +288,7 @@ export abstract class Invariant extends MarkdownPrimitives {
   protected overallTableHeadings(ctx: JudgeContext): readonly string[] {
     const headings = this.overall(ctx);
     if (headings === null) return [];
-    const declared = ctx.registries["overall-spec"].elements
+    const declared = ctx.registries.overall.elements
       .filter((element) => element.home === "section" && element.anchor.startsWith("## "))
       .map((element) => element.anchor);
     return declared.filter((anchor) =>
@@ -462,7 +462,7 @@ export class UniquenessInvariant extends Invariant {
         seenIds.add(block.id);
       }
     }
-    if (ctx.docKey === "overall-spec") {
+    if (ctx.docKey === "overall") {
       const data = this.overall(ctx);
       if (data !== null) {
         const seenPhases = new Set<string>();
@@ -583,7 +583,7 @@ export class CrosslinkInvariant extends Invariant {
   readonly name = "crosslink";
 
   evaluate(ctx: JudgeContext): Finding[] {
-    if (ctx.docKey === "overall-spec") return this.overallCrosslinks(ctx);
+    if (ctx.docKey === "overall") return this.overallCrosslinks(ctx);
     if (ctx.docKey === "plan") return this.planCrosslinks(ctx);
     return [];
   }
@@ -760,7 +760,7 @@ export class OrderInvariant extends Invariant {
 
   /** The document's rank-2 section blocks in document order. */
   #docSections(ctx: JudgeContext): readonly SectionBlock[] {
-    if (ctx.docKey === "overall-spec") return (ctx.parsed as OverallParsed).sections;
+    if (ctx.docKey === "overall") return (ctx.parsed as OverallParsed).sections;
     if (ctx.docKey === "plan") return (ctx.parsed as PlanParsed).sections;
     return (ctx.parsed as PhaseSpecParsed).sections;
   }
@@ -1024,7 +1024,7 @@ export class SelfBoundedInvariant extends Invariant {
    *  row primitive — the P4.1 T2 isomorphic lineage: the same lineage judgment rides
    *  all doc types). */
   #historyVersions(ctx: JudgeContext): readonly string[] {
-    if (ctx.docKey === "overall-spec") {
+    if (ctx.docKey === "overall") {
       const data = this.overall(ctx);
       if (data === null) return [];
       return data.tables["Change history"].rows
@@ -1073,7 +1073,7 @@ export class SelfBoundedInvariant extends Invariant {
 
 /** The chain-link target shape contract (D2, shape judged at the boundary — the #342
  *  fix): a link target must be a BARE relative path (the repo-root form
- *  `docs/kairos/specs/…-overall.md` or a doc-relative file name) — never a
+ *  `docs/kairos/overalls/…-overall.md` or a doc-relative file name) — never a
  *  markdown-link shell (`[label](path)`), a URL or a collation token
  *  (whitespace / parens / angle brackets). The ONE expression of the shape rule:
  *  `of()` yields either the accepted (trimmed) target or the reason the shape is
@@ -1103,7 +1103,7 @@ export class LinkTargetShape {
     if (/[\s()[\]<>]|:\/\//.test(trimmed)) {
       return new LinkTargetShape(
         null,
-        "the value must be a bare relative path (e.g. `docs/kairos/specs/…-overall.md` or `xxx-overall.md`), not a markdown link or URL",
+        "the value must be a bare relative path (e.g. `docs/kairos/overalls/…-overall.md` or `xxx-overall.md`), not a markdown link or URL",
       );
     }
     return new LinkTargetShape(trimmed, null);
@@ -1141,7 +1141,7 @@ export class FileExistenceInvariant extends Invariant {
    *  here: a slug reference is not a path. */
   protected chainLinks(ctx: JudgeContext): readonly { source: string; link: ChainLink }[] {
     const links: { source: string; link: ChainLink }[] = [];
-    if (ctx.docKey === "overall-spec") {
+    if (ctx.docKey === "overall") {
       const data = this.overall(ctx);
       if (data !== null) {
         for (const phase of data.chain.phases) {
@@ -1288,8 +1288,8 @@ export class SlugRefInvariant extends Invariant {
         this.finding(
           ctx,
           element.anchor,
-          `the ${element.anchor} reference names no on-disk overall-spec document: ${value}`,
-          `name the slug: of an existing overall-spec document (${value} resolves to nothing)`,
+          `the ${element.anchor} reference names no on-disk overall document: ${value}`,
+          `name the slug: of an existing overall document (${value} resolves to nothing)`,
         ),
       );
     }
@@ -1315,7 +1315,7 @@ export class CrossDocChainInvariant extends Invariant {
   readonly name = "cross-doc-chain";
 
   evaluate(ctx: JudgeContext): Finding[] {
-    if (ctx.docKey === "overall-spec") return this.overallChain(ctx);
+    if (ctx.docKey === "overall") return this.overallChain(ctx);
     if (ctx.docKey === "plan") return this.planChain(ctx);
     return this.specChain(ctx);
   }
@@ -1343,7 +1343,7 @@ export class CrossDocChainInvariant extends Invariant {
    *  document sharing its `slug:`: a plan with no same-slug identity document has
    *  no design spec to dispatch against, and the finding names the `slug` key (the
    *  identity fact that is missing its pair). The positive half is any identity
-   *  document (overall-spec / phase-spec / single-spec) carrying the same slug — a
+   *  document (overall / phase-spec / single-spec) carrying the same slug — a
    *  single-spec pair carries no program, so the chain simply ends there. */
   private planChain(ctx: JudgeContext): Finding[] {
     const data = this.plan(ctx);
@@ -1357,7 +1357,7 @@ export class CrossDocChainInvariant extends Invariant {
         ctx,
         "slug",
         `the plan carries no identity document with the same slug: ${slug}`,
-        `add a spec document declaring slug: ${slug} (its doc-type is overall-spec / phase-spec / single-spec)`,
+        `add a spec document declaring slug: ${slug} (its doc-type is overall / phase-spec / single-spec)`,
       ),
     ];
   }
@@ -1397,7 +1397,7 @@ export class CrossDocChainInvariant extends Invariant {
     return this.indexOf(ctx).identityDoc(slug);
   }
 
-  /** The overall-spec document carrying the program slug, or null. */
+  /** The overall document carrying the program slug, or null. */
   #overallOf(ctx: JudgeContext, slug: string): DocEntry | null {
     return this.indexOf(ctx).overallOf(slug);
   }
@@ -1415,7 +1415,7 @@ export class CrossDocChainInvariant extends Invariant {
     if (content === null) return null;
     const { head, body } = FrontMatterExtractor.split(content);
     const lines = body.split("\n").map((line) => ctx.translator.canonicalize(line));
-    const parsed = docTypeParsers["overall-spec"].parse(lines, head) as OverallParsed;
+    const parsed = docTypeParsers.overall.parse(lines, head) as OverallParsed;
     const lineage = new Set<string>();
     if (head.version !== null) lineage.add(head.version);
     for (const row of parsed.tables["Change history"].rows) {
@@ -1431,7 +1431,7 @@ export class SectionScopedDomainInvariant extends Invariant {
   readonly name = "section-scoped-domain";
 
   evaluate(ctx: JudgeContext): Finding[] {
-    if (ctx.docKey === "overall-spec") return this.issueScopedRefs(ctx);
+    if (ctx.docKey === "overall") return this.issueScopedRefs(ctx);
     if (ctx.docKey === "phase-spec") return this.designScoping(ctx);
     return [];
   }

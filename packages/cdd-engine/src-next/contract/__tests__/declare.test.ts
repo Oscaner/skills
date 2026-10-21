@@ -2,7 +2,7 @@
 // T2 test suite for the element-registry declaration (contract/declare.ts).
 //
 // The declare module is the doc contract's single declaration: one typed
-// registry per doc type (overall-spec / plan / phase-spec / single-spec). These
+// registry per doc type (overall / plan / phase-spec / single-spec). These
 // tests pin the acceptance gates of the declared data — every full doc type
 // carrying at least MIN_ELEMENTS registered elements (single-spec is the declared
 // lightweight exception, exempted by name), each doc type's body side
@@ -64,11 +64,11 @@ const MIN_ELEMENTS = 20;
 /** The body-side element gate — every non-frontmatter home (section / facet / table /
  *  graph / task-block / task-field / task-step / design-body / conditional) tallies into
  *  the body side; a doc type's body side must stay at or below this count. The value (40)
- *  keeps today's live body-side highs (overall-spec 34 · plan 22 · phase-spec 18 ·
+ *  keeps today's live body-side highs (overall 36 · plan 22 · phase-spec 18 ·
  *  single-spec 8) inside the gate with the post-migration additions' margin. */
 const MAX_BODY_ELEMENTS = 40;
 /** The header-side element gate — the frontmatter surface (H1 + metadata rows). Today's
- *  live header counts run overall-spec 5 / plan 6 / phase-spec 7 / single-spec 5; 12 keeps
+ *  live header counts run overall 7 / plan 6 / phase-spec 9 / single-spec 8; 12 keeps
  *  the post-migration header additions inside the gate with margin. */
 const MAX_HEADER_ELEMENTS = 12;
 /** The two home partitions — the header side is the single `frontmatter` surface; the body
@@ -88,7 +88,7 @@ const countByHome = (registry: ElementRegistry, homes: ReadonlySet<Home>): numbe
 const LIGHTWEIGHT_DOC_TYPES: ReadonlySet<string> = new Set(["single-spec"]);
 
 const ALL_REGISTRIES = [
-  declaredRegistries["overall-spec"],
+  declaredRegistries.overall,
   declaredRegistries.plan,
   declaredRegistries["phase-spec"],
   declaredRegistries["single-spec"],
@@ -96,7 +96,7 @@ const ALL_REGISTRIES = [
 
 describe("declared registries", () => {
   it("declares exactly the four doc types with their docType identity", () => {
-    expect(declaredRegistries["overall-spec"].docType).toBe("overall-spec");
+    expect(declaredRegistries.overall.docType).toBe("overall");
     expect(declaredRegistries.plan.docType).toBe("plan");
     expect(declaredRegistries["phase-spec"].docType).toBe("phase-spec");
     expect(declaredRegistries["single-spec"].docType).toBe("single-spec");
@@ -191,7 +191,7 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
   // `program:` and the optional `parent-version`. The order mirrors the §2.1
   // front-matter emission shapes (the migrated corpus order).
   const HEADER_KEYS: Record<DocType, readonly string[]> = {
-    "overall-spec": ["title", "doc-type", "version", "date", "slug", "status", "author"],
+    overall: ["title", "doc-type", "version", "date", "slug", "status", "author"],
     plan: ["title", "doc-type", "version", "date", "slug", "base"],
     "phase-spec": [
       "title",
@@ -256,7 +256,7 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
       }
     }
     // `status`/`author` ride the three spec carriers — plan has no such key.
-    for (const docType of ["overall-spec", "phase-spec", "single-spec"] as const) {
+    for (const docType of ["overall", "phase-spec", "single-spec"] as const) {
       expect(findKey(docType, "status").presence).toBe("required");
       expect(findKey(docType, "author").presence).toBe("required");
     }
@@ -276,14 +276,14 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     // `program` is phase-spec-only (the parent overall's slug reference).
     expect(findKey("phase-spec", "program").presence).toBe("required");
     expect(findKey("phase-spec", "program").refKind).toBe("slug-ref");
-    for (const docType of ["overall-spec", "plan", "single-spec"] as const) {
+    for (const docType of ["overall", "plan", "single-spec"] as const) {
       expect(
         declaredRegistries[docType].elements.some((element) => element.anchor === "program"),
         `${docType} has no program key`,
       ).toBe(false);
     }
     // The retired path keys are gone from every registry.
-    for (const docType of ["overall-spec", "plan", "phase-spec", "single-spec"] as const) {
+    for (const docType of ["overall", "plan", "phase-spec", "single-spec"] as const) {
       for (const anchor of ["spec", "parent-program", "depends-on"]) {
         expect(
           declaredRegistries[docType].elements.some((element) => element.anchor === anchor),
@@ -294,7 +294,7 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     // The optional shape-typed key: `parent-version` (phase-spec only; the plan's
     // lineage keys retired with the path-declaration face).
     expect(findKey("phase-spec", "parent-version").presence).toBe("optional");
-    for (const docType of ["overall-spec", "plan", "single-spec"] as const) {
+    for (const docType of ["overall", "plan", "single-spec"] as const) {
       expect(
         declaredRegistries[docType].elements.some((element) => element.anchor === "parent-version"),
         `${docType} has no parent-version key`,
@@ -303,7 +303,7 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     expect(findKey("plan", "base").presence).toBe("optional");
     // `issues` is single-spec optional (the free-form's issue pointer).
     expect(findKey("single-spec", "issues").presence).toBe("optional");
-    for (const docType of ["overall-spec", "plan", "phase-spec"] as const) {
+    for (const docType of ["overall", "plan", "phase-spec"] as const) {
       expect(
         declaredRegistries[docType].elements.some((element) => element.anchor === "issues"),
         `${docType} has no issues key`,
@@ -326,23 +326,23 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
 
   it("matches the declared scalar shapes against known-good front-matter values", () => {
     const samples: Array<readonly [DocType, string, string]> = [
-      ["overall-spec", "version", "v2.46"],
+      ["overall", "version", "v2.46"],
       ["plan", "version", "v0.9"],
       ["phase-spec", "version", "v1.9"],
       ["single-spec", "version", "v0.1"],
-      ["overall-spec", "date", "2026-10-17"],
+      ["overall", "date", "2026-10-17"],
       ["plan", "date", "2026-10-17"],
       ["phase-spec", "date", "2026-10-17"],
       ["single-spec", "date", "2026-10-17"],
-      ["overall-spec", "doc-type", "overall-spec"],
+      ["overall", "doc-type", "overall"],
       ["plan", "doc-type", "plan"],
       ["phase-spec", "doc-type", "phase-spec"],
       ["single-spec", "doc-type", "single-spec"],
-      ["overall-spec", "status", "Approved"],
+      ["overall", "status", "Approved"],
       ["phase-spec", "status", "Plan pending"],
       ["single-spec", "status", "Draft"],
       ["plan", "title", "A plan title"],
-      ["overall-spec", "slug", "2026-10-10-engine-doc-tooling"],
+      ["overall", "slug", "2026-10-10-engine-doc-tooling"],
       ["plan", "slug", "2026-10-10-engine-doc-tooling-p15"],
       ["phase-spec", "slug", "2026-10-10-engine-doc-tooling-p15"],
       ["single-spec", "slug", "2026-09-28-cdd-review-contract-fix"],
@@ -350,7 +350,7 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
       ["phase-spec", "parent-version", "v2.46"],
       ["plan", "base", "main"],
       ["single-spec", "issues", "#302"],
-      ["overall-spec", "author", "[human] · Claude Opus 5（…）"],
+      ["overall", "author", "[human] · Claude Opus 5（…）"],
     ];
     for (const [docType, anchor, value] of samples) {
       const pattern = new RegExp(findKey(docType, anchor).valuePattern!);
@@ -358,9 +358,9 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     }
     // The scalar shapes are fully anchored — the retired bullet/date-combined form
     // and the empty scalar both fail.
-    expect(
-      new RegExp(findKey("overall-spec", "version").valuePattern!).test("v2.46 · 2026-10-17"),
-    ).toBe(false);
+    expect(new RegExp(findKey("overall", "version").valuePattern!).test("v2.46 · 2026-10-17")).toBe(
+      false,
+    );
     expect(new RegExp(findKey("plan", "title").valuePattern!).test("")).toBe(false);
   });
 
@@ -389,7 +389,7 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
   });
 
   it("reconciles the post-migration element totals against the §2.3 arithmetic (43/28/27/16)", () => {
-    expect(declaredRegistries["overall-spec"].elements.length).toBe(43);
+    expect(declaredRegistries.overall.elements.length).toBe(43);
     expect(declaredRegistries.plan.elements.length).toBe(28);
     expect(declaredRegistries["phase-spec"].elements.length).toBe(27);
     expect(declaredRegistries["single-spec"].elements.length).toBe(16);
@@ -439,18 +439,18 @@ describe("RegistryGuard type guards", () => {
   });
 
   it("recognizes the four declared registries and rejects registry-shaped non-registries", () => {
-    expect(RegistryGuard.isRegistry(declaredRegistries["overall-spec"])).toBe(true);
+    expect(RegistryGuard.isRegistry(declaredRegistries.overall)).toBe(true);
     expect(RegistryGuard.isRegistry(declaredRegistries.plan)).toBe(true);
     expect(RegistryGuard.isRegistry(declaredRegistries["phase-spec"])).toBe(true);
     expect(RegistryGuard.isRegistry(declaredRegistries["single-spec"])).toBe(true);
     // Missing the elements surface.
-    expect(RegistryGuard.isRegistry({ docType: "overall-spec" })).toBe(false);
+    expect(RegistryGuard.isRegistry({ docType: "overall" })).toBe(false);
     // Unknown doc type.
     expect(RegistryGuard.isRegistry({ docType: "unknown", elements: [] })).toBe(false);
     // A registry whose element fails the element guard is not a registry.
     expect(
       RegistryGuard.isRegistry({
-        docType: "overall-spec",
+        docType: "overall",
         elements: [{ anchor: "## X", presence: "sometimes", home: "section" }],
       }),
     ).toBe(false);
@@ -491,6 +491,6 @@ describe("type-level contract", () => {
       valuePattern: "^## Goal$",
       refKind: "none",
     }).not.toMatchTypeOf<RegistryElement>();
-    expectTypeOf({ docType: "overall-spec" }).not.toMatchTypeOf<ElementRegistry>();
+    expectTypeOf({ docType: "overall" }).not.toMatchTypeOf<ElementRegistry>();
   });
 });

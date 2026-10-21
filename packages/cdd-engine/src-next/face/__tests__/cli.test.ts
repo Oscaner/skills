@@ -301,11 +301,7 @@ const conformingPlan = (repoRoot: string): string => {
     "utf8",
   );
   const overallPath = path.join(repoRoot, "docs", "kairos", "specs", "p3-overall.md");
-  writeFileSync(
-    overallPath,
-    "---\ntitle: O\ndoc-type: overall-spec\nslug: p3-overall\n---\n",
-    "utf8",
-  );
+  writeFileSync(overallPath, "---\ntitle: O\ndoc-type: overall\nslug: p3-overall\n---\n", "utf8");
   return file;
 };
 
@@ -314,7 +310,7 @@ const conformingPlan = (repoRoot: string): string => {
  *  resolving into existing same-family siblings. The overall charter is the
  *  GOOD_OVERALL judge fixture shape (judge.test.ts:19-71) with the `o1-` names
  *  the temp repo actually holds — the review face's doc-contract gate must judge it
- *  under the overall-spec key (zero phase-spec misreport on the doc-key derivation). */
+ *  under the overall key (zero phase-spec misreport on the doc-key derivation). */
 const conformingOverall = (repoRoot: string): string => {
   const file = path.join(repoRoot, "docs", "kairos", "specs", "o1-overall.md");
   mkdirSync(path.dirname(file), { recursive: true });
@@ -323,7 +319,7 @@ const conformingOverall = (repoRoot: string): string => {
     [
       "---",
       "title: Test Overall",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "version: v1.21",
       "date: 2026-10-07",
       "slug: o1-overall",
@@ -337,7 +333,7 @@ const conformingOverall = (repoRoot: string): string => {
       "## File paths",
       "| Artifact | Path |",
       "| --- | --- |",
-      "| overall-spec | docs/kairos/specs/o1-overall.md |",
+      "| overall | docs/kairos/specs/o1-overall.md |",
       "",
       "## Program charter",
       "### Goal",
@@ -490,7 +486,7 @@ const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
   mkdirSync(path.dirname(sibling), { recursive: true });
   writeFileSync(
     sibling,
-    "---\ntitle: O\ndoc-type: overall-spec\nslug: x-overall\nversion: v1.0\n---\n",
+    "---\ntitle: O\ndoc-type: overall\nslug: x-overall\nversion: v1.0\n---\n",
     "utf8",
   );
   return file;
@@ -739,7 +735,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec)",
+        "unknown schema type: bogus (available: overall, plan, phase-spec, single-spec)",
       );
     } finally {
       cleanup();
@@ -755,8 +751,8 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
     expect(get.processedArgs[0]).toBe("phase-spec");
     gate.parse(["schema", "get", "plan"], { from: "user" });
     expect(get.processedArgs[0]).toBe("plan");
-    gate.parse(["schema", "get", "overall-spec"], { from: "user" });
-    expect(get.processedArgs[0]).toBe("overall-spec");
+    gate.parse(["schema", "get", "overall"], { from: "user" });
+    expect(get.processedArgs[0]).toBe("overall");
     // D19 — the target positional rides the merged leaf (mandatory only under
     // --output skeleton, an engine-declared parameter rather than a shell redirect)
     gate.parse(["schema", "get", "phase-spec", "--output", "skeleton", "/tmp/demo.md"], {
@@ -1762,6 +1758,102 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("D61-4 — INPUT_OVERALL carries the parent charter the spec's `program:` names", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      // A phase-spec names its parent program via `program:`; the fixture's overall
+      // (`x-overall`) is on disk, so the spec-line review carries the charter path
+      // beside INPUT_SPEC — both on the one repoRoot-relative basis.
+      const spec = conformingSpec(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["review", "--type", "spec", "--spec", spec]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const prompt =
+        sync.calls[sync.calls.length - 1]!.args[sync.calls[sync.calls.length - 1]!.args.length - 1];
+      expect(prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
+      expect(prompt).toContain("- `INPUT_OVERALL`: docs/kairos/specs/x-overall.md");
+      // the shared review fixed prefix names the token's existence condition
+      expect(prompt).toContain("the parent charter at `INPUT_OVERALL`");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("D61-4 — a single-spec names no `program:`: the INPUT_OVERALL line is dropped", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      // A doc-contract-clean single-spec — the independent document class that names
+      // no parent overall (no `program:` key), so the slot stays empty.
+      const file = path.join(repoRoot, "docs", "kairos", "specs", "ss1-design.md");
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(
+        file,
+        [
+          "---",
+          "title: Test Single Spec",
+          "doc-type: single-spec",
+          "version: v1.0",
+          "date: 2026-10-09",
+          "slug: ss1",
+          "status: Draft",
+          "author: x",
+          "---",
+          "",
+          "## Background & root cause",
+          "",
+          "Text.",
+          "",
+          "## Design decisions",
+          "",
+          "Text.",
+          "",
+          "## Acceptance",
+          "",
+          "Text.",
+          "",
+          "## Constraints",
+          "",
+          "Text.",
+          "",
+          "## Change history",
+          "",
+          "| Version | date | summary | author |",
+          "|---|---|---|---|",
+          "| v1.0 | 2026-10-09 | initial | [human] |",
+        ].join("\n"),
+        "utf8",
+      );
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["review", "--type", "spec", "--spec", file]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const prompt =
+        sync.calls[sync.calls.length - 1]!.args[sync.calls[sync.calls.length - 1]!.args.length - 1];
+      expect(prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/ss1-design.md");
+      // empty slot → the assembler drops the line (only present facts land)
+      expect(prompt).not.toContain("- `INPUT_OVERALL`");
+      // the fixed prefix still names the existence condition
+      expect(prompt).toContain("the parent charter at `INPUT_OVERALL`");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("D46 — INPUT_SPEC is resolved to a repoRoot-relative token from the plan's same-slug identity document", async () => {
     const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";
@@ -1926,7 +2018,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
-  it("review --type spec of an -overall.md — the overall-spec doc-key face (zero phase-spec misreport)", async () => {
+  it("review --type spec of an -overall.md — the overall doc-key face (zero phase-spec misreport)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
@@ -1934,7 +2026,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const overallCode = await command.runArgv(["review", "--type", "spec", "--spec", overall]);
       expect(overallCode).toBe(0);
       expect(io.stdoutText).toContain("next: done");
-      // The overall was judged under the overall-spec key (its declared
+      // The overall was judged under the overall key (its declared
       // `doc-type:` key, spec §12 · D34) — a phase-spec misjudge would trip
       // the doc-contract gate: the charter fails the phase-spec face, the pre-flight
       // refuses over CDD_BLOCKED and no round lands. The exit 0 + round +
@@ -2868,7 +2960,7 @@ describe("the pure commands — schema / issue / base", () => {
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec)",
+        "unknown schema type: bogus (available: overall, plan, phase-spec, single-spec)",
       );
     } finally {
       cleanup();
@@ -3625,7 +3717,7 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
     writeDoc(repoRoot, "docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
-      "doc-type: overall-spec",
+      "doc-type: overall",
       "slug: prog-overall",
       "---",
     ]);
@@ -4036,7 +4128,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
       const code = await command.runArgv(["schema", "get", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "unknown schema type: bogus (available: overall-spec, plan, phase-spec, single-spec)",
+        "unknown schema type: bogus (available: overall, plan, phase-spec, single-spec)",
       );
     } finally {
       cleanup();
@@ -4646,7 +4738,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const io = new CaptureIo();
       const sync = new StubRunner();
       // The §2.8/§8.7 dogfood crash face: a child-authored `status` (non-declared on
-      // the findings face — the finding carrier holds no status; the conclusion derives
+      // the judge plane — the judge carrier holds no status; the conclusion derives
       // at judgment time) on a review draft, plus a stray extra key. The read-back
       // validator drops both (never a refusal); materialize drops them from the carrier
       // and books ONE WARN on the notes.
@@ -4876,6 +4968,58 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "every top-level field of the draft comes from the `## Handoff schema` declared `properties`",
       );
       expect(prompt).toContain("zero extra keys");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("D62 — a docs-fix round writes a WORK carrier with `status` (no residual findings, no evidence gate)", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new StubRunner();
+      sync.stdout = "status: APPROVED\n";
+      // the docs-fix draft reports its outcome in `status`; the child's leftover
+      // `findings` key is a non-declared work-plane field — dropped by materialize,
+      // never written (the residual-findings dead path is gone)
+      writeFileSync(
+        path.join(scene.workspace.path, "spec-fix-1.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: { doc: "docs/kairos/specs/s1-design.md" },
+          findings: [],
+        }),
+        "utf8",
+      );
+      const docsFixFrame: OpenFrame = {
+        type: "spec",
+        phase: "fix",
+        round: 1,
+        target: { kind: "spec", doc: "docs/kairos/specs/s1-design.md" },
+        params: { round: 1 },
+        key: "docs/kairos/specs/s1-design.md",
+      };
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      // NO test-evidence file: the docs-fix round rides the work plane's status, and
+      // the evidence gate scopes to the wave / branch rounds only
+      const outcome = await dispatch.step()(docsFixFrame);
+      expect(outcome.status).toBe("APPROVED");
+      expect(outcome.carrier?.status).toBe("APPROVED");
+      expect("findings" in (outcome.carrier ?? {})).toBe(false);
+      expect(Object.keys(outcome.carrier ?? {}).sort()).toEqual(["artifacts", "notes", "status"]);
+      expect(((outcome.carrier?.notes ?? []) as string[]).join("\n")).toContain(
+        "dropped non-declared draft field(s): findings",
+      );
+      // the docs-fix prefix tells the child to report the round in `status`
+      const call = sync.calls[0];
+      const prompt = call.args[call.args.length - 1];
+      expect(prompt).toContain("report the round in `status`");
     } finally {
       cleanup();
     }
@@ -5234,7 +5378,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(implementFrame);
       expect(outcome).toEqual({ status: "BLOCKED" });
-      expect(io.stderrText).toContain("violates the delivery schema");
+      expect(io.stderrText).toContain("violates the work schema");
       expect(io.stderrText).toContain("status: required");
       // the draft is preserved byte-identically — the engine never clobbers the
       // child's work; the resume re-runs the same command and the child rewrites it
@@ -5295,7 +5439,6 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           ),
         },
         status: "BLOCKED",
-        failure_category: "evidence-contract",
         notes: [
           expect.stringContaining("artifact report"),
           expect.stringContaining("artifact test_evidence"),
@@ -5344,7 +5487,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(implementFrame);
       expect(outcome.status).toBe("BLOCKED");
-      expect(outcome.carrier?.failure_category).toBe("evidence-contract");
+      expect(outcome.carrier?.status).toBe("BLOCKED");
       const notes = (outcome.carrier?.notes ?? []) as string[];
       expect(notes.join("\n")).toContain("is malformed JSON");
       // the true cause, never the misleading "missing" the collapsed read produced

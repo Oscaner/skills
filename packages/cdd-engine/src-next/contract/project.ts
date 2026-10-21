@@ -48,7 +48,7 @@ import type {
 } from "./declare.ts";
 import { DOC_TYPE_VALUES } from "./declare.ts";
 
-/** The projection record keys — the declared-registries record shape ({ "overall-spec",
+/** The projection record keys — the declared-registries record shape ({ "overall",
  *  plan, "phase-spec", "single-spec" }). Derived from the ONE declaration root
  *  (declare.ts): the `DocKey` type aliases `DocType` and the runtime `DOC_KEYS`
  *  tuple aliases `DOC_TYPE_VALUES`, so the value domain has a single source (spec
@@ -405,7 +405,7 @@ export class Projector {
   /** Map a per-registry projector across the four injected registries, keyed by their record identity. */
   #projectAll<T>(project: (registry: ElementRegistry) => T): Record<DocKey, T> {
     return {
-      "overall-spec": project(this.#registries["overall-spec"]),
+      overall: project(this.#registries.overall),
       plan: project(this.#registries.plan),
       "phase-spec": project(this.#registries["phase-spec"]),
       "single-spec": project(this.#registries["single-spec"]),

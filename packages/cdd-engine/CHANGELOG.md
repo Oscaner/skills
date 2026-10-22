@@ -1,5 +1,11 @@
 # @oscaner-skills/cdd-engine
 
+## 4.0.1
+
+### Patch Changes
+
+- [#377](https://github.com/Oscaner/skills/pull/377) [`7e5192e`](https://github.com/Oscaner/skills/commit/7e5192efc404793e8047586d3e6385f4465690c2) Thanks [@Oscaner](https://github.com/Oscaner)! - claude dispatch: pass `--exclude-dynamic-system-prompt-sections` so the per-machine sections (cwd, env, memory paths, git status) move out of the system prompt into the first user message. Every CDD dispatch starts a new harness session, so a changing git status alone used to invalidate the tools+system prompt prefix on every round; with the flag the prefix stays byte-stable across dispatches and can be served from the harness prompt cache.
+
 ## 4.0.0
 
 ### Major Changes

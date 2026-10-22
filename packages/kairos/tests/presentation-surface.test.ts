@@ -209,7 +209,6 @@ const ZH_HEADING_SEQUENCES: Record<string, string[]> = {
     "快速开始",
     "CDD 引擎 CLI",
     "与上游插件共存",
-    "维护者文档",
     "许可",
   ],
   "packages/cdd-engine/README.zh-CN.md": ["包定位", "安装", "CLI", "迁移", "开发说明", "许可"],

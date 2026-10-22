@@ -91,11 +91,11 @@ test('grep sweep: "docs/cdd-reference" old path → 0 hits', () => {
   expect(count, `"docs/cdd-reference" old path has ${count} hits`).toBe(0);
 });
 
-// Special token: subagent-driven-development (allowed in vendor path + maintainer docs)
-test("grep sweep: subagent-driven-development in non-vendor/non-maintainer code → 0 hits", () => {
-  const cmd = `grep -rn "subagent-driven-development" packages/kairos/skills/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "grep-sweep-regression.test.ts" | grep -v "docs/maintainers/" | wc -l`;
+// Special token: subagent-driven-development (allowed in the vendor path only)
+test("grep sweep: subagent-driven-development in non-vendor code → 0 hits", () => {
+  const cmd = `grep -rn "subagent-driven-development" packages/kairos/skills/ docs/ README.md marketplace/source.json --include="*.md" --include="*.json" --include="*.ts" 2>/dev/null | grep -v "/CHANGELOG.md" ${DOC_ROOT_EXCLUDES}| grep -v "grep-sweep-regression.test.ts" | wc -l`;
   const count = parseInt(execSync(cmd, { cwd: REPO, encoding: "utf8" }).trim(), 10);
-  expect(count, `subagent-driven-development has ${count} non-vendor/non-maintainer hits`).toBe(0);
+  expect(count, `subagent-driven-development has ${count} non-vendor hits`).toBe(0);
 });
 
 // P7 §8.4 — the consumer-face lexicon sweep. The engine retired the commit-sha scope

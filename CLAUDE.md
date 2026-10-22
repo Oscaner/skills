@@ -42,6 +42,7 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 - `scripts/run.ts emit` — unified emit tool (derives `source.json` + all harness manifests)
 - `.github/workflows/pr-validate.yml` — the native validation job matrix (one job per check; the local equivalent is the root `pnpm run validate` chain)
 - `packages/cdd-engine/` — CDD engine npm package (`src-next/` five-plane OOP tree · `templates/` · the seven-command `cdd` CLI: implement / review / fix / schema / issue / base / board)
+- `docs/diagrams/` — the bilingual architecture, developer/engine journey, and NEXT-loop diagrams (open `index.html`; each diagram exists as EN + zh-CN with editable sources under `src/`)
 
 ### Per-package docs
 
@@ -51,7 +52,7 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 
 ### Data-driven templates
 
-Template-shaped content converges to a single source of truth: canonical JSON → one renderer → emit-generated products (guarded by `pnpm run emit:check` drift + runtime composition). Full convention: [docs/maintainers/01-doctrine.md](docs/maintainers/01-doctrine.md).
+Template-shaped content converges to a single source of truth: canonical JSON → one renderer → emit-generated products (guarded by `pnpm run emit:check` drift + runtime composition). The architecture diagram's Distribution card records the practice, and `scripts/emit.ts` plus `pnpm run emit:check` are the enforcement.
 
 ### Language policy — English-primary, mirror only the README family
 
@@ -74,10 +75,6 @@ Three strategies implement this, depending on file type:
 
 `docs/kairos/overalls/*.md`, `docs/kairos/specs/*.md`, and `docs/kairos/plans/*.md` are internal developer documents written **in Chinese** (the user's working language). No `.zh-CN.md` mirror is needed or maintained for these files.
 
-#### Strategy B extension — maintainer docs (docs/maintainers/)
-
-`docs/maintainers/*.md` are maintainer-only documents (reader-positioned for this monorepo's developers, **not** shipped to consumers — the package's `contentRoot` is `"."` so `packages/*/` is what publishes). They follow the repo's **English-primary** policy (English authoritative source, no Chinese content, no `.zh-CN.md` mirror). They are excluded from the Strategy A emit-and-consumer rules but not from the English-primary rule.
-
 ## Conventions
 
 ### Commit discipline
@@ -94,15 +91,15 @@ Three strategies implement this, depending on file type:
 
 ### Consumer perspective
 
-Changes to rule text and docs shipped with the plugin must be reviewed from the post-publish consumer's standpoint — the consumer environment has no monorepo layout and no this-repo toolchain. `docs/maintainers/*.md` is exempt (maintainer-only, not shipped; its reader block states this).
+Changes to rule text and docs shipped with the plugin must be reviewed from the post-publish consumer's standpoint — the consumer environment has no monorepo layout and no this-repo toolchain.
 
 ### Consumer surface purity (iron rule — zero program history in shipped skill text)
 
-An iron rule, hard-won: **consumer-shipped skill text carries zero program history.** SKILL.md (and every file that ships to harness consumers) is an instruction document — its sections are executable direction or self-describing structure, never program narrative. Phase/issue numbers, evolution rationales, refactor justifications, mid-flight decisions, growth-guide notes, and "why X was rejected" history are meaningless to consumers with none of this repo's program context — misplaced content is a defect, and this rule recurs whenever a fix/backfill narrates its own history into a skill. **No one-line pointer or neutral note substitutes for removal**: if a consumer would not act on the section, the section does not belong in the shipped file. Such content belongs in `docs/maintainers/` (repo-shared, maintainer-positioned). Machine enforcement: the skill-anatomy contract ([`packages/cdd-engine/src-next/contract/skill-anatomy.ts`](packages/cdd-engine/src-next/contract/skill-anatomy.ts)) carries the section-heading registry — the strict allowlist ([`SkillAnatomyCheck`](packages/kairos/tests/skill-anatomy.test.ts)) enforces: it fails any SKILL.md carrying a growth/refactor narrative heading in any form (`## Flow size note`, `## Full Flow Refactor Rationale`, …) or any registry-external heading, and requires a growth-boundary crossing's rationale to be registered in the contract's growth registry instead.
+An iron rule, hard-won: **consumer-shipped skill text carries zero program history.** SKILL.md (and every file that ships to harness consumers) is an instruction document — its sections are executable direction or self-describing structure, never program narrative. Phase/issue numbers, evolution rationales, refactor justifications, mid-flight decisions, growth-guide notes, and "why X was rejected" history are meaningless to consumers with none of this repo's program context — misplaced content is a defect, and this rule recurs whenever a fix/backfill narrates its own history into a skill. **No one-line pointer or neutral note substitutes for removal**: if a consumer would not act on the section, the section does not belong in the shipped file. Such content belongs in the program's specs/plans (`docs/kairos/`), never in a shipped file. Machine enforcement: the skill-anatomy contract ([`packages/cdd-engine/src-next/contract/skill-anatomy.ts`](packages/cdd-engine/src-next/contract/skill-anatomy.ts)) carries the section-heading registry — the strict allowlist ([`SkillAnatomyCheck`](packages/kairos/tests/skill-anatomy.test.ts)) enforces: it fails any SKILL.md carrying a growth/refactor narrative heading in any form (`## Flow size note`, `## Full Flow Refactor Rationale`, …) or any registry-external heading, and requires a growth-boundary crossing's rationale to be registered in the contract's growth registry instead.
 
 ### Session-memory policy
 
-Never write to the local session-memory directory (`~/.claude/projects/<repo>/memory/`) or any per-user memory store — it is not repo-shared and cannot reach other maintainers. Hard-won lessons, operational notes, and next-session pointers belong in `docs/maintainers/*` (repo-shared, English-primary) first, or in the program's specs/plans. The session-memory index is retired; the maintenance docs are the single source for program experience.
+Never write to the local session-memory directory (`~/.claude/projects/<repo>/memory/`) or any per-user memory store — it is not repo-shared and cannot reach other maintainers. Hard-won lessons, operational notes, and next-session pointers belong in the program's specs/plans (`docs/kairos/`). The session-memory index is retired.
 
 ### Validation and commit flows
 

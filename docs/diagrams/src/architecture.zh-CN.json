@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "oscaner-skills — CDD 技能市场架构",
+    "locale": "zh-CN",
+    "output": "docs/diagrams/architecture.zh-CN.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Oscaner/skills",
+      "provider": "github",
+      "revision": "2c4ef74b3222fe675a2b691a47c1d7ae50674360"
+    }
+  },
+  "components": [
+    {
+      "id": "pkg_source",
+      "type": "backend",
+      "label": "package.json#oscaner",
+      "sublabel": "唯一事实来源",
+      "tag": "包即源",
+      "pos": [40, 40],
+      "size": [170, 62],
+      "sources": [{ "path": "packages/kairos/package.json", "line": 42, "end_line": 58 }]
+    },
+    {
+      "id": "emit",
+      "type": "backend",
+      "label": "pnpm emit",
+      "sublabel": "派生所有清单",
+      "pos": [270, 40],
+      "size": [130, 62],
+      "sources": [
+        { "path": "scripts/emit.ts", "line": 1, "end_line": 17 },
+        { "path": "scripts/emit.ts", "line": 44, "end_line": 58 }
+      ]
+    },
+    {
+      "id": "manifests",
+      "type": "database",
+      "label": "harness 清单",
+      "sublabel": ".claude-plugin · .cursor-plugin",
+      "pos": [480, 40],
+      "size": [190, 62],
+      "sources": [{ "path": "scripts/emit.ts", "line": 44, "end_line": 58 }]
+    },
+    {
+      "id": "npm",
+      "type": "cloud",
+      "label": "npm registry",
+      "sublabel": "@oscaner-skills/*",
+      "pos": [760, 40],
+      "size": [150, 62],
+      "sources": [{ "path": "packages/cdd-engine/package.json", "line": 1, "end_line": 20 }]
+    },
+    {
+      "id": "upstream",
+      "type": "external",
+      "label": "上游插件",
+      "sublabel": "superpowers · mattpocock",
+      "tag": "会话基线",
+      "pos": [500, 160],
+      "size": [180, 62],
+      "sources": [{ "path": "packages/cdd-engine/src-next/face/host.ts", "line": 125, "end_line": 142 }]
+    },
+    {
+      "id": "dev",
+      "type": "external",
+      "label": "开发者",
+      "sublabel": "调用 cdd-* 技能",
+      "pos": [40, 290],
+      "size": [140, 72],
+      "sources": [{ "path": "packages/kairos/skills/cdd-dev/SKILL.md", "line": 1, "end_line": 10 }]
+    },
+    {
+      "id": "host",
+      "type": "cloud",
+      "label": "宿主 harness",
+      "sublabel": "Claude Code · Cursor · Pi",
+      "pos": [240, 290],
+      "size": [180, 72],
+      "sources": [{ "path": "packages/cdd-engine/src-next/face/host.ts", "line": 144, "end_line": 186 }]
+    },
+    {
+      "id": "kairos",
+      "type": "backend",
+      "label": "kairos 插件",
+      "sublabel": "6 个 cdd-* 技能",
+      "tag": "流程层",
+      "pos": [500, 290],
+      "size": [180, 72],
+      "sources": [{ "path": "packages/kairos/package.json", "line": 25, "end_line": 58 }]
+    },
+    {
+      "id": "engine",
+      "type": "backend",
+      "label": "cdd 引擎 CLI",
+      "sublabel": "确定性的阶段链",
+      "tag": "7 条命令",
+      "pos": [760, 280],
+      "size": [160, 92],
+      "sources": [{ "path": "packages/cdd-engine/src-next/face/cli.ts", "line": 327, "end_line": 357 }]
+    },
+    {
+      "id": "contract",
+      "type": "backend",
+      "label": "契约面",
+      "sublabel": "schema · 不变量",
+      "pos": [970, 180],
+      "size": [170, 58],
+      "sources": [
+        { "path": "packages/cdd-engine/src-next/contract/skill-anatomy.ts", "line": 1, "end_line": 17 }
+      ]
+    },
+    {
+      "id": "render",
+      "type": "backend",
+      "label": "渲染面",
+      "sublabel": "提示词模板",
+      "tag": "缓存友好",
+      "pos": [970, 270],
+      "size": [170, 58],
+      "sources": [{ "path": "packages/cdd-engine/src-next/render/templates.ts", "line": 128, "end_line": 159 }]
+    },
+    {
+      "id": "session",
+      "type": "backend",
+      "label": "会话面",
+      "sublabel": "next: 路由 · 账本",
+      "pos": [970, 360],
+      "size": [170, 58],
+      "sources": [
+        { "path": "packages/cdd-engine/src-next/session/next.ts", "line": 96, "end_line": 102 },
+        { "path": "packages/cdd-engine/src-next/session/next.ts", "line": 169, "end_line": 205 }
+      ]
+    },
+    {
+      "id": "infra",
+      "type": "backend",
+      "label": "基础设施面",
+      "sublabel": "git · 工作区 · 进程",
+      "pos": [970, 450],
+      "size": [170, 58],
+      "sources": [
+        { "path": "packages/cdd-engine/src-next/infra/workspace.ts", "line": 60, "end_line": 80 },
+        { "path": "packages/cdd-engine/src-next/infra/git.ts", "line": 26, "end_line": 34 }
+      ]
+    },
+    {
+      "id": "repo",
+      "type": "database",
+      "label": "消费方仓库",
+      "sublabel": "git · spec · plan",
+      "pos": [720, 600],
+      "size": [180, 68],
+      "sources": [
+        { "path": "packages/cdd-engine/src-next/infra/doc-roots.ts", "line": 26, "end_line": 32 },
+        { "path": "packages/cdd-engine/src-next/infra/git.ts", "line": 26, "end_line": 34 }
+      ]
+    },
+    {
+      "id": "workspace",
+      "type": "database",
+      "label": ".kairos/cdd",
+      "sublabel": "handoff · 账本 · 简报",
+      "tag": "自忽略",
+      "pos": [940, 600],
+      "size": [180, 68],
+      "sources": [
+        { "path": "packages/cdd-engine/src-next/infra/runtime.ts", "line": 114, "end_line": 117 },
+        { "path": "packages/cdd-engine/src-next/infra/workspace.ts", "line": 60, "end_line": 80 }
+      ]
+    },
+    {
+      "id": "ci",
+      "type": "security",
+      "label": "CI 校验",
+      "sublabel": "emit · 测试 · 类型",
+      "pos": [40, 600],
+      "size": [160, 68],
+      "sources": [{ "path": ".github/workflows/pr-validate.yml", "line": 1, "end_line": 19 }]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "cdd-engine 包",
+      "wraps": ["engine", "contract", "render", "session", "infra"],
+      "pad": 24
+    },
+    {
+      "kind": "region",
+      "label": "消费方仓库",
+      "wraps": ["repo", "workspace"],
+      "pad": 24
+    }
+  ],
+  "connections": [
+    { "id": "pkg-emit", "from": "pkg_source", "to": "emit", "label": "扫描" },
+    { "id": "emit-manifests", "from": "emit", "to": "manifests", "label": "派生" },
+    { "id": "manifests-npm", "from": "manifests", "to": "npm", "label": "发布" },
+    { "id": "dev-host", "from": "dev", "to": "host", "label": "调用", "variant": "emphasis" },
+    { "id": "host-kairos", "from": "host", "to": "kairos", "label": "加载" },
+    { "id": "kairos-upstream", "from": "kairos", "to": "upstream", "label": "导入基线", "variant": "dashed" },
+    { "id": "kairos-engine", "from": "kairos", "to": "engine", "label": "npx cdd", "variant": "emphasis" },
+    {
+      "id": "engine-host",
+      "from": "engine",
+      "to": "host",
+      "label": "派发子提示词",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "bottom",
+      "route": "orthogonal-v",
+      "via": [[840, 500], [330, 500]],
+      "labelSegment": 1
+    },
+    { "id": "engine-contract", "from": "engine", "to": "contract" },
+    { "id": "engine-render", "from": "engine", "to": "render" },
+    { "id": "engine-session", "from": "engine", "to": "session" },
+    { "id": "engine-infra", "from": "engine", "to": "infra" },
+    { "id": "engine-repo", "from": "engine", "to": "repo", "label": "干净树门禁", "fromSide": "bottom", "toSide": "top" },
+    {
+      "id": "engine-workspace",
+      "from": "engine",
+      "to": "workspace",
+      "label": "handoff · 账本",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "orthogonal-v",
+      "via": [[840, 560], [1030, 560]],
+      "labelSegment": 1
+    },
+    { "id": "repo-ci", "from": "repo", "to": "ci", "label": "PR 校验", "fromSide": "left", "toSide": "right" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "分发",
+      "items": [
+        "package.json#oscaner 是唯一手写来源——emit 派生 source.json 与全部 harness 清单",
+        "emit:check 在 CI 中拦截任何漂移；生成产物永不手改",
+        "kairos 发布技能；cdd-engine 将 CLI 与模板发布到 npm"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "执行",
+      "items": [
+        "引擎提供七条命令：implement · review · fix · base · schema · issue · board",
+        "每条工作命令先过 干净树 → 图 → 波次 → 文档契约，再派发子代理",
+        "子代理收到静态外壳 + 冻结返回 + 单一动态上下文区，提示词缓存前缀保持字节稳定"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "收敛",
+      "items": [
+        "评审发现分为 blocker / warn / nit；任何发现都单向进入 fix",
+        "仍有 blocker 的 fix 会重新评审；仅 warn/nit 时以 REVIEW_FIX 收敛，不再评审",
+        "next: 行是唯一续行动作——BLOCKED 与 TIMEOUT 轮不产生 next 行"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "运行态",
+      "items": [
+        "所有轮次 handoff、账本与简报位于消费方仓库的 .kairos/cdd 下",
+        "工作区在首次派发时自发布 .kairos/.gitignore（内容 *），运行态永不弄脏提交",
+        "CDD 文档位于 docs/kairos/{overalls,specs,plans}；引擎读取声明的 slug 身份"
+      ]
+    }
+  ]
+}

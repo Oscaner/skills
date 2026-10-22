@@ -97,9 +97,7 @@ kairos 将每个技能都命名为 `cdd-*`，因此该家族与上游插件可�
 
 光标代理（Cursor Agent）列为 `pending`——各插件从其官方渠道安装（见仓库 [Plugins](../README.zh-CN.md#插件列表) 表——每个插件链接其 GitHub 主页，当前安装命令就在其上发布）。
 
-## 维护者文档
-
-本单仓开发者的仓库内部维护文档（不随插件发布）。[docs/maintainers 索引](../../docs/maintainers/README.md) 链接编号族文档——如 [doctrine](../../docs/maintainers/01-doctrine.md)（模板惯例，约束 emit 派生产物）与 [naming registry](../../docs/maintainers/02-naming.md)（命名注册表）。
+仓库架构与开发者/引擎旅程见双语[图表集](../../docs/diagrams/index.html)。
 
 ## 许可
 

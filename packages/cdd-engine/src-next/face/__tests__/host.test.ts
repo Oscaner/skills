@@ -22,3 +22,11 @@ describe("the capabilities per-harness declaration (T25)", () => {
     }
   });
 });
+
+describe("the claude system-prompt stability flag", () => {
+  it("claude dispatches with the dynamic system-prompt sections excluded — the other hosts declare no such capability", () => {
+    expect(HOSTS.claude.invoke).toContain("--exclude-dynamic-system-prompt-sections");
+    expect(HOSTS.cursor.invoke).not.toContain("--exclude-dynamic-system-prompt-sections");
+    expect(HOSTS.pi.invoke).not.toContain("--exclude-dynamic-system-prompt-sections");
+  });
+});

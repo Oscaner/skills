@@ -146,7 +146,8 @@ export const HOSTS = {
   claude: {
     promptForm: "ref-prefixed",
     cli: "claude",
-    invoke: "-p --output-format text --dangerously-skip-permissions",
+    invoke:
+      "-p --output-format text --dangerously-skip-permissions --exclude-dynamic-system-prompt-sections",
     output: "text",
     ship: "full",
     detect: { env: "CLAUDE_CODE_SESSION_ID", aiAgentPrefix: "claude-code" },

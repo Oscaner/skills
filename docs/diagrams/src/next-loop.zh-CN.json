@@ -87,10 +87,10 @@
   "transitions": [
     { "id": "implement-review", "from": "implement", "to": "review", "label": "完成" },
     { "id": "review-judge", "from": "review", "to": "judge", "label": "findings 写入" },
-    { "id": "judge-fix", "from": "judge", "to": "fix", "label": "任意严重度", "variant": "security" },
+    { "id": "judge-fix", "from": "judge", "to": "fix", "variant": "security" },
     { "id": "judge-closure", "from": "judge", "to": "closure", "label": "无 · APPROVED" },
-    { "id": "fix-judge", "from": "fix", "to": "judge", "label": "仍有 blocker · 重新评审", "variant": "dashed" },
-    { "id": "fix-closure", "from": "fix", "to": "closure", "label": "无 blocker · REVIEW_FIX" },
+    { "id": "fix-review", "from": "fix", "to": "review", "label": "评审有 blocker · 重新评审", "variant": "dashed" },
+    { "id": "fix-closure", "from": "fix", "to": "closure", "label": "仅 warn/nit · REVIEW_FIX" },
     { "id": "fix-softcap", "from": "fix", "to": "softcap", "label": "触达上限", "variant": "security" },
     { "id": "closure-implement", "from": "closure", "to": "implement", "label": "next-wave：就绪任务", "variant": "dashed" },
     { "id": "closure-done", "from": "closure", "to": "done", "label": "耗尽", "variant": "emphasis" },
@@ -104,6 +104,7 @@
       "title": "findings 如何判定",
       "items": [
         "每条 finding 携带严重度（blocker · warn · nit）、lens 与摘要；section、line、fix 可选",
+        "findings 只由评审轮产出——fix 轮只消费它们，自身从不产出裁定",
         "评审从不自行声明状态——由引擎汇总：blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · 无 → APPROVED",
         "按真实严重度校准——并非一切都是 blocker；被审对象是愿景而非穷举，沉默不等于许可",
         "逐条列出被判定为范围外的行为并写明理由；在列出 findings 前先肯定做得好的部分"
@@ -123,10 +124,10 @@
       "dot": "cyan",
       "title": "单向 fix，统一收口",
       "items": [
-        "任何发现都进入 fix——评审从不预演 fix 会做什么",
-        "fix 先对照代码核实每条 finding 再应用；禁止盲目采纳",
-        "仍有 blocker → 重新评审；无 blocker → 以 REVIEW_FIX 收口——仅 warn/nit 的 fix 不再评审",
-        "连续 20 个 blocker 周期 → 软上限；由用户裁定，而非自动循环"
+        "评审轮的 findings 决定路线：有发现（任意严重度）→ fix；零发现 → 直接收口",
+        "fix 只消费评审给出的 findings，自身从不产出裁定",
+        "fix 完成后：来源评审有 blocker → 重新评审；来源评审仅 warn/nit → 以 REVIEW_FIX 收口",
+        "重新评审按同一规则继续 loop，直到收口；连续 20 个 blocker 周期 → 软上限，由用户裁定"
       ]
     },
     {

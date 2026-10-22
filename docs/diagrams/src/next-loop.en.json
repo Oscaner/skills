@@ -180,7 +180,6 @@
       "id": "judge-fix",
       "from": "judge",
       "to": "fix",
-      "label": "any severity",
       "variant": "security"
     },
     {
@@ -190,17 +189,17 @@
       "label": "none"
     },
     {
-      "id": "fix-judge",
+      "id": "fix-review",
       "from": "fix",
-      "to": "judge",
-      "label": "blocker remains · re-review",
+      "to": "review",
+      "label": "review had blocker · re-review",
       "variant": "dashed"
     },
     {
       "id": "fix-closure",
       "from": "fix",
       "to": "closure",
-      "label": "blockers = 0 · REVIEW_FIX"
+      "label": "warn/nit only · REVIEW_FIX"
     },
     {
       "id": "fix-softcap",
@@ -251,6 +250,7 @@
       "title": "How a finding is judged",
       "items": [
         "A finding carries severity (blocker · warn · nit), a lens, and a summary; section, line and fix are optional",
+        "Findings are authored by the review round only — the fix round consumes them and never authors a verdict",
         "The review never declares a status — the engine rolls it up: blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED",
         "Calibrate by real severity — not everything is a blocker; the reviewed artifact is a vision, so its silence is not permission",
         "List every behavior set aside as out of scope, one line each; acknowledge what was done well before the findings"
@@ -270,10 +270,10 @@
       "dot": "cyan",
       "title": "One-way fix, one closure",
       "items": [
-        "Any finding routes to fix — a review never previews what the fix will do",
-        "Fix verifies each finding against the code before applying it; blind adoption is forbidden",
-        "Blockers remaining → re-review; no blockers → REVIEW_FIX closure — a warn/nit-only fix never re-reviews",
-        "20 consecutive blocker cycles → soft cap; the user adjudicates instead of an auto-loop"
+        "The review round’s findings decide the route: any finding → fix; zero findings → close now",
+        "Fix consumes the review’s findings; it never authors a verdict of its own",
+        "After fix: a source review with blocker > 0 → re-review; blocker = 0 with warn/nit → REVIEW_FIX closure",
+        "The re-review repeats the same rule until closure; 20 consecutive blocker cycles → soft cap"
       ]
     },
     {

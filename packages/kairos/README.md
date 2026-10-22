@@ -95,9 +95,7 @@ The orchestrator skills import upstream flows as their session baseline (superpo
 
 The Cursor Agent column is `pending` — install each plugin from its official channel (see the repository [Plugins](../README.md#plugins) table — each plugin links its GitHub home, where the current install command is published).
 
-## Docs for maintainers
-
-Repository-internal maintenance docs for this monorepo's developers (not shipped with the plugin). The [docs/maintainers index](../../docs/maintainers/README.md) links the numbered family — e.g. the [doctrine](../../docs/maintainers/01-doctrine.md) that governs emit-generated products (the template contract + skill-node discipline + program experience) and the [naming registry](../../docs/maintainers/02-naming.md).
+Repository architecture and the developer/engine journey are visualised in the bilingual [diagram set](../../docs/diagrams/index.html).
 
 ## License
 

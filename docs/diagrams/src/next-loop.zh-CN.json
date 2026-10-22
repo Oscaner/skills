@@ -1,0 +1,142 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "NEXT 循环 —— findings 判定与下一跳",
+    "locale": "zh-CN",
+    "output": "docs/diagrams/next-loop.zh-CN.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Oscaner/skills",
+      "provider": "github",
+      "revision": "2c4ef74b3222fe675a2b691a47c1d7ae50674360"
+    }
+  },
+  "mainPath": ["implement", "review", "judge", "closure", "done"],
+  "states": [
+    {
+      "id": "implement",
+      "type": "start",
+      "label": "实现轮",
+      "sublabel": "wave 简报 + 派发",
+      "tag": "工作",
+      "step": "01",
+      "sources": [{ "path": "packages/cdd-engine/src-next/render/templates.ts", "line": 162, "end_line": 178 }]
+    },
+    {
+      "id": "review",
+      "type": "active",
+      "label": "评审轮",
+      "sublabel": "写入 findings 载体",
+      "tag": "评判",
+      "step": "02",
+      "sources": [{ "path": "packages/cdd-engine/src-next/render/templates.ts", "line": 220, "end_line": 230 }, { "path": "packages/cdd-engine/src-next/session/handoff-schema.ts", "line": 50, "end_line": 61 }]
+    },
+    {
+      "id": "judge",
+      "type": "decision",
+      "label": "严重度汇总",
+      "sublabel": "blocker · warn/nit · 无",
+      "tag": "引擎判定，绝非子代理",
+      "step": "03",
+      "sources": [{ "path": "packages/cdd-engine/src-next/session/next.ts", "line": 176, "end_line": 182 }, { "path": "packages/cdd-engine/src-next/session/handoff-schema.ts", "line": 50, "end_line": 61 }]
+    },
+    {
+      "id": "closure",
+      "type": "decision",
+      "label": "收口",
+      "sublabel": "就绪批次决定",
+      "tag": "next-wave | done",
+      "step": "04",
+      "sources": [{ "path": "packages/cdd-engine/src-next/session/next.ts", "line": 202, "end_line": 210 }]
+    },
+    {
+      "id": "done",
+      "type": "success",
+      "label": "done",
+      "sublabel": "运行耗尽",
+      "tag": "终止",
+      "step": "05",
+      "sources": [{ "path": "packages/cdd-engine/src-next/session/next.ts", "line": 46, "end_line": 47 }]
+    },
+    {
+      "id": "fix",
+      "type": "active",
+      "label": "修复轮",
+      "sublabel": "逐条核实后应用",
+      "tag": "工作",
+      "sources": [{ "path": "packages/cdd-engine/src-next/render/templates.ts", "line": 181, "end_line": 199 }, { "path": "packages/cdd-engine/src-next/session/next.ts", "line": 184, "end_line": 198 }]
+    },
+    {
+      "id": "softcap",
+      "type": "waiting",
+      "label": "软上限",
+      "sublabel": "连续 20 个 blocker 周期",
+      "tag": "用户裁定",
+      "sources": [{ "path": "packages/cdd-engine/src-next/session/next.ts", "line": 62, "end_line": 66 }, { "path": "packages/cdd-engine/src-next/session/next.ts", "line": 185, "end_line": 189 }]
+    },
+    {
+      "id": "blocked",
+      "type": "failure",
+      "label": "BLOCKED / TIMEOUT",
+      "sublabel": "无 next: 行",
+      "tag": "CDD_BLOCKED",
+      "sources": [{ "path": "packages/cdd-engine/src-next/session/next.ts", "line": 152, "end_line": 160 }, { "path": "packages/cdd-engine/src-next/session/next.ts", "line": 169, "end_line": 172 }]
+    }
+  ],
+  "transitions": [
+    { "id": "implement-review", "from": "implement", "to": "review", "label": "完成" },
+    { "id": "review-judge", "from": "review", "to": "judge", "label": "findings 写入" },
+    { "id": "judge-fix", "from": "judge", "to": "fix", "label": "任意严重度", "variant": "security" },
+    { "id": "judge-closure", "from": "judge", "to": "closure", "label": "无 · APPROVED" },
+    { "id": "fix-judge", "from": "fix", "to": "judge", "label": "仍有 blocker · 重新评审", "variant": "dashed" },
+    { "id": "fix-closure", "from": "fix", "to": "closure", "label": "无 blocker · REVIEW_FIX" },
+    { "id": "fix-softcap", "from": "fix", "to": "softcap", "label": "触达上限", "variant": "security" },
+    { "id": "closure-implement", "from": "closure", "to": "implement", "label": "next-wave：就绪任务", "variant": "dashed" },
+    { "id": "closure-done", "from": "closure", "to": "done", "label": "耗尽", "variant": "emphasis" },
+    { "id": "implement-blocked", "from": "implement", "to": "blocked", "label": "脏树 · 门禁 · 超时", "variant": "security" },
+    { "id": "review-blocked", "from": "review", "to": "blocked", "label": "轮次失败", "variant": "security" },
+    { "id": "fix-blocked", "from": "fix", "to": "blocked", "label": "轮次失败", "variant": "security" }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "findings 如何判定",
+      "items": [
+        "每条 finding 携带严重度（blocker · warn · nit）、lens 与摘要；section、line、fix 可选",
+        "评审从不自行声明状态——由引擎汇总：blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · 无 → APPROVED",
+        "按真实严重度校准——并非一切都是 blocker；被审对象是愿景而非穷举，沉默不等于许可",
+        "逐条列出被判定为范围外的行为并写明理由；在列出 findings 前先肯定做得好的部分"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "各评审类型的 lens",
+      "items": [
+        "wave / 分支 —— standards · spec · buildability；buildability 发现须自报 typecheck 与测试双重证据",
+        "spec —— completeness · consistency · clarity；程序一致性 + 每条主张都有同址 pin",
+        "plan —— completeness · decomposition · buildability；spec 一致性 + 每条主张都有同址 pin",
+        "分支评审在同一组轴上追加设计、测试充分性与迁移路径"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "单向 fix，统一收口",
+      "items": [
+        "任何发现都进入 fix——评审从不预演 fix 会做什么",
+        "fix 先对照代码核实每条 finding 再应用；禁止盲目采纳",
+        "仍有 blocker → 重新评审；无 blocker → 以 REVIEW_FIX 收口——仅 warn/nit 的 fix 不再评审",
+        "连续 20 个 blocker 周期 → 软上限；由用户裁定，而非自动循环"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "next: 契约",
+      "items": [
+        "引擎的 next: 行是唯一续行动作；BLOCKED 或 TIMEOUT 轮不携带该行",
+        "只要批次还有就绪任务，收口就是 next-wave；运行耗尽则是 done",
+        "流水线交接：phase-spec → cdd-plan · plan → cdd-dev · wave → review --type branch · branch → cdd-close · overall → done"
+      ]
+    }
+  ]
+}

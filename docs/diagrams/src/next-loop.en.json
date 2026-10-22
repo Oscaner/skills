@@ -1,0 +1,289 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "NEXT-loop — findings judgment & the next step",
+    "locale": "en",
+    "output": "docs/diagrams/next-loop.en.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/Oscaner/skills",
+      "provider": "github",
+      "revision": "2c4ef74b3222fe675a2b691a47c1d7ae50674360"
+    }
+  },
+  "mainPath": [
+    "implement",
+    "review",
+    "judge",
+    "closure",
+    "done"
+  ],
+  "states": [
+    {
+      "id": "implement",
+      "type": "start",
+      "label": "Implement round",
+      "sublabel": "wave brief + dispatch",
+      "tag": "work",
+      "step": "01",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/render/templates.ts",
+          "line": 162,
+          "end_line": 178
+        }
+      ]
+    },
+    {
+      "id": "review",
+      "type": "active",
+      "label": "Review round",
+      "sublabel": "writes the findings carrier",
+      "tag": "judge",
+      "step": "02",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/render/templates.ts",
+          "line": 220,
+          "end_line": 230
+        },
+        {
+          "path": "packages/cdd-engine/src-next/session/handoff-schema.ts",
+          "line": 50,
+          "end_line": 61
+        }
+      ]
+    },
+    {
+      "id": "judge",
+      "type": "decision",
+      "label": "Severity rollup",
+      "sublabel": "blocker · warn/nit · none",
+      "tag": "engine, never the child",
+      "step": "03",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/session/next.ts",
+          "line": 176,
+          "end_line": 182
+        },
+        {
+          "path": "packages/cdd-engine/src-next/session/handoff-schema.ts",
+          "line": 50,
+          "end_line": 61
+        }
+      ]
+    },
+    {
+      "id": "closure",
+      "type": "decision",
+      "label": "Closure",
+      "sublabel": "ready batch decides",
+      "tag": "next-wave | done",
+      "step": "04",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/session/next.ts",
+          "line": 202,
+          "end_line": 210
+        }
+      ]
+    },
+    {
+      "id": "done",
+      "type": "success",
+      "label": "done",
+      "sublabel": "run exhausted",
+      "tag": "terminal",
+      "step": "05",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/session/next.ts",
+          "line": 46,
+          "end_line": 47
+        }
+      ]
+    },
+    {
+      "id": "fix",
+      "type": "active",
+      "label": "Fix round",
+      "sublabel": "verify, then apply all",
+      "tag": "work",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/render/templates.ts",
+          "line": 181,
+          "end_line": 199
+        },
+        {
+          "path": "packages/cdd-engine/src-next/session/next.ts",
+          "line": 184,
+          "end_line": 198
+        }
+      ]
+    },
+    {
+      "id": "softcap",
+      "type": "waiting",
+      "label": "Soft cap",
+      "sublabel": "20 consecutive blocker cycles",
+      "tag": "user adjudicates",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/session/next.ts",
+          "line": 62,
+          "end_line": 66
+        },
+        {
+          "path": "packages/cdd-engine/src-next/session/next.ts",
+          "line": 185,
+          "end_line": 189
+        }
+      ]
+    },
+    {
+      "id": "blocked",
+      "type": "failure",
+      "label": "BLOCKED / TIMEOUT",
+      "sublabel": "no next: line",
+      "tag": "CDD_BLOCKED",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/session/next.ts",
+          "line": 152,
+          "end_line": 160
+        },
+        {
+          "path": "packages/cdd-engine/src-next/session/next.ts",
+          "line": 169,
+          "end_line": 172
+        }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "id": "implement-review",
+      "from": "implement",
+      "to": "review",
+      "label": "complete"
+    },
+    {
+      "id": "review-judge",
+      "from": "review",
+      "to": "judge",
+      "label": "findings"
+    },
+    {
+      "id": "judge-fix",
+      "from": "judge",
+      "to": "fix",
+      "label": "any severity",
+      "variant": "security"
+    },
+    {
+      "id": "judge-closure",
+      "from": "judge",
+      "to": "closure",
+      "label": "none"
+    },
+    {
+      "id": "fix-judge",
+      "from": "fix",
+      "to": "judge",
+      "label": "blocker remains · re-review",
+      "variant": "dashed"
+    },
+    {
+      "id": "fix-closure",
+      "from": "fix",
+      "to": "closure",
+      "label": "blockers = 0 · REVIEW_FIX"
+    },
+    {
+      "id": "fix-softcap",
+      "from": "fix",
+      "to": "softcap",
+      "label": "cap reached",
+      "variant": "security"
+    },
+    {
+      "id": "closure-implement",
+      "from": "closure",
+      "to": "implement",
+      "label": "next-wave: ready tasks",
+      "variant": "dashed"
+    },
+    {
+      "id": "closure-done",
+      "from": "closure",
+      "to": "done",
+      "label": "exhausted",
+      "variant": "emphasis"
+    },
+    {
+      "id": "implement-blocked",
+      "from": "implement",
+      "to": "blocked",
+      "label": "dirty tree · gate · timeout",
+      "variant": "security"
+    },
+    {
+      "id": "review-blocked",
+      "from": "review",
+      "to": "blocked",
+      "label": "round fails",
+      "variant": "security"
+    },
+    {
+      "id": "fix-blocked",
+      "from": "fix",
+      "to": "blocked",
+      "label": "round fails",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "How a finding is judged",
+      "items": [
+        "A finding carries severity (blocker · warn · nit), a lens, and a summary; section, line and fix are optional",
+        "The review never declares a status — the engine rolls it up: blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED",
+        "Calibrate by real severity — not everything is a blocker; the reviewed artifact is a vision, so its silence is not permission",
+        "List every behavior set aside as out of scope, one line each; acknowledge what was done well before the findings"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Lens by review type",
+      "items": [
+        "wave / branch — standards · spec · buildability; a buildability finding self-reports the typecheck AND test evidence",
+        "spec — completeness · consistency · clarity; program conformance + a colocated pin for every claim",
+        "plan — completeness · decomposition · buildability; spec conformance + a colocated pin for every claim",
+        "The branch review adds design, test adequacy and migration to the same axes"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "One-way fix, one closure",
+      "items": [
+        "Any finding routes to fix — a review never previews what the fix will do",
+        "Fix verifies each finding against the code before applying it; blind adoption is forbidden",
+        "Blockers remaining → re-review; no blockers → REVIEW_FIX closure — a warn/nit-only fix never re-reviews",
+        "20 consecutive blocker cycles → soft cap; the user adjudicates instead of an auto-loop"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "The next: contract",
+      "items": [
+        "The engine's next: line is the only continuation; a BLOCKED or TIMEOUT round carries none",
+        "Closure is next-wave (ready tasks) while the batch has work, done when the run is exhausted",
+        "Pipeline handoff: phase-spec → cdd-plan · plan → cdd-dev · wave → review --type branch · branch → cdd-close · overall → done"
+      ]
+    }
+  ]
+}

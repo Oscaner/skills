@@ -1,6 +1,6 @@
 {
   "name": "@oscaner-skills/cdd-engine",
-  "version": "4.0.1",
+  "version": "4.1.0",
   "description": "CDD engine CLIs: task runner, docs reviewer, branch reviewer, harness selector.",
   "type": "module",
   "engines": {

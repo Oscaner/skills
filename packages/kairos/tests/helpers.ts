@@ -35,8 +35,8 @@ export const EXPECTED = Object.keys(SKILL_ANATOMY.skills.registry).length;
 // the old config-dir JSON is retired from this plane).
 
 // harness_free_path — drop every PATH directory that contains a registry CLI binary, so the
-// host's real CLIs (claude/cursor-agent/droid/pi/codex/...) cannot leak through a mock-PATH
-// scenario. Reads the real registry + process.env.PATH by default; pathValue / cliOverride
+// host's real CLIs (claude/pi) cannot leak through a mock-PATH scenario.
+// Reads the real registry + process.env.PATH by default; pathValue / cliOverride
 // overrides match the inline versions' semantics.
 export const harnessFreePath = ({
   cliValues = Object.values(HOSTS).map((row) => row.cli),

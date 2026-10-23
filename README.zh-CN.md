@@ -12,7 +12,7 @@
 
 （cdd-first 方法论：以持续发现式开发为核心理念，以 AI 编程技能为分发载体。）
 
-本仓库既是该方法论的家园，也是它的分发载体。核心理念被编码为技能，并以可安装插件形式发布，可供多种 AI 编程 harness 消费（已在 **Claude Code**、**Cursor Agent** 与 **Pi** 上验证）。第一方包位于 `packages/` 下，以 `@oscaner-skills/*` 发布到 npm；`cdd` 引擎驱动整个流程。
+本仓库既是该方法论的家园，也是它的分发载体。核心理念被编码为技能，并以可安装插件形式发布，可供多种 AI 编程 harness 消费（已在 **Claude Code** 与 **Pi** 上验证）。第一方包位于 `packages/` 下，以 `@oscaner-skills/*` 发布到 npm；`cdd` 引擎驱动整个流程。
 
 ## cdd 理念导览
 
@@ -51,7 +51,7 @@
 ## 安装
 
 ```bash
-# Claude Code / Cursor Agent 市场
+# Claude Code 市场
 claude plugin marketplace add oscaner/skills
 claude plugin install kairos@oscaner-skills
 
@@ -80,7 +80,7 @@ packages/
 
 ```
 package.json#oscaner → pnpm emit → marketplace/source.json
-                                → .claude-plugin/ · .cursor-plugin/ 清单
+                                → .claude-plugin/ 清单
 ```
 
 架构与开发者/引擎旅程以双语、经校验的图表维护——打开[图表入口](docs/diagrams/index.html)，在页头切换语言：

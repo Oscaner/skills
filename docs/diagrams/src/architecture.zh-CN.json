@@ -39,7 +39,7 @@
       "id": "manifests",
       "type": "database",
       "label": "harness 清单",
-      "sublabel": ".claude-plugin · .cursor-plugin",
+      "sublabel": ".claude-plugin",
       "pos": [480, 40],
       "size": [190, 62],
       "sources": [{ "path": "scripts/emit.ts", "line": 44, "end_line": 58 }]
@@ -76,7 +76,7 @@
       "id": "host",
       "type": "cloud",
       "label": "宿主 harness",
-      "sublabel": "Claude Code · Cursor · Pi",
+      "sublabel": "Claude Code · Pi",
       "pos": [240, 290],
       "size": [180, 72],
       "sources": [{ "path": "packages/cdd-engine/src-next/face/host.ts", "line": 144, "end_line": 186 }]

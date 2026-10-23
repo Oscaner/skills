@@ -56,36 +56,11 @@
         }
       }
     },
-    "cursorWrapper": {
-      "type": "object",
-      "required": ["displayName", "skills"],
-      "additionalProperties": false,
-      "properties": {
-        "displayName": { "type": "string", "minLength": 1 },
-        "skills": { "type": "string", "minLength": 1 },
-        "hooks": { "type": "string", "minLength": 1 }
-      }
-    },
-    "cursorPluginRoot": {
-      "type": "object",
-      "required": ["emitMode"],
-      "additionalProperties": false,
-      "properties": {
-        "emitMode": { "type": "string", "enum": ["plugin-root"] }
-      }
-    },
-    "cursor": {
-      "oneOf": [
-        { "$ref": "#/$defs/cursorWrapper" },
-        { "$ref": "#/$defs/cursorPluginRoot" }
-      ]
-    },
     "harnessHooks": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "claude": { "$ref": "#/$defs/hookPath" },
-        "cursor": { "$ref": "#/$defs/hookPath" },
         "codex": { "$ref": "#/$defs/hookPath" },
         "qoder": { "$ref": "#/$defs/hookPath" }
       }
@@ -97,7 +72,7 @@
     },
     "plugin": {
       "type": "object",
-      "required": ["name", "description", "author", "contentRoot", "cursor"],
+      "required": ["name", "description", "author", "contentRoot"],
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
@@ -109,7 +84,6 @@
         "repository": { "type": "string" },
         "license": { "type": "string" },
         "claude": { "$ref": "#/$defs/claude" },
-        "cursor": { "$ref": "#/$defs/cursor" },
         "hooks": { "$ref": "#/$defs/harnessHooks" }
       }
     }

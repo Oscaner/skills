@@ -15,11 +15,11 @@ describe("EmitService — the single emit orchestrator (derivation + byte-check)
     expect(names).toContain("kairos");
   });
 
-  it("derives the kairos source row — the plugin-root cursor slot + claude keyword reconciliation", () => {
+  it("derives the kairos source row — the claude keyword reconciliation", () => {
     const source = emitService.deriveSourceDoc();
     const kairos = source.plugins.find((p) => p.name === "kairos");
     expect(kairos?.contentRoot).toBe("packages/kairos");
-    expect(kairos?.cursor).toEqual({ emitMode: "plugin-root" });
+    expect(JSON.stringify(source).includes("cursor")).toBe(false);
     expect(kairos?.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(kairos?.claude).toEqual({
       category: "kairos",
@@ -36,14 +36,14 @@ describe("EmitService — the single emit orchestrator (derivation + byte-check)
       expect(generatedPaths).toEqual(
         expect.arrayContaining([
           "packages/kairos/.claude-plugin/plugin.json",
-          "packages/kairos/.cursor-plugin/plugin.json",
           "marketplace/source.json",
           ".claude-plugin/marketplace.json",
-          ".cursor-plugin/marketplace.json",
           ".github/ISSUE_TEMPLATE/bug_report.yml",
           ".github/ISSUE_TEMPLATE/enhancement.yml",
         ]),
       );
+      expect(generatedPaths).not.toContain("packages/kairos/.cursor-plugin/plugin.json");
+      expect(generatedPaths).not.toContain(".cursor-plugin/marketplace.json");
       for (const rel of generatedPaths) {
         const committed = readFileSync(path.join(REPO_ROOT, rel), "utf8");
         const generated = readFileSync(path.join(temp, rel), "utf8");

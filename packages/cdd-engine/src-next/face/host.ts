@@ -5,7 +5,7 @@
 // imported, never parsed:
 //
 //   · HOSTS     — the per-harness rows (cli / invoke / promptForm / output / ship /
-//     detect / install). The host-marker closure is single-sourced HERE: the
+//     detect / install / env). The host-marker closure is single-sourced HERE: the
 //     detect rows are the only copy of the marker env keys (the channel audit derives
 //     the env whitelist from them — never a second declaration). The promptForm
 //     column (§3.5) is the prompt-position semantics data contract — how the
@@ -14,7 +14,7 @@
 //     to. M1 supersede (P5): the implement slot names the upstream
 //     `mattpocock-skills:implement` skill; the fix face carries no skill ref (its
 //     fix discipline lives as the FIX_SHELL typed instructions).
-//   · REFS      — the per-harness slash reference forms (claude/cursor use the
+//   · REFS      — the per-harness slash reference forms (claude uses the
 //     `/namespace:skill` form; pi the flat `/skill:<bare>` form — the pi flat
 //     namespace has no namespace-qualification syntax).
 //   · HostDetect — the module-level host judgment (the detection's single home):
@@ -31,7 +31,7 @@
 // carrying bare functions (the plan's zero-bare-function discipline).
 
 /** The harness ids the contract adapts. */
-export type HostId = "claude" | "cursor" | "pi";
+export type HostId = "claude" | "pi";
 
 /** One host-detect row — the marker env key (+ the AI_AGENT match semantics). */
 export interface HostDetectSpec {
@@ -54,7 +54,7 @@ export type PromptForm = "ref-prefixed" | "plain";
  *  the tested dispatch faces, one data column per row, zero prose. */
 export interface HostCapabilities {
   /** The parallel sub-agent dispatch face — `true` the measured face (claude),
-   *  `"pending"` the not-yet-exercised marker (cursor/pi — the per-tested stance,
+   *  `"pending"` the not-yet-exercised marker (pi — the per-tested stance,
    *  the install `"pending"` pattern). */
   parallel: boolean | "pending";
 }
@@ -78,6 +78,9 @@ export interface HostRow {
   install: Readonly<Record<string, readonly string[] | "pending">>;
   /** The capability facts — the tested dispatch-face columns (T25). */
   capabilities: HostCapabilities;
+  /** The per-host child TTL pin — the dispatch env the engine layers over the
+   *  inherited env (engine values win). */
+  env: Readonly<Record<string, string>>;
 }
 
 /** A review dispatch row — an object-shaped slot naming its ref key (the note face
@@ -141,7 +144,7 @@ export const INSTALL_ROWS = {
   ],
 } as const;
 
-/** The per-harness host rows — claude / cursor / pi adaptation facts. */
+/** The per-harness host rows — claude / pi adaptation facts. */
 export const HOSTS = {
   claude: {
     promptForm: "ref-prefixed",
@@ -153,21 +156,7 @@ export const HOSTS = {
     detect: { env: "CLAUDE_CODE_SESSION_ID", aiAgentPrefix: "claude-code" },
     install: INSTALL_ROWS,
     capabilities: { parallel: true },
-  },
-  cursor: {
-    promptForm: "ref-prefixed",
-    cli: "cursor-agent",
-    invoke: "--print --output-format text --force",
-    output: "text",
-    ship: "full",
-    detect: { env: "CURSOR_TRACE_ID" },
-    install: {
-      kairos: "pending",
-      superpowers: "pending",
-      "mattpocock-skills": "pending",
-      impeccable: "pending",
-    },
-    capabilities: { parallel: "pending" },
+    env: { FORCE_PROMPT_CACHING_5M: "1" },
   },
   pi: {
     promptForm: "ref-prefixed",
@@ -183,6 +172,7 @@ export const HOSTS = {
       impeccable: ["npx impeccable install --providers=pi --scope=global -y"],
     },
     capabilities: { parallel: "pending" },
+    env: { PI_CACHE_RETENTION: "short" },
   },
 } as const satisfies Readonly<Record<HostId, HostRow>>;
 
@@ -202,64 +192,53 @@ export const DISPATCH = {
 } as const satisfies DispatchTable;
 
 /** The reference table — every `<pkg>:<skill>` cross-skill reference key and its
- *  per-harness slash form: claude/cursor use `/namespace:skill`, pi the flat
+ *  per-harness slash form: claude uses `/namespace:skill`, pi the flat
  *  `/skill:<bare>` form. The `mattpocock-skills:implement` key is registered here
  *  (P5 — the implement dispatch's first-class refs-domain entry). */
 export const REFS = {
   "superpowers:brainstorming": {
     claude: "/superpowers:brainstorming",
-    cursor: "/superpowers:brainstorming",
     pi: "/skill:brainstorming",
   },
   "superpowers:writing-plans": {
     claude: "/superpowers:writing-plans",
-    cursor: "/superpowers:writing-plans",
     pi: "/skill:writing-plans",
   },
   "superpowers:finishing-a-development-branch": {
     claude: "/superpowers:finishing-a-development-branch",
-    cursor: "/superpowers:finishing-a-development-branch",
     pi: "/skill:finishing-a-development-branch",
   },
   "mattpocock-skills:implement": {
     claude: "/mattpocock-skills:implement",
-    cursor: "/mattpocock-skills:implement",
     pi: "/skill:implement",
   },
   "mattpocock-skills:code-review": {
     claude: "/mattpocock-skills:code-review",
-    cursor: "/mattpocock-skills:code-review",
     pi: "/skill:code-review",
   },
   "mattpocock-skills:grilling": {
     claude: "/mattpocock-skills:grilling",
-    cursor: "/mattpocock-skills:grilling",
     pi: "/skill:grilling",
   },
   "kairos:cdd-design": {
     claude: "/kairos:cdd-design",
-    cursor: "/kairos:cdd-design",
     pi: "/skill:cdd-design",
   },
   "kairos:cdd-spec-writer": {
     claude: "/kairos:cdd-spec-writer",
-    cursor: "/kairos:cdd-spec-writer",
     pi: "/skill:cdd-spec-writer",
   },
   "kairos:cdd-plan": {
     claude: "/kairos:cdd-plan",
-    cursor: "/kairos:cdd-plan",
     pi: "/skill:cdd-plan",
   },
-  "kairos:cdd-dev": { claude: "/kairos:cdd-dev", cursor: "/kairos:cdd-dev", pi: "/skill:cdd-dev" },
+  "kairos:cdd-dev": { claude: "/kairos:cdd-dev", pi: "/skill:cdd-dev" },
   "kairos:cdd-close": {
     claude: "/kairos:cdd-close",
-    cursor: "/kairos:cdd-close",
     pi: "/skill:cdd-close",
   },
   "kairos:cdd-report": {
     claude: "/kairos:cdd-report",
-    cursor: "/kairos:cdd-report",
     pi: "/skill:cdd-report",
   },
 } as const satisfies HostReferenceTable;
@@ -278,12 +257,12 @@ export const HOST_CONTRACT = {
 // biome-ignore lint/complexity/noStaticOnlyClass: the module-level host-detect surface — the zero-bare-function discipline admits no standalone predicate functions.
 export class HostDetect {
   /** detect(env) — the first host detect row that matches, in the pinned order
-   *  `claude` → `cursor` → `pi` (specific markers first, the generic AI_AGENT
+   *  `claude` → `pi` (specific markers first, the generic AI_AGENT
    *  last). One row detects by its primary marker (a session env, presence/enum —
    *  a UUID CLAUDE_CODE_SESSION_ID is claude by presence) or by the AI_AGENT
    *  prefix (AI_AGENT=claude-code-…); no match returns `""`. */
   static detect(env: Record<string, string | undefined>): HostId | "" {
-    for (const id of ["claude", "cursor", "pi"] as const) {
+    for (const id of ["claude", "pi"] as const) {
       const detect: HostDetectSpec = HOSTS[id].detect;
       if (detect.env !== undefined && detect.env !== "") {
         const marker = env[detect.env];

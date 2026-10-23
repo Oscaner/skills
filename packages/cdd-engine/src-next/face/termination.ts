@@ -8,7 +8,8 @@
 // The seam's two ends are value objects, so the whole child lifecycle speaks one
 // shape:
 //   · `ChildRun` — one dispatch's full context (command/args/cwd + the heartbeat
-//     path the sampler writes + the termination policy of the phase);
+//     path the sampler writes + the termination policy of the phase + the per-host
+//     dispatch env);
 //   · `ChildOutcome` — the child's result (its own exit code, verbatim streams)
 //     plus the `termination` fact: non-null ⟺ the round was cut short. The
 //     terminated round's downstream judgments all read that one fact, never the
@@ -62,7 +63,8 @@ export interface ChildOutcome {
 
 /** One dispatch's full context — everything the runner needs, and nothing that
  *  reaches back into the session: the spawned command, the heartbeat path the
- *  sampler writes for this dispatch, and the phase's termination policy. The
+ *  sampler writes for this dispatch, the phase's termination policy, and the
+ *  per-host dispatch env. The
  *  caller derives `cwd` and `heartbeatPath` from the one workspace it holds, so
  *  both paths share one source; the same `cwd` is the spawn directory AND the
  *  scanned tree root (the "scan root ≡ the child's cwd" structural guarantee). */
@@ -72,6 +74,9 @@ export interface ChildRun {
   cwd: string;
   heartbeatPath: string;
   policy: TerminationPolicy;
+  /** The per-host dispatch env — layered over the inherited env at spawn (the
+   *  engine's values win over the parent's). */
+  env: Readonly<Record<string, string>>;
 }
 
 /** The child-runner seam — the production terminator and the test stub implement
@@ -479,6 +484,10 @@ export class Terminator implements ChildRunner {
       cwd: run.cwd,
       reject: false,
       stripFinalNewline: false,
+      // The dispatch env is layered over the inherited one — the engine's per-host
+      // values win, the parent environment supplies the rest (the single merge point;
+      // the dispatcher carries zero host branches).
+      env: { ...process.env, ...run.env },
       // fd 0 on /dev/null: a child that reads stdin sees EOF at once, never a pipe nobody closes.
       stdin: "ignore",
       killDescendants: true,

@@ -29,7 +29,6 @@ export interface PluginSource {
   homepage?: string;
   repository?: string;
   license?: string;
-  cursor?: { emitMode?: string } | { displayName?: string; skills?: string; hooks?: string };
   claude?: { category?: string; keywords?: string[] };
   hooks?: { claude?: string };
 }

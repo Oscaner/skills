@@ -477,9 +477,7 @@ const parseNominalRow = (line: string) => {
 
 test("nominal mapping table == the harness contract (row id/cli/detect + ship) data derivation", () => {
   const contract = HOSTS as unknown as Record<string, HarnessContractRow>;
-  const ids = Object.keys(contract).filter(
-    (k): k is HostId => k === "claude" || k === "cursor" || k === "pi",
-  );
+  const ids = Object.keys(contract).filter((k): k is HostId => k === "claude" || k === "pi");
   const expected = ids.map((id) => nominalRow(contract, id));
   for (const rel of Object.keys(NOMINAL_SECTION_HEADING)) {
     const md = read(rel);

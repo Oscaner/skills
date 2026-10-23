@@ -73,7 +73,6 @@ The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its
 | Identifier | CLI binary | Host marker | Ship |
 |------------|------------|-------------|------|
 | claude | `claude` | `CLAUDE_CODE_SESSION_ID` | full |
-| cursor | `cursor-agent` | `CURSOR_TRACE_ID` | full |
 | pi | `pi` | `AI_AGENT=pi` | full |
 
 `cdd schema get <type>` prints the engine's canonical doc-structure schema straight to stdout (discovery-only, byte-identical to the shipped schema), and `cdd issue render` builds an aggregate issue body from stdin findings (pure rendering, zero enforcement). See [the cdd-engine README](../cdd-engine/README.md) for the full CLI reference.

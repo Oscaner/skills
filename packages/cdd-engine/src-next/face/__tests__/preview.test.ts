@@ -139,11 +139,13 @@ describe("Preview — the §3.3 five-row block", () => {
   it("the child row names the detected host id + the row's invoke string, never the detect marker", () => {
     const lines = new Preview({
       scene: scene(),
-      env: { CURSOR_TRACE_ID: "trace" },
+      env: { CLAUDE_CODE_SESSION_ID: "s" },
     }).render("review", frame());
-    // the leading token is the HOST ID ("cursor"); the harness row's binary name
+    // the leading token is the HOST ID ("claude"); the harness row's binary name
     // (the `cli` column) is a separate fact and never rides this row
-    expect(lines[5]).toBe("  child:       cursor --print --output-format text --force");
+    expect(lines[5]).toBe(
+      "  child:       claude -p --output-format text --dangerously-skip-permissions --exclude-dynamic-system-prompt-sections",
+    );
   });
 });
 

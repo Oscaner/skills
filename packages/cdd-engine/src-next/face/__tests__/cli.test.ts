@@ -4311,7 +4311,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     key: "1",
   };
 
-  it("detects the host from the harness-contract detect markers (claude > cursor > pi)", () => {
+  it("detects the host from the harness-contract detect markers (claude > pi)", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
@@ -4319,12 +4319,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({ scene, io, env: {} });
       expect(dispatch.detectHost({})).toBe("");
       expect(dispatch.detectHost({ CLAUDE_CODE_SESSION_ID: "s" })).toBe("claude");
-      expect(dispatch.detectHost({ CURSOR_TRACE_ID: "t" })).toBe("cursor");
       expect(dispatch.detectHost({ AI_AGENT: "pi" })).toBe("pi");
       expect(dispatch.detectHost({ AI_AGENT: "claude-code" })).toBe("claude");
-      expect(dispatch.detectHost({ CLAUDE_CODE_SESSION_ID: "s", CURSOR_TRACE_ID: "t" })).toBe(
-        "claude",
-      );
+      expect(dispatch.detectHost({ CURSOR_TRACE_ID: "t" })).toBe("");
     } finally {
       cleanup();
     }

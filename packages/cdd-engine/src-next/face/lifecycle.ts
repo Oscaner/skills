@@ -137,7 +137,7 @@ export class CliLifecycle {
     this.#reviews = opts.reviews ?? null;
   }
 
-  /** The host-harness id detected from the env — "claude" | "cursor" | "pi" | "" —
+  /** The host-harness id detected from the env — "claude" | "pi" | "" —
    *  a delegation to the module-level judgment (HostDetect.detect, face/host.ts —
    *  the detection's single home; this instance method is the injectable-env
    *  adapter the lifecycle face rides, behavior unchanged). */

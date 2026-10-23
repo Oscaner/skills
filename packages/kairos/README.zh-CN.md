@@ -75,7 +75,6 @@ CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运�
 | 标识符 | CLI 二进制 | 宿主 marker | 交付状态 |
 |--------|------------|-------------|----------|
 | claude | `claude` | `CLAUDE_CODE_SESSION_ID` | full |
-| cursor | `cursor-agent` | `CURSOR_TRACE_ID` | full |
 | pi | `pi` | `AI_AGENT=pi` | full |
 
 `cdd schema get <type>` 直出引擎的 canonical 文档结构 schema（发现型、与原 schema 文件同字节），`cdd issue render` 依据 stdin 发现渲染聚合 issue 正文（纯渲染、零执法）。完整 CLI 参考见 [cdd-engine README](../cdd-engine/README.zh-CN.md)。

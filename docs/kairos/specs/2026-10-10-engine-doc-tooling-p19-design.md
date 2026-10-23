@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P19 设计：child dispatch 缓存 TTL = 5m + 引擎 cursor 支持退役
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-10-23
 slug: 2026-10-10-engine-doc-tooling-p19
 program: 2026-10-10-engine-doc-tooling
@@ -71,7 +71,7 @@ P19 是两件互不依赖、但同属「派发面契约」的收口：
 - `packages/kairos/.version-bump.json`：`files[]` 删除 `{ "path": ".cursor-plugin/plugin.json", "field": "version" }` 条目——`VersionSync.run`（`scripts/lib/version-sync.ts:56-57`）对每个条目无条件 `readJson`、无存在性检查，产物删除后该条目会让 `pnpm run version-sync` 抛 ENOENT。
 - `scripts/emit.ts`：删除 `CursorMappings` 类族（`cursorManifest` / `cursorMarketplaceDoc` / `isPluginRoot`）、`BASE_PRODUCT_ROOTS` 的两个 `.cursor-plugin` 根（`:48` / `:50`）、`deriveFirstPartyPlugin` 的 cursor 分支、product 生成的两条 cursor 条目；并同步该文件的 live 注释与文档串（`:15` / `:45` / `:63` 等 cursor 表述）。
 - `marketplace/source.schema.json`：删除 `cursorWrapper`（`:59`）/ `cursorPluginRoot`（`:69`）/ `cursor`（`:77-80`）三个 `$defs`、`harnessHooks` 的 `cursor` 属性（`:88`）、插件属性的 `cursor` 引用（`:112`）以及 `required` 列表里的 `"cursor"`（`:100`）。
-- `marketplace/README.md`：删除产物表的两条 `.cursor-plugin` 行（`:30-31`）、`## Cursor install modes` 整段（`:35-42`）、`## Cursor Team Marketplace` 整段（`:56-58`）；改写 `## Schema` 的 `:46`——删去 `cursor` oneOf 半句、harness 集合表述收敛为 `claude` / `pi`，保留 `source.schema.json` 校验句。
+- `marketplace/README.md`：删除产物表的两条 `.cursor-plugin` 行（`:30-31`）、`## Cursor install modes` 整段（`:35-42`）、`## Cursor Team Marketplace` 整段（`:56-58`）；改写 `## Schema` 的 `:46`——删去 `cursor` oneOf 半句，harness 集合表述改为 schema **实际接受的键**（`claude` / `codex` / `qoder`；`pi` 不是 `harnessHooks` 的 schema 键），保留 `source.schema.json` 校验句。
 - `scripts/lib/first-party.ts:32`：删除 `PluginSource.cursor?` 字段。
 - `scripts/lib/version-sync.ts:3`：删除注释中「(the .cursor-plugin marketplace carries no version row)」半句。
 - 删除已生成产物：`.cursor-plugin/marketplace.json`、`packages/kairos/.cursor-plugin/plugin.json`；随后 `pnpm run emit` 重生成 `marketplace/source.json` 等派生面。
@@ -126,3 +126,4 @@ P19 是两件互不依赖、但同属「派发面契约」的收口：
 | v0.1 | 2026-10-23 | 初稿：收编 P19 grilling Q1–Q11——claude `FORCE_PROMPT_CACHING_5M=1` / pi `PI_CACHE_RETENTION=short`；`HOSTS.env` → `ChildRun` → execa env（引擎值覆盖）；cursor 完整退役（引擎 / 发行 / 消费三面）；changeset 双 minor | Claude（kairos:cdd-spec-writer · 2026-10-23） |
 | v0.2 | 2026-10-23 | **spec-fix-1（review-1 findings 收口 · 1 blocker + 4 warn + 3 nit）**：① blocker——§3.2 补 `packages/kairos/.version-bump.json` 的 `.cursor-plugin` 条目删除（`VersionSync.run` 无条件读取 → 产物删除后 ENOENT）与 `version-sync.ts:3` 注释同步，AC 回归点名 `pnpm run version-sync`；② warn——§3.2 补发行面 cursor 余量（`source.schema.json` 三 `$defs` / hooks / required、`marketplace/README.md` 三段、`first-party.ts:32`），AC 增 `git grep -i cursor -- marketplace scripts`（仅 emit 反向 pin 例外）；③ warn——§3.3 逐行枚举 kairos EN/zh README 七处与根 zh mirror 两行，消费面验收改为四份 README + `CLAUDE.md` 的 cursor grep 零命中；④ warn——§3.3 纳入 `CLAUDE.md` 三行（claim / 两份 emit 产物清单）与 `tests/helpers.ts:38` 注释；⑤ warn——§1.1 / §2.1 / §2.2 的 Claude Code TTL 与 pi-ai 事实补取证锚（官方文档 URL · `@earendil-works/pi-ai@1.3.0` `dist/api/anthropic-messages.js:22-27`）；⑥ nit——`termination.test.ts:56` → `:51-68`；⑦ nit——`infra.test.ts:84` 写全路径；⑧ nit——`version-sync.ts:3` / `helpers.ts:38` 注释入 live-comment 清扫 | Claude（kairos:cdd-dev [P19] docs-fix round 1 · 2026-10-23） |
 | v0.3 | 2026-10-23 | **spec-fix-2（review-2 findings 收口 · 1 warn + 4 nit）**：① warn——§3.2 `marketplace/README.md` 删除范围由 `:35-46` 收窄为 `:35-42`，`:46` 改为改写（删 cursor oneOf 半句、harness 集收敛 `claude`/`pi`、保留 schema 校验句）；② nit——`VersionSync.run` pin 由 `:58-70` 校正为 `:56-57`；③ nit——`PRODUCT_DIRS` 更名 `BASE_PRODUCT_ROOTS` 并引 `:48` / `:50`；④ nit——§3.1 live-comment 清扫扩到 `host.test.ts:3-5/14` 与 `channel-closure.guard.test.ts:13-17` 的注释与 `it` 标题；⑤ nit——pi-ai 取证锚由 `:22-27` 扩为 `:22-30`（含 `return "short"` 分支） | Claude（kairos:cdd-dev [P19] docs-fix round 2 · 2026-10-23） |
+| v0.4 | 2026-10-23 | **设计回填（plan-review-2 携带的 spec 跟进 · orchestrator 独立提交）**：§3.2 `marketplace/README.md` 的 Schema 句不再要求收敛为 `claude` / `pi`——`source.schema.json#/$defs/harnessHooks` 实际接受 `claude` / `codex` / `qoder`，`pi` 不是其 schema 键；改为按 schema 实际键表述，避免写出一条消费者可验证为假的声明。schema 键集对齐不在 P19 范围（既有 `codex` / `qoder` 非 cursor 面） | Claude（kairos:cdd-plan · 设计回填 · 2026-10-23） |

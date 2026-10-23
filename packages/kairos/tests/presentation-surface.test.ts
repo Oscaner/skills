@@ -3,10 +3,11 @@
 // README skeleton (positioning → philosophy → behavior), the no-harness positioning sentence,
 // the four cdd philosophy anchors, the CLAUDE.md positioning sentence + surviving single-source
 // wording, the zh mirror three-set sync, and the P4.1 behavior
-// zero-divergence guarantees. P4 (pi-harness) adds the verified-triple harness-claim pin, the
+// zero-divergence guarantees. P4 (pi-harness) adds the verified harness-claim pin, the
 // skill inventory dir × SKILL.md name: double-pin, the nominal mapping-table data-derivation pin
-// (lexicon ids/clis/markers + registry ship), and the zero old-name-identity / zero osuperpowers /
-// zero cursor-agent (binary-column data value excepted) residue pins. Runs inside the
+// (lexicon ids/clis/markers + registry ship), and the zero old-name-identity / zero osuperpowers
+// residue pins. It also pins the four claim surfaces (root EN/zh + kairos EN/zh) to zero
+// case-insensitive `cursor` hits — no unverified cursor claim survives. Runs inside the
 // `kairos vitest` behavior-tree validate step; tests/ is not a shipped surface (absent from
 // the pack whitelist).
 //
@@ -370,31 +371,31 @@ test("P4.1 behavior: kairos README names the full CLI surface (issue render incl
   expect(cli, "kairos README must mention cdd issue render").toMatch(/cdd issue render/);
 });
 
-test("P4.1 behavior: harness claims stay at the verified triple (claude + cursor-agent + pi)", () => {
+test("P4.1 behavior: harness claims stay at the verified pair (claude + pi)", () => {
   const root = read("README.md");
   expect(
     root,
-    "root README must keep the P6 B1 neutral multi-harness claim with the verified triple",
+    "root README must keep the neutral multi-harness claim with the verified pair",
   ).toMatch(
-    /consumable across multiple AI coding harnesses \(verified on \*\*Claude Code\*\*, \*\*Cursor Agent\*\*, and \*\*Pi\*\*\)/,
+    /consumable across multiple AI coding harnesses \(verified on \*\*Claude Code\*\* and \*\*Pi\*\*\)/,
   );
   expect(root, "unverified harness claims leaked back into README.md").not.toMatch(
     /8 harnesses|Trae|Vibe|Kiro|OpenCode/,
   );
-  // The triple-wordings ride the T4-deployed claim surface on all four README claim files (root
-  // EN/zh + kairos EN/zh) — a pair-form regression anywhere fails; the foreign-claim ban holds.
+  // The pair-wordings ride the claim surface on all four README claim files (root EN/zh +
+  // kairos EN/zh) — a triple-form regression anywhere fails; the foreign-claim ban holds.
   expect(
     read("README.zh-CN.md"),
-    "root zh mirror must carry the verified triple claim wording",
-  ).toMatch(/已在 \*\*Claude Code\*\*、\*\*Cursor Agent\*\* 与 \*\*Pi\*\* 上验证/);
+    "root zh mirror must carry the verified pair claim wording",
+  ).toMatch(/已在 \*\*Claude Code\*\* 与 \*\*Pi\*\* 上验证/);
   expect(
     read("packages/kairos/README.md"),
-    "kairos README must carry the verified triple claim",
-  ).toMatch(/\(verified on \*\*Claude Code\*\*, \*\*Cursor Agent\*\*, and \*\*Pi\*\*\)/);
+    "kairos README must carry the verified pair claim",
+  ).toMatch(/\(verified on \*\*Claude Code\*\* and \*\*Pi\*\*\)/);
   expect(
     read("packages/kairos/README.zh-CN.md"),
-    "kairos zh mirror must carry the verified triple claim wording",
-  ).toMatch(/已在 \*\*Claude Code\*\*、\*\*Cursor Agent\*\* 与 \*\*Pi\*\* 上验证/);
+    "kairos zh mirror must carry the verified pair claim wording",
+  ).toMatch(/已在 \*\*Claude Code\*\* 与 \*\*Pi\*\* 上验证/);
   const eng = read("packages/cdd-engine/README.md");
   expect(eng, "cdd-engine README harness wording missing").toMatch(/harness registry|harness/);
 });
@@ -435,8 +436,8 @@ const NOMINAL_SECTION_HEADING: Record<string, string> = {
 
 /** The data-derived nominal table row for one harness id (display form): identifier + CLI binary
  *  + host marker from the harness contract (row id + cli + detect — C8: the unique harness-data
- *  source), ship status from the same contract row — `cursor-agent` is legal ONLY as the cursor
- *  binary-column data value. */
+ *  source), ship status from the same contract row — the nominal table has no cursor row;
+ *  `cursor-agent` survives on these surfaces only as the residue case's banned token. */
 /** One row of the canonical harness contract (the typed host plane, src-next/face/host.ts) —
  *  the nominal-table derivation source (id + cli + detect + ship). */
 interface HarnessContractRow {
@@ -493,15 +494,16 @@ test("nominal mapping table == the harness contract (row id/cli/detect + ship) d
   }
 });
 
-test("zero cursor-agent residue on the README claim surfaces (G2 exemption anchor retired; binary-column data value excepted)", () => {
+test("zero cursor residue on the README claim surfaces (case-insensitive)", () => {
+  // The banned token is `cursor-agent` — matched case-insensitively, so the retired
+  // `Cursor Agent` spelling cannot slip back onto a claim surface either.
   for (const rel of CLAIM_SURFACES) {
     const md = read(rel);
     md.split("\n").forEach((line, i) => {
-      if (!line.includes("cursor-agent")) return;
       expect(
-        line,
-        `${rel}:${i + 1} cursor-agent outside the nominal-table binary column (registry cli data value)`,
-      ).toMatch(/^\|\s*cursor\s*\|\s*`cursor-agent`/);
+        line.toLowerCase().includes("cursor"),
+        `${rel}:${i + 1} unverified cursor claim on the claim surface`,
+      ).toBe(false);
     });
   }
 });

@@ -2,7 +2,7 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-Personal AI coding skills — kairos orchestration, the `cdd-*` CDD engine family, and the cdd-report repo utility — packaged as an installable plugin for AI coding harnesses (verified on **Claude Code**, **Cursor Agent**, and **Pi**).
+Personal AI coding skills — kairos orchestration, the `cdd-*` CDD engine family, and the cdd-report repo utility — packaged as an installable plugin for AI coding harnesses (verified on **Claude Code** and **Pi**).
 
 ## The kairos philosophy
 
@@ -54,14 +54,10 @@ Installs the latest release and writes pi's project settings. The six `cdd-*` sk
 1. Install `superpowers`, `kairos`, and `mattpocock-skills` from the marketplace (see the repository README for per-harness install).
 2. No install prerequisite — every kairos skill invokes the engine on demand via `npx -y @oscaner-skills/cdd-engine@latest <subcommand>` (zero global-install precondition; the retired `detect-engine` gate is gone).
 3. No `.gitignore` setup — the engine keeps its per-dispatch run state (round handoffs, ledgers, briefs) under `.kairos/cdd/` in the repo root, and the workspace self-publishes a `.gitignore` (content `*`) at first dispatch: the engine's run artifacts stay untracked out of your commits and branch diffs with zero consumer setup, and the clean-tree dispatch gate never reads the engine's own outputs as uncommitted user work.
-4. Invoke kairos skills — the `/kairos:<skill>` slash form in Claude Code and Cursor Agent:
+4. Invoke kairos skills — the `/kairos:<skill>` slash form in Claude Code:
 
 ```bash
 # Claude Code
-/kairos:cdd-design    # → cdd-design
-/kairos:cdd-plan    # → cdd-plan
-
-# Cursor Agent
 /kairos:cdd-design    # → cdd-design
 /kairos:cdd-plan    # → cdd-plan
 ```
@@ -79,20 +75,18 @@ The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its
 
 ## Co-existing with upstream plugins
 
-kairos ships every skill as `cdd-*`, so the family coexists with upstream plugins without conflict by construction: pi's flat namespace has no namespace-qualification syntax, and the unique `cdd-*` bare names keep every kairos skill unambiguous alongside any upstream plugin. Inline skill references are harness-conditional — Claude Code and Cursor Agent support plugin-qualified imports like `/superpowers:*`, which always resolve to the owning package, while pi invokes bare `/skill:<name>` only, where `cdd-*` uniqueness guarantees an unambiguous target.
+kairos ships every skill as `cdd-*`, so the family coexists with upstream plugins without conflict by construction: pi's flat namespace has no namespace-qualification syntax, and the unique `cdd-*` bare names keep every kairos skill unambiguous alongside any upstream plugin. Inline skill references are harness-conditional — Claude Code supports plugin-qualified imports like `/superpowers:*`, which always resolve to the owning package, while pi invokes bare `/skill:<name>` only, where `cdd-*` uniqueness guarantees an unambiguous target.
 
 ### Upstream dependency install
 
 The orchestrator skills import upstream flows as their session baseline (superpowers / mattpocock-skills / impeccable). Install them per harness from their own publishers — kairos installs through each harness's own channel:
 
-| Package | Claude Code | Cursor Agent | Pi |
-|---------|-------------|--------------|-----|
-| kairos | `claude plugin marketplace add oscaner/skills；claude plugin install kairos@oscaner-skills` | pending | `pi install npm:@oscaner-skills/kairos` |
-| superpowers | `claude plugin marketplace add obra/superpowers-marketplace；claude plugin install superpowers@superpowers-marketplace` | pending | `pi install git:github.com/obra/superpowers` |
-| mattpocock-skills | `claude plugin marketplace add mattpocock/skills；claude plugin install mattpocock-skills@mattpocock` | pending | `pi install git:github.com/mattpocock/skills` |
-| impeccable | `claude plugin marketplace add pbakaus/impeccable；claude plugin install impeccable@impeccable` | pending | `npx impeccable install --providers=pi --scope=global -y` |
-
-The Cursor Agent column is `pending` — install each plugin from its official channel (see the repository [Plugins](../README.md#plugins) table — each plugin links its GitHub home, where the current install command is published).
+| Package | Claude Code | Pi |
+|---------|-------------|-----|
+| kairos | `claude plugin marketplace add oscaner/skills；claude plugin install kairos@oscaner-skills` | `pi install npm:@oscaner-skills/kairos` |
+| superpowers | `claude plugin marketplace add obra/superpowers-marketplace；claude plugin install superpowers@superpowers-marketplace` | `pi install git:github.com/obra/superpowers` |
+| mattpocock-skills | `claude plugin marketplace add mattpocock/skills；claude plugin install mattpocock-skills@mattpocock` | `pi install git:github.com/mattpocock/skills` |
+| impeccable | `claude plugin marketplace add pbakaus/impeccable；claude plugin install impeccable@impeccable` | `npx impeccable install --providers=pi --scope=global -y` |
 
 Repository architecture and the developer/engine journey are visualised in the bilingual [diagram set](../../docs/diagrams/index.html).
 

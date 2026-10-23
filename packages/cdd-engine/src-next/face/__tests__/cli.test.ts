@@ -4444,6 +4444,25 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
+  it("dispatches through the pi row — the detected host's own child env reaches the child", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new StubRunner();
+      sync.stdout = "Implemented the task.\n";
+      const dispatch = new HarnessDispatch({ scene, io, sync, env: { AI_AGENT: "pi" } });
+      await dispatch.step()(implementFrame);
+      expect(sync.calls.length).toBe(1);
+      // The child env is the detected row's data, never a dispatcher branch: a
+      // claude-row mix-up would forward FORCE_PROMPT_CACHING_5M and surface here.
+      expect(sync.calls[0]?.command).toBe("pi");
+      expect(sync.calls[0]?.env).toEqual(HOSTS.pi.env);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("prescribes the implement artifact paths — REPORT/EVIDENCE carry the canonical {family}-{key}- names (find #5)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {

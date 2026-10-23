@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P19 实施计划：child dispatch 缓存 TTL = 5m + 引擎 cursor 支持退役
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-10-23
 slug: 2026-10-10-engine-doc-tooling-p19
 base: develop
@@ -22,7 +22,7 @@ base: develop
 - **Objective**: 把 child 的 prompt-cache TTL 从环境继承改为 host 数据契约——`HOSTS.claude.env = { FORCE_PROMPT_CACHING_5M: "1" }`、`HOSTS.pi.env = { PI_CACHE_RETENTION: "short" }`；`ChildRun` 增 `env`；`CliLifecycle.#dispatch` 传入当前 host 行的 env；`Terminator.run` 以 `{ ...process.env, ...run.env }` 合并（引擎值覆盖继承值），派发器零 host 分支。
 - **Files**: Modify `packages/cdd-engine/src-next/face/host.ts`（`HostRow` 接口 · `HOSTS` 两行）· `packages/cdd-engine/src-next/face/termination.ts`（`ChildRun` · `Terminator.run` 的 execa 选项）· `packages/cdd-engine/src-next/face/lifecycle.ts`（`#dispatch` 的 `sync.run` 入参）; Test `packages/cdd-engine/src-next/face/__tests__/host.test.ts` · `packages/cdd-engine/src-next/face/__tests__/termination.test.ts` · `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`
 - **Consumes**: phase-spec v0.3 §2.1–§2.3 与 Acceptance 的 TTL 契约判据。
-- **Produces**: `HostRow.env: Readonly<Record<string, string>>`（每行必填）· `ChildRun.env` · 一条 spawn 面覆盖语义 pin；Task 2 在同一 `host.ts` 上继续删 cursor。
+- **Produces**: `HostRow.env: Readonly<Record<string, string>>`（每行必填；`HOSTS.cursor` 以空 `env: {}` 占位保持 `Readonly<Record<HostId, HostRow>>` 完整，Task 2 随整行删除）· `ChildRun.env` · 一条 spawn 面覆盖语义 pin；Task 2 在同一 `host.ts` 上继续删 cursor。
 - **Steps**:
   - 写失败测试（host 数据 pin，`host.test.ts`）：
     ```ts
@@ -80,7 +80,7 @@ base: develop
     ```
     — checkable: FAIL（`ChildRun` 无 `env` 字段 / 子进程回显空串）
   - 写失败断言（dispatch 传参，`cli.test.ts` 的 `StubRunner` 记录面）：在既有的 claude 派发用例上补 `expect(runner.calls[0]?.env).toEqual(HOSTS.claude.env)` — checkable: FAIL（`run.env` undefined）
-  - 实现 `host.ts`：`HostRow` 增 `env: Readonly<Record<string, string>>`；`HOSTS.claude` 增 `env: { FORCE_PROMPT_CACHING_5M: "1" }`、`HOSTS.pi` 增 `env: { PI_CACHE_RETENTION: "short" }`（spread/`satisfies` 形状不变）。新 `env` 列的 doc 注释不得出现独立小写 `cache` token（`__tests__/dead-decl.guard.test.ts:19-23` 的 `/\bcache\b/` 负断言会因此转红），例如写成「the per-host child TTL pin — engine values win over the inherited env」— checkable: 类型检查通过；`grep -n "cache" packages/cdd-engine/src-next/face/host.ts` 零命中
+  - 实现 `host.ts`：`HostRow` 增 `env: Readonly<Record<string, string>>`；`HOSTS.claude` 增 `env: { FORCE_PROMPT_CACHING_5M: "1" }`、`HOSTS.pi` 增 `env: { PI_CACHE_RETENTION: "short" }`；`HostId` 此时仍含 `cursor`，故 `HOSTS.cursor` 增 `env: {}` 空占位以保 `Readonly<Record<HostId, HostRow>>` 无缺列（Task 2 随整行删除）；spread/`satisfies` 形状不变。新 `env` 列的 doc 注释不得出现独立小写 `cache` token（`__tests__/dead-decl.guard.test.ts:19-23` 的 `/\bcache\b/` 负断言会因此转红），例如写成「the per-host child TTL pin — engine values win over the inherited env」— checkable: 类型检查通过；`grep -n "cache" packages/cdd-engine/src-next/face/host.ts` 零命中
   - 实现 `termination.ts`：`ChildRun` 增 `env: Readonly<Record<string, string>>`；`Terminator.run` 的 execa 选项增 `env: { ...process.env, ...run.env }`（其余选项零改）— checkable: `grep -n "env: { ...process.env, ...run.env }" packages/cdd-engine/src-next/face/termination.ts` 命中一次
   - 实现 `lifecycle.ts`：`#dispatch` 的 `this.#sync.run({...})` 增 `env: row.env`（`row` 已在手）— checkable: `grep -n "env: row.env" packages/cdd-engine/src-next/face/lifecycle.ts` 命中
   - 重跑本任务测试 — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/host.test.ts src-next/face/__tests__/termination.test.ts src-next/face/__tests__/cli.test.ts` 全绿
@@ -95,7 +95,7 @@ base: develop
 - **Consumes**: Task 1 的 `HOSTS` 形状（`env` 列已在）；phase-spec §3.1 与 Acceptance 的「引擎面零 cursor」判据。
 - **Produces**: `HostId` 联合仅 claude/pi；`HOSTS` / `REFS` / detect 序无 cursor；一条 `CURSOR_TRACE_ID` 负向 detect pin。
 - **Steps**:
-  - 写失败测试（`host.test.ts`）：`expect(Object.keys(HOSTS).sort()).toEqual(["claude", "pi"])`；`expect("cursor" in REFS["kairos:cdd-dev"]).toBe(false)`；`expect(new HostDetect... ` 改为直接 `expect(HostDetect.detect({ CURSOR_TRACE_ID: "t" })).toBe("")`；capabilities 循环与 flag 负断言改 `pi` — checkable: FAIL（cursor 仍在）
+  - 写失败测试（`host.test.ts`，import 扩为 `{ HOSTS, REFS, HostDetect }`）：新增 `expect(Object.keys(HOSTS).sort()).toEqual(["claude", "pi"])`；新增 `expect("cursor" in REFS["kairos:cdd-dev"]).toBe(false)`；新增 `expect(HostDetect.detect({ CURSOR_TRACE_ID: "t" })).toBe("")`（该文件此前只有 `HOSTS` 断言，检测序用例在 `cli.test.ts:4313-4326`）；capabilities 循环改 `["claude", "pi"]`，删除 `:16` 的 `HOSTS.cursor.capabilities` 断言与 `:29` 的 `HOSTS.cursor.invoke` 负断言行（`:30` 已有等价的 pi 行，不复制）— checkable: FAIL（cursor 仍在）
   - 写失败测试（`channel-closure.guard.test.ts`）：pinned marker 集改 `["AI_AGENT", "CLAUDE_CODE_SESSION_ID", "PATH"]`；per-harness 派生循环改 `["claude", "pi"]`；文件头 `the pinned four` / `claude/cursor` 注释同步 — checkable: FAIL
   - 写失败测试（`infra/__tests__/infra.test.ts:84`）：marker 列表改 `["CLAUDE_CODE_SESSION_ID", "AI_AGENT"]` — checkable: FAIL
   - 写失败测试（`preview.test.ts:142-146`）：cursor 样例改 `env: { CLAUDE_CODE_SESSION_ID: "s" }`，期望 child 行 `claude -p --output-format text --dangerously-skip-permissions --exclude-dynamic-system-prompt-sections` — checkable: FAIL
@@ -114,7 +114,7 @@ base: develop
 - **Consumes**: phase-spec §3.2 与 Acceptance 的「发行面零 cursor」判据。
 - **Produces**: `oscaner.harnesses = ["claude", "pi"]`；零 `.cursor-plugin` 产物；emit 无 cursor 机制；`marketplace/source.json` 由 emit 重生成。
 - **Steps**:
-  - 改失败测试（`scripts/__tests__/emit.test.ts`）：kairos source row 断言 `cursor` 为 undefined；产物集不含 `.cursor-plugin/marketplace.json` 与 `packages/kairos/.cursor-plugin/plugin.json`；反向断言 `JSON.stringify(source).includes("cursor") === false` — checkable: FAIL
+  - 改失败测试（`scripts/__tests__/emit.test.ts`）：`:18` 用例标题删去 cursor 表述（改为 `derives the kairos source row — the claude keyword reconciliation`）；删 `:22` 的 `kairos?.cursor` 断言（`PluginSource.cursor?` 同任务删除后该访问为 TS2339），改以整份 source 的反向 pin `expect(JSON.stringify(source).includes("cursor")).toBe(false)` 证明 cursor 不出现；产物集列表删两条 `.cursor-plugin` 条目，并补对应的 `expect(generatedPaths).not.toContain(...)` 反向断言 — checkable: FAIL
   - 实现 `packages/kairos/package.json`：`oscaner.harnesses` 删 `"cursor"`；`files` 删 `".cursor-plugin/"` — checkable: `grep -n "cursor" packages/kairos/package.json` 零命中
   - 实现 `packages/kairos/.version-bump.json`：`files[]` 删 `.cursor-plugin/plugin.json` 条目 — checkable: `grep -n "cursor" packages/kairos/.version-bump.json` 零命中
   - 实现 `scripts/emit.ts`：删 `CursorMappings` 类族；`BASE_PRODUCT_ROOTS` 删 `.cursor-plugin` 两行（`:48` / `:50`）；`deriveFirstPartyPlugin` 删 cursor 分支（`:79-80`）；product 生成删两条 cursor 条目（`:344-347`）；marketplace doc 删 cursor 产物（`:373-374`）；头注释 cursor 表述清尽 — checkable: `grep -n "cursor" scripts/emit.ts` 零命中
@@ -166,3 +166,4 @@ base: develop
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-23 | 初稿：五任务——`HOSTS.env` → `ChildRun` → execa（TTL 5m）· 引擎面 cursor 退役 · 发行面 cursor 退役 · 消费面真话化 · changesets 双 minor + 全量验证；任务按 1→2→3→4→5 串行（2 依赖 1 共享 `host.ts`；4 依赖 2/3；5 收口） | Claude（kairos:cdd-plan · 2026-10-23） |
 | v0.2 | 2026-10-23 | **plan-fix-1（review-1 findings 收口 · 1 blocker + 2 warn + 3 nit）**：① blocker——Task 4 纳入 `install-rows.guard.test.ts`（README 安装表删 Cursor 列后 3 列 = 5 cell，`cells.length < 6` 使 guard 空解析），改 `< 5` 并补 guard checkable / Acceptance；② warn——Task 1 补 claude spawn echo 断言（`FORCE_PROMPT_CACHING_5M=1`）与 Acceptance 双 host echo 表述；③ warn——Task 2 提交 checkable 由 `cursor` 改为 `cursor-agent`（per-invocation batch cursor 属冻结面，零命中不可达）；④ nit——Task 1 `host.ts` 的 `env` doc 规避 `dead-decl.guard` 的 `/\bcache\b/` 负断言并补 grep checkable；⑤ nit——Task 2 显式删除 `cli.test.ts:4323-4325` 组合优先级断言，`CURSOR_TRACE_ID` 只留负向 pin；⑥ nit——Task 3 `marketplace/README.md` 的 harness 集合表述按 schema 实际接受键（`claude` / `codex` / `qoder`）改写，不宣称 `pi` 受 schema 强制 | Claude（kairos:cdd-dev [P19] docs-fix round 1 · 2026-10-23） |
+| v0.3 | 2026-10-23 | **plan-fix-2（review-2 findings 收口 · 1 blocker + 1 warn + 1 nit）**：① blocker——Task 1 为 `HOSTS.cursor` 补 `env: {}` 空占位（`HostId` 仍含 cursor，新必填列缺行会使 `satisfies Readonly<Record<HostId, HostRow>>` 与 `HOST_CONTRACT` 的 typecheck 转红），Task 2 随整行删除；② warn——Task 3 `emit.test.ts` 删 `kairos?.cursor` 断言（`PluginSource.cursor?` 删除后为 TS2339），改用 `JSON.stringify(source).includes("cursor") === false` 反向 pin，并改写 `:18` 用例标题去 cursor 措辞；③ nit——Task 2 `host.test.ts` 步骤改为新增断言并补 `REFS` / `HostDetect` import（该文件无 detect 用例），并明写删除 `:16` 的 `HOSTS.cursor.capabilities` 断言与 `:29` 的 `HOSTS.cursor.invoke` 负断言行 | Claude（kairos:cdd-dev [P19] docs-fix round 2 · 2026-10-23） |

@@ -23,6 +23,14 @@ describe("the capabilities per-harness declaration (T25)", () => {
   });
 });
 
+describe("the per-host child TTL pin", () => {
+  it("every host row declares its child env — claude 5m force, pi short retention", () => {
+    expect(HOSTS.claude.env).toEqual({ FORCE_PROMPT_CACHING_5M: "1" });
+    expect(HOSTS.pi.env).toEqual({ PI_CACHE_RETENTION: "short" });
+    for (const id of ["claude", "pi"] as const) expect(typeof HOSTS[id].env).toBe("object");
+  });
+});
+
 describe("the claude system-prompt stability flag", () => {
   it("claude dispatches with the dynamic system-prompt sections excluded — the other hosts declare no such capability", () => {
     expect(HOSTS.claude.invoke).toContain("--exclude-dynamic-system-prompt-sections");

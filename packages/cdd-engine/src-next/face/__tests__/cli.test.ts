@@ -56,6 +56,7 @@ import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
 import { Cli, HarnessDispatch } from "../cli.ts";
 import { CLI_COMMANDS, type CliVerb } from "../declare.ts";
+import { HOSTS } from "../host.ts";
 import { CommandTreeBuilder } from "../projection.ts";
 import type { ChildOutcome, ChildRun, ChildRunner, Termination } from "../termination.ts";
 import { Words } from "../words.ts";
@@ -4379,6 +4380,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(sync.calls.length).toBe(1);
       const call = sync.calls[0];
       expect(call.command).toBe("claude");
+      expect(call.env).toEqual(HOSTS.claude.env);
       expect(call.args).toContain("-p");
       // D46 — the child is spawned at cwd = repoRoot: the round-context path tokens
       // are repoRoot-relative, so a relative token only resolves correctly when the

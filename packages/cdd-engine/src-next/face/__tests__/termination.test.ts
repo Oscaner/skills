@@ -53,12 +53,14 @@ const childRun = (
   command: string,
   args: readonly string[],
   policy: TerminationPolicy = TerminationPolicy.of("implement"),
+  env: Readonly<Record<string, string>> = {},
 ): ChildRun => ({
   command,
   args,
   cwd: root,
   heartbeatPath: heartbeatOf(root),
   policy,
+  env,
 });
 
 /** The heartbeat path of a scratch dispatch (`childRun`'s own derivation). */
@@ -92,6 +94,46 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     expect(result.stdout.length).toBeGreaterThan(2000000);
     expect(result.stdout).toMatch(/^The round succeeded; every check is green\.$/m);
     expect(result.stdout).toMatch(/^The handoff draft is the machine-readable result\.$/m);
+  });
+
+  it("the dispatch env overrides the inherited env on the child process", async () => {
+    const saved = process.env.PI_CACHE_RETENTION;
+    process.env.PI_CACHE_RETENTION = "long";
+    try {
+      const out = await new Terminator().run(
+        childRun(
+          scratch(),
+          process.execPath,
+          ["-e", "process.stdout.write(process.env.PI_CACHE_RETENTION ?? '')"],
+          TerminationPolicy.of("review"),
+          { PI_CACHE_RETENTION: "short" },
+        ),
+      );
+      expect(out.stdout).toBe("short");
+    } finally {
+      if (saved === undefined) delete process.env.PI_CACHE_RETENTION;
+      else process.env.PI_CACHE_RETENTION = saved;
+    }
+  });
+
+  it("the claude dispatch env forces the 5m prompt TTL on the child process", async () => {
+    const saved = process.env.FORCE_PROMPT_CACHING_5M;
+    delete process.env.FORCE_PROMPT_CACHING_5M;
+    try {
+      const out = await new Terminator().run(
+        childRun(
+          scratch(),
+          process.execPath,
+          ["-e", "process.stdout.write(process.env.FORCE_PROMPT_CACHING_5M ?? '')"],
+          TerminationPolicy.of("review"),
+          { FORCE_PROMPT_CACHING_5M: "1" },
+        ),
+      );
+      expect(out.stdout).toBe("1");
+    } finally {
+      if (saved === undefined) delete process.env.FORCE_PROMPT_CACHING_5M;
+      else process.env.FORCE_PROMPT_CACHING_5M = saved;
+    }
   });
 
   it("aggregates stderr by the same streaming face", async () => {

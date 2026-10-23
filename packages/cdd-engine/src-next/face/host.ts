@@ -5,7 +5,7 @@
 // imported, never parsed:
 //
 //   · HOSTS     — the per-harness rows (cli / invoke / promptForm / output / ship /
-//     detect / install). The host-marker closure is single-sourced HERE: the
+//     detect / install / env). The host-marker closure is single-sourced HERE: the
 //     detect rows are the only copy of the marker env keys (the channel audit derives
 //     the env whitelist from them — never a second declaration). The promptForm
 //     column (§3.5) is the prompt-position semantics data contract — how the
@@ -78,6 +78,9 @@ export interface HostRow {
   install: Readonly<Record<string, readonly string[] | "pending">>;
   /** The capability facts — the tested dispatch-face columns (T25). */
   capabilities: HostCapabilities;
+  /** The per-host child TTL pin — the dispatch env the engine layers over the
+   *  inherited env (engine values win). */
+  env: Readonly<Record<string, string>>;
 }
 
 /** A review dispatch row — an object-shaped slot naming its ref key (the note face
@@ -153,6 +156,7 @@ export const HOSTS = {
     detect: { env: "CLAUDE_CODE_SESSION_ID", aiAgentPrefix: "claude-code" },
     install: INSTALL_ROWS,
     capabilities: { parallel: true },
+    env: { FORCE_PROMPT_CACHING_5M: "1" },
   },
   cursor: {
     promptForm: "ref-prefixed",
@@ -168,6 +172,7 @@ export const HOSTS = {
       impeccable: "pending",
     },
     capabilities: { parallel: "pending" },
+    env: {},
   },
   pi: {
     promptForm: "ref-prefixed",
@@ -183,6 +188,7 @@ export const HOSTS = {
       impeccable: ["npx impeccable install --providers=pi --scope=global -y"],
     },
     capabilities: { parallel: "pending" },
+    env: { PI_CACHE_RETENTION: "short" },
   },
 } as const satisfies Readonly<Record<HostId, HostRow>>;
 

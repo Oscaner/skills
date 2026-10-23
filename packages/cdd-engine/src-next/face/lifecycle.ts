@@ -182,6 +182,9 @@ export class CliLifecycle {
       cwd: this.#scene.workspace.root.repoRoot,
       heartbeatPath: this.#scene.workspace.resolve("liveness.json"),
       policy: TerminationPolicy.of(frame.phase),
+      // The host row's own child env — the TTL pin the terminator layers over the
+      // inherited env at spawn (the host difference is data, never a dispatcher branch).
+      env: row.env,
     });
     // The child's stdout rides the diagnostic channel — #reject reads it into the
     // crash record on either failure face. Child Return is prose: the engine never

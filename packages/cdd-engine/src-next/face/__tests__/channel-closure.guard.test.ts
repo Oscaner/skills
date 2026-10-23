@@ -11,9 +11,9 @@
 //      declare argv channel, and every non-program channel key is declared by a
 //      command (the single-surface closure);
 //   2. the host-marker closure — the detect env keys ∪ PATH match the pinned
-//      four, derived from the harness detect rows as the live single source;
+//      three, derived from the harness detect rows as the live single source;
 //   3. the dispatch/refs derivation — every dispatch-slot ref is registered and
-//      every per-harness slash form derives (`pi` /skill:<bare>, claude/cursor
+//      every per-harness slash form derives (`pi` /skill:<bare>, claude
 //      /<ref>);
 //   4. the pipeline-next refs closure (T13 ⑨) — every `PIPELINE_NEXT` ref-key entry
 //      is registered in REFS and derives its per-harness forms (the face-to-face
@@ -68,10 +68,10 @@ describe("the CLI channel closure — command keys × the declare argv channel (
 });
 
 describe("the host-marker closure — the detect env keys ∪ PATH (single-sourced at the harness detect rows)", () => {
-  it("every HOSTS detect env key + PATH equals the pinned four (the deliberate half-update oracle)", () => {
+  it("every HOSTS detect env key + PATH equals the pinned three (the deliberate half-update oracle)", () => {
     const markerKeys = Object.values(HOSTS).map((row) => row.detect.env);
     const expectedClosure = [...markerKeys, "PATH"].sort();
-    const pinned = ["AI_AGENT", "CLAUDE_CODE_SESSION_ID", "CURSOR_TRACE_ID", "PATH"].sort();
+    const pinned = ["AI_AGENT", "CLAUDE_CODE_SESSION_ID", "PATH"].sort();
     expect(expectedClosure).toEqual(pinned);
   });
 });
@@ -97,7 +97,7 @@ describe("the dispatch/refs derivation — every dispatch-slot ref registered + 
       const form = REFS[ref as keyof typeof REFS];
       expect(form, `dispatch slot names the registered ref key "${ref}"`).toBeDefined();
       if (form === undefined) continue;
-      for (const id of ["claude", "cursor", "pi"] as const) {
+      for (const id of ["claude", "pi"] as const) {
         const expected = id === "pi" ? `/skill:${ref.split(":")[1]}` : `/${ref}`;
         expect(form[id], `ref "${ref}" per-harness form for ${id}`).toBe(expected);
       }
@@ -120,7 +120,7 @@ describe("the dispatch/refs derivation — every dispatch-slot ref registered + 
       const form = REFS[ref as keyof typeof REFS];
       expect(form, `PIPELINE_NEXT names the registered ref key "${ref}"`).toBeDefined();
       if (form === undefined) continue;
-      for (const id of ["claude", "cursor", "pi"] as const) {
+      for (const id of ["claude", "pi"] as const) {
         const expected = id === "pi" ? `/skill:${ref.split(":")[1]}` : `/${ref}`;
         expect(form[id], `PIPELINE_NEXT ref "${ref}" per-harness form for ${id}`).toBe(expected);
       }

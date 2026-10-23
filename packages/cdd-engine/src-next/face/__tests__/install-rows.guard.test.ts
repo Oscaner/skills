@@ -26,8 +26,8 @@ const tableRows = (src: string): Map<string, string> => {
   const rows = new Map<string, string>();
   for (const line of src.split("\n")) {
     const cells = line.split("|").map((cell) => cell.trim());
-    // A `| a | b | c | d |` row splits into ["", "a", "b", "c", "d", ""].
-    if (cells.length < 6) continue;
+    // A `| a | b | c |` row splits into ["", "a", "b", "c", ""].
+    if (cells.length < 5) continue;
     const key = cells[1]!;
     if (!(key in INSTALL_ROWS)) continue;
     rows.set(key, cells[2]!.replace(/`/g, ""));

@@ -30,7 +30,6 @@
   "files": [
     "skills/",
     ".claude-plugin/",
-    ".cursor-plugin/",
     "README.md",
     "README.zh-CN.md",
     "CHANGELOG.md",
@@ -46,7 +45,6 @@
     "contentRoot": ".",
     "harnesses": [
       "claude",
-      "cursor",
       "pi"
     ],
     "keywords": [

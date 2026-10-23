@@ -12,8 +12,8 @@
 //
 // Module-level exports are types / the classes — zero bare functions (the
 // manifest mapping families are static classes, one per harness surface:
-// claude / cursor / source-row / issue-form / product-walk — high cohesion,
-// each projection derives from the package.json#oscaner single source, never a
+// claude / source-row / issue-form / product-walk — high cohesion, each
+// projection derives from the package.json#oscaner single source, never a
 // second hand-written data surface).
 
 import type { Dirent } from "node:fs";
@@ -42,13 +42,8 @@ const SOURCE_TOP = {
 } as const;
 
 /** The fully-owned product roots — every file inside is generator output (the stale
- *  walk's base set; the cursor wrapper roots fold in per run). */
-export const BASE_PRODUCT_ROOTS = [
-  ".claude-plugin",
-  ".cursor-plugin",
-  "packages/kairos/.claude-plugin",
-  "packages/kairos/.cursor-plugin",
-] as const;
+ *  walk's base set). */
+export const BASE_PRODUCT_ROOTS = [".claude-plugin", "packages/kairos/.claude-plugin"] as const;
 
 /** The standalone product files — not inside a product root (stale-walk inventory). */
 export const PRODUCT_FILES = [
@@ -60,7 +55,7 @@ export const PRODUCT_FILES = [
 // biome-ignore lint/complexity/noStaticOnlyClass: the source-row mapping family — the package.json#oscaner → plugin source row projection is a static member (zero-bare-function discipline).
 export class SourceRowMappings {
   /** Derive one first-party plugin entry (the source.json plugin row key order is
-   *  byte-pinned: name · contentRoot · cursor · version · description · author ·
+   *  byte-pinned: name · contentRoot · version · description · author ·
    *  homepage · repository · license · claude · hooks). */
   static deriveFirstPartyPlugin(root: string, dirName: string): PluginSource {
     const pkgPath = join(root, "packages", dirName, "package.json");
@@ -76,9 +71,6 @@ export class SourceRowMappings {
     const osc = pkg.oscaner ?? {};
     const contentRoot = posix.normalize(posix.join("packages", dirName, osc.contentRoot ?? "."));
     const row: Record<string, unknown> = { name: dirName, contentRoot };
-    if (osc.harnesses?.includes("cursor") === true) {
-      row.cursor = { emitMode: "plugin-root" };
-    }
     if (pkg.version !== undefined) row.version = pkg.version;
     if (pkg.description !== undefined) row.description = pkg.description;
     const author = SourceRowMappings.normalizeAuthor(pkg.author);
@@ -177,65 +169,6 @@ export class ClaudeMappings {
   }
 }
 
-// biome-ignore lint/complexity/noStaticOnlyClass: the cursor mapping family — the cursor manifest + marketplace documents are static members (zero-bare-function discipline).
-export class CursorMappings {
-  /** The cursor manifest — thin (displayName = the cursor display name or the plugin name). */
-  static cursorManifest(plugin: PluginSource): Record<string, unknown> {
-    const cursor = plugin.cursor;
-    const displayName =
-      cursor !== undefined && "displayName" in cursor && typeof cursor.displayName === "string"
-        ? cursor.displayName
-        : plugin.name;
-    const m: Record<string, unknown> = {
-      _generated: GENERATED_BANNER,
-      name: plugin.name,
-      displayName,
-      description: plugin.description,
-      version: plugin.version,
-      author: plugin.author,
-    };
-    if (plugin.license !== undefined) m.license = plugin.license;
-    const kw = plugin.claude?.keywords ?? [];
-    if (kw.length > 0) m.keywords = kw;
-    m.skills = "./skills/";
-    return m;
-  }
-
-  /** The repo-root cursor marketplace document + its per-plugin entries (plugin-root
-   *  ships the contentRoot source form). */
-  static cursorMarketplaceDoc(source: {
-    name: string;
-    owner: object;
-    metadata: object;
-    plugins: PluginSource[];
-  }): Record<string, unknown> {
-    return {
-      _generated: GENERATED_BANNER,
-      name: source.name,
-      owner: source.owner,
-      metadata: source.metadata,
-      plugins: source.plugins.map((plugin) => ({
-        _generated: GENERATED_BANNER,
-        name: plugin.name,
-        source: CursorMappings.isPluginRoot(plugin)
-          ? `./${plugin.contentRoot}`
-          : `cursor-plugins/${plugin.name}`,
-        description: plugin.description,
-      })),
-    };
-  }
-
-  /** Whether a plugin ships plugin-root cursor manifests (`oscaner.harnesses` includes
-   *  cursor — the first-party emit mode). */
-  static isPluginRoot(plugin: PluginSource): boolean {
-    return (
-      plugin.cursor !== undefined &&
-      "emitMode" in plugin.cursor &&
-      plugin.cursor.emitMode === "plugin-root"
-    );
-  }
-}
-
 // biome-ignore lint/complexity/noStaticOnlyClass: the issue-form mapping family — the issue-template YAML rendering is a static member (zero-bare-function discipline).
 export class IssueFormMappings {
   /** The issue-form YAML rendering — the `yaml` package (root devDependency), the
@@ -328,8 +261,8 @@ export class EmitService {
     return { $schema, name, owner: { ...owner }, metadata: { ...metadata }, plugins };
   }
 
-  /** One plugin's per-harness manifest (claude / cursor) — the harnesses declared by
-   *  the package's `oscaner.harnesses`, resolved against the harness set. */
+  /** One plugin's per-harness manifest — the harnesses declared by the package's
+   *  `oscaner.harnesses`, resolved against the harness set. */
   pluginManifests(plugin: PluginSource): Array<{ rel: string; doc: unknown }> {
     const pkgPath = join(REPO_ROOT, plugin.contentRoot, "package.json");
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { oscaner?: OscanerFields };
@@ -339,12 +272,6 @@ export class EmitService {
       out.push({
         rel: `${plugin.contentRoot}/.claude-plugin/plugin.json`,
         doc: ClaudeMappings.claudeManifest(plugin),
-      });
-    }
-    if (declared.includes("cursor")) {
-      out.push({
-        rel: `${plugin.contentRoot}/.cursor-plugin/plugin.json`,
-        doc: CursorMappings.cursorManifest(plugin),
       });
     }
     return out;
@@ -366,12 +293,6 @@ export class EmitService {
       outRoot,
       ".claude-plugin/marketplace.json",
       ClaudeMappings.claudeMarketplaceDoc(source),
-      generatedPaths,
-    );
-    this.writeJsonDoc(
-      outRoot,
-      ".cursor-plugin/marketplace.json",
-      CursorMappings.cursorMarketplaceDoc(source),
       generatedPaths,
     );
     this.writeIssueTemplates(outRoot, generatedPaths);

@@ -56,6 +56,7 @@ import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
 import { Cli, HarnessDispatch } from "../cli.ts";
 import { CLI_COMMANDS, type CliVerb } from "../declare.ts";
+import { HOSTS } from "../host.ts";
 import { CommandTreeBuilder } from "../projection.ts";
 import type { ChildOutcome, ChildRun, ChildRunner, Termination } from "../termination.ts";
 import { Words } from "../words.ts";
@@ -4310,7 +4311,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     key: "1",
   };
 
-  it("detects the host from the harness-contract detect markers (claude > cursor > pi)", () => {
+  it("detects the host from the harness-contract detect markers (claude > pi)", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
@@ -4318,12 +4319,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({ scene, io, env: {} });
       expect(dispatch.detectHost({})).toBe("");
       expect(dispatch.detectHost({ CLAUDE_CODE_SESSION_ID: "s" })).toBe("claude");
-      expect(dispatch.detectHost({ CURSOR_TRACE_ID: "t" })).toBe("cursor");
       expect(dispatch.detectHost({ AI_AGENT: "pi" })).toBe("pi");
       expect(dispatch.detectHost({ AI_AGENT: "claude-code" })).toBe("claude");
-      expect(dispatch.detectHost({ CLAUDE_CODE_SESSION_ID: "s", CURSOR_TRACE_ID: "t" })).toBe(
-        "claude",
-      );
+      expect(dispatch.detectHost({ CURSOR_TRACE_ID: "t" })).toBe("");
     } finally {
       cleanup();
     }
@@ -4379,6 +4377,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(sync.calls.length).toBe(1);
       const call = sync.calls[0];
       expect(call.command).toBe("claude");
+      expect(call.env).toEqual(HOSTS.claude.env);
       expect(call.args).toContain("-p");
       // D46 — the child is spawned at cwd = repoRoot: the round-context path tokens
       // are repoRoot-relative, so a relative token only resolves correctly when the
@@ -4440,6 +4439,25 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // T2 — the materialized work carrier is the work face: zero findings key (the
       // face-aware write path never injects the work-carrier findings byte bridge)
       expect("findings" in outcome.carrier!).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("dispatches through the pi row — the detected host's own child env reaches the child", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new StubRunner();
+      sync.stdout = "Implemented the task.\n";
+      const dispatch = new HarnessDispatch({ scene, io, sync, env: { AI_AGENT: "pi" } });
+      await dispatch.step()(implementFrame);
+      expect(sync.calls.length).toBe(1);
+      // The child env is the detected row's data, never a dispatcher branch: a
+      // claude-row mix-up would forward FORCE_PROMPT_CACHING_5M and surface here.
+      expect(sync.calls[0]?.command).toBe("pi");
+      expect(sync.calls[0]?.env).toEqual(HOSTS.pi.env);
     } finally {
       cleanup();
     }

@@ -81,7 +81,7 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
     // and carries no host marker; the marker env keys appear in no channel row
     // (single source, no second declaration).
     const argvText = JSON.stringify(ARGV_CHANNEL);
-    for (const marker of ["CLAUDE_CODE_SESSION_ID", "CURSOR_TRACE_ID", "AI_AGENT"]) {
+    for (const marker of ["CLAUDE_CODE_SESSION_ID", "AI_AGENT"]) {
       expect(argvText, marker).not.toContain(marker);
     }
   });

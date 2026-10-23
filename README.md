@@ -8,7 +8,7 @@
 
 **A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.**
 
-This repository is both the home of that methodology and the vehicle that distributes it. The discipline is encoded as skills and released as installable plugins, consumable across multiple AI coding harnesses (verified on **Claude Code**, **Cursor Agent**, and **Pi**). First-party packages live under `packages/` and publish to npm as `@oscaner-skills/*`; the `cdd` engine drives the flow.
+This repository is both the home of that methodology and the vehicle that distributes it. The discipline is encoded as skills and released as installable plugins, consumable across multiple AI coding harnesses (verified on **Claude Code** and **Pi**). First-party packages live under `packages/` and publish to npm as `@oscaner-skills/*`; the `cdd` engine drives the flow.
 
 ## The cdd philosophy
 
@@ -47,7 +47,7 @@ Upstream versions follow their own release schedules — always install them fro
 ## Installation
 
 ```bash
-# Claude Code / Cursor Agent marketplace
+# Claude Code marketplace
 claude plugin marketplace add oscaner/skills
 claude plugin install kairos@oscaner-skills
 
@@ -76,7 +76,7 @@ The marketplace is **package-as-source**. Metadata lives in each first-party `pa
 
 ```
 package.json#oscaner → pnpm emit → marketplace/source.json
-                                → .claude-plugin/ · .cursor-plugin/ manifests
+                                → .claude-plugin/ manifests
 ```
 
 Architecture and the developer/engine journey are maintained as bilingual, checked diagrams — open the [diagram index](docs/diagrams/index.html) and switch language in the header:

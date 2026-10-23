@@ -1,7 +1,7 @@
 // scripts/lib/version-sync.ts — the package version sync audit step (P5 T8): every
 // kairos version-carrying surface equal to the package.json SOT — the source.json
-// plugin row, the claude-plugin marketplace entry (the .cursor-plugin marketplace
-// carries no version row) and every `.version-bump.json` `files[]` field — plus the
+// plugin row, the claude-plugin marketplace entry and every `.version-bump.json`
+// `files[]` field — plus the
 // cdd-engine version format. The audit is a pure consumer of the tree:
 // `.version-bump.json` is the audit configuration (consumed, never a generation
 // product — the emit orchestrator never writes it), so a version drift fails the

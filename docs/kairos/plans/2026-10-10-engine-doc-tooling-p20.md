@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P20 实施计划：`cdd init` harness bootstrap
 doc-type: plan
-version: v0.10
+version: v0.11
 date: 2026-10-26
 slug: 2026-10-10-engine-doc-tooling-p20
 base: develop
@@ -216,3 +216,4 @@ base: develop
 | v0.8 | 2026-10-26 | **closeout（cdd-close）**：六任务四波全绿（W1 `dc509f19` + fix `b197c76b` · W2 `d37e1aba`/`13c10c15`/`3a9cf2ed` + fix `5efac821` · W3 `a8270e13`/`4720e3cb`/`3cfd6da4` + fix `77a78947` · W4 `c8af1163` + fix `673b8e73`）；分支终审 REVIEW_FIX → branch-fix-1 APPROVED（`213b1d35`）。验收 `env -u AI_AGENT pnpm run validate` ALL PASS（kairos 80/80 · cdd-engine 856/856 · typecheck ×3 · version-sync kairos 1.3.0 / cdd-engine 4.1.0）；changeset cdd-engine minor + kairos patch pending，不发布 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-10-26） |
 | v0.9 | 2026-10-26 | **用户裁定回填（`init` 支持 `--dry-run` · 并入 PR #392）**：spec v0.11 §2.7 把 `--dry-run` 由「拒绝面（退 2）」改判为「预览面」——新增 **Task 7**（`CliInit.preview` 渲染 `would run:` 逐行 + 汇总行 · 预览与实跑共用同一份步骤展平、分支点只在「是否调用 `StepRunner`」· `.action` 去掉 `#assertDryRunScope` · `preview.test.ts` 把 `init` 移出「pure command 拒绝该旗标」表 · 四处帮助面改 `(implement/review/fix/init)`）；Review Focus 的 `--update --dry-run` 条目随之改归 Task 7；Task 2 的拒绝面由 Task 7 显式 supersede（Task 2 文本按已交付状态保留）。六任务四波 → 七任务五波（Task 7 依赖 Task 2，落 W3） | Claude（kairos:cdd-close→dev [P20] · 2026-10-26） |
 | v0.10 | 2026-10-26 | **引擎波门裁定（plan write authority）**：Task 7 的 `DependsOn: 2` 被引擎判红 —— `the derived batch (4,5,7) mixes closed and open tasks (4,5 closed, 7 open) — a wave closes as a unit`（github#386 同型：新任务不能并入已执行的静态批次）。改为 `DependsOn: 6`（挂在最后一个已闭合层之后 ⇒ 派生为全新一波），语义不变：Task 7 所需的 `CliInit` / `PLUGINS` 经 6 传递满足 | Claude（kairos:cdd-close→dev [P20] · 引擎波门裁定 · 2026-10-26） |
+| v0.11 | 2026-10-26 | **closeout 其二（cdd-close · T7 增量）**：Task 7 交付 `8840e2f0`（`--dry-run` 预览面：`would run:` 逐行 + 汇总行 · 零 spawn · exit 0 · 四处帮助面改 `(implement/review/fix/init)`）+ wave fix `05b122e4`（图源 revision 钉 `8840e2f` 并加自称一致断言 · 预览矩阵补 `pi update` 与前位置旗标 · scope-guard jsdoc）。分支终审 2 被引擎拒（branch 线无待办轮次 —— 增量重开无路径），由 wave 级链 + 全量 `validate` 覆盖；七任务五波全绿，changeset 不变，不发布 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-10-26） |

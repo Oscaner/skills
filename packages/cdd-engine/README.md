@@ -22,7 +22,7 @@ npm install @oscaner-skills/cdd-engine
 
 ## CLI
 
-Global option: `--dry-run` — preview the next dispatch step and its expected artifacts — zero repo writes, no round consumed (implement/review/fix only).
+Global option: `--dry-run` — preview the next dispatch step and its expected artifacts — zero repo writes, no round consumed (implement/review/fix/init).
 
 | Subcommand | Usage | Purpose |
 |------------|-------|---------|

@@ -17,7 +17,10 @@
 //   · CliInit — the face class: per-step header before the spawn (the header seam
 //     is the composition root's synchronous writer, so a piped log cannot reorder
 //     the header behind the child's own output), first non-zero exit stops the
-//     sequence, and a green run closes with one summary line.
+//     sequence, and a green run closes with one summary line. Its `--dry-run`
+//     preview renders the same flattened plan as `would run:` lines and touches no
+//     step runner at all — the flatten is single-source, the only branch is whether
+//     a step is spawned.
 //
 // The dispatch execution machine (`face/termination.ts` — timeout / budget / group
 // kill / heartbeat / stall judge) is never shared: a bootstrap step has no round,
@@ -91,14 +94,33 @@ export class CliInit {
     this.#header = opts.header;
   }
 
-  /** Run the harness's sequence — 0 all green, 1 the first failed step. */
-  async run(host: HostId, update: boolean): Promise<number> {
+  /** The ordered step plan for one harness + shape — the ONE flatten source the
+   *  preview and the real run both read. The only branch point between them is
+   *  whether `StepRunner` is called, so a preview can never drift from the run. */
+  #stepsOf(host: HostId, update: boolean): InitStep[] {
     const steps: InitStep[] = [];
     for (const row of PLUGINS) {
       for (const argv of update ? row[host].update : row[host].install) {
         steps.push({ packageName: row.name, argv });
       }
     }
+    return steps;
+  }
+
+  /** Render the step plan the run would execute — one `would run: <argv join>` line
+   *  per step, then the summary. Zero spawn, zero write: the runner is never
+   *  reached on this path (a preview is a rendering, not an execution). */
+  preview(host: HostId, update: boolean): readonly string[] {
+    const steps = this.#stepsOf(host, update);
+    return [
+      ...steps.map((step) => `would run: ${step.argv.join(" ")}`),
+      `init: ${steps.length} steps (${host} · ${update ? "update" : "install"}) — dry run, nothing executed`,
+    ];
+  }
+
+  /** Run the harness's sequence — 0 all green, 1 the first failed step. */
+  async run(host: HostId, update: boolean): Promise<number> {
+    const steps = this.#stepsOf(host, update);
     const total = steps.length;
     for (const [index, step] of steps.entries()) {
       const ordinal = index + 1;

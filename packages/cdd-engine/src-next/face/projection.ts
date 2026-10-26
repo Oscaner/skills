@@ -77,7 +77,7 @@ export class CommandTreeBuilder {
     this.program.description("the CDD engine's command line");
     this.program.addHelpText(
       "afterAll",
-      "program flags (accepted at any position): --dry-run (implement/review/fix only)",
+      "program flags (accepted at any position): --dry-run (implement/review/fix/init)",
     );
     this.#bindProgramScopes(this.program);
     this.#injectProgramExamples();

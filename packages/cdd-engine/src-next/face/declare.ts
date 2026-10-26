@@ -94,7 +94,7 @@ export const ARGV_CHANNEL = {
     flag: "--dry-run",
     type: "bool",
     scope: "program",
-    help: "preview the next dispatch step and its expected artifacts — zero repo writes, no round consumed (implement/review/fix only)",
+    help: "preview the next dispatch step and its expected artifacts — zero repo writes, no round consumed (implement/review/fix/init)",
   },
   help: {
     flag: "--help",

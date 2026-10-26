@@ -595,13 +595,24 @@ describe("cdd init — the harness bootstrap wiring", () => {
     }
   });
 
-  it("--dry-run is a usage rejection — the preview flag never installs (exit 2, zero spawn)", async () => {
+  it("--dry-run renders the step plan — exit 0, the would-run lines on the header face, zero spawn", async () => {
     const runner = new RecordingRunner();
-    const { command, io, cleanup } = fixture({ initRunner: runner });
+    const headers: string[] = [];
+    const { command, io, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
     try {
-      expect(await command.runArgv(["init", "--harness=claude", "--dry-run"])).toBe(2);
-      expect(io.stderrText).toContain("--dry-run previews the next dispatch step");
+      expect(await command.runArgv(["init", "--harness=claude", "--dry-run"])).toBe(0);
+      // the preview rides the same header seam as a real run: one would-run line per
+      // step (the roster's argv), then the summary — and the runner is never reached
+      expect(headers).toHaveLength(7);
+      expect(headers[0]).toBe(
+        "would run: claude plugin marketplace add obra/superpowers-marketplace",
+      );
+      expect(headers.at(-1)).toBe("init: 6 steps (claude · install) — dry run, nothing executed");
       expect(runner.calls).toEqual([]);
+      expect(io.stderrText).toBe("");
     } finally {
       cleanup();
     }
@@ -1201,7 +1212,7 @@ describe("the help/--help display face — the per-command render", () => {
       // the tail note rides the commander afterAll surface — one line per help
       // face, listing --dry-run ALONE (the -h/--help redundant column unwritten)
       const legend =
-        /program flags \(accepted at any position\): --dry-run \(implement\/review\/fix only\)/g;
+        /program flags \(accepted at any position\): --dry-run \(implement\/review\/fix\/init\)/g;
       expect(io.stdoutText.match(legend) ?? []).toHaveLength(8);
       expect(io.stdoutText).not.toContain("· --help / -h");
     } finally {
@@ -1241,7 +1252,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       // redundant column is not written (the built-in helpOption faces Options).
       const footer = io.stdoutText.split("\n").find((line) => line.startsWith("program flags"));
       expect(footer).toBe(
-        "program flags (accepted at any position): --dry-run (implement/review/fix only)",
+        "program flags (accepted at any position): --dry-run (implement/review/fix/init)",
       );
       expect(footer).not.toContain("--help");
       expect(footer).not.toContain("-h");

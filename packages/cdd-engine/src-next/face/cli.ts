@@ -229,6 +229,10 @@ export class Cli {
   /** The harness plugin bootstrap (P20 — face/init.ts): the repo-independent
    *  install/update sequence face. */
   readonly #init: CliInit;
+  /** The bootstrap's synchronous line writer — the step headers of a real run and
+   *  the `would run:` lines of a `--dry-run` preview ride the SAME seam (one writer,
+   *  so a preview and a run never format the same plan differently). */
+  readonly #initHeader: (line: string) => void;
 
   constructor(opts: CliOptions = {}) {
     this.#io = opts.io ?? {
@@ -267,12 +271,13 @@ export class Cli {
       stdinRead: this.#stdinRead,
       usage: (node, message) => this.#usage(node, message),
     });
+    // The synchronous writer — the step header must land before the spawned
+    // child writes to the same fd (a piped log would otherwise reorder them).
+    this.#initHeader = opts.initHeader ?? ((line) => writeSync(1, `${line}\n`));
     this.#init = new CliInit({
       io: this.#io,
       runner: opts.initRunner ?? new ExecaStepRunner(),
-      // The synchronous writer — the step header must land before the spawned
-      // child writes to the same fd (a piped log would otherwise reorder them).
-      header: opts.initHeader ?? ((line) => writeSync(1, `${line}\n`)),
+      header: this.#initHeader,
     });
   }
 
@@ -376,18 +381,24 @@ export class Cli {
     commandNode("board").action(async (_opts: unknown, command: Command) => {
       this.#exitCode = await this.#runBoard(command, this.#runInput(null, command));
     });
-    // the repo-independent bootstrap — zero #rootOf(), zero workspace writes; the
-    // preview flag is a usage rejection (it would otherwise install under a
-    // "preview" flag).
+    // the repo-independent bootstrap — zero #rootOf(), zero workspace writes. The
+    // preview flag renders the step plan through the same header seam and returns
+    // before the first spawn (spec §2.7): a preview must never install packages.
     commandNode("init").action(async (_opts: unknown, command: Command) => {
-      this.#assertDryRunScope(command, this.#dryRunOf(command));
+      const dryRun = this.#dryRunOf(command);
       const parsed = this.#runInput(null, command);
       // The declaration marks --harness as requiredOption, so commander rejects a
       // missing flag before this shell; the guard keeps the run input's narrowed
       // type honest (the usage face belongs to the root's private surface, so it
       // stays here rather than sinking into CliInit).
       if (parsed.harness === undefined) this.#usage(command, "cdd init: missing --harness");
-      this.#exitCode = await this.#init.run(parsed.harness, parsed.update ?? false);
+      const update = parsed.update ?? false;
+      if (dryRun) {
+        for (const line of this.#init.preview(parsed.harness, update)) this.#initHeader(line);
+        this.#exitCode = 0;
+        return;
+      }
+      this.#exitCode = await this.#init.run(parsed.harness, update);
     });
   }
 
@@ -506,16 +517,16 @@ export class Cli {
   }
 
   /** The `--dry-run` scope guard (P11 T5 · §3.5) — the preview semantics belong to
-   *  the three work verbs alone. A pure command carrying the program flag is a usage
-   *  rejection (exit 2), never a silently ignored flag: a no-op flag the consumer has
-   *  to remember to skip is a mind-share defect, not a convenience. The usage byte is
-   *  the owning node's commander-native usage line (the same `#usage` face every run
-   *  body's rejection rides). */
+   *  the three work verbs and the bootstrap alone. A pure command carrying the
+   *  program flag is a usage rejection (exit 2), never a silently ignored flag: a
+   *  no-op flag the consumer has to remember to skip is a mind-share defect, not a
+   *  convenience. The usage byte is the owning node's commander-native usage line
+   *  (the same `#usage` face every run body's rejection rides). */
   #assertDryRunScope(node: Command, dryRun: boolean): void {
     if (!dryRun) return;
     this.#usage(
       node,
-      "--dry-run previews the next dispatch step and its expected artifacts — it applies to implement / review / fix only",
+      "--dry-run previews the next dispatch step and its expected artifacts — it applies to implement / review / fix / init only",
     );
   }
 

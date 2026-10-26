@@ -149,6 +149,45 @@ describe("CliInit — the harness plugin sequence", () => {
   });
 });
 
+describe("CliInit — the --dry-run preview face", () => {
+  it("previews the claude install plan — one would-run line per step, then the summary", () => {
+    const runner = new RecordingRunner();
+    const { init } = initFace(runner);
+    const lines = init.preview("claude", false);
+    // one line per step plus the summary — the same denominator the real run prints
+    expect(lines).toHaveLength(ROSTER.flatMap((row) => row.claude.install).length + 1);
+    // every step line is the roster's own argv, joined — never a re-derived shape
+    expect(lines.slice(0, -1)).toEqual(
+      sequenceOf("claude", "install").map((argv) => `would run: ${argv.join(" ")}`),
+    );
+    expect(lines[0]).toBe("would run: claude plugin marketplace add obra/superpowers-marketplace");
+    expect(lines.at(-1)).toBe("init: 6 steps (claude · install) — dry run, nothing executed");
+    // zero spawn, zero side effect — the preview never reaches the injected runner
+    expect(runner.calls).toEqual([]);
+  });
+
+  it("previews the update shape — the update commands, and the summary names the update verb", () => {
+    const runner = new RecordingRunner();
+    const { init } = initFace(runner);
+    const lines = init.preview("claude", true);
+    expect(lines.slice(0, -1)).toEqual(
+      sequenceOf("claude", "update").map((argv) => `would run: ${argv.join(" ")}`),
+    );
+    expect(lines[0]).toBe("would run: claude plugin marketplace update superpowers-marketplace");
+    expect(lines.at(-1)).toBe("init: 6 steps (claude · update) — dry run, nothing executed");
+    expect(runner.calls).toEqual([]);
+  });
+
+  it("the pi preview counts three steps — the harness sequence, never the package count", () => {
+    const runner = new RecordingRunner();
+    const { init } = initFace(runner);
+    const lines = init.preview("pi", false);
+    expect(lines).toHaveLength(4);
+    expect(lines.at(-1)).toBe("init: 3 steps (pi · install) — dry run, nothing executed");
+    expect(runner.calls).toEqual([]);
+  });
+});
+
 describe("CliInit — the first-failure stop and its report", () => {
   it("stops at the first non-zero exit and reports the failing step (global ordinal, exit code)", async () => {
     const runner = new RecordingRunner([0, 0, 9]);
@@ -254,7 +293,7 @@ describe("the production face — the default writer and the real bin under a pi
     // cannot expose the difference behaviourally, so it is pinned at the source.
     const src = readFileSync(new URL("../cli.ts", import.meta.url), "utf8");
     expect(src).toMatch(
-      /header: opts\.initHeader \?\? \(\(line\) => writeSync\(1, `\$\{line\}\\n`\)\),/,
+      /this\.#initHeader = opts\.initHeader \?\? \(\(line\) => writeSync\(1, `\$\{line\}\\n`\)\);/,
     );
   });
 

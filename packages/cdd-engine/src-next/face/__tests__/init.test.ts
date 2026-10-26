@@ -9,12 +9,22 @@
 //     exit <code>`), and only the update form carries the not-installed hint;
 //   · the output face — the step headers (`init[<i>/<n>] <harness> · <pkg> ·
 //     <command tail>`) are written through the injected synchronous header seam
-//     before the spawn, and the green run closes with the summary line;
+//     before that step's own spawn (one ordered event log, so an inverted pair is
+//     visible), and the green run closes with the summary line;
 //   · the production runner — a real spawn returns the child's own exit code and
 //     the `SPAWN_FAILURE_CODE` for a missing binary, with all three standard
-//     streams inherited.
+//     streams inherited;
+//   · the production face — the real bin run under a pipe against a stand-in
+//     harness on PATH: every header lands ahead of its child's own line and the
+//     child's output reaches the bin's (piped) stdout, which is the consumer-facing
+//     half of the synchronous-writer ruling.
 
+import { spawnSync } from "node:child_process";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { delimiter, join } from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import type { CliIo } from "../cli.ts";
@@ -30,6 +40,20 @@ const ROSTER: readonly PluginRow[] = PLUGINS;
 const sequenceOf = (host: HostId, shape: "install" | "update"): string[][] =>
   ROSTER.flatMap((row) => row[host][shape].map((argv) => [...argv]));
 
+/** The shipped CLI entry — executed the way the consumer runs it (never imported). */
+const BIN = fileURLToPath(new URL("../../bin.ts", import.meta.url));
+
+/** The exact claude install heads — the pinned step-header bytes (spec §2.5), one
+ *  per step, in roster order. */
+const CLAUDE_INSTALL_HEADS = [
+  "init[1/6] claude · superpowers · plugin marketplace add obra/superpowers-marketplace",
+  "init[2/6] claude · superpowers · plugin install superpowers@superpowers-marketplace",
+  "init[3/6] claude · mattpocock-skills · plugin marketplace add mattpocock/skills",
+  "init[4/6] claude · mattpocock-skills · plugin install mattpocock-skills@mattpocock",
+  "init[5/6] claude · kairos · plugin marketplace add oscaner/skills",
+  "init[6/6] claude · kairos · plugin install kairos@oscaner-skills",
+];
+
 /** The capturing io — the failure report's stderr face. */
 class CaptureIo implements CliIo {
   stdoutText = "";
@@ -44,30 +68,55 @@ class CaptureIo implements CliIo {
   }
 }
 
+/** One ordered event from the run face. The header seam and the runner seam push
+ *  into ONE log: two independent arrays cannot observe an inverted pair, because a
+ *  header written after its spawn would still be "one of six headers". */
+type InitEvent =
+  | { readonly kind: "header"; readonly line: string }
+  | { readonly kind: "run"; readonly argv: readonly string[] };
+
+/** The ordered event log shared by the header collector and the stand-in runner. */
+class EventLog {
+  readonly events: InitEvent[] = [];
+
+  record(event: InitEvent): void {
+    this.events.push(event);
+  }
+}
+
 /** The stand-in runner — returns the n-th pinned code for the n-th call (absent
  *  codes are 0), so "the first two steps pass, the third fails" is expressible. */
 class RecordingRunner implements StepRunner {
   readonly calls: (readonly string[])[] = [];
   readonly codes: readonly number[];
+  readonly #log: EventLog | null;
 
-  constructor(codes: readonly number[] = []) {
+  constructor(codes: readonly number[] = [], log: EventLog | null = null) {
     this.codes = codes;
+    this.#log = log;
   }
 
   async run(argv: readonly string[]): Promise<number> {
     this.calls.push(argv);
+    this.#log?.record({ kind: "run", argv });
     return this.codes[this.calls.length - 1] ?? 0;
   }
 }
 
 /** The init face over the injected runner + header collector. */
-const initFace = (runner: StepRunner): { init: CliInit; io: CaptureIo; headers: string[] } => {
+const initFace = (
+  runner: StepRunner,
+  log: EventLog | null = null,
+): { init: CliInit; io: CaptureIo; headers: string[] } => {
   const io = new CaptureIo();
   const headers: string[] = [];
   const init = new CliInit({
     io,
     runner,
-    header: (line) => headers.push(line),
+    header: (line) => {
+      headers.push(line);
+      log?.record({ kind: "header", line });
+    },
   });
   return { init, io, headers };
 };
@@ -130,20 +179,24 @@ describe("CliInit — the first-failure stop and its report", () => {
 });
 
 describe("CliInit — the step headers and the summary line", () => {
-  it("writes one header per step before its spawn — the harness · package · command tail bytes", async () => {
-    const runner = new RecordingRunner();
-    const { init, headers } = initFace(runner);
+  it("writes each step header before that step's spawn — the header/run interleave, head bytes first", async () => {
+    const log = new EventLog();
+    const runner = new RecordingRunner([], log);
+    const { init } = initFace(runner, log);
     expect(await init.run("claude", false)).toBe(0);
-    // the first two headers are the SAME package's two commands — different tails
-    expect(headers[0]).toBe(
-      "init[1/6] claude · superpowers · plugin marketplace add obra/superpowers-marketplace",
-    );
-    expect(headers[1]).toBe(
-      "init[2/6] claude · superpowers · plugin install superpowers@superpowers-marketplace",
-    );
-    // six step headers + the summary line
-    expect(headers).toHaveLength(7);
-    expect(headers[5]).toBe("init[6/6] claude · kairos · plugin install kairos@oscaner-skills");
+    // Every step is one header immediately followed by its own spawn — the order the
+    // synchronous writer exists to guarantee (§2.5). An unrelated pair of arrays
+    // could not see an inverted pair; this one log can.
+    const calls = sequenceOf("claude", "install");
+    const steps = CLAUDE_INSTALL_HEADS.flatMap((head, index) => {
+      const argv = calls[index] ?? [];
+      return [`header:${head}`, `run:${argv.join(" ")}`];
+    });
+    expect(
+      log.events.map((event) =>
+        event.kind === "header" ? `header:${event.line}` : `run:${event.argv.join(" ")}`,
+      ),
+    ).toEqual([...steps, "header:init: 6 steps ok (claude · install)"]);
   });
 
   it("closes a green run with the summary line — the harness and the shape verb", async () => {
@@ -187,7 +240,52 @@ describe("ExecaStepRunner — the real spawn face", () => {
     expect(SPAWN_FAILURE_CODE).toBe(127);
   });
 
-  it("inherits all three standard streams — the consumer sees the harness output live", () => {
+  it("declares the inherited three-stream face — `STDIO` is the option the runner hands over", () => {
     expect(STDIO).toBe("inherit");
+  });
+});
+
+describe("the production face — the default writer and the real bin under a pipe", () => {
+  it("the composition root's default header writer is the synchronous one — writeSync on fd 1", () => {
+    // The ordering guarantee below (and the consumer-facing §2.5 promise) exists
+    // only because the writer is synchronous: `process.stdout.write` queues when
+    // fd 1 is a pipe, so its header can surface behind the child's own writes. The
+    // writer choice is therefore a face of its own — a pipe that drains promptly
+    // cannot expose the difference behaviourally, so it is pinned at the source.
+    const src = readFileSync(new URL("../cli.ts", import.meta.url), "utf8");
+    expect(src).toMatch(
+      /header: opts\.initHeader \?\? \(\(line\) => writeSync\(1, `\$\{line\}\\n`\)\),/,
+    );
+  });
+
+  it("writes each header before its own child's output and carries that output on the piped stdout", () => {
+    // A stand-in harness on PATH: one stdout line, exit 0. Under `stdio: "inherit"`
+    // that line lands on the bin's own fd 1; when fd 1 is a pipe (the case the
+    // synchronous writer exists for) the parent's headers and the child's lines
+    // must still interleave header-first, or a piped log shows each child ahead of
+    // its own header.
+    const dir = mkdtempSync(join(tmpdir(), "cdd-init-e2e-"));
+    try {
+      const stub = join(dir, "claude");
+      writeFileSync(stub, '#!/bin/sh\necho "harness-step-output"\nexit 0\n');
+      chmodSync(stub, 0o755);
+      const result = spawnSync(process.execPath, [BIN, "init", "--harness=claude"], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { ...process.env, PATH: `${dir}${delimiter}${process.env.PATH ?? ""}` },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      expect(result.status).toBe(0);
+      const childLine = "harness-step-output";
+      expect(result.stdout).toBe(
+        [
+          ...CLAUDE_INSTALL_HEADS.flatMap((head) => [head, childLine]),
+          "init: 6 steps ok (claude · install)",
+          "",
+        ].join("\n"),
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

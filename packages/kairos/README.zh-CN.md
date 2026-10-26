@@ -43,7 +43,7 @@ npx -y @oscaner-skills/cdd-engine@latest init --harness=pi
 
 `cdd init` 按序安装 kairos 及其两个上游包（superpowers、mattpocock-skills），经该 harness 自己的命令渠道——已全局安装 `cdd` 时可省 `npx -y @oscaner-skills/cdd-engine@latest` 前缀。同一命令加 `--update` 即刷新已装包，只更新、不隐式安装。
 
-下表列出逐包的具体命令，不经引擎、手工安装时照抄即可：
+下表列出逐包的具体命令，不经引擎、手工安装时请逐条执行单元格中的命令（`；` 只是并列分隔，不是 shell 分隔符）：
 
 | Package | Claude Code | Pi |
 |---------|-------------|-----|

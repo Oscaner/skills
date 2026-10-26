@@ -41,7 +41,7 @@ npx -y @oscaner-skills/cdd-engine@latest init --harness=pi
 
 `cdd init` installs `kairos` and its two upstream packages (superpowers, mattpocock-skills) in order, through the harness's own command channel — drop the `npx -y @oscaner-skills/cdd-engine@latest` prefix when `cdd` is installed globally. Add `--update` to the same command to refresh the installed packages instead of installing them.
 
-The table below names the exact commands per package — copy them by hand when installing without the engine:
+The table below names the exact commands per package — for manual installation without the engine, run the commands in each cell one at a time (`；` only joins them for display, it is not a shell separator):
 
 | Package | Claude Code | Pi |
 |---------|-------------|-----|

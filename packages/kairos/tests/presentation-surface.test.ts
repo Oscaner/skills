@@ -21,6 +21,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
+import { CLI_COMMANDS } from "../../cdd-engine/src-next/face/declare.ts";
 import { HOSTS, type HostId } from "../../cdd-engine/src-next/face/host.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -45,11 +46,11 @@ const ROOT_BEHAVIOR_HEADINGS = [
   "License",
 ];
 
-// The engine's actual top-level CLI surface (the parse canonical set: implement / review / fix /
-// base / schema / issue / board — T20 converged the base command face; P8 adds the board
-// observability command) — README surfaces must document all of it, issue included (the P4.2
-// Task 6 `cdd issue render` addition), else the behavior claim drifts from the landing behavior.
-const CDD_SUBCOMMANDS = ["implement", "review", "fix", "base", "schema", "issue", "board"];
+// The engine's top-level CLI surface — DERIVED from the engine's own declaration rows
+// (`face/declare.ts`'s `CLI_COMMANDS`) instead of hand-copied. The declaration is the single
+// source, so every consumer surface (the engine README CLI table, the kairos README surface
+// sentence, the `CLAUDE.md` engine line) is judged against it — order included.
+const CDD_SUBCOMMANDS: readonly string[] = CLI_COMMANDS.map((command) => command.name);
 
 const read = (rel: string) => {
   return readFileSync(path.join(REPO, rel), "utf8");
@@ -140,11 +141,28 @@ test("CLAUDE.md: positioning sentence + surviving single-source wording", () => 
     md.includes(POSITIONING_SENTENCE),
     "positioning sentence missing from CLAUDE.md",
   ).toBeTruthy();
-  // CLAUDE.md no longer carries the cdd CLI surface narrative (consumer-facing CLI documentation
-  // lives in the README family, pinned below); the Package-as-source + single-source core phrasing
-  // must survive the rewrite.
+  // CLAUDE.md carries no cdD CLI narrative of its own: the engine line (repository layout) holds
+  // the command enumeration plus its count wording, and nothing else — the consumer-facing CLI
+  // reference stays in the README family, gated above. This line's enumeration ORDER and its
+  // count wording must therefore both agree with `CLI_COMMANDS`; the two are the same fact, so
+  // "eight-command" next to a seven-name enumeration (or the reverse) fails here.
   expect(md, "Package-as-source wording must remain").toMatch(/Package-as-source/);
   expect(md, "single-source wording must remain").toMatch(/single source/i);
+  const engineLine = md.split("\n").find((line) => /`packages\/cdd-engine\/`/.test(line));
+  expect(
+    engineLine,
+    "CLAUDE.md must keep its cdd-engine line in the repository layout",
+  ).toBeTruthy();
+  expect(
+    engineLine,
+    `CLAUDE.md engine line must enumerate the CLI surface in CLI_COMMANDS order (${CDD_SUBCOMMANDS.join(" / ")})`,
+  ).toContain(CDD_SUBCOMMANDS.join(" / "));
+  expect(engineLine, "CLAUDE.md engine line must carry the eight-command count wording").toContain(
+    "eight-command",
+  );
+  expect(md, "CLAUDE.md must not keep the retired seven-command count wording").not.toMatch(
+    /seven-command/,
+  );
 });
 
 test("kairos README: philosophy walkthrough present (cdd as the distributed discipline)", () => {
@@ -275,15 +293,31 @@ test("P4.1 behavior: kairos README skill inventory equals the shipped skills (di
   expect(rows, "README skill table rows drift from the shipped skills").toEqual(dirs);
 });
 
-test("P4.1 behavior: cdd-engine README documents every CLI subcommand (issue included)", () => {
-  const md = read("packages/cdd-engine/README.md");
-  const cli = sectionOf(md, "## CLI");
-  for (const cmd of CDD_SUBCOMMANDS) {
-    expect(cli, `cdd-engine README CLI table missing the \`${cmd}\` row`).toMatch(
-      new RegExp(`^\\|\\s*\`${cmd}\``, "m"),
-    );
-  }
-});
+// The P20 CLI-surface gates — three surfaces, both languages. Each is driven by a table of
+// files (the same "one criterion, both mirrors" shape as BOARD_USAGE_PINS below), so a change
+// made only in the EN source while its zh mirror keeps teaching the old surface fails.
+const ENGINE_README_CLI_TABLES = [
+  "packages/cdd-engine/README.md",
+  "packages/cdd-engine/README.zh-CN.md",
+];
+
+/** The `## CLI` section's subcommand column, in document order. The row SET alone would stay
+ *  green when a row is inserted at the wrong position or when the two language tables disagree
+ *  on order — the extracted SEQUENCE is what the gates compare. */
+const cliTableCommands = (rel: string): readonly string[] => {
+  return [...sectionOf(read(rel), "## CLI").matchAll(/^\|\s*`([a-z-]+)`\s*\|/gm)].map(
+    (row) => row[1]!,
+  );
+};
+
+for (const rel of ENGINE_README_CLI_TABLES) {
+  test(`P20 CLI surface: ${rel} lists every subcommand in CLI_COMMANDS order`, () => {
+    expect(
+      cliTableCommands(rel),
+      `${rel}: the ## CLI table rows must equal the CLI_COMMANDS declaration, in order`,
+    ).toEqual(CDD_SUBCOMMANDS);
+  });
+}
 
 // P15 identity flip — the row-name loop above would stay green if a `board` row kept the
 // retired positional-slug form (the row is still named `board`), so the argument form is
@@ -360,16 +394,22 @@ for (const [rel, pin] of Object.entries(MIGRATION_NOTES)) {
   });
 }
 
-test("P4.1 behavior: kairos README names the full CLI surface (issue render included)", () => {
-  const md = read("packages/kairos/README.md");
-  const cli = sectionOf(md, "## CDD engine CLI");
-  const surface = CDD_SUBCOMMANDS.join(" / ");
-  expect(cli, `kairos README must name the full CLI surface (${surface})`).toMatch(
-    new RegExp(surface),
-  );
-  expect(cli, "kairos README must mention cdd schema get").toMatch(/cdd schema get/);
-  expect(cli, "kairos README must mention cdd issue render").toMatch(/cdd issue render/);
-});
+// The kairos README surface sentence is its own consumer-facing surface, independent of the
+// engine README CLI table: it names the runner and the full command enumeration inline.
+const KAIROS_README_SURFACES: Record<string, string> = {
+  "packages/kairos/README.md": "## CDD engine CLI",
+  "packages/kairos/README.zh-CN.md": "## CDD 引擎 CLI",
+};
+
+for (const [rel, heading] of Object.entries(KAIROS_README_SURFACES)) {
+  test(`P4.1 behavior: ${rel} names the full CLI surface (issue render included)`, () => {
+    const cli = sectionOf(read(rel), heading);
+    const surface = CDD_SUBCOMMANDS.join(" / ");
+    expect(cli, `${rel}: must name the full CLI surface (${surface})`).toContain(surface);
+    expect(cli, `${rel}: must mention cdd schema get`).toMatch(/cdd schema get/);
+    expect(cli, `${rel}: must mention cdd issue render`).toMatch(/cdd issue render/);
+  });
+}
 
 test("P4.1 behavior: harness claims stay at the verified pair (claude + pi)", () => {
   const root = read("README.md");

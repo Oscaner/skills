@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P20 设计：`cdd init` harness bootstrap
 doc-type: phase-spec
-version: v0.4
+version: v0.5
 date: 2026-10-26
 slug: 2026-10-10-engine-doc-tooling-p20
 program: 2026-10-10-engine-doc-tooling
@@ -26,7 +26,7 @@ kairos 与三个上游插件的安装命令只存在于四份 README 的表格�
 | `HostRow.install` | `face/host.ts:78`（jsdoc `:76-77`） | **零生产读者**；pi 行内容只被这道门的注释引用 |
 | `ProcessRunner` | `infra/process.ts` | **零生产读者**（只有 `infra/__tests__/infra.test.ts` 自己在跑它） |
 
-`INSTALL_ROWS` 与 `HostRow.install` 是同一件事的两份形态：安装命令的声明面既没有单一主，也没有执行者。`ProcessRunner` 不属这一款 —— 它是通用**缓冲捕获**式子进程缝（`execa` 把 stdout/stderr 收进内存供调用方解析），与安装命令的声明面无关；本期删它只是清偿死码（零生产读者），不是把安装执行者退役。安装面的执行者要的是 inherit 流式透出 + 结构化 argv 的窄缝，见 §2.3 的 `ExecaStepRunner`。
+`INSTALL_ROWS` 与 `HostRow.install` 是同一件事的两份形态：安装命令的声明面既没有单一主，也没有执行者。`ProcessRunner` 不属这一款 —— 它是通用**缓冲捕获**式子进程缝（`node:child_process` 的 `execFile` 把 stdout/stderr 收进内存供调用方解析；本仓的 execa 面在 dispatch 侧 `face/termination.ts`），与安装命令的声明面无关；本期删它只是清偿死码（零生产读者），不是把安装执行者退役。安装面的执行者要的是 inherit 流式透出 + 结构化 argv 的窄缝，见 §2.3 的 `ExecaStepRunner`。
 
 #### 1.3 命令字面面无门（前提 ③ 命中）
 
@@ -105,11 +105,12 @@ init: 6 steps ok (claude · install)
 - **step 头形态（唯一）**：`init[<i>/<n>] <harness> · <pkg> · <argv.slice(1).join(" ")>` —— 末段是**去掉二进制名的命令尾**，故同一包的两条 claude 命令头字节必然不同（`· plugin marketplace add <src>` vs `· plugin install <id>`），消费者只看头就知道当前是哪条命令，不必依赖紧随其后的子进程输出来判步。
 - **计数口径（唯一）**：step 头与失败报文一律用**全局步序号 / 全局步总数** —— 分母是该 harness 序列的总步数，不按包重置：claude 为 `/6`（3 包 × 2 条命令），pi 为 `/3`（3 包 × 1 条命令）；`install` 与 `update` 两形态同分母（步序与条数一致，只有谓词与末段命令尾变）。
 - step 头先于子进程输出（消费者知道当前进行到哪一步）；全绿时一行汇总 `<n> steps ok (<harness> · <install|update>)`。
+- **写面定案（顺序保证覆盖管道面）**：step 头与汇总行走**同步写**（`writeSync(1, line)`），在 spawn 之前完成落盘。理由：父进程的 step 头经 `io.stdout`（`face/cli.ts:221` 的 `process.stdout.write`）写出，写管道时是异步排队，而子进程由 `stdio: "inherit"` 直接写同一个 fd —— 不同步写时 `cdd init | tee log` / CI 日志里子进程输出可能先于它自己的 step 头出现，恰好毁掉本句为消费者承诺的「知道走到哪一步」；同步写让 TTY 与管道面都给顺序保证。
 - `--update` 形态样例：头 `init[1/6] claude · superpowers · plugin marketplace update superpowers-marketplace`，小结行 `init: 6 steps ok (claude · update)`（pi 面 `init: 3 steps ok (pi · update)`）。
 
 #### 2.6 非目标
 
-- 不加 `--dry-run`（测试用注入 `StepRunner` 覆盖；用户预览面 = README 表）。
+- **不实现预览面，且拒绝 `--dry-run`**：`--dry-run` 是 program-scope 旗标（`face/declare.ts:81-86` 的 `scope: "program"`，任意位置可解析），若对 `init` 静默无效，`cdd init --harness=claude --dry-run` 会在「预览」旗标下真装三个包 —— 故 `init` 与 `schema get` / `board` / `issue render` 同款调用 `#assertDryRunScope`（`face/cli.ts:474-480`：usage 退 2，报文为既有 `--dry-run previews the next dispatch step and its expected artifacts — it applies to implement / review / fix only`）—— 预览旗标下零副作用。测试用注入 `StepRunner` 覆盖；用户预览面 = README 表。
 - 不加 `--yes` / 不透传 `-y`（行就是人类手敲的字面；且按 §1.4 收窄后的 `-y` 事实，它只对 command-source / `headersHelper` 插件有条件式必需 —— 本三个包不属于那两类，故 `init` 的 argv 里没有 `-y`。若某个 harness 仍在此环境要求确认，该步按 §2.3 的失败面退非零并原样透出 harness 报文：引擎不预判、不代勾，**非 TTY 不等于必然失败**，也不是必然成功 —— 后续如需再加）。
 - 不动 `schema` / `issue` / `board` / `implement` / `review` / `fix` / `base` 的任何行为面与退出码。
 - 不引入新运行时依赖（`commander` / `execa` 已在 `package.json#dependencies`）。
@@ -138,7 +139,7 @@ export type PluginRow = { readonly name: string } & Readonly<Record<HostId, Plug
 export const PLUGINS: readonly PluginRow[] = [superpowers, "mattpocock-skills", kairos];
 ```
 
-`HostId` / `HOST_IDS` / `HOSTS` 自 `face/host.ts` 导入（§2.1 的单一源）；本模块不另立 host 字面。
+`HostId` / `HOST_IDS` / `HOSTS` 自 `face/host.ts` 导入（§2.1 的单一源）；本模块不另立 host **词表**（`HostId` 键集 / `--harness` 值域）—— `argv` 元组里的 `claude` / `pi` 是命令字面本身（README 要供人直接照抄），不是词表副本。
 
 行内容（install / update 两形态，逐条 argv）：
 
@@ -199,7 +200,11 @@ export const PLUGINS: readonly PluginRow[] = [superpowers, "mattpocock-skills", 
 - 行键集 == `PLUGINS.map((row) => row.name)`（**含顺序**）；
 - 列**位序** == `HOST_IDS` 序（`claude` / `pi` 两列，按列位比对；零手抄的是列序，不映射显示标签 —— `HOST_IDS` 的值 `claude` / `pi` 推不出 `Claude Code` / `Pi`，自造标签映射正是本 phase 要消灭的第二份 host 词表）；表头两标签由本 spec 显式钉死为 `Claude Code` / `Pi`；
 - 单元格 == 该行该 host 的 `install` argv 逐条 `join(" ")` 后以 `；` 连接；
-- 覆盖 = 同一张表 × 两 host × 两 README = **四组合**逐格比对。
+- 覆盖 = 同一张表 × 两 host × 两 README = **四组合**逐格比对；
+- 安装段表头**逐格** == `Package | Claude Code | Pi`（两个显示标签在此唯一落笔，禁标签映射 —— 列位序判据管不到标签文字，`Claude Code` → `Claude`、`Pi` → `pi` 时四组合照绿，故标签必须单独断言）；
+- 命令字节 pin：四个 README（根 `README.md` + 根 `README.zh-CN.md` + `packages/kairos/README.md` + `packages/kairos/README.zh-CN.md`）各含 `npx -y @oscaner-skills/cdd-engine@latest init --harness=claude` 与 `npx -y @oscaner-skills/cdd-engine@latest init --harness=pi` 两条命令字节（逐文件、逐值循环，缺一即红）。
+
+上述判据（行序 · 列位序 · 表头文字 · 单元格 · 命令字节 pin）全部落在同一个文件 `face/__tests__/plugins.guard.test.ts`（替换 `install-rows.guard.test.ts`），不另开第二道门。
 
 `update` 形态**不入 README 表**（README 只留 §3.3 第 2 条那一句提示）：其 argv 由 `CliInit` 的引擎单元测试钉死（替身 `StepRunner` 断言 update 序列、install 命令零出现），README 面不存 update 的第二份真源。
 
@@ -215,9 +220,9 @@ export const PLUGINS: readonly PluginRow[] = [superpowers, "mattpocock-skills", 
 |---|---|---|
 | `cdd-engine` README CLI 表 | 表行集 == 派生集（含 `init` 行，顺序同 `CLI_COMMANDS`） | **双语**：`packages/cdd-engine/README.md` + `packages/cdd-engine/README.zh-CN.md`（各取本语言 `## CLI` 段） |
 | kairos README surface 句 | 含派生集 `join(" / ")` | **双语**：`packages/kairos/README.md` + `packages/kairos/README.zh-CN.md`（各取本语言 `## CDD engine CLI` / `## CDD 引擎 CLI` 段） |
-| `CLAUDE.md:44` 引擎行 | 命令枚举**序列相等**于派生集（`join(" / ")` 字符串相等，非集合相等）——**今日无门 → 新增**；`CLAUDE.md:44` 的枚举序随 `CLI_COMMANDS` 重排为 implement / review / fix / base / schema / issue / board / init，改的是文档序，不是声明序 | `CLAUDE.md`（单份，无镜像） |
+| `CLAUDE.md:44` 引擎行 | ① 命令枚举**序列相等**于派生集（`join(" / ")` 字符串相等，非集合相等）——**今日无门 → 新增**；② 计数字样同断言：`eight-command` 命中、`seven-command` 零命中 —— 今日该行以 `seven-command` 计数字样串起七条枚举，只判枚举序列会合法地留下「seven-command + 八条枚举」并存；`CLAUDE.md:44` 的枚举序随 `CLI_COMMANDS` 重排为 implement / review / fix / base / schema / issue / board / init，改的是文档序，不是声明序 | `CLAUDE.md`（单份，无镜像） |
 
-**两处 surface 门必须双语**，理由不是对称美学而是漏口：zh 镜像同样在向中文消费者宣称命令面 —— `packages/kairos/README.zh-CN.md:69` 现写「其唯一 CLI 运行器是 `cdd`（implement / review / fix / base / schema / issue / board）」，`packages/cdd-engine/README.zh-CN.md:31-37` 的 CLI 表也逐行枚举七条。`CDD_SUBCOMMANDS` 派生为 `CLI_COMMANDS.map((c) => c.name)` 之后，只读 en 的门照绿，zh 却仍在教七条命令。同文件的 `BOARD_USAGE_PINS`（`:298` / `:333`）已是「同一判据跑双语镜像」的先例（`Record<rel, pin>` 逐文件循环），两处 surface 门沿用它的形态，不新开模式。
+**两处 surface 门必须双语**，理由不是对称美学而是漏口：zh 镜像同样在向中文消费者宣称命令面 —— `packages/kairos/README.zh-CN.md:69` 现写「其唯一 CLI 运行器是 `cdd`（implement / review / fix / base / schema / issue / board）」，`packages/cdd-engine/README.zh-CN.md:31-37` 的 CLI 表也逐行枚举七条。`CDD_SUBCOMMANDS` 派生为 `CLI_COMMANDS.map((c) => c.name)` 之后，只读 en 的门照绿，zh 却仍在教七条命令。同文件的 `BOARD_USAGE_PINS`（记录头 `:293` / 循环 `:304`；两键 `:294` / `:298`）已是「同一判据跑双语镜像」的先例（`Record<rel, pin>` 逐文件循环），两处 surface 门沿用它的形态，不新开模式。
 
 结论判据：加第九个命令而不改文档（**任一语言**） ⇒ 测试红。
 
@@ -236,7 +241,7 @@ export const PLUGINS: readonly PluginRow[] = [superpowers, "mattpocock-skills", 
 
 #### 4.3 文档同步面
 
-`CLAUDE.md`（七 → 八命令：`:44` 枚举序按 `CLI_COMMANDS` 重排 · `:9` 上游枚举删 impeccable）· `packages/cdd-engine/README.md`(+zh-CN)（`## CLI` 表加 `init` 行、表行序按 `CLI_COMMANDS` + 全局 option 段不动）· `packages/kairos/README.md`(+zh-CN)（§3.3 的安装面 **+** `## CDD engine CLI` / `## CDD 引擎 CLI` 段的 surface 句：命令枚举七 → 八、序按 `CLI_COMMANDS`，zh 句同改八命令 —— 该段与引擎 README 的 CLI 表是两条独立的消费者面，必须同时改，不得只改一条）· 根 `README.md`(+zh-CN)（`## Installation` 收敛 + Quick start 第 1 步 + Upstream impeccable 行）。
+`CLAUDE.md`（七 → 八命令：`:44` 枚举序按 `CLI_COMMANDS` 重排 **+ 计数字样同改** —— `seven-command` → `eight-command`，措辞与枚举不得各走一条 · `:9` 上游枚举删 impeccable）· `packages/cdd-engine/README.md`(+zh-CN)（`## CLI` 表加 `init` 行、表行序按 `CLI_COMMANDS` + 全局 option 段不动）· `packages/kairos/README.md`(+zh-CN)（§3.3 的安装面 **+** `## CDD engine CLI` / `## CDD 引擎 CLI` 段的 surface 句：命令枚举七 → 八、序按 `CLI_COMMANDS`，zh 句同改八命令 —— 该段与引擎 README 的 CLI 表是两条独立的消费者面，必须同时改，不得只改一条）· 根 `README.md`(+zh-CN)（`## Installation` 收敛 + Quick start 第 1 步 + Upstream impeccable 行）。计数字样在全仓消费面只有 `CLAUDE.md:44` 这一处（本轮实扫：根 `README.md` / `README.zh-CN.md` / `packages/kairos/README.md` / `README.zh-CN.md` / `packages/cdd-engine/README.md` / `README.zh-CN.md` 均无 `seven` 字样）—— 该字样与枚举同门，不得只改其一。
 
 **架构图随命令枚举同步（两源两值，各自钉死）**：
 
@@ -248,7 +253,7 @@ export const PLUGINS: readonly PluginRow[] = [superpowers, "mattpocock-skills", 
 |---|---|---|---|
 | `upstream`（`:64`） | `face/host.ts:125-142`（被删的 `INSTALL_ROWS` 块） | `face/plugins.ts` | `PLUGINS` 声明块的 `line..end_line`（`export const PLUGINS` 行至数组收尾 `];`）——删除来源即迁移来源 |
 | `host`（`:82`） | `host.ts:144-186`（`HOSTS` 行，其 `install` 列本 phase 删） | `face/host.ts` | `HOSTS` 声明块的 `line..end_line`（`export const HOSTS` 行至 `satisfies` 收尾）；`install` 列删除不改变该块身份 |
-| `engine`（`:102`） | `face/cli.ts:327-357`（`.action` 薄壳区） | `face/cli.ts` | `#wireActions` 内 `init` 薄壳块的 `line..end_line`（§5 新增的 `leafNode("init")` 行至其 `.action(...)` 收尾） |
+| `engine`（`:102`） | `face/cli.ts:327-357`（`.action` 薄壳区） | `face/cli.ts` | `#wireActions` 内 `commandNode("init").action(...)` 薄壳块的 `line..end_line`（该行至其 `.action(...)` 收尾）—— `init` 是**顶层**动词：`face/cli.ts:328-330` 的 `commandNode(name: CliVerb)` 是单参助手，`leafNode(parent: CliVerb, name: CliLeafName)` 只服务嵌套叶子（`schema get` / `base set|get` / `issue render`）；与 §5 face 行「`.action` 薄壳 + `CliInit` 装配」一致 |
 
 - **生成**：按 `docs/diagrams/README.md` 用 Archify CLI 重生成 `architecture.{en,zh-CN}.html`，并带 `--repo-root .` 跑 `finalize` 让 citation 校验通过 —— 生成物禁手改，改源 JSON 再重生成。
 
@@ -267,6 +272,7 @@ export const PLUGINS: readonly PluginRow[] = [superpowers, "mattpocock-skills", 
 - `cdd init --harness=claude` 逐条执行 install 序列（替身 `StepRunner` 记录 argv，断言顺序与条数 = `PLUGINS[].claude.install` 展平）· `--harness=pi` 同。
 - `--update` 只走 update 序列（替身断言 install 命令零出现）；`--update` 失败面 = 两行（第 1 行三段报文 `init[<i>/<n>] · <argv> · exit <code>` + 第 2 行 `if the package is not installed, run cdd init --harness=<id> without --update first`），无 `--update` 时零提示行；计数为 §2.5 的全局口径（claude `/6`、pi `/3`，`--update` 同分母）。
 - 非法 `--harness` / 缺 `--harness` → exit 2（commander 原生报文）。
+- `cdd init --harness=claude --dry-run` → exit 2（既有 `#assertDryRunScope` 的 usage 报文），且替身 `StepRunner` 记录**零条 argv** —— 预览旗标下零 spawn、零安装。
 - 某步非零 → 后续步骤零执行 · 整体 exit 1 · stderr 含 `init[<i>/<n>]` 与 argv 与退出码；step 头形态 == `init[<i>/<n>] <harness> · <pkg> · <argv.slice(1).join(" ")>`（同包两条命令头字节不同）；缺 harness 二进制走同一失败面 —— 由 `ExecaStepRunner` 的**真 spawn** 用例覆盖（不存在的二进制 → 返回 `SPAWN_FAILURE_CODE` = 127，报文 `<code>` 为 127），不由替身伪造。
 - 执行缝三流继承：`ExecaStepRunner` 调 `execa` 时 `stdin` / `stdout` / `stderr` 三者均继承父进程（pin 在一个真 spawn 用例上：子进程从继承的 stdin 读到父进程输入，或直接断言 `stdio` 配置为 `"inherit"`），不允许 `stdin` 落回 execa 默认的 `'pipe'`。
 - 非 git 目录内可跑（`chdir` 到临时非仓库目录，序列照跑，零 BLOCKED）。
@@ -274,8 +280,8 @@ export const PLUGINS: readonly PluginRow[] = [superpowers, "mattpocock-skills", 
 - `grep` 零残留：`INSTALL_ROWS` / `HostRow.install` / `ProcessRunner` 在生产面与测试面全零。
 - `PLUGINS` 行类型 = `{ readonly name: string } & Readonly<Record<HostId, PluginCommands>>`，列集合随 `HostId` 自动闭合（类型级断言：删一列、新增 host 不补列均报错）；`HOST_IDS` 是 `HostId` / `HOSTS` 键集 / `--harness` 值域三者的唯一源（少一项是类型错）。
 - 生产面 host 字面无第二份副本：`grep -rnE '\["claude", "pi"\]' packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__`（或 `--exclude-dir=__tests__` 的等价形式）零命中 —— 生产面唯一命中是 `face/host.ts:265` 的 `for (const id of ["claude", "pi"] as const)`，改为 `for (const id of HOST_IDS)` 后消失；`face/__tests__` 内的 **7 处**同类字面（`host.test.ts:15,26,37` · `channel-closure.guard.test.ts:100,123` · `board-view.test.ts:697,736`）为测试夹具，本期保留、不入本判据（缺这条时，`--harness` 值域会随 `HOST_IDS` 自动接受新 host，而 detect 的遍历不跟随 —— 类型也拦不住的静默漏判）。
-- `plugins.guard.test.ts` 四组合全绿（同一张表 × claude/pi 两 host × README 双语，install 形态）；`update` argv 由 `CliInit` 单测钉死（README 面零 update 副本）；`install-rows.guard.test.ts` 已删。
-- `CDD_SUBCOMMANDS` 派生自 `CLI_COMMANDS`；`CLAUDE.md` / `cdd-engine` README CLI 表 / kairos README surface 句三门 **× 双语**全绿（引擎 README 表与 kairos surface 句各跑 en + zh-CN 两个文件，共四个判定面；`CLAUDE.md` 门为**序列相等**、单份无镜像，枚举序已按 `CLI_COMMANDS` 重排）。只改 en 而 zh 仍宣称七条命令 ⇒ 红。
+- `plugins.guard.test.ts` 四组合全绿（同一张表 × claude/pi 两 host × README 双语，install 形态）；表头逐格 == `Package | Claude Code | Pi`、四份 README × 两值的命令字节 pin 同在该文件内断言；`update` argv 由 `CliInit` 单测钉死（README 面零 update 副本）；`install-rows.guard.test.ts` 已删。
+- `CDD_SUBCOMMANDS` 派生自 `CLI_COMMANDS`；`CLAUDE.md` / `cdd-engine` README CLI 表 / kairos README surface 句三门 **× 双语**全绿（引擎 README 表与 kairos surface 句各跑 en + zh-CN 两个文件，共四个判定面；`CLAUDE.md` 门为**序列相等 + 计数字样同判**（`eight-command` 命中、`seven-command` 零命中）、单份无镜像，枚举序已按 `CLI_COMMANDS` 重排）。只改 en 而 zh 仍宣称七条命令 ⇒ 红；只改枚举而留下 `seven-command` ⇒ 红。
 - 结构 pin 重锚全绿：`CliVerb` 含 `init` · `cli.test.ts` / `projection.test.ts` 两处精确列表为八项（`init` 居末）· `cli.test.ts:935/1123` help 表随行 · `cli.test.ts:1102/1109` 逐命令 help legend 循环含 `init` 且 `toHaveLength(8)` · `grep -rn seven packages/cdd-engine/src-next/face --include='*.ts'` 零命中（判据面就是 §4.2 表里列的 14 处：生产 `face/cli.ts:5,11` · `face/projection.ts:3,6` · `face/declare.ts:2,148,191`；测试 `face/__tests__/cli.test.ts:3,500,501,935,1123,1134` · `face/__tests__/projection.test.ts:55`）。**不在本判据范围**：`contract/project.ts:318`（`its seven methods project the six faces`，投影方法计数）、`render/skeleton.ts:197,455`（`the seven required task fields`，任务字段计数）、`contract/__tests__/structure-pin.test.ts:4`（已退役字面量计数）—— 这三处与命令面无关，保留原文，不得为了凑 `seven` 判据而改错（若刻意保留 `face/` 内任何一处字样，须同段留 `eight` 断言并注明理由）。
 - kairos README 安装段就地重排为「一条命令 + 一张表」（旧 `### From pi` / `### Upstream dependency install`、上游安装散文、Quick start 第 1 步旧安装句零残留）· 表头 = `Package | Claude Code | Pi`（列位序 == `HOST_IDS` 序）· Quick start 第 1 步与安装段同一条命令（或该步已删）。
 - **安装命令可执行性（本期判据）**，分两条：
@@ -308,3 +314,4 @@ export const PLUGINS: readonly PluginRow[] = [superpowers, "mattpocock-skills", 
 | v0.2 | 2026-10-26 | **spec-fix-1（review-1 findings 收口 · 1 blocker + 6 warn + 5 nit）**：① blocker——架构图纳入同步面（`architecture.{en,zh-CN}.json` 的 `7 commands` → `8 commands` + 枚举补 `init`，Archify CLI 重生成 HTML），§4.3 删除「零动」裁定，AC 增图面断言；② warn——§4.2 增「结构 pin 重锚」表（`CliVerb` += `init` · `cli.test.ts:501-510` / `projection.test.ts:55-65` 精确列表七→八 · `cli.test.ts:935/1123` help 表 · 七处 `seven` 注释）；③ warn——§3.3 参考表定形（列 `Package \| Claude Code \| Pi` · 行序 = `PLUGINS` 序 · 格 = install argv `join(" ")` 后 `；` 连接），§3.4 改为同一张表 × 两 host × 两 README 四组合，update argv 归单测；④ warn——§3.3 钉死 EN/zh 段落点与映射（`## Installation` / `## 安装` 就地扩容，删 `### From pi` / `### 从 pi 安装` 与 `### Upstream dependency install` / `### 上游依赖安装`，`## Co-existing with upstream plugins` / `## 与上游插件共存` 保留纯散文）；⑤ warn——impeccable 退役扩到消费面全集（根 `README.md:43` / `README.zh-CN.md:47` 行 + `CLAUDE.md:9` 枚举）；⑥ warn——`PluginRow` 改派生式 `{ name } & Readonly<Record<HostId, PluginCommands>>`；⑦ warn——安装段首条命令改零前置形态 `npx -y …@latest init`（跟「已装 `cdd` 可省前缀」句）；⑧ nit——失败面定形（第 1 行三段 + 仅 `--update` 追加提示行）；⑨ nit——`CLAUDE.md:44` 门判据定为**序列相等**并重排枚举序；⑩ nit——§1.1 改「现有七个顶层命令…第八个即本期 `init`」；⑪ nit——行号 pin 修正（`HostRow.install` → `host.ts:78` · `INSTALL_ROWS` → `host.ts:128`）；⑫ nit——§1.4 repo 无关先例窄化（只 `issue render` 与 `schema get` json 面），§2.4 改「沿用 `issue render` 形态」 | Claude（kairos:cdd-dev [P20] docs-fix round 1 · 2026-10-26） |
 | v0.3 | 2026-10-26 | **spec-fix-2（review-2 findings 收口 · 1 blocker + 6 warn + 5 nit + 5 裁定）**：① blocker——zh 图源 `architecture.zh-CN.json:99` 的 `7 条命令` 入同步面（→ `8 条命令`），AC 残留判据改覆盖 `7 commands` / `7 条命令` / `七条命令` 三拼写，两源两值各自钉死；② warn——§4.3 增 evidence 重锚（`upstream` → `PLUGINS` · `host` → `HOSTS` 保留段 · `engine` → `cli.ts` init 薄壳段）+ Archify `finalize --repo-root .`；③ warn/裁定 R1——`HostDetect.detect` 遍历改读 `HOST_IDS`，生产面 `["claude", "pi"]` 字面零命中入 AC（测试面夹具保留并注明）；④ warn——根 README `## Installation` 就地收敛（删逐 harness 命令块与上游散文），AC 增双语字面零残留；⑤ warn——结构 pin 表补逐命令 help legend 面（`cli.test.ts:1102/1109`），`seven` 面扩为生产 7 + 测试 7，AC grep 去限定；⑥ warn/裁定 R2——README 表按**列位**比对（列序 == `HOST_IDS` 序），表头显示名在 spec 钉死，禁标签映射；⑦ warn/裁定 R3——安装可执行性 AC 拆两判据（本地源形态可验 + published `@latest` 发布后置登记 changeset）；⑧ nit/裁定 R4——计数口径统一为全局步序号/总数（claude `/6` · pi `/3`），补 `--update` 样例行；⑨ nit/裁定 R5——`--update` 提示行改条件式措辞（引擎零解析 harness 输出）；⑩ nit——§4.2 注明三门同栖 `presentation-surface.test.ts` 并替换/扩展 `:137-145`；⑪ nit——kairos README Quick start 第 1 步改为同一条命令（或删除）；⑫ nit——`ProcessRunner` 从「三份形态」移出单列为死码清偿，§2.3 补 `ExecaStepRunner` 选型理由 | Claude（kairos:cdd-dev [P20] docs-fix round 2 · 2026-10-26） |
 | v0.4 | 2026-10-26 | **spec-fix-3（review-3 findings 收口 · 1 blocker + 5 warn + 4 nit + 4 裁定）**：① blocker——两处 surface 门扩为双语（引擎 README CLI 表门跑 en + zh-CN，kairos surface 句门跑 en + zh-CN，沿 `BOARD_USAGE_PINS` 形态），§4.3 的 kairos README 行显式纳入 `## CDD engine CLI` / `## CDD 引擎 CLI` 段（含 `init` 与 `CLI_COMMANDS` 序），AC 改「三门 × 双语全绿」，README 命令字节 pin 写清四个文件（根 + kairos，各 en / zh）；② warn——README 文案槽位改「kairos 及其两个上游包」，条数由 `PLUGINS.map((row) => row.name)` 派生、不另存真源（`:170` 与 `:183` 两处同改）；③ warn/裁定 R1——执行缝钉 `execa(stdio: "inherit")`（三流全继承，`stdin` 不落回 execa 默认的 `'pipe'`），AC 增三流继承 pin；§1.4 的 `-y` 事实收窄为「仅 command-source / `headersHelper` 插件、且 `stdin` 或 `stdout` 非 TTY 时必需」，§2.6 失败面据此重写（非 TTY 不再等于必然退 1）；④ warn——`seven` 判据收窄为 `grep -rn seven packages/cdd-engine/src-next/face --include='*.ts'` 零命中（§4.2 列的 14 处），并注明 `contract/project.ts:318` / `render/skeleton.ts:197,455` / `contract/__tests__/structure-pin.test.ts:4` 不在范围；⑤ warn——host 字面判据改 `grep -rnE … \| grep -v __tests__`（或 `--exclude-dir=__tests__`）零命中，测试面处数由「8」订正为 **7**，测试夹具保留裁定不变；⑥ warn/裁定 R2——安装可执行性 AC 拆两条（自动化：`process.execPath` + `-e 'process.exit(3)'` 真 spawn 断言返回 3 且输出透出；不存在二进制断言 `SPAWN_FAILURE_CODE = 127`；手工：真装/真更新作发布前核验、不入 CI）；§2.3 增 `SPAWN_FAILURE_CODE = 127` 常量与「步内码 vs 整体码」区分；⑦ nit——§4.3 evidence 重锚改用锚定表达式表（`PLUGINS` 声明块 / `HOSTS` 声明块 / `#wireActions` 内 `init` 薄壳块），AC 增「citation 区间落在所命名声明内且文本含该标识符」的机械断言；⑧ nit——`CLAUDE.md:9` 与上游名册括号串分写（前者删 `, and impeccable` 一词，后者随 kairos README 上游段整段删除，不挂 CLAUDE.md 名下）；⑨ nit/裁定 R3——step 头形态定死为 `init[<i>/<n>] <harness> · <pkg> · <argv.slice(1).join(" ")>`，同包两条命令头不再同字节，AC 同步；⑩ nit/裁定 R4——`init` 与 `issue render` 并列为 repo 无关动词，删「第一个**完全** repo 无关」的说法，改为「第一个在 repo 之外产生副作用（装包）的动词」| Claude（kairos:cdd-dev [P20] docs-fix round 3 · 2026-10-26） |
+| v0.5 | 2026-10-26 | **spec-fix-4（review-4 findings 收口 · 2 warn + 6 nit + 3 裁定）**：① warn/裁定 R1——§2.6 定为「`init` 不实现预览面且**拒绝** `--dry-run`」（与 `schema get` / `board` / `issue render` 同款 `#assertDryRunScope`，usage 退 2），AC 增 `--dry-run` → exit 2 且替身 `StepRunner` 零条 argv；② warn——`CLAUDE.md:44` 的计数字样 `the seven-command` → `the eight-command` 纳入 §4.2 的 `CLAUDE.md` 门（枚举序列相等 + `eight-command` 命中 / `seven-command` 零命中），§4.3 记该字样全仓唯一落点，AC 同步；③ nit——§4.2 双语先例行号订正为 `BOARD_USAGE_PINS` 记录头 `:293` / 循环 `:304`（两键 `:294` / `:298`），删混入的 `MIGRATION_NOTES` `:333`；④ nit——§1.2 的 `ProcessRunner` 归属改为 `node:child_process` 的 `execFile`，并注明本仓 execa 面在 dispatch 侧 `face/termination.ts`；⑤ nit——§4.3 evidence 的 engine 锚定表达式改 `commandNode("init").action(...)` 薄壳块（`init` 是顶层动词，`leafNode` 只服务嵌套叶子）；⑥ nit/裁定 R2——§3.1 注释收窄为「不另立 host **词表**」并明说 `argv` 里的 `claude` / `pi` 是命令字面本身；⑦ nit——§3.4 门清单补两条断言（表头逐格 == `Package \| Claude Code \| Pi`；四 README × 两值的命令字节 pin）并明说同落 `plugins.guard.test.ts`，AC 同步；⑧ nit/裁定 R3——§2.5 增写面定案（step 头与汇总行 `writeSync(1, …)` 同步写、spawn 前落盘，TTY 与管道面同给顺序保证） | Claude（kairos:cdd-dev [P20] docs-fix round 4 · 2026-10-26） |

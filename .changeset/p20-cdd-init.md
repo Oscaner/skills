@@ -1,0 +1,10 @@
+---
+"@oscaner-skills/cdd-engine": minor
+"@oscaner-skills/kairos": patch
+---
+
+**`cdd-engine` — new eighth verb `cdd init` (minor).** `cdd init --harness=<claude|pi> [--update]` bootstraps `kairos` and its two upstream packages through the harness's own command channel: a serial per-step sequence, first failure stops the run, exit code 1 on failure with the failing step's argv and exit code on stderr, `127` when the harness binary is missing. The command bytes live only in the `PLUGINS` table (`face/plugins.ts`), so the install sequence and the README install table share one source; the verb is repo-independent (no `.kairos/` workspace, no ledger, no doc reads) and refuses `--dry-run` (exit 2, zero spawn). This release also retires the dead `INSTALL_ROWS` / `HostRow.install` / `infra/process.ts` (`ProcessRunner`) declarations and re-anchors the structure pin on the eight-command surface (`CLI_COMMANDS` → `CDD_SUBCOMMANDS`, `CliVerb`, help tables, per-command help legend).
+
+**`kairos` — README install surface (patch).** The install section collapses to one command plus one table (`Package | Claude Code | Pi`, three rows in `PLUGINS` order), the retired `### From pi` / `### Upstream dependency install` sections are gone, and the nine install pointers in the four shipped `SKILL.md` files (`cdd-design` six, `cdd-plan` one, `cdd-close` one, `cdd-spec-writer` one) now target the kairos README's installation table.
+
+**Post-publish verification (deliberately outside this release's acceptance surface).** The published `@latest` form of `cdd init` is verified after release: until this changeset is published, `npx -y @oscaner-skills/cdd-engine@latest init` exits 2 with `unknown command 'init'`, which is expected rather than a gap in this change. The pre-release manual check is the local-source form (`node packages/cdd-engine/src-next/bin.ts init --harness=<claude|pi>` plus `--update`) run in an empty non-git directory with no global `cdd` — it really installs packages, so it is a pre-release human step, not CI.

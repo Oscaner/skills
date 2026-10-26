@@ -141,9 +141,9 @@ test("CLAUDE.md: positioning sentence + surviving single-source wording", () => 
     md.includes(POSITIONING_SENTENCE),
     "positioning sentence missing from CLAUDE.md",
   ).toBeTruthy();
-  // CLAUDE.md carries no cdD CLI narrative of its own: the engine line (repository layout) holds
+  // CLAUDE.md carries no cdd CLI narrative of its own: the engine line (repository layout) holds
   // the command enumeration plus its count wording, and nothing else — the consumer-facing CLI
-  // reference stays in the README family, gated above. This line's enumeration ORDER and its
+  // reference stays in the README family, gated below. This line's enumeration ORDER and its
   // count wording must therefore both agree with `CLI_COMMANDS`; the two are the same fact, so
   // "eight-command" next to a seven-name enumeration (or the reverse) fails here.
   expect(md, "Package-as-source wording must remain").toMatch(/Package-as-source/);

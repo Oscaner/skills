@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/face/__tests__/diagrams.guard.test.ts
-// The architecture-diagram pin — the diagram is a consumer surface, and no validation
-// step reads it (`.github/workflows/static.yml` only uploads the directory), so this
-// gate is what keeps the picture honest:
+// The architecture-diagram pin — the diagram is a consumer surface, and no other
+// validation step reads it (`.github/workflows/static.yml` only uploads the directory),
+// so this gate is what keeps the picture honest:
 //   · the command surface — both source JSONs tag the engine node with the eight-command
 //     count AND state it in the Execution card's first line, with zero residue of the
 //     retired seven-command spellings. A tag saying eight next to prose saying "runs

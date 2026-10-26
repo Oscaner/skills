@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P20 设计：`cdd init` harness bootstrap
 doc-type: phase-spec
-version: v0.10
+version: v0.11
 date: 2026-10-26
 slug: 2026-10-10-engine-doc-tooling-p20
 program: 2026-10-10-engine-doc-tooling
@@ -110,11 +110,20 @@ init: 6 steps ok (claude · install)
 
 #### 2.6 非目标
 
-- **不实现预览面，且拒绝 `--dry-run`**：`--dry-run` 是 program-scope 旗标（`face/declare.ts:81-86` 的 `scope: "program"`，任意位置可解析），若对 `init` 静默无效，`cdd init --harness=claude --dry-run` 会在「预览」旗标下真装三个包 —— 故 `init` 与 `schema get` / `board` / `issue render` 同款调用 `#assertDryRunScope`（`face/cli.ts:474-480`：usage 退 2，报文为既有 `--dry-run previews the next dispatch step and its expected artifacts — it applies to implement / review / fix only`）—— 预览旗标下零副作用。测试用注入 `StepRunner` 覆盖；用户预览面 = README 表。
+- **~~不实现预览面，且拒绝 `--dry-run`~~ → 见 §2.7（2026-10-26 用户裁定改判：`init` **支持** `--dry-run`）**：原判据是「`--dry-run` 是 program-scope 旗标（`face/declare.ts:81-86` 的 `scope: "program"`，任意位置可解析），若对 `init` 静默无效，`cdd init --harness=claude --dry-run` 会在「预览」旗标下真装三个包 —— 故 `init` 与 `schema get` / `board` / `issue render` 同款调用 `#assertDryRunScope`（`face/cli.ts:474-480`：usage 退 2，报文为既有 `--dry-run previews the next dispatch step and its expected artifacts — it applies to implement / review / fix only`）—— 预览旗标下零副作用。测试用注入 `StepRunner` 覆盖；用户预览面 = README 表。
 - 不加 `--yes` / 不透传 `-y`（行就是人类手敲的字面；且按 §1.4 收窄后的 `-y` 事实，它只对 command-source / `headersHelper` 插件有条件式必需 —— 本三个包不属于那两类，故 `init` 的 argv 里没有 `-y`。若某个 harness 仍在此环境要求确认，该步按 §2.3 的失败面退非零并原样透出 harness 报文：引擎不预判、不代勾，**非 TTY 不等于必然失败**，也不是必然成功 —— 后续如需再加）。
 - 不动 `schema` / `issue` / `board` / `implement` / `review` / `fix` / `base` 的任何行为面与退出码。
 - 不引入新运行时依赖（`commander` / `execa` 已在 `package.json#dependencies`）。
 - 不改 dispatch / 模板 / 文档契约 / ledger 面。
+
+#### 2.7 `--dry-run` 预览面（2026-10-26 用户裁定改判）
+
+- **语义**：`cdd init --harness=<h> [--update] --dry-run` 渲染**将要执行**的步骤计划，零 spawn、零写入、不占轮次、exit 0。它不再是 `#assertDryRunScope` 的拒绝面（该断言不再由 `init` 调用）。
+- **输出形态（唯一）**：每步一行 `would run: <argv join(" ")>`，其后一行汇总 `init: <n> steps (<harness> · <install|update>) — dry run, nothing executed`。词形与既有 preview 面的 `would write:` / `would record:` 同族；`<n>` 与实跑同一分母（claude `/6` · pi `/3`）。
+- **零副作用靠构造保证**：预览路径与实跑路径共用同一份步骤展平（`PLUGINS` → 有序 argv 列表），分支点在「是否调用 `StepRunner`」—— 预览面拿到的 `StepRunner` 由构造函数注入、且预览路径**不调用**它；测试以替身断言 `calls.length === 0`。
+- **`--dry-run` 的帮助面同步**：`ARGV_CHANNEL.dryRun.help` 与 `program flags` 尾注、`packages/cdd-engine/README.md`(+zh-CN) 的全局 option 行一并从「(implement/review/fix only)」改为「(implement/review/fix/init)」—— 旗标作用域变化必须与实现同提交，不留「帮助说只对三动词生效」的旧话。
+- **实跑面零变化**：无 `--dry-run` 时行为、退出码、step 头、失败报文全部不变。
+
 
 ### 3. 定案：命令数据面归一（Q1 · Q2 · Q4）
 
@@ -274,7 +283,8 @@ export const PLUGINS: readonly PluginRow[] = [superpowers, "mattpocock-skills", 
 - `cdd init --harness=claude` 逐条执行 install 序列（替身 `StepRunner` 记录 argv，断言顺序与条数 = `PLUGINS[].claude.install` 展平）· `--harness=pi` 同。
 - `--update` 只走 update 序列（替身断言 install 命令零出现）；`--update` 失败面 = 两行（第 1 行三段报文 `init[<i>/<n>] · <argv> · exit <code>` + 第 2 行 `if the package is not installed, run cdd init --harness=<id> without --update first`），无 `--update` 时零提示行；计数为 §2.5 的全局口径（claude `/6`、pi `/3`，`--update` 同分母）。
 - 非法 `--harness` / 缺 `--harness` → exit 2（commander 原生报文）。
-- `cdd init --harness=claude --dry-run` → exit 2（既有 `#assertDryRunScope` 的 usage 报文），且替身 `StepRunner` 记录**零条 argv** —— 预览旗标下零 spawn、零安装。
+- `cdd init --harness=claude --dry-run` → **exit 0**，逐行输出 `would run: <argv join(" ")>`（claude 6 条 · pi 3 条）+ 汇总行 `init: 6 steps (claude · install) — dry run, nothing executed`，且替身 `StepRunner` 记录**零条 argv** —— 预览旗标下零 spawn、零写入、零安装；`--update --dry-run` 渲染 update 序列且汇总行谓词为 `update`。
+- `--dry-run` 帮助面同步：`cdd init --help` 与 `cdd --help` 的旗标尾注、`packages/cdd-engine/README.md`(+zh-CN) 的全局 option 行均为「(implement/review/fix/init)」，旧「(implement/review/fix only)」零残留。
 - 某步非零 → 后续步骤零执行 · 整体 exit 1 · stderr 含 `init[<i>/<n>]` 与 argv 与退出码；step 头形态 == `init[<i>/<n>] <harness> · <pkg> · <argv.slice(1).join(" ")>`（同包两条命令头字节不同）；缺 harness 二进制走同一失败面 —— 由 `ExecaStepRunner` 的**真 spawn** 用例覆盖（不存在的二进制 → 返回 `SPAWN_FAILURE_CODE` = 127，报文 `<code>` 为 127），不由替身伪造。
 - 执行缝三流继承：`ExecaStepRunner` 调 `execa` 时 `stdin` / `stdout` / `stderr` 三者均继承父进程（pin 在一个真 spawn 用例上：子进程从继承的 stdin 读到父进程输入，或直接断言 `stdio` 配置为 `"inherit"`），不允许 `stdin` 落回 execa 默认的 `'pipe'`。
 - 非 git 目录内可跑（`chdir` 到临时非仓库目录，序列照跑，零 BLOCKED）。
@@ -323,3 +333,4 @@ export const PLUGINS: readonly PluginRow[] = [superpowers, "mattpocock-skills", 
 | v0.8 | 2026-10-26 | **wave-1 fix round 2（review-2 findings 收口 · 4 nit）**：① nit——Change history 恢复本仓 canonical 形态（oldest-first、最新修订在末行）：v0.5 / v0.6 / v0.7 三行按版本升序重排，行文逐字不动；② nit——实施报告「production-face host literal copies」证据行改为「1 命中 = `face/host.ts:37` 的 `HOST_IDS` 声明行，接 `grep -v 'export const HOST_IDS'` = 0」，与 AC 的 v0.7 判据措辞一致；③ nit——计划的 Constraints 基线指针由 spec v0.6 追至 v0.7；④ nit——`face/host.ts` 的 `HostCapabilities.parallel` docstring 去掉悬空的 install `"pending"` 类比引用 | Claude（kairos:cdd-dev [P20] wave-1 fix round 2 · 2026-10-26） |
 | v0.9 | 2026-10-26 | **design-drift 回填（wave-4 review 的 finding）**：结构 pin 的 AC「`face/` 内 `seven` 零命中」被 W3 新落的 `diagrams.guard.test.ts` 打破 —— 该门以 `seven commands` / `runs seven` 作**负语料**断言图源无七命令残留（face/ 内实测 8 处命中，全在该文件）。修正为 `| grep -v 'diagrams.guard.test.ts'` 零命中（沿 v0.7 的 `grep -v` 先例），并在判据里写明该负语料是此字符串的唯一合法载体；判据意图（生产与测试面零过时计数散文）不变，计划同步至 v0.7 | Claude（kairos:cdd-dev [P20] wave-4 修复前回填 · 2026-10-26） |
 | v0.10 | 2026-10-26 | **closeout（cdd-close）**：P20 全链闭合——六任务四波全绿（W1 `dc509f19` 数据面归一 `PLUGINS`/`HOST_IDS` + review-fix `b197c76b` · W2 `d37e1aba` `ProcessRunner` 退役 + `13c10c15` `cdd init` 第八命令 + `3a9cf2ed` 消费面文档 + fix `5efac821` · W3 `a8270e13` 门（`plugins.guard` + `CDD_SUBCOMMANDS` 派生 + 三门双语）+ `4720e3cb` 架构图双语源 + `3cfd6da4` 图源 pin + fix `77a78947` · W4 `c8af1163` changeset + fix `673b8e73`）；四波 review 各经 fix 收口。分支终审 branch-review-1 **REVIEW_FIX**（1 warn：§2.5 同步写的**顺序**无 pin · 1 nit：安装表 lead-in「照抄」与全角 `；` 细胞不符）→ branch-fix-1 APPROVED（`213b1d35` 补 header-before-spawn 事件日志断言 + lead-in 改为逐条执行）。**验收**：`env -u AI_AGENT pnpm run validate` exit 0（emit fresh · root 10/10 · kairos 80/80 · cdd-engine 856/856 · typecheck ×3 · version-sync kairos 1.3.0 / cdd-engine 4.1.0 · 零裸函数零命中）。**changeset** cdd-engine **minor** + kairos **patch** pending（`.changeset/p20-cdd-init.md`，含 `@latest` 发布后置项）· 不发布。**记账事实（如实记录）**：三次 design-drift 回填均由评审 finding 触发并由 orchestrator 按 plan/spec write authority 单独提交 —— v0.6（`### Upstream dependency install` 退役的 9 处 SKILL 指针）· v0.7（host 字面判据不可满足）· v0.9（`seven` 判据与图源负语料冲突），计划同步 v0.5 / v0.7 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-10-26） |
+| v0.11 | 2026-10-26 | **用户裁定回填（`init` 支持 `--dry-run`）**：v0.5 的「拒绝 `--dry-run`、退 2」被用户 2026-10-26 裁定**改判**为「支持预览」。新增 §2.7：预览语义（零 spawn · 零写入 · 不占轮次 · exit 0）+ 唯一输出形态（每步 `would run: <argv>` + 汇总 `init: <n> steps (<harness> · <install|update>) — dry run, nothing executed`，与既有 `would write:` 同族）+ 零副作用靠构造（预览与实跑共用同一份步骤展平，分支点只在「是否调用 `StepRunner`」）+ `--dry-run` 帮助面（`ARGV_CHANNEL.dryRun.help` / `program flags` 尾注 / 引擎 README 全局 option 行）改「(implement/review/fix/init)」；§2.6 原条目改为指向 §2.7 的改判注记；AC 的「`--dry-run` → exit 2」改为「exit 0 + `would run` 逐行 + 替身零 argv」，并增帮助面同步判据。实跑面（无 `--dry-run`）零行为变化 | Claude（kairos:cdd-close→dev [P20] 用户裁定回填 · 2026-10-26） |

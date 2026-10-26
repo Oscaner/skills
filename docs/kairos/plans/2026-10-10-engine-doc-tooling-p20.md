@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P20 实施计划：`cdd init` harness bootstrap
 doc-type: plan
-version: v0.8
+version: v0.9
 date: 2026-10-26
 slug: 2026-10-10-engine-doc-tooling-p20
 base: develop
@@ -23,7 +23,7 @@ base: develop
 ### 未覆盖输入面（Review Focus — 逐条已钉测试或明确不做）
 
 - **非 TTY / 管道下的 harness 交互提示**：引擎零预判（spec §2.6）——该步非零即走既有失败面、harness 报文原样透出，**明确不做**。
-- **`--update` 与 `--dry-run` 同现**：`--dry-run` 在 `CliInit` 之前被 `#assertDryRunScope` 拒（usage 退 2），由 **Task 2 Step 8** 的用例覆盖（替身 `calls` 为空、零 spawn）。
+- **`--update` 与 `--dry-run` 同现**：渲染 **update** 序列预览（`would run:` 逐行 + 汇总行谓词 `update`），零 spawn —— 由 **Task 7** 的用例覆盖（替身 `calls` 为空）。
 - **重复执行 `init` 的幂等**：交给 harness 自己（spec §2.2，实测 add / install 幂等退 0），引擎零预检、零跳过——**明确不做**。
 - **序列中途 SIGINT / Ctrl-C**：步骤串行、无清理面、无 ledger 写入——**明确不做**。
 - **`cdd init <positional>` 用法错**：commander 原生退 2（零声明位置参数），不入自研校验——**明确不做**。
@@ -176,6 +176,32 @@ base: develop
 - **Acceptance**: `.changeset/p20-cdd-init.md` 存在（cdd-engine minor + kairos patch + 发布后置句）· `env -u AI_AGENT pnpm run validate` ALL PASS（`AI_AGENT` 在场的 5 条既有 E2E 红已注记为环境敏感项）· spec 的 AC 全表逐条有证据或已登记为发布后置 · 不应用版本、不打 tag、不发布。
 - **DependsOn**: 4, 5
 
+
+### Task 7: `init` 支持 `--dry-run`（用户裁定改判 · supersede Task 2 的拒绝面）
+
+- **Objective**: 把 `--dry-run` 从「`init` 拒绝的旗标」改为「预览面」（spec v0.11 §2.7）：渲染**将要执行**的步骤计划（每步 `would run: <argv join(" ")>` + 汇总行 `init: <n> steps (<harness> · <install|update>) — dry run, nothing executed`），零 spawn · 零写入 · 不占轮次 · exit 0；同时把旗标作用域的帮助面（引擎 README 与 CLI 尾注）从 `(implement/review/fix only)` 改为 `(implement/review/fix/init)`。
+- **Files**: Modify `packages/cdd-engine/src-next/face/init.ts`（`CliInit` 增 `preview` 面 + 私有的步骤展平单源）· `packages/cdd-engine/src-next/face/cli.ts`（`.action` 薄壳去掉 `#assertDryRunScope`、把 `#dryRunOf(command)` 传进 `CliInit`）· `packages/cdd-engine/src-next/face/declare.ts`（`ARGV_CHANNEL.dryRun.help` 措辞）· `packages/cdd-engine/src-next/face/projection.ts`（`program flags` 尾注）· `packages/cdd-engine/README.md` · `packages/cdd-engine/README.zh-CN.md`（全局 option 行）; Test `packages/cdd-engine/src-next/face/__tests__/init.test.ts` · `packages/cdd-engine/src-next/face/__tests__/preview.test.ts` · `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`
+- **Consumes**: Task 1 的 `PLUGINS`（步骤与序）· Task 2 的 `CliInit` / `StepRunner` / step 展平与 `init[i/n]` 计数口径 · spec v0.11 §2.7。
+- **Produces**:
+  ```ts
+  // init.ts — 步骤展平是单源：预览与实跑读同一份 {@code { pkg, argv }} 列表，分支点只在「是否调用 StepRunner」
+  export class CliInit {
+    preview(host: HostId, update: boolean): readonly string[];   // 首行起逐条 "would run: …"，末行汇总
+    async run(host: HostId, update: boolean): Promise<number>;   // 行为零变
+  }
+  ```
+- **Steps**:
+  - 写失败测试 `init.test.ts`（预览序列）：替身 `StepRunner` + 捕获 `header`，调 `preview("claude", false)` → 返回数组长度 `PLUGINS.flatMap((r) => r.claude.install).length + 1`（6 步 + 汇总），首行 `would run: claude plugin marketplace add obra/superpowers-marketplace`，末行 `init: 6 steps (claude · install) — dry run, nothing executed`，且 `calls.length === 0` —— checkable: FAIL（`preview` 不存在）
+  - 写失败测试（`--update` 预览）：`preview("claude", true)` 首行谓词为 `plugin marketplace update …`，末行 `init: 6 steps (claude · update) — dry run, nothing executed`；`preview("pi", false)` 末行 `/3` —— checkable: FAIL
+  - 实现 `init.ts`：私有的 `#stepsOf(host, update)` 返回有序 `{ pkg, argv }[]`（`run` 与 `preview` 同读），`preview` 逐条 `would run: ${argv.join(" ")}` 后追加汇总行 —— checkable: 前两组用例转绿
+  - 改 `cli.ts` 接线：`init` 的 `.action` 不再调 `#assertDryRunScope`，改 `const dryRun = this.#dryRunOf(command); this.#exitCode = dryRun ? (this.#init.preview(host, update).forEach((line) => this.#initHeader(line)), 0) : await this.#init.run(host, update)` —— checkable: `cli.test.ts` 的 `init --dry-run` 用例改为 exit 0
+  - 改 `preview.test.ts`：把 `init` 从「每个 pure command 拒绝该旗标」的用例表移出（它已不是拒绝面），并在预览族用例中断言 `cdd init --harness=claude --dry-run` 渲染 `would run:` 且零 spawn —— checkable: 该文件全绿
+  - 帮助面同步（同提交，缺一即红）：`ARGV_CHANNEL.dryRun.help`、`projection.ts` 的 `program flags` 尾注、`packages/cdd-engine/README.md`(+zh-CN) 全局 option 行，四处一律 `(implement/review/fix/init)`，旧 `(implement/review/fix only)` 零残留 —— checkable: `grep -rn "implement/review/fix only" packages/cdd-engine/src-next packages/cdd-engine/README.md packages/cdd-engine/README.zh-CN.md` 零命中
+  - 跑 engine 套件 + `pnpm run typecheck` —— checkable: 全绿（实跑面用例字节零变化）
+  - 提交：`git commit -m "feat(cdd-engine): support --dry-run on cdd init"` —— checkable: `pnpm run precommit` 过
+- **Acceptance**: `preview` 面按 spec §2.7 输出（`would run:` 逐行 + 汇总行 · claude `/6` · pi `/3` · update 谓词正确）· 预览路径零 spawn（替身 `calls` 为空）· `cdd init --harness=claude --dry-run` exit 0 · `preview.test.ts` 的 pure-command 拒绝表不再含 `init` · 帮助面四处为 `(implement/review/fix/init)`、旧措辞零残留 · 实跑面（无 `--dry-run`）行为与退出码零变化 · engine 套件 + `typecheck ×3` 绿。
+- **DependsOn**: 2
+
 ## Change history
 
 | Version | date | summary | author |
@@ -188,3 +214,4 @@ base: develop
 | v0.6 | 2026-10-26 | **wave-1 fix round 2（review-2 findings 收口 · 4 nit）**：① nit——Change history 恢复本仓 canonical 形态（oldest-first、最新修订在末行，与 `contract/invariants.ts:735` 的 `historyOrder` 同判据）：v0.5 行移回 v0.4 之下，行文逐字不动；② nit——Constraints 的基线指针由 spec v0.6 追至 v0.7（判据纠正已落在 spec v0.7；本行随 wave brief 重生成继承）；③ nit（报告面）——实施报告「production-face host literal copies」证据行由「zero hits」订正为「1 命中 = `face/host.ts:37` 的 `HOST_IDS` 声明行，接 `grep -v 'export const HOST_IDS'` = 0」；④ nit（代码面）——`face/host.ts` 的 `HostCapabilities.parallel` docstring 去掉已退役的 `HostRow.install` 类比，`"pending"` 改为自足释义 | Claude（kairos:cdd-dev [P20] wave-1 fix round 2 · 2026-10-26） |
 | v0.7 | 2026-10-26 | **wave-4 review finding 回填（plan write authority · 与 spec v0.9 同一纠正）**：结构 pin 判据「`face/` 内 `seven` 零命中」被 W3 新落的 `diagrams.guard.test.ts` 打破（该门以 `seven commands` / `runs seven` 作负语料，face/ 内实测 8 处命中全在该文件）。Task 2 Step 10 与 Acceptance 的管道同改为 `| grep -v 'diagrams.guard.test.ts'`，spec 同步回填至 v0.9 | Claude（kairos:cdd-dev [P20] · plan write authority · 2026-10-26） |
 | v0.8 | 2026-10-26 | **closeout（cdd-close）**：六任务四波全绿（W1 `dc509f19` + fix `b197c76b` · W2 `d37e1aba`/`13c10c15`/`3a9cf2ed` + fix `5efac821` · W3 `a8270e13`/`4720e3cb`/`3cfd6da4` + fix `77a78947` · W4 `c8af1163` + fix `673b8e73`）；分支终审 REVIEW_FIX → branch-fix-1 APPROVED（`213b1d35`）。验收 `env -u AI_AGENT pnpm run validate` ALL PASS（kairos 80/80 · cdd-engine 856/856 · typecheck ×3 · version-sync kairos 1.3.0 / cdd-engine 4.1.0）；changeset cdd-engine minor + kairos patch pending，不发布 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-10-26） |
+| v0.9 | 2026-10-26 | **用户裁定回填（`init` 支持 `--dry-run` · 并入 PR #392）**：spec v0.11 §2.7 把 `--dry-run` 由「拒绝面（退 2）」改判为「预览面」——新增 **Task 7**（`CliInit.preview` 渲染 `would run:` 逐行 + 汇总行 · 预览与实跑共用同一份步骤展平、分支点只在「是否调用 `StepRunner`」· `.action` 去掉 `#assertDryRunScope` · `preview.test.ts` 把 `init` 移出「pure command 拒绝该旗标」表 · 四处帮助面改 `(implement/review/fix/init)`）；Review Focus 的 `--update --dry-run` 条目随之改归 Task 7；Task 2 的拒绝面由 Task 7 显式 supersede（Task 2 文本按已交付状态保留）。六任务四波 → 七任务五波（Task 7 依赖 Task 2，落 W3） | Claude（kairos:cdd-close→dev [P20] · 2026-10-26） |

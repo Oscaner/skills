@@ -5,7 +5,7 @@
 // imported, never parsed:
 //
 //   · HOSTS     — the per-harness rows (cli / invoke / promptForm / output / ship /
-//     detect / install / env). The host-marker closure is single-sourced HERE: the
+//     detect / env). The host-marker closure is single-sourced HERE: the
 //     detect rows are the only copy of the marker env keys (the channel audit derives
 //     the env whitelist from them — never a second declaration). The promptForm
 //     column (§3.5) is the prompt-position semantics data contract — how the
@@ -30,8 +30,14 @@
 // Module-level exports are types / the declared constant data — zero behavior-
 // carrying bare functions (the plan's zero-bare-function discipline).
 
+/** The harness ids the contract adapts — the runtime companion of `HostId` and the
+ *  single source of the host vocabulary: `HostId` derives from it, the `HOSTS` key
+ *  set closes over it, and the `--harness` value range plus the detect walk read it
+ *  (the production face carries no second copy of the host literal list). */
+export const HOST_IDS = ["claude", "pi"] as const;
+
 /** The harness ids the contract adapts. */
-export type HostId = "claude" | "pi";
+export type HostId = (typeof HOST_IDS)[number];
 
 /** One host-detect row — the marker env key (+ the AI_AGENT match semantics). */
 export interface HostDetectSpec {
@@ -73,9 +79,6 @@ export interface HostRow {
   ship: string;
   /** The detect row — the marker env key(+ semantics). */
   detect: HostDetectSpec;
-  /** The per-package install banners (kairos self-install + upstream plugins);
-   *  `"pending"` is the literal not-yet-known command. */
-  install: Readonly<Record<string, readonly string[] | "pending">>;
   /** The capability facts — the tested dispatch-face columns (T25). */
   capabilities: HostCapabilities;
   /** The per-host child TTL pin — the dispatch env the engine layers over the
@@ -119,31 +122,6 @@ export interface HostContract {
   refs: HostReferenceTable;
 }
 
-/** The per-harness install banners — the kairos self-install + the upstream plugin
- *  install commands. The `packages/kairos/README.md` upstream dependency table (and
- *  its zh mirror) renders from these rows; the engine-suite gate
- *  (face/__tests__/install-rows.guard.test.ts) pins each README row's Claude Code cell
- *  to `INSTALL_ROWS[key].join("；")` and the row key set to these keys — a README
- *  install-command drift fails there, never silently. */
-export const INSTALL_ROWS = {
-  kairos: [
-    "claude plugin marketplace add oscaner/skills",
-    "claude plugin install kairos@oscaner-skills",
-  ],
-  superpowers: [
-    "claude plugin marketplace add obra/superpowers-marketplace",
-    "claude plugin install superpowers@superpowers-marketplace",
-  ],
-  "mattpocock-skills": [
-    "claude plugin marketplace add mattpocock/skills",
-    "claude plugin install mattpocock-skills@mattpocock",
-  ],
-  impeccable: [
-    "claude plugin marketplace add pbakaus/impeccable",
-    "claude plugin install impeccable@impeccable",
-  ],
-} as const;
-
 /** The per-harness host rows — claude / pi adaptation facts. */
 export const HOSTS = {
   claude: {
@@ -154,7 +132,6 @@ export const HOSTS = {
     output: "text",
     ship: "full",
     detect: { env: "CLAUDE_CODE_SESSION_ID", aiAgentPrefix: "claude-code" },
-    install: INSTALL_ROWS,
     capabilities: { parallel: true },
     env: { FORCE_PROMPT_CACHING_5M: "1" },
   },
@@ -165,12 +142,6 @@ export const HOSTS = {
     output: "text",
     ship: "full",
     detect: { env: "AI_AGENT", value: "pi" },
-    install: {
-      kairos: ["pi install npm:@oscaner-skills/kairos"],
-      superpowers: ["pi install git:github.com/obra/superpowers"],
-      "mattpocock-skills": ["pi install git:github.com/mattpocock/skills"],
-      impeccable: ["npx impeccable install --providers=pi --scope=global -y"],
-    },
     capabilities: { parallel: "pending" },
     env: { PI_CACHE_RETENTION: "short" },
   },
@@ -256,13 +227,13 @@ export const HOST_CONTRACT = {
  *  must stay import-clean toward the dispatch face). */
 // biome-ignore lint/complexity/noStaticOnlyClass: the module-level host-detect surface — the zero-bare-function discipline admits no standalone predicate functions.
 export class HostDetect {
-  /** detect(env) — the first host detect row that matches, in the pinned order
-   *  `claude` → `pi` (specific markers first, the generic AI_AGENT
+  /** detect(env) — the first host detect row that matches, in the pinned `HOST_IDS`
+   *  order `claude` → `pi` (specific markers first, the generic AI_AGENT
    *  last). One row detects by its primary marker (a session env, presence/enum —
    *  a UUID CLAUDE_CODE_SESSION_ID is claude by presence) or by the AI_AGENT
    *  prefix (AI_AGENT=claude-code-…); no match returns `""`. */
   static detect(env: Record<string, string | undefined>): HostId | "" {
-    for (const id of ["claude", "pi"] as const) {
+    for (const id of HOST_IDS) {
       const detect: HostDetectSpec = HOSTS[id].detect;
       if (detect.env !== undefined && detect.env !== "") {
         const marker = env[detect.env];

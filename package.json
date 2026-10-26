@@ -18,7 +18,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.15",
+    "@biomejs/biome": "^2.6.2",
     "@changesets/changelog-github": "^1.0.1",
     "@types/node": "^24.19.2",
     "@changesets/cli": "^3.0.3",

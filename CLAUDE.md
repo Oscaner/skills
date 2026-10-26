@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **A cdd-first methodology: continuously-discovered development as the core discipline, AI coding skills as the distribution vehicle.** This repository is the home of that methodology and the vehicle that distributes it — the CDD (continuously-discovered development) practice encoded as skills and driven by the `cdd` engine, released as installable plugins consumable across multiple AI coding harnesses (verified on Claude Code and Pi).
 
-**kairos** ships here as a first-party plugin in-tree at `packages/kairos/` (kairos orchestration + cdd-* family + the CDD engine). Superpowers, mattpocock-skills, and impeccable are upstream third-party plugins — install them via their official commands (marked Upstream in the README); this repo no longer vendors them. Upstream workflow skills are read by kairos orchestrators via `/`-prefixed plugin:skill references.
+**kairos** ships here as a first-party plugin in-tree at `packages/kairos/` (kairos orchestration + cdd-* family + the CDD engine). Superpowers and mattpocock-skills are upstream third-party plugins — install them via their official commands (marked Upstream in the README); this repo no longer vendors them. Upstream workflow skills are read by kairos orchestrators via `/`-prefixed plugin:skill references.
 
 ## ⚠️ emit products are derived — never edit them
 
@@ -41,7 +41,7 @@ Adding a new first-party plugin: create `packages/<name>/package.json` with an `
 - `packages/` — first-party plugins (kairos)
 - `scripts/run.ts emit` — unified emit tool (derives `source.json` + all harness manifests)
 - `.github/workflows/pr-validate.yml` — the native validation job matrix (one job per check; the local equivalent is the root `pnpm run validate` chain)
-- `packages/cdd-engine/` — CDD engine npm package (`src-next/` five-plane OOP tree · `templates/` · the seven-command `cdd` CLI: implement / review / fix / schema / issue / base / board)
+- `packages/cdd-engine/` — CDD engine npm package (`src-next/` five-plane OOP tree · `templates/` · the eight-command `cdd` CLI: implement / review / fix / base / schema / issue / board / init)
 - `docs/diagrams/` — the bilingual architecture, developer/engine journey, and NEXT-loop diagrams (open `index.html`; each diagram exists as EN + zh-CN with editable sources under `src/`)
 
 ### Per-package docs

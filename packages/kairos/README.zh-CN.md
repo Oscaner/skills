@@ -36,24 +36,24 @@ kairos 是 cdd-first 方法论的分发载体：它将**持续发现式开发（
 
 ## 安装
 
-从 oscaner-skills Claude Code 插件市场安装：
-
 ```bash
-claude plugin marketplace add oscaner/skills
-claude plugin install kairos@oscaner-skills
+npx -y @oscaner-skills/cdd-engine@latest init --harness=claude
+npx -y @oscaner-skills/cdd-engine@latest init --harness=pi
 ```
 
-### 从 pi 安装
+`cdd init` 按序安装 kairos 及其两个上游包（superpowers、mattpocock-skills），经该 harness 自己的命令渠道——已全局安装 `cdd` 时可省 `npx -y @oscaner-skills/cdd-engine@latest` 前缀。同一命令加 `--update` 即刷新已装包，只更新、不隐式安装。
 
-```bash
-pi install npm:@oscaner-skills/kairos
-```
+下表列出逐包的具体命令，不经引擎、手工安装时照抄即可：
 
-安装最新发布版并写入 pi 的 project settings。随后六个 `cdd-*` 技能以裸名出现在 pi 的扁平命名空间中——`cdd-design`、`cdd-plan` 等。
+| Package | Claude Code | Pi |
+|---------|-------------|-----|
+| superpowers | `claude plugin marketplace add obra/superpowers-marketplace；claude plugin install superpowers@superpowers-marketplace` | `pi install git:github.com/obra/superpowers` |
+| mattpocock-skills | `claude plugin marketplace add mattpocock/skills；claude plugin install mattpocock-skills@mattpocock` | `pi install git:github.com/mattpocock/skills` |
+| kairos | `claude plugin marketplace add oscaner/skills；claude plugin install kairos@oscaner-skills` | `pi install npm:@oscaner-skills/kairos` |
 
 ## 快速开始
 
-1. 从市场安装 `superpowers`、`kairos` 与 `mattpocock-skills`（逐 harness 安装见仓库 README）。
+1. 用 `cdd init --harness=<claude|pi>` 安装 kairos 及其上游包（见[安装](#安装)）。
 2. 零安装前置——每个 kairos 技能按需通过 `npx -y @oscaner-skills/cdd-engine@latest <子命令>` 调用引擎（无全局安装前置；退役的 `detect-engine` 门已移除）。
 3. 零 `.gitignore` 配置——引擎把每轮派发的运行态（round handoff、账本、brief）保存在仓库根 `.kairos/cdd/` 下，工作区在首次派发时会自行发布一个内容为 `*` 的 `.gitignore`：引擎的运行产物零配置即可保持 untracked、不进入你的提交与分支 diff，clean-tree 派发门也绝不会把引擎自身的输出当作未提交的用户改动。
 4. 调用 kairos 技能——Claude Code 用 `/kairos:<skill>` 斜杠形式：
@@ -66,7 +66,7 @@ pi install npm:@oscaner-skills/kairos
 
 ## CDD 引擎 CLI
 
-CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运行器是 `cdd`（implement / review / fix / base / schema / issue / board）。它通过引擎内嵌的 harness 注册表（逐 harness 的调用与输出契约）将每个阶段派发给宿主 harness CLI：
+CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运行器是 `cdd`（implement / review / fix / base / schema / issue / board / init）。它通过引擎内嵌的 harness 注册表（逐 harness 的调用与输出契约）将每个阶段派发给宿主 harness CLI：
 
 | 标识符 | CLI 二进制 | 宿主 marker | 交付状态 |
 |--------|------------|-------------|----------|
@@ -78,17 +78,6 @@ CDD 引擎以独立 `@oscaner-skills/cdd-engine` 包发布；其唯一 CLI 运�
 ## 与上游插件共存
 
 kairos 将每个技能都命名为 `cdd-*`，因此该家族与上游插件可无冲突并存——这是构造保证：pi 的扁平命名空间没有命名空间修饰语法，而 `cdd-*` 裸名的唯一性让每个 kairos 技能在任意上游插件旁都无可歧义。inline skill 引用按 harness 条件化——Claude Code 支持插件限定引用（如 `/superpowers:*`），恒解析到属主包；pi 只能以裸 `/skill:<name>` 调用，`cdd-*` 唯一性同样保证引用目标无歧义。
-
-### 上游依赖安装
-
-编排技能会以 inline 导入上游 flow 作为本次会话基线（superpowers / mattpocock-skills / impeccable）。按 harness 从各自发布方安装——kairos 经由各 harness 自有渠道安装：
-
-| Package | Claude Code | Pi |
-|---------|-------------|-----|
-| kairos | `claude plugin marketplace add oscaner/skills；claude plugin install kairos@oscaner-skills` | `pi install npm:@oscaner-skills/kairos` |
-| superpowers | `claude plugin marketplace add obra/superpowers-marketplace；claude plugin install superpowers@superpowers-marketplace` | `pi install git:github.com/obra/superpowers` |
-| mattpocock-skills | `claude plugin marketplace add mattpocock/skills；claude plugin install mattpocock-skills@mattpocock` | `pi install git:github.com/mattpocock/skills` |
-| impeccable | `claude plugin marketplace add pbakaus/impeccable；claude plugin install impeccable@impeccable` | `npx impeccable install --providers=pi --scope=global -y` |
 
 仓库架构与开发者/引擎旅程见双语[图表集](../../docs/diagrams/index.html)。
 

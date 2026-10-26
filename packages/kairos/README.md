@@ -34,24 +34,24 @@ Six `cdd-*` skills across three families:
 
 ## Installation
 
-Install from the oscaner-skills Claude Code marketplace:
-
 ```bash
-claude plugin marketplace add oscaner/skills
-claude plugin install kairos@oscaner-skills
+npx -y @oscaner-skills/cdd-engine@latest init --harness=claude
+npx -y @oscaner-skills/cdd-engine@latest init --harness=pi
 ```
 
-### From pi
+`cdd init` installs `kairos` and its two upstream packages (superpowers, mattpocock-skills) in order, through the harness's own command channel — drop the `npx -y @oscaner-skills/cdd-engine@latest` prefix when `cdd` is installed globally. Add `--update` to the same command to refresh the installed packages instead of installing them.
 
-```bash
-pi install npm:@oscaner-skills/kairos
-```
+The table below names the exact commands per package — copy them by hand when installing without the engine:
 
-Installs the latest release and writes pi's project settings. The six `cdd-*` skills are then visible under their bare names in pi's flat namespace — `cdd-design`, `cdd-plan`, and the rest.
+| Package | Claude Code | Pi |
+|---------|-------------|-----|
+| superpowers | `claude plugin marketplace add obra/superpowers-marketplace；claude plugin install superpowers@superpowers-marketplace` | `pi install git:github.com/obra/superpowers` |
+| mattpocock-skills | `claude plugin marketplace add mattpocock/skills；claude plugin install mattpocock-skills@mattpocock` | `pi install git:github.com/mattpocock/skills` |
+| kairos | `claude plugin marketplace add oscaner/skills；claude plugin install kairos@oscaner-skills` | `pi install npm:@oscaner-skills/kairos` |
 
 ## Quick start
 
-1. Install `superpowers`, `kairos`, and `mattpocock-skills` from the marketplace (see the repository README for per-harness install).
+1. Install `kairos` and its upstream packages with `cdd init --harness=<claude|pi>` (see [Installation](#installation)).
 2. No install prerequisite — every kairos skill invokes the engine on demand via `npx -y @oscaner-skills/cdd-engine@latest <subcommand>` (zero global-install precondition; the retired `detect-engine` gate is gone).
 3. No `.gitignore` setup — the engine keeps its per-dispatch run state (round handoffs, ledgers, briefs) under `.kairos/cdd/` in the repo root, and the workspace self-publishes a `.gitignore` (content `*`) at first dispatch: the engine's run artifacts stay untracked out of your commits and branch diffs with zero consumer setup, and the clean-tree dispatch gate never reads the engine's own outputs as uncommitted user work.
 4. Invoke kairos skills — the `/kairos:<skill>` slash form in Claude Code:
@@ -64,7 +64,7 @@ Installs the latest release and writes pi's project settings. The six `cdd-*` sk
 
 ## CDD engine CLI
 
-The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its single CLI runner is `cdd` (implement / review / fix / base / schema / issue / board). It dispatches each phase to the host harness CLI via the engine's embedded harness registry (per-harness invocation and output contract):
+The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its single CLI runner is `cdd` (implement / review / fix / base / schema / issue / board / init). It dispatches each phase to the host harness CLI via the engine's embedded harness registry (per-harness invocation and output contract):
 
 | Identifier | CLI binary | Host marker | Ship |
 |------------|------------|-------------|------|
@@ -76,17 +76,6 @@ The CDD engine ships as the standalone `@oscaner-skills/cdd-engine` package; its
 ## Co-existing with upstream plugins
 
 kairos ships every skill as `cdd-*`, so the family coexists with upstream plugins without conflict by construction: pi's flat namespace has no namespace-qualification syntax, and the unique `cdd-*` bare names keep every kairos skill unambiguous alongside any upstream plugin. Inline skill references are harness-conditional — Claude Code supports plugin-qualified imports like `/superpowers:*`, which always resolve to the owning package, while pi invokes bare `/skill:<name>` only, where `cdd-*` uniqueness guarantees an unambiguous target.
-
-### Upstream dependency install
-
-The orchestrator skills import upstream flows as their session baseline (superpowers / mattpocock-skills / impeccable). Install them per harness from their own publishers — kairos installs through each harness's own channel:
-
-| Package | Claude Code | Pi |
-|---------|-------------|-----|
-| kairos | `claude plugin marketplace add oscaner/skills；claude plugin install kairos@oscaner-skills` | `pi install npm:@oscaner-skills/kairos` |
-| superpowers | `claude plugin marketplace add obra/superpowers-marketplace；claude plugin install superpowers@superpowers-marketplace` | `pi install git:github.com/obra/superpowers` |
-| mattpocock-skills | `claude plugin marketplace add mattpocock/skills；claude plugin install mattpocock-skills@mattpocock` | `pi install git:github.com/mattpocock/skills` |
-| impeccable | `claude plugin marketplace add pbakaus/impeccable；claude plugin install impeccable@impeccable` | `npx impeccable install --providers=pi --scope=global -y` |
 
 Repository architecture and the developer/engine journey are visualised in the bilingual [diagram set](../../docs/diagrams/index.html).
 

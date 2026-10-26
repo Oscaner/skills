@@ -74,7 +74,7 @@ flowchart TD
 
 | failure | behavior | reason |
 |---|---|---|
-| Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table) | Block policy: no silent fallback |
+| Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's installation table) | Block policy: no silent fallback |
 | review re-run after a closure conclusion (REVIEW_FIX / APPROVED) | Violates I1 (Review Convergence) — stop + report to user | A fix commit opens a new review, never a re-run of a closed one |
 | Git commit error | report + fail-open | Do not block user spec review |
 | Completed round with no `next:` line (not BLOCKED/TIMEOUT) | HARD_ERROR — report the carried reason, re-run the same command to continue | No dispatchable next |

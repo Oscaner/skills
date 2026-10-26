@@ -40,26 +40,21 @@ A marketplace that packages AI coding skills as installable plugins for multiple
 | **kairos** | First-party — [`packages/kairos/`](packages/kairos/), published as [`@oscaner-skills/kairos`](https://www.npmjs.com/package/@oscaner-skills/kairos). Six `cdd-*` skills plus the CDD engine |
 | **superpowers** | Upstream — [obra/superpowers](https://github.com/obra/superpowers). Workflow skills |
 | **mattpocock-skills** | Upstream — [mattpocock/skills](https://github.com/mattpocock/skills). Precision tools: `grilling`, `tdd` |
-| **impeccable** | Upstream — [pbakaus/impeccable](https://github.com/pbakaus/impeccable). Frontend design skills |
 
 Upstream versions follow their own release schedules — always install them from their publishers.
 
 ## Installation
 
 ```bash
-# Claude Code marketplace
-claude plugin marketplace add oscaner/skills
-claude plugin install kairos@oscaner-skills
-
-# Pi
-pi install npm:@oscaner-skills/kairos
+npx -y @oscaner-skills/cdd-engine@latest init --harness=claude
+npx -y @oscaner-skills/cdd-engine@latest init --harness=pi
 ```
 
-Upstream plugins install from their own publishers; the [Plugins](#plugins) table links each home repository.
+`cdd init` installs `kairos` and its upstream packages in order, through the harness's own command channel — drop the `npx -y @oscaner-skills/cdd-engine@latest` prefix when `cdd` is installed globally. Manual, per-harness install commands live in the [`packages/kairos/README.md`](packages/kairos/README.md) installation table.
 
 ## Quick start
 
-1. Install `kairos` and the upstream plugins you need.
+1. Install `kairos` and its upstream packages with `cdd init --harness=<claude|pi>` (see [Installation](#installation)).
 2. No install prerequisite — every kairos skill fetches the engine on demand with `npx -y @oscaner-skills/cdd-engine@latest <subcommand>`.
 3. Invoke an orchestrator by name: `/kairos:cdd-design`, `/kairos:cdd-plan`, `/kairos:cdd-dev`, `/kairos:cdd-close`.
 4. No `.gitignore` setup — the engine keeps run state under `.kairos/cdd/` and publishes `.kairos/.gitignore` (`*`) at first dispatch.

@@ -35,6 +35,7 @@ npm install @oscaner-skills/cdd-engine
 | `schema` | `cdd schema get <type>` | 打印 canonical 文档结构 schema（发现型、零执法） |
 | `issue` | `cdd issue render` | 依据 stdin 发现渲染聚合 issue 正文（纯渲染、零执法） |
 | `board` | `cdd board --plan <path> / --spec <path>` | 渲染入口文档的进度板（overall/spec/plan/wave/branch；纯读、零执法） |
+| `init` | `cdd init --harness=<claude\|pi> [--update]` | 为指定 harness 安装或更新 kairos 插件集（与 repo 无关，三流继承） |
 
 用 `cdd <command> --help` 查看某命令的完整选项列表（例如 `cdd review --tasks` / `--spec` / `--plan` / `--round`）。
 

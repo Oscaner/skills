@@ -87,28 +87,28 @@ flowchart TD
 - **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the target parameter (single-spec / phase-spec — the two near-identical dispatch variants are ONE node). The delegated writer lands the document's front-matter identity — `slug:` on either target, plus `program:` (the parent overall's `slug:`) on the phase-spec target
 - **Read**: grilling output + exploration context
 - **Exit**: Handoff executed → `handoff-next`
-- **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
+- **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's installation table)
 
 ### `run-cdd-charter`
 
 - **Do**: Import `/kairos:cdd-spec-writer`（pi：/skill:cdd-spec-writer） with the overall target; the delegated writer lands the document's front-matter `slug:` — an overall declares no `program:` (it is the program)
 - **Read**: grilling output + parent overall (oversized phase-within-program case)
 - **Exit**: Handoff executed → `handoff-phase-design`
-- **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
+- **Fail**: Target skill missing → BLOCKED (install kairos — see the kairos README's installation table)
 
 ### `handoff-next`
 
 - **Do**: Hand off following the engine's `next:` literal — this node is the spec line's convergence onto the engine's unified next face: read the `next:` line the delegated writer's closing round emitted and dispatch it as written (no design-domain continuation of this flow)
 - **Read**: the committed spec + the delegated writer's `next:` line
 - **Exit**: Handoff executed → flow ends for this skill
-- **Fail**: Target missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
+- **Fail**: Target missing → BLOCKED (install kairos — see the kairos README's installation table)
 
 ### `handoff-phase-design`
 
 - **Do**: Hand off — to `/compact` or the next phase's design session (`kairos:cdd-design` [Px program]), summarizing the committed charter
 - **Read**: the committed charter + the run's next phase context
 - **Exit**: Handoff executed → flow ends for this skill
-- **Fail**: Target missing → BLOCKED (install kairos — see the kairos README's 'Upstream dependency install' table)
+- **Fail**: Target missing → BLOCKED (install kairos — see the kairos README's installation table)
 
 ## Invariants
 
@@ -123,8 +123,8 @@ flowchart TD
 
 | failure | behavior | reason |
 |---|---|---|
-| Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's 'Upstream dependency install' table) | Block policy: no silent fallback |
-| Grilling plugin missing | BLOCKED (install mattpocock-skills — see the kairos README's 'Upstream dependency install' table) | Block policy: no degradation |
+| Upstream superpowers plugin missing | BLOCKED (install superpowers — see the kairos README's installation table) | Block policy: no silent fallback |
+| Grilling plugin missing | BLOCKED (install mattpocock-skills — see the kairos README's installation table) | Block policy: no degradation |
 | Phase inventory missing / unparseable | BLOCKED (overall-sync-failed) | Registration gate cannot run |
 | Registering with predecessor Design spec ≠ Done | BLOCKED (serial-phase) | Never release grilling for an unmet phase |
 | Four-table sync inconsistent | BLOCKED (overall-sync-failed) | Refuse to register an inconsistent phase |

@@ -33,6 +33,7 @@ Global option: `--dry-run` — preview the next dispatch step and its expected a
 | `schema` | `cdd schema get <type>` | Print the canonical doc-structure schema (discovery-only, zero enforcement) |
 | `issue` | `cdd issue render` | Render an aggregate issue body from stdin findings (pure rendering, zero enforcement) |
 | `board` | `cdd board --plan <path> / --spec <path>` | Render the entry document's progress board (overall/spec/plan/wave/branch; pure read, zero enforcement) |
+| `init` | `cdd init --harness=<claude\|pi> [--update]` | Install or update the kairos plugin set for a harness (repo-independent, streams inherited) |
 
 Use `cdd <command> --help` for a command's full option list (for example `cdd review --tasks` / `--spec` / `--plan` / `--round`).
 

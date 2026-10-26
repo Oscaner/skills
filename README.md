@@ -41,7 +41,7 @@ A marketplace that packages AI coding skills as installable plugins for multiple
 | **superpowers** | Upstream — [obra/superpowers](https://github.com/obra/superpowers). Workflow skills |
 | **mattpocock-skills** | Upstream — [mattpocock/skills](https://github.com/mattpocock/skills). Precision tools: `grilling`, `tdd` |
 
-Upstream versions follow their own release schedules — always install them from their publishers.
+Upstream versions follow their own release schedules — `cdd init` installs whatever each publisher currently publishes.
 
 ## Installation
 

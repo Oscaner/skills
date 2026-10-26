@@ -158,7 +158,7 @@ export const VALUE_SHAPES: Readonly<
 };
 
 /** The eight subcommand words — the CLI command face (implement · review · fix ·
- *  schema · issue · base · board · init). */
+ *  base · schema · issue · board · init). */
 export type CliVerb =
   | "implement"
   | "review"

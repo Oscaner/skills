@@ -45,7 +45,7 @@
 | **superpowers** | 上游——[obra/superpowers](https://github.com/obra/superpowers)。工作流技能 |
 | **mattpocock-skills** | 上游——[mattpocock/skills](https://github.com/mattpocock/skills)。精准工具：`grilling`、`tdd` |
 
-上游版本遵循各自的发布节奏——始终从各自发布方安装。
+上游版本遵循各自的发布节奏——`cdd init` 安装各发布方当前发布的版本。
 
 ## 安装
 

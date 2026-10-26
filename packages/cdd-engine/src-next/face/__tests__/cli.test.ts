@@ -1,7 +1,7 @@
 // packages/cdd-engine/src-next/face/__tests__/cli.test.ts
 // T11 Cli + composition-root suite (design spec §3.3):
 //   · the command face — the eight steady subcommand words (implement / review / fix /
-//     schema / issue / base / board / init with their nested leaves) and the usage lines the
+//     base / schema / issue / board / init with their nested leaves) and the usage lines the
 //     consumers read (T20: the base command face — `cdd base set|get` — converges
 //     the command surface; T5 adds the board observability command; P20 adds the init
 //     harness bootstrap);
@@ -553,7 +553,7 @@ describe("cdd init — the harness bootstrap wiring", () => {
     const headers: string[] = [];
     // The bare fixture is a temp dir OUTSIDE any git repo — `init` never resolves
     // the repo root, so the run succeeds where every repo-bound verb would exit 1.
-    const { command, io, cleanup } = fixture({
+    const { command, io, repoRoot, cleanup } = fixture({
       initRunner: runner,
       initHeader: (line) => headers.push(line),
     });
@@ -564,6 +564,9 @@ describe("cdd init — the harness bootstrap wiring", () => {
       const roster: readonly PluginRow[] = PLUGINS;
       expect(runner.calls).toEqual(roster.flatMap((row) => row.pi.install));
       expect(headers.at(-1)).toBe("init: 3 steps ok (pi · install)");
+      // §2.4's second half — the cwd is left untouched: no workspace, no ledger.
+      expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
+      expect(readdirSync(repoRoot)).toEqual([]);
     } finally {
       cleanup();
     }

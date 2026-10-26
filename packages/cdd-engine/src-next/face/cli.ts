@@ -1,6 +1,6 @@
 // packages/cdd-engine/src-next/face/cli.ts
 // T11 + T8 — the command face + composition root (design spec §3.3: the cdd CLI
-// command surface — implement / review / fix / schema / issue / base / board / init —
+// command surface — implement / review / fix / base / schema / issue / board / init —
 // is kept as a steady word face; T20 converges the base command face to `base`, T5
 // adds the board observability command and P20 adds the repo-independent init
 // bootstrap — the eight-command surface). This module is

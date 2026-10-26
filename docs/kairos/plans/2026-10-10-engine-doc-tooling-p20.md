@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P20 实施计划：`cdd init` harness bootstrap
 doc-type: plan
-version: v0.9
+version: v0.10
 date: 2026-10-26
 slug: 2026-10-10-engine-doc-tooling-p20
 base: develop
@@ -200,7 +200,7 @@ base: develop
   - 跑 engine 套件 + `pnpm run typecheck` —— checkable: 全绿（实跑面用例字节零变化）
   - 提交：`git commit -m "feat(cdd-engine): support --dry-run on cdd init"` —— checkable: `pnpm run precommit` 过
 - **Acceptance**: `preview` 面按 spec §2.7 输出（`would run:` 逐行 + 汇总行 · claude `/6` · pi `/3` · update 谓词正确）· 预览路径零 spawn（替身 `calls` 为空）· `cdd init --harness=claude --dry-run` exit 0 · `preview.test.ts` 的 pure-command 拒绝表不再含 `init` · 帮助面四处为 `(implement/review/fix/init)`、旧措辞零残留 · 实跑面（无 `--dry-run`）行为与退出码零变化 · engine 套件 + `typecheck ×3` 绿。
-- **DependsOn**: 2
+- **DependsOn**: 6
 
 ## Change history
 
@@ -215,3 +215,4 @@ base: develop
 | v0.7 | 2026-10-26 | **wave-4 review finding 回填（plan write authority · 与 spec v0.9 同一纠正）**：结构 pin 判据「`face/` 内 `seven` 零命中」被 W3 新落的 `diagrams.guard.test.ts` 打破（该门以 `seven commands` / `runs seven` 作负语料，face/ 内实测 8 处命中全在该文件）。Task 2 Step 10 与 Acceptance 的管道同改为 `| grep -v 'diagrams.guard.test.ts'`，spec 同步回填至 v0.9 | Claude（kairos:cdd-dev [P20] · plan write authority · 2026-10-26） |
 | v0.8 | 2026-10-26 | **closeout（cdd-close）**：六任务四波全绿（W1 `dc509f19` + fix `b197c76b` · W2 `d37e1aba`/`13c10c15`/`3a9cf2ed` + fix `5efac821` · W3 `a8270e13`/`4720e3cb`/`3cfd6da4` + fix `77a78947` · W4 `c8af1163` + fix `673b8e73`）；分支终审 REVIEW_FIX → branch-fix-1 APPROVED（`213b1d35`）。验收 `env -u AI_AGENT pnpm run validate` ALL PASS（kairos 80/80 · cdd-engine 856/856 · typecheck ×3 · version-sync kairos 1.3.0 / cdd-engine 4.1.0）；changeset cdd-engine minor + kairos patch pending，不发布 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-10-26） |
 | v0.9 | 2026-10-26 | **用户裁定回填（`init` 支持 `--dry-run` · 并入 PR #392）**：spec v0.11 §2.7 把 `--dry-run` 由「拒绝面（退 2）」改判为「预览面」——新增 **Task 7**（`CliInit.preview` 渲染 `would run:` 逐行 + 汇总行 · 预览与实跑共用同一份步骤展平、分支点只在「是否调用 `StepRunner`」· `.action` 去掉 `#assertDryRunScope` · `preview.test.ts` 把 `init` 移出「pure command 拒绝该旗标」表 · 四处帮助面改 `(implement/review/fix/init)`）；Review Focus 的 `--update --dry-run` 条目随之改归 Task 7；Task 2 的拒绝面由 Task 7 显式 supersede（Task 2 文本按已交付状态保留）。六任务四波 → 七任务五波（Task 7 依赖 Task 2，落 W3） | Claude（kairos:cdd-close→dev [P20] · 2026-10-26） |
+| v0.10 | 2026-10-26 | **引擎波门裁定（plan write authority）**：Task 7 的 `DependsOn: 2` 被引擎判红 —— `the derived batch (4,5,7) mixes closed and open tasks (4,5 closed, 7 open) — a wave closes as a unit`（github#386 同型：新任务不能并入已执行的静态批次）。改为 `DependsOn: 6`（挂在最后一个已闭合层之后 ⇒ 派生为全新一波），语义不变：Task 7 所需的 `CliInit` / `PLUGINS` 经 6 传递满足 | Claude（kairos:cdd-close→dev [P20] · 引擎波门裁定 · 2026-10-26） |

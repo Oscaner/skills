@@ -572,6 +572,30 @@ describe("cdd init — the harness bootstrap wiring", () => {
     }
   });
 
+  it("derives the update column from the parsed --update — zero install argv rides the run", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    const { command, io, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      expect(await command.runArgv(["init", "--harness=claude", "--update"])).toBe(0);
+      const roster: readonly PluginRow[] = PLUGINS;
+      expect(runner.calls).toEqual(roster.flatMap((row) => row.claude.update));
+      // The install column is a distinct argv set, so a dropped or inverted update
+      // derivation shows up here as install commands riding an update request.
+      const installs = new Set(
+        roster.flatMap((row) => row.claude.install).map((argv) => argv.join(" ")),
+      );
+      expect(runner.calls.filter((argv) => installs.has(argv.join(" ")))).toEqual([]);
+      expect(headers.at(-1)).toBe("init: 6 steps ok (claude · update)");
+      expect(io.stderrText).toBe("");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("a missing --harness is a usage rejection (exit 2, zero spawn)", async () => {
     const runner = new RecordingRunner();
     const { command, cleanup } = fixture({ initRunner: runner });

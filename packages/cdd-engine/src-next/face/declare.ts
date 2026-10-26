@@ -1,5 +1,5 @@
 // packages/cdd-engine/src-next/face/declare.ts
-// §2.4 — the CLI declaration single surface: the argv channel table, the seven-command
+// §2.4 — the CLI declaration single surface: the argv channel table, the eight-command
 // declarations, every CLI face type and the conditional-required group table cohere
 // in ONE file (the user ruling 2026-10-11: the declaration was scattered across
 // runtime/registry/argv → one surface). The migration converges:
@@ -24,6 +24,7 @@ import { InvalidArgumentError } from "commander";
 
 import type { DocKey } from "../contract/project.ts";
 import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
+import { HOST_IDS } from "./host.ts";
 
 /** The component-value types of the argv channel (the CLI parse validates by these). */
 export type ChannelValueType = "string" | "path" | "int-list" | "enum" | "int" | "bool";
@@ -78,6 +79,17 @@ export const ARGV_CHANNEL = {
     help: "the base artifact's source channel",
   },
   force: { flag: "--force", type: "bool", help: "override the existing base artifact" },
+  harness: {
+    flag: "--harness",
+    type: "enum",
+    values: HOST_IDS,
+    help: "the harness whose plugin set is installed or updated",
+  },
+  update: {
+    flag: "--update",
+    type: "bool",
+    help: "update the installed plugin set instead of installing it",
+  },
   dryRun: {
     flag: "--dry-run",
     type: "bool",
@@ -145,9 +157,17 @@ export const VALUE_SHAPES: Readonly<
   },
 };
 
-/** The seven subcommand words — the CLI command face (implement · review · fix ·
- *  schema · issue · base · board). */
-export type CliVerb = "implement" | "review" | "fix" | "schema" | "issue" | "base" | "board";
+/** The eight subcommand words — the CLI command face (implement · review · fix ·
+ *  schema · issue · base · board · init). */
+export type CliVerb =
+  | "implement"
+  | "review"
+  | "fix"
+  | "schema"
+  | "issue"
+  | "base"
+  | "board"
+  | "init";
 
 /** The nested leaf words — the sub-command surfaces of the pure commands. */
 export type CliLeafName = "get" | "set" | "render";
@@ -188,9 +208,9 @@ export interface CliCommandSpec {
   example?: string;
 }
 
-/** The seven subcommand declarations — implement, review, fix (the lifecycle work
- *  commands) plus the pure base / schema / issue artifact commands and the board
- *  observability command. */
+/** The eight subcommand declarations — implement, review, fix (the lifecycle work
+ *  commands) plus the pure base / schema / issue artifact commands, the board
+ *  observability command and the repo-independent init bootstrap. */
 export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "implement",
@@ -282,6 +302,12 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
       "render the progress board from a --plan or --spec entry (overall/spec/plan/wave/branch)",
     example: `cdd board --plan ${ENGINE_DOC_ROOTS.plans}/p3.md`,
     keys: [{ key: "plan" }, { key: "spec" }],
+  },
+  {
+    name: "init",
+    description: "install or update the kairos plugin set for a harness",
+    example: "cdd init --harness=claude",
+    keys: [{ key: "harness", required: true }, { key: "update" }],
   },
 ];
 

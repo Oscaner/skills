@@ -361,6 +361,9 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
         ],
         ["issue", "render", "--dry-run"],
         ["board", "--plan", "docs/kairos/plans/p3.md", "--dry-run"],
+        // init is the fourth pure command refusing the flag — the preview flag must
+        // never install packages (the guard throws before the first spawn).
+        ["init", "--harness=claude", "--dry-run"],
       ];
       for (const argv of cases) {
         io.stderrText = "";

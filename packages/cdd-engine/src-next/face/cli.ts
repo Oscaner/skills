@@ -1,14 +1,15 @@
 // packages/cdd-engine/src-next/face/cli.ts
 // T11 + T8 — the command face + composition root (design spec §3.3: the cdd CLI
-// command surface — implement / review / fix / schema / issue / base / board — is
-// kept as a steady word face; T20 converges the base command face to `base` and T5
-// adds the board observability command — the seven-command surface). This module is
+// command surface — implement / review / fix / schema / issue / base / board / init —
+// is kept as a steady word face; T20 converges the base command face to `base`, T5
+// adds the board observability command and P20 adds the repo-independent init
+// bootstrap — the eight-command surface). This module is
 // the new tree's composition root: the
 // `Cli.create` static factory — the class face is the entry, the module carries zero
 // bare functions (the composition root's deliberate class form) — wires the contract /
 // session / face objects into the ONE CLI the bin thin entry boots. Task 3 (P1)
 // reorganized the face into one boundary per responsibility — the CLI declaration
-// single surface (face/declare.ts, §2.4 — the seven subcommand rows + the argv
+// single surface (face/declare.ts, §2.4 — the eight subcommand rows + the argv
 // channel), the declaration projection (face/projection.ts — the CommandTreeBuilder
 // whose commander program OWNS the parse + help + validation pipeline), and the run
 // face; the typed argv parse channel (face/argv.ts) was deleted at T6 — the parse
@@ -43,7 +44,7 @@
 // Module-level exports are types / constant data / classes — zero behavior-carrying
 // bare functions (the composition root is the Cli class's static create factory).
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { type Command, CommanderError } from "commander";
@@ -78,7 +79,8 @@ import { Capsule } from "./capsule.ts";
 import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import { CliGate } from "./gate.ts";
 import { GraphView } from "./graph-view.ts";
-import { HostDetect } from "./host.ts";
+import { HOST_IDS, HostDetect, type HostId } from "./host.ts";
+import { CliInit, ExecaStepRunner, type StepRunner } from "./init.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "./lifecycle.ts";
 import { Preview } from "./preview.ts";
 import { CommandTreeBuilder } from "./projection.ts";
@@ -119,6 +121,10 @@ export interface CliOptions {
   template?: TemplateAssembler;
   brief?: BriefRenderer;
   stdinRead?: () => string;
+  /** The `cdd init` step runner (tests substitute a recording stand-in). */
+  initRunner?: StepRunner;
+  /** The `cdd init` synchronous header writer (tests collect the lines). */
+  initHeader?: (line: string) => void;
 }
 
 /** One work command's assembled scene — the composition the run body advances. */
@@ -168,6 +174,11 @@ export interface RunInput {
   positionals: readonly string[];
   /** The invocation's read-only preview scope (the --dry-run program flag). */
   dryRun: boolean;
+  /** The `cdd init` harness — the commander enum value narrowed against HOST_IDS
+   *  (undefined until the run face guards it; only the init shell consumes it). */
+  harness?: HostId;
+  /** The `cdd init` update form — the parsed `--update` boolean. */
+  update?: boolean;
 }
 
 /**
@@ -215,6 +226,9 @@ export class Cli {
   /** The pure-command domain (T8 — the split contract's artifacts face,
    *  face/artifacts.ts): the schema/issue/base run bodies. */
   readonly #artifacts: CliArtifacts;
+  /** The harness plugin bootstrap (P20 — face/init.ts): the repo-independent
+   *  install/update sequence face. */
+  readonly #init: CliInit;
 
   constructor(opts: CliOptions = {}) {
     this.#io = opts.io ?? {
@@ -252,6 +266,13 @@ export class Cli {
       issue: this.#issue,
       stdinRead: this.#stdinRead,
       usage: (node, message) => this.#usage(node, message),
+    });
+    this.#init = new CliInit({
+      io: this.#io,
+      runner: opts.initRunner ?? new ExecaStepRunner(),
+      // The synchronous writer — the step header must land before the spawned
+      // child writes to the same fd (a piped log would otherwise reorder them).
+      header: opts.initHeader ?? ((line) => writeSync(1, `${line}\n`)),
     });
   }
 
@@ -355,6 +376,19 @@ export class Cli {
     commandNode("board").action(async (_opts: unknown, command: Command) => {
       this.#exitCode = await this.#runBoard(command, this.#runInput(null, command));
     });
+    // the repo-independent bootstrap — zero #rootOf(), zero workspace writes; the
+    // preview flag is a usage rejection (it would otherwise install under a
+    // "preview" flag).
+    commandNode("init").action(async (_opts: unknown, command: Command) => {
+      this.#assertDryRunScope(command, this.#dryRunOf(command));
+      const parsed = this.#runInput(null, command);
+      // The declaration marks --harness as requiredOption, so commander rejects a
+      // missing flag before this shell; the guard keeps the run input's narrowed
+      // type honest (the usage face belongs to the root's private surface, so it
+      // stays here rather than sinking into CliInit).
+      if (parsed.harness === undefined) this.#usage(command, "cdd init: missing --harness");
+      this.#exitCode = await this.#init.run(parsed.harness, parsed.update ?? false);
+    });
   }
 
   /** `cdd board --plan <path> / --spec <path>` — the entry document's progress board
@@ -445,6 +479,7 @@ export class Cli {
       if (value === undefined) continue;
       args[key] = typeof value === "boolean" ? (value ? "true" : "false") : String(value);
     }
+    const harnessToken = typeof globals.harness === "string" ? globals.harness : "";
     return {
       leaf,
       args,
@@ -453,6 +488,11 @@ export class Cli {
       paths: { plan: null, spec: null, reviews: null },
       positionals: command.processedArgs as string[],
       dryRun: this.#dryRunOf(command),
+      // The harness word is narrowed through the ONE host vocabulary (a cast would
+      // let a foreign token ride into the roster index); `--update` is the parsed
+      // boolean, never a truthy string.
+      harness: HOST_IDS.find((id) => id === harnessToken),
+      update: globals.update === true,
     };
   }
 

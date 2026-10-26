@@ -186,6 +186,18 @@ describe("CliInit — the --dry-run preview face", () => {
     expect(lines.at(-1)).toBe("init: 3 steps (pi · install) — dry run, nothing executed");
     expect(runner.calls).toEqual([]);
   });
+
+  it("the pi update preview reads the update sequence — three steps, the update verb in the summary", () => {
+    const runner = new RecordingRunner();
+    const { init } = initFace(runner);
+    const lines = init.preview("pi", true);
+    expect(lines.slice(0, -1)).toEqual(
+      sequenceOf("pi", "update").map((argv) => `would run: ${argv.join(" ")}`),
+    );
+    expect(lines).toHaveLength(4);
+    expect(lines.at(-1)).toBe("init: 3 steps (pi · update) — dry run, nothing executed");
+    expect(runner.calls).toEqual([]);
+  });
 });
 
 describe("CliInit — the first-failure stop and its report", () => {

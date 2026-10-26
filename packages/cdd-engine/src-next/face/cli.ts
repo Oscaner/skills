@@ -516,12 +516,13 @@ export class Cli {
     return this.#dryRun || globals.dryRun === true;
   }
 
-  /** The `--dry-run` scope guard (P11 T5 · §3.5) — the preview semantics belong to
-   *  the three work verbs and the bootstrap alone. A pure command carrying the
-   *  program flag is a usage rejection (exit 2), never a silently ignored flag: a
-   *  no-op flag the consumer has to remember to skip is a mind-share defect, not a
-   *  convenience. The usage byte is the owning node's commander-native usage line
-   *  (the same `#usage` face every run body's rejection rides). */
+  /** The `--dry-run` scope guard (P11 T5 · §3.5) — the pure commands' rejection face
+   *  alone: a pure command carrying the program flag is a usage rejection (exit 2),
+   *  never a silently ignored flag — a no-op flag the consumer has to remember to
+   *  skip is a mind-share defect, not a convenience. The four preview-capable faces
+   *  (implement / review / fix / init) never reach this guard; `init`'s preview is
+   *  `CliInit.preview`. The usage byte is the owning node's commander-native usage
+   *  line (the same `#usage` face every run body's rejection rides). */
   #assertDryRunScope(node: Command, dryRun: boolean): void {
     if (!dryRun) return;
     this.#usage(

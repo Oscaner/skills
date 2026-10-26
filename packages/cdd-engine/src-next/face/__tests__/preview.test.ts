@@ -354,7 +354,7 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
     }
   });
 
-  it("is scoped to the three work verbs — every pure command rejects the flag (exit 2)", async () => {
+  it("is scoped to the pure commands — every one rejects the flag (exit 2)", async () => {
     const { command, io, cleanup } = fixture();
     try {
       const cases: readonly (readonly string[])[] = [
@@ -399,6 +399,28 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
       expect(headers.at(-1)).toBe("init: 6 steps (claude · install) — dry run, nothing executed");
       // the preview flag never installs anything and never touches the tree
       expect(runner.calls).toEqual([]);
+      expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a pre-verb --dry-run previews the bootstrap too — the pi denominator, zero spawn", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    const { command, io, repoRoot, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      // the flag is accepted at any position — ahead of the verb it merges from the
+      // program node into the same preview face
+      expect(await command.runArgv(["--dry-run", "init", "--harness=pi"])).toBe(0);
+      expect(headers).toHaveLength(4);
+      expect(headers[0]).toBe("would run: pi install git:github.com/obra/superpowers");
+      expect(headers.at(-1)).toBe("init: 3 steps (pi · install) — dry run, nothing executed");
+      expect(runner.calls).toEqual([]);
+      expect(io.stderrText).toBe("");
       expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
     } finally {
       cleanup();

@@ -12,12 +12,18 @@
 //     identifier. This judgment lives here rather than in the Archify finalize pass,
 //     which only verifies that a cited range EXISTS — a stale range still exists after
 //     the declaration it used to name moved away;
+//   · the pinned revision — the same citations, read at the source's own
+//     `meta.repository.revision` (the tree the evidence was taken from), still contain
+//     their identifiers. The working-tree check above cannot catch a revision pin that
+//     lags the renumbered spans: the source would carry one tree's hash and another
+//     tree's line numbers, so a consumer's source link would land on unrelated lines;
 //   · the generated artifacts — both HTMLs carry the eight-command surface and no
 //     seven-command residue, so editing a source without regenerating (or hand-editing
 //     an artifact) fails here.
 // Domicile: engine suite (the cross-plane read precedent: the gate reads the diagram
 // plane, the way the retired `install-rows.guard.test.ts` read the README plane).
 
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -48,8 +54,14 @@ interface DiagramCard {
 
 /** The parts of an Archify architecture source this gate pins. */
 interface DiagramSource {
+  readonly meta: DiagramPinMetadata;
   readonly components: readonly DiagramComponent[];
   readonly cards: readonly DiagramCard[];
+}
+
+/** The source's repository pin — the tree its citations are evidence for. */
+interface DiagramPinMetadata {
+  readonly repository: { readonly revision: string };
 }
 
 /** One language's pins — the count wording in both places it is written, the card the
@@ -138,6 +150,18 @@ const blockSpan = (rel: string, anchor: RegExp, close: RegExp): { start: number;
   return { start: start + 1, stop: stop + 1 };
 };
 
+/** The file text at one git revision — `git show <rev>:<path>`. A read that cannot be
+ *  satisfied fails with the command in the message: a silent skip would decay this
+ *  assertion into a no-op on any clone without the pinned commit. */
+const readAtRevision = (revision: string, rel: string): string => {
+  const shown = spawnSync("git", ["show", `${revision}:${rel}`], { cwd: REPO, encoding: "utf8" });
+  expect(
+    shown.status,
+    `git show ${revision}:${rel} failed — the pinned commit must be in the clone (git fetch --unshallow): ${shown.stderr}`,
+  ).toBe(0);
+  return shown.stdout;
+};
+
 /** The engine node of one source — the node whose tag carries the command count. */
 const engineNode = (source: DiagramSource): DiagramComponent => {
   const node = source.components.find((component) => component.id === "engine");
@@ -207,6 +231,25 @@ for (const [rel, pin] of Object.entries(SOURCES)) {
         expect(
           citedText.includes(citation.identifier),
           `${rel}: the "${citation.node}" citation must contain ${citation.identifier}`,
+        ).toBe(true);
+      }
+    });
+
+    it("reads its pinned revision self-consistently — the cited spans still name their identifiers there", () => {
+      const revision = source.meta.repository.revision;
+      expect(revision, `${rel}: the repository revision pin is missing`).toMatch(/^[0-9a-f]{40}$/);
+      for (const citation of CITATIONS) {
+        const node = source.components.find((component) => component.id === citation.node);
+        expect(node, `${rel}: the "${citation.node}" node is missing`).toBeTruthy();
+        const cited = node!.sources[0];
+        expect(cited, `${rel}: the "${citation.node}" node carries no citation`).toBeTruthy();
+        const citedText = readAtRevision(revision, cited!.path)
+          .split("\n")
+          .slice(cited!.line - 1, cited!.end_line)
+          .join("\n");
+        expect(
+          citedText.includes(citation.identifier),
+          `${rel}: at revision ${revision}, ${cited!.path}:${cited!.line}-${cited!.end_line} must contain ${citation.identifier} — re-verify the span and re-pin the revision`,
         ).toBe(true);
       }
     });

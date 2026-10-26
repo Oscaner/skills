@@ -8,9 +8,9 @@
 //     retired loader kept: engineConfig / harnessContract / templateContract /
 //     handoffNamespace — now the typed planes' single home);
 //   · git — the single git seam over a real temp repo;
-//   · process — the subprocess seam (fail-open results);
 //   · workspace — the root/workspace pair + the slug rule + the JSON read/write.
 
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -21,7 +21,6 @@ import { REVIEWS, TEMPLATE_PROMPT } from "../../render/templates.ts";
 import { HandoffSchema } from "../../session/handoff-schema.ts";
 import { ConfigLoader } from "../config.ts";
 import { GitClient } from "../git.ts";
-import { ProcessRunner } from "../process.ts";
 import { ENGINE_RUNTIME, HANDOFF_FAMILIES } from "../runtime.ts";
 import { Workspace, WorkspaceRoot } from "../workspace.ts";
 
@@ -175,16 +174,18 @@ describe("git — the single git seam over a real temp repo", () => {
   it("walks init → dirty → clean over one repo (fail-open)", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "infra-git-"));
     try {
-      const proc = new ProcessRunner();
-      await proc.run("git", ["init", "-b", "main", dir]);
-      await proc.run("git", ["config", "user.email", "tester@example.dev"], dir);
-      await proc.run("git", ["config", "user.name", "Tester"], dir);
+      const gitRun = (args: readonly string[], cwd?: string): void => {
+        execFileSync("git", [...args], { cwd });
+      };
+      gitRun(["init", "-b", "main", dir]);
+      gitRun(["config", "user.email", "tester@example.dev"], dir);
+      gitRun(["config", "user.name", "Tester"], dir);
       const git = new GitClient();
       expect(await git.topLevel(dir)).toBe(realpathSync(dir));
       writeFileSync(path.join(dir, "a.txt"), "a\n");
       expect(await git.isClean(dir)).toBe(false);
-      await proc.run("git", ["add", "-A"], dir);
-      await proc.run("git", ["commit", "-m", "feat: initial"], dir);
+      gitRun(["add", "-A"], dir);
+      gitRun(["commit", "-m", "feat: initial"], dir);
       expect(await git.isClean(dir)).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -211,22 +212,6 @@ describe("git — the single git seam over a real temp repo", () => {
       (name) => name !== "constructor",
     );
     expect(methods.sort()).toEqual(["isClean", "topLevel"]);
-  });
-});
-
-describe("process — the subprocess seam", () => {
-  it("captures a successful run's stdout", async () => {
-    const result = await new ProcessRunner().run("node", ["-e", "console.log('hello')"]);
-    expect(result.code).toBe(0);
-    expect(result.stdout).toContain("hello");
-  });
-
-  it("rides a synthetic code for a non-zero exit and a missing binary (fail-open)", async () => {
-    const proc = new ProcessRunner();
-    const failing = await proc.run("node", ["-e", "process.exit(3)"]);
-    expect(failing.code).toBe(3);
-    const missing = await proc.run("definitely-not-a-binary-xyz", []);
-    expect(missing.code).not.toBe(0);
   });
 });
 

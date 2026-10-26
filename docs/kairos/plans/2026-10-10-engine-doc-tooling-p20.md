@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P20 实施计划：`cdd init` harness bootstrap
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-10-26
 slug: 2026-10-10-engine-doc-tooling-p20
 base: develop
@@ -187,3 +187,4 @@ base: develop
 | v0.5 | 2026-10-26 | **wave-1 review finding 回填（plan write authority · 与 spec v0.7 同一纠正）**：Task 1 Acceptance 的「生产面 host 字面零副本（grep 零命中）」不可满足 —— 改动后 `face/host.ts` 的 `export const HOST_IDS = ["claude", "pi"] as const` 就是那条字面，管道必然命中一条（实施报告把它记成「零命中」）。判据改为「**恰好一条命中且该命中即 `HOST_IDS` 声明行**（等价：接 `grep -v 'export const HOST_IDS'` 后零命中）」—— 判据意图（禁第二份词表副本）不变，spec 同步回填至 v0.7 | Claude（kairos:cdd-dev [P20] · plan write authority · 2026-10-26） |
 | v0.6 | 2026-10-26 | **wave-1 fix round 2（review-2 findings 收口 · 4 nit）**：① nit——Change history 恢复本仓 canonical 形态（oldest-first、最新修订在末行，与 `contract/invariants.ts:735` 的 `historyOrder` 同判据）：v0.5 行移回 v0.4 之下，行文逐字不动；② nit——Constraints 的基线指针由 spec v0.6 追至 v0.7（判据纠正已落在 spec v0.7；本行随 wave brief 重生成继承）；③ nit（报告面）——实施报告「production-face host literal copies」证据行由「zero hits」订正为「1 命中 = `face/host.ts:37` 的 `HOST_IDS` 声明行，接 `grep -v 'export const HOST_IDS'` = 0」；④ nit（代码面）——`face/host.ts` 的 `HostCapabilities.parallel` docstring 去掉已退役的 `HostRow.install` 类比，`"pending"` 改为自足释义 | Claude（kairos:cdd-dev [P20] wave-1 fix round 2 · 2026-10-26） |
 | v0.7 | 2026-10-26 | **wave-4 review finding 回填（plan write authority · 与 spec v0.9 同一纠正）**：结构 pin 判据「`face/` 内 `seven` 零命中」被 W3 新落的 `diagrams.guard.test.ts` 打破（该门以 `seven commands` / `runs seven` 作负语料，face/ 内实测 8 处命中全在该文件）。Task 2 Step 10 与 Acceptance 的管道同改为 `| grep -v 'diagrams.guard.test.ts'`，spec 同步回填至 v0.9 | Claude（kairos:cdd-dev [P20] · plan write authority · 2026-10-26） |
+| v0.8 | 2026-10-26 | **closeout（cdd-close）**：六任务四波全绿（W1 `dc509f19` + fix `b197c76b` · W2 `d37e1aba`/`13c10c15`/`3a9cf2ed` + fix `5efac821` · W3 `a8270e13`/`4720e3cb`/`3cfd6da4` + fix `77a78947` · W4 `c8af1163` + fix `673b8e73`）；分支终审 REVIEW_FIX → branch-fix-1 APPROVED（`213b1d35`）。验收 `env -u AI_AGENT pnpm run validate` ALL PASS（kairos 80/80 · cdd-engine 856/856 · typecheck ×3 · version-sync kairos 1.3.0 / cdd-engine 4.1.0）；changeset cdd-engine minor + kairos patch pending，不发布 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-10-26） |

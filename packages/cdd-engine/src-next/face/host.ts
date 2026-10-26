@@ -60,8 +60,8 @@ export type PromptForm = "ref-prefixed" | "plain";
  *  the tested dispatch faces, one data column per row, zero prose. */
 export interface HostCapabilities {
   /** The parallel sub-agent dispatch face — `true` the measured face (claude),
-   *  `"pending"` the not-yet-exercised marker (pi — the per-tested stance,
-   *  the install `"pending"` pattern). */
+   *  `"pending"` the declared-but-unproven face (pi — the per-tested stance: the
+   *  face is declared yet no run has exercised it). */
   parallel: boolean | "pending";
 }
 

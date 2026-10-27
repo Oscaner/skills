@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 设计：引擎作为唯一读写路径
 doc-type: phase-spec
-version: v0.4
+version: v0.5
 date: 2026-10-27
 slug: 2026-10-10-engine-doc-tooling-p21
 program: 2026-10-10-engine-doc-tooling
@@ -86,7 +86,7 @@ OS 读面收进 `ProcessFacts`（`infra/proc.ts`）一处：`Sampler` 只向它�
 
 doc-contract 与「账本↔计划」不再是 `PreFlight` 里的两个分支，而是**同一族策略**（登记表驱动、零新增判定面）。
 
-**规则的唯一家是登记表的「规则声明面」**（不是元素面）：`contract/declare.ts` 今日的 `DeclaredRegistries` 只有骨架元素表 `ElementRegistry`（`anchor` / `presence` / `valuePattern` / `refKind` / `home`；定义 `contract/declare.ts:53-78`，四张登记表落点 `:1059-1064`），它列的是文档元素、不含任何规则名；而策略族今天是 `contract/judge.ts` 的 `Contract#buildPolicy()` 里 15 个硬编码 `new`（`contract/judge.ts:133-150`）。本 phase 增一层 `RuleDeclaration`（规则 id + 适用 docKey 集合 + 作用域 `doc|ledger`），`#buildPolicy()` 改为**遍历声明构造策略**——于是「改登记表即改清单与策略」，只有一处来源。跨账本两条作用域标 `ledger`，由 `ContractInput` 携带的可选**账本事实包**（计划任务集合 + 已闭合波次 + 波行快照）求值。
+**规则的唯一家是登记表的「规则声明面」**（不是元素面）：`contract/declare.ts` 今日的 `DeclaredRegistries` 只有骨架元素表 `ElementRegistry`（`anchor` / `presence` / `valuePattern` / `refKind` / `home`；定义 `contract/declare.ts:53-78`，四张登记表落点 `:1059-1064`），它列的是文档元素、不含任何规则名；而策略族今天是 `contract/judge.ts` 的 `Contract#buildPolicy()` 里 15 个硬编码 `new`（`contract/judge.ts:133-150`）。本 phase 增一层 `RuleDeclaration`（规则 id + 适用 docKey 集合 + 作用域 `doc|ledger`），`#buildPolicy()` 改为**遍历声明构造策略**——于是「改登记表即改清单与策略」，只有一处来源。两个作用域各持**唯一入口**：`Contract.validate`（判文档）只跑 `doc` 作用域策略；跨账本两条由独立入口 `Contract.validateLedger(input, LedgerFacts)` 求值（账本事实包 = 计划任务集合 + 已闭合波次 + 波行快照）——判文档时不跑 ledger 规则、判账本时不兼判文档，避免「一个入口两种判据」。
 
 | 规则 id | 适用 docKey | 作用域 |
 |---|---|---|
@@ -277,3 +277,4 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 | v0.2 | 2026-10-27 | 七前提重审：四处收敛为三个抽象（`InFlight` · `ConsistencyRules` · `LineIdentity`）+ 一个观测快照——① **撤 `Introduced in`**，改波行闭合时的 `planTasks` 快照（引擎观测事实，零新增作者字段，`Ref plan version` 判为不可行不必要）② **锁提到工作树级**并交 `proper-lockfile`（`stale: Infinity`），`--steal-stale` 为唯一刻意不精简项，`board` / `--dry-run` 主动报可接管 ③ **进程事实外包** `ps-list` + `pidusage`，`Sampler` 的 `ps` 解析退役 ④ **写面原子化** `write-file-atomic`（`Workspace.writeJson` 单一缝）⑤ 两套漂移判定合为 `LineIdentity`（branch 复用 plan 的 doc-revision）⑥ 两类结构门合为 registry 派生的一族，已检清单自 `declaredRegistries` 派生 ⑦ 消灭写而无读的 `liveness.json` 独立面 ⑧ §1 取证压缩为表 | [human] · Claude（kairos:cdd-design [P21] → cdd-spec-writer · 2026-10-27） |
 | v0.3 | 2026-10-27 | review-1 修订（全部 findings + 编排器裁定）：① 已检清单来源钉成登记表新增的 **规则声明面**（规则 id + 适用 docKey + 作用域 doc 或 ledger），`Contract#buildPolicy()` 由硬编码改派生，跨账本两条作用域 ledger、由 `ContractInput` 可选账本事实包求值，「元素面 ≠ 规则面」写死 ② **组 CPU 保留 `ps -g`**，收进 `infra/proc.ts` 唯一 OS 读面；`ps-list` 只接存活 / PPID 链 / 组去重，**不引 `pidusage`**（reparent / setsid 会假 stall），依赖 5→8 ③ `InFlight` 在第一次写之前自发布 `.kairos/.gitignore`（标记是记录的前置条件），补门序旁注与「全新命名空间被 kill 后树不脏」pin ④ 两条无形状规则给出判据 + 违例样例 ⑤ §4.2 判据改为 drift-aware 的「该线有可派发 open round」，事实由 Run / Lifecycle 入参传给 `NextStepRouter.resolve` ⑥ §4.1 收窄为「不在账本身份 / 评测面引 commit sha」，`CrashRecord` 两项标为事后诊断面（D24 零影响） ⑦ §3.2 动词统一为「不落地」 ⑧ pin 精度修正（`preflight.ts:136-277` · `SampleRecord` 改指 `session/ledger.ts:170-173` · §5.5 补 `ledger.ts:959-960` + `lifecycle.ts:643,649`） ⑨ EOF 换行纪律入 Constraints；parent-version → v2.83 | [human] · Claude（kairos:cdd-design [P21] → cdd-spec-writer · review-1 fix · 2026-10-27） |
 | v0.4 | 2026-10-27 | review-2 修订（全部 findings + 编排器裁定）：① **门禁判据从「持锁」改为「记录存在」**（锁只承担取锁互斥，其生命周期归库）；「不自动释放」的对象点明为意图记录，SIGKILL 留锁与记录、其余退出路径只留记录，AC 同步限定 ② `proper-lockfile` 三配置显式钉死（`stale: 12h` · `update: 60s` · `realpath: false`），「永不自动抢」改由记录 + pid 判据保证，有限 `stale` 不违背该原则；§2.2 与 §6.2 同登记 ③ 损坏记录由 fail-open 收窄为**三态**，损坏 + 活锁按持有处理且不得静默清掉 ④ §6.4 给出 `plan-ledger` 门定义（两条 ledger 规则 · plan / wave / branch 派发 · gate/reason 词 `no-ledger-facts` / `plan-ahead` · 与 doc-contract 按作用域分工、清单合并渲染一次）；§3.4 补 `skipped (no doc target)` 配对句 ⑤ §5.6 删掉「版本信息在内容首行」的错误括号，改为账本 `brief-revision` 承担且正文不得引入头行 ⑥ §5.3 残余交付点名为「骨架渲两条 step 样例」与「Task 字段键序钉死」，不加 continuation 行，并补现况 pin ⑦ §2.4 改写为「现存零 stash / checkout -- 建议，本 phase 只补三句纪律」，grep pin 降为回归门（基线已绿） ⑧ 剩余现状主张补行 pin（`contract/declare.ts:53-78,1059-1064` · `contract/judge.ts:133-150` · `session/preflight.ts:56-75` · `face/board-view.ts:209-220`），并点明反转 `board-view.ts:210-211` 的既有裁定 ⑨ 措辞统一为「唯一例外（据实登记）」；parent-version → v2.84 | [human] · Claude（kairos:cdd-design [P21] → cdd-spec-writer · review-2 fix · 2026-10-27） |
+| v0.5 | 2026-10-28 | 计划期的设计回填（`backfill-design`）：两个作用域各持唯一入口——`Contract.validate` 只跑 `doc` 作用域，跨账本两条由 `Contract.validateLedger(input, LedgerFacts)` 独立入口求值（取代「`ContractInput` 带可选账本包」的写法：一个入口两种判据会让调用侧与读取侧各自推断该不该跑 ledger 规则）。零行为变化，仅接口面收敛 | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |

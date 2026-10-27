@@ -1,0 +1,371 @@
+---
+title: 引擎文档工具（Engine Doc-Tooling）— P21 实施计划：引擎作为唯一读写路径
+doc-type: plan
+version: v0.1
+date: 2026-10-28
+slug: 2026-10-10-engine-doc-tooling-p21
+base: develop
+---
+
+## Constraints
+
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p21-design.md` v0.5 已批准的面。三个抽象名（`InFlight` · `ConsistencyRules` 的规则声明面 · `LineIdentity`）· 波行 `planTasks` 快照 · 门序 `tree-clean → in-flight → graph → plan-ledger → wave → doc-contract` · 三句恢复纪律（先看工作树 · 能用的改动 commit · 坏掉的改动丢弃）是既定字节，不得改名或改序。
+- **锁与在飞判据**：锁交 `proper-lockfile`（`stale: 12h` · `update: 60s` · `realpath: false` · `retries: 0`）；**门禁判据是记录存在 + pid 存活，锁是否持有一律不作判据**（该包在任何优雅退出上自行删锁，只有 SIGKILL 留锁）；接管只走显式 `--steal-stale`。
+- **运行时依赖只加三个**：`write-file-atomic` · `ps-list` · `proper-lockfile`（5 → 8）。**组 CPU 保留 `ps -g`**，收进 `infra/proc.ts` 作为唯一 OS 读面——这是「OS 面优先第三方包」的据实例外（无跨平台成熟包提供进程组累计 CPU），**不引入 `pidusage`**。
+- **零裸函数**：新增面全部是类 / 类型 / 常量数据；`pnpm run check:no-bare-functions` 必须零命中。
+- **单源纪律**：规则清单只读规则声明面（`Contract` 策略族与 `checked` 面同源派生）；在飞状态只在 `InFlight` 记录；追加判据只读波行 `planTasks` 快照；crash 文件名只读 `RoundNaming`。**任何面都不得存第二份真源**。
+- **删除即删除**：`liveness.json` 独立产物 · `Sampler` 的 `TIME_PATTERN` 与 `execFileSync("ps")`（迁入 `proc.ts` 不算保留两份）· `Contract.#buildPolicy` 的 15 个硬编码 `new` · `board-view.ts` 的 `never the stored number` 注释一律退净，不留兼容层。
+- **冻结面**：`StallJudge` 的阈值与真值表 · 四类文档的结构（登记表元素与骨架标题树）· 八命令面（`cdd` 仍是 implement / review / fix / base / schema / issue / board / init）· handoff 载体 schema 的声明面（不加字段、不加 plane）· `rounds` 的周期号语义（D28）。
+- **brief 正文即指纹**：任何任务都不得给 brief 加头行、版本行或稳定前缀——那会让所有已评审波次的 `brief-revision` 判漂移（D30 门控整体重开）。
+- **调用纪律**：引擎一律本地 `node packages/cdd-engine/src-next/bin.ts`；背景派发 + 等完成通知，读全量 stdout/stderr，不过滤。
+- **提交门禁**：每任务提交前过 `pnpm run precommit`；Task 8 收尾跑 `env -u AI_AGENT pnpm run validate` 全量（`AI_AGENT` 在场会让既有注入派发 E2E 误红）。
+
+### 未覆盖输入面（Review Focus — 逐条已钉测试或明确不做）
+
+- **跨 slug 并发派发**（另一个 phase 的工作区正在派发）：锁在工作树级，任何 slug 的第二次派发都被拒 —— **Task 6** 钉（两个不同 slug 的 `InFlight` 记录，第二次 `vet` 必拒）。
+- **记录损坏 + 活锁**（半截 JSON 与真损坏同形）：按持有处理、唯一出口 `--steal-stale`，**不得被静默清掉** —— **Task 4** 钉三态、**Task 6** 钉报文与出口。
+- **全新命名空间首轮被杀**（`.gitignore` 标记尚未发布）：`InFlight` 自己发布标记，被杀后 `git status --porcelain` 必须为空 —— **Task 4** 钉。
+- **组长先退 / setsid 孙进程**（组 CPU 读数的语义边界）：`ps -g` 的读法不变，行为与今日逐条一致 —— **Task 1** 以 `ps -g` 的解析用例与「组号 = 子进程 pid」断言钉住，**明确不做**成员重算。
+- **pid 复用**（持有 pid 已是另一个进程）：`startedAt` 与 `pidusage` 之外的容差判定由 `ProcessFacts.live(pid, startedAt)` 承担 —— **Task 4** 钉容差边界的反例（同 pid、`startedAt` 差 10 分钟 → 判亡）。
+- **计划领先账本的边界**（恰好编号大于账本最大任务号 / 小于则不是未开工）：**Task 2** 的三条用例（放行 / 滞留 / 变异转红）。
+- **brief 内容指纹稳定性**：任何任务都不许改 brief 的渲染字节 —— **Task 7** 的指纹 pin 顺带守（同一计划两次渲染同 hash）。
+- **`--steal-stale` 与 `--dry-run` 同现**：预览对锁零写、不接管，持锁时 exit 1 —— **Task 6** 钉（锁文件前后字节不变）。
+
+### Task 1: OS 适配器（`infra/atomic.ts` · `infra/proc.ts` · 单一写缝 · `Sampler` 改调）
+
+- **Objective**: 把引擎里两块手写 OS 面换成成熟包的薄适配：**所有 JSON 产物写入原子化**（`Workspace.writeJson` 是唯一写缝，`progress` / `crash` / `handoff` / in-flight 全走它），**所有进程事实收进一个类**（存活 · PPID 链 · 进程组去重 · 组累计 CPU）。`ps -g` 的读法与 `TIME_PATTERN` 迁入 `infra/proc.ts`，`Sampler` 只组装两条腿——引擎其余面零 `ps` 调用。
+- **Files**: Create `packages/cdd-engine/src-next/infra/atomic.ts` · `packages/cdd-engine/src-next/infra/proc.ts` · `packages/cdd-engine/src-next/infra/__tests__/proc.test.ts` · `packages/cdd-engine/src-next/infra/__tests__/atomic.test.ts`; Modify `packages/cdd-engine/src-next/infra/workspace.ts`（`writeJson` 改原子写）· `packages/cdd-engine/src-next/face/termination.ts`（`Sampler` 的 `#groupCpuMs` / `TIME_PATTERN` 迁出，`probe()` 改调 `ProcessFacts`）· `packages/cdd-engine/package.json`（`write-file-atomic` · `ps-list`）
+- **Consumes**: `infra/workspace.ts` 的 `Workspace.writeJson(name, data)`（唯一写缝，`mkdir` 已先于写）· `face/termination.ts:262-290` 的 `#groupCpuMs` 现状（`execFileSync("ps", ["-o","time=","-g",pgid])` + `TIME_PATTERN`）。
+- **Produces**:
+  ```ts
+  // infra/atomic.ts
+  export class AtomicWriter {
+    /** write-file-atomic 的同步面：临时文件 + rename，权限与既有文件对齐。 */
+    write(file: string, text: string): void;
+  }
+
+  // infra/proc.ts
+  export interface ProcRow { readonly pid: number; readonly ppid: number; readonly cmd: string; }
+  export class ProcessFacts {
+    /** 全部进程快照（ps-list 一次读；排序稳定，便于去重判定）。 */
+    static async snapshot(): Promise<readonly ProcRow[]>;
+    /** 组累计 CPU（ms）。保留 `ps -o time= -g` 的组读法；读不到 → null（fail-open）。 */
+    static groupCpuMs(pgid: number): number | null;
+    /** 组成员的 pid 集合：以 pgid 为根的 PPID 下降（包装进程与其子进程算一个派发）。 */
+    static groupMembers(pgid: number, rows: readonly ProcRow[]): readonly number[];
+    /** 存活判定：进程在册 且 启动时刻与记录的 startedAt 相容（±60s）。
+     *  进程不在册 → false；在册但 startedAt 不相容 → false（pid 复用）；读不到 → null。 */
+    static async live(pid: number, startedAt: number): Promise<boolean | null>;
+    /** `ps -o time=` 的读数字形（BSD 有厘秒、Linux 整秒）——迁自 Sampler，唯一一份。 */
+    static readonly TIME_PATTERN: RegExp;
+  }
+  ```
+- **Steps**:
+  - 添加依赖：`pnpm -C packages/cdd-engine add write-file-atomic ps-list` —— checkable: `packages/cdd-engine/package.json#dependencies` 出现两项且 `pnpm -C packages/cdd-engine install` 零报错
+  - 写失败测试 `atomic.test.ts`：`new AtomicWriter().write(file, text)` 后内容精确相等，且同目录**零残留临时文件**（`readdirSync` 只含目标文件） —— checkable: FAIL（模块不存在）
+  - 写失败测试 `atomic.test.ts`（写失败不改旧值）：目标目录只读 → `write` 抛出，`readFileSync(file)` 仍是上一次的完整内容 —— checkable: FAIL
+  - 实现 `AtomicWriter`（`writeFileSync(file, text, { encoding: "utf8" })` 来自 `write-file-atomic`），并让 `Workspace.writeJson` 改调它（保留 `mkdirSync` 先行） —— checkable: 上述两用例转绿，`grep -n "writeFileSync" packages/cdd-engine/src-next/infra/workspace.ts` 只剩 `writeFileSync` 的 `.gitignore` 发布点（标记面，非 JSON 写缝）
+  - 写失败测试 `proc.test.ts`（组 CPU 解析）：起一个真子进程组（`execa` 起 `node -e` 死循环，`pgid = child.pid`），`ProcessFacts.groupCpuMs(pgid)` 返回 `>= 0` 的数字；组号不存在 → `null` —— checkable: FAIL（模块不存在）
+  - 写失败测试 `proc.test.ts`（PPID 下降去重）：父 `node -e` 再 spawn 一个孙进程 → `snapshot()` 里父与孙都在，`groupMembers(child.pid, rows)` 同时含两者；只含父进程的包装形态（无孙）只返回一项 —— checkable: FAIL
+  - 写失败测试 `proc.test.ts`（存活与 pid 复用）：`live(process.pid, Date.now())` → `true`；`live(process.pid, Date.now() - 600_000)` → `false`；`live(<不存在的 pid>, now)` → `false` —— checkable: FAIL
+  - 实现 `ProcessFacts`：`snapshot()` 包 `ps-list`；`groupCpuMs` 原样迁 `Sampler` 的 `execFileSync("ps", ...)` + `TIME_PATTERN`；`groupMembers` 做 PPID 广搜；`live` 用 `pidusage` 语义的 `elapsed`（由 `ps-list` 无 startTime，故用 `process.kill(pid, 0)` + `ps-list` 在册 + `startedAt` 容差判定，不引入 `pidusage`） —— checkable: 上述三组用例转绿
+  - `Sampler` 改调：`#groupCpuMs` 删除改 `ProcessFacts.groupCpuMs(this.#pgid)`；`TIME_PATTERN` 从 `Sampler` 移除 —— checkable: `grep -rn "execFileSync\|TIME_PATTERN" packages/cdd-engine/src-next --include='*.ts'` 只命中 `infra/proc.ts`
+  - `termination.test.ts` 的 `Sampler` 用例随迁移改指（保留同断言语义：组号 = 子进程 pid · 读不到 → null） —— checkable: `pnpm -C packages/cdd-engine test src-next/face/__tests__/termination.test.ts` 绿
+- **Acceptance**: `atomic.test.ts` 与 `proc.test.ts` 各三组用例绿 · `Workspace.writeJson` 经 `AtomicWriter`（进程被杀不留半截 JSON，由「写失败不改旧值」用例背书）· 引擎面 `execFileSync("ps")` 与 `TIME_PATTERN` 只在 `infra/proc.ts` 一处 · `StallJudge` 阈值与真值表零改（`termination.test.ts` 全绿）· `pnpm -C packages/cdd-engine test` 绿 · 零裸函数门绿
+- **DependsOn**: none
+
+### Task 2: `ConsistencyRules`（规则声明面 · 七条规则 · `plan-ledger` 门 · 已检清单）
+
+- **Objective**: 把「结构规则」变成**声明面驱动的单一族**：新增规则声明表（规则 id + 适用 docKey + 作用域 doc|ledger），`Contract` 的策略族从今天 15 个硬编码 `new` 改为按声明派生；五条 intra-doc 规则从「只在 overall 分支」放开到四类文档，两条跨账本规则新增并挂在 preflight 的 `plan-ledger` 门上；每次派发输出**已检规则清单**（`passed` / `failed` / `skipped (原因)`），使「检查过」与「通过」可分。
+- **Files**: Create `packages/cdd-engine/src-next/contract/rules.ts` · `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`; Modify `packages/cdd-engine/src-next/contract/declare.ts`（导出规则声明表）· `packages/cdd-engine/src-next/contract/judge.ts`（`#buildPolicy` 改派生 · `ContractInput` 增 `ledger`）· `packages/cdd-engine/src-next/contract/invariants.ts`（三条新 intra-doc 策略 + 两条 ledger 策略）· `packages/cdd-engine/src-next/session/preflight.ts`（`plan-ledger` 门 + `checked`）· `packages/cdd-engine/src-next/face/words.ts`（门与 skipped 词行）· `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts` · `.../contract/__tests__/judge.test.ts`
+- **Consumes**: `contract/declare.ts:53-78` 的 `RegistryElement` / `ElementRegistry` / `DeclaredRegistries`（元素面，规则面与其并列而非其成员）· `contract/judge.ts:133-150` 的硬编码族 · `invariants.ts` 的 `Invariant` 基类（`name` + `evaluate(ctx)`）与 `Finding` 形态 · `session/preflight.ts:56-75` 的 `PreFlightVerdict`（现无 `checked`）· `session/ledger.ts` 的 `closedWaves()` 与 `rowFor()/roundCount()`（ledger 规则的数据源）
+- **Produces**:
+  ```ts
+  // contract/rules.ts — 规则声明面：规则清单的唯一真源
+  export interface RuleRow {
+    /** 规则 id（= 策略类的 `name`，一个概念一个名字）。 */
+    readonly id: string;
+    /** 适用的 docKey（"all" = 四类文档同判）。 */
+    readonly docKeys: DocKey[] | "all";
+    /** 作用域：doc 规则在 doc-contract 门求值；ledger 规则在 plan-ledger 门求值。 */
+    readonly scope: "doc" | "ledger";
+  }
+  export const RULE_REGISTRY: readonly RuleRow[]; // 15 条既有 doc 策略 + 3 条新 doc 策略 + 2 条 ledger 策略 = 20 行（一行一策略，id 即类名）
+
+  // contract/judge.ts
+  export interface LedgerFacts {
+    readonly planTasks: readonly number[];
+    readonly recordedTasks: readonly number[];
+    readonly closedWaves: readonly (readonly number[])[];
+    readonly snapshots: readonly { readonly wave: string; readonly planTasks: readonly number[] }[];
+    readonly maxRecordedTask: number;
+  }
+  export interface ContractInput {
+    // …既有字段不动（docKey / path / content / root / phaseId / slugIndex / fs）…
+  }
+  export class Contract {
+    /** 声明驱动的策略组成（派生，零硬编码族）——只管 doc 作用域。 */
+    static policy(): Record<DocKey, readonly Invariant[]>;
+    /** 已检清单的数据面：每条规则的 id + 适用 docKey + 作用域（渲染在 face 侧）。 */
+    static ruleRows(): readonly RuleRow[];
+    /** ledger 作用域的唯一入口（plan-ledger 门调用；文档作用域不跑它）。 */
+    validateLedger(input: ContractInput & { readonly ledger: LedgerFacts }): Finding[];
+  }
+
+  // session/preflight.ts
+  export type PreFlightGateName =
+    | "tree-clean" | "in-flight" | "graph" | "plan-ledger" | "wave" | "doc-contract";
+  export type PreFlightReason =
+    | "dirty-tree" | "graph" | WaveGateReason | "doc-contract"
+    | "no-ledger-facts" | "plan-ahead";
+  export interface PreFlightVerdict {
+    // …既有字段不动…
+    /** 已检面：门与规则逐条 —— `${gate}` 或 `${ruleId}: ${passed|failed|skipped (原因)}`。 */
+    readonly checked: readonly string[];
+  }
+  ```
+- **Steps**:
+  - 写失败测试 `rules.test.ts`（声明面自检）：`RULE_REGISTRY` 每行 `id` 唯一 · `id` 在策略族里各有一实例 · `docKeys` 非空 · 每条 `scope: "ledger"` 的规则 docKeys 含 `plan` —— checkable: FAIL（模块不存在）
+  - 写失败测试 `judge.test.ts`（四类文档同判，changelog 版本唯一）：构造 `phase-spec` 与 `plan` 文档，变更记录出现重复版本（例如两行 `v0.2`）→ findings 含 `kind === "uniqueness"` 且 `field === "Change history"` —— checkable: FAIL（今日只在 overall 生效）
+  - 写失败测试（升序与末行一致）：plan 文档变更记录 `v0.3` 在 `v0.2` 之上 → `kind === "order"`；front-matter `version: v0.4` 而末行 `v0.3` → `kind === "order"`（同一策略两个 finding 形态） —— checkable: FAIL
+  - 写失败测试（变更行落进其它表格 / 列表标记双写）：`## Phase inventory` 表格里放一行首列 `v0.9` → 新规则红且 fix 句为「把该行移回 Change history」；正文写 `- - 重复标记` → 新规则红且 fix 句为「合并为单枚标记」 —— checkable: FAIL
+  - 实现三条新 doc 策略与两条 ledger 策略（一个策略一个类、id 即类名）：`ChangeLineageInvariant`（front-matter `version:` 与变更记录末行一致）· `RowHomeInvariant`（变更行不得落进其它表格）· `ListMarkerInvariant`（列表标记双写）· `LedgerLayeringInvariant`（已闭合波次贴合 `DependsOn` 分层）· `LedgerTaskSetInvariant`（计划任务集合 vs 账本已记录，允许领先）；`UniquenessInvariant` / `OrderInvariant` 按 `RULE_REGISTRY` 放开到四类文档 —— checkable: 上述四组用例转绿
+  - 写失败测试（ledger 规则与 skipped）：`validateLedger` 提供 `planTasks = [1,2,3] · recordedTasks = [1,2]` 且 `maxRecordedTask = 2` → 零 finding 且清单该行为 `passed`；`planTasks = [1,3] · recordedTasks = [1,2]`（中间缺 2）→ `kind === "ledger"` 红；本轮未提供 `LedgerFacts`（非 plan/wave/branch 派发）→ 清单该行为 `skipped (no ledger facts)` —— checkable: FAIL
+  - 实现两条 ledger 策略 + `LedgerFacts` 组装缝（`preflight.ts` 内从 `Ledger` + 计划文本构造 `LedgerFacts`，`snapshots` 读波行的 `planTasks`，本任务里该字段可缺省为 `[]`，Task 7 接上） —— checkable: 上述用例转绿
+  - 实现 `#buildPolicy` 派生 + `Contract.policy()` / `Contract.ruleRows()`；删除 15 个硬编码实例化 —— checkable: `grep -n "new .*Invariant()" packages/cdd-engine/src-next/contract/judge.ts` 零命中
+  - `PreFlight` 增 `plan-ledger` 门（紧随 `graph` 之后、`wave` 之前）：doc / wave / branch 派发都跑；`checked` 逐条渲染，doc 作用域规则在 wave / branch 派发（`ctx.doc === null`）渲染 `skipped (no doc target)` —— checkable: `preflight.test.ts` 新增用例绿（wave 派发的 `checked` 含五条 doc 规则的 skipped 行）
+  - 变异验证用例：删掉中间一条账本记录（`recordedTasks` 从 `[1,2,3]` 改成 `[1,3]`）→ `plan-ledger` 门必须红 —— checkable: 用例绿（这是「放宽不得滑成永远绿」的守卫）
+  - 窗期放行用例：`planTasks = [1,2,3,4] · recordedTasks = [1,2,3]` → 放行且 `checked` 含 `plan-ledger: info (plan leads ledger by 1 tasks)` —— checkable: 用例绿
+- **Acceptance**: 七条规则在四类文档 / plan+账本上各有红 pin（含两条新 intra-doc 与两条 ledger）· 变更记录历史行原文即为绿（不得为转绿改写历史，用例以真实历史形态为夹具）· front-matter 与末行不一致 / 行落进其它表格 / 标记双写各有红 pin 与点名 fix 句 · 散文「N 任务 / M 波」零判压（无该规则的用例，也无该策略）· `plan-ledger` 门在 doc/wave/branch 三面都跑，wave 派发的 `checked` 含五条 doc 规则的 `skipped (no doc target)` · 变异用例转红 · `RULE_REGISTRY` 与策略族一一对应（改登记表即改清单，由 `rules.test.ts` 钉） · `pnpm -C packages/cdd-engine test` 绿 · 零裸函数门绿
+- **DependsOn**: none
+
+### Task 3: `LineIdentity`（三种行一个身份面 · branch 身份写回 · `next:` 入参）
+
+- **Objective**: 把今天两套平行的漂移判定合到一个身份面，并补上第三行：branch 线以**其计划文档的 `doc-revision`** 为 reviewed 身份（不新增 ref kind、不引入 commit sha）；`next:` 的发令判据从「branch 面已闭合」改为「该线是否有可派发的 open round」，事实由持 ledger 的一侧入参传入，capsule 保持纯渲染。
+- **Files**: Create `packages/cdd-engine/src-next/session/line-identity.ts` · `packages/cdd-engine/src-next/session/__tests__/line-identity.test.ts`; Modify `packages/cdd-engine/src-next/session/ledger.ts`（`docLineVerdict` / `#briefDrift` 改调身份面）· `packages/cdd-engine/src-next/session/run.ts`（`#bookkeep` 的写回条件 + route 入参）· `packages/cdd-engine/src-next/session/next.ts`（`resolve` 增「目标面 open」入参）· `packages/cdd-engine/src-next/face/capsule.ts`（`routeText` 传参，仍零判定）
+- **Consumes**: `session/ledger.ts:583-599` 的 `docLineVerdict` 与 `:699-720` 的 `#briefDrift`（两套判定合一的输入）· `session/ledger.ts:517-545` 的 `recordReviewedRevision` / `recordReviewedBrief` · `session/run.ts:489-498` 的唯一写回点（现只对 `frame.phase === "review"`）· `session/next.ts` 的 `Route` / `PIPELINE_NEXT` / `NextStepRouter.resolve` · `face/cli.ts:135,962` 的 `AuditTarget`（**branch 线目标 = `{ kind: "branch" }`，不带 doc**，计划路径来自 lifecycle 的 `#planPath`）
+- **Produces**:
+  ```ts
+  // session/line-identity.ts
+  export interface CurrentRevision {
+    /** 该行「判定输入」的当前修订（doc 行 = 文档内容；wave 行 = 渲染后 brief；branch 行 = 计划文档）。 */
+    readonly ref: ReviewedRevisionRef;
+  }
+  export class LineIdentity {
+    /** drift(same|drift|null) —— 三条行共用的唯一判定：记录的身份 vs 判定时刻现读的身份。
+     *  null = 无记录 / 读不到（沿用既有的 legacy 闭合面，只有 present facts 才落判定）。 */
+    verdict(recorded: ReviewedRevisionRef | null, current: CurrentRevision | null): "same" | "drift" | null;
+  }
+
+  // session/next.ts
+  export interface NextStepRouter {
+    /** targetLineOpen —— 目标面「是否有可派发的 open round」的**事实入参**（由持 ledger 的一侧
+     *  在算 route 时给出；router 只做判定，capsule 只做渲染）。波线闭合时若 branch 面不可派发，
+     *  不再渲染 `review --type branch …` 字面，落 branch 面自身的下一站。 */
+    resolve(active: Route | null, key: PipelineKey, targetLineOpen?: boolean): Route | null;
+  }
+  ```
+- **Steps**:
+  - 写失败测试 `line-identity.test.ts`：同 ref → `same`；异 ref 且同 kind → `drift`；异 kind → `drift`；`recorded === null` 或 `current === null` → `null` —— checkable: FAIL（模块不存在）
+  - 实现 `LineIdentity`，并把 `Ledger.docLineVerdict` 与 `#briefDrift` 改为委托它（行为逐条不变，`ledger.test.ts` 全绿） —— checkable: `ledger.test.ts` 零改用例全绿（既有断言即行为等价证明）
+  - 写失败测试（branch 身份写回）：一次 `branch-review` 轮完成后，`progress.json` 的 `branch` 行带 `reviewedRevision {kind: "doc-revision", doc: <计划路径>, doc_hash}` —— checkable: FAIL（今日 branch 行永不落该字段）
+  - 实现写回：`run.ts#bookkeep` 的身份写回条件从「`frame.phase === "review"`」改为「review 或 branch-review」，branch 腿用 `this.#planPath` 的 `docRevision`（与 wave 腿共用 `#planPath`，零新路径源） —— checkable: 上述用例转绿
+  - 写失败测试（branch 重开）：branch 线闭合后计划修订前进 → `LineIdentity.verdict` 为 `drift`，行门判 `open` 并允许再开一轮 branch review；计划未动 → `same` 且闭合 —— checkable: FAIL
+  - 写失败测试（`next:` 不自相矛盾）：波线闭合且 branch 线**无可派发 open round** → `NextStepRouter.resolve` 不再返回 `PIPELINE_NEXT.wave` 的字面，落 branch 面的下一站（`kairos:cdd-close`）；branch 线**可派发**时仍返回该字面 —— checkable: FAIL（今日恒返回字面）
+  - 实现 `resolve(active, key, targetLineOpen)`：`PIPELINE_NEXT.wave` 仅在 `targetLineOpen !== false` 时渲染；`capsule.routeText` 从持 ledger 的一侧拿到该事实后原样传入（capsule 零 ledger 读、零判定） —— checkable: 上述用例转绿；`grep -n "ledger" packages/cdd-engine/src-next/face/capsule.ts` 零命中
+- **Acceptance**: `line-identity.test.ts` 四组用例绿 · `docLineVerdict` 与 `#briefDrift` 两套判定收敛为一次实现（`grep -c "sameRef" session/ledger.ts` 不再直接出现于两处）· branch 行终审后落 `reviewedRevision`（`doc-revision` kind，指向计划）· 计划前进可开第二轮、未动保持闭合 · 波线闭合时 `next:` 只在 branch 线可派发时发 `review --type branch` 字面 · capsule 零 ledger 读（纯渲染面）· `pnpm -C packages/cdd-engine test` 绿
+- **DependsOn**: none
+
+### Task 4: `InFlight`（在飞记录 · 锁 · 三态 · 采样收口 · `--steal-stale`）
+
+- **Objective**: 把在飞状态升格为唯一事实并交出唯一的锁：`InFlight` 记录（pid/pgid · 命令 · slug · startedAt · wave/phase · briefHash · plan · 采样尾迹）在 spawn **之前**写入工作树级 `.kairos/cdd/`；采样循环经同一个类覆写；收工释放；崩溃 / kill / 超时后**记录留档且不由任何退出路径移除**；`liveness.json` 独立产物消灭。同时落 `--steal-stale` 旗标与损坏记录三态。
+- **Files**: Create `packages/cdd-engine/src-next/session/inflight.ts` · `packages/cdd-engine/src-next/session/__tests__/inflight.test.ts`; Modify `packages/cdd-engine/src-next/face/lifecycle.ts`（取锁/写意图/释放 · `ChildRun` 换 handle · 删 `liveness.json` 路径）· `packages/cdd-engine/src-next/face/termination.ts`（`SamplingLoop` 写点改调 `InFlight.heartbeat`）· `packages/cdd-engine/src-next/face/declare.ts`（`ARGV_CHANNEL.stealStale` + 三命令 keys）· `packages/cdd-engine/src-next/face/words.ts`（持有 / 可接管 / 损坏 / 恢复三句）· `packages/cdd-engine/package.json`（`proper-lockfile`）
+- **Consumes**: `infra/atomic.ts` 的 `AtomicWriter`（Task 1）· `infra/proc.ts` 的 `ProcessFacts.live/groupMembers`（Task 1）· `infra/workspace.ts` 的 `WorkspaceRoot`（`.kairos/cdd` 命名空间根与 `.gitignore` 标记）· `face/termination.ts:344-440` 的 `SamplingLoop`（现直写 `heartbeatPath`）· `face/lifecycle.ts:183` 的 `heartbeatPath` 派生点
+- **Produces**:
+  ```ts
+  // session/inflight.ts
+  export interface InFlightRecord {
+    readonly pid: number; readonly pgid: number; readonly command: string; readonly slug: string;
+    readonly startedAt: number; readonly wave: string | null; readonly phase: string | null;
+    readonly briefHash: string | null; readonly plan: string | null;
+    readonly sampledAt: number | null; readonly verdict: string | null;
+  }
+  export type InFlightState =
+    | { readonly kind: "absent" }
+    | { readonly kind: "held"; readonly record: InFlightRecord; readonly alive: boolean }
+    | { readonly kind: "corrupt"; readonly locked: boolean };
+  export class InFlight {
+    /** 工作树级路径 `.kairos/cdd/in-flight.json` 与其锁（锁载体 = 同目录）。 */
+    static readonly FILE: string;
+    /** 发布 `.kairos/.gitignore`（`*`）标记——记录写之前的前置条件，不依赖 WorkspaceRoot.ensure 的时点。 */
+    ensureMarker(): InFlight;
+    /** 取锁 + 写意图（spawn 之前唯一调用点）。已持有 → 抛 HoldingError（含 holder 事实）。 */
+    acquire(record: InFlightRecord): void;
+    /** 派发期间的采样尾迹覆写（身份字段保持不变）。 */
+    heartbeat(sample: { readonly sampledAt: number; readonly verdict: string }): void;
+    /** 收工释放：删记录 + 解锁（唯一的两条移除路径之一）。 */
+    release(): void;
+    /** 判定时刻现读：三态（absent / held(alive) / corrupt(locked)）。 */
+    async inspect(): Promise<InFlightState>;
+    /** 显式接管：前提 = 记录 pid 已不存在（或损坏且锁在）；顺手清锁与记录。 */
+    async steal(reason: string): Promise<InFlightRecord | null>;
+  }
+  ```
+- **Steps**:
+  - 添加依赖 `pnpm -C packages/cdd-engine add proper-lockfile` —— checkable: `package.json#dependencies` 含之，`pnpm -C packages/cdd-engine install` 零报错
+  - 写失败测试（取锁即写意图 + 树不脏）：全新临时仓库（无 `.kairos/`）→ `new InFlight(root, slug).acquire(record)` → 记录文件存在且字段齐全；`git status --porcelain` 为空（标记已发布） —— checkable: FAIL（模块不存在）
+  - 写失败测试（第二次取锁被拒）：对同一根第二次 `acquire` 抛 `HoldingError`，携带 `pid` / `command` / `startedAt` / `wave` / `slug` —— checkable: FAIL
+  - 写失败测试（跨 slug 互斥）：slug A 记录在册 → slug B 的 `acquire` 同样被拒（锁在工作树级） —— checkable: FAIL
+  - 写失败测试（收工释放 / 崩溃留档）：`release()` 后记录与锁都没了；模拟崩溃（只写记录、不解锁、进程已亡）→ `inspect()` 返回 `held` 且 `alive === false`，记录仍在 —— checkable: FAIL
+  - 写失败测试（损坏三态）：记录写成半截 JSON 且锁在 → `corrupt` 且 `locked === true`；同情形锁不在 → `corrupt` 且 `locked === false`；`steal()` 在前者放行并清锁、在「记录可读但 pid 活着」时**抛错拒绝** —— checkable: FAIL
+  - 写失败测试（pid 复用）：记录 `startedAt` 与在册进程启动时刻差 10 分钟 → `alive === false`（`ProcessFacts.live` 的容差） —— checkable: FAIL
+  - 实现 `InFlight`：`ensureMarker()` → `AtomicWriter` 写记录 → `lock()`（`stale: 12h · update: 60s · realpath: false · retries: 0`）→ `acquire` 的反序；`steal` 走「判亡 → 清锁 → 删记录」 —— checkable: 上述六组用例转绿
+  - 接线 `CliLifecycle`：派发前 `ensureMarker()` + `acquire()`，收工（含 `--dry-run` 之外的一切终端态）`release()`；崩溃 / kill / 超时路径**不调** `release()` —— checkable: `termination.test.ts` 的终端态用例全绿，且新增「崩溃后记录仍在」断言
+  - `SamplingLoop` 改调 `InFlight.heartbeat`，删除 `heartbeatPath` 直写与 `liveness.json` 派生；`Sampler.excludesFor` 的排除项改指记录文件 —— checkable: `grep -rn "liveness.json" packages/cdd-engine/src-next --include='*.ts'` 零命中
+  - `declare.ts` 增 `ARGV_CHANNEL.stealStale = { flag: "--steal-stale", type: "bool", help: … }` 并在 implement / review / fix 三命令的 keys 里挂上（命令面仍八条） —— checkable: `cli.test.ts` 的结构 pin 绿（八命令不变）+ 新用例：`cdd implement --steal-stale` 出现在该命令 help 面
+  - `words.ts` 补四组词行：持有报文（pid / 命令 / startedAt / 已运行时长 / 波键 / slug）· 可接管提示 · 记录损坏两形 · 恢复三句（先看工作树 · 能用的改动 commit · 坏掉的改动丢弃） —— checkable: `words.guard.test.ts` 绿 + 新用例断言三句逐字在册
+- **Acceptance**: 记录在 spawn 之前即存在且字段齐全 · 收工释放、崩溃留档（记录不由任何退出路径移除；锁由库在优雅退出时移除）· 跨 slug 互斥生效 · pid 复用判亡（`startedAt` 容差）· 损坏三态与 `steal` 的拒绝/放行 · 全新命名空间被杀后 `git status --porcelain` 为空 · `liveness.json` 零残留 · `--steal-stale` 在 implement/review/fix 帮助面在册 · `pnpm -C packages/cdd-engine test` 绿 · 零裸函数门绿
+- **DependsOn**: 1
+
+### Task 5: 崩溃身份单源（`RoundNaming` · `dispatchBase` / `commitsSince` · 迟到落盘提示）
+
+- **Objective**: 让 crash 记录的两处身份（文件名与 `attemptedHandoff`）从 frame 的单一派生面出来，修掉「wave 号与真实崩溃波不符」「`attemptedHandoff` 指向另一个任务」；给 `CrashRecord` 增 `dispatchBase`（派发前 HEAD）与 `commitsSince`（此后新增提交），并补 kill / 超时后的迟到落盘提示。
+- **Files**: Modify `packages/cdd-engine/src-next/session/round-naming.ts`（增 crash 名/路径派生）· `packages/cdd-engine/src-next/session/ledger.ts`（`CrashRecord` 两字段 · `writeCrash` / `readCrash` 收名字面）· `packages/cdd-engine/src-next/face/lifecycle.ts`（crash 写点改调 `RoundNaming` · 捕获 dispatch 前 HEAD · 计算 `commitsSince`）· `packages/cdd-engine/src-next/face/words.ts`（迟到落盘提示词行）· 测试 `session/__tests__/round-naming.test.ts` · `session/__tests__/ledger.test.ts`
+- **Consumes**: `session/round-naming.ts` 现有的 `report` / `evidence` / `brief` 派生（crash 与它们同源）· `session/ledger.ts:959-965` 的 `crashName/crashPath(lane, round)` 与 `:201-231` 的 `CrashRecord` · `face/lifecycle.ts:643,649` 的 `writeCrash(\`${op}.${frame.type}\`, …)` 与 `attemptedHandoff`
+- **Produces**:
+  ```ts
+  // session/round-naming.ts
+  export class RoundNaming {
+    // …既有报告 / 证据 / brief 派生不动…
+    /** crash 记录的 workspace 相对名：`crash-{line}-{round}.json`，line 由 frame 的单一身份派生
+     *  （wave → `tasks-{tasks}`；branch → `branch`；doc → `spec` / `plan`）。 */
+    crashName(frame: OpenFrame): string;
+    crashPath(frame: OpenFrame): string;
+  }
+
+  // session/ledger.ts
+  export interface CrashRecord {
+    // …既有字段不动…
+    /** 派发前的 HEAD（事后诊断面；进程未 spawn 或非 git 仓库 → null）。 */
+    readonly dispatchBase: string | null;
+    /** 派发前 HEAD 之后新增的提交（`{sha} {subject}` 逐条；无新增 / 非 git → 空数组）。 */
+    readonly commitsSince: readonly string[];
+  }
+  export class Ledger {
+    /** 写 crash 恢复记录 —— 名字由 RoundNaming 给出（单源），本面不再派生 lane。 */
+    writeCrash(name: string, record: CrashRecord): void;
+    readCrash(name: string): CrashRecord | null;
+  }
+  ```
+- **Steps**:
+  - 写失败测试 `round-naming.test.ts`（crash 名与 frame 同源）：wave 帧 `{type: "wave", params: {tasks: "3,4"}, round: 2}` → `crashName` 为 `crash-tasks-3,4-2.json`；branch 帧 → `crash-branch-2.json`；doc 帧 → `crash-plan-2.json`；且 `crashPath` 与 `crashName` 同一派生（`path.endsWith(name)`） —— checkable: FAIL（今日名字由 `lifecycle.ts` 的字符串模板给出）
+  - 实现 `RoundNaming.crashName/crashPath` 并在 `lifecycle.ts` 改调；`Ledger.writeCrash/readCrash` 收 name；删除 `lane` 参数与 `crashName(lane, round)` 旧签名 —— checkable: 上述用例转绿 + `grep -n "crash-\${lane}" packages/cdd-engine/src-next --include='*.ts'` 零命中
+  - 写失败测试（身份一致性 pin）：一次真实崩溃（子进程未写 handoff 即退出）后，磁盘上的 crash 文件名解析出的 wave/round 与 `progress.json` 里本次轮次的键完全一致，且 `attemptedHandoff` 等于本次 frame 的 handoff 路径 —— checkable: FAIL
+  - 写失败测试（`dispatchBase` / `commitsSince`）：子进程先 `git commit` 一次再崩溃 → crash 记录的 `dispatchBase` 是派发前的 HEAD、`commitsSince` 含那条提交（`{sha} {subject}`）；无新增提交 → 空数组 —— checkable: FAIL
+  - 实现：`CliLifecycle` 在派发前读 HEAD（`simple-git` 的 `revparse(["HEAD"])`），crash 写点时算 `git log --oneline {base}..HEAD` —— checkable: 上述用例转绿
+  - `words.ts` 增迟到落盘词行（「可能有迟到落盘，先检查工作树再进评审」）并挂在 kill / 超时 / 崩溃三类终端态的报文尾 —— checkable: 新用例断言三类终端态报文均含该句
+- **Acceptance**: crash 名与 `attemptedHandoff` 与真实 frame 同源（一条 pin 断言两者）· `CrashRecord` 含 `dispatchBase` / `commitsSince`（kill 前的提交在记录里可见）· 三类终端态报文含迟到落盘提示 · lane 形参退役（零残留模板）· `pnpm -C packages/cdd-engine test` 绿 · 零裸函数门绿
+- **DependsOn**: 1
+
+### Task 6: in-flight 门（`PreFlight` 第二道）· `--dry-run` holder 行 · `board` 在读飞行与孤儿
+
+- **Objective**: 把在飞事实接进派发门序（`tree-clean → in-flight → graph → plan-ledger → wave → doc-contract`），持有时点名持有者并只经 `--steal-stale` 接管；`--dry-run` 与真派发同判且对锁零写；`board` 给出在飞行、孤儿 handoff 与按周期语义渲染的轮次列。
+- **Files**: Modify `packages/cdd-engine/src-next/session/preflight.ts`（`in-flight` 门 · `PreFlightContext.inflight` / `stealStale`）· `packages/cdd-engine/src-next/face/cli.ts`（构造 `InFlight` · 传 `--steal-stale` · 拒派发报文）· `packages/cdd-engine/src-next/face/preview.ts`（holder 行 + exit 1）· `packages/cdd-engine/src-next/face/board-view.ts`（在飞行 / 孤儿 / 周期号）· 测试 `session/__tests__/preflight.test.ts` · `face/__tests__/preview.test.ts` · `face/__tests__/board-view.test.ts`
+- **Consumes**: Task 4 的 `InFlight`（`inspect` / `steal` / 三态）与词行 · Task 2 的门序（`plan-ledger` 位次）· `face/cli.ts:696` 的拒绝报文面 · `face/preview.ts` 的预览行渲染面 · `face/board-view.ts:209-220` 的 `roundsCell`
+- **Produces**:
+  ```ts
+  // session/preflight.ts
+  export interface PreFlightContext {
+    // …既有字段不动…
+    /** 在飞事实（派发门唯一读面；null = 未接线，仅测试用）。 */
+    readonly inflight?: InFlight;
+    /** 显式接管旗标：true 时允许 `steal` 掉「pid 已亡 / 损坏且锁在」的记录。 */
+    readonly stealStale?: boolean;
+  }
+  export type PreFlightReason = /* …Task 2 的值… */ | "held" | "stale-holder" | "corrupt-record";
+
+  // face/board-view.ts
+  export class BoardView {
+    /** 按周期号渲染（`review×1,2,3 · fix×2,3`）—— D28 的身份号，不是序号。
+     *  ⚠ deliberate pin break：反转 `roundsCell` 注释里 “never the stored number” 的既有裁定。 */
+    static roundsCell(rounds: Record<string, number[]>): string;
+    /** 在飞行（null = 无人）+ 孤儿 handoff（无对应终态轮次的草稿）。 */
+    static inFlightRows(state: InFlightState, orphans: readonly string[]): readonly string[];
+  }
+  ```
+- **Steps**:
+  - 写失败测试 `preflight.test.ts`（门序与拒绝）：在飞记录在册且 pid 活 → `vet` 返 `ok: false`、`gate === "in-flight"`、`reason === "held"`、报文含 pid / 命令 / startedAt / 波键 / slug、`checked` 顺序为 `tree-clean → in-flight` —— checkable: FAIL
+  - 写失败测试（接管）：记录在册且 pid 已亡 → 无 `stealStale` 时仍拒（`reason === "held"` 且报文含「可 `--steal-stale` 接管」）；`stealStale: true` 时放行并清掉记录与锁 —— checkable: FAIL
+  - 写失败测试（损坏三态）：`corrupt + locked` → 拒（`reason === "corrupt-record"`），`stealStale` 放行；`corrupt + 未锁` → 放行并点名 —— checkable: FAIL
+  - 实现 `in-flight` 门（紧随 `tree-clean`）与 `PreFlightContext` 两字段；`cli.ts` 构造 `InFlight` 并把旗标透传 —— checkable: 上述三组转绿
+  - 写失败测试 `preview.test.ts`（预览同判 + 零写）：持锁时 `--dry-run` 输出含 `lock: held by pid …` 且 exit 1；无锁时既有预览字节不变；锁文件在预览前后字节相同 —— checkable: FAIL
+  - 实现预览面的 holder 行与退 1（不取锁、不接管、不释放） —— checkable: 上述用例转绿
+  - 写失败测试 `board-view.test.ts`（周期号渲染）：`{review: [1,3], fix: [3]}` → `review×1,3 · fix×3`（旧断言 `review×2` 作废 —— deliberate pin break） —— checkable: FAIL
+  - 实现 `roundsCell` 按周期号渲染 + `inFlightRows`（在飞行 + 孤儿）；孤儿判定 = workspace 里 `handoff` 家族文件在 `progress.json` 无对应终态轮次 —— checkable: 上述用例转绿
+  - 写失败测试（孤儿零写）：存在孤儿 handoff 时 `cdd board` 后该文件 mtime 不变、目录内容不变 —— checkable: FAIL → 实现后绿
+- **Acceptance**: 门序 `tree-clean → in-flight → graph → plan-ledger → wave → doc-contract` 在 `checked` 上逐条可读 · 持有报文含 pid / 命令 / startedAt / 波键 / slug · `--steal-stale` 在 pid 活时同样被拒、pid 亡时放行并接管 · 损坏三态与「不得静默清活锁」 · `--dry-run` 同判 exit 1 且锁字节不变 · board 的周期号渲染（deliberate pin break，旧断言同批重锚）· 孤儿列出且零写（mtime 不变）· `pnpm -C packages/cdd-engine test` 绿 · 零裸函数门绿
+- **DependsOn**: 4
+
+### Task 7: 计划文档面（波行 `planTasks` 快照 · 追加判据 · Task 块骨架结构化）
+
+- **Objective**: 让「追加」成为受支持路径，并让计划文档对 AI 更可写：账本每个波行在**闭合时**记下当时的计划任务集合，`WaveGate` 的 `mixed-batch` 据此区分**追加**（放行成新波）与**滞留**（维持 BLOCK），计划领先账本的窗口不再靠人肉解释；同时**零新字段**地把 Task 块的骨架收紧（step 样例从一条改两条、字段键序固定、不加 continuation 行）。
+- **Files**: Modify `packages/cdd-engine/src-next/session/ledger.ts`（`ProgressRow.planTasks` · 闭合时落快照 · 读面）· `packages/cdd-engine/src-next/session/run.ts`（闭合点调用 · 计划任务集合来源）· `packages/cdd-engine/src-next/session/wave.ts`（`mixed-batch` 收窄）· `packages/cdd-engine/src-next/session/preflight.ts`（`LedgerFacts.snapshots` 接上）· `packages/cdd-engine/src-next/render/skeleton.ts`（Task 块两条 step 样例 · 键序 pin）· 测试 `session/__tests__/wave.test.ts` · `session/__tests__/ledger.test.ts` · `render/__tests__/skeleton.test.ts`
+- **Consumes**: Task 2 的 `LedgerFacts`（`snapshots` 字段）· `session/wave.ts:88-150` 的 `vet`（`mixed-batch` 在 exact 之前）· `session/graph.ts` 的 `batches()` / `frontier()` · `session/run.ts` 的 `#markTerminal`（波闭合点）
+- **Produces**:
+  ```ts
+  // session/ledger.ts
+  export interface ProgressRow {
+    // …既有字段不动…
+    /** 该波闭合当刻的计划任务集合（历史事实，永不更新；计划可变而它不可再生）。 */
+    planTasks?: readonly number[];
+  }
+  export class Ledger {
+    /** 波闭合时落快照（幂等：已存在则不覆盖）。 */
+    recordPlanTasks(waveKey: LedgerKey, planTasks: readonly number[]): void;
+    /** 读快照（null = 历史波行 / 未闭合）。 */
+    planTasksOf(waveKey: LedgerKey): readonly number[] | null;
+  }
+
+  // session/wave.ts
+  export type WaveGateReason = "mixed-batch" | "split" | "wrong-phase"; // 词表不变，mixed-batch 的判据收窄
+  ```
+- **Steps**:
+  - 写失败测试 `ledger.test.ts`（快照幂等）：`recordPlanTasks("3,4", [1,2,3,4])` 后再调 `recordPlanTasks("3,4", [1,2,3,4,5])` → 仍是 `[1,2,3,4]`（闭合当刻的事实不改写） —— checkable: FAIL
+  - 实现 `ProgressRow.planTasks` + `recordPlanTasks` / `planTasksOf`，并在 `run.ts` 的波闭合点调用（计划任务集合来自本轮的 plan 文本） —— checkable: 上述用例转绿
+  - 写失败测试 `wave.test.ts`（追加放行）：静态批 `{3,4}` 中 3 已闭合、4 未开工，且 3 闭合时的快照**不含** 4（`planTasks: [1,2,3]`）→ `vet({4}, "implement", …)` 放行（`open` 为 `[4]`） —— checkable: FAIL（今日 `mixed-batch` 恒拦）
+  - 写失败测试（滞留仍拦）：同上但快照**含** 4（`planTasks: [1,2,3,4]`）→ 仍 `mixed-batch` BLOCK，报文点名批次与两侧 —— checkable: FAIL
+  - 写失败测试（缺快照保守）：历史波行无 `planTasks` → 维持 `mixed-batch` BLOCK（向后兼容，零迁移） —— checkable: FAIL
+  - 实现 `mixed-batch` 判据收窄：取该批已闭合成员**最近一次闭合**的快照；未开工成员不在快照 → 追加（放行）；在快照或快照缺失 → 滞留（BLOCK） —— checkable: 上述三组转绿
+  - 接线 `LedgerFacts.snapshots`（`preflight.ts` 从 `planTasksOf` 读全部波行） —— checkable: Task 2 的 ledger 规则用例在真实快照下仍绿
+  - 写失败测试（brief 指纹稳定性，守 Review Focus）：同一计划渲染两次 `brief` 得到同 hash，且 brief 首行仍是 `### Task …`（零头行） —— checkable: 用例绿（防止任何任务顺手加版本头）
+  - 写失败测试 `skeleton.test.ts`（Task 块样例与键序）：骨架渲染出**两条** step 样例（第二条形如 `- **Steps**:` 下的第二行）且字段键序固定为 Objective → Files → Consumes → Produces → Steps → Acceptance → DependsOn；渲染结果**不含** `:::` 以外的任何占位符形式 —— checkable: FAIL（今日一条 step 样例）
+  - 实现骨架改动：`#taskBlock` 输出两条 step 样例、键序不变式加一条顺序断言；`contract/declare.ts:641-647` 的 `Step checkable` 值形零改（既已成立，本任务只补骨架与 pin） —— checkable: 上述用例转绿
+- **Acceptance**: 波行闭合即记 `planTasks` 且幂等（永不更新）· 混合批里「不在快照 → 追加放行」「在快照 / 缺快照 → 滞留 BLOCK」三组各一 pin · `LedgerFacts.snapshots` 与 `planTasksOf` 同源 · brief 内容指纹稳定（零头行）· 骨架两条 step 样例 + 字段键序 pin（零新字段，`### Task N:` 标题形态零改）· `pnpm -C packages/cdd-engine test` 绿 · 零裸函数门绿
+- **DependsOn**: 2
+
+### Task 8: 消费面 recipe · changeset · 全量校验
+
+- **Objective**: 把行为契约落到消费面（`cdd-plan` 的追加 recipe · `cdd-dev` 的「计划领先账本」与恢复三句），出 changeset（cdd-engine minor + kairos patch），跑全量校验收口。
+- **Files**: Modify `skills/cdd-plan/SKILL.md`（author 节点补追加 recipe）· `skills/cdd-dev/SKILL.md`（implement 节点补「计划领先账本」与恢复三句）· Create `packages/kairos/tests/recovery-wording.test.ts`（grep 回归门）; Create `.changeset/p21-sole-read-write-path.md`
+- **Consumes**: Task 4 / Task 2 / Task 7 的消费者可见行为（`--steal-stale` · `plan leads ledger by N tasks` · 追加任务的真依赖边）· `packages/kairos/tests/skill-anatomy.test.ts`（SKILL.md 结构契约：heading 白名单与零程序史）
+- **Produces**:
+  ```ts
+  // packages/kairos/tests/recovery-wording.test.ts — 回归门（基线已绿；断言的是「不引入」）
+  // 1) 六份 skills/*/SKILL.md 交集零命中：/\bpgrep\b/ · /\bgit stash\b/ · /checkout --/
+  // 2) 至少一份 SKILL.md 含恢复三句的逐字片段（先看工作树 · 能用的改动 commit · 坏掉的丢弃）
+  ```
+- **Steps**:
+  - 改 `skills/cdd-plan/SKILL.md`：author 节点补三句（追加任务用真实 `DependsOn` 边另起一波 · 禁止改写已关闭任务的内容 · 追加任务照常写 `Acceptance`），零内部 token —— checkable: `pnpm -C packages/kairos test` 的 `skill-anatomy.test.ts` 绿
+  - 改 `skills/cdd-dev/SKILL.md`：implement 节点补「计划领先账本是提示不是错误」+ 恢复三句（先看工作树 · 能用的改动 commit · 坏掉的改动丢弃） —— checkable: 同上
+  - 写 `recovery-wording.test.ts`（两条 grep 断言，一条正一条负），并确认它在**未改 SKILL.md 之前**也绿（基线绿 = 负向断言成立） —— checkable: 该文件单独跑绿
+  - 写 changeset `.changeset/p21-sole-read-write-path.md`：cdd-engine **minor**（新旗标 `--steal-stale` · 新增结构规则 · 门序扩展 · board 读面更替）+ kairos **patch**（skill 文本） —— checkable: `pnpm exec changeset status` 无报错
+  - 跑全量 `env -u AI_AGENT pnpm run validate` —— checkable: ALL PASS（emit fresh · root/kairos/engine 三套绿 · typecheck ×3 · version-sync · 零裸函数）
+  - 复核冻结面零漂移：`grep -rn "liveness.json\|pid usage\|never the stored number" packages/cdd-engine/src-next --include='*.ts'` 零命中 —— checkable: 零命中
+- **Acceptance**: 两份 SKILL.md 的 recipe 在册且过 `skill-anatomy` 契约 · 消费面 skill 零 `pgrep` / `stash` / `checkout --`（回归门绿，基线亦绿）· 恢复三句逐字在册 · changeset 标 cdd-engine minor + kairos patch · `env -u AI_AGENT pnpm run validate` ALL PASS · 冻结面零漂移
+- **DependsOn**: 1,2,3,4,5,6,7
+
+## Change history
+
+| Version | date | summary | author |
+| --- | --- | --- | --- |
+| v0.1 | 2026-10-28 | P21 首版实施计划：八任务四波（W1={1,2,3} 适配器 / 规则声明面 / 行身份 · W2={4,5,7} InFlight / 崩溃身份 / planTasks 与骨架 · W3={6} in-flight 门与 board 面 · W4={8} 消费面与 changeset），逐任务带 `checkable` 步骤与验收 pin | [human] · Claude（kairos:cdd-plan · 2026-10-28） |

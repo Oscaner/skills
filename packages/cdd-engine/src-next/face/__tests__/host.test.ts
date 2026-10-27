@@ -8,7 +8,7 @@
 // audited by the guard's checkChannels derivation).
 
 import { describe, expect, it } from "vitest";
-import { HOSTS, HostDetect, REFS } from "../host.ts";
+import { HOST_IDS, HOSTS, HostDetect, type HostDetectSpec, REFS } from "../host.ts";
 
 describe("the host set (the retired cursor host)", () => {
   it("the harness ids are exactly claude and pi — no cursor row, no cursor ref form", () => {
@@ -35,6 +35,17 @@ describe("the per-host child TTL pin", () => {
     expect(HOSTS.claude.env).toEqual({ FORCE_PROMPT_CACHING_5M: "1" });
     expect(HOSTS.pi.env).toEqual({ PI_CACHE_RETENTION: "short" });
     for (const id of ["claude", "pi"] as const) expect(typeof HOSTS[id].env).toBe("object");
+  });
+});
+
+describe("the host detection single source", () => {
+  it("every host's own detect row identifies that host — iterated over the host id source", () => {
+    for (const id of HOST_IDS) {
+      const row: HostDetectSpec = HOSTS[id].detect;
+      const env: Record<string, string> = {};
+      env[row.env] = row.value ?? (row.aiAgentPrefix ? `${row.aiAgentPrefix}-x` : "x");
+      expect(HostDetect.detect(env), `the ${id} detect row identifies ${id}`).toBe(id);
+    }
   });
 });
 

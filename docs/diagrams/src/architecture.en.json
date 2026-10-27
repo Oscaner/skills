@@ -9,7 +9,7 @@
     "repository": {
       "url": "https://github.com/Oscaner/skills",
       "provider": "github",
-      "revision": "2c4ef74b3222fe675a2b691a47c1d7ae50674360"
+      "revision": "8840e2f0aaf3a5752ab8c6a62232dd03081f5d38"
     }
   },
   "components": [
@@ -21,7 +21,7 @@
       "tag": "package-as-source",
       "pos": [40, 40],
       "size": [170, 62],
-      "sources": [{ "path": "packages/kairos/package.json", "line": 42, "end_line": 58 }]
+      "sources": [{ "path": "packages/kairos/package.json", "line": 41, "end_line": 57 }]
     },
     {
       "id": "emit",
@@ -61,7 +61,7 @@
       "tag": "session baselines",
       "pos": [500, 160],
       "size": [180, 62],
-      "sources": [{ "path": "packages/cdd-engine/src-next/face/host.ts", "line": 125, "end_line": 142 }]
+      "sources": [{ "path": "packages/cdd-engine/src-next/face/plugins.ts", "line": 40, "end_line": 92 }]
     },
     {
       "id": "dev",
@@ -79,7 +79,7 @@
       "sublabel": "Claude Code · Pi",
       "pos": [240, 290],
       "size": [180, 72],
-      "sources": [{ "path": "packages/cdd-engine/src-next/face/host.ts", "line": 144, "end_line": 186 }]
+      "sources": [{ "path": "packages/cdd-engine/src-next/face/host.ts", "line": 126, "end_line": 148 }]
     },
     {
       "id": "kairos",
@@ -89,17 +89,17 @@
       "tag": "flow layer",
       "pos": [500, 290],
       "size": [180, 72],
-      "sources": [{ "path": "packages/kairos/package.json", "line": 25, "end_line": 58 }]
+      "sources": [{ "path": "packages/kairos/package.json", "line": 25, "end_line": 57 }]
     },
     {
       "id": "engine",
       "type": "backend",
       "label": "cdd engine CLI",
       "sublabel": "deterministic phase chain",
-      "tag": "7 commands",
+      "tag": "8 commands",
       "pos": [760, 280],
       "size": [160, 92],
-      "sources": [{ "path": "packages/cdd-engine/src-next/face/cli.ts", "line": 327, "end_line": 357 }]
+      "sources": [{ "path": "packages/cdd-engine/src-next/face/cli.ts", "line": 387, "end_line": 401 }]
     },
     {
       "id": "contract",
@@ -248,7 +248,7 @@
       "dot": "emerald",
       "title": "Execution",
       "items": [
-        "The engine runs seven commands: implement · review · fix · base · schema · issue · board",
+        "The engine runs eight commands: implement · review · fix · base · schema · issue · board · init",
         "Each work command runs tree-clean → graph → wave → doc-contract before any child dispatch",
         "The child receives a static shell + frozen return + one dynamic round-context zone, so prompt-cache prefixes stay byte-stable"
       ]

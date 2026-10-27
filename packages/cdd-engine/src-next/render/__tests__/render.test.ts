@@ -376,8 +376,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(plan).toContain("**Read-only:**");
     expect(plan).toContain("**Single agent:**");
     // the template contract's version tracks the fixed-prefix text (P16/D60: 12 → 13;
-    // the sync-completion rewrite: 13 → 14; the handoff-carrier plane unification: 15 → 16)
-    expect(TEMPLATE_PROMPT.$version).toBe(16);
+    // the sync-completion rewrite: 13 → 14; the handoff-carrier plane unification: 15 → 16;
+    // issue #390 — the no-secret-access clause: 16 → 17)
+    expect(TEMPLATE_PROMPT.$version).toBe(17);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)
@@ -431,6 +432,51 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(implement).toContain(sentence);
     expect(review).toContain(sentence);
     expect(fix).toContain(sentence);
+  });
+
+  it("issue #390 — the no-secret-access clause lands identically on every dispatch shell (single LICENSE_ITEMS source)", () => {
+    // A dispatched child runs with the harness's full authority (an unrestricted Bash
+    // tool), so the fixed prefix is the only surface that can bar it from user
+    // credentials. Required: no reading / printing / deriving a secret, the named
+    // credential surfaces (keychain · credential files · token env vars), and the
+    // report-don't-acquire exit (BLOCKED on a work round · a finding on a review).
+    const pins = [
+      "Never read, print, or derive a user secret",
+      "keychain",
+      "~/.ssh",
+      "~/.aws/credentials",
+      "~/.netrc",
+      "environment variable",
+      "BLOCKED",
+      "finding",
+      "[REDACTED]",
+    ] as const;
+    const implement = assembler.render(ALL_VALUES);
+    const fix = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "fix",
+      INPUT_REVIEWS: "/ws/wave-1-review-1.json",
+    });
+    const docsFix = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "docs-fix",
+      INPUT_SPEC: "docs/x-design.md",
+      INPUT_OVERALL: "docs/kairos/overalls/x-overall.md",
+    });
+    const reviews = (["wave", "branch", "spec", "plan"] as const).map((type) =>
+      assembler.render({
+        ...ALL_VALUES,
+        ROLE: "review",
+        REVIEW_TYPE: type,
+        INPUT_SPEC: "docs/x-design.md",
+        OUTPUT_HANDOFF: `/ws/tasks-1-${type}-review-1.json`,
+      }),
+    );
+    for (const out of [implement, fix, docsFix, ...reviews]) {
+      for (const pin of pins) {
+        expect(out).toContain(pin);
+      }
+    }
   });
 
   it("hard gates: a missing token value throws (named)", () => {

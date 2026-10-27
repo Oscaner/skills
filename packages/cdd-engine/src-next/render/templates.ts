@@ -150,6 +150,7 @@ const LICENSE_ITEMS: readonly string[] = [
   "- {{> cl:plan-freeze}}",
   "- {{> cl:atomic-commit}}",
   "- {{> cl:self-validate}}",
+  "- {{> cl:no-secret-access}}",
   "- {{> cl:sync-completion}}",
 ];
 
@@ -467,11 +468,17 @@ export const CLAUSES = {
     "Commit each round's change as one atomic conventional commit scoped to the round — no mixed or out-of-scope content, no AI-generation trailers.",
   "cl:self-validate":
     "Self-validate before returning: run the validation/checks your change requires and record the evidence (command + exit code + result) in the report.",
+  "cl:no-secret-access":
+    "Never read, print, or derive a user secret — no keychain access (`security find-generic-password` / `security dump-keychain` / `login.keychain-db`), no `~/.ssh/*`, `~/.aws/credentials`, `~/.netrc`, no host CLI credential store, and no token-bearing environment variable (`*_TOKEN` / `*_API_KEY` / `*_SECRET`). A missing or failing credential is never yours to obtain: report it as `status: BLOCKED` on a work round or as a finding on a review round, then continue with the rest. A secret that reaches a report, evidence file, handoff draft, commit, or issue body has leaked — if one is already visible in your inputs, redact it as `[REDACTED]` and never echo its value.",
   "cl:sync-completion":
     "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 16
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 17
+ *  adds the no-secret-access discipline clause (issue #390 — a dispatched child holds
+ *  the harness's full authority, so the fixed prefix bar it from user credentials:
+ *  keychain / credential files / token env vars; a missing credential is reported as
+ *  BLOCKED or a finding, never self-acquired). $version 16
  *  unifies the handoff carrier on one op-derived plane (work / judge — implement /
  *  fix author a status-bearing work carrier, review a findings-only judge carrier)
  *  and gives the docs-fix round a `status` to report its outcome in. $version 15
@@ -497,7 +504,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 16,
+  $version: 17,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

@@ -44,7 +44,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Command } from "commander";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
@@ -139,6 +139,44 @@ interface CliFixture {
  *  isolation never leaks across tests (§2.12: the engine resolves the repo root
  *  from the working directory, so the fixture isolates by chdir). */
 const ORIGINAL_CWD = process.cwd();
+
+/** The ambient host-environment pin — the CLI resolves the harness from `process.env`
+ *  at the delivery face (`HostDetect.detect`), so an inherited marker would make every
+ *  rendered `next:` skill-ref depend on the harness this suite happens to run under
+ *  (a pi session exports `AI_AGENT=pi` → the flat `/skill:*` form, a claude session
+ *  `CLAUDE_CODE_SESSION_ID` → the `/kairos:*` form, a CI shell neither mark). The
+ *  markers are therefore cleared before every test — the CI ambient, which resolves to
+ *  the documented `""` → claude fallback (`route-render.ts`) — and a test that pins a
+ *  marker itself (the real-dispatch host cases) still sees its own value for its own
+ *  duration; the suite's start-up ambient is restored once at the end. */
+class HostEnvironment {
+  readonly #markers = ["CLAUDE_CODE_SESSION_ID", "AI_AGENT"] as const;
+  readonly #ambient = new Map<string, string | undefined>();
+
+  /** Drop the host markers, remembering the start-up values exactly once. */
+  clear(): void {
+    for (const marker of this.#markers) {
+      if (!this.#ambient.has(marker)) this.#ambient.set(marker, process.env[marker]);
+      delete process.env[marker];
+    }
+  }
+
+  /** Put the start-up ambient back (the suite never leaks its pin). */
+  restore(): void {
+    for (const [marker, value] of this.#ambient) {
+      if (value === undefined) delete process.env[marker];
+      else process.env[marker] = value;
+    }
+  }
+}
+
+const hostEnvironment = new HostEnvironment();
+beforeEach(() => {
+  hostEnvironment.clear();
+});
+afterAll(() => {
+  hostEnvironment.restore();
+});
 afterEach(() => {
   process.chdir(ORIGINAL_CWD);
 });

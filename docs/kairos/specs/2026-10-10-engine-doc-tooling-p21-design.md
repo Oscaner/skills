@@ -1,13 +1,13 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 设计：引擎作为唯一读写路径
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-10-27
 slug: 2026-10-10-engine-doc-tooling-p21
 program: 2026-10-10-engine-doc-tooling
 status: Draft
 author: "[human] · Claude（kairos:cdd-design [P21] grilling → cdd-spec-writer · 2026-10-27）"
-parent-version: v2.83
+parent-version: v2.84
 ---
 
 ## Design
@@ -36,7 +36,7 @@ P21 收口四个 issue（#391 · #394 · #393 · #386）。它们不是四条补
 | 在飞产物写而无读 | `liveness.json` **只有一个写者、零个生产读者**（读者只有测试，用来排除 mtime 扫描）；`SampleRecord` 无 pid / 命令 / wave | `face/lifecycle.ts:183` · `session/ledger.ts:170-173`（`SampleRecord`）· `face/termination.ts:411-440`（写入面） |
 | 存活判定外包且两向皆骗 | 同一次派发在 `ps` 里是父 `npm exec` + 子 `cdd` 两个 PID：`pgrep -fl cdd-engine` 零命中，`pgrep -f "implement --tasks N"` 得 2 | #391 实测 |
 | 结构门半覆盖 | 变更记录版本唯一性与升序都写在 `if (ctx.docKey === "overall")` 分支内，plan 与 phase-spec 零门 | `contract/invariants.ts:447-505, 733-767` |
-| 结构门零清单 | 门只报「失败」，不报「查了哪些规则」——「检查过」与「通过」不可区分 | `session/preflight.ts` 的 `PreFlightVerdict` |
+| 结构门零清单 | 门只报「失败」，不报「查了哪些规则」——「检查过」与「通过」不可区分 | `session/preflight.ts:56-75`（`PreFlightVerdict` 只带 `order` / `message` / `details`，不带已检规则面） |
 | 规模校验伪造历史 | 把全文所有「N 任务 / M 波」当当前状态比对，历史行含同一模式 → 只能改写历史自救 | #394 实测 |
 | 行重开只有两个态 | reviewed 身份写回只对 `frame.phase === "review"` 且目标为 plan/spec/wave 触发；branch 线永不落 `reviewedRevision`，闭合即终态 | `session/run.ts:489-498` · `session/ledger.ts:583-599, 699-720` |
 | `next:` 与门禁自相矛盾 | `PIPELINE_NEXT.wave` 硬发 `review --type branch --plan` + 计划槽，而 branch 闭合后报 `the line holds no open round` | `session/next.ts` · `face/cli.ts:696` |
@@ -51,24 +51,25 @@ P21 收口四个 issue（#391 · #394 · #393 · #386）。它们不是四条补
 
 - **落点 = 工作树级**（`.kairos/cdd/` 命名空间根），不是各 slug 的工作区：不同 phase 共用同一棵工作树，碰撞面是树。记录里带 `slug`。
 - **字段**：`pid` / `pgid` · `command`（verb + 关键旗标）· `slug` · `startedAt` · `wave` / `phase` · `briefHash`（复用 `brief-revision` 的内容指纹，非新哈希面）· `plan` · `sampledAt` / `verdict`（采样尾迹）。
-- **写序**是新增的核心：**spawn 之前取锁即写意图**；派发期间由采样循环经同一类覆写（保留身份字段）；正常收工释放；崩溃 / kill / 超时**留档且不自动释放**。
+- **写序**是新增的核心：**spawn 之前取锁即写意图**；派发期间由采样循环经同一类覆写（保留身份字段）；正常收工释放。**「不自动释放」的对象是意图记录**：记录不由任何退出路径移除——正常 return、`process.exit()`、未捕获异常、SIGINT / SIGTERM 都不移除它，只有收工路径与 `--steal-stale` 移除。锁目录则归 `proper-lockfile` 的退出钩子管（§2.2），于是**被 SIGKILL 时锁目录与记录同时留下，其余崩溃 / kill / 超时只留记录**；因此判定「有人在跑」一律看记录，不看锁。
 - 采样尾迹的写点收进 `InFlight`——今天它是 `SamplingLoop` 里的直写（`face/termination.ts:436`），是与锁平行的第二个写者。
 
 #### 2.2 互斥与接管
 
-- 取锁原子化交给 `proper-lockfile`（`stale: Infinity`，**永不自动抢**）；记录的存活判定归 `InFlight`。
-- 已持有时**拒绝派发**并点名持有者：pid、命令、`startedAt`、已运行时长、波键、slug。走 `CDD_BLOCKED` 通道，exit 1。
+- 取锁原子化交给 `proper-lockfile`，三项配置**显式钉死**（缺省值在这一组合下会出错）：`stale: 12h`（有限值，大于 implement 的 6h 预算）· `update: 60s` · `realpath: false`。**「永不自动抢」由记录 + pid 判据保证，不靠 `stale` 取 ∞**：`stale: Infinity` 会把缺省 `update` 推成 `Infinity`，被 Node 夹到 1ms，于是整个派发期间（最长 6h）以约 1ms 周期 `stat` + `utimes` 刷锁；而 `realpath` 缺省 `true` 要求被锁目标已存在，与「锁先于记录」的写序冲突（全新命名空间的首锁会失败）。有限 `stale` 不违背「永不自动抢」——抢不抢由判据决定，不由锁的时长决定。
+- **门禁判据是「记录存在」，不是「持锁」**（锁只承担取锁互斥，其生命周期归库）：记录可读且 pid 存活 → **拒绝派发**并点名持有者：pid、命令、`startedAt`、已运行时长、波键、slug（跨 slug 同理，碰撞面是树）。走 `CDD_BLOCKED` 通道，exit 1。锁目录是否存在只在三态里充当「记录损坏」时的旁证：`proper-lockfile` 的退出钩子在任何优雅退出（正常 return / `process.exit()` / 未捕获异常 / SIGINT / SIGTERM）上移除锁目录，只有 SIGKILL 把它留下。
+- 记录可读且 pid 已亡 → 同样拒绝派发，并提示 `--steal-stale` 可接管（下一次派发**不得**径直取锁覆写死者的意图记录）。
 - **接管只走显式旗标 `--steal-stale`**（旗标不是新命令面，作用于 implement / review / fix），前提是记录的 pid 已不存在。pid 还活着就无论跑了多久都拒绝——「中断后的恢复」是显式动作。
 - **这是本 phase 唯一刻意不精简的一处**：误判「已死」的代价是一整个纵切实现被覆盖且不可恢复（#391 已发生一次），破坏性动作必须由人拍。
 - 心智负担的降低放在别处：`board` 与 `--dry-run` 主动报「持有者 pid 已亡 · 可 `--steal-stale` 接管」，消费方只需照提示敲。
-- 锁文件不可读 / 损坏 = 无持有者（fail-open），但报文点名「锁记录损坏，已按无锁处理」——一个坏文件不得把仓库永久锁死。
+- **损坏记录是三态，不是 fail-open**：（a）记录可读 + pid 已亡 → 见上，出口是 `--steal-stale`；（b）记录损坏 **且** 锁目录在 → 报文点名「记录损坏」，按**持有**处理，唯一出口是 `--steal-stale`（人拍，该路径顺手清锁）——同一记录也是采样循环的覆写目标，读面可能短暂拿到空 / 坏 JSON 与真损坏同形，此时 pid 不可读即判不出存活，删锁就会双开派发，正是 `--steal-stale` 要保护的那一面；（c）记录损坏 **且** 锁目录不在 → 无持有者，直接放行并点名该事实——一个坏文件不得把仓库永久锁死。
 - 锁落在 `.kairos/` 下，而该命名空间的 `.gitignore` 由引擎自己写 `*`（`infra/workspace.ts:70-80`），取锁**永不弄脏树**、永不触发 tree-clean 门。**这个前提由 `InFlight` 自己保证**：命名空间标记是它**第一次写的前置条件**——第一次写之前自己发布 `.gitignore`（内容 `*`），不依赖 `WorkspaceRoot.ensure()` 的时点（P11 已把首个 `ensure()` 写点挪到 pre-flight 判定之后，见 `face/cli.ts:609-620`）。全新命名空间首次派发时若在 `ensure()` 之前被杀，`.kairos/cdd/inflight` 与锁目录会以未跟踪文件留下，下一次 tree-clean 门会先把「可 `--steal-stale` 接管」的恢复面挡掉；标记前置即消灭这个窗口。
 
 #### 2.3 进程事实收进一个读面
 
 OS 读面收进 `ProcessFacts`（`infra/proc.ts`）一处：`Sampler` 只向它取两条腿，判官（`StallJudge`）与阈值零动。
 
-- **组 CPU 保留 `ps -g` 读法**（今日 `face/termination.ts:262-290` 的 `ps -o time= -g <pgid>` + 全组成员求和），迁进 `ProcessFacts` 作为唯一 OS 读面。这是「OS 面优先第三方包」的**据实例外**：没有跨平台成熟包提供进程组累计 CPU——`pidusage` 按单 pid 计，`ps-list` 的 `ProcessDescriptor` 无 `pgid` 字段。用「PPID 下降 + `pidusage`」替代组读法会漏成员：组长先退则成员被 reparent，`setsid` 的孙进程根本不在这棵树里（P13/D56 的「孙进程占管道」正是这类形态）。方向是**假 stall → 杀活进程**，代价远高于收益，**故 `pidusage` 不引入**。
+- **组 CPU 保留 `ps -g` 读法**（今日 `face/termination.ts:262-290` 的 `ps -o time= -g <pgid>` + 全组成员求和），迁进 `ProcessFacts` 作为唯一 OS 读面。这是「OS 面优先第三方包」原则的**唯一例外**（据实登记）：没有跨平台成熟包提供进程组累计 CPU——`pidusage` 按单 pid 计，`ps-list` 的 `ProcessDescriptor` 无 `pgid` 字段。用「PPID 下降 + `pidusage`」替代组读法会漏成员：组长先退则成员被 reparent，`setsid` 的孙进程根本不在这棵树里（P13/D56 的「孙进程占管道」正是这类形态）。方向是**假 stall → 杀活进程**，代价远高于收益，**故 `pidusage` 不引入**。
 - **`ps-list` 只承接非 CPU 面**：存活、PPID 链、进程组去重（「在跑吗」与「跑了几个」由同一份记录回答，`npm exec` 包装不计第二个任务）。
 - **组的定义钉在这里**：`ProcessFacts` 的组成员 = `ps -g <pgid>` 的成员集合（真进程组，货源与今日同一），`startedAt` 兜 pid 复用。于是组的语义、CPU 腿的读数、真值表与今日一致；PPID 下降仅服务 `ps-list` 侧的存活/去重面，**绝不参与 CPU 腿**。
 - 两个既有实测形态进验收作样本 pin：**组长先退**（成员被 reparent）与 **`setsid` 孙进程**——两者在新 `ProcessFacts` 下的组 CPU 读数必须与今日 `ps -g` 相同。
@@ -76,7 +77,7 @@ OS 读面收进 `ProcessFacts`（`infra/proc.ts`）一处：`Sampler` 只向它�
 #### 2.4 `--dry-run` 与恢复纪律
 
 - `--dry-run` **与真派发同判**：持锁时打印 `lock: held by pid …` 并 exit 1（P11 的「预览 = 真派发的镜像」继续成立）。预览面对锁**只读**：不取、不接管、不释放——零写纪律不被锁门破坏。
-- 中断恢复指导语改成三句，写进引擎报文与消费面 skill：**先看工作树** · **能用的改动就 commit** · **坏掉的改动就丢弃**。删除一切 `git stash` / `git checkout --` 建议——前者制造第二个真相，后者已实测丢掉过一整个纵切实现。
+- 中断恢复指导语改成三句，写进引擎报文与消费面 skill：**先看工作树** · **能用的改动就 commit** · **坏掉的改动就丢弃**。现存消费面已是**零** `stash` / `checkout --` 建议（`face/words.ts:155` 的 dirty-tree 报文即「commit or discard your changes」），故本 phase 只补这三句纪律，并留一条 grep pin 防回归——断言的是**不引入**（`stash` 制造第二个真相，`checkout --` 已实测丢掉过一整个纵切实现）。
 - kill / 超时 / 崩溃后报文显式提示「可能有迟到落盘，先检查工作树再进评审」（同一根因曾一次会话内三次把评审挡在 dirty-tree 上）。
 
 ### 3. 定案：`ConsistencyRules`（#394）
@@ -85,7 +86,7 @@ OS 读面收进 `ProcessFacts`（`infra/proc.ts`）一处：`Sampler` 只向它�
 
 doc-contract 与「账本↔计划」不再是 `PreFlight` 里的两个分支，而是**同一族策略**（登记表驱动、零新增判定面）。
 
-**规则的唯一家是登记表的「规则声明面」**（不是元素面）：`contract/declare.ts` 今日的 `DeclaredRegistries` 只有骨架元素表 `ElementRegistry`（`anchor` / `presence` / `valuePattern` / `refKind` / `home`），它列的是文档元素、不含任何规则名；而策略族今天是 `contract/judge.ts` 的 `Contract#buildPolicy()` 里 15 个硬编码 `new`。本 phase 增一层 `RuleDeclaration`（规则 id + 适用 docKey 集合 + 作用域 `doc|ledger`），`#buildPolicy()` 改为**遍历声明构造策略**——于是「改登记表即改清单与策略」，只有一处来源。跨账本两条作用域标 `ledger`，由 `ContractInput` 携带的可选**账本事实包**（计划任务集合 + 已闭合波次 + 波行快照）求值。
+**规则的唯一家是登记表的「规则声明面」**（不是元素面）：`contract/declare.ts` 今日的 `DeclaredRegistries` 只有骨架元素表 `ElementRegistry`（`anchor` / `presence` / `valuePattern` / `refKind` / `home`；定义 `contract/declare.ts:53-78`，四张登记表落点 `:1059-1064`），它列的是文档元素、不含任何规则名；而策略族今天是 `contract/judge.ts` 的 `Contract#buildPolicy()` 里 15 个硬编码 `new`（`contract/judge.ts:133-150`）。本 phase 增一层 `RuleDeclaration`（规则 id + 适用 docKey 集合 + 作用域 `doc|ledger`），`#buildPolicy()` 改为**遍历声明构造策略**——于是「改登记表即改清单与策略」，只有一处来源。跨账本两条作用域标 `ledger`，由 `ContractInput` 携带的可选**账本事实包**（计划任务集合 + 已闭合波次 + 波行快照）求值。
 
 | 规则 id | 适用 docKey | 作用域 |
 |---|---|---|
@@ -120,7 +121,7 @@ doc-contract 与「账本↔计划」不再是 `PreFlight` 里的两个分支，
 
 元素面 ≠ 规则面：`ElementRegistry` 是骨架元素表，列的是 anchor / presence / valuePattern / refKind / home，**不**是规则名单，不能作为清单来源。跨账本那两条规则在元素表里无对应元素，只有规则声明面能让它们出现在清单里。
 
-`ledger` 作用域的规则在未拿到账本事实包时列作 `skipped (no ledger facts)`——不静默缺席。让「检查过」与「通过」在报文上可分：消费方 CI 变红时读得到引擎究竟查了哪些规则。
+`ledger` 作用域的规则在未拿到账本事实包时列作 `skipped (no ledger facts)`——不静默缺席。对称地，`doc` 作用域的规则在 **wave / branch 派发**上列作 `skipped (no doc target)`——那两类派发的 `PreFlightContext.doc` 恒为 null（`face/cli.ts:603-606`），doc-contract 门不运行，五条 doc 规则没有判定面，但必须在清单上留行，不得静默缺席。让「检查过」与「通过」在报文上可分：消费方 CI 变红时读得到引擎究竟查了哪些规则。
 
 ### 4. 定案：`LineIdentity`（#393）
 
@@ -161,11 +162,16 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 
 #### 5.3 Task 块结构化（零新字段）
 
-不新增字段，只把既有七字段的形态收紧 + 骨架补样例：`Steps` 每条写成「动作 — checkable: 判定」，字段键集固定、由既有 task-field 门校验。`### Task N:` 标题形态与 doc 类型集合零改。
+不新增字段，约束面不动：**零新字段**，字段键集固定、由既有 task-field 门校验；`### Task N:` 标题形态与 doc 类型集合零改。`Steps` 每条写成「动作 — checkable: 判定」在今日树上已成立（`Step checkable` 元素已注册 `valuePattern: "—\\s*checkable:\\s*\\S"`，`contract/declare.ts:641-647`），骨架已渲同形样例（`render/skeleton.ts:471-481`），故残余交付只有两条、都可变异打红：
+
+1. 骨架把 **step 样例渲两条**（今日一条），使实现轮看到多步形态。
+2. Task 字段**键序钉死**为 Objective → Files → Consumes → Produces → Steps → Acceptance → DependsOn（今日骨架同序但不设门，键序漂移必须能转红）。
+
+**不加 continuation 行**——继续行削弱内容指纹的稳定性，让 brief 漂移判定变糊。
 
 #### 5.4 轮号读法
 
-`progress.json` 的 `rounds` 记的是**周期号**（fix-K ⟷ review-K，D28），不是序号：`rounds.fix = [2,3]` 读作「修的是 review-2 与 review-3」。**记账零改**——被拒派发本来就不入账。要收的是读面：`board` 的轮次列显式按周期语义渲染（`review×1,2,3 · fix×2,3`），词表写明「周期号 ≠ 序号」。
+`progress.json` 的 `rounds` 记的是**周期号**（fix-K ⟷ review-K，D28），不是序号：`rounds.fix = [2,3]` 读作「修的是 review-2 与 review-3」。**记账零改**——被拒派发本来就不入账。要收的是读面：`board` 的轮次列显式按周期语义渲染（`review×1,2,3 · fix×2,3`），词表写明「周期号 ≠ 序号」。今日 `roundsCell` 只渲 `${verb}×${value.length}`，且注释明写 never the stored number（`face/board-view.ts:209-220`，裁定句在 `:210-211`）——本 phase **反转该既有裁定**，这是 deliberate pin break，不是顺带改动。
 
 #### 5.5 崩溃身份与迟到落盘
 
@@ -174,7 +180,7 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 
 #### 5.6 孤儿草稿：零写、只显示
 
-**不做 `superseded` 标记、不归档、不加 `prune` 命令。** brief 每次派发无条件重渲染、名字稳定（版本信息由内容首行的计划版本 + hash 承担），不存在「旧 brief」；真正无法辨认的是**从未入账的 handoff 草稿**，而清理它只能靠引擎偷偷搬家——比问题更糟。孤儿由账本判定（无对应终态轮次者），在 `board` 的在飞行/孤儿栏与 `--dry-run` 的 `reads:` 面列出，**零写**。
+**不做 `superseded` 标记、不归档、不加 `prune` 命令。** brief 每次派发无条件重渲染、名字稳定；版本信息由账本的 `brief-revision`（plan 指针 + 渲染内容指纹，`session/ledger.ts:534-536` · `recordReviewedBrief`）承担，**不在 brief 正文里**——brief 正文不得引入头行或任何稳定前缀，内容即指纹（头行一变，所有已评审波次的 `brief-revision` 全判漂移，恰好推翻「不存在旧 brief」这个结论）；真正无法辨认的是**从未入账的 handoff 草稿**，而清理它只能靠引擎偷偷搬家——比问题更糟。孤儿由账本判定（无对应终态轮次者），在 `board` 的在飞行/孤儿栏与 `--dry-run` 的 `reads:` 面列出，**零写**。
 
 #### 5.7 消费面 recipe
 
@@ -200,11 +206,11 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 
 | 包 | 替换掉 |
 |---|---|
-| `proper-lockfile` | 手写取锁的 read-modify-write 竞态面（`stale: Infinity`） |
+| `proper-lockfile` | 手写取锁的 read-modify-write 竞态面（显式三配置：`stale: 12h` · `update: 60s` · `realpath: false`，理由见 §2.2） |
 | `write-file-atomic` | `Workspace.writeJson` 的直写（progress / crash / handoff / in-flight 全走这一缝） |
 | `ps-list` | `Sampler` 里的存活与 PPID 链枚举、进程组去重判定 |
 
-引擎运行时依赖 5 → 8，全部只服务 OS 面。**组 CPU 是「OS 面优先第三方包」的据实例外**：无跨平台成熟包提供进程组累计 CPU，保留 `ps -g` 读法收进 `infra/proc.ts`（理由见 §2.3）。不引入：`pidusage`（按单 pid 计；PPID 下降替代组读法会造成假 stall）· newest-mtime 扫描（无成熟包能便宜地给「最新 mtime」）· `chokidar`（watch 面不属于本 phase）。
+引擎运行时依赖 5 → 8，全部只服务 OS 面。**组 CPU 是本原则的唯一例外**（据实登记）：无跨平台成熟包提供进程组累计 CPU，保留 `ps -g` 读法收进 `infra/proc.ts`（理由见 §2.3）。不引入：`pidusage`（按单 pid 计；PPID 下降替代组读法会造成假 stall）· newest-mtime 扫描（无成熟包能便宜地给「最新 mtime」）· `chokidar`（watch 面不属于本 phase）。
 
 #### 6.3 删除面（死代码清理）
 
@@ -214,7 +220,9 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 
 #### 6.4 门序
 
-`tree-clean → in-flight(锁/持有者) → graph → plan-ledger → wave → doc-contract`。tree-clean 仍在最前（评审基线 = 已提交状态），锁紧随其后，结构门与既有门同居一条序列；**门序本身是判定面的一部分，随已检清单输出**。
+`tree-clean → in-flight(记录/持有者) → graph → plan-ledger → wave → doc-contract`。tree-clean 仍在最前（评审基线 = 已提交状态），锁紧随其后，结构门与既有门同居一条序列；**门序本身是判定面的一部分，随已检清单输出**。
+
+`plan-ledger` 门：跑 §3.1 的**两条 `ledger` 作用域规则**（`closed-wave-fits-depends-on-layers` · `planned-tasks-vs-recorded-tasks`），适用于 **plan / wave / branch** 派发——wave 派发必须跑，mixed-batch 与追加判据（§5.2）就在这一面，而 wave / branch 派发没有 doc 目标（`PreFlightContext.doc` 恒为 null，`face/cli.ts:603-606`），doc-contract 门在那里不运行。门名沿用 `PreFlightGateName` 的 `plan-ledger`，拒绝原因词两个：`no-ledger-facts`（缺账本事实包，规则列作 `skipped (no ledger facts)` 而非失败）与 `plan-ahead`（计划领先账本，提示不失败，见 §3.3）。与 doc-contract 的分工：**同一规则族按作用域分两个门执行**——doc 作用域五条在 doc-contract 门，ledger 作用域两条在 plan-ledger 门；已检清单按规则声明行**合并渲染一次**，同一规则不因跨两个门而出现两行。
 
 门序旁注：in-flight 门在 pre-flight 序列内**写**（取锁 + 写入意图），而 tree-clean 已先行——因此命名空间标记必须是 `InFlight` 第一次写的前置条件（§2.2），不得等 `WorkspaceRoot.ensure()`。奇异例外：若某轮将来把 in-flight 门挪到 `ensure()` 之后，必须先说明它为何不破坏「预览零写」。
 
@@ -226,24 +234,24 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 
 ### Acceptance criteria
 
-- 同工作树的第二次派发在第一次存活期间被拒（含跨 slug），报文含 pid / 命令 / startedAt / 波键；`--steal-stale` 在持有 pid 仍存活时**同样被拒**，pid 已不存在时放行并接管。
-- `InFlight` 记录在 spawn **之前**即存在且携带身份字段；正常收工后释放；被 kill / 超时 / 崩溃后留档，`board` 与 `--dry-run` 都能据它回答「这一波是不是有人在做」（进程组去重，`npm exec` 包装不计第二任务）。
+- 同工作树的第二次派发在第一次存活期间被拒（含跨 slug），报文含 pid / 命令 / startedAt / 波键（**判据是记录存在，不是持锁**）；`--steal-stale` 在持有 pid 仍存活时**同样被拒**，pid 已不存在时放行并接管。
+- `InFlight` 记录在 spawn **之前**即存在且携带身份字段；正常收工后释放；**任何退出路径都留下记录**（被 SIGKILL 时锁目录与记录同时留下，其余崩溃 / kill / 超时只留记录——锁是否仍在**不作判据**），`board` 与 `--dry-run` 都能据它回答「这一波是不是有人在做」（进程组去重，`npm exec` 包装不计第二任务）。
 - `board` / `--dry-run` 在持有者 pid 已亡时报出「可 `--steal-stale` 接管」，且两面对锁**零写**（运行前后字节不变）。
-- 锁记录损坏时按无锁放行但报文点名该事实（不留永久锁死）。
+- 锁记录损坏按三态处理（不是 fail-open）：**损坏记录 + 锁目录在 → 按持有处理**，报文点名损坏，唯一出口是 `--steal-stale`，且**损坏记录 + 活锁不得被静默清掉**；**损坏记录 + 锁目录不在 → 无持有者**，放行并点名（不留永久锁死）。两条各一 pin。
 - 全新命名空间（无 `.kairos/.gitignore`）下首次派发被 kill 后 `git status --porcelain` 为空，且 `board` 能报可接管（`InFlight` 自己发布标记，不依赖 `ensure()`）。
 - 全部 `ps` 调用只在 `infra/proc.ts` 一处（`face/termination.ts` 与其余引擎面零 `ps` / `TIME_PATTERN` 命中），`ProcessFacts` 是唯一 OS 读面；`Sampler` 的两条腿由它供数，stall 判官的阈值与真值表不变，并补「组长先退」/「`setsid` 孙进程」两个样本 pin（组 CPU 读数与今日 `ps -g` 一致）。
 - `Workspace.writeJson` 经 `write-file-atomic` 落盘（progress / crash / handoff 全部经此一缝），进程被杀不会留半截 JSON。
 - 七条结构规则在四类文档 / plan+账本上各有红 pin；**变更记录历史行原文即为绿**（不得为转绿改写历史）。
 - front-matter `version:` 与末行不一致、变更记录行落进别的表格、列表标记双写，各有一条红 pin 与点名「应改哪一处」的 fix 句（断言面 = §3.1 的两个违例样例：`## Design` 表里的 `| v0.2 | …` 行 · `- - **status:** Draft`）。
 - 散文「N 任务 / M 波」零一致性判压（无红 pin、无规模门）。
-- 账本↔计划：窗口期内「编号大于账本最大任务号的未开工任务」放行并给 `plan leads ledger by N tasks` 提示；删掉中间账本记录的变异用例转红。
-- 每次派发输出的已检清单自**规则声明面**派生（`Contract` 的策略族与清单同源，改动声明即改动清单与策略，无第二份手写列表）；跨账本两条在清单里以实际结果或 `skipped (no ledger facts)` 出现（不静默缺席），「检查过」与「通过」在报文上可分。
+- 账本↔计划：窗口期内「编号大于账本最大任务号的未开工任务」放行并给 `plan leads ledger by N tasks` 提示；删掉中间账本记录的变异用例转红。两条 `ledger` 规则在 **`plan-ledger` 门**上执行（plan / **wave** / branch 三种派发都跑），拒绝/提示词为 `plan-ahead` 与 `no-ledger-facts`（后者对应 `skipped (no ledger facts)`，不静默缺席）。
+- 每次派发输出的已检清单自**规则声明面**派生（`Contract` 的策略族与清单同源，改动声明即改动清单与策略，无第二份手写列表）；跨账本两条在清单里以实际结果或 `skipped (no ledger facts)` 出现（不静默缺席）；**wave / branch 派发的已检清单包含五条 doc 规则的 `skipped (no doc target)` 行**；同一规则不因跨两个门而出现两行；「检查过」与「通过」在报文上可分。
 - branch 线终审闭合后，计划修订前进即可再开一轮 branch review；计划**未动时**波线闭合的 `next:` **不再发出被门禁拒绝的命令**（落到 `kairos:cdd-close`）——判据是 drift-aware 的「该线有可派发 open round」，事实由持 ledger 一侧作入参传给 `NextStepRouter.resolve`，capsule 零新增判定。
 - 波行闭合即记 `planTasks` 快照；混合批里不在该批闭合快照中的未开工任务按新波放行（追加），在快照中或快照缺失时维持 `mixed-batch` BLOCK（滞留），两条各一 pin。
 - crash 文件名与 `attemptedHandoff` 与真实 frame 同源（一条 pin 断言两者）；`CrashRecord` 含 `dispatchBase` 与 `commitsSince`，kill 前的提交在 handoff 里可见，且两者只作事后诊断、不参与任何身份比较与门控。
 - 从未入账的 handoff 草稿在 `board` / `--dry-run` 列出，引擎对这些草稿**零写**（目录 mtime 不变）。
 - `cdd` 命令面仍为八命令（结构 pin）；`--steal-stale` 在 implement / review / fix 的帮助面在册。
-- 消费面 skill 文本零 `pgrep` / `stash` / `checkout --`（grep pin），且含「能用的 commit、坏掉的丢」的恢复纪律句。
+- 消费面 skill 文本零 `pgrep` / `stash` / `checkout --`（grep pin——**基线已绿，断言的是不引入**，回归门而非新交付），且含「能用的 commit、坏掉的丢」的恢复纪律句。
 - 新面零裸函数（`check:no-bare-functions` 零命中）· engine vitest 全绿 · typecheck ×3 · `pnpm run validate` ALL PASS · changeset cdd-engine **minor** + kairos **patch**，不发布。
 
 ## Constraints
@@ -268,3 +276,4 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 | v0.1 | 2026-10-27 | P21 首版设计：在飞事实单一源 · 五条 intra-doc 规则上位且规模散文零门 · 账本↔计划结构门与已检规则清单 · branch 线补修订身份并修掉 `next:` 与门禁的矛盾 · 中途追加以 `Introduced in` 判别 · 崩溃身份单源 · 孤儿零写只显示 | [human] · Claude（kairos:cdd-design [P21] grilling → cdd-spec-writer · 2026-10-27） |
 | v0.2 | 2026-10-27 | 七前提重审：四处收敛为三个抽象（`InFlight` · `ConsistencyRules` · `LineIdentity`）+ 一个观测快照——① **撤 `Introduced in`**，改波行闭合时的 `planTasks` 快照（引擎观测事实，零新增作者字段，`Ref plan version` 判为不可行不必要）② **锁提到工作树级**并交 `proper-lockfile`（`stale: Infinity`），`--steal-stale` 为唯一刻意不精简项，`board` / `--dry-run` 主动报可接管 ③ **进程事实外包** `ps-list` + `pidusage`，`Sampler` 的 `ps` 解析退役 ④ **写面原子化** `write-file-atomic`（`Workspace.writeJson` 单一缝）⑤ 两套漂移判定合为 `LineIdentity`（branch 复用 plan 的 doc-revision）⑥ 两类结构门合为 registry 派生的一族，已检清单自 `declaredRegistries` 派生 ⑦ 消灭写而无读的 `liveness.json` 独立面 ⑧ §1 取证压缩为表 | [human] · Claude（kairos:cdd-design [P21] → cdd-spec-writer · 2026-10-27） |
 | v0.3 | 2026-10-27 | review-1 修订（全部 findings + 编排器裁定）：① 已检清单来源钉成登记表新增的 **规则声明面**（规则 id + 适用 docKey + 作用域 doc 或 ledger），`Contract#buildPolicy()` 由硬编码改派生，跨账本两条作用域 ledger、由 `ContractInput` 可选账本事实包求值，「元素面 ≠ 规则面」写死 ② **组 CPU 保留 `ps -g`**，收进 `infra/proc.ts` 唯一 OS 读面；`ps-list` 只接存活 / PPID 链 / 组去重，**不引 `pidusage`**（reparent / setsid 会假 stall），依赖 5→8 ③ `InFlight` 在第一次写之前自发布 `.kairos/.gitignore`（标记是记录的前置条件），补门序旁注与「全新命名空间被 kill 后树不脏」pin ④ 两条无形状规则给出判据 + 违例样例 ⑤ §4.2 判据改为 drift-aware 的「该线有可派发 open round」，事实由 Run / Lifecycle 入参传给 `NextStepRouter.resolve` ⑥ §4.1 收窄为「不在账本身份 / 评测面引 commit sha」，`CrashRecord` 两项标为事后诊断面（D24 零影响） ⑦ §3.2 动词统一为「不落地」 ⑧ pin 精度修正（`preflight.ts:136-277` · `SampleRecord` 改指 `session/ledger.ts:170-173` · §5.5 补 `ledger.ts:959-960` + `lifecycle.ts:643,649`） ⑨ EOF 换行纪律入 Constraints；parent-version → v2.83 | [human] · Claude（kairos:cdd-design [P21] → cdd-spec-writer · review-1 fix · 2026-10-27） |
+| v0.4 | 2026-10-27 | review-2 修订（全部 findings + 编排器裁定）：① **门禁判据从「持锁」改为「记录存在」**（锁只承担取锁互斥，其生命周期归库）；「不自动释放」的对象点明为意图记录，SIGKILL 留锁与记录、其余退出路径只留记录，AC 同步限定 ② `proper-lockfile` 三配置显式钉死（`stale: 12h` · `update: 60s` · `realpath: false`），「永不自动抢」改由记录 + pid 判据保证，有限 `stale` 不违背该原则；§2.2 与 §6.2 同登记 ③ 损坏记录由 fail-open 收窄为**三态**，损坏 + 活锁按持有处理且不得静默清掉 ④ §6.4 给出 `plan-ledger` 门定义（两条 ledger 规则 · plan / wave / branch 派发 · gate/reason 词 `no-ledger-facts` / `plan-ahead` · 与 doc-contract 按作用域分工、清单合并渲染一次）；§3.4 补 `skipped (no doc target)` 配对句 ⑤ §5.6 删掉「版本信息在内容首行」的错误括号，改为账本 `brief-revision` 承担且正文不得引入头行 ⑥ §5.3 残余交付点名为「骨架渲两条 step 样例」与「Task 字段键序钉死」，不加 continuation 行，并补现况 pin ⑦ §2.4 改写为「现存零 stash / checkout -- 建议，本 phase 只补三句纪律」，grep pin 降为回归门（基线已绿） ⑧ 剩余现状主张补行 pin（`contract/declare.ts:53-78,1059-1064` · `contract/judge.ts:133-150` · `session/preflight.ts:56-75` · `face/board-view.ts:209-220`），并点明反转 `board-view.ts:210-211` 的既有裁定 ⑨ 措辞统一为「唯一例外（据实登记）」；parent-version → v2.84 | [human] · Claude（kairos:cdd-design [P21] → cdd-spec-writer · review-2 fix · 2026-10-27） |

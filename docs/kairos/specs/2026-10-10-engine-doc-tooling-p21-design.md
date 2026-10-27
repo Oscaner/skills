@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 设计：引擎作为唯一读写路径
 doc-type: phase-spec
-version: v0.7
+version: v0.8
 date: 2026-10-27
 slug: 2026-10-10-engine-doc-tooling-p21
 program: 2026-10-10-engine-doc-tooling
@@ -224,9 +224,9 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 
 `tree-clean → in-flight(记录/持有者) → graph → plan-ledger → wave → doc-contract`。tree-clean 仍在最前（评审基线 = 已提交状态），锁紧随其后，结构门与既有门同居一条序列；**门序本身是判定面的一部分，随已检清单输出**。
 
-`plan-ledger` 门：跑 §3.1 的**两条 `ledger` 作用域规则**（`closed-wave-fits-depends-on-layers` · `planned-tasks-vs-recorded-tasks`），适用于 **plan / wave / branch** 派发——wave 派发必须跑，mixed-batch 与追加判据（§5.2）就在这一面，而 wave / branch 派发没有 doc 目标（`PreFlightContext.doc` 恒为 null，`face/cli.ts:603-606`），doc-contract 门在那里不运行。门名沿用 `PreFlightGateName` 的 `plan-ledger`，拒绝原因词只有一个：`no-ledger-facts`（缺账本事实包，规则列作 `skipped (no ledger facts)` 而非失败）。「计划领先账本」**不是拒绝形态**——它落 `checked` 的 `info (plan leads ledger by N tasks)` 行（§3.3），而 `PreFlightVerdict.reason` 只在失败面出现（`ok: true` 时缺席），零死值。与 doc-contract 的分工：**同一规则族按作用域分两个门执行**——doc 作用域 21 条在 doc-contract 门，ledger 作用域两条在 plan-ledger 门；已检清单按规则声明行**合并渲染一次**，同一规则不因跨两个门而出现两行。
+`plan-ledger` 门：跑 §3.1 的**两条 `ledger` 作用域规则**（`closed-wave-fits-depends-on-layers` · `planned-tasks-vs-recorded-tasks`），适用于 **plan / wave / branch** 派发——wave 派发必须跑，mixed-batch 与追加判据（§5.2）就在这一面，而 wave / branch 派发没有 doc 目标（`PreFlightContext.doc` 恒为 null，`face/cli.ts:603-606`），doc-contract 门在那里不运行。门名沿用 `PreFlightGateName` 的 `plan-ledger`，**本门无专属拒绝原因词**：缺账本事实包时规则列作 `skipped (no ledger facts)`（`ok: true`，`reason` 缺席），一条 `no-ledger-facts` 式的 reason 值会成为无产出点的死值（`PreFlightVerdict.reason` 只在失败面出现）。「计划领先账本」**不是拒绝形态**——它落 `checked` 的 `info (plan leads ledger by N tasks)` 行（§3.3），而 `PreFlightVerdict.reason` 只在失败面出现（`ok: true` 时缺席），零死值。与 doc-contract 的分工：**同一规则族按作用域分两个门执行**——doc 作用域 21 条在 doc-contract 门，ledger 作用域两条在 plan-ledger 门；已检清单按规则声明行**合并渲染一次**，同一规则不因跨两个门而出现两行。
 
-门序旁注：in-flight 门在 pre-flight 序列内**写**（取锁 + 写入意图），而 tree-clean 已先行——因此命名空间标记必须是 `InFlight` 第一次写的前置条件（§2.2），不得等 `WorkspaceRoot.ensure()`。奇异例外：若某轮将来把 in-flight 门挪到 `ensure()` 之后，必须先说明它为何不破坏「预览零写」。
+门序旁注：**门只判、不写**——`in-flight` 门在 pre-flight 序列内只做 `inspect()`（读记录 + 判存活），取锁与写意图是**真派发路径**唯一的写点（`CliLifecycle` 在门通过之后 `acquire`）；预览面因此天然零写：它只读门给出的持有者事实并 exit 1，`--steal-stale` 在 `--dry-run` 下作废（有 pin）。门通过到 `acquire` 之间的竞态（另一派发抢先取锁）由 `acquire` 抛 `HoldingError` 并走同一条 `held` BLOCK 通道渲染。而 tree-clean 已先行——因此命名空间标记必须是 `InFlight` 第一次写的前置条件（§2.2），不得等 `WorkspaceRoot.ensure()`。奇异例外：若某轮将来把 in-flight 门挪到 `ensure()` 之后，必须先说明它为何不破坏「预览零写」。
 
 #### 6.5 影响面与发行
 
@@ -247,7 +247,7 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 - front-matter `version:` 与末行不一致、变更记录行落进别的表格、列表标记双写，各有一条红 pin 与点名「应改哪一处」的 fix 句（断言面 = §3.1 的两个违例样例：`## Design` 表里的 `| v0.2 | …` 行 · `- - **status:** Draft`）。
 - 散文「N 任务 / M 波」零一致性判压（无红 pin、无规模门）。
 - 账本↔计划：窗口期内「编号大于账本最大任务号的未开工任务」放行并给 `plan leads ledger by N tasks` 提示；删掉中间账本记录的变异用例转红。两条 `ledger` 规则在 **`plan-ledger` 门**上执行（plan / **wave** / branch 三种派发都跑），拒绝/提示词为 `plan-ahead` 与 `no-ledger-facts`（后者对应 `skipped (no ledger facts)`，不静默缺席）。
-- 每次派发输出的已检清单自**规则声明面**派生（`Contract` 的策略族与清单同源，改动声明即改动清单与策略，无第二份手写列表）；跨账本两条在清单里以实际结果或 `skipped (no ledger facts)` 出现（不静默缺席）；**wave / branch 派发的已检清单包含五条 doc 规则的 `skipped (no doc target)` 行**；同一规则不因跨两个门而出现两行；「检查过」与「通过」在报文上可分。
+- 每次派发输出的已检清单自**规则声明面**派生（`Contract` 的策略族与清单同源，改动声明即改动清单与策略，无第二份手写列表）；跨账本两条在清单里以实际结果或 `skipped (no ledger facts)` 出现（不静默缺席）；**wave / branch 派发的已检清单包含 21 条 doc 作用域声明各自的 `skipped (no doc target)` 行**；同一规则不因跨两个门而出现两行；「检查过」与「通过」在报文上可分。
 - branch 线终审闭合后，计划修订前进即可再开一轮 branch review；计划**未动时**波线闭合的 `next:` **不再发出被门禁拒绝的命令**（落到 `kairos:cdd-close`）——判据是 drift-aware 的「该线有可派发 open round」，事实由持 ledger 一侧作入参传给 `NextStepRouter.resolve`，capsule 零新增判定。
 - 波行闭合即记 `planTasks` 快照；混合批里不在该批闭合快照中的未开工任务按新波放行（追加），在快照中或快照缺失时维持 `mixed-batch` BLOCK（滞留），两条各一 pin。
 - crash 文件名与 `attemptedHandoff` 与真实 frame 同源（一条 pin 断言两者）；`CrashRecord` 含 `dispatchBase` 与 `commitsSince`，kill 前的提交在 handoff 里可见，且两者只作事后诊断、不参与任何身份比较与门控。
@@ -282,3 +282,4 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 | v0.5 | 2026-10-28 | 计划期的设计回填（`backfill-design`）：两个作用域各持唯一入口——`Contract.validate` 只跑 `doc` 作用域，跨账本两条由 `Contract.validateLedger(input, LedgerFacts)` 独立入口求值（取代「`ContractInput` 带可选账本包」的写法：一个入口两种判据会让调用侧与读取侧各自推断该不该跑 ledger 规则）。零行为变化，仅接口面收敛 | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
 | v0.6 | 2026-10-28 | plan-review-1 blocker 触发的自相矛盾收敛（§6.1 残留句）：落点表仍写「`ContractInput` 增可选账本事实包」，与 §3.1 与 v0.5 的「每作用域一个入口」相反；改为 `Contract.validateLedger(input, LedgerFacts)` 双参入口、`ContractInput` 零新增字段。零行为变化 | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
 | v0.7 | 2026-10-28 | plan-review-2 触发的两处设计收敛：① **一规则一策略**写死——清单每行对应一个可独立判定的策略，故 `UniquenessInvariant` / `OrderInvariant` 拆腿（声明面 = doc 21 + ledger 2 = 23 行，本 phase 公共面 7 行），`checked` 取值补 `info (提示)` 形态 ② 恢复三句的**字节主源定为英文**（`words.ts` 与 SKILL.md 同读一串，中文为对译）；「计划领先账本」落 `info` 行而非 `PreFlightReason`（reason 只在失败面出现，零死值） | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
+| v0.8 | 2026-10-28 | plan-review-3 触发的三处收敛：① AC 的「五条 doc 规则」改成「21 条 doc 作用域声明」（与 §3.4/§6.4 的 21 行算术一致，两个数不得并存）② **in-flight 门只判不写**——取锁与写意图收归真派发路径，预览面因此天然零写、`--steal-stale` 在 `--dry-run` 下作废（门通过到 `acquire` 的竞态走同一条 `held` BLOCK 通道）③ 删掉 `no-ledger-facts` 这个无产出点的 reason 值（skipped 行即全部事实） | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |

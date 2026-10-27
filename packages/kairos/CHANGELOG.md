@@ -1,5 +1,17 @@
 # @oscaner-skills/kairos
 
+## 1.3.1
+
+### Patch Changes
+
+- [#389](https://github.com/Oscaner/skills/pull/389) [`e5da36e`](https://github.com/Oscaner/skills/commit/e5da36e301d370e245784b92cb7ff29038e03a54) Thanks [@Oscaner](https://github.com/Oscaner)! - cdd-report 的 `create-issue` 节点改用真实存在的 `gh issue create --label`（复数 `--labels` 不存在，会以 `unknown flag` 非零退出），并以 `gh label list` 预检目标仓库的标签面：默认标签集收窄为实际存在的 `cdd-engine`，缺失标签只降级标签集、不再让已过确认门的建单失败（issue [#387](https://github.com/Oscaner/skills/issues/387)）。
+
+- [#392](https://github.com/Oscaner/skills/pull/392) [`c8af116`](https://github.com/Oscaner/skills/commit/c8af1163220b1802b0440e9b73d00d6bf14d27fe) Thanks [@Oscaner](https://github.com/Oscaner)! - **`cdd-engine` — new eighth verb `cdd init` (minor).** `cdd init --harness=<claude|pi> [--update]` bootstraps `kairos` and its two upstream packages through the harness's own command channel: a serial per-step sequence, first failure stops the run, exit code 1 on failure with the failing step's argv and exit code on stderr, `127` when the harness binary is missing. The command bytes live only in the `PLUGINS` table (`face/plugins.ts`), so the install sequence and the README install table share one source; the verb is repo-independent (no `.kairos/` workspace, no ledger, no doc reads), and `--dry-run` renders the step plan it would run (`would run:` per step plus a summary line, exit 0, zero spawn). This release also retires the dead `INSTALL_ROWS` / `HostRow.install` / `infra/process.ts` (`ProcessRunner`) declarations and re-anchors the command-surface pins on the eight-verb enum: the kairos-side `CDD_SUBCOMMANDS` gate now derives from the engine's `CLI_COMMANDS`, and `CliVerb` / the help tables / the per-command help legend carry `init`.
+  
+  **`kairos` — README install surface (patch).** The install section collapses to one command plus one table (`Package | Claude Code | Pi`, three rows in `PLUGINS` order), the retired `### From pi` / `### Upstream dependency install` sections are gone, and the nine install pointers in the four shipped `SKILL.md` files (`cdd-design` six, `cdd-plan` one, `cdd-close` one, `cdd-spec-writer` one) now target the kairos README's installation table.
+  
+  **Post-publish verification (deliberately outside this release's acceptance surface).** The published `@latest` form of `cdd init` is verified after release: until this changeset is published, `npx -y @oscaner-skills/cdd-engine@latest init` exits 2 with `unknown command 'init'`, which is expected rather than a gap in this change. The pre-release manual check is the local-source form (`node packages/cdd-engine/src-next/bin.ts init --harness=<claude|pi>` plus `--update`) run in an empty non-git directory with no global `cdd` — it really installs packages, so it is a pre-release human step, not CI.
+
 ## 1.3.0
 
 ### Minor Changes

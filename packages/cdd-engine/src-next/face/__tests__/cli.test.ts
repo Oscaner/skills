@@ -1,9 +1,10 @@
 // packages/cdd-engine/src-next/face/__tests__/cli.test.ts
 // T11 Cli + composition-root suite (design spec §3.3):
-//   · the command face — the seven steady subcommand words (implement / review / fix /
-//     schema / issue / base / board with their nested leaves) and the usage lines the
+//   · the command face — the eight steady subcommand words (implement / review / fix /
+//     base / schema / issue / board / init with their nested leaves) and the usage lines the
 //     consumers read (T20: the base command face — `cdd base set|get` — converges
-//     the command surface; T5 adds the board observability command);
+//     the command surface; T5 adds the board observability command; P20 adds the init
+//     harness bootstrap);
 //   · parse — the commander-native parse pipeline (the projection's program): the
 //     value-domain validation (int-list tasks, enum type / source, sha base/head,
 //     int round) + the unknown-flag rejection (the
@@ -57,6 +58,8 @@ import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
 import { Cli, HarnessDispatch } from "../cli.ts";
 import { CLI_COMMANDS, type CliVerb } from "../declare.ts";
 import { HOSTS } from "../host.ts";
+import type { StepRunner } from "../init.ts";
+import { PLUGINS, type PluginRow } from "../plugins.ts";
 import { CommandTreeBuilder } from "../projection.ts";
 import type { ChildOutcome, ChildRun, ChildRunner, Termination } from "../termination.ts";
 import { Words } from "../words.ts";
@@ -497,8 +500,8 @@ const conformingSpec = (repoRoot: string, name = "s1-design.md"): string => {
 // the command face — the steady subcommand words
 // ---------------------------------------------------------------------------
 
-describe("the command face — the seven steady subcommand words", () => {
-  it("declares exactly the seven subcommands of the steady command face", () => {
+describe("the command face — the eight steady subcommand words", () => {
+  it("declares exactly the eight subcommands of the steady command face", () => {
     expect(CLI_COMMANDS.map((command) => command.name)).toEqual([
       "implement",
       "review",
@@ -507,6 +510,7 @@ describe("the command face — the seven steady subcommand words", () => {
       "schema",
       "issue",
       "board",
+      "init",
     ]);
   });
 
@@ -527,6 +531,115 @@ describe("the command face — the seven steady subcommand words", () => {
     // `get --output skeleton`).
     expect(leavesOf("schema")).toEqual(["get"]);
     expect(leavesOf("issue")).toEqual(["render"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cdd init — the repo-independent harness bootstrap (P20)
+// ---------------------------------------------------------------------------
+
+describe("cdd init — the harness bootstrap wiring", () => {
+  /** The stand-in runner — records every argv, returns 0 (the wiring's concern). */
+  class RecordingRunner implements StepRunner {
+    readonly calls: (readonly string[])[] = [];
+    async run(argv: readonly string[]): Promise<number> {
+      this.calls.push(argv);
+      return 0;
+    }
+  }
+
+  it("runs the harness sequence through the injected runner — zero FS reads off a git repo", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    // The bare fixture is a temp dir OUTSIDE any git repo — `init` never resolves
+    // the repo root, so the run succeeds where every repo-bound verb would exit 1.
+    const { command, io, repoRoot, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      const code = await command.runArgv(["init", "--harness=pi"]);
+      expect(code).toBe(0);
+      expect(io.stderrText).toBe("");
+      const roster: readonly PluginRow[] = PLUGINS;
+      expect(runner.calls).toEqual(roster.flatMap((row) => row.pi.install));
+      expect(headers.at(-1)).toBe("init: 3 steps ok (pi · install)");
+      // §2.4's second half — the cwd is left untouched: no workspace, no ledger.
+      expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
+      expect(readdirSync(repoRoot)).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("derives the update column from the parsed --update — zero install argv rides the run", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    const { command, io, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      expect(await command.runArgv(["init", "--harness=claude", "--update"])).toBe(0);
+      const roster: readonly PluginRow[] = PLUGINS;
+      expect(runner.calls).toEqual(roster.flatMap((row) => row.claude.update));
+      // The install column is a distinct argv set, so a dropped or inverted update
+      // derivation shows up here as install commands riding an update request.
+      const installs = new Set(
+        roster.flatMap((row) => row.claude.install).map((argv) => argv.join(" ")),
+      );
+      expect(runner.calls.filter((argv) => installs.has(argv.join(" ")))).toEqual([]);
+      expect(headers.at(-1)).toBe("init: 6 steps ok (claude · update)");
+      expect(io.stderrText).toBe("");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a missing --harness is a usage rejection (exit 2, zero spawn)", async () => {
+    const runner = new RecordingRunner();
+    const { command, cleanup } = fixture({ initRunner: runner });
+    try {
+      expect(await command.runArgv(["init"])).toBe(2);
+      expect(runner.calls).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an out-of-vocabulary --harness is refused by the HOST_IDS value domain (exit 2, zero spawn)", async () => {
+    const runner = new RecordingRunner();
+    const { command, io, cleanup } = fixture({ initRunner: runner });
+    try {
+      expect(await command.runArgv(["init", "--harness=cursor"])).toBe(2);
+      expect(io.stderrText).toContain("must be one of claude | pi");
+      expect(runner.calls).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("--dry-run renders the step plan — exit 0, the would-run lines on the header face, zero spawn", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    const { command, io, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      expect(await command.runArgv(["init", "--harness=claude", "--dry-run"])).toBe(0);
+      // the preview rides the same header seam as a real run: one would-run line per
+      // step (the roster's argv), then the summary — and the runner is never reached
+      expect(headers).toHaveLength(7);
+      expect(headers[0]).toBe(
+        "would run: claude plugin marketplace add obra/superpowers-marketplace",
+      );
+      expect(headers.at(-1)).toBe("init: 6 steps (claude · install) — dry run, nothing executed");
+      expect(runner.calls).toEqual([]);
+      expect(io.stderrText).toBe("");
+    } finally {
+      cleanup();
+    }
   });
 });
 
@@ -932,8 +1045,17 @@ describe("the help/--help display face — the command overview", () => {
       const out = io.stdoutText + io.stderrText;
       expect(out).toContain("Usage: cdd [options] [command]");
       expect(out).toContain("Commands:");
-      // the seven-command table + the built-in help [command] row (native layout)
-      for (const name of ["implement", "review", "fix", "base", "schema", "issue", "board"]) {
+      // the eight-command table + the built-in help [command] row (native layout)
+      for (const name of [
+        "implement",
+        "review",
+        "fix",
+        "base",
+        "schema",
+        "issue",
+        "board",
+        "init",
+      ]) {
         expect(out).toContain(name);
       }
       expect(out).toContain("help [command]");
@@ -1099,14 +1221,23 @@ describe("the help/--help display face — the per-command render", () => {
   it("every per-command --help carries the program-flag tail note (--dry-run alone)", async () => {
     const { command, io, cleanup } = fixture();
     try {
-      for (const verb of ["implement", "review", "fix", "base", "schema", "issue", "board"]) {
+      for (const verb of [
+        "implement",
+        "review",
+        "fix",
+        "base",
+        "schema",
+        "issue",
+        "board",
+        "init",
+      ]) {
         expect(await command.runArgv([verb, "--help"])).toBe(0);
       }
       // the tail note rides the commander afterAll surface — one line per help
       // face, listing --dry-run ALONE (the -h/--help redundant column unwritten)
       const legend =
-        /program flags \(accepted at any position\): --dry-run \(implement\/review\/fix only\)/g;
-      expect(io.stdoutText.match(legend) ?? []).toHaveLength(7);
+        /program flags \(accepted at any position\): --dry-run \(implement\/review\/fix\/init\)/g;
+      expect(io.stdoutText.match(legend) ?? []).toHaveLength(8);
       expect(io.stdoutText).not.toContain("· --help / -h");
     } finally {
       cleanup();
@@ -1120,7 +1251,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
    *  token stream through single spaces, never a wrapped byte literal. */
   const norm = (text: string): string => text.replace(/\s+/g, " ");
 
-  it("cdd --help — the native program face: Usage · the seven-command table (short descriptions = the CLI_COMMANDS projection) · Examples heading · the --dry-run-only footer", async () => {
+  it("cdd --help — the native program face: Usage · the eight-command table (short descriptions = the CLI_COMMANDS projection) · Examples heading · the --dry-run-only footer", async () => {
     const { command, io, cleanup } = fixture();
     try {
       const code = await command.runArgv(["--help"]);
@@ -1131,7 +1262,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       expect(help).toContain("Usage: cdd [options] [command]");
       expect(help).toContain("Commands:");
       expect(help).toContain("Options:");
-      // The seven command rows — the command names + their short descriptions
+      // The eight command rows — the command names + their short descriptions
       // SINGLE-SOURCED at the CLI_COMMANDS declaration rows (the projection test,
       // never a hand-typed byte list).
       for (const spec of CLI_COMMANDS) {
@@ -1145,7 +1276,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       // redundant column is not written (the built-in helpOption faces Options).
       const footer = io.stdoutText.split("\n").find((line) => line.startsWith("program flags"));
       expect(footer).toBe(
-        "program flags (accepted at any position): --dry-run (implement/review/fix only)",
+        "program flags (accepted at any position): --dry-run (implement/review/fix/init)",
       );
       expect(footer).not.toContain("--help");
       expect(footer).not.toContain("-h");

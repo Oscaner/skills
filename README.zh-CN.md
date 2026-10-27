@@ -44,26 +44,21 @@
 | **kairos** | 第一方——[`packages/kairos/`](packages/kairos/)，以 [`@oscaner-skills/kairos`](https://www.npmjs.com/package/@oscaner-skills/kairos) 发布。六个 `cdd-*` 技能及 CDD 引擎 |
 | **superpowers** | 上游——[obra/superpowers](https://github.com/obra/superpowers)。工作流技能 |
 | **mattpocock-skills** | 上游——[mattpocock/skills](https://github.com/mattpocock/skills)。精准工具：`grilling`、`tdd` |
-| **impeccable** | 上游——[pbakaus/impeccable](https://github.com/pbakaus/impeccable)。前端设计技能 |
 
-上游版本遵循各自的发布节奏——始终从各自发布方安装。
+上游版本遵循各自的发布节奏——`cdd init` 安装各发布方当前发布的版本。
 
 ## 安装
 
 ```bash
-# Claude Code 市场
-claude plugin marketplace add oscaner/skills
-claude plugin install kairos@oscaner-skills
-
-# Pi
-pi install npm:@oscaner-skills/kairos
+npx -y @oscaner-skills/cdd-engine@latest init --harness=claude
+npx -y @oscaner-skills/cdd-engine@latest init --harness=pi
 ```
 
-上游插件从各自发布方安装；[插件列表](#插件列表)表链接了每个主页仓库。
+`cdd init` 按序安装 kairos 及其上游包，经该 harness 自己的命令渠道——已全局安装 `cdd` 时可省 `npx -y @oscaner-skills/cdd-engine@latest` 前缀。逐 harness 的手工安装命令见 [`packages/kairos/README.md`](packages/kairos/README.md) 的安装表。
 
 ## 快速开始
 
-1. 安装 `kairos` 以及你需要的上游插件。
+1. 用 `cdd init --harness=<claude|pi>` 安装 kairos 及其上游包（见[安装](#安装)）。
 2. 零安装前置——每个 kairos 技能都按需通过 `npx -y @oscaner-skills/cdd-engine@latest <子命令>` 获取引擎。
 3. 按名称调用编排器：`/kairos:cdd-design`、`/kairos:cdd-plan`、`/kairos:cdd-dev`、`/kairos:cdd-close`。
 4. 无需配置 `.gitignore`——引擎将运行态保存在 `.kairos/cdd/` 下，并在首次派发时自发布 `.kairos/.gitignore`（内容 `*`）。

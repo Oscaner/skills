@@ -7,8 +7,9 @@
 //     so the scene is constructed inline and the env is injected.
 //   · the CLI face — the preview's zero-write semantics on a real fixture repo
 //     (`.kairos/` absent, `git status --porcelain` byte-identical, no round
-//     consumed), the pre-flight refusal face's identity with the real run's, and
-//     the flag's narrowed scope (exit 2 off the three work verbs).
+//     consumed), the pre-flight refusal face's identity with the real run's, the
+//     flag's narrowed scope (exit 2 on the pure commands), and the bootstrap's
+//     preview (the would-run plan at zero spawn).
 
 import { spawnSync } from "node:child_process";
 import {
@@ -29,6 +30,7 @@ import { Ledger } from "../../session/ledger.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
 import { Cli } from "../cli.ts";
+import type { StepRunner } from "../init.ts";
 import { Preview } from "../preview.ts";
 
 // ---------------------------------------------------------------------------
@@ -178,6 +180,16 @@ const ORIGINAL_CWD = process.cwd();
 afterEach(() => {
   process.chdir(ORIGINAL_CWD);
 });
+
+/** The stand-in init runner — records every argv, returns 0. The preview path must
+ *  leave `calls` empty: a preview that spawns is not a preview. */
+class RecordingRunner implements StepRunner {
+  readonly calls: (readonly string[])[] = [];
+  async run(argv: readonly string[]): Promise<number> {
+    this.calls.push(argv);
+    return 0;
+  }
+}
 
 /** A hermetic CLI fixture — a fresh temp repo, the io captured, the cwd isolated
  *  into the temp root (taken through `realpathSync`: the engine's git-top-level
@@ -342,7 +354,7 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
     }
   });
 
-  it("is scoped to the three work verbs — every pure command rejects the flag (exit 2)", async () => {
+  it("is scoped to the pure commands — every one rejects the flag (exit 2)", async () => {
     const { command, io, cleanup } = fixture();
     try {
       const cases: readonly (readonly string[])[] = [
@@ -367,6 +379,49 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
         expect(await command.runArgv([...argv])).toBe(2);
         expect(io.stderrText).toContain("--dry-run previews the next dispatch step");
       }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("init previews its step plan — the would-run lines, zero spawn, zero writes (the fourth verb)", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    const { command, repoRoot, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      expect(await command.runArgv(["init", "--harness=claude", "--dry-run"])).toBe(0);
+      expect(headers[0]).toBe(
+        "would run: claude plugin marketplace add obra/superpowers-marketplace",
+      );
+      expect(headers.at(-1)).toBe("init: 6 steps (claude · install) — dry run, nothing executed");
+      // the preview flag never installs anything and never touches the tree
+      expect(runner.calls).toEqual([]);
+      expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a pre-verb --dry-run previews the bootstrap too — the pi denominator, zero spawn", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    const { command, io, repoRoot, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      // the flag is accepted at any position — ahead of the verb it merges from the
+      // program node into the same preview face
+      expect(await command.runArgv(["--dry-run", "init", "--harness=pi"])).toBe(0);
+      expect(headers).toHaveLength(4);
+      expect(headers[0]).toBe("would run: pi install git:github.com/obra/superpowers");
+      expect(headers.at(-1)).toBe("init: 3 steps (pi · install) — dry run, nothing executed");
+      expect(runner.calls).toEqual([]);
+      expect(io.stderrText).toBe("");
+      expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
     } finally {
       cleanup();
     }

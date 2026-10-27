@@ -87,10 +87,11 @@ flowchart TD
 - **Do**: Compose and file the single aggregate issue.
   1. **Render** the body with the renderer CLI bare call: `npx -y @oscaner-skills/cdd-engine@latest issue render` reading stdin JSON `{ harness, findings, related }` → aggregate body straight to stdout. The stdin contract: top-level `harness` (Session row value) / `findings[]` (non-empty) / optional `related`; per finding, `type ∈ {bug, enhancement, chore}` · `lang ∈ {en, zh}` · non-empty `context`/`problem`/`impact`/`suggestedFix` · `meta{skill, step}`. Input violations → exit 1 with the offending field path (e.g. `findings[0].type: must be one of bug | enhancement | chore`) — fix the stdin JSON and retry; never hand-assemble the body.
   2. **Body layout** (renderer-produced, deterministic): `## Session` region with one `- Harness: <harness>` row; per finding, its four typed segments (section headings from the canonical issue-label oracle by type × lang) each followed by its 2-line report-meta `- Skill: <skill>` / `- Step: <step>` — position adjacency is the ownership declaration; single tail regions `## Dedup` (all open hits) and `## Related` (all closed hits + program ownership), never per-finding.
-  3. **Create** with `gh issue create --repo Oscaner/skills --title <topic> --labels kairos,cdd-engine` and the rendered body. Program ownership — the session's program-owning issue — is passed as `related.program` and renders as `- Program: #N` in the Related region.
-- **Read**: renderer CLI (bare call); confirmed findings + topic; dedup decisions; Session Context (harness / program-owning issue)
+  3. **Resolve labels** — read the target repo's label surface once: `gh label list --repo Oscaner/skills --limit 100`. Create set = the default `cdd-engine` intersected with the labels the repo carries; a dropped default is recorded as a **label deviation** for `report`, and an empty intersection creates the issue with no label. Labels never block the create call.
+  4. **Create** — `gh issue create --repo Oscaner/skills --title <topic> --label <label> …` with the rendered body. The flag is singular — `--label`, repeated once per resolved label; `gh issue create` has no `--labels`. Program ownership — the session's program-owning issue — is passed as `related.program` and renders as `- Program: #N` in the Related region.
+- **Read**: renderer CLI (bare call); the `gh label list` surface; confirmed findings + topic; dedup decisions; Session Context (harness / program-owning issue)
 - **Exit**: issue created → `report`
-- **Fail**: renderer rejects the stdin → exit 1 with field path (fix stdin, retry); the create call fails → fail-open (record stderr, keep finding for manual retry)
+- **Fail**: renderer rejects the stdin → exit 1 with field path (fix stdin, retry); the label pre-check fails → fail-open (create with the default set, record stderr); the create call fails → fail-open (record stderr, keep finding for manual retry)
 
 ### `report-links-only`
 
@@ -101,7 +102,7 @@ flowchart TD
 
 ### `report`
 
-- **Do**: Print the run summary — created issue URL (when `create-issue` ran) / the links-only list (when `report-links-only` ran); `Regression / follow-up of #N (closed)` notes with the closed issue number; the program ownership link; failed or skipped finding with reason.
+- **Do**: Print the run summary — created issue URL (when `create-issue` ran) / the links-only list (when `report-links-only` ran); `Regression / follow-up of #N (closed)` notes with the closed issue number; the program ownership link; any label deviation the `create-issue` pre-check recorded; failed or skipped finding with reason.
 - **Read**: final action for each finding
 - **Exit**: summary presented → the APPROVED terminal
 - **Fail**: none (display only)
@@ -115,6 +116,7 @@ flowchart TD
 | I5 | **Renderer Determinism** — the issue body is produced by `npx -y @oscaner-skills/cdd-engine@latest issue render` as a bare call (stdin JSON → aggregate body → stdout, no mode flag, no hand-assembled paragraph structure in this skill) |
 | I6 | **Evidence Contract** — findings never carry consumer-identifiable data (branch names, absolute paths, filenames, process counts, RSS values, launch dirs, session habits) — such context enters only on consumer opt-in at `confirm` — AND findings always describe a maintainer-reproducible mechanism (trigger conditions / mechanism / expected behavior / reproduction steps) |
 | I8 | **One-shot chain** — the flow is a single pass to the terminal (no review self-loop, no `next:` consumption); a rejected confirm or a failed create terminates the chain with the finding preserved for manual retry |
+| I9 | **Label Safety** — the create call carries the singular `--label` and only labels the repo's live label surface, resolved by the `gh label list` pre-check; a missing label shrinks the label set, never blocks the filing |
 
 ## Failure Modes
 
@@ -123,5 +125,6 @@ flowchart TD
 | User rejects filing (confirm rejected) | BLOCKED (user-reject) | no gh issue is created or commented on before confirmation (I1) | flow terminates, nothing filed |
 | `gh` CLI unavailable / network failure | fail-open (record stderr, keep finding) | external tool dependency | manual retry using the recorded stderr |
 | renderer rejects the stdin JSON | exit 1 + offending field path (early report) | renderer input contract is strict — body is never hand-assembled (I5) | fix the stdin JSON per the reported path, retry |
-| create call fails | fail-open (record stderr, keep finding) | title / labels / network / permissions | manual retry, keep findings |
+| a default label is absent, or the label pre-check fails | auto-degrade (create with the surviving set, none when empty) | labels are repo-side state, never a filing blocker | issue is created; `report` prints the deviation |
+| create call fails | fail-open (record stderr, keep finding) | title / body size / network / permissions | manual retry, keep findings |
 | no finding survives collect/reform | BLOCKED (nothing to report) | toolchain scope filter rejected everything | revisit the session, re-run on manual trigger |

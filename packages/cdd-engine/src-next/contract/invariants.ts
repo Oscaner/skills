@@ -392,11 +392,14 @@ export class LedgerLayeringRule extends LedgerRuleBase {
   }
 }
 
-/** planned-tasks-vs-recorded-tasks — the plan and the ledger agree, allowing the plan
- *  to LEAD the ledger: an unrecorded task is allowed only when its id is greater
- *  than the ledger's greatest recorded id (the normal window between a plan append
- *  and its first round). A recorded task the plan no longer carries, and an
- *  unrecorded gap BELOW that maximum, are both findings. */
+/** planned-tasks-vs-recorded-tasks — the ledger's recorded tasks must still exist in
+ *  the plan. ONE direction only: a plan always LEADS the ledger (every undispatched
+ *  task sits in the plan), so neither task numbering nor dependency layers can tell
+ *  "the next wave" from "a stranded task" — the old id-based window flagged the
+ *  normal next-wave state and locked the whole dispatch chain (the P21 dogfood
+ *  defect). That direction therefore carries zero judgment (an `info (plan leads
+ *  ledger by N tasks)` row only). The one real disagreement is a recorded task the
+ *  plan no longer carries — an executed task rewritten out of the plan. */
 export class LedgerTaskSetRule extends LedgerRuleBase {
   readonly name = "planned-tasks-vs-recorded-tasks";
 
@@ -415,25 +418,14 @@ export class LedgerTaskSetRule extends LedgerRuleBase {
         ),
       );
     }
-    for (const id of planned) {
-      if (recorded.has(id) || id > ledger.maxRecordedTask) continue;
-      findings.push(
-        this.finding(
-          ctx,
-          "Task id",
-          `Task ${id} is missing from the ledger while the plan already recorded higher tasks`,
-          "record the missing round in the ledger or remove the task from the plan",
-        ),
-      );
-    }
     return findings;
   }
 
-  /** How many planned tasks are ahead of the ledger — the `plan leads ledger` info
-   *  count (the same predicate the window allowance reads; preflight renders it). */
+  /** How many planned tasks the ledger has not recorded yet — the `plan leads ledger`
+   *  info count (a prompt, never a finding). */
   static planAhead(ledger: LedgerFacts): number {
     const recorded = new Set(ledger.recordedTasks);
-    return ledger.planTasks.filter((id) => !recorded.has(id) && id > ledger.maxRecordedTask).length;
+    return ledger.planTasks.filter((id) => !recorded.has(id)).length;
   }
 }
 

@@ -1418,7 +1418,6 @@ const agreeingFacts = {
   recordedTasks: [1, 2],
   closedWaves: [[1], [2]],
   snapshots: [],
-  maxRecordedTask: 2,
   layers: [[1], [2], [3]],
 };
 
@@ -1437,13 +1436,17 @@ describe("P21 T2 — planned-tasks-vs-recorded-tasks (the plan may lead the ledg
     expect(withKind(findings, "planned-tasks-vs-recorded-tasks", "Task id")).toBe(true);
   });
 
-  it("turns red when a gap appears BELOW the greatest recorded task", () => {
-    const findings = ledgerJudge({
+  it("passes a low-numbered task the ledger has not reached yet (the P21 dogfood shape)", () => {
+    // The plan carries 1..9; the ledger recorded {1,2,3} and {4,5,7}. Task 6 waits
+    // in a LATER DependsOn layer than 7 — the old id-based window called that a gap
+    // and locked every dispatch on the plan.
+    const facts = {
       ...agreeingFacts,
-      recordedTasks: [1, 3],
-      maxRecordedTask: 3,
-    });
-    expect(withKind(findings, "planned-tasks-vs-recorded-tasks", "Task id")).toBe(true);
+      planTasks: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      recordedTasks: [1, 2, 3, 4, 5, 7],
+    };
+    expect(ledgerJudge(facts)).toEqual([]);
+    expect(LedgerTaskSetRule.planAhead(facts)).toBe(3);
   });
 
   it("is not judged on a doc type the ledger rules do not declare", () => {
@@ -1457,7 +1460,6 @@ describe("P21 T2 — closed-wave-fits-depends-on-layers", () => {
       ...agreeingFacts,
       closedWaves: [[2, 3]],
       recordedTasks: [1, 2, 3],
-      maxRecordedTask: 3,
       layers: [[1], [2], [3]],
     });
     expect(withKind(findings, "closed-wave-fits-depends-on-layers", "closed Waves")).toBe(true);
@@ -1468,7 +1470,6 @@ describe("P21 T2 — closed-wave-fits-depends-on-layers", () => {
       ...agreeingFacts,
       closedWaves: [[2, 3]],
       recordedTasks: [1, 2, 3],
-      maxRecordedTask: 3,
       layers: [[1], [2, 3]],
     });
     expect(findings).toEqual([]);

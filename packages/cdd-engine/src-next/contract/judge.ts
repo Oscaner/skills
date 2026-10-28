@@ -51,8 +51,6 @@ export interface LedgerFacts {
   readonly closedWaves: readonly (readonly number[])[];
   /** The wave rows' `planTasks` snapshots (the append-vs-stall observation, §5.1). */
   readonly snapshots: readonly { readonly wave: string; readonly planTasks: readonly number[] }[];
-  /** The greatest recorded task id (0 when nothing is recorded) — the plan-ahead floor. */
-  readonly maxRecordedTask: number;
   /** The plan's topological layers (one task-id set per layer, from `TaskGraph.batches()`)
    *  — the sole input of `closed-wave-fits-depends-on-layers`. */
   readonly layers: readonly (readonly number[])[];

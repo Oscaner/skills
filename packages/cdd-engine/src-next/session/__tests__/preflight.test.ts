@@ -709,12 +709,14 @@ describe("PreFlight — the plan-ledger gate", () => {
     }
   });
 
-  it("BLOCKs when a middle ledger record is missing (the mutation guard)", async () => {
+  it("BLOCKs when the ledger records a task the plan no longer carries (the mutation guard)", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
+      // The plan carries 1..3 while the ledger recorded 1 and 11 — the executed task
+      // 11 is absent from the plan, the ONE disagreement this gate judges.
       const ctx = branchCtx(repoRoot, [task(1, "none"), task(2, "1"), task(3, "2")], (ledger) => {
         ledger.recordRound("1", "implement");
-        ledger.recordRound("3", "implement");
+        ledger.recordRound("11", "implement");
       });
       const verdict = await preflightOf().vet(ctx);
       expect(verdict.ok).toBe(false);

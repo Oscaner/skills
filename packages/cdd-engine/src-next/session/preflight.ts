@@ -438,7 +438,6 @@ export class PreFlight {
       // The wave rows' closure-time plan-task snapshots (P21 §5.1) — read from the
       // SAME ledger face the wave gate's append judgment reads (zero second source).
       snapshots: this.#snapshotsOf(data, ledger),
-      maxRecordedTask: recorded.length > 0 ? Math.max(...recorded) : 0,
       layers,
     };
   }

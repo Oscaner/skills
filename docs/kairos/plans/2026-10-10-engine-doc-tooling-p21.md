@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 实施计划：引擎作为唯一读写路径
 doc-type: plan
-version: v0.11
+version: v0.12
 date: 2026-10-28
 slug: 2026-10-10-engine-doc-tooling-p21
 base: develop
@@ -461,46 +461,56 @@ base: develop
 - **Acceptance**: 新形与旧形解析结果逐字段相等（`shape` 与 `range` 除外）· 七个保留键一份声明（`declare.ts` 里旧项目符号形的 task-field 元素删除，归一化只在 reader 内）· `DependsOn` 新旧形派生同一批 wave · 带 `####` 子节的任务块 brief 逐字节完整（`#rawSection` 已删除，零 `^#` 截断残留）· 骨架吐新形且含两条 step 样例 · 扩展 `####` 节零 finding · 冻结计划零改（`git diff` 对 `docs/kairos/plans/*` 无改动）· `pnpm -C packages/cdd-engine test` 绿 · typecheck ×3 · 零裸函数门绿
 - **DependsOn**: 7
 
-### Task 10: 全契约面迁移（四类文档共用一棵树 · 登记面 selector 化 · 删手写行扫描）
+### Task 10: 全契约面迁移（身份与定位分离 · 可组合 selector · 四类文档共用一棵树）
 
-- **Objective**: 把 T9 的块级 `mdast` 面扩到**整个契约面**：四类文档（overall / phase-spec / single-spec / plan）只有一个解析入口 `MarkdownTree`（`gfm` + `frontmatter` 扩展），登记面 `anchor` + `home` 换成封闭集 selector，`translate` 的逐行归一化前置为一次内存文本变换，`skeleton` 加**往返 pin**（骨架 → 解析 → 结构同构），并删掉全部手写行扫描。终态只有一个模型——不留「Task 块走 AST、其余走正则」的中间态。
-- **Files**: Create `packages/cdd-engine/src-next/contract/markdown-tree.ts` · `packages/cdd-engine/src-next/contract/__tests__/markdown-tree.test.ts`; Modify `contract/declare.ts`（`RegistryElement`：`anchor` + `home` → `selector` 封闭集 · 全部元素改 selector 形）· `contract/doc.ts`（四类 parse 全部经 tree · 删 `#tableSection` / `tableRowCells` / `tableLinesOf` / `#docSections` / 图边扫描）· `contract/invariants.ts`（20 条策略换读 tree 节点 · 删 `this.overall(ctx)` 一类手写取数）· `contract/translate.ts`（逐行 API → 解析前一次性 canonicalize 文本）· `contract/project.ts`（slice 机件改由 tree 供数）· `render/skeleton.ts`（往返 pin）· `face/board-view.ts`（读 tree 的解析记录）· `session/graph.ts`（依赖图与分层改由 tree 供数）· 对应 `__tests__`（约 900 条用例重锚）
-- **Consumes**: T9 的 `PlanTaskBlocksReader` 与 `MarkdownTree`（树的唯一入口，T10 把它提到契约面）· `contract/declare.ts` 的 `ElementRegistry` / `DeclaredRegistries` / `home` 值域（`frontmatter` / `section` / `facet` / `table` / `graph` / `task-block` / `task-field` / `task-step`）· `contract/doc.ts` 的手写扫描面（删除目标）· `contract/translate.ts` 的 `canonicalize` 逐行入口 · `render/skeleton.ts` 的渲染面。
+- **Objective**: 把 T9 的块级 `mdast` 面扩到**整个契约面**，并按上一轮 blocker 报告的三条裁定落地：① **身份与定位分离**——`anchor` 留作身份（schema property 名 / `required[]` / 骨架真值表 / lint 查表 / finding 的 `field:`，消费者可见面零变化），新增 `selector` 只承担定位；② **selector 可组合**（`from` 相对根或父 selector · `walk` 八种 + `when` 条件守卫），覆盖 114 个登记元素里那 36 个行/单元格/token/step/条件元素；③ **pin 分两类**（语义 pin 不动，扫描行为 pin 逐条重锚并点名）。同一棵树供四类文档，`translate` 归一化前置，骨架加往返 pin，删掉全部手写行扫描。
+
+- **Files**: Create `packages/cdd-engine/src-next/contract/markdown-tree.ts` · `packages/cdd-engine/src-next/contract/__tests__/markdown-tree.test.ts` · `packages/cdd-engine/src-next/contract/__tests__/selector-coverage.test.ts`; Modify `contract/declare.ts`（每个元素增 `selector`，`anchor` / `home` 保留为身份与历史分面）· `contract/doc.ts`（四类 parse 经 tree · 删扫描面）· `contract/invariants.ts`（20 条策略换读 tree 节点）· `contract/translate.ts`（逐行 API → 前置一次）· `contract/project.ts`（slice 机件由 tree 供数）· `contract/lint.ts`（查表经 tree）· `render/skeleton.ts`（往返 pin）· `face/board-view.ts` · `session/graph.ts` · 对应 `__tests__`（含重锚清单）
+
+- **Consumes**: T9 的 `MarkdownTree` / `PlanTaskBlocksReader` · `contract/declare.ts` 的 `ElementRegistry`（含 `anchor` / `home` / `presence` / `valuePattern` / `refKind`）· `contract/home-extractors.ts` 的按 home 分面取数（28 处触碰，本任务换成 selector 解析）· `render/skeleton.ts:46,58` 的真值表与 `#assertConsumed` 的 probe 通道（身份键，不动）· `contract/project.ts:446,452` 的 schema property / `required[]` 构造（身份键，不动）
+
 - **Produces**:
   ```ts
-  // contract/markdown-tree.ts —— 四类文档唯一的解析入口
-  export type Selector =
-    | { readonly kind: "frontmatter"; readonly key: string }
-    | { readonly kind: "heading"; readonly rank: number; readonly pattern: RegExp }
-    | { readonly kind: "table"; readonly headerRow: string }
-    | { readonly kind: "listItem"; readonly prefix: string }
-    | { readonly kind: "taskBlock"; readonly field: string };
-  export interface MarkdownTree {
-    /** 解析（gfm + frontmatter 扩展；输入已归一化，源文件零改）。 */
-    static parse(content: string): MarkdownTree;
-    /** selector → 节点区间 + 文本（未命中为 null；判定面只读这一处）。 */
-    resolve(selector: Selector): { readonly text: string; readonly lines: readonly string[] } | null;
-    /** 命中集合（presence 的唯一读面）。 */
-    occurrences(selector: Selector): readonly { readonly text: string; readonly line: number }[];
-    /** 分节树 / 表格行 / 图边的结构化读面（替代 doc.ts 的全部手写扫描）。 */
+  // contract/markdown-tree.ts —— 四类文档唯一的解析入口 + 可组合 selector 面
+  export type Walk = "heading" | "table" | "row" | "cell" | "list" | "taskField" | "taskStep" | "graphEdge";
+  export interface Selector {
+    readonly from: "root" | Selector;
+    readonly walk: Walk;
+    readonly match?: string | RegExp;
+    readonly when?: "first" | "last" | "tableBody" | "inTaskBlock";
+  }
+  export interface ResolvedNode {
+    readonly text: string;              // 命中节点的文本（值形判据跑在它上面，不是原始行）
+    readonly lines: readonly string[];
+    readonly line: number;              // 1-based，供 finding 定位
+    readonly cells?: readonly string[]; // row / cell 命中时给出单元格序列
+  }
+  export class MarkdownTree {
+    static parse(content: string): MarkdownTree;      // gfm + frontmatter 扩展；输入已归一化
+    resolve(selector: Selector): ResolvedNode | null; // 未命中 → null（presence 的读面）
+    occurrences(selector: Selector): readonly ResolvedNode[];
     sections(): readonly SectionNode[];
-    rows(headerRow: string): readonly (readonly string[])[];
+    rows(selector: Selector): readonly (readonly string[])[];
     edges(): readonly { readonly from: string; readonly to: string; readonly hard: boolean }[];
   }
   ```
+
 - **Steps**:
-  - 添加依赖 `pnpm -C packages/cdd-engine add micromark-extension-gfm mdast-util-gfm micromark-extension-frontmatter mdast-util-frontmatter` —— checkable: `package.json#dependencies` 四项在册，`pnpm -C packages/cdd-engine install` 零报错
-  - 写失败测试 `markdown-tree.test.ts`（四类文档同构）：一类真实文档（overall / phase-spec / single-spec / plan 各一）经 `MarkdownTree.parse` 后——`heading(2, …)` 命中数等于标题数、`table("## Phase inventory")` 行数等于表体行、`frontmatter("slug")` 取到 head 值、`taskBlock("DependsOn")` 取到依赖 —— checkable: FAIL（文件不存在）
-  - 写失败测试（表格边界）：单元格内含 `|`（转义 `\|`）、反引号内的竖线、对齐行、空单元格四种形态，`rows()` 给出的单元格序列与手写期望一致 —— checkable: FAIL（今日 `tableRowCells` 在这四种形态上不可靠）
-  - 写失败测试（归一化前置）：同一份含本地化词的文档，`MarkdownTree.parse(canonicalize(text))` 与「今日逐行 canonicalize 后判定」的结论逐条一致（用三条既有规则做对照） —— checkable: FAIL
-  - 实现 `MarkdownTree`（`fromMarkdown(text, {extensions: [gfm(), frontmatter()]})` → unist 遍历 → selector 解析与结构化读面） —— checkable: 上述三组用例转绿
-  - `declare.ts` 换 selector：`RegistryElement` 的 `anchor` + `home` 删除，改 `selector: Selector`；107 个元素逐一改写（`heading(2, /^## Design$/)` · `table("| # | Phase | …")` · `listItem("**Objective**")` 等） —— checkable: `grep -rn "anchor:\|home:" packages/cdd-engine/src-next/contract/declare.ts` 零命中
-  - `doc.ts` 四类 parse 换源并删扫描面 —— checkable: `grep -rn "tableRowCells\|tableLinesOf\|#docSections\|split(\\\"|\\\")" packages/cdd-engine/src-next/contract/doc.ts` 零命中
-  - `invariants.ts` 20 条策略换读 tree —— checkable: `grep -rn "this.overall(ctx)" packages/cdd-engine/src-next/contract/invariants.ts` 零命中，且 21 条规则的既有 pin 全绿（同一批语义、换数据面）
-  - `translate.ts` 逐行 API → `canonicalize(text): string`（解析前一次） —— checkable: `translate.test.ts` 重锚后绿，且 `grep -c "canonicalize" packages/cdd-engine/src-next` 只命中「解析前一次」的调用点
-  - `skeleton.ts` 往返 pin —— checkable: 骨架输出 → `MarkdownTree.parse` → 与骨架声明的结构同构（标题树 / 表头 / 元素顺序逐一相等）
-  - 全量重锚与收口 —— checkable: `pnpm -C packages/cdd-engine test` 绿 · `pnpm run typecheck` ×3 · `pnpm run check:no-bare-functions` 零命中 · `pnpm run validate` ALL PASS
-- **Acceptance**: 四类文档只有一个解析入口（`grep -rn "from-markdown" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 只命中 `contract/markdown-tree.ts`）· 登记面零 `anchor` / `home`（selector 封闭集）· `doc.ts` / `invariants.ts` 的手写扫描面零残留 · 表格四种边界形态各一 pin · 骨架往返同构 · 21 条规则的判定语义不变（既有 pin 全绿，仅数据面换源）· 归一化只在前置一处 · 约 900 条用例重锚后全绿 · typecheck ×3 · 零裸函数门 · `pnpm run validate` ALL PASS
+  - 添加依赖 `pnpm -C packages/cdd-engine add micromark-extension-gfm mdast-util-gfm micromark-extension-frontmatter mdast-util-frontmatter` —— checkable: `package.json#dependencies` 四项在册，install 零报错
+  - 写失败测试 `markdown-tree.test.ts`（四类文档同构 + 表格边界）：head `frontmatter("slug")` 取值、`heading(2, …)` 计数、`table("## Phase inventory")` 行数；单元格含转义 `\|`、反引号内竖线、对齐行、空单元格四种形态的单元格序列 —— checkable: FAIL
+  - 写失败测试（可组合 selector）：`table → row(when: tableBody) → cell(match 版本形)` 三级链命中 Change history 的版本单元格；`taskField → taskStep` 命中 step 叶；`graphEdge(match: "hard")` 命中硬边 —— checkable: FAIL
+  - 实现 `MarkdownTree`（fromMarkdown + 遍历 + `resolve/occurrences/rows/edges`） —— checkable: 上述两组转绿
+  - 写失败测试 `selector-coverage.test.ts`（覆盖矩阵）：遍历 `declaredRegistries` 的**全部 114 个元素**，逐元素 `resolve(selector)` 非空（夹具 = 仓内四类真实文档各一） —— checkable: FAIL（多数元素尚无 selector）
+  - `declare.ts` 逐元素补 `selector`（保留 `anchor` / `home` 作为身份与历史分面） —— checkable: 覆盖矩阵用例转绿（114/114）
+  - `doc.ts` 四类 parse 换源并删扫描面 —— checkable: `grep -rn "tableRowCells\|tableLinesOf\|#docSections\|split(\"|\")" packages/cdd-engine/src-next/contract/doc.ts` 零命中
+  - `home-extractors.ts` 的按 home 取数改走 selector（28 处），`invariants.ts` 20 条策略同批换读 —— checkable: `grep -rn "this.overall(ctx)" .../contract/invariants.ts` 零命中；21 条规则的**语义 pin** 全绿
+  - `translate.ts` 逐行 API → `canonicalize(text): string` 前置一次 —— checkable: `translate.test.ts` 重锚后绿，且引擎面只余一处 canonicalize 调用
+  - `skeleton.ts` 往返 pin —— checkable: 骨架输出 → parse → 标题树 / 表头 / 元素顺序逐一相等
+  - **身份零变化 pin**：`cdd schema get plan --output json` 与 `--output skeleton` 的字节与改造前逐字节相等；21 条规则 finding 的 `field:` 值集不变 —— checkable: 两条 pin 绿
+  - **重锚清单落账**（deliberate break，提交里点名）：反引号剥离边界 · 表格 `|` 切分与对齐行 · 缩进假设 · 手算 heading rank 四组用例改节点级等价断言 —— checkable: 四组重锚后绿，且旧断言零残留
+  - 收口 —— checkable: `pnpm -C packages/cdd-engine test` 绿 · `pnpm run typecheck` ×3 · `check:no-bare-functions` 零命中 · `pnpm run validate` ALL PASS
+
+- **Acceptance**: `grep -rn "from-markdown" … --include='*.ts' | grep -v __tests__` 只命中 `contract/markdown-tree.ts` · 覆盖矩阵 **114/114** 非空 · `anchor` / `home` 作为身份零改动（`schema get` 两形态字节 pin + finding `field:` 值集 pin）· 表格四种边界 + 行/单元格 + 字段内 token + step 叶 + 图边各一 pin · `doc.ts` / `invariants.ts` 的手写扫描零残留 · 骨架往返同构 · 21 条规则**语义 pin** 全绿 · **重锚清单**（四组）在提交里点名且旧断言零残留 · 归一化只在前置一处 · `pnpm run validate` ALL PASS
 - **DependsOn**: 9
 
 ## Change history
@@ -518,3 +528,4 @@ base: develop
 | v0.9 | 2026-10-28 | Task 2 的 ledger 规则修订（spec 回填 v0.13 · W2 派发被自身规则拦下的 dogfood 缺陷）：`LedgerFacts` 增 `deps`（任务 → `DependsOn` 边）；`planned-tasks-vs-recorded-tasks` 的判据从「编号大于账本最大任务号」改为「**依赖全已入账却仍未入账**」（滞留），待开工任务一律放行——编号不表达顺序，波次按层派生。pin 补一条本 phase 真实形态的绿 pin（记 `{1,2,3,4,5,7}`、Task 6 待开工） | [human] · Claude（kairos:cdd-dev · dogfood backfill · 2026-10-28） |
 | v0.10 | 2026-10-28 | ledger 规则再收敛（spec v0.14）：**撤 `LedgerFacts.deps`**（依赖判据不成立——任务 6 依赖已入账但它是下一波）；`planned-tasks-vs-recorded-tasks` 只判单向「账本记录的每个任务必须仍在计划里」，「计划有、账本没有」零判压、只出 info 行。pin 改为：账本记 `11` 而计划无 → 红；本 phase 真实形态（计划 1..9 · 账本 1,2,3,4,5,7）→ 零 finding + `info (plan leads ledger by 3 tasks)` | [human] · Claude（kairos:cdd-dev · dogfood backfill 其二 · 2026-10-28） |
 | v0.11 | 2026-10-28 | **追加 Task 10：全契约面迁移（spec §7.5 · D65 ⑤）**——`MarkdownTree` 成为四类文档唯一入口（gfm + frontmatter 扩展），登记面 `anchor`+`home` → 封闭集 selector，归一化前置，骨架往返 pin，删 `doc.ts`/`invariants.ts` 的手写扫描面；`DependsOn: 9`，Task 8 的依赖加 10。**波次**：T10 依赖 9 → 层 4，故派生 W1={1,2,3} · W2={4,5,7} · W3={6,9} · W4={10} · W5={8}（真依赖，无调度边） | [human] · Claude（kairos:cdd-dev · scope append 其二 · 2026-10-28） |
+| v0.12 | 2026-10-28 | **Task 10 重写（W4 implement blocker 报告 + spec v0.16）**：身份与定位分离（`anchor` 不动，新增 `selector`）· selector 可组合（八种 walk + 四守卫 + `from` 父链）· 覆盖矩阵 114/114 入验收 · pin 分两类（语义 pin 不动、四组扫描行为 pin 逐条重锚并点名）· 新增 `selector-coverage.test.ts` 与 `markdown-tree.test.ts` 两个落点 | [human] · Claude（kairos:cdd-dev · blocker backfill · 2026-10-28） |

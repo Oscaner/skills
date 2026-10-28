@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 设计：引擎作为唯一读写路径
 doc-type: phase-spec
-version: v0.16
+version: v0.17
 date: 2026-10-27
 slug: 2026-10-10-engine-doc-tooling-p21
 program: 2026-10-10-engine-doc-tooling
@@ -329,6 +329,12 @@ export interface Selector {
 
 - **四类文档只有一个解析入口**：`grep -rn "from-markdown" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 只命中 `contract/markdown-tree.ts` · 登记面零 `anchor`/`home`（selector 封闭集）· `doc.ts` 与 `invariants.ts` 的手写扫描面零残留 · 表格四种边界形态（转义竖线 / 反引号内竖线 / 对齐行 / 空单元格）各一 pin · 骨架往返同构 · 21 条规则判定语义不变（仅数据面换源）· 归一化只在前置一处
 
+### 8. 定案：`next:` 的 skill-ref 措辞与 skill 面收敛
+
+pipeline 的 **skill-ref** 渲染为 `route to {ref} skill`（`literal` 命令与 `done` 终结词不变）——指令短语让「这是要去路由到一个 skill」在字节上自明，而不是把 ref 伪装成一条可执行命令。
+
+**连带收敛**：四份 NEXT-LOOP SKILL.md 不再复述 `next:` 的语义（那是引擎输出契约，skill 侧复述等于替另一个面声明事实），节点只留一行指针 + 编排器自身义务（后台派发 · 干净树 · fix 走 fix 轮 · 提交纪律）。同批收敛四份 Invariants 的同义行。
+
 ## Constraints
 
 - **不添加新命令面**（用户裁定 2026-10-26）：`cdd` 保持八命令；`--steal-stale` 是旗标；追加与孤儿治理不得引入子命令。
@@ -364,3 +370,4 @@ export interface Selector {
 | v0.14 | 2026-10-28 | **判据再收敛（v0.13 的依赖判据仍不成立）**：任务 6 的依赖（2、4）都已入账，按依赖判据它仍是「滞留」——但它是**下一波**，计划天然领先账本。任何「计划有、账本没有」的判据都无法把「下一波」与「滞留」分开，故该方向**彻底零判压**（只出 info 行）；结构一致性只保留一个方向——**账本记录的每个任务必须仍在计划里** | [human] · Claude（kairos:cdd-dev · dogfood backfill 其二 · 2026-10-28） |
 | v0.15 | 2026-10-28 | **§7.5 全契约面迁移（用户裁定 append 并「一次做掉」）**：T9 的块级 AST 只是第一步，其余契约面的手写行扫描（表格 `|` 解析 / 分节树 / 图边 / `this.overall(ctx)` 取数）一次收口到同一棵树——一个解析入口 · 登记面 selector 封闭集 · 归一化前置 · 骨架往返 pin · 删除面清单。**理由**：两套解析模型并存 = 本 phase 判死的那类债；终态只留一个模型。代价约 2000 行 + 900 余条用例重锚，交付切成 T9（已实现）+ T10（收口）两个完整测试周期 | [human] · Claude（kairos:cdd-dev · scope append 其二 · 2026-10-28） |
 | v0.16 | 2026-10-28 | **T10 设计重写（W4 implement 的 blocker 报告触发）**：三条裁定入 §7.5——① **身份与定位分离**（`anchor` 是身份：schema 键 / `required[]` / 骨架真值表 / lint 查表 / finding `field:`；`selector` 只是定位，消费者可见面零变化）② **selector 可组合**（`from` 根或父 · `walk` 八种 · `when` 四守卫），覆盖 114 元素里那 36 个行/单元格/token/step/条件元素，并以**覆盖矩阵 114/114** 作验收 ③ **pin 分两类**（语义 pin 不动；扫描行为 pin 逐条重锚并在提交里点名） | [human] · Claude（kairos:cdd-dev · blocker backfill · 2026-10-28） |
+| v0.17 | 2026-10-28 | **§8：`next:` skill-ref 改 `route to {ref} skill`（用户裁定）**；四份 SKILL.md 删去 `next:` 语义复述（引擎输出契约不在 skill 侧二次声明）、只留指针 + 编排器义务；Invariants 同批收敛 | [human] · Claude（kairos:cdd-dev · 2026-10-28） |

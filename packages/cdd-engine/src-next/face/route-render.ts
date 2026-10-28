@@ -9,10 +9,10 @@
 //     complete executable argv composed from the frame facts (the RouteTarget's
 //     type + id + plan) through the argv-channel flag spellings — the same channel
 //     the CLI parse reads (never a second hard-coded format string);
-//   · the face-to-face `handoff` renders the pipeline entry: a `ref` resolves
-//     REFS[ref][host] (the `""` host falls back to the claude form — never a bare
-//     plugin guess), a `literal` fills its `<plan>` slot, a `done` entry the bare
-//     terminal word;
+//   · the face-to-face `handoff` renders the pipeline entry: a `ref` fills the
+//     declared instruction phrase (`route to {ref} skill`) with REFS[ref][host]
+//     (the `""` host falls back to the claude form — never a bare plugin guess), a
+//     `literal` fills its `<plan>` slot, a `done` entry the bare terminal word;
 //   · the bare `done` is the terminal word (its no-target face).
 //
 // The route-borne prose (the fix readback suffix · the soft-cap message) rides
@@ -165,8 +165,9 @@ export class RouteRenderer {
     return `${verb} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
   }
 
-  /** The face-to-face handoff render — the pipeline entry: a `ref` resolves
-   *  REFS[ref][host] (the `""` host falls back to the claude form), a `literal`
+  /** The face-to-face handoff render — the pipeline entry: a `ref` fills the declared
+   *  instruction phrase (`route to {ref} skill`, the word table's `handoffRef` row)
+   *  with REFS[ref][host] (the `""` host falls back to the claude form), a `literal`
    *  fills its `<plan>` slot with the frame's plan fact, a `done` entry renders the
    *  bare word. Never a hard-coded plugin spelling. */
   #handoffText(route: Extract<Route, { kind: "handoff" }>, target?: RouteTarget | null): string {
@@ -179,7 +180,8 @@ export class RouteRenderer {
       Record<string, Readonly<Record<string, string | undefined>> | undefined>
     > = REFS;
     const row = table[entry.ref];
-    if (row === undefined) return this.#words.routeWord("done");
-    return row[this.#host] ?? row.claude ?? this.#words.routeWord("done");
+    const form = row === undefined ? undefined : (row[this.#host] ?? row.claude);
+    if (form === undefined) return this.#words.routeWord("done");
+    return this.#words.routeWord("handoffRef").replace("{ref}", form);
   }
 }

@@ -1801,7 +1801,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 ·");
       // T3 deliberate pin break: the branch closure routes the cdd-close ref
       // (PIPELINE_NEXT.branch through REFS[ref][host]).
-      expect(io.stdoutText).toContain("next: /kairos:cdd-close");
+      expect(io.stdoutText).toContain("next: route to /kairos:cdd-close skill");
       // the branch line's workspace is the plan-slug (the fix dispatch's --plan) and
       // the handoff is the spine `branch-review-1.json` (no range token in the name)
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
@@ -2154,7 +2154,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const specCode = await command.runArgv(["review", "--type", "spec", "--spec", spec]);
       expect(specCode).toBe(0);
       // T3 deliberate pin break: the phase-spec closure routes the cdd-plan ref (PIPELINE_NEXT.phase-spec).
-      expect(io.stdoutText).toContain("next: /kairos:cdd-plan");
+      expect(io.stdoutText).toContain("next: route to /kairos:cdd-plan skill");
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "spec-review-1.json"))).toBe(
         true,
       );
@@ -2228,7 +2228,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // reviewed doc revision (the line's identity — the T7 write-back at bookkeep).
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       // T3 deliberate pin break: the plan closure routes the cdd-dev ref (PIPELINE_NEXT.plan).
-      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
+      expect(io.stdoutText).toContain("next: route to /kairos:cdd-dev skill");
       // The target doc then DRIFTS (a backfill edits the plan — the pre-T7 flow
       // froze the closed doc at "reviewed" with no reopen entry: the line held no
       // open round). The target identity moved — review is the requested phase and
@@ -2255,7 +2255,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
-      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
+      expect(io.stdoutText).toContain("next: route to /kairos:cdd-dev skill");
       // The doc did NOT move — the line gate compares the current revision to the
       // reviewed one and BLOCKs with the identity-aware message (the old "no open
       // round" text retires on the doc face).
@@ -2407,7 +2407,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           plan, // the ABSOLUTE argv spelling
         ]),
       ).toBe(0);
-      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
+      expect(io.stdoutText).toContain("next: route to /kairos:cdd-dev skill");
       // The doc DRIFTS (a backfill edits the plan) so the second review reopens the
       // line at the NEXT round rather than being refused as an unchanged doc.
       writeFileSync(
@@ -2426,7 +2426,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         relativePlan, // the RELATIVE argv spelling — the same file
       ]);
       expect(relative).toBe(0);
-      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
+      expect(io.stdoutText).toContain("next: route to /kairos:cdd-dev skill");
       // ONE line under the line-type key `"plan"` — the two argv spellings did NOT
       // fork a second row keyed by the other spelling; the round CONTINUED (2), it
       // did not reset to 1 (the §3.7 dogfood fix)

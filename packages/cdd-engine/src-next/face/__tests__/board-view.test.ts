@@ -240,7 +240,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain(
       `  next:    review --type spec --spec ${path.relative(repo, path.join(repo, "docs/kairos/specs/prog-p1-design.md"))}`,
     );
-    expect(text).not.toContain("  next:    /kairos:cdd-plan");
+    expect(text).not.toContain("  next:    route to /kairos:cdd-plan skill");
   });
 
   it("phase board next: spec closed + plan not started → the plan line's active review hop", () => {
@@ -279,7 +279,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain(
       `  next:    review --type plan --plan ${path.relative(repo, path.join(repo, "docs/kairos/plans/prog-p1.md"))}`,
     );
-    expect(text).not.toContain("  next:    /kairos:cdd-dev");
+    expect(text).not.toContain("  next:    route to /kairos:cdd-dev skill");
   });
 
   it("phase board next: a skipped-cycle plan line (`{review:[1,2], fix:[2]}`) is CLOSED — the engine's judge, not a count", () => {
@@ -324,7 +324,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const { text } = render("prog-p1");
 
     // plan closed → past the plan face; no plan task blocks → the wave face is the frontier
-    expect(text).not.toContain("  next:    /kairos:cdd-dev");
+    expect(text).not.toContain("  next:    route to /kairos:cdd-dev skill");
     expect(text).toContain("  next:    review --type branch --plan");
   });
 
@@ -367,7 +367,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(ledger.lineClosed("plan", "plan")).toBe(true);
     // The board consumes that SAME judge — the plan face is exhausted.
     const { text } = render("prog-p1");
-    expect(text).not.toContain("  next:    /kairos:cdd-dev");
+    expect(text).not.toContain("  next:    route to /kairos:cdd-dev skill");
   });
 
   it("D40 — the wave line's label carries the wave's task scope (W3 = tasks 5,11)", () => {
@@ -639,7 +639,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     const { text } = render("prog-p1", "");
 
-    expect(text).toContain("  next:    /kairos:cdd-plan");
+    expect(text).toContain("  next:    route to /kairos:cdd-plan skill");
   });
 
   it("board per-harness ref pins — a drained line renders REFS[ref][host] (host=pi → /skill:…)", () => {
@@ -673,8 +673,8 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
     ledger.recordRound("spec", "review");
-    expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-plan");
-    expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-plan");
+    expect(nextOf("prog-p1", "pi")).toBe("route to /skill:cdd-plan skill");
+    expect(nextOf("prog-p1", "claude")).toBe("route to /kairos:cdd-plan skill");
   });
 
   it("board next == the Capsule's done face — the shared renderer byte-identity (host claude / pi)", () => {
@@ -712,7 +712,9 @@ describe("BoardView.render — the phase / program board layouts + the next deri
         .slice("next: ".length);
       // The board's spec face is drained (spec closed + no plan doc) → the same entry.
       expect(nextOf("prog-p1", host)).toBe(capsuleNext);
-      expect(capsuleNext).toBe(host === "pi" ? "/skill:cdd-plan" : "/kairos:cdd-plan");
+      expect(capsuleNext).toBe(
+        host === "pi" ? "route to /skill:cdd-plan skill" : "route to /kairos:cdd-plan skill",
+      );
     }
   });
 

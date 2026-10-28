@@ -901,7 +901,7 @@ describe("P21 §4.2 — the wave closure's next: reads the branch line's open fa
     return file;
   };
 
-  it("a closed branch line lands the closing wave round on `next: /kairos:cdd-close`", async () => {
+  it("a closed branch line lands the closing wave round on `next: route to /kairos:cdd-close skill`", async () => {
     const { ledger, repo, cleanup } = fixture();
     try {
       const planPath = seeded(repo);
@@ -911,7 +911,7 @@ describe("P21 §4.2 — the wave closure's next: reads the branch line's open fa
       expect(closing.route).toEqual({ kind: "done" });
       // the branch line is closed, so the wave face's own next station renders —
       // never a literal the branch gate would refuse (the §4.2 self-contradiction)
-      expect(closing.capsuleLines[1]).toBe("next: /kairos:cdd-close");
+      expect(closing.capsuleLines[1]).toBe("next: route to /kairos:cdd-close skill");
     } finally {
       cleanup();
     }

@@ -49,14 +49,17 @@ export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
 /** The route classifier words — the station vocabulary the `next:` line renders
  *  (v1.20: the `none` word is retired — closure is `done`, never "no suggestion";
  *  v1.25: `implement` — the dispatch-ready `next:` literal's verb for a ready wave;
- *  `docType` — the missing-declaration BLOCK wording the capsule's unified next face
- *  renders over the CDD_BLOCKED station, spec §12 · D34; `docTypeValue` — the
- *  declared-but-out-of-domain BLOCK wording, distinct from the missing key). */
+ *  `handoffRef` — the pipeline skill-ref template (an instruction phrase, filled with
+ *  the per-host ref form at the render); `docType` — the missing-declaration BLOCK
+ *  wording the capsule's unified next face renders over the CDD_BLOCKED station,
+ *  spec §12 · D34; `docTypeValue` — the declared-but-out-of-domain BLOCK wording,
+ *  distinct from the missing key). */
 export type RouteWordKind =
   | "done"
   | "review"
   | "fix"
   | "implement"
+  | "handoffRef"
   | "docType"
   | "docTypeValue"
   | "slugMissing"
@@ -185,6 +188,10 @@ export const CAPSULE_WORDS = {
     review: "review",
     fix: "fix",
     implement: "implement",
+    /** The pipeline skill-ref template — an INSTRUCTION phrase (route to a skill),
+     *  never a pseudo-command: `{ref}` is filled with the per-host `REFS[ref][host]`
+     *  form at the render. */
+    handoffRef: "route to {ref} skill",
     docType:
       "the doc declares no `doc-type:` key — add `doc-type: <overall|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
     docTypeValue:

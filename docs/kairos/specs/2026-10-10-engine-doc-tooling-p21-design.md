@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 设计：引擎作为唯一读写路径
 doc-type: phase-spec
-version: v0.9
+version: v0.10
 date: 2026-10-27
 slug: 2026-10-10-engine-doc-tooling-p21
 program: 2026-10-10-engine-doc-tooling
@@ -91,8 +91,7 @@ doc-contract 与「账本↔计划」不再是 `PreFlight` 里的两个分支，
 | 规则 id | 适用 docKey | 作用域 |
 |---|---|---|
 | `change-history-version-unique` — 变更记录版本标签唯一 | overall / phase-spec / single-spec / plan | doc |
-| `change-history-version-monotone` — 变更记录版本单调（同向，不来回） | 同上 | doc |
-| `front-matter-version-matches-lineage-end` — front-matter `version:` 与变更记录某一端一致 | 同上 | doc |
+| `front-matter-version-in-lineage` — front-matter `version:` 必须出现在变更记录里 | 同上 | doc |
 | `change-history-row-not-in-other-table` — 变更记录行不得落进其它表格 | 同上 | doc |
 | `list-marker-not-doubled` — 列表标记不得双写 | 同上 | doc |
 | `closed-wave-fits-depends-on-layers` — 账本已闭合波次仍贴合 `DependsOn` 分层 | plan + 账本 | ledger |
@@ -103,9 +102,9 @@ doc-contract 与「账本↔计划」不再是 `PreFlight` 里的两个分支，
 - **变更记录行不得落进其它表格**：`## Change history` 之外的任意表格行，其首列匹配 `v\d+\.\d+` 即违例。违例样例：`## Design` 的落点表里出现一行首列为 `v0.2` 的表行（单元格序列 `v0.2 · 2026-10-27 · …`）。fix = 把该行移回 `## Change history`。
 - **列表标记不得双写**：列表项内容以另一枚列表标记开头（`- - x` · `* + y` · `- * z`）即违例。违例样例：`- - **status:** Draft`。fix = 合并为单枚标记。
 
-**一规则一策略**是这条声明面的硬约束：清单里每一行必须对应且只对应一个可独立判定的策略，否则「查过哪条」与「判了什么」两件事会错位。因此今天两条**多表面策略要拆腿**——`UniquenessInvariant`（一条策略同时判变更记录版本、任务 id、阶段 id）拆成 `change-history-version-unique` / `task-id-unique` / `phase-id-unique` 三条，`OrderInvariant`（同时判小节序与变更记录升序）拆成 `section-order` / `change-history-version-ascending` 两条。声明面因此共 **23 行**：doc 作用域 **21**（既有 15 条拆腿后成 18 + 本 phase 新增 3）· ledger 作用域 **2**。上表 7 行是本 phase 的**公共面**（消费者能读懂的规则名），其余 16 行是既有策略的声明化，同一套机制、同一份清单。
+**一规则一策略**是这条声明面的硬约束：清单里每一行必须对应且只对应一个可独立判定的策略，否则「查过哪条」与「判了什么」两件事会错位。因此今天两条**多表面策略要拆腿**——`UniquenessInvariant`（一条策略同时判变更记录版本、任务 id、阶段 id）拆成 `change-history-version-unique` / `task-id-unique` / `phase-id-unique` 三条，`OrderInvariant`（同时判小节序与变更记录升序）拆成 `section-order` / `change-history-version-ascending` 两条。声明面因此共 **22 行**：doc 作用域 **20**（既有 15 条拆腿后成 18 + 本 phase 新增 2；版本序那条腿按上面的事实裁定不落地）· ledger 作用域 **2**。上表 6 行是本 phase 的**公共面**（消费者能读懂的规则名），其余 16 行是既有策略的声明化，同一套机制、同一份清单。
 
-两条 lineage 规则的判据按仓内既有两种合法格式钉死（**历史行不可变**这条铁律要求它们不得只认一种方向）：仓内 overall 与较新文档是**升序**（最旧在上、最新在下），而 P3–P7 / P10 的十篇冻结计划与 P4–P7 的四篇 spec 是**降序**（最新在上）——两种都是既有合法历史，重排任何一篇都已违反「历史行不可变」。因此：**版本序判「单调」**（同一方向贯穿到底，来回跳 = 违例；两种方向各自合法），**header 判「与某一端一致」**（首行或末行皆可，但必须恰是其中一端）。真正的缺陷面——重复版本、非单调来回、header 与两端都不符——一条不漏。
+**版本序这条腿整体不落地**（事实裁定）：仓内 P3/P4/P5/P7 的冻结计划与 P4/P5/P7 的 spec 的变更记录本身**非单调**（实测 p3 计划为 `v0.2, v0.3, v0.1, v0.4, …`），三篇的 header 也不在端点。既然「历史行不可变」是铁律，任何「方向必须一致」的判据对这些历史都**没有管辖权**——它只会产出一个禁止执行的 fix。因此本 phase 只留两条**真不变量**：**版本唯一**（重复 = 违例）与 **header 必须在 lineage 里**（header 版本未出现在变更记录 = 违例，端点不限、方向不限）。排序是作者的呈现选择，不是数据完整性；把它降级为本 phase 的显式非目标（§3.2 同款理由：不发明没有管辖权的判据）。
 
 违规报文沿用 `kind@field: message`（字段路径 + 违规内容），fix 句点名**应改哪一处**。
 
@@ -125,7 +124,7 @@ doc-contract 与「账本↔计划」不再是 `PreFlight` 里的两个分支，
 
 元素面 ≠ 规则面：`ElementRegistry` 是骨架元素表，列的是 anchor / presence / valuePattern / refKind / home，**不**是规则名单，不能作为清单来源。跨账本那两条规则在元素表里无对应元素，只有规则声明面能让它们出现在清单里。
 
-`ledger` 作用域的规则在未拿到账本事实包时列作 `skipped (no ledger facts)`——不静默缺席。对称地，`doc` 作用域的规则在 **wave / branch 派发**上列作 `skipped (no doc target)`——那两类派发的 `PreFlightContext.doc` 恒为 null（`face/cli.ts:603-606`），doc-contract 门不运行，doc 作用域的每一条声明（21 行）没有判定面，但必须在清单上留行，不得静默缺席。清单的取值形态四种：`passed` / `failed` / `skipped (原因)` / `info (提示)`——最后一种承载「不是失败但必须让人知道」的事实（例如计划领先账本）。让「检查过」与「通过」在报文上可分：消费方 CI 变红时读得到引擎究竟查了哪些规则。
+`ledger` 作用域的规则在未拿到账本事实包时列作 `skipped (no ledger facts)`——不静默缺席。对称地，`doc` 作用域的规则在 **wave / branch 派发**上列作 `skipped (no doc target)`——那两类派发的 `PreFlightContext.doc` 恒为 null（`face/cli.ts:603-606`），doc-contract 门不运行，doc 作用域的每一条声明（20 行）没有判定面，但必须在清单上留行，不得静默缺席。清单的取值形态四种：`passed` / `failed` / `skipped (原因)` / `info (提示)`——最后一种承载「不是失败但必须让人知道」的事实（例如计划领先账本）。让「检查过」与「通过」在报文上可分：消费方 CI 变红时读得到引擎究竟查了哪些规则。
 
 ### 4. 定案：`LineIdentity`（#393）
 
@@ -226,7 +225,7 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 
 `tree-clean → in-flight(记录/持有者) → graph → plan-ledger → wave → doc-contract`。tree-clean 仍在最前（评审基线 = 已提交状态），锁紧随其后，结构门与既有门同居一条序列；**门序本身是判定面的一部分，随已检清单输出**。
 
-`plan-ledger` 门：跑 §3.1 的**两条 `ledger` 作用域规则**（`closed-wave-fits-depends-on-layers` · `planned-tasks-vs-recorded-tasks`），适用于 **plan / wave / branch** 派发——wave 派发必须跑，mixed-batch 与追加判据（§5.2）就在这一面，而 wave / branch 派发没有 doc 目标（`PreFlightContext.doc` 恒为 null，`face/cli.ts:603-606`），doc-contract 门在那里不运行。门名沿用 `PreFlightGateName` 的 `plan-ledger`，**本门无专属拒绝原因词**：缺账本事实包时规则列作 `skipped (no ledger facts)`（`ok: true`，`reason` 缺席），一条 `no-ledger-facts` 式的 reason 值会成为无产出点的死值（`PreFlightVerdict.reason` 只在失败面出现）。「计划领先账本」**不是拒绝形态**——它落 `checked` 的 `info (plan leads ledger by N tasks)` 行（§3.3），而 `PreFlightVerdict.reason` 只在失败面出现（`ok: true` 时缺席），零死值。与 doc-contract 的分工：**同一规则族按作用域分两个门执行**——doc 作用域 21 条在 doc-contract 门，ledger 作用域两条在 plan-ledger 门；已检清单按规则声明行**合并渲染一次**，同一规则不因跨两个门而出现两行。
+`plan-ledger` 门：跑 §3.1 的**两条 `ledger` 作用域规则**（`closed-wave-fits-depends-on-layers` · `planned-tasks-vs-recorded-tasks`），适用于 **plan / wave / branch** 派发——wave 派发必须跑，mixed-batch 与追加判据（§5.2）就在这一面，而 wave / branch 派发没有 doc 目标（`PreFlightContext.doc` 恒为 null，`face/cli.ts:603-606`），doc-contract 门在那里不运行。门名沿用 `PreFlightGateName` 的 `plan-ledger`，**本门无专属拒绝原因词**：缺账本事实包时规则列作 `skipped (no ledger facts)`（`ok: true`，`reason` 缺席），一条 `no-ledger-facts` 式的 reason 值会成为无产出点的死值（`PreFlightVerdict.reason` 只在失败面出现）。「计划领先账本」**不是拒绝形态**——它落 `checked` 的 `info (plan leads ledger by N tasks)` 行（§3.3），而 `PreFlightVerdict.reason` 只在失败面出现（`ok: true` 时缺席），零死值。与 doc-contract 的分工：**同一规则族按作用域分两个门执行**——doc 作用域 20 条在 doc-contract 门，ledger 作用域两条在 plan-ledger 门；已检清单按规则声明行**合并渲染一次**，同一规则不因跨两个门而出现两行。
 
 门序旁注：**门只判、不写**——`in-flight` 门在 pre-flight 序列内只做 `inspect()`（读记录 + 判存活），取锁与写意图是**真派发路径**唯一的写点（`CliLifecycle` 在门通过之后 `acquire`）；预览面因此天然零写：它只读门给出的持有者事实并 exit 1，`--steal-stale` 在 `--dry-run` 下作废（有 pin）。门通过到 `acquire` 之间的竞态（另一派发抢先取锁）由 `acquire` 抛 `HoldingError` 并走同一条 `held` BLOCK 通道渲染。而 tree-clean 已先行——因此命名空间标记必须是 `InFlight` 第一次写的前置条件（§2.2），不得等 `WorkspaceRoot.ensure()`。奇异例外：若某轮将来把 in-flight 门挪到 `ensure()` 之后，必须先说明它为何不破坏「预览零写」。
 
@@ -246,10 +245,10 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 - 全部 `ps` 调用只在 `infra/proc.ts` 一处（`face/termination.ts` 与其余引擎面零 `ps` / `TIME_PATTERN` 命中），`ProcessFacts` 是唯一 OS 读面；`Sampler` 的两条腿由它供数，stall 判官的阈值与真值表不变，并补「组长先退」/「`setsid` 孙进程」两个样本 pin（组 CPU 读数与今日 `ps -g` 一致）。
 - `Workspace.writeJson` 经 `write-file-atomic` 落盘（progress / crash / handoff 全部经此一缝），进程被杀不会留半截 JSON。
 - 七条结构规则在四类文档 / plan+账本上各有红 pin；**变更记录历史行原文即为绿**（不得为转绿改写历史）。
-- front-matter `version:` 与末行不一致、变更记录行落进别的表格、列表标记双写，各有一条红 pin 与点名「应改哪一处」的 fix 句（断言面 = §3.1 的两个违例样例：`## Design` 表里的 `| v0.2 | …` 行 · `- - **status:** Draft`）。
+- front-matter `version:` 未出现在变更记录里、变更记录行落进别的表格、列表标记双写，各有一条红 pin 与点名「应改哪一处」的 fix 句（断言面 = §3.1 的两个违例样例：`## Design` 表里的 `| v0.2 | …` 行 · `- - **status:** Draft`）。
 - 散文「N 任务 / M 波」零一致性判压（无红 pin、无规模门）。
 - 账本↔计划：窗口期内「编号大于账本最大任务号的未开工任务」放行并给 `plan leads ledger by N tasks` 提示；删掉中间账本记录的变异用例转红。两条 `ledger` 规则在 **`plan-ledger` 门**上执行（plan / **wave** / branch 三种派发都跑），拒绝/提示词为 `plan-ahead` 与 `no-ledger-facts`（后者对应 `skipped (no ledger facts)`，不静默缺席）。
-- 每次派发输出的已检清单自**规则声明面**派生（`Contract` 的策略族与清单同源，改动声明即改动清单与策略，无第二份手写列表）；跨账本两条在清单里以实际结果或 `skipped (no ledger facts)` 出现（不静默缺席）；**wave / branch 派发的已检清单包含 21 条 doc 作用域声明各自的 `skipped (no doc target)` 行**；同一规则不因跨两个门而出现两行；「检查过」与「通过」在报文上可分。
+- 每次派发输出的已检清单自**规则声明面**派生（`Contract` 的策略族与清单同源，改动声明即改动清单与策略，无第二份手写列表）；跨账本两条在清单里以实际结果或 `skipped (no ledger facts)` 出现（不静默缺席）；**wave / branch 派发的已检清单包含 20 条 doc 作用域声明各自的 `skipped (no doc target)` 行**；同一规则不因跨两个门而出现两行；「检查过」与「通过」在报文上可分。
 - branch 线终审闭合后，计划修订前进即可再开一轮 branch review；计划**未动时**波线闭合的 `next:` **不再发出被门禁拒绝的命令**（落到 `kairos:cdd-close`）——判据是 drift-aware 的「该线有可派发 open round」，事实由持 ledger 一侧作入参传给 `NextStepRouter.resolve`，capsule 零新增判定。
 - 波行闭合即记 `planTasks` 快照；混合批里不在该批闭合快照中的未开工任务按新波放行（追加），在快照中或快照缺失时维持 `mixed-batch` BLOCK（滞留），两条各一 pin。
 - crash 文件名与 `attemptedHandoff` 与真实 frame 同源（一条 pin 断言两者）；`CrashRecord` 含 `dispatchBase` 与 `commitsSince`，kill 前的提交在 handoff 里可见，且两者只作事后诊断、不参与任何身份比较与门控。
@@ -286,3 +285,4 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 | v0.7 | 2026-10-28 | plan-review-2 触发的两处设计收敛：① **一规则一策略**写死——清单每行对应一个可独立判定的策略，故 `UniquenessInvariant` / `OrderInvariant` 拆腿（声明面 = doc 21 + ledger 2 = 23 行，本 phase 公共面 7 行），`checked` 取值补 `info (提示)` 形态 ② 恢复三句的**字节主源定为英文**（`words.ts` 与 SKILL.md 同读一串，中文为对译）；「计划领先账本」落 `info` 行而非 `PreFlightReason`（reason 只在失败面出现，零死值） | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
 | v0.8 | 2026-10-28 | plan-review-3 触发的三处收敛：① AC 的「五条 doc 规则」改成「21 条 doc 作用域声明」（与 §3.4/§6.4 的 21 行算术一致，两个数不得并存）② **in-flight 门只判不写**——取锁与写意图收归真派发路径，预览面因此天然零写、`--steal-stale` 在 `--dry-run` 下作废（门通过到 `acquire` 的竞态走同一条 `held` BLOCK 通道）③ 删掉 `no-ledger-facts` 这个无产出点的 reason 值（skipped 行即全部事实） | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
 | v0.9 | 2026-10-28 | W1 评审触发的判据收敛（存量文档冲突）：仓内 P3–P7/P10 的十篇计划与 P4–P7 的四篇 spec 是 newest-first（降序）历史，而「历史行不可变」是铁律——只认升序会让这些文档被判红并给出一个禁止执行的 fix。两条 lineage 规则改为**方向无关**：`change-history-version-ascending` → `change-history-version-monotone`（同向贯穿，来回 = 违例）· `front-matter-version-matches-last-row` → `front-matter-version-matches-lineage-end`（header 与首行或末行一致，须恰为某一端）。重复版本 / 来回跳 / header 与两端皆不符仍全数捕获 | [human] · Claude（kairos:cdd-dev W1 review backfill · 2026-10-28） |
+| v0.10 | 2026-10-28 | W1 review-2 的事实纠正：v0.9 的前提不完整——p3/p4/p5/p7 的冻结计划与 p4/p5/p7 的 spec 的 lineage **本身非单调**（p3 计划实测 `v0.2, v0.3, v0.1, v0.4`），三篇 header 也不在端点，于是「方向必须一致」对历史没有管辖权，只会产出禁止执行的 fix。**版本序这条腿整体撤销**（降级为显式非目标：排序是呈现选择，不是数据完整性）；只留两条真不变量——`change-history-version-unique`（重复 = 违例）与 `front-matter-version-in-lineage`（header 未出现在变更记录 = 违例，端点/方向不限）。声明面 23 → **22 行**（doc 20 + ledger 2），公共面 7 → **6** 条 | [human] · Claude（kairos:cdd-dev W1 review-2 backfill · 2026-10-28） |

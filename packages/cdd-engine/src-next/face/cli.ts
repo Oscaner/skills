@@ -605,6 +605,9 @@ export class Cli {
       this.#renderPreflightBlocked(verb, preflight, scene);
       return 1;
     }
+    // The approved path's checked face (P21 §3.4): the SAME rows the refusal path
+    // renders — every dispatch reports which rules ran, not only the blocked ones.
+    this.#renderChecked(preflight);
 
     // The real run's first write point (P11 · §4.2): the workspace — and the
     // namespace's `.gitignore` keep-out marker — is built HERE, after the
@@ -843,6 +846,7 @@ export class Cli {
     if (verdict.gate === "tree-clean" || verdict.gate === "doc-contract") {
       this.#io.stderr(`${this.#words.station("blocked")} ${verdict.message ?? ""}\n`);
       for (const detail of verdict.details ?? []) this.#io.stderr(`  ${detail}\n`);
+      this.#renderChecked(verdict);
       return;
     }
     this.#io.stderr(`cdd ${verb}: ${verdict.message ?? "the dispatch gate refused the request"}\n`);
@@ -859,6 +863,18 @@ export class Cli {
         .split("\n"))
         this.#io.stderr(`  ${line}\n`);
     }
+    this.#renderChecked(verdict);
+  }
+
+  /** Render the checked face — the pre-flight's per-gate / per-rule rows, derived by
+   *  the seam from the ONE rule declaration surface (P21 §3.4). It renders on BOTH
+   *  pre-flight paths (approved and refused) into the diagnostic channel: "which rule
+   *  ran, and what it judged" is a production read face, never a test-only field. The
+   *  heading and the outcome words come from the word table (zero CLI literal), and
+   *  the rows indent exactly like the details face above them. */
+  #renderChecked(verdict: PreFlightVerdict): void {
+    this.#io.stderr(`${this.#words.checkedWords().heading}\n`);
+    for (const row of verdict.checked) this.#io.stderr(`  ${row}\n`);
   }
 
   // ---------------------------------------------------------------------------

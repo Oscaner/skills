@@ -400,13 +400,13 @@ describe("base nine invariants — one negative case each", () => {
     );
   });
 
-  it("self-bounded-id-not-in-lineage: a header version outside the lineage is reported", () => {
+  it("front-matter-version-in-lineage: a header version outside the lineage is reported", () => {
     const content = GOOD_OVERALL.replace(
       "| v1.21 | 2026-10-07 | merged change |",
       "| v1.20 | 2026-10-06 | older only |",
     );
     const findings = judge("overall", content, GOOD_OVERALL_FS);
-    expect(withKind(findings, "self-bounded-id-not-in-lineage", "version")).toBe(true);
+    expect(withKind(findings, "front-matter-version-in-lineage", "version")).toBe(true);
   });
 });
 
@@ -657,19 +657,6 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
     );
     const findings = judge("phase-spec", content, EMPTY_FS);
     expect(withKind(findings, "domain", "## Constraints")).toBe(false);
-  });
-
-  it("change-history-version-ascending: the rows run oldest-first (canonical)", () => {
-    const content = GOOD_OVERALL.replace(
-      ["| v1.20 | 2026-10-06 | prior change |", "| v1.21 | 2026-10-07 | merged change |"].join(
-        "\n",
-      ),
-      ["| v1.21 | 2026-10-07 | merged change |", "| v1.20 | 2026-10-06 | prior change |"].join(
-        "\n",
-      ),
-    );
-    const findings = judge("overall", content, GOOD_OVERALL_FS);
-    expect(withKind(findings, "change-history-version-ascending", "Change history")).toBe(true);
   });
 
   it("residue: a legitimate design-body table does not count as Deviations residue", () => {
@@ -1051,28 +1038,25 @@ describe("P4.1 T2 — `## Change history` presence required ×3", () => {
   });
 });
 
-describe("P21 — the two lineage legs apply to spec/plan (and never overlap)", () => {
-  it("a phase-spec whose header is IN the lineage but not the last row fires the last-row leg", () => {
+describe("P21 — the ONE lineage judgment (membership, direction and endpoint agnostic)", () => {
+  it("a phase-spec whose header is IN the lineage but not the last row is green", () => {
     const findings = judge("phase-spec", specLineage("v1.0", [ROW_100, ROW_101]));
-    expect(withKind(findings, "front-matter-version-matches-last-row", "version")).toBe(true);
-    expect(withKind(findings, "self-bounded-id-not-in-lineage", "version")).toBe(false);
+    expect(withKind(findings, "front-matter-version-in-lineage", "version")).toBe(false);
   });
 
-  it("a plan whose header is OUTSIDE the lineage fires the not-in-lineage leg", () => {
+  it("a plan whose header is OUTSIDE the lineage fires the lineage rule", () => {
     const findings = judge("plan", planLineage("v1.2", [ROW_100, ROW_101]));
-    expect(withKind(findings, "self-bounded-id-not-in-lineage", "version")).toBe(true);
-    expect(withKind(findings, "front-matter-version-matches-last-row", "version")).toBe(false);
+    expect(withKind(findings, "front-matter-version-in-lineage", "version")).toBe(true);
   });
 
-  it("a spec/plan whose header IS the last row fires neither lineage leg", () => {
+  it("a spec/plan whose header IS the last row is green", () => {
     for (const docKey of ["plan", "phase-spec"] as const) {
       const doc =
         docKey === "plan"
           ? planLineage("v1.1", [ROW_100, ROW_101])
           : specLineage("v1.1", [ROW_100, ROW_101]);
       const findings = judge(docKey, doc);
-      expect(withKind(findings, "front-matter-version-matches-last-row", "version")).toBe(false);
-      expect(withKind(findings, "self-bounded-id-not-in-lineage", "version")).toBe(false);
+      expect(withKind(findings, "front-matter-version-in-lineage", "version")).toBe(false);
     }
   });
 });
@@ -1095,6 +1079,20 @@ describe("governance greps (the engine-zero criterion)", () => {
       expect(behaviorConstExports, name).toEqual([]);
     }
   });
+
+  it("declares no version-order leg and no header-equals-last-row leg (the retired ids are gone)", () => {
+    for (const name of ["judge.ts", "invariants.ts", "rules.ts"]) {
+      const source = readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
+      expect(source, name).not.toContain("change-history-version-ascending");
+      expect(source, name).not.toContain("front-matter-version-matches-last-row");
+      expect(source, name).not.toContain("self-bounded-id-not-in-lineage");
+    }
+    for (const docKey of ["plan", "phase-spec", "single-spec", "overall"] as const) {
+      const names = Contract.policy()[docKey].map((strategy) => strategy.name);
+      expect(names, docKey).not.toContain("change-history-version-ascending");
+      expect(names, docKey).not.toContain("front-matter-version-matches-last-row");
+    }
+  });
 });
 
 describe("P10 W7 T11 — the migration judgment-regression pins (spec §6 · §5.2)", () => {
@@ -1107,9 +1105,9 @@ describe("P10 W7 T11 — the migration judgment-regression pins (spec §6 · §5
       GOOD_OVERALL.replace("version: v1.21", "version: v9.9"),
       GOOD_OVERALL_FS,
     );
-    expect(withKind(overall, "self-bounded-id-not-in-lineage", "version")).toBe(true);
+    expect(withKind(overall, "front-matter-version-in-lineage", "version")).toBe(true);
     const plan = judge("plan", planLineage("v9.9", [ROW_100, ROW_101]));
-    expect(withKind(plan, "self-bounded-id-not-in-lineage", "version")).toBe(true);
+    expect(withKind(plan, "front-matter-version-in-lineage", "version")).toBe(true);
   });
 
   it("presence — a doc missing the status key reports exactly one presence finding (typed head, not a line scan)", () => {
@@ -1262,17 +1260,64 @@ describe("P21 T2 — change-history-version-unique on all four doc types", () =>
   });
 });
 
-describe("P21 T2 — change-history-version-ascending on all four doc types", () => {
-  it("reports a newest-above-older lineage on plan and single-spec (not only overall)", () => {
+describe("P21 T2 — front-matter-version-in-lineage on the real change-history shapes", () => {
+  /** One change-history row for a version (the fixture's canonical row shape). */
+  const versionRow = (version: string): string => `| ${version} | 2026-10-09 | change | [human] |`;
+
+  /** The three fixture doc types the shape pins walk (the overall fixture is fixed). */
+  const lineageDoc = (
+    docKey: "plan" | "phase-spec" | "single-spec",
+    headerVersion: string,
+    rows: readonly string[],
+  ): string => {
+    if (docKey === "plan") return planLineage(headerVersion, rows);
+    if (docKey === "phase-spec") return specLineage(headerVersion, rows);
+    return singleSpecLineage(headerVersion, rows);
+  };
+
+  /** The lineage-rule findings of one fixture — the shape pins judge the LINEAGE
+   *  rules, not the fixture fragment's unrelated surfaces (the plan literal carries
+   *  no spec sibling and no step-checkable element, and those rules are pinned
+   *  elsewhere). Zero here = the lineage judged the real shape green. */
+  const lineageFindings = (
+    docKey: "plan" | "phase-spec" | "single-spec",
+    content: string,
+  ): readonly Finding[] =>
+    judge(docKey, content).filter(
+      (finding) =>
+        finding.kind === "front-matter-version-in-lineage" ||
+        finding.kind === "change-history-version-unique",
+    );
+
+  it("is green on an ascending lineage (v0.1, v0.2, v0.3 · header v0.3)", () => {
     for (const docKey of ["plan", "phase-spec", "single-spec"] as const) {
-      const content = lineageOf(docKey).replace(
-        [ROW_100, ROW_101].join("\n"),
-        [ROW_101, ROW_100].join("\n"),
+      const content = lineageDoc(docKey, "v0.3", ["v0.1", "v0.2", "v0.3"].map(versionRow));
+      expect(lineageFindings(docKey, content), docKey).toEqual([]);
+    }
+  });
+
+  it("is green on a descending lineage (v0.3, v0.2, v0.1 · header v0.3)", () => {
+    for (const docKey of ["plan", "phase-spec", "single-spec"] as const) {
+      const content = lineageDoc(docKey, "v0.3", ["v0.3", "v0.2", "v0.1"].map(versionRow));
+      expect(lineageFindings(docKey, content), docKey).toEqual([]);
+    }
+  });
+
+  it("is green on the repo's real non-monotone frozen shape (v0.2, v0.3, v0.1, v0.4 · header v0.4)", () => {
+    for (const docKey of ["plan", "phase-spec", "single-spec"] as const) {
+      const content = lineageDoc(docKey, "v0.4", ["v0.2", "v0.3", "v0.1", "v0.4"].map(versionRow));
+      expect(lineageFindings(docKey, content), docKey).toEqual([]);
+    }
+  });
+
+  it("is red — exactly once — when the header version is absent from the lineage", () => {
+    for (const docKey of ["plan", "phase-spec", "single-spec"] as const) {
+      const content = lineageDoc(docKey, "v0.9", ["v0.1", "v0.2", "v0.3"].map(versionRow));
+      const lineage = judge(docKey, content).filter(
+        (finding) => finding.kind === "front-matter-version-in-lineage",
       );
-      const findings = judge(docKey, content);
-      expect(withKind(findings, "change-history-version-ascending", "Change history"), docKey).toBe(
-        true,
-      );
+      expect(lineage, docKey).toHaveLength(1);
+      expect(lineage[0]?.field, docKey).toBe("version");
     }
   });
 });
@@ -1402,6 +1447,15 @@ describe("P21 T2 — closed-wave-fits-depends-on-layers", () => {
       closedWaves: [[2, 3]],
       recordedTasks: [1, 2, 3],
       maxRecordedTask: 3,
+      layers: [[1], [2, 3]],
+    });
+    expect(findings).toEqual([]);
+  });
+
+  it("lets a partial layer through — the subset read the append wave relies on", () => {
+    const findings = ledgerJudge({
+      ...agreeingFacts,
+      closedWaves: [[2]],
       layers: [[1], [2, 3]],
     });
     expect(findings).toEqual([]);

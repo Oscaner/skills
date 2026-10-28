@@ -16,21 +16,23 @@
 // The element registry (`ElementRegistry`) is the skeleton element table, not a rule
 // list — these declarations are the rule surface. One rule = one strategy: the
 // multi-surface strategies of the old family were split per leg (uniqueness → three,
-// order → two, selfBounded → two), so a declaration row never hides a second rule.
+// order → one section-order row, selfBounded → one lineage row), so a declaration row
+// never hides a second rule. The version-order leg and the header-equals-last-row leg
+// are not declared at all: ordering is presentation, not data integrity, and the
+// lineage judgment is membership-only.
 //
 // Module-level exports are types / the declared data — zero behavior-carrying bare
 // functions.
 
 import type { Finding, Invariant, JudgeContext } from "./invariants.ts";
 import {
-  ChangeHistoryVersionAscendingInvariant,
   ChangeHistoryVersionUniqueInvariant,
   ContinuityInvariant,
   CrossDocChainInvariant,
   CrosslinkInvariant,
   DomainInvariant,
   FileExistenceInvariant,
-  FrontMatterLastRowInvariant,
+  FrontMatterVersionInLineageInvariant,
   HollowInvariant,
   LedgerLayeringRule,
   LedgerTaskSetRule,
@@ -42,7 +44,6 @@ import {
   RowHomeInvariant,
   SectionOrderInvariant,
   SectionScopedDomainInvariant,
-  SelfBoundedIdNotInLineageInvariant,
   SiblingScanInvariant,
   SlugRefInvariant,
   TaskIdUniqueInvariant,
@@ -80,7 +81,7 @@ export interface LedgerRule {
   evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[];
 }
 
-/** The rule registry — doc scope 21 rows + ledger scope 2 rows = 23. */
+/** The rule registry — doc scope 19 rows + ledger scope 2 rows = 21. */
 export const RULE_REGISTRY: readonly RuleDeclaration[] = [
   { scope: "doc", id: "presence", docKeys: "all", create: () => new PresenceInvariant() },
   {
@@ -101,25 +102,13 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
   { scope: "doc", id: "section-order", docKeys: "all", create: () => new SectionOrderInvariant() },
   {
     scope: "doc",
-    id: "change-history-version-ascending",
+    id: "front-matter-version-in-lineage",
     docKeys: "all",
-    create: () => new ChangeHistoryVersionAscendingInvariant(),
+    create: () => new FrontMatterVersionInLineageInvariant(),
   },
   { scope: "doc", id: "continuity", docKeys: "all", create: () => new ContinuityInvariant() },
   { scope: "doc", id: "residue", docKeys: "all", create: () => new ResidueInvariant() },
   { scope: "doc", id: "hollow", docKeys: "all", create: () => new HollowInvariant() },
-  {
-    scope: "doc",
-    id: "front-matter-version-matches-last-row",
-    docKeys: "all",
-    create: () => new FrontMatterLastRowInvariant(),
-  },
-  {
-    scope: "doc",
-    id: "self-bounded-id-not-in-lineage",
-    docKeys: "all",
-    create: () => new SelfBoundedIdNotInLineageInvariant(),
-  },
   { scope: "doc", id: "link-shape", docKeys: "all", create: () => new LinkShapeInvariant() },
   {
     scope: "doc",

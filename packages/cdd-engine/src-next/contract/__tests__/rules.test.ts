@@ -7,12 +7,11 @@
 import { describe, expect, it } from "vitest";
 import { RULE_REGISTRY } from "../rules.ts";
 
-/** The seven public rule ids the phase spec declares (§3.1) — the consumer-facing
+/** The six public rule ids the phase spec declares (§3.1) — the consumer-facing
  *  face that must be in the registry by name. */
 const PUBLIC_RULE_IDS = [
   "change-history-version-unique",
-  "change-history-version-ascending",
-  "front-matter-version-matches-last-row",
+  "front-matter-version-in-lineage",
   "change-history-row-not-in-other-table",
   "list-marker-not-doubled",
   "closed-wave-fits-depends-on-layers",
@@ -22,11 +21,11 @@ const PUBLIC_RULE_IDS = [
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 describe("RULE_REGISTRY — the declaration surface", () => {
-  it("declares 23 rows: 21 doc-scope + 2 ledger-scope", () => {
+  it("declares 21 rows: 19 doc-scope + 2 ledger-scope", () => {
     const doc = RULE_REGISTRY.filter((declaration) => declaration.scope === "doc");
     const ledger = RULE_REGISTRY.filter((declaration) => declaration.scope === "ledger");
-    expect(RULE_REGISTRY).toHaveLength(23);
-    expect(doc).toHaveLength(21);
+    expect(RULE_REGISTRY).toHaveLength(21);
+    expect(doc).toHaveLength(19);
     expect(ledger).toHaveLength(2);
   });
 
@@ -60,7 +59,7 @@ describe("RULE_REGISTRY — the declaration surface", () => {
     }
   });
 
-  it("carries the seven public rule ids of the phase spec", () => {
+  it("carries the six public rule ids of the phase spec", () => {
     const ids = new Set(RULE_REGISTRY.map((declaration) => declaration.id));
     for (const id of PUBLIC_RULE_IDS) expect(ids.has(id), id).toBe(true);
   });

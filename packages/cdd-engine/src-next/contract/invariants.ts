@@ -8,8 +8,7 @@
 //                  file-existence · sibling-scan · link-shape · slug-ref ·
 //                  cross-doc-chain · section-scoped-domain;
 //                 the change-history family — change-history-version-unique ·
-//                  change-history-version-ascending · front-matter-version-matches-
-//                  last-row · self-bounded-id-not-in-lineage ·
+//                  front-matter-version-in-lineage ·
 //                  change-history-row-not-in-other-table · list-marker-not-doubled;
 //                 the identity legs — task-id-unique · phase-id-unique;
 //   ledger scope — closed-wave-fits-depends-on-layers · planned-tasks-vs-recorded-
@@ -299,6 +298,15 @@ export abstract class Invariant extends MarkdownPrimitives {
     return match === null ? null : match[0];
   }
 
+  /** The doc's Change-history row versions, in row order — the ONE lineage identity
+   *  read every lineage strategy shares (one copy on the base, zero per-strategy
+   *  private duplicates). */
+  protected historyVersions(ctx: JudgeContext): readonly string[] {
+    return this.changeHistory(ctx)
+      .rows.map((row) => this.firstVersion(row[0] ?? ""))
+      .filter((version) => version !== null) as readonly string[];
+  }
+
   /** The identity index every slug-keyed strategy looks up through — the caller's
    *  injected index when present, else one scan over the SAME fs seam every other
    *  strategy reads (the judgment stays hermetic: no second, real-filesystem scan).
@@ -358,7 +366,9 @@ export abstract class LedgerRuleBase implements LedgerRule {
 /** closed-wave-fits-depends-on-layers — a closed wave stays inside one DependsOn layer.
  *  The wave's members must share ONE layer of the plan's topological decomposition;
  *  a wave spanning two layers was dispatched against a plan whose edges moved under
- *  the closed ledgers. */
+ *  the closed ledgers. The read is a SUBSET one: a wave whose members all sit in one
+ *  layer fits even when it does not fill that layer (`{2}` against `[{1},{2,3}]` is
+ *  green) — the append-wave dispatch relies on the same liberal read. */
 export class LedgerLayeringRule extends LedgerRuleBase {
   readonly name = "closed-wave-fits-depends-on-layers";
 
@@ -859,42 +869,6 @@ export class SectionOrderInvariant extends Invariant {
   }
 }
 
-/** change-history-version-ascending — the change-history rows run oldest-first. */
-export class ChangeHistoryVersionAscendingInvariant extends Invariant {
-  readonly name = "change-history-version-ascending";
-
-  evaluate(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
-    const versions = this.changeHistory(ctx)
-      .rows.map((row) => this.#versionPair(row[0] ?? ""))
-      .filter((pair) => pair !== null) as readonly { major: number; minor: number }[];
-    for (let i = 1; i < versions.length; i++) {
-      const earlier = versions[i - 1];
-      const later = versions[i];
-      if (
-        earlier.major > later.major ||
-        (earlier.major === later.major && earlier.minor > later.minor)
-      ) {
-        findings.push(
-          this.finding(
-            ctx,
-            "Change history",
-            `change-history rows are not version-ascending (v${earlier.major}.${earlier.minor} above v${later.major}.${later.minor})`,
-            "order the Change-history rows oldest-first",
-          ),
-        );
-        break;
-      }
-    }
-    return findings;
-  }
-
-  #versionPair(text: string): { major: number; minor: number } | null {
-    const match = text.match(/v(\d+)\.(\d+)/);
-    return match === null ? null : { major: Number(match[1]), minor: Number(match[2]) };
-  }
-}
-
 /** continuity — numbered surfaces are 1-indexed and contiguous. */
 export class ContinuityInvariant extends Invariant {
   readonly name = "continuity";
@@ -1092,51 +1066,20 @@ export class HollowInvariant extends Invariant {
   }
 }
 
-/** front-matter-version-matches-last-row — the head `version:` is the lineage's LAST row.
- *  The first of the two mutually exclusive lineage legs: the header value IS in the
- *  doc's own lineage but is not the last row (a stale header). A value outside the
- *  lineage belongs to `self-bounded-id-not-in-lineage` — exactly one leg fires per
- *  deviation. */
-export class FrontMatterLastRowInvariant extends Invariant {
-  readonly name = "front-matter-version-matches-last-row";
+/** front-matter-version-in-lineage — the head `version:` appears in the doc's lineage.
+ *  The ONE lineage judgment (P21 §3.1): the header value must occur somewhere among
+ *  the Change-history row versions. Absence is the only violation — the direction,
+ *  the endpoints and the age of the row carrying the value are the author's
+ *  presentation choice, never a judgment input (a newest-first lineage, a
+ *  non-monotone frozen history and an ascending one all judge the same). The fix
+ *  names the header key, never a row to reorder. */
+export class FrontMatterVersionInLineageInvariant extends Invariant {
+  readonly name = "front-matter-version-in-lineage";
 
   evaluate(ctx: JudgeContext): Finding[] {
     const headerVersion = ctx.head.version;
     if (headerVersion === null) return [];
-    const historyVersions = this.#historyVersions(ctx);
-    if (historyVersions.length === 0) return [];
-    if (!historyVersions.includes(headerVersion)) return [];
-    const last = historyVersions[historyVersions.length - 1];
-    if (headerVersion === last) return [];
-    return [
-      this.finding(
-        ctx,
-        "version",
-        `the header version ${headerVersion} is not the change-history's last row (${last})`,
-        "bump the version front-matter key to the newest Change-history row",
-      ),
-    ];
-  }
-
-  /** The doc's Change-history row versions, in row order (the shared lineage read). */
-  #historyVersions(ctx: JudgeContext): readonly string[] {
-    return this.changeHistory(ctx)
-      .rows.map((row) => this.firstVersion(row[0] ?? ""))
-      .filter((version) => version !== null) as readonly string[];
-  }
-}
-
-/** self-bounded-id-not-in-lineage — the head `version:` belongs to the doc's lineage.
- *  The second lineage leg: the header value is absent from every Change-history row
- *  (outside the doc's own lineage). A stale-but-present value belongs to
- *  `front-matter-version-matches-last-row` — the two legs never overlap. */
-export class SelfBoundedIdNotInLineageInvariant extends Invariant {
-  readonly name = "self-bounded-id-not-in-lineage";
-
-  evaluate(ctx: JudgeContext): Finding[] {
-    const headerVersion = ctx.head.version;
-    if (headerVersion === null) return [];
-    const historyVersions = this.#historyVersions(ctx);
+    const historyVersions = this.historyVersions(ctx);
     if (historyVersions.length === 0) return [];
     if (historyVersions.includes(headerVersion)) return [];
     return [
@@ -1147,13 +1090,6 @@ export class SelfBoundedIdNotInLineageInvariant extends Invariant {
         `the version front-matter key must belong to the Change-history row versions: ${historyVersions.join(", ")}`,
       ),
     ];
-  }
-
-  /** The doc's Change-history row versions, in row order (the shared lineage read). */
-  #historyVersions(ctx: JudgeContext): readonly string[] {
-    return this.changeHistory(ctx)
-      .rows.map((row) => this.firstVersion(row[0] ?? ""))
-      .filter((version) => version !== null) as readonly string[];
   }
 }
 

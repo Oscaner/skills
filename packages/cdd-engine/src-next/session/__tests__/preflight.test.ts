@@ -639,7 +639,7 @@ const branchCtx = (
 };
 
 describe("PreFlight — the checked rule list (derived from the declaration surface)", () => {
-  it("lists 21 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
+  it("lists 19 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(
@@ -647,7 +647,7 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
       );
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        21,
+        19,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
       expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: passed");
@@ -660,13 +660,13 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
     }
   });
 
-  it("lists the same 21 doc-scope skips on a branch dispatch", async () => {
+  it("lists the same 19 doc-scope skips on a branch dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(branchCtx(repoRoot, [task(1, "none")]));
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        21,
+        19,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
     } finally {
@@ -719,6 +719,9 @@ describe("PreFlight — the plan-ledger gate", () => {
       const verdict = await preflightOf().vet(ctx);
       expect(verdict.ok).toBe(false);
       expect(verdict.gate).toBe("plan-ledger");
+      // the gate name carries the refusal's identity — `reason` stays absent (the
+      // zero-dead-value discipline: no borrowed `doc-contract` row, no dead row)
+      expect(verdict.reason).toBeUndefined();
       expect((verdict.details ?? []).join("\n")).toContain("planned-tasks-vs-recorded-tasks");
       expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: failed");
     } finally {

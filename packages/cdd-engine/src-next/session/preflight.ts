@@ -176,7 +176,7 @@ export class PreFlight {
         },
         gates,
         checked,
-        this.#docOutcomeOf(ctx, null),
+        this.#docOutcomeOf(ctx),
         { kind: "no-ledger-facts" },
       );
     }
@@ -198,7 +198,7 @@ export class PreFlight {
           },
           gates,
           checked,
-          this.#docOutcomeOf(ctx, null),
+          this.#docOutcomeOf(ctx),
           { kind: "no-ledger-facts" },
         );
       }
@@ -225,7 +225,6 @@ export class PreFlight {
             {
               ok: false,
               gate: "plan-ledger",
-              reason: "doc-contract",
               message: this.#words.preflightWords().planLedger,
               details: findings.map(
                 (finding) => `${finding.kind}@${finding.field}: ${finding.message}`,
@@ -233,7 +232,7 @@ export class PreFlight {
             },
             gates,
             checked,
-            this.#docOutcomeOf(ctx, null),
+            this.#docOutcomeOf(ctx),
             ledgerOutcome,
           );
         }
@@ -254,13 +253,13 @@ export class PreFlight {
           },
           gates,
           checked,
-          this.#docOutcomeOf(ctx, null),
+          this.#docOutcomeOf(ctx),
           ledgerOutcome,
         );
       }
     }
     // 5. doc-contract — the doc faces' structural gate (the doc-scope rules).
-    let docOutcome: DocOutcome = this.#docOutcomeOf(ctx, null);
+    let docOutcome: DocOutcome = this.#docOutcomeOf(ctx);
     if (ctx.type === "spec" || ctx.type === "plan") {
       gates.push("doc-contract");
       checked.push("doc-contract");
@@ -372,9 +371,9 @@ export class PreFlight {
   }
 
   /** The doc-scope outcome of a dispatch — "no doc target" on the doc-less faces
-   *  (wave / branch), "not judged" when the doc-contract gate never ran. */
-  #docOutcomeOf(ctx: PreFlightContext, findings: readonly Finding[] | null): DocOutcome {
-    if (findings !== null) return { kind: "judged", findings };
+   *  (wave / branch), "not judged" when the doc-contract gate never ran. The `judged`
+   *  outcome is assigned by the doc-contract gate itself (the one gate that judges). */
+  #docOutcomeOf(ctx: PreFlightContext): DocOutcome {
     if (ctx.type === "wave" || ctx.type === "branch") return { kind: "no-doc-target" };
     return { kind: "not-judged" };
   }

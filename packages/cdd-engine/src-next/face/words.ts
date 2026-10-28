@@ -98,6 +98,8 @@ export interface PreflightWords {
  *  (one row per rendered state, plus the plan-ahead info row's template). The
  *  vocabulary is the engine's own byte face, never a CLI literal. */
 export interface CheckedWords {
+  /** The block's heading row — the label the CLI prints above the rows. */
+  heading: string;
   /** The rule ran and found nothing. */
   passed: string;
   /** The rule ran and reported findings. */
@@ -183,6 +185,7 @@ export const CAPSULE_WORDS = {
   /** The checked-list rows (P21 §3.4) — the per-rule outcome vocabulary the
    *  pre-flight `checked` face renders (one row per state, never a CLI literal). */
   checked: {
+    heading: "checked:",
     passed: "passed",
     failed: "failed",
     skippedNoDocTarget: "skipped (no doc target)",

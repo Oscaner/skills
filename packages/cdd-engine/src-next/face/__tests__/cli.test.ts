@@ -2751,6 +2751,40 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("renders the checked face on BOTH pre-flight paths — approved and refused (P21 §3.4)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      // ① the approved path: the heading, the gates that ran in order, then one row
+      //    per declared rule — "which rule ran" is on the dispatch face, not a test field.
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
+      expect(io.stderrText.startsWith("checked:\n  tree-clean\n  graph\n  plan-ledger\n")).toBe(
+        true,
+      );
+      expect(io.stderrText).toContain("  plan-ledger: info (plan leads ledger by 1 tasks)\n");
+      expect(io.stderrText).toContain("  wave\n  presence: skipped (no doc target)\n");
+      expect(io.stderrText).toContain("  planned-tasks-vs-recorded-tasks: passed\n");
+      expect(
+        io.stderrText.split("\n").filter((line) => line.endsWith(": skipped (no doc target)")),
+      ).toHaveLength(19);
+
+      // ② the refused path: the same face after the BLOCK wording + its details
+      writeFileSync(path.join(repoRoot, "seed.txt"), "modified\n", "utf8");
+      io.stderrText = "";
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED:");
+      expect(
+        io.stderrText.includes("checked:\n  tree-clean\n  presence: skipped (no doc target)\n"),
+      ).toBe(true);
+      expect(io.stderrText).toContain(
+        "  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n",
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
   it("P4.1 F1 (real run) — a consumer repo WITHOUT a .kairos gitignore does not self-BLOCK the clean-tree gate across dispatches", async () => {
     // The consumer-repo shape: no `.kairos` entry in the fixture .gitignore — the
     // real run's workspace ensure self-publishes `.kairos/cdd/.gitignore` (content
@@ -5875,7 +5909,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       );
       expect(code).toBe(1);
       // the ONE extended CDD_BLOCKED line carries the cause, idle time and last sample
-      const lines = io.stderrText.split("\n").filter((line) => line.length > 0);
+      // (the approved path's `checked:` face is a separate block on the same channel)
+      const lines = io.stderrText.split("\n").filter((line) => line.includes("CDD_BLOCKED:"));
       expect(lines).toHaveLength(1);
       expect(lines[0]).toContain("CDD_BLOCKED:");
       expect(lines[0]).toContain("stalled");

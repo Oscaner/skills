@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 设计：引擎作为唯一读写路径
 doc-type: phase-spec
-version: v0.14
+version: v0.15
 date: 2026-10-27
 slug: 2026-10-10-engine-doc-tooling-p21
 program: 2026-10-10-engine-doc-tooling
@@ -261,6 +261,19 @@ Task 块从「字段项目符号」改为「标题分节」，并把这一面的
 - 其余契约面（frontmatter · 分节序 · 表格 · 依赖图 · change history · 15 条策略的判定面）**零改**——这是把 AST 限定在块级而非全契约面重写的原因。
 - changeset：仍 cdd-engine **minor**（旧形继续可读 → 兼容；骨架转新形属能力面变化），弃用说明写进 changeset。
 
+#### 7.5 全契约面迁移（四类文档共用一棵树）
+
+§7.1–§7.4 把 Task 块换到 `mdast`，其余契约面仍走锚点/正则。**两套解析模型并存本身就是债**（违「免声明再抄」与「最大精简」）：`brief.ts` 的 `^#` 截断、表格 `|` 的转义/对齐行/反引号内竖线、缩进假设、手算 heading rank，这一整类缺陷都长在「手写行扫描」里。因此本 phase 把它一次收口：
+
+- **一个解析入口**：`MarkdownTree`（`contract/markdown-tree.ts`）是四类文档唯一的 `mdast` 入口，扩展集 = `gfm`（表格必用）+ `frontmatter`；`yaml` 只负责解析 head 的值，不再自己切围栏。
+- **登记面 selector 化**：`RegistryElement` 的 `anchor` + `home` 换成封闭集 selector——`frontmatter(key)` · `heading(rank, pattern)` · `table(headerRow)` · `listItem(prefix)` · `taskBlock(field)`。`presence` / `valuePattern` / `refKind` 原样保留（值形判据不变，只是跑在**节点文本**而不是原始行上，于是「值里含 `|` 或反引号」不再误判）。
+- **归一化前置**：`translate.ts` 的逐行 canonicalize 改为**解析前一次性作用于内存文本**（源文件零改），解析后零后处理——一处、一遍、无第二视图。
+- **骨架往返 pin**：`skeleton.ts` 职责不变，但骨架输出 → 解析 → 结构同构必须成立（渲染面与判定面同源，杜绝「骨架写了一棵树、门判另一棵树」）。
+- **删除面**：`doc.ts` 的 `#tableSection` / `tableRowCells` / `tableLinesOf` / `#docSections` / 图边扫描；`invariants.ts` 里 `this.overall(ctx)` 一类手写取数；`translate.ts` 的逐行 API；`project.ts` 被 tree 取代的 slice 机件。
+- **代价如实**：约 2000 行改动 + 900 余条用例重锚（P10 frontmatter 迁移量级）。**收益**：文档结构只有一个真相，且上面那一整类缺陷一次性消失。
+
+交付切分：**T9 是第一步**（树 + Task 块 + `graph`/`brief`/`skeleton` 换源，已实现），**T10 收口**（四类 parse / 20 条策略 / 登记面 selector / 删除面 / 骨架往返）——两块各自是一个完整的测试周期与评审门，但**终态只有一个模型**，不留中间态。
+
 ### Acceptance criteria
 
 - 同工作树的第二次派发在第一次存活期间被拒（含跨 slug），报文含 pid / 命令 / startedAt / 波键（**判据是记录存在，不是持锁**）；`--steal-stale` 在持有 pid 仍存活时**同样被拒**，pid 已不存在时放行并接管。
@@ -284,6 +297,8 @@ Task 块从「字段项目符号」改为「标题分节」，并把这一面的
 - 新面零裸函数（`check:no-bare-functions` 零命中）· engine vitest 全绿 · typecheck ×3 · `pnpm run validate` ALL PASS · changeset cdd-engine **minor** + kairos **patch**，不发布。
 
 - Task 块的新形与旧形解析结果**逐字段相等**（`shape` / `range` 除外）；带 `####` 子节的任务块其 brief 逐字节完整（`#rawSection` 已删除，零 `^#` 截断残留）· 骨架只吐新形且含两条 step 样例 · 旧项目符号形在 `declare.ts` 里零独立声明（归一化只在 reader 内）· 冻结计划 `docs/kairos/plans/*` 零改动 · `mdast-util-from-markdown` 落 `package.json#dependencies`
+
+- **四类文档只有一个解析入口**：`grep -rn "from-markdown" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 只命中 `contract/markdown-tree.ts` · 登记面零 `anchor`/`home`（selector 封闭集）· `doc.ts` 与 `invariants.ts` 的手写扫描面零残留 · 表格四种边界形态（转义竖线 / 反引号内竖线 / 对齐行 / 空单元格）各一 pin · 骨架往返同构 · 21 条规则判定语义不变（仅数据面换源）· 归一化只在前置一处
 
 ## Constraints
 
@@ -318,3 +333,4 @@ Task 块从「字段项目符号」改为「标题分节」，并把这一面的
 | v0.12 | 2026-10-28 | **scope 追加 §7：计划 Task 块契约面（用户裁定 append 进 P21）**——Task 块改为标题分节（七个 `####` 保留键 + 任意扩展节），块结构解析换成 `mdast-util-from-markdown` 的块级 reader（`contract/task-blocks.ts`，一份声明 + 一个旧形归一化方法），`graph` / `brief` / `skeleton` 三读者换源，`brief.ts#rawSection` 的 `^#` 截断随 AST 节点区间删除；兼容窗口保证冻结计划与消费侧存量文档零迁移，骨架只吐新形；只动块级面，其余契约面零改 | [human] · Claude（kairos:cdd-dev · scope append · 2026-10-28） |
 | v0.13 | 2026-10-28 | **W2 派发被自己的规则拦下（dogfood 缺陷）：`planned-tasks-vs-recorded-tasks` 误把任务编号当执行顺序**——实况：账本已记 `{1,2,3}` `{4,5,7}`，计划里 Task 6（`DependsOn 2,4` → 层 3）尚未开工，规则按 `id > maxRecordedTask` 判「Task 6 缺失而更高任务已记录」→ 该波及后续所有派发全部 BLOCKED。**判据改为只看依赖**：未入账的计划任务当且仅当其全部 `DependsOn` 都已入账才构成缺口（滞留）；只要还有依赖未入账，它就是待开工任务、放行。「编号大于账本最大任务号」的窗口读法**撤销**（它假设了编号即顺序 —— #386 早已指出这一假设是错的） | [human] · Claude（kairos:cdd-dev · dogfood backfill · 2026-10-28） |
 | v0.14 | 2026-10-28 | **判据再收敛（v0.13 的依赖判据仍不成立）**：任务 6 的依赖（2、4）都已入账，按依赖判据它仍是「滞留」——但它是**下一波**，计划天然领先账本。任何「计划有、账本没有」的判据都无法把「下一波」与「滞留」分开，故该方向**彻底零判压**（只出 info 行）；结构一致性只保留一个方向——**账本记录的每个任务必须仍在计划里** | [human] · Claude（kairos:cdd-dev · dogfood backfill 其二 · 2026-10-28） |
+| v0.15 | 2026-10-28 | **§7.5 全契约面迁移（用户裁定 append 并「一次做掉」）**：T9 的块级 AST 只是第一步，其余契约面的手写行扫描（表格 `|` 解析 / 分节树 / 图边 / `this.overall(ctx)` 取数）一次收口到同一棵树——一个解析入口 · 登记面 selector 封闭集 · 归一化前置 · 骨架往返 pin · 删除面清单。**理由**：两套解析模型并存 = 本 phase 判死的那类债；终态只留一个模型。代价约 2000 行 + 900 余条用例重锚，交付切成 T9（已实现）+ T10（收口）两个完整测试周期 | [human] · Claude（kairos:cdd-dev · scope append 其二 · 2026-10-28） |

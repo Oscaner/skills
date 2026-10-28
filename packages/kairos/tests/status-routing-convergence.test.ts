@@ -81,8 +81,8 @@ for (const name of CARRIERS) {
     for (const [label, re] of FORBIDDEN.slice(7)) {
       expect(
         skill,
-        `${name}/SKILL.md still carries the retired ${label} — the fix/review routing is read off the ` +
-          `engine's \`next:\` dispatch-ready line, never hand-narrated from a status mapping`,
+        `${name}/SKILL.md still carries the retired ${label} — the fix/review routing routes by the ` +
+          `engine's \`next:\` face, never hand-narrated from a status mapping`,
       ).not.toMatch(re);
     }
   });
@@ -92,7 +92,7 @@ for (const name of CARRIERS) {
       expect(
         skill,
         `${name}/SKILL.md is missing the ${label} — Review Convergence must stay status-anchored in ` +
-          `the digraph and route through the \`next:\` dispatch-ready line`,
+          `the digraph and route through the engine's \`next:\` face`,
       ).toMatch(re);
     }
   });

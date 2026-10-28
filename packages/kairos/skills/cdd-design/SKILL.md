@@ -98,7 +98,7 @@ flowchart TD
 
 ### `handoff-next`
 
-- **Do**: Hand off following the engine's `next:` face — this node is the spec line's convergence onto the engine's unified next face, and this skill adds no design-domain continuation of it
+- **Do**: Hand off following the engine's `next:` face — this skill adds no design-domain continuation of it
 - **Read**: the committed spec
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target missing → BLOCKED (install kairos — see the kairos README's installation table)

@@ -24,6 +24,7 @@ import {
   type SkillAnatomyContract,
   type SkillRosterRow,
 } from "../../cdd-engine/src-next/contract/skill-anatomy.ts";
+import { CAPSULE_WORDS } from "../../cdd-engine/src-next/face/words.ts";
 import { EXPECTED } from "./helpers.ts";
 
 /** The kairos skills root — every cdd skill's SKILL.md (the check's scan set). */
@@ -518,4 +519,25 @@ test("the frontmatter gate is non-vacuous — a bare-colon description is a real
   expect(SkillAnatomyCheck.frontmatterProblem("# no frontmatter\n", SKILL_ANATOMY)).toContain(
     "no leading frontmatter",
   );
+});
+
+// The contract's route-fact wording governs what a SKILL.md may say about `next:` — it is the
+// stance the consumer surface is judged against, so it must speak the CURRENT contract. The
+// instruction phrase is read from the word table (the single source), never re-typed here; the
+// retired stances are banned outright so the row cannot drift back.
+const RETIRED_ROUTE_FACTS: Array<[string, RegExp]> = [
+  ["the literal-is-the-dispatch stance", /the literal IS the dispatch/],
+  ["the kind→command mapping note", /kind→command mapping/],
+  ["the dispatch-ready literal stance", /dispatch-ready literal/],
+];
+
+test("the contract's route-fact wording speaks the current `next:` contract, never a retired stance", () => {
+  const row = SKILL_ANATOMY.wording.routeFactRule;
+  expect(
+    row,
+    "the route-fact wording must quote the word table's pipeline instruction phrase",
+  ).toContain(CAPSULE_WORDS.routeWords.handoffRef);
+  for (const [label, re] of RETIRED_ROUTE_FACTS) {
+    expect(row, `the route-fact wording carries ${label}`).not.toMatch(re);
+  }
 });

@@ -182,6 +182,6 @@ export class RouteRenderer {
     const row = table[entry.ref];
     const form = row === undefined ? undefined : (row[this.#host] ?? row.claude);
     if (form === undefined) return this.#words.routeWord("done");
-    return this.#words.routeWord("handoffRef").replace("{ref}", form);
+    return this.#words.handoffRefWord(form);
   }
 }

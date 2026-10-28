@@ -425,6 +425,13 @@ export class Words implements WordLocaleFace {
       .replace("{domain}", DOC_TYPE_VALUES.join(", "));
   }
 
+  /** The pipeline skill-ref instruction phrase — the `handoffRef` row filled with the
+   *  per-host `REFS[ref][host]` form (the row and its `{ref}` fill are owned here,
+   *  never re-typed at the render). */
+  handoffRefWord(ref: string): string {
+    return this.routeWord("handoffRef").replace("{ref}", ref);
+  }
+
   /** The identity-gate refusal wording for one refused slug verdict — the ONE
    *  spelling the pre-flight gate and the dispatch carrier print (the row and its
    *  `{slug}` fill are owned here, never re-typed at a carrier). */

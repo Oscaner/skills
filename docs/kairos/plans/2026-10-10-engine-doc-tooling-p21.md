@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 实施计划：引擎作为唯一读写路径
 doc-type: plan
-version: v0.12
+version: v0.13
 date: 2026-10-28
 slug: 2026-10-10-engine-doc-tooling-p21
 base: develop
@@ -417,7 +417,7 @@ base: develop
   - 跑全量 `env -u AI_AGENT pnpm run validate` —— checkable: ALL PASS（emit fresh · root/kairos/engine 三套绿 · typecheck ×3 · version-sync · 零裸函数）
   - 复核冻结面零漂移（源码面，测试夹具不计）：`grep -rn "liveness.json\|pidusage\|never the stored number" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 零命中，且 `packages/cdd-engine/package.json#dependencies` 恰八项（`commander` · `execa` · `jsonc-parser` · `simple-git` · `yaml` · `write-file-atomic` · `ps-list` · `proper-lockfile`，零 `pidusage`） —— checkable: 零命中 + 依赖清单逐字八项
 - **Acceptance**: 两份 SKILL.md 的 recipe 在册且过 `skill-anatomy` 契约 · 消费面 skill 零 `pgrep` / `stash` / `checkout --`（负向断言改文前即绿 · 正向断言改文后绿）· 恢复三句以 canonical 英文串在 SKILL.md 逐字在册（与 `words.ts` 同一串）· changeset 标 cdd-engine minor + kairos patch · `env -u AI_AGENT pnpm run validate` ALL PASS · 冻结面零漂移（源码面零 `liveness.json` / `pidusage` / `never the stored number`，依赖面仍八项）
-- **DependsOn**: 1,2,3,4,5,6,7,9,10
+- **DependsOn**: 1,2,3,4,5,6,7,9,10,11
 
 ### Task 9: 计划 Task 块契约（标题分节 · `mdast` 块级 reader · 三个读者换源）
 
@@ -513,6 +513,27 @@ base: develop
 - **Acceptance**: `grep -rn "from-markdown" … --include='*.ts' | grep -v __tests__` 只命中 `contract/markdown-tree.ts` · 覆盖矩阵 **114/114** 非空 · `anchor` / `home` 作为身份零改动（`schema get` 两形态字节 pin + finding `field:` 值集 pin）· 表格四种边界 + 行/单元格 + 字段内 token + step 叶 + 图边各一 pin · `doc.ts` / `invariants.ts` 的手写扫描零残留 · 骨架往返同构 · 21 条规则**语义 pin** 全绿 · **重锚清单**（四组）在提交里点名且旧断言零残留 · 归一化只在前置一处 · `pnpm run validate` ALL PASS
 - **DependsOn**: 9
 
+### Task 11: `next:` skill-ref 措辞 · 四份 skill 删复述
+
+- **Objective**: 引擎把 pipeline 的 **skill-ref** 渲染成 `route to {ref} skill`（`literal` 命令与 `done` 终结词不变）；四份 NEXT-LOOP SKILL.md **不再复述 `next:` 语义**（`next:` 的形态是引擎输出契约，skill 侧复述即替另一个面声明事实），节点只留一行指针；四份 Invariants 的同一事实收敛。
+- **Files**: Modify `face/route-render.ts`（`#handoffText` 的 ref 分支）· `face/words.ts`（新词条 `handoffRef`）· `packages/kairos/skills/{cdd-spec-writer,cdd-plan,cdd-dev,cdd-design}/SKILL.md`（NEXT-LOOP 删复述 · Invariants 收敛）· 对应测试（`face/__tests__/capsule.test.ts` / `next.test.ts` / `packages/kairos/tests/skill-anatomy.test.ts`）
+- **Produces**:
+  ```ts
+  // face/words.ts —— 词条单一来源
+  handoffRef: "route to {ref} skill";   // {ref} = REFS[ref][host] 的结果
+
+  // face/route-render.ts
+  #handoffText(route, target?): string; // ref → 词条填充；literal / done 分支逐字节不变
+  ```
+- **Consumes**: `face/route-render.ts#handoffText`（ref → `REFS[ref][host]`）· `face/words.ts` 的 `routeWords` 词表 · `packages/kairos/tests/skill-anatomy.test.ts` 的 heading 白名单与 edge-condition 词表。
+- **Steps**:
+  - 写失败测试（字节）：`cdd review` 收尾轮输出含 `next: route to /skill:cdd-plan skill`（pi）/ `next: route to /kairos:cdd-plan skill`（claude）；`literal` 与 `done` 行逐字节不变 —— checkable: FAIL
+  - 实现 `#handoffText`：ref 分支走词条 `handoffRef`（`route to {ref} skill`），零硬编码插件拼写 —— checkable: 用例绿
+  - 四份 SKILL.md：NEXT-LOOP 删「读 `next:` 字面 / 照抄即派发 / fix 消费 findings / closure 结束」复述，留一行「follow the engine's `next:` face」+ 编排器自身义务（后台派发 · 干净树 · fix 走 fix 轮 · 提交纪律）；Invariants 的同义行收敛 —— checkable: `grep -rn "next: is the dispatch\|as written" packages/kairos/skills` 零命中
+  - anatomy / pins 重锚 —— checkable: `pnpm -C packages/kairos test` 绿 · `pnpm -C packages/cdd-engine test` 绿 · `pnpm run validate` ALL PASS
+- **Acceptance**: skill-ref 行为 `route to {ref} skill`（两种 host 拼写各一 pin）· `literal` / `done` 字节零变化 · 四份 SKILL.md 零 `next:` 语义复述（grep pin）· Invariants 收敛 · `emit:check` 与 anatomy 绿 · 全量 validate 绿
+- **DependsOn**: 10
+
 ## Change history
 
 | Version | date | summary | author |
@@ -529,3 +550,4 @@ base: develop
 | v0.10 | 2026-10-28 | ledger 规则再收敛（spec v0.14）：**撤 `LedgerFacts.deps`**（依赖判据不成立——任务 6 依赖已入账但它是下一波）；`planned-tasks-vs-recorded-tasks` 只判单向「账本记录的每个任务必须仍在计划里」，「计划有、账本没有」零判压、只出 info 行。pin 改为：账本记 `11` 而计划无 → 红；本 phase 真实形态（计划 1..9 · 账本 1,2,3,4,5,7）→ 零 finding + `info (plan leads ledger by 3 tasks)` | [human] · Claude（kairos:cdd-dev · dogfood backfill 其二 · 2026-10-28） |
 | v0.11 | 2026-10-28 | **追加 Task 10：全契约面迁移（spec §7.5 · D65 ⑤）**——`MarkdownTree` 成为四类文档唯一入口（gfm + frontmatter 扩展），登记面 `anchor`+`home` → 封闭集 selector，归一化前置，骨架往返 pin，删 `doc.ts`/`invariants.ts` 的手写扫描面；`DependsOn: 9`，Task 8 的依赖加 10。**波次**：T10 依赖 9 → 层 4，故派生 W1={1,2,3} · W2={4,5,7} · W3={6,9} · W4={10} · W5={8}（真依赖，无调度边） | [human] · Claude（kairos:cdd-dev · scope append 其二 · 2026-10-28） |
 | v0.12 | 2026-10-28 | **Task 10 重写（W4 implement blocker 报告 + spec v0.16）**：身份与定位分离（`anchor` 不动，新增 `selector`）· selector 可组合（八种 walk + 四守卫 + `from` 父链）· 覆盖矩阵 114/114 入验收 · pin 分两类（语义 pin 不动、四组扫描行为 pin 逐条重锚并点名）· 新增 `selector-coverage.test.ts` 与 `markdown-tree.test.ts` 两个落点 | [human] · Claude（kairos:cdd-dev · blocker backfill · 2026-10-28） |
+| v0.13 | 2026-10-28 | **追加 Task 11：`next:` skill-ref 措辞与 skill 面收敛（用户裁定）**——ref 渲染改 `route to {ref} skill`（literal/done 不变）；四份 SKILL.md 不再复述 `next:` 语义（引擎输出契约不该在 skill 侧再声明一次），节点只留一行指针；Invariants 收敛。Task 8 依赖加 11 | [human] · Claude（kairos:cdd-dev · 2026-10-28） |

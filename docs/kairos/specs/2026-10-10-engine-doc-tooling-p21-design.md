@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 设计：引擎作为唯一读写路径
 doc-type: phase-spec
-version: v0.8
+version: v0.9
 date: 2026-10-27
 slug: 2026-10-10-engine-doc-tooling-p21
 program: 2026-10-10-engine-doc-tooling
@@ -91,8 +91,8 @@ doc-contract 与「账本↔计划」不再是 `PreFlight` 里的两个分支，
 | 规则 id | 适用 docKey | 作用域 |
 |---|---|---|
 | `change-history-version-unique` — 变更记录版本标签唯一 | overall / phase-spec / single-spec / plan | doc |
-| `change-history-version-ascending` — 变更记录版本升序 | 同上 | doc |
-| `front-matter-version-matches-last-row` — front-matter `version:` 与变更记录末行一致 | 同上 | doc |
+| `change-history-version-monotone` — 变更记录版本单调（同向，不来回） | 同上 | doc |
+| `front-matter-version-matches-lineage-end` — front-matter `version:` 与变更记录某一端一致 | 同上 | doc |
 | `change-history-row-not-in-other-table` — 变更记录行不得落进其它表格 | 同上 | doc |
 | `list-marker-not-doubled` — 列表标记不得双写 | 同上 | doc |
 | `closed-wave-fits-depends-on-layers` — 账本已闭合波次仍贴合 `DependsOn` 分层 | plan + 账本 | ledger |
@@ -104,6 +104,8 @@ doc-contract 与「账本↔计划」不再是 `PreFlight` 里的两个分支，
 - **列表标记不得双写**：列表项内容以另一枚列表标记开头（`- - x` · `* + y` · `- * z`）即违例。违例样例：`- - **status:** Draft`。fix = 合并为单枚标记。
 
 **一规则一策略**是这条声明面的硬约束：清单里每一行必须对应且只对应一个可独立判定的策略，否则「查过哪条」与「判了什么」两件事会错位。因此今天两条**多表面策略要拆腿**——`UniquenessInvariant`（一条策略同时判变更记录版本、任务 id、阶段 id）拆成 `change-history-version-unique` / `task-id-unique` / `phase-id-unique` 三条，`OrderInvariant`（同时判小节序与变更记录升序）拆成 `section-order` / `change-history-version-ascending` 两条。声明面因此共 **23 行**：doc 作用域 **21**（既有 15 条拆腿后成 18 + 本 phase 新增 3）· ledger 作用域 **2**。上表 7 行是本 phase 的**公共面**（消费者能读懂的规则名），其余 16 行是既有策略的声明化，同一套机制、同一份清单。
+
+两条 lineage 规则的判据按仓内既有两种合法格式钉死（**历史行不可变**这条铁律要求它们不得只认一种方向）：仓内 overall 与较新文档是**升序**（最旧在上、最新在下），而 P3–P7 / P10 的十篇冻结计划与 P4–P7 的四篇 spec 是**降序**（最新在上）——两种都是既有合法历史，重排任何一篇都已违反「历史行不可变」。因此：**版本序判「单调」**（同一方向贯穿到底，来回跳 = 违例；两种方向各自合法），**header 判「与某一端一致」**（首行或末行皆可，但必须恰是其中一端）。真正的缺陷面——重复版本、非单调来回、header 与两端都不符——一条不漏。
 
 违规报文沿用 `kind@field: message`（字段路径 + 违规内容），fix 句点名**应改哪一处**。
 
@@ -283,3 +285,4 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 | v0.6 | 2026-10-28 | plan-review-1 blocker 触发的自相矛盾收敛（§6.1 残留句）：落点表仍写「`ContractInput` 增可选账本事实包」，与 §3.1 与 v0.5 的「每作用域一个入口」相反；改为 `Contract.validateLedger(input, LedgerFacts)` 双参入口、`ContractInput` 零新增字段。零行为变化 | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
 | v0.7 | 2026-10-28 | plan-review-2 触发的两处设计收敛：① **一规则一策略**写死——清单每行对应一个可独立判定的策略，故 `UniquenessInvariant` / `OrderInvariant` 拆腿（声明面 = doc 21 + ledger 2 = 23 行，本 phase 公共面 7 行），`checked` 取值补 `info (提示)` 形态 ② 恢复三句的**字节主源定为英文**（`words.ts` 与 SKILL.md 同读一串，中文为对译）；「计划领先账本」落 `info` 行而非 `PreFlightReason`（reason 只在失败面出现，零死值） | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
 | v0.8 | 2026-10-28 | plan-review-3 触发的三处收敛：① AC 的「五条 doc 规则」改成「21 条 doc 作用域声明」（与 §3.4/§6.4 的 21 行算术一致，两个数不得并存）② **in-flight 门只判不写**——取锁与写意图收归真派发路径，预览面因此天然零写、`--steal-stale` 在 `--dry-run` 下作废（门通过到 `acquire` 的竞态走同一条 `held` BLOCK 通道）③ 删掉 `no-ledger-facts` 这个无产出点的 reason 值（skipped 行即全部事实） | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
+| v0.9 | 2026-10-28 | W1 评审触发的判据收敛（存量文档冲突）：仓内 P3–P7/P10 的十篇计划与 P4–P7 的四篇 spec 是 newest-first（降序）历史，而「历史行不可变」是铁律——只认升序会让这些文档被判红并给出一个禁止执行的 fix。两条 lineage 规则改为**方向无关**：`change-history-version-ascending` → `change-history-version-monotone`（同向贯穿，来回 = 违例）· `front-matter-version-matches-last-row` → `front-matter-version-matches-lineage-end`（header 与首行或末行一致，须恰为某一端）。重复版本 / 来回跳 / header 与两端皆不符仍全数捕获 | [human] · Claude（kairos:cdd-dev W1 review backfill · 2026-10-28） |

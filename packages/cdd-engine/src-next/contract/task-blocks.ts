@@ -1,22 +1,22 @@
 // packages/cdd-engine/src-next/contract/task-blocks.ts
-// P21 §7 — the ONE parse face of a plan's task blocks. The block STRUCTURE is read
-// through the markdown AST (`mdast-util-from-markdown`, one parse per document)
-// instead of the retired line-marker grammar:
+// P21 §7 — the plan task-block contract: the record family plus the reader facade
+// over the ONE block parse (markdown-tree.ts). The block STRUCTURE is read through
+// the markdown tree instead of the retired line-marker grammar:
 //
 //   · the new shape carries the seven reserved sections as `#### Key` headings inside
 //     a `### Task N:` block; any additional `####` section is an extension section
 //     (body text only — it never participates in the required/domain judgment);
 //   · the legacy bullet shape (`- **Key**: …`) stays readable as a compatibility
 //     input: the normalization of the two node shapes into ONE `TaskBlock` is a
-//     method of this reader, never a second declaration in the registry;
+//     method of the tree's block parse, never a second declaration in the registry;
 //   · the block's `range` (1-based line numbers) is the brief's slice basis — a
 //     line-scan that stops at any `#` heading truncates a block at its first `####`
 //     child, so a heading-shaped plan would render a brief with missing sections.
 //
 // Module-level exports are types / the class — zero behavior-carrying bare functions.
 
-import { fromMarkdown } from "mdast-util-from-markdown";
 import { TASK_ID_VALUE_PATTERN } from "./declare.ts";
+import { MarkdownTree, TaskBlockGrammar } from "./markdown-tree.ts";
 
 /** One parsed field of a task block — the reserved key or an extension section's
  *  heading, plus the section's value lines. */
@@ -52,111 +52,35 @@ export interface TaskBlock {
   readonly shape: "heading" | "legacy";
 }
 
-/** One mdast node, structurally narrowed to the members this reader reads (the
- *  library's own `mdast` types stay out of the public surface). */
-interface MdNode {
-  readonly type?: string;
-  readonly depth?: number;
-  readonly value?: string;
-  readonly children?: readonly MdNode[];
-  readonly position?: {
-    readonly start?: { readonly line?: number };
-    readonly end?: { readonly line?: number };
-  };
-}
-
-/** A section node inside one task block — its key, its raw-line span and the value
- *  lines read off that span. */
-interface SectionNode {
-  readonly key: string;
-  readonly lines: readonly string[];
-}
-
-/** A `####` section span — the heading line, the section's last body line and the
- *  value lines between them (the legacy arm skips these spans so a heading body can
- *  never leak into a bullet field's continuation run). */
-interface SectionSpan extends SectionNode {
-  readonly start: number;
-  readonly end: number;
-}
-
 /**
- * PlanTaskBlocksReader — the plan's task-block parse face. One `parse` call reads a
- * whole plan document; the graph's `DependsOn`, the brief's slices and the skeleton
- * consumers all derive from the same `TaskBlock` records.
+ * PlanTaskBlocksReader — the plan's task-block read face: a thin facade over the
+ * tree's block parse, so the block grammar lives in ONE place (markdown-tree.ts)
+ * and every consumer — the graph's `DependsOn`, the brief's slices, the skeleton —
+ * reads the same `TaskBlock` records.
  */
 export class PlanTaskBlocksReader {
   /** The seven reserved section keys, in the canonical document order. */
-  static readonly RESERVED: readonly string[] = [
-    "Objective",
-    "Files",
-    "Consumes",
-    "Produces",
-    "Steps",
-    "Acceptance",
-    "DependsOn",
-  ];
+  static readonly RESERVED: readonly string[] = TaskBlockGrammar.RESERVED;
 
   /** The task-block heading — `### Task N: <title>` (the title stays optional). */
-  static readonly TASK_HEADING = /^Task (\d+):(.*)$/;
+  static readonly TASK_HEADING = TaskBlockGrammar.TASK_HEADING;
 
   /** The legacy field marker — `- **Key**: <value>`. */
-  static readonly LEGACY_FIELD = /^- \*\*(.+?)\*\*:(.*)$/;
+  static readonly LEGACY_FIELD = TaskBlockGrammar.LEGACY_FIELD;
 
   /** The step bullet — a list item's text line. */
-  static readonly STEP_LINE = /^[-*]\s+(.*)$/;
+  static readonly STEP_LINE = TaskBlockGrammar.STEP_LINE;
 
   /** The `— checkable:` clause separator. */
-  static readonly CHECKABLE = "— checkable:";
+  static readonly CHECKABLE = TaskBlockGrammar.CHECKABLE;
 
   /** A dependency id token — the declared `DependsOn id` value domain (the SAME
    *  source string the registry element carries). */
   static readonly ID_TOKEN = new RegExp(TASK_ID_VALUE_PATTERN);
 
-  /** Parse a whole plan document into its `### Task N:` blocks. A duplicated reserved
-   *  key inside one block is a loud error (the section identity is the parse face's
-   *  own invariant). */
+  /** Parse a whole plan document into its `### Task N:` blocks. */
   parse(content: string): readonly TaskBlock[] {
-    const lines = content.split(/\r?\n/);
-    const nodes = (fromMarkdown(content) as unknown as MdNode).children ?? [];
-    const blocks: TaskBlock[] = [];
-    for (const [index, node] of nodes.entries()) {
-      if (node.type !== "heading" || node.depth !== 3) continue;
-      const match = PlanTaskBlocksReader.TASK_HEADING.exec(this.#textOf(node).trim());
-      if (match === null) continue;
-      const start = node.position?.start?.line ?? 0;
-      if (start === 0) continue;
-      const boundary = this.#boundaryAfter(nodes, index, lines.length);
-      const inner = nodes.slice(index + 1, boundary.index);
-      // The shape follows a RESERVED key appearing as a `####` heading — never "any
-      // depth-4 heading": a legacy block that gains ONE extension section stays
-      // legacy (its bullets are the fields), while a heading-shaped block always
-      // carries its reserved keys as headings.
-      const shape = inner.some(
-        (child) =>
-          child.type === "heading" &&
-          child.depth === 4 &&
-          PlanTaskBlocksReader.RESERVED.includes(this.#textOf(child).trim()),
-      )
-        ? "heading"
-        : "legacy";
-      const end = boundary.line - 1;
-      const sections =
-        shape === "heading"
-          ? this.#headingSections(inner, lines, end)
-          : this.#legacySections(inner, lines, start + 1, end);
-      const block: TaskBlock = {
-        id: Number(match[1]),
-        heading: lines[start - 1] ?? "",
-        fields: sections.map((section) => ({ key: section.key, lines: section.lines })),
-        steps: this.#stepsOf(sections),
-        range: { start, end },
-        shape,
-      };
-      this.#assertNoDuplicateKeys(block);
-      blocks.push(block);
-    }
-    return blocks;
+    return MarkdownTree.parse(content).tasks();
   }
 
   /** The dependency ids one block declares — the `DependsOn` section's FIRST line
@@ -174,172 +98,10 @@ export class PlanTaskBlocksReader {
     return [...new Set(ids)].sort((left, right) => left - right);
   }
 
-  /** The body lines of one `## Heading` section (the brief's `## Constraints` mirror)
-   *  — the AST range, so a deeper `###`/`####` heading inside the section never
-   *  truncates it. The heading line itself is included. "" when absent. */
+  /** The body text of one `## Heading` section (the brief's `## Constraints` mirror)
+   *  — the tree's section read, so a deeper `###`/`####` heading inside the section
+   *  never truncates it. "" when absent. */
   section(content: string, heading: string): string {
-    const lines = content.split(/\r?\n/);
-    const nodes = (fromMarkdown(content) as unknown as MdNode).children ?? [];
-    const start = nodes.findIndex(
-      (node) =>
-        node.type === "heading" && node.depth === 2 && this.#textOf(node).trim() === heading,
-    );
-    if (start === -1) return "";
-    const first = nodes[start]?.position?.start?.line ?? 1;
-    return lines
-      .slice(first - 1, this.#sectionBoundary(nodes, start, lines.length) - 1)
-      .join("\n")
-      .replace(/\s+$/, "");
-  }
-
-  /** The line at which a `##` section ends — the next rank-2-or-shallower heading,
-   *  or a `### Task N:` block head (a task block never lives inside a section even
-   *  though it ranks deeper). A deeper plain heading stays in the section body. */
-  #sectionBoundary(nodes: readonly MdNode[], index: number, lineCount: number): number {
-    for (let next = index + 1; next < nodes.length; next += 1) {
-      const node = nodes[next];
-      if (node?.type !== "heading") continue;
-      const depth = node.depth ?? 0;
-      const isTask =
-        depth === 3 && PlanTaskBlocksReader.TASK_HEADING.test(this.#textOf(node).trim());
-      if (depth <= 2 || isTask) return node.position?.start?.line ?? lineCount + 1;
-    }
-    return lineCount + 1;
-  }
-
-  /** The node index/line at which one block ends — the first following top-level
-   *  heading of the given rank or shallower (default 3), or the document's last
-   *  non-blank line. */
-  #boundaryAfter(
-    nodes: readonly MdNode[],
-    index: number,
-    lineCount: number,
-    level = 3,
-  ): { readonly index: number; readonly line: number } {
-    for (let next = index + 1; next < nodes.length; next += 1) {
-      const node = nodes[next];
-      if (node?.type !== "heading" || (node.depth ?? 0) > level) continue;
-      return { index: next, line: node.position?.start?.line ?? lineCount };
-    }
-    return { index: nodes.length, line: lineCount + 1 };
-  }
-
-  /** The heading sections of a new-shape block — every depth-4 heading partitions the
-   *  block; a heading with no body still registers (the empty value is the author's
-   *  fact, judged by the presence rule). The span starts AT the heading line so the
-   *  legacy arm can skip the whole section, heading included. */
-  #headingSections(
-    inner: readonly MdNode[],
-    lines: readonly string[],
-    blockEnd: number,
-  ): readonly SectionSpan[] {
-    const sections: SectionSpan[] = [];
-    for (const [index, node] of inner.entries()) {
-      if (node?.type !== "heading" || node.depth !== 4) continue;
-      const line = node.position?.start?.line;
-      if (line === undefined) continue;
-      let end = blockEnd;
-      for (const next of inner.slice(index + 1)) {
-        const nextLine = next?.position?.start?.line;
-        if (next?.type === "heading" && nextLine !== undefined) {
-          end = nextLine - 1;
-          break;
-        }
-      }
-      sections.push({
-        key: this.#textOf(node).trim(),
-        start: line,
-        end,
-        lines: this.#valueLines(lines, line + 1, end),
-      });
-    }
-    return sections;
-  }
-
-  /** The legacy sections of a compatibility-shape block — the `- **Key**:` markers
-   *  and their continuation runs (the retired grammar's exact reading: the marker
-   *  remainder plus every non-empty line until the next marker). A `####` extension
-   *  section inside the block is read as a field of its own and never leaks into the
-   *  preceding bullet's continuation run. */
-  #legacySections(
-    inner: readonly MdNode[],
-    lines: readonly string[],
-    from: number,
-    to: number,
-  ): readonly SectionNode[] {
-    const spans = this.#headingSections(inner, lines, to);
-    const inSpan = (line: number): boolean =>
-      spans.some((span) => line >= span.start && line <= span.end);
-    const sections: SectionNode[] = [];
-    for (let line = from; line <= to; line += 1) {
-      if (inSpan(line)) continue;
-      const match = PlanTaskBlocksReader.LEGACY_FIELD.exec(lines[line - 1] ?? "");
-      if (match === null) continue;
-      let end = to;
-      for (let next = line + 1; next <= to; next += 1) {
-        if (inSpan(next) || PlanTaskBlocksReader.LEGACY_FIELD.test(lines[next - 1] ?? "")) {
-          end = next - 1;
-          break;
-        }
-      }
-      const rem = (match[2] ?? "").trim();
-      const rest = this.#valueLines(lines, line + 1, end);
-      sections.push({ key: (match[1] ?? "").trim(), lines: rem === "" ? rest : [rem, ...rest] });
-    }
-    return [...sections, ...spans];
-  }
-
-  /** The trimmed, blank-dropping raw lines of one inclusive 1-based span. */
-  #valueLines(lines: readonly string[], from: number, to: number): readonly string[] {
-    const out: string[] = [];
-    for (let line = from; line <= to; line += 1) {
-      const text = (lines[line - 1] ?? "").trim();
-      if (text !== "") out.push(text);
-    }
-    return out;
-  }
-
-  /** The parsed steps of a block — the `Steps` field's bullet lines. */
-  #stepsOf(sections: readonly SectionNode[]): readonly TaskStep[] {
-    const steps = sections.find((section) => section.key === "Steps");
-    if (steps === undefined) return [];
-    const out: TaskStep[] = [];
-    for (const line of steps.lines) {
-      const match = PlanTaskBlocksReader.STEP_LINE.exec(line);
-      if (match === null) continue;
-      const text = (match[1] ?? "").trim();
-      const marker = text.indexOf(PlanTaskBlocksReader.CHECKABLE);
-      if (marker === -1) {
-        out.push({ action: text, checkable: null });
-        continue;
-      }
-      out.push({
-        action: text.slice(0, marker).trim(),
-        checkable: text.slice(marker + PlanTaskBlocksReader.CHECKABLE.length).trim(),
-      });
-    }
-    return out;
-  }
-
-  /** Reject a duplicated reserved key inside one block (the section identity is the
-   *  parse face's own invariant, loud at parse time). */
-  #assertNoDuplicateKeys(block: TaskBlock): void {
-    const seen = new Set<string>();
-    for (const field of block.fields) {
-      if (!PlanTaskBlocksReader.RESERVED.includes(field.key)) continue;
-      if (seen.has(field.key)) {
-        throw new Error(
-          `task ${block.id} carries the reserved section "#### ${field.key}" more than once`,
-        );
-      }
-      seen.add(field.key);
-    }
-  }
-
-  /** The plain text of one mdast node (the heading text / key surface). */
-  #textOf(node: MdNode | undefined): string {
-    if (node === undefined) return "";
-    if (typeof node.value === "string") return node.value;
-    return (node.children ?? []).map((child) => this.#textOf(child)).join("");
+    return MarkdownTree.parse(content).sectionText(heading);
   }
 }

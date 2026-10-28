@@ -27,6 +27,7 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { declaredRegistries } from "../../contract/declare.ts";
 import { Contract } from "../../contract/judge.ts";
+import { MarkdownTree } from "../../contract/markdown-tree.ts";
 import type { DocKey, DocSkeleton, SkeletonSlot } from "../../contract/project.ts";
 import { Projector } from "../../contract/project.ts";
 import { BoardView } from "../../face/board-view.ts";
@@ -731,3 +732,71 @@ const rendersNoLiteralN = (key: DocKey): boolean => {
   const rendered = renderOf(key);
   return !/(?:^|\n)#{2,4} (?:Task )?N[.:]/m.test(rendered) && !rendered.includes("Task N:");
 };
+
+describe("the skeleton round-trip — the rendered bytes parse back to the projected structure", () => {
+  /** The rendered bytes of one doc type, parsed by the ONE markdown tree. */
+  const roundTrip = (key: DocKey): { bytes: string; tree: MarkdownTree } => {
+    const bytes = renderOf(key);
+    return { bytes, tree: MarkdownTree.parse(bytes) };
+  };
+
+  it.each(KEYS)("%s: the heading tree reads back in the emitted order", (key) => {
+    const { bytes, tree } = roundTrip(key);
+    const emitted = bytes.split("\n").filter((line) => /^## /.test(line));
+    expect(tree.sections().map((section) => section.text)).toEqual(emitted);
+  });
+
+  it.each(KEYS)("%s: the front-matter key set reads back in the emission order", (key) => {
+    const { tree } = roundTrip(key);
+    expect(tree.frontMatterKeys().map((entry) => entry.key)).toEqual(
+      SKELETONS[key].frontmatter.map((slot) => slot.anchor),
+    );
+  });
+
+  it.each(KEYS)("%s: every declared table header reads back as its emitted row", (key) => {
+    const { bytes, tree } = roundTrip(key);
+    const emitted = bytes.split("\n");
+    const columnAnchors = declaredRegistries[key].elements.filter(
+      (element) => element.anchor.endsWith(" columns") && element.presence === "required",
+    );
+    for (const element of columnAnchors) {
+      const node = tree.resolve(element.selector);
+      expect(node, `${key} · ${element.anchor}`).not.toBeNull();
+      const text = node?.text ?? "";
+      expect(emitted, `${key} · ${element.anchor}`).toContain(text);
+      // the cells the tree reads are the emitted row's cells (the wrapper bars excluded)
+      expect(node?.cells?.length, `${key} · ${element.anchor}`).toBe(text.split("|").length - 2);
+      expect(new RegExp(element.valuePattern ?? "").test(text)).toBe(true);
+    }
+  });
+
+  it.each(KEYS)(
+    "%s: the sections run in registry order and the facets stay inside their section",
+    (key) => {
+      const { tree } = roundTrip(key);
+      const sectionLines: number[] = [];
+      for (const element of declaredRegistries[key].elements) {
+        if (element.selector.walk !== "heading" || !element.anchor.startsWith("## ")) continue;
+        const node = tree.resolve(element.selector);
+        if (node !== null) sectionLines.push(node.line);
+      }
+      expect(sectionLines).toEqual([...sectionLines].sort((left, right) => left - right));
+      // a facet heading (`### …`) belongs to the section that declares it — the charter
+      const charter = tree.resolve(
+        declaredRegistries[key].elements.find((element) => element.anchor === "## Program charter")
+          ?.selector ?? { from: "root", walk: "heading", match: "## Program charter" },
+      );
+      for (const element of declaredRegistries[key].elements) {
+        if (element.home !== "facet") continue;
+        const node = tree.resolve(element.selector);
+        if (node === null || charter === null) continue;
+        expect(node.line, `${key} · ${element.anchor}`).toBeGreaterThan(charter.line);
+      }
+      // every resolved element's occurrences stay in document order
+      for (const element of declaredRegistries[key].elements) {
+        const lines = tree.occurrences(element.selector).map((node) => node.line);
+        expect(lines, `${key} · ${element.anchor}`).toEqual([...lines].sort((a, b) => a - b));
+      }
+    },
+  );
+});

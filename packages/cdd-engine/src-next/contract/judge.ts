@@ -12,13 +12,13 @@ import { Words } from "../face/words.ts";
 import type { SlugIndex } from "../infra/slug-index.ts";
 import { declaredRegistries } from "./declare.ts";
 import { docTypeParsers } from "./doc.ts";
-import { FrontMatterExtractor } from "./frontmatter.ts";
 import type { DocFs, Finding, Invariant, JudgeContext } from "./invariants.ts";
 import { NodeFs } from "./invariants.ts";
+import { MarkdownTree } from "./markdown-tree.ts";
 import type { DocKey } from "./project.ts";
 import { DOC_KEYS, Projector } from "./project.ts";
 import { type LedgerRule, RULE_REGISTRY, type RuleDeclaration } from "./rules.ts";
-import { Translator } from "./translate.ts";
+import { RowSource, Translator } from "./translate.ts";
 
 /** The judgment input — the doc's identity, content and the seam closures. */
 export interface ContractInput {
@@ -92,10 +92,14 @@ export class Contract {
    *  construction points (`new Contract()`) stay argument-free. */
   readonly #translator: Translator;
 
+  /** The row source — the ONE canonicalize seam (split + canonicalize once). */
+  readonly #rowSource: RowSource;
+
   constructor() {
     this.#strategies = Contract.policy();
     this.#projector = new Projector(declaredRegistries);
     this.#translator = new Translator(new Words());
+    this.#rowSource = new RowSource(this.#translator);
   }
 
   /** The declared doc-scope strategy composition — derived from `RULE_REGISTRY`
@@ -155,14 +159,18 @@ export class Contract {
   /** The assembled judgment context — the shared split/parse/translate seam of both
    *  entries (one context construction, one canonicalize pass). */
   #contextOf(input: ContractInput): JudgeContext {
-    const { head, body } = FrontMatterExtractor.split(input.content);
-    const lines = body.split("\n").map((line) => this.#translator.canonicalize(line));
-    const parsed = docTypeParsers[input.docKey].parse(lines, head);
+    // The row source resolves the raw front-matter head, then canonicalizes the
+    // body ONCE (never a per-line translator API): the line face, the tree face and
+    // the parse face all read the same normalized bytes.
+    const { head, text, lines } = this.#rowSource.read(input.content);
+    const tree = MarkdownTree.parse(text);
+    const parsed = docTypeParsers[input.docKey].parse(lines, head, tree);
     return {
       docKey: input.docKey,
       parsed,
       head,
       lines,
+      tree,
       path: input.path,
       root: input.root,
       slices: this.#projector.slices()[input.docKey],

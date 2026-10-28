@@ -21,6 +21,8 @@ import { FrontMatterExtractor } from "../frontmatter.ts";
 import type { DocFs, Finding } from "../invariants.ts";
 import { LedgerTaskSetRule } from "../invariants.ts";
 import { Contract } from "../judge.ts";
+import { MarkdownTree } from "../markdown-tree.ts";
+import { SelectorSpec } from "../selector-spec.ts";
 import { Translator } from "../translate.ts";
 
 /** A conforming overall — every registered element present, lineage self-consistent. */
@@ -361,6 +363,8 @@ describe("base nine invariants — one negative case each", () => {
       "",
       "- delta",
       "",
+      "| Overall assumption | Phase decision | Overall updated? |",
+      "| --- | --- | --- |",
       "| overall decision | 决定 | Yes |",
     ].join("\n");
     const findings = judge("phase-spec", content, EMPTY_FS);
@@ -643,20 +647,25 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
     expect(withKind(findings, "domain", "version")).toBe(false);
   });
 
-  it("two adjacent backtick spans read as ONE quoted region — the mid-span prose is not judged (the pinned first-last strip)", () => {
-    // The find-#8 first-last strip consumes the whole first→last backtick region as
-    // quoted. On a line carrying TWO separate spans, the prose BETWEEN them is part
-    // of that region — an anchor quoted only there is invisible to the domain rule.
-    // Pinned tradeoff (the comment on #withoutCodeSpans): the enforced docs' quoted
-    // shapes are the simple `span` and the nested citation, neither of which hides a
-    // real structural anchor between two adjacent spans; a span-by-span strip would
-    // judge this middle prose and reopen the nested-citation gap the pin closes.
+  it("the code-span boundary is the inline-code node span — a citation is invisible, the mid-span prose is not", () => {
+    // The retired reading treated a line's FIRST-to-LAST backtick region as one
+    // quoted fragment, so the prose between two adjacent spans was hidden from every
+    // value shape. The boundary is now read off the tree's own `inlineCode` node
+    // spans: each citation is stripped individually and the prose between two spans
+    // stays an ordinary text node. The `## Constraints` element's locator is the
+    // SECTION heading, so a bullet's mid-span mention is never its occurrence.
     const content = phaseSpec("v1.1").replace(
       "- delta",
       "- `p1` then ## Constraints: Deleted then `p2`",
     );
     const findings = judge("phase-spec", content, EMPTY_FS);
     expect(withKind(findings, "domain", "## Constraints")).toBe(false);
+    const tree = MarkdownTree.parse(content);
+    const item = tree.occurrences(
+      SelectorSpec.list(SelectorSpec.heading("## Constraints"), /^- /),
+    )[0];
+    expect(item?.text).toBe("- `p1` then ## Constraints: Deleted then `p2`");
+    expect(item?.bare).toBe("-  then ## Constraints: Deleted then ");
   });
 
   it("residue: a legitimate design-body table does not count as Deviations residue", () => {

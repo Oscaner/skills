@@ -20,6 +20,9 @@
 // suite, which pins presence/ref-kind domains and per-registry anchor
 // uniqueness).
 
+import type { Selector, Walk } from "./markdown-tree.ts";
+import { SelectorSpec } from "./selector-spec.ts";
+
 /** The presence category of an element: carried unconditionally, optionally, or only when its declared condition holds. */
 export type Presence = "required" | "optional" | "conditional";
 
@@ -61,6 +64,12 @@ export interface RegistryElement {
   refKind?: RefKind;
   /** The document surface the element belongs to. */
   home: Home;
+  /** The element's LOCATION in a conforming document — a composable tree query
+   *  (`markdown-tree.ts`). `anchor` stays the element's IDENTITY (the schema
+   *  property name, the `required[]` key, the skeleton truth-table key, the lint
+   *  lookup key and the `field:` of a finding); the selector answers only WHERE
+   *  the element sits, so the two never have to agree textually. */
+  selector: Selector;
 }
 
 /** One doc type's full element registry. */
@@ -106,6 +115,17 @@ const HOME_VALUES = [
   "design-body",
   "conditional",
 ] as const satisfies readonly Home[];
+const WALK_VALUES = [
+  "frontmatter",
+  "heading",
+  "table",
+  "row",
+  "cell",
+  "list",
+  "taskField",
+  "taskStep",
+  "graphEdge",
+] as const satisfies readonly Walk[];
 export const DOC_TYPE_VALUES = [
   "overall",
   "plan",
@@ -162,6 +182,31 @@ export class RegistryGuard {
       !(HOME_VALUES as readonly string[]).includes(candidate.home)
     )
       return false;
+    return RegistryGuard.isSelector(candidate.selector);
+  }
+
+  /** Narrow a candidate to a well-formed selector: a known walk and a `from` chain
+   *  that terminates at the document root. */
+  static isSelector(value: unknown): value is Selector {
+    let current: unknown = value;
+    while (current !== "root") {
+      if (typeof current !== "object" || current === null) return false;
+      const candidate = current as Record<string, unknown>;
+      if (
+        typeof candidate.walk !== "string" ||
+        !(WALK_VALUES as readonly string[]).includes(candidate.walk)
+      )
+        return false;
+      if (candidate.match !== undefined && !(candidate.match instanceof RegExp)) {
+        if (typeof candidate.match !== "string") return false;
+      }
+      if (
+        candidate.when !== undefined &&
+        !["first", "last", "tableBody", "inTaskBlock"].includes(candidate.when as string)
+      )
+        return false;
+      current = candidate.from;
+    }
     return true;
   }
 
@@ -191,6 +236,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("title"),
   },
   {
     anchor: "doc-type",
@@ -198,6 +244,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: `^(${DOC_TYPE_VALUES.join("|")})$`,
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("doc-type"),
   },
   {
     anchor: "version",
@@ -205,6 +252,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("version"),
   },
   {
     anchor: "date",
@@ -212,6 +260,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("date"),
   },
   {
     anchor: "slug",
@@ -219,6 +268,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: SLUG_VALUE_PATTERN,
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("slug"),
   },
   {
     anchor: "status",
@@ -226,6 +276,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^(Draft|Approved|In progress|Complete)$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("status"),
   },
   {
     anchor: "author",
@@ -233,6 +284,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("author"),
   },
   // `##`-ranked sections.
   {
@@ -241,6 +293,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^## Document scope$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Document scope"),
   },
   {
     anchor: "## File paths",
@@ -248,6 +301,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^## File paths$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## File paths"),
   },
   {
     anchor: "## Program charter",
@@ -255,6 +309,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^## Program charter$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Program charter"),
   },
   {
     anchor: "## Issue inventory",
@@ -262,6 +317,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^## Issue inventory$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Issue inventory"),
   },
   {
     anchor: "## Phase inventory",
@@ -269,6 +325,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^## Phase inventory$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Phase inventory"),
   },
   {
     anchor: "## Dependency graph",
@@ -276,6 +333,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^## Dependency graph( \\(ASCII\\))?$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Dependency graph"),
   },
   {
     anchor: "## Boundary rules",
@@ -283,6 +341,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^## Boundary rules$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Boundary rules"),
   },
   // The constraint surface (Form A delta-only) — the retired overall Constraints
   // header bullet normalised to the body section + its delta bullet (the body
@@ -293,6 +352,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^## Constraints$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Constraints"),
   },
   {
     anchor: "Constraint delta bullet",
@@ -300,6 +360,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^- ",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.list(SelectorSpec.heading("## Constraints"), /^- /),
   },
   {
     anchor: "## Maintenance",
@@ -307,6 +368,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^## Maintenance$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Maintenance"),
   },
   {
     anchor: "## Change history",
@@ -314,6 +376,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^## Change history$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Change history"),
   },
   // Charter facets (`###`/`####` leaves under the charter). The legacy Chinese
   // markers (the doc-arch decision-group leaves M/F/R/B/E, the doc-arch
@@ -326,6 +389,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^### Goal",
     refKind: "none",
     home: "facet",
+    selector: SelectorSpec.heading("### Goal"),
   },
   {
     anchor: "### Non-goals",
@@ -333,6 +397,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^### Non-goals",
     refKind: "none",
     home: "facet",
+    selector: SelectorSpec.heading("### Non-goals"),
   },
   {
     anchor: "### Cross-cutting",
@@ -340,6 +405,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^### Cross-cutting",
     refKind: "none",
     home: "facet",
+    selector: SelectorSpec.heading("### Cross-cutting"),
   },
   {
     anchor: "#### [MFRBEN] group",
@@ -347,6 +413,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^#### [MFRBEN] group",
     refKind: "none",
     home: "facet",
+    selector: SelectorSpec.heading(/^#### [MFRBEN] group/),
   },
   {
     anchor: "#### Upstream Endorsements",
@@ -354,6 +421,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^#### Upstream Endorsements$",
     refKind: "none",
     home: "facet",
+    selector: SelectorSpec.heading("#### Upstream Endorsements"),
   },
   // Issue inventory — the anchor-registration domain.
   {
@@ -362,6 +430,10 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^\\| Phase \\| Issue \\(ref\\) \\| Title summary \\|$",
     refKind: "none",
     home: "table",
+    selector: SelectorSpec.table(
+      SelectorSpec.heading("## Issue inventory"),
+      /^\| Phase \| Issue \(ref\) \| Title summary \|$/,
+    ),
   },
   {
     anchor: "Issue row",
@@ -369,6 +441,10 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^\\|\\s*P\\d+(\\.\\d+)*\\s*\\|",
     refKind: "issue-ref",
     home: "table",
+    selector: SelectorSpec.table(
+      SelectorSpec.heading("## Issue inventory"),
+      /^\|\s*P\d+(\.\d+)*\s*\|/,
+    ),
   },
   {
     anchor: "Issue ref cell",
@@ -376,6 +452,12 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^(none|#\\d+|\\[#\\d+\\]|#\\d+#issuecomment-\\d+|（[^）]*）|\\([^)]*\\))$",
     refKind: "issue-ref",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Issue inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
+      ),
+      /^(none|#\d+|\[#\d+\]|#\d+#issuecomment-\d+|（[^）]*）|\([^)]*\))$/,
+    ),
   },
   {
     anchor: "issuecomment anchor",
@@ -383,6 +465,12 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^#\\d+#issuecomment-\\d+$",
     refKind: "issue-ref",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Issue inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
+      ),
+      /^#\d+#issuecomment-\d+$/,
+    ),
   },
   // Phase inventory row ledger.
   {
@@ -392,6 +480,10 @@ const OVERALL_ELEMENTS = [
       "^\\| # \\| Phase \\| Scope \\| Design spec \\| Implementation plan \\| Acceptance criteria \\| Dependency \\|$",
     refKind: "none",
     home: "table",
+    selector: SelectorSpec.table(
+      SelectorSpec.heading("## Phase inventory"),
+      /^\| # \| Phase \| Scope \| Design spec \| Implementation plan \| Acceptance criteria \| Dependency \|$/,
+    ),
   },
   {
     anchor: "Phase row",
@@ -399,6 +491,10 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^\\|\\s*P\\d+(\\.\\d+)*\\s*\\|",
     refKind: "phase-id",
     home: "table",
+    selector: SelectorSpec.table(
+      SelectorSpec.heading("## Phase inventory"),
+      /^\|\s*P\d+(\.\d+)*\s*\|/,
+    ),
   },
   {
     anchor: "Phase id token",
@@ -406,6 +502,12 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^P\\d+(\\.\\d+)*$",
     refKind: "phase-id",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Phase inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
+      ),
+      /^P\d+(\.\d+)*$/,
+    ),
   },
   {
     anchor: "Implementation plan cell",
@@ -414,6 +516,12 @@ const OVERALL_ELEMENTS = [
       "^(Pending|\\[Pending\\]|In-flight|\\[In-flight\\]|Done|\\[[^\\]]+\\]\\([^)]+\\))$",
     refKind: "markdown-link",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Phase inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
+      ),
+      /^(?:✔\s*)?(?:Pending|\[Pending\]|In-flight|\[In-flight\]|Done|\[[^\]]+\]\([^)]+\))/,
+    ),
   },
   {
     anchor: "Design spec cell",
@@ -421,6 +529,12 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^(\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])$",
     refKind: "none",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Phase inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
+      ),
+      /^(?:✔\s*)?(?:\[[^\]]+\]\([^)]+\)|P\d+(\.\d+)*-design|Done|\[Pending\])/,
+    ),
   },
   {
     anchor: "Dependency cell",
@@ -428,6 +542,12 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^P\\d+(\\.\\d+)*\\s*->",
     refKind: "phase-id",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Phase inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
+      ),
+      /^P\d+(\.\d+)*\s*->/,
+    ),
   },
   // Dependency graph edges + legend.
   {
@@ -436,6 +556,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^P\\d+(\\.\\d+)*\\s*->\\s*P\\d+(\\.\\d+)*",
     refKind: "phase-id",
     home: "graph",
+    selector: SelectorSpec.graphEdge("hard"),
   },
   {
     anchor: "Soft edge",
@@ -443,6 +564,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^P\\d+(\\.\\d+)*\\s*->\\s*\\(?\\s*soft\\s*\\)?",
     refKind: "phase-id",
     home: "graph",
+    selector: SelectorSpec.graphEdge("soft"),
   },
   {
     anchor: "Graph legend",
@@ -451,6 +573,7 @@ const OVERALL_ELEMENTS = [
       "^(?:- )?`?->\\s*(?:\\(soft\\))?\\s*`? = hard block|^(?:- )?`?->\\s*\\(soft\\)\\s*`? = suggestion only",
     refKind: "none",
     home: "graph",
+    selector: SelectorSpec.graphEdge(/->`?\s*=\s*hard block/),
   },
   // File paths artifact table.
   {
@@ -459,6 +582,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^\\| [^|]+ \\| `[^`]+` \\|$",
     refKind: "none",
     home: "table",
+    selector: SelectorSpec.table(SelectorSpec.heading("## File paths"), /^\| [^|]+ \| `[^`]+` \|$/),
   },
   // Change history — the version-lineage surface.
   {
@@ -467,6 +591,7 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^\\|\\s*v\\d+\\.\\d+\\s*\\|",
     refKind: "version-lineage",
     home: "table",
+    selector: SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
   },
   {
     anchor: "Version token",
@@ -474,6 +599,12 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
+      ),
+      /^v\d+\.\d+$/,
+    ),
   },
   {
     anchor: "Change history date",
@@ -481,6 +612,12 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
     refKind: "none",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
+      ),
+      /^\d{4}-\d{2}-\d{2}$/,
+    ),
   },
   {
     anchor: "Backfill clause",
@@ -488,6 +625,12 @@ const OVERALL_ELEMENTS = [
     valuePattern: "(Pending|\\[Pending\\])\\s*(→|->)\\s*\\S+",
     refKind: "version-lineage",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
+      ),
+      /(Pending|\[Pending\])\s*(→|->)\s*\S+/,
+    ),
   },
   {
     anchor: "Design claim token",
@@ -495,6 +638,12 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^P\\d+(\\.\\d+)*-design$",
     refKind: "phase-id",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Phase inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
+      ),
+      /^P\d+(\.\d+)*-design$/,
+    ),
   },
   {
     anchor: "Phase range ref",
@@ -502,6 +651,12 @@ const OVERALL_ELEMENTS = [
     valuePattern: "^P\\d+(\\.\\d+)*\\s*[-–—]\\s*P\\d+(\\.\\d+)*$",
     refKind: "phase-id",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Phase inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
+      ),
+      /^P\d+(\.\d+)*\s*[-–—]\s*P\d+(\.\d+)*$/,
+    ),
   },
 ] as const satisfies readonly Required<RegistryElement>[];
 
@@ -518,6 +673,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("title"),
   },
   {
     anchor: "doc-type",
@@ -525,6 +681,7 @@ const PLAN_ELEMENTS = [
     valuePattern: `^(${DOC_TYPE_VALUES.join("|")})$`,
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("doc-type"),
   },
   {
     anchor: "version",
@@ -532,6 +689,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("version"),
   },
   {
     anchor: "date",
@@ -539,6 +697,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("date"),
   },
   {
     anchor: "slug",
@@ -546,6 +705,7 @@ const PLAN_ELEMENTS = [
     valuePattern: SLUG_VALUE_PATTERN,
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("slug"),
   },
   {
     anchor: "base",
@@ -553,6 +713,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("base"),
   },
   // Constraint surface (Form A delta-only).
   {
@@ -561,6 +722,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^## Constraints$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Constraints"),
   },
   {
     anchor: "Constraint delta bullet",
@@ -568,6 +730,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^- ",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.list(SelectorSpec.heading("## Constraints"), /^- /),
   },
   {
     anchor: "Constraint delta sub-heading",
@@ -575,6 +738,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^### ",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading(/^### /, SelectorSpec.heading("## Constraints")),
   },
   // Task blocks — the `### Task N:` heading and its number identity. The heading
   // shape accepts the TITLED form (`### Task N: <title>` — the tree-wide canonical
@@ -586,6 +750,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^### Task \\d+:( .*)?$",
     refKind: "none",
     home: "task-block",
+    selector: SelectorSpec.heading(/^### Task \d+:/),
   },
   {
     anchor: "Task id token",
@@ -593,6 +758,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^\\d+$",
     refKind: "task-id",
     home: "task-block",
+    selector: SelectorSpec.heading(/^### Task ([1-9]\d*):/),
   },
   // Task block sections — the seven reserved `#### Key` headings (P21 §7). The
   // legacy bullet shape (`- **Key**: …`) carries NO declaration of its own: the
@@ -604,6 +770,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^#### Objective$",
     refKind: "none",
     home: "task-field",
+    selector: SelectorSpec.taskField("#### Objective"),
   },
   {
     anchor: "#### Files",
@@ -611,6 +778,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^#### Files$",
     refKind: "none",
     home: "task-field",
+    selector: SelectorSpec.taskField("#### Files"),
   },
   {
     anchor: "File path token",
@@ -618,6 +786,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^[\\w./-]+",
     refKind: "none",
     home: "task-field",
+    selector: SelectorSpec.taskField(/^[\w./-]+/, SelectorSpec.taskField("#### Files")),
   },
   {
     anchor: "#### Consumes",
@@ -625,6 +794,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^#### Consumes$",
     refKind: "none",
     home: "task-field",
+    selector: SelectorSpec.taskField("#### Consumes"),
   },
   {
     anchor: "#### Produces",
@@ -632,6 +802,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^#### Produces$",
     refKind: "none",
     home: "task-field",
+    selector: SelectorSpec.taskField("#### Produces"),
   },
   {
     anchor: "#### Steps",
@@ -639,6 +810,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^#### Steps$",
     refKind: "none",
     home: "task-field",
+    selector: SelectorSpec.taskField("#### Steps"),
   },
   // Step leaves — execution steps and their verifiable outcomes.
   {
@@ -647,6 +819,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^- ",
     refKind: "none",
     home: "task-step",
+    selector: SelectorSpec.taskStep(/^- /),
   },
   {
     anchor: "Step checkable",
@@ -654,6 +827,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "—\\s*checkable:\\s*\\S",
     refKind: "none",
     home: "task-step",
+    selector: SelectorSpec.taskStep(/—+\s*checkable:\s*\S/),
   },
   {
     anchor: "#### Acceptance",
@@ -661,6 +835,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^#### Acceptance$",
     refKind: "none",
     home: "task-field",
+    selector: SelectorSpec.taskField("#### Acceptance"),
   },
   // The single directed edge — declares which other tasks this one depends on
   // (any existing task id; forward references are legal — the anti-dependency gate
@@ -671,6 +846,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^#### DependsOn$",
     refKind: "none",
     home: "task-field",
+    selector: SelectorSpec.taskField("#### DependsOn"),
   },
   {
     anchor: "DependsOn none",
@@ -678,6 +854,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^(none|\\s*)$",
     refKind: "none",
     home: "task-field",
+    selector: SelectorSpec.taskField(/^(none|\s*)$/, SelectorSpec.taskField("#### DependsOn")),
   },
   {
     anchor: "DependsOn id",
@@ -685,6 +862,7 @@ const PLAN_ELEMENTS = [
     valuePattern: TASK_ID_VALUE_PATTERN,
     refKind: "task-id",
     home: "task-field",
+    selector: SelectorSpec.taskField(/^[1-9]\d*$/, SelectorSpec.taskField("#### DependsOn")),
   },
   // Reference-lint token — prose mentions of a task id (a WARN-only observation
   // surface; the crosslink invariant does NOT consume this element — the
@@ -695,6 +873,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "\\b(?:Task|T)\\s*([1-9]\\d*)\\b(?!\\.\\d)",
     refKind: "task-id",
     home: "task-field",
+    selector: SelectorSpec.taskField(/\b(?:Task|T)\s*([1-9]\d*)\b(?!\.\d)/),
   },
   // Change history — the version-lineage surface (P4.1 T2 · overall-isomorphic): the
   // section heading + the row/version/date cells. Presence is required on the
@@ -706,6 +885,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^## Change history$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Change history"),
   },
   {
     anchor: "Change history row",
@@ -713,6 +893,7 @@ const PLAN_ELEMENTS = [
     valuePattern: "^\\|\\s*v\\d+\\.\\d+\\s*\\|",
     refKind: "version-lineage",
     home: "table",
+    selector: SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
   },
   {
     anchor: "Version token",
@@ -720,6 +901,12 @@ const PLAN_ELEMENTS = [
     valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
+      ),
+      /^v\d+\.\d+$/,
+    ),
   },
   {
     anchor: "Change history date",
@@ -727,6 +914,12 @@ const PLAN_ELEMENTS = [
     valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
     refKind: "none",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
+      ),
+      /^\d{4}-\d{2}-\d{2}$/,
+    ),
   },
 ] as const satisfies readonly Required<RegistryElement>[];
 
@@ -743,6 +936,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("title"),
   },
   {
     anchor: "doc-type",
@@ -750,6 +944,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: `^(${DOC_TYPE_VALUES.join("|")})$`,
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("doc-type"),
   },
   {
     anchor: "version",
@@ -757,6 +952,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("version"),
   },
   {
     anchor: "date",
@@ -764,6 +960,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("date"),
   },
   {
     anchor: "slug",
@@ -771,6 +968,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: SLUG_VALUE_PATTERN,
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("slug"),
   },
   {
     anchor: "program",
@@ -778,6 +976,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: SLUG_VALUE_PATTERN,
     refKind: "slug-ref",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("program"),
   },
   {
     anchor: "status",
@@ -785,6 +984,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^(Draft|Approved|Plan pending|Shipped)$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("status"),
   },
   {
     anchor: "author",
@@ -792,6 +992,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("author"),
   },
   {
     anchor: "parent-version",
@@ -799,6 +1000,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("parent-version"),
   },
   // The double-layer design body.
   {
@@ -807,6 +1009,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^## Design$",
     refKind: "none",
     home: "design-body",
+    selector: SelectorSpec.heading("## Design"),
   },
   {
     anchor: "### N. group heading",
@@ -814,6 +1017,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^### \\d+\\. ",
     refKind: "none",
     home: "design-body",
+    selector: SelectorSpec.heading(/^### \d+\. /, SelectorSpec.heading("## Design")),
   },
   {
     anchor: "#### N.M item heading",
@@ -821,6 +1025,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^#### \\d+\\.\\d+ ",
     refKind: "none",
     home: "design-body",
+    selector: SelectorSpec.heading(/^#### \d+\.\d+ /, SelectorSpec.heading("## Design")),
   },
   {
     anchor: "### Acceptance criteria",
@@ -828,6 +1033,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^### Acceptance criteria$",
     refKind: "none",
     home: "design-body",
+    selector: SelectorSpec.heading("### Acceptance criteria"),
   },
   {
     anchor: "Acceptance entry",
@@ -835,6 +1041,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^- `",
     refKind: "none",
     home: "design-body",
+    selector: SelectorSpec.list(SelectorSpec.heading("### Acceptance criteria"), /^- `/),
   },
   // The inheritance-point constraint surface (delta-only).
   {
@@ -843,6 +1050,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^## Constraints$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Constraints"),
   },
   {
     anchor: "Constraint delta bullet",
@@ -850,6 +1058,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^- ",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.list(SelectorSpec.heading("## Constraints"), /^- /),
   },
   // Conditional sections — written only when their condition holds, zero residue otherwise.
   {
@@ -858,6 +1067,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^## Deviations$",
     refKind: "none",
     home: "conditional",
+    selector: SelectorSpec.heading("## Deviations"),
   },
   {
     anchor: "Deviations columns",
@@ -865,6 +1075,10 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^\\| Overall assumption \\| Phase decision \\| Overall updated\\? \\|$",
     refKind: "none",
     home: "conditional",
+    selector: SelectorSpec.table(
+      "root",
+      /^\| Overall assumption \| Phase decision \| Overall updated\? \|$/,
+    ),
   },
   {
     anchor: "Deviations row",
@@ -872,6 +1086,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^\\|\\s*[^|]+\\s*\\|\\s*[^|]+\\s*\\|\\s*(Yes|No)\\b",
     refKind: "none",
     home: "conditional",
+    selector: SelectorSpec.table("root", /^\|\s*[^|]+\s*\|\s*[^|]+\s*\|\s*(Yes|No)\b/),
   },
   {
     anchor: "Overall updated answer",
@@ -879,6 +1094,10 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^Yes",
     refKind: "none",
     home: "conditional",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(SelectorSpec.table("root", /^\|\s*[^|]+\s*\|\s*[^|]+\s*\|\s*(Yes|No)\b/)),
+      /^Yes/,
+    ),
   },
   {
     anchor: "## Incremental warning",
@@ -886,6 +1105,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^## Incremental warning$",
     refKind: "none",
     home: "conditional",
+    selector: SelectorSpec.heading("## Incremental warning"),
   },
   {
     anchor: "## Notes for downstream",
@@ -893,6 +1113,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^## Notes for downstream$",
     refKind: "none",
     home: "conditional",
+    selector: SelectorSpec.heading("## Notes for downstream"),
   },
   {
     anchor: "## Review record",
@@ -900,6 +1121,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^## Review record$",
     refKind: "none",
     home: "conditional",
+    selector: SelectorSpec.heading("## Review record"),
   },
   // Change history — the version-lineage surface (P4.1 T2 · overall-isomorphic): the
   // section heading + the row/version/date cells. Presence is required on the
@@ -910,6 +1132,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^## Change history$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Change history"),
   },
   {
     anchor: "Change history row",
@@ -917,6 +1140,7 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^\\|\\s*v\\d+\\.\\d+\\s*\\|",
     refKind: "version-lineage",
     home: "table",
+    selector: SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
   },
   {
     anchor: "Version token",
@@ -924,6 +1148,12 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
+      ),
+      /^v\d+\.\d+$/,
+    ),
   },
   {
     anchor: "Change history date",
@@ -931,6 +1161,12 @@ const PHASE_SPEC_ELEMENTS = [
     valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
     refKind: "none",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
+      ),
+      /^\d{4}-\d{2}-\d{2}$/,
+    ),
   },
 ] as const satisfies readonly Required<RegistryElement>[];
 
@@ -955,6 +1191,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("title"),
   },
   {
     anchor: "doc-type",
@@ -962,6 +1199,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: `^(${DOC_TYPE_VALUES.join("|")})$`,
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("doc-type"),
   },
   {
     anchor: "version",
@@ -969,6 +1207,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("version"),
   },
   {
     anchor: "date",
@@ -976,6 +1215,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("date"),
   },
   {
     anchor: "slug",
@@ -983,6 +1223,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: SLUG_VALUE_PATTERN,
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("slug"),
   },
   {
     anchor: "status",
@@ -990,6 +1231,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^(Draft|Approved|In progress|Complete)$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("status"),
   },
   {
     anchor: "author",
@@ -997,6 +1239,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("author"),
   },
   {
     anchor: "issues",
@@ -1004,6 +1247,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^.+$",
     refKind: "none",
     home: "frontmatter",
+    selector: SelectorSpec.frontmatter("issues"),
   },
   // The prose body surface — the free-form's four sections in document order.
   {
@@ -1012,6 +1256,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^## Background & root cause$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Background & root cause"),
   },
   {
     anchor: "## Design decisions",
@@ -1019,6 +1264,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^## Design decisions$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Design decisions"),
   },
   {
     anchor: "## Acceptance",
@@ -1026,6 +1272,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^## Acceptance$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Acceptance"),
   },
   {
     anchor: "## Constraints",
@@ -1033,6 +1280,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^## Constraints$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Constraints"),
   },
   // Change history — the version-lineage surface (same shape as the other types).
   {
@@ -1041,6 +1289,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^## Change history$",
     refKind: "none",
     home: "section",
+    selector: SelectorSpec.heading("## Change history"),
   },
   {
     anchor: "Change history row",
@@ -1048,6 +1297,7 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^\\|\\s*v\\d+\\.\\d+\\s*\\|",
     refKind: "version-lineage",
     home: "table",
+    selector: SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
   },
   {
     anchor: "Version token",
@@ -1055,6 +1305,12 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^v\\d+\\.\\d+$",
     refKind: "version-lineage",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
+      ),
+      /^v\d+\.\d+$/,
+    ),
   },
   {
     anchor: "Change history date",
@@ -1062,6 +1318,12 @@ const SINGLE_SPEC_ELEMENTS = [
     valuePattern: "^\\d{4}-\\d{2}-\\d{2}$",
     refKind: "none",
     home: "table",
+    selector: SelectorSpec.cell(
+      SelectorSpec.row(
+        SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
+      ),
+      /^\d{4}-\d{2}-\d{2}$/,
+    ),
   },
 ] as const satisfies readonly Required<RegistryElement>[];
 

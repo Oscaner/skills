@@ -587,18 +587,21 @@ const PLAN_ELEMENTS = [
     refKind: "task-id",
     home: "task-block",
   },
-  // Task block fields.
+  // Task block sections — the seven reserved `#### Key` headings (P21 §7). The
+  // legacy bullet shape (`- **Key**: …`) carries NO declaration of its own: the
+  // `PlanTaskBlocksReader` normalizes it into the same block record, so the field
+  // key/token surface below judges both shapes by one declaration.
   {
-    anchor: "**Objective**",
+    anchor: "#### Objective",
     presence: "required",
-    valuePattern: "^- \\*\\*Objective\\*\\*:",
+    valuePattern: "^#### Objective$",
     refKind: "none",
     home: "task-field",
   },
   {
-    anchor: "**Files**",
+    anchor: "#### Files",
     presence: "required",
-    valuePattern: "^- \\*\\*Files\\*\\*:",
+    valuePattern: "^#### Files$",
     refKind: "none",
     home: "task-field",
   },
@@ -610,23 +613,23 @@ const PLAN_ELEMENTS = [
     home: "task-field",
   },
   {
-    anchor: "**Consumes**",
+    anchor: "#### Consumes",
     presence: "required",
-    valuePattern: "^- \\*\\*Consumes\\*\\*:",
+    valuePattern: "^#### Consumes$",
     refKind: "none",
     home: "task-field",
   },
   {
-    anchor: "**Produces**",
+    anchor: "#### Produces",
     presence: "required",
-    valuePattern: "^- \\*\\*Produces\\*\\*:",
+    valuePattern: "^#### Produces$",
     refKind: "none",
     home: "task-field",
   },
   {
-    anchor: "**Steps**",
+    anchor: "#### Steps",
     presence: "required",
-    valuePattern: "^- \\*\\*Steps\\*\\*:",
+    valuePattern: "^#### Steps$",
     refKind: "none",
     home: "task-field",
   },
@@ -646,9 +649,9 @@ const PLAN_ELEMENTS = [
     home: "task-step",
   },
   {
-    anchor: "**Acceptance**",
+    anchor: "#### Acceptance",
     presence: "required",
-    valuePattern: "^- \\*\\*Acceptance\\*\\*:",
+    valuePattern: "^#### Acceptance$",
     refKind: "none",
     home: "task-field",
   },
@@ -656,9 +659,9 @@ const PLAN_ELEMENTS = [
   // (any existing task id; forward references are legal — the anti-dependency gate
   // retired, T24; the value prefix carries the list, §3.8).
   {
-    anchor: "**DependsOn**",
+    anchor: "#### DependsOn",
     presence: "required",
-    valuePattern: "^- \\*\\*DependsOn\\*\\*:",
+    valuePattern: "^#### DependsOn$",
     refKind: "none",
     home: "task-field",
   },

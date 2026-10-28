@@ -80,12 +80,12 @@
       "home": "task-field",
       "elements": [
         {
-          "anchor": "**Objective**",
+          "anchor": "#### Objective",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Files**",
+          "anchor": "#### Files",
           "presence": "required",
           "refKind": "none"
         },
@@ -95,27 +95,27 @@
           "refKind": "none"
         },
         {
-          "anchor": "**Consumes**",
+          "anchor": "#### Consumes",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Produces**",
+          "anchor": "#### Produces",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Steps**",
+          "anchor": "#### Steps",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**Acceptance**",
+          "anchor": "#### Acceptance",
           "presence": "required",
           "refKind": "none"
         },
         {
-          "anchor": "**DependsOn**",
+          "anchor": "#### DependsOn",
           "presence": "required",
           "refKind": "none"
         },

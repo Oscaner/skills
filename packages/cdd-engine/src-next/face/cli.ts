@@ -66,11 +66,11 @@ import { TemplateAssembler } from "../render/templates.ts";
 import type { TargetFace, TargetType } from "../session/faces.ts";
 import { targetFaces } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
+import { HoldingError, InFlight } from "../session/inflight.ts";
 import type { RoundStatus } from "../session/ledger.ts";
 import { Ledger } from "../session/ledger.ts";
 import { NextStepRouter } from "../session/next.ts";
-import type { PreFlightVerdict } from "../session/preflight.ts";
-import { PreFlight } from "../session/preflight.ts";
+import { PreFlight, type PreFlightVerdict } from "../session/preflight.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { CliArtifacts } from "./artifacts.ts";
@@ -462,7 +462,21 @@ export class Cli {
     const entry = specEntry ?? planEntry;
     if (entry === null) return 2;
     const host = HostDetect.detect(process.env);
-    const board = BoardView.render(index, entry, repoRoot, this.#words, host, ARGV_CHANNEL);
+    // The in-flight fact is TREE-level: the board inspects it (read-only — the gate
+    // and the board share `InFlight.inspect()`, never a second liveness judgment).
+    const inflight = new InFlight(
+      new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
+      entry.slug ?? "",
+    );
+    const board = BoardView.render(
+      index,
+      entry,
+      repoRoot,
+      this.#words,
+      host,
+      ARGV_CHANNEL,
+      await inflight.inspect(),
+    );
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;
   }
@@ -582,6 +596,10 @@ export class Cli {
         ? scene.target.doc
         : "",
     );
+    // The in-flight handle of this tree — ONE instance per invocation, built at the
+    // tree root (not the slug workspace: the collision domain is the tree). The gate
+    // only inspects it; the lifecycle's real dispatch path acquires it after the gate.
+    const inflight = new InFlight(scene.workspace.root, scene.workspace.slug);
     const preflight = await this.#preflight.vet({
       verb: verb as "implement" | "review" | "fix",
       type,
@@ -600,8 +618,24 @@ export class Cli {
               path: docRel,
             }
           : null,
+      inflight,
+      // The explicit takeover flag — VOID under --dry-run: the preview face never
+      // acquires, so a takeover there would have no write channel at all. The
+      // preview still judges the same gate, sees the same holder facts, and exits 1.
+      stealStale: !parsed.dryRun && parsed.args.stealStale === "true",
     });
     if (!preflight.ok) {
+      if (parsed.dryRun && preflight.gate === "in-flight" && preflight.holding !== undefined) {
+        // The preview's read-only held face: the SAME gate verdict, rendered as the
+        // lock row + the takeover hint, exit 1. Zero write (the preview never
+        // acquires / steals / releases).
+        for (const line of new Preview({ scene, words: this.#words }).heldBlock(
+          verb,
+          preflight.holding,
+        ))
+          this.#io.stdout(`${line}\n`);
+        return 1;
+      }
       this.#renderPreflightBlocked(verb, preflight, scene);
       return 1;
     }
@@ -738,7 +772,17 @@ export class Cli {
         for (const line of new Preview({ scene }).render(verb, frame)) this.#io.stdout(`${line}\n`);
         return 0;
       }
-      const step = await run.advance();
+      // The gate→acquire race: another dispatch took the lock between the in-flight
+      // gate's read and this dispatch's acquire. `HoldingError` carries the holder's
+      // facts and renders the SAME held BLOCK message the gate renders.
+      let step: Awaited<ReturnType<Lifecycle["advance"]>>;
+      try {
+        step = await run.advance();
+      } catch (error) {
+        if (!(error instanceof HoldingError)) throw error;
+        this.#renderHeld(error);
+        return 1;
+      }
       if (step === null) break;
       // The dispatch-entry gate's refusal (the lifecycle's hard child zero-dispatch wiring —
       // structurally unreachable here: the seam already returned above on refusal).
@@ -846,7 +890,11 @@ export class Cli {
    *  wave gate's split row — its done face rides the SAME closedWaves() read the gate
    *  judged, one closed set, one source). */
   #renderPreflightBlocked(verb: CliVerb, verdict: PreFlightVerdict, scene: WorkScene): void {
-    if (verdict.gate === "tree-clean" || verdict.gate === "doc-contract") {
+    if (
+      verdict.gate === "tree-clean" ||
+      verdict.gate === "in-flight" ||
+      verdict.gate === "doc-contract"
+    ) {
       this.#io.stderr(`${this.#words.station("blocked")} ${verdict.message ?? ""}\n`);
       for (const detail of verdict.details ?? []) this.#io.stderr(`  ${detail}\n`);
       this.#renderChecked(verdict);
@@ -867,6 +915,13 @@ export class Cli {
         this.#io.stderr(`  ${line}\n`);
     }
     this.#renderChecked(verdict);
+  }
+
+  /** Render the acquire race's held BLOCK — the in-flight gate's own message face
+   *  (`Words.inFlightBlocked`, one filler for both call sites), exit 1 at the caller. */
+  #renderHeld(error: HoldingError): void {
+    const message = this.#words.inFlightBlocked(error.record, true);
+    this.#io.stderr(`${this.#words.station("blocked")} ${message}\n`);
   }
 
   /** Render the checked face — the pre-flight's per-gate / per-rule rows, derived by

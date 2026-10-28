@@ -22,7 +22,7 @@
 // carrying bare functions (the plan's zero-bare-function discipline).
 
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import type { ConfigLoader } from "../infra/config.ts";
 import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
@@ -1000,6 +1000,58 @@ export class Ledger {
   /** Read a handoff carrier; null when missing/corrupt. */
   readHandoff(op: string, type: string, params: HandoffParams): Record<string, unknown> | null {
     return this.#read<Record<string, unknown>>(this.handoffName(op, type, params));
+  }
+
+  /** The workspace's ORPHAN handoff drafts — the `handoff` family files whose
+   *  (line key, op, round) never landed in `progress.json` (a draft written by a
+   *  round that never booked). The board and the `--dry-run` preview render them;
+   *  this is a PURE READ — the engine never writes, moves or deletes a draft. The
+   *  family names are the ledger's own single naming truth (no second pattern). */
+  orphanHandoffs(): readonly string[] {
+    const rows = this.readProgress()?.waves ?? [];
+    const orphans: string[] = [];
+    for (const name of this.#workspaceFiles()) {
+      const owner = Ledger.#handoffOwner(name, this.#families);
+      if (owner === null) continue;
+      const row = rows.find((candidate) => candidate.wave === owner.key);
+      const rounds = row?.rounds?.[owner.op] ?? [];
+      if (!rounds.includes(owner.round)) orphans.push(name);
+    }
+    return orphans.sort();
+  }
+
+  /** The workspace directory's file names (an absent/unreadable directory is an
+   *  empty fact — the orphan face degrades, never throws). */
+  #workspaceFiles(): readonly string[] {
+    try {
+      return readdirSync(this.#workspace.path, { withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Which recorded round one handoff file belongs to — the family name pattern is
+   *  the ONE naming truth, read backwards: `tasks-{tasks}-{op}[-{round}].json` /
+   *  `{spec|plan|branch}-{op}-{round}.json`. Null for a non-handoff file. */
+  static #handoffOwner(
+    name: string,
+    families: Readonly<Record<string, HandoffFamily>>,
+  ): { readonly key: string; readonly op: string; readonly round: number } | null {
+    for (const [family, record] of Object.entries(families)) {
+      const [op = "", type = ""] = family.split(".");
+      const escaped = record.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp(
+        `^${escaped.replace("\\{tasks\\}", "(.+?)").replace("\\{round\\}", "(\\d+)")}$`,
+      );
+      const match = pattern.exec(name);
+      if (match === null) continue;
+      const key = type === "wave" ? (match[1] ?? "") : type;
+      const round = match[2] === undefined ? 1 : Number(match[2]);
+      return { key, op, round };
+    }
+    return null;
   }
 
   // -------------------------------------------------------------------------

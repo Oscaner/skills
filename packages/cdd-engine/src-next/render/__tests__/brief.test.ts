@@ -92,3 +92,48 @@ describe("BriefRenderer — the reviewed-fingerprint stability (D30)", () => {
     }
   });
 });
+
+/** A heading-shape plan — the seven reserved `####` sections plus an extension
+ *  section inside the task block (P21 §7). */
+const HEADING_PLAN = [
+  "---",
+  "title: Test Plan",
+  "doc-type: plan",
+  "version: v1.0",
+  "date: 2026-10-09",
+  "slug: x-p3",
+  "---",
+  "",
+  "## Constraints",
+  "",
+  "- keep the engine single-authored",
+  "",
+  "### Task 1: first task",
+  "",
+  "#### Objective",
+  "do the first thing",
+  "",
+  "#### Risks",
+  "a risk body",
+  "",
+  "#### Steps",
+  "- touch the file — checkable: the file exists",
+  "",
+  "#### DependsOn",
+  "none",
+  "",
+].join("\n");
+
+describe("BriefRenderer — the heading-shape task block (P21 §7)", () => {
+  it("renders a block's `####` subsections byte for byte — the retired `^#` scan truncated them", () => {
+    const out = new BriefRenderer().render(HEADING_PLAN, [1]);
+    expect(out).toContain("### Task 1: first task");
+    expect(out).toContain("#### Objective\ndo the first thing");
+    expect(out).toContain("#### Risks\na risk body");
+    expect(out).toContain("#### Steps\n- touch the file — checkable: the file exists");
+    expect(out).toContain("#### DependsOn\nnone");
+    // the `## Constraints` mirror still appends AFTER the task sections
+    expect(out.indexOf("### Task 1: first task")).toBeLessThan(out.indexOf("## Constraints"));
+    expect(out).toContain("- keep the engine single-authored");
+  });
+});

@@ -45,15 +45,19 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Command } from "commander";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { Contract } from "../../contract/judge.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { GitClient } from "../../infra/git.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
 import type { RouteTarget } from "../../session/faces.ts";
-import type { InFlightRecord } from "../../session/inflight.ts";
+import { InFlight, type InFlightRecord } from "../../session/inflight.ts";
 import { type CrashRecord, Ledger, type SampleRecord } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
 import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
+import type { PreFlightVerdict } from "../../session/preflight.ts";
+import { PreFlight } from "../../session/preflight.ts";
 import type { DispatchStep, OpenFrame } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
@@ -2763,9 +2767,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // ① the approved path: the heading, the gates that ran in order, then one row
       //    per declared rule — "which rule ran" is on the dispatch face, not a test field.
       expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
-      expect(io.stderrText.startsWith("checked:\n  tree-clean\n  graph\n  plan-ledger\n")).toBe(
-        true,
-      );
+      expect(
+        io.stderrText.startsWith(
+          "checked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n",
+        ),
+      ).toBe(true);
       expect(io.stderrText).toContain("  plan-ledger: info (plan leads ledger by 1 tasks)\n");
       expect(io.stderrText).toContain("  wave\n  presence: skipped (no doc target)\n");
       expect(io.stderrText).toContain("  planned-tasks-vs-recorded-tasks: passed\n");
@@ -6127,6 +6133,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       );
       expect(promoted).toBe(0);
+      // The terminated round's record survives it (the spec's "no exit path removes
+      // the record"); in a real session that engine process ends, so the next
+      // invocation finds the pid dead. This in-process continuation simulates that
+      // fresh process by clearing the tree-level record — the fix gate itself is the
+      // face under test here.
+      rmSync(path.join(repoRoot, ".kairos", "cdd", "in-flight.json"), { force: true });
       // the fix gate accepts — an injected approving dispatch isolates the gate face
       const fixIo = new CaptureIo();
       const fixCommand = Cli.create({ io: fixIo, dispatch: APPROVING });
@@ -6639,6 +6651,82 @@ describe("P21 — the in-flight word rows", () => {
         );
       }
       expect(CLI_COMMANDS.length).toBe(8);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P21 T6 — the gate → acquire race (HoldingError rides the same held BLOCK)
+// ---------------------------------------------------------------------------
+
+describe("cdd <verb> — the in-flight acquire race", () => {
+  it("renders the gate's held BLOCK when another dispatch takes the lock after the gate, and never overwrites its record", async () => {
+    const sync = new StubRunner();
+    const competitorRecord: InFlightRecord = {
+      pid: 777_777,
+      pgid: 777_777,
+      command: "cdd implement --tasks 1 --plan docs/kairos/plans/p3.md",
+      slug: "other",
+      startedAt: Date.parse("2026-10-28T10:00:00.000Z"),
+      wave: "1",
+      phase: "implement",
+      briefHash: null,
+      plan: "docs/kairos/plans/p3.md",
+      sampledAt: null,
+      verdict: null,
+    };
+    /** A pre-flight that approves, then lets a competitor claim the tree — the exact
+     *  gate→acquire window (the gate judged `absent`, the lock is held by the time
+     *  the real dispatch acquires). */
+    class RacingPreFlight extends PreFlight {
+      readonly #repoRoot: string;
+      readonly #record: InFlightRecord;
+      constructor(repoRoot: string, record: InFlightRecord) {
+        super({ git: new GitClient(), contract: new Contract(), words: new Words() });
+        this.#repoRoot = repoRoot;
+        this.#record = record;
+      }
+      override async vet(): Promise<PreFlightVerdict> {
+        const competitor = new InFlight(
+          new WorkspaceRoot(this.#repoRoot, ".kairos/cdd"),
+          "competitor",
+        );
+        await competitor.acquire(this.#record);
+        return { ok: true, order: ["tree-clean", "in-flight"], checked: [] };
+      }
+    }
+    const { repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const io = new CaptureIo();
+      const racing = Cli.create({
+        io,
+        sync,
+        preflight: new RacingPreFlight(repoRoot, competitorRecord),
+      });
+      const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      let code: number;
+      let recordBytes: string;
+      try {
+        code = await racing.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+        recordBytes = readFileSync(recordPath, "utf8");
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      expect(code).toBe(1);
+      // the SAME held message the gate renders — the holder's identity facts
+      expect(io.stderrText).toContain(String(competitorRecord.pid));
+      expect(io.stderrText).toContain(competitorRecord.command);
+      expect(io.stderrText).toContain("a dispatch is already in flight");
+      // the competitor's record bytes were never overwritten, and its child never ran
+      expect(recordBytes!).toBe(`${JSON.stringify(competitorRecord, null, 2)}\n`);
+      expect(sync.calls).toEqual([]);
     } finally {
       cleanup();
     }

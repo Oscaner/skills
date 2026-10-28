@@ -25,7 +25,6 @@ import {
   GraphExtractor,
   HeadingScanner,
   TableExtractor,
-  TaskExtractor,
 } from "../home-extractors.ts";
 import { Contract } from "../judge.ts";
 import type { DocKey } from "../project.ts";
@@ -307,30 +306,6 @@ describe("PhaseSpecDocType.parse — the design skeleton + the program chain roo
 });
 
 describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure rules over the registry's anchors", () => {
-  it("TaskExtractor — block heads + aligned id tokens + the scoped field/step occurrences", () => {
-    const extracted = new TaskExtractor().extract(declaredRegistries.plan, PLAN);
-    expect(extracted["### Task N:"]).toEqual(["### Task 1: skeleton", "### Task 2: registry"]);
-    expect(extracted["Task id token"]).toEqual(["1", "2"]);
-    expect(extracted["**Objective**"]).toEqual([
-      "- **Objective**: establish the skeleton",
-      "- **Objective**: declare the registries",
-    ]);
-    expect(extracted["**DependsOn**"]).toEqual(["- **DependsOn**: none", "- **DependsOn**: 1"]);
-    // the step bullets are scoped to the `**Steps**` field and matched on the
-    // trimmed form — the header / constraint bullets never leak in
-    expect(extracted["Step action"]).toEqual([
-      "  - step one",
-      "  - step two — checkable: second step check",
-      "  - write the registry — checkable: types compile",
-    ]);
-    expect(extracted["Step checkable"]).toEqual([
-      "  - step two — checkable: second step check",
-      "  - write the registry — checkable: types compile",
-    ]);
-    // the front-matter head scalars never become line occurrences of a body anchor
-    expect(extracted.slug).toBeUndefined();
-  });
-
   it("DesignBodyExtractor — the numbered group/item headings and the design leaves", () => {
     const extracted = new DesignBodyExtractor().extract(
       declaredRegistries["phase-spec"],

@@ -70,8 +70,8 @@ const SEMANTIC_PROBES: Record<string, string> = {
   "#### N.M item heading": "#### 1.1 :::fill item-title",
   "### Task N:": "### Task 1: :::fill task-title",
   "Task id token": "### Task 1:",
-  "File path token": "- **Files**: :::fill file-paths",
-  "Step action": ":::fill step-action",
+  "File path token": ":::fill file-paths",
+  "Step action": "- :::fill step-action — checkable: :::fill step-checkable",
   "Step checkable": "— checkable: :::fill step-checkable",
   "Acceptance entry": "- `:::fill acceptance-entry`",
   "Constraint delta bullet": "- :::fill constraint",
@@ -163,15 +163,28 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "- :::fill constraint",
         "",
         "### Task 1: :::fill task-title",
-        "- **Objective**: :::fill objective",
-        "- **Files**: :::fill file-paths",
-        "- **Consumes**: :::fill consumes",
-        "- **Produces**: :::fill produces",
-        "- **Steps**:",
-        "  - :::fill step-action — checkable: :::fill step-checkable",
-        "  - :::fill step-action-2 — checkable: :::fill step-checkable-2",
-        "- **Acceptance**: :::fill acceptance",
-        "- **DependsOn**: none",
+        "",
+        "#### Objective",
+        ":::fill objective",
+        "",
+        "#### Files",
+        ":::fill file-paths",
+        "",
+        "#### Consumes",
+        ":::fill consumes",
+        "",
+        "#### Produces",
+        ":::fill produces",
+        "",
+        "#### Steps",
+        "- :::fill step-action — checkable: :::fill step-checkable",
+        "- :::fill step-action-2 — checkable: :::fill step-checkable-2",
+        "",
+        "#### Acceptance",
+        ":::fill acceptance",
+        "",
+        "#### DependsOn",
+        "none",
         "",
         "## Change history",
         "",
@@ -666,34 +679,34 @@ describe("SkeletonAssembler — the EOF rule", () => {
 
 describe("SkeletonAssembler — the task block's shape (two step samples · fixed key order)", () => {
   /** The rendered plan's task-block lines — from the `### Task 1:` heading to the
-   *  next heading (the block the contract judges). */
+   *  next rank-3 heading (a `####` section heading is part of the block). */
   const taskBlockOf = (): string[] => {
     const lines = renderOf("plan").split("\n");
     const start = lines.findIndex((line) => line.startsWith("### Task 1:"));
     const out: string[] = [];
     for (let index = start; index < lines.length; index += 1) {
-      if (index > start && lines[index].startsWith("#")) break;
-      out.push(lines[index]);
+      if (index > start && /^#{1,3} /.test(lines[index] ?? "")) break;
+      out.push(lines[index] ?? "");
     }
     return out;
   };
 
-  it("renders TWO step samples under `- **Steps**:` — the repeatable unit reads as a list", () => {
+  it("renders TWO step samples under `#### Steps` — the repeatable unit reads as a list", () => {
     const block = taskBlockOf();
-    const stepsAt = block.indexOf("- **Steps**:");
+    const stepsAt = block.indexOf("#### Steps");
     expect(stepsAt).toBeGreaterThanOrEqual(0);
     const steps = block.slice(stepsAt + 1, stepsAt + 3);
     expect(steps.length).toBe(2);
     for (const step of steps) {
-      expect(step).toMatch(/^ {2}- :::fill \S+ — checkable: :::fill \S+$/);
+      expect(step).toMatch(/^- :::fill \S+ — checkable: :::fill \S+$/);
     }
   });
 
-  it("keeps the field key order fixed — Objective → Files → Consumes → Produces → Steps → Acceptance → DependsOn", () => {
+  it("keeps the section key order fixed — Objective → Files → Consumes → Produces → Steps → Acceptance → DependsOn", () => {
     const block = taskBlockOf();
     const keys = block
-      .filter((line) => /^- \*\*[^*]+\*\*:/.test(line))
-      .map((line) => line.slice(4, line.indexOf("**:")));
+      .filter((line) => /^#### [^*]+$/.test(line))
+      .map((line) => line.slice("#### ".length));
     expect(keys).toEqual([
       "Objective",
       "Files",

@@ -15,7 +15,7 @@
 // doc-contract backstop (the contract's context seam reads through it).
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -28,6 +28,7 @@ import { GitClient } from "../../infra/git.ts";
 import type { RepoPath } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { targetFaces } from "../faces.ts";
+import { InFlight, type InFlightRecord } from "../inflight.ts";
 import { Ledger } from "../ledger.ts";
 import type { PreFlightContext, PreFlightVerdict } from "../preflight.ts";
 import { PreFlight } from "../preflight.ts";
@@ -183,6 +184,53 @@ const DEFECTIVE_SPEC = [
 // the seam's context builders
 // ---------------------------------------------------------------------------
 
+/** The tree-level in-flight handle of a fixture repo — the injected liveness table
+ *  keeps the gate's judgment hermetic (no real process table). */
+const inflightOf = (repoRoot: string, alive: boolean): InFlight =>
+  new InFlight(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "preflight-slug", {
+    live: async () => alive,
+  });
+
+/** One standing in-flight record — the identity facts the gate names. */
+const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
+  pid: 4242,
+  pgid: 4242,
+  command: "cdd implement --tasks 1 --plan docs/p.md",
+  slug: "other-slug",
+  startedAt: Date.parse("2026-10-28T10:00:00.000Z"),
+  wave: "1",
+  phase: "implement",
+  briefHash: null,
+  plan: "docs/p.md",
+  sampledAt: null,
+  verdict: null,
+  ...over,
+});
+
+/** Write a standing record at the tree-level path. */
+const writeRecord = (repoRoot: string, record: InFlightRecord | string): string => {
+  const dir = path.join(repoRoot, ".kairos", "cdd");
+  mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, "in-flight.json");
+  writeFileSync(
+    file,
+    typeof record === "string" ? record : JSON.stringify(record, null, 2),
+    "utf8",
+  );
+  return file;
+};
+
+/** The byte snapshot of the in-flight record + its lock carrier (the gate's
+ *  zero-write assertion: the same bytes before and after `vet`). */
+const inFlightSnapshot = (repoRoot: string): string => {
+  const file = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+  const lock = `${file}.lock`;
+  return JSON.stringify({
+    record: existsSync(file) ? readFileSync(file, "utf8") : null,
+    locked: existsSync(lock),
+  });
+};
+
 /** The wave-face context — the plan + the requested group over a fresh ledger. */
 const waveCtx = (
   repoRoot: string,
@@ -203,6 +251,7 @@ const waveCtx = (
     tasks: new Set(tasks),
     ledger,
     doc: null,
+    inflight: inflightOf(repoRoot, false),
   };
 };
 
@@ -230,6 +279,7 @@ const docCtx = (
       docKey,
       path: `docs/kairos/specs/${docKey === "plan" ? "plan" : "spec"}.md` as RepoPath,
     },
+    inflight: inflightOf(repoRoot, false),
   };
 };
 
@@ -301,7 +351,7 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
       const preflight = preflightOf();
       const verdict = await preflight.vet(ctx);
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "graph", "plan-ledger", "wave"]);
+      expect(verdict.order).toEqual(["tree-clean", "in-flight", "graph", "plan-ledger", "wave"]);
       // A genuinely dirty USER file still refuses — the ignore is the workspace's
       // own self-published marker, never a pass for the user's uncommitted work.
       dirty(repoRoot);
@@ -346,7 +396,7 @@ describe("PreFlight — the gate order composition (tree-clean → graph → wav
         waveCtx(repoRoot, [task(1, "none"), task(2, "1")], [1], "implement"),
       );
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "graph", "plan-ledger", "wave"]);
+      expect(verdict.order).toEqual(["tree-clean", "in-flight", "graph", "plan-ledger", "wave"]);
     } finally {
       cleanup();
     }
@@ -358,7 +408,7 @@ describe("PreFlight — the gate order composition (tree-clean → graph → wav
       const preflight = preflightOf(memoryFs(CONFORMING_SPEC));
       const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
+      expect(verdict.order).toEqual(["tree-clean", "in-flight", "doc-contract"]);
     } finally {
       cleanup();
     }
@@ -406,7 +456,7 @@ describe("PreFlight — the wave gate inside the seam", () => {
       expect(verdict.reason).toBe("split");
       expect(verdict.message).toContain("derived wave");
       // the wave gate ran AFTER tree-clean + graph
-      expect(verdict.order).toEqual(["tree-clean", "graph", "plan-ledger", "wave"]);
+      expect(verdict.order).toEqual(["tree-clean", "in-flight", "graph", "plan-ledger", "wave"]);
     } finally {
       cleanup();
     }
@@ -458,7 +508,7 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
       });
       const verdict = await preflight.vet(docCtx(repoRoot, "phase-spec", "review"));
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
+      expect(verdict.order).toEqual(["tree-clean", "in-flight", "doc-contract"]);
     } finally {
       cleanup();
     }
@@ -476,7 +526,7 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
       expect(verdict.gate).toBe("doc-contract");
       expect(verdict.reason).toBe("doc-contract");
       expect(verdict.message).toContain("declares no `doc-type:` key");
-      expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
+      expect(verdict.order).toEqual(["tree-clean", "in-flight", "doc-contract"]);
     } finally {
       cleanup();
     }
@@ -495,7 +545,7 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
       expect(verdict.message).toContain("outside the declared domain");
       expect(verdict.message).toContain("overall, plan, phase-spec, single-spec");
       expect(verdict.message).not.toContain("declares no `doc-type:` key");
-      expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
+      expect(verdict.order).toEqual(["tree-clean", "in-flight", "doc-contract"]);
     } finally {
       cleanup();
     }
@@ -513,7 +563,7 @@ describe("PreFlight — the doc-contract gate (Contract.validate over the doc fa
       expect(verdict.gate).toBe("doc-contract");
       expect(verdict.reason).toBe("doc-contract");
       expect(verdict.message).toContain("declares no `slug:` key");
-      expect(verdict.order).toEqual(["tree-clean", "doc-contract"]);
+      expect(verdict.order).toEqual(["tree-clean", "in-flight", "doc-contract"]);
     } finally {
       cleanup();
     }
@@ -635,6 +685,7 @@ const branchCtx = (
     tasks: null,
     ledger,
     doc: null,
+    inflight: inflightOf(repoRoot, false),
   };
 };
 
@@ -726,6 +777,138 @@ describe("PreFlight — the plan-ledger gate", () => {
       expect(verdict.reason).toBeUndefined();
       expect((verdict.details ?? []).join("\n")).toContain("planned-tasks-vs-recorded-tasks");
       expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: failed");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P21 T6 — the in-flight gate (the tree's dispatch fact, §2.2 / §6.4)
+// ---------------------------------------------------------------------------
+
+describe("PreFlight — the in-flight gate", () => {
+  it("refuses a live holder before the structural gates, names it, and writes nothing", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const record = recordOf();
+      writeRecord(repoRoot, record);
+      const lock = path.join(repoRoot, ".kairos", "cdd", "in-flight.json.lock");
+      mkdirSync(lock, { recursive: true });
+      const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "implement");
+      const before = inFlightSnapshot(repoRoot);
+
+      const verdict = await preflightOf().vet({ ...ctx, inflight: inflightOf(repoRoot, true) });
+
+      expect(verdict.ok).toBe(false);
+      expect(verdict.gate).toBe("in-flight");
+      expect(verdict.reason).toBe("held");
+      for (const token of [
+        "4242",
+        record.command,
+        "2026-10-28T10:00:00.000Z",
+        "wave: 1",
+        "other-slug",
+      ]) {
+        expect(verdict.message).toContain(token);
+      }
+      expect(verdict.order).toEqual(["tree-clean", "in-flight"]);
+      expect(verdict.checked[0]).toBe("tree-clean");
+      expect(verdict.checked[1]).toMatch(/^in-flight: held/);
+      expect(verdict.holding).toEqual(expect.objectContaining({ kind: "held", alive: true }));
+      // the gate only judged — the record and the lock carrier are byte-identical
+      expect(inFlightSnapshot(repoRoot)).toBe(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("refuses a dead holder with the takeover hint, and only the explicit flag lets the gate pass", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      writeRecord(repoRoot, recordOf());
+      const before = inFlightSnapshot(repoRoot);
+      const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "implement");
+
+      const refused = await preflightOf().vet({ ...ctx, inflight: inflightOf(repoRoot, false) });
+      expect(refused.ok).toBe(false);
+      expect(refused.gate).toBe("in-flight");
+      expect(refused.reason).toBe("held");
+      expect(refused.message).toContain("--steal-stale");
+      expect(inFlightSnapshot(repoRoot)).toBe(before);
+
+      // the flag only lets the GATE pass; the takeover itself is the real
+      // dispatch's acquire — the gate still writes nothing
+      const takeover = await preflightOf().vet({
+        ...ctx,
+        inflight: inflightOf(repoRoot, false),
+        stealStale: true,
+      });
+      expect(takeover.ok).toBe(true);
+      expect(takeover.checked).toContain(
+        "in-flight: stale holder — pid 4242 (re-run with --steal-stale to take over)",
+      );
+      expect(inFlightSnapshot(repoRoot)).toBe(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("treats a corrupt record with its lock as held (refuse, or pass under the flag) — never clears it", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      writeRecord(repoRoot, "{ not json");
+      mkdirSync(path.join(repoRoot, ".kairos", "cdd", "in-flight.json.lock"), { recursive: true });
+      const before = inFlightSnapshot(repoRoot);
+      const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "implement");
+
+      const refused = await preflightOf().vet({ ...ctx, inflight: inflightOf(repoRoot, true) });
+      expect(refused.ok).toBe(false);
+      expect(refused.gate).toBe("in-flight");
+      expect(refused.reason).toBe("corrupt-record");
+      expect(refused.message).toContain("unreadable");
+      expect(inFlightSnapshot(repoRoot)).toBe(before);
+
+      const takeover = await preflightOf().vet({
+        ...ctx,
+        inflight: inflightOf(repoRoot, true),
+        stealStale: true,
+      });
+      expect(takeover.ok).toBe(true);
+      expect(inFlightSnapshot(repoRoot)).toBe(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("passes a corrupt record with no lock behind it, naming the fact (zero write)", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      writeRecord(repoRoot, "{ not json");
+      const before = inFlightSnapshot(repoRoot);
+      const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "implement");
+      const verdict = await preflightOf().vet({ ...ctx, inflight: inflightOf(repoRoot, true) });
+      expect(verdict.ok).toBe(true);
+      expect(verdict.checked).toContain("in-flight: unreadable record — no lock behind");
+      expect(inFlightSnapshot(repoRoot)).toBe(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders the `in-flight:` row on the doc, wave and branch dispatch faces", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const wave = await preflightOf().vet(waveCtx(repoRoot, [task(1, "none")], [1], "implement"));
+      const branch = await preflightOf().vet(branchCtx(repoRoot, [task(1, "none")]));
+      const doc = await preflightOf(memoryFs(CONFORMING_SPEC)).vet(
+        docCtx(repoRoot, "phase-spec", "review"),
+      );
+      for (const verdict of [wave, branch, doc]) {
+        expect(verdict.ok).toBe(true);
+        expect(verdict.checked.some((row) => row.startsWith("in-flight:"))).toBe(true);
+        expect(verdict.order).toContain("in-flight");
+      }
     } finally {
       cleanup();
     }

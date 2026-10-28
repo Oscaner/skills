@@ -32,16 +32,16 @@
 import type { ElementRegistry } from "./declare.ts";
 import { declaredRegistries } from "./declare.ts";
 import type { FrontMatterHead } from "./frontmatter.ts";
-import type { ExtractionMap } from "./home-extractors.ts";
 import {
   DesignBodyExtractor,
   GraphExtractor,
   HeadingScanner,
   TableExtractor,
-  TaskExtractor,
 } from "./home-extractors.ts";
 import type { DocKey, DocShape, DocSlices, ElementSlice } from "./project.ts";
 import { Projector } from "./project.ts";
+import type { TaskBlock } from "./task-blocks.ts";
+import { PlanTaskBlocksReader } from "./task-blocks.ts";
 
 /** The projection carrier — one Projector instance over the declared registries,
  *  shared by the four parser classes (each binds its own doc-type faces). */
@@ -50,11 +50,12 @@ const projector = new Projector(declaredRegistries);
 /** The home-driven extractors — the fixed structure rules of the task / design /
  *  graph / table / section homes (spec §3.2), shared by the parsers that read
  *  those surfaces. */
-const taskExtractor = new TaskExtractor();
 const designExtractor = new DesignBodyExtractor();
 const graphExtractor = new GraphExtractor();
 const tableExtractor = new TableExtractor();
 const headingScanner = new HeadingScanner();
+/** The ONE task-block parse face (P21 §7 — the AST reader, never a second grammar). */
+const taskBlockReader = new PlanTaskBlocksReader();
 
 // ---------------------------------------------------------------------------
 // shared structural types
@@ -173,33 +174,7 @@ export interface OverallParsed {
   chain: ChainRoot;
 }
 
-/** One parsed `- **Key**:` field of a task block. */
-export interface TaskField {
-  /** The field key (Objective / Files / Consumes / Produces / Steps / Acceptance / DependsOn). */
-  key: string;
-  /** The field's value lines — the marker line's remainder plus its continuation lines. */
-  lines: readonly string[];
-}
-
-/** One parsed step line of a task block's `**Steps**` field. */
-export interface TaskStep {
-  /** The step's action text (after the leading `- `). */
-  action: string;
-  /** The step's `— checkable:` clause text, when the line carries one. */
-  checkable: string | null;
-}
-
-/** One parsed `### Task N:` block. */
-export interface TaskBlock {
-  /** The task number N. */
-  id: number;
-  /** The `### Task N: …` heading line verbatim. */
-  heading: string;
-  /** The block's keyed fields in document order. */
-  fields: readonly TaskField[];
-  /** The parsed `**Steps**` bullets. */
-  steps: readonly TaskStep[];
-}
+export type { TaskBlock, TaskField, TaskStep } from "./task-blocks.ts";
 
 /** The plan parse record — the header, the constraints section and the task blocks. */
 export interface PlanParsed {
@@ -419,94 +394,12 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return headingScanner.sectionsOf(this.registry, lines);
   }
 
-  /** The `### Task N:` blocks in document order, with their field + step surfaces.
-   *  The block-head / field-marker / step-line grammars live in the TaskExtractor
-   *  (the task home's fixed structure rules over the registry's declared anchors):
-   *  each block is extracted over its own lines, so the extractor's own scoping
-   *  (the fields, and the steps riding inside the `**Steps**` field) yields that
-   *  block's occurrence buckets directly — step recognition never re-appears here. */
-  protected taskBlocks(blocks: readonly HeadingBlock[]): TaskBlock[] {
-    const out: TaskBlock[] = [];
-    for (const block of blocks) {
-      const lines = [block.heading, ...block.body];
-      const extracted = taskExtractor.extract(this.registry, lines);
-      const headings = extracted["### Task N:"] ?? [];
-      if (headings.length === 0) continue;
-      const ids = extracted["Task id token"] ?? [];
-      const id = Number(ids[0] ?? "");
-      if (Number.isNaN(id)) continue;
-      const fields = this.#taskFieldsOf(block.body, this.#taskFieldMarkers(extracted));
-      out.push({
-        id,
-        heading: block.heading,
-        fields,
-        steps: this.#taskStepsOf(
-          extracted["Step action"] ?? [],
-          new Set(extracted["Step checkable"] ?? []),
-        ),
-      });
-    }
-    return out;
-  }
-
-  /** The task-field anchor lookup — each declared field anchor's marker line maps
-   *  to its anchor (the retired per-anchor field grammar collapses to one map). */
-  #taskFieldMarkers(extracted: ExtractionMap): ReadonlyMap<string, string> {
-    const markers = new Map<string, string>();
-    for (const [anchor, lines] of Object.entries(extracted)) {
-      if (!anchor.startsWith("**")) continue;
-      for (const line of lines) markers.set(line, anchor);
-    }
-    return markers;
-  }
-
-  /** Parse a task block's body into keyed fields — the marker membership comes
-   *  from the extractor's field-anchor map; the remainder and continuation
-   *  handling mirror the retired grammar's behavior exactly. */
-  #taskFieldsOf(body: readonly string[], markers: ReadonlyMap<string, string>): TaskField[] {
-    const fields: TaskField[] = [];
-    let openKey: string | null = null;
-    let openLines: string[] = [];
-    const close = (): void => {
-      if (openKey !== null) fields.push({ key: openKey, lines: openLines });
-      openKey = null;
-      openLines = [];
-    };
-    for (const line of body) {
-      const anchor = markers.get(line);
-      if (anchor !== undefined) {
-        close();
-        openKey = anchor.slice(2, -2);
-        openLines = [line.slice(`- ${anchor}:`.length).trim()];
-      } else if (openKey !== null && line.trim().length > 0) {
-        openLines.push(line.trim());
-      }
-    }
-    close();
-    return fields;
-  }
-
-  /** Parse a block's recognized step lines into step records — the lines come
-   *  from the extractor's `Step action` bucket (the registry's `^- ` shape, so
-   *  no `- `-bullet re-recognition here); the action cell is a value read after
-   *  the anchor's bullet prefix (mirroring the `#taskIdOf` slot read), and
-   *  membership in the `Step checkable` bucket marks which lines carry a
-   *  verbatim `— checkable:` clause that the split then reads off. */
-  #taskStepsOf(stepLines: readonly string[], checkableLines: ReadonlySet<string>): TaskStep[] {
-    const steps: TaskStep[] = [];
-    for (const line of stepLines) {
-      const text = line.trim().slice(2).trim();
-      const checkableMarker = checkableLines.has(line) ? text.indexOf("— checkable:") : -1;
-      if (checkableMarker === -1) {
-        steps.push({ action: text, checkable: null });
-      } else {
-        steps.push({
-          action: text.slice(0, checkableMarker).trim(),
-          checkable: text.slice(checkableMarker + "— checkable:".length).trim(),
-        });
-      }
-    }
-    return steps;
+  /** The `### Task N:` blocks in document order — the ONE block-structure parse
+   *  face (`PlanTaskBlocksReader`, P21 §7). The reader normalizes the heading shape
+   *  and the legacy bullet shape into one `TaskBlock` record, so the graph, the
+   *  brief and the judging plane all read the same structure. */
+  protected taskBlocks(lines: readonly string[]): TaskBlock[] {
+    return [...taskBlockReader.parse(lines.join("\n"))];
   }
 
   /** Parse a section's table: the column-header row + the data rows. The header
@@ -668,14 +561,13 @@ export class PlanDocType extends DocType<PlanParsed> {
 
   parse(lines: readonly string[], head: FrontMatterHead | null = null): PlanParsed {
     const title = head?.title ?? "";
-    const blocks = this.headingBlocks(lines);
     const sections = this.sections(lines);
     return {
       docType: "plan",
       head,
       title,
       sections,
-      taskBlocks: this.taskBlocks(blocks),
+      taskBlocks: this.taskBlocks(lines),
       tables: { "Change history": this.tableSection(sections, "## Change history") },
       chain: this.chainRoot(head),
     };

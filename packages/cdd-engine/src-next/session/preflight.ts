@@ -35,6 +35,7 @@ import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { SlugIndex } from "../infra/slug-index.ts";
 import type { TargetType } from "./faces.ts";
 import { TaskGraph } from "./graph.ts";
+import type { InFlight, InFlightState } from "./inflight.ts";
 import type { Ledger, ProgressData } from "./ledger.ts";
 import { WaveGate, type WaveGateReason } from "./wave.ts";
 
@@ -52,7 +53,13 @@ export type PreFlightGateName =
  *  Refusals exist only on the failure face (`ok: true` carries no `reason`), so the
  *  enum has zero dead values: "the plan leads the ledger" is a `checked` info row, and
  *  a missing ledger fact bundle is a `checked` skipped row — neither is a refusal. */
-export type PreFlightReason = "dirty-tree" | "graph" | WaveGateReason | "doc-contract";
+export type PreFlightReason =
+  | "dirty-tree"
+  | "held"
+  | "corrupt-record"
+  | "graph"
+  | WaveGateReason
+  | "doc-contract";
 
 /** The doc-scope judgment outcome of one dispatch — what the checked list renders. */
 type DocOutcome =
@@ -70,6 +77,10 @@ type LedgerOutcome =
 export interface PreFlightVerdict {
   /** Whether the dispatch is approved (the gates passed). */
   ok: boolean;
+  /** The in-flight fact the gate judged — present only when the in-flight gate was
+   *  the refusing gate. The `--dry-run` preview reads the holder facts from here
+   *  (it never inspects, never acquires: zero write). */
+  holding?: InFlightState;
   /** The refusing gate (absent when ok — no gate blocked). */
   gate?: PreFlightGateName;
   /** The named refusal row (absent when ok). */
@@ -123,6 +134,15 @@ export interface PreFlightContext {
   ledger: Ledger | null;
   /** The doc-contract target of a spec/plan dispatch (null on the other faces). */
   doc: PreFlightDoc | null;
+  /** The in-flight fact's READ-ONLY face (P21 §2.2/§6.4). The gate only calls
+   *  `inspect()` — it never acquires, steals or releases. Required: a dispatch
+   *  whose gate was not wired cannot silently pass (no type-level default). */
+  readonly inflight: InFlight;
+  /** The explicit takeover flag: true lets the gate PASS a dead holder's record (or
+   *  a corrupt record with its lock still on disk). The takeover itself is the real
+   *  dispatch's `acquire(record, { stealStale })` — the gate only judges. Under
+   *  `--dry-run` this flag is void (the preview never acquires). */
+  readonly stealStale?: boolean;
 }
 
 /**
@@ -180,7 +200,30 @@ export class PreFlight {
         { kind: "no-ledger-facts" },
       );
     }
-    // 2. graph — the wave/plan faces' structural gate.
+    // 2. in-flight — the tree's dispatch fact (P21 §6.4). The gate judges ONLY: it
+    //    inspects the record + the holder's liveness and never touches the lock or
+    //    the record bytes. The acquire is the real dispatch path's write point (it
+    //    runs after this gate), so the preview's zero-write discipline holds.
+    gates.push("in-flight");
+    const inFlight = await ctx.inflight.inspect();
+    checked.push(this.#inFlightRow(inFlight));
+    const held = this.#inFlightRefusal(inFlight, ctx.stealStale === true);
+    if (held !== null) {
+      return this.#refusal(
+        {
+          ok: false,
+          gate: "in-flight",
+          reason: held.reason,
+          message: held.message,
+          holding: inFlight,
+        },
+        gates,
+        checked,
+        this.#docOutcomeOf(ctx),
+        { kind: "no-ledger-facts" },
+      );
+    }
+    // 3. graph — the wave/plan faces' structural gate.
     let graph: TaskGraph | null = null;
     if ((ctx.type === "wave" || ctx.type === "plan") && ctx.planText !== null) {
       gates.push("graph");
@@ -203,7 +246,7 @@ export class PreFlight {
         );
       }
     }
-    // 3. plan-ledger — the ledger-scope rules (P21 §3.1/§6.4). Plan / wave / branch
+    // 4. plan-ledger — the ledger-scope rules (P21 §3.1/§6.4). Plan / wave / branch
     //    dispatches run it; the doc-scope rules never do (two scopes, two entries).
     //    A missing fact bundle is NOT a refusal: the rows render `skipped`.
     let ledgerOutcome: LedgerOutcome = { kind: "no-ledger-facts" };
@@ -238,7 +281,7 @@ export class PreFlight {
         }
       }
     }
-    // 4. wave — the three-verb unified wave gate.
+    // 5. wave — the three-verb unified wave gate.
     if (ctx.type === "wave" && graph !== null && ctx.ledger !== null && ctx.tasks !== null) {
       gates.push("wave");
       checked.push("wave");
@@ -258,7 +301,7 @@ export class PreFlight {
         );
       }
     }
-    // 5. doc-contract — the doc faces' structural gate (the doc-scope rules).
+    // 6. doc-contract — the doc faces' structural gate (the doc-scope rules).
     let docOutcome: DocOutcome = this.#docOutcomeOf(ctx);
     if (ctx.type === "spec" || ctx.type === "plan") {
       gates.push("doc-contract");
@@ -352,6 +395,50 @@ export class PreFlight {
       order: gates,
       checked: [...checked, ...this.#ruleRows(docOutcome, ledgerOutcome)],
     };
+  }
+
+  /** The in-flight gate's refusal — the three-state judgment + the explicit takeover
+   *  flag. A live holder is always refused (the flag never crosses "alive"); a dead
+   *  holder or a corrupt-record-with-lock passes only under `stealStale`; a corrupt
+   *  record with no lock behind it is no holder at all (pass, named on the row). */
+  #inFlightRefusal(
+    state: InFlightState,
+    stealStale: boolean,
+  ): { readonly reason: PreFlightReason; readonly message: string } | null {
+    if (state.kind === "held") {
+      if (state.alive) {
+        return {
+          reason: "held",
+          message: this.#words.inFlightBlocked(state.record, true),
+        };
+      }
+      if (stealStale) return null;
+      return {
+        reason: "held",
+        message: this.#words.inFlightBlocked(state.record, false),
+      };
+    }
+    if (state.kind === "corrupt" && state.locked && !stealStale) {
+      return {
+        reason: "corrupt-record",
+        message: this.#words.inFlightWords().corruptLocked,
+      };
+    }
+    return null;
+  }
+
+  /** The in-flight gate's checked row — `in-flight: <judged state>` (the ONE gate
+   *  row that names its state; the takeover flag never rewrites the fact, it only
+   *  lets the gate pass). */
+  #inFlightRow(state: InFlightState): string {
+    const rows = this.#words.checkedWords().inFlight;
+    if (state.kind === "absent") return `in-flight: ${rows.free}`;
+    if (state.kind === "corrupt")
+      return `in-flight: ${state.locked ? rows.corruptLocked : rows.corruptUnlocked}`;
+    return `in-flight: ${(state.alive ? rows.held : rows.stale).replace(
+      "{pid}",
+      String(state.record.pid),
+    )}`;
   }
 
   /** Assemble the refusal verdict — the gates/checked rows accumulated so far, plus

@@ -406,7 +406,6 @@ export class LedgerTaskSetRule extends LedgerRuleBase {
   evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[] {
     const findings: Finding[] = [];
     const planned = new Set(ledger.planTasks);
-    const recorded = new Set(ledger.recordedTasks);
     for (const id of ledger.recordedTasks) {
       if (planned.has(id)) continue;
       findings.push(
@@ -438,6 +437,11 @@ export class PresenceInvariant extends Invariant {
     for (const element of this.elementsOf(ctx)) {
       if (element.presence !== "required") continue;
       if (PRESENCE_HOMES.has(element.home) === false) continue;
+      // The task-block sections are judged PER BLOCK below (`taskFieldPresence`), so
+      // a legacy-shape plan (whose fields carry no `#### Key` line) is never reported
+      // as a whole-document absence — the reader normalized both shapes into the same
+      // block record, and that record is the presence basis.
+      if (element.home === "task-field" && element.anchor.startsWith("#### ")) continue;
       const slice = this.sliceOf(ctx, element.anchor);
       if (slice === undefined) continue;
       if (this.#derivedPresenceHolds(ctx, slice)) continue;
@@ -481,6 +485,9 @@ export class PresenceInvariant extends Invariant {
     const seenLine = new Set<string>();
     for (const element of this.elementsOf(ctx)) {
       if (!element.anchor.startsWith("#")) continue;
+      // A task-block section heading repeats once per task block by design — its
+      // `#### Key` identity is judged per block, never as a whole-document duplicate.
+      if (element.home === "task-field") continue;
       const slice = this.sliceOf(ctx, element.anchor);
       if (slice === undefined) continue;
       for (const line of this.occurrenceLines(ctx, slice)) {
@@ -511,19 +518,16 @@ export class PresenceInvariant extends Invariant {
   }
 
   /** The per-task-block required field keys — derived from the plan registry's
-   *  task-field elements (the bold `**Key**` markers; the `File path token` and
-   *  DependsOn-value leaves carry non-key anchors, and `Step action` lives on the
-   *  task-step home). Single-source: a field key added to the registry is enforced
-   *  per task block automatically. */
+   *  task-field section elements (the `#### Key` headings; the `File path token`,
+   *  `DependsOn none` / `DependsOn id` leaves carry non-key anchors, and `Step
+   *  action` lives on the task-step home). The reader normalizes the legacy bullet
+   *  shape into the same keys, so one declaration enforces both shapes per block.
+   *  Single-source: a section added to the registry is enforced per task block
+   *  automatically. */
   #requiredFieldKeys(ctx: JudgeContext): readonly string[] {
     return this.elementsOf(ctx)
-      .filter(
-        (element) =>
-          element.home === "task-field" &&
-          element.anchor.startsWith("**") &&
-          element.anchor.endsWith("**"),
-      )
-      .map((element) => element.anchor.slice(2, -2));
+      .filter((element) => element.home === "task-field" && element.anchor.startsWith("#### "))
+      .map((element) => element.anchor.slice("#### ".length));
   }
 
   /** The per-task-block field surface — every required task-field key of a plan. */

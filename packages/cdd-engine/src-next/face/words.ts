@@ -34,6 +34,7 @@
 import { DOC_TYPE_VALUES } from "../contract/declare.ts";
 import type { LocalizedWord, WordLocaleFace } from "../contract/translate.ts";
 import type { SlugRefusal } from "../infra/slug-index.ts";
+import type { InFlightRecord } from "../session/inflight.ts";
 
 // ---------------------------------------------------------------------------
 // capsule — the station-word family (the declared steady word face)
@@ -108,6 +109,12 @@ export interface InFlightWords {
   corruptLocked: string;
   /** The corrupt record without a lock. */
   corruptUnlocked: string;
+  /** The preview / board lock row value — who holds the tree and since when. */
+  lockHeld: string;
+  /** The lock without a readable record (the acquire race — no holder facts). */
+  lockOnly: string;
+  /** The free state — no dispatch holds the tree. */
+  free: string;
   /** The three recovery sentences (canonical bytes: look at the working tree first ·
    *  commit the changes that work · discard the ones that are broken). */
   recovery: readonly [string, string, string];
@@ -127,6 +134,15 @@ export interface CheckedWords {
   skippedNoDocTarget: string;
   /** A ledger-scope rule with no ledger fact bundle. */
   skippedNoLedgerFacts: string;
+  /** The in-flight gate's state rows (the gate row is `in-flight: <state>`, the ONE
+   *  gate whose row names its judged state — the others are bare gate names). */
+  inFlight: {
+    free: string;
+    held: string;
+    stale: string;
+    corruptLocked: string;
+    corruptUnlocked: string;
+  };
   /** A rule whose gate never ran (the dispatch was refused earlier). */
   skippedNotJudged: string;
   /** A doc-scope rule whose target document is unreadable. */
@@ -212,6 +228,13 @@ export const CAPSULE_WORDS = {
     skippedNotJudged: "skipped (not judged)",
     skippedUnreadableDoc: "skipped (unreadable doc)",
     planAhead: "plan-ledger: info (plan leads ledger by {count} tasks)",
+    inFlight: {
+      free: "free — no dispatch holds this tree",
+      held: "held — pid {pid}",
+      stale: "stale holder — pid {pid} (re-run with --steal-stale to take over)",
+      corruptLocked: "unreadable record — lock on disk",
+      corruptUnlocked: "unreadable record — no lock behind",
+    },
   } as const satisfies CheckedWords,
   /** The terminated-review promotion warning — the one CDD_WARN wording row the
    *  lifecycle emits when a terminated review round's valid findings draft is
@@ -231,6 +254,10 @@ export const CAPSULE_WORDS = {
       "the in-flight record is unreadable and its lock is still on disk — re-run with --steal-stale to take it over",
     corruptUnlocked:
       "the in-flight record is unreadable and no lock is left behind — re-run with --steal-stale to take it over",
+    lockHeld:
+      "held by pid {pid} · command: {command} · started: {startedAt} · wave: {wave} · slug: {slug}",
+    lockOnly: "held by an unreadable in-flight record — the lock is still on disk",
+    free: "free — no dispatch holds this tree",
     recovery: [
       "look at the working tree first",
       "commit the changes that work",
@@ -472,6 +499,33 @@ export class Words implements WordLocaleFace {
       .replace("{uptime}", `${uptimeMinutes}m`)
       .replace("{wave}", facts.wave ?? "none")
       .replace("{slug}", facts.slug);
+  }
+
+  /** The held BLOCK message of an in-flight judgment — the pre-flight gate's refusal
+   *  and the CLI's acquire-race render fill the SAME rows (identical bytes by
+   *  construction: one message, two call sites). A null record is the lock-with-no-
+   *  readable-record shape. */
+  inFlightBlocked(record: InFlightRecord | null, alive: boolean): string {
+    if (record === null) return this.inFlightWords().corruptLocked;
+    const held = this.inFlightHeld({
+      pid: record.pid,
+      command: record.command,
+      startedAt: record.startedAt,
+      wave: record.wave,
+      slug: record.slug,
+    });
+    return alive ? held : `${held} — ${this.inFlightWords().stealable}`;
+  }
+
+  /** The preview / board lock row value of one holder record — the same identity
+   *  facts the held BLOCK names, in the `lock:` row's own shape. */
+  inFlightLock(record: InFlightRecord): string {
+    return this.inFlightWords()
+      .lockHeld.replace("{pid}", String(record.pid))
+      .replace("{command}", record.command)
+      .replace("{startedAt}", new Date(record.startedAt).toISOString())
+      .replace("{wave}", record.wave ?? "none")
+      .replace("{slug}", record.slug);
   }
 
   /** The cut-short round's late-landing hint — appended to every kill / timeout /

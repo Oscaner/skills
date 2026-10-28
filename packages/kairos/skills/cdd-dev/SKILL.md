@@ -38,7 +38,7 @@ flowchart TD
 
 ### `implement-wave`
 
-- **Do**: Dispatch `npx -y @oscaner-skills/cdd-engine@latest implement --tasks <n|n,n,…> --plan <path>` — one dispatch wave per iteration; dispatch each wave as the engine returns it, never a hand-picked subset.
+- **Do**: Dispatch `npx -y @oscaner-skills/cdd-engine@latest implement --tasks <n|n,n,…> --plan <path>` — one dispatch wave per iteration; dispatch each wave as the engine returns it, never a hand-picked subset. A pre-flight row reading `plan leads ledger by N tasks` is a hint, not an error — the plan legitimately runs ahead of the ledger, so dispatch the new wave as usual. A round cut short is recovered from the working tree: look at the working tree first, commit the changes that work, discard the ones that are broken.
 - **Read**: the full stdout — its conclusion and the engine's `next:` face; a BLOCKED round's reason rides stderr
 - **Exit**: dispatch complete → `NEXT-LOOP`
 - **Fail**: nested CLI exits with no output → BLOCKED: engine-error (report via `kairos:cdd-report`（pi：/skill:cdd-report）)

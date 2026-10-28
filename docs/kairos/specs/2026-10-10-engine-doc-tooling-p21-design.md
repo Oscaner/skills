@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 设计：引擎作为唯一读写路径
 doc-type: phase-spec
-version: v0.12
+version: v0.13
 date: 2026-10-27
 slug: 2026-10-10-engine-doc-tooling-p21
 program: 2026-10-10-engine-doc-tooling
@@ -95,7 +95,7 @@ doc-contract 与「账本↔计划」不再是 `PreFlight` 里的两个分支，
 | `change-history-row-not-in-other-table` — 变更记录行不得落进其它表格 | 同上 | doc |
 | `list-marker-not-doubled` — 列表标记不得双写 | 同上 | doc |
 | `closed-wave-fits-depends-on-layers` — 账本已闭合波次仍贴合 `DependsOn` 分层 | plan + 账本 | ledger |
-| `planned-tasks-vs-recorded-tasks` — 计划任务集合 vs 账本已记录任务集合（允许领先） | plan + 账本 | ledger |
+| `planned-tasks-vs-recorded-tasks` — 计划任务集合 vs 账本已记录任务集合（**待开工不算缺口**） | plan + 账本 | ledger |
 
 两条 intra-doc 规则的判据与本 spec 的违例样例（AC 的红 pin 以它们为断言面）：
 
@@ -115,7 +115,7 @@ doc-contract 与「账本↔计划」不再是 `PreFlight` 里的两个分支，
 #### 3.3 跨账本判据：允许计划领先
 
 - 判据一：计划任务集合 vs 账本已记录任务集合；判据二：已闭合波次是否仍贴合 `DependsOn` 分层（一个波必须是一层的整批）。
-- **允许计划领先账本**：仅对「编号大于账本已记录最大任务号的未开工任务」放行，给一行提示（`plan leads ledger by N tasks`）而非失败——这是每轮都会经过的正常窗口，假红会污染实现与修复轮次。
+- **待开工不是缺口（判据不看编号）**：任务编号不表达执行顺序（波次按 `DependsOn` 层派生，见 §3.3 本条），所以「低编号任务尚未入账、高编号任务已入账」是**正常态**。唯一判据是**依赖**：一个未入账的计划任务当且仅当**它的全部 `DependsOn` 都已在账本里**才构成缺口（那一刻它已可派发却从未派发 = 滞留）；只要还有依赖未入账，它就是在等的待开工任务，放行，给一行提示（`plan leads ledger by N tasks`）而非失败——这是每轮都会经过的正常窗口，假红会污染实现与修复轮次。
 - **变异验证入验收**：删掉中间那条账本记录后同一判据必须转红。没有它，放宽会滑成永远绿。
 
 #### 3.4 已检清单 = 规则声明面派生
@@ -316,3 +316,4 @@ Task 块从「字段项目符号」改为「标题分节」，并把这一面的
 | v0.10 | 2026-10-28 | W1 review-2 的事实纠正：v0.9 的前提不完整——p3/p4/p5/p7 的冻结计划与 p4/p5/p7 的 spec 的 lineage **本身非单调**（p3 计划实测 `v0.2, v0.3, v0.1, v0.4`），三篇 header 也不在端点，于是「方向必须一致」对历史没有管辖权，只会产出禁止执行的 fix。**版本序这条腿整体撤销**（降级为显式非目标：排序是呈现选择，不是数据完整性）；只留两条真不变量——`change-history-version-unique`（重复 = 违例）与 `front-matter-version-in-lineage`（header 未出现在变更记录 = 违例，端点/方向不限）。声明面 23 → **22 行**（doc 20 + ledger 2），公共面 7 → **6** 条 | [human] · Claude（kairos:cdd-dev W1 review-2 backfill · 2026-10-28） |
 | v0.11 | 2026-10-28 | 行数算术自纠（W1 review-3 查出 v0.10 少算一条腿）：撤「版本序」时同时撤掉的还有 `SelfBoundedInvariant` 的「header=末行」腿——两条腿撤净后 doc 侧 = 既有 15 → Uniqueness 拆三腿 +2 → 17，Order 与 SelfBounded 各撤一腿（净 0）→ 17，新增 2 → **19**；声明面 **21 行**（doc 19 + ledger 2），公共面 6 条不变 | [human] · Claude（kairos:cdd-dev W1 review-3 backfill · 2026-10-28） |
 | v0.12 | 2026-10-28 | **scope 追加 §7：计划 Task 块契约面（用户裁定 append 进 P21）**——Task 块改为标题分节（七个 `####` 保留键 + 任意扩展节），块结构解析换成 `mdast-util-from-markdown` 的块级 reader（`contract/task-blocks.ts`，一份声明 + 一个旧形归一化方法），`graph` / `brief` / `skeleton` 三读者换源，`brief.ts#rawSection` 的 `^#` 截断随 AST 节点区间删除；兼容窗口保证冻结计划与消费侧存量文档零迁移，骨架只吐新形；只动块级面，其余契约面零改 | [human] · Claude（kairos:cdd-dev · scope append · 2026-10-28） |
+| v0.13 | 2026-10-28 | **W2 派发被自己的规则拦下（dogfood 缺陷）：`planned-tasks-vs-recorded-tasks` 误把任务编号当执行顺序**——实况：账本已记 `{1,2,3}` `{4,5,7}`，计划里 Task 6（`DependsOn 2,4` → 层 3）尚未开工，规则按 `id > maxRecordedTask` 判「Task 6 缺失而更高任务已记录」→ 该波及后续所有派发全部 BLOCKED。**判据改为只看依赖**：未入账的计划任务当且仅当其全部 `DependsOn` 都已入账才构成缺口（滞留）；只要还有依赖未入账，它就是待开工任务、放行。「编号大于账本最大任务号」的窗口读法**撤销**（它假设了编号即顺序 —— #386 早已指出这一假设是错的） | [human] · Claude（kairos:cdd-dev · dogfood backfill · 2026-10-28） |

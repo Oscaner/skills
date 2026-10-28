@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 实施计划：引擎作为唯一读写路径
 doc-type: plan
-version: v0.10
+version: v0.11
 date: 2026-10-28
 slug: 2026-10-10-engine-doc-tooling-p21
 base: develop
@@ -417,7 +417,7 @@ base: develop
   - 跑全量 `env -u AI_AGENT pnpm run validate` —— checkable: ALL PASS（emit fresh · root/kairos/engine 三套绿 · typecheck ×3 · version-sync · 零裸函数）
   - 复核冻结面零漂移（源码面，测试夹具不计）：`grep -rn "liveness.json\|pidusage\|never the stored number" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 零命中，且 `packages/cdd-engine/package.json#dependencies` 恰八项（`commander` · `execa` · `jsonc-parser` · `simple-git` · `yaml` · `write-file-atomic` · `ps-list` · `proper-lockfile`，零 `pidusage`） —— checkable: 零命中 + 依赖清单逐字八项
 - **Acceptance**: 两份 SKILL.md 的 recipe 在册且过 `skill-anatomy` 契约 · 消费面 skill 零 `pgrep` / `stash` / `checkout --`（负向断言改文前即绿 · 正向断言改文后绿）· 恢复三句以 canonical 英文串在 SKILL.md 逐字在册（与 `words.ts` 同一串）· changeset 标 cdd-engine minor + kairos patch · `env -u AI_AGENT pnpm run validate` ALL PASS · 冻结面零漂移（源码面零 `liveness.json` / `pidusage` / `never the stored number`，依赖面仍八项）
-- **DependsOn**: 1,2,3,4,5,6,7,9
+- **DependsOn**: 1,2,3,4,5,6,7,9,10
 
 ### Task 9: 计划 Task 块契约（标题分节 · `mdast` 块级 reader · 三个读者换源）
 
@@ -461,6 +461,48 @@ base: develop
 - **Acceptance**: 新形与旧形解析结果逐字段相等（`shape` 与 `range` 除外）· 七个保留键一份声明（`declare.ts` 里旧项目符号形的 task-field 元素删除，归一化只在 reader 内）· `DependsOn` 新旧形派生同一批 wave · 带 `####` 子节的任务块 brief 逐字节完整（`#rawSection` 已删除，零 `^#` 截断残留）· 骨架吐新形且含两条 step 样例 · 扩展 `####` 节零 finding · 冻结计划零改（`git diff` 对 `docs/kairos/plans/*` 无改动）· `pnpm -C packages/cdd-engine test` 绿 · typecheck ×3 · 零裸函数门绿
 - **DependsOn**: 7
 
+### Task 10: 全契约面迁移（四类文档共用一棵树 · 登记面 selector 化 · 删手写行扫描）
+
+- **Objective**: 把 T9 的块级 `mdast` 面扩到**整个契约面**：四类文档（overall / phase-spec / single-spec / plan）只有一个解析入口 `MarkdownTree`（`gfm` + `frontmatter` 扩展），登记面 `anchor` + `home` 换成封闭集 selector，`translate` 的逐行归一化前置为一次内存文本变换，`skeleton` 加**往返 pin**（骨架 → 解析 → 结构同构），并删掉全部手写行扫描。终态只有一个模型——不留「Task 块走 AST、其余走正则」的中间态。
+- **Files**: Create `packages/cdd-engine/src-next/contract/markdown-tree.ts` · `packages/cdd-engine/src-next/contract/__tests__/markdown-tree.test.ts`; Modify `contract/declare.ts`（`RegistryElement`：`anchor` + `home` → `selector` 封闭集 · 全部元素改 selector 形）· `contract/doc.ts`（四类 parse 全部经 tree · 删 `#tableSection` / `tableRowCells` / `tableLinesOf` / `#docSections` / 图边扫描）· `contract/invariants.ts`（20 条策略换读 tree 节点 · 删 `this.overall(ctx)` 一类手写取数）· `contract/translate.ts`（逐行 API → 解析前一次性 canonicalize 文本）· `contract/project.ts`（slice 机件改由 tree 供数）· `render/skeleton.ts`（往返 pin）· `face/board-view.ts`（读 tree 的解析记录）· `session/graph.ts`（依赖图与分层改由 tree 供数）· 对应 `__tests__`（约 900 条用例重锚）
+- **Consumes**: T9 的 `PlanTaskBlocksReader` 与 `MarkdownTree`（树的唯一入口，T10 把它提到契约面）· `contract/declare.ts` 的 `ElementRegistry` / `DeclaredRegistries` / `home` 值域（`frontmatter` / `section` / `facet` / `table` / `graph` / `task-block` / `task-field` / `task-step`）· `contract/doc.ts` 的手写扫描面（删除目标）· `contract/translate.ts` 的 `canonicalize` 逐行入口 · `render/skeleton.ts` 的渲染面。
+- **Produces**:
+  ```ts
+  // contract/markdown-tree.ts —— 四类文档唯一的解析入口
+  export type Selector =
+    | { readonly kind: "frontmatter"; readonly key: string }
+    | { readonly kind: "heading"; readonly rank: number; readonly pattern: RegExp }
+    | { readonly kind: "table"; readonly headerRow: string }
+    | { readonly kind: "listItem"; readonly prefix: string }
+    | { readonly kind: "taskBlock"; readonly field: string };
+  export interface MarkdownTree {
+    /** 解析（gfm + frontmatter 扩展；输入已归一化，源文件零改）。 */
+    static parse(content: string): MarkdownTree;
+    /** selector → 节点区间 + 文本（未命中为 null；判定面只读这一处）。 */
+    resolve(selector: Selector): { readonly text: string; readonly lines: readonly string[] } | null;
+    /** 命中集合（presence 的唯一读面）。 */
+    occurrences(selector: Selector): readonly { readonly text: string; readonly line: number }[];
+    /** 分节树 / 表格行 / 图边的结构化读面（替代 doc.ts 的全部手写扫描）。 */
+    sections(): readonly SectionNode[];
+    rows(headerRow: string): readonly (readonly string[])[];
+    edges(): readonly { readonly from: string; readonly to: string; readonly hard: boolean }[];
+  }
+  ```
+- **Steps**:
+  - 添加依赖 `pnpm -C packages/cdd-engine add micromark-extension-gfm mdast-util-gfm micromark-extension-frontmatter mdast-util-frontmatter` —— checkable: `package.json#dependencies` 四项在册，`pnpm -C packages/cdd-engine install` 零报错
+  - 写失败测试 `markdown-tree.test.ts`（四类文档同构）：一类真实文档（overall / phase-spec / single-spec / plan 各一）经 `MarkdownTree.parse` 后——`heading(2, …)` 命中数等于标题数、`table("## Phase inventory")` 行数等于表体行、`frontmatter("slug")` 取到 head 值、`taskBlock("DependsOn")` 取到依赖 —— checkable: FAIL（文件不存在）
+  - 写失败测试（表格边界）：单元格内含 `|`（转义 `\|`）、反引号内的竖线、对齐行、空单元格四种形态，`rows()` 给出的单元格序列与手写期望一致 —— checkable: FAIL（今日 `tableRowCells` 在这四种形态上不可靠）
+  - 写失败测试（归一化前置）：同一份含本地化词的文档，`MarkdownTree.parse(canonicalize(text))` 与「今日逐行 canonicalize 后判定」的结论逐条一致（用三条既有规则做对照） —— checkable: FAIL
+  - 实现 `MarkdownTree`（`fromMarkdown(text, {extensions: [gfm(), frontmatter()]})` → unist 遍历 → selector 解析与结构化读面） —— checkable: 上述三组用例转绿
+  - `declare.ts` 换 selector：`RegistryElement` 的 `anchor` + `home` 删除，改 `selector: Selector`；107 个元素逐一改写（`heading(2, /^## Design$/)` · `table("| # | Phase | …")` · `listItem("**Objective**")` 等） —— checkable: `grep -rn "anchor:\|home:" packages/cdd-engine/src-next/contract/declare.ts` 零命中
+  - `doc.ts` 四类 parse 换源并删扫描面 —— checkable: `grep -rn "tableRowCells\|tableLinesOf\|#docSections\|split(\\\"|\\\")" packages/cdd-engine/src-next/contract/doc.ts` 零命中
+  - `invariants.ts` 20 条策略换读 tree —— checkable: `grep -rn "this.overall(ctx)" packages/cdd-engine/src-next/contract/invariants.ts` 零命中，且 21 条规则的既有 pin 全绿（同一批语义、换数据面）
+  - `translate.ts` 逐行 API → `canonicalize(text): string`（解析前一次） —— checkable: `translate.test.ts` 重锚后绿，且 `grep -c "canonicalize" packages/cdd-engine/src-next` 只命中「解析前一次」的调用点
+  - `skeleton.ts` 往返 pin —— checkable: 骨架输出 → `MarkdownTree.parse` → 与骨架声明的结构同构（标题树 / 表头 / 元素顺序逐一相等）
+  - 全量重锚与收口 —— checkable: `pnpm -C packages/cdd-engine test` 绿 · `pnpm run typecheck` ×3 · `pnpm run check:no-bare-functions` 零命中 · `pnpm run validate` ALL PASS
+- **Acceptance**: 四类文档只有一个解析入口（`grep -rn "from-markdown" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 只命中 `contract/markdown-tree.ts`）· 登记面零 `anchor` / `home`（selector 封闭集）· `doc.ts` / `invariants.ts` 的手写扫描面零残留 · 表格四种边界形态各一 pin · 骨架往返同构 · 21 条规则的判定语义不变（既有 pin 全绿，仅数据面换源）· 归一化只在前置一处 · 约 900 条用例重锚后全绿 · typecheck ×3 · 零裸函数门 · `pnpm run validate` ALL PASS
+- **DependsOn**: 9
+
 ## Change history
 
 | Version | date | summary | author |
@@ -475,3 +517,4 @@ base: develop
 | v0.8 | 2026-10-28 | **追加 Task 9：计划 Task 块契约面（spec §7 · D65）**——`PlanTaskBlocksReader`（`mdast-util-from-markdown`）成为块结构唯一解析面，旧项目符号形作兼容输入（归一化只在 reader 内），`graph` / `brief` / `skeleton` 换源，`brief.ts#rawSection` 随 AST 节点区间删除；Task 8 的 `DependsOn` 接到 `1,2,3,4,5,6,7,9`。**波次形态**：Task 9 依赖 7 → 层 3，与 Task 6（`DependsOn: 2,4` → 层 3）同批，故派生为 W1={1,2,3} · W2={4,5,7} · W3={6,9} · W4={8}（真依赖算出来的，未加调度边） | [human] · Claude（kairos:cdd-dev · scope append · 2026-10-28） |
 | v0.9 | 2026-10-28 | Task 2 的 ledger 规则修订（spec 回填 v0.13 · W2 派发被自身规则拦下的 dogfood 缺陷）：`LedgerFacts` 增 `deps`（任务 → `DependsOn` 边）；`planned-tasks-vs-recorded-tasks` 的判据从「编号大于账本最大任务号」改为「**依赖全已入账却仍未入账**」（滞留），待开工任务一律放行——编号不表达顺序，波次按层派生。pin 补一条本 phase 真实形态的绿 pin（记 `{1,2,3,4,5,7}`、Task 6 待开工） | [human] · Claude（kairos:cdd-dev · dogfood backfill · 2026-10-28） |
 | v0.10 | 2026-10-28 | ledger 规则再收敛（spec v0.14）：**撤 `LedgerFacts.deps`**（依赖判据不成立——任务 6 依赖已入账但它是下一波）；`planned-tasks-vs-recorded-tasks` 只判单向「账本记录的每个任务必须仍在计划里」，「计划有、账本没有」零判压、只出 info 行。pin 改为：账本记 `11` 而计划无 → 红；本 phase 真实形态（计划 1..9 · 账本 1,2,3,4,5,7）→ 零 finding + `info (plan leads ledger by 3 tasks)` | [human] · Claude（kairos:cdd-dev · dogfood backfill 其二 · 2026-10-28） |
+| v0.11 | 2026-10-28 | **追加 Task 10：全契约面迁移（spec §7.5 · D65 ⑤）**——`MarkdownTree` 成为四类文档唯一入口（gfm + frontmatter 扩展），登记面 `anchor`+`home` → 封闭集 selector，归一化前置，骨架往返 pin，删 `doc.ts`/`invariants.ts` 的手写扫描面；`DependsOn: 9`，Task 8 的依赖加 10。**波次**：T10 依赖 9 → 层 4，故派生 W1={1,2,3} · W2={4,5,7} · W3={6,9} · W4={10} · W5={8}（真依赖，无调度边） | [human] · Claude（kairos:cdd-dev · scope append 其二 · 2026-10-28） |

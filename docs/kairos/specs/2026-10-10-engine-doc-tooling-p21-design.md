@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 设计：引擎作为唯一读写路径
 doc-type: phase-spec
-version: v0.11
+version: v0.12
 date: 2026-10-27
 slug: 2026-10-10-engine-doc-tooling-p21
 program: 2026-10-10-engine-doc-tooling
@@ -235,6 +235,32 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 - **changeset：cdd-engine minor（功能调整与新增）+ kairos patch（skill 文本），不发布。**
 - 不变式：在飞状态只在 `InFlight` · 轮次只在 `progress.json` · 历史事实只在波行快照 · 文档身份只在 `reviewedRevision`；判定时刻现读，零缓存副本；`cdd` 仍是八命令。
 
+### 7. 定案：计划 Task 块契约（格式面）
+
+Task 块从「字段项目符号」改为「标题分节」，并把这一面的结构解析换成一个成熟 markdown AST reader——**不是给旧模型再加一套声明**。
+
+#### 7.1 形态
+
+`### Task N: <title>` 标题**保留**（brief 切片、TaskGraph、波次派生全按它切；去掉冒号要动四处读者、零收益）。块内固定七节：`#### Objective` · `#### Files` · `#### Consumes` · `#### Produces` · `#### Steps` · `#### Acceptance` · `#### DependsOn`。依赖节的节体首行为单行值（`1, 2`；`none` = 显式无依赖），仍是波次派生的机器输入。
+
+**允许任意扩展 `####` 节**（不得与七个保留键重名），非保留节只作正文，不参与必填与值形判定——否则「更清晰」立刻撞上闭集白名单，作者只能在保留键里塞散文。
+
+#### 7.2 兼容窗口（零迁移）
+
+旧项目符号形（`- **Objective**: …`）作为**读得懂的兼容输入**：`PlanTaskBlocksReader` 把两种节点（list item / heading）在解析时归一成同一份 `TaskBlock`，仓内 20 篇冻结计划一字不改，消费侧存量文档零迁移。**骨架只吐新形**。归一化是 reader 的一个方法，**不是第二份声明**（免声明再抄）——它随冻结计划老化一次性删除，弃用登记进 changeset。
+
+#### 7.3 一个 reader，三个读者换源
+
+`PlanTaskBlocksReader`（`contract/task-blocks.ts`，`mdast-util-from-markdown`）是 Task 块结构的**唯一**解析面；三个读者全部换源：`session/graph.ts`（`DependsOn`）· `render/brief.ts`（任务段切片）· `render/skeleton.ts`（骨架渲染）。
+
+**地基缺陷**：`render/brief.ts#rawSection` 今日「遇到任何 `^#` 行即截断」——`####` 子节会把 brief 静默截成一行标题。该函数随节点区间（`position.start/end`）一起删除，brief 切片改按 AST 节点取区间。这一条是格式改造的前置，漏了 brief 会静默变空而门全绿。
+
+#### 7.4 影响面与发行
+
+- 引擎面：`contract/task-blocks.ts`（新）· `contract/declare.ts`（plan 的 task 字段元素改 heading 形，**一份声明**）· `contract/doc.ts`（`taskBlocks` 委托 reader）· `session/graph.ts` · `render/brief.ts` · `render/skeleton.ts`。
+- 其余契约面（frontmatter · 分节序 · 表格 · 依赖图 · change history · 15 条策略的判定面）**零改**——这是把 AST 限定在块级而非全契约面重写的原因。
+- changeset：仍 cdd-engine **minor**（旧形继续可读 → 兼容；骨架转新形属能力面变化），弃用说明写进 changeset。
+
 ### Acceptance criteria
 
 - 同工作树的第二次派发在第一次存活期间被拒（含跨 slug），报文含 pid / 命令 / startedAt / 波键（**判据是记录存在，不是持锁**）；`--steal-stale` 在持有 pid 仍存活时**同样被拒**，pid 已不存在时放行并接管。
@@ -256,6 +282,8 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 - `cdd` 命令面仍为八命令（结构 pin）；`--steal-stale` 在 implement / review / fix 的帮助面在册。
 - 消费面 skill 文本零 `pgrep` / `stash` / `checkout --`（grep pin——**基线已绿，断言的是不引入**，回归门而非新交付），且含「能用的 commit、坏掉的丢」的恢复纪律句。
 - 新面零裸函数（`check:no-bare-functions` 零命中）· engine vitest 全绿 · typecheck ×3 · `pnpm run validate` ALL PASS · changeset cdd-engine **minor** + kairos **patch**，不发布。
+
+- Task 块的新形与旧形解析结果**逐字段相等**（`shape` / `range` 除外）；带 `####` 子节的任务块其 brief 逐字节完整（`#rawSection` 已删除，零 `^#` 截断残留）· 骨架只吐新形且含两条 step 样例 · 旧项目符号形在 `declare.ts` 里零独立声明（归一化只在 reader 内）· 冻结计划 `docs/kairos/plans/*` 零改动 · `mdast-util-from-markdown` 落 `package.json#dependencies`
 
 ## Constraints
 
@@ -287,3 +315,4 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 | v0.9 | 2026-10-28 | W1 评审触发的判据收敛（存量文档冲突）：仓内 P3–P7/P10 的十篇计划与 P4–P7 的四篇 spec 是 newest-first（降序）历史，而「历史行不可变」是铁律——只认升序会让这些文档被判红并给出一个禁止执行的 fix。两条 lineage 规则改为**方向无关**：`change-history-version-ascending` → `change-history-version-monotone`（同向贯穿，来回 = 违例）· `front-matter-version-matches-last-row` → `front-matter-version-matches-lineage-end`（header 与首行或末行一致，须恰为某一端）。重复版本 / 来回跳 / header 与两端皆不符仍全数捕获 | [human] · Claude（kairos:cdd-dev W1 review backfill · 2026-10-28） |
 | v0.10 | 2026-10-28 | W1 review-2 的事实纠正：v0.9 的前提不完整——p3/p4/p5/p7 的冻结计划与 p4/p5/p7 的 spec 的 lineage **本身非单调**（p3 计划实测 `v0.2, v0.3, v0.1, v0.4`），三篇 header 也不在端点，于是「方向必须一致」对历史没有管辖权，只会产出禁止执行的 fix。**版本序这条腿整体撤销**（降级为显式非目标：排序是呈现选择，不是数据完整性）；只留两条真不变量——`change-history-version-unique`（重复 = 违例）与 `front-matter-version-in-lineage`（header 未出现在变更记录 = 违例，端点/方向不限）。声明面 23 → **22 行**（doc 20 + ledger 2），公共面 7 → **6** 条 | [human] · Claude（kairos:cdd-dev W1 review-2 backfill · 2026-10-28） |
 | v0.11 | 2026-10-28 | 行数算术自纠（W1 review-3 查出 v0.10 少算一条腿）：撤「版本序」时同时撤掉的还有 `SelfBoundedInvariant` 的「header=末行」腿——两条腿撤净后 doc 侧 = 既有 15 → Uniqueness 拆三腿 +2 → 17，Order 与 SelfBounded 各撤一腿（净 0）→ 17，新增 2 → **19**；声明面 **21 行**（doc 19 + ledger 2），公共面 6 条不变 | [human] · Claude（kairos:cdd-dev W1 review-3 backfill · 2026-10-28） |
+| v0.12 | 2026-10-28 | **scope 追加 §7：计划 Task 块契约面（用户裁定 append 进 P21）**——Task 块改为标题分节（七个 `####` 保留键 + 任意扩展节），块结构解析换成 `mdast-util-from-markdown` 的块级 reader（`contract/task-blocks.ts`，一份声明 + 一个旧形归一化方法），`graph` / `brief` / `skeleton` 三读者换源，`brief.ts#rawSection` 的 `^#` 截断随 AST 节点区间删除；兼容窗口保证冻结计划与消费侧存量文档零迁移，骨架只吐新形；只动块级面，其余契约面零改 | [human] · Claude（kairos:cdd-dev · scope append · 2026-10-28） |

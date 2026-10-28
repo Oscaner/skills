@@ -8,7 +8,7 @@
 // (Contract.validate over the target doc).
 //
 // Gate order (the design's pinned sequence, judgeable on every verdict):
-//   tree-clean → graph → plan-ledger → (wave face) WaveGate.vet →
+//   tree-clean → in-flight → graph → plan-ledger → (wave face) WaveGate.vet →
 //   (spec/plan faces) Contract.validate → dispatch
 // The evidence/read-back gates stay at the dispatch child face (the seam never
 // touches the round's produced artifacts — non-pre-flight by design).
@@ -90,8 +90,8 @@ export interface PreFlightVerdict {
   message?: string;
   /** The named issue/finding lines the renderer prints under the message. */
   details?: readonly string[];
-  /** The gates that ran, in order — the judgeable order (tree-clean → graph →
-   *  plan-ledger → wave → doc-contract, per the face's applicable set). */
+  /** The gates that ran, in order — the judgeable order (tree-clean → in-flight →
+   *  graph → plan-ledger → wave → doc-contract, per the face's applicable set). */
   order: readonly PreFlightGateName[];
   /** The checked face — one row per gate (`${gate}`) and per declared rule
    *  (`${ruleId}: ${passed|failed|skipped (reason)|info (hint)}`), derived from the
@@ -177,9 +177,9 @@ export class PreFlight {
     this.#fs = opts.fs ?? new NodeFs();
   }
 
-  /** vet(ctx) — the single seam call: tree-clean → graph → plan-ledger → wave →
-   *  doc-contract. The first refused gate owns the verdict; the gates that ran
-   *  precede it (the judgeable order). */
+  /** vet(ctx) — the single seam call: tree-clean → in-flight → graph → plan-ledger
+   *  → wave → doc-contract. The first refused gate owns the verdict; the gates that
+   *  ran precede it (the judgeable order). */
   async vet(ctx: PreFlightContext): Promise<PreFlightVerdict> {
     const gates: PreFlightGateName[] = [];
     const checked: string[] = [];

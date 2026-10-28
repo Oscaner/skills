@@ -222,26 +222,30 @@ export class BoardView {
     return cells.join(" · ");
   }
 
-  /** inFlightRows(state, orphans) — the tree's dispatch fact + the workspace's
-   *  orphan handoff drafts, as board lines. The held row names the holder's identity
-   *  facts; a DEAD holder adds the takeover hint. The orphan rows are the drafts no
-   *  recorded round owns — the board lists them, never writes or deletes them. */
-  static inFlightRows(state: InFlightState, orphans: readonly string[]): readonly string[] {
+  /** inFlightRows(state, orphans, words) — the tree's dispatch fact + the
+   *  workspace's orphan handoff drafts, as board lines. The held row names the
+   *  holder's identity facts; a DEAD holder adds the takeover hint. The free and
+   *  corrupt rows are the word table's declared rows — the board's hint is the same
+   *  bytes the preview face and the gate print (one vocabulary, never a board
+   *  literal). The orphan rows are the drafts no recorded round owns — the board
+   *  lists them, never writes or deletes them. */
+  static inFlightRows(
+    state: InFlightState,
+    orphans: readonly string[],
+    words: Words,
+  ): readonly string[] {
     const rows: string[] = [];
     if (state.kind === "held") {
       const record = state.record;
-      const dead = state.alive
-        ? ""
-        : " — re-run with --steal-stale to take the in-flight record over";
+      const dead = state.alive ? "" : ` — ${words.inFlightWords().stealable}`;
       rows.push(
         `  in-flight: pid ${record.pid} · command: ${record.command} · started: ${new Date(record.startedAt).toISOString()} · wave: ${record.wave ?? "none"} · slug: ${record.slug}${dead}`,
       );
     } else if (state.kind === "corrupt") {
-      rows.push(
-        `  in-flight: unreadable record — ${state.locked ? "the lock is still on disk" : "no lock behind"}`,
-      );
+      const inFlight = words.inFlightWords();
+      rows.push(`  in-flight: ${state.locked ? inFlight.corruptLocked : inFlight.corruptUnlocked}`);
     } else {
-      rows.push("  in-flight: free — no dispatch holds this tree");
+      rows.push(`  in-flight: ${words.checkedWords().inFlight.free}`);
     }
     for (const orphan of orphans) rows.push(`  orphan: ${orphan} — no recorded round owns it`);
     return rows;
@@ -309,7 +313,7 @@ export class BoardView {
     // The tree's dispatch fact + the node workspace's orphan drafts render before the
     // line rows (a reader answers "is anyone working here?" before reading progress).
     const orphans = ledger?.orphanHandoffs() ?? [];
-    for (const row of BoardView.inFlightRows(holding, orphans)) lines.push(row);
+    for (const row of BoardView.inFlightRows(holding, orphans, words)) lines.push(row);
     if (holding.kind !== "absent" || orphans.length > 0) lines.push("");
     const progress = ledger?.readProgress() ?? null;
     const overallSlug = BoardView.#validSlug(sources.overall);
@@ -458,7 +462,7 @@ export class BoardView {
   }
 
   /** One doc line's cell text — the doc path, the header facts and the line's
-   *  rounds (spec §5.3: `overall  <path>  v2.33 · Draft   review×4`); a violated
+   *  rounds (spec §5.3: `overall  <path>  v2.33 · Draft   review×1,2`); a violated
    *  line renders its `(BLOCKED)` marker in place of the facts (blocked = true).
    *  An absent doc renders `(none)` (degradation, never a throw). The doc path
    *  renders repoRoot-relative through the ONE value object (D47). */

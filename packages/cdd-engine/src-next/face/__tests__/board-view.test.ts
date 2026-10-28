@@ -965,25 +965,39 @@ const inFlightRecord = (over: Partial<InFlightRecord> = {}): InFlightRecord => (
 });
 
 describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", () => {
+  const words = new Words();
+
   it("adds the takeover hint only for a dead holder", () => {
     const alive = BoardView.inFlightRows(
       { kind: "held", record: inFlightRecord(), alive: true },
       [],
+      words,
     );
     const dead = BoardView.inFlightRows(
       { kind: "held", record: inFlightRecord(), alive: false },
       [],
+      words,
     );
     expect(alive.join("\n")).toContain("pid 4242");
-    expect(alive.join("\n")).not.toContain("--steal-stale");
-    expect(dead.join("\n")).toContain("--steal-stale");
+    expect(alive.join("\n")).not.toContain(words.inFlightWords().stealable);
+    expect(dead.join("\n")).toContain(words.inFlightWords().stealable);
+  });
+
+  it("fills the free and corrupt rows from the one word table", () => {
+    const free = BoardView.inFlightRows({ kind: "absent" }, [], words);
+    expect(free[0]).toBe(`  in-flight: ${words.checkedWords().inFlight.free}`);
+    const locked = BoardView.inFlightRows({ kind: "corrupt", locked: true }, [], words);
+    expect(locked[0]).toBe(`  in-flight: ${words.inFlightWords().corruptLocked}`);
+    const unlocked = BoardView.inFlightRows({ kind: "corrupt", locked: false }, [], words);
+    expect(unlocked[0]).toBe(`  in-flight: ${words.inFlightWords().corruptUnlocked}`);
   });
 
   it("renders the free state plus one row per orphan handoff draft", () => {
-    const rows = BoardView.inFlightRows({ kind: "absent" }, [
-      "tasks-1-review-1.json",
-      "branch-fix-1.json",
-    ]);
+    const rows = BoardView.inFlightRows(
+      { kind: "absent" },
+      ["tasks-1-review-1.json", "branch-fix-1.json"],
+      words,
+    );
     expect(rows[0]).toBe("  in-flight: free — no dispatch holds this tree");
     expect(rows[1]).toContain("tasks-1-review-1.json");
     expect(rows[2]).toContain("branch-fix-1.json");

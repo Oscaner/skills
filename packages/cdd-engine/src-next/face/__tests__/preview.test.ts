@@ -496,6 +496,9 @@ describe("cdd <verb> --dry-run — the in-flight read face", () => {
       expect(io.stdoutText).toContain("lock: held by pid");
       expect(io.stdoutText).toContain(String(process.pid));
       expect(io.stdoutText).not.toContain("--steal-stale");
+      // the held preview reports the same checked face as the other dry-run shapes
+      expect(io.stdoutText).toContain("checked:");
+      expect(io.stdoutText).toContain("in-flight: held — pid");
       expect(readFileSync(recordPath(repoRoot), "utf8")).toBe(recordBytes);
       expect(existsSync(`${recordPath(repoRoot)}.lock`)).toBe(false);
       expect(porcelain(repoRoot)).toBe(before);
@@ -525,6 +528,9 @@ describe("cdd <verb> --dry-run — the in-flight read face", () => {
       ).toBe(1);
       expect(io.stdoutText).toContain("lock: held by pid 999999");
       expect(io.stdoutText).toContain("--steal-stale");
+      // the same checked face as the other dry-run shapes
+      expect(io.stdoutText).toContain("checked:");
+      expect(io.stdoutText).toContain("in-flight: stale holder — pid 999999");
       // no takeover, no deletion, no lock: the flag has no write channel here
       expect(existsSync(recordPath(repoRoot))).toBe(true);
       expect(readFileSync(recordPath(repoRoot), "utf8")).toBe(recordBytes);

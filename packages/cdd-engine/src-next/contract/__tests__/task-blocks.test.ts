@@ -4,6 +4,7 @@
 // duplicate-key invariant. Fixtures are plan-shaped markdown literals.
 
 import { describe, expect, it } from "vitest";
+import { TASK_ID_VALUE_PATTERN } from "../declare.ts";
 import { Contract } from "../judge.ts";
 import type { TaskBlock } from "../task-blocks.ts";
 import { PlanTaskBlocksReader } from "../task-blocks.ts";
@@ -292,5 +293,49 @@ describe("PlanTaskBlocksReader — the contract's document-face compatibility", 
       "#### Risks\na risk body\n\n#### Migration Notes\na migration body\n\n#### Acceptance",
     );
     expect(findingsOf(content)).toEqual([]);
+  });
+});
+
+describe("PlanTaskBlocksReader — the compatibility arm's shape and line endings", () => {
+  /** The legacy bullet shape with ONE extension section appended. */
+  const LEGACY_WITH_EXTENSION = [
+    TASK_ONE_TITLE,
+    "- **Objective**: do x",
+    "- **Files**: a.ts",
+    "- **Consumes**: none",
+    "- **Produces**: y",
+    "- **Steps**:",
+    "  - step one — checkable: green",
+    "- **Acceptance**: ok",
+    "- **DependsOn**: 2, 3",
+    "",
+    "#### Risks",
+    "a risk body",
+    "",
+  ].join("\n");
+
+  it("keeps reading a legacy block that gains one extension section", () => {
+    const [block] = reader.parse(LEGACY_WITH_EXTENSION);
+    expect(block!.shape).toBe("legacy");
+    for (const key of PlanTaskBlocksReader.RESERVED) {
+      expect(block!.fields.map((field) => field.key)).toContain(key);
+    }
+    expect(block!.fields.find((field) => field.key === "Risks")?.lines).toEqual(["a risk body"]);
+    expect(block!.fields.find((field) => field.key === "DependsOn")?.lines).toEqual(["2, 3"]);
+    expect(reader.dependsOn(block!)).toEqual([2, 3]);
+  });
+
+  it("compiles the dependency token from the declaration plane", () => {
+    expect(PlanTaskBlocksReader.ID_TOKEN.source).toBe(TASK_ID_VALUE_PATTERN);
+  });
+
+  it("reads a CRLF legacy block exactly as the LF one", () => {
+    const lf = reader.parse(LEGACY_FORM);
+    const crlf = reader.parse(LEGACY_FORM.replace(/\n/g, "\r\n"));
+    expect(crlf.map(comparable)).toEqual(lf.map(comparable));
+    expect(crlf.map((block) => block.shape)).toEqual(["legacy", "legacy"]);
+    expect(reader.section(LEGACY_FORM.replace(/\n/g, "\r\n"), "Constraints")).toBe(
+      reader.section(LEGACY_FORM, "Constraints"),
+    );
   });
 });

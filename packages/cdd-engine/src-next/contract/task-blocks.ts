@@ -16,6 +16,7 @@
 // Module-level exports are types / the class — zero behavior-carrying bare functions.
 
 import { fromMarkdown } from "mdast-util-from-markdown";
+import { TASK_ID_VALUE_PATTERN } from "./declare.ts";
 
 /** One parsed field of a task block — the reserved key or an extension section's
  *  heading, plus the section's value lines. */
@@ -71,6 +72,14 @@ interface SectionNode {
   readonly lines: readonly string[];
 }
 
+/** A `####` section span — the heading line, the section's last body line and the
+ *  value lines between them (the legacy arm skips these spans so a heading body can
+ *  never leak into a bullet field's continuation run). */
+interface SectionSpan extends SectionNode {
+  readonly start: number;
+  readonly end: number;
+}
+
 /**
  * PlanTaskBlocksReader — the plan's task-block parse face. One `parse` call reads a
  * whole plan document; the graph's `DependsOn`, the brief's slices and the skeleton
@@ -100,14 +109,15 @@ export class PlanTaskBlocksReader {
   /** The `— checkable:` clause separator. */
   static readonly CHECKABLE = "— checkable:";
 
-  /** A dependency id token — the declared `DependsOn id` domain. */
-  static readonly ID_TOKEN = /^[1-9]\d*$/;
+  /** A dependency id token — the declared `DependsOn id` value domain (the SAME
+   *  source string the registry element carries). */
+  static readonly ID_TOKEN = new RegExp(TASK_ID_VALUE_PATTERN);
 
   /** Parse a whole plan document into its `### Task N:` blocks. A duplicated reserved
    *  key inside one block is a loud error (the section identity is the parse face's
    *  own invariant). */
   parse(content: string): readonly TaskBlock[] {
-    const lines = content.split("\n");
+    const lines = content.split(/\r?\n/);
     const nodes = (fromMarkdown(content) as unknown as MdNode).children ?? [];
     const blocks: TaskBlock[] = [];
     for (const [index, node] of nodes.entries()) {
@@ -118,14 +128,23 @@ export class PlanTaskBlocksReader {
       if (start === 0) continue;
       const boundary = this.#boundaryAfter(nodes, index, lines.length);
       const inner = nodes.slice(index + 1, boundary.index);
-      const shape = inner.some((child) => child.type === "heading" && child.depth === 4)
+      // The shape follows a RESERVED key appearing as a `####` heading — never "any
+      // depth-4 heading": a legacy block that gains ONE extension section stays
+      // legacy (its bullets are the fields), while a heading-shaped block always
+      // carries its reserved keys as headings.
+      const shape = inner.some(
+        (child) =>
+          child.type === "heading" &&
+          child.depth === 4 &&
+          PlanTaskBlocksReader.RESERVED.includes(this.#textOf(child).trim()),
+      )
         ? "heading"
         : "legacy";
       const end = boundary.line - 1;
       const sections =
         shape === "heading"
           ? this.#headingSections(inner, lines, end)
-          : this.#legacySections(lines, start + 1, end);
+          : this.#legacySections(inner, lines, start + 1, end);
       const block: TaskBlock = {
         id: Number(match[1]),
         heading: lines[start - 1] ?? "",
@@ -159,7 +178,7 @@ export class PlanTaskBlocksReader {
    *  — the AST range, so a deeper `###`/`####` heading inside the section never
    *  truncates it. The heading line itself is included. "" when absent. */
   section(content: string, heading: string): string {
-    const lines = content.split("\n");
+    const lines = content.split(/\r?\n/);
     const nodes = (fromMarkdown(content) as unknown as MdNode).children ?? [];
     const start = nodes.findIndex(
       (node) =>
@@ -207,13 +226,14 @@ export class PlanTaskBlocksReader {
 
   /** The heading sections of a new-shape block — every depth-4 heading partitions the
    *  block; a heading with no body still registers (the empty value is the author's
-   *  fact, judged by the presence rule). */
+   *  fact, judged by the presence rule). The span starts AT the heading line so the
+   *  legacy arm can skip the whole section, heading included. */
   #headingSections(
     inner: readonly MdNode[],
     lines: readonly string[],
     blockEnd: number,
-  ): readonly SectionNode[] {
-    const sections: SectionNode[] = [];
+  ): readonly SectionSpan[] {
+    const sections: SectionSpan[] = [];
     for (const [index, node] of inner.entries()) {
       if (node?.type !== "heading" || node.depth !== 4) continue;
       const line = node.position?.start?.line;
@@ -228,6 +248,8 @@ export class PlanTaskBlocksReader {
       }
       sections.push({
         key: this.#textOf(node).trim(),
+        start: line,
+        end,
         lines: this.#valueLines(lines, line + 1, end),
       });
     }
@@ -236,15 +258,26 @@ export class PlanTaskBlocksReader {
 
   /** The legacy sections of a compatibility-shape block — the `- **Key**:` markers
    *  and their continuation runs (the retired grammar's exact reading: the marker
-   *  remainder plus every non-empty line until the next marker). */
-  #legacySections(lines: readonly string[], from: number, to: number): readonly SectionNode[] {
+   *  remainder plus every non-empty line until the next marker). A `####` extension
+   *  section inside the block is read as a field of its own and never leaks into the
+   *  preceding bullet's continuation run. */
+  #legacySections(
+    inner: readonly MdNode[],
+    lines: readonly string[],
+    from: number,
+    to: number,
+  ): readonly SectionNode[] {
+    const spans = this.#headingSections(inner, lines, to);
+    const inSpan = (line: number): boolean =>
+      spans.some((span) => line >= span.start && line <= span.end);
     const sections: SectionNode[] = [];
     for (let line = from; line <= to; line += 1) {
+      if (inSpan(line)) continue;
       const match = PlanTaskBlocksReader.LEGACY_FIELD.exec(lines[line - 1] ?? "");
       if (match === null) continue;
       let end = to;
       for (let next = line + 1; next <= to; next += 1) {
-        if (PlanTaskBlocksReader.LEGACY_FIELD.test(lines[next - 1] ?? "")) {
+        if (inSpan(next) || PlanTaskBlocksReader.LEGACY_FIELD.test(lines[next - 1] ?? "")) {
           end = next - 1;
           break;
         }
@@ -253,7 +286,7 @@ export class PlanTaskBlocksReader {
       const rest = this.#valueLines(lines, line + 1, end);
       sections.push({ key: (match[1] ?? "").trim(), lines: rem === "" ? rest : [rem, ...rest] });
     }
-    return sections;
+    return [...sections, ...spans];
   }
 
   /** The trimmed, blank-dropping raw lines of one inclusive 1-based span. */

@@ -4,8 +4,8 @@
 // single-entry gate:
 //   · the dirty-tree hard gate — implement/review/fix on a dirty working tree
 //     BLOCKs (the CDD_BLOCKED guidance) BEFORE any wave/doc judgment, child zero;
-//   · the gate order — tree-clean → graph → wave → doc-contract, one verdict
-//     carries the run gate list (the judgeable order);
+//   · the gate order — tree-clean → in-flight → graph → plan-ledger → wave →
+//     doc-contract, one verdict carries the run gate list (the judgeable order);
 //   · the graph gate — a plan whose DependsOn edges fail validates refuses;
 //   · the wave gate — the three-verb split/wrong-phase refusals ride the seam;
 //   · the doc-contract gate — the doc faces judge the target doc's structure;
@@ -387,8 +387,8 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
 // the gate order composition — the judgeable gate order
 // ---------------------------------------------------------------------------
 
-describe("PreFlight — the gate order composition (tree-clean → graph → wave → doc-contract)", () => {
-  it("a clean wave dispatch passes through tree-clean → graph → wave in order", async () => {
+describe("PreFlight — the gate order composition (tree-clean → in-flight → graph → plan-ledger → wave → doc-contract)", () => {
+  it("a clean wave dispatch passes through tree-clean → in-flight → graph → plan-ledger → wave in order", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const preflight = preflightOf();
@@ -402,7 +402,7 @@ describe("PreFlight — the gate order composition (tree-clean → graph → wav
     }
   });
 
-  it("a clean doc dispatch passes through tree-clean → doc-contract in order", async () => {
+  it("a clean doc dispatch passes through tree-clean → in-flight → doc-contract in order", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const preflight = preflightOf(memoryFs(CONFORMING_SPEC));
@@ -798,7 +798,14 @@ describe("PreFlight — the in-flight gate", () => {
       const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "implement");
       const before = inFlightSnapshot(repoRoot);
 
-      const verdict = await preflightOf().vet({ ...ctx, inflight: inflightOf(repoRoot, true) });
+      // The explicit takeover flag never crosses a LIVE holder — the catastrophic
+      // direction (displacing a running dispatch) is refused at the gate that
+      // decides first, before `InFlight.steal()` ever sees it.
+      const verdict = await preflightOf().vet({
+        ...ctx,
+        inflight: inflightOf(repoRoot, true),
+        stealStale: true,
+      });
 
       expect(verdict.ok).toBe(false);
       expect(verdict.gate).toBe("in-flight");
@@ -812,6 +819,7 @@ describe("PreFlight — the in-flight gate", () => {
       ]) {
         expect(verdict.message).toContain(token);
       }
+      expect(verdict.message).not.toContain("--steal-stale");
       expect(verdict.order).toEqual(["tree-clean", "in-flight"]);
       expect(verdict.checked[0]).toBe("tree-clean");
       expect(verdict.checked[1]).toMatch(/^in-flight: held/);

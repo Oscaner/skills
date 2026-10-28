@@ -123,6 +123,13 @@ export const DOC_TYPE_VALUES = [
  *  the shape judgment has one grammar (this module is the leaf both planes read). */
 export const SLUG_VALUE_PATTERN = "^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._-]*$";
 
+/** The legal `DependsOn id` value shape — one positive task id (whole-token). One
+ *  declared constant: the `DependsOn id` element and the task-block reader (whose
+ *  `dependsOn` token domain must accept exactly what the registry declares) compile
+ *  this SAME source string, so the graph's edge domain and the lint's token domain
+ *  can never drift apart. */
+export const TASK_ID_VALUE_PATTERN = "^[1-9]\\d*$";
+
 /**
  * The registry guards — the runtime contract that narrows an unknown candidate
  * to a registry element or a full element registry. A static predicate class
@@ -675,7 +682,7 @@ const PLAN_ELEMENTS = [
   {
     anchor: "DependsOn id",
     presence: "optional",
-    valuePattern: "^[1-9]\\d*$",
+    valuePattern: TASK_ID_VALUE_PATTERN,
     refKind: "task-id",
     home: "task-field",
   },

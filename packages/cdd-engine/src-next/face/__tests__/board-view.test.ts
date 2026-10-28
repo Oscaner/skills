@@ -953,7 +953,6 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 /** One in-flight record fixture — the identity facts the board row names. */
 const inFlightRecord = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
   pid: 4242,
-  pgid: 4242,
   command: "cdd implement --tasks 1 --plan docs/p.md",
   slug: "p3",
   startedAt: Date.parse("2026-10-28T10:00:00.000Z"),

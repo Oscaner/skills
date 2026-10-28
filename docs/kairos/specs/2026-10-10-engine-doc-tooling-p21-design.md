@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 设计：引擎作为唯一读写路径
 doc-type: phase-spec
-version: v0.17
+version: v0.18
 date: 2026-10-27
 slug: 2026-10-10-engine-doc-tooling-p21
 program: 2026-10-10-engine-doc-tooling
@@ -50,7 +50,7 @@ P21 收口四个 issue（#391 · #394 · #393 · #386）。它们不是四条补
 `InFlight`（`session/inflight.ts`）是**唯一的在飞事实**，同时是锁与意图账本。它消灭今天 `liveness.json` 的「写而无读」残渣：记录不再是诊断尾迹，而是 preflight / `board` / `--dry-run` 的读取源。
 
 - **落点 = 工作树级**（`.kairos/cdd/` 命名空间根），不是各 slug 的工作区：不同 phase 共用同一棵工作树，碰撞面是树。记录里带 `slug`。
-- **字段**：`pid` / `pgid` · `command`（verb + 关键旗标）· `slug` · `startedAt` · `wave` / `phase` · `briefHash`（复用 `brief-revision` 的内容指纹，非新哈希面）· `plan` · `sampledAt` / `verdict`（采样尾迹）。
+- **字段**：`pid` · `command`（verb + 关键旗标）· `slug` · `startedAt` · `wave` / `phase` · `briefHash`（复用 `brief-revision` 的内容指纹，非新哈希面）· `plan` · `sampledAt` / `verdict`（采样尾迹）。
 - **写序**是新增的核心：**spawn 之前取锁即写意图**；派发期间由采样循环经同一类覆写（保留身份字段）；正常收工释放。**「不自动释放」的对象是意图记录**：记录不由任何退出路径移除——正常 return、`process.exit()`、未捕获异常、SIGINT / SIGTERM 都不移除它，只有收工路径与 `--steal-stale` 移除。锁目录则归 `proper-lockfile` 的退出钩子管（§2.2），于是**被 SIGKILL 时锁目录与记录同时留下，其余崩溃 / kill / 超时只留记录**；因此判定「有人在跑」一律看记录，不看锁。
 - 采样尾迹的写点收进 `InFlight`——今天它是 `SamplingLoop` 里的直写（`face/termination.ts:436`），是与锁平行的第二个写者。
 
@@ -59,6 +59,7 @@ P21 收口四个 issue（#391 · #394 · #393 · #386）。它们不是四条补
 - 取锁原子化交给 `proper-lockfile`，三项配置**显式钉死**（缺省值在这一组合下会出错）：`stale: 12h`（有限值，大于 implement 的 6h 预算）· `update: 60s` · `realpath: false`。**「永不自动抢」由记录 + pid 判据保证，不靠 `stale` 取 ∞**：`stale: Infinity` 会把缺省 `update` 推成 `Infinity`，被 Node 夹到 1ms，于是整个派发期间（最长 6h）以约 1ms 周期 `stat` + `utimes` 刷锁；而 `realpath` 缺省 `true` 要求被锁目标已存在，与「锁先于记录」的写序冲突（全新命名空间的首锁会失败）。有限 `stale` 不违背「永不自动抢」——抢不抢由判据决定，不由锁的时长决定。
 - **门禁判据是「记录存在」，不是「持锁」**（锁只承担取锁互斥，其生命周期归库）：记录可读且 pid 存活 → **拒绝派发**并点名持有者：pid、命令、`startedAt`、已运行时长、波键、slug（跨 slug 同理，碰撞面是树）。走 `CDD_BLOCKED` 通道，exit 1。锁目录是否存在只在三态里充当「记录损坏」时的旁证：`proper-lockfile` 的退出钩子在任何优雅退出（正常 return / `process.exit()` / 未捕获异常 / SIGINT / SIGTERM）上移除锁目录，只有 SIGKILL 把它留下。
 - 记录可读且 pid 已亡 → 同样拒绝派发，并提示 `--steal-stale` 可接管（下一次派发**不得**径直取锁覆写死者的意图记录）。
+- **`acquire` 自身的兜底（主守卫仍是门）**：`InFlight.acquire` 在取锁**之前**自查站着的记录——持有者 pid 活（含「存活不可读」折成的活）即抛 `HoldingError`，零写、零锁残留。门禁把住派发面的一切站着形态（可读 / 损坏、活 / 亡三态），这条只保证「活着的持有者永不被后一个写点顶掉」：第二个写点若接进来，保护不会因它绕过门而漏掉。
 - **接管只走显式旗标 `--steal-stale`**（旗标不是新命令面，作用于 implement / review / fix），前提是记录的 pid 已不存在。pid 还活着就无论跑了多久都拒绝——「中断后的恢复」是显式动作。
 - **这是本 phase 唯一刻意不精简的一处**：误判「已死」的代价是一整个纵切实现被覆盖且不可恢复（#391 已发生一次），破坏性动作必须由人拍。
 - 心智负担的降低放在别处：`board` 与 `--dry-run` 主动报「持有者 pid 已亡 · 可 `--steal-stale` 接管」，消费方只需照提示敲。
@@ -267,7 +268,7 @@ Task 块从「字段项目符号」改为「标题分节」，并把这一面的
 
 #### 7.5.1 身份与定位是两件事（B2 的裁定）
 
-`anchor` **保留**，但它不是「定位方式」而是**身份**：它同时是 schema 的 property 名与 `required[]` 条目、骨架真值表（`FRONT_MATTER_LINKS` / `TRUTH_LINES`）的键、lint 的查表键、21 条规则 finding 的 `field:` 值。**新增的 `selector` 只承担定位**（从哪里、走到哪、匹配什么）。名字是名字，定位器是定位器——把二者混为一谈才会得出「留下 anchor 就是声明再抄」的结论。因此消费者可见面**零变化**：`cdd schema get <type>` 的字节、finding 的 `field:` 值、骨架槽位集一律不动（各一条 pin）。
+`anchor` **保留**，但它不是「定位方式」而是**身份**：它同时是 schema 的 property 名与 `required[]` 条目、骨架真值表（`FRONT_MATTER_LINKS` / `TRUTH_LINES`）的键、lint 的查表键、21 条规则 finding 的 `field:` 值。**新增的 `selector` 只承担定位**（从哪里、走到哪、匹配什么）。名字是名字，定位器是定位器——把二者混为一谈才会得出「留下 anchor 就是声明再抄」的结论。因此**身份面零变化**：schema 的键集与 `required[]`、finding 的 `field:` 值、骨架槽位集一律不动（各一条 pin）。值形面（`valuePattern` 的接受范围）不是身份，但也非任改面：本 phase 有三处**登记变更**（§7.5.3）。
 
 #### 7.5.2 selector 可组合，不是五元闭集（B1 的裁定）
 
@@ -294,6 +295,10 @@ export interface Selector {
 
 - **语义 pin 不动**：21 条规则的判定语义与既有断言保持（数据面换源，结论不变）。
 - **扫描行为 pin 是 deliberate break，逐条重锚**：断言「反引号剥离的边界」「表格 `|` 切分与对齐行」「缩进假设」「手算 heading rank」的用例，改为节点级等价断言，并在提交里点名列出。
+- **值形面三处登记变更**（deliberate refinement——§7.5.1 的「身份面零变化」不覆盖 `valuePattern` 的接受范围，故在此逐条登记）：
+  - `Implementation plan cell` 与 `Design spec cell` 接受证据追记形 `✔ Done（…） <prose>`。两形在 selector 迁移前是**死值**：老判定面从不看这两格，所以规则一旦按声明变成活判据，不改域就会让仓内 overall（P14/P16/P17/P20 等行都带追记正文）自身违契。身份不变（键名 / `required[]` / 骨架槽位 / `field:` 值）。
+  - `Soft edge` 收紧为必须带目标 token（`-> P<n> (soft)`）。仓内零消费者，收紧零代价（一条图边 pin）。
+  - 三项均有 pin：两形单元格由单元格定位 pin 与覆盖矩阵钉住，soft-edge token 由图边 pin 与 schema snapshot 钉住。
 
 #### 7.5.4 其余定案
 
@@ -371,3 +376,4 @@ pipeline 的 **skill-ref** 渲染为 `route to {ref} skill`（`literal` 命令�
 | v0.15 | 2026-10-28 | **§7.5 全契约面迁移（用户裁定 append 并「一次做掉」）**：T9 的块级 AST 只是第一步，其余契约面的手写行扫描（表格 `|` 解析 / 分节树 / 图边 / `this.overall(ctx)` 取数）一次收口到同一棵树——一个解析入口 · 登记面 selector 封闭集 · 归一化前置 · 骨架往返 pin · 删除面清单。**理由**：两套解析模型并存 = 本 phase 判死的那类债；终态只留一个模型。代价约 2000 行 + 900 余条用例重锚，交付切成 T9（已实现）+ T10（收口）两个完整测试周期 | [human] · Claude（kairos:cdd-dev · scope append 其二 · 2026-10-28） |
 | v0.16 | 2026-10-28 | **T10 设计重写（W4 implement 的 blocker 报告触发）**：三条裁定入 §7.5——① **身份与定位分离**（`anchor` 是身份：schema 键 / `required[]` / 骨架真值表 / lint 查表 / finding `field:`；`selector` 只是定位，消费者可见面零变化）② **selector 可组合**（`from` 根或父 · `walk` 八种 · `when` 四守卫），覆盖 114 元素里那 36 个行/单元格/token/step/条件元素，并以**覆盖矩阵 114/114** 作验收 ③ **pin 分两类**（语义 pin 不动；扫描行为 pin 逐条重锚并在提交里点名） | [human] · Claude（kairos:cdd-dev · blocker backfill · 2026-10-28） |
 | v0.17 | 2026-10-28 | **§8：`next:` skill-ref 改 `route to {ref} skill`（用户裁定）**；四份 SKILL.md 删去 `next:` 语义复述（引擎输出契约不在 skill 侧二次声明）、只留指针 + 编排器义务；Invariants 同批收敛 | [human] · Claude（kairos:cdd-dev · 2026-10-28） |
+| v0.18 | 2026-10-29 | **branch-review-1 回填（值形面三处登记 + `acquire` 兜底自查）**：① §7.5.1 的「`cdd schema get <type>` 字节一律不动」收窄为**身份面零变化**（键集 / `required[]` / 骨架槽位集 / finding `field:` 值），值形面（`valuePattern` 的接受范围）另立登记 ② §7.5.3 登记三处 deliberate refinement——两个 Phase-inventory 单元格接受证据追记形 `✔ Done（…） <prose>`（两形在 selector 迁移前是死值，不改域就会让仓内 overall 自身违契）· `Soft edge` 收紧为必须带目标 token（仓内零消费者）；三条均落在既有 pin 上 · ③ §2.2 登记 `acquire` 的活持有者兜底自查（写序 marker → 接管 → 自查 → lock → 记录；门是主守卫，自查是类自身的兜底） | [human] · Claude（kairos:cdd-dev · branch-review-1 backfill · 2026-10-29） |

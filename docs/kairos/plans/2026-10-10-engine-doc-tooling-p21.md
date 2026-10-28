@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 实施计划：引擎作为唯一读写路径
 doc-type: plan
-version: v0.13
+version: v0.14
 date: 2026-10-28
 slug: 2026-10-10-engine-doc-tooling-p21
 base: develop
@@ -116,7 +116,6 @@ base: develop
     readonly closedWaves: readonly (readonly number[])[];
     readonly snapshots: readonly { readonly wave: string; readonly planTasks: readonly number[] }[];
     readonly layers: readonly (readonly number[])[];   // TaskGraph.batches() 的层
-    readonly maxRecordedTask: number;
   }
   export class Contract {
     static policy(): Record<DocKey, readonly Invariant[]>;                                  // 只吃 doc 型
@@ -148,7 +147,7 @@ base: develop
   - 写失败测试（拆腿后的 kind 重锚）：overall 里登记锚点重复 → `kind === "presence"`；plan 里重复 task id → `kind === "task-id-unique"`；overall 里重复 phase id → `kind === "phase-id-unique"`；小节序颠倒 → `kind === "section-order"` —— checkable: FAIL
   - 实现拆/撤腿与新策略（一个策略一个类）：`UniquenessInvariant` 的 heading 重复登记腿并入 `PresenceInvariant`，三条身份腿独立成 `ChangeHistoryVersionUniqueInvariant` / `TaskIdUniqueInvariant` / `PhaseIdUniqueInvariant`；`OrderInvariant` 保留小节序单腿；`SelfBoundedInvariant` 的两条腿塌成 `FrontMatterVersionInLineageInvariant`（只判缺席）；删除 `FrontMatterLastRowInvariant` 与 `ChangeHistoryVersionAscendingInvariant`；新增 `RowHomeInvariant` / `ListMarkerInvariant`；`judge.test.ts` 的 `selfBounded` 断言同批重锚为 kebab id —— checkable: 上述用例转绿
   - 给四类文档补 change-history 读面：`contract/doc.ts` 的三类非 overall parse 记录与 `OverallParsed` 同形暴露 `tables["Change history"]`（同一次 `#tableSection(sections, "## Change history")`），并在 `Invariant` 基类上落**一个** `protected historyVersions(ctx)` 共享读面（两条腿的私有副本删除） —— checkable: `grep -n "this.overall(ctx)" packages/cdd-engine/src-next/contract/invariants.ts` 在 lineage 两处零命中且全文件计数从 9 降到 7
-  - 写失败测试（ledger 两条规则与 skipped）：`validateLedger(input, { planTasks: [1,2,3], recordedTasks: [1,2], layers: [[1],[2],[3]], closedWaves: [[1],[2]], snapshots: [], maxRecordedTask: 2 })` → 零 finding；`recordedTasks = [1,2,11] · planTasks = [1,2,3]`（账本记了一个计划里没有的任务）→ 恰好一条 `kind === "planned-tasks-vs-recorded-tasks"`；**绿 pin（本 phase 的真实形态）**：`planTasks = [1..9] · recordedTasks = [1,2,3,4,5,7] · maxRecordedTask = 7` → **零 finding** 且 `checked` 只出 `plan-ledger: info (plan leads ledger by 3 tasks)`（6、8、9 都在等）——「计划有、账本没有」零判压；已闭合波次 `[[1,2]]` 而 layers 为 `[[1],[2]]` → `kind === "ledger-layering"`；整层批 `[[2,3]]` 对 layers `[[1],[2,3]]` → 绿；**层内子集** `[[2]]` 对 layers `[[1],[2,3]]` → 绿（subset 读法与 Task 7 的追加波一致，记在类注释里）；本轮未提供 `LedgerFacts`（非 plan/wave/branch 派发）→ 清单该两行为 `skipped (no ledger facts)` —— checkable: FAIL
+  - 写失败测试（ledger 两条规则与 skipped）：`validateLedger(input, { planTasks: [1,2,3], recordedTasks: [1,2], layers: [[1],[2],[3]], closedWaves: [[1],[2]], snapshots: [] })` → 零 finding；`recordedTasks = [1,2,11] · planTasks = [1,2,3]`（账本记了一个计划里没有的任务）→ 恰好一条 `kind === "planned-tasks-vs-recorded-tasks"`；**绿 pin（本 phase 的真实形态）**：`planTasks = [1..9] · recordedTasks = [1,2,3,4,5,7]` → **零 finding** 且 `checked` 只出 `plan-ledger: info (plan leads ledger by 3 tasks)`（6、8、9 都在等）——「计划有、账本没有」零判压；已闭合波次 `[[1,2]]` 而 layers 为 `[[1],[2]]` → `kind === "ledger-layering"`；整层批 `[[2,3]]` 对 layers `[[1],[2,3]]` → 绿；**层内子集** `[[2]]` 对 layers `[[1],[2,3]]` → 绿（subset 读法与 Task 7 的追加波一致，记在类注释里）；本轮未提供 `LedgerFacts`（非 plan/wave/branch 派发）→ 清单该两行为 `skipped (no ledger facts)` —— checkable: FAIL
   - 实现两条 ledger 策略 + `LedgerFacts` 组装缝（`preflight.ts` 从 `Ledger` + 计划文本 + `TaskGraph.batches()`（`layers`）构造；`snapshots` 读波行 `planTasks`，本任务里可缺省 `[]`，Task 7 接上） —— checkable: 上述用例转绿
   - 实现 `#buildPolicy` 派生 + `Contract.policy()` / `ruleRows()` / `validateLedger`（`policy()` 只取 `scope === "doc"`；`validateLedger` 只取 `scope === "ledger"` 并逐个喂 `(ctx, ledger)`）；删除 15 个硬编码实例化 —— checkable: `grep -n "new .*Invariant()" packages/cdd-engine/src-next/contract/judge.ts` 零命中
   - `PreFlight` 增 `plan-ledger` 门（紧随 `graph` 之后、`wave` 之前）：doc / wave / branch 派发都跑；`checked` 逐条渲染，doc 作用域声明在 wave / branch 派发（`ctx.doc === null`）**19 行各一行** `skipped (no doc target)`，ledger 作用域在缺事实包时渲染 `skipped (no ledger facts)`（`ok: true`、`reason` 缺席）；plan-ledger 拒绝只填 `gate: "plan-ledger"` + 自己的词行，`reason` 缺席（门名承载身份，零死值） —— checkable: `preflight.test.ts` 新用例绿（wave 派发 `checked` 含 19 条 skipped 行；plan-ledger 拒绝的 `reason === undefined`）
@@ -208,14 +207,14 @@ base: develop
 
 ### Task 4: `InFlight`（在飞记录 · 锁 · 三态 · 采样收口 · `--steal-stale`）
 
-- **Objective**: 把在飞状态升格为唯一事实并交出唯一的锁：`InFlight` 记录（pid/pgid · 命令 · slug · startedAt · wave/phase · briefHash · plan · 采样尾迹）在 spawn **之前**写入工作树级 `.kairos/cdd/`；采样循环经同一个类覆写；收工释放；崩溃 / kill / 超时后**记录留档且不由任何退出路径移除**；`liveness.json` 独立产物消灭。同时落 `--steal-stale` 旗标与损坏记录三态。
+- **Objective**: 把在飞状态升格为唯一事实并交出唯一的锁：`InFlight` 记录（pid · 命令 · slug · startedAt · wave/phase · briefHash · plan · 采样尾迹）在 spawn **之前**写入工作树级 `.kairos/cdd/`；采样循环经同一个类覆写；收工释放；崩溃 / kill / 超时后**记录留档且不由任何退出路径移除**；`liveness.json` 独立产物消灭。同时落 `--steal-stale` 旗标与损坏记录三态。
 - **Files**: Create `packages/cdd-engine/src-next/session/inflight.ts` · `packages/cdd-engine/src-next/session/__tests__/inflight.test.ts`; Modify `packages/cdd-engine/src-next/face/lifecycle.ts`（**真派发的唯一写点**：取锁 / 写意图 / 接管 / 释放 · `ChildRun` 换 handle · 删 `liveness.json` 路径）· `packages/cdd-engine/src-next/face/termination.ts`（`SamplingLoop` 写点改调 `InFlight.heartbeat`；`stop()` **删掉 `rmSync(heartbeatPath)` 腿**——记录的移除只归 `release()` / `steal()`，自结束路径不得绕过）· `packages/cdd-engine/src-next/face/__tests__/termination.test.ts`（heartbeat 夹具改指记录文件）· `packages/cdd-engine/src-next/face/declare.ts`（`ARGV_CHANNEL.stealStale` + 三命令 keys）· `packages/cdd-engine/src-next/face/words.ts`（持有 / 可接管 / 损坏 / 恢复三句）· `packages/cdd-engine/package.json`（`proper-lockfile`）
 - **Consumes**: `infra/atomic.ts` 的 `AtomicWriter`（Task 1）· `infra/proc.ts` 的 `ProcessFacts.live/groupMembers`（Task 1）· `infra/workspace.ts` 的 `WorkspaceRoot`（`.kairos/cdd` 命名空间根与 `.gitignore` 标记）· `face/termination.ts:359-443` 的 `SamplingLoop`（现直写 `heartbeatPath`）· `face/lifecycle.ts:183` 的 `heartbeatPath` 派生点
 - **Produces**:
   ```ts
   // session/inflight.ts
   export interface InFlightRecord {
-    readonly pid: number; readonly pgid: number; readonly command: string; readonly slug: string;
+    readonly pid: number; readonly command: string; readonly slug: string;
     readonly startedAt: number; readonly wave: string | null; readonly phase: string | null;
     readonly briefHash: string | null; /** = acquire 时刻现算的 `ReviewRefs.briefRevision(planPath, 当刻 brief 文本).brief_hash`（同一哈希面，零新哈希面；非 wave 派发为 null）。 */
     readonly plan: string | null;
@@ -232,7 +231,8 @@ base: develop
     static readonly FILE: string;
     /** 发布 `.kairos/.gitignore`（`*`）标记——记录写之前的前置条件，不依赖 WorkspaceRoot.ensure 的时点。 */
     ensureMarker(): InFlight;
-    /** spawn 之前唯一调用点（**只由真派发路径调用**：门只 `inspect()`，零写），写序固定：`ensureMarker()` → `lock()`
+    /** spawn 之前唯一调用点（**只由真派发路径调用**：门只 `inspect()`，零写），写序固定：`ensureMarker()` →
+     *  （`stealStale` 的接管）→ **活持有者兜底自查**（站着且 pid 活 / 存活不可读 → `HoldingError`，零写零锁）→ `lock()`
      *  （`stale: 12h · update: 60s · realpath: false · retries: 0`）→ **取锁成功后**
      *  `AtomicWriter` 写记录。`stealStale` 只在此处生效：既有记录判定亡（或损坏且锁在）时先
      *  `steal` 再取锁；否则取锁失败时只**读**既有记录再抛 `HoldingError`
@@ -259,7 +259,7 @@ base: develop
   - 写失败测试（`startTime` 不可读时不接管）：在册持有者但 `ProcessFacts.live` 返回 `null`（注入缺失 `startTime` 的进程行）→ `inspect()` 返回 `held` 且 `alive === true`，`steal()` **抛错拒绝**（非 POSIX 分支以命名 skip 逃生门标名） —— checkable: FAIL
   - 写失败测试（`acquire` 的 `stealStale` 只在真派发面生效）：持有者 pid 已亡 + `stealStale: true` → `acquire` 先 `steal` 再取锁，记录被新派发覆写；持有者 pid 活 + `stealStale: true` → 仍抛 `HoldingError`（旗标不得越过「活着就不接管」）；未传 `stealStale` → 行为与今日一致 —— checkable: FAIL
   - 写失败测试（pid 复用）：记录 `startedAt` 与在册进程启动时刻差 10 分钟 → `alive === false`（`ProcessFacts.live` 的容差） —— checkable: FAIL
-  - 实现 `InFlight`：`acquire` 的写序固定为 `ensureMarker()` → `lock()`（`stale: 12h · update: 60s · realpath: false · retries: 0`）→ **取锁成功后**才 `AtomicWriter` 写记录；取锁失败先**只读**既有记录（`stealStale` 且判定亡则先 `steal`，否则抛 `HoldingError`）——零写；`release()` 走反序（删记录 → 解锁）；`steal` 走「判亡 → 清锁 → 删记录」；`held.alive` 由 `ProcessFacts.live` 直取，其 `null` 折成 `true`（留一句注释说明理由） —— checkable: 上述九组用例转绿（含「第二次 `acquire` 失败后记录字节不变」与两向 `stealStale` 用例）
+  - 实现 `InFlight`：`acquire` 的写序固定为 `ensureMarker()` → `stealStale` 的接管 → **活持有者兜底自查**（站着的记录其 pid 活、或存活不可读，抛 `HoldingError`，零写零锁；门是主守卫，这是类自身的兜底）→ `lock()`（`stale: 12h · update: 60s · realpath: false · retries: 0`）→ **取锁成功后**才 `AtomicWriter` 写记录；取锁失败先**只读**既有记录（`stealStale` 且判定亡则先 `steal`，否则抛 `HoldingError`）——零写；`release()` 走反序（删记录 → 解锁）；`steal` 走「判亡 → 清锁 → 删记录」；`held.alive` 由 `ProcessFacts.live` 直取，其 `null` 折成 `true`（留一句注释说明理由） —— checkable: 上述九组用例转绿（含「第二次 `acquire` 失败后记录字节不变」与两向 `stealStale` 用例）
   - 接线 `CliLifecycle`：派发前 `ensureMarker()` + `acquire(record, { stealStale })`（门只判不写，写入面全在此）；**唯一 `release()` 调用点 = 本轮正常收工**（子进程自然结束且 handoff 读完）；**崩溃 / kill / 超时 / 未捕获异常等一切非正常终止路径零 `release()`**（记录留档，锁由库在优雅退出时移除）；`--dry-run` 从不 `acquire()`，故无 `release()`；门通过到 `acquire` 之间的竞态（另一派发抢先取锁）由 `HoldingError` 上传给 CLI，走与门同一条 `held` BLOCK 报文（Task 6 钉） —— checkable: `termination.test.ts` 的终端态用例全绿，且新增「崩溃后记录仍在」断言
   - `SamplingLoop` 改调 `InFlight.heartbeat`，删除 `heartbeatPath` 直写与 `liveness.json` 派生；`stop()` 的 `rmSync(heartbeatPath)` 腿**删除**（自结束也不碰记录，移除只归 `release()` / `steal()`）；`Sampler.excludesFor` 的排除项改指记录文件 —— checkable: 源码面 `grep -rn "liveness.json" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 零命中，且 `face/termination.ts` 内零 `rmSync`（heartbeat 夹具同任务改指记录文件）；新 pin：自结束轮次在 `release()` 前记录仍在，释放后记录与锁同时消失
   - `declare.ts` 增 `ARGV_CHANNEL.stealStale = { flag: "--steal-stale", type: "bool", help: … }` 并在 implement / review / fix 三命令的 keys 里挂上（命令面仍八条） —— checkable: `cli.test.ts` 的结构 pin 绿（八命令不变）+ 新用例：`cdd implement --steal-stale` 出现在该命令 help 面
@@ -415,8 +415,8 @@ base: develop
   - 两份 SKILL.md 改完后给 `recovery-wording.test.ts` 加**正向断言**（至少一份 SKILL.md 逐字命中上面三个 canonical 英文片段）并跑绿 —— checkable: 负向断言改文前绿 · 正向断言改文后绿
   - 写 changeset `.changeset/p21-sole-read-write-path.md`：cdd-engine **minor**（新旗标 `--steal-stale` · 新增结构规则 · 门序扩展 · board 读面更替）+ kairos **patch**（skill 文本） —— checkable: `pnpm exec changeset status` 无报错
   - 跑全量 `env -u AI_AGENT pnpm run validate` —— checkable: ALL PASS（emit fresh · root/kairos/engine 三套绿 · typecheck ×3 · version-sync · 零裸函数）
-  - 复核冻结面零漂移（源码面，测试夹具不计）：`grep -rn "liveness.json\|pidusage\|never the stored number" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 零命中，且 `packages/cdd-engine/package.json#dependencies` 恰八项（`commander` · `execa` · `jsonc-parser` · `simple-git` · `yaml` · `write-file-atomic` · `ps-list` · `proper-lockfile`，零 `pidusage`） —— checkable: 零命中 + 依赖清单逐字八项
-- **Acceptance**: 两份 SKILL.md 的 recipe 在册且过 `skill-anatomy` 契约 · 消费面 skill 零 `pgrep` / `stash` / `checkout --`（负向断言改文前即绿 · 正向断言改文后绿）· 恢复三句以 canonical 英文串在 SKILL.md 逐字在册（与 `words.ts` 同一串）· changeset 标 cdd-engine minor + kairos patch · `env -u AI_AGENT pnpm run validate` ALL PASS · 冻结面零漂移（源码面零 `liveness.json` / `pidusage` / `never the stored number`，依赖面仍八项）
+  - 复核冻结面零漂移（源码面，测试夹具不计）：`grep -rn "liveness.json\|pidusage\|never the stored number" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 零命中，且 `packages/cdd-engine/package.json#dependencies` 含八条声明的 OS 面行（`commander` · `execa` · `jsonc-parser` · `simple-git` · `yaml` · `write-file-atomic` · `ps-list` · `proper-lockfile`，零 `pidusage`），另加 Task 9 / Task 10 引入的 AST 依赖（`mdast-util-from-markdown` 及其配套） —— checkable: 零命中 + 八条 OS 面行逐条在册 + 零 `pidusage`
+- **Acceptance**: 两份 SKILL.md 的 recipe 在册且过 `skill-anatomy` 契约 · 消费面 skill 零 `pgrep` / `stash` / `checkout --`（负向断言改文前即绿 · 正向断言改文后绿）· 恢复三句以 canonical 英文串在 SKILL.md 逐字在册（与 `words.ts` 同一串）· changeset 标 cdd-engine minor + kairos patch · `env -u AI_AGENT pnpm run validate` ALL PASS · 冻结面零漂移（源码面零 `liveness.json` / `pidusage` / `never the stored number`，八条声明的 OS 面行在册且零 `pidusage`，另加 Task 9/10 的 AST 依赖）
 - **DependsOn**: 1,2,3,4,5,6,7,9,10,11
 
 ### Task 9: 计划 Task 块契约（标题分节 · `mdast` 块级 reader · 三个读者换源）
@@ -506,11 +506,12 @@ base: develop
   - `home-extractors.ts` 的按 home 取数改走 selector（28 处），`invariants.ts` 20 条策略同批换读 —— checkable: `grep -rn "this.overall(ctx)" .../contract/invariants.ts` 零命中；21 条规则的**语义 pin** 全绿
   - `translate.ts` 逐行 API → `canonicalize(text): string` 前置一次 —— checkable: `translate.test.ts` 重锚后绿，且引擎面只余一处 canonicalize 调用
   - `skeleton.ts` 往返 pin —— checkable: 骨架输出 → parse → 标题树 / 表头 / 元素顺序逐一相等
-  - **身份零变化 pin**：`cdd schema get plan --output json` 与 `--output skeleton` 的字节与改造前逐字节相等；21 条规则 finding 的 `field:` 值集不变 —— checkable: 两条 pin 绿
+  - **身份面零变化 pin**：`cdd schema get plan --output json` 与 `--output skeleton` 的字节与改造前逐字节相等；schema 键集 / `required[]` / 21 条规则 finding 的 `field:` 值集 / 骨架槽位集不变 —— checkable: 两条 pin 绿
+  - **值形面三处登记变更**（与 spec §7.5.3 同一登记）：`Implementation plan cell` 与 `Design spec cell` 接受证据追记形 `✔ Done（…） <prose>`（两形在 selector 迁移前是死值——老判定面根本不看这两格，使规则生效而又不改域会让仓内 overall 自身违契）· `Soft edge` 收紧为必须带目标 token `-> P<n>`（仓内零消费者，收紧零代价）；身份（键集 / `required[]` / 骨架槽位 / finding `field:`）不动 —— checkable: 两形单元格由 `markdown-tree.test.ts` 的单元格 pin 与覆盖矩阵钉住、`Soft edge` 由 schema snapshot 与图边 pin 钉住，均绿
   - **重锚清单落账**（deliberate break，提交里点名）：反引号剥离边界 · 表格 `|` 切分与对齐行 · 缩进假设 · 手算 heading rank 四组用例改节点级等价断言 —— checkable: 四组重锚后绿，且旧断言零残留
   - 收口 —— checkable: `pnpm -C packages/cdd-engine test` 绿 · `pnpm run typecheck` ×3 · `check:no-bare-functions` 零命中 · `pnpm run validate` ALL PASS
 
-- **Acceptance**: `grep -rn "from-markdown" … --include='*.ts' | grep -v __tests__` 只命中 `contract/markdown-tree.ts` · 覆盖矩阵 **114/114** 非空 · `anchor` / `home` 作为身份零改动（`schema get` 两形态字节 pin + finding `field:` 值集 pin）· 表格四种边界 + 行/单元格 + 字段内 token + step 叶 + 图边各一 pin · `doc.ts` / `invariants.ts` 的手写扫描零残留 · 骨架往返同构 · 21 条规则**语义 pin** 全绿 · **重锚清单**（四组）在提交里点名且旧断言零残留 · 归一化只在前置一处 · `pnpm run validate` ALL PASS
+- **Acceptance**: `grep -rn "from-markdown" … --include='*.ts' | grep -v __tests__` 只命中 `contract/markdown-tree.ts` · 覆盖矩阵 **114/114** 非空 · 身份面零改动（`schema get` 两形态字节 pin + 键集 / `required[]` / finding `field:` 值集 pin）· **值形面三处登记变更**在册（证据追记形的两格由单元格 pin 与覆盖矩阵钉住，收紧的 soft-edge token 由图边 pin 与 snapshot 钉住）· 表格四种边界 + 行/单元格 + 字段内 token + step 叶 + 图边各一 pin · `doc.ts` / `invariants.ts` 的手写扫描零残留 · 骨架往返同构 · 21 条规则**语义 pin** 全绿 · **重锚清单**（四组）在提交里点名且旧断言零残留 · 归一化只在前置一处 · `pnpm run validate` ALL PASS
 - **DependsOn**: 9
 
 ### Task 11: `next:` skill-ref 措辞 · 四份 skill 删复述
@@ -551,3 +552,4 @@ base: develop
 | v0.11 | 2026-10-28 | **追加 Task 10：全契约面迁移（spec §7.5 · D65 ⑤）**——`MarkdownTree` 成为四类文档唯一入口（gfm + frontmatter 扩展），登记面 `anchor`+`home` → 封闭集 selector，归一化前置，骨架往返 pin，删 `doc.ts`/`invariants.ts` 的手写扫描面；`DependsOn: 9`，Task 8 的依赖加 10。**波次**：T10 依赖 9 → 层 4，故派生 W1={1,2,3} · W2={4,5,7} · W3={6,9} · W4={10} · W5={8}（真依赖，无调度边） | [human] · Claude（kairos:cdd-dev · scope append 其二 · 2026-10-28） |
 | v0.12 | 2026-10-28 | **Task 10 重写（W4 implement blocker 报告 + spec v0.16）**：身份与定位分离（`anchor` 不动，新增 `selector`）· selector 可组合（八种 walk + 四守卫 + `from` 父链）· 覆盖矩阵 114/114 入验收 · pin 分两类（语义 pin 不动、四组扫描行为 pin 逐条重锚并点名）· 新增 `selector-coverage.test.ts` 与 `markdown-tree.test.ts` 两个落点 | [human] · Claude（kairos:cdd-dev · blocker backfill · 2026-10-28） |
 | v0.13 | 2026-10-28 | **追加 Task 11：`next:` skill-ref 措辞与 skill 面收敛（用户裁定）**——ref 渲染改 `route to {ref} skill`（literal/done 不变）；四份 SKILL.md 不再复述 `next:` 语义（引擎输出契约不该在 skill 侧再声明一次），节点只留一行指针；Invariants 收敛。Task 8 依赖加 11 | [human] · Claude（kairos:cdd-dev · 2026-10-28） |
+| v0.14 | 2026-10-29 | **branch-review-1 回填（plan 写权 + spec v0.18）**：① Task 2 `Produces` 删 `maxRecordedTask`（v0.10 的判据改动后已死值，实现面早已不携带） ② Task 8 冻结面 checkable 与 Acceptance 由「依赖清单逐字八项」改为「八条声明的 OS 面行逐条在册 + 零 `pidusage`」，另加 Task 9/10 引入的 AST 依赖（计划分两期追加，八项判据对 13 项清单不可满足） ③ Task 10 增「值形面三处登记变更」（与 spec §7.5.3 同一登记：两格证据追记形 · 收紧的 soft-edge token），身份 pin 表述收窄为键集 / `required[]` / 骨架槽位 / finding `field:` · ④ `InFlight.acquire` 增**活持有者兜底自查**（写序改为 marker → 接管 → 自查 → lock → 记录；门是主守卫，自查是类自身的兜底，spec §2.2 同批登记） | [human] · Claude（kairos:cdd-dev · branch-review-1 backfill · 2026-10-29） |

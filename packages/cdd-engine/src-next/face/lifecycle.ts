@@ -281,9 +281,9 @@ export class CliLifecycle {
   }
 
   /** The in-flight record of one frame — the identity facts written before the spawn.
-   *  `pid`/`pgid` are the dispatching engine process (its own group anchor), the
-   *  command is the same-command resume form, and the brief hash is computed NOW from
-   *  the rendered brief (the ledger's ONE hash face — never a new hash surface).
+   *  `pid` is the dispatching engine process, the command is the same-command resume
+   *  form, and the brief hash is computed NOW from the rendered brief (the ledger's ONE
+   *  hash face — never a new hash surface).
    *  `startedAt` is the recorded pid's OWN start instant (`ProcessFacts.startOf`), the
    *  instant `ProcessFacts.live` compares against: the dispatch instant drifts away
    *  from it, and on a session older than the tolerance that drift would judge a live
@@ -294,7 +294,6 @@ export class CliLifecycle {
     const scene = this.#scene;
     return {
       pid: process.pid,
-      pgid: process.pid,
       command: this.#resumeOf(frame),
       slug: scene.workspace.slug,
       startedAt: (await this.#proc.startOf(process.pid)) ?? Date.now(),

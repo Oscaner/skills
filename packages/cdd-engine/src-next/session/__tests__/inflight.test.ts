@@ -64,7 +64,6 @@ const isRoot = (): boolean => typeof process.getuid === "function" && process.ge
 /** An intent record over the given identity facts. */
 const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
   pid: process.pid,
-  pgid: process.pid,
   command: "cdd implement --tasks 1 --plan docs/p3.md",
   slug: "p3",
   startedAt: Date.now(),
@@ -165,6 +164,44 @@ describe("InFlight.acquire — the intent record before the spawn", () => {
       await holder.release();
     }
   });
+
+  it("refuses a standing record whose holder is alive — even with no lock on disk", async () => {
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    // The gate's shape, not the lock's: a live holder's record whose lock is already
+    // gone. `acquire` itself must not displace it.
+    plantRecord(inflight, recordOf({ command: "cdd implement --tasks 9", wave: "9" }));
+    const before = readFileSync(inflight.path());
+    await expect(inflight.acquire(recordOf({ wave: "2" }))).rejects.toBeInstanceOf(HoldingError);
+    // Zero write and zero lock: the refusal never leaves a lock behind.
+    expect(readFileSync(inflight.path()).equals(before)).toBe(true);
+    expect(existsSync(inflight.lockPath())).toBe(false);
+  });
+
+  it("refuses an UNREADABLE liveness too — an unread fact never authorizes a displacement", async () => {
+    const repo = scratch();
+    const unreadable: LivenessReader = { live: async () => null };
+    const inflight = inflightOf(repo, "p3", unreadable);
+    plantRecord(inflight, recordOf({ command: "cdd implement --tasks 9" }));
+    const before = readFileSync(inflight.path());
+    await expect(inflight.acquire(recordOf({ wave: "2" }))).rejects.toBeInstanceOf(HoldingError);
+    expect(readFileSync(inflight.path()).equals(before)).toBe(true);
+  });
+
+  it("displaces a record whose holder is proven dead — nothing is running to displace", async () => {
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    plantRecord(inflight, recordOf({ pid: DEAD_PID, command: "cdd implement --tasks 9" }));
+    const fresh = recordOf({ command: "cdd implement --tasks 1", wave: "1" });
+    await inflight.acquire(fresh);
+    try {
+      const state = (await inflight.inspect()) as Extract<InFlightState, { kind: "held" }>;
+      expect(state.record.command).toBe(fresh.command);
+      expect(state.record.wave).toBe("1");
+    } finally {
+      await inflight.release();
+    }
+  });
 });
 
 describe("InFlight.release / inspect — the normal end and the crash", () => {
@@ -219,6 +256,22 @@ describe("InFlight.inspect / steal — the corrupt record and the takeover rules
     const inflight = inflightOf(repo);
     plantCorrupt(inflight, false);
     expect(await inflight.inspect()).toEqual({ kind: "corrupt", locked: false });
+  });
+
+  it("lets acquire displace a corrupt record with no lock — no holder fact to honor", async () => {
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    plantCorrupt(inflight, false);
+    const fresh = recordOf({ command: "cdd implement --tasks 1", wave: "1" });
+    // A corrupt record with no lock has no holder: refusing here would wedge the tree
+    // forever (nothing else would ever clear it).
+    await inflight.acquire(fresh);
+    try {
+      const state = (await inflight.inspect()) as Extract<InFlightState, { kind: "held" }>;
+      expect(state.record.command).toBe(fresh.command);
+    } finally {
+      await inflight.release();
+    }
   });
 
   it("steals a corrupt locked record (clearing the lock), and refuses a live readable holder", async () => {

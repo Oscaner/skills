@@ -194,7 +194,6 @@ const inflightOf = (repoRoot: string, alive: boolean): InFlight =>
 /** One standing in-flight record — the identity facts the gate names. */
 const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
   pid: 4242,
-  pgid: 4242,
   command: "cdd implement --tasks 1 --plan docs/p.md",
   slug: "other-slug",
   startedAt: Date.parse("2026-10-28T10:00:00.000Z"),

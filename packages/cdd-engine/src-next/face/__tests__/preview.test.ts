@@ -450,7 +450,6 @@ const writeRecord = (
     `${JSON.stringify(
       {
         pid: record.pid,
-        pgid: record.pid,
         command: "cdd implement --tasks 1 --plan docs/kairos/plans/p3.md",
         slug: "p3",
         startedAt: record.startedAt,

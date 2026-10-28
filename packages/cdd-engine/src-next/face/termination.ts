@@ -229,8 +229,10 @@ export class StallJudge {
  *   · The scan root is the child's cwd (the repo root), so the "scan root ≡ child cwd"
  *     correspondence is structural.
  *   · `exclude` is the engine's own writes — `Sampler.excludesFor` is its single
- *     source: the repo's `.git/` and the dispatch's in-flight record. The rest of
- *     `.kairos/` is NOT excluded: a child's handoff draft there is real progress. */
+ *     source: the repo's `.git/` and the dispatch's in-flight record together with
+ *     that record's atomic temp siblings (`<record>.<n>`, the atomic write seam's
+ *     own files). The rest of `.kairos/` is NOT excluded: a child's handoff draft
+ *     there is real progress. An entry ending in `.` is a sibling prefix. */
 export class Sampler {
   /** The deepest tree level the walk descends to. */
   static readonly MAX_DEPTH = 32;
@@ -239,20 +241,39 @@ export class Sampler {
 
   readonly #pgid: number;
   readonly #scanRoot: string;
+  /** The excluded paths themselves. */
   readonly #exclude: ReadonlySet<string>;
+  /** The excluded sibling prefixes — an engine artifact's atomic temp files. */
+  readonly #excludePrefixes: readonly string[];
 
   constructor(options: { pgid: number; scanRoot: string; exclude: readonly string[] }) {
     this.#pgid = options.pgid;
     // Absolute, normalized forms on both sides of the comparison below, so an
     // exclusion matches the walked path it names.
     this.#scanRoot = path.resolve(options.scanRoot);
-    this.#exclude = new Set(options.exclude.map((entry) => path.resolve(entry)));
+    const entries = options.exclude.map((entry) => path.resolve(entry));
+    this.#exclude = new Set(entries.filter((entry) => !Sampler.#isPrefix(entry)));
+    this.#excludePrefixes = entries.filter((entry) => Sampler.#isPrefix(entry));
   }
 
-  /** The exclusion single source for one dispatch: the repo's VCS internal plus the
-   *  in-flight record the engine itself writes (a tick must never self-certify). */
+  /** The exclusion single source for one dispatch: the repo's VCS internal, the
+   *  in-flight record the engine itself writes, and that record's atomic temp siblings
+   *  (`write-file-atomic` writes `<target>.<n>`) — a tick must never self-certify. */
   static excludesFor(scanRoot: string, recordPath: string): readonly string[] {
-    return [path.join(scanRoot, Sampler.VCS_DIR), recordPath];
+    return [path.join(scanRoot, Sampler.VCS_DIR), recordPath, `${recordPath}.`];
+  }
+
+  /** Whether an exclusion entry names a sibling prefix rather than one exact path. */
+  static #isPrefix(entry: string): boolean {
+    return entry.endsWith(".");
+  }
+
+  /** Whether a walked path is one of the engine's own writes. */
+  #isEngineWrite(candidate: string): boolean {
+    return (
+      this.#exclude.has(candidate) ||
+      this.#excludePrefixes.some((prefix) => candidate.startsWith(prefix))
+    );
   }
 
   /** Read both legs of this tick — each independently fail-open: a leg the platform
@@ -285,7 +306,7 @@ export class Sampler {
       const child = path.join(dir, entry.name);
       // A symlink is never followed (it can leave the tree outright); an excluded path
       // is the engine's own write.
-      if (entry.isSymbolicLink() || this.#exclude.has(child)) continue;
+      if (entry.isSymbolicLink() || this.#isEngineWrite(child)) continue;
       if (entry.isDirectory()) {
         const nested = this.#newestIn(child, depth + 1);
         if (nested !== null && (newest === null || nested > newest)) newest = nested;

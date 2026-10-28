@@ -57,7 +57,6 @@ const inflightOf = (root: string): InFlight =>
  *  its intent first, then the sampling loop overwrites only the sampling cells). */
 const recordOf = (): InFlightRecord => ({
   pid: process.pid,
-  pgid: process.pid,
   command: "cdd implement --tasks 1",
   slug: "probe",
   startedAt: Date.now(),
@@ -545,7 +544,7 @@ describe("StallJudge — the four-state truth table (spec §3.3)", () => {
 });
 
 describe("Sampler — the two legs (spec §3.3)", () => {
-  it("reads the newest content mtime, excluding `.git/` and the in-flight record's exact path but not `.kairos/`", () => {
+  it("reads the newest content mtime, excluding `.git/` and the in-flight record but not `.kairos/`", () => {
     const root = scratch();
     plant(root, "progress.md", EPOCH + 10);
     // A child's handoff draft under `.kairos/` IS real progress — the domain is never
@@ -639,6 +638,13 @@ describe("Sampler — the two legs (spec §3.3)", () => {
       const second = sampler.probe();
       expect(second.newestMtimeMs).toBe(first.newestMtimeMs);
       expect(judge.observe(second, 1000)).toBe("stalled");
+      // The atomic write seam's OWN temp sibling (`<record>.<n>`) is the engine's
+      // write too: a tick landing mid-write must not read it as the child's progress.
+      const sibling = plant(root, ".kairos/cdd/in-flight.json.4123456789", EPOCH + 1200);
+      const third = sampler.probe();
+      expect(third.newestMtimeMs).toBe(statSync(draft).mtimeMs);
+      expect(statSync(sibling).mtimeMs).toBeGreaterThan(statSync(recordPath).mtimeMs);
+      expect(judge.observe(third, 2000)).toBe("stalled");
     } finally {
       reap(pid);
     }

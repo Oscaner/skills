@@ -9,9 +9,12 @@
 //   · the record lives at the workspace-root level (`.kairos/cdd/in-flight.json` under
 //     the default configuration) — the tree, not a slug, is the collision domain, so a
 //     second dispatch of ANY slug is refused while a live record stands;
-//   · the write order is fixed: publish the namespace keep-out marker → take the lock
-//     (`proper-lockfile`) → only then write the record. A failed lock leaves the
-//     record bytes untouched: a challenger never overwrites a live holder's facts;
+//   · the write order is fixed: publish the namespace keep-out marker → (the flag's
+//     takeover) → the live-holder guard → take the lock (`proper-lockfile`) → only then
+//     write the record. The guard is this class's own fail-closed check on a standing
+//     record (the pre-flight gate is the primary one), so a second write point cannot
+//     skip the protection. A failed lock leaves the record bytes untouched: a challenger
+//     never overwrites a live holder's facts;
 //   · no exit path removes the record — a crash / kill / timeout leaves it behind as
 //     the postmortem fact. Only `release()` (the normal end) and `steal()` (the
 //     explicit takeover) remove it. `proper-lockfile` drops the lock on any graceful
@@ -40,9 +43,6 @@ import type { WorkspaceRoot } from "../infra/workspace.ts";
 export interface InFlightRecord {
   /** The dispatching engine process's pid — the liveness criterion's subject. */
   readonly pid: number;
-  /** The dispatch's process-group anchor (the engine's own pid: the dispatch's group
-   *  root is the process that owns the record). */
-  readonly pgid: number;
   /** The dispatch's human-readable command (the same-command resume form) — what a
    *  holder report names, never the child's whole prompt. */
   readonly command: string;
@@ -156,17 +156,21 @@ export class InFlight {
   }
 
   /** Take the record — the ONLY write point of a real dispatch (the gates read
-   *  `inspect()`, they never call this). The order is fixed: marker → lock → record.
-   *  `stealStale` only acts HERE: a standing record whose holder is dead (or a
-   *  corrupt record with a leftover lock) is taken over first; a live holder is never
-   *  displaced. A failed lock throws `HoldingError` carrying the holder's facts and
-   *  leaves the record bytes untouched. */
+   *  `inspect()`, they never call this). The order is fixed: marker → (flag's takeover)
+   *  → live-holder guard → lock → record. The guard is the class's OWN fail-closed
+   *  check that a standing record is never displaced while its holder lives: the
+   *  pre-flight gate is the primary guard, this one keeps the invariant true for any
+   *  other write point. `stealStale` only acts HERE: a standing record whose holder is
+   *  dead (or a corrupt record with a leftover lock) is taken over first; a live holder
+   *  is never displaced. A failed lock throws `HoldingError` carrying the holder's
+   *  facts and leaves the record bytes untouched. */
   async acquire(
     record: InFlightRecord,
     options: { readonly stealStale?: boolean } = {},
   ): Promise<void> {
     this.ensureMarker();
     if (options.stealStale === true) await this.#stealIfDead();
+    await this.#refuseLiveHolder();
     try {
       this.#unlock = await lockfile.lock(this.path(), {
         stale: InFlight.LOCK_STALE_MS,
@@ -182,6 +186,18 @@ export class InFlight {
       throw new HoldingError(this.#holdingMessage(holder), holder);
     }
     this.#writeRecord(record);
+  }
+
+  /** The live-holder guard — refuse a standing record whose holder is alive (or whose
+   *  liveness cannot be read, which folds to alive), BEFORE the lock is taken: zero
+   *  write, zero lock left behind. A record proven dead is displaced (the lock was
+   *  free, so this dispatch is the tree's next legitimate holder); a corrupt record
+   *  carries no live fact to honor and is displaced too — refusing there would wedge
+   *  the tree for good, since nothing else clears an unlocked corrupt record. */
+  async #refuseLiveHolder(): Promise<void> {
+    const state = await this.inspect();
+    if (state.kind !== "held" || !state.alive) return;
+    throw new HoldingError(this.#holdingMessage(state.record), state.record);
   }
 
   /** Overwrite the running dispatch's sampling cells — the identity fields stay
@@ -313,7 +329,6 @@ export class InFlight {
     if (typeof row.command !== "string" || typeof row.slug !== "string") return null;
     return {
       pid: row.pid,
-      pgid: typeof row.pgid === "number" ? row.pgid : row.pid,
       command: row.command,
       slug: row.slug,
       startedAt: row.startedAt,

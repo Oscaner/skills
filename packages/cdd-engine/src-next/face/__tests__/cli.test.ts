@@ -6666,7 +6666,6 @@ describe("cdd <verb> — the in-flight acquire race", () => {
     const sync = new StubRunner();
     const competitorRecord: InFlightRecord = {
       pid: 777_777,
-      pgid: 777_777,
       command: "cdd implement --tasks 1 --plan docs/kairos/plans/p3.md",
       slug: "other",
       startedAt: Date.parse("2026-10-28T10:00:00.000Z"),

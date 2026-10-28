@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 实施计划：引擎作为唯一读写路径
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-10-28
 slug: 2026-10-10-engine-doc-tooling-p21
 base: develop
@@ -417,7 +417,49 @@ base: develop
   - 跑全量 `env -u AI_AGENT pnpm run validate` —— checkable: ALL PASS（emit fresh · root/kairos/engine 三套绿 · typecheck ×3 · version-sync · 零裸函数）
   - 复核冻结面零漂移（源码面，测试夹具不计）：`grep -rn "liveness.json\|pidusage\|never the stored number" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 零命中，且 `packages/cdd-engine/package.json#dependencies` 恰八项（`commander` · `execa` · `jsonc-parser` · `simple-git` · `yaml` · `write-file-atomic` · `ps-list` · `proper-lockfile`，零 `pidusage`） —— checkable: 零命中 + 依赖清单逐字八项
 - **Acceptance**: 两份 SKILL.md 的 recipe 在册且过 `skill-anatomy` 契约 · 消费面 skill 零 `pgrep` / `stash` / `checkout --`（负向断言改文前即绿 · 正向断言改文后绿）· 恢复三句以 canonical 英文串在 SKILL.md 逐字在册（与 `words.ts` 同一串）· changeset 标 cdd-engine minor + kairos patch · `env -u AI_AGENT pnpm run validate` ALL PASS · 冻结面零漂移（源码面零 `liveness.json` / `pidusage` / `never the stored number`，依赖面仍八项）
-- **DependsOn**: 1,2,3,4,5,6,7
+- **DependsOn**: 1,2,3,4,5,6,7,9
+
+### Task 9: 计划 Task 块契约（标题分节 · `mdast` 块级 reader · 三个读者换源）
+
+- **Objective**: 把计划 Task 块从「字段项目符号」改成「标题分节」，并把这一面的结构解析换成 `mdast`（`mdast-util-from-markdown`）：新增 `PlanTaskBlocksReader` 作为块结构的**唯一**解析面，`session/graph.ts` 的 `DependsOn`、`render/brief.ts` 的任务段切片、`render/skeleton.ts` 的渲染全部换源；旧项目符号形作为读得懂的兼容输入（归一化是 reader 的一个方法，**不是第二份声明**），仓内冻结计划零改；骨架只吐新形；允许任意扩展 `####` 节（不得与七个保留键重名，非保留节只作正文）。`render/brief.ts#rawSection`（遇任何 `^#` 行即截断）随节点区间删除——漏了这条，`####` 子节会让 brief 静默截成一行标题而门全绿。
+- **Files**: Create `packages/cdd-engine/src-next/contract/task-blocks.ts` · `packages/cdd-engine/src-next/contract/__tests__/task-blocks.test.ts`; Modify `packages/cdd-engine/src-next/contract/declare.ts`（plan 的七个 task 字段元素改 heading 形 · 扩展节的允许面）· `packages/cdd-engine/src-next/contract/doc.ts`（`PlanDocType.taskBlocks` 委托 reader · 保留旧字段名以零破坏）· `packages/cdd-engine/src-next/session/graph.ts`（`DependsOn` 读 reader）· `packages/cdd-engine/src-next/render/brief.ts`（按 AST 节点区间切片 · 删 `#rawSection`）· `packages/cdd-engine/src-next/render/skeleton.ts`（`#taskBlock` 吐新形 + 两条 step 样例）· 对应 `__tests__`（`graph` / `brief` / `skeleton`）
+- **Consumes**: `contract/doc.ts` 的 `PlanDocType.parse` 与 `TaskBlock` 现记录（`id` / `heading` / `fields` / `steps`）· `render/brief.ts:90-104` 的 `#rawSection`（截断缺陷所在）· `session/graph.ts` 的 `DependsOn` 读法 · `render/skeleton.ts:455-483` 的 `#taskBlock`（七字段 + 一条 step 样例）· Task 2 的登记面与 `RULE_REGISTRY`（字段元素的 `home`/`presence` 由它驱动）
+- **Produces**:
+  ```ts
+  // contract/task-blocks.ts —— 块结构的唯一解析面（mdast 节点 → TaskBlock）
+  export interface TaskField { readonly key: string; readonly lines: readonly string[]; }
+  export interface TaskStep { readonly action: string; readonly checkable: string | null; }
+  export interface TaskBlock {
+    readonly id: number;
+    readonly heading: string;          // `### Task N: <title>` 原文
+    readonly fields: readonly TaskField[];   // 七个保留键按文档序 + 扩展节一并收（key 即节标题）
+    readonly steps: readonly TaskStep[];
+    /** 节点区间（行号，1-based 起止）——brief 切片用，替代 `#rawSection` 的 ^# 扫描。 */
+    readonly range: { readonly start: number; readonly end: number };
+    /** 该块用的是新形（heading）还是兼容形（list），供门与诊断区分。 */
+    readonly shape: "heading" | "legacy";
+  }
+  export class PlanTaskBlocksReader {
+    static readonly RESERVED: readonly string[];   // Objective · Files · Consumes · Produces · Steps · Acceptance · DependsOn
+    /** 一次解析：两种节点（heading / list item）归一成同一份 TaskBlock。 */
+    parse(content: string): readonly TaskBlock[];
+    /** 单块的 `DependsOn` 值（首行；`none` → 空集）。 */
+    dependsOn(block: TaskBlock): readonly number[];
+  }
+  ```
+- **Steps**:
+  - 添加依赖：`pnpm -C packages/cdd-engine add mdast-util-from-markdown` —— checkable: `package.json#dependencies` 出现，`pnpm -C packages/cdd-engine install` 零报错
+  - 写失败测试 `task-blocks.test.ts`（新形）：一块 `### Task 1: x` + 七个 `#### Key` 子节 + `#### DependsOn` 体首行 `2, 3` → `fields` 七项按文档序、`dependsOn === [2,3]`、`shape === "heading"`、`range` 恰为该块首行到下一 `###` 前一行 —— checkable: FAIL
+  - 写失败测试（兼容形）：同一份内容的旧项目符号形 → `fields` 与 `steps` 与新形**逐字段相等**、`shape === "legacy"`、`dependsOn` 同值 —— checkable: FAIL（兼容窗口的核心断言）
+  - 写失败测试（扩展节）：块内出现 `#### Risks` 与 `#### Migration Notes` → 收进 `fields`（key 即节标题）且**不触发**任何必填/值形 finding；出现 `#### Objective` 之外的保留键重复 → 报重复键 —— checkable: FAIL
+  - 实现 `PlanTaskBlocksReader`（`mdast-util-from-markdown` 一次解析 → 遍历 heading 节点取 `### Task N:` 块 → 子 heading 与顶层 list 两种节点归一到 `fields`；`position` 换行号） —— checkable: 上述三组用例转绿
+  - 换源 `contract/doc.ts`：`PlanDocType.taskBlocks` 委托 reader（对外记录形状不变） —— checkable: `contract` 既有测试同批转绿（除本任务新增的形断言）
+  - 换源 `session/graph.ts`：`DependsOn` 经 `reader.dependsOn` 读取（旧形同值） —— checkable: `graph.test.ts` 全绿 + 一条「旧形计划与新形计划派生同一批 wave」的 pin
+  - 换源 `render/brief.ts`：任务段按 `block.range` 切片，删除 `#rawSection` 与其 `^#` 扫描 —— checkable: `brief.test.ts` 新用例——带 `####` 子节的任务块，brief 内容**逐字节包含**该子节（旧实现会截断），且与 `## Constraints` 段的拼接顺序不变
+  - 改 `render/skeleton.ts#taskBlock`：吐新形（七个 `####` 子节 + 两条 step 样例） —— checkable: `skeleton.test.ts` 断言渲染结果的子节标题序列与保留键顺序一致、且含两条 `— checkable:` 样例
+  - `contract/declare.ts`：plan 的七个 task 字段元素改 heading 形（**一份声明**；`valuePattern` 判 `^#### Key$`），并登记「任意 `####` 扩展节允许」这一面（非保留节不参与必填/值形） —— checkable: 一份**新形**计划与一份**旧形**计划各自过 `Contract.validate` 零 finding（兼容窗口的文档面断言）
+- **Acceptance**: 新形与旧形解析结果逐字段相等（`shape` 与 `range` 除外）· 七个保留键一份声明（`declare.ts` 里旧项目符号形的 task-field 元素删除，归一化只在 reader 内）· `DependsOn` 新旧形派生同一批 wave · 带 `####` 子节的任务块 brief 逐字节完整（`#rawSection` 已删除，零 `^#` 截断残留）· 骨架吐新形且含两条 step 样例 · 扩展 `####` 节零 finding · 冻结计划零改（`git diff` 对 `docs/kairos/plans/*` 无改动）· `pnpm -C packages/cdd-engine test` 绿 · typecheck ×3 · 零裸函数门绿
+- **DependsOn**: 7
 
 ## Change history
 
@@ -430,3 +472,4 @@ base: develop
 | v0.5 | 2026-10-28 | W1 评审触发的 plan 修订（spec 回填 v0.9）：两条 lineage 规则改为方向无关——`change-history-version-monotone`（同向贯穿，来回 = 违例）与 `front-matter-version-matches-lineage-end`（header 与首行或末行一致）；Acceptance 增「升序 doc 与降序 doc 各自一条绿 pin」+「来回跳 / header 两端皆不符」两条红 pin；约束里的 spec 引用改 v0.9 | [human] · Claude（kairos:cdd-dev · plan write authority · 2026-10-28） |
 | v0.6 | 2026-10-28 | W1 review-2 触发的 plan 修订（spec 回填 v0.10）：**版本序腿整体撤销**（`change-history-version-monotone` 删除；`front-matter-version-matches-lineage-end` → `front-matter-version-in-lineage`，只判「header 必须出现在变更记录里」）；声明面 23 → 22 行（doc 20 + ledger 2）、wave/branch 的 skipped 面同步 20 行；Task 2 的 pin 重写为「header 未在 lineage 红 + 升序/降序/非单调冻结形态三绿」，并消掉 v0.5 里红色 pin 与降序绿 pin 的自相矛盾 | [human] · Claude（kairos:cdd-dev · plan write authority · 2026-10-28） |
 | v0.7 | 2026-10-28 | Task 2 块整体重写（spec 回填 v0.11 · W1 review-3 的自我矛盾收敛）：**唯一的 lineage 判定 = header 缺席**（`front-matter-version-in-lineage`），`front-matter-version-matches-last-row` 与 `change-history-version-ascending` 两条腿一并删除；声明面 **21 行（doc 19 + ledger 2）**、公共面 6 条——Objective / Produces / Steps / Acceptance 四处算术与措辞同时对齐（此前 23/21 与 22/20 并存）；补 `checked` 的**生产读者**（CLI 通过 + 拒绝两条路径渲染 `checked:` 行）；`contract/declare.ts` 从 Task 2 Files 移除（规则面住 `contract/rules.ts`）；layer 规则写明 subset 读法与对应绿 pin；plan-ledger 拒绝的 `reason` 缺席 | [human] · Claude（kairos:cdd-dev · plan write authority · 2026-10-28） |
+| v0.8 | 2026-10-28 | **追加 Task 9：计划 Task 块契约面（spec §7 · D65）**——`PlanTaskBlocksReader`（`mdast-util-from-markdown`）成为块结构唯一解析面，旧项目符号形作兼容输入（归一化只在 reader 内），`graph` / `brief` / `skeleton` 换源，`brief.ts#rawSection` 随 AST 节点区间删除；Task 8 的 `DependsOn` 接到 `1,2,3,4,5,6,7,9`。**波次形态**：Task 9 依赖 7 → 层 3，与 Task 6（`DependsOn: 2,4` → 层 3）同批，故派生为 W1={1,2,3} · W2={4,5,7} · W3={6,9} · W4={8}（真依赖算出来的，未加调度边） | [human] · Claude（kairos:cdd-dev · scope append · 2026-10-28） |

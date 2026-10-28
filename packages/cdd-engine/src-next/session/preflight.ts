@@ -435,10 +435,27 @@ export class PreFlight {
       planTasks,
       recordedTasks: recorded,
       closedWaves,
-      snapshots: [],
+      // The wave rows' closure-time plan-task snapshots (P21 §5.1) — read from the
+      // SAME ledger face the wave gate's append judgment reads (zero second source).
+      snapshots: this.#snapshotsOf(data, ledger),
       maxRecordedTask: recorded.length > 0 ? Math.max(...recorded) : 0,
       layers,
     };
+  }
+
+  /** The wave rows' plan-task snapshots — one entry per TASK wave row carrying a
+   *  snapshot (an absent snapshot is a historical row, not an empty set). */
+  #snapshotsOf(
+    data: ProgressData | null,
+    ledger: Ledger,
+  ): readonly { readonly wave: string; readonly planTasks: readonly number[] }[] {
+    const snapshots: { wave: string; planTasks: readonly number[] }[] = [];
+    for (const row of data?.waves ?? []) {
+      if (this.#taskIdsOf(row.wave).length === 0) continue;
+      const planTasks = ledger.planTasksOf(row.wave);
+      if (planTasks !== null) snapshots.push({ wave: row.wave, planTasks });
+    }
+    return snapshots;
   }
 
   /** The task ids the ledger recorded at least one round for (the recorded set of

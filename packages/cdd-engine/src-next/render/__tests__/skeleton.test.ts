@@ -169,6 +169,7 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "- **Produces**: :::fill produces",
         "- **Steps**:",
         "  - :::fill step-action — checkable: :::fill step-checkable",
+        "  - :::fill step-action-2 — checkable: :::fill step-checkable-2",
         "- **Acceptance**: :::fill acceptance",
         "- **DependsOn**: none",
         "",
@@ -660,6 +661,53 @@ describe("SkeletonAssembler — the EOF rule", () => {
       const lastLine = rendered.split("\n").at(-1);
       expect(lastLine?.trim().length, `${key}: last line non-blank`).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("SkeletonAssembler — the task block's shape (two step samples · fixed key order)", () => {
+  /** The rendered plan's task-block lines — from the `### Task 1:` heading to the
+   *  next heading (the block the contract judges). */
+  const taskBlockOf = (): string[] => {
+    const lines = renderOf("plan").split("\n");
+    const start = lines.findIndex((line) => line.startsWith("### Task 1:"));
+    const out: string[] = [];
+    for (let index = start; index < lines.length; index += 1) {
+      if (index > start && lines[index].startsWith("#")) break;
+      out.push(lines[index]);
+    }
+    return out;
+  };
+
+  it("renders TWO step samples under `- **Steps**:` — the repeatable unit reads as a list", () => {
+    const block = taskBlockOf();
+    const stepsAt = block.indexOf("- **Steps**:");
+    expect(stepsAt).toBeGreaterThanOrEqual(0);
+    const steps = block.slice(stepsAt + 1, stepsAt + 3);
+    expect(steps.length).toBe(2);
+    for (const step of steps) {
+      expect(step).toMatch(/^ {2}- :::fill \S+ — checkable: :::fill \S+$/);
+    }
+  });
+
+  it("keeps the field key order fixed — Objective → Files → Consumes → Produces → Steps → Acceptance → DependsOn", () => {
+    const block = taskBlockOf();
+    const keys = block
+      .filter((line) => /^- \*\*[^*]+\*\*:/.test(line))
+      .map((line) => line.slice(4, line.indexOf("**:")));
+    expect(keys).toEqual([
+      "Objective",
+      "Files",
+      "Consumes",
+      "Produces",
+      "Steps",
+      "Acceptance",
+      "DependsOn",
+    ]);
+  });
+
+  it("carries zero `<…>` notation tokens in the task block — a fill is the only placeholder form", () => {
+    const offenders = taskBlockOf().filter((line) => /<[^>]+>/.test(line));
+    expect(offenders).toEqual([]);
   });
 });
 

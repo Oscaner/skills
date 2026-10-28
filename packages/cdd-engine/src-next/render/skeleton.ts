@@ -454,7 +454,9 @@ export class SkeletonAssembler {
   /** The first task block — the true-numbered `### Task 1:` heading (the title a
    *  content fill) plus the seven required task fields: the content markers with
    *  their values, the Steps field with the checkable step form (§3.2), and the
-   *  `none` DependsOn default. */
+   *  `none` DependsOn default. The Steps field shows TWO step samples (the step
+   *  lines are the task block's only repeatable unit), so the shape reads as a
+   *  list from the first glance — zero new fields, the key order unchanged. */
   #taskBlock(probe: Set<string>): string[] {
     probe.add("### Task N:");
     probe.add("Task id token");
@@ -476,6 +478,7 @@ export class SkeletonAssembler {
       "- **Produces**: :::fill produces",
       "- **Steps**:",
       "  - :::fill step-action — checkable: :::fill step-checkable",
+      "  - :::fill step-action-2 — checkable: :::fill step-checkable-2",
       "- **Acceptance**: :::fill acceptance",
       "- **DependsOn**: none",
       "",

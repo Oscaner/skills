@@ -139,4 +139,47 @@ describe("RoundNaming — the frame → prescribed artifact names (report / evid
     expect(NAMING.prefix(frame({ type: "wave" }))).toBe("tasks");
     expect(NAMING.prefix(frame({ type: "branch" }))).toBe("branch");
   });
+
+  it("derives the crash record's name from the frame's ONE identity — verb preserved, no lane parameter", () => {
+    // wave: the task group keys the line; the op keeps implement and review apart at
+    // the same round (the two records coexist, never overwrite each other).
+    expect(NAMING.crashName(frame({ type: "wave", round: 2, params: { tasks: "3,4" } }))).toBe(
+      "crash-tasks-3,4-implement-2.json",
+    );
+    expect(
+      NAMING.crashName(
+        frame({ type: "wave", phase: "review", round: 2, params: { tasks: "3,4", round: 2 } }),
+      ),
+    ).toBe("crash-tasks-3,4-review-2.json");
+    // branch: the line-type constant, the review family op (branch-review → review)
+    expect(
+      NAMING.crashName(
+        frame({
+          type: "branch",
+          phase: "branch-review",
+          round: 2,
+          target: { kind: "branch" },
+          params: { round: 2 },
+          key: "branch",
+        }),
+      ),
+    ).toBe("crash-branch-review-2.json");
+    // doc lines: the doc-type constant
+    expect(
+      NAMING.crashName(
+        frame({
+          type: "plan",
+          phase: "review",
+          round: 2,
+          target: { kind: "plan", doc: "p.md" },
+          params: { round: 2 },
+          key: "p.md",
+        }),
+      ),
+    ).toBe("crash-plan-review-2.json");
+    // crashPath is the same derivation resolved against the workspace
+    expect(NAMING.crashPath(frame({ type: "wave", round: 2, params: { tasks: "3,4" } }))).toBe(
+      inWorkspace("crash-tasks-3,4-implement-2.json"),
+    );
+  });
 });

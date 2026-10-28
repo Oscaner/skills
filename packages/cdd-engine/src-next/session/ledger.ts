@@ -33,6 +33,7 @@ import { type Carrier, type CarrierPlane, HandoffSchema } from "./handoff-schema
 import { LineIdentity } from "./line-identity.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
+import { RoundNaming } from "./round-naming.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
 
 // ---------------------------------------------------------------------------
@@ -126,6 +127,12 @@ export type ProgressRow = {
    *  identity-aware gate reopens the closed line on drift from it. The two kinds are
    *  mutually exclusive per row (a line is a doc line or a wave line, never both). */
   reviewedRevision?: ReviewedRevisionRef;
+  /** The plan's task set at the instant this wave closed, recorded ONCE at the
+   *  closure point and never updated (a historical fact: the plan may later gain
+   *  tasks, and the earlier snapshot must not be regenerable from it). Absent on a
+   *  still-open wave and on every row written before this fact existed — the
+   *  append-vs-stall judgment reads the absence conservatively. */
+  planTasks?: readonly number[];
 };
 
 /** The progress.json data plane — the fixed top-level key set + the per-wave rows. */
@@ -229,6 +236,14 @@ export interface CrashRecord {
   /** The judge's idle reading (ms) at the termination instant — null when the round
    *  was not cut short. */
   idleMs: number | null;
+  /** The HEAD the dispatch started from — the postmortem basis of `commitsSince`.
+   *  null when the round never reached a spawn or the repo carries no HEAD (a
+   *  non-git tree). */
+  dispatchBase: string | null;
+  /** The commits added after `dispatchBase`, oldest first, each as `{sha} {subject}`
+   *  — the work a crashed child left behind before it died (empty when nothing was
+   *  committed, or when git could not be read). */
+  commitsSince: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -386,10 +401,14 @@ export class Ledger {
    *  the wave's reviewed basis is the RENDERED brief's content, never the whole
    *  plan (a backfill touching other tasks must not void a reviewed wave). */
   readonly #brief = new BriefRenderer();
+  /** The round-naming single source over this ledger's workspace — the crash
+   *  artifact names derive here (zero second derivation). */
+  readonly #naming: RoundNaming;
 
   constructor(workspace: Workspace, config: ConfigLoader) {
     this.#workspace = workspace;
     this.#families = config.handoffNamespace().families;
+    this.#naming = new RoundNaming(workspace);
   }
 
   /** The review-reference face — the refKind three-type derivation + binding (T25). */
@@ -565,6 +584,32 @@ export class Ledger {
     const data = this.readProgress();
     if (data === null) return null;
     return this.rowFor(data, key)?.reviewedRevision ?? null;
+  }
+
+  /** Record a wave row's plan-task snapshot — the task set the plan carried at the
+   *  instant the wave CLOSED. The write is IDEMPOTENT: an existing snapshot is never
+   *  overwritten, because the fact it records is historical (the plan may gain tasks
+   *  afterwards; re-deriving would erase the append-vs-stall evidence). */
+  recordPlanTasks(waveKey: LedgerKey, planTasks: readonly number[]): void {
+    const data = this.readProgress() ?? this.emptyProgress();
+    let row = this.rowFor(data, waveKey);
+    if (row === undefined) {
+      row = this.entryFor(waveKey);
+      data.waves.push(row);
+    }
+    if (row.planTasks !== undefined) return;
+    row.planTasks = [...planTasks];
+    this.writeProgress(data);
+  }
+
+  /** A wave row's plan-task snapshot — null on a historical row (recorded before the
+   *  snapshot existed) and on a wave that never closed (no snapshot taken yet). The
+   *  callers treat null conservatively: an absent snapshot never authorizes the
+   *  append reading. */
+  planTasksOf(waveKey: LedgerKey): readonly number[] | null {
+    const data = this.readProgress();
+    if (data === null) return null;
+    return this.rowFor(data, waveKey)?.planTasks ?? null;
   }
 
   /** The doc line's recorded reviewed doc revision — the doc-revision narrowing of
@@ -961,27 +1006,24 @@ export class Ledger {
   // crash — the lane crash → recovery record
   // -------------------------------------------------------------------------
 
-  /** The crash record file name — `crash-<lane>-<round>.json`. */
-  crashName(lane: string, round: number): string {
-    return `crash-${lane}-${round}.json`;
-  }
-
-  /** The crash record path. */
-  crashPath(lane: string, round: number): string {
-    return this.#workspace.resolve(this.crashName(lane, round));
-  }
-
-  /** Write a lane-crash recovery record — the resume decision source (the resume
-   *  command + the dead child's tails), never the handoff carrier. Returns the record. */
-  writeCrash(lane: string, round: number, record: CrashRecord): CrashRecord {
-    this.#persist(this.crashName(lane, round), record);
+  /** Write a crash recovery record at the name `RoundNaming` derived (the ONE
+   *  naming source — this face derives no name of its own). Returns the record. */
+  writeCrash(name: string, record: CrashRecord): CrashRecord {
+    this.#persist(name, record);
     return record;
   }
 
-  /** Read a crash record; null when absent/unreadable (a recordless failure round keeps
-   *  the no-next failure face). */
-  readCrash(lane: string, round: number): CrashRecord | null {
-    return this.#read<CrashRecord>(this.crashName(lane, round));
+  /** Read a crash record by its `RoundNaming` name; null when absent/unreadable (a
+   *  recordless failure round keeps the no-next failure face). */
+  readCrash(name: string): CrashRecord | null {
+    return this.#read<CrashRecord>(name);
+  }
+
+  /** The round-naming single source over this ledger's workspace — the crash read /
+   *  write faces take the name this face derives, so the capsule's failure handoff
+   *  cell and the lifecycle's write point name the same file by the same rule. */
+  naming(): RoundNaming {
+    return this.#naming;
   }
 
   // -------------------------------------------------------------------------

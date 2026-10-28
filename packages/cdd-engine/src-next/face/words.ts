@@ -94,6 +94,25 @@ export interface PreflightWords {
   planLedger: string;
 }
 
+/** The in-flight wording rows — the held-report / takeover / corrupt-record / recovery
+ *  vocabulary (P21 §2.2). The held row's braces are fill slots ({pid} · {command} ·
+ *  {startedAt} · {uptime} · {wave} · {slug}); the recovery rows are the phase's three
+ *  canonical discipline sentences (byte-stable — the kairos skills quote the same
+ *  strings verbatim, so a reword here is a cross-plane break). */
+export interface InFlightWords {
+  /** The held report — who holds the tree and since when. */
+  held: string;
+  /** The takeover hint — the standing record's holder is gone. */
+  stealable: string;
+  /** The corrupt record with its lock still on disk. */
+  corruptLocked: string;
+  /** The corrupt record without a lock. */
+  corruptUnlocked: string;
+  /** The three recovery sentences (canonical bytes: look at the working tree first ·
+   *  commit the changes that work · discard the ones that are broken). */
+  recovery: readonly [string, string, string];
+}
+
 /** The checked-list wording rows — the pre-flight's per-rule outcome vocabulary
  *  (one row per rendered state, plus the plan-ahead info row's template). The
  *  vocabulary is the engine's own byte face, never a CLI literal. */
@@ -202,6 +221,26 @@ export const CAPSULE_WORDS = {
   /** The terminated-round diagnostic suffix — appended to the one CDD_BLOCKED reason
    *  line of a non-promoted terminated round. Fill slots: {idleMs} / {verdict}. */
   terminationDetail: " — idleMs: {idleMs}, last sample verdict: {verdict}",
+  /** The in-flight rows (P21 §2.2) — the held report, the takeover hint, the two
+   *  corrupt shapes and the three canonical recovery sentences. */
+  inFlight: {
+    held: "a dispatch is already in flight — pid {pid} · command: {command} · started: {startedAt} · running for {uptime} · wave: {wave} · slug: {slug}",
+    stealable:
+      "the holding process is gone — re-run the same command with --steal-stale to take the in-flight record over",
+    corruptLocked:
+      "the in-flight record is unreadable and its lock is still on disk — re-run with --steal-stale to take it over",
+    corruptUnlocked:
+      "the in-flight record is unreadable and no lock is left behind — re-run with --steal-stale to take it over",
+    recovery: [
+      "look at the working tree first",
+      "commit the changes that work",
+      "discard the ones that are broken",
+    ],
+  } as const satisfies InFlightWords,
+  /** The cut-short round's late-landing hint — every kill / timeout / crash message
+   *  carries it: the child may have written more after the engine stopped watching. */
+  lateLanding:
+    "a late write may land after the round was cut short — check the working tree before starting the review",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -405,6 +444,39 @@ export class Words implements WordLocaleFace {
     return CAPSULE_WORDS.terminationDetail
       .replace("{idleMs}", String(facts.idleMs))
       .replace("{verdict}", facts.verdict);
+  }
+
+  /** The in-flight wording rows — the held report, the takeover hint, the two corrupt
+   *  shapes and the canonical recovery sentences (one source; the CLI fills the held
+   *  slots, never re-types a row). */
+  inFlightWords(): InFlightWords {
+    return CAPSULE_WORDS.inFlight;
+  }
+
+  /** The held report of one in-flight record, rendered from its identity facts — the
+   *  single filler of the held row's slots ({pid} / {command} / {startedAt} /
+   *  {uptime} / {wave} / {slug}). `uptime` is the elapsed time in whole minutes. */
+  inFlightHeld(facts: {
+    pid: number;
+    command: string;
+    startedAt: number;
+    wave: string | null;
+    slug: string;
+  }): string {
+    const uptimeMinutes = Math.max(0, Math.floor((Date.now() - facts.startedAt) / 60_000));
+    return this.inFlightWords()
+      .held.replace("{pid}", String(facts.pid))
+      .replace("{command}", facts.command)
+      .replace("{startedAt}", new Date(facts.startedAt).toISOString())
+      .replace("{uptime}", `${uptimeMinutes}m`)
+      .replace("{wave}", facts.wave ?? "none")
+      .replace("{slug}", facts.slug);
+  }
+
+  /** The cut-short round's late-landing hint — appended to every kill / timeout /
+   *  crash message (the child may still be writing after the engine stopped). */
+  lateLandingHint(): string {
+    return CAPSULE_WORDS.lateLanding;
   }
 
   // -------------------------------------------------------------------------

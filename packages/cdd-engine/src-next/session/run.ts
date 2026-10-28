@@ -19,6 +19,7 @@
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import { readFileSync } from "node:fs";
+import { PlanDocType } from "../contract/doc.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
 import {
   type HandoffParams,
@@ -567,6 +568,30 @@ export class Lifecycle {
     if (!Ledger.routeClosed(route)) return;
     const waveTarget = frame.target as { kind: "wave"; tasks: readonly number[] };
     for (const id of waveTarget.tasks) this.#state.markDone(id);
+    // The closure's OTHER historical fact (P21 §5.1): the plan's task set at the
+    // instant this wave closed. It is the append-vs-stall basis the wave gate reads
+    // later — recorded here, at the one point that knows the wave just closed, and
+    // never re-derived (a later plan revision must not rewrite the history).
+    this.#recordPlanSnapshot(frame);
+  }
+
+  /** Record the closing wave's plan-task snapshot — the plan's CURRENT task-id set
+   *  read from the plan document (`#planPath`, the same source the brief renders
+   *  from) through the contract parse face. An unreadable plan or a null plan path
+   *  records nothing: the snapshot is a present fact only, never a fabricated `[]`
+   *  (an absent snapshot reads conservatively as "stall" in the wave gate). */
+  #recordPlanSnapshot(frame: OpenFrame): void {
+    if (this.#planPath === null) return;
+    try {
+      const lines = readFileSync(this.#planPath, "utf8").split("\n");
+      const parsed = new PlanDocType("plan").parse(lines);
+      this.#ledger.recordPlanTasks(
+        String(frame.key),
+        parsed.taskBlocks.map((block) => block.id),
+      );
+    } catch {
+      // unreadable plan — skip the snapshot (present facts only)
+    }
   }
 
   /** The handoff-family op of a phase — branch-review rides the review family. */
@@ -626,17 +651,18 @@ export class Lifecycle {
     if (this.#capsule === null) return [];
     const op = this.#opOf(frame.phase);
     const failure = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
-    const lane = `${op}.${frame.type}`;
+    const naming = this.#ledger.naming();
     // The failure face's handoff is the crash record — the engine's own postmortem
     // artifact, its existence the emission condition; the success face keeps the
-    // round's handoff carrier path.
-    const crash = failure ? this.#ledger.readCrash(lane, frame.round) : null;
+    // round's handoff carrier path. The name derives from the frame through the ONE
+    // naming source (`RoundNaming`), the same name the lifecycle wrote it under.
+    const crash = failure ? this.#ledger.readCrash(naming.crashName(frame)) : null;
     const blockers = (outcome.findings ?? []).filter(
       (finding) => finding.severity === "blocker",
     ).length;
     const handoff =
       crash !== null
-        ? this.#ledger.crashPath(lane, frame.round)
+        ? naming.crashPath(frame)
         : this.#ledger.handoffPath(op, frame.type, frame.params);
     return this.#capsule.emit(
       outcome.status,

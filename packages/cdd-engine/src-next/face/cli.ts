@@ -809,6 +809,9 @@ export class Cli {
         overallLink: scene.overallLink,
       },
       reviews: parsed.paths.reviews,
+      // The explicit takeover flag (`--steal-stale`): the ONLY path that displaces a
+      // standing in-flight record — and only when its holder is dead.
+      stealStale: parsed.args.stealStale === "true",
     });
     return harness.step();
   }

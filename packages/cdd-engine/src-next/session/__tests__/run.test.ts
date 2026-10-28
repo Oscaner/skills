@@ -1174,3 +1174,59 @@ describe("P21 T3 — the branch line binds its plan's doc-revision", () => {
     }
   });
 });
+
+describe("P21 §5.1 — the wave closure's plan-task snapshot (the append-vs-stall history)", () => {
+  it("records the plan's task set at the wave's closure — the historical fact, never the plan's later shape", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      // The plan carries two tasks; the dispatched wave is {1} (task 2 depends on it).
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none"), task(2, "1")]));
+      const graph = taskGraph([task(1, "none"), task(2, "1")]);
+      const dispatch = stub((frame) =>
+        frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        planPath,
+      });
+      await run.advance(); // implement
+      await run.advance(); // review — the closure point takes the snapshot
+      expect(ledger.planTasksOf("1")).toEqual([1, 2]);
+      // The snapshot is idempotent history: the plan growing later never rewrites it.
+      ledger.recordPlanTasks("1", [1, 2, 3]);
+      expect(ledger.planTasksOf("1")).toEqual([1, 2]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("skips the snapshot when the plan path is unreadable — present facts only, never an invented []", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) =>
+        frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        planPath: path.join(repo, "no-such-plan.md"),
+      });
+      await run.advance(); // implement
+      await run.advance(); // review — closure, but the plan cannot be read
+      expect(ledger.planTasksOf("1")).toBeNull();
+      // The row exists and carries no planTasks key at all (not an empty set).
+      const row = ledger.readProgress()?.waves.find((entry) => entry.wave === "1");
+      expect(row).toBeDefined();
+      expect("planTasks" in (row ?? {})).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+});

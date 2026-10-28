@@ -79,6 +79,11 @@ export const ARGV_CHANNEL = {
     help: "the base artifact's source channel",
   },
   force: { flag: "--force", type: "bool", help: "override the existing base artifact" },
+  stealStale: {
+    flag: "--steal-stale",
+    type: "bool",
+    help: "take over a standing in-flight record whose holder is dead (the only takeover path)",
+  },
   harness: {
     flag: "--harness",
     type: "enum",
@@ -219,6 +224,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     keys: [
       { key: "tasks", required: true },
       { key: "plan", required: true },
+      { key: "stealStale" },
     ],
   },
   {
@@ -231,6 +237,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
       { key: "plan" },
       { key: "spec" },
       { key: "round" },
+      { key: "stealStale" },
     ],
   },
   {
@@ -243,6 +250,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
       { key: "reviews" },
       { key: "spec" },
       { key: "plan" },
+      { key: "stealStale" },
     ],
   },
   {

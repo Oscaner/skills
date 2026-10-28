@@ -256,6 +256,57 @@ describe("WaveGate.vet — the static-batch guard (D63)", () => {
       cleanup();
     }
   });
+
+  it("APPENDS an open task the plan added after the batch closed — the snapshot excludes it, so the wave dispatches", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The static batch {3,4}: 3 was executed and closed while the plan carried
+      // {1,2,3}; task 4 arrived afterwards (the append path — the plan leads the
+      // ledger). The dispatch of the appended {4} is supported, not a stall.
+      const graph = graphOf([task(3, "none"), task(4, "none")]);
+      ledger.recordRound("3", "implement");
+      cleanReviewCarrier(ledger, "3", 1);
+      ledger.recordPlanTasks("3", [1, 2, 3]);
+      const verdict = gate.vet(new Set([4]), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(true);
+      expect(verdict.open).toEqual([4]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("still BLOCKs the leftover when the closure snapshot already carried it — a stranded batch, not an append", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(3, "none"), task(4, "none")]);
+      ledger.recordRound("3", "implement");
+      cleanReviewCarrier(ledger, "3", 1);
+      // Task 4 WAS in the plan at closure time: it was stranded, not appended.
+      ledger.recordPlanTasks("3", [1, 2, 3, 4]);
+      const verdict = gate.vet(new Set([4]), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("mixed-batch");
+      expect(verdict.message).toContain("(3,4)");
+      expect(verdict.message).toContain("3 closed, 4 open");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps the conservative BLOCK when the closed row carries no snapshot — zero migration, the legacy row", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([task(3, "none"), task(4, "none")]);
+      ledger.recordRound("3", "implement");
+      cleanReviewCarrier(ledger, "3", 1);
+      // no recordPlanTasks — a historical wave row: the append reading is unavailable.
+      const verdict = gate.vet(new Set([4]), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("mixed-batch");
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 describe("ledger.closedWaves — the C5 closure single read face", () => {

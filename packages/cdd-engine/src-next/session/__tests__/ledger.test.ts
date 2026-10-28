@@ -20,6 +20,8 @@ import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger, type ProgressData, type RefKind } from "../ledger.ts";
+import { RoundNaming } from "../round-naming.ts";
+import type { OpenFrame } from "../run.ts";
 
 /** A hermetic ledger fixture — a fresh temp workspace under a temp repo root. */
 const fixture = (): { ledger: Ledger; workspace: Workspace; cleanup: () => void } => {
@@ -306,20 +308,19 @@ describe("handoff — naming / carrier / single-author persist", () => {
   });
 });
 
-describe("crash — the lane-crash recovery record", () => {
-  it("names the record crash-<lane>-<round>.json at the canonical path", () => {
+describe("crash — the recovery record (named by RoundNaming)", () => {
+  it("round-trips the record under the name RoundNaming derived", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
-      expect(ledger.crashName("implement", 2)).toBe("crash-implement-2.json");
-      expect(ledger.crashPath("implement", 2)).toBe(workspace.resolve("crash-implement-2.json"));
-    } finally {
-      cleanup();
-    }
-  });
-
-  it("writeCrash → readCrash round-trips the recovery record (the resume decision source)", () => {
-    const { ledger, cleanup } = fixture();
-    try {
+      const frame: OpenFrame = {
+        type: "wave",
+        phase: "implement",
+        round: 1,
+        target: { kind: "wave", tasks: [1] },
+        params: { tasks: "1" },
+        key: "1",
+      };
+      const name = new RoundNaming(workspace).crashName(frame);
       const record = {
         exitCode: 1,
         stderrTail: ["engine error: boom"],
@@ -330,11 +331,80 @@ describe("crash — the lane-crash recovery record", () => {
         lastSample: null,
         promoted: false,
         idleMs: null,
+        dispatchBase: "abc123",
+        commitsSince: ["def456 the child's commit"],
       };
-      ledger.writeCrash("implement", 1, record);
-      expect(ledger.readCrash("implement", 1)).toEqual(record);
+      ledger.writeCrash(name, record);
+      expect(ledger.readCrash(name)).toEqual(record);
       // a recordless failure round stays recordless — the no-next failure face
-      expect(ledger.readCrash("implement", 2)).toBeNull();
+      expect(ledger.readCrash("crash-tasks-1-review-1.json")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps the same wave+round's implement and review records apart — the op stays in the name", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const base = {
+        exitCode: 1,
+        stderrTail: [] as string[],
+        stdoutTail: [] as string[],
+        attemptedHandoff: null,
+        next: "cdd implement --tasks 3,4",
+        lastSample: null,
+        promoted: false,
+        idleMs: null,
+        dispatchBase: null,
+        commitsSince: [] as string[],
+      };
+      const naming = new RoundNaming(workspace);
+      const implementFrame: OpenFrame = {
+        type: "wave",
+        phase: "implement",
+        round: 2,
+        target: { kind: "wave", tasks: [3, 4] },
+        params: { tasks: "3,4" },
+        key: "3,4",
+      };
+      const reviewFrame: OpenFrame = {
+        ...implementFrame,
+        phase: "review",
+        params: { tasks: "3,4", round: 2 },
+      };
+      const implementName = naming.crashName(implementFrame);
+      const reviewName = naming.crashName(reviewFrame);
+      expect(implementName).toBe("crash-tasks-3,4-implement-2.json");
+      expect(reviewName).toBe("crash-tasks-3,4-review-2.json");
+      ledger.writeCrash(implementName, { ...base, cause: "child-exit" });
+      ledger.writeCrash(reviewName, { ...base, cause: "contract-violation" });
+      expect(ledger.readCrash(implementName)?.cause).toBe("child-exit");
+      expect(ledger.readCrash(reviewName)?.cause).toBe("contract-violation");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("the wave row's plan-task snapshot (P21 §5.1 — the append-vs-stall history)", () => {
+  it("records the closing wave's plan task set once — a later record never rewrites the history", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      ledger.recordPlanTasks("3,4", [1, 2, 3, 4]);
+      expect(ledger.planTasksOf("3,4")).toEqual([1, 2, 3, 4]);
+      // The plan grew afterwards — the snapshot stays the closure-time fact.
+      ledger.recordPlanTasks("3,4", [1, 2, 3, 4, 5]);
+      expect(ledger.planTasksOf("3,4")).toEqual([1, 2, 3, 4]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("reads null for a wave with no snapshot — a historical row holds no invented set", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      ledger.recordRound("1", "implement");
+      expect(ledger.planTasksOf("1")).toBeNull();
     } finally {
       cleanup();
     }

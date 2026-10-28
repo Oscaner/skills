@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 实施计划：引擎作为唯一读写路径
 doc-type: plan
-version: v0.6
+version: v0.7
 date: 2026-10-28
 slug: 2026-10-10-engine-doc-tooling-p21
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p21-design.md` v0.10 已批准的面。三个抽象名（`InFlight` · `ConsistencyRules` 的规则声明面 · `LineIdentity`）· 波行 `planTasks` 快照 · 门序 `tree-clean → in-flight → graph → plan-ledger → wave → doc-contract` · 三句恢复纪律是既定字节，不得改名或改序。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p21-design.md` v0.11 已批准的面。三个抽象名（`InFlight` · `ConsistencyRules` 的规则声明面 · `LineIdentity`）· 波行 `planTasks` 快照 · 门序 `tree-clean → in-flight → graph → plan-ledger → wave → doc-contract` · 三句恢复纪律是既定字节，不得改名或改序。
 - **恢复三句的 canonical 字节串（全 phase 同读一串，英文主导）**：`look at the working tree first` · `commit the changes that work` · `discard the ones that are broken`。引擎报文面（`face/words.ts`）与 `packages/kairos/skills/*/SKILL.md` 逐字引用同一串——SKILL.md 英文主导、零中文（AGENTS.md）；中文对译「先看工作树 · 能用的改动 commit · 坏掉的改动丢弃」只是对译，不作第二份真源、不进 SKILL.md。
 - **锁与在飞判据**：锁交 `proper-lockfile`（`stale: 12h` · `update: 60s` · `realpath: false` · `retries: 0`）；**门禁判据是记录存在 + pid 存活，锁是否持有一律不作判据**（该包在任何优雅退出上自行删锁，只有 SIGKILL 留锁）；接管只走显式 `--steal-stale`。
 - **运行时依赖只加三个**：`write-file-atomic` · `ps-list` · `proper-lockfile`（5 → 8）。**组 CPU 保留 `ps -g`**，收进 `infra/proc.ts` 作为唯一 OS 读面——这是「OS 面优先第三方包」的据实例外（无跨平台成熟包提供进程组累计 CPU），**不引入 `pidusage`**。
@@ -86,46 +86,28 @@ base: develop
 - **Acceptance**: `atomic.test.ts` 三组用例绿、`proc.test.ts` 三组基础用例绿 + 组长先退 / `setsid` 孙进程两个样本 pin **必绿**（读数语义与今日 `ps -g` 逐条一致；只允许非 POSIX 宿主整条 skip，macOS / Linux 必须绿） · `ProcRow.startTime` 是 `number | null`（`descriptor.startTime?.getTime() ?? null`，量纲为 epoch ms）且 `live()` 的 `null` 不被折成 `false`（有 pin；跳过者以命名 skip 标名） · `Workspace.writeJson` 经 `AtomicWriter`（进程被杀不留半截 JSON，由「写失败不改旧值」用例背书）· 源码面 `execFileSync("ps")` 与 `TIME_PATTERN` 只在 `infra/proc.ts` 一处（`__tests__` 内的 `execFileSync("git")` 不在断言面） · `StallJudge` 阈值与真值表零改（`termination.test.ts` 全绿）· `pnpm -C packages/cdd-engine test` 绿 · 零裸函数门绿
 - **DependsOn**: none
 
-### Task 2: `ConsistencyRules`（规则声明面 · 七条规则 · `plan-ledger` 门 · 已检清单）
+### Task 2: `ConsistencyRules`（规则声明面 · 21 行规则族 · `plan-ledger` 门 · 已检清单与被检渲染）
 
-- **Objective**: 把「结构规则」变成**声明面驱动的单一族**：新增规则声明表（规则 id + 适用 docKey + 作用域 doc|ledger + 声明即工厂），`Contract` 的策略族从今天 15 个硬编码 `new` 改为按声明派生（**一规则一策略**：`UniquenessInvariant` 三腿 · `OrderInvariant` 仅一腿（小节序；版本序腿按 spec v0.10 撤销） · `SelfBoundedInvariant` 两腿各自独立成策略，既有 15 → 19，声明面 doc 21 行 + ledger 2 行 = 23 行）；两条新增 intra-doc 规则 + 拆腿后的既有规则（含 `front-matter-version-in-lineage` / `self-bounded-id-not-in-lineage` 两条 lineage 腿）放开到四类文档，两条跨账本规则新增并挂在 preflight 的 `plan-ledger` 门上；每次派发输出**已检规则清单**（`passed` / `failed` / `skipped (原因)` / `info (提示)`），使「检查过」与「通过」可分。
-- **Files**: Create `packages/cdd-engine/src-next/contract/rules.ts` · `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`; Modify `packages/cdd-engine/src-next/contract/declare.ts`（导出规则声明表）· `packages/cdd-engine/src-next/contract/doc.ts`（四类 parse 记录共用 change-history 读面）· `packages/cdd-engine/src-next/contract/judge.ts`（`#buildPolicy` 改派生 · 增 `LedgerFacts` 与两参 `validateLedger`）· `packages/cdd-engine/src-next/contract/invariants.ts`（拆腿后的单规则策略 + 两条新 intra-doc 策略 + 两条 ledger 规则）· `packages/cdd-engine/src-next/session/preflight.ts`（`plan-ledger` 门 + `checked`）· `packages/cdd-engine/src-next/face/words.ts`（门与 skipped 词行）· `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts` · `.../contract/__tests__/judge.test.ts`（`uniqueness` · `order` · `selfBounded` 三批既有 `kind` 断言同批重锚）
-- **Consumes**: `contract/declare.ts:53-78` 的 `RegistryElement` / `ElementRegistry` / `DeclaredRegistries`（元素面，规则面与其并列而非其成员）· `contract/judge.ts` 的 `#buildPolicy` 硬编码族（15 个 `new`）· `contract/invariants.ts` 的 `Invariant` 基类（`name` + `evaluate(ctx)`，`Finding.kind` 取 `this.name`）与 `UniquenessInvariant` / `FrontMatterLastRowInvariant` 的 lineage 腿（今日经 `this.overall(ctx)` 读 overall 的 `tables["Change history"]`）· `contract/doc.ts` 的 `OverallParsed.tables`（四类 parse 记录里只有 overall 带 `tables`）· `session/graph.ts` 的 `TaskGraph.batches()`（`LedgerFacts.layers` 的供数面）· `session/preflight.ts:56-75` 的 `PreFlightVerdict`（现无 `checked`）· `session/ledger.ts` 的 `closedWaves()` 与 `rowFor()/roundCount()`（ledger 规则的数据源）
+- **Objective**: 把「结构规则」变成**声明面驱动的单一族**：新增规则声明表（规则 id + 适用 docKey + 作用域 doc|ledger + 声明即工厂），`Contract` 的策略族从今天 15 个硬编码 `new` 改为按声明派生。落定后的判定面（**一规则一策略**，无多规则策略）：`change-history-version-unique`（重复版本）· `front-matter-version-in-lineage`（header 版本**必须出现在变更记录里**；只判「缺席」，**不判端点、不判方向**）· `change-history-row-not-in-other-table` · `list-marker-not-doubled` · `task-id-unique` · `phase-id-unique` · `section-order`，加两条 ledger 规则。**版本序腿不落地**（`OrderInvariant` 只留小节序；`SelfBoundedInvariant` 的「header=末行」腿撤除，其「header 不在 lineage」腿改名成 `front-matter-version-in-lineage`）。声明面共 **21 行**：doc **19** + ledger **2**；公共面 **6** 条。`plan-ledger` 门在 preflight 里跑，`checked` 逐条渲染并在**CLI 派发面**（通过与拒绝两条路径）打印，使「检查过」与「通过」在报文上可分。
+- **Files**: Create `packages/cdd-engine/src-next/contract/rules.ts` · `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`; Modify `packages/cdd-engine/src-next/contract/invariants.ts`（拆/撤腿 · 两条新策略 · 两条 ledger 策略 · 基类一个共享 lineage 读面）· `packages/cdd-engine/src-next/contract/judge.ts`（`#buildPolicy` 改派生 · `Contract.policy()` / `ruleRows()` / `validateLedger`）· `packages/cdd-engine/src-next/contract/doc.ts`（四类 parse 记录共用 change-history 读面）· `packages/cdd-engine/src-next/session/preflight.ts`（`plan-ledger` 门 · `checked` · `LedgerFacts`）· `packages/cdd-engine/src-next/face/words.ts`（门与 skipped/info 词行）· `packages/cdd-engine/src-next/face/cli.ts`（`checked` 的派发面渲染，通过 + 拒绝两条路径）· `packages/cdd-engine/src-next/contract/__tests__/judge.test.ts` · `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts` · `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`
+- **Consumes**: `contract/declare.ts:53-78` 的 `RegistryElement` / `ElementRegistry` / `DeclaredRegistries`（元素面，与规则面并列而非其成员；**本任务不改它**——规则面住 `contract/rules.ts`）· `contract/judge.ts` 的 `#buildPolicy` 硬编码族（实测 15 个 `new`）· `invariants.ts` 的 `Invariant` 基类（`name` + `evaluate(ctx)`）、`changeHistory(ctx)` 与 `firstVersion` 两个既有共享读面 · `session/preflight.ts` 的 `PreFlightVerdict`（现无 `checked`）· `session/ledger.ts` 的 `closedWaves()` / `rowFor()` / `roundCount()`（ledger 规则数据源）· `session/graph.ts` 的 `batches()`（分层判据）。
 - **Produces**:
   ```ts
-  // contract/rules.ts — 规则声明面：规则清单的唯一真源
-  /** doc 作用域声明：工厂产出一个 `Invariant`（判据入口 `evaluate(ctx: JudgeContext)`）。 */
+  // contract/rules.ts — 规则声明面：规则清单的唯一真源（声明即工厂，两类各持一种判据入口）
   export interface DocRuleDeclaration {
+    readonly id: string;                       // kebab，等于策略实例的 name（一个概念一个名字）
+    readonly docKeys: readonly DocKey[] | "all";
     readonly scope: "doc";
-    /** 规则 id（kebab 形式，取 spec §3.1 表：`change-history-version-unique` / `planned-tasks-vs-recorded-tasks` …）。 */
-    readonly id: string;
-    /** 适用的 docKey（"all" = 四类文档同判）。 */
-    readonly docKeys: DocKey[] | "all";
-    /** 声明即工厂：`Contract.policy()` 遍历声明实例化策略（声明行是唯一构造面）。 */
-    readonly create: () => Invariant;
+    readonly create: () => Invariant;          // evaluate(ctx: JudgeContext)
   }
-  /** ledger 作用域声明：工厂产出一个 `LedgerRule` —— 账本事实既不在 `JudgeContext` 里，
-   *  也不塞进 `ContractInput`（零新增字段裁定），因此判据入口另收一份 `LedgerFacts`。 */
   export interface LedgerRuleDeclaration {
-    readonly scope: "ledger";
     readonly id: string;
-    /** 必含 `"plan"`（ledger 规则只在 plan / wave / branch 派发上有意义，doc 面无目标）。 */
-    readonly docKeys: DocKey[] | "all";
-    readonly create: () => LedgerRule;
+    readonly docKeys: readonly DocKey[] | "all";
+    readonly scope: "ledger";
+    readonly create: () => LedgerRule;         // evaluate(ctx: JudgeContext, ledger: LedgerFacts)
   }
   export type RuleDeclaration = DocRuleDeclaration | LedgerRuleDeclaration;
-  /** ledger 作用域的唯一判据入口形状（与 `Invariant.evaluate(ctx)` 分开：两类声明各走各的门）。
-   *  `LedgerFacts` 由 `contract/judge.ts` 导出，本文件只作类型引用。 */
-  export interface LedgerRule {
-    readonly name: string;
-    evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[];
-  }
-  /** doc 作用域 21 行（既有 15：Uniqueness 拆三腿 · Order 拆两腿 · SelfBounded 拆两腿 → 19，
-   *  加新增 2）+ ledger 作用域 2 行 = 23 行。
-   *  一规则一策略：每行的 `create()` 各出一个策略，策略 `name` 逐字取该行的 `id`（全 kebab）
-   *  （拆腿后 `Finding.kind` 由 `uniqueness` / `order` / `selfBounded` 变为具体规则 id ——
-   *  deliberate pin break，既有 kind 断言同批重锚）。 */
-  export const RULE_REGISTRY: readonly RuleDeclaration[];
+  export const RULE_REGISTRY: readonly RuleDeclaration[];   // 21 行：doc 19 + ledger 2
 
   // contract/judge.ts
   export interface LedgerFacts {
@@ -133,54 +115,48 @@ base: develop
     readonly recordedTasks: readonly number[];
     readonly closedWaves: readonly (readonly number[])[];
     readonly snapshots: readonly { readonly wave: string; readonly planTasks: readonly number[] }[];
+    readonly layers: readonly (readonly number[])[];   // TaskGraph.batches() 的层
     readonly maxRecordedTask: number;
-    /** 计划的分层（一层一个任务 id 集，由 `TaskGraph.batches()` 供数）——`closed-wave-fits-depends-on-layers` 的唯一判据输入。 */
-    readonly layers: readonly (readonly number[])[];
-  }
-  export interface ContractInput {
-    // …既有字段不动（docKey / path / content / root / phaseId / slugIndex / fs）——零新增字段：
-    //   ledger 事实走 validateLedger 的独立入参，一个入口一种判据…
   }
   export class Contract {
-    /** 声明驱动的策略组成（派生，零硬编码族）——只取 `scope: "doc"` 的声明。 */
-    static policy(): Record<DocKey, readonly Invariant[]>;
-    /** 已检清单的数据面：两型声明的 id + 适用 docKey + 作用域（渲染在 face 侧）。 */
-    static ruleRows(): readonly RuleDeclaration[];
-    /** ledger 作用域的唯一入口（plan-ledger 门以两参调用，只取 `scope: "ledger"` 的声明；文档作用域不跑它）。 */
-    validateLedger(input: ContractInput, ledger: LedgerFacts): Finding[];
+    static policy(): Record<DocKey, readonly Invariant[]>;                                  // 只吃 doc 型
+    static ruleRows(): readonly RuleDeclaration[];                                          // 清单数据面
+    validateLedger(input: ContractInput, ledger: LedgerFacts): Finding[];                    // 只吃 ledger 型
   }
 
+  // contract/invariants.ts — 两条 lineage 规则塌成一条（唯一判定：header 缺席）
+  export class FrontMatterVersionInLineageInvariant extends Invariant { /* name = "front-matter-version-in-lineage" */ }
+  // 删除：FrontMatterLastRowInvariant（header=末行）· ChangeHistoryVersionAscendingInvariant（版本序）
+  // 新增：RowHomeInvariant · ListMarkerInvariant · LedgerLayeringRule · LedgerTaskSetRule
+  // 共享读面：Invariant 基类的 protected historyVersions(ctx)（两条腿各一份私有副本删除）
+
   // session/preflight.ts
-  export type PreFlightGateName =
-    | "tree-clean" | "in-flight" | "graph" | "plan-ledger" | "wave" | "doc-contract";
-  /** 拒绝原因只在失败面出现（`ok: true` 时缺席）——「计划领先账本」不是拒绝形态，它落 `checked` 的 `info` 行；
-   *  缺账本事实包同样不是拒绝形态（只出 `skipped (no ledger facts)` 行）——故本枚举零死值。 */
-  export type PreFlightReason =
-    | "dirty-tree" | "graph" | WaveGateReason | "doc-contract";
+  export type PreFlightGateName = "tree-clean" | "in-flight" | "graph" | "plan-ledger" | "wave" | "doc-contract";
+  export type PreFlightReason = "dirty-tree" | "graph" | WaveGateReason | "doc-contract";  // 零死值：plan-ledger/缺事实包皆不占 reason
   export interface PreFlightVerdict {
     // …既有字段不动…
-    /** 已检面：门与规则逐条 —— `${gate}` 或 `${ruleId}: ${passed|failed|skipped (原因)|info (提示)}`。 */
+    /** 已检面：`${gate}` 或 `${ruleId}: ${passed|failed|skipped (原因)|info (提示)}`。 */
     readonly checked: readonly string[];
   }
   ```
 - **Steps**:
-  - 写失败测试 `rules.test.ts`（声明面自检）：`RULE_REGISTRY` 共 22 行（doc 20 + ledger 2）· 每行 `id` 唯一且 kebab（`/^[a-z0-9]+(-[a-z0-9]+)*$/`）· 每行 `create()` 得到一个实例且实例 `name` 逐字等于该行 `id`（一规则一策略，两套词面收敛为一）· doc 行的实例是 `Invariant`（判据入口 `evaluate(ctx)` 一参），ledger 行的实例是 `LedgerRule`（`evaluate(ctx, ledger)` 两参——以 `instance.evaluate.length === 2` 断言该形状，两类声明各走各的门）· `docKeys` 非空 · 每条 `scope: "ledger"` 的规则 docKeys 含 `plan` · spec §3.1 的 7 条公共 id 在册 —— checkable: FAIL（模块不存在）
-  - 写失败测试 `judge.test.ts`（四类文档同判，changelog 版本唯一）：构造 `phase-spec` / `single-spec` / `plan` / `overall` 四类文档，变更记录出现重复版本（例如两行 `v0.2`）→ 各类 findings 含 `kind === "change-history-version-unique"` 且 `field === "Change history"` —— checkable: FAIL（今日只在 overall 生效）
-  - 写失败测试（lineage 只剩两条真不变量；方向与端点皆不判）：front-matter `version: v0.9` 而变更记录里从未出现 `v0.9` → 恰好一条 `kind === "front-matter-version-in-lineage"`；**两向各一绿 pin**——升序 doc（`v0.1, v0.2, v0.3`，header `v0.3`）与降序 doc（`v0.3, v0.2, v0.1`，header `v0.3`）各自零 finding；**仓内真实形态再一绿 pin**——非单调冻结形态（`v0.2, v0.3, v0.1, v0.4`，header `v0.4`）零 finding（版本序无管辖权） 且**零** `self-bounded-id-not-in-lineage`；front-matter `version: v0.4`（不在 lineage 内）→ 恰好一条 `kind === "self-bounded-id-not-in-lineage"` 且**零** `front-matter-version-in-lineage`（两腿判据互斥，同一偏差只出一条 finding） —— checkable: FAIL（今日两条判据同属 `selfBounded`）
-  - 写失败测试（变更行落进其它表格 / 列表标记双写）：`## Phase inventory` 表格里放一行首列 `v0.9` → `kind === "change-history-row-not-in-other-table"` 且 fix 句为「把该行移回 Change history」；正文写 `- - 重复标记` → `kind === "list-marker-not-doubled"` 且 fix 句为「合并为单枚标记」 —— checkable: FAIL
-  - 写失败测试（拆腿后 kind 重锚）：overall 里登记锚点重复 → `kind === "presence"`（登记元素「恰出现一次」的重复侧，与缺失侧同一条规则）；plan 里重复 task id → `kind === "task-id-unique"`；overall 里重复 phase id → `kind === "phase-id-unique"`；小节序颠倒 → `kind === "section-order"` —— checkable: FAIL（今日为 `uniqueness` / `order`，deliberate pin break）
-  - 写失败测试（`SelfBoundedInvariant` 拆腿与既有 kind 重锚）：`judge.test.ts` 的 `:408` / `:1056` / `:1061` / `:1070` / `:1105` / `:1107` 处 `withKind(findings, "selfBounded", "version")` 按夹具改指对应腿的 kebab id（头值不在 lineage 内 → `front-matter-version-in-lineage`；头值不在 lineage 内 → `self-bounded-id-not-in-lineage`），且单处偏差只产出一条 finding（两腿不重叠） —— checkable: FAIL（今日为单一 `selfBounded`）
-  - 实现拆腿与新策略（一个策略一个类）：`UniquenessInvariant` 的 heading 重复登记腿并入 `PresenceInvariant`（登记唯一性腿：登记锚点在文档里恰出现一次，`name` 仍 `presence`），三条身份腿独立成 `ChangeHistoryVersionUniqueInvariant` / `TaskIdUniqueInvariant` / `PhaseIdUniqueInvariant`；`OrderInvariant` 版本序腿删除、`FrontMatterLastRowInvariant` 拆成 `FrontMatterVersionInLineageInvariant` / `SelfBoundedIdNotInLineageInvariant`；`SelfBoundedInvariant` 按两条既存判据拆成 `FrontMatterVersionInLineageInvariant`（id `front-matter-version-in-lineage`，只判「头值在 lineage 内但不是末行」）与 `SelfBoundedIdNotInLineageInvariant`（id `self-bounded-id-not-in-lineage`，只判「头值不在 lineage 内」）——两腿互斥；新增 `RowHomeInvariant`（id `change-history-row-not-in-other-table`）· `ListMarkerInvariant`（id `list-marker-not-doubled`）· 两条 ledger 规则 `LedgerLayeringRule`（id `closed-wave-fits-depends-on-layers`）与 `LedgerTaskSetRule`（id `planned-tasks-vs-recorded-tasks`，均实现 `LedgerRule`：`evaluate(ctx, ledger)`）；每类 `name` 逐字取其声明行的 id（全 kebab） —— checkable: 上述六组用例转绿
-  - 给四类文档补 change-history 读面：`contract/doc.ts` 的 `PlanDocType` / `PhaseSpecDocType` / `SingleSpecDocType` 的 parse 记录与 `OverallParsed` 同形暴露 `tables["Change history"]`（同一次 `#tableSection(sections, "## Change history")` 解析），`Invariant` 基类增**一个** `protected changeHistory(ctx)` 访问器（四类 docKey 同读一处），四条变更记录策略只经它取行（`phase-id-unique` 腿仍读 `overall(ctx).chain.phases`，那不是变更记录面） —— checkable: 四类文档的红 pin 转绿（行为面证明读面覆盖四类）；`grep -c "this.overall(ctx)" packages/cdd-engine/src-next/contract/invariants.ts` 相比改动前不新增，且四条变更记录策略体内零 `this.overall(ctx)`（今日 `historyOrder` 那一处被 `this.changeHistory(ctx)` 替换）
-  - 写失败测试（ledger 两条规则与 skipped）：两参调用 `validateLedger(input, { planTasks: [1,2,3], recordedTasks: [1,2], layers: [[1],[2],[3]], … maxRecordedTask: 2 })` → 零 finding 且清单该行为 `passed`；`planTasks = [1,3] · recordedTasks = [1,2]`（中间缺 2）→ `kind === "planned-tasks-vs-recorded-tasks"` 红；已闭合波次跨两层（`closedWaves: [[2,3]] · layers: [[1],[2],[3]]`）→ `kind === "closed-wave-fits-depends-on-layers"` 红；整层批（`closedWaves: [[2,3]] · layers: [[1],[2,3]]`）→ 放行无 finding；本轮未提供 `LedgerFacts`（非 plan/wave/branch 派发）→ 清单该行为 `skipped (no ledger facts)` —— checkable: FAIL
-  - 实现两条 ledger 策略 + `LedgerFacts` 组装缝（`preflight.ts` 内从 `Ledger` + 计划文本 + `TaskGraph.batches()`（`layers`）构造 `LedgerFacts`，`snapshots` 读波行的 `planTasks`，本任务里该字段可缺省为 `[]`，Task 7 接上） —— checkable: 上述用例转绿
-  - 实现 `#buildPolicy` 派生 + `Contract.policy()` / `Contract.ruleRows()`（遍历 `RULE_REGISTRY`：`policy()` 只取 `scope === "doc"` 的声明实例化，`ruleRows()` 两型全返回，`validateLedger` 只取 `scope === "ledger"` 的 `create()` 并逐个喂 `(ctx, ledger)`）；删除 15 个硬编码实例化 —— checkable: `grep -n "new .*Invariant()" packages/cdd-engine/src-next/contract/judge.ts` 零命中
-  - `PreFlight` 增 `plan-ledger` 门（紧随 `graph` 之后、`wave` 之前）：doc / wave / branch 派发都跑；`checked` 逐条渲染，doc 作用域声明在 wave / branch 派发（`ctx.doc === null`）逐条渲染 `skipped (no doc target)`（20 行各一行），ledger 作用域在缺事实包时渲染 `skipped (no ledger facts)`（`ok: true` 且 `reason` 缺席——本门**不新增** `PreFlightReason` 成员，缺事实包不是拒绝形态） —— checkable: `preflight.test.ts` 新增用例绿（wave / branch 派发的 `checked` 各含 21 条 doc 声明的 skipped 行 + 2 条 ledger 行）
-  - 变异验证用例：删掉中间一条账本记录（`recordedTasks` 从 `[1,2,3]` 改成 `[1,3]`）→ `plan-ledger` 门必须红 —— checkable: 用例绿（这是「放宽不得滑成永远绿」的守卫）
-  - 窗期放行用例：`planTasks = [1,2,3,4] · recordedTasks = [1,2,3]` → 放行且 `checked` 含 `plan-ledger: info (plan leads ledger by 1 tasks)`，`verdict.ok === true` 且 `verdict.reason` 缺席（`plan-ahead` 不是 reason 值） —— checkable: 用例绿
-- **Acceptance**: 六条公共规则（spec §3.1 表）在四类文档 / plan+账本上各有红 pin（含两条新 intra-doc、拆腿后的既有规则与两条 ledger）· 变更记录历史行原文即为绿（不得为转绿改写历史，夹具即真实形态：升序 / 降序 / 非单调冻结形态各自一条绿 pin；header 未出现在 lineage 一条红 pin）· 版本序不是本 phase 的判据（无该策略、无该 pin，理由见 spec §3.1 的事实裁定）· header 不在 lineage 内 / 行落进其它表格 / 标记双写各有红 pin 与点名 fix 句（两条 lineage 腿**互斥**：header 未出现在变更记录 → `front-matter-version-in-lineage`；header 在 lineage 内却不可达 → `self-bounded-id-not-in-lineage`；同一偏差只出一条 finding；`judge.test.ts` 的全部 `selfBounded` 断言同批重锚为 kebab 腿 id）· 散文「N 任务 / M 波」零判压（无该规则的用例，也无该策略）· 声明面 22 行（doc 20 + ledger 2），`rules.test.ts` 断言行数 · 「每行 `id` 唯一且 kebab」·「每行 `id` === 实例 `name`」· 两型的判据入口形状（doc 一参 `evaluate(ctx)` / ledger 两参 `evaluate(ctx, ledger)`）（一规则一策略，无多规则策略残留）· `plan-ledger` 门在 doc/wave/branch 三面都跑，wave 与 branch 派发的 `checked` 各含 **20** 条 doc 声明的 `skipped (no doc target)` 行 · `PreFlightReason` 零死值（无 `no-ledger-facts` 成员；缺账本事实包只出 skipped 行） · 四类文档的变更记录读面同源（四条变更记录策略体内零 `this.overall(ctx)`，读面统一为 `changeHistory(ctx)`；`this.overall(ctx)` 命中数不新增）· 变异用例转红 · `pnpm -C packages/cdd-engine test` 绿 · 零裸函数门绿
+  - 写失败测试 `rules.test.ts`（声明面自检）：`RULE_REGISTRY` 共 **21** 行（doc 19 + ledger 2）· 每行 `id` 唯一且 kebab · 每行 `create()` 得到一个实例且实例 `name` 逐字等于该行 `id` · doc 行实例是 `Invariant`（一参 `evaluate(ctx)`）、ledger 行实例是 `LedgerRule`（两参 `evaluate(ctx, ledger)`）· 公共面 6 个 id 在册 —— checkable: FAIL（模块不存在）
+  - 写失败测试（变更记录版本唯一，四类文档同判）：`phase-spec` / `single-spec` / `plan` / `overall` 各造一份变更记录含两行 `v0.2` → 四类 findings 均含 `kind === "change-history-version-unique"` 且 `field === "Change history"` —— checkable: FAIL（今日只在 overall 生效）
+  - 写失败测试（**唯一**的 lineage 判定 = header 缺席，且方向/端点无关）：front-matter `version: v0.9` 而变更记录里从未出现 `v0.9` → 恰好一条 `kind === "front-matter-version-in-lineage"`；**三条绿 pin**——升序（`v0.1, v0.2, v0.3`，header `v0.3`）· 降序（`v0.3, v0.2, v0.1`，header `v0.3`）· 仓内真实非单调冻结形态（`v0.2, v0.3, v0.1, v0.4`，header `v0.4`）各自零 finding 且零 `front-matter-version-in-lineage` —— checkable: FAIL（今日有两条互斥腿且降序/非单调形态会红）
+  - 写失败测试（版本序与末行两条腿确已撤除）：`grep -n "matches-last-row\|version-ascending" packages/cdd-engine/src-next/contract --include='*.ts'` 在**非测试**面零命中，且 `Contract.policy()` 的实例集合里无这两个 name —— checkable: FAIL（今日在册）
+  - 写失败测试（变更行落位 / 列表标记双写）：`## Phase inventory` 表格里放一行首列 `v0.9` → `kind === "change-history-row-not-in-other-table"` 且 fix 句为「把该行移回 Change history」；正文写 `- - 重复标记` → `kind === "list-marker-not-doubled"` 且 fix 句为「合并为单枚标记」 —— checkable: FAIL
+  - 写失败测试（拆腿后的 kind 重锚）：overall 里登记锚点重复 → `kind === "presence"`；plan 里重复 task id → `kind === "task-id-unique"`；overall 里重复 phase id → `kind === "phase-id-unique"`；小节序颠倒 → `kind === "section-order"` —— checkable: FAIL
+  - 实现拆/撤腿与新策略（一个策略一个类）：`UniquenessInvariant` 的 heading 重复登记腿并入 `PresenceInvariant`，三条身份腿独立成 `ChangeHistoryVersionUniqueInvariant` / `TaskIdUniqueInvariant` / `PhaseIdUniqueInvariant`；`OrderInvariant` 保留小节序单腿；`SelfBoundedInvariant` 的两条腿塌成 `FrontMatterVersionInLineageInvariant`（只判缺席）；删除 `FrontMatterLastRowInvariant` 与 `ChangeHistoryVersionAscendingInvariant`；新增 `RowHomeInvariant` / `ListMarkerInvariant`；`judge.test.ts` 的 `selfBounded` 断言同批重锚为 kebab id —— checkable: 上述用例转绿
+  - 给四类文档补 change-history 读面：`contract/doc.ts` 的三类非 overall parse 记录与 `OverallParsed` 同形暴露 `tables["Change history"]`（同一次 `#tableSection(sections, "## Change history")`），并在 `Invariant` 基类上落**一个** `protected historyVersions(ctx)` 共享读面（两条腿的私有副本删除） —— checkable: `grep -n "this.overall(ctx)" packages/cdd-engine/src-next/contract/invariants.ts` 在 lineage 两处零命中且全文件计数从 9 降到 7
+  - 写失败测试（ledger 两条规则与 skipped）：`validateLedger(input, { planTasks: [1,2,3], recordedTasks: [1,2], layers: [[1],[2],[3]], closedWaves: [[1],[2]], snapshots: [], maxRecordedTask: 2 })` → 零 finding；`planTasks = [1,3] · recordedTasks = [1,2]`（中间缺 2）→ `kind === "ledger-task-set"`；已闭合波次 `[[1,2]]` 而 layers 为 `[[1],[2]]` → `kind === "ledger-layering"`；整层批 `[[2,3]]` 对 layers `[[1],[2,3]]` → 绿；**层内子集** `[[2]]` 对 layers `[[1],[2,3]]` → 绿（subset 读法与 Task 7 的追加波一致，记在类注释里）；本轮未提供 `LedgerFacts`（非 plan/wave/branch 派发）→ 清单该两行为 `skipped (no ledger facts)` —— checkable: FAIL
+  - 实现两条 ledger 策略 + `LedgerFacts` 组装缝（`preflight.ts` 从 `Ledger` + 计划文本 + `TaskGraph.batches()`（`layers`）构造；`snapshots` 读波行 `planTasks`，本任务里可缺省 `[]`，Task 7 接上） —— checkable: 上述用例转绿
+  - 实现 `#buildPolicy` 派生 + `Contract.policy()` / `ruleRows()` / `validateLedger`（`policy()` 只取 `scope === "doc"`；`validateLedger` 只取 `scope === "ledger"` 并逐个喂 `(ctx, ledger)`）；删除 15 个硬编码实例化 —— checkable: `grep -n "new .*Invariant()" packages/cdd-engine/src-next/contract/judge.ts` 零命中
+  - `PreFlight` 增 `plan-ledger` 门（紧随 `graph` 之后、`wave` 之前）：doc / wave / branch 派发都跑；`checked` 逐条渲染，doc 作用域声明在 wave / branch 派发（`ctx.doc === null`）**19 行各一行** `skipped (no doc target)`，ledger 作用域在缺事实包时渲染 `skipped (no ledger facts)`（`ok: true`、`reason` 缺席）；plan-ledger 拒绝只填 `gate: "plan-ledger"` + 自己的词行，`reason` 缺席（门名承载身份，零死值） —— checkable: `preflight.test.ts` 新用例绿（wave 派发 `checked` 含 19 条 skipped 行；plan-ledger 拒绝的 `reason === undefined`）
+  - `checked` 的生产读者（本任务内落，不留成测试独占字段）：`face/cli.ts` 在**通过路径与拒绝路径**都渲染 `checked:` 行（逐条 `${ruleId}: ${outcome}` 与门名，缩进与既有 details 面一致） —— checkable: `cli.test.ts` 新用例断言两条路径的 stdout 均含 `checked:` 行且含一条 `plane`… 具体字节由用例钉死；`grep -rn "checked" packages/cdd-engine/src-next/face packages/cdd-engine/src-next/session --include='*.ts' | grep -v __tests__` 同时命中 preflight 与 cli
+  - 变异验证用例：删掉中间一条账本记录（`recordedTasks` 从 `[1,2,3]` 改成 `[1,3]`）→ `plan-ledger` 门必须红 —— checkable: 用例绿（「放宽不得滑成永远绿」的守卫）
+  - 窗期放行用例：`planTasks = [1,2,3,4] · recordedTasks = [1,2,3]` → 放行且 `checked` 含 `plan-ledger: info (plan leads ledger by 1 tasks)`，`verdict.ok === true` 且 `verdict.reason` 缺席 —— checkable: 用例绿
+- **Acceptance**: 六条公共规则（spec §3.1 表）在四类文档 / plan+账本上各有红 pin · **变更记录历史行原文即为绿**（夹具即真实形态：升序 / 降序 / 非单调冻结形态各一条绿 pin）· header 未出现在 lineage 一条红 pin，且**只有这一条 lineage 判定**（`front-matter-version-matches-last-row` 与 `change-history-version-ascending` 在源码面零命中，无 `version-order` 策略、无其 pin）· 变更行落进别的表格 / 列表标记双写各有红 pin 与点名 fix 句 · 散文「N 任务 / M 波」零判压 · 声明面 **21 行（doc 19 + ledger 2）**，`rules.test.ts` 断言行数、id 唯一且 kebab、`id === 实例 name`、两型判据入口形状 · `plan-ledger` 门在 doc/wave/branch 三面都跑，wave 与 branch 派发的 `checked` 各含 **19** 条 doc 声明的 `skipped (no doc target)` 行 · `PreFlightReason` 零死值（无 `no-ledger-facts` 成员；缺账本事实包只出 skipped 行；plan-ledger 拒绝的 `reason` 缺席）· **`checked` 有生产读者**：CLI 的通过与拒绝两条路径都渲染 `checked:` 行（`cli.test.ts` 钉字节），不留测试独占字段 · 变异用例与窗期用例绿 · `pnpm -C packages/cdd-engine test` 绿 · 零裸函数门绿
 - **DependsOn**: none
-
 ### Task 3: `LineIdentity`（三种行一个身份面 · branch 身份写回 · `next:` 入参）
 
 - **Objective**: 把今天两套平行的漂移判定合到一个身份面，并补上第三行：branch 线以**其计划文档的 `doc-revision`** 为 reviewed 身份（不新增 ref kind、不引入 commit sha）；`next:` 的发令判据从「branch 面已闭合」改为「该线是否有可派发的 open round」，事实由持 ledger 的一侧入参传入，capsule 保持纯渲染。
@@ -453,3 +429,4 @@ base: develop
 | v0.4 | 2026-10-28 | plan-review-3 修订（12 条 findings + 编排器裁定全部落地；spec 已回填 v0.8）：① AC 的「五条」与 21 行算术统一为 21（与 §3.4/§6.4 一致），约束里的 spec 引用改 v0.8 ② 声明面分两型——`DocRuleDeclaration`（`create(): Invariant`，判据入口 `evaluate(ctx)`）与 `LedgerRuleDeclaration`（`create(): LedgerRule`，`evaluate(ctx, ledger)`），`Contract.policy()` 只吃 doc 型、`validateLedger` 只吃 ledger 型，`rules.test.ts` 对两型分别断言工厂产出与判据入口签名（零新增 `ContractInput` 字段） ③ `front-matter-version-matches-lineage-end` 不再是新策略：既有 `SelfBoundedInvariant` 按两条既存判据拆成该 id 的 lineage 腿与 `self-bounded-id-not-in-lineage`，两腿互斥（同一偏差一条 finding），新增降为两条（`change-history-row-not-in-other-table` · `list-marker-not-doubled`），doc 行数仍 21（15 → 19 → 21） ④ 两腿 id 均为 kebab：`judge.test.ts` 的 6 处 `withKind(findings, "selfBounded", "version")` 同批重锚（deliberate pin break），`rules.test.ts` 的「id 唯一且 kebab」可机械成立 ⑤ `briefHash` pin 改为「记录值 === `ReviewRefs.briefRevision(planPath, 当刻 brief 文本).brief_hash`（acquire 时现算）」+ 零新哈希面 pin + 本波首次派发仍非 null 用例，`reviewedRevisionOf` 只作同源旁证 ⑥ 门只判不写：`in-flight` 门只 `inspect()`，`acquire(record, { stealStale })` / `steal` 收进 `CliLifecycle`；门通过到 acquire 的竞态由 `HoldingError` 走同一条 `held` BLOCK 报文（有 pin），`--steal-stale` 在 `--dry-run` 下作废（无写入通道） ⑦ `targetLineOpen` 的产出面写死为 `Ledger.reviewGate("branch", planPath, "branch")` 的 `open` 分支 / `lineRoute("branch", "branch")` 非空（不是 `PipelineFaceState.closed`），两向 pin ⑧ 删 `PreFlightReason` 的 `no-ledger-facts`（缺事实包只出 `skipped (no ledger facts)` 行，`reason` 缺席） ⑨ `ProcRow.startTime` 取 `descriptor.startTime?.getTime() ?? null`；`live` 的 `null` 在 `InFlight` 边界折成 `alive: true`（steal 拒绝），补「`startTime` 不可读不接管」pin ⑩ Task 5 的 grep 收窄为「`readCrash(RoundNaming.crashName(frame))` + 全树零双参 `readCrash(`」 ⑪ 组 CPU 用例写明 `detached: true`（复用既有 `detachedChild` 夹具形态） ⑫ `SamplingLoop.stop()` 删掉 `rmSync(heartbeatPath)` 腿（移除只归 `release()` / `steal()`），补「自结束轮次 release 前记录仍在、释放后记录与锁同时消失」pin | [human] · Claude（kairos:cdd-plan · 2026-10-28） |
 | v0.5 | 2026-10-28 | W1 评审触发的 plan 修订（spec 回填 v0.9）：两条 lineage 规则改为方向无关——`change-history-version-monotone`（同向贯穿，来回 = 违例）与 `front-matter-version-matches-lineage-end`（header 与首行或末行一致）；Acceptance 增「升序 doc 与降序 doc 各自一条绿 pin」+「来回跳 / header 两端皆不符」两条红 pin；约束里的 spec 引用改 v0.9 | [human] · Claude（kairos:cdd-dev · plan write authority · 2026-10-28） |
 | v0.6 | 2026-10-28 | W1 review-2 触发的 plan 修订（spec 回填 v0.10）：**版本序腿整体撤销**（`change-history-version-monotone` 删除；`front-matter-version-matches-lineage-end` → `front-matter-version-in-lineage`，只判「header 必须出现在变更记录里」）；声明面 23 → 22 行（doc 20 + ledger 2）、wave/branch 的 skipped 面同步 20 行；Task 2 的 pin 重写为「header 未在 lineage 红 + 升序/降序/非单调冻结形态三绿」，并消掉 v0.5 里红色 pin 与降序绿 pin 的自相矛盾 | [human] · Claude（kairos:cdd-dev · plan write authority · 2026-10-28） |
+| v0.7 | 2026-10-28 | Task 2 块整体重写（spec 回填 v0.11 · W1 review-3 的自我矛盾收敛）：**唯一的 lineage 判定 = header 缺席**（`front-matter-version-in-lineage`），`front-matter-version-matches-last-row` 与 `change-history-version-ascending` 两条腿一并删除；声明面 **21 行（doc 19 + ledger 2）**、公共面 6 条——Objective / Produces / Steps / Acceptance 四处算术与措辞同时对齐（此前 23/21 与 22/20 并存）；补 `checked` 的**生产读者**（CLI 通过 + 拒绝两条路径渲染 `checked:` 行）；`contract/declare.ts` 从 Task 2 Files 移除（规则面住 `contract/rules.ts`）；layer 规则写明 subset 读法与对应绿 pin；plan-ledger 拒绝的 `reason` 缺席 | [human] · Claude（kairos:cdd-dev · plan write authority · 2026-10-28） |

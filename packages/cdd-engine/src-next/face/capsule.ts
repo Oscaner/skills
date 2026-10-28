@@ -100,6 +100,7 @@ export class Capsule {
     next?: Route | string | null,
     target?: RouteTarget | null,
     withHandoff = false,
+    targetLineOpen?: boolean,
   ): string[] {
     const words = this.#words;
     // The `handoff:` cell is a path value — normalized to the repoRoot-relative
@@ -116,7 +117,7 @@ export class Capsule {
       .join(words.capsuleSeparator());
     const lines = [capsuleLine];
     if (next !== undefined && next !== null) {
-      const text = typeof next === "string" ? next : this.#routeText(next, target);
+      const text = typeof next === "string" ? next : this.#routeText(next, target, targetLineOpen);
       lines.push(`${words.station("next")} ${text}`);
     }
     return lines;
@@ -127,7 +128,7 @@ export class Capsule {
    *  the pipeline entry — or the BLOCKED face when the declaration is absent, spec
    *  §12 · D34). The capsule resolves the doc-class, then hands the resulting Route
    *  (a `handoff` carrying the entry, or the bare `done`) to the same renderer. */
-  #routeText(route: Route, target?: RouteTarget | null): string {
+  #routeText(route: Route, target?: RouteTarget | null, targetLineOpen?: boolean): string {
     if (route.kind === "done" && target != null) {
       const verdict = this.#docClassOf(target);
       if (verdict === "blocked") {
@@ -136,7 +137,10 @@ export class Capsule {
       // The declared doc-class (or a bare terminal) picks the pipeline entry — the
       // same resolver + renderer the board consumes.
       const key = verdict === "terminal" ? null : verdict;
-      return this.#route.render(NextStepRouter.resolve({ kind: "done" }, key), target);
+      return this.#route.render(
+        NextStepRouter.resolve({ kind: "done" }, key, targetLineOpen),
+        target,
+      );
     }
     return this.#route.render(route, target);
   }

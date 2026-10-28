@@ -211,6 +211,9 @@ export interface PlanParsed {
   sections: readonly SectionBlock[];
   /** The `### Task N:` blocks in document order. */
   taskBlocks: readonly TaskBlock[];
+  /** The parsed change-history table (the shared lineage read face all four doc
+   *  types expose — empty when the section is absent). */
+  tables: { "Change history": ParsedTable };
   chain: ChainRoot;
 }
 
@@ -242,6 +245,9 @@ export interface PhaseSpecParsed {
   sections: readonly SectionBlock[];
   /** The `## Design` double-layer skeleton (groups + items), when the section is present. */
   design: readonly DesignGroup[];
+  /** The parsed change-history table (the shared lineage read face all four doc
+   *  types expose — empty when the section is absent). */
+  tables: { "Change history": ParsedTable };
   chain: ChainRoot;
 }
 
@@ -253,6 +259,9 @@ export interface SingleSpecParsed {
   /** The document title — the front-matter `title:` scalar ("" without a head). */
   title: string;
   sections: readonly SectionBlock[];
+  /** The parsed change-history table (the shared lineage read face all four doc
+   *  types expose — empty when the section is absent). */
+  tables: { "Change history": ParsedTable };
   chain: ChainRoot;
 }
 
@@ -518,6 +527,19 @@ export abstract class DocType<P extends ParsedDoc> extends MarkdownPrimitives {
     return { heading: "", headerRow: headerCells, rows: dataRows };
   }
 
+  /** The parsed table of one declared table section (empty when the section is
+   *  absent) — the ONE table-section read all four doc types expose (the overall's
+   *  three tables and the shared `## Change history` lineage face ride it). */
+  protected tableSection(sections: readonly SectionBlock[], heading: string): ParsedTable {
+    for (const section of sections) {
+      if (this.sectionConforms(section.heading, heading)) {
+        const table = this.parseTable(section.lines);
+        return { heading: section.heading, headerRow: table.headerRow, rows: table.rows };
+      }
+    }
+    return { heading: "", headerRow: null, rows: [] };
+  }
+
   /** The slice of one registered anchor (undefined when the anchor is not registered here). */
   protected sliceOf(anchor: string): ElementSlice | undefined {
     return this.#slicesByAnchor.get(anchor);
@@ -554,10 +576,10 @@ export class OverallDocType extends DocType<OverallParsed> {
     const sections = this.sections(lines);
 
     const tables: OverallParsed["tables"] = {
-      "File paths": this.#tableSection(sections, "## File paths"),
-      "Issue inventory": this.#tableSection(sections, "## Issue inventory"),
-      "Phase inventory": this.#tableSection(sections, "## Phase inventory"),
-      "Change history": this.#tableSection(sections, "## Change history"),
+      "File paths": this.tableSection(sections, "## File paths"),
+      "Issue inventory": this.tableSection(sections, "## Issue inventory"),
+      "Phase inventory": this.tableSection(sections, "## Phase inventory"),
+      "Change history": this.tableSection(sections, "## Change history"),
     };
     const graphEdges = this.#graphEdges(sections);
     const phases = this.#phaseRows(tables["Phase inventory"]);
@@ -634,17 +656,6 @@ export class OverallDocType extends DocType<OverallParsed> {
     const idCell = row.find((cell) => pattern?.test(cell.trim()) === true);
     return idCell === undefined ? "" : idCell.trim();
   }
-
-  /** The parsed table of one overall table section (empty when the section is absent). */
-  #tableSection(sections: readonly SectionBlock[], heading: string): ParsedTable {
-    for (const section of sections) {
-      if (this.sectionConforms(section.heading, heading)) {
-        const table = this.parseTable(section.lines);
-        return { heading: section.heading, headerRow: table.headerRow, rows: table.rows };
-      }
-    }
-    return { heading: "", headerRow: null, rows: [] };
-  }
 }
 
 /**
@@ -658,12 +669,14 @@ export class PlanDocType extends DocType<PlanParsed> {
   parse(lines: readonly string[], head: FrontMatterHead | null = null): PlanParsed {
     const title = head?.title ?? "";
     const blocks = this.headingBlocks(lines);
+    const sections = this.sections(lines);
     return {
       docType: "plan",
       head,
       title,
-      sections: this.sections(lines),
+      sections,
       taskBlocks: this.taskBlocks(blocks),
+      tables: { "Change history": this.tableSection(sections, "## Change history") },
       chain: this.chainRoot(head),
     };
   }
@@ -691,12 +704,14 @@ export class PhaseSpecDocType extends DocType<PhaseSpecParsed> {
   parse(lines: readonly string[], head: FrontMatterHead | null = null): PhaseSpecParsed {
     const title = head?.title ?? "";
     const blocks = this.headingBlocks(lines);
+    const sections = this.sections(lines);
     return {
       docType: "phase-spec",
       head,
       title,
-      sections: this.sections(lines),
+      sections,
       design: this.designFromBlocks(blocks),
+      tables: { "Change history": this.tableSection(sections, "## Change history") },
       chain: this.chainRoot(head),
     };
   }
@@ -772,11 +787,13 @@ export class SingleSpecDocType extends DocType<SingleSpecParsed> {
 
   parse(lines: readonly string[], head: FrontMatterHead | null = null): SingleSpecParsed {
     const title = head?.title ?? "";
+    const sections = this.sections(lines);
     return {
       docType: "single-spec",
       head,
       title,
-      sections: this.sections(lines),
+      sections,
+      tables: { "Change history": this.tableSection(sections, "## Change history") },
       chain: this.chainRoot(head),
     };
   }

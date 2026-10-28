@@ -19,6 +19,7 @@ import { Words } from "../../face/words.ts";
 import { SlugIndex } from "../../infra/slug-index.ts";
 import { FrontMatterExtractor } from "../frontmatter.ts";
 import type { DocFs, Finding } from "../invariants.ts";
+import { LedgerTaskSetRule } from "../invariants.ts";
 import { Contract } from "../judge.ts";
 import { Translator } from "../translate.ts";
 
@@ -124,7 +125,7 @@ const PLAN_CHAIN_FS: DocFs = {
 };
 
 const judge = (
-  docKey: "overall" | "plan" | "phase-spec",
+  docKey: "overall" | "plan" | "phase-spec" | "single-spec",
   content: string,
   fs: DocFs = EMPTY_FS,
   phaseId?: string,
@@ -249,13 +250,13 @@ describe("base nine invariants — one negative case each", () => {
     expect(withKind(findings, "presence", "## Maintenance")).toBe(true);
   });
 
-  it("uniqueness: a duplicated section heading is reported", () => {
+  it("presence: a duplicated section heading is the duplicate side of the registration rule", () => {
     const content = GOOD_OVERALL.replace(
       "## Document scope",
       "## Document scope\nscope one\n\n## Document scope\nscope two",
     );
     const findings = judge("overall", content, GOOD_OVERALL_FS);
-    expect(withKind(findings, "uniqueness", "## Document scope")).toBe(true);
+    expect(withKind(findings, "presence", "## Document scope")).toBe(true);
   });
 
   it("domain: a front-matter value outside its declared shape is reported", () => {
@@ -284,7 +285,7 @@ describe("base nine invariants — one negative case each", () => {
     expect(withKind(findings, "crosslink", "Issue inventory")).toBe(true);
   });
 
-  it("order: the section sequence must follow the declared registry order", () => {
+  it("section-order: the section sequence must follow the declared registry order", () => {
     // A phase-spec with Constraints BEFORE Design inverts the declared sequence.
     const content = [
       "---",
@@ -313,7 +314,7 @@ describe("base nine invariants — one negative case each", () => {
       "- `c`",
     ].join("\n");
     const findings = judge("phase-spec", content, EMPTY_FS);
-    expect(withKind(findings, "order")).toBe(true);
+    expect(withKind(findings, "section-order")).toBe(true);
   });
 
   it("continuity: plan task ids must be contiguous from 1", () => {
@@ -399,13 +400,13 @@ describe("base nine invariants — one negative case each", () => {
     );
   });
 
-  it("selfBounded: the header version must be the change-history's newest row", () => {
+  it("self-bounded-id-not-in-lineage: a header version outside the lineage is reported", () => {
     const content = GOOD_OVERALL.replace(
       "| v1.21 | 2026-10-07 | merged change |",
       "| v1.20 | 2026-10-06 | older only |",
     );
     const findings = judge("overall", content, GOOD_OVERALL_FS);
-    expect(withKind(findings, "selfBounded", "version")).toBe(true);
+    expect(withKind(findings, "self-bounded-id-not-in-lineage", "version")).toBe(true);
   });
 });
 
@@ -658,7 +659,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
     expect(withKind(findings, "domain", "## Constraints")).toBe(false);
   });
 
-  it("order: the change-history rows must be version-ascending (canonical oldest-first)", () => {
+  it("change-history-version-ascending: the rows run oldest-first (canonical)", () => {
     const content = GOOD_OVERALL.replace(
       ["| v1.20 | 2026-10-06 | prior change |", "| v1.21 | 2026-10-07 | merged change |"].join(
         "\n",
@@ -668,7 +669,7 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
       ),
     );
     const findings = judge("overall", content, GOOD_OVERALL_FS);
-    expect(withKind(findings, "order", "Change history")).toBe(true);
+    expect(withKind(findings, "change-history-version-ascending", "Change history")).toBe(true);
   });
 
   it("residue: a legitimate design-body table does not count as Deviations residue", () => {
@@ -875,7 +876,7 @@ describe("the coordinator", () => {
 
 // ---------------------------------------------------------------------------
 // P4.1 T2 — the three-type homogeneity: `version:` required + strict (number · date) ·
-// `## Change history` required ×3 · selfBounded ×3 (header = the newest in-row)
+// `## Change history` required ×3 · the two lineage legs ×3 (header = the last row)
 // ---------------------------------------------------------------------------
 
 /** A minimal phase-spec carrying the canonical version lineage (a strict `version:`
@@ -1050,24 +1051,28 @@ describe("P4.1 T2 — `## Change history` presence required ×3", () => {
   });
 });
 
-describe("P4.1 T2 — selfBounded applies to spec/plan (header = the newest in-row)", () => {
-  it("a phase-spec whose header is NOT the change-history's newest row is reported", () => {
+describe("P21 — the two lineage legs apply to spec/plan (and never overlap)", () => {
+  it("a phase-spec whose header is IN the lineage but not the last row fires the last-row leg", () => {
     const findings = judge("phase-spec", specLineage("v1.0", [ROW_100, ROW_101]));
-    expect(withKind(findings, "selfBounded", "version")).toBe(true);
+    expect(withKind(findings, "front-matter-version-matches-last-row", "version")).toBe(true);
+    expect(withKind(findings, "self-bounded-id-not-in-lineage", "version")).toBe(false);
   });
 
-  it("a plan whose header is OUTSIDE the lineage is reported", () => {
+  it("a plan whose header is OUTSIDE the lineage fires the not-in-lineage leg", () => {
     const findings = judge("plan", planLineage("v1.2", [ROW_100, ROW_101]));
-    expect(withKind(findings, "selfBounded", "version")).toBe(true);
+    expect(withKind(findings, "self-bounded-id-not-in-lineage", "version")).toBe(true);
+    expect(withKind(findings, "front-matter-version-matches-last-row", "version")).toBe(false);
   });
 
-  it("a spec/plan whose header IS the newest in-row version carries no selfBounded finding", () => {
+  it("a spec/plan whose header IS the last row fires neither lineage leg", () => {
     for (const docKey of ["plan", "phase-spec"] as const) {
       const doc =
         docKey === "plan"
           ? planLineage("v1.1", [ROW_100, ROW_101])
           : specLineage("v1.1", [ROW_100, ROW_101]);
-      expect(withKind(judge(docKey, doc), "selfBounded", "version")).toBe(false);
+      const findings = judge(docKey, doc);
+      expect(withKind(findings, "front-matter-version-matches-last-row", "version")).toBe(false);
+      expect(withKind(findings, "self-bounded-id-not-in-lineage", "version")).toBe(false);
     }
   });
 });
@@ -1093,7 +1098,7 @@ describe("governance greps (the engine-zero criterion)", () => {
 });
 
 describe("P10 W7 T11 — the migration judgment-regression pins (spec §6 · §5.2)", () => {
-  it("version lineage — a head version OUTSIDE the Change-history lineage still fires selfBounded", () => {
+  it("version lineage — a head version OUTSIDE the Change-history lineage still fires the lineage leg", () => {
     // The T6 read flip made the version a head scalar — a version the Change-history
     // table never carries must STILL be reported (no false-green from a body scan
     // that can no longer see the head).
@@ -1102,9 +1107,9 @@ describe("P10 W7 T11 — the migration judgment-regression pins (spec §6 · §5
       GOOD_OVERALL.replace("version: v1.21", "version: v9.9"),
       GOOD_OVERALL_FS,
     );
-    expect(withKind(overall, "selfBounded", "version")).toBe(true);
+    expect(withKind(overall, "self-bounded-id-not-in-lineage", "version")).toBe(true);
     const plan = judge("plan", planLineage("v9.9", [ROW_100, ROW_101]));
-    expect(withKind(plan, "selfBounded", "version")).toBe(true);
+    expect(withKind(plan, "self-bounded-id-not-in-lineage", "version")).toBe(true);
   });
 
   it("presence — a doc missing the status key reports exactly one presence finding (typed head, not a line scan)", () => {
@@ -1200,3 +1205,205 @@ const planTask = (id: number): string[] => {
     `- **DependsOn**: none`,
   ];
 };
+
+// ---------------------------------------------------------------------------
+// P21 T2 — `ConsistencyRules`: the declaration-derived family, the four published
+// doc rules on all four doc types, the split kind re-anchors and the ledger pair.
+// ---------------------------------------------------------------------------
+
+/** A minimal single-spec carrying the canonical version lineage. */
+const singleSpecLineage = (headerVersion: string, rows: readonly string[]): string => {
+  return [
+    "---",
+    "title: Test Single Spec",
+    "doc-type: single-spec",
+    `version: ${headerVersion}`,
+    "date: 2026-10-09",
+    "slug: x-p3",
+    "status: Draft",
+    "author: x",
+    "---",
+    "",
+    "## Constraints",
+    "",
+    "- delta",
+    "",
+    "## Change history",
+    "",
+    "| Version | date | summary | author |",
+    "|---|---|---|---|",
+    ...rows,
+  ].join("\n");
+};
+
+/** The four doc-type fixtures, one per doc key — the change-history rules judge all. */
+const lineageOf = (docKey: "overall" | "plan" | "phase-spec" | "single-spec"): string => {
+  if (docKey === "overall") return GOOD_OVERALL;
+  if (docKey === "plan") return planLineage("v1.1", [ROW_100, ROW_101]);
+  if (docKey === "phase-spec") return specLineage("v1.1", [ROW_100, ROW_101]);
+  return singleSpecLineage("v1.1", [ROW_100, ROW_101]);
+};
+
+describe("P21 T2 — change-history-version-unique on all four doc types", () => {
+  it("reports a duplicated version row on overall / plan / phase-spec / single-spec", () => {
+    for (const docKey of ["overall", "plan", "phase-spec", "single-spec"] as const) {
+      const content =
+        docKey === "overall"
+          ? GOOD_OVERALL.replace(
+              "| v1.21 | 2026-10-07 | merged change |",
+              "| v1.20 | 2026-10-07 | duplicate row |",
+            )
+          : lineageOf(docKey).replace(ROW_101, ROW_100);
+      const findings = judge(docKey, content, GOOD_OVERALL_FS);
+      expect(withKind(findings, "change-history-version-unique", "Change history"), docKey).toBe(
+        true,
+      );
+    }
+  });
+});
+
+describe("P21 T2 — change-history-version-ascending on all four doc types", () => {
+  it("reports a newest-above-older lineage on plan and single-spec (not only overall)", () => {
+    for (const docKey of ["plan", "phase-spec", "single-spec"] as const) {
+      const content = lineageOf(docKey).replace(
+        [ROW_100, ROW_101].join("\n"),
+        [ROW_101, ROW_100].join("\n"),
+      );
+      const findings = judge(docKey, content);
+      expect(withKind(findings, "change-history-version-ascending", "Change history"), docKey).toBe(
+        true,
+      );
+    }
+  });
+});
+
+describe("P21 T2 — change-history-row-not-in-other-table", () => {
+  it("reports a version-led row parked in another table, naming the fix", () => {
+    const stray = "| v0.9 | 2026-10-27 | stray lineage row |";
+    const content = GOOD_OVERALL.replace(
+      "| P2 | none | issue two |",
+      ["| P2 | none | issue two |", stray].join("\n"),
+    );
+    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const finding = findings.find(
+      (entry) => entry.kind === "change-history-row-not-in-other-table",
+    );
+    expect(finding).toBeDefined();
+    expect(finding?.fix).toContain("Change history");
+    expect(finding?.field).toBe("## Issue inventory");
+  });
+});
+
+describe("P21 T2 — list-marker-not-doubled", () => {
+  it("reports a doubled list marker, naming the fix", () => {
+    const content = GOOD_OVERALL.replace("scope prose", "- - **status:** Draft");
+    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    const finding = findings.find((entry) => entry.kind === "list-marker-not-doubled");
+    expect(finding).toBeDefined();
+    expect(finding?.fix).toMatch(/single marker/);
+  });
+});
+
+describe("P21 T2 — the split strategies' kind re-anchors", () => {
+  it("a duplicated phase id is phase-id-unique (was `uniqueness`)", () => {
+    const phaseRow =
+      "| P1 | DocType 抽象 + schema 工厂 | scope a | [P1-design](docs/kairos/specs/x-p1-design.md) | [P1 plan](docs/kairos/plans/x-p1.md) | criteria a |  |";
+    const content = GOOD_OVERALL.replace(phaseRow, [phaseRow, phaseRow].join("\n"));
+    const findings = judge("overall", content, GOOD_OVERALL_FS);
+    expect(withKind(findings, "phase-id-unique", "Phase inventory")).toBe(true);
+  });
+
+  it("a duplicated task id is task-id-unique (was `uniqueness`)", () => {
+    const content = planLineage("v1.1", [ROW_100, ROW_101]).replace(
+      "### Task 1: task",
+      `${planTask(1).join("\n")}\n\n### Task 1: task`,
+    );
+    const findings = judge("plan", content);
+    expect(withKind(findings, "task-id-unique", "### Task N:")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P21 T2 — the ledger-scope pair (`validateLedger`, the plan-ledger gate's engine)
+// ---------------------------------------------------------------------------
+
+/** A conforming plan document for the ledger judgment (the rules read the FACTS). */
+const ledgerPlanDoc = (): string => planLineage("v1.0", [ROW_100]);
+
+const ledgerJudge = (
+  facts: Parameters<Contract["validateLedger"]>[1],
+  docKey: "plan" | "phase-spec" = "plan",
+): Finding[] =>
+  new Contract().validateLedger(
+    {
+      docKey,
+      path: PLAN_PATH,
+      content: ledgerPlanDoc(),
+      root: ".",
+      fs: EMPTY_FS,
+    },
+    facts,
+  );
+
+/** An agreeing fact bundle: three planned, two recorded, the plan leading by one. */
+const agreeingFacts = {
+  planTasks: [1, 2, 3],
+  recordedTasks: [1, 2],
+  closedWaves: [[1], [2]],
+  snapshots: [],
+  maxRecordedTask: 2,
+  layers: [[1], [2], [3]],
+};
+
+describe("P21 T2 — planned-tasks-vs-recorded-tasks (the plan may lead the ledger)", () => {
+  it("passes an agreeing bundle and reports one leading task", () => {
+    expect(ledgerJudge(agreeingFacts)).toEqual([]);
+    expect(LedgerTaskSetRule.planAhead(agreeingFacts)).toBe(1);
+  });
+
+  it("turns red when a middle recorded task vanishes from the plan (the mutation gate)", () => {
+    const findings = ledgerJudge({
+      ...agreeingFacts,
+      planTasks: [1, 3],
+      recordedTasks: [1, 2],
+    });
+    expect(withKind(findings, "planned-tasks-vs-recorded-tasks", "Task id")).toBe(true);
+  });
+
+  it("turns red when a gap appears BELOW the greatest recorded task", () => {
+    const findings = ledgerJudge({
+      ...agreeingFacts,
+      recordedTasks: [1, 3],
+      maxRecordedTask: 3,
+    });
+    expect(withKind(findings, "planned-tasks-vs-recorded-tasks", "Task id")).toBe(true);
+  });
+
+  it("is not judged on a doc type the ledger rules do not declare", () => {
+    expect(ledgerJudge(agreeingFacts, "phase-spec")).toEqual([]);
+  });
+});
+
+describe("P21 T2 — closed-wave-fits-depends-on-layers", () => {
+  it("turns red for a closed wave spanning two layers", () => {
+    const findings = ledgerJudge({
+      ...agreeingFacts,
+      closedWaves: [[2, 3]],
+      recordedTasks: [1, 2, 3],
+      maxRecordedTask: 3,
+      layers: [[1], [2], [3]],
+    });
+    expect(withKind(findings, "closed-wave-fits-depends-on-layers", "closed Waves")).toBe(true);
+  });
+
+  it("lets a whole-layer batch through", () => {
+    const findings = ledgerJudge({
+      ...agreeingFacts,
+      closedWaves: [[2, 3]],
+      recordedTasks: [1, 2, 3],
+      maxRecordedTask: 3,
+      layers: [[1], [2, 3]],
+    });
+    expect(findings).toEqual([]);
+  });
+});

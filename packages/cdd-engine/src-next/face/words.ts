@@ -90,6 +90,28 @@ export interface PreflightWords {
   graph: string;
   /** The doc-contract BLOCK — the target doc fails the structural contract. */
   docContract: string;
+  /** The plan-ledger BLOCK — the plan and the ledger disagree structurally. */
+  planLedger: string;
+}
+
+/** The checked-list wording rows — the pre-flight's per-rule outcome vocabulary
+ *  (one row per rendered state, plus the plan-ahead info row's template). The
+ *  vocabulary is the engine's own byte face, never a CLI literal. */
+export interface CheckedWords {
+  /** The rule ran and found nothing. */
+  passed: string;
+  /** The rule ran and reported findings. */
+  failed: string;
+  /** A doc-scope rule on a dispatch with no doc target (wave / branch). */
+  skippedNoDocTarget: string;
+  /** A ledger-scope rule with no ledger fact bundle. */
+  skippedNoLedgerFacts: string;
+  /** A rule whose gate never ran (the dispatch was refused earlier). */
+  skippedNotJudged: string;
+  /** A doc-scope rule whose target document is unreadable. */
+  skippedUnreadableDoc: string;
+  /** The plan-ahead info row (a `plan-ledger` gate row — `{count}` fill slot). */
+  planAhead: string;
 }
 
 /** The capsule word rows — every word the capsule face emits, one table. */
@@ -155,7 +177,20 @@ export const CAPSULE_WORDS = {
       "the working tree is dirty — commit or discard your changes (recovery is the orchestrator's job; the engine only refuses — it never stashes, makes a temporary commit, or resumes a dirty tree), then re-run the same command",
     graph: "the plan graph has {count} edge violation(s) — fix the **DependsOn** edges first",
     docContract: "the target document fails the doc-contract — fix its structural findings first",
+    planLedger:
+      "the plan and the ledger disagree structurally — fix the plan's task set or the recorded waves first",
   } as const satisfies PreflightWords,
+  /** The checked-list rows (P21 §3.4) — the per-rule outcome vocabulary the
+   *  pre-flight `checked` face renders (one row per state, never a CLI literal). */
+  checked: {
+    passed: "passed",
+    failed: "failed",
+    skippedNoDocTarget: "skipped (no doc target)",
+    skippedNoLedgerFacts: "skipped (no ledger facts)",
+    skippedNotJudged: "skipped (not judged)",
+    skippedUnreadableDoc: "skipped (unreadable doc)",
+    planAhead: "plan-ledger: info (plan leads ledger by {count} tasks)",
+  } as const satisfies CheckedWords,
   /** The terminated-review promotion warning — the one CDD_WARN wording row the
    *  lifecycle emits when a terminated review round's valid findings draft is
    *  promoted. The braces are fill slots ({cause} / {idleMs} / {verdict} / {count}). */
@@ -338,6 +373,12 @@ export class Words implements WordLocaleFace {
    *  source: the seam fills the placeholders from these rows, never re-types). */
   preflightWords(): PreflightWords {
     return CAPSULE_WORDS.preflight;
+  }
+
+  /** The checked-list wording rows — the per-rule outcome vocabulary (single source:
+   *  the seam renders these rows, never a CLI literal). */
+  checkedWords(): CheckedWords {
+    return CAPSULE_WORDS.checked;
   }
 
   /** The terminated-review promotion warning, rendered from the termination facts —

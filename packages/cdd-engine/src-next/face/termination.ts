@@ -18,10 +18,10 @@
 // Module-level exports are types / the value object / the class — zero
 // behavior-carrying bare functions.
 
-import { execFileSync } from "node:child_process";
 import { readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
+import { ProcessFacts } from "../infra/proc.ts";
 import type {
   RoundPhase,
   Sample,
@@ -219,6 +219,9 @@ export class StallJudge {
  *   · The group id is the child's own pid, never recomputed: `killDescendants` forces
  *     the spawn-layer detachment, so the child IS its process group leader — the same
  *     fact execa's own `process.kill(-pid)` kill rides.
+ *   · The CPU leg is `ProcessFacts.groupCpuMs` (the ONE OS read face — the engine
+ *     holds no `ps` parsing of its own); the group's membership is the real process
+ *     group (`ps -g`), which survives a leader's exit and sees a `setsid` grandchild.
  *   · The scan root is the child's cwd (the repo root), so the "scan root ≡ child cwd"
  *     correspondence is structural.
  *   · `exclude` is the engine's own writes — `Sampler.excludesFor` is its single
@@ -229,10 +232,6 @@ export class Sampler {
   static readonly MAX_DEPTH = 32;
   /** The VCS internal every scan skips — its mtime is never a round's progress. */
   static readonly VCS_DIR = ".git";
-  /** A `ps -o time=` reading: `[DD-][HH:]MM:SS[.ff]` (BSD gives centiseconds, Linux
-   *  whole seconds — both ride the same pattern). */
-  static readonly TIME_PATTERN =
-    /^(?:(\d+)-)?(?:(\d+):(\d+):(\d+(?:\.\d+)?)|(\d+):(\d+(?:\.\d+)?))$/;
 
   readonly #pgid: number;
   readonly #scanRoot: string;
@@ -253,50 +252,13 @@ export class Sampler {
   }
 
   /** Read both legs of this tick — each independently fail-open: a leg the platform
-   *  cannot read is `null`, never a fabricated reading. */
+   *  cannot read is `null`, never a fabricated reading. The CPU leg is the ONE OS
+   *  read face's group reading; the tree leg is this class's own walk. */
   probe(): Sample {
-    return { groupCpuMs: this.#groupCpuMs(), newestMtimeMs: this.#newestMtimeMs() };
-  }
-
-  /** The process group's cumulative CPU (ms), summed over the group's processes. A
-   *  non-zero `ps` exit (no such group, or no `ps` at all) or any unparseable line
-   *  makes the leg unreadable — `null`. An empty reading is unreadable too: a group
-   *  with no observable member is not evidence of zero CPU. */
-  #groupCpuMs(): number | null {
-    let output: string;
-    try {
-      output = execFileSync("ps", ["-o", "time=", "-g", String(this.#pgid)], {
-        encoding: "utf8",
-        // stdout only: `ps`'s own complaint about an unknown group is not a reading,
-        // and it must never reach the engine's stderr channel.
-        stdio: ["ignore", "pipe", "ignore"],
-      });
-    } catch {
-      return null;
-    }
-    const lines = output
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-    if (lines.length === 0) return null;
-    let total = 0;
-    for (const line of lines) {
-      const ms = Sampler.#parseCpuTime(line);
-      if (ms === null) return null;
-      total += ms;
-    }
-    return total;
-  }
-
-  /** One `time=` reading as milliseconds — `null` when the text is not that format. */
-  static #parseCpuTime(text: string): number | null {
-    const match = Sampler.TIME_PATTERN.exec(text);
-    if (match === null) return null;
-    const days = Number(match[1] ?? 0);
-    const hours = Number(match[2] ?? 0);
-    const minutes = Number(match[3] ?? match[5] ?? 0);
-    const seconds = Number(match[4] ?? match[6] ?? 0);
-    return (((days * 24 + hours) * 60 + minutes) * 60 + seconds) * 1000;
+    return {
+      groupCpuMs: ProcessFacts.groupCpuMs(this.#pgid),
+      newestMtimeMs: this.#newestMtimeMs(),
+    };
   }
 
   /** The newest content mtime (ms) in the scanned tree — `null` when the walk cannot

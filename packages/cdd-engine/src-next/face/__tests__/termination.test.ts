@@ -35,6 +35,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { ProcessFacts } from "../../infra/proc.ts";
 import type { Sample, SampleRecord } from "../../session/ledger.ts";
 import {
   type ChildOutcome,
@@ -574,19 +575,21 @@ describe("Sampler — the two legs (spec §3.3)", () => {
     expect(judge.observe(sample, 10 ** 9)).toBe("unknown");
   });
 
-  it("sums the process group's own CPU — the busy leg the judge rules on", async () => {
+  it("reads the process group's own CPU through the ONE OS face — the busy leg the judge rules on", async () => {
     const pid = await detachedChild(process.execPath, ["-e", "while (true) {}"]);
     try {
-      const sampler = new Sampler({ pgid: pid, scanRoot: scratch(), exclude: [] });
       // `ps -o time=` truncates to whole seconds off macOS, so a busy group's first
       // nonzero reading can take a moment — poll to the deadline rather than race it.
       const deadline = Date.now() + 8000;
-      let cpuMs = sampler.probe().groupCpuMs;
+      let cpuMs = ProcessFacts.groupCpuMs(pid);
       while ((cpuMs === null || cpuMs === 0) && Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, 200));
-        cpuMs = sampler.probe().groupCpuMs;
+        cpuMs = ProcessFacts.groupCpuMs(pid);
       }
       expect(cpuMs ?? 0).toBeGreaterThan(0);
+      // The sampler's CPU leg is that same reading — it holds no `ps` of its own.
+      const sampler = new Sampler({ pgid: pid, scanRoot: scratch(), exclude: [] });
+      expect(sampler.probe().groupCpuMs).not.toBeNull();
     } finally {
       reap(pid);
     }

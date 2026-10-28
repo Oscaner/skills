@@ -301,7 +301,7 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
       const preflight = preflightOf();
       const verdict = await preflight.vet(ctx);
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "graph", "wave"]);
+      expect(verdict.order).toEqual(["tree-clean", "graph", "plan-ledger", "wave"]);
       // A genuinely dirty USER file still refuses — the ignore is the workspace's
       // own self-published marker, never a pass for the user's uncommitted work.
       dirty(repoRoot);
@@ -346,7 +346,7 @@ describe("PreFlight — the gate order composition (tree-clean → graph → wav
         waveCtx(repoRoot, [task(1, "none"), task(2, "1")], [1], "implement"),
       );
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "graph", "wave"]);
+      expect(verdict.order).toEqual(["tree-clean", "graph", "plan-ledger", "wave"]);
     } finally {
       cleanup();
     }
@@ -406,7 +406,7 @@ describe("PreFlight — the wave gate inside the seam", () => {
       expect(verdict.reason).toBe("split");
       expect(verdict.message).toContain("derived wave");
       // the wave gate ran AFTER tree-clean + graph
-      expect(verdict.order).toEqual(["tree-clean", "graph", "wave"]);
+      expect(verdict.order).toEqual(["tree-clean", "graph", "plan-ledger", "wave"]);
     } finally {
       cleanup();
     }
@@ -582,6 +582,7 @@ describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch
         reason: "dirty-tree",
         message: "the working tree is dirty",
         order: ["tree-clean"],
+        checked: ["tree-clean"],
       };
       const run = new Lifecycle({
         face: targetFaces.spec,
@@ -603,6 +604,123 @@ describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch
       expect(step!.route).toBeNull();
       expect(calls).toEqual([]); // child zero dispatch
       expect(await run.advance()).not.toBeNull(); // the refused frame re-offers (resume)
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P21 T2 — the plan-ledger gate and the checked rule list (§3.1/§3.4/§6.4)
+// ---------------------------------------------------------------------------
+
+/** The branch-face context — the plan + its ledger (the branch line carries no doc
+ *  target and no `--tasks`, so only the plan-ledger gate judges structure). */
+const branchCtx = (
+  repoRoot: string,
+  blocks: readonly (readonly string[])[],
+  seed: (ledger: Ledger) => void = () => {},
+): PreFlightContext => {
+  const workspace = new Workspace(
+    new WorkspaceRoot(path.join(repoRoot, ".kairos", "cdd"), "session"),
+    "preflight-slug",
+  ).ensure();
+  const ledger = new Ledger(workspace, new ConfigLoader());
+  seed(ledger);
+  return {
+    verb: "review",
+    type: "branch",
+    repoRoot,
+    planText: planDoc(blocks),
+    tasks: null,
+    ledger,
+    doc: null,
+  };
+};
+
+describe("PreFlight — the checked rule list (derived from the declaration surface)", () => {
+  it("lists 21 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const verdict = await preflightOf().vet(
+        waveCtx(repoRoot, [task(1, "none"), task(2, "1")], [1], "implement"),
+      );
+      expect(verdict.ok).toBe(true);
+      expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
+        21,
+      );
+      expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
+      expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: passed");
+      // one rule, one row — the declaration rows render once, never per gate
+      expect(
+        verdict.checked.filter((row) => row.startsWith("planned-tasks-vs-recorded-tasks:")),
+      ).toHaveLength(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("lists the same 21 doc-scope skips on a branch dispatch", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const verdict = await preflightOf().vet(branchCtx(repoRoot, [task(1, "none")]));
+      expect(verdict.ok).toBe(true);
+      expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
+        21,
+      );
+      expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders the doc-scope rule results on a doc dispatch, and the ledger rows as skipped", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const verdict = await preflightOf(memoryFs(CONFORMING_SPEC)).vet(
+        docCtx(repoRoot, "phase-spec", "review"),
+      );
+      expect(verdict.ok).toBe(true);
+      expect(verdict.checked).toContain("presence: passed");
+      expect(verdict.checked).toContain("change-history-version-unique: passed");
+      expect(
+        verdict.checked.filter((row) => row.endsWith("skipped (no ledger facts)")),
+      ).toHaveLength(2);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("PreFlight — the plan-ledger gate", () => {
+  it("lets the plan lead the ledger by one task, reporting it as an info row (not a refusal)", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const ctx = branchCtx(repoRoot, [task(1, "none"), task(2, "1")], (ledger) => {
+        ledger.recordRound("1", "implement");
+      });
+      const verdict = await preflightOf().vet(ctx);
+      expect(verdict.ok).toBe(true);
+      expect(verdict.reason).toBeUndefined();
+      expect(verdict.checked).toContain("plan-ledger: info (plan leads ledger by 1 tasks)");
+      expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: passed");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("BLOCKs when a middle ledger record is missing (the mutation guard)", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const ctx = branchCtx(repoRoot, [task(1, "none"), task(2, "1"), task(3, "2")], (ledger) => {
+        ledger.recordRound("1", "implement");
+        ledger.recordRound("3", "implement");
+      });
+      const verdict = await preflightOf().vet(ctx);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.gate).toBe("plan-ledger");
+      expect((verdict.details ?? []).join("\n")).toContain("planned-tasks-vs-recorded-tasks");
+      expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: failed");
     } finally {
       cleanup();
     }

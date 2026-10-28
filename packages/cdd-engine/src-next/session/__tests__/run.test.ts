@@ -1022,3 +1022,69 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// P21 T3 — the branch line's identity is its PLAN's doc-revision (§4.1): the
+// terminal branch review binds it, a later plan revision reopens the line, and an
+// unchanged plan keeps it closed.
+// ---------------------------------------------------------------------------
+
+describe("P21 T3 — the branch line binds its plan's doc-revision", () => {
+  it("a completed branch-review writes the plan's doc-revision into the branch row", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      const content = planDoc([task(1, "none")]);
+      writeFileSync(planPath, content);
+      const dispatch = stub(() => ({ status: "APPROVED", findings: [] }));
+      const run = new Lifecycle({
+        face: targetFaces.branch,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "branch" },
+        planPath,
+      });
+      const step = await run.advance();
+      expect(step?.frame.phase).toBe("branch-review");
+      const recorded = ledger.reviewedRevisionOf("branch");
+      expect(recorded).not.toBeNull();
+      expect(recorded?.kind).toBe("doc-revision");
+      if (recorded?.kind !== "doc-revision") throw new Error("unreachable");
+      // the persisted plan layer speaks the canonical repoRoot-relative shape
+      expect(recorded.doc).toBe("../../plan.md");
+      expect(recorded.doc_hash).toBe(createHash("sha1").update(content).digest("hex"));
+      expect(ledger.reviewedRevisionOf("1")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("stays closed while the plan is unchanged, and reopens once it advances", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none")]));
+      const dispatch = stub(() => ({ status: "APPROVED", findings: [] }));
+      const run = new Lifecycle({
+        face: targetFaces.branch,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "branch" },
+        planPath,
+      });
+      await run.advance(); // branch-review → closed
+      expect(ledger.reviewGate("branch", planPath, "branch").kind).toBe("same");
+      expect(await run.advance()).toBeNull(); // the line holds no open round
+
+      // the plan revision advances — the branch line reopens at branch-review
+      writeFileSync(planPath, planDoc([task(1, "none"), task(2, "1")]));
+      expect(ledger.reviewGate("branch", planPath, "branch").kind).toBe("open");
+      const reopened = await run.advance();
+      expect(reopened?.frame.phase).toBe("branch-review");
+    } finally {
+      cleanup();
+    }
+  });
+});

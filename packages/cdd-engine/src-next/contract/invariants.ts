@@ -1,17 +1,25 @@
 // packages/cdd-engine/src-next/contract/invariants.ts
-// T4 — the invariant strategy class family (design spec §2.1): the single
-// judgment face. Every structural judgment of the contract plane is one strategy:
-//   base nine  — presence / uniqueness / domain / crosslink / order / continuity /
-//                residue / hollow / selfBounded;
-//   context    — file-existence / sibling-scan / link-shape / slug-ref /
-//                cross-doc-chain / section-scoped-domain (the six seam strategies
-//                that absorb the old doctype classes' contextual judgment —
-//                fourTableAudit, deviations, the identity chain, effectiveWaves).
-// Each strategy is one subclass of `abstract Invariant { evaluate(ctx) }`; the
-// judgment data is always the declared registries + the derived parse face (never
-// a hand-written structure prose). Judgment dispatch is the coordinator's
-// data-driven per-doc-key composition (judge.ts) — zero switch-case here and zero
-// exported behavior-carrying bare functions.
+// T4/P21 — the invariant strategy class family (design spec §2.1 · P21 §3.1): the
+// single judgment face. Every structural judgment is ONE strategy class, and the
+// declaration surface (`contract/rules.ts`) is the rule list: each declared row
+// names exactly one class here, and its `name` is verbatim the row id. The family:
+//   doc scope    — presence (with the registration-uniqueness leg) · domain ·
+//                  crosslink · section-order · continuity · residue · hollow ·
+//                  file-existence · sibling-scan · link-shape · slug-ref ·
+//                  cross-doc-chain · section-scoped-domain;
+//                 the change-history family — change-history-version-unique ·
+//                  change-history-version-ascending · front-matter-version-matches-
+//                  last-row · self-bounded-id-not-in-lineage ·
+//                  change-history-row-not-in-other-table · list-marker-not-doubled;
+//                 the identity legs — task-id-unique · phase-id-unique;
+//   ledger scope — closed-wave-fits-depends-on-layers · planned-tasks-vs-recorded-
+//                  tasks (a `LedgerRule`, judged with the ledger fact bundle).
+// Each doc strategy is one subclass of `abstract Invariant { evaluate(ctx) }`; each
+// ledger rule extends `LedgerRuleBase` (`evaluate(ctx, ledger)`) — two scopes, two
+// entry shapes. The judgment data is always the declared registries + the derived
+// parse face (never hand-written structure prose). Judgment dispatch is the
+// coordinator's data-driven per-doc-key composition (judge.ts) — zero switch-case
+// here and zero exported behavior-carrying bare functions.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -23,6 +31,7 @@ import type {
   DesignGroup,
   OverallParsed,
   ParsedDoc,
+  ParsedTable,
   PhaseSpecParsed,
   PlanParsed,
   SectionBlock,
@@ -31,7 +40,9 @@ import type {
 import { docTypeParsers, MarkdownPrimitives } from "./doc.ts";
 import type { FrontMatterHead } from "./frontmatter.ts";
 import { FrontMatterExtractor } from "./frontmatter.ts";
+import type { LedgerFacts } from "./judge.ts";
 import type { DocKey, DocShape, DocSkeleton, DocSlices, ElementSlice } from "./project.ts";
+import type { LedgerRule } from "./rules.ts";
 import type { Translator } from "./translate.ts";
 
 // ---------------------------------------------------------------------------
@@ -195,7 +206,6 @@ export abstract class Invariant extends MarkdownPrimitives {
     return this.registry(ctx).elements;
   }
 
-  /** The slice of one registered anchor (undefined when the anchor is not registered here). */
   protected sliceOf(ctx: JudgeContext, anchor: string): ElementSlice | undefined {
     return ctx.slices.slices.find((slice) => slice.anchor === anchor);
   }
@@ -276,6 +286,19 @@ export abstract class Invariant extends MarkdownPrimitives {
     return ctx.docKey === "phase-spec" ? (ctx.parsed as PhaseSpecParsed) : null;
   }
 
+  /** The doc's `## Change history` table — the ONE lineage read face all four doc
+   *  types expose (each parse record carries it, filled by the same table-section
+   *  read). The change-history strategies read ONLY through this accessor. */
+  protected changeHistory(ctx: JudgeContext): ParsedTable {
+    return ctx.parsed.tables["Change history"];
+  }
+
+  /** The first `vX.Y` version token on a line — the lineage row's identity read. */
+  protected firstVersion(text: string): string | null {
+    const match = text.match(/v\d+\.\d+/);
+    return match === null ? null : match[0];
+  }
+
   /** The identity index every slug-keyed strategy looks up through — the caller's
    *  injected index when present, else one scan over the SAME fs seam every other
    *  strategy reads (the judgment stays hermetic: no second, real-filesystem scan).
@@ -317,6 +340,93 @@ const PRESENCE_HOMES = new Set([
   "conditional",
 ]);
 
+/** The ledger-scope strategy base — the two cross-ledger rules' shared seam. Kept
+ *  separate from `Invariant` on purpose: a ledger rule's judgment entry takes the
+ *  ledger fact bundle as a SECOND argument (`evaluate(ctx, ledger)`), so it can never
+ *  ride the doc-scope policy composition (two scopes, two gates, two entry shapes). */
+export abstract class LedgerRuleBase implements LedgerRule {
+  abstract readonly name: string;
+  /** Run the rule over the doc judgment context + the ledger fact bundle. */
+  abstract evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[];
+
+  /** The single finding-construction point (one home per scope). */
+  protected finding(ctx: JudgeContext, field: string, message: string, fix: string): Finding {
+    return { path: ctx.path, field, message, fix, kind: this.name };
+  }
+}
+
+/** closed-wave-fits-depends-on-layers — a closed wave stays inside one DependsOn layer.
+ *  The wave's members must share ONE layer of the plan's topological decomposition;
+ *  a wave spanning two layers was dispatched against a plan whose edges moved under
+ *  the closed ledgers. */
+export class LedgerLayeringRule extends LedgerRuleBase {
+  readonly name = "closed-wave-fits-depends-on-layers";
+
+  evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[] {
+    const findings: Finding[] = [];
+    for (const wave of ledger.closedWaves) {
+      if (wave.length === 0) continue;
+      const fits = ledger.layers.some((layer) => wave.every((id) => layer.includes(id)));
+      if (fits) continue;
+      const layers = ledger.layers.map((layer) => `{${layer.join(",")}}`).join(" ");
+      findings.push(
+        this.finding(
+          ctx,
+          "closed Waves",
+          `the closed wave {${wave.join(",")}} spans more than one DependsOn layer (${layers})`,
+          "keep a wave on one topological layer — add the missing DependsOn edges so the batch is one layer",
+        ),
+      );
+    }
+    return findings;
+  }
+}
+
+/** planned-tasks-vs-recorded-tasks — the plan and the ledger agree, allowing the plan
+ *  to LEAD the ledger: an unrecorded task is allowed only when its id is greater
+ *  than the ledger's greatest recorded id (the normal window between a plan append
+ *  and its first round). A recorded task the plan no longer carries, and an
+ *  unrecorded gap BELOW that maximum, are both findings. */
+export class LedgerTaskSetRule extends LedgerRuleBase {
+  readonly name = "planned-tasks-vs-recorded-tasks";
+
+  evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[] {
+    const findings: Finding[] = [];
+    const planned = new Set(ledger.planTasks);
+    const recorded = new Set(ledger.recordedTasks);
+    for (const id of ledger.recordedTasks) {
+      if (planned.has(id)) continue;
+      findings.push(
+        this.finding(
+          ctx,
+          "Task id",
+          `the ledger records Task ${id}, which the plan no longer carries`,
+          "restore the task block or remove the ledger row",
+        ),
+      );
+    }
+    for (const id of planned) {
+      if (recorded.has(id) || id > ledger.maxRecordedTask) continue;
+      findings.push(
+        this.finding(
+          ctx,
+          "Task id",
+          `Task ${id} is missing from the ledger while the plan already recorded higher tasks`,
+          "record the missing round in the ledger or remove the task from the plan",
+        ),
+      );
+    }
+    return findings;
+  }
+
+  /** How many planned tasks are ahead of the ledger — the `plan leads ledger` info
+   *  count (the same predicate the window allowance reads; preflight renders it). */
+  static planAhead(ledger: LedgerFacts): number {
+    const recorded = new Set(ledger.recordedTasks);
+    return ledger.planTasks.filter((id) => !recorded.has(id) && id > ledger.maxRecordedTask).length;
+  }
+}
+
 /** presence — every required structural element of the declared registry must occur. */
 export class PresenceInvariant extends Invariant {
   readonly name = "presence";
@@ -356,6 +466,37 @@ export class PresenceInvariant extends Invariant {
       }
     }
     findings.push(...this.taskFieldPresence(ctx));
+    // The registration uniqueness leg folded into presence (one rule = one strategy):
+    // a required element that registers MORE than once is the duplicate side of the
+    // same "registers exactly once" judgment the missing side above reports.
+    findings.push(...this.headingUniqueness(ctx));
+    return findings;
+  }
+
+  /** Heading-style anchors: a duplicated heading line text is a duplicate registration. */
+  private headingUniqueness(ctx: JudgeContext): Finding[] {
+    const findings: Finding[] = [];
+    const seenLine = new Set<string>();
+    for (const element of this.elementsOf(ctx)) {
+      if (!element.anchor.startsWith("#")) continue;
+      const slice = this.sliceOf(ctx, element.anchor);
+      if (slice === undefined) continue;
+      for (const line of this.occurrenceLines(ctx, slice)) {
+        const trimmed = line.trim();
+        const key = `${element.anchor}::${trimmed}`;
+        if (seenLine.has(key)) {
+          findings.push(
+            this.finding(
+              ctx,
+              element.anchor,
+              `duplicate heading registration: ${trimmed}`,
+              `keep "${trimmed}" in exactly one place`,
+            ),
+          );
+        }
+        seenLine.add(key);
+      }
+    }
     return findings;
   }
 
@@ -407,102 +548,79 @@ export class PresenceInvariant extends Invariant {
   }
 }
 
-/** uniqueness — every identity-carrying surface registers exactly once. */
-export class UniquenessInvariant extends Invariant {
-  readonly name = "uniqueness";
+/** change-history-version-unique — a change-history version label registers once. */
+export class ChangeHistoryVersionUniqueInvariant extends Invariant {
+  readonly name = "change-history-version-unique";
 
   evaluate(ctx: JudgeContext): Finding[] {
-    const findings = [...this.headingUniqueness(ctx), ...this.derivedUniqueness(ctx)];
-    return findings;
-  }
-
-  /** Heading-style anchors: a duplicated heading line text is a duplicate registration. */
-  private headingUniqueness(ctx: JudgeContext): Finding[] {
     const findings: Finding[] = [];
-    const seenLine = new Set<string>();
-    for (const element of this.elementsOf(ctx)) {
-      if (!element.anchor.startsWith("#")) continue;
-      const slice = this.sliceOf(ctx, element.anchor);
-      if (slice === undefined) continue;
-      for (const line of this.occurrenceLines(ctx, slice)) {
-        const trimmed = line.trim();
-        const key = `${element.anchor}::${trimmed}`;
-        if (seenLine.has(key)) {
-          findings.push(
-            this.finding(
-              ctx,
-              element.anchor,
-              `duplicate heading registration: ${trimmed}`,
-              `keep "${trimmed}" in exactly one place`,
-            ),
-          );
-        }
-        seenLine.add(key);
+    const seenVersions = new Set<string>();
+    for (const row of this.changeHistory(ctx).rows) {
+      const version = this.firstVersion(row[0] ?? "");
+      if (version !== null && seenVersions.has(version)) {
+        findings.push(
+          this.finding(
+            ctx,
+            "Change history",
+            `duplicate change-history version: ${version} registers more than once`,
+            "keep each lineage version in exactly one Change-history row",
+          ),
+        );
       }
+      if (version !== null) seenVersions.add(version);
     }
     return findings;
   }
+}
 
-  /** The derived identity rows: task ids, phase ids, change-history versions. */
-  private derivedUniqueness(ctx: JudgeContext): Finding[] {
+/** task-id-unique — every `### Task N:` id registers exactly once (plan). */
+export class TaskIdUniqueInvariant extends Invariant {
+  readonly name = "task-id-unique";
+
+  evaluate(ctx: JudgeContext): Finding[] {
     const findings: Finding[] = [];
-    if (ctx.docKey === "plan") {
-      const seenIds = new Set<number>();
-      for (const block of this.plan(ctx)?.taskBlocks ?? []) {
-        if (seenIds.has(block.id)) {
-          findings.push(
-            this.finding(
-              ctx,
-              "### Task N:",
-              `duplicate task id: Task ${block.id} registers more than once`,
-              "keep each task id in exactly one task block",
-            ),
-          );
-        }
-        seenIds.add(block.id);
+    const seenIds = new Set<number>();
+    for (const block of this.plan(ctx)?.taskBlocks ?? []) {
+      if (seenIds.has(block.id)) {
+        findings.push(
+          this.finding(
+            ctx,
+            "### Task N:",
+            `duplicate task id: Task ${block.id} registers more than once`,
+            "keep each task id in exactly one task block",
+          ),
+        );
       }
-    }
-    if (ctx.docKey === "overall") {
-      const data = this.overall(ctx);
-      if (data !== null) {
-        const seenPhases = new Set<string>();
-        for (const phase of data.chain.phases) {
-          const lower = phase.id.toLowerCase();
-          if (seenPhases.has(lower)) {
-            findings.push(
-              this.finding(
-                ctx,
-                "Phase inventory",
-                `duplicate phase registration: ${phase.id} registers more than once`,
-                "keep each phase id in exactly one Phase-inventory row",
-              ),
-            );
-          }
-          seenPhases.add(lower);
-        }
-        const seenVersions = new Set<string>();
-        for (const row of data.tables["Change history"].rows) {
-          const version = this.#firstVersion(row[0] ?? "");
-          if (version !== null && seenVersions.has(version)) {
-            findings.push(
-              this.finding(
-                ctx,
-                "Change history",
-                `duplicate change-history version: ${version} registers more than once`,
-                "keep each lineage version in exactly one Change-history row",
-              ),
-            );
-          }
-          if (version !== null) seenVersions.add(version);
-        }
-      }
+      seenIds.add(block.id);
     }
     return findings;
   }
+}
 
-  #firstVersion(text: string): string | null {
-    const match = text.match(/v\d+\.\d+/);
-    return match === null ? null : match[0];
+/** phase-id-unique — every Phase-inventory phase id registers exactly once (overall). */
+export class PhaseIdUniqueInvariant extends Invariant {
+  readonly name = "phase-id-unique";
+
+  evaluate(ctx: JudgeContext): Finding[] {
+    const data = this.overall(ctx);
+    if (data === null) return [];
+    const findings: Finding[] = [];
+    const seenPhases = new Set<string>();
+    for (const phase of data.chain.phases) {
+      const lower = phase.id.toLowerCase();
+      if (seenPhases.has(lower)) {
+        findings.push(
+          this.finding(
+            ctx,
+            "Phase inventory",
+            `duplicate phase registration: ${phase.id} registers more than once`,
+            "keep each phase id in exactly one Phase-inventory row",
+          ),
+        );
+      }
+      seenPhases.add(lower);
+    }
+    return findings;
   }
 }
 
@@ -694,23 +812,17 @@ export class CrosslinkInvariant extends Invariant {
   }
 }
 
-/** order — structural surfaces appear in their declared sequence. */
-export class OrderInvariant extends Invariant {
-  readonly name = "order";
+/** section-order — rank-2 headings follow the declared registry sequence. */
+export class SectionOrderInvariant extends Invariant {
+  readonly name = "section-order";
 
   evaluate(ctx: JudgeContext): Finding[] {
-    return [...this.sectionOrder(ctx), ...this.historyOrder(ctx)];
-  }
-
-  /** Rank-2 headings must follow the declared registry order (design before constraints…). */
-  private sectionOrder(ctx: JudgeContext): Finding[] {
     const findings: Finding[] = [];
     const anchors = this.elementsOf(ctx)
       .filter((element) => element.anchor.startsWith("## "))
       .map((element) => element.anchor);
-    const docSections: readonly SectionBlock[] = this.#docSections(ctx);
     let previous = -1;
-    for (const section of docSections) {
+    for (const section of ctx.parsed.sections) {
       const match = this.#registryAnchorFor(section, anchors, ctx);
       if (match === null) continue;
       if (match.index < previous) {
@@ -728,14 +840,33 @@ export class OrderInvariant extends Invariant {
     return findings;
   }
 
-  /** The overall's change-history rows must be version-ascending — oldest first, the
-   *  latest revision last (the canonical repo format). */
-  private historyOrder(ctx: JudgeContext): Finding[] {
-    const data = this.overall(ctx);
-    if (data === null) return [];
+  /** The registry anchor a doc section heading conforms to (null when unregistered). */
+  #registryAnchorFor(
+    section: SectionBlock,
+    anchors: readonly string[],
+    ctx: JudgeContext,
+  ): { anchor: string; index: number } | null {
+    for (let index = 0; index < anchors.length; index++) {
+      const slice = this.sliceOf(ctx, anchors[index]);
+      if (slice?.valuePattern?.test(section.heading) === true) {
+        return { anchor: anchors[index], index };
+      }
+      if (slice === undefined && section.heading.startsWith(anchors[index])) {
+        return { anchor: anchors[index], index };
+      }
+    }
+    return null;
+  }
+}
+
+/** change-history-version-ascending — the change-history rows run oldest-first. */
+export class ChangeHistoryVersionAscendingInvariant extends Invariant {
+  readonly name = "change-history-version-ascending";
+
+  evaluate(ctx: JudgeContext): Finding[] {
     const findings: Finding[] = [];
-    const versions = data.tables["Change history"].rows
-      .map((row) => this.#versionPair(row[0] ?? ""))
+    const versions = this.changeHistory(ctx)
+      .rows.map((row) => this.#versionPair(row[0] ?? ""))
       .filter((pair) => pair !== null) as readonly { major: number; minor: number }[];
     for (let i = 1; i < versions.length; i++) {
       const earlier = versions[i - 1];
@@ -756,31 +887,6 @@ export class OrderInvariant extends Invariant {
       }
     }
     return findings;
-  }
-
-  /** The document's rank-2 section blocks in document order. */
-  #docSections(ctx: JudgeContext): readonly SectionBlock[] {
-    if (ctx.docKey === "overall") return (ctx.parsed as OverallParsed).sections;
-    if (ctx.docKey === "plan") return (ctx.parsed as PlanParsed).sections;
-    return (ctx.parsed as PhaseSpecParsed).sections;
-  }
-
-  /** The registry anchor a doc section heading conforms to (null when unregistered). */
-  #registryAnchorFor(
-    section: SectionBlock,
-    anchors: readonly string[],
-    ctx: JudgeContext,
-  ): { anchor: string; index: number } | null {
-    for (let index = 0; index < anchors.length; index++) {
-      const slice = this.sliceOf(ctx, anchors[index]);
-      if (slice?.valuePattern?.test(section.heading) === true) {
-        return { anchor: anchors[index], index };
-      }
-      if (slice === undefined && section.heading.startsWith(anchors[index])) {
-        return { anchor: anchors[index], index };
-      }
-    }
-    return null;
   }
 
   #versionPair(text: string): { major: number; minor: number } | null {
@@ -986,84 +1092,120 @@ export class HollowInvariant extends Invariant {
   }
 }
 
-/** selfBounded — the doc's own-scope lineage stays consistent with itself. */
-export class SelfBoundedInvariant extends Invariant {
-  readonly name = "selfBounded";
+/** front-matter-version-matches-last-row — the head `version:` is the lineage's LAST row.
+ *  The first of the two mutually exclusive lineage legs: the header value IS in the
+ *  doc's own lineage but is not the last row (a stale header). A value outside the
+ *  lineage belongs to `self-bounded-id-not-in-lineage` — exactly one leg fires per
+ *  deviation. */
+export class FrontMatterLastRowInvariant extends Invariant {
+  readonly name = "front-matter-version-matches-last-row";
 
   evaluate(ctx: JudgeContext): Finding[] {
     const headerVersion = ctx.head.version;
+    if (headerVersion === null) return [];
     const historyVersions = this.#historyVersions(ctx);
-    if (headerVersion === null || historyVersions.length === 0) return [];
+    if (historyVersions.length === 0) return [];
+    if (!historyVersions.includes(headerVersion)) return [];
+    const last = historyVersions[historyVersions.length - 1];
+    if (headerVersion === last) return [];
+    return [
+      this.finding(
+        ctx,
+        "version",
+        `the header version ${headerVersion} is not the change-history's last row (${last})`,
+        "bump the version front-matter key to the newest Change-history row",
+      ),
+    ];
+  }
+
+  /** The doc's Change-history row versions, in row order (the shared lineage read). */
+  #historyVersions(ctx: JudgeContext): readonly string[] {
+    return this.changeHistory(ctx)
+      .rows.map((row) => this.firstVersion(row[0] ?? ""))
+      .filter((version) => version !== null) as readonly string[];
+  }
+}
+
+/** self-bounded-id-not-in-lineage — the head `version:` belongs to the doc's lineage.
+ *  The second lineage leg: the header value is absent from every Change-history row
+ *  (outside the doc's own lineage). A stale-but-present value belongs to
+ *  `front-matter-version-matches-last-row` — the two legs never overlap. */
+export class SelfBoundedIdNotInLineageInvariant extends Invariant {
+  readonly name = "self-bounded-id-not-in-lineage";
+
+  evaluate(ctx: JudgeContext): Finding[] {
+    const headerVersion = ctx.head.version;
+    if (headerVersion === null) return [];
+    const historyVersions = this.#historyVersions(ctx);
+    if (historyVersions.length === 0) return [];
+    if (historyVersions.includes(headerVersion)) return [];
+    return [
+      this.finding(
+        ctx,
+        "version",
+        `the header version ${headerVersion} is outside the document's own lineage`,
+        `the version front-matter key must belong to the Change-history row versions: ${historyVersions.join(", ")}`,
+      ),
+    ];
+  }
+
+  /** The doc's Change-history row versions, in row order (the shared lineage read). */
+  #historyVersions(ctx: JudgeContext): readonly string[] {
+    return this.changeHistory(ctx)
+      .rows.map((row) => this.firstVersion(row[0] ?? ""))
+      .filter((version) => version !== null) as readonly string[];
+  }
+}
+
+/** change-history-row-not-in-other-table — a change-history row stays in its table.
+ *  Any table row OUTSIDE `## Change history` whose first cell carries a version
+ *  token (`v1.2`) is a lineage row parked in the wrong table. */
+export class RowHomeInvariant extends Invariant {
+  readonly name = "change-history-row-not-in-other-table";
+
+  evaluate(ctx: JudgeContext): Finding[] {
     const findings: Finding[] = [];
-    const newest = this.#newestVersion(historyVersions);
-    if (headerVersion !== newest) {
-      findings.push(
-        this.finding(
-          ctx,
-          "version",
-          `the header version ${headerVersion} is not the change-history's newest row (${newest})`,
-          "bump both the version front-matter key and the newest Change-history row together",
-        ),
-      );
+    for (const section of ctx.parsed.sections) {
+      const slice = this.sliceOf(ctx, "## Change history");
+      if (slice?.valuePattern?.test(section.heading) === true) continue;
+      for (const row of this.tableRows(section.lines)) {
+        const first = row[0] ?? "";
+        if (!/^v\d+\.\d+$/.test(first)) continue;
+        findings.push(
+          this.finding(
+            ctx,
+            section.heading,
+            `a change-history row sits in ${section.heading}: ${first}`,
+            "move the row back into the ## Change history table",
+          ),
+        );
+      }
     }
-    if (!historyVersions.includes(headerVersion)) {
+    return findings;
+  }
+}
+
+/** list-marker-not-doubled — a list item carries exactly one leading marker.
+ *  A bullet whose content starts with another bullet marker (`- - x`, `* + y`) is
+ *  a doubled marker, not nested content. */
+export class ListMarkerInvariant extends Invariant {
+  readonly name = "list-marker-not-doubled";
+
+  evaluate(ctx: JudgeContext): Finding[] {
+    const findings: Finding[] = [];
+    for (const line of ctx.lines) {
+      const trimmed = line.trim();
+      if (!/^[-*+]\s+[-*+]\s+\S/.test(trimmed)) continue;
       findings.push(
         this.finding(
           ctx,
-          "version",
-          `the header version ${headerVersion} is outside the document's own lineage`,
-          `the version front-matter key must belong to the Change-history row versions: ${historyVersions.join(", ")}`,
+          "list-marker",
+          `the list item carries a doubled marker: ${trimmed}`,
+          "merge the doubled list marker into a single marker",
         ),
       );
     }
     return findings;
-  }
-
-  /** The doc's Change-history row versions — the overall reads its parsed table,
-   *  the plan/spec read the `## Change history` section's table rows (the shared
-   *  row primitive — the P4.1 T2 isomorphic lineage: the same lineage judgment rides
-   *  all doc types). */
-  #historyVersions(ctx: JudgeContext): readonly string[] {
-    if (ctx.docKey === "overall") {
-      const data = this.overall(ctx);
-      if (data === null) return [];
-      return data.tables["Change history"].rows
-        .map((row) => this.#firstVersion(row[0] ?? ""))
-        .filter((version) => version !== null) as readonly string[];
-    }
-    const section =
-      ctx.docKey === "plan"
-        ? (ctx.parsed as PlanParsed).sections.find((s) => s.heading.includes("Change history"))
-        : (ctx.parsed as PhaseSpecParsed).sections.find((s) =>
-            s.heading.includes("Change history"),
-          );
-    if (section === undefined) return [];
-    return this.tableRows(section.lines)
-      .map((row) => this.#firstVersion(row[0] ?? ""))
-      .filter((version) => version !== null) as readonly string[];
-  }
-
-  #firstVersion(text: string): string | null {
-    const match = text.match(/v\d+\.\d+/);
-    return match === null ? null : match[0];
-  }
-
-  /** The newest lineage version — the numerically greatest (major, minor) row. */
-  #newestVersion(versions: readonly string[]): string {
-    let best = versions[0];
-    for (const version of versions) {
-      const [bestMajor, bestMinor] = this.#versionNumber(best);
-      const [currentMajor, currentMinor] = this.#versionNumber(version);
-      if (currentMajor > bestMajor || (currentMajor === bestMajor && currentMinor > bestMinor)) {
-        best = version;
-      }
-    }
-    return best;
-  }
-
-  #versionNumber(version: string): readonly [number, number] {
-    const match = version.match(/v(\d+)\.(\d+)/);
-    return match === null ? [0, 0] : [Number(match[1]), Number(match[2])];
   }
 }
 

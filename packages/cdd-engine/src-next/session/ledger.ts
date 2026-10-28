@@ -30,6 +30,7 @@ import type { Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { type TargetType, targetFaces } from "./faces.ts";
 import { type Carrier, type CarrierPlane, HandoffSchema } from "./handoff-schema.ts";
+import { LineIdentity } from "./line-identity.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
@@ -376,6 +377,11 @@ export class Ledger {
   /** The review-reference face (T25) — the refKind classification + the same-ref
    *  reject, one instance per ledger (the run's bound refs). */
   readonly #refs = new ReviewRefs();
+  /** The three-line drift judgment (P21 §4.1) — the ONE identity face the doc line
+   *  and the wave line both read (the branch line binds its plan's doc-revision
+   *  through the same face). Injected with this ledger's own ref face, so the
+   *  same-ref predicate keeps one definition. */
+  readonly #identity = new LineIdentity(this.#refs);
   /** The task-brief renderer (D30) — the wave line's judgment-input derivation:
    *  the wave's reviewed basis is the RENDERED brief's content, never the whole
    *  plan (a backfill touching other tasks must not void a reviewed wave). */
@@ -586,7 +592,7 @@ export class Ledger {
       // false-drift comparison never reads one document as two.
       const rel = this.#rel(doc);
       const current = this.#refs.docRevision(rel, readFileSync(this.#abs(doc), "utf8"));
-      return this.#refs.sameRef(reviewed, current) ? "same" : "drift";
+      return this.#identity.verdict(reviewed, { ref: current }) === "same" ? "same" : "drift";
     } catch {
       return null;
     }
@@ -698,7 +704,7 @@ export class Ledger {
     if (reviewed.kind !== "brief-revision") return false;
     const current = this.#briefRevision(waveKey, reviewed.plan);
     if (current === null) return false;
-    return !this.#refs.sameRef(reviewed, current);
+    return this.#identity.verdict(reviewed, { ref: current }) === "drift";
   }
 
   /** The pending-fix derivation — the "doc same + not APPROVED" face (T8): the

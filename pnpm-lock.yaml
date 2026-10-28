@@ -211,9 +211,15 @@ importers:
       jsonc-parser:
         specifier: ^3.3.1
         version: 3.3.1
+      ps-list:
+        specifier: ^9.0.0
+        version: 9.0.0
       simple-git:
         specifier: ^4.0.2
         version: 4.0.2
+      write-file-atomic:
+        specifier: ^8.0.0
+        version: 8.0.0
       yaml:
         specifier: ^2.9.1
         version: 2.9.1
@@ -221,6 +227,9 @@ importers:
       '@types/node':
         specifier: ^24.19.2
         version: 24.19.2
+      '@types/write-file-atomic':
+        specifier: ^4.0.3
+        version: 4.0.3
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -540,6 +549,9 @@ packages:
 
   '@types/node@24.19.2':
     resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
+
+  '@types/write-file-atomic@4.0.3':
+    resolution: {integrity: sha512-qdo+vZRchyJIHNeuI1nrpsLw+hnkgqP/8mlaN6Wle/NKhydHmUN9l4p3ZE8yP90AJNJW4uB8HQhedb4f1vNayQ==}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -913,6 +925,10 @@ packages:
     resolution: {integrity: sha512-HzMy3Geq23nVALD/M2LliU+F+M+gVNsvkQWWqeBZ8HDiCgzo6YPJ/Omrmtq24EFrIsk0a3EkQGEd7bDOo+IhGA==}
     engines: {node: '>=18'}
 
+  ps-list@9.0.0:
+    resolution: {integrity: sha512-lxMEoIL/BQlk2KunFzxwUPwMvjFH7x7cmvzSLsSHpyMXl9FFfLUlfKrYwFc4wx/ZaIxxuXC4n8rjQ1CX/tkXVQ==}
+    engines: {node: '>=20'}
+
   rolldown@1.2.12:
     resolution: {integrity: sha512-8wafseiaG80xmXSfqidUNqZcylTlhmPZZt+za2m+js2sFZ8dTNlhIOV2WcbIPx2hgwPBJpEUGFAMZ9bgBBLTSQ==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -1069,6 +1085,10 @@ packages:
     resolution: {integrity: sha512-Tb2FUhB4vUsGQlfSquQLYkApkuPAFQXGFzxWKHHumVz2dK+X1RUm/HnID4+TfIGYJ1kTcwOaCk/buYCEJr6YjQ==}
     engines: {node: '>=20.11'}
     hasBin: true
+
+  write-file-atomic@8.0.0:
+    resolution: {integrity: sha512-dYwyZredl67GyLLIHJnRM3h2PcOmN5SkcgC7eM5DPDEOEl6dLFqVrMg3F1Ea32usj4VSVZtd2H4MtKTNOf6nPg==}
+    engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
 
   yaml@2.9.1:
     resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
@@ -1355,6 +1375,10 @@ snapshots:
     dependencies:
       undici-types: 7.24.6
 
+  '@types/write-file-atomic@4.0.3':
+    dependencies:
+      '@types/node': 24.19.2
+
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
 
@@ -1606,6 +1630,8 @@ snapshots:
     dependencies:
       parse-ms: 4.0.0
 
+  ps-list@9.0.0: {}
+
   rolldown@1.2.12:
     dependencies:
       '@oxc-project/types': 0.152.0
@@ -1725,6 +1751,10 @@ snapshots:
   which-command@0.1.0: {}
 
   why-is-node-running@3.2.1: {}
+
+  write-file-atomic@8.0.0:
+    dependencies:
+      signal-exit: 4.1.0
 
   yaml@2.9.1: {}
 

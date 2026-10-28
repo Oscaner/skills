@@ -63,14 +63,14 @@ export interface LedgerFacts {
  *
  * The P7 structure-plane canonicalize seam (design spec §2.1) + the T6 front-matter
  * delivery seam (§2.2): the Contract self-holds a Translator, and validate()
- * canonicalizes EVERY body line once at the row source — the normalized view
- * shared by parse and JudgeContext.lines. The split order is RAW-first: the raw
+ * canonicalizes EVERY body line once at the row source — the normalized view the
+ * parse face and the tree both read. The split order is RAW-first: the raw
  * content resolves its front-matter head BEFORE any canonicalize (front matter is
  * data — the canonicalize view would silently rewrite registered Chinese aliases
  * inside header values), then the post-fence body lines canonicalize and the SAME
- * typed head rides into parse(lines, head) and JudgeContext.head. Every
- * valuePattern judgment face (presence occurrenceLines · domain carrierLines ·
- * section-scoped · crosslink) matches the view, so the legacy Chinese charter
+ * typed head rides into parse(lines, head). Every valuePattern judgment face
+ * (presence occurrenceNodes · domain carrierNodes · section-scoped · crosslink)
+ * matches the view, so the legacy Chinese charter
  * markers (the doc-arch decision-group / upstream-endorsements leaves) match their
  * English canonical element patterns through the recognition face — never a second
  * hand-written zh pattern. The view is never written back: the source document
@@ -169,7 +169,6 @@ export class Contract {
       docKey: input.docKey,
       parsed,
       head,
-      lines,
       tree,
       path: input.path,
       root: input.root,

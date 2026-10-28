@@ -54,11 +54,15 @@ export class MarkdownDocument {
   readonly #tables: readonly TableRecord[];
   /** Inline-code column spans, keyed by 1-based line (the citation boundary). */
   readonly #codeSpans: ReadonlyMap<number, readonly (readonly [number, number])[]>;
+  /** The lines covered by a fenced / indented code block — the code surface the
+   *  loose continuation-row recovery must never read as table data. */
+  readonly #codeLines: ReadonlySet<number>;
 
   private constructor(content: string) {
     this.#lines = content.split(/\r?\n/);
     this.#root = MarkdownDocument.#parseRoot(content);
     this.#codeSpans = MarkdownDocument.#codeSpansOf(this.#root);
+    this.#codeLines = MarkdownDocument.#codeLinesOf(this.#root);
     this.#headings = this.#headingsOf();
     this.#frontMatter = this.#frontMatterOf();
     const tables = this.#tablesOf();
@@ -252,8 +256,9 @@ export class MarkdownDocument {
    *  is the table's real boundary (the repository's own Phase / Issue inventories
    *  are written this way), so the run is read back as a headerless table record;
    *  the merge then keeps the first table's header and concatenates the rows in
-   *  document order. Lines already covered by an mdast table are skipped (no row is
-   *  ever read twice). */
+   *  document order. Lines already covered by an mdast table OR by an mdast code
+   *  block are skipped: a fenced block that shows the table shape is sample prose,
+   *  never table data (no row is ever read twice). */
   #looseTablesOf(tables: readonly TableRecord[]): readonly TableRecord[] {
     const out: TableRecord[] = [];
     const inTableSpan = (line: number): boolean =>
@@ -270,7 +275,11 @@ export class MarkdownDocument {
       };
       for (let line = heading.line + 1; line <= end; line += 1) {
         const text = this.line(line).trim();
-        if (inTableSpan(line) || !MarkdownDocument.LOOSE_ROW.test(text)) {
+        if (
+          inTableSpan(line) ||
+          this.#codeLines.has(line) ||
+          !MarkdownDocument.LOOSE_ROW.test(text)
+        ) {
           flush();
           continue;
         }
@@ -400,5 +409,24 @@ export class MarkdownDocument {
       stack.push(...(node.children ?? []));
     }
     return map;
+  }
+
+  /** The lines occupied by a fenced / indented code block (the code surface a
+   *  loose-row read must never treat as table data). */
+  static #codeLinesOf(root: MdNode): ReadonlySet<number> {
+    const lines = new Set<number>();
+    const stack: MdNode[] = [root];
+    while (stack.length > 0) {
+      const node = stack.shift();
+      if (node === undefined) continue;
+      if (node.type === "code") {
+        const span = MarkdownDocument.spanOf(node);
+        if (span !== null) {
+          for (let line = span.start; line <= span.end; line += 1) lines.add(line);
+        }
+      }
+      stack.push(...(node.children ?? []));
+    }
+    return lines;
   }
 }

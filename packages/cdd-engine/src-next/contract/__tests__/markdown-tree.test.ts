@@ -182,6 +182,52 @@ describe("MarkdownTree — the shared parse face", () => {
     );
     expect(rows[0]).toEqual(["`x", "y`"]);
   });
+
+  it("never reads a code-fence row as table data (the fenced corner)", () => {
+    // A section that SHOWS the table shape inside a fence is sample prose, not the
+    // section's table: the loose continuation-row recovery must skip code spans.
+    const content = [
+      "## Phase inventory",
+      "",
+      "| # | Phase |",
+      "| --- | --- |",
+      "| 1 | P1 |",
+      "",
+      "```",
+      "| 2 | P2 |",
+      "```",
+      "",
+      "| 3 | P3 |",
+      "",
+    ].join("\n");
+    const tree = MarkdownTree.parse(content);
+    const table = tree.tableUnder("## Phase inventory");
+    expect(table?.header).toEqual(["#", "Phase"]);
+    expect(table?.body).toEqual([
+      ["1", "P1"],
+      ["3", "P3"],
+    ]);
+  });
+
+  it("keeps a separately-headed table out of the section's one table read", () => {
+    const content = [
+      "## Two tables",
+      "",
+      "| A | B |",
+      "| --- | --- |",
+      "| 1 | 2 |",
+      "",
+      "prose between them",
+      "",
+      "| C | D |",
+      "| --- | --- |",
+      "| 3 | 4 |",
+      "",
+    ].join("\n");
+    const table = MarkdownTree.parse(content).tableUnder("## Two tables");
+    expect(table?.header).toEqual(["A", "B"]);
+    expect(table?.body).toEqual([["1", "2"]]);
+  });
 });
 
 describe("MarkdownTree — the composable selector face", () => {
@@ -287,5 +333,32 @@ describe("MarkdownTree — the composable selector face", () => {
       "- write the test — checkable: it fails",
       "- implement it — checkable: it passes",
     ]);
+  });
+
+  it("keeps a cell selector column-precise — an element judges only its own column", () => {
+    // Both Phase-inventory value columns carry the same decorated shape
+    // (`✔ Done（…）`), so an unguarded cell match resolves the OTHER column too.
+    const content = [
+      "## Phase inventory",
+      "",
+      "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+      "| --- | --- | --- | --- | --- | --- | --- |",
+      "| P1 | first | scope | ✔ Done（spec.md v1） | ✔ Done（plan.md v1）  delivery evidence | criteria | P0 -> P1 |",
+      "",
+    ].join("\n");
+    const tree = MarkdownTree.parse(content);
+    const rows = SelectorSpec.row(
+      SelectorSpec.table(SelectorSpec.heading("## Phase inventory")),
+      /^\|\s*P\d+\s*\|/,
+    );
+    const design = tree.occurrences(SelectorSpec.cell(rows, /✔ Done/, 4));
+    const plan = tree.occurrences(SelectorSpec.cell(rows, /✔ Done/, 5));
+    expect(design.map((node) => node.text)).toEqual(["✔ Done（spec.md v1）"]);
+    expect(design.map((node) => node.column)).toEqual([4]);
+    expect(plan.map((node) => node.text)).toEqual(["✔ Done（plan.md v1）  delivery evidence"]);
+    expect(plan.map((node) => node.column)).toEqual([5]);
+    // Without the guard the same match resolves both columns — the overlap the
+    // guard removes.
+    expect(tree.occurrences(SelectorSpec.cell(rows, /✔ Done/)).length).toBe(2);
   });
 });

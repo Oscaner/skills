@@ -34,6 +34,10 @@ export interface Selector {
   readonly match?: string | RegExp;
   /** The walk's guard. */
   readonly when?: When;
+  /** The cell's 1-based column ordinal inside its row — the cell walk's column
+   *  guard: an element judges only its own column, never a sibling column whose
+   *  value happens to share its shape. */
+  readonly column?: number;
 }
 
 /** One resolved node — the locating result the judgments read. */
@@ -48,6 +52,9 @@ export interface ResolvedNode {
   readonly line: number;
   /** The row's cells — set for row / cell / table walks. */
   readonly cells?: readonly string[];
+  /** The cell's 1-based column ordinal inside its row — set for cell walks (the
+   *  column the locator judged). */
+  readonly column?: number;
 }
 
 /** One rank-2 section node — the heading line plus the body lines under it. */

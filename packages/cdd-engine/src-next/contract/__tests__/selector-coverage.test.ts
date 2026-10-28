@@ -56,11 +56,6 @@ class Fixtures {
     return this.#translator.canonicalize(`${this.text(docType)}\n\n${sample}\n`);
   }
 
-  /** The canonicalized view of one standalone carrier text. */
-  canonicalized(text: string): string {
-    return this.#translator.canonicalize(`${text}\n`);
-  }
-
   #read(relative: string): string {
     return readFileSync(path.join(REPO_ROOT, relative), "utf8");
   }
@@ -106,17 +101,14 @@ describe("selector coverage — every declared element carries a resolvable loca
     expect(total).toBe(114);
   });
 
-  it("keeps the selector face and the declared value shape aligned — zero domain findings on a conforming carrier", () => {
+  it("keeps the selector face and the declared value shape aligned — zero domain findings on the canonical charter", () => {
     // The coverage matrix above proves a selector RESOLVES; it cannot see a
-    // selector that resolves onto a node its own element's `valuePattern` rejects.
-    // This arm runs the real domain judgment over a conforming carrier per doc type
-    // — the repository's own document where it is conforming, the declared sample
-    // block / rendered skeleton otherwise. The overall arm reads the sample block:
-    // the repository's charter carries an unescaped pipe inside one Phase-inventory
-    // row (GFM reads it as a cell break), so the charter is not a conforming overall
-    // carrier.
+    // selector that resolves onto a node its own element's `valuePattern` rejects —
+    // or a cell selector that resolves a SIBLING column. This arm runs the real
+    // domain judgment over every doc type's carrier and pins the canonical overall
+    // charter, the one carrier where the two Phase-inventory faces can disagree.
     const carriers: Record<DocType, string> = {
-      overall: fixtures.canonicalized(SAMPLE_FORMS.overall),
+      overall: fixtures.text("overall"),
       plan: fixtures.canonicalizedText("plan", SAMPLE_FORMS.plan),
       "phase-spec": fixtures.canonicalizedText("phase-spec", SAMPLE_FORMS["phase-spec"]),
       "single-spec": fixtures.canonicalizedText("single-spec", SAMPLE_FORMS["single-spec"]),
@@ -135,6 +127,49 @@ describe("selector coverage — every declared element carries a resolvable loca
       }
     }
     expect(offenders, `out-of-domain resolved nodes: ${offenders.join(" | ")}`).toEqual([]);
+  });
+
+  it("reads the canonical overall charter at zero findings, with its real table sizes", () => {
+    const charter = path.join(
+      REPO_ROOT,
+      "docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md",
+    );
+    const tree = fixtures.tree("overall");
+    expect(tree.tableUnder("## Phase inventory")?.body.length).toBe(21);
+    expect(tree.tableUnder("## Issue inventory")?.body.length).toBe(21);
+    expect(tree.tableUnder("## Change history")?.body.length).toBe(98);
+    expect(tree.tableUnder("## File paths")?.body.length).toBe(3);
+    const findings = new Contract().validate({
+      docKey: "overall",
+      path: charter,
+      content: fixtures.text("overall"),
+      root: REPO_ROOT,
+    });
+    expect(
+      findings.map((finding) => `${finding.kind} · ${finding.field} · ${finding.message}`),
+      "the canonical charter must judge clean",
+    ).toEqual([]);
+  });
+
+  it("keeps the two Phase-inventory cell elements on their own columns", () => {
+    // The design-spec and implementation-plan cells share the decorated
+    // `✔ Done（…）` shape, so an unguarded locator judges 40 nodes over a 21-row
+    // table and the design element reports the plan cell. The column guard makes
+    // each element judge its own column only.
+    const registry = declaredRegistries.overall;
+    const tree = fixtures.tree("overall");
+    const columnsOf = (anchor: string): readonly (number | undefined)[] => {
+      const element = registry.elements.find((entry) => entry.anchor === anchor);
+      expect(element, `${anchor} is registered`).toBeDefined();
+      if (element === undefined) return [];
+      return tree.occurrences(element.selector).map((node) => node.column);
+    };
+    const design = columnsOf("Design spec cell");
+    const plan = columnsOf("Implementation plan cell");
+    expect(design.length).toBeGreaterThan(0);
+    expect(plan.length).toBeGreaterThan(0);
+    expect(new Set(design)).toEqual(new Set([4]));
+    expect(new Set(plan)).toEqual(new Set([5]));
   });
 });
 

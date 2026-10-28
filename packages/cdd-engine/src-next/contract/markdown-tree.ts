@@ -121,16 +121,8 @@ export class MarkdownTree {
     return this.#selectors.rows(selector);
   }
 
-  /** The table a selector addresses: the column-header row plus the body rows
-   *  (null when the selector matches no table). */
-  table(
-    selector: Selector,
-  ): { header: readonly string[] | null; body: readonly (readonly string[])[] } | null {
-    return this.#selectors.table(selector);
-  }
-
-  /** The table of the section under one heading — every table in the section span,
-   *  header from the first, body rows in document order (see SelectorEngine). */
+  /** The table of the section under one heading — the section's first table plus
+   *  its headerless continuation runs, header from the first (see SelectorEngine). */
   tableUnder(heading: string | RegExp): {
     header: readonly string[] | null;
     body: readonly (readonly string[])[];

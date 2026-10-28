@@ -157,12 +157,12 @@
     },
     "Implementation plan cell": {
       "type": "string",
-      "pattern": "^(?:✔\\s*)?(?:Pending|\\[Pending\\]|In-flight|\\[In-flight\\]|Done|\\[[^\\]]+\\]\\([^)]+\\))(?:\\s*[（(][^）)]*[）)])?$",
+      "pattern": "^(?:✔\\s*)?(?:Pending|\\[Pending\\]|In-flight|\\[In-flight\\]|Done|\\[[^\\]]+\\]\\([^)]+\\))(?:\\s*[（(][^）)]*[）)])?(?:\\s+[\\s\\S]*)?$",
       "description": "presence: required · home: table · ref: markdown-link"
     },
     "Design spec cell": {
       "type": "string",
-      "pattern": "^(?:✔\\s*)?(?:\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])(?:\\s*[（(][^）)]*[）)])?$",
+      "pattern": "^(?:✔\\s*)?(?:\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])(?:\\s*[（(][^）)]*[）)])?(?:\\s+[\\s\\S]*)?$",
       "description": "presence: required · home: table · ref: none"
     },
     "Dependency cell": {

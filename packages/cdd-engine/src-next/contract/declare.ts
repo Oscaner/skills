@@ -205,6 +205,15 @@ export class RegistryGuard {
         !["first", "last", "tableBody", "inTaskBlock"].includes(candidate.when as string)
       )
         return false;
+      if (
+        candidate.column !== undefined &&
+        !(
+          typeof candidate.column === "number" &&
+          Number.isInteger(candidate.column) &&
+          candidate.column > 0
+        )
+      )
+        return false;
       current = candidate.from;
     }
     return true;
@@ -457,6 +466,7 @@ const OVERALL_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Issue inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
       ),
       /^(none|#\d+|\[#\d+\]|#\d+#issuecomment-\d+|（[^）]*）|\([^)]*\))$/,
+      2,
     ),
   },
   {
@@ -470,6 +480,7 @@ const OVERALL_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Issue inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
       ),
       /^#\d+#issuecomment-\d+$/,
+      2,
     ),
   },
   // Phase inventory row ledger.
@@ -507,13 +518,14 @@ const OVERALL_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Phase inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
       ),
       /^P\d+(\.\d+)*$/,
+      1,
     ),
   },
   {
     anchor: "Implementation plan cell",
     presence: "required",
     valuePattern:
-      "^(?:✔\\s*)?(?:Pending|\\[Pending\\]|In-flight|\\[In-flight\\]|Done|\\[[^\\]]+\\]\\([^)]+\\))(?:\\s*[（(][^）)]*[）)])?$",
+      "^(?:✔\\s*)?(?:Pending|\\[Pending\\]|In-flight|\\[In-flight\\]|Done|\\[[^\\]]+\\]\\([^)]+\\))(?:\\s*[（(][^）)]*[）)])?(?:\\s+[\\s\\S]*)?$",
     refKind: "markdown-link",
     home: "table",
     selector: SelectorSpec.cell(
@@ -521,13 +533,14 @@ const OVERALL_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Phase inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
       ),
       /^(?:✔\s*)?(?:Pending|\[Pending\]|In-flight|\[In-flight\]|Done|\[[^\]]+\]\([^)]+\))/,
+      5,
     ),
   },
   {
     anchor: "Design spec cell",
     presence: "required",
     valuePattern:
-      "^(?:✔\\s*)?(?:\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])(?:\\s*[（(][^）)]*[）)])?$",
+      "^(?:✔\\s*)?(?:\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])(?:\\s*[（(][^）)]*[）)])?(?:\\s+[\\s\\S]*)?$",
     refKind: "none",
     home: "table",
     selector: SelectorSpec.cell(
@@ -535,6 +548,7 @@ const OVERALL_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Phase inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
       ),
       /^(?:✔\s*)?(?:\[[^\]]+\]\([^)]+\)|P\d+(\.\d+)*-design|Done|\[Pending\])/,
+      4,
     ),
   },
   {
@@ -548,6 +562,7 @@ const OVERALL_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Phase inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
       ),
       /^P\d+(\.\d+)*\s*->/,
+      7,
     ),
   },
   // Dependency graph edges + legend.
@@ -605,6 +620,7 @@ const OVERALL_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
       ),
       /^v\d+\.\d+$/,
+      1,
     ),
   },
   {
@@ -618,6 +634,7 @@ const OVERALL_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
       ),
       /^\d{4}-\d{2}-\d{2}$/,
+      2,
     ),
   },
   {
@@ -631,6 +648,7 @@ const OVERALL_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
       ),
       /(Pending|\[Pending\])\s*(→|->)\s*\S+/,
+      3,
     ),
   },
   {
@@ -644,6 +662,7 @@ const OVERALL_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Phase inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
       ),
       /^P\d+(\.\d+)*-design$/,
+      4,
     ),
   },
   {
@@ -657,6 +676,7 @@ const OVERALL_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Phase inventory"), /^\|\s*P\d+(\.\d+)*\s*\|/),
       ),
       /^P\d+(\.\d+)*\s*[-–—]\s*P\d+(\.\d+)*$/,
+      3,
     ),
   },
 ] as const satisfies readonly Required<RegistryElement>[];
@@ -907,6 +927,7 @@ const PLAN_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
       ),
       /^v\d+\.\d+$/,
+      1,
     ),
   },
   {
@@ -920,6 +941,7 @@ const PLAN_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
       ),
       /^\d{4}-\d{2}-\d{2}$/,
+      2,
     ),
   },
 ] as const satisfies readonly Required<RegistryElement>[];
@@ -1098,6 +1120,7 @@ const PHASE_SPEC_ELEMENTS = [
     selector: SelectorSpec.cell(
       SelectorSpec.row(SelectorSpec.table("root", /^\|\s*[^|]+\s*\|\s*[^|]+\s*\|\s*(Yes|No)\b/)),
       /^Yes/,
+      3,
     ),
   },
   {
@@ -1154,6 +1177,7 @@ const PHASE_SPEC_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
       ),
       /^v\d+\.\d+$/,
+      1,
     ),
   },
   {
@@ -1167,6 +1191,7 @@ const PHASE_SPEC_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
       ),
       /^\d{4}-\d{2}-\d{2}$/,
+      2,
     ),
   },
 ] as const satisfies readonly Required<RegistryElement>[];
@@ -1311,6 +1336,7 @@ const SINGLE_SPEC_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
       ),
       /^v\d+\.\d+$/,
+      1,
     ),
   },
   {
@@ -1324,6 +1350,7 @@ const SINGLE_SPEC_ELEMENTS = [
         SelectorSpec.table(SelectorSpec.heading("## Change history"), /^\|\s*v\d+\.\d+\s*\|/),
       ),
       /^\d{4}-\d{2}-\d{2}$/,
+      2,
     ),
   },
 ] as const satisfies readonly Required<RegistryElement>[];

@@ -55,24 +55,15 @@ export class SelectorEngine {
     return this.#candidates(selector).map((candidate) => candidate.cells ?? []);
   }
 
-  /** The table a selector addresses: the column-header row plus the body rows
-   *  (null when the selector matches no table). Every table in the selector's span
-   *  is read: the header comes from the first, the body rows concatenate in
-   *  document order. */
-  table(
-    selector: Selector,
-  ): { header: readonly string[] | null; body: readonly (readonly string[])[] } | null {
-    const parents = selector.from === "root" ? null : this.#candidates(selector.from);
-    return SelectorEngine.#mergeTables(this.#tablesInScope(parents));
-  }
-
   /** The table of the section under one heading (a heading line or a heading
    *  prefix) — the section-scoped table read the doc parsers and the strategies
    *  use. A GFM table ends at a blank line, but a SECTION's table may be split by
    *  interior blank lines (the repository's own Phase / Issue inventories are): the
-   *  section span is the table's boundary, so every table in it is read — header
-   *  from the first, body rows concatenated in document order. Null when the
-   *  section carries no table. */
+   *  section span is the table's boundary, so the section's first table and the
+   *  headerless continuation runs in it are read as ONE record — header from the
+   *  first table, body rows concatenated in document order. A separately-headed
+   *  table is its own table, never blended into this read. Null when the section
+   *  carries no table. */
   tableUnder(heading: string | RegExp): {
     header: readonly string[] | null;
     body: readonly (readonly string[])[];
@@ -131,7 +122,7 @@ export class SelectorEngine {
   // -------------------------------------------------------------------------
 
   /** The matched candidates of one selector — resolve the parent scope, walk it,
-   *  then apply the match and the guard. */
+   *  then apply the match, the column guard and the `when` guard. */
   #candidates(selector: Selector): readonly Candidate[] {
     const parents = selector.from === "root" ? null : this.#candidates(selector.from);
     if (parents !== null && parents.length === 0) return [];
@@ -144,7 +135,7 @@ export class SelectorEngine {
         candidate.edgeClass,
       ),
     );
-    return this.#guard(matched, selector.when);
+    return this.#guard(SelectorEngine.#inColumn(matched, selector.column), selector.when);
   }
 
   /** The walk over one structural surface, scoped to the parents' line spans when
@@ -206,6 +197,15 @@ export class SelectorEngine {
     );
   }
 
+  /** The column guard: a cell locator judges only the cell at its declared ordinal. */
+  static #inColumn(
+    candidates: readonly Candidate[],
+    column: number | undefined,
+  ): readonly Candidate[] {
+    if (column === undefined) return candidates;
+    return candidates.filter((candidate) => candidate.column === column);
+  }
+
   /** The match face: a literal (exact line, or a heading anchor's line prefix), a
    *  RegExp over the raw line, and — for the graphEdge walk — the edge-class
    *  literal (`hard` / `soft`). */
@@ -223,19 +223,24 @@ export class SelectorEngine {
     return text === match || text.startsWith(match);
   }
 
-  /** Merge every table of one scope into the section's one table read — the
-   *  header of the first table, the body rows of all of them, in document order. */
+  /** Merge one section's table with the headerless continuation runs inside it —
+   *  the base is the first HEADED table, and only a headerless record (a blank-line
+   *  detached continuation run) is folded in. A separately-headed table is its own
+   *  read and is never blended into the section's one record. */
   static #mergeTables(tables: readonly TableRecord[]): {
     header: readonly string[] | null;
     body: readonly (readonly string[])[];
   } | null {
-    const [first, ...rest] = tables;
-    if (first === undefined) return null;
-    const body: (readonly string[])[] = [];
-    for (const table of [first, ...rest]) {
-      for (const row of table.body) body.push([...(row.cells ?? [])]);
-    }
-    return { header: first.header?.cells ?? null, body };
+    const base = tables.find((table) => table.header !== null) ?? tables[0];
+    if (base === undefined) return null;
+    const rows = [
+      ...base.body,
+      ...tables
+        .filter((table) => table !== base && table.header === null)
+        .flatMap((table) => table.body),
+    ].sort((left, right) => left.from - right.from);
+    const body = rows.map((row) => [...(row.cells ?? [])]);
+    return { header: base.header?.cells ?? null, body };
   }
 
   // -------------------------------------------------------------------------
@@ -298,14 +303,16 @@ export class SelectorEngine {
   }
 
   /** The cells of one row candidate as cell candidates (the row's cells are read
-   *  from the mdast cell nodes — never a `|` split). */
+   *  from the mdast cell nodes — never a `|` split) — each carrying its 1-based
+   *  column ordinal so a cell locator can be column-precise. */
   static #cellsOf(row: Candidate): readonly Candidate[] {
-    return (row.cells ?? []).map((cell) => ({
+    return (row.cells ?? []).map((cell, index) => ({
       text: cell,
       bare: cell,
       lines: row.lines,
       line: row.line,
       cells: row.cells,
+      column: index + 1,
       from: row.from,
       to: row.to,
     }));

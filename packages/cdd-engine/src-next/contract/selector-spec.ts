@@ -47,9 +47,12 @@ export class SelectorSpec {
     return match === undefined ? selector : { ...selector, match };
   }
 
-  /** The cells of a row selection (a cell-level value token). */
-  static cell(from: SelectorScope, match: string | RegExp): Selector {
-    return { from, walk: "cell", match };
+  /** The cells of a row selection (a cell-level value token). `column` is the
+   *  1-based ordinal of the cell inside its row — the column guard that keeps an
+   *  element from judging a sibling column whose value shares its shape. */
+  static cell(from: SelectorScope, match: string | RegExp, column?: number): Selector {
+    const selector: Selector = { from, walk: "cell", match };
+    return column === undefined ? selector : { ...selector, column };
   }
 
   /** The list items of a scope (the bullet surfaces: constraint deltas, legends). */

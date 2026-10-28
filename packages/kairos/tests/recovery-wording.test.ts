@@ -34,17 +34,29 @@ const skillFiles = (): string[] =>
     })
     .sort();
 
-/** The recovery sentences whose presence is forbidden in the shipped prose. */
-const FORBIDDEN_RECOVERY_PATTERNS: readonly (readonly [RegExp, string])[] = [
-  [/\bpgrep\b/, "pgrep — process hunting is not a recovery step"],
-  [/\bgit stash\b/, "git stash — a stash is a second truth of the working tree"],
-  [/checkout --/, "checkout -- — discards changes wholesale and has destroyed real work"],
+/** One banned recovery shortcut — the pattern that matches it and why it stays out. */
+interface RecoveryHookBan {
+  readonly pattern: RegExp;
+  readonly reason: string;
+}
+
+/** The recovery shortcuts banned from the shipped prose. */
+const RECOVERY_HOOK_BANS: readonly RecoveryHookBan[] = [
+  { pattern: /\bpgrep\b/, reason: "pgrep — process hunting is not a recovery step" },
+  {
+    pattern: /\bgit stash\b/,
+    reason: "git stash — a stash is a second truth of the working tree",
+  },
+  {
+    pattern: /checkout --/,
+    reason: "checkout -- — discards changes wholesale and has destroyed real work",
+  },
 ];
 
 test("① no SKILL.md carries pgrep / git stash / checkout --", () => {
   for (const file of skillFiles()) {
     const text = readFileSync(file, "utf8");
-    for (const [pattern, reason] of FORBIDDEN_RECOVERY_PATTERNS) {
+    for (const { pattern, reason } of RECOVERY_HOOK_BANS) {
       expect(pattern.test(text), `${path.relative(SKILLS_ROOT, file)} carries ${reason}`).toBe(
         false,
       );

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 设计：引擎作为唯一读写路径
 doc-type: phase-spec
-version: v0.15
+version: v0.16
 date: 2026-10-27
 slug: 2026-10-10-engine-doc-tooling-p21
 program: 2026-10-10-engine-doc-tooling
@@ -263,16 +263,45 @@ Task 块从「字段项目符号」改为「标题分节」，并把这一面的
 
 #### 7.5 全契约面迁移（四类文档共用一棵树）
 
-§7.1–§7.4 把 Task 块换到 `mdast`，其余契约面仍走锚点/正则。**两套解析模型并存本身就是债**（违「免声明再抄」与「最大精简」）：`brief.ts` 的 `^#` 截断、表格 `|` 的转义/对齐行/反引号内竖线、缩进假设、手算 heading rank，这一整类缺陷都长在「手写行扫描」里。因此本 phase 把它一次收口：
+§7.1–§7.4 把 Task 块换到 `mdast`，其余契约面仍走锚点/正则。**两套解析模型并存本身就是债**（违「免声明再抄」与「最大精简」）：`brief.ts` 的 `^#` 截断、表格 `|` 的转义/对齐行/反引号内竖线、缩进假设、手算 heading rank，这一整类缺陷都长在「手写行扫描」里。因此本 phase 把它一次收口。
 
-- **一个解析入口**：`MarkdownTree`（`contract/markdown-tree.ts`）是四类文档唯一的 `mdast` 入口，扩展集 = `gfm`（表格必用）+ `frontmatter`；`yaml` 只负责解析 head 的值，不再自己切围栏。
-- **登记面 selector 化**：`RegistryElement` 的 `anchor` + `home` 换成封闭集 selector——`frontmatter(key)` · `heading(rank, pattern)` · `table(headerRow)` · `listItem(prefix)` · `taskBlock(field)`。`presence` / `valuePattern` / `refKind` 原样保留（值形判据不变，只是跑在**节点文本**而不是原始行上，于是「值里含 `|` 或反引号」不再误判）。
-- **归一化前置**：`translate.ts` 的逐行 canonicalize 改为**解析前一次性作用于内存文本**（源文件零改），解析后零后处理——一处、一遍、无第二视图。
-- **骨架往返 pin**：`skeleton.ts` 职责不变，但骨架输出 → 解析 → 结构同构必须成立（渲染面与判定面同源，杜绝「骨架写了一棵树、门判另一棵树」）。
-- **删除面**：`doc.ts` 的 `#tableSection` / `tableRowCells` / `tableLinesOf` / `#docSections` / 图边扫描；`invariants.ts` 里 `this.overall(ctx)` 一类手写取数；`translate.ts` 的逐行 API；`project.ts` 被 tree 取代的 slice 机件。
-- **代价如实**：约 2000 行改动 + 900 余条用例重锚（P10 frontmatter 迁移量级）。**收益**：文档结构只有一个真相，且上面那一整类缺陷一次性消失。
+#### 7.5.1 身份与定位是两件事（B2 的裁定）
 
-交付切分：**T9 是第一步**（树 + Task 块 + `graph`/`brief`/`skeleton` 换源，已实现），**T10 收口**（四类 parse / 20 条策略 / 登记面 selector / 删除面 / 骨架往返）——两块各自是一个完整的测试周期与评审门，但**终态只有一个模型**，不留中间态。
+`anchor` **保留**，但它不是「定位方式」而是**身份**：它同时是 schema 的 property 名与 `required[]` 条目、骨架真值表（`FRONT_MATTER_LINKS` / `TRUTH_LINES`）的键、lint 的查表键、21 条规则 finding 的 `field:` 值。**新增的 `selector` 只承担定位**（从哪里、走到哪、匹配什么）。名字是名字，定位器是定位器——把二者混为一谈才会得出「留下 anchor 就是声明再抄」的结论。因此消费者可见面**零变化**：`cdd schema get <type>` 的字节、finding 的 `field:` 值、骨架槽位集一律不动（各一条 pin）。
+
+#### 7.5.2 selector 可组合，不是五元闭集（B1 的裁定）
+
+114 个登记元素里有 36 个不是「一个标题/一张表」能指认的：24 个表格行/单元格元素、3 个图元素、4 个字段内 token、2 个 task-step 叶、2 个条件单元格。因此 selector 定义为**可组合**的：
+
+```ts
+export type Walk = "heading" | "table" | "row" | "cell" | "list" | "taskField" | "taskStep" | "graphEdge";
+export interface Selector {
+  readonly from: "root" | Selector;            // 相对根，或相对于父 selector 的命中集
+  readonly walk: Walk;
+  readonly match?: string | RegExp;            // 标题文本 / 表头行 / 行首列 / token 形
+  readonly when?: "first" | "last" | "tableBody" | "inTaskBlock";  // 条件守卫
+}
+```
+
+- 行/单元格：`{ from: root, walk: "table", match: "## Phase inventory" }` → `{ from: <上者>, walk: "row", when: "tableBody" }` → `{ from: <上者>, walk: "cell", match: "v\\d+\\.\\d+" }`。
+- 字段内 token：`{ from: <taskField Selector>, walk: "taskStep" }` 或 `walk: "taskField"` + `match: <token 形>`。
+- 图元素：`{ from: root, walk: "graphEdge", match: "hard" | "soft" | "legend" }`。
+- 条件单元格（如「Implementation plan cell」只在某类行出现）：`when: "inTaskBlock"` / 行匹配的组合表达。
+
+**覆盖矩阵是验收面**：114 个登记元素逐个都有 selector 且 `resolve` 非空（一条遍历式 pin），不是一个抽样。
+
+#### 7.5.3 pin 分两类（B3 的裁定）
+
+- **语义 pin 不动**：21 条规则的判定语义与既有断言保持（数据面换源，结论不变）。
+- **扫描行为 pin 是 deliberate break，逐条重锚**：断言「反引号剥离的边界」「表格 `|` 切分与对齐行」「缩进假设」「手算 heading rank」的用例，改为节点级等价断言，并在提交里点名列出。
+
+#### 7.5.4 其余定案
+
+- **一个解析入口**：`MarkdownTree`（`contract/markdown-tree.ts`）是四类文档唯一的 `mdast` 入口，扩展集 = `gfm` + `frontmatter`；`yaml` 只解析 head 的值。
+- **归一化前置**：`translate.ts` 的逐行 canonicalize 改为解析前一次性作用于内存文本（源文件零改），解析后零后处理。
+- **骨架往返 pin**：骨架输出 → 解析 → 结构同构。
+- **删除面**：`doc.ts` 的 `#tableSection` / `tableRowCells` / `tableLinesOf` / `#docSections` / 图边扫描；`invariants.ts` 的 `this.overall(ctx)` 一类手写取数；`translate.ts` 的逐行 API；`project.ts` 被 tree 取代的 slice 机件。
+- **交付切分**：**T9 是第一步**（树 + 块级 + `graph`/`brief`/`skeleton` 换源，已实现），**T10 收口**。终态只有一个模型，不留中间态。
 
 ### Acceptance criteria
 
@@ -334,3 +363,4 @@ Task 块从「字段项目符号」改为「标题分节」，并把这一面的
 | v0.13 | 2026-10-28 | **W2 派发被自己的规则拦下（dogfood 缺陷）：`planned-tasks-vs-recorded-tasks` 误把任务编号当执行顺序**——实况：账本已记 `{1,2,3}` `{4,5,7}`，计划里 Task 6（`DependsOn 2,4` → 层 3）尚未开工，规则按 `id > maxRecordedTask` 判「Task 6 缺失而更高任务已记录」→ 该波及后续所有派发全部 BLOCKED。**判据改为只看依赖**：未入账的计划任务当且仅当其全部 `DependsOn` 都已入账才构成缺口（滞留）；只要还有依赖未入账，它就是待开工任务、放行。「编号大于账本最大任务号」的窗口读法**撤销**（它假设了编号即顺序 —— #386 早已指出这一假设是错的） | [human] · Claude（kairos:cdd-dev · dogfood backfill · 2026-10-28） |
 | v0.14 | 2026-10-28 | **判据再收敛（v0.13 的依赖判据仍不成立）**：任务 6 的依赖（2、4）都已入账，按依赖判据它仍是「滞留」——但它是**下一波**，计划天然领先账本。任何「计划有、账本没有」的判据都无法把「下一波」与「滞留」分开，故该方向**彻底零判压**（只出 info 行）；结构一致性只保留一个方向——**账本记录的每个任务必须仍在计划里** | [human] · Claude（kairos:cdd-dev · dogfood backfill 其二 · 2026-10-28） |
 | v0.15 | 2026-10-28 | **§7.5 全契约面迁移（用户裁定 append 并「一次做掉」）**：T9 的块级 AST 只是第一步，其余契约面的手写行扫描（表格 `|` 解析 / 分节树 / 图边 / `this.overall(ctx)` 取数）一次收口到同一棵树——一个解析入口 · 登记面 selector 封闭集 · 归一化前置 · 骨架往返 pin · 删除面清单。**理由**：两套解析模型并存 = 本 phase 判死的那类债；终态只留一个模型。代价约 2000 行 + 900 余条用例重锚，交付切成 T9（已实现）+ T10（收口）两个完整测试周期 | [human] · Claude（kairos:cdd-dev · scope append 其二 · 2026-10-28） |
+| v0.16 | 2026-10-28 | **T10 设计重写（W4 implement 的 blocker 报告触发）**：三条裁定入 §7.5——① **身份与定位分离**（`anchor` 是身份：schema 键 / `required[]` / 骨架真值表 / lint 查表 / finding `field:`；`selector` 只是定位，消费者可见面零变化）② **selector 可组合**（`from` 根或父 · `walk` 八种 · `when` 四守卫），覆盖 114 元素里那 36 个行/单元格/token/step/条件元素，并以**覆盖矩阵 114/114** 作验收 ③ **pin 分两类**（语义 pin 不动；扫描行为 pin 逐条重锚并在提交里点名） | [human] · Claude（kairos:cdd-dev · blocker backfill · 2026-10-28） |

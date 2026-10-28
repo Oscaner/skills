@@ -19,6 +19,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PlanDocType } from "../../contract/doc.ts";
+import { Capsule } from "../../face/capsule.ts";
+import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
@@ -846,6 +848,90 @@ describe("the branch small loop — branch-review → fix → closure", () => {
       expect(ledger.readHandoff("review", "branch", { round: 1 })).not.toBeNull();
       expect(ledger.readHandoff("review", "branch", { round: 2 })).not.toBeNull();
       expect(ledger.readHandoff("fix", "branch", { round: 1 })).not.toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+/** A CLOSED branch line in the fixture — a clean branch review over the plan binds the
+ *  line's reviewed plan revision, so the drift-aware gate reads `same` and the line
+ *  holds no active C5 hop (the §4.2 `targetLineOpen === false` station). */
+const closedBranchLine = async (ledger: Ledger, planPath: string): Promise<void> => {
+  const branch = new Lifecycle({
+    face: targetFaces.branch,
+    state: EMPTY_RUN_STATE,
+    ledger,
+    dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+    target: { kind: "branch" },
+    planPath,
+  });
+  const step = await branch.advance();
+  expect(step!.frame.phase).toBe("branch-review");
+  expect(step!.route).toEqual({ kind: "done" });
+  expect(ledger.reviewGate("branch", planPath, "branch").kind).toBe("same");
+  expect(ledger.lineRoute("branch", "branch")).toBeNull();
+};
+
+/** The wave line's closing round over a one-task plan — implement → the clean review.
+ *  The capsule is attached so the `next:` judgment's render is observable. */
+const runWaveToClosure = async (ledger: Ledger, planPath: string): Promise<StepResult> => {
+  const wave = new Lifecycle({
+    face: targetFaces.wave,
+    state: taskGraph([task(1, "none")]),
+    ledger,
+    dispatch: stub((frame) =>
+      frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+    ).step,
+    planPath,
+    capsule: new Capsule(new Words()),
+  });
+  expect((await wave.advance())!.frame.phase).toBe("implement");
+  return (await wave.advance())!;
+};
+
+describe("P21 §4.2 — the wave closure's next: reads the branch line's open fact", () => {
+  // The defect this pins: a closed wave round always rendered the `review --type
+  // branch` literal, even on an already-reviewed branch line its own gate refuses
+  // ("the line holds no open round"). The Lifecycle computes the fact from the
+  // branch row's drift-aware gate + its active C5 hop; the capsule only renders it.
+  const seeded = (repo: string): string => {
+    const file = path.join(repo, "plan.md");
+    writeFileSync(file, planDoc([task(1, "none")]));
+    return file;
+  };
+
+  it("a closed branch line lands the closing wave round on `next: /kairos:cdd-close`", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = seeded(repo);
+      await closedBranchLine(ledger, planPath);
+      const closing = await runWaveToClosure(ledger, planPath);
+      expect(closing.frame.phase).toBe("review");
+      expect(closing.route).toEqual({ kind: "done" });
+      // the branch line is closed, so the wave face's own next station renders —
+      // never a literal the branch gate would refuse (the §4.2 self-contradiction)
+      expect(closing.capsuleLines[1]).toBe("next: /kairos:cdd-close");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a plan revision past the reviewed one keeps the `review --type branch` literal", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = seeded(repo);
+      await closedBranchLine(ledger, planPath);
+      // the plan advances AFTER the branch review — the drift-aware gate reopens the
+      // line, so the wave closure hands off to a dispatchable branch round again
+      writeFileSync(
+        planPath,
+        `${planDoc([task(1, "none")])}\n\n## Notes\n\n- plan advanced after the branch review\n`,
+      );
+      const closing = await runWaveToClosure(ledger, planPath);
+      expect(closing.frame.phase).toBe("review");
+      expect(closing.route).toEqual({ kind: "done" });
+      expect(closing.capsuleLines[1]).toBe(`next: review --type branch --plan ${planPath}`);
     } finally {
       cleanup();
     }

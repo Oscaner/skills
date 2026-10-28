@@ -1347,6 +1347,28 @@ describe("P21 T2 — list-marker-not-doubled", () => {
     expect(finding).toBeDefined();
     expect(finding?.fix).toMatch(/single marker/);
   });
+
+  it.each(["- - x", "* + y", "- * z"])(
+    "reports the doubled-marker sample %s (a list item whose content starts with another marker)",
+    (sample) => {
+      const content = GOOD_OVERALL.replace("scope prose", sample);
+      const findings = judge("overall", content, GOOD_OVERALL_FS).filter(
+        (entry) => entry.kind === "list-marker-not-doubled",
+      );
+      expect(findings).toHaveLength(1);
+    },
+  );
+
+  it.each(["* * *", "- - -", "+ + +"])(
+    "accepts the thematic break %s — a separator line, never a doubled marker",
+    (breakLine) => {
+      const content = GOOD_OVERALL.replace("scope prose", breakLine);
+      const findings = judge("overall", content, GOOD_OVERALL_FS).filter(
+        (entry) => entry.kind === "list-marker-not-doubled",
+      );
+      expect(findings).toEqual([]);
+    },
+  );
 });
 
 describe("P21 T2 — the split strategies' kind re-anchors", () => {

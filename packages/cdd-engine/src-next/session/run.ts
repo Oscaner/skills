@@ -522,15 +522,7 @@ export class Lifecycle {
    *  legacy closed face (only present facts land, never an invented identity). */
   #recordReviewedDocRevision(frame: OpenFrame): void {
     if (frame.target.kind !== "plan" && frame.target.kind !== "spec") return;
-    try {
-      const content = readFileSync(frame.target.doc, "utf8");
-      this.#ledger.recordReviewedRevision(
-        frame.key,
-        this.#ledger.refs().docRevision(frame.target.doc, content),
-      );
-    } catch {
-      // unreadable input — no reviewed identity recorded (present facts only)
-    }
+    this.#recordDocRevisionOf(frame.key, frame.target.doc);
   }
 
   /** The wave line's reviewed-brief write-back (D30) — bind the RENDERED brief's
@@ -547,14 +539,19 @@ export class Lifecycle {
    *  An unreadable plan / a null plan path records nothing (present facts only). */
   #recordReviewedBranchRevision(frame: OpenFrame): void {
     if (this.#planPath === null) return;
+    this.#recordDocRevisionOf(frame.key, this.#planPath);
+  }
+
+  /** The doc-revision write-back body — read the reviewed document and bind its
+   *  current revision to the line row (the ONE read + hash + record path the doc and
+   *  branch legs share; each passes its own path source). An unreadable input records
+   *  nothing — the line keeps the legacy closed face (present facts only). */
+  #recordDocRevisionOf(key: LedgerKey, path: string): void {
     try {
-      const content = readFileSync(this.#planPath, "utf8");
-      this.#ledger.recordReviewedRevision(
-        frame.key,
-        this.#ledger.refs().docRevision(this.#planPath, content),
-      );
+      const content = readFileSync(path, "utf8");
+      this.#ledger.recordReviewedRevision(key, this.#ledger.refs().docRevision(path, content));
     } catch {
-      // unreadable plan — no reviewed identity recorded (present facts only)
+      // unreadable input — no reviewed identity recorded (present facts only)
     }
   }
 

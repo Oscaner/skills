@@ -157,12 +157,12 @@
     },
     "Implementation plan cell": {
       "type": "string",
-      "pattern": "^(Pending|\\[Pending\\]|In-flight|\\[In-flight\\]|Done|\\[[^\\]]+\\]\\([^)]+\\))$",
+      "pattern": "^(?:✔\\s*)?(?:Pending|\\[Pending\\]|In-flight|\\[In-flight\\]|Done|\\[[^\\]]+\\]\\([^)]+\\))(?:\\s*[（(][^）)]*[）)])?$",
       "description": "presence: required · home: table · ref: markdown-link"
     },
     "Design spec cell": {
       "type": "string",
-      "pattern": "^(\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])$",
+      "pattern": "^(?:✔\\s*)?(?:\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])(?:\\s*[（(][^）)]*[）)])?$",
       "description": "presence: required · home: table · ref: none"
     },
     "Dependency cell": {
@@ -177,7 +177,7 @@
     },
     "Soft edge": {
       "type": "string",
-      "pattern": "^P\\d+(\\.\\d+)*\\s*->\\s*\\(?\\s*soft\\s*\\)?",
+      "pattern": "^P\\d+(\\.\\d+)*\\s*->\\s*P\\d+(\\.\\d+)*\\s*\\(?\\s*soft\\s*\\)?",
       "description": "presence: optional · home: graph · ref: phase-id"
     },
     "Graph legend": {

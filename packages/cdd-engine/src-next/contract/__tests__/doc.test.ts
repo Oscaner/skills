@@ -219,10 +219,6 @@ describe("OverallDocType.parse — the four tables + the chain root", () => {
     expect(table.rows.map((row) => row[0])).toEqual(["v1.20", "v1.21"]);
   });
 
-  it("parses the dependency-graph edge lines into from/to tokens", () => {
-    expect(parsed.graphEdges).toEqual([{ text: "P1 -> P2", from: "P1", to: "P2" }]);
-  });
-
   it("parses the chain root — the overall is the root (no program link)", () => {
     expect(parsed.chain.docType).toBe("overall");
     expect(parsed.chain.programLink).toBeNull();

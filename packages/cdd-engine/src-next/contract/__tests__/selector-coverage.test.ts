@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 import { Words } from "../../face/words.ts";
 import { SkeletonAssembler } from "../../render/skeleton.ts";
 import { type DocType, declaredRegistries, RegistryGuard } from "../declare.ts";
+import { Contract } from "../judge.ts";
 import { MarkdownTree } from "../markdown-tree.ts";
 import { Projector } from "../project.ts";
 import { Translator } from "../translate.ts";
@@ -53,6 +54,11 @@ class Fixtures {
   /** The canonicalized view of a fixture text plus one appended sample block. */
   canonicalizedText(docType: DocType, sample: string): string {
     return this.#translator.canonicalize(`${this.text(docType)}\n\n${sample}\n`);
+  }
+
+  /** The canonicalized view of one standalone carrier text. */
+  canonicalized(text: string): string {
+    return this.#translator.canonicalize(`${text}\n`);
   }
 
   #read(relative: string): string {
@@ -98,6 +104,37 @@ describe("selector coverage — every declared element carries a resolvable loca
     }
     expect(missing, `unresolved elements: ${missing.join(" | ")}`).toEqual([]);
     expect(total).toBe(114);
+  });
+
+  it("keeps the selector face and the declared value shape aligned — zero domain findings on a conforming carrier", () => {
+    // The coverage matrix above proves a selector RESOLVES; it cannot see a
+    // selector that resolves onto a node its own element's `valuePattern` rejects.
+    // This arm runs the real domain judgment over a conforming carrier per doc type
+    // — the repository's own document where it is conforming, the declared sample
+    // block / rendered skeleton otherwise. The overall arm reads the sample block:
+    // the repository's charter carries an unescaped pipe inside one Phase-inventory
+    // row (GFM reads it as a cell break), so the charter is not a conforming overall
+    // carrier.
+    const carriers: Record<DocType, string> = {
+      overall: fixtures.canonicalized(SAMPLE_FORMS.overall),
+      plan: fixtures.canonicalizedText("plan", SAMPLE_FORMS.plan),
+      "phase-spec": fixtures.canonicalizedText("phase-spec", SAMPLE_FORMS["phase-spec"]),
+      "single-spec": fixtures.canonicalizedText("single-spec", SAMPLE_FORMS["single-spec"]),
+    };
+    const offenders: string[] = [];
+    for (const docType of Object.keys(carriers) as DocType[]) {
+      const findings = new Contract().validate({
+        docKey: docType,
+        path: path.join(REPO_ROOT, `docs/kairos/overalls/conforming-${docType}.md`),
+        content: carriers[docType],
+        root: REPO_ROOT,
+      });
+      for (const finding of findings) {
+        if (finding.kind !== "domain") continue;
+        offenders.push(`${docType} · ${finding.field} · ${finding.message}`);
+      }
+    }
+    expect(offenders, `out-of-domain resolved nodes: ${offenders.join(" | ")}`).toEqual([]);
   });
 });
 

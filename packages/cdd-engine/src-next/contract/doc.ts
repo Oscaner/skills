@@ -87,16 +87,6 @@ export interface ParsedTable {
 // the root-level parse records
 // ---------------------------------------------------------------------------
 
-/** One dependency-graph edge line (`P<n> -> P<m>`) parsed verbatim. */
-export interface GraphEdge {
-  /** The edge line verbatim. */
-  text: string;
-  /** The edge's from-phase token (the leading `P<n>` — a `.digits` suffix included). */
-  from: string;
-  /** The edge's to-phase token. */
-  to: string;
-}
-
 /** One parsed phase-inventory row of the overall (the chain-root anchor set). */
 export interface ChainPhase {
   /** The registered phase id (e.g. "P2.1"). */
@@ -141,7 +131,7 @@ export interface ChainRoot {
   phases: readonly ChainPhase[];
 }
 
-/** The overall parse record — the four tables, the graph edges and the chain root. */
+/** The overall parse record — the four tables and the chain root. */
 export interface OverallParsed {
   docType: "overall";
   /** The document's front-matter head — the typed head record (the §2.3 key set),
@@ -159,8 +149,6 @@ export interface OverallParsed {
     "Phase inventory": ParsedTable;
     "Change history": ParsedTable;
   };
-  /** The dependency-graph edge lines under `## Dependency graph`. */
-  graphEdges: readonly GraphEdge[];
   /** The overall's cross-doc chain root (its Phase-inventory rows are the anchor set). */
   chain: ChainRoot;
 }
@@ -406,11 +394,6 @@ export class OverallDocType extends DocType<OverallParsed> {
       "Phase inventory": this.tableSection(document, "## Phase inventory"),
       "Change history": this.tableSection(document, "## Change history"),
     };
-    const graphEdges: GraphEdge[] = document.edges().map((edge) => ({
-      text: `${edge.from} -> ${edge.to}`,
-      from: edge.from,
-      to: edge.to,
-    }));
     const phases = this.#phaseRows(tables["Phase inventory"]);
     return {
       docType: "overall",
@@ -418,7 +401,6 @@ export class OverallDocType extends DocType<OverallParsed> {
       title,
       sections,
       tables,
-      graphEdges,
       chain: {
         docType: "overall",
         programLink: null,

@@ -513,7 +513,7 @@ const OVERALL_ELEMENTS = [
     anchor: "Implementation plan cell",
     presence: "required",
     valuePattern:
-      "^(Pending|\\[Pending\\]|In-flight|\\[In-flight\\]|Done|\\[[^\\]]+\\]\\([^)]+\\))$",
+      "^(?:✔\\s*)?(?:Pending|\\[Pending\\]|In-flight|\\[In-flight\\]|Done|\\[[^\\]]+\\]\\([^)]+\\))(?:\\s*[（(][^）)]*[）)])?$",
     refKind: "markdown-link",
     home: "table",
     selector: SelectorSpec.cell(
@@ -526,7 +526,8 @@ const OVERALL_ELEMENTS = [
   {
     anchor: "Design spec cell",
     presence: "required",
-    valuePattern: "^(\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])$",
+    valuePattern:
+      "^(?:✔\\s*)?(?:\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])(?:\\s*[（(][^）)]*[）)])?$",
     refKind: "none",
     home: "table",
     selector: SelectorSpec.cell(
@@ -561,7 +562,7 @@ const OVERALL_ELEMENTS = [
   {
     anchor: "Soft edge",
     presence: "optional",
-    valuePattern: "^P\\d+(\\.\\d+)*\\s*->\\s*\\(?\\s*soft\\s*\\)?",
+    valuePattern: "^P\\d+(\\.\\d+)*\\s*->\\s*P\\d+(\\.\\d+)*\\s*\\(?\\s*soft\\s*\\)?",
     refKind: "phase-id",
     home: "graph",
     selector: SelectorSpec.graphEdge("soft"),

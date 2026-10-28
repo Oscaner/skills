@@ -1357,7 +1357,7 @@ describe("P21 T2 — list-marker-not-doubled", () => {
     expect(finding?.fix).toMatch(/single marker/);
   });
 
-  it.each(["- - x", "* + y", "- * z"])(
+  it.each(["- - x", "* + y", "- * z", "+ + +"])(
     "reports the doubled-marker sample %s (a list item whose content starts with another marker)",
     (sample) => {
       const content = GOOD_OVERALL.replace("scope prose", sample);
@@ -1368,7 +1368,7 @@ describe("P21 T2 — list-marker-not-doubled", () => {
     },
   );
 
-  it.each(["* * *", "- - -", "+ + +"])(
+  it.each(["* * *", "- - -"])(
     "accepts the thematic break %s — a separator line, never a doubled marker",
     (breakLine) => {
       const content = GOOD_OVERALL.replace("scope prose", breakLine);
@@ -1396,6 +1396,27 @@ describe("P21 T2 — the split strategies' kind re-anchors", () => {
     );
     const findings = judge("plan", content);
     expect(withKind(findings, "task-id-unique", "### Task N:")).toBe(true);
+  });
+
+  it("keeps task-id-unique plan-only — a phase-spec's repeated task heading is not judged", () => {
+    const content = [
+      "---",
+      "title: Test Spec",
+      "doc-type: phase-spec",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "status: Draft",
+      "author: x",
+      "slug: x-p3",
+      "parent-version: v1.0",
+      "---",
+      "",
+      "### Task 1: first",
+      "",
+      "### Task 1: second",
+    ].join("\n");
+    const findings = judge("phase-spec", content, EMPTY_FS);
+    expect(withKind(findings, "task-id-unique")).toBe(false);
   });
 });
 

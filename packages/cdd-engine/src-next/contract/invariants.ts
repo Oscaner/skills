@@ -569,6 +569,7 @@ export class TaskIdUniqueInvariant extends Invariant {
   readonly name = "task-id-unique";
 
   evaluate(ctx: JudgeContext): Finding[] {
+    if (ctx.docKey !== "plan") return [];
     const findings: Finding[] = [];
     const seenIds = new Set<number>();
     for (const block of ctx.tree.tasks()) {
@@ -1126,34 +1127,25 @@ export class RowHomeInvariant extends Invariant {
 
 /** list-marker-not-doubled — a list item carries exactly one leading marker.
  *  A bullet whose content starts with another bullet marker (`- - x`, `* + y`) is
- *  a doubled marker, not nested content. A thematic break (`* * *` / `- - -` /
- *  `+ + +` — three or more of ONE marker and nothing else) is a separator line,
- *  never a list item, so it is exempt. */
+ *  a doubled marker, not nested content. The read is the tree's `listItem` walk:
+ *  an item whose first child is itself a list. A thematic break (`* * *` /
+ *  `- - -` — a repeated `*` or `-` run) parses as a separator, never as a list
+ *  item, so the tree exempts it by construction (`+` is not a thematic-break
+ *  marker, so `+ + +` stays a doubled marker). */
 export class ListMarkerInvariant extends Invariant {
   readonly name = "list-marker-not-doubled";
 
-  /** The thematic-break shape — the same marker repeated three or more times
-   *  (whitespace-separated) with no other content. */
-  static #isThematicBreak(trimmed: string): boolean {
-    return /^([-*+])(?:\s+\1){2,}$/.test(trimmed);
-  }
-
   evaluate(ctx: JudgeContext): Finding[] {
-    const findings: Finding[] = [];
-    for (const line of ctx.lines) {
-      const trimmed = line.trim();
-      if (!/^[-*+]\s+[-*+]\s+\S/.test(trimmed)) continue;
-      if (ListMarkerInvariant.#isThematicBreak(trimmed)) continue;
-      findings.push(
+    return ctx.tree
+      .doubledMarkerItems()
+      .map((node) =>
         this.finding(
           ctx,
           "list-marker",
-          `the list item carries a doubled marker: ${trimmed}`,
+          `the list item carries a doubled marker: ${node.text}`,
           "merge the doubled list marker into a single marker",
         ),
       );
-    }
-    return findings;
   }
 }
 

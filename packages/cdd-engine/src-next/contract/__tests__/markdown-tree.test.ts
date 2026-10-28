@@ -142,6 +142,38 @@ describe("MarkdownTree — the shared parse face", () => {
     expect(rows.length).toBe(2);
   });
 
+  it("reads a table split by an interior blank line as ONE section table", () => {
+    // A GFM table ends at a blank line; a continuation run written as bare
+    // `| a | b |` rows (no delimiter row) parses as a paragraph. The section span
+    // is the table's real boundary: header from the first table, rows in order.
+    const content = [
+      "## Phase inventory",
+      "",
+      "| # | Phase |",
+      "| --- | --- |",
+      "| 1 | P1 |",
+      "| 2 | P2 |",
+      "",
+      "| 3 | P3 |",
+      "",
+      "| 4 | P4 |",
+      "",
+    ].join("\n");
+    const tree = MarkdownTree.parse(content);
+    const table = tree.tableUnder("## Phase inventory");
+    expect(table?.header).toEqual(["#", "Phase"]);
+    expect(table?.body).toEqual([
+      ["1", "P1"],
+      ["2", "P2"],
+      ["3", "P3"],
+      ["4", "P4"],
+    ]);
+    const rows = tree.rows(
+      SelectorSpec.row(SelectorSpec.table(SelectorSpec.heading("## Phase inventory"))),
+    );
+    expect(rows).toEqual(table?.body);
+  });
+
   it("keeps a backticked pipe split (GFM requires the escape even inside a code span)", () => {
     const table = ["| A | B |", "| --- | --- |", "| `x | y` |", ""].join("\n");
     const tree = MarkdownTree.parse(`## Boundary\n\n${table}`);
@@ -228,6 +260,32 @@ describe("MarkdownTree — the composable selector face", () => {
       "Files",
       "Steps",
       "DependsOn",
+    ]);
+  });
+
+  it("keeps the first guard — only the first match of a multi-match walk", () => {
+    const tree = MarkdownTree.parse(PLAN);
+    const all = tree.occurrences(SelectorSpec.list());
+    const first = tree.occurrences(SelectorSpec.list(SelectorSpec.ROOT, /^- /, "first"));
+    expect(all.length).toBeGreaterThan(1);
+    expect(first.map((node) => node.text)).toEqual([all[0]?.text]);
+  });
+
+  it("keeps the last guard — only the last match of a multi-match walk", () => {
+    const tree = MarkdownTree.parse(PLAN);
+    const all = tree.occurrences(SelectorSpec.list());
+    const last = tree.occurrences(SelectorSpec.list(SelectorSpec.ROOT, /^- /, "last"));
+    expect(last.map((node) => node.text)).toEqual([all[all.length - 1]?.text]);
+  });
+
+  it("keeps the inTaskBlock guard — only the nodes inside a `### Task N:` block", () => {
+    const tree = MarkdownTree.parse(PLAN);
+    const all = tree.occurrences(SelectorSpec.list(SelectorSpec.ROOT, /^- /));
+    const inTask = tree.occurrences(SelectorSpec.list(SelectorSpec.ROOT, /^- /, "inTaskBlock"));
+    expect(all.map((node) => node.text)).toContain("- one constraint");
+    expect(inTask.map((node) => node.text)).toEqual([
+      "- write the test — checkable: it fails",
+      "- implement it — checkable: it passes",
     ]);
   });
 });

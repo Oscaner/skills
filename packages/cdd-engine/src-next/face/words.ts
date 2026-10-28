@@ -455,7 +455,8 @@ export class Words implements WordLocaleFace {
 
   /** The held report of one in-flight record, rendered from its identity facts — the
    *  single filler of the held row's slots ({pid} / {command} / {startedAt} /
-   *  {uptime} / {wave} / {slug}). `uptime` is the elapsed time in whole minutes. */
+   *  {uptime} / {wave} / {slug}). The record's instant is the holder pid's own start
+   *  time, so `uptime` is that process's age in whole minutes. */
   inFlightHeld(facts: {
     pid: number;
     command: string;

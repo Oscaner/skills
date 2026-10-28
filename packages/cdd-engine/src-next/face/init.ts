@@ -23,7 +23,7 @@
 //     a step is spawned.
 //
 // The dispatch execution machine (`face/termination.ts` — timeout / budget / group
-// kill / heartbeat / stall judge) is never shared: a bootstrap step has no round,
+// kill / sampling trail / stall judge) is never shared: a bootstrap step has no round,
 // no ceiling and no session state.
 //
 // Module-level exports are types / declared constants / classes — zero

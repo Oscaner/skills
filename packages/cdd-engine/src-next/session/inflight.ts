@@ -17,9 +17,12 @@
 //     explicit takeover) remove it. `proper-lockfile` drops the lock on any graceful
 //     exit and leaves it only on SIGKILL, which is why the lock is never the criterion;
 //   · the survival judgment is `ProcessFacts.live`: the record's pid + start time
-//     against the process table. An UNREADABLE start time (the tool's `null`) folds to
-//     "alive" here — a takeover must never be authorized by a fact that could not be
-//     read — but a pid-reuse (a start time far from the recorded one) is "dead".
+//     against the process table. The recorded instant is the pid's OWN start time (a
+//     record written hours into a session still describes the same process), since the
+//     tolerance compares two start times, never a start time against a dispatch. An
+//     UNREADABLE start time (the tool's `null`) folds to "alive" here — a takeover
+//     must never be authorized by a fact that could not be read — but a pid-reuse (a
+//     start time far from the recorded one) is "dead".
 //
 // Module-level exports are types / the error class / the class — zero
 // behavior-carrying bare functions.
@@ -45,7 +48,9 @@ export interface InFlightRecord {
   readonly command: string;
   /** The dispatch's workspace slug — the record is tree-level, the slug names WHO holds it. */
   readonly slug: string;
-  /** The dispatch's start instant (epoch ms) — the pid-reuse guard's recorded side. */
+  /** The holder process's own start instant (epoch ms) — the recorded side of the
+   *  pid-reuse guard, so it describes exactly the pid beside it (never the dispatch
+   *  instant: the guard compares it against the LIVE process's start time). */
   readonly startedAt: number;
   /** The dispatched wave key (`3,4`); null off the wave face. */
   readonly wave: string | null;
@@ -180,12 +185,21 @@ export class InFlight {
   }
 
   /** Overwrite the running dispatch's sampling cells — the identity fields stay
-   *  untouched. Fail-open: a missing/corrupt record (the record was taken over, or
-   *  the sampler outlived it) is skipped, never fabricated into a new record. */
+   *  untouched. Fail-open on both sides: a missing/corrupt record (the record was
+   *  taken over, or the sampler outlived it) is skipped, never fabricated into a new
+   *  record, and a failed WRITE is swallowed too — the trail is a diagnostic, so an
+   *  unwritable namespace neither aborts a dispatch whose child is already spawned nor
+   *  throws inside the sampler's interval. `acquire()` keeps its write loud: a lock
+   *  taken without a record standing behind it would break the invariant. */
   heartbeat(sample: { readonly sampledAt: number; readonly verdict: string }): void {
     const current = this.#readRecord();
     if (current === null) return;
-    this.#writeRecord({ ...current, sampledAt: sample.sampledAt, verdict: sample.verdict });
+    try {
+      this.#writeRecord({ ...current, sampledAt: sample.sampledAt, verdict: sample.verdict });
+    } catch {
+      // Fail-open: the next tick retries, and the record's identity fields still
+      // describe the holder — a lost sample is never a lost dispatch.
+    }
   }
 
   /** Release the record at the normal end — the reverse of acquire: delete the record,

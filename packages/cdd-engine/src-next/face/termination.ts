@@ -315,7 +315,8 @@ export class Sampler {
  *
  *  The interval is unref'd: the engine's own sampling must never be the reason the
  *  parent process stays alive (the dispatch awaits the child, not the cadence). The
- *  trail write is fail-open: it is a diagnostic, never a dispatch's fate. The loop
+ *  trail WRITE is fail-open (`InFlight.heartbeat` swallows a failed write): a
+ *  diagnostic never decides a dispatch's fate. The loop
  *  NEVER removes the record — removal belongs to `InFlight.release()` (the normal end)
  *  and `InFlight.steal()` (the explicit takeover) alone, so a self-ending round that
  *  still has to hand its conclusion back cannot erase the very fact the gate reads.

@@ -31,6 +31,13 @@ export interface ProcRow {
   readonly startTime: number | null;
 }
 
+/** The recorded-side reader of the pid-reuse guard — one process's own start instant.
+ *  The production face is `ProcessFacts`; the lifecycle takes it as an injection seam
+ *  so a long-lived session's start instant is pinnable without waiting one out. */
+export interface ProcessStartReader {
+  startOf(pid: number): Promise<number | null>;
+}
+
 /** The process-fact reader — the single OS read face. */
 export class ProcessFacts {
   /** A `ps -o time=` reading: `[DD-][HH:]MM:SS[.ff]` (BSD gives centiseconds, Linux
@@ -55,6 +62,20 @@ export class ProcessFacts {
         startTime: descriptor.startTime?.getTime() ?? null,
       }))
       .sort((left, right) => left.pid - right.pid);
+  }
+
+  /** One process's own start instant (epoch ms) — the RECORDED side of the liveness
+   *  judgment, so the record and the guard describe the same instant (the process's
+   *  start, never the dispatch's). Null when the pid is absent from the table or its
+   *  start time is unreadable — the same conservative fact `live` answers with. */
+  static async startOf(pid: number, rows?: readonly ProcRow[]): Promise<number | null> {
+    let table: readonly ProcRow[];
+    try {
+      table = rows ?? (await ProcessFacts.snapshot());
+    } catch {
+      return null;
+    }
+    return table.find((entry) => entry.pid === pid)?.startTime ?? null;
   }
 
   /** The group's cumulative CPU (ms), summed over `ps -o time= -g <pgid>`'s members.

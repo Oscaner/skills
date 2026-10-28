@@ -169,7 +169,9 @@ export class WaveGate {
       if (ids.length === 0) continue;
       if (!ids.some((id) => closedMembers.includes(id))) continue;
       if (!ids.every((id) => closed.has(id))) continue;
-      const snapshot = ledger.planTasksOf(row.wave);
+      // The snapshot rides the row already in hand — the gate never re-reads and
+      // re-parses progress.json once per row on this hot path.
+      const snapshot = row.planTasks ?? null;
       if (snapshot === null) return false;
       return openMembers.every((id) => !snapshot.includes(id));
     }

@@ -167,14 +167,14 @@ export type StallVerdict = "progress" | "unknown" | "idled" | "stalled";
 /** One sample tick's two legs — the process group's cumulative CPU (ms) and the
  *  newest mtime (ms) of the scanned tree. `null` = that leg is unreadable (the
  *  fail-open face: an unreadable leg never authorizes a kill). The field names are
- *  the heartbeat record's names (one naming, two references). */
+ *  the in-flight record's names (one naming, two references). */
 export interface Sample {
   groupCpuMs: number | null;
   newestMtimeMs: number | null;
 }
 
 /** The recorded sample — a `Sample` extended with its tick's timestamp and the
- *  judge's verdict (the heartbeat file's field set; the crash record embeds it). */
+ *  judge's verdict (the sampling trail's field set; the crash record embeds it). */
 export interface SampleRecord extends Sample {
   sampledAt: number;
   verdict: StallVerdict;
@@ -182,7 +182,7 @@ export interface SampleRecord extends Sample {
 
 /** How a round ended when it did not end by itself — the derived cause plus the
  *  last observed sample (the postmortem pair the crash record carries; the sample
- *  rides the outcome in memory, never re-read from the heartbeat file). `unknown`
+ *  rides the outcome in memory, never re-read from the in-flight record). `unknown`
  *  is the unattributable fallback of the derivation. */
 export interface Termination {
   cause: TerminationCause | "unknown";
@@ -227,8 +227,8 @@ export interface CrashRecord {
   cause: CrashCause;
   /** The terminated round's last observed sample (the stall face's postmortem pair) —
    *  null when the round was not cut short or no sample was ever taken. The sample
-   *  rides the termination fact in memory (zero re-read of the heartbeat file the
-   *  engine itself wrote); the on-disk heartbeat stays for a human's postmortem. */
+   *  rides the termination fact in memory (zero re-read of the in-flight record the
+   *  engine itself wrote); the standing record stays on disk for a human's postmortem. */
   lastSample: SampleRecord | null;
   /** Whether the terminated round's draft was promoted to a conclusion (false on every
    *  non-terminated record). */

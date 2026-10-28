@@ -16,7 +16,7 @@
 // The stall face's own pins live here too (spec §3.3): the judge's four-state truth
 // table (pure, window injected — the production window would make a case wait out the
 // real half hour) and the sampler's two legs (a real process group and a scratch tree).
-// The sampling loop's pins close the face (§3.4): every dispatch's heartbeat trail —
+// The sampling loop's pins close the face (§3.4): every dispatch's sampling trail —
 // sampled at once, overwritten per tick, removed at a normal end, kept when the round
 // was terminated.
 
@@ -86,7 +86,7 @@ const childRun = (
 };
 
 /** The in-flight record's path of a scratch dispatch (`childRun`'s own derivation). */
-const heartbeatOf = (root: string): string => inflightOf(root).path();
+const recordPathOf = (root: string): string => inflightOf(root).path();
 
 describe("Terminator — the asynchronous child-channel collection (spec §14 · D36)", () => {
   const runner = new Terminator();
@@ -212,8 +212,8 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     // The last sample rode the termination in memory — the postmortem pair.
     expect(result.termination?.lastSample).not.toBeNull();
     expect(result.termination?.lastSample?.verdict).toBe("stalled");
-    // The heartbeat file stays on disk for a human's postmortem.
-    expect(existsSync(heartbeatOf(root))).toBe(true);
+    // The in-flight record stays on disk for a human's postmortem.
+    expect(existsSync(recordPathOf(root))).toBe(true);
   });
 
   it("never kills a busy child — sustained CPU growth rules `progress`, the round ends by itself", async () => {
@@ -651,7 +651,7 @@ describe("Sampler — the two legs (spec §3.3)", () => {
 
 /** The on-disk in-flight record as a reader sees it — a reader racing an overwrite can
  *  catch a partial file, so an unparsable read is "no observation", never a crash. */
-const readHeartbeat = (target: string): InFlightRecord | null => {
+const readRecord = (target: string): InFlightRecord | null => {
   try {
     return JSON.parse(readFileSync(target, "utf8")) as InFlightRecord;
   } catch {
@@ -663,7 +663,7 @@ const readHeartbeat = (target: string): InFlightRecord | null => {
  *  tick's own `sampledAt`, so a repeated read of one tick collapses). The record is not
  *  removed at the end (that is `InFlight.release`'s job), so the post-run file is read
  *  separately where a case needs it. */
-const watchHeartbeat = async (
+const watchTrail = async (
   dispatch: Promise<ChildOutcome>,
   target: string,
 ): Promise<{ result: ChildOutcome; records: InFlightRecord[] }> => {
@@ -671,7 +671,7 @@ const watchHeartbeat = async (
   let settled = false;
   const poll = (async () => {
     while (!settled) {
-      const record = readHeartbeat(target);
+      const record = readRecord(target);
       if (record !== null && record.sampledAt !== null) seen.set(record.sampledAt, record);
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
@@ -693,11 +693,11 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
     plant(root, "work.md", EPOCH + 10);
     // The cadence (60 s) outlives this child many times over: any tick at all can
     // only be the immediate first sample.
-    const { result, records } = await watchHeartbeat(
+    const { result, records } = await watchTrail(
       runner.run(
         childRun(root, "sh", ["-c", "sleep 0.4"], new TerminationPolicy(60_000, 60_000, 60_000)),
       ),
-      heartbeatOf(root),
+      recordPathOf(root),
     );
     expect(result.termination).toBeNull();
     expect(records.length).toBe(1);
@@ -706,11 +706,11 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
   it("overwrites the record's sampling cells once per tick — the identity fields survive", async () => {
     const root = scratch();
     plant(root, "work.md", EPOCH + 10);
-    const { result, records } = await watchHeartbeat(
+    const { result, records } = await watchTrail(
       runner.run(
         childRun(root, "sh", ["-c", "sleep 0.8"], new TerminationPolicy(60_000, 60_000, 60)),
       ),
-      heartbeatOf(root),
+      recordPathOf(root),
     );
     expect(result.termination).toBeNull();
     // Several ticks of the declared 60 ms cadence fall inside the child's 800 ms.
@@ -762,16 +762,16 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
   it("keeps the record (and its last sampling cells) when the round was terminated", async () => {
     const root = scratch();
     plant(root, "work.md", EPOCH + 10);
-    const heartbeat = heartbeatOf(root);
-    const { result } = await watchHeartbeat(
+    const recordPath = recordPathOf(root);
+    const { result } = await watchTrail(
       runner.run(childRun(root, "sh", ["-c", "sleep 30"], new TerminationPolicy(300, 60_000, 60))),
-      heartbeat,
+      recordPath,
     );
     expect(result.termination?.cause).toBe("over-budget");
     expect(result.code).toBeNull();
     // The record stays for a human to read…
-    expect(existsSync(heartbeat)).toBe(true);
-    const onDisk = readHeartbeat(heartbeat);
+    expect(existsSync(recordPath)).toBe(true);
+    const onDisk = readRecord(recordPath);
     expect(onDisk?.verdict).toBe(result.termination?.lastSample?.verdict);
     expect(onDisk?.sampledAt).toBe(result.termination?.lastSample?.sampledAt);
     // …and the round's full last sample (both legs) rode the termination in memory —
@@ -785,7 +785,7 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
     const result = await runner.run(childRun(root, "cdd-no-such-binary-xyz", []));
     expect(result.termination).toBeNull();
     // The planted intent survives untouched and carries no fabricated tick.
-    const onDisk = readHeartbeat(heartbeatOf(root));
+    const onDisk = readRecord(recordPathOf(root));
     expect(onDisk?.sampledAt).toBeNull();
     expect(onDisk?.verdict).toBeNull();
   });

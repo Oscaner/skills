@@ -12,12 +12,22 @@
 //   · `alive` is `ProcessFacts.live`'s judgment — an unreadable start time folds to
 //     true (never an authorized takeover), a reused pid reads dead;
 //   · `stealStale` acts inside acquire only: a dead holder is taken over, a live one
-//     still refuses.
+//     still refuses;
+//   · the sampling trail is fail-open on both sides: an unwritable record write is
+//     swallowed by `heartbeat` while `acquire`'s own record write stays loud.
 // Every fixture is a fresh temp repo; the real process table is the default reader,
 // an injected reader covers the unreadable-start-time branch.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -46,6 +56,10 @@ const inflightOf = (repo: string, slug = "p3", liveness: LivenessReader = Proces
 
 /** A dead pid — far outside every platform's pid range (the table never carries it). */
 const DEAD_PID = 4_000_001;
+
+/** Whether the process runs without a permission check (root) — a read-only
+ *  directory does not refuse a root writer, so the fail-open write pin cannot hold. */
+const isRoot = (): boolean => typeof process.getuid === "function" && process.getuid() === 0;
 
 /** An intent record over the given identity facts. */
 const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
@@ -248,6 +262,34 @@ describe("InFlight — the liveness judgment (alive folds null to true, pid reus
     if (state.kind !== "held") return;
     expect(state.alive).toBe(false);
   });
+});
+
+describe("InFlight.heartbeat — the fail-open trail write", () => {
+  it.skipIf(isRoot())(
+    "swallows an unwritable record write — while acquire() still reports its failure",
+    async () => {
+      const repo = scratch();
+      const inflight = inflightOf(repo);
+      plantRecord(inflight, recordOf());
+      const before = readFileSync(inflight.path());
+      // The namespace refuses new entries: the atomic write's temporary sibling and
+      // the lock directory both fail, the standing record stays readable.
+      chmodSync(path.dirname(inflight.path()), 0o555);
+      try {
+        expect(() =>
+          inflight.heartbeat({ sampledAt: Date.now(), verdict: "progress" }),
+        ).not.toThrow();
+        // A lost sample never touches the identity bytes either.
+        expect(readFileSync(inflight.path()).equals(before)).toBe(true);
+        // The record write stays LOUD at the one place the invariant depends on it.
+        await expect(inflight.acquire(recordOf({ wave: "2" }))).rejects.toBeInstanceOf(
+          HoldingError,
+        );
+      } finally {
+        chmodSync(path.dirname(inflight.path()), 0o755);
+      }
+    },
+  );
 });
 
 describe("InFlight.acquire({ stealStale }) — the one explicit takeover path", () => {

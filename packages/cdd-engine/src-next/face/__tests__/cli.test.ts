@@ -46,6 +46,7 @@ import path from "node:path";
 import type { Command } from "commander";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
+import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
 import type { RouteTarget } from "../../session/faces.ts";
@@ -5439,7 +5440,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       // The stub mimes the stalled kill exactly as the terminator reports it: the
       // killed child's exit code is null, and the termination fact rides whole
-      // (cause + the in-memory last sample — zero heartbeat re-read).
+      // (cause + the in-memory last sample — zero in-flight-record re-read).
       const lastSample: SampleRecord = {
         sampledAt: 1_700_000_000,
         groupCpuMs: 120,
@@ -6344,11 +6345,40 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       expect(atSpawn.slug).toBe("p3");
       expect(atSpawn.phase).toBe("implement");
       expect(atSpawn.wave).toBe("1");
-      expect(atSpawn.startedAt).toBeGreaterThan(0);
+      // The record's instant is the pid's OWN start time — the instant the
+      // pid-reuse guard compares against, never the dispatch instant.
+      expect(atSpawn.startedAt).toBe(await ProcessFacts.startOf(process.pid));
       // The normal end released BOTH the record and the lock.
       const recordPath = path.join(scene.workspace.root.path, "in-flight.json");
       expect(existsSync(recordPath)).toBe(false);
       expect(existsSync(`${recordPath}.lock`)).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("survives a session older than the guard's tolerance — the record describes the pid", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      planFor(repoRoot);
+      const scene = sceneOf(repoRoot);
+      const io = new CaptureIo();
+      const runner = new RecordProbeRunner(scene.workspace.path);
+      // A six-hour-old session (the implement budget): the dispatch instant sits far
+      // outside the liveness guard's 60 s start-time tolerance, so a record carrying
+      // the dispatch instant would read a LIVE holder dead and authorize a takeover.
+      const startedAt = Date.now() - 6 * 60 * 60 * 1000;
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+        proc: { startOf: async () => startedAt },
+      });
+      await dispatch.step()(P21_IMPLEMENT);
+      const record = JSON.parse(runner.recordAtSpawn as string) as InFlightRecord;
+      expect(record.startedAt).toBe(startedAt);
     } finally {
       cleanup();
     }

@@ -19,6 +19,7 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
 import { GitClient } from "../infra/git.ts";
+import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
 import type { RepoRoot } from "../infra/root.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
@@ -119,6 +120,9 @@ export class CliLifecycle {
   readonly #inflight: InFlight;
   /** The git read face — the crash record's `dispatchBase` / `commitsSince` facts. */
   readonly #git: GitClient;
+  /** The recorded side of the liveness judgment — the holder pid's own start instant
+   *  (`ProcessFacts.startOf`; injected by the tests to span a long session). */
+  readonly #proc: ProcessStartReader;
   /** Whether this invocation asked to take over a dead holder's record (the
    *  `--steal-stale` flag — the only takeover path). */
   readonly #stealStale: boolean;
@@ -142,6 +146,7 @@ export class CliLifecycle {
     words?: Words;
     inflight?: InFlight;
     git?: GitClient;
+    proc?: ProcessStartReader;
     stealStale?: boolean;
   }) {
     this.#env = opts.env ?? process.env;
@@ -150,6 +155,7 @@ export class CliLifecycle {
     this.#inflight =
       opts.inflight ?? new InFlight(opts.scene.workspace.root, opts.scene.workspace.slug);
     this.#git = opts.git ?? new GitClient();
+    this.#proc = opts.proc ?? ProcessFacts;
     this.#stealStale = opts.stealStale ?? false;
     this.#sync = opts.sync ?? new Terminator();
     this.#template = opts.template ?? new TemplateAssembler();
@@ -196,7 +202,7 @@ export class CliLifecycle {
     // A sibling dispatch that won the lock in between makes `acquire` throw
     // `HoldingError` (carrying the holder's facts), which rides the CLI's held BLOCK.
     this.#dispatchBase = await this.#git.head(this.#scene.workspace.root.repoRoot);
-    await this.#inflight.acquire(this.#recordOf(frame), { stealStale: this.#stealStale });
+    await this.#inflight.acquire(await this.#recordOf(frame), { stealStale: this.#stealStale });
     // The child receives ONE prompt argument — per the host's promptForm data column
     // (§3.5): the ref-prefixed form embeds the slash ref at the start of the single
     // prompt positional (claude -p consumes the whole first positional as the prompt;
@@ -277,15 +283,21 @@ export class CliLifecycle {
   /** The in-flight record of one frame — the identity facts written before the spawn.
    *  `pid`/`pgid` are the dispatching engine process (its own group anchor), the
    *  command is the same-command resume form, and the brief hash is computed NOW from
-   *  the rendered brief (the ledger's ONE hash face — never a new hash surface). */
-  #recordOf(frame: OpenFrame): InFlightRecord {
+   *  the rendered brief (the ledger's ONE hash face — never a new hash surface).
+   *  `startedAt` is the recorded pid's OWN start instant (`ProcessFacts.startOf`), the
+   *  instant `ProcessFacts.live` compares against: the dispatch instant drifts away
+   *  from it, and on a session older than the tolerance that drift would judge a live
+   *  holder dead — the one direction the guard must never take. The dispatch instant
+   *  is only the fallback when the process table cannot answer, and an unreadable
+   *  start time then folds to "alive" on the read side (never to a takeover). */
+  async #recordOf(frame: OpenFrame): Promise<InFlightRecord> {
     const scene = this.#scene;
     return {
       pid: process.pid,
       pgid: process.pid,
       command: this.#resumeOf(frame),
       slug: scene.workspace.slug,
-      startedAt: Date.now(),
+      startedAt: (await this.#proc.startOf(process.pid)) ?? Date.now(),
       wave: frame.type === "wave" ? (frame.params.tasks ?? null) : null,
       phase: frame.phase,
       briefHash: this.#briefHashOf(frame),
@@ -734,7 +746,7 @@ export class CliLifecycle {
       next: this.#resumeOf(frame),
       cause,
       // The last sample rides WITH the termination (in memory, zero re-read of the
-      // heartbeat file) — null on every non-terminated face.
+      // in-flight record) — null on every non-terminated face.
       lastSample: death.termination?.lastSample ?? null,
       promoted,
       idleMs: death.termination?.idleMs ?? null,

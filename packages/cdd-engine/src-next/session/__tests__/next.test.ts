@@ -458,3 +458,42 @@ describe("D40/D26 — walk(): the single face-to-face traversal", () => {
     ).toEqual({ kind: "done" });
   });
 });
+
+// ---------------------------------------------------------------------------
+// P21 T3 — resolve(): the target line's open fact (§4.2). The wave line's closure
+// only hands off to the branch-review literal when the branch line HAS a
+// dispatchable open round; otherwise it lands on the branch face's own station.
+// ---------------------------------------------------------------------------
+
+describe("P21 T3 — resolve() with the target line's open fact", () => {
+  it("a closed wave line with NO dispatchable branch round lands on the branch station", () => {
+    // `kairos:cdd-close` — the branch face's own next station, never the
+    // `review --type branch` literal its own gate would refuse.
+    for (const active of [{ kind: "done" } as const, null]) {
+      expect(NextStepRouter.resolve(active, "wave", false)).toEqual({
+        kind: "handoff",
+        entry: PIPELINE_NEXT.branch,
+      });
+    }
+  });
+
+  it("a closed wave line WITH a dispatchable branch round keeps the branch-review literal", () => {
+    expect(NextStepRouter.resolve({ kind: "done" }, "wave", true)).toEqual({
+      kind: "handoff",
+      entry: PIPELINE_NEXT.wave,
+    });
+  });
+
+  it("leaves every other face and the absent-fact call exactly as before", () => {
+    expect(NextStepRouter.resolve({ kind: "done" }, "wave")).toEqual({
+      kind: "handoff",
+      entry: PIPELINE_NEXT.wave,
+    });
+    expect(NextStepRouter.resolve({ kind: "done" }, "plan", false)).toEqual({
+      kind: "handoff",
+      entry: PIPELINE_NEXT.plan,
+    });
+    // an active C5 hop still passes through — the fact only judges a drained line
+    expect(NextStepRouter.resolve({ kind: "review" }, "wave", false)).toEqual({ kind: "review" });
+  });
+});

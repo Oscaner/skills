@@ -17,6 +17,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { type ParseError, parse } from "jsonc-parser";
+import { AtomicWriter } from "./atomic.ts";
 import { RepoRoot } from "./root.ts";
 
 /** The tri-state JSON read — the read's three DISTINCT outcomes, discriminated: a
@@ -85,6 +86,8 @@ export class Workspace {
   readonly root: WorkspaceRoot;
   readonly slug: string;
   readonly path: string;
+  /** The JSON write seam — every engine-persisted artifact rides it. */
+  readonly #atomic = new AtomicWriter();
 
   constructor(root: WorkspaceRoot, slug: string) {
     this.root = root;
@@ -166,7 +169,9 @@ export class Workspace {
     return { kind: "ok", value: text };
   }
 
-  /** Write a JSON child — mkdir before write. The declared path fields (`doc` /
+  /** Write a JSON child — mkdir before write, and the bytes land through the ONE
+   *  atomic write seam (`AtomicWriter`): a killed process leaves the previous whole
+   *  document, never half a JSON body. The declared path fields (`doc` /
    *  `plan`) are normalized to the canonical repoRoot-relative shape on write (P9
    *  T4 §2.7), so every engine-persisted path field lands relative — the read-time
    *  backstop then only covers legacy bytes (migration handles history, the read
@@ -176,7 +181,7 @@ export class Workspace {
   writeJson(name: string, value: unknown): void {
     this.ensure();
     const normalized = this.#normalizePaths(value);
-    writeFileSync(this.resolve(name), `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+    this.#atomic.write(this.resolve(name), `${JSON.stringify(normalized, null, 2)}\n`);
   }
 
   /** Write a text child — mkdir before write (the text twin of `writeJson`; the

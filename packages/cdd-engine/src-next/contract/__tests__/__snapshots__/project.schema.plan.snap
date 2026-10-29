@@ -60,14 +60,14 @@
       "pattern": "^\\d+$",
       "description": "presence: required · home: task-block · ref: task-id"
     },
-    "**Objective**": {
+    "#### Objective": {
       "type": "string",
-      "pattern": "^- \\*\\*Objective\\*\\*:",
+      "pattern": "^#### Objective$",
       "description": "presence: required · home: task-field · ref: none"
     },
-    "**Files**": {
+    "#### Files": {
       "type": "string",
-      "pattern": "^- \\*\\*Files\\*\\*:",
+      "pattern": "^#### Files$",
       "description": "presence: required · home: task-field · ref: none"
     },
     "File path token": {
@@ -75,19 +75,19 @@
       "pattern": "^[\\w./-]+",
       "description": "presence: required · home: task-field · ref: none"
     },
-    "**Consumes**": {
+    "#### Consumes": {
       "type": "string",
-      "pattern": "^- \\*\\*Consumes\\*\\*:",
+      "pattern": "^#### Consumes$",
       "description": "presence: required · home: task-field · ref: none"
     },
-    "**Produces**": {
+    "#### Produces": {
       "type": "string",
-      "pattern": "^- \\*\\*Produces\\*\\*:",
+      "pattern": "^#### Produces$",
       "description": "presence: required · home: task-field · ref: none"
     },
-    "**Steps**": {
+    "#### Steps": {
       "type": "string",
-      "pattern": "^- \\*\\*Steps\\*\\*:",
+      "pattern": "^#### Steps$",
       "description": "presence: required · home: task-field · ref: none"
     },
     "Step action": {
@@ -100,14 +100,14 @@
       "pattern": "—\\s*checkable:\\s*\\S",
       "description": "presence: required · home: task-step · ref: none"
     },
-    "**Acceptance**": {
+    "#### Acceptance": {
       "type": "string",
-      "pattern": "^- \\*\\*Acceptance\\*\\*:",
+      "pattern": "^#### Acceptance$",
       "description": "presence: required · home: task-field · ref: none"
     },
-    "**DependsOn**": {
+    "#### DependsOn": {
       "type": "string",
-      "pattern": "^- \\*\\*DependsOn\\*\\*:",
+      "pattern": "^#### DependsOn$",
       "description": "presence: required · home: task-field · ref: none"
     },
     "DependsOn none": {
@@ -156,16 +156,16 @@
     "Constraint delta bullet",
     "### Task N:",
     "Task id token",
-    "**Objective**",
-    "**Files**",
+    "#### Objective",
+    "#### Files",
     "File path token",
-    "**Consumes**",
-    "**Produces**",
-    "**Steps**",
+    "#### Consumes",
+    "#### Produces",
+    "#### Steps",
     "Step action",
     "Step checkable",
-    "**Acceptance**",
-    "**DependsOn**",
+    "#### Acceptance",
+    "#### DependsOn",
     "## Change history",
     "Change history row",
     "Version token",

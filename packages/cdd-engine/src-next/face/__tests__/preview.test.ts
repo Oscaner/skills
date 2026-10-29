@@ -16,15 +16,18 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
+import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
@@ -422,6 +425,139 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
       expect(runner.calls).toEqual([]);
       expect(io.stderrText).toBe("");
       expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P21 T6 — the in-flight read face and the orphan drafts (zero write)
+// ---------------------------------------------------------------------------
+
+/** The tree-level in-flight record path of a fixture repo. */
+const recordPath = (repoRoot: string): string =>
+  path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+
+/** Write a standing in-flight record (the tree-level path). */
+const writeRecord = (
+  repoRoot: string,
+  record: { pid: number; startedAt: number; dead?: boolean },
+): void => {
+  mkdirSync(path.join(repoRoot, ".kairos", "cdd"), { recursive: true });
+  writeFileSync(
+    recordPath(repoRoot),
+    `${JSON.stringify(
+      {
+        pid: record.pid,
+        command: "cdd implement --tasks 1 --plan docs/kairos/plans/p3.md",
+        slug: "p3",
+        startedAt: record.startedAt,
+        wave: "1",
+        phase: "implement",
+        briefHash: null,
+        plan: "docs/kairos/plans/p3.md",
+        sampledAt: null,
+        verdict: null,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+};
+
+/** The workspace directory's content + per-file mtimes (the orphan's zero-write pin). */
+const workspaceSnapshot = (repoRoot: string): string => {
+  const dir = path.join(repoRoot, ".kairos", "cdd", "p3");
+  if (!existsSync(dir)) return "absent";
+  return JSON.stringify(
+    readdirSync(dir)
+      .sort()
+      .map((name) => [name, statSync(path.join(dir, name)).mtimeMs]),
+  );
+};
+
+describe("cdd <verb> --dry-run — the in-flight read face", () => {
+  it("prints the live holder as a `lock:` row and exits 1, touching neither the record nor the lock", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const startedAt = (await ProcessFacts.startOf(process.pid)) ?? Date.now();
+      writeRecord(repoRoot, { pid: process.pid, startedAt });
+      const recordBytes = readFileSync(recordPath(repoRoot), "utf8");
+      const before = porcelain(repoRoot);
+
+      expect(
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
+      ).toBe(1);
+      expect(io.stdoutText).toContain("lock: held by pid");
+      expect(io.stdoutText).toContain(String(process.pid));
+      expect(io.stdoutText).not.toContain("--steal-stale");
+      // the held preview reports the same checked face as the other dry-run shapes
+      expect(io.stdoutText).toContain("checked:");
+      expect(io.stdoutText).toContain("in-flight: held — pid");
+      expect(readFileSync(recordPath(repoRoot), "utf8")).toBe(recordBytes);
+      expect(existsSync(`${recordPath(repoRoot)}.lock`)).toBe(false);
+      expect(porcelain(repoRoot)).toBe(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("prints the takeover hint for a dead holder — `--steal-stale --dry-run` still takes nothing over", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      writeRecord(repoRoot, { pid: 999_999, startedAt: 1 });
+      const recordBytes = readFileSync(recordPath(repoRoot), "utf8");
+
+      expect(
+        await command.runArgv([
+          "implement",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--steal-stale",
+          "--dry-run",
+        ]),
+      ).toBe(1);
+      expect(io.stdoutText).toContain("lock: held by pid 999999");
+      expect(io.stdoutText).toContain("--steal-stale");
+      // the same checked face as the other dry-run shapes
+      expect(io.stdoutText).toContain("checked:");
+      expect(io.stdoutText).toContain("in-flight: stale holder — pid 999999");
+      // no takeover, no deletion, no lock: the flag has no write channel here
+      expect(existsSync(recordPath(repoRoot))).toBe(true);
+      expect(readFileSync(recordPath(repoRoot), "utf8")).toBe(recordBytes);
+      expect(existsSync(`${recordPath(repoRoot)}.lock`)).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("lists an orphan handoff draft on the `reads:` row and leaves the workspace untouched", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const dir = path.join(repoRoot, ".kairos", "cdd", "p3");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        path.join(dir, "tasks-1-review-1.json"),
+        `${JSON.stringify({ findings: [] })}\n`,
+        "utf8",
+      );
+      const before = workspaceSnapshot(repoRoot);
+
+      expect(
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
+      ).toBe(0);
+      expect(io.stdoutText).toContain("orphan drafts: tasks-1-review-1.json");
+      expect(workspaceSnapshot(repoRoot)).toBe(before);
     } finally {
       cleanup();
     }

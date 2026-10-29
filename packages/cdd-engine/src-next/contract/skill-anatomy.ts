@@ -274,7 +274,7 @@ export const SKILL_ANATOMY = {
     edgeConditionRule:
       "decision edges carry explicit condition labels — the NEXT-LOOP hub's out-edges ARE the pinned loop conditions (`until next is terminal` → self-loop · `no next` → BLOCKED) and every edge out of a decision node is condition-labeled; an unlabeled decision edge, a bare NEXT-LOOP self-loop, or a NEXT-LOOP out-edge count/condition that deviates from the pinned shape is a shape violation (the edge-zero-state-label rule retired v1.20)",
     routeFactRule:
-      "next: is consumed as a dispatch-ready literal (the literal IS the dispatch, no kind→command mapping layer); a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
+      "the `next:` face renders through the word table's template rows — a pipeline `ref` renders the `route to {ref} skill` instruction phrase, a `literal` a cdd command string, a `done` the bare terminal word; a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
   },
   // The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase
   // set the digraph's loop/closure decision edges may carry: the NEXT-LOOP phrases +

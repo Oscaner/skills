@@ -20,14 +20,9 @@ import { declaredRegistries } from "../declare.ts";
 import type { DocType, ParsedDoc } from "../doc.ts";
 import { docTypeParsers, OverallDocType, PhaseSpecDocType, PlanDocType } from "../doc.ts";
 import { FrontMatterExtractor } from "../frontmatter.ts";
-import {
-  DesignBodyExtractor,
-  GraphExtractor,
-  HeadingScanner,
-  TableExtractor,
-  TaskExtractor,
-} from "../home-extractors.ts";
+import { DesignBodyExtractor, HeadingScanner } from "../home-extractors.ts";
 import { Contract } from "../judge.ts";
+import { MarkdownTree } from "../markdown-tree.ts";
 import type { DocKey } from "../project.ts";
 import { Projector } from "../project.ts";
 
@@ -224,10 +219,6 @@ describe("OverallDocType.parse — the four tables + the chain root", () => {
     expect(table.rows.map((row) => row[0])).toEqual(["v1.20", "v1.21"]);
   });
 
-  it("parses the dependency-graph edge lines into from/to tokens", () => {
-    expect(parsed.graphEdges).toEqual([{ text: "P1 -> P2", from: "P1", to: "P2" }]);
-  });
-
   it("parses the chain root — the overall is the root (no program link)", () => {
     expect(parsed.chain.docType).toBe("overall");
     expect(parsed.chain.programLink).toBeNull();
@@ -307,34 +298,10 @@ describe("PhaseSpecDocType.parse — the design skeleton + the program chain roo
 });
 
 describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure rules over the registry's anchors", () => {
-  it("TaskExtractor — block heads + aligned id tokens + the scoped field/step occurrences", () => {
-    const extracted = new TaskExtractor().extract(declaredRegistries.plan, PLAN);
-    expect(extracted["### Task N:"]).toEqual(["### Task 1: skeleton", "### Task 2: registry"]);
-    expect(extracted["Task id token"]).toEqual(["1", "2"]);
-    expect(extracted["**Objective**"]).toEqual([
-      "- **Objective**: establish the skeleton",
-      "- **Objective**: declare the registries",
-    ]);
-    expect(extracted["**DependsOn**"]).toEqual(["- **DependsOn**: none", "- **DependsOn**: 1"]);
-    // the step bullets are scoped to the `**Steps**` field and matched on the
-    // trimmed form — the header / constraint bullets never leak in
-    expect(extracted["Step action"]).toEqual([
-      "  - step one",
-      "  - step two — checkable: second step check",
-      "  - write the registry — checkable: types compile",
-    ]);
-    expect(extracted["Step checkable"]).toEqual([
-      "  - step two — checkable: second step check",
-      "  - write the registry — checkable: types compile",
-    ]);
-    // the front-matter head scalars never become line occurrences of a body anchor
-    expect(extracted.slug).toBeUndefined();
-  });
-
   it("DesignBodyExtractor — the numbered group/item headings and the design leaves", () => {
     const extracted = new DesignBodyExtractor().extract(
       declaredRegistries["phase-spec"],
-      PHASE_SPEC,
+      MarkdownTree.parse(PHASE_SPEC.join("\n")),
     );
     expect(extracted["## Design"]).toEqual(["## Design"]);
     expect(extracted["### N. group heading"]).toEqual(["### 1. 判定面", "### 2. 编排面"]);
@@ -350,36 +317,60 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
     });
   });
 
-  it("GraphExtractor — the declared graph edge lines on their trimmed form", () => {
-    const sections = new OverallDocType("overall").parse(OVERALL).sections;
-    const graphSection = sections.find((section) =>
-      section.heading.startsWith("## Dependency graph"),
+  it("the tree's graph surface — the edge lines and the legend list item", () => {
+    const tree = MarkdownTree.parse(OVERALL.join("\n"));
+    const hard = declaredRegistries.overall.elements.find(
+      (element) => element.anchor === "Hard edge",
     );
-    expect(graphSection).toBeDefined();
-    const extracted = new GraphExtractor().extract(declaredRegistries.overall, [
-      ...(graphSection?.lines ?? []),
+    const legend = declaredRegistries.overall.elements.find(
+      (element) => element.anchor === "Graph legend",
+    );
+    expect(tree.occurrences(hard!.selector).map((node) => node.text)).toEqual(["P1 -> P2"]);
+    expect(tree.occurrences(legend!.selector).map((node) => node.text)).toEqual([
+      "-> = hard block",
     ]);
-    expect(extracted["Hard edge"]).toEqual(["P1 -> P2"]);
-    expect(extracted["Graph legend"]).toEqual(["-> = hard block"]);
-    expect(extracted["Soft edge"]).toBeUndefined();
+    const soft = declaredRegistries.overall.elements.find(
+      (element) => element.anchor === "Soft edge",
+    );
+    expect(tree.occurrences(soft!.selector)).toEqual([]);
   });
 
-  it("TableExtractor — the declared column-header and data rows", () => {
-    const extracted = new TableExtractor().extract(declaredRegistries.overall, [
+  it("the tree's table surface — the declared column-header and data rows as cells", () => {
+    const tree = MarkdownTree.parse(
+      [
+        "## Issue inventory",
+        "",
+        "| Phase | Issue (ref) | Title summary |",
+        "| --- | --- | --- |",
+        "| P1 | #123 | issue one |",
+        "",
+      ].join("\n"),
+    );
+    const columns = declaredRegistries.overall.elements.find(
+      (element) => element.anchor === "Issue inventory columns",
+    );
+    const row = declaredRegistries.overall.elements.find(
+      (element) => element.anchor === "Issue row",
+    );
+    const history = declaredRegistries.overall.elements.find(
+      (element) => element.anchor === "Change history row",
+    );
+    expect(tree.occurrences(columns!.selector).map((node) => node.text)).toEqual([
       "| Phase | Issue (ref) | Title summary |",
-      "| --- | --- | --- |",
-      "| P1 | #123 | issue one |",
     ]);
-    expect(extracted["Issue inventory columns"]).toEqual([
-      "| Phase | Issue (ref) | Title summary |",
+    expect(tree.occurrences(row!.selector).map((node) => node.cells)).toEqual([
+      ["P1", "#123", "issue one"],
     ]);
-    expect(extracted["Issue row"]).toEqual(["| P1 | #123 | issue one |"]);
-    // the separator row never matches a data anchor
-    expect(extracted["Change history row"]).toBeUndefined();
+    // the alignment row is table syntax, never a data row, and no change-history
+    // row lives outside its own table
+    expect(tree.occurrences(history!.selector)).toEqual([]);
   });
 
   it("HeadingScanner — the registered section/facet headings by their declared rank", () => {
-    const extracted = new HeadingScanner().extract(declaredRegistries.overall, OVERALL);
+    const extracted = new HeadingScanner().extract(
+      declaredRegistries.overall,
+      MarkdownTree.parse(OVERALL.join("\n")),
+    );
     expect(extracted["## Document scope"]).toEqual(["## Document scope"]);
     expect(extracted["### Goal"]).toEqual(["### Goal"]);
     expect(extracted["### Non-goals"]).toEqual(["### Non-goals"]);
@@ -387,14 +378,19 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
 
   it("HeadingScanner.sectionsOf — the declared rank-2 sections in document order, an undeclared heading excluded", () => {
     const scanner = new HeadingScanner();
-    const sections = scanner.sectionsOf(declaredRegistries.overall, [
-      "## Document scope",
-      "scope prose",
-      "## Review Focus",
-      "undeclared prose",
-      "## Change history",
-      "| v1.1 |",
-    ]);
+    const sections = scanner.sectionsOf(
+      declaredRegistries.overall,
+      MarkdownTree.parse(
+        [
+          "## Document scope",
+          "scope prose",
+          "## Review Focus",
+          "undeclared prose",
+          "## Change history",
+          "| v1.1 |",
+        ].join("\n"),
+      ),
+    );
     // the undeclared rank-2 heading is not a section (and does not swallow the
     // declared section that follows it)
     expect(sections.map((section) => section.heading)).toEqual([
@@ -403,34 +399,39 @@ describe("the home-driven extractors (T3 · spec §3.2) — the fixed structure 
     ]);
     expect(sections[0].lines).toEqual(["scope prose"]);
     // the phase-spec's conditional `## Review record` is a declared section surface
-    const phaseSections = scanner.sectionsOf(declaredRegistries["phase-spec"], [
-      "## Design",
-      "## Review record",
-      "- note",
-    ]);
+    const phaseSections = scanner.sectionsOf(
+      declaredRegistries["phase-spec"],
+      MarkdownTree.parse(["## Design", "## Review record", "- note"].join("\n")),
+    );
     expect(phaseSections.map((section) => section.heading)).toEqual([
       "## Design",
       "## Review record",
     ]);
   });
 
-  it("TableExtractor.tableLinesOf / headerLineOf — the table rows and the registry-declared header row", () => {
-    const extractor = new TableExtractor();
-    const lines = [
-      "prose line",
-      "| Phase | Issue (ref) | Title summary |",
-      "| --- | --- | --- |",
-      "| P1 | #123 | issue one |",
-    ];
-    expect(extractor.tableLinesOf(lines)).toEqual([
-      "| Phase | Issue (ref) | Title summary |",
-      "| P1 | #123 | issue one |",
-    ]);
-    expect(extractor.headerLineOf(declaredRegistries.overall, lines)).toBe(
-      "| Phase | Issue (ref) | Title summary |",
+  it("the tree's table read replaces the retired table-line scanner", () => {
+    const tree = MarkdownTree.parse(
+      [
+        "## Phase inventory",
+        "",
+        "prose line",
+        "",
+        "| # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| P1 | scope | a | b | c | d | e |",
+        "",
+      ].join("\n"),
     );
-    // a table whose declared column anchor is absent has no declared header
-    expect(extractor.headerLineOf(declaredRegistries.overall, ["| a | b |"])).toBeNull();
+    const table = tree.tableUnder("## Phase inventory");
+    expect(table?.header?.[1]).toBe("Phase");
+    expect(table?.body).toEqual([["P1", "scope", "a", "b", "c", "d", "e"]]);
+    // a table with no declared column anchor still reads its first row as the header
+    const plain = MarkdownTree.parse(
+      ["## Scope", "", "| a | b |", "| --- | --- |", "| 1 | 2 |", ""].join("\n"),
+    );
+    const plainTable = plain.tableUnder("## Scope");
+    expect(plainTable?.header).toEqual(["a", "b"]);
+    expect(plainTable?.body).toEqual([["1", "2"]]);
   });
 });
 

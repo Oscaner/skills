@@ -19,6 +19,7 @@
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import { readFileSync } from "node:fs";
+import { PlanDocType } from "../contract/doc.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
 import {
   type HandoffParams,
@@ -128,7 +129,9 @@ export interface CapsuleFace {
    *  TIMEOUT/BLOCKED) via the face's word table. The additive optional RouteTarget
    *  supplies the dispatch frame's own type + id for the dispatch-ready `next:`
    *  literal (v1.25 — the 4-param call stays valid: the target is an optional 5th).
-   *  `withHandoff` is the round's crash-record fact (the failure handoff cell). */
+   *  `withHandoff` is the round's crash-record fact (the failure handoff cell).
+   *  `targetLineOpen` is the NEXT line's fact (P21 §4.2), passed through to the
+   *  `next:` judgment unchanged — the capsule itself judges nothing. */
   emit(
     status: string,
     blocker: string,
@@ -136,6 +139,7 @@ export interface CapsuleFace {
     next?: Route | string | null,
     target?: RouteTarget | null,
     withHandoff?: boolean,
+    targetLineOpen?: boolean,
   ): string[];
 }
 
@@ -276,11 +280,14 @@ export class Lifecycle {
     // review empties the ready batch, so the step routes `done` (an exhausted run),
     // not a phantom next-wave of the just-closed task.
     const route = this.#routeNext(frame);
+    // The `next:` judgment's NEXT-line fact (P21 §4.2): only a closing route on the
+    // wave line needs it, so the ledger read happens only there.
+    const targetLineOpen = route?.kind === "done" ? this.#targetLineOpen() : undefined;
     return {
       frame,
       round,
       route,
-      capsuleLines: this.#capsuleLines(frame, outcome, route),
+      capsuleLines: this.#capsuleLines(frame, outcome, route, targetLineOpen),
       termination: outcome.termination,
     };
   }
@@ -363,6 +370,15 @@ export class Lifecycle {
   ): DispatchPhase | null {
     if (target.kind === "plan" || target.kind === "spec") {
       const verdict = this.#ledger.reviewGate(key, target.doc, this.#face.type);
+      if (verdict.kind === "open") return reviewLead;
+      if (verdict.kind === "same" && verdict.pending) return "fix";
+    }
+    // The branch line's identity is its PLAN document (P21 §4.1): a plan revision
+    // after the terminal branch review reopens the branch-review lead, an unchanged
+    // plan keeps the line closed. Same gate, same judgment — only the doc path is
+    // the line's plan (the audit target itself carries no doc).
+    if (target.kind === "branch" && this.#planPath !== null) {
+      const verdict = this.#ledger.reviewGate(key, this.#planPath, "branch");
       if (verdict.kind === "open") return reviewLead;
       if (verdict.kind === "same" && verdict.pending) return "fix";
     }
@@ -487,10 +503,11 @@ export class Lifecycle {
       // each ref kind carries its own reviewed identity. An unreadable input records
       // nothing (present facts only); a null plan path (no plan fact) leaves a legacy
       // wave row — null stays backward compatible.
-      if (frame.phase === "review") {
+      if (frame.phase === "review" || frame.phase === "branch-review") {
         if (frame.target.kind === "plan" || frame.target.kind === "spec")
           this.#recordReviewedDocRevision(frame);
         else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);
+        else if (frame.target.kind === "branch") this.#recordReviewedBranchRevision(frame);
       }
       return count;
     }
@@ -506,15 +523,7 @@ export class Lifecycle {
    *  legacy closed face (only present facts land, never an invented identity). */
   #recordReviewedDocRevision(frame: OpenFrame): void {
     if (frame.target.kind !== "plan" && frame.target.kind !== "spec") return;
-    try {
-      const content = readFileSync(frame.target.doc, "utf8");
-      this.#ledger.recordReviewedRevision(
-        frame.key,
-        this.#ledger.refs().docRevision(frame.target.doc, content),
-      );
-    } catch {
-      // unreadable input — no reviewed identity recorded (present facts only)
-    }
+    this.#recordDocRevisionOf(frame.key, frame.target.doc);
   }
 
   /** The wave line's reviewed-brief write-back (D30) — bind the RENDERED brief's
@@ -523,6 +532,28 @@ export class Lifecycle {
   #recordReviewedWaveBrief(frame: OpenFrame): void {
     if (frame.target.kind !== "wave" || this.#planPath === null) return;
     this.#ledger.recordReviewedBrief(String(frame.key), this.#planPath);
+  }
+
+  /** The branch line's reviewed identity (P21 §4.1) — its PLAN document's
+   *  `doc-revision`, the same ref kind the doc lines bind (no new ref kind, no commit
+   *  sha). A later plan revision reopens the line; an unchanged plan keeps it closed.
+   *  An unreadable plan / a null plan path records nothing (present facts only). */
+  #recordReviewedBranchRevision(frame: OpenFrame): void {
+    if (this.#planPath === null) return;
+    this.#recordDocRevisionOf(frame.key, this.#planPath);
+  }
+
+  /** The doc-revision write-back body — read the reviewed document and bind its
+   *  current revision to the line row (the ONE read + hash + record path the doc and
+   *  branch legs share; each passes its own path source). An unreadable input records
+   *  nothing — the line keeps the legacy closed face (present facts only). */
+  #recordDocRevisionOf(key: LedgerKey, path: string): void {
+    try {
+      const content = readFileSync(path, "utf8");
+      this.#ledger.recordReviewedRevision(key, this.#ledger.refs().docRevision(path, content));
+    } catch {
+      // unreadable input — no reviewed identity recorded (present facts only)
+    }
   }
 
   /** Mark the wave done when the concluding route says its line closed — the C5
@@ -537,6 +568,30 @@ export class Lifecycle {
     if (!Ledger.routeClosed(route)) return;
     const waveTarget = frame.target as { kind: "wave"; tasks: readonly number[] };
     for (const id of waveTarget.tasks) this.#state.markDone(id);
+    // The closure's OTHER historical fact (P21 §5.1): the plan's task set at the
+    // instant this wave closed. It is the append-vs-stall basis the wave gate reads
+    // later — recorded here, at the one point that knows the wave just closed, and
+    // never re-derived (a later plan revision must not rewrite the history).
+    this.#recordPlanSnapshot(frame);
+  }
+
+  /** Record the closing wave's plan-task snapshot — the plan's CURRENT task-id set
+   *  read from the plan document (`#planPath`, the same source the brief renders
+   *  from) through the contract parse face. An unreadable plan or a null plan path
+   *  records nothing: the snapshot is a present fact only, never a fabricated `[]`
+   *  (an absent snapshot reads conservatively as "stall" in the wave gate). */
+  #recordPlanSnapshot(frame: OpenFrame): void {
+    if (this.#planPath === null) return;
+    try {
+      const lines = readFileSync(this.#planPath, "utf8").split("\n");
+      const parsed = new PlanDocType("plan").parse(lines);
+      this.#ledger.recordPlanTasks(
+        String(frame.key),
+        parsed.taskBlocks.map((block) => block.id),
+      );
+    } catch {
+      // unreadable plan — skip the snapshot (present facts only)
+    }
   }
 
   /** The handoff-family op of a phase — branch-review rides the review family. */
@@ -566,6 +621,19 @@ export class Lifecycle {
     return this.#face.nextSemantics.batch ? this.#state : EMPTY_RUN_STATE;
   }
 
+  /** Whether the branch line has a dispatchable open round — the `next:` judgment's
+   *  fact (P21 §4.2), computed HERE (the ledger-holding side) from the two already-
+   *  registered ledger faces: the branch row's drift-aware gate (the plan moved past
+   *  its reviewed doc-revision) or a still-active C5 hop. Deliberately NOT
+   *  `PipelineFaceState.closed`. `undefined` when no plan fact exists (the legacy face
+   *  keeps `resolve`'s exact pre-existing behavior). */
+  #targetLineOpen(): boolean | undefined {
+    if (this.#planPath === null) return undefined;
+    const gate = this.#ledger.reviewGate("branch", this.#planPath, "branch");
+    if (gate.kind === "open") return true;
+    return this.#ledger.lineRoute("branch", "branch") !== null;
+  }
+
   /** The capsule lines of one step — empty unless a capsule is attached (the non-hard
    *  interaction point). A success round carries the real blocker count and the
    *  handoff carrier path. A failure round (TIMEOUT / BLOCKED) carries no blocker
@@ -578,21 +646,23 @@ export class Lifecycle {
     frame: OpenFrame,
     outcome: DispatchOutcome,
     route: Route | null,
+    targetLineOpen?: boolean,
   ): readonly string[] {
     if (this.#capsule === null) return [];
     const op = this.#opOf(frame.phase);
     const failure = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
-    const lane = `${op}.${frame.type}`;
+    const naming = this.#ledger.naming();
     // The failure face's handoff is the crash record — the engine's own postmortem
     // artifact, its existence the emission condition; the success face keeps the
-    // round's handoff carrier path.
-    const crash = failure ? this.#ledger.readCrash(lane, frame.round) : null;
+    // round's handoff carrier path. The name derives from the frame through the ONE
+    // naming source (`RoundNaming`), the same name the lifecycle wrote it under.
+    const crash = failure ? this.#ledger.readCrash(naming.crashName(frame)) : null;
     const blockers = (outcome.findings ?? []).filter(
       (finding) => finding.severity === "blocker",
     ).length;
     const handoff =
       crash !== null
-        ? this.#ledger.crashPath(lane, frame.round)
+        ? naming.crashPath(frame)
         : this.#ledger.handoffPath(op, frame.type, frame.params);
     return this.#capsule.emit(
       outcome.status,
@@ -601,6 +671,7 @@ export class Lifecycle {
       route,
       this.#routeTarget(frame),
       crash !== null,
+      targetLineOpen,
     );
   }
 

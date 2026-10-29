@@ -45,13 +45,19 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Command } from "commander";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { Contract } from "../../contract/judge.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { GitClient } from "../../infra/git.ts";
+import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
 import type { RouteTarget } from "../../session/faces.ts";
-import { Ledger, type SampleRecord } from "../../session/ledger.ts";
+import { InFlight, type InFlightRecord } from "../../session/inflight.ts";
+import { type CrashRecord, Ledger, type SampleRecord } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
 import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
+import type { PreFlightVerdict } from "../../session/preflight.ts";
+import { PreFlight } from "../../session/preflight.ts";
 import type { DispatchStep, OpenFrame } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
@@ -1616,6 +1622,8 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         wave: "1",
         rounds: { implement: [1], review: [1] },
         reviewedRevision: briefRevision(repoRoot, plan, "1"),
+        // P21 §5.1 — the closure-time plan-task snapshot (both plan tasks existed).
+        planTasks: [1, 2],
       });
       expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: [1] } });
       // the invocation's single stdout face — only the LAST step's capsule
@@ -1793,7 +1801,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 ·");
       // T3 deliberate pin break: the branch closure routes the cdd-close ref
       // (PIPELINE_NEXT.branch through REFS[ref][host]).
-      expect(io.stdoutText).toContain("next: /kairos:cdd-close");
+      expect(io.stdoutText).toContain("next: route to /kairos:cdd-close skill");
       // the branch line's workspace is the plan-slug (the fix dispatch's --plan) and
       // the handoff is the spine `branch-review-1.json` (no range token in the name)
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
@@ -2146,7 +2154,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const specCode = await command.runArgv(["review", "--type", "spec", "--spec", spec]);
       expect(specCode).toBe(0);
       // T3 deliberate pin break: the phase-spec closure routes the cdd-plan ref (PIPELINE_NEXT.phase-spec).
-      expect(io.stdoutText).toContain("next: /kairos:cdd-plan");
+      expect(io.stdoutText).toContain("next: route to /kairos:cdd-plan skill");
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "spec-review-1.json"))).toBe(
         true,
       );
@@ -2220,7 +2228,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // reviewed doc revision (the line's identity — the T7 write-back at bookkeep).
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       // T3 deliberate pin break: the plan closure routes the cdd-dev ref (PIPELINE_NEXT.plan).
-      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
+      expect(io.stdoutText).toContain("next: route to /kairos:cdd-dev skill");
       // The target doc then DRIFTS (a backfill edits the plan — the pre-T7 flow
       // froze the closed doc at "reviewed" with no reopen entry: the line held no
       // open round). The target identity moved — review is the requested phase and
@@ -2247,7 +2255,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
-      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
+      expect(io.stdoutText).toContain("next: route to /kairos:cdd-dev skill");
       // The doc did NOT move — the line gate compares the current revision to the
       // reviewed one and BLOCKs with the identity-aware message (the old "no open
       // round" text retires on the doc face).
@@ -2399,7 +2407,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           plan, // the ABSOLUTE argv spelling
         ]),
       ).toBe(0);
-      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
+      expect(io.stdoutText).toContain("next: route to /kairos:cdd-dev skill");
       // The doc DRIFTS (a backfill edits the plan) so the second review reopens the
       // line at the NEXT round rather than being refused as an unchanged doc.
       writeFileSync(
@@ -2418,7 +2426,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         relativePlan, // the RELATIVE argv spelling — the same file
       ]);
       expect(relative).toBe(0);
-      expect(io.stdoutText).toContain("next: /kairos:cdd-dev");
+      expect(io.stdoutText).toContain("next: route to /kairos:cdd-dev skill");
       // ONE line under the line-type key `"plan"` — the two argv spellings did NOT
       // fork a second row keyed by the other spelling; the round CONTINUED (2), it
       // did not reset to 1 (the §3.7 dogfood fix)
@@ -2746,6 +2754,42 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         expect(existsSync(path.join(workspace, "progress.json"))).toBe(false);
         expect(existsSync(path.join(workspace, "tasks-1-brief.md"))).toBe(false);
       }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders the checked face on BOTH pre-flight paths — approved and refused (P21 §3.4)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      // ① the approved path: the heading, the gates that ran in order, then one row
+      //    per declared rule — "which rule ran" is on the dispatch face, not a test field.
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
+      expect(
+        io.stderrText.startsWith(
+          "checked:\n  tree-clean\n  in-flight: free — no dispatch holds this tree\n  graph\n  plan-ledger\n",
+        ),
+      ).toBe(true);
+      expect(io.stderrText).toContain("  plan-ledger: info (plan leads ledger by 1 tasks)\n");
+      expect(io.stderrText).toContain("  wave\n  presence: skipped (no doc target)\n");
+      expect(io.stderrText).toContain("  planned-tasks-vs-recorded-tasks: passed\n");
+      expect(
+        io.stderrText.split("\n").filter((line) => line.endsWith(": skipped (no doc target)")),
+      ).toHaveLength(19);
+
+      // ② the refused path: the same face after the BLOCK wording + its details
+      writeFileSync(path.join(repoRoot, "seed.txt"), "modified\n", "utf8");
+      io.stderrText = "";
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED:");
+      expect(
+        io.stderrText.includes("checked:\n  tree-clean\n  presence: skipped (no doc target)\n"),
+      ).toBe(true);
+      expect(io.stderrText).toContain(
+        "  closed-wave-fits-depends-on-layers: skipped (no ledger facts)\n",
+      );
     } finally {
       cleanup();
     }
@@ -3093,6 +3137,8 @@ describe("P4.1 T4 — the real chain: next literals dispatch the next round (rev
         wave: "2",
         rounds: { implement: [1], review: [1] },
         reviewedRevision: briefRevision(repoRoot, plan, "2"),
+        // P21 §5.1 — the closure-time plan-task snapshot (the append-vs-stall fact).
+        planTasks: [1, 2],
       });
     } finally {
       cleanup();
@@ -5334,7 +5380,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         next: string;
         cause: string;
         stdoutTail: readonly string[];
-      }>(path.join(scene.workspace.path, "crash-implement.wave-1.json"));
+      }>(path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"));
       // the persisted attempted-handoff path is the canonical repoRoot-RELATIVE
       // shape (P9 T4 §2.7 — the absolute handoffPath syscall form never lands).
       expect(crash.attemptedHandoff).toBe(
@@ -5376,7 +5422,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         cause: string;
         stdoutTail: readonly string[];
         lastSample: SampleRecord | null;
-      }>(path.join(scene.workspace.path, "crash-implement.wave-1.json"));
+      }>(path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"));
       // the record tells the truth: the dead child's OWN exit code and the child-exit
       // cause — never the read-back face's 0 / contract-violation (T2 misreport fix).
       expect(crash.exitCode).toBe(7);
@@ -5400,7 +5446,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       // The stub mimes the stalled kill exactly as the terminator reports it: the
       // killed child's exit code is null, and the termination fact rides whole
-      // (cause + the in-memory last sample — zero heartbeat re-read).
+      // (cause + the in-memory last sample — zero in-flight-record re-read).
       const lastSample: SampleRecord = {
         sampledAt: 1_700_000_000,
         groupCpuMs: 120,
@@ -5431,7 +5477,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         promoted: boolean;
         idleMs: number | null;
         next: string;
-      }>(path.join(scene.workspace.path, "crash-implement.wave-1.json"));
+      }>(path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"));
       // The record tells the truth: the killed child has NO exit code (null verbatim,
       // never folded to 1), the derived cause, and the last sample riding in memory.
       expect(crash.exitCode).toBeNull();
@@ -5470,7 +5516,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(outcome.status).toBe("TIMEOUT");
       expect(outcome.termination).toEqual({ cause: "over-budget", idleMs: 42, lastSample: null });
       const crash = readJson<{ exitCode: number | null; cause: string }>(
-        path.join(scene.workspace.path, "crash-implement.wave-1.json"),
+        path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"),
       );
       expect(crash.cause).toBe("over-budget");
     } finally {
@@ -5498,7 +5544,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(outcome).toEqual({ status: "BLOCKED" });
       expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft was not written");
       const crash = readJson<{ cause: string; lastSample: SampleRecord | null }>(
-        path.join(scene.workspace.path, "crash-implement.wave-1.json"),
+        path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"),
       );
       // P14 — the absent-draft pin (same face as the exit-0 no-handoff case).
       expect(crash.cause).toBe("handoff-absent");
@@ -5537,7 +5583,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(io.stderrText).not.toContain("was not written");
       // P14 — present-but-bad draft stays contract-violation; the counter still ticks.
       const crash = readJson<{ cause: string }>(
-        path.join(scene.workspace.path, "crash-implement.wave-1.json"),
+        path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"),
       );
       expect(crash.cause).toBe("contract-violation");
       expect(scene.ledger.counterOf("contractViolationCount")).toBe(1);
@@ -5574,7 +5620,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       // P14 — schema-violating draft is contract-violation with the counter tick.
       const crash = readJson<{ cause: string }>(
-        path.join(scene.workspace.path, "crash-implement.wave-1.json"),
+        path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"),
       );
       expect(crash.cause).toBe("contract-violation");
       expect(scene.ledger.counterOf("contractViolationCount")).toBe(1);
@@ -5850,7 +5896,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         idleMs: number | null;
         cause: string;
         lastSample: SampleRecord | null;
-      }>(path.join(workspace.path, "crash-review.wave-1.json"));
+      }>(path.join(workspace.path, "crash-tasks-1-review-1.json"));
       expect(crash.promoted).toBe(true);
       expect(crash.idleMs).toBe(1_800_000);
       expect(crash.cause).toBe("stalled");
@@ -5875,14 +5921,15 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       );
       expect(code).toBe(1);
       // the ONE extended CDD_BLOCKED line carries the cause, idle time and last sample
-      const lines = io.stderrText.split("\n").filter((line) => line.length > 0);
+      // (the approved path's `checked:` face is a separate block on the same channel)
+      const lines = io.stderrText.split("\n").filter((line) => line.includes("CDD_BLOCKED:"));
       expect(lines).toHaveLength(1);
       expect(lines[0]).toContain("CDD_BLOCKED:");
       expect(lines[0]).toContain("stalled");
       expect(lines[0]).toContain("idleMs: 1800000");
       expect(lines[0]).toContain("last sample verdict: stalled");
       const crash = readJson<{ idleMs: number | null; lastSample: SampleRecord | null }>(
-        path.join(workspace.path, "crash-implement.wave-1.json"),
+        path.join(workspace.path, "crash-tasks-1-implement-1.json"),
       );
       expect(crash.idleMs).toBe(1_800_000);
       expect(crash.lastSample).toEqual(fact.lastSample);
@@ -5916,7 +5963,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(ledger.roundCount(1, "implement")).toBe(0);
         expect(ledger.counterOf("timeoutCount")).toBe(1);
         const crash = readJson<{ promoted: boolean; cause: string }>(
-          path.join(workspace.path, "crash-implement.wave-1.json"),
+          path.join(workspace.path, "crash-tasks-1-implement-1.json"),
         );
         expect(crash.promoted).toBe(false);
         // the true death cause, never the read-back `contract-violation`
@@ -5956,7 +6003,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(ledger.roundCount(1, "fix")).toBe(0);
         expect(ledger.counterOf("timeoutCount")).toBe(1);
         const crash = readJson<{ promoted: boolean; cause: string }>(
-          path.join(workspace.path, "crash-fix.wave-1.json"),
+          path.join(workspace.path, "crash-tasks-1-fix-1.json"),
         );
         expect(crash.promoted).toBe(false);
         expect(crash.cause).toBe("stalled");
@@ -5984,12 +6031,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(ledger.roundCount(1, "review")).toBe(0);
         expect(ledger.counterOf("timeoutCount")).toBe(1);
         const crash = readJson<{ promoted: boolean; cause: string }>(
-          path.join(workspace.path, "crash-review.wave-1.json"),
+          path.join(workspace.path, "crash-tasks-1-review-1.json"),
         );
         expect(crash.promoted).toBe(false);
         expect(crash.cause).toBe("stalled");
         // the failure summary carries the crash record as its handoff cell
-        expect(io.stdoutText).toContain("handoff: .kairos/cdd/p3/crash-review.wave-1.json");
+        expect(io.stdoutText).toContain("handoff: .kairos/cdd/p3/crash-tasks-1-review-1.json");
       } finally {
         cleanup();
       }
@@ -6020,7 +6067,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(ledger.roundCount(1, "review")).toBe(0);
         expect(ledger.counterOf("timeoutCount")).toBe(1);
         const crash = readJson<{ promoted: boolean; cause: string }>(
-          path.join(workspace.path, "crash-review.wave-1.json"),
+          path.join(workspace.path, "crash-tasks-1-review-1.json"),
         );
         expect(crash.promoted).toBe(false);
         expect(crash.cause).toBe("stalled");
@@ -6053,7 +6100,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(ledger.roundCount(1, "review")).toBe(0);
         expect(ledger.counterOf("timeoutCount")).toBe(1);
         const crash = readJson<{ promoted: boolean; cause: string }>(
-          path.join(workspace.path, "crash-review.wave-1.json"),
+          path.join(workspace.path, "crash-tasks-1-review-1.json"),
         );
         expect(crash.promoted).toBe(false);
         expect(crash.cause).toBe("stalled");
@@ -6086,6 +6133,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       );
       expect(promoted).toBe(0);
+      // The terminated round's record survives it (the spec's "no exit path removes
+      // the record"); in a real session that engine process ends, so the next
+      // invocation finds the pid dead. This in-process continuation simulates that
+      // fresh process by clearing the tree-level record — the fix gate itself is the
+      // face under test here.
+      rmSync(path.join(repoRoot, ".kairos", "cdd", "in-flight.json"), { force: true });
       // the fix gate accepts — an injected approving dispatch isolates the gate face
       const fixIo = new CaptureIo();
       const fixCommand = Cli.create({ io: fixIo, dispatch: APPROVING });
@@ -6196,3 +6249,485 @@ class StubRunner implements ChildRunner {
     return { code: this.code, stdout: this.stdout, stderr: "", termination: this.termination };
   }
 }
+
+// ---------------------------------------------------------------------------
+// P21 — the in-flight record · the crash identity · the crash's git facts
+// ---------------------------------------------------------------------------
+
+/** A scene over a temp repo's default namespace (the HarnessDispatch fixture). */
+const sceneOf = (
+  repoRoot: string,
+  planPath: string | null = null,
+  briefPath: string | null = null,
+): DispatchScene => {
+  const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+  const ledger = new Ledger(workspace, new ConfigLoader());
+  return { workspace, ledger, planPath, briefPath };
+};
+
+const P21_IMPLEMENT: OpenFrame = {
+  type: "wave",
+  phase: "implement",
+  round: 1,
+  target: { kind: "wave", tasks: [1] },
+  params: { tasks: "1" },
+  key: "1",
+};
+
+const P21_REVIEW: OpenFrame = {
+  type: "wave",
+  phase: "review",
+  round: 1,
+  target: { kind: "wave", tasks: [1] },
+  params: { tasks: "1", round: 1 },
+  key: "1",
+};
+
+const P21_EVIDENCE = {
+  command: "npx vitest run",
+  exit_code: 0,
+  passed: true,
+  warnings_count: 0,
+  typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+};
+
+/** The dispatch that reports the in-flight record's bytes at the spawn instant and
+ *  plants the implement round's write-back (draft + evidence). */
+class RecordProbeRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+  /** The in-flight record's bytes seen inside `run` (i.e. after the spawn was asked
+   *  for) — null when no record stood, which would be the defect. */
+  recordAtSpawn: string | null = null;
+  /** The dispatch's workspace directory (where the child's write-back lands). */
+  readonly #workspace: string;
+
+  constructor(workspace: string) {
+    this.#workspace = workspace;
+  }
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    const recordPath = run.inflight.path();
+    this.recordAtSpawn = existsSync(recordPath) ? readFileSync(recordPath, "utf8") : null;
+    writeFileSync(
+      path.join(this.#workspace, "tasks-1-implement.json"),
+      JSON.stringify({ status: "APPROVED", artifacts: {} }),
+      "utf8",
+    );
+    writeFileSync(
+      path.join(this.#workspace, "tasks-1-test-evidence.json"),
+      JSON.stringify(P21_EVIDENCE),
+      "utf8",
+    );
+    return { code: 0, stdout: "", stderr: "", termination: null };
+  }
+}
+
+/** The dispatch that crashes AFTER making one real commit — the `commitsSince` shape. */
+class CommittingCrashRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+  /** The commit subject the child writes before dying. */
+  static readonly SUBJECT = "child work before the crash";
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    writeFileSync(path.join(run.cwd, "child.txt"), "work\n", "utf8");
+    spawnSync("git", ["add", "-A"], { cwd: run.cwd });
+    spawnSync("git", ["commit", "-q", "-m", CommittingCrashRunner.SUBJECT], { cwd: run.cwd });
+    return { code: 1, stdout: "", stderr: "", termination: null };
+  }
+}
+
+describe("P21 — the in-flight record (the intent before the spawn, the release at the end)", () => {
+  it("publishes the record before the child is spawned and releases it at the normal end", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      planFor(repoRoot);
+      const scene = sceneOf(repoRoot);
+      const io = new CaptureIo();
+      const runner = new RecordProbeRunner(scene.workspace.path);
+      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const outcome = await dispatch.step()(P21_IMPLEMENT);
+      expect(outcome.status).toBe("APPROVED");
+      // The record existed INSIDE run() — i.e. before the child was spawned.
+      expect(runner.recordAtSpawn).not.toBeNull();
+      const atSpawn = JSON.parse(runner.recordAtSpawn as string) as InFlightRecord;
+      expect(atSpawn.pid).toBe(process.pid);
+      expect(atSpawn.slug).toBe("p3");
+      expect(atSpawn.phase).toBe("implement");
+      expect(atSpawn.wave).toBe("1");
+      // The record's instant is the pid's OWN start time — the instant the
+      // pid-reuse guard compares against, never the dispatch instant.
+      expect(atSpawn.startedAt).toBe(await ProcessFacts.startOf(process.pid));
+      // The normal end released BOTH the record and the lock.
+      const recordPath = path.join(scene.workspace.root.path, "in-flight.json");
+      expect(existsSync(recordPath)).toBe(false);
+      expect(existsSync(`${recordPath}.lock`)).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("survives a session older than the guard's tolerance — the record describes the pid", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      planFor(repoRoot);
+      const scene = sceneOf(repoRoot);
+      const io = new CaptureIo();
+      const runner = new RecordProbeRunner(scene.workspace.path);
+      // A six-hour-old session (the implement budget): the dispatch instant sits far
+      // outside the liveness guard's 60 s start-time tolerance, so a record carrying
+      // the dispatch instant would read a LIVE holder dead and authorize a takeover.
+      const startedAt = Date.now() - 6 * 60 * 60 * 1000;
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+        proc: { startOf: async () => startedAt },
+      });
+      await dispatch.step()(P21_IMPLEMENT);
+      const record = JSON.parse(runner.recordAtSpawn as string) as InFlightRecord;
+      expect(record.startedAt).toBe(startedAt);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps the record standing when the child crashes — zero release on a non-normal end", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      planFor(repoRoot);
+      const scene = sceneOf(repoRoot);
+      const io = new CaptureIo();
+      const runner = new StubRunner();
+      runner.code = 1;
+      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const outcome = await dispatch.step()(P21_IMPLEMENT);
+      expect(outcome.status).toBe("BLOCKED");
+      // The crash's postmortem fact survives: the record is not the loop's to remove.
+      const recordPath = path.join(scene.workspace.root.path, "in-flight.json");
+      expect(existsSync(recordPath)).toBe(true);
+      const record = JSON.parse(readFileSync(recordPath, "utf8")) as InFlightRecord;
+      expect(record.phase).toBe("implement");
+      // …and the crash record was named from the frame's identity.
+      expect(existsSync(path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"))).toBe(
+        true,
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("computes the brief hash at acquire time — the ledger's ONE hash face, non-null on a wave's FIRST dispatch", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const planPath = planFor(repoRoot);
+      const briefPath = path.join(repoRoot, ".kairos", "brief.md");
+      mkdirSync(path.dirname(briefPath), { recursive: true });
+      const brief = new BriefRenderer().render(readFileSync(planPath, "utf8"), [1]);
+      writeFileSync(briefPath, brief, "utf8");
+      const scene = sceneOf(repoRoot, planPath, briefPath);
+      // The ledger carries NO `brief-revision` record yet (the wave's first dispatch).
+      expect(scene.ledger.reviewedRevisionOf("1")).toBeNull();
+      const io = new CaptureIo();
+      const runner = new RecordProbeRunner(scene.workspace.path);
+      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      await dispatch.step()(P21_IMPLEMENT);
+      const record = JSON.parse(runner.recordAtSpawn as string) as InFlightRecord;
+      const expected = scene.ledger
+        .refs()
+        .briefRevision(path.relative(repoRoot, planPath), brief).brief_hash;
+      expect(record.briefHash).toBe(expected);
+      // The SAME hash the ledger binds when the review completes (same hash face).
+      expect(record.briefHash).toBe(briefRevision(repoRoot, planPath, "1").brief_hash);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("leaves the brief hash null off the wave face — a doc review carries no brief", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const planPath = planFor(repoRoot);
+      const briefPath = path.join(repoRoot, ".kairos", "brief.md");
+      mkdirSync(path.dirname(briefPath), { recursive: true });
+      writeFileSync(briefPath, "### Task 1: x\n", "utf8");
+      const scene = sceneOf(repoRoot, planPath, briefPath);
+      const io = new CaptureIo();
+      // The probe captures the record INSIDE run() — the normal end releases it, so the
+      // post-run file is (correctly) gone.
+      const runner = new RecordProbeRunner(scene.workspace.path);
+      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const planReview: OpenFrame = {
+        type: "plan",
+        phase: "review",
+        round: 1,
+        target: { kind: "plan", doc: planPath },
+        params: { round: 1 },
+        key: path.relative(repoRoot, planPath),
+      };
+      await dispatch.step()(planReview);
+      const record = JSON.parse(runner.recordAtSpawn as string) as InFlightRecord;
+      expect(record.briefHash).toBeNull();
+      expect(record.wave).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps the brief hash's ONLY derivation in ReviewRefs — zero new hash surface", () => {
+    const carriers = engineSourceTexts()
+      .filter(([, text]) => text.includes("createHash"))
+      .map(([file]) => file);
+    expect(carriers).toEqual(["session/ledger.ts"]);
+  });
+});
+
+describe("P21 — the crash record's identity and git facts", () => {
+  it("names the crash after the frame's wave key and round — the ledger row's key, the frame's handoff", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      planFor(repoRoot);
+      const scene = sceneOf(repoRoot);
+      // The wave row exists in progress.json (its implement round landed normally).
+      scene.ledger.recordRound("1", "implement");
+      const io = new CaptureIo();
+      const runner = new StubRunner();
+      runner.code = 1;
+      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const outcome = await dispatch.step()(P21_REVIEW);
+      expect(outcome.status).toBe("BLOCKED");
+      const crashPath = path.join(scene.workspace.path, "crash-tasks-1-review-1.json");
+      expect(existsSync(crashPath)).toBe(true);
+      const crash = readJson<CrashRecord>(crashPath);
+      // The name parses back to the SAME wave key the ledger row carries…
+      const progress = readJson<{ waves: { wave: string; rounds?: Record<string, number[]> }[] }>(
+        path.join(scene.workspace.path, "progress.json"),
+      );
+      const row = progress.waves.find((entry) => entry.wave === "1");
+      expect(row?.rounds?.implement).toEqual([1]);
+      expect(path.basename(crashPath)).toBe("crash-tasks-1-review-1.json");
+      // …and the attempted handoff is THIS frame's own path.
+      expect(crash.attemptedHandoff).toBe(
+        path.relative(repoRoot, path.join(scene.workspace.path, "tasks-1-review-1.json")),
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("records the dispatch base and the commits the crashed child left behind", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const base = gitInit(repoRoot);
+      planFor(repoRoot);
+      const scene = sceneOf(repoRoot);
+      const io = new CaptureIo();
+      const runner = new CommittingCrashRunner();
+      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const outcome = await dispatch.step()(P21_IMPLEMENT);
+      expect(outcome.status).toBe("BLOCKED");
+      const crash = readJson<CrashRecord>(
+        path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"),
+      );
+      expect(crash.dispatchBase).toBe(base);
+      expect(crash.commitsSince.length).toBe(1);
+      expect(crash.commitsSince[0]).toContain(CommittingCrashRunner.SUBJECT);
+      const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot })
+        .stdout.toString()
+        .trim();
+      expect(crash.commitsSince[0]).toBe(`${head} ${CommittingCrashRunner.SUBJECT}`);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("leaves commitsSince empty when the crashed child committed nothing", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      planFor(repoRoot);
+      const scene = sceneOf(repoRoot);
+      const io = new CaptureIo();
+      const runner = new StubRunner();
+      runner.code = 1;
+      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      await dispatch.step()(P21_IMPLEMENT);
+      const crash = readJson<CrashRecord>(
+        path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"),
+      );
+      expect(crash.commitsSince).toEqual([]);
+      expect(crash.dispatchBase).not.toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("appends the late-landing hint to all three cut-short terminal faces — kill · timeout · crash", async () => {
+    const cases: { label: string; code: number | null; termination: Termination | null }[] = [
+      {
+        label: "kill",
+        code: null,
+        termination: { cause: "signal", idleMs: 5, lastSample: null },
+      },
+      {
+        label: "timeout",
+        code: null,
+        termination: { cause: "over-budget", idleMs: 5, lastSample: null },
+      },
+      { label: "crash", code: 1, termination: null },
+    ];
+    const words = new Words();
+    for (const entry of cases) {
+      const { repoRoot, cleanup } = fixture();
+      try {
+        gitInit(repoRoot);
+        planFor(repoRoot);
+        const scene = sceneOf(repoRoot);
+        const io = new CaptureIo();
+        const runner = new StubRunner();
+        runner.code = entry.code;
+        runner.termination = entry.termination;
+        const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+        await dispatch.step()(P21_IMPLEMENT);
+        expect(io.stderrText, `${entry.label}: the late-landing hint`).toContain(
+          words.lateLandingHint(),
+        );
+      } finally {
+        cleanup();
+      }
+    }
+  });
+});
+
+describe("P21 — the in-flight word rows", () => {
+  it("carries the three canonical recovery sentences verbatim", () => {
+    const words = new Words();
+    expect(words.inFlightWords().recovery).toEqual([
+      "look at the working tree first",
+      "commit the changes that work",
+      "discard the ones that are broken",
+    ]);
+  });
+
+  it("renders the held report from the holder's facts — pid, command, startedAt, uptime, wave, slug", () => {
+    const words = new Words();
+    const startedAt = Date.now() - 90 * 60_000;
+    const held = words.inFlightHeld({
+      pid: 4242,
+      command: "cdd implement --tasks 3,4 --plan docs/p3.md",
+      startedAt,
+      wave: "3,4",
+      slug: "p3",
+    });
+    expect(held).toContain("pid 4242");
+    expect(held).toContain("cdd implement --tasks 3,4 --plan docs/p3.md");
+    expect(held).toContain(new Date(startedAt).toISOString());
+    expect(held).toContain("running for 90m");
+    expect(held).toContain("3,4");
+    expect(held).toContain("p3");
+    expect(words.inFlightWords().stealable).toContain("--steal-stale");
+    expect(words.inFlightWords().corruptLocked).toContain("--steal-stale");
+    expect(words.inFlightWords().corruptUnlocked).toContain("--steal-stale");
+  });
+
+  it("declares --steal-stale on the implement / review / fix help faces — the command face stays eight", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      for (const verb of ["implement", "review", "fix"] as const) {
+        io.stdoutText = "";
+        const code = await command.runArgv([verb, "--help"]);
+        expect(code).toBe(0);
+        expect(io.stdoutText, `${verb}: --steal-stale`).toContain("--steal-stale");
+        expect(io.stdoutText, `${verb}: the takeover help row`).toContain(
+          "take over a standing in-flight record",
+        );
+      }
+      expect(CLI_COMMANDS.length).toBe(8);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P21 T6 — the gate → acquire race (HoldingError rides the same held BLOCK)
+// ---------------------------------------------------------------------------
+
+describe("cdd <verb> — the in-flight acquire race", () => {
+  it("renders the gate's held BLOCK when another dispatch takes the lock after the gate, and never overwrites its record", async () => {
+    const sync = new StubRunner();
+    const competitorRecord: InFlightRecord = {
+      pid: 777_777,
+      command: "cdd implement --tasks 1 --plan docs/kairos/plans/p3.md",
+      slug: "other",
+      startedAt: Date.parse("2026-10-28T10:00:00.000Z"),
+      wave: "1",
+      phase: "implement",
+      briefHash: null,
+      plan: "docs/kairos/plans/p3.md",
+      sampledAt: null,
+      verdict: null,
+    };
+    /** A pre-flight that approves, then lets a competitor claim the tree — the exact
+     *  gate→acquire window (the gate judged `absent`, the lock is held by the time
+     *  the real dispatch acquires). */
+    class RacingPreFlight extends PreFlight {
+      readonly #repoRoot: string;
+      readonly #record: InFlightRecord;
+      constructor(repoRoot: string, record: InFlightRecord) {
+        super({ git: new GitClient(), contract: new Contract(), words: new Words() });
+        this.#repoRoot = repoRoot;
+        this.#record = record;
+      }
+      override async vet(): Promise<PreFlightVerdict> {
+        const competitor = new InFlight(
+          new WorkspaceRoot(this.#repoRoot, ".kairos/cdd"),
+          "competitor",
+        );
+        await competitor.acquire(this.#record);
+        return { ok: true, order: ["tree-clean", "in-flight"], checked: [] };
+      }
+    }
+    const { repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const io = new CaptureIo();
+      const racing = Cli.create({
+        io,
+        sync,
+        preflight: new RacingPreFlight(repoRoot, competitorRecord),
+      });
+      const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      let code: number;
+      let recordBytes: string;
+      try {
+        code = await racing.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+        recordBytes = readFileSync(recordPath, "utf8");
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      expect(code).toBe(1);
+      // the SAME held message the gate renders — the holder's identity facts
+      expect(io.stderrText).toContain(String(competitorRecord.pid));
+      expect(io.stderrText).toContain(competitorRecord.command);
+      expect(io.stderrText).toContain("a dispatch is already in flight");
+      // the competitor's record bytes were never overwritten, and its child never ran
+      expect(recordBytes!).toBe(`${JSON.stringify(competitorRecord, null, 2)}\n`);
+      expect(sync.calls).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+});

@@ -203,15 +203,47 @@ describe("git — the single git seam over a real temp repo", () => {
     }
   });
 
-  it("exposes exactly the two judgment seams — topLevel + isClean, the commit seams retired (§2.1)", () => {
-    // The GitClient is the engine's git JUDGMENT adapter: repo-root location
-    // (topLevel) + working-tree cleanliness (isClean). The retired commit seams
-    // (revParseHead / addAll / commit / log) must not survive on the prototype —
-    // the engine checks no commit identity, it judges the live tree.
+  it("exposes exactly the four read seams — topLevel + isClean + head + commitsSince, the write seams retired (§2.1)", () => {
+    // The GitClient is the engine's git READ adapter: repo-root location (topLevel),
+    // working-tree cleanliness (isClean), and the crash record's two postmortem facts
+    // (head — the dispatch baseline; commitsSince — what a crashed child committed).
+    // The retired WRITE seams (addAll / commit) must not survive on the prototype —
+    // the engine never writes a commit; it judges and records the live tree.
     const methods = Object.getOwnPropertyNames(GitClient.prototype).filter(
       (name) => name !== "constructor",
     );
-    expect(methods.sort()).toEqual(["isClean", "topLevel"]);
+    expect(methods.sort()).toEqual(["commitsSince", "head", "isClean", "topLevel"]);
+  });
+
+  it("reads the dispatch baseline (head) and the commits after it (commitsSince)", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "infra-git-facts-"));
+    try {
+      const gitRun = (args: readonly string[]): void => {
+        execFileSync("git", [...args], { cwd: dir });
+      };
+      gitRun(["init", "-q"]);
+      gitRun(["config", "user.email", "tester@example.dev"]);
+      gitRun(["config", "user.name", "Tester"]);
+      const git = new GitClient();
+      // No commit yet — a present fact is absent, never a fabricated ref.
+      expect(await git.head(dir)).toBeNull();
+      writeFileSync(path.join(dir, "a.txt"), "a\n");
+      gitRun(["add", "-A"]);
+      gitRun(["commit", "-q", "-m", "base"]);
+      const base = await git.head(dir);
+      expect(base).not.toBeNull();
+      expect(await git.commitsSince(dir, base)).toEqual([]);
+      writeFileSync(path.join(dir, "b.txt"), "b\n");
+      gitRun(["add", "-A"]);
+      gitRun(["commit", "-q", "-m", "child work"]);
+      const since = await git.commitsSince(dir, base);
+      expect(since.length).toBe(1);
+      expect(since[0]).toBe(`${await git.head(dir)} child work`);
+      // An absent base yields no range judgment (fail-open).
+      expect(await git.commitsSince(dir, null)).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

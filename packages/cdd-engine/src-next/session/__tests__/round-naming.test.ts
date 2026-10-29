@@ -3,9 +3,18 @@
 // (report / evidence / brief) the lifecycle's read-back and the dry-run preview
 // share, and the family-op mapping those stems key on. The class touches no disk
 // (resolve is pure path arithmetic), so the workspace is constructed inline.
+//
+// The file also carries the crash-name SINGLE-SOURCE pin: a source-face scan of the
+// production tree, because the crash name is the identity the capsule's read face
+// and the lifecycle's write face share by construction — a second derivation site
+// would silently split them (the pin guards the derivation, never an unrelated
+// `${frame.type}` form such as the resume command's).
 
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import type { OpType } from "../ledger.ts";
 import { RoundNaming } from "../round-naming.ts";
@@ -138,5 +147,115 @@ describe("RoundNaming — the frame → prescribed artifact names (report / evid
   it("carries the evidence family prefix — tasks for the wave families, branch for the branch line", () => {
     expect(NAMING.prefix(frame({ type: "wave" }))).toBe("tasks");
     expect(NAMING.prefix(frame({ type: "branch" }))).toBe("branch");
+  });
+
+  it("derives the crash record's name from the frame's ONE identity — verb preserved, no lane parameter", () => {
+    // wave: the task group keys the line; the op keeps implement and review apart at
+    // the same round (the two records coexist, never overwrite each other).
+    expect(NAMING.crashName(frame({ type: "wave", round: 2, params: { tasks: "3,4" } }))).toBe(
+      "crash-tasks-3,4-implement-2.json",
+    );
+    expect(
+      NAMING.crashName(
+        frame({ type: "wave", phase: "review", round: 2, params: { tasks: "3,4", round: 2 } }),
+      ),
+    ).toBe("crash-tasks-3,4-review-2.json");
+    // branch: the line-type constant, the review family op (branch-review → review)
+    expect(
+      NAMING.crashName(
+        frame({
+          type: "branch",
+          phase: "branch-review",
+          round: 2,
+          target: { kind: "branch" },
+          params: { round: 2 },
+          key: "branch",
+        }),
+      ),
+    ).toBe("crash-branch-review-2.json");
+    // doc lines: the doc-type constant
+    expect(
+      NAMING.crashName(
+        frame({
+          type: "plan",
+          phase: "review",
+          round: 2,
+          target: { kind: "plan", doc: "p.md" },
+          params: { round: 2 },
+          key: "p.md",
+        }),
+      ),
+    ).toBe("crash-plan-review-2.json");
+    // crashPath is the same derivation resolved against the workspace
+    expect(NAMING.crashPath(frame({ type: "wave", round: 2, params: { tasks: "3,4" } }))).toBe(
+      inWorkspace("crash-tasks-3,4-implement-2.json"),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the crash-name single source — the SOURCE-FACE pin (the narrowed acceptance)
+// ---------------------------------------------------------------------------
+
+/** The src-next plane root — the engine's production face (the scan set). */
+const SRC_ROOT = fileURLToPath(new URL("../../", import.meta.url));
+
+/** Every production `.ts` file under the plane root (`__tests__/` excluded — the
+ *  test plane names artifacts in fixtures and is not a derivation site). */
+const collectProductionTs = (dir: string, out: string[]): void => {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (entry.name === "__tests__") continue;
+      collectProductionTs(path.join(dir, entry.name), out);
+    } else if (entry.name.endsWith(".ts")) {
+      out.push(path.join(dir, entry.name));
+    }
+  }
+};
+
+/** Every `file:line` hit of one token over the production face (comments stripped —
+ *  a prose mention is not a derivation). */
+const hitsOf = (token: string): string[] => {
+  const files: string[] = [];
+  collectProductionTs(SRC_ROOT, files);
+  const hits: string[] = [];
+  for (const file of files) {
+    const lines = stripComments(readFileSync(file, "utf8")).split("\n");
+    for (let index = 0; index < lines.length; index += 1) {
+      if (lines[index]!.includes(token)) hits.push(`${path.relative(SRC_ROOT, file)}:${index + 1}`);
+    }
+  }
+  return hits;
+};
+
+/** The production lines that combine a crash-record name with a RAW frame type — the
+ *  retired `crash-${lane}-${round}.json` shape (`lane` = `${op}.${frame.type}`). */
+const crashNamesOnRawFrameType = (): string[] => {
+  const files: string[] = [];
+  collectProductionTs(SRC_ROOT, files);
+  const hits: string[] = [];
+  for (const file of files) {
+    const lines = stripComments(readFileSync(file, "utf8")).split("\n");
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index]!;
+      if (line.includes("crash-") && line.includes("frame.type")) {
+        hits.push(`${path.relative(SRC_ROOT, file)}:${index + 1}`);
+      }
+    }
+  }
+  return hits;
+};
+
+describe("the crash-name single source — RoundNaming derives every crash record's name", () => {
+  it("builds the `crash-` name template at exactly ONE production site", () => {
+    // Zero hits would strand the read/write faces (no name at all); a second hit
+    // would re-seam the identity the capsule's read and the lifecycle's write share.
+    expect(hitsOf("`crash-").map((hit) => hit.split(":")[0])).toEqual(["session/round-naming.ts"]);
+  });
+
+  it("derives no crash name from the raw frame type — the retired lane form is gone", () => {
+    // The narrowed checkable: the crash-name DERIVATION is what is guarded, so the
+    // legitimate `cdd fix --type ${frame.type}` resume form is never a hit.
+    expect(crashNamesOnRawFrameType()).toEqual([]);
   });
 });

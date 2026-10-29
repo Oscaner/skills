@@ -81,4 +81,25 @@ export class RoundNaming {
   prefix(frame: OpenFrame): string {
     return frame.type === "wave" ? "tasks" : "branch";
   }
+
+  /** The crash record's workspace-relative name — `crash-{line}-{op}-{round}.json`.
+   *  The `line` derives from the frame's ONE identity (wave → `tasks-{tasks}`;
+   *  branch / spec / plan → the line-type constant), the `op` keeps the verb
+   *  (`RoundNaming.op`: branch-review rides the review family) — so a wave's
+   *  implement-2 and review-2 crash records never overwrite each other. */
+  crashName(frame: OpenFrame): string {
+    return `crash-${this.#line(frame)}-${this.op(frame)}-${frame.round}.json`;
+  }
+
+  /** The crash record's on-disk path — the same derivation as `crashName` (one
+   *  name, one rule; the read and write faces agree by construction). */
+  crashPath(frame: OpenFrame): string {
+    return this.#workspace.resolve(this.crashName(frame));
+  }
+
+  /** A frame's line identity — the dispatch unit the crash record keys on: the
+   *  wave's task group (`tasks-{tasks}`), the branch line, or the doc-type line. */
+  #line(frame: OpenFrame): string {
+    return frame.type === "wave" ? `tasks-${frame.params.tasks ?? ""}` : frame.type;
+  }
 }

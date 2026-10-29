@@ -5,7 +5,17 @@
 //     `(none)` degradation states; the `next:` derivation.
 // Fixtures are hermetic tmp dirs (no git needed — pure file-system reads).
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -13,9 +23,11 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { type DocEntry, SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import type { InFlightRecord } from "../../session/inflight.ts";
 import { Ledger } from "../../session/ledger.ts";
 import { BoardView } from "../board-view.ts";
 import { Capsule } from "../capsule.ts";
+import { Cli, type CliIo, type CliOptions } from "../cli.ts";
 import { ARGV_CHANNEL } from "../declare.ts";
 import { Words } from "../words.ts";
 
@@ -228,7 +240,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain(
       `  next:    review --type spec --spec ${path.relative(repo, path.join(repo, "docs/kairos/specs/prog-p1-design.md"))}`,
     );
-    expect(text).not.toContain("  next:    /kairos:cdd-plan");
+    expect(text).not.toContain("  next:    route to /kairos:cdd-plan skill");
   });
 
   it("phase board next: spec closed + plan not started → the plan line's active review hop", () => {
@@ -267,7 +279,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain(
       `  next:    review --type plan --plan ${path.relative(repo, path.join(repo, "docs/kairos/plans/prog-p1.md"))}`,
     );
-    expect(text).not.toContain("  next:    /kairos:cdd-dev");
+    expect(text).not.toContain("  next:    route to /kairos:cdd-dev skill");
   });
 
   it("phase board next: a skipped-cycle plan line (`{review:[1,2], fix:[2]}`) is CLOSED — the engine's judge, not a count", () => {
@@ -312,7 +324,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const { text } = render("prog-p1");
 
     // plan closed → past the plan face; no plan task blocks → the wave face is the frontier
-    expect(text).not.toContain("  next:    /kairos:cdd-dev");
+    expect(text).not.toContain("  next:    route to /kairos:cdd-dev skill");
     expect(text).toContain("  next:    review --type branch --plan");
   });
 
@@ -355,7 +367,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(ledger.lineClosed("plan", "plan")).toBe(true);
     // The board consumes that SAME judge — the plan face is exhausted.
     const { text } = render("prog-p1");
-    expect(text).not.toContain("  next:    /kairos:cdd-dev");
+    expect(text).not.toContain("  next:    route to /kairos:cdd-dev skill");
   });
 
   it("D40 — the wave line's label carries the wave's task scope (W3 = tasks 5,11)", () => {
@@ -627,7 +639,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     const { text } = render("prog-p1", "");
 
-    expect(text).toContain("  next:    /kairos:cdd-plan");
+    expect(text).toContain("  next:    route to /kairos:cdd-plan skill");
   });
 
   it("board per-harness ref pins — a drained line renders REFS[ref][host] (host=pi → /skill:…)", () => {
@@ -661,8 +673,8 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
     ledger.recordRound("spec", "review");
-    expect(nextOf("prog-p1", "pi")).toBe("/skill:cdd-plan");
-    expect(nextOf("prog-p1", "claude")).toBe("/kairos:cdd-plan");
+    expect(nextOf("prog-p1", "pi")).toBe("route to /skill:cdd-plan skill");
+    expect(nextOf("prog-p1", "claude")).toBe("route to /kairos:cdd-plan skill");
   });
 
   it("board next == the Capsule's done face — the shared renderer byte-identity (host claude / pi)", () => {
@@ -700,7 +712,9 @@ describe("BoardView.render — the phase / program board layouts + the next deri
         .slice("next: ".length);
       // The board's spec face is drained (spec closed + no plan doc) → the same entry.
       expect(nextOf("prog-p1", host)).toBe(capsuleNext);
-      expect(capsuleNext).toBe(host === "pi" ? "/skill:cdd-plan" : "/kairos:cdd-plan");
+      expect(capsuleNext).toBe(
+        host === "pi" ? "route to /skill:cdd-plan skill" : "route to /kairos:cdd-plan skill",
+      );
     }
   });
 
@@ -836,7 +850,9 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     expect(exitCode).toBe(0);
     expect(text).toContain("cdd board: prog-overall");
-    expect(text).toContain("prog-overall.md   v2.33   review×4" /* 4 cycle numbers → ×4 */);
+    // D28 identity: the cell renders the stored CYCLE NUMBERS, never their count
+    // (deliberate pin break — the retired `review×4` read the array length).
+    expect(text).toContain("prog-overall.md   v2.33   review×1,2,3,4");
     // The full phase line shape (spec §5.3): status + the spec/plan/wave/branch cells,
     // the `wave W1…` token derived from the phase's own wave segment.
     expect(text).toContain(
@@ -927,5 +943,176 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     );
 
     expect(board.lines.join("\n")).toContain("  wave     (none)");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P21 T6 — the in-flight fact, the orphan drafts and the cycle-number cell
+// ---------------------------------------------------------------------------
+
+/** One in-flight record fixture — the identity facts the board row names. */
+const inFlightRecord = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
+  pid: 4242,
+  command: "cdd implement --tasks 1 --plan docs/p.md",
+  slug: "p3",
+  startedAt: Date.parse("2026-10-28T10:00:00.000Z"),
+  wave: "1",
+  phase: "implement",
+  briefHash: null,
+  plan: "docs/p.md",
+  sampledAt: null,
+  verdict: null,
+  ...over,
+});
+
+describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", () => {
+  const words = new Words();
+
+  it("adds the takeover hint only for a dead holder", () => {
+    const alive = BoardView.inFlightRows(
+      { kind: "held", record: inFlightRecord(), alive: true },
+      [],
+      words,
+    );
+    const dead = BoardView.inFlightRows(
+      { kind: "held", record: inFlightRecord(), alive: false },
+      [],
+      words,
+    );
+    expect(alive.join("\n")).toContain("pid 4242");
+    expect(alive.join("\n")).not.toContain(words.inFlightWords().stealable);
+    expect(dead.join("\n")).toContain(words.inFlightWords().stealable);
+  });
+
+  it("fills the free and corrupt rows from the one word table", () => {
+    const free = BoardView.inFlightRows({ kind: "absent" }, [], words);
+    expect(free[0]).toBe(`  in-flight: ${words.checkedWords().inFlight.free}`);
+    const locked = BoardView.inFlightRows({ kind: "corrupt", locked: true }, [], words);
+    expect(locked[0]).toBe(`  in-flight: ${words.inFlightWords().corruptLocked}`);
+    const unlocked = BoardView.inFlightRows({ kind: "corrupt", locked: false }, [], words);
+    expect(unlocked[0]).toBe(`  in-flight: ${words.inFlightWords().corruptUnlocked}`);
+  });
+
+  it("renders the free state plus one row per orphan handoff draft", () => {
+    const rows = BoardView.inFlightRows(
+      { kind: "absent" },
+      ["tasks-1-review-1.json", "branch-fix-1.json"],
+      words,
+    );
+    expect(rows[0]).toBe("  in-flight: free — no dispatch holds this tree");
+    expect(rows[1]).toContain("tasks-1-review-1.json");
+    expect(rows[2]).toContain("branch-fix-1.json");
+  });
+});
+
+describe("BoardView.roundsCell — the D28 cycle-number cell", () => {
+  it("renders the stored cycle numbers, never their count", () => {
+    expect(BoardView.roundsCell({ review: [1, 3], fix: [3] })).toBe("review×1,3 · fix×3");
+    expect(BoardView.roundsCell({ implement: [1], review: [1, 2, 3] })).toBe(
+      "implement×1 · review×1,2,3",
+    );
+  });
+});
+
+describe("cdd board — the in-flight read face (zero write)", () => {
+  /** A captured io + the CLI over a fresh git repo (the board's root resolution). */
+  interface BoardFixture {
+    readonly repoRoot: string;
+    readonly command: Cli;
+    readonly stdoutText: () => string;
+    readonly cleanup: () => void;
+  }
+
+  const io = (): CliIo & { text: string } => {
+    const captured = {
+      text: "",
+      stdout: (chunk: string) => {
+        captured.text += chunk;
+      },
+      stderr: () => {},
+    };
+    return captured;
+  };
+
+  const fixture = (opts: CliOptions = {}): BoardFixture => {
+    const repoRoot = mkdtempSync(path.join(tmpdir(), "board-inflight-"));
+    const cwd = process.cwd();
+    process.chdir(repoRoot);
+    spawnSync("git", ["init", "-q"], { cwd: repoRoot });
+    spawnSync("git", ["config", "user.email", "board@test"], { cwd: repoRoot });
+    spawnSync("git", ["config", "user.name", "board-test"], { cwd: repoRoot });
+    writeFileSync(path.join(repoRoot, ".gitignore"), ".kairos\n/docs/\n", "utf8");
+    writeFileSync(path.join(repoRoot, "seed.txt"), "seed\n", "utf8");
+    spawnSync("git", ["add", "-A"], { cwd: repoRoot });
+    spawnSync("git", ["commit", "-q", "-m", "seed"], { cwd: repoRoot });
+    mkdirSync(path.join(repoRoot, "docs/kairos/plans"), { recursive: true });
+    writeFileSync(
+      path.join(repoRoot, "docs/kairos/plans/p3.md"),
+      [
+        "---",
+        "title: Plan",
+        "version: v1.0",
+        "doc-type: plan",
+        "date: 2026-10-09",
+        "slug: p3",
+        "---",
+        "",
+        "## Constraints",
+        "",
+        "- delta",
+        "",
+        "### Task 1: a",
+        "- **Objective**: o",
+        "- **Files**: a.ts",
+        "- **Consumes**: x",
+        "- **Produces**: y",
+        "- **Steps**:",
+        "  - s — checkable: g",
+        "- **Acceptance**: ok",
+        "- **DependsOn**: none",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const captured = io();
+    const command = Cli.create({ io: captured, ...opts });
+    return {
+      repoRoot,
+      command,
+      stdoutText: () => captured.text,
+      cleanup: () => {
+        process.chdir(cwd);
+        rmSync(repoRoot, { recursive: true, force: true });
+      },
+    };
+  };
+
+  it("reports a dead holder + an orphan draft, and leaves the lock carrier and the draft bytes untouched", async () => {
+    const { repoRoot, command, stdoutText, cleanup } = fixture();
+    try {
+      const dir = path.join(repoRoot, ".kairos", "cdd");
+      mkdirSync(dir, { recursive: true });
+      const record = `${JSON.stringify(inFlightRecord({ pid: 999_999, startedAt: 1 }), null, 2)}\n`;
+      writeFileSync(path.join(dir, "in-flight.json"), record, "utf8");
+      mkdirSync(path.join(dir, "in-flight.json.lock"), { recursive: true });
+      const workspace = path.join(dir, "p3");
+      mkdirSync(workspace, { recursive: true });
+      const draft = path.join(workspace, "tasks-1-review-1.json");
+      writeFileSync(draft, `${JSON.stringify({ findings: [] })}\n`, "utf8");
+      const draftMtime = statSync(draft).mtimeMs;
+      const dirBefore = JSON.stringify(readdirSync(workspace).sort());
+
+      expect(await command.runArgv(["board", "--plan", "docs/kairos/plans/p3.md"])).toBe(0);
+      expect(stdoutText()).toContain("in-flight: pid 999999");
+      expect(stdoutText()).toContain("--steal-stale");
+      expect(stdoutText()).toContain("orphan: tasks-1-review-1.json");
+      // zero write: the record bytes, the lock carrier and the draft are untouched
+      expect(readFileSync(path.join(dir, "in-flight.json"), "utf8")).toBe(record);
+      expect(existsSync(path.join(dir, "in-flight.json.lock"))).toBe(true);
+      expect(statSync(draft).mtimeMs).toBe(draftMtime);
+      expect(JSON.stringify(readdirSync(workspace).sort())).toBe(dirBefore);
+    } finally {
+      cleanup();
+    }
   });
 });

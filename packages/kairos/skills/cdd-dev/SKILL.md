@@ -5,7 +5,7 @@ description: Independent cdd-dev orchestrator -- Node-anchored flow with digraph
 
 # Kairos CDD-Dev
 
-Executes planned tasks through the engine's implement / review / fix chain — its own orchestrator decisions (mode chain, final review) following the engine's next: line, with no installed-engine precondition (npx pulls the engine on demand); on closure the engine's `next:` face carries the pipeline continuation.
+Executes planned tasks through the engine's implement / review / fix chain — its own orchestrator decisions (mode chain, final review) following the engine's `next:` face, with no installed-engine precondition (npx pulls the engine on demand); on closure that face carries the pipeline continuation.
 
 **Invocation discipline** — every engine command runs via `npx -y @oscaner-skills/cdd-engine@latest <subcommand>` as a background dispatch: launch it in the background and await the completion notification — never poll — then read the full output (stdout/stderr). Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Round rhythm** — one review pass per dispatch; a fix round re-enters the review while the route is not done; the implement child commits its own work; ensure the working tree is clean before entering review (dirty → BLOCKED); the orchestrator writes no tree during dispatch. **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
 
@@ -38,16 +38,16 @@ flowchart TD
 
 ### `implement-wave`
 
-- **Do**: Dispatch `npx -y @oscaner-skills/cdd-engine@latest implement --tasks <n|n,n,…> --plan <path>` — one dispatch wave per iteration; dispatch each wave as the engine returns it, never a hand-picked subset.
-- **Read**: the engine output — its conclusion and the dispatch-ready `next:` line (the literal next step); a BLOCKED round carries no `next:` line and rides its reason on stderr
+- **Do**: Dispatch `npx -y @oscaner-skills/cdd-engine@latest implement --tasks <n|n,n,…> --plan <path>` — one dispatch wave per iteration; dispatch each wave as the engine returns it, never a hand-picked subset. A pre-flight row reading `plan leads ledger by N tasks` is a hint, not an error — the plan legitimately runs ahead of the ledger, so dispatch the new wave as usual. A round cut short is recovered from the working tree: look at the working tree first, commit the changes that work, discard the ones that are broken.
+- **Read**: the full stdout — its conclusion and the engine's `next:` face; a BLOCKED round's reason rides stderr
 - **Exit**: dispatch complete → `NEXT-LOOP`
 - **Fail**: nested CLI exits with no output → BLOCKED: engine-error (report via `kairos:cdd-report`（pi：/skill:cdd-report）)
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the wave review-fix rhythm through the engine — one review pass per dispatch. Dispatch the wave review (`npx -y @oscaner-skills/cdd-engine@latest review --type wave --tasks <n|n,n,…> --plan <path>`); dispatch the output's `next:` line as written — the literal is the route: a fix dispatch consumes the findings handoff, a next-wave dispatch runs through `implement-wave`; when the waves are exhausted the engine's next face carries the wave→branch transition, and the branch review travels the engine's own branch line (`review --type branch --plan <path>`, then its `fix --type branch` findings rounds) with no branch-specific orchestrator routing — the literal dispatches the next hop. A BLOCKED/TIMEOUT round carries no `next:` line — its reason rides stderr for reporting.
-- **Read**: the full stdout — the review conclusion and the `next:` line (the dispatch-ready literal — fix / the next wave / the branch transition — plus the branch line's own carried facts: the base branch the engine injected, the soft-cap suggestion, a persistent-blocker fail-open)
-- **Exit**: each fix / next-wave pass re-enters this hub while the route is not terminal — the engine's `next:` literal has not yet handed the orchestrator off to a skill ref or the pipeline terminus (the `until next is terminal` self-loop)
+- **Do**: Run the wave review-fix rhythm through the engine — one review pass per dispatch. Dispatch the wave review (`npx -y @oscaner-skills/cdd-engine@latest review --type wave --tasks <n|n,n,…> --plan <path>`); every later hop follows the engine's `next:` face — including the branch line, which the engine routes on its own. Fixes dispatch via the fix round — never an in-place edit as a substitute; a BLOCKED/TIMEOUT round's carried reason is reported, never overridden; a soft-cap suggestion is a user decision point — report it, never retry past it.
+- **Read**: the full stdout — the review conclusion, the findings handoff path, and the engine's `next:` face
+- **Exit**: each fix / next-wave pass re-enters this hub while that route keeps the loop alive (the `until next is terminal` self-loop); a route that leaves the loop ends this skill's flow
 - **Fail**: review exits with no output → BLOCKED: engine-error
 
 ## Invariants
@@ -55,9 +55,9 @@ flowchart TD
 | # | Invariant |
 |---|---|
 | I1 | **Host Harness Autodetection** — the engine resolves the host harness itself; the orchestrator never passes a harness name down to the CLI |
-| I2 | **Review Convergence (next: is the dispatch)** — a review closes by its conclusion (APPROVED / CHANGES_REQUESTED / REVIEW_FIX), and the output's `next:` line carries the engine's default next step as a complete executable command; read the `next:` line and dispatch it as written — the literal is the dispatch, no kind→command mapping layer. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round, consuming the findings handoff; the orchestrator must not edit in place as a substitute; a fix commit makes the next review a new review |
+| I2 | **Review Convergence** — a review closes by its conclusion (APPROVED / CHANGES_REQUESTED / REVIEW_FIX); the loop advances by the engine's `next:` face. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round; the orchestrator must not edit in place as a substitute; a fix commit makes the next review a new review |
 | I3 | **Wave-Chain Completeness** — every dispatch wave (a singleton task or a merged wave) goes through the full implement → review → (fix if findings) chain; review is unskippable, and a fix dispatch requires a prior review handoff for that wave |
-| I4 | **No Controller Bypass** — the orchestrator must not hand-write control-flow bypasses; all task execution / review / fix dispatch go through engine CLI calls, and the engine's `next:` line decides the order — never orchestrator guesswork |
+| I4 | **No Controller Bypass** — the orchestrator must not hand-write control-flow bypasses; all task execution / review / fix dispatch go through engine CLI calls, and the engine's `next:` face decides the order — never orchestrator guesswork |
 | I5 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band; a backfill rewriting the current task's own plan/spec text routes through the orchestrator's plan write authority |
 
 ## Failure Modes

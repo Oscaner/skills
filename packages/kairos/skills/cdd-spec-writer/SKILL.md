@@ -57,16 +57,16 @@ flowchart TD
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the review-fix rhythm for the authored spec — one review per pass. Dispatch the review round on the current ref (`npx -y @oscaner-skills/cdd-engine@latest review --type spec --spec <path>`); dispatch the output's `next:` line as written — the literal is the route: a fix dispatch consumes the findings handoff, a closure ends the flow (follow the engine's `next:` literal — for a phase/overall spec it routes the next pipeline entrypoint); a BLOCKED/TIMEOUT round carries no `next:` line — its reason rides stderr for reporting.
-- **Read**: the review output — its conclusion and the `next:` line, plus the findings handoff path
-- **Exit**: the `next:` line routes the next pipeline entrypoint (a skill ref / the pipeline terminus) → the flow ends (the engine's `next:` literal carries the next pipeline entrypoint when one exists); each fix pass re-enters this hub while the route is not terminal — the engine's `next:` literal has not yet handed the orchestrator off (the `until next is terminal` self-loop)
+- **Do**: Run the review-fix rhythm for the authored spec — one review pass per dispatch. Dispatch the review round on the current ref (`npx -y @oscaner-skills/cdd-engine@latest review --type spec --spec <path>`); every later hop follows the engine's `next:` face. Fixes dispatch via the fix round — never an in-place edit as a substitute; a BLOCKED/TIMEOUT round's carried reason is reported, never overridden.
+- **Read**: the full stdout — the review conclusion, the findings handoff path, and the engine's `next:` face
+- **Exit**: each fix pass re-enters this hub while that route keeps the loop alive (the `until next is terminal` self-loop); a route that leaves the loop ends this skill's flow
 - **Fail**: Re-running a review after a closure conclusion → violates Review Convergence (stop + report)
 
 ## Invariants
 
 | # | Invariant |
 |---|---|
-| I1 | **Review Convergence (next: is the dispatch)** — a review closes by its conclusion (APPROVED / CHANGES_REQUESTED / REVIEW_FIX), and the output's `next:` line carries the engine's default next step as a complete executable command; read the `next:` line and dispatch it as written — the literal is the dispatch, no kind→command mapping layer. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round, consuming the findings handoff; the orchestrator must not edit in place as a substitute; a fix commit opens a new review, never a re-run of a closed one |
+| I1 | **Review Convergence** — a review closes by its conclusion (APPROVED / CHANGES_REQUESTED / REVIEW_FIX); the loop advances by the engine's `next:` face, never by orchestrator guesswork. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round; the orchestrator must not edit in place as a substitute; a fix commit opens a new review, never a re-run of a closed one |
 | I2 | **Spec commit discipline** — the authored spec commits before the first review round; each fix round commits its own changes — approval closes the loop on a committed state; do not wait for dev merge |
 | I3 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band; a backfill rewriting the current task's own plan/spec text routes through the orchestrator's plan write authority |
 

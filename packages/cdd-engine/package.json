@@ -29,11 +29,21 @@
     "commander": "^15.0.0",
     "execa": "^10.2.0",
     "jsonc-parser": "^3.3.1",
+    "mdast-util-from-markdown": "^2.1.0",
+    "mdast-util-frontmatter": "^2.0.1",
+    "mdast-util-gfm": "^3.1.0",
+    "micromark-extension-frontmatter": "^2.0.0",
+    "micromark-extension-gfm": "^3.0.0",
+    "proper-lockfile": "^4.1.2",
+    "ps-list": "^9.0.0",
     "simple-git": "^4.0.2",
+    "write-file-atomic": "^8.0.0",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
+    "@types/proper-lockfile": "^4.1.4",
+    "@types/write-file-atomic": "^4.0.3",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   },

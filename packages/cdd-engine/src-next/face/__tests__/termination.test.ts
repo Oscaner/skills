@@ -16,7 +16,7 @@
 // The stall face's own pins live here too (spec §3.3): the judge's four-state truth
 // table (pure, window injected — the production window would make a case wait out the
 // real half hour) and the sampler's two legs (a real process group and a scratch tree).
-// The sampling loop's pins close the face (§3.4): every dispatch's heartbeat trail —
+// The sampling loop's pins close the face (§3.4): every dispatch's sampling trail —
 // sampled at once, overwritten per tick, removed at a normal end, kept when the round
 // was terminated.
 
@@ -35,6 +35,9 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { ProcessFacts } from "../../infra/proc.ts";
+import { WorkspaceRoot } from "../../infra/workspace.ts";
+import { InFlight, type InFlightRecord } from "../../session/inflight.ts";
 import type { Sample, SampleRecord } from "../../session/ledger.ts";
 import {
   type ChildOutcome,
@@ -45,26 +48,44 @@ import {
   Terminator,
 } from "../termination.ts";
 
+/** The scratch dispatch's in-flight handle — the production wiring's shape: the
+ *  record sits at the workspace-root level of the scanned tree. */
+const inflightOf = (root: string): InFlight =>
+  new InFlight(new WorkspaceRoot(root, ".kairos/cdd"), "probe");
+
+/** A record planted BEFORE the spawn — the production order (the dispatch acquires
+ *  its intent first, then the sampling loop overwrites only the sampling cells). */
+const recordOf = (): InFlightRecord => ({
+  pid: process.pid,
+  command: "cdd implement --tasks 1",
+  slug: "probe",
+  startedAt: Date.now(),
+  wave: "1",
+  phase: "implement",
+  briefHash: null,
+  plan: null,
+  sampledAt: null,
+  verdict: null,
+});
+
 /** One production-shaped child run over a scratch root — the child's cwd is the tree
- *  leg's scan root, and the heartbeat lands inside it (the production wiring: the two
- *  paths share one source, the dispatch's workspace). */
+ *  leg's scan root, and the in-flight record (already planted) lands inside it (the
+ *  production wiring: the two paths share one tree). */
 const childRun = (
   root: string,
   command: string,
   args: readonly string[],
   policy: TerminationPolicy = TerminationPolicy.of("implement"),
   env: Readonly<Record<string, string>> = {},
-): ChildRun => ({
-  command,
-  args,
-  cwd: root,
-  heartbeatPath: heartbeatOf(root),
-  policy,
-  env,
-});
+): ChildRun => {
+  const inflight = inflightOf(root);
+  inflight.ensureMarker();
+  writeFileSync(inflight.path(), `${JSON.stringify(recordOf(), null, 2)}\n`, "utf8");
+  return { command, args, cwd: root, inflight, policy, env };
+};
 
-/** The heartbeat path of a scratch dispatch (`childRun`'s own derivation). */
-const heartbeatOf = (root: string): string => path.join(root, "liveness.json");
+/** The in-flight record's path of a scratch dispatch (`childRun`'s own derivation). */
+const recordPathOf = (root: string): string => inflightOf(root).path();
 
 describe("Terminator — the asynchronous child-channel collection (spec §14 · D36)", () => {
   const runner = new Terminator();
@@ -190,20 +211,31 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     // The last sample rode the termination in memory — the postmortem pair.
     expect(result.termination?.lastSample).not.toBeNull();
     expect(result.termination?.lastSample?.verdict).toBe("stalled");
-    // The heartbeat file stays on disk for a human's postmortem.
-    expect(existsSync(heartbeatOf(root))).toBe(true);
+    // The in-flight record stays on disk for a human's postmortem.
+    expect(existsSync(recordPathOf(root))).toBe(true);
   });
 
   it("never kills a busy child — sustained CPU growth rules `progress`, the round ends by itself", async () => {
     // The discriminating-power positive: a child whose process group keeps burning
     // CPU is `progress` on every tick — the judge never rules `stalled`, no kill
     // fires, and the round ends by itself (exit 0, no termination).
+    //
+    // Two host-independence pins ride here. The burn is bounded by WALL time, not by
+    // a loop count (a fixed iteration count spends a machine-dependent amount of
+    // CPU); and the injected stall window stays above the coarsest `ps` resolution —
+    // a `time=` reading is whole seconds where `ps` is the Linux face, so a window
+    // shorter than a second sees two ticks between CPU-time crossings and rules a
+    // busy child stalled. The window is far above one second; the child burns three.
+    const burnMs = 3000;
     const result = await runner.run(
       childRun(
         scratch(),
-        "sh",
-        ["-c", "i=0; while [ $i -lt 4000000 ]; do i=$((i + 1)); done; echo busy-done"],
-        new TerminationPolicy(60_000, 300, 60),
+        process.execPath,
+        [
+          "-e",
+          `const end = Date.now() + ${burnMs}; while (Date.now() < end) {} console.log("busy-done");`,
+        ],
+        new TerminationPolicy(60_000, 5000, 100),
       ),
     );
     expect(result.termination).toBeNull();
@@ -523,19 +555,19 @@ describe("StallJudge — the four-state truth table (spec §3.3)", () => {
 });
 
 describe("Sampler — the two legs (spec §3.3)", () => {
-  it("reads the newest content mtime, excluding `.git/` and the heartbeat's exact path but not `.kairos/`", () => {
+  it("reads the newest content mtime, excluding `.git/` and the in-flight record but not `.kairos/`", () => {
     const root = scratch();
     plant(root, "progress.md", EPOCH + 10);
     // A child's handoff draft under `.kairos/` IS real progress — the domain is never
     // excluded wholesale.
     const draft = plant(root, ".kairos/cdd/slug/tasks-1-handoff.md", EPOCH + 20);
-    // The VCS internal and the engine's own heartbeat are newer, and neither counts.
+    // The VCS internal and the engine's own record are newer, and neither counts.
     plant(root, ".git/COMMIT_EDITMSG", EPOCH + 900);
-    const heartbeat = plant(root, ".kairos/cdd/slug/liveness.json", EPOCH + 1000);
+    const recordPath = plant(root, ".kairos/cdd/in-flight.json", EPOCH + 1000);
     const sampler = new Sampler({
       pgid: 0,
       scanRoot: root,
-      exclude: Sampler.excludesFor(root, heartbeat),
+      exclude: Sampler.excludesFor(root, recordPath),
     });
     expect(sampler.probe().newestMtimeMs).toBe(statSync(draft).mtimeMs);
   });
@@ -574,34 +606,36 @@ describe("Sampler — the two legs (spec §3.3)", () => {
     expect(judge.observe(sample, 10 ** 9)).toBe("unknown");
   });
 
-  it("sums the process group's own CPU — the busy leg the judge rules on", async () => {
+  it("reads the process group's own CPU through the ONE OS face — the busy leg the judge rules on", async () => {
     const pid = await detachedChild(process.execPath, ["-e", "while (true) {}"]);
     try {
-      const sampler = new Sampler({ pgid: pid, scanRoot: scratch(), exclude: [] });
       // `ps -o time=` truncates to whole seconds off macOS, so a busy group's first
       // nonzero reading can take a moment — poll to the deadline rather than race it.
       const deadline = Date.now() + 8000;
-      let cpuMs = sampler.probe().groupCpuMs;
+      let cpuMs = ProcessFacts.groupCpuMs(pid);
       while ((cpuMs === null || cpuMs === 0) && Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, 200));
-        cpuMs = sampler.probe().groupCpuMs;
+        cpuMs = ProcessFacts.groupCpuMs(pid);
       }
       expect(cpuMs ?? 0).toBeGreaterThan(0);
+      // The sampler's CPU leg is that same reading — it holds no `ps` of its own.
+      const sampler = new Sampler({ pgid: pid, scanRoot: scratch(), exclude: [] });
+      expect(sampler.probe().groupCpuMs).not.toBeNull();
     } finally {
       reap(pid);
     }
   });
 
-  it("keeps the engine's own heartbeat out of the mtime leg — a tick never self-certifies progress", async () => {
+  it("keeps the engine's own record out of the mtime leg — a tick never self-certifies progress", async () => {
     const pid = await detachedChild("sleep", ["30"]);
     try {
       const root = scratch();
       const draft = plant(root, ".kairos/cdd/slug/tasks-1-handoff.md", EPOCH + 100);
-      const heartbeat = plant(root, ".kairos/cdd/slug/liveness.json", EPOCH + 100);
+      const recordPath = plant(root, ".kairos/cdd/in-flight.json", EPOCH + 100);
       const sampler = new Sampler({
         pgid: pid,
         scanRoot: root,
-        exclude: Sampler.excludesFor(root, heartbeat),
+        exclude: Sampler.excludesFor(root, recordPath),
       });
       const judge = new StallJudge(1000, 0);
       const first = sampler.probe();
@@ -609,12 +643,19 @@ describe("Sampler — the two legs (spec §3.3)", () => {
       expect(first.groupCpuMs).not.toBeNull();
       expect(first.newestMtimeMs).toBe(statSync(draft).mtimeMs);
       expect(judge.observe(first, 0)).toBe("idled");
-      // One heartbeat tick later: the ONLY thing that changed is the engine's own
+      // One sampling tick later: the ONLY thing that changed is the engine's own
       // write, so the leg stays flat and the window is allowed to be spent.
-      utimesSync(heartbeat, EPOCH + 900, EPOCH + 900);
+      utimesSync(recordPath, EPOCH + 900, EPOCH + 900);
       const second = sampler.probe();
       expect(second.newestMtimeMs).toBe(first.newestMtimeMs);
       expect(judge.observe(second, 1000)).toBe("stalled");
+      // The atomic write seam's OWN temp sibling (`<record>.<n>`) is the engine's
+      // write too: a tick landing mid-write must not read it as the child's progress.
+      const sibling = plant(root, ".kairos/cdd/in-flight.json.4123456789", EPOCH + 1200);
+      const third = sampler.probe();
+      expect(third.newestMtimeMs).toBe(statSync(draft).mtimeMs);
+      expect(statSync(sibling).mtimeMs).toBeGreaterThan(statSync(recordPath).mtimeMs);
+      expect(judge.observe(third, 2000)).toBe("stalled");
     } finally {
       reap(pid);
     }
@@ -622,33 +663,33 @@ describe("Sampler — the two legs (spec §3.3)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// the sampling loop — the dispatch's heartbeat trail (§3.4)
+// the sampling loop — the dispatch's in-flight sampling trail (§3.4)
 // ---------------------------------------------------------------------------
 
-/** The heartbeat file as the engine last wrote it — a reader racing an overwrite can
+/** The on-disk in-flight record as a reader sees it — a reader racing an overwrite can
  *  catch a partial file, so an unparsable read is "no observation", never a crash. */
-const readHeartbeat = (target: string): SampleRecord | null => {
+const readRecord = (target: string): InFlightRecord | null => {
   try {
-    return JSON.parse(readFileSync(target, "utf8")) as SampleRecord;
+    return JSON.parse(readFileSync(target, "utf8")) as InFlightRecord;
   } catch {
     return null;
   }
 };
 
-/** Watch a dispatch's heartbeat while it runs: the terminal cleanup removes the file
- *  at a normal end, so the mid-dispatch face is the only place a tick is visible.
- *  Polls until the dispatch settles and returns every distinct record it saw (keyed by
- *  the tick's own `sampledAt`, so a repeated read of one tick collapses). */
-const watchHeartbeat = async (
+/** Watch a dispatch's record while it runs — every distinct tick it saw (keyed by the
+ *  tick's own `sampledAt`, so a repeated read of one tick collapses). The record is not
+ *  removed at the end (that is `InFlight.release`'s job), so the post-run file is read
+ *  separately where a case needs it. */
+const watchTrail = async (
   dispatch: Promise<ChildOutcome>,
   target: string,
-): Promise<{ result: ChildOutcome; records: SampleRecord[] }> => {
-  const seen = new Map<number, SampleRecord>();
+): Promise<{ result: ChildOutcome; records: InFlightRecord[] }> => {
+  const seen = new Map<number, InFlightRecord>();
   let settled = false;
   const poll = (async () => {
     while (!settled) {
-      const record = readHeartbeat(target);
-      if (record !== null) seen.set(record.sampledAt, record);
+      const record = readRecord(target);
+      if (record !== null && record.sampledAt !== null) seen.set(record.sampledAt, record);
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
   })();
@@ -661,32 +702,32 @@ const watchHeartbeat = async (
   }
 };
 
-describe("SamplingLoop — the dispatch's heartbeat trail (spec §3.4)", () => {
+describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)", () => {
   const runner = new Terminator();
 
   it("takes a sample the moment the child is spawned — not only from the first interval on", async () => {
     const root = scratch();
     plant(root, "work.md", EPOCH + 10);
-    // The cadence (60 s) outlives this child many times over: any record at all can
+    // The cadence (60 s) outlives this child many times over: any tick at all can
     // only be the immediate first sample.
-    const { result, records } = await watchHeartbeat(
+    const { result, records } = await watchTrail(
       runner.run(
         childRun(root, "sh", ["-c", "sleep 0.4"], new TerminationPolicy(60_000, 60_000, 60_000)),
       ),
-      heartbeatOf(root),
+      recordPathOf(root),
     );
     expect(result.termination).toBeNull();
     expect(records.length).toBe(1);
   });
 
-  it("overwrites the heartbeat once per tick — the four-field SampleRecord", async () => {
+  it("overwrites the record's sampling cells once per tick — the identity fields survive", async () => {
     const root = scratch();
-    const planted = statSync(plant(root, "work.md", EPOCH + 10)).mtimeMs;
-    const { result, records } = await watchHeartbeat(
+    plant(root, "work.md", EPOCH + 10);
+    const { result, records } = await watchTrail(
       runner.run(
         childRun(root, "sh", ["-c", "sleep 0.8"], new TerminationPolicy(60_000, 60_000, 60)),
       ),
-      heartbeatOf(root),
+      recordPathOf(root),
     );
     expect(result.termination).toBeNull();
     // Several ticks of the declared 60 ms cadence fall inside the child's 800 ms.
@@ -694,70 +735,75 @@ describe("SamplingLoop — the dispatch's heartbeat trail (spec §3.4)", () => {
     // Every observed tick is at least one interval after the previous one: the cadence
     // IS the policy's `sampleIntervalMs`.
     for (let index = 1; index < records.length; index += 1) {
-      expect(records[index].sampledAt - records[index - 1].sampledAt).toBeGreaterThanOrEqual(50);
+      expect(records[index].sampledAt! - records[index - 1].sampledAt!).toBeGreaterThanOrEqual(50);
     }
     for (const record of records) {
-      expect(Object.keys(record).sort()).toEqual([
-        "groupCpuMs",
-        "newestMtimeMs",
-        "sampledAt",
-        "verdict",
-      ]);
       expect(["progress", "unknown", "idled", "stalled"]).toContain(record.verdict);
+      // The identity fields the fixture planted are untouched by the trail write.
+      expect(record.pid).toBe(process.pid);
+      expect(record.command).toBe("cdd implement --tasks 1");
+      expect(record.slug).toBe("probe");
+      expect(record.wave).toBe("1");
     }
-    // The two legs are readable in this fixture (a real detached group, a real tree)…
-    expect(records[0].groupCpuMs).not.toBeNull();
-    // …and the engine's OWN heartbeat never enters the mtime leg: one tick's overwrite
-    // is not progress, however many ticks run (the §3.3 exclusion, wired end to end).
-    expect(records.every((record) => record.newestMtimeMs === planted)).toBe(true);
+    // The engine's OWN record never enters the mtime leg: a flat, sleeping child whose
+    // only off-tree write is the record itself must not rule progress. Were the record
+    // not excluded from the scan, every tick after the first would certify a mtime
+    // advance (the §3.3 exclusion, wired end to end).
+    expect(records.at(-1)?.verdict).not.toBe("progress");
   });
 
-  it("removes the heartbeat when the round ends by itself", async () => {
+  it("keeps the record after a self-ending round — release, not the loop, removes it", async () => {
     const root = scratch();
     plant(root, "work.md", EPOCH + 10);
-    const heartbeat = heartbeatOf(root);
-    const { result, records } = await watchHeartbeat(
-      runner.run(
-        childRun(root, "sh", ["-c", "sleep 0.3"], new TerminationPolicy(60_000, 60_000, 60)),
-      ),
-      heartbeat,
-    );
+    const inflight = inflightOf(root);
+    // The production order: acquire (record + lock) first, then the child runs.
+    await inflight.acquire(recordOf());
+    const result = await runner.run({
+      command: "sh",
+      args: ["-c", "sleep 0.3"],
+      cwd: root,
+      inflight,
+      policy: new TerminationPolicy(60_000, 60_000, 60),
+      env: {},
+    });
     expect(result.termination).toBeNull();
-    // The trail existed while the child ran…
-    expect(records.length).toBeGreaterThanOrEqual(1);
-    // …and is gone once the round ended by itself.
-    expect(existsSync(heartbeat)).toBe(false);
+    // The loop never removed it — the record is still the truthful in-flight fact…
+    expect(existsSync(inflight.path())).toBe(true);
+    expect(existsSync(inflight.lockPath())).toBe(true);
+    // …and the ONE release point clears the record and the lock together.
+    await inflight.release();
+    expect(existsSync(inflight.path())).toBe(false);
+    expect(existsSync(inflight.lockPath())).toBe(false);
   });
 
-  it("keeps the heartbeat when the round was terminated — the human's postmortem", async () => {
+  it("keeps the record (and its last sampling cells) when the round was terminated", async () => {
     const root = scratch();
     plant(root, "work.md", EPOCH + 10);
-    const heartbeat = heartbeatOf(root);
-    const { result } = await watchHeartbeat(
+    const recordPath = recordPathOf(root);
+    const { result } = await watchTrail(
       runner.run(childRun(root, "sh", ["-c", "sleep 30"], new TerminationPolicy(300, 60_000, 60))),
-      heartbeat,
+      recordPath,
     );
     expect(result.termination?.cause).toBe("over-budget");
     expect(result.code).toBeNull();
-    // The file stays for a human to read…
-    expect(existsSync(heartbeat)).toBe(true);
-    const onDisk = readHeartbeat(heartbeat);
-    expect(Object.keys(onDisk ?? {}).sort()).toEqual([
-      "groupCpuMs",
-      "newestMtimeMs",
-      "sampledAt",
-      "verdict",
-    ]);
-    // …and the round's last sample rode the termination in memory — the same
-    // observation, never a re-read of the file the engine itself wrote.
-    expect(result.termination?.lastSample).toEqual(onDisk);
+    // The record stays for a human to read…
+    expect(existsSync(recordPath)).toBe(true);
+    const onDisk = readRecord(recordPath);
+    expect(onDisk?.verdict).toBe(result.termination?.lastSample?.verdict);
+    expect(onDisk?.sampledAt).toBe(result.termination?.lastSample?.sampledAt);
+    // …and the round's full last sample (both legs) rode the termination in memory —
+    // never a re-read of the file the engine itself wrote.
+    expect(result.termination?.lastSample?.newestMtimeMs).not.toBeUndefined();
   });
 
-  it("writes no heartbeat when the child never spawned — nothing to sample", async () => {
+  it("writes no sampling cells when the child never spawned — nothing to sample", async () => {
     const root = scratch();
     plant(root, "work.md", EPOCH + 10);
     const result = await runner.run(childRun(root, "cdd-no-such-binary-xyz", []));
     expect(result.termination).toBeNull();
-    expect(existsSync(heartbeatOf(root))).toBe(false);
+    // The planted intent survives untouched and carries no fabricated tick.
+    const onDisk = readRecord(recordPathOf(root));
+    expect(onDisk?.sampledAt).toBeNull();
+    expect(onDisk?.verdict).toBeNull();
   });
 });

@@ -98,8 +98,8 @@ flowchart TD
 
 ### `handoff-next`
 
-- **Do**: Hand off following the engine's `next:` literal — this node is the spec line's convergence onto the engine's unified next face: read the `next:` line the delegated writer's closing round emitted and dispatch it as written (no design-domain continuation of this flow)
-- **Read**: the committed spec + the delegated writer's `next:` line
+- **Do**: Hand off following the engine's `next:` face — this skill adds no design-domain continuation of it
+- **Read**: the committed spec
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target missing → BLOCKED (install kairos — see the kairos README's installation table)
 
@@ -115,7 +115,7 @@ flowchart TD
 | # | Invariant |
 |---|---|
 | I1 | **Design first** — zero implementation dispatch: no code commits, no implement dispatch; the flow ends in the delegated writer flows, never in implementation |
-| I2 | **Review Convergence (next: is the dispatch)** — a review closes by its conclusion (APPROVED / CHANGES_REQUESTED / REVIEW_FIX), and the output's `next:` line carries the engine's default next step as a complete executable command; read the `next:` line and dispatch it as written — the literal is the dispatch, no kind→command mapping layer. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round, consuming the findings handoff; the orchestrator must not edit in place as a substitute; a fix commit opens a new review, never a re-run of a closed one |
+| I2 | **Review Convergence** — a review closes by its conclusion (APPROVED / CHANGES_REQUESTED / REVIEW_FIX); the loop advances by the engine's `next:` face, never by orchestrator guesswork. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round; the orchestrator must not edit in place as a substitute; a fix commit opens a new review, never a re-run of a closed one |
 | I3 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge (enforced inside the delegated writer flows) |
 | I4 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band; a backfill rewriting the current task's own plan/spec text routes through the orchestrator's plan write authority |
 

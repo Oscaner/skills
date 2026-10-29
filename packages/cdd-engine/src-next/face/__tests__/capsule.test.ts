@@ -263,9 +263,25 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
 
   it("a phase-spec-declared target routes the cdd-plan ref per host (claude / pi / empty)", () => {
     const phaseSpec = declareSpec("docs/kairos/specs/prog-p8-design.md", "phase-spec");
-    expect(doneOf(phaseSpec, "claude")).toBe("/kairos:cdd-plan");
-    expect(doneOf(phaseSpec, "pi")).toBe("/skill:cdd-plan");
-    expect(doneOf(phaseSpec)).toBe("/kairos:cdd-plan");
+    expect(doneOf(phaseSpec, "claude")).toBe("route to /kairos:cdd-plan skill");
+    expect(doneOf(phaseSpec, "pi")).toBe("route to /skill:cdd-plan skill");
+    expect(doneOf(phaseSpec)).toBe("route to /kairos:cdd-plan skill");
+  });
+
+  it("the closing round's `next:` line renders the skill-ref instruction phrase byte-exactly", () => {
+    // §8 — a pipeline skill-ref is an INSTRUCTION (route to a skill), never a
+    // pseudo-command: the line names the per-host ref inside `route to … skill`.
+    const phaseSpec = declareSpec("docs/kairos/specs/prog-p8-design.md", "phase-spec");
+    const nextLine = (host: string): string =>
+      new Capsule(new Words(), {}, host, new RepoRoot(repo)).emit(
+        "APPROVED",
+        "0",
+        "/h.json",
+        { kind: "done" },
+        phaseSpec,
+      )[1]!;
+    expect(nextLine("pi")).toBe("next: route to /skill:cdd-plan skill");
+    expect(nextLine("claude")).toBe("next: route to /kairos:cdd-plan skill");
   });
 
   it("an overall-declared target renders the bare terminal word (the pipeline terminal)", () => {
@@ -286,9 +302,11 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
   });
 
   it("a plan target routes the cdd-dev ref; a branch target the cdd-close ref", () => {
-    expect(doneOf({ type: "plan", id: "docs/kairos/plans/prog-p8.md" })).toBe("/kairos:cdd-dev");
+    expect(doneOf({ type: "plan", id: "docs/kairos/plans/prog-p8.md" })).toBe(
+      "route to /kairos:cdd-dev skill",
+    );
     expect(doneOf({ type: "branch", id: "branch", plan: "docs/kairos/plans/prog-p8.md" })).toBe(
-      "/kairos:cdd-close",
+      "route to /kairos:cdd-close skill",
     );
   });
 

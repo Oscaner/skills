@@ -7,9 +7,9 @@
 //
 // The seam's two ends are value objects, so the whole child lifecycle speaks one
 // shape:
-//   · `ChildRun` — one dispatch's full context (command/args/cwd + the heartbeat
-//     path the sampler writes + the termination policy of the phase + the per-host
-//     dispatch env);
+//   · `ChildRun` — one dispatch's full context (command/args/cwd + the in-flight
+//     record handle the sampler overwrites + the termination policy of the phase +
+//     the per-host dispatch env);
 //   · `ChildOutcome` — the child's result (its own exit code, verbatim streams)
 //     plus the `termination` fact: non-null ⟺ the round was cut short. The
 //     terminated round's downstream judgments all read that one fact, never the
@@ -18,10 +18,11 @@
 // Module-level exports are types / the value object / the class — zero
 // behavior-carrying bare functions.
 
-import { execFileSync } from "node:child_process";
-import { readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
+import { ProcessFacts } from "../infra/proc.ts";
+import type { InFlight } from "../session/inflight.ts";
 import type {
   RoundPhase,
   Sample,
@@ -62,17 +63,20 @@ export interface ChildOutcome {
 }
 
 /** One dispatch's full context — everything the runner needs, and nothing that
- *  reaches back into the session: the spawned command, the heartbeat path the
- *  sampler writes for this dispatch, the phase's termination policy, and the
- *  per-host dispatch env. The
- *  caller derives `cwd` and `heartbeatPath` from the one workspace it holds, so
- *  both paths share one source; the same `cwd` is the spawn directory AND the
- *  scanned tree root (the "scan root ≡ the child's cwd" structural guarantee). */
+ *  reaches back into the session: the spawned command, the in-flight record handle
+ *  the sampler overwrites for this dispatch, the phase's termination policy, and the
+ *  per-host dispatch env. The caller hands the record handle of its own workspace
+ *  root, so the sampling trail lands in the ONE in-flight record (the handle also
+ *  supplies the record path the tree leg excludes); the same `cwd` is the spawn
+ *  directory AND the scanned tree root (the "scan root ≡ the child's cwd" structural
+ *  guarantee). */
 export interface ChildRun {
   command: string;
   args: readonly string[];
   cwd: string;
-  heartbeatPath: string;
+  /** The dispatch's in-flight record — the sampling loop's ONE write target; the
+   *  record's own path is the tree leg's exclusion. */
+  inflight: InFlight;
   policy: TerminationPolicy;
   /** The per-host dispatch env — layered over the inherited env at spawn (the
    *  engine's values win over the parent's). */
@@ -219,84 +223,67 @@ export class StallJudge {
  *   · The group id is the child's own pid, never recomputed: `killDescendants` forces
  *     the spawn-layer detachment, so the child IS its process group leader — the same
  *     fact execa's own `process.kill(-pid)` kill rides.
+ *   · The CPU leg is `ProcessFacts.groupCpuMs` (the ONE OS read face — the engine
+ *     holds no `ps` parsing of its own); the group's membership is the real process
+ *     group (`ps -g`), which survives a leader's exit and sees a `setsid` grandchild.
  *   · The scan root is the child's cwd (the repo root), so the "scan root ≡ child cwd"
  *     correspondence is structural.
  *   · `exclude` is the engine's own writes — `Sampler.excludesFor` is its single
- *     source: the repo's `.git/` and the dispatch's heartbeat file. The rest of
- *     `.kairos/` is NOT excluded: a child's handoff draft there is real progress. */
+ *     source: the repo's `.git/` and the dispatch's in-flight record together with
+ *     that record's atomic temp siblings (`<record>.<n>`, the atomic write seam's
+ *     own files). The rest of `.kairos/` is NOT excluded: a child's handoff draft
+ *     there is real progress. An entry ending in `.` is a sibling prefix. */
 export class Sampler {
   /** The deepest tree level the walk descends to. */
   static readonly MAX_DEPTH = 32;
   /** The VCS internal every scan skips — its mtime is never a round's progress. */
   static readonly VCS_DIR = ".git";
-  /** A `ps -o time=` reading: `[DD-][HH:]MM:SS[.ff]` (BSD gives centiseconds, Linux
-   *  whole seconds — both ride the same pattern). */
-  static readonly TIME_PATTERN =
-    /^(?:(\d+)-)?(?:(\d+):(\d+):(\d+(?:\.\d+)?)|(\d+):(\d+(?:\.\d+)?))$/;
 
   readonly #pgid: number;
   readonly #scanRoot: string;
+  /** The excluded paths themselves. */
   readonly #exclude: ReadonlySet<string>;
+  /** The excluded sibling prefixes — an engine artifact's atomic temp files. */
+  readonly #excludePrefixes: readonly string[];
 
   constructor(options: { pgid: number; scanRoot: string; exclude: readonly string[] }) {
     this.#pgid = options.pgid;
     // Absolute, normalized forms on both sides of the comparison below, so an
     // exclusion matches the walked path it names.
     this.#scanRoot = path.resolve(options.scanRoot);
-    this.#exclude = new Set(options.exclude.map((entry) => path.resolve(entry)));
+    const entries = options.exclude.map((entry) => path.resolve(entry));
+    this.#exclude = new Set(entries.filter((entry) => !Sampler.#isPrefix(entry)));
+    this.#excludePrefixes = entries.filter((entry) => Sampler.#isPrefix(entry));
   }
 
-  /** The exclusion single source for one dispatch: the repo's VCS internal plus the
-   *  heartbeat path the engine itself writes (a tick must never self-certify). */
-  static excludesFor(scanRoot: string, heartbeatPath: string): readonly string[] {
-    return [path.join(scanRoot, Sampler.VCS_DIR), heartbeatPath];
+  /** The exclusion single source for one dispatch: the repo's VCS internal, the
+   *  in-flight record the engine itself writes, and that record's atomic temp siblings
+   *  (`write-file-atomic` writes `<target>.<n>`) — a tick must never self-certify. */
+  static excludesFor(scanRoot: string, recordPath: string): readonly string[] {
+    return [path.join(scanRoot, Sampler.VCS_DIR), recordPath, `${recordPath}.`];
+  }
+
+  /** Whether an exclusion entry names a sibling prefix rather than one exact path. */
+  static #isPrefix(entry: string): boolean {
+    return entry.endsWith(".");
+  }
+
+  /** Whether a walked path is one of the engine's own writes. */
+  #isEngineWrite(candidate: string): boolean {
+    return (
+      this.#exclude.has(candidate) ||
+      this.#excludePrefixes.some((prefix) => candidate.startsWith(prefix))
+    );
   }
 
   /** Read both legs of this tick — each independently fail-open: a leg the platform
-   *  cannot read is `null`, never a fabricated reading. */
+   *  cannot read is `null`, never a fabricated reading. The CPU leg is the ONE OS
+   *  read face's group reading; the tree leg is this class's own walk. */
   probe(): Sample {
-    return { groupCpuMs: this.#groupCpuMs(), newestMtimeMs: this.#newestMtimeMs() };
-  }
-
-  /** The process group's cumulative CPU (ms), summed over the group's processes. A
-   *  non-zero `ps` exit (no such group, or no `ps` at all) or any unparseable line
-   *  makes the leg unreadable — `null`. An empty reading is unreadable too: a group
-   *  with no observable member is not evidence of zero CPU. */
-  #groupCpuMs(): number | null {
-    let output: string;
-    try {
-      output = execFileSync("ps", ["-o", "time=", "-g", String(this.#pgid)], {
-        encoding: "utf8",
-        // stdout only: `ps`'s own complaint about an unknown group is not a reading,
-        // and it must never reach the engine's stderr channel.
-        stdio: ["ignore", "pipe", "ignore"],
-      });
-    } catch {
-      return null;
-    }
-    const lines = output
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-    if (lines.length === 0) return null;
-    let total = 0;
-    for (const line of lines) {
-      const ms = Sampler.#parseCpuTime(line);
-      if (ms === null) return null;
-      total += ms;
-    }
-    return total;
-  }
-
-  /** One `time=` reading as milliseconds — `null` when the text is not that format. */
-  static #parseCpuTime(text: string): number | null {
-    const match = Sampler.TIME_PATTERN.exec(text);
-    if (match === null) return null;
-    const days = Number(match[1] ?? 0);
-    const hours = Number(match[2] ?? 0);
-    const minutes = Number(match[3] ?? match[5] ?? 0);
-    const seconds = Number(match[4] ?? match[6] ?? 0);
-    return (((days * 24 + hours) * 60 + minutes) * 60 + seconds) * 1000;
+    return {
+      groupCpuMs: ProcessFacts.groupCpuMs(this.#pgid),
+      newestMtimeMs: this.#newestMtimeMs(),
+    };
   }
 
   /** The newest content mtime (ms) in the scanned tree — `null` when the walk cannot
@@ -319,14 +306,14 @@ export class Sampler {
       const child = path.join(dir, entry.name);
       // A symlink is never followed (it can leave the tree outright); an excluded path
       // is the engine's own write.
-      if (entry.isSymbolicLink() || this.#exclude.has(child)) continue;
+      if (entry.isSymbolicLink() || this.#isEngineWrite(child)) continue;
       if (entry.isDirectory()) {
         const nested = this.#newestIn(child, depth + 1);
         if (nested !== null && (newest === null || nested > newest)) newest = nested;
         continue;
       }
       // Content mtimes only: a directory's own mtime moves on entry churn, which the
-      // CPU leg already reflects as work — and the heartbeat's first creation would
+      // CPU leg already reflects as work — and the record's first creation would
       // otherwise bump its directory and self-certify a progress tick.
       const mtimeMs = statSync(child).mtimeMs;
       if (newest === null || mtimeMs > newest) newest = mtimeMs;
@@ -336,30 +323,31 @@ export class Sampler {
 }
 
 // ---------------------------------------------------------------------------
-// the sampling loop — the dispatch's heartbeat trail (§3.4)
+// the sampling loop — the dispatch's in-flight sampling trail (§3.4)
 // ---------------------------------------------------------------------------
 
 /** The sampling loop of one dispatch — the cadence that wraps the running child: one
  *  sample the moment the child is spawned, then one per `intervalMs`. Each tick reads
  *  the two legs through the `Sampler`, has the `StallJudge` rule on them, and
- *  overwrites the dispatch's heartbeat file with the resulting `SampleRecord` — the
- *  trail a human reads after a round was cut short. A `stalled` verdict fires the
- *  loop's `onStall` callback once — the Terminator's kill trigger (the engine's own
- *  group kill; the SIGTERM → SIGKILL escalation is execa's).
+ *  overwrites the dispatch's in-flight record sampling cells through `InFlight` — the
+ *  ONE record, never a second file beside it. A `stalled` verdict fires the loop's
+ *  `onStall` callback once — the Terminator's kill trigger (the engine's own group
+ *  kill; the SIGTERM → SIGKILL escalation is execa's).
  *
  *  The interval is unref'd: the engine's own sampling must never be the reason the
  *  parent process stays alive (the dispatch awaits the child, not the cadence). The
- *  heartbeat write is a plain overwrite, deliberately NOT a write-then-rename: a
- *  temporary file would sit inside the scanned tree and its own creation would certify
- *  "progress" — the very self-report the exclusion exists to prevent. Both the write
- *  and the removal are fail-open: the trail is a diagnostic, never a dispatch's fate.
+ *  trail WRITE is fail-open (`InFlight.heartbeat` swallows a failed write): a
+ *  diagnostic never decides a dispatch's fate. The loop
+ *  NEVER removes the record — removal belongs to `InFlight.release()` (the normal end)
+ *  and `InFlight.steal()` (the explicit takeover) alone, so a self-ending round that
+ *  still has to hand its conclusion back cannot erase the very fact the gate reads.
  *
  *  The last observation is held in memory (`lastSample`): a terminated round's crash
  *  record takes it from there, never by re-reading the file the engine itself wrote. */
 class SamplingLoop {
   readonly #sampler: Sampler;
   readonly #judge: StallJudge;
-  readonly #heartbeatPath: string;
+  readonly #inflight: InFlight;
   readonly #intervalMs: number;
   /** The stall trigger — called once on the first `stalled` verdict (the kill). */
   readonly #onStall?: () => void;
@@ -372,13 +360,13 @@ class SamplingLoop {
   constructor(options: {
     sampler: Sampler;
     judge: StallJudge;
-    heartbeatPath: string;
+    inflight: InFlight;
     intervalMs: number;
     onStall?: () => void;
   }) {
     this.#sampler = options.sampler;
     this.#judge = options.judge;
-    this.#heartbeatPath = options.heartbeatPath;
+    this.#inflight = options.inflight;
     this.#intervalMs = options.intervalMs;
     this.#onStall = options.onStall;
   }
@@ -403,40 +391,29 @@ class SamplingLoop {
     return this.#judge.idleMs(Date.now());
   }
 
-  /** End the loop at the dispatch's terminal state: the cadence stops, and the
-   *  heartbeat is removed iff the round ended by itself — a terminated round's file
-   *  stays for a human's postmortem. */
-  stop(endedByItself: boolean): void {
+  /** End the loop at the dispatch's terminal state — the cadence stops and NOTHING
+   *  else: the in-flight record is not this loop's to remove, whatever way the round
+   *  ended (removal belongs to `InFlight.release()` / `InFlight.steal()` alone). */
+  stop(): void {
     if (this.#timer !== null) {
       clearInterval(this.#timer);
       this.#timer = null;
     }
-    if (!endedByItself) return;
-    try {
-      rmSync(this.#heartbeatPath, { force: true });
-    } catch {
-      // Fail-open (see the class doc).
-    }
   }
 
-  /** One tick: read both legs, judge them, and overwrite the heartbeat record. A
-   *  `stalled` verdict fires the kill trigger once (the first stall owns the kill;
-   *  later ticks of a dying child never re-fire). */
+  /** One tick: read both legs, judge them, and overwrite the in-flight record's
+   *  sampling cells. A `stalled` verdict fires the kill trigger once (the first stall
+   *  owns the kill; later ticks of a dying child never re-fire). */
   #tick(now: number): void {
     const sample = this.#sampler.probe();
     const verdict = this.#judge.observe(sample, now);
-    const record: SampleRecord = {
+    this.#last = {
       sampledAt: now,
       groupCpuMs: sample.groupCpuMs,
       newestMtimeMs: sample.newestMtimeMs,
       verdict,
     };
-    this.#last = record;
-    try {
-      writeFileSync(this.#heartbeatPath, `${JSON.stringify(record, null, 2)}\n`, "utf8");
-    } catch {
-      // Fail-open (see the class doc): an unwritable heartbeat slows nothing down.
-    }
+    this.#inflight.heartbeat({ sampledAt: now, verdict });
     if (verdict === "stalled" && !this.#stallFired) {
       this.#stallFired = true;
       this.#onStall?.();
@@ -463,7 +440,7 @@ class SamplingLoop {
  *   · `maxBuffer` is never set or lowered — execa's own 100 MB default is the
  *     unbounded-face successor of the retired fixed 1 MiB cap;
  *   · the sampling loop — the child is sampled from the spawn instant and every
- *     `policy.sampleIntervalMs` after (the heartbeat file is that loop's trail, and
+ *     `policy.sampleIntervalMs` after (the in-flight record is that loop's trail, and
  *     the judge's verdict rides every record).
  *  The class holds zero session state: everything a dispatch needs rides the
  *  `ChildRun` argument, so the composition root wires it without a scene. */
@@ -512,9 +489,6 @@ export class Terminator implements ChildRunner {
       // in the same tick is not misattributed as `stalled`.
       if (subprocess.kill()) killedByStall = true;
     });
-    // The round's heartbeat fate — terminated by default, so an unexpected throw keeps
-    // the trail as well; a round that ends by itself leaves no file behind.
-    let endedByItself = false;
     try {
       const result = await subprocess;
       const termination = Terminator.terminationOf({
@@ -525,7 +499,6 @@ export class Terminator implements ChildRunner {
         idleMs: sampling?.idleMs() ?? 0,
         lastSample: sampling?.lastSample() ?? null,
       });
-      endedByItself = termination === null;
       return {
         // The child's OWN exit code, unfolded: null means "never spawned / signalled",
         // never a fabricated 1 (which would misreport both as an ordinary failed run).
@@ -538,8 +511,8 @@ export class Terminator implements ChildRunner {
         termination,
       };
     } finally {
-      // The cadence never outlives the dispatch.
-      sampling?.stop(endedByItself);
+      // The cadence never outlives the dispatch (the record itself is the caller's).
+      sampling?.stop();
     }
   }
 
@@ -561,10 +534,10 @@ export class Terminator implements ChildRunner {
       sampler: new Sampler({
         pgid: pid,
         scanRoot: run.cwd,
-        exclude: Sampler.excludesFor(run.cwd, run.heartbeatPath),
+        exclude: Sampler.excludesFor(run.cwd, run.inflight.path()),
       }),
       judge: new StallJudge(run.policy.idleWindowMs, spawnedAt),
-      heartbeatPath: run.heartbeatPath,
+      inflight: run.inflight,
       intervalMs: run.policy.sampleIntervalMs,
       onStall,
     });
@@ -586,7 +559,7 @@ export class Terminator implements ChildRunner {
    *   · nothing of the above → the round ended by itself (successfully or not), no
    *     termination.
    *  The last sample rides whichever cause won: it is the sampling loop's own last
-   *  observation, held in memory — never a re-read of the heartbeat file the engine
+   *  observation, held in memory — never a re-read of the record file the engine
    *  itself wrote.
    *
    *  `killedByStall` records that OUR kill was delivered (execa's `kill()` returns

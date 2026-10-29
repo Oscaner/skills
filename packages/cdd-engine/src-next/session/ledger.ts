@@ -22,7 +22,7 @@
 // carrying bare functions (the plan's zero-bare-function discipline).
 
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import type { ConfigLoader } from "../infra/config.ts";
 import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
@@ -30,8 +30,10 @@ import type { Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { type TargetType, targetFaces } from "./faces.ts";
 import { type Carrier, type CarrierPlane, HandoffSchema } from "./handoff-schema.ts";
+import { LineIdentity } from "./line-identity.ts";
 import type { Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
+import { RoundNaming } from "./round-naming.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
 
 // ---------------------------------------------------------------------------
@@ -125,6 +127,12 @@ export type ProgressRow = {
    *  identity-aware gate reopens the closed line on drift from it. The two kinds are
    *  mutually exclusive per row (a line is a doc line or a wave line, never both). */
   reviewedRevision?: ReviewedRevisionRef;
+  /** The plan's task set at the instant this wave closed, recorded ONCE at the
+   *  closure point and never updated (a historical fact: the plan may later gain
+   *  tasks, and the earlier snapshot must not be regenerable from it). Absent on a
+   *  still-open wave and on every row written before this fact existed — the
+   *  append-vs-stall judgment reads the absence conservatively. */
+  planTasks?: readonly number[];
 };
 
 /** The progress.json data plane — the fixed top-level key set + the per-wave rows. */
@@ -159,14 +167,14 @@ export type StallVerdict = "progress" | "unknown" | "idled" | "stalled";
 /** One sample tick's two legs — the process group's cumulative CPU (ms) and the
  *  newest mtime (ms) of the scanned tree. `null` = that leg is unreadable (the
  *  fail-open face: an unreadable leg never authorizes a kill). The field names are
- *  the heartbeat record's names (one naming, two references). */
+ *  the in-flight record's names (one naming, two references). */
 export interface Sample {
   groupCpuMs: number | null;
   newestMtimeMs: number | null;
 }
 
 /** The recorded sample — a `Sample` extended with its tick's timestamp and the
- *  judge's verdict (the heartbeat file's field set; the crash record embeds it). */
+ *  judge's verdict (the sampling trail's field set; the crash record embeds it). */
 export interface SampleRecord extends Sample {
   sampledAt: number;
   verdict: StallVerdict;
@@ -174,7 +182,7 @@ export interface SampleRecord extends Sample {
 
 /** How a round ended when it did not end by itself — the derived cause plus the
  *  last observed sample (the postmortem pair the crash record carries; the sample
- *  rides the outcome in memory, never re-read from the heartbeat file). `unknown`
+ *  rides the outcome in memory, never re-read from the in-flight record). `unknown`
  *  is the unattributable fallback of the derivation. */
 export interface Termination {
   cause: TerminationCause | "unknown";
@@ -219,8 +227,8 @@ export interface CrashRecord {
   cause: CrashCause;
   /** The terminated round's last observed sample (the stall face's postmortem pair) —
    *  null when the round was not cut short or no sample was ever taken. The sample
-   *  rides the termination fact in memory (zero re-read of the heartbeat file the
-   *  engine itself wrote); the on-disk heartbeat stays for a human's postmortem. */
+   *  rides the termination fact in memory (zero re-read of the in-flight record the
+   *  engine itself wrote); the standing record stays on disk for a human's postmortem. */
   lastSample: SampleRecord | null;
   /** Whether the terminated round's draft was promoted to a conclusion (false on every
    *  non-terminated record). */
@@ -228,6 +236,14 @@ export interface CrashRecord {
   /** The judge's idle reading (ms) at the termination instant — null when the round
    *  was not cut short. */
   idleMs: number | null;
+  /** The HEAD the dispatch started from — the postmortem basis of `commitsSince`.
+   *  null when the round never reached a spawn or the repo carries no HEAD (a
+   *  non-git tree). */
+  dispatchBase: string | null;
+  /** The commits added after `dispatchBase`, oldest first, each as `{sha} {subject}`
+   *  — the work a crashed child left behind before it died (empty when nothing was
+   *  committed, or when git could not be read). */
+  commitsSince: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -376,14 +392,23 @@ export class Ledger {
   /** The review-reference face (T25) — the refKind classification + the same-ref
    *  reject, one instance per ledger (the run's bound refs). */
   readonly #refs = new ReviewRefs();
+  /** The three-line drift judgment (P21 §4.1) — the ONE identity face the doc line
+   *  and the wave line both read (the branch line binds its plan's doc-revision
+   *  through the same face). Injected with this ledger's own ref face, so the
+   *  same-ref predicate keeps one definition. */
+  readonly #identity = new LineIdentity(this.#refs);
   /** The task-brief renderer (D30) — the wave line's judgment-input derivation:
    *  the wave's reviewed basis is the RENDERED brief's content, never the whole
    *  plan (a backfill touching other tasks must not void a reviewed wave). */
   readonly #brief = new BriefRenderer();
+  /** The round-naming single source over this ledger's workspace — the crash
+   *  artifact names derive here (zero second derivation). */
+  readonly #naming: RoundNaming;
 
   constructor(workspace: Workspace, config: ConfigLoader) {
     this.#workspace = workspace;
     this.#families = config.handoffNamespace().families;
+    this.#naming = new RoundNaming(workspace);
   }
 
   /** The review-reference face — the refKind three-type derivation + binding (T25). */
@@ -561,6 +586,32 @@ export class Ledger {
     return this.rowFor(data, key)?.reviewedRevision ?? null;
   }
 
+  /** Record a wave row's plan-task snapshot — the task set the plan carried at the
+   *  instant the wave CLOSED. The write is IDEMPOTENT: an existing snapshot is never
+   *  overwritten, because the fact it records is historical (the plan may gain tasks
+   *  afterwards; re-deriving would erase the append-vs-stall evidence). */
+  recordPlanTasks(waveKey: LedgerKey, planTasks: readonly number[]): void {
+    const data = this.readProgress() ?? this.emptyProgress();
+    let row = this.rowFor(data, waveKey);
+    if (row === undefined) {
+      row = this.entryFor(waveKey);
+      data.waves.push(row);
+    }
+    if (row.planTasks !== undefined) return;
+    row.planTasks = [...planTasks];
+    this.writeProgress(data);
+  }
+
+  /** A wave row's plan-task snapshot — null on a historical row (recorded before the
+   *  snapshot existed) and on a wave that never closed (no snapshot taken yet). The
+   *  callers treat null conservatively: an absent snapshot never authorizes the
+   *  append reading. */
+  planTasksOf(waveKey: LedgerKey): readonly number[] | null {
+    const data = this.readProgress();
+    if (data === null) return null;
+    return this.rowFor(data, waveKey)?.planTasks ?? null;
+  }
+
   /** The doc line's recorded reviewed doc revision — the doc-revision narrowing of
    *  `reviewedRevisionOf` (null when none on record, or when a non-doc kind sits on
    *  the row — a doc line is never a wave line). */
@@ -586,7 +637,7 @@ export class Ledger {
       // false-drift comparison never reads one document as two.
       const rel = this.#rel(doc);
       const current = this.#refs.docRevision(rel, readFileSync(this.#abs(doc), "utf8"));
-      return this.#refs.sameRef(reviewed, current) ? "same" : "drift";
+      return this.#identity.verdict(reviewed, { ref: current }) === "same" ? "same" : "drift";
     } catch {
       return null;
     }
@@ -698,7 +749,7 @@ export class Ledger {
     if (reviewed.kind !== "brief-revision") return false;
     const current = this.#briefRevision(waveKey, reviewed.plan);
     if (current === null) return false;
-    return !this.#refs.sameRef(reviewed, current);
+    return this.#identity.verdict(reviewed, { ref: current }) === "drift";
   }
 
   /** The pending-fix derivation — the "doc same + not APPROVED" face (T8): the
@@ -951,31 +1002,80 @@ export class Ledger {
     return this.#read<Record<string, unknown>>(this.handoffName(op, type, params));
   }
 
+  /** The workspace's ORPHAN handoff drafts — the `handoff` family files whose
+   *  (line key, op, round) never landed in `progress.json` (a draft written by a
+   *  round that never booked). The board and the `--dry-run` preview render them;
+   *  this is a PURE READ — the engine never writes, moves or deletes a draft. The
+   *  family names are the ledger's own single naming truth (no second pattern). */
+  orphanHandoffs(): readonly string[] {
+    const rows = this.readProgress()?.waves ?? [];
+    const orphans: string[] = [];
+    for (const name of this.#workspaceFiles()) {
+      const owner = Ledger.#handoffOwner(name, this.#families);
+      if (owner === null) continue;
+      const row = rows.find((candidate) => candidate.wave === owner.key);
+      const rounds = row?.rounds?.[owner.op] ?? [];
+      if (!rounds.includes(owner.round)) orphans.push(name);
+    }
+    return orphans.sort();
+  }
+
+  /** The workspace directory's file names (an absent/unreadable directory is an
+   *  empty fact — the orphan face degrades, never throws). */
+  #workspaceFiles(): readonly string[] {
+    try {
+      return readdirSync(this.#workspace.path, { withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Which recorded round one handoff file belongs to — the family name pattern is
+   *  the ONE naming truth, read backwards: `tasks-{tasks}-{op}[-{round}].json` /
+   *  `{spec|plan|branch}-{op}-{round}.json`. Null for a non-handoff file. */
+  static #handoffOwner(
+    name: string,
+    families: Readonly<Record<string, HandoffFamily>>,
+  ): { readonly key: string; readonly op: string; readonly round: number } | null {
+    for (const [family, record] of Object.entries(families)) {
+      const [op = "", type = ""] = family.split(".");
+      const escaped = record.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp(
+        `^${escaped.replace("\\{tasks\\}", "(.+?)").replace("\\{round\\}", "(\\d+)")}$`,
+      );
+      const match = pattern.exec(name);
+      if (match === null) continue;
+      const key = type === "wave" ? (match[1] ?? "") : type;
+      const round = match[2] === undefined ? 1 : Number(match[2]);
+      return { key, op, round };
+    }
+    return null;
+  }
+
   // -------------------------------------------------------------------------
   // crash — the lane crash → recovery record
   // -------------------------------------------------------------------------
 
-  /** The crash record file name — `crash-<lane>-<round>.json`. */
-  crashName(lane: string, round: number): string {
-    return `crash-${lane}-${round}.json`;
-  }
-
-  /** The crash record path. */
-  crashPath(lane: string, round: number): string {
-    return this.#workspace.resolve(this.crashName(lane, round));
-  }
-
-  /** Write a lane-crash recovery record — the resume decision source (the resume
-   *  command + the dead child's tails), never the handoff carrier. Returns the record. */
-  writeCrash(lane: string, round: number, record: CrashRecord): CrashRecord {
-    this.#persist(this.crashName(lane, round), record);
+  /** Write a crash recovery record at the name `RoundNaming` derived (the ONE
+   *  naming source — this face derives no name of its own). Returns the record. */
+  writeCrash(name: string, record: CrashRecord): CrashRecord {
+    this.#persist(name, record);
     return record;
   }
 
-  /** Read a crash record; null when absent/unreadable (a recordless failure round keeps
-   *  the no-next failure face). */
-  readCrash(lane: string, round: number): CrashRecord | null {
-    return this.#read<CrashRecord>(this.crashName(lane, round));
+  /** Read a crash record by its `RoundNaming` name; null when absent/unreadable (a
+   *  recordless failure round keeps the no-next failure face). */
+  readCrash(name: string): CrashRecord | null {
+    return this.#read<CrashRecord>(name);
+  }
+
+  /** The round-naming single source over this ledger's workspace — the crash read /
+   *  write faces take the name this face derives, so the capsule's failure handoff
+   *  cell and the lifecycle's write point name the same file by the same rule. */
+  naming(): RoundNaming {
+    return this.#naming;
   }
 
   // -------------------------------------------------------------------------

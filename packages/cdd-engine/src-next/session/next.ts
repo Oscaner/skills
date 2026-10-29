@@ -232,9 +232,20 @@ export class NextStepRouter {
    *  line (the C5 `done` / no active round) yields the face-to-face handoff carrying
    *  the pipeline entry. A null doc-class (no face seam — the overall line / a bare
    *  terminal) renders the bare `done` word. A whole-slug walk is `walk` (the board's
-   *  face-to-face traversal); this is the single-line form the capsule holds. Pure. */
-  static resolve(active: Route | null, key: PipelineKey | null): Route {
+   *  face-to-face traversal); this is the single-line form the capsule holds. Pure.
+   *
+   *  `targetLineOpen` is the NEXT line's fact, passed by the ledger-holding side:
+   *  `false` means the branch line has no dispatchable open round, so a closed wave
+   *  line lands on the branch face's own station instead of the branch-review literal
+   *  (`true` / absent keeps the exact pre-existing behavior). */
+  static resolve(active: Route | null, key: PipelineKey | null, targetLineOpen?: boolean): Route {
     if (active !== null && active.kind !== "done") return active;
+    // The wave face's closure is only the pipeline handoff when the NEXT line (the
+    // branch line) has a dispatchable open round; otherwise the wave line falls
+    // through to the branch face's own station (`kairos:cdd-close`) — never a
+    // `review --type branch` literal its own gate would refuse (P21 §4.2). The fact
+    // is an INPUT (the ledger-holding side computes it); the router only judges.
+    if (key === "wave" && targetLineOpen === false) return NextStepRouter.handoff("branch");
     return key === null ? { kind: "done" } : NextStepRouter.handoff(key);
   }
 

@@ -3,11 +3,12 @@
 // converge into ONE single-entry gate a work command consults before ANY child
 // dispatch — the clean-tree hard gate (tree-clean → BLOCKED with the commit/discard
 // guidance, the skill-side claim `engine entry gate: dirty → BLOCKED` finally made
-// real), then the wave-side gates (graph validate + the three-verb WaveGate)
-// and the doc-side gate (Contract.validate over the target doc).
+// real), then the plan/ledger structure gate (`plan-ledger`, P21 §3.1/§6.4), the
+// wave-side gates (graph validate + the three-verb WaveGate) and the doc-side gate
+// (Contract.validate over the target doc).
 //
 // Gate order (the design's pinned sequence, judgeable on every verdict):
-//   tree-clean → (wave/plan faces) graph validate → (wave face) WaveGate.vet →
+//   tree-clean → in-flight → graph → plan-ledger → (wave face) WaveGate.vet →
 //   (spec/plan faces) Contract.validate → dispatch
 // The evidence/read-back gates stay at the dispatch child face (the seam never
 // touches the round's produced artifacts — non-pre-flight by design).
@@ -15,17 +16,18 @@
 // The verdict is the single BLOCK carrier: `gate` names the refusing gate, `reason`
 // the named refusal row, `message` the CDD_BLOCKED wording (pinned rows), `details`
 // the named issue/finding lines the renderer prints, `order` the gates that ran
-// (the CLI never re-implements a gate — the seam owns the whole sequence). BLOCK
-// wording rides the word table (the capsule station + the preflight rows), never a
-// CLI restate.
+// (the CLI never re-implements a gate — the seam owns the whole sequence) and
+// `checked` the per-rule checked list (P21 §3.4) — derived from the SAME rule
+// declaration surface the policy composition walks, so "which rule ran" and "what it
+// judged" can never drift apart.
 //
 // Module-level exports are types / the class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 
 import { PlanDocType } from "../contract/doc.ts";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
-import { type DocFs, NodeFs } from "../contract/invariants.ts";
-import type { Contract } from "../contract/judge.ts";
+import { type DocFs, type Finding, LedgerTaskSetRule, NodeFs } from "../contract/invariants.ts";
+import { Contract, type ContractInput, type LedgerFacts } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import type { Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
@@ -33,20 +35,52 @@ import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { SlugIndex } from "../infra/slug-index.ts";
 import type { TargetType } from "./faces.ts";
 import { TaskGraph } from "./graph.ts";
-import type { Ledger } from "./ledger.ts";
+import type { InFlight, InFlightState } from "./inflight.ts";
+import type { Ledger, ProgressData } from "./ledger.ts";
 import { WaveGate, type WaveGateReason } from "./wave.ts";
 
 /** The named gates the seam composes — the run evidence + the blocking gate label. */
-export type PreFlightGateName = "tree-clean" | "graph" | "wave" | "doc-contract";
+export type PreFlightGateName =
+  | "tree-clean"
+  | "in-flight"
+  | "graph"
+  | "plan-ledger"
+  | "wave"
+  | "doc-contract";
 
 /** The named refusal rows — the BLOCK reason the CDD_BLOCKED wording fills (the
- *  wave-gate rows derive from `WaveGateReason` — one declaration, never a re-list). */
-export type PreFlightReason = "dirty-tree" | "graph" | WaveGateReason | "doc-contract";
+ *  wave-gate rows derive from `WaveGateReason` — one declaration, never a re-list).
+ *  Refusals exist only on the failure face (`ok: true` carries no `reason`), so the
+ *  enum has zero dead values: "the plan leads the ledger" is a `checked` info row, and
+ *  a missing ledger fact bundle is a `checked` skipped row — neither is a refusal. */
+export type PreFlightReason =
+  | "dirty-tree"
+  | "held"
+  | "corrupt-record"
+  | "graph"
+  | WaveGateReason
+  | "doc-contract";
+
+/** The doc-scope judgment outcome of one dispatch — what the checked list renders. */
+type DocOutcome =
+  | { readonly kind: "judged"; readonly findings: readonly Finding[] }
+  | { readonly kind: "no-doc-target" }
+  | { readonly kind: "unreadable" }
+  | { readonly kind: "not-judged" };
+
+/** The ledger-scope judgment outcome of one dispatch. */
+type LedgerOutcome =
+  | { readonly kind: "judged"; readonly findings: readonly Finding[] }
+  | { readonly kind: "no-ledger-facts" };
 
 /** One pre-flight verdict — the single BLOCK carrier of the dispatch gates. */
 export interface PreFlightVerdict {
   /** Whether the dispatch is approved (the gates passed). */
   ok: boolean;
+  /** The in-flight fact the gate judged — present only when the in-flight gate was
+   *  the refusing gate. The `--dry-run` preview reads the holder facts from here
+   *  (it never inspects, never acquires: zero write). */
+  holding?: InFlightState;
   /** The refusing gate (absent when ok — no gate blocked). */
   gate?: PreFlightGateName;
   /** The named refusal row (absent when ok). */
@@ -56,9 +90,13 @@ export interface PreFlightVerdict {
   message?: string;
   /** The named issue/finding lines the renderer prints under the message. */
   details?: readonly string[];
-  /** The gates that ran, in order — the judgeable order (tree-clean → graph →
-   *  wave → doc-contract, per the face's applicable set). */
+  /** The gates that ran, in order — the judgeable order (tree-clean → in-flight →
+   *  graph → plan-ledger → wave → doc-contract, per the face's applicable set). */
   order: readonly PreFlightGateName[];
+  /** The checked face — one row per gate (`${gate}`) and per declared rule
+   *  (`${ruleId}: ${passed|failed|skipped (reason)|info (hint)}`), derived from the
+   *  SAME rule declaration surface the strategy composition walks. */
+  checked: readonly string[];
 }
 
 /** The doc-contract target of a spec/plan dispatch. */
@@ -96,6 +134,15 @@ export interface PreFlightContext {
   ledger: Ledger | null;
   /** The doc-contract target of a spec/plan dispatch (null on the other faces). */
   doc: PreFlightDoc | null;
+  /** The in-flight fact's READ-ONLY face (P21 §2.2/§6.4). The gate only calls
+   *  `inspect()` — it never acquires, steals or releases. Required: a dispatch
+   *  whose gate was not wired cannot silently pass (no type-level default). */
+  readonly inflight: InFlight;
+  /** The explicit takeover flag: true lets the gate PASS a dead holder's record (or
+   *  a corrupt record with its lock still on disk). The takeover itself is the real
+   *  dispatch's `acquire(record, { stealStale })` — the gate only judges. Under
+   *  `--dry-run` this flag is void (the preview never acquires). */
+  readonly stealStale?: boolean;
 }
 
 /**
@@ -130,149 +177,408 @@ export class PreFlight {
     this.#fs = opts.fs ?? new NodeFs();
   }
 
-  /** vet(ctx) — the single seam call: tree-clean → graph → wave → doc-contract.
-   *  The first refused gate owns the verdict; the gates that ran precede it (the
-   *  judgeable order). */
+  /** vet(ctx) — the single seam call: tree-clean → in-flight → graph → plan-ledger
+   *  → wave → doc-contract. The first refused gate owns the verdict; the gates that
+   *  ran precede it (the judgeable order). */
   async vet(ctx: PreFlightContext): Promise<PreFlightVerdict> {
     const gates: PreFlightGateName[] = [];
-    // 1. tree-clean — the hard gate all three verbs share: a dirty working tree
-    //    BLOCKs BEFORE any other judgment (review's baseline = the committed state). isClean is
-    //    fail-open-false (a non-repo counts dirty — the CDD flow needs git).
+    const checked: string[] = [];
+    // 1. tree-clean — the hard gate all three verbs share.
     gates.push("tree-clean");
+    checked.push("tree-clean");
     if (!(await this.#git.isClean(ctx.repoRoot))) {
-      return {
-        ok: false,
-        gate: "tree-clean",
-        reason: "dirty-tree",
-        message: this.#words.preflightWords().dirtyTree,
-        order: gates,
-      };
+      return this.#refusal(
+        {
+          ok: false,
+          gate: "tree-clean",
+          reason: "dirty-tree",
+          message: this.#words.preflightWords().dirtyTree,
+        },
+        gates,
+        checked,
+        this.#docOutcomeOf(ctx),
+        { kind: "no-ledger-facts" },
+      );
     }
-    // 2. graph — the wave/plan faces' structural gate: the plan's DependsOn
-    //    graph must validate (missing-edge / missing-id / self-loop / cycle) before
-    //    the dispatch reads it. The task-loss class dies here, never silently.
+    // 2. in-flight — the tree's dispatch fact (P21 §6.4). The gate judges ONLY: it
+    //    inspects the record + the holder's liveness and never touches the lock or
+    //    the record bytes. The acquire is the real dispatch path's write point (it
+    //    runs after this gate), so the preview's zero-write discipline holds.
+    gates.push("in-flight");
+    const inFlight = await ctx.inflight.inspect();
+    checked.push(this.#inFlightRow(inFlight));
+    const held = this.#inFlightRefusal(inFlight, ctx.stealStale === true);
+    if (held !== null) {
+      return this.#refusal(
+        {
+          ok: false,
+          gate: "in-flight",
+          reason: held.reason,
+          message: held.message,
+          holding: inFlight,
+        },
+        gates,
+        checked,
+        this.#docOutcomeOf(ctx),
+        { kind: "no-ledger-facts" },
+      );
+    }
+    // 3. graph — the wave/plan faces' structural gate.
     let graph: TaskGraph | null = null;
     if ((ctx.type === "wave" || ctx.type === "plan") && ctx.planText !== null) {
       gates.push("graph");
+      checked.push("graph");
       graph = new TaskGraph(new PlanDocType("plan").parse(ctx.planText.split("\n")));
       const issues = graph.validate();
       if (issues.length > 0) {
-        return {
-          ok: false,
-          gate: "graph",
-          reason: "graph",
-          message: this.#words.preflightWords().graph.replace("{count}", String(issues.length)),
-          details: issues.map((issue) => `${issue.kind}@T${issue.task}: ${issue.message}`),
-          order: gates,
-        };
+        return this.#refusal(
+          {
+            ok: false,
+            gate: "graph",
+            reason: "graph",
+            message: this.#words.preflightWords().graph.replace("{count}", String(issues.length)),
+            details: issues.map((issue) => `${issue.kind}@T${issue.task}: ${issue.message}`),
+          },
+          gates,
+          checked,
+          this.#docOutcomeOf(ctx),
+          { kind: "no-ledger-facts" },
+        );
       }
     }
-    // 3. wave — the three-verb unified wave gate (the task face's phase authority):
-    //    the requested `--tasks` must be EXACTLY the derived open wave at the verb's
-    //    phase. The refusal wording rides the wave-gate word-table rows.
+    // 4. plan-ledger — the ledger-scope rules (P21 §3.1/§6.4). Plan / wave / branch
+    //    dispatches run it; the doc-scope rules never do (two scopes, two entries).
+    //    A missing fact bundle is NOT a refusal: the rows render `skipped`.
+    let ledgerOutcome: LedgerOutcome = { kind: "no-ledger-facts" };
+    let ledgerInput: ContractInput | null = null;
+    if (ctx.type === "plan" || ctx.type === "wave" || ctx.type === "branch") {
+      gates.push("plan-ledger");
+      checked.push("plan-ledger");
+      const facts = this.#ledgerFactsOf(ctx, graph);
+      if (facts !== null) {
+        ledgerInput = this.#ledgerInputOf(ctx);
+        const findings = this.#contract.validateLedger(ledgerInput, facts);
+        ledgerOutcome = { kind: "judged", findings };
+        const ahead = LedgerTaskSetRule.planAhead(facts);
+        if (ahead > 0) {
+          checked.push(this.#words.checkedWords().planAhead.replace("{count}", String(ahead)));
+        }
+        if (findings.length > 0) {
+          return this.#refusal(
+            {
+              ok: false,
+              gate: "plan-ledger",
+              message: this.#words.preflightWords().planLedger,
+              details: findings.map(
+                (finding) => `${finding.kind}@${finding.field}: ${finding.message}`,
+              ),
+            },
+            gates,
+            checked,
+            this.#docOutcomeOf(ctx),
+            ledgerOutcome,
+          );
+        }
+      }
+    }
+    // 5. wave — the three-verb unified wave gate.
     if (ctx.type === "wave" && graph !== null && ctx.ledger !== null && ctx.tasks !== null) {
       gates.push("wave");
+      checked.push("wave");
       const verdict = this.#waveGate.vet(ctx.tasks, ctx.verb, graph, ctx.ledger, this.#words);
       if (!verdict.ok) {
-        return {
-          ok: false,
-          gate: "wave",
-          reason: verdict.reason,
-          message: verdict.message ?? "",
-          order: gates,
-        };
+        return this.#refusal(
+          {
+            ok: false,
+            gate: "wave",
+            reason: verdict.reason,
+            message: verdict.message ?? "",
+          },
+          gates,
+          checked,
+          this.#docOutcomeOf(ctx),
+          ledgerOutcome,
+        );
       }
     }
-    // 4. doc-contract — the doc faces' structural gate: the target doc must pass
-    //    Contract.validate (the interpreter's single judgment entry) before its
-    //    review/fix round dispatches. An unreadable doc carries no judgment (no
-    //    fabricated findings from an absent surface). A PRESENT doc carrying no
-    //    `doc-type:` key BLOCKs (spec §12 · D34: the declared type is
-    //    the one reading face, zero filename-suffix fallback).
+    // 6. doc-contract — the doc faces' structural gate (the doc-scope rules).
+    let docOutcome: DocOutcome = this.#docOutcomeOf(ctx);
     if (ctx.type === "spec" || ctx.type === "plan") {
       gates.push("doc-contract");
+      checked.push("doc-contract");
       const doc = ctx.doc;
-      // The relative `RepoPath` erases to the absolute syscall form through the ONE
-      // value object (the seam's OWN `RepoRoot(ctx.repoRoot)`) just before the read.
       const docAbsolute = doc === null ? null : new RepoRoot(ctx.repoRoot).resolve(doc.path);
       const content = docAbsolute === null ? null : this.#fs.read(docAbsolute);
       if (content !== null && doc !== null && docAbsolute !== null) {
-        // D1 (position-carrying error): a front-matter block the `yaml` engine cannot parse is
-        // BLOCKed with the REAL failure (line · column · reason) BEFORE the
-        // doc-type judgment — an unparseable head also reads no doc-type, so the
-        // parse check must precede the missing-key check (the misread fix: a
-        // `[`-led author line reports "invalid YAML", never "no doc-type").
         const { head } = FrontMatterExtractor.split(content);
         const parseError = head.parseError;
         if (parseError !== null) {
-          return {
-            ok: false,
-            gate: "doc-contract",
-            reason: "doc-contract",
-            message: this.#words
-              .routeWord("frontmatterParse")
-              .replace("{reason}", parseError.reason)
-              .replace("{line}", String(parseError.line))
-              .replace("{column}", String(parseError.column))
-              .replace("{source}", parseError.source),
-            order: gates,
-          };
+          return this.#refusal(
+            {
+              ok: false,
+              gate: "doc-contract",
+              reason: "doc-contract",
+              message: this.#words
+                .routeWord("frontmatterParse")
+                .replace("{reason}", parseError.reason)
+                .replace("{line}", String(parseError.line))
+                .replace("{column}", String(parseError.column))
+                .replace("{source}", parseError.source),
+            },
+            gates,
+            checked,
+            { kind: "not-judged" },
+            ledgerOutcome,
+          );
         }
         if (doc.docKey === null) {
-          // Two shapes, one gate: a head carrying no `doc-type:` key reads the
-          // missing-key word; a head carrying an out-of-domain value reads the
-          // word that names the value and lists the declared domain.
           const message =
             head.docType === null
               ? this.#words.routeWord("docType")
               : this.#words.docTypeValueWord(head.docType);
-          return {
-            ok: false,
-            gate: "doc-contract",
-            reason: "doc-contract",
-            message,
-            order: gates,
-          };
+          return this.#refusal(
+            { ok: false, gate: "doc-contract", reason: "doc-contract", message },
+            gates,
+            checked,
+            { kind: "not-judged" },
+            ledgerOutcome,
+          );
         }
-        // The identity gate (spec §2.1/§2.2) — same face, same carrier: the
-        // workspace key is the declared `slug:`, and the four-way judgment is the
-        // SAME `SlugIndex` one the board and the dispatch carrier read (one fact,
-        // one rule; this carrier supplies the pre-flight verdict shape only).
         const index = SlugIndex.build(ctx.repoRoot, this.#fs);
         const verdict = index.slugVerdict(doc.path, head.slug);
         if (verdict.kind !== "accepted") {
-          return {
-            ok: false,
-            gate: "doc-contract",
-            reason: "doc-contract",
-            message: this.#words.slugRefusal(verdict),
-            order: gates,
-          };
+          return this.#refusal(
+            {
+              ok: false,
+              gate: "doc-contract",
+              reason: "doc-contract",
+              message: this.#words.slugRefusal(verdict),
+            },
+            gates,
+            checked,
+            { kind: "not-judged" },
+            ledgerOutcome,
+          );
         }
         const findings = this.#contract.validate({
           docKey: doc.docKey,
           path: docAbsolute,
           content,
           root: ctx.repoRoot,
-          // The SAME index the identity gates above read — one scan per dispatch,
-          // and the contract's chain / slug-ref lookups judge the identical facts.
           slugIndex: index,
           fs: this.#fs,
         });
+        docOutcome = { kind: "judged", findings };
         if (findings.length > 0) {
-          return {
-            ok: false,
-            gate: "doc-contract",
-            reason: "doc-contract",
-            message: this.#words.preflightWords().docContract,
-            details: findings.map(
-              (finding) => `${finding.kind}@${finding.field}: ${finding.message}`,
-            ),
-            order: gates,
-          };
+          return this.#refusal(
+            {
+              ok: false,
+              gate: "doc-contract",
+              reason: "doc-contract",
+              message: this.#words.preflightWords().docContract,
+              details: findings.map(
+                (finding) => `${finding.kind}@${finding.field}: ${finding.message}`,
+              ),
+            },
+            gates,
+            checked,
+            docOutcome,
+            ledgerOutcome,
+          );
         }
+      } else {
+        docOutcome = { kind: "unreadable" };
       }
     }
-    return { ok: true, order: gates };
+    return {
+      ok: true,
+      order: gates,
+      checked: [...checked, ...this.#ruleRows(docOutcome, ledgerOutcome)],
+    };
+  }
+
+  /** The in-flight gate's refusal — the three-state judgment + the explicit takeover
+   *  flag. A live holder is always refused (the flag never crosses "alive"); a dead
+   *  holder or a corrupt-record-with-lock passes only under `stealStale`; a corrupt
+   *  record with no lock behind it is no holder at all (pass, named on the row). */
+  #inFlightRefusal(
+    state: InFlightState,
+    stealStale: boolean,
+  ): { readonly reason: PreFlightReason; readonly message: string } | null {
+    if (state.kind === "held") {
+      if (state.alive) {
+        return {
+          reason: "held",
+          message: this.#words.inFlightBlocked(state.record, true),
+        };
+      }
+      if (stealStale) return null;
+      return {
+        reason: "held",
+        message: this.#words.inFlightBlocked(state.record, false),
+      };
+    }
+    if (state.kind === "corrupt" && state.locked && !stealStale) {
+      return {
+        reason: "corrupt-record",
+        message: this.#words.inFlightWords().corruptLocked,
+      };
+    }
+    return null;
+  }
+
+  /** The in-flight gate's checked row — `in-flight: <judged state>` (the ONE gate
+   *  row that names its state; the takeover flag never rewrites the fact, it only
+   *  lets the gate pass). */
+  #inFlightRow(state: InFlightState): string {
+    const rows = this.#words.checkedWords().inFlight;
+    if (state.kind === "absent") return `in-flight: ${rows.free}`;
+    if (state.kind === "corrupt")
+      return `in-flight: ${state.locked ? rows.corruptLocked : rows.corruptUnlocked}`;
+    return `in-flight: ${(state.alive ? rows.held : rows.stale).replace(
+      "{pid}",
+      String(state.record.pid),
+    )}`;
+  }
+
+  /** Assemble the refusal verdict — the gates/checked rows accumulated so far, plus
+   *  the per-rule rows of the judgment outcomes reached (one carrier shape). */
+  #refusal(
+    verdict: Omit<PreFlightVerdict, "order" | "checked">,
+    gates: readonly PreFlightGateName[],
+    checked: readonly string[],
+    doc: DocOutcome,
+    ledger: LedgerOutcome,
+  ): PreFlightVerdict {
+    return {
+      ...verdict,
+      order: gates,
+      checked: [...checked, ...this.#ruleRows(doc, ledger)],
+    };
+  }
+
+  /** The doc-scope outcome of a dispatch — "no doc target" on the doc-less faces
+   *  (wave / branch), "not judged" when the doc-contract gate never ran. The `judged`
+   *  outcome is assigned by the doc-contract gate itself (the one gate that judges). */
+  #docOutcomeOf(ctx: PreFlightContext): DocOutcome {
+    if (ctx.type === "wave" || ctx.type === "branch") return { kind: "no-doc-target" };
+    return { kind: "not-judged" };
+  }
+
+  /** The checked rows of the rule declaration surface — one line per declaration,
+   *  rendered ONCE (a rule crossing two gates never appears twice). */
+  #ruleRows(doc: DocOutcome, ledger: LedgerOutcome): string[] {
+    const words = this.#words.checkedWords();
+    const rows: string[] = [];
+    for (const declaration of Contract.ruleRows()) {
+      if (declaration.scope === "doc") {
+        if (doc.kind === "no-doc-target")
+          rows.push(`${declaration.id}: ${words.skippedNoDocTarget}`);
+        else if (doc.kind === "not-judged")
+          rows.push(`${declaration.id}: ${words.skippedNotJudged}`);
+        else if (doc.kind === "unreadable")
+          rows.push(`${declaration.id}: ${words.skippedUnreadableDoc}`);
+        else
+          rows.push(
+            `${declaration.id}: ${
+              doc.findings.some((finding) => finding.kind === declaration.id)
+                ? words.failed
+                : words.passed
+            }`,
+          );
+        continue;
+      }
+      if (ledger.kind === "no-ledger-facts") {
+        rows.push(`${declaration.id}: ${words.skippedNoLedgerFacts}`);
+      } else {
+        rows.push(
+          `${declaration.id}: ${
+            ledger.findings.some((finding) => finding.kind === declaration.id)
+              ? words.failed
+              : words.passed
+          }`,
+        );
+      }
+    }
+    return rows;
+  }
+
+  /** The ledger fact bundle of one dispatch — built from the ledger, the plan text
+   *  and the plan's topological layers. Null when either fact source is absent
+   *  (the gate then renders `skipped (no ledger facts)`). */
+  #ledgerFactsOf(ctx: PreFlightContext, graph: TaskGraph | null): LedgerFacts | null {
+    const ledger = ctx.ledger;
+    if (ledger === null || ctx.planText === null) return null;
+    const parsed = new PlanDocType("plan").parse(ctx.planText.split("\n"));
+    const planTasks = parsed.taskBlocks.map((block) => block.id);
+    const layers = (graph ?? new TaskGraph(parsed)).batches();
+    const data = ledger.readProgress();
+    const recorded = this.#recordedTasksOf(data);
+    const closed = ledger.closedWaves();
+    const closedWaves = (data?.waves ?? [])
+      .map((row) => this.#taskIdsOf(row.wave))
+      .filter((ids) => ids.length > 0 && ids.every((id) => closed.has(id)));
+    return {
+      planTasks,
+      recordedTasks: recorded,
+      closedWaves,
+      // The wave rows' closure-time plan-task snapshots (P21 §5.1) — read from the
+      // SAME ledger face the wave gate's append judgment reads (zero second source).
+      snapshots: this.#snapshotsOf(data),
+      layers,
+    };
+  }
+
+  /** The wave rows' plan-task snapshots — one entry per TASK wave row carrying a
+   *  snapshot (an absent snapshot is a historical row, not an empty set). The
+   *  snapshot is read off the row already in hand: the same field `Ledger#planTasksOf`
+   *  returns, one file read for the whole set instead of one per row. */
+  #snapshotsOf(
+    data: ProgressData | null,
+  ): readonly { readonly wave: string; readonly planTasks: readonly number[] }[] {
+    const snapshots: { wave: string; planTasks: readonly number[] }[] = [];
+    for (const row of data?.waves ?? []) {
+      if (this.#taskIdsOf(row.wave).length === 0) continue;
+      const planTasks = row.planTasks;
+      if (planTasks !== undefined) snapshots.push({ wave: row.wave, planTasks });
+    }
+    return snapshots;
+  }
+
+  /** The task ids the ledger recorded at least one round for (the recorded set of
+   *  the plan/ledger agreement rule). Only TASK waves count: a doc/branch line row
+   *  (keyed `"plan"` / `"spec"` / `"branch"`) is not a task id. */
+  #recordedTasksOf(data: ProgressData | null): readonly number[] {
+    const recorded: number[] = [];
+    for (const row of data?.waves ?? []) {
+      if (!row.rounds) continue;
+      const hasRound = Object.values(row.rounds).some((cycles) => cycles.length > 0);
+      if (!hasRound) continue;
+      recorded.push(...this.#taskIdsOf(row.wave));
+    }
+    return recorded;
+  }
+
+  /** A wave key's task ids — the numeric-only reading (a non-numeric line key yields
+   *  no task ids; the ledger rules judge TASK waves, never doc/branch line rows). */
+  #taskIdsOf(waveKey: string): readonly number[] {
+    const ids: number[] = [];
+    for (const part of waveKey.split(",")) {
+      const id = Number(part);
+      if (Number.isInteger(id) && id > 0) ids.push(id);
+    }
+    return ids;
+  }
+
+  /** The ledger judgment's input document — the plan under judgment (the ledger rules
+   *  are declared plan-only; the other facts ride `LedgerFacts`). */
+  #ledgerInputOf(ctx: PreFlightContext): ContractInput {
+    return {
+      docKey: "plan",
+      path: ctx.doc?.path ?? "",
+      content: ctx.planText ?? "",
+      root: ctx.repoRoot,
+      fs: this.#fs,
+    };
   }
 }

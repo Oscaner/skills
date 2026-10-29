@@ -15,14 +15,18 @@
 // The module exports the shared seams + the lifecycle class — zero behavior-carrying
 // bare functions.
 
+import { readFileSync } from "node:fs";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
+import { GitClient } from "../infra/git.ts";
+import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
 import type { RepoRoot } from "../infra/root.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
 import type { CarrierPlane } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
+import { InFlight, type InFlightRecord } from "../session/inflight.ts";
 import type { CrashCause, Ledger, OpType, RoundStatus, Termination } from "../session/ledger.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
@@ -110,6 +114,23 @@ export class CliLifecycle {
   /** The handoff-schema face — stateless, one shared instance (the read-back
    *  validator + the injected prompt text). */
   readonly #handoffSchema = new HandoffSchema();
+  /** The in-flight record handle of this dispatch's workspace root — the ONE write
+   *  point of the running dispatch (acquire before the spawn, release at the normal
+   *  end; a crash leaves the record behind). */
+  readonly #inflight: InFlight;
+  /** The git read face — the crash record's `dispatchBase` / `commitsSince` facts. */
+  readonly #git: GitClient;
+  /** The recorded side of the liveness judgment — the holder pid's own start instant
+   *  (`ProcessFacts.startOf`; injected by the tests to span a long session). */
+  readonly #proc: ProcessStartReader;
+  /** Whether this invocation asked to take over a dead holder's record (the
+   *  `--steal-stale` flag — the only takeover path). */
+  readonly #stealStale: boolean;
+  /** The HEAD the current dispatch started from (null off a repo / before a spawn) —
+   *  the postmortem baseline of `commitsSince`. */
+  #dispatchBase: string | null = null;
+  /** The commits added after `#dispatchBase` (computed once the child returned). */
+  #commitsSince: readonly string[] = [];
   /** The current dispatch's child-stdout diagnostic tail (the crash-record channel,
    *  P11 T2) — set in #dispatch after the child returns, read by #reject. The child's
    *  Return is prose; the engine never parses it — this is the failure channel only. */
@@ -123,10 +144,19 @@ export class CliLifecycle {
     scene: DispatchScene;
     reviews?: string | null;
     words?: Words;
+    inflight?: InFlight;
+    git?: GitClient;
+    proc?: ProcessStartReader;
+    stealStale?: boolean;
   }) {
     this.#env = opts.env ?? process.env;
     this.#scene = opts.scene;
     this.#naming = new RoundNaming(opts.scene.workspace);
+    this.#inflight =
+      opts.inflight ?? new InFlight(opts.scene.workspace.root, opts.scene.workspace.slug);
+    this.#git = opts.git ?? new GitClient();
+    this.#proc = opts.proc ?? ProcessFacts;
+    this.#stealStale = opts.stealStale ?? false;
     this.#sync = opts.sync ?? new Terminator();
     this.#template = opts.template ?? new TemplateAssembler();
     this.#words = opts.words ?? new Words();
@@ -166,6 +196,13 @@ export class CliLifecycle {
     const cliName = row.cli;
     const args = [...row.invoke.split(" ").filter((part) => part.length > 0)];
     const ref = this.#skillRef(host, frame);
+    // The dispatch's ONE write point: publish the intent BEFORE the child exists, so
+    // any later crash / kill / timeout leaves a record naming who was running. The
+    // gates read `InFlight.inspect()` only — this call is the real dispatch's alone.
+    // A sibling dispatch that won the lock in between makes `acquire` throw
+    // `HoldingError` (carrying the holder's facts), which rides the CLI's held BLOCK.
+    this.#dispatchBase = await this.#git.head(this.#scene.workspace.root.repoRoot);
+    await this.#inflight.acquire(await this.#recordOf(frame), { stealStale: this.#stealStale });
     // The child receives ONE prompt argument — per the host's promptForm data column
     // (§3.5): the ref-prefixed form embeds the slash ref at the start of the single
     // prompt positional (claude -p consumes the whole first positional as the prompt;
@@ -174,18 +211,24 @@ export class CliLifecycle {
     const result = await this.#sync.run({
       command: cliName,
       args: [...args, this.#childPrompt(row.promptForm, ref, prompt)],
-      // The two paths the dispatch needs share ONE source (this workspace, held only
-      // here): the child's spawn directory is the repo root, and the heartbeat lands
-      // in this dispatch's workspace. The same `cwd` is also the tree-leg scan root,
-      // and the heartbeat path is the sampler's own write — the scan root ≡ child cwd
-      // correspondence is structural, never a convention.
+      // The child's spawn directory is the repo root; the in-flight record handle
+      // carries the sampler's own write path (the record is the ONE trail, and its
+      // path is the tree leg's exclusion). The same `cwd` is also the tree-leg scan
+      // root, so the scan root ≡ child cwd correspondence is structural.
       cwd: this.#scene.workspace.root.repoRoot,
-      heartbeatPath: this.#scene.workspace.resolve("liveness.json"),
+      inflight: this.#inflight,
       policy: TerminationPolicy.of(frame.phase),
       // The host row's own child env — the TTL pin the terminator layers over the
       // inherited env at spawn (the host difference is data, never a dispatcher branch).
       env: row.env,
     });
+    // The postmortem pair's second leg: what the (possibly crashed) child added on top
+    // of the dispatch baseline. Computed ONCE here, so every reject path below writes
+    // the same facts without a second git read.
+    this.#commitsSince = await this.#git.commitsSince(
+      this.#scene.workspace.root.repoRoot,
+      this.#dispatchBase,
+    );
     // The child's stdout rides the diagnostic channel — #reject reads it into the
     // crash record on either failure face. Child Return is prose: the engine never
     // parses it; the round's content is the OUTPUT_HANDOFF draft, read in #reconstruct.
@@ -226,7 +269,57 @@ export class CliLifecycle {
         { exitCode: result.code, cause: "child-exit", termination: null },
       );
     }
-    return this.#reconstruct(frame);
+    // The normal end: the child finished on its own and its handoff was read back —
+    // the ONE release point. The rejections of this path (a missing / malformed draft,
+    // an evidence violation) still release: the CHILD did not die, the round's artifacts
+    // were judged. The record survives only the round-ending paths above (a non-zero
+    // child exit, a kill, a timeout) and an uncaught throw — i.e. the process-death
+    // paths the record exists for.
+    const outcome = this.#reconstruct(frame);
+    await this.#inflight.release();
+    return outcome;
+  }
+
+  /** The in-flight record of one frame — the identity facts written before the spawn.
+   *  `pid` is the dispatching engine process, the command is the same-command resume
+   *  form, and the brief hash is computed NOW from the rendered brief (the ledger's ONE
+   *  hash face — never a new hash surface).
+   *  `startedAt` is the recorded pid's OWN start instant (`ProcessFacts.startOf`), the
+   *  instant `ProcessFacts.live` compares against: the dispatch instant drifts away
+   *  from it, and on a session older than the tolerance that drift would judge a live
+   *  holder dead — the one direction the guard must never take. The dispatch instant
+   *  is only the fallback when the process table cannot answer, and an unreadable
+   *  start time then folds to "alive" on the read side (never to a takeover). */
+  async #recordOf(frame: OpenFrame): Promise<InFlightRecord> {
+    const scene = this.#scene;
+    return {
+      pid: process.pid,
+      command: this.#resumeOf(frame),
+      slug: scene.workspace.slug,
+      startedAt: (await this.#proc.startOf(process.pid)) ?? Date.now(),
+      wave: frame.type === "wave" ? (frame.params.tasks ?? null) : null,
+      phase: frame.phase,
+      briefHash: this.#briefHashOf(frame),
+      plan: scene.planPath === null ? null : this.#rel(scene.planPath),
+      sampledAt: null,
+      verdict: null,
+    };
+  }
+
+  /** The wave frame's brief hash at acquire time — `ReviewRefs.briefRevision` over the
+   *  brief file this dispatch rendered (the SAME hash face the ledger binds as the
+   *  reviewed revision). Computed independently of the ledger's records, so a wave's
+   *  FIRST dispatch (no `brief-revision` row yet) still carries the hash. Null off the
+   *  wave face and when the brief is not on disk yet. */
+  #briefHashOf(frame: OpenFrame): string | null {
+    const scene = this.#scene;
+    if (frame.type !== "wave" || scene.planPath === null || scene.briefPath === null) return null;
+    try {
+      const brief = readFileSync(scene.briefPath, "utf8");
+      return scene.ledger.refs().briefRevision(this.#rel(scene.planPath), brief).brief_hash;
+    } catch {
+      return null;
+    }
   }
 
   /** The work-mode of a frame phase — branch-review rides the review family. The
@@ -465,7 +558,7 @@ export class CliLifecycle {
       verdict: termination.lastSample?.verdict ?? "none",
       count: findings.length,
     });
-    this.#io.stderr(`${this.#words.station("warn")} ${text}\n`);
+    this.#io.stderr(`${this.#words.station("warn")} ${text} — ${this.#words.lateLandingHint()}\n`);
     return { ...outcome, termination };
   }
 
@@ -616,7 +709,10 @@ export class CliLifecycle {
             idleMs: death.termination.idleMs,
             verdict: death.termination.lastSample?.verdict ?? "none",
           });
-    this.#io.stderr(`CDD_BLOCKED: ${reason}${detail}\n`);
+    // Every cut-short round (kill · timeout · crash) carries the late-landing hint: the
+    // child may still write after the engine stopped watching, and the recovery starts
+    // from the working tree, never from the assumption that nothing landed.
+    this.#io.stderr(`CDD_BLOCKED: ${reason}${detail} — ${this.#words.lateLandingHint()}\n`);
     if (death.termination === null) return { status: "BLOCKED" };
     return { status: "TIMEOUT", termination: death.termination };
   }
@@ -636,11 +732,10 @@ export class CliLifecycle {
     },
     promoted: boolean,
   ): void {
-    const op = this.#opOf(frame);
     // The cause rides the termination fact when one is present (one of the three
     // causes or the `unknown` fallback); without it, the caller's own cause.
     const cause: CrashCause = death.termination?.cause ?? death.cause;
-    this.#scene.ledger.writeCrash(`${op}.${frame.type}`, frame.round, {
+    this.#scene.ledger.writeCrash(this.#naming.crashName(frame), {
       exitCode: death.exitCode,
       stderrTail: [reason],
       stdoutTail: this.#stdoutTail,
@@ -650,10 +745,14 @@ export class CliLifecycle {
       next: this.#resumeOf(frame),
       cause,
       // The last sample rides WITH the termination (in memory, zero re-read of the
-      // heartbeat file) — null on every non-terminated face.
+      // in-flight record) — null on every non-terminated face.
       lastSample: death.termination?.lastSample ?? null,
       promoted,
       idleMs: death.termination?.idleMs ?? null,
+      // The postmortem's git facts: the HEAD the dispatch started from and whatever
+      // the (possibly crashed) child committed before it died.
+      dispatchBase: this.#dispatchBase,
+      commitsSince: this.#commitsSince,
     });
     // P14 — the sole contractViolationCount write seam: observe the FINAL crash
     // cause (termination override wins). Never keyed off status === "BLOCKED".

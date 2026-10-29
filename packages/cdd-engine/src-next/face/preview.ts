@@ -19,11 +19,13 @@
 
 import process from "node:process";
 import type { RepoRoot } from "../infra/root.ts";
+import type { InFlightState } from "../session/inflight.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { OpenFrame } from "../session/run.ts";
 import type { CliVerb } from "./declare.ts";
 import { HOSTS, HostDetect, type HostId } from "./host.ts";
 import type { DispatchScene, ProcessEnvLike } from "./lifecycle.ts";
+import { Words } from "./words.ts";
 
 /** The preview row's label column width — `  ` + the label padded to this width +
  *  one space places every value at the same column (`would record:` — the longest
@@ -44,11 +46,15 @@ export class Preview {
   /** The detected host id ("" when no harness marker matched) — read by the `child:`
    *  row only. */
   readonly #host: HostId | "";
+  /** The held-face wording rows (the lock row + the takeover hint) — the SAME rows
+   *  the pre-flight gate and the board fill, never a preview-only paraphrase. */
+  readonly #words: Words;
 
-  constructor(opts: { scene: DispatchScene; env?: ProcessEnvLike }) {
+  constructor(opts: { scene: DispatchScene; env?: ProcessEnvLike; words?: Words }) {
     this.#scene = opts.scene;
     this.#naming = new RoundNaming(opts.scene.workspace);
     this.#host = HostDetect.detect(opts.env ?? process.env);
+    this.#words = opts.words ?? new Words();
   }
 
   /** The invocation's stdout block — the header plus the five rows (§3.3). Every
@@ -70,6 +76,26 @@ export class Preview {
     ];
   }
 
+  /** The read-only held block — the in-flight gate REFUSED this dispatch: the preview
+   *  renders the gate's own holder facts as a `lock:` row (the dead holder carries the
+   *  takeover hint), exits 1 at the caller, and touches nothing: no acquire, no steal,
+   *  no release. The `--steal-stale` flag has no write channel here. */
+  heldBlock(verb: CliVerb, state: InFlightState): readonly string[] {
+    const lines = [`cdd ${verb}: preview (no repo changes)`, `  lock: ${this.#lockValueOf(state)}`];
+    if (state.kind === "held" && !state.alive) lines.push(this.#words.inFlightWords().stealable);
+    if (state.kind === "corrupt" && state.locked)
+      lines.push(this.#words.inFlightWords().corruptLocked);
+    return lines;
+  }
+
+  /** The `lock:` row's value — the holder's identity facts, the lock-without-record
+   *  shape, or the free state (one row, three facts). */
+  #lockValueOf(state: InFlightState): string {
+    if (state.kind === "held") return this.#words.inFlightLock(state.record);
+    if (state.kind === "corrupt") return this.#words.inFlightWords().lockOnly;
+    return this.#words.inFlightWords().free;
+  }
+
   /** The next dispatch step's identity — `<phase> round <round> — <target>`, the
    *  target being the wave unit (`wave 1,2`) or the line's own type word. */
   #stepOf(frame: OpenFrame): string {
@@ -87,13 +113,20 @@ export class Preview {
    *  it, so the row states what that render would produce) and the doc/branch faces'
    *  judged document. */
   #readsOf(frame: OpenFrame): string {
-    if (frame.target.kind === "wave") {
-      const brief = this.#rel(this.#naming.brief(frame.target.tasks.join(",")));
-      return `${brief} (would re-render from the current plan)`;
-    }
-    if (frame.target.kind === "plan" || frame.target.kind === "spec")
-      return this.#rel(frame.target.doc);
-    return this.#rel(this.#scene.planPath ?? "");
+    const base =
+      frame.target.kind === "wave"
+        ? `${this.#rel(this.#naming.brief(frame.target.tasks.join(",")))} (would re-render from the current plan)`
+        : frame.target.kind === "plan" || frame.target.kind === "spec"
+          ? this.#rel(frame.target.doc)
+          : this.#rel(this.#scene.planPath ?? "");
+    return `${base}${this.#orphanSuffix()}`;
+  }
+
+  /** The orphan handoff drafts the workspace carries — a draft no recorded round
+   *  owns is listed on the `reads:` row (the preview reads it, never touches it). */
+  #orphanSuffix(): string {
+    const orphans = this.#scene.ledger.orphanHandoffs();
+    return orphans.length === 0 ? "" : ` · orphan drafts: ${orphans.join(" · ")}`;
   }
 
   /** The artifacts the round would write — the frame's prescribed output set (the

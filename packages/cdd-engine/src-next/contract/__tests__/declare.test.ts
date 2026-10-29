@@ -404,6 +404,7 @@ describe("RegistryGuard type guards", () => {
       valuePattern: "^## Goal$",
       refKind: "none",
       home: "facet",
+      selector: { from: "root", walk: "heading", match: "## Goal" },
     } satisfies RegistryElement;
     expect(RegistryGuard.isElement(element)).toBe(true);
 

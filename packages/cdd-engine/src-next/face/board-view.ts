@@ -38,6 +38,7 @@ import { ENGINE_RUNTIME } from "../infra/runtime.ts";
 import { type DocEntry, SlugIndex, type SlugRole } from "../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { TaskGraph } from "../session/graph.ts";
+import type { InFlightState } from "../session/inflight.ts";
 import { Ledger, type ProgressData } from "../session/ledger.ts";
 import { NextStepRouter, type PipelineFaceReport } from "../session/next.ts";
 import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
@@ -206,18 +207,48 @@ export class BoardView {
     };
   }
 
-  /** roundsCell(rounds) — the line's `implement×N · review×N · fix×N` cell text. Each
-   *  `×N` is the CYCLE-NUMBER array's element count (D28 identity — `[1,3]` → `×2`),
-   *  never the stored number: a non-array (the retired numeric form) contributes no
-   *  cell. Verbs render in the fixed board order; an out-of-order verb appends after. */
+  /** roundsCell(rounds) — the line's `implement×1,2 · review×1,3 · fix×2,3` cell
+   *  text. Each `×` cell renders the stored CYCLE NUMBERS (D28 identity: `[1,3]` is
+   *  the 1st and the 3rd round, never "2 rounds"). A non-array (the retired numeric
+   *  form) contributes no cell. Verbs render in the fixed board order; an
+   *  out-of-order verb appends after. */
   static roundsCell(rounds: Record<string, number[]>): string {
     const cells: string[] = [];
     const verbs = [...VERB_ORDER, ...Object.keys(rounds).filter((v) => !VERB_ORDER.includes(v))];
     for (const verb of verbs) {
       const value = rounds[verb];
-      if (Array.isArray(value) && value.length > 0) cells.push(`${verb}×${value.length}`);
+      if (Array.isArray(value) && value.length > 0) cells.push(`${verb}×${value.join(",")}`);
     }
     return cells.join(" · ");
+  }
+
+  /** inFlightRows(state, orphans, words) — the tree's dispatch fact + the
+   *  workspace's orphan handoff drafts, as board lines. The held row names the
+   *  holder's identity facts; a DEAD holder adds the takeover hint. The free and
+   *  corrupt rows are the word table's declared rows — the board's hint is the same
+   *  bytes the preview face and the gate print (one vocabulary, never a board
+   *  literal). The orphan rows are the drafts no recorded round owns — the board
+   *  lists them, never writes or deletes them. */
+  static inFlightRows(
+    state: InFlightState,
+    orphans: readonly string[],
+    words: Words,
+  ): readonly string[] {
+    const rows: string[] = [];
+    if (state.kind === "held") {
+      const record = state.record;
+      const dead = state.alive ? "" : ` — ${words.inFlightWords().stealable}`;
+      rows.push(
+        `  in-flight: pid ${record.pid} · command: ${record.command} · started: ${new Date(record.startedAt).toISOString()} · wave: ${record.wave ?? "none"} · slug: ${record.slug}${dead}`,
+      );
+    } else if (state.kind === "corrupt") {
+      const inFlight = words.inFlightWords();
+      rows.push(`  in-flight: ${state.locked ? inFlight.corruptLocked : inFlight.corruptUnlocked}`);
+    } else {
+      rows.push(`  in-flight: ${words.checkedWords().inFlight.free}`);
+    }
+    for (const orphan of orphans) rows.push(`  orphan: ${orphan} — no recorded round owns it`);
+    return rows;
   }
 
   // -------------------------------------------------------------------------
@@ -242,6 +273,7 @@ export class BoardView {
     words: Words,
     host: string,
     channels: Readonly<Record<string, RouteChannelRow>> = {},
+    holding: InFlightState = { kind: "absent" },
   ): BoardRender {
     const lines: string[] = [`cdd board: ${entry.slug ?? "(none)"}`, ""];
     // The repo-basis value object — constructed ONCE at this boundary, the ONE
@@ -253,7 +285,7 @@ export class BoardView {
     const exitCode =
       entry.docType === "overall"
         ? BoardView.#programBoard(lines, index, entry, root)
-        : BoardView.#nodeBoard(lines, index, entry, root, words, host, channels);
+        : BoardView.#nodeBoard(lines, index, entry, root, words, host, channels, holding);
     lines.push("", PROGRESS_LEGEND.board);
     return { lines, exitCode };
   }
@@ -272,11 +304,17 @@ export class BoardView {
     words: Words,
     host: string,
     channels: Readonly<Record<string, RouteChannelRow>>,
+    holding: InFlightState,
   ): number {
     const repoRoot = root.absolute;
     const sources = BoardView.#nodeSources(index, entry);
     const nodeSlug = BoardView.#validSlug(entry);
     const ledger = nodeSlug === null ? null : BoardView.#ledgerOf(nodeSlug, repoRoot);
+    // The tree's dispatch fact + the node workspace's orphan drafts render before the
+    // line rows (a reader answers "is anyone working here?" before reading progress).
+    const orphans = ledger?.orphanHandoffs() ?? [];
+    for (const row of BoardView.inFlightRows(holding, orphans, words)) lines.push(row);
+    if (holding.kind !== "absent" || orphans.length > 0) lines.push("");
     const progress = ledger?.readProgress() ?? null;
     const overallSlug = BoardView.#validSlug(sources.overall);
     const overallProgress =
@@ -424,7 +462,7 @@ export class BoardView {
   }
 
   /** One doc line's cell text — the doc path, the header facts and the line's
-   *  rounds (spec §5.3: `overall  <path>  v2.33 · Draft   review×4`); a violated
+   *  rounds (spec §5.3: `overall  <path>  v2.33 · Draft   review×1,2`); a violated
    *  line renders its `(BLOCKED)` marker in place of the facts (blocked = true).
    *  An absent doc renders `(none)` (degradation, never a throw). The doc path
    *  renders repoRoot-relative through the ONE value object (D47). */

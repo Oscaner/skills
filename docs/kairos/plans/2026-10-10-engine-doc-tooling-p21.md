@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 实施计划：引擎作为唯一读写路径
 doc-type: plan
-version: v0.14
+version: v0.15
 date: 2026-10-28
 slug: 2026-10-10-engine-doc-tooling-p21
 base: develop
@@ -553,3 +553,4 @@ base: develop
 | v0.12 | 2026-10-28 | **Task 10 重写（W4 implement blocker 报告 + spec v0.16）**：身份与定位分离（`anchor` 不动，新增 `selector`）· selector 可组合（八种 walk + 四守卫 + `from` 父链）· 覆盖矩阵 114/114 入验收 · pin 分两类（语义 pin 不动、四组扫描行为 pin 逐条重锚并点名）· 新增 `selector-coverage.test.ts` 与 `markdown-tree.test.ts` 两个落点 | [human] · Claude（kairos:cdd-dev · blocker backfill · 2026-10-28） |
 | v0.13 | 2026-10-28 | **追加 Task 11：`next:` skill-ref 措辞与 skill 面收敛（用户裁定）**——ref 渲染改 `route to {ref} skill`（literal/done 不变）；四份 SKILL.md 不再复述 `next:` 语义（引擎输出契约不该在 skill 侧再声明一次），节点只留一行指针；Invariants 收敛。Task 8 依赖加 11 | [human] · Claude（kairos:cdd-dev · 2026-10-28） |
 | v0.14 | 2026-10-29 | **branch-review-1 回填（plan 写权 + spec v0.18）**：① Task 2 `Produces` 删 `maxRecordedTask`（v0.10 的判据改动后已死值，实现面早已不携带） ② Task 8 冻结面 checkable 与 Acceptance 由「依赖清单逐字八项」改为「八条声明的 OS 面行逐条在册 + 零 `pidusage`」，另加 Task 9/10 引入的 AST 依赖（计划分两期追加，八项判据对 13 项清单不可满足） ③ Task 10 增「值形面三处登记变更」（与 spec §7.5.3 同一登记：两格证据追记形 · 收紧的 soft-edge token），身份 pin 表述收窄为键集 / `required[]` / 骨架槽位 / finding `field:` · ④ `InFlight.acquire` 增**活持有者兜底自查**（写序改为 marker → 接管 → 自查 → lock → 记录；门是主守卫，自查是类自身的兜底，spec §2.2 同批登记） | [human] · Claude（kairos:cdd-dev · branch-review-1 backfill · 2026-10-29） |
+| v0.15 | 2026-10-29 | **closeout（cdd-close）**：十一任务六波全绿（W1={1,2,3} · W2={4,5,7} · W3={6,9} · W4={10} · W5={11} · W6={8}）；关键提交 `64c5941f`（原子写 · 进程事实 · 规则声明面与行身份）· `0808edf5`（`InFlight` 记录 · 崩溃身份 · 波关闭）· `f2b2af20`（in-flight 门 + 计划任务块）· `af9a02a0`（全契约面单一 `MarkdownTree`）· `1745ed8c`（`next:` skill-ref 指令句）；分支终审 REVIEW_FIX → branch-fix-1 **APPROVED**（`653f1fb9`）。验收 `env -u AI_AGENT pnpm run validate` ALL PASS（root 10/10 · kairos 84/84 · cdd-engine 1041/1041 · typecheck ×3 · version-sync kairos 1.3.1 / cdd-engine 4.2.0）；changeset cdd-engine minor + kairos patch pending，不发布 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-10-29） |

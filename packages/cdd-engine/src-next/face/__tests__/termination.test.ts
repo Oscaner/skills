@@ -219,12 +219,23 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     // The discriminating-power positive: a child whose process group keeps burning
     // CPU is `progress` on every tick — the judge never rules `stalled`, no kill
     // fires, and the round ends by itself (exit 0, no termination).
+    //
+    // Two host-independence pins ride here. The burn is bounded by WALL time, not by
+    // a loop count (a fixed iteration count spends a machine-dependent amount of
+    // CPU); and the injected stall window stays above the coarsest `ps` resolution —
+    // a `time=` reading is whole seconds where `ps` is the Linux face, so a window
+    // shorter than a second sees two ticks between CPU-time crossings and rules a
+    // busy child stalled. The window is far above one second; the child burns three.
+    const burnMs = 3000;
     const result = await runner.run(
       childRun(
         scratch(),
-        "sh",
-        ["-c", "i=0; while [ $i -lt 4000000 ]; do i=$((i + 1)); done; echo busy-done"],
-        new TerminationPolicy(60_000, 300, 60),
+        process.execPath,
+        [
+          "-e",
+          `const end = Date.now() + ${burnMs}; while (Date.now() < end) {} console.log("busy-done");`,
+        ],
+        new TerminationPolicy(60_000, 5000, 100),
       ),
     );
     expect(result.termination).toBeNull();

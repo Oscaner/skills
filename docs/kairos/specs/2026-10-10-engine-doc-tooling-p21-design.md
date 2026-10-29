@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P21 设计：引擎作为唯一读写路径
 doc-type: phase-spec
-version: v0.18
+version: v0.19
 date: 2026-10-27
 slug: 2026-10-10-engine-doc-tooling-p21
 program: 2026-10-10-engine-doc-tooling
@@ -377,3 +377,4 @@ pipeline 的 **skill-ref** 渲染为 `route to {ref} skill`（`literal` 命令�
 | v0.16 | 2026-10-28 | **T10 设计重写（W4 implement 的 blocker 报告触发）**：三条裁定入 §7.5——① **身份与定位分离**（`anchor` 是身份：schema 键 / `required[]` / 骨架真值表 / lint 查表 / finding `field:`；`selector` 只是定位，消费者可见面零变化）② **selector 可组合**（`from` 根或父 · `walk` 八种 · `when` 四守卫），覆盖 114 元素里那 36 个行/单元格/token/step/条件元素，并以**覆盖矩阵 114/114** 作验收 ③ **pin 分两类**（语义 pin 不动；扫描行为 pin 逐条重锚并在提交里点名） | [human] · Claude（kairos:cdd-dev · blocker backfill · 2026-10-28） |
 | v0.17 | 2026-10-28 | **§8：`next:` skill-ref 改 `route to {ref} skill`（用户裁定）**；四份 SKILL.md 删去 `next:` 语义复述（引擎输出契约不在 skill 侧二次声明）、只留指针 + 编排器义务；Invariants 同批收敛 | [human] · Claude（kairos:cdd-dev · 2026-10-28） |
 | v0.18 | 2026-10-29 | **branch-review-1 回填（值形面三处登记 + `acquire` 兜底自查）**：① §7.5.1 的「`cdd schema get <type>` 字节一律不动」收窄为**身份面零变化**（键集 / `required[]` / 骨架槽位集 / finding `field:` 值），值形面（`valuePattern` 的接受范围）另立登记 ② §7.5.3 登记三处 deliberate refinement——两个 Phase-inventory 单元格接受证据追记形 `✔ Done（…） <prose>`（两形在 selector 迁移前是死值，不改域就会让仓内 overall 自身违契）· `Soft edge` 收紧为必须带目标 token（仓内零消费者）；三条均落在既有 pin 上 · ③ §2.2 登记 `acquire` 的活持有者兜底自查（写序 marker → 接管 → 自查 → lock → 记录；门是主守卫，自查是类自身的兜底） | [human] · Claude（kairos:cdd-dev · branch-review-1 backfill · 2026-10-29） |
+| v0.19 | 2026-10-29 | **closeout（cdd-close）**：P21 全链闭合——十一任务六波全绿（W1={1,2,3} · W2={4,5,7} · W3={6,9} · W4={10} · W5={11} · W6={8}，真依赖派生），各波 review 均经 fix 收口；分支终审 branch-review-1 **REVIEW_FIX** → branch-fix-1 **APPROVED**（`653f1fb9`，8 findings 全清）。**验收**：`env -u AI_AGENT pnpm run validate` exit 0（emit fresh · root 10/10 · kairos 84/84 · cdd-engine 1041/1041 · typecheck ×3 · version-sync kairos 1.3.1 / cdd-engine 4.2.0 · 零裸函数零命中）。**changeset** cdd-engine **minor** + kairos **patch** pending（`.changeset/p21-sole-read-write-path.md` · `.changeset/cdd-engine-markdown-tree.md`），不发布。**记账事实**：v0.9–v0.11 lineage 腿收敛 · v0.13/v0.14 账本判据两轮收敛 · v0.12/v0.15 §7/§7.5 scope 追加 · v0.16 T10 设计重写 · v0.17 §8 skill-ref · v0.18 branch-fix 均由评审 finding 或用户裁定触发，计划同步 v0.5–v0.14 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-10-29） |

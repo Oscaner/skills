@@ -672,6 +672,39 @@ describe("handoff — naming / carrier / single-author persist", () => {
       cleanup();
     }
   });
+
+  it("orphanHandoffs attributes a migrated line's carrier to its retired row — a recorded round is no orphan", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // A line mid-flight across the rename: the row stays under `spec`, the carrier
+      // it owns is already minted under the current spelling.
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "spec", rounds: { review: [1, 2, 3], fix: [1] } }],
+      });
+      workspace.writeJson("phase-spec-review-3.json", { artifacts: {}, findings: [] });
+      // The file's own line word IS its declaration, so the row resolves and the
+      // recorded round owns its carrier.
+      expect(ledger.orphanHandoffs()).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("orphanHandoffs lists a retired-spelling draft whose round never completed", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // A draft the pre-rename line left behind, under a round the row never booked.
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "spec", rounds: { review: [1] } }],
+      });
+      workspace.writeJson("spec-fix-9.json", { artifacts: {} });
+      expect(ledger.orphanHandoffs()).toEqual(["spec-fix-9.json"]);
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 describe("crash — the recovery record (named by RoundNaming)", () => {

@@ -1395,14 +1395,17 @@ export class Ledger {
    *  (line key, op, round) never landed in `progress.json` (a draft written by a
    *  round that never booked). The board and the `--dry-run` preview render them;
    *  this is a PURE READ — the engine never writes, moves or deletes a draft. The
-   *  family names are the ledger's own single naming truth (no second pattern). */
+   *  family names are the ledger's own single naming truth (no second pattern), and
+   *  the owning row is read through the ONE basis `rowFor` establishes — the draft's
+   *  own line word IS its declaration — so a migrated workspace's carrier resolves
+   *  its retired row instead of reading as an orphan. */
   orphanHandoffs(): readonly string[] {
-    const rows = this.readProgress()?.waves ?? [];
+    const progress = this.readProgress() ?? this.emptyProgress();
     const orphans: string[] = [];
     for (const name of this.#workspaceFiles()) {
       const owner = Ledger.#handoffOwner(name, this.#families);
       if (owner === null) continue;
-      const row = rows.find((candidate) => candidate.wave === owner.key);
+      const row = Ledger.rowFor(progress, owner.key, Ledger.#lineWord(owner.key));
       const completed = RoundRecords.of(row)
         .filter((record) => record.verdict.targetAction)
         .map((record) => `${record.op}:${record.cycle}`);
@@ -1411,6 +1414,13 @@ export class Ledger {
       }
     }
     return orphans.sort();
+  }
+
+  /** A handoff file's key as a declared line word — the three document words declare
+   *  themselves; every other key (a wave's tasks, `plan`, `branch`) declares nothing
+   *  and reads literally. */
+  static #lineWord(key: string): TargetType | null {
+    return RETIRED_SPEC_LINE_KEYS.has(key) ? (key as TargetType) : null;
   }
 
   /** The workspace directory's file names (an absent/unreadable directory is an
@@ -1427,24 +1437,40 @@ export class Ledger {
 
   /** Which recorded round one handoff file belongs to — the family name pattern is
    *  the ONE naming truth, read backwards: `tasks-{tasks}-{op}[-{round}].json` /
-   *  `{spec|plan|branch}-{op}-{round}.json`. Null for a non-handoff file. */
+   *  `{line}-{op}-{round}.json`, plus a document line's retired `spec` twin (the
+   *  pre-rename name a still-unbooked draft can carry). Null for a non-handoff file. */
   static #handoffOwner(
     name: string,
     families: Readonly<Record<string, HandoffFamily>>,
   ): { readonly key: string; readonly op: string; readonly round: number } | null {
     for (const [family, record] of Object.entries(families)) {
       const [op = "", type = ""] = family.split(".");
-      const escaped = record.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = new RegExp(
-        `^${escaped.replace("\\{tasks\\}", "(.+?)").replace("\\{round\\}", "(\\d+)")}$`,
-      );
-      const match = pattern.exec(name);
-      if (match === null) continue;
-      const key = type === "wave" ? (match[1] ?? "") : type;
-      const round = match[2] === undefined ? 1 : Number(match[2]);
-      return { key, op, round };
+      for (const spelling of Ledger.#familySpellings(record.name, type)) {
+        const match = Ledger.#familyMatch(spelling, name);
+        if (match === null) continue;
+        const key = type === "wave" ? (match[1] ?? "") : type;
+        const round = match[2] === undefined ? 1 : Number(match[2]);
+        return { key, op, round };
+      }
     }
     return null;
+  }
+
+  /** The name spellings one family answers to — its canonical pattern, and for a
+   *  document line the retired `spec` twin it was minted under before the rename. */
+  static #familySpellings(name: string, type: string): readonly string[] {
+    if (!RETIRED_SPEC_LINE_KEYS.has(type)) return [name];
+    return [name, name.replace(`${type}-`, `${RETIRED_SPEC_KEY}-`)];
+  }
+
+  /** One family spelling matched against a file name — the `{tasks}` / `{round}`
+   *  tokens read backwards as the pattern's two capture groups. */
+  static #familyMatch(spelling: string, name: string): RegExpExecArray | null {
+    const escaped = spelling.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(
+      `^${escaped.replace("\\{tasks\\}", "(.+?)").replace("\\{round\\}", "(\\d+)")}$`,
+    );
+    return pattern.exec(name);
   }
 
   // -------------------------------------------------------------------------

@@ -36,7 +36,7 @@
 // bare functions (the plan's zero-bare-function discipline).
 
 import type { RouteTarget } from "./faces.ts";
-import type { Round } from "./ledger.ts";
+import type { Round, RoundRecord } from "./ledger.ts";
 import type { ExecutionState } from "./state.ts";
 
 /** The next-hop suggestion — the decision table's output (null = no next line). The
@@ -144,6 +144,83 @@ export interface PipelineNext {
   target: RouteTarget | null;
 }
 
+/** The next hop's face-internal verb — the four dispatch verbs a line can hop to
+ *  (`branch-review` keeps the existing `ReviewLead` spelling, §5.2's naming rule). */
+export type Hop = "implement" | "review" | "branch-review" | "fix";
+
+/** The doc-class verdict of a render target — the pipeline key a closed face hands
+ *  off to, or one of the two the pipeline cannot route (`blocked` = the declaration
+ *  is missing · `terminal` = no pipeline seam carries the declared class). */
+export type DocClassVerdict = PipelineKey | "blocked" | "terminal";
+
+/** The single reason table (§5.2) — every `NextHop.reason` value comes from here, so
+ *  the four read faces and the CLI rejection message name a fact by ONE spelling (a
+ *  hyphenated fact name, never a sentence). */
+export const NEXT_HOP_REASON = {
+  docDrift: "doc-drift",
+  pendingFix: "pending-fix",
+  closedLine: "closed-line",
+  faceClosed: "face-closed",
+  softCap: "soft-cap",
+  taskOpen: "task-open",
+  docClassBlocked: "doc-class-blocked",
+} as const;
+
+/** One line's next hop (§5.2) — the ONE object every read face renders.
+ *
+ *  `route` is the render PAYLOAD, never a second judgment: the `next:` literal renders
+ *  from this Route through `face/route-render.ts` (`next-wave`'s `--tasks` and `fix`'s
+ *  `--reviews` ride it), so the payload is never copied into `hop`. `hop` and `to` are
+ *  mutually exclusive (the face-internal hop vs the face-to-face handoff) — the two
+ *  axes are never flattened. `target` is the ONE cell the discrimination and the
+ *  renderer both read (`docClassOf(target)` and the plan/type/id literal).
+ *
+ *  `face` / `target` / `route` are nullable: the failure face (BLOCKED / TIMEOUT ⇒
+ *  `next` returns null) and the doc-class `terminal` row hold no route. */
+export interface NextHop {
+  /** The face axis — the pipeline key of the line (null = no registered line). */
+  readonly face: PipelineKey | null;
+  /** The render target — the frame's own type / id / plan facts. */
+  readonly target: RouteTarget | null;
+  /** The line axis — the face-internal next verb (null = no in-line hop). */
+  readonly hop: Hop | null;
+  /** The pipeline axis — the face-to-face handoff station (null = none). */
+  readonly to: PipelineEntry | null;
+  /** The named fact that selected this hop (one `NEXT_HOP_REASON` value). */
+  readonly reason: string;
+  /** The render payload — the count table's own Route (null = no route). */
+  readonly route: Route | null;
+}
+
+/** One next-hop derivation's input face (§5.2) — the line's OWN facts, read by the
+ *  derivation and never re-judged. `route` is the count table's product
+ *  (`NextStepRouter.next`); `docClassOf` is the injected discrimination seam (the
+ *  capsule / board / CLI pass their own), so the session plane never imports a face
+ *  class and no `next.ts → board-view.ts → next.ts` runtime cycle is built. */
+export interface NextHopInput {
+  /** The line's pipeline face key (null = no registered line). */
+  readonly face: PipelineKey | null;
+  /** The line's render target (null = the face was never entered / a bare terminal). */
+  readonly target: RouteTarget | null;
+  /** The drift-aware gate's verdict on the line (`drift` = the doc moved past its
+   *  reviewed revision, so the closed line reopens; `open` = the line holds an open
+   *  round). */
+  readonly gate: { readonly drift: boolean; readonly open: boolean };
+  /** The line's latest completed round (a hard-failed round is not a carrier). */
+  readonly latestCompleted: RoundRecord | null;
+  /** The count table's route for the line (null = the failure face). */
+  readonly route: Route | null;
+  /** The line's counting state (§5.1's blocker / warn / nit counters). */
+  readonly counters: { readonly consecutiveS1: number };
+  /** The injected doc-class discrimination — its input IS the `target` cell above. */
+  readonly docClassOf: (target: RouteTarget) => DocClassVerdict;
+}
+
+/** The closure-side route kinds — the kinds whose `to` (and never a `hop`) carries the
+ *  next step: `done` derives the station from the doc class, `handoff` carries its
+ *  own entry. */
+const CLOSURE_KINDS: ReadonlySet<Route["kind"]> = new Set(["done", "handoff"]);
+
 /** The review-cycle soft-cap suggestion (the C5-0 suggestion face — user adjudicates). */
 export const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
 
@@ -223,6 +300,94 @@ export class NextStepRouter {
   /** The blocker count of the round's findings — the C5-1 severity count. */
   #blockerCount(ref: Round): number {
     return ref.findings.filter((finding) => finding.severity === "blocker").length;
+  }
+
+  // ---------------------------------------------------------------------------
+  // the ONE next-hop derivation (§5.2) — a presentation read of the count table
+  // ---------------------------------------------------------------------------
+
+  /** hopOf(route, face) — the ONE constant Route → Hop mapping. It reads the face
+   *  because a `review` route carries NO face of its own: the branch face's review is
+   *  the `branch-review` skill, every other face's is `review`. `done` / `handoff` /
+   *  `soft-cap` are not hops — they close the line (the count table's judgment). */
+  hopOf(route: Route, face: PipelineKey | null): Hop | null {
+    switch (route.kind) {
+      case "next-wave":
+        return "implement";
+      case "review":
+        return face === "branch" ? "branch-review" : "review";
+      case "fix":
+        return "fix";
+      case "soft-cap":
+      case "done":
+      case "handoff":
+        return null;
+    }
+  }
+
+  /** nextHop(input) — the ONE derivation of a line's next hop (§5.2), once per call
+   *  and per line (never cached, never shared across calls).
+   *
+   *  The judgment stays the count table's: `hop` is READ OUT of the route the table
+   *  produced (`hopOf`), never re-derived here, and `reason` names the fact that
+   *  selected it. The remaining input cells (`latestCompleted` · `counters` ·
+   *  `gate.open`) are the line's fact face the read faces construct — this derivation
+   *  must not judge them a second time (§5.1: any second criterion is the regression
+   *  the phase names). `to` follows the same path for `done` and `handoff`; the
+   *  doc-class discrimination is injected, so this module never imports a face class. */
+  nextHop(input: NextHopInput): NextHop {
+    const route = input.route;
+    const verdict = this.#docClassVerdictOf(input);
+    const closure = route === null || CLOSURE_KINDS.has(route.kind);
+    return {
+      face: input.face,
+      target: input.target,
+      hop: closure ? null : this.hopOf(route!, input.face),
+      to: this.#entryOf(route, verdict),
+      reason: this.#reasonOf(input, route, verdict),
+      route,
+    };
+  }
+
+  /** message(hop, station) — the ONE rejection-message shape (§5.2): a hop names the
+   *  verb, a closed face names its handoff station (`station` renders the entry through
+   *  the shared route renderer), and neither renders the bare reason — no invented
+   *  verb slot. */
+  message(hop: NextHop, station: (entry: PipelineEntry) => string): string {
+    if (hop.hop !== null) return `${hop.reason} · the next round is ${hop.hop}`;
+    if (hop.to !== null) return `${hop.reason} · next: ${station(hop.to)}`;
+    return hop.reason;
+  }
+
+  /** The doc-class verdict of the input's target — the injected discrimination on the
+   *  ONE `target` cell; no target carries no judgeable class (the bare terminal). */
+  #docClassVerdictOf(input: NextHopInput): DocClassVerdict {
+    return input.target === null ? "terminal" : input.docClassOf(input.target);
+  }
+
+  /** The pipeline station of a closure route — `handoff` carries its own entry, `done`
+   *  derives it from the doc class (`PIPELINE_NEXT` is data, never a judgment), and a
+   *  `blocked` / `terminal` class (or no route at all) has no station. */
+  #entryOf(route: Route | null, verdict: DocClassVerdict): PipelineEntry | null {
+    if (route === null) return null;
+    if (route.kind === "handoff") return route.entry;
+    if (route.kind !== "done") return null;
+    if (verdict === "blocked" || verdict === "terminal") return null;
+    return PIPELINE_NEXT[verdict];
+  }
+
+  /** The named fact behind the hop — one `NEXT_HOP_REASON` row, in this order: the
+   *  soft cap · a pending fix · a drift-reopened line · an open line advancing · an
+   *  unjudgeable doc class · a closed face · the closed line's handoff. Drift never
+   *  outranks a pending fix (an unclosed line's blocker keeps the fix hop). */
+  #reasonOf(input: NextHopInput, route: Route | null, verdict: DocClassVerdict): string {
+    if (route?.kind === "soft-cap") return NEXT_HOP_REASON.softCap;
+    if (route?.kind === "fix") return NEXT_HOP_REASON.pendingFix;
+    if (route?.kind === "review" && input.gate.drift) return NEXT_HOP_REASON.docDrift;
+    if (route !== null && this.hopOf(route, input.face) !== null) return NEXT_HOP_REASON.taskOpen;
+    if (verdict === "blocked") return NEXT_HOP_REASON.docClassBlocked;
+    if (route === null || verdict === "terminal") return NEXT_HOP_REASON.faceClosed;
+    return NEXT_HOP_REASON.closedLine;
   }
 
   /** The face-to-face handoff route for a pipeline doc-class (D40) — the next-face

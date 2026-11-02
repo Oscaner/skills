@@ -12,7 +12,8 @@
 // `LIVENESS_SIGNALS` is a PER-ROUND factory, never a module-level instance array: the
 // sampler builds this round's signals from this round's context, so the self-held
 // `readableAt` state cannot leak across rounds (a previous round's "was readable" must
-// never testify for the next one).
+// never testify for the next one). Each entry NAMES its leg, so the postmortem cells
+// (`logSize` / `cpuMs`) address their leg by name, never by array position.
 //
 // `readableAt` is the tick at which the leg was last READ, retained across unreadable
 // ticks — so "readable somewhere inside the window" is a judgeable present fact instead
@@ -94,12 +95,23 @@ export class CpuAdvance implements LivenessSignal {
   }
 }
 
-/** The per-round signal registry — the log leg first, the CPU leg second (the order is
- *  the postmortem record's leg order). Factories, not instances: one round's self-held
- *  state is built for that round alone. */
-export const LIVENESS_SIGNALS: readonly ((context: LivenessContext) => LivenessSignal)[] = [
-  (context) => new LogGrowth(context.logPath),
-  (context) => new CpuAdvance(context.pgid),
+/** The leg names — the postmortem record's two cells are addressed by THESE, never by
+ *  an array index: `logSize` is the `log` leg's reading, `cpuMs` the `cpu` leg's. */
+export type LivenessLeg = "log" | "cpu";
+
+/** One registry entry — a leg's NAME and its per-round factory. The name is what keeps
+ *  the postmortem pair honest: inserting or reordering a leg can never silently swap
+ *  `logSize` / `cpuMs` (both `number | null`, so no type would catch the swap). */
+export interface LivenessSignalEntry {
+  readonly leg: LivenessLeg;
+  readonly create: (context: LivenessContext) => LivenessSignal;
+}
+
+/** The per-round signal registry — the log leg and the additional CPU leg. Factories,
+ *  not instances: one round's self-held state is built for that round alone. */
+export const LIVENESS_SIGNALS: readonly LivenessSignalEntry[] = [
+  { leg: "log", create: (context) => new LogGrowth(context.logPath) },
+  { leg: "cpu", create: (context) => new CpuAdvance(context.pgid) },
 ];
 
 /** One tick's judgment input — this tick's readings, the comparison basis, the idle

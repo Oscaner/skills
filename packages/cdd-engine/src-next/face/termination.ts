@@ -23,6 +23,7 @@ import {
   LIVENESS_SIGNALS,
   type LivenessContext,
   LivenessJudge,
+  type LivenessLeg,
   type LivenessSignal,
   type SignalReading,
 } from "../contract/liveness-signal.ts";
@@ -151,7 +152,7 @@ export class TerminationPolicy {
 // ---------------------------------------------------------------------------
 
 /** One tick's reading set — every leg's reading, the comparison basis the judge needs,
- *  and the two postmortem cells (`logSize` / `cpuMs` in the registry's declared order). */
+ *  and the two postmortem cells (`logSize` / `cpuMs`, each read off its NAMED leg). */
 export interface TickReadings {
   readonly readings: readonly SignalReading[];
   readonly previous: readonly (number | null)[];
@@ -172,18 +173,18 @@ export interface TickReadings {
  * now, not an exclusion list.
  */
 export class Sampler {
-  readonly #signals: readonly LivenessSignal[];
+  readonly #signals: readonly { readonly leg: LivenessLeg; readonly signal: LivenessSignal }[];
   readonly #previous: (number | null)[];
 
   constructor(context: LivenessContext) {
-    this.#signals = LIVENESS_SIGNALS.map((create) => create(context));
+    this.#signals = LIVENESS_SIGNALS.map(({ leg, create }) => ({ leg, signal: create(context) }));
     this.#previous = this.#signals.map(() => null);
   }
 
   /** Read every leg of this tick — each independently fail-open (`null`, never a
    *  fabricated reading) — and advance the previous-reading basis. */
   probe(): TickReadings {
-    const readings = this.#signals.map((signal) => signal.sample());
+    const readings = this.#signals.map((entry) => entry.signal.sample());
     const previous = [...this.#previous];
     readings.forEach((reading, index) => {
       this.#previous[index] = reading.value;
@@ -191,9 +192,17 @@ export class Sampler {
     return {
       readings,
       previous,
-      logSize: readings[0]?.value ?? null,
-      cpuMs: readings[1]?.value ?? null,
+      logSize: this.#valueOf(readings, "log"),
+      cpuMs: this.#valueOf(readings, "cpu"),
     };
+  }
+
+  /** One tick's reading of a NAMED leg — the postmortem cells address legs by name, so
+   *  inserting or reordering a leg cannot silently swap `logSize` and `cpuMs`. A leg
+   *  the registry does not declare reads `null` (the fail-open face). */
+  #valueOf(readings: readonly SignalReading[], leg: LivenessLeg): number | null {
+    const index = this.#signals.findIndex((entry) => entry.leg === leg);
+    return index < 0 ? null : (readings[index]?.value ?? null);
   }
 }
 

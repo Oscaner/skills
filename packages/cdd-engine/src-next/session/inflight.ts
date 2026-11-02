@@ -64,7 +64,9 @@ export interface InFlightRecord {
   /** The plan path the dispatch read (repoRoot-relative); null when the face carries
    *  no plan fact. */
   readonly plan: string | null;
-  /** The sampling trail's last tick instant (epoch ms); null before the first tick. */
+  /** The sampling trail's last tick instant (epoch ms) — the same instant a recorded
+   *  sample carries as `at` (each record shape names its own cells: one fact, one
+   *  spelling per shape); null before the first tick. */
   readonly sampledAt: number | null;
   /** The last sample's stall verdict (`progress` / `unknown` / `idled` / `stalled`);
    *  null before the first tick. */

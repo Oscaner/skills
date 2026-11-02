@@ -13,6 +13,7 @@ import {
   LIVENESS_SIGNALS,
   type LivenessContext,
   LivenessJudge,
+  type LivenessLeg,
   LogGrowth,
 } from "../liveness-signal.ts";
 
@@ -110,6 +111,26 @@ describe("LivenessJudge — the four-state truth table (spec §4.2)", () => {
     ).toBe("stalled");
   });
 
+  it("(e2) an unreadable CPU leg blocks neither the progress nor the stall — the same shape both ways", () => {
+    // The discriminating pair for the retired two-leg semantics. `progress` needs the
+    // leg that ADVANCED to be readable, never BOTH legs: an unreadable CPU leg (no
+    // `ps`, an already-exited group) must not veto a growing log. The SAME shape with
+    // a silent log is the (e) stall, so neither half can pass by accident — flipping
+    // `advanced` back to "both legs readable" reds the first half, and a null CPU leg
+    // blocking the stall reds the second.
+    const shape = {
+      readings: [
+        { value: 2048, readableAt: 600 },
+        { value: null, readableAt: null },
+      ],
+      previous: [1024, null],
+      windowMs: WINDOW,
+      now: 1000,
+    };
+    expect(judge.verdict({ ...shape, idleMs: 0 })).toBe("progress");
+    expect(judge.verdict({ ...shape, previous: [2048, null], idleMs: WINDOW })).toBe("stalled");
+  });
+
   it("(f) no leg readable anywhere in the window → unknown, never a kill", () => {
     expect(
       judge.verdict({
@@ -162,18 +183,28 @@ describe("LivenessJudge — the four-state truth table (spec §4.2)", () => {
 describe("LIVENESS_SIGNALS — the per-round factory (spec §4.2)", () => {
   const context = (logPath: string): LivenessContext => ({ logPath, pgid: 2147483646 });
 
+  /** The registry entry of one NAMED leg — how the sampler addresses the legs. */
+  const entryOf = (leg: LivenessLeg) => {
+    const entry = LIVENESS_SIGNALS.find((candidate) => candidate.leg === leg);
+    if (entry === undefined) throw new Error(`no ${leg} leg registered`);
+    return entry;
+  };
+
   /** The log leg one factory call builds — the round's own log leg. */
   const logLegOf = (logPath: string): LogGrowth => {
-    const signal = LIVENESS_SIGNALS[0]!(context(logPath));
+    const signal = entryOf("log").create(context(logPath));
     expect(signal).toBeInstanceOf(LogGrowth);
     return signal as LogGrowth;
   };
 
-  it("registers both child-produced legs — the log leg first, the additional CPU leg second", () => {
+  it("registers both child-produced legs, each under its own name", () => {
     const target = path.join(scratch(), "round.log");
     writeFileSync(target, "bytes\n", "utf8");
-    expect(LIVENESS_SIGNALS[0]!(context(target))).toBeInstanceOf(LogGrowth);
-    expect(LIVENESS_SIGNALS[1]!(context(target))).toBeInstanceOf(CpuAdvance);
+    // The names ARE the postmortem cells (`logSize` / `cpuMs`): a leg's reading is
+    // addressed by name, never by array position, so a reorder cannot swap them.
+    expect(LIVENESS_SIGNALS.map((entry) => entry.leg)).toEqual(["log", "cpu"]);
+    expect(entryOf("log").create(context(target))).toBeInstanceOf(LogGrowth);
+    expect(entryOf("cpu").create(context(target))).toBeInstanceOf(CpuAdvance);
     expect(logLegOf(target).sample().value).toBe(6);
   });
 

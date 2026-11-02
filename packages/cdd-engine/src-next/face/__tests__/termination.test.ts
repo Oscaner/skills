@@ -22,15 +22,7 @@
 // removed at a normal end, kept when the round was terminated.
 
 import { spawn } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  utimesSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -48,7 +40,7 @@ import {
 } from "../termination.ts";
 
 /** The scratch dispatch's in-flight handle — the production wiring's shape: the
- *  record sits at the workspace-root level of the scanned tree. */
+ *  record sits at the workspace-root level. */
 const inflightOf = (root: string): InFlight =>
   new InFlight(new WorkspaceRoot(root, ".kairos/cdd"), "probe");
 
@@ -67,9 +59,9 @@ const recordOf = (): InFlightRecord => ({
   verdict: null,
 });
 
-/** One production-shaped child run over a scratch root — the child's cwd is the tree
- *  leg's scan root, and the in-flight record (already planted) lands inside it (the
- *  production wiring: the two paths share one tree). */
+/** One production-shaped child run over a scratch root — the child's cwd is that root,
+ *  and the in-flight record (already planted) lands inside it (the production wiring:
+ *  the two paths share one tree). */
 const childRun = (
   root: string,
   command: string,
@@ -233,7 +225,7 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     // outcome attributes the kill to the engine's own judgment — never as an
     // external signal, despite execa reporting the kill as one.
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     const result = await runner.run(
       childRun(root, "sh", ["-c", "sleep 30"], new TerminationPolicy(60_000, 300, 60)),
     );
@@ -308,7 +300,7 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     // (no stall fired, the production budget is hours away) — the external signal
     // is the termination's attributed cause, by semantic, never the SIGTERM literal.
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     // The child writes its own pid (it IS its own process group leader under the
     // killDescendants spawn shape) so the test — standing outside the seam — can
     // signal the group the way a real outside actor would.
@@ -502,12 +494,8 @@ describe("Terminator.terminationOf — the four-way derivation and its priority 
 });
 
 // ---------------------------------------------------------------------------
-// the stall face — the judge's truth table and the sampler's two legs (§3.3)
+// the liveness legs — the sampler's two child-produced readings (§4.2/§4.3)
 // ---------------------------------------------------------------------------
-
-/** A fixed epoch for planted mtimes: every file's mtime is an explicit second, so a
- *  leg's reading is exact and never `writeFileSync`'s wall clock. */
-const EPOCH = 1_700_000_000;
 
 const scratchRoots: string[] = [];
 
@@ -518,12 +506,13 @@ const scratch = (): string => {
   return dir;
 };
 
-/** Plant a file at `rel` under `root` with an explicit mtime (seconds since epoch). */
-const plant = (root: string, rel: string, seconds: number): string => {
+/** Plant a content file at `rel` under `root` — pure fixture: the scratch root stands
+ *  in for a workspace tree, and no leg reads it. Both legs are the child's own
+ *  evidence, so the tree's bytes and mtimes are unobservable to the judge. */
+const plant = (root: string, rel: string): string => {
   const target = path.join(root, rel);
   mkdirSync(path.dirname(target), { recursive: true });
   writeFileSync(target, `${rel}\n`);
-  utimesSync(target, seconds, seconds);
   return target;
 };
 
@@ -648,7 +637,7 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
 
   it("takes a sample the moment the child is spawned — not only from the first interval on", async () => {
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     // The cadence (60 s) outlives this child many times over: any tick at all can
     // only be the immediate first sample.
     const { result, records } = await watchTrail(
@@ -663,7 +652,7 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
 
   it("overwrites the record's sampling cells once per tick — the identity fields survive", async () => {
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     const { result, records } = await watchTrail(
       runner.run(
         childRun(root, "sh", ["-c", "sleep 0.8"], new TerminationPolicy(60_000, 60_000, 60)),
@@ -686,16 +675,16 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
       expect(record.slug).toBe("probe");
       expect(record.wave).toBe("1");
     }
-    // The engine's OWN record never enters the mtime leg: a flat, sleeping child whose
-    // only off-tree write is the record itself must not rule progress. Were the record
-    // not excluded from the scan, every tick after the first would certify a mtime
-    // advance (the §3.3 exclusion, wired end to end).
+    // The engine's OWN record write is on no leg at all: both legs are the child's own
+    // evidence (its log's bytes, its group's CPU), so a flat, sleeping child reads
+    // `progress` on no tick whatever the engine writes beside it — a structural fact,
+    // never a declared exclusion.
     expect(records.at(-1)?.verdict).not.toBe("progress");
   });
 
   it("keeps the record after a self-ending round — release, not the loop, removes it", async () => {
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     const inflight = inflightOf(root);
     // The production order: acquire (record + lock) first, then the child runs.
     await inflight.acquire(recordOf());
@@ -719,7 +708,7 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
 
   it("keeps the record (and its last sampling cells) when the round was terminated", async () => {
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     const recordPath = recordPathOf(root);
     const { result } = await watchTrail(
       runner.run(childRun(root, "sh", ["-c", "sleep 30"], new TerminationPolicy(300, 60_000, 60))),
@@ -741,7 +730,7 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
 
   it("writes no sampling cells when the child never spawned — nothing to sample", async () => {
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     const result = await runner.run(childRun(root, "cdd-no-such-binary-xyz", []));
     expect(result.termination).toBeNull();
     // The planted intent survives untouched and carries no fabricated tick.

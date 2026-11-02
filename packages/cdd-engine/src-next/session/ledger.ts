@@ -268,7 +268,10 @@ export type StallVerdict = "progress" | "unknown" | "idled" | "stalled";
 /** One sample tick's two legs — the round log's size in bytes and the process group's
  *  cumulative CPU (ms). `null` = that leg is unreadable (the fail-open face: an
  *  unreadable leg neither advances, nor conjures `unknown`, nor blocks a stall). The
- *  field names are the recorded sample's names (one naming, two references). */
+ *  field names are the recorded sample's own (`SampleRecord` extends this). The tick's
+ *  instant is the one fact two record shapes name differently — `SampleRecord.at` on
+ *  the recorded sample, `InFlightRecord.sampledAt` on the in-flight record — so neither
+ *  shape renames the other's cells; the two names are one instant, never two facts. */
 export interface Sample {
   logSize: number | null;
   cpuMs: number | null;

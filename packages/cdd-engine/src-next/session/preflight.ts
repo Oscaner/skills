@@ -65,7 +65,10 @@ export type PreFlightReason =
 /** The doc-scope judgment outcome of one dispatch — what the checked list renders.
  *  `layersUnavailable` marks the shape where the call site had no plan layers to inject
  *  (the wave-width rule then judged nothing): the checked list shows that degradation
- *  instead of a bare `passed`. */
+ *  instead of a bare `passed`. A dispatch never reaches it — the plan face's graph gate
+ *  always yields the layers (see the assignment site) — so the row serves a
+ *  non-dispatch judgment face, where a missing fact bundle is rendered rather than
+ *  refused. */
 type DocOutcome =
   | {
       readonly kind: "judged";
@@ -384,6 +387,13 @@ export class PreFlight {
         docOutcome = {
           kind: "judged",
           findings,
+          // The layer fact is absent only where the graph gate never ran, and on the
+          // dispatch faces that cannot happen: `--type plan` REQUIRES `--plan` (a usage
+          // rejection exits first), so a plan doc always has its graph and therefore its
+          // layers; a spec's docKey is `spec`, never `plan`; and the wave / branch faces
+          // judge no doc target (`no-doc-target`). The row therefore describes a
+          // non-dispatch judgment face (a programmatic caller, a future face) — a visible
+          // degradation, never a dispatch-time refusal.
           layersUnavailable: doc.docKey === "plan" && taskLayers === undefined,
         };
         if (findings.length > 0) {

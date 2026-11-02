@@ -20,10 +20,10 @@
 //     prefix (its instruction shell + the injected writable-subset schema at the
 //     shell's tail — byte-identical for every dispatch of the mode, so the prompt-
 //     cache prefix groups by mode) + the mode's REDUCED round-context subset.
-//   · REVIEW_VARIANTS — the review mode's per-type rows, one per target type:
-//     the criteria + lens text are FIXED PREFIX content (folded into each variant's
-//     shell — they are per-type constants, so they never ride the dynamic tail; the
-//     INPUT_CRITERIA / INPUT_LENS round-context tokens are gone) and each variant's
+//   · REVIEW_VARIANTS — the review mode's per-target rows, one per target type:
+//     the criteria + lens text are FIXED PREFIX content (folded into each row's
+//     shell — the body is selected per target, so they never ride the dynamic tail;
+//     the INPUT_CRITERIA / INPUT_LENS round-context tokens are gone) and each row's
 //     fixed prefix is byte-stable — a review dispatch's cache prefix groups by type.
 //   · the normalized token vocabulary (§3.5): INPUT_* (read-side) / OUTPUT_* (write-
 //     side) / WORKSPACE_* (environment) / BASE_BRANCH (the branch review's scope
@@ -71,11 +71,9 @@ export interface TemplateToken {
 export type WorkMode = "implement" | "fix" | "review" | "docs-fix";
 
 /** The work-mode rows of the dispatch table — every ROLE except review (the review
- *  mode's rows are the four per-type REVIEW_VARIANTS). */
+ *  mode's six per-target rows live in `reviews`, over the five criteria bodies
+ *  keyed by `ReviewKey`). */
 export type WorkModeRowKey = Exclude<WorkMode, "review">;
-
-/** The review variants — the review mode's per-type prefix variants (the criteria
- *  and lens are per-type constants, so each variant's fixed prefix is byte-stable). */
 
 /** One dispatch-table row — a mode's fixed prefix + its reduced dynamic tail. */
 export interface ModePromptRow {
@@ -110,8 +108,8 @@ export interface TemplatePrompt {
   clauses: Readonly<Record<string, string>>;
 }
 
-/** One review guide row — the criteria of one review type (its lens vocabulary +
- *  the axes/URC prose — the review prompt's fixed criteria body). */
+/** One review guide row — one criteria body (its lens vocabulary + the axes/URC
+ *  prose — the review prompt's fixed criteria body). */
 export interface ReviewGuideRow {
   /** The lens vocabulary — the finding lens labels the review may carry. */
   lensEnum: readonly string[];
@@ -355,7 +353,7 @@ export const SEVERITY_RUBRIC =
  *  ONE `spec` row, so their shared narrative body can never fork its vocabulary;
  *  the charter's own wording rides its criteria body (the `REVIEWS.overall` row),
  *  never a second vocabulary minted here. */
-export const REVIEW_VARIANT_TEXT: Readonly<
+export const REVIEW_BODY_TEXT: Readonly<
   Record<ReviewKey, { readonly artifact: string; readonly audience: string }>
 > = {
   wave: { artifact: "artifact", audience: "user" },
@@ -369,7 +367,7 @@ export const REVIEW_VARIANT_TEXT: Readonly<
  *  body's two slot values substituted. The parameter domain IS the `REVIEWS` key
  *  domain, so a consumer derives the guide from the same key. */
 export const reviewGuideOf = (key: ReviewKey): string => {
-  const text = REVIEW_VARIANT_TEXT[key];
+  const text = REVIEW_BODY_TEXT[key];
   return SEVERITY_RUBRIC.replaceAll(SEVERITY_RUBRIC_SLOTS.artifact, text.artifact).replaceAll(
     SEVERITY_RUBRIC_SLOTS.audience,
     text.audience,
@@ -422,11 +420,8 @@ export const REVIEWS = {
  *  the body of their own name; the two spec-shaped document targets share the ONE
  *  narrative body (`spec`). Keeping the mapping here (never in the row literals)
  *  means a target cannot silently drift onto another target's criteria. */
-export class ReviewVariants {
-  static of(type: TargetType): ReviewKey {
-    return type === "phase-spec" || type === "single-spec" ? "spec" : type;
-  }
-}
+export const reviewBodyOf = (type: TargetType): ReviewKey =>
+  type === "phase-spec" || type === "single-spec" ? "spec" : type;
 
 /** One review variant row (§3.7) — the fixed prefix folds the SELECTED criteria
  *  body + its lens INLINE (the `INPUT_CRITERIA`/`INPUT_LENS` round-context tokens
@@ -434,7 +429,7 @@ export class ReviewVariants {
  *  criteria line, so the row speaks the same vocabulary the CLI's `--type`
  *  declares while the body comes from the criteria selection. */
 const reviewRow = (type: TargetType): ModePromptRow => {
-  const criteria = REVIEWS[ReviewVariants.of(type)];
+  const criteria = REVIEWS[reviewBodyOf(type)];
   return {
     mode: "review",
     shell: [

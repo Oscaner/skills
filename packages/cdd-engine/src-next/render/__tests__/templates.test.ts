@@ -8,7 +8,7 @@
 // P22 T15 — a charter's own criteria body and the criteria-body selection: the
 // `overall` target is judged on six charter criteria and carries none of the
 // implementation-face evidence duty, the two spec-shaped document targets share the
-// ONE narrative body, and `ReviewVariants.of` is the single target → criteria map.
+// ONE narrative body, and `reviewBodyOf` is the single target → criteria map.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -17,7 +17,7 @@ import type { TargetType } from "../../session/faces.ts";
 import {
   REVIEWS,
   type ReviewKey,
-  ReviewVariants,
+  reviewBodyOf,
   reviewGuideOf,
   SEVERITY_RUBRIC,
   SEVERITY_RUBRIC_SLOTS,
@@ -117,17 +117,17 @@ describe("P22 T15 — the charter criteria (REVIEWS.overall) and the criteria-bo
   });
 
   it("selects each target's criteria body — four same-named, the two spec shapes shared", () => {
-    expect(ReviewVariants.of("wave")).toBe("wave");
-    expect(ReviewVariants.of("branch")).toBe("branch");
-    expect(ReviewVariants.of("plan")).toBe("plan");
-    expect(ReviewVariants.of("overall")).toBe("overall");
-    expect(ReviewVariants.of("phase-spec")).toBe("spec");
-    expect(ReviewVariants.of("single-spec")).toBe("spec");
+    expect(reviewBodyOf("wave")).toBe("wave");
+    expect(reviewBodyOf("branch")).toBe("branch");
+    expect(reviewBodyOf("plan")).toBe("plan");
+    expect(reviewBodyOf("overall")).toBe("overall");
+    expect(reviewBodyOf("phase-spec")).toBe("spec");
+    expect(reviewBodyOf("single-spec")).toBe("spec");
   });
 
   it("folds the SELECTED body into every review row's criteria line", () => {
     for (const type of TARGET_TYPES) {
-      const line = `**Criteria — ${type}:** ${REVIEWS[ReviewVariants.of(type)].axesGuide}`;
+      const line = `**Criteria — ${type}:** ${REVIEWS[reviewBodyOf(type)].axesGuide}`;
       expect(TEMPLATE_PROMPT.reviews[type].shell.join("\n")).toContain(line);
     }
   });

@@ -5524,9 +5524,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // killed child's exit code is null, and the termination fact rides whole
       // (cause + the in-memory last sample — zero in-flight-record re-read).
       const lastSample: SampleRecord = {
-        sampledAt: 1_700_000_000,
-        groupCpuMs: 120,
-        newestMtimeMs: 1_700_000_500,
+        at: 1_700_000_000,
+        logSize: 4096,
+        cpuMs: 120,
         verdict: "stalled",
       };
       sync.code = null;
@@ -5922,9 +5922,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
   /** The stalled-kill termination fact the stub child reports. */
   const stalled = (): { termination: Termination; lastSample: SampleRecord } => {
     const lastSample: SampleRecord = {
-      sampledAt: 1_700_000_000,
-      groupCpuMs: 120,
-      newestMtimeMs: 1_700_000_500,
+      at: 1_700_000_000,
+      logSize: 4096,
+      cpuMs: 120,
       verdict: "stalled",
     };
     return { termination: { cause: "stalled", idleMs: 1_800_000, lastSample }, lastSample };
@@ -6089,11 +6089,19 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(lines[0]).toContain("stalled");
       expect(lines[0]).toContain("idleMs: 1800000");
       expect(lines[0]).toContain("last sample verdict: stalled");
-      const crash = readJson<{ idleMs: number | null; lastSample: SampleRecord | null }>(
-        path.join(workspace.path, "crash-tasks-1-implement-1.json"),
-      );
+      const crash = readJson<{
+        idleMs: number | null;
+        lastSample: SampleRecord | null;
+        logPath: string | null;
+      }>(path.join(workspace.path, "crash-tasks-1-implement-1.json"));
       expect(crash.idleMs).toBe(1_800_000);
       expect(crash.lastSample).toEqual(fact.lastSample);
+      // The postmortem's own pointer: the killed round names its log file, and that
+      // path resolves to a real file (one file to open instead of reading `ps`).
+      expect(crash.logPath).toBe(
+        path.relative(repoRoot, path.join(workspace.path, "logs", "tasks-1-implement.log")),
+      );
+      expect(existsSync(path.join(repoRoot, crash.logPath ?? ""))).toBe(true);
     } finally {
       cleanup();
     }

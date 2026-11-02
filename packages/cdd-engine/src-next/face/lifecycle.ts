@@ -140,6 +140,10 @@ export class CliLifecycle {
    *  P11 T2) — set in #dispatch after the child returns, read by #reject. The child's
    *  Return is prose; the engine never parses it — this is the failure channel only. */
   #stdoutTail: readonly string[] = [];
+  /** The current dispatch's round log path (repoRoot-relative), null when the round has
+   *  no log channel — the crash record's postmortem pointer (one file to open instead
+   *  of reading `ps` from outside). */
+  #roundLogPath: string | null = null;
 
   constructor(opts: {
     env?: ProcessEnvLike;
@@ -205,6 +209,7 @@ export class CliLifecycle {
     // The baseline belongs to THIS dispatch alone: cleared at entry, so an early
     // return (no host harness) records "no baseline" rather than a previous round's.
     this.#dispatchBase = null;
+    this.#roundLogPath = null;
     const host = this.detectHost();
     if (host === "") {
       this.#io.stderr(
@@ -229,6 +234,9 @@ export class CliLifecycle {
     // failure is a named soft observation and the round continues on the CPU leg
     // alone (the log leg is null, never a kill authorization).
     const roundLog = await this.#openRoundLog(frame);
+    // The postmortem pointer of THIS round — the log the child's bytes land in (absent
+    // when the channel could not be opened: the record then carries the honest null).
+    this.#roundLogPath = roundLog === null ? null : this.#rel(roundLog.path);
     // The child receives ONE prompt argument — per the host's promptForm data column
     // (§3.5): the ref-prefixed form embeds the slash ref at the start of the single
     // prompt positional (claude -p consumes the whole first positional as the prompt;
@@ -805,8 +813,11 @@ export class CliLifecycle {
       attemptedHandoff: this.#rel(path),
       next: this.#resumeOf(frame),
       cause,
-      // The last sample rides WITH the termination (in memory, zero re-read of the
-      // in-flight record) — null on every non-terminated face.
+      // The postmortem's observation pair: the round's own log file (one file to open
+      // instead of reading `ps` from outside) and its last sample, which rides WITH the
+      // termination (in memory, zero re-read of the in-flight record) — null on every
+      // non-terminated face.
+      logPath: this.#roundLogPath,
       lastSample: death.termination?.lastSample ?? null,
       promoted,
       idleMs: death.termination?.idleMs ?? null,

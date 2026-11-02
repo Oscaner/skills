@@ -18,19 +18,17 @@
 // Module-level exports are types / the value object / the class — zero
 // behavior-carrying bare functions.
 
-import { readdirSync, statSync } from "node:fs";
-import path from "node:path";
 import { execa } from "execa";
-import { ProcessFacts } from "../infra/proc.ts";
+import {
+  LIVENESS_SIGNALS,
+  type LivenessContext,
+  LivenessJudge,
+  type LivenessSignal,
+  type SignalReading,
+} from "../contract/liveness-signal.ts";
 import type { RoundLog } from "../infra/round-log.ts";
 import type { InFlight } from "../session/inflight.ts";
-import type {
-  RoundPhase,
-  Sample,
-  SampleRecord,
-  StallVerdict,
-  Termination,
-} from "../session/ledger.ts";
+import type { RoundPhase, SampleRecord, Termination } from "../session/ledger.ts";
 
 // ---------------------------------------------------------------------------
 // the seam — one dispatch's input, result and runner
@@ -67,16 +65,15 @@ export interface ChildOutcome {
  *  reaches back into the session: the spawned command, the in-flight record handle
  *  the sampler overwrites for this dispatch, the phase's termination policy, and the
  *  per-host dispatch env. The caller hands the record handle of its own workspace
- *  root, so the sampling trail lands in the ONE in-flight record (the handle also
- *  supplies the record path the tree leg excludes); the same `cwd` is the spawn
- *  directory AND the scanned tree root (the "scan root ≡ the child's cwd" structural
- *  guarantee). */
+ *  root, so the sampling trail lands in the ONE in-flight record. `cwd` is the spawn
+ *  directory; `log` is the round's own log file, so the log leg observes exactly the
+ *  file this child's bytes land in. */
 export interface ChildRun {
   command: string;
   args: readonly string[];
   cwd: string;
-  /** The dispatch's in-flight record — the sampling loop's ONE write target; the
-   *  record's own path is the tree leg's exclusion. */
+  /** The dispatch's in-flight record — the sampling loop's ONE write target (the
+   *  identity facts and the per-tick sampling cells). */
   inflight: InFlight;
   policy: TerminationPolicy;
   /** The per-host dispatch env — layered over the inherited env at spawn (the
@@ -84,7 +81,7 @@ export interface ChildRun {
   env: Readonly<Record<string, string>>;
   /** The round's own log file — the child's stdout/stderr land here, appended as the
    *  bytes arrive. Absent = no log channel (the round still runs; the liveness judge
-   *  loses the log leg, never the round). */
+   *  loses the log leg and the CPU leg judges alone, never the round). */
   log?: RoundLog;
 }
 
@@ -150,180 +147,53 @@ export class TerminationPolicy {
 }
 
 // ---------------------------------------------------------------------------
-// the stall judge — the running judgment over one dispatch, pure logic
+// the sampler — the per-round signal host (the only OS I/O of the liveness face)
 // ---------------------------------------------------------------------------
 
-/** StallJudge — is this dispatch still moving? Not a comparison of two samples but a
- *  judgment over the round: the judge holds its own accumulating state and is fed one
- *  tick at a time through `observe`, which returns the tick's verdict. Zero I/O: it
- *  reads the two legs of a `Sample` and nothing else (the OS reads live in `Sampler`),
- *  so its truth table is testable without a process or a tree. Both the idle window
- *  and the spawn instant are injected — the window never comes from a module constant
- *  and the clock never comes from the wall (a stall case must not wait out the real
- *  half hour), and the spawn instant seeds the idle clock.
- *
- *  The rules, in the order they are applied:
- *   · an unreadable leg (`null`) → `unknown`, and unknown never kills (fail-open: no
- *     reading of a leg means no evidence of a stall, and an unreadable tick carries no
- *     observation either way);
- *   · CPU above the PREVIOUS observation, or mtime above the HISTORICAL MAXIMUM →
- *     `progress`, and the idle clock restarts at this tick;
- *   · no progress and the window is still open → `idled`;
- *   · no progress and the window is spent → `stalled` (the kill).
- *  Neither leg authorizes a kill alone (`unknown` covers the unreadable case) and
- *  output activity is deliberately NOT a signal: a thinking child is silent, and using
- *  silence against it would kill a child that is working. */
-export class StallJudge {
-  readonly #idleWindowMs: number;
-  /** The instant of the last progress — the spawn instant until the first one. */
-  #idleSince: number;
-  /** The previous tick's process-group CPU (ms) — `null` until the first readable one. */
-  #lastCpuMs: number | null = null;
-  /** The largest mtime (ms) the tree leg has ever reported. */
-  #maxMtimeMs: number | null = null;
-
-  constructor(idleWindowMs: number, spawnedAt: number) {
-    this.#idleWindowMs = idleWindowMs;
-    this.#idleSince = spawnedAt;
-  }
-
-  /** The idle time (ms) at `now` — how long since the last progress (the spawn instant
-   *  until the first one). */
-  idleMs(now: number): number {
-    return Math.max(0, now - this.#idleSince);
-  }
-
-  /** Judge one tick: feed the tick's sample and the instant it was taken. */
-  observe(sample: Sample, now: number): StallVerdict {
-    const cpuMs = sample.groupCpuMs;
-    const mtimeMs = sample.newestMtimeMs;
-    // Both legs must be readable to judge at all.
-    if (cpuMs === null || mtimeMs === null) return "unknown";
-    // Progress is an advance over what has already been seen — this CPU over the
-    // previous observation, this mtime over the historical maximum. The first readable
-    // tick has neither, so it can never be a progress tick: the idle clock has been
-    // running since the spawn instant, exactly as if that tick had been flat.
-    const advanced =
-      (this.#lastCpuMs !== null && cpuMs > this.#lastCpuMs) ||
-      (this.#maxMtimeMs !== null && mtimeMs > this.#maxMtimeMs);
-    this.#lastCpuMs = cpuMs;
-    if (this.#maxMtimeMs === null || mtimeMs > this.#maxMtimeMs) this.#maxMtimeMs = mtimeMs;
-    if (advanced) {
-      this.#idleSince = now;
-      return "progress";
-    }
-    return now - this.#idleSince < this.#idleWindowMs ? "idled" : "stalled";
-  }
+/** One tick's reading set — every leg's reading, the comparison basis the judge needs,
+ *  and the two postmortem cells (`logSize` / `cpuMs` in the registry's declared order). */
+export interface TickReadings {
+  readonly readings: readonly SignalReading[];
+  readonly previous: readonly (number | null)[];
+  readonly logSize: number | null;
+  readonly cpuMs: number | null;
 }
 
-// ---------------------------------------------------------------------------
-// the sampler — the two legs' heavy lifting (the only OS I/O of the stall face)
-// ---------------------------------------------------------------------------
-
-/** Sampler — one dispatch's two legs, read once per tick: the process group's
- *  cumulative CPU and the newest content mtime of the scanned tree. The I/O lives
- *  here and the judgment lives in `StallJudge`, so each face is testable on its own
- *  (the truth table without a process, the fail-open `null` without a judge).
+/**
+ * Sampler — one dispatch's legs, read once per tick. The sampler BUILDS this round's
+ * signals from this round's `LivenessContext` (`LIVENESS_SIGNALS` is a per-round
+ * factory, never a module-level instance array), so each round's self-held state
+ * (`readableAt`) belongs to that round alone, and it holds the previous tick's values —
+ * the progress comparison basis lives with the cadence, exactly one tick wide.
  *
- *   · The group id is the child's own pid, never recomputed: `killDescendants` forces
- *     the spawn-layer detachment, so the child IS its process group leader — the same
- *     fact execa's own `process.kill(-pid)` kill rides.
- *   · The CPU leg is `ProcessFacts.groupCpuMs` (the ONE OS read face — the engine
- *     holds no `ps` parsing of its own); the group's membership is the real process
- *     group (`ps -g`), which survives a leader's exit and sees a `setsid` grandchild.
- *   · The scan root is the child's cwd (the repo root), so the "scan root ≡ child cwd"
- *     correspondence is structural.
- *   · `exclude` is the engine's own writes — `Sampler.excludesFor` is its single
- *     source: the repo's `.git/` and the dispatch's in-flight record together with
- *     that record's atomic temp siblings (`<record>.<n>`, the atomic write seam's
- *     own files). The rest of `.kairos/` is NOT excluded: a child's handoff draft
- *     there is real progress. An entry ending in `.` is a sibling prefix. */
+ * The legs are the CHILD's own evidence (design spec §4.3): its round log file and its
+ * process group's CPU. Nothing in the workspace tree is scanned any more, so a third
+ * party's write into the repo can never certify progress — that claim is structural
+ * now, not an exclusion list.
+ */
 export class Sampler {
-  /** The deepest tree level the walk descends to. */
-  static readonly MAX_DEPTH = 32;
-  /** The VCS internal every scan skips — its mtime is never a round's progress. */
-  static readonly VCS_DIR = ".git";
+  readonly #signals: readonly LivenessSignal[];
+  readonly #previous: (number | null)[];
 
-  readonly #pgid: number;
-  readonly #scanRoot: string;
-  /** The excluded paths themselves. */
-  readonly #exclude: ReadonlySet<string>;
-  /** The excluded sibling prefixes — an engine artifact's atomic temp files. */
-  readonly #excludePrefixes: readonly string[];
-
-  constructor(options: { pgid: number; scanRoot: string; exclude: readonly string[] }) {
-    this.#pgid = options.pgid;
-    // Absolute, normalized forms on both sides of the comparison below, so an
-    // exclusion matches the walked path it names.
-    this.#scanRoot = path.resolve(options.scanRoot);
-    const entries = options.exclude.map((entry) => path.resolve(entry));
-    this.#exclude = new Set(entries.filter((entry) => !Sampler.#isPrefix(entry)));
-    this.#excludePrefixes = entries.filter((entry) => Sampler.#isPrefix(entry));
+  constructor(context: LivenessContext) {
+    this.#signals = LIVENESS_SIGNALS.map((create) => create(context));
+    this.#previous = this.#signals.map(() => null);
   }
 
-  /** The exclusion single source for one dispatch: the repo's VCS internal, the
-   *  in-flight record the engine itself writes, and that record's atomic temp siblings
-   *  (`write-file-atomic` writes `<target>.<n>`) — a tick must never self-certify. */
-  static excludesFor(scanRoot: string, recordPath: string): readonly string[] {
-    return [path.join(scanRoot, Sampler.VCS_DIR), recordPath, `${recordPath}.`];
-  }
-
-  /** Whether an exclusion entry names a sibling prefix rather than one exact path. */
-  static #isPrefix(entry: string): boolean {
-    return entry.endsWith(".");
-  }
-
-  /** Whether a walked path is one of the engine's own writes. */
-  #isEngineWrite(candidate: string): boolean {
-    return (
-      this.#exclude.has(candidate) ||
-      this.#excludePrefixes.some((prefix) => candidate.startsWith(prefix))
-    );
-  }
-
-  /** Read both legs of this tick — each independently fail-open: a leg the platform
-   *  cannot read is `null`, never a fabricated reading. The CPU leg is the ONE OS
-   *  read face's group reading; the tree leg is this class's own walk. */
-  probe(): Sample {
+  /** Read every leg of this tick — each independently fail-open (`null`, never a
+   *  fabricated reading) — and advance the previous-reading basis. */
+  probe(): TickReadings {
+    const readings = this.#signals.map((signal) => signal.sample());
+    const previous = [...this.#previous];
+    readings.forEach((reading, index) => {
+      this.#previous[index] = reading.value;
+    });
     return {
-      groupCpuMs: ProcessFacts.groupCpuMs(this.#pgid),
-      newestMtimeMs: this.#newestMtimeMs(),
+      readings,
+      previous,
+      logSize: readings[0]?.value ?? null,
+      cpuMs: readings[1]?.value ?? null,
     };
-  }
-
-  /** The newest content mtime (ms) in the scanned tree — `null` when the walk cannot
-   *  complete (an unreadable directory anywhere makes the whole leg unreadable rather
-   *  than under-reporting). */
-  #newestMtimeMs(): number | null {
-    try {
-      return this.#newestIn(this.#scanRoot, 0);
-    } catch {
-      return null;
-    }
-  }
-
-  /** The recursive descent — symlinks and the engine's own paths skipped, `MAX_DEPTH`
-   *  as the floor of the walk. */
-  #newestIn(dir: string, depth: number): number | null {
-    if (depth > Sampler.MAX_DEPTH) return null;
-    let newest: number | null = null;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const child = path.join(dir, entry.name);
-      // A symlink is never followed (it can leave the tree outright); an excluded path
-      // is the engine's own write.
-      if (entry.isSymbolicLink() || this.#isEngineWrite(child)) continue;
-      if (entry.isDirectory()) {
-        const nested = this.#newestIn(child, depth + 1);
-        if (nested !== null && (newest === null || nested > newest)) newest = nested;
-        continue;
-      }
-      // Content mtimes only: a directory's own mtime moves on entry churn, which the
-      // CPU leg already reflects as work — and the record's first creation would
-      // otherwise bump its directory and self-certify a progress tick.
-      const mtimeMs = statSync(child).mtimeMs;
-      if (newest === null || mtimeMs > newest) newest = mtimeMs;
-    }
-    return newest;
   }
 }
 
@@ -333,7 +203,8 @@ export class Sampler {
 
 /** The sampling loop of one dispatch — the cadence that wraps the running child: one
  *  sample the moment the child is spawned, then one per `intervalMs`. Each tick reads
- *  the two legs through the `Sampler`, has the `StallJudge` rule on them, and
+ *  the legs through the `Sampler`, has the `LivenessJudge` rule on them (the idle clock
+ *  lives here, seeded by the spawn instant and restarted on every `progress`), and
  *  overwrites the dispatch's in-flight record sampling cells through `InFlight` — the
  *  ONE record, never a second file beside it. A `stalled` verdict fires the loop's
  *  `onStall` callback once — the Terminator's kill trigger (the engine's own group
@@ -351,9 +222,10 @@ export class Sampler {
  *  record takes it from there, never by re-reading the file the engine itself wrote. */
 class SamplingLoop {
   readonly #sampler: Sampler;
-  readonly #judge: StallJudge;
+  readonly #judge: LivenessJudge;
   readonly #inflight: InFlight;
   readonly #intervalMs: number;
+  readonly #idleWindowMs: number;
   /** The stall trigger — called once on the first `stalled` verdict (the kill). */
   readonly #onStall?: () => void;
   /** Whether the stall verdict has already fired — one kill per dispatch. */
@@ -361,18 +233,24 @@ class SamplingLoop {
   /** The most recent observation — the postmortem sample of a terminated round. */
   #last: SampleRecord | null = null;
   #timer: ReturnType<typeof setInterval> | null = null;
+  /** The instant of the last progress — the spawn instant until the first one. */
+  #idleSince: number;
 
   constructor(options: {
     sampler: Sampler;
-    judge: StallJudge;
+    judge: LivenessJudge;
     inflight: InFlight;
     intervalMs: number;
+    idleWindowMs: number;
+    spawnedAt: number;
     onStall?: () => void;
   }) {
     this.#sampler = options.sampler;
     this.#judge = options.judge;
     this.#inflight = options.inflight;
     this.#intervalMs = options.intervalMs;
+    this.#idleWindowMs = options.idleWindowMs;
+    this.#idleSince = options.spawnedAt;
     this.#onStall = options.onStall;
   }
 
@@ -391,9 +269,9 @@ class SamplingLoop {
     return this.#last;
   }
 
-  /** The judge's idle reading (ms) at this instant — the termination fact's idle time. */
+  /** The idle time (ms) at this instant — how long since the last progress. */
   idleMs(): number {
-    return this.#judge.idleMs(Date.now());
+    return Math.max(0, Date.now() - this.#idleSince);
   }
 
   /** End the loop at the dispatch's terminal state — the cadence stops and NOTHING
@@ -406,18 +284,20 @@ class SamplingLoop {
     }
   }
 
-  /** One tick: read both legs, judge them, and overwrite the in-flight record's
+  /** One tick: read the legs, judge them, and overwrite the in-flight record's
    *  sampling cells. A `stalled` verdict fires the kill trigger once (the first stall
    *  owns the kill; later ticks of a dying child never re-fire). */
   #tick(now: number): void {
-    const sample = this.#sampler.probe();
-    const verdict = this.#judge.observe(sample, now);
-    this.#last = {
-      sampledAt: now,
-      groupCpuMs: sample.groupCpuMs,
-      newestMtimeMs: sample.newestMtimeMs,
-      verdict,
-    };
+    const { readings, previous, logSize, cpuMs } = this.#sampler.probe();
+    const verdict = this.#judge.verdict({
+      readings,
+      previous,
+      idleMs: Math.max(0, now - this.#idleSince),
+      windowMs: this.#idleWindowMs,
+      now,
+    });
+    if (verdict === "progress") this.#idleSince = now;
+    this.#last = { at: now, logSize, cpuMs, verdict };
     this.#inflight.heartbeat({ sampledAt: now, verdict });
     if (verdict === "stalled" && !this.#stallFired) {
       this.#stallFired = true;
@@ -534,9 +414,10 @@ export class Terminator implements ChildRunner {
    *  broken command has no pid: nothing to sample and nothing to postmortem). The
    *  group id is the child's OWN pid, never recomputed — `killDescendants` forces the
    *  spawn-layer detachment, so the child IS its process group leader (the same fact
-   *  execa's own group kill rides); the scan root is the same `cwd` the child was
-   *  spawned in. The stall trigger rides through: the loop's first `stalled` verdict
-   *  is the kill's authorization. */
+   *  execa's own group kill rides). The round's two context cells are taken here for
+   *  THIS round: its own log path (a re-dispatch carries its own `-a{attempt}` file)
+   *  and its own pgid. The stall trigger rides through: the loop's first `stalled`
+   *  verdict is the kill's authorization. */
   #startSampling(
     run: ChildRun,
     pid: number | undefined,
@@ -544,15 +425,16 @@ export class Terminator implements ChildRunner {
     onStall?: () => void,
   ): SamplingLoop | null {
     if (pid === undefined) return null;
+    // No log channel → an empty path the log leg can never read (`null`), so the CPU
+    // leg judges alone; the round is never lost to an unopenable observation channel.
+    const context: LivenessContext = { logPath: run.log?.path ?? "", pgid: pid };
     const sampling = new SamplingLoop({
-      sampler: new Sampler({
-        pgid: pid,
-        scanRoot: run.cwd,
-        exclude: Sampler.excludesFor(run.cwd, run.inflight.path()),
-      }),
-      judge: new StallJudge(run.policy.idleWindowMs, spawnedAt),
+      sampler: new Sampler(context),
+      judge: new LivenessJudge(),
       inflight: run.inflight,
       intervalMs: run.policy.sampleIntervalMs,
+      idleWindowMs: run.policy.idleWindowMs,
+      spawnedAt,
       onStall,
     });
     sampling.start();

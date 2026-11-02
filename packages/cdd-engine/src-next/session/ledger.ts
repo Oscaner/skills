@@ -260,24 +260,24 @@ export type LedgerKey = number | string;
 export type TerminationCause = "stalled" | "over-budget" | "signal";
 
 /** The stall judge's verdict per sample tick: `progress` (a leg advanced), `unknown`
- *  (a leg is unreadable — the fail-open state, never a kill), `idled` (no progress
- *  yet, the idle window is open) and `stalled` (no progress and the window is spent
- *  — the kill). */
+ *  (no leg was readable anywhere in the stall window — the fail-open state, never a
+ *  kill), `idled` (no progress yet, the idle window is open) and `stalled` (no progress
+ *  and the window is spent — the kill). */
 export type StallVerdict = "progress" | "unknown" | "idled" | "stalled";
 
-/** One sample tick's two legs — the process group's cumulative CPU (ms) and the
- *  newest mtime (ms) of the scanned tree. `null` = that leg is unreadable (the
- *  fail-open face: an unreadable leg never authorizes a kill). The field names are
- *  the in-flight record's names (one naming, two references). */
+/** One sample tick's two legs — the round log's size in bytes and the process group's
+ *  cumulative CPU (ms). `null` = that leg is unreadable (the fail-open face: an
+ *  unreadable leg neither advances, nor conjures `unknown`, nor blocks a stall). The
+ *  field names are the recorded sample's names (one naming, two references). */
 export interface Sample {
-  groupCpuMs: number | null;
-  newestMtimeMs: number | null;
+  logSize: number | null;
+  cpuMs: number | null;
 }
 
-/** The recorded sample — a `Sample` extended with its tick's timestamp and the
- *  judge's verdict (the sampling trail's field set; the crash record embeds it). */
+/** The recorded sample — a `Sample` extended with the tick's instant and the judge's
+ *  verdict (the sampling trail's field set; the crash record embeds it). */
 export interface SampleRecord extends Sample {
-  sampledAt: number;
+  at: number;
   verdict: StallVerdict;
 }
 
@@ -322,6 +322,10 @@ export interface CrashRecord {
   stdoutTail: readonly string[];
   /** The handoff path the dead child was expected to write (null when the lane carries none). */
   attemptedHandoff: string | null;
+  /** The round's log file (repoRoot-relative), null when the round had no log channel
+   *  (a create failure, or a dispatch that never reached its spawn). The postmortem
+   *  opens one file instead of reading `ps` from outside. */
+  logPath: string | null;
   /** The same-command resume string — emitted verbatim as `next: <resumeCommand>`. */
   next: string;
   /** The unified termination cause — postmortem, zero behavior fork. */

@@ -5403,6 +5403,28 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
+  it("an early-return dispatch carries NO baseline — a previous round's HEAD never leaks", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      const base = gitInit(repoRoot);
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      // a mutable env object — the dispatch reads it live, so the host marker can vanish
+      const env: Record<string, string | undefined> = { CLAUDE_CODE_SESSION_ID: "s" };
+      const dispatch = new HarnessDispatch({ scene, io, sync: new StubRunner(), env });
+      // the first dispatch reaches its git baseline (no draft → BLOCKED, the baseline set)
+      expect((await dispatch.step()(implementFrame)).dispatchBase).toBe(base);
+      // the host marker is gone, so the second dispatch returns BEFORE reading the
+      // baseline — its record says "no baseline", never the previous round's HEAD
+      env.CLAUDE_CODE_SESSION_ID = undefined;
+      const early = await dispatch.step()(implementFrame);
+      expect(early.status).toBe("BLOCKED");
+      expect(early.dispatchBase).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
   it("a child that exits 0 without the handoff → BLOCKED + CDD_BLOCKED + crash record (nothing clobbered)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
@@ -5953,6 +5975,41 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(code).toBe(0);
       expect(existsSync(path.join(workspace.path, "logs", "tasks-1-implement.log"))).toBe(false);
       expect(sync.calls).toHaveLength(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a round log that cannot be created is a named soft warning — the round still runs", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "child chatter\n";
+    const { command, io, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace, ledger } = cliScene(repoRoot);
+      seedImplement(ledger);
+      writeFileSync(
+        path.join(workspace.path, "tasks-1-review-1.json"),
+        JSON.stringify({ findings: [] }),
+        "utf8",
+      );
+      // a regular file occupies the `logs/` path, so creating the round log fails
+      writeFileSync(path.join(workspace.path, "logs"), "not a directory\n", "utf8");
+      const code = await withHost(() =>
+        command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+      );
+      // the observation leg is soft: the child still ran and the round still concluded
+      expect(code).toBe(0);
+      expect(sync.calls).toHaveLength(1);
+      expect(sync.calls[0]?.log).toBeUndefined();
+      expect(io.stderrText).toContain("CDD_WARN: round log unavailable at");
+      expect(io.stderrText).toContain(
+        path.join(".kairos", "cdd", "p3", "logs", "tasks-1-review-1.log"),
+      );
+      // the round's own face is unchanged — the same status line and the same record
+      expect(io.stdoutText).toContain("status: APPROVED");
+      expect(ledger.roundCount(1, "review")).toBe(1);
     } finally {
       cleanup();
     }

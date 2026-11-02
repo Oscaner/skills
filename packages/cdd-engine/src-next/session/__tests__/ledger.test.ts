@@ -436,6 +436,36 @@ describe("handoff — naming / carrier / single-author persist", () => {
       cleanup();
     }
   });
+
+  it("orphanHandoffs names only the drafts whose round never COMPLETED — a failed round's carrier stays orphaned", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // a completed review owns its carrier — the round's verdict says so
+      ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+      ledger.recordRound("1", { op: "review", cycle: 1 });
+      // a hard-failed review leaves a draft no COMPLETED round owns: it is registered
+      // (every dispatched round lands) but its verdict is not a completion
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        {
+          tasks: "1",
+          round: 2,
+        },
+        {
+          findings: [{ severity: "blocker", lens: "code", summary: "drift" }],
+        },
+      );
+      ledger.recordRound("1", {
+        op: "review",
+        cycle: 2,
+        verdict: { treeClean: true, targetAction: false },
+      });
+      expect(ledger.orphanHandoffs()).toEqual(["tasks-1-review-2.json"]);
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 describe("crash — the recovery record (named by RoundNaming)", () => {

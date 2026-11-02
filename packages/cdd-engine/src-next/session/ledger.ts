@@ -628,9 +628,11 @@ export class Ledger {
     return this.#cyclesOf(this.rowFor(data, key), mode).length;
   }
 
-  /** Whether a dispatch key + mode has a round recorded for a given CYCLE — the
-   *  identity test the round-read gate uses (a fix cycle that skipped a number is
-   *  present at its own number, not at its ordinal — D28). */
+  /** Whether a dispatch key + mode has a round REGISTERED for a given CYCLE — the
+   *  identity test for the register (a fix cycle that skipped a number is present at
+   *  its own number, not at its ordinal — D28). This is the test/seeding face: it
+   *  answers register membership, NOT completion (a hard-failed round is registered),
+   *  so no production completion question reads it — those read `completedCycles`. */
   roundRecorded(key: LedgerKey, mode: string, cycle: number): boolean {
     const data = this.readProgress();
     if (data === null) return false;
@@ -908,14 +910,18 @@ export class Ledger {
   /** The pending-fix derivation — the "doc same + not APPROVED" face (T8): the
    *  latest review round has an outstanding fix AND its conclusion was not an
    *  approval. The identity test is the operable leg (D28): the latest review cycle
-   *  is ABSENT from the fix cycle set (`roundRecorded(key, "fix", reviews)`) — a
+   *  is ABSENT from the fix COMPLETION set (`#completedCyclesOfRow(row, "fix")`) — a
    *  membership test, never a `reviews > fixes` count comparison, which would read a
    *  phantom pending fix when a cycle was skipped (a drift-voided review-1 → the first
-   *  fix is cycle 2, present at its own number, not ordinal 1). The status read keeps
-   *  the derivation's second leg explicit, degrading to the conservative pending on a
-   *  missing carrier (a recorded round is a present fact — the same-doc re-review
-   *  stays refused until its fix lands). A completed fix (the latest review cycle IS
-   *  in the fix set) is NOT the pending face — the completed-fix line's re-review
+   *  fix is cycle 2, present at its own number, not ordinal 1). The completion set —
+   *  not bare register membership (`roundRecorded`, the test/seeding face) — is the
+   *  judging face: every dispatched round is registered, so a hard-failed `fix-K` IS
+   *  in register while NOT completed, and a register test would read that failure as
+   *  a done fix and strand the line forever. The status read keeps the derivation's
+   *  second leg explicit, degrading to the conservative pending on a missing carrier
+   *  (a recorded round is a present fact — the same-doc re-review stays refused until
+   *  its fix lands). A completed fix (the latest review cycle IS in the fix
+   *  completion set) is NOT the pending face — the completed-fix line's re-review
    *  reopens through the fix round's C5 route (the legacy judgment). */
   #pendingFix(key: LedgerKey, type: TargetType): boolean {
     const data = this.readProgress();

@@ -557,6 +557,48 @@ describe("the task small loop — implement → review → the next ready group"
     }
   });
 
+  it("a BLOCKED fix round lands as a record — the retry takes attempt 2 at the source review's cycle", async () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      let blockedFix = true;
+      const dispatch = stub((frame) => {
+        if (frame.phase === "implement") return APPROVED_IMPLEMENT;
+        if (frame.phase === "review") return { status: "APPROVED", findings: [finding("blocker")] };
+        return blockedFix ? { status: "BLOCKED" } : { status: "APPROVED" };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+
+      await run.advance(); // implement
+      const review = await run.advance(); // review — the blocker awaits its fix
+      expect(review!.route!.kind).toBe("fix");
+      const fix = await run.advance(); // fix 1 BLOCKED
+      expect(fix!.frame.phase).toBe("fix");
+      expect(fix!.route).toBeNull();
+      // the failed fix is registered but not completed — the completed-set read keeps
+      // the line at fix-K instead of reading the failure as a done fix
+      expect(ledger.completedCycles("1", "fix")).toEqual([]);
+
+      // the retry is the SAME cycle's next attempt, allocated once by the naming source
+      const retry = run.peekNext();
+      expect(retry?.phase).toBe("fix");
+      expect(retry?.round).toBe(1);
+      expect(retry?.attempt).toBe(2);
+
+      blockedFix = false;
+      const completed = await run.advance();
+      expect(completed!.route!.kind).toBe("review"); // the completed fix awaits its re-review
+      expect(ledger.completedCycles("1", "fix")).toEqual([1]);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("a BLOCKED mid-run wave LOCKS the successor — wave {2} is unreachable while wave {1} holds an unclosed review (v1.29)", async () => {
     const { ledger, cleanup } = fixture();
     try {
@@ -1078,6 +1120,47 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
       await run.advance();
       await run.advance();
       expect(ledger.reviewedRevisionOf("1")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a FAILED wave review binds no revision — the verdict is the write-back gate", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none")]));
+      const graph = taskGraph([task(1, "none")]);
+      // the review's first two passes fail (one BLOCKED, one TIMEOUT); the third completes
+      const failures: Array<"BLOCKED" | "TIMEOUT"> = ["BLOCKED", "TIMEOUT"];
+      const dispatch = stub((frame) => {
+        if (frame.phase === "implement") return APPROVED_IMPLEMENT;
+        const failed = failures.shift();
+        return failed === undefined ? { status: "APPROVED", findings: [] } : { status: failed };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        planPath,
+      });
+      await run.advance(); // implement
+      for (let pass = 0; pass < 2; pass += 1) {
+        const failed = await run.advance();
+        expect(failed!.frame.phase).toBe("review");
+        // every dispatched round lands, the failed verdict riding its record
+        expect(ledger.recordsOf("1").at(-1)).toMatchObject({
+          op: "review",
+          verdict: { targetAction: false },
+        });
+        // a hard-failed review never judged this revision — binding it would close the
+        // drift identity the review did not read (AC: the write-back is verdict-gated)
+        expect(ledger.reviewedRevisionOf("1")).toBeNull();
+      }
+      const completed = await run.advance(); // review — the completed round binds the brief
+      expect(completed!.frame.phase).toBe("review");
+      expect(ledger.reviewedRevisionOf("1")).not.toBeNull();
     } finally {
       cleanup();
     }

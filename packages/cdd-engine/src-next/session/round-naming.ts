@@ -60,12 +60,8 @@ export class RoundNaming {
    *  `{family}-{op}{-round}-report.md` (the implement round carries no round token:
    *  the line keys the implement round alone). */
   report(frame: OpenFrame): string {
-    if (frame.type === "spec" || frame.type === "plan") {
-      return this.#workspace.resolve(`${frame.type}-${this.op(frame)}-${frame.round}-report.md`);
-    }
-    const family = frame.type === "wave" ? `tasks-${frame.params.tasks ?? ""}` : "branch";
-    const suffix = frame.phase === "implement" ? "" : `-${frame.round}`;
-    return this.#workspace.resolve(`${family}-${this.op(frame)}${suffix}-report.md`);
+    const params: HandoffParams = { tasks: frame.params.tasks, round: frame.round };
+    return this.#workspace.resolve(`${this.#stem(this.op(frame), frame.type, params)}-report.md`);
   }
 
   /** The prescribed test-evidence path of a round — "" off the evidence rounds (the doc
@@ -111,16 +107,19 @@ export class RoundNaming {
    *  attempt 1's log is never overwritten). The attempt is allocated by `attemptOf`
    *  and passed in, never extrapolated here. */
   logName(op: OpType, type: TargetType, params: HandoffParams, attempt: number): string {
-    const stem =
-      type === "spec" || type === "plan"
-        ? `${type}-${op}-${params.round}`
-        : (() => {
-            const family = type === "wave" ? `tasks-${params.tasks ?? ""}` : "branch";
-            const suffix = op === "implement" ? "" : `-${params.round}`;
-            return `${family}-${op}${suffix}`;
-          })();
     const attemptSuffix = attempt > 1 ? `-a${attempt}` : "";
-    return `${stem}${attemptSuffix}.log`;
+    return `${this.#stem(op, type, params)}${attemptSuffix}.log`;
+  }
+
+  /** The round's artifact STEM — the ONE derivation the report and the log name read
+   *  (`{type}-{op}-{round}` on the doc lines, `{family}-{op}{-round}` on the
+   *  wave/branch lines). The round-token decision keys on the FAMILY OP (implement is
+   *  the round-less family), so the report and its log can never diverge. */
+  #stem(op: OpType, type: TargetType, params: HandoffParams): string {
+    if (type === "spec" || type === "plan") return `${type}-${op}-${params.round}`;
+    const family = type === "wave" ? `tasks-${params.tasks ?? ""}` : "branch";
+    const suffix = op === "implement" ? "" : `-${params.round}`;
+    return `${family}-${op}${suffix}`;
   }
 
   /** The crash record's workspace-relative name — `crash-{line}-{op}-{round}.json`.

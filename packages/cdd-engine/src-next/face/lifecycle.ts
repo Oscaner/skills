@@ -202,6 +202,9 @@ export class CliLifecycle {
    *  at OUTPUT_HANDOFF is the round's content; the child's Return is prose, never
    *  parsed). */
   async #runDispatch(frame: OpenFrame): Promise<DispatchOutcome> {
+    // The baseline belongs to THIS dispatch alone: cleared at entry, so an early
+    // return (no host harness) records "no baseline" rather than a previous round's.
+    this.#dispatchBase = null;
     const host = this.detectHost();
     if (host === "") {
       this.#io.stderr(

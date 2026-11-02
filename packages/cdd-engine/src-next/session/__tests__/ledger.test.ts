@@ -19,7 +19,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
-import { Ledger, type ProgressData, type RefKind } from "../ledger.ts";
+import { Ledger, type ProgressData, type RefKind, RoundViolation } from "../ledger.ts";
 import { RoundNaming } from "../round-naming.ts";
 import type { OpenFrame } from "../run.ts";
 
@@ -142,6 +142,27 @@ describe("progress — the fixed key set", () => {
     } finally {
       cleanup();
     }
+  });
+
+  it("the graded entry has ONE construction point — the cause vocabulary's shape lives here", () => {
+    // Every plane builds its entries here: renaming a cause or adding a grade touches
+    // this factory, never a copy per call site.
+    expect(RoundViolation.hard("zero commits")).toEqual({
+      grade: "hard",
+      cause: "contract-violation",
+      message: "zero commits",
+    });
+    expect(RoundViolation.soft("hygiene")).toEqual({
+      grade: "soft",
+      cause: "contract-violation",
+      message: "hygiene",
+    });
+    // a death fact passes its own cause through the same factory
+    expect(RoundViolation.hard("child exited 3", "child-exit")).toEqual({
+      grade: "hard",
+      cause: "child-exit",
+      message: "child exited 3",
+    });
   });
 
   it("a legacy contractViolationCount scalar on disk is READ and IGNORED — the derived value wins", () => {

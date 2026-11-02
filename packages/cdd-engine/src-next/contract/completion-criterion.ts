@@ -7,9 +7,9 @@
 // the REQUESTING review carrier (design spec §3.4).
 //
 // The criterion judges a CompletionContext the dispatch side assembles (Task 7):
-// the round's record, its ledger row, the row's in-register records, the persisted
-// carrier bytes, the requester's review path, the git read face and the repoRoot
-// path basis. The two cells with a provider seam (`records`, `reviewsPath`) are
+// the round's verdict-free identity, its ledger row, the row's in-register records,
+// the persisted carrier bytes, the requester's review path, the git read face and the
+// repoRoot path basis. The two cells with a provider seam (`records`, `reviewsPath`) are
 // filled by `CliLifecycle` — this module pins the context SHAPE only and imports
 // neither `face/` nor the lifecycle.
 //
@@ -25,14 +25,25 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { GitClient } from "../infra/git.ts";
-import type { OpType, ProgressRow, RoundRecord, RoundViolation } from "../session/ledger.ts";
+import {
+  type OpType,
+  type ProgressRow,
+  type RoundIdentity,
+  type RoundRecord,
+  RoundViolation,
+} from "../session/ledger.ts";
 
 /** The judgment input — the round's own facts, its group's records, the carrier bytes
  *  and the two read seams (git + the requester's review path). */
 export interface CompletionContext {
-  /** The round under judgment — its identity and its recorded verdict. */
-  readonly record: RoundRecord;
-  /** The progress row the round belongs to (the wave key's line). */
+  /** The round under judgment — its identity ONLY. The verdict and the graded
+   *  violations are deliberately absent: a completion verdict must never be an input
+   *  to the judgment that produces it. */
+  readonly record: RoundIdentity;
+  /** The progress row the round belongs to (the wave key's line) — RESERVED. No
+   *  criterion reads it today; it rides the context so a future criterion that needs
+   *  the row's line-level facts has one supplied cell instead of a second ledger read.
+   *  A criterion that starts reading it must say so here. */
   readonly row: ProgressRow;
   /** The row's in-register records (the group's history) — `CommitsSinceGroupBase`
    *  derives the group baseline from them, `FixDispositions` finds the request-side
@@ -79,7 +90,7 @@ export class CommitsSinceGroupBase implements CompletionCriterion {
   /** The group baseline — the first record (ledger order = cycle/attempt order) that
    *  carries a `dispatchBase`. Records without one (legacy folds, a non-git tree) are
    *  skipped: they carry no present fact. Null when the group carries none. */
-  static groupBaseOf(records: readonly RoundRecord[]): string | null {
+  static groupBaseOf(records: readonly RoundIdentity[]): string | null {
     for (const record of records) {
       if (record.dispatchBase !== null) return record.dispatchBase;
     }
@@ -113,13 +124,13 @@ export class CommitsSinceGroupBase implements CompletionCriterion {
   /** The hard verdict of this criterion — the ledger's existing `contract-violation`
    *  cause, never a new violation enum row. */
   #hard(message: string): CompletionVerdict {
-    return { fulfilled: false, violation: { grade: "hard", cause: "contract-violation", message } };
+    return { fulfilled: false, violation: RoundViolation.hard(message) };
   }
 
   /** The absent-carrier observation — bookkeeping only (the round's commits decided
    *  it); the same cause vocabulary, the soft grade. */
   #observation(): RoundViolation {
-    return { grade: "soft", cause: "contract-violation", message: IMPLEMENT_CARRIER_ABSENT };
+    return RoundViolation.soft(IMPLEMENT_CARRIER_ABSENT);
   }
 }
 
@@ -146,7 +157,7 @@ export class JudgeCarrier implements CompletionCriterion {
 
   /** The hard verdict of this criterion — same cause vocabulary as the ledger's. */
   #hard(message: string): CompletionVerdict {
-    return { fulfilled: false, violation: { grade: "hard", cause: "contract-violation", message } };
+    return { fulfilled: false, violation: RoundViolation.hard(message) };
   }
 }
 
@@ -419,13 +430,13 @@ export class FixDispositions implements CompletionCriterion {
   /** The hard verdict of this criterion — the ledger's existing `contract-violation`
    *  cause, never a new violation enum row. */
   #hard(message: string): CompletionVerdict {
-    return { fulfilled: false, violation: { grade: "hard", cause: "contract-violation", message } };
+    return { fulfilled: false, violation: RoundViolation.hard(message) };
   }
 
   /** The soft row — bookkeeping only; `contract-violation` is the only cause
    *  vocabulary the ledger carries today. */
   #soft(message: string): RoundViolation {
-    return { grade: "soft", cause: "contract-violation", message };
+    return RoundViolation.soft(message);
   }
 }
 

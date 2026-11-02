@@ -16,7 +16,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { GitClient } from "../../infra/git.ts";
-import type { OpType, ProgressRow, RoundRecord, RoundVerdict } from "../../session/ledger.ts";
+import type {
+  OpType,
+  ProgressRow,
+  RoundIdentity,
+  RoundRecord,
+  RoundVerdict,
+} from "../../session/ledger.ts";
 import {
   COMPLETION_CRITERIA,
   CommitsSinceGroupBase,
@@ -73,7 +79,10 @@ const row = (wave: string, records: readonly RoundRecord[]): ProgressRow => ({
 
 /** One completion context literal — all seven cells, no lifecycle, no face. */
 const context = (
-  over: Partial<CompletionContext> & { record: RoundRecord; records: readonly RoundRecord[] },
+  over: Partial<CompletionContext> & {
+    record: RoundIdentity;
+    records: readonly RoundRecord[];
+  },
 ): CompletionContext => ({
   row: row("4,5,8", over.records),
   carrier: null,
@@ -243,6 +252,33 @@ describe("(d) the completion context is a pure shape", () => {
     // The review criterion reads the carrier cell only.
     const review = await new JudgeCarrier().judge(ctx);
     expect(review.fulfilled).toBe(true);
+  });
+
+  it("the judged record is a verdict-FREE identity — a verdict is never an input to its own judgment", async () => {
+    // The lifecycle hands the criteria the round's identity alone (op / cycle /
+    // attempt / dispatchBase / carrierPath): the verdict the judgment produces has no
+    // cell here, so no criterion can read its own conclusion as an input.
+    const identity: RoundIdentity = {
+      op: "implement",
+      cycle: 1,
+      attempt: 1,
+      dispatchBase: "group-base",
+      carrierPath: null,
+    };
+    const git = new StubGit(["abc123 feat: work"]);
+    const verdict = await new CommitsSinceGroupBase().judge(
+      context({ record: identity, records: [], git }),
+    );
+    expect(verdict.fulfilled).toBe(true);
+    expect(git.calls).toEqual([{ cwd: "/repo", base: "group-base" }]);
+    // No `verdict` / `violations` key exists to be mistaken for a real record.
+    expect(Object.keys(identity).sort()).toEqual([
+      "attempt",
+      "carrierPath",
+      "cycle",
+      "dispatchBase",
+      "op",
+    ]);
   });
 });
 

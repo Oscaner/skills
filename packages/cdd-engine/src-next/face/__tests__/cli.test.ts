@@ -6736,6 +6736,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           { grade: "soft", cause: "contract-violation", message: IMPLEMENT_CARRIER_ABSENT },
         ]);
         expect(ledger.counterOf("contractViolationCount")).toBe(1);
+        // the production round wrote NO carrier, so the engine synthesizes none: the
+        // record's carrier path stays null and the handoff path holds no file — a
+        // re-dispatch's draft read must see the child's own (absent) draft, never an
+        // engine-authored `{status: APPROVED, artifacts: {}}` (§3.3)
+        expect(record?.carrierPath).toBeNull();
+        expect(existsSync(path.join(workspace.path, "tasks-1-implement.json"))).toBe(false);
         // the soft row warns, the blocked channel stays silent
         expect(io.stderrText).toContain("CDD_WARN:");
         expect(io.stderrText).not.toContain("CDD_BLOCKED");

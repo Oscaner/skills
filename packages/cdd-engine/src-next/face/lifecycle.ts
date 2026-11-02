@@ -29,16 +29,16 @@ import { TemplateAssembler } from "../render/templates.ts";
 import type { CarrierPlane } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
-import type {
-  CrashCause,
-  Ledger,
-  OpType,
-  ProgressRow,
-  RoundRecord,
-  RoundStatus,
-  RoundVerdict,
+import {
+  type CrashCause,
+  type Ledger,
+  type OpType,
+  type ProgressRow,
+  type RoundIdentity,
+  type RoundStatus,
+  type RoundVerdict,
   RoundViolation,
-  Termination,
+  type Termination,
 } from "../session/ledger.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
@@ -279,13 +279,7 @@ export class CliLifecycle {
         violations:
           authored.length > 0
             ? authored
-            : [
-                {
-                  grade: "hard",
-                  cause: "contract-violation",
-                  message: `the round concluded ${outcome.status}`,
-                },
-              ],
+            : [RoundViolation.hard(`the round concluded ${outcome.status}`)],
       };
     }
     const violations: RoundViolation[] = [
@@ -324,18 +318,18 @@ export class CliLifecycle {
     ];
   }
 
-  /** The round record the criterion judges from — its identity plus the carrier path
-   *  the round writes. The verdict this judgment produces is not part of the input
-   *  (the criterion reads the carrier and the group's history, never the conclusion). */
-  #judgedRecordOf(frame: OpenFrame, outcome: DraftedOutcome): RoundRecord {
+  /** The round IDENTITY the criterion judges from — its op / cycle / attempt, the
+   *  group baseline and the carrier path the round writes. Deliberately verdict-free:
+   *  this judgment PRODUCES the verdict, so a verdict cell here would be a
+   *  self-fulfilling input. The group's already-recorded verdicts arrive through
+   *  `CompletionContext.records`, never through this cell. */
+  #judgedRecordOf(frame: OpenFrame, outcome: DraftedOutcome): RoundIdentity {
     const op = this.#opOf(frame);
     return {
       op,
       cycle: frame.round,
       attempt: frame.attempt ?? 1,
       dispatchBase: outcome.dispatchBase ?? null,
-      verdict: { treeClean: outcome.treeClean ?? true, targetAction: true },
-      violations: [],
       carrierPath:
         outcome.carrier === undefined
           ? null
@@ -381,7 +375,7 @@ export class CliLifecycle {
   /** One self-authored HARD entry — the ledger's existing `contract-violation` cause,
    *  zero new violation enum (design spec §3.3). */
   #hard(message: string): RoundViolation {
-    return { grade: "hard", cause: "contract-violation", message };
+    return RoundViolation.hard(message);
   }
 
   /** The hard entries' one-line reason (the `CDD_BLOCKED` line's message). */
@@ -945,13 +939,14 @@ export class CliLifecycle {
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the
    *  same-command resume's decision source: the attempted handoff + the resume
    *  command) + NO carrier (the bookkeep leaves the draft untouched). The crash
-   *  record carries the caller's REAL death facts: an absent draft is the
-   *  `handoff-absent` read-back face (exit 0), a present-but-unqualified draft
-   *  (malformed JSON / schema) is `contract-violation` (the default), a dead
-   *  child passes its own exit code + `child-exit`, and a terminated round passes
-   *  its whole `termination` fact (cause + last sample) — one record shape, four
-   *  truthful callers (the record is the postmortem artifact; a misreported death
-   *  sends a maintainer hunting the wrong fault).
+   *  record carries the caller's REAL death facts: a present-but-unqualified draft
+   *  (malformed JSON / schema) is `contract-violation` (the default), a dead child
+   *  passes its own exit code + `child-exit`, and a terminated round passes its whole
+   *  `termination` fact (cause + last sample) — one record shape, three truthful
+   *  callers (the record is the postmortem artifact; a misreported death sends a
+   *  maintainer hunting the wrong fault). A MISSING draft is not this face: the
+   *  completion criterion owns it, so no rejection — and no crash record — ever fires
+   *  for an absent draft.
    *
    *  The returned status derives from the death facts alone (§4.3 — no status
    *  parameter): a termination rides it → `TIMEOUT`; otherwise → `BLOCKED` (the
@@ -989,7 +984,7 @@ export class CliLifecycle {
     // The rejected round's own HARD entry — the verdict is `targetAction: false` and the
     // failure is named, never a silent absence (§3.3). The cause rides the death facts'
     // existing vocabulary (no new enum row).
-    const violations: readonly RoundViolation[] = [{ grade: "hard", cause, message: reason }];
+    const violations: readonly RoundViolation[] = [RoundViolation.hard(reason, cause)];
     if (death.termination === null) return { status: "BLOCKED", violations };
     return { status: "TIMEOUT", termination: death.termination, violations };
   }

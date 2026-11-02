@@ -127,7 +127,9 @@ export interface DispatchOutcome {
    *  graded) and `treeClean` the dispatch-after observation. The bookkeep records it
    *  verbatim; its readers ask `verdict.targetAction`, never the exit code. Absent
    *  from the hermetic / injected dispatchers — the bookkeep falls back to the
-   *  status-derived verdict. */
+   *  status-derived verdict. Its presence is also the PRODUCTION-face marker: a round
+   *  carrying a verdict actually ran, so the bookkeep never synthesizes a carrier for
+   *  it (a production round that wrote no draft is booked with a null carrier path). */
   verdict?: RoundVerdict;
   /** The round's GRADED violations — hard entries failed the round, soft entries are
    *  bookkeeping only (design spec §3.3). Recorded verbatim on the round's record. */
@@ -489,16 +491,19 @@ export class Lifecycle {
    *  persisted carrier is either the dispatch's materialized form (the production
    *  read-back reconstruct — outcome.carrier, full-replace at the SAME path, so the
    *  child's draft becomes the finalized carrier — the two-state single file, the engine is the single
-   *  author) or the engine-built fallback from the outcome fields (the hermetic /
-   *  injected dispatchers). A failure round WITHOUT a carrier leaves the child's draft
-   *  untouched (no-overwrite on failure) but is STILL recorded — every dispatched round
-   *  lands; "completed" is the record's verdict, never a membership test. Returns the
-   *  in-register round count (the task done-marking rides the step's C5 route —
-   *  #markTerminal, after #routeNext). */
+   *  author) or — on the INJECTED face alone (an outcome carrying no verdict) — the
+   *  engine-built fallback from the outcome fields. A production round that wrote no
+   *  carrier is booked with `carrierPath: null` and no file at the handoff path: the
+   *  completion criterion owns the absence (§3.3), and a re-dispatch's draft read must
+   *  see the child's own draft, never an engine synthesis of it. A failure round
+   *  WITHOUT a carrier leaves the child's draft untouched (no-overwrite on failure) but
+   *  is STILL recorded — every dispatched round lands; "completed" is the record's
+   *  verdict, never a membership test. Returns the in-register round count (the task
+   *  done-marking rides the step's C5 route — #markTerminal, after #routeNext). */
   #bookkeep(frame: OpenFrame, outcome: DispatchOutcome): number {
     const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     let carrierPath: string | null = null;
-    if (outcome.carrier !== undefined || !blocked) {
+    if (outcome.carrier !== undefined || (outcome.verdict === undefined && !blocked)) {
       const op = this.#opOf(frame.phase);
       // T2 — the engine-built fallback rides the FRAME's op-derived plane (never the
       // outcome's field presence): a judge-plane round (review) builds the findings

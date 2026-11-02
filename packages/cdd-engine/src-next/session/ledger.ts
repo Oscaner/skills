@@ -87,6 +87,23 @@ export type RoundViolation = {
   readonly message: string;
 };
 
+/** The graded-violation literals' ONE construction point — the cause vocabulary is
+ *  a declared convergence point, so its shape is held here rather than copied per
+ *  call site. `cause` defaults to `contract-violation`, the ledger's existing row
+ *  for a self-authored entry; a death fact passes its own cause. */
+export const RoundViolation = {
+  hard: (message: string, cause = "contract-violation"): RoundViolation => ({
+    grade: "hard",
+    cause,
+    message,
+  }),
+  soft: (message: string, cause = "contract-violation"): RoundViolation => ({
+    grade: "soft",
+    cause,
+    message,
+  }),
+};
+
 /** One dispatched round's record — its identity (`op` + `cycle` + `attempt`), the
  *  dispatch baseline HEAD, the terminal verdict, its graded violations and the
  *  carrier path (null when the round wrote none). A dispatched round is recorded
@@ -101,6 +118,15 @@ export interface RoundRecord {
   readonly violations: readonly RoundViolation[];
   readonly carrierPath: string | null;
 }
+
+/** One dispatched round's identity — the verdict-free projection a completion
+ *  judgment reads. A completion verdict must never be an input to the judgment that
+ *  produces it, so the criteria see this shape, not a record whose `verdict` cell
+ *  the judgment itself would fill. */
+export type RoundIdentity = Pick<
+  RoundRecord,
+  "op" | "cycle" | "attempt" | "dispatchBase" | "carrierPath"
+>;
 
 /** The writable shape of one round record — the stored record with the identity
  *  facts defaultable (the seeding form still allocates the cycle from the row's
@@ -311,17 +337,14 @@ export interface Termination {
 /** The lane-crash cause vocabulary — postmortem classification of why a dispatch
  *  terminated before the exit gate (zero behavior fork: resume never routes on it).
  *  The termination causes cover the round that was cut short; `child-exit` is the
- *  child's own non-zero exit; `handoff-absent` is the read-back face when the child
- *  exited 0 but wrote no draft at all; `contract-violation` is the read-back face
+ *  child's own non-zero exit; `contract-violation` is the read-back rejection face
  *  when a draft is present but unqualified (malformed JSON / schema); and `unknown`
- *  is the unattributable termination fallback. Both read-back causes increment
- *  `contractViolationCount` — never folded under one cause word. */
-export type CrashCause =
-  | TerminationCause
-  | "child-exit"
-  | "handoff-absent"
-  | "contract-violation"
-  | "unknown";
+ *  is the unattributable termination fallback. A MISSING draft is not a crash cause:
+ *  the completion criterion owns it (§3.3), so the read-back rejection never fires
+ *  there and this vocabulary names a present-but-unqualified draft alone. The crash
+ *  record is a postmortem artifact only — the violation family, not this vocabulary,
+ *  is what the round's counters derive from. */
+export type CrashCause = TerminationCause | "child-exit" | "contract-violation" | "unknown";
 
 /** The crash record — the lane crash's recovery record (`crash-<lane>-<round>.json`):
  *  the same-command resume's decision source (the resume command + the dead child's
@@ -1383,8 +1406,11 @@ export class Ledger {
       );
     if (recorded === undefined || !recorded.verdict.targetAction) return null;
     if (op === "implement") {
-      const carrier = this.readHandoff("implement", type, params);
-      if (carrier === null) return null;
+      // An implement round is judged by its COMMITS, never by its draft (design spec
+      // §3.3): the recorded verdict above is its completion face, so an absent carrier
+      // is the round's soft bookkeeping observation and never a reason to refuse the
+      // read. The implement round carries no carrier content — the next hop is the
+      // group's review regardless — so the gate is the verdict alone.
       return {
         phase: "implement",
         findings: [],

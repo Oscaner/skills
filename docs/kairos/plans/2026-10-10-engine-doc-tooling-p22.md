@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 计划：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: plan
-version: v0.6
+version: v0.7
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 base: develop
@@ -269,7 +269,7 @@ hard 轮的 exit / 记录 / 在册三面一致；soft 轮不改 exit 码（含 `
 `TaskGraph#batches()` / `frontier`（不动，且是宽度的**唯一**派生权威）· `WaveGate.vet` 现有门序（`mixed-batch` → `exact` → `wrong-phase`）· `preflight` 的 graph 门（`session/preflight.ts:232` 已由 `TaskGraph#batches()` 持有该计划的层级，`#ledgerFactsOf` 用的同一条派生）。
 
 #### Produces
-- `export const MAX_TASKS_PER_WAVE = 3`（`session/next.ts`，与 `REVIEW_CYCLE_CAP` 同款代码常量）
+- `export const MAX_TASKS_PER_WAVE = 3` —— **声明在 `contract/wave-width.ts`**（计划面规则与派发面同读它，因而无需 `contract/ → session/` 的反向导入），并由 `session/next.ts` **re-export**（派发面的进口面不变）；与 `REVIEW_CYCLE_CAP` 同款代码常量（零环境变量、零配置、零落盘）
 - `WaveGateReason` 增 `"wave-too-wide" | "too-many-tasks"`；`WaveGate.vet` 的新判据插在 **`mixed-batch` 之后、`exact` 之前**
 - `RULE_REGISTRY` 增 `{ scope: "doc", id: "wave-width-at-most-three", docKeys: ["plan"], create: () => new WaveWidthInvariant() }`
 - `export class WaveWidthInvariant implements Invariant`（住 `contract/invariants.ts`，读注入的层级逐层判宽——**不** import `session/graph.ts`，**不**在 `parsed.taskBlocks` 上重写一份 `batches()`：`TaskGraph#batches()` 是唯一权威。`contract/` 层零 `../session` 导入的结构 pin 保持绿（今日方向是 session → contract））
@@ -511,6 +511,7 @@ Task 1–12 的全部产物。
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.7 | 2026-11-03 | **常量驻地修正（W2 wave review 的 nit · 编排器回填）**：`MAX_TASKS_PER_WAVE` 声明在 `contract/wave-width.ts`、由 `session/next.ts` re-export——brief 的三项要求（常量住 `session/next.ts` · 规则住 `contract/invariants.ts` · `contract/` 零 `../session` 导入）不可能同时按字面成立，实施轮的解是唯一自洽形。本地回填该行，代码不动 | Oscaner M. · Claude（kairos:cdd-dev · landing-row backfill · 2026-11-03） |
 | v0.6 | 2026-11-03 | **⑦ 词表统一 + 章程判据入库（用户裁定「同一收口」· 章程 D73/D74）**：新增 T14（`TargetType` 六值 · `--type spec` 退役 · `--spec` 旗标保留 · `PipelineKey` 派生 · 消费面字面 sweep，W8）与 T15（`REVIEWS.overall` 章程判据六条 · `ReviewVariants` 选择 · 两份 minor/patch changeset，W9）；两层各 1 宽，不破波内上限。**版本级判据**：方法论不变 ⇒ cdd-engine minor + kairos patch（D74） | Oscaner M. · Claude（kairos:cdd-dev · scope append · 2026-11-03） |
 | v0.5 | 2026-11-03 | **plan-review-4 findings 全量落册**：① `CompletionContext` 的 `records` / `reviewsPath` 供值 pin 移到 Task 7 Step 1(f)（`#verdictOf` + `#reviews ?? handoffPath("review", …)` 同住 lifecycle），Task 4 只留 ctx 纯形状（W2 不引 face 依赖）；② `NextHop` / `NextHopInput` 增 `target: RouteTarget | null`（capsule 供帧 target · board 供遍历选中面 target · CLI 供自己的），`docClassOf` 与 `RouteRenderer` 同读这一格；Task 10 行④ / 行⑤ 分清 `overall`（`to = PIPELINE_NEXT["overall"]`）与 `single-spec`（`terminal` · `to: null`）；③ `hopOf(route, face)` 收 face 并补 `review` @ branch 面 ⇒ `branch-review` 的 pin；④ Task 10 删除面收窄到自指 hop 推演：`lineGate`（`phase` / `verdict` / `reviewed`）与 `#linePhase` / `#lineKey` 保留，`walk` 四形落点在 board 构造方（`cli.ts`）+ 四形逐字回归 pin；⑤ 活性信号改按轮工厂（`LIVENESS_SIGNALS(context)` + `LivenessContext{logPath, pgid}`），补「状态不跨轮」pin；⑥ Task 8 Step 1(a) fixture 写实：`1`/`2`/`3` 无依赖、`4`/`5` 只依赖 `1` ⇒ `batches() = [{1,2,3},{4,5}]`（规则绿）而 frontier `{2,3,4,5}` 宽 4 ⇒ `wave-too-wide`（规则必要不充分之例）；⑦ 旧形折算补 `attempt: 1`，`rounds` 读期类型括上 `Record<string, number[] | number>`；⑧ nit：`FIX_DISPOSITIONS_ZERO_COMMIT` 改标**新写字面** + 补零提交 soft pin；删面 pin 改用精确名 + `lineGate` / `#linePhase` / `#lineKey` 保留断言；Task 12 审批门句内含「由编排器在本会话写成」呈交声明 ×3 与其 grep pin；Task 13 删掉软上限数字，只引用 `REVIEW_CYCLE_CAP` | Oscaner M. · Claude（kairos:cdd-plan [P22] docs-fix · 2026-11-03) |
 | v0.4 | 2026-11-03 | **plan-review-3 findings 全量落册**：① blocker：`board` / `preview` 的记录读面连同 `board-view.test.ts` 旧形 fixture 迁进 Task 3（新增 `RoundRecords` 单一归一缝 + 「写一条记录 → board 显示它」往返 pin + `would record` 身份 pin），Task 11 只留排版重设；② `SignalReading` 增 `readableAt`（最近可读 tick），`LivenessJudge#verdict` 收 `LivenessInput`（含 `now`）——`unknown` 改为「整窗无腿可读」，补「先可读后不可读 + 静默满 30min ⇒ `stalled`」pin（七条真值表）；③ Task 5 Files 收 `cli.test.ts` 的两处 `lastSample` fixture，checkable 增 `tsc --noEmit` 绿；④ `CompletionContext` 增 `records` / `reviewsPath` 两格并点名供值方（`#verdictOf` + `CliLifecycle#reviews`），Task 4/6 各补一条 pin（含「本轮载体在而请求方缺失 ⇒ hard」）；⑤ Task 6 补 spec §3.4 的 `fixed N · rejected M` 汇总行（`FIX_DISPOSITIONS_SUMMARY` + `summaryOf`，capsule 之后一行 stdout，不落盘 / 不进 capsule，字节 pin）；⑥ Task 10 把「不印 `next:` 行」的条件从 `hop === null` 改为 `NextHop` **缺席**，并写出逐行字节冻结表（`done` / `soft-cap` / doc-class `terminal` / `blocked`）；⑦ doc-class 判别改为 `NextHopInput.docClassOf` 注入，`next.ts` 不 import `BoardView`（免运行时环）；⑧ 波宽规则改读注入的 `ContractInput.taskLayers`（`preflight` graph 门供值），`contract/` 零 `../session` 导入，`TaskGraph#batches()` 单一权威 pin；⑨ nit：`reviewGuideOf(type: TargetType)` + `REVIEW_VARIANT_TEXT`（无 `ReviewVariant` 新名）、删 `ReviewedRevisionWriter` 改为点名 `session/run.ts:495-512` 的三个既有回写换谓词、补被 kill 轮的日志指路 pin | Oscaner M. · Claude（kairos:cdd-plan [P22] docs-fix · 2026-11-03） |

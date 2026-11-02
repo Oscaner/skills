@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 设计：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: phase-spec
-version: v0.7
+version: v0.8
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 program: 2026-10-10-engine-doc-tooling
@@ -315,7 +315,7 @@ NextHop {                                   // session/next.ts 的新增类型
 | 载体槽 | `session/handoff-schema.ts`（`CARRIER` 增 `dispositions` + `PLANE_SLOTS.work` 收入；裁定追加在 both-plane 的 `notes`，`findings[]` 零改写） |
 | 日志通道 | `face/lifecycle.ts`（stdio pipe + spawn 前建日志 + drain/close + `#cutShort` 的 `CDD_BLOCKED` 行点名该轮日志路径；hard 裁决同行走这一行）+ `infra/round-log.ts`（append 流封装）+ `session/round-naming.ts`（log stem 派生，含 `-a{attempt}`） |
 | 活性 | `face/termination.ts`（`Sampler` 换两腿 + 四态真值表）+ `contract/liveness-signal.ts`（契约 + `LogGrowth` / `CpuAdvance` 注册表，`workspace-mtime` 键退役）+ `session/ledger.ts`（`Sample.newestMtimeMs` 随腿退役） |
-| 波内上限 | `session/next.ts`（`MAX_TASKS_PER_WAVE` 常量）+ `session/wave.ts`（`WaveGate.vet` 两条拒绝：`wave-too-wide` / `too-many-tasks`，两者在 `mixed-batch` 之后、`exact` 之前）+ `contract/rules.ts`（`doc` scope 规则 `wave-width-at-most-three`，`docKeys: ["plan"]`）+ `face/words.ts`（两条报文，点名任务 id 与 `DependsOn` 修法） |
+| 波内上限 | `contract/wave-width.ts`（`MAX_TASKS_PER_WAVE` 的**声明**——计划面规则与派发面同读它，故 `contract/` 无需反向导入 `session/`）· `session/next.ts`（同一常量的 **re-export**，派发面进口面不变）+ `session/wave.ts`（`WaveGate.vet` 两条拒绝：`wave-too-wide` / `too-many-tasks`，两者在 `mixed-batch` 之后、`exact` 之前）+ `contract/rules.ts`（`doc` scope 规则 `wave-width-at-most-three`，`docKeys: ["plan"]`）+ `face/words.ts`（两条报文，点名任务 id 与 `DependsOn` 修法） |
 | Next 派生 | `session/next.ts`（`NextHop` 类型（含 `route` 渲染载荷）+ `NextStepRouter#nextHop` 唯一派生（每次调用、每线一个）+ doc-class 判别注入 + `PIPELINE_NEXT` 降数据 + 删 `resolve`/`walk`）+ `face/route-render.ts`（`next:` 字面的唯一渲染器，capsule 与 board 共用，读 `NextHop.route`）+ `face/capsule.ts`（读注入的 `NextHop` · 删 `targetLineOpen` 与 `NextStepRouter.resolve` 调用 · `#routeText` 的 doc-class 分支改读注入对象）+ `face/gate.ts`（删 `#lineGate` 自指推演、读同一 `NextHop`）+ `face/board-view.ts`（删 `NextStepRouter.walk`、接收注入）+ `face/cli.ts`（拒绝报文按 `reason` / `hop` / `to` 渲染） |
 | 板面 | `face/board-view.ts`（注入 `NextHop` + 逐轮裁决 + 聚合令牌 / `+N` / attempt 上标 / 路径省略 / 列对齐 / 在飞身份）+ `face/preview.ts`（`--dry-run` 只描述将追加的那条轮记录，既读面不增删） |
 | 结构面规则 | `face/lifecycle.ts`（派发时快照 · 收工比对 · 判败自书该轮 `violations` 的 hard 条目）+ `render/templates.ts`（work-plane capability 行；`contract/rules.ts` 零登记行） |
@@ -367,6 +367,7 @@ NextHop {                                   // session/next.ts 的新增类型
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.8 | 2026-11-03 | **落点行修正（W2 wave review 的 nit）**：`MAX_TASKS_PER_WAVE` 的驻地从「`session/next.ts`」改为「`contract/wave-width.ts` 声明 + `session/next.ts` re-export」——§8 原行与 §6「规则住 `contract/` 且零 `../session` 导入」不可能同时成立，实施轮的解法是唯一自洽形，参考面随之对齐 | Oscaner M. · Claude（kairos:cdd-dev · landing-row backfill · 2026-11-03） |
 | v0.7 | 2026-11-03 | **软上限值的口径修正（W1 wave review 的 warn 触发 · 设计回填）**：三处「本相位不改该常量的值」与分支事实矛盾——`081f40cf` 已按用户裁定把 `REVIEW_CYCLE_CAP` 抬到 50（章程 v2.94 / D70）。改为「值以章程裁定为准（v2.94 / D70，本相位承接而非重新裁定）；spec 只引用常量名、不抄数字」，使参考面与树一致，同时保留「spec 不抄数字、孪生 pin 抓漂移」的原则 | Oscaner M. · Claude（kairos:cdd-dev · design backfill · 2026-11-03） |
 | v0.6 | 2026-11-03 | **图面事实修正（plan-review-2 的 blocker 触发 · 设计回填）**：`architecture.{en,zh-CN}.json` 只画 blocker 回合与 `REVIEW_FIX` 收敛两条，周期数（软上限）只住在 `next-loop.{en,zh-CN}.json`——原文「四份图都按三条形状画」是事实错误。改为：`next-loop` 带全三条、周期数等于 `REVIEW_CYCLE_CAP`，`architecture` 带前两条，孪生 pin 断言四份**合起来**覆盖三条 | Oscaner M. · Claude（kairos:cdd-plan · design backfill · 2026-11-03） |
 | v0.5 | 2026-11-03 | **spec-review-3 findings 全量落册**：① `NextHop` 增 `route` 渲染载荷（`next-wave` 的 `tasks` · `fix` 的 `reviews` 住在 Route 上，不复制进 `hop`），`face/route-render.ts` 入 §8 的 Next 落点行；② 日志指路 pin 改指 `face/lifecycle.ts` 的 `#cutShort` `CDD_BLOCKED` 行，§3.3 补 hard 裁决的 stderr 面；③ `reason` 词表补 `doc-class-blocked`，并写明 `hop: null` 的报文两形；④ 派生改为「每次调用、每线一个」并补输入面（drift 感知 gate 裁决 + 最新完成轮 + 计数）→ `hop` / `reason` 映射表；⑤ §3.5 补修订回写以 `verdict.targetAction` 为门（hard 失败的 review 不绑定 `reviewedRevision`）；⑥ 波宽断言收窄到「闭合集 = 完整依赖层并集」，append 形态写明显式拒绝，两条新拒绝钉在 `mixed-batch` 之后、`exact` 之前；⑦ 三处 nit（同档一致性句位置 · `PipelineKey` 取值 · 版本行序与日期） | Oscaner M. · Claude（kairos:cdd-design [P22] docs-fix · 2026-11-03） |

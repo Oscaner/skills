@@ -106,6 +106,49 @@ describe("progress — the fixed key set", () => {
     }
   });
 
+  it("a retired `spec` row reads as the line its workspace DECLARES (`overall` / `single-spec` included)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // One identity document per workspace, so the retired `spec` row is exactly that
+      // document's line — the declaration names which line word reads it. Without a
+      // declared word the legacy default (the `phase-spec` line) is the only alias.
+      const data = {
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "spec", rounds: { review: [1, 2] } }],
+      };
+      expect(Ledger.rowFor(data, "overall", "overall")?.wave).toBe("spec");
+      expect(Ledger.rowFor(data, "single-spec", "single-spec")?.wave).toBe("spec");
+      expect(Ledger.rowFor(data, "phase-spec", "phase-spec")?.wave).toBe("spec");
+      expect(Ledger.rowFor(data, "phase-spec")?.wave).toBe("spec");
+      // A library row of another word is never this row: the declaration gates it.
+      expect(Ledger.rowFor(data, "overall", "phase-spec")).toBeUndefined();
+      expect(Ledger.rowFor(data, "single-spec", "overall")).toBeUndefined();
+      expect(Ledger.rowFor(data, "overall")).toBeUndefined();
+      expect(Ledger.rowFor(data, "plan", "plan")).toBeUndefined();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a charter's retired carrier still closes its `overall` line — the alias follows the declared word", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // The same pre-rename facts on a charter: the row under `spec`, the review
+      // carrier under `spec-review-1.json`. The line word is `overall`, so both read
+      // aliases resolve it while every WRITE keeps the current spelling.
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "spec", rounds: { review: [1] } }],
+      });
+      workspace.writeJson("spec-review-1.json", { artifacts: {} });
+      expect(ledger.lineClosed("overall", "overall")).toBe(true);
+      expect(ledger.lineRoute("overall", "overall")).toBeNull();
+      expect(ledger.handoffName("review", "overall", { round: 1 })).toBe("overall-review-1.json");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("a round recorded under the retired carrier name still closes the phase-spec line", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {

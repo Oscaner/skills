@@ -295,6 +295,18 @@ export type LedgerKey = number | string;
  *  byte-frozen; the row read normalizes it (see `Ledger.rowFor`). */
 const RETIRED_SPEC_KEY = "spec";
 
+/** The identity-DOCUMENT line words a retired `spec` row may belong to — the words a
+ *  workspace's document line keys under after the vocabulary unification. A workspace
+ *  holds at most ONE identity document, so a retired `spec` row is exactly that
+ *  document's line: `phase-spec` (the pre-rename default), a charter's `overall`, or a
+ *  standalone `single-spec`. The plan line carried `plan` before the rename too and
+ *  never lived under `spec`, so it stays out. */
+const RETIRED_SPEC_LINE_KEYS: ReadonlySet<string> = new Set([
+  "phase-spec",
+  "overall",
+  "single-spec",
+]);
+
 /** The dispatch-termination vocabulary — why a round was cut short (single source:
  *  the terminator derives the cause from the child's own result face, the crash
  *  record carries it as a postmortem fact, zero behavior fork — resume never routes
@@ -623,15 +635,31 @@ export class Ledger {
 
   /** The ledger-row lookup single point — a scalar key (or the single-task wave key
    *  `"1"`) resolves the `{ task }` row; a multi-task wave key (`"1,2"`) the `{ wave }` row.
-   *  A `phase-spec` lookup falls back to a row still carrying the retired `spec` key —
-   *  the read-time alias keeps an in-flight phase's recorded reviews/fixes on its board
-   *  (the normalization is never written back: the stored key stays byte-frozen). A row
-   *  read is a pure function of the progress data, so every face — this class and the
-   *  board's read-only line face — enters through this ONE lookup (no second key spelling). */
-  static rowFor(data: ProgressData, key: LedgerKey): ProgressRow | undefined {
+   *  A DOCUMENT-line lookup falls back to a row still carrying the retired `spec` key —
+   *  the read-time alias keeps an in-flight line's recorded reviews/fixes on its board
+   *  (the normalization is never written back: the stored key stays byte-frozen). The
+   *  alias keys on the workspace's DECLARED line word (`identity` — the caller's
+   *  declaration), never on the requested word alone: the retired row IS the line whose
+   *  declaration names it (`phase-spec` / `overall` / `single-spec`). A caller holding no
+   *  declaration keeps the pre-rename default (the `phase-spec` line). A row read is a
+   *  pure function of the progress data, so every face — this class and the board's
+   *  read-only line face — enters through this ONE lookup (no second key spelling). */
+  static rowFor(
+    data: ProgressData,
+    key: LedgerKey,
+    identity: TargetType | null = null,
+  ): ProgressRow | undefined {
     const literal = data.waves.find((row) => row.wave === String(key));
-    if (literal !== undefined || key !== "phase-spec") return literal;
+    if (literal !== undefined || !Ledger.#retiredSpecApplies(key, identity)) return literal;
     return data.waves.find((row) => row.wave === RETIRED_SPEC_KEY);
+  }
+
+  /** Whether a retired `spec` row IS the requested line — the requested word must be a
+   *  document-line word and, when the declaration is known, BE that declaration. */
+  static #retiredSpecApplies(key: LedgerKey, identity: TargetType | null): boolean {
+    const word = String(key);
+    if (!RETIRED_SPEC_LINE_KEYS.has(word)) return false;
+    return identity === null ? word === "phase-spec" : word === identity;
   }
 
   /** The fresh row for an absent key — always the wave form (a single trivial
@@ -655,11 +683,13 @@ export class Ledger {
     ];
   }
 
-  /** The row's round records — the ONE read face the ledger's consumers share. */
-  recordsOf(key: LedgerKey): readonly RoundRecord[] {
+  /** The row's round records — the ONE read face the ledger's consumers share. A
+   *  caller holding the line's DECLARED word passes it, so the retired `spec` row
+   *  resolves as that line (the same basis as `rowFor`'s). */
+  recordsOf(key: LedgerKey, identity: TargetType | null = null): readonly RoundRecord[] {
     const data = this.readProgress();
     if (data === null) return [];
-    return RoundRecords.of(Ledger.rowFor(data, key));
+    return RoundRecords.of(Ledger.rowFor(data, key, identity));
   }
 
   /** One op's COMPLETED cycles on a key — only `verdict.targetAction === true` records.
@@ -1078,7 +1108,7 @@ export class Ledger {
   lineClosed(key: LedgerKey, type: TargetType): boolean {
     const data = this.readProgress();
     if (data === null) return false;
-    const row = Ledger.rowFor(data, key);
+    const row = Ledger.rowFor(data, key, type);
     if (row === undefined) return false;
     return this.#rowClosed(type, type === "wave" ? { tasks: String(key) } : {}, row);
   }
@@ -1100,7 +1130,7 @@ export class Ledger {
   lineRoute(key: LedgerKey, type: TargetType): Route | null {
     const data = this.readProgress();
     if (data === null) return { kind: "review" };
-    const row = Ledger.rowFor(data, key);
+    const row = Ledger.rowFor(data, key, type);
     if (row === undefined) return { kind: "review" };
     const reviewLead = targetFaces[type].product.reviewLead;
     const reviews = this.#latestCompletedCycleOfRow(row, reviewLead);
@@ -1290,18 +1320,20 @@ export class Ledger {
     return this.handoffPath(op, type, params);
   }
 
-  /** Read a handoff carrier; null when missing/corrupt. A `phase-spec` read falls
+  /** Read a handoff carrier; null when missing/corrupt. A DOCUMENT-line read falls
    *  back to the retired `spec` file name (the one-release read alias, P22 D73): the
-   *  rounds a phase recorded before the vocabulary unification stay judgeable — the
-   *  closure walk still reads their C5 route, so a closed line does not re-open. Every
-   *  WRITE goes through `persistHandoff`'s current spelling — the alias is read-only. */
+   *  rounds a line recorded before the vocabulary unification stay judgeable — the
+   *  closure walk still reads their C5 route, so a closed line does not re-open. The
+   *  alias keys on the line's declared word (`phase-spec` / `overall` / `single-spec`,
+   *  the same basis as `rowFor`'s) and never covers the node shapes. Every WRITE goes
+   *  through `persistHandoff`'s current spelling — the alias is read-only. */
   readHandoff(op: string, type: string, params: HandoffParams): Record<string, unknown> | null {
     const literal = this.#read<Record<string, unknown>>(this.handoffName(op, type, params));
-    if (literal !== null || type !== "phase-spec") return literal;
+    if (literal !== null || !RETIRED_SPEC_LINE_KEYS.has(type)) return literal;
     return this.#read<Record<string, unknown>>(Ledger.#retiredCarrierName(op, params));
   }
 
-  /** The retired `phase-spec` carrier name of one round — `spec-review-{round}.json` /
+  /** The retired document-line carrier name of one round — `spec-review-{round}.json` /
    *  `spec-fix-{round}.json`. It lives here, never in the family table: it is a read
    *  fallback for already-recorded rounds, not a name the engine can mint. */
   static #retiredCarrierName(op: string, params: HandoffParams): string {
@@ -1460,7 +1492,7 @@ export class Ledger {
     // cycle 2 (D28). A count comparison would flatten that to 1 and refuse the read.
     // Completion is the recorded VERDICT, never membership — every dispatched round
     // is recorded now, so a failed round's cycle is in register but reads no carrier.
-    const recorded = this.recordsOf(this.#roundKey(type, params))
+    const recorded = this.recordsOf(this.#roundKey(type, params), type)
       .filter((record) => record.op === op && record.cycle === round)
       .reduce<RoundRecord | undefined>(
         (latest, record) =>

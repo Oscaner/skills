@@ -312,7 +312,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "board",
     description:
-      "render the progress board from a --plan or --spec entry (overall/phase-spec/plan/wave/branch)",
+      "render the progress board from a --plan or --spec entry (overall/phase-spec/single-spec/plan/wave/branch)",
     example: `cdd board --plan ${ENGINE_DOC_ROOTS.plans}/p3.md`,
     keys: [{ key: "plan" }, { key: "spec" }],
   },

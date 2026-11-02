@@ -945,6 +945,54 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain("  next:    done");
   });
 
+  it("a single-spec entry reads its OWN line — the declared word, then the terminal station", () => {
+    // P22 D73 — the board's spec face follows the identity document's DECLARED
+    // `doc-type:` (never a hardcoded `phase-spec`): the row counts ride the
+    // `single-spec` line the engine books, and the exit is the standalone document's
+    // terminal station (`done`) — the SAME word the capsule renders for the target.
+    writeDoc("docs/kairos/specs/prog-single.md", [
+      "---",
+      "title: S",
+      "version: v1.0",
+      "status: Active",
+      "doc-type: single-spec",
+      "slug: prog-single",
+      "---",
+    ]);
+    seed("prog-single", [{ wave: "single-spec", rounds: { review: [1, 2], fix: [1] } }]);
+
+    const { text } = render("prog-single");
+
+    expect(text).toContain("  spec     prog-single.md");
+    expect(text).toContain("review 2 ✓ · fix 1 ✓");
+    expect(nextOf("prog-single")).toBe("done");
+    expect(text).not.toContain("--type phase-spec");
+  });
+
+  it("a charter's retired `spec` row IS its `overall` line — the counts render, bytes stay frozen", () => {
+    // The pre-rename charter recorded its rounds under the retired `spec` key (the
+    // only document word the enum carried). The read alias keys on the workspace's
+    // DECLARED identity word — an `overall` charter's retired row is its own line —
+    // and never rewrites the stored key.
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "version: v2.33",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+    seed("prog-overall", [{ wave: "spec", rounds: { review: [1, 2], fix: [2] } }]);
+
+    const { text } = render("prog-overall");
+
+    expect(text).toContain("prog-overall.md   v2.33   review 2 ✓ · fix 1 ✓");
+    const stored = JSON.parse(
+      readFileSync(path.join(repo, ".kairos/cdd/prog-overall/progress.json"), "utf8"),
+    ) as { waves: Array<{ wave: string }> };
+    expect(stored.waves.map((row) => row.wave)).toEqual(["spec"]);
+  });
+
   it("orders the phase rows by their phase number, never by the rel-path lexicographic order", () => {
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",

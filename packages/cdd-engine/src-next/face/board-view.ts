@@ -41,7 +41,7 @@ import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
 import { type DocEntry, SlugIndex, type SlugRole } from "../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
-import type { RouteTarget } from "../session/faces.ts";
+import type { RouteTarget, TargetType } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import type { InFlightState } from "../session/inflight.ts";
 import { Ledger, type ProgressData, type RoundRecord, RoundRecords } from "../session/ledger.ts";
@@ -50,6 +50,7 @@ import {
   type NextHop,
   NextStepRouter,
   PIPELINE_FACES,
+  PIPELINE_NEXT,
   type PipelineFaceReport,
   type PipelineFaceState,
   type Route,
@@ -243,8 +244,19 @@ export class BoardView {
     return index.duplicatedRolesOf(entry.slug).includes(role) ? MARK_SLUG_DUPLICATED : null;
   }
 
+  /** The identity document's line word — its DECLARED `doc-type:` (spec §12 · D34), the
+   *  ONE word the line keys under (`run.ts`'s `#lineKey`) and the word the pipeline
+   *  station follows. `phase-spec` is the degradation default for an absent or
+   *  undeclared document (that line renders `(none)` / its BLOCKED marker anyway) — it
+   *  is never a translation of a declared word. */
+  static #lineWordOf(entry: DocEntry | null): TargetType {
+    return entry?.docType ?? "phase-spec";
+  }
+
   /** One doc line — the header facts read from the indexed entry + the row's round
-   *  RECORDS keyed by the line's `progress.json` key. */
+   *  RECORDS keyed by the line's `progress.json` key, resolved with the line's DECLARED
+   *  word as the retired-key alias basis (a charter's pre-rename `spec` row is its own
+   *  `overall` line). */
   static #lineOf(
     label: string,
     key: string,
@@ -256,7 +268,7 @@ export class BoardView {
       version: entry?.version ?? null,
       status: entry?.status ?? null,
       docType: entry?.docType ?? null,
-      rounds: BoardView.#rowRounds(progress, key),
+      rounds: BoardView.#rowRounds(progress, key, entry?.docType ?? null),
       marker: null,
     };
   }
@@ -471,7 +483,12 @@ export class BoardView {
       {
         label: "spec",
         entry: sources.spec,
-        line: BoardView.#lineOf("spec", "phase-spec", sources.spec, progress),
+        line: BoardView.#lineOf(
+          "spec",
+          BoardView.#lineWordOf(sources.spec),
+          sources.spec,
+          progress,
+        ),
         mark:
           BoardView.#entryMark(index, sources.spec, "identity") ??
           (sources.programMissing ? MARK_PROGRAM_MISSING : null),
@@ -669,14 +686,19 @@ export class BoardView {
     const waves = BoardView.#waveLines(sources.plan?.path ?? null, progress, ledger);
     const specPath = sources.spec?.path ?? null;
     const planPath = sources.plan?.path ?? null;
+    // The identity line's OWN word — the document's DECLARED `doc-type:` — keys the
+    // line and names the pipeline station (`single-spec` closes onto its `done` row).
+    const specType = BoardView.#lineWordOf(sources.spec);
     // The plan's open frontier wave — the SAME ready batch the dispatch engine's
     // task-graph frontier yields (frontier over closedWaves()).
     const waveKey = BoardView.#waveFrontierKey(ledger, planPath);
     const report: PipelineFaceReport = {
+      // The report KEY is the pipeline POSITION (the first face — `PIPELINE_FACES`);
+      // the line's type/key/target cells are the declaration the document carries.
       "phase-spec": {
-        closed: ledger.lineClosed("phase-spec", "phase-spec"),
-        active: specPath === null ? null : ledger.lineRoute("phase-spec", "phase-spec"),
-        target: specPath === null ? null : { type: "phase-spec", id: specPath },
+        closed: ledger.lineClosed(specType, specType),
+        active: specPath === null ? null : ledger.lineRoute(specType, specType),
+        target: specPath === null ? null : { type: specType, id: specPath },
       },
       plan: {
         closed: ledger.lineClosed("plan", "plan"),
@@ -739,12 +761,17 @@ export class BoardView {
   }
 
   /** The node's round RECORDS for one key — read through the ledger's ONE row lookup
-   *  (`Ledger.rowFor`: the `phase-spec` ⇐ legacy `spec` read alias) and the ONE record
-   *  normalizer (`RoundRecords.of`, legacy forms folded); the aggregation and the
-   *  judgement glyphs read these records, never a pre-grouped cycle map. Failed rounds
-   *  stay on the board (they consumed an identity slot); an absent row yields an empty list. */
-  static #rowRounds(progress: ProgressData | null, key: string): readonly RoundRecord[] {
-    const row = progress === null ? undefined : Ledger.rowFor(progress, key);
+   *  (`Ledger.rowFor`: the retired `spec` row reads as the line its workspace DECLARES)
+   *  and the ONE record normalizer (`RoundRecords.of`, legacy forms folded); the
+   *  aggregation and the judgement glyphs read these records, never a pre-grouped cycle
+   *  map. Failed rounds stay on the board (they consumed an identity slot); an absent row
+   *  yields an empty list. */
+  static #rowRounds(
+    progress: ProgressData | null,
+    key: string,
+    identity: TargetType | null = null,
+  ): readonly RoundRecord[] {
+    const row = progress === null ? undefined : Ledger.rowFor(progress, key, identity);
     return RoundRecords.of(row);
   }
 
@@ -839,10 +866,7 @@ export class BoardNext {
       const terminal = terminalIndex === -1 ? null : states[terminalIndex]!;
       return terminal === null
         ? { route: { kind: "done" }, target: null }
-        : {
-            route: NextStepRouter.handoff(PIPELINE_FACES[terminalIndex]!),
-            target: terminal.target,
-          };
+        : { route: BoardNext.#exitRoute(terminalIndex, terminal), target: terminal.target };
     }
     const frontier = states[frontierIndex]!;
     if (frontier.active !== null) return { route: frontier.active, target: frontier.target };
@@ -851,7 +875,19 @@ export class BoardNext {
         ? frontierIndex
         : Math.max(0, BoardNext.#lastEnteredIndex(states.slice(0, frontierIndex)));
     const anchor = states[anchorIndex]!;
-    return { route: NextStepRouter.handoff(PIPELINE_FACES[anchorIndex]!), target: anchor.target };
+    return { route: BoardNext.#exitRoute(anchorIndex, anchor), target: anchor.target };
+  }
+
+  /** The anchor face's OWN pipeline exit — the row its render TARGET declares
+   *  (`PIPELINE_NEXT[target.type]`, the SAME one table the capsule's `done` face reads
+   *  through the ONE derivation). The identity face's target type IS the document's
+   *  declared word, so a `single-spec` closes onto its `done` row, never the phase-spec
+   *  line's `cdd-plan` ref; every node face's target type is its face key, so the lookup
+   *  is the face key there. A face with no target (never entered) falls back to its
+   *  pipeline face's row. */
+  static #exitRoute(faceIndex: number, state: PipelineFaceState): Route {
+    if (state.target === null) return NextStepRouter.handoff(PIPELINE_FACES[faceIndex]!);
+    return { kind: "handoff", entry: PIPELINE_NEXT[state.target.type] };
   }
 
   /** The index of the last OBSERVED face carrying a render target — the last face the

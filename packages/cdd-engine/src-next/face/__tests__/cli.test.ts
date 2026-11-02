@@ -6782,11 +6782,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(outcome.status).toBe("BLOCKED");
         expect(outcome.violations?.map((violation) => violation.grade)).toEqual(["hard"]);
         expect(outcome.violations?.[0]?.message).toContain("dispositions");
-        // the obligation sentence rides the fix prompt (the child's only warning)
+        // the obligation sentence rides the fix prompt (the child's only warning) and
+        // states the SHAPE: keyed by the finding's own summary text, valued status/reason
         const fixPrompt = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
         expect(fixPrompt).toContain(
-          "every requested finding needs a disposition — `fixed`, or `rejected` with the reason; a missing disposition fails the round",
+          'keyed by its own summary text (verbatim), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }`',
         );
+        expect(fixPrompt).toContain("a missing or mis-keyed disposition fails the round");
         // … and the docs-fix shell carries the same obligation (a docs-fix round is a
         // fix round: the same criterion judges it)
         const docsSync = new StubRunner();
@@ -6805,7 +6807,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           key: "docs/kairos/specs/s1-design.md",
         });
         const docsPrompt = docsSync.calls[0]!.args[docsSync.calls[0]!.args.length - 1];
-        expect(docsPrompt).toContain("a missing disposition fails the round");
+        expect(docsPrompt).toContain("a missing or mis-keyed disposition fails the round");
+        expect(docsPrompt).toContain("keyed by its own summary text (verbatim)");
       } finally {
         cleanup();
       }

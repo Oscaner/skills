@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 计划：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 base: develop
@@ -232,7 +232,7 @@ work 载体新增 `dispositions` 槽，`fix` 的完成判据 = 逐条处置覆�
 `face/lifecycle.ts` 收工时先写 `{treeClean, targetAction}` 裁决，再按违约族分流：hard 判该轮失败（exit 非零 · 照常入账 · stderr 的 `CDD_BLOCKED` 行带日志路径），soft 只记账；`reviewedRevision` 的三个回写以裁决为门。
 
 #### Files
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts` · `packages/cdd-engine/src-next/session/run.ts` · `packages/cdd-engine/src-next/session/ledger.ts`（派生计数）· `packages/cdd-engine/src-next/face/words.ts`（报文）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts` · `packages/cdd-engine/src-next/session/run.ts` · `packages/cdd-engine/src-next/session/ledger.ts`（派生计数）· `packages/cdd-engine/src-next/face/words.ts`（报文） · `packages/cdd-engine/src-next/render/templates.ts`（fix 派发提示的 disposition 义务句）
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts` · `packages/cdd-engine/src-next/face/__tests__/termination.test.ts`
 
 #### Consumes
@@ -248,7 +248,8 @@ work 载体新增 `dispositions` 槽，`fix` 的完成判据 = 逐条处置覆�
 - [ ] **Step 1: 写失败用例** —— (a) `implement` 零提交 ⇒ exit 非零 + 记录 `targetAction: false` + 该轮**在册**（`board` 可见——记录读面已由 Task 3 迁到记录数组，本断言不依赖 Task 11 的排版重设）；(b) 证据缺失 ⇒ hard（exit 非零），软违约（脏树）⇒ exit 0 且计数 +1；(c) 载体缺失的 `review` ⇒ hard，且 `reviewedRevision` **未**绑定（随后改文档 ⇒ `next:` 回到 `review`）；(d) stderr 的 `CDD_BLOCKED` 行含该轮日志路径——**两条**：hard 裁决轮一条、被 kill 的轮（`#cutShort` 的 kill / timeout 分支，`face/lifecycle.ts:715`）一条，且两条点名的 `.kairos/cdd/<slug>/logs/<stem>.log` 文件均存在；(e) `implement` 轮的 handoff 载体缺失 ⇒ exit 0 + 派生计数 +1（soft，spec §3.3）；(f) ctx 两格的**供值方** pin：`#verdictOf` 供出的 `records` 等于 `Ledger#recordsOf(key)`（含本轮之前已入册的全部记录）；`--reviews` 在场时 `reviewsPath` 等于该值、缺席时等于 `ledger.handoffPath("review", …)` 的回退值（两条断言钉同一供值点）。 — checkable: 六条裁决用例先红（含两条日志指路 pin 与 ctx 两格供值）
 - [ ] **Step 2: 实现裁决与分级** —— 裁决先写、违约族分流；`#verdictOf` 自书 hard 条目（复用 `contract-violation` 因由，零新枚举）并供 `CompletionContext` 的 `records` / `reviewsPath` 两格；`#blocked` 分支的写点全退（Task 3 已改）；`#bookkeep` 里三个既有回写换谓词（`!blocked` → `verdict.targetAction === true`）。 — checkable: hard 轮 exit 非零且在 `board` 可见；hard 失败的 review 不绑定 `reviewedRevision`
 - [ ] **Step 3: 派生计数收口** —— `counterOf` 对 `contractViolationCount` 返回派生值；旧 `progress.json` 标量忽略；`PROGRESS_COUNTER_ZERO` 只留仍被写入的键。 — checkable: `counterOf("contractViolationCount")` 返派生值且旧标量被忽略
-- [ ] **Step 4: 跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS（覆盖面变化的断言逐条翻转并注明，断言不删）；`git commit -m "feat(cdd-engine): let the terminal verdict decide a round, not its exit code"`。 — checkable: `pnpm -C packages/cdd-engine test` exit 0
+- [ ] **Step 4: fix 派发提示补 disposition 义务句** —— 判据一旦接线，缺 `dispositions` 的 fix 轮就判 hard，而今日的 fix 提示只要求「把 findings 写进草稿、按 Handoff schema」，没有要求逐条处置。补上：「every requested finding needs a disposition — `fixed`, or `rejected` with the reason; a missing disposition fails the round」。 — checkable: fix 轮提示含该义务句，且一条不交 dispositions 的 fix 轮在 `#verdictOf` 下判 hard（红 pin）
+- [ ] **Step 5: 跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS（覆盖面变化的断言逐条翻转并注明，断言不删）；`git commit -m "feat(cdd-engine): let the terminal verdict decide a round, not its exit code"`。 — checkable: `pnpm -C packages/cdd-engine test` exit 0
 
 #### Acceptance
 hard 轮的 exit / 记录 / 在册三面一致；soft 轮不改 exit 码（含 `implement` 载体缺失 ⇒ exit 0 + 派生计数 +1）；派生计数只数 soft 且单一出口；证据门归 hard；`reviewedRevision` 以裁决为门（红 pin，三个回写仍是 `session/run.ts:495-512` 的既有方法、只换谓词）；stderr 的日志指路两条（hard 裁决轮 · 被 kill 轮）；`CompletionContext` 的 `records` / `reviewsPath` 两格由 `#verdictOf` 单点供值（两断言 pin：记录面相等 · `--reviews` 在场/缺席两形），Task 4 不承担该 pin。 **派发前的 `tree-clean` 门行为与字节面零变化**（既有脏树拒绝用例全绿，本相位只裁派发之后的终态裁决）。
@@ -511,6 +512,7 @@ Task 1–12 的全部产物。
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.8 | 2026-11-03 | **T7 补 disposition 义务句（W3 现场取证）**：W3 的 fix 轮载体只有 `artifacts` / `status` / `notes`、**无 `dispositions`**，该轮却 APPROVED 并印出 `fixed 0 · rejected 0`——因为判据要等 T7 才接线。接线后这种载体必判 hard，而今日的 fix 提示并未要求逐条处置 ⇒ 会自锁。T7 增一步：fix 提示补「每条请求 finding 都要一条 disposition」，并补一条红 pin | Oscaner M. · Claude（kairos:cdd-dev · plan backfill · 2026-11-03） |
 | v0.7 | 2026-11-03 | **常量驻地修正（W2 wave review 的 nit · 编排器回填）**：`MAX_TASKS_PER_WAVE` 声明在 `contract/wave-width.ts`、由 `session/next.ts` re-export——brief 的三项要求（常量住 `session/next.ts` · 规则住 `contract/invariants.ts` · `contract/` 零 `../session` 导入）不可能同时按字面成立，实施轮的解是唯一自洽形。本地回填该行，代码不动 | Oscaner M. · Claude（kairos:cdd-dev · landing-row backfill · 2026-11-03） |
 | v0.6 | 2026-11-03 | **⑦ 词表统一 + 章程判据入库（用户裁定「同一收口」· 章程 D73/D74）**：新增 T14（`TargetType` 六值 · `--type spec` 退役 · `--spec` 旗标保留 · `PipelineKey` 派生 · 消费面字面 sweep，W8）与 T15（`REVIEWS.overall` 章程判据六条 · `ReviewVariants` 选择 · 两份 minor/patch changeset，W9）；两层各 1 宽，不破波内上限。**版本级判据**：方法论不变 ⇒ cdd-engine minor + kairos patch（D74） | Oscaner M. · Claude（kairos:cdd-dev · scope append · 2026-11-03） |
 | v0.5 | 2026-11-03 | **plan-review-4 findings 全量落册**：① `CompletionContext` 的 `records` / `reviewsPath` 供值 pin 移到 Task 7 Step 1(f)（`#verdictOf` + `#reviews ?? handoffPath("review", …)` 同住 lifecycle），Task 4 只留 ctx 纯形状（W2 不引 face 依赖）；② `NextHop` / `NextHopInput` 增 `target: RouteTarget | null`（capsule 供帧 target · board 供遍历选中面 target · CLI 供自己的），`docClassOf` 与 `RouteRenderer` 同读这一格；Task 10 行④ / 行⑤ 分清 `overall`（`to = PIPELINE_NEXT["overall"]`）与 `single-spec`（`terminal` · `to: null`）；③ `hopOf(route, face)` 收 face 并补 `review` @ branch 面 ⇒ `branch-review` 的 pin；④ Task 10 删除面收窄到自指 hop 推演：`lineGate`（`phase` / `verdict` / `reviewed`）与 `#linePhase` / `#lineKey` 保留，`walk` 四形落点在 board 构造方（`cli.ts`）+ 四形逐字回归 pin；⑤ 活性信号改按轮工厂（`LIVENESS_SIGNALS(context)` + `LivenessContext{logPath, pgid}`），补「状态不跨轮」pin；⑥ Task 8 Step 1(a) fixture 写实：`1`/`2`/`3` 无依赖、`4`/`5` 只依赖 `1` ⇒ `batches() = [{1,2,3},{4,5}]`（规则绿）而 frontier `{2,3,4,5}` 宽 4 ⇒ `wave-too-wide`（规则必要不充分之例）；⑦ 旧形折算补 `attempt: 1`，`rounds` 读期类型括上 `Record<string, number[] | number>`；⑧ nit：`FIX_DISPOSITIONS_ZERO_COMMIT` 改标**新写字面** + 补零提交 soft pin；删面 pin 改用精确名 + `lineGate` / `#linePhase` / `#lineKey` 保留断言；Task 12 审批门句内含「由编排器在本会话写成」呈交声明 ×3 与其 grep pin；Task 13 删掉软上限数字，只引用 `REVIEW_CYCLE_CAP` | Oscaner M. · Claude（kairos:cdd-plan [P22] docs-fix · 2026-11-03) |

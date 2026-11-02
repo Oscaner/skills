@@ -585,14 +585,19 @@ export class Ledger {
     return { wave: String(key) };
   }
 
-  /** One op's recorded cycle numbers on a row — every dispatched round (legacy forms
-   *  normalized through `RoundRecords`). Absent/empty → `[]`. */
+  /** One op's recorded cycle numbers on a row — every DISPATCHED cycle (legacy forms
+   *  normalized through `RoundRecords`). A cycle re-dispatched several times is one
+   *  cycle: the attempt count never widens the identity set. Absent/empty → `[]`. */
   #cyclesOf(row: ProgressRow | undefined, mode: string): readonly number[] {
     const op = RoundRecords.opOf(mode);
     if (op === null) return [];
-    return RoundRecords.of(row)
-      .filter((record) => record.op === op)
-      .map((record) => record.cycle);
+    return [
+      ...new Set(
+        RoundRecords.of(row)
+          .filter((record) => record.op === op)
+          .map((record) => record.cycle),
+      ),
+    ];
   }
 
   /** The row's round records — the ONE read face the ledger's consumers share. */
@@ -613,9 +618,10 @@ export class Ledger {
       .map((record) => record.cycle);
   }
 
-  /** The last completed round of a dispatch key + mode — 0 when none on record (the
-   *  round COUNT: the length of the recorded cycle set — for a contiguous review line
-   *  this equals the latest cycle, but the identity is the cycle list, never the count). */
+  /** The number of DISTINCT cycles on a dispatch key + mode — 0 when none on record
+   *  (the round COUNT: the length of the recorded cycle identity set — for a
+   *  contiguous review line this equals the latest cycle, but the identity is the
+   *  cycle list, never the count, and a re-attempt at an existing cycle adds none). */
   roundCount(key: LedgerKey, mode: string): number {
     const data = this.readProgress();
     if (data === null) return 0;
@@ -1306,7 +1312,12 @@ export class Ledger {
    *  carrier); the consecutive-S1 run is walked from the review history.
    *  Missing/corrupt evaluated handoff → null too — a fix round whose source review
    *  is unreadable is never a zero-findings fabrication: a round whose blocker set
-   *  was never read must not be judged clean. */
+   *  was never read must not be judged clean.
+   *
+   *  A cycle may carry several ATTEMPTS (a failed dispatch re-dispatched at the same
+   *  cycle); the gate reads the cycle's LATEST attempt, then judges ITS verdict.
+   *  Reading the first in-register record would let a failed attempt 1 shadow the
+   *  successful attempt 2 forever — a retry that succeeded would read as no round. */
   round(op: OpType, type: TargetType, params: HandoffParams, round: number): Round | null {
     // §2.8 — the round-read gate: only a COMPLETED round is a round. The test is the
     // round's IDENTITY (its cycle number), not a count: a fix that skipped a cycle
@@ -1314,9 +1325,13 @@ export class Ledger {
     // cycle 2 (D28). A count comparison would flatten that to 1 and refuse the read.
     // Completion is the recorded VERDICT, never membership — every dispatched round
     // is recorded now, so a failed round's cycle is in register but reads no carrier.
-    const recorded = this.recordsOf(this.#roundKey(type, params)).find(
-      (record) => record.op === op && record.cycle === round,
-    );
+    const recorded = this.recordsOf(this.#roundKey(type, params))
+      .filter((record) => record.op === op && record.cycle === round)
+      .reduce<RoundRecord | undefined>(
+        (latest, record) =>
+          latest === undefined || record.attempt >= latest.attempt ? record : latest,
+        undefined,
+      );
     if (recorded === undefined || !recorded.verdict.targetAction) return null;
     if (op === "implement") {
       const carrier = this.readHandoff("implement", type, params);

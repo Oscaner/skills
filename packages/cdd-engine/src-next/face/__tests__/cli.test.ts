@@ -5375,7 +5375,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const noHost = new HarnessDispatch({ scene, io, env: {} });
-      expect(await noHost.step()(implementFrame)).toMatchObject({ status: "BLOCKED" });
+      expect(await noHost.step()(implementFrame)).toEqual({
+        status: "BLOCKED",
+        // no host: the dispatch never reached its git baseline
+        dispatchBase: null,
+        treeClean: false,
+      });
       expect(io.stderrText).toContain("CDD_BLOCKED: no host harness detected");
       // P14 — no-crash BLOCKED (host missing) never ticks contractViolationCount.
       expect(scene.ledger.counterOf("contractViolationCount")).toBe(0);
@@ -5387,7 +5392,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         },
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      expect(await failed.step()(implementFrame)).toMatchObject({ status: "BLOCKED" });
+      expect(await failed.step()(implementFrame)).toEqual({
+        status: "BLOCKED",
+        dispatchBase: null,
+        treeClean: false,
+      });
       expect(io.stderrText).toContain("child");
     } finally {
       cleanup();
@@ -5409,7 +5418,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(implementFrame);
       // no carrier → the bookkeep persists nothing: the read-back rejection face
-      expect(outcome).toMatchObject({ status: "BLOCKED" });
+      expect(outcome).toEqual({ status: "BLOCKED", dispatchBase: null, treeClean: false });
       expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft was not written");
       // the crash record — the same-command resume's decision source
       const crash = readJson<{
@@ -5438,6 +5447,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
   it("a child that exits NON-ZERO → BLOCKED + the crash record reports the real death (exitCode / cause / stdoutTail)", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
+      // a real repo so the result's git facts carry their REAL values (a dispatch
+      // baseline sha and a clean tree), not the degenerate non-repo shape
+      gitInit(repoRoot);
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const sync = new StubRunner();
@@ -5452,7 +5464,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = await dispatch.step()(implementFrame);
-      expect(outcome).toMatchObject({ status: "BLOCKED" });
+      expect(outcome).toEqual({
+        status: "BLOCKED",
+        // the dispatch's git facts ride the result even on the death face
+        dispatchBase: expect.any(String),
+        treeClean: true,
+      });
       expect(io.stderrText).toContain("child");
       const crash = readJson<{
         exitCode: number;
@@ -5578,7 +5595,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = await dispatch.step()(implementFrame);
-      expect(outcome).toMatchObject({ status: "BLOCKED" });
+      expect(outcome).toEqual({ status: "BLOCKED", dispatchBase: null, treeClean: false });
       expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft was not written");
       const crash = readJson<{ cause: string; lastSample: SampleRecord | null }>(
         path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"),
@@ -5614,7 +5631,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = await dispatch.step()(implementFrame);
-      expect(outcome).toMatchObject({ status: "BLOCKED" });
+      expect(outcome).toEqual({ status: "BLOCKED", dispatchBase: null, treeClean: false });
       expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft at");
       expect(io.stderrText).toContain("is malformed JSON");
       expect(io.stderrText).not.toContain("was not written");
@@ -5647,7 +5664,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = await dispatch.step()(implementFrame);
-      expect(outcome).toMatchObject({ status: "BLOCKED" });
+      expect(outcome).toEqual({ status: "BLOCKED", dispatchBase: null, treeClean: false });
       expect(io.stderrText).toContain("violates the work schema");
       expect(io.stderrText).toContain("status: required");
       // the draft is preserved byte-identically — the engine never clobbers the

@@ -34,8 +34,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProcessFacts } from "../../infra/proc.ts";
+import { RoundLog } from "../../infra/round-log.ts";
 import { WorkspaceRoot } from "../../infra/workspace.ts";
 import { InFlight, type InFlightRecord } from "../../session/inflight.ts";
 import type { Sample, SampleRecord } from "../../session/ledger.ts";
@@ -115,6 +116,39 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     expect(result.stdout.length).toBeGreaterThan(2000000);
     expect(result.stdout).toMatch(/^The round succeeded; every check is green\.$/m);
     expect(result.stdout).toMatch(/^The handoff draft is the machine-readable result\.$/m);
+  });
+
+  it("pipes the child's bytes into the round log — the engine's own stdout stays silent", async () => {
+    // The production pipe, end to end: a real child, a real Terminator, a real log
+    // file. A stub runner writes the log itself, so only this face pins the wiring.
+    const root = scratch();
+    const target = path.join(root, ".kairos/cdd/probe/logs/tasks-1-implement.log");
+    const log = await RoundLog.create(target);
+    const echoed: string[] = [];
+    const spy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation((chunk: string | Uint8Array) => {
+        echoed.push(String(chunk));
+        return true;
+      });
+    try {
+      const result = await runner.run({
+        ...childRun(root, "sh", ["-c", "printf 'round-log-out\\n'; printf 'round-log-err\\n' >&2"]),
+        log,
+      });
+      expect(result.code).toBe(0);
+    } finally {
+      spy.mockRestore();
+      await log.close();
+    }
+    // both child faces land in the file, verbatim and unprefixed
+    const logged = readFileSync(target, "utf8");
+    expect(logged).toContain("round-log-out\n");
+    expect(logged).toContain("round-log-err\n");
+    expect(RoundLog.sizeOf(target)).toBeGreaterThan(0);
+    // zero echo — the child's bytes never reach the engine's own stdout face
+    expect(echoed.join("")).not.toContain("round-log-out");
+    expect(echoed.join("")).not.toContain("round-log-err");
   });
 
   it("the dispatch env overrides the inherited env on the child process", async () => {

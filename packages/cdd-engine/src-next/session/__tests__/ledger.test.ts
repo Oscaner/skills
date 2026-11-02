@@ -176,6 +176,24 @@ describe("progress — the D28 round-identity face (cycles, not counts)", () => 
     }
   });
 
+  it("roundCount counts DISTINCT cycles — a re-attempt at the same cycle adds no round identity", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      ledger.recordRound("1", {
+        op: "implement",
+        cycle: 1,
+        attempt: 1,
+        verdict: { treeClean: true, targetAction: false },
+      });
+      ledger.recordRound("1", { op: "implement", cycle: 1, attempt: 2 });
+      // the dispatch number is the cycle identity set, never the attempt count
+      expect(ledger.roundCount("1", "implement")).toBe(1);
+      expect(ledger.roundRecorded("1", "implement", 1)).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("recordRound records the CYCLE (its identity), defaulting to latest+1 — a skipped cycle keeps its own number", () => {
     const { ledger, cleanup } = fixture();
     try {
@@ -917,6 +935,30 @@ describe("lineClosed — the single line-closure judge (the board + closedWaves 
       ledger.persistHandoff("fix", "plan", params, { findings: [] });
 
       expect(ledger.lineClosed("plan", "plan")).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a failed fix attempt 1 never shadows the clean attempt 2 — the cycle reads its LATEST attempt", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const params = { round: 1 };
+      // review-1 carries no finding (the closing verdict), fix-1 attempt 1 is a failed
+      // dispatch and attempt 2 is the clean carrier — the same cycle, two attempts.
+      ledger.recordRound("plan", { op: "review", cycle: 1, attempt: 1 });
+      ledger.persistHandoff("review", "plan", params, { findings: [] });
+      ledger.recordRound("plan", {
+        op: "fix",
+        cycle: 1,
+        attempt: 1,
+        verdict: { treeClean: true, targetAction: false },
+      });
+      ledger.recordRound("plan", { op: "fix", cycle: 1, attempt: 2 });
+      ledger.persistHandoff("fix", "plan", params, { findings: [] });
+
+      // the line closed on the successful re-attempt, not on the failed first one
+      expect(ledger.lineClosed("plan", "plan")).toBe(true);
     } finally {
       cleanup();
     }

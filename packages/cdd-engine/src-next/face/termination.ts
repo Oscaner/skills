@@ -477,12 +477,13 @@ export class Terminator implements ChildRunner {
       timeout: run.policy.budgetMs,
     });
     // The round's log channel — the child's stdout/stderr bytes are appended to the
-    // per-round file as they arrive (zero prefix, zero engine-stdout echo). The
+    // per-round file as they arrive (zero prefix, zero engine-stdout echo, raw chunks:
+    // the log never re-decodes, so a chunk boundary cannot tear a character). The
     // buffered result face below is unchanged; the log is an additional observation.
     if (run.log !== undefined) {
       const log = run.log;
-      subprocess.stdout?.on("data", (chunk: Buffer | string) => log.write(chunk.toString()));
-      subprocess.stderr?.on("data", (chunk: Buffer | string) => log.write(chunk.toString()));
+      subprocess.stdout?.on("data", (chunk: Buffer | string) => log.write(chunk));
+      subprocess.stderr?.on("data", (chunk: Buffer | string) => log.write(chunk));
     }
     // Reclaim the group the instant the direct child exits: a grandchild holding the stdout
     // / stderr pipes would otherwise keep the `await` open. No execa option does this (its

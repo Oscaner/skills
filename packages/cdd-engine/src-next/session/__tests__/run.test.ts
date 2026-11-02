@@ -543,12 +543,15 @@ describe("the task small loop — implement → review → the next ready group"
       // the retry is the SAME cycle's next attempt — allocated once by the naming source
       expect(run.peekNext()?.attempt).toBe(2);
       blocked = false;
-      await run.advance();
+      const retry = await run.advance();
       expect(
         ledger.recordsOf("1").map((record) => `${record.op}:${record.cycle}:a${record.attempt}`),
       ).toEqual(["implement:1:a1", "implement:1:a2"]);
       // the failed attempt's record is never overwritten by the retry
       expect(ledger.completedCycles("1", "implement")).toEqual([1]);
+      // the successful retry IS the round the line reads back: the failed attempt 1
+      // must never shadow it (the read-back gate takes the cycle's LATEST attempt)
+      expect(retry!.route).toEqual({ kind: "review" });
     } finally {
       cleanup();
     }

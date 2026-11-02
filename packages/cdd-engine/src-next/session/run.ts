@@ -156,7 +156,8 @@ export interface CapsuleFace {
 export interface StepResult {
   /** The frame the step dispatched. */
   frame: OpenFrame;
-  /** The round count on record after bookkeeping. */
+  /** The line's round number after bookkeeping — the count of DISTINCT recorded
+   *  cycles (a cycle re-dispatched as a new attempt stays one round number). */
   round: number;
   /** The C5 next-hop route after this step (consumed per the face's next
    *  semantics: a next-wave advances the task batch — batch faces only). */
@@ -342,9 +343,7 @@ export class Lifecycle {
    *  records (`RoundNaming#attemptOf`, the naming single source) and shared by the
    *  round record and the round log's name. */
   #attemptFor(phase: DispatchPhase, key: LedgerKey, round: number): number {
-    return this.#ledger
-      .naming()
-      .attemptOf(this.#ledger.recordsOf(key), this.#opOf(phase), round);
+    return this.#ledger.naming().attemptOf(this.#ledger.recordsOf(key), this.#opOf(phase), round);
   }
 
   /** The next phase of one wave line — the SAME single derivation the wave gate reads

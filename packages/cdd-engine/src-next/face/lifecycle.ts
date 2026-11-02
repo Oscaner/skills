@@ -340,7 +340,8 @@ export class CliLifecycle {
   /** Open one round's log file — the per-round channel the child's stdout/stderr
    *  land in, under the workspace's `logs/` directory (which no other writer creates).
    *  A create failure is a named soft observation and the round continues on the CPU
-   *  leg alone (the log leg stays null). */
+   *  leg alone (the log leg stays null); a fault AFTER the channel is live marks the
+   *  log leg dead and is reported through the same channel — never a second notice. */
   async #openRoundLog(frame: OpenFrame): Promise<RoundLog | null> {
     const name = this.#naming.logName(
       this.#opOf(frame),
@@ -350,7 +351,11 @@ export class CliLifecycle {
     );
     const target = this.#scene.workspace.resolve(`${CliLifecycle.LOGS_DIR}/${name}`);
     try {
-      return await RoundLog.create(target);
+      return await RoundLog.create(target, () =>
+        this.#io.stderr(
+          `${this.#words.station("warn")} round log write failed at ${this.#rel(target)}\n`,
+        ),
+      );
     } catch {
       this.#io.stderr(
         `${this.#words.station("warn")} round log unavailable at ${this.#rel(target)}\n`,

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 计划：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: plan
-version: v0.5
+version: v0.6
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 base: develop
@@ -445,10 +445,73 @@ Task 1–12 的全部产物。
 #### DependsOn
 10, 11, 12
 
+### Task 14: 词表统一（`TargetType` 六值 · `--type spec` 退役 · `--spec` 旗标保留）
+
+#### Objective
+一个名字到底：目标词表收为 `phase-spec · overall · plan · single-spec · wave · branch`（文档形状四值 + 节点形状两值），`--type spec` 退役、`spec ⇄ phase-spec` 翻译整类消亡；`PipelineKey` 由 `TargetType` 派生，`PIPELINE_NEXT` 直接以 `TargetType` 为键；`--spec` 旗标保留，只改帮助文案。
+
+#### Files
+- Modify: `packages/cdd-engine/src-next/session/faces.ts` · `packages/cdd-engine/src-next/session/next.ts` · `packages/cdd-engine/src-next/face/declare.ts` · `packages/cdd-engine/src-next/session/round-naming.ts` · `packages/cdd-engine/src-next/face/route-render.ts` · `packages/cdd-engine/src-next/face/cli.ts` · `packages/cdd-engine/src-next/session/preflight.ts` · `packages/cdd-engine/README.md` · `README.zh-CN.md` · `packages/kairos/skills/cdd-spec-writer/SKILL.md`（字面 sweep）
+- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts` · `packages/cdd-engine/src-next/session/__tests__/next.test.ts` · `packages/cdd-engine/src-next/face/__tests__/capsule.test.ts`
+
+#### Consumes
+`TargetType` / `targetFaces` / `RouteTarget`（`session/faces.ts`）· `PipelineKey` / `PIPELINE_NEXT` / `PIPELINE_FACES`（`session/next.ts`）· `ARGV_CHANNEL`（`face/declare.ts`）· `DOC_TYPE_VALUES`（`contract/declare.ts`，值不动）。
+
+#### Produces
+- `export type TargetType = "phase-spec" | "overall" | "plan" | "single-spec" | "wave" | "branch"`
+- `targetFaces: Record<TargetType, TargetFace>` 六行——文档形状四行 `audit: {kind:"doc-path"}` · `wave` 为 `task-graph` · `branch` 为 `branch-tree`；六行 `reviewLead`：仅 `branch` 为 `branch-review`，其余 `review`
+- `export type PipelineKey = Exclude<TargetType, "single-spec">`（派生，不再手写）
+- `PIPELINE_NEXT: Readonly<Record<TargetType, PipelineEntry>>`——`overall` / `single-spec` 两行 `{kind:"done"}`
+- `ARGV_CHANNEL.type.values = ["wave","branch","phase-spec","overall","plan","single-spec"]`；`ARGV_CHANNEL.spec.help = "the document under review — a phase-spec, an overall charter or a single-spec"`
+
+#### Steps
+- [ ] **Step 1: 写失败用例** —— (a) `declare` 的 `--type` 值域等于 `TargetType` 六值（集合相等，且不含 `"spec"`）；(b) `--spec=docs/kairos/overalls/x.md --type overall` 走通预发门并解析出 `docKey === "overall"`；(c) `targetFaces` 的键集等于 `TargetType`；(d) `PIPELINE_NEXT` 的键集等于 `TargetType`；(e) 渲染面：`overall` 目标的 `next:` 字面为 `done`、`phase-spec` 目标为 `kairos:cdd-plan`。 — checkable: 五组用例先红（值域 / docKey / 两表键集 / 渲染）
+- [ ] **Step 2: 改词表与表** —— `TargetType` 六值；`targetFaces` 补 `overall` / `single-spec` 两行、`spec` 行改名 `phase-spec`；`PipelineKey` 改派生；`PIPELINE_NEXT` 换键并补 `single-spec` 行；`RouteTarget.type` 的注释同步。 — checkable: `grep -rn '"spec"' packages/cdd-engine/src-next --include=*.ts` 在目标类型相关文件零命中（`--spec` 旗标与 `flag: "--spec"` 不在范围）
+- [ ] **Step 3: 改旗标与分支点** —— `--type` 值域换六值；`--spec` 帮助文案改写；所有 `type === "spec"` 判据点改 `phase-spec`（`session/preflight.ts` · `face/cli.ts` · `session/round-naming.ts` 三处），并让 `overall` / `single-spec` 同样走 doc-contract 门。 — checkable: `grep -rn 'type === "spec"' packages/cdd-engine/src-next --include=*.ts` 零命中
+- [ ] **Step 4: 消费面字面 sweep** —— 六份 `packages/kairos/skills/*/SKILL.md` 与 `README.md` / `README.zh-CN.md` 里的 `--type spec` 改 `--type phase-spec`；`face/route-render.ts` 的 branch 字面不变。 — checkable: `grep -rn -- '--type spec' packages/kairos packages/cdd-engine README.md README.zh-CN.md` 零命中
+- [ ] **Step 5: 跑绿 + 提交** —— `env -u AI_AGENT pnpm run validate` → PASS（pin 整体重锚，断言不删）；`git commit -m "refactor(cdd-engine): one target vocabulary, from the CLI to the pipeline"` — checkable: `env -u AI_AGENT pnpm run validate` exit 0
+
+#### Acceptance
+`TargetType` 六值且 `--type spec` 零残留（值域 / 帮助 / 消费面字面三面）；`--spec` 旗标保留且帮助文案为 the document under review；`overall` / `single-spec` 各有一条目标行与轮次线；`PipelineKey` 由 `TargetType` 派生、`PIPELINE_NEXT` 以 `TargetType` 为键且两行 `done`；doc-contract 门对四类文档形状同判；`--type overall` 的轮次命名落 `overall-review-N`。
+
+#### DependsOn
+13
+
+### Task 15: 章程判据（`REVIEWS.overall`）与判据体选择
+
+#### Objective
+给章程一份只判章程该判的判据体，并按目标选择判据体：`overall` 走新章程判据，`phase-spec` / `single-spec` 共用叙事判据，`wave` / `branch` / `plan` 各自现行。
+
+#### Files
+- Modify: `packages/cdd-engine/src-next/render/templates.ts` · `packages/cdd-engine/src-next/session/faces.ts`（或判据体选择所在处）
+- Create: `.changeset/p22-target-vocabulary.md` · `.changeset/p22-charter-review-criteria.md`
+- Test: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts` · `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`
+
+#### Consumes
+`REVIEWS`（Task 1 已把四型收编为共享片段 + 各型轴句）· `TargetType`（Task 14 六值）。
+
+#### Produces
+- `export const REVIEWS.overall`：`lensEnum: ["scope", "inventory", "dependency", "acceptance", "boundary"]`；`axesGuide` 只判六条——每个 phase 的 scope 是程序增量而非实现细节 · Phase inventory ↔ Dependency graph ↔ 执行序 的 hard/soft 边一致且串行诚实 · 验收格相位可判 · 非目标真把程序围住 · 变更记录是决策记录而非工作日志 · 台账与实况一致（已闭合标 Done、未注册的不偷塞）。**不含** typecheck/测试证据句、**不含**逐条 `path:line` pin 要求。
+- `export class ReviewVariants { static of(type: TargetType): ReviewKey }`：`wave` / `branch` / `plan` / `overall` 各取同名判据；`phase-spec` 与 `single-spec` 取 `spec`。
+- 两份 changeset：`cdd-engine` **minor**（词表统一 + 章程判据）· `kairos` **patch**（消费面字面 sweep）。
+
+#### Steps
+- [ ] **Step 1: 写失败用例** —— (a) `REVIEWS.overall.axesGuide` 含六条章程锚句，且**不含** `typecheck` / `test command` / `Claimed→pin`；(b) `REVIEWS.spec.axesGuide` 仍含三者（对照 pin）；(c) `ReviewVariants.of("single-spec") === "spec"`、`ReviewVariants.of("overall") === "overall"`；(d) 渲染一次 `--type overall` 的 review prompt，其 `**Criteria — overall:**` 行引用的正是章程判据体。 — checkable: 四组用例先红
+- [ ] **Step 2: 实现判据体与选择** —— 新写 `REVIEWS.overall`（走 Task 1 的共享片段机制，插槽填 artifact / audience）；`ReviewVariants.of` 一行映射；渲染面按选择取判据。 — checkable: 章程 prompt 不含 `typecheck`；spec prompt 仍含
+- [ ] **Step 3: 两份 changeset + 文档** —— `cdd-engine` minor、`kairos` patch；`packages/cdd-engine/README.md` 的 review 类型表补 `overall` 行与「章程判据只判章程」。 — checkable: 两份 changeset 存在且 bump 级为 minor / patch
+- [ ] **Step 4: 跑绿 + 提交** —— `env -u AI_AGENT pnpm run validate` → PASS；`git commit -m "feat(cdd-engine): judge a charter by charter criteria"` — checkable: `env -u AI_AGENT pnpm run validate` exit 0
+
+#### Acceptance
+章程判据六条在册且不含实现面证据句（对照 pin：spec 判据仍含）；`single-spec` 复用叙事判据（不新写第二份散文）；`--type overall` 的 review prompt 引用章程判据；两份 changeset bump 级为 minor / patch。
+
+#### DependsOn
+14
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.6 | 2026-11-03 | **⑦ 词表统一 + 章程判据入库（用户裁定「同一收口」· 章程 D73/D74）**：新增 T14（`TargetType` 六值 · `--type spec` 退役 · `--spec` 旗标保留 · `PipelineKey` 派生 · 消费面字面 sweep，W8）与 T15（`REVIEWS.overall` 章程判据六条 · `ReviewVariants` 选择 · 两份 minor/patch changeset，W9）；两层各 1 宽，不破波内上限。**版本级判据**：方法论不变 ⇒ cdd-engine minor + kairos patch（D74） | Oscaner M. · Claude（kairos:cdd-dev · scope append · 2026-11-03） |
 | v0.5 | 2026-11-03 | **plan-review-4 findings 全量落册**：① `CompletionContext` 的 `records` / `reviewsPath` 供值 pin 移到 Task 7 Step 1(f)（`#verdictOf` + `#reviews ?? handoffPath("review", …)` 同住 lifecycle），Task 4 只留 ctx 纯形状（W2 不引 face 依赖）；② `NextHop` / `NextHopInput` 增 `target: RouteTarget | null`（capsule 供帧 target · board 供遍历选中面 target · CLI 供自己的），`docClassOf` 与 `RouteRenderer` 同读这一格；Task 10 行④ / 行⑤ 分清 `overall`（`to = PIPELINE_NEXT["overall"]`）与 `single-spec`（`terminal` · `to: null`）；③ `hopOf(route, face)` 收 face 并补 `review` @ branch 面 ⇒ `branch-review` 的 pin；④ Task 10 删除面收窄到自指 hop 推演：`lineGate`（`phase` / `verdict` / `reviewed`）与 `#linePhase` / `#lineKey` 保留，`walk` 四形落点在 board 构造方（`cli.ts`）+ 四形逐字回归 pin；⑤ 活性信号改按轮工厂（`LIVENESS_SIGNALS(context)` + `LivenessContext{logPath, pgid}`），补「状态不跨轮」pin；⑥ Task 8 Step 1(a) fixture 写实：`1`/`2`/`3` 无依赖、`4`/`5` 只依赖 `1` ⇒ `batches() = [{1,2,3},{4,5}]`（规则绿）而 frontier `{2,3,4,5}` 宽 4 ⇒ `wave-too-wide`（规则必要不充分之例）；⑦ 旧形折算补 `attempt: 1`，`rounds` 读期类型括上 `Record<string, number[] | number>`；⑧ nit：`FIX_DISPOSITIONS_ZERO_COMMIT` 改标**新写字面** + 补零提交 soft pin；删面 pin 改用精确名 + `lineGate` / `#linePhase` / `#lineKey` 保留断言；Task 12 审批门句内含「由编排器在本会话写成」呈交声明 ×3 与其 grep pin；Task 13 删掉软上限数字，只引用 `REVIEW_CYCLE_CAP` | Oscaner M. · Claude（kairos:cdd-plan [P22] docs-fix · 2026-11-03) |
 | v0.4 | 2026-11-03 | **plan-review-3 findings 全量落册**：① blocker：`board` / `preview` 的记录读面连同 `board-view.test.ts` 旧形 fixture 迁进 Task 3（新增 `RoundRecords` 单一归一缝 + 「写一条记录 → board 显示它」往返 pin + `would record` 身份 pin），Task 11 只留排版重设；② `SignalReading` 增 `readableAt`（最近可读 tick），`LivenessJudge#verdict` 收 `LivenessInput`（含 `now`）——`unknown` 改为「整窗无腿可读」，补「先可读后不可读 + 静默满 30min ⇒ `stalled`」pin（七条真值表）；③ Task 5 Files 收 `cli.test.ts` 的两处 `lastSample` fixture，checkable 增 `tsc --noEmit` 绿；④ `CompletionContext` 增 `records` / `reviewsPath` 两格并点名供值方（`#verdictOf` + `CliLifecycle#reviews`），Task 4/6 各补一条 pin（含「本轮载体在而请求方缺失 ⇒ hard」）；⑤ Task 6 补 spec §3.4 的 `fixed N · rejected M` 汇总行（`FIX_DISPOSITIONS_SUMMARY` + `summaryOf`，capsule 之后一行 stdout，不落盘 / 不进 capsule，字节 pin）；⑥ Task 10 把「不印 `next:` 行」的条件从 `hop === null` 改为 `NextHop` **缺席**，并写出逐行字节冻结表（`done` / `soft-cap` / doc-class `terminal` / `blocked`）；⑦ doc-class 判别改为 `NextHopInput.docClassOf` 注入，`next.ts` 不 import `BoardView`（免运行时环）；⑧ 波宽规则改读注入的 `ContractInput.taskLayers`（`preflight` graph 门供值），`contract/` 零 `../session` 导入，`TaskGraph#batches()` 单一权威 pin；⑨ nit：`reviewGuideOf(type: TargetType)` + `REVIEW_VARIANT_TEXT`（无 `ReviewVariant` 新名）、删 `ReviewedRevisionWriter` 改为点名 `session/run.ts:495-512` 的三个既有回写换谓词、补被 kill 轮的日志指路 pin | Oscaner M. · Claude（kairos:cdd-plan [P22] docs-fix · 2026-11-03） |
 | v0.3 | 2026-11-03 | **plan-review-2 findings 全量落册**：① 孪生 pin 按 spec v0.6 收窄——第三条陈述与周期数只住两份 `next-loop`，两份 `architecture` 只钉前两条，pin 断言四份**合起来**覆盖三条（`architecture` 不入 Task 9 Files）；② 旧 `progress.json` 的 cycle 号折成**完成记录**（`targetAction: true` · `dispatchBase: null` · `violations: []` · `carrierPath: null`），补「存量闭合线仍判闭合」与「`recordedTasksOf` 非空」两条 pin；③ `NextHop.face` / `route` 与 `NextHopInput.route` 改为可空（失败面与 doc-class `terminal`），capsule 参数 `NextHop \| null`、失败轮零 `next:` 行；④ `reason` 七值补产出者（`taskOpen` · `closedLine` · `terminal → faceClosed`）与三条报文形 pin；⑤ `WaveWidthInvariant` 落到 `contract/invariants.ts` 并点名用例宿主；⑥ Task 13 Files 增 `face/declare.ts` 并写明帮助行落点；⑦ `FixDispositions` 定请求方载体取值缝（同 key 同 cycle 的 review 记录，回退 `--reviews`）；⑧ Task 8 补历史超 3 波行读面 pin、Task 7 补 `implement` 载体缺失 soft pin、Task 10 补 `Run#peekNext` 跨面 pin；⑨ nit：插槽 token 改 `{artifact}` / `{audience}`、Task 3 Step 3 符号改为实存的 `Ledger#waveLinePhase` / `#rowClosed` / `#roundRoute` | Oscaner M. · Claude（kairos:cdd-plan [P22] docs-fix · 2026-11-03） |

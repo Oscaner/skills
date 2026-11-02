@@ -27,7 +27,7 @@ The core loop is a chain: `implement` executes the brief, `review` judges the re
 
 ### Convergence discipline
 
-Every finding carries a severity — **blocker**, **warn**, or **nit** — and a lens. **Review Convergence** is the single closure rule: blockers route to `fix` and a re-review; warn/nit-only closes as `REVIEW_FIX`; zero findings closes outright. The same rule closes task, branch, spec, and plan reviews.
+Every finding carries a severity — **blocker**, **warn**, or **nit** — and a lens. **Review Convergence** is the single closure rule: blockers route to `fix` and a re-review; warn/nit-only closes as `REVIEW_FIX`; zero findings closes outright. The same rule closes wave, branch, phase-spec, overall, plan, and single-spec reviews.
 
 ## What this is
 

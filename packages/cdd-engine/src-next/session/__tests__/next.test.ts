@@ -33,9 +33,9 @@ import {
   NEXT_HOP_REASON,
   type NextHopInput,
   NextStepRouter,
+  PIPELINE_FACES,
   PIPELINE_NEXT,
   type PipelineEntry,
-  type PipelineKey,
   REVIEW_CYCLE_CAP,
   SOFT_CAP_SUGGESTION,
 } from "../next.ts";
@@ -612,10 +612,13 @@ describe("P22 T14 — the target vocabulary is the single key set", () => {
   it("PipelineKey is DERIVED from TargetType — `single-spec` is not a pipeline seam", () => {
     const source = readFileSync(new URL("../next.ts", import.meta.url), "utf8");
     expect(source).toContain('export type PipelineKey = Exclude<TargetType, "single-spec">');
-    // the derivation's runtime consequence: every key but single-spec has a row
-    const keys: readonly PipelineKey[] = ["phase-spec", "overall", "plan", "wave", "branch"];
-    expect(keys).toHaveLength(5);
-    expect(keys).not.toContain("single-spec");
+    // the derivation's runtime consequence: every phase-level face named by the
+    // traversal order is a row of the real pipeline table, and `single-spec` is a
+    // table row only — never a seam a hop can land on.
+    const seams: readonly string[] = PIPELINE_FACES;
+    expect(seams.length).toBeGreaterThan(0);
+    expect(Object.keys(PIPELINE_NEXT)).toEqual(expect.arrayContaining([...seams]));
+    expect(seams).not.toContain("single-spec");
   });
 });
 

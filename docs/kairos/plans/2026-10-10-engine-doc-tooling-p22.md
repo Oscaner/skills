@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 计划：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: plan
-version: v0.8
+version: v0.9
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 base: develop
@@ -232,8 +232,8 @@ work 载体新增 `dispositions` 槽，`fix` 的完成判据 = 逐条处置覆�
 `face/lifecycle.ts` 收工时先写 `{treeClean, targetAction}` 裁决，再按违约族分流：hard 判该轮失败（exit 非零 · 照常入账 · stderr 的 `CDD_BLOCKED` 行带日志路径），soft 只记账；`reviewedRevision` 的三个回写以裁决为门。
 
 #### Files
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts` · `packages/cdd-engine/src-next/session/run.ts` · `packages/cdd-engine/src-next/session/ledger.ts`（派生计数）· `packages/cdd-engine/src-next/face/words.ts`（报文） · `packages/cdd-engine/src-next/render/templates.ts`（fix 派发提示的 disposition 义务句）
-- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts` · `packages/cdd-engine/src-next/face/__tests__/termination.test.ts`
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts` · `packages/cdd-engine/src-next/session/run.ts` · `packages/cdd-engine/src-next/session/ledger.ts`（派生计数 · `RoundViolation` 工厂）· `packages/cdd-engine/src-next/face/words.ts`（报文） · `packages/cdd-engine/src-next/render/templates.ts`（fix 派发提示的 disposition **形状**）· `packages/cdd-engine/src-next/contract/completion-criterion.ts`（判据接进 `#verdictOf` 的输入形状）
+- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts` · `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`
 
 #### Consumes
 `COMPLETION_CRITERIA`（Task 4 · Task 6）· `RoundRecord` / `RoundVerdict`（Task 3）· `RoundLog.path`（Task 2）。
@@ -512,6 +512,7 @@ Task 1–12 的全部产物。
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.9 | 2026-11-03 | **T7 Files 面对齐落地（W4 wave review 的 nit）**：`contract/completion-criterion.ts`（判据输入形状）列入 Modify · `session/__tests__/ledger.test.ts` 列入 Test · `face/__tests__/termination.test.ts` 移出（该文件本波未被触，日志指路 pin 落在 `cli.test.ts`） | Oscaner M. · Claude（kairos:cdd-dev · Files backfill · 2026-11-03） |
 | v0.8 | 2026-11-03 | **T7 补 disposition 义务句（W3 现场取证）**：W3 的 fix 轮载体只有 `artifacts` / `status` / `notes`、**无 `dispositions`**，该轮却 APPROVED 并印出 `fixed 0 · rejected 0`——因为判据要等 T7 才接线。接线后这种载体必判 hard，而今日的 fix 提示并未要求逐条处置 ⇒ 会自锁。T7 增一步：fix 提示补「每条请求 finding 都要一条 disposition」，并补一条红 pin | Oscaner M. · Claude（kairos:cdd-dev · plan backfill · 2026-11-03） |
 | v0.7 | 2026-11-03 | **常量驻地修正（W2 wave review 的 nit · 编排器回填）**：`MAX_TASKS_PER_WAVE` 声明在 `contract/wave-width.ts`、由 `session/next.ts` re-export——brief 的三项要求（常量住 `session/next.ts` · 规则住 `contract/invariants.ts` · `contract/` 零 `../session` 导入）不可能同时按字面成立，实施轮的解是唯一自洽形。本地回填该行，代码不动 | Oscaner M. · Claude（kairos:cdd-dev · landing-row backfill · 2026-11-03） |
 | v0.6 | 2026-11-03 | **⑦ 词表统一 + 章程判据入库（用户裁定「同一收口」· 章程 D73/D74）**：新增 T14（`TargetType` 六值 · `--type spec` 退役 · `--spec` 旗标保留 · `PipelineKey` 派生 · 消费面字面 sweep，W8）与 T15（`REVIEWS.overall` 章程判据六条 · `ReviewVariants` 选择 · 两份 minor/patch changeset，W9）；两层各 1 宽，不破波内上限。**版本级判据**：方法论不变 ⇒ cdd-engine minor + kairos patch（D74） | Oscaner M. · Claude（kairos:cdd-dev · scope append · 2026-11-03） |

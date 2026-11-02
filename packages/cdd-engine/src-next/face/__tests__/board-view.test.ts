@@ -207,6 +207,54 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain("W2 {2}");
   });
 
+  it("round-trips a written round record onto the line's rounds cell — one normalize face", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", [
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "slug: prog-p1",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: a",
+      "- **Objective**: o",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+    ]);
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    // ONE record write — op · cycle · attempt — read back through RoundRecords.of
+    ledger.recordRound("1", { op: "review", cycle: 1, attempt: 1 });
+
+    const { text } = render("prog-p1");
+
+    // the wave line's rounds cell renders the recorded cycle under its verb
+    expect(text).toContain("review×1");
+  });
+
   it("phase board next: the first not-closed line renders its ACTIVE C5 hop (the spec review)", () => {
     // D40 deep-solve — the spec line has not started its C5 (no review round on record),
     // so its ACTIVE hop is the review-lead the dispatch engine would run (Ledger#lineRoute
@@ -854,9 +902,11 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // (deliberate pin break — the retired `review×4` read the array length).
     expect(text).toContain("prog-overall.md   v2.33   review×1,2,3,4");
     // The full phase line shape (spec §5.3): status + the spec/plan/wave/branch cells,
-    // the `wave W1…` token derived from the phase's own wave segment.
+    // the `wave W1…` token derived from the phase's own wave segment. The branch line's
+    // round aggregates under the `review` verb — branch review folds to the review
+    // family in the record (`RoundRecords.of`; OpType has no branch-review member).
     expect(text).toContain(
-      "  phase prog-p1  Pending   spec review×1 · plan review×1 · wave W1… · branch branch-review×1   title: S",
+      "  phase prog-p1  Pending   spec review×1 · plan review×1 · wave W1… · branch review×1   title: S",
     );
     expect(text).toContain("  next:    done");
   });

@@ -514,6 +514,46 @@ describe("the task small loop — implement → review → the next ready group"
     }
   });
 
+  it("a BLOCKED implement round lands as a record — the retry takes attempt 2 at the same cycle", async () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      let blocked = true;
+      const dispatch = stub(() => (blocked ? { status: "BLOCKED" } : APPROVED_IMPLEMENT));
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+
+      const first = await run.advance();
+      // every dispatched round lands — the failed verdict is the record's fact
+      expect(ledger.recordsOf("1")).toEqual([
+        expect.objectContaining({
+          op: "implement",
+          cycle: 1,
+          attempt: 1,
+          verdict: { treeClean: true, targetAction: false },
+        }),
+      ]);
+      expect(ledger.completedCycles("1", "implement")).toEqual([]);
+      expect(first!.route).toBeNull();
+
+      // the retry is the SAME cycle's next attempt — allocated once by the naming source
+      expect(run.peekNext()?.attempt).toBe(2);
+      blocked = false;
+      await run.advance();
+      expect(
+        ledger.recordsOf("1").map((record) => `${record.op}:${record.cycle}:a${record.attempt}`),
+      ).toEqual(["implement:1:a1", "implement:1:a2"]);
+      // the failed attempt's record is never overwritten by the retry
+      expect(ledger.completedCycles("1", "implement")).toEqual([1]);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("a BLOCKED mid-run wave LOCKS the successor — wave {2} is unreachable while wave {1} holds an unclosed review (v1.29)", async () => {
     const { ledger, cleanup } = fixture();
     try {

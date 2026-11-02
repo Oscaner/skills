@@ -98,6 +98,10 @@ export interface DispatchScene {
  * BLOCKED outcome over the CDD_BLOCKED channel (never a thrown dispatch).
  */
 export class CliLifecycle {
+  /** The workspace-relative directory every round log lands in — built by
+   *  `RoundLog.create` on first use, never by the workspace's own mkdir. */
+  static readonly LOGS_DIR = "logs";
+
   readonly #env: ProcessEnvLike;
   readonly #sync: ChildRunner;
   readonly #template: TemplateAssembler;
@@ -334,12 +338,17 @@ export class CliLifecycle {
   }
 
   /** Open one round's log file — the per-round channel the child's stdout/stderr
-   *  land in (create makes the `logs/` directory). A create failure is a named soft
-   *  observation and the round continues on the CPU leg alone (the log leg stays null). */
+   *  land in, under the workspace's `logs/` directory (which no other writer creates).
+   *  A create failure is a named soft observation and the round continues on the CPU
+   *  leg alone (the log leg stays null). */
   async #openRoundLog(frame: OpenFrame): Promise<RoundLog | null> {
-    const target = this.#scene.workspace.resolve(
-      this.#naming.logName(this.#opOf(frame), frame.type, frame.params, frame.attempt ?? 1),
+    const name = this.#naming.logName(
+      this.#opOf(frame),
+      frame.type,
+      frame.params,
+      frame.attempt ?? 1,
     );
+    const target = this.#scene.workspace.resolve(`${CliLifecycle.LOGS_DIR}/${name}`);
     try {
       return await RoundLog.create(target);
     } catch {

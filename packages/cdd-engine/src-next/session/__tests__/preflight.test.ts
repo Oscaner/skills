@@ -759,6 +759,27 @@ describe("PreFlight — the plan-ledger gate", () => {
     }
   });
 
+  it("reads a legacy `rounds` row as recorded — the completion fold keeps the agreement", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      // The pre-record stored form (the per-mode cycle array) records task 1 as done:
+      // the plan carries tasks 1..2, so the ledger leads by one — never a phantom
+      // "unrecorded" wave, which would read the old row as a round-less one.
+      const ctx = branchCtx(repoRoot, [task(1, "none"), task(2, "1")], (ledger) => {
+        ledger.writeProgress({
+          ...ledger.emptyProgress(),
+          waves: [{ wave: "1", rounds: { implement: [1], review: [1] } }],
+        });
+      });
+      const verdict = await preflightOf().vet(ctx);
+      expect(verdict.ok).toBe(true);
+      expect(verdict.checked).toContain("plan-ledger: info (plan leads ledger by 1 tasks)");
+      expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: passed");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("BLOCKs when the ledger records a task the plan no longer carries (the mutation guard)", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {

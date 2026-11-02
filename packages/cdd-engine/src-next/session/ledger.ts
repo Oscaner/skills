@@ -207,7 +207,9 @@ export class RoundRecords {
     if (Array.isArray(raw)) {
       return raw.filter(
         (entry): entry is RoundRecord =>
-          typeof entry === "object" && entry !== null && typeof (entry as RoundRecord).op === "string",
+          typeof entry === "object" &&
+          entry !== null &&
+          typeof (entry as RoundRecord).op === "string",
       );
     }
     const records: RoundRecord[] = [];
@@ -1083,7 +1085,6 @@ export class Ledger {
       .map((record) => record.cycle);
   }
 
-
   /** The C5 route of one recorded round — null when the round is unreadable (a
    *  line whose round was never read cannot be judged closed: only present facts). */
   #roundRoute(
@@ -1295,33 +1296,28 @@ export class Ledger {
     return type === "wave" ? (params.tasks ?? "") : type;
   }
 
-  /** The recorded mode one op's round records its cycle under — the review leg reads
-   *  the face table's review-lead mode (the single source: branch→branch-review, the
-   *  others→review), matching `recordRound(frame.key, frame.phase, frame.round)`; the
-   *  implement/fix legs their own name. */
-  #recordedMode(op: OpType, type: TargetType): string {
-    return op === "review" ? targetFaces[type].product.reviewLead : op;
-  }
-
   /** Read a round's concluding record as the Round the dispatch next-router judges.
-   *  A round is present ONLY when `recordRound` recorded it (the round verdict's
-   *  single source): an unrecorded round returns null whatever draft sits on disk —
-   *  a rejected child's leftover draft is never read back as a completed round
-   *  (the §2.8 gate; without it a BLOCKED round with a stale draft rendered a
-   *  contradictory `status: BLOCKED · next: done`). A fix round carries the SOURCE
-   *  review's findings (C5-1: the `--reviews` input content, never its own
+   *  A round is present ONLY when its recorded verdict says the round COMPLETED
+   *  (`targetAction === true`): a dispatched-but-failed round returns null whatever
+   *  draft sits on disk — a rejected child's leftover draft is never read back as a
+   *  completed round (the §2.8 gate; without it a BLOCKED round with a stale draft
+   *  rendered a contradictory `status: BLOCKED · next: done`). A fix round carries the
+   *  SOURCE review's findings (C5-1: the `--reviews` input content, never its own
    *  carrier); the consecutive-S1 run is walked from the review history.
    *  Missing/corrupt evaluated handoff → null too — a fix round whose source review
    *  is unreadable is never a zero-findings fabrication: a round whose blocker set
    *  was never read must not be judged clean. */
   round(op: OpType, type: TargetType, params: HandoffParams, round: number): Round | null {
-    // §2.8 — the round-read gate: only a recorded round is a round. The test is the
+    // §2.8 — the round-read gate: only a COMPLETED round is a round. The test is the
     // round's IDENTITY (its cycle number), not a count: a fix that skipped a cycle
     // (a drift-voided review → the first fix is cycle 2, not ordinal 1) is present at
     // cycle 2 (D28). A count comparison would flatten that to 1 and refuse the read.
-    if (!this.roundRecorded(this.#roundKey(type, params), this.#recordedMode(op, type), round)) {
-      return null;
-    }
+    // Completion is the recorded VERDICT, never membership — every dispatched round
+    // is recorded now, so a failed round's cycle is in register but reads no carrier.
+    const recorded = this.recordsOf(this.#roundKey(type, params)).find(
+      (record) => record.op === op && record.cycle === round,
+    );
+    if (recorded === undefined || !recorded.verdict.targetAction) return null;
     if (op === "implement") {
       const carrier = this.readHandoff("implement", type, params);
       if (carrier === null) return null;

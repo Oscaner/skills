@@ -297,6 +297,20 @@ const briefRevision = (repoRoot: string, plan: string, tasks: string) => {
   };
 };
 
+/** One progress row's round records as `op:cycle:a{attempt}:{targetAction}` tokens —
+ *  the record-face read the shape pins share (the retired `rounds[mode] = [cycles]`
+ *  map is only the legacy stored form, folded by `RoundRecords.of`). */
+const roundTokens = (row: { rounds?: readonly unknown[] } | undefined): string[] =>
+  (row?.rounds ?? []).map((raw) => {
+    const record = raw as {
+      op: string;
+      cycle: number;
+      attempt: number;
+      verdict: { targetAction: boolean };
+    };
+    return `${record.op}:${record.cycle}:a${record.attempt}:${record.verdict.targetAction}`;
+  });
+
 /** A doc-contract-clean plan — every registered plan element present (the header
  *  tuple + the version lineage + a Change-history table + the task fields), chain
  *  links resolving into existing same-family siblings. The P4.1 doc-contract
@@ -1547,8 +1561,13 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
       expect(io.stdoutText).toContain(`next: review --type wave --tasks 1`);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
-      const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
-      expect(progress.waves).toContainEqual({ wave: "1", rounds: { implement: [1] } });
+      const progress = readJson<{ waves: { wave: string; rounds?: unknown[] }[] }>(
+        path.join(workspace, "progress.json"),
+      );
+      // the round is a RECORD: identity (op · cycle · attempt) + its completion verdict
+      expect(roundTokens(progress.waves.find((row) => row.wave === "1"))).toEqual([
+        "implement:1:a1:true",
+      ]);
       expect(existsSync(path.join(workspace, "tasks-1-implement.json"))).toBe(true);
       expect(existsSync(path.join(workspace, "tasks-1-brief.md"))).toBe(true);
       const brief = readFileSync(path.join(workspace, "tasks-1-brief.md"), "utf8");
@@ -1613,19 +1632,28 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const code = await command.runArgv(["implement", "--tasks", "2", "--plan", plan]);
       expect(code).toBe(0);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
-      const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
+      const progress = readJson<{
+        waves: {
+          wave: string;
+          rounds?: unknown[];
+          reviewedRevision?: unknown;
+          planTasks?: unknown;
+        }[];
+      }>(path.join(workspace, "progress.json"));
+      const wave1 = progress.waves.find((row) => row.wave === "1");
+      // the wave-1 row carries its completed rounds as records — the implement + the
+      // completed wave review, both at cycle 1, attempt 1
+      expect(roundTokens(wave1)).toEqual(["implement:1:a1:true", "review:1:a1:true"]);
       // the wave-1 row carries its D30 revision record — the completed wave review
       // bound the BRIEF it judged to ITS line (the row's reviewedRevision is a
       // brief-revision: the plan it renders from + the RENDERED brief's sha1 — the
       // wave-gate reopen basis: a plan edit outside this wave's tasks must not void it)
-      expect(progress.waves).toContainEqual({
-        wave: "1",
-        rounds: { implement: [1], review: [1] },
-        reviewedRevision: briefRevision(repoRoot, plan, "1"),
-        // P21 §5.1 — the closure-time plan-task snapshot (both plan tasks existed).
-        planTasks: [1, 2],
-      });
-      expect(progress.waves).toContainEqual({ wave: "2", rounds: { implement: [1] } });
+      expect(wave1?.reviewedRevision).toEqual(briefRevision(repoRoot, plan, "1"));
+      // P21 §5.1 — the closure-time plan-task snapshot (both plan tasks existed).
+      expect(wave1?.planTasks).toEqual([1, 2]);
+      expect(roundTokens(progress.waves.find((row) => row.wave === "2"))).toEqual([
+        "implement:1:a1:true",
+      ]);
       // the invocation's single stdout face — only the LAST step's capsule
       expect(io.stdoutText.split("status: APPROVED").length - 1).toBe(1);
       expect(existsSync(path.join(workspace, "tasks-2-implement.json"))).toBe(true);
@@ -1764,7 +1792,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       });
       // find #9 — the line key is the stable "branch" (round accumulates across
       // re-reviews; the old range-short key reset to 1 on every head move).
-      ledger.recordRound("branch", { op: "branch-review" });
+      ledger.recordRound("branch", { op: "review" });
       const reviewsPath = workspace.resolve("branch-review-1.json");
       const code = await command.runArgv([
         "fix",
@@ -2377,12 +2405,14 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // increment) and the progress row's key set carries zero new fields (the
       // pending fix is derived, never a stored state).
       const progress = readJson<{
-        waves: Array<{ wave: string; rounds?: Record<string, number[]> }>;
+        waves: Array<{ wave: string; rounds?: unknown[] }>;
       }>(path.join(workspace, "progress.json"));
-      // §3.7 — the doc line keys by its line-type constant, never the argv path
+      // §3.7 — the doc line keys by its line-type constant, never the argv path; the
+      // re-review books its own cycle on the record array (no stored pending fact).
+      // The ABORTED fix is on record too — a dispatched round always lands, its
+      // verdict carries the failure, so the re-review is its own cycle.
       const row = progress.waves.find((entry) => entry.wave === "plan");
-      expect(row?.rounds?.review).toEqual([1, 2]);
-      expect(row?.rounds?.fix).toBeUndefined();
+      expect(roundTokens(row)).toEqual(["review:1:a1:true", "fix:1:a1:false", "review:2:a1:true"]);
       expect(JSON.stringify(progress)).not.toContain("pending");
     } finally {
       cleanup();
@@ -2431,12 +2461,12 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // fork a second row keyed by the other spelling; the round CONTINUED (2), it
       // did not reset to 1 (the §3.7 dogfood fix)
       const progress = readJson<{
-        waves: Array<{ wave: string; rounds?: Record<string, number> }>;
+        waves: Array<{ wave: string; rounds?: unknown[] }>;
       }>(path.join(repoRoot, ".kairos", "cdd", "p3", "progress.json"));
       const planRows = progress.waves.filter((row) => row.wave.startsWith("plan"));
       expect(planRows).toHaveLength(1);
       expect(planRows[0]!.wave).toBe("plan");
-      expect(planRows[0]!.rounds?.review).toEqual([1, 2]);
+      expect(roundTokens(planRows[0])).toEqual(["review:1:a1:true", "review:2:a1:true"]);
     } finally {
       process.chdir(savedCwd);
       cleanup();
@@ -3130,16 +3160,23 @@ describe("P4.1 T4 — the real chain: next literals dispatch the next round (rev
       ).toBe(0);
       expect(nextOf()).toBe(`review --type branch --plan ${planRel}`);
 
-      const progress = readJson<{ waves: unknown[] }>(path.join(workspace, "progress.json"));
+      const progress = readJson<{
+        waves: {
+          wave: string;
+          rounds?: unknown[];
+          reviewedRevision?: unknown;
+          planTasks?: unknown;
+        }[];
+      }>(path.join(workspace, "progress.json"));
+      const wave2 = progress.waves.find((row) => row.wave === "2");
+      // the wave-2 row carries its completed rounds as records (implement + review,
+      // both cycle 1)
+      expect(roundTokens(wave2)).toEqual(["implement:1:a1:true", "review:1:a1:true"]);
       // the wave-2 row carries its own D30 revision record — the final APPROVED
       // review bound wave 2's BRIEF to its line (the same brief-revision write-back)
-      expect(progress.waves).toContainEqual({
-        wave: "2",
-        rounds: { implement: [1], review: [1] },
-        reviewedRevision: briefRevision(repoRoot, plan, "2"),
-        // P21 §5.1 — the closure-time plan-task snapshot (the append-vs-stall fact).
-        planTasks: [1, 2],
-      });
+      expect(wave2?.reviewedRevision).toEqual(briefRevision(repoRoot, plan, "2"));
+      // P21 §5.1 — the closure-time plan-task snapshot (the append-vs-stall fact).
+      expect(wave2?.planTasks).toEqual([1, 2]);
     } finally {
       cleanup();
     }
@@ -5338,7 +5375,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
       const noHost = new HarnessDispatch({ scene, io, env: {} });
-      expect(await noHost.step()(implementFrame)).toEqual({ status: "BLOCKED" });
+      expect(await noHost.step()(implementFrame)).toMatchObject({ status: "BLOCKED" });
       expect(io.stderrText).toContain("CDD_BLOCKED: no host harness detected");
       // P14 — no-crash BLOCKED (host missing) never ticks contractViolationCount.
       expect(scene.ledger.counterOf("contractViolationCount")).toBe(0);
@@ -5350,7 +5387,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         },
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
-      expect(await failed.step()(implementFrame)).toEqual({ status: "BLOCKED" });
+      expect(await failed.step()(implementFrame)).toMatchObject({ status: "BLOCKED" });
       expect(io.stderrText).toContain("child");
     } finally {
       cleanup();
@@ -5372,7 +5409,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       });
       const outcome = await dispatch.step()(implementFrame);
       // no carrier → the bookkeep persists nothing: the read-back rejection face
-      expect(outcome).toEqual({ status: "BLOCKED" });
+      expect(outcome).toMatchObject({ status: "BLOCKED" });
       expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft was not written");
       // the crash record — the same-command resume's decision source
       const crash = readJson<{
@@ -5415,7 +5452,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = await dispatch.step()(implementFrame);
-      expect(outcome).toEqual({ status: "BLOCKED" });
+      expect(outcome).toMatchObject({ status: "BLOCKED" });
       expect(io.stderrText).toContain("child");
       const crash = readJson<{
         exitCode: number;
@@ -5541,7 +5578,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = await dispatch.step()(implementFrame);
-      expect(outcome).toEqual({ status: "BLOCKED" });
+      expect(outcome).toMatchObject({ status: "BLOCKED" });
       expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft was not written");
       const crash = readJson<{ cause: string; lastSample: SampleRecord | null }>(
         path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"),
@@ -5577,7 +5614,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = await dispatch.step()(implementFrame);
-      expect(outcome).toEqual({ status: "BLOCKED" });
+      expect(outcome).toMatchObject({ status: "BLOCKED" });
       expect(io.stderrText).toContain("CDD_BLOCKED: the handoff draft at");
       expect(io.stderrText).toContain("is malformed JSON");
       expect(io.stderrText).not.toContain("was not written");
@@ -5610,7 +5647,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       const outcome = await dispatch.step()(implementFrame);
-      expect(outcome).toEqual({ status: "BLOCKED" });
+      expect(outcome).toMatchObject({ status: "BLOCKED" });
       expect(io.stderrText).toContain("violates the work schema");
       expect(io.stderrText).toContain("status: required");
       // the draft is preserved byte-identically — the engine never clobbers the
@@ -5854,6 +5891,56 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     return { termination: { cause: "stalled", idleMs: 1_800_000, lastSample }, lastSample };
   };
 
+  it("writes the child's output to the round log — created before the spawn, silent on the engine face", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "child chatter\n";
+    const { command, io, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace, ledger } = cliScene(repoRoot);
+      // the wave stands at its review hop (an approved implement round on record) and
+      // the child's write-back draft is the clean review carrier
+      seedImplement(ledger);
+      writeFileSync(
+        path.join(workspace.path, "tasks-1-review-1.json"),
+        JSON.stringify({ findings: [] }),
+        "utf8",
+      );
+      const code = await withHost(() =>
+        command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+      );
+      expect(code).toBe(0);
+      const logPath = path.join(workspace.path, "logs", "tasks-1-review-1.log");
+      // the per-round channel: `<slug>/logs/<stem>.log`, the child's bytes verbatim
+      expect(existsSync(logPath)).toBe(true);
+      expect(readFileSync(logPath, "utf8")).toBe("child chatter\n");
+      expect(sync.calls[0]?.log?.path).toBe(logPath);
+      // zero echo — the child's bytes never reach the engine's own stdout face
+      expect(io.stdoutText).not.toContain("child chatter");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("creates no round log under --dry-run — a preview dispatches nothing", async () => {
+    const sync = new StubRunner();
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace } = cliScene(repoRoot);
+      const code = await withHost(() =>
+        command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
+      );
+      expect(code).toBe(0);
+      expect(existsSync(path.join(workspace.path, "logs", "tasks-1-implement.log"))).toBe(false);
+      expect(sync.calls).toHaveLength(0);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("promotes a terminated review round whose draft is valid and has findings", async () => {
     const sync = new StubRunner();
     const fact = stalled();
@@ -5960,7 +6047,10 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(code).toBe(1);
         expect(io.stdoutText).toContain("status: TIMEOUT");
         expect(io.stdoutText).not.toMatch(/^next:/m);
-        expect(ledger.roundCount(1, "implement")).toBe(0);
+        // the terminated round IS recorded (every dispatched round lands) — its
+        // verdict is the failed action, so no cycle counts as completed
+        expect(ledger.roundCount(1, "implement")).toBe(1);
+        expect(ledger.completedCycles(1, "implement")).toEqual([]);
         expect(ledger.counterOf("timeoutCount")).toBe(1);
         const crash = readJson<{ promoted: boolean; cause: string }>(
           path.join(workspace.path, "crash-tasks-1-implement-1.json"),
@@ -6000,7 +6090,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(code).toBe(1);
         expect(io.stdoutText).toContain("status: TIMEOUT");
         expect(io.stdoutText).not.toMatch(/^next:/m);
-        expect(ledger.roundCount(1, "fix")).toBe(0);
+        // the terminated round IS recorded; its verdict denies the target action
+        expect(ledger.roundCount(1, "fix")).toBe(1);
+        expect(ledger.completedCycles(1, "fix")).toEqual([]);
         expect(ledger.counterOf("timeoutCount")).toBe(1);
         const crash = readJson<{ promoted: boolean; cause: string }>(
           path.join(workspace.path, "crash-tasks-1-fix-1.json"),
@@ -6028,7 +6120,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(code).toBe(1);
         expect(io.stdoutText).toContain("status: TIMEOUT");
         expect(io.stdoutText).not.toMatch(/^next:/m);
-        expect(ledger.roundCount(1, "review")).toBe(0);
+        // the terminated round IS recorded; its verdict denies the target action
+        expect(ledger.roundCount(1, "review")).toBe(1);
+        expect(ledger.completedCycles(1, "review")).toEqual([]);
         expect(ledger.counterOf("timeoutCount")).toBe(1);
         const crash = readJson<{ promoted: boolean; cause: string }>(
           path.join(workspace.path, "crash-tasks-1-review-1.json"),
@@ -6064,7 +6158,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(code).toBe(1);
         expect(io.stdoutText).toContain("status: TIMEOUT");
         expect(io.stdoutText).not.toMatch(/^next:/m);
-        expect(ledger.roundCount(1, "review")).toBe(0);
+        // the terminated round IS recorded; its verdict denies the target action
+        expect(ledger.roundCount(1, "review")).toBe(1);
+        expect(ledger.completedCycles(1, "review")).toEqual([]);
         expect(ledger.counterOf("timeoutCount")).toBe(1);
         const crash = readJson<{ promoted: boolean; cause: string }>(
           path.join(workspace.path, "crash-tasks-1-review-1.json"),
@@ -6097,7 +6193,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(code).toBe(1);
         expect(io.stdoutText).toContain("status: TIMEOUT");
         expect(io.stdoutText).not.toMatch(/^next:/m);
-        expect(ledger.roundCount(1, "review")).toBe(0);
+        // the terminated round IS recorded; its verdict denies the target action
+        expect(ledger.roundCount(1, "review")).toBe(1);
+        expect(ledger.completedCycles(1, "review")).toEqual([]);
         expect(ledger.counterOf("timeoutCount")).toBe(1);
         const crash = readJson<{ promoted: boolean; cause: string }>(
           path.join(workspace.path, "crash-tasks-1-review-1.json"),
@@ -6246,6 +6344,9 @@ class StubRunner implements ChildRunner {
 
   async run(run: ChildRun): Promise<ChildOutcome> {
     this.calls.push(run);
+    // the child's bytes land in the round's own log file (the production terminator's
+    // pipe wiring), never on the engine's stdout face
+    if (run.log !== undefined && this.stdout !== "") run.log.write(this.stdout);
     return { code: this.code, stdout: this.stdout, stderr: "", termination: this.termination };
   }
 }
@@ -6508,11 +6609,11 @@ describe("P21 — the crash record's identity and git facts", () => {
       expect(existsSync(crashPath)).toBe(true);
       const crash = readJson<CrashRecord>(crashPath);
       // The name parses back to the SAME wave key the ledger row carries…
-      const progress = readJson<{ waves: { wave: string; rounds?: Record<string, number[]> }[] }>(
+      const progress = readJson<{ waves: { wave: string; rounds?: unknown[] }[] }>(
         path.join(scene.workspace.path, "progress.json"),
       );
       const row = progress.waves.find((entry) => entry.wave === "1");
-      expect(row?.rounds?.implement).toEqual([1]);
+      expect(roundTokens(row)).toEqual(["implement:1:a1:true"]);
       expect(path.basename(crashPath)).toBe("crash-tasks-1-review-1.json");
       // …and the attempted handoff is THIS frame's own path.
       expect(crash.attemptedHandoff).toBe(

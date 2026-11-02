@@ -219,6 +219,113 @@ describe("progress — the D28 round-identity face (cycles, not counts)", () => 
   });
 });
 
+describe("rounds — the per-round records (P22 T3: record → status, one direction)", () => {
+  /** Write one progress row's raw `rounds` plane verbatim — the legacy/migration
+   *  fixtures write the OLD stored forms straight to disk (the read face folds them). */
+  const seedRaw = (ledger: Ledger, row: ProgressData["waves"][number]): void => {
+    const data = ledger.readProgress() ?? ledger.emptyProgress();
+    data.waves.push(row);
+    ledger.writeProgress(data);
+  };
+
+  it("completion is the verdict, not membership — a failed round keeps its cycle in register", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      ledger.recordRound("1", {
+        op: "review",
+        cycle: 1,
+        verdict: { treeClean: true, targetAction: true },
+      });
+      ledger.recordRound("1", {
+        op: "review",
+        cycle: 2,
+        verdict: { treeClean: false, targetAction: false },
+      });
+      // the dispatch-number face counts every in-register cycle (a failed round spent
+      // its identity slot); the completion face reads the recorded verdict
+      expect(ledger.roundCount("1", "review")).toBe(2);
+      expect(ledger.completedCycles("1", "review")).toEqual([1]);
+      // a completed record carries a readable round; the failed one reads no carrier
+      ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+      expect(ledger.round("review", "wave", { tasks: "1" }, 1)).not.toBeNull();
+      expect(ledger.round("review", "wave", { tasks: "1" }, 2)).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("folds both legacy stored forms into completed records — attempt 1, no baseline, no carrier", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // form A — the per-mode cycle array; form B — the bare numeric cycle count
+      seedRaw(ledger, { wave: "1", rounds: { review: [1, 2] } });
+      seedRaw(ledger, { wave: "2", rounds: { review: 1, fix: 1 } });
+      expect(ledger.recordsOf("1")).toEqual([
+        {
+          op: "review",
+          cycle: 1,
+          attempt: 1,
+          dispatchBase: null,
+          verdict: { treeClean: true, targetAction: true },
+          violations: [],
+          carrierPath: null,
+        },
+        {
+          op: "review",
+          cycle: 2,
+          attempt: 1,
+          dispatchBase: null,
+          verdict: { treeClean: true, targetAction: true },
+          violations: [],
+          carrierPath: null,
+        },
+      ]);
+      // the old write recorded only completed rounds, so every legacy cycle IS complete
+      expect(ledger.completedCycles("1", "review")).toEqual([1, 2]);
+      expect(ledger.recordsOf("2").map((record) => `${record.op}:${record.cycle}`)).toEqual([
+        "review:1",
+        "fix:1",
+      ]);
+      // the attempt is 1 on every folded record (a legacy row never renders `a1`)
+      expect(ledger.recordsOf("2").every((record) => record.attempt === 1)).toBe(true);
+      // …and the dispatch-number face is unchanged from the pre-record shape
+      expect(ledger.roundCount("1", "review")).toBe(2);
+      expect(ledger.roundCount("2", "fix")).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("reads a legacy row as CLOSED and its round as the active carrier — the completion questions", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // a legacy row whose recorded review concluded clean
+      seedRaw(ledger, { wave: "1", rounds: { implement: [1], review: [1] } });
+      ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+      // the row-level closure judge (the wave board / closedWaves read) sees the fold
+      expect(ledger.lineClosed("1", "wave")).toBe(true);
+      expect(ledger.closedWaves()).toEqual(new Set([1]));
+      // a doc line folded the same way
+      seedRaw(ledger, { wave: "plan", rounds: { review: 1 } });
+      ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+      expect(ledger.lineClosed("plan", "plan")).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("returns the recorded carrier path as-is — the record carries the artifact it wrote", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const carrierPath = ledger.handoffPath("implement", "wave", { tasks: "1" });
+      ledger.recordRound("1", { op: "implement", cycle: 1, carrierPath });
+      expect(ledger.recordsOf("1")[0]?.carrierPath).toBe(carrierPath);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("handoff — naming / carrier / single-author persist", () => {
   it("family names come data-sourced from the handoff namespace", () => {
     const { ledger, cleanup } = fixture();

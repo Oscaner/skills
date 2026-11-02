@@ -280,11 +280,11 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(spec).toContain("the parent charter at `INPUT_OVERALL`");
     // D61-5 — the spec axis carries its program conformance criterion (the phase
     // judged against its charter's registered Phase inventory), lens set unchanged
-    expect(REVIEWS["phase-spec"].axesGuide).toContain("program conformance");
-    expect(REVIEWS["phase-spec"].axesGuide).toContain("INPUT_OVERALL");
+    expect(REVIEWS.spec.axesGuide).toContain("program conformance");
+    expect(REVIEWS.spec.axesGuide).toContain("INPUT_OVERALL");
     // the shared calibration tail is the fragment's, reached through `reviewGuideOf`
-    expect(reviewGuideOf("phase-spec")).toContain("reasonable downstream author");
-    expect(REVIEWS["phase-spec"].lensEnum).toEqual(["completeness", "consistency", "clarity"]);
+    expect(reviewGuideOf("spec")).toContain("reasonable downstream author");
+    expect(REVIEWS.spec.lensEnum).toEqual(["completeness", "consistency", "clarity"]);
     expect(spec).not.toContain("- `INPUT_PLAN`");
     expect(spec).not.toContain("- `INPUT_WAVE_BRIEF`");
     expect(spec).not.toContain("- `INPUT_REVIEWS`");
@@ -381,8 +381,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // the sync-completion rewrite: 13 → 14; the handoff-carrier plane unification: 15 → 16;
     // issue #390 — the no-secret-access clause: 16 → 17; P22 §7.3 — the work plane's
     // capability declaration: 17 → 18; the docs-fix row's capability declaration
-    // (the fix face's spec / plan dispatch): 18 → 19)
-    expect(TEMPLATE_PROMPT.$version).toBe(19);
+    // (the fix face's spec / plan dispatch): 18 → 19; P22 T15 — the charter's own
+    // criteria body + the explicit criteria-body selection: 19 → 20)
+    expect(TEMPLATE_PROMPT.$version).toBe(20);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)

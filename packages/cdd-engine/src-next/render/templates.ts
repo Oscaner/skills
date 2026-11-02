@@ -3,8 +3,9 @@
 // home PLUS the TemplateAssembler (one module, one renderer). The dispatch prompt
 // data (the per-mode shell frames · the review variants · the single prose return block ·
 // the round-context subsets · the token registry · the clause partials) and the
-// review criteria (the four-type axes guides — P4, extended to spec/plan by the
-// v1.8 review-closeout) are typed constant data here, imported never parsed:
+// review criteria (the per-key axes guides — P4, extended by the v1.8
+// review-closeout and the P22 charter body) are typed constant data here, imported
+// never parsed:
 //
 //   · TEMPLATE_PROMPT — the rendering data plane the assembler consumes; this
 //     module renders over it (the JSON's $schema/_doc prose plane is gone).
@@ -119,9 +120,19 @@ export interface ReviewGuideRow {
   axesGuide: string;
 }
 
-/** The review criteria — the four per-type guides (P4 typed data; the spec/plan
- *  URC prose migrated from the dispatch table at v1.8 closeout). */
-export type ReviewGuides = Readonly<Record<TargetType, ReviewGuideRow>>;
+/** The review criteria keys — the criteria-BODY domain (never the target
+ *  vocabulary): the five distinct bodies a review target selects among. `wave` /
+ *  `branch` / `plan` / `overall` are the same-named bodies; `spec` is the ONE
+ *  narrative body the two spec-shaped document targets (`phase-spec` ·
+ *  `single-spec`) share, so no second prose copy exists. The word `spec` names a
+ *  criteria body only — it is not a `--type` value (the CLI enum carries
+ *  `phase-spec` / `single-spec`). */
+export type ReviewKey = "wave" | "branch" | "plan" | "overall" | "spec";
+
+/** The review criteria — the five per-key guides (P4 typed data; the spec/plan
+ *  URC prose migrated from the dispatch table at v1.8 closeout, the charter body
+ *  added by P22). */
+export type ReviewGuides = Readonly<Record<ReviewKey, ReviewGuideRow>>;
 
 /** The nominal fixed-frame cells shared by every shell (byte-identical words — the
  *  fixed prefix is read on every dispatch, so every word costs child context). */
@@ -331,11 +342,6 @@ export const SEVERITY_RUBRIC_SLOTS = {
   audience: "{audience}",
 } as const;
 
-/** The review variant key — the review types ARE the `TargetType` domain
- *  (`wave` / `branch` / `phase-spec` / `overall` / `plan` / `single-spec`); no second
- *  value domain is minted. */
-export type ReviewVariant = TargetType;
-
 /** The severity rubric — the ONE calibration fragment every review axes guide
  *  shares: the four blocker questions, the warn/nit tiers, the same-grade
  *  consistency duty, the vision (silence-is-not-permission) sentence with its two
@@ -343,45 +349,52 @@ export type ReviewVariant = TargetType;
 export const SEVERITY_RUBRIC =
   "Calibrate findings by real severity — not everything is a blocker. A finding is a blocker when any one of these holds: (a) the declared acceptance gate, contract or prompt is violated; (b) a legal input escapes the declared failure face (a blank input returns 500, an unknown id is not a 404); (c) the gate fails or the suite can never go red (an inert grep · a dead guard · an unconditional skip); (d) a security or privacy defect. Debt inside the contract is a warn (duplicated policy · stale docstring · a missing coverage case). Style, naming and line-wrapping is a nit. Within one run, a defect already graded in the same class keeps that grade; crossing grades names its reason in the finding. The reviewed {artifact} is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable {audience} would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).";
 
-/** The slot values per review variant — the ONE registry the filled fragment reads.
+/** The slot values per criteria body — the ONE registry the filled fragment reads.
  *  `{artifact}` = the reviewed product's name; `{audience}` = the subject whose
- *  expectation judges the artifact's silence. The two new document shapes reuse the
- *  phase-spec word pair: the charter's own artifact wording rides its criteria-body
- *  seam (the `REVIEWS.overall` row), never a second vocabulary minted here. */
+ *  expectation judges the artifact's silence. The two spec-shaped targets share the
+ *  ONE `spec` row, so their shared narrative body can never fork its vocabulary;
+ *  the charter's own wording rides its criteria body (the `REVIEWS.overall` row),
+ *  never a second vocabulary minted here. */
 export const REVIEW_VARIANT_TEXT: Readonly<
-  Record<TargetType, { readonly artifact: string; readonly audience: string }>
+  Record<ReviewKey, { readonly artifact: string; readonly audience: string }>
 > = {
   wave: { artifact: "artifact", audience: "user" },
   branch: { artifact: "artifact", audience: "user" },
-  "phase-spec": { artifact: "spec", audience: "downstream author" },
-  overall: { artifact: "spec", audience: "downstream author" },
+  spec: { artifact: "spec", audience: "downstream author" },
   plan: { artifact: "plan", audience: "implementer" },
-  "single-spec": { artifact: "spec", audience: "downstream author" },
+  overall: { artifact: "spec", audience: "downstream author" },
 };
 
-/** The filled severity rubric of one review variant — the shared fragment with the
- *  variant's two slot values substituted. The parameter domain IS the `REVIEWS` key
- *  domain (both `TargetType`), so a consumer derives the guide from the same key. */
-export const reviewGuideOf = (type: TargetType): string => {
-  const text = REVIEW_VARIANT_TEXT[type];
+/** The filled severity rubric of one criteria body — the shared fragment with that
+ *  body's two slot values substituted. The parameter domain IS the `REVIEWS` key
+ *  domain, so a consumer derives the guide from the same key. */
+export const reviewGuideOf = (key: ReviewKey): string => {
+  const text = REVIEW_VARIANT_TEXT[key];
   return SEVERITY_RUBRIC.replaceAll(SEVERITY_RUBRIC_SLOTS.artifact, text.artifact).replaceAll(
     SEVERITY_RUBRIC_SLOTS.audience,
     text.audience,
   );
 };
 
-/** The document shapes' narrative criteria body — the phase-spec line's URC + its
- *  program-conformance clause, the ONE body the three document-shape rows reuse (the
- *  filled rubric is what differs per row). The charter's own criteria body is its row's
- *  seam (`REVIEWS.overall`), which replaces this body wholesale — never a second
- *  narrative copy alongside it. */
+/** The spec-shaped documents' narrative criteria body — the phase-spec line's URC
+ *  + its program-conformance clause, the ONE body both spec-shaped target rows
+ *  select (the filled rubric is what differs per row). The charter's own criteria
+ *  body is `docCharterAxes` — never a second narrative copy alongside this one. */
 const docNarrativeAxes = (guide: string): string =>
   `Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at \`INPUT_OVERALL\` (the charter its \`program:\` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. ${guide}`;
 
-/** The per-type review criteria — the review prompts' fixed criteria body (P4; the
+/** The charter's criteria body — the six things a program charter owns, and only
+ *  those. It carries none of the implementation-face evidence duty the narrative
+ *  body carries (running the repository's commands, pinning every claim): a charter
+ *  is judged on the program's shape, never on a phase's code. */
+const docCharterAxes = (guide: string): string =>
+  `Follow URC: single-cycle, lens-tagged findings (scope/inventory/dependency/acceptance/boundary) — judge the charter as a program charter, on six criteria and nothing it does not own. (1) Scope is a program increment — every phase's Scope names what the PROGRAM gains there (a capability, a boundary, a contract), never implementation detail such as a file list or a step-by-step walkthrough; a scope that descends to code is a scope finding. (2) Inventory, graph and order agree — every Phase inventory row has a Dependency graph node and every node a row, each edge is marked hard or soft and matches the row's Dependency cell, and the documented execution order is one the edges allow: a soft edge that hides a serial dependency, or an order no edge set permits, is a dependency finding. (3) Acceptance cells are phase-judgeable — each row's acceptance names an outcome a reviewer can decide when that phase closes, never a placeholder (TBD, a restated goal, a criterion only the program's end can settle); an undecidable cell is an acceptance finding. (4) Non-goals fence the program — every registered phase sits inside the boundary the Non-goals draw, and a non-goal drawn so loosely that it excludes nothing is a boundary finding. (5) The change record is a decision record — each entry states what was decided and why (its decision id where the program keeps one), never a work log of rounds and dispatches; a diary entry is an inventory finding. (6) Ledger and reality agree — a phase the tree shows closed is marked Done, a phase still in flight is not, and work no registered phase carries never appears as a delivered increment; a drift between the inventory and the tree is an inventory finding. ${guide}`;
+
+/** The per-key review criteria — the review prompts' fixed criteria body (P4; the
  *  document shapes' URC rows migrated from the dispatch table at the v1.8 closeout —
- *  their single typed home). The shared calibration tail rides `reviewGuideOf` (one
- *  fragment per row), never a per-type copy. */
+ *  their single typed home; the charter body lands here at P22). The shared
+ *  calibration tail rides `reviewGuideOf` (one fragment per row), never a per-key
+ *  copy. */
 export const REVIEWS = {
   wave: {
     lensEnum: ["standards", "spec", "buildability"],
@@ -391,55 +404,63 @@ export const REVIEWS = {
     lensEnum: ["standards", "spec", "buildability"],
     axesGuide: `Same four axes as task (branch-wide health: run \`git diff origin/<BASE_BRANCH>..HEAD\` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop. ${reviewGuideOf("branch")} Three things a green run cannot show you: design — does the changed structure fit this codebase and is it the simplest structure that solves the plan's problem (over-engineering is a finding, not a preference); test adequacy — would these tests fail if the code broke (a run that cannot go red is not evidence); migration — does every breaking change name the path a not-yet-migrated consumer takes.`,
   },
-  "phase-spec": {
+  spec: {
     lensEnum: ["completeness", "consistency", "clarity"],
-    axesGuide: docNarrativeAxes(reviewGuideOf("phase-spec")),
+    axesGuide: docNarrativeAxes(reviewGuideOf("spec")),
   },
   overall: {
-    lensEnum: ["completeness", "consistency", "clarity"],
-    // Reuses the document-shape narrative until the charter's criteria body lands on
-    // this row (the charter-criteria seam owns the replacement, never a parallel copy).
-    axesGuide: docNarrativeAxes(reviewGuideOf("overall")),
+    lensEnum: ["scope", "inventory", "dependency", "acceptance", "boundary"],
+    axesGuide: docCharterAxes(reviewGuideOf("overall")),
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
     axesGuide: `Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at \`INPUT_SPEC\` (the plan's \`spec\` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ${reviewGuideOf("plan")}`,
   },
-  "single-spec": {
-    lensEnum: ["completeness", "consistency", "clarity"],
-    axesGuide: docNarrativeAxes(reviewGuideOf("single-spec")),
-  },
 } as const satisfies ReviewGuides;
 
-/** One review variant row (§3.7) — the fixed prefix folds the type's criteria + lens
- *  INLINE (the `INPUT_CRITERIA`/`INPUT_LENS` round-context tokens are gone) and
- *  shares the REVIEW_CONTEXT dynamic tail. The type word labels the criteria line,
- *  so the row speaks the same vocabulary the CLI's `--type` declares. */
-const reviewRow = (type: TargetType, axes: string): ModePromptRow => ({
-  mode: "review",
-  shell: [
-    "# CDD dispatch — review round",
-    "",
-    "## Instructions",
-    "",
-    ...FRAME_ITEMS,
-    REVIEW_ITEM,
-    `**Lens labels:** one of \`${REVIEWS[type].lensEnum.join(" | ")}\` — every finding MUST carry its \`lens\`.`,
-    `**Criteria — ${type}:** ${axes}`,
-    ...LICENSE_ITEMS,
-    ...SCHEMA_SECTION,
-  ],
-  roundContext: REVIEW_CONTEXT,
-});
+/** The criteria-body selection — the ONE target → criteria map. Four targets select
+ *  the body of their own name; the two spec-shaped document targets share the ONE
+ *  narrative body (`spec`). Keeping the mapping here (never in the row literals)
+ *  means a target cannot silently drift onto another target's criteria. */
+export class ReviewVariants {
+  static of(type: TargetType): ReviewKey {
+    return type === "phase-spec" || type === "single-spec" ? "spec" : type;
+  }
+}
 
-/** The review mode's six per-type rows — one per `TargetType` (§3.7). */
+/** One review variant row (§3.7) — the fixed prefix folds the SELECTED criteria
+ *  body + its lens INLINE (the `INPUT_CRITERIA`/`INPUT_LENS` round-context tokens
+ *  are gone) and shares the REVIEW_CONTEXT dynamic tail. The target word labels the
+ *  criteria line, so the row speaks the same vocabulary the CLI's `--type`
+ *  declares while the body comes from the criteria selection. */
+const reviewRow = (type: TargetType): ModePromptRow => {
+  const criteria = REVIEWS[ReviewVariants.of(type)];
+  return {
+    mode: "review",
+    shell: [
+      "# CDD dispatch — review round",
+      "",
+      "## Instructions",
+      "",
+      ...FRAME_ITEMS,
+      REVIEW_ITEM,
+      `**Lens labels:** one of \`${criteria.lensEnum.join(" | ")}\` — every finding MUST carry its \`lens\`.`,
+      `**Criteria — ${type}:** ${criteria.axesGuide}`,
+      ...LICENSE_ITEMS,
+      ...SCHEMA_SECTION,
+    ],
+    roundContext: REVIEW_CONTEXT,
+  };
+};
+
+/** The review mode's six per-target rows — one per `TargetType` (§3.7). */
 const REVIEW_VARIANTS: Readonly<Record<TargetType, ModePromptRow>> = {
-  wave: reviewRow("wave", REVIEWS.wave.axesGuide),
-  branch: reviewRow("branch", REVIEWS.branch.axesGuide),
-  "phase-spec": reviewRow("phase-spec", REVIEWS["phase-spec"].axesGuide),
-  overall: reviewRow("overall", REVIEWS.overall.axesGuide),
-  plan: reviewRow("plan", REVIEWS.plan.axesGuide),
-  "single-spec": reviewRow("single-spec", REVIEWS["single-spec"].axesGuide),
+  wave: reviewRow("wave"),
+  branch: reviewRow("branch"),
+  "phase-spec": reviewRow("phase-spec"),
+  overall: reviewRow("overall"),
+  plan: reviewRow("plan"),
+  "single-spec": reviewRow("single-spec"),
 };
 
 /** The `## Return` zone — the single plain-prose contract block (P11: the child
@@ -506,7 +527,11 @@ export const CLAUSES = {
     "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 19
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 20
+ *  gives the charter its own review criteria body (the six charter criteria, with
+ *  none of the implementation-face evidence duty) and makes the criteria-body
+ *  selection explicit — the two spec-shaped document targets share the ONE narrative
+ *  body under the `spec` key, so the `overall` row's fixed prefix changed. $version 19
  *  extends the work plane's ONE capability declaration (`capability: may.amend =
  *  content`) to the docs-fix row as well: the fix face's spec / plan dispatch IS
  *  docs-fix, so the authorization (and the structure-face ban that rides with it)
@@ -544,7 +569,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 19,
+  $version: 20,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

@@ -37,6 +37,19 @@ Global option: `--dry-run` — preview the next dispatch step and its expected a
 
 Use `cdd <command> --help` for a command's full option list (for example `cdd review --tasks` / `--spec` / `--plan` / `--round`).
 
+### Review criteria
+
+Each review target selects one criteria body:
+
+| Target (`--type`) | Criteria body |
+|-------------------|---------------|
+| `wave`, `branch` (the node shapes) | the changed-surface axes — standards, spec, buildability, scope |
+| `phase-spec`, `single-spec` (the spec-shaped documents) | the spec narrative body — URC, the writing-plans self-check, verification evidence, claim pins, program conformance |
+| `plan` (the plan document) | the plan body — URC, spec conformance, verification evidence, claim pins |
+| `overall` (the program charter) | the charter body — see below |
+
+A charter is judged by charter criteria only: each phase's scope is a program increment, the Phase inventory and the dependency graph and the execution order agree, every acceptance cell is decidable when its phase closes, the Non-goals fence the program, the change record records decisions rather than work, and the inventory agrees with the tree. A charter review is never asked for implementation evidence — no typecheck or test-command run, no per-claim `path:line` pin. The two spec-shaped document targets share the one narrative body, so nothing is written twice.
+
 ### Round logs
 
 Every dispatched round (`implement` / `review` / `fix`) pipes the child's stdout and stderr into one append-only log file per round — `.kairos/cdd/<slug>/logs/<stem>.log` — and never echoes that output on the engine's own face. The name is the round's report stem, so a re-dispatch carries its `-a{attempt}` suffix and never overwrites the first attempt's log. `--dry-run` dispatches nothing, so it writes no log. When the round itself is rejected or cut short, its `CDD_BLOCKED` line on stderr names that round's log path: diagnosing one round is one file away instead of an outside `ps` read. A pre-flight refusal (dirty tree · in-flight · doc contract) names no log — no round was ever dispatched.

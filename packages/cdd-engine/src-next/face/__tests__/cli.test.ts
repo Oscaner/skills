@@ -56,6 +56,7 @@ import { GitClient } from "../../infra/git.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
+import { REVIEWS } from "../../render/templates.ts";
 import type { RouteTarget } from "../../session/faces.ts";
 import { InFlight, type InFlightRecord } from "../../session/inflight.ts";
 import { type CrashRecord, Ledger, type SampleRecord } from "../../session/ledger.ts";
@@ -7926,6 +7927,49 @@ describe("P22 T14 — the target vocabulary (six values, one spelling)", () => {
       expect(readJson<{ findings: unknown[] }>(round).findings).toEqual([]);
       // and its closure is the pipeline terminus
       expect(io.stdoutText).toContain("next: done");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P22 T15 — a charter is judged by charter criteria: the `--type overall` review
+// prompt carries the charter body on its criteria line, never the narrative body
+// the spec-shaped documents select. The prompt is the consumer face of the
+// criteria-body selection, so the pin reads the dispatched bytes.
+// ---------------------------------------------------------------------------
+
+describe("P22 T15 — the charter review prompt", () => {
+  it("review --type overall renders the charter criteria body on its criteria line", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const overall = conformingOverall(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        // the fake child writes no draft, so the round reads back BLOCKED — the
+        // dispatched prompt, not the outcome, is the assertion surface
+        await command.runArgv(["review", "--type", "overall", "--spec", overall]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const prompt = sync.calls[0]!.args[sync.calls[0]!.args.length - 1]!;
+      expect(prompt).toContain(`**Criteria — overall:** ${REVIEWS.overall.axesGuide}`);
+      // the dispatched bytes carry the charter body's own lens set + a charter
+      // criterion — the criteria line is the charter's, not a narrative hand-down
+      expect(prompt).toContain(
+        "**Lens labels:** one of `scope | inventory | dependency | acceptance | boundary`",
+      );
+      expect(prompt).toContain("program increment");
+      // zero implementation-face evidence duty on a charter review
+      for (const forbidden of ["typecheck", "test command", "Claimed→pin"]) {
+        expect(prompt).not.toContain(forbidden);
+      }
     } finally {
       cleanup();
     }

@@ -141,16 +141,16 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     // The spec/plan URC criteria migrated to the template plane's REVIEWS (v1.8
     // closeout) — their single typed home: the three axes + the writing-plans
     // self-check + the verification-evidence duty, plus the per-type lens.
-    expect(REVIEWS["phase-spec"].axesGuide).toContain("completeness/consistency/clarity");
-    expect(REVIEWS["phase-spec"].axesGuide).toContain("writing-plans self-check");
-    expect(REVIEWS["phase-spec"].axesGuide).toContain("verification evidence");
+    expect(REVIEWS.spec.axesGuide).toContain("completeness/consistency/clarity");
+    expect(REVIEWS.spec.axesGuide).toContain("writing-plans self-check");
+    expect(REVIEWS.spec.axesGuide).toContain("verification evidence");
     expect(REVIEWS.plan.axesGuide).toContain("completeness/decomposition/buildability");
-    expect(REVIEWS["phase-spec"].lensEnum).toEqual(["completeness", "consistency", "clarity"]);
+    expect(REVIEWS.spec.lensEnum).toEqual(["completeness", "consistency", "clarity"]);
     // D61-5 — the spec axis carries the program conformance criterion (the phase
     // judged against the scope its charter's Phase inventory registered); the
     // completeness lens owns the verdict, so the lens set is unchanged.
-    expect(REVIEWS["phase-spec"].axesGuide).toContain("program conformance");
-    expect(REVIEWS["phase-spec"].axesGuide).toContain("INPUT_OVERALL");
+    expect(REVIEWS.spec.axesGuide).toContain("program conformance");
+    expect(REVIEWS.spec.axesGuide).toContain("INPUT_OVERALL");
     expect(REVIEWS.plan.lensEnum).toEqual(["completeness", "decomposition", "buildability"]);
     // The review prompts fold the criteria/lens into their fixed prefix — the
     // INPUT_CRITERIA/INPUT_LENS round-context tokens are gone (§3.7).

@@ -39,6 +39,19 @@ npm install @oscaner-skills/cdd-engine
 
 用 `cdd <command> --help` 查看某命令的完整选项列表（例如 `cdd review --tasks` / `--spec` / `--plan` / `--round`）。
 
+### 评审判据
+
+每个评审目标各选一份判据体：
+
+| 目标（`--type`） | 判据体 |
+|------------------|--------|
+| `wave`、`branch`（节点形状） | 变更面四轴——standards、spec、buildability、scope |
+| `phase-spec`、`single-spec`（spec 形状的文档） | spec 叙事判据体——URC、writing-plans 自查、验证证据、逐条 claim pin、程序一致性 |
+| `plan`（计划文档） | 计划判据体——URC、spec 一致性、验证证据、claim pin |
+| `overall`（程序章程） | 章程判据体——见下 |
+
+章程只按章程判据判：每个 phase 的 scope 是程序增量 · Phase inventory 与依赖图与执行序三者一致 · 验收格在该相位收口时可判 · 非目标真把程序围住 · 变更记录是决策记录而非工作日志 · 台账与实况一致。章程评审不要求实现面证据——不跑 typecheck、不跑测试命令、不做逐条 `path:line` pin。两种 spec 形状的目标共用同一份叙事判据体，故不存在第二份散文。
+
 ### 每轮日志
 
 三个派发动词（`implement` / `review` / `fix`）一律把子进程的 stdout 与 stderr 落进该轮自己的 append 日志文件——`.kairos/cdd/<slug>/logs/<stem>.log`——且从不回显到引擎自身的输出面。文件名取该轮的 report stem，故重派带 `-a{attempt}` 后缀，绝不覆盖首次 attempt 的日志。`--dry-run` 不派发，故不落日志。一轮自身被拒或被杀时，stderr 上那条 `CDD_BLOCKED` 行点名该轮的日志路径：诊断一轮只需打开一个文件，而不必从外部读 `ps`。pre-flight 拒绝（dirty tree · in-flight · doc-contract）不点名日志——那一轮根本没派发。

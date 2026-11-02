@@ -39,7 +39,7 @@ import {
   TerminationPolicy,
   Terminator,
 } from "./termination.ts";
-import { Words } from "./words.ts";
+import { FIX_DISPOSITIONS_SUMMARY, Words } from "./words.ts";
 
 /** The crash-record stdout-tail cap (P11 T2) — the child's last STDOUT_TAIL_MAX
  *  non-empty stdout lines ride the crash record's `stdoutTail` (the diagnostic
@@ -743,7 +743,9 @@ export class CliLifecycle {
    *  carrier's dispositions and the REQUESTING carrier's input set (the same pair the
    *  fix criterion judges), never stored: no record field, no carrier key, no capsule
    *  key, no second read face. Undefined off the fix face and when the input set
-   *  cannot be located or read (the round fails on grounds the line cannot describe). */
+   *  cannot be located or read (the round fails on grounds the line cannot describe).
+   *  The criterion supplies the counts; the `FIX_DISPOSITIONS_SUMMARY` template — the
+   *  presentation plane's byte fact — renders the row here. */
   #dispositionsSummary(
     frame: OpenFrame,
     plane: CarrierPlane,
@@ -754,9 +756,14 @@ export class CliLifecycle {
       this.#scene.ledger.recordsOf(frame.key),
       frame.round,
       this.#reviewsPath(frame),
+      this.#repoRootValue().absolute,
     );
     if (requester.kind !== "read") return undefined;
-    return new FixDispositions().summaryOf(carrier, requester.summaries);
+    const counts = new FixDispositions().summaryOf(carrier, requester.summaries);
+    return FIX_DISPOSITIONS_SUMMARY.replace("{fixed}", String(counts.fixed)).replace(
+      "{rejected}",
+      String(counts.rejected),
+    );
   }
 
   /** The requesting review carrier's path — the fix round's `--reviews` input, or the

@@ -8,9 +8,10 @@
 //
 // The criterion judges a CompletionContext the dispatch side assembles (Task 7):
 // the round's record, its ledger row, the row's in-register records, the persisted
-// carrier bytes, the requester's review path and the git read face. The two cells
-// with a provider seam (`records`, `reviewsPath`) are filled by `CliLifecycle` — this
-// module pins the context SHAPE only and imports neither `face/` nor the lifecycle.
+// carrier bytes, the requester's review path, the git read face and the repoRoot
+// path basis. The two cells with a provider seam (`records`, `reviewsPath`) are
+// filled by `CliLifecycle` — this module pins the context SHAPE only and imports
+// neither `face/` nor the lifecycle.
 //
 // The registry is deliberately PARTIAL while the verbs are ported one at a time: a
 // verb with no criterion throws at lookup (`CompletionCriteria.of`), so a dispatch of
@@ -22,7 +23,7 @@
 // behavior-carrying bare functions.
 
 import { readFileSync } from "node:fs";
-import { FIX_DISPOSITIONS_SUMMARY } from "../face/words.ts";
+import path from "node:path";
 import type { GitClient } from "../infra/git.ts";
 import type { OpType, ProgressRow, RoundRecord, RoundViolation } from "../session/ledger.ts";
 
@@ -133,9 +134,13 @@ export class JudgeCarrier implements CompletionCriterion {
 
 /** The zero-commit observation of a fix round — a NEW literal (the engine had no
  *  reusable zero-commit warning; `commitsSince` fed the crash postmortem alone).
+ *  The yardstick is THIS round's own `dispatchBase`: the implement criterion asks
+ *  "did the group produce any work?", this observation asks "did this round leave a
+ *  commit?" — the group baseline would answer the first question and stay silent
+ *  forever here (the group's implement round committed, or it never got here).
  *  Bookkeeping: a fix round is judged by its carrier, never by its diff. */
 export const FIX_DISPOSITIONS_ZERO_COMMIT =
-  "the fix round committed nothing since its group baseline — the dispositions judged the round, not the diff";
+  "the fix round committed nothing since its dispatch base — the dispositions judged the round, not the diff";
 
 /** The empty-input observation — an empty requesting carrier is legal input, so it
  *  is reported, never refused. */
@@ -150,12 +155,22 @@ export const FIX_DISPOSITIONS_UNRECORDED =
 
 /** One read of the requesting review carrier — the input set's provenance. A path
  *  neither recorded nor handed over is `unrecorded` (legacy); a path that yields no
- *  readable findings array is `unreadable` (hard — "the evidence is gone" is not
- *  "there were no findings"). */
+ *  readable findings array — or a finding whose `summary` is not a string — is
+ *  `unreadable` (hard: "the evidence is gone" is not "there were no findings", and a
+ *  silently dropped finding is a vacuously passing criterion). `detail` names the
+ *  defect beyond the path (the entry index of a malformed finding), never a slogan. */
 export type RequesterRead =
   | { readonly kind: "unrecorded" }
-  | { readonly kind: "unreadable"; readonly path: string }
+  | { readonly kind: "unreadable"; readonly path: string; readonly detail: string }
   | { readonly kind: "read"; readonly path: string; readonly summaries: readonly string[] };
+
+/** The summary line's two counts — the criterion's half of the design spec §3.4
+ *  summary row: counts only, so the presentation plane (the `face/words.ts` template)
+ *  stays the sole renderer and this module imports no presentation. */
+export interface DispositionCounts {
+  readonly fixed: number;
+  readonly rejected: number;
+}
 
 /**
  * FixDispositions — the fix criterion: the round is done when its work carrier's
@@ -191,22 +206,44 @@ export class FixDispositions implements CompletionCriterion {
 
   /** Read the requesting carrier's input set (the summaries, deduped in order). The
    *  read is synchronous on purpose: the input is ONE small carrier, and the dispatch
-   *  face already reads its small inputs synchronously at the same seam. */
+   *  face already reads its small inputs synchronously at the same seam.
+   *
+   *  Every path resolves against `repoRoot`, never `process.cwd()`: the engine runs
+   *  from a subdirectory too, `--reviews` arrives repoRoot-relative and a record's
+   *  `carrierPath` arrives absolute — both must land on the one basis (`RepoRoot`'s
+   *  rule). The reported `path` is the resolved one, so a failure names a real file. */
   static requesterInputOf(
     records: readonly RoundRecord[],
     cycle: number,
     reviewsPath: string | null,
+    repoRoot: string,
   ): RequesterRead {
-    const path = FixDispositions.requesterPathOf(records, cycle, reviewsPath);
-    if (path === null) return { kind: "unrecorded" };
+    const declared = FixDispositions.requesterPathOf(records, cycle, reviewsPath);
+    if (declared === null) return { kind: "unrecorded" };
+    const target = path.resolve(repoRoot, declared);
+    let carrier: unknown;
     try {
-      const carrier = JSON.parse(readFileSync(path, "utf8")) as unknown;
-      const findings = (carrier as { findings?: unknown } | null)?.findings;
-      if (!Array.isArray(findings)) return { kind: "unreadable", path };
-      return { kind: "read", path, summaries: FixDispositions.#summariesOf(findings) };
+      carrier = JSON.parse(readFileSync(target, "utf8")) as unknown;
     } catch {
-      return { kind: "unreadable", path };
+      return { kind: "unreadable", path: target, detail: "the file is absent or not JSON" };
     }
+    const findings = (carrier as { findings?: unknown } | null)?.findings;
+    if (!Array.isArray(findings)) {
+      return {
+        kind: "unreadable",
+        path: target,
+        detail: "the carrier declares no `findings` array",
+      };
+    }
+    const set = FixDispositions.#summariesOf(findings);
+    if ("index" in set) {
+      return {
+        kind: "unreadable",
+        path: target,
+        detail: `finding #${set.index} carries no string \`summary\``,
+      };
+    }
+    return { kind: "read", path: target, summaries: set.summaries };
   }
 
   /** The carrier's `dispositions` map — null when the slot is absent or not an
@@ -226,12 +263,13 @@ export class FixDispositions implements CompletionCriterion {
       ctx.records,
       ctx.record.cycle,
       ctx.reviewsPath,
+      ctx.repoRoot,
     );
     if (requester.kind === "unrecorded")
       return this.#complete([this.#soft(FIX_DISPOSITIONS_UNRECORDED)]);
     if (requester.kind === "unreadable") {
       return this.#hard(
-        `the requesting review carrier is missing or unreadable at ${requester.path}`,
+        `the requesting review carrier is missing or unreadable at ${requester.path} — ${requester.detail}`,
       );
     }
     const dispositions = FixDispositions.dispositionsOf(ctx.carrier) ?? {};
@@ -242,10 +280,12 @@ export class FixDispositions implements CompletionCriterion {
     return this.#complete(await this.#observationsOf(ctx, requester.summaries));
   }
 
-  /** The round's one summary line — `fixed N · rejected M`, counted over the SAME
-   *  pair the judgment reads (dispositions ∩ the input set). A face fact: never
-   *  stored, never a capsule key, never a second read face. */
-  summaryOf(carrier: unknown, input: readonly string[]): string {
+  /** The round's two summary counts — `fixed` / `rejected`, counted over the SAME
+   *  pair the judgment reads (dispositions ∩ the input set). Counts only: the
+   *  `fixed N · rejected M` line is rendered by the presentation plane
+   *  (`face/words.ts` template). A face fact: never stored, never a capsule key,
+   *  never a second read face. */
+  summaryOf(carrier: unknown, input: readonly string[]): DispositionCounts {
     const wanted = new Set(input);
     let fixed = 0;
     let rejected = 0;
@@ -255,10 +295,7 @@ export class FixDispositions implements CompletionCriterion {
       if (status === "fixed") fixed += 1;
       else if (status === "rejected") rejected += 1;
     }
-    return FIX_DISPOSITIONS_SUMMARY.replace("{fixed}", String(fixed)).replace(
-      "{rejected}",
-      String(rejected),
-    );
+    return { fixed, rejected };
   }
 
   /** The round's own carrier refusals (① missing carrier, ② missing slot). */
@@ -322,7 +359,9 @@ export class FixDispositions implements CompletionCriterion {
   ): Promise<readonly RoundViolation[]> {
     const observations: RoundViolation[] = [];
     if (input.length === 0) observations.push(this.#soft(FIX_DISPOSITIONS_EMPTY_INPUT));
-    const base = CommitsSinceGroupBase.groupBaseOf(ctx.records);
+    // THIS round's own baseline — a null one (legacy fold, non-git tree) carries no
+    // present fact, so the observation is simply unmeasurable, never invented.
+    const base = ctx.record.dispatchBase;
     if (base !== null) {
       const commits = await ctx.git.commitsSince(ctx.repoRoot, base);
       if (commits.length === 0) observations.push(this.#soft(FIX_DISPOSITIONS_ZERO_COMMIT));
@@ -330,17 +369,23 @@ export class FixDispositions implements CompletionCriterion {
     return observations;
   }
 
-  /** The deduped input set — repeated summaries collapse to one key. */
-  static #summariesOf(findings: readonly unknown[]): readonly string[] {
+  /** The deduped input set — repeated summaries collapse to one key. A finding
+   *  without a string `summary` is NOT skipped (a silently dropped finding owes no
+   *  disposition and passes forever): the caller grades it `unreadable`.
+   *  `index` is the first offending entry. */
+  static #summariesOf(
+    findings: readonly unknown[],
+  ): { readonly summaries: readonly string[] } | { readonly index: number } {
     const summaries: string[] = [];
     const seen = new Set<string>();
-    for (const finding of findings) {
+    for (const [index, finding] of findings.entries()) {
       const summary = (finding as { summary?: unknown } | null)?.summary;
-      if (typeof summary !== "string" || seen.has(summary)) continue;
+      if (typeof summary !== "string") return { index };
+      if (seen.has(summary)) continue;
       seen.add(summary);
       summaries.push(summary);
     }
-    return summaries;
+    return { summaries };
   }
 
   #complete(observations: readonly RoundViolation[]): CompletionVerdict {

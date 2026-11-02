@@ -11,7 +11,7 @@
 //   (d) the context is a pure shape — a literal seven-cell context feeds both criteria,
 //       which read only what it carries (the group baseline comes from `records`).
 
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -28,19 +28,26 @@ import {
 } from "../completion-criterion.ts";
 
 /** The git read face stub — records the baseline each judgment asked git about, so a
- *  case can pin WHICH baseline the criterion used (the group's, never the round's). */
+ *  case can pin WHICH baseline the criterion used (the group's, never the round's).
+ *  `byBase` answers per baseline, so a case can say "the group's implement committed,
+ *  THIS fix round did not" — the pair the zero-commit observation discriminates. */
 class StubGit extends GitClient {
   readonly calls: { cwd: string; base: string | null }[] = [];
   readonly #commits: readonly string[];
+  readonly #byBase: Readonly<Record<string, readonly string[]>>;
 
-  constructor(commits: readonly string[] = []) {
+  constructor(
+    commits: readonly string[] = [],
+    byBase: Readonly<Record<string, readonly string[]>> = {},
+  ) {
     super();
     this.#commits = commits;
+    this.#byBase = byBase;
   }
 
   override async commitsSince(cwd: string, base: string | null): Promise<readonly string[]> {
     this.calls.push({ cwd, base });
-    return this.#commits;
+    return this.#byBase[base ?? ""] ?? this.#commits;
   }
 }
 
@@ -356,6 +363,26 @@ describe("(e) FixDispositions — the six hard refusals", () => {
     }
   });
 
+  it("⑤(b) a requesting finding without a string `summary` → hard, never a silent skip", async () => {
+    // `summary` is schema-required, yet the carrier is only JSON.parsed here: a
+    // dropped finding would owe no disposition and pass forever.
+    const fixture = new CarrierFixture({ findings: [{ severity: "blocker", lens: "spec" }] });
+    try {
+      const verdict = await new FixDispositions().judge(
+        fixContext(
+          { status: "APPROVED", dispositions: {} },
+          { carrierPath: fixture.requesterPath },
+        ),
+      );
+      expect(verdict.fulfilled).toBe(false);
+      expect(verdict.violation?.grade).toBe("hard");
+      expect(verdict.violation?.message).toContain(fixture.requesterPath);
+      expect(verdict.violation?.message).toContain("finding #0");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it("⑥ a `rejected` disposition without a reason → hard, naming the finding", async () => {
     const fixture = new CarrierFixture(REQUESTER);
     try {
@@ -460,6 +487,35 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
     }
   });
 
+  it("(f2) the zero-commit observation is measured from THIS round's own dispatch base", async () => {
+    const fixture = new CarrierFixture(REQUESTER);
+    try {
+      // The group's implement round committed; THIS fix round committed nothing. Read
+      // against the GROUP baseline the case would be silent — and on the production
+      // face the group baseline always carries the implement round's commit (an
+      // implement round that committed nothing hard-fails its own criterion first).
+      const git = new StubGit([], { "group-base": ["abc123 feat: the implement round"] });
+      const verdict = await new FixDispositions().judge(
+        fixContext(
+          {
+            status: "APPROVED",
+            dispositions: { drift: { status: "fixed" }, typo: { status: "fixed" } },
+          },
+          { carrierPath: fixture.requesterPath },
+          { git },
+        ),
+      );
+      expect(verdict.fulfilled).toBe(true);
+      expect(verdict.observations?.map((row) => row.message)).toEqual([
+        FIX_DISPOSITIONS_ZERO_COMMIT,
+      ]);
+      // The baseline asked of git is the fix record's OWN, never the group's.
+      expect(git.calls).toEqual([{ cwd: "/repo", base: "fix-base" }]);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it("dedupes repeated summaries — one defect owes one disposition", async () => {
     const fixture = new CarrierFixture({
       findings: [
@@ -482,7 +538,7 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
   });
 });
 
-describe("(g) FixDispositions#summaryOf — the round's one summary line", () => {
+describe("(g) FixDispositions#summaryOf — the counts the summary line renders", () => {
   it("counts `fixed 2 · rejected 1` from the dispositions and the input set", () => {
     const carrier = {
       status: "APPROVED",
@@ -495,17 +551,48 @@ describe("(g) FixDispositions#summaryOf — the round's one summary line", () =>
         stale: { status: "fixed" },
       },
     };
-    expect(new FixDispositions().summaryOf(carrier, ["drift", "typo", "nit"])).toBe(
-      "fixed 2 · rejected 1",
-    );
+    expect(new FixDispositions().summaryOf(carrier, ["drift", "typo", "nit"])).toEqual({
+      fixed: 2,
+      rejected: 1,
+    });
   });
 
-  it("renders the empty pair as `fixed 0 · rejected 0`", () => {
-    expect(new FixDispositions().summaryOf({ status: "APPROVED", dispositions: {} }, [])).toBe(
-      "fixed 0 · rejected 0",
-    );
-    expect(new FixDispositions().summaryOf({ status: "APPROVED" }, [])).toBe(
-      "fixed 0 · rejected 0",
-    );
+  it("returns the zero pair for an empty input set and an absent slot", () => {
+    expect(new FixDispositions().summaryOf({ status: "APPROVED", dispositions: {} }, [])).toEqual({
+      fixed: 0,
+      rejected: 0,
+    });
+    expect(new FixDispositions().summaryOf({ status: "APPROVED" }, [])).toEqual({
+      fixed: 0,
+      rejected: 0,
+    });
+  });
+});
+
+describe("(h) the requesting carrier's read basis — repoRoot, never process.cwd()", () => {
+  it("resolves a repoRoot-relative requester path when the engine runs from a subdirectory", async () => {
+    const fixture = new CarrierFixture(REQUESTER);
+    const subdir = path.join(fixture.dir, "packages", "cdd-engine");
+    mkdirSync(subdir, { recursive: true });
+    const cwdBefore = process.cwd();
+    try {
+      process.chdir(subdir);
+      const verdict = await new FixDispositions().judge(
+        fixContext(
+          {
+            status: "APPROVED",
+            dispositions: { drift: { status: "fixed" }, typo: { status: "fixed" } },
+          },
+          // Both seams repoRoot-relative: the record's `carrierPath` and the route's
+          // `--reviews` value (the CLI normalizes argv paths to a `RepoPath`).
+          { carrierPath: "tasks-1-review-1.json", reviewsPath: "tasks-1-review-1.json" },
+          { repoRoot: fixture.dir, git: new StubGit(["abc123 feat: the round's work"]) },
+        ),
+      );
+      expect(verdict).toEqual({ fulfilled: true, violation: null, observations: [] });
+    } finally {
+      process.chdir(cwdBefore);
+      fixture.cleanup();
+    }
   });
 });

@@ -1770,11 +1770,16 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
-  it("fix — the disposition summary line follows the capsule, exactly once", async () => {
+  it("fix — the disposition summary line fills both counts on the face, exactly once", async () => {
     // The production dispatch (a stub child that plants the fix write-back): the
     // round's one summary line is computed from the persisted dispositions and the
     // REQUESTSIDE carrier's input set — after the capsule, never inside it.
-    const { command, io, repoRoot, cleanup } = fixture({ sync: new FixDraftRunner() });
+    const { command, io, repoRoot, cleanup } = fixture({
+      sync: new FixDraftRunner({
+        drift: { status: "fixed" },
+        typo: { status: "rejected", reason: "the review misread the guard" },
+      }),
+    });
     // The CliLifecycle detects the host from the process env — name a pi session so
     // the production dispatch path runs (restored below).
     const envBefore = process.env.AI_AGENT;
@@ -1792,7 +1797,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         {
           tasks: [1],
           phase: "review",
-          findings: [{ severity: "blocker", summary: "drift" }],
+          findings: [
+            { severity: "blocker", summary: "drift" },
+            { severity: "warn", summary: "typo" },
+          ],
         },
       );
       ledger.recordRound(1, { op: "review" });
@@ -1800,15 +1808,62 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(code).toBe(0);
       const capsuleAt = io.stdoutText.indexOf("status: APPROVED · blocker: 0 · handoff: ");
       const lines = io.stdoutText.match(/fixed \d+ · rejected \d+/g) ?? [];
-      expect(lines).toEqual(["fixed 1 · rejected 0"]);
-      expect(io.stdoutText.indexOf("fixed 1 · rejected 0")).toBeGreaterThan(capsuleAt);
+      expect(lines).toEqual(["fixed 1 · rejected 1"]);
+      expect(io.stdoutText.indexOf("fixed 1 · rejected 1")).toBeGreaterThan(capsuleAt);
       // The line is a face fact, never a stored one: the carrier carries the
       // dispositions just as the child wrote them, no summary key.
       const carrier = readJson<Record<string, unknown>>(
         path.join(workspace.path, "tasks-1-fix-1.json"),
       );
-      expect(carrier.dispositions).toEqual({ drift: { status: "fixed" } });
+      expect(carrier.dispositions).toEqual({
+        drift: { status: "fixed" },
+        typo: { status: "rejected", reason: "the review misread the guard" },
+      });
       expect(carrier).not.toHaveProperty("dispositionsSummary");
+    } finally {
+      if (envBefore === undefined) delete process.env.AI_AGENT;
+      else process.env.AI_AGENT = envBefore;
+      cleanup();
+    }
+  });
+
+  it("fix — an empty requesting input renders the zero pair `fixed 0 · rejected 0`", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ sync: new FixDraftRunner({}) });
+    const envBefore = process.env.AI_AGENT;
+    process.env.AI_AGENT = "pi";
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.recordRound(1, { op: "implement" });
+      // The routing source (the review handoff) carries findings, so the hop is `fix`;
+      // the fix route's `--reviews` input is a DIFFERENT carrier with an EMPTY findings
+      // array — the legal empty input set (design spec §3.4), whose empty key set the
+      // round owes and whose line renders the zero pair.
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1 },
+        { tasks: [1], phase: "review", findings: [{ severity: "nit", summary: "drift" }] },
+      );
+      ledger.recordRound(1, { op: "review" });
+      const emptyCarrier = path.join(workspace.path, "empty-review.json");
+      writeFileSync(emptyCarrier, JSON.stringify({ findings: [] }), "utf8");
+      const code = await command.runArgv([
+        "fix",
+        "--type",
+        "wave",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+        "--reviews",
+        emptyCarrier,
+      ]);
+      expect(code).toBe(0);
+      const lines = io.stdoutText.match(/fixed \d+ · rejected \d+/g) ?? [];
+      expect(lines).toEqual(["fixed 0 · rejected 0"]);
     } finally {
       if (envBefore === undefined) delete process.env.AI_AGENT;
       else process.env.AI_AGENT = envBefore;
@@ -6533,12 +6588,17 @@ const P21_EVIDENCE = {
   typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
 };
 
-/** The dispatch that plants the fix round's write-back — a work carrier carrying one
- *  `dispositions` entry plus the evidence file (a fix wave round is a work-plane wave
- *  round). The draft lands in the workspace directory under `run.cwd` (the repo
+/** The dispatch that plants the fix round's write-back — a work carrier carrying the
+ *  given `dispositions` map plus the evidence file (a fix wave round is a work-plane
+ *  wave round). The draft lands in the workspace directory under `run.cwd` (the repo
  *  root), so the fixture needs no pre-wired path. */
 class FixDraftRunner implements ChildRunner {
   calls: ChildRun[] = [];
+  readonly #dispositions: Record<string, unknown>;
+
+  constructor(dispositions: Record<string, unknown> = { drift: { status: "fixed" } }) {
+    this.#dispositions = dispositions;
+  }
 
   async run(run: ChildRun): Promise<ChildOutcome> {
     this.calls.push(run);
@@ -6549,7 +6609,7 @@ class FixDraftRunner implements ChildRunner {
       JSON.stringify({
         status: "APPROVED",
         artifacts: {},
-        dispositions: { drift: { status: "fixed" } },
+        dispositions: this.#dispositions,
       }),
       "utf8",
     );

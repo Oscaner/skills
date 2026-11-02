@@ -37,6 +37,10 @@ export interface ContractInput {
   slugIndex?: SlugIndex;
   /** The filesystem seam (defaults to node:fs). */
   fs?: DocFs;
+  /** The plan's topological layers, injected by the caller — `TaskGraph#batches()` is
+   *  the ONE derivation authority (the wave-width rule reads them, never a re-derived
+   *  batch set). Absent → the layer-reading rules yield zero findings. */
+  taskLayers?: readonly (readonly number[])[];
 }
 
 /** The ledger fact bundle — the cross-ledger rules' second judgment input (P21 §3.1).
@@ -180,6 +184,7 @@ export class Contract {
       translator: this.#translator,
       slugIndex: input.slugIndex,
       fs: input.fs ?? new NodeFs(),
+      taskLayers: input.taskLayers,
     };
   }
 }

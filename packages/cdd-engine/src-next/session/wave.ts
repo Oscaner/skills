@@ -8,13 +8,19 @@
 //
 // The gate's only read face is `open = frontier(closedWaves())` — the derived
 // wave over the ledger's C5 closure set (ledger.ts, the same closure predicate as
-// the lifecycle's #markTerminal). The three judgments:
+// the lifecycle's #markTerminal). The judgments, in order (the order is part of the
+// judgment — a shape that matches an earlier row keeps that earlier row's cause):
 //   1. requested hits a derived static batch (graph.batches()) that mixes closed
 //      and open tasks → the mixed-batch BLOCK (a batch closes as a unit — a plan
 //      revision must not strand the rest of a partly-executed batch as its own wave);
-//   2. requested ≠ open      → the split/subset BLOCK (dispatch the full derived wave,
+//   2. the derived wave is wider than MAX_TASKS_PER_WAVE → the wave-too-wide BLOCK
+//      (the plan's DependsOn must narrow the wave; the engine never re-shapes it —
+//      judged before the exact read so a wide frontier is never misreported as split);
+//   3. the requested set is wider than MAX_TASKS_PER_WAVE → the too-many-tasks BLOCK
+//      (never truncated, never silently halved);
+//   4. requested ≠ open      → the split/subset BLOCK (dispatch the full derived wave,
 //                              with the wave-board hint);
-//   3. the open wave's phase ≠ verb → the wrong-phase BLOCK (run the matching phase).
+//   5. the open wave's phase ≠ verb → the wrong-phase BLOCK (run the matching phase).
 // (v1.28 — the heterogeneous-phase row RETIRED: the wave-unitary ledger has ONE row
 // per wave, so mixed per-task phases are structurally impossible — a per-task phase
 // read was the T26 regression {16,22,24} exposed (the row key `16` never matched
@@ -30,10 +36,17 @@ import type { Words } from "../face/words.ts";
 import type { DispatchPhase } from "./faces.ts";
 import type { TaskGraph } from "./graph.ts";
 import type { Ledger } from "./ledger.ts";
+import { MAX_TASKS_PER_WAVE } from "./next.ts";
 
 /** The verdict kinds — the named gate rows (the BLOCK reason each carries): the
- *  static-batch mix guard · the split/subset refusal · the wrong-phase refusal. */
-export type WaveGateReason = "mixed-batch" | "split" | "wrong-phase";
+ *  static-batch mix guard · the two wave-width refusals · the split/subset refusal ·
+ *  the wrong-phase refusal. */
+export type WaveGateReason =
+  | "mixed-batch"
+  | "wave-too-wide"
+  | "too-many-tasks"
+  | "split"
+  | "wrong-phase";
 
 /** One open-wave task's phase row — every member carries the WAVE's single phase
  *  (the wave-unitary read: one ledger row per wave; a per-task read would miss the
@@ -45,8 +58,8 @@ export interface WavePhaseRow {
   phase: DispatchPhase | null;
 }
 
-/** The wave-gate verdict — approved or one of the three named BLOCK rows
- *  (mixed-batch · split · wrong-phase). */
+/** The wave-gate verdict — approved or one of the named BLOCK rows
+ *  (mixed-batch · wave-too-wide · too-many-tasks · split · wrong-phase). */
 export interface WaveVerdict {
   /** Whether the gate approves the dispatch (requested = the open wave, no mixed
    *  static batch, the wave's phase = the requested verb). */
@@ -115,7 +128,43 @@ export class WaveGate {
       }
     }
 
-    // 2. The split/subset BLOCK — requested ≠ open: a `--tasks` set that splits or
+    // 2. The wave-width hard gate — the derived wave is wider than the ceiling. A wave
+    //    this wide is a PLAN defect (`DependsOn` layers), so the engine refuses and names
+    //    the fix instead of re-shaping the wave. Judged BEFORE the exact read: the same
+    //    shape would otherwise be reported as `split` (requested ≠ open), pointing the
+    //    author at the wrong repair. The append shape that legitimately widens a wave
+    //    across layers (a partially closed batch, exempted above) lands here too.
+    if (open.length > MAX_TASKS_PER_WAVE) {
+      return {
+        ok: false,
+        reason: "wave-too-wide",
+        message: this.#fill(wordsGate.waveTooWide, {
+          tasks: openKey,
+          max: String(MAX_TASKS_PER_WAVE),
+        }),
+        open,
+        phases: this.#phasesOf(ledger, open),
+      };
+    }
+
+    // 3. The request-width hard gate — the caller asked for more tasks than a wave may
+    //    carry. Never truncated and never silently halved: the caller's hand-picked set
+    //    is not the engine's judgment to reshape.
+    if (asked.length > MAX_TASKS_PER_WAVE) {
+      return {
+        ok: false,
+        reason: "too-many-tasks",
+        message: this.#fill(wordsGate.tooManyTasks, {
+          tasks: requestedKey,
+          count: String(asked.length),
+          max: String(MAX_TASKS_PER_WAVE),
+        }),
+        open,
+        phases: this.#phasesOf(ledger, open),
+      };
+    }
+
+    // 4. The split/subset BLOCK — requested ≠ open: a `--tasks` set that splits or
     //    mismatches the derived wave is refused for ANY verb (a subset never reorders
     //    the wave, never half-approves it). The full-wave hint rides the message.
     if (!exact) {
@@ -128,7 +177,7 @@ export class WaveGate {
       };
     }
 
-    // 3. The open wave's phase — the single phase of the wave's own row (wave-unitary:
+    // 5. The open wave's phase — the single phase of the wave's own row (wave-unitary:
     //    one ledger row per wave, so every member shares the phase; a per-task read
     //    never matches the wave row — the T26 migration regression).
     const phases = this.#phasesOf(ledger, open);

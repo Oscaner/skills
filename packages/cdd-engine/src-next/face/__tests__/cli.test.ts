@@ -2807,7 +2807,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stderrText).toContain("  planned-tasks-vs-recorded-tasks: passed\n");
       expect(
         io.stderrText.split("\n").filter((line) => line.endsWith(": skipped (no doc target)")),
-      ).toHaveLength(19);
+      ).toHaveLength(20);
 
       // ② the refused path: the same face after the BLOCK wording + its details
       writeFileSync(path.join(repoRoot, "seed.txt"), "modified\n", "utf8");

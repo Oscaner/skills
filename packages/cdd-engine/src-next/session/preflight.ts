@@ -62,9 +62,16 @@ export type PreFlightReason =
   | WaveGateReason
   | "doc-contract";
 
-/** The doc-scope judgment outcome of one dispatch — what the checked list renders. */
+/** The doc-scope judgment outcome of one dispatch — what the checked list renders.
+ *  `layersUnavailable` marks the shape where the call site had no plan layers to inject
+ *  (the wave-width rule then judged nothing): the checked list shows that degradation
+ *  instead of a bare `passed`. */
 type DocOutcome =
-  | { readonly kind: "judged"; readonly findings: readonly Finding[] }
+  | {
+      readonly kind: "judged";
+      readonly findings: readonly Finding[];
+      readonly layersUnavailable?: boolean;
+    }
   | { readonly kind: "no-doc-target" }
   | { readonly kind: "unreadable" }
   | { readonly kind: "not-judged" };
@@ -361,6 +368,10 @@ export class PreFlight {
             ledgerOutcome,
           );
         }
+        // The plan's topological layers ride the graph gate's own derivation
+        // (`TaskGraph#batches()` — the ONE width authority), so the plan-scope rules
+        // judge exactly the layer set the wave gates will dispatch against.
+        const taskLayers = graph?.batches();
         const findings = this.#contract.validate({
           docKey: doc.docKey,
           path: docAbsolute,
@@ -368,8 +379,13 @@ export class PreFlight {
           root: ctx.repoRoot,
           slugIndex: index,
           fs: this.#fs,
+          taskLayers,
         });
-        docOutcome = { kind: "judged", findings };
+        docOutcome = {
+          kind: "judged",
+          findings,
+          layersUnavailable: doc.docKey === "plan" && taskLayers === undefined,
+        };
         if (findings.length > 0) {
           return this.#refusal(
             {
@@ -479,6 +495,8 @@ export class PreFlight {
           rows.push(`${declaration.id}: ${words.skippedNotJudged}`);
         else if (doc.kind === "unreadable")
           rows.push(`${declaration.id}: ${words.skippedUnreadableDoc}`);
+        else if (doc.layersUnavailable === true && declaration.id === "wave-width-at-most-three")
+          rows.push(`${declaration.id}: ${words.planLayersUnavailable}`);
         else
           rows.push(
             `${declaration.id}: ${

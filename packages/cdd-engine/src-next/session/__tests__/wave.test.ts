@@ -18,11 +18,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PlanDocType } from "../../contract/doc.ts";
+import { Contract } from "../../contract/judge.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { TaskGraph } from "../graph.ts";
 import { Ledger } from "../ledger.ts";
+import { MAX_TASKS_PER_WAVE, NextStepRouter } from "../next.ts";
 import { WaveGate } from "../wave.ts";
 
 /** A hermetic ledger fixture — a fresh temp workspace (the run tests' pattern).
@@ -550,6 +552,173 @@ describe("Ledger#waveLinePhase — the D28 phantom-pending-fix suppression", () 
       );
       ledger.persistHandoff("fix", "wave", { tasks: "1", round: 2 }, { artifacts: {} });
       expect(ledger.waveLinePhase("1")).toBe("review");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P22 T8 — the wave-width hard gate (MAX_TASKS_PER_WAVE = 3)
+// ---------------------------------------------------------------------------
+
+/** The plan-scope width rule's findings over the SAME plan the gate reads — the
+ *  rule-side judgment rides the gate's own `TaskGraph#batches()` value (one authority). */
+const widthFindings = (
+  blocks: readonly (readonly string[])[],
+  graph: TaskGraph,
+): readonly { field: string; message: string }[] => {
+  return new Contract()
+    .validate({
+      docKey: "plan",
+      path: "docs/kairos/plans/x-p22.md",
+      content: planDoc(blocks),
+      root: "/repo",
+      fs: { exists: () => true, read: () => null, list: () => [] },
+      taskLayers: graph.batches(),
+    })
+    .filter((finding) => finding.kind === "wave-width-at-most-three");
+};
+
+describe("WaveGate.vet — the wave-width hard gate (P22 §6)", () => {
+  it(`holds the ceiling at ${MAX_TASKS_PER_WAVE} tasks`, () => {
+    expect(MAX_TASKS_PER_WAVE).toBe(3);
+  });
+
+  it("refuses a four-member frontier as `wave-too-wide` — NOT as `split`", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The append shape: layer {1,2,3} with only task 1 closed, layer {4,5} behind it.
+      // The frontier crosses both layers ({2,3,4,5}) — the plan-scope rule is GREEN
+      // (layers are 3 and 2 wide), so this is exactly the "necessary but not
+      // sufficient" shape the dispatch-side gate has to reject.
+      const blocks = [
+        task(1, "none"),
+        task(2, "none"),
+        task(3, "none"),
+        task(4, "1"),
+        task(5, "1"),
+      ];
+      const graph = graphOf(blocks);
+      expect(graph.batches()).toEqual([
+        [1, 2, 3],
+        [4, 5],
+      ]);
+      expect(widthFindings(blocks, graph)).toEqual([]);
+      ledger.recordRound("1", { op: "implement" });
+      cleanReviewCarrier(ledger, "1", 1);
+      // Task 1 closed while the plan carried only {1}: tasks 2..5 were appended later,
+      // so the batch is not a stranded mix (the append exemption lets the gate through
+      // to the width judgment).
+      ledger.recordPlanTasks("1", [1]);
+      const verdict = gate.vet(new Set([2, 3, 4, 5]), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("wave-too-wide");
+      expect(verdict.reason).not.toBe("split");
+      expect(verdict.message).toContain("2,3,4,5");
+      expect(verdict.message).toContain("DependsOn");
+      expect(verdict.message).toContain("3");
+      expect(verdict.open).toEqual([2, 3, 4, 5]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("refuses a `--tasks` set wider than the ceiling as `too-many-tasks`", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The open wave is only 2 wide; the caller asked for 4.
+      const graph = graphOf([task(1, "none"), task(2, "none"), task(3, "1"), task(4, "1")]);
+      expect(graph.frontier(new Set())).toEqual([1, 2]);
+      const verdict = gate.vet(new Set([1, 2, 3, 4]), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("too-many-tasks");
+      expect(verdict.message).toContain("1,2,3,4");
+      expect(verdict.message).toContain("4 tasks");
+      expect(verdict.message).toContain("3-task wave limit");
+      expect(verdict.message).toContain("DependsOn");
+      expect(verdict.open).toEqual([1, 2]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps the mixed-batch cause for a wide shape that also mixes closed and open tasks (the order pin)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = graphOf([
+        task(1, "none"),
+        task(2, "none"),
+        task(3, "none"),
+        task(4, "1"),
+        task(5, "1"),
+      ]);
+      ledger.recordRound("1", { op: "implement" });
+      cleanReviewCarrier(ledger, "1", 1);
+      // No closure snapshot → the conservative mixed-batch BLOCK stands, even though
+      // the frontier is four wide: the earlier row keeps its own cause.
+      const verdict = gate.vet(new Set([2, 3, 4, 5]), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(false);
+      expect(verdict.reason).toBe("mixed-batch");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("accepts its own `next-wave` literal when the closed set is a complete layer union", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // Layer {1,2,3} closes whole; the next layer {4,5,6} is three wide.
+      const graph = graphOf([
+        task(1, "none"),
+        task(2, "none"),
+        task(3, "none"),
+        task(4, "1,2,3"),
+        task(5, "1,2,3"),
+        task(6, "1,2,3"),
+      ]);
+      ledger.recordRound("1,2,3", { op: "implement" });
+      cleanReviewCarrier(ledger, "1,2,3", 1);
+      expect(ledger.closedWaves()).toEqual(new Set([1, 2, 3]));
+      // The router's `next-wave` over the closed line renders the ready batch verbatim.
+      const route = new NextStepRouter().next(
+        { doneTasks: () => new Set([1, 2, 3]), readyBatch: () => [4, 5, 6] },
+        { phase: "review", findings: [], consecutiveS1: 0 },
+      );
+      expect(route).toEqual({ kind: "next-wave", tasks: "4,5,6" });
+      if (route === null || route.kind !== "next-wave") {
+        throw new Error(`expected a next-wave route, got ${JSON.stringify(route)}`);
+      }
+      // The literal the engine itself renders passes its own gate — the cross-face pin.
+      const tasks = route.tasks.split(",").map(Number);
+      const verdict = gate.vet(new Set(tasks), "implement", graph, ledger, words);
+      expect(verdict.ok).toBe(true);
+      expect(verdict.open).toEqual([4, 5, 6]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("reads an already-recorded four-member closed wave without error (history is not rewritten)", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      ledger.recordRound("1,2,3,4", { op: "review" });
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1,2,3,4", round: 1 },
+        { tasks: [1, 2, 3, 4], phase: "review", findings: [] },
+      );
+      expect(ledger.closedWaves()).toEqual(new Set([1, 2, 3, 4]));
+      const graph = graphOf([
+        task(1, "none"),
+        task(2, "none"),
+        task(3, "none"),
+        task(4, "none"),
+        task(5, "1,2,3,4"),
+      ]);
+      expect(() => graph.frontier(ledger.closedWaves())).not.toThrow();
+      expect(graph.frontier(ledger.closedWaves())).toEqual([5]);
     } finally {
       cleanup();
     }

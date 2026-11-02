@@ -81,6 +81,12 @@ export interface WaveGateWords {
   /** The mixed-batch BLOCK — a requested task hits a derived batch that holds both
    *  closed and open tasks (a batch closes as a unit; re-declare the edges). */
   mixedBatch: string;
+  /** The wave-too-wide BLOCK — the derived wave carries more than the ceiling's tasks;
+   *  the message names the member ids and the only repair (the plan's DependsOn). */
+  waveTooWide: string;
+  /** The too-many-tasks BLOCK — the requested `--tasks` set is wider than the ceiling.
+   *  Slots: {tasks} · {count} · {max}. */
+  tooManyTasks: string;
 }
 
 /** The pre-flight BLOCK wording rows — the lifecycle pre-flight seam's refusal
@@ -152,6 +158,9 @@ export interface CheckedWords {
   skippedUnreadableDoc: string;
   /** The plan-ahead info row (a `plan-ledger` gate row — `{count}` fill slot). */
   planAhead: string;
+  /** The wave-width rule's degraded row — the call site injected no plan layers, so
+   *  the rule judged nothing (a visible degradation, never a refusal). */
+  planLayersUnavailable: string;
 }
 
 /** The capsule word rows — every word the capsule face emits, one table. */
@@ -213,6 +222,10 @@ export const CAPSULE_WORDS = {
     wrongPhase: "the open wave is at {phase} — run cdd {phase} first",
     mixedBatch:
       "the derived batch ({batch}) mixes closed and open tasks ({closed} closed, {open} open) — a wave closes as a unit; re-declare the **DependsOn** edges so no task joins an already-executed batch",
+    waveTooWide:
+      "the open wave ({tasks}) carries more than {max} tasks — narrow the wave by adjusting the plan's **DependsOn** edges (chain the extra tasks) and re-run",
+    tooManyTasks:
+      "the requested task set ({tasks}) carries {count} tasks, above the {max}-task wave limit — dispatch at most {max} tasks per wave by adjusting the plan's **DependsOn** edges and re-run",
   } as const satisfies WaveGateWords,
   /** The pre-flight BLOCK wording rows (P4.1 T1) — the seam's refusal vocabulary,
    *  single-sourced (the seam fills the {count} slot, never a re-type). */
@@ -235,6 +248,7 @@ export const CAPSULE_WORDS = {
     skippedNotJudged: "skipped (not judged)",
     skippedUnreadableDoc: "skipped (unreadable doc)",
     planAhead: "plan-ledger: info (plan leads ledger by {count} tasks)",
+    planLayersUnavailable: "info (plan layers: unavailable)",
     inFlight: {
       free: "free — no dispatch holds this tree",
       held: "held — pid {pid}",

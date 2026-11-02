@@ -63,6 +63,13 @@ export type Route =
  *  never a hard stop — the user / the plan write authority override it). */
 export const REVIEW_CYCLE_CAP = 50;
 
+/** The wave-width ceiling (design spec §6) — at most this many tasks per dispatch wave.
+ *  Declared once on the contract plane (`contract/wave-width.ts`), so the plan-scope
+ *  rule reads it without importing this session plane, and re-exported here as the
+ *  dispatch face's constant beside `REVIEW_CYCLE_CAP`. Three readers share the one
+ *  value: the plan rule, the wave gate's two rejections and their wording. */
+export { MAX_TASKS_PER_WAVE } from "../contract/wave-width.ts";
+
 /** The decision-edge words of the Route union — the C5 hop kinds that a review/fix
  *  closure decision edge renders as a `next:` label (`done` · `next-wave` · `review`
  *  · `fix` · `soft-cap`). The pure face-to-face `handoff` kind is EXCLUDED: it carries

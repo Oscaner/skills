@@ -689,7 +689,7 @@ const branchCtx = (
 };
 
 describe("PreFlight — the checked rule list (derived from the declaration surface)", () => {
-  it("lists 19 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
+  it("lists 20 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(
@@ -697,7 +697,7 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
       );
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        19,
+        20,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
       expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: passed");
@@ -710,13 +710,13 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
     }
   });
 
-  it("lists the same 19 doc-scope skips on a branch dispatch", async () => {
+  it("lists the same 20 doc-scope skips on a branch dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(branchCtx(repoRoot, [task(1, "none")]));
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        19,
+        20,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
     } finally {
@@ -736,6 +736,28 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
       expect(
         verdict.checked.filter((row) => row.endsWith("skipped (no ledger facts)")),
       ).toHaveLength(2);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders the wave-width rule's degradation when the call site injected no plan layers", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      // A plan doc judged with NO plan text in the context: no graph gate ran, so no
+      // `TaskGraph#batches()` layers reached the contract. The width rule then yields
+      // zero findings (it never re-derives a second batch set) and its checked row
+      // says so visibly, instead of claiming `passed`.
+      const blocks = [task(1, "none"), task(2, "none"), task(3, "none"), task(4, "none")];
+      const verdict = await preflightOf(memoryFs(planDoc(blocks))).vet(
+        docCtx(repoRoot, "plan", "review"),
+      );
+      expect(verdict.checked).toContain(
+        "wave-width-at-most-three: info (plan layers: unavailable)",
+      );
+      expect(
+        verdict.checked.filter((row) => row.startsWith("wave-width-at-most-three:")),
+      ).toHaveLength(1);
     } finally {
       cleanup();
     }

@@ -41,6 +41,7 @@ import type { MarkdownTree, ResolvedNode } from "./markdown-tree.ts";
 import type { DocKey, DocShape, DocSkeleton, DocSlices, ElementSlice } from "./project.ts";
 import type { LedgerRule } from "./rules.ts";
 import { RowSource, type Translator } from "./translate.ts";
+import { MAX_TASKS_PER_WAVE } from "./wave-width.ts";
 
 // ---------------------------------------------------------------------------
 // judgment records + the context
@@ -152,6 +153,13 @@ export interface JudgeContext {
   slugIndex?: SlugIndex;
   /** The filesystem seam (defaults to node:fs). */
   fs: DocFs;
+  /** The plan's topological layers (one task-id set per layer), injected by the
+   *  caller — `TaskGraph#batches()` is the ONE derivation authority, so a
+   *  layer-reading rule never re-derives batches (and the contract plane never
+   *  imports the session plane). Absent on a call site that carries no plan graph:
+   *  the layer-reading rules then yield zero findings and their checked row renders
+   *  the visible degradation. */
+  taskLayers?: readonly (readonly number[])[];
 }
 
 // ---------------------------------------------------------------------------
@@ -1557,6 +1565,45 @@ export class SectionScopedDomainInvariant extends Invariant {
           "### N. group heading",
           `a design-group heading appears outside ## Design: ${heading.text.trim()}`,
           "move the group heading under ## Design (design-body surface only)",
+        ),
+      );
+    }
+    return findings;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// the wave-width rule (P22 §6)
+// ---------------------------------------------------------------------------
+
+/**
+ * wave-width-at-most-three — the plan-scope preventive rule: no DependsOn layer of the
+ * plan may carry more than `MAX_TASKS_PER_WAVE` tasks (design spec §6, judgment face
+ * one). The layers arrive READY-MADE through `ctx.taskLayers` — the caller injects
+ * `TaskGraph#batches()`, the single derivation authority. This rule therefore never
+ * re-derives batches from `parsed.taskBlocks` and never imports the session plane.
+ *
+ * A missing layer fact (a call site with no plan graph) yields ZERO findings: the
+ * degradation is visible on the caller's checked row, never turned into a refusal (the
+ * same present-facts-only stance as a skipped ledger row). The dispatch path always
+ * runs the graph gate first, so the degraded reading only occurs off the dispatch face.
+ */
+export class WaveWidthInvariant extends Invariant {
+  readonly name = "wave-width-at-most-three";
+
+  evaluate(ctx: JudgeContext): Finding[] {
+    const layers = ctx.taskLayers;
+    if (layers === undefined) return [];
+    const findings: Finding[] = [];
+    for (const layer of layers) {
+      if (layer.length <= MAX_TASKS_PER_WAVE) continue;
+      const ids = [...layer].sort((left, right) => left - right);
+      findings.push(
+        this.finding(
+          ctx,
+          "DependsOn",
+          `the DependsOn layer {${ids.join(",")}} carries ${ids.length} tasks, above the ${MAX_TASKS_PER_WAVE}-task limit`,
+          `chain the extra tasks through the plan's **DependsOn** edges so no layer carries more than ${MAX_TASKS_PER_WAVE} tasks`,
         ),
       );
     }

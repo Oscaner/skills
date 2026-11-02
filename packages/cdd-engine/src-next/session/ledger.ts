@@ -290,6 +290,11 @@ export class RoundRecords {
 /** The ledger lookup key — a scalar task id or the group key string. */
 export type LedgerKey = number | string;
 
+/** The retired phase-spec row key — the spelling the round records carried before the
+ *  target vocabulary unified on `phase-spec` (P22 D73). Rows already on disk keep it
+ *  byte-frozen; the row read normalizes it (see `Ledger.rowFor`). */
+const RETIRED_SPEC_KEY = "spec";
+
 /** The dispatch-termination vocabulary — why a round was cut short (single source:
  *  the terminator derives the cause from the child's own result face, the crash
  *  record carries it as a postmortem fact, zero behavior fork — resume never routes
@@ -617,9 +622,16 @@ export class Ledger {
   }
 
   /** The ledger-row lookup single point — a scalar key (or the single-task wave key
-   *  `"1"`) resolves the `{ task }` row; a multi-task wave key (`"1,2"`) the `{ wave }` row. */
-  rowFor(data: ProgressData, key: LedgerKey): ProgressRow | undefined {
-    return data.waves.find((row) => row.wave === String(key));
+   *  `"1"`) resolves the `{ task }` row; a multi-task wave key (`"1,2"`) the `{ wave }` row.
+   *  A `phase-spec` lookup falls back to a row still carrying the retired `spec` key —
+   *  the read-time alias keeps an in-flight phase's recorded reviews/fixes on its board
+   *  (the normalization is never written back: the stored key stays byte-frozen). A row
+   *  read is a pure function of the progress data, so every face — this class and the
+   *  board's read-only line face — enters through this ONE lookup (no second key spelling). */
+  static rowFor(data: ProgressData, key: LedgerKey): ProgressRow | undefined {
+    const literal = data.waves.find((row) => row.wave === String(key));
+    if (literal !== undefined || key !== "phase-spec") return literal;
+    return data.waves.find((row) => row.wave === RETIRED_SPEC_KEY);
   }
 
   /** The fresh row for an absent key — always the wave form (a single trivial
@@ -647,7 +659,7 @@ export class Ledger {
   recordsOf(key: LedgerKey): readonly RoundRecord[] {
     const data = this.readProgress();
     if (data === null) return [];
-    return RoundRecords.of(this.rowFor(data, key));
+    return RoundRecords.of(Ledger.rowFor(data, key));
   }
 
   /** One op's COMPLETED cycles on a key — only `verdict.targetAction === true` records.
@@ -656,7 +668,7 @@ export class Ledger {
   completedCycles(key: LedgerKey, op: OpType): readonly number[] {
     const data = this.readProgress();
     if (data === null) return [];
-    return RoundRecords.of(this.rowFor(data, key))
+    return RoundRecords.of(Ledger.rowFor(data, key))
       .filter((record) => record.op === op && record.verdict.targetAction)
       .map((record) => record.cycle);
   }
@@ -668,7 +680,7 @@ export class Ledger {
   roundCount(key: LedgerKey, mode: string): number {
     const data = this.readProgress();
     if (data === null) return 0;
-    return this.#cyclesOf(this.rowFor(data, key), mode).length;
+    return this.#cyclesOf(Ledger.rowFor(data, key), mode).length;
   }
 
   /** Whether a dispatch key + mode has a round REGISTERED for a given CYCLE — the
@@ -679,7 +691,7 @@ export class Ledger {
   roundRecorded(key: LedgerKey, mode: string, cycle: number): boolean {
     const data = this.readProgress();
     if (data === null) return false;
-    return this.#cyclesOf(this.rowFor(data, key), mode).includes(cycle);
+    return this.#cyclesOf(Ledger.rowFor(data, key), mode).includes(cycle);
   }
 
   /** Record a dispatched round — the on-disk round record (the ledger edge of the
@@ -693,7 +705,7 @@ export class Ledger {
    *  identity does not double it. */
   recordRound(key: LedgerKey, init: RoundRecordInit): RoundRecord {
     const data = this.readProgress() ?? this.emptyProgress();
-    let row = this.rowFor(data, key);
+    let row = Ledger.rowFor(data, key);
     if (row === undefined) {
       row = this.entryFor(key);
       data.waves.push(row);
@@ -738,7 +750,7 @@ export class Ledger {
    *  (D30) — one row, one reviewed identity. */
   recordReviewedRevision(key: LedgerKey, revision: ReviewedRevisionRef): void {
     const data = this.readProgress() ?? this.emptyProgress();
-    let row = this.rowFor(data, key);
+    let row = Ledger.rowFor(data, key);
     if (row === undefined) {
       row = this.entryFor(key);
       data.waves.push(row);
@@ -780,7 +792,7 @@ export class Ledger {
   reviewedRevisionOf(key: LedgerKey): ReviewedRevisionRef | null {
     const data = this.readProgress();
     if (data === null) return null;
-    return this.rowFor(data, key)?.reviewedRevision ?? null;
+    return Ledger.rowFor(data, key)?.reviewedRevision ?? null;
   }
 
   /** Record a wave row's plan-task snapshot — the task set the plan carried at the
@@ -789,7 +801,7 @@ export class Ledger {
    *  afterwards; re-deriving would erase the append-vs-stall evidence). */
   recordPlanTasks(waveKey: LedgerKey, planTasks: readonly number[]): void {
     const data = this.readProgress() ?? this.emptyProgress();
-    let row = this.rowFor(data, waveKey);
+    let row = Ledger.rowFor(data, waveKey);
     if (row === undefined) {
       row = this.entryFor(waveKey);
       data.waves.push(row);
@@ -806,7 +818,7 @@ export class Ledger {
   planTasksOf(waveKey: LedgerKey): readonly number[] | null {
     const data = this.readProgress();
     if (data === null) return null;
-    return this.rowFor(data, waveKey)?.planTasks ?? null;
+    return Ledger.rowFor(data, waveKey)?.planTasks ?? null;
   }
 
   /** The doc line's recorded reviewed doc revision — the doc-revision narrowing of
@@ -889,7 +901,7 @@ export class Ledger {
     const implemented = this.completedCycles(waveKey, "implement");
     if (implemented.length === 0) return { kind: "next-wave", tasks: waveKey };
     const data = this.readProgress();
-    const row = data === null ? undefined : this.rowFor(data, waveKey);
+    const row = data === null ? undefined : Ledger.rowFor(data, waveKey);
     const latestReview = row === undefined ? 0 : this.#latestCompletedCycleOfRow(row, "review");
     if (latestReview === 0) return { kind: "review" };
     // The latest recorded round is a fix iff a fix is recorded at the latest review's
@@ -969,7 +981,7 @@ export class Ledger {
   #pendingFix(key: LedgerKey, type: TargetType): boolean {
     const data = this.readProgress();
     if (data === null) return false;
-    const row = this.rowFor(data, key);
+    const row = Ledger.rowFor(data, key);
     if (row === undefined) return false;
     const reviews = this.#latestCompletedCycleOfRow(row, "review");
     if (reviews === 0) return false;
@@ -997,7 +1009,7 @@ export class Ledger {
   softViolationsOf(key: LedgerKey): number {
     const data = this.readProgress();
     if (data === null) return 0;
-    return this.#softOf(this.rowFor(data, key));
+    return this.#softOf(Ledger.rowFor(data, key));
   }
 
   /** The session's SOFT violation count — the derived `contractViolationCount` read
@@ -1066,7 +1078,7 @@ export class Ledger {
   lineClosed(key: LedgerKey, type: TargetType): boolean {
     const data = this.readProgress();
     if (data === null) return false;
-    const row = this.rowFor(data, key);
+    const row = Ledger.rowFor(data, key);
     if (row === undefined) return false;
     return this.#rowClosed(type, type === "wave" ? { tasks: String(key) } : {}, row);
   }
@@ -1088,7 +1100,7 @@ export class Ledger {
   lineRoute(key: LedgerKey, type: TargetType): Route | null {
     const data = this.readProgress();
     if (data === null) return { kind: "review" };
-    const row = this.rowFor(data, key);
+    const row = Ledger.rowFor(data, key);
     if (row === undefined) return { kind: "review" };
     const reviewLead = targetFaces[type].product.reviewLead;
     const reviews = this.#latestCompletedCycleOfRow(row, reviewLead);
@@ -1278,9 +1290,22 @@ export class Ledger {
     return this.handoffPath(op, type, params);
   }
 
-  /** Read a handoff carrier; null when missing/corrupt. */
+  /** Read a handoff carrier; null when missing/corrupt. A `phase-spec` read falls
+   *  back to the retired `spec` file name (the one-release read alias, P22 D73): the
+   *  rounds a phase recorded before the vocabulary unification stay judgeable — the
+   *  closure walk still reads their C5 route, so a closed line does not re-open. Every
+   *  WRITE goes through `persistHandoff`'s current spelling — the alias is read-only. */
   readHandoff(op: string, type: string, params: HandoffParams): Record<string, unknown> | null {
-    return this.#read<Record<string, unknown>>(this.handoffName(op, type, params));
+    const literal = this.#read<Record<string, unknown>>(this.handoffName(op, type, params));
+    if (literal !== null || type !== "phase-spec") return literal;
+    return this.#read<Record<string, unknown>>(Ledger.#retiredCarrierName(op, params));
+  }
+
+  /** The retired `phase-spec` carrier name of one round — `spec-review-{round}.json` /
+   *  `spec-fix-{round}.json`. It lives here, never in the family table: it is a read
+   *  fallback for already-recorded rounds, not a name the engine can mint. */
+  static #retiredCarrierName(op: string, params: HandoffParams): string {
+    return `${RETIRED_SPEC_KEY}-${op}-${params.round ?? ""}.json`;
   }
 
   /** The workspace's ORPHAN handoff drafts — the `handoff` family files whose

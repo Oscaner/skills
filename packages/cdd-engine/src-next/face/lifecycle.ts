@@ -26,12 +26,13 @@ import { RoundLog } from "../infra/round-log.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
+import { TargetFaceTable } from "../session/faces.ts";
 import type { CarrierPlane } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
 import {
   type CrashCause,
-  type Ledger,
+  Ledger,
   type OpType,
   type ProgressRow,
   type RoundIdentity,
@@ -361,7 +362,7 @@ export class CliLifecycle {
     const ledger = this.#scene.ledger;
     const data = ledger.readProgress();
     return (
-      (data === null ? undefined : ledger.rowFor(data, frame.key)) ?? ledger.entryFor(frame.key)
+      (data === null ? undefined : Ledger.rowFor(data, frame.key)) ?? ledger.entryFor(frame.key)
     );
   }
 
@@ -371,7 +372,7 @@ export class CliLifecycle {
    *  each cause truly (D27): a corrupt file is never misreported as absent. */
   #evidenceViolations(frame: OpenFrame): readonly RoundViolation[] {
     if (HandoffSchema.planeOf(this.#opOf(frame)) !== "work") return [];
-    if (frame.type !== "wave" && frame.type !== "branch") return [];
+    if (TargetFaceTable.isDocShape(frame.type)) return [];
     const scene = this.#scene;
     const evidencePath = scene.workspace.resolve(this.#naming.evidenceName(frame));
     const read = scene.workspace.readJson<unknown>(this.#naming.evidenceName(frame));
@@ -649,7 +650,7 @@ export class CliLifecycle {
    *  the docs-fix mode; everything else maps by its phase (§3.5's four-mode table). */
   #roleOf(frame: OpenFrame): WorkMode {
     if (frame.phase === "fix") {
-      return frame.type !== "wave" && frame.type !== "branch" ? "docs-fix" : "fix";
+      return TargetFaceTable.isDocShape(frame.type) ? "docs-fix" : "fix";
     }
     return frame.phase === "implement" ? "implement" : "review";
   }

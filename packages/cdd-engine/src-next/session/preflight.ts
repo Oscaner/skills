@@ -33,7 +33,7 @@ import type { Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { SlugIndex } from "../infra/slug-index.ts";
-import type { TargetType } from "./faces.ts";
+import { TargetFaceTable, type TargetType } from "./faces.ts";
 import { TaskGraph } from "./graph.ts";
 import type { InFlight, InFlightState } from "./inflight.ts";
 import type { Ledger, ProgressData } from "./ledger.ts";
@@ -317,7 +317,7 @@ export class PreFlight {
     //    are judged by the SAME gate: the document's declared `doc-type:` picks the
     //    contract, never the command's `--type` spelling.
     let docOutcome: DocOutcome = this.#docOutcomeOf(ctx);
-    if (ctx.type !== "wave" && ctx.type !== "branch") {
+    if (TargetFaceTable.isDocShape(ctx.type)) {
       gates.push("doc-contract");
       checked.push("doc-contract");
       const doc = ctx.doc;
@@ -393,10 +393,10 @@ export class PreFlight {
           // The layer fact is absent only where the graph gate never ran, and on the
           // dispatch faces that cannot happen: `--type plan` REQUIRES `--plan` (a usage
           // rejection exits first), so a plan doc always has its graph and therefore its
-          // layers; a spec's docKey is `spec`, never `plan`; and the wave / branch faces
-          // judge no doc target (`no-doc-target`). The row therefore describes a
-          // non-dispatch judgment face (a programmatic caller, a future face) — a visible
-          // degradation, never a dispatch-time refusal.
+          // layers; a phase-spec's docKey is `phase-spec`, never `plan`; and the wave /
+          // branch faces judge no doc target (`no-doc-target`). The row therefore
+          // describes a non-dispatch judgment face (a programmatic caller, a future
+          // face) — a visible degradation, never a dispatch-time refusal.
           layersUnavailable: doc.docKey === "plan" && taskLayers === undefined,
         };
         if (findings.length > 0) {

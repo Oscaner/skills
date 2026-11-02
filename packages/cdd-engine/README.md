@@ -27,12 +27,12 @@ Global option: `--dry-run` — preview the next dispatch step and its expected a
 | Subcommand | Usage | Purpose |
 |------------|-------|---------|
 | `implement` | `cdd implement --tasks=<n> [--plan=<path>]` | Run the task implement phase |
-| `review` | `cdd review --type=<task\|branch\|phase-spec\|overall\|plan\|single-spec>` | Run a review — task, branch, phase-spec, overall, plan, or single-spec |
-| `fix` | `cdd fix --type=<task\|branch\|phase-spec\|overall\|plan\|single-spec>` | Fix review findings — task, branch, phase-spec, overall, plan, or single-spec |
+| `review` | `cdd review --type=<wave\|branch\|phase-spec\|overall\|plan\|single-spec>` | Run a review — wave, branch, phase-spec, overall, plan, or single-spec |
+| `fix` | `cdd fix --type=<wave\|branch\|phase-spec\|overall\|plan\|single-spec>` | Fix review findings — wave, branch, phase-spec, overall, plan, or single-spec |
 | `base` | `cdd base set\|get` | Read/write the `base.json` artifact (single CDD `--plan` target) |
 | `schema` | `cdd schema get <type>` | Print the canonical doc-structure schema (discovery-only, zero enforcement) |
 | `issue` | `cdd issue render` | Render an aggregate issue body from stdin findings (pure rendering, zero enforcement) |
-| `board` | `cdd board --plan <path> / --spec <path>` | Render the entry document's progress board (overall/spec/plan/wave/branch; pure read, zero enforcement) |
+| `board` | `cdd board --plan <path> / --spec <path>` | Render the entry document's progress board (overall/phase-spec/plan/wave/branch; pure read, zero enforcement) |
 | `init` | `cdd init --harness=<claude\|pi> [--update]` | Install or update the kairos plugin set for a harness (repo-independent, streams inherited) |
 
 Use `cdd <command> --help` for a command's full option list (for example `cdd review --tasks` / `--spec` / `--plan` / `--round`).

@@ -738,12 +738,13 @@ export class BoardView {
     };
   }
 
-  /** The node's round RECORDS for one key — read through the ONE normalizer
-   *  (`RoundRecords.of`, legacy forms folded); the aggregation and the judgement
-   *  glyphs read these records, never a pre-grouped cycle map. Failed rounds stay on
-   *  the board (they consumed an identity slot); an absent row yields an empty list. */
+  /** The node's round RECORDS for one key — read through the ledger's ONE row lookup
+   *  (`Ledger.rowFor`: the `phase-spec` ⇐ legacy `spec` read alias) and the ONE record
+   *  normalizer (`RoundRecords.of`, legacy forms folded); the aggregation and the
+   *  judgement glyphs read these records, never a pre-grouped cycle map. Failed rounds
+   *  stay on the board (they consumed an identity slot); an absent row yields an empty list. */
   static #rowRounds(progress: ProgressData | null, key: string): readonly RoundRecord[] {
-    const row = progress?.waves.find((candidate) => candidate.wave === key);
+    const row = progress === null ? undefined : Ledger.rowFor(progress, key);
     return RoundRecords.of(row);
   }
 

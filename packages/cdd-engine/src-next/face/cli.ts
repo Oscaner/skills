@@ -64,7 +64,7 @@ import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
 import { TemplateAssembler } from "../render/templates.ts";
 import type { TargetFace, TargetType } from "../session/faces.ts";
-import { targetFaces } from "../session/faces.ts";
+import { TargetFaceTable, targetFaces } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import { HoldingError, InFlight } from "../session/inflight.ts";
 import type { RoundStatus } from "../session/ledger.ts";
@@ -613,17 +613,16 @@ export class Cli {
       planText: scene.planText,
       tasks: type === "wave" ? new Set(this.#gate.tasksOf(parsed)) : null,
       ledger: scene.ledger,
-      doc:
-        type !== "wave" && type !== "branch"
-          ? {
-              // The ONE declaration reading face (spec §12 · D34) — every doc shape
-              // dispatch reads the doc's front-matter `doc-type:` key;
-              // a key-less doc reads null and the seam BLOCKs (zero command-type
-              // carve-out, zero filename-suffix fallback).
-              docKey: BoardView.readDocType(root, docRel),
-              path: docRel,
-            }
-          : null,
+      doc: TargetFaceTable.isDocShape(type)
+        ? {
+            // The ONE declaration reading face (spec §12 · D34) — every doc shape
+            // dispatch reads the doc's front-matter `doc-type:` key;
+            // a key-less doc reads null and the seam BLOCKs (zero command-type
+            // carve-out, zero filename-suffix fallback).
+            docKey: BoardView.readDocType(root, docRel),
+            path: docRel,
+          }
+        : null,
       inflight,
       // The explicit takeover flag — VOID under --dry-run: the preview face never
       // acquires, so a takeover there would have no write channel at all. The

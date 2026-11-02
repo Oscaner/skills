@@ -234,7 +234,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   },
   {
     name: "review",
-    description: "run a review — task | branch | phase-spec | overall | plan | single-spec",
+    description: "run a review — wave | branch | phase-spec | overall | plan | single-spec",
     example: `cdd review --type phase-spec --spec ${ENGINE_DOC_ROOTS.specs}/p3-design.md`,
     keys: [
       { key: "type", required: true },
@@ -247,7 +247,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   },
   {
     name: "fix",
-    description: "fix review findings — task | branch | phase-spec | overall | plan | single-spec",
+    description: "fix review findings — wave | branch | phase-spec | overall | plan | single-spec",
     example: "cdd fix --type wave --tasks 1 --reviews tasks-1-review-1.json",
     keys: [
       { key: "type", required: true },

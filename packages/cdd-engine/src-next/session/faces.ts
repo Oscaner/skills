@@ -11,8 +11,8 @@
 // declared `doc-type:` spelling (`phase-spec` / `overall` / `plan` / `single-spec`),
 // so the retired `spec ⇄ phase-spec` translation class has no home here.
 //
-// Module-level exports are types / the table const — zero behavior-carrying bare
-// functions (the plan's zero-bare-function discipline).
+// Module-level exports are types / the table const / its read face class — zero
+// behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import type { RoundPhase } from "./ledger.ts";
 
@@ -128,3 +128,14 @@ export const targetFaces: Record<TargetType, TargetFace> = {
     nextSemantics: { batch: false },
   },
 };
+
+/** The faces table's read face — the ONE "is a document shape" predicate the lifecycle
+ *  and pre-flight call sites share: a document shape is a row whose audit target
+ *  resolves a doc PATH (the node shapes resolve a task graph / the live tree). A new
+ *  target type lands as a table row and this predicate follows it — no call site
+ *  re-spells the type set. */
+export class TargetFaceTable {
+  static isDocShape(type: TargetType): boolean {
+    return targetFaces[type].audit.kind === "doc-path";
+  }
+}

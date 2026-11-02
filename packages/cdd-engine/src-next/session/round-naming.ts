@@ -8,7 +8,7 @@
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
 import type { Workspace } from "../infra/workspace.ts";
-import type { TargetType } from "./faces.ts";
+import { TargetFaceTable, type TargetType } from "./faces.ts";
 import type { HandoffParams, OpType } from "./ledger.ts";
 import type { OpenFrame } from "./run.ts";
 
@@ -76,7 +76,7 @@ export class RoundNaming {
    *  the line, the branch line names the family alone). "" off the evidence rounds
    *  — the doc shapes (phase-spec · overall · plan · single-spec) prescribe none. */
   evidenceName(frame: OpenFrame): string {
-    if (frame.type !== "wave" && frame.type !== "branch") return "";
+    if (TargetFaceTable.isDocShape(frame.type)) return "";
     if (frame.phase !== "implement" && frame.phase !== "fix") return "";
     const key = frame.type === "wave" ? (frame.params.tasks ?? "") : "";
     const line = key === "" ? this.prefix(frame) : `${this.prefix(frame)}-${key}`;
@@ -117,7 +117,7 @@ export class RoundNaming {
    *  wave/branch lines). The round-token decision keys on the FAMILY OP (implement is
    *  the round-less family), so the report and its log can never diverge. */
   #stem(op: OpType, type: TargetType, params: HandoffParams): string {
-    if (type !== "wave" && type !== "branch") return `${type}-${op}-${params.round}`;
+    if (TargetFaceTable.isDocShape(type)) return `${type}-${op}-${params.round}`;
     const family = type === "wave" ? `tasks-${params.tasks ?? ""}` : "branch";
     const suffix = op === "implement" ? "" : `-${params.round}`;
     return `${family}-${op}${suffix}`;

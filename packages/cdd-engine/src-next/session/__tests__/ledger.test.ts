@@ -75,9 +75,53 @@ describe("progress — the fixed key set", () => {
       const data = ledger.emptyProgress();
       data.waves.push(ledger.entryFor("1"));
       data.waves.push(ledger.entryFor("1,2"));
-      expect(ledger.rowFor(data, "1")).toEqual({ wave: "1" }); // single-task wave ≡ the task row
-      expect(ledger.rowFor(data, "1,2")).toEqual({ wave: "1,2" });
-      expect(ledger.rowFor(data, "missing")).toBeUndefined();
+      expect(Ledger.rowFor(data, "1")).toEqual({ wave: "1" }); // single-task wave ≡ the task row
+      expect(Ledger.rowFor(data, "1,2")).toEqual({ wave: "1,2" });
+      expect(Ledger.rowFor(data, "missing")).toBeUndefined();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a retired `spec`-keyed row reads as the phase-spec line (`spec` ⇒ `phase-spec`, never rewritten)", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // A row recorded under the retired spelling — the legacy round-shape map included.
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "spec", rounds: { review: [1, 2, 3], fix: [2, 3] } }],
+      });
+      expect(ledger.roundCount("phase-spec", "review")).toBe(3);
+      expect(ledger.roundCount("phase-spec", "fix")).toBe(2);
+      expect(ledger.roundRecorded("phase-spec", "review", 3)).toBe(true);
+      expect(ledger.completedCycles("phase-spec", "review")).toEqual([1, 2, 3]);
+      // The alias is read-time only: a new round lands on that SAME row and the stored
+      // key stays byte-frozen (history is never rewritten).
+      ledger.recordRound("phase-spec", { op: "review" });
+      expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec"]);
+      const reload = new Ledger(workspace, new ConfigLoader());
+      expect(reload.roundCount("phase-spec", "review")).toBe(4);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a round recorded under the retired carrier name still closes the phase-spec line", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // The pre-unification facts of a closed phase-spec line: the row under `spec`,
+      // the review carrier under `spec-review-1.json` — a clean review (zero findings).
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "spec", rounds: { review: [1] } }],
+      });
+      workspace.writeJson("spec-review-1.json", { artifacts: {} });
+      expect(ledger.lineClosed("phase-spec", "phase-spec")).toBe(true);
+      expect(ledger.lineRoute("phase-spec", "phase-spec")).toBeNull();
+      // The alias never mints a carrier: the retired name is read, never written.
+      expect(ledger.handoffName("review", "phase-spec", { round: 1 })).toBe(
+        "phase-spec-review-1.json",
+      );
     } finally {
       cleanup();
     }

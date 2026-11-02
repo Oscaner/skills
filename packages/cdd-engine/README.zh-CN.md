@@ -29,12 +29,12 @@ npm install @oscaner-skills/cdd-engine
 | 子命令 | 用法 | 用途 |
 |--------|------|------|
 | `implement` | `cdd implement --tasks=<n> [--plan=<path>]` | 运行任务 implement 阶段 |
-| `review` | `cdd review --type=<task\|branch\|spec\|plan>` | 运行评审——task、branch、spec 或 plan |
-| `fix` | `cdd fix --type=<task\|branch\|spec\|plan>` | 修复评审发现——task、branch、spec 或 plan |
+| `review` | `cdd review --type=<wave\|branch\|phase-spec\|overall\|plan\|single-spec>` | 运行评审——wave、branch、phase-spec、overall、plan 或 single-spec |
+| `fix` | `cdd fix --type=<wave\|branch\|phase-spec\|overall\|plan\|single-spec>` | 修复评审发现——wave、branch、phase-spec、overall、plan 或 single-spec |
 | `base` | `cdd base set\|get` | 读写 `base.json` 产物（单一 CDD `--plan` 目标） |
 | `schema` | `cdd schema get <type>` | 打印 canonical 文档结构 schema（发现型、零执法） |
 | `issue` | `cdd issue render` | 依据 stdin 发现渲染聚合 issue 正文（纯渲染、零执法） |
-| `board` | `cdd board --plan <path> / --spec <path>` | 渲染入口文档的进度板（overall/spec/plan/wave/branch；纯读、零执法） |
+| `board` | `cdd board --plan <path> / --spec <path>` | 渲染入口文档的进度板（overall/phase-spec/plan/wave/branch；纯读、零执法） |
 | `init` | `cdd init --harness=<claude\|pi> [--update]` | 为指定 harness 安装或更新 kairos 插件集（与 repo 无关，三流继承） |
 
 用 `cdd <command> --help` 查看某命令的完整选项列表（例如 `cdd review --tasks` / `--spec` / `--plan` / `--round`）。

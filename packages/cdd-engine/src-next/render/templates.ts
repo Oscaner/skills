@@ -345,14 +345,16 @@ export const SEVERITY_RUBRIC =
 
 /** The slot values per review variant — the ONE registry the filled fragment reads.
  *  `{artifact}` = the reviewed product's name; `{audience}` = the subject whose
- *  expectation judges the artifact's silence. */
+ *  expectation judges the artifact's silence. The two new document shapes reuse the
+ *  phase-spec word pair: the charter's own artifact wording rides its criteria-body
+ *  seam (the `REVIEWS.overall` row), never a second vocabulary minted here. */
 export const REVIEW_VARIANT_TEXT: Readonly<
   Record<TargetType, { readonly artifact: string; readonly audience: string }>
 > = {
   wave: { artifact: "artifact", audience: "user" },
   branch: { artifact: "artifact", audience: "user" },
   "phase-spec": { artifact: "spec", audience: "downstream author" },
-  overall: { artifact: "charter", audience: "program author" },
+  overall: { artifact: "spec", audience: "downstream author" },
   plan: { artifact: "plan", audience: "implementer" },
   "single-spec": { artifact: "spec", audience: "downstream author" },
 };
@@ -369,9 +371,10 @@ export const reviewGuideOf = (type: TargetType): string => {
 };
 
 /** The document shapes' narrative criteria body — the phase-spec line's URC + its
- *  program-conformance clause, shared by every non-plan document shape (the charter
- *  and the standalone single-spec read the same narrative criteria; the filled
- *  rubric's artifact word is what differs). */
+ *  program-conformance clause, the ONE body the three document-shape rows reuse (the
+ *  filled rubric is what differs per row). The charter's own criteria body is its row's
+ *  seam (`REVIEWS.overall`), which replaces this body wholesale — never a second
+ *  narrative copy alongside it. */
 const docNarrativeAxes = (guide: string): string =>
   `Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at \`INPUT_OVERALL\` (the charter its \`program:\` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. ${guide}`;
 
@@ -394,6 +397,8 @@ export const REVIEWS = {
   },
   overall: {
     lensEnum: ["completeness", "consistency", "clarity"],
+    // Reuses the document-shape narrative until the charter's criteria body lands on
+    // this row (the charter-criteria seam owns the replacement, never a parallel copy).
     axesGuide: docNarrativeAxes(reviewGuideOf("overall")),
   },
   plan: {

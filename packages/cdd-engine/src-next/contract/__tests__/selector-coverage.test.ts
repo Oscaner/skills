@@ -135,9 +135,9 @@ describe("selector coverage — every declared element carries a resolvable loca
       "docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md",
     );
     const tree = fixtures.tree("overall");
-    expect(tree.tableUnder("## Phase inventory")?.body.length).toBe(21);
-    expect(tree.tableUnder("## Issue inventory")?.body.length).toBe(21);
-    expect(tree.tableUnder("## Change history")?.body.length).toBe(99);
+    expect(tree.tableUnder("## Phase inventory")?.body.length).toBe(22);
+    expect(tree.tableUnder("## Issue inventory")?.body.length).toBe(22);
+    expect(tree.tableUnder("## Change history")?.body.length).toBe(103);
     expect(tree.tableUnder("## File paths")?.body.length).toBe(3);
     const findings = new Contract().validate({
       docKey: "overall",

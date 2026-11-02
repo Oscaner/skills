@@ -18,6 +18,7 @@
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
+import { FixDispositions } from "../contract/completion-criterion.ts";
 import { GitClient } from "../infra/git.ts";
 import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
 import type { RepoRoot } from "../infra/root.ts";
@@ -474,10 +475,7 @@ export class CliLifecycle {
       // v1.9: INPUT_REVIEWS is fix/docs-fix only — the source review's handoff
       // carrier; a review writes its own draft (INPUT_REVIEWS === OUTPUT_HANDOFF
       // would be a short-circuit).
-      INPUT_REVIEWS:
-        op === "fix"
-          ? this.#rel(this.#reviews ?? scene.ledger.handoffPath("review", frame.type, params))
-          : "",
+      INPUT_REVIEWS: op === "fix" ? this.#rel(this.#reviewsPath(frame)) : "",
       // The kind-named judged-doc anchors (the semantic retirement of the generic
       // INPUT_DOC): the plan/branch lines carry the plan document (INPUT_PLAN — the
       // doc path on a plan line, the plan path on a branch line, whose review/fix
@@ -732,11 +730,40 @@ export class CliLifecycle {
         }
       }
     }
+    const carrier = this.#materialize(frame, plane, draft, status, reason);
     return {
       status,
       findings: plane === "judge" ? schema.findingsOf(findings) : undefined,
-      carrier: this.#materialize(frame, plane, draft, status, reason),
+      carrier,
+      dispositionsSummary: this.#dispositionsSummary(frame, plane, carrier),
     };
+  }
+
+  /** The fix round's ONE summary line (design spec §3.4) — computed from the PERSISTED
+   *  carrier's dispositions and the REQUESTING carrier's input set (the same pair the
+   *  fix criterion judges), never stored: no record field, no carrier key, no capsule
+   *  key, no second read face. Undefined off the fix face and when the input set
+   *  cannot be located or read (the round fails on grounds the line cannot describe). */
+  #dispositionsSummary(
+    frame: OpenFrame,
+    plane: CarrierPlane,
+    carrier: Record<string, unknown>,
+  ): string | undefined {
+    if (plane !== "work" || this.#opOf(frame) !== "fix") return undefined;
+    const requester = FixDispositions.requesterInputOf(
+      this.#scene.ledger.recordsOf(frame.key),
+      frame.round,
+      this.#reviewsPath(frame),
+    );
+    if (requester.kind !== "read") return undefined;
+    return new FixDispositions().summaryOf(carrier, requester.summaries);
+  }
+
+  /** The requesting review carrier's path — the fix round's `--reviews` input, or the
+   *  ledger's canonical review handoff path when the route carried none (the ONE
+   *  resolution the round context's INPUT_REVIEWS and the disposition summary share). */
+  #reviewsPath(frame: OpenFrame): string {
+    return this.#reviews ?? this.#scene.ledger.handoffPath("review", frame.type, frame.params);
   }
 
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the
@@ -885,6 +912,9 @@ export class CliLifecycle {
     const draftNotes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
     if (plane === "work") {
       carrier.status = status;
+      // The fix dispositions ride the carrier VERBATIM (the child's declaration, never
+      // an engine rewrite) — the schema pinned the slot's object shape.
+      if (draft.dispositions !== undefined) carrier.dispositions = draft.dispositions;
       // The evidence-contract override (work-plane wave / branch rounds only — the
       // evidence gate reads that round's evidence file) rewrites the persisted
       // conclusion to BLOCKED.

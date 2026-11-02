@@ -163,6 +163,11 @@ export interface CheckedWords {
   planLayersUnavailable: string;
 }
 
+/** The fix round's disposition summary line — the ONE template of the deliberate
+ *  stdout byte addition (design spec §3.4): `FixDispositions` fills the two count
+ *  slots from the persisted dispositions and the requesting carrier's input set. */
+export const FIX_DISPOSITIONS_SUMMARY = "fixed {fixed} · rejected {rejected}";
+
 /** The capsule word rows — every word the capsule face emits, one table. */
 export const CAPSULE_WORDS = {
   /** The capsule emit key rows — one declaration per status class (the summary

@@ -60,11 +60,12 @@ const FINDING: SchemaNode = {
   },
 };
 
-/** The ONE carrier declaration — the four child-writable slots. DECLARATION ORDER IS
+/** The ONE carrier declaration — the five child-writable slots. DECLARATION ORDER IS
  *  PROJECTION ORDER: `#writable(plane)` filters these properties in this order, so the
- *  judge fence keeps its `findings` · `artifacts` · `notes` byte order. Reserved
- *  fields (phase · tasks) are NOT declared and are DROPPED by materialize (never a
- *  BLOCK) — the engine stays the carrier's single author.
+ *  judge fence keeps its `findings` · `artifacts` · `notes` byte order and the work
+ *  fence appends `dispositions` after its long-standing three. Reserved fields
+ *  (phase · tasks) are NOT declared and are DROPPED by materialize (never a BLOCK) —
+ *  the engine stays the carrier's single author.
  *  `as const` preserves the literal property keys — the `Carrier` type family below
  *  derives its field set FROM these declared keys. */
 const CARRIER = {
@@ -74,22 +75,29 @@ const CARRIER = {
     findings: { type: "array", items: FINDING },
     artifacts: { type: "object" },
     notes: { type: "array", items: { type: "string" } },
+    // The fix round's per-finding dispositions (design spec §3.4) — a WORK carrier
+    // slot whose keys are the requesting review carrier's finding summaries verbatim.
+    // Declared as a bare object: the key set is data (the summaries), never a fixed
+    // property table — the fix criterion judges the value shape, the schema the slot's.
+    dispositions: { type: "object" },
   },
 } as const satisfies SchemaNode;
 
 /** The plane → writable slot table — the ONE projection source (`#writable`) the
  *  prompt fence, the read-back validator and the dropped-key walk all read. The
- *  shared slots (artifacts · notes) are both-plane by design; the exclusive slot IS
- *  the plane (`status` for work, `findings` for judge). */
+ *  shared slots (artifacts · notes) are both-plane by design; the exclusive slots ARE
+ *  the plane (`status` + `dispositions` for work, `findings` for judge). */
 const PLANE_SLOTS: Readonly<Record<CarrierPlane, readonly string[]>> = {
-  work: ["status", "artifacts", "notes"],
+  work: ["status", "artifacts", "notes", "dispositions"],
   judge: ["findings", "artifacts", "notes"],
 };
 
 /** The plane → required slot table. The work plane's round conclusion is the child's
  *  own declared status, so status + artifacts are the required core. The judge plane
  *  requires the findings its conclusion rolls up from; artifacts / notes ride as
- *  declared optional slots (a review writes only what it has). */
+ *  declared optional slots (a review writes only what it has). `dispositions` stays
+ *  OPTIONAL on the work plane: its absence is the fix criterion's own hard refusal,
+ *  so `implement` is never asked to declare it. */
 const PLANE_REQUIRED: Readonly<Record<CarrierPlane, readonly string[]>> = {
   work: ["status", "artifacts"],
   judge: ["findings"],
@@ -128,6 +136,7 @@ export type CarrierValue = {
   status: "APPROVED" | "BLOCKED";
   artifacts: Record<string, string>;
   notes: string[];
+  dispositions: Record<string, { status: "fixed" | "rejected"; reason?: string }>;
   findings: {
     severity: "blocker" | "warn" | "nit";
     lens: string;

@@ -1770,6 +1770,65 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("fix — the disposition summary line follows the capsule, exactly once", async () => {
+    // The production dispatch (a stub child that plants the fix write-back): the
+    // round's one summary line is computed from the persisted dispositions and the
+    // REQUESTSIDE carrier's input set — after the capsule, never inside it.
+    const { command, io, repoRoot, cleanup } = fixture({ sync: new FixDraftRunner() });
+    // The CliLifecycle detects the host from the process env — name a pi session so
+    // the production dispatch path runs (restored below).
+    const envBefore = process.env.AI_AGENT;
+    process.env.AI_AGENT = "pi";
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.recordRound(1, { op: "implement" });
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1 },
+        {
+          tasks: [1],
+          phase: "review",
+          findings: [{ severity: "blocker", summary: "drift" }],
+        },
+      );
+      ledger.recordRound(1, { op: "review" });
+      const code = await command.runArgv(["fix", "--type", "wave", "--tasks", "1", "--plan", plan]);
+      expect(code).toBe(0);
+      const capsuleAt = io.stdoutText.indexOf("status: APPROVED · blocker: 0 · handoff: ");
+      const lines = io.stdoutText.match(/fixed \d+ · rejected \d+/g) ?? [];
+      expect(lines).toEqual(["fixed 1 · rejected 0"]);
+      expect(io.stdoutText.indexOf("fixed 1 · rejected 0")).toBeGreaterThan(capsuleAt);
+      // The line is a face fact, never a stored one: the carrier carries the
+      // dispositions just as the child wrote them, no summary key.
+      const carrier = readJson<Record<string, unknown>>(
+        path.join(workspace.path, "tasks-1-fix-1.json"),
+      );
+      expect(carrier.dispositions).toEqual({ drift: { status: "fixed" } });
+      expect(carrier).not.toHaveProperty("dispositionsSummary");
+    } finally {
+      if (envBefore === undefined) delete process.env.AI_AGENT;
+      else process.env.AI_AGENT = envBefore;
+      cleanup();
+    }
+  });
+
+  it("a non-fix round prints no disposition summary line", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
+      expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
+      expect(io.stdoutText).not.toMatch(/fixed \d+ · rejected \d+/);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("fix — the branch re-review next: carries the workspace --plan and re-dispatches through the runtime gate (find #8/#9)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
       dispatch: async (frame: OpenFrame) =>
@@ -6473,6 +6532,35 @@ const P21_EVIDENCE = {
   warnings_count: 0,
   typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
 };
+
+/** The dispatch that plants the fix round's write-back — a work carrier carrying one
+ *  `dispositions` entry plus the evidence file (a fix wave round is a work-plane wave
+ *  round). The draft lands in the workspace directory under `run.cwd` (the repo
+ *  root), so the fixture needs no pre-wired path. */
+class FixDraftRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    const workspace = path.join(run.cwd, ".kairos", "cdd", "p3");
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(
+      path.join(workspace, "tasks-1-fix-1.json"),
+      JSON.stringify({
+        status: "APPROVED",
+        artifacts: {},
+        dispositions: { drift: { status: "fixed" } },
+      }),
+      "utf8",
+    );
+    writeFileSync(
+      path.join(workspace, "tasks-1-test-evidence.json"),
+      JSON.stringify(P21_EVIDENCE),
+      "utf8",
+    );
+    return { code: 0, stdout: "", stderr: "", termination: null };
+  }
+}
 
 /** The dispatch that reports the in-flight record's bytes at the spawn instant and
  *  plants the implement round's write-back (draft + evidence). */

@@ -1,8 +1,10 @@
 // packages/cdd-engine/src-next/contract/completion-criterion.ts
-// P22 T4 — "is this round done?" as two criteria behind ONE verb-keyed registry
+// P22 T4/T6 — "is this round done?" as criteria behind ONE verb-keyed registry
 // (design spec §8 · the completion-criterion row): `implement` is done when the
 // group's baseline carries at least one commit, `review` (branch review included —
-// branch-review folds to the review op) is done when its carrier is schema-shaped.
+// branch-review folds to the review op) is done when its carrier is schema-shaped,
+// and `fix` is done when its work carrier's `dispositions` cover every finding of
+// the REQUESTING review carrier (design spec §3.4).
 //
 // The criterion judges a CompletionContext the dispatch side assembles (Task 7):
 // the round's record, its ledger row, the row's in-register records, the persisted
@@ -19,6 +21,8 @@
 // Module-level exports are types / the declared registry / the class — zero
 // behavior-carrying bare functions.
 
+import { readFileSync } from "node:fs";
+import { FIX_DISPOSITIONS_SUMMARY } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
 import type { OpType, ProgressRow, RoundRecord, RoundViolation } from "../session/ledger.ts";
 
@@ -45,10 +49,14 @@ export interface CompletionContext {
 }
 
 /** One criterion's verdict — done or one graded violation (hard fails the round,
- *  soft is bookkeeping only). `violation` is null exactly when `fulfilled` is true. */
+ *  soft is bookkeeping only). `violation` is null exactly when `fulfilled` is true.
+ *  `observations` is the SOFT family (design spec §3.3): hygiene facts a completed
+ *  round may carry — they never gate the round (a soft row is not a failure), and a
+ *  completed round with no observation carries an empty list. */
 export interface CompletionVerdict {
   readonly fulfilled: boolean;
   readonly violation: RoundViolation | null;
+  readonly observations?: readonly RoundViolation[];
 }
 
 /** The completion criterion contract — one verb's "is this round done?" answer. */
@@ -123,11 +131,243 @@ export class JudgeCarrier implements CompletionCriterion {
   }
 }
 
-/** The verb-keyed criterion registry — PARTIAL on purpose: a verb is registered when
- *  its criterion lands (branch review folds to `review`, so it needs no own row). */
+/** The zero-commit observation of a fix round — a NEW literal (the engine had no
+ *  reusable zero-commit warning; `commitsSince` fed the crash postmortem alone).
+ *  Bookkeeping: a fix round is judged by its carrier, never by its diff. */
+export const FIX_DISPOSITIONS_ZERO_COMMIT =
+  "the fix round committed nothing since its group baseline — the dispositions judged the round, not the diff";
+
+/** The empty-input observation — an empty requesting carrier is legal input, so it
+ *  is reported, never refused. */
+export const FIX_DISPOSITIONS_EMPTY_INPUT =
+  "the requesting review carrier carries no findings — the fix round owes no dispositions";
+
+/** The legacy-record observation — no requesting carrier is locatable, so the
+ *  judgment is skipped visibly (reading the gap as an empty input set would restore
+ *  an always-passing criterion). */
+export const FIX_DISPOSITIONS_UNRECORDED =
+  "the requesting review round records no carrierPath and the route carried no --reviews path — the disposition judgment is skipped";
+
+/** One read of the requesting review carrier — the input set's provenance. A path
+ *  neither recorded nor handed over is `unrecorded` (legacy); a path that yields no
+ *  readable findings array is `unreadable` (hard — "the evidence is gone" is not
+ *  "there were no findings"). */
+export type RequesterRead =
+  | { readonly kind: "unrecorded" }
+  | { readonly kind: "unreadable"; readonly path: string }
+  | { readonly kind: "read"; readonly path: string; readonly summaries: readonly string[] };
+
+/**
+ * FixDispositions — the fix criterion: the round is done when its work carrier's
+ * `dispositions` cover every finding of the requesting review carrier (design spec
+ * §3.4). The input set is the REQUESTING side's carrier — the same-key same-cycle
+ * completed review record's `carrierPath`, falling back to the fix route's
+ * `--reviews` path; the round's own `carrierPath` is never the input set.
+ *
+ * Keys are the findings' `summary` strings VERBATIM (no normalization, no
+ * fingerprint); repeated summaries collapse to one key (one defect owes one
+ * disposition). Values are `{ status: "fixed" | "rejected", reason?: string }` —
+ * `rejected` without a reason is a shape violation, hard like the missing slot.
+ *
+ * The fix round's zero-commit fact is an OBSERVATION, not a refusal: this criterion
+ * answers from the carrier, never from the diff.
+ */
+export class FixDispositions implements CompletionCriterion {
+  /** The requesting carrier's path — the completed review record of the SAME key (the
+   *  row's records are already the key's) and the SAME cycle as the fix round; a
+   *  legacy record without `carrierPath` falls back to the route's `--reviews` path. */
+  static requesterPathOf(
+    records: readonly RoundRecord[],
+    cycle: number,
+    reviewsPath: string | null,
+  ): string | null {
+    for (const record of records) {
+      if (record.op !== "review" || record.cycle !== cycle) continue;
+      if (!record.verdict.targetAction) continue;
+      return record.carrierPath ?? reviewsPath;
+    }
+    return reviewsPath;
+  }
+
+  /** Read the requesting carrier's input set (the summaries, deduped in order). The
+   *  read is synchronous on purpose: the input is ONE small carrier, and the dispatch
+   *  face already reads its small inputs synchronously at the same seam. */
+  static requesterInputOf(
+    records: readonly RoundRecord[],
+    cycle: number,
+    reviewsPath: string | null,
+  ): RequesterRead {
+    const path = FixDispositions.requesterPathOf(records, cycle, reviewsPath);
+    if (path === null) return { kind: "unrecorded" };
+    try {
+      const carrier = JSON.parse(readFileSync(path, "utf8")) as unknown;
+      const findings = (carrier as { findings?: unknown } | null)?.findings;
+      if (!Array.isArray(findings)) return { kind: "unreadable", path };
+      return { kind: "read", path, summaries: FixDispositions.#summariesOf(findings) };
+    } catch {
+      return { kind: "unreadable", path };
+    }
+  }
+
+  /** The carrier's `dispositions` map — null when the slot is absent or not an
+   *  object (the criterion's own shape refusal; the schema only pins the slot type). */
+  static dispositionsOf(carrier: unknown): Record<string, unknown> | null {
+    if (carrier === null || typeof carrier !== "object" || Array.isArray(carrier)) return null;
+    const dispositions = (carrier as Record<string, unknown>).dispositions;
+    if (dispositions === null || typeof dispositions !== "object" || Array.isArray(dispositions))
+      return null;
+    return dispositions as Record<string, unknown>;
+  }
+
+  async judge(ctx: CompletionContext): Promise<CompletionVerdict> {
+    const own = this.#ownRefusal(ctx);
+    if (own !== null) return own;
+    const requester = FixDispositions.requesterInputOf(
+      ctx.records,
+      ctx.record.cycle,
+      ctx.reviewsPath,
+    );
+    if (requester.kind === "unrecorded")
+      return this.#complete([this.#soft(FIX_DISPOSITIONS_UNRECORDED)]);
+    if (requester.kind === "unreadable") {
+      return this.#hard(
+        `the requesting review carrier is missing or unreadable at ${requester.path}`,
+      );
+    }
+    const dispositions = FixDispositions.dispositionsOf(ctx.carrier) ?? {};
+    const refusal = FixDispositions.#keyRefusal(dispositions, requester.summaries);
+    if (refusal !== null) return this.#hard(refusal);
+    const shape = FixDispositions.#valueRefusal(dispositions);
+    if (shape !== null) return this.#hard(shape);
+    return this.#complete(await this.#observationsOf(ctx, requester.summaries));
+  }
+
+  /** The round's one summary line — `fixed N · rejected M`, counted over the SAME
+   *  pair the judgment reads (dispositions ∩ the input set). A face fact: never
+   *  stored, never a capsule key, never a second read face. */
+  summaryOf(carrier: unknown, input: readonly string[]): string {
+    const wanted = new Set(input);
+    let fixed = 0;
+    let rejected = 0;
+    for (const [summary, value] of Object.entries(FixDispositions.dispositionsOf(carrier) ?? {})) {
+      if (!wanted.has(summary)) continue;
+      const status = (value as { status?: unknown } | null)?.status;
+      if (status === "fixed") fixed += 1;
+      else if (status === "rejected") rejected += 1;
+    }
+    return FIX_DISPOSITIONS_SUMMARY.replace("{fixed}", String(fixed)).replace(
+      "{rejected}",
+      String(rejected),
+    );
+  }
+
+  /** The round's own carrier refusals (① missing carrier, ② missing slot). */
+  #ownRefusal(ctx: CompletionContext): CompletionVerdict | null {
+    const carrier = ctx.carrier;
+    if (carrier === null || typeof carrier !== "object" || Array.isArray(carrier)) {
+      const at = ctx.record.carrierPath;
+      return this.#hard(
+        at === null
+          ? "the fix round persisted no work carrier and recorded no carrier path"
+          : `the fix round persisted no work carrier at ${at}`,
+      );
+    }
+    if (FixDispositions.dispositionsOf(carrier) === null) {
+      return this.#hard(
+        "the fix carrier declares no `dispositions` object — every requesting finding owes a fixed/rejected row",
+      );
+    }
+    return null;
+  }
+
+  /** The key-set refusals (③ missing entries, ④ unknown entries) — exact matching,
+   *  one defect one disposition. */
+  static #keyRefusal(
+    dispositions: Readonly<Record<string, unknown>>,
+    input: readonly string[],
+  ): string | null {
+    const wanted = new Set(input);
+    const unknown = Object.keys(dispositions).filter((key) => !wanted.has(key));
+    if (unknown.length > 0) {
+      return `disposition(s) for finding(s) the requesting carrier never raised: ${unknown.join(", ")}`;
+    }
+    const missing = input.filter((summary) => !Object.hasOwn(dispositions, summary));
+    if (missing.length > 0) {
+      return `no disposition for finding(s) of the requesting carrier: ${missing.join(", ")}`;
+    }
+    return null;
+  }
+
+  /** The value-shape refusal (⑥ `rejected` without a reason; a status outside the
+   *  two declared words is the same shape family). */
+  static #valueRefusal(dispositions: Readonly<Record<string, unknown>>): string | null {
+    for (const [summary, value] of Object.entries(dispositions)) {
+      const status = (value as { status?: unknown } | null)?.status;
+      if (status !== "fixed" && status !== "rejected") {
+        return `disposition "${summary}" declares status ${JSON.stringify(status)} — use \`fixed\` or \`rejected\``;
+      }
+      const reason = (value as { reason?: unknown } | null)?.reason;
+      if (status === "rejected" && (typeof reason !== "string" || reason.trim().length === 0)) {
+        return `disposition "${summary}" is rejected without a reason — a rejection must state why`;
+      }
+    }
+    return null;
+  }
+
+  /** The two soft observations of a completed fix round — the empty input set and the
+   *  zero-commit round (both bookkeeping, neither a gate). */
+  async #observationsOf(
+    ctx: CompletionContext,
+    input: readonly string[],
+  ): Promise<readonly RoundViolation[]> {
+    const observations: RoundViolation[] = [];
+    if (input.length === 0) observations.push(this.#soft(FIX_DISPOSITIONS_EMPTY_INPUT));
+    const base = CommitsSinceGroupBase.groupBaseOf(ctx.records);
+    if (base !== null) {
+      const commits = await ctx.git.commitsSince(ctx.repoRoot, base);
+      if (commits.length === 0) observations.push(this.#soft(FIX_DISPOSITIONS_ZERO_COMMIT));
+    }
+    return observations;
+  }
+
+  /** The deduped input set — repeated summaries collapse to one key. */
+  static #summariesOf(findings: readonly unknown[]): readonly string[] {
+    const summaries: string[] = [];
+    const seen = new Set<string>();
+    for (const finding of findings) {
+      const summary = (finding as { summary?: unknown } | null)?.summary;
+      if (typeof summary !== "string" || seen.has(summary)) continue;
+      seen.add(summary);
+      summaries.push(summary);
+    }
+    return summaries;
+  }
+
+  #complete(observations: readonly RoundViolation[]): CompletionVerdict {
+    return { fulfilled: true, violation: null, observations };
+  }
+
+  /** The hard verdict of this criterion — the ledger's existing `contract-violation`
+   *  cause, never a new violation enum row. */
+  #hard(message: string): CompletionVerdict {
+    return { fulfilled: false, violation: { grade: "hard", cause: "contract-violation", message } };
+  }
+
+  /** The soft row — bookkeeping only; `contract-violation` is the only cause
+   *  vocabulary the ledger carries today. */
+  #soft(message: string): RoundViolation {
+    return { grade: "soft", cause: "contract-violation", message };
+  }
+}
+
+/** The verb-keyed criterion registry — one criterion per op verb. A verb is
+ *  registered when its criterion lands (branch review folds to `review`, so it needs
+ *  no own row); an UNREGISTERED verb still throws at lookup, so a future verb can
+ *  never silently read as done. */
 export const COMPLETION_CRITERIA: Readonly<Partial<Record<OpType, CompletionCriterion>>> = {
   implement: new CommitsSinceGroupBase(),
   review: new JudgeCarrier(),
+  fix: new FixDispositions(),
 };
 
 /** The registry's lookup face — an unregistered verb throws at lookup, so a dispatch

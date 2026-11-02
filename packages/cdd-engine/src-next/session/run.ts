@@ -120,6 +120,11 @@ export interface DispatchOutcome {
   /** The dispatch-after working-tree observation — the round record's `treeClean`
    *  (an observation, never a gate). */
   treeClean?: boolean;
+  /** The fix round's ONE summary line (`fixed N · rejected M`, design spec §3.4) —
+   *  computed at the round's finish from the persisted dispositions and the
+   *  requesting carrier's input set. A face fact only: it is printed after the
+   *  capsule and never stored on the record or the carrier. Absent off the fix face. */
+  dispositionsSummary?: string;
 }
 
 /** The dispatch instruction — runs one round's actual work (the harness call in
@@ -674,14 +679,17 @@ export class Lifecycle {
    *  emitted only when that record exists (a no-host BLOCKED writes none). The
    *  dispatch-ready `next:` literal rides the frame's own RouteTarget identity
    *  (type + id — the v1.25 combination point: frame.type + params.tasks + route
-   *  are all present here). */
+   *  are all present here). The fix round's disposition summary is the ONE trailing
+   *  line AFTER the capsule (design spec §3.4 — a separate stdout line, never a
+   *  capsule key). */
   #capsuleLines(
     frame: OpenFrame,
     outcome: DispatchOutcome,
     route: Route | null,
     targetLineOpen?: boolean,
   ): readonly string[] {
-    if (this.#capsule === null) return [];
+    const summary = outcome.dispositionsSummary === undefined ? [] : [outcome.dispositionsSummary];
+    if (this.#capsule === null) return summary;
     const op = this.#opOf(frame.phase);
     const failure = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     const naming = this.#ledger.naming();
@@ -697,15 +705,18 @@ export class Lifecycle {
       crash !== null
         ? naming.crashPath(frame)
         : this.#ledger.handoffPath(op, frame.type, frame.params);
-    return this.#capsule.emit(
-      outcome.status,
-      String(blockers),
-      handoff,
-      route,
-      this.#routeTarget(frame),
-      crash !== null,
-      targetLineOpen,
-    );
+    return [
+      ...this.#capsule.emit(
+        outcome.status,
+        String(blockers),
+        handoff,
+        route,
+        this.#routeTarget(frame),
+        crash !== null,
+        targetLineOpen,
+      ),
+      ...summary,
+    ];
   }
 
   /** The frame's RouteTarget — the dispatch-ready literal's target identity (the

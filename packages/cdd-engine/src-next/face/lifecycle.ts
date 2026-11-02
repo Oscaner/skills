@@ -42,6 +42,7 @@ import {
 } from "../session/ledger.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
+import { PlanStructure } from "../session/run.ts";
 import { DISPATCH, HOSTS, HostDetect, type HostId, type HostReferenceTable, REFS } from "./host.ts";
 import {
   type ChildOutcome,
@@ -218,14 +219,20 @@ export class CliLifecycle {
    *  `CDD_BLOCKED` line names the round's own log file (§4.1). A soft entry is
    *  bookkeeping only — it never touches the exit code. */
   async #dispatch(frame: OpenFrame): Promise<DispatchOutcome> {
-    const drafted = await this.#runDispatch(frame);
+    // The round's STRUCTURE baseline (design spec §7.3): taken HERE — after the
+    // pre-flight gate (which ran before the step was handed over) and before the
+    // spawn — so the close-time comparison judges this round's OWN plan edit only.
+    // It rides the frame and nowhere else (no progress key, no carrier slot, no
+    // in-flight field).
+    const carried: OpenFrame = { ...frame, structure: PlanStructure.of(this.#scene.planPath) };
+    const drafted = await this.#runDispatch(carried);
     const terminal = drafted.status === "BLOCKED" || drafted.status === "TIMEOUT";
     const observed: DraftedOutcome = {
       ...drafted,
       dispatchBase: this.#dispatchBase,
       treeClean: await this.#git.isClean(this.#scene.workspace.root.repoRoot),
     };
-    const judged = await this.#verdictOf(frame, observed);
+    const judged = await this.#verdictOf(carried, observed);
     // The death faces author their own entry AND emit their own line (`#reject`), so
     // only a hard verdict concluded HERE adds the shared line.
     if (judged.violations.some((violation) => violation.grade === "hard") && !terminal) {
@@ -286,6 +293,7 @@ export class CliLifecycle {
       ...(outcome.violations ?? []),
       ...(await this.#criterionViolations(frame, outcome)),
       ...this.#evidenceViolations(frame),
+      ...this.#structureViolations(frame),
     ];
     return {
       verdict: {
@@ -368,6 +376,25 @@ export class CliLifecycle {
     return [
       this.#hard(
         `the test evidence at ${evidencePath} violates the contract: ${problems.join("; ")}`,
+      ),
+    ];
+  }
+
+  /** The round's OWN plan-structure edit as a graded entry (design spec §7.3) — the
+   *  close-time comparison against the dispatch-time snapshot: a changed Task-id set
+   *  or a changed `DependsOn` set is a HARD entry under the existing
+   *  `contract-violation` cause (zero new violation enum), because the structure face
+   *  belongs to the orchestrator and lands as its own commit. A content-only amendment
+   *  differs on neither face and judges nothing; an absent baseline (no plan fact / an
+   *  unreadable document) judges nothing either. */
+  #structureViolations(frame: OpenFrame): readonly RoundViolation[] {
+    const baseline = frame.structure ?? null;
+    if (baseline === null) return [];
+    const current = PlanStructure.of(this.#scene.planPath);
+    if (current === null || !current.differsFrom(baseline)) return [];
+    return [
+      this.#hard(
+        "the plan's structure changed inside this round (the Task id set or a task's DependsOn set) — the structure face belongs to the orchestrator and lands as its own commit",
       ),
     ];
   }

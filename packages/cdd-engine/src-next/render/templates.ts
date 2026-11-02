@@ -137,6 +137,18 @@ const FRAME_ITEMS: readonly string[] = [
 const EVIDENCE_ITEM =
   "**Evidence gate:** write the test-evidence file at the prescribed `OUTPUT_EVIDENCE` path per the `test-evidence` schema in `## Handoff schema` — `command`/`exit_code`/`passed`/`warnings_count` + `typecheck` (`command`/`exit_code`/`passed`); `behavior_change` when applicable. Update the round's report after verification. Missing or schema-violating evidence → the engine rewrites the draft to `status: BLOCKED`. Reports, test output, diffs: files only, never the return.";
 
+/** The work plane's ONE capability declaration (design spec §7.3) — a dispatched
+ *  implement / fix round may amend the spec and plan CONTENT face, because the
+ *  document authoring right is a prompt slot, never a carrier slot (it is not in
+ *  `CARRIER`, not in `PLANE_REQUIRED`, not in the frame and not in `progress.json` —
+ *  the gate judges the result, never the declaration). The structure face (the plan's
+ *  Task id set and any task's `DependsOn` set) belongs to the orchestrator: the engine
+ *  snapshots both faces at dispatch and compares them at the close, so a
+ *  round-internal structure edit judges the round hard. The review variants declare
+ *  nothing — a review is read-only. */
+const WORK_CAPABILITY =
+  "**Capability — `capability: may.amend = content`:** this round may amend the spec's and the plan's content face (facts, file lists, steps, acceptance detail, cited line numbers). The structure face — the plan's Task id set and any task's `DependsOn` set — belongs to the orchestrator: the engine snapshots it at dispatch and compares it at the close, so changing it inside this round judges the round hard.";
+
 /** The discipline-clause cells shared by every shell (the `{{> cl:…}}` partials
  *  resolve from the single clause container — the same bytes, one per shell). */
 const LICENSE_ITEMS: readonly string[] = [
@@ -166,6 +178,7 @@ const IMPLEMENT_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
+  WORK_CAPABILITY,
   `**implement:** read \`INPUT_WAVE_BRIEF\` (the complete plan mirror — every \`### Task N:\` of the wave + the plan's \`## Constraints\` section, fresh-extracted at dispatch). \`WAVE\` = this round's wave (the task list); implement ALL tasks of the wave, never a subset. \`CONFIRMED_SEAMS\` in the brief → apply as-is; else propose test boundaries in the report, then invoke **\`${DISPATCH.implement}\`**. Write the handoff draft at \`OUTPUT_HANDOFF\` per \`## Handoff schema\` BEFORE the return block: \`status\` (APPROVED once applied, else BLOCKED + the reason in \`notes\`) and \`artifacts\` (the prescribed \`OUTPUT_REPORT\`/\`OUTPUT_EVIDENCE\` paths from the round context — the \`{family}-{key}-\` canonical names, zero free naming).`,
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
@@ -185,6 +198,7 @@ const FIX_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
+  WORK_CAPABILITY,
   ...FIX_TYPED_INSTRUCTIONS,
   "**fix:** read `INPUT_REVIEWS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_PLAN` on the plan/branch lines — the plan document; `INPUT_SPEC` on the spec line — the spec document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_REVIEWS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   '**Dispositions:** every requested finding needs a disposition keyed by its own summary text (verbatim), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` — a missing or mis-keyed disposition fails the round.',
@@ -515,7 +529,11 @@ export const CLAUSES = {
     "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 17
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 18
+ *  adds the work plane's ONE capability declaration (`capability: may.amend =
+ *  content` — an implement / fix round may amend the spec's and plan's content face,
+ *  never the structure face the engine snapshots and judges at the close; the review
+ *  variants declare nothing). $version 17
  *  adds the no-secret-access discipline clause (issue #390 — a dispatched child holds
  *  the harness's full authority, so the fixed prefix bar it from user credentials:
  *  keychain / credential files / token env vars; a missing credential is reported as
@@ -545,7 +563,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 17,
+  $version: 18,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

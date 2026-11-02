@@ -20,6 +20,7 @@
 
 import { readFileSync } from "node:fs";
 import { PlanDocType } from "../contract/doc.ts";
+import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
 import {
   type HandoffParams,
@@ -99,6 +100,89 @@ export interface OpenFrame {
    *  Allocated ONCE by the frame builder (`RoundNaming#attemptOf` over the row's
    *  records) and shared by the round record and the log name; absent reads 1. */
   attempt?: number;
+  /** The plan's STRUCTURE baseline of this round (design spec §7.3) — the dispatch-time
+   *  snapshot the close re-reads and compares. Held on the frame alone: it never lands
+   *  in `progress.json`, in the round carrier or in the in-flight record, and an absent
+   *  value (no plan fact) judges nothing. */
+  structure?: PlanStructure | null;
+}
+
+/**
+ * PlanStructure — one plan document's STRUCTURE face: the task-id set and each task's
+ * declared `DependsOn` set (design spec §7.3).
+ *
+ * It is a per-round DISPATCH baseline, not a stored fact: the lifecycle snapshots it
+ * right before the spawn and re-reads it at the round's close, so only the round's OWN
+ * structure edit is judged — a content-only amendment (facts, file lists, steps,
+ * acceptance detail, cited line numbers) stays legal. The judgment has ONE presentation
+ * face (the round's graded `violations`): no doc-contract rule row is registered for it,
+ * because the engine's single doc-contract evaluation point is the pre-dispatch gate.
+ */
+export class PlanStructure {
+  /** The registered task ids, ascending. */
+  readonly #taskIds: readonly number[];
+  /** Each task's declared dependency set, keyed by task id. */
+  readonly #dependsOn: ReadonlyMap<number, readonly number[]>;
+
+  private constructor(
+    taskIds: readonly number[],
+    dependsOn: ReadonlyMap<number, readonly number[]>,
+  ) {
+    this.#taskIds = taskIds;
+    this.#dependsOn = dependsOn;
+  }
+
+  /** Read a plan document's two structure faces. Null when there is no plan fact or the
+   *  document is unreadable — a present fact only, never a fabricated empty set (an
+   *  unreadable plan must not judge every round a contract violation). */
+  static of(planPath: string | null): PlanStructure | null {
+    if (planPath === null) return null;
+    try {
+      return PlanStructure.parse(readFileSync(planPath, "utf8"));
+    } catch {
+      return null;
+    }
+  }
+
+  /** Parse one plan document into its structure face — the ONE task-block read face. */
+  static parse(content: string): PlanStructure {
+    const reader = new PlanTaskBlocksReader();
+    const blocks = reader.parse(content);
+    const dependsOn = new Map<number, readonly number[]>();
+    for (const block of blocks) dependsOn.set(block.id, reader.dependsOn(block));
+    const taskIds = blocks.map((block) => block.id).sort((left, right) => left - right);
+    return new PlanStructure(taskIds, dependsOn);
+  }
+
+  /** The task-id set, ascending. */
+  get taskIds(): readonly number[] {
+    return this.#taskIds;
+  }
+
+  /** One task's declared dependency set ([] when it declares none). */
+  dependsOnOf(taskId: number): readonly number[] {
+    return this.#dependsOn.get(taskId) ?? [];
+  }
+
+  /** Whether the two snapshots differ on either structure face — SET equality over the
+   *  task-id set and over every task's dependency set (a task added, removed or rewired
+   *  differs; a prose edit does not; declaration order is prose, the edge set is the
+   *  structure). */
+  differsFrom(other: PlanStructure): boolean {
+    if (this.#taskIds.length !== other.#taskIds.length) return true;
+    if (!this.#taskIds.every((id, index) => id === other.#taskIds[index])) return true;
+    return this.#taskIds.some(
+      (id) => !PlanStructure.#sameIds(this.dependsOnOf(id), other.dependsOnOf(id)),
+    );
+  }
+
+  /** Set equality of two id lists (order-insensitive). */
+  static #sameIds(left: readonly number[], right: readonly number[]): boolean {
+    if (left.length !== right.length) return false;
+    const sortedLeft = [...left].sort((a, b) => a - b);
+    const sortedRight = [...right].sort((a, b) => a - b);
+    return sortedLeft.every((id, index) => id === sortedRight[index]);
+  }
 }
 
 /** One round's dispatch outcome — what the lifecycle records and routes on. */

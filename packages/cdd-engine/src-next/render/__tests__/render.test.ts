@@ -379,8 +379,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(plan).toContain("**Single agent:**");
     // the template contract's version tracks the fixed-prefix text (P16/D60: 12 → 13;
     // the sync-completion rewrite: 13 → 14; the handoff-carrier plane unification: 15 → 16;
-    // issue #390 — the no-secret-access clause: 16 → 17)
-    expect(TEMPLATE_PROMPT.$version).toBe(17);
+    // issue #390 — the no-secret-access clause: 16 → 17; P22 §7.3 — the work plane's
+    // capability declaration: 17 → 18)
+    expect(TEMPLATE_PROMPT.$version).toBe(18);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)
@@ -394,6 +395,18 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(wave).not.toContain("- `INPUT_PLAN`");
     expect(wave).not.toContain("- `INPUT_SPEC`");
     expect(wave).not.toContain("- `INPUT_OVERALL`");
+  });
+
+  it("P22 §7.3 — the work-plane capability line rides implement / fix only (a review declares nothing)", () => {
+    // The document-amendment right is a PROMPT slot, never a carrier slot: the engine
+    // judges the result (the structure-face snapshot), never the declaration.
+    const line = "capability: may.amend = content";
+    expect(TEMPLATE_PROMPT.modes.implement.shell.join("\n")).toContain(line);
+    expect(TEMPLATE_PROMPT.modes.fix.shell.join("\n")).toContain(line);
+    expect(TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n")).not.toContain(line);
+    for (const variant of Object.values(TEMPLATE_PROMPT.reviews)) {
+      expect(variant.shell.join("\n")).not.toContain(line);
+    }
   });
 
   it("P14 — the sync-completion clause lands identically on implement / review / fix shells (single LICENSE_ITEMS source)", () => {

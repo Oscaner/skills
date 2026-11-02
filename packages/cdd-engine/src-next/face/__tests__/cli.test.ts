@@ -1889,6 +1889,155 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  // P22 §7.3 — the round's OWN plan-structure edit is judged at the close. The
+  // baseline is the dispatch-time snapshot (taken after the pre-flight gate, before
+  // the spawn), so a content-only amendment stays legal while a Task id / DependsOn
+  // change is a HARD contract violation.
+
+  it("P22 §7.3 — a round that adds a Task id or rewires a DependsOn set is judged hard", async () => {
+    const appendTask = (content: string): string =>
+      `${content}\n### Task 3: appended\n- **Objective**: objective\n- **Files**: \`a.ts\`\n- **Consumes**: x\n- **Produces**: y\n- **Steps**:\n  - step — checkable: green\n- **Acceptance**: ok\n- **DependsOn**: 1\n`;
+    const rewireDependsOn = (content: string): string =>
+      content.replace("- **DependsOn**: 1", "- **DependsOn**: none");
+    for (const [face, rewrite] of [
+      ["the Task id set", appendTask],
+      ["a task's DependsOn set", rewireDependsOn],
+    ] as const) {
+      const runner = new PlanStructureRunner();
+      const { command, io, repoRoot, cleanup } = fixture({ sync: runner });
+      const envBefore = process.env.AI_AGENT;
+      process.env.AI_AGENT = "pi";
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot, 2);
+        runner.planPath = plan;
+        runner.rewrite = rewrite;
+        const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+        const ledger = new Ledger(workspace, new ConfigLoader());
+        ledger.recordRound(1, { op: "implement" });
+        ledger.persistHandoff(
+          "review",
+          "wave",
+          { tasks: "1", round: 1 },
+          { tasks: [1], phase: "review", findings: [{ severity: "blocker", summary: "drift" }] },
+        );
+        ledger.recordRound(1, { op: "review" });
+
+        io.stderrText = "";
+        const code = await command.runArgv([
+          "fix",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+        ]);
+        // the round is HARD: a non-zero exit and the named CDD_BLOCKED reason
+        expect(code, `${face} change should be hard`).toBe(1);
+        expect(io.stderrText).toContain(
+          "CDD_BLOCKED: the plan's structure changed inside this round",
+        );
+        const progress = readJson<{
+          waves: {
+            wave: string;
+            rounds?: {
+              op: string;
+              verdict?: { targetAction: boolean };
+              violations?: { grade: string; message: string }[];
+            }[];
+          }[];
+        }>(path.join(workspace.path, "progress.json"));
+        const fix = progress.waves
+          .find((row) => row.wave === "1")
+          ?.rounds?.find((record) => record.op === "fix");
+        expect(fix?.verdict?.targetAction).toBe(false);
+        expect(
+          fix?.violations?.some(
+            (violation) => violation.grade === "hard" && violation.message.includes("structure"),
+          ),
+        ).toBe(true);
+        // the snapshot lives on the frame ALONE — it never reaches a persisted face
+        const rawProgress = readFileSync(path.join(workspace.path, "progress.json"), "utf8");
+        expect(rawProgress).not.toContain('"structure"');
+        expect(rawProgress).not.toContain("dependsOn");
+        const carrier = readFileSync(path.join(workspace.path, "tasks-1-fix-1.json"), "utf8");
+        expect(carrier).not.toContain("dependsOn");
+        expect(carrier).not.toContain('"structure"');
+        // the dispatched work-plane prompt declares the amendment capability
+        expect(runner.prompt).toContain("capability: may.amend = content");
+        // the judgment registers NO doc-contract rule row (§7.3): the engine's single
+        // rule-evaluation point is the pre-dispatch gate, so a close-time rule row
+        // would only ever render a never-evaluated skip — the round's violations are
+        // the one presentation face
+        const rulesSource = readFileSync(
+          new URL("../../contract/rules.ts", import.meta.url),
+          "utf8",
+        );
+        expect(rulesSource).not.toContain("plan-structure-frozen");
+        expect(rulesSource).not.toContain("skipped (no structure snapshot)");
+      } finally {
+        if (envBefore === undefined) delete process.env.AI_AGENT;
+        else process.env.AI_AGENT = envBefore;
+        cleanup();
+      }
+    }
+  });
+
+  it("P22 §7.3 — a content-only amendment inside the round is not a structure change", async () => {
+    const runner = new PlanStructureRunner();
+    const { command, repoRoot, cleanup } = fixture({ sync: runner });
+    const envBefore = process.env.AI_AGENT;
+    process.env.AI_AGENT = "pi";
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot, 2);
+      runner.planPath = plan;
+      // the child amends the plan's CONTENT face (the Constraints prose + a step) —
+      // this is the amendment right §7.3 grants to the dispatched round
+      runner.rewrite = (content) =>
+        content
+          .replace("- delta", "- delta (amended)")
+          .replace("  - step — checkable: green", "  - step — checkable: green (amended)");
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.recordRound(1, { op: "implement" });
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1 },
+        { tasks: [1], phase: "review", findings: [{ severity: "blocker", summary: "drift" }] },
+      );
+      ledger.recordRound(1, { op: "review" });
+
+      const code = await command.runArgv(["fix", "--type", "wave", "--tasks", "1", "--plan", plan]);
+      expect(code).toBe(0);
+      const progress = readJson<{
+        waves: {
+          wave: string;
+          rounds?: {
+            op: string;
+            verdict?: { targetAction: boolean };
+            violations?: { grade: string }[];
+          }[];
+        }[];
+      }>(path.join(workspace.path, "progress.json"));
+      const fix = progress.waves
+        .find((row) => row.wave === "1")
+        ?.rounds?.find((record) => record.op === "fix");
+      expect(fix?.verdict?.targetAction).toBe(true);
+      // no HARD entry — the structure judgment stayed silent (a soft observation about
+      // an empty diff is a different fact and rides untouched)
+      expect((fix?.violations ?? []).some((violation) => violation.grade === "hard")).toBe(false);
+      // the child's content amendment landed (the premise of the pin is real)
+      expect(readFileSync(plan, "utf8")).toContain("- delta (amended)");
+    } finally {
+      if (envBefore === undefined) delete process.env.AI_AGENT;
+      else process.env.AI_AGENT = envBefore;
+      cleanup();
+    }
+  });
+
   it("fix — the branch re-review next: carries the workspace --plan and re-dispatches through the runtime gate (find #8/#9)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
       dispatch: async (frame: OpenFrame) =>
@@ -7038,6 +7187,43 @@ class FixDraftRunner implements ChildRunner {
       JSON.stringify(P21_EVIDENCE),
       "utf8",
     );
+    return { code: 0, stdout: "", stderr: "", termination: null };
+  }
+}
+
+/** The dispatch that plants a fix round's write-back and may rewrite the PLAN's
+ *  structure face while it runs — the per-round structure snapshot's probe (P22 §7.3). */
+class PlanStructureRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+  /** The plan document the child edits while it runs. */
+  planPath: string | null = null;
+  /** The plan rewrite the child applies (null = it edits the plan's structure not at all). */
+  rewrite: ((content: string) => string) | null = null;
+  /** The last child prompt — the work-plane capability declaration's probe. */
+  prompt = "";
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    this.prompt = run.args.join(" ");
+    const workspace = path.join(run.cwd, ".kairos", "cdd", "p3");
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(
+      path.join(workspace, "tasks-1-fix-1.json"),
+      JSON.stringify({
+        status: "APPROVED",
+        artifacts: {},
+        dispositions: { drift: { status: "fixed" } },
+      }),
+      "utf8",
+    );
+    writeFileSync(
+      path.join(workspace, "tasks-1-test-evidence.json"),
+      JSON.stringify(P21_EVIDENCE),
+      "utf8",
+    );
+    if (this.planPath !== null && this.rewrite !== null) {
+      writeFileSync(this.planPath, this.rewrite(readFileSync(this.planPath, "utf8")), "utf8");
+    }
     return { code: 0, stdout: "", stderr: "", termination: null };
   }
 }

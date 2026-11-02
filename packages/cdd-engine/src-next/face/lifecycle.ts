@@ -57,6 +57,12 @@ import { FIX_DISPOSITIONS_SUMMARY, Words } from "./words.ts";
  *  channel; the child's Return is prose, never the round's content). */
 const STDOUT_TAIL_MAX = 40;
 
+/** The structure-face change message — the round's graded entry when the plan's Task id
+ *  set or a task's `DependsOn` set moved inside the round (design spec §7.3). The
+ *  vanished / unreadable document cases name their own damage instead. */
+const STRUCTURE_CHANGED =
+  "the plan's structure changed inside this round (the Task id set or a task's DependsOn set) — the structure face belongs to the orchestrator and lands as its own commit";
+
 // ---------------------------------------------------------------------------
 // the stable seams — the shared faces the composition root + the lifecycle ride
 // (declared here, re-exported by face/cli.ts so the public surface never drifts)
@@ -224,7 +230,11 @@ export class CliLifecycle {
     // spawn — so the close-time comparison judges this round's OWN plan edit only.
     // It rides the frame and nowhere else (no progress key, no carrier slot, no
     // in-flight field).
-    const carried: OpenFrame = { ...frame, structure: PlanStructure.of(this.#scene.planPath) };
+    const baseline = PlanStructure.of(this.#scene.planPath);
+    const carried: OpenFrame = {
+      ...frame,
+      structure: baseline.kind === "ok" ? baseline.structure : null,
+    };
     const drafted = await this.#runDispatch(carried);
     const terminal = drafted.status === "BLOCKED" || drafted.status === "TIMEOUT";
     const observed: DraftedOutcome = {
@@ -385,16 +395,27 @@ export class CliLifecycle {
    *  or a changed `DependsOn` set is a HARD entry under the existing
    *  `contract-violation` cause (zero new violation enum), because the structure face
    *  belongs to the orchestrator and lands as its own commit. A content-only amendment
-   *  differs on neither face and judges nothing; an absent baseline (no plan fact / an
-   *  unreadable document) judges nothing either. */
+   *  differs on neither face and judges nothing.
+   *
+   *  The two sides are judged apart. An ABSENT baseline (no plan fact, or a document
+   *  already unreadable at dispatch) judges nothing — there is nothing to compare
+   *  against. A PRESENT baseline with a missing / unreadable current side is the
+   *  round's own damage: the document the dispatch read is gone or damaged inside this
+   *  round, which is the structure face's most extreme edit and is judged hard rather
+   *  than skipped. */
   #structureViolations(frame: OpenFrame): readonly RoundViolation[] {
     const baseline = frame.structure ?? null;
     if (baseline === null) return [];
     const current = PlanStructure.of(this.#scene.planPath);
-    if (current === null || !current.differsFrom(baseline)) return [];
+    if (current.kind === "ok") {
+      if (!current.structure.differsFrom(baseline)) return [];
+      return [this.#hard(STRUCTURE_CHANGED)];
+    }
     return [
       this.#hard(
-        "the plan's structure changed inside this round (the Task id set or a task's DependsOn set) — the structure face belongs to the orchestrator and lands as its own commit",
+        current.kind === "absent"
+          ? "the plan document disappeared inside this round — the structure face belongs to the orchestrator and lands as its own commit"
+          : `the plan document became unreadable inside this round (${current.reason}) — the structure face belongs to the orchestrator and lands as its own commit`,
       ),
     ];
   }

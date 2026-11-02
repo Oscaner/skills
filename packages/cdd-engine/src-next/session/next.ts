@@ -216,11 +216,6 @@ export interface NextHopInput {
   readonly docClassOf: (target: RouteTarget) => DocClassVerdict;
 }
 
-/** The closure-side route kinds — the kinds whose `to` (and never a `hop`) carries the
- *  next step: `done` derives the station from the doc class, `handoff` carries its
- *  own entry. */
-const CLOSURE_KINDS: ReadonlySet<Route["kind"]> = new Set(["done", "handoff"]);
-
 /** The review-cycle soft-cap suggestion (the C5-0 suggestion face — user adjudicates). */
 export const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
 
@@ -338,11 +333,12 @@ export class NextStepRouter {
   nextHop(input: NextHopInput): NextHop {
     const route = input.route;
     const verdict = this.#docClassVerdictOf(input);
-    const closure = route === null || CLOSURE_KINDS.has(route.kind);
     return {
       face: input.face,
       target: input.target,
-      hop: closure ? null : this.hopOf(route!, input.face),
+      // No route (the failure face) is no hop; otherwise `hopOf` is the ONE answer to
+      // "which route kinds are hops" — the closure kinds are not enumerated twice.
+      hop: route === null ? null : this.hopOf(route, input.face),
       to: this.#entryOf(route, verdict),
       reason: this.#reasonOf(input, route, verdict),
       route,

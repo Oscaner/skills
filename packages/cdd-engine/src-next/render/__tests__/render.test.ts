@@ -380,8 +380,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // the template contract's version tracks the fixed-prefix text (P16/D60: 12 → 13;
     // the sync-completion rewrite: 13 → 14; the handoff-carrier plane unification: 15 → 16;
     // issue #390 — the no-secret-access clause: 16 → 17; P22 §7.3 — the work plane's
-    // capability declaration: 17 → 18)
-    expect(TEMPLATE_PROMPT.$version).toBe(18);
+    // capability declaration: 17 → 18; the docs-fix row's capability declaration
+    // (the fix face's spec / plan dispatch): 18 → 19)
+    expect(TEMPLATE_PROMPT.$version).toBe(19);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)
@@ -397,13 +398,15 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(wave).not.toContain("- `INPUT_OVERALL`");
   });
 
-  it("P22 §7.3 — the work-plane capability line rides implement / fix only (a review declares nothing)", () => {
+  it("P22 §7.3 — the work-plane capability line rides every work row (a review declares nothing)", () => {
     // The document-amendment right is a PROMPT slot, never a carrier slot: the engine
-    // judges the result (the structure-face snapshot), never the declaration.
+    // judges the result (the structure-face snapshot), never the declaration. The
+    // docs-fix row carries it too — the fix face's spec / plan dispatch IS docs-fix,
+    // so the authorization must reach that row (and the structure-face ban with it).
     const line = "capability: may.amend = content";
     expect(TEMPLATE_PROMPT.modes.implement.shell.join("\n")).toContain(line);
     expect(TEMPLATE_PROMPT.modes.fix.shell.join("\n")).toContain(line);
-    expect(TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n")).not.toContain(line);
+    expect(TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n")).toContain(line);
     for (const variant of Object.values(TEMPLATE_PROMPT.reviews)) {
       expect(variant.shell.join("\n")).not.toContain(line);
     }

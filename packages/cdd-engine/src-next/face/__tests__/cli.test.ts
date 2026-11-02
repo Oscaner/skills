@@ -1984,6 +1984,78 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("P22 §7.3 — a plan document deleted or damaged inside the round is hard (a present baseline judges the missing current side)", async () => {
+    for (const [face, mutate, expected] of [
+      ["deleted", (planPath: string) => rmSync(planPath), "disappeared inside this round"],
+      [
+        "unreadable",
+        (planPath: string) => {
+          rmSync(planPath);
+          mkdirSync(planPath);
+        },
+        "became unreadable inside this round",
+      ],
+    ] as const) {
+      const runner = new PlanStructureRunner();
+      const { command, io, repoRoot, cleanup } = fixture({ sync: runner });
+      const envBefore = process.env.AI_AGENT;
+      process.env.AI_AGENT = "pi";
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot, 2);
+        runner.planPath = plan;
+        runner.mutate = mutate;
+        const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+        const ledger = new Ledger(workspace, new ConfigLoader());
+        ledger.recordRound(1, { op: "implement" });
+        ledger.persistHandoff(
+          "review",
+          "wave",
+          { tasks: "1", round: 1 },
+          { tasks: [1], phase: "review", findings: [{ severity: "blocker", summary: "drift" }] },
+        );
+        ledger.recordRound(1, { op: "review" });
+
+        io.stderrText = "";
+        const code = await command.runArgv([
+          "fix",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+        ]);
+        expect(code, `${face} plan document should be hard`).toBe(1);
+        expect(io.stderrText).toContain(`CDD_BLOCKED: the plan document ${expected}`);
+        const progress = readJson<{
+          waves: {
+            wave: string;
+            rounds?: {
+              op: string;
+              verdict?: { targetAction: boolean };
+              violations?: { grade: string; message: string }[];
+            }[];
+          }[];
+        }>(path.join(workspace.path, "progress.json"));
+        const fix = progress.waves
+          .find((row) => row.wave === "1")
+          ?.rounds?.find((record) => record.op === "fix");
+        expect(fix?.verdict?.targetAction).toBe(false);
+        expect(
+          fix?.violations?.some(
+            (violation) =>
+              violation.grade === "hard" && violation.message.includes("structure face"),
+          ),
+        ).toBe(true);
+      } finally {
+        if (envBefore === undefined) delete process.env.AI_AGENT;
+        else process.env.AI_AGENT = envBefore;
+        cleanup();
+      }
+    }
+  });
+
   it("P22 §7.3 — a content-only amendment inside the round is not a structure change", async () => {
     const runner = new PlanStructureRunner();
     const { command, repoRoot, cleanup } = fixture({ sync: runner });
@@ -7199,6 +7271,9 @@ class PlanStructureRunner implements ChildRunner {
   planPath: string | null = null;
   /** The plan rewrite the child applies (null = it edits the plan's structure not at all). */
   rewrite: ((content: string) => string) | null = null;
+  /** A plan-document mutation applied after the rewrite (null = none) — the close-time
+   *  read's damaged-input probe (deletion / replacement). */
+  mutate: ((planPath: string) => void) | null = null;
   /** The last child prompt — the work-plane capability declaration's probe. */
   prompt = "";
 
@@ -7224,6 +7299,7 @@ class PlanStructureRunner implements ChildRunner {
     if (this.planPath !== null && this.rewrite !== null) {
       writeFileSync(this.planPath, this.rewrite(readFileSync(this.planPath, "utf8")), "utf8");
     }
+    if (this.planPath !== null && this.mutate !== null) this.mutate(this.planPath);
     return { code: 0, stdout: "", stderr: "", termination: null };
   }
 }

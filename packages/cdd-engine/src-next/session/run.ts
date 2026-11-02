@@ -107,6 +107,14 @@ export interface OpenFrame {
   structure?: PlanStructure | null;
 }
 
+/** One plan-structure read's outcome — the three cases stay distinct so a caller never
+ *  confuses a line with no plan document (`absent`) with a document that exists but
+ *  could not be read (`unreadable`, carrying its reason). */
+export type PlanStructureRead =
+  | { readonly kind: "absent" }
+  | { readonly kind: "ok"; readonly structure: PlanStructure }
+  | { readonly kind: "unreadable"; readonly reason: string };
+
 /**
  * PlanStructure — one plan document's STRUCTURE face: the task-id set and each task's
  * declared `DependsOn` set (design spec §7.3).
@@ -132,15 +140,20 @@ export class PlanStructure {
     this.#dependsOn = dependsOn;
   }
 
-  /** Read a plan document's two structure faces. Null when there is no plan fact or the
-   *  document is unreadable — a present fact only, never a fabricated empty set (an
-   *  unreadable plan must not judge every round a contract violation). */
-  static of(planPath: string | null): PlanStructure | null {
-    if (planPath === null) return null;
+  /** Read a plan document's two structure faces. `absent` when there is no plan fact
+   *  (no path, or a path whose document does not exist); `unreadable` when the path
+   *  exists but the document cannot be read (the reason rides the read result); `ok`
+   *  with the snapshot otherwise. The three cases stay apart so a caller can tell "there
+   *  is no plan" from "the plan is damaged" — the two carry different judgments. */
+  static of(planPath: string | null): PlanStructureRead {
+    if (planPath === null) return { kind: "absent" };
     try {
-      return PlanStructure.parse(readFileSync(planPath, "utf8"));
-    } catch {
-      return null;
+      return { kind: "ok", structure: PlanStructure.parse(readFileSync(planPath, "utf8")) };
+    } catch (error) {
+      // A path with no document is the absent case, never a read failure; every other
+      // error is the damaged-document case, its reason carried into the caller's message.
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "absent" };
+      return { kind: "unreadable", reason: error instanceof Error ? error.message : String(error) };
     }
   }
 

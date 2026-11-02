@@ -19,6 +19,7 @@ import { ARGV_CHANNEL } from "../../face/declare.ts";
 import { DISPATCH, HOSTS, REFS } from "../../face/host.ts";
 import { REVIEWS, TEMPLATE_PROMPT } from "../../render/templates.ts";
 import { HandoffSchema } from "../../session/handoff-schema.ts";
+import { MAX_TASKS_PER_WAVE } from "../../session/next.ts";
 import { ConfigLoader } from "../config.ts";
 import { GitClient } from "../git.ts";
 import { ENGINE_RUNTIME, HANDOFF_FAMILIES } from "../runtime.ts";
@@ -32,10 +33,13 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
     // single-homed at the CLI declaration surface (face/declare.ts §2.4 — moved
     // from this plane by the T2 declaration convergence), with the flag-level
     // `help` row the commander Options face reads (Task 4).
+    // The `--tasks` help row states the wave-width ceiling by READING the ONE
+    // declaration (`contract/wave-width.ts`), so the help text cannot drift from
+    // the gate that enforces it — the value is never a second hand-typed number.
     expect(ARGV_CHANNEL.tasks).toEqual({
       flag: "--tasks",
       type: "int-list",
-      help: "the task ids of the wave group (comma-separated)",
+      help: `the task ids of the wave group (comma-separated) — at most ${MAX_TASKS_PER_WAVE} tasks per wave`,
     });
     expect(ARGV_CHANNEL.type.values).toEqual(["wave", "branch", "spec", "plan"]);
     expect(ARGV_CHANNEL.help).toEqual({

@@ -23,6 +23,7 @@
 import { InvalidArgumentError } from "commander";
 
 import type { DocKey } from "../contract/project.ts";
+import { MAX_TASKS_PER_WAVE } from "../contract/wave-width.ts";
 import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
 import { HOST_IDS } from "./host.ts";
 
@@ -62,7 +63,7 @@ export const ARGV_CHANNEL = {
   tasks: {
     flag: "--tasks",
     type: "int-list",
-    help: "the task ids of the wave group (comma-separated)",
+    help: `the task ids of the wave group (comma-separated) — at most ${MAX_TASKS_PER_WAVE} tasks per wave`,
   },
   type: {
     flag: "--type",
@@ -219,7 +220,7 @@ export interface CliCommandSpec {
 export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "implement",
-    description: "run the task implement phase",
+    description: `run the task implement phase — at most ${MAX_TASKS_PER_WAVE} tasks per wave`,
     example: `cdd implement --tasks 1,2 --plan ${ENGINE_DOC_ROOTS.plans}/p3.md`,
     keys: [
       { key: "tasks", required: true },

@@ -60,7 +60,7 @@ import type { RouteTarget } from "../../session/faces.ts";
 import { InFlight, type InFlightRecord } from "../../session/inflight.ts";
 import { type CrashRecord, Ledger, type SampleRecord } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
-import { FIX_READBACK_SUFFIX, NextStepRouter } from "../../session/next.ts";
+import { FIX_READBACK_SUFFIX, MAX_TASKS_PER_WAVE, NextStepRouter } from "../../session/next.ts";
 import type { PreFlightVerdict } from "../../session/preflight.ts";
 import { PreFlight } from "../../session/preflight.ts";
 import type { DispatchStep, OpenFrame } from "../../session/run.ts";
@@ -1302,6 +1302,44 @@ describe("the help/--help display face — the per-command render", () => {
         /program flags \(accepted at any position\): --dry-run \(implement\/review\/fix\/init\)/g;
       expect(io.stdoutText.match(legend) ?? []).toHaveLength(8);
       expect(io.stdoutText).not.toContain("· --help / -h");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("P22 T13 — the consumer help face carries the P22 surface", () => {
+  /** Normalize the whitespace runs — commander wraps a long row onto a continuation
+   *  line with the table padding, so the phrases read through single spaces, never a
+   *  wrapped byte literal. */
+  const norm = (text: string): string => text.replace(/\s+/g, " ");
+
+  it("no help face introduces `--verbose` — the board redesign rides no new flag (§5.3)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      const faces = [["--help"], ...CLI_COMMANDS.map((spec) => [spec.name, "--help"])];
+      for (const argv of faces) {
+        io.stdoutText = "";
+        io.stderrText = "";
+        expect(await command.runArgv(argv), `cdd ${argv.join(" ")}`).toBe(0);
+        expect(norm(io.stdoutText + io.stderrText), `cdd ${argv.join(" ")}`).not.toContain(
+          "--verbose",
+        );
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("cdd implement --help — the wave-width ceiling is stated on the command face, not only the README (§6)", async () => {
+    const { command, io, cleanup } = fixture();
+    try {
+      expect(await command.runArgv(["implement", "--help"])).toBe(0);
+      // The ceiling phase is read off the ONE declaration (contract/wave-width.ts),
+      // so a limit change moves the help text with it (never a hand-typed second copy).
+      expect(norm(io.stdoutText)).toMatch(
+        new RegExp(`at most ${MAX_TASKS_PER_WAVE} tasks per wave`),
+      );
     } finally {
       cleanup();
     }

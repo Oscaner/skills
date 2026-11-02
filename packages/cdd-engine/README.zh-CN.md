@@ -1,6 +1,6 @@
 # @oscaner-skills/cdd-engine
 
-> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-10-21。
+> 🔗 **Mirror 同步声明**：本文件（`README.zh-CN.md`）是英文源 [README.md](README.md) 的同步中文 **mirror**——顶层章节集合逐条一致，节点按位置一一对应；本文为对外宣讲面的中文口径，语义以英文源为准。**同步时间戳**：2026-11-03。
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -38,6 +38,22 @@ npm install @oscaner-skills/cdd-engine
 | `init` | `cdd init --harness=<claude\|pi> [--update]` | 为指定 harness 安装或更新 kairos 插件集（与 repo 无关，三流继承） |
 
 用 `cdd <command> --help` 查看某命令的完整选项列表（例如 `cdd review --tasks` / `--spec` / `--plan` / `--round`）。
+
+### 每轮日志
+
+三个派发动词（`implement` / `review` / `fix`）一律把子进程的 stdout 与 stderr 落进该轮自己的 append 日志文件——`.kairos/cdd/<slug>/logs/<stem>.log`——且从不回显到引擎自身的输出面。文件名取该轮的 report stem，故重派带 `-a{attempt}` 后缀，绝不覆盖首次 attempt 的日志。`--dry-run` 不派发，故不落日志。一轮被拒或被杀时，stderr 上唯一那条 `CDD_BLOCKED` 行点名该轮的日志路径：诊断一轮只需打开一个文件，而不必从外部读 `ps`。
+
+### 波内任务上限
+
+一波至多三个任务（`MAX_TASKS_PER_WAVE`），形态是硬门，带两条具名拒绝：派生出的开放波宽于上限即 `wave-too-wide`，`--tasks` 点名多于上限即 `too-many-tasks`；两者都点名越界的任务 id。引擎绝不切块、截断或重排波次——修法在计划的形状：把多出的任务用 `DependsOn` 串成链，依赖层自然变窄。计划评审会把同一形状报成 `wave-width-at-most-three`，故缺陷在首次派发之前就可见。部分闭合的批次可能让派生 frontier 跨两层变宽；该形状吃到同一条 `wave-too-wide` 拒绝，而不是被悄悄裁剪。
+
+### fix 的逐条处置
+
+fix 轮逐条回答请求方 review 载体的 finding：每条 finding 一条处置，键为该 finding `summary` 的原文，值为 `{ "status": "fixed" | "rejected", "reason"?: "…" }`（`rejected` 必须带理由）。该映射走本轮 work 载体的 `dispositions` 槽。槽缺失、键集与输入集不等、键不属于输入集、请求方载体不可读、`rejected` 缺理由——任一即判该轮失败。请求方 review 载体除在其 `notes` 追加裁定行外保持只读；其 `findings` 永不改写。
+
+### 复审软上限
+
+软上限是预算，不是收敛机制：连续 `REVIEW_CYCLE_CAP` 个 blocker 周期之后，引擎不再建议下一跳，把该决定交给人裁（`soft-cap`）。收敛本身只由 findings 的档位决定——出现任一 blocker 就把线推回 fix 再重审，只有 warn/nit 则修完即收口、不进重审，零 findings 即通过。
 
 ## 迁移
 

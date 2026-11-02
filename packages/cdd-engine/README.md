@@ -37,6 +37,22 @@ Global option: `--dry-run` — preview the next dispatch step and its expected a
 
 Use `cdd <command> --help` for a command's full option list (for example `cdd review --tasks` / `--spec` / `--plan` / `--round`).
 
+### Round logs
+
+Every dispatched round (`implement` / `review` / `fix`) pipes the child's stdout and stderr into one append-only log file per round — `.kairos/cdd/<slug>/logs/<stem>.log` — and never echoes that output on the engine's own face. The name is the round's report stem, so a re-dispatch carries its `-a{attempt}` suffix and never overwrites the first attempt's log. `--dry-run` dispatches nothing, so it writes no log. When a round is refused or cut short, the single `CDD_BLOCKED` line on stderr names that round's log path: diagnosing one round is one file away instead of an outside `ps` read.
+
+### Wave width
+
+A wave carries at most three tasks (`MAX_TASKS_PER_WAVE`), enforced as a hard gate with two named refusals: `wave-too-wide` when the derived open wave is wider than the ceiling, and `too-many-tasks` when `--tasks` names more than the ceiling. Both name the offending task ids. The engine never splits, truncates or reorders a wave — the repair is the plan's shape: chain the extra tasks through `DependsOn` so the dependency layers narrow. A plan review reports the same shape as `wave-width-at-most-three`, so the defect is visible before the first dispatch. A partially closed batch can widen the derived frontier across two layers; that shape meets the same `wave-too-wide` refusal, never a silent trim.
+
+### Fix dispositions
+
+A fix round answers the requesting review handoff finding by finding: one disposition per finding, keyed by the finding's `summary` text verbatim and valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` (`rejected` requires the reason). The map rides the round's own work carrier under `dispositions`. A missing slot, a key set that differs from the input set, a key outside it, an unreadable review handoff, or a `rejected` without a reason fails the round. The review handoff stays read-only apart from appending a ruling line to its `notes`; its `findings` are never rewritten.
+
+### Review-cycle soft cap
+
+The soft cap is a budget, not a convergence rule: after `REVIEW_CYCLE_CAP` consecutive blocker cycles the engine stops suggesting the next hop and hands that decision to the user (`soft-cap`). Convergence itself is decided by the findings' grades alone — any blocker sends the line back to fix and then to a re-review, warn/nit-only findings are fixed and close without a re-review, and a review with zero findings approves.
+
 ## Migration
 
 Document identity is the front-matter `slug:` key. This retired the file-name-derived identity: a **major breaking** change with **zero dual-read** — the retired keys are simply not read, and the retired entry form is not accepted.

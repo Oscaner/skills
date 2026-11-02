@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 计划：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: plan
-version: v0.9
+version: v0.10
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 base: develop
@@ -473,7 +473,7 @@ Task 1–12 的全部产物。
 - [ ] **Step 5: 跑绿 + 提交** —— `env -u AI_AGENT pnpm run validate` → PASS（pin 整体重锚，断言不删）；`git commit -m "refactor(cdd-engine): one target vocabulary, from the CLI to the pipeline"` — checkable: `env -u AI_AGENT pnpm run validate` exit 0
 
 #### Acceptance
-`TargetType` 六值且 `--type spec` 零残留（值域 / 帮助 / 消费面字面三面，含散文枚举）；`--spec` 旗标保留且帮助文案为 the document under review；`cdd-spec-writer` 的 `--type` 令牌随会话目标变体（不钉死单一单词）；`overall` / `single-spec` 各有一条目标行与轮次线，且板的 spec 行按身份文档声明的 `doc-type:` 取词（`single-spec` 读自己的 `single-spec` 行、收档为 `done`，不借 `phase-spec` 的键与站）；退休 `spec` 行按工作区声明的线词解析（`phase-spec` / `overall` / `single-spec` 三形状同读，键不回写）；`PipelineKey` 由 `TargetType` 派生、`PIPELINE_NEXT` 以 `TargetType` 为键且两行 `done`；doc-contract 门对四类文档形状同判；`--type overall` 的轮次命名落 `overall-review-N`。
+**迁移一致性有六面，不是三面**（W8 五轮评审逐面逮到，全部入册）：① 值域与帮助；② 消费面字面（`--type=<…>` 形 · 散文枚举形 · skill 的固定词）；③ 行键（旧 `spec` 行按身份文档声明的 `doc-type:` 归一，只读不回写）；④ 载体文件名（canonical 不存在时返回退休孪生名并带进 hop，否则 fix 轮读一个从未铸出的路径）；⑤ 编号与写侧（声明词贯穿 `completedCycles` / `roundCount` / `roundRecorded` / `recordRound`，否则改名后第一轮分叉身份行）；⑥ 呈现面（板面 spec 面按声明派生，不许硬编码 `phase-spec`——否则刚铸的 `single-spec` 读不到）。`TargetType` 六值且 `--type spec` 零残留；`--spec` 旗标保留且帮助文案为 the document under review；`cdd-spec-writer` 的 `--type` 令牌随会话目标变体（不钉死单一单词）；`overall` / `single-spec` 各有一条目标行与轮次线，且板的 spec 行按身份文档声明的 `doc-type:` 取词（`single-spec` 读自己的 `single-spec` 行、收档为 `done`，不借 `phase-spec` 的键与站）；退休 `spec` 行按工作区声明的线词解析（`phase-spec` / `overall` / `single-spec` 三形状同读，键不回写）；`PipelineKey` 由 `TargetType` 派生、`PIPELINE_NEXT` 以 `TargetType` 为键且两行 `done`；doc-contract 门对四类文档形状同判；`--type overall` 的轮次命名落 `overall-review-N`。
 
 #### DependsOn
 13
@@ -512,6 +512,7 @@ Task 1–12 的全部产物。
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.10 | 2026-11-03 | **T14 验收补全（W8 五轮评审的取证）**：迁移一致性由「三面」改为**六面**——值域/帮助 · 消费面字面（含散文枚举与 skill 固定词）· 行键 · 载体文件名 · 编号与写侧 · 呈现面；每一面各对应一次 W8 的 blocker，并附失败形态，使同类改名不再以「别名只做一半」通过 | Oscaner M. · Claude（kairos:cdd-dev · acceptance backfill · 2026-11-03） |
 | v0.9 | 2026-11-03 | **T7 Files 面对齐落地（W4 wave review 的 nit）**：`contract/completion-criterion.ts`（判据输入形状）列入 Modify · `session/__tests__/ledger.test.ts` 列入 Test · `face/__tests__/termination.test.ts` 移出（该文件本波未被触，日志指路 pin 落在 `cli.test.ts`） | Oscaner M. · Claude（kairos:cdd-dev · Files backfill · 2026-11-03） |
 | v0.8 | 2026-11-03 | **T7 补 disposition 义务句（W3 现场取证）**：W3 的 fix 轮载体只有 `artifacts` / `status` / `notes`、**无 `dispositions`**，该轮却 APPROVED 并印出 `fixed 0 · rejected 0`——因为判据要等 T7 才接线。接线后这种载体必判 hard，而今日的 fix 提示并未要求逐条处置 ⇒ 会自锁。T7 增一步：fix 提示补「每条请求 finding 都要一条 disposition」，并补一条红 pin | Oscaner M. · Claude（kairos:cdd-dev · plan backfill · 2026-11-03） |
 | v0.7 | 2026-11-03 | **常量驻地修正（W2 wave review 的 nit · 编排器回填）**：`MAX_TASKS_PER_WAVE` 声明在 `contract/wave-width.ts`、由 `session/next.ts` re-export——brief 的三项要求（常量住 `session/next.ts` · 规则住 `contract/invariants.ts` · `contract/` 零 `../session` 导入）不可能同时按字面成立，实施轮的解是唯一自洽形。本地回填该行，代码不动 | Oscaner M. · Claude（kairos:cdd-dev · landing-row backfill · 2026-11-03） |

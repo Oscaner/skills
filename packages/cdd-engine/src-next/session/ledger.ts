@@ -142,17 +142,27 @@ export interface Round {
 // progress — the fixed key set
 // ---------------------------------------------------------------------------
 
-/** The fixed counter key set — the five engine-config failure-category counters, verbatim. */
+/** The fixed counter key set — the failure-category counters the engine still WRITES,
+ *  verbatim. */
 export const PROGRESS_COUNTER_ZERO = {
   timeoutCount: 0,
-  contractViolationCount: 0,
   engineSelfWrittenCount: 0,
   engineRecoveryCount: 0,
   harnessAbortCount: 0,
 } as const;
 
+/** The retired counter keys — still READABLE through `counterOf` (its callers name
+ *  them), never written: their value derives from the round records
+ *  (`Ledger#softViolations`), and a legacy scalar left on disk is ignored — zero
+ *  migration, zero rewrite of history. */
+export const PROGRESS_COUNTER_RETIRED = {
+  contractViolationCount: 0,
+} as const;
+
 /** The counter member keys — the derived literal union (never re-typed). */
-export type ProgressCounterKey = keyof typeof PROGRESS_COUNTER_ZERO;
+export type ProgressCounterKey =
+  | keyof typeof PROGRESS_COUNTER_ZERO
+  | keyof typeof PROGRESS_COUNTER_RETIRED;
 
 /** One progress row — keyed by the wave key string (T26 · the wave-unitary model:
  *  every dispatch is a wave — `--tasks 1` is the single-task wave `"1"`, `--tasks
@@ -183,7 +193,10 @@ export interface ProgressData {
   /** The `--plan` path recorded at first create. */
   plan?: string;
   timeoutCount: number;
-  contractViolationCount: number;
+  /** Retired by P22 (design spec §3.3): the soft-violation count derives from the
+   *  round records. A scalar persisted by an older engine is read and IGNORED — the
+   *  file keeps its bytes, the read face never republishes it. */
+  contractViolationCount?: number;
   engineSelfWrittenCount: number;
   engineRecoveryCount: number;
   harnessAbortCount: number;
@@ -945,9 +958,42 @@ export class Ledger {
     return carried === null || carried.status === undefined || carried.status !== "APPROVED";
   }
 
-  /** Read one counter — a failure-category count on record (0 when the file is missing). */
+  /** Read one counter — a failure-category count on record (0 when the file is
+   *  missing). The RETIRED key derives from the round records: the soft entries of
+   *  every row plus the one each dirty-tree observation derives (design spec §3.3) —
+   *  one read exit, `counterOf`, never a second stored scalar. */
   counterOf(key: ProgressCounterKey): number {
+    if (key === "contractViolationCount") return this.softViolations();
     return this.readProgress()?.[key] ?? 0;
+  }
+
+  /** One key's SOFT violation count — the row's soft entries across its records plus
+   *  the single row the `treeClean === false` observation derives (at most one per
+   *  round: the verdict field IS that fact, never a second copy of it). Hard entries
+   *  are the round's failure verdict (exit + `targetAction: false`), never a count. */
+  softViolationsOf(key: LedgerKey): number {
+    const data = this.readProgress();
+    if (data === null) return 0;
+    return this.#softOf(this.rowFor(data, key));
+  }
+
+  /** The session's SOFT violation count — the derived `contractViolationCount` read
+   *  face (`counterOf`'s retired key). A legacy scalar on disk is ignored. */
+  softViolations(): number {
+    const data = this.readProgress();
+    if (data === null) return 0;
+    return data.waves.reduce((total, row) => total + this.#softOf(row), 0);
+  }
+
+  /** One row's soft count — one derivation, both read faces above. */
+  #softOf(row: ProgressRow | undefined): number {
+    return RoundRecords.of(row).reduce(
+      (total, record) =>
+        total +
+        record.violations.filter((violation) => violation.grade === "soft").length +
+        (record.verdict.treeClean ? 0 : 1),
+      0,
+    );
   }
 
   /** Increment the timeout counter — the terminated-round write point (one TIMEOUT
@@ -957,16 +1003,6 @@ export class Ledger {
     data.timeoutCount += 1;
     this.writeProgress(data);
     return data.timeoutCount;
-  }
-
-  /** Increment the contract-violation counter — the read-back write point (one
-   *  `handoff-absent` or `contract-violation` crash lands, the count goes up by
-   *  one). The counter's only writer. */
-  incrementContractViolationCount(): number {
-    const data = this.readProgress() ?? this.emptyProgress();
-    data.contractViolationCount += 1;
-    this.writeProgress(data);
-    return data.contractViolationCount;
   }
 
   // -------------------------------------------------------------------------

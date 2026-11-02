@@ -271,6 +271,10 @@ export const CAPSULE_WORDS = {
   /** The terminated-round diagnostic suffix — appended to the one CDD_BLOCKED reason
    *  line of a non-promoted terminated round. Fill slots: {idleMs} / {verdict}. */
   terminationDetail: " — idleMs: {idleMs}, last sample verdict: {verdict}",
+  /** The round's soft-violation warning — a soft entry is bookkeeping only (design
+   *  spec §3.3): the round still concludes, and this line names what was booked.
+   *  Fill slot: {message}. */
+  softViolation: "round soft violation: {message}",
   /** The in-flight rows (P21 §2.2) — the held report, the takeover hint, the two
    *  corrupt shapes and the three canonical recovery sentences. */
   inFlight: {
@@ -505,6 +509,12 @@ export class Words implements WordLocaleFace {
     return CAPSULE_WORDS.terminationDetail
       .replace("{idleMs}", String(facts.idleMs))
       .replace("{verdict}", facts.verdict);
+  }
+
+  /** The soft-violation warning, rendered from the entry's message — the single
+   *  filler of its slot. */
+  softViolation(message: string): string {
+    return CAPSULE_WORDS.softViolation.replace("{message}", message);
   }
 
   /** The in-flight wording rows — the held report, the takeover hint, the two corrupt

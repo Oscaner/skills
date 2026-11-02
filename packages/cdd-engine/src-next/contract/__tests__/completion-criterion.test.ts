@@ -24,6 +24,7 @@ import {
   CompletionCriteria,
   FIX_DISPOSITIONS_ZERO_COMMIT,
   FixDispositions,
+  IMPLEMENT_CARRIER_ABSENT,
   JudgeCarrier,
 } from "../completion-criterion.ts";
 
@@ -103,9 +104,34 @@ describe("(a) CommitsSinceGroupBase — the group baseline decides", () => {
     const git = new StubGit(["abc123 feat: the round's work"]);
     const records = [record({ op: "implement", dispatchBase: "base-1" })];
     const verdict = await new CommitsSinceGroupBase().judge(
-      context({ record: records[0]!, records, git }),
+      context({ record: records[0]!, records, git, carrier: { status: "APPROVED" } }),
     );
     expect(verdict).toEqual({ fulfilled: true, violation: null });
+  });
+
+  it("a completed round with NO handoff carrier keeps its completion and books ONE soft observation (spec §3.3)", async () => {
+    const git = new StubGit(["abc123 feat: the round's work"]);
+    const records = [record({ op: "implement", dispatchBase: "base-1" })];
+    const verdict = await new CommitsSinceGroupBase().judge(
+      context({ record: records[0]!, records, git }),
+    );
+    // the commits decided the round — the absent draft never gates it
+    expect(verdict.fulfilled).toBe(true);
+    expect(verdict.violation).toBeNull();
+    expect(verdict.observations).toEqual([
+      { grade: "soft", cause: "contract-violation", message: IMPLEMENT_CARRIER_ABSENT },
+    ]);
+  });
+
+  it("a group's FIRST dispatch is judged against the round's OWN base — the group has no record yet", async () => {
+    const git = new StubGit(["abc123 feat: the round's work"]);
+    // the ledger holds no record while the round is judged (it is booked afterwards)
+    const first = record({ op: "implement", dispatchBase: "base-first" });
+    const verdict = await new CommitsSinceGroupBase().judge(
+      context({ record: first, records: [], git, carrier: {} }),
+    );
+    expect(verdict.fulfilled).toBe(true);
+    expect(git.calls).toEqual([{ cwd: "/repo", base: "base-first" }]);
   });
 
   it("attempt 1 committed and attempt 2 committed nothing → still done (the group read)", async () => {

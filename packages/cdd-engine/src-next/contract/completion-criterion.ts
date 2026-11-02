@@ -87,21 +87,39 @@ export class CommitsSinceGroupBase implements CompletionCriterion {
   }
 
   async judge(ctx: CompletionContext): Promise<CompletionVerdict> {
-    const base = CommitsSinceGroupBase.groupBaseOf(ctx.records);
+    // The round under judgment is APPENDED to the group's recorded history: on a
+    // group's FIRST dispatch the ledger holds no record yet (the round is recorded at
+    // bookkeep, after this judgment), and the round's own `dispatchBase` IS the group
+    // baseline. An earlier record always wins — the group's start, never a retry's.
+    const base = CommitsSinceGroupBase.groupBaseOf([...ctx.records, ctx.record]);
     if (base === null) {
       return this.#hard(
         "the round's group carries no dispatch baseline — a completion judgment needs the HEAD the group started from",
       );
     }
     const commits = await ctx.git.commitsSince(ctx.repoRoot, base);
-    if (commits.length > 0) return { fulfilled: true, violation: null };
-    return this.#hard(`the group committed nothing since its baseline ${base}`);
+    if (commits.length === 0) {
+      return this.#hard(`the group committed nothing since its baseline ${base}`);
+    }
+    // An implement round is judged by its COMMITS, never by its handoff draft: the
+    // absent carrier is a bookkeeping observation (design spec §3.3), so the round
+    // still concludes.
+    if (ctx.carrier === null) {
+      return { fulfilled: true, violation: null, observations: [this.#observation()] };
+    }
+    return { fulfilled: true, violation: null };
   }
 
   /** The hard verdict of this criterion — the ledger's existing `contract-violation`
    *  cause, never a new violation enum row. */
   #hard(message: string): CompletionVerdict {
     return { fulfilled: false, violation: { grade: "hard", cause: "contract-violation", message } };
+  }
+
+  /** The absent-carrier observation — bookkeeping only (the round's commits decided
+   *  it); the same cause vocabulary, the soft grade. */
+  #observation(): RoundViolation {
+    return { grade: "soft", cause: "contract-violation", message: IMPLEMENT_CARRIER_ABSENT };
   }
 }
 
@@ -131,6 +149,12 @@ export class JudgeCarrier implements CompletionCriterion {
     return { fulfilled: false, violation: { grade: "hard", cause: "contract-violation", message } };
   }
 }
+
+/** The implement round's absent-carrier observation (design spec §3.3) — an implement
+ *  round is judged by its COMMITS, so a round that committed its work but wrote no
+ *  handoff draft still concludes; the missing carrier is booked, never gated. */
+export const IMPLEMENT_CARRIER_ABSENT =
+  "the implement round wrote no handoff carrier — the round is judged by its commits, not by its draft";
 
 /** The zero-commit observation of a fix round — a NEW literal (the engine had no
  *  reusable zero-commit warning; `commitsSince` fed the crash postmortem alone).

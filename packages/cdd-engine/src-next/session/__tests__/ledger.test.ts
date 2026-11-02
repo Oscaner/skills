@@ -40,7 +40,6 @@ describe("progress — the fixed key set", () => {
     try {
       expect(ledger.emptyProgress()).toEqual({
         timeoutCount: 0,
-        contractViolationCount: 0,
         engineSelfWrittenCount: 0,
         engineRecoveryCount: 0,
         harnessAbortCount: 0,
@@ -116,15 +115,41 @@ describe("progress — the fixed key set", () => {
     }
   });
 
-  it("incrementContractViolationCount is the sole writer — read → +=1 → write → return", () => {
+  it("contractViolationCount is DERIVED from the round records — the soft entries plus one per dirty-tree observation", () => {
     const { ledger, cleanup } = fixture();
     try {
+      // zero default — the retired persisted scalar is gone from the zero set
       expect(ledger.counterOf("contractViolationCount")).toBe(0);
-      expect(ledger.incrementContractViolationCount()).toBe(1);
-      expect(ledger.incrementContractViolationCount()).toBe(2);
+      expect(ledger.softViolationsOf("1")).toBe(0);
+      const soft = { grade: "soft" as const, cause: "contract-violation", message: "hygiene" };
+      // round 1: one soft entry, clean tree → 1 · round 2: no entry, dirty tree → 1
+      ledger.recordRound(1, { op: "implement", violations: [soft] });
+      ledger.recordRound(1, {
+        op: "review",
+        verdict: { treeClean: false, targetAction: true },
+      });
+      // A HARD entry is the round's failure verdict, never a count (§3.3)
+      ledger.recordRound(2, {
+        op: "implement",
+        violations: [{ grade: "hard", cause: "contract-violation", message: "zero commits" }],
+      });
+      expect(ledger.softViolationsOf("1")).toBe(2);
+      expect(ledger.softViolationsOf("2")).toBe(0);
+      // one read exit: the session-wide derived value
       expect(ledger.counterOf("contractViolationCount")).toBe(2);
       // timeout counter stays untouched — the two faces are independent
       expect(ledger.counterOf("timeoutCount")).toBe(0);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a legacy contractViolationCount scalar on disk is READ and IGNORED — the derived value wins", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // an older engine's file: the scalar says 5, no round records exist
+      ledger.writeProgress({ ...ledger.emptyProgress(), contractViolationCount: 5 });
+      expect(ledger.counterOf("contractViolationCount")).toBe(0);
     } finally {
       cleanup();
     }

@@ -28,6 +28,8 @@ import {
   type OpType,
   type RoundFinding,
   type RoundStatus,
+  type RoundVerdict,
+  type RoundViolation,
   type Termination,
 } from "./ledger.ts";
 import type { Route } from "./next.ts";
@@ -120,6 +122,16 @@ export interface DispatchOutcome {
   /** The dispatch-after working-tree observation — the round record's `treeClean`
    *  (an observation, never a gate). */
   treeClean?: boolean;
+  /** The round's TERMINAL VERDICT (P22 · design spec §3.1): `targetAction` is the
+   *  completion judgment (the verb's criterion holds and no hard violation was
+   *  graded) and `treeClean` the dispatch-after observation. The bookkeep records it
+   *  verbatim; its readers ask `verdict.targetAction`, never the exit code. Absent
+   *  from the hermetic / injected dispatchers — the bookkeep falls back to the
+   *  status-derived verdict. */
+  verdict?: RoundVerdict;
+  /** The round's GRADED violations — hard entries failed the round, soft entries are
+   *  bookkeeping only (design spec §3.3). Recorded verbatim on the round's record. */
+  violations?: readonly RoundViolation[];
   /** The fix round's ONE summary line (`fixed N · rejected M`, design spec §3.4) —
    *  computed at the round's finish from the persisted dispositions and the
    *  requesting carrier's input set. A face fact only: it is printed after the
@@ -520,8 +532,14 @@ export class Lifecycle {
       cycle: frame.round,
       attempt: frame.attempt ?? 1,
       dispatchBase: outcome.dispatchBase ?? null,
-      verdict: { treeClean: outcome.treeClean ?? true, targetAction: !blocked },
-      violations: [],
+      // The verdict is the dispatch's own judgment when it carries one (the
+      // production lifecycle's `#verdictOf`); the injected dispatchers keep the
+      // status-derived fallback.
+      verdict: outcome.verdict ?? {
+        treeClean: outcome.treeClean ?? true,
+        targetAction: !blocked,
+      },
+      violations: outcome.violations ?? [],
       carrierPath,
     });
     // The completed-review revision write-back is gated on the round's VERDICT (a

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 计划：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 base: develop
@@ -45,13 +45,13 @@ base: develop
 
 #### Produces
 - `export const SEVERITY_RUBRIC: string` —— 完整片段正文（含四问三档 + vision/非穷举/沉默判读 + set-aside 清单 + 按真实严重度校准 + 先承认做对了什么 + 同档一致性句）。
-- `export const SEVERITY_RUBRIC_SLOTS: { subject: string; audience: string }` —— 两个插槽的占位名（`{subject}` / `{audience}`）。
-- `export const reviewGuideOf: (variant: ReviewVariant) => string` —— 用该变体的 `subject` / `audience` 填插槽后返回完整判据体；`REVIEWS.{wave,branch,spec,plan}.axesGuide` 保留为已拼好的字符串（值 = 各自轴句 + `reviewGuideOf(variant)`）。
+- `export const SEVERITY_RUBRIC_SLOTS: { artifact: string; audience: string }` —— 两个插槽的占位名（`{artifact}` / `{audience}`，与 spec §2.1 同词）。
+- `export const reviewGuideOf: (variant: ReviewVariant) => string` —— 用该变体的 `artifact` / `audience` 填插槽后返回完整判据体；`REVIEWS.{wave,branch,spec,plan}.axesGuide` 保留为已拼好的字符串（值 = 各自轴句 + `reviewGuideOf(variant)`）。
 - `FIX_READBACK_SUFFIX` 改为 `(confirm the reviews handoff · if a finding needs a ruling, record the ruling in the handoff file)`（同批：常量 jsdoc 的口径句与其字面回显一并改指 reviews handoff）。
 
 #### Steps
-- [ ] **Step 1: 写失败用例** —— 断言四件事（`render/__tests__/templates.test.ts`）：(a) `SEVERITY_RUBRIC` 含 `blocker` 四问的四个锚句（`declared acceptance gate` · `a legal input escapes` · `can never go red` · `security or privacy`）与 warn / nit 两档锚句；(b) 片段含 vision 句与 `set aside` 清单句，且带 `{subject}` / `{audience}` 占位；(c) 四份 `axesGuide` 各自**只**出现一次片段正文，断言面直接写死为 `REVIEWS[k].axesGuide.split(reviewGuideOf(k)).length === 2`（k ∈ wave / branch / spec / plan；片段带占位，故按已填的构建串切分）；(d) 模块源码里 `The reviewed` 只出现一次（`readFileSync` 上 `templates.ts` 计入断言，钉「副本零残留」）。运行：`pnpm -C packages/cdd-engine exec vitest run src-next/render/__tests__/templates.test.ts` → 期望 FAIL。 — checkable: 四条断言先红（片段缺位 / 副本仍在）
-- [ ] **Step 2: 抽片段并接线** —— 在 `templates.ts` 定义 `SEVERITY_RUBRIC`（插槽以 `{subject}` / `{audience}` 字面出现）、`ReviewVariant` 的 `subject` / `audience` 两格（wave/branch：`artifact` / `user`；spec：`spec` / `downstream author`；plan：`spec` / `implementer`）、`reviewGuideOf`；四份 `axesGuide` 改为「本变体独有轴句 + `reviewGuideOf(...)`」。branch 变体独有的 "Three things a green run cannot show you…" 保留在变体侧（它只出现一次，不是重复）。同档一致性句放在「先承认做对了什么」**之前**。 — checkable: `templates.ts` 源码里 `The reviewed` 只出现一次
+- [ ] **Step 1: 写失败用例** —— 断言四件事（`render/__tests__/templates.test.ts`）：(a) `SEVERITY_RUBRIC` 含 `blocker` 四问的四个锚句（`declared acceptance gate` · `a legal input escapes` · `can never go red` · `security or privacy`）与 warn / nit 两档锚句；(b) 片段含 vision 句与 `set aside` 清单句，且带 `{artifact}` / `{audience}` 占位；(c) 四份 `axesGuide` 各自**只**出现一次片段正文，断言面直接写死为 `REVIEWS[k].axesGuide.split(reviewGuideOf(k)).length === 2`（k ∈ wave / branch / spec / plan；片段带占位，故按已填的构建串切分）；(d) 模块源码里 `The reviewed` 只出现一次（`readFileSync` 上 `templates.ts` 计入断言，钉「副本零残留」）。运行：`pnpm -C packages/cdd-engine exec vitest run src-next/render/__tests__/templates.test.ts` → 期望 FAIL。 — checkable: 四条断言先红（片段缺位 / 副本仍在）
+- [ ] **Step 2: 抽片段并接线** —— 在 `templates.ts` 定义 `SEVERITY_RUBRIC`（插槽以 `{artifact}` / `{audience}` 字面出现）、`ReviewVariant` 的 `artifact` / `audience` 两格（`{artifact}` 取值：wave/branch `artifact` · spec `spec` · plan `plan`；`{audience}` 取值：wave/branch `user` · spec `downstream author` · plan `implementer`）、`reviewGuideOf`；四份 `axesGuide` 改为「本变体独有轴句 + `reviewGuideOf(...)`」。branch 变体独有的 "Three things a green run cannot show you…" 保留在变体侧（它只出现一次，不是重复）。同档一致性句放在「先承认做对了什么」**之前**。 — checkable: `templates.ts` 源码里 `The reviewed` 只出现一次
 - [ ] **Step 3: 跑绿 + 全量回归** —— `pnpm -C packages/cdd-engine exec vitest run src-next/render` → 期望 PASS；`env -u AI_AGENT pnpm -C packages/cdd-engine test` → 期望零失败（既有 prompt 面断言若因文本合并而红，逐条改锚到 `reviewGuideOf` 面，断言不删）。 — checkable: `vitest run src-next/render` 与引擎全量套件 exit 0
 - [ ] **Step 4: 词面对齐（`FIX_READBACK_SUFFIX` 三处同批）** —— 改 `session/next.ts` 的常量字面与其 jsdoc（口径句 + 字面回显）；`session/__tests__/next.test.ts` 的运行时逐字 `toBe` 与编译期字面类型 pin 逐字重锚。冻结文档里的旧字节不回改。 — checkable: `grep -rn "findings file" packages/cdd-engine/src-next` 零命中，且 `env -u AI_AGENT pnpm run typecheck` exit 0（编译期字面 pin 转绿）
 - [ ] **Step 5: 提交** —— `git add packages/cdd-engine/src-next/render packages/cdd-engine/src-next/session && git commit -m "feat(cdd-engine): publish the severity rubric as one shared fragment"`。 — checkable: `git log -1` 为约定提交信息且工作树干净
@@ -113,13 +113,13 @@ none
 - `Ledger#recordRound(record: RoundRecord): void`（唯一写面）· `Ledger#completedCycles(key: LedgerKey, op: OpType): readonly number[]` · `Ledger#recordsOf(key: LedgerKey): readonly RoundRecord[]`
 
 #### Steps
-- [ ] **Step 1: 写失败用例** —— `ledger.test.ts`：(a) 写一条 `targetAction: true` 与一条 `false` 的记录 → `completedCycles` 只含前者、`roundCount`（派发编号）含两者；(b) 旧两形各一条：`{ rounds: { review: [1,2] } }`（数组形）与 `{ rounds: { review: 1, fix: 1 } }`（纯数字周期数，`#cyclesOf` 今日已归一）→ 读入后 `recordsOf` 降级为 `[]` 且 `roundCount` 与今日一致（兼容且不崩）；(c) 记录带 `carrierPath` 时 `recordsOf` 原样返回。`run.test.ts`：一个 BLOCKED 的 implement 轮**写入**一条记录（`verdict.targetAction === false`），且下一次派发算出同 cycle 的 `attempt + 1`。 — checkable: 四条账本用例（含两形旧 progress.json）+ 一条 BLOCKED 入账用例先红
-- [ ] **Step 2: 改账本** —— `rounds` 类型换 `RoundRecord[]`；`recordRound` 收整条记录；读期归一方法 `#recordsOfRow(row)` 把旧两形折成 `[]`（不写回、不迁移），数组槽需区分记录对象与纯数字两种元素；新增 `completedCycles`（只取 `verdict.targetAction === true`）。 — checkable: 旧两形读入后 `roundCount` 与今日一致
-- [ ] **Step 3: 改读面（四类）** —— 完成问句（`#pendingFix` · `#rowClosed` · `waveRoute`/`targetRoute` 的 implement/fix 成员读 · `orphanHandoffs` · `preflight#recordedTasksOf`）改读 `completedCycles`；派发编号（`roundCount` / `#reviewCount` / `#roundFor` 的 review 腿）读全部在册 cycle；活跃跳承载轮读**最新完成轮**；显示读面（board / preview）按 §5.3 的 Task 11 落地。`run.ts`：`#bookkeep` 去掉 `blocked` 分叉，已派发轮一律 `recordRound`（载体不覆盖规则保留）；**派发侧点名 attempt 调用点**——`Run` 一次分配：`const attempt = naming.attemptOf(records, op, cycle)`，同一个值同时写进 `RoundRecord` 与 `naming.logName(op, type, params, attempt)`（Task 2 的签名），不重复推算。 — checkable: 硬失败 fix-K 后 `#pendingFix` 为 false 且重派算出 attempt+1
+- [ ] **Step 1: 写失败用例** —— `ledger.test.ts`：(a) 写一条 `targetAction: true` 与一条 `false` 的记录 → `completedCycles` 只含前者、`roundCount`（派发编号）含两者；(b) 旧两形各一条：`{ rounds: { review: [1,2] } }`（数组形）与 `{ rounds: { review: 1, fix: 1 } }`（纯数字周期数，`#cyclesOf` 今日已归一）→ 读入后每个旧 cycle 折成**一条完成记录**（`verdict: { treeClean: true, targetAction: true }` · `dispatchBase: null` · `violations: []` · `carrierPath: null`），`completedCycles` 等于今日的 cycle 集，`roundCount` 与今日一致（兼容且不误判）；(c) 旧形行的完成问句：`#rowClosed` 判闭合、`preflight#recordedTasksOf` 对该行非空（旧 cycle 不被读成无完成轮）；(d) 记录带 `carrierPath` 时 `recordsOf` 原样返回。`run.test.ts`：一个 BLOCKED 的 implement 轮**写入**一条记录（`verdict.targetAction === false`），且下一次派发算出同 cycle 的 `attempt + 1`。 — checkable: 五条账本用例（含两形旧 progress.json 的完成折算与两条完成问句）+ 一条 BLOCKED 入账用例先红
+- [ ] **Step 2: 改账本** —— `rounds` 类型换 `RoundRecord[]`；`recordRound` 收整条记录；读期归一方法 `#recordsOfRow(row)` 把旧两形的每个 cycle 号折成一条**完成记录**（`verdict: { treeClean: true, targetAction: true }` · `dispatchBase: null` · `violations: []` · `carrierPath: null`；不写回、不迁移）——旧 `rounds` 只装完成轮（`Run#bookkeep` 仅在 `!blocked` 时 `recordRound`），折算故保住完成语义，存量已闭合线不读成未完成；数组槽需区分记录对象与纯数字两种元素；新增 `completedCycles`（只取 `verdict.targetAction === true`）。 — checkable: 旧两形读入后 `roundCount` 与今日一致，且 `completedCycles` 含全部旧 cycle
+- [ ] **Step 3: 改读面（四类）** —— 完成问句（`Ledger#pendingFix` · `Ledger#rowClosed` · `Ledger#waveLinePhase`（`session/wave.ts` 委托）与 `Ledger#roundRoute` 的 implement/fix 成员读 · `Ledger#orphanHandoffs` · `preflight#recordedTasksOf`）改读 `completedCycles`；派发编号（`roundCount` / `#reviewCount` / `#roundFor` 的 review 腿）读全部在册 cycle；活跃跳承载轮读**最新完成轮**；显示读面（board / preview）按 §5.3 的 Task 11 落地。`run.ts`：`#bookkeep` 去掉 `blocked` 分叉，已派发轮一律 `recordRound`（载体不覆盖规则保留）；**派发侧点名 attempt 调用点**——`Run` 一次分配：`const attempt = naming.attemptOf(records, op, cycle)`，同一个值同时写进 `RoundRecord` 与 `naming.logName(op, type, params, attempt)`（Task 2 的签名），不重复推算。 — checkable: 硬失败 fix-K 后 `#pendingFix` 为 false 且重派算出 attempt+1
 - [ ] **Step 4: 跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS（既有 rounds 形状断言改锚到记录面，断言不删）；`git commit -m "feat(cdd-engine): record every dispatched round as a first-class fact"`。 — checkable: `pnpm -C packages/cdd-engine test` exit 0
 
 #### Acceptance
-BLOCKED/TIMEOUT 轮写入记录（`targetAction: false`）；`completedCycles` 只认 `targetAction === true`；硬失败的 `fix-K` 不被读成已做、重派落在同一 cycle（不产 `fix-(K+1)`）；旧 `progress.json` 两形（数组值 / 纯数字周期数）读得动且不误判；`carrierPath` 随记录落盘；attempt 由命名单源一次分配、记录与日志名共读同一值。
+BLOCKED/TIMEOUT 轮写入记录（`targetAction: false`）；`completedCycles` 只认 `targetAction === true`；硬失败的 `fix-K` 不被读成已做、重派落在同一 cycle（不产 `fix-(K+1)`）；旧 `progress.json` 两形（数组值 / 纯数字周期数）读得动且不误判——每个旧 cycle 折成一条完成记录（存量已闭合线仍判闭合、`recordedTasksOf` 非空）；`carrierPath` 随记录落盘；attempt 由命名单源一次分配、记录与日志名共读同一值。
 
 #### DependsOn
 none
@@ -200,7 +200,7 @@ work 载体新增 `dispositions` 槽，`fix` 的完成判据 = 逐条处置覆�
 - Test: `packages/cdd-engine/src-next/session/__tests__/handoff-schema.test.ts` · `packages/cdd-engine/src-next/contract/__tests__/completion-criterion.test.ts`
 
 #### Consumes
-`CARRIER` / `PLANE_SLOTS` / `PLANE_REQUIRED`（`PLANE_REQUIRED` **不动**）· `CompletionCriterion`（Task 4）· 请求方载体的 `carrierPath`（Task 3）。
+`CARRIER` / `PLANE_SLOTS` / `PLANE_REQUIRED`（`PLANE_REQUIRED` **不动**）· `CompletionCriterion`（Task 4）· 请求方 review 轮记录的 `carrierPath`（Task 3 · 同 key 同 cycle 的 review 完成记录）。
 
 #### Produces
 - `CARRIER.properties.dispositions = { type: "object" }`（值形 `{ [summary]: { status: "fixed" | "rejected", reason?: string } }`）
@@ -209,12 +209,12 @@ work 载体新增 `dispositions` 槽，`fix` 的完成判据 = 逐条处置覆�
 - `export const FIX_DISPOSITIONS_ZERO_COMMIT`（零提交 soft 观测的文案，沿用既有零提交告警文案）
 
 #### Steps
-- [ ] **Step 1: 写失败用例** —— 六类 hard 各一条：(①) 该轮 work 载体缺失 ⇒ hard 并点名载体路径；(②) 载体在而 `dispositions` 槽缺失 ⇒ hard；(③) 键集与输入集不等（缺条 / 多条各一条）⇒ hard；(④) 键不属输入集 ⇒ hard 并点名未知条；(⑤) 请求方载体缺失或不可读 ⇒ hard 并点名路径；(⑥) `rejected` 缺 `reason` ⇒ hard。另三组：(a) 键集与输入集相等 ⇒ 完成；(b) 输入 `findings: []` ⇒ 要求键集为空 + 一条 soft 观测；(c) 旧记录（无 `carrierPath`）⇒ 判据跳过并落可见观测（不判 hard、不读成空集）；(d) 注册后 `COMPLETION_CRITERIA` 键集 == verb 集（完整性 pin）。 — checkable: 六类 hard 各一条 + 三组判定/兼容 + 一条完整性 pin 先红
-- [ ] **Step 2: 实现** —— `dispositions` 入 `CARRIER` 与 `PLANE_SLOTS.work`；`FixDispositions` 按 `record.carrierPath` 现读请求方载体组装输入集（去重后比较）；六类 hard + 两类 soft 观测；`fix` 注册后完成键集 == verb 集。 — checkable: `PLANE_REQUIRED.work` 仍为 `status`+`artifacts`（结构 pin）且 `COMPLETION_CRITERIA` 的键集 == verb 集
+- [ ] **Step 1: 写失败用例** —— 六类 hard 各一条：(①) 该轮 work 载体缺失 ⇒ hard 并点名载体路径；(②) 载体在而 `dispositions` 槽缺失 ⇒ hard；(③) 键集与输入集不等（缺条 / 多条各一条）⇒ hard；(④) 键不属输入集 ⇒ hard 并点名未知条；(⑤) 请求方载体缺失或不可读 ⇒ hard 并点名路径（本轮自己的载体存在、请求方缺失 ⇒ 仍 hard，证明判据读的是请求方载体）；(⑥) `rejected` 缺 `reason` ⇒ hard。另三组：(a) 键集与输入集相等 ⇒ 完成；(b) 输入 `findings: []` ⇒ 要求键集为空 + 一条 soft 观测；(c) 旧记录（无 `carrierPath`）⇒ 判据跳过并落可见观测（不判 hard、不读成空集）；(d) 注册后 `COMPLETION_CRITERIA` 键集 == verb 集（完整性 pin）。 — checkable: 六类 hard 各一条 + 三组判定/兼容 + 一条完整性 pin 先红
+- [ ] **Step 2: 实现** —— `dispositions` 入 `CARRIER` 与 `PLANE_SLOTS.work`；`FixDispositions` 按**请求方**载体现读组装输入集（去重后比较）：取同 key 且 cycle 等于该 fix 轮 cycle 的 review 完成记录（`completedCycles(key, "review")` 匹配该 cycle）的 `carrierPath`，缺失时回退该轮 fix route 的 `--reviews` 路径——`record.carrierPath` 是被判轮**自己**的载体，不用于此；六类 hard + 两类 soft 观测；`fix` 注册后完成键集 == verb 集。 — checkable: `PLANE_REQUIRED.work` 仍为 `status`+`artifacts`（结构 pin）且 `COMPLETION_CRITERIA` 的键集 == verb 集
 - [ ] **Step 3: 跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS；`git commit -m "feat(cdd-engine): judge a fix round by its dispositions"`。 — checkable: `pnpm -C packages/cdd-engine test` exit 0
 
 #### Acceptance
-六类 hard（work 载体缺失 · `dispositions` 槽缺失 · 键集不等 · 未知条 · 请求方载体不可读 · `rejected` 缺理由）各一条用例 + 两条 soft 观测（空输入观测 · 零提交观测）；`PLANE_REQUIRED` 零变化（`implement` 不被要求交处置）；旧记录跳过且可见；注册后 `COMPLETION_CRITERIA` 键集 == verb 集。
+六类 hard（work 载体缺失 · `dispositions` 槽缺失 · 键集不等 · 未知条 · 请求方载体不可读 · `rejected` 缺理由）各一条用例 + 两条 soft 观测（空输入观测 · 零提交观测）；请求方载体的取值缝为同 key 同 cycle 的 review 记录 `carrierPath`（缺失回退 fix route 的 `--reviews`），判据不读本轮自己的载体（一条 pin）；`PLANE_REQUIRED` 零变化（`implement` 不被要求交处置）；旧记录跳过且可见；注册后 `COMPLETION_CRITERIA` 键集 == verb 集。
 
 #### DependsOn
 4
@@ -238,13 +238,13 @@ work 载体新增 `dispositions` 槽，`fix` 的完成判据 = 逐条处置覆�
 - `ReviewedRevisionWriter`：三个回写（doc · wave-brief · branch）只在 `verdict.targetAction === true` 时执行。
 
 #### Steps
-- [ ] **Step 1: 写失败用例** —— (a) `implement` 零提交 ⇒ exit 非零 + 记录 `targetAction: false` + 该轮**在册**（`board` 可见）；(b) 证据缺失 ⇒ hard（exit 非零），软违约（脏树）⇒ exit 0 且计数 +1；(c) 载体缺失的 `review` ⇒ hard，且 `reviewedRevision` **未**绑定（随后改文档 ⇒ `next:` 回到 `review`）；(d) stderr 的 `CDD_BLOCKED` 行含该轮日志路径。 — checkable: 四条裁决用例先红
+- [ ] **Step 1: 写失败用例** —— (a) `implement` 零提交 ⇒ exit 非零 + 记录 `targetAction: false` + 该轮**在册**（`board` 可见）；(b) 证据缺失 ⇒ hard（exit 非零），软违约（脏树）⇒ exit 0 且计数 +1；(c) 载体缺失的 `review` ⇒ hard，且 `reviewedRevision` **未**绑定（随后改文档 ⇒ `next:` 回到 `review`）；(d) stderr 的 `CDD_BLOCKED` 行含该轮日志路径；(e) `implement` 轮的 handoff 载体缺失 ⇒ exit 0 + 派生计数 +1（soft，spec §3.3）。 — checkable: 五条裁决用例先红
 - [ ] **Step 2: 实现裁决与分级** —— 裁决先写、违约族分流；`#verdictOf` 自书 hard 条目（复用 `contract-violation` 因由，零新枚举）；`#blocked` 分支的写点全退（Task 3 已改）；三个回写加门。 — checkable: hard 轮 exit 非零且在 `board` 可见
 - [ ] **Step 3: 派生计数收口** —— `counterOf` 对 `contractViolationCount` 返回派生值；旧 `progress.json` 标量忽略；`PROGRESS_COUNTER_ZERO` 只留仍被写入的键。 — checkable: `counterOf("contractViolationCount")` 返派生值且旧标量被忽略
 - [ ] **Step 4: 跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS（覆盖面变化的断言逐条翻转并注明，断言不删）；`git commit -m "feat(cdd-engine): let the terminal verdict decide a round, not its exit code"`。 — checkable: `pnpm -C packages/cdd-engine test` exit 0
 
 #### Acceptance
-hard 轮的 exit / 记录 / 在册三面一致；soft 轮不改 exit 码；派生计数只数 soft 且单一出口；证据门归 hard；`reviewedRevision` 以裁决为门（红 pin）。 **派发前的 `tree-clean` 门行为与字节面零变化**（既有脏树拒绝用例全绿，本相位只裁派发之后的终态裁决）。
+hard 轮的 exit / 记录 / 在册三面一致；soft 轮不改 exit 码（含 `implement` 载体缺失 ⇒ exit 0 + 派生计数 +1）；派生计数只数 soft 且单一出口；证据门归 hard；`reviewedRevision` 以裁决为门（红 pin）。 **派发前的 `tree-clean` 门行为与字节面零变化**（既有脏树拒绝用例全绿，本相位只裁派发之后的终态裁决）。
 
 #### DependsOn
 3, 4, 6
@@ -255,8 +255,8 @@ hard 轮的 exit / 记录 / 在册三面一致；soft 轮不改 exit 码；派�
 `MAX_TASKS_PER_WAVE = 3`：计划面规则判「任一依赖层 ≤3」，派发面硬门拒「frontier 超 3」与「`--tasks` 超 3」，且病因点名 `DependsOn` 修法；引擎不切块。
 
 #### Files
-- Modify: `packages/cdd-engine/src-next/session/next.ts`（常量）· `packages/cdd-engine/src-next/session/wave.ts`（两条拒绝 + 次序）· `packages/cdd-engine/src-next/contract/rules.ts`（`wave-width-at-most-three`）· `packages/cdd-engine/src-next/face/words.ts`（两条报文）
-- Test: `packages/cdd-engine/src-next/session/__tests__/wave.test.ts` · `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`
+- Modify: `packages/cdd-engine/src-next/session/next.ts`（常量）· `packages/cdd-engine/src-next/session/wave.ts`（两条拒绝 + 次序）· `packages/cdd-engine/src-next/contract/rules.ts`（`wave-width-at-most-three` 注册行）· `packages/cdd-engine/src-next/contract/invariants.ts`（`WaveWidthInvariant`——全部 `Invariant` 策略的既有宿主）· `packages/cdd-engine/src-next/face/words.ts`（两条报文）
+- Test: `packages/cdd-engine/src-next/session/__tests__/wave.test.ts` · `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`（规则行与 `WaveWidthInvariant` 的用例同宿主）
 
 #### Consumes
 `TaskGraph#batches()` / `frontier`（不动）· `WaveGate.vet` 现有门序（`mixed-batch` → `exact` → `wrong-phase`）。
@@ -265,15 +265,15 @@ hard 轮的 exit / 记录 / 在册三面一致；soft 轮不改 exit 码；派�
 - `export const MAX_TASKS_PER_WAVE = 3`（`session/next.ts`，与 `REVIEW_CYCLE_CAP` 同款代码常量）
 - `WaveGateReason` 增 `"wave-too-wide" | "too-many-tasks"`；`WaveGate.vet` 的新判据插在 **`mixed-batch` 之后、`exact` 之前**
 - `RULE_REGISTRY` 增 `{ scope: "doc", id: "wave-width-at-most-three", docKeys: ["plan"], create: () => new WaveWidthInvariant() }`
-- `export class WaveWidthInvariant implements Invariant`（由计划正文派生 `TaskGraph`，逐层判宽）
+- `export class WaveWidthInvariant implements Invariant`（住 `contract/invariants.ts`，由计划正文派生 `TaskGraph`，逐层判宽）
 
 #### Steps
-- [ ] **Step 1: 写失败用例** —— (a) frontier 超 3（层 `{1,2,3}` 与 `{4,5}`，`4`/`5` 只依赖 `1`，`done = {1}` ⇒ frontier `{2,3,4,5}`）→ `reason === "wave-too-wide"`，报文含 `2,3,4,5`（该 frontier 成员 id 的升序逗号形）与 `DependsOn` 修法句，且**不是** `split`；(b) `--tasks 1,2,3,4` → `too-many-tasks`；(c) `mixed-batch` 形状仍报 `mixed-batch`（次序 pin）；(d) 计划面：某层 5 个 ⇒ 规则红并点名该层 id；改成链式（后两个依赖第三个）⇒ 规则绿；(e) 跨面正向 pin：完整层并集全闭（层 `{1,2,3}` 全闭）时 `#close` 渲染的 `next-wave` 字面（`tasks` 升序三值）过 `WaveGate.vet` ⇒ `ok: true`。 — checkable: 五组用例先红（含「不得报成 split」与「自家 `next:` 字面被自家波门接受」）
+- [ ] **Step 1: 写失败用例** —— (a) frontier 超 3（层 `{1,2,3}` 与 `{4,5}`，`4`/`5` 只依赖 `1`，`done = {1}` ⇒ frontier `{2,3,4,5}`）→ `reason === "wave-too-wide"`，报文含 `2,3,4,5`（该 frontier 成员 id 的升序逗号形）与 `DependsOn` 修法句，且**不是** `split`；(b) `--tasks 1,2,3,4` → `too-many-tasks`；(c) `mixed-batch` 形状仍报 `mixed-batch`（次序 pin）；(d) 计划面：某层 5 个 ⇒ 规则红并点名该层 id；改成链式（后两个依赖第三个）⇒ 规则绿；(e) 跨面正向 pin：完整层并集全闭（层 `{1,2,3}` 全闭）时 `#close` 渲染的 `next-wave` 字面（`tasks` 升序三值）过 `WaveGate.vet` ⇒ `ok: true`；(f) 历史读面：已入账的一条 4 成员闭合波行读入 `closedWaves()` / `frontier` 零报错（历史不动）。 — checkable: 六组用例先红（含「不得报成 split」·「自家 `next:` 字面被自家波门接受」· 历史超 3 波行可读）
 - [ ] **Step 2: 实现三面** —— 常量落地；`WaveGate.vet` 两段判据（先 `open.length > MAX`，再 `requested.length > MAX`）插在 `mixed-batch` 之后；规则行与 `WaveWidthInvariant`；`face/words.ts` 两条报文。 — checkable: frontier `{2,3,4,5}` 报 `wave-too-wide`、`--tasks` 4 个报 `too-many-tasks`
 - [ ] **Step 3: 跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS；`git commit -m "feat(cdd-engine): hold a wave to three tasks with a hard gate and a plan rule"`。 — checkable: `vitest run src-next/session/__tests__/wave.test.ts` exit 0
 
 #### Acceptance
-frontier 超 3 报 `wave-too-wide`（**不得**报 `split`）且报文点名成员 id 与 `DependsOn` 修法；`--tasks` 超 3 报 `too-many-tasks`；`mixed-batch` 次序不变；计划面规则红/绿各一 pin；完整层并集上的 `next-wave` 字面必被波门接受（跨面正向 pin）；`batches()`/`frontier` 语义零变化（既有波次用例全绿）。
+frontier 超 3 报 `wave-too-wide`（**不得**报 `split`）且报文点名成员 id 与 `DependsOn` 修法；`--tasks` 超 3 报 `too-many-tasks`；`mixed-batch` 次序不变；计划面规则红/绿各一 pin；完整层并集上的 `next-wave` 字面必被波门接受（跨面正向 pin）；`batches()`/`frontier` 语义零变化（既有波次用例全绿）；已入账的超 3 波行读取零报错（一条 pin）。
 
 #### DependsOn
 3
@@ -292,21 +292,21 @@ frontier 超 3 报 `wave-too-wide`（**不得**报 `split`）且报文点名成�
 `NextStepRouter.next`（计数表，判定面不动）· `Route`（六 kind）· `PIPELINE_NEXT`（降为数据）· `PipelineKey`（`phase-spec` / `overall` / `plan` / `wave` / `branch`）。
 
 #### Produces
-- `export interface NextHop { readonly face: PipelineKey; readonly hop: Hop | null; readonly to: PipelineEntry | null; readonly reason: string; readonly route: Route }` —— `face` 与 `route` **恒非空**（已派发的线总有面，闭合线仍携带 `done`/`handoff`），`null` 面不在类型里。
+- `export interface NextHop { readonly face: PipelineKey | null; readonly hop: Hop | null; readonly to: PipelineEntry | null; readonly reason: string; readonly route: Route | null }` —— `face` / `route` **可空**（spec §5.2）：失败面（`BLOCKED` / `TIMEOUT` ⇒ `next` 返回 `null`）与 doc-class `terminal` 行没有 route；已派发的正常面仍带 `face` 与 `route`。
 - `export type Hop = "implement" | "review" | "branch-review" | "fix"`
 - `export const NEXT_HOP_REASON = { docDrift, pendingFix, closedLine, faceClosed, softCap, taskOpen, docClassBlocked } as const`（`reason` 文案的唯一来源）
-- `NextStepRouter#nextHop(input: NextHopInput): NextHop`，`NextHopInput = { face, gate: { drift: boolean; open: boolean }, latestCompleted: RoundRecord | null, route: Route, counters: { consecutiveS1: number } }`（`route` 非空——派生器总是从一次 `next` 的产物开工）
+- `NextStepRouter#nextHop(input: NextHopInput): NextHop`，`NextHopInput = { face: PipelineKey | null, gate: { drift: boolean; open: boolean }, latestCompleted: RoundRecord | null, route: Route | null, counters: { consecutiveS1: number } }`（`route` 可缺席——失败面与 doc-class `terminal` 没有 route，spec §5.2）
 - `NextStepRouter#hopOf(route: Route): Hop | null` —— **唯一**常量映射：`next-wave → implement` · `review → review`（branch 面 → `branch-review`）· `fix → fix` · `done / soft-cap / handoff → null`
 - `#nextHop` 的 `to`：`handoff` 与 `done` 同路径取 `PIPELINE_NEXT[docClass]`（doc-class 判别复用 `face/capsule.ts#docClassOf` 的同一判别源，抽到 `session/next.ts` 后 capsule 改调）
 
 #### Steps
-- [ ] **Step 1: 写失败用例** —— (a) `review` 留 blocker ⇒ `hop === "fix"` 且 `route == {kind:"fix"}`；(b) `review` 全 0 ⇒ 闭合侧，`next-wave` 时 `hop === "implement"`；(c) 闭合线 + drift ⇒ `hop === "review"`、`reason === docDrift`；(d) `done` ⇒ `hop === null` 且 `to === PIPELINE_NEXT[docClass]`；(e) `soft-cap` ⇒ `hop === null`、`reason === softCap`；(f) 决议不可得（doc-class blocked）⇒ `reason === docClassBlocked` 且报文可渲染；(g) `fix` 的请求侧 review 载体含 blocker ⇒ `hop === "review"`（fix-K → review-K 重审）；(h) `fix` 的请求侧无 blocker ⇒ 闭合 / 下一跳（`hop` 按 ready batch 取，不是 `review`）。 — checkable: 八条映射用例先红
+- [ ] **Step 1: 写失败用例** —— (a) `review` 留 blocker ⇒ `hop === "fix"` 且 `route == {kind:"fix"}`；(b) `review` 全 0 ⇒ 闭合侧，`next-wave` 时 `hop === "implement"`、`reason === taskOpen`；(c) 闭合线 + drift ⇒ `hop === "review"`、`reason === docDrift`；(d) `done` ⇒ `hop === null`、`to === PIPELINE_NEXT[docClass]` 且 `reason === closedLine`；(e) `soft-cap` ⇒ `hop === null`、`reason === softCap`；(f) 决议不可得（doc-class blocked）⇒ `reason === docClassBlocked` 且报文可渲染；(g) `fix` 的请求侧 review 载体含 blocker ⇒ `hop === "review"`（fix-K → review-K 重审）；(h) `fix` 的请求侧无 blocker ⇒ 闭合 / 下一跳（`hop` 按 ready batch 取，不是 `review`）；(i) doc-class `terminal` ⇒ `hop === null` · `to === null` · `reason === faceClosed`；(j) 报文三形：`hop` 非空 ⇒ `<reason> · the next round is <hop>`；`hop` 空而 `to` 非空 ⇒ `<reason> · next: <to>`；两者皆空 ⇒ 只渲染 `reason`（不造动词槽）。 — checkable: 十条映射/报文用例先红（§5.2 六值逐值与 `reason` 七值各有产出者）
 - [ ] **Step 2: 实现 `nextHop` / `hopOf` / 文案表** —— 判据只读 `route`（来自 `next`）；`reason` 按输入事实选一句；`hopOf` 是唯一映射。 — checkable: `nextHop` 八条转绿且 `hopOf` 是唯一映射
-- [ ] **Step 3: 仓库级孪生 pin** —— 新建 `scripts/__tests__/next-loop-twin.test.ts`：读四份图源（`docs/diagrams/src/next-loop.{en,zh-CN}.json` · `architecture.{en,zh-CN}.json`），断言三条陈述（blocker → 重新评审 · 仅 warn/nit → `REVIEW_FIX` 收敛 · 连续周期软上限）在四份里均成立；从两份 `next-loop` 图源抽出的「连续 N 个 blocker 周期」的 N 断言 **== `REVIEW_CYCLE_CAP`**（N 只在图源里，spec / 计划正文不抄）；源侧另 pin `#blockerCount` / `#close` / `REVIEW_CYCLE_CAP` 三个符号存在于 `session/next.ts`。 — checkable: `pnpm exec vitest run scripts/__tests__/next-loop-twin.test.ts` exit 0；图源里的 N 与常量同值（改任一侧即红）
+- [ ] **Step 3: 仓库级孪生 pin** —— 新建 `scripts/__tests__/next-loop-twin.test.ts`：读四份图源（`docs/diagrams/src/next-loop.{en,zh-CN}.json` · `architecture.{en,zh-CN}.json`），断言三条陈述（blocker → 重新评审 · 仅 warn/nit → `REVIEW_FIX` 收敛 · 连续周期软上限）由四份**合起来**覆盖——第三条与周期数只住在两份 `next-loop`，两份 `architecture` 只钉它真正携带的前两条；从两份 `next-loop` 图源抽出的「连续 N 个 blocker 周期」的 N 断言 **== `REVIEW_CYCLE_CAP`**（N 只在图源里，spec / 计划正文不抄）；源侧另 pin `#blockerCount` / `#close` / `REVIEW_CYCLE_CAP` 三个符号存在于 `session/next.ts`。 — checkable: `pnpm exec vitest run scripts/__tests__/next-loop-twin.test.ts` exit 0；图源里的 N 与常量同值（改任一侧即红）
 - [ ] **Step 4: 跑绿 + 提交** —— vitest PASS；`git add packages/cdd-engine/src-next/session scripts/__tests__ && git commit -m "feat(cdd-engine): derive the next hop once, on top of the count table"`。 — checkable: `vitest run src-next/session/__tests__/next.test.ts` 与孪生 pin 均 exit 0
 
 #### Acceptance
-八条映射逐值有用例（含 fix 轮按请求载体的 blocker 数取 `review` / 闭合两行）；仓库级孪生 pin 在册（图侧周期数 == `REVIEW_CYCLE_CAP`，两侧任改即红）；`doc-drift` / `pending-fix` 有真实产出者（闭合线 + drift / 未闭合线 + 待修）；`hop: null` 的报文形可渲染；`PIPELINE_NEXT` 零判断逻辑（结构 pin）；计数表判据零改动（既有 `next` 用例全绿）。
+八条映射逐值有用例（含 fix 轮按请求载体的 blocker 数取 `review` / 闭合两行）；`reason` 七值逐值有产出者（含 `taskOpen` · `closedLine` · doc-class `terminal` → `faceClosed`）；仓库级孪生 pin 在册（四份图合起来覆盖三条陈述 · `architecture` 只钉前两条 · `next-loop` 周期数 == `REVIEW_CYCLE_CAP`，两侧任改即红）；`doc-drift` / `pending-fix` 有真实产出者（闭合线 + drift / 未闭合线 + 待修）；`hop: null` 的报文两形（`to` 非空 / 皆空）与 `hop` 非空的报文形各一条 pin；`PIPELINE_NEXT` 零判断逻辑（结构 pin）；计数表判据零改动（既有 `next` 用例全绿）。
 
 #### DependsOn
 3, 7
@@ -324,18 +324,18 @@ frontier 超 3 报 `wave-too-wide`（**不得**报 `split`）且报文点名成�
 `NextHop`（Task 9）· `RouteRenderer`（`face/route-render.ts`，渲染载荷来自 `NextHop.route`）。
 
 #### Produces
-- `Capsule#emit(hop: NextHop, ...)` —— `next:` 行由注入的 `NextHop.route` 渲染；`#routeText` 的 doc-class 分支退场。
+- `Capsule#emit(hop: NextHop | null, ...)` —— `next:` 行由注入的 `NextHop.route` 渲染；`hop` 为 `null`（失败面：`BLOCKED` / `TIMEOUT` 无 route）时**不印** `next:` 行，失败面字节原样；`#routeText` 的 doc-class 分支退场。
 - `BoardView` 构造期**接收** `NextHop`（不持账本、不自推）。
 - `CliGate#lineGate` 删除，改读同一 `NextHop`；拒绝报文渲染 `reason` 与新 hop。
 - 删除：`NextStepRouter.resolve` · `NextStepRouter.walk` · `CliLifecycle#targetLineOpen` 与 `Run#targetLineOpen` 的生产侧（`face/cli.ts` / `session/run.ts` 的传递面一并退）。
 
 #### Steps
-- [ ] **Step 1: 写失败用例** —— (a) capsule 的 `next:` 与 board 的 `next:` 逐字相等（同一次解析的同一对象）；(b) warn/nit-only 的 fix 之后 `next:` **不是** `review`（C5-1 投影）；(c) 闭合线改文档后 `next:` 回到 `review`；(d) CLI 拒绝报文的 hop 与 board 的 hop 相等（跨面）；(e) 删除面 pin 收窄到被删入口：`grep -rnE 'NextStepRouter\.(resolve|walk)|#lineGate|targetLineOpen' packages/cdd-engine/src-next --include=*.ts` 零命中（开阔的 `resolve(` 今日 41 处在非测试面，含 `path.resolve` / `Workspace#resolve`，不得当作 pin）；(f) 漂移不得胜出：未闭合线 + 已有 blocker + drift 同时成立 ⇒ hop 仍为 `fix`、`reason === pendingFix`。 — checkable: 六条跨面/行为用例先红（含收窄后的 grep 零命中）
+- [ ] **Step 1: 写失败用例** —— (a) capsule 的 `next:` 与 board 的 `next:` 逐字相等（同一次解析的同一对象）；(b) warn/nit-only 的 fix 之后 `next:` **不是** `review`（C5-1 投影）；(c) 闭合线改文档后 `next:` 回到 `review`；(d) CLI 拒绝报文的 hop 与 board 的 hop 相等（跨面）；(e) 删除面 pin 收窄到被删入口：`grep -rnE 'NextStepRouter\.(resolve|walk)|#lineGate|targetLineOpen' packages/cdd-engine/src-next --include=*.ts` 零命中（开阔的 `resolve(` 今日 41 处在非测试面，含 `path.resolve` / `Workspace#resolve`，不得当作 pin）；(f) 漂移不得胜出：未闭合线 + 已有 blocker + drift 同时成立 ⇒ hop 仍为 `fix`、`reason === pendingFix`；(g) `BLOCKED` 轮的 capsule 无 `next:` 行且三键字节不变（`hop: null`）；(h) 生命周期前沿 `Run#peekNext` 的 hop 与 board / CLI 的 hop 逐字相等（第四读面的跨面断句）。 — checkable: 八条跨面/行为用例先红（含收窄后的 grep 零命中）
 - [ ] **Step 2: 改四读面** —— 全部改为接收 `NextHop`；capsule 与 board 共用 `RouteRenderer`；删除三处入口。 — checkable: capsule 与 board 的 `next:` 逐字相等
 - [ ] **Step 3: 跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS（capsule 字节面三键断言原样绿）；`git commit -m "refactor(cdd-engine): render the next hop from one object on every face"`。 — checkable: `grep -rnE 'NextStepRouter\.(resolve|walk)|#lineGate|targetLineOpen' packages/cdd-engine/src-next --include=*.ts` 零命中
 
 #### Acceptance
-四读面同一对象（跨面 pin）；capsule 三键与失败面字节不变；`NextStepRouter.resolve` / `NextStepRouter.walk` / `#lineGate` / `targetLineOpen` 零残留（收窄 grep pin）；warn/nit-only 收敛、漂移重开、drift 不抢 blocker 三条行为 pin 在册。
+四读面同一对象（capsule · `#lineGate` · board · `Run#peekNext` 各一条跨面 pin，四读面全覆盖）；capsule 三键与失败面字节不变（失败轮零 `next:` 行）；`NextStepRouter.resolve` / `NextStepRouter.walk` / `#lineGate` / `targetLineOpen` 零残留（收窄 grep pin）；warn/nit-only 收敛、漂移重开、drift 不抢 blocker 三条行为 pin 在册。
 
 #### DependsOn
 9
@@ -405,7 +405,7 @@ board 默认面按 verb 聚合、只按裁决标令牌、`+N` 标 finding 数、
 把面变化写进消费者看得见的地方（README 双语 · `--help` 面），落 changeset，跑全量验证。
 
 #### Files
-- Modify: `packages/cdd-engine/README.md` + `package.json` 的 `oscaner` 面（如涉及）· `README.zh-CN.md` 对应行 · `.changeset/p22-terminal-verdict-and-liveness.md`（新）· `.changeset/p22-kairos-obligations.md`（新）
+- Modify: `packages/cdd-engine/README.md` + `package.json` 的 `oscaner` 面（如涉及）· `README.zh-CN.md` 对应行 · `packages/cdd-engine/src-next/face/declare.ts`（`implement` 的帮助行：`description` 与同处 options 描述）· `.changeset/p22-terminal-verdict-and-liveness.md`（新）· `.changeset/p22-kairos-obligations.md`（新）
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（`--help` 面 pin）
 
 #### Consumes
@@ -418,7 +418,7 @@ Task 1–12 的全部产物。
 
 #### Steps
 - [ ] **Step 1: 写文档与 changeset** —— README（EN + zh-CN 的对应行）写清：每轮日志路径 · `wave-too-wide` / `too-many-tasks` 两条拒绝与其修法 · `dispositions` 槽 · 软上限引用 `REVIEW_CYCLE_CAP`（不写死数字）。两份 changeset 落地。 — checkable: README 双语与两份 changeset 均含对应改动行
-- [ ] **Step 2: 补帮助面 pin** —— `cli.test.ts` 增断言：`--help` 不引入 `--verbose`；`implement --help` 提及每波至多 3 个任务。 — checkable: `--help` 面 pin 转绿（无 `--verbose`）
+- [ ] **Step 2: 补帮助面 pin** —— `cli.test.ts` 增断言：`--help` 不引入 `--verbose`；`implement --help` 提及每波至多 3 个任务（帮助文本的落点是 `face/declare.ts` 的 `implement` `description` 与同处 options 描述行——只改 README 不会让这条 pin 转绿）。 — checkable: 两条帮助面 pin 转绿（无 `--verbose` · `implement --help` 点名每波 ≤3）
 - [ ] **Step 3: 跑全量** —— `env -u AI_AGENT pnpm run validate` → 期望 ALL PASS（emit fresh · root 套件 · kairos 套件 · cdd-engine 套件 · typecheck ×3 · version-sync · 零裸函数）。 — checkable: `env -u AI_AGENT pnpm run validate` exit 0
 - [ ] **Step 4: 提交** —— `git add -A && git commit -m "docs(cdd-engine): record the P22 surface in the consumer docs"`。 — checkable: 该步的断言转绿
 
@@ -432,5 +432,6 @@ Task 1–12 的全部产物。
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.3 | 2026-11-03 | **plan-review-2 findings 全量落册**：① 孪生 pin 按 spec v0.6 收窄——第三条陈述与周期数只住两份 `next-loop`，两份 `architecture` 只钉前两条，pin 断言四份**合起来**覆盖三条（`architecture` 不入 Task 9 Files）；② 旧 `progress.json` 的 cycle 号折成**完成记录**（`targetAction: true` · `dispatchBase: null` · `violations: []` · `carrierPath: null`），补「存量闭合线仍判闭合」与「`recordedTasksOf` 非空」两条 pin；③ `NextHop.face` / `route` 与 `NextHopInput.route` 改为可空（失败面与 doc-class `terminal`），capsule 参数 `NextHop \| null`、失败轮零 `next:` 行；④ `reason` 七值补产出者（`taskOpen` · `closedLine` · `terminal → faceClosed`）与三条报文形 pin；⑤ `WaveWidthInvariant` 落到 `contract/invariants.ts` 并点名用例宿主；⑥ Task 13 Files 增 `face/declare.ts` 并写明帮助行落点；⑦ `FixDispositions` 定请求方载体取值缝（同 key 同 cycle 的 review 记录，回退 `--reviews`）；⑧ Task 8 补历史超 3 波行读面 pin、Task 7 补 `implement` 载体缺失 soft pin、Task 10 补 `Run#peekNext` 跨面 pin；⑨ nit：插槽 token 改 `{artifact}` / `{audience}`、Task 3 Step 3 符号改为实存的 `Ledger#waveLinePhase` / `#rowClosed` / `#roundRoute` | Oscaner M. · Claude（kairos:cdd-plan [P22] docs-fix · 2026-11-03） |
 | v0.2 | 2026-11-03 | **plan-review-1 findings 全量落册**：① `FIX_READBACK_SUFFIX` 三处同批（常量字面 + jsdoc + 运行时/编译期两条 pin）收进 Task 1 的 Step 4；② 仓库级孪生 pin 落 `scripts/__tests__/next-loop-twin.test.ts`，作 Task 9 独立一步；③ Task 2 删不存在的 `workspace/.gitignore` 落点，`logs/` 由 `RoundLog.create` 自建并补首轮落盘 checkable；④ Task 4 注册表改 `Partial<Record<…>>`（只钉「已注册 ⊆ verb 集 + 未知 verb 抛错」），完整性 pin 移到 Task 6；⑤ Task 6 补齐六类 hard 每条一 pin（含 work 载体缺失·槽缺失），Acceptance 改为「六 hard + 两 soft」；⑥ Task 9 补 fix 轮两行（含 blocker ⇒ `review` · 无 blocker ⇒ 闭合），Task 10 补 drift 不得抢 blocker；⑦ Task 12 补 `cdd-dev` 日志指路句与四类 grep pin + 零复述 pin，删不存在的引擎侧 anatomy 测试，宿主改指 kairos 套件；⑧ Task 3 旧形 pin 改为真实两形（数组值 · 纯数字）；⑨ attempt 身份收进命名单源（`#attemptOf` + `logName(…, attempt)` 签名），Task 3 点名派发侧调用点；⑩ 三处假 pin 收窄（`ps` OS 调用面 · 删面入口正则 · 尝试不存在的 `.gitignore`）；⑪ Task 8 报文断言改锚到成员 id 形 + 补跨面正向 pin；Task 11 补零写 pin；⑫ nit：Task 1 片段切分断言改为 `reviewGuideOf(k)` 构建串、`templates.test.ts` 标 `Create` 并补 `render.test.ts` 为 Modify、Task 5 合并重复 checkable、`NextHop.face`/`route` 与 `NextHopInput.route` 恒非空 | Oscaner M. · Claude（kairos:cdd-plan [P22] docs-fix · 2026-11-03） |
 | v0.1 | 2026-11-03 | 首版：13 个任务，依赖派生 7 层（W1 = {1,2,3} · W2 = {4,5,8} · W3 = {6} · W4 = {7} · W5 = {9,12} · W6 = {10,11} · W7 = {13}），每层宽 ≤3 与 P22 自身的波内上限一致（`TaskGraph#batches()` 实算 max width = 3）；Review Focus 五条覆盖重派身份 / 日志不可写 / CPU 腿不可读 / 旧 progress.json / append 宽波 | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-03） |

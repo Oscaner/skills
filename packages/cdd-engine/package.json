@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
-    "execa": "^10.2.0",
+    "execa": "^10.2.1",
     "jsonc-parser": "^3.3.1",
     "mdast-util-from-markdown": "^2.1.0",
     "mdast-util-frontmatter": "^2.0.1",

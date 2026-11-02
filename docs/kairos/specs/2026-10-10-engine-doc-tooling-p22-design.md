@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 设计：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-11-02
 slug: 2026-10-10-engine-doc-tooling-p22
 program: 2026-10-10-engine-doc-tooling
@@ -176,6 +176,8 @@ hard 的后果：`exit` 非零 · `verdict.targetAction === false` · **照常�
 
 ### 5. 定案：Next 收敛与板面（计数表不可破）
 
+**核心理念（不可破）——分级判收敛**：CDD 按 findings 的分级向前推进——review 交出的 findings 按 blocker / warn / nit 分级，**有 blocker 就把线推回 fix 并重新评审，只有 warn/nit 时以 `REVIEW_FIX` 收敛，全空即通过**，连续 20 个 blocker 周期触软上限交人裁定。这不是某一条实现细节，而是本程序的方法论主轴：`docs/diagrams/src/next-loop.{en,zh-CN}.json` 与 `architecture.{en,zh-CN}.json` 都是按这个形状画的（`blocker · warn/nit · 无` 三格 · `评审有 blocker · 重新评审` 与 `仅 warn/nit · 以 REVIEW_FIX 收口` 两条边 · `连续 20 个 blocker 周期` 的软上限）。§2 的定级口径与本节的分级转移表是**同一件事的两半**：**口径让计数有意义**（没有口径，blocker/warn/nit 只是噪声），**计数是推进的唯一判据**（没有计数，口径无处落地）。因此本相位禁止任何形态的第二判据：不得把下一跳改由 route kind 反推、不得让文档漂移抢在未闭合线的 blocker 之前、不得引入新的分级信号——被 reset 的旧链正是这样坏的。
+
 #### 5.1 转移表：Loop-vs-converge 只由 blocker/warn/nit 数量决定
 
 | 上一轮 | 该轮产物 | 下一跳 |
@@ -289,22 +291,25 @@ NextHop {
 
 ### Acceptance criteria
 
-- `定级口径`四型 `axesGuide` 引用同一 `SEVERITY_RUBRIC`（源码 pin：单源常量被四份引用；四份收尾段副本零残留）· 四问四档各有一条文本 pin（blocker 四问 · warn 契约内债 · nit 风格）· skill 面零复述（grep pin）
-- `词面对齐``FIX_READBACK_SUFFIX` 新字面 + 运行时断言 + 编译期字面类型 pin；旧字面在 `packages/cdd-engine` 代码与测试面零命中（冻结文档不在此列）
-- `完成判据``implement` 组基线以来零提交 → hard（exit 非零 · `targetAction: false`）· `review` 空 `findings` → APPROVED（非违约）· `fix` 处置四条 hard 面各一条红 pin（缺条 / 多条 / 未知条 / 请求方载体不可读）· `fix` 空 `findings` 输入 → 要求空键集 + 一条 soft 观测
-- `违约分级`hard 轮入账在册且 `board` 可见；soft 轮不改 exit 码；树脏不另写 soft 条目（由 `treeClean` 派生一条）；派生计数只数 soft（`counterOf` 单一出口）
-- `入账即事实`BLOCKED/TIMEOUT 轮**写入**一条记录（`op` + cycle + attempt + `dispatchBase` + 裁决 + 违约 + 载路径）；`completedCycles` 只认 `targetAction === true`；「完成问句」四类读面各有一条 pin（含 `#pendingFix` 不得把硬失败的 fix-K 读成已做、不得派 `fix-(K+1)`）
-- `派发前门不动`脏树在任何 child 派发前以 `tree-clean` / `dirty-tree` 拒绝（行为与字节面零变化 pin）
-- `日志通道`spawn 前文件已存在且为 0 字节 · 只增不改 · 重派带 `-a{attempt}` 不撞名 · close 之后可读 · `--dry-run` 零日志 · **引擎输出面零变化**（child 文本不进 stdout/stderr）且失败报文点名日志路径
-- `活性`撤 mtime 腿后三条红 pin——仓库他处写入 + child 零输出零 CPU 30min → `stalled` · CPU 读不到但日志在增长 → `progress` · 整窗无腿可读 → `unknown`（不杀）；烧 CPU 不写文件的长轮次不被杀；阈值 60s / 30min 与四态词零变化；`infra/proc.ts` 之外零 `ps` 调用（既有 grep pin 保持绿）
-- `Next`§5.1 转移表逐行 pin（含 warn/nit-only fix 后 next 不得为 `review`；未闭合线上的 blocker 不被 drift 抢走）· §5.5 四条 pin（含跨面一致性）· `PIPELINE_NEXT` 仅作数据（判断逻辑零命中）· `resolve` / `walk` / `#lineGate` / `targetLineOpen` 零残留
-- `板面`默认面聚合令牌裁决符不可省 · findings 数不进默认面 · 区间折叠只属 `--verbose` · `attempt === 1` 零 `a1` 后缀 · 绝对路径零出现（`next:` 相对）· 在飞行只留身份 · `board` 对在飞事实零写（运行前后字节不变）
-- `波内上限`frontier 5 个 → `next-wave` 只发升序前 3，三任务闭合后再发余下 2 · `--tasks` 列 4 个 → BLOCKED 并点名上限 · 派生面与门面同常量（单源 pin）· 已入账的超 3 波行读取零报错
-- `消费面义务`四问在 `contract/skill-anatomy.ts` 登记一次 + 两份指针 grep pin · digraph 零变更（`cdd-design` 节点/边数不动）· 审批门三句与写作权三句 grep pin · `plan-structure-frozen` 两条红 pin（轮内改 Task id 集 / `DependsOn` 集 → hard）+ 派发前该行渲染 `skipped (no structure snapshot)`
-- `全量``cdd` 仍八命令 · engine vitest 全绿 · typecheck ×3 · `env -u AI_AGENT pnpm run validate` exit 0 · changeset `cdd-engine` minor + `kairos` patch，不发布
+- `定级口径`：四型 `axesGuide` 引用同一 `SEVERITY_RUBRIC`（源码 pin：单源常量被四份引用；四份收尾段副本零残留）· 四问四档各有一条文本 pin（blocker 四问 · warn 契约内债 · nit 风格）· skill 面零复述（grep pin）
+- `词面对齐`：`FIX_READBACK_SUFFIX` 新字面 + 运行时断言 + 编译期字面类型 pin；旧字面在 `packages/cdd-engine` 代码与测试面零命中（冻结文档不在此列）
+- `完成判据`：`implement` 组基线以来零提交 → hard（exit 非零 · `targetAction: false`）· `review` 空 `findings` → APPROVED（非违约）· `fix` 处置四条 hard 面各一条红 pin（缺条 / 多条 / 未知条 / 请求方载体不可读）· `fix` 空 `findings` 输入 → 要求空键集 + 一条 soft 观测
+- `违约分级`：hard 轮入账在册且 `board` 可见；soft 轮不改 exit 码；树脏不另写 soft 条目（由 `treeClean` 派生一条）；派生计数只数 soft（`counterOf` 单一出口）
+- `入账即事实`：BLOCKED/TIMEOUT 轮**写入**一条记录（`op` + cycle + attempt + `dispatchBase` + 裁决 + 违约 + 载路径）；`completedCycles` 只认 `targetAction === true`；「完成问句」四类读面各有一条 pin（含 `#pendingFix` 不得把硬失败的 fix-K 读成已做、不得派 `fix-(K+1)`）
+- `派发前门不动`：脏树在任何 child 派发前以 `tree-clean` / `dirty-tree` 拒绝（行为与字节面零变化 pin）
+- `日志通道`：spawn 前文件已存在且为 0 字节 · 只增不改 · 重派带 `-a{attempt}` 不撞名 · close 之后可读 · `--dry-run` 零日志 · **引擎输出面零变化**（child 文本不进 stdout/stderr）且失败报文点名日志路径
+- `活性`：撤 mtime 腿后三条红 pin——仓库他处写入 + child 零输出零 CPU 30min → `stalled` · CPU 读不到但日志在增长 → `progress` · 整窗无腿可读 → `unknown`（不杀）；烧 CPU 不写文件的长轮次不被杀；阈值 60s / 30min 与四态词零变化；`infra/proc.ts` 之外零 `ps` 调用（既有 grep pin 保持绿）
+- `分级判收敛`：§5.1 转移表逐行 pin 之外，新增**仓库级孪生 pin**（落 `scripts/__tests__/`）——`docs/diagrams/src/next-loop.{en,zh-CN}.json` 与 `architecture.{en,zh-CN}.json` 的三条陈述（blocker → 重新评审 · 仅 warn/nit → `REVIEW_FIX` 收敛 · 连续 20 个 blocker → 软上限）与 `next.ts` 的 `#blockerCount` / `#close` / `REVIEW_CYCLE_CAP` 逐条对应；任一常数或图侧措辞改动，两侧断言同时红
+- `Next`：§5.1 转移表逐行 pin（含 warn/nit-only fix 后 next 不得为 `review`；未闭合线上的 blocker 不被 drift 抢走）· §5.5 四条 pin（含跨面一致性）· `PIPELINE_NEXT` 仅作数据（判断逻辑零命中）· `resolve` / `walk` / `#lineGate` / `targetLineOpen` 零残留
+- `板面`：默认面聚合令牌裁决符不可省 · findings 数不进默认面 · 区间折叠只属 `--verbose` · `attempt === 1` 零 `a1` 后缀 · 绝对路径零出现（`next:` 相对）· 在飞行只留身份 · `board` 对在飞事实零写（运行前后字节不变）
+- `波内上限`：frontier 5 个 → `next-wave` 只发升序前 3，三任务闭合后再发余下 2 · `--tasks` 列 4 个 → BLOCKED 并点名上限 · 派生面与门面同常量（单源 pin）· 已入账的超 3 波行读取零报错
+- `消费面义务`：四问在 `contract/skill-anatomy.ts` 登记一次 + 两份指针 grep pin · digraph 零变更（`cdd-design` 节点/边数不动）· 审批门三句与写作权三句 grep pin · `plan-structure-frozen` 两条红 pin（轮内改 Task id 集 / `DependsOn` 集 → hard）+ 派发前该行渲染 `skipped (no structure snapshot)`
+- `全量`：`cdd` 仍八命令 · engine vitest 全绿 · typecheck ×3 · `env -u AI_AGENT pnpm run validate` exit 0 · changeset `cdd-engine` minor + `kairos` patch，不发布
 
 ## Constraints
 
+- **分级判收敛是程序方法论主轴**：Loop-vs-converge 只由 `blocker` / `warn` / `nit` 计数决定（§5.1）；口径（§2）与计数（§5）是同一件事的两半，改任一半必须同批改另一半；任何第二判据（route kind 反推 · 漂移抢判 · 新分级信号）都是本相位点名禁止的回归
+- **图与判据孪生**：`docs/diagrams/src/next-loop.{en,zh-CN}.json` 与 `architecture.{en,zh-CN}.json` 里的三条陈述（blocker → 重新评审 · 仅 warn/nit → `REVIEW_FIX` 收敛 · 连续 20 个 blocker → 软上限）必须与 `next.ts` 的 `#blockerCount` / `#close` / `REVIEW_CYCLE_CAP` 逐条对应；图不可能与判据漂移
 - **引擎不判定级是否正确**：口径是 prompt 契约，引擎只做结构校验（schema / 计数 / 转移表）；任何「引擎验证定级对不对」的实现都是越界
 - **Loop-vs-converge 的判据只有一处**（`NextStepRouter.next` 的计数表）；HB 收敛只许改呈现，不许改判据——任何把 hop 从 route kind 反推并反向影响判据的写法都是本相位点名禁止的回归
 - **零新依赖**：日志用 Node 原生 append 流；判据与信号都是本仓内的小类
@@ -319,4 +324,5 @@ NextHop {
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.2 | 2026-11-02 | **方法论主轴入册（用户裁定）**：把「分级判收敛」提为程序核心理念并要求图⇄判据孪生——§5 开篇写明 blocker → 重审 / warn·nit → `REVIEW_FIX` 收敛 / 全空 → 通过 / 连续 20 个 blocker → 软上限就是图的形状，口径与计数是同一件事的两半（口径让计数有意义，计数是推进的唯一判据）；Constraints 首列该主轴与孪生约束；AC 增仓库级孪生 pin（`docs/diagrams/src/` 三陈述 ⇄ `next.ts` 的 `#blockerCount` / `#close` / `REVIEW_CYCLE_CAP`） | Oscaner M. · Claude（kairos:cdd-design [P22] · 2026-11-02） |
 | v0.1 | 2026-11-02 | 首版：六块定案（定级口径 · 派发终态契约 · 日志与活性 · Next 收敛与板面 · 波内上限 3 · 消费面义务）；承 cdd-design [P22] grilling 四裁定（D69）与旧 P22 存链的价值取舍（D67/D68） | Oscaner M. · Claude（kairos:cdd-design [P22] · 2026-11-02） |

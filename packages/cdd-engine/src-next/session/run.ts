@@ -416,7 +416,7 @@ export class Lifecycle {
       if (verdict !== null && !verdict.ok) {
         return {
           frame,
-          round: this.#ledger.roundCount(frame.key, frame.phase),
+          round: this.#ledger.roundCount(frame.key, frame.phase, frame.type),
           route: null,
           capsuleLines: [],
           preflight: verdict,
@@ -487,7 +487,9 @@ export class Lifecycle {
    *  records (`RoundNaming#attemptOf`, the naming single source) and shared by the
    *  round record and the round log's name. */
   #attemptFor(phase: DispatchPhase, key: LedgerKey, round: number): number {
-    return this.#ledger.naming().attemptOf(this.#ledger.recordsOf(key), this.#opOf(phase), round);
+    return this.#ledger
+      .naming()
+      .attemptOf(this.#ledger.recordsOf(key, this.#face.type), this.#opOf(phase), round);
   }
 
   /** The next phase of one wave line — the SAME single derivation the wave gate reads
@@ -557,7 +559,7 @@ export class Lifecycle {
   #roundFor(phase: DispatchPhase, key: LedgerKey): number {
     if (phase === "implement") return 1;
     if (phase === "fix") {
-      const completed = this.#ledger.completedCycles(key, "review");
+      const completed = this.#ledger.completedCycles(key, "review", this.#face.type);
       return completed.length > 0 ? Math.max(...completed) : 1;
     }
     return this.#reviewCount(key) + 1;
@@ -566,7 +568,7 @@ export class Lifecycle {
   /** The review-lead round count of a key (branch counts its branch-review mode,
    *  the others the review mode — the face row's single source). */
   #reviewCount(key: LedgerKey): number {
-    return this.#ledger.roundCount(key, this.#face.product.reviewLead);
+    return this.#ledger.roundCount(key, this.#face.product.reviewLead, this.#face.type);
   }
 
   /** The progress key of a single-target line — the line's STABLE key (find #9 ·
@@ -660,21 +662,25 @@ export class Lifecycle {
     // D28): a skipped cycle records its own number, never a flattened ordinal. The
     // attempt was allocated once by the frame builder and rides both the record and
     // the round log's name.
-    const record = this.#ledger.recordRound(frame.key, {
-      op: this.#opOf(frame.phase),
-      cycle: frame.round,
-      attempt: frame.attempt ?? 1,
-      dispatchBase: outcome.dispatchBase ?? null,
-      // The verdict is the dispatch's own judgment when it carries one (the
-      // production lifecycle's `#verdictOf`); the injected dispatchers keep the
-      // status-derived fallback.
-      verdict: outcome.verdict ?? {
-        treeClean: outcome.treeClean ?? true,
-        targetAction: !blocked,
+    const record = this.#ledger.recordRound(
+      frame.key,
+      {
+        op: this.#opOf(frame.phase),
+        cycle: frame.round,
+        attempt: frame.attempt ?? 1,
+        dispatchBase: outcome.dispatchBase ?? null,
+        // The verdict is the dispatch's own judgment when it carries one (the
+        // production lifecycle's `#verdictOf`); the injected dispatchers keep the
+        // status-derived fallback.
+        verdict: outcome.verdict ?? {
+          treeClean: outcome.treeClean ?? true,
+          targetAction: !blocked,
+        },
+        violations: outcome.violations ?? [],
+        carrierPath,
       },
-      violations: outcome.violations ?? [],
-      carrierPath,
-    });
+      frame.type,
+    );
     // The completed-review revision write-back is gated on the round's VERDICT (a
     // hard-failed review must not bind the current revision — that would silently
     // close the drift identity the review never judged). The doc line and the wave
@@ -700,7 +706,7 @@ export class Lifecycle {
       else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);
       else if (frame.target.kind === "branch") this.#recordReviewedBranchRevision(frame);
     }
-    return this.#ledger.roundCount(frame.key, frame.phase);
+    return this.#ledger.roundCount(frame.key, frame.phase, frame.type);
   }
 
   /** The reviewed-revision write-back — bind the reviewed input's revision to the
@@ -712,7 +718,7 @@ export class Lifecycle {
    *  legacy closed face (only present facts land, never an invented identity). */
   #recordReviewedDocRevision(frame: OpenFrame): void {
     if (frame.target.kind !== "plan" && frame.target.kind !== "spec") return;
-    this.#recordDocRevisionOf(frame.key, frame.target.doc);
+    this.#recordDocRevisionOf(frame.key, frame.target.doc, frame.type);
   }
 
   /** The wave line's reviewed-brief write-back (D30) — bind the RENDERED brief's
@@ -729,17 +735,21 @@ export class Lifecycle {
    *  An unreadable plan / a null plan path records nothing (present facts only). */
   #recordReviewedBranchRevision(frame: OpenFrame): void {
     if (this.#planPath === null) return;
-    this.#recordDocRevisionOf(frame.key, this.#planPath);
+    this.#recordDocRevisionOf(frame.key, this.#planPath, frame.type);
   }
 
   /** The doc-revision write-back body — read the reviewed document and bind its
    *  current revision to the line row (the ONE read + hash + record path the doc and
    *  branch legs share; each passes its own path source). An unreadable input records
    *  nothing — the line keeps the legacy closed face (present facts only). */
-  #recordDocRevisionOf(key: LedgerKey, path: string): void {
+  #recordDocRevisionOf(key: LedgerKey, path: string, identity: TargetType): void {
     try {
       const content = readFileSync(path, "utf8");
-      this.#ledger.recordReviewedRevision(key, this.#ledger.refs().docRevision(path, content));
+      this.#ledger.recordReviewedRevision(
+        key,
+        this.#ledger.refs().docRevision(path, content),
+        identity,
+      );
     } catch {
       // unreadable input — no reviewed identity recorded (present facts only)
     }

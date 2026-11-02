@@ -748,6 +748,44 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
       cleanup();
     }
   });
+
+  it("a migrated charter line books its next round on the legacy row — no forked twin", async () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // The pre-rename facts of a charter mid-flight: reviews 1-2 recorded, fix 1
+      // landed, and review 2 still carries an open blocker. Only the retired carriers
+      // exist — the round context and the criterion read them, the writes stay current.
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "spec", rounds: { review: [1, 2], fix: [1] } }],
+      });
+      workspace.writeJson("spec-review-1.json", { artifacts: {}, findings: [] });
+      workspace.writeJson("spec-review-2.json", {
+        artifacts: {},
+        findings: [finding("blocker")],
+      });
+      workspace.writeJson("spec-fix-1.json", { artifacts: {}, status: "APPROVED" });
+      const dispatch = stub(() => ({ status: "APPROVED" }));
+      const run = new Lifecycle({
+        face: targetFaces.overall,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "spec", doc: DOC },
+      });
+      const fix = await run.advance();
+      expect(fix!.frame.phase).toBe("fix");
+      // The fix pairs with review 2 — the numbering reads the retired row's cycles.
+      expect(fix!.frame.round).toBe(2);
+      // ONE row: the round booked where the line has always been.
+      expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec"]);
+      const reload = new Ledger(workspace, new ConfigLoader());
+      expect(reload.completedCycles("overall", "fix", "overall")).toEqual([1, 2]);
+      expect(fix!.route?.kind).toBe("review");
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", () => {

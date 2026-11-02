@@ -453,7 +453,7 @@ Task 1–12 的全部产物。
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/session/faces.ts` · `packages/cdd-engine/src-next/session/next.ts` · `packages/cdd-engine/src-next/face/declare.ts` · `packages/cdd-engine/src-next/face/board-view.ts` · `packages/cdd-engine/src-next/session/ledger.ts` · `packages/cdd-engine/src-next/session/round-naming.ts` · `packages/cdd-engine/src-next/face/route-render.ts` · `packages/cdd-engine/src-next/face/cli.ts` · `packages/cdd-engine/src-next/session/preflight.ts` · `packages/cdd-engine/README.md` · `packages/cdd-engine/README.zh-CN.md` · `README.md` · `README.zh-CN.md` · `packages/kairos/skills/cdd-spec-writer/SKILL.md`（字面 sweep）
-- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts` · `packages/cdd-engine/src-next/session/__tests__/next.test.ts` · `packages/cdd-engine/src-next/face/__tests__/capsule.test.ts` · `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts` · `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`
+- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts` · `packages/cdd-engine/src-next/session/__tests__/next.test.ts` · `packages/cdd-engine/src-next/face/__tests__/capsule.test.ts` · `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts` · `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts` · `packages/cdd-engine/src-next/session/__tests__/run.test.ts`（迁移行的轮号与落行）
 
 #### Consumes
 `TargetType` / `targetFaces` / `RouteTarget`（`session/faces.ts`）· `PipelineKey` / `PIPELINE_NEXT` / `PIPELINE_FACES`（`session/next.ts`）· `ARGV_CHANNEL`（`face/declare.ts`）· `DOC_TYPE_VALUES`（`contract/declare.ts`，值不动）。

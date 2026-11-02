@@ -170,6 +170,77 @@ describe("progress — the fixed key set", () => {
     }
   });
 
+  it("a legacy carrier's fix hop names the file that EXISTS — the alias reports the name it resolved", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // A pre-rename line mid-flight: two reviews recorded, fix 1 landed, and review 2
+      // still carries an open blocker. Only the retired carrier exists on disk.
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "spec", rounds: { review: [1, 2], fix: [1] } }],
+      });
+      workspace.writeJson("spec-review-2.json", {
+        artifacts: {},
+        findings: [{ severity: "blocker", summary: "the line is unread" }],
+      });
+      // The hop's `--reviews` names the carrier on disk, never the never-minted
+      // canonical twin (which would render an unreadable directive → BLOCKED).
+      expect(ledger.lineRoute("phase-spec", "phase-spec")).toEqual({
+        kind: "fix",
+        reviews: workspace.resolve("spec-review-2.json"),
+      });
+      // The charter line resolves through its own declared word and the SAME carrier.
+      expect(ledger.lineRoute("overall", "overall")).toEqual({
+        kind: "fix",
+        reviews: workspace.resolve("spec-review-2.json"),
+      });
+      // The round's own reviews path is the resolved name too (the fix criterion and
+      // INPUT_REVIEWS read this cell).
+      expect(ledger.round("review", "phase-spec", { round: 2 }, 2)?.reviewsPath).toBe(
+        workspace.resolve("spec-review-2.json"),
+      );
+      // Never minted: every WRITE keeps the canonical spelling.
+      expect(ledger.handoffName("review", "phase-spec", { round: 2 })).toBe(
+        "phase-spec-review-2.json",
+      );
+      expect(ledger.handoffName("fix", "overall", { round: 2 })).toBe("overall-fix-2.json");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a migrated row is appended to and numbered from — the declared word rides every access", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // A charter mid-flight across the rename: the row under `spec`, the reviews 1-2
+      // and fix 2 recorded there.
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "spec", rounds: { review: [1, 2], fix: [2] } }],
+      });
+      expect(ledger.roundCount("overall", "review", "overall")).toBe(2);
+      expect(ledger.completedCycles("overall", "review", "overall")).toEqual([1, 2]);
+      expect(ledger.roundRecorded("overall", "review", 2, "overall")).toBe(true);
+      expect(ledger.recordsOf("overall", "overall")).toHaveLength(3);
+      // The post-rename round books on that SAME row and numbers from its cycles —
+      // the legacy counts are never shadowed by a forked identity row.
+      const recorded = ledger.recordRound("overall", { op: "review" }, "overall");
+      expect(recorded.cycle).toBe(3);
+      ledger.recordReviewedRevision(
+        "overall",
+        { kind: "doc-revision", doc: "docs/x.md", doc_hash: "abc" },
+        "overall",
+      );
+      expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec"]);
+      expect(ledger.reviewedRevisionOf("overall", "overall")?.kind).toBe("doc-revision");
+      const reload = new Ledger(workspace, new ConfigLoader());
+      expect(reload.roundCount("overall", "review", "overall")).toBe(3);
+      expect(reload.completedCycles("overall", "review", "overall")).toEqual([1, 2, 3]);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("roundCount starts 0; recordRound persists the per-key per-mode done record", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {

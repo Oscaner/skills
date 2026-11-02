@@ -325,7 +325,7 @@ export class CliLifecycle {
     const judged = await CompletionCriteria.of(this.#opOf(frame)).judge({
       record: this.#judgedRecordOf(frame, outcome),
       row: this.#rowOf(frame),
-      records: scene.ledger.recordsOf(frame.key),
+      records: scene.ledger.recordsOf(frame.key, frame.type),
       carrier: outcome.carrier ?? null,
       reviewsPath: this.#reviewsPath(frame),
       git: this.#git,
@@ -362,7 +362,8 @@ export class CliLifecycle {
     const ledger = this.#scene.ledger;
     const data = ledger.readProgress();
     return (
-      (data === null ? undefined : Ledger.rowFor(data, frame.key)) ?? ledger.entryFor(frame.key)
+      (data === null ? undefined : Ledger.rowFor(data, frame.key, frame.type)) ??
+      ledger.entryFor(frame.key)
     );
   }
 
@@ -972,7 +973,7 @@ export class CliLifecycle {
   ): string | undefined {
     if (plane !== "work" || this.#opOf(frame) !== "fix") return undefined;
     const requester = FixDispositions.requesterInputOf(
-      this.#scene.ledger.recordsOf(frame.key),
+      this.#scene.ledger.recordsOf(frame.key, frame.type),
       frame.round,
       this.#reviewsPath(frame),
       this.#repoRootValue().absolute,
@@ -986,10 +987,14 @@ export class CliLifecycle {
   }
 
   /** The requesting review carrier's path — the fix round's `--reviews` input, or the
-   *  ledger's canonical review handoff path when the route carried none (the ONE
-   *  resolution the round context's INPUT_REVIEWS and the disposition summary share). */
+   *  ledger's resolved review handoff path when the route carried none (the ONE
+   *  resolution the round context's INPUT_REVIEWS and the disposition summary share).
+   *  A migrated line resolves the carrier that EXISTS — the retired twin's name, never
+   *  the never-minted canonical spelling. */
   #reviewsPath(frame: OpenFrame): string {
-    return this.#reviews ?? this.#scene.ledger.handoffPath("review", frame.type, frame.params);
+    return (
+      this.#reviews ?? this.#scene.ledger.resolveHandoffPath("review", frame.type, frame.params)
+    );
   }
 
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the
@@ -1274,7 +1279,7 @@ export class CliLifecycle {
         // the retained `--spec` flag.
         return `cdd review --type ${frame.type} --spec ${this.#docOf(frame)}`;
       case "fix": {
-        const findings = scene.ledger.handoffPath("review", frame.type, frame.params);
+        const findings = scene.ledger.resolveHandoffPath("review", frame.type, frame.params);
         const target =
           frame.target.kind === "plan"
             ? `--plan ${frame.target.doc}`

@@ -41,7 +41,7 @@ npm install @oscaner-skills/cdd-engine
 
 ### 每轮日志
 
-三个派发动词（`implement` / `review` / `fix`）一律把子进程的 stdout 与 stderr 落进该轮自己的 append 日志文件——`.kairos/cdd/<slug>/logs/<stem>.log`——且从不回显到引擎自身的输出面。文件名取该轮的 report stem，故重派带 `-a{attempt}` 后缀，绝不覆盖首次 attempt 的日志。`--dry-run` 不派发，故不落日志。一轮被拒或被杀时，stderr 上唯一那条 `CDD_BLOCKED` 行点名该轮的日志路径：诊断一轮只需打开一个文件，而不必从外部读 `ps`。
+三个派发动词（`implement` / `review` / `fix`）一律把子进程的 stdout 与 stderr 落进该轮自己的 append 日志文件——`.kairos/cdd/<slug>/logs/<stem>.log`——且从不回显到引擎自身的输出面。文件名取该轮的 report stem，故重派带 `-a{attempt}` 后缀，绝不覆盖首次 attempt 的日志。`--dry-run` 不派发，故不落日志。一轮自身被拒或被杀时，stderr 上那条 `CDD_BLOCKED` 行点名该轮的日志路径：诊断一轮只需打开一个文件，而不必从外部读 `ps`。pre-flight 拒绝（dirty tree · in-flight · doc-contract）不点名日志——那一轮根本没派发。
 
 ### 波内任务上限
 

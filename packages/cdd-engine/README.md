@@ -39,7 +39,7 @@ Use `cdd <command> --help` for a command's full option list (for example `cdd re
 
 ### Round logs
 
-Every dispatched round (`implement` / `review` / `fix`) pipes the child's stdout and stderr into one append-only log file per round — `.kairos/cdd/<slug>/logs/<stem>.log` — and never echoes that output on the engine's own face. The name is the round's report stem, so a re-dispatch carries its `-a{attempt}` suffix and never overwrites the first attempt's log. `--dry-run` dispatches nothing, so it writes no log. When a round is refused or cut short, the single `CDD_BLOCKED` line on stderr names that round's log path: diagnosing one round is one file away instead of an outside `ps` read.
+Every dispatched round (`implement` / `review` / `fix`) pipes the child's stdout and stderr into one append-only log file per round — `.kairos/cdd/<slug>/logs/<stem>.log` — and never echoes that output on the engine's own face. The name is the round's report stem, so a re-dispatch carries its `-a{attempt}` suffix and never overwrites the first attempt's log. `--dry-run` dispatches nothing, so it writes no log. When the round itself is rejected or cut short, its `CDD_BLOCKED` line on stderr names that round's log path: diagnosing one round is one file away instead of an outside `ps` read. A pre-flight refusal (dirty tree · in-flight · doc contract) names no log — no round was ever dispatched.
 
 ### Wave width
 

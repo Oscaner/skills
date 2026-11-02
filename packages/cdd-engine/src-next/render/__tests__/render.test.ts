@@ -15,7 +15,12 @@ import { TerminationPolicy } from "../../face/termination.ts";
 import { Words } from "../../face/words.ts";
 import { BriefRenderer } from "../brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
-import { REVIEWS, TEMPLATE_PROMPT, TemplateAssembler } from "../templates.ts";
+import {
+  REVIEWS,
+  TEMPLATE_PROMPT,
+  TemplateAssembler,
+  reviewGuideOf,
+} from "../templates.ts";
 
 /** The full per-dispatch slot values — every declared template token (the v1.8
  *  INPUT_/OUTPUT_/WORKSPACE_/BASE_BRANCH/ROLE/WAVE vocabulary), optional slots
@@ -280,8 +285,8 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(spec).toContain("the parent charter at `INPUT_OVERALL`");
     // D61-5 — the spec axis carries its program conformance criterion (the phase
     // judged against its charter's registered Phase inventory), lens set unchanged
-    expect(REVIEWS.spec.axesGuide).toContain("program conformance");
-    expect(REVIEWS.spec.axesGuide).toContain("INPUT_OVERALL");
+    expect(reviewGuideOf("spec")).toContain("program conformance");
+    expect(reviewGuideOf("spec")).toContain("INPUT_OVERALL");
     expect(REVIEWS.spec.lensEnum).toEqual(["completeness", "consistency", "clarity"]);
     expect(spec).not.toContain("- `INPUT_PLAN`");
     expect(spec).not.toContain("- `INPUT_WAVE_BRIEF`");

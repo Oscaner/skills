@@ -1720,7 +1720,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // Seed the implement + a blocker review round (the fix's C5-1 input).
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
       const ledger = new Ledger(workspace, new ConfigLoader());
-      ledger.recordRound(1, "implement");
+      ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
         "review",
         "wave",
@@ -1731,7 +1731,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           findings: [{ severity: "blocker", summary: "drift" }],
         },
       );
-      ledger.recordRound(1, "review");
+      ledger.recordRound(1, { op: "review" });
       const code = await command.runArgv(["fix", "--type", "wave", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
@@ -1764,7 +1764,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       });
       // find #9 — the line key is the stable "branch" (round accumulates across
       // re-reviews; the old range-short key reset to 1 on every head move).
-      ledger.recordRound("branch", "branch-review");
+      ledger.recordRound("branch", { op: "branch-review" });
       const reviewsPath = workspace.resolve("branch-review-1.json");
       const code = await command.runArgv([
         "fix",
@@ -1882,7 +1882,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // line advances implement → review as ONE train)
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
       const ledger = new Ledger(workspace, new ConfigLoader());
-      ledger.recordRound("1", "implement");
+      ledger.recordRound("1", { op: "implement" });
       ledger.persistHandoff(
         "implement",
         "wave",
@@ -2284,7 +2284,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "s1").ensure();
       const ledger = new Ledger(workspace, new ConfigLoader());
       ledger.persistHandoff("review", "spec", { round: 1 }, { phase: "review", findings: [] });
-      ledger.recordRound("spec", "review");
+      ledger.recordRound("spec", { op: "review" });
       // The closed round bound no reviewed revision, so the ledger verdict is null,
       // not "same": the "target revision unchanged" claim would be fabricated (only
       // present facts land). The gate keeps the generic closed-line message.
@@ -2612,7 +2612,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
       const ledger = new Ledger(workspace, new ConfigLoader());
       // a recorded implement + blocker review round → the line awaits its fix
-      ledger.recordRound(1, "implement");
+      ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
         "review",
         "wave",
@@ -2623,7 +2623,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           findings: [{ severity: "blocker", summary: "drift" }],
         },
       );
-      ledger.recordRound(1, "review");
+      ledger.recordRound(1, { op: "review" });
       // the stale "successful-looking" fix draft the rejected child left behind — it
       // must NOT be read back as the round's verdict
       writeFileSync(
@@ -2676,7 +2676,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // the WAVE row carries the implement round — review is the open phase for the whole
       // wave (the retired per-task build could never hold a mixed-phase wave-unitary row).
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "two").ensure();
-      new Ledger(workspace, new ConfigLoader()).recordRound("1,2", "implement");
+      new Ledger(workspace, new ConfigLoader()).recordRound("1,2", { op: "implement" });
       io.stderrText = "";
       // review on the implemented multi-task wave passes the gate (the preview renders).
       expect(
@@ -2921,7 +2921,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           findings: [{ severity: "blocker", summary: "drift" }],
         },
       );
-      ledger.recordRound(1, "review");
+      ledger.recordRound(1, { op: "review" });
       expect(await command.runArgv(["fix", "--type", "wave", "--tasks", "1", "--plan", plan])).toBe(
         0,
       );
@@ -5809,7 +5809,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
 
   /** Seed the wave's review phase — the implement round recorded on the wave line. */
   function seedImplement(ledger: Ledger): void {
-    ledger.recordRound(1, "implement");
+    ledger.recordRound(1, { op: "implement" });
     ledger.persistHandoff(
       "implement",
       "wave",
@@ -5827,7 +5827,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       { tasks: "1", round: 1 },
       { findings: [{ severity: "blocker", lens: "code", summary: "drift" }] },
     );
-    ledger.recordRound(1, "review");
+    ledger.recordRound(1, { op: "review" });
   }
 
   /** Run one CLI invocation with the ambient host marker the production dispatch
@@ -6497,7 +6497,7 @@ describe("P21 — the crash record's identity and git facts", () => {
       planFor(repoRoot);
       const scene = sceneOf(repoRoot);
       // The wave row exists in progress.json (its implement round landed normally).
-      scene.ledger.recordRound("1", "implement");
+      scene.ledger.recordRound("1", { op: "implement" });
       const io = new CaptureIo();
       const runner = new StubRunner();
       runner.code = 1;

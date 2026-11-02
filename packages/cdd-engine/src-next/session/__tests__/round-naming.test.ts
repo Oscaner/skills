@@ -144,6 +144,31 @@ describe("RoundNaming — the frame → prescribed artifact names (report / evid
     expect(branchReview).toBe("review");
   });
 
+  it("derives the per-round log name — the report stem, the attempt suffix and the .log face", () => {
+    expect(NAMING.logName("review", "spec", { round: 2 }, 1)).toBe("spec-review-2.log");
+    expect(NAMING.logName("fix", "wave", { tasks: "1", round: 1 }, 1)).toBe(
+      "tasks-1-fix-1.log",
+    );
+    // implement carries no round token — the line keys the implement round alone
+    expect(NAMING.logName("implement", "wave", { tasks: "1" }, 1)).toBe(
+      "tasks-1-implement.log",
+    );
+    // a re-attempt never overwrites attempt 1's log
+    expect(NAMING.logName("fix", "wave", { tasks: "1", round: 1 }, 2)).toBe(
+      "tasks-1-fix-1-a2.log",
+    );
+  });
+
+  it("allocates the attempt number — max attempt of the op/cycle plus one", () => {
+    const records = [
+      { op: "fix" as const, cycle: 1, attempt: 1 },
+      { op: "review" as const, cycle: 1, attempt: 1 },
+    ];
+    expect(NAMING.attemptOf(records, "fix", 1)).toBe(2);
+    expect(NAMING.attemptOf(records, "fix", 2)).toBe(1);
+    expect(NAMING.attemptOf([], "implement", 1)).toBe(1);
+  });
+
   it("carries the evidence family prefix — tasks for the wave families, branch for the branch line", () => {
     expect(NAMING.prefix(frame({ type: "wave" }))).toBe("tasks");
     expect(NAMING.prefix(frame({ type: "branch" }))).toBe("branch");

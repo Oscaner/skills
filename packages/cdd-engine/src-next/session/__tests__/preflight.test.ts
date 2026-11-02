@@ -346,7 +346,7 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
       // The self-published keep-out marker sits at the namespace root
       expect(readFileSync(path.join(repoRoot, ".kairos", ".gitignore"), "utf8")).toBe("*\n");
       const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "review");
-      ctx.ledger!.recordRound("1", "implement"); // the first dispatch's progress — review now opens
+      ctx.ledger!.recordRound("1", { op: "implement" }); // the first dispatch's progress — review now opens
       const preflight = preflightOf();
       const verdict = await preflight.vet(ctx);
       expect(verdict.ok).toBe(true);
@@ -466,7 +466,7 @@ describe("PreFlight — the wave gate inside the seam", () => {
     try {
       const preflight = preflightOf();
       const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "implement");
-      ctx.ledger!.recordRound("1", "implement"); // the open wave now sits at review
+      ctx.ledger!.recordRound("1", { op: "implement" }); // the open wave now sits at review
       const verdict = await preflight.vet(ctx);
       expect(verdict.ok).toBe(false);
       expect(verdict.gate).toBe("wave");
@@ -747,7 +747,7 @@ describe("PreFlight — the plan-ledger gate", () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const ctx = branchCtx(repoRoot, [task(1, "none"), task(2, "1")], (ledger) => {
-        ledger.recordRound("1", "implement");
+        ledger.recordRound("1", { op: "implement" });
       });
       const verdict = await preflightOf().vet(ctx);
       expect(verdict.ok).toBe(true);
@@ -765,8 +765,8 @@ describe("PreFlight — the plan-ledger gate", () => {
       // The plan carries 1..3 while the ledger recorded 1 and 11 — the executed task
       // 11 is absent from the plan, the ONE disagreement this gate judges.
       const ctx = branchCtx(repoRoot, [task(1, "none"), task(2, "1"), task(3, "2")], (ledger) => {
-        ledger.recordRound("1", "implement");
-        ledger.recordRound("11", "implement");
+        ledger.recordRound("1", { op: "implement" });
+        ledger.recordRound("11", { op: "implement" });
       });
       const verdict = await preflightOf().vet(ctx);
       expect(verdict.ok).toBe(false);

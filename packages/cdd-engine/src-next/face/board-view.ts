@@ -39,7 +39,7 @@ import { type DocEntry, SlugIndex, type SlugRole } from "../infra/slug-index.ts"
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { TaskGraph } from "../session/graph.ts";
 import type { InFlightState } from "../session/inflight.ts";
-import { Ledger, type ProgressData } from "../session/ledger.ts";
+import { Ledger, type ProgressData, RoundRecords } from "../session/ledger.ts";
 import { NextStepRouter, type PipelineFaceReport } from "../session/next.ts";
 import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
 import { type RouteChannelRow, RouteRenderer } from "./route-render.ts";
@@ -594,14 +594,17 @@ export class BoardView {
     };
   }
 
-  /** The node's row rounds for one key — array-form ONLY (a non-array verb value —
-   *  the retired numeric form — is dropped: zero count renders, no compatibility
-   *  layer). An absent row/verb yields an empty map. */
+  /** The node's row rounds for one key — the round RECORDS read through the ONE
+   *  normalizer (`RoundRecords.of`, legacy forms folded), aggregated per verb as the
+   *  cycle numbers. Failed rounds stay on the board (they consumed an identity slot);
+   *  an absent row yields an empty map. */
   static #rowRounds(progress: ProgressData | null, key: string): Record<string, number[]> {
     const row = progress?.waves.find((candidate) => candidate.wave === key);
     const rounds: Record<string, number[]> = {};
-    for (const [verb, value] of Object.entries(row?.rounds ?? {})) {
-      if (Array.isArray(value)) rounds[verb] = [...value];
+    for (const record of RoundRecords.of(row)) {
+      const cycles = rounds[record.op] ?? [];
+      if (!cycles.includes(record.cycle)) cycles.push(record.cycle);
+      rounds[record.op] = cycles.sort((left, right) => left - right);
     }
     return rounds;
   }

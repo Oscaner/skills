@@ -37,6 +37,7 @@ import type { TargetType } from "./faces.ts";
 import { TaskGraph } from "./graph.ts";
 import type { InFlight, InFlightState } from "./inflight.ts";
 import type { Ledger, ProgressData } from "./ledger.ts";
+import { RoundRecords } from "./ledger.ts";
 import { WaveGate, type WaveGateReason } from "./wave.ts";
 
 /** The named gates the seam composes — the run evidence + the blocking gate label. */
@@ -545,15 +546,15 @@ export class PreFlight {
     return snapshots;
   }
 
-  /** The task ids the ledger recorded at least one round for (the recorded set of
-   *  the plan/ledger agreement rule). Only TASK waves count: a doc/branch line row
+  /** The task ids the ledger recorded a COMPLETED round for (the recorded set of the
+   *  plan/ledger agreement rule — the completion read, so a dispatched-but-failed
+   *  round does not close the agreement). Only TASK waves count: a doc/branch line row
    *  (keyed `"plan"` / `"spec"` / `"branch"`) is not a task id. */
   #recordedTasksOf(data: ProgressData | null): readonly number[] {
     const recorded: number[] = [];
     for (const row of data?.waves ?? []) {
-      if (!row.rounds) continue;
-      const hasRound = Object.values(row.rounds).some((cycles) => cycles.length > 0);
-      if (!hasRound) continue;
+      const completed = RoundRecords.of(row).some((record) => record.verdict.targetAction);
+      if (!completed) continue;
       recorded.push(...this.#taskIdsOf(row.wave));
     }
     return recorded;

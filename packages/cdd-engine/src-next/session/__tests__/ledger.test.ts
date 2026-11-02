@@ -88,9 +88,12 @@ describe("progress — the fixed key set", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
       expect(ledger.roundCount("1,2", "review")).toBe(0);
-      expect(ledger.recordRound("1,2", "review")).toBe(1);
-      expect(ledger.recordRound("1,2", "review")).toBe(2);
-      expect(ledger.recordRound("1,2", "fix")).toBe(1);
+      ledger.recordRound("1,2", { op: "review" });
+      expect(ledger.roundCount("1,2", "review")).toBe(1);
+      ledger.recordRound("1,2", { op: "review" });
+      expect(ledger.roundCount("1,2", "review")).toBe(2);
+      ledger.recordRound("1,2", { op: "fix" });
+      expect(ledger.roundCount("1,2", "fix")).toBe(1);
       // a fresh ledger over the same workspace reads the persisted counts back (on-disk record)
       const reload = new Ledger(workspace, new ConfigLoader());
       expect(reload.roundCount("1,2", "review")).toBe(2);
@@ -177,14 +180,16 @@ describe("progress — the D28 round-identity face (cycles, not counts)", () => 
     const { ledger, cleanup } = fixture();
     try {
       // an explicit cycle records its OWN number (fix-2 = the fix that addressed review-2)
-      expect(ledger.recordRound("7,9", "fix", 2)).toBe(1);
+      ledger.recordRound("7,9", { op: "fix", cycle: 2 });
+      expect(ledger.roundCount("7,9", "fix")).toBe(1);
       expect(ledger.roundRecorded("7,9", "fix", 2)).toBe(true);
       expect(ledger.roundRecorded("7,9", "fix", 1)).toBe(false); // cycle 1 was skipped — never fabricated
       // a default recordRound appends the next cycle after the latest (2 → 3)
-      expect(ledger.recordRound("7,9", "fix")).toBe(2);
+      ledger.recordRound("7,9", { op: "fix" });
+      expect(ledger.roundCount("7,9", "fix")).toBe(2);
       expect(ledger.roundRecorded("7,9", "fix", 3)).toBe(true);
       // a re-record of an existing cycle is idempotent (never doubled)
-      expect(ledger.recordRound("7,9", "fix", 2)).toBe(2);
+      ledger.recordRound("7,9", { op: "fix", cycle: 2 });
       expect(ledger.roundCount("7,9", "fix")).toBe(2);
     } finally {
       cleanup();
@@ -403,7 +408,7 @@ describe("the wave row's plan-task snapshot (P21 §5.1 — the append-vs-stall h
   it("reads null for a wave with no snapshot — a historical row holds no invented set", () => {
     const { ledger, cleanup } = fixture();
     try {
-      ledger.recordRound("1", "implement");
+      ledger.recordRound("1", { op: "implement" });
       expect(ledger.planTasksOf("1")).toBeNull();
     } finally {
       cleanup();
@@ -430,7 +435,7 @@ describe("round — the round carrier", () => {
         },
       );
       // §2.8 — the round-read gate: only a recorded round is a round
-      ledger.recordRound("7,9", "review");
+      ledger.recordRound("7,9", { op: "review" });
       const carrier = ledger.round("review", "wave", { tasks: "7,9" }, 1);
       expect(carrier).not.toBeNull();
       expect(carrier!.phase).toBe("review");
@@ -460,7 +465,7 @@ describe("round — the round carrier", () => {
         { tasks: "7,9", round: 1 },
         { phase: "fix", findings: [] },
       );
-      ledger.recordRound("7,9", "fix");
+      ledger.recordRound("7,9", { op: "fix" });
       const carrier = ledger.round("fix", "wave", { tasks: "7,9" }, 1);
       expect(carrier).not.toBeNull();
       expect(carrier!.phase).toBe("fix");
@@ -492,7 +497,7 @@ describe("round — the round carrier", () => {
       // the fix round was never recorded → null whatever the disk draft says
       expect(ledger.round("fix", "wave", { tasks: "7,9" }, 1)).toBeNull();
       // recorded → the same read returns the carrier
-      ledger.recordRound("7,9", "fix");
+      ledger.recordRound("7,9", { op: "fix" });
       expect(ledger.round("fix", "wave", { tasks: "7,9" }, 1)).not.toBeNull();
     } finally {
       cleanup();
@@ -509,7 +514,7 @@ describe("round — the round carrier", () => {
         { tasks: "7,9", round: 1 },
         { phase: "fix", findings: [] },
       );
-      ledger.recordRound("7,9", "fix");
+      ledger.recordRound("7,9", { op: "fix" });
       // missing source review → no round on record (matching the review branch): the next-hop
       // derivation cannot close a line whose blocker set was never read
       expect(ledger.round("fix", "wave", { tasks: "7,9" }, 1)).toBeNull();
@@ -527,7 +532,7 @@ describe("round — the round carrier", () => {
         { tasks: "1", round: 1 },
         { findings: [{ severity: "blocker" }] },
       );
-      ledger.recordRound("1", "fix");
+      ledger.recordRound("1", { op: "fix" });
       expect(ledger.round("fix", "wave", { tasks: "1" }, 1)).toBeNull();
     } finally {
       cleanup();
@@ -544,7 +549,7 @@ describe("round — the round carrier", () => {
           { tasks: "7,9", round: roundNumber },
           { findings: [{ severity: "blocker" }] },
         );
-        ledger.recordRound("7,9", "review");
+        ledger.recordRound("7,9", { op: "review" });
       }
       const twoS1 = ledger.round("review", "wave", { tasks: "7,9" }, 2);
       expect(twoS1!.consecutiveS1).toBe(2);
@@ -555,7 +560,7 @@ describe("round — the round carrier", () => {
         { tasks: "7,9", round: 3 },
         { findings: [{ severity: "warn" }] },
       );
-      ledger.recordRound("7,9", "review");
+      ledger.recordRound("7,9", { op: "review" });
       expect(ledger.round("review", "wave", { tasks: "7,9" }, 3)!.consecutiveS1).toBe(0);
     } finally {
       cleanup();
@@ -572,8 +577,8 @@ describe("round — the round carrier", () => {
         { findings: [{ severity: "blocker" }] },
       );
       // rounds 1 + 2 are recorded, but round 2's file is missing → the read is null, never a throw
-      ledger.recordRound("1", "review");
-      ledger.recordRound("1", "review");
+      ledger.recordRound("1", { op: "review" });
+      ledger.recordRound("1", { op: "review" });
       expect(ledger.round("review", "wave", { tasks: "1" }, 2)).toBeNull();
     } finally {
       cleanup();

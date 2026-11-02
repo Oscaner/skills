@@ -8,8 +8,18 @@
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
 import type { Workspace } from "../infra/workspace.ts";
-import type { OpType } from "./ledger.ts";
+import type { TargetType } from "./faces.ts";
+import type { HandoffParams, OpType } from "./ledger.ts";
 import type { OpenFrame } from "./run.ts";
+
+/** One round's identity slice — the attempt-allocation input. `RoundRecord`
+ *  structurally satisfies it, so the naming table reads the ledger's records
+ *  without depending on the ledger's record type (naming stays the single source). */
+export type AttemptIdentity = {
+  readonly op: OpType;
+  readonly cycle: number;
+  readonly attempt: number;
+};
 
 /**
  * RoundNaming — the one home of a round's prescribed artifact names. A frame's
@@ -80,6 +90,37 @@ export class RoundNaming {
    *  for the branch line (never the misleading tasks- spine). */
   prefix(frame: OpenFrame): string {
     return frame.type === "wave" ? "tasks" : "branch";
+  }
+
+  /** The attempt number a dispatch of one op/cycle would take — the max attempt
+   *  already on record for that identity plus one (1 when the cycle was never
+   *  dispatched). The ledger's records are the input slice, so the naming table
+   *  allocates the attempt ONCE for both the record and the log name. */
+  attemptOf(records: readonly AttemptIdentity[], op: OpType, cycle: number): number {
+    let latest = 0;
+    for (const record of records) {
+      if (record.op === op && record.cycle === cycle && record.attempt > latest) {
+        latest = record.attempt;
+      }
+    }
+    return latest + 1;
+  }
+
+  /** The per-round log file NAME of a round — the report stem with `.log` instead
+   *  of `-report.md`, carrying `-a{attempt}` when the dispatch is a re-attempt (so
+   *  attempt 1's log is never overwritten). The attempt is allocated by `attemptOf`
+   *  and passed in, never extrapolated here. */
+  logName(op: OpType, type: TargetType, params: HandoffParams, attempt: number): string {
+    const stem =
+      type === "spec" || type === "plan"
+        ? `${type}-${op}-${params.round}`
+        : (() => {
+            const family = type === "wave" ? `tasks-${params.tasks ?? ""}` : "branch";
+            const suffix = op === "implement" ? "" : `-${params.round}`;
+            return `${family}-${op}${suffix}`;
+          })();
+    const attemptSuffix = attempt > 1 ? `-a${attempt}` : "";
+    return `${stem}${attemptSuffix}.log`;
   }
 
   /** The crash record's workspace-relative name — `crash-{line}-{op}-{round}.json`.

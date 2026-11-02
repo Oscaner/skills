@@ -93,6 +93,10 @@ export interface OpenFrame {
   /** The progress ledger key the round records under (a wave key string / a
    *  line-type constant — branch · spec · plan). */
   key: LedgerKey;
+  /** The attempt number of this dispatch (1 = the first attempt of the op/cycle).
+   *  Allocated ONCE by the frame builder (`RoundNaming#attemptOf` over the row's
+   *  records) and shared by the round record and the log name; absent reads 1. */
+  attempt?: number;
 }
 
 /** One round's dispatch outcome — what the lifecycle records and routes on. */
@@ -111,6 +115,11 @@ export interface DispatchOutcome {
   /** The termination fact — present iff the round was cut short; a fact orthogonal to
    *  the conclusion (the status still derives from the handoff). */
   termination?: Termination;
+  /** The HEAD the dispatch started from — the round record's `dispatchBase`. */
+  dispatchBase?: string | null;
+  /** The dispatch-after working-tree observation — the round record's `treeClean`
+   *  (an observation, never a gate). */
+  treeClean?: boolean;
 }
 
 /** The dispatch instruction — runs one round's actual work (the harness call in
@@ -317,6 +326,7 @@ export class Lifecycle {
     if (phase === null) return null;
     const target = { kind: "wave", tasks: ready } as const;
     const round = this.#roundFor(phase, key);
+    const attempt = this.#attemptFor(phase, key, round);
     return {
       type: "wave",
       phase,
@@ -324,7 +334,17 @@ export class Lifecycle {
       target,
       params: this.#paramsOf({ type: "wave", phase, target, round }),
       key,
+      attempt,
     };
+  }
+
+  /** The attempt number one dispatch takes — allocated ONCE here from the row's
+   *  records (`RoundNaming#attemptOf`, the naming single source) and shared by the
+   *  round record and the round log's name. */
+  #attemptFor(phase: DispatchPhase, key: LedgerKey, round: number): number {
+    return this.#ledger
+      .naming()
+      .attemptOf(this.#ledger.recordsOf(key), this.#opOf(phase), round);
   }
 
   /** The next phase of one wave line — the SAME single derivation the wave gate reads
@@ -345,6 +365,7 @@ export class Lifecycle {
     const phase = this.#nextLinePhase(key, target, reviewLead);
     if (phase === null) return null;
     const round = this.#roundFor(phase, key);
+    const attempt = this.#attemptFor(phase, key, round);
     return {
       type: this.#face.type,
       phase,
@@ -352,6 +373,7 @@ export class Lifecycle {
       target,
       params: this.#paramsOf({ type: this.#face.type, phase, target, round }),
       key,
+      attempt,
     };
   }
 
@@ -386,12 +408,14 @@ export class Lifecycle {
   }
 
   /** The round number one phase dispatches under: implement = the fixed family (1);
-   *  the review-lead = the next increment; fix = the source review-lead round. */
+   *  the review-lead = the next increment (every in-register cycle consumes a number);
+   *  fix = the source review-lead's latest COMPLETED cycle (a failed fix never pushes
+   *  it forward — a retry is fix-K's attempt + 1, never a phantom fix-(K+1)). */
   #roundFor(phase: DispatchPhase, key: LedgerKey): number {
     if (phase === "implement") return 1;
     if (phase === "fix") {
-      const reviews = this.#reviewCount(key);
-      return reviews > 0 ? reviews : 1;
+      const completed = this.#ledger.completedCycles(key, "review");
+      return completed.length > 0 ? Math.max(...completed) : 1;
     }
     return this.#reviewCount(key) + 1;
   }
@@ -445,21 +469,19 @@ export class Lifecycle {
   // dispatch → result → bookkeeping
   // -------------------------------------------------------------------------
 
-  /** Bookkeeping — persist the round's handoff carrier and record the progress round.
-   *  The persisted carrier is either the dispatch's materialized form (the production
+  /** Bookkeeping — persist the round's handoff carrier and record the round. The
+   *  persisted carrier is either the dispatch's materialized form (the production
    *  read-back reconstruct — outcome.carrier, full-replace at the SAME path, so the
    *  child's draft becomes the finalized carrier — the two-state single file, the engine is the single
    *  author) or the engine-built fallback from the outcome fields (the hermetic /
-   *  injected dispatchers). A BLOCKED/TIMEOUT round WITHOUT a carrier is neither persisted nor
-   *  recorded — the child's draft (if any) stays untouched (no-overwrite on failure) and the
-   *  frontier re-offers the same round (resume = re-run the same command); a BLOCKED
-   *  round WITH a carrier (e.g. the evidence-contract override — the child's work is
-   *  preserved as the BLOCKED carrier) is persisted but not counted as a completed
-   *  round, so the frontier still re-dispatches it. Returns the round count on record
-   *  (the task done-marking rides the step's C5 route — #markTerminal, after
-   *  #routeNext). */
+   *  injected dispatchers). A failure round WITHOUT a carrier leaves the child's draft
+   *  untouched (no-overwrite on failure) but is STILL recorded — every dispatched round
+   *  lands; "completed" is the record's verdict, never a membership test. Returns the
+   *  in-register round count (the task done-marking rides the step's C5 route —
+   *  #markTerminal, after #routeNext). */
   #bookkeep(frame: OpenFrame, outcome: DispatchOutcome): number {
     const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
+    let carrierPath: string | null = null;
     if (outcome.carrier !== undefined || !blocked) {
       const op = this.#opOf(frame.phase);
       // T2 — the engine-built fallback rides the FRAME's op-derived plane (never the
@@ -483,33 +505,45 @@ export class Lifecycle {
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
       if (plane === "work" && carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
-      this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
+      carrierPath = this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
     }
-    if (!blocked) {
-      // The recorded CYCLE is the frame's own round — its identity (fix-K ⟷ review-K ·
-      // D28): a skipped cycle records its own number, never a flattened ordinal.
-      const count = this.#ledger.recordRound(frame.key, frame.phase, frame.round);
-      // The completed-review revision write-back — the doc line and the wave line
-      // each bind their OWN reviewed revision (T7 doc · T11 wave / D16 / D30): a
-      // completed review binds the CURRENT revision of the reviewed input — read at
-      // bookkeep, the clean-tree dispatch gate keeps the read-only review's input
-      // stable across the round. For a doc line that input is the target doc (the
-      // whole-content doc-revision). For a wave line it is the RENDERED BRIEF —
-      // `#recordReviewedWaveBrief` → `recordReviewedBrief(String(frame.key),
-      // #planPath)` hashes the brief the plan renders to, holding #planPath only as
-      // the plan the brief renders FROM (the render-from POINTER, not the hashed
-      // identity; the wave gate derives the plan path FROM this record, so
-      // cli.ts/preflight.ts stay untouched). The two legs do NOT share one gate —
-      // each ref kind carries its own reviewed identity. An unreadable input records
-      // nothing (present facts only); a null plan path (no plan fact) leaves a legacy
-      // wave row — null stays backward compatible.
-      if (frame.phase === "review" || frame.phase === "branch-review") {
-        if (frame.target.kind === "plan" || frame.target.kind === "spec")
-          this.#recordReviewedDocRevision(frame);
-        else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);
-        else if (frame.target.kind === "branch") this.#recordReviewedBranchRevision(frame);
-      }
-      return count;
+    // The recorded CYCLE is the frame's own round — its identity (fix-K ⟷ review-K ·
+    // D28): a skipped cycle records its own number, never a flattened ordinal. The
+    // attempt was allocated once by the frame builder and rides both the record and
+    // the round log's name.
+    const record = this.#ledger.recordRound(frame.key, {
+      op: this.#opOf(frame.phase),
+      cycle: frame.round,
+      attempt: frame.attempt ?? 1,
+      dispatchBase: outcome.dispatchBase ?? null,
+      verdict: { treeClean: outcome.treeClean ?? true, targetAction: !blocked },
+      violations: [],
+      carrierPath,
+    });
+    // The completed-review revision write-back is gated on the round's VERDICT (a
+    // hard-failed review must not bind the current revision — that would silently
+    // close the drift identity the review never judged). The doc line and the wave
+    // line each bind their OWN reviewed revision (T7 doc · T11 wave / D16 / D30): a
+    // completed review binds the CURRENT revision of the reviewed input — read at
+    // bookkeep, the clean-tree dispatch gate keeps the read-only review's input
+    // stable across the round. For a doc line that input is the target doc (the
+    // whole-content doc-revision). For a wave line it is the RENDERED BRIEF —
+    // `#recordReviewedWaveBrief` → `recordReviewedBrief(String(frame.key),
+    // #planPath)` hashes the brief the plan renders to, holding #planPath only as
+    // the plan the brief renders FROM (the render-from POINTER, not the hashed
+    // identity; the wave gate derives the plan path FROM this record, so
+    // cli.ts/preflight.ts stay untouched). The two legs do NOT share one gate —
+    // each ref kind carries its own reviewed identity. An unreadable input records
+    // nothing (present facts only); a null plan path (no plan fact) leaves a legacy
+    // wave row — null stays backward compatible.
+    if (
+      record.verdict.targetAction &&
+      (frame.phase === "review" || frame.phase === "branch-review")
+    ) {
+      if (frame.target.kind === "plan" || frame.target.kind === "spec")
+        this.#recordReviewedDocRevision(frame);
+      else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);
+      else if (frame.target.kind === "branch") this.#recordReviewedBranchRevision(frame);
     }
     return this.#ledger.roundCount(frame.key, frame.phase);
   }

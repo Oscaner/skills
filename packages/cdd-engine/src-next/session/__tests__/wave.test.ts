@@ -75,7 +75,7 @@ const words = new Words();
 
 /** A clean APPROVED review carrier — the C5 closure record for a task line. */
 const cleanReviewCarrier = (ledger: Ledger, tasks: string, round: number): void => {
-  ledger.recordRound(tasks, "review");
+  ledger.recordRound(tasks, { op: "review" });
   ledger.persistHandoff(
     "review",
     "wave",
@@ -87,8 +87,8 @@ const cleanReviewCarrier = (ledger: Ledger, tasks: string, round: number): void 
 /** An open wave's pending-fix state — the wave line at fix (implement + reviewed
  *  into a blocker, fix awaiting): the T11 gate's baseline phase derivation. */
 const pendingFix = (ledger: Ledger, tasks: string, round: number): void => {
-  ledger.recordRound(tasks, "implement");
-  ledger.recordRound(tasks, "review");
+  ledger.recordRound(tasks, { op: "implement" });
+  ledger.recordRound(tasks, { op: "review" });
   ledger.persistHandoff(
     "review",
     "wave",
@@ -137,7 +137,7 @@ describe("WaveGate.vet — the wrong-phase BLOCK", () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = graphOf([task(1, "none")]);
-      ledger.recordRound(1, "implement"); // task 1 implemented → its phase is review
+      ledger.recordRound(1, { op: "implement" }); // task 1 implemented → its phase is review
       const verdict = gate.vet(new Set([1]), "implement", graph, ledger, words);
       expect(verdict.ok).toBe(false);
       expect(verdict.reason).toBe("wrong-phase");
@@ -151,7 +151,7 @@ describe("WaveGate.vet — the wrong-phase BLOCK", () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = graphOf([task(1, "none")]);
-      ledger.recordRound(1, "implement");
+      ledger.recordRound(1, { op: "implement" });
       cleanReviewCarrier(ledger, "1", 1); // review approved → task 1 closed
       // closedWaves now contains 1 → frontier over it is empty → the wave gate sees
       // an empty open wave; a requested {1} mismatches ({1} ≠ {}) → the split BLOCK.
@@ -170,7 +170,7 @@ describe("WaveGate.vet — the open wave's phase is EXACTLY the requested verb",
     const { ledger, cleanup } = fixture();
     try {
       const graph = graphOf([task(1, "none")]);
-      ledger.recordRound(1, "implement");
+      ledger.recordRound(1, { op: "implement" });
       const verdict = gate.vet(new Set([1]), "review", graph, ledger, words);
       expect(verdict.ok).toBe(true);
       expect(verdict.open).toEqual([1]);
@@ -197,7 +197,7 @@ describe("WaveGate.vet — the wave-unitary phase read (v1.28 regression)", () =
     const { ledger, cleanup } = fixture();
     try {
       const graph = graphOf([task(1, "none"), task(2, "none")]); // the open wave = {1,2}
-      ledger.recordRound("1,2", "implement"); // the WAVE row — never per-member rows
+      ledger.recordRound("1,2", { op: "implement" }); // the WAVE row — never per-member rows
       const verdict = gate.vet(new Set([1, 2]), "review", graph, ledger, words);
       expect(verdict.ok).toBe(true);
       expect(verdict.open).toEqual([1, 2]);
@@ -215,7 +215,7 @@ describe("WaveGate.vet — the wave-unitary phase read (v1.28 regression)", () =
     const { ledger, cleanup } = fixture();
     try {
       const graph = graphOf([task(1, "none"), task(2, "none")]);
-      ledger.recordRound("1,2", "implement");
+      ledger.recordRound("1,2", { op: "implement" });
       const verdict = gate.vet(new Set([1, 2]), "implement", graph, ledger, words);
       expect(verdict.ok).toBe(false);
       expect(verdict.reason).toBe("wrong-phase");
@@ -233,7 +233,7 @@ describe("WaveGate.vet — the static-batch guard (D63)", () => {
       // One static batch {1,2}; task 1 closes while task 2 stays open. The derived
       // open wave is {2}, so the exact read alone would approve the dispatch.
       const graph = graphOf([task(1, "none"), task(2, "none")]);
-      ledger.recordRound(1, "implement");
+      ledger.recordRound(1, { op: "implement" });
       cleanReviewCarrier(ledger, "1", 1);
       const verdict = gate.vet(new Set([2]), "implement", graph, ledger, words);
       expect(verdict.ok).toBe(false);
@@ -264,7 +264,7 @@ describe("WaveGate.vet — the static-batch guard (D63)", () => {
       // {1,2,3}; task 4 arrived afterwards (the append path — the plan leads the
       // ledger). The dispatch of the appended {4} is supported, not a stall.
       const graph = graphOf([task(3, "none"), task(4, "none")]);
-      ledger.recordRound("3", "implement");
+      ledger.recordRound("3", { op: "implement" });
       cleanReviewCarrier(ledger, "3", 1);
       ledger.recordPlanTasks("3", [1, 2, 3]);
       const verdict = gate.vet(new Set([4]), "implement", graph, ledger, words);
@@ -279,7 +279,7 @@ describe("WaveGate.vet — the static-batch guard (D63)", () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = graphOf([task(3, "none"), task(4, "none")]);
-      ledger.recordRound("3", "implement");
+      ledger.recordRound("3", { op: "implement" });
       cleanReviewCarrier(ledger, "3", 1);
       // Task 4 WAS in the plan at closure time: it was stranded, not appended.
       ledger.recordPlanTasks("3", [1, 2, 3, 4]);
@@ -297,7 +297,7 @@ describe("WaveGate.vet — the static-batch guard (D63)", () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = graphOf([task(3, "none"), task(4, "none")]);
-      ledger.recordRound("3", "implement");
+      ledger.recordRound("3", { op: "implement" });
       cleanReviewCarrier(ledger, "3", 1);
       // no recordPlanTasks — a historical wave row: the append reading is unavailable.
       const verdict = gate.vet(new Set([4]), "implement", graph, ledger, words);
@@ -313,7 +313,7 @@ describe("ledger.closedWaves — the C5 closure single read face", () => {
   it("an implement-only task is never closed (implement rounds carry no closure verdict)", () => {
     const { ledger, cleanup } = fixture();
     try {
-      ledger.recordRound(1, "implement");
+      ledger.recordRound(1, { op: "implement" });
       expect(ledger.closedWaves()).toEqual(new Set());
     } finally {
       cleanup();
@@ -323,7 +323,7 @@ describe("ledger.closedWaves — the C5 closure single read face", () => {
   it("a clean review closes the task — the C5 route is the closure predicate", () => {
     const { ledger, cleanup } = fixture();
     try {
-      ledger.recordRound(1, "implement");
+      ledger.recordRound(1, { op: "implement" });
       cleanReviewCarrier(ledger, "1", 1);
       expect(ledger.closedWaves()).toEqual(new Set([1]));
     } finally {
@@ -334,14 +334,14 @@ describe("ledger.closedWaves — the C5 closure single read face", () => {
   it("a review with blocker findings holds the task open (the fix awaits — not a closure)", () => {
     const { ledger, cleanup } = fixture();
     try {
-      ledger.recordRound(1, "implement");
+      ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
         "review",
         "wave",
         { tasks: "1", round: 1 },
         { findings: [{ severity: "blocker", summary: "defect" }] },
       );
-      ledger.recordRound(1, "review");
+      ledger.recordRound(1, { op: "review" });
       expect(ledger.closedWaves()).toEqual(new Set());
     } finally {
       cleanup();
@@ -353,7 +353,7 @@ describe("ledger.closedWaves — the C5 closure single read face", () => {
     try {
       // The historical merged-wave row carries the review+fix pair — the pair's C5 route
       // decides both members, without per-member implement rows.
-      ledger.recordRound("4,12", "review");
+      ledger.recordRound("4,12", { op: "review" });
       ledger.persistHandoff(
         "review",
         "wave",
@@ -375,15 +375,15 @@ describe("ledger.closedWaves — the C5 closure single read face", () => {
       // so the fix round's clean source review closes the wave. A stricter
       // absent→BLOCKED reading would fabricate a failure and strand every such wave
       // open (the closedWaves regression this pin guards).
-      ledger.recordRound("7,9", "implement");
-      ledger.recordRound("7,9", "review");
+      ledger.recordRound("7,9", { op: "implement" });
+      ledger.recordRound("7,9", { op: "review" });
       ledger.persistHandoff(
         "review",
         "wave",
         { tasks: "7,9", round: 1 },
         { tasks: [7, 9], phase: "review", findings: [{ severity: "nit", summary: "cosmetic" }] },
       );
-      ledger.recordRound("7,9", "fix");
+      ledger.recordRound("7,9", { op: "fix" });
       // the legacy fix carrier — artifacts only, NO status key
       ledger.persistHandoff("fix", "wave", { tasks: "7,9", round: 1 }, { artifacts: {} });
       expect(ledger.closedWaves()).toEqual(new Set([7, 9]));
@@ -401,17 +401,17 @@ describe("ledger.closedWaves — the C5 closure single read face", () => {
       // read the fix at `Math.min(latestFix, latestReview)` = min(1,2) = 1 → the stale
       // fix-1 → `review` → read the wave forever open at fix (the wave gate then refused
       // the next wave). The identity read (a fix at the latest review's cycle) fixes it.
-      ledger.recordRound("5,11", "implement");
+      ledger.recordRound("5,11", { op: "implement" });
       ledger.persistHandoff(
         "review",
         "wave",
         { tasks: "5,11", round: 1 },
         { findings: [{ severity: "blocker", summary: "defect" }] },
       );
-      ledger.recordRound("5,11", "review");
-      ledger.recordRound("5,11", "fix");
+      ledger.recordRound("5,11", { op: "review" });
+      ledger.recordRound("5,11", { op: "fix" });
       ledger.persistHandoff("fix", "wave", { tasks: "5,11", round: 1 }, { artifacts: {} });
-      ledger.recordRound("5,11", "review", 2);
+      ledger.recordRound("5,11", { op: "review", cycle: 2 });
       ledger.persistHandoff(
         "review",
         "wave",
@@ -512,10 +512,10 @@ describe("Ledger#waveLinePhase — the D28 phantom-pending-fix suppression", () 
       // fix's COUNT (1) trails the review count (2), which the retired
       // `fixes < reviews` comparison read as a phantom pending fix → the wave would
       // re-open at fix forever. The identity membership (2 ∈ {2}) suppresses it.
-      ledger.recordRound("1", "implement");
-      ledger.recordRound("1", "review");
-      ledger.recordRound("1", "review");
-      ledger.recordRound("1", "fix", 2);
+      ledger.recordRound("1", { op: "implement" });
+      ledger.recordRound("1", { op: "review" });
+      ledger.recordRound("1", { op: "review" });
+      ledger.recordRound("1", { op: "fix", cycle: 2 });
       // review-2 is clean and fix-2 closed it — the wave line is closed, not pending
       ledger.persistHandoff(
         "review",
@@ -538,10 +538,10 @@ describe("Ledger#waveLinePhase — the D28 phantom-pending-fix suppression", () 
     try {
       // the drift-voided shape again, but the source review-2 carries a blocker, so the
       // fix round's C5 route is a re-review — the wave legitimately stays at review
-      ledger.recordRound("1", "implement");
-      ledger.recordRound("1", "review");
-      ledger.recordRound("1", "review");
-      ledger.recordRound("1", "fix", 2);
+      ledger.recordRound("1", { op: "implement" });
+      ledger.recordRound("1", { op: "review" });
+      ledger.recordRound("1", { op: "review" });
+      ledger.recordRound("1", { op: "fix", cycle: 2 });
       ledger.persistHandoff(
         "review",
         "wave",

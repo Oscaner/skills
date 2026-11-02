@@ -303,29 +303,72 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
   },
 };
 
+/** The two slots of the severity rubric — the reviewed artifact's name and the
+ *  audience whose expectation judges the artifact's silence. The values are the
+ *  literal placeholder spellings the fragment carries. */
+export const SEVERITY_RUBRIC_SLOTS = {
+  artifact: "{artifact}",
+  audience: "{audience}",
+} as const;
+
+/** The review variant key — the four review types ARE the `TargetType` domain
+ *  (`wave` / `branch` / `spec` / `plan`); no second value domain is minted. */
+export type ReviewVariant = TargetType;
+
+/** The severity rubric — the ONE calibration fragment every review axes guide
+ *  shares: the four blocker questions, the warn/nit tiers, the same-grade
+ *  consistency duty, the vision (silence-is-not-permission) sentence with its two
+ *  slots, the set-aside ledger and the closing acknowledgement. */
+export const SEVERITY_RUBRIC =
+  "Calibrate findings by real severity — not everything is a blocker. A finding is a blocker when any one of these holds: (a) the declared acceptance gate, contract or prompt is violated; (b) a legal input escapes the declared failure face (a blank input returns 500, an unknown id is not a 404); (c) the gate fails or the suite can never go red (an inert grep · a dead guard · an unconditional skip); (d) a security or privacy defect. Debt inside the contract is a warn (duplicated policy · stale docstring · a missing coverage case). Style, naming and line-wrapping is a nit. Within one run, a defect already graded in the same class keeps that grade; crossing grades names its reason in the finding. The reviewed {artifact} is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable {audience} would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).";
+
+/** The slot values per review variant — the ONE registry the filled fragment reads.
+ *  `{artifact}` = the reviewed product's name; `{audience}` = the subject whose
+ *  expectation judges the artifact's silence. */
+export const REVIEW_VARIANT_TEXT: Readonly<
+  Record<TargetType, { readonly artifact: string; readonly audience: string }>
+> = {
+  wave: { artifact: "artifact", audience: "user" },
+  branch: { artifact: "artifact", audience: "user" },
+  spec: { artifact: "spec", audience: "downstream author" },
+  plan: { artifact: "plan", audience: "implementer" },
+};
+
+/** The filled severity rubric of one review variant — the shared fragment with the
+ *  variant's two slot values substituted. The parameter domain IS the `REVIEWS` key
+ *  domain (both `TargetType`), so a consumer derives the guide from the same key. */
+export const reviewGuideOf = (type: TargetType): string => {
+  const text = REVIEW_VARIANT_TEXT[type];
+  return SEVERITY_RUBRIC.replaceAll(SEVERITY_RUBRIC_SLOTS.artifact, text.artifact).replaceAll(
+    SEVERITY_RUBRIC_SLOTS.audience,
+    text.audience,
+  );
+};
+
 /** The four-type review criteria — the review prompts' fixed criteria body (P4; the
  *  spec/plan URC rows migrated from the dispatch table at the v1.8 closeout — their
- *  single typed home). */
+ *  single typed home). The shared calibration tail rides `reviewGuideOf` (one
+ *  fragment, four references), never a per-type copy. */
 export const REVIEWS = {
   wave: {
     lensEnum: ["standards", "spec", "buildability"],
     axesGuide:
-      "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run `git diff origin/<BASE_BRANCH>..HEAD` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (`**Files:**` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding (severity by your judgment). The reviewer is the changed-surface judge — the engine reconciles nothing. The reviewed artifact is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable user would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
+      `Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run \`git diff origin/<BASE_BRANCH>..HEAD\` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (\`**Files:**\` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding (severity by your judgment). The reviewer is the changed-surface judge — the engine reconciles nothing. ${reviewGuideOf("wave")}`,
   },
   branch: {
     lensEnum: ["standards", "spec", "buildability"],
     axesGuide:
-      "Same four axes as task (branch-wide health: run `git diff origin/<BASE_BRANCH>..HEAD` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop. The reviewed artifact is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable user would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust). Three things a green run cannot show you: design — does the changed structure fit this codebase and is it the simplest structure that solves the plan's problem (over-engineering is a finding, not a preference); test adequacy — would these tests fail if the code broke (a run that cannot go red is not evidence); migration — does every breaking change name the path a not-yet-migrated consumer takes.",
+      `Same four axes as task (branch-wide health: run \`git diff origin/<BASE_BRANCH>..HEAD\` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop. ${reviewGuideOf("branch")} Three things a green run cannot show you: design — does the changed structure fit this codebase and is it the simplest structure that solves the plan's problem (over-engineering is a finding, not a preference); test adequacy — would these tests fail if the code broke (a run that cannot go red is not evidence); migration — does every breaking change name the path a not-yet-migrated consumer takes.`,
   },
   spec: {
     lensEnum: ["completeness", "consistency", "clarity"],
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at `INPUT_OVERALL` (the charter its `program:` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding + The reviewed spec is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable downstream author would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
+      `Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at \`INPUT_OVERALL\` (the charter its \`program:\` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. ${reviewGuideOf("spec")}`,
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
     axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at `INPUT_SPEC` (the plan's `spec` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + The reviewed spec is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable implementer would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
+      `Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at \`INPUT_SPEC\` (the plan's \`spec\` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ${reviewGuideOf("plan")}`,
   },
 } as const satisfies ReviewGuides;
 

@@ -21,6 +21,7 @@ import { printParseErrorCode } from "jsonc-parser";
 import { GitClient } from "../infra/git.ts";
 import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
 import type { RepoRoot } from "../infra/root.ts";
+import { RoundLog } from "../infra/round-log.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
@@ -180,10 +181,23 @@ export class CliLifecycle {
     return (frame) => this.#dispatch(frame);
   }
 
-  /** One dispatch — prompt from the template plane + the frame, host child via
-   *  the harness-contract rows, the child's write-back read in (the draft at
-   *  OUTPUT_HANDOFF is the round's content; the child's Return is prose, never parsed). */
+  /** One dispatch — the round's work plus the two observation facts every record
+   *  carries: the dispatch baseline HEAD (captured before the spawn) and the
+   *  dispatch-after working-tree observation (`treeClean`, never a gate). */
   async #dispatch(frame: OpenFrame): Promise<DispatchOutcome> {
+    const outcome = await this.#runDispatch(frame);
+    return {
+      ...outcome,
+      dispatchBase: this.#dispatchBase,
+      treeClean: await this.#git.isClean(this.#scene.workspace.root.repoRoot),
+    };
+  }
+
+  /** One dispatch's round work — prompt from the template plane + the frame, host
+   *  child via the harness-contract rows, the child's write-back read in (the draft
+   *  at OUTPUT_HANDOFF is the round's content; the child's Return is prose, never
+   *  parsed). */
+  async #runDispatch(frame: OpenFrame): Promise<DispatchOutcome> {
     const host = this.detectHost();
     if (host === "") {
       this.#io.stderr(
@@ -203,25 +217,38 @@ export class CliLifecycle {
     // `HoldingError` (carrying the holder's facts), which rides the CLI's held BLOCK.
     this.#dispatchBase = await this.#git.head(this.#scene.workspace.root.repoRoot);
     await this.#inflight.acquire(await this.#recordOf(frame), { stealStale: this.#stealStale });
+    // The round's own log file — created BEFORE the spawn (append stream open, zero
+    // bytes), so the channel exists from the dispatch's first millisecond. A create
+    // failure is a named soft observation and the round continues on the CPU leg
+    // alone (the log leg is null, never a kill authorization).
+    const roundLog = await this.#openRoundLog(frame);
     // The child receives ONE prompt argument — per the host's promptForm data column
     // (§3.5): the ref-prefixed form embeds the slash ref at the start of the single
     // prompt positional (claude -p consumes the whole first positional as the prompt;
     // a standalone ref arg after the flags would be swallowed, losing everything after
     // the ref) — the prompt assembly is data, never a code assumption.
-    const result = await this.#sync.run({
-      command: cliName,
-      args: [...args, this.#childPrompt(row.promptForm, ref, prompt)],
-      // The child's spawn directory is the repo root; the in-flight record handle
-      // carries the sampler's own write path (the record is the ONE trail, and its
-      // path is the tree leg's exclusion). The same `cwd` is also the tree-leg scan
-      // root, so the scan root ≡ child cwd correspondence is structural.
-      cwd: this.#scene.workspace.root.repoRoot,
-      inflight: this.#inflight,
-      policy: TerminationPolicy.of(frame.phase),
-      // The host row's own child env — the TTL pin the terminator layers over the
-      // inherited env at spawn (the host difference is data, never a dispatcher branch).
-      env: row.env,
-    });
+    let result: ChildOutcome;
+    try {
+      result = await this.#sync.run({
+        command: cliName,
+        args: [...args, this.#childPrompt(row.promptForm, ref, prompt)],
+        // The child's spawn directory is the repo root; the in-flight record handle
+        // carries the sampler's own write path (the record is the ONE trail, and its
+        // path is the tree leg's exclusion). The same `cwd` is also the tree-leg scan
+        // root, so the scan root ≡ child cwd correspondence is structural.
+        cwd: this.#scene.workspace.root.repoRoot,
+        inflight: this.#inflight,
+        policy: TerminationPolicy.of(frame.phase),
+        // The host row's own child env — the TTL pin the terminator layers over the
+        // inherited env at spawn (the host difference is data, never a dispatcher branch).
+        env: row.env,
+        log: roundLog ?? undefined,
+      });
+    } finally {
+      // Drain → close BEFORE any read-back judgment: the append stream's tail bytes can
+      // land after the exit event, so the postmortem face is only complete after close.
+      if (roundLog !== null) await roundLog.close();
+    }
     // The postmortem pair's second leg: what the (possibly crashed) child added on top
     // of the dispatch baseline. Computed ONCE here, so every reject path below writes
     // the same facts without a second git read.
@@ -304,6 +331,23 @@ export class CliLifecycle {
       sampledAt: null,
       verdict: null,
     };
+  }
+
+  /** Open one round's log file — the per-round channel the child's stdout/stderr
+   *  land in (create makes the `logs/` directory). A create failure is a named soft
+   *  observation and the round continues on the CPU leg alone (the log leg stays null). */
+  async #openRoundLog(frame: OpenFrame): Promise<RoundLog | null> {
+    const target = this.#scene.workspace.resolve(
+      this.#naming.logName(this.#opOf(frame), frame.type, frame.params, frame.attempt ?? 1),
+    );
+    try {
+      return await RoundLog.create(target);
+    } catch {
+      this.#io.stderr(
+        `${this.#words.station("warn")} round log unavailable at ${this.#rel(target)}\n`,
+      );
+      return null;
+    }
   }
 
   /** The wave frame's brief hash at acquire time — `ReviewRefs.briefRevision` over the

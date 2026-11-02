@@ -141,16 +141,16 @@ export interface PipelineNext {
 export const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
 
 /** The fix-route readback suffix — appended verbatim to the fix findings path on the
- *  route's `next:` render (`(confirm the findings · if a finding needs a ruling,
- *  record the ruling in the findings file)`), a pure wording prompt: the
+ *  route's `next:` render (`(confirm the reviews handoff · if a finding needs a
+ *  ruling, record the ruling in the handoff file)`), a pure wording prompt: the
  *  anti-blind-fix mechanical guard is the ledger round / C5-1, the suffix only
  *  reminds the orchestrator to confirm the captured findings and, when a finding
- *  needs a user ruling, record that ruling back into the findings file the fix
+ *  needs a user ruling, record that ruling back into the reviews handoff the fix
  *  round consumes. `annotate` names the carrier action alone — distinct from
  *  `backfill` (a durable fact landed into its owning doc), which stays the
  *  ruling's destination when it asserts a project-level fact. */
 export const FIX_READBACK_SUFFIX =
-  "(confirm the findings · if a finding needs a ruling, record the ruling in the findings file)";
+  "(confirm the reviews handoff · if a finding needs a ruling, record the ruling in the handoff file)";
 
 /** The failure face — a BLOCKED/TIMEOUT round goes the stderr CDD_BLOCKED channel and
  *  produces no `next:` line on any op. Exported as the ONE failure-status set: the

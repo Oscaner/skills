@@ -198,7 +198,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
-    ledger.recordRound("1", "review");
+    ledger.recordRound("1", { op: "review" });
 
     const { text } = render("prog-p1");
 
@@ -270,7 +270,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", "review");
+    ledger.recordRound("spec", { op: "review" });
 
     const { text } = render("prog-p1");
 
@@ -313,13 +313,13 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const ledger = new Ledger(workspace, new ConfigLoader());
     // spec closed (a recorded zero-findings spec review)
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", "review");
+    ledger.recordRound("spec", { op: "review" });
     // plan closed by identity: review cycles [1,2], the fix at its own cycle 2
     ledger.persistHandoff("review", "plan", { round: 2 }, { findings: [] });
     ledger.persistHandoff("fix", "plan", { round: 2 }, { findings: [] });
-    ledger.recordRound("plan", "review", 1);
-    ledger.recordRound("plan", "review", 2);
-    ledger.recordRound("plan", "fix", 2);
+    ledger.recordRound("plan", { op: "review", cycle: 1 });
+    ledger.recordRound("plan", { op: "review", cycle: 2 });
+    ledger.recordRound("plan", { op: "fix", cycle: 2 });
 
     const { text } = render("prog-p1");
 
@@ -359,9 +359,9 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "plan", { round: 2 }, { findings: [] });
     ledger.persistHandoff("fix", "plan", { round: 2 }, { findings: [] });
-    ledger.recordRound("plan", "review", 1);
-    ledger.recordRound("plan", "review", 2);
-    ledger.recordRound("plan", "fix", 2);
+    ledger.recordRound("plan", { op: "review", cycle: 1 });
+    ledger.recordRound("plan", { op: "review", cycle: 2 });
+    ledger.recordRound("plan", { op: "fix", cycle: 2 });
 
     // The engine judge: the plan line is CLOSED (the fix at its own cycle 2, D28).
     expect(ledger.lineClosed("plan", "plan")).toBe(true);
@@ -507,12 +507,12 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // Close the spec and plan lines (a recorded zero-findings review each) so the wave
     // face IS the frontier.
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", "review");
+    ledger.recordRound("spec", { op: "review" });
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
-    ledger.recordRound("plan", "review");
+    ledger.recordRound("plan", { op: "review" });
     // W1 ({5}) closed: a recorded zero-findings review round.
     ledger.persistHandoff("review", "wave", { tasks: "5", round: 1 }, { findings: [] });
-    ledger.recordRound("5", "review");
+    ledger.recordRound("5", { op: "review" });
     // W2 ({12,13,14}) is the open frontier with NO implement yet — its active C5 hop is
     // the whole-wave implement (spec §18.4 live case: W4 in flight → `implement --tasks
     // 12,13,14`, never the exhausted-wave face handoff `review --type branch`).
@@ -597,7 +597,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
-    ledger.recordRound("1", "review");
+    ledger.recordRound("1", { op: "review" });
 
     const { text } = render("prog-p1");
     // W1 {1} (narrow) and W2 {2,3} / W3 {4} (wider) — the markers must share one column.
@@ -635,7 +635,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", "review");
+    ledger.recordRound("spec", { op: "review" });
 
     const { text } = render("prog-p1", "");
 
@@ -672,7 +672,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", "review");
+    ledger.recordRound("spec", { op: "review" });
     expect(nextOf("prog-p1", "pi")).toBe("route to /skill:cdd-plan skill");
     expect(nextOf("prog-p1", "claude")).toBe("route to /kairos:cdd-plan skill");
   });
@@ -704,7 +704,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", "review");
+    ledger.recordRound("spec", { op: "review" });
 
     for (const host of ["claude", "pi"]) {
       const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, new RepoRoot(repo))

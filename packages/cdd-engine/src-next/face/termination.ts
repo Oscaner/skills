@@ -22,6 +22,7 @@ import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { execa } from "execa";
 import { ProcessFacts } from "../infra/proc.ts";
+import type { RoundLog } from "../infra/round-log.ts";
 import type { InFlight } from "../session/inflight.ts";
 import type {
   RoundPhase,
@@ -81,6 +82,10 @@ export interface ChildRun {
   /** The per-host dispatch env — layered over the inherited env at spawn (the
    *  engine's values win over the parent's). */
   env: Readonly<Record<string, string>>;
+  /** The round's own log file — the child's stdout/stderr land here, appended as the
+   *  bytes arrive. Absent = no log channel (the round still runs; the liveness judge
+   *  loses the log leg, never the round). */
+  log?: RoundLog;
 }
 
 /** The child-runner seam — the production terminator and the test stub implement
@@ -471,6 +476,14 @@ export class Terminator implements ChildRunner {
       forceKillAfterDelay: Terminator.FORCE_KILL_AFTER_DELAY_MS,
       timeout: run.policy.budgetMs,
     });
+    // The round's log channel — the child's stdout/stderr bytes are appended to the
+    // per-round file as they arrive (zero prefix, zero engine-stdout echo). The
+    // buffered result face below is unchanged; the log is an additional observation.
+    if (run.log !== undefined) {
+      const log = run.log;
+      subprocess.stdout?.on("data", (chunk: Buffer | string) => log.write(chunk.toString()));
+      subprocess.stderr?.on("data", (chunk: Buffer | string) => log.write(chunk.toString()));
+    }
     // Reclaim the group the instant the direct child exits: a grandchild holding the stdout
     // / stderr pipes would otherwise keep the `await` open. No execa option does this (its
     // group kill is on-demand only), so execa's own group-aware `kill()` is called once, at

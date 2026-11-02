@@ -70,6 +70,51 @@ export interface RoundFinding {
 export type OpType = "implement" | "review" | "fix";
 export type RoundPhase = OpType | "branch-review";
 
+/** The terminal verdict of one dispatched round — the two facts the completion
+ *  readers and the board judge. `targetAction` is the completion verdict (the round
+ *  did what its verb promised); `treeClean` is the dispatch-after observation of the
+ *  working tree (not a gate). */
+export interface RoundVerdict {
+  readonly treeClean: boolean;
+  readonly targetAction: boolean;
+}
+
+/** One graded violation of a round — `hard` fails the round, `soft` is bookkeeping
+ *  only (never a gate). */
+export type RoundViolation = {
+  readonly grade: "hard" | "soft";
+  readonly cause: string;
+  readonly message: string;
+};
+
+/** One dispatched round's record — its identity (`op` + `cycle` + `attempt`), the
+ *  dispatch baseline HEAD, the terminal verdict, its graded violations and the
+ *  carrier path (null when the round wrote none). A dispatched round is recorded
+ *  unconditionally; "completed" is a read of `verdict.targetAction`, never a
+ *  membership test. */
+export interface RoundRecord {
+  readonly op: OpType;
+  readonly cycle: number;
+  readonly attempt: number;
+  readonly dispatchBase: string | null;
+  readonly verdict: RoundVerdict;
+  readonly violations: readonly RoundViolation[];
+  readonly carrierPath: string | null;
+}
+
+/** The writable shape of one round record — the stored record with the identity
+ *  facts defaultable (the seeding form still allocates the cycle from the row's
+ *  latest in-register cycle). Production dispatch passes the whole identity. */
+export interface RoundRecordInit {
+  readonly op: OpType;
+  readonly cycle?: number;
+  readonly attempt?: number;
+  readonly dispatchBase?: string | null;
+  readonly verdict?: RoundVerdict;
+  readonly violations?: readonly RoundViolation[];
+  readonly carrierPath?: string | null;
+}
+
 /** The round-concluding statuses the router's failure face reads. */
 export type RoundStatus = "APPROVED" | "BLOCKED" | "TIMEOUT" | "CHANGES_REQUESTED" | "REVIEW_FIX";
 
@@ -115,13 +160,11 @@ export type ProgressCounterKey = keyof typeof PROGRESS_COUNTER_ZERO;
 export type ProgressRow = {
   /** The wave key string — the dispatch group identity (`"1"` · `"1,2"`). */
   wave: string;
-  /** The completed rounds per mode (implement/review/fix), each as its CYCLE NUMBER —
-   *  the round's IDENTITY, not a count (D28 · one fact one place). A fix cycle equals
-   *  the review cycle it addressed (fix-K ⟷ review-K), so a fix that skips a cycle
-   *  (a drift-voided review) records its identity — `[2]` — where a count would have
-   *  flattened it to `1` and diverged from the carrier name `fix-2`. Review cycles are
-   *  contiguous (1..N); `implement` is `[1]`. */
-  rounds?: Record<string, number[]>;
+  /** The dispatched rounds of this row — the per-round records (identity + verdict +
+   *  violations + carrier). The read-time normalizer (`RoundRecords.of`) folds the
+   *  legacy two forms (a per-mode cycle array / a numeric cycle count) into completed
+   *  records; the write face appends the new form only. */
+  rounds?: RoundRecord[] | Record<string, number[] | number>;
   /** The line's reviewed identity — the doc-revision a spec/plan line bound (T7) OR
    *  the brief-revision a wave line bound (D30). Written at review completion; the
    *  identity-aware gate reopens the closed line on drift from it. The two kinds are
@@ -145,6 +188,62 @@ export interface ProgressData {
   engineRecoveryCount: number;
   harnessAbortCount: number;
   waves: ProgressRow[];
+}
+
+/**
+ * RoundRecords — the ONE read-time normalizer of a progress row's `rounds` plane.
+ * The stored form is a record array; the two legacy forms (a per-mode cycle-number
+ * array / a bare numeric cycle count) fold into completed records (the old write
+ * recorded only `!blocked` rounds, so every legacy cycle IS a completed round).
+ * Every reader (the ledger, the board, the dry-run preview, the pre-flight gate)
+ * normalizes here — zero second read seam, zero migration write-back.
+ */
+// biome-ignore lint/complexity/noStaticOnlyClass: the normalization single point — the zero-bare-function discipline admits no standalone predicate functions.
+export class RoundRecords {
+  /** The row's round records, legacy forms folded — [] when the row carries none. */
+  static of(row: ProgressRow | undefined): readonly RoundRecord[] {
+    const raw = row?.rounds;
+    if (raw === undefined) return [];
+    if (Array.isArray(raw)) {
+      return raw.filter(
+        (entry): entry is RoundRecord =>
+          typeof entry === "object" && entry !== null && typeof (entry as RoundRecord).op === "string",
+      );
+    }
+    const records: RoundRecord[] = [];
+    for (const [mode, value] of Object.entries(raw)) {
+      const op = RoundRecords.opOf(mode);
+      if (op === null) continue;
+      const cycles = Array.isArray(value) ? value : RoundRecords.#contiguous(value);
+      for (const cycle of cycles) records.push(RoundRecords.completed(op, cycle));
+    }
+    return records.sort((left, right) => left.cycle - right.cycle);
+  }
+
+  /** One completed record of an op/cycle — the legacy fold and the test/seed form. */
+  static completed(op: OpType, cycle: number): RoundRecord {
+    return {
+      op,
+      cycle,
+      attempt: 1,
+      dispatchBase: null,
+      verdict: { treeClean: true, targetAction: true },
+      violations: [],
+      carrierPath: null,
+    };
+  }
+
+  /** The op a recorded mode key belongs to — branch-review rides the review family;
+   *  an unknown mode key reads null (a hand-written row is not a round record). */
+  static opOf(mode: string): OpType | null {
+    if (mode === "branch-review") return "review";
+    return mode === "implement" || mode === "review" || mode === "fix" ? mode : null;
+  }
+
+  /** `n` as the contiguous identity list `1..n` (the retired numeric-count form). */
+  static #contiguous(count: number): readonly number[] {
+    return Array.from({ length: count }, (_unused, index) => index + 1);
+  }
 }
 
 /** The ledger lookup key — a scalar task id or the group key string. */
@@ -484,13 +583,32 @@ export class Ledger {
     return { wave: String(key) };
   }
 
-  /** One mode's recorded cycle numbers on a row — the raw identity list, normalizing a
-   *  legacy numeric count (`fix: 1`) to its assumed contiguous identity (`[1]`, the old
-   *  1:1 assumption). Absent/empty → `[]`. */
+  /** One op's recorded cycle numbers on a row — every dispatched round (legacy forms
+   *  normalized through `RoundRecords`). Absent/empty → `[]`. */
   #cyclesOf(row: ProgressRow | undefined, mode: string): readonly number[] {
-    const raw = row?.rounds?.[mode];
-    if (raw === undefined) return [];
-    return Array.isArray(raw) ? raw : Array.from({ length: raw }, (_unused, index) => index + 1);
+    const op = RoundRecords.opOf(mode);
+    if (op === null) return [];
+    return RoundRecords.of(row)
+      .filter((record) => record.op === op)
+      .map((record) => record.cycle);
+  }
+
+  /** The row's round records — the ONE read face the ledger's consumers share. */
+  recordsOf(key: LedgerKey): readonly RoundRecord[] {
+    const data = this.readProgress();
+    if (data === null) return [];
+    return RoundRecords.of(this.rowFor(data, key));
+  }
+
+  /** One op's COMPLETED cycles on a key — only `verdict.targetAction === true` records.
+   *  The completion questions read this face; the dispatch-number allocation reads
+   *  `roundCount` (every in-register cycle). */
+  completedCycles(key: LedgerKey, op: OpType): readonly number[] {
+    const data = this.readProgress();
+    if (data === null) return [];
+    return RoundRecords.of(this.rowFor(data, key))
+      .filter((record) => record.op === op && record.verdict.targetAction)
+      .map((record) => record.cycle);
   }
 
   /** The last completed round of a dispatch key + mode — 0 when none on record (the
@@ -511,27 +629,53 @@ export class Ledger {
     return this.#cyclesOf(this.rowFor(data, key), mode).includes(cycle);
   }
 
-  /** Record a completed round — the on-disk done record (the ledger edge of the
-   *  ExecutionState carrier: TaskGraph in memory, the ledger on disk). The round's
-   *  CYCLE is its identity (fix-K ⟷ review-K · D28), so a skipped cycle records its
-   *  own number, never a flattened ordinal. The production caller passes the frame's
-   *  own `round`; the default (the next cycle after the latest) records a sequential
-   *  round. Creates the row on demand; the write is idempotent per cycle (a re-record
-   *  of the same cycle does not double it). */
-  recordRound(key: LedgerKey, mode: string, cycle?: number): number {
+  /** Record a dispatched round — the on-disk round record (the ledger edge of the
+   *  ExecutionState carrier: TaskGraph in memory, the ledger on disk). Every dispatched
+   *  round lands, failed rounds included; "completed" is the record's
+   *  `verdict.targetAction`, never the write. The round's CYCLE is its identity
+   *  (fix-K ⟷ review-K · D28), so a skipped cycle records its own number, never a
+   *  flattened ordinal. The production caller passes the frame's whole identity
+   *  (`Run`); the seeding form allocates the next cycle after the latest in-register
+   *  one. The write is idempotent per (op, cycle, attempt): a re-record of the same
+   *  identity does not double it. */
+  recordRound(key: LedgerKey, init: RoundRecordInit): RoundRecord {
     const data = this.readProgress() ?? this.emptyProgress();
     let row = this.rowFor(data, key);
     if (row === undefined) {
       row = this.entryFor(key);
       data.waves.push(row);
     }
-    const cycles = [...this.#cyclesOf(row, mode)];
-    const recorded = cycle ?? (cycles.length > 0 ? Math.max(...cycles) + 1 : 1);
-    if (!cycles.includes(recorded)) cycles.push(recorded);
-    cycles.sort((a, b) => a - b);
-    row.rounds = { ...row.rounds, [mode]: cycles };
+    const records = [...RoundRecords.of(row)];
+    const cycle = init.cycle ?? this.#nextCycle(records, init.op);
+    const record: RoundRecord = {
+      op: init.op,
+      cycle,
+      attempt: init.attempt ?? 1,
+      dispatchBase: init.dispatchBase ?? null,
+      verdict: init.verdict ?? { treeClean: true, targetAction: true },
+      violations: init.violations ?? [],
+      carrierPath: init.carrierPath ?? null,
+    };
+    const existing = records.findIndex(
+      (candidate) =>
+        candidate.op === record.op &&
+        candidate.cycle === record.cycle &&
+        candidate.attempt === record.attempt,
+    );
+    if (existing === -1) records.push(record);
+    else records[existing] = record;
+    records.sort((left, right) =>
+      left.cycle === right.cycle ? left.attempt - right.attempt : left.cycle - right.cycle,
+    );
+    row.rounds = records;
     this.writeProgress(data);
-    return cycles.length;
+    return record;
+  }
+
+  /** The next un-registered cycle of an op — latest in-register + 1 (1 when none). */
+  #nextCycle(records: readonly RoundRecord[], op: OpType): number {
+    const cycles = records.filter((record) => record.op === op).map((record) => record.cycle);
+    return cycles.length > 0 ? Math.max(...cycles) + 1 : 1;
   }
 
   /** Record a line's reviewed identity — the identity-aware gate's basis (written
@@ -689,11 +833,11 @@ export class Ledger {
    *  the board's `next:` derivation reads the route itself (D40 — the active hop, never
    *  a bare face handoff). */
   waveLineRoute(waveKey: string): Route | null {
-    const implemented = this.roundCount(waveKey, "implement");
-    if (implemented === 0) return { kind: "next-wave", tasks: waveKey };
+    const implemented = this.completedCycles(waveKey, "implement");
+    if (implemented.length === 0) return { kind: "next-wave", tasks: waveKey };
     const data = this.readProgress();
     const row = data === null ? undefined : this.rowFor(data, waveKey);
-    const latestReview = row === undefined ? 0 : this.#latestCycleOfRow(row, "review");
+    const latestReview = row === undefined ? 0 : this.#latestCompletedCycleOfRow(row, "review");
     if (latestReview === 0) return { kind: "review" };
     // The latest recorded round is a fix iff a fix is recorded at the latest review's
     // CYCLE (D28 identity — fix-K ⟷ review-K); otherwise it is the latest review itself
@@ -701,7 +845,8 @@ export class Ledger {
     // ⇒ pending fix" short-circuit read a re-review-closed line (`review=[1,2] · fix=[1]`)
     // as forever at `fix`, missing the closing review-2 — the router read below is the
     // single judge (the `waveLineRoute` twin of `#rowClosed`).
-    const fixRecorded = row !== undefined && this.#cyclesOf(row, "fix").includes(latestReview);
+    const fixRecorded =
+      row !== undefined && this.#completedCyclesOfRow(row, "fix").includes(latestReview);
     const carried = this.round(
       fixRecorded ? "fix" : "review",
       "wave",
@@ -765,8 +910,13 @@ export class Ledger {
    *  in the fix set) is NOT the pending face — the completed-fix line's re-review
    *  reopens through the fix round's C5 route (the legacy judgment). */
   #pendingFix(key: LedgerKey, type: TargetType): boolean {
-    const reviews = this.roundCount(key, "review");
-    if (reviews === 0 || this.roundRecorded(key, "fix", reviews)) return false;
+    const data = this.readProgress();
+    if (data === null) return false;
+    const row = this.rowFor(data, key);
+    if (row === undefined) return false;
+    const reviews = this.#latestCompletedCycleOfRow(row, "review");
+    if (reviews === 0) return false;
+    if (this.#completedCyclesOfRow(row, "fix").includes(reviews)) return false;
     const carried = this.round("review", type, { round: reviews }, reviews);
     // `carried.status` is the review round's DERIVED conclusion — `round()` sets it
     // through the `HandoffSchema.conclusionOf` single source (the findings carrier
@@ -855,10 +1005,14 @@ export class Ledger {
    *  phase word (one walk), and the board's `next:` derivation reads the route itself
    *  (D40 — the active hop, never a bare face handoff). */
   lineRoute(key: LedgerKey, type: TargetType): Route | null {
+    const data = this.readProgress();
+    if (data === null) return { kind: "review" };
+    const row = this.rowFor(data, key);
+    if (row === undefined) return { kind: "review" };
     const reviewLead = targetFaces[type].product.reviewLead;
-    const reviews = this.roundCount(key, reviewLead);
+    const reviews = this.#latestCompletedCycleOfRow(row, reviewLead);
     if (reviews === 0) return { kind: "review" };
-    if (!this.roundRecorded(key, "fix", reviews)) {
+    if (!this.#completedCyclesOfRow(row, "fix").includes(reviews)) {
       const route = this.#lineRoundRoute("review", type, reviews);
       return route?.kind === "fix" ? route : null;
     }
@@ -905,20 +1059,30 @@ export class Ledger {
    *  review-lead mode rides the faces table (branch→branch-review, the others→review),
    *  so the wave/spec/plan/branch lines share ONE judge. */
   #rowClosed(type: TargetType, params: HandoffParams, row: ProgressRow): boolean {
-    const latestReview = this.#latestCycleOfRow(row, targetFaces[type].product.reviewLead);
+    const latestReview = this.#latestCompletedCycleOfRow(row, targetFaces[type].product.reviewLead);
     if (latestReview === 0) return false;
-    const fixRecorded = this.#cyclesOf(row, "fix").includes(latestReview);
+    const fixRecorded = this.#completedCyclesOfRow(row, "fix").includes(latestReview);
     return Ledger.routeClosed(
       this.#roundRoute(fixRecorded ? "fix" : "review", type, params, latestReview),
     );
   }
 
-  /** The latest recorded cycle of a row + mode — 0 when none (the identity read; a
-   *  skipped cycle reports its own number, never the count). */
-  #latestCycleOfRow(row: ProgressRow, mode: string): number {
-    const cycles = this.#cyclesOf(row, mode);
+  /** The latest COMPLETED cycle of a row + mode — 0 when none. A failed round consumed
+   *  its cycle but is not a carrier, so every active-hop read starts here. */
+  #latestCompletedCycleOfRow(row: ProgressRow, mode: string): number {
+    const cycles = this.#completedCyclesOfRow(row, mode);
     return cycles.length > 0 ? Math.max(...cycles) : 0;
   }
+
+  /** One mode's completed cycles on a row — the row-level twin of `completedCycles`. */
+  #completedCyclesOfRow(row: ProgressRow, mode: string): readonly number[] {
+    const op = RoundRecords.opOf(mode);
+    if (op === null) return [];
+    return RoundRecords.of(row)
+      .filter((record) => record.op === op && record.verdict.targetAction)
+      .map((record) => record.cycle);
+  }
+
 
   /** The C5 route of one recorded round — null when the round is unreadable (a
    *  line whose round was never read cannot be judged closed: only present facts). */
@@ -1014,8 +1178,12 @@ export class Ledger {
       const owner = Ledger.#handoffOwner(name, this.#families);
       if (owner === null) continue;
       const row = rows.find((candidate) => candidate.wave === owner.key);
-      const rounds = row?.rounds?.[owner.op] ?? [];
-      if (!rounds.includes(owner.round)) orphans.push(name);
+      const completed = RoundRecords.of(row)
+        .filter((record) => record.verdict.targetAction)
+        .map((record) => `${record.op}:${record.cycle}`);
+      if (!completed.includes(`${RoundRecords.opOf(owner.op) ?? owner.op}:${owner.round}`)) {
+        orphans.push(name);
+      }
     }
     return orphans.sort();
   }

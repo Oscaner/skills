@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 设计：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: phase-spec
-version: v0.6
+version: v0.7
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 program: 2026-10-10-engine-doc-tooling
@@ -183,7 +183,7 @@ hard 的后果：`exit` 非零 · `verdict.targetAction === false` · **照常�
 
 ### 5. 定案：Next 收敛与板面（计数表不可破）
 
-**核心理念（不可破）——分级判收敛**：CDD 按 findings 的分级向前推进——review 交出的 findings 按 blocker / warn / nit 分级，**有 blocker 就把线推回 fix 并重新评审，只有 warn/nit 时以 `REVIEW_FIX` 收敛，全空即通过**，连续 `REVIEW_CYCLE_CAP` 个 blocker 周期触软上限交人裁定。这不是某一条实现细节，而是本程序的方法论主轴：`docs/diagrams/src/next-loop.{en,zh-CN}.json` 画出**全部三条**（三格 + 两条边 + `连续 N 个 blocker 周期 → 软上限`），`architecture.{en,zh-CN}.json` 画出前两条（blocker 回合与 `REVIEW_FIX` 收敛）；四份图合起来覆盖全部三条（`blocker · warn/nit · 无` 三格 · `评审有 blocker · 重新评审` 与 `仅 warn/nit · 以 REVIEW_FIX 收口` 两条边 · 连续 `REVIEW_CYCLE_CAP` 个 blocker 周期 的软上限）。图侧陈述与常量同值；本相位**不改该常量的值**，孪生 pin 断言「图侧周期数 == `REVIEW_CYCLE_CAP`」，故将来改常量时图与 pin 同时红、spec 正文不抄数字。§2 的定级口径与本节的分级转移表是**同一件事的两半**：**口径让计数有意义**（没有口径，blocker/warn/nit 只是噪声），**计数是推进的唯一判据**（没有计数，口径无处落地）。因此本相位禁止任何形态的第二判据：不得把下一跳改由 route kind 反推、不得让文档漂移抢在未闭合线的 blocker 之前、不得引入新的分级信号——被 reset 的旧链正是这样坏的。
+**核心理念（不可破）——分级判收敛**：CDD 按 findings 的分级向前推进——review 交出的 findings 按 blocker / warn / nit 分级，**有 blocker 就把线推回 fix 并重新评审，只有 warn/nit 时以 `REVIEW_FIX` 收敛，全空即通过**，连续 `REVIEW_CYCLE_CAP` 个 blocker 周期触软上限交人裁定。这不是某一条实现细节，而是本程序的方法论主轴：`docs/diagrams/src/next-loop.{en,zh-CN}.json` 画出**全部三条**（三格 + 两条边 + `连续 N 个 blocker 周期 → 软上限`），`architecture.{en,zh-CN}.json` 画出前两条（blocker 回合与 `REVIEW_FIX` 收敛）；四份图合起来覆盖全部三条（`blocker · warn/nit · 无` 三格 · `评审有 blocker · 重新评审` 与 `仅 warn/nit · 以 REVIEW_FIX 收口` 两条边 · 连续 `REVIEW_CYCLE_CAP` 个 blocker 周期 的软上限）。图侧陈述与常量同值；**该常量的值以章程裁定为准**（v2.94 / D70 已按用户裁定抬至 50，本相位承接该裁定、不再复述数字），孪生 pin 断言「图侧周期数 == `REVIEW_CYCLE_CAP`」，故将来改常量时图与 pin 同时红、spec 正文不抄数字。§2 的定级口径与本节的分级转移表是**同一件事的两半**：**口径让计数有意义**（没有口径，blocker/warn/nit 只是噪声），**计数是推进的唯一判据**（没有计数，口径无处落地）。因此本相位禁止任何形态的第二判据：不得把下一跳改由 route kind 反推、不得让文档漂移抢在未闭合线的 blocker 之前、不得引入新的分级信号——被 reset 的旧链正是这样坏的。
 
 #### 5.1 转移表：Loop-vs-converge 只由 blocker/warn/nit 数量决定
 
@@ -198,7 +198,7 @@ hard 的后果：`exit` 非零 · `verdict.targetAction === false` · **照常�
 | branch review | findings | `fix` |
 | branch review | 全 0 | 闭合 / 下一跳 |
 
-请求轮与 fix **同 cycle**（fix-K 回答 review-K），故「请求是否含 blocker」是**已记录事实**，不新增字段。**分级 fail-closed**：`severity` 只认三档，出现其它值即载体 schema 非法（该轮不成立、hard 违约），绝不把未知严重度读成「非 blocker」而静默闭合。软上限（`REVIEW_CYCLE_CAP` · `SOFT_CAP_SUGGESTION`）仍只是**预算**，不是收敛机制；该常量的**值**本相位不动（§9「不改预算阈值」），spec 与 §5 一律引用常量名、不抄数字。
+请求轮与 fix **同 cycle**（fix-K 回答 review-K），故「请求是否含 blocker」是**已记录事实**，不新增字段。**分级 fail-closed**：`severity` 只认三档，出现其它值即载体 schema 非法（该轮不成立、hard 违约），绝不把未知严重度读成「非 blocker」而静默闭合。软上限（`REVIEW_CYCLE_CAP` · `SOFT_CAP_SUGGESTION`）仍只是**预算**，不是收敛机制；该常量的**值**以章程裁定为准（v2.94 / D70：用户裁定抬至 50），本相位承接而不重新裁定；spec 与 §5 一律引用常量名、不抄数字。
 
 这条表**不许任何形态的重写**：本相位的收敛只做「同一答案渲染四处」，不改判据（旧链把判据换成 route kind 反推，是本相位点名要避免的回归）。
 
@@ -329,7 +329,7 @@ NextHop {                                   // session/next.ts 的新增类型
 
 - **旧链架构面整退**：波 = 派发组（`DispatchGroup`）· 「一个事实 → 访问器 → 一条求值缝 → 一个投影」· 单一派发目标（`DispatchTarget`）· `RunFacts` 事实包 · 全库「a line is a task, not a wave」改名 · 删 `--reviews` 旗标 · 值域类型 `RoundPhase → Hop` 改名。
 - **载体内定级漂移机检**（`rounds` scope 规则 · 归一化指纹类 · 用户裁定清除路径）。
-- **不新增 `--verbose` 旗标**（默认面区间形零出现；整板排版重设按 D69 ③ 取回，`--verbose` 网格留在 charter 的非目标里）· **不改 `REVIEW_CYCLE_CAP` 的值**（规格只引用常量名，值不抄进 spec） · **不新增 `cdd` 命令**（仍八命令）· **不动 P21 的 `InFlight` 门与互斥语义**（记录形状不动）· **不复活 child 自述通道** · **不做日志轮转** · **不改预算阈值** · **不判 skill 侧动作**（合并 / 关 issue 属 skill 面） · **不新增审批状态文件**（审批门是消费面义务） · **不为文档创作面设引擎门**（创作不经引擎）。
+- **不新增 `--verbose` 旗标**（默认面区间形零出现；整板排版重设按 D69 ③ 取回，`--verbose` 网格留在 charter 的非目标里）· **不重新裁定 `REVIEW_CYCLE_CAP` 的值**（其值以章程裁定为准——v2.94 / D70 已抬至 50；spec 只引用常量名、不抄数字） · **不新增 `cdd` 命令**（仍八命令）· **不动 P21 的 `InFlight` 门与互斥语义**（记录形状不动）· **不复活 child 自述通道** · **不做日志轮转** · **不改预算阈值** · **不判 skill 侧动作**（合并 / 关 issue 属 skill 面） · **不新增审批状态文件**（审批门是消费面义务） · **不为文档创作面设引擎门**（创作不经引擎）。
 
 ### Acceptance criteria
 
@@ -367,6 +367,7 @@ NextHop {                                   // session/next.ts 的新增类型
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.7 | 2026-11-03 | **软上限值的口径修正（W1 wave review 的 warn 触发 · 设计回填）**：三处「本相位不改该常量的值」与分支事实矛盾——`081f40cf` 已按用户裁定把 `REVIEW_CYCLE_CAP` 抬到 50（章程 v2.94 / D70）。改为「值以章程裁定为准（v2.94 / D70，本相位承接而非重新裁定）；spec 只引用常量名、不抄数字」，使参考面与树一致，同时保留「spec 不抄数字、孪生 pin 抓漂移」的原则 | Oscaner M. · Claude（kairos:cdd-dev · design backfill · 2026-11-03） |
 | v0.6 | 2026-11-03 | **图面事实修正（plan-review-2 的 blocker 触发 · 设计回填）**：`architecture.{en,zh-CN}.json` 只画 blocker 回合与 `REVIEW_FIX` 收敛两条，周期数（软上限）只住在 `next-loop.{en,zh-CN}.json`——原文「四份图都按三条形状画」是事实错误。改为：`next-loop` 带全三条、周期数等于 `REVIEW_CYCLE_CAP`，`architecture` 带前两条，孪生 pin 断言四份**合起来**覆盖三条 | Oscaner M. · Claude（kairos:cdd-plan · design backfill · 2026-11-03） |
 | v0.5 | 2026-11-03 | **spec-review-3 findings 全量落册**：① `NextHop` 增 `route` 渲染载荷（`next-wave` 的 `tasks` · `fix` 的 `reviews` 住在 Route 上，不复制进 `hop`），`face/route-render.ts` 入 §8 的 Next 落点行；② 日志指路 pin 改指 `face/lifecycle.ts` 的 `#cutShort` `CDD_BLOCKED` 行，§3.3 补 hard 裁决的 stderr 面；③ `reason` 词表补 `doc-class-blocked`，并写明 `hop: null` 的报文两形；④ 派生改为「每次调用、每线一个」并补输入面（drift 感知 gate 裁决 + 最新完成轮 + 计数）→ `hop` / `reason` 映射表；⑤ §3.5 补修订回写以 `verdict.targetAction` 为门（hard 失败的 review 不绑定 `reviewedRevision`）；⑥ 波宽断言收窄到「闭合集 = 完整依赖层并集」，append 形态写明显式拒绝，两条新拒绝钉在 `mixed-batch` 之后、`exact` 之前；⑦ 三处 nit（同档一致性句位置 · `PipelineKey` 取值 · 版本行序与日期） | Oscaner M. · Claude（kairos:cdd-design [P22] docs-fix · 2026-11-03） |
 | v0.4 | 2026-11-03 | **波内上限改为硬门（用户裁定，取代 v0.3 的切块派生）**：引擎不切块、不截断、不重排——计划面增 `wave-width-at-most-three` 规则（任一依赖层 ≤3，作者在此修 `DependsOn`）+ 派发面 `WaveGate.vet` 两条拒绝（`wave-too-wide` 先于 `exact` · `too-many-tasks`），报文点名任务 id 与修法；`next-wave` 不截断（合规计划上恒 ≤3，越界者被同一道门连病因一起拒绝） | Oscaner M. · Claude（kairos:cdd-design [P22] · 2026-11-03） |

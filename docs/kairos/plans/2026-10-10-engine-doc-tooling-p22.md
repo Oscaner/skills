@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 计划：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: plan
-version: v0.10
+version: v0.11
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 base: develop
@@ -46,14 +46,15 @@ base: develop
 #### Produces
 - `export const SEVERITY_RUBRIC: string` —— 完整片段正文（含四问三档 + vision/非穷举/沉默判读 + set-aside 清单 + 按真实严重度校准 + 先承认做对了什么 + 同档一致性句）。
 - `export const SEVERITY_RUBRIC_SLOTS: { artifact: string; audience: string }` —— 两个插槽的占位名（`{artifact}` / `{audience}`，与 spec §2.1 同词）。
-- `export type ReviewVariant = TargetType` —— 既有四值 `wave | branch | spec | plan`（`session/faces.ts:19`，`templates.ts:53` 已 import 该类型）；不新造值域名，`REVIEWS` 的键域就是它。
-- `export const REVIEW_VARIANT_TEXT: Readonly<Record<TargetType, { readonly artifact: string; readonly audience: string }>>` —— 两插槽取值的唯一登记表：`{artifact}` 取 wave/branch `artifact` · spec `spec` · plan `plan`；`{audience}` 取 wave/branch `user` · spec `downstream author` · plan `implementer`。
-- `export const reviewGuideOf: (type: TargetType) => string` —— 用 `REVIEW_VARIANT_TEXT[type]` 填插槽后返回完整判据体（参数域与 `REVIEWS` 的键域同一，故 Step 1(c) 的 `reviewGuideOf(k)` 调用点类型一致）；`REVIEWS.{wave,branch,spec,plan}.axesGuide` 保留为已拼好的字符串（值 = 各自轴句 + `reviewGuideOf(type)`）。
+- `export type ReviewKey = "wave" | "branch" | "plan" | "overall" | "spec"` —— 判据体的键域（落地名；计划的 `ReviewVariant = TargetType` 未采用：T15 的 `overall` 判据需要第五键，而 `TargetType` 六个目标值里 `phase-spec` / `single-spec` 共用 `spec`）。`REVIEWS` 的键域就是它。
+- `export const REVIEW_BODY_TEXT: Readonly<Record<ReviewKey, { readonly artifact: string; readonly audience: string }>>` —— 两插槽取值的唯一登记表：`{artifact}` 取 wave/branch `artifact` · spec / overall `spec` · plan `plan`；`{audience}` 取 wave/branch `user` · spec / overall `downstream author` · plan `implementer`。
+- `export const reviewGuideOf: (key: ReviewKey) => string` —— 用 `REVIEW_BODY_TEXT[key]` 填插槽后返回完整判据体（参数域与 `REVIEWS` 的键域同一，故 Step 1(c) 的 `reviewGuideOf(k)` 调用点类型一致）；`REVIEWS.{wave,branch,spec,plan,overall}.axesGuide` 保留为已拼好的字符串（值 = 各自轴句 + `reviewGuideOf(key)`）。
+- `export const reviewBodyOf: (type: TargetType) => ReviewKey` —— 目标词到判据键的选择缝（`phase-spec` / `single-spec` ⇒ `spec`，其余同名）；T15 的判据体选择以此名落地（计划的 `ReviewVariants.of` 见 Task 15）。
 - `FIX_READBACK_SUFFIX` 改为 `(confirm the reviews handoff · if a finding needs a ruling, record the ruling in the handoff file)`（同批：常量 jsdoc 的口径句与其字面回显一并改指 reviews handoff）。
 
 #### Steps
-- [ ] **Step 1: 写失败用例** —— 断言四件事（`render/__tests__/templates.test.ts`）：(a) `SEVERITY_RUBRIC` 含 `blocker` 四问的四个锚句（`declared acceptance gate` · `a legal input escapes` · `can never go red` · `security or privacy`）与 warn / nit 两档锚句；(b) 片段含 vision 句与 `set aside` 清单句，且带 `{artifact}` / `{audience}` 占位；(c) 四份 `axesGuide` 各自**只**出现一次片段正文，断言面直接写死为 `REVIEWS[k].axesGuide.split(reviewGuideOf(k)).length === 2`（`k: TargetType` ∈ wave / branch / spec / plan；片段带占位，故按已填的构建串切分）；(d) 模块源码里 `The reviewed` 只出现一次（`readFileSync` 上 `templates.ts` 计入断言，钉「副本零残留」）。运行：`pnpm -C packages/cdd-engine exec vitest run src-next/render/__tests__/templates.test.ts` → 期望 FAIL。 — checkable: 四条断言先红（片段缺位 / 副本仍在）
-- [ ] **Step 2: 抽片段并接线** —— 在 `templates.ts` 定义 `SEVERITY_RUBRIC`（插槽以 `{artifact}` / `{audience}` 字面出现）、`ReviewVariant = TargetType` 与其取值表 `REVIEW_VARIANT_TEXT`（取值见 Produces）、`reviewGuideOf(type: TargetType)`；四份 `axesGuide` 改为「本变体独有轴句 + `reviewGuideOf(...)`」。branch 变体独有的 "Three things a green run cannot show you…" 保留在变体侧（它只出现一次，不是重复）。同档一致性句放在「先承认做对了什么」**之前**。 — checkable: `templates.ts` 源码里 `The reviewed` 只出现一次
+- [ ] **Step 1: 写失败用例** —— 断言四件事（`render/__tests__/templates.test.ts`）：(a) `SEVERITY_RUBRIC` 含 `blocker` 四问的四个锚句（`declared acceptance gate` · `a legal input escapes` · `can never go red` · `security or privacy`）与 warn / nit 两档锚句；(b) 片段含 vision 句与 `set aside` 清单句，且带 `{artifact}` / `{audience}` 占位；(c) 四份 `axesGuide` 各自**只**出现一次片段正文，断言面直接写死为 `REVIEWS[k].axesGuide.split(reviewGuideOf(k)).length === 2`（`k: ReviewKey` ∈ wave / branch / spec / plan / overall；片段带占位，故按已填的构建串切分）；(d) 模块源码里 `The reviewed` 只出现一次（`readFileSync` 上 `templates.ts` 计入断言，钉「副本零残留」）。运行：`pnpm -C packages/cdd-engine exec vitest run src-next/render/__tests__/templates.test.ts` → 期望 FAIL。 — checkable: 四条断言先红（片段缺位 / 副本仍在）
+- [ ] **Step 2: 抽片段并接线** —— 在 `templates.ts` 定义 `SEVERITY_RUBRIC`（插槽以 `{artifact}` / `{audience}` 字面出现）、`ReviewKey` 与其取值表 `REVIEW_BODY_TEXT`（取值见 Produces）、`reviewGuideOf(key: ReviewKey)` 与选择缝 `reviewBodyOf(type: TargetType)`；四份 `axesGuide` 改为「本变体独有轴句 + `reviewGuideOf(...)`」。branch 变体独有的 "Three things a green run cannot show you…" 保留在变体侧（它只出现一次，不是重复）。同档一致性句放在「先承认做对了什么」**之前**。 — checkable: `templates.ts` 源码里 `The reviewed` 只出现一次
 - [ ] **Step 3: 跑绿 + 全量回归** —— `pnpm -C packages/cdd-engine exec vitest run src-next/render` → 期望 PASS；`env -u AI_AGENT pnpm -C packages/cdd-engine test` → 期望零失败（既有 prompt 面断言若因文本合并而红，逐条改锚到 `reviewGuideOf` 面，断言不删）。 — checkable: `vitest run src-next/render` 与引擎全量套件 exit 0
 - [ ] **Step 4: 词面对齐（`FIX_READBACK_SUFFIX` 三处同批）** —— 改 `session/next.ts` 的常量字面与其 jsdoc（口径句 + 字面回显）；`session/__tests__/next.test.ts` 的运行时逐字 `toBe` 与编译期字面类型 pin 逐字重锚。冻结文档里的旧字节不回改。 — checkable: `grep -rn "findings file" packages/cdd-engine/src-next` 零命中，且 `env -u AI_AGENT pnpm run typecheck` exit 0（编译期字面 pin 转绿）
 - [ ] **Step 5: 提交** —— `git add packages/cdd-engine/src-next/render packages/cdd-engine/src-next/session && git commit -m "feat(cdd-engine): publish the severity rubric as one shared fragment"`。 — checkable: `git log -1` 为约定提交信息且工作树干净
@@ -493,12 +494,12 @@ Task 1–12 的全部产物。
 
 #### Produces
 - `export const REVIEWS.overall`：`lensEnum: ["scope", "inventory", "dependency", "acceptance", "boundary"]`；`axesGuide` 只判六条——每个 phase 的 scope 是程序增量而非实现细节 · Phase inventory ↔ Dependency graph ↔ 执行序 的 hard/soft 边一致且串行诚实 · 验收格相位可判 · 非目标真把程序围住 · 变更记录是决策记录而非工作日志 · 台账与实况一致（已闭合标 Done、未注册的不偷塞）。**不含** typecheck/测试证据句、**不含**逐条 `path:line` pin 要求。
-- `export class ReviewVariants { static of(type: TargetType): ReviewKey }`：`wave` / `branch` / `plan` / `overall` 各取同名判据；`phase-spec` 与 `single-spec` 取 `spec`。
+- `export const reviewBodyOf: (type: TargetType) => ReviewKey`（T1 已落地的选择缝）：`wave` / `branch` / `plan` / `overall` 各取同名判据；`phase-spec` 与 `single-spec` 取 `spec`。落地名不是计划的 `ReviewVariants.of` —— 单方法静态面被仓库的零裸函数纪律改写为模块常量（`render/templates.ts`），语义相同。
 - 两份 changeset：`cdd-engine` **minor**（词表统一 + 章程判据）· `kairos` **patch**（消费面字面 sweep）。
 
 #### Steps
-- [ ] **Step 1: 写失败用例** —— (a) `REVIEWS.overall.axesGuide` 含六条章程锚句，且**不含** `typecheck` / `test command` / `Claimed→pin`；(b) `REVIEWS.spec.axesGuide` 仍含三者（对照 pin）；(c) `ReviewVariants.of("single-spec") === "spec"`、`ReviewVariants.of("overall") === "overall"`；(d) 渲染一次 `--type overall` 的 review prompt，其 `**Criteria — overall:**` 行引用的正是章程判据体。 — checkable: 四组用例先红
-- [ ] **Step 2: 实现判据体与选择** —— 新写 `REVIEWS.overall`（走 Task 1 的共享片段机制，插槽填 artifact / audience）；`ReviewVariants.of` 一行映射；渲染面按选择取判据。 — checkable: 章程 prompt 不含 `typecheck`；spec prompt 仍含
+- [ ] **Step 1: 写失败用例** —— (a) `REVIEWS.overall.axesGuide` 含六条章程锚句，且**不含** `typecheck` / `test command` / `Claimed→pin`；(b) `REVIEWS.spec.axesGuide` 仍含三者（对照 pin）；(c) `reviewBodyOf("single-spec") === "spec"`、`reviewBodyOf("overall") === "overall"`；(d) 渲染一次 `--type overall` 的 review prompt，其 `**Criteria — overall:**` 行引用的正是章程判据体。 — checkable: 四组用例先红
+- [ ] **Step 2: 实现判据体与选择** —— 新写 `REVIEWS.overall`（走 Task 1 的共享片段机制，插槽填 artifact / audience）；`reviewBodyOf` 一行映射；渲染面按选择取判据。 — checkable: 章程 prompt 不含 `typecheck`；spec prompt 仍含
 - [ ] **Step 3: 两份 changeset + 文档** —— `cdd-engine` minor、`kairos` patch；`packages/cdd-engine/README.md` 的 review 类型表补 `overall` 行与「章程判据只判章程」。 — checkable: 两份 changeset 存在且 bump 级为 minor / patch
 - [ ] **Step 4: 跑绿 + 提交** —— `env -u AI_AGENT pnpm run validate` → PASS；`git commit -m "feat(cdd-engine): judge a charter by charter criteria"` — checkable: `env -u AI_AGENT pnpm run validate` exit 0
 
@@ -512,6 +513,7 @@ Task 1–12 的全部产物。
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.11 | 2026-11-03 | **判据键的落地名回填（branch-review-1 的 nit · T1 / T15 落地行）**：`ReviewVariant` / `REVIEW_VARIANT_TEXT` / `ReviewVariants.of` 实际落地为 `ReviewKey` / `REVIEW_BODY_TEXT` / `reviewBodyOf`（`render/templates.ts`）——T15 的 `overall` 判据需要第五个判据键，而 `TargetType` 的六个目标值里 `phase-spec` / `single-spec` 共用 `spec`；且单方法静态面被仓库的零裸函数纪律改写为模块常量。语义等价，代码不动，计划侧让行 | Oscaner M. · Claude（kairos:cdd-dev · symbol backfill · 2026-11-03） |
 | v0.10 | 2026-11-03 | **T14 验收补全（W8 五轮评审的取证）**：迁移一致性由「三面」改为**六面**——值域/帮助 · 消费面字面（含散文枚举与 skill 固定词）· 行键 · 载体文件名 · 编号与写侧 · 呈现面；每一面各对应一次 W8 的 blocker，并附失败形态，使同类改名不再以「别名只做一半」通过 | Oscaner M. · Claude（kairos:cdd-dev · acceptance backfill · 2026-11-03） |
 | v0.9 | 2026-11-03 | **T7 Files 面对齐落地（W4 wave review 的 nit）**：`contract/completion-criterion.ts`（判据输入形状）列入 Modify · `session/__tests__/ledger.test.ts` 列入 Test · `face/__tests__/termination.test.ts` 移出（该文件本波未被触，日志指路 pin 落在 `cli.test.ts`） | Oscaner M. · Claude（kairos:cdd-dev · Files backfill · 2026-11-03） |
 | v0.8 | 2026-11-03 | **T7 补 disposition 义务句（W3 现场取证）**：W3 的 fix 轮载体只有 `artifacts` / `status` / `notes`、**无 `dispositions`**，该轮却 APPROVED 并印出 `fixed 0 · rejected 0`——因为判据要等 T7 才接线。接线后这种载体必判 hard，而今日的 fix 提示并未要求逐条处置 ⇒ 会自锁。T7 增一步：fix 提示补「每条请求 finding 都要一条 disposition」，并补一条红 pin | Oscaner M. · Claude（kairos:cdd-dev · plan backfill · 2026-11-03） |

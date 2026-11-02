@@ -134,6 +134,7 @@ export const targetFaces: Record<TargetType, TargetFace> = {
  *  resolves a doc PATH (the node shapes resolve a task graph / the live tree). A new
  *  target type lands as a table row and this predicate follows it — no call site
  *  re-spells the type set. */
+// biome-ignore lint/complexity/noStaticOnlyClass: the doc-shape read face — the zero-bare-function discipline admits no standalone predicate functions.
 export class TargetFaceTable {
   static isDocShape(type: TargetType): boolean {
     return targetFaces[type].audit.kind === "doc-path";

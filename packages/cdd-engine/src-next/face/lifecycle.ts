@@ -15,7 +15,7 @@
 // The module exports the shared seams + the lifecycle class — zero behavior-carrying
 // bare functions.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
@@ -171,6 +171,10 @@ export class CliLifecycle {
    *  no log channel — the crash record's postmortem pointer (one file to open instead
    *  of reading `ps` from outside). */
   #roundLogPath: string | null = null;
+  /** The current dispatch's log-channel failure (a SOFT entry naming the path), null
+   *  when the channel opened — the record face must see a channel that never opened,
+   *  not only the stderr notice. */
+  #logUnavailable: RoundViolation | null = null;
 
   constructor(opts: {
     env?: ProcessEnvLike;
@@ -289,16 +293,23 @@ export class CliLifecycle {
     outcome: DraftedOutcome,
   ): Promise<{ verdict: RoundVerdict; violations: readonly RoundViolation[] }> {
     const treeClean = outcome.treeClean ?? true;
+    // The log channel's own failure is booked on every face: a round whose record
+    // face never opened is not a silent absence (§3.3), and a dead round carries the
+    // fact too.
+    const logEntries: readonly RoundViolation[] =
+      this.#logUnavailable === null ? [] : [this.#logUnavailable];
     if (outcome.status === "BLOCKED" || outcome.status === "TIMEOUT") {
       const authored = outcome.violations ?? [];
       return {
         verdict: { treeClean, targetAction: false },
         // A failure is never a silent absence (§3.3): a concluded BLOCKED round that
         // authored no entry books one here (`contract-violation`, the existing cause).
-        violations:
-          authored.length > 0
+        violations: [
+          ...(authored.length > 0
             ? authored
-            : [RoundViolation.hard(`the round concluded ${outcome.status}`)],
+            : [RoundViolation.hard(`the round concluded ${outcome.status}`)]),
+          ...logEntries,
+        ],
       };
     }
     const violations: RoundViolation[] = [
@@ -306,6 +317,7 @@ export class CliLifecycle {
       ...(await this.#criterionViolations(frame, outcome)),
       ...this.#evidenceViolations(frame),
       ...this.#structureViolations(frame),
+      ...logEntries,
     ];
     return {
       verdict: {
@@ -458,6 +470,7 @@ export class CliLifecycle {
     // return (no host harness) records "no baseline" rather than a previous round's.
     this.#dispatchBase = null;
     this.#roundLogPath = null;
+    this.#logUnavailable = null;
     const host = this.detectHost();
     if (host === "") {
       this.#io.stderr(
@@ -621,6 +634,11 @@ export class CliLifecycle {
       this.#io.stderr(
         `${this.#words.station("warn")} round log unavailable at ${this.#rel(target)}\n`,
       );
+      // The record sees the same fact the stderr notice names (design spec §3.3): a
+      // soft entry, so the round concludes and the derived count carries it.
+      this.#logUnavailable = RoundViolation.soft(
+        `the round log could not be created at ${this.#rel(target)} — the round ran on CPU evidence alone`,
+      );
       return null;
     }
   }
@@ -724,7 +742,7 @@ export class CliLifecycle {
       // v1.9: INPUT_REVIEWS is fix/docs-fix only — the source review's handoff
       // carrier; a review writes its own draft (INPUT_REVIEWS === OUTPUT_HANDOFF
       // would be a short-circuit).
-      INPUT_REVIEWS: op === "fix" ? this.#rel(this.#reviewsPath(frame)) : "",
+      INPUT_REVIEWS: op === "fix" ? this.#rel(this.#reviewsPath(frame) ?? "") : "",
       // The kind-named judged-doc anchors (the semantic retirement of the generic
       // INPUT_DOC): the plan/branch lines carry the plan document (INPUT_PLAN — the
       // doc path on a plan line, the plan path on a branch line, whose review/fix
@@ -991,11 +1009,25 @@ export class CliLifecycle {
    *  ledger's resolved review handoff path when the route carried none (the ONE
    *  resolution the round context's INPUT_REVIEWS and the disposition summary share).
    *  A migrated line resolves the carrier that EXISTS — the retired twin's name, never
-   *  the never-minted canonical spelling. */
-  #reviewsPath(frame: OpenFrame): string {
-    return (
-      this.#reviews ?? this.#scene.ledger.resolveHandoffPath("review", frame.type, frame.params)
-    );
+   *  the never-minted canonical spelling.
+   *
+   *  A same-cycle review record that RECORDED no carrier path, with no carrier at
+   *  either spelling on disk, leaves the requester input UNRECORDED: the answer is
+   *  null, and the fix criterion books its visible skip (design spec §3.4's legacy
+   *  row) instead of failing the round on a hard absent-carrier refusal. An absent
+   *  record is a different fact — it keeps the resolved path, so the criterion reports
+   *  the missing requesting carrier it truly is. */
+  #reviewsPath(frame: OpenFrame): string | null {
+    if (this.#reviews !== null) return this.#reviews;
+    const resolved = this.#scene.ledger.resolveHandoffPath("review", frame.type, frame.params);
+    if (existsSync(resolved)) return resolved;
+    const legacy = this.#scene.ledger
+      .recordsOf(frame.key, frame.type)
+      .some(
+        (record) =>
+          record.op === "review" && record.cycle === frame.round && record.carrierPath === null,
+      );
+    return legacy ? null : resolved;
   }
 
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the

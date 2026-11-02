@@ -140,7 +140,12 @@ describe("selector coverage — every declared element carries a resolvable loca
     // count is a copy of the document that rots on every charter append and forces a
     // re-anchor commit per appended row. A table that stops being found reads 0, so the
     // non-empty floor keeps the discriminating power and drops the churn.
-    for (const heading of ["## Phase inventory", "## Issue inventory", "## Change history", "## File paths"]) {
+    for (const heading of [
+      "## Phase inventory",
+      "## Issue inventory",
+      "## Change history",
+      "## File paths",
+    ]) {
       const table = tree.tableUnder(heading);
       expect(table, `${heading} is located`).toBeDefined();
       expect(table?.body.length, `${heading} carries rows`).toBeGreaterThan(0);

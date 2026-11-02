@@ -1446,10 +1446,13 @@ export class Ledger {
     for (const [family, record] of Object.entries(families)) {
       const [op = "", type = ""] = family.split(".");
       for (const spelling of Ledger.#familySpellings(record.name, type)) {
-        const match = Ledger.#familyMatch(spelling, name);
-        if (match === null) continue;
-        const key = type === "wave" ? (match[1] ?? "") : type;
-        const round = match[2] === undefined ? 1 : Number(match[2]);
+        const captures = Ledger.#familyCaptures(spelling, name);
+        if (captures === null) continue;
+        const key = type === "wave" ? (captures.tasks ?? "") : type;
+        // Each family carries the placeholder IT declares: a wave's review/fix name
+        // carries `{tasks}` AND `{round}`, a document / branch line carries `{round}`
+        // alone, and the fixed implement family carries `{tasks}` alone (round 1).
+        const round = captures.round === null ? 1 : Number(captures.round);
         return { key, op, round };
       }
     }
@@ -1464,13 +1467,23 @@ export class Ledger {
   }
 
   /** One family spelling matched against a file name — the `{tasks}` / `{round}`
-   *  tokens read backwards as the pattern's two capture groups. */
-  static #familyMatch(spelling: string, name: string): RegExpExecArray | null {
+   *  tokens read backwards as NAMED captures, so a family's round is read from the
+   *  group its own name actually carries (a document family's sole group is the
+   *  round; `tasks-{tasks}-implement.json`'s is the task list, never a round). A
+   *  positional read would resolve every `{round}`-only family to 1. */
+  static #familyCaptures(
+    spelling: string,
+    name: string,
+  ): { readonly tasks: string | null; readonly round: string | null } | null {
     const escaped = spelling.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const pattern = new RegExp(
-      `^${escaped.replace("\\{tasks\\}", "(.+?)").replace("\\{round\\}", "(\\d+)")}$`,
+      `^${escaped
+        .replace("\\{tasks\\}", "(?<tasks>.+?)")
+        .replace("\\{round\\}", "(?<round>\\d+)")}$`,
     );
-    return pattern.exec(name);
+    const match = pattern.exec(name);
+    if (match === null) return null;
+    return { tasks: match.groups?.tasks ?? null, round: match.groups?.round ?? null };
   }
 
   // -------------------------------------------------------------------------

@@ -48,6 +48,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import {
   type CompletionContext,
   CompletionCriteria,
+  FIX_DISPOSITIONS_UNRECORDED,
   IMPLEMENT_CARRIER_ABSENT,
 } from "../../contract/completion-criterion.ts";
 import { Contract } from "../../contract/judge.ts";
@@ -6572,6 +6573,21 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the round's own face is unchanged — the same status line and the same record
       expect(io.stdoutText).toContain("status: APPROVED");
       expect(ledger.roundCount(1, "review")).toBe(1);
+      // … and the RECORD sees it: a stderr notice the round never books would leave
+      // the derived counter blind to a record face that failed to open
+      const record = ledger
+        .recordsOf("1")
+        .find((candidate) => candidate.op === "review" && candidate.cycle === 1);
+      expect(record?.verdict).toEqual({ treeClean: true, targetAction: true });
+      expect(record?.violations).toEqual([
+        expect.objectContaining({
+          grade: "soft",
+          message: expect.stringContaining(
+            path.join(".kairos", "cdd", "p3", "logs", "tasks-1-review-1.log"),
+          ),
+        }),
+      ]);
+      expect(ledger.counterOf("contractViolationCount")).toBe(1);
     } finally {
       cleanup();
     }
@@ -7183,6 +7199,50 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         } finally {
           spy.mockRestore();
         }
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("(f2) the legacy skip is REACHABLE through the provider — a review record with no carrierPath and no carrier on disk gives the criterion no path", async () => {
+      const { repoRoot, cleanup } = fixture();
+      try {
+        gitInit(repoRoot);
+        // The pre-rename legacy row: the review round landed but recorded no carrier
+        // path, and no carrier exists at the canonical spelling or the retired twin.
+        const legacy = harnessScene(repoRoot, "p3-legacy");
+        legacy.ledger.recordRound("1", { op: "review", cycle: 1, carrierPath: null });
+        const run = async (scene: DispatchScene) => {
+          writeFileSync(
+            path.join(scene.workspace.path, "tasks-1-fix-1.json"),
+            JSON.stringify({ status: "APPROVED", artifacts: {}, dispositions: {} }),
+            "utf8",
+          );
+          writeFileSync(
+            path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+            JSON.stringify(P21_EVIDENCE),
+            "utf8",
+          );
+          const dispatch = new HarnessDispatch({
+            scene,
+            io: new CaptureIo(),
+            sync: new StubRunner(),
+            env: { CLAUDE_CODE_SESSION_ID: "s" },
+          });
+          return dispatch.step()(fixFrame);
+        };
+        const skipped = await run(legacy);
+        // VISIBLE SKIP — soft, the round still concludes
+        expect(skipped.verdict).toEqual({ treeClean: true, targetAction: true });
+        expect(skipped.violations).toEqual([
+          expect.objectContaining({ grade: "soft", message: FIX_DISPOSITIONS_UNRECORDED }),
+        ]);
+        // The same round with NO review record at all is still refused hard: the
+        // skip covers the legacy row alone, never an absent requesting carrier.
+        const absent = await run(harnessScene(repoRoot, "p3-absent"));
+        expect(absent.verdict?.targetAction).toBe(false);
+        expect(absent.violations?.[0]?.grade).toBe("hard");
+        expect(absent.violations?.[0]?.message).toContain("requesting review carrier");
       } finally {
         cleanup();
       }

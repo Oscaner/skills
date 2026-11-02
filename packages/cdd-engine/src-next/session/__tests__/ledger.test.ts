@@ -677,14 +677,49 @@ describe("handoff — naming / carrier / single-author persist", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
       // A line mid-flight across the rename: the row stays under `spec`, the carrier
-      // it owns is already minted under the current spelling.
+      // it owns is already minted under the current spelling. Cycle 1 is NOT recorded
+      // and cycle 3 IS — a document family carries no `{tasks}` group, so the round
+      // must be read from its own `{round}` group (reading the absent second group
+      // would resolve every doc carrier to round 1 and call this landed draft an
+      // orphan).
       ledger.writeProgress({
         ...ledger.emptyProgress(),
-        waves: [{ wave: "spec", rounds: { review: [1, 2, 3], fix: [1] } }],
+        waves: [{ wave: "spec", rounds: { review: [3] } }],
       });
       workspace.writeJson("phase-spec-review-3.json", { artifacts: {}, findings: [] });
       // The file's own line word IS its declaration, so the row resolves and the
       // recorded round owns its carrier.
+      expect(ledger.orphanHandoffs()).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("orphanHandoffs reads a document family's round from its `{round}` group", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // The plan line landed fixes 2 and 3 — the drafts are on disk, cycle 1 never
+      // was. Every doc family (`{line}-{op}-{round}.json`) carries ONE group, and it
+      // is the round: the drafts are owned, not orphans.
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "plan", rounds: { fix: [2, 3] } }],
+      });
+      workspace.writeJson("plan-fix-2.json", { artifacts: {} });
+      workspace.writeJson("plan-fix-3.json", { artifacts: {} });
+      expect(ledger.orphanHandoffs()).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("orphanHandoffs keeps a round-less family's round at 1 — an implement carrier is owned", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // `tasks-{tasks}-implement.json` carries `{tasks}` alone: the fixed implement
+      // family is round-less, and its single group is the task list, never a round.
+      ledger.recordRound("1,2", { op: "implement", cycle: 1 });
+      workspace.writeJson("tasks-1,2-implement.json", { artifacts: {} });
       expect(ledger.orphanHandoffs()).toEqual([]);
     } finally {
       cleanup();

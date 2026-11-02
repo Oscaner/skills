@@ -1,0 +1,12 @@
+---
+"@oscaner-skills/cdd-engine": minor
+"@oscaner-skills/kairos": patch
+---
+
+**One target vocabulary — from the CLI to the pipeline (P22 D73).** The engine's target types are now the six words the documents themselves declare: `phase-spec`, `overall`, `plan`, `single-spec` (the document shapes) and `wave`, `branch` (the node shapes). `--type spec` is retired and the `spec ⇄ phase-spec` translation class is gone, so a dispatch names its target once and every downstream face reads that same word: the faces table (`targetFaces`), the pipeline table (`PIPELINE_NEXT`, now keyed by `TargetType`), the ledger line keys, the handoff carrier names, the round report/log names, the crash records and the rendered `next:` literals.
+
+Consumer-visible effects. `cdd review` / `cdd fix` accept `--type phase-spec` (the previous `--type spec` spelling is rejected by the enum); `--type overall` and `--type single-spec` are dispatchable targets of their own, each with its own round line (`overall-review-N`, `single-spec-review-N`) instead of folding the charter's rounds into the phase-spec line — the board's `overall` row now reads the `overall` line and its `spec` row reads the `phase-spec` line. The `--spec` flag is retained unchanged; only its help text now reads "the document under review — a phase-spec, an overall charter or a single-spec". The doc-contract gate judges all four document shapes by the document's declared `doc-type:` key rather than by the command's `--type`.
+
+Renamed engine artefacts (the byte face of a run in progress). A phase-spec round's carrier is `phase-spec-review-{round}.json` / `phase-spec-fix-{round}.json` (previously `spec-*`), and the overall / single-spec lines carry `overall-*` / `single-spec-*` families; round reports, logs and crash records follow the same `{type}-…` stem. Rounds already on disk under the retired spelling are neither rewritten nor re-read: an existing line starts its new records under the new key, and history stays byte-frozen. `PipelineKey` is now derived (`Exclude<TargetType, "single-spec">`), and the `overall` / `single-spec` pipeline rows are the program-level terminals (`{ kind: "done" }`).
+
+The kairos skills carry the consumer face of the same rename: `cdd-spec-writer` dispatches its review round as `review --type phase-spec --spec <path>`.

@@ -614,10 +614,10 @@ export class Cli {
       tasks: type === "wave" ? new Set(this.#gate.tasksOf(parsed)) : null,
       ledger: scene.ledger,
       doc:
-        type === "spec" || type === "plan"
+        type !== "wave" && type !== "branch"
           ? {
-              // The ONE declaration reading face (spec §12 · D34) — both the spec and
-              // the plan dispatch read the doc's front-matter `doc-type:` key;
+              // The ONE declaration reading face (spec §12 · D34) — every doc shape
+              // dispatch reads the doc's front-matter `doc-type:` key;
               // a key-less doc reads null and the seam BLOCKs (zero command-type
               // carve-out, zero filename-suffix fallback).
               docKey: BoardView.readDocType(root, docRel),
@@ -1019,9 +1019,11 @@ export class Cli {
         slug = resolved;
         break;
       }
-      case "spec": {
+      case "phase-spec":
+      case "overall":
+      case "single-spec": {
         if (specPath === null || specRel === null)
-          this.#usage(node, `cdd ${verb} --type spec: missing required --spec <path>`);
+          this.#usage(node, `cdd ${verb} --type ${type}: missing required --spec <path>`);
         // An unreadable target declares no identity: the SAME slug carrier hard-refuses
         // it (CDD_BLOCKED + exit 1, never a filename-derived key). The T7 null-verdict
         // face covers the other shape — a document ON DISK that declares no
@@ -1030,10 +1032,11 @@ export class Cli {
         if (resolved === null) return null;
         slug = resolved;
         target = { kind: "spec", doc: specPath };
-        // The judged spec's own `program:` — the parent charter (INPUT_OVERALL) the
-        // spec-scope reviewer judges the phase against. A spec without `program:`
-        // (a single-spec) leaves the slot null; an off-disk target reads null here
-        // and the existing slug-ref invariant reports it (never a second reporter).
+        // The judged document's own `program:` — the parent charter (INPUT_OVERALL)
+        // the phase-spec reviewer judges the phase against. A document without
+        // `program:` (an overall charter or a single-spec) leaves the slot null; an
+        // off-disk target reads null here and the existing slug-ref invariant reports
+        // it (never a second reporter).
         const specEntry = index.entryAt(specRel);
         const overallEntry = specEntry?.program == null ? null : index.overallOf(specEntry.program);
         overallLink = overallEntry === null ? null : root.relativize(overallEntry.path);

@@ -36,7 +36,7 @@
 // Module-level exports are types / constants / the class — zero behavior-carrying
 // bare functions (the plan's zero-bare-function discipline).
 
-import type { RouteTarget } from "./faces.ts";
+import type { RouteTarget, TargetType } from "./faces.ts";
 import type { Round } from "./ledger.ts";
 import type { ExecutionState } from "./state.ts";
 
@@ -83,9 +83,11 @@ export const ROUTE_DECISION_WORDS = ["done", "next-wave", "review", "fix", "soft
 // the face indirection line — the pipeline's face-to-face `done` routing table (D33)
 // ---------------------------------------------------------------------------
 
-/** The doc-class keys of the unified next face — one row per pipeline seam a face
- *  `done` can land on (the capsule's doc-class lookup reads them). */
-export type PipelineKey = "phase-spec" | "overall" | "plan" | "wave" | "branch";
+/** The doc-class keys of the unified next face — DERIVED from the target vocabulary:
+ *  every target type except the standalone `single-spec`, which carries no pipeline
+ *  seam (a single-spec is the chain root — its closure is the pipeline terminus, so
+ *  it holds a `PIPELINE_NEXT` row but no key of this union). */
+export type PipelineKey = Exclude<TargetType, "single-spec">;
 
 /** One pipeline-next row — the skill ref to dispatch (`ref`), a literal command
  *  (`literal`, the wave→branch transition — the wiring literal with its `<plan>`
@@ -96,15 +98,17 @@ export type PipelineEntry =
   | { kind: "done" };
 
 /** The pipeline next table — the ONE face-indirection source (D33 · single-addressed
- *  at session/next.ts):
- *  the doc-class key → the next pipeline entrypoint. The skill refs ride REFS
- *  (face/host.ts) resolved per host at the render — never a hard-coded plugin
- *  spelling; the wave literal's `<plan>` slot is filled by the capsule with the
- *  frame's plan fact. */
-export const PIPELINE_NEXT: Readonly<Record<PipelineKey, PipelineEntry>> = {
+ *  at session/next.ts), keyed by the SAME TargetType the CLI declares: the target
+ *  type → the next pipeline entrypoint. The two program-level rows (`overall` and
+ *  the standalone `single-spec`) are the pipeline's terminals — nothing follows a
+ *  closed charter line. The skill refs ride REFS (face/host.ts) resolved per host
+ *  at the render — never a hard-coded plugin spelling; the wave literal's `<plan>`
+ *  slot is filled by the capsule with the frame's plan fact. */
+export const PIPELINE_NEXT: Readonly<Record<TargetType, PipelineEntry>> = {
   "phase-spec": { kind: "ref", ref: "kairos:cdd-plan" },
   overall: { kind: "done" },
   plan: { kind: "ref", ref: "kairos:cdd-dev" },
+  "single-spec": { kind: "done" },
   wave: { kind: "literal", literal: "review --type branch --plan <plan>" },
   branch: { kind: "ref", ref: "kairos:cdd-close" },
 };

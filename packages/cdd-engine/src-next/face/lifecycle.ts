@@ -645,11 +645,11 @@ export class CliLifecycle {
     return this.#naming.op(frame);
   }
 
-  /** The dispatch-table work-mode (ROLE) of a frame — the spec/plan fix faces ride
+  /** The dispatch-table work-mode (ROLE) of a frame — the doc shapes' fix faces ride
    *  the docs-fix mode; everything else maps by its phase (§3.5's four-mode table). */
   #roleOf(frame: OpenFrame): WorkMode {
     if (frame.phase === "fix") {
-      return frame.type === "spec" || frame.type === "plan" ? "docs-fix" : "fix";
+      return frame.type !== "wave" && frame.type !== "branch" ? "docs-fix" : "fix";
     }
     return frame.phase === "implement" ? "implement" : "review";
   }
@@ -737,19 +737,24 @@ export class CliLifecycle {
             ? this.#rel(scene.planPath ?? "")
             : "",
       INPUT_SPEC:
-        frame.type === "spec"
-          ? this.#rel(docPath ?? "")
-          : frame.type === "plan" || frame.type === "branch"
-            ? this.#rel(scene.specLink ?? "")
-            : "",
+        frame.type === "plan" || frame.type === "branch"
+          ? this.#rel(scene.specLink ?? "")
+          : frame.type === "wave"
+            ? ""
+            : // the doc shapes (phase-spec · overall · single-spec) carry the judged
+              // document — the charter line's own charter is its spec anchor.
+              this.#rel(docPath ?? ""),
       // The parent charter of the spec the face reads (INPUT_OVERALL) — the same
-      // value condition as INPUT_SPEC, one face (spec = its own `program:`; plan/
-      // branch = the same-slug identity doc's `program:`); empty off those faces and
-      // when the spec names no program (the assembler drops the empty slot).
+      // value condition as INPUT_SPEC, one face (the phase-spec line = its own
+      // `program:`; plan/branch = the same-slug identity doc's `program:`; the
+      // overall line itself = the judged charter); empty off those faces and when
+      // the named program is absent (the assembler drops the empty slot).
       INPUT_OVERALL:
-        frame.type === "spec" || frame.type === "plan" || frame.type === "branch"
-          ? this.#rel(scene.overallLink ?? "")
-          : "",
+        frame.type === "overall"
+          ? this.#rel(docPath ?? "")
+          : frame.type === "phase-spec" || frame.type === "plan" || frame.type === "branch"
+            ? this.#rel(scene.overallLink ?? "")
+            : "",
       // The branch/wave tree-review scope anchor (BASE_BRANCH) — engine-injected
       // from the base artifact at dispatch; empty off those faces (spec/plan reviews
       // carry none, and the empty slot is dropped by the assembler).
@@ -1260,20 +1265,26 @@ export class CliLifecycle {
         // engine-injected at dispatch), so no range rides the command.
         return `cdd review --type branch --plan ${plan}`;
       case "review":
-        if (frame.type === "spec") return `cdd review --type spec --spec ${this.#docOf(frame)}`;
+        if (frame.type === "wave")
+          return `cdd review --type wave --tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
+        if (frame.type === "branch") return `cdd review --type branch --plan ${plan}`;
         if (frame.type === "plan") return `cdd review --type plan --plan ${this.#docOf(frame)}`;
-        return `cdd review --type wave --tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
+        // phase-spec · overall · single-spec — the document under review rides
+        // the retained `--spec` flag.
+        return `cdd review --type ${frame.type} --spec ${this.#docOf(frame)}`;
       case "fix": {
         const findings = scene.ledger.handoffPath("review", frame.type, frame.params);
         const target =
-          frame.target.kind === "plan" || frame.target.kind === "spec"
-            ? `--${frame.type === "spec" ? "spec" : "plan"} ${frame.target.doc}`
-            : // The branch fix carries no refs — the source findings ride the
-              // --reviews handoff; the workspace-identity `--plan` still rides
-              // (the plan is the branch line's identity, zero orchestrator fallback).
-              frame.target.kind === "branch"
-              ? `--plan ${plan}`
-              : `--tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
+          frame.target.kind === "plan"
+            ? `--plan ${frame.target.doc}`
+            : frame.target.kind === "spec"
+              ? `--spec ${frame.target.doc}`
+              : // The branch fix carries no refs — the source findings ride the
+                // --reviews handoff; the workspace-identity `--plan` still rides
+                // (the plan is the branch line's identity, zero orchestrator fallback).
+                frame.target.kind === "branch"
+                ? `--plan ${plan}`
+                : `--tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
         return `cdd fix --type ${frame.type} ${target} --reviews ${findings}`;
       }
     }

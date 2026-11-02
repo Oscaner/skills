@@ -1,22 +1,29 @@
 // packages/cdd-engine/src-next/session/faces.ts
 // T8 — the target-type faces data table (design spec §3.3: the parameterized single
-// lifecycle). The three old near-isomorphic lifecycles (task / branch / docs)
-// converge into ONE lifecycle class whose per-type variance lives in this table:
-// each target type (task | branch | spec | plan) carries its audit target, the
-// product face (the review-lead round mode) and the next-hop consumption semantics.
-// The lifecycle reads the row through the same class — a new target type is a table
-// row, never a lifecycle edit.
+// lifecycle). The old near-isomorphic lifecycles (task / branch / docs) converge into
+// ONE lifecycle class whose per-type variance lives in this table: each target type
+// carries its audit target, the product face (the review-lead round mode) and the
+// next-hop consumption semantics. The lifecycle reads the row through the same class —
+// a new target type is a table row, never a lifecycle edit.
+//
+// P22 D73 — ONE target vocabulary end to end: the type words below ARE the CLI
+// `--type` value domain and the pipeline row keys. The document shapes carry their
+// declared `doc-type:` spelling (`phase-spec` / `overall` / `plan` / `single-spec`),
+// so the retired `spec ⇄ phase-spec` translation class has no home here.
 //
 // Module-level exports are types / the table const — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 
 import type { RoundPhase } from "./ledger.ts";
 
-/** The target types the parameterized lifecycle serves (the CLI `--type` vocabulary).
- *  `wave` (T26 · the wave-unitary model): the task-graph face whose dispatch unit
- *  is the derived wave — the type name is the UNIT, not the graph's node granularity
- *  (the audit source stays "task-graph" · the plan's task nodes keep the task name). */
-export type TargetType = "wave" | "branch" | "spec" | "plan";
+/** The target types the parameterized lifecycle serves — the CLI `--type` vocabulary,
+ *  one word per target shape: the four DOCUMENT shapes (`phase-spec` · `overall` ·
+ *  `plan` · `single-spec` — the declared `doc-type:` spellings) and the two NODE
+ *  shapes (`wave` · `branch`). `wave` (T26 · the wave-unitary model): the task-graph
+ *  face whose dispatch unit is the derived wave — the type name is the UNIT, not the
+ *  graph's node granularity (the audit source stays "task-graph" · the plan's task
+ *  nodes keep the task name). */
+export type TargetType = "phase-spec" | "overall" | "plan" | "single-spec" | "wave" | "branch";
 
 /** The dispatch phases a lifecycle drives — the round-carrier phase vocabulary,
  *  single-typed against the ledger's RoundPhase (no second phase union). */
@@ -32,7 +39,7 @@ export type AuditFace =
   | { kind: "task-graph" }
   /** branch: the open item is the branch line itself (the live tree — no diff range). */
   | { kind: "branch-tree" }
-  /** spec/plan: the open item is the audit document path. */
+  /** the doc shapes: the open item is the audit document path. */
   | { kind: "doc-path" };
 
 /** The target identity a dispatch-ready `next:` literal renders (v1.25 · P4.1 T4) —
@@ -41,7 +48,8 @@ export type AuditFace =
  *  plan path the implement literal's required `--plan` fills (the wave/task-face
  *  frame's only implement-consuming fact). */
 export interface RouteTarget {
-  /** The target-type word of the literal (`wave` / `branch` / `spec` / `plan`). */
+  /** The target-type word of the literal (`wave` / `branch` / `phase-spec` / `overall`
+   *  / `plan` / `single-spec` — the TargetType the frame runs on). */
   type: TargetType;
   /** The target id — the wave key `"1,2"` · the branch line key `"branch"` · the doc path. */
   id: string;
@@ -76,13 +84,37 @@ export interface TargetFace {
   /** The next consumption semantics — how a C5 Route is consumed on this face. */
   nextSemantics: {
     /** Whether a `next-wave` route advances the task batch (task only — the
-     *  branch/spec/plan lines are single-target with an empty ready batch). */
+     *  branch and doc lines are single-target with an empty ready batch). */
     batch: boolean;
   };
 }
 
-/** The four target-type faces — one row per CLI `--type` value (the single table). */
+/** The six target-type faces — one row per CLI `--type` value (the single table). */
 export const targetFaces: Record<TargetType, TargetFace> = {
+  "phase-spec": {
+    type: "phase-spec",
+    audit: { kind: "doc-path" },
+    product: { reviewLead: "review" },
+    nextSemantics: { batch: false },
+  },
+  overall: {
+    type: "overall",
+    audit: { kind: "doc-path" },
+    product: { reviewLead: "review" },
+    nextSemantics: { batch: false },
+  },
+  plan: {
+    type: "plan",
+    audit: { kind: "doc-path" },
+    product: { reviewLead: "review" },
+    nextSemantics: { batch: false },
+  },
+  "single-spec": {
+    type: "single-spec",
+    audit: { kind: "doc-path" },
+    product: { reviewLead: "review" },
+    nextSemantics: { batch: false },
+  },
   wave: {
     type: "wave",
     audit: { kind: "task-graph" },
@@ -93,18 +125,6 @@ export const targetFaces: Record<TargetType, TargetFace> = {
     type: "branch",
     audit: { kind: "branch-tree" },
     product: { reviewLead: "branch-review" },
-    nextSemantics: { batch: false },
-  },
-  spec: {
-    type: "spec",
-    audit: { kind: "doc-path" },
-    product: { reviewLead: "review" },
-    nextSemantics: { batch: false },
-  },
-  plan: {
-    type: "plan",
-    audit: { kind: "doc-path" },
-    product: { reviewLead: "review" },
     nextSemantics: { batch: false },
   },
 };

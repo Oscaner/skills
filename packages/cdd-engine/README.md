@@ -27,8 +27,8 @@ Global option: `--dry-run` — preview the next dispatch step and its expected a
 | Subcommand | Usage | Purpose |
 |------------|-------|---------|
 | `implement` | `cdd implement --tasks=<n> [--plan=<path>]` | Run the task implement phase |
-| `review` | `cdd review --type=<task\|branch\|spec\|plan>` | Run a review — task, branch, spec, or plan |
-| `fix` | `cdd fix --type=<task\|branch\|spec\|plan>` | Fix review findings — task, branch, spec, or plan |
+| `review` | `cdd review --type=<task\|branch\|phase-spec\|overall\|plan\|single-spec>` | Run a review — task, branch, phase-spec, overall, plan, or single-spec |
+| `fix` | `cdd fix --type=<task\|branch\|phase-spec\|overall\|plan\|single-spec>` | Fix review findings — task, branch, phase-spec, overall, plan, or single-spec |
 | `base` | `cdd base set\|get` | Read/write the `base.json` artifact (single CDD `--plan` target) |
 | `schema` | `cdd schema get <type>` | Print the canonical doc-structure schema (discovery-only, zero enforcement) |
 | `issue` | `cdd issue render` | Render an aggregate issue body from stdin findings (pure rendering, zero enforcement) |

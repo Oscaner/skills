@@ -25,7 +25,7 @@ import { Capsule } from "../../face/capsule.ts";
 import { CommandTreeBuilder } from "../../face/projection.ts";
 import { RouteRenderer } from "../../face/route-render.ts";
 import { Words } from "../../face/words.ts";
-import type { RouteTarget } from "../faces.ts";
+import { type RouteTarget, targetFaces } from "../faces.ts";
 import type { Round, RoundPhase } from "../ledger.ts";
 import type { Route } from "../next.ts";
 import {
@@ -35,6 +35,7 @@ import {
   NextStepRouter,
   PIPELINE_NEXT,
   type PipelineEntry,
+  type PipelineKey,
   REVIEW_CYCLE_CAP,
   SOFT_CAP_SUGGESTION,
 } from "../next.ts";
@@ -379,7 +380,7 @@ describe("P21 §4.2 — nextHop's next-line fact (the retired patch argument's f
 // table's own cases above stay untouched (zero judgment change).
 // ---------------------------------------------------------------------------
 
-const specTarget: RouteTarget = { type: "spec", id: "docs/kairos/specs/p-design.md" };
+const specTarget: RouteTarget = { type: "phase-spec", id: "docs/kairos/specs/p-design.md" };
 const waveTarget: RouteTarget = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p.md" };
 const branchTarget: RouteTarget = {
   type: "branch",
@@ -555,6 +556,66 @@ describe("P22 §5.2 — the ONE message shape (three forms)", () => {
       hopInput({ route: { kind: "soft-cap", message: SOFT_CAP_SUGGESTION } }),
     );
     expect(router.message(capped, station)).toBe("soft-cap");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P22 T14 — one target vocabulary: the faces table and the pipeline table answer to
+// the SAME six target-type words the CLI's `--type` declares, and the retired `spec`
+// spelling is not among them (the spec ⇄ phase-spec translation class is gone).
+// ---------------------------------------------------------------------------
+
+describe("P22 T14 — the target vocabulary is the single key set", () => {
+  const TARGET_TYPES = ["phase-spec", "overall", "plan", "single-spec", "wave", "branch"];
+
+  it("targetFaces carries exactly one row per TargetType (six rows)", () => {
+    expect(Object.keys(targetFaces).sort()).toEqual([...TARGET_TYPES].sort());
+    for (const [key, row] of Object.entries(targetFaces)) expect(row.type).toBe(key);
+    expect(Object.keys(targetFaces)).not.toContain("spec");
+  });
+
+  it("the four doc shapes audit a doc path; wave audits the graph, branch the tree", () => {
+    const audits = Object.fromEntries(
+      Object.entries(targetFaces).map(([key, row]) => [key, row.audit.kind]),
+    );
+    expect(audits).toEqual({
+      "phase-spec": "doc-path",
+      overall: "doc-path",
+      plan: "doc-path",
+      "single-spec": "doc-path",
+      wave: "task-graph",
+      branch: "branch-tree",
+    });
+  });
+
+  it("only the branch line reviews as branch-review — every other face leads with review", () => {
+    const leads = Object.fromEntries(
+      Object.entries(targetFaces).map(([key, row]) => [key, row.product.reviewLead]),
+    );
+    expect(leads).toEqual({
+      "phase-spec": "review",
+      overall: "review",
+      plan: "review",
+      "single-spec": "review",
+      wave: "review",
+      branch: "branch-review",
+    });
+  });
+
+  it("PIPELINE_NEXT is keyed by TargetType — overall / single-spec are the terminals", () => {
+    expect(Object.keys(PIPELINE_NEXT).sort()).toEqual([...TARGET_TYPES].sort());
+    expect(PIPELINE_NEXT.overall).toEqual({ kind: "done" });
+    expect(PIPELINE_NEXT["single-spec"]).toEqual({ kind: "done" });
+    expect(PIPELINE_NEXT["phase-spec"]).toEqual({ kind: "ref", ref: "kairos:cdd-plan" });
+  });
+
+  it("PipelineKey is DERIVED from TargetType — `single-spec` is not a pipeline seam", () => {
+    const source = readFileSync(new URL("../next.ts", import.meta.url), "utf8");
+    expect(source).toContain('export type PipelineKey = Exclude<TargetType, "single-spec">');
+    // the derivation's runtime consequence: every key but single-spec has a row
+    const keys: readonly PipelineKey[] = ["phase-spec", "overall", "plan", "wave", "branch"];
+    expect(keys).toHaveLength(5);
+    expect(keys).not.toContain("single-spec");
   });
 });
 

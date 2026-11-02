@@ -82,17 +82,29 @@ export const HANDOFF_FAMILIES = {
   "fix.wave": {
     name: "tasks-{tasks}-fix-{round}.json",
   },
-  "review.spec": {
-    name: "spec-review-{round}.json",
+  "review.phase-spec": {
+    name: "phase-spec-review-{round}.json",
   },
-  "fix.spec": {
-    name: "spec-fix-{round}.json",
+  "fix.phase-spec": {
+    name: "phase-spec-fix-{round}.json",
+  },
+  "review.overall": {
+    name: "overall-review-{round}.json",
+  },
+  "fix.overall": {
+    name: "overall-fix-{round}.json",
   },
   "review.plan": {
     name: "plan-review-{round}.json",
   },
   "fix.plan": {
     name: "plan-fix-{round}.json",
+  },
+  "review.single-spec": {
+    name: "single-spec-review-{round}.json",
+  },
+  "fix.single-spec": {
+    name: "single-spec-fix-{round}.json",
   },
   "review.branch": {
     // find #9 (spec §6.5): the range token leaves the file name — the workspace

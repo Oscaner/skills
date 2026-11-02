@@ -271,14 +271,14 @@ const docCtx = (
   const ledger = new Ledger(workspace, new ConfigLoader());
   return {
     verb,
-    type: docKey === "plan" ? "plan" : "spec",
+    type: docKey === "plan" ? "plan" : "phase-spec",
     repoRoot,
     planText: null,
     tasks: null,
     ledger,
     doc: {
       docKey,
-      path: `docs/kairos/specs/${docKey === "plan" ? "plan" : "spec"}.md` as RepoPath,
+      path: `docs/kairos/specs/${docKey === "plan" ? "plan" : "phase-spec"}.md` as RepoPath,
     },
     inflight: inflightOf(repoRoot, false),
   };
@@ -636,7 +636,7 @@ describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch
         checked: ["tree-clean"],
       };
       const run = new Lifecycle({
-        face: targetFaces.spec,
+        face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger: new Ledger(
           new Workspace(

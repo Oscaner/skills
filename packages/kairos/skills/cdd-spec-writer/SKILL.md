@@ -57,7 +57,7 @@ flowchart TD
 
 ### `NEXT-LOOP`
 
-- **Do**: Run the review-fix rhythm for the authored spec — one review pass per dispatch. Dispatch the review round on the current ref (`npx -y @oscaner-skills/cdd-engine@latest review --type spec --spec <path>`); every later hop follows the engine's `next:` face. Fixes dispatch via the fix round — never an in-place edit as a substitute; a BLOCKED/TIMEOUT round's carried reason is reported, never overridden.
+- **Do**: Run the review-fix rhythm for the authored spec — one review pass per dispatch. Dispatch the review round on the current ref (`npx -y @oscaner-skills/cdd-engine@latest review --type phase-spec --spec <path>`); every later hop follows the engine's `next:` face. Fixes dispatch via the fix round — never an in-place edit as a substitute; a BLOCKED/TIMEOUT round's carried reason is reported, never overridden.
 - **Read**: the full stdout — the review conclusion, the findings handoff path, and the engine's `next:` face
 - **Exit**: each fix pass re-enters this hub while that route keeps the loop alive (the `until next is terminal` self-loop); a route that leaves the loop ends this skill's flow
 - **Fail**: Re-running a review after a closure conclusion → violates Review Convergence (stop + report)

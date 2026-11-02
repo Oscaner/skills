@@ -1059,7 +1059,8 @@ export class Ledger {
    *  derivation and its branch row consume (and `closedWaves()` reads through the
    *  same core). The C5 route of the line's LATEST recorded round must lie on the
    *  closure side ({done, next-wave}). The key is the line-type constant the round
-   *  records under ("spec" / "plan" / "branch"); a row with no review round yet
+   *  records under (the target-type word — `"phase-spec"` / `"overall"` / `"plan"` /
+   *  `"single-spec"` / `"branch"`); a row with no review round yet
    *  (implement-only or absent) holds the line open. One judge, one source: the
    *  board never re-derives closure in the face (zero second judge). */
   lineClosed(key: LedgerKey, type: TargetType): boolean {
@@ -1406,7 +1407,7 @@ export class Ledger {
   /** The progress key a round's dispatch records under — the same line-identity key
    *  the lifecycle records with (run.ts #lineKey): the wave task key (the only
    *  params-bearing face — every other line keys by its line-type constant:
-   *  `"branch"` / `"spec"` / `"plan"`). */
+   *  `"branch"` / `"phase-spec"` / `"overall"` / `"plan"` / `"single-spec"`). */
   #roundKey(type: TargetType, params: HandoffParams): LedgerKey {
     return type === "wave" ? (params.tasks ?? "") : type;
   }

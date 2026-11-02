@@ -122,7 +122,14 @@ const phasesOf = (steps: readonly StepResult[]): readonly (string | null)[] =>
 
 describe("the faces table — one row per target type", () => {
   it("declares the four CLI `--type` values in the single table", () => {
-    expect(Object.keys(targetFaces)).toEqual(["wave", "branch", "spec", "plan"]);
+    expect(Object.keys(targetFaces).sort()).toEqual([
+      "branch",
+      "overall",
+      "phase-spec",
+      "plan",
+      "single-spec",
+      "wave",
+    ]);
     for (const type of Object.keys(targetFaces) as TargetType[]) {
       expect(targetFaces[type].type).toBe(type);
     }
@@ -143,7 +150,7 @@ describe("the faces table — one row per target type", () => {
   });
 
   it("spec/plan — the doc-path audit, the review lead, no batch", () => {
-    for (const type of ["spec", "plan"] as const) {
+    for (const type of ["phase-spec", "overall", "plan", "single-spec"] as const) {
       const face = targetFaces[type];
       expect(face.audit).toEqual({ kind: "doc-path" });
       expect(face.product.reviewLead).toBe("review");
@@ -435,7 +442,7 @@ describe("the task small loop — implement → review → the next ready group"
         return { status: "APPROVED", findings: [finding("warn"), finding("nit")] };
       });
       const run = new Lifecycle({
-        face: targetFaces.spec,
+        face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
@@ -466,7 +473,7 @@ describe("the task small loop — implement → review → the next ready group"
         };
       });
       const run = new Lifecycle({
-        face: targetFaces.spec,
+        face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
@@ -675,7 +682,7 @@ describe("the task small loop — implement → review → the next ready group"
 });
 
 describe("the spec/plan small loop — review → fix → re-review → closure", () => {
-  for (const type of ["spec", "plan"] as const) {
+  for (const type of ["phase-spec", "overall", "plan", "single-spec"] as const) {
     it(`drives the ${type} line to the closure without a task frontier`, async () => {
       const { ledger, cleanup } = fixture();
       try {
@@ -693,7 +700,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
           state: EMPTY_RUN_STATE,
           ledger,
           dispatch: dispatch.step,
-          target: { kind: type, doc: DOC },
+          target: { kind: type === "plan" ? "plan" : "spec", doc: DOC },
         });
 
         const review1 = await run.advance();
@@ -727,7 +734,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
     try {
       const dispatch = stub(() => ({ status: "APPROVED", findings: [] }));
       const run = new Lifecycle({
-        face: targetFaces.spec,
+        face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
@@ -773,7 +780,7 @@ describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", 
           : { status: "APPROVED", findings: [finding("blocker")] },
       );
       const run = new Lifecycle({
-        face: targetFaces.spec,
+        face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
@@ -781,7 +788,7 @@ describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", 
       });
       expect((await run.advance())!.route!.kind).toBe("fix");
       await run.advance();
-      const carrier = ledger.readHandoff("fix", "spec", { round: 1 });
+      const carrier = ledger.readHandoff("fix", "phase-spec", { round: 1 });
       expect(carrier).not.toBeNull();
       // the fix op derives the work plane — the fallback carrier reports the round's
       // status and declares no findings slot (a findings-shaped fallback fails this)

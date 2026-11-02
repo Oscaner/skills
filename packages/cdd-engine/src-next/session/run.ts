@@ -75,9 +75,11 @@ export type AuditTarget =
   /** branch: the branch line itself (no commit identity — the review's scope anchor
    *  rides the engine-injected BASE_BRANCH, never a stored range). */
   | { kind: "branch" }
-  /** plan: the audit plan document path. */
+  /** The audit plan document path. */
   | { kind: "plan"; doc: string }
-  /** spec: the audit spec document path. */
+  /** The `--spec` channel's document path (the doc shapes: phase-spec · overall ·
+   *  single-spec). The `kind` names the flag channel, never a target type — the
+   *  frame's `type` carries the vocabulary word. */
   | { kind: "spec"; doc: string };
 
 /** One dispatch step's full identity — what the lifecycle dispatches. */
@@ -362,13 +364,13 @@ export class Lifecycle {
   }
 
   /** The session-plane default discrimination — the target type's own pipeline key.
-   *  The declaration-reading judgment (a spec's `doc-type:`) belongs to the face
-   *  plane; the composition root injects it as `BoardView.docClassOf`. */
+   *  Every target type but the standalone `single-spec` IS a pipeline key (the
+   *  `PipelineKey` derivation), so the map is the identity plus the one terminal row
+   *  (a single-spec carries no pipeline seam). The declaration-reading judgment (a
+   *  doc's `doc-type:`) belongs to the face plane; the composition root injects it as
+   *  `BoardView.docClassOf`. */
   static #docClassByType(target: RouteTarget): DocClassVerdict {
-    if (target.type === "spec") return "phase-spec";
-    if (target.type === "plan") return "plan";
-    if (target.type === "wave") return "wave";
-    return "branch";
+    return target.type === "single-spec" ? "terminal" : target.type;
   }
 
   /** The face row this instance drives. */
@@ -569,8 +571,9 @@ export class Lifecycle {
 
   /** The progress key of a single-target line — the line's STABLE key (find #9 ·
    *  spec §6.5/§3.7 — `"branch"` per workspace for the branch line, accumulating
-   *  across re-reviews; the doc line keys by its line-type constant `"spec"`/`"plan"`
-   *  — the argv path copy never resets the round: a moved argv string (absolute vs
+   *  across re-reviews; a doc line keys by its target-type word (`"phase-spec"` /
+   *  `"overall"` / `"plan"` / `"single-spec"`) — the argv path copy never resets the
+   *  round: a moved argv string (absolute vs
    *  relative) must not fork the same line into two ledger rows). The task face
    *  never routes here — frames key by the wave key. */
   #lineKey(target: AuditTarget): LedgerKey {
@@ -600,8 +603,10 @@ export class Lifecycle {
       }
       case "branch":
         return { round: frame.round };
-      case "spec":
+      case "phase-spec":
+      case "overall":
       case "plan":
+      case "single-spec":
         return { round: frame.round };
     }
   }
@@ -902,8 +907,10 @@ export class Lifecycle {
           id: "branch",
           plan: this.#planPath ?? undefined,
         };
-      case "spec":
+      case "phase-spec":
+      case "overall":
       case "plan":
+      case "single-spec":
         return {
           type: frame.type,
           id: (frame.target as { kind: "plan" | "spec"; doc: string }).doc,

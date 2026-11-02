@@ -163,11 +163,13 @@ export class CliGate {
   }
 
   /** The dispatch frame's own render target (§5.2's `target` cell) — the fixed
-   *  line's type + stable key (+ the plan fact the branch literal needs). */
+   *  line's type + stable key (+ the plan fact the branch literal needs). A doc shape
+   *  (the `--spec` channel: phase-spec / overall / single-spec) renders its OWN
+   *  target-type word, never a folded `spec` spelling. */
   #routeTargetOf(scene: WorkScene): RouteTarget | null {
     if (scene.target?.kind === "branch")
       return { type: "branch", id: "branch", plan: scene.planPath ?? undefined };
-    if (scene.target?.kind === "spec") return { type: "spec", id: scene.target.doc };
+    if (scene.target?.kind === "spec") return { type: scene.face.type, id: scene.target.doc };
     if (scene.target?.kind === "plan") return { type: "plan", id: scene.target.doc };
     return null;
   }
@@ -202,8 +204,9 @@ export class CliGate {
   }
 
   /** The line key of a fixed-target face — the line's STABLE key (find #9 · spec
-   *  §6.5/§3.7 — `"branch"` per workspace for the branch line; the doc line keys by
-   *  its line-type constant `"spec"`/`"plan"` — never the argv path: a moved argv
+   *  §6.5/§3.7 — `"branch"` per workspace for the branch line; a doc line keys by
+   *  its target-type word (`"phase-spec"` / `"overall"` / `"plan"` / `"single-spec"`)
+   *  — never the argv path: a moved argv
    *  string must not fork the same line into two ledger rows, resetting its round),
    *  the lifecycle's own key derivation (run.ts #lineKey). */
   #lineKey(scene: WorkScene): string | null {

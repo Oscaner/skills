@@ -150,7 +150,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "slug: prog-p1",
       "---",
     ]);
-    seed("prog-p1", [{ wave: "spec", rounds: { review: [1, 2], fix: [1] } }]);
+    seed("prog-p1", [{ wave: "phase-spec", rounds: { review: [1, 2], fix: [1] } }]);
 
     const { text, exitCode } = render("prog-p1");
 
@@ -308,7 +308,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const { text } = render("prog-p1");
 
     expect(text).toContain(
-      `  next:    review --type spec --spec ${path.relative(repo, path.join(repo, "docs/kairos/specs/prog-p1-design.md"))}`,
+      `  next:    review --type phase-spec --spec ${path.relative(repo, path.join(repo, "docs/kairos/specs/prog-p1-design.md"))}`,
     );
     expect(text).not.toContain("  next:    route to /kairos:cdd-plan skill");
   });
@@ -339,8 +339,8 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     // Close the spec line: a recorded zero-findings spec review.
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
-    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", { op: "review" });
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
 
     const { text } = render("prog-p1");
 
@@ -382,8 +382,8 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
     // spec closed (a recorded zero-findings spec review)
-    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", { op: "review" });
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
     // plan closed by identity: review cycles [1,2], the fix at its own cycle 2
     ledger.persistHandoff("review", "plan", { round: 2 }, { findings: [] });
     ledger.persistHandoff("fix", "plan", { round: 2 }, { findings: [] });
@@ -576,8 +576,8 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const ledger = new Ledger(workspace, new ConfigLoader());
     // Close the spec and plan lines (a recorded zero-findings review each) so the wave
     // face IS the frontier.
-    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", { op: "review" });
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
     ledger.recordRound("plan", { op: "review" });
     // W1 ({5}) closed: a recorded zero-findings review round.
@@ -704,8 +704,8 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
-    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", { op: "review" });
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
 
     const { text } = render("prog-p1", "");
 
@@ -741,8 +741,8 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
-    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", { op: "review" });
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
     expect(nextOf("prog-p1", "pi")).toBe("route to /skill:cdd-plan skill");
     expect(nextOf("prog-p1", "claude")).toBe("route to /kairos:cdd-plan skill");
   });
@@ -773,8 +773,8 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
-    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", { op: "review" });
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
 
     for (const host of ["claude", "pi"]) {
       const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, new RepoRoot(repo))
@@ -782,7 +782,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
           "APPROVED",
           "0",
           "/h.json",
-          hopOf(repo, { kind: "done" }, { type: "spec", id: specId }),
+          hopOf(repo, { kind: "done" }, { type: "phase-spec", id: specId }),
         )[1]!
         .slice("next: ".length);
       // The board's spec face is drained (spec closed + no plan doc) → the same entry.
@@ -828,11 +828,13 @@ describe("BoardView.render — the phase / program board layouts + the next deri
           "APPROVED",
           "0",
           "/h.json",
-          hopOf(repo, { kind: "review" }, { type: "spec", id: specId }),
+          hopOf(repo, { kind: "review" }, { type: "phase-spec", id: specId }),
         )[1]!
         .slice("next: ".length);
       // The reviewer's own hop renders the repoRoot-relative --spec (never the absolute).
-      expect(capsuleNext).toBe("review --type spec --spec docs/kairos/specs/prog-p1-design.md");
+      expect(capsuleNext).toBe(
+        "review --type phase-spec --spec docs/kairos/specs/prog-p1-design.md",
+      );
       expect(capsuleNext).not.toContain(repo);
       // The board's spec frontier renders the SAME byte-identical relative literal.
       expect(nextOf("prog-p1", host)).toBe(capsuleNext);
@@ -919,9 +921,9 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "- **Acceptance**: ok",
       "- **DependsOn**: 1",
     ]);
-    seed("prog-overall", [{ wave: "spec", rounds: { review: [1, 2, 3, 4] } }]);
+    seed("prog-overall", [{ wave: "overall", rounds: { review: [1, 2, 3, 4] } }]);
     seed("prog-p1", [
-      { wave: "spec", rounds: { review: [1] } },
+      { wave: "phase-spec", rounds: { review: [1] } },
       { wave: "plan", rounds: { review: [1] } },
       { wave: "branch", rounds: { "branch-review": [1] } },
     ]);
@@ -1453,8 +1455,8 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     // exit (the branch-review literal) renders, exactly as the retired walk decided.
     planDoc([]);
     const ledger = ledgerOf();
-    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", { op: "review" });
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
     ledger.recordRound("plan", { op: "review" });
     expect(nextOfBoard("prog-p1")).toBe("review --type branch --plan docs/kairos/plans/prog-p1.md");
@@ -1481,8 +1483,8 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     planDoc([[1]]);
     const ledger = ledgerOf();
     // spec + plan + branch closed with clean reviews; the single wave closed too.
-    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-    ledger.recordRound("spec", { op: "review" });
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
     ledger.recordRound("plan", { op: "review" });
     ledger.persistHandoff("review", "branch", { round: 1 }, { findings: [] });
@@ -1499,7 +1501,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     planDoc([[1]]);
     const ledger = ledgerOf();
     const run = new Lifecycle({
-      face: targetFaces.spec,
+      face: targetFaces["phase-spec"],
       state: EMPTY_RUN_STATE,
       ledger,
       dispatch: async () => ({ status: "APPROVED", findings: [] }),
@@ -1542,8 +1544,8 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     planDoc([[1]]);
     const ledger = ledgerOf();
     for (let cycle = 1; cycle <= 10; cycle += 1) {
-      ledger.persistHandoff("review", "spec", { round: cycle }, { findings: [] });
-      ledger.recordRound("spec", { op: "review", cycle });
+      ledger.persistHandoff("review", "phase-spec", { round: cycle }, { findings: [] });
+      ledger.recordRound("phase-spec", { op: "review", cycle });
     }
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");

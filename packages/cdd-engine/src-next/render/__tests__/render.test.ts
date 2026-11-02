@@ -155,7 +155,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       const out = assembler.render({
         ...ALL_VALUES,
         ROLE: role,
-        REVIEW_TYPE: "spec",
+        REVIEW_TYPE: "phase-spec",
         INPUT_SPEC: "docs/x-design.md",
       });
       expect(out, role).toContain("Put a `timeout` on every Bash command");
@@ -173,7 +173,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       const out = assembler.render({
         ...ALL_VALUES,
         ROLE: role,
-        REVIEW_TYPE: "spec",
+        REVIEW_TYPE: "phase-spec",
         INPUT_SPEC: "docs/x-design.md",
       });
       for (const pin of pins) expect(out, role).toContain(pin);
@@ -252,14 +252,14 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const spec = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "spec",
+      REVIEW_TYPE: "phase-spec",
       INPUT_WAVE_BRIEF: "",
       INPUT_SPEC: "docs/kairos/specs/s1-design.md",
       INPUT_OVERALL: "docs/kairos/overalls/s1-overall.md",
-      OUTPUT_HANDOFF: "/ws/spec-review-1.json",
+      OUTPUT_HANDOFF: "/ws/phase-spec-review-1.json",
     });
     expect(spec.startsWith("# CDD dispatch — review round")).toBe(true);
-    expect(spec).toContain("**Criteria — spec:**");
+    expect(spec).toContain("**Criteria — phase-spec:**");
     expect(spec).toContain("Follow URC");
     expect(spec).toContain("completeness | consistency | clarity");
     // the claimed→pin clause (T4) — every behavior claim must cite a colocated pin;
@@ -280,11 +280,11 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(spec).toContain("the parent charter at `INPUT_OVERALL`");
     // D61-5 — the spec axis carries its program conformance criterion (the phase
     // judged against its charter's registered Phase inventory), lens set unchanged
-    expect(REVIEWS.spec.axesGuide).toContain("program conformance");
-    expect(REVIEWS.spec.axesGuide).toContain("INPUT_OVERALL");
+    expect(REVIEWS["phase-spec"].axesGuide).toContain("program conformance");
+    expect(REVIEWS["phase-spec"].axesGuide).toContain("INPUT_OVERALL");
     // the shared calibration tail is the fragment's, reached through `reviewGuideOf`
-    expect(reviewGuideOf("spec")).toContain("reasonable downstream author");
-    expect(REVIEWS.spec.lensEnum).toEqual(["completeness", "consistency", "clarity"]);
+    expect(reviewGuideOf("phase-spec")).toContain("reasonable downstream author");
+    expect(REVIEWS["phase-spec"].lensEnum).toEqual(["completeness", "consistency", "clarity"]);
     expect(spec).not.toContain("- `INPUT_PLAN`");
     expect(spec).not.toContain("- `INPUT_WAVE_BRIEF`");
     expect(spec).not.toContain("- `INPUT_REVIEWS`");
@@ -481,7 +481,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       INPUT_SPEC: "docs/x-design.md",
       INPUT_OVERALL: "docs/kairos/overalls/x-overall.md",
     });
-    const reviews = (["wave", "branch", "spec", "plan"] as const).map((type) =>
+    const reviews = (
+      ["wave", "branch", "phase-spec", "overall", "plan", "single-spec"] as const
+    ).map((type) =>
       assembler.render({
         ...ALL_VALUES,
         ROLE: "review",

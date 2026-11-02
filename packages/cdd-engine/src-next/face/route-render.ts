@@ -133,9 +133,10 @@ export class RouteRenderer {
     return target?.plan === undefined ? "<plan>" : this.#rel(target.plan);
   }
 
-  /** The review hop's literal — `review --type <wave|spec|plan|branch> <type-arg>`
-   *  (`--type` renders only where the verb's type discriminates — review/fix are
-   *  multi-type, so they always carry it; absent target → the bare verb). */
+  /** The review hop's literal — `review --type <wave|branch|phase-spec|overall|plan|single-spec>
+   *  <type-arg>` (`--type` renders only where the verb's type discriminates — review/fix
+   *  are multi-type, so they always carry it; absent target → the bare verb). The four
+   *  doc shapes ride the retained `--spec` flag (the document under review). */
   #reviewText(target?: RouteTarget | null): string {
     const verb = this.#words.routeWord("review");
     const type = target?.type ?? null;
@@ -144,9 +145,6 @@ export class RouteRenderer {
       // assembly the implement/next-wave and fix→wave branches share (a missing flag
       // parses green yet refuses the dispatch at run time).
       return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${target!.id} ${this.#flag("plan")} ${this.#planOf(target)}`;
-    }
-    if (type === "spec") {
-      return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${this.#rel(target!.id)}`;
     }
     if (type === "plan") {
       return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${this.#rel(target!.id)}`;
@@ -157,12 +155,14 @@ export class RouteRenderer {
       // anchor BASE_BRANCH is engine-injected at dispatch).
       return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)}`;
     }
-    return verb;
+    if (type === null) return verb;
+    // phase-spec · overall · single-spec — the declared shapes ride `--spec`.
+    return `${verb} ${this.#flag("type")} ${type} ${this.#flag("spec")} ${this.#rel(target!.id)}`;
   }
 
   /** The one-way fix hop's literal — `fix --type <type> <type-arg> --reviews <path>
    *  <readback>` (the readback suffix the declared constant, rendered by reference).
-   *  Every embedded path value (the doc-id for the spec/plan faces · `--reviews`)
+   *  Every embedded path value (the doc-id for the doc shapes · `--reviews`)
    *  is normalized to the repoRoot-relative shape (D47); the wave face's `<type-arg>`
    *  is a task key, not a path — passed through as-is. */
   #fixText(route: Extract<Route, { kind: "fix" }>, target?: RouteTarget | null): string {
@@ -174,9 +174,6 @@ export class RouteRenderer {
     if (type === "wave") {
       return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${id} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
     }
-    if (type === "spec") {
-      return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${this.#rel(id)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
-    }
     if (type === "plan") {
       return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${this.#rel(id)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
     }
@@ -186,7 +183,9 @@ export class RouteRenderer {
       // ref.short() directory, the workspace double identity).
       return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
     }
-    return `${verb} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
+    if (type === null) return `${verb} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
+    // phase-spec · overall · single-spec — the declared shapes ride `--spec`.
+    return `${verb} ${this.#flag("type")} ${type} ${this.#flag("spec")} ${this.#rel(id)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
   }
 
   /** The face-to-face handoff render — the pipeline entry: a `ref` fills the declared

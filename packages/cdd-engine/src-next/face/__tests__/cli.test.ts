@@ -67,7 +67,7 @@ import type { DispatchStep, OpenFrame } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
 import { Cli, HarnessDispatch } from "../cli.ts";
-import { CLI_COMMANDS, type CliVerb } from "../declare.ts";
+import { ARGV_CHANNEL, CLI_COMMANDS, type CliVerb } from "../declare.ts";
 import { HOSTS } from "../host.ts";
 import type { StepRunner } from "../init.ts";
 import { PLUGINS, type PluginRow } from "../plugins.ts";
@@ -764,9 +764,11 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       let code = await command.runArgv(["review", "--type", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "error: option '--type <wave|branch|spec|plan>' argument 'bogus' is invalid",
+        "error: option '--type <wave|branch|phase-spec|overall|plan|single-spec>' argument 'bogus' is invalid",
       );
-      expect(io.stderrText).toContain("must be one of wave | branch | spec | plan");
+      expect(io.stderrText).toContain(
+        "must be one of wave | branch | phase-spec | overall | plan | single-spec",
+      );
       io.stderrText = "";
       code = await command.runArgv([
         "base",
@@ -879,7 +881,7 @@ describe("parse — the component-value validation + the unknown-flag guard", ()
       code = await command.runArgv(["review", "--tasks", "1"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "error: required option '--type <wave|branch|spec|plan>' not specified",
+        "error: required option '--type <wave|branch|phase-spec|overall|plan|single-spec>' not specified",
       );
     } finally {
       cleanup();
@@ -1174,7 +1176,7 @@ describe("the help/--help display face — the per-command render", () => {
     try {
       const code = await command.runArgv(["review", "--help"]);
       expect(code).toBe(0);
-      expect(io.stdoutText).toContain("--type <wave|branch|spec|plan>");
+      expect(io.stdoutText).toContain("--type <wave|branch|phase-spec|overall|plan|single-spec>");
       expect(io.stdoutText).toContain("--tasks <n|n,n,…>");
       expect(io.stdoutText).toContain("--round <n>");
       expect(io.stdoutText).toContain("--spec <path>");
@@ -1183,7 +1185,7 @@ describe("the help/--help display face — the per-command render", () => {
       expect(io.stdoutText).not.toContain("--head");
       expect(io.stdoutText).toContain("the target face of the round");
       expect(io.stdoutText).toContain(
-        "cdd review --type spec --spec docs/kairos/specs/p3-design.md",
+        "cdd review --type phase-spec --spec docs/kairos/specs/p3-design.md",
       );
     } finally {
       cleanup();
@@ -1372,7 +1374,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       }
       // The Examples section heading + a P1 example sentence in the stream.
       expect(help).toContain("Examples:");
-      expect(help).toContain("cdd review --type spec --spec docs/kairos/specs/p3-design.md");
+      expect(help).toContain("cdd review --type phase-spec --spec docs/kairos/specs/p3-design.md");
       // The program-flag tail note: --dry-run listed ALONE — the -h/--help
       // redundant column is not written (the built-in helpOption faces Options).
       const footer = io.stdoutText.split("\n").find((line) => line.startsWith("program flags"));
@@ -1393,7 +1395,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       expect(code).toBe(0);
       const help = norm(io.stdoutText);
       // The §5.2 value domains ride the option descriptions.
-      expect(help).toContain("--type <wave|branch|spec|plan>");
+      expect(help).toContain("--type <wave|branch|phase-spec|overall|plan|single-spec>");
       expect(help).toContain("--tasks <n|n,n,…>");
       expect(help).toContain("--plan <path>");
       // the branch range flags retired with the commit-sha surface (P7)
@@ -2320,7 +2322,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         const spec = await promptOf([
           "review",
           "--type",
-          "spec",
+          "phase-spec",
           "--spec",
           conformingSpec(repoRoot),
         ]);
@@ -2355,7 +2357,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const saved = process.env.CLAUDE_CODE_SESSION_ID;
       process.env.CLAUDE_CODE_SESSION_ID = "s";
       try {
-        await command.runArgv(["review", "--type", "spec", "--spec", spec]);
+        await command.runArgv(["review", "--type", "phase-spec", "--spec", spec]);
       } finally {
         if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
         else process.env.CLAUDE_CODE_SESSION_ID = saved;
@@ -2421,7 +2423,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const saved = process.env.CLAUDE_CODE_SESSION_ID;
       process.env.CLAUDE_CODE_SESSION_ID = "s";
       try {
-        await command.runArgv(["review", "--type", "spec", "--spec", file]);
+        await command.runArgv(["review", "--type", "phase-spec", "--spec", file]);
       } finally {
         if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
         else process.env.CLAUDE_CODE_SESSION_ID = saved;
@@ -2549,7 +2551,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
-  it("review --type spec/plan — the doc-path face (the doc-derived workspace slug)", async () => {
+  it("review --type phase-spec/plan — the doc-path face (the doc-derived workspace slug)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
@@ -2557,13 +2559,13 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // (spec §12 · D34) the capsule's doc-class discrimination reads
       // (zero filename inference).
       const spec = conformingSpec(repoRoot);
-      const specCode = await command.runArgv(["review", "--type", "spec", "--spec", spec]);
+      const specCode = await command.runArgv(["review", "--type", "phase-spec", "--spec", spec]);
       expect(specCode).toBe(0);
       // T3 deliberate pin break: the phase-spec closure routes the cdd-plan ref (PIPELINE_NEXT.phase-spec).
       expect(io.stdoutText).toContain("next: route to /kairos:cdd-plan skill");
-      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "spec-review-1.json"))).toBe(
-        true,
-      );
+      expect(
+        existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "phase-spec-review-1.json")),
+      ).toBe(true);
       io.stdoutText = "";
       // The plan face is doc-contract-gated (P4.1 T1): a contract-clean plan (the
       // header tuple + version lineage + Change-history table + the chain siblings)
@@ -2602,12 +2604,18 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
-  it("review --type spec of an -overall.md — the overall doc-key face (zero phase-spec misreport)", async () => {
+  it("review --type phase-spec of an -overall.md — the overall doc-key face (zero phase-spec misreport)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const overall = conformingOverall(repoRoot);
-      const overallCode = await command.runArgv(["review", "--type", "spec", "--spec", overall]);
+      const overallCode = await command.runArgv([
+        "review",
+        "--type",
+        "phase-spec",
+        "--spec",
+        overall,
+      ]);
       expect(overallCode).toBe(0);
       expect(io.stdoutText).toContain("next: done");
       // The overall was judged under the overall key (its declared
@@ -2616,7 +2624,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // refuses over CDD_BLOCKED and no round lands. The exit 0 + round +
       // empty-findings carrier pin the zero misreport; the stderr stays free of the
       // blocked channel.
-      const round = path.join(repoRoot, ".kairos", "cdd", "o1-overall", "spec-review-1.json");
+      const round = path.join(repoRoot, ".kairos", "cdd", "o1-overall", "phase-spec-review-1.json");
       expect(existsSync(round)).toBe(true);
       expect(io.stderrText).not.toContain("CDD_BLOCKED");
       expect(readJson<{ findings: unknown[] }>(round).findings).toEqual([]);
@@ -2689,8 +2697,13 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // is the line type, never the argv path.
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "s1").ensure();
       const ledger = new Ledger(workspace, new ConfigLoader());
-      ledger.persistHandoff("review", "spec", { round: 1 }, { phase: "review", findings: [] });
-      ledger.recordRound("spec", { op: "review" });
+      ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        { phase: "review", findings: [] },
+      );
+      ledger.recordRound("phase-spec", { op: "review" });
       // The closed round bound no reviewed revision, so the ledger verdict is null,
       // not "same": the "target revision unchanged" claim would be fabricated (only
       // present facts land). The gate keeps the generic closed-line message.
@@ -2698,7 +2711,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const blocked = await command.runArgv([
         "review",
         "--type",
-        "spec",
+        "phase-spec",
         "--spec",
         specPath,
         "--dry-run",
@@ -2709,9 +2722,9 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stderrText).toContain("face-closed");
       expect(io.stderrText).not.toContain("target revision unchanged");
       // no phantom round files land on the null-verdict line
-      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "spec-review-2.json"))).toBe(
-        false,
-      );
+      expect(
+        existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "phase-spec-review-2.json")),
+      ).toBe(false);
     } finally {
       cleanup();
     }
@@ -2727,8 +2740,8 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // the plan IS the pipeline frontier the board observes.
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
       const ledger = new Ledger(workspace, new ConfigLoader());
-      ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
-      ledger.recordRound("spec", { op: "review" });
+      ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+      ledger.recordRound("phase-spec", { op: "review" });
       // The plan line has not started its C5 — asking for a `fix` round is refused,
       // and the refusal renders the ONE derived hop (`task-open · the next round is
       // review`), not a second judgment's prose.
@@ -2754,7 +2767,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const code = await command.runArgv([
         "review",
         "--type",
-        "spec",
+        "phase-spec",
         "--spec",
         path.join(repoRoot, "docs", "kairos", "specs", "ghost-design.md"),
         "--dry-run",
@@ -3422,7 +3435,7 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
   }
 
   const wave = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p3.md" } as const;
-  const spec = { type: "spec", id: "docs/kairos/specs/p3-design.md" } as const;
+  const spec = { type: "phase-spec", id: "docs/kairos/specs/p3-design.md" } as const;
   const planT = { type: "plan", id: "docs/kairos/plans/p3.md" } as const;
   // the branch target carries the workspace --plan only — the review judges the
   // live tree, so no range rides the command (spec §2.3/§2.6)
@@ -3452,7 +3465,7 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
     expect(waveLiteral).toBe("review --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md");
     parses(waveLiteral);
     const specLiteral = literalOf({ kind: "review" }, spec);
-    expect(specLiteral).toBe("review --type spec --spec docs/kairos/specs/p3-design.md");
+    expect(specLiteral).toBe("review --type phase-spec --spec docs/kairos/specs/p3-design.md");
     parses(specLiteral);
     const planLiteral = literalOf({ kind: "review" }, planT);
     expect(planLiteral).toBe("review --type plan --plan docs/kairos/plans/p3.md");
@@ -3473,7 +3486,7 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
     parses(waveLiteral);
     const specLiteral = literalOf({ kind: "fix", reviews: "s1-review-1.json" }, spec);
     expect(specLiteral).toBe(
-      "fix --type spec --spec docs/kairos/specs/p3-design.md --reviews s1-review-1.json " +
+      "fix --type phase-spec --spec docs/kairos/specs/p3-design.md --reviews s1-review-1.json " +
         FIX_READBACK_SUFFIX,
     );
     parses(specLiteral);
@@ -3987,9 +4000,9 @@ describe("P11 T3 — the workspace write-point + the base read normalization", (
           argv: (plan) => ["review", "--type", "branch", "--plan", plan],
         },
         {
-          face: "spec",
+          face: "phase-spec",
           slug: "s1",
-          argv: (_plan, spec) => ["review", "--type", "spec", "--spec", spec],
+          argv: (_plan, spec) => ["review", "--type", "phase-spec", "--spec", spec],
         },
         {
           face: "plan",
@@ -4156,7 +4169,7 @@ describe("T6 — the dispatch surface reads the workspace key from `slug:`", () 
         "---",
       ]);
       io.stderrText = "";
-      expect(await command.runArgv(["review", "--type", "spec", "--spec", spec])).toBe(1);
+      expect(await command.runArgv(["review", "--type", "phase-spec", "--spec", spec])).toBe(1);
       expect(io.stderrText).toContain("CDD_BLOCKED");
       expect(io.stderrText).toContain("slug:");
     } finally {
@@ -4186,7 +4199,7 @@ describe("T6 — the dispatch surface reads the workspace key from `slug:`", () 
       ]);
       const plan = slugPlan(repoRoot, { name: "dup.md", slug: "dup" });
       io.stderrText = "";
-      expect(await command.runArgv(["review", "--type", "spec", "--spec", spec])).toBe(1);
+      expect(await command.runArgv(["review", "--type", "phase-spec", "--spec", spec])).toBe(1);
       expect(io.stderrText).toContain("CDD_BLOCKED");
       expect(io.stderrText.toLowerCase()).toContain("dup");
       io.stderrText = "";
@@ -4771,7 +4784,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
       const code = await command.runArgv(["review", "--type", "bogus"]);
       expect(code).toBe(2);
       expect(io.stderrText).toContain(
-        "error: option '--type <wave|branch|spec|plan>' argument 'bogus' is invalid",
+        "error: option '--type <wave|branch|phase-spec|overall|plan|single-spec>' argument 'bogus' is invalid",
       );
     } finally {
       cleanup();
@@ -4884,7 +4897,7 @@ describe("T3 — the commander-native composition root: program parse + .action 
     }
   });
 
-  it("review --type spec --dry-run — the preview forecasts the spec round at zero writes", async () => {
+  it("review --type phase-spec --dry-run — the preview forecasts the spec round at zero writes", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
@@ -4892,14 +4905,21 @@ describe("T3 — the commander-native composition root: program parse + .action 
       // (spec §12 · D34) the capsule's doc-class discrimination reads
       // (zero filename inference).
       const spec = conformingSpec(repoRoot);
-      const code = await command.runArgv(["review", "--type", "spec", "--spec", spec, "--dry-run"]);
+      const code = await command.runArgv([
+        "review",
+        "--type",
+        "phase-spec",
+        "--spec",
+        spec,
+        "--dry-run",
+      ]);
       expect(code).toBe(0);
       // the preview names the spec round's step + its prescribed write set, and
       // fabricates neither a conclusion nor a next hop (P11 §3.3)
       expect(io.stdoutText.startsWith("cdd review: preview (no repo changes)\n")).toBe(true);
-      expect(io.stdoutText).toContain("  step:        review round 1 — spec");
+      expect(io.stdoutText).toContain("  step:        review round 1 — phase-spec");
       expect(io.stdoutText).toContain(
-        "  would write: .kairos/cdd/s1/spec-review-1.json · .kairos/cdd/s1/spec-review-1-report.md",
+        "  would write: .kairos/cdd/s1/phase-spec-review-1.json · .kairos/cdd/s1/phase-spec-review-1-report.md",
       );
       expect(io.stdoutText).not.toContain("next:");
       expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);
@@ -4952,7 +4972,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
   };
 
   const specReviewFrame: OpenFrame = {
-    type: "spec",
+    type: "phase-spec",
     phase: "review",
     round: 1,
     target: { kind: "spec", doc: "docs/kairos/specs/s1-design.md" },
@@ -5234,11 +5254,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const second = sync.calls[1]!.args[sync.calls[1]!.args.length - 1];
       // D46 — the token is repoRoot-relative (the child spawned at cwd = repoRoot).
       const wsRel = path.relative(repoRoot, workspace.path);
-      expect(first).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/spec-review-1-report.md`);
-      expect(second).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/spec-review-2-report.md`);
+      expect(first).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/phase-spec-review-1-report.md`);
+      expect(second).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/phase-spec-review-2-report.md`);
       // the round-keyed names never collide — a re-review cannot overwrite its predecessor
-      expect(path.join(workspace.path, "spec-review-1-report.md")).not.toBe(
-        path.join(workspace.path, "spec-review-2-report.md"),
+      expect(path.join(workspace.path, "phase-spec-review-1-report.md")).not.toBe(
+        path.join(workspace.path, "phase-spec-review-2-report.md"),
       );
     } finally {
       cleanup();
@@ -5443,7 +5463,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // and books ONE WARN on the notes.
       sync.stdout = "status: APPROVED\n";
       writeFileSync(
-        path.join(scene.workspace.path, "spec-review-1.json"),
+        path.join(scene.workspace.path, "phase-spec-review-1.json"),
         JSON.stringify({
           findings: [{ severity: "nit", lens: "spec", summary: "drift" }],
           status: "APPROVED",
@@ -5489,7 +5509,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // draft's findings — never printed); the engine derives the capsule status.
       sync.stdout = "status: APPROVED\n";
       writeFileSync(
-        path.join(scene.workspace.path, "spec-review-1.json"),
+        path.join(scene.workspace.path, "phase-spec-review-1.json"),
         JSON.stringify({
           findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
         }),
@@ -5703,12 +5723,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // P22 T7 — a docs-fix round is a fix round: it owes a disposition per requested
       // finding, and its requesting carrier is the spec review's own carrier.
       writeFileSync(
-        path.join(scene.workspace.path, "spec-review-1.json"),
+        path.join(scene.workspace.path, "phase-spec-review-1.json"),
         JSON.stringify({ findings: [] }),
         "utf8",
       );
       writeFileSync(
-        path.join(scene.workspace.path, "spec-fix-1.json"),
+        path.join(scene.workspace.path, "phase-spec-fix-1.json"),
         JSON.stringify({
           status: "APPROVED",
           artifacts: { doc: "docs/kairos/specs/s1-design.md" },
@@ -5718,7 +5738,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const docsFixFrame: OpenFrame = {
-        type: "spec",
+        type: "phase-spec",
         phase: "fix",
         round: 1,
         target: { kind: "spec", doc: "docs/kairos/specs/s1-design.md" },
@@ -6994,25 +7014,27 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         const io = new CaptureIo();
         const cli = Cli.create({ io, sync: new StubRunner() });
         const review = (): Promise<number> =>
-          withHost(() => cli.runArgv(["review", "--type", "spec", "--spec", spec]));
+          withHost(() => cli.runArgv(["review", "--type", "phase-spec", "--spec", spec]));
         expect(await review()).toBe(1);
-        const records = ledger.recordsOf("spec");
+        const records = ledger.recordsOf("phase-spec");
         expect(records).toHaveLength(1);
         expect(records[0]?.verdict.targetAction).toBe(false);
         expect(records[0]?.violations[0]?.grade).toBe("hard");
         expect(records[0]?.violations[0]?.message).toContain("no judge carrier");
         // the hard round bound NO reviewed revision — the drift identity stays open
-        const row = ledger.readProgress()?.waves.find((candidate) => candidate.wave === "spec");
+        const row = ledger
+          .readProgress()
+          ?.waves.find((candidate) => candidate.wave === "phase-spec");
         expect(row?.reviewedRevision).toBeUndefined();
         // … so the very next review invocation is dispatchable again (a second round)
         writeFileSync(
-          path.join(workspace.path, "spec-review-2.json"),
+          path.join(workspace.path, "phase-spec-review-2.json"),
           JSON.stringify({ findings: [] }),
           "utf8",
         );
         io.stdoutText = "";
         expect(await review()).toBe(0);
-        expect(ledger.roundCount("spec", "review")).toBe(2);
+        expect(ledger.roundCount("phase-spec", "review")).toBe(2);
       } finally {
         cleanup();
       }
@@ -7100,7 +7122,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           env: { CLAUDE_CODE_SESSION_ID: "s" },
         });
         await docsDispatch.step()({
-          type: "spec",
+          type: "phase-spec",
           phase: "fix",
           round: 1,
           target: { kind: "spec", doc: "docs/kairos/specs/s1-design.md" },
@@ -7862,6 +7884,48 @@ describe("cdd <verb> — the in-flight acquire race", () => {
       // the competitor's record bytes were never overwritten, and its child never ran
       expect(recordBytes!).toBe(`${JSON.stringify(competitorRecord, null, 2)}\n`);
       expect(sync.calls).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P22 T14 — one target vocabulary: six type values, `--type phase-spec` retired, and the
+// `--spec` flag retained (help text only). The `--type` domain IS the session
+// plane's TargetType set, so the CLI never spells a value the table does not carry.
+// ---------------------------------------------------------------------------
+
+describe("P22 T14 — the target vocabulary (six values, one spelling)", () => {
+  it("--type's value domain is the six target types — the retired `spec` is not one", () => {
+    expect(new Set(ARGV_CHANNEL.type.values)).toEqual(
+      new Set(["wave", "branch", "phase-spec", "overall", "plan", "single-spec"]),
+    );
+    expect(ARGV_CHANNEL.type.values).not.toContain("spec");
+  });
+
+  it("--spec is retained; its help text names the document under review", () => {
+    expect(ARGV_CHANNEL.spec.flag).toBe("--spec");
+    expect(ARGV_CHANNEL.spec.help).toBe(
+      "the document under review — a phase-spec, an overall charter or a single-spec",
+    );
+  });
+
+  it("review --type overall clears the doc-contract gate and lands the overall round line", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const overall = conformingOverall(repoRoot);
+      const code = await command.runArgv(["review", "--type", "overall", "--spec", overall]);
+      expect(code).toBe(0);
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+      // the round records on the OVERALL line (`overall-review-N`) — the charter
+      // review is no longer folded into the phase-spec line
+      const round = path.join(repoRoot, ".kairos", "cdd", "o1-overall", "overall-review-1.json");
+      expect(existsSync(round)).toBe(true);
+      expect(readJson<{ findings: unknown[] }>(round).findings).toEqual([]);
+      // and its closure is the pipeline terminus
+      expect(io.stdoutText).toContain("next: done");
     } finally {
       cleanup();
     }

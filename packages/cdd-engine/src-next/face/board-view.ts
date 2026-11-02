@@ -163,24 +163,23 @@ export class BoardView {
   }
 
   /** docClassOf(root, target) — the pipeline-station discrimination of one render
-   *  target (spec §5.2 · D33): the spec doc's class reads its DECLARED type (the
+   *  target (spec §5.2 · D33): a doc shape's class reads its DECLARED type (the
    *  front-matter `doc-type:` key — the ONE declaration reading face above), never
-   *  the filename suffix; the task-face targets key by type. `blocked` — the key is
-   *  missing (the renderer prints the BLOCKED face); `terminal` — no pipeline seam
-   *  carries the declared class (`single-spec`, the table's five keys exclude it).
-   *  This is the injected seam of the ONE hop derivation: `session/next.ts` never
-   *  imports a face class, and every read face shares this ONE judgment. The basis is
-   *  REQUIRED — an unrooted resolve would read the target against `process.cwd()`, so
-   *  an engine invoked from a subdirectory could report a declared line as
-   *  `doc-class-blocked`; the root is always the value object the read face holds. */
+   *  the filename suffix or the `--type` spelling; the node shapes key by their own
+   *  type. `blocked` — the key is missing (the renderer prints the BLOCKED face);
+   *  `terminal` — no pipeline seam carries the declared class (`single-spec`, the
+   *  `PipelineKey` derivation excludes it). This is the injected seam of the ONE hop
+   *  derivation: `session/next.ts` never imports a face class, and every read face
+   *  shares this ONE judgment. The basis is REQUIRED — an unrooted resolve would read
+   *  the target against `process.cwd()`, so an engine invoked from a subdirectory
+   *  could report a declared line as `doc-class-blocked`; the root is always the value
+   *  object the read face holds. */
   static docClassOf(root: RepoRoot, target: RouteTarget): DocClassVerdict {
-    if (target.type === "spec") {
-      const declared = BoardView.readDocType(root, root.relativize(target.id));
-      return declared === null ? "blocked" : declared === "single-spec" ? "terminal" : declared;
-    }
     if (target.type === "plan") return "plan";
     if (target.type === "wave") return "wave";
-    return "branch";
+    if (target.type === "branch") return "branch";
+    const declared = BoardView.readDocType(root, root.relativize(target.id));
+    return declared === null ? "blocked" : declared === "single-spec" ? "terminal" : declared;
   }
 
   /** The doc file's raw text — an absent/unreadable file reads null (the reads
@@ -466,13 +465,13 @@ export class BoardView {
       {
         label: "overall",
         entry: sources.overall,
-        line: BoardView.#lineOf("overall", "spec", sources.overall, overallProgress),
+        line: BoardView.#lineOf("overall", "overall", sources.overall, overallProgress),
         mark: BoardView.#entryMark(index, sources.overall, "identity"),
       },
       {
         label: "spec",
         entry: sources.spec,
-        line: BoardView.#lineOf("spec", "spec", sources.spec, progress),
+        line: BoardView.#lineOf("spec", "phase-spec", sources.spec, progress),
         mark:
           BoardView.#entryMark(index, sources.spec, "identity") ??
           (sources.programMissing ? MARK_PROGRAM_MISSING : null),
@@ -543,7 +542,12 @@ export class BoardView {
     const repoRoot = root.absolute;
     const overallSlug = BoardView.#validSlug(entry);
     const ledger = overallSlug === null ? null : BoardView.#ledgerOf(overallSlug, repoRoot);
-    const overallLine = BoardView.#lineOf("overall", "spec", entry, ledger?.readProgress() ?? null);
+    const overallLine = BoardView.#lineOf(
+      "overall",
+      "overall",
+      entry,
+      ledger?.readProgress() ?? null,
+    );
     const overallDoc = BoardView.#docCell(
       entry,
       overallLine,
@@ -558,7 +562,7 @@ export class BoardView {
       const phaseSlug = BoardView.#validSlug(phase);
       const phaseLedger = phaseSlug === null ? null : BoardView.#ledgerOf(phaseSlug, repoRoot);
       const phaseProgress = phaseLedger?.readProgress() ?? null;
-      const specLine = BoardView.#lineOf("spec", "spec", phase, phaseProgress);
+      const specLine = BoardView.#lineOf("spec", "phase-spec", phase, phaseProgress);
       const planEntry = phaseSlug === null ? null : index.planOf(phaseSlug);
       const planLine = BoardView.#lineOf("plan", "plan", planEntry, phaseProgress);
       const branchLine = BoardView.#roundsLine("branch", "branch", phaseProgress);
@@ -670,9 +674,9 @@ export class BoardView {
     const waveKey = BoardView.#waveFrontierKey(ledger, planPath);
     const report: PipelineFaceReport = {
       "phase-spec": {
-        closed: ledger.lineClosed("spec", "spec"),
-        active: specPath === null ? null : ledger.lineRoute("spec", "spec"),
-        target: specPath === null ? null : { type: "spec", id: specPath },
+        closed: ledger.lineClosed("phase-spec", "phase-spec"),
+        active: specPath === null ? null : ledger.lineRoute("phase-spec", "phase-spec"),
+        target: specPath === null ? null : { type: "phase-spec", id: specPath },
       },
       plan: {
         closed: ledger.lineClosed("plan", "plan"),

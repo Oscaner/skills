@@ -9,14 +9,16 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { TargetType } from "../../session/faces.ts";
-import {
-  REVIEWS,
-  SEVERITY_RUBRIC,
-  SEVERITY_RUBRIC_SLOTS,
-  reviewGuideOf,
-} from "../templates.ts";
+import { REVIEWS, reviewGuideOf, SEVERITY_RUBRIC, SEVERITY_RUBRIC_SLOTS } from "../templates.ts";
 
-const VARIANTS: readonly TargetType[] = ["wave", "branch", "spec", "plan"];
+const VARIANTS: readonly TargetType[] = [
+  "wave",
+  "branch",
+  "phase-spec",
+  "overall",
+  "plan",
+  "single-spec",
+];
 
 describe("SEVERITY_RUBRIC — the one shared calibration fragment", () => {
   it("carries the four blocker questions and the warn/nit anchors", () => {

@@ -106,20 +106,20 @@ describe("Preview — the §3.3 five-row block", () => {
     const lines = preview().render(
       "review",
       frame({
-        type: "spec",
+        type: "phase-spec",
         round: 1,
         target: { kind: "spec", doc: path.join(ROOT, "docs", "kairos", "specs", "p3-design.md") },
         params: { round: 1 },
-        key: "spec",
+        key: "phase-spec",
       }),
     );
-    expect(lines[1]).toBe("  step:        review round 1 — spec");
+    expect(lines[1]).toBe("  step:        review round 1 — phase-spec");
     expect(lines[2]).toBe("  reads:       docs/kairos/specs/p3-design.md");
     expect(lines[3]).toBe(
-      "  would write: .kairos/cdd/p3/spec-review-1.json · .kairos/cdd/p3/spec-review-1-report.md",
+      "  would write: .kairos/cdd/p3/phase-spec-review-1.json · .kairos/cdd/p3/phase-spec-review-1-report.md",
     );
     expect(lines[4]).toBe(
-      '  would record: progress.waves["spec"].rounds += { op: review, cycle: 1, attempt: 1 } · reviewedRevision(doc)',
+      '  would record: progress.waves["phase-spec"].rounds += { op: review, cycle: 1, attempt: 1 } · reviewedRevision(doc)',
     );
   });
 

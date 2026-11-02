@@ -81,14 +81,38 @@ describe("RoundNaming — the frame → prescribed artifact names (report / evid
     expect(
       NAMING.report(
         frame({
-          type: "spec",
+          type: "phase-spec",
           phase: "review",
           round: 1,
           target: { kind: "spec", doc: "s.md" },
           params: { round: 1 },
         }),
       ),
-    ).toBe(inWorkspace("spec-review-1-report.md"));
+    ).toBe(inWorkspace("phase-spec-review-1-report.md"));
+    // the overall charter line keys its own round line — never folded into the spec line
+    expect(
+      NAMING.report(
+        frame({
+          type: "overall",
+          phase: "review",
+          round: 1,
+          target: { kind: "spec", doc: "o-overall.md" },
+          params: { round: 1 },
+        }),
+      ),
+    ).toBe(inWorkspace("overall-review-1-report.md"));
+    // the standalone single-spec line keys its own stem too
+    expect(
+      NAMING.report(
+        frame({
+          type: "single-spec",
+          phase: "review",
+          round: 1,
+          target: { kind: "spec", doc: "x-single-spec.md" },
+          params: { round: 1 },
+        }),
+      ),
+    ).toBe(inWorkspace("single-spec-review-1-report.md"));
     expect(
       NAMING.report(
         frame({
@@ -128,7 +152,7 @@ describe("RoundNaming — the frame → prescribed artifact names (report / evid
     ).toBe("");
     expect(
       NAMING.evidenceName(
-        frame({ type: "spec", phase: "review", target: { kind: "spec", doc: "s.md" } }),
+        frame({ type: "phase-spec", phase: "review", target: { kind: "spec", doc: "s.md" } }),
       ),
     ).toBe("");
     expect(
@@ -145,7 +169,7 @@ describe("RoundNaming — the frame → prescribed artifact names (report / evid
   });
 
   it("derives the per-round log name — the report stem, the attempt suffix and the .log face", () => {
-    expect(NAMING.logName("review", "spec", { round: 2 }, 1)).toBe("spec-review-2.log");
+    expect(NAMING.logName("review", "phase-spec", { round: 2 }, 1)).toBe("phase-spec-review-2.log");
     expect(NAMING.logName("fix", "wave", { tasks: "1", round: 1 }, 1)).toBe("tasks-1-fix-1.log");
     // implement carries no round token — the line keys the implement round alone
     expect(NAMING.logName("implement", "wave", { tasks: "1" }, 1)).toBe("tasks-1-implement.log");
@@ -177,7 +201,7 @@ describe("RoundNaming — the frame → prescribed artifact names (report / evid
       },
       {
         frame: frame({
-          type: "spec",
+          type: "phase-spec",
           phase: "review",
           round: 1,
           target: { kind: "spec", doc: "s.md" },

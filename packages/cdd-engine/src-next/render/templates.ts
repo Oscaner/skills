@@ -8,8 +8,8 @@
 //
 //   · TEMPLATE_PROMPT — the rendering data plane the assembler consumes; this
 //     module renders over it (the JSON's $schema/_doc prose plane is gone).
-//   · REVIEWS — the four-type review criteria (task/branch axes guides + the
-//     spec/plan URC prose, migrated from the dispatch table — their single typed
+//   · REVIEWS — the per-type review criteria (task/branch axes guides + the
+//     document shapes' URC prose, migrated from the dispatch table — their single typed
 //     home, P4). P5 lands here: the "no parallel sub-agents" phrase is deleted.
 //
 // T15 v1.8 (the mode dispatch table — §3.5) restructures the prompt from "one all-mode
@@ -19,7 +19,7 @@
 //     prefix (its instruction shell + the injected writable-subset schema at the
 //     shell's tail — byte-identical for every dispatch of the mode, so the prompt-
 //     cache prefix groups by mode) + the mode's REDUCED round-context subset.
-//   · REVIEW_VARIANTS — the review mode's four per-type rows (task/branch/spec/plan):
+//   · REVIEW_VARIANTS — the review mode's per-type rows, one per target type:
 //     the criteria + lens text are FIXED PREFIX content (folded into each variant's
 //     shell — they are per-type constants, so they never ride the dynamic tail; the
 //     INPUT_CRITERIA / INPUT_LENS round-context tokens are gone) and each variant's
@@ -66,14 +66,14 @@ export interface TemplateToken {
 }
 
 /** The work-modes of the dispatch table — the ROLE values (fix's spec/plan face is
- *  the docs-fix mode; review covers task/branch/spec/plan + branch-review). */
+ *  the docs-fix mode; review covers every target type + branch-review). */
 export type WorkMode = "implement" | "fix" | "review" | "docs-fix";
 
 /** The work-mode rows of the dispatch table — every ROLE except review (the review
  *  mode's rows are the four per-type REVIEW_VARIANTS). */
 export type WorkModeRowKey = Exclude<WorkMode, "review">;
 
-/** The four review types — the review mode's per-type prefix variants (the criteria
+/** The review variants — the review mode's per-type prefix variants (the criteria
  *  and lens are per-type constants, so each variant's fixed prefix is byte-stable). */
 
 /** One dispatch-table row — a mode's fixed prefix + its reduced dynamic tail. */
@@ -115,7 +115,7 @@ export interface ReviewGuideRow {
   /** The lens vocabulary — the finding lens labels the review may carry. */
   lensEnum: readonly string[];
   /** The axes/URC guide prose — the criteria body (the task/branch four axes +
-   *  verification-evidence duty; the spec/plan URC rows). */
+   *  verification-evidence duty; the document shapes' URC rows). */
   axesGuide: string;
 }
 
@@ -331,8 +331,9 @@ export const SEVERITY_RUBRIC_SLOTS = {
   audience: "{audience}",
 } as const;
 
-/** The review variant key — the four review types ARE the `TargetType` domain
- *  (`wave` / `branch` / `spec` / `plan`); no second value domain is minted. */
+/** The review variant key — the review types ARE the `TargetType` domain
+ *  (`wave` / `branch` / `phase-spec` / `overall` / `plan` / `single-spec`); no second
+ *  value domain is minted. */
 export type ReviewVariant = TargetType;
 
 /** The severity rubric — the ONE calibration fragment every review axes guide
@@ -350,8 +351,10 @@ export const REVIEW_VARIANT_TEXT: Readonly<
 > = {
   wave: { artifact: "artifact", audience: "user" },
   branch: { artifact: "artifact", audience: "user" },
-  spec: { artifact: "spec", audience: "downstream author" },
+  "phase-spec": { artifact: "spec", audience: "downstream author" },
+  overall: { artifact: "charter", audience: "program author" },
   plan: { artifact: "plan", audience: "implementer" },
+  "single-spec": { artifact: "spec", audience: "downstream author" },
 };
 
 /** The filled severity rubric of one review variant — the shared fragment with the
@@ -365,10 +368,17 @@ export const reviewGuideOf = (type: TargetType): string => {
   );
 };
 
-/** The four-type review criteria — the review prompts' fixed criteria body (P4; the
- *  spec/plan URC rows migrated from the dispatch table at the v1.8 closeout — their
- *  single typed home). The shared calibration tail rides `reviewGuideOf` (one
- *  fragment, four references), never a per-type copy. */
+/** The document shapes' narrative criteria body — the phase-spec line's URC + its
+ *  program-conformance clause, shared by every non-plan document shape (the charter
+ *  and the standalone single-spec read the same narrative criteria; the filled
+ *  rubric's artifact word is what differs). */
+const docNarrativeAxes = (guide: string): string =>
+  `Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at \`INPUT_OVERALL\` (the charter its \`program:\` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. ${guide}`;
+
+/** The per-type review criteria — the review prompts' fixed criteria body (P4; the
+ *  document shapes' URC rows migrated from the dispatch table at the v1.8 closeout —
+ *  their single typed home). The shared calibration tail rides `reviewGuideOf` (one
+ *  fragment per row), never a per-type copy. */
 export const REVIEWS = {
   wave: {
     lensEnum: ["standards", "spec", "buildability"],
@@ -378,95 +388,53 @@ export const REVIEWS = {
     lensEnum: ["standards", "spec", "buildability"],
     axesGuide: `Same four axes as task (branch-wide health: run \`git diff origin/<BASE_BRANCH>..HEAD\` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop. ${reviewGuideOf("branch")} Three things a green run cannot show you: design — does the changed structure fit this codebase and is it the simplest structure that solves the plan's problem (over-engineering is a finding, not a preference); test adequacy — would these tests fail if the code broke (a run that cannot go red is not evidence); migration — does every breaking change name the path a not-yet-migrated consumer takes.`,
   },
-  spec: {
+  "phase-spec": {
     lensEnum: ["completeness", "consistency", "clarity"],
-    axesGuide: `Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at \`INPUT_OVERALL\` (the charter its \`program:\` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. ${reviewGuideOf("spec")}`,
+    axesGuide: docNarrativeAxes(reviewGuideOf("phase-spec")),
+  },
+  overall: {
+    lensEnum: ["completeness", "consistency", "clarity"],
+    axesGuide: docNarrativeAxes(reviewGuideOf("overall")),
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
     axesGuide: `Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at \`INPUT_SPEC\` (the plan's \`spec\` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ${reviewGuideOf("plan")}`,
   },
+  "single-spec": {
+    lensEnum: ["completeness", "consistency", "clarity"],
+    axesGuide: docNarrativeAxes(reviewGuideOf("single-spec")),
+  },
 } as const satisfies ReviewGuides;
 
-/** The per-type facts the review variants compose at module-const time (the lens
- *  vocabularies + the criteria bodies — single data references, never restates). */
-const REVIEWS_WAVE_LENS = REVIEWS.wave.lensEnum.join(" | ");
-const REVIEWS_BRANCH_LENS = REVIEWS.branch.lensEnum.join(" | ");
-const REVIEWS_SPEC_LENS = REVIEWS.spec.lensEnum.join(" | ");
-const REVIEWS_PLAN_LENS = REVIEWS.plan.lensEnum.join(" | ");
-const REVIEW_WAVE_AXES = REVIEWS.wave.axesGuide;
-const REVIEW_BRANCH_AXES = REVIEWS.branch.axesGuide;
-const REVIEW_SPEC_URC = REVIEWS.spec.axesGuide;
-const REVIEW_PLAN_URC = REVIEWS.plan.axesGuide;
+/** One review variant row (§3.7) — the fixed prefix folds the type's criteria + lens
+ *  INLINE (the `INPUT_CRITERIA`/`INPUT_LENS` round-context tokens are gone) and
+ *  shares the REVIEW_CONTEXT dynamic tail. The type word labels the criteria line,
+ *  so the row speaks the same vocabulary the CLI's `--type` declares. */
+const reviewRow = (type: TargetType, axes: string): ModePromptRow => ({
+  mode: "review",
+  shell: [
+    "# CDD dispatch — review round",
+    "",
+    "## Instructions",
+    "",
+    ...FRAME_ITEMS,
+    REVIEW_ITEM,
+    `**Lens labels:** one of \`${REVIEWS[type].lensEnum.join(" | ")}\` — every finding MUST carry its \`lens\`.`,
+    `**Criteria — ${type}:** ${axes}`,
+    ...LICENSE_ITEMS,
+    ...SCHEMA_SECTION,
+  ],
+  roundContext: REVIEW_CONTEXT,
+});
 
-/** The review mode's four per-type rows (§3.7) — each variant's fixed prefix folds
- *  its criteria + lens INLINE (the `INPUT_CRITERIA`/`INPUT_LENS` round-context
- *  tokens are gone), and shares the REVIEW_CONTEXT dynamic tail. */
+/** The review mode's six per-type rows — one per `TargetType` (§3.7). */
 const REVIEW_VARIANTS: Readonly<Record<TargetType, ModePromptRow>> = {
-  wave: {
-    mode: "review",
-    shell: [
-      "# CDD dispatch — review round",
-      "",
-      "## Instructions",
-      "",
-      ...FRAME_ITEMS,
-      REVIEW_ITEM,
-      `**Lens labels:** one of \`${REVIEWS_WAVE_LENS}\` — every finding MUST carry its \`lens\`.`,
-      `**Criteria — wave:** ${REVIEW_WAVE_AXES}`,
-      ...LICENSE_ITEMS,
-      ...SCHEMA_SECTION,
-    ],
-    roundContext: REVIEW_CONTEXT,
-  },
-  branch: {
-    mode: "review",
-    shell: [
-      "# CDD dispatch — review round",
-      "",
-      "## Instructions",
-      "",
-      ...FRAME_ITEMS,
-      REVIEW_ITEM,
-      `**Lens labels:** one of \`${REVIEWS_BRANCH_LENS}\` — every finding MUST carry its \`lens\`.`,
-      `**Criteria — branch:** ${REVIEW_BRANCH_AXES}`,
-      ...LICENSE_ITEMS,
-      ...SCHEMA_SECTION,
-    ],
-    roundContext: REVIEW_CONTEXT,
-  },
-  spec: {
-    mode: "review",
-    shell: [
-      "# CDD dispatch — review round",
-      "",
-      "## Instructions",
-      "",
-      ...FRAME_ITEMS,
-      REVIEW_ITEM,
-      `**Lens labels:** one of \`${REVIEWS_SPEC_LENS}\` — every finding MUST carry its \`lens\`.`,
-      `**Criteria — spec:** ${REVIEW_SPEC_URC}`,
-      ...LICENSE_ITEMS,
-      ...SCHEMA_SECTION,
-    ],
-    roundContext: REVIEW_CONTEXT,
-  },
-  plan: {
-    mode: "review",
-    shell: [
-      "# CDD dispatch — review round",
-      "",
-      "## Instructions",
-      "",
-      ...FRAME_ITEMS,
-      REVIEW_ITEM,
-      `**Lens labels:** one of \`${REVIEWS_PLAN_LENS}\` — every finding MUST carry its \`lens\`.`,
-      `**Criteria — plan:** ${REVIEW_PLAN_URC}`,
-      ...LICENSE_ITEMS,
-      ...SCHEMA_SECTION,
-    ],
-    roundContext: REVIEW_CONTEXT,
-  },
+  wave: reviewRow("wave", REVIEWS.wave.axesGuide),
+  branch: reviewRow("branch", REVIEWS.branch.axesGuide),
+  "phase-spec": reviewRow("phase-spec", REVIEWS["phase-spec"].axesGuide),
+  overall: reviewRow("overall", REVIEWS.overall.axesGuide),
+  plan: reviewRow("plan", REVIEWS.plan.axesGuide),
+  "single-spec": reviewRow("single-spec", REVIEWS["single-spec"].axesGuide),
 };
 
 /** The `## Return` zone — the single plain-prose contract block (P11: the child

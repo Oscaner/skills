@@ -206,11 +206,11 @@ describe("the capsule byte pin — the single output face", () => {
         "REVIEW_FIX",
         "0",
         "/h.json",
-        hopOf({ kind: "review" }, { type: "spec", id: "docs/kairos/specs/x-design.md" }),
+        hopOf({ kind: "review" }, { type: "phase-spec", id: "docs/kairos/specs/x-design.md" }),
       ),
     ).toEqual([
       "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
-      "next: review --type spec --spec docs/kairos/specs/x-design.md",
+      "next: review --type phase-spec --spec docs/kairos/specs/x-design.md",
     ]);
     // implement renders NO `--type` — the single-type wave verb (the declaration's
     // `parsed.args.type ?? "wave"` default unchanged; the plan rides the plan path)

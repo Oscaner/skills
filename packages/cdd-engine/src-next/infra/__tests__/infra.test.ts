@@ -41,7 +41,14 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
       type: "int-list",
       help: `the task ids of the wave group (comma-separated) — at most ${MAX_TASKS_PER_WAVE} tasks per wave`,
     });
-    expect(ARGV_CHANNEL.type.values).toEqual(["wave", "branch", "spec", "plan"]);
+    expect(ARGV_CHANNEL.type.values).toEqual([
+      "wave",
+      "branch",
+      "phase-spec",
+      "overall",
+      "plan",
+      "single-spec",
+    ]);
     expect(ARGV_CHANNEL.help).toEqual({
       flag: "--help",
       alias: "-h",
@@ -64,10 +71,14 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
       "implement.wave",
       "review.wave",
       "fix.wave",
-      "review.spec",
-      "fix.spec",
+      "review.phase-spec",
+      "fix.phase-spec",
+      "review.overall",
+      "fix.overall",
       "review.plan",
       "fix.plan",
+      "review.single-spec",
+      "fix.single-spec",
       "review.branch",
       "fix.branch",
     ] as const satisfies readonly (keyof typeof HANDOFF_FAMILIES)[]) {
@@ -110,7 +121,14 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     // (RETURN_JSON / DOCS_FIX retired) — the work-mode rows + the four review variants
     // (the review mode's ROLE resolves by REVIEW_TYPE)
     expect(Object.keys(template.modes)).toEqual(["implement", "fix", "docs-fix"]);
-    expect(Object.keys(template.reviews)).toEqual(["wave", "branch", "spec", "plan"]);
+    expect(Object.keys(template.reviews).sort()).toEqual([
+      "branch",
+      "overall",
+      "phase-spec",
+      "plan",
+      "single-spec",
+      "wave",
+    ]);
     // P11 — the return zone is ONE plain-prose block (the two-line stdout contract
     // retired with the introspection that enumerated its formats)
     expect(Object.keys(template.return)).toEqual(["RETURN_PROSE"]);
@@ -123,20 +141,20 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     // The spec/plan URC criteria migrated to the template plane's REVIEWS (v1.8
     // closeout) — their single typed home: the three axes + the writing-plans
     // self-check + the verification-evidence duty, plus the per-type lens.
-    expect(REVIEWS.spec.axesGuide).toContain("completeness/consistency/clarity");
-    expect(REVIEWS.spec.axesGuide).toContain("writing-plans self-check");
-    expect(REVIEWS.spec.axesGuide).toContain("verification evidence");
+    expect(REVIEWS["phase-spec"].axesGuide).toContain("completeness/consistency/clarity");
+    expect(REVIEWS["phase-spec"].axesGuide).toContain("writing-plans self-check");
+    expect(REVIEWS["phase-spec"].axesGuide).toContain("verification evidence");
     expect(REVIEWS.plan.axesGuide).toContain("completeness/decomposition/buildability");
-    expect(REVIEWS.spec.lensEnum).toEqual(["completeness", "consistency", "clarity"]);
+    expect(REVIEWS["phase-spec"].lensEnum).toEqual(["completeness", "consistency", "clarity"]);
     // D61-5 — the spec axis carries the program conformance criterion (the phase
     // judged against the scope its charter's Phase inventory registered); the
     // completeness lens owns the verdict, so the lens set is unchanged.
-    expect(REVIEWS.spec.axesGuide).toContain("program conformance");
-    expect(REVIEWS.spec.axesGuide).toContain("INPUT_OVERALL");
+    expect(REVIEWS["phase-spec"].axesGuide).toContain("program conformance");
+    expect(REVIEWS["phase-spec"].axesGuide).toContain("INPUT_OVERALL");
     expect(REVIEWS.plan.lensEnum).toEqual(["completeness", "decomposition", "buildability"]);
     // The review prompts fold the criteria/lens into their fixed prefix — the
     // INPUT_CRITERIA/INPUT_LENS round-context tokens are gone (§3.7).
-    expect(TEMPLATE_PROMPT.reviews.spec.shell.join("\n")).toContain("Follow URC");
+    expect(TEMPLATE_PROMPT.reviews["phase-spec"].shell.join("\n")).toContain("Follow URC");
     expect(TEMPLATE_PROMPT.tokens.map((t) => t.name)).not.toContain("INPUT_CRITERIA");
     // The implement slot is the M1 supersede — mattpocock-skills:implement, registered in refs.
     expect(DISPATCH.implement).toBe("mattpocock-skills:implement");
@@ -159,7 +177,14 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     expect(REVIEWS.branch.lensEnum).toEqual(["standards", "spec", "buildability"]);
     // P16/D60 — the two hard review disciplines ride REVIEW_ITEM, so all four review
     // shells carry them (the data-plane side of the render suite's assembled-face pins).
-    for (const type of ["wave", "branch", "spec", "plan"] as const) {
+    for (const type of [
+      "wave",
+      "branch",
+      "phase-spec",
+      "overall",
+      "plan",
+      "single-spec",
+    ] as const) {
       const shell = TEMPLATE_PROMPT.reviews[type].shell.join("\n");
       expect(shell).toContain("**Read-only:**");
       expect(shell).toContain("**Single agent:**");

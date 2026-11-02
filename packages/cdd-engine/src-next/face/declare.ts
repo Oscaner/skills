@@ -54,7 +54,11 @@ export interface ChannelArgRow {
  *  text per key, shared by every command that declares it). */
 export const ARGV_CHANNEL = {
   plan: { flag: "--plan", type: "path", help: "the CDD plan document path" },
-  spec: { flag: "--spec", type: "path", help: "the design-spec document path" },
+  spec: {
+    flag: "--spec",
+    type: "path",
+    help: "the document under review — a phase-spec, an overall charter or a single-spec",
+  },
   reviews: {
     flag: "--reviews",
     type: "path",
@@ -68,7 +72,7 @@ export const ARGV_CHANNEL = {
   type: {
     flag: "--type",
     type: "enum",
-    values: ["wave", "branch", "spec", "plan"],
+    values: ["wave", "branch", "phase-spec", "overall", "plan", "single-spec"],
     help: "the target face of the round",
   },
   base: { flag: "--base", type: "string", help: "the base artifact branch name" },
@@ -230,8 +234,8 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   },
   {
     name: "review",
-    description: "run a review — task | branch | spec | plan",
-    example: `cdd review --type spec --spec ${ENGINE_DOC_ROOTS.specs}/p3-design.md`,
+    description: "run a review — task | branch | phase-spec | overall | plan | single-spec",
+    example: `cdd review --type phase-spec --spec ${ENGINE_DOC_ROOTS.specs}/p3-design.md`,
     keys: [
       { key: "type", required: true },
       { key: "tasks" },
@@ -243,7 +247,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   },
   {
     name: "fix",
-    description: "fix review findings — task | branch | spec | plan",
+    description: "fix review findings — task | branch | phase-spec | overall | plan | single-spec",
     example: "cdd fix --type wave --tasks 1 --reviews tasks-1-review-1.json",
     keys: [
       { key: "type", required: true },
@@ -308,7 +312,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "board",
     description:
-      "render the progress board from a --plan or --spec entry (overall/spec/plan/wave/branch)",
+      "render the progress board from a --plan or --spec entry (overall/phase-spec/plan/wave/branch)",
     example: `cdd board --plan ${ENGINE_DOC_ROOTS.plans}/p3.md`,
     keys: [{ key: "plan" }, { key: "spec" }],
   },
@@ -334,25 +338,30 @@ export const SCHEMA_TYPE_KEYS: Readonly<Record<string, DocKey>> = {
 };
 
 /** The conditional required group per work verb + target type — the preAction hook's
- *  data face (spec §4.2): review `{plan}` / `{spec}` / `{plan}` · fix `{plan}` /
- *  `{spec}` / `{findings, plan}` — every branch face carries the `--plan` workspace
- *  identity (the branch line holds no commit ref: the review judges the live tree,
- *  the scope anchor BASE_BRANCH is engine-injected at dispatch). Keyed by declared
- *  flag spelling; non-exclusive — a round declaring both `--plan` and `--spec`
- *  stays accepted (no mutual-exclusion rejection). */
+ *  data face (spec §4.2): one row per `--type` value, keyed by the declared flag
+ *  spelling. The doc shapes carry the `--spec` document (their declared `doc-type:`
+ *  picks the contract the pre-flight judges); the wave/plan faces carry `--plan`, and
+ *  every branch face carries the `--plan` workspace identity (the branch line holds
+ *  no commit ref: the review judges the live tree, the scope anchor BASE_BRANCH is
+ *  engine-injected at dispatch). Non-exclusive — a round declaring both `--plan` and
+ *  `--spec` stays accepted (no mutual-exclusion rejection). */
 export const REQUIRED_GROUPS: Readonly<
   Record<"review" | "fix", Readonly<Record<string, readonly string[]>>>
 > = {
   review: {
     wave: ["--plan"],
-    spec: ["--spec"],
-    plan: ["--plan"],
     branch: ["--plan"],
+    "phase-spec": ["--spec"],
+    overall: ["--spec"],
+    plan: ["--plan"],
+    "single-spec": ["--spec"],
   },
   fix: {
     wave: ["--plan"],
-    spec: ["--spec"],
-    plan: ["--plan"],
     branch: ["--reviews", "--plan"],
+    "phase-spec": ["--spec"],
+    overall: ["--spec"],
+    plan: ["--plan"],
+    "single-spec": ["--spec"],
   },
 };

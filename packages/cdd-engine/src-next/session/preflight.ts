@@ -312,9 +312,12 @@ export class PreFlight {
         );
       }
     }
-    // 6. doc-contract — the doc faces' structural gate (the doc-scope rules).
+    // 6. doc-contract — the doc shapes' structural gate (the doc-scope rules).
+    //    The four document shapes (`phase-spec` · `overall` · `plan` · `single-spec`)
+    //    are judged by the SAME gate: the document's declared `doc-type:` picks the
+    //    contract, never the command's `--type` spelling.
     let docOutcome: DocOutcome = this.#docOutcomeOf(ctx);
-    if (ctx.type === "spec" || ctx.type === "plan") {
+    if (ctx.type !== "wave" && ctx.type !== "branch") {
       gates.push("doc-contract");
       checked.push("doc-contract");
       const doc = ctx.doc;
@@ -577,7 +580,8 @@ export class PreFlight {
   /** The task ids the ledger recorded a COMPLETED round for (the recorded set of the
    *  plan/ledger agreement rule — the completion read, so a dispatched-but-failed
    *  round does not close the agreement). Only TASK waves count: a doc/branch line row
-   *  (keyed `"plan"` / `"spec"` / `"branch"`) is not a task id. */
+   *  (keyed `"plan"` / `"phase-spec"` / `"overall"` / `"single-spec"` / `"branch"`) is
+   *  not a task id. */
   #recordedTasksOf(data: ProgressData | null): readonly number[] {
     const recorded: number[] = [];
     for (const row of data?.waves ?? []) {

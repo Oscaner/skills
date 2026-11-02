@@ -403,7 +403,9 @@ describe("handoff — naming / carrier / single-author persist", () => {
       expect(ledger.handoffName("fix", "wave", { tasks: "7,9", round: 1 })).toBe(
         "tasks-7,9-fix-1.json",
       );
-      expect(ledger.handoffName("review", "spec", { round: 1 })).toBe("spec-review-1.json");
+      expect(ledger.handoffName("review", "phase-spec", { round: 1 })).toBe(
+        "phase-spec-review-1.json",
+      );
       expect(ledger.handoffName("fix", "plan", { round: 1 })).toBe("plan-fix-1.json");
       // find #9 — the branch family name is the spine `branch-{op}-{round}.json`
       // (the range token left the file name — the branch line holds no commit identity)
@@ -937,10 +939,13 @@ describe("the review gate — the D28 phantom-pending-fix suppression", () => {
       // A `fixes(1) < reviews(2)` count comparison reads a phantom pending fix and
       // re-opens the line forever; the identity membership (2 ∈ {2}) suppresses it.
       const data = ledger.readProgress() ?? ledger.emptyProgress();
-      data.waves.push({ wave: "spec", rounds: { review: [1, 2], fix: [2] } });
+      data.waves.push({ wave: "phase-spec", rounds: { review: [1, 2], fix: [2] } });
       ledger.writeProgress(data);
-      ledger.recordReviewedRevision("spec", ledger.refs().docRevision(doc, "the reviewed body"));
-      const verdict = ledger.reviewGate("spec", doc, "spec");
+      ledger.recordReviewedRevision(
+        "phase-spec",
+        ledger.refs().docRevision(doc, "the reviewed body"),
+      );
+      const verdict = ledger.reviewGate("phase-spec", doc, "phase-spec");
       // the unchanged doc stays "same" with NO pending fix (the fix cycle 2 landed)
       expect(verdict.kind).toBe("same");
       if (verdict.kind === "same") expect(verdict.pending).toBe(false);
@@ -956,17 +961,20 @@ describe("the review gate — the D28 phantom-pending-fix suppression", () => {
       mkdirSync(path.dirname(doc), { recursive: true });
       writeFileSync(doc, "the reviewed body", "utf8");
       const data = ledger.readProgress() ?? ledger.emptyProgress();
-      data.waves.push({ wave: "spec", rounds: { review: [1] } });
+      data.waves.push({ wave: "phase-spec", rounds: { review: [1] } });
       ledger.writeProgress(data);
-      ledger.recordReviewedRevision("spec", ledger.refs().docRevision(doc, "the reviewed body"));
+      ledger.recordReviewedRevision(
+        "phase-spec",
+        ledger.refs().docRevision(doc, "the reviewed body"),
+      );
       // the review round carries a blocker (non-APPROVED) → the fix awaits
       ledger.persistHandoff(
         "review",
-        "spec",
+        "phase-spec",
         { round: 1 },
         { findings: [{ severity: "blocker", summary: "defect" }] },
       );
-      const verdict = ledger.reviewGate("spec", doc, "spec");
+      const verdict = ledger.reviewGate("phase-spec", doc, "phase-spec");
       expect(verdict.kind).toBe("same");
       if (verdict.kind === "same") expect(verdict.pending).toBe(true);
     } finally {

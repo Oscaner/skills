@@ -60,7 +60,7 @@ const argvOf = (literal: string): string[] => {
 
 /** The frame-fact targets of the four types (the dispatch frame's own identity). */
 const wave = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p3.md" } as const;
-const spec = { type: "spec", id: "docs/kairos/specs/p3-design.md" } as const;
+const spec = { type: "phase-spec", id: "docs/kairos/specs/p3-design.md" } as const;
 const planT = { type: "plan", id: "docs/kairos/plans/p3.md" } as const;
 // find #9 — the branch target carries the workspace --plan · the id is the branch
 // line's stable key `"branch"` (the range shas retired engine-wide · spec §6.6)
@@ -181,7 +181,7 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
     const planLiteral = literalOf({ kind: "review" }, planT);
     expect(waveLiteral).toBe("review --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md");
     expect(branchLiteral).toBe("review --type branch --plan docs/kairos/plans/p3.md");
-    expect(specLiteral).toBe("review --type spec --spec docs/kairos/specs/p3-design.md");
+    expect(specLiteral).toBe("review --type phase-spec --spec docs/kairos/specs/p3-design.md");
     expect(planLiteral).toBe("review --type plan --plan docs/kairos/plans/p3.md");
     for (const literal of [waveLiteral, branchLiteral, specLiteral, planLiteral]) {
       expect(literal).not.toContain("--base");
@@ -253,7 +253,7 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
             "---",
           ];
     writeFileSync(path.join(repo, name), [...head, ""].join("\n"), "utf8");
-    return { type: "spec", id: name } as const;
+    return { type: "phase-spec", id: name } as const;
   };
 
   /** The done-text of a capsule emit for a host-injected capsule over the repo —
@@ -270,10 +270,20 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
     return lines[1]!.slice("next: ".length);
   };
 
-  it("PIPELINE_NEXT carries exactly the five pipeline keys", () => {
+  it("PIPELINE_NEXT carries exactly one row per target type (six — the CLI's `--type` domain)", () => {
     expect(Object.keys(PIPELINE_NEXT).sort()).toEqual(
-      ["branch", "overall", "phase-spec", "plan", "wave"].sort(),
+      ["branch", "overall", "phase-spec", "plan", "single-spec", "wave"].sort(),
     );
+  });
+
+  it("an overall target closes the pipeline — the terminal word", () => {
+    const overall = declareSpec("docs/kairos/overalls/prog-overall.md", "overall");
+    expect(doneOf(overall)).toBe("done");
+  });
+
+  it("a single-spec target closes the pipeline — the terminal word", () => {
+    const single = declareSpec("docs/kairos/specs/prog-single-spec.md", "single-spec");
+    expect(doneOf(single)).toBe("done");
   });
 
   it("no target renders the bare terminal word (the byte-pinned fallback)", () => {
@@ -362,7 +372,7 @@ describe("P22 §5.2 — the six-row render freeze", () => {
         : ["---", "title: The doc", "version: v1.0", `doc-type: ${docType}`, "---"];
     mkdirSync(path.dirname(path.join(repo, name)), { recursive: true });
     writeFileSync(path.join(repo, name), [...head, ""].join("\n"), "utf8");
-    return { type: "spec", id: name } as const;
+    return { type: "phase-spec", id: name } as const;
   };
 
   /** The next line of a capsule over the injected hop (null = the second line). */

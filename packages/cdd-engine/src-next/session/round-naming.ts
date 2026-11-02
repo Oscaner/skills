@@ -73,9 +73,10 @@ export class RoundNaming {
 
   /** The test-evidence file NAME of a work frame — the workspace-relative face the
    *  read-back gate reads it by (`{line}-test-evidence.json`: the task families key
-   *  the line, the branch line names the family alone). "" off the evidence rounds. */
+   *  the line, the branch line names the family alone). "" off the evidence rounds
+   *  — the doc shapes (phase-spec · overall · plan · single-spec) prescribe none. */
   evidenceName(frame: OpenFrame): string {
-    if (frame.type === "spec" || frame.type === "plan") return "";
+    if (frame.type !== "wave" && frame.type !== "branch") return "";
     if (frame.phase !== "implement" && frame.phase !== "fix") return "";
     const key = frame.type === "wave" ? (frame.params.tasks ?? "") : "";
     const line = key === "" ? this.prefix(frame) : `${this.prefix(frame)}-${key}`;
@@ -116,7 +117,7 @@ export class RoundNaming {
    *  wave/branch lines). The round-token decision keys on the FAMILY OP (implement is
    *  the round-less family), so the report and its log can never diverge. */
   #stem(op: OpType, type: TargetType, params: HandoffParams): string {
-    if (type === "spec" || type === "plan") return `${type}-${op}-${params.round}`;
+    if (type !== "wave" && type !== "branch") return `${type}-${op}-${params.round}`;
     const family = type === "wave" ? `tasks-${params.tasks ?? ""}` : "branch";
     const suffix = op === "implement" ? "" : `-${params.round}`;
     return `${family}-${op}${suffix}`;
@@ -124,7 +125,7 @@ export class RoundNaming {
 
   /** The crash record's workspace-relative name — `crash-{line}-{op}-{round}.json`.
    *  The `line` derives from the frame's ONE identity (wave → `tasks-{tasks}`;
-   *  branch / spec / plan → the line-type constant), the `op` keeps the verb
+   *  branch / the doc shapes → the line-type constant), the `op` keeps the verb
    *  (`RoundNaming.op`: branch-review rides the review family) — so a wave's
    *  implement-2 and review-2 crash records never overwrite each other. */
   crashName(frame: OpenFrame): string {

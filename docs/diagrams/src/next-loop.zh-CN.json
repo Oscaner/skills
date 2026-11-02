@@ -71,7 +71,7 @@
       "id": "softcap",
       "type": "waiting",
       "label": "软上限",
-      "sublabel": "连续 20 个 blocker 周期",
+      "sublabel": "连续 50 个 blocker 周期",
       "tag": "用户裁定",
       "sources": [{ "path": "packages/cdd-engine/src-next/session/next.ts", "line": 62, "end_line": 66 }, { "path": "packages/cdd-engine/src-next/session/next.ts", "line": 185, "end_line": 189 }]
     },
@@ -127,7 +127,7 @@
         "评审轮的 findings 决定路线：有发现（任意严重度）→ fix；零发现 → 直接收口",
         "fix 只消费评审给出的 findings，自身从不产出裁定",
         "fix 完成后：来源评审有 blocker → 重新评审；来源评审仅 warn/nit → 以 REVIEW_FIX 收口",
-        "重新评审按同一规则继续 loop，直到收口；连续 20 个 blocker 周期 → 软上限，由用户裁定"
+        "重新评审按同一规则继续 loop，直到收口；连续 50 个 blocker 周期 → 软上限，由用户裁定"
       ]
     },
     {

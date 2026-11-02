@@ -128,7 +128,7 @@
       "id": "softcap",
       "type": "waiting",
       "label": "Soft cap",
-      "sublabel": "20 consecutive blocker cycles",
+      "sublabel": "50 consecutive blocker cycles",
       "tag": "user adjudicates",
       "sources": [
         {
@@ -273,7 +273,7 @@
         "The review round’s findings decide the route: any finding → fix; zero findings → close now",
         "Fix consumes the review’s findings; it never authors a verdict of its own",
         "After fix: a source review with blocker > 0 → re-review; blocker = 0 with warn/nit → REVIEW_FIX closure",
-        "The re-review repeats the same rule until closure; 20 consecutive blocker cycles → soft cap"
+        "The re-review repeats the same rule until closure; 50 consecutive blocker cycles → soft cap"
       ]
     },
     {

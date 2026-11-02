@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 doc-type: overall
-version: v2.93
+version: v2.94
 date: 2026-11-02
 slug: 2026-10-10-engine-doc-tooling
 status: Draft
@@ -40,7 +40,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 - **CLAUDE.md pin 修订先行**：「cdd CLI 零新子命令」例外面扩 `schema gen`——文档改动与实现同 commit 面落地，不可只实现不改文
 - **跨程序树协调（2026-10-11 用户裁定拆 pin → D8）**：本程序 P1/P2 引擎改动**先行实现于现行 `src-next/` 树**（不等 rename P2）——rename sweep 随全库 `grep -rn src-next` 改本程序新文件面（Q3→b 语义 · 豁免面为空）
 - **P1 face 重塑保行为等价（2026-10-11 立 · P3 面 2026-10-11 Q5/Q6 裁定增补）**：退出码表（0/1/2 · 0 含 `--help`）· CDD_BLOCKED 通道 · doc-contract 判定语义 · `next:` dispatch 字面——全部零变化，引擎 vitest 全绿作证；**P3 面**：commander 原生为基——错误消息/帮助形面/usage 字节开放原生更替（pins 整体重锚 · deliberate）· 语义契约保：退出码 0/1/2（exitOverride 归一）· CDD_BLOCKED 通道 · 裸 cdd usage 语义（退 2 · 字节原生）· did-you-mean 三 ID 用例语义（命令树结构保真 · 零自定义 hint 码）· `--help` 任意位置 · 领域 run 语义；零运行时依赖变化（**P3 例外：commander ^15 重准入 · 维护文档 05 退役（deliberate · D11/D12）** · 自研 help 渲染面反转）
-- **分级判收敛（severity-graded convergence）为程序方法论主轴（2026-11-02 用户裁定 · D70）**：CDD 按 findings 的分级向前推进——**有 blocker 就把线推回 fix 并重新评审 · 只有 warn/nit 时以 `REVIEW_FIX` 收敛 · 全空即通过 · 连续 20 个 blocker 周期触软上限交人裁定**；`docs/diagrams/` 的 next-loop 与 architecture 两图（EN + zh-CN 四份）即其公布面，图的形状 = 引擎的转移表。此后任何相位**不得把下一跳改由 route kind 反推 / 漂移抢判 / 新分级信号决定**（被 reset 的旧 P22 正是这么坏的）；**定级口径与分级计数是同一件事的两半**（口径让计数有意义 · 计数是推进的唯一判据），改一半必须同批改另一半；图与判据须有孪生 pin，任一侧改动两侧同时红
+- **分级判收敛（severity-graded convergence）为程序方法论主轴（2026-11-02 用户裁定 · D70）**：CDD 按 findings 的分级向前推进——**有 blocker 就把线推回 fix 并重新评审 · 只有 warn/nit 时以 `REVIEW_FIX` 收敛 · 全空即通过 · 连续 50 个 blocker 周期触软上限交人裁定**；`docs/diagrams/` 的 next-loop 与 architecture 两图（EN + zh-CN 四份）即其公布面，图的形状 = 引擎的转移表。此后任何相位**不得把下一跳改由 route kind 反推 / 漂移抢判 / 新分级信号决定**（被 reset 的旧 P22 正是这么坏的）；**定级口径与分级计数是同一件事的两半**（口径让计数有意义 · 计数是推进的唯一判据），改一半必须同批改另一半；图与判据须有孪生 pin，任一侧改动两侧同时红
 ### 设计决策留存（2026-10-10 —— 元层裁定 + 注册）
 
 | # | 决策 | 定案 | 落点 |
@@ -337,3 +337,4 @@ Legend:
 | v2.91 | 2026-11-02 | **P22 scope 追加 ⑥：波内任务上限 3（D68 · 用户裁定）**：同一 wave 的 tasks 不得超过 3 个，超过即拆波——① 派生面：`next-wave` 只取 ready frontier 升序前 3，余下留待下一波（frontier 重算自然得出，不预排、不落盘）· ② 门面：`cdd implement --tasks` 列超过 3 个即前置 BLOCKED 并点名上限（不猜、不截断、不静默减半）· ③ 上限为代码常量单源（零环境变量），派生面与门面同读 · ④ 已入账的历史波行不回改 | Oscaner M. · Claude（kairos:cdd-design · scope append · 2026-11-02） |
 | v2.92 | 2026-11-02 | **P22 grilling 四裁定回填（D69）**：① fix 完成判据取**简化版逐条处置**（`dispositions` 槽 · summary 原文精确匹配 · 四条 hard 面 · 不引入指纹归一化）· ② 日志**只落文件不回显**（输出面零变化，报文点名日志路径）· ③ 板面**含整板排版重设**（聚合令牌 / `+N` / 区间折叠仅 `--verbose` / attempt 上标 / 路径省略 / 在飞只留身份）· ④ **`cdd-design` 不增 self-review 节点**（路径本经 `cdd-spec-writer`，digraph 与 anatomy 零变更） | Oscaner M. · Claude（kairos:cdd-design · grilling backfill · 2026-11-02） |
 | v2.93 | 2026-11-02 | **分级判收敛升为程序方法论主轴（D70 · 用户 mandate）**：写明 CDD 按 findings 分级向前推进——blocker → 重审 · 仅 warn/nit → `REVIEW_FIX` 收敛 · 全空 → 通过 · 连续 20 个 blocker → 软上限；`docs/diagrams/` 四份图即其公布面。三条落法：口径 ⇄ 计数同批改 · 禁止第二判据（route kind 反推 / 漂移抢判 / 新分级信号 = 旧链的坏法）· 图⇄判据孪生 pin（`scripts/__tests__/` 把三条陈述与 `#blockerCount` / `#close` / `REVIEW_CYCLE_CAP` 逐条锚定）。**同批**：P22 spec v0.2（§5 开篇主轴 + Constraints 两列 + AC 孪生 pin）· P22 Phase-inventory 行 AC 补孪生 pin | Oscaner M. · Claude（kairos:cdd-design · mandate backfill · 2026-11-02） |
+| v2.94 | 2026-11-02 | **review 软上限 20 → 50（用户裁定）**：`REVIEW_CYCLE_CAP` 抬到 50——`session/next.ts` 常量 + 两处 pin（运行时 `toBe` 与编译期字面类型）· `next-loop` 双语图源同步（「连续 50 个 blocker 周期」）并重新生成 HTML · Cross-cutting 活面同步。**仍只是预算**：软上限不是收敛机制，分级判收敛的判据一个字未动。**同批宽松化**：`selector-coverage.test.ts` 的 charter 表行数 pin 由精确计数改为「表可定位 + 体非空 + 列非空」——精确行数是文档副本，每次 charter 落行都要重锚（P22 注册即因此把套件打红一轮），改后既有鉴别力（选择器失效则该表读成 0）也无重锚负担 | Oscaner M. · Claude（kairos:cdd-design · mandate backfill · 2026-11-02） |

@@ -3357,13 +3357,10 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
    *  the capsule renders the ONE derived `NextHop` object (P22 §5.2). */
   function literalOf(route: Route, target?: RouteTarget): string {
     const hop = new NextStepRouter().nextHop({
-      face: null,
       target: target ?? null,
-      gate: { drift: false, open: true },
-      latestCompleted: null,
+      gate: { drift: false },
       route,
-      counters: { consecutiveS1: 0 },
-      docClassOf: () => "phase-spec",
+      verdict: target === undefined ? "terminal" : "phase-spec",
     });
     const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", hop);
     return lines[1]!.slice("next: ".length);
@@ -6891,9 +6888,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         // the board reads the same records — a hard round stays visible (it booked)
         io.stdoutText = "";
         expect(await cli.runArgv(["board", "--plan", plan])).toBe(0);
-        // P22 §5.3 — the board aggregates by verb × judgement (the failed round's
-        // graded finding rides the `+N` suffix).
-        expect(io.stdoutText).toContain("implement 1 ✗+1");
+        // P22 §5.3 — the board aggregates by verb × judgement: the failed round's
+        // verdict rides the mandatory `✗`, while `+N` counts FINDINGS alone (a hard
+        // contract violation is a different fact, so this round prints no suffix).
+        expect(io.stdoutText).toContain("implement 1 ✗");
+        expect(io.stdoutText).not.toContain("implement 1 ✗+");
+        expect(existsSync(path.join(workspace.path, "tasks-1-implement.json"))).toBe(true);
       } finally {
         cleanup();
       }
@@ -7767,6 +7767,8 @@ describe("cdd <verb> — the in-flight acquire race", () => {
       startedAt: Date.parse("2026-10-28T10:00:00.000Z"),
       wave: "1",
       phase: "implement",
+      cycle: 1,
+      attempt: 1,
       briefHash: null,
       plan: "docs/kairos/plans/p3.md",
       sampledAt: null,

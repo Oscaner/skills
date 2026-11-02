@@ -26,6 +26,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { LivenessJudge, type LivenessSignalEntry } from "../../contract/liveness-signal.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { RoundLog } from "../../infra/round-log.ts";
 import { WorkspaceRoot } from "../../infra/workspace.ts";
@@ -35,6 +36,7 @@ import {
   type ChildOutcome,
   type ChildRun,
   Sampler,
+  SamplingLoop,
   TerminationPolicy,
   Terminator,
 } from "../termination.ts";
@@ -53,6 +55,8 @@ const recordOf = (): InFlightRecord => ({
   startedAt: Date.now(),
   wave: "1",
   phase: "implement",
+  cycle: 1,
+  attempt: 1,
   briefHash: null,
   plan: null,
   sampledAt: null,
@@ -737,5 +741,63 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
     const onDisk = readRecord(recordPathOf(root));
     expect(onDisk?.sampledAt).toBeNull();
     expect(onDisk?.verdict).toBeNull();
+  });
+
+  it("ends the trail on the first stall — a later unreadable tick never rewrites the postmortem", () => {
+    // The deterministic pin: a scripted leg + a fake clock drive the loop's ticks at
+    // explicit instants, so the stall attribution depends on neither real CPU
+    // resolution (an `ps` read under a loaded run) nor how long a dying process takes
+    // to leave the table. The trail's last cell must BE the stall that authorized the
+    // kill — a later tick can only observe the corpse and would print `unknown`.
+    const root = scratch();
+    const inflight = inflightOf(root);
+    inflight.ensureMarker();
+    writeFileSync(inflight.path(), `${JSON.stringify(recordOf(), null, 2)}\n`, "utf8");
+    let now = 1000;
+    let stalls = 0;
+    let tick = 0;
+    const values: (number | null)[] = [10, 10, null];
+    const leg: LivenessSignalEntry = {
+      leg: "log",
+      create: () => ({
+        sample: () => {
+          const value = values[Math.min(tick, values.length - 1)] ?? null;
+          const reading = { value, readableAt: value === null ? null : now };
+          tick += 1;
+          return reading;
+        },
+      }),
+    };
+    const loop = new SamplingLoop({
+      sampler: new Sampler({ logPath: "", pgid: 1 }, [leg]),
+      judge: new LivenessJudge(),
+      inflight,
+      intervalMs: 60,
+      idleWindowMs: 300,
+      spawnedAt: now,
+      clock: () => now,
+      onStall: () => {
+        stalls += 1;
+      },
+    });
+
+    loop.tick();
+    expect(loop.lastSample()?.verdict).toBe("idled");
+
+    now = 1300;
+    loop.tick();
+    expect(loop.lastSample()).toEqual({ at: 1300, logSize: 10, cpuMs: null, verdict: "stalled" });
+    expect(stalls).toBe(1);
+    expect(loop.idleMs()).toBe(300);
+
+    // The post-kill tick — the real world's race: the legs are unreadable now. The
+    // loop has ended, so the postmortem keeps the stall, and the kill never re-fires.
+    now = 1400;
+    loop.tick();
+    expect(loop.lastSample()?.verdict).toBe("stalled");
+    expect(stalls).toBe(1);
+    const onDisk = readRecord(inflight.path());
+    expect(onDisk?.verdict).toBe("stalled");
+    expect(onDisk?.sampledAt).toBe(1300);
   });
 });

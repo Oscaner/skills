@@ -54,15 +54,15 @@ import type { CapsuleKey, Words } from "./words.ts";
 export type CapsuleChannelRow = RouteChannelRow;
 
 /**
- * Capsule — the single capsule output face. emit(status, blocker, handoff, next)
- * renders one round's facts into the byte-pinned `status · blocker · handoff` line
- * plus the optional `next:` line. The key words are the CapsuleKey literals the
- * kind loop renders (pin-enforced by the emit signature); the separator, station
- * and route/status words ride the injected Words instance. The complete executable
- * `next:` literal composes its full argv from the route + the additive optional
- * RouteTarget (the frame's own facts) through the argv-channel flag spellings
- * (P4.1 T4; same channel source parse reads — the 4-param signature stays
- * byte-pinned, the target is an optional 5th, the channel an optional 2nd).
+ * Capsule — the single capsule output face. emit(status, blocker, handoff, hop?,
+ * withHandoff?) renders one round's facts into the byte-pinned `status · blocker ·
+ * handoff` line plus the optional `next:` line. The key words are the CapsuleKey
+ * literals the kind loop renders (pin-enforced by the emit signature); the
+ * separator, station and route/status words ride the injected Words instance. The
+ * complete executable `next:` literal composes its full argv from the injected
+ * `NextHop`'s route + target through the argv-channel flag spellings (P4.1 T4; same
+ * channel source the parse reads — the hop is optional, the channel an optional 2nd
+ * constructor argument).
  */
 export class Capsule {
   /** The single word table — the capsule's whole vocabulary source. */
@@ -124,8 +124,9 @@ export class Capsule {
   /** One path value normalized to the branded repoRoot-relative `RepoPath` through
    *  the ONE value object (D47); a `null` root (the hermetic default) passes the
    *  value through as its own basis. The branded return type carries the §2.2 brand
-   *  to the read face (`BoardView.readDocType`) with NO call-site cast (branch-
-   *  review-1 F3). */
+   *  to the render face with NO call-site cast (branch-review-1 F3); the board's doc
+   *  cell and its `docClassOf` discrimination are the sibling read faces that
+   *  resolve the same branded form. */
   #rel(value: string): RepoPath {
     return this.#root === null ? (value as RepoPath) : this.#root.relativize(value);
   }

@@ -37,7 +37,7 @@
 // bare functions (the plan's zero-bare-function discipline).
 
 import type { RouteTarget } from "./faces.ts";
-import type { Round, RoundRecord } from "./ledger.ts";
+import type { Round } from "./ledger.ts";
 import type { ExecutionState } from "./state.ts";
 
 /** The next-hop suggestion — the decision table's output (null = no next line). The
@@ -174,8 +174,8 @@ export const NEXT_HOP_REASON = {
  *  from this Route through `face/route-render.ts` (`next-wave`'s `--tasks` and `fix`'s
  *  `--reviews` ride it), so the payload is never copied into `hop`. `hop` and `to` are
  *  mutually exclusive (the face-internal hop vs the face-to-face handoff) — the two
- *  axes are never flattened. `target` is the ONE cell the discrimination and the
- *  renderer both read (`docClassOf(target)` and the plan/type/id literal).
+ *  axes are never flattened. `target` is the ONE cell the station lookup and the
+ *  renderer both read (the declaration read and the plan/type/id literal).
  *
  *  `face` / `target` / `route` are nullable: the failure face (BLOCKED / TIMEOUT ⇒
  *  `next` returns null) and the doc-class `terminal` row hold no route. */
@@ -194,34 +194,31 @@ export interface NextHop {
   readonly route: Route | null;
 }
 
-/** One next-hop derivation's input face (§5.2) — the line's OWN facts, read by the
- *  derivation and never re-judged. `route` is the count table's product
- *  (`NextStepRouter.next`); `docClassOf` is the injected discrimination seam (the
- *  capsule / board / CLI pass their own), so the session plane never imports a face
- *  class and no `next.ts → board-view.ts → next.ts` runtime cycle is built. */
+/** One next-hop derivation's input face (§5.2) — the line's OWN facts, filled by the
+ *  ONE assembly entry (`Ledger#nextHopOf`: the drift gate + the injected doc-class
+ *  discrimination) and read by the derivation, never re-judged. `route` is the count
+ *  table's product (`NextStepRouter.next`). The face axis is NOT an input cell: the
+ *  `verdict` below is the single judgment, and the face is read out of it — so no read
+ *  face re-assembles `verdict → face` and the declaration read happens once per
+ *  derivation. */
 export interface NextHopInput {
-  /** The line's pipeline face key (null = no registered line). */
-  readonly face: PipelineKey | null;
   /** The line's render target (null = the face was never entered / a bare terminal). */
   readonly target: RouteTarget | null;
   /** The drift-aware gate's verdict on the line (`drift` = the doc moved past its
-   *  reviewed revision, so the closed line reopens; `open` = the line holds an open
-   *  round). */
-  readonly gate: { readonly drift: boolean; readonly open: boolean };
-  /** The line's latest completed round (a hard-failed round is not a carrier). */
-  readonly latestCompleted: RoundRecord | null;
+   *  reviewed revision, so the closed line reopens). */
+  readonly gate: { readonly drift: boolean };
   /** The count table's route for the line (null = the failure face). */
   readonly route: Route | null;
-  /** The line's counting state (§5.1's blocker / warn / nit counters). */
-  readonly counters: { readonly consecutiveS1: number };
+  /** The doc-class discrimination's own verdict on the `target` cell — the ONE
+   *  judgment the face axis and the station rows read (`blocked` / `terminal` carry no
+   *  face, every pipeline key is its own face). */
+  readonly verdict: DocClassVerdict;
   /** The NEXT pipeline line's dispatchable-open fact — the wave line's closure is the
    *  only reader (P21 §4.2): `false` lands the wave station on the branch face's own
    *  exit instead of the branch-review literal its own gate would refuse. An INPUT
    *  cell of the derivation (the ledger-holding side computes it), never a render-side
    *  parameter — the retired `resolve` patch argument's fact, kept without the patch. */
   readonly nextLineOpen?: boolean;
-  /** The injected doc-class discrimination — its input IS the `target` cell above. */
-  readonly docClassOf: (target: RouteTarget) => DocClassVerdict;
 }
 
 /** The review-cycle soft-cap suggestion (the C5-0 suggestion face — user adjudicates). */
@@ -333,20 +330,21 @@ export class NextStepRouter {
    *
    *  The judgment stays the count table's: `hop` is READ OUT of the route the table
    *  produced (`hopOf`), never re-derived here, and `reason` names the fact that
-   *  selected it. The remaining input cells (`latestCompleted` · `counters` ·
-   *  `gate.open`) are the line's fact face the read faces construct — this derivation
-   *  must not judge them a second time (§5.1: any second criterion is the regression
-   *  the phase names). `to` follows the same path for `done` and `handoff`; the
-   *  doc-class discrimination is injected, so this module never imports a face class. */
+   *  selected it (§5.1: any second criterion is the regression the phase names). The
+   *  face axis is read out of the ONE verdict (`#faceOf`), so the three read faces
+   *  fill facts and never re-assemble the chain. `to` follows the same path for
+   *  `done` and `handoff`; the doc-class discrimination is injected at the assembly
+   *  entry, so this module never imports a face class. */
   nextHop(input: NextHopInput): NextHop {
     const route = input.route;
-    const verdict = this.#docClassVerdictOf(input);
+    const verdict = input.verdict;
+    const face = NextStepRouter.#faceOf(verdict);
     return {
-      face: input.face,
+      face,
       target: input.target,
       // No route (the failure face) is no hop; otherwise `hopOf` is the ONE answer to
       // "which route kinds are hops" — the closure kinds are not enumerated twice.
-      hop: route === null ? null : this.hopOf(route, input.face),
+      hop: route === null ? null : this.hopOf(route, face),
       to: this.#entryOf(input, route, verdict),
       reason: this.#reasonOf(input, route, verdict),
       route,
@@ -363,10 +361,10 @@ export class NextStepRouter {
     return hop.reason;
   }
 
-  /** The doc-class verdict of the input's target — the injected discrimination on the
-   *  ONE `target` cell; no target carries no judgeable class (the bare terminal). */
-  #docClassVerdictOf(input: NextHopInput): DocClassVerdict {
-    return input.target === null ? "terminal" : input.docClassOf(input.target);
+  /** The face axis of one verdict — the ONE `verdict → face` assembly (§5.2): the two
+   *  unroutable classes carry no face, every pipeline key is its own face. */
+  static #faceOf(verdict: DocClassVerdict): PipelineKey | null {
+    return verdict === "blocked" || verdict === "terminal" ? null : verdict;
   }
 
   /** The pipeline station of a closure route — `handoff` carries its own entry, `done`
@@ -395,7 +393,8 @@ export class NextStepRouter {
     if (route?.kind === "soft-cap") return NEXT_HOP_REASON.softCap;
     if (route?.kind === "fix") return NEXT_HOP_REASON.pendingFix;
     if (route?.kind === "review" && input.gate.drift) return NEXT_HOP_REASON.docDrift;
-    if (route !== null && this.hopOf(route, input.face) !== null) return NEXT_HOP_REASON.taskOpen;
+    if (route !== null && this.hopOf(route, NextStepRouter.#faceOf(verdict)) !== null)
+      return NEXT_HOP_REASON.taskOpen;
     if (verdict === "blocked") return NEXT_HOP_REASON.docClassBlocked;
     if (route === null || verdict === "terminal") return NEXT_HOP_REASON.faceClosed;
     return NEXT_HOP_REASON.closedLine;

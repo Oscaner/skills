@@ -39,13 +39,10 @@ import { Words } from "../words.ts";
 const hopOf = (repo: string, route: Route, target: RouteTarget | null = null): NextHop => {
   const root = new RepoRoot(repo);
   return new NextStepRouter().nextHop({
-    face: null,
     target,
-    gate: { drift: false, open: true },
-    latestCompleted: null,
+    gate: { drift: false },
     route,
-    counters: { consecutiveS1: 0 },
-    docClassOf: (candidate) => BoardView.docClassOf(root, candidate),
+    verdict: target === null ? "terminal" : BoardView.docClassOf(root, target),
   });
 };
 
@@ -1043,6 +1040,8 @@ const inFlightRecord = (over: Partial<InFlightRecord> = {}): InFlightRecord => (
   startedAt: Date.parse("2026-10-28T10:00:00.000Z"),
   wave: "1",
   phase: "implement",
+  cycle: 1,
+  attempt: 1,
   briefHash: null,
   plan: "docs/p.md",
   sampledAt: null,
@@ -1076,14 +1075,42 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
       words,
     );
     const row = rows[0]!;
-    // the operating verb (op) + the wave key + the pid a takeover targets
+    // the round identity (op + cycle + attempt — spec §5.3), the wave key and the pid
+    // a takeover targets
     expect(row).toContain("op: implement");
+    expect(row).toContain("cycle: 1");
+    expect(row).toContain("attempt: 1");
     expect(row).toContain("wave: 1");
     expect(row).toContain("pid 4242");
     // the child's command line, its start instant and its plan path are narrative
     expect(row).not.toContain("command:");
     expect(row).not.toContain("started:");
     expect(row).not.toContain("docs/p.md");
+  });
+
+  it("(f2) a re-dispatch's attempt and a later cycle are readable in the row", () => {
+    const rows = BoardView.inFlightRows(
+      { kind: "held", record: inFlightRecord({ cycle: 3, attempt: 2 }), alive: true },
+      [],
+      words,
+    );
+    expect(rows[0]).toContain("cycle: 3");
+    expect(rows[0]).toContain("attempt: 2");
+  });
+
+  it("(f3) a record written before the cycle/attempt cells existed omits them, not prints null", () => {
+    const rows = BoardView.inFlightRows(
+      { kind: "held", record: inFlightRecord({ cycle: null, attempt: null }), alive: true },
+      [],
+      words,
+    );
+    const row = rows[0]!;
+    expect(row).not.toContain("cycle:");
+    expect(row).not.toContain("attempt:");
+    expect(row).not.toContain("null");
+    // the older identity cells still render
+    expect(row).toContain("op: implement");
+    expect(row).toContain("pid 4242");
   });
 
   it("fills the free and corrupt rows from the one word table", () => {
@@ -1120,6 +1147,22 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     ...over,
   });
 
+  const scratchDirs: string[] = [];
+
+  /** One REAL round carrier — the handoff file a review round persists, carrying the
+   *  judge plane's declared `findings` array (the `+N` count's only source). */
+  const carrier = (findings: readonly unknown[]): string => {
+    const dir = mkdtempSync(path.join(tmpdir(), "board-carrier-"));
+    scratchDirs.push(dir);
+    const at = path.join(dir, "tasks-1-review-1.json");
+    writeFileSync(at, `${JSON.stringify({ findings }, null, 2)}\n`, "utf8");
+    return at;
+  };
+
+  afterEach(() => {
+    for (const dir of scratchDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
   it("(a) ten green review rounds collapse into `review 10 ✓` — the range form never renders", () => {
     const records = Array.from({ length: 10 }, (_, index) => record({ cycle: index + 1 }));
     expect(BoardView.summaryCell(records)).toBe("review 10 ✓");
@@ -1135,11 +1178,14 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     ).toBe("review 1 ✗");
   });
 
-  it("(c) the graded findings ride the +N suffix (omitted at zero)", () => {
-    const violation = { grade: "soft" as const, cause: "c", message: "m" };
+  it("(c) the round's FINDINGS ride the +N suffix (read from its carrier, omitted at zero)", () => {
+    const at = carrier([
+      { severity: "blocker", summary: "a" },
+      { severity: "nit", summary: "b" },
+    ]);
     const approved = [record({ cycle: 1 }), record({ cycle: 2 }), record({ cycle: 3 })];
     const withFindings = [
-      record({ cycle: 1, violations: [violation, violation] }),
+      record({ cycle: 1, carrierPath: at }),
       record({ cycle: 2 }),
       record({ cycle: 3 }),
     ];
@@ -1148,6 +1194,25 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     expect(
       BoardView.summaryCell([record({ verdict: { treeClean: true, targetAction: false } })]),
     ).toBe("review 1 ✗");
+  });
+
+  it("(c2) the count is the CARRIER's findings — contract violations are a different fact", () => {
+    // The discriminating case: a round carrying two hard/soft contract violations and
+    // a carrier with ZERO findings prints no suffix; a round carrying NO violations and
+    // a carrier with two findings prints `+2`. Reading `record.violations` fails here.
+    const violation = { grade: "soft" as const, cause: "c", message: "m" };
+    const cleanCarrier = carrier([]);
+    const violationsOnly = record({ cycle: 1, violations: [violation, violation] });
+    expect(BoardView.summaryCell([{ ...violationsOnly, carrierPath: cleanCarrier }])).toBe(
+      "review 1 ✓",
+    );
+    const findingsOnly = record({
+      cycle: 1,
+      carrierPath: carrier([{ severity: "warn" }, { severity: "nit" }]),
+    });
+    expect(BoardView.summaryCell([findingsOnly])).toBe("review 1 ✓+2");
+    // A record with no carrier (a legacy row / a work-plane round) contributes zero.
+    expect(BoardView.summaryCell([record({ cycle: 1 })])).toBe("review 1 ✓");
   });
 
   it("(d) a re-dispatch carries its attempt superscript and attempt 1 never renders `a1`", () => {

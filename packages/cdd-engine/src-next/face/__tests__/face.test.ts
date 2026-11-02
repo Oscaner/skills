@@ -37,13 +37,10 @@ const capsule = new Capsule(words);
  *  (never a hand-built shape), so the render pins the derivation's own product. */
 const hopOf = (route: Route, target: RouteTarget | null = null): NextHop =>
   new NextStepRouter().nextHop({
-    face: null,
     target,
-    gate: { drift: false, open: true },
-    latestCompleted: null,
+    gate: { drift: false },
     route,
-    counters: { consecutiveS1: 0 },
-    docClassOf: () => "phase-spec",
+    verdict: target === null ? "terminal" : "phase-spec",
   });
 
 describe("the word table — one table, three families", () => {

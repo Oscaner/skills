@@ -15,7 +15,7 @@ import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { DispatchPhase, RouteTarget } from "../session/faces.ts";
 import type { DocRevisionRef } from "../session/ledger.ts";
-import type { DocClassVerdict, NextHop, PipelineKey } from "../session/next.ts";
+import type { NextHop } from "../session/next.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import { BoardView } from "./board-view.ts";
 import type { RunInput, WorkScene } from "./cli.ts";
@@ -115,27 +115,25 @@ export class CliGate {
 
   /** lineHop(scene) — the line's ONE next-hop object (§5.2): the SAME derivation
    *  the capsule, the board and the lifecycle frontier read, built from this line's
-   *  facts through `Ledger#nextHopOf`. The CLI rejection message renders THIS
-   *  object's `reason` + hop/station — never a second judgment, never a second
-   *  shape. Null when the scene holds no registered line (no fixed target → there is
-   *  no line to name). */
+   *  facts through `Ledger#nextHopOf` (the ONE assembly entry: the drift gate + the
+   *  declaration read). The CLI rejection message renders THIS object's `reason` +
+   *  hop/station — never a second judgment, never a second shape. The doc-class
+   *  discrimination is ROOTED in the workspace's own repo basis (the same basis the
+   *  lifecycle frontier injects), so an engine invoked from a subdirectory reads the
+   *  same declared `doc-type:` the board does. Null when the scene holds no
+   *  registered line (no fixed target → there is no line to name). */
   lineHop(scene: WorkScene): NextHop | null {
     const key = this.#lineKey(scene);
     const target = this.#routeTargetOf(scene);
     if (key === null || target === null) return null;
-    const docClassOf = (candidate: RouteTarget): DocClassVerdict =>
-      BoardView.docClassOf(null, candidate);
-    const verdict = docClassOf(target);
-    const face: PipelineKey | null =
-      verdict === "blocked" || verdict === "terminal" ? null : verdict;
+    const basis = scene.workspace.root.basis;
     return scene.ledger.nextHopOf({
-      face,
       type: scene.face.type,
       key,
       route: scene.ledger.lineRoute(key, scene.face.type),
       target,
       doc: this.#docOf(scene),
-      docClassOf,
+      docClassOf: (candidate) => BoardView.docClassOf(basis, candidate),
     });
   }
 

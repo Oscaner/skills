@@ -52,7 +52,6 @@ import {
   PIPELINE_FACES,
   type PipelineFaceReport,
   type PipelineFaceState,
-  type PipelineKey,
   type Route,
 } from "../session/next.ts";
 import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
@@ -170,12 +169,13 @@ export class BoardView {
    *  missing (the renderer prints the BLOCKED face); `terminal` — no pipeline seam
    *  carries the declared class (`single-spec`, the table's five keys exclude it).
    *  This is the injected seam of the ONE hop derivation: `session/next.ts` never
-   *  imports a face class, and every read face shares this ONE judgment. */
-  static docClassOf(root: RepoRoot | null, target: RouteTarget): DocClassVerdict {
+   *  imports a face class, and every read face shares this ONE judgment. The basis is
+   *  REQUIRED — an unrooted resolve would read the target against `process.cwd()`, so
+   *  an engine invoked from a subdirectory could report a declared line as
+   *  `doc-class-blocked`; the root is always the value object the read face holds. */
+  static docClassOf(root: RepoRoot, target: RouteTarget): DocClassVerdict {
     if (target.type === "spec") {
-      const base = root ?? new RepoRoot("");
-      const rel = root === null ? (target.id as RepoPath) : root.relativize(target.id);
-      const declared = BoardView.readDocType(base, rel);
+      const declared = BoardView.readDocType(root, root.relativize(target.id));
       return declared === null ? "blocked" : declared === "single-spec" ? "terminal" : declared;
     }
     if (target.type === "plan") return "plan";
@@ -283,12 +283,34 @@ export class BoardView {
     return tokens.join(" · ");
   }
 
-  /** One aggregated token of a verb × judgement run. */
+  /** One aggregated token of a verb × judgement run. The `+N` suffix counts the
+   *  run's graded FINDINGS, read from each round's own carrier (`carrierPath` → the
+   *  handoff's `findings` array, spec §5.3) — never the round's hard/soft contract
+   *  violations, which are a different fact. A record with no carrier (a legacy row,
+   *  or a work-plane round whose carrier declares no findings) contributes zero. */
   static #summaryToken(verb: string, run: readonly RoundRecord[]): string {
     const mark = run[0]!.verdict.targetAction ? JUDGEMENT_MARKERS.passed : JUDGEMENT_MARKERS.failed;
-    const findings = run.reduce((total, record) => total + record.violations.length, 0);
+    const findings = run.reduce((total, record) => total + BoardView.#findingsCountOf(record), 0);
     const suffix = findings === 0 ? "" : `+${findings}`;
     return `${verb} ${run.length}${BoardView.attemptSuffix(run[run.length - 1]!)} ${mark}${suffix}`;
+  }
+
+  /** One round's findings count — the `findings` array length of the carrier the round
+   *  persisted (the judge plane's declared field). Zero when the record carries no
+   *  carrier path or the file is absent/unreadable/unparseable (present facts only,
+   *  never a throw on a read face). */
+  static #findingsCountOf(record: RoundRecord): number {
+    const at = record.carrierPath;
+    if (at === null) return 0;
+    const text = BoardView.#read(at);
+    if (text === null) return 0;
+    try {
+      const value: unknown = JSON.parse(text);
+      const findings = (value as { findings?: unknown } | null)?.findings;
+      return Array.isArray(findings) ? findings.length : 0;
+    } catch {
+      return 0;
+    }
   }
 
   /** attemptSuffix(record) — the re-dispatch superscript: `attempt === 1` renders
@@ -316,20 +338,24 @@ export class BoardView {
   /** nextLine(hop, renderer) — the board's `next:` row rendered from the INJECTED
    *  hop through the shared hop renderer (`RouteRenderer#renderHop`), so the board's
    *  line and the capsule's line are byte-identical by construction. Every embedded
-   *  path value renders repoRoot-relative (the renderer's own basis). */
+   *  path value renders repoRoot-relative (the renderer's own basis). A hop the
+   *  renderer renders as no line degrades to the same `(none)` bytes the absent-hop
+   *  row carries — the row is never built from a null value. */
   static nextLine(hop: NextHop, renderer: RouteRenderer): string {
-    return `  next:    ${renderer.renderHop(hop)}`;
+    const value = renderer.renderHop(hop) ?? "(none)";
+    return `  next:    ${value}`;
   }
 
   /** inFlightRows(state, orphans, words) — the tree's dispatch fact + the
    *  workspace's orphan handoff drafts, as board lines. The held row names the
-   *  holder's IDENTITY facts alone (the operating verb + the wave key + the pid a
-   *  takeover targets, spec §5.3): the child's command line, its start instant and
-   *  its plan path are dispatch narrative, not board facts. A DEAD holder adds the
-   *  takeover hint. The free and corrupt rows are the word table's declared rows —
-   *  the board's hint is the same bytes the preview face and the gate print (one
-   *  vocabulary, never a board literal). The orphan rows are the drafts no recorded
-   *  round owns — the board lists them, never writes or deletes them. */
+   *  holder's IDENTITY facts alone (the operating verb, the round's cycle + attempt
+   *  cells a takeover has to answer for, the wave key and the pid, spec §5.3): the
+   *  child's command line, its start instant and its plan path are dispatch
+   *  narrative, not board facts. A DEAD holder adds the takeover hint. The free and
+   *  corrupt rows are the word table's declared rows — the board's hint is the same
+   *  bytes the preview face and the gate print (one vocabulary, never a board
+   *  literal). The orphan rows are the drafts no recorded round owns — the board
+   *  lists them, never writes or deletes them. */
   static inFlightRows(
     state: InFlightState,
     orphans: readonly string[],
@@ -339,9 +365,15 @@ export class BoardView {
     if (state.kind === "held") {
       const record = state.record;
       const dead = state.alive ? "" : ` — ${words.inFlightWords().stealable}`;
-      rows.push(
-        `  in-flight: pid ${record.pid} · op: ${record.phase ?? "dispatch"} · slug: ${record.slug} · wave: ${record.wave ?? "none"}${dead}`,
-      );
+      const identity = [
+        `pid ${record.pid}`,
+        `op: ${record.phase ?? "dispatch"}`,
+        record.cycle === null ? null : `cycle: ${record.cycle}`,
+        record.attempt === null ? null : `attempt: ${record.attempt}`,
+        `slug: ${record.slug}`,
+        `wave: ${record.wave ?? "none"}`,
+      ].filter((cell): cell is string => cell !== null);
+      rows.push(`  in-flight: ${identity.join(" · ")}${dead}`);
     } else if (state.kind === "corrupt") {
       const inFlight = words.inFlightWords();
       rows.push(`  in-flight: ${state.locked ? inFlight.corruptLocked : inFlight.corruptUnlocked}`);
@@ -765,22 +797,19 @@ export class BoardNext {
   }
 
   /** The derivation's input face — the walked route + target, the ledger's own
-   *  round facts and the declaration-reading station discrimination. */
+   *  round facts and the declaration-reading station discrimination. The
+   *  `verdict → face` assembly lives in the ONE derivation (`Ledger#nextHopOf`), so
+   *  this face fills facts only. */
   static #hopOf(facts: BoardPipelineFacts, root: RepoRoot): NextHop {
     const next = BoardNext.#pipeline(facts.report);
     const target = next.target;
-    const docClassOf = (candidate: RouteTarget) => BoardView.docClassOf(root, candidate);
-    const verdict: DocClassVerdict = target === null ? "terminal" : docClassOf(target);
-    const face: PipelineKey | null =
-      verdict === "blocked" || verdict === "terminal" ? null : verdict;
     return facts.ledger.nextHopOf({
-      face,
       type: target?.type ?? "branch",
       key: target?.type === "wave" ? target.id : (target?.type ?? "branch"),
       route: next.route,
       target,
       doc: target === null ? null : target.type === "branch" ? (target.plan ?? null) : target.id,
-      docClassOf,
+      docClassOf: (candidate) => BoardView.docClassOf(root, candidate),
     });
   }
 

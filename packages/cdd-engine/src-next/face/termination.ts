@@ -25,6 +25,7 @@ import {
   LivenessJudge,
   type LivenessLeg,
   type LivenessSignal,
+  type LivenessSignalEntry,
   type SignalReading,
 } from "../contract/liveness-signal.ts";
 import type { RoundLog } from "../infra/round-log.ts";
@@ -176,8 +177,15 @@ export class Sampler {
   readonly #signals: readonly { readonly leg: LivenessLeg; readonly signal: LivenessSignal }[];
   readonly #previous: (number | null)[];
 
-  constructor(context: LivenessContext) {
-    this.#signals = LIVENESS_SIGNALS.map(({ leg, create }) => ({ leg, signal: create(context) }));
+  /** `signals` is the per-round registry; the production default is the declared
+   *  `LIVENESS_SIGNALS`, and a caller may inject its own leg set (the deterministic
+   *  sampling pin drives scripted readings through the same judge, so the four-state
+   *  attribution never depends on real CPU resolution or a machine's timing). */
+  constructor(
+    context: LivenessContext,
+    signals: readonly LivenessSignalEntry[] = LIVENESS_SIGNALS,
+  ) {
+    this.#signals = signals.map(({ leg, create }) => ({ leg, signal: create(context) }));
     this.#previous = this.#signals.map(() => null);
   }
 
@@ -210,26 +218,32 @@ export class Sampler {
 // the sampling loop — the dispatch's in-flight sampling trail (§3.4)
 // ---------------------------------------------------------------------------
 
-/** The sampling loop of one dispatch — the cadence that wraps the running child: one
- *  sample the moment the child is spawned, then one per `intervalMs`. Each tick reads
- *  the legs through the `Sampler`, has the `LivenessJudge` rule on them (the idle clock
- *  lives here, seeded by the spawn instant and restarted on every `progress`), and
- *  overwrites the dispatch's in-flight record sampling cells through `InFlight` — the
- *  ONE record, never a second file beside it. A `stalled` verdict fires the loop's
- *  `onStall` callback once — the Terminator's kill trigger (the engine's own group
- *  kill; the SIGTERM → SIGKILL escalation is execa's).
+/**
+ * SamplingLoop — the sampling loop of one dispatch: the cadence that wraps the running
+ * child — one sample the moment the child is spawned, then one per `intervalMs`. Each
+ * tick reads the legs through the `Sampler`, has the `LivenessJudge` rule on them (the
+ * idle clock lives here, seeded by the spawn instant and restarted on every
+ * `progress`), and overwrites the dispatch's in-flight record sampling cells through
+ * `InFlight` — the ONE record, never a second file beside it. A `stalled` verdict
+ * fires the loop's `onStall` callback once — the Terminator's kill trigger (the
+ * engine's own group kill; the SIGTERM → SIGKILL escalation is execa's) — and ENDS the
+ * cadence: after the engine's own kill, further ticks observe only a dying process,
+ * so the postmortem sample must stay the stall that authorized the kill (a later
+ * `ps` miss would otherwise overwrite it with `unknown`).
  *
  *  The interval is unref'd: the engine's own sampling must never be the reason the
  *  parent process stays alive (the dispatch awaits the child, not the cadence). The
  *  trail WRITE is fail-open (`InFlight.heartbeat` swallows a failed write): a
- *  diagnostic never decides a dispatch's fate. The loop
- *  NEVER removes the record — removal belongs to `InFlight.release()` (the normal end)
- *  and `InFlight.steal()` (the explicit takeover) alone, so a self-ending round that
- *  still has to hand its conclusion back cannot erase the very fact the gate reads.
+ *  diagnostic never decides a dispatch's fate. The clock is injectable (wall clock by
+ *  default), so a pin drives ticks at explicit instants instead of waiting out the
+ *  real cadence. The loop NEVER removes the record — removal belongs to
+ *  `InFlight.release()` (the normal end) and `InFlight.steal()` (the explicit
+ *  takeover) alone, so a self-ending round that still has to hand its conclusion back
+ *  cannot erase the very fact the gate reads.
  *
  *  The last observation is held in memory (`lastSample`): a terminated round's crash
  *  record takes it from there, never by re-reading the file the engine itself wrote. */
-class SamplingLoop {
+export class SamplingLoop {
   readonly #sampler: Sampler;
   readonly #judge: LivenessJudge;
   readonly #inflight: InFlight;
@@ -237,13 +251,16 @@ class SamplingLoop {
   readonly #idleWindowMs: number;
   /** The stall trigger — called once on the first `stalled` verdict (the kill). */
   readonly #onStall?: () => void;
-  /** Whether the stall verdict has already fired — one kill per dispatch. */
+  /** Whether the stall verdict has already fired — one kill per dispatch, and no
+   *  further sample after it (the trail's last cell is the stall). */
   #stallFired = false;
   /** The most recent observation — the postmortem sample of a terminated round. */
   #last: SampleRecord | null = null;
   #timer: ReturnType<typeof setInterval> | null = null;
   /** The instant of the last progress — the spawn instant until the first one. */
   #idleSince: number;
+  /** The tick clock (wall clock by default) — the pin injects a fake one. */
+  readonly #clock: () => number;
 
   constructor(options: {
     sampler: Sampler;
@@ -253,6 +270,7 @@ class SamplingLoop {
     idleWindowMs: number;
     spawnedAt: number;
     onStall?: () => void;
+    clock?: () => number;
   }) {
     this.#sampler = options.sampler;
     this.#judge = options.judge;
@@ -261,13 +279,16 @@ class SamplingLoop {
     this.#idleWindowMs = options.idleWindowMs;
     this.#idleSince = options.spawnedAt;
     this.#onStall = options.onStall;
+    this.#clock = options.clock ?? Date.now;
   }
 
   /** Sample at once (the spawn instant has just passed — a round is never observed
-   *  only from the first interval on) and start the cadence. */
+   *  only from the first interval on) and start the cadence. A first tick that
+   *  already rules `stalled` starts no cadence: the trail is final. */
   start(): void {
-    this.#tick(Date.now());
-    this.#timer = setInterval(() => this.#tick(Date.now()), this.#intervalMs);
+    this.tick();
+    if (this.#stallFired) return;
+    this.#timer = setInterval(() => this.tick(), this.#intervalMs);
     // Never hold the parent process open for the engine's own sampling.
     this.#timer.unref();
   }
@@ -280,7 +301,7 @@ class SamplingLoop {
 
   /** The idle time (ms) at this instant — how long since the last progress. */
   idleMs(): number {
-    return Math.max(0, Date.now() - this.#idleSince);
+    return Math.max(0, this.#clock() - this.#idleSince);
   }
 
   /** End the loop at the dispatch's terminal state — the cadence stops and NOTHING
@@ -293,10 +314,13 @@ class SamplingLoop {
     }
   }
 
-  /** One tick: read the legs, judge them, and overwrite the in-flight record's
-   *  sampling cells. A `stalled` verdict fires the kill trigger once (the first stall
-   *  owns the kill; later ticks of a dying child never re-fire). */
-  #tick(now: number): void {
+  /** One tick at `now` (default: the loop's clock): read the legs, judge them, and
+   *  overwrite the in-flight record's sampling cells. A `stalled` verdict fires the
+   *  kill trigger once and ends the cadence (the first stall owns the kill, and the
+   *  trail's last cell stays the stall — the dying child's later unreadable ticks can
+   *  never rewrite the postmortem). */
+  tick(now: number = this.#clock()): void {
+    if (this.#stallFired) return;
     const { readings, previous, logSize, cpuMs } = this.#sampler.probe();
     const verdict = this.#judge.verdict({
       readings,
@@ -308,9 +332,10 @@ class SamplingLoop {
     if (verdict === "progress") this.#idleSince = now;
     this.#last = { at: now, logSize, cpuMs, verdict };
     this.#inflight.heartbeat({ sampledAt: now, verdict });
-    if (verdict === "stalled" && !this.#stallFired) {
+    if (verdict === "stalled") {
       this.#stallFired = true;
       this.#onStall?.();
+      this.stop();
     }
   }
 }

@@ -29,7 +29,6 @@ import type { RouteTarget } from "../faces.ts";
 import type { Round, RoundPhase } from "../ledger.ts";
 import type { Route } from "../next.ts";
 import {
-  type DocClassVerdict,
   FIX_READBACK_SUFFIX,
   NEXT_HOP_REASON,
   type NextHopInput,
@@ -303,13 +302,10 @@ describe("P4.1 T4 — the router's routes render parseable next literals (zero-e
   function argvOf(route: Route): string[] {
     // The capsule renders the ONE derived `NextHop` object (P22 §5.2).
     const hop = router.nextHop({
-      face: "wave",
       target: { type: "wave", id: "1,2", plan: "docs/kairos/plans/p3.md" },
-      gate: { drift: false, open: true },
-      latestCompleted: null,
+      gate: { drift: false },
       route,
-      counters: { consecutiveS1: 0 },
-      docClassOf: () => "wave",
+      verdict: "wave",
     });
     const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", hop);
     const literal = lines[1]!.slice("next: ".length);
@@ -361,14 +357,11 @@ describe("D40 — the face-to-face handoff route", () => {
 describe("P21 §4.2 — nextHop's next-line fact (the retired patch argument's fact)", () => {
   const waveHop = (nextLineOpen?: boolean) =>
     router.nextHop({
-      face: "wave",
       target: { type: "wave", id: "1", plan: "docs/kairos/plans/p.md" },
-      gate: { drift: false, open: true },
-      latestCompleted: null,
+      gate: { drift: false },
       route: { kind: "done" },
-      counters: { consecutiveS1: 0 },
+      verdict: "wave",
       nextLineOpen,
-      docClassOf: () => "wave",
     });
 
   it("a closed branch line lands the wave station on the branch face's own exit", () => {
@@ -386,12 +379,6 @@ describe("P21 §4.2 — nextHop's next-line fact (the retired patch argument's f
 // table's own cases above stay untouched (zero judgment change).
 // ---------------------------------------------------------------------------
 
-/** The injected doc-class discrimination — the tests name the declared class. */
-const docClassOf =
-  (verdict: DocClassVerdict) =>
-  (_target: RouteTarget): DocClassVerdict =>
-    verdict;
-
 const specTarget: RouteTarget = { type: "spec", id: "docs/kairos/specs/p-design.md" };
 const waveTarget: RouteTarget = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p.md" };
 const branchTarget: RouteTarget = {
@@ -402,13 +389,10 @@ const branchTarget: RouteTarget = {
 
 /** A next-hop input with the phase-spec closure defaults; each case overrides one. */
 const hopInput = (over: Partial<NextHopInput> = {}): NextHopInput => ({
-  face: "phase-spec",
   target: specTarget,
-  gate: { drift: false, open: false },
-  latestCompleted: null,
+  gate: { drift: false },
   route: { kind: "done" },
-  counters: { consecutiveS1: 0 },
-  docClassOf: docClassOf("phase-spec"),
+  verdict: "phase-spec",
   ...over,
 });
 
@@ -434,9 +418,7 @@ describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () 
       round({ phase: "review", findings: [finding("blocker", "defect")] }),
     );
     expect(route).toEqual({ kind: "fix", reviews: undefined });
-    const hop = router.nextHop(
-      hopInput({ route, face: "wave", target: waveTarget, docClassOf: docClassOf("wave") }),
-    );
+    const hop = router.nextHop(hopInput({ route, target: waveTarget, verdict: "wave" }));
     expect(hop.hop).toBe("fix");
     expect(hop.route).toEqual({ kind: "fix", reviews: undefined });
     expect(hop.reason).toBe(NEXT_HOP_REASON.pendingFix);
@@ -445,9 +427,7 @@ describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () 
 
   it("(b) a clean review with a ready batch → the implement hop (task-open)", () => {
     const route = router.next(state([3]), round({ phase: "review" }));
-    const hop = router.nextHop(
-      hopInput({ route, face: "wave", target: waveTarget, docClassOf: docClassOf("wave") }),
-    );
+    const hop = router.nextHop(hopInput({ route, target: waveTarget, verdict: "wave" }));
     expect(hop.hop).toBe("implement");
     expect(hop.reason).toBe(NEXT_HOP_REASON.taskOpen);
     // the payload carries the ready batch — the renderer never re-derives `--tasks`
@@ -455,18 +435,15 @@ describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () 
   });
 
   it("(c) a drift-reopened closed line → the review hop (doc-drift), branch-review on the branch face", () => {
-    const hop = router.nextHop(
-      hopInput({ route: { kind: "review" }, gate: { drift: true, open: true } }),
-    );
+    const hop = router.nextHop(hopInput({ route: { kind: "review" }, gate: { drift: true } }));
     expect(hop.hop).toBe("review");
     expect(hop.reason).toBe(NEXT_HOP_REASON.docDrift);
     const branch = router.nextHop(
       hopInput({
-        face: "branch",
         target: branchTarget,
         route: { kind: "review" },
-        gate: { drift: true, open: true },
-        docClassOf: docClassOf("branch"),
+        gate: { drift: true },
+        verdict: "branch",
       }),
     );
     expect(branch.hop).toBe("branch-review");
@@ -479,12 +456,12 @@ describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () 
     expect(spec.reason).toBe(NEXT_HOP_REASON.closedLine);
     expect(spec.to).toEqual(PIPELINE_NEXT["phase-spec"]);
 
-    const overall = router.nextHop(hopInput({ docClassOf: docClassOf("overall") }));
+    const overall = router.nextHop(hopInput({ verdict: "overall" }));
     expect(overall.to).toEqual({ kind: "done" });
     expect(overall.reason).toBe(NEXT_HOP_REASON.closedLine);
 
     // a single-spec declares no pipeline seam — the terminal row (`to: null`)
-    const single = router.nextHop(hopInput({ docClassOf: docClassOf("terminal") }));
+    const single = router.nextHop(hopInput({ verdict: "terminal" }));
     expect(single.hop).toBeNull();
     expect(single.to).toBeNull();
     expect(single.reason).toBe(NEXT_HOP_REASON.faceClosed);
@@ -500,7 +477,7 @@ describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () 
   });
 
   it("(f) an unjudgeable doc class → doc-class-blocked, no hop, no station", () => {
-    const hop = router.nextHop(hopInput({ docClassOf: docClassOf("blocked") }));
+    const hop = router.nextHop(hopInput({ verdict: "blocked" }));
     expect(hop.hop).toBeNull();
     expect(hop.to).toBeNull();
     expect(hop.reason).toBe(NEXT_HOP_REASON.docClassBlocked);
@@ -508,9 +485,7 @@ describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () 
 
   it("(g) a fix whose source review kept a blocker → the re-review hop (fix-K → review-K)", () => {
     const route = router.next(state([]), round({ phase: "fix", findings: [finding("blocker")] }));
-    const hop = router.nextHop(
-      hopInput({ route, face: "wave", target: waveTarget, docClassOf: docClassOf("wave") }),
-    );
+    const hop = router.nextHop(hopInput({ route, target: waveTarget, verdict: "wave" }));
     expect(hop.hop).toBe("review");
     expect(hop.route).toEqual({ kind: "review" });
   });
@@ -525,9 +500,8 @@ describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () 
     const ready = router.nextHop(
       hopInput({
         route: router.next(state([7]), round({ phase: "fix", findings: [finding("warn")] })),
-        face: "wave",
         target: waveTarget,
-        docClassOf: docClassOf("wave"),
+        verdict: "wave",
       }),
     );
     expect(ready.hop).toBe("implement");
@@ -535,7 +509,7 @@ describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () 
   });
 
   it("(i) a terminal doc class / no target → no hop, no station, face-closed", () => {
-    const terminal = router.nextHop(hopInput({ docClassOf: docClassOf("terminal") }));
+    const terminal = router.nextHop(hopInput({ verdict: "terminal" }));
     expect([terminal.hop, terminal.to, terminal.reason]).toEqual([
       null,
       null,
@@ -549,7 +523,7 @@ describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () 
 
   it("a handoff route carries its own entry (the same `to` path as done)", () => {
     const hop = router.nextHop(
-      hopInput({ route: { kind: "handoff", entry: PIPELINE_NEXT.plan }, face: "plan" }),
+      hopInput({ route: { kind: "handoff", entry: PIPELINE_NEXT.plan }, verdict: "plan" }),
     );
     expect(hop.hop).toBeNull();
     expect(hop.to).toEqual(PIPELINE_NEXT.plan);
@@ -575,7 +549,7 @@ describe("P22 §5.2 — the ONE message shape (three forms)", () => {
   });
 
   it("neither a hop nor a station renders the bare reason (no invented verb slot)", () => {
-    const blocked = router.nextHop(hopInput({ docClassOf: docClassOf("blocked") }));
+    const blocked = router.nextHop(hopInput({ verdict: "blocked" }));
     expect(router.message(blocked, station)).toBe("doc-class-blocked");
     const capped = router.nextHop(
       hopInput({ route: { kind: "soft-cap", message: SOFT_CAP_SUGGESTION } }),
@@ -596,8 +570,31 @@ describe("P22 §5.2 — the derivation's structural pins", () => {
     const specifiers = [...source.matchAll(/from\s+"([^"]+)"/g)].map((match) => match[1]);
     expect(specifiers.length).toBeGreaterThan(0);
     expect(specifiers.some((specifier) => specifier?.includes("board-view"))).toBe(false);
-    // the doc class arrives ONLY through the injected seam — never a local import
-    expect(source).toContain("input.docClassOf(input.target)");
+    // the doc class arrives ONLY through the ONE assembly entry (`Ledger#nextHopOf`):
+    // this module reads the verdict cell and holds no discrimination of its own.
+    expect(source).not.toContain("docClassOf");
+  });
+
+  it("the doc-class discrimination has ONE assembly entry (Ledger#nextHopOf)", () => {
+    const ledger = readFileSync(new URL("../ledger.ts", import.meta.url), "utf8");
+    expect(ledger).toContain("input.docClassOf(input.target)");
+  });
+
+  it("the three read faces fill facts only — no face re-assembles `verdict → face`", () => {
+    for (const file of ["../run.ts", "../../face/gate.ts", "../../face/board-view.ts"]) {
+      const text = readFileSync(new URL(file, import.meta.url), "utf8");
+      expect(text).not.toContain('verdict === "blocked" || verdict === "terminal"');
+    }
+  });
+
+  it("the CLI refusal's declaration read is rooted in the repo basis (never a cwd resolve)", () => {
+    const gate = readFileSync(new URL("../../face/gate.ts", import.meta.url), "utf8");
+    expect(gate).toContain("BoardView.docClassOf(basis, candidate)");
+    expect(gate).not.toContain("docClassOf(null");
+    // the lookahead refusal renders the PEEKED hop — the fourth read face's object is
+    // consumed, never computed and dropped
+    const cli = readFileSync(new URL("../../face/cli.ts", import.meta.url), "utf8");
+    expect(cli).toContain("lineHopMessage(scene, peeked.hop");
   });
 
   it("PIPELINE_NEXT is data only — the declaration carries no judgment", () => {
@@ -663,7 +660,7 @@ describe("P22 §5.2 — drift does not outrank a pending fix", () => {
     const hop = router.nextHop(
       hopInput({
         route: { kind: "fix", reviews: "plan-review-1.json" },
-        gate: { drift: true, open: true },
+        gate: { drift: true },
       }),
     );
     expect(hop.hop).toBe("fix");

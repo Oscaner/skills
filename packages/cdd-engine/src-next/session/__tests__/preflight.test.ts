@@ -199,6 +199,8 @@ const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
   startedAt: Date.parse("2026-10-28T10:00:00.000Z"),
   wave: "1",
   phase: "implement",
+  cycle: 1,
+  attempt: 1,
   briefHash: null,
   plan: "docs/p.md",
   sampledAt: null,

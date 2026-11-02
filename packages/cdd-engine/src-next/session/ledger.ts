@@ -31,7 +31,7 @@ import { BriefRenderer } from "../render/brief.ts";
 import { type RouteTarget, type TargetType, targetFaces } from "./faces.ts";
 import { type Carrier, type CarrierPlane, HandoffSchema } from "./handoff-schema.ts";
 import { LineIdentity } from "./line-identity.ts";
-import type { DocClassVerdict, NextHop, PipelineKey, Route } from "./next.ts";
+import type { DocClassVerdict, NextHop, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import { RoundNaming } from "./round-naming.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
@@ -1113,16 +1113,15 @@ export class Ledger {
   }
 
   /** One line's next hop (§5.2) — the derivation's INPUT face gathered from the
-   *  line's OWN facts and handed to the router's ONE derivation: the completed records
-   *  (the latest one + its consecutive-S1 run), the drift-aware gate verdict, the
-   *  caller's route (the count table's row for a single line, the pipeline walk's
-   *  route for the board) and the injected pipeline-station discrimination. Every read
-   *  face (capsule · CLI rejection · board · the lifecycle frontier) comes through
-   *  here, so the four faces share one object by construction — no face assembles a
-   *  second copy of the inputs, and no judgment is re-made here (the route is the
-   *  count table's). */
+   *  line's OWN facts and handed to the router's ONE derivation: the drift-aware gate
+   *  verdict, the ONE doc-class verdict (the declared station the face axis is read
+   *  out of), the caller's route (the count table's row for a single line, the
+   *  pipeline walk's route for the board) and the judged document. Every read face
+   *  (capsule · CLI rejection · board · the lifecycle frontier) comes through here,
+   *  so the four faces share one object by construction — no face assembles a second
+   *  copy of the inputs, and no judgment is re-made here (the route is the count
+   *  table's). */
   nextHopOf(input: {
-    readonly face: PipelineKey | null;
     readonly type: TargetType;
     readonly key: LedgerKey;
     readonly route: Route | null;
@@ -1133,39 +1132,21 @@ export class Ledger {
     readonly nextLineOpen?: boolean;
     readonly docClassOf: (target: RouteTarget) => DocClassVerdict;
   }): NextHop {
-    const data = this.readProgress();
-    const row = data === null ? undefined : this.rowFor(data, input.key);
-    const completed = RoundRecords.of(row).filter((record) => record.verdict.targetAction);
     const drift =
       input.doc != null && input.type !== "wave"
         ? this.reviewGate(input.key, input.doc, input.type).kind === "open"
         : false;
+    // The face axis is the ONE verdict this assembly reads (spec §5.2's doc-class
+    // discrimination): no target carries no judgeable class (the bare terminal).
+    const verdict: DocClassVerdict =
+      input.target === null ? "terminal" : input.docClassOf(input.target);
     return this.#router.nextHop({
-      face: input.face,
       target: input.target,
-      gate: { drift, open: true },
-      latestCompleted: completed.length > 0 ? completed[completed.length - 1]! : null,
-      counters: { consecutiveS1: this.#consecutiveS1RunOf(input, row) },
+      gate: { drift },
+      verdict,
       route: input.route,
       nextLineOpen: input.nextLineOpen,
-      docClassOf: input.docClassOf,
     });
-  }
-
-  /** The row's consecutive-S1 run (the soft-cap basis) — the sidebar of the latest
-   *  COMPLETED review round on the key, read through the ONE carrier read (`round`,
-   *  the same walk the count table uses); 0 when no completed review stands. */
-  #consecutiveS1RunOf(
-    input: { readonly type: TargetType; readonly key: LedgerKey },
-    row: ProgressRow | undefined,
-  ): number {
-    const reviews = RoundRecords.of(row).filter(
-      (record) => record.op === "review" && record.verdict.targetAction,
-    );
-    if (reviews.length === 0) return 0;
-    const round = Math.max(...reviews.map((record) => record.cycle));
-    const params = input.type === "wave" ? { tasks: String(input.key) } : {};
-    return this.round("review", input.type, { ...params, round }, round)?.consecutiveS1 ?? 0;
   }
 
   /** One single-target line round's C5 route — the review-lead / fix round read back

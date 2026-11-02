@@ -38,13 +38,10 @@ const hopOf = (
   docClassOf: (candidate: RouteTarget) => DocClassVerdict = () => "phase-spec",
 ): NextHop =>
   new NextStepRouter().nextHop({
-    face: null,
     target,
-    gate: { drift: false, open: true },
-    latestCompleted: null,
+    gate: { drift: false },
     route,
-    counters: { consecutiveS1: 0 },
-    docClassOf,
+    verdict: target === null ? "terminal" : docClassOf(target),
   });
 
 /** The next-text of a capsule emit (the second line, the station prefix stripped). */

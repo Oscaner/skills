@@ -586,6 +586,8 @@ export class CliLifecycle {
       startedAt: (await this.#proc.startOf(process.pid)) ?? Date.now(),
       wave: frame.type === "wave" ? (frame.params.tasks ?? null) : null,
       phase: frame.phase,
+      cycle: frame.round,
+      attempt: frame.attempt ?? 1,
       briefHash: this.#briefHashOf(frame),
       plan: scene.planPath === null ? null : this.#rel(scene.planPath),
       sampledAt: null,

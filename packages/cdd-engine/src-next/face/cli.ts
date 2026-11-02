@@ -777,9 +777,17 @@ export class Cli {
         (group !== null && (waveTasks === null || !waveTasks.every((id) => group!.has(id))));
       if (mismatch) {
         if (dispatched === 0) {
-          this.#io.stderr(
-            `cdd ${verb}: cannot dispatch a ${expected} round — the next round is ${frame.phase}${waveTasks !== null ? ` for wave ${waveTasks.join(",")}` : ""}${this.#phaseHint(frame.phase)}\n`,
-          );
+          // The lookahead refusal renders the SAME `NextHop` the frame's line just
+          // derived (`peekNext`), through the ONE message shape — so one command can
+          // never print two different "next round" answers (the gate refusal above
+          // and this one name one object). The wave key stays an added clause; the
+          // phase-based wording survives only for a frame whose line holds no route.
+          const waveContext = waveTasks !== null ? ` for wave ${waveTasks.join(",")}` : "";
+          const reject =
+            peeked.hop === null
+              ? `the next round is ${frame.phase}${waveContext}${this.#phaseHint(frame.phase)}`
+              : `${this.#gate.lineHopMessage(scene, peeked.hop, this.#words)}${waveContext}`;
+          this.#io.stderr(`cdd ${verb}: cannot dispatch a ${expected} round — ${reject}\n`);
           return 1;
         }
         break;

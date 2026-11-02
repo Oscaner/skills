@@ -33,7 +33,7 @@ import {
   type RoundViolation,
   type Termination,
 } from "./ledger.ts";
-import type { DocClassVerdict, NextHop, PipelineKey, Route } from "./next.ts";
+import type { DocClassVerdict, NextHop, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import type { PreFlightVerdict } from "./preflight.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
@@ -813,11 +813,7 @@ export class Lifecycle {
   #hopOf(frame: OpenFrame, route: Route | null): NextHop | null {
     if (route === null) return null;
     const target = this.#routeTarget(frame);
-    const verdict = target === null ? "terminal" : this.#docClassOf(target);
-    const face: PipelineKey | null =
-      verdict === "blocked" || verdict === "terminal" ? null : verdict;
     return this.#ledger.nextHopOf({
-      face,
       type: frame.type,
       key: frame.key,
       route,

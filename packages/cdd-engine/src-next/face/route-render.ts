@@ -21,7 +21,7 @@
 
 import type { RepoRoot } from "../infra/root.ts";
 import type { RouteTarget } from "../session/faces.ts";
-import { FIX_READBACK_SUFFIX, type Route } from "../session/next.ts";
+import { FIX_READBACK_SUFFIX, NEXT_HOP_REASON, type NextHop, type Route } from "../session/next.ts";
 import { REFS } from "./host.ts";
 import type { Words } from "./words.ts";
 
@@ -71,6 +71,30 @@ export class RouteRenderer {
    *  `next:` are byte-identical by construction. */
   #rel(value: string): string {
     return this.#root === null ? value : this.#root.relativize(value);
+  }
+
+  /** renderHop(hop) → the `next:` VALUE of one derived NextHop (§5.2), or null when
+   *  the hop is ABSENT (the failure face — a BLOCKED / TIMEOUT round holds no next
+   *  object at all, so no `next:` line renders). The ONE hop face both read faces
+   *  share: the capsule (a round's own line) and the board (the pipeline frontier)
+   *  render the SAME object into the SAME bytes. The row order is the frozen table:
+   *    · a `soft-cap` payload renders its declared suggestion verbatim;
+   *    · an in-line hop renders the route through `render` (a `hop` is never null on
+   *      a renderable payload route — the closure kinds carry no hop);
+   *    · a face-to-face station renders the entry through the same `render`;
+   *    · an unjudgeable doc class renders the BLOCKED face;
+   *    · the residual (the bare `done` / `face-closed` row) renders the terminal word.
+   *  A `null` hop is NOT the failure-face gate: `done` / `soft-cap` / the doc-class
+   *  `terminal` row all carry `hop: null` yet still print their line. */
+  renderHop(hop: NextHop | null): string | null {
+    if (hop === null) return null;
+    if (hop.route?.kind === "soft-cap") return hop.route.message;
+    if (hop.hop !== null && hop.route !== null) return this.render(hop.route, hop.target);
+    if (hop.to !== null) return this.render({ kind: "handoff", entry: hop.to }, hop.target);
+    if (hop.reason === NEXT_HOP_REASON.docClassBlocked) {
+      return `${this.#words.station("blocked")} ${this.#words.routeWord("docType")}`;
+    }
+    return this.#words.routeWord("done");
   }
 
   /** render(route, target) → the `next:` value: the complete executable command (a

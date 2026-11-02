@@ -1,20 +1,28 @@
 // packages/cdd-engine/src-next/face/gate.ts
 // T8 — the split contract's gate face (§6.2: face/gate.ts — the target/line gate
 // family). The work commands' readiness gates — the single-target line's phase
-// derivation (#lineGate/#linePhase/#lineKey/#lineParams/#lineRoundRoute/#lineFixRoute),
-// the doc line's revision-aware BLOCK + pending-fix faces (#docLineBlock/
-// #pendingFixBlock/#docContent/#docVersionOf) and the group/line helpers
-// (#tasksOf/#renderBrief/#refFromHandoff). The method bodies are the pre-split Cli
-// members moved verbatim — behavior bytes identical; the root Cli holds the gate
-// instance and composes through it via its .action thin shells (zero bare functions).
+// derivation (lineGate/#linePhase/#lineKey), the doc line's revision-aware BLOCK +
+// pending-fix faces (#docLineBlock/#pendingFixBlock/#docContent/#docVersionOf), the
+// ONE line-hop object the CLI refusal renders (lineHop + lineHopMessage, P22 §5.2)
+// and the group/line helpers (#tasksOf/#renderBrief). The method bodies are the
+// pre-split Cli members moved verbatim — behavior bytes identical; the root Cli
+// holds the gate instance and composes through it via its .action thin shells (zero
+// bare functions).
 
 import { readFileSync } from "node:fs";
+import process from "node:process";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { BriefRenderer } from "../render/brief.ts";
-import type { DispatchPhase } from "../session/faces.ts";
+import type { DispatchPhase, RouteTarget } from "../session/faces.ts";
 import type { DocRevisionRef } from "../session/ledger.ts";
+import type { DocClassVerdict, NextHop, PipelineKey } from "../session/next.ts";
 import { RoundNaming } from "../session/round-naming.ts";
+import { BoardView } from "./board-view.ts";
 import type { RunInput, WorkScene } from "./cli.ts";
+import { ARGV_CHANNEL } from "./declare.ts";
+import { HostDetect } from "./host.ts";
+import { RouteRenderer } from "./route-render.ts";
+import type { Words } from "./words.ts";
 
 /**
  * CliGate — the target/line gate family (the split contract's gate face): the
@@ -103,6 +111,67 @@ export class CliGate {
     if (reviewed === null || (scene.target?.kind !== "plan" && scene.target?.kind !== "spec"))
       return null;
     return `the pending fix applies to the unchanged doc (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — run cdd fix first`;
+  }
+
+  /** lineHop(scene) — the line's ONE next-hop object (§5.2): the SAME derivation
+   *  the capsule, the board and the lifecycle frontier read, built from this line's
+   *  facts through `Ledger#nextHopOf`. The CLI rejection message renders THIS
+   *  object's `reason` + hop/station — never a second judgment, never a second
+   *  shape. Null when the scene holds no registered line (no fixed target → there is
+   *  no line to name). */
+  lineHop(scene: WorkScene): NextHop | null {
+    const key = this.#lineKey(scene);
+    const target = this.#routeTargetOf(scene);
+    if (key === null || target === null) return null;
+    const docClassOf = (candidate: RouteTarget): DocClassVerdict =>
+      BoardView.docClassOf(null, candidate);
+    const verdict = docClassOf(target);
+    const face: PipelineKey | null =
+      verdict === "blocked" || verdict === "terminal" ? null : verdict;
+    return scene.ledger.nextHopOf({
+      face,
+      type: scene.face.type,
+      key,
+      route: scene.ledger.lineRoute(key, scene.face.type),
+      target,
+      doc: this.#docOf(scene),
+      docClassOf,
+    });
+  }
+
+  /** lineHopMessage(scene, hop, words) — the CLI rejection prose of one `NextHop`
+   *  (P22 §5.2, the ONE message shape): a hop names its verb, a closed face names
+   *  its handoff station (rendered through the SAME route renderer the `next:` line
+   *  uses), and neither renders an invented verb slot. */
+  lineHopMessage(scene: WorkScene, hop: NextHop | null, words: Words): string {
+    if (hop === null) return "the line holds no open round";
+    const renderer = new RouteRenderer(
+      words,
+      ARGV_CHANNEL,
+      HostDetect.detect(process.env),
+      scene.workspace.root.basis,
+    );
+    return scene.router.message(hop, (entry) =>
+      renderer.render({ kind: "handoff", entry }, hop.target),
+    );
+  }
+
+  /** The line's judged document — the doc line's own path, the branch line's plan
+   *  (its identity document, P21 §4.1); null off the doc faces. */
+  #docOf(scene: WorkScene): string | null {
+    if (scene.target?.kind === "plan" || scene.target?.kind === "spec") return scene.target.doc;
+    if (scene.target?.kind === "branch") return scene.planPath;
+    return null;
+  }
+
+  /** The dispatch frame's own render target (§5.2's `target` cell) — the fixed
+   *  line's type + stable key (+ the plan fact the branch literal needs). */
+  #routeTargetOf(scene: WorkScene): RouteTarget | null {
+    if (scene.target?.kind === "branch")
+      return { type: "branch", id: "branch", plan: scene.planPath ?? undefined };
+    if (scene.target?.kind === "spec") return { type: "spec", id: scene.target.doc };
+    if (scene.target?.kind === "plan") return { type: "plan", id: scene.target.doc };
+    return null;
   }
 
   /** The requested group ints — the normalized tasks value split. */

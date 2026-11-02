@@ -33,7 +33,7 @@ import {
   type RoundViolation,
   type Termination,
 } from "./ledger.ts";
-import type { Route } from "./next.ts";
+import type { DocClassVerdict, NextHop, PipelineKey, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import type { PreFlightVerdict } from "./preflight.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
@@ -251,20 +251,16 @@ export type DispatchStep = (frame: OpenFrame) => Promise<DispatchOutcome>;
 export interface CapsuleFace {
   /** Render the capsule lines for one round's facts — the status-class key set
    *  (`status · blocker · handoff` on success; `status` plus the crash `handoff` on
-   *  TIMEOUT/BLOCKED) via the face's word table. The additive optional RouteTarget
-   *  supplies the dispatch frame's own type + id for the dispatch-ready `next:`
-   *  literal (v1.25 — the 4-param call stays valid: the target is an optional 5th).
-   *  `withHandoff` is the round's crash-record fact (the failure handoff cell).
-   *  `targetLineOpen` is the NEXT line's fact (P21 §4.2), passed through to the
-   *  `next:` judgment unchanged — the capsule itself judges nothing. */
+   *  TIMEOUT/BLOCKED) via the face's word table. `hop` is the ONE `NextHop` object the
+   *  round renders (P22 §5.2) — its ABSENCE (`null`: the failure face) prints no
+   *  `next:` line; the capsule itself judges nothing. `withHandoff` is the round's
+   *  crash-record fact (the failure handoff cell). */
   emit(
     status: string,
     blocker: string,
     handoff: string,
-    next?: Route | string | null,
-    target?: RouteTarget | null,
+    hop?: NextHop | null,
     withHandoff?: boolean,
-    targetLineOpen?: boolean,
   ): string[];
 }
 
@@ -327,6 +323,11 @@ export class Lifecycle {
   /** The workspace plan path — the `next:` implement literal's required `--plan`
    *  arg (P4.1 T4 — the task face's implement-consuming fact). */
   readonly #planPath: string | null;
+  /** The pipeline-station discrimination the hop derivation injects (P22 §5.2) —
+   *  the SAME face read the capsule/board use (`BoardView.docClassOf`). The
+   *  composition root passes it; the session-plane default keys by target type
+   *  (the CLI is the seam that reads a spec's DECLARED class). */
+  readonly #docClassOf: (target: RouteTarget) => DocClassVerdict;
 
   constructor(opts: {
     face: TargetFace;
@@ -343,6 +344,10 @@ export class Lifecycle {
     preflight?: PreFlightGate | null;
     /** The workspace plan path (P4.1 T4 — the implement `next:` literal's `--plan`). */
     planPath?: string | null;
+    /** The pipeline-station discrimination (P22 §5.2) — injected by the composition
+     *  root (the declaration-reading face); the type-keyed default covers the
+     *  session-plane callers. */
+    docClassOf?: (target: RouteTarget) => DocClassVerdict;
   }) {
     this.#face = opts.face;
     this.#state = opts.state;
@@ -353,6 +358,17 @@ export class Lifecycle {
     this.#capsule = opts.capsule ?? null;
     this.#preflight = opts.preflight ?? null;
     this.#planPath = opts.planPath ?? null;
+    this.#docClassOf = opts.docClassOf ?? Lifecycle.#docClassByType;
+  }
+
+  /** The session-plane default discrimination — the target type's own pipeline key.
+   *  The declaration-reading judgment (a spec's `doc-type:`) belongs to the face
+   *  plane; the composition root injects it as `BoardView.docClassOf`. */
+  static #docClassByType(target: RouteTarget): DocClassVerdict {
+    if (target.type === "spec") return "phase-spec";
+    if (target.type === "plan") return "plan";
+    if (target.type === "wave") return "wave";
+    return "branch";
   }
 
   /** The face row this instance drives. */
@@ -371,9 +387,18 @@ export class Lifecycle {
    *  cursor pre-checks the next step against the requested verb before it advances
    *  (a mismatch must not consume the round: advance() dispatches on entry — the
    *  {16,22,24} bug's loop reordered lookahead-after-dispatch and spent the next
-   *  phase's round in the same invocation). Null = the run is exhausted / capped. */
-  peekNext(): OpenFrame | null {
-    return this.#openFrame();
+   *  phase's round in the same invocation). The returned `hop` is the SAME `NextHop`
+   *  object the board and the CLI rejection message read (P22 §5.2's fourth read
+   *  face): one derivation over this line's facts, never a lookahead-only copy.
+   *  Null = the run is exhausted / capped. */
+  peekNext(): { frame: OpenFrame; hop: NextHop | null } | null {
+    const frame = this.#openFrame();
+    if (frame === null) return null;
+    const route =
+      frame.type === "wave"
+        ? this.#ledger.waveLineRoute(String(frame.key))
+        : this.#ledger.lineRoute(frame.key, frame.type);
+    return { frame, hop: this.#hopOf(frame, route) };
   }
 
   /** advance() — one dispatch step: frontier → pre-flight gate → dispatch → result →
@@ -406,14 +431,15 @@ export class Lifecycle {
     // review empties the ready batch, so the step routes `done` (an exhausted run),
     // not a phantom next-wave of the just-closed task.
     const route = this.#routeNext(frame);
-    // The `next:` judgment's NEXT-line fact (P21 §4.2): only a closing route on the
-    // wave line needs it, so the ledger read happens only there.
-    const targetLineOpen = route?.kind === "done" ? this.#targetLineOpen() : undefined;
+    // The failure face holds NO next object at all (the `next:` line's absence gate
+    // is the NextHop's absence, never `hop: null` — that still renders `done` / the
+    // soft-cap / the doc-class rows).
+    const failed = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     return {
       frame,
       round,
       route,
-      capsuleLines: this.#capsuleLines(frame, outcome, route, targetLineOpen),
+      capsuleLines: this.#capsuleLines(frame, outcome, failed ? null : this.#hopOf(frame, route)),
       termination: outcome.termination,
     };
   }
@@ -779,13 +805,45 @@ export class Lifecycle {
     return this.#face.nextSemantics.batch ? this.#state : EMPTY_RUN_STATE;
   }
 
-  /** Whether the branch line has a dispatchable open round — the `next:` judgment's
-   *  fact (P21 §4.2), computed HERE (the ledger-holding side) from the two already-
-   *  registered ledger faces: the branch row's drift-aware gate (the plan moved past
-   *  its reviewed doc-revision) or a still-active C5 hop. Deliberately NOT
-   *  `PipelineFaceState.closed`. `undefined` when no plan fact exists (the legacy face
-   *  keeps `resolve`'s exact pre-existing behavior). */
-  #targetLineOpen(): boolean | undefined {
+  /** The line's ONE next-hop object (§5.2) — this lifecycle's facts handed to the
+   *  ONE derivation (`Ledger#nextHopOf`): the recorded round's route, the line's
+   *  completed records, the drift-aware gate and the injected station
+   *  discrimination. Null only when the round produced NO route (the failure face's
+   *  absent object) — a derived `null` is never "no line" for a present object. */
+  #hopOf(frame: OpenFrame, route: Route | null): NextHop | null {
+    if (route === null) return null;
+    const target = this.#routeTarget(frame);
+    const verdict = target === null ? "terminal" : this.#docClassOf(target);
+    const face: PipelineKey | null =
+      verdict === "blocked" || verdict === "terminal" ? null : verdict;
+    return this.#ledger.nextHopOf({
+      face,
+      type: frame.type,
+      key: frame.key,
+      route,
+      target,
+      doc: this.#docOf(frame),
+      // The wave closure's NEXT-line fact (P21 §4.2) rides the derivation's input
+      // face — the retired render-side patch parameter is gone, the fact is not.
+      nextLineOpen: frame.type === "wave" ? this.#branchLineOpen() : undefined,
+      docClassOf: (candidate) => this.#docClassOf(candidate),
+    });
+  }
+
+  /** The line's judged document — the doc lines' own path, the branch line's plan
+   *  (its identity document, P21 §4.1); null off the doc faces. */
+  #docOf(frame: OpenFrame): string | null {
+    if (frame.target.kind === "plan" || frame.target.kind === "spec") return frame.target.doc;
+    if (frame.target.kind === "branch") return this.#planPath;
+    return null;
+  }
+
+  /** Whether the branch line has a dispatchable open round — the wave closure's
+   *  NEXT-line fact (P21 §4.2), read HERE (the ledger-holding side) from the two
+   *  already-registered ledger faces: the branch row's drift-aware gate (the plan
+   *  moved past its reviewed doc-revision) or a still-active C5 hop. `undefined` when
+   *  no plan fact exists (the wave row keeps its plain station). */
+  #branchLineOpen(): boolean | undefined {
     if (this.#planPath === null) return undefined;
     const gate = this.#ledger.reviewGate("branch", this.#planPath, "branch");
     if (gate.kind === "open") return true;
@@ -805,8 +863,7 @@ export class Lifecycle {
   #capsuleLines(
     frame: OpenFrame,
     outcome: DispatchOutcome,
-    route: Route | null,
-    targetLineOpen?: boolean,
+    hop: NextHop | null,
   ): readonly string[] {
     const summary = outcome.dispositionsSummary === undefined ? [] : [outcome.dispositionsSummary];
     if (this.#capsule === null) return summary;
@@ -826,15 +883,7 @@ export class Lifecycle {
         ? naming.crashPath(frame)
         : this.#ledger.handoffPath(op, frame.type, frame.params);
     return [
-      ...this.#capsule.emit(
-        outcome.status,
-        String(blockers),
-        handoff,
-        route,
-        this.#routeTarget(frame),
-        crash !== null,
-        targetLineOpen,
-      ),
+      ...this.#capsule.emit(outcome.status, String(blockers), handoff, hop, crash !== null),
       ...summary,
     ];
   }

@@ -23,13 +23,31 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { type DocEntry, SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { type RouteTarget, targetFaces } from "../../session/faces.ts";
 import type { InFlightRecord } from "../../session/inflight.ts";
-import { Ledger } from "../../session/ledger.ts";
-import { BoardView } from "../board-view.ts";
+import { Ledger, type RoundRecord } from "../../session/ledger.ts";
+import { type NextHop, NextStepRouter, type Route } from "../../session/next.ts";
+import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
+import { BoardNext, BoardView } from "../board-view.ts";
 import { Capsule } from "../capsule.ts";
 import { Cli, type CliIo, type CliOptions } from "../cli.ts";
 import { ARGV_CHANNEL } from "../declare.ts";
 import { Words } from "../words.ts";
+
+/** One `NextHop` from the ONE derivation — a route + the frame's target, with the
+ *  board's declaration-reading station discrimination injected. */
+const hopOf = (repo: string, route: Route, target: RouteTarget | null = null): NextHop => {
+  const root = new RepoRoot(repo);
+  return new NextStepRouter().nextHop({
+    face: null,
+    target,
+    gate: { drift: false, open: true },
+    latestCompleted: null,
+    route,
+    counters: { consecutiveS1: 0 },
+    docClassOf: (candidate) => BoardView.docClassOf(root, candidate),
+  });
+};
 
 describe("BoardView.render — the phase / program board layouts + the next derivation", () => {
   let repo: string;
@@ -80,13 +98,20 @@ describe("BoardView.render — the phase / program board layouts + the next deri
   };
 
   const renderEntry = (entry: DocEntry, host = "claude"): { text: string; exitCode: number } => {
+    const index = SlugIndex.build(repo);
+    const root = new RepoRoot(repo);
+    // The board's `next:` line renders the assembly face's ONE injected `NextHop`
+    // (P22 §5.2) — the same object the CLI's board command hands it.
+    const next = BoardNext.of(index, entry, root);
     const board = BoardView.render(
-      SlugIndex.build(repo),
+      index,
       entry,
       repo,
       new Words(),
       host,
       ARGV_CHANNEL,
+      undefined,
+      next,
     );
     return { text: board.lines.join("\n"), exitCode: board.exitCode };
   };
@@ -135,12 +160,12 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(exitCode).toBe(0);
     expect(text).toContain("cdd board: prog-p1");
     expect(text).toContain("  overall  ");
-    expect(text).toContain("prog-p1-design.md   v0.14 · Done");
-    expect(text).toContain("prog-p1.md   v0.9");
+    expect(text).toMatch(/prog-p1-design\.md\s+v0\.14 · Done/);
+    expect(text).toMatch(/prog-p1\.md\s+v0\.9/);
     // D47 — the doc cells render repoRoot-relative (the index holds absolute paths;
     // the board emits the ONE shape). No row carries the absolute repo prefix.
-    expect(text).toContain("  spec     docs/kairos/specs/prog-p1-design.md");
-    expect(text).toContain("  plan     docs/kairos/plans/prog-p1.md");
+    expect(text).toContain("  spec     prog-p1-design.md");
+    expect(text).toContain("  plan     prog-p1.md");
     expect(text).not.toContain(repo);
     expect(text).toContain("  branch   ○ open");
     expect(text.split("\n").at(-1)).toBe("progress: ✔ done · ▶ current · ○ pending");
@@ -251,8 +276,8 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     const { text } = render("prog-p1");
 
-    // the wave line's rounds cell renders the recorded cycle under its verb
-    expect(text).toContain("review×1");
+    // the wave line's aggregated cell renders the recorded round under its verb
+    expect(text).toContain("review 1 ✓");
   });
 
   it("phase board next: the first not-closed line renders its ACTIVE C5 hop (the spec review)", () => {
@@ -756,7 +781,12 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     for (const host of ["claude", "pi"]) {
       const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, new RepoRoot(repo))
-        .emit("APPROVED", "0", "/h.json", { kind: "done" }, { type: "spec", id: specId })[1]!
+        .emit(
+          "APPROVED",
+          "0",
+          "/h.json",
+          hopOf(repo, { kind: "done" }, { type: "spec", id: specId }),
+        )[1]!
         .slice("next: ".length);
       // The board's spec face is drained (spec closed + no plan doc) → the same entry.
       expect(nextOf("prog-p1", host)).toBe(capsuleNext);
@@ -797,7 +827,12 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     for (const host of ["claude", "pi"]) {
       const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, new RepoRoot(repo))
-        .emit("APPROVED", "0", "/h.json", { kind: "review" }, { type: "spec", id: specId })[1]!
+        .emit(
+          "APPROVED",
+          "0",
+          "/h.json",
+          hopOf(repo, { kind: "review" }, { type: "spec", id: specId }),
+        )[1]!
         .slice("next: ".length);
       // The reviewer's own hop renders the repoRoot-relative --spec (never the absolute).
       expect(capsuleNext).toBe("review --type spec --spec docs/kairos/specs/prog-p1-design.md");
@@ -900,13 +935,13 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain("cdd board: prog-overall");
     // D28 identity: the cell renders the stored CYCLE NUMBERS, never their count
     // (deliberate pin break — the retired `review×4` read the array length).
-    expect(text).toContain("prog-overall.md   v2.33   review×1,2,3,4");
+    expect(text).toContain("prog-overall.md   v2.33   review 4 ✓");
     // The full phase line shape (spec §5.3): status + the spec/plan/wave/branch cells,
     // the `wave W1…` token derived from the phase's own wave segment. The branch line's
     // round aggregates under the `review` verb — branch review folds to the review
     // family in the record (`RoundRecords.of`; OpType has no branch-review member).
     expect(text).toContain(
-      "  phase prog-p1  Pending   spec review×1 · plan review×1 · wave W1… · branch review×1   title: S",
+      "  phase prog-p1  Pending   spec review 1 ✓ · plan review 1 ✓ · wave W1… · branch review 1 ✓   title: S",
     );
     expect(text).toContain("  next:    done");
   });
@@ -1034,6 +1069,23 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
     expect(dead.join("\n")).toContain(words.inFlightWords().stealable);
   });
 
+  it("(f) the held row names the holder's IDENTITY only — never the dispatch narrative", () => {
+    const rows = BoardView.inFlightRows(
+      { kind: "held", record: inFlightRecord(), alive: true },
+      [],
+      words,
+    );
+    const row = rows[0]!;
+    // the operating verb (op) + the wave key + the pid a takeover targets
+    expect(row).toContain("op: implement");
+    expect(row).toContain("wave: 1");
+    expect(row).toContain("pid 4242");
+    // the child's command line, its start instant and its plan path are narrative
+    expect(row).not.toContain("command:");
+    expect(row).not.toContain("started:");
+    expect(row).not.toContain("docs/p.md");
+  });
+
   it("fills the free and corrupt rows from the one word table", () => {
     const free = BoardView.inFlightRows({ kind: "absent" }, [], words);
     expect(free[0]).toBe(`  in-flight: ${words.checkedWords().inFlight.free}`);
@@ -1055,12 +1107,59 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
   });
 });
 
-describe("BoardView.roundsCell — the D28 cycle-number cell", () => {
-  it("renders the stored cycle numbers, never their count", () => {
-    expect(BoardView.roundsCell({ review: [1, 3], fix: [3] })).toBe("review×1,3 · fix×3");
-    expect(BoardView.roundsCell({ implement: [1], review: [1, 2, 3] })).toBe(
-      "implement×1 · review×1,2,3",
-    );
+describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.3)", () => {
+  /** One round record fixture — the identity + verdict the aggregation reads. */
+  const record = (over: Partial<RoundRecord>): RoundRecord => ({
+    op: "review",
+    cycle: 1,
+    attempt: 1,
+    dispatchBase: null,
+    verdict: { treeClean: true, targetAction: true },
+    violations: [],
+    carrierPath: null,
+    ...over,
+  });
+
+  it("(a) ten green review rounds collapse into `review 10 ✓` — the range form never renders", () => {
+    const records = Array.from({ length: 10 }, (_, index) => record({ cycle: index + 1 }));
+    expect(BoardView.summaryCell(records)).toBe("review 10 ✓");
+    expect(BoardView.summaryCell(records)).not.toContain("1–10");
+  });
+
+  it("(b) the judgement glyph is mandatory — a token never renders without it", () => {
+    expect(
+      BoardView.summaryCell([record({ verdict: { treeClean: true, targetAction: true } })]),
+    ).toBe("review 1 ✓");
+    expect(
+      BoardView.summaryCell([record({ verdict: { treeClean: false, targetAction: false } })]),
+    ).toBe("review 1 ✗");
+  });
+
+  it("(c) the graded findings ride the +N suffix (omitted at zero)", () => {
+    const violation = { grade: "soft" as const, cause: "c", message: "m" };
+    const approved = [record({ cycle: 1 }), record({ cycle: 2 }), record({ cycle: 3 })];
+    const withFindings = [
+      record({ cycle: 1, violations: [violation, violation] }),
+      record({ cycle: 2 }),
+      record({ cycle: 3 }),
+    ];
+    expect(BoardView.summaryCell(withFindings)).toBe("review 3 ✓+2");
+    expect(BoardView.summaryCell(approved)).toBe("review 3 ✓");
+    expect(
+      BoardView.summaryCell([record({ verdict: { treeClean: true, targetAction: false } })]),
+    ).toBe("review 1 ✗");
+  });
+
+  it("(d) a re-dispatch carries its attempt superscript and attempt 1 never renders `a1`", () => {
+    expect(
+      BoardView.summaryCell([
+        record({ op: "fix", verdict: { treeClean: true, targetAction: false } }),
+        record({ op: "fix", attempt: 2, verdict: { treeClean: true, targetAction: true } }),
+      ]),
+    ).toBe("fix 1 ✗ · fix 1a2 ✓");
+    expect(BoardView.attemptSuffix(record({ attempt: 1 }))).toBe("");
+    expect(BoardView.attemptSuffix(record({ attempt: 3 }))).toBe("a3");
+    expect(BoardView.summaryCell([record({})])).not.toContain("a1");
   });
 });
 
@@ -1150,6 +1249,10 @@ describe("cdd board — the in-flight read face (zero write)", () => {
       const draft = path.join(workspace, "tasks-1-review-1.json");
       writeFileSync(draft, `${JSON.stringify({ findings: [] })}\n`, "utf8");
       const draftMtime = statSync(draft).mtimeMs;
+      // A standing progress.json is the ledger's own fact — `board` only reads it.
+      const progressPath = path.join(workspace, "progress.json");
+      const progress = `${JSON.stringify({ timeoutCount: 0, waves: [{ wave: "1", rounds: [] }] }, null, 2)}\n`;
+      writeFileSync(progressPath, progress, "utf8");
       const dirBefore = JSON.stringify(readdirSync(workspace).sort());
 
       expect(await command.runArgv(["board", "--plan", "docs/kairos/plans/p3.md"])).toBe(0);
@@ -1160,9 +1263,237 @@ describe("cdd board — the in-flight read face (zero write)", () => {
       expect(readFileSync(path.join(dir, "in-flight.json"), "utf8")).toBe(record);
       expect(existsSync(path.join(dir, "in-flight.json.lock"))).toBe(true);
       expect(statSync(draft).mtimeMs).toBe(draftMtime);
+      // §5.3 (g) — the in-flight facts are read, never written: the progress bytes stand
+      expect(readFileSync(progressPath, "utf8")).toBe(progress);
       expect(JSON.stringify(readdirSync(workspace).sort())).toBe(dirBefore);
     } finally {
       cleanup();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P22 §5.2 / §5.3 — the board renders the ONE injected `NextHop`, the traversal's
+// four face-order rules land at the board's construction face (`BoardNext`), and the
+// default layout aggregates by verb × judgement.
+// ---------------------------------------------------------------------------
+
+describe("P22 — the board's injected hop, the four face-order rules, the layout", () => {
+  let repo: string;
+
+  beforeEach(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "board-p22-"));
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
+    mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  const writeDoc = (rel: string, lines: readonly string[]): string => {
+    const file = path.join(repo, rel);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${lines.join("\n")}\n`, "utf8");
+    return file;
+  };
+
+  const taskBlock = (id: number, dependsOn: string): readonly string[] => [
+    `### Task ${id}: t${id}`,
+    "- **Objective**: o",
+    "- **Files**: `a.ts`",
+    "- **Consumes**: x",
+    "- **Produces**: y",
+    "- **Steps**:",
+    "  - s — checkable: g",
+    "- **Acceptance**: ok",
+    `- **DependsOn**: ${dependsOn}`,
+    "",
+  ];
+
+  const planDoc = (tasks: readonly number[][]): string =>
+    path.join(
+      writeDoc("docs/kairos/plans/prog-p1.md", [
+        "---",
+        "title: Plan",
+        "doc-type: plan",
+        "slug: prog-p1",
+        "---",
+        "",
+        "## Constraints",
+        "",
+        "- c",
+        "",
+        ...tasks.flatMap((layer) => layer.flatMap((id) => taskBlock(id, "none"))),
+      ]),
+    );
+
+  const nodeDocs = (): void => {
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+  };
+
+  const entryOf = (slug: string): DocEntry => {
+    const index = SlugIndex.build(repo);
+    const entry = index.overallOf(slug) ?? index.identityDoc(slug) ?? index.planOf(slug);
+    if (entry === null) throw new Error(`no doc for slug ${slug}`);
+    return entry;
+  };
+
+  const nextOfBoard = (slug: string, host = "claude"): string => {
+    const index = SlugIndex.build(repo);
+    const entry = entryOf(slug);
+    const root = new RepoRoot(repo);
+    const next = BoardNext.of(index, entry, root);
+    const board = BoardView.render(
+      index,
+      entry,
+      repo,
+      new Words(),
+      host,
+      ARGV_CHANNEL,
+      undefined,
+      next,
+    );
+    return board.lines
+      .join("\n")
+      .split("\n")
+      .find((row) => row.startsWith("  next:    "))!
+      .slice("  next:    ".length);
+  };
+
+  const ledgerOf = (): Ledger =>
+    new Ledger(
+      new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1"),
+      new ConfigLoader(),
+    );
+
+  it("(k2) a frontier ENTERED with no active hop renders its OWN exit (the empty-plan wave face)", () => {
+    nodeDocs();
+    // A plan with no task blocks: the wave face holds a target but no open wave, and
+    // no wave was ever closed — so the frontier is the wave face and its own pipeline
+    // exit (the branch-review literal) renders, exactly as the retired walk decided.
+    planDoc([]);
+    const ledger = ledgerOf();
+    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("spec", { op: "review" });
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+    expect(nextOfBoard("prog-p1")).toBe("review --type branch --plan docs/kairos/plans/prog-p1.md");
+  });
+
+  it("(a) the board renders the SAME NextHop object the capsule renders — byte equality", () => {
+    nodeDocs();
+    planDoc([[1]]);
+    const index = SlugIndex.build(repo);
+    const entry = entryOf("prog-p1");
+    const hop = BoardNext.of(index, entry, new RepoRoot(repo));
+    expect(hop).not.toBeNull();
+    const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)).emit(
+      "APPROVED",
+      "0",
+      "/h.json",
+      hop,
+    )[1]!;
+    expect(capsuleNext.slice("next: ".length)).toBe(nextOfBoard("prog-p1"));
+  });
+
+  it("(k) every face closed → the LAST entered face's exit (the pipeline terminus)", () => {
+    nodeDocs();
+    planDoc([[1]]);
+    const ledger = ledgerOf();
+    // spec + plan + branch closed with clean reviews; the single wave closed too.
+    ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("spec", { op: "review" });
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+    ledger.persistHandoff("review", "branch", { round: 1 }, { findings: [] });
+    ledger.recordRound("branch", { op: "review" });
+    ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+    ledger.recordRound("1", { op: "review" });
+
+    expect(nextOfBoard("prog-p1")).toBe("route to /kairos:cdd-close skill");
+  });
+
+  it("(h) the lifecycle frontier's peekNext hop renders the SAME next line as the board", () => {
+    nodeDocs();
+    const specPath = path.join(repo, "docs/kairos/specs/prog-p1-design.md");
+    planDoc([[1]]);
+    const ledger = ledgerOf();
+    const run = new Lifecycle({
+      face: targetFaces.spec,
+      state: EMPTY_RUN_STATE,
+      ledger,
+      dispatch: async () => ({ status: "APPROVED", findings: [] }),
+      target: { kind: "spec", doc: specPath },
+      planPath: path.join(repo, "docs/kairos/plans/prog-p1.md"),
+    });
+    const peeked = run.peekNext();
+    expect(peeked?.hop?.hop).toBe("review");
+    const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)).emit(
+      "APPROVED",
+      "0",
+      "/h.json",
+      peeked!.hop!,
+    )[1]!;
+    expect(capsuleNext.slice("next: ".length)).toBe(nextOfBoard("prog-p1"));
+  });
+
+  it("(e) the whole board output carries zero absolute paths (doc names collapse to basenames)", () => {
+    nodeDocs();
+    planDoc([[1]]);
+    const index = SlugIndex.build(repo);
+    const entry = entryOf("prog-p1");
+    const board = BoardView.render(
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      undefined,
+      BoardNext.of(index, entry, new RepoRoot(repo)),
+    );
+    const text = board.lines.join("\n");
+    expect(text).not.toContain(repo);
+    expect(text).not.toMatch(/(^|\s)\/(Users|tmp|home)\//);
+  });
+
+  it("(i) §5.3 — the default face never renders a range form, and every token carries its mark", () => {
+    nodeDocs();
+    planDoc([[1]]);
+    const ledger = ledgerOf();
+    for (let cycle = 1; cycle <= 10; cycle += 1) {
+      ledger.persistHandoff("review", "spec", { round: cycle }, { findings: [] });
+      ledger.recordRound("spec", { op: "review", cycle });
+    }
+    const index = SlugIndex.build(repo);
+    const entry = entryOf("prog-p1");
+    const text = BoardView.render(
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      undefined,
+      BoardNext.of(index, entry, new RepoRoot(repo)),
+    ).lines.join("\n");
+    expect(text).toContain("review 10 ✓");
+    expect(text).not.toMatch(/review 1[–-]10/);
+    expect(text).not.toMatch(/review \d+(?![a-z0-9]*\s*[✓✗])/);
   });
 });

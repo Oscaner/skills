@@ -541,7 +541,7 @@ describe("the task small loop — implement → review → the next ready group"
       expect(first!.route).toBeNull();
 
       // the retry is the SAME cycle's next attempt — allocated once by the naming source
-      expect(run.peekNext()?.attempt).toBe(2);
+      expect(run.peekNext()?.frame.attempt).toBe(2);
       blocked = false;
       const retry = await run.advance();
       expect(
@@ -585,7 +585,7 @@ describe("the task small loop — implement → review → the next ready group"
       expect(ledger.completedCycles("1", "fix")).toEqual([]);
 
       // the retry is the SAME cycle's next attempt, allocated once by the naming source
-      const retry = run.peekNext();
+      const retry = run.peekNext()?.frame;
       expect(retry?.phase).toBe("fix");
       expect(retry?.round).toBe(1);
       expect(retry?.attempt).toBe(2);
@@ -941,7 +941,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
 
 /** A CLOSED branch line in the fixture — a clean branch review over the plan binds the
  *  line's reviewed plan revision, so the drift-aware gate reads `same` and the line
- *  holds no active C5 hop (the §4.2 `targetLineOpen === false` station). */
+ *  holds no active C5 hop (the §4.2 closed-station fact). */
 const closedBranchLine = async (ledger: Ledger, planPath: string): Promise<void> => {
   const branch = new Lifecycle({
     face: targetFaces.branch,
@@ -1017,6 +1017,41 @@ describe("P21 §4.2 — the wave closure's next: reads the branch line's open fa
       expect(closing.frame.phase).toBe("review");
       expect(closing.route).toEqual({ kind: "done" });
       expect(closing.capsuleLines[1]).toBe(`next: review --type branch --plan ${planPath}`);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("P22 §5.2 — the capsule's NextHop absence on the failure face", () => {
+  it("(g) a BLOCKED round prints no `next:` line, and the success face's three keys stay byte-identical", async () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      let blocked = true;
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: stub((frame) => {
+          if (frame.phase === "implement")
+            return blocked ? { status: "BLOCKED" } : APPROVED_IMPLEMENT;
+          return { status: "APPROVED", findings: [] };
+        }).step,
+        capsule: new Capsule(new Words()),
+      });
+      const failure = await run.advance();
+      // The failure face holds NO next object — the capsule's line set is the
+      // status-only shape (the key table's failure class), never a `hop: null` row.
+      expect(failure!.route).toBeNull();
+      expect(failure!.capsuleLines).toEqual(["status: BLOCKED"]);
+      expect(failure!.capsuleLines.some((line) => line.startsWith("next:"))).toBe(false);
+
+      // The success face keeps the three pinned keys, byte-for-byte.
+      blocked = false;
+      const success = await run.advance();
+      expect(success!.capsuleLines[0]).toMatch(/^status: APPROVED · blocker: \d+ · handoff: .+/);
+      expect(success!.capsuleLines[1]).toMatch(/^next: /);
     } finally {
       cleanup();
     }

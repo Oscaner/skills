@@ -60,7 +60,7 @@ import type { RouteTarget } from "../../session/faces.ts";
 import { InFlight, type InFlightRecord } from "../../session/inflight.ts";
 import { type CrashRecord, Ledger, type SampleRecord } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
-import { FIX_READBACK_SUFFIX } from "../../session/next.ts";
+import { FIX_READBACK_SUFFIX, NextStepRouter } from "../../session/next.ts";
 import type { PreFlightVerdict } from "../../session/preflight.ts";
 import { PreFlight } from "../../session/preflight.ts";
 import type { DispatchStep, OpenFrame } from "../../session/run.ts";
@@ -2666,12 +2666,41 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         "--dry-run",
       ]);
       expect(blocked).toBe(1);
-      expect(io.stderrText).toContain("the line holds no open round");
+      // P22 §5.2 — the generic refusal renders the ONE NextHop's reason (the closed
+      // line's face-closed row), never a second judgment's prose.
+      expect(io.stderrText).toContain("face-closed");
       expect(io.stderrText).not.toContain("target revision unchanged");
       // no phantom round files land on the null-verdict line
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "spec-review-2.json"))).toBe(
         false,
       );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P22 §5.2 (d) — the rejection message names the SAME hop the board renders (cross-face)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // Close the spec line (a seeded clean review round — the fixture spec is not
+      // doc-contract clean, and this pin is about the hop, not the dispatch gate) so
+      // the plan IS the pipeline frontier the board observes.
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.persistHandoff("review", "spec", { round: 1 }, { findings: [] });
+      ledger.recordRound("spec", { op: "review" });
+      // The plan line has not started its C5 — asking for a `fix` round is refused,
+      // and the refusal renders the ONE derived hop (`task-open · the next round is
+      // review`), not a second judgment's prose.
+      io.stderrText = "";
+      expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan])).toBe(1);
+      expect(io.stderrText).toContain("task-open · the next round is review");
+      // The board reads the SAME derivation and renders the same verb's literal.
+      io.stdoutText = "";
+      expect(await command.runArgv(["board", "--plan", plan])).toBe(0);
+      expect(io.stdoutText).toContain("next:    review --type plan --plan docs/kairos/plans/p3.md");
     } finally {
       cleanup();
     }
@@ -3324,9 +3353,19 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
 // ---------------------------------------------------------------------------
 
 describe("P4.1 T4 — the next literal is a complete executable command (zero-error second parse)", () => {
-  /** The next text of a capsule emit (the second line, station prefix stripped). */
+  /** The next text of a capsule emit (the second line, station prefix stripped) —
+   *  the capsule renders the ONE derived `NextHop` object (P22 §5.2). */
   function literalOf(route: Route, target?: RouteTarget): string {
-    const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", route, target);
+    const hop = new NextStepRouter().nextHop({
+      face: null,
+      target: target ?? null,
+      gate: { drift: false, open: true },
+      latestCompleted: null,
+      route,
+      counters: { consecutiveS1: 0 },
+      docClassOf: () => "phase-spec",
+    });
+    const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", hop);
     return lines[1]!.slice("next: ".length);
   }
 
@@ -4343,7 +4382,8 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
       const code = await command.runArgv(["board", "--plan", PLAN]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("cdd board: prog-p1");
-      expect(io.stdoutText).toContain("  spec     docs/kairos/specs/prog-p1-design.md");
+      // P22 §5.3 — the doc column omits the directory (the label names the face).
+      expect(io.stdoutText).toContain("  spec     prog-p1-design.md");
       expect(io.stdoutText.split("\n").at(-2)).toBe("progress: ✔ done · ▶ current · ○ pending");
     } finally {
       cleanup();
@@ -6851,7 +6891,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         // the board reads the same records — a hard round stays visible (it booked)
         io.stdoutText = "";
         expect(await cli.runArgv(["board", "--plan", plan])).toBe(0);
-        expect(io.stdoutText).toContain("implement×1");
+        // P22 §5.3 — the board aggregates by verb × judgement (the failed round's
+        // graded finding rides the `+N` suffix).
+        expect(io.stdoutText).toContain("implement 1 ✗+1");
       } finally {
         cleanup();
       }

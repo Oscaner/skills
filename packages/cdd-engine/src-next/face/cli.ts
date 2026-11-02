@@ -74,7 +74,7 @@ import { PreFlight, type PreFlightVerdict } from "../session/preflight.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { CliArtifacts } from "./artifacts.ts";
-import { BoardView } from "./board-view.ts";
+import { BoardNext, BoardView } from "./board-view.ts";
 import { Capsule } from "./capsule.ts";
 import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import { CliGate } from "./gate.ts";
@@ -468,6 +468,11 @@ export class Cli {
       new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
       entry.slug ?? "",
     );
+    // The board's `next:` line renders ONE injected `NextHop` (P22 §5.2): the
+    // pipeline OBSERVATION comes from the board face, the four face-order rules and
+    // the ONE derivation from this assembly point (`BoardNext`) — the board itself
+    // holds no ledger for the next line and judges nothing.
+    const next = BoardNext.of(index, entry, root);
     const board = BoardView.render(
       index,
       entry,
@@ -476,6 +481,7 @@ export class Cli {
       host,
       ARGV_CHANNEL,
       await inflight.inspect(),
+      next,
     );
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;
@@ -721,6 +727,10 @@ export class Cli {
         scene.workspace.root.basis,
       ),
       planPath: scene.planPath,
+      // The hop derivation's pipeline-station discrimination (§5.2) — the ONE
+      // declaration-reading judgment, injected so the session plane never imports a
+      // face class.
+      docClassOf: (candidate) => BoardView.docClassOf(scene.workspace.root.basis, candidate),
     });
 
     // The requested-phase gate — the line faces (branch/spec/plan) keep the
@@ -732,9 +742,16 @@ export class Cli {
         const pendingBlock =
           verdict === "pending-fix" ? this.#gate.pendingFixBlock(scene, reviewed) : null;
         const docBlock = open === null ? this.#gate.docLineBlock(scene, reviewed) : null;
-        this.#io.stderr(
-          `cdd ${verb}: cannot dispatch a ${expected} round — ${pendingBlock ?? docBlock ?? (open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`)}\n`,
-        );
+        // The generic refusal renders the SAME `NextHop` the capsule / board /
+        // frontier read (P22 §5.2 · the ONE message shape): `<reason> · the next
+        // round is <hop>` · `<reason> · next: <station>` · the bare reason. The two
+        // identity-aware block messages above own their facts (`reviewed` has no
+        // Home in `NextHop`) and stay verbatim.
+        const reject =
+          pendingBlock ??
+          docBlock ??
+          this.#gate.lineHopMessage(scene, this.#gate.lineHop(scene), this.#words);
+        this.#io.stderr(`cdd ${verb}: cannot dispatch a ${expected} round — ${reject}\n`);
         return 1;
       }
     }
@@ -751,8 +768,9 @@ export class Cli {
     let latest: readonly string[] = [];
     let lastStatus: RoundStatus | null = null;
     for (;;) {
-      const frame = run.peekNext();
-      if (frame === null) break;
+      const peeked = run.peekNext();
+      if (peeked === null) break;
+      const frame = peeked.frame;
       const waveTasks = frame.target.kind === "wave" ? frame.target.tasks : null;
       const mismatch =
         frame.phase !== expected ||

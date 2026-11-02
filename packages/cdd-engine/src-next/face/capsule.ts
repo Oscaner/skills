@@ -31,19 +31,21 @@
 // message — rides declared constants from session/next.ts, rendered by reference,
 // never restated.
 //
-// D40 — the render delegates to the shared `RouteRenderer` (the ONE route →
-// `next:` literal face, also consumed by the board); the capsule adds only the
-// `done` face's doc-class discrimination (a spec doc's declared class decides the
-// pipeline entry — or the BLOCKED face when the declaration is absent, spec §12).
+// D40 · P22 §5.2 — the render delegates to the shared `RouteRenderer` (the ONE
+// route → `next:` literal face, also consumed by the board). The capsule reads the
+// INJECTED `NextHop` — the ONE object every read face renders — and adds no
+// judgment of its own: the doc-class discrimination that picks the pipeline station
+// belongs to the derivation's injected seam (`BoardView.docClassOf`), never here.
+// A `NextHop` that is ABSENT (the BLOCKED / TIMEOUT failure face) prints no `next:`
+// line; a present hop with `hop: null` (`done` · `soft-cap` · the doc-class
+// `terminal` / `blocked` rows) still prints its frozen line.
 //
 // The class satisfies the session/run.ts CapsuleFace seam (T8's interaction point) —
 // the capsule plugs into the lifecycle's attachCapsule contact, byte-identically.
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
-import { type RepoPath, RepoRoot } from "../infra/root.ts";
-import type { RouteTarget } from "../session/faces.ts";
-import { NextStepRouter, type PipelineKey, type Route } from "../session/next.ts";
-import { BoardView } from "./board-view.ts";
+import type { RepoPath, RepoRoot } from "../infra/root.ts";
+import type { NextHop } from "../session/next.ts";
 import { type RouteChannelRow, RouteRenderer } from "./route-render.ts";
 import type { CapsuleKey, Words } from "./words.ts";
 
@@ -83,24 +85,22 @@ export class Capsule {
     this.#route = new RouteRenderer(words, channels, host, root);
   }
 
-  /** emit(status, blocker, handoff, next, target, withHandoff) → the capsule stdout
-   *  lines: the status-class key set from the word table (a success status renders
+  /** emit(status, blocker, handoff, hop, withHandoff) → the capsule stdout lines:
+   *  the status-class key set from the word table (a success status renders
    *  `status · blocker · handoff`; a failure status renders `status`, plus `handoff`
-   *  only when the round wrote a crash record), then the optional `next:` line (a
-   *  caller-rendered text, a C5 Route rendered as the complete executable command, or
-   *  null/absent → no line). The additive optional RouteTarget supplies the frame's
-   *  own type + id + plan for the executable literal (P4.1 T4); without it the route
-   *  renders its bare classifier fallbacks (the 4-param signature stays byte-pinned).
-   *  `withHandoff` is the caller's crash-record fact — the key set remains the table's
-   *  single source (this render adds no status special case). */
+   *  only when the round wrote a crash record), then the optional `next:` line.
+   *  `hop` is the ONE injected `NextHop` object — its ABSENCE (null: the BLOCKED /
+   *  TIMEOUT failure face) prints no `next:` line at all, while a present object
+   *  renders through the shared hop face (`RouteRenderer#renderHop`: the soft-cap
+   *  message · the in-line hop · the face-to-face station · the BLOCKED face · the
+   *  terminal word). `withHandoff` is the caller's crash-record fact — the key set
+   *  remains the table's single source (this render adds no status special case). */
   emit(
     status: string,
     blocker: string,
     handoff: string,
-    next?: Route | string | null,
-    target?: RouteTarget | null,
+    hop?: NextHop | null,
     withHandoff = false,
-    targetLineOpen?: boolean,
   ): string[] {
     const words = this.#words;
     // The `handoff:` cell is a path value — normalized to the repoRoot-relative
@@ -116,53 +116,9 @@ export class Capsule {
       .map((kind) => `${kind}: ${cells[kind]}`)
       .join(words.capsuleSeparator());
     const lines = [capsuleLine];
-    if (next !== undefined && next !== null) {
-      const text = typeof next === "string" ? next : this.#routeText(next, target, targetLineOpen);
-      lines.push(`${words.station("next")} ${text}`);
-    }
+    const next = this.#route.renderHop(hop ?? null);
+    if (next !== null) lines.push(`${words.station("next")} ${next}`);
     return lines;
-  }
-
-  /** The route → `next:` text render — the shared RouteRenderer (D40) unless the
-   *  `done` face's doc-class discrimination fires (a spec doc's declared class decides
-   *  the pipeline entry — or the BLOCKED face when the declaration is absent, spec
-   *  §12 · D34). The capsule resolves the doc-class, then hands the resulting Route
-   *  (a `handoff` carrying the entry, or the bare `done`) to the same renderer. */
-  #routeText(route: Route, target?: RouteTarget | null, targetLineOpen?: boolean): string {
-    if (route.kind === "done" && target != null) {
-      const verdict = this.#docClassOf(target);
-      if (verdict === "blocked") {
-        return `${this.#words.station("blocked")} ${this.#words.routeWord("docType")}`;
-      }
-      // The declared doc-class (or a bare terminal) picks the pipeline entry — the
-      // same resolver + renderer the board consumes.
-      const key = verdict === "terminal" ? null : verdict;
-      return this.#route.render(
-        NextStepRouter.resolve({ kind: "done" }, key, targetLineOpen),
-        target,
-      );
-    }
-    return this.#route.render(route, target);
-  }
-
-  /** The target → doc-class verdict of the unified next face — the doc-class
-   *  discrimination face (D33): the spec doc's class reads its DECLARED type (the
-   *  front-matter `doc-type:` key, spec §12 · D34 — BoardView.readDocType,
-   *  the one declaration reading face), never the filename suffix; the task-face
-   *  targets key by type. `blocked` — the key is missing (the caller
-   *  renders the BLOCKED face); `terminal` — no pipeline seam carries the declared
-   *  class (`single-spec`, the table's five keys exclude it — the bare word). */
-  #docClassOf(target: RouteTarget): "blocked" | "terminal" | PipelineKey {
-    if (target.type === "spec") {
-      // The read face takes the value object + the repoRoot-relative id (T4 §2.2);
-      // a `null` root (the hermetic default) keeps the value as its own basis. The
-      // `#rel` branded return needs no cast here (F3).
-      const declared = BoardView.readDocType(this.#root ?? new RepoRoot(""), this.#rel(target.id));
-      return declared === null ? "blocked" : declared === "single-spec" ? "terminal" : declared;
-    }
-    if (target.type === "plan") return "plan";
-    if (target.type === "wave") return "wave";
-    return "branch";
   }
 
   /** One path value normalized to the branded repoRoot-relative `RepoPath` through

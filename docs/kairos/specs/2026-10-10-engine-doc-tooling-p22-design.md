@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 设计：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-11-02
 slug: 2026-10-10-engine-doc-tooling-p22
 program: 2026-10-10-engine-doc-tooling
@@ -258,13 +258,15 @@ NextHop {                                   // session/next.ts 的新增类型
 ### 6. 定案：波内任务上限 3
 
 - **上限是代码常量**（`MAX_TASKS_PER_WAVE = 3`，与 `REVIEW_CYCLE_CAP` 同款：零环境变量、零配置、零落盘）。
-- **上限落在批派生里，不落在 `next-wave` 的可疑截断里**：`TaskGraph#batches()` 把每个依赖层按升序**切块**，每块至多 `MAX_TASKS_PER_WAVE` 个；`frontier` / `readyBatch` 的「ready」= **第一块尚未闭合的批**（今日 `open = frontier(closedWaves())` 的升序全量退役）。于是「一次派发不超过 3 个」是**派生**，不是调度：不预排、不写盘、不占第二份状态。
-- **门面同源（本条的硬条件）**：`WaveGate.vet` 的 `open` 取**同一个未闭合块**，故引擎自己渲染的 `next: implement --plan <plan> --tasks 1,2,3` **必被波门接受**（`requested === open` 逐位相等成立）——「`next:` 发一条必然被门禁拒绝的命令」（P21 §4.2）不再发生。三面（`session/graph.ts` 的切块派生 · `session/wave.ts` 的 `WaveGate.vet` · `--tasks` 上限门）读同一常量。
-- **mixed-batch 闸门语义随「一波 = 一块」重述**：`batches()` 的每一块就是一「批」，块**整体闭合**；`#appendedSinceClosure` 的 `planTasks` 快照（`session/preflight.ts` 写入的整计划任务集）仍判「批内成员是闭合后被追加的」——因为批本身就是切块，闭合的块就是整块，滞留判据不必改，也不产生「余下任务滞留」的假失败。**跳块不合并**：前一块未闭合时后一块不进 `open`，故「先发前 3、闭合后再发余下 2」在门面上天然成立。
-- **门面（`--tasks`）**：列出超过 3 个即前置 BLOCKED 并点名上限——判在派发前的 `PreFlight`（与 wave 门同一缝），新增门原因 `too-many-tasks`，文案 `at most 3 tasks per wave — split into waves`。**不猜、不截断、不静默减半**——截断会把调用者的手选当成引擎的判断。
-- **单源**：派生面（切块）· 波门（`open`）· `--tasks` 上限门读同一个常量（改一处即三处同时变）。
+- **形态 = 硬门，不是派生**：引擎**不切块、不截断、不重排**波次——波次形状是作者的声明（`DependsOn`），引擎只判它合不合规并拒绝越界。引擎若替作者分批，就是把依赖声明悄悄重新解释（那是旧链的做法，本节明确不做）。
+- **判据面一：计划面（预防，作者在此修）**——`contract/rules.ts` 的 `doc` scope 增一条规则（`docKeys: ["plan"]`，规则 id `wave-width-at-most-three`）：由计划正文派生 `TaskGraph#batches()`，**任一依赖层（batch）的成员数不得超过 `MAX_TASKS_PER_WAVE`**；越界即规则红并点名该层的任务 id。计划评审（`cdd review --type plan`）就是修 `DependsOn` 的地方——把同层任务串成链（例如让后两个依赖第三个），层级自然拆开。
+- **判据面二：派发面（执行，硬门）**——`WaveGate.vet`（今日 `open = frontier(closedWaves())` 的升序全量）新增两条拒绝，**先于**既有的 `exact`（split）比较：
+  - `open.length > MAX_TASKS_PER_WAVE` → 拒绝，原因 `wave-too-wide`，文案点名该波的任务 id 与唯一修复路径（`at most 3 tasks per wave — narrow the wave by adjusting the plan's DependsOn`）。这条是**病因点名**：若不先判，同一形状会被既有的 split 门报成「requested ≠ open」，把作者引向错误的修法。
+  - `requested.length > MAX_TASKS_PER_WAVE` → 拒绝，原因 `too-many-tasks`，文案点名上限（不猜、不截断、不静默减半——截断会把调用者的手选当成引擎的判断）。
+- **`next-wave` 不截断，宽波的字面会被同一道门拒绝**：`#close` 仍渲染全量 ready batch；当它超过 3 个时，该字面**会**被 `wave-too-wide` 拒绝并把病因指向 `DependsOn`。这**不是** P21 §4.2 禁的「引擎明知不可执行还发」：那条禁的是引擎自己在正确输入上算错；这里输入本身违规（计划形状越界），引擎拒绝执行是唯一不越权的行为，且报错自带修法。**主预防在计划面**（判据面一）——合规计划上 `next-wave` 恒 ≤3，派发面这条只是兜底与病因点名。
+- **单源**：上限常量由计划面规则、派发面两条拒绝、文案共读（改一处即三处同时变）。
 - **历史不动**：已入账的超 3 波行照旧读，本期不回改账本、不改写任何历史记录。
-- **与依赖语义正交**：`DependsOn` 仍只表达前置关系，绝不用它兼职「分批」（批 = 依赖层的升序切块，与依赖层不是同一个东西）。
+- **与依赖语义正交**：`DependsOn` 仍只表达前置关系，引擎绝不用它兼职「分批」以外的含义——本相位只是给「一层能有多宽」加了一条上限。
 
 ### 7. 定案：消费面义务
 
@@ -296,7 +298,7 @@ NextHop {                                   // session/next.ts 的新增类型
 | 载体槽 | `session/handoff-schema.ts`（`CARRIER` 增 `dispositions` + `PLANE_SLOTS.work` 收入；裁定追加在 both-plane 的 `notes`，`findings[]` 零改写） |
 | 日志通道 | `face/lifecycle.ts`（stdio pipe + spawn 前建日志 + drain/close）+ `infra/round-log.ts`（append 流封装）+ `session/round-naming.ts`（log stem 派生，含 `-a{attempt}`）+ `face/cli.ts`（`CDD_BLOCKED` 行点名日志路径） |
 | 活性 | `face/termination.ts`（`Sampler` 换两腿 + 四态真值表）+ `contract/liveness-signal.ts`（契约 + `LogGrowth` / `CpuAdvance` 注册表，`workspace-mtime` 键退役）+ `session/ledger.ts`（`Sample.newestMtimeMs` 随腿退役） |
-| 波内上限 | `session/graph.ts`（`MAX_TASKS_PER_WAVE` + `#batches()` 升序切块 + `frontier`/`readyBatch` = 首个未闭合块）+ `session/wave.ts`（`WaveGate.vet` 的 `open` 读同一块）+ `session/preflight.ts`（`--tasks` 超过 3 个即 BLOCKED；`planTasks` 快照不变） |
+| 波内上限 | `session/next.ts`（`MAX_TASKS_PER_WAVE` 常量）+ `session/wave.ts`（`WaveGate.vet` 两条拒绝：`wave-too-wide` 先于 `exact` · `too-many-tasks`）+ `contract/rules.ts`（`doc` scope 规则 `wave-width-at-most-three`，`docKeys: ["plan"]`）+ `face/words.ts`（两条报文，点名任务 id 与 `DependsOn` 修法） |
 | Next 派生 | `session/next.ts`（`NextHop` 类型 + `NextStepRouter#nextHop` 唯一派生 + doc-class 判别注入 + `PIPELINE_NEXT` 降数据 + 删 `resolve`/`walk`）+ `face/capsule.ts`（读注入的 `NextHop` · 删 `targetLineOpen` 与 `NextStepRouter.resolve` 调用 · `#routeText` 的 doc-class 分支改读注入对象）+ `face/gate.ts`（删 `#lineGate` 自指推演、读同一 `NextHop`）+ `face/board-view.ts`（删 `NextStepRouter.walk`、接收注入）+ `face/cli.ts`（拒绝报文渲染 `reason`） |
 | 板面 | `face/board-view.ts`（注入 `NextHop` + 逐轮裁决 + 聚合令牌 / `+N` / attempt 上标 / 路径省略 / 列对齐 / 在飞身份）+ `face/preview.ts`（`--dry-run` 只描述将追加的那条轮记录，既读面不增删） |
 | 结构面规则 | `face/lifecycle.ts`（派发时快照 · 收工比对 · 判败自书该轮 `violations` 的 hard 条目）+ `render/templates.ts`（work-plane capability 行；`contract/rules.ts` 零登记行） |
@@ -325,7 +327,7 @@ NextHop {                                   // session/next.ts 的新增类型
 - `分级判收敛`：§5.1 转移表逐行 pin 之外，新增**仓库级孪生 pin**（落 `scripts/__tests__/`）——`docs/diagrams/src/next-loop.{en,zh-CN}.json` 与 `architecture.{en,zh-CN}.json` 的三条陈述（blocker → 重新评审 · 仅 warn/nit → `REVIEW_FIX` 收敛 · 连续 `REVIEW_CYCLE_CAP` 个 blocker → 软上限，**图侧周期数 == `REVIEW_CYCLE_CAP`**）与 `next.ts` 的 `#blockerCount` / `#close` / `REVIEW_CYCLE_CAP` 逐条对应；任一常数或图侧措辞改动，两侧断言同时红
 - `Next`：§5.1 转移表逐行 pin（含 warn/nit-only fix 后 next 不得为 `review`；未闭合线上的 blocker 不被 drift 抢走）· §5.5 四条 pin（含跨面一致性）· §5.2 映射表六值逐值 pin（含 `handoff` → `hop: null` + `to` = `entry`）· `PIPELINE_NEXT` 仅作数据（判断逻辑零命中）· `resolve` / `walk` / `#lineGate` / `targetLineOpen` 零残留 · 四读面（capsule · `#lineGate` · board · 生命周期前沿）读同一 `NextHop`（跨面 pin）
 - `板面`：默认面聚合令牌裁决符不可省 · findings 数不进默认面 · 区间形零出现（本相位无 `--verbose`，`review 1–10 ✓` 即红）· `attempt === 1` 零 `a1` 后缀 · 绝对路径零出现（`next:` 相对）· 在飞行只留身份 · `board` 对在飞事实零写（运行前后字节不变）
-- `波内上限`：同一依赖层 5 个任务 → `batches()` 切两块（3 + 2）· `next-wave` 只发首块 3 个，首块全闭后 `next-wave` 发余下 2 · **跨面 pin：`next-wave` 渲染的字面必被 `WaveGate.vet` 接受（`requested === open`）** · `--tasks` 列 4 个 → BLOCKED 并点名上限 · 派生面（切块）· 波门（`open`）· `--tasks` 门同常量（单源 pin）· 已入账的超 3 波行读取零报错
+- `波内上限`：计划面——某一依赖层 5 个任务 → 计划评审报 `wave-width-at-most-three` 红并点名该层 id；改成链式 `DependsOn`（后两个依赖第三个）后转绿（红/绿各一 pin）· 派发面——frontier 5 个时任何 `--tasks` 都被拒且原因 `wave-too-wide`、报文点名任务 id 与 `DependsOn` 修法（**不得**被报成 `split`）；`--tasks` 列 4 个 → 原因 `too-many-tasks` · 引擎零重排（`TaskGraph#batches()` / `frontier` 语义零变化：既有波次用例全绿）· 合规计划上 `next-wave` 字面恒被波门接受（跨面 pin）· 已入账的超 3 波行读取零报错
 - `消费面义务`：四问在 `contract/skill-anatomy.ts` 登记一次 + 两份指针 grep pin · digraph 零变更（`cdd-design` 节点/边数不动）· 审批门三句与写作权三句 grep pin · 轮内改结构面两条红 pin（Task id 集 / `DependsOn` 集 → 该轮 `violations` 一条 hard · `board` 可见）+ `contract/rules.ts` 零 `plan-structure-frozen` 登记行（零残留 pin）
 - `全量`：`cdd` 仍八命令 · engine vitest 全绿 · typecheck ×3 · `env -u AI_AGENT pnpm run validate` exit 0 · changeset `cdd-engine` minor + `kairos` patch，不发布
 
@@ -335,6 +337,7 @@ NextHop {                                   // session/next.ts 的新增类型
 - **图与判据孪生**：`docs/diagrams/src/next-loop.{en,zh-CN}.json` 与 `architecture.{en,zh-CN}.json` 里的三条陈述（blocker → 重新评审 · 仅 warn/nit → `REVIEW_FIX` 收敛 · 连续 `REVIEW_CYCLE_CAP` 个 blocker → 软上限）必须与 `next.ts` 的 `#blockerCount` / `#close` / `REVIEW_CYCLE_CAP` 逐条对应（图侧周期数与常量同值，spec 不抄数字）；图不可能与判据漂移
 - **引擎不判定级是否正确**：口径是 prompt 契约，引擎只做结构校验（schema / 计数 / 转移表）；任何「引擎验证定级对不对」的实现都是越界
 - **Loop-vs-converge 的判据只有一处**（`NextStepRouter.next` 的计数表）；HB 收敛只许改呈现，不许改判据——任何把 hop 从 route kind 反推并反向影响判据的写法都是本相位点名禁止的回归
+- **引擎不替作者 reshape 波次**：上限是硬门 + 修法指引（改 `DependsOn`），不是自动切块/截断/重排；引擎只拒绝越界并点名病因
 - **零新依赖**：日志用 Node 原生 append 流；判据与信号都是本仓内的小类
 - **零新作者字段**：轮记录是引擎写的事实；`dispositions` 是**载体槽**（child 交回的结论），不是作者面字段；findings schema 零新字段
 - **capsule 字节面不动**：`status · blocker · handoff` 三键与失败面形态原样保留（日志路径**只**在 stderr 的 `CDD_BLOCKED` 行点名，`next:` 行不承载它）；轮次输出行**不**补 blocker/warn/nit 三元计数
@@ -347,6 +350,7 @@ NextHop {                                   // session/next.ts 的新增类型
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.4 | 2026-11-02 | **波内上限改为硬门（用户裁定，取代 v0.3 的切块派生）**：引擎不切块、不截断、不重排——计划面增 `wave-width-at-most-three` 规则（任一依赖层 ≤3，作者在此修 `DependsOn`）+ 派发面 `WaveGate.vet` 两条拒绝（`wave-too-wide` 先于 `exact` · `too-many-tasks`），报文点名任务 id 与修法；`next-wave` 不截断（合规计划上恒 ≤3，越界者被同一道门连病因一起拒绝） | Oscaner M. · Claude（kairos:cdd-design [P22] · 2026-11-02） |
 | v0.3 | 2026-11-03 | **spec-review-2 findings 全量落册**：① 波上限改由 `TaskGraph#batches()` 升序切块派生（`frontier` / `readyBatch` = 首个未闭合块），`WaveGate.vet` 的 `open` 与 `--tasks` 上限门同源——引擎自渲染的 `next-wave` 字面必被自家波门接受，mixed-batch / `planTasks` 快照语义随「一波 = 一块」重述；② 软上限一律引用 `REVIEW_CYCLE_CAP` 常量名（不再抄数字，孪生 pin 断言图侧周期数 == 常量），并明示值本相位不动；③ `plan-structure-frozen` 不登记规则行（无收工复跑），改由该轮 `violations` 单面呈现，删 skip 词；④ Next 派生宿主在既有 `NextStepRouter#nextHop`，类型复用 `PipelineKey` / `PipelineEntry`，映射表补齐 `handoff`，四读面含 capsule，`--dry-run` 既读面保留；⑤ 片段补齐沉默义务句（两插槽）与 set-aside 句；⑥ 裁定落点定为 reviews handoff 的 `notes`（`findings[]` 零改写）；⑦ 日志指路只在 stderr 的 `CDD_BLOCKED` 行（capsule 字节不变）；⑧ 不引入 `--verbose`（区间形永不出现）；⑨ `rejected` 缺理由入 hard（六类 hard 面）；⑩ AC 逐条对齐（四问三档 · 六类红 pin · 活性真值表补两条 · 跨面波门 pin） | Oscaner M. · Claude（kairos:cdd-design [P22] docs-fix · 2026-11-03） |
 | v0.2 | 2026-11-02 | **方法论主轴入册（用户裁定）**：把「分级判收敛」提为程序核心理念并要求图⇄判据孪生——§5 开篇写明 blocker → 重审 / warn·nit → `REVIEW_FIX` 收敛 / 全空 → 通过 / 连续 20 个 blocker → 软上限就是图的形状，口径与计数是同一件事的两半（口径让计数有意义，计数是推进的唯一判据）；Constraints 首列该主轴与孪生约束；AC 增仓库级孪生 pin（`docs/diagrams/src/` 三陈述 ⇄ `next.ts` 的 `#blockerCount` / `#close` / `REVIEW_CYCLE_CAP`） | Oscaner M. · Claude（kairos:cdd-design [P22] · 2026-11-02） |
 | v0.1 | 2026-11-02 | 首版：六块定案（定级口径 · 派发终态契约 · 日志与活性 · Next 收敛与板面 · 波内上限 3 · 消费面义务）；承 cdd-design [P22] grilling 四裁定（D69）与旧 P22 存链的价值取舍（D67/D68） | Oscaner M. · Claude（kairos:cdd-design [P22] · 2026-11-02） |

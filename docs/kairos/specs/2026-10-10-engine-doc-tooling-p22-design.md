@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 设计：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: phase-spec
-version: v0.9
+version: v0.10
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 program: 2026-10-10-engine-doc-tooling
@@ -111,7 +111,7 @@ parent-version: v2.92
 
 hard 的后果：`exit` 非零 · `verdict.targetAction === false` · **照常入账并消耗身份槽**。判据不成立时由 `#verdictOf` 自书一条 hard 条目（复用既有 `contract-violation` 因由，零新违约枚举），故「失败」永不是一次静默的缺席。
 
-**hard 的呈现面**：hard 裁决的 stderr 报文与「被拒 / 被杀」的轮共用同一条行——`face/lifecycle.ts` 的 `#cutShort` `CDD_BLOCKED` 行（`:715`），报文带该轮日志路径（§4.1），故零提交的 `implement`、处置不成立的 `fix` 也能只凭 stderr 诊断；capsule 的 `status · blocker · handoff` 三键字节面不变。
+**hard 的呈现面**：hard 裁决的 stderr 报文与「被拒 / 被杀」的轮共用同一条行——`face/lifecycle.ts` 的 `#cutShort` `CDD_BLOCKED` 行（`:715`），报文带该轮日志路径（§4.1），故零提交的 `implement`、处置不成立的 `fix` 也能只凭 stderr 诊断；capsule 的 `status · handoff` 两键字节面不变（失败面本就不印 `blocker` 格，形态原样保留）。
 
 **soft（收拾类，只记账）**：`implement` 的 handoff 载体缺失（`fix` 的处置载体属 hard，见 §3.4）· 其余卫生项。soft 写进该轮记录的 `violations` 并随报文告警，**不进 gate**（既有语义本无阈值机制，本相位不虚增）。
 
@@ -150,7 +150,7 @@ hard 的后果：`exit` 非零 · `verdict.targetAction === false` · **照常�
 
 #### 4.1 每轮日志文件
 
-- **通道**：三个派发动词（`implement` / `review` / `fix`）一律 `stdio: pipe`；`inherit` 永不用于派发。child 的 stdout + stderr 落**每轮日志文件** `.kairos/cdd/<slug>/logs/<stem>.log`（`gitignore`），**只落文件、不回显**——引擎输出面零变化（capsule 的 `status · blocker · handoff` 行不被淹没）；**指路只在 stderr**：失败报文点名该轮日志路径——落点是 `face/lifecycle.ts` 的 `#cutShort` `CDD_BLOCKED` 行（`:715`，由 `#reject` 到达，写 crash 记录 + 报文），即一轮被拒 / 被杀时消费者实际看到的那一行（不是 `face/cli.ts` 的 `#slugBlocked` slug 拒绝面：`CDD_BLOCKED` 站行有多个，诊断面只认能看见轮次的那一个）——capsule 的 `next:` 行与其 `status · handoff` 两键**与日志通道无关**（§10 的字节变更只删 `blocker` 格、不动这一条）。这就是消费者唯一需要的指路。
+- **通道**：三个派发动词（`implement` / `review` / `fix`）一律 `stdio: pipe`；`inherit` 永不用于派发。child 的 stdout + stderr 落**每轮日志文件** `.kairos/cdd/<slug>/logs/<stem>.log`（`gitignore`），**只落文件、不回显**——引擎输出面零变化（capsule 的 `status · handoff` 行不被淹没）；**指路只在 stderr**：失败报文点名该轮日志路径——落点是 `face/lifecycle.ts` 的 `#cutShort` `CDD_BLOCKED` 行（`:715`，由 `#reject` 到达，写 crash 记录 + 报文），即一轮被拒 / 被杀时消费者实际看到的那一行（不是 `face/cli.ts` 的 `#slugBlocked` slug 拒绝面：`CDD_BLOCKED` 站行有多个，诊断面只认能看见轮次的那一个）——capsule 的 `next:` 行与其 `status · handoff` 两键**与日志通道无关**（§10 的字节变更只删 `blocker` 格、不动这一条）。这就是消费者唯一需要的指路。
 - **文件名**取该轮 report 的 stem（与 `RoundNaming` 同源）：doc line `{type}-{op}-{round}.log`，wave/branch line `{family}-{op}{-round}.log`（`implement` 不带轮号）。**重派带 attempt**：`attempt > 1` 时 stem 加 `-a{attempt}`（如 `tasks-1-fix-1-a2.log`），故「只增不改」对重派同样成立——attempt 1 的日志不被 attempt 2 覆盖。
 - **spawn 之前创建**（append 流已打开、零字节），故日志腿从派发的第一毫秒起就是**已读且静默**，不是 `null`——恒不写字节的 child 因此走得到 `stalled`，而不是停在 `unknown` 等预算。
 - **收尾顺序是通道契约的一半**：child 退出后 **drain → close** → 任何对本轮日志的读取都发生在 close 之后（append 流的尾字节可以晚于退出事件落盘）。事后诊断面成立的前提是本轮日志**完整**。
@@ -336,7 +336,7 @@ NextHop {                                   // session/next.ts 的新增类型
 
 **行序**：`next:` 是消费者真正照着执行的那一行，必须**收尾**。故 fix 轮的处置摘要 `fixed N · rejected M` 从「capsule 之后」移到「`status` 行之后、`next:` 之前」——输出顺序成为：`status · handoff` → （fix 轮）`fixed N · rejected M` → `next: …`。
 
-**字节面按 deliberate break 处理**：`blocker` 格的删除是 v1 pin 的显式破坏——capsule 的类注释、`face/__tests__/capsule.test.ts` 的形状断言、两份 README 的 capsule 行、消费面 skill 里引用的形状、以及本节与 §2.2/§4.1/Constraints 的相关表述全部同批重锚；断言不删，改锚到两键形状。changeset 按 D74 仍为 **engine minor**（方法论未动）。
+**字节面按 deliberate break 处理**：`blocker` 格的删除是 v1 pin 的显式破坏——capsule 的类注释、`face/__tests__/capsule.test.ts` 的形状断言、两份 README 的 capsule 行、消费面 skill 里引用的形状，以及以下四处同批重锚：§3.3 的 hard 呈现面 · §4.1 的通道行 · Constraints 的 capsule 条 · `日志通道` AC 行；断言不删，改锚到两键形状。changeset 按 D74 仍为 **engine minor**（方法论未动）。
 
 **不新增机件**：没有新旗标、没有新行、没有第二份读面——`blocker` 计数在 `#capsuleLines` 里那一次局部计算随格一起删（判据侧 `blocker` 计数毫发不动，它仍是分级判收敛的核心）。
 
@@ -348,7 +348,7 @@ NextHop {                                   // session/next.ts 的新增类型
 - `违约分级`：hard 轮入账在册且 `board` 可见；soft 轮不改 exit 码；树脏不另写 soft 条目（由 `treeClean` 派生一条）；派生计数只数 soft（`counterOf` 单一出口）
 - `入账即事实`：BLOCKED/TIMEOUT 轮**写入**一条记录（`op` + cycle + attempt + `dispatchBase` + 裁决 + 违约 + 载路径）；`completedCycles` 只认 `targetAction === true`；「完成问句」四类读面各有一条 pin（含 `#pendingFix` 不得把硬失败的 fix-K 读成已做、不得派 `fix-(K+1)`）· 修订回写以裁决为门（hard 失败的 review 不绑定 `reviewedRevision`，一条红 pin）
 - `派发前门不动`：脏树在任何 child 派发前以 `tree-clean` / `dirty-tree` 拒绝（行为与字节面零变化 pin）
-- `日志通道`：spawn 前文件已存在且为 0 字节 · 只增不改 · 重派带 `-a{attempt}` 不撞名 · close 之后可读 · `--dry-run` 零日志 · **stdout / capsule 面零变化**（child 文本不进 stdout/stderr · `next:` 行与 `status · blocker · handoff` 三键字节不变）且 stderr 的 `CDD_BLOCKED` 行点名日志路径（cut-short 行 `face/lifecycle.ts:715`；hard 裁决轮同行走同一行，各一条 pin）
+- `日志通道`：spawn 前文件已存在且为 0 字节 · 只增不改 · 重派带 `-a{attempt}` 不撞名 · close 之后可读 · `--dry-run` 零日志 · **stdout / capsule 面零变化**（child 文本不进 stdout/stderr · `next:` 行与 `status · handoff` 两键字节不变）且 stderr 的 `CDD_BLOCKED` 行点名日志路径（cut-short 行 `face/lifecycle.ts:715`；hard 裁决轮同行走同一行，各一条 pin）
 - `活性`：撤 mtime 腿后三条红 pin——仓库他处写入 + child 零输出零 CPU 30min → `stalled` · CPU 读不到但日志在增长 → `progress` · 整窗无腿可读 → `unknown`（不杀）；另两条真值表 pin——CPU 腿不可读 · 日志零增长 · idle 满 30min → `stalled`（组杀）· **CPU 腿可读时**，烧 CPU 不写文件的长轮次不被杀；阈值 60s / 30min 与四态词零变化；`infra/proc.ts` 之外零 `ps` 调用（既有 grep pin 保持绿）
 - `分级判收敛`：§5.1 转移表逐行 pin 之外，新增**仓库级孪生 pin**（落 `scripts/__tests__/`）——**第三条陈述与周期数只住在 `next-loop.{en,zh-CN}.json`**（`architecture.{en,zh-CN}.json` 只携带前两条：blocker 回合与 `REVIEW_FIX` 收敛）；孪生 pin 断言四份图**合起来覆盖三条**、`next-loop` 的周期数**等于** `REVIEW_CYCLE_CAP`，并锚定 `next.ts` 的 `#blockerCount` / `#close` / `REVIEW_CYCLE_CAP` 三个来源；任一常数或图侧措辞改动，两侧断言同时红
 - `Next`：§5.1 转移表逐行 pin（含 warn/nit-only fix 后 next 不得为 `review`；未闭合线上的 blocker 不被 drift 抢走）· §5.5 四条 pin（含跨面一致性）· §5.2 映射表六值逐值 pin（含 `handoff` → `hop: null` + `to` = `entry`）· `reason` 七值逐值有产出者（`doc-drift` / `pending-fix` 各一条红 pin，闭合后改文档 ⇒ `doc-drift`）· `hop: null` 的报文两形各一条 pin（`to` 非空 / 皆空）· `NextHop.route` 载荷 pin（`next-wave` 的 `--tasks` 与 `fix` 的 `--reviews` 由同一条 `route` 经 `face/route-render.ts` 渲染，capsule 与 board 字节一致）· `PIPELINE_NEXT` 仅作数据（判断逻辑零命中）· `resolve` / `walk` / `#lineGate` / `targetLineOpen` 零残留 · 四读面（capsule · `#lineGate` · board · 生命周期前沿）读同一 `NextHop`（跨面 pin）
@@ -376,6 +376,7 @@ NextHop {                                   // session/next.ts 的新增类型
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.10 | 2026-11-03 | **§10 同批重锚的补全（T18 review-1 的 warn）**：同一收口在本 spec 内的三处残留改为两键面——§3.3 的 hard 呈现面（`:114`）· §4.1 通道行的首句（`:153`）· `日志通道` AC 行（`:351`）；§10 的 sweep 句改为**逐点列出覆盖面**（§3.3 · §4.1 · Constraints · `日志通道` AC），去掉笼统指针与错指的 §2.2，使部分 sweep 无法再自称完整。事实面与失败面形态零变化，代码不动 | Oscaner M. · Claude（kairos:cdd-dev · doc-revision backfill · 2026-11-03） |
 | v0.9 | 2026-11-03 | **输出面收口入册（用户裁定）**：capsule 收为 `status · handoff` 两键（`blocker` 格可由 `status` 推出，且是 #402 comment 判定不展示的数量）；`next:` 改为**收尾**——fix 轮的 `fixed N · rejected M` 移到 `status` 行之后、`next:` 之前；字节按 deliberate break 处理、pins 同批重锚，engine minor | Oscaner M. · Claude（kairos:cdd-close · reopen backfill · 2026-11-03） |
 | v0.8 | 2026-11-03 | **落点行修正（W2 wave review 的 nit）**：`MAX_TASKS_PER_WAVE` 的驻地从「`session/next.ts`」改为「`contract/wave-width.ts` 声明 + `session/next.ts` re-export」——§8 原行与 §6「规则住 `contract/` 且零 `../session` 导入」不可能同时成立，实施轮的解法是唯一自洽形，参考面随之对齐 | Oscaner M. · Claude（kairos:cdd-dev · landing-row backfill · 2026-11-03） |
 | v0.7 | 2026-11-03 | **软上限值的口径修正（W1 wave review 的 warn 触发 · 设计回填）**：三处「本相位不改该常量的值」与分支事实矛盾——`081f40cf` 已按用户裁定把 `REVIEW_CYCLE_CAP` 抬到 50（章程 v2.94 / D70）。改为「值以章程裁定为准（v2.94 / D70，本相位承接而非重新裁定）；spec 只引用常量名、不抄数字」，使参考面与树一致，同时保留「spec 不抄数字、孪生 pin 抓漂移」的原则 | Oscaner M. · Claude（kairos:cdd-dev · design backfill · 2026-11-03） |

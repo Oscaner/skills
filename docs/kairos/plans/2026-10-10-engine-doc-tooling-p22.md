@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 计划：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: plan
-version: v0.16
+version: v0.17
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 base: develop
@@ -13,7 +13,7 @@ base: develop
 - **零新运行时依赖**：日志用 Node 原生 append 流与 `node:fs/promises`；判据与活性信号都是本仓内的小类。
 - **引擎不判定级是否正确**：口径是 prompt 契约（`render/templates.ts`），引擎只做 schema / 计数 / 转移表的结构校验。
 - **Loop-vs-converge 的判据只有一处**：`NextStepRouter.next`（`session/next.ts`）的 blocker/warn/nit 计数表。任何把 hop 从 `route.kind` 反推并反向影响判据的写法都是回归；收敛只许改呈现。
-- **capsule 三键字节面不动**：`status · blocker · handoff` 与失败面形态原样保留；轮次输出行不补三元计数。
+- **capsule 收为两键（deliberate 字节破坏 · spec §10）**：`status · handoff`（+ `next:` 行，且 `next:` 收尾）；`blocker` 格删除；失败面形态原样保留；轮次输出行不补三元计数。
 - **findings schema 零新字段**；`dispositions` 是 work **载体槽**，不是作者面字段。
 - **`ps` 仍只住 `infra/proc.ts` 一处**；预算与 idle 阈值（implement 6h / review 3h / fix 3h / branch-review 3h · idle 30min · 采样 60s）不动。
 - **不改写历史**：冻结的轮记录、已入账波行、冻结文档里的旧字节一律不回改。
@@ -213,12 +213,12 @@ work 载体新增 `dispositions` 槽，`fix` 的完成判据 = 逐条处置覆�
 - `export class FixDispositions implements CompletionCriterion` + `COMPLETION_CRITERIA.fix`
 - `COMPLETION_CRITERIA` 的完整性 pin 落于本任务：注册后已注册键集 == `OpType` 的 verb 集（Task 4 只钉「已注册键 ⊆ verb 集 + 未知 verb 构造期抛错」）
 - `export const FIX_DISPOSITIONS_ZERO_COMMIT`（零提交 soft 观测的文案 —— **新写字面**：今日引擎没有可沿用的零提交告警文案，`commitsSince` 只用于崩溃尸检（`lifecycle.ts:228/755` · `infra/git.ts:54`），故本常量与 `FIX_DISPOSITIONS_SUMMARY` 同批新写）
-- `export const FIX_DISPOSITIONS_SUMMARY`（`fixed {fixed} · rejected {rejected}` 两插槽文案，落 `face/words.ts`）+ `FixDispositions#summaryOf(carrier, input): string` —— spec §3.4 末条的汇总行：由 dispositions 与输入集**现算**，只作 fix 轮 capsule 之后的**一行 stdout**（不落盘、不进 capsule 三键、不加第二份读面）；这是 spec 要求的** deliberate byte addition**，故必须有 pin（Task 1 的口径面不加三元计数，此处也不加）。—— checkable（Step 3）: `fixed 2 · rejected 1` 与 `fixed 0 · rejected 0` 两形各一条
+- `export const FIX_DISPOSITIONS_SUMMARY`（`fixed {fixed} · rejected {rejected}` 两插槽文案，落 `face/words.ts`）+ `FixDispositions#summaryOf(carrier, input): string` —— spec §3.4 末条的汇总行：由 dispositions 与输入集**现算**，只作 fix 轮 `status` 行之后、`next:` 之前的**一行**（不落盘、不进 `status · handoff` 行、不加第二份读面）；这是 spec 要求的** deliberate byte addition**，故必须有 pin（Task 1 的口径面不加三元计数，此处也不加）。—— checkable（Step 3）: `fixed 2 · rejected 1` 与 `fixed 0 · rejected 0` 两形各一条
 
 #### Steps
 - [ ] **Step 1: 写失败用例** —— 六类 hard 各一条：(①) 该轮 work 载体缺失 ⇒ hard 并点名载体路径；(②) 载体在而 `dispositions` 槽缺失 ⇒ hard；(③) 键集与输入集不等（缺条 / 多条各一条）⇒ hard；(④) 键不属输入集 ⇒ hard 并点名未知条；(⑤) 请求方载体缺失或不可读 ⇒ hard 并点名路径（本轮自己的载体存在、请求方缺失 ⇒ 仍 hard，证明判据读的是请求方载体）；(⑥) `rejected` 缺 `reason` ⇒ hard。另五组：(a) 键集与输入集相等 ⇒ 完成；(b) 输入 `findings: []` ⇒ 要求键集为空 + 一条 soft 观测；(c) 旧记录（无 `carrierPath`）⇒ 判据跳过并落可见观测（不判 hard、不读成空集）；(d) 注册后 `COMPLETION_CRITERIA` 键集 == verb 集（完整性 pin）；(e) 请求方取值缝走**另一条路径**：本轮自己的 `carrierPath` 在盘、请求方路径（`reviewsPath`）缺失 ⇒ 仍判 hard 并点名请求方路径（证明判据读的是请求方而不是本轮自己）；(f) `fix` 轮零提交（组基线以来无提交）⇒ 一条 soft 观测（`FIX_DISPOSITIONS_ZERO_COMMIT` 字面，不判 hard、不改 exit 码）。 — checkable: 六类 hard 各一条 + 五组判定/兼容/soft（含 (e) 的请求方缝 · (f) 的零提交观测）+ 一条完整性 pin 先红
 - [ ] **Step 2: 实现** —— `dispositions` 入 `CARRIER` 与 `PLANE_SLOTS.work`；`FixDispositions` 按**请求方**载体现读组装输入集（去重后比较）：取同 key 且 cycle 等于该 fix 轮 cycle 的 review 完成记录（`completedCycles(key, "review")` 匹配该 cycle）的 `carrierPath`，缺失时回退该轮 fix route 的 `--reviews` 路径——`record.carrierPath` 是被判轮**自己**的载体，不用于此；六类 hard + 两类 soft 观测；`fix` 注册后完成键集 == verb 集。 — checkable: `PLANE_REQUIRED.work` 仍为 `status`+`artifacts`（结构 pin）且 `COMPLETION_CRITERIA` 的键集 == verb 集
-- [ ] **Step 3: 汇总行** —— fix 轮读回判定之后向 stdout 追加**一行** `fixed N · rejected M`（`FixDispositions#summaryOf` + `[FIX_DISPOSITIONS_SUMMARY]` 文案）：值由 dispositions 与请求方输入集现算，不写进记录 / 载体 / capsule 三键；`cli.test.ts` 一条 pin 钉字节与位置（capsule 之后、且非 fix 的轮零此行）。 — checkable: fix 轮的汇总行字节 pin 转绿，且非 fix 轮该行零出现
+- [ ] **Step 3: 汇总行** —— fix 轮读回判定之后向 stdout 追加**一行** `fixed N · rejected M`（`FixDispositions#summaryOf` + `[FIX_DISPOSITIONS_SUMMARY]` 文案）：值由 dispositions 与请求方输入集现算，不写进记录 / 载体 / `status · handoff` 行；`cli.test.ts` 一条 pin 钉字节与位置（`status` 行之后、`next:` 之前，且非 fix 的轮零此行）。 — checkable: fix 轮的汇总行字节 pin 转绿，且非 fix 轮该行零出现
 - [ ] **Step 4: 跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS；`git commit -m "feat(cdd-engine): judge a fix round by its dispositions"`。 — checkable: `pnpm -C packages/cdd-engine test` exit 0
 
 #### Acceptance
@@ -334,8 +334,8 @@ frontier 超 3 报 `wave-too-wide`（**不得**报 `split`）且报文点名成�
 `NextHop`（Task 9）· `RouteRenderer`（`face/route-render.ts`，渲染载荷来自 `NextHop.route`）。
 
 #### Produces
-- `Capsule#emit(hop: NextHop | null, ...)` —— `NextHop` **缺席**（失败面：`BLOCKED` / `TIMEOUT`）时**不印** `next:` 行，`status · blocker · handoff` 三键字节原样；`NextHop` 在册时按下表逐行渲染。`#routeText` 的 doc-class 分支退场（判别已由注入的 `docClassOf` 完成），但「今日印不印、印什么」逐行冻结——**`hop` 为 `null` 不等于失败面**（`done` / `soft-cap` 今日都印行，字节不得静默改）。六行渲染冻结表（前一条 = 形状，后两条 = 字节 pin）：
-  - ① `NextHop` **缺席**（失败面 `BLOCKED` / `TIMEOUT`）⇒ 无行；三键字节原样（pin：既有失败面对断言）。
+- `Capsule#emit(hop: NextHop | null, ...)` —— `NextHop` **缺席**（失败面：`BLOCKED` / `TIMEOUT`）时**不印** `next:` 行，`status · handoff` 两键字节原样；`NextHop` 在册时按下表逐行渲染。`#routeText` 的 doc-class 分支退场（判别已由注入的 `docClassOf` 完成），但「今日印不印、印什么」逐行冻结——**`hop` 为 `null` 不等于失败面**（`done` / `soft-cap` 今日都印行，字节不得静默改）。六行渲染冻结表（前一条 = 形状，后两条 = 字节 pin）：
+  - ① `NextHop` **缺席**（失败面 `BLOCKED` / `TIMEOUT`）⇒ 无行；两键字节原样（pin：既有失败面对断言）。
   - ② `hop` 非空（`route` 非空：`next-wave` / `review` / `fix`）⇒ `NextHop.route` 经 `RouteRenderer` 渲染（`--tasks` / `--reviews` 载荷原样，pin：既有 `next:` 字面）。
   - ③ `hop: null` · `route?.kind === "soft-cap"` ⇒ `route.message` 原样（pin：`face/__tests__/face.test.ts:135-138`）。
   - ④ `hop: null` · `to` 非空（`done` 经 `NextHop.target` 判出 pipeline 键 / `handoff`）⇒ `next: <to>` 经同一渲染器（`route to /kairos:<skill> skill` 等今日字节）；`doc-type: overall` 的 `target` 在此行：`to = PIPELINE_NEXT["overall"] = {kind:"done"}`，渲染为 `next: done`。
@@ -348,12 +348,12 @@ frontier 超 3 报 `wave-too-wide`（**不得**报 `split`）且报文点名成�
 - 删除：`NextStepRouter.resolve` · `NextStepRouter.walk` · `CliLifecycle#targetLineOpen` 与 `Run#targetLineOpen` 的生产侧（`face/cli.ts` / `session/run.ts` 的传递面一并退）。**删面之外**：`lineGate` · `#linePhase` · `#lineKey` 保留（相位与 block 报文面）。
 
 #### Steps
-- [ ] **Step 1: 写失败用例** —— (a) capsule 的 `next:` 与 board 的 `next:` 逐字相等（同一次解析的同一对象）；(b) warn/nit-only 的 fix 之后 `next:` **不是** `review`（C5-1 投影）；(c) 闭合线改文档后 `next:` 回到 `review`；(d) CLI 拒绝报文的 hop 与 board 的 hop 相等（跨面）；(e) 删除面 pin 只钉被删入口的精确名：`grep -rnE 'NextStepRouter\.(resolve|walk)|targetLineOpen' packages/cdd-engine/src-next --include=*.ts` 零命中；并对删面之外的近名符号加**保留**断言——`\blineGate\b` · `#linePhase` · `#lineKey` 在 `face/gate.ts` 仍各自命中（旧 pin 的 `#lineGate` 拼写与实存方法 `lineGate`（`gate.ts:52`）不符，只命中 `gate.ts:4` 的注释，删注释即假绿）；开阔的 `resolve(` 今日 41 处在非测试面，含 `path.resolve` / `Workspace#resolve`，不得当作 pin；(f) 漂移不得胜出：未闭合线 + 已有 blocker + drift 同时成立 ⇒ hop 仍为 `fix`、`reason === pendingFix`；(g) `BLOCKED` 轮的 capsule 无 `next:` 行且三键字节不变（`NextHop` **缺席**，不是 `hop: null`）；(h) 生命周期前沿 `Run#peekNext` 的 hop 与 board / CLI 的 hop 逐字相等（第四读面的跨面断句）；(i) 渲染冻结表逐行 pin：`capsule.test.ts` 里 `next: done` 的三形（无 target / `single-spec` 走行⑤，`overall` 走行④）与缺 `doc-type:` 的 `CDD_BLOCKED …docType` 行、`face.test.ts` 的 soft-cap 行逐字与今日相等（`to: null` 与「印行」共存成立）；(j) 该表另补一条反例：把 `hop === null` 一律读成「不印行」时 (i) 必红；(k) 遍历落点回归 pin：board 的 `next:` 在今日 `walk` 的四形（frontier 带 active hop · frontier 无 hop 但已进入 · frontier 未进入回退前一进入面 · 全闭取最后进入面）上与今日 `walk` 输出逐字相等。 — checkable: 十一条跨面/行为用例先红（含渲染冻结表逐行、收窄后的删除面 grep 与四形遍历回归）
+- [ ] **Step 1: 写失败用例** —— (a) capsule 的 `next:` 与 board 的 `next:` 逐字相等（同一次解析的同一对象）；(b) warn/nit-only 的 fix 之后 `next:` **不是** `review`（C5-1 投影）；(c) 闭合线改文档后 `next:` 回到 `review`；(d) CLI 拒绝报文的 hop 与 board 的 hop 相等（跨面）；(e) 删除面 pin 只钉被删入口的精确名：`grep -rnE 'NextStepRouter\.(resolve|walk)|targetLineOpen' packages/cdd-engine/src-next --include=*.ts` 零命中；并对删面之外的近名符号加**保留**断言——`\blineGate\b` · `#linePhase` · `#lineKey` 在 `face/gate.ts` 仍各自命中（旧 pin 的 `#lineGate` 拼写与实存方法 `lineGate`（`gate.ts:52`）不符，只命中 `gate.ts:4` 的注释，删注释即假绿）；开阔的 `resolve(` 今日 41 处在非测试面，含 `path.resolve` / `Workspace#resolve`，不得当作 pin；(f) 漂移不得胜出：未闭合线 + 已有 blocker + drift 同时成立 ⇒ hop 仍为 `fix`、`reason === pendingFix`；(g) `BLOCKED` 轮的 capsule 无 `next:` 行且两键字节不变（`NextHop` **缺席**，不是 `hop: null`）；(h) 生命周期前沿 `Run#peekNext` 的 hop 与 board / CLI 的 hop 逐字相等（第四读面的跨面断句）；(i) 渲染冻结表逐行 pin：`capsule.test.ts` 里 `next: done` 的三形（无 target / `single-spec` 走行⑤，`overall` 走行④）与缺 `doc-type:` 的 `CDD_BLOCKED …docType` 行、`face.test.ts` 的 soft-cap 行逐字与今日相等（`to: null` 与「印行」共存成立）；(j) 该表另补一条反例：把 `hop === null` 一律读成「不印行」时 (i) 必红；(k) 遍历落点回归 pin：board 的 `next:` 在今日 `walk` 的四形（frontier 带 active hop · frontier 无 hop 但已进入 · frontier 未进入回退前一进入面 · 全闭取最后进入面）上与今日 `walk` 输出逐字相等。 — checkable: 十一条跨面/行为用例先红（含渲染冻结表逐行、收窄后的删除面 grep 与四形遍历回归）
 - [ ] **Step 2: 改四读面** —— 全部改为接收 `NextHop`；capsule 与 board 共用 `RouteRenderer`；删自指 hop 推演（`resolve`）、`walk`（规则落入 board 构造方）与 `targetLineOpen` 传递面。 — checkable: capsule 与 board 的 `next:` 逐字相等，且 board 四形与今日 `walk` 逐字相等
-- [ ] **Step 3: 跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS（capsule 字节面三键断言原样绿）；`git commit -m "refactor(cdd-engine): render the next hop from one object on every face"`。 — checkable: `grep -rnE 'NextStepRouter\.(resolve|walk)|targetLineOpen' packages/cdd-engine/src-next --include=*.ts` 零命中，且 `lineGate` / `#linePhase` / `#lineKey` 保留断言绿
+- [ ] **Step 3: 跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS（capsule 字节面两键断言原样绿）；`git commit -m "refactor(cdd-engine): render the next hop from one object on every face"`。 — checkable: `grep -rnE 'NextStepRouter\.(resolve|walk)|targetLineOpen' packages/cdd-engine/src-next --include=*.ts` 零命中，且 `lineGate` / `#linePhase` / `#lineKey` 保留断言绿
 
 #### Acceptance
-四读面同一对象（capsule · CLI 拒绝报文 · board · `Run#peekNext` 各一条跨面 pin，四读面全覆盖）；`lineGate` 的相位判定与 `reviewed` 保留（两条 block 报文 pin 原样绿，删面不含它）；capsule 三键与失败面字节不变（失败轮零 `next:` 行，条件是 `NextHop` **缺席**而非 `hop: null`）；`done` / `soft-cap` / doc-class `terminal` / doc-class `blocked` 四行字节逐行冻结（各自一条 pin，deliberate byte freeze；`overall` 走行④而 `single-spec` 走行⑤，字节同为 `next: done`）；`NextStepRouter.resolve` / `NextStepRouter.walk` / `targetLineOpen` 零残留（精确名 grep），`lineGate` / `#linePhase` / `#lineKey` 保留断言在册；board 的 `next:` 与今日 `walk` 四形逐字相等（遍历落点回归 pin）；warn/nit-only 收敛、漂移重开、drift 不抢 blocker 三条行为 pin 在册。
+四读面同一对象（capsule · CLI 拒绝报文 · board · `Run#peekNext` 各一条跨面 pin，四读面全覆盖）；`lineGate` 的相位判定与 `reviewed` 保留（两条 block 报文 pin 原样绿，删面不含它）；capsule 两键与失败面字节不变（失败轮零 `next:` 行，条件是 `NextHop` **缺席**而非 `hop: null`）；`done` / `soft-cap` / doc-class `terminal` / doc-class `blocked` 四行字节逐行冻结（各自一条 pin，deliberate byte freeze；`overall` 走行④而 `single-spec` 走行⑤，字节同为 `next: done`）；`NextStepRouter.resolve` / `NextStepRouter.walk` / `targetLineOpen` 零残留（精确名 grep），`lineGate` / `#linePhase` / `#lineKey` 保留断言在册；board 的 `next:` 与今日 `walk` 四形逐字相等（遍历落点回归 pin）；warn/nit-only 收敛、漂移重开、drift 不抢 blocker 三条行为 pin 在册。
 
 #### DependsOn
 9
@@ -602,6 +602,7 @@ capsule 从 `status · blocker · handoff` 收为 `status · handoff`（`blocker
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.17 | 2026-11-03 | **capsule 两键面在本计划内的同批重锚（T18 review-1 的 warn）**：计划内在册的四处旧形表述改为两键面——Constraints 的 capsule 条（`:16`）· T6 的汇总行落点（`:216` / `:221`，位置同时改为 `status` 之后、`next:` 之前）· T10 的 Next 行 `Produces` 与其逐行冻结表①（`:337` / `:338`）· T10 的 Step 3 与 Acceptance（`:351` / `:353` / `:356`）。实施与语义零变化 | Oscaner M. · Claude（kairos:cdd-dev · doc-revision backfill · 2026-11-03） |
 | v0.16 | 2026-11-03 | **T18 入库（用户裁定 · 重开 P22）**：输出面收口——capsule 收为 `status · handoff` 两键（`blocker` 格可推导且属不展示的数量）· `next:` 收尾（fix 摘要移到 `status` 之后、`next:` 之前）；deliberate 字节破坏、pins 同批重锚、engine minor。W12 独占一层 | Oscaner M. · Claude（kairos:cdd-close · reopen append · 2026-11-03） |
 | v0.15 | 2026-11-03 | **T17 补板面同源（W11 实施后的现场观测）**：gate 放行后 `board` 仍印 `branch ✔ closed`——分支标记与 gate 各读一份事实。T17 的 Files 增 `face/board-view.ts`，Steps 增「板面同源」一步，Acceptance 增跨面 pin（标记与放行结论一致） | Oscaner M. · Claude（kairos:cdd-dev · task backfill · 2026-11-03） |
 | v0.14 | 2026-11-03 | **T17 入库（用户裁定）**：计划漂移必须重开分支面——`lineGate` 的漂移感知腿只覆盖 `plan`/`spec`，分支面落到 `#linePhase` 后恒 `face-closed`（实测 `next:` 建议 branch 复审、随即被同一门拒绝）。W11 独占一层 | Oscaner M. · Claude（kairos:cdd-dev · scope append · 2026-11-03） |

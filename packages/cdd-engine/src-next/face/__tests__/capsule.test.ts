@@ -384,10 +384,10 @@ describe("P22 §5.2 — the six-row render freeze", () => {
     return hopOf(route, target, (candidate) => BoardView.docClassOf(root, candidate));
   };
 
-  it("① a NextHop ABSENT (BLOCKED / TIMEOUT) prints no next line — the three keys stay byte-identical", () => {
+  it("① a NextHop ABSENT (BLOCKED / TIMEOUT) prints no next line — the two keys stay byte-identical", () => {
     expect(new Capsule(new Words()).emit("BLOCKED", "/h.json", null)).toEqual(["status: BLOCKED"]);
     expect(nextOf(null)).toBeNull();
-    // the success face's three keys are untouched by the converged render
+    // the success face's two keys are untouched by the converged render
     expect(new Capsule(new Words()).emit("APPROVED", "/h.json", null)[0]).toBe(
       "status: APPROVED · handoff: /h.json",
     );

@@ -780,7 +780,6 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, new RepoRoot(repo))
         .emit(
           "APPROVED",
-          "0",
           "/h.json",
           hopOf(repo, { kind: "done" }, { type: "phase-spec", id: specId }),
         )[1]!
@@ -826,7 +825,6 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, host, new RepoRoot(repo))
         .emit(
           "APPROVED",
-          "0",
           "/h.json",
           hopOf(repo, { kind: "review" }, { type: "phase-spec", id: specId }),
         )[1]!
@@ -1519,7 +1517,6 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     expect(hop).not.toBeNull();
     const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)).emit(
       "APPROVED",
-      "0",
       "/h.json",
       hop,
     )[1]!;
@@ -1606,7 +1603,6 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     expect(peeked?.hop?.hop).toBe("review");
     const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)).emit(
       "APPROVED",
-      "0",
       "/h.json",
       peeked!.hop!,
     )[1]!;
@@ -1651,7 +1647,6 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     expect(peeked?.hop?.reason).toBe("doc-drift");
     const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)).emit(
       "APPROVED",
-      "0",
       "/h2.json",
       peeked!.hop!,
     )[1]!;

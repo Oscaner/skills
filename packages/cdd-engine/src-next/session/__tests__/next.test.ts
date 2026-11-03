@@ -308,7 +308,7 @@ describe("P4.1 T4 — the router's routes render parseable next literals (zero-e
       route,
       verdict: "wave",
     });
-    const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", hop);
+    const lines = new Capsule(new Words()).emit("APPROVED", "/h.json", hop);
     const literal = lines[1]!.slice("next: ".length);
     return literal
       .replace(new RegExp(`\\s*\\(${FIX_READBACK_SUFFIX.slice(1, -1)}\\)$`), "")

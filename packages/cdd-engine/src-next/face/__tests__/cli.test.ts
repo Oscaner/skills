@@ -1605,7 +1605,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const plan = planFor(repoRoot);
       const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
-      expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
+      expect(io.stdoutText).toContain("status: APPROVED · handoff: ");
       expect(io.stdoutText).toContain(`next: review --type wave --tasks 1`);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const progress = readJson<{ waves: { wave: string; rounds?: unknown[] }[] }>(
@@ -1736,7 +1736,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         plan,
       ]);
       expect(code).toBe(0);
-      expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
+      expect(io.stdoutText).toContain("status: APPROVED · handoff: ");
       // T3 deliberate pin break (the constraints' registered next: break): the wave
       // closure renders the wave→branch wiring literal (PIPELINE_NEXT.wave), never
       // the bare terminal word.
@@ -1776,7 +1776,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // the review's findings route the one-way fix hop — the capsule next: line
       // names the review handoff (the resolved workspace path) and rides the
       // readback suffix (the cli face checkable)
-      expect(io.stdoutText).toContain("status: CHANGES_REQUESTED · blocker: 1 · handoff: ");
+      expect(io.stdoutText).toContain("status: CHANGES_REQUESTED · handoff: ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       // D47 — the next: literal's embedded paths are repoRoot-relative (the ONE shape).
       expect(io.stdoutText).toContain(
@@ -1809,7 +1809,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       ledger.recordRound(1, { op: "review" });
       const code = await command.runArgv(["fix", "--type", "wave", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
-      expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
+      expect(io.stdoutText).toContain("status: APPROVED · handoff: ");
       expect(io.stdoutText).toContain(`next: review --type wave --tasks 1`);
       expect(existsSync(path.join(workspace.path, "tasks-1-fix-1.json"))).toBe(true);
     } finally {
@@ -1853,10 +1853,14 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       ledger.recordRound(1, { op: "review" });
       const code = await command.runArgv(["fix", "--type", "wave", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
-      const capsuleAt = io.stdoutText.indexOf("status: APPROVED · blocker: 0 · handoff: ");
+      const capsuleAt = io.stdoutText.indexOf("status: APPROVED · handoff: ");
+      const summaryAt = io.stdoutText.indexOf("fixed 1 · rejected 1");
+      const nextAt = io.stdoutText.indexOf("next: ", capsuleAt);
       const lines = io.stdoutText.match(/fixed \d+ · rejected \d+/g) ?? [];
       expect(lines).toEqual(["fixed 1 · rejected 1"]);
-      expect(io.stdoutText.indexOf("fixed 1 · rejected 1")).toBeGreaterThan(capsuleAt);
+      // The summary sits between the status line and the trailing `next:` line.
+      expect(summaryAt).toBeGreaterThan(capsuleAt);
+      expect(nextAt).toBeGreaterThan(summaryAt);
       // The line is a face fact, never a stored one: the carrier carries the
       // dispositions just as the child wrote them, no summary key.
       const carrier = readJson<Record<string, unknown>>(
@@ -1924,7 +1928,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
-      expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 · handoff: ");
+      expect(io.stdoutText).toContain("status: APPROVED · handoff: ");
       expect(io.stdoutText).not.toMatch(/fixed \d+ · rejected \d+/);
     } finally {
       cleanup();
@@ -2208,7 +2212,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const plan = conformingPlan(repoRoot);
       const code = await command.runArgv(["review", "--type", "branch", "--plan", plan]);
       expect(code).toBe(0);
-      expect(io.stdoutText).toContain("status: APPROVED · blocker: 0 ·");
+      expect(io.stdoutText).toContain("status: APPROVED ·");
       // T3 deliberate pin break: the branch closure routes the cdd-close ref
       // (PIPELINE_NEXT.branch through REFS[ref][host]).
       expect(io.stdoutText).toContain("next: route to /kairos:cdd-close skill");
@@ -3585,7 +3589,7 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
       route,
       verdict: target === undefined ? "terminal" : "phase-spec",
     });
-    const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", hop);
+    const lines = new Capsule(new Words()).emit("APPROVED", "/h.json", hop);
     return lines[1]!.slice("next: ".length);
   }
 
@@ -6786,11 +6790,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const code = await withHost(() =>
         command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       );
-      // the conclusion derives from the handoff — exit 0, a real blocker count, a
+      // the conclusion derives from the handoff — exit 0, the graded status, a
       // next hop, and the round on record (the normal read-back path).
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: CHANGES_REQUESTED");
-      expect(io.stdoutText).toContain("blocker: 1");
+      // the retired blocker cell never rides the line — the grade is the status
+      expect(io.stdoutText).not.toContain("blocker:");
       expect(io.stdoutText).toMatch(/^next:/m);
       expect(ledger.roundCount(1, "review")).toBe(1);
       expect(ledger.counterOf("timeoutCount")).toBe(1);

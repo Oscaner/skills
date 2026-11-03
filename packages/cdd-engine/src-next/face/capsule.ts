@@ -1,21 +1,28 @@
 // packages/cdd-engine/src-next/face/capsule.ts
-// T10 — the single capsule face (design spec §3.2: the `status · blocker · handoff
-// · next:` word-face steady state). Capsule#emit renders the ALL-OP single stdout
-// face — the capsule the orchestrator greps / routes on without opening the handoff:
+// T10 — the single capsule face (design spec §3.2: the `status · handoff · next:`
+// word-face steady state; P22 §10: the output face's closeout). Capsule#emit
+// renders the ALL-OP single stdout face — the capsule the orchestrator greps /
+// routes on without opening the handoff:
 //
-//   status: <status> · blocker: <blocker> · handoff: <handoff>   (success statuses)
-//   status: <status> [· handoff: <crash>]                       (TIMEOUT / BLOCKED)
+//   status: <status> · handoff: <handoff>               (success statuses)
+//   status: <status> [· handoff: <crash>]               (TIMEOUT / BLOCKED)
+//   fixed N · rejected M        (fix rounds only — between the status line and `next:`)
 //   next: <suggestion>          (optional — the C5 route / a caller-rendered text)
 //
-// The key set is the word table's single source (`Words.capsuleKeys(status,
-// withHandoff)`) — a failure status drops the blocker cell whose value would be a
-// filler, and keeps the handoff cell only when the round wrote a crash record.
+// The `blocker` cell is retired: its whole information content — the blocker count —
+// is derivable from `status` (any blocker ⇒ CHANGES_REQUESTED, warn/nit-only ⇒
+// REVIEW_FIX, empty ⇒ APPROVED, a failure round prints no cell at all), and that
+// count is exactly the number the review criterion rules undisplayed. The key set is
+// still the word table's single source (`Words.capsuleKeys(status, withHandoff)`) —
+// a failure status keeps the handoff cell only when the round wrote a crash record.
+// The fix round's disposition summary rides the SAME render, placed so the
+// dispatchable `next:` literal closes the output: `status` → summary → `next:`.
 //
-// The byte face is v1-pinned: the key words (status · blocker · handoff) are
-// pin-enforced by the CapsuleKey type and the emit signature — a data-only change
-// cannot reshape them. What rides the injected Words table (the single word-table
-// instance) is the `·` separator, the `next:` station anchor and the route/status
-// vocabulary — a second table is excluded by construction. The `next:` value is
+// The byte face is v1-pinned: the key words (status · handoff) are pin-enforced by
+// the CapsuleKey type and the emit signature — a data-only change cannot reshape
+// them. What rides the injected Words table (the single word-table instance) is the
+// `·` separator, the `next:` station anchor and the route/status vocabulary — a
+// second table is excluded by construction. The `next:` value is
 // either a caller-rendered string or the C5 Route rendered through the route-word
 // table as a COMPLETE EXECUTABLE command (P4.1 T4 — the v1.39 semantic-literal
 // reversal): `implement --plan <path> --tasks 17` · `review --type phase-spec --spec
@@ -54,15 +61,16 @@ import type { CapsuleKey, Words } from "./words.ts";
 export type CapsuleChannelRow = RouteChannelRow;
 
 /**
- * Capsule — the single capsule output face. emit(status, blocker, handoff, hop?,
- * withHandoff?) renders one round's facts into the byte-pinned `status · blocker ·
- * handoff` line plus the optional `next:` line. The key words are the CapsuleKey
- * literals the kind loop renders (pin-enforced by the emit signature); the
- * separator, station and route/status words ride the injected Words instance. The
- * complete executable `next:` literal composes its full argv from the injected
- * `NextHop`'s route + target through the argv-channel flag spellings (P4.1 T4; same
- * channel source the parse reads — the hop is optional, the channel an optional 2nd
- * constructor argument).
+ * Capsule — the single capsule output face. emit(status, handoff, hop?,
+ * withHandoff?, summary?) renders one round's facts into the byte-pinned `status ·
+ * handoff` line, the fix round's optional disposition summary, and the optional
+ * `next:` line LAST (the dispatchable literal closes the output). The key words are
+ * the CapsuleKey literals the kind loop renders (pin-enforced by the emit
+ * signature); the separator, station and route/status words ride the injected Words
+ * instance. The complete executable `next:` literal composes its full argv from the
+ * injected `NextHop`'s route + target through the argv-channel flag spellings (P4.1
+ * T4; same channel source the parse reads — the hop is optional, the channel an
+ * optional 2nd constructor argument).
  */
 export class Capsule {
   /** The single word table — the capsule's whole vocabulary source. */
@@ -85,22 +93,28 @@ export class Capsule {
     this.#route = new RouteRenderer(words, channels, host, root);
   }
 
-  /** emit(status, blocker, handoff, hop, withHandoff) → the capsule stdout lines:
+  /** emit(status, handoff, hop, withHandoff, summary) → the capsule stdout lines:
    *  the status-class key set from the word table (a success status renders
-   *  `status · blocker · handoff`; a failure status renders `status`, plus `handoff`
-   *  only when the round wrote a crash record), then the optional `next:` line.
-   *  `hop` is the ONE injected `NextHop` object — its ABSENCE (null: the BLOCKED /
-   *  TIMEOUT failure face) prints no `next:` line at all, while a present object
-   *  renders through the shared hop face (`RouteRenderer#renderHop`: the soft-cap
-   *  message · the in-line hop · the face-to-face station · the BLOCKED face · the
-   *  terminal word). `withHandoff` is the caller's crash-record fact — the key set
-   *  remains the table's single source (this render adds no status special case). */
+   *  `status · handoff`; a failure status renders `status`, plus `handoff` only when
+   *  the round wrote a crash record), then the fix round's optional summary line,
+   *  then the optional `next:` line LAST — the dispatchable literal is the output's
+   *  close. `hop` is the ONE injected `NextHop` object — its ABSENCE (null: the
+   *  BLOCKED / TIMEOUT failure face) prints no `next:` line at all, while a present
+   *  object renders through the shared hop face (`RouteRenderer#renderHop`: the
+   *  soft-cap message · the in-line hop · the face-to-face station · the BLOCKED
+   *  face · the terminal word). `withHandoff` is the caller's crash-record fact — the
+   *  key set remains the table's single source (this render adds no status special
+   *  case).
+   *
+   *  Five parameters is one over the flat-signature limit: the positional face IS the
+   *  pinned contract (the seam's emit signature), so it stays flat rather than boxed
+   *  into a parameter object. */
   emit(
     status: string,
-    blocker: string,
     handoff: string,
     hop?: NextHop | null,
     withHandoff = false,
+    summary?: string,
   ): string[] {
     const words = this.#words;
     // The `handoff:` cell is a path value — normalized to the repoRoot-relative
@@ -108,7 +122,6 @@ export class Capsule {
     // it absolute).
     const cells: Record<CapsuleKey, string> = {
       status,
-      blocker,
       handoff: this.#rel(handoff),
     };
     const capsuleLine = words
@@ -116,6 +129,7 @@ export class Capsule {
       .map((kind) => `${kind}: ${cells[kind]}`)
       .join(words.capsuleSeparator());
     const lines = [capsuleLine];
+    if (summary !== undefined) lines.push(summary);
     const next = this.#route.renderHop(hop ?? null);
     if (next !== null) lines.push(`${words.station("next")} ${next}`);
     return lines;

@@ -235,8 +235,9 @@ export interface DispatchOutcome {
   violations?: readonly RoundViolation[];
   /** The fix round's ONE summary line (`fixed N · rejected M`, design spec §3.4) —
    *  computed at the round's finish from the persisted dispositions and the
-   *  requesting carrier's input set. A face fact only: it is printed after the
-   *  capsule and never stored on the record or the carrier. Absent off the fix face. */
+   *  requesting carrier's input set. A face fact only: it rides the capsule render
+   *  between the status line and the trailing `next:` literal (P22 §10), and is
+   *  never stored on the record or the carrier. Absent off the fix face. */
   dispositionsSummary?: string;
 }
 
@@ -252,17 +253,19 @@ export type DispatchStep = (frame: OpenFrame) => Promise<DispatchOutcome>;
  *  attachCapsule only renders the step's round facts when a capsule is connected. */
 export interface CapsuleFace {
   /** Render the capsule lines for one round's facts — the status-class key set
-   *  (`status · blocker · handoff` on success; `status` plus the crash `handoff` on
+   *  (`status · handoff` on success; `status` plus the crash `handoff` on
    *  TIMEOUT/BLOCKED) via the face's word table. `hop` is the ONE `NextHop` object the
    *  round renders (P22 §5.2) — its ABSENCE (`null`: the failure face) prints no
    *  `next:` line; the capsule itself judges nothing. `withHandoff` is the round's
-   *  crash-record fact (the failure handoff cell). */
+   *  crash-record fact (the failure handoff cell). `summary` is the fix round's ONE
+   *  disposition line, rendered between the status line and the trailing `next:`
+   *  literal (P22 §10 — `next:` closes the output). */
   emit(
     status: string,
-    blocker: string,
     handoff: string,
     hop?: NextHop | null,
     withHandoff?: boolean,
+    summary?: string,
   ): string[];
 }
 
@@ -866,22 +869,18 @@ export class Lifecycle {
   }
 
   /** The capsule lines of one step — empty unless a capsule is attached (the non-hard
-   *  interaction point). A success round carries the real blocker count and the
-   *  handoff carrier path. A failure round (TIMEOUT / BLOCKED) carries no blocker
-   *  cell (its count would be a filler); its handoff cell is the crash record and is
-   *  emitted only when that record exists (a no-host BLOCKED writes none). The
-   *  dispatch-ready `next:` literal rides the frame's own RouteTarget identity
-   *  (type + id — the v1.25 combination point: frame.type + params.tasks + route
-   *  are all present here). The fix round's disposition summary is the ONE trailing
-   *  line AFTER the capsule (design spec §3.4 — a separate stdout line, never a
-   *  capsule key). */
+   *  interaction point). A success round carries the handoff carrier path; a failure
+   *  round (TIMEOUT / BLOCKED) carries the crash record as its handoff cell, emitted
+   *  only when that record exists (a no-host BLOCKED writes none). The fix round's
+   *  disposition summary is handed to the capsule as its `summary` — the render places
+   *  it between the status line and the trailing `next:` literal (P22 §10). */
   #capsuleLines(
     frame: OpenFrame,
     outcome: DispatchOutcome,
     hop: NextHop | null,
   ): readonly string[] {
-    const summary = outcome.dispositionsSummary === undefined ? [] : [outcome.dispositionsSummary];
-    if (this.#capsule === null) return summary;
+    const summary = outcome.dispositionsSummary;
+    if (this.#capsule === null) return summary === undefined ? [] : [summary];
     const op = this.#opOf(frame.phase);
     const failure = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     const naming = this.#ledger.naming();
@@ -890,17 +889,11 @@ export class Lifecycle {
     // round's handoff carrier path. The name derives from the frame through the ONE
     // naming source (`RoundNaming`), the same name the lifecycle wrote it under.
     const crash = failure ? this.#ledger.readCrash(naming.crashName(frame)) : null;
-    const blockers = (outcome.findings ?? []).filter(
-      (finding) => finding.severity === "blocker",
-    ).length;
     const handoff =
       crash !== null
         ? naming.crashPath(frame)
         : this.#ledger.handoffPath(op, frame.type, frame.params);
-    return [
-      ...this.#capsule.emit(outcome.status, String(blockers), handoff, hop, crash !== null),
-      ...summary,
-    ];
+    return this.#capsule.emit(outcome.status, handoff, hop, crash !== null, summary);
   }
 
   /** The frame's RouteTarget — the dispatch-ready literal's target identity (the

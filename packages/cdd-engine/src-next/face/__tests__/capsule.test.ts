@@ -46,7 +46,7 @@ const hopOf = (
 
 /** The next-text of a capsule emit (the second line, the station prefix stripped). */
 const literalOf = (route: Route, target?: RouteTarget): string => {
-  const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", hopOf(route, target));
+  const lines = new Capsule(new Words()).emit("APPROVED", "/h.json", hopOf(route, target));
   return lines[1]!.slice("next: ".length);
 };
 
@@ -203,7 +203,6 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
     const capsule = new Capsule(new Words(), {}, "", new RepoRoot(repo));
     const lines = capsule.emit(
       "CHANGES_REQUESTED",
-      "1",
       `${repo}/.kairos/cdd/p3/tasks-1-review-1.json`,
       hopOf(
         { kind: "fix", reviews: `${repo}/.kairos/cdd/p3/tasks-1-review-1.json` },
@@ -263,7 +262,6 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
     const root = new RepoRoot(repo);
     const lines = new Capsule(new Words(), {}, host, root).emit(
       "APPROVED",
-      "0",
       "/h.json",
       hopOf({ kind: "done" }, target ?? null, (candidate) => BoardView.docClassOf(root, candidate)),
     );
@@ -305,7 +303,6 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
       const root = new RepoRoot(repo);
       return new Capsule(new Words(), {}, host, root).emit(
         "APPROVED",
-        "0",
         "/h.json",
         hopOf({ kind: "done" }, phaseSpec, (candidate) => BoardView.docClassOf(root, candidate)),
       )[1]!;
@@ -378,7 +375,7 @@ describe("P22 §5.2 — the six-row render freeze", () => {
   /** The next line of a capsule over the injected hop (null = the second line). */
   const nextOf = (hop: NextHop | null): string | null => {
     const root = new RepoRoot(repo);
-    const lines = new Capsule(new Words(), {}, "", root).emit("APPROVED", "0", "/h.json", hop);
+    const lines = new Capsule(new Words(), {}, "", root).emit("APPROVED", "/h.json", hop);
     return lines[1] ?? null;
   };
 
@@ -388,13 +385,11 @@ describe("P22 §5.2 — the six-row render freeze", () => {
   };
 
   it("① a NextHop ABSENT (BLOCKED / TIMEOUT) prints no next line — the three keys stay byte-identical", () => {
-    expect(new Capsule(new Words()).emit("BLOCKED", "0", "/h.json", null)).toEqual([
-      "status: BLOCKED",
-    ]);
+    expect(new Capsule(new Words()).emit("BLOCKED", "/h.json", null)).toEqual(["status: BLOCKED"]);
     expect(nextOf(null)).toBeNull();
     // the success face's three keys are untouched by the converged render
-    expect(new Capsule(new Words()).emit("APPROVED", "0", "/h.json", null)[0]).toBe(
-      "status: APPROVED · blocker: 0 · handoff: /h.json",
+    expect(new Capsule(new Words()).emit("APPROVED", "/h.json", null)[0]).toBe(
+      "status: APPROVED · handoff: /h.json",
     );
   });
 
@@ -466,5 +461,40 @@ describe("P22 §5.2 — the six-row render freeze", () => {
       expect(hop.hop).toBeNull();
       expect(nextOf(hop)).not.toBeNull();
     }
+  });
+});
+
+describe("P22 §10 — the two-key capsule and the `next:` close", () => {
+  it("① a success round renders `status · handoff` — the blocker cell is gone", () => {
+    const lines = new Capsule(new Words()).emit("APPROVED", "/h.json");
+    expect(lines).toEqual(["status: APPROVED · handoff: /h.json"]);
+    expect(lines[0]).not.toContain("blocker:");
+  });
+
+  it("② the fix round's summary sits between the status line and the trailing `next:` line", () => {
+    const lines = new Capsule(new Words()).emit(
+      "APPROVED",
+      "/h.json",
+      hopOf({ kind: "done" }),
+      false,
+      "fixed 1 · rejected 0",
+    );
+    expect(lines).toEqual([
+      "status: APPROVED · handoff: /h.json",
+      "fixed 1 · rejected 0",
+      "next: done",
+    ]);
+  });
+
+  it("③ the failure face is byte-unchanged — it never printed a blocker cell", () => {
+    expect(new Capsule(new Words()).emit("BLOCKED", "/h.json")).toEqual(["status: BLOCKED"]);
+    expect(new Capsule(new Words()).emit("TIMEOUT", "/h.json", null, true)).toEqual([
+      "status: TIMEOUT · handoff: /h.json",
+    ]);
+  });
+
+  it("④ a non-fix round carries no summary line — the plain two-line shape", () => {
+    const lines = new Capsule(new Words()).emit("APPROVED", "/h.json", hopOf({ kind: "done" }));
+    expect(lines).toEqual(["status: APPROVED · handoff: /h.json", "next: done"]);
   });
 });

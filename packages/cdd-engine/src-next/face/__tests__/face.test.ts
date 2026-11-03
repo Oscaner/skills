@@ -4,11 +4,11 @@
 //     station words, the guard ban words, the locale rows), with zero second
 //     tables — the capsule's every emitted word is
 //     looked up on the same Words instance;
-//   · the byte pin — Capsule#emit renders the `status · blocker · handoff` line
-//     and the optional `next:` line byte-stably (every route row rendered);
+//   · the byte pin — Capsule#emit renders the `status · handoff` line and the
+//     optional `next:` line byte-stably (every route row rendered, `next:` last);
 //   · the word-face comparison — the v1 emitted face is byte-identical to the
-//     existing consumed word face (status · blocker · handoff · next:) — same
-//     words, no re-judgment: a steady state, not a compatibility shim;
+//     existing consumed word face (status · handoff · next:) — same words, no
+//     re-judgment: a steady state, not a compatibility shim;
 //   · the locale face (T19) — the word table's locale columns: the locale key set
 //     (the langs projection source), the issue-label rows (one per finding type ×
 //     segment) + the charter anchor rows (the P7 canonicalize data — charter.*), and
@@ -46,11 +46,11 @@ const hopOf = (route: Route, target: RouteTarget | null = null): NextHop =>
 describe("the word table — one table, three families", () => {
   it("the capsule family — the pinned keys, the stations, the status vocabulary", () => {
     // The key set is a function of the status class + the crash-record fact: a
-    // success status renders the full face; a failure status (TIMEOUT / BLOCKED)
-    // drops the blocker cell and keeps handoff only when a crash record was written.
-    expect(words.capsuleKeys("APPROVED", true)).toEqual(["status", "blocker", "handoff"]);
-    expect(words.capsuleKeys("CHANGES_REQUESTED", false)).toEqual(["status", "blocker", "handoff"]);
-    expect(words.capsuleKeys("REVIEW_FIX", true)).toEqual(["status", "blocker", "handoff"]);
+    // success status renders the two-key face; a failure status (TIMEOUT / BLOCKED)
+    // keeps handoff only when a crash record was written.
+    expect(words.capsuleKeys("APPROVED", true)).toEqual(["status", "handoff"]);
+    expect(words.capsuleKeys("CHANGES_REQUESTED", false)).toEqual(["status", "handoff"]);
+    expect(words.capsuleKeys("REVIEW_FIX", true)).toEqual(["status", "handoff"]);
     expect(words.capsuleKeys("TIMEOUT", false)).toEqual(["status"]);
     expect(words.capsuleKeys("BLOCKED", false)).toEqual(["status"]);
     expect(words.capsuleKeys("TIMEOUT", true)).toEqual(["status", "handoff"]);
@@ -90,7 +90,6 @@ describe("the word table — one table, three families", () => {
   it("the capsule carries zero second table — every emitted word rides this instance", () => {
     const emitted = capsule.emit(
       "APPROVED",
-      "0",
       "/ws/tasks-1-implement.json",
       hopOf({ kind: "review" }),
     );
@@ -107,59 +106,57 @@ describe("the word table — one table, three families", () => {
 
 describe("the capsule byte pin — the single output face", () => {
   it("renders the capsule line byte-stably (the status-class key set)", () => {
-    expect(capsule.emit("APPROVED", "0", "/ws/tasks-1-implement.json")).toEqual([
-      "status: APPROVED · blocker: 0 · handoff: /ws/tasks-1-implement.json",
+    expect(capsule.emit("APPROVED", "/ws/tasks-1-implement.json")).toEqual([
+      "status: APPROVED · handoff: /ws/tasks-1-implement.json",
     ]);
-    // A failure status drops the blocker cell — its value would be a filler, never a
-    // fact (the summary line's de-faked face).
-    expect(capsule.emit("BLOCKED", "1", "/ws/branch-review-a1b2c3d..e4f5g6h-r1.json")).toEqual([
+    // A failure status renders the status cell alone — the handoff cell rides it only
+    // when a crash record exists, and no blocker cell was ever part of this face.
+    expect(capsule.emit("BLOCKED", "/ws/branch-review-a1b2c3d..e4f5g6h-r1.json")).toEqual([
       "status: BLOCKED",
     ]);
     // …and keeps handoff only when the round wrote a crash record (withHandoff).
-    expect(capsule.emit("TIMEOUT", "", "/ws/crash-improve.wave-1.json", null, true)).toEqual([
+    expect(capsule.emit("TIMEOUT", "/ws/crash-improve.wave-1.json", null, true)).toEqual([
       "status: TIMEOUT · handoff: /ws/crash-improve.wave-1.json",
     ]);
   });
 
   it("renders the `next:` line per the C5 route row (each kind, only present facts)", () => {
-    expect(capsule.emit("APPROVED", "0", "/h.json", hopOf({ kind: "done" }))).toEqual([
-      "status: APPROVED · blocker: 0 · handoff: /h.json",
+    expect(capsule.emit("APPROVED", "/h.json", hopOf({ kind: "done" }))).toEqual([
+      "status: APPROVED · handoff: /h.json",
       "next: done",
     ]);
-    expect(
-      capsule.emit("APPROVED", "0", "/h.json", hopOf({ kind: "next-wave", tasks: "7,9" })),
-    ).toEqual([
-      "status: APPROVED · blocker: 0 · handoff: /h.json",
-      // P4.1 T4 — the complete executable literal; the absent target seeds the
-      // `<plan>` placeholder (the crash-resume's own seed convention)
-      "next: implement --plan <plan> --tasks 7,9",
-    ]);
-    expect(capsule.emit("REVIEW_FIX", "0", "/h.json", hopOf({ kind: "review" }))).toEqual([
-      "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
+    expect(capsule.emit("APPROVED", "/h.json", hopOf({ kind: "next-wave", tasks: "7,9" }))).toEqual(
+      [
+        "status: APPROVED · handoff: /h.json",
+        // P4.1 T4 — the complete executable literal; the absent target seeds the
+        // `<plan>` placeholder (the crash-resume's own seed convention)
+        "next: implement --plan <plan> --tasks 7,9",
+      ],
+    );
+    expect(capsule.emit("REVIEW_FIX", "/h.json", hopOf({ kind: "review" }))).toEqual([
+      "status: REVIEW_FIX · handoff: /h.json",
       // the bare review fallback (no target — the type discriminator is absent)
       "next: review",
     ]);
     expect(
       capsule.emit(
         "CHANGES_REQUESTED",
-        "1",
         "/h.json",
         hopOf({ kind: "fix", reviews: "tasks-1-review-1.json" }),
       ),
     ).toEqual([
-      "status: CHANGES_REQUESTED · blocker: 1 · handoff: /h.json",
+      "status: CHANGES_REQUESTED · handoff: /h.json",
       `next: fix --reviews tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
     ]);
     // a fix route without its input renders the bare classifier
-    expect(capsule.emit("CHANGES_REQUESTED", "1", "/h.json", hopOf({ kind: "fix" }))).toEqual([
-      "status: CHANGES_REQUESTED · blocker: 1 · handoff: /h.json",
+    expect(capsule.emit("CHANGES_REQUESTED", "/h.json", hopOf({ kind: "fix" }))).toEqual([
+      "status: CHANGES_REQUESTED · handoff: /h.json",
       "next: fix",
     ]);
     // the soft-cap message rides verbatim — the user-adjudication station
     expect(
       capsule.emit(
         "BLOCKED",
-        "0",
         "/h.json",
         hopOf({ kind: "soft-cap", message: "BLOCKED: review-cycle-cap — user adjudicates" }),
       ),
@@ -171,20 +168,19 @@ describe("the capsule byte pin — the single output face", () => {
     // a re-review of a wave — `review --type wave --tasks {tasks} --plan <path>`
     // (the review carries no commit ref; parse needs type + tasks, the
     // runtime-required --plan rides the frame's plan fact — find #7)
-    expect(capsule.emit("REVIEW_FIX", "0", "/h.json", hopOf({ kind: "review" }, target))).toEqual([
-      "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
+    expect(capsule.emit("REVIEW_FIX", "/h.json", hopOf({ kind: "review" }, target))).toEqual([
+      "status: REVIEW_FIX · handoff: /h.json",
       "next: review --type wave --tasks 1,2 --plan docs/kairos/plans/p.md",
     ]);
     // the one-way fix hop — `fix --type wave --tasks {tasks} --plan <p> --reviews <f>`
     expect(
       capsule.emit(
         "CHANGES_REQUESTED",
-        "1",
         "/h.json",
         hopOf({ kind: "fix", reviews: "tasks-1,2-review-1.json" }, target),
       ),
     ).toEqual([
-      "status: CHANGES_REQUESTED · blocker: 1 · handoff: /h.json",
+      "status: CHANGES_REQUESTED · handoff: /h.json",
       `next: fix --type wave --tasks 1,2 --plan docs/kairos/plans/p.md --reviews tasks-1,2-review-1.json ${FIX_READBACK_SUFFIX}`,
     ]);
     // the other target types render their discriminator arg — branch (the
@@ -193,31 +189,29 @@ describe("the capsule byte pin — the single output face", () => {
     expect(
       capsule.emit(
         "REVIEW_FIX",
-        "0",
         "/h.json",
         hopOf({ kind: "review" }, { type: "branch", id: "branch", plan: "docs/kairos/plans/p.md" }),
       ),
     ).toEqual([
-      "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
+      "status: REVIEW_FIX · handoff: /h.json",
       "next: review --type branch --plan docs/kairos/plans/p.md",
     ]);
     expect(
       capsule.emit(
         "REVIEW_FIX",
-        "0",
         "/h.json",
         hopOf({ kind: "review" }, { type: "phase-spec", id: "docs/kairos/specs/x-design.md" }),
       ),
     ).toEqual([
-      "status: REVIEW_FIX · blocker: 0 · handoff: /h.json",
+      "status: REVIEW_FIX · handoff: /h.json",
       "next: review --type phase-spec --spec docs/kairos/specs/x-design.md",
     ]);
     // implement renders NO `--type` — the single-type wave verb (the declaration's
     // `parsed.args.type ?? "wave"` default unchanged; the plan rides the plan path)
     expect(
-      capsule.emit("APPROVED", "0", "/h.json", hopOf({ kind: "next-wave", tasks: "1,2" }, target)),
+      capsule.emit("APPROVED", "/h.json", hopOf({ kind: "next-wave", tasks: "1,2" }, target)),
     ).toEqual([
-      "status: APPROVED · blocker: 0 · handoff: /h.json",
+      "status: APPROVED · handoff: /h.json",
       "next: implement --plan docs/kairos/plans/p.md --tasks 1,2",
     ]);
   });
@@ -225,38 +219,38 @@ describe("the capsule byte pin — the single output face", () => {
   it("an ABSENT NextHop emits no `next:` line — `hop: null` still prints its frozen row", () => {
     // The failure face: the object is absent (never a `hop: null` shape), so no
     // second line rides the capsule.
-    expect(capsule.emit("BLOCKED", "engine over budget", "/h.json")).toEqual(["status: BLOCKED"]);
-    expect(capsule.emit("TIMEOUT", "0", "/h.json", null)).toEqual(["status: TIMEOUT"]);
+    expect(capsule.emit("BLOCKED", "/h.json")).toEqual(["status: BLOCKED"]);
+    expect(capsule.emit("TIMEOUT", "/h.json", null)).toEqual(["status: TIMEOUT"]);
     // The counterexample the frozen table rests on: a PRESENT object whose `hop` is
     // null (`done` with no target → the terminal row) still prints `next: done`.
-    expect(capsule.emit("APPROVED", "0", "/h.json", hopOf({ kind: "done" }))).toEqual([
-      "status: APPROVED · blocker: 0 · handoff: /h.json",
+    expect(capsule.emit("APPROVED", "/h.json", hopOf({ kind: "done" }))).toEqual([
+      "status: APPROVED · handoff: /h.json",
       "next: done",
     ]);
   });
 
-  it("the blocker cell carries a count or a reason text — the cell stays a plain string (success statuses)", () => {
-    expect(
-      capsule.emit("CHANGES_REQUESTED", "CDD_BLOCKED: resolve the finding", "/h.json")[0],
-    ).toBe(
-      "status: CHANGES_REQUESTED · blocker: CDD_BLOCKED: resolve the finding · handoff: /h.json",
+  it("the retired blocker cell — the grade rides `status`, the line carries two keys", () => {
+    // The count that used to ride its own cell is derivable from the status (any
+    // blocker ⇒ CHANGES_REQUESTED), so the line stays two keys on every grade.
+    expect(capsule.emit("CHANGES_REQUESTED", "/h.json")[0]).toBe(
+      "status: CHANGES_REQUESTED · handoff: /h.json",
     );
+    expect(capsule.emit("CHANGES_REQUESTED", "/h.json")[0]).not.toContain("blocker:");
   });
 });
 
 describe("the word-face comparison — v1 face vs the existing consumed face", () => {
   it("the v1 emitted word face is byte-identical to the existing consumed face (same words, no re-judgment)", () => {
     // The existing machine face consumers grep / route on — the steady vocabulary
-    // (status · blocker · handoff · next:). v1 keeps the same four words: a rename
-    // breaks this literal pin — a steady state, never a compatibility shim.
-    expect(capsule.emit("APPROVED", "0", "/ws/tasks-1-implement.json")[0]).toBe(
-      "status: APPROVED · blocker: 0 · handoff: /ws/tasks-1-implement.json",
+    // (status · handoff · next:). v1 keeps the same words: a rename breaks this
+    // literal pin — a steady state, never a compatibility shim.
+    expect(capsule.emit("APPROVED", "/ws/tasks-1-implement.json")[0]).toBe(
+      "status: APPROVED · handoff: /ws/tasks-1-implement.json",
     );
-    // the four word cells of the face, in the emitted order — the existing consumed
+    // the word cells of the face, in the emitted order — the existing consumed
     // order the comparison keys on
     expect([...words.capsuleKeys("APPROVED", false), words.station("next")]).toEqual([
       "status",
-      "blocker",
       "handoff",
       "next:",
     ]);
@@ -266,13 +260,10 @@ describe("the word-face comparison — v1 face vs the existing consumed face", (
 describe("the T8 run seam — the capsule plugs into the lifecycle interaction point", () => {
   it("Capsule satisfies the CapsuleFace contact (attachCapsule's type)", () => {
     // Compile-time pin — fails under `tsc --noEmit` if the capsule's emit surface
-    // drifts from the seam the run attaches (status · blocker · handoff · next).
+    // drifts from the seam the run attaches (status · handoff · next).
     const seam: CapsuleFace = capsule;
-    const lines = seam.emit("APPROVED", "0", "/ws/tasks-1-implement.json", hopOf({ kind: "done" }));
-    expect(lines).toEqual([
-      "status: APPROVED · blocker: 0 · handoff: /ws/tasks-1-implement.json",
-      "next: done",
-    ]);
+    const lines = seam.emit("APPROVED", "/ws/tasks-1-implement.json", hopOf({ kind: "done" }));
+    expect(lines).toEqual(["status: APPROVED · handoff: /ws/tasks-1-implement.json", "next: done"]);
   });
 });
 
@@ -320,6 +311,6 @@ describe("the locale face — the word-table locale columns (T19, the P7 transla
     expect(translator.localize("status", "zh")).toBeNull();
     expect(translator.localize("APPROVED", "zh")).toBeNull();
     // the byte pin stays English — the capsule emits the machine words verbatim
-    expect(capsule.emit("APPROVED", "0", "/h.json", hopOf({ kind: "done" }))[1]).toBe("next: done");
+    expect(capsule.emit("APPROVED", "/h.json", hopOf({ kind: "done" }))[1]).toBe("next: done");
   });
 });

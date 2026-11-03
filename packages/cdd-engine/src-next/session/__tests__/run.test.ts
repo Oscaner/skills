@@ -1069,7 +1069,7 @@ describe("P21 §4.2 — the wave closure's next: reads the branch line's open fa
 });
 
 describe("P22 §5.2 — the capsule's NextHop absence on the failure face", () => {
-  it("(g) a BLOCKED round prints no `next:` line, and the success face's three keys stay byte-identical", async () => {
+  it("(g) a BLOCKED round prints no `next:` line, and the success face's two keys stay byte-identical", async () => {
     const { ledger, cleanup } = fixture();
     try {
       const graph = taskGraph([task(1, "none")]);
@@ -1092,10 +1092,11 @@ describe("P22 §5.2 — the capsule's NextHop absence on the failure face", () =
       expect(failure!.capsuleLines).toEqual(["status: BLOCKED"]);
       expect(failure!.capsuleLines.some((line) => line.startsWith("next:"))).toBe(false);
 
-      // The success face keeps the three pinned keys, byte-for-byte.
+      // The success face keeps the two pinned keys, byte-for-byte.
       blocked = false;
       const success = await run.advance();
-      expect(success!.capsuleLines[0]).toMatch(/^status: APPROVED · blocker: \d+ · handoff: .+/);
+      expect(success!.capsuleLines[0]).toMatch(/^status: APPROVED · handoff: .+/);
+      expect(success!.capsuleLines[0]).not.toContain("blocker:");
       expect(success!.capsuleLines[1]).toMatch(/^next: /);
     } finally {
       cleanup();
@@ -1120,7 +1121,7 @@ describe("the capsule interaction seam — non-hard consumption", () => {
       expect(silent!.capsuleLines).toEqual([]);
 
       const capsule: CapsuleFace = {
-        emit: (status, blocker, handoff) => [`${status}: ${blocker} · ${handoff}`],
+        emit: (status, handoff) => [`${status}: ${handoff}`],
       };
       run.attachCapsule(capsule);
       const rendered = await run.advance();
@@ -1134,10 +1135,8 @@ describe("the capsule interaction seam — non-hard consumption", () => {
   it("the interaction seam accepts a plain route-less emit — the interface shape is pinned", () => {
     // Compile-time pins — this file fails under `tsc --noEmit` if the seam surface
     // drifts from the face/capsule contact (T10's Capsule satisfies the same type).
-    const seam: CapsuleFace["emit"] = (status, blocker, handoff) => [
-      `${status} ${blocker} ${handoff}`,
-    ];
-    expect(seam("APPROVED", "0", "/ws/h.json")).toEqual(["APPROVED 0 /ws/h.json"]);
+    const seam: CapsuleFace["emit"] = (status, handoff) => [`${status} ${handoff}`];
+    expect(seam("APPROVED", "/ws/h.json")).toEqual(["APPROVED /ws/h.json"]);
   });
 });
 

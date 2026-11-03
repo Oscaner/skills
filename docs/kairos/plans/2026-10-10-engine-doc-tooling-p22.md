@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 计划：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: plan
-version: v0.15
+version: v0.16
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 base: develop
@@ -568,10 +568,41 @@ Task 1–12 的全部产物。
 #### DependsOn
 16
 
+### Task 18: 输出面收口（capsule 两键 + `next:` 收尾）
+
+#### Objective
+capsule 从 `status · blocker · handoff` 收为 `status · handoff`（`blocker` 格可由 `status` 推出，且是 #402 comment 判定不展示的数量），并把 fix 轮的 `fixed N · rejected M` 移到 `status` 行之后、`next:` 之前——**`next:` 收尾**。
+
+#### Files
+- Modify: `packages/cdd-engine/src-next/face/capsule.ts`（emit 签名与两键渲染 · 类注释）· `packages/cdd-engine/src-next/session/run.ts`（`#capsuleLines` 的行序 · 删那一处 blocker 计数）· `packages/cdd-engine/README.md` + `README.zh-CN.md`（capsule 行）· `.changeset/p22-output-face.md`（新）· 消费面 skill 若引用该形状
+- Test: `packages/cdd-engine/src-next/face/__tests__/capsule.test.ts` · `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`
+
+#### Consumes
+`Capsule#emit`（现有四/五参签名）· `FIX_DISPOSITIONS_SUMMARY`（`face/words.ts` 模板）· `#capsuleLines`（`session/run.ts` 的行序装配点）。
+
+#### Produces
+- `Capsule#emit(status, handoff, hop?, withHandoff?, summary?)` → 三行形态：`status · handoff`（+ 摘要行，当有）+ `next:` 行。
+- `#capsuleLines` 返回顺序：capsule 的 `status · handoff` 行 → （fix 轮）`fixed N · rejected M` → `next:` 行。
+- `#capsuleLines` 内那次 `blockers` 计数删除（判据侧的 `blockerCount` 不动）。
+- `.changeset/p22-output-face.md`：`cdd-engine` **minor**。
+
+#### Steps
+- [ ] **Step 1: 写失败用例** —— (a) 成功轮的 capsule 行为 `status: … · handoff: …`（**不含** `blocker:`）；(b) fix 轮的三行顺序为 `status` → `fixed N · rejected M` → `next:`（断言行序，不只断存在）；(c) 失败轮（BLOCKED/TIMEOUT）字节**不变**（本来就不印 `blocker`）；(d) 非 fix 轮没有摘要行。 — checkable: 四组用例先红（现行为带 `blocker:` 且摘要行在末尾）
+- [ ] **Step 2: 改 emit 与行序** —— capsule 的 emit 收为两键 + 可选摘要行；`#capsuleLines` 按新序装配并删掉局部 blocker 计数。 — checkable: `grep -rn "blocker:" packages/cdd-engine/src-next/face/capsule.ts` 零命中
+- [ ] **Step 3: 重锚 pins 与文档** —— capsule / cli 的形状断言改到两键（断言不删）；两份 README 的 capsule 行、skill 引用同批改；changeset 落地。 — checkable: `grep -rn "status · blocker · handoff" packages/cdd-engine/README.md README.zh-CN.md packages/kairos/skills | wc -l` 为 0
+- [ ] **Step 4: 跑绿 + 提交** —— `env -u AI_AGENT pnpm run validate` → PASS。 — checkable: `env -u AI_AGENT pnpm run validate` exit 0
+
+#### Acceptance
+成功轮 capsule 为 `status · handoff`（无 `blocker:`）· fix 轮行序为 `status` → 摘要 → `next:`（`next:` 收尾）· 失败轮字节不变 · 非 fix 轮无摘要行 · README 双语与 skill 引用零残留 `status · blocker · handoff` · changeset engine minor · 全量 validate exit 0。
+
+#### DependsOn
+17
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.16 | 2026-11-03 | **T18 入库（用户裁定 · 重开 P22）**：输出面收口——capsule 收为 `status · handoff` 两键（`blocker` 格可推导且属不展示的数量）· `next:` 收尾（fix 摘要移到 `status` 之后、`next:` 之前）；deliberate 字节破坏、pins 同批重锚、engine minor。W12 独占一层 | Oscaner M. · Claude（kairos:cdd-close · reopen append · 2026-11-03） |
 | v0.15 | 2026-11-03 | **T17 补板面同源（W11 实施后的现场观测）**：gate 放行后 `board` 仍印 `branch ✔ closed`——分支标记与 gate 各读一份事实。T17 的 Files 增 `face/board-view.ts`，Steps 增「板面同源」一步，Acceptance 增跨面 pin（标记与放行结论一致） | Oscaner M. · Claude（kairos:cdd-dev · task backfill · 2026-11-03） |
 | v0.14 | 2026-11-03 | **T17 入库（用户裁定）**：计划漂移必须重开分支面——`lineGate` 的漂移感知腿只覆盖 `plan`/`spec`，分支面落到 `#linePhase` 后恒 `face-closed`（实测 `next:` 建议 branch 复审、随即被同一门拒绝）。W11 独占一层 | Oscaner M. · Claude（kairos:cdd-dev · scope append · 2026-11-03） |
 | v0.13 | 2026-11-03 | **T16 验收面收窄（W16 review-1 的 warn · 编排器裁定）**：语料 sweep 只删**文档头部**的 `status:` 行；P10 §2.1 围栏里的 `status: Draft` 是该 phase 自身头部形态的规范引文，围栏不是活文档头部，故回填原行、让冻结 spec 不自我矛盾。Step 3 / Produces / Acceptance 的判据由全语料 `grep -rn '^status:'` 改为 **front-matter 感知**（只读每个文件的首个块），正文围栏内的引文不计 | Oscaner M. · Claude（kairos:cdd-dev · fix-round backfill · 2026-11-03） |

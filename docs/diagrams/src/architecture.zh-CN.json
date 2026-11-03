@@ -2,14 +2,14 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "oscaner-skills — CDD 技能市场架构",
+    "title": "oscaner-skills——CDD 市场、它的引擎与它的判定",
     "locale": "zh-CN",
     "output": "docs/diagrams/architecture.zh-CN.html",
     "quality_profile": "showcase",
     "repository": {
       "url": "https://github.com/Oscaner/skills",
       "provider": "github",
-      "revision": "8840e2f0aaf3a5752ab8c6a62232dd03081f5d38"
+      "revision": "17e60e99e51c93cd4e987fe7e65fbfbcf3b46d4c"
     }
   },
   "components": [
@@ -17,41 +17,91 @@
       "id": "pkg_source",
       "type": "backend",
       "label": "package.json#oscaner",
-      "sublabel": "唯一事实来源",
+      "sublabel": "唯一手写来源",
       "tag": "包即源",
-      "pos": [40, 40],
-      "size": [170, 62],
-      "sources": [{ "path": "packages/kairos/package.json", "line": 41, "end_line": 57 }]
+      "pos": [
+        40,
+        40
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "sources": [
+        {
+          "path": "packages/kairos/package.json",
+          "line": 41,
+          "end_line": 56
+        }
+      ]
     },
     {
       "id": "emit",
       "type": "backend",
       "label": "pnpm emit",
-      "sublabel": "派生所有清单",
-      "pos": [270, 40],
-      "size": [130, 62],
+      "sublabel": "派生全部产物",
+      "pos": [
+        270,
+        40
+      ],
+      "size": [
+        130,
+        62
+      ],
       "sources": [
-        { "path": "scripts/emit.ts", "line": 1, "end_line": 17 },
-        { "path": "scripts/emit.ts", "line": 44, "end_line": 58 }
+        {
+          "path": "scripts/emit.ts",
+          "line": 284,
+          "end_line": 300
+        }
       ]
     },
     {
-      "id": "manifests",
+      "id": "products",
       "type": "database",
-      "label": "harness 清单",
-      "sublabel": ".claude-plugin",
-      "pos": [480, 40],
-      "size": [190, 62],
-      "sources": [{ "path": "scripts/emit.ts", "line": 44, "end_line": 58 }]
+      "label": "派生产物",
+      "sublabel": "source.json · 清单 · issue 表单",
+      "pos": [
+        480,
+        40
+      ],
+      "size": [
+        190,
+        62
+      ],
+      "sources": [
+        {
+          "path": "scripts/emit.ts",
+          "line": 44,
+          "end_line": 53
+        },
+        {
+          "path": "scripts/emit.ts",
+          "line": 301,
+          "end_line": 320
+        }
+      ]
     },
     {
       "id": "npm",
       "type": "cloud",
       "label": "npm registry",
       "sublabel": "@oscaner-skills/*",
-      "pos": [760, 40],
-      "size": [150, 62],
-      "sources": [{ "path": "packages/cdd-engine/package.json", "line": 1, "end_line": 20 }]
+      "pos": [
+        760,
+        40
+      ],
+      "size": [
+        150,
+        62
+      ],
+      "sources": [
+        {
+          "path": "packages/cdd-engine/package.json",
+          "line": 1,
+          "end_line": 20
+        }
+      ]
     },
     {
       "id": "upstream",
@@ -59,27 +109,63 @@
       "label": "上游插件",
       "sublabel": "superpowers · mattpocock",
       "tag": "会话基线",
-      "pos": [500, 160],
-      "size": [180, 62],
-      "sources": [{ "path": "packages/cdd-engine/src-next/face/plugins.ts", "line": 40, "end_line": 92 }]
+      "pos": [
+        500,
+        150
+      ],
+      "size": [
+        180,
+        62
+      ],
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/face/plugins.ts",
+          "line": 40,
+          "end_line": 92
+        }
+      ]
     },
     {
       "id": "dev",
       "type": "external",
       "label": "开发者",
-      "sublabel": "调用 cdd-* 技能",
-      "pos": [40, 290],
-      "size": [140, 72],
-      "sources": [{ "path": "packages/kairos/skills/cdd-dev/SKILL.md", "line": 1, "end_line": 10 }]
+      "sublabel": "调用某个 cdd-* 技能",
+      "pos": [
+        40,
+        300
+      ],
+      "size": [
+        130,
+        72
+      ],
+      "sources": [
+        {
+          "path": "packages/kairos/skills/cdd-dev/SKILL.md",
+          "line": 1,
+          "end_line": 10
+        }
+      ]
     },
     {
       "id": "host",
       "type": "cloud",
       "label": "宿主 harness",
       "sublabel": "Claude Code · Pi",
-      "pos": [240, 290],
-      "size": [180, 72],
-      "sources": [{ "path": "packages/cdd-engine/src-next/face/host.ts", "line": 126, "end_line": 148 }]
+      "pos": [
+        240,
+        300
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/face/host.ts",
+          "line": 126,
+          "end_line": 148
+        }
+      ]
     },
     {
       "id": "kairos",
@@ -87,188 +173,444 @@
       "label": "kairos 插件",
       "sublabel": "6 个 cdd-* 技能",
       "tag": "流程层",
-      "pos": [500, 290],
-      "size": [180, 72],
-      "sources": [{ "path": "packages/kairos/package.json", "line": 25, "end_line": 57 }]
+      "pos": [
+        500,
+        300
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "sources": [
+        {
+          "path": "packages/kairos/package.json",
+          "line": 25,
+          "end_line": 36
+        }
+      ]
     },
     {
       "id": "engine",
       "type": "backend",
       "label": "cdd 引擎 CLI",
-      "sublabel": "确定性的阶段链",
+      "sublabel": "派发 · 判定 · 记录",
       "tag": "8 条命令",
-      "pos": [760, 280],
-      "size": [160, 92],
-      "sources": [{ "path": "packages/cdd-engine/src-next/face/cli.ts", "line": 387, "end_line": 401 }]
+      "pos": [
+        760,
+        290
+      ],
+      "size": [
+        160,
+        92
+      ],
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/face/cli.ts",
+          "line": 387,
+          "end_line": 402
+        }
+      ]
     },
     {
       "id": "contract",
       "type": "backend",
-      "label": "契约面",
-      "sublabel": "schema · 不变量",
-      "pos": [970, 180],
-      "size": [170, 58],
+      "label": "Contract 平面",
+      "sublabel": "规则 · 不变量 · 评级",
+      "pos": [
+        970,
+        180
+      ],
+      "size": [
+        170,
+        58
+      ],
       "sources": [
-        { "path": "packages/cdd-engine/src-next/contract/skill-anatomy.ts", "line": 1, "end_line": 17 }
+        {
+          "path": "packages/cdd-engine/src-next/contract/rules.ts",
+          "line": 145,
+          "end_line": 152
+        },
+        {
+          "path": "packages/cdd-engine/src-next/render/templates.ts",
+          "line": 338,
+          "end_line": 348
+        }
+      ]
+    },
+    {
+      "id": "face",
+      "type": "backend",
+      "label": "Face 平面",
+      "sublabel": "命令 · 门禁 · 输出面",
+      "pos": [
+        970,
+        270
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/face/capsule.ts",
+          "line": 1,
+          "end_line": 12
+        },
+        {
+          "path": "packages/cdd-engine/src-next/face/board-view.ts",
+          "line": 150,
+          "end_line": 160
+        }
+      ]
+    },
+    {
+      "id": "session",
+      "type": "backend",
+      "label": "Session 平面",
+      "sublabel": "下一步 · 账本 · 记录",
+      "tag": "唯一推演",
+      "pos": [
+        970,
+        360
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/session/next.ts",
+          "line": 254,
+          "end_line": 262
+        },
+        {
+          "path": "packages/cdd-engine/src-next/session/next.ts",
+          "line": 299,
+          "end_line": 310
+        }
       ]
     },
     {
       "id": "render",
       "type": "backend",
-      "label": "渲染面",
+      "label": "Render 平面",
       "sublabel": "提示词模板",
-      "tag": "缓存友好",
-      "pos": [970, 270],
-      "size": [170, 58],
-      "sources": [{ "path": "packages/cdd-engine/src-next/render/templates.ts", "line": 128, "end_line": 159 }]
-    },
-    {
-      "id": "session",
-      "type": "backend",
-      "label": "会话面",
-      "sublabel": "next: 路由 · 账本",
-      "pos": [970, 360],
-      "size": [170, 58],
+      "tag": "缓存对齐",
+      "pos": [
+        970,
+        450
+      ],
+      "size": [
+        170,
+        58
+      ],
       "sources": [
-        { "path": "packages/cdd-engine/src-next/session/next.ts", "line": 96, "end_line": 102 },
-        { "path": "packages/cdd-engine/src-next/session/next.ts", "line": 169, "end_line": 205 }
+        {
+          "path": "packages/cdd-engine/src-next/render/templates.ts",
+          "line": 128,
+          "end_line": 159
+        }
       ]
     },
     {
       "id": "infra",
       "type": "backend",
-      "label": "基础设施面",
-      "sublabel": "git · 工作区 · 进程",
-      "pos": [970, 450],
-      "size": [170, 58],
+      "label": "Infra 平面",
+      "sublabel": "git · 工作区 · 日志",
+      "pos": [
+        970,
+        540
+      ],
+      "size": [
+        170,
+        58
+      ],
       "sources": [
-        { "path": "packages/cdd-engine/src-next/infra/workspace.ts", "line": 60, "end_line": 80 },
-        { "path": "packages/cdd-engine/src-next/infra/git.ts", "line": 26, "end_line": 34 }
+        {
+          "path": "packages/cdd-engine/src-next/infra/round-log.ts",
+          "line": 26,
+          "end_line": 34
+        },
+        {
+          "path": "packages/cdd-engine/src-next/infra/workspace.ts",
+          "line": 71,
+          "end_line": 80
+        }
       ]
     },
     {
       "id": "repo",
       "type": "database",
-      "label": "消费方仓库",
-      "sublabel": "git · spec · plan",
-      "pos": [720, 600],
-      "size": [180, 68],
+      "label": "消费者仓库",
+      "sublabel": "git · specs · plans",
+      "pos": [
+        700,
+        660
+      ],
+      "size": [
+        180,
+        68
+      ],
       "sources": [
-        { "path": "packages/cdd-engine/src-next/infra/doc-roots.ts", "line": 26, "end_line": 32 },
-        { "path": "packages/cdd-engine/src-next/infra/git.ts", "line": 26, "end_line": 34 }
+        {
+          "path": "packages/cdd-engine/src-next/infra/doc-roots.ts",
+          "line": 26,
+          "end_line": 32
+        },
+        {
+          "path": "packages/cdd-engine/src-next/infra/git.ts",
+          "line": 26,
+          "end_line": 34
+        }
       ]
     },
     {
       "id": "workspace",
       "type": "database",
       "label": ".kairos/cdd",
-      "sublabel": "handoff · 账本 · 简报",
-      "tag": "自忽略",
-      "pos": [940, 600],
-      "size": [180, 68],
+      "sublabel": "记录 · 日志 · 账本",
+      "tag": "自我忽略",
+      "pos": [
+        930,
+        660
+      ],
+      "size": [
+        180,
+        68
+      ],
       "sources": [
-        { "path": "packages/cdd-engine/src-next/infra/runtime.ts", "line": 114, "end_line": 117 },
-        { "path": "packages/cdd-engine/src-next/infra/workspace.ts", "line": 60, "end_line": 80 }
+        {
+          "path": "packages/cdd-engine/src-next/infra/runtime.ts",
+          "line": 114,
+          "end_line": 117
+        },
+        {
+          "path": "packages/cdd-engine/src-next/session/ledger.ts",
+          "line": 73,
+          "end_line": 122
+        }
       ]
     },
     {
       "id": "ci",
       "type": "security",
       "label": "CI 校验",
-      "sublabel": "emit · 测试 · 类型",
-      "pos": [40, 600],
-      "size": [160, 68],
-      "sources": [{ "path": ".github/workflows/pr-validate.yml", "line": 1, "end_line": 19 }]
+      "sublabel": "7 个 job · emit 漂移",
+      "pos": [
+        40,
+        660
+      ],
+      "size": [
+        160,
+        68
+      ],
+      "sources": [
+        {
+          "path": ".github/workflows/pr-validate.yml",
+          "line": 1,
+          "end_line": 19
+        }
+      ]
     }
   ],
   "boundaries": [
     {
       "kind": "region",
       "label": "cdd-engine 包",
-      "wraps": ["engine", "contract", "render", "session", "infra"],
+      "wraps": [
+        "engine",
+        "contract",
+        "face",
+        "session",
+        "render",
+        "infra"
+      ],
       "pad": 24
     },
     {
       "kind": "region",
-      "label": "消费方仓库",
-      "wraps": ["repo", "workspace"],
+      "label": "消费者仓库",
+      "wraps": [
+        "repo",
+        "workspace"
+      ],
       "pad": 24
     }
   ],
   "connections": [
-    { "id": "pkg-emit", "from": "pkg_source", "to": "emit", "label": "扫描" },
-    { "id": "emit-manifests", "from": "emit", "to": "manifests", "label": "派生" },
-    { "id": "manifests-npm", "from": "manifests", "to": "npm", "label": "发布" },
-    { "id": "dev-host", "from": "dev", "to": "host", "label": "调用", "variant": "emphasis" },
-    { "id": "host-kairos", "from": "host", "to": "kairos", "label": "加载" },
-    { "id": "kairos-upstream", "from": "kairos", "to": "upstream", "label": "导入基线", "variant": "dashed" },
-    { "id": "kairos-engine", "from": "kairos", "to": "engine", "label": "npx cdd", "variant": "emphasis" },
+    {
+      "id": "pkg-emit",
+      "from": "pkg_source",
+      "to": "emit",
+      "label": "扫描"
+    },
+    {
+      "id": "emit-products",
+      "from": "emit",
+      "to": "products",
+      "label": "派生"
+    },
+    {
+      "id": "products-npm",
+      "from": "products",
+      "to": "npm",
+      "label": "发布"
+    },
+    {
+      "id": "dev-host",
+      "from": "dev",
+      "to": "host",
+      "label": "调用",
+      "variant": "emphasis"
+    },
+    {
+      "id": "host-kairos",
+      "from": "host",
+      "to": "kairos",
+      "label": "加载"
+    },
+    {
+      "id": "kairos-upstream",
+      "from": "kairos",
+      "to": "upstream",
+      "label": "引入",
+      "variant": "dashed"
+    },
+    {
+      "id": "kairos-engine",
+      "from": "kairos",
+      "to": "engine",
+      "label": "npx cdd",
+      "variant": "emphasis"
+    },
+    {
+      "id": "engine-contract",
+      "from": "engine",
+      "to": "contract"
+    },
+    {
+      "id": "engine-face",
+      "from": "engine",
+      "to": "face"
+    },
+    {
+      "id": "engine-session",
+      "from": "engine",
+      "to": "session"
+    },
+    {
+      "id": "engine-render",
+      "from": "engine",
+      "to": "render"
+    },
+    {
+      "id": "engine-infra",
+      "from": "engine",
+      "to": "infra"
+    },
     {
       "id": "engine-host",
       "from": "engine",
       "to": "host",
-      "label": "派发子提示词",
+      "label": "派发子进程",
       "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "bottom",
       "route": "orthogonal-v",
-      "via": [[840, 500], [330, 500]],
+      "via": [
+        [
+          840,
+          430
+        ],
+        [
+          330,
+          430
+        ]
+      ],
       "labelSegment": 1
     },
-    { "id": "engine-contract", "from": "engine", "to": "contract" },
-    { "id": "engine-render", "from": "engine", "to": "render" },
-    { "id": "engine-session", "from": "engine", "to": "session" },
-    { "id": "engine-infra", "from": "engine", "to": "infra" },
-    { "id": "engine-repo", "from": "engine", "to": "repo", "label": "干净树门禁", "fromSide": "bottom", "toSide": "top" },
+    {
+      "id": "engine-repo",
+      "from": "engine",
+      "to": "repo",
+      "label": "干净树门禁",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
     {
       "id": "engine-workspace",
       "from": "engine",
       "to": "workspace",
-      "label": "handoff · 账本",
+      "label": "记录 · 日志",
       "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "top",
-      "route": "orthogonal-v",
-      "via": [[840, 560], [1030, 560]],
-      "labelSegment": 1
+      "via": [
+        [
+          840,
+          620
+        ],
+        [
+          1020,
+          620
+        ]
+      ]
     },
-    { "id": "repo-ci", "from": "repo", "to": "ci", "label": "PR 校验", "fromSide": "left", "toSide": "right" }
+    {
+      "id": "repo-ci",
+      "from": "repo",
+      "to": "ci",
+      "label": "PR 校验",
+      "fromSide": "left",
+      "toSide": "right"
+    }
   ],
   "cards": [
     {
       "dot": "cyan",
       "title": "分发",
       "items": [
-        "package.json#oscaner 是唯一手写来源——emit 派生 source.json 与全部 harness 清单",
-        "emit:check 在 CI 中拦截任何漂移；生成产物永不手改",
-        "kairos 发布技能；cdd-engine 将 CLI 与模板发布到 npm"
+        "package.json#oscaner 是唯一手写的来源——emit 派生 source.json、每一份 harness 清单与 issue 表单",
+        "emit:check 在任何漂移时让 CI 失败，因此派生产物永远不会被手改",
+        "kairos 交付技能；cdd-engine 把 CLI 与它的模板发布到 npm"
       ]
     },
     {
       "dot": "emerald",
       "title": "执行",
       "items": [
-        "引擎提供八条命令：implement · review · fix · base · schema · issue · board · init",
-        "每条工作命令先过 干净树 → 图 → 波次 → 文档契约，再派发子代理",
-        "子代理收到静态外壳 + 冻结返回 + 单一动态上下文区，提示词缓存前缀保持字节稳定"
+        "引擎运行八条命令——implement · review · fix · base · schema · issue · board · init",
+        "每次派发都先过同一套门禁顺序：tree-clean → in-flight → graph → plan-ledger → wave → doc-contract",
+        "子进程收到静态外壳、冻结返回块与一个轮次上下文档，提示词缓存前缀因此保持字节稳定",
+        "计划的每个任务波次至多三个任务——更宽的波次引擎会拒绝，而不是拆分它"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "判定",
+      "items": [
+        "每个派发的轮次都会登记记录——派发前的 HEAD、终态判定、分级违规与载体路径——即便被阻断或超时也不例外",
+        "完成与否按动词各自的判据裁定，绝不看子进程退出码：implement 欠一次提交，review 欠一个可校验的批准载体，fix 欠每条发现的处置",
+        "唯一一次推演给出下一个去向，四个面同时打印它：胶囊、看板、next: 行与流水线交接——它们不可能互相矛盾"
       ]
     },
     {
       "dot": "amber",
       "title": "收敛",
       "items": [
-        "评审发现分为 blocker / warn / nit；任何发现都单向进入 fix",
-        "仍有 blocker 的 fix 会重新评审；仅 warn/nit 时以 REVIEW_FIX 收敛，不再评审",
-        "next: 行是唯一续行动作——BLOCKED 与 TIMEOUT 轮不产生 next 行"
+        "评审发现带 blocker / warn / nit；任何 blocker 都进入 fix 并重新评审，单向一跳",
+        "仅剩 warn/nit 的修复以 REVIEW_FIX 收口，不再重新评审；零发现直接关闭",
+        "next: 行是唯一的延续——BLOCKED 或 TIMEOUT 的轮次不带 next:",
+        "计划修订会重开已关闭的分支线，于是重新评审判定的是分支评审真正绑定过的那份计划"
       ]
     },
     {
-      "dot": "violet",
+      "dot": "slate",
       "title": "运行态",
       "items": [
-        "所有轮次 handoff、账本与简报位于消费方仓库的 .kairos/cdd 下",
-        "工作区在首次派发时自发布 .kairos/.gitignore（内容 *），运行态永不弄脏提交",
-        "CDD 文档位于 docs/kairos/{overalls,specs,plans}；引擎读取声明的 slug 身份"
+        "轮次记录、逐轮日志、账本与交接都保存在消费者仓库的 .kairos/cdd 下",
+        "工作区在首次派发时自发布 .kairos/.gitignore（内容 *），运行态因此永远不会弄脏门禁所读的工作树",
+        "CDD 文档位于 docs/kairos/{overalls,specs,plans}；引擎读取它们声明的 slug 身份，而不是文件名"
       ]
     }
   ]

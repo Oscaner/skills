@@ -2,14 +2,14 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "oscaner-skills — CDD marketplace architecture",
+    "title": "oscaner-skills — the CDD marketplace, its engine and its judgment",
     "locale": "en",
     "output": "docs/diagrams/architecture.en.html",
     "quality_profile": "showcase",
     "repository": {
       "url": "https://github.com/Oscaner/skills",
       "provider": "github",
-      "revision": "8840e2f0aaf3a5752ab8c6a62232dd03081f5d38"
+      "revision": "17e60e99e51c93cd4e987fe7e65fbfbcf3b46d4c"
     }
   },
   "components": [
@@ -17,41 +17,91 @@
       "id": "pkg_source",
       "type": "backend",
       "label": "package.json#oscaner",
-      "sublabel": "single source of truth",
+      "sublabel": "the one hand-written source",
       "tag": "package-as-source",
-      "pos": [40, 40],
-      "size": [170, 62],
-      "sources": [{ "path": "packages/kairos/package.json", "line": 41, "end_line": 57 }]
+      "pos": [
+        40,
+        40
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "sources": [
+        {
+          "path": "packages/kairos/package.json",
+          "line": 41,
+          "end_line": 56
+        }
+      ]
     },
     {
       "id": "emit",
       "type": "backend",
       "label": "pnpm emit",
-      "sublabel": "derive every manifest",
-      "pos": [270, 40],
-      "size": [130, 62],
+      "sublabel": "derive every product",
+      "pos": [
+        270,
+        40
+      ],
+      "size": [
+        130,
+        62
+      ],
       "sources": [
-        { "path": "scripts/emit.ts", "line": 1, "end_line": 17 },
-        { "path": "scripts/emit.ts", "line": 44, "end_line": 58 }
+        {
+          "path": "scripts/emit.ts",
+          "line": 284,
+          "end_line": 300
+        }
       ]
     },
     {
-      "id": "manifests",
+      "id": "products",
       "type": "database",
-      "label": "Harness manifests",
-      "sublabel": ".claude-plugin",
-      "pos": [480, 40],
-      "size": [190, 62],
-      "sources": [{ "path": "scripts/emit.ts", "line": 44, "end_line": 58 }]
+      "label": "Emitted products",
+      "sublabel": "source.json · manifests · forms",
+      "pos": [
+        480,
+        40
+      ],
+      "size": [
+        190,
+        62
+      ],
+      "sources": [
+        {
+          "path": "scripts/emit.ts",
+          "line": 44,
+          "end_line": 53
+        },
+        {
+          "path": "scripts/emit.ts",
+          "line": 301,
+          "end_line": 320
+        }
+      ]
     },
     {
       "id": "npm",
       "type": "cloud",
       "label": "npm registry",
       "sublabel": "@oscaner-skills/*",
-      "pos": [760, 40],
-      "size": [150, 62],
-      "sources": [{ "path": "packages/cdd-engine/package.json", "line": 1, "end_line": 20 }]
+      "pos": [
+        760,
+        40
+      ],
+      "size": [
+        150,
+        62
+      ],
+      "sources": [
+        {
+          "path": "packages/cdd-engine/package.json",
+          "line": 1,
+          "end_line": 20
+        }
+      ]
     },
     {
       "id": "upstream",
@@ -59,27 +109,63 @@
       "label": "Upstream plugins",
       "sublabel": "superpowers · mattpocock",
       "tag": "session baselines",
-      "pos": [500, 160],
-      "size": [180, 62],
-      "sources": [{ "path": "packages/cdd-engine/src-next/face/plugins.ts", "line": 40, "end_line": 92 }]
+      "pos": [
+        500,
+        150
+      ],
+      "size": [
+        180,
+        62
+      ],
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/face/plugins.ts",
+          "line": 40,
+          "end_line": 92
+        }
+      ]
     },
     {
       "id": "dev",
       "type": "external",
       "label": "Developer",
       "sublabel": "invokes a cdd-* skill",
-      "pos": [40, 290],
-      "size": [140, 72],
-      "sources": [{ "path": "packages/kairos/skills/cdd-dev/SKILL.md", "line": 1, "end_line": 10 }]
+      "pos": [
+        40,
+        300
+      ],
+      "size": [
+        130,
+        72
+      ],
+      "sources": [
+        {
+          "path": "packages/kairos/skills/cdd-dev/SKILL.md",
+          "line": 1,
+          "end_line": 10
+        }
+      ]
     },
     {
       "id": "host",
       "type": "cloud",
       "label": "Host harness",
       "sublabel": "Claude Code · Pi",
-      "pos": [240, 290],
-      "size": [180, 72],
-      "sources": [{ "path": "packages/cdd-engine/src-next/face/host.ts", "line": 126, "end_line": 148 }]
+      "pos": [
+        240,
+        300
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/face/host.ts",
+          "line": 126,
+          "end_line": 148
+        }
+      ]
     },
     {
       "id": "kairos",
@@ -87,29 +173,121 @@
       "label": "kairos plugin",
       "sublabel": "6 cdd-* skills",
       "tag": "flow layer",
-      "pos": [500, 290],
-      "size": [180, 72],
-      "sources": [{ "path": "packages/kairos/package.json", "line": 25, "end_line": 57 }]
+      "pos": [
+        500,
+        300
+      ],
+      "size": [
+        180,
+        72
+      ],
+      "sources": [
+        {
+          "path": "packages/kairos/package.json",
+          "line": 25,
+          "end_line": 36
+        }
+      ]
     },
     {
       "id": "engine",
       "type": "backend",
       "label": "cdd engine CLI",
-      "sublabel": "deterministic phase chain",
+      "sublabel": "dispatch · judge · record",
       "tag": "8 commands",
-      "pos": [760, 280],
-      "size": [160, 92],
-      "sources": [{ "path": "packages/cdd-engine/src-next/face/cli.ts", "line": 387, "end_line": 401 }]
+      "pos": [
+        760,
+        290
+      ],
+      "size": [
+        160,
+        92
+      ],
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/face/cli.ts",
+          "line": 387,
+          "end_line": 402
+        }
+      ]
     },
     {
       "id": "contract",
       "type": "backend",
       "label": "Contract plane",
-      "sublabel": "schemas · invariants",
-      "pos": [970, 180],
-      "size": [170, 58],
+      "sublabel": "rules · invariants · rubric",
+      "pos": [
+        970,
+        180
+      ],
+      "size": [
+        170,
+        58
+      ],
       "sources": [
-        { "path": "packages/cdd-engine/src-next/contract/skill-anatomy.ts", "line": 1, "end_line": 17 }
+        {
+          "path": "packages/cdd-engine/src-next/contract/rules.ts",
+          "line": 145,
+          "end_line": 152
+        },
+        {
+          "path": "packages/cdd-engine/src-next/render/templates.ts",
+          "line": 338,
+          "end_line": 348
+        }
+      ]
+    },
+    {
+      "id": "face",
+      "type": "backend",
+      "label": "Face plane",
+      "sublabel": "commands · gates · faces",
+      "pos": [
+        970,
+        270
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/face/capsule.ts",
+          "line": 1,
+          "end_line": 12
+        },
+        {
+          "path": "packages/cdd-engine/src-next/face/board-view.ts",
+          "line": 150,
+          "end_line": 160
+        }
+      ]
+    },
+    {
+      "id": "session",
+      "type": "backend",
+      "label": "Session plane",
+      "sublabel": "next hop · ledger · records",
+      "tag": "one derivation",
+      "pos": [
+        970,
+        360
+      ],
+      "size": [
+        170,
+        58
+      ],
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/session/next.ts",
+          "line": 254,
+          "end_line": 262
+        },
+        {
+          "path": "packages/cdd-engine/src-next/session/next.ts",
+          "line": 299,
+          "end_line": 310
+        }
       ]
     },
     {
@@ -118,32 +296,46 @@
       "label": "Render plane",
       "sublabel": "prompt templates",
       "tag": "cache-aligned",
-      "pos": [970, 270],
-      "size": [170, 58],
-      "sources": [{ "path": "packages/cdd-engine/src-next/render/templates.ts", "line": 128, "end_line": 159 }]
-    },
-    {
-      "id": "session",
-      "type": "backend",
-      "label": "Session plane",
-      "sublabel": "next: routing · ledger",
-      "pos": [970, 360],
-      "size": [170, 58],
+      "pos": [
+        970,
+        450
+      ],
+      "size": [
+        170,
+        58
+      ],
       "sources": [
-        { "path": "packages/cdd-engine/src-next/session/next.ts", "line": 96, "end_line": 102 },
-        { "path": "packages/cdd-engine/src-next/session/next.ts", "line": 169, "end_line": 205 }
+        {
+          "path": "packages/cdd-engine/src-next/render/templates.ts",
+          "line": 128,
+          "end_line": 159
+        }
       ]
     },
     {
       "id": "infra",
       "type": "backend",
       "label": "Infra plane",
-      "sublabel": "git · workspace · process",
-      "pos": [970, 450],
-      "size": [170, 58],
+      "sublabel": "git · workspace · logs",
+      "pos": [
+        970,
+        540
+      ],
+      "size": [
+        170,
+        58
+      ],
       "sources": [
-        { "path": "packages/cdd-engine/src-next/infra/workspace.ts", "line": 60, "end_line": 80 },
-        { "path": "packages/cdd-engine/src-next/infra/git.ts", "line": 26, "end_line": 34 }
+        {
+          "path": "packages/cdd-engine/src-next/infra/round-log.ts",
+          "line": 26,
+          "end_line": 34
+        },
+        {
+          "path": "packages/cdd-engine/src-next/infra/workspace.ts",
+          "line": 71,
+          "end_line": 80
+        }
       ]
     },
     {
@@ -151,124 +343,274 @@
       "type": "database",
       "label": "Consumer repo",
       "sublabel": "git · specs · plans",
-      "pos": [720, 600],
-      "size": [180, 68],
+      "pos": [
+        700,
+        660
+      ],
+      "size": [
+        180,
+        68
+      ],
       "sources": [
-        { "path": "packages/cdd-engine/src-next/infra/doc-roots.ts", "line": 26, "end_line": 32 },
-        { "path": "packages/cdd-engine/src-next/infra/git.ts", "line": 26, "end_line": 34 }
+        {
+          "path": "packages/cdd-engine/src-next/infra/doc-roots.ts",
+          "line": 26,
+          "end_line": 32
+        },
+        {
+          "path": "packages/cdd-engine/src-next/infra/git.ts",
+          "line": 26,
+          "end_line": 34
+        }
       ]
     },
     {
       "id": "workspace",
       "type": "database",
       "label": ".kairos/cdd",
-      "sublabel": "handoffs · ledger · briefs",
+      "sublabel": "records · logs · ledger",
       "tag": "self-ignored",
-      "pos": [940, 600],
-      "size": [180, 68],
+      "pos": [
+        930,
+        660
+      ],
+      "size": [
+        180,
+        68
+      ],
       "sources": [
-        { "path": "packages/cdd-engine/src-next/infra/runtime.ts", "line": 114, "end_line": 117 },
-        { "path": "packages/cdd-engine/src-next/infra/workspace.ts", "line": 60, "end_line": 80 }
+        {
+          "path": "packages/cdd-engine/src-next/infra/runtime.ts",
+          "line": 114,
+          "end_line": 117
+        },
+        {
+          "path": "packages/cdd-engine/src-next/session/ledger.ts",
+          "line": 73,
+          "end_line": 122
+        }
       ]
     },
     {
       "id": "ci",
       "type": "security",
       "label": "CI validate",
-      "sublabel": "emit · tests · types",
-      "pos": [40, 600],
-      "size": [160, 68],
-      "sources": [{ "path": ".github/workflows/pr-validate.yml", "line": 1, "end_line": 19 }]
+      "sublabel": "7 jobs · emit drift",
+      "pos": [
+        40,
+        660
+      ],
+      "size": [
+        160,
+        68
+      ],
+      "sources": [
+        {
+          "path": ".github/workflows/pr-validate.yml",
+          "line": 1,
+          "end_line": 19
+        }
+      ]
     }
   ],
   "boundaries": [
     {
       "kind": "region",
       "label": "cdd-engine package",
-      "wraps": ["engine", "contract", "render", "session", "infra"],
+      "wraps": [
+        "engine",
+        "contract",
+        "face",
+        "session",
+        "render",
+        "infra"
+      ],
       "pad": 24
     },
     {
       "kind": "region",
       "label": "consumer repository",
-      "wraps": ["repo", "workspace"],
+      "wraps": [
+        "repo",
+        "workspace"
+      ],
       "pad": 24
     }
   ],
   "connections": [
-    { "id": "pkg-emit", "from": "pkg_source", "to": "emit", "label": "scans" },
-    { "id": "emit-manifests", "from": "emit", "to": "manifests", "label": "derives" },
-    { "id": "manifests-npm", "from": "manifests", "to": "npm", "label": "publishes" },
-    { "id": "dev-host", "from": "dev", "to": "host", "label": "invoke", "variant": "emphasis" },
-    { "id": "host-kairos", "from": "host", "to": "kairos", "label": "loads" },
-    { "id": "kairos-upstream", "from": "kairos", "to": "upstream", "label": "imports baseline", "variant": "dashed" },
-    { "id": "kairos-engine", "from": "kairos", "to": "engine", "label": "npx cdd", "variant": "emphasis" },
+    {
+      "id": "pkg-emit",
+      "from": "pkg_source",
+      "to": "emit",
+      "label": "scans"
+    },
+    {
+      "id": "emit-products",
+      "from": "emit",
+      "to": "products",
+      "label": "derives"
+    },
+    {
+      "id": "products-npm",
+      "from": "products",
+      "to": "npm",
+      "label": "publishes"
+    },
+    {
+      "id": "dev-host",
+      "from": "dev",
+      "to": "host",
+      "label": "invoke",
+      "variant": "emphasis"
+    },
+    {
+      "id": "host-kairos",
+      "from": "host",
+      "to": "kairos",
+      "label": "loads"
+    },
+    {
+      "id": "kairos-upstream",
+      "from": "kairos",
+      "to": "upstream",
+      "label": "imports",
+      "variant": "dashed"
+    },
+    {
+      "id": "kairos-engine",
+      "from": "kairos",
+      "to": "engine",
+      "label": "npx cdd",
+      "variant": "emphasis"
+    },
+    {
+      "id": "engine-contract",
+      "from": "engine",
+      "to": "contract"
+    },
+    {
+      "id": "engine-face",
+      "from": "engine",
+      "to": "face"
+    },
+    {
+      "id": "engine-session",
+      "from": "engine",
+      "to": "session"
+    },
+    {
+      "id": "engine-render",
+      "from": "engine",
+      "to": "render"
+    },
+    {
+      "id": "engine-infra",
+      "from": "engine",
+      "to": "infra"
+    },
     {
       "id": "engine-host",
       "from": "engine",
       "to": "host",
-      "label": "spawns child prompt",
+      "label": "spawns the child",
       "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "bottom",
       "route": "orthogonal-v",
-      "via": [[840, 500], [330, 500]],
+      "via": [
+        [
+          840,
+          430
+        ],
+        [
+          330,
+          430
+        ]
+      ],
       "labelSegment": 1
     },
-    { "id": "engine-contract", "from": "engine", "to": "contract" },
-    { "id": "engine-render", "from": "engine", "to": "render" },
-    { "id": "engine-session", "from": "engine", "to": "session" },
-    { "id": "engine-infra", "from": "engine", "to": "infra" },
-    { "id": "engine-repo", "from": "engine", "to": "repo", "label": "clean-tree gate", "fromSide": "bottom", "toSide": "top" },
+    {
+      "id": "engine-repo",
+      "from": "engine",
+      "to": "repo",
+      "label": "clean-tree gate",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
     {
       "id": "engine-workspace",
       "from": "engine",
       "to": "workspace",
-      "label": "handoffs · ledger",
+      "label": "records · logs",
       "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "top",
-      "route": "orthogonal-v",
-      "via": [[840, 560], [1030, 560]],
-      "labelSegment": 1
+      "via": [
+        [
+          840,
+          620
+        ],
+        [
+          1020,
+          620
+        ]
+      ]
     },
-    { "id": "repo-ci", "from": "repo", "to": "ci", "label": "PR validate", "fromSide": "left", "toSide": "right" }
+    {
+      "id": "repo-ci",
+      "from": "repo",
+      "to": "ci",
+      "label": "PR validate",
+      "fromSide": "left",
+      "toSide": "right"
+    }
   ],
   "cards": [
     {
       "dot": "cyan",
       "title": "Distribution",
       "items": [
-        "package.json#oscaner is the only hand-written source — emit derives source.json and every harness manifest",
-        "emit:check fails CI on any drift; generated products are never hand-edited",
-        "kairos ships the skills; cdd-engine ships the CLI and templates to npm"
+        "package.json#oscaner is the only hand-written source — emit derives source.json, every harness manifest and the issue forms",
+        "emit:check fails CI on any drift, so a generated product is never hand-edited",
+        "kairos ships the skills; cdd-engine ships the CLI and its templates to npm"
       ]
     },
     {
       "dot": "emerald",
       "title": "Execution",
       "items": [
-        "The engine runs eight commands: implement · review · fix · base · schema · issue · board · init",
-        "Each work command runs tree-clean → graph → wave → doc-contract before any child dispatch",
-        "The child receives a static shell + frozen return + one dynamic round-context zone, so prompt-cache prefixes stay byte-stable"
+        "The engine runs eight commands — implement · review · fix · base · schema · issue · board · init",
+        "Every dispatch passes the same gate order first: tree-clean → in-flight → graph → plan-ledger → wave → doc-contract",
+        "The child receives a static shell, a frozen return block and one round-context zone, so the prompt-cache prefix stays byte-stable",
+        "A plan's task waves are at most three tasks wide — the engine refuses a wider wave rather than splitting it"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Judgment",
+      "items": [
+        "Every dispatched round books a record — the pre-dispatch HEAD, a terminal verdict, the graded violations and the carrier path — even when it is blocked or times out",
+        "Completion is a criterion per verb, never the child's exit code: implement owes a commit, review an approving carrier, fix a disposition for every finding",
+        "One derivation answers the next hop, and four faces print it: the capsule, the board, the next: line, the pipeline handoff — they cannot disagree"
       ]
     },
     {
       "dot": "amber",
       "title": "Convergence",
       "items": [
-        "Review findings carry blocker / warn / nit; any finding routes to fix, a one-way hop",
-        "A fix with blockers left is re-reviewed; warn/nit-only closes as REVIEW_FIX without re-review",
-        "The next: line is the only continuation — BLOCKED and TIMEOUT rounds carry no next line"
+        "Review findings carry blocker / warn / nit; any blocker routes to fix and a re-review, a one-way hop",
+        "A fix that leaves warn/nit only closes as REVIEW_FIX without a re-review; zero findings closes outright",
+        "The next: line is the only continuation — a BLOCKED or TIMEOUT round carries none",
+        "A plan revision reopens a closed branch line, so a re-review judges the plan the branch review actually bound"
       ]
     },
     {
-      "dot": "violet",
+      "dot": "slate",
       "title": "Run state",
       "items": [
-        "All round handoffs, ledgers and briefs live under .kairos/cdd in the consumer repo",
-        "The workspace publishes .kairos/.gitignore with '*' at first dispatch, so run state never dirties commits",
-        "CDD docs live under docs/kairos/{overalls,specs,plans}; the engine reads the declared slug identity"
+        "Round records, per-round logs, the ledger and the handoffs live under .kairos/cdd in the consumer repo",
+        "The workspace publishes .kairos/.gitignore with '*' at first dispatch, so run state never dirties the tree the gate reads",
+        "CDD documents live under docs/kairos/{overalls,specs,plans}; the engine reads their declared slug identity, not their file names"
       ]
     }
   ]

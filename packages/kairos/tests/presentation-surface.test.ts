@@ -34,15 +34,16 @@ const PHILOSOPHY_HEADING = "## The cdd philosophy";
 const OSP_PHILOSOPHY_HEADING = "## The kairos philosophy";
 
 // The P4.1-era behavior section headings — the root README's behavior layer must carry every
-// one after the philosophy layer, in this order (carried over, zero rewrite).
+// one after the philosophy layer, in this order. Re-pinned on the 2026-11-03 restructure (the
+// EN + zh pair together): the behavior layer is now what-you-get → the flow → onboarding →
+// build → docs → contributing → license, with the plugin table carried inside onboarding.
 const ROOT_BEHAVIOR_HEADINGS = [
   "What this is",
-  "Plugins",
-  "Installation",
-  "Quick start",
-  "Architecture",
-  "Per-package docs",
-  "Development",
+  "The flow",
+  "Get started",
+  "How it is built",
+  "Documentation",
+  "Contributing",
   "License",
 ];
 
@@ -212,12 +213,11 @@ const ZH_HEADING_SEQUENCES: Record<string, string[]> = {
   "README.zh-CN.md": [
     "cdd 理念导览",
     "这是什么",
-    "插件列表",
-    "安装",
-    "快速开始",
-    "架构",
-    "各包文档",
-    "开发",
+    "流程",
+    "快速上手",
+    "架构与实现",
+    "文档",
+    "参与贡献",
     "许可",
   ],
   "packages/kairos/README.zh-CN.md": [
@@ -254,7 +254,7 @@ for (const [en, zh] of MIRROR_PAIRS) {
 
 test("P4.1 behavior: root README plugin table carries no hand-written version (single source: manifest + npm)", () => {
   const md = read("README.md");
-  const table = sectionOf(md, "## Plugins");
+  const table = sectionOf(md, "### What gets installed");
   const row = table.match(/^\|\s*\*\*kairos\*\*\s*\|/m);
   expect(row, "kairos plugin table row missing in README.md").toBeTruthy();
   // Zero hand-written versions (P4.2 "release with no hand-pinned versions"): the README plugin

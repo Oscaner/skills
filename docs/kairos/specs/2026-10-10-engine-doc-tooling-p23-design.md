@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P23 设计：`cdd init --include-recommends` 推荐包档
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p23
 program: 2026-10-10-engine-doc-tooling
@@ -10,7 +10,7 @@ author: "[human] · Claude（kairos:cdd-design [P23] grilling → 本会话落 s
 
 ## Design
 
-本相位给第八命令 `cdd init` 增一个可选推荐包档：**核心三包仍是安装契约，推荐六条由 `--include-recommends` 显式选择**。改的是三处——一张表多一个档位字段、一个布尔旗标、一处展平过滤；消费面跟着 README 安装表与 guard。
+本相位给第八命令 `cdd init` 增一个可选推荐包档：**核心三包仍是安装契约，推荐六条由 `--include-recommends` 显式选择**。改的是四处——一张表多一个档位字段、一个布尔旗标（旗标字面 + 命令声明两行，同一文件）、一处展平过滤、展平产物多一个档位席位；消费面跟着 README 安装表与 guard。
 
 **一句话的病根**：`cdd init` 今天把「kairos 能跑」等同于「三个插件装好」，而 kairos 六 skill 的编排面还假定宿主具备文件搜索、todo 追踪、结构化提问、网页取用、后台任务与 `AGENTS.md` 注入。
 
@@ -56,17 +56,23 @@ Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 
 
 #### 3.1 旗标单源
 
-`ARGV_CHANNEL`（`contract/declare.ts`）是旗标字面的唯一住处，`harness` / `update` / `dryRun` 都已在那张表里。新增一行：`includeRecommends: { flag: "--include-recommends", type: "bool", help: "also install/update the recommended pi capability packages" }`。init 命令声明读这一行把旗标声明在本命令上（与 `--update` 同形），`RunInput` 增 `includeRecommends?: boolean`，init 节点读一次。
+`ARGV_CHANNEL`（`face/declare.ts:55`；`harness` :92 · `update` :98 · `dryRun` :103）是旗标字面的唯一住处。`contract/declare.ts` 是别的东西 —— 文档契约登记表（`ElementRegistry` / `DocType` / `declaredRegistries`），全树对 `ARGV_CHANNEL` 的 import 无一指向它（`infra/runtime.ts:26` · `face/cli.ts:79` · `face/projection.ts:26`）。新增一行：`includeRecommends: { flag: "--include-recommends", type: "bool", help: "also install/update the recommended pi capability packages" }`。
+
+让旗标真正存在的是同一文件里 `CLI_COMMANDS` 的 init 行——`keys: [{ key: "harness", required: true }, { key: "update" }]`（`face/declare.ts:320-324`）增一个 `{ key: "includeRecommends" }`（与 `--update` 同形），不是 `face/cli.ts`。漏掉这一增行时 commander 把 `--include-recommends` 当未知旗标拒绝，`channel-closure.guard.test.ts:39-58` 的反向腿（非 program 的 channel 行必须被某命令声明）同时转红。
+
+`face/cli.ts` 只承担三件事：`RunInput.includeRecommends?: boolean`（:165-182）、`#runInput` 的映射（:506-520）、init 节点读一次（:387-402）。
 
 #### 3.2 与既有旗标正交
 
-`--harness` / `--update` / `--dry-run` 的任意组合都被接受；`--harness` 仍是 `requiredOption`，故 `--include-recommends` 不带 `--harness` 由既有缺旗标 usage 面拒绝（exit 2、零 spawn），不新增第二道门。
+`--harness` / `--update` / `--dry-run` 的任意组合都被接受；`--harness` 仍是 `requiredOption`（`face/declare.ts:323` 的 init 行 `keys` 里 `required: true`），故 `--include-recommends` 不带 `--harness` 由既有缺旗标 usage 面拒绝（exit 2、零 spawn；既有 pin `cli.test.ts:664-673`），不新增第二道门。
 
 ### 4. 定案：唯一展平点按档过滤（`face/init.ts`）
 
 #### 4.1 `InitRequest` 一份请求对象
 
-`CliInit#stepsOf` 是**唯一**展平点。签名收成一份请求对象避免参数膨胀：`InitRequest = { host: HostId, shape: "install" | "update", recommended: boolean }`；`#stepsOf(request)` 在 `recommended === false` 时只取 `tier === "core"` 的行，`true` 时按表序取全部九行。`run` / `preview` 的公开面同收成 `(request)` 一个参数。
+`CliInit#stepsOf`（`face/init.ts:100-108`）是**唯一**展平点。签名收成一份请求对象避免参数膨胀：`InitRequest = { host: HostId, shape: "install" | "update", recommended: boolean }`；`#stepsOf(request)` 在 `recommended === false` 时只取 `tier === "core"` 的行，`true` 时按表序取全部九行。`run` / `preview` 的公开面同收成 `(request)` 一个参数。
+
+展平产物自己带档位：`InitStep`（今日只有 `packageName` / `argv`，`face/init.ts:66-69`）增 `tier: PluginTier`，由 `#stepsOf` 从行上带下来——这是档位事实随步骤旅行的唯一通道。§5.2 的 `<c> core + <r> recommended` 计数与 §5.3 的推荐档失败补行只读这个字段、**零回查 `PLUGINS`**：全相位的档位判据只有 `#stepsOf` 一处。
 
 #### 4.2 预览与实跑同源
 
@@ -76,7 +82,7 @@ Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 
 
 #### 5.1 步骤头字节零变
 
-步骤头仍是 `init[<i>/<n>] <host> · <package> · <argv 去可执行名>`，**不加档标**：包名（`pi-fff` / `rpiv-todo` …）已足够辨识，档标带来的信息量与它重复，却要重锚既有步骤头 pin。
+步骤头仍是 `init[<i>/<n>] <host> · <package> · <argv 去可执行名>`（今日由 `face/init.ts:127-131` 写出，输出面整体 `:127-143`：步骤头 / 失败行 / 汇总；既有 pin：`init.test.ts:57-64` 的六条 claude 步骤头 · `cli.test.ts:631` / `:657` / `:702` 的汇总与预览字节），**不加档标**：包名（`pi-fff` / `rpiv-todo` …）已足够辨识，档标带来的信息量与它重复，却要重锚既有步骤头 pin。
 
 #### 5.2 汇总与预览分档
 
@@ -85,13 +91,20 @@ Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 
 - 带旗标且 `r === 0`（今天 = claude）—— 追加一行 `init: no recommended packages for <host>`
 - 预览面 `would run: <argv join>` 每步一行不变，汇总行 `init: <n> steps (<host> · <install|update>[ · <c> core + <r> recommended]) — dry run, nothing executed`，`r === 0` 时同样追加那句 info
 
+`<c>` / `<r>` 只从步骤的 `tier` 字段（§4.1）计数，不回查名册；失败面同理。
+
 那行 info 是硬要求：静默接受一个什么都没做的旗标，正是让人以为装过了的那种坑。
 
 #### 5.3 失败面与空档 info 行
 
-既有行 `init[<i>/<n>] · <argv join> · exit <code>` 不变，首败即停、exit 1 不变。推荐步永远排在核心之后，所以推荐档失败时核心集已经装完——硬停不会让消费者更糟，而软失败会让「装了一半」看不见。
+既有行 `init[<i>/<n>] · <argv join> · exit <code>`（`face/init.ts:131-135`）不变，首败即停、exit 1 不变。推荐步永远排在核心之后，所以推荐档失败时核心集已经装完——硬停不会让消费者更糟，而软失败会让「装了一半」看不见。
 
-推荐档失败时**额外**追加一行 `init: <package> is a recommended package — run cdd init --harness=<host> --include-recommends without --update to install it`。`--update` 的既有未安装提示（`if the package is not installed, run cdd init --harness=<host> without --update first`）**字节不改**、两档共用：它在推荐档并不谎（确实要先装），而逐档改写这句话会把一条 pin 变成两条。
+推荐档失败时**额外**追加一行，且随 `shape` 分形——`--update` 形态的补救句在 install 形态下等于「去跑你刚跑的那条命令」：同一条命令、同一个失败原因（npm 404 / 网络），既不自证也不推进，与 §5.2 拒绝的「静默接受一个什么都没做的旗标」等价。
+
+- `--update` 形态：`init: <package> is a recommended package — run cdd init --harness=<host> --include-recommends without --update first`
+- `install` 形态：`init: <package> is a recommended package — the core plugin set is already installed`
+
+`--update` 的既有未安装提示（`if the package is not installed, run cdd init --harness=<host> without --update first`，`face/init.ts:136-139`）**字节不改**、两档共用：它在推荐档并不谎（确实要先装），而逐档改写这句既有提示会把一条 pin 变成两条。
 
 ### 6. 定案：消费面文档
 
@@ -109,11 +122,17 @@ Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 
 
 #### 7.1 核心行断言原样
 
-「README 安装表 ↔ 名册」门今日把表逐格钉在 `PLUGINS` 上。分档后：核心行断言**逐格原样保留**（行名 + 顺序 + 双列 install argv 全角 `；` 连接 + 表头三格），只是在名册侧按 `tier === "core"` 取行。
+「README 安装表 ↔ 名册」门今日把表逐格钉在 `PLUGINS` 上（`plugins.guard.test.ts:95-130`：`installTable` :67-88 从表体第一条包名行读到第一条非表行为止，`renderCell` :90-95 直接按 README 行号 `PLUGINS[rowIndex]!` 解引用）。分档后表体从三行变九行，**切分必须是双侧的**：
+
+- 核心 span = 表体第 1–3 行，对 `tier === "core"` 的名册。行名 + 顺序 + 双列 install argv 全角 `；` 连接 + 表头三格断言**逐格原样保留**；唯一改动是 `renderCell` 改吃**行对象**（`row[host].install`），不再用 README 行号索引 `PLUGINS`。
+- 推荐 span = 余下第 4–9 行，对 `tier === "recommended"` 的名册（§7.2）。
+- 两侧 span 的行数之和必须等于表体行数（`rows.length === core.length + recommended.length`）：少一行或多一行即红。
+
+「逐格原样保留」与「只改名册侧」两句不能只改单侧：只改名册侧时核心行名断言 `rows.map((row) => row[0])`（:101）会拿九行去比三个 core 名，逐格循环（:108-121）从第 4 行起取到 core 名册之外，直接抛错。
 
 #### 7.2 推荐行断言与 `—`
 
-推荐行断言：首列 = `name`、顺序 = 名册序、claude 单元格 = `—`、pi 单元格 = install argv 全角 `；` 连接。`—` 是空单元格的**唯一**写法（写进断言字面），guard 把它认作空档而不是缺失。四份 README 的 `cdd init` 命令字节断言保留；新增一处：引擎 README 双语的 `init` usage 行携带 `[--include-recommends]`。
+推荐行断言：首列 = `name`、顺序 = 名册序、claude 单元格 = `—`、pi 单元格 = install argv 全角 `；` 连接。`—` 是空单元格的**唯一**写法（写进断言字面），guard 把它认作空档而不是缺失（行对象侧就是空的 install 数组 → 渲染成 `—`）。四份 README 的 `cdd init` 命令字节断言保留（`plugins.guard.test.ts:33` 的双语安装表 · `:36` 的四份 `INIT_SURFACES` · `:137-150` 的 claim-surface 腿）；新增一处：引擎 README 双语的 `init` usage 行携带 `[--include-recommends]`。
 
 ### 8. 落点、依赖与发行
 
@@ -122,12 +141,18 @@ Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 
 | 面 | 落点 |
 |---|---|
 | 数据面 | `face/plugins.ts`（`PluginTier` + `tier` 字段 + 六行） |
-| 旗标 | `contract/declare.ts`（`ARGV_CHANNEL` 一行）· `face/cli.ts`（命令声明 + `RunInput.includeRecommends` + init 节点读一次） |
-| 展平与输出 | `face/init.ts`（`InitRequest` + 分档过滤 + 分档汇总 / info 行 / 推荐档失败补行） |
+| 旗标 | `face/declare.ts`（`ARGV_CHANNEL` 一行 :55 + `CLI_COMMANDS` init 行的 `keys` 增行 :320-324，两处同一文件）· `face/cli.ts`（`RunInput.includeRecommends` + `#runInput` 映射 + init 节点读一次） |
+| 展平与输出 | `face/init.ts`（`InitRequest` + `#stepsOf` 分档过滤 + `InitStep.tier` + 分档汇总 / info 行 / 推荐档失败补行） |
 | 测试 | `init.test.ts` · `plugins.test.ts` · `plugins.guard.test.ts` · `cli.test.ts` |
 | 文档 | 六份 README（根 / kairos / 引擎，各双语） |
 
-测试基座跟随数据面：`plugins.test.ts` 的 `PLUGINS.map(name)` 三值断言改为九值（core 三 + recommended 六）；`init.test.ts` 的 `sequenceOf` 与 `ROSTER` 派生按 `tier === "core"` 取行（无旗标面）并新增推荐面用例。**产品字节 pin 不动**（`init[1/3] pi · …` · `init: 3 steps ok (pi · install)` · claude 六条步骤头）。
+测试基座跟随数据面（现状 pin：`plugins.test.ts:69` 三值行名 · `:74` 列集 · `:87-88` 每行步数 · `:118` 十八元组与 :93 的 describe 标题 · `init.test.ts:36-41` 的 `ROSTER` / `sequenceOf` · `cli.test.ts:629` / `:649` 的 roster flatMap）：
+
+- `plugins.test.ts`：行名断言改九值（core 三 + recommended 六）· 列集断言 `Object.keys(row).filter((key) => key !== "name")` 需同时排除 `tier`（断言值回到 `[claude, pi]`）· 每行步数 pin 分档（core 行 claude 2 / pi 1，推荐行 claude 0 / pi 1）· 元组计数 `toHaveLength(18)` 改 42 并同步 describe 标题的「nine … nine」· `INSTALL_ARGV` / `UPDATE_ARGV` 逐行查表补六行（`:93-119`）。
+- `init.test.ts`：`ROSTER` 与 `sequenceOf` 按 `tier === "core"` 取行（无旗标面）并新增推荐面用例。
+- `cli.test.ts`：`:629` / `:649` 的 `roster` flatMap 改取 core 行；`:631` / `:657` / `:702` 的汇总字节 pin（`init: 3 steps ok (pi · install)` · `init: 6 steps ok (claude · update)` · `init: 6 steps (claude · install) — dry run, nothing executed`）**保持字面不变**。
+
+**产品字节 pin 不动**（`init[1/3] pi · …` · `init: 3 steps ok (pi · install)` · claude 六条步骤头）。
 
 #### 8.2 依赖与发行
 
@@ -142,17 +167,17 @@ Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 
 ### Acceptance criteria
 
 - `数据面`：`PLUGINS` 单表九行、`tier` 字段与 `PluginTier` 联合在册 · 三行 core 在前、六行 recommended 在后且推荐序 = §2.1 表序 · 推荐行 claude 列为空数组而非缺列（类型层与运行层各一条 pin）· 每行 `update` argv = `install` argv 的 `install` → `update` 替换（逐行 pin）
-- `旗标`：`ARGV_CHANNEL.includeRecommends` 在册且 `flag === "--include-recommends"` · `cdd init --harness=pi --include-recommends --dry-run` exit 0 · 不带 `--harness` 带旗标 → usage exit 2 且零 spawn · 既有 harness 值域拒绝面不回归
-- `展平`：`--harness=pi` 无旗标 = 3 步、有旗标 = 9 步且前 3 步与无旗标逐字节相同 · `--harness=claude` 有旗标 = 6 步（与无旗标同 argv 序列）· `--update` 两档各走 update 序列且零 install argv · `preview()` 与 `run()` 同一请求下共用同一展平（独立源比对，不从运行反推）· 名册派生面跟随：`plugins.test.ts` 行名断言九值、`init.test.ts` 的 `sequenceOf` / `ROSTER` 按 `tier === "core"` 取行
-- `输出面`：无旗标时**产品字节零变**——步骤头（`init[1/3] pi · …` · `init[1/6] claude · …` 六条）、汇总行（`init: 3 steps ok (pi · install)`）、失败行、`--update` 提示、预览汇总行全部原样，既有字节 pin **不重锚**（仅名册派生辅助按 core 档重构，见 §8.1）· 带旗标汇总行含 `<c> core + <r> recommended` · claude 带旗标两面各出 `init: no recommended packages for claude` · 推荐档失败 → 首败即停 exit 1 且追加一行点名该包属推荐档 · `--dry-run --include-recommends` 预览 9 行 `would run:` + 分档汇总 + 零 spawn、零写入、exit 0
+- `旗标`：`ARGV_CHANNEL.includeRecommends`（`face/declare.ts`）在册且 `flag === "--include-recommends"` · `CLI_COMMANDS` 的 init 行 `keys` 携带该键（`channel-closure.guard.test.ts:39-58` 的双向闭合在家）· `cdd init --harness=pi --include-recommends --dry-run` exit 0 · 不带 `--harness` 带旗标 → usage exit 2 且零 spawn · 既有 harness 值域拒绝面不回归
+- `展平`：`--harness=pi` 无旗标 = 3 步、有旗标 = 9 步，前 3 步的 **argv 序列**与无旗标逐字节相同（步骤头形如 `init[<i>/<n>]`，分母随总步数 3→9 变，故头部只改 `<n>`、不比步骤头字节）· `--harness=claude` 有旗标 = 6 步（与无旗标同 argv 序列）· `--update` 两档各走 update 序列且零 install argv · `preview()` 与 `run()` 同一请求下共用同一展平（独立源比对，不从运行反推）· `InitStep.tier` 由 `#stepsOf` 从行上键入、汇总计数与失败补行零回查名册 · 名册派生面跟随：`plugins.test.ts` 行名断言九值、`init.test.ts` 的 `sequenceOf` / `ROSTER` 按 `tier === "core"` 取行
+- `输出面`：无旗标时**产品字节零变**——步骤头（`init[1/3] pi · …` · `init[1/6] claude · …` 六条）、汇总行（`init: 3 steps ok (pi · install)`）、失败行、`--update` 提示、预览汇总行全部原样，既有字节 pin **不重锚**（仅名册派生辅助按 core 档重构，见 §8.1）· 带旗标汇总行含 `<c> core + <r> recommended` · claude 带旗标两面各出 `init: no recommended packages for claude` · 推荐档失败 → 首败即停 exit 1 且追加一行点名该包属推荐档：`--update` 形态为 `init: <package> is a recommended package — run cdd init --harness=<host> --include-recommends without --update first`、install 形态为 `init: <package> is a recommended package — the core plugin set is already installed`（两形态各一条字节断言）· `--dry-run --include-recommends` 预览 9 行 `would run:` + 分档汇总 + 零 spawn、零写入、exit 0
 - `消费面`：kairos README 双语九行安装表（推荐行 claude 单元格 `—`）+ 分档 lead-in + 六条一组理由段 + `--update --include-recommends` 用法句 · 根 README 双语 Installation 提及旗标 · 引擎 README 双语 `init` usage 行含 `[--include-recommends]` · 六份 SKILL.md 零变更（grep pin）
-- `guard`：核心行断言原样（按 `tier === "core"` 取行）· 推荐行逐格断言（首列 / 顺序 / `—` / `；` 连接）· 引擎 README `init` usage 行 `[--include-recommends]` 断言 · 任一 README 少一行或多一行 → 红
+- `guard`：核心 span = 表体第 1–3 行对 core 名册，断言逐格原样（行名 / 顺序 / 双列 `；` 连接 / 表头三格）· 推荐 span = 第 4–9 行对 recommended 名册逐格断言（首列 / 顺序 / `—` / `；` 连接）· 两侧行数之和 = 表体行数 · 引擎 README `init` usage 行 `[--include-recommends]` 断言 · kairos 双语安装表少一行或多一行 → 红（根 README 只做命令字节断言，没有行级门）
 - `全量`：`cdd` 仍八命令（结构 pin 不变）· engine vitest 全绿 · typecheck ×3 · `env -u AI_AGENT pnpm run validate` exit 0 · `pnpm run emit:check` fresh（无生成物触发器触碰）· changeset `cdd-engine` minor + `kairos` patch，不发布
 
 ## Constraints
 
 - **数据面单源**：推荐六条的 argv 只住在 `face/plugins.ts`。README 表、guard 断言、步骤头全是从它渲染出来的读者；出现第二份清单（散文里的命令、dotfiles 复制、模板里的副本）即本相位点名禁止的回归
-- **无旗标字节零变**：不带 `--include-recommends` 时，`cdd init` 的三面（步骤头 / 汇总 / 失败）与 `--dry-run` 预览的每个产品字节保持不变，既有字节 pin **不重锚**。**例外仅限名册派生的测试辅助**（`sequenceOf` / `ROSTER` / `PLUGINS.map(name)`）——数据面多出六行，派生函数必须按 `tier === "core"` 取行（无旗标面）才有意义；把派生辅助的重构当成允许改产品字节是禁止的滑坡
+- **无旗标字节零变**：不带 `--include-recommends` 时，`cdd init` 的三面（步骤头 / 汇总 / 失败）与 `--dry-run` 预览的每个产品字节保持不变，既有字节 pin **不重锚**。**唯一例外是一类而非一处：凡镜像无旗标行为的测试基座派生，一律按 `tier === "core"` 取行**（无旗标面）——数据面多出六行，派生断言、辅助函数、计数、逐行 argv 查表都要跟随。评审点名的 `sequenceOf` / `ROSTER` / `PLUGINS.map(name)` / `plugins.test.ts:74` 列集 / `:87-88` 每行步数 / `:118` 元组计数 / `INSTALL_ARGV` 逐行查表 / `cli.test.ts:629` `:649` 的 roster flatMap 是实例，不是穷举。把基座重构当成允许改产品字节是禁止的滑坡
 - **引擎零 harness 输出解析**：不得据子进程输出判断「已安装 / 可跳过 / 可继续」。推荐档失败就是首败即停 + exit 1；「装了一半」的可见性由分档汇总行与推荐档失败补行承担
 - **核心契约不动**：核心三包的行序、argv、失败语义、`--update` 提示句都是既有契约；本相位只追加档位，不重排、不改写
 - **claude 列空是事实而非占位**：Claude Code 原生具备六类能力，故 claude 推荐列写空数组、README 写 `—`；不得为了表好看编造 claude 推荐包
@@ -167,3 +192,4 @@ Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-03 | P23 初始设计：`cdd init --include-recommends` 推荐包档——`PLUGINS` 单表增 `tier` 字段（core 3 + recommended 6，claude 列空）· `ARGV_CHANNEL` 一行旗标 + `RunInput` 一字段 · `CliInit#stepsOf(InitRequest)` 唯一展平按档过滤 · 输出面分档汇总 + claude 空档 info 行 + 推荐档失败补行（无旗标产品字节零变）· kairos/根/引擎 README 双语同步 + guard 分档断言 · SKILL.md 零变更 · changeset cdd-engine minor + kairos patch | [human] · Claude（kairos:cdd-design [P23] · 2026-11-03） |
 | v0.2 | 2026-11-03 | 结构回填（doc-contract `presence` 门）：group 标题补 `#### N.M` 条目层（§1–§8 各二至三条），缺口拆成「三包装完 ≠ kairos 跑得动」与「为什么必须落数据面」两条取证，落点面改表载 + 测试基座单列。内容面零语义变更（九行数据面 / 旗标 / 展平 / 输出面 / 文档面 / guard 六块定案不变） | [human] · Claude（kairos:cdd-design [P23] · 2026-11-03） |
+| v0.3 | 2026-11-03 | 评审回填（无结构变更，内容面）：旗标落点更正为 `face/declare.ts`（`ARGV_CHANNEL:55` + `CLI_COMMANDS` init 行 `keys:320-324`，`face/cli.ts` 只留 `RunInput` / 映射 / 节点读取）· `InitStep` 增 `tier` 席位（档位随步骤旅行、零回查）· §1 三处改四处 · guard 分档写成双侧 span + `renderCell` 吃行对象 + 两侧行数之和 pin · 无旗标例外由三处封闭枚举改成「凡名册派生按 core 取行」的规则并点名 `plugins.test.ts` / `cli.test.ts:629,649` 两文件面 · 推荐档失败补行按 `shape` 分形（install 形态不再劝重跑同一命令），两形态各一条字节断言 · AC 展平条改「前 3 步 argv 序列逐字节相同」 · AC guard 条收窄到 kairos 双语安装表 · 现状主张补 `path:line` pin | [human] · Claude（kairos:cdd-design [P23] · 2026-11-03） |

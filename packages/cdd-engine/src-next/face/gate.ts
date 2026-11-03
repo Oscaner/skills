@@ -56,16 +56,23 @@ export class CliGate {
    *  (the lifecycle's own fall-through — an open gate and a dispatchable frame
    *  agree), a truly closed line keeps the revision-aware BLOCK. An unbound line
    *  (no identity on record / an unreadable doc) keeps the legacy round/route
-   *  judgment + the generic closed message (only present facts land). */
+   *  judgment + the generic closed message (only present facts land).
+   *
+   *  The branch line rides the SAME drift leg (its identity document is the PLAN,
+   *  P21 §3/§4.1 — the very document a branch re-review judges): a plan revision
+   *  moved past the bound one reopens the branch face onto its `branch-review`
+   *  lead, so the `next:` a closure hands the user is never a command this gate
+   *  refuses. An unchanged plan keeps the closed face (the generic `face-closed`
+   *  row — the branch line binds no doc-class BLOCK message of its own). */
   lineGate(scene: WorkScene): {
     phase: DispatchPhase | null;
     verdict: "same" | "pending-fix" | null;
     reviewed: DocRevisionRef | null;
   } {
-    if (scene.target?.kind === "plan" || scene.target?.kind === "spec") {
-      const key = this.#lineKey(scene);
-      if (key === null) return { phase: null, verdict: null, reviewed: null };
-      const verdict = scene.ledger.reviewGate(key, scene.target.doc, scene.face.type);
+    const key = this.#lineKey(scene);
+    const doc = this.#docOf(scene);
+    if (key !== null && doc !== null) {
+      const verdict = scene.ledger.reviewGate(key, doc, scene.face.type);
       if (verdict.kind === "open") {
         return { phase: scene.face.product.reviewLead, verdict: null, reviewed: null };
       }

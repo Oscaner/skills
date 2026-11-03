@@ -1191,7 +1191,12 @@ export class Ledger {
    *  (capsule · CLI rejection · board · the lifecycle frontier) comes through here,
    *  so the four faces share one object by construction — no face assembles a second
    *  copy of the inputs, and no judgment is re-made here (the route is the count
-   *  table's). */
+   *  table's). The ONE exception is the drift-reopened line: the gate's `drift`
+   *  verdict IS the reopen, and the closure-side route the count table recorded
+   *  predates the document movement — so the assembly hands the derivation the
+   *  reopened review hop in that case. A presentation-level substitution: the count
+   *  table's judgment (`NextStepRouter#next`) stays the only judge, and a still-open
+   *  hop (review / fix) is never overridden by the drift fact. */
   nextHopOf(input: {
     readonly type: TargetType;
     readonly key: LedgerKey;
@@ -1207,6 +1212,15 @@ export class Ledger {
       input.doc != null && input.type !== "wave"
         ? this.reviewGate(input.key, input.doc, input.type).kind === "open"
         : false;
+    // The drift-reopened line — its active hop IS the review lead (the gate's own
+    // ruling): the exit-side route the table recorded (the line's closure or a
+    // face-to-face handoff, or no route at all) predates the document movement, so
+    // the derivation receives the review hop instead. An already-open hop (review /
+    // fix) and the soft-cap adjudication row keep their own route — the pending-fix
+    // face outranks drift (§5.1).
+    const exitSide =
+      input.route === null || input.route.kind === "done" || input.route.kind === "handoff";
+    const route = drift && exitSide ? ({ kind: "review" } as const) : input.route;
     // The face axis is the ONE verdict this assembly reads (spec §5.2's doc-class
     // discrimination): no target carries no judgeable class (the bare terminal).
     const verdict: DocClassVerdict =
@@ -1215,7 +1229,7 @@ export class Ledger {
       target: input.target,
       gate: { drift },
       verdict,
-      route: input.route,
+      route,
       nextLineOpen: input.nextLineOpen,
     });
   }

@@ -2221,6 +2221,113 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("P22 T17 (a) — a closed branch line REOPENS when its identity document (the plan) drifts", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // Round 1: the clean branch review closes the line and binds the PLAN's
+      // doc-revision to the branch row (the line's identity document, P21 §3/§4.1).
+      expect(await command.runArgv(["review", "--type", "branch", "--plan", plan])).toBe(0);
+      // The plan then moves (a backfill / a user ruling edits the very document a
+      // branch re-review judges) — the branch face must reopen onto its review lead.
+      writeFileSync(
+        plan,
+        readFileSync(plan, "utf8").replace(
+          "- **Acceptance**: ok",
+          "- **Acceptance**: ok (drifted)",
+        ),
+        "utf8",
+      );
+      io.stdoutText = "";
+      io.stderrText = "";
+      const reopen = await command.runArgv(["review", "--type", "branch", "--plan", plan]);
+      expect(reopen).toBe(0);
+      expect(io.stderrText).not.toContain("face-closed");
+      // the round CONTINUES on the same line key (branch-review-2, never a reset)
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
+      expect(existsSync(path.join(workspace, "branch-review-2.json"))).toBe(true);
+      const progress = readJson<{
+        waves: Array<{ wave: string; rounds?: unknown[] }>;
+      }>(path.join(workspace, "progress.json"));
+      const branchRow = progress.waves.find((row) => row.wave === "branch");
+      expect(roundTokens(branchRow)).toEqual(["review:1:a1:true", "review:2:a1:true"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P22 T17 (b) — an UNCHANGED plan keeps the closed branch face — the face-closed row (no false reopen)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      expect(await command.runArgv(["review", "--type", "branch", "--plan", plan])).toBe(0);
+      // The plan did NOT move — the drift leg has nothing to reopen: the gate keeps
+      // the legacy rounds/routes judgment and the closed line keeps its refusal.
+      io.stderrText = "";
+      const unchanged = await command.runArgv(["review", "--type", "branch", "--plan", plan]);
+      expect(unchanged).toBe(1);
+      expect(io.stderrText).toContain("face-closed");
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "branch-review-2.json"))).toBe(
+        false,
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P22 T17 (c) — the drifted branch hop is ONE object: the board's `next:` and the refusal name it (doc-drift · branch-review)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // Close the branch line for real (binds the plan revision on the branch row),
+      // then seed the other lines closed so the branch face is the board's terminal
+      // anchor — the state a finished run reaches.
+      expect(await command.runArgv(["review", "--type", "branch", "--plan", plan])).toBe(0);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+      ledger.recordRound("phase-spec", { op: "review" });
+      ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+      ledger.recordRound("plan", { op: "review" });
+      ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+      ledger.recordRound("1", { op: "review" });
+      // The plan drifts — the branch face reopens and the board's `next:` names the
+      // reopened hop (the ONE derivation: doc-drift · branch-review).
+      writeFileSync(
+        plan,
+        readFileSync(plan, "utf8").replace(
+          "- **Acceptance**: ok",
+          "- **Acceptance**: ok (drifted)",
+        ),
+        "utf8",
+      );
+      const literal = "review --type branch --plan docs/kairos/plans/p3.md";
+      io.stdoutText = "";
+      expect(await command.runArgv(["board", "--plan", plan])).toBe(0);
+      expect(io.stdoutText).toContain(`next:    ${literal}`);
+      // The refusal of a round the reopened line does not hold renders the SAME
+      // object's reason + hop — never a second judgment's prose.
+      io.stderrText = "";
+      expect(
+        await command.runArgv([
+          "fix",
+          "--type",
+          "branch",
+          "--plan",
+          plan,
+          "--reviews",
+          workspace.resolve("branch-review-1.json"),
+        ]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("doc-drift · the next round is branch-review");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("review --type branch — the CLI injects the base artifact's branch as BASE_BRANCH (the scope anchor value source)", async () => {
     const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";

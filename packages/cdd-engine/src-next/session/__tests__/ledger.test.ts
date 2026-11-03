@@ -1209,6 +1209,53 @@ describe("the review gate — the D28 phantom-pending-fix suppression", () => {
   });
 });
 
+describe("nextHopOf — the drift-reopened line's hop (the ONE assembly entry)", () => {
+  it("a closed branch line whose PLAN drifted hands the derivation the review hop — branch-review · doc-drift", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const doc = path.join(workspace.path, "docs", "x-p3.md");
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, "v1.0 body", "utf8");
+      // the branch line's reviewed identity is its PLAN's doc-revision (P21 §3/§4.1)
+      ledger.recordReviewedRevision(
+        "branch",
+        ledger.refs().docRevision(doc, "v1.0 body"),
+        "branch",
+      );
+      const hop = (route: Parameters<typeof ledger.nextHopOf>[0]["route"]) =>
+        ledger.nextHopOf({
+          type: "branch",
+          key: "branch",
+          route,
+          target: { type: "branch", id: "branch", plan: doc },
+          doc,
+          docClassOf: () => "branch",
+        });
+      // an UNCHANGED plan keeps the closed face — no reopen, no invented hop
+      expect(hop({ kind: "done" })).toMatchObject({ hop: null, reason: "closed-line" });
+      // the plan moves past the bound revision — the line's active hop is its review
+      // lead, whatever exit-side route the caller observed; the count table's own
+      // judgment is untouched (the review route is handed IN, never re-derived)
+      writeFileSync(doc, "v1.1 body", "utf8");
+      const reopened = hop({ kind: "done" });
+      expect(reopened).toMatchObject({ hop: "branch-review", reason: "doc-drift" });
+      expect(reopened.route).toEqual({ kind: "review" });
+      // a face-to-face exit route (the board's terminal anchor) reopens the same way
+      expect(hop({ kind: "handoff", entry: { kind: "done" } })).toMatchObject({
+        hop: "branch-review",
+        reason: "doc-drift",
+      });
+      // an OPEN hop is already the line's active face — the drift never overrides it
+      expect(hop({ kind: "fix", reviews: "r.json" })).toMatchObject({
+        hop: "fix",
+        reason: "pending-fix",
+      });
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("lineClosed — the single line-closure judge (the board + closedWaves core)", () => {
   /** Seed a line row's raw `rounds` plane on the fixture's `test-slug` workspace. */
   const seedRow = (ledger: Ledger, key: string, rounds: Record<string, number[]>): void => {

@@ -222,7 +222,6 @@ const ZH_HEADING_SEQUENCES: Record<string, string[]> = {
   ],
   "packages/kairos/README.zh-CN.md": [
     "kairos 理念导览",
-    "功能",
     "技能",
     "安装",
     "快速开始",

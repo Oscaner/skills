@@ -2,15 +2,15 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-CDD engine CLI — the task runner, document/branch reviewer, and harness dispatcher behind the kairos `cdd-dev` skill. Published as a standalone package so the engine (`cdd`) can be installed and invoked on its own.
+The `cdd` CLI — the task runner, document and branch reviewer, and harness dispatcher behind the kairos `cdd-dev` skill. Published standalone, so the engine can be installed and driven on its own.
 
 ## What this package is
 
-The engine runs the implement / review / fix phases of the CDD workflow against a plan file, writes the dispatch's handoff artifacts, reads and writes the `base` artifact, and dispatches each phase to the host harness CLI through its embedded harness registry. It is consumed by the [kairos plugin](https://www.npmjs.com/package/@oscaner-skills/kairos)'s `cdd-dev` skill and is also usable directly from the command line.
+The engine owns the mechanics a phase cannot be trusted to remember. It runs the implement / review / fix rounds of the CDD workflow against a plan, dispatches each round to the host harness CLI through its embedded harness registry, judges the round's terminal verdict, records it, and derives the next hop from the evidence rather than from the child's exit code. It also reads and writes the `base` artifact and renders the progress board. Consumed by the [kairos plugin](https://www.npmjs.com/package/@oscaner-skills/kairos)'s `cdd-dev` skill, and usable straight from a terminal.
 
 ## Installation
 
-Requires Node.js `>= 24`.
+Requires Node.js `>= 24` (the CLI runs its TypeScript entry through native type stripping).
 
 ```bash
 # global CLI (provides the `cdd` binary)
@@ -22,7 +22,7 @@ npm install @oscaner-skills/cdd-engine
 
 ## CLI
 
-Global option: `--dry-run` — preview the next dispatch step and its expected artifacts — zero repo writes, no round consumed (implement/review/fix/init).
+Global option: `--dry-run` — preview the next dispatch step and the artifacts it expects, with zero repo writes and no round consumed (implement / review / fix / init).
 
 | Subcommand | Usage | Purpose |
 |------------|-------|---------|
@@ -50,17 +50,17 @@ Each review target selects one criteria body:
 
 A charter is judged by charter criteria only: each phase's scope is a program increment, the Phase inventory and the dependency graph and the execution order agree, every acceptance cell is decidable when its phase closes, the Non-goals fence the program, the change record records decisions rather than work, and the inventory agrees with the tree. A charter review is never asked for implementation evidence — no typecheck or test-command run, no per-claim `path:line` pin. The two spec-shaped document targets share the one narrative body, so nothing is written twice.
 
-### Round logs
+### Fix dispositions
 
-Every dispatched round (`implement` / `review` / `fix`) pipes the child's stdout and stderr into one append-only log file per round — `.kairos/cdd/<slug>/logs/<stem>.log` — and never echoes that output on the engine's own face. The name is the round's report stem, so a re-dispatch carries its `-a{attempt}` suffix and never overwrites the first attempt's log. `--dry-run` dispatches nothing, so it writes no log. When the round itself is rejected or cut short, its `CDD_BLOCKED` line on stderr names that round's log path: diagnosing one round is one file away instead of an outside `ps` read. A pre-flight refusal (dirty tree · in-flight · doc contract) names no log — no round was ever dispatched.
+A fix round answers the requesting review handoff finding by finding: one disposition per finding, keyed by the finding's `summary` text verbatim and valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` (`rejected` requires the reason). The map rides the round's own work carrier under `dispositions`. A missing slot, a key set that differs from the input set, a key outside it, an unreadable review handoff, or a `rejected` without a reason fails the round. The review handoff stays read-only apart from appending a ruling line to its `notes`; its `findings` are never rewritten.
 
 ### Wave width
 
 A wave carries at most three tasks (`MAX_TASKS_PER_WAVE`), enforced as a hard gate with two named refusals: `wave-too-wide` when the derived open wave is wider than the ceiling, and `too-many-tasks` when `--tasks` names more than the ceiling. Both name the offending task ids. The engine never splits, truncates or reorders a wave — the repair is the plan's shape: chain the extra tasks through `DependsOn` so the dependency layers narrow. A plan review reports the same shape as `wave-width-at-most-three`, so the defect is visible before the first dispatch. A partially closed batch can widen the derived frontier across two layers; that shape meets the same `wave-too-wide` refusal, never a silent trim.
 
-### Fix dispositions
+### Round logs
 
-A fix round answers the requesting review handoff finding by finding: one disposition per finding, keyed by the finding's `summary` text verbatim and valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` (`rejected` requires the reason). The map rides the round's own work carrier under `dispositions`. A missing slot, a key set that differs from the input set, a key outside it, an unreadable review handoff, or a `rejected` without a reason fails the round. The review handoff stays read-only apart from appending a ruling line to its `notes`; its `findings` are never rewritten.
+Every dispatched round (`implement` / `review` / `fix`) pipes the child's stdout and stderr into one append-only log file per round — `.kairos/cdd/<slug>/logs/<stem>.log` — and never echoes that output on the engine's own face. The name is the round's report stem, so a re-dispatch carries its `-a{attempt}` suffix and never overwrites the first attempt's log. `--dry-run` dispatches nothing, so it writes no log. When the round itself is rejected or cut short, its `CDD_BLOCKED` line on stderr names that round's log path: diagnosing one round is one file away instead of an outside `ps` read. A pre-flight refusal (dirty tree · in-flight · doc contract) names no log — no round was ever dispatched.
 
 ### Review-cycle soft cap
 
@@ -84,7 +84,7 @@ pnpm --filter @oscaner-skills/cdd-engine test       # run the engine test suite
 pnpm --filter @oscaner-skills/cdd-engine build      # tsc-emit the published dist/bin.js
 ```
 
-During repository development the engine is invoked straight on the source entry (`node packages/cdd-engine/src-next/bin.ts`) — never through a global install or link, which can go stale.
+During repository development the engine is invoked straight on the source entry (`node packages/cdd-engine/src-next/bin.ts`) — never through a global install or link, which can go stale. The repository's own conventions (gates, generated files, commit discipline) are in [`AGENTS.md`](../../AGENTS.md).
 
 ## License
 

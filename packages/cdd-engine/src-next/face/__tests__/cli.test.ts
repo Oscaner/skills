@@ -2336,6 +2336,63 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("P22 §5.5 ② — drift does NOT outrank a pending fix: the gate accepts the verb the derivation names", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({
+      dispatch: async (frame: OpenFrame) =>
+        frame.phase === "fix"
+          ? { status: "APPROVED" }
+          : {
+              status: "CHANGES_REQUESTED",
+              findings: [{ severity: "blocker", summary: "pending" }],
+            },
+    });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // Review 1 leaves a blocker: the line awaits its fix and binds the reviewed
+      // revision (the findings are a present fact, not a stale reading).
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
+      expect(existsSync(path.join(workspace, "plan-review-1.json"))).toBe(true);
+      // The spec line is seeded closed so the plan face IS the board's frontier.
+      const ledger = new Ledger(
+        new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure(),
+        new ConfigLoader(),
+      );
+      ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+      ledger.recordRound("phase-spec", { op: "review" });
+      // The doc then moves. The reopen is the EXIT side's rule (a closed line's): a
+      // still-pending fix keeps its hop on every face — the board's `next:` ...
+      writeFileSync(
+        plan,
+        readFileSync(plan, "utf8").replace(
+          "- **Acceptance**: ok",
+          "- **Acceptance**: ok (drifted)",
+        ),
+        "utf8",
+      );
+      io.stdoutText = "";
+      expect(await command.runArgv(["board", "--plan", plan])).toBe(0);
+      expect(io.stdoutText).toContain(
+        "next:    fix --type plan --plan docs/kairos/plans/p3.md --reviews ",
+      );
+      // ... the refusal of any other round names that same object ...
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(1);
+      expect(io.stderrText).toContain("pending-fix · the next round is fix");
+      expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(false);
+      // ... and the named verb is the DISPATCHABLE one (the engine never names a
+      // round it then refuses — the cross-face property §5.5 ④).
+      io.stderrText = "";
+      io.stdoutText = "";
+      expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan])).toBe(0);
+      expect(io.stderrText).not.toContain("cannot dispatch");
+      expect(existsSync(path.join(workspace, "plan-fix-1.json"))).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("review --type branch — the CLI injects the base artifact's branch as BASE_BRANCH (the scope anchor value source)", async () => {
     const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";
@@ -2897,11 +2954,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
-  it("T8 — after an ABORTED fix the drifted doc re-reviews directly — the doc revision is the gate's primary criterion (judgment order = doc revision first)", async () => {
+  it("P22 §5.5 ② — after an ABORTED fix the drifted doc keeps the pending fix (drift never outranks it)", async () => {
     const { command, io, repoRoot, cleanup } = fixture({
       dispatch: async (frame: OpenFrame) =>
         frame.phase === "fix"
-          ? { status: "BLOCKED" } // the aborted fix — its round never records
+          ? { status: "BLOCKED" } // the aborted fix — its round never completes
           : {
               status: "CHANGES_REQUESTED",
               findings: [{ severity: "blocker", summary: "drift" }],
@@ -2910,46 +2967,44 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     try {
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
-      // Review round 1 with blockers — the line awaits its fix (fixes < reviews:
-      // the pre-T8 gate read the fix-awaited route and froze the re-review at
-      // "the next round is fix" even after the doc moved).
+      // Review round 1 with blockers — the line awaits its fix.
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(workspace, "plan-review-1.json"))).toBe(true);
-      // The aborted fix — the pre-T8 stuck path's origin: the fix attempt BLOCKS,
-      // records no fix round, and the line stays fix-awaited with the OLD review's
-      // findings binding the reviewed doc revision.
+      // The aborted fix — the round lands with its failure verdict (a dispatched round
+      // always records), earns the second attempt, and the pending fix survives it.
       io.stdoutText = "";
       io.stderrText = "";
       expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan])).toBe(1);
-      // The doc then moves (fix applied · backfill · user decision are the SAME
-      // case — the doc revision is the gate's primary criterion): the review runs
-      // directly, whatever the fix-awaited round state says, and the old findings
-      // are auto-invalid (bound to the superseded doc revision).
-      const driftedSource = readFileSync(plan, "utf8").replace(
-        "- **Acceptance**: ok",
-        "- **Acceptance**: ok (drifted)",
+      // The doc then moves. A live fix hop is NOT an exit-side route, so the drift does
+      // not steal it (§5.1 · §5.5 ②): an unclosed line keeps its pending fix, and the
+      // engine never names a round it then refuses.
+      writeFileSync(
+        plan,
+        readFileSync(plan, "utf8").replace(
+          "- **Acceptance**: ok",
+          "- **Acceptance**: ok (drifted)",
+        ),
+        "utf8",
       );
-      writeFileSync(plan, driftedSource, "utf8");
       io.stderrText = "";
       io.stdoutText = "";
-      const reopen = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
-      expect(reopen).toBe(0);
+      const refused = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
+      expect(refused).toBe(1);
+      expect(io.stderrText).toContain("pending-fix · the next round is fix");
+      expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(false);
+      // ... and the named verb IS the accepted one: this fix reaches the dispatch (its
+      // BLOCKED verdict is the child's, never a gate refusal).
+      io.stderrText = "";
+      expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan])).toBe(1);
       expect(io.stderrText).not.toContain("cannot dispatch");
-      expect(io.stderrText).not.toContain("the next round is fix");
-      expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(true);
-      // The completion counts stay preserved (the re-review books the next round
-      // increment) and the progress row's key set carries zero new fields (the
-      // pending fix is derived, never a stored state).
+      // The record keeps every dispatched round (two fix attempts, one review) and the
+      // pending fix stays DERIVED — no stored state lands in the row.
       const progress = readJson<{
         waves: Array<{ wave: string; rounds?: unknown[] }>;
       }>(path.join(workspace, "progress.json"));
-      // §3.7 — the doc line keys by its line-type constant, never the argv path; the
-      // re-review books its own cycle on the record array (no stored pending fact).
-      // The ABORTED fix is on record too — a dispatched round always lands, its
-      // verdict carries the failure, so the re-review is its own cycle.
       const row = progress.waves.find((entry) => entry.wave === "plan");
-      expect(roundTokens(row)).toEqual(["review:1:a1:true", "fix:1:a1:false", "review:2:a1:true"]);
+      expect(roundTokens(row)).toEqual(["review:1:a1:true", "fix:1:a1:false", "fix:1:a2:false"]);
       expect(JSON.stringify(progress)).not.toContain("pending");
     } finally {
       cleanup();

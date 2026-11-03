@@ -392,8 +392,8 @@ export class Lifecycle {
    *  phase's round in the same invocation). The returned `hop` is the SAME `NextHop`
    *  object the board and the CLI rejection message read (P22 §5.2's fourth read
    *  face): one derivation over this line's facts, never a lookahead-only copy.
-   *  Null = the run is exhausted / capped. */
-  peekNext(): { frame: OpenFrame; hop: NextHop | null } | null {
+   *  Null = the run is exhausted / capped (no open frame → no line to name). */
+  peekNext(): { frame: OpenFrame; hop: NextHop } | null {
     const frame = this.#openFrame();
     if (frame === null) return null;
     const route =
@@ -525,10 +525,12 @@ export class Lifecycle {
   /** The next phase of a single-target line — the doc-revision gate (lifecycle-side:
    *  its reviewGate needs the target doc path) then the ledger's SINGLE rounds/routes
    *  judge (`Ledger#linePhase`, D40 — the retired lifecycle twin). A CLOSED doc line
-   *  reopens through the identity verdict (T7): a drifted doc opens the review lead
-   *  whatever the round/route state says (the fix-awaited route never freezes a
-   *  revised doc); an unchanged doc with the pending fix derived opens the fix; the
-   *  unbound / same-without-pending faces fall through to the shared rounds/routes
+   *  reopens through the identity verdict (T7) — the ONE `Ledger#docReopens` judgment,
+   *  the same one the dispatch gate reads, so an exit-side drift opens the review lead
+   *  whatever the round/route state says while a still-pending fix keeps its round
+   *  (drift never outranks it, §5.5 ② — the gate never names a round this frontier
+   *  would not frame); an unchanged doc with the pending fix derived opens the fix;
+   *  the unbound / same-without-pending faces fall through to the shared rounds/routes
    *  walk (a completed-fix line reopens review through the fix round's route). */
   #nextLinePhase(
     key: LedgerKey,
@@ -537,7 +539,7 @@ export class Lifecycle {
   ): DispatchPhase | null {
     if (target.kind === "plan" || target.kind === "spec") {
       const verdict = this.#ledger.reviewGate(key, target.doc, this.#face.type);
-      if (verdict.kind === "open") return reviewLead;
+      if (this.#ledger.docReopens(key, this.#face.type, verdict)) return reviewLead;
       if (verdict.kind === "same" && verdict.pending) return "fix";
     }
     // The branch line's identity is its PLAN document (P21 §4.1): a plan revision
@@ -546,7 +548,7 @@ export class Lifecycle {
     // the line's plan (the audit target itself carries no doc).
     if (target.kind === "branch" && this.#planPath !== null) {
       const verdict = this.#ledger.reviewGate(key, this.#planPath, "branch");
-      if (verdict.kind === "open") return reviewLead;
+      if (this.#ledger.docReopens(key, "branch", verdict)) return reviewLead;
       if (verdict.kind === "same" && verdict.pending) return "fix";
     }
     return this.#ledger.linePhase(key, this.#face.type);
@@ -823,10 +825,12 @@ export class Lifecycle {
   /** The line's ONE next-hop object (§5.2) — this lifecycle's facts handed to the
    *  ONE derivation (`Ledger#nextHopOf`): the recorded round's route, the line's
    *  completed records, the drift-aware gate and the injected station
-   *  discrimination. Null only when the round produced NO route (the failure face's
-   *  absent object) — a derived `null` is never "no line" for a present object. */
-  #hopOf(frame: OpenFrame, route: Route | null): NextHop | null {
-    if (route === null) return null;
+   *  discrimination. The nullable route is handed over UNJUDGED — the assembly owns
+   *  the exit-side decision (a closed line's `null` route is where the drift reopen
+   *  lands), so the frontier face reads the same object the board and the gate read.
+   *  The failure face's absent hop is the CALLER's fact (`advance` passes null for a
+   *  BLOCKED/TIMEOUT round), never a second short-circuit here. */
+  #hopOf(frame: OpenFrame, route: Route | null): NextHop {
     const target = this.#routeTarget(frame);
     return this.#ledger.nextHopOf({
       type: frame.type,

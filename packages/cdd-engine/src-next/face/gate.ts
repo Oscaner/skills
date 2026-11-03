@@ -44,19 +44,20 @@ export class CliGate {
    *  only the derived pending face, never a recomputed one. The task face holds no
    *  separate gate here: the WaveGate's wrong-phase verdict (the pre-flight) IS the
    *  task-face phase authority — the wave gate is the single phase authority. A
-   *  doc line's gate is the reviewGate method family (T8 · §3.5 · judgment order =
-   *  doc revision FIRST, shared by the lifecycle's frame phase so an opened gate
-   *  dispatches): a moved doc opens the review lead whatever the round/route state
-   *  says (fix after · backfill after · user-decision after are the SAME case — the
-   *  stuck "next round is fix after an aborted fix" never freezes a revised doc),
-   *  an unchanged doc yields the gate's "same" verdict — the pending fix DERIVED
-   *  from the latest review's non-APPROVED conclusion opens only the fix phase,
-   *  while the no-pending face falls back to the legacy rounds/routes judgment: a
-   *  completed-fix line reopens the review lead through its fix round's C5-1 route
-   *  (the lifecycle's own fall-through — an open gate and a dispatchable frame
-   *  agree), a truly closed line keeps the revision-aware BLOCK. An unbound line
-   *  (no identity on record / an unreadable doc) keeps the legacy round/route
-   *  judgment + the generic closed message (only present facts land).
+   *  doc line's gate is the reviewGate method family (T8 · §3.5), shared by the
+   *  lifecycle's frame phase so an opened gate dispatches: a moved doc reopens the
+   *  review lead on a line whose C5 hop is on the EXIT side (a closed line, `null`,
+   *  or a face-to-face station — the ONE `Ledger#docReopens` judgment), while a
+   *  still-pending fix keeps its hop (drift never outranks it, §5.5 ②) so the gate
+   *  never refuses the round the ONE derivation names. An unchanged doc yields the
+   *  gate's "same" verdict — the pending fix DERIVED from the latest review's
+   *  non-APPROVED conclusion opens only the fix phase, while the no-pending face
+   *  falls back to the legacy rounds/routes judgment: a completed-fix line reopens
+   *  the review lead through its fix round's C5-1 route (the lifecycle's own
+   *  fall-through — an open gate and a dispatchable frame agree), a truly closed line
+   *  keeps the revision-aware BLOCK. An unbound line (no identity on record / an
+   *  unreadable doc) keeps the legacy round/route judgment + the generic closed
+   *  message (only present facts land).
    *
    *  The branch line rides the SAME drift leg (its identity document is the PLAN,
    *  P21 §3/§4.1 — the very document a branch re-review judges): a plan revision
@@ -74,23 +75,30 @@ export class CliGate {
   } {
     const key = this.#lineKey(scene);
     const doc = this.#docOf(scene);
-    if (key !== null && doc !== null) {
-      const verdict = scene.ledger.reviewGate(key, doc, scene.face.type);
-      if (verdict.kind === "open") {
-        return { phase: scene.face.product.reviewLead, verdict: null, reviewed: null };
+    const verdict =
+      key !== null && doc !== null ? scene.ledger.reviewGate(key, doc, scene.face.type) : null;
+    // The drift leg reads the ONE reopen judgment (exit-side routes only): a moved doc
+    // reopens the review lead on a line whose C5 hop is gone, while a still-pending
+    // fix keeps its own hop — drift never outranks it (§5.1 · §5.5 ②), so this gate
+    // always accepts the round the ONE derivation names.
+    if (
+      key !== null &&
+      verdict !== null &&
+      scene.ledger.docReopens(key, scene.face.type, verdict)
+    ) {
+      return { phase: scene.face.product.reviewLead, verdict: null, reviewed: null };
+    }
+    if (verdict !== null && verdict.kind === "same") {
+      if (verdict.pending) {
+        return { phase: "fix", verdict: "pending-fix", reviewed: verdict.reviewed };
       }
-      if (verdict.kind === "same") {
-        if (verdict.pending) {
-          return { phase: "fix", verdict: "pending-fix", reviewed: verdict.reviewed };
-        }
-        // same + no pending fix — the legacy rounds/routes judgment (the lifecycle's
-        // own fall-through): a completed-fix line reopens the review lead through its
-        // fix round's C5-1 route; a truly closed line keeps the revision-aware BLOCK.
-        const open = this.#linePhase(scene);
-        return open !== null
-          ? { phase: open, verdict: null, reviewed: null }
-          : { phase: null, verdict: "same", reviewed: verdict.reviewed };
-      }
+      // same + no pending fix — the legacy rounds/routes judgment (the lifecycle's
+      // own fall-through): a completed-fix line reopens the review lead through its
+      // fix round's C5-1 route; a truly closed line keeps the revision-aware BLOCK.
+      const open = this.#linePhase(scene);
+      return open !== null
+        ? { phase: open, verdict: null, reviewed: null }
+        : { phase: null, verdict: "same", reviewed: verdict.reviewed };
     }
     const open = this.#linePhase(scene);
     return { phase: open, verdict: null, reviewed: null };

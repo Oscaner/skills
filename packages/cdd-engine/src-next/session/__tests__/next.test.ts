@@ -690,10 +690,13 @@ describe("P22 §5.4 — the retired next-face entries and the retained gate face
       const text = readFileSync(path.join(entry.parentPath, entry.name), "utf8");
       scanned += 1;
       // The banned names are ASSEMBLED so this pin's own source never spells them
-      // (the same exact-name grep over the tree must stay at zero hits).
+      // (the same exact-name grep over the tree must stay at zero hits). The retired
+      // readback wording rides the same scan: the fix route's prose is the declared
+      // `FIX_READBACK_SUFFIX`, so a header paraphrasing the P4-era byte is residue.
       for (const banned of [
         /NextStepRouter\.(resolve|walk)\b/,
         new RegExp(`\\b${"target" + "Line" + "Open"}\\b`),
+        new RegExp(["read file", "back", "to"].join(" ")),
       ]) {
         if (banned.test(text)) hits.push(`${rel}: ${banned}`);
       }

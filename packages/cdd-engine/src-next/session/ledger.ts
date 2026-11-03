@@ -506,14 +506,14 @@ export class ReviewRefs {
 }
 
 // ---------------------------------------------------------------------------
-// the review gate — the T8 doc-revision-first verdict (spec §3.5)
+// the review gate — the T8 drift-aware verdict (spec §3.5)
 // ---------------------------------------------------------------------------
 
 /** The review-gate verdict (T8 · §3.5 · v0.12 ruled) — the doc line's review
- *  request judgment, doc-revision FIRST: a doc moved past the reviewed revision
- *  OPENS the review lead whatever the round/route state says (fix after · backfill
- *  after · user-decision after are the SAME case — the stuck "next round is fix
- *  after an aborted fix" path never freezes a revised doc); an unchanged doc stays
+ *  request judgment: a doc moved past the reviewed revision reports `open`, and the
+ *  reopen's SCOPE is the ONE `Ledger#docReopens` judgment its callers read (an
+ *  exit-side line reopens onto the review lead; a still-pending fix keeps its round,
+ *  §5.5 ②); an unchanged doc stays
  *  REJECTED (Review Convergence anti-spin), with the pending fix DERIVED from the
  *  latest review's non-APPROVED conclusion — zero independent state field (the
  *  progress.json key set carries no pending-fix key). `unbound` = no reviewed
@@ -911,20 +911,18 @@ export class Ledger {
   }
 
   /** The review-gate method (T8 · §3.5) — the doc line's review request judgment +
-   *  the phase advance, doc-revision FIRST: the shared docLineVerdict comparison is
-   *  the PRIMARY criterion — a drifted doc OPENS the review lead regardless of the
-   *  round/route state (fix / backfill / user-decision are one case: the stuck
-   *  "next round is fix after an aborted fix" gate never freezes a revised doc);
-   *  an unchanged doc yields the `same` verdict (review Convergence anti-spin:
+   *  the phase advance: the shared docLineVerdict comparison reports the drift, and
+   *  the REOPEN's scope is the callers' ONE judgment (`Ledger#docReopens` — an
+   *  exit-side route is replaced by the review lead, while an already-pending fix
+   *  keeps its round, §5.5 ②).
+   *  An unchanged doc yields the `same` verdict (review Convergence anti-spin:
    *  the callers' reject/reopen decision — the derived pending fix opens the fix
    *  face only, while the no-pending face falls back to the legacy rounds/routes
    *  judgment: a completed-fix line's C5-1 route reopens the review lead). The OPEN
    *  side performs no disk advance: the round + the revision snapshot land with the
    *  round's completion (Ledger#recordRound + the T7 write-back), so a BLOCKED
    *  re-review resumes the same round (nothing pre-binds). `unbound` (no identity on
-   *  record / an unreadable doc) keeps the legacy round/route judgment. The
-   *  judgment order change is the whole gate: the old rounds/routes-first read made
-   *  the round/route state shadow the doc movement (the pre-T8 stuck path). */
+   *  record / an unreadable doc) keeps the legacy round/route judgment. */
   reviewGate(key: LedgerKey, doc: string, type: TargetType): ReviewGateVerdict {
     const verdict = this.docLineVerdict(key, doc, type);
     if (verdict === "drift") return { kind: "open" };
@@ -1173,9 +1171,9 @@ export class Ledger {
    *  The pending-fix test is the latest review's IDENTITY membership in the fix cycle
    *  set (D28) — a count comparison would flatten a skipped cycle into a phantom pending
    *  fix. The doc-revision gate is NOT part of this walk — the callers run their own
-   *  reviewGate first (doc-drift-first ordering). `linePhase` maps this route to its
-   *  phase word (one walk), and the board's `next:` derivation reads the route itself
-   *  (D40 — the active hop, never a bare face handoff). */
+   *  reviewGate first and scope the reopen through `Ledger#docReopens`. `linePhase`
+   *  maps this route to its phase word (one walk), and the board's `next:` derivation
+   *  reads the route itself (D40 — the active hop, never a bare face handoff). */
   lineRoute(key: LedgerKey, type: TargetType): Route | null {
     const data = this.readProgress();
     if (data === null) return { kind: "review" };
@@ -1234,18 +1232,15 @@ export class Ledger {
         ? this.reviewGate(input.key, input.doc, input.type).kind === "open"
         : false;
     // The drift-reopened line — its active hop IS the review lead (the gate's own
-    // ruling): the exit-side route the table recorded (the line's closure or a
+    // ruling): the EXIT-side route the table recorded (the line's closure or a
     // face-to-face handoff, or no route at all) predates the document movement, so
     // the derivation receives the review hop instead. An already-open hop (review /
     // fix) and the soft-cap adjudication row keep their own route — the pending-fix
-    // face outranks drift (§5.1). The exit side is read from the ONE closure
-    // predicate (`Ledger.routeClosed`, D40 — a re-typed `done`/`next-wave` literal is
-    // the class this phase removes) plus the two route-less forms: no route at all,
-    // and the face-to-face `handoff` station a pipeline consumer hands over (an exit
-    // station, not a closure — the closure predicate deliberately excludes it).
-    const exitSide =
-      input.route === null || input.route.kind === "handoff" || Ledger.routeClosed(input.route);
-    const route = drift && exitSide ? ({ kind: "review" } as const) : input.route;
+    // face outranks drift (§5.1 · §5.5 ②). The exit side is the ONE predicate
+    // (`Ledger.onExitSide`) every drift-reopen reader shares, so this assembly, the
+    // dispatch gate and the lifecycle frontier can never disagree on the scope.
+    const route =
+      drift && Ledger.onExitSide(input.route) ? ({ kind: "review" } as const) : input.route;
     // The face axis is the ONE verdict this assembly reads (spec §5.2's doc-class
     // discrimination): no target carries no judgeable class (the bare terminal).
     const verdict: DocClassVerdict =
@@ -1272,6 +1267,26 @@ export class Ledger {
    *  every closure consumer read it here, never a re-typed literal. */
   static routeClosed(route: Route | null): boolean {
     return route !== null && (route.kind === "done" || route.kind === "next-wave");
+  }
+
+  /** Whether a C5 route sits on the line's EXIT side — a closure, the face-to-face
+   *  `handoff` station a pipeline consumer hands over (an exit station, not a closure
+   *  — the closure predicate deliberately excludes it), or no route at all. This is
+   *  the drift reopen's ONE override scope (§5.1 · §5.5 ②): only an exit-side route
+   *  predates the document movement, so only it is replaced by the review lead; a
+   *  still-pending fix keeps its hop, and every drift-reopen reader asks HERE. */
+  static onExitSide(route: Route | null): boolean {
+    return route === null || route.kind === "handoff" || Ledger.routeClosed(route);
+  }
+
+  /** Whether the document's drift reopens the line onto its review lead — the ONE
+   *  drift-reopen judgment the dispatch gate and the lifecycle frontier BOTH consume
+   *  (the gate verdict is handed in: the comparison is read once). Drift never
+   *  outranks a pending fix (§5.5 ②): a live review/fix hop on the non-exit side
+   *  keeps its round, so no face names a round another face refuses. */
+  docReopens(key: LedgerKey, type: TargetType, gate: ReviewGateVerdict): boolean {
+    if (gate.kind !== "open") return false;
+    return Ledger.onExitSide(this.lineRoute(key, type));
   }
 
   /** Whether one progress row's line is closed — the LATEST recorded round's C5 route

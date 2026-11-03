@@ -779,13 +779,9 @@ export class Cli {
           // The lookahead refusal renders the SAME `NextHop` the frame's line just
           // derived (`peekNext`), through the ONE message shape — so one command can
           // never print two different "next round" answers (the gate refusal above
-          // and this one name one object). The wave key stays an added clause; the
-          // phase-based wording survives only for a frame whose line holds no route.
+          // and this one name one object). The wave key stays an added clause.
           const waveContext = waveTasks !== null ? ` for wave ${waveTasks.join(",")}` : "";
-          const reject =
-            peeked.hop === null
-              ? `the next round is ${frame.phase}${waveContext}${this.#phaseHint(frame.phase)}`
-              : `${this.#gate.lineHopMessage(scene, peeked.hop, this.#words)}${waveContext}`;
+          const reject = `${this.#gate.lineHopMessage(scene, peeked.hop, this.#words)}${waveContext}`;
           this.#io.stderr(`cdd ${verb}: cannot dispatch a ${expected} round — ${reject}\n`);
           return 1;
         }
@@ -896,19 +892,6 @@ export class Cli {
     const read = scene.workspace.readJson<{ base?: unknown }>("base.json");
     const artifact = read.kind === "ok" ? read.value : null;
     return typeof artifact?.base === "string" ? artifact.base : "";
-  }
-
-  /** The phase-mismatch hint — what to run instead. */
-  #phaseHint(phase: string): string {
-    switch (phase) {
-      case "implement":
-        return " — run cdd implement first";
-      case "review":
-      case "branch-review":
-        return " — run cdd review first";
-      default:
-        return " — run cdd fix first";
-    }
   }
 
   /** Render a refused pre-flight verdict — the work command's BLOCK face (P4.1 T1).

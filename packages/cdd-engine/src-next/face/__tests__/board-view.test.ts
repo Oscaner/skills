@@ -1613,6 +1613,51 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     expect(capsuleNext.slice("next: ".length)).toBe(nextOfBoard("prog-p1"));
   });
 
+  it("(h2) a drift-reopened CLOSED line's frontier hop is the SAME `next:` the board renders", () => {
+    nodeDocs();
+    const planFile = planDoc([[1]]);
+    const ledger = ledgerOf();
+    // The branch line closes on a clean round and binds the plan's revision — its
+    // identity document (P21 §3/§4.1). The other lines are seeded closed so the
+    // branch face IS the board's frontier (the state a finished run reaches).
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+    ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+    ledger.recordRound("1", { op: "review" });
+    ledger.persistHandoff("review", "branch", { round: 1 }, { findings: [] });
+    ledger.recordRound("branch", { op: "review" });
+    ledger.recordReviewedRevision(
+      "branch",
+      ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
+      "branch",
+    );
+    const run = new Lifecycle({
+      face: targetFaces["branch"],
+      state: EMPTY_RUN_STATE,
+      ledger,
+      dispatch: async () => ({ status: "APPROVED", findings: [] }),
+      target: { kind: "branch" },
+      planPath: planFile,
+    });
+    // Closed and drift-free: the frontier holds no frame at all.
+    expect(run.peekNext()).toBeNull();
+    // One plan revision later the SAME line is open — and the frontier's hop is the
+    // exit-side reopen the board names (the fourth read face reads the ONE object).
+    writeFileSync(planFile, `${readFileSync(planFile, "utf8")}\n<!-- drift -->\n`, "utf8");
+    const peeked = run.peekNext();
+    expect(peeked?.hop?.hop).toBe("branch-review");
+    expect(peeked?.hop?.reason).toBe("doc-drift");
+    const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)).emit(
+      "APPROVED",
+      "0",
+      "/h2.json",
+      peeked!.hop!,
+    )[1]!;
+    expect(capsuleNext.slice("next: ".length)).toBe(nextOfBoard("prog-p1"));
+  });
+
   it("(e) the whole board output carries zero absolute paths (doc names collapse to basenames)", () => {
     nodeDocs();
     planDoc([[1]]);

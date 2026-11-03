@@ -1146,11 +1146,13 @@ export class Ledger {
    *  branch `closed` cell), so the mark and the `next:` line can never print two
    *  different facts about one state. `closed` — the recorded rounds/routes lie on
    *  the closure side AND the identity document still matches the revision the line
-   *  bound; `reopened` — the rounds/routes say closed but the document moved past
-   *  them, which IS the gate's reopen (`reviewGate` → `open`, the ruling the CLI
-   *  dispatch consults), so the line is the face awaiting review; `open` — the
-   *  rounds/routes themselves hold the line open, or no identity document is on hand
-   *  (`doc === null` — only present facts land). */
+   *  bound, or no identity document is on hand (`doc === null`): with no document
+   *  there is no drift evidence, so the conservative answer is closed — a false
+   *  reopen costs a whole branch review, while a false closure is what the `next:`
+   *  face reports separately; `reopened` — the rounds/routes say closed but the
+   *  document moved past them, which IS the gate's reopen (`reviewGate` → `open`, the
+   *  ruling the CLI dispatch consults), so the line is the face awaiting review;
+   *  `open` — the rounds/routes themselves hold the line open. */
   lineStateAt(
     key: LedgerKey,
     type: TargetType,

@@ -1,0 +1,7 @@
+---
+"@oscaner-skills/cdd-engine": minor
+---
+
+**Dispatch contract — the `cl:no-secret-access` discipline clause (issue #390).** A dispatched child runs as a full harness agent (an unrestricted Bash tool), so the discipline plane was the only surface that could bar it from user credentials — and that plane carried zero credential entries. Every dispatch shell (`implement` / `fix` / `docs-fix` / the four `review` variants) now carries one shared clause forbidding the reading, printing, or derivation of any user secret: macOS keychain (`security find-generic-password` / `dump-keychain` / `login.keychain-db`), `~/.ssh/*`, `~/.aws/credentials`, `~/.netrc`, a host CLI credential store, and token-bearing environment variables (`*_TOKEN` / `*_API_KEY` / `*_SECRET`). A missing or failing credential is never the child's to obtain: it is reported as `status: BLOCKED` on a work round or as a finding on a review round, then the round continues with the rest. Any secret that reaches a report, evidence file, handoff draft, commit, or issue body has leaked; one already visible in the inputs is redacted as `[REDACTED]` and never echoed.
+
+The clause lives only in `CLAUSES` + the shared `LICENSE_ITEMS` cell (one source, every shell byte-identical), and the template contract's `$version` moves 16 → 17. A regression gate renders all seven shells and pins the clause's required tokens (the named credential surfaces, the report-don't-acquire exit, and the redaction rule) on each.

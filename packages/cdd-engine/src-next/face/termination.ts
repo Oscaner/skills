@@ -7,9 +7,9 @@
 //
 // The seam's two ends are value objects, so the whole child lifecycle speaks one
 // shape:
-//   · `ChildRun` — one dispatch's full context (command/args/cwd + the heartbeat
-//     path the sampler writes + the termination policy of the phase + the per-host
-//     dispatch env);
+//   · `ChildRun` — one dispatch's full context (command/args/cwd + the in-flight
+//     record handle the sampler overwrites + the termination policy of the phase +
+//     the per-host dispatch env);
 //   · `ChildOutcome` — the child's result (its own exit code, verbatim streams)
 //     plus the `termination` fact: non-null ⟺ the round was cut short. The
 //     terminated round's downstream judgments all read that one fact, never the
@@ -18,17 +18,19 @@
 // Module-level exports are types / the value object / the class — zero
 // behavior-carrying bare functions.
 
-import { execFileSync } from "node:child_process";
-import { readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import path from "node:path";
 import { execa } from "execa";
-import type {
-  RoundPhase,
-  Sample,
-  SampleRecord,
-  StallVerdict,
-  Termination,
-} from "../session/ledger.ts";
+import {
+  LIVENESS_SIGNALS,
+  type LivenessContext,
+  LivenessJudge,
+  type LivenessLeg,
+  type LivenessSignal,
+  type LivenessSignalEntry,
+  type SignalReading,
+} from "../contract/liveness-signal.ts";
+import type { RoundLog } from "../infra/round-log.ts";
+import type { InFlight } from "../session/inflight.ts";
+import type { RoundPhase, SampleRecord, Termination } from "../session/ledger.ts";
 
 // ---------------------------------------------------------------------------
 // the seam — one dispatch's input, result and runner
@@ -62,21 +64,27 @@ export interface ChildOutcome {
 }
 
 /** One dispatch's full context — everything the runner needs, and nothing that
- *  reaches back into the session: the spawned command, the heartbeat path the
- *  sampler writes for this dispatch, the phase's termination policy, and the
- *  per-host dispatch env. The
- *  caller derives `cwd` and `heartbeatPath` from the one workspace it holds, so
- *  both paths share one source; the same `cwd` is the spawn directory AND the
- *  scanned tree root (the "scan root ≡ the child's cwd" structural guarantee). */
+ *  reaches back into the session: the spawned command, the in-flight record handle
+ *  the sampler overwrites for this dispatch, the phase's termination policy, and the
+ *  per-host dispatch env. The caller hands the record handle of its own workspace
+ *  root, so the sampling trail lands in the ONE in-flight record. `cwd` is the spawn
+ *  directory; `log` is the round's own log file, so the log leg observes exactly the
+ *  file this child's bytes land in. */
 export interface ChildRun {
   command: string;
   args: readonly string[];
   cwd: string;
-  heartbeatPath: string;
+  /** The dispatch's in-flight record — the sampling loop's ONE write target (the
+   *  identity facts and the per-tick sampling cells). */
+  inflight: InFlight;
   policy: TerminationPolicy;
   /** The per-host dispatch env — layered over the inherited env at spawn (the
    *  engine's values win over the parent's). */
   env: Readonly<Record<string, string>>;
+  /** The round's own log file — the child's stdout/stderr land here, appended as the
+   *  bytes arrive. Absent = no log channel (the round still runs; the liveness judge
+   *  loses the log leg and the CPU leg judges alone, never the round). */
+  log?: RoundLog;
 }
 
 /** The child-runner seam — the production terminator and the test stub implement
@@ -141,253 +149,146 @@ export class TerminationPolicy {
 }
 
 // ---------------------------------------------------------------------------
-// the stall judge — the running judgment over one dispatch, pure logic
+// the sampler — the per-round signal host (the only OS I/O of the liveness face)
 // ---------------------------------------------------------------------------
 
-/** StallJudge — is this dispatch still moving? Not a comparison of two samples but a
- *  judgment over the round: the judge holds its own accumulating state and is fed one
- *  tick at a time through `observe`, which returns the tick's verdict. Zero I/O: it
- *  reads the two legs of a `Sample` and nothing else (the OS reads live in `Sampler`),
- *  so its truth table is testable without a process or a tree. Both the idle window
- *  and the spawn instant are injected — the window never comes from a module constant
- *  and the clock never comes from the wall (a stall case must not wait out the real
- *  half hour), and the spawn instant seeds the idle clock.
- *
- *  The rules, in the order they are applied:
- *   · an unreadable leg (`null`) → `unknown`, and unknown never kills (fail-open: no
- *     reading of a leg means no evidence of a stall, and an unreadable tick carries no
- *     observation either way);
- *   · CPU above the PREVIOUS observation, or mtime above the HISTORICAL MAXIMUM →
- *     `progress`, and the idle clock restarts at this tick;
- *   · no progress and the window is still open → `idled`;
- *   · no progress and the window is spent → `stalled` (the kill).
- *  Neither leg authorizes a kill alone (`unknown` covers the unreadable case) and
- *  output activity is deliberately NOT a signal: a thinking child is silent, and using
- *  silence against it would kill a child that is working. */
-export class StallJudge {
-  readonly #idleWindowMs: number;
-  /** The instant of the last progress — the spawn instant until the first one. */
-  #idleSince: number;
-  /** The previous tick's process-group CPU (ms) — `null` until the first readable one. */
-  #lastCpuMs: number | null = null;
-  /** The largest mtime (ms) the tree leg has ever reported. */
-  #maxMtimeMs: number | null = null;
-
-  constructor(idleWindowMs: number, spawnedAt: number) {
-    this.#idleWindowMs = idleWindowMs;
-    this.#idleSince = spawnedAt;
-  }
-
-  /** The idle time (ms) at `now` — how long since the last progress (the spawn instant
-   *  until the first one). */
-  idleMs(now: number): number {
-    return Math.max(0, now - this.#idleSince);
-  }
-
-  /** Judge one tick: feed the tick's sample and the instant it was taken. */
-  observe(sample: Sample, now: number): StallVerdict {
-    const cpuMs = sample.groupCpuMs;
-    const mtimeMs = sample.newestMtimeMs;
-    // Both legs must be readable to judge at all.
-    if (cpuMs === null || mtimeMs === null) return "unknown";
-    // Progress is an advance over what has already been seen — this CPU over the
-    // previous observation, this mtime over the historical maximum. The first readable
-    // tick has neither, so it can never be a progress tick: the idle clock has been
-    // running since the spawn instant, exactly as if that tick had been flat.
-    const advanced =
-      (this.#lastCpuMs !== null && cpuMs > this.#lastCpuMs) ||
-      (this.#maxMtimeMs !== null && mtimeMs > this.#maxMtimeMs);
-    this.#lastCpuMs = cpuMs;
-    if (this.#maxMtimeMs === null || mtimeMs > this.#maxMtimeMs) this.#maxMtimeMs = mtimeMs;
-    if (advanced) {
-      this.#idleSince = now;
-      return "progress";
-    }
-    return now - this.#idleSince < this.#idleWindowMs ? "idled" : "stalled";
-  }
+/** One tick's reading set — every leg's reading, the comparison basis the judge needs,
+ *  and the two postmortem cells (`logSize` / `cpuMs`, each read off its NAMED leg). */
+export interface TickReadings {
+  readonly readings: readonly SignalReading[];
+  readonly previous: readonly (number | null)[];
+  readonly logSize: number | null;
+  readonly cpuMs: number | null;
 }
 
-// ---------------------------------------------------------------------------
-// the sampler — the two legs' heavy lifting (the only OS I/O of the stall face)
-// ---------------------------------------------------------------------------
-
-/** Sampler — one dispatch's two legs, read once per tick: the process group's
- *  cumulative CPU and the newest content mtime of the scanned tree. The I/O lives
- *  here and the judgment lives in `StallJudge`, so each face is testable on its own
- *  (the truth table without a process, the fail-open `null` without a judge).
+/**
+ * Sampler — one dispatch's legs, read once per tick. The sampler BUILDS this round's
+ * signals from this round's `LivenessContext` (`LIVENESS_SIGNALS` is a per-round
+ * factory, never a module-level instance array), so each round's self-held state
+ * (`readableAt`) belongs to that round alone, and it holds the previous tick's values —
+ * the progress comparison basis lives with the cadence, exactly one tick wide.
  *
- *   · The group id is the child's own pid, never recomputed: `killDescendants` forces
- *     the spawn-layer detachment, so the child IS its process group leader — the same
- *     fact execa's own `process.kill(-pid)` kill rides.
- *   · The scan root is the child's cwd (the repo root), so the "scan root ≡ child cwd"
- *     correspondence is structural.
- *   · `exclude` is the engine's own writes — `Sampler.excludesFor` is its single
- *     source: the repo's `.git/` and the dispatch's heartbeat file. The rest of
- *     `.kairos/` is NOT excluded: a child's handoff draft there is real progress. */
+ * The legs are the CHILD's own evidence (design spec §4.3): its round log file and its
+ * process group's CPU. Nothing in the workspace tree is scanned any more, so a third
+ * party's write into the repo can never certify progress — that claim is structural
+ * now, not an exclusion list.
+ */
 export class Sampler {
-  /** The deepest tree level the walk descends to. */
-  static readonly MAX_DEPTH = 32;
-  /** The VCS internal every scan skips — its mtime is never a round's progress. */
-  static readonly VCS_DIR = ".git";
-  /** A `ps -o time=` reading: `[DD-][HH:]MM:SS[.ff]` (BSD gives centiseconds, Linux
-   *  whole seconds — both ride the same pattern). */
-  static readonly TIME_PATTERN =
-    /^(?:(\d+)-)?(?:(\d+):(\d+):(\d+(?:\.\d+)?)|(\d+):(\d+(?:\.\d+)?))$/;
+  readonly #signals: readonly { readonly leg: LivenessLeg; readonly signal: LivenessSignal }[];
+  readonly #previous: (number | null)[];
 
-  readonly #pgid: number;
-  readonly #scanRoot: string;
-  readonly #exclude: ReadonlySet<string>;
-
-  constructor(options: { pgid: number; scanRoot: string; exclude: readonly string[] }) {
-    this.#pgid = options.pgid;
-    // Absolute, normalized forms on both sides of the comparison below, so an
-    // exclusion matches the walked path it names.
-    this.#scanRoot = path.resolve(options.scanRoot);
-    this.#exclude = new Set(options.exclude.map((entry) => path.resolve(entry)));
+  /** `signals` is the per-round registry; the production default is the declared
+   *  `LIVENESS_SIGNALS`, and a caller may inject its own leg set (the deterministic
+   *  sampling pin drives scripted readings through the same judge, so the four-state
+   *  attribution never depends on real CPU resolution or a machine's timing). */
+  constructor(
+    context: LivenessContext,
+    signals: readonly LivenessSignalEntry[] = LIVENESS_SIGNALS,
+  ) {
+    this.#signals = signals.map(({ leg, create }) => ({ leg, signal: create(context) }));
+    this.#previous = this.#signals.map(() => null);
   }
 
-  /** The exclusion single source for one dispatch: the repo's VCS internal plus the
-   *  heartbeat path the engine itself writes (a tick must never self-certify). */
-  static excludesFor(scanRoot: string, heartbeatPath: string): readonly string[] {
-    return [path.join(scanRoot, Sampler.VCS_DIR), heartbeatPath];
+  /** Read every leg of this tick — each independently fail-open (`null`, never a
+   *  fabricated reading) — and advance the previous-reading basis. */
+  probe(): TickReadings {
+    const readings = this.#signals.map((entry) => entry.signal.sample());
+    const previous = [...this.#previous];
+    readings.forEach((reading, index) => {
+      this.#previous[index] = reading.value;
+    });
+    return {
+      readings,
+      previous,
+      logSize: this.#valueOf(readings, "log"),
+      cpuMs: this.#valueOf(readings, "cpu"),
+    };
   }
 
-  /** Read both legs of this tick — each independently fail-open: a leg the platform
-   *  cannot read is `null`, never a fabricated reading. */
-  probe(): Sample {
-    return { groupCpuMs: this.#groupCpuMs(), newestMtimeMs: this.#newestMtimeMs() };
-  }
-
-  /** The process group's cumulative CPU (ms), summed over the group's processes. A
-   *  non-zero `ps` exit (no such group, or no `ps` at all) or any unparseable line
-   *  makes the leg unreadable — `null`. An empty reading is unreadable too: a group
-   *  with no observable member is not evidence of zero CPU. */
-  #groupCpuMs(): number | null {
-    let output: string;
-    try {
-      output = execFileSync("ps", ["-o", "time=", "-g", String(this.#pgid)], {
-        encoding: "utf8",
-        // stdout only: `ps`'s own complaint about an unknown group is not a reading,
-        // and it must never reach the engine's stderr channel.
-        stdio: ["ignore", "pipe", "ignore"],
-      });
-    } catch {
-      return null;
-    }
-    const lines = output
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-    if (lines.length === 0) return null;
-    let total = 0;
-    for (const line of lines) {
-      const ms = Sampler.#parseCpuTime(line);
-      if (ms === null) return null;
-      total += ms;
-    }
-    return total;
-  }
-
-  /** One `time=` reading as milliseconds — `null` when the text is not that format. */
-  static #parseCpuTime(text: string): number | null {
-    const match = Sampler.TIME_PATTERN.exec(text);
-    if (match === null) return null;
-    const days = Number(match[1] ?? 0);
-    const hours = Number(match[2] ?? 0);
-    const minutes = Number(match[3] ?? match[5] ?? 0);
-    const seconds = Number(match[4] ?? match[6] ?? 0);
-    return (((days * 24 + hours) * 60 + minutes) * 60 + seconds) * 1000;
-  }
-
-  /** The newest content mtime (ms) in the scanned tree — `null` when the walk cannot
-   *  complete (an unreadable directory anywhere makes the whole leg unreadable rather
-   *  than under-reporting). */
-  #newestMtimeMs(): number | null {
-    try {
-      return this.#newestIn(this.#scanRoot, 0);
-    } catch {
-      return null;
-    }
-  }
-
-  /** The recursive descent — symlinks and the engine's own paths skipped, `MAX_DEPTH`
-   *  as the floor of the walk. */
-  #newestIn(dir: string, depth: number): number | null {
-    if (depth > Sampler.MAX_DEPTH) return null;
-    let newest: number | null = null;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const child = path.join(dir, entry.name);
-      // A symlink is never followed (it can leave the tree outright); an excluded path
-      // is the engine's own write.
-      if (entry.isSymbolicLink() || this.#exclude.has(child)) continue;
-      if (entry.isDirectory()) {
-        const nested = this.#newestIn(child, depth + 1);
-        if (nested !== null && (newest === null || nested > newest)) newest = nested;
-        continue;
-      }
-      // Content mtimes only: a directory's own mtime moves on entry churn, which the
-      // CPU leg already reflects as work — and the heartbeat's first creation would
-      // otherwise bump its directory and self-certify a progress tick.
-      const mtimeMs = statSync(child).mtimeMs;
-      if (newest === null || mtimeMs > newest) newest = mtimeMs;
-    }
-    return newest;
+  /** One tick's reading of a NAMED leg — the postmortem cells address legs by name, so
+   *  inserting or reordering a leg cannot silently swap `logSize` and `cpuMs`. A leg
+   *  the registry does not declare reads `null` (the fail-open face). */
+  #valueOf(readings: readonly SignalReading[], leg: LivenessLeg): number | null {
+    const index = this.#signals.findIndex((entry) => entry.leg === leg);
+    return index < 0 ? null : (readings[index]?.value ?? null);
   }
 }
 
 // ---------------------------------------------------------------------------
-// the sampling loop — the dispatch's heartbeat trail (§3.4)
+// the sampling loop — the dispatch's in-flight sampling trail (§3.4)
 // ---------------------------------------------------------------------------
 
-/** The sampling loop of one dispatch — the cadence that wraps the running child: one
- *  sample the moment the child is spawned, then one per `intervalMs`. Each tick reads
- *  the two legs through the `Sampler`, has the `StallJudge` rule on them, and
- *  overwrites the dispatch's heartbeat file with the resulting `SampleRecord` — the
- *  trail a human reads after a round was cut short. A `stalled` verdict fires the
- *  loop's `onStall` callback once — the Terminator's kill trigger (the engine's own
- *  group kill; the SIGTERM → SIGKILL escalation is execa's).
+/**
+ * SamplingLoop — the sampling loop of one dispatch: the cadence that wraps the running
+ * child — one sample the moment the child is spawned, then one per `intervalMs`. Each
+ * tick reads the legs through the `Sampler`, has the `LivenessJudge` rule on them (the
+ * idle clock lives here, seeded by the spawn instant and restarted on every
+ * `progress`), and overwrites the dispatch's in-flight record sampling cells through
+ * `InFlight` — the ONE record, never a second file beside it. A `stalled` verdict
+ * fires the loop's `onStall` callback once — the Terminator's kill trigger (the
+ * engine's own group kill; the SIGTERM → SIGKILL escalation is execa's) — and ENDS the
+ * cadence: after the engine's own kill, further ticks observe only a dying process,
+ * so the postmortem sample must stay the stall that authorized the kill (a later
+ * `ps` miss would otherwise overwrite it with `unknown`).
  *
  *  The interval is unref'd: the engine's own sampling must never be the reason the
  *  parent process stays alive (the dispatch awaits the child, not the cadence). The
- *  heartbeat write is a plain overwrite, deliberately NOT a write-then-rename: a
- *  temporary file would sit inside the scanned tree and its own creation would certify
- *  "progress" — the very self-report the exclusion exists to prevent. Both the write
- *  and the removal are fail-open: the trail is a diagnostic, never a dispatch's fate.
+ *  trail WRITE is fail-open (`InFlight.heartbeat` swallows a failed write): a
+ *  diagnostic never decides a dispatch's fate. The clock is injectable (wall clock by
+ *  default), so a pin drives ticks at explicit instants instead of waiting out the
+ *  real cadence. The loop NEVER removes the record — removal belongs to
+ *  `InFlight.release()` (the normal end) and `InFlight.steal()` (the explicit
+ *  takeover) alone, so a self-ending round that still has to hand its conclusion back
+ *  cannot erase the very fact the gate reads.
  *
  *  The last observation is held in memory (`lastSample`): a terminated round's crash
  *  record takes it from there, never by re-reading the file the engine itself wrote. */
-class SamplingLoop {
+export class SamplingLoop {
   readonly #sampler: Sampler;
-  readonly #judge: StallJudge;
-  readonly #heartbeatPath: string;
+  readonly #judge: LivenessJudge;
+  readonly #inflight: InFlight;
   readonly #intervalMs: number;
+  readonly #idleWindowMs: number;
   /** The stall trigger — called once on the first `stalled` verdict (the kill). */
   readonly #onStall?: () => void;
-  /** Whether the stall verdict has already fired — one kill per dispatch. */
+  /** Whether the stall verdict has already fired — one kill per dispatch, and no
+   *  further sample after it (the trail's last cell is the stall). */
   #stallFired = false;
   /** The most recent observation — the postmortem sample of a terminated round. */
   #last: SampleRecord | null = null;
   #timer: ReturnType<typeof setInterval> | null = null;
+  /** The instant of the last progress — the spawn instant until the first one. */
+  #idleSince: number;
+  /** The tick clock (wall clock by default) — the pin injects a fake one. */
+  readonly #clock: () => number;
 
   constructor(options: {
     sampler: Sampler;
-    judge: StallJudge;
-    heartbeatPath: string;
+    judge: LivenessJudge;
+    inflight: InFlight;
     intervalMs: number;
+    idleWindowMs: number;
+    spawnedAt: number;
     onStall?: () => void;
+    clock?: () => number;
   }) {
     this.#sampler = options.sampler;
     this.#judge = options.judge;
-    this.#heartbeatPath = options.heartbeatPath;
+    this.#inflight = options.inflight;
     this.#intervalMs = options.intervalMs;
+    this.#idleWindowMs = options.idleWindowMs;
+    this.#idleSince = options.spawnedAt;
     this.#onStall = options.onStall;
+    this.#clock = options.clock ?? Date.now;
   }
 
   /** Sample at once (the spawn instant has just passed — a round is never observed
-   *  only from the first interval on) and start the cadence. */
+   *  only from the first interval on) and start the cadence. A first tick that
+   *  already rules `stalled` starts no cadence: the trail is final. */
   start(): void {
-    this.#tick(Date.now());
-    this.#timer = setInterval(() => this.#tick(Date.now()), this.#intervalMs);
+    this.tick();
+    if (this.#stallFired) return;
+    this.#timer = setInterval(() => this.tick(), this.#intervalMs);
     // Never hold the parent process open for the engine's own sampling.
     this.#timer.unref();
   }
@@ -398,48 +299,43 @@ class SamplingLoop {
     return this.#last;
   }
 
-  /** The judge's idle reading (ms) at this instant — the termination fact's idle time. */
+  /** The idle time (ms) at this instant — how long since the last progress. */
   idleMs(): number {
-    return this.#judge.idleMs(Date.now());
+    return Math.max(0, this.#clock() - this.#idleSince);
   }
 
-  /** End the loop at the dispatch's terminal state: the cadence stops, and the
-   *  heartbeat is removed iff the round ended by itself — a terminated round's file
-   *  stays for a human's postmortem. */
-  stop(endedByItself: boolean): void {
+  /** End the loop at the dispatch's terminal state — the cadence stops and NOTHING
+   *  else: the in-flight record is not this loop's to remove, whatever way the round
+   *  ended (removal belongs to `InFlight.release()` / `InFlight.steal()` alone). */
+  stop(): void {
     if (this.#timer !== null) {
       clearInterval(this.#timer);
       this.#timer = null;
     }
-    if (!endedByItself) return;
-    try {
-      rmSync(this.#heartbeatPath, { force: true });
-    } catch {
-      // Fail-open (see the class doc).
-    }
   }
 
-  /** One tick: read both legs, judge them, and overwrite the heartbeat record. A
-   *  `stalled` verdict fires the kill trigger once (the first stall owns the kill;
-   *  later ticks of a dying child never re-fire). */
-  #tick(now: number): void {
-    const sample = this.#sampler.probe();
-    const verdict = this.#judge.observe(sample, now);
-    const record: SampleRecord = {
-      sampledAt: now,
-      groupCpuMs: sample.groupCpuMs,
-      newestMtimeMs: sample.newestMtimeMs,
-      verdict,
-    };
-    this.#last = record;
-    try {
-      writeFileSync(this.#heartbeatPath, `${JSON.stringify(record, null, 2)}\n`, "utf8");
-    } catch {
-      // Fail-open (see the class doc): an unwritable heartbeat slows nothing down.
-    }
-    if (verdict === "stalled" && !this.#stallFired) {
+  /** One tick at `now` (default: the loop's clock): read the legs, judge them, and
+   *  overwrite the in-flight record's sampling cells. A `stalled` verdict fires the
+   *  kill trigger once and ends the cadence (the first stall owns the kill, and the
+   *  trail's last cell stays the stall — the dying child's later unreadable ticks can
+   *  never rewrite the postmortem). */
+  tick(now: number = this.#clock()): void {
+    if (this.#stallFired) return;
+    const { readings, previous, logSize, cpuMs } = this.#sampler.probe();
+    const verdict = this.#judge.verdict({
+      readings,
+      previous,
+      idleMs: Math.max(0, now - this.#idleSince),
+      windowMs: this.#idleWindowMs,
+      now,
+    });
+    if (verdict === "progress") this.#idleSince = now;
+    this.#last = { at: now, logSize, cpuMs, verdict };
+    this.#inflight.heartbeat({ sampledAt: now, verdict });
+    if (verdict === "stalled") {
       this.#stallFired = true;
       this.#onStall?.();
+      this.stop();
     }
   }
 }
@@ -463,7 +359,7 @@ class SamplingLoop {
  *   · `maxBuffer` is never set or lowered — execa's own 100 MB default is the
  *     unbounded-face successor of the retired fixed 1 MiB cap;
  *   · the sampling loop — the child is sampled from the spawn instant and every
- *     `policy.sampleIntervalMs` after (the heartbeat file is that loop's trail, and
+ *     `policy.sampleIntervalMs` after (the in-flight record is that loop's trail, and
  *     the judge's verdict rides every record).
  *  The class holds zero session state: everything a dispatch needs rides the
  *  `ChildRun` argument, so the composition root wires it without a scene. */
@@ -494,6 +390,15 @@ export class Terminator implements ChildRunner {
       forceKillAfterDelay: Terminator.FORCE_KILL_AFTER_DELAY_MS,
       timeout: run.policy.budgetMs,
     });
+    // The round's log channel — the child's stdout/stderr bytes are appended to the
+    // per-round file as they arrive (zero prefix, zero engine-stdout echo, raw chunks:
+    // the log never re-decodes, so a chunk boundary cannot tear a character). The
+    // buffered result face below is unchanged; the log is an additional observation.
+    if (run.log !== undefined) {
+      const log = run.log;
+      subprocess.stdout?.on("data", (chunk: Buffer | string) => log.write(chunk));
+      subprocess.stderr?.on("data", (chunk: Buffer | string) => log.write(chunk));
+    }
     // Reclaim the group the instant the direct child exits: a grandchild holding the stdout
     // / stderr pipes would otherwise keep the `await` open. No execa option does this (its
     // group kill is on-demand only), so execa's own group-aware `kill()` is called once, at
@@ -512,9 +417,6 @@ export class Terminator implements ChildRunner {
       // in the same tick is not misattributed as `stalled`.
       if (subprocess.kill()) killedByStall = true;
     });
-    // The round's heartbeat fate — terminated by default, so an unexpected throw keeps
-    // the trail as well; a round that ends by itself leaves no file behind.
-    let endedByItself = false;
     try {
       const result = await subprocess;
       const termination = Terminator.terminationOf({
@@ -525,7 +427,6 @@ export class Terminator implements ChildRunner {
         idleMs: sampling?.idleMs() ?? 0,
         lastSample: sampling?.lastSample() ?? null,
       });
-      endedByItself = termination === null;
       return {
         // The child's OWN exit code, unfolded: null means "never spawned / signalled",
         // never a fabricated 1 (which would misreport both as an ordinary failed run).
@@ -538,8 +439,8 @@ export class Terminator implements ChildRunner {
         termination,
       };
     } finally {
-      // The cadence never outlives the dispatch.
-      sampling?.stop(endedByItself);
+      // The cadence never outlives the dispatch (the record itself is the caller's).
+      sampling?.stop();
     }
   }
 
@@ -547,9 +448,10 @@ export class Terminator implements ChildRunner {
    *  broken command has no pid: nothing to sample and nothing to postmortem). The
    *  group id is the child's OWN pid, never recomputed — `killDescendants` forces the
    *  spawn-layer detachment, so the child IS its process group leader (the same fact
-   *  execa's own group kill rides); the scan root is the same `cwd` the child was
-   *  spawned in. The stall trigger rides through: the loop's first `stalled` verdict
-   *  is the kill's authorization. */
+   *  execa's own group kill rides). The round's two context cells are taken here for
+   *  THIS round: its own log path (a re-dispatch carries its own `-a{attempt}` file)
+   *  and its own pgid. The stall trigger rides through: the loop's first `stalled`
+   *  verdict is the kill's authorization. */
   #startSampling(
     run: ChildRun,
     pid: number | undefined,
@@ -557,15 +459,16 @@ export class Terminator implements ChildRunner {
     onStall?: () => void,
   ): SamplingLoop | null {
     if (pid === undefined) return null;
+    // No log channel → an empty path the log leg can never read (`null`), so the CPU
+    // leg judges alone; the round is never lost to an unopenable observation channel.
+    const context: LivenessContext = { logPath: run.log?.path ?? "", pgid: pid };
     const sampling = new SamplingLoop({
-      sampler: new Sampler({
-        pgid: pid,
-        scanRoot: run.cwd,
-        exclude: Sampler.excludesFor(run.cwd, run.heartbeatPath),
-      }),
-      judge: new StallJudge(run.policy.idleWindowMs, spawnedAt),
-      heartbeatPath: run.heartbeatPath,
+      sampler: new Sampler(context),
+      judge: new LivenessJudge(),
+      inflight: run.inflight,
       intervalMs: run.policy.sampleIntervalMs,
+      idleWindowMs: run.policy.idleWindowMs,
+      spawnedAt,
       onStall,
     });
     sampling.start();
@@ -586,7 +489,7 @@ export class Terminator implements ChildRunner {
    *   · nothing of the above → the round ended by itself (successfully or not), no
    *     termination.
    *  The last sample rides whichever cause won: it is the sampling loop's own last
-   *  observation, held in memory — never a re-read of the heartbeat file the engine
+   *  observation, held in memory — never a re-read of the record file the engine
    *  itself wrote.
    *
    *  `killedByStall` records that OUR kill was delivered (execa's `kill()` returns

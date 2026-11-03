@@ -27,6 +27,7 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { declaredRegistries } from "../../contract/declare.ts";
 import { Contract } from "../../contract/judge.ts";
+import { MarkdownTree } from "../../contract/markdown-tree.ts";
 import type { DocKey, DocSkeleton, SkeletonSlot } from "../../contract/project.ts";
 import { Projector } from "../../contract/project.ts";
 import { BoardView } from "../../face/board-view.ts";
@@ -70,8 +71,8 @@ const SEMANTIC_PROBES: Record<string, string> = {
   "#### N.M item heading": "#### 1.1 :::fill item-title",
   "### Task N:": "### Task 1: :::fill task-title",
   "Task id token": "### Task 1:",
-  "File path token": "- **Files**: :::fill file-paths",
-  "Step action": ":::fill step-action",
+  "File path token": ":::fill file-paths",
+  "Step action": "- :::fill step-action — checkable: :::fill step-checkable",
   "Step checkable": "— checkable: :::fill step-checkable",
   "Acceptance entry": "- `:::fill acceptance-entry`",
   "Constraint delta bullet": "- :::fill constraint",
@@ -117,7 +118,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "date: 2026-10-11",
         "slug: ':::fill slug'",
         "program: <overall-slug>",
-        "status: Draft",
         "author: ':::fill author'",
         "---",
         "",
@@ -163,14 +163,28 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "- :::fill constraint",
         "",
         "### Task 1: :::fill task-title",
-        "- **Objective**: :::fill objective",
-        "- **Files**: :::fill file-paths",
-        "- **Consumes**: :::fill consumes",
-        "- **Produces**: :::fill produces",
-        "- **Steps**:",
-        "  - :::fill step-action — checkable: :::fill step-checkable",
-        "- **Acceptance**: :::fill acceptance",
-        "- **DependsOn**: none",
+        "",
+        "#### Objective",
+        ":::fill objective",
+        "",
+        "#### Files",
+        ":::fill file-paths",
+        "",
+        "#### Consumes",
+        ":::fill consumes",
+        "",
+        "#### Produces",
+        ":::fill produces",
+        "",
+        "#### Steps",
+        "- :::fill step-action — checkable: :::fill step-checkable",
+        "- :::fill step-action-2 — checkable: :::fill step-checkable-2",
+        "",
+        "#### Acceptance",
+        ":::fill acceptance",
+        "",
+        "#### DependsOn",
+        "none",
         "",
         "## Change history",
         "",
@@ -190,7 +204,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "version: v0.1",
         "date: 2026-10-11",
         "slug: ':::fill slug'",
-        "status: Draft",
         "author: ':::fill author'",
         "---",
         "",
@@ -260,7 +273,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "version: v0.1",
         "date: 2026-10-11",
         "slug: ':::fill slug'",
-        "status: Draft",
         "author: ':::fill author'",
         "issues: ':::fill issues'",
         "---",
@@ -333,14 +345,18 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
     }
   });
 
-  it("renders the generator truths — the enum status key and the graph rows", () => {
-    for (const key of ["overall", "phase-spec", "single-spec"] as const) {
-      expect(renderOf(key)).toContain("status: Draft");
+  it("renders the generator truths — the doc-type enum key and the graph rows", () => {
+    for (const key of KEYS) {
+      expect(renderOf(key)).toContain(`doc-type: ${key}`);
     }
-    // the plan head carries no status key (its registry omits it)
-    expect(renderOf("plan")).not.toContain("status: ");
     expect(renderOf("overall")).toContain("P1 -> P2");
     expect(renderOf("overall")).toContain("- `->` = hard block");
+  });
+
+  it("emits no `status:` head key — the retired field never returns to the skeleton", () => {
+    for (const key of KEYS) {
+      expect(renderOf(key), `${key}: no status head key`).not.toContain("status:");
+    }
   });
 
   it("renders every content position as a `:::fill <slot>` slot — the body and the front-matter content keys", () => {
@@ -405,13 +421,12 @@ describe("SkeletonAssembler — the front-matter head (spec §2.2/§4.2)", () =>
     }
   });
 
-  it("emits the truth keys' true values — doc-type · v0.1 · the injected date · Draft", () => {
+  it("emits the truth keys' true values — doc-type · v0.1 · the injected date", () => {
     for (const key of KEYS) {
       const block = frontmatterBlockOf(key);
       expect(block).toContain(`doc-type: ${key}`);
       expect(block).toContain("version: v0.1");
       expect(block).toContain(`date: ${DATE}`);
-      if (key !== "plan") expect(block).toContain("status: Draft");
     }
   });
 
@@ -446,14 +461,13 @@ describe("SkeletonAssembler — the front-matter head (spec §2.2/§4.2)", () =>
 describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () => {
   /** The structure/truth/header rows that must never carry a `:::fill` — the
    *  front-matter truth/link keys, the doc-type declaration, the fixed heading
-   *  lines, the version row, the Status truth, the link anchors, the graph rows
-   *  and the table headers/separators. */
+   *  lines, the version row, the link anchors, the graph rows and the table
+   *  headers/separators. */
   const STRUCTURE_LINES: Record<string, readonly string[]> = {
     overall: [
       "doc-type: overall",
       "version: v0.1",
       "date: 2026-10-11",
-      "status: Draft",
       "## Document scope",
       "## Program charter",
       "### Goal",
@@ -488,7 +502,6 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "doc-type: phase-spec",
       "version: v0.1",
       "date: 2026-10-11",
-      "status: Draft",
       "program: <overall-slug>",
       "## Design",
       "### Acceptance criteria",
@@ -501,7 +514,6 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "doc-type: single-spec",
       "version: v0.1",
       "date: 2026-10-11",
-      "status: Draft",
       "## Background & root cause",
       "## Design decisions",
       "## Acceptance",
@@ -663,6 +675,53 @@ describe("SkeletonAssembler — the EOF rule", () => {
   });
 });
 
+describe("SkeletonAssembler — the task block's shape (two step samples · fixed key order)", () => {
+  /** The rendered plan's task-block lines — from the `### Task 1:` heading to the
+   *  next rank-3 heading (a `####` section heading is part of the block). */
+  const taskBlockOf = (): string[] => {
+    const lines = renderOf("plan").split("\n");
+    const start = lines.findIndex((line) => line.startsWith("### Task 1:"));
+    const out: string[] = [];
+    for (let index = start; index < lines.length; index += 1) {
+      if (index > start && /^#{1,3} /.test(lines[index] ?? "")) break;
+      out.push(lines[index] ?? "");
+    }
+    return out;
+  };
+
+  it("renders TWO step samples under `#### Steps` — the repeatable unit reads as a list", () => {
+    const block = taskBlockOf();
+    const stepsAt = block.indexOf("#### Steps");
+    expect(stepsAt).toBeGreaterThanOrEqual(0);
+    const steps = block.slice(stepsAt + 1, stepsAt + 3);
+    expect(steps.length).toBe(2);
+    for (const step of steps) {
+      expect(step).toMatch(/^- :::fill \S+ — checkable: :::fill \S+$/);
+    }
+  });
+
+  it("keeps the section key order fixed — Objective → Files → Consumes → Produces → Steps → Acceptance → DependsOn", () => {
+    const block = taskBlockOf();
+    const keys = block
+      .filter((line) => /^#### [^*]+$/.test(line))
+      .map((line) => line.slice("#### ".length));
+    expect(keys).toEqual([
+      "Objective",
+      "Files",
+      "Consumes",
+      "Produces",
+      "Steps",
+      "Acceptance",
+      "DependsOn",
+    ]);
+  });
+
+  it("carries zero `<…>` notation tokens in the task block — a fill is the only placeholder form", () => {
+    const offenders = taskBlockOf().filter((line) => /<[^>]+>/.test(line));
+    expect(offenders).toEqual([]);
+  });
+});
+
 /** Whether any rendered skeleton line carries a literal `N` heading placeholder —
  *  the declared digit headings (`### N.` / `#### N.M` / `### Task N:`) always
  *  render true numbers, never the letter. */
@@ -670,3 +729,71 @@ const rendersNoLiteralN = (key: DocKey): boolean => {
   const rendered = renderOf(key);
   return !/(?:^|\n)#{2,4} (?:Task )?N[.:]/m.test(rendered) && !rendered.includes("Task N:");
 };
+
+describe("the skeleton round-trip — the rendered bytes parse back to the projected structure", () => {
+  /** The rendered bytes of one doc type, parsed by the ONE markdown tree. */
+  const roundTrip = (key: DocKey): { bytes: string; tree: MarkdownTree } => {
+    const bytes = renderOf(key);
+    return { bytes, tree: MarkdownTree.parse(bytes) };
+  };
+
+  it.each(KEYS)("%s: the heading tree reads back in the emitted order", (key) => {
+    const { bytes, tree } = roundTrip(key);
+    const emitted = bytes.split("\n").filter((line) => /^## /.test(line));
+    expect(tree.sections().map((section) => section.text)).toEqual(emitted);
+  });
+
+  it.each(KEYS)("%s: the front-matter key set reads back in the emission order", (key) => {
+    const { tree } = roundTrip(key);
+    expect(tree.frontMatterKeys().map((entry) => entry.key)).toEqual(
+      SKELETONS[key].frontmatter.map((slot) => slot.anchor),
+    );
+  });
+
+  it.each(KEYS)("%s: every declared table header reads back as its emitted row", (key) => {
+    const { bytes, tree } = roundTrip(key);
+    const emitted = bytes.split("\n");
+    const columnAnchors = declaredRegistries[key].elements.filter(
+      (element) => element.anchor.endsWith(" columns") && element.presence === "required",
+    );
+    for (const element of columnAnchors) {
+      const node = tree.resolve(element.selector);
+      expect(node, `${key} · ${element.anchor}`).not.toBeNull();
+      const text = node?.text ?? "";
+      expect(emitted, `${key} · ${element.anchor}`).toContain(text);
+      // the cells the tree reads are the emitted row's cells (the wrapper bars excluded)
+      expect(node?.cells?.length, `${key} · ${element.anchor}`).toBe(text.split("|").length - 2);
+      expect(new RegExp(element.valuePattern ?? "").test(text)).toBe(true);
+    }
+  });
+
+  it.each(KEYS)(
+    "%s: the sections run in registry order and the facets stay inside their section",
+    (key) => {
+      const { tree } = roundTrip(key);
+      const sectionLines: number[] = [];
+      for (const element of declaredRegistries[key].elements) {
+        if (element.selector.walk !== "heading" || !element.anchor.startsWith("## ")) continue;
+        const node = tree.resolve(element.selector);
+        if (node !== null) sectionLines.push(node.line);
+      }
+      expect(sectionLines).toEqual([...sectionLines].sort((left, right) => left - right));
+      // a facet heading (`### …`) belongs to the section that declares it — the charter
+      const charter = tree.resolve(
+        declaredRegistries[key].elements.find((element) => element.anchor === "## Program charter")
+          ?.selector ?? { from: "root", walk: "heading", match: "## Program charter" },
+      );
+      for (const element of declaredRegistries[key].elements) {
+        if (element.home !== "facet") continue;
+        const node = tree.resolve(element.selector);
+        if (node === null || charter === null) continue;
+        expect(node.line, `${key} · ${element.anchor}`).toBeGreaterThan(charter.line);
+      }
+      // every resolved element's occurrences stay in document order
+      for (const element of declaredRegistries[key].elements) {
+        const lines = tree.occurrences(element.selector).map((node) => node.line);
+        expect(lines, `${key} · ${element.anchor}`).toEqual([...lines].sort((a, b) => a - b));
+      }
+    },
+  );
+});

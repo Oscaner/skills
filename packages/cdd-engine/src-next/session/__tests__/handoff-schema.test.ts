@@ -67,7 +67,14 @@ describe("the op-derived plane — planeOf", () => {
 
   it("projects the plane's writable subset — CARRIER's declaration order filtered per plane", () => {
     const work = schema.planeSchema("work");
-    expect(Object.keys(work.properties ?? {})).toEqual(["status", "artifacts", "notes"]);
+    expect(Object.keys(work.properties ?? {})).toEqual([
+      "status",
+      "artifacts",
+      "notes",
+      "dispositions",
+    ]);
+    // `dispositions` is a work CARRIER slot, never a required one: the fix criterion
+    // proves its own absence, so `implement` is never asked for dispositions.
     expect(work.required).toEqual(["status", "artifacts"]);
     const judge = schema.planeSchema("judge");
     expect(Object.keys(judge.properties ?? {})).toEqual(["findings", "artifacts", "notes"]);
@@ -77,6 +84,8 @@ describe("the op-derived plane — planeOf", () => {
   it("keeps the plane exclusives — status never rides judge, findings never ride work", () => {
     expect(schema.planeSchema("work").properties ?? {}).not.toHaveProperty("findings");
     expect(schema.planeSchema("judge").properties ?? {}).not.toHaveProperty("status");
+    // The fix dispositions are a WORK carrier slot — the judge plane drops them.
+    expect(schema.planeSchema("judge").properties ?? {}).not.toHaveProperty("dispositions");
   });
 });
 
@@ -173,6 +182,25 @@ describe("projection ② — the read-back validation (violations)", () => {
     );
     // a stray `commits` key on a work draft is no longer declared — dropped
     expect(schema.violations("work", { ...WORK, commits: { base: "short" } })).toEqual([]);
+  });
+
+  it("accepts the work plane's `dispositions` map and drops it on the judge plane", () => {
+    const draft = {
+      ...WORK,
+      dispositions: { drift: { status: "fixed" }, "no-op": { status: "rejected", reason: "x" } },
+    };
+    expect(schema.violations("work", draft)).toEqual([]);
+    // A judge draft's dispositions slot is non-declared — dropped, never a BLOCK.
+    expect(schema.violations("judge", { ...FINDINGS, dispositions: {} })).toEqual([]);
+    expect(schema.droppedKeys("judge", { ...FINDINGS, dispositions: {} })).toEqual([
+      "dispositions",
+    ]);
+  });
+
+  it("refuses a non-object dispositions value — the slot's declared shape", () => {
+    expect(schema.violations("work", { ...WORK, dispositions: [] })).toEqual([
+      "dispositions: expected an object",
+    ]);
   });
 
   it("refuses a judge draft with a missing findings array or a bad severity", () => {
@@ -291,6 +319,9 @@ describe("the derived carrier types — buildHandoff per-plane shaping", () => {
       const carrier = ledger.buildHandoff("work", { artifacts: { report: "/r" } });
       carrier.status = "APPROVED";
       carrier.notes = ["one note"];
+      // `dispositions` is a declared WORK slot too (optional — the fix criterion proves
+      // its own absence), so a fully-populated work carrier covers the declared set.
+      carrier.dispositions = { drift: { status: "fixed" } };
       expect(Object.keys(carrier).sort()).toEqual(
         Object.keys(schema.planeSchema("work").properties ?? {}).sort(),
       );

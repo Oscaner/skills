@@ -18,10 +18,8 @@
 // Module-level exports are types / the class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 
-import { declaredRegistries } from "../contract/declare.ts";
 import type { PlanParsed, TaskBlock } from "../contract/doc.ts";
-import type { ReferenceEntry } from "../contract/project.ts";
-import { Projector } from "../contract/project.ts";
+import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
 
 /** The four edge-validation classes — the TaskGraph's judgment vocabulary, all
@@ -95,19 +93,12 @@ export class TaskGraph implements Frontier, ExecutionState {
   readonly #reduced: ReadonlyMap<number, readonly number[]>;
   /** The run's completed task ids — the ExecutionState carrier (markDone). */
   readonly #done: Set<number> = new Set();
-  /** The derived `DependsOn id` value pattern (whole-token — the declared-edge
-   *  values; the SAME derived pattern the reference lint reads, so both edge
-   *  consumers share one task-id token domain, never a re-typed literal). */
-  readonly #depIdToken: RegExp;
+  /** The ONE task-block parse face the edge values are read through (P21 §7) — the
+   *  SAME reader the registry's `taskBlocks` delegate uses, never a second grammar. */
+  readonly #reader = new PlanTaskBlocksReader();
 
   /** Build from a shared plan parse — the same instance the dispatch and the lint read. */
   constructor(parsed: PlanParsed) {
-    this.#depIdToken = new RegExp(
-      TaskGraph.#valuePatternOf(
-        new Projector(declaredRegistries).reference().plan.entries,
-        "DependsOn id",
-      ),
-    );
     this.#nodes = parsed.taskBlocks.map((block) => block.id).sort((a, b) => a - b);
     const edges = new Map<number, EdgeRecord>();
     for (const block of parsed.taskBlocks) {
@@ -356,37 +347,16 @@ export class TaskGraph implements Frontier, ExecutionState {
     return this.#reduced.get(task) ?? [];
   }
 
-  /** One block's declared edge record — the `**DependsOn**` field's numeric list,
-   *  taken from the field's VALUE PREFIX only (the first `(`/`（` truncates: the
-   *  trailing parenthetical rationale is prose — zero participation, §3.8's value
-   *  domain contract; a round number in the rationale can never become a phantom
-   *  dependency). The extraction layer DEDUPES (a repeated declaration is
-   *  normalized away — the author's literal is never adjudicated, §3.8 the
-   *  normalization chain). `none`/empty carries zero edges; the field's absence is
-   *  recorded separately for the missing-edge class. */
+  /** One block's declared edge record — the `DependsOn` value read through the ONE
+   *  block reader (`PlanTaskBlocksReader#dependsOn`: the value prefix only, the
+   *  declared id-token domain, dedupe + sort). The reader normalizes both block
+   *  shapes, so a legacy plan and a heading plan derive the same edges. `none` /
+   *  empty carries zero edges; the section's absence is recorded separately for the
+   *  missing-edge class. */
   #edgeOf(block: TaskBlock): EdgeRecord {
-    const field = block.fields.find((entry) => entry.key === "DependsOn");
-    if (field === undefined) return { declared: false, deps: [] };
-    const deps: number[] = [];
-    for (const line of field.lines) {
-      const prefix = line.split(/[（(]/)[0]!;
-      for (const token of prefix.split(/[,\s]+/)) {
-        const candidate = token.trim();
-        if (this.#depIdToken.test(candidate)) deps.push(Number(candidate));
-      }
-    }
-    return { declared: true, deps: [...new Set(deps)].sort((a, b) => a - b) };
-  }
-
-  /** The value pattern of a registered reference entry — a lookup that fails
-   *  loudly when the declaration renames an anchor the graph consumes (the same
-   *  loud-lookup contract the reference lint's edge scan keeps). */
-  static #valuePatternOf(entries: readonly ReferenceEntry[], anchor: string): string {
-    const entry = entries.find((row) => row.anchor === anchor);
-    if (entry === undefined) {
-      throw new Error(`task graph requires the registered reference entry "${anchor}"`);
-    }
-    return entry.valuePattern ?? "";
+    const declared = block.fields.some((entry) => entry.key === "DependsOn");
+    if (!declared) return { declared: false, deps: [] };
+    return { declared: true, deps: [...this.#reader.dependsOn(block)] };
   }
 
   /** One constructed issue (the single message/fix assembly point of the graph). */

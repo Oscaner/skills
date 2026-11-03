@@ -15,7 +15,7 @@
 // placeholder three-way split: the slug-reference key (`program`) emits a `<…>`
 // scalar on the judge's placeholder-exemption chain; the content keys (`title` ·
 // `author` · `base` · `slug`) emit `:::fill <key>`; the
-// truth keys (`doc-type` · `version` · `date` · `status`) emit true values. The
+// truth keys (`doc-type` · `version` · `date`) emit true values. The
 // optional `parent-version` key is deliberately NOT emitted — its shape is typed
 // (`v<n>.<m>`, so a fill or a link scalar would violate the domain) and absence
 // is legal. The markdown body stays the registry-driven scaffold. render() is a
@@ -52,9 +52,9 @@ const FRONT_MATTER_LINKS: Record<string, string> = {
  *  `none` issue-ref default; the `[Pending]` design cell — the only pending form
  *  its valuePattern admits, never bare `Pending` — and the bare `Pending` plan
  *  cell, a legal alternative of its domain) and the conforming graph rows (the
- *  `P1 -> P2` hard edge + the legend line). The head's `status` truth lives in
- *  the front-matter emission (`status: Draft` — the first legal literal of every
- *  status enum — via `#frontmatterTruth`, never a body fill). */
+ *  `P1 -> P2` hard edge + the legend line). The head's enum truth lives in the
+ *  front-matter emission via `#frontmatterTruth`, never a body fill — the
+ *  retired `status` field no longer ships a truth key at all. */
 const TRUTH_LINES: Record<string, string> = {
   "Issue ref cell": "none",
   "Implementation plan cell": "Pending",
@@ -318,7 +318,7 @@ export class SkeletonAssembler {
   /** One front-matter value — the §4.2 placeholder three-way split over the slot
    *  kind: the link keys a `<…>` placeholder scalar, the content keys a content
    *  fill (`:::fill <key>`), the truth keys (the fixed version/date scaffold and
-   *  the doc-type / status patterns) their true values. */
+   *  the doc-type pattern) their true values. */
   #frontmatterValue(slot: SkeletonSlot): string {
     if (slot.slot === "link") {
       const placeholder = FRONT_MATTER_LINKS[slot.anchor];
@@ -332,9 +332,8 @@ export class SkeletonAssembler {
   }
 
   /** The true front-matter value of a fixed/patterned front-matter key — the doc
-   *  type from the projection, the injected run date, the fixed first version and
-   *  the first legal status literal (`Draft`, the shared head of every status
-   *  enum domain). An unknown truth key is a registry drift, loud never silent. */
+   *  type from the projection, the injected run date and the fixed first version.
+   *  An unknown truth key is a registry drift, loud never silent. */
   #frontmatterTruth(slot: SkeletonSlot): string {
     switch (slot.anchor) {
       case "doc-type":
@@ -343,8 +342,6 @@ export class SkeletonAssembler {
         return "v0.1";
       case "date":
         return this.#date;
-      case "status":
-        return "Draft";
     }
     throw new Error(`no skeleton front-matter truth for the ${slot.anchor} anchor`);
   }
@@ -452,32 +449,48 @@ export class SkeletonAssembler {
   }
 
   /** The first task block — the true-numbered `### Task 1:` heading (the title a
-   *  content fill) plus the seven required task fields: the content markers with
-   *  their values, the Steps field with the checkable step form (§3.2), and the
-   *  `none` DependsOn default. */
+   *  content fill) plus the seven reserved `#### Key` sections: the content fill of
+   *  each, the Steps section with two checkable step samples (§3.2), and the `none`
+   *  DependsOn default. The Steps section shows TWO step samples (the step lines are
+   *  the task block's only repeatable unit), so the shape reads as a list from the
+   *  first glance — zero new fields, the reserved key order unchanged. */
   #taskBlock(probe: Set<string>): string[] {
     probe.add("### Task N:");
     probe.add("Task id token");
-    probe.add("**Objective**");
-    probe.add("**Files**");
+    probe.add("#### Objective");
+    probe.add("#### Files");
     probe.add("File path token");
-    probe.add("**Consumes**");
-    probe.add("**Produces**");
-    probe.add("**Steps**");
+    probe.add("#### Consumes");
+    probe.add("#### Produces");
+    probe.add("#### Steps");
     probe.add("Step action");
     probe.add("Step checkable");
-    probe.add("**Acceptance**");
-    probe.add("**DependsOn**");
+    probe.add("#### Acceptance");
+    probe.add("#### DependsOn");
     return [
       "### Task 1: :::fill task-title",
-      "- **Objective**: :::fill objective",
-      "- **Files**: :::fill file-paths",
-      "- **Consumes**: :::fill consumes",
-      "- **Produces**: :::fill produces",
-      "- **Steps**:",
-      "  - :::fill step-action — checkable: :::fill step-checkable",
-      "- **Acceptance**: :::fill acceptance",
-      "- **DependsOn**: none",
+      "",
+      "#### Objective",
+      ":::fill objective",
+      "",
+      "#### Files",
+      ":::fill file-paths",
+      "",
+      "#### Consumes",
+      ":::fill consumes",
+      "",
+      "#### Produces",
+      ":::fill produces",
+      "",
+      "#### Steps",
+      "- :::fill step-action — checkable: :::fill step-checkable",
+      "- :::fill step-action-2 — checkable: :::fill step-checkable-2",
+      "",
+      "#### Acceptance",
+      ":::fill acceptance",
+      "",
+      "#### DependsOn",
+      "none",
       "",
     ];
   }

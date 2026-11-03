@@ -4,10 +4,10 @@
 // → schema shape → word-table accessor → guard-lexicon) converges into ONE word
 // table with three families served by one class:
 //
-//   capsule — the capsule-station words: the capsule keys (status · blocker ·
-//           handoff, the pinned emit order), the `next:` route station + the stderr
-//           stations, the status vocabulary and the route classifier words. Every
-//           byte the capsule emits rides this family — a reorder is a red test.
+//   capsule — the capsule-station words: the capsule keys (status · handoff, the
+//           pinned emit order), the `next:` route station + the stderr stations, the
+//           status vocabulary and the route classifier words. Every byte the capsule
+//           emits rides this family — a reorder is a red test.
 //   guard — the guard-ban words: the retired-vocabulary ban rows (STALE / GATE /
 //           shape) the guards assert absent from the live faces. This is the ban
 //           table's data-source face — the guard scan releases these rows as its
@@ -22,9 +22,9 @@
 //           translation data (a new word is a new data row, never a code branch).
 //
 // The vocabulary is English-primary and death-stable: v1 keeps the same word face
-// the consumers already read (status · blocker · handoff · next:) — a steady state,
-// never a compatibility shim. The capsule class reads ALL its words through this
-// instance (constructor injection) — the guaranteed "one table, zero second table".
+// the consumers already read (status · handoff · next:) — a steady state, never a
+// compatibility shim. The capsule class reads ALL its words through this instance
+// (constructor injection) — the guaranteed "one table, zero second table".
 // The capsule machine face (status · next: · CDD_BLOCKED:) is never a locale row —
 // the machine surface stays English-constant, never localizeable.
 //
@@ -34,13 +34,14 @@
 import { DOC_TYPE_VALUES } from "../contract/declare.ts";
 import type { LocalizedWord, WordLocaleFace } from "../contract/translate.ts";
 import type { SlugRefusal } from "../infra/slug-index.ts";
+import type { InFlightRecord } from "../session/inflight.ts";
 
 // ---------------------------------------------------------------------------
 // capsule — the station-word family (the declared steady word face)
 // ---------------------------------------------------------------------------
 
-/** The capsule emit keys — the pinned `status · blocker · handoff` order. */
-export type CapsuleKey = "status" | "blocker" | "handoff";
+/** The capsule emit keys — the pinned `status · handoff` order. */
+export type CapsuleKey = "status" | "handoff";
 
 /** The route station kinds — the addressed channels of the command surface. */
 export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
@@ -48,14 +49,17 @@ export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
 /** The route classifier words — the station vocabulary the `next:` line renders
  *  (v1.20: the `none` word is retired — closure is `done`, never "no suggestion";
  *  v1.25: `implement` — the dispatch-ready `next:` literal's verb for a ready wave;
- *  `docType` — the missing-declaration BLOCK wording the capsule's unified next face
- *  renders over the CDD_BLOCKED station, spec §12 · D34; `docTypeValue` — the
- *  declared-but-out-of-domain BLOCK wording, distinct from the missing key). */
+ *  `handoffRef` — the pipeline skill-ref template (an instruction phrase, filled with
+ *  the per-host ref form at the render); `docType` — the missing-declaration BLOCK
+ *  wording the capsule's unified next face renders over the CDD_BLOCKED station,
+ *  spec §12 · D34; `docTypeValue` — the declared-but-out-of-domain BLOCK wording,
+ *  distinct from the missing key). */
 export type RouteWordKind =
   | "done"
   | "review"
   | "fix"
   | "implement"
+  | "handoffRef"
   | "docType"
   | "docTypeValue"
   | "slugMissing"
@@ -77,6 +81,12 @@ export interface WaveGateWords {
   /** The mixed-batch BLOCK — a requested task hits a derived batch that holds both
    *  closed and open tasks (a batch closes as a unit; re-declare the edges). */
   mixedBatch: string;
+  /** The wave-too-wide BLOCK — the derived wave carries more than the ceiling's tasks;
+   *  the message names the member ids and the only repair (the plan's DependsOn). */
+  waveTooWide: string;
+  /** The too-many-tasks BLOCK — the requested `--tasks` set is wider than the ceiling.
+   *  Slots: {tasks} · {count} · {max}. */
+  tooManyTasks: string;
 }
 
 /** The pre-flight BLOCK wording rows — the lifecycle pre-flight seam's refusal
@@ -90,16 +100,83 @@ export interface PreflightWords {
   graph: string;
   /** The doc-contract BLOCK — the target doc fails the structural contract. */
   docContract: string;
+  /** The plan-ledger BLOCK — the plan and the ledger disagree structurally. */
+  planLedger: string;
 }
+
+/** The in-flight wording rows — the held-report / takeover / corrupt-record / recovery
+ *  vocabulary (P21 §2.2). The held row's braces are fill slots ({pid} · {command} ·
+ *  {startedAt} · {uptime} · {wave} · {slug}); the recovery rows are the phase's three
+ *  canonical discipline sentences (byte-stable — the kairos skills quote the same
+ *  strings verbatim, so a reword here is a cross-plane break). */
+export interface InFlightWords {
+  /** The held report — who holds the tree and since when. */
+  held: string;
+  /** The takeover hint — the standing record's holder is gone. */
+  stealable: string;
+  /** The corrupt record with its lock still on disk. */
+  corruptLocked: string;
+  /** The corrupt record without a lock. */
+  corruptUnlocked: string;
+  /** The preview / board lock row value — who holds the tree and since when. */
+  lockHeld: string;
+  /** The lock without a readable record (the acquire race — no holder facts). */
+  lockOnly: string;
+  /** The free state — no dispatch holds the tree. */
+  free: string;
+  /** The three recovery sentences (canonical bytes: look at the working tree first ·
+   *  commit the changes that work · discard the ones that are broken). */
+  recovery: readonly [string, string, string];
+}
+
+/** The checked-list wording rows — the pre-flight's per-rule outcome vocabulary
+ *  (one row per rendered state, plus the plan-ahead info row's template). The
+ *  vocabulary is the engine's own byte face, never a CLI literal. */
+export interface CheckedWords {
+  /** The block's heading row — the label the CLI prints above the rows. */
+  heading: string;
+  /** The rule ran and found nothing. */
+  passed: string;
+  /** The rule ran and reported findings. */
+  failed: string;
+  /** A doc-scope rule on a dispatch with no doc target (wave / branch). */
+  skippedNoDocTarget: string;
+  /** A ledger-scope rule with no ledger fact bundle. */
+  skippedNoLedgerFacts: string;
+  /** The in-flight gate's state rows (the gate row is `in-flight: <state>`, the ONE
+   *  gate whose row names its judged state — the others are bare gate names). */
+  inFlight: {
+    free: string;
+    held: string;
+    stale: string;
+    corruptLocked: string;
+    corruptUnlocked: string;
+  };
+  /** A rule whose gate never ran (the dispatch was refused earlier). */
+  skippedNotJudged: string;
+  /** A doc-scope rule whose target document is unreadable. */
+  skippedUnreadableDoc: string;
+  /** The plan-ahead info row (a `plan-ledger` gate row — `{count}` fill slot). */
+  planAhead: string;
+  /** The wave-width rule's degraded row — the call site injected no plan layers, so
+   *  the rule judged nothing (a visible degradation, never a refusal). */
+  planLayersUnavailable: string;
+}
+
+/** The fix round's disposition summary line — the ONE template of the deliberate
+ *  stdout byte addition (design spec §3.4). The template lives here, on the
+ *  presentation plane; the contract criterion (`FixDispositions#summaryOf`) supplies
+ *  the two counts it fills, so the contract plane never imports this table. */
+export const FIX_DISPOSITIONS_SUMMARY = "fixed {fixed} · rejected {rejected}";
 
 /** The capsule word rows — every word the capsule face emits, one table. */
 export const CAPSULE_WORDS = {
   /** The capsule emit key rows — one declaration per status class (the summary
    *  face's key-set single source; a reorder is a red test — the pinned face).
-   *  A success status renders `status · blocker · handoff`; a failure status renders
+   *  A success status renders `status · handoff`; a failure status renders
    *  `status` alone, plus `handoff` only when the round wrote a crash record. */
   keys: {
-    success: ["status", "blocker", "handoff"] as const,
+    success: ["status", "handoff"] as const,
     failure: ["status"] as const,
     handoff: "handoff" as const,
   } as const satisfies {
@@ -126,6 +203,10 @@ export const CAPSULE_WORDS = {
     review: "review",
     fix: "fix",
     implement: "implement",
+    /** The pipeline skill-ref template — an INSTRUCTION phrase (route to a skill),
+     *  never a pseudo-command: `{ref}` is filled with the per-host `REFS[ref][host]`
+     *  form at the render. */
+    handoffRef: "route to {ref} skill",
     docType:
       "the doc declares no `doc-type:` key — add `doc-type: <overall|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
     docTypeValue:
@@ -147,6 +228,10 @@ export const CAPSULE_WORDS = {
     wrongPhase: "the open wave is at {phase} — run cdd {phase} first",
     mixedBatch:
       "the derived batch ({batch}) mixes closed and open tasks ({closed} closed, {open} open) — a wave closes as a unit; re-declare the **DependsOn** edges so no task joins an already-executed batch",
+    waveTooWide:
+      "the open wave ({tasks}) carries more than {max} tasks — narrow the wave by adjusting the plan's **DependsOn** edges (chain the extra tasks) and re-run",
+    tooManyTasks:
+      "the requested task set ({tasks}) carries {count} tasks, above the {max}-task wave limit — dispatch at most {max} tasks per wave by adjusting the plan's **DependsOn** edges and re-run",
   } as const satisfies WaveGateWords,
   /** The pre-flight BLOCK wording rows (P4.1 T1) — the seam's refusal vocabulary,
    *  single-sourced (the seam fills the {count} slot, never a re-type). */
@@ -155,7 +240,29 @@ export const CAPSULE_WORDS = {
       "the working tree is dirty — commit or discard your changes (recovery is the orchestrator's job; the engine only refuses — it never stashes, makes a temporary commit, or resumes a dirty tree), then re-run the same command",
     graph: "the plan graph has {count} edge violation(s) — fix the **DependsOn** edges first",
     docContract: "the target document fails the doc-contract — fix its structural findings first",
+    planLedger:
+      "the plan and the ledger disagree structurally — fix the plan's task set or the recorded waves first",
   } as const satisfies PreflightWords,
+  /** The checked-list rows (P21 §3.4) — the per-rule outcome vocabulary the
+   *  pre-flight `checked` face renders (one row per state, never a CLI literal). */
+  checked: {
+    heading: "checked:",
+    passed: "passed",
+    failed: "failed",
+    skippedNoDocTarget: "skipped (no doc target)",
+    skippedNoLedgerFacts: "skipped (no ledger facts)",
+    skippedNotJudged: "skipped (not judged)",
+    skippedUnreadableDoc: "skipped (unreadable doc)",
+    planAhead: "plan-ledger: info (plan leads ledger by {count} tasks)",
+    planLayersUnavailable: "info (plan layers: unavailable)",
+    inFlight: {
+      free: "free — no dispatch holds this tree",
+      held: "held — pid {pid}",
+      stale: "stale holder — pid {pid} (re-run with --steal-stale to take over)",
+      corruptLocked: "unreadable record — lock on disk",
+      corruptUnlocked: "unreadable record — no lock behind",
+    },
+  } as const satisfies CheckedWords,
   /** The terminated-review promotion warning — the one CDD_WARN wording row the
    *  lifecycle emits when a terminated review round's valid findings draft is
    *  promoted. The braces are fill slots ({cause} / {idleMs} / {verdict} / {count}). */
@@ -164,6 +271,34 @@ export const CAPSULE_WORDS = {
   /** The terminated-round diagnostic suffix — appended to the one CDD_BLOCKED reason
    *  line of a non-promoted terminated round. Fill slots: {idleMs} / {verdict}. */
   terminationDetail: " — idleMs: {idleMs}, last sample verdict: {verdict}",
+  /** The round's soft-violation warning — a soft entry is bookkeeping only (design
+   *  spec §3.3): the round still concludes, and this line names what was booked.
+   *  Fill slot: {message}. */
+  softViolation: "round soft violation: {message}",
+  /** The in-flight rows (P21 §2.2) — the held report, the takeover hint, the two
+   *  corrupt shapes and the three canonical recovery sentences. */
+  inFlight: {
+    held: "a dispatch is already in flight — pid {pid} · command: {command} · started: {startedAt} · running for {uptime} · wave: {wave} · slug: {slug}",
+    stealable:
+      "the holding process is gone — re-run the same command with --steal-stale to take the in-flight record over",
+    corruptLocked:
+      "the in-flight record is unreadable and its lock is still on disk — re-run with --steal-stale to take it over",
+    corruptUnlocked:
+      "the in-flight record is unreadable and no lock is left behind — re-run with --steal-stale to take it over",
+    lockHeld:
+      "held by pid {pid} · command: {command} · started: {startedAt} · wave: {wave} · slug: {slug}",
+    lockOnly: "held by an unreadable in-flight record — the lock is still on disk",
+    free: "free — no dispatch holds this tree",
+    recovery: [
+      "look at the working tree first",
+      "commit the changes that work",
+      "discard the ones that are broken",
+    ],
+  } as const satisfies InFlightWords,
+  /** The cut-short round's late-landing hint — every kill / timeout / crash message
+   *  carries it: the child may have written more after the engine stopped watching. */
+  lateLanding:
+    "a late write may land after the round was cut short — check the working tree before starting the review",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -275,9 +410,9 @@ export class Words implements WordLocaleFace {
   // -------------------------------------------------------------------------
 
   /** The capsule emit keys of one status class, in the pinned byte order — the key
-   *  set's single source. A success status renders `status · blocker · handoff`; a
-   *  failure status (TIMEOUT / BLOCKED) renders `status`, plus `handoff` only when
-   *  the round wrote a crash record (`withHandoff`). */
+   *  set's single source. A success status renders `status · handoff`; a failure
+   *  status (TIMEOUT / BLOCKED) renders `status`, plus `handoff` only when the round
+   *  wrote a crash record (`withHandoff`). */
   capsuleKeys(status: string, withHandoff: boolean): readonly CapsuleKey[] {
     const rows = CAPSULE_WORDS.keys;
     const failure = (CAPSULE_WORDS.failureStatuses as readonly string[]).includes(status);
@@ -314,6 +449,13 @@ export class Words implements WordLocaleFace {
       .replace("{domain}", DOC_TYPE_VALUES.join(", "));
   }
 
+  /** The pipeline skill-ref instruction phrase — the `handoffRef` row filled with the
+   *  per-host `REFS[ref][host]` form (the row and its `{ref}` fill are owned here,
+   *  never re-typed at the render). */
+  handoffRefWord(ref: string): string {
+    return this.routeWord("handoffRef").replace("{ref}", ref);
+  }
+
   /** The identity-gate refusal wording for one refused slug verdict — the ONE
    *  spelling the pre-flight gate and the dispatch carrier print (the row and its
    *  `{slug}` fill are owned here, never re-typed at a carrier). */
@@ -340,6 +482,12 @@ export class Words implements WordLocaleFace {
     return CAPSULE_WORDS.preflight;
   }
 
+  /** The checked-list wording rows — the per-rule outcome vocabulary (single source:
+   *  the seam renders these rows, never a CLI literal). */
+  checkedWords(): CheckedWords {
+    return CAPSULE_WORDS.checked;
+  }
+
   /** The terminated-review promotion warning, rendered from the termination facts —
    *  the single source of both the wording row and its slot names. */
   promotionWarning(facts: {
@@ -361,6 +509,73 @@ export class Words implements WordLocaleFace {
     return CAPSULE_WORDS.terminationDetail
       .replace("{idleMs}", String(facts.idleMs))
       .replace("{verdict}", facts.verdict);
+  }
+
+  /** The soft-violation warning, rendered from the entry's message — the single
+   *  filler of its slot. */
+  softViolation(message: string): string {
+    return CAPSULE_WORDS.softViolation.replace("{message}", message);
+  }
+
+  /** The in-flight wording rows — the held report, the takeover hint, the two corrupt
+   *  shapes and the canonical recovery sentences (one source; the CLI fills the held
+   *  slots, never re-types a row). */
+  inFlightWords(): InFlightWords {
+    return CAPSULE_WORDS.inFlight;
+  }
+
+  /** The held report of one in-flight record, rendered from its identity facts — the
+   *  single filler of the held row's slots ({pid} / {command} / {startedAt} /
+   *  {uptime} / {wave} / {slug}). The record's instant is the holder pid's own start
+   *  time, so `uptime` is that process's age in whole minutes. */
+  inFlightHeld(facts: {
+    pid: number;
+    command: string;
+    startedAt: number;
+    wave: string | null;
+    slug: string;
+  }): string {
+    const uptimeMinutes = Math.max(0, Math.floor((Date.now() - facts.startedAt) / 60_000));
+    return this.inFlightWords()
+      .held.replace("{pid}", String(facts.pid))
+      .replace("{command}", facts.command)
+      .replace("{startedAt}", new Date(facts.startedAt).toISOString())
+      .replace("{uptime}", `${uptimeMinutes}m`)
+      .replace("{wave}", facts.wave ?? "none")
+      .replace("{slug}", facts.slug);
+  }
+
+  /** The held BLOCK message of an in-flight judgment — the pre-flight gate's refusal
+   *  and the CLI's acquire-race render fill the SAME rows (identical bytes by
+   *  construction: one message, two call sites). A null record is the lock-with-no-
+   *  readable-record shape. */
+  inFlightBlocked(record: InFlightRecord | null, alive: boolean): string {
+    if (record === null) return this.inFlightWords().corruptLocked;
+    const held = this.inFlightHeld({
+      pid: record.pid,
+      command: record.command,
+      startedAt: record.startedAt,
+      wave: record.wave,
+      slug: record.slug,
+    });
+    return alive ? held : `${held} — ${this.inFlightWords().stealable}`;
+  }
+
+  /** The preview / board lock row value of one holder record — the same identity
+   *  facts the held BLOCK names, in the `lock:` row's own shape. */
+  inFlightLock(record: InFlightRecord): string {
+    return this.inFlightWords()
+      .lockHeld.replace("{pid}", String(record.pid))
+      .replace("{command}", record.command)
+      .replace("{startedAt}", new Date(record.startedAt).toISOString())
+      .replace("{wave}", record.wave ?? "none")
+      .replace("{slug}", record.slug);
+  }
+
+  /** The cut-short round's late-landing hint — appended to every kill / timeout /
+   *  crash message (the child may still be writing after the engine stopped). */
+  lateLandingHint(): string {
+    return CAPSULE_WORDS.lateLanding;
   }
 
   // -------------------------------------------------------------------------

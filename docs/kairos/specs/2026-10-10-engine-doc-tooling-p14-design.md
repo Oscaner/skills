@@ -5,7 +5,6 @@ version: v0.3
 date: 2026-10-20
 slug: 2026-10-10-engine-doc-tooling-p14
 program: 2026-10-10-engine-doc-tooling
-status: Draft
 author: Oscar M. · Claude（kairos:cdd-design [P14] 会话 · 用户七前提 mandate · grilling settled · 2026-10-20）
 parent-version: v2.64
 ---

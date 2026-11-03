@@ -1,0 +1,7 @@
+---
+"@oscaner-skills/kairos": patch
+---
+
+**Dispatch discipline — the boundary runs both ways (issue #400).** The `**Invocation discipline**` paragraph of all six kairos skills carried only the orchestrator's side of the rule (launch in the background, await the notification, never poll) and nothing in the opposite direction. One `**Dispatch boundary**` item joins it, in the same paragraph, across `cdd-close` / `cdd-design` / `cdd-dev` / `cdd-plan` / `cdd-report` / `cdd-spec-writer`: a dispatched child carries every verification / build command to completion inside its own turn and never ends that turn to await a background task it launched itself — ending the turn terminates the child, so the awaited notification never arrives and the round dies half-finished while still looking successful. The same item binds the launching side: success is certified by the terminal contract (a clean working tree and the target action actually completed), never by exit code 0.
+
+The wording stays at the obligation layer — no command form, no task-manager name — and no section, node, or digraph change ships with it: the skill-anatomy contract's section registry, node/edge counts, and family shapes are untouched.

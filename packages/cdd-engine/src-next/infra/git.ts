@@ -36,4 +36,28 @@ export class GitClient {
       return false;
     }
   }
+
+  /** The current HEAD sha — the dispatch's baseline for the crash record's
+   *  `dispatchBase`. null outside a repo or on a branch with no commit yet (a
+   *  present fact only, never a fabricated ref). */
+  async head(cwd: string): Promise<string | null> {
+    try {
+      return (await this.#git(cwd).revparse(["HEAD"])).trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** The commits added after `base`, oldest first, each as `{sha} {subject}` — the
+   *  work a crashed child left behind. An absent base or an unreadable repo yields
+   *  the empty list (fail-open: the diagnostic fact never breaks a crash record). */
+  async commitsSince(cwd: string, base: string | null): Promise<readonly string[]> {
+    if (base === null) return [];
+    try {
+      const log = await this.#git(cwd).log({ from: base, to: "HEAD" });
+      return log.all.map((entry) => `${entry.hash} ${entry.message}`);
+    } catch {
+      return [];
+    }
+  }
 }

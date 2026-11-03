@@ -22,6 +22,9 @@
 // locale rows — the machine surface is English-constant and never localizable.
 // Module-level exports are types / the class — zero behavior-carrying bare functions.
 
+import type { FrontMatterHead } from "./frontmatter.ts";
+import { FrontMatterExtractor } from "./frontmatter.ts";
+
 /** One locale word — a word's locale face: `{ en: canonical, zh?: Chinese alias }`
  *  (the word table's locale-column shape; the en face is always present, the zh alias
  *  is a row's non-en locale output). Rows are keyed by locale — the en column is
@@ -47,6 +50,41 @@ export interface WordLocaleFace {
   localeRows(): readonly LocalizedWord[];
   /** One locale row by its word id; null for an unknown id. */
   localeRow(id: string): LocalizedWord | null;
+}
+
+/** The normalized document view — the typed front-matter head (read RAW: front
+ *  matter is data, never canonicalized) plus the body's canonicalized text and its
+ *  line face. One read per document. */
+export interface CanonicalDocument {
+  /** The raw-content front-matter head. */
+  readonly head: FrontMatterHead;
+  /** The canonicalized body TEXT — the normalized row source. */
+  readonly text: string;
+  /** The canonicalized body lines (the line face of the same bytes). */
+  readonly lines: readonly string[];
+}
+
+/**
+ * RowSource — the row-source seam: the ONE place the engine canonicalizes a
+ * document. `read(content)` resolves the front-matter head on the RAW content,
+ * then canonicalizes the body ONCE (never a per-line translator API), so every
+ * consumer of the normalized view — the parse face, the tree, the judgment
+ * context, a foreign document's lineage read — reads the SAME bytes.
+ */
+export class RowSource {
+  /** The translator the row source canonicalizes through. */
+  readonly #translator: Translator;
+
+  constructor(translator: Translator) {
+    this.#translator = translator;
+  }
+
+  /** Split + canonicalize one document into its head and normalized body. */
+  read(content: string): CanonicalDocument {
+    const { head, body } = FrontMatterExtractor.split(content);
+    const text = this.#translator.canonicalize(body);
+    return { head, text, lines: text.split("\n") };
+  }
 }
 
 /**

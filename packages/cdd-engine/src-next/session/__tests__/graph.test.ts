@@ -48,6 +48,14 @@ const task = (id: number, dependsOn: string | null): readonly string[] => {
   ].flat();
 };
 
+/** One heading-shape task block — the `#### DependsOn` section (P21 §7). */
+const headingTask = (id: number, dependsOn: string | null): readonly string[] => {
+  return [
+    `### Task ${id}: task ${id}`,
+    dependsOn === null ? [] : ["", "#### DependsOn", dependsOn],
+  ].flat();
+};
+
 /** Parse a fixture through the plan parser (the dispatch's parse home) and build the graph. */
 const graphOf = (lines: readonly (readonly string[])[]): TaskGraph => {
   return new TaskGraph(new PlanDocType("plan").parse(planDoc(lines).split("\n")));
@@ -65,6 +73,14 @@ describe("the shared doc.ts parse consumption", () => {
     const graph = new TaskGraph(parsed);
     expect(graph.validate()).toEqual([]);
     expect(graph.batches()).toEqual([[1], [2], [3]]);
+  });
+
+  it("derives the same waves from a heading-shape plan and its legacy twin", () => {
+    const legacy = graphOf([task(1, "none"), task(2, "1"), task(3, "1, 2")]);
+    const heading = graphOf([headingTask(1, "none"), headingTask(2, "1"), headingTask(3, "1, 2")]);
+    expect(heading.validate()).toEqual(legacy.validate());
+    expect(heading.batches()).toEqual(legacy.batches());
+    expect(heading.report(new Set())).toEqual(legacy.report(new Set()));
   });
 
   it("parses the brief's own comma forms (`3,4`, `1, 2`) as edge values", () => {

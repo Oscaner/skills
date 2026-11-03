@@ -69,7 +69,8 @@ export class LintPass extends MarkdownPrimitives {
   readonly #proseToken: RegExp;
   /** The derived `DependsOn id` value pattern (whole-token — the declared-edge values). */
   readonly #depIdToken: RegExp;
-  /** The prose-owning task fields of the plan — the scanning-semantics surface. */
+  /** The prose-owning task sections of the plan — the scanning-semantics surface (the
+   *  reader's field keys; the declared anchors are the `#### Key` headings). */
   readonly #proseFieldKeys: readonly string[] = ["Objective", "Acceptance"];
 
   constructor() {
@@ -79,7 +80,7 @@ export class LintPass extends MarkdownPrimitives {
     this.#proseToken = new RegExp(this.#valuePatternOf(planEntries, "Task prose reference"), "g");
     this.#depIdToken = new RegExp(this.#valuePatternOf(planEntries, "DependsOn id"));
     for (const key of this.#proseFieldKeys) {
-      this.#valuePatternOf(planEntries, `**${key}**`);
+      this.#valuePatternOf(planEntries, `#### ${key}`);
     }
   }
 

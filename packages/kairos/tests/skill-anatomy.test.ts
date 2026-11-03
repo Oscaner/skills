@@ -20,10 +20,12 @@ import { expect, test } from "vitest";
 import { parse as parseYaml } from "yaml";
 
 import {
+  SELF_REVIEW_OBLIGATIONS,
   SKILL_ANATOMY,
   type SkillAnatomyContract,
   type SkillRosterRow,
 } from "../../cdd-engine/src-next/contract/skill-anatomy.ts";
+import { CAPSULE_WORDS } from "../../cdd-engine/src-next/face/words.ts";
 import { EXPECTED } from "./helpers.ts";
 
 /** The kairos skills root — every cdd skill's SKILL.md (the check's scan set). */
@@ -495,6 +497,27 @@ test("the six SKILL.md products pass the skill-anatomy contract (the live green 
   expect(lines, `anatomy findings:\n${lines.join("\n")}`).toEqual([]);
 });
 
+test("the self-review obligations are registered once — four questions, no digraph fact", () => {
+  // P22 §7.1 — the four questions have ONE home (this contract plane); the
+  // `cdd-spec-writer` / `cdd-plan` pointer pins live in the self-review-obligations
+  // suite, and the registration adds no node, no edge and no growth-boundary crossing.
+  expect(SELF_REVIEW_OBLIGATIONS.map((row) => row.id)).toEqual([
+    "evidence-before-assertion",
+    "two-axis-self-check",
+    "fix-in-round",
+    "self-check-is-not-review",
+  ]);
+  for (const row of SELF_REVIEW_OBLIGATIONS) {
+    expect(row.question.length, `${row.id} carries no question`).toBeGreaterThan(0);
+    expect(row.body.length, `${row.id} carries no body`).toBeGreaterThan(0);
+  }
+  // The regression pin — the registration changes no structure fact: the growth
+  // boundary and the crossing registry are exactly what the live digraphs sit inside.
+  expect(SKILL_ANATOMY.growthBoundary.nodeLimit).toBe(15);
+  expect(SKILL_ANATOMY.growthBoundary.edgeLimit).toBe(17);
+  expect(Object.keys(SKILL_ANATOMY.growthBoundary.registry.crossings)).toEqual([]);
+});
+
 test("the frontmatter gate is non-vacuous — a bare-colon description is a real YAML break (D42)", () => {
   // The frontmatter defect class: a bare ASCII `: ` in an unquoted scalar makes the
   // block unparseable (the harness then silently drops the skill). The gate must fire
@@ -518,4 +541,25 @@ test("the frontmatter gate is non-vacuous — a bare-colon description is a real
   expect(SkillAnatomyCheck.frontmatterProblem("# no frontmatter\n", SKILL_ANATOMY)).toContain(
     "no leading frontmatter",
   );
+});
+
+// The contract's route-fact wording governs what a SKILL.md may say about `next:` — it is the
+// stance the consumer surface is judged against, so it must speak the CURRENT contract. The
+// instruction phrase is read from the word table (the single source), never re-typed here; the
+// retired stances are banned outright so the row cannot drift back.
+const RETIRED_ROUTE_FACTS: Array<[string, RegExp]> = [
+  ["the literal-is-the-dispatch stance", /the literal IS the dispatch/],
+  ["the kind→command mapping note", /kind→command mapping/],
+  ["the dispatch-ready literal stance", /dispatch-ready literal/],
+];
+
+test("the contract's route-fact wording speaks the current `next:` contract, never a retired stance", () => {
+  const row = SKILL_ANATOMY.wording.routeFactRule;
+  expect(
+    row,
+    "the route-fact wording must quote the word table's pipeline instruction phrase",
+  ).toContain(CAPSULE_WORDS.routeWords.handoffRef);
+  for (const [label, re] of RETIRED_ROUTE_FACTS) {
+    expect(row, `the route-fact wording carries ${label}`).not.toMatch(re);
+  }
 });

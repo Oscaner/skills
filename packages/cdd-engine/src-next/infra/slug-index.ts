@@ -51,7 +51,8 @@ export interface DocEntry {
   readonly program: string | null;
   /** The declared `version:` token. */
   readonly version: string | null;
-  /** The declared `status:` literal. */
+  /** The residual `status:` head key — no registry declares it any more; carried
+   *  so an existing document degrades to a shorter line instead of erroring. */
   readonly status: string | null;
   /** The declared `title:` line. */
   readonly title: string | null;

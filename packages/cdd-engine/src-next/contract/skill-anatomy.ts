@@ -146,6 +146,46 @@ export interface SkillAnatomyContract {
   edgeConditionWords: readonly string[];
 }
 
+/** One self-review obligation (§7.1) — one of the four questions every authoring
+ *  flow holds itself to before it dispatches. */
+export interface SelfReviewObligation {
+  /** The obligation's stable registry key. */
+  readonly id: string;
+  /** The question, as a short title. */
+  readonly question: string;
+  /** The obligation's body — what the orchestrator actually does. */
+  readonly body: string;
+}
+
+/** The four self-review questions — registered ONCE here (§7.1), the contract plane's
+ *  single home: the `cdd-spec-writer` and `cdd-plan` `self-review` nodes POINT at this
+ *  registry and never restate its body, so the consumer surface carries no second copy
+ *  to drift. Registration only: no digraph fact, no node and no growth-boundary
+ *  crossing — `cdd-design` gains nothing (its charter/sync path dispatches no round,
+ *  so its self-check is a session obligation rather than a node). */
+export const SELF_REVIEW_OBLIGATIONS: readonly SelfReviewObligation[] = [
+  {
+    id: "evidence-before-assertion",
+    question: "Evidence before assertion",
+    body: "Run the command and read its whole output before claiming completion — an uncommitted artifact is not a finished one.",
+  },
+  {
+    id: "two-axis-self-check",
+    question: "Two-axis self-check",
+    body: "Judge the work on both axes: it follows the repository's existing standards, and it matches the specification the work was authored against.",
+  },
+  {
+    id: "fix-in-round",
+    question: "Fix what the self-check finds, in this round",
+    body: "A defect the self-check surfaces is fixed on the spot — recording it is not handling it.",
+  },
+  {
+    id: "self-check-is-not-review",
+    question: "A self-check never replaces the review",
+    body: "The downstream review still has to happen: the self-check removes noise, it does not grant approval.",
+  },
+];
+
 /** The section-heading registry — the strict `## `/`### ` allowlist (public +
  *  conditional sections + the node-name heading grammar). */
 const SECTION_REGISTRY = {
@@ -274,7 +314,7 @@ export const SKILL_ANATOMY = {
     edgeConditionRule:
       "decision edges carry explicit condition labels — the NEXT-LOOP hub's out-edges ARE the pinned loop conditions (`until next is terminal` → self-loop · `no next` → BLOCKED) and every edge out of a decision node is condition-labeled; an unlabeled decision edge, a bare NEXT-LOOP self-loop, or a NEXT-LOOP out-edge count/condition that deviates from the pinned shape is a shape violation (the edge-zero-state-label rule retired v1.20)",
     routeFactRule:
-      "next: is consumed as a dispatch-ready literal (the literal IS the dispatch, no kind→command mapping layer); a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
+      "the `next:` face renders through the word table's template rows — a pipeline `ref` renders the `route to {ref} skill` instruction phrase, a `literal` a cdd command string, a `done` the bare terminal word; a full cdd command string never follows the next: token on a line; BLOCKED/TIMEOUT carry no next line and are not consumed as next steps",
   },
   // The engine-lexicon pinned condition words (the v1.20 word-table pin) — the phrase
   // set the digraph's loop/closure decision edges may carry: the NEXT-LOOP phrases +

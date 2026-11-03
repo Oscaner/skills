@@ -7,7 +7,7 @@ description: Independent brainstorm orchestrator -- Node-anchored flow with digr
 
 Full brainstorm flow orchestration, callable standalone — the imported brainstorm flow lands the program mode (`new-program` routes straight to grilling, no inventory check; `phase-within-program` gates on whether the phase is registered in the parent overall).
 
-**Invocation discipline** — every engine command runs as a background dispatch: launch it in the background and await the completion notification — never poll — then read the full output (stdout/stderr). Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Round rhythm** — one review pass per dispatch; a fix round re-enters the review while the route is not done; ensure the working tree is clean before entering review (dirty → BLOCKED; the orchestrator writes no tree during dispatch). **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
+**Invocation discipline** — every engine command runs as a background dispatch: launch it in the background and await the completion notification — never poll — then read the full output (stdout/stderr). Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Dispatch boundary** — the obligation runs both ways: a dispatched child carries every verification / build command to completion inside its own turn, never ending that turn to await a background task it launched itself — ending the turn terminates the child, so the awaited notification never arrives and the round dies half-finished while still looking successful; the launching side certifies success by the terminal contract (a clean working tree and the target action actually completed), never by exit code 0. **Round rhythm** — one review pass per dispatch; a fix round re-enters the review while the route is not done; ensure the working tree is clean before entering review (dirty → BLOCKED; the orchestrator writes no tree during dispatch). **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
 
 ## Flow Digraph
 
@@ -98,8 +98,8 @@ flowchart TD
 
 ### `handoff-next`
 
-- **Do**: Hand off following the engine's `next:` literal — this node is the spec line's convergence onto the engine's unified next face: read the `next:` line the delegated writer's closing round emitted and dispatch it as written (no design-domain continuation of this flow)
-- **Read**: the committed spec + the delegated writer's `next:` line
+- **Do**: Hand off following the engine's `next:` face — this skill adds no design-domain continuation of it
+- **Read**: the committed spec
 - **Exit**: Handoff executed → flow ends for this skill
 - **Fail**: Target missing → BLOCKED (install kairos — see the kairos README's installation table)
 
@@ -115,7 +115,7 @@ flowchart TD
 | # | Invariant |
 |---|---|
 | I1 | **Design first** — zero implementation dispatch: no code commits, no implement dispatch; the flow ends in the delegated writer flows, never in implementation |
-| I2 | **Review Convergence (next: is the dispatch)** — a review closes by its conclusion (APPROVED / CHANGES_REQUESTED / REVIEW_FIX), and the output's `next:` line carries the engine's default next step as a complete executable command; read the `next:` line and dispatch it as written — the literal is the dispatch, no kind→command mapping layer. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round, consuming the findings handoff; the orchestrator must not edit in place as a substitute; a fix commit opens a new review, never a re-run of a closed one |
+| I2 | **Review Convergence** — a review closes by its conclusion (APPROVED / CHANGES_REQUESTED / REVIEW_FIX); the loop advances by the engine's `next:` face, never by orchestrator guesswork. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round; the orchestrator must not edit in place as a substitute; a fix commit opens a new review, never a re-run of a closed one |
 | I3 | **Spec commit discipline** — spec approved = commit immediately; do not wait for dev merge (enforced inside the delegated writer flows) |
 | I4 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band; a backfill rewriting the current task's own plan/spec text routes through the orchestrator's plan write authority |
 

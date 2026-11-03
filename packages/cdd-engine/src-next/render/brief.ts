@@ -11,6 +11,7 @@
 
 import type { TaskStep } from "../contract/doc.ts";
 import { PlanDocType } from "../contract/doc.ts";
+import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 
 /** One parsed task-block field of the brief. */
 export interface BriefField {
@@ -26,12 +27,15 @@ export interface BriefTask {
   heading: string;
   /** The block's keyed fields in document order. */
   fields: readonly BriefField[];
-  /** The parsed `**Steps**` bullets. */
+  /** The parsed `Steps` bullets. */
   steps: readonly TaskStep[];
   /** Whether every step carries a `— checkable:` clause. */
   checkableComplete: boolean;
   /** The step actions whose `— checkable:` clause is missing. */
   missingCheckables: readonly string[];
+  /** The block's line range in the plan (the render's AST slice basis, P21 §7) —
+   *  a `####` child heading never truncates the slice. */
+  range: { readonly start: number; readonly end: number };
 }
 
 /** The extraction outcome — the requested briefs + the out-of-bounds task ids. */
@@ -46,6 +50,9 @@ export interface BriefExtraction {
  */
 export class BriefRenderer {
   readonly #parser: PlanDocType;
+  /** The ONE task-block parse face — the block ranges and the `## Constraints`
+   *  mirror both read its AST positions (zero `^#` truncation residue). */
+  readonly #reader = new PlanTaskBlocksReader();
 
   constructor(parser = new PlanDocType("plan")) {
     this.#parser = parser;
@@ -79,6 +86,7 @@ export class BriefRenderer {
         steps,
         checkableComplete: missingCheckables.length === 0,
         missingCheckables,
+        range: block.range,
       });
     }
     return { data, missing };
@@ -95,27 +103,23 @@ export class BriefRenderer {
       );
     }
     const lines = planContent.split("\n");
-    const sections = data.map((task) =>
-      this.#rawSection(lines, (line) => line.startsWith(`### Task ${task.id}:`)),
-    );
-    const constraints = this.#rawSection(lines, (line) => line.trimEnd() === "## Constraints");
+    const sections = data.map((task) => this.#slice(lines, task.range));
+    const constraints = this.#reader.section(planContent, "Constraints");
     const body =
       constraints === "" ? sections.join("\n\n") : `${sections.join("\n\n")}\n\n${constraints}`;
     return `${body}\n`;
   }
 
-  /** The shared heading slice — from the first line a matcher accepts to the next
-   *  heading line ("" when nothing matches). Both the `### Task N:` sections and the
-   *  `## Constraints` mirror render through this one shape. */
-  #rawSection(lines: readonly string[], match: (line: string) => boolean): string {
-    const start = lines.findIndex(match);
-    if (start === -1) return "";
-    const out: string[] = [];
-    for (let i = start; i < lines.length; i++) {
-      const line = lines[i];
-      if (i > start && /^#/.test(line)) break;
-      out.push(line);
-    }
-    return out.join("\n").replace(/\s+$/, "");
+  /** The AST-range slice of one task block — the block's own lines verbatim, its
+   *  `####` children included (the retired `^#` scan cut a block at its first child
+   *  heading). */
+  #slice(
+    lines: readonly string[],
+    range: { readonly start: number; readonly end: number },
+  ): string {
+    return lines
+      .slice(range.start - 1, range.end)
+      .join("\n")
+      .replace(/\s+$/, "");
   }
 }

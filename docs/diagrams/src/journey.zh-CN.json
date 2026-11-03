@@ -2,36 +2,107 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "oscaner-skills — 开发者与引擎旅程",
+    "title": "开发者与引擎旅程——一个 CDD 阶段从设计到收口",
     "locale": "zh-CN",
     "output": "docs/diagrams/journey.zh-CN.html",
     "quality_profile": "showcase",
     "repository": {
       "url": "https://github.com/Oscaner/skills",
       "provider": "github",
-      "revision": "2c4ef74b3222fe675a2b691a47c1d7ae50674360"
+      "revision": "17e60e99e51c93cd4e987fe7e65fbfbcf3b46d4c"
     }
   },
   "lanes": [
-    { "id": "dev", "label": "开发者" },
-    { "id": "skills", "label": "kairos 技能" },
-    { "id": "engine", "label": "cdd 引擎" },
-    { "id": "harness", "label": "宿主 harness 子代理" },
-    { "id": "repo", "label": "仓库与产物" }
+    {
+      "id": "dev",
+      "label": "开发者"
+    },
+    {
+      "id": "skills",
+      "label": "kairos 技能"
+    },
+    {
+      "id": "engine",
+      "label": "cdd 引擎"
+    },
+    {
+      "id": "harness",
+      "label": "宿主 harness 子进程"
+    },
+    {
+      "id": "repo",
+      "label": "仓库与产物"
+    }
   ],
   "phases": [
-    { "id": "discover", "label": "发现", "fromCol": 0, "toCol": 0 },
-    { "id": "spec", "label": "Spec", "fromCol": 1, "toCol": 1 },
-    { "id": "plan", "label": "Plan", "fromCol": 2, "toCol": 2 },
-    { "id": "build", "label": "构建", "fromCol": 3, "toCol": 3 },
-    { "id": "review", "label": "评审", "fromCol": 4, "toCol": 4 },
-    { "id": "close", "label": "修复 / 收尾", "fromCol": 5, "toCol": 5 }
+    {
+      "id": "discover",
+      "label": "发现",
+      "fromCol": 0,
+      "toCol": 0
+    },
+    {
+      "id": "spec",
+      "label": "规格",
+      "fromCol": 1,
+      "toCol": 1
+    },
+    {
+      "id": "plan",
+      "label": "计划",
+      "fromCol": 2,
+      "toCol": 2
+    },
+    {
+      "id": "build",
+      "label": "构建",
+      "fromCol": 3,
+      "toCol": 3
+    },
+    {
+      "id": "review",
+      "label": "评审",
+      "fromCol": 4,
+      "toCol": 4
+    },
+    {
+      "id": "close",
+      "label": "修复 / 收口",
+      "fromCol": 5,
+      "toCol": 5
+    }
   ],
   "groups": [
-    { "id": "loop", "label": "实现 → 评审 → 修复", "lane": "engine", "fromCol": 3, "toCol": 5, "variant": "emphasis" },
-    { "id": "dispatch", "label": "子代理派发", "lane": "harness", "fromCol": 3, "toCol": 5, "variant": "dashed" }
+    {
+      "id": "loop",
+      "label": "implement → review → fix",
+      "lane": "engine",
+      "fromCol": 3,
+      "toCol": 5,
+      "variant": "emphasis"
+    },
+    {
+      "id": "dispatch",
+      "label": "子进程派发",
+      "lane": "harness",
+      "fromCol": 3,
+      "toCol": 5,
+      "variant": "dashed"
+    }
   ],
-  "mainPath": ["user", "design", "specw", "plan", "dev", "impl", "review", "fix", "branch", "close", "merged"],
+  "mainPath": [
+    "user",
+    "design",
+    "approval",
+    "specw",
+    "plan",
+    "dev",
+    "impl",
+    "review",
+    "fix",
+    "close",
+    "merged"
+  ],
   "nodes": [
     {
       "id": "user",
@@ -39,9 +110,31 @@
       "col": 0,
       "type": "external",
       "label": "开发者",
-      "sublabel": "提出变更",
+      "sublabel": "提出一次变更",
       "tag": "调用",
-      "sources": [{ "path": "packages/kairos/skills/cdd-design/SKILL.md", "line": 1, "end_line": 10 }]
+      "sources": [
+        {
+          "path": "packages/kairos/skills/cdd-design/SKILL.md",
+          "line": 1,
+          "end_line": 4
+        }
+      ]
+    },
+    {
+      "id": "approval",
+      "lane": "dev",
+      "col": 1,
+      "type": "security",
+      "label": "批准门",
+      "sublabel": "首次派发前停下",
+      "tag": "由作者决定",
+      "sources": [
+        {
+          "path": "packages/kairos/skills/cdd-dev/SKILL.md",
+          "line": 10,
+          "end_line": 10
+        }
+      ]
     },
     {
       "id": "blocked",
@@ -49,9 +142,31 @@
       "col": 3,
       "type": "security",
       "label": "BLOCKED",
-      "sublabel": "脏树 · 超时 · 上限",
+      "sublabel": "脏树 · 门禁 · 超时",
       "tag": "无 next:",
-      "sources": [{ "path": "packages/cdd-engine/src-next/session/preflight.ts", "line": 133, "end_line": 150 }]
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/session/preflight.ts",
+          "line": 43,
+          "end_line": 50
+        }
+      ]
+    },
+    {
+      "id": "merged",
+      "lane": "dev",
+      "col": 5,
+      "type": "messagebus",
+      "label": "分支已收",
+      "sublabel": "PR 或本地合并",
+      "tag": "不用 worktree",
+      "sources": [
+        {
+          "path": "packages/kairos/skills/cdd-close/SKILL.md",
+          "line": 1,
+          "end_line": 4
+        }
+      ]
     },
     {
       "id": "design",
@@ -59,9 +174,15 @@
       "col": 0,
       "type": "backend",
       "label": "cdd-design",
-      "sublabel": "头脑风暴 + 质询",
-      "tag": "模式门",
-      "sources": [{ "path": "packages/kairos/skills/cdd-design/SKILL.md", "line": 1, "end_line": 10 }]
+      "sublabel": "模式 · 档位 · 质询",
+      "tag": "编排器",
+      "sources": [
+        {
+          "path": "packages/kairos/skills/cdd-design/SKILL.md",
+          "line": 1,
+          "end_line": 4
+        }
+      ]
     },
     {
       "id": "specw",
@@ -69,10 +190,13 @@
       "col": 1,
       "type": "backend",
       "label": "cdd-spec-writer",
-      "sublabel": "single-spec / phase-spec / overall",
+      "sublabel": "single-spec · phase-spec · overall",
       "sources": [
-        { "path": "packages/kairos/skills/cdd-spec-writer/SKILL.md", "line": 1, "end_line": 10 },
-        { "path": "packages/kairos/skills/cdd-spec-writer/SKILL.md", "line": 36, "end_line": 38 }
+        {
+          "path": "packages/kairos/skills/cdd-spec-writer/SKILL.md",
+          "line": 1,
+          "end_line": 4
+        }
       ]
     },
     {
@@ -81,8 +205,15 @@
       "col": 2,
       "type": "backend",
       "label": "cdd-plan",
-      "sublabel": "回填 · 编写 · 评审",
-      "sources": [{ "path": "packages/kairos/skills/cdd-plan/SKILL.md", "line": 1, "end_line": 10 }]
+      "sublabel": "回填 · 撰写 · 评审",
+      "tag": "每波 ≤ 3 个任务",
+      "sources": [
+        {
+          "path": "packages/kairos/skills/cdd-plan/SKILL.md",
+          "line": 1,
+          "end_line": 4
+        }
+      ]
     },
     {
       "id": "dev",
@@ -90,8 +221,14 @@
       "col": 3,
       "type": "backend",
       "label": "cdd-dev",
-      "sublabel": "跟随 next:",
-      "sources": [{ "path": "packages/kairos/skills/cdd-dev/SKILL.md", "line": 1, "end_line": 10 }]
+      "sublabel": "跟着引擎的 next:",
+      "sources": [
+        {
+          "path": "packages/kairos/skills/cdd-dev/SKILL.md",
+          "line": 1,
+          "end_line": 4
+        }
+      ]
     },
     {
       "id": "close",
@@ -99,19 +236,14 @@
       "col": 5,
       "type": "backend",
       "label": "cdd-close",
-      "sublabel": "收尾 · 完成决定",
-      "yOffset": -46,
-      "sources": [{ "path": "packages/kairos/skills/cdd-close/SKILL.md", "line": 1, "end_line": 10 }]
-    },
-    {
-      "id": "merged",
-      "lane": "skills",
-      "col": 5,
-      "type": "messagebus",
-      "label": "合并分支",
-      "sublabel": "PR 或本地合并",
-      "yOffset": 46,
-      "sources": [{ "path": "packages/kairos/skills/cdd-close/SKILL.md", "line": 1, "end_line": 10 }]
+      "sublabel": "收尾决策 · issue",
+      "sources": [
+        {
+          "path": "packages/kairos/skills/cdd-close/SKILL.md",
+          "line": 1,
+          "end_line": 4
+        }
+      ]
     },
     {
       "id": "impl",
@@ -120,10 +252,13 @@
       "type": "messagebus",
       "label": "cdd implement",
       "sublabel": "简报 + 派发",
-      "tag": "有门禁",
+      "tag": "已过门禁",
       "sources": [
-        { "path": "packages/cdd-engine/src-next/face/cli.ts", "line": 332, "end_line": 337 },
-        { "path": "packages/cdd-engine/src-next/session/next.ts", "line": 169, "end_line": 183 }
+        {
+          "path": "packages/cdd-engine/src-next/face/declare.ts",
+          "line": 226,
+          "end_line": 236
+        }
       ]
     },
     {
@@ -132,10 +267,13 @@
       "col": 4,
       "type": "messagebus",
       "label": "cdd review",
-      "sublabel": "发现载体",
+      "sublabel": "findings 载体",
       "sources": [
-        { "path": "packages/cdd-engine/src-next/session/handoff-schema.ts", "line": 70, "end_line": 78 },
-        { "path": "packages/cdd-engine/src-next/session/next.ts", "line": 178, "end_line": 183 }
+        {
+          "path": "packages/cdd-engine/src-next/face/declare.ts",
+          "line": 236,
+          "end_line": 249
+        }
       ]
     },
     {
@@ -144,69 +282,73 @@
       "col": 5,
       "type": "messagebus",
       "label": "cdd fix",
-      "sublabel": "应用 + 收敛",
-      "yOffset": -46,
-      "sources": [{ "path": "packages/cdd-engine/src-next/session/next.ts", "line": 184, "end_line": 198 }]
-    },
-    {
-      "id": "branch",
-      "lane": "engine",
-      "col": 5,
-      "type": "security",
-      "label": "分支评审",
-      "sublabel": "最终门禁",
-      "yOffset": 46,
-      "sources": [{ "path": "packages/cdd-engine/src-next/session/next.ts", "line": 199, "end_line": 204 }]
+      "sublabel": "每条发现一个处置",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/face/declare.ts",
+          "line": 249,
+          "end_line": 262
+        }
+      ]
     },
     {
       "id": "implchild",
       "lane": "harness",
       "col": 3,
       "type": "cloud",
-      "label": "实现子代理",
-      "sublabel": "改动 + 提交",
-      "sources": [{ "path": "packages/cdd-engine/src-next/face/lifecycle.ts", "line": 156, "end_line": 185 }]
+      "label": "实现子进程",
+      "sublabel": "改动 + 自己的提交",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/render/templates.ts",
+          "line": 276,
+          "end_line": 290
+        }
+      ]
     },
     {
       "id": "reviewchild",
       "lane": "harness",
       "col": 4,
       "type": "cloud",
-      "label": "评审子代理",
-      "sublabel": "写入发现",
-      "sources": [{ "path": "packages/cdd-engine/src-next/render/templates.ts", "line": 218, "end_line": 227 }]
+      "label": "评审子进程",
+      "sublabel": "写出载体",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/render/templates.ts",
+          "line": 452,
+          "end_line": 470
+        }
+      ]
     },
     {
       "id": "fixchild",
       "lane": "harness",
       "col": 5,
       "type": "cloud",
-      "label": "修复子代理",
-      "sublabel": "应用发现",
-      "yOffset": -46,
-      "sources": [{ "path": "packages/cdd-engine/src-next/render/templates.ts", "line": 175, "end_line": 199 }]
+      "label": "修复子进程",
+      "sublabel": "应用这些发现",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/render/templates.ts",
+          "line": 276,
+          "end_line": 290
+        }
+      ]
     },
     {
       "id": "specdoc",
       "lane": "repo",
       "col": 1,
       "type": "database",
-      "label": "spec 文档",
-      "sublabel": "single-spec · phase-spec",
-      "yOffset": 0,
-      "sources": [{ "path": "packages/cdd-engine/src-next/infra/doc-roots.ts", "line": 28, "end_line": 32 }]
-    },
-    {
-      "id": "overalldoc",
-      "lane": "repo",
-      "col": 0,
-      "type": "database",
-      "label": "overall 文档",
-      "sublabel": "项目章程",
-      "yOffset": 0,
+      "label": "规格文档",
+      "sublabel": "phase-spec · single-spec",
       "sources": [
-        { "path": "packages/cdd-engine/src-next/infra/doc-roots.ts", "line": 28, "end_line": 32 },
-        { "path": "packages/kairos/skills/cdd-spec-writer/SKILL.md", "line": 36, "end_line": 38 }
+        {
+          "path": "packages/cdd-engine/src-next/infra/doc-roots.ts",
+          "line": 26,
+          "end_line": 32
+        }
       ]
     },
     {
@@ -214,9 +356,15 @@
       "lane": "repo",
       "col": 2,
       "type": "database",
-      "label": "plan 文档",
+      "label": "计划文档",
       "sublabel": "docs/kairos/plans",
-      "sources": [{ "path": "packages/cdd-engine/src-next/infra/doc-roots.ts", "line": 28, "end_line": 32 }]
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/infra/doc-roots.ts",
+          "line": 26,
+          "end_line": 32
+        }
+      ]
     },
     {
       "id": "commits",
@@ -224,8 +372,14 @@
       "col": 3,
       "type": "database",
       "label": "任务提交",
-      "sublabel": "每次派发一次",
-      "sources": [{ "path": "packages/kairos/skills/cdd-dev/SKILL.md", "line": 10, "end_line": 10 }]
+      "sublabel": "每个实现轮一次",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/infra/git.ts",
+          "line": 26,
+          "end_line": 34
+        }
+      ]
     },
     {
       "id": "workspace",
@@ -233,109 +387,190 @@
       "col": 4,
       "type": "database",
       "label": ".kairos/cdd",
-      "sublabel": "发现 · 裁定 · 账本",
-      "sources": [{ "path": "packages/cdd-engine/src-next/infra/runtime.ts", "line": 114, "end_line": 117 }]
-    },
-    {
-      "id": "annotate",
-      "lane": "dev",
-      "col": 4,
-      "type": "external",
-      "label": "裁定批注",
-      "sublabel": "写入发现载体",
-      "tag": "用户",
-      "sources": [{ "path": "packages/cdd-engine/src-next/session/next.ts", "line": 144, "end_line": 154 }]
+      "sublabel": "记录 · 日志 · 账本",
+      "tag": "自我忽略",
+      "sources": [
+        {
+          "path": "packages/cdd-engine/src-next/session/ledger.ts",
+          "line": 73,
+          "end_line": 122
+        }
+      ]
     }
   ],
   "edges": [
-    { "id": "invoke-design", "from": "user", "to": "design", "label": "调用", "variant": "emphasis", "role": "main" },
-    { "id": "design-specw", "from": "design", "to": "specw", "label": "派发", "role": "main" },
-    { "id": "specw-overalldoc", "from": "specw", "to": "overalldoc", "label": "提交 overall", "variant": "dashed", "role": "async" },
-    { "id": "specw-specdoc", "from": "specw", "to": "specdoc", "label": "提交", "variant": "dashed", "role": "async" },
-    { "id": "specw-plan", "from": "specw", "to": "plan", "label": "next: cdd-plan", "role": "main" },
-    { "id": "plan-plandoc", "from": "plan", "to": "plandoc", "label": "提交", "variant": "dashed", "role": "async" },
-    { "id": "plan-specdoc", "from": "plan", "to": "specdoc", "label": "漂移时回填", "variant": "dashed", "role": "return", "toSide": "right" },
-    { "id": "plan-dev", "from": "plan", "to": "dev", "label": "next: cdd-dev", "role": "main" },
-    { "id": "dev-impl", "from": "dev", "to": "impl", "label": "cdd implement", "role": "main" },
-    { "id": "impl-child", "from": "impl", "to": "implchild", "label": "派发", "role": "main" },
-    { "id": "implchild-commits", "from": "implchild", "to": "commits", "label": "任务提交", "variant": "dashed", "role": "async" },
-    { "id": "impl-review", "from": "impl", "to": "review", "label": "next: review", "role": "main" },
-    { "id": "review-child", "from": "review", "to": "reviewchild", "label": "派发" },
-    { "id": "reviewchild-workspace", "from": "reviewchild", "to": "workspace", "label": "发现", "variant": "dashed", "role": "async" },
-    { "id": "annotate-review", "from": "annotate", "to": "review", "label": "批注载体", "variant": "dashed", "role": "return" },
-    { "id": "review-fix", "from": "review", "to": "fix", "label": "有发现", "variant": "security", "role": "branch" },
-    { "id": "fix-child", "from": "fix", "to": "fixchild", "label": "派发" },
-    { "id": "fix-branch", "from": "fix", "to": "branch", "label": "无 blocker", "role": "main" },
     {
-      "id": "branch-close",
-      "from": "branch",
-      "to": "close",
-      "label": "通过",
-      "role": "main",
-      "fromSide": "right",
-      "toSide": "right",
-      "route": "outside-right",
-      "labelSegment": 1
+      "id": "user-design",
+      "from": "user",
+      "to": "design",
+      "label": "调用"
     },
-    { "id": "close-merged", "from": "close", "to": "merged", "label": "完成决定", "variant": "emphasis", "role": "main" },
-    { "id": "impl-blocked", "from": "impl", "to": "blocked", "label": "门禁 / 超时", "variant": "security", "role": "error" },
-    { "id": "blocked-user", "from": "blocked", "to": "user", "label": "修树 · 裁定", "variant": "dashed", "role": "return" }
+    {
+      "id": "design-approval",
+      "from": "design",
+      "to": "approval",
+      "label": "出示并停下",
+      "variant": "security"
+    },
+    {
+      "id": "approval-specw",
+      "from": "approval",
+      "to": "specw",
+      "label": "已批准",
+      "variant": "emphasis"
+    },
+    {
+      "id": "specw-specdoc",
+      "from": "specw",
+      "to": "specdoc",
+      "label": "提交规格",
+      "variant": "dashed"
+    },
+    {
+      "id": "specw-plan",
+      "from": "specw",
+      "to": "plan",
+      "label": "next: cdd-plan"
+    },
+    {
+      "id": "plan-plandoc",
+      "from": "plan",
+      "to": "plandoc",
+      "label": "提交计划",
+      "variant": "dashed"
+    },
+    {
+      "id": "plan-specdoc",
+      "from": "plan",
+      "to": "specdoc",
+      "label": "漂移回填",
+      "variant": "dashed"
+    },
+    {
+      "id": "plan-dev",
+      "from": "plan",
+      "to": "dev",
+      "label": "next: cdd-dev"
+    },
+    {
+      "id": "dev-impl",
+      "from": "dev",
+      "to": "impl",
+      "label": "cdd implement"
+    },
+    {
+      "id": "impl-implchild",
+      "from": "impl",
+      "to": "implchild",
+      "label": "派发"
+    },
+    {
+      "id": "implchild-commits",
+      "from": "implchild",
+      "to": "commits",
+      "label": "提交"
+    },
+    {
+      "id": "impl-review",
+      "from": "impl",
+      "to": "review",
+      "label": "next: review"
+    },
+    {
+      "id": "review-reviewchild",
+      "from": "review",
+      "to": "reviewchild",
+      "label": "派发"
+    },
+    {
+      "id": "reviewchild-workspace",
+      "from": "reviewchild",
+      "to": "workspace",
+      "label": "载体",
+      "variant": "dashed"
+    },
+    {
+      "id": "review-fix",
+      "from": "review",
+      "to": "fix",
+      "label": "发现 > 0"
+    },
+    {
+      "id": "fix-fixchild",
+      "from": "fix",
+      "to": "fixchild",
+      "label": "派发"
+    },
+    {
+      "id": "fix-review",
+      "from": "fix",
+      "to": "review",
+      "label": "blocker · 重新评审",
+      "variant": "dashed"
+    },
+    {
+      "id": "close-merged",
+      "from": "close",
+      "to": "merged",
+      "label": "收尾"
+    },
+    {
+      "id": "dev-blocked",
+      "from": "dev",
+      "to": "blocked",
+      "label": "门禁 · 超时",
+      "variant": "security"
+    },
+    {
+      "id": "fix-close",
+      "from": "fix",
+      "to": "close",
+      "label": "分支评审",
+      "variant": "emphasis"
+    },
+    {
+      "id": "blocked-user",
+      "from": "blocked",
+      "to": "user",
+      "label": "修好工作树",
+      "variant": "dashed"
+    }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "一条链，一个收口",
+      "title": "一条链，一次收口",
       "items": [
-        "每个阶段都以评审收尾；spec、plan、波次与分支评审共享 Review Convergence 规则",
-        "blocker 发现进入 fix 并重新评审；仅 warn/nit 时以 REVIEW_FIX 收敛；零发现直接关闭",
-        "cdd-close 先落地收尾回填，再询问开发者如何完成分支"
-      ]
-    },
-    {
-      "dot": "rose",
-      "title": "三种 spec 目标",
-      "items": [
-        "single-spec —— 整个程序恰好装进一份 spec；docs/kairos/specs",
-        "phase-spec —— 一个已登记阶段；docs/kairos/specs，携带 program:（父 overall 的 slug）",
-        "overall —— 多阶段项目章程；docs/kairos/overalls，随后交给下一阶段设计",
-        "设计流程按规模分流：single-spec / fit → cdd-spec-writer；multi / oversized → overall 章程"
-      ]
-    },
-    {
-      "dot": "orange",
-      "title": "Backfill 与 annotate —— 两条回流",
-      "items": [
-        "回填把持久事实落到其归属文档（overall · spec · plan），绝不留在聊天里",
-        "中途回填：立即落地 → 独立提交 → 暂停循环直至干净 → 下一次评审在带内审计",
-        "cdd-plan 在规划暴露漂移时回填 spec；cdd-close 在完成菜单前回填收尾",
-        "annotate：需要裁定的发现把裁定写入发现载体；fix 消费已批注的载体"
-      ]
-    },
-    {
-      "dot": "emerald",
-      "title": "next: 契约",
-      "items": [
-        "引擎的 next: 行是唯一续行动作——编排器跟随它，而不是重新决策",
-        "implement → review → fix → next-wave | done；分支评审是最终门禁",
-        "BLOCKED 或 TIMEOUT 轮输出 CDD_BLOCKED，且不携带 next: 行"
+        "五段编排器依次为：design → spec-writer → plan → dev → close；report 站在链外",
+        "每个编排器都先呈上产物，并在首次派发前停下来等待作者的明确批准",
+        "交接的依据是引擎的 next: 行——收敛的产物才继续，被阻断的不继续"
       ]
     },
     {
       "dot": "amber",
-      "title": "派发前的门禁",
+      "title": "一套目标词汇",
       "items": [
-        "预检顺序：干净树 → plan 图 → 波次门 → 文档契约",
-        "脏工作树在任何子代理启动前 BLOCK；未提交的回填同样触发该门",
-        "所有提示词、发现与账本都是 .kairos/cdd 下的文件，而非聊天状态"
+        "--type 收的是产物自己声明的形状：phase-spec · overall · plan · single-spec · wave · branch",
+        "旧写法 --type spec 已退役，枚举会直接拒绝它",
+        "doc-contract 门禁按文档声明的 doc-type: 判定形状，而不是按命令的 --type"
       ]
     },
     {
-      "dot": "violet",
-      "title": "最终交付",
+      "dot": "rose",
+      "title": "派发前的门禁",
       "items": [
-        "任务提交累积在特性分支；分支评审审阅整段 diff",
-        "cdd-close 提供 merge / PR / 保留 / 丢弃；每次变更都带 changeset",
-        "develop 是集成分支；生产发布经 develop → main → npm"
+        "tree-clean → in-flight → graph → plan-ledger → wave → doc-contract，每条工作命令都按此顺序执行",
+        "计划的每个波次至多三个任务；更宽的波次引擎会拒绝，而不是替它拆分",
+        "同一工作树里的第二次派发会被拒绝，直到在飞的持有者消失；--steal-stale 是唯一的接管方式"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "引擎留下什么",
+      "items": [
+        "每次派发一条轮次记录：基线 HEAD、终态判定、分级违规与载体路径",
+        "每个子进程自己的输出落在 .kairos/cdd/<slug>/logs/，被阻断的运行会在 stderr 上指名该文件",
+        "next: 作为最后一行收尾，而 cdd board 从账本渲染同一个判定"
       ]
     }
   ]

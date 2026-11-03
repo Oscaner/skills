@@ -2,7 +2,7 @@
   "docType": "overall",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "overall document structure",
-  "description": "Derived JSON Schema — 43 declared elements · 34 required",
+  "description": "Derived JSON Schema — 42 declared elements · 33 required",
   "type": "object",
   "properties": {
     "title": {
@@ -28,11 +28,6 @@
     "slug": {
       "type": "string",
       "pattern": "^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._-]*$",
-      "description": "presence: required · home: frontmatter · ref: none"
-    },
-    "status": {
-      "type": "string",
-      "pattern": "^(Draft|Approved|In progress|Complete)$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
     "author": {
@@ -157,12 +152,12 @@
     },
     "Implementation plan cell": {
       "type": "string",
-      "pattern": "^(Pending|\\[Pending\\]|In-flight|\\[In-flight\\]|Done|\\[[^\\]]+\\]\\([^)]+\\))$",
+      "pattern": "^(?:✔\\s*)?(?:Pending|\\[Pending\\]|In-flight|\\[In-flight\\]|Done|\\[[^\\]]+\\]\\([^)]+\\))(?:\\s*[（(][^）)]*[）)])?(?:\\s+[\\s\\S]*)?$",
       "description": "presence: required · home: table · ref: markdown-link"
     },
     "Design spec cell": {
       "type": "string",
-      "pattern": "^(\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])$",
+      "pattern": "^(?:✔\\s*)?(?:\\[[^\\]]+\\]\\([^)]+\\)|P\\d+(\\.\\d+)*-design|Done|\\[Pending\\])(?:\\s*[（(][^）)]*[）)])?(?:\\s+[\\s\\S]*)?$",
       "description": "presence: required · home: table · ref: none"
     },
     "Dependency cell": {
@@ -177,7 +172,7 @@
     },
     "Soft edge": {
       "type": "string",
-      "pattern": "^P\\d+(\\.\\d+)*\\s*->\\s*\\(?\\s*soft\\s*\\)?",
+      "pattern": "^P\\d+(\\.\\d+)*\\s*->\\s*P\\d+(\\.\\d+)*\\s*\\(?\\s*soft\\s*\\)?",
       "description": "presence: optional · home: graph · ref: phase-id"
     },
     "Graph legend": {
@@ -227,7 +222,6 @@
     "version",
     "date",
     "slug",
-    "status",
     "author",
     "## Document scope",
     "## Program charter",

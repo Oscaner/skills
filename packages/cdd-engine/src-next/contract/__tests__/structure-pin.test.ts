@@ -7,13 +7,17 @@
 //       phase-id hand copy, the design group/item headings) are each zero-hit in
 //       the parse face source;
 //   (b) retained primitives — every census hit in contract/doc.ts belongs to
-//       exactly one of the six preserved primitives, and the owning set equals
-//       that six-primitive set (set equality over primitive identities, never a
-//       line-number list — the valuePattern-application primitive has two
-//       landing sites, so a count pin would drift with any rewrite). The census
-//       vocabulary includes `.test(` and `.replace(` — the two keywords the
-//       retired phase-id hand copy and the markerValue slice rode, without which
-//       those two retirement classes would be invisible to the census;
+//       exactly one of the three preserved primitives, and the owning set equals
+//       that set (set equality over primitive identities, never a line-number
+//       list — the valuePattern-application primitive has two landing sites, so a
+//       count pin would drift with any rewrite). The heading-rank, table-split and
+//       graph-edge primitives are RETIRED into the markdown tree (the tree reads
+//       heading ranks from node depths, table cells from cell nodes and graph edges
+//       from the graph surface), so the parse face carries no line-level
+//       heading/table/edge grammar at all. The census vocabulary includes `.test(`
+//       and `.replace(` — the two keywords the retired phase-id hand copy and the
+//       markerValue slice rode, without which those two retirement classes would be
+//       invisible to the census;
 //   (d) the registry side — every `home: "frontmatter"` anchor is a §3.3 key
 //       (title / doc-type / version / date / slug / program / status / author /
 //       parent-version / base / issues) and carries
@@ -39,19 +43,11 @@ const DECLARE_SRC = readFileSync(path.resolve(HERE, "../declare.ts"), "utf8");
  *  retirement class (spec §6 (c)). */
 const CENSUS = /RegExp|\.match\(|\.matchAll\(|\.split\(|\.test\(|\.replace\(/;
 
-/** The six retained primitives — the identities every census hit must resolve
+/** The three retained primitives — the identities every census hit must resolve
  *  into (spec §6 (b); `#phaseId`'s valuePattern read is the second landing site
- *  of the valuePattern-application primitive, per the same row). */
+ *  of the valuePattern-application primitive, per the same row). The heading-rank,
+ *  table-split and graph-edge primitives retired into the tree. */
 const PRIMITIVES: readonly { id: string; owns: (line: string) => boolean }[] = [
-  {
-    id: "heading-rank",
-    owns: (line) => line.includes("/^(#+)\\s/"),
-  },
-  {
-    id: "table-split",
-    owns: (line) =>
-      line.includes('.split("|")') || (line.includes("/^\\|") && line.includes(".test(trimmed)")),
-  },
   {
     id: "markdown-link",
     owns: (line) =>
@@ -60,11 +56,6 @@ const PRIMITIVES: readonly { id: string; owns: (line: string) => boolean }[] = [
   {
     id: "version-token",
     owns: (line) => line.includes("matchAll(tokenPattern)") || line.includes("/v\\d+\\.\\d+/g"),
-  },
-  {
-    id: "graph-edge",
-    owns: (line) =>
-      line.includes("match(edgePattern)") || line.includes("P(\\d+(?:\\.\\d+)*)\\s*->"),
   },
   {
     id: "valuePattern-application",
@@ -127,21 +118,16 @@ test("spec §6 structure pin — retired grammars zero-hit · retained primitive
   });
   expect(
     new Set(owners),
-    "the owning primitive set must equal the six retained primitives",
+    "the owning primitive set must equal the three retained primitives",
   ).toEqual(new Set(PRIMITIVES.map((primitive) => primitive.id)));
-  // 6 primitives / 7 landing points / 7 census lines: the valuePattern-application
-  // primitive has TWO landing sites (sectionConforms and the rewritten #phaseId —
-  // the landing point moves from one site to two, spec §6 b), so the remaining
-  // five primitives hold one census line each. The table-split primitive's
-  // separator-row guard is no longer inline here — it is the TableExtractor's
-  // hand-rolled `isSeparatorRow` (the table home's fixed structure rule), so the
-  // table-split landing is the `split("|")` line alone.
+  // 3 primitives / 4 landing points / 4 census lines: the valuePattern-application
+  // primitive has TWO landing sites (sectionConforms and #phaseId), so the other
+  // two primitives hold one census line each. The line-level heading-rank,
+  // table-split and graph-edge grammars retired into the markdown tree, so they own
+  // zero census lines here.
   const hitsPerPrimitive = new Map<string, number>();
   for (const id of owners) hitsPerPrimitive.set(id, (hitsPerPrimitive.get(id) ?? 0) + 1);
-  expect(hits.length, "the migrated census line count (6 primitives / 7 landing points)").toBe(7);
-  // the double-landing primitive — valuePattern-application (sectionConforms +
-  // the rewritten #phaseId). The remaining five primitives hold one census line
-  // each.
+  expect(hits.length, "the migrated census line count (3 primitives / 4 landing points)").toBe(4);
   expect(hitsPerPrimitive.get("valuePattern-application")).toBe(2);
   for (const primitive of PRIMITIVES) {
     if (primitive.id === "valuePattern-application") continue;

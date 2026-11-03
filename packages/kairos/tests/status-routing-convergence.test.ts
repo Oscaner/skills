@@ -1,18 +1,17 @@
 // packages/kairos/tests/status-routing-convergence.test.ts — C1 ①④ + C5 (T9) wording grep pin.
-// The routing criterion's consumer-facing anchor: the four convergence-carrier SKILL.md files must
+// The routing criterion's consumer-facing anchor: the convergence-carrier SKILL.md files must
 // carry ZERO retired "blocker count" reading vocabulary and ZERO self-narrated S1/S2/S3 status→dispatch
 // routing restatement (the retired "review closes in three segments … S1 → fix + re-review / S2 → fix
 // closing round / S3 → done" prose and the retired "reads `status:` for routing" reading) — routing is
-// read off the output's `next:` dispatch-ready line (the v1.25 literal — verb + target-type + id +
-// payload, the literal IS the dispatch, no kind→command mapping layer; a mid-backfill or a user
-// adjudication that lands governs over it). The
+// delegated to the engine's `next:` face (its OUTPUT contract, never restated on the skill side: the
+// node keeps one pointer line and the orchestrator's own obligations). The
 // status vocabulary survives only as the closure anchors in the Review Convergence wording (the
 // loop is the unified NEXT-LOOP hub — the retired `{status?}` decision node is gone, §4.2), never
 // as narrated routing. The check reads the skill files directly (pure vitest, no shell grep
 // chain) and asserts the required anchors so a future convergence rewrite that drops the `next:`
-// reading fails here.
+// pointer fails here.
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
@@ -47,18 +46,15 @@ const FORBIDDEN: Array<[string, RegExp]> = [
 ];
 
 // Required anchors — the convergence vocabulary that must be present in every carrier: the unified
-// loop hub (the NEXT-LOOP digraph node), the status closure vocabulary, the `next:`-based routing
-// vocabulary (the unified reading wording, the engine's-default shared reference, the dispatch-as-written
-// directive, and the Mid-Flight Backfill compatibility sentence). The next: reading is the v1.25
-// dispatch-ready literal stance — read the `next:` line and dispatch it as written.
+// loop hub (the NEXT-LOOP digraph node), the status closure vocabulary, the `next:`-face pointer (the
+// engine's output contract is named, never restated), and the Mid-Flight Backfill compatibility
+// sentence.
 const REQUIRED: Array<[string, RegExp]> = [
   ["the unified NEXT-LOOP loop hub", /NEXT-LOOP/],
   ["S1 status anchor CHANGES_REQUESTED", /\bCHANGES_REQUESTED\b/],
   ["S2 status anchor REVIEW_FIX", /\bREVIEW_FIX\b/],
   ["S3 status anchor APPROVED", /\bAPPROVED\b/],
-  ["the unified `next:` reading wording", /read the `next:` line/],
-  ["the shared next-step reference (engine's default)", /default next step/],
-  ["the dispatch-as-written directive", /dispatch it as written/],
+  ["the engine's `next:` face pointer", /the engine's `next:` face/],
   ["the Mid-Flight Backfill compatibility wording", /mid-backfill/],
 ];
 
@@ -85,18 +81,18 @@ for (const name of CARRIERS) {
     for (const [label, re] of FORBIDDEN.slice(7)) {
       expect(
         skill,
-        `${name}/SKILL.md still carries the retired ${label} — the fix/review routing is read off the ` +
-          `engine's \`next:\` dispatch-ready line, never hand-narrated from a status mapping`,
+        `${name}/SKILL.md still carries the retired ${label} — the fix/review routing routes by the ` +
+          `engine's \`next:\` face, never hand-narrated from a status mapping`,
       ).not.toMatch(re);
     }
   });
 
-  test(`status-routing wording: ${name} anchors Review Convergence to the status criterion + the next: reading`, () => {
+  test(`status-routing wording: ${name} anchors Review Convergence to the status criterion + the next: pointer`, () => {
     for (const [label, re] of REQUIRED) {
       expect(
         skill,
         `${name}/SKILL.md is missing the ${label} — Review Convergence must stay status-anchored in ` +
-          `the digraph and route through the \`next:\` dispatch-ready line`,
+          `the digraph and route through the engine's \`next:\` face`,
       ).toMatch(re);
     }
   });
@@ -113,4 +109,32 @@ test("status-routing wording: cdd-dev Failure Modes ground a BLOCKED round on a 
     blockedRow,
     "a BLOCKED round must carry its reason for reporting (the behavior face, not an internal byte name)",
   ).toMatch(/reason/);
+});
+
+// The `next:` shape is the ENGINE's output contract — a skill that re-declares it (the literal-is-the-
+// dispatch stance, the kind→command mapping note, the engine-default reference) is stating another
+// face's fact. Zero occurrences across every shipped SKILL.md; the skills keep ONE pointer line plus
+// their own orchestrator obligations.
+const NEXT_SHAPE_RESTATEMENTS: Array<[string, RegExp]> = [
+  ["the `next: is the dispatch` invariant heading", /next: is the dispatch/],
+  ["the dispatch-as-written directive", /dispatch(?:ed)? it as written/],
+  ["the read-the-`next:`-line instruction", /read the `next:` line/],
+  ["the engine-default next-step reference", /default next step/],
+  ["the kind→command mapping restatement", /kind→command mapping/],
+  ["the dispatch-ready literal restatement", /dispatch-ready `next:`/],
+];
+
+test("status-routing wording: every shipped SKILL.md carries zero `next:` shape restatement", () => {
+  for (const name of readdirSync(SKILLS_ROOT, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)) {
+    const skill = readFileSync(path.join(SKILLS_ROOT, name, "SKILL.md"), "utf8");
+    for (const [label, re] of NEXT_SHAPE_RESTATEMENTS) {
+      expect(
+        skill,
+        `${name}/SKILL.md still carries ${label} — the \`next:\` shape is the engine's output ` +
+          `contract: the skill keeps one pointer line and its own obligations`,
+      ).not.toMatch(re);
+    }
+  }
 });

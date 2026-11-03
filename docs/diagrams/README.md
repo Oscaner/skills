@@ -8,7 +8,7 @@ Open [`index.html`](index.html) for the language switcher; each diagram also ope
 |---|---|---|
 | Architecture | [`architecture.en.html`](architecture.en.html) | [`architecture.zh-CN.html`](architecture.zh-CN.html) |
 | Developer & engine journey | [`journey.en.html`](journey.en.html) | [`journey.zh-CN.html`](journey.zh-CN.html) |
-| NEXT-loop — findings judgment | [`next-loop.en.html`](next-loop.en.html) | [`next-loop.zh-CN.html`](next-loop.zh-CN.html) |
+| NEXT-loop — round judgment & the next hop | [`next-loop.en.html`](next-loop.en.html) | [`next-loop.zh-CN.html`](next-loop.zh-CN.html) |
 
 The editable sources live in [`src/`](src/). Each `.json` is an Archify candidate; regenerate an artifact with the Archify CLI from the repository root:
 
@@ -19,3 +19,5 @@ node <archify>/bin/archify.mjs finalize architecture docs/diagrams/src/architect
 Repeat for `journey.*` (type `workflow`) and `next-loop.*` (type `lifecycle`). The `--repo-root .` flag verifies every source citation against the pinned repository revision. Do not hand-edit the generated HTML: change the source JSON and regenerate.
 
 The viewer's own theme toggle, motion, search and export controls are part of each artifact. The language switcher on `index.html` swaps between the two artifacts of the selected diagram.
+
+Gate receipts written next to an artifact (`*.finalize*.json`, `*.browser-check.json`, `*.delivery.json`) are machine evidence for that run and are gitignored — never commit or hand-edit them.

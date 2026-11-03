@@ -2,14 +2,14 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "oscaner-skills — developer & engine journey",
+    "title": "Developer & engine journey — a CDD phase from design to close",
     "locale": "en",
     "output": "docs/diagrams/journey.en.html",
     "quality_profile": "showcase",
     "repository": {
       "url": "https://github.com/Oscaner/skills",
       "provider": "github",
-      "revision": "2c4ef74b3222fe675a2b691a47c1d7ae50674360"
+      "revision": "17e60e99e51c93cd4e987fe7e65fbfbcf3b46d4c"
     }
   },
   "lanes": [
@@ -93,13 +93,13 @@
   "mainPath": [
     "user",
     "design",
+    "approval",
     "specw",
     "plan",
     "dev",
     "impl",
     "review",
     "fix",
-    "branch",
     "close",
     "merged"
   ],
@@ -116,6 +116,22 @@
         {
           "path": "packages/kairos/skills/cdd-design/SKILL.md",
           "line": 1,
+          "end_line": 4
+        }
+      ]
+    },
+    {
+      "id": "approval",
+      "lane": "dev",
+      "col": 1,
+      "type": "security",
+      "label": "Approval gate",
+      "sublabel": "stop before the first dispatch",
+      "tag": "the author decides",
+      "sources": [
+        {
+          "path": "packages/kairos/skills/cdd-dev/SKILL.md",
+          "line": 10,
           "end_line": 10
         }
       ]
@@ -126,13 +142,29 @@
       "col": 3,
       "type": "security",
       "label": "BLOCKED",
-      "sublabel": "dirty tree · timeout · cap",
+      "sublabel": "dirty tree · gate · timeout",
       "tag": "no next:",
       "sources": [
         {
           "path": "packages/cdd-engine/src-next/session/preflight.ts",
-          "line": 133,
-          "end_line": 150
+          "line": 43,
+          "end_line": 50
+        }
+      ]
+    },
+    {
+      "id": "merged",
+      "lane": "dev",
+      "col": 5,
+      "type": "messagebus",
+      "label": "Branch finished",
+      "sublabel": "PR or local merge",
+      "tag": "no worktrees",
+      "sources": [
+        {
+          "path": "packages/kairos/skills/cdd-close/SKILL.md",
+          "line": 1,
+          "end_line": 4
         }
       ]
     },
@@ -142,13 +174,13 @@
       "col": 0,
       "type": "backend",
       "label": "cdd-design",
-      "sublabel": "brainstorm + grill",
-      "tag": "mode gate",
+      "sublabel": "mode · register · grill",
+      "tag": "orchestrator",
       "sources": [
         {
           "path": "packages/kairos/skills/cdd-design/SKILL.md",
           "line": 1,
-          "end_line": 10
+          "end_line": 4
         }
       ]
     },
@@ -158,17 +190,12 @@
       "col": 1,
       "type": "backend",
       "label": "cdd-spec-writer",
-      "sublabel": "single-spec / phase-spec / overall",
+      "sublabel": "single-spec · phase-spec · overall",
       "sources": [
         {
           "path": "packages/kairos/skills/cdd-spec-writer/SKILL.md",
           "line": 1,
-          "end_line": 10
-        },
-        {
-          "path": "packages/kairos/skills/cdd-spec-writer/SKILL.md",
-          "line": 36,
-          "end_line": 38
+          "end_line": 4
         }
       ]
     },
@@ -179,11 +206,12 @@
       "type": "backend",
       "label": "cdd-plan",
       "sublabel": "backfill · author · review",
+      "tag": "waves of ≤ 3",
       "sources": [
         {
           "path": "packages/kairos/skills/cdd-plan/SKILL.md",
           "line": 1,
-          "end_line": 10
+          "end_line": 4
         }
       ]
     },
@@ -193,12 +221,12 @@
       "col": 3,
       "type": "backend",
       "label": "cdd-dev",
-      "sublabel": "follow next:",
+      "sublabel": "follow the engine's next:",
       "sources": [
         {
           "path": "packages/kairos/skills/cdd-dev/SKILL.md",
           "line": 1,
-          "end_line": 10
+          "end_line": 4
         }
       ]
     },
@@ -208,29 +236,12 @@
       "col": 5,
       "type": "backend",
       "label": "cdd-close",
-      "sublabel": "closeout · finish",
-      "yOffset": -46,
+      "sublabel": "finish decision · issues",
       "sources": [
         {
           "path": "packages/kairos/skills/cdd-close/SKILL.md",
           "line": 1,
-          "end_line": 10
-        }
-      ]
-    },
-    {
-      "id": "merged",
-      "lane": "skills",
-      "col": 5,
-      "type": "messagebus",
-      "label": "Merged branch",
-      "sublabel": "PR or local merge",
-      "yOffset": 46,
-      "sources": [
-        {
-          "path": "packages/kairos/skills/cdd-close/SKILL.md",
-          "line": 1,
-          "end_line": 10
+          "end_line": 4
         }
       ]
     },
@@ -244,14 +255,9 @@
       "tag": "gated",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/face/cli.ts",
-          "line": 332,
-          "end_line": 337
-        },
-        {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 169,
-          "end_line": 183
+          "path": "packages/cdd-engine/src-next/face/declare.ts",
+          "line": 226,
+          "end_line": 236
         }
       ]
     },
@@ -261,17 +267,12 @@
       "col": 4,
       "type": "messagebus",
       "label": "cdd review",
-      "sublabel": "findings carrier",
+      "sublabel": "the findings carrier",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/session/handoff-schema.ts",
-          "line": 70,
-          "end_line": 78
-        },
-        {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 178,
-          "end_line": 183
+          "path": "packages/cdd-engine/src-next/face/declare.ts",
+          "line": 236,
+          "end_line": 249
         }
       ]
     },
@@ -281,29 +282,12 @@
       "col": 5,
       "type": "messagebus",
       "label": "cdd fix",
-      "sublabel": "apply + converge",
-      "yOffset": -46,
+      "sublabel": "a disposition per finding",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 184,
-          "end_line": 198
-        }
-      ]
-    },
-    {
-      "id": "branch",
-      "lane": "engine",
-      "col": 5,
-      "type": "security",
-      "label": "branch review",
-      "sublabel": "final gate",
-      "yOffset": 46,
-      "sources": [
-        {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 199,
-          "end_line": 204
+          "path": "packages/cdd-engine/src-next/face/declare.ts",
+          "line": 249,
+          "end_line": 262
         }
       ]
     },
@@ -313,12 +297,12 @@
       "col": 3,
       "type": "cloud",
       "label": "Implement child",
-      "sublabel": "edits + commits",
+      "sublabel": "edits + its own commit",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/face/lifecycle.ts",
-          "line": 156,
-          "end_line": 185
+          "path": "packages/cdd-engine/src-next/render/templates.ts",
+          "line": 276,
+          "end_line": 290
         }
       ]
     },
@@ -328,12 +312,12 @@
       "col": 4,
       "type": "cloud",
       "label": "Review child",
-      "sublabel": "writes findings",
+      "sublabel": "writes the carrier",
       "sources": [
         {
           "path": "packages/cdd-engine/src-next/render/templates.ts",
-          "line": 218,
-          "end_line": 227
+          "line": 452,
+          "end_line": 470
         }
       ]
     },
@@ -343,13 +327,12 @@
       "col": 5,
       "type": "cloud",
       "label": "Fix child",
-      "sublabel": "applies findings",
-      "yOffset": -46,
+      "sublabel": "applies the findings",
       "sources": [
         {
           "path": "packages/cdd-engine/src-next/render/templates.ts",
-          "line": 175,
-          "end_line": 199
+          "line": 276,
+          "end_line": 290
         }
       ]
     },
@@ -359,34 +342,12 @@
       "col": 1,
       "type": "database",
       "label": "Spec doc",
-      "sublabel": "single-spec · phase-spec",
-      "yOffset": 0,
+      "sublabel": "phase-spec · single-spec",
       "sources": [
         {
           "path": "packages/cdd-engine/src-next/infra/doc-roots.ts",
-          "line": 28,
+          "line": 26,
           "end_line": 32
-        }
-      ]
-    },
-    {
-      "id": "overalldoc",
-      "lane": "repo",
-      "col": 0,
-      "type": "database",
-      "label": "Overall doc",
-      "sublabel": "program charter",
-      "yOffset": 0,
-      "sources": [
-        {
-          "path": "packages/cdd-engine/src-next/infra/doc-roots.ts",
-          "line": 28,
-          "end_line": 32
-        },
-        {
-          "path": "packages/kairos/skills/cdd-spec-writer/SKILL.md",
-          "line": 36,
-          "end_line": 38
         }
       ]
     },
@@ -400,7 +361,7 @@
       "sources": [
         {
           "path": "packages/cdd-engine/src-next/infra/doc-roots.ts",
-          "line": 28,
+          "line": 26,
           "end_line": 32
         }
       ]
@@ -411,12 +372,12 @@
       "col": 3,
       "type": "database",
       "label": "Task commits",
-      "sublabel": "one per dispatch",
+      "sublabel": "one per implement round",
       "sources": [
         {
-          "path": "packages/kairos/skills/cdd-dev/SKILL.md",
-          "line": 10,
-          "end_line": 10
+          "path": "packages/cdd-engine/src-next/infra/git.ts",
+          "line": 26,
+          "end_line": 34
         }
       ]
     },
@@ -426,126 +387,97 @@
       "col": 4,
       "type": "database",
       "label": ".kairos/cdd",
-      "sublabel": "findings · rulings · ledger",
+      "sublabel": "records · logs · ledger",
+      "tag": "self-ignored",
       "sources": [
         {
-          "path": "packages/cdd-engine/src-next/infra/runtime.ts",
-          "line": 114,
-          "end_line": 117
-        }
-      ]
-    },
-    {
-      "id": "annotate",
-      "lane": "dev",
-      "col": 4,
-      "type": "external",
-      "label": "Annotate ruling",
-      "sublabel": "write into findings",
-      "tag": "user",
-      "sources": [
-        {
-          "path": "packages/cdd-engine/src-next/session/next.ts",
-          "line": 144,
-          "end_line": 154
+          "path": "packages/cdd-engine/src-next/session/ledger.ts",
+          "line": 73,
+          "end_line": 122
         }
       ]
     }
   ],
   "edges": [
     {
-      "id": "invoke-design",
+      "id": "user-design",
       "from": "user",
       "to": "design",
-      "label": "invoke",
-      "variant": "emphasis",
-      "role": "main"
+      "label": "invoke"
     },
     {
-      "id": "design-specw",
+      "id": "design-approval",
       "from": "design",
-      "to": "specw",
-      "label": "dispatch",
-      "role": "main"
+      "to": "approval",
+      "label": "present + stop",
+      "variant": "security"
     },
     {
-      "id": "specw-overalldoc",
-      "from": "specw",
-      "to": "overalldoc",
-      "label": "commit overall",
-      "variant": "dashed",
-      "role": "async"
+      "id": "approval-specw",
+      "from": "approval",
+      "to": "specw",
+      "label": "approved",
+      "variant": "emphasis"
     },
     {
       "id": "specw-specdoc",
       "from": "specw",
       "to": "specdoc",
-      "label": "commit",
-      "variant": "dashed",
-      "role": "async"
+      "label": "commit spec",
+      "variant": "dashed"
     },
     {
       "id": "specw-plan",
       "from": "specw",
       "to": "plan",
-      "label": "next: cdd-plan",
-      "role": "main"
+      "label": "next: cdd-plan"
     },
     {
       "id": "plan-plandoc",
       "from": "plan",
       "to": "plandoc",
-      "label": "commit",
-      "variant": "dashed",
-      "role": "async"
+      "label": "commit plan",
+      "variant": "dashed"
     },
     {
       "id": "plan-specdoc",
       "from": "plan",
       "to": "specdoc",
       "label": "backfill on drift",
-      "variant": "dashed",
-      "role": "return",
-      "toSide": "right"
+      "variant": "dashed"
     },
     {
       "id": "plan-dev",
       "from": "plan",
       "to": "dev",
-      "label": "next: cdd-dev",
-      "role": "main"
+      "label": "next: cdd-dev"
     },
     {
       "id": "dev-impl",
       "from": "dev",
       "to": "impl",
-      "label": "cdd implement",
-      "role": "main"
+      "label": "cdd implement"
     },
     {
-      "id": "impl-child",
+      "id": "impl-implchild",
       "from": "impl",
       "to": "implchild",
-      "label": "spawn",
-      "role": "main"
+      "label": "spawn"
     },
     {
       "id": "implchild-commits",
       "from": "implchild",
       "to": "commits",
-      "label": "task commits",
-      "variant": "dashed",
-      "role": "async"
+      "label": "commits"
     },
     {
       "id": "impl-review",
       "from": "impl",
       "to": "review",
-      "label": "next: review",
-      "role": "main"
+      "label": "next: review"
     },
     {
-      "id": "review-child",
+      "id": "review-reviewchild",
       "from": "review",
       "to": "reviewchild",
       "label": "spawn"
@@ -554,73 +486,54 @@
       "id": "reviewchild-workspace",
       "from": "reviewchild",
       "to": "workspace",
-      "label": "findings",
-      "variant": "dashed",
-      "role": "async"
-    },
-    {
-      "id": "annotate-review",
-      "from": "annotate",
-      "to": "review",
-      "label": "annotate carrier",
-      "variant": "dashed",
-      "role": "return"
+      "label": "carrier",
+      "variant": "dashed"
     },
     {
       "id": "review-fix",
       "from": "review",
       "to": "fix",
-      "label": "findings > 0",
-      "variant": "security",
-      "role": "branch"
+      "label": "findings > 0"
     },
     {
-      "id": "fix-child",
+      "id": "fix-fixchild",
       "from": "fix",
       "to": "fixchild",
       "label": "spawn"
     },
     {
-      "id": "fix-branch",
+      "id": "fix-review",
       "from": "fix",
-      "to": "branch",
-      "label": "blockers = 0",
-      "role": "main"
-    },
-    {
-      "id": "branch-close",
-      "from": "branch",
-      "to": "close",
-      "label": "approved",
-      "role": "main",
-      "fromSide": "right",
-      "toSide": "right",
-      "route": "outside-right",
-      "labelSegment": 1
+      "to": "review",
+      "label": "blocker · re-review",
+      "variant": "dashed"
     },
     {
       "id": "close-merged",
       "from": "close",
       "to": "merged",
-      "label": "finish",
-      "variant": "emphasis",
-      "role": "main"
+      "label": "finish"
     },
     {
-      "id": "impl-blocked",
-      "from": "impl",
+      "id": "dev-blocked",
+      "from": "dev",
       "to": "blocked",
-      "label": "gate / timeout",
-      "variant": "security",
-      "role": "error"
+      "label": "gate · timeout",
+      "variant": "security"
+    },
+    {
+      "id": "fix-close",
+      "from": "fix",
+      "to": "close",
+      "label": "branch review",
+      "variant": "emphasis"
     },
     {
       "id": "blocked-user",
       "from": "blocked",
       "to": "user",
-      "label": "fix tree · ruling",
-      "variant": "dashed",
-      "role": "return"
+      "label": "fix the tree",
+      "variant": "dashed"
     }
   ],
   "cards": [
@@ -628,56 +541,36 @@
       "dot": "cyan",
       "title": "One chain, one closure",
       "items": [
-        "Every phase ends with a review; spec, plan, wave and branch reviews share the Review Convergence rule",
-        "blocker findings route to fix and a re-review; warn/nit-only closes as REVIEW_FIX; zero findings closes",
-        "cdd-close lands the closeout backfill first, then asks the developer how to finish"
-      ]
-    },
-    {
-      "dot": "rose",
-      "title": "Three spec targets",
-      "items": [
-        "single-spec — a program that fits one spec; docs/kairos/specs",
-        "phase-spec — one registered phase; docs/kairos/specs, carries program: (the parent overall's slug)",
-        "overall — a multi-phase program charter; docs/kairos/overalls, then hands off to the next phase's design",
-        "The design flow sizes the scope: single-spec / fit → cdd-spec-writer; multi / oversized → the overall charter"
-      ]
-    },
-    {
-      "dot": "orange",
-      "title": "Backfill & annotate — the return flows",
-      "items": [
-        "Backfill lands a durable fact in its owning doc (overall · spec · plan), never in chat",
-        "Mid-flight: land immediately → commit on its own → pause the loop until clean → the next review audits it in-band",
-        "cdd-plan backfills the spec when planning surfaces drift; cdd-close backfills the closeout before the finish menu",
-        "Annotate: a finding needing a ruling gets the ruling written into the findings carrier; fix consumes the annotated carrier"
-      ]
-    },
-    {
-      "dot": "emerald",
-      "title": "The next: contract",
-      "items": [
-        "The engine's next: line is the only continuation — the orchestrator follows it instead of re-deciding",
-        "implement → review → fix → next-wave | done; the branch review is the final gate",
-        "A BLOCKED or TIMEOUT round prints CDD_BLOCKED and carries no next: line"
+        "Five orchestrators in order: design → spec-writer → plan → dev → close; report stands outside the chain",
+        "Each one presents its artifact and stops for the author's explicit approval before its first dispatch",
+        "The handoff is the engine's next: line — a converged artifact moves on, a blocked one does not"
       ]
     },
     {
       "dot": "amber",
-      "title": "Gates before dispatch",
+      "title": "One target vocabulary",
       "items": [
-        "Pre-flight order: tree-clean → plan graph → wave gate → doc contract",
-        "A dirty tree BLOCKS before any child runs; an uncommitted backfill trips the same gate",
-        "All prompts, findings and ledgers are files under .kairos/cdd, never chat state"
+        "--type takes the document or node shape the artifact declares: phase-spec · overall · plan · single-spec · wave · branch",
+        "The old --type spec spelling is retired — the enum refuses it",
+        "The doc-contract gate judges every document shape by its declared doc-type: key, not by the command's --type"
       ]
     },
     {
-      "dot": "violet",
-      "title": "What ships",
+      "dot": "rose",
+      "title": "Gates before dispatch",
       "items": [
-        "Task commits accumulate on the feature branch; the branch review judges the whole diff",
-        "cdd-close offers merge / PR / keep / discard; every change carries a changeset",
-        "Develop is the integration branch; production releases flow develop → main → npm"
+        "tree-clean → in-flight → graph → plan-ledger → wave → doc-contract, in that order, on every work command",
+        "A plan's wave is at most three tasks wide; the engine refuses a wider wave instead of splitting it",
+        "A second dispatch in the same tree is refused until the in-flight holder is gone, and --steal-stale is the only takeover"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "What the engine leaves behind",
+      "items": [
+        "A round record per dispatch: the baseline HEAD, a terminal verdict, the graded violations, the carrier path",
+        "Each child's own output lands in .kairos/cdd/<slug>/logs/ and a blocked run names that file on stderr",
+        "next: closes the run as its last line, and cdd board renders the same judgment from the ledger"
       ]
     }
   ]

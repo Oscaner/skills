@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P23 设计：`cdd init --include-recommends` 推荐包档
 doc-type: phase-spec
-version: v0.5
+version: v0.6
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p23
 program: 2026-10-10-engine-doc-tooling
@@ -122,6 +122,8 @@ Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 
 
 安装面归 README，skill 只管流程。推荐包缺失以工具缺失的形式暴露，不改任何 skill 的步骤形状；六份 SKILL.md 本相位零变更（也让本相位不碰消费面纯净纪律与 anatomy pin）。
 
+这条「零变更」是可判事实而非承诺，落点是 `packages/kairos/tests/grep-sweep-regression.test.ts` 增一条 SKILL.md-only 漏断言——与该文件既有的 `SKILL_ONLY_TOKENS` 腿同形（`grep -rn <token> packages/kairos/skills/ --include="SKILL.md"` 命中数为 0），字面集 = `--include-recommends` 加推荐六条包名（`pi-fff` · `rpiv-todo` · `rpiv-ask-user-question` · `pi-web-access` · `pi-background-tasks` · `pi-agentsmd`）。断言只扫 `packages/kairos/skills/`：同相位的六份 README 必然携带这些字面（§6.1），扫全树那条门会自伤。今日实测零命中，故它一落地就是绿的。波次归 W3（见 §8.2）。
+
 ### 7. 定案：guard 分档（`plugins.guard.test.ts`）
 
 #### 7.1 核心行断言原样
@@ -147,20 +149,21 @@ Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 
 | 数据面 | `face/plugins.ts`（`PluginTier` + `tier` 字段 + 六行） |
 | 旗标 | `face/declare.ts`（`ARGV_CHANNEL` 一行 :55 + `CLI_COMMANDS` init 行的 `keys` 增行 :320-324，两处同一文件）· `face/cli.ts`（`RunInput.includeRecommends` + `#runInput` 映射 + init 节点读一次） |
 | 展平与输出 | `face/init.ts`（`InitRequest` + `#stepsOf` 分档过滤 + `InitStep.tier` + 分档汇总 / info 行 / 推荐档失败补行） |
-| 测试 | `init.test.ts` · `plugins.test.ts` · `plugins.guard.test.ts` · `cli.test.ts` |
+| 测试 | 引擎侧 `init.test.ts` · `plugins.test.ts` · `plugins.guard.test.ts` · `cli.test.ts` · kairos 侧 `packages/kairos/tests/grep-sweep-regression.test.ts`（SKILL.md 零推荐字面漏断言） |
 | 文档 | 六份 README（根 / kairos / 引擎，各双语） |
 
-测试基座跟随数据面（现状 pin：`plugins.test.ts:69` 三值行名 · `:74` 列集 · `:87-88` 每行步数 · `:118` 十八元组与 :93 的 describe 标题 · `init.test.ts:36-41` 的 `ROSTER` / `sequenceOf` · `cli.test.ts:629` / `:649` 的 roster flatMap）：
+测试基座跟随数据面（现状 pin：`plugins.test.ts:69` 三值行名 · `:74` 列集 · `:87-88` 每行步数 · `:118` 十八元组与 :93 的 describe 标题 · `:68` 行序与 `:79` 每行步数两条描述性 `it` 标题 · `init.test.ts:36-41` 的 `ROSTER` / `sequenceOf` · `cli.test.ts:629` / `:649` 的 roster flatMap）：
 
-- `plugins.test.ts`：行名断言改九值（core 三 + recommended 六）· 列集断言 `Object.keys(row).filter((key) => key !== "name")` 需同时排除 `tier`（断言值回到 `[claude, pi]`）· 每行步数 pin 分档（core 行 claude 2 / pi 1，推荐行 claude 0 / pi 1）· 元组计数 `toHaveLength(18)` 改 **30**（`install` 15 + `update` 15：核心三行各 6 元组 = 18，推荐六行各 claude 空 + pi 2 元组 = 12），并同步两级标题字面——describe `:93` 改「the fifteen update tuples and the fifteen install tuples」、`it` `:114` 改「all thirty argv tuples」· `INSTALL_ARGV`（`:18-40`）/ `UPDATE_ARGV`（`:43-65`）逐行查表补六行，断言侧是 `:94-110` · 同文件的头注释（`plugins.test.ts:3-7`）与两级标题**同波**改写，三处旧表述一并更正：行序（core 三 → recommended 六，不再是「superpowers → mattpocock-skills → kairos」的九行整体序）、每行步数（core claude 2 / pi 1、推荐 claude 0 / pi 1，不再是每行同构）、元组计数（fifteen install + fifteen update，不再是 nine / nine）。
+- `plugins.test.ts`：行名断言改九值（core 三 + recommended 六）· 列集断言 `Object.keys(row).filter((key) => key !== "name")` 需同时排除 `tier`（断言值回到 `[claude, pi]`）· 每行步数 pin 分档（core 行 claude 2 / pi 1，推荐行 claude 0 / pi 1）· 元组计数 `toHaveLength(18)` 改 **30**（`install` 15 + `update` 15：核心三行各 6 元组 = 18，推荐六行各 claude 空 + pi 2 元组 = 12），并同步两级标题字面——describe `:93` 改「the fifteen update tuples and the fifteen install tuples」、`it` `:114` 改「all thirty argv tuples」· `INSTALL_ARGV`（`:18-40`）/ `UPDATE_ARGV`（`:43-65`）逐行查表补六行，断言侧是 `:94-110` · 同文件带退役事实的描述面**四处同波**（W1 名册派生基座）改写，不得只改其中一处——头注释（`plugins.test.ts:3-7`）+ `it` `:68` + `it` `:79` + 两级计数标题 `:93` / `:114`。`:68` 现标题「the rows are exactly superpowers → mattpocock-skills → kairos (upstream first, kairos last)」描述的是已不存在的三行名录，改「the rows are exactly core three then recommended six (superpowers → mattpocock-skills → kairos → pi-fff → …)」；`:79` 现标题「the two shapes carry the same step count per row — claude 2 steps, pi 1 step」的字尾与它两行之下落地的分档 pin 直接矛盾，去掉字尾、只留「the two shapes carry the same step count per row」，分档计数交给断言。三处旧表述一并更正：行序（core 三 → recommended 六，不再是「superpowers → mattpocock-skills → kairos」的九行整体序）、每行步数（core claude 2 / pi 1、推荐 claude 0 / pi 1，不再是每行同构）、元组计数（fifteen install + fifteen update，不再是 nine / nine）。
 - `init.test.ts`：`ROSTER` 与 `sequenceOf` 按 `tier === "core"` 取行（无旗标面）并新增推荐面用例。
 - `cli.test.ts`：`:629` / `:649` 的 `roster` flatMap 改取 core 行；`:631` / `:657` / `:702` 的汇总字节 pin（`init: 3 steps ok (pi · install)` · `init: 6 steps ok (claude · update)` · `init: 6 steps (claude · install) — dry run, nothing executed`）**保持字面不变**。
+- `packages/kairos/tests/grep-sweep-regression.test.ts`：新增一条 SKILL.md-only 漏断言（§6.2），零命中字面集 = `--include-recommends` + 推荐六条包名；今日实测零命中，W3 落地。
 
 **产品字节 pin 不动**（`init[1/3] pi · …` · `init: 3 steps ok (pi · install)` · claude 六条步骤头）。
 
 #### 8.2 依赖与发行
 
-**依赖**：`P22` hard，已 Done（serial-phase 门通过）。**发行**：changeset `cdd-engine` **minor** + `kairos` **patch**（D74：方法论契约不变，新增可选旗标与数据行），不发布。**波次**：三波，每波 ≤3 任务，判据是「每波跑完能自证收工」——**W1** 数据面九行 + `#stepsOf` 的 `tier === "core"` 过滤 + guard 核心 span（`renderCell` 吃行对象 + core 过滤 + 核心行名/顺序/核心单元格）+ 名册派生测试基座：落行的同波必须带上这道过滤，否则无旗标 `--harness=pi` 就是 9 步，五处字节 pin 当场红（`cli.test.ts:631` · `init.test.ts:184-186` / `:193-198` / `:269` · `preview.test.ts:430`），名称侧同样红（`init.test.ts:40-41` 的 `sequenceOf` 走 core 过滤即 3 条，而 run 跑 9 条）；该过滤不改产品字节（无旗标仍 3 / 6 步），正是「无旗标字节零变」的桥 · **W2** 旗标两行 + `InitStep.tier` 席位 + 推荐路径展平 + 输出面（分档汇总 / 空档 info / 推荐档失败补行）· **W3** 六份 README 九行 + kairos 安装表分档断言，同波落地 guard 的推荐 span 断言与「两侧行数之和 = 表体行数」守恒 pin。
+**依赖**：`P22` hard，已 Done（serial-phase 门通过）。**发行**：changeset `cdd-engine` **minor** + `kairos` **patch**（D74：方法论契约不变，新增可选旗标与数据行），不发布。**波次**：三波，每波 ≤3 任务，判据是「每波跑完能自证收工」——**W1** 数据面九行 + `#stepsOf` 的 `tier === "core"` 过滤 + guard 核心 span（`renderCell` 吃行对象 + core 过滤 + 核心行名/顺序/核心单元格）+ 名册派生测试基座：落行的同波必须带上这道过滤，否则无旗标 `--harness=pi` 就是 9 步，五处字节 pin 当场红（`cli.test.ts:631` · `init.test.ts:184-186` / `:193-198` / `:269` · `preview.test.ts:430`），名称侧同样红（`init.test.ts:40-41` 的 `sequenceOf` 走 core 过滤即 3 条，而 run 跑 9 条）；该过滤不改产品字节（无旗标仍 3 / 6 步），正是「无旗标字节零变」的桥 · **W2** 旗标两行 + `InitStep.tier` 席位 + 推荐路径展平 + 输出面（分档汇总 / 空档 info / 推荐档失败补行）· **W3** 六份 README 九行 + kairos 安装表分档断言，同波落地 guard 的推荐 span 断言、「两侧行数之和 = 表体行数」守恒 pin 与 kairos 套件的 SKILL.md 零推荐字面漏断言（§6.2）。
 
 ### 9. 非目标
 
@@ -174,7 +177,7 @@ Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 
 - `旗标`：`ARGV_CHANNEL.includeRecommends`（`face/declare.ts`）在册且 `flag === "--include-recommends"` · `CLI_COMMANDS` 的 init 行 `keys` 携带该键（`channel-closure.guard.test.ts:32-57` 的双向闭合在家）· `cdd init --harness=pi --include-recommends --dry-run` exit 0 · 不带 `--harness` 带旗标 → usage exit 2 且零 spawn · 既有 harness 值域拒绝面不回归
 - `展平`：`--harness=pi` 无旗标 = 3 步、有旗标 = 9 步，前 3 步的 **argv 序列**与无旗标逐字节相同（步骤头形如 `init[<i>/<n>]`，分母随总步数 3→9 变，故头部只改 `<n>`、不比步骤头字节）· `--harness=claude` 有旗标 = 6 步（与无旗标同 argv 序列）· `--update` 两档各走 update 序列且零 install argv · `preview()` 与 `run()` 同一请求下共用同一展平（独立源比对，不从运行反推）· `InitStep.tier` 由 `#stepsOf` 从行上键入、汇总计数与失败补行零回查名册 · 名册派生面跟随：`plugins.test.ts` 行名断言九值、`init.test.ts` 的 `sequenceOf` / `ROSTER` 按 `tier === "core"` 取行
 - `输出面`：无旗标时**产品字节零变**——步骤头（`init[1/3] pi · …` · `init[1/6] claude · …` 六条）、汇总行（`init: 3 steps ok (pi · install)`）、失败行、`--update` 提示、预览汇总行全部原样，既有字节 pin **不重锚**（仅名册派生辅助按 core 档重构，见 §8.1）· 带旗标汇总行含 `<c> core + <r> recommended` · claude 带旗标两面各出 `init: no recommended packages for claude` · 推荐档失败 → 首败即停 exit 1 且追加一行点名该包属推荐档：`--update` 形态为 `init: <package> is a recommended package — run cdd init --harness=<host> --include-recommends without --update first`、install 形态为 `init: <package> is a recommended package — the core plugin set is already installed`（两形态各一条字节断言，行序 = 既有失败行 → 补行 →（update 形态）既有未安装提示，写口见 §5.3）· `--dry-run --include-recommends` 预览 9 行 `would run:` + 分档汇总 + 零 spawn、零写入、exit 0
-- `消费面`：kairos README 双语九行安装表（推荐行 claude 单元格 `—`）+ 分档 lead-in + 六条一组理由段 + `--update --include-recommends` 用法句 · 根 README 双语 Installation 提及旗标 · 引擎 README 双语 `init` usage 行含 `[--include-recommends]` · 六份 SKILL.md 零变更（grep pin）
+- `消费面`：kairos README 双语九行安装表（推荐行 claude 单元格 `—`）+ 分档 lead-in + 六条一组理由段 + `--update --include-recommends` 用法句 · 根 README 双语 Installation 提及旗标 · 引擎 README 双语 `init` usage 行含 `[--include-recommends]` · 六份 SKILL.md 零变更，机检落点 = `packages/kairos/tests/grep-sweep-regression.test.ts` 的 SKILL.md-only 漏断言：`packages/kairos/skills/` 六份 SKILL.md 全文零 `--include-recommends` 字面、零推荐六条包名字面（`pi-fff` · `rpiv-todo` · `rpiv-ask-user-question` · `pi-web-access` · `pi-background-tasks` · `pi-agentsmd`），W3 落地
 - `guard`：核心 span = 表体第 1–3 行对 core 名册，断言逐格原样（行名 / 顺序 / 双列 `；` 连接 / 表头三格）· 推荐 span = 第 4–9 行对 recommended 名册逐格断言（首列 / 顺序 / `—` / `；` 连接）· 两侧行数之和 = 表体行数 · 引擎 README `init` usage 行 `[--include-recommends]` 断言 · kairos 双语安装表少一行或多一行 → 红（根 README 只做命令字节断言，没有行级门）
 - `全量`：`cdd` 仍八命令（结构 pin 不变）· engine vitest 全绿 · typecheck ×3 · `env -u AI_AGENT pnpm run validate` exit 0 · `pnpm run emit:check` fresh（无生成物触发器触碰）· changeset `cdd-engine` minor + `kairos` patch，不发布
 
@@ -199,3 +202,4 @@ Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 
 | v0.3 | 2026-11-03 | 评审回填（无结构变更，内容面）：旗标落点更正为 `face/declare.ts`（`ARGV_CHANNEL:55` + `CLI_COMMANDS` init 行 `keys:320-324`，`face/cli.ts` 只留 `RunInput` / 映射 / 节点读取）· `InitStep` 增 `tier` 席位（档位随步骤旅行、零回查）· §1 三处改四处 · guard 分档写成双侧 span + `renderCell` 吃行对象 + 两侧行数之和 pin · 无旗标例外由三处封闭枚举改成「凡名册派生按 core 取行」的规则并点名 `plugins.test.ts` / `cli.test.ts:629,649` 两文件面 · 推荐档失败补行按 `shape` 分形（install 形态不再劝重跑同一命令），两形态各一条字节断言 · AC 展平条改「前 3 步 argv 序列逐字节相同」 · AC guard 条收窄到 kairos 双语安装表 · 现状主张补 `path:line` pin | [human] · Claude（kairos:cdd-design [P23] · 2026-11-03） |
 | v0.4 | 2026-11-03 | 评审回填（无结构变更，内容面）：`plugins.test.ts` 元组计数 42 → **30**（install 15 + update 15）并写出两级标题新字面（describe `:93`「fifteen … fifteen」· `it` `:114`「thirty」）· AC `数据面` 的 `update` = `install` 替换句式限定为 pi 列九行 + 推荐行 claude 空列，核心三行 claude 既有 argv 零改 · §8.2 波次重切为三波（W1 数据面 + guard 核心 span + 名册派生基座 · W2 旗标 + `tier` 席位 + 输出面 · W3 六份 README + 安装表分档断言）· §5.2 / §5.3 补写口与行序（info 行走 `#header` 排在汇总行后 · 推荐档失败补行走 `io.stderr`，顺序 = 失败行 → 补行 →（update）既有提示）· 三处 `path:line` pin 更正（`init.test.ts:48-55` 用点 `:242` · `:333` · `plugins.guard.test.ts:136-145` · 夹具 `INSTALL_ARGV:18-40` / `UPDATE_ARGV:43-65`，断言 `:94-110`）· `channel-closure.guard.test.ts:39-58` 收成 `:32-57` | [human] · Claude（kairos:cdd-design [P23] · 2026-11-03） |
 | v0.5 | 2026-11-03 | 评审回填（无结构变更，内容面）：§8.2 三波再切，判据写成「每波跑完能自证收工」——`#stepsOf` 的 `tier === "core"` 过滤从 W2 移入 **W1**（同波落九行不带过滤即无旗标 9 步，五处字节 pin 全红，并点名 `sequenceOf` 名称侧），guard 的推荐 span 断言与「两侧行数之和 = 表体行数」守恒 pin 明确排到 **W3**（W1 表体仍三行，守恒结构性红），W2 保留旗标两行 + `InitStep.tier` 席位 + 推荐路径展平 + 输出面 · 四处 `path:line` 按实测更正：`plugins.guard.test.ts` describe `:95-130` → `:96-134` · `installTable` `:67-88` → `:67-86` · `renderCell` `:90-95` → `:90-94` · `face/cli.ts` 的 `#runInput` `:506-520` → `:506-528`（并点明新增映射落在其 return 对象、紧邻 `update` :526） | [human] · Claude（kairos:cdd-design [P23] · 2026-11-03） |
+| v0.6 | 2026-11-03 | 评审回填（无结构变更，内容面）：`消费面` AC 的「六份 SKILL.md 零变更」补机检落点与波次——`packages/kairos/tests/grep-sweep-regression.test.ts` 的 SKILL.md-only 漏断言（零 `--include-recommends` 字面 + 零推荐六条包名字面，W3），并写进 §6.2 / §8.1 落点表 `测试` 行 / §8.1 测试基座 / §8.2 W3 · §8.1 的 `plugins.test.ts` bullet 描述面由「头注释 + 两级标题」扩为**四处**（头注释 + `it` `:68` + `it` `:79` + 计数标题 `:93`/`:114`），并写出 `:68` / `:79` 的新标题字面 | [human] · Claude（kairos:cdd-design [P23] · 2026-11-03） |

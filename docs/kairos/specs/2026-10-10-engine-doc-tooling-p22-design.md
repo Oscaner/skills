@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 设计：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: phase-spec
-version: v0.10
+version: v0.11
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 program: 2026-10-10-engine-doc-tooling
@@ -336,7 +336,7 @@ NextHop {                                   // session/next.ts 的新增类型
 
 **行序**：`next:` 是消费者真正照着执行的那一行，必须**收尾**。故 fix 轮的处置摘要 `fixed N · rejected M` 从「capsule 之后」移到「`status` 行之后、`next:` 之前」——输出顺序成为：`status · handoff` → （fix 轮）`fixed N · rejected M` → `next: …`。
 
-**字节面按 deliberate break 处理**：`blocker` 格的删除是 v1 pin 的显式破坏——capsule 的类注释、`face/__tests__/capsule.test.ts` 的形状断言、两份 README 的 capsule 行、消费面 skill 里引用的形状，以及以下四处同批重锚：§3.3 的 hard 呈现面 · §4.1 的通道行 · Constraints 的 capsule 条 · `日志通道` AC 行；断言不删，改锚到两键形状。changeset 按 D74 仍为 **engine minor**（方法论未动）。
+**字节面按 deliberate break 处理**：`blocker` 格的删除是 v1 pin 的显式破坏——真正承载该形状的面只有 capsule 的类注释与 `face/__tests__/capsule.test.ts` 的形状断言，加上以下四处同批重锚：§3.3 的 hard 呈现面 · §4.1 的通道行 · Constraints 的 capsule 条 · `日志通道` AC 行；断言不删，改锚到两键形状。**两份 README 与六份消费面 skill 从未引用该形状**——`grep -rn -i capsule` 在两份 `packages/cdd-engine/README*.md`、根 `README*.md` 与六份 `packages/kairos/skills/*/SKILL.md` 上零命中（实测：README 记的是 `dispositions` 形状与运行命令，skill 侧该形状已清），故这两处是**核验为空**、没有可重锚的字节，不是 sweep 的对象。changeset 按 D74 仍为 **engine minor**（方法论未动）。
 
 **不新增机件**：没有新旗标、没有新行、没有第二份读面——`blocker` 计数在 `#capsuleLines` 里那一次局部计算随格一起删（判据侧 `blocker` 计数毫发不动，它仍是分级判收敛的核心）。
 
@@ -376,6 +376,7 @@ NextHop {                                   // session/next.ts 的新增类型
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.11 | 2026-11-03 | **§10 的重锚面收窄（branch-review-4 的 warn）**：`blocker` 格删除的清单里去掉「两份 README 的 capsule 行」与「消费面 skill 里引用的形状」——实测 `grep -rn -i capsule` 在这两处零命中（引擎 README 只记 `dispositions` 形状与运行命令，skill 侧该形状已清），把它们列为同批改动与文档承诺字节却从不产出同一类缺陷：执行者打开文档无字节可改，也无法区分「已改完」与「本来就没有」。清单改为「核验为空」的显式陈述，四处 in-body 重锚仍是真实覆盖。事实面与字节面零变化，代码不动 | Oscaner M. · Claude（kairos:cdd-dev · doc backfill · 2026-11-03） |
 | v0.10 | 2026-11-03 | **§10 同批重锚的补全（T18 review-1 的 warn）**：同一收口在本 spec 内的三处残留改为两键面——§3.3 的 hard 呈现面（`:114`）· §4.1 通道行的首句（`:153`）· `日志通道` AC 行（`:351`）；§10 的 sweep 句改为**逐点列出覆盖面**（§3.3 · §4.1 · Constraints · `日志通道` AC），去掉笼统指针与错指的 §2.2，使部分 sweep 无法再自称完整。事实面与失败面形态零变化，代码不动 | Oscaner M. · Claude（kairos:cdd-dev · doc-revision backfill · 2026-11-03） |
 | v0.9 | 2026-11-03 | **输出面收口入册（用户裁定）**：capsule 收为 `status · handoff` 两键（`blocker` 格可由 `status` 推出，且是 #402 comment 判定不展示的数量）；`next:` 改为**收尾**——fix 轮的 `fixed N · rejected M` 移到 `status` 行之后、`next:` 之前；字节按 deliberate break 处理、pins 同批重锚，engine minor | Oscaner M. · Claude（kairos:cdd-close · reopen backfill · 2026-11-03） |
 | v0.8 | 2026-11-03 | **落点行修正（W2 wave review 的 nit）**：`MAX_TASKS_PER_WAVE` 的驻地从「`session/next.ts`」改为「`contract/wave-width.ts` 声明 + `session/next.ts` re-export」——§8 原行与 §6「规则住 `contract/` 且零 `../session` 导入」不可能同时成立，实施轮的解法是唯一自洽形，参考面随之对齐 | Oscaner M. · Claude（kairos:cdd-dev · landing-row backfill · 2026-11-03） |

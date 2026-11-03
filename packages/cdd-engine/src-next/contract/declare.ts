@@ -280,14 +280,6 @@ const OVERALL_ELEMENTS = [
     selector: SelectorSpec.frontmatter("slug"),
   },
   {
-    anchor: "status",
-    presence: "required",
-    valuePattern: "^(Draft|Approved|In progress|Complete)$",
-    refKind: "none",
-    home: "frontmatter",
-    selector: SelectorSpec.frontmatter("status"),
-  },
-  {
     anchor: "author",
     presence: "required",
     valuePattern: "^.+$",
@@ -686,8 +678,8 @@ const OVERALL_ELEMENTS = [
 // ---------------------------------------------------------------------------
 const PLAN_ELEMENTS = [
   // Header block — YAML front-matter keys (the frontmatter-home anchor IS the
-  // front-matter key name). Plan deliberately omits `status` / `author` — no
-  // plan head carries either row (the per-type presence contract of §2.3).
+  // front-matter key name). Plan deliberately omits `author` — no plan head
+  // carries that row (the per-type presence contract of §2.3).
   {
     anchor: "title",
     presence: "required",
@@ -1002,14 +994,6 @@ const PHASE_SPEC_ELEMENTS = [
     selector: SelectorSpec.frontmatter("program"),
   },
   {
-    anchor: "status",
-    presence: "required",
-    valuePattern: "^(Draft|Approved|Plan pending|Shipped)$",
-    refKind: "none",
-    home: "frontmatter",
-    selector: SelectorSpec.frontmatter("status"),
-  },
-  {
     anchor: "author",
     presence: "required",
     valuePattern: "^.+$",
@@ -1202,7 +1186,7 @@ const PHASE_SPEC_ELEMENTS = [
 // The fourth doc type — the repair/ruling-oriented free-form document (the
 // 2026-09-28-cdd-review-contract-fix "single-spec" form). Deliberately lighter
 // than phase-spec: a front-matter key set (title / doc-type / version / date /
-// status / author / issues), four prose body sections and the
+// author / issues), four prose body sections and the
 // change-history lineage. No `### N.` double-layer outline (the free-form has no
 // numbered design groups), no `program:` key (a single-spec is an independent
 // program — it names no parent overall). The fixed section sequence runs in
@@ -1250,14 +1234,6 @@ const SINGLE_SPEC_ELEMENTS = [
     refKind: "none",
     home: "frontmatter",
     selector: SelectorSpec.frontmatter("slug"),
-  },
-  {
-    anchor: "status",
-    presence: "required",
-    valuePattern: "^(Draft|Approved|In progress|Complete)$",
-    refKind: "none",
-    home: "frontmatter",
-    selector: SelectorSpec.frontmatter("status"),
   },
   {
     anchor: "author",

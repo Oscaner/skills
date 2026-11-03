@@ -6,7 +6,6 @@ version: v0.4
 date: 2026-10-11
 slug: 2026-10-10-engine-doc-tooling-p1
 program: 2026-10-10-engine-doc-tooling
-status: Approved
 author: "[human] · Claude Opus 5（kairos:cdd-design [P1] grilling 定案 →
   cdd-spec-writer · 词表统一 backfill 2026-10-11）"
 parent-version: v1.9

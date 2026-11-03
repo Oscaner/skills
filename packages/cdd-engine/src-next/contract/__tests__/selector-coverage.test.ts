@@ -64,7 +64,7 @@ class Fixtures {
 describe("selector coverage — every declared element carries a resolvable locator", () => {
   const fixtures = new Fixtures();
 
-  it("declares a well-formed selector on all 114 elements", () => {
+  it("declares a well-formed selector on all 111 elements", () => {
     let total = 0;
     for (const registry of Object.values(declaredRegistries)) {
       for (const element of registry.elements) {
@@ -75,10 +75,10 @@ describe("selector coverage — every declared element carries a resolvable loca
         ).toBe(true);
       }
     }
-    expect(total).toBe(114);
+    expect(total).toBe(111);
   });
 
-  it("resolves all 114 elements on a conforming document of their own type", () => {
+  it("resolves all 111 elements on a conforming document of their own type", () => {
     // The matrix reads the repository's own document of each type first; an element
     // the document legitimately leaves out (an optional facet, a conditional
     // section) resolves on the declared sample block of that type — a CONFORMING
@@ -98,7 +98,7 @@ describe("selector coverage — every declared element carries a resolvable loca
       }
     }
     expect(missing, `unresolved elements: ${missing.join(" | ")}`).toEqual([]);
-    expect(total).toBe(114);
+    expect(total).toBe(111);
   });
 
   it("keeps the selector face and the declared value shape aligned — zero domain findings on the canonical charter", () => {

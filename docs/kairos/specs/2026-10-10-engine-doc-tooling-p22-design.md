@@ -5,7 +5,6 @@ version: v0.8
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 program: 2026-10-10-engine-doc-tooling
-status: Draft
 author: "[human] · Claude（kairos:cdd-design [P22] grilling → 本会话落 spec · 2026-11-02）"
 parent-version: v2.92
 ---

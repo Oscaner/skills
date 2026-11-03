@@ -5,7 +5,6 @@ version: v0.10
 date: 2026-10-17
 slug: 2026-10-10-engine-doc-tooling-p10
 program: 2026-10-10-engine-doc-tooling
-status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P10] 会话 · 用户裁定 · 2026-10-17）
 ---
 
@@ -56,7 +55,6 @@ title: 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 doc-type: overall-spec
 version: v2.46
 date: 2026-10-17
-status: Draft
 author: "[human] · Claude Opus 5（…）"
 ---
 ```

@@ -15,7 +15,7 @@
 // placeholder three-way split: the slug-reference key (`program`) emits a `<…>`
 // scalar on the judge's placeholder-exemption chain; the content keys (`title` ·
 // `author` · `base` · `slug`) emit `:::fill <key>`; the
-// truth keys (`doc-type` · `version` · `date` · `status`) emit true values. The
+// truth keys (`doc-type` · `version` · `date`) emit true values. The
 // optional `parent-version` key is deliberately NOT emitted — its shape is typed
 // (`v<n>.<m>`, so a fill or a link scalar would violate the domain) and absence
 // is legal. The markdown body stays the registry-driven scaffold. render() is a
@@ -52,9 +52,9 @@ const FRONT_MATTER_LINKS: Record<string, string> = {
  *  `none` issue-ref default; the `[Pending]` design cell — the only pending form
  *  its valuePattern admits, never bare `Pending` — and the bare `Pending` plan
  *  cell, a legal alternative of its domain) and the conforming graph rows (the
- *  `P1 -> P2` hard edge + the legend line). The head's `status` truth lives in
- *  the front-matter emission (`status: Draft` — the first legal literal of every
- *  status enum — via `#frontmatterTruth`, never a body fill). */
+ *  `P1 -> P2` hard edge + the legend line). The head's enum truth lives in the
+ *  front-matter emission via `#frontmatterTruth`, never a body fill — the
+ *  retired `status` field no longer ships a truth key at all. */
 const TRUTH_LINES: Record<string, string> = {
   "Issue ref cell": "none",
   "Implementation plan cell": "Pending",
@@ -318,7 +318,7 @@ export class SkeletonAssembler {
   /** One front-matter value — the §4.2 placeholder three-way split over the slot
    *  kind: the link keys a `<…>` placeholder scalar, the content keys a content
    *  fill (`:::fill <key>`), the truth keys (the fixed version/date scaffold and
-   *  the doc-type / status patterns) their true values. */
+   *  the doc-type pattern) their true values. */
   #frontmatterValue(slot: SkeletonSlot): string {
     if (slot.slot === "link") {
       const placeholder = FRONT_MATTER_LINKS[slot.anchor];
@@ -332,9 +332,8 @@ export class SkeletonAssembler {
   }
 
   /** The true front-matter value of a fixed/patterned front-matter key — the doc
-   *  type from the projection, the injected run date, the fixed first version and
-   *  the first legal status literal (`Draft`, the shared head of every status
-   *  enum domain). An unknown truth key is a registry drift, loud never silent. */
+   *  type from the projection, the injected run date and the fixed first version.
+   *  An unknown truth key is a registry drift, loud never silent. */
   #frontmatterTruth(slot: SkeletonSlot): string {
     switch (slot.anchor) {
       case "doc-type":
@@ -343,8 +342,6 @@ export class SkeletonAssembler {
         return "v0.1";
       case "date":
         return this.#date;
-      case "status":
-        return "Draft";
     }
     throw new Error(`no skeleton front-matter truth for the ${slot.anchor} anchor`);
   }

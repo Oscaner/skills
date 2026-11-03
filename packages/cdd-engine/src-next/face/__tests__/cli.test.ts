@@ -3671,10 +3671,11 @@ describe("the pure commands — schema / issue / base", () => {
       expect(text).toContain("## Design");
       expect(text).toContain("### 1. :::fill group-title");
       expect(text).toContain("- `:::fill acceptance-entry`");
-      // the front-matter head — the doc-type/version/status truth keys
+      // the front-matter head — the doc-type/version truth keys (the retired
+      // `status` key never returns)
       expect(text).toContain("doc-type: phase-spec");
       expect(text).toContain("version: v0.1");
-      expect(text).toContain("status: Draft");
+      expect(text).not.toContain("status:");
       expect(text).toContain("| v0.1 | ");
       // the written doc ends with exactly one newline — the EOF rule (render()
       // never appends; the D19 write path appends the single `\n`)
@@ -3716,7 +3717,7 @@ describe("the pure commands — schema / issue / base", () => {
       expect(text).toContain("doc-type: single-spec");
       expect(text).toContain("version: v0.1");
       expect(text).toContain("slug: ':::fill slug'");
-      expect(text).toContain("status: Draft");
+      expect(text).not.toContain("status:");
       expect(text).toContain("author: ':::fill author'");
       expect(text).not.toContain("program:");
       // the prose `:::fill` body + the change-history lineage — no `### N.` outline

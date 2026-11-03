@@ -380,11 +380,11 @@ describe("skeleton projection (Projector.skeleton)", () => {
     }
   });
 
-  it("classifies the enum domain (status) and the graph rows as generator-truth", () => {
+  it("classifies the doc-type enum and the graph rows as generator-truth", () => {
     for (const [index] of REGISTRIES.entries()) {
       const doc = skeletons[DOC_KEYS[index]];
-      const status = doc.slots.find((slot) => slot.anchor === "status");
-      if (status !== undefined) expect(status.slot).toBe("generator-truth");
+      const docType = doc.frontmatter.find((slot) => slot.anchor === "doc-type");
+      if (docType !== undefined) expect(docType.slot).toBe("generator-truth");
       for (const anchor of ["Hard edge", "Graph legend"]) {
         const slot = doc.slots.find((s) => s.anchor === anchor);
         if (slot !== undefined) {
@@ -415,9 +415,8 @@ describe("skeleton projection (Projector.skeleton)", () => {
     // the enum-domain + graph rows the generator-truth class owns — none of them
     // may ride the content class (a content slot is a free-text `:::fill` landing
     // position, never a judged enum/graph value). The anchors are the front-matter
-    // keys (`status` · `doc-type`) plus the enum-typed table cells and the graph rows.
+    // keys (`doc-type`) plus the enum-typed table cells and the graph rows.
     const truthAnchors = [
-      "status",
       "doc-type",
       "Issue ref cell",
       "Implementation plan cell",

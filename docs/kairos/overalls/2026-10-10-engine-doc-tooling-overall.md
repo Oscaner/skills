@@ -4,7 +4,6 @@ doc-type: overall
 version: v2.98
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling
-status: Draft
 author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）"
 ---
 

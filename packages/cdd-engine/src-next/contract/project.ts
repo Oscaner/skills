@@ -239,8 +239,8 @@ export type SlotKind =
   /** A digit-family heading — `N.` / `N.M` / `Task N:` render with true numbers
    *  (a literal `N` would puncture the declared digit-shaped value pattern). */
   | "numeric-heading"
-  /** A pattern-typed truth row — an enum domain's first legal literal (`status:
-   *  Draft`) or a graph row (hard edge / legend) — a conforming row, not a fill. */
+  /** A pattern-typed truth row — an enum domain's true literal (the `doc-type`
+   *  key) or a graph row (hard edge / legend) — a conforming row, not a fill. */
   | "generator-truth"
   /** A table column-header row. */
   | "table-header"
@@ -576,7 +576,7 @@ export class Projector {
    *                       literal `N` (a literal `N` punctures the declared
    *                       digit-shaped value pattern);
    *   · generator-truth — a pattern-typed value row: a fully-anchored enum domain
-   *                       (the first legal literal — `status: Draft`) or a
+   *                       (the `doc-type` key's closed `DOC_TYPE_VALUES` set) or a
    *                       graph row (hard edge / legend conforming lines);
    *   · table-header / table-row / scaffold — the table column headers, the data
    *                       rows and the fixed scaffold rows (the version line, the

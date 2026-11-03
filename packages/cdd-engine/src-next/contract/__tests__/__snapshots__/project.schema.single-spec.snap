@@ -2,7 +2,7 @@
   "docType": "single-spec",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "single-spec document structure",
-  "description": "Derived JSON Schema — 16 declared elements · 15 required",
+  "description": "Derived JSON Schema — 15 declared elements · 14 required",
   "type": "object",
   "properties": {
     "title": {
@@ -28,11 +28,6 @@
     "slug": {
       "type": "string",
       "pattern": "^(?=.{1,128}$)[A-Za-z0-9][A-Za-z0-9._-]*$",
-      "description": "presence: required · home: frontmatter · ref: none"
-    },
-    "status": {
-      "type": "string",
-      "pattern": "^(Draft|Approved|In progress|Complete)$",
       "description": "presence: required · home: frontmatter · ref: none"
     },
     "author": {
@@ -92,7 +87,6 @@
     "version",
     "date",
     "slug",
-    "status",
     "author",
     "## Background & root cause",
     "## Design decisions",

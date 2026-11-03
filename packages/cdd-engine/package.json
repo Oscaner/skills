@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
-    "execa": "^10.2.0",
+    "execa": "^10.2.1",
     "jsonc-parser": "^3.3.1",
     "mdast-util-from-markdown": "^2.1.0",
     "mdast-util-frontmatter": "^2.0.1",
@@ -41,7 +41,7 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@types/node": "^24.19.2",
+    "@types/node": "^26.6.6",
     "@types/proper-lockfile": "^4.1.4",
     "@types/write-file-atomic": "^4.0.3",
     "typescript": "^7.0.2",

@@ -1141,6 +1141,25 @@ export class Ledger {
     return this.#rowClosed(type, type === "wave" ? { tasks: String(key) } : {}, row);
   }
 
+  /** One line's closure state AS OF its identity document — the drift-aware judge
+   *  both board read faces consume (the branch row's mark and the pipeline facts'
+   *  branch `closed` cell), so the mark and the `next:` line can never print two
+   *  different facts about one state. `closed` — the recorded rounds/routes lie on
+   *  the closure side AND the identity document still matches the revision the line
+   *  bound; `reopened` — the rounds/routes say closed but the document moved past
+   *  them, which IS the gate's reopen (`reviewGate` → `open`, the ruling the CLI
+   *  dispatch consults), so the line is the face awaiting review; `open` — the
+   *  rounds/routes themselves hold the line open, or no identity document is on hand
+   *  (`doc === null` — only present facts land). */
+  lineStateAt(
+    key: LedgerKey,
+    type: TargetType,
+    doc: string | null,
+  ): "closed" | "reopened" | "open" {
+    if (!this.lineClosed(key, type)) return "open";
+    return doc !== null && this.reviewGate(key, doc, type).kind === "open" ? "reopened" : "closed";
+  }
+
   /** The single-target line's active C5 Route — the next C5 hop the dispatch engine
    *  would run on this line (the doc/branch faces: the review-lead round judges the
    *  live tree; a fix-awaited review, a re-review after a blocker-carrying fix). A line
@@ -1217,9 +1236,13 @@ export class Ledger {
     // face-to-face handoff, or no route at all) predates the document movement, so
     // the derivation receives the review hop instead. An already-open hop (review /
     // fix) and the soft-cap adjudication row keep their own route — the pending-fix
-    // face outranks drift (§5.1).
+    // face outranks drift (§5.1). The exit side is read from the ONE closure
+    // predicate (`Ledger.routeClosed`, D40 — a re-typed `done`/`next-wave` literal is
+    // the class this phase removes) plus the two route-less forms: no route at all,
+    // and the face-to-face `handoff` station a pipeline consumer hands over (an exit
+    // station, not a closure — the closure predicate deliberately excludes it).
     const exitSide =
-      input.route === null || input.route.kind === "done" || input.route.kind === "handoff";
+      input.route === null || input.route.kind === "handoff" || Ledger.routeClosed(input.route);
     const route = drift && exitSide ? ({ kind: "review" } as const) : input.route;
     // The face axis is the ONE verdict this assembly reads (spec §5.2's doc-class
     // discrimination): no target carries no judgeable class (the bare terminal).

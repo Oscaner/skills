@@ -1526,6 +1526,52 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     expect(capsuleNext.slice("next: ".length)).toBe(nextOfBoard("prog-p1"));
   });
 
+  it("(k3) the branch mark and `next:` are ONE fact — drift ⇒ `▶ open`, unchanged ⇒ `✔ closed`", () => {
+    nodeDocs();
+    const planFile = planDoc([[1]]);
+    const ledger = ledgerOf();
+    // Every face closed on a clean round, and the branch row binds the PLAN's
+    // doc-revision — its identity document (P21 §3/§4.1).
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+    ledger.persistHandoff("review", "branch", { round: 1 }, { findings: [] });
+    ledger.recordRound("branch", { op: "review" });
+    ledger.recordReviewedRevision(
+      "branch",
+      ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
+      "branch",
+    );
+    ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+    ledger.recordRound("1", { op: "review" });
+    const boardText = (): string => {
+      const index = SlugIndex.build(repo);
+      const entry = entryOf("prog-p1");
+      const root = new RepoRoot(repo);
+      const next = BoardNext.of(index, entry, root);
+      return BoardView.render(
+        index,
+        entry,
+        repo,
+        new Words(),
+        "claude",
+        ARGV_CHANNEL,
+        undefined,
+        next,
+      ).lines.join("\n");
+    };
+    // The plan has NOT moved — the mark stays closed and `next:` is the terminus.
+    expect(boardText()).toContain("  branch   ✔ closed");
+    expect(nextOfBoard("prog-p1")).toBe("route to /kairos:cdd-close skill");
+    // One plan revision later the SAME line is open for review — the mark and the
+    // `next:` line move together (one judgment, never two facts).
+    writeFileSync(planFile, `${readFileSync(planFile, "utf8")}\n<!-- drift -->\n`, "utf8");
+    expect(boardText()).toContain("  branch   ▶ open");
+    expect(boardText()).not.toContain("  branch   ✔ closed");
+    expect(nextOfBoard("prog-p1")).toBe("review --type branch --plan docs/kairos/plans/prog-p1.md");
+  });
+
   it("(k) every face closed → the LAST entered face's exit (the pipeline terminus)", () => {
     nodeDocs();
     planDoc([[1]]);

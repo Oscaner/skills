@@ -2269,6 +2269,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const unchanged = await command.runArgv(["review", "--type", "branch", "--plan", plan]);
       expect(unchanged).toBe(1);
       expect(io.stderrText).toContain("face-closed");
+      // the board's branch mark agrees with that refusal — the line is closed
+      io.stdoutText = "";
+      expect(await command.runArgv(["board", "--plan", plan])).toBe(0);
+      expect(io.stdoutText).toContain("branch   ✔ closed");
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "branch-review-2.json"))).toBe(
         false,
       );
@@ -2308,6 +2312,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       io.stdoutText = "";
       expect(await command.runArgv(["board", "--plan", plan])).toBe(0);
       expect(io.stdoutText).toContain(`next:    ${literal}`);
+      // ... and the branch ROW is the mark of that same fact: the reopened line
+      // renders as the current face, never `✔ closed` beside a live `next:`
+      expect(io.stdoutText).toContain("branch   ▶ open");
+      expect(io.stdoutText).not.toContain("branch   ✔ closed");
       // The refusal of a round the reopened line does not hold renders the SAME
       // object's reason + hop — never a second judgment's prose.
       io.stderrText = "";

@@ -62,8 +62,11 @@ export class CliGate {
    *  P21 §3/§4.1 — the very document a branch re-review judges): a plan revision
    *  moved past the bound one reopens the branch face onto its `branch-review`
    *  lead, so the `next:` a closure hands the user is never a command this gate
-   *  refuses. An unchanged plan keeps the closed face (the generic `face-closed`
-   *  row — the branch line binds no doc-class BLOCK message of its own). */
+   *  refuses. An unchanged plan falls through to the SAME derived faces the doc lines
+   *  reach: a branch review that left findings yields the derived `fix` face
+   *  (`pending-fix` — no doc-class BLOCK message binds the branch face, so the refusal
+   *  renders through the ONE line hop), while only a fully closed, drift-free branch
+   *  line keeps the generic `face-closed` row. */
   lineGate(scene: WorkScene): {
     phase: DispatchPhase | null;
     verdict: "same" | "pending-fix" | null;

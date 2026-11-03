@@ -534,10 +534,21 @@ export class BoardView {
     }
 
     const branchLine = BoardView.#roundsLine("branch", "branch", progress);
-    const branchClosed = ledger?.lineClosed("branch", "branch") ?? false;
+    // The branch line's mark is the SAME drift-aware judgment its pipeline facts read
+    // (`Ledger#lineStateAt`, identity document = the plan): a drifted plan reopens the
+    // branch face, so the mark can never print `✔ closed` while `next:` names the
+    // review the gate accepts — the reopened line renders as the CURRENT face (`▶`).
+    const branchState =
+      ledger?.lineStateAt("branch", "branch", sources.plan?.path ?? null) ?? "open";
+    const branchMark =
+      branchState === "closed"
+        ? `${PROGRESS_MARKERS.done} closed`
+        : branchState === "reopened"
+          ? `${PROGRESS_MARKERS.current} open`
+          : `${PROGRESS_MARKERS.pending} open`;
     const branchRounds = BoardView.summaryCell(branchLine.rounds);
     lines.push(
-      `  ${"branch".padEnd(LABEL_WIDTH)}${branchClosed ? `${PROGRESS_MARKERS.done} closed` : `${PROGRESS_MARKERS.pending} open`}${branchRounds === "" ? "" : `  ${branchRounds}`}`.trimEnd(),
+      `  ${"branch".padEnd(LABEL_WIDTH)}${branchMark}${branchRounds === "" ? "" : `  ${branchRounds}`}`.trimEnd(),
     );
 
     lines.push("");
@@ -714,7 +725,10 @@ export class BoardView {
         target: planPath === null ? null : { type: "wave", id: waveKey ?? "", plan: planPath },
       },
       branch: {
-        closed: ledger.lineClosed("branch", "branch"),
+        // The branch line's closure is judged AT its identity document (the plan): a
+        // plan revision past the one the completed branch review bound reopens the
+        // face, so the mark above and this frontier cell read ONE judgment.
+        closed: ledger.lineStateAt("branch", "branch", planPath) === "closed",
         active: ledger.lineRoute("branch", "branch"),
         target: { type: "branch", id: "branch", plan: planPath ?? undefined },
       },

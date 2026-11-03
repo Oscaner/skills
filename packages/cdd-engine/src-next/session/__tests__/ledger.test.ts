@@ -1245,6 +1245,12 @@ describe("nextHopOf — the drift-reopened line's hop (the ONE assembly entry)",
         hop: "branch-review",
         reason: "doc-drift",
       });
+      // a `next-wave` route is the closure predicate's OTHER member (`Ledger.routeClosed`
+      // = {done, next-wave}) — the drift reopens it exactly as it reopens `done`
+      expect(hop({ kind: "next-wave", tasks: "1" })).toMatchObject({
+        hop: "branch-review",
+        reason: "doc-drift",
+      });
       // an OPEN hop is already the line's active face — the drift never overrides it
       expect(hop({ kind: "fix", reviews: "r.json" })).toMatchObject({
         hop: "fix",
@@ -1318,6 +1324,33 @@ describe("lineClosed — the single line-closure judge (the board + closedWaves 
 
       // the line closed on the successful re-attempt, not on the failed first one
       expect(ledger.lineClosed("plan", "plan")).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the drift-aware closure judge reads a DRIFTED line `reopened` and an unchanged one `closed`", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const doc = path.join(workspace.path, "docs", "z-plan.md");
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, "v1.0 body", "utf8");
+      ledger.persistHandoff("review", "branch", { round: 1 }, { findings: [] });
+      ledger.recordRound("branch", { op: "review" });
+      ledger.recordReviewedRevision(
+        "branch",
+        ledger.refs().docRevision(doc, "v1.0 body"),
+        "branch",
+      );
+      // the rounds/routes fact says closed, and the bound document still matches
+      expect(ledger.lineClosed("branch", "branch")).toBe(true);
+      expect(ledger.lineStateAt("branch", "branch", doc)).toBe("closed");
+      // one plan revision later the SAME line is reopened (the gate's own reopen)
+      writeFileSync(doc, "v1.1 body", "utf8");
+      expect(ledger.lineClosed("branch", "branch")).toBe(true);
+      expect(ledger.lineStateAt("branch", "branch", doc)).toBe("reopened");
+      // no identity document on hand — only the rounds/routes fact is present
+      expect(ledger.lineStateAt("branch", "branch", null)).toBe("closed");
     } finally {
       cleanup();
     }

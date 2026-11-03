@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 计划：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: plan
-version: v0.11
+version: v0.12
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 base: develop
@@ -509,10 +509,42 @@ Task 1–12 的全部产物。
 #### DependsOn
 14
 
+### Task 16: 退役 `status` front-matter 字段
+
+#### Objective
+删掉文档契约里的 `status` 字段：它零读者（无规则读它），却要求每个写作 agent 每轮手工同步，而仓内 22 篇文档里 21 篇永远停在 `Draft`、唯一一篇 `Approved` 也只是人写的字面。
+
+#### Files
+- Modify: `packages/cdd-engine/src-next/contract/declare.ts`（删除三个 `status` 登记元素）· `packages/cdd-engine/src-next/render/skeleton.ts`（不再吐 `status:`，改注释）· `docs/kairos/overalls/*.md` · `docs/kairos/specs/*.md`（删 front-matter 行）· `packages/cdd-engine/README.md` + `README.zh-CN.md`（如提及）· `.changeset/p22-retire-status.md`（新）
+- Test: `packages/cdd-engine/src-next/render/__tests__/skeleton.test.ts` · `packages/cdd-engine/src-next/contract/__tests__/judge.test.ts` · `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`
+
+#### Consumes
+`declaredRegistries`（`contract/declare.ts` 的登记表）· `#frontmatterTruth`（`render/skeleton.ts` 的骨架真值面）· `DOC_TYPE_VALUES`（值域不动）。
+
+#### Produces
+- 登记表零 `status` 元素（三个 doc 类型都不再声明它）。
+- 骨架不再输出 `status:` 行；骨架往返 pin 重锚。
+- 仓内 `docs/kairos/**` 零 `^status:` 行。
+- `.changeset/p22-retire-status.md`：`cdd-engine` **minor**（D74：文档契约字节破坏、方法论不动）。
+
+#### Steps
+- [ ] **Step 1: 写失败用例** —— (a) `declaredRegistries` 的任何 doc 类型都不再有 `status` 元素；(b) 生成一份骨架，输出不含 `status:`（往返：把骨架填成任一文档，契约门仍绿）；(c) 一篇仍带 `status:` 的文档**照旧解析通过**（字段离开契约后，野外残留既不修也不判——不为旧字段造新门）。 — checkable: 三组用例先红（登记表有元素 / 骨架吐行 / 残留被判）
+- [ ] **Step 2: 删登记与骨架输出** —— 删 `declare.ts` 的三处 `status` 元素；`skeleton.ts` 的 `#frontmatterTruth` 不再含 `status`，并把「status 真值」相关注释改成「已退役」。 — checkable: `grep -rn '"status"' packages/cdd-engine/src-next/contract/declare.ts` 零命中
+- [ ] **Step 3: 迁移文档** —— 仓内 `docs/kairos/**` 的 `status:` 行删除（overall 2 篇 · spec 21 篇 · plan 若有无则略）。 — checkable: `grep -rn '^status:' docs/kairos | wc -l` 为 0
+- [ ] **Step 4: changeset + 全量** —— `.changeset/p22-retire-status.md` 写 `cdd-engine` minor；`env -u AI_AGENT pnpm run validate` → PASS。 — checkable: `env -u AI_AGENT pnpm run validate` exit 0
+- [ ] **Step 5: 提交** —— `git commit -m "refactor(cdd-engine): retire the status field no rule reads"`。 — checkable: `git log -1` 为约定提交信息且工作树干净
+
+#### Acceptance
+登记表零 `status` 元素 · 骨架零 `status:` 输出 · `grep -rn '^status:' docs/kairos` 零命中 · **一篇带残留 `status:` 的文档照旧解析通过**（不判、不修）· changeset 为 engine minor · 全量 validate exit 0。
+
+#### DependsOn
+15
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.12 | 2026-11-03 | **T16 入库（用户裁定 · 章程 D75）**：退役 `status` front-matter 字段——零读者（`rules.ts` 零命中）、却要每轮手工同步，22 篇里 21 篇永停 `Draft`。面：登记元素 ×3 · 骨架输出 · 仓内文档 · pin 重锚；**不加门**（野外残留不修不判）。W10 独占一层（依赖 T15），engine minor | Oscaner M. · Claude（kairos:cdd-dev · scope append · 2026-11-03） |
 | v0.11 | 2026-11-03 | **判据键的落地名回填（branch-review-1 的 nit · T1 / T15 落地行）**：`ReviewVariant` / `REVIEW_VARIANT_TEXT` / `ReviewVariants.of` 实际落地为 `ReviewKey` / `REVIEW_BODY_TEXT` / `reviewBodyOf`（`render/templates.ts`）——T15 的 `overall` 判据需要第五个判据键，而 `TargetType` 的六个目标值里 `phase-spec` / `single-spec` 共用 `spec`；且单方法静态面被仓库的零裸函数纪律改写为模块常量。语义等价，代码不动，计划侧让行 | Oscaner M. · Claude（kairos:cdd-dev · symbol backfill · 2026-11-03） |
 | v0.10 | 2026-11-03 | **T14 验收补全（W8 五轮评审的取证）**：迁移一致性由「三面」改为**六面**——值域/帮助 · 消费面字面（含散文枚举与 skill 固定词）· 行键 · 载体文件名 · 编号与写侧 · 呈现面；每一面各对应一次 W8 的 blocker，并附失败形态，使同类改名不再以「别名只做一半」通过 | Oscaner M. · Claude（kairos:cdd-dev · acceptance backfill · 2026-11-03） |
 | v0.9 | 2026-11-03 | **T7 Files 面对齐落地（W4 wave review 的 nit）**：`contract/completion-criterion.ts`（判据输入形状）列入 Modify · `session/__tests__/ledger.test.ts` 列入 Test · `face/__tests__/termination.test.ts` 移出（该文件本波未被触，日志指路 pin 落在 `cli.test.ts`） | Oscaner M. · Claude（kairos:cdd-dev · Files backfill · 2026-11-03） |

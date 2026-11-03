@@ -103,7 +103,8 @@ export class FrontMatterHead {
     return this.value("date");
   }
 
-  /** The status literal (`status:`, the declared per-doc-type enum). */
+  /** A residual head key — no registry declares `status` any more; read so an
+   *  existing document degrades to a shorter head instead of erroring. */
   get status(): string | null {
     return this.value("status");
   }

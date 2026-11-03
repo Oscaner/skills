@@ -6,4 +6,4 @@
 
 No gate replaces it. A document that still carries a `status:` key parses and judges exactly as before — the stray head key is a residue of a retired field, not a violation, and a "no residual `status`" rule would be a new machine paying for an old field. Code that reads a document head keeps answering `status` when the key is present (the board's doc line still renders it), so existing documents degrade to a shorter line rather than to an error.
 
-The corpus shipped with this package's own repository drops the line from all 22 documents (`docs/kairos/overalls/**` · `docs/kairos/specs/**`), with the corresponding skeleton, registry, projection-snapshot and CLI pins reanchored.
+The corpus shipped with this package's own repository drops the line from all 22 documents (`docs/kairos/overalls/**` · `docs/kairos/specs/**`), with the corresponding skeleton, registry, projection-snapshot and CLI pins reanchored. Only document heads lose the line: a phase spec that quotes the historical head shape inside a code fence keeps it, because that fence documents that phase's own head rather than a live one.

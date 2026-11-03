@@ -55,6 +55,7 @@ title: 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 doc-type: overall-spec
 version: v2.46
 date: 2026-10-17
+status: Draft
 author: "[human] · Claude Opus 5（…）"
 ---
 ```

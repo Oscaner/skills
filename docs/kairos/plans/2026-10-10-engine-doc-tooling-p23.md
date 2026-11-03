@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P23 计划：`cdd init --include-recommends` 推荐包档
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p23
 base: develop
@@ -37,25 +37,28 @@ base: develop
 #### Files
 - Modify: `packages/cdd-engine/src-next/face/plugins.ts`（`PluginTier` · `tier` 字段 · 六行推荐）· `packages/cdd-engine/src-next/face/init.ts`（`InitRequest` · `#stepsOf` 过滤 · `run`/`preview` 收成单参）· `packages/cdd-engine/src-next/face/cli.ts`（两处调用点传 `{ recommended: false }`）
 - Test: `packages/cdd-engine/src-next/face/__tests__/plugins.test.ts` · `plugins.guard.test.ts` · `init.test.ts` · `cli.test.ts`
+- Modify (diagram evidence): `docs/diagrams/src/architecture.en.json` · `docs/diagrams/src/architecture.zh-CN.json`（`upstream` 节点的 `plugins.ts` citation 重锚）· 重生成的 `docs/diagrams/architecture.en.html` / `docs/diagrams/architecture.zh-CN.html`（Archify 产物，禁手改）
 
 #### Consumes
-spec §2.1（九行表与行序）· §2.2（推荐行的 `update` = `install` 换一词；claude 列空数组）· §4.1（`InitRequest = { host, shape, recommended }`）· §7.1（guard 核心 span 双侧切分、`renderCell` 吃行对象）· §8.1（测试基座与四处标题）。
+spec §2.1（九行表与行序）· §2.2（推荐行的 `update` = `install` 换一词；claude 列空数组）· §4.1（`InitRequest = { host, shape, recommended }`）· §7.1（guard 核心 span 双侧切分、`renderCell` 吃行对象）· §8.1（测试基座与四处标题）· §8.2（W1 判据与五处既有字节 pin 的站名）· `diagrams.guard.test.ts:119-124` 的 `upstream` 锚点与标识符（`^export const PLUGINS = \[$` → `^\] as const satisfies readonly PluginRow\[\];$`，identifier `PLUGINS`）。
 
 #### Produces
 - `export type PluginTier = "core" | "recommended"`；`PluginRow` 增 `readonly tier: PluginTier`；`PLUGINS` 九行（superpowers · mattpocock-skills · kairos · pi-fff · rpiv-todo · rpiv-ask-user-question · pi-web-access · pi-background-tasks · pi-agentsmd）。
 - `export interface InitRequest { readonly host: HostId; readonly shape: "install" | "update"; readonly recommended: boolean }`；`CliInit#stepsOf(request: InitRequest): InitStep[]`（`recommended === false` ⇒ 只 core）；`run(request)` / `preview(request)`。
 - `plugins.guard.test.ts` 的 `renderCell(row, host)` 吃行对象；核心 span 断言按 `tier === "core"` 取行。
+- 两份架构图源 JSON 的 `upstream` citation 落在新的 `export const PLUGINS = [` 块内（en / zh-CN 各一处），`meta.repository.revision` 钉到含该行的提交；两份 HTML 由 Archify finalize 重生成。
 
 #### Steps
 - [ ] **Step 1: 先写红用例（数据面与基座）** —— 在 `plugins.test.ts` 断言：行名序列为九值（core 三在前、推荐六按 §2.1 序）· `tier` 值逐行正确 · 推荐行 claude 列 `install`/`update` 均为空数组 · 每行 `update` 与 `install` 等长 · 元组总数 30（install 15 + update 15）· 夹具 `INSTALL_ARGV` / `UPDATE_ARGV` 补六条；四处带计数的标题与文件头 docstring 一并改成新事实。 — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/plugins.test.ts` 先红（行名仍三值）
 - [ ] **Step 2: 落数据面** —— `plugins.ts` 增 `PluginTier` 与 `tier`、补六行推荐（pi 列 `["pi","install","npm:<pkg>"]` / `["pi","update","npm:<pkg>"]`，claude 列 `{ install: [], update: [] }`）。 — checkable: Step 1 的用例转绿
 - [ ] **Step 3: 收展平面** —— `init.ts` 引入 `InitRequest`，`#stepsOf` 按 `recommended` 过滤，`run`/`preview` 收成单参；`cli.ts` 两处调用点传 `{ recommended: false }`；`init.test.ts` 的 `sequenceOf` / `ROSTER` 按 `tier === "core"` 取行，`cli.test.ts` 的两处 roster flatMap 同样处理。 — checkable: `init.test.ts` / `cli.test.ts` / `preview.test.ts` 全绿，且 `init: 3 steps ok (pi · install)` 等既有字节 pin 未改一字
-- [ ] **Step 4: 新增档位展平的单元用例** —— `#stepsOf({ host: "pi", shape: "install", recommended: true })` 得 9 步且前 3 步 argv 序列与 core 路径逐项相等；`{ host: "claude", shape: "install", recommended: true }` 得 6 步（推荐列空）。 — checkable: 两条新用例绿，且断言比的是 argv 序列而非步骤头字节（分母随总步数变）
+- [ ] **Step 4: 新增档位展平的单元用例** —— 取证面走公开面（`#stepsOf` 是 `#` 私有成员，测试取不到）：`preview({ host: "pi", shape: "install", recommended: true })` 得 9 条 `would run:` 行且前 3 条 argv 序列与 core 路径逐项相等；`preview({ host: "claude", shape: "install", recommended: true })` 得 6 条（推荐列空）。汇总行字节归 Task 2，本步不比它。 — checkable: 两条新用例绿，且断言比的是 argv 序列而非步骤头字节（分母随总步数变）
 - [ ] **Step 5: guard 核心 span 改吃行对象** —— `installTable` 返回表体行；`renderCell` 改吃行对象；核心 span = 表体第 1–3 行对 core 名册，逐格断言（行名 / 顺序 / 双列 `；` 连接 / 表头三格）保持原样；不得引入「两侧行数之和 = 表体行数」的守恒 pin（W1 表体仍三行，那条排到 Task 3）。 — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/plugins.guard.test.ts` 绿
-- [ ] **Step 6: 全量跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS。 — checkable: 套件 exit 0，`pnpm run precommit` 通过后提交
+- [ ] **Step 6: 架构图证据重锚 + 重生成（`plugins.ts` 侧）** —— 按 `diagrams.guard.test.ts:119-124` 的同源锚点重算 `upstream` 节点 citation 的 `line` / `end_line`（`^export const PLUGINS = \[$` → `^\] as const satisfies readonly PluginRow\[\];$`，今日 40-92，落 `tier` 后首行下移），en `:122-124` 与 zh-CN `:122-124` 各一处；先提交 Task 1 的源码与 JSON，再取该提交的 40-hex（须已在本地 clone）钉进两份 JSON 的 `meta.repository.revision`；最后按 `docs/diagrams/README.md:16` 的 Archify finalize 命令（`node <archify>/bin/archify.mjs finalize architecture docs/diagrams/src/architecture.<lang>.json docs/diagrams/architecture.<lang>.html --repo-root . --quality showcase --json`）重生成两份 HTML——`plugins.ts#L40-L92` 这类证据链接嵌在产物里，**禁止手改 HTML**。 — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/diagrams.guard.test.ts` 四条腿全绿（含 `revision` 腿）
+- [ ] **Step 7: 全量跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS。 — checkable: 套件 exit 0（含 `diagrams.guard.test.ts` 四条腿），`pnpm run precommit` 通过后提交
 
 #### Acceptance
-`PLUGINS` 九行且 `tier` 在册 · 推荐序 = §2.1 序 · 推荐行 claude 列为空数组（类型层与运行层各一条 pin）· 元组总数 30 · 无旗标 `--harness=pi` 仍 3 步、`claude` 仍 6 步，步骤头 / 汇总 / 失败 / 预览字节零变（既有 pin 未重锚）· `recommended: true` 的 pi 展平 = 9 步且前 3 步 argv 序列与 core 相同 · guard 核心 span 绿且 `renderCell` 不再索引名册 · engine 套件全绿。
+`PLUGINS` 九行且 `tier` 在册 · 推荐序 = §2.1 序 · 推荐行 claude 列为空数组（类型层与运行层各一条 pin）· 元组总数 30 · 无旗标 `--harness=pi` 仍 3 步、`claude` 仍 6 步，步骤头 / 汇总 / 失败 / 预览字节零变（既有 pin 未重锚；字面对象 = `cli.test.ts:631` / `:657` / `:702` · `init.test.ts:184-186` / `:193-198` / `:269` · `preview.test.ts:408` / `:430`）· `recommended: true` 的 pi 展平 = 9 步且前 3 步 argv 序列与 core 相同 · `upstream` citation 落在新的 `PLUGINS` 块内、`revision` 钉到含新行的提交、两份 HTML 由 Archify 重生成（零手改）· guard 核心 span 绿且 `renderCell` 不再索引名册 · engine 套件全绿。
 
 #### DependsOn
 none
@@ -68,9 +71,10 @@ none
 #### Files
 - Modify: `packages/cdd-engine/src-next/face/declare.ts`（`ARGV_CHANNEL.includeRecommends` · `CLI_COMMANDS` init 行 `keys`）· `packages/cdd-engine/src-next/face/cli.ts`（`RunInput.includeRecommends?` · `#runInput` 映射 · init 节点读一次并透传）· `packages/cdd-engine/src-next/face/init.ts`（`InitStep.tier` · 分档汇总 · 空档 info 行 · 推荐档失败补行）
 - Test: `packages/cdd-engine/src-next/face/__tests__/init.test.ts` · `cli.test.ts` · `channel-closure.guard.test.ts`（若其反向腿要求声明）
+- Modify (diagram evidence): `docs/diagrams/src/architecture.en.json` · `docs/diagrams/src/architecture.zh-CN.json`（`engine` 节点的 `cli.ts` citation 重锚 + `meta.repository.revision` 重钉）· 重生成的 `docs/diagrams/architecture.en.html` / `docs/diagrams/architecture.zh-CN.html`（Archify 产物，禁手改）
 
 #### Consumes
-Task 1 的 `InitRequest` / `#stepsOf` / `PLUGINS` 与 `tier` · spec §3.1（`ARGV_CHANNEL` 与 `CLI_COMMANDS` 两处落点）· §3.2（正交与 usage 面）· §5.2（分档汇总与空档 info）· §5.3（失败面与两形补行）· §8.1（`#runInput` 的 `:506-528`、init 节点 `:387-402`）。
+Task 1 的 `InitRequest` / `#stepsOf` / `PLUGINS` 与 `tier` · spec §3.1（`ARGV_CHANNEL` 与 `CLI_COMMANDS` 两处落点）· §3.2（正交与 usage 面）· §5.2（分档汇总与空档 info）· §5.3（失败面与两形补行）· §8.1（`#runInput` 的 `:506-528`、init 节点 `:387-402`）· `diagrams.guard.test.ts:133-137` 的 `engine` 锚点与标识符（`^ {4}commandNode\("init"\)\.action\(` → `^ {4}\}\);$`，identifier `commandNode("init")`）。
 
 #### Produces
 - `ARGV_CHANNEL.includeRecommends = { flag: "--include-recommends", type: "bool", help: "also install/update the recommended pi capability packages" }`；`CLI_COMMANDS` init 行 `keys` 得 `{ key: "includeRecommends" }`。
@@ -78,16 +82,18 @@ Task 1 的 `InitRequest` / `#stepsOf` / `PLUGINS` 与 `tier` · spec §3.1（`AR
 - 汇总行三形：无旗标 `init: <n> steps ok (<host> · <shape>)`（原字节）· 带旗标 `… · <c> core + <r> recommended)` · `r === 0` 时追加 `init: no recommended packages for <host>`（走 `#header`、排在汇总行之后）。
 - 预览汇总同形（`— dry run, nothing executed` 尾巴不变）。
 - 推荐档失败补行（`io.stderr`，行序 = 既有失败行 → 补行 →（update 形态）既有未安装提示）：install 形态 `init: <package> is a recommended package — the core plugin set is already installed`；update 形态 `… — run cdd init --harness=<host> --include-recommends without --update first`。
+- 两份架构图源 JSON 的 `engine` citation 落在新的 `commandNode("init").action(` 块内（en / zh-CN 各一处），`meta.repository.revision` 重钉到同时含两处新锚点的提交；两份 HTML 由 Archify finalize 重生成。
 
 #### Steps
-- [ ] **Step 1: 先写红用例（命令面）** —— `--harness=pi --include-recommends` 得 9 步、`--harness=claude --include-recommends` 得 6 步 + info 行、不带 `--harness` 带旗标 exit 2 零 spawn、`--dry-run --include-recommends` 预览 9 行 `would run:` 且零 spawn。 — checkable: 先红（commander 现在把该旗标当未知选项拒绝）
+- [ ] **Step 1: 先写红用例（命令面）** —— `--harness=pi --include-recommends` 得 9 步、`--harness=claude --include-recommends` 得 6 步 + info 行、不带 `--harness` 带旗标 exit 2 零 spawn、`--dry-run --include-recommends` 预览 9 行 `would run:` 且零 spawn；`--update --include-recommends` 成功面两档各一条：`preview({ host: "pi", shape: "update", recommended: true })` = 9 条 update argv、`preview({ host: "claude", shape: "update", recommended: true })` = 6 条 update argv，argv 序列按名册 update 列独立取期望并与同行 install argv 零交集（不从 install 列反推），claude 同时出 info 行。 — checkable: 先红（commander 现在把该旗标当未知选项拒绝）
 - [ ] **Step 2: 让旗标存在** —— `declare.ts` 增 `ARGV_CHANNEL` 行与 `CLI_COMMANDS` init 行 `keys` 项；`cli.ts` 增 `RunInput.includeRecommends?` 与 `#runInput` 映射，init 节点读一次后透传进 `InitRequest.recommended`。 — checkable: Step 1 的四条用例里命令面三条转绿，`channel-closure.guard.test.ts` 绿
 - [ ] **Step 3: 档位随步骤旅行** —— `InitStep` 增 `tier`，`#stepsOf` 填它；`run()` / `preview()` 只读展平产物，零 `PLUGINS` 回查。 — checkable: 源码面 `grep` 显示 `run()`/`preview()` 体内零 `PLUGINS` 引用（`tier` 判据只住 `#stepsOf`）
 - [ ] **Step 4: 输出面三句** —— 分档汇总（含预览）、空档 info 行走 `#header` 排汇总后、推荐档失败补行按 shape 分形走 `io.stderr`；无旗标路径零字节改动。 — checkable: `init.test.ts` 的既有输出面用例全绿未改；新增用例覆盖三句字节与两形行序
-- [ ] **Step 5: 全量跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS。 — checkable: 套件 exit 0，`pnpm run precommit` 通过后提交
+- [ ] **Step 5: 架构图证据重锚 + 重生成（`cli.ts` 侧）** —— 按 `diagrams.guard.test.ts:133-137` 的同源锚点重算 `engine` 节点 citation 的 `line` / `end_line`（`^ {4}commandNode\("init"\)\.action\(` → `^ {4}\}\);$`，今日 387-402，落 `RunInput.includeRecommends` 与 `#runInput` 映射后首行下移），en `:208-210` 与 zh-CN `:208-210` 各一处；先提交本任务的源码改动，把 `meta.repository.revision` 重钉到**同时含两处新锚点**的那次提交（40-hex，须已在本地 clone），再按 `docs/diagrams/README.md:16` 的 Archify finalize 命令重生成两份 HTML——产物里的证据链接随 citation 走，**禁止手改 HTML**。 — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/diagrams.guard.test.ts` 四条腿全绿（含 `revision` 腿）
+- [ ] **Step 6: 全量跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS。 — checkable: 套件 exit 0（含 `diagrams.guard.test.ts` 四条腿），`pnpm run precommit` 通过后提交
 
 #### Acceptance
-`ARGV_CHANNEL.includeRecommends` 在册且 `flag === "--include-recommends"` · pi + 旗标 = 9 步、claude + 旗标 = 6 步且出 `init: no recommended packages for claude` · 不带 `--harness` 带旗标 usage exit 2 且零 spawn · 分档汇总与预览汇总同形 · 推荐档失败两形各一条字节 pin 且行序固定（失败行 → 补行 → 既有提示）· 无旗标三面字节零变（既有 pin 不重锚）· `--dry-run --include-recommends` 零 spawn、零写入、exit 0 · engine 套件全绿。
+`ARGV_CHANNEL.includeRecommends` 在册且 `flag === "--include-recommends"` · pi + 旗标 = 9 步、claude + 旗标 = 6 步且出 `init: no recommended packages for claude` · `--update --include-recommends` 两个 harness 各走 update 序列（pi 9 条 / claude 6 条 argv）且与同行 install argv 零交集 · 不带 `--harness` 带旗标 usage exit 2 且零 spawn · 分档汇总与预览汇总同形 · 推荐档失败两形各一条字节 pin 且行序固定（失败行 → 补行 → 既有提示）· 无旗标三面字节零变（既有 pin 不重锚）· `--dry-run --include-recommends` 零 spawn、零写入、exit 0 · `engine` citation 落在新的 init 节点块内、`revision` 钉到含两处新锚点的提交、两份 HTML 由 Archify 重生成（零手改）· engine 套件全绿。
 
 #### DependsOn
 1
@@ -153,4 +159,5 @@ spec §6.2（七份消费面 markdown、`-e` 形命令、`--plan` 正控）· §
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.2 | 2026-11-04 | 评审回填（无结构变更，内容面）：① blocker 收下——架构图证据面入册：Task 1 / Task 2 的 Files 增两份 `docs/diagrams/src/architecture.{en,zh-CN}.json` 与重生成的 HTML，各自新增「证据重锚 + 重生成」步骤（`plugins.ts` 的 `upstream` citation、`cli.ts` 的 `engine` citation，各 en / zh 两处），`meta.repository.revision` 随提交重钉，Task 1 / Task 2 的收尾 step checkable 与两份 Acceptance 补 `diagrams.guard.test.ts` 四条腿全绿（结构面零改动：Task id 集与 `DependsOn` 集不动，改动落在原任务的文件与步骤内）· ② warn 收下——Task 2 Step 1 补 `--update --include-recommends` 两档成功面（pi 9 / claude 6 条 update argv，与 install 列零交集），Acceptance 同名 · ③ nit——Task 1 Step 4 由私有 `#stepsOf` 改走公开 `preview({ host, shape, recommended })` 面 · ④ nit——Task 1 Consumes 补 §8.2，Acceptance 列出五处既有字节 pin 的实测行号（`cli.test.ts:631` / `:657` / `:702` · `init.test.ts:184-186` / `:193-198` / `:269` · `preview.test.ts:408` / `:430`） | [human] · Claude（kairos:cdd-plan [P23] · 2026-11-04） |
 | v0.1 | 2026-11-04 | P23 实施计划：四任务三波——**W1** `PLUGINS` 落九行 + `InitRequest` 按档过滤（无旗标字节零变）+ guard 核心 span 改吃行对象 + 名册派生基座按 core 取行；**W2（T2 ‖ T3）**——T2 = 旗标两行（`ARGV_CHANNEL` + `CLI_COMMANDS` `keys`）+ `InitStep.tier` 席位 + 输出面三句（分档汇总 / 空档 info / 分形失败补行），T3 = 六份 README 九行 + guard 推荐 span 与守恒 pin（两者只依赖 T1，文件面不重叠）；**W3**——T4 = 可红的消费面泄漏门（`-e` 形 + `--plan` 正控）+ changeset + `env -u AI_AGENT pnpm run validate` 全量验收（依赖 T3 的 README 字面） | [human] · Claude（kairos:cdd-plan [P23] · 2026-11-04） |

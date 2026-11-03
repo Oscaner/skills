@@ -186,12 +186,12 @@ describe("declared registries", () => {
 
 describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
   // The canonical per-type front-matter key set of the contraction table (§2.3):
-  // plan deliberately omits `status`/`author` (no plan head carries either row),
-  // single-spec adds the optional `issues` key, phase-spec alone carries
-  // `program:` and the optional `parent-version`. The order mirrors the §2.1
-  // front-matter emission shapes (the migrated corpus order).
+  // plan deliberately omits `author` (no plan head carries that row), single-spec
+  // adds the optional `issues` key, phase-spec alone carries `program:` and the
+  // optional `parent-version`. The order mirrors the §2.1 front-matter emission
+  // shapes (the migrated corpus order).
   const HEADER_KEYS: Record<DocType, readonly string[]> = {
-    overall: ["title", "doc-type", "version", "date", "slug", "status", "author"],
+    overall: ["title", "doc-type", "version", "date", "slug", "author"],
     plan: ["title", "doc-type", "version", "date", "slug", "base"],
     "phase-spec": [
       "title",
@@ -200,11 +200,10 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
       "date",
       "slug",
       "program",
-      "status",
       "author",
       "parent-version",
     ],
-    "single-spec": ["title", "doc-type", "version", "date", "slug", "status", "author", "issues"],
+    "single-spec": ["title", "doc-type", "version", "date", "slug", "author", "issues"],
   };
   /** The closed §3.3 key vocabulary — the registry's sole legal front-matter anchor set. */
   const KEY_VOCABULARY = new Set([
@@ -214,7 +213,6 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     "date",
     "slug",
     "program",
-    "status",
     "author",
     "parent-version",
     "base",
@@ -231,6 +229,15 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
           .map((element) => element.anchor),
         `${registry.docType} header keys`,
       ).toEqual(HEADER_KEYS[registry.docType]);
+    }
+  });
+
+  it("declares no `status` key — the zero-reader field is retired from every doc type", () => {
+    for (const registry of ALL_REGISTRIES) {
+      expect(
+        registry.elements.some((element) => element.anchor === "status"),
+        `${registry.docType}: status retired`,
+      ).toBe(false);
     }
   });
 
@@ -255,14 +262,10 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
         );
       }
     }
-    // `status`/`author` ride the three spec carriers — plan has no such key.
+    // `author` rides the three spec carriers — plan has no such key.
     for (const docType of ["overall", "phase-spec", "single-spec"] as const) {
-      expect(findKey(docType, "status").presence).toBe("required");
       expect(findKey(docType, "author").presence).toBe("required");
     }
-    expect(declaredRegistries.plan.elements.some((element) => element.anchor === "status")).toBe(
-      false,
-    );
     expect(declaredRegistries.plan.elements.some((element) => element.anchor === "author")).toBe(
       false,
     );
@@ -338,9 +341,6 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
       ["plan", "doc-type", "plan"],
       ["phase-spec", "doc-type", "phase-spec"],
       ["single-spec", "doc-type", "single-spec"],
-      ["overall", "status", "Approved"],
-      ["phase-spec", "status", "Plan pending"],
-      ["single-spec", "status", "Draft"],
       ["plan", "title", "A plan title"],
       ["overall", "slug", "2026-10-10-engine-doc-tooling"],
       ["plan", "slug", "2026-10-10-engine-doc-tooling-p15"],
@@ -388,11 +388,11 @@ describe("frontmatter header-key contract (spec §2.3 / §3.3)", () => {
     );
   });
 
-  it("reconciles the post-migration element totals against the §2.3 arithmetic (43/28/27/16)", () => {
-    expect(declaredRegistries.overall.elements.length).toBe(43);
+  it("reconciles the post-migration element totals against the §2.3 arithmetic (42/28/26/15)", () => {
+    expect(declaredRegistries.overall.elements.length).toBe(42);
     expect(declaredRegistries.plan.elements.length).toBe(28);
-    expect(declaredRegistries["phase-spec"].elements.length).toBe(27);
-    expect(declaredRegistries["single-spec"].elements.length).toBe(16);
+    expect(declaredRegistries["phase-spec"].elements.length).toBe(26);
+    expect(declaredRegistries["single-spec"].elements.length).toBe(15);
   });
 });
 

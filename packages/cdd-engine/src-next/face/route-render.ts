@@ -21,7 +21,7 @@
 
 import type { RepoRoot } from "../infra/root.ts";
 import type { RouteTarget } from "../session/faces.ts";
-import { FIX_READBACK_SUFFIX, type Route } from "../session/next.ts";
+import { FIX_READBACK_SUFFIX, NEXT_HOP_REASON, type NextHop, type Route } from "../session/next.ts";
 import { REFS } from "./host.ts";
 import type { Words } from "./words.ts";
 
@@ -73,6 +73,30 @@ export class RouteRenderer {
     return this.#root === null ? value : this.#root.relativize(value);
   }
 
+  /** renderHop(hop) → the `next:` VALUE of one derived NextHop (§5.2), or null when
+   *  the hop is ABSENT (the failure face — a BLOCKED / TIMEOUT round holds no next
+   *  object at all, so no `next:` line renders). The ONE hop face both read faces
+   *  share: the capsule (a round's own line) and the board (the pipeline frontier)
+   *  render the SAME object into the SAME bytes. The row order is the frozen table:
+   *    · a `soft-cap` payload renders its declared suggestion verbatim;
+   *    · an in-line hop renders the route through `render` (a `hop` is never null on
+   *      a renderable payload route — the closure kinds carry no hop);
+   *    · a face-to-face station renders the entry through the same `render`;
+   *    · an unjudgeable doc class renders the BLOCKED face;
+   *    · the residual (the bare `done` / `face-closed` row) renders the terminal word.
+   *  A `null` hop is NOT the failure-face gate: `done` / `soft-cap` / the doc-class
+   *  `terminal` row all carry `hop: null` yet still print their line. */
+  renderHop(hop: NextHop | null): string | null {
+    if (hop === null) return null;
+    if (hop.route?.kind === "soft-cap") return hop.route.message;
+    if (hop.hop !== null && hop.route !== null) return this.render(hop.route, hop.target);
+    if (hop.to !== null) return this.render({ kind: "handoff", entry: hop.to }, hop.target);
+    if (hop.reason === NEXT_HOP_REASON.docClassBlocked) {
+      return `${this.#words.station("blocked")} ${this.#words.routeWord("docType")}`;
+    }
+    return this.#words.routeWord("done");
+  }
+
   /** render(route, target) → the `next:` value: the complete executable command (a
    *  C5 hop), the pipeline entry (a `handoff`), or the bare terminal word (`done`).
    *  The additive optional RouteTarget supplies the frame's own type + id + plan for
@@ -109,9 +133,10 @@ export class RouteRenderer {
     return target?.plan === undefined ? "<plan>" : this.#rel(target.plan);
   }
 
-  /** The review hop's literal — `review --type <wave|spec|plan|branch> <type-arg>`
-   *  (`--type` renders only where the verb's type discriminates — review/fix are
-   *  multi-type, so they always carry it; absent target → the bare verb). */
+  /** The review hop's literal — `review --type <wave|branch|phase-spec|overall|plan|single-spec>
+   *  <type-arg>` (`--type` renders only where the verb's type discriminates — review/fix
+   *  are multi-type, so they always carry it; absent target → the bare verb). The four
+   *  doc shapes ride the retained `--spec` flag (the document under review). */
   #reviewText(target?: RouteTarget | null): string {
     const verb = this.#words.routeWord("review");
     const type = target?.type ?? null;
@@ -120,9 +145,6 @@ export class RouteRenderer {
       // assembly the implement/next-wave and fix→wave branches share (a missing flag
       // parses green yet refuses the dispatch at run time).
       return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${target!.id} ${this.#flag("plan")} ${this.#planOf(target)}`;
-    }
-    if (type === "spec") {
-      return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${this.#rel(target!.id)}`;
     }
     if (type === "plan") {
       return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${this.#rel(target!.id)}`;
@@ -133,12 +155,14 @@ export class RouteRenderer {
       // anchor BASE_BRANCH is engine-injected at dispatch).
       return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)}`;
     }
-    return verb;
+    if (type === null) return verb;
+    // phase-spec · overall · single-spec — the declared shapes ride `--spec`.
+    return `${verb} ${this.#flag("type")} ${type} ${this.#flag("spec")} ${this.#rel(target!.id)}`;
   }
 
   /** The one-way fix hop's literal — `fix --type <type> <type-arg> --reviews <path>
    *  <readback>` (the readback suffix the declared constant, rendered by reference).
-   *  Every embedded path value (the doc-id for the spec/plan faces · `--reviews`)
+   *  Every embedded path value (the doc-id for the doc shapes · `--reviews`)
    *  is normalized to the repoRoot-relative shape (D47); the wave face's `<type-arg>`
    *  is a task key, not a path — passed through as-is. */
   #fixText(route: Extract<Route, { kind: "fix" }>, target?: RouteTarget | null): string {
@@ -150,9 +174,6 @@ export class RouteRenderer {
     if (type === "wave") {
       return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${id} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
     }
-    if (type === "spec") {
-      return `${verb} ${this.#flag("type")} spec ${this.#flag("spec")} ${this.#rel(id)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
-    }
     if (type === "plan") {
       return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${this.#rel(id)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
     }
@@ -162,7 +183,9 @@ export class RouteRenderer {
       // ref.short() directory, the workspace double identity).
       return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
     }
-    return `${verb} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
+    if (type === null) return `${verb} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
+    // phase-spec · overall · single-spec — the declared shapes ride `--spec`.
+    return `${verb} ${this.#flag("type")} ${type} ${this.#flag("spec")} ${this.#rel(id)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
   }
 
   /** The face-to-face handoff render — the pipeline entry: a `ref` fills the declared

@@ -13,43 +13,36 @@
 //     `code: null`, never a folded `1`, and its reason text survives on stderr).
 // The child is a real hermetic shell process (no network, no repo writes).
 //
-// The stall face's own pins live here too (spec §3.3): the judge's four-state truth
-// table (pure, window injected — the production window would make a case wait out the
-// real half hour) and the sampler's two legs (a real process group and a scratch tree).
-// The sampling loop's pins close the face (§3.4): every dispatch's sampling trail —
-// sampled at once, overwritten per tick, removed at a normal end, kept when the round
-// was terminated.
+// The liveness face's own pins live here too (spec §4.2/§4.3): the sampler's two
+// child-produced legs (the round log's bytes and a real process group's CPU — the
+// four-state truth table itself lives in contract/__tests__/liveness-signal.test.ts),
+// and the retired workspace-mtime leg's replacement behaviour: a write elsewhere in
+// the tree can no longer certify progress. The sampling loop's pins close the face
+// (§3.4): every dispatch's sampling trail — sampled at once, overwritten per tick,
+// removed at a normal end, kept when the round was terminated.
 
 import { spawn } from "node:child_process";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  symlinkSync,
-  utimesSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { LivenessJudge, type LivenessSignalEntry } from "../../contract/liveness-signal.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
+import { RoundLog } from "../../infra/round-log.ts";
 import { WorkspaceRoot } from "../../infra/workspace.ts";
 import { InFlight, type InFlightRecord } from "../../session/inflight.ts";
-import type { Sample, SampleRecord } from "../../session/ledger.ts";
+import type { SampleRecord } from "../../session/ledger.ts";
 import {
   type ChildOutcome,
   type ChildRun,
   Sampler,
-  StallJudge,
+  SamplingLoop,
   TerminationPolicy,
   Terminator,
 } from "../termination.ts";
 
 /** The scratch dispatch's in-flight handle — the production wiring's shape: the
- *  record sits at the workspace-root level of the scanned tree. */
+ *  record sits at the workspace-root level. */
 const inflightOf = (root: string): InFlight =>
   new InFlight(new WorkspaceRoot(root, ".kairos/cdd"), "probe");
 
@@ -62,15 +55,17 @@ const recordOf = (): InFlightRecord => ({
   startedAt: Date.now(),
   wave: "1",
   phase: "implement",
+  cycle: 1,
+  attempt: 1,
   briefHash: null,
   plan: null,
   sampledAt: null,
   verdict: null,
 });
 
-/** One production-shaped child run over a scratch root — the child's cwd is the tree
- *  leg's scan root, and the in-flight record (already planted) lands inside it (the
- *  production wiring: the two paths share one tree). */
+/** One production-shaped child run over a scratch root — the child's cwd is that root,
+ *  and the in-flight record (already planted) lands inside it (the production wiring:
+ *  the two paths share one tree). */
 const childRun = (
   root: string,
   command: string,
@@ -115,6 +110,39 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     expect(result.stdout.length).toBeGreaterThan(2000000);
     expect(result.stdout).toMatch(/^The round succeeded; every check is green\.$/m);
     expect(result.stdout).toMatch(/^The handoff draft is the machine-readable result\.$/m);
+  });
+
+  it("pipes the child's bytes into the round log — the engine's own stdout stays silent", async () => {
+    // The production pipe, end to end: a real child, a real Terminator, a real log
+    // file. A stub runner writes the log itself, so only this face pins the wiring.
+    const root = scratch();
+    const target = path.join(root, ".kairos/cdd/probe/logs/tasks-1-implement.log");
+    const log = await RoundLog.create(target);
+    const echoed: string[] = [];
+    const spy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation((chunk: string | Uint8Array) => {
+        echoed.push(String(chunk));
+        return true;
+      });
+    try {
+      const result = await runner.run({
+        ...childRun(root, "sh", ["-c", "printf 'round-log-out\\n'; printf 'round-log-err\\n' >&2"]),
+        log,
+      });
+      expect(result.code).toBe(0);
+    } finally {
+      spy.mockRestore();
+      await log.close();
+    }
+    // both child faces land in the file, verbatim and unprefixed
+    const logged = readFileSync(target, "utf8");
+    expect(logged).toContain("round-log-out\n");
+    expect(logged).toContain("round-log-err\n");
+    expect(RoundLog.sizeOf(target)).toBeGreaterThan(0);
+    // zero echo — the child's bytes never reach the engine's own stdout face
+    expect(echoed.join("")).not.toContain("round-log-out");
+    expect(echoed.join("")).not.toContain("round-log-err");
   });
 
   it("the dispatch env overrides the inherited env on the child process", async () => {
@@ -201,7 +229,7 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     // outcome attributes the kill to the engine's own judgment — never as an
     // external signal, despite execa reporting the kill as one.
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     const result = await runner.run(
       childRun(root, "sh", ["-c", "sleep 30"], new TerminationPolicy(60_000, 300, 60)),
     );
@@ -213,6 +241,34 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     expect(result.termination?.lastSample?.verdict).toBe("stalled");
     // The in-flight record stays on disk for a human's postmortem.
     expect(existsSync(recordPathOf(root))).toBe(true);
+  });
+
+  it("ignores a foreign write elsewhere in the repo — a third party's bytes are not the child's progress", async () => {
+    // The retired workspace-mtime leg certified `progress` from ANY content mtime in
+    // the tree, so an unrelated writer (a sibling session, an editor save) could keep
+    // a dead-silent child alive until the wall-clock ceiling. Both legs now come from
+    // the child alone: its log (readable at zero bytes) and its group's CPU (flat).
+    const root = scratch();
+    const log = await RoundLog.create(
+      path.join(root, ".kairos/cdd/probe/logs/tasks-1-implement.log"),
+    );
+    const foreign = setInterval(() => {
+      writeFileSync(path.join(root, `foreign-${Date.now()}.md`), "elsewhere\n");
+    }, 40);
+    foreign.unref();
+    try {
+      const result = await runner.run({
+        ...childRun(root, "sh", ["-c", "sleep 30"]),
+        log,
+        policy: new TerminationPolicy(60_000, 300, 60),
+      });
+      expect(result.termination?.cause).toBe("stalled");
+      expect(result.code).toBeNull();
+      expect(result.termination?.lastSample?.verdict).toBe("stalled");
+    } finally {
+      clearInterval(foreign);
+      await log.close();
+    }
   });
 
   it("never kills a busy child — sustained CPU growth rules `progress`, the round ends by itself", async () => {
@@ -248,7 +304,7 @@ describe("Terminator — the asynchronous child-channel collection (spec §14 ·
     // (no stall fired, the production budget is hours away) — the external signal
     // is the termination's attributed cause, by semantic, never the SIGTERM literal.
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     // The child writes its own pid (it IS its own process group leader under the
     // killDescendants spawn shape) so the test — standing outside the seam — can
     // signal the group the way a real outside actor would.
@@ -357,9 +413,9 @@ describe("Terminator.terminationOf — the four-way derivation and its priority 
   /** The postmortem sample every non-null case must carry verbatim — the cause and
    *  its evidence ride together. */
   const lastSample: SampleRecord = {
-    sampledAt: 1234,
-    groupCpuMs: 42,
-    newestMtimeMs: 987,
+    at: 1234,
+    logSize: 987,
+    cpuMs: 42,
     verdict: "stalled",
   };
 
@@ -442,12 +498,8 @@ describe("Terminator.terminationOf — the four-way derivation and its priority 
 });
 
 // ---------------------------------------------------------------------------
-// the stall face — the judge's truth table and the sampler's two legs (§3.3)
+// the liveness legs — the sampler's two child-produced readings (§4.2/§4.3)
 // ---------------------------------------------------------------------------
-
-/** A fixed epoch for planted mtimes: every file's mtime is an explicit second, so a
- *  leg's reading is exact and never `writeFileSync`'s wall clock. */
-const EPOCH = 1_700_000_000;
 
 const scratchRoots: string[] = [];
 
@@ -458,20 +510,15 @@ const scratch = (): string => {
   return dir;
 };
 
-/** Plant a file at `rel` under `root` with an explicit mtime (seconds since epoch). */
-const plant = (root: string, rel: string, seconds: number): string => {
+/** Plant a content file at `rel` under `root` — pure fixture: the scratch root stands
+ *  in for a workspace tree, and no leg reads it. Both legs are the child's own
+ *  evidence, so the tree's bytes and mtimes are unobservable to the judge. */
+const plant = (root: string, rel: string): string => {
   const target = path.join(root, rel);
   mkdirSync(path.dirname(target), { recursive: true });
   writeFileSync(target, `${rel}\n`);
-  utimesSync(target, seconds, seconds);
   return target;
 };
-
-/** One sample tick of the two legs. */
-const tick = (groupCpuMs: number | null, newestMtimeMs: number | null): Sample => ({
-  groupCpuMs,
-  newestMtimeMs,
-});
 
 /** Spawn one detached child — its own process group (and session), the shape the
  *  production `killDescendants` spawn gives every dispatch child. */
@@ -499,114 +546,36 @@ afterEach(() => {
   for (const dir of scratchRoots.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-describe("StallJudge — the four-state truth table (spec §3.3)", () => {
-  it("rules `idled` while the injected window is open and `stalled` once it is spent", () => {
-    const judge = new StallJudge(1000, 0);
-    // The first tick has no previous observation: neither leg can have advanced,
-    // and the idle clock runs from the spawn instant.
-    expect(judge.observe(tick(100, 500), 500)).toBe("idled");
-    expect(judge.observe(tick(100, 500), 999)).toBe("idled");
-    // The window is spent — inclusive bound.
-    expect(judge.observe(tick(100, 500), 1000)).toBe("stalled");
+describe("Sampler — the two child-produced legs (spec §4.2/§4.3)", () => {
+  it("reads the round log's byte count and advances its previous-reading basis", () => {
+    const target = path.join(scratch(), "logs", "tasks-1-implement.log");
+    mkdirSync(path.dirname(target), { recursive: true });
+    writeFileSync(target, "", "utf8");
+    const sampler = new Sampler({ logPath: target, pgid: 2147483646 });
+    const first = sampler.probe();
+    // Zero bytes but READABLE — a silent child is observable, not unknown, and the
+    // first tick has no basis to advance from.
+    expect(first.logSize).toBe(0);
+    expect(first.previous).toEqual([null, null]);
+    writeFileSync(target, "progress bytes\n", { encoding: "utf8", flag: "a" });
+    const second = sampler.probe();
+    expect(second.logSize).toBe(15);
+    expect(second.previous[0]).toBe(0);
   });
 
-  it("starts the idle clock at the spawn instant, never at the first sample", () => {
-    const judge = new StallJudge(1000, 100);
-    // A tree that already carried a fresh mtime at the first tick is not progress.
-    expect(judge.observe(tick(100, 900), 500)).toBe("idled");
-    expect(judge.observe(tick(100, 900), 1100)).toBe("stalled");
-  });
-
-  it("rules `progress` on the CPU leg's advance and restarts the window from that tick", () => {
-    const judge = new StallJudge(1000, 0);
-    expect(judge.observe(tick(100, 500), 0)).toBe("idled");
-    // The process group burned CPU — the flat tree does not matter.
-    expect(judge.observe(tick(120, 500), 400)).toBe("progress");
-    // The window now runs from 400.
-    expect(judge.observe(tick(120, 500), 900)).toBe("idled");
-    expect(judge.observe(tick(120, 500), 1400)).toBe("stalled");
-  });
-
-  it("rules `progress` on the tree leg's advance alone — a rewrite under a flat CPU group", () => {
-    const judge = new StallJudge(1000, 0);
-    judge.observe(tick(100, 500), 0);
-    expect(judge.observe(tick(100, 700), 200)).toBe("progress");
-  });
-
-  it("compares the tree leg against its historical maximum — a tree that only loses files makes no progress", () => {
-    const judge = new StallJudge(1000, 0);
-    judge.observe(tick(100, 900), 0);
-    // The newest file was deleted — the reading went backwards, never an advance.
-    expect(judge.observe(tick(100, 600), 500)).toBe("idled");
-    // Below the historical maximum — still not an advance.
-    expect(judge.observe(tick(100, 800), 900)).toBe("idled");
-    // Above it — an advance.
-    expect(judge.observe(tick(100, 950), 950)).toBe("progress");
-  });
-
-  it("rules `unknown` on an unreadable leg and never kills — however long the window has run", () => {
-    const judge = new StallJudge(10, 0);
-    expect(judge.observe(tick(null, 500), 10 ** 9)).toBe("unknown");
-    expect(judge.observe(tick(100, null), 10 ** 9)).toBe("unknown");
-    // An unreadable tick proves neither progress nor idleness: it never restarts the
-    // window, so the first readable flat tick rules on the window that has run.
-    expect(judge.observe(tick(100, 500), 10 ** 9)).toBe("stalled");
-  });
-});
-
-describe("Sampler — the two legs (spec §3.3)", () => {
-  it("reads the newest content mtime, excluding `.git/` and the in-flight record but not `.kairos/`", () => {
-    const root = scratch();
-    plant(root, "progress.md", EPOCH + 10);
-    // A child's handoff draft under `.kairos/` IS real progress — the domain is never
-    // excluded wholesale.
-    const draft = plant(root, ".kairos/cdd/slug/tasks-1-handoff.md", EPOCH + 20);
-    // The VCS internal and the engine's own record are newer, and neither counts.
-    plant(root, ".git/COMMIT_EDITMSG", EPOCH + 900);
-    const recordPath = plant(root, ".kairos/cdd/in-flight.json", EPOCH + 1000);
+  it("fails open on unreadable legs — `null` readings, never a throw nor a fabricated zero", () => {
+    // No such file and no such process group: both legs are unreadable. The judge
+    // rules `unknown` from such a tick, never a kill (the contract suite pins that).
     const sampler = new Sampler({
-      pgid: 0,
-      scanRoot: root,
-      exclude: Sampler.excludesFor(root, recordPath),
-    });
-    expect(sampler.probe().newestMtimeMs).toBe(statSync(draft).mtimeMs);
-  });
-
-  it("never follows a symlink — a linked-in file is not this tree's progress", () => {
-    const outside = scratch();
-    const target = plant(outside, "elsewhere.md", EPOCH + 5000);
-    const root = scratch();
-    const own = plant(root, "progress.md", EPOCH + 10);
-    symlinkSync(target, path.join(root, "link.md"));
-    symlinkSync(outside, path.join(root, "linkdir"));
-    const sampler = new Sampler({ pgid: 0, scanRoot: root, exclude: [] });
-    expect(sampler.probe().newestMtimeMs).toBe(statSync(own).mtimeMs);
-  });
-
-  it("stops descending at the declared depth ceiling", () => {
-    const root = scratch();
-    const shallow = plant(root, "a/b/deep.md", EPOCH + 10);
-    const buried = Array.from({ length: Sampler.MAX_DEPTH + 1 }, (_, i) => `d${i}`).join("/");
-    plant(root, `${buried}/too-deep.md`, EPOCH + 900);
-    const sampler = new Sampler({ pgid: 0, scanRoot: root, exclude: [] });
-    expect(sampler.probe().newestMtimeMs).toBe(statSync(shallow).mtimeMs);
-  });
-
-  it("fails open on an unreadable leg — `null` into the judge's `unknown`, never a kill", () => {
-    // The window is zero: any judged tick would be `stalled` on the spot.
-    const judge = new StallJudge(0, 0);
-    const sampler = new Sampler({
+      logPath: path.join(scratch(), "gone", "round.log"),
       pgid: 2147483646,
-      scanRoot: path.join(scratch(), "gone"),
-      exclude: [],
     });
-    const sample = sampler.probe();
-    expect(sample.groupCpuMs).toBeNull();
-    expect(sample.newestMtimeMs).toBeNull();
-    expect(judge.observe(sample, 10 ** 9)).toBe("unknown");
+    const readings = sampler.probe();
+    expect(readings.logSize).toBeNull();
+    expect(readings.cpuMs).toBeNull();
   });
 
-  it("reads the process group's own CPU through the ONE OS face — the busy leg the judge rules on", async () => {
+  it("reads the process group's own CPU through the ONE OS face — the additional leg", async () => {
     const pid = await detachedChild(process.execPath, ["-e", "while (true) {}"]);
     try {
       // `ps -o time=` truncates to whole seconds off macOS, so a busy group's first
@@ -619,43 +588,8 @@ describe("Sampler — the two legs (spec §3.3)", () => {
       }
       expect(cpuMs ?? 0).toBeGreaterThan(0);
       // The sampler's CPU leg is that same reading — it holds no `ps` of its own.
-      const sampler = new Sampler({ pgid: pid, scanRoot: scratch(), exclude: [] });
-      expect(sampler.probe().groupCpuMs).not.toBeNull();
-    } finally {
-      reap(pid);
-    }
-  });
-
-  it("keeps the engine's own record out of the mtime leg — a tick never self-certifies progress", async () => {
-    const pid = await detachedChild("sleep", ["30"]);
-    try {
-      const root = scratch();
-      const draft = plant(root, ".kairos/cdd/slug/tasks-1-handoff.md", EPOCH + 100);
-      const recordPath = plant(root, ".kairos/cdd/in-flight.json", EPOCH + 100);
-      const sampler = new Sampler({
-        pgid: pid,
-        scanRoot: root,
-        exclude: Sampler.excludesFor(root, recordPath),
-      });
-      const judge = new StallJudge(1000, 0);
-      const first = sampler.probe();
-      // An idle group is readable at zero CPU — the leg's teeth are `null` vs a number.
-      expect(first.groupCpuMs).not.toBeNull();
-      expect(first.newestMtimeMs).toBe(statSync(draft).mtimeMs);
-      expect(judge.observe(first, 0)).toBe("idled");
-      // One sampling tick later: the ONLY thing that changed is the engine's own
-      // write, so the leg stays flat and the window is allowed to be spent.
-      utimesSync(recordPath, EPOCH + 900, EPOCH + 900);
-      const second = sampler.probe();
-      expect(second.newestMtimeMs).toBe(first.newestMtimeMs);
-      expect(judge.observe(second, 1000)).toBe("stalled");
-      // The atomic write seam's OWN temp sibling (`<record>.<n>`) is the engine's
-      // write too: a tick landing mid-write must not read it as the child's progress.
-      const sibling = plant(root, ".kairos/cdd/in-flight.json.4123456789", EPOCH + 1200);
-      const third = sampler.probe();
-      expect(third.newestMtimeMs).toBe(statSync(draft).mtimeMs);
-      expect(statSync(sibling).mtimeMs).toBeGreaterThan(statSync(recordPath).mtimeMs);
-      expect(judge.observe(third, 2000)).toBe("stalled");
+      const sampler = new Sampler({ logPath: path.join(scratch(), "round.log"), pgid: pid });
+      expect(sampler.probe().cpuMs).not.toBeNull();
     } finally {
       reap(pid);
     }
@@ -707,7 +641,7 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
 
   it("takes a sample the moment the child is spawned — not only from the first interval on", async () => {
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     // The cadence (60 s) outlives this child many times over: any tick at all can
     // only be the immediate first sample.
     const { result, records } = await watchTrail(
@@ -722,7 +656,7 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
 
   it("overwrites the record's sampling cells once per tick — the identity fields survive", async () => {
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     const { result, records } = await watchTrail(
       runner.run(
         childRun(root, "sh", ["-c", "sleep 0.8"], new TerminationPolicy(60_000, 60_000, 60)),
@@ -745,16 +679,16 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
       expect(record.slug).toBe("probe");
       expect(record.wave).toBe("1");
     }
-    // The engine's OWN record never enters the mtime leg: a flat, sleeping child whose
-    // only off-tree write is the record itself must not rule progress. Were the record
-    // not excluded from the scan, every tick after the first would certify a mtime
-    // advance (the §3.3 exclusion, wired end to end).
+    // The engine's OWN record write is on no leg at all: both legs are the child's own
+    // evidence (its log's bytes, its group's CPU), so a flat, sleeping child reads
+    // `progress` on no tick whatever the engine writes beside it — a structural fact,
+    // never a declared exclusion.
     expect(records.at(-1)?.verdict).not.toBe("progress");
   });
 
   it("keeps the record after a self-ending round — release, not the loop, removes it", async () => {
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     const inflight = inflightOf(root);
     // The production order: acquire (record + lock) first, then the child runs.
     await inflight.acquire(recordOf());
@@ -778,7 +712,7 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
 
   it("keeps the record (and its last sampling cells) when the round was terminated", async () => {
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     const recordPath = recordPathOf(root);
     const { result } = await watchTrail(
       runner.run(childRun(root, "sh", ["-c", "sleep 30"], new TerminationPolicy(300, 60_000, 60))),
@@ -790,20 +724,80 @@ describe("SamplingLoop — the dispatch's in-flight sampling trail (spec §3.4)"
     expect(existsSync(recordPath)).toBe(true);
     const onDisk = readRecord(recordPath);
     expect(onDisk?.verdict).toBe(result.termination?.lastSample?.verdict);
-    expect(onDisk?.sampledAt).toBe(result.termination?.lastSample?.sampledAt);
+    expect(onDisk?.sampledAt).toBe(result.termination?.lastSample?.at);
     // …and the round's full last sample (both legs) rode the termination in memory —
     // never a re-read of the file the engine itself wrote.
-    expect(result.termination?.lastSample?.newestMtimeMs).not.toBeUndefined();
+    const last = result.termination?.lastSample;
+    expect(last?.logSize).not.toBeUndefined();
+    expect(last?.cpuMs).not.toBeUndefined();
   });
 
   it("writes no sampling cells when the child never spawned — nothing to sample", async () => {
     const root = scratch();
-    plant(root, "work.md", EPOCH + 10);
+    plant(root, "work.md");
     const result = await runner.run(childRun(root, "cdd-no-such-binary-xyz", []));
     expect(result.termination).toBeNull();
     // The planted intent survives untouched and carries no fabricated tick.
     const onDisk = readRecord(recordPathOf(root));
     expect(onDisk?.sampledAt).toBeNull();
     expect(onDisk?.verdict).toBeNull();
+  });
+
+  it("ends the trail on the first stall — a later unreadable tick never rewrites the postmortem", () => {
+    // The deterministic pin: a scripted leg + a fake clock drive the loop's ticks at
+    // explicit instants, so the stall attribution depends on neither real CPU
+    // resolution (an `ps` read under a loaded run) nor how long a dying process takes
+    // to leave the table. The trail's last cell must BE the stall that authorized the
+    // kill — a later tick can only observe the corpse and would print `unknown`.
+    const root = scratch();
+    const inflight = inflightOf(root);
+    inflight.ensureMarker();
+    writeFileSync(inflight.path(), `${JSON.stringify(recordOf(), null, 2)}\n`, "utf8");
+    let now = 1000;
+    let stalls = 0;
+    let tick = 0;
+    const values: (number | null)[] = [10, 10, null];
+    const leg: LivenessSignalEntry = {
+      leg: "log",
+      create: () => ({
+        sample: () => {
+          const value = values[Math.min(tick, values.length - 1)] ?? null;
+          const reading = { value, readableAt: value === null ? null : now };
+          tick += 1;
+          return reading;
+        },
+      }),
+    };
+    const loop = new SamplingLoop({
+      sampler: new Sampler({ logPath: "", pgid: 1 }, [leg]),
+      judge: new LivenessJudge(),
+      inflight,
+      intervalMs: 60,
+      idleWindowMs: 300,
+      spawnedAt: now,
+      clock: () => now,
+      onStall: () => {
+        stalls += 1;
+      },
+    });
+
+    loop.tick();
+    expect(loop.lastSample()?.verdict).toBe("idled");
+
+    now = 1300;
+    loop.tick();
+    expect(loop.lastSample()).toEqual({ at: 1300, logSize: 10, cpuMs: null, verdict: "stalled" });
+    expect(stalls).toBe(1);
+    expect(loop.idleMs()).toBe(300);
+
+    // The post-kill tick — the real world's race: the legs are unreadable now. The
+    // loop has ended, so the postmortem keeps the stall, and the kill never re-fires.
+    now = 1400;
+    loop.tick();
+    expect(loop.lastSample()?.verdict).toBe("stalled");
+    expect(stalls).toBe(1);
+    const onDisk = readRecord(inflight.path());
+    expect(onDisk?.verdict).toBe("stalled");
+    expect(onDisk?.sampledAt).toBe(1300);
   });
 });

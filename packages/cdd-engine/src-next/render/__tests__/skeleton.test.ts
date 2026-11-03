@@ -118,7 +118,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "date: 2026-10-11",
         "slug: ':::fill slug'",
         "program: <overall-slug>",
-        "status: Draft",
         "author: ':::fill author'",
         "---",
         "",
@@ -205,7 +204,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "version: v0.1",
         "date: 2026-10-11",
         "slug: ':::fill slug'",
-        "status: Draft",
         "author: ':::fill author'",
         "---",
         "",
@@ -275,7 +273,6 @@ describe("SkeletonAssembler — the four doc skeletons (byte pins)", () => {
         "version: v0.1",
         "date: 2026-10-11",
         "slug: ':::fill slug'",
-        "status: Draft",
         "author: ':::fill author'",
         "issues: ':::fill issues'",
         "---",
@@ -348,14 +345,18 @@ describe("SkeletonAssembler — the required-anchor coverage probes (§3.2)", ()
     }
   });
 
-  it("renders the generator truths — the enum status key and the graph rows", () => {
-    for (const key of ["overall", "phase-spec", "single-spec"] as const) {
-      expect(renderOf(key)).toContain("status: Draft");
+  it("renders the generator truths — the doc-type enum key and the graph rows", () => {
+    for (const key of KEYS) {
+      expect(renderOf(key)).toContain(`doc-type: ${key}`);
     }
-    // the plan head carries no status key (its registry omits it)
-    expect(renderOf("plan")).not.toContain("status: ");
     expect(renderOf("overall")).toContain("P1 -> P2");
     expect(renderOf("overall")).toContain("- `->` = hard block");
+  });
+
+  it("emits no `status:` head key — the retired field never returns to the skeleton", () => {
+    for (const key of KEYS) {
+      expect(renderOf(key), `${key}: no status head key`).not.toContain("status:");
+    }
   });
 
   it("renders every content position as a `:::fill <slot>` slot — the body and the front-matter content keys", () => {
@@ -420,13 +421,12 @@ describe("SkeletonAssembler — the front-matter head (spec §2.2/§4.2)", () =>
     }
   });
 
-  it("emits the truth keys' true values — doc-type · v0.1 · the injected date · Draft", () => {
+  it("emits the truth keys' true values — doc-type · v0.1 · the injected date", () => {
     for (const key of KEYS) {
       const block = frontmatterBlockOf(key);
       expect(block).toContain(`doc-type: ${key}`);
       expect(block).toContain("version: v0.1");
       expect(block).toContain(`date: ${DATE}`);
-      if (key !== "plan") expect(block).toContain("status: Draft");
     }
   });
 
@@ -461,14 +461,13 @@ describe("SkeletonAssembler — the front-matter head (spec §2.2/§4.2)", () =>
 describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () => {
   /** The structure/truth/header rows that must never carry a `:::fill` — the
    *  front-matter truth/link keys, the doc-type declaration, the fixed heading
-   *  lines, the version row, the Status truth, the link anchors, the graph rows
-   *  and the table headers/separators. */
+   *  lines, the version row, the link anchors, the graph rows and the table
+   *  headers/separators. */
   const STRUCTURE_LINES: Record<string, readonly string[]> = {
     overall: [
       "doc-type: overall",
       "version: v0.1",
       "date: 2026-10-11",
-      "status: Draft",
       "## Document scope",
       "## Program charter",
       "### Goal",
@@ -503,7 +502,6 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "doc-type: phase-spec",
       "version: v0.1",
       "date: 2026-10-11",
-      "status: Draft",
       "program: <overall-slug>",
       "## Design",
       "### Acceptance criteria",
@@ -516,7 +514,6 @@ describe("SkeletonAssembler — the placeholder-anchoring probes (§4.1)", () =>
       "doc-type: single-spec",
       "version: v0.1",
       "date: 2026-10-11",
-      "status: Draft",
       "## Background & root cause",
       "## Design decisions",
       "## Acceptance",

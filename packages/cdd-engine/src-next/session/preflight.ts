@@ -33,10 +33,11 @@ import type { Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { SlugIndex } from "../infra/slug-index.ts";
-import type { TargetType } from "./faces.ts";
+import { TargetFaceTable, type TargetType } from "./faces.ts";
 import { TaskGraph } from "./graph.ts";
 import type { InFlight, InFlightState } from "./inflight.ts";
 import type { Ledger, ProgressData } from "./ledger.ts";
+import { RoundRecords } from "./ledger.ts";
 import { WaveGate, type WaveGateReason } from "./wave.ts";
 
 /** The named gates the seam composes — the run evidence + the blocking gate label. */
@@ -61,9 +62,19 @@ export type PreFlightReason =
   | WaveGateReason
   | "doc-contract";
 
-/** The doc-scope judgment outcome of one dispatch — what the checked list renders. */
+/** The doc-scope judgment outcome of one dispatch — what the checked list renders.
+ *  `layersUnavailable` marks the shape where the call site had no plan layers to inject
+ *  (the wave-width rule then judged nothing): the checked list shows that degradation
+ *  instead of a bare `passed`. A dispatch never reaches it — the plan face's graph gate
+ *  always yields the layers (see the assignment site) — so the row serves a
+ *  non-dispatch judgment face, where a missing fact bundle is rendered rather than
+ *  refused. */
 type DocOutcome =
-  | { readonly kind: "judged"; readonly findings: readonly Finding[] }
+  | {
+      readonly kind: "judged";
+      readonly findings: readonly Finding[];
+      readonly layersUnavailable?: boolean;
+    }
   | { readonly kind: "no-doc-target" }
   | { readonly kind: "unreadable" }
   | { readonly kind: "not-judged" };
@@ -301,9 +312,12 @@ export class PreFlight {
         );
       }
     }
-    // 6. doc-contract — the doc faces' structural gate (the doc-scope rules).
+    // 6. doc-contract — the doc shapes' structural gate (the doc-scope rules).
+    //    The four document shapes (`phase-spec` · `overall` · `plan` · `single-spec`)
+    //    are judged by the SAME gate: the document's declared `doc-type:` picks the
+    //    contract, never the command's `--type` spelling.
     let docOutcome: DocOutcome = this.#docOutcomeOf(ctx);
-    if (ctx.type === "spec" || ctx.type === "plan") {
+    if (TargetFaceTable.isDocShape(ctx.type)) {
       gates.push("doc-contract");
       checked.push("doc-contract");
       const doc = ctx.doc;
@@ -360,6 +374,10 @@ export class PreFlight {
             ledgerOutcome,
           );
         }
+        // The plan's topological layers ride the graph gate's own derivation
+        // (`TaskGraph#batches()` — the ONE width authority), so the plan-scope rules
+        // judge exactly the layer set the wave gates will dispatch against.
+        const taskLayers = graph?.batches();
         const findings = this.#contract.validate({
           docKey: doc.docKey,
           path: docAbsolute,
@@ -367,8 +385,20 @@ export class PreFlight {
           root: ctx.repoRoot,
           slugIndex: index,
           fs: this.#fs,
+          taskLayers,
         });
-        docOutcome = { kind: "judged", findings };
+        docOutcome = {
+          kind: "judged",
+          findings,
+          // The layer fact is absent only where the graph gate never ran, and on the
+          // dispatch faces that cannot happen: `--type plan` REQUIRES `--plan` (a usage
+          // rejection exits first), so a plan doc always has its graph and therefore its
+          // layers; a phase-spec's docKey is `phase-spec`, never `plan`; and the wave /
+          // branch faces judge no doc target (`no-doc-target`). The row therefore
+          // describes a non-dispatch judgment face (a programmatic caller, a future
+          // face) — a visible degradation, never a dispatch-time refusal.
+          layersUnavailable: doc.docKey === "plan" && taskLayers === undefined,
+        };
         if (findings.length > 0) {
           return this.#refusal(
             {
@@ -478,6 +508,8 @@ export class PreFlight {
           rows.push(`${declaration.id}: ${words.skippedNotJudged}`);
         else if (doc.kind === "unreadable")
           rows.push(`${declaration.id}: ${words.skippedUnreadableDoc}`);
+        else if (doc.layersUnavailable === true && declaration.id === "wave-width-at-most-three")
+          rows.push(`${declaration.id}: ${words.planLayersUnavailable}`);
         else
           rows.push(
             `${declaration.id}: ${
@@ -545,15 +577,16 @@ export class PreFlight {
     return snapshots;
   }
 
-  /** The task ids the ledger recorded at least one round for (the recorded set of
-   *  the plan/ledger agreement rule). Only TASK waves count: a doc/branch line row
-   *  (keyed `"plan"` / `"spec"` / `"branch"`) is not a task id. */
+  /** The task ids the ledger recorded a COMPLETED round for (the recorded set of the
+   *  plan/ledger agreement rule — the completion read, so a dispatched-but-failed
+   *  round does not close the agreement). Only TASK waves count: a doc/branch line row
+   *  (keyed `"plan"` / `"phase-spec"` / `"overall"` / `"single-spec"` / `"branch"`) is
+   *  not a task id. */
   #recordedTasksOf(data: ProgressData | null): readonly number[] {
     const recorded: number[] = [];
     for (const row of data?.waves ?? []) {
-      if (!row.rounds) continue;
-      const hasRound = Object.values(row.rounds).some((cycles) => cycles.length > 0);
-      if (!hasRound) continue;
+      const completed = RoundRecords.of(row).some((record) => record.verdict.targetAction);
+      if (!completed) continue;
       recorded.push(...this.#taskIdsOf(row.wave));
     }
     return recorded;

@@ -3,13 +3,14 @@
 // home PLUS the TemplateAssembler (one module, one renderer). The dispatch prompt
 // data (the per-mode shell frames · the review variants · the single prose return block ·
 // the round-context subsets · the token registry · the clause partials) and the
-// review criteria (the four-type axes guides — P4, extended to spec/plan by the
-// v1.8 review-closeout) are typed constant data here, imported never parsed:
+// review criteria (the per-key axes guides — P4, extended by the v1.8
+// review-closeout and the P22 charter body) are typed constant data here, imported
+// never parsed:
 //
 //   · TEMPLATE_PROMPT — the rendering data plane the assembler consumes; this
 //     module renders over it (the JSON's $schema/_doc prose plane is gone).
-//   · REVIEWS — the four-type review criteria (task/branch axes guides + the
-//     spec/plan URC prose, migrated from the dispatch table — their single typed
+//   · REVIEWS — the per-type review criteria (task/branch axes guides + the
+//     document shapes' URC prose, migrated from the dispatch table — their single typed
 //     home, P4). P5 lands here: the "no parallel sub-agents" phrase is deleted.
 //
 // T15 v1.8 (the mode dispatch table — §3.5) restructures the prompt from "one all-mode
@@ -19,10 +20,10 @@
 //     prefix (its instruction shell + the injected writable-subset schema at the
 //     shell's tail — byte-identical for every dispatch of the mode, so the prompt-
 //     cache prefix groups by mode) + the mode's REDUCED round-context subset.
-//   · REVIEW_VARIANTS — the review mode's four per-type rows (task/branch/spec/plan):
-//     the criteria + lens text are FIXED PREFIX content (folded into each variant's
-//     shell — they are per-type constants, so they never ride the dynamic tail; the
-//     INPUT_CRITERIA / INPUT_LENS round-context tokens are gone) and each variant's
+//   · REVIEW_VARIANTS — the review mode's per-target rows, one per target type:
+//     the criteria + lens text are FIXED PREFIX content (folded into each row's
+//     shell — the body is selected per target, so they never ride the dynamic tail;
+//     the INPUT_CRITERIA / INPUT_LENS round-context tokens are gone) and each row's
 //     fixed prefix is byte-stable — a review dispatch's cache prefix groups by type.
 //   · the normalized token vocabulary (§3.5): INPUT_* (read-side) / OUTPUT_* (write-
 //     side) / WORKSPACE_* (environment) / BASE_BRANCH (the branch review's scope
@@ -66,15 +67,13 @@ export interface TemplateToken {
 }
 
 /** The work-modes of the dispatch table — the ROLE values (fix's spec/plan face is
- *  the docs-fix mode; review covers task/branch/spec/plan + branch-review). */
+ *  the docs-fix mode; review covers every target type + branch-review). */
 export type WorkMode = "implement" | "fix" | "review" | "docs-fix";
 
 /** The work-mode rows of the dispatch table — every ROLE except review (the review
- *  mode's rows are the four per-type REVIEW_VARIANTS). */
+ *  mode's six per-target rows live in `reviews`, over the five criteria bodies
+ *  keyed by `ReviewKey`). */
 export type WorkModeRowKey = Exclude<WorkMode, "review">;
-
-/** The four review types — the review mode's per-type prefix variants (the criteria
- *  and lens are per-type constants, so each variant's fixed prefix is byte-stable). */
 
 /** One dispatch-table row — a mode's fixed prefix + its reduced dynamic tail. */
 export interface ModePromptRow {
@@ -109,19 +108,29 @@ export interface TemplatePrompt {
   clauses: Readonly<Record<string, string>>;
 }
 
-/** One review guide row — the criteria of one review type (its lens vocabulary +
- *  the axes/URC prose — the review prompt's fixed criteria body). */
+/** One review guide row — one criteria body (its lens vocabulary + the axes/URC
+ *  prose — the review prompt's fixed criteria body). */
 export interface ReviewGuideRow {
   /** The lens vocabulary — the finding lens labels the review may carry. */
   lensEnum: readonly string[];
   /** The axes/URC guide prose — the criteria body (the task/branch four axes +
-   *  verification-evidence duty; the spec/plan URC rows). */
+   *  verification-evidence duty; the document shapes' URC rows). */
   axesGuide: string;
 }
 
-/** The review criteria — the four per-type guides (P4 typed data; the spec/plan
- *  URC prose migrated from the dispatch table at v1.8 closeout). */
-export type ReviewGuides = Readonly<Record<TargetType, ReviewGuideRow>>;
+/** The review criteria keys — the criteria-BODY domain (never the target
+ *  vocabulary): the five distinct bodies a review target selects among. `wave` /
+ *  `branch` / `plan` / `overall` are the same-named bodies; `spec` is the ONE
+ *  narrative body the two spec-shaped document targets (`phase-spec` ·
+ *  `single-spec`) share, so no second prose copy exists. The word `spec` names a
+ *  criteria body only — it is not a `--type` value (the CLI enum carries
+ *  `phase-spec` / `single-spec`). */
+export type ReviewKey = "wave" | "branch" | "plan" | "overall" | "spec";
+
+/** The review criteria — the five per-key guides (P4 typed data; the spec/plan
+ *  URC prose migrated from the dispatch table at v1.8 closeout, the charter body
+ *  added by P22). */
+export type ReviewGuides = Readonly<Record<ReviewKey, ReviewGuideRow>>;
 
 /** The nominal fixed-frame cells shared by every shell (byte-identical words — the
  *  fixed prefix is read on every dispatch, so every word costs child context). */
@@ -136,6 +145,20 @@ const FRAME_ITEMS: readonly string[] = [
  *  prefix), never this fixed text. */
 const EVIDENCE_ITEM =
   "**Evidence gate:** write the test-evidence file at the prescribed `OUTPUT_EVIDENCE` path per the `test-evidence` schema in `## Handoff schema` — `command`/`exit_code`/`passed`/`warnings_count` + `typecheck` (`command`/`exit_code`/`passed`); `behavior_change` when applicable. Update the round's report after verification. Missing or schema-violating evidence → the engine rewrites the draft to `status: BLOCKED`. Reports, test output, diffs: files only, never the return.";
+
+/** The work plane's ONE capability declaration (design spec §7.3) — a dispatched
+ *  implement / fix / docs-fix round may amend the spec and plan CONTENT face,
+ *  because the document authoring right is a prompt slot, never a carrier slot (it
+ *  is not in `CARRIER`, not in `PLANE_REQUIRED`, not in the frame and not in
+ *  `progress.json` — the gate judges the result, never the declaration). The
+ *  structure face (the plan's Task id set and any task's `DependsOn` set) belongs to
+ *  the orchestrator: the engine snapshots both faces at dispatch and compares them at
+ *  the close, so a round-internal structure edit judges the round hard. The docs-fix
+ *  row carries it too — a fix round on a spec / plan line IS docs-fix, so this is the
+ *  row the authorization has to reach. The review variants declare nothing — a review
+ *  is read-only. */
+const WORK_CAPABILITY =
+  "**Capability — `capability: may.amend = content`:** this round may amend the spec's and the plan's content face (facts, file lists, steps, acceptance detail, cited line numbers). The structure face — the plan's Task id set and any task's `DependsOn` set — belongs to the orchestrator: the engine snapshots it at dispatch and compares it at the close, so changing it inside this round judges the round hard.";
 
 /** The discipline-clause cells shared by every shell (the `{{> cl:…}}` partials
  *  resolve from the single clause container — the same bytes, one per shell). */
@@ -166,6 +189,7 @@ const IMPLEMENT_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
+  WORK_CAPABILITY,
   `**implement:** read \`INPUT_WAVE_BRIEF\` (the complete plan mirror — every \`### Task N:\` of the wave + the plan's \`## Constraints\` section, fresh-extracted at dispatch). \`WAVE\` = this round's wave (the task list); implement ALL tasks of the wave, never a subset. \`CONFIRMED_SEAMS\` in the brief → apply as-is; else propose test boundaries in the report, then invoke **\`${DISPATCH.implement}\`**. Write the handoff draft at \`OUTPUT_HANDOFF\` per \`## Handoff schema\` BEFORE the return block: \`status\` (APPROVED once applied, else BLOCKED + the reason in \`notes\`) and \`artifacts\` (the prescribed \`OUTPUT_REPORT\`/\`OUTPUT_EVIDENCE\` paths from the round context — the \`{family}-{key}-\` canonical names, zero free naming).`,
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
@@ -185,8 +209,10 @@ const FIX_SHELL: readonly string[] = [
   "## Instructions",
   "",
   ...FRAME_ITEMS,
+  WORK_CAPABILITY,
   ...FIX_TYPED_INSTRUCTIONS,
   "**fix:** read `INPUT_REVIEWS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_PLAN` on the plan/branch lines — the plan document; `INPUT_SPEC` on the spec line — the spec document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_REVIEWS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  '**Dispositions:** every requested finding needs a disposition keyed by its own summary text (verbatim), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` — a missing or mis-keyed disposition fails the round.',
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
   // T5 (v0.3) — The work plane's ONE strict-schema sentence: every top-level draft
@@ -200,14 +226,17 @@ const FIX_SHELL: readonly string[] = [
 ];
 
 /** The docs-fix row's fixed prefix — header + instructions (no evidence — the
- *  docs-fix round writes no evidence file). */
+ *  docs-fix round writes no evidence file). It carries the shared work capability
+ *  declaration: the fix face's spec / plan dispatch lands on this row. */
 const DOCS_FIX_SHELL: readonly string[] = [
   "# CDD dispatch — docs-fix round",
   "",
   "## Instructions",
   "",
   ...FRAME_ITEMS,
+  WORK_CAPABILITY,
   "**docs-fix:** apply `INPUT_REVIEWS` (all severities) directly to the judged doc — `INPUT_PLAN` on a plan-doc line, `INPUT_SPEC` on a spec-doc line — removing fixed findings; record the path in `artifacts.doc` and report the round in `status` (APPROVED once every finding is applied, else BLOCKED + the reason in `notes`). Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; retry = full re-run (idempotent).",
+  '**Dispositions:** every requested finding needs a disposition keyed by its own summary text (verbatim), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` — a missing or mis-keyed disposition fails the round.',
   ...LICENSE_ITEMS,
   // The generic strict-schema sentence — the SAME one the work shells carry: the
   // injected declaration is the draft's single field source, zero per-mode field
@@ -303,111 +332,130 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
   },
 };
 
-/** The four-type review criteria — the review prompts' fixed criteria body (P4; the
- *  spec/plan URC rows migrated from the dispatch table at the v1.8 closeout — their
- *  single typed home). */
+/** The two slots of the severity rubric — the reviewed artifact's name and the
+ *  audience whose expectation judges the artifact's silence. The values are the
+ *  literal placeholder spellings the fragment carries. */
+export const SEVERITY_RUBRIC_SLOTS = {
+  artifact: "{artifact}",
+  audience: "{audience}",
+} as const;
+
+/** The severity rubric — the ONE calibration fragment every review axes guide
+ *  shares: the four blocker questions, the warn/nit tiers, the same-grade
+ *  consistency duty, the vision (silence-is-not-permission) sentence with its two
+ *  slots, the set-aside ledger and the closing acknowledgement. */
+export const SEVERITY_RUBRIC =
+  "Calibrate findings by real severity — not everything is a blocker. A finding is a blocker when any one of these holds: (a) the declared acceptance gate, contract or prompt is violated; (b) a legal input escapes the declared failure face (a blank input returns 500, an unknown id is not a 404); (c) the gate fails or the suite can never go red (an inert grep · a dead guard · an unconditional skip); (d) a security or privacy defect. Debt inside the contract is a warn (duplicated policy · stale docstring · a missing coverage case). Style, naming and line-wrapping is a nit. Within one run, a defect already graded in the same class keeps that grade; crossing grades names its reason in the finding. The reviewed {artifact} is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable {audience} would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).";
+
+/** The slot values per criteria body — the ONE registry the filled fragment reads.
+ *  `{artifact}` = the reviewed product's name; `{audience}` = the subject whose
+ *  expectation judges the artifact's silence. The two spec-shaped targets share the
+ *  ONE `spec` row, so their shared narrative body can never fork its vocabulary;
+ *  the charter's own wording rides its criteria body (the `REVIEWS.overall` row),
+ *  never a second vocabulary minted here. */
+export const REVIEW_BODY_TEXT: Readonly<
+  Record<ReviewKey, { readonly artifact: string; readonly audience: string }>
+> = {
+  wave: { artifact: "artifact", audience: "user" },
+  branch: { artifact: "artifact", audience: "user" },
+  spec: { artifact: "spec", audience: "downstream author" },
+  plan: { artifact: "plan", audience: "implementer" },
+  overall: { artifact: "spec", audience: "downstream author" },
+};
+
+/** The filled severity rubric of one criteria body — the shared fragment with that
+ *  body's two slot values substituted. The parameter domain IS the `REVIEWS` key
+ *  domain, so a consumer derives the guide from the same key. */
+export const reviewGuideOf = (key: ReviewKey): string => {
+  const text = REVIEW_BODY_TEXT[key];
+  return SEVERITY_RUBRIC.replaceAll(SEVERITY_RUBRIC_SLOTS.artifact, text.artifact).replaceAll(
+    SEVERITY_RUBRIC_SLOTS.audience,
+    text.audience,
+  );
+};
+
+/** The spec-shaped documents' narrative criteria body — the phase-spec line's URC
+ *  + its program-conformance clause, the ONE body both spec-shaped target rows
+ *  select (the filled rubric is what differs per row). The charter's own criteria
+ *  body is `docCharterAxes` — never a second narrative copy alongside this one. */
+const docNarrativeAxes = (guide: string): string =>
+  `Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at \`INPUT_OVERALL\` (the charter its \`program:\` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. ${guide}`;
+
+/** The charter's criteria body — the six things a program charter owns, and only
+ *  those. It carries none of the implementation-face evidence duty the narrative
+ *  body carries (running the repository's commands, pinning every claim): a charter
+ *  is judged on the program's shape, never on a phase's code. */
+const docCharterAxes = (guide: string): string =>
+  `Follow URC: single-cycle, lens-tagged findings (scope/inventory/dependency/acceptance/boundary) — judge the charter as a program charter, on six criteria and nothing it does not own. (1) Scope is a program increment — every phase's Scope names what the PROGRAM gains there (a capability, a boundary, a contract), never implementation detail such as a file list or a step-by-step walkthrough; a scope that descends to code is a scope finding. (2) Inventory, graph and order agree — every Phase inventory row has a Dependency graph node and every node a row, each edge is marked hard or soft and matches the row's Dependency cell, and the documented execution order is one the edges allow: a soft edge that hides a serial dependency, or an order no edge set permits, is a dependency finding. (3) Acceptance cells are phase-judgeable — each row's acceptance names an outcome a reviewer can decide when that phase closes, never a placeholder (TBD, a restated goal, a criterion only the program's end can settle); an undecidable cell is an acceptance finding. (4) Non-goals fence the program — every registered phase sits inside the boundary the Non-goals draw, and a non-goal drawn so loosely that it excludes nothing is a boundary finding. (5) The change record is a decision record — each entry states what was decided and why (its decision id where the program keeps one), never a work log of rounds and dispatches; a diary entry is an inventory finding. (6) Ledger and reality agree — a phase the tree shows closed is marked Done, a phase still in flight is not, and work no registered phase carries never appears as a delivered increment; a drift between the inventory and the tree is an inventory finding. ${guide}`;
+
+/** The per-key review criteria — the review prompts' fixed criteria body (P4; the
+ *  document shapes' URC rows migrated from the dispatch table at the v1.8 closeout —
+ *  their single typed home; the charter body lands here at P22). The shared
+ *  calibration tail rides `reviewGuideOf` (one fragment per row), never a per-key
+ *  copy. */
 export const REVIEWS = {
   wave: {
     lensEnum: ["standards", "spec", "buildability"],
-    axesGuide:
-      "Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run `git diff origin/<BASE_BRANCH>..HEAD` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (`**Files:**` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding (severity by your judgment). The reviewer is the changed-surface judge — the engine reconciles nothing. The reviewed artifact is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable user would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
+    axesGuide: `Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run \`git diff origin/<BASE_BRANCH>..HEAD\` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (\`**Files:**\` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding (severity by your judgment). The reviewer is the changed-surface judge — the engine reconciles nothing. ${reviewGuideOf("wave")}`,
   },
   branch: {
     lensEnum: ["standards", "spec", "buildability"],
-    axesGuide:
-      "Same four axes as task (branch-wide health: run `git diff origin/<BASE_BRANCH>..HEAD` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — `tsc --noEmit`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop. The reviewed artifact is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable user would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust). Three things a green run cannot show you: design — does the changed structure fit this codebase and is it the simplest structure that solves the plan's problem (over-engineering is a finding, not a preference); test adequacy — would these tests fail if the code broke (a run that cannot go red is not evidence); migration — does every breaking change name the path a not-yet-migrated consumer takes.",
+    axesGuide: `Same four axes as task (branch-wide health: run \`git diff origin/<BASE_BRANCH>..HEAD\` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop. ${reviewGuideOf("branch")} Three things a green run cannot show you: design — does the changed structure fit this codebase and is it the simplest structure that solves the plan's problem (over-engineering is a finding, not a preference); test adequacy — would these tests fail if the code broke (a run that cannot go red is not evidence); migration — does every breaking change name the path a not-yet-migrated consumer takes.`,
   },
   spec: {
     lensEnum: ["completeness", "consistency", "clarity"],
-    axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at `INPUT_OVERALL` (the charter its `program:` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding + The reviewed spec is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable downstream author would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
+    axesGuide: docNarrativeAxes(reviewGuideOf("spec")),
+  },
+  overall: {
+    lensEnum: ["scope", "inventory", "dependency", "acceptance", "boundary"],
+    axesGuide: docCharterAxes(reviewGuideOf("overall")),
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
-    axesGuide:
-      "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at `INPUT_SPEC` (the plan's `spec` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + The reviewed spec is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable implementer would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Calibrate findings by real severity — not everything is a blocker — and acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).",
+    axesGuide: `Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at \`INPUT_SPEC\` (the plan's \`spec\` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ${reviewGuideOf("plan")}`,
   },
 } as const satisfies ReviewGuides;
 
-/** The per-type facts the review variants compose at module-const time (the lens
- *  vocabularies + the criteria bodies — single data references, never restates). */
-const REVIEWS_WAVE_LENS = REVIEWS.wave.lensEnum.join(" | ");
-const REVIEWS_BRANCH_LENS = REVIEWS.branch.lensEnum.join(" | ");
-const REVIEWS_SPEC_LENS = REVIEWS.spec.lensEnum.join(" | ");
-const REVIEWS_PLAN_LENS = REVIEWS.plan.lensEnum.join(" | ");
-const REVIEW_WAVE_AXES = REVIEWS.wave.axesGuide;
-const REVIEW_BRANCH_AXES = REVIEWS.branch.axesGuide;
-const REVIEW_SPEC_URC = REVIEWS.spec.axesGuide;
-const REVIEW_PLAN_URC = REVIEWS.plan.axesGuide;
+/** The criteria-body selection — the ONE target → criteria map. Four targets select
+ *  the body of their own name; the two spec-shaped document targets share the ONE
+ *  narrative body (`spec`). Keeping the mapping here (never in the row literals)
+ *  means a target cannot silently drift onto another target's criteria. */
+export const reviewBodyOf = (type: TargetType): ReviewKey =>
+  type === "phase-spec" || type === "single-spec" ? "spec" : type;
 
-/** The review mode's four per-type rows (§3.7) — each variant's fixed prefix folds
- *  its criteria + lens INLINE (the `INPUT_CRITERIA`/`INPUT_LENS` round-context
- *  tokens are gone), and shares the REVIEW_CONTEXT dynamic tail. */
+/** One review variant row (§3.7) — the fixed prefix folds the SELECTED criteria
+ *  body + its lens INLINE (the `INPUT_CRITERIA`/`INPUT_LENS` round-context tokens
+ *  are gone) and shares the REVIEW_CONTEXT dynamic tail. The target word labels the
+ *  criteria line, so the row speaks the same vocabulary the CLI's `--type`
+ *  declares while the body comes from the criteria selection. */
+const reviewRow = (type: TargetType): ModePromptRow => {
+  const criteria = REVIEWS[reviewBodyOf(type)];
+  return {
+    mode: "review",
+    shell: [
+      "# CDD dispatch — review round",
+      "",
+      "## Instructions",
+      "",
+      ...FRAME_ITEMS,
+      REVIEW_ITEM,
+      `**Lens labels:** one of \`${criteria.lensEnum.join(" | ")}\` — every finding MUST carry its \`lens\`.`,
+      `**Criteria — ${type}:** ${criteria.axesGuide}`,
+      ...LICENSE_ITEMS,
+      ...SCHEMA_SECTION,
+    ],
+    roundContext: REVIEW_CONTEXT,
+  };
+};
+
+/** The review mode's six per-target rows — one per `TargetType` (§3.7). */
 const REVIEW_VARIANTS: Readonly<Record<TargetType, ModePromptRow>> = {
-  wave: {
-    mode: "review",
-    shell: [
-      "# CDD dispatch — review round",
-      "",
-      "## Instructions",
-      "",
-      ...FRAME_ITEMS,
-      REVIEW_ITEM,
-      `**Lens labels:** one of \`${REVIEWS_WAVE_LENS}\` — every finding MUST carry its \`lens\`.`,
-      `**Criteria — wave:** ${REVIEW_WAVE_AXES}`,
-      ...LICENSE_ITEMS,
-      ...SCHEMA_SECTION,
-    ],
-    roundContext: REVIEW_CONTEXT,
-  },
-  branch: {
-    mode: "review",
-    shell: [
-      "# CDD dispatch — review round",
-      "",
-      "## Instructions",
-      "",
-      ...FRAME_ITEMS,
-      REVIEW_ITEM,
-      `**Lens labels:** one of \`${REVIEWS_BRANCH_LENS}\` — every finding MUST carry its \`lens\`.`,
-      `**Criteria — branch:** ${REVIEW_BRANCH_AXES}`,
-      ...LICENSE_ITEMS,
-      ...SCHEMA_SECTION,
-    ],
-    roundContext: REVIEW_CONTEXT,
-  },
-  spec: {
-    mode: "review",
-    shell: [
-      "# CDD dispatch — review round",
-      "",
-      "## Instructions",
-      "",
-      ...FRAME_ITEMS,
-      REVIEW_ITEM,
-      `**Lens labels:** one of \`${REVIEWS_SPEC_LENS}\` — every finding MUST carry its \`lens\`.`,
-      `**Criteria — spec:** ${REVIEW_SPEC_URC}`,
-      ...LICENSE_ITEMS,
-      ...SCHEMA_SECTION,
-    ],
-    roundContext: REVIEW_CONTEXT,
-  },
-  plan: {
-    mode: "review",
-    shell: [
-      "# CDD dispatch — review round",
-      "",
-      "## Instructions",
-      "",
-      ...FRAME_ITEMS,
-      REVIEW_ITEM,
-      `**Lens labels:** one of \`${REVIEWS_PLAN_LENS}\` — every finding MUST carry its \`lens\`.`,
-      `**Criteria — plan:** ${REVIEW_PLAN_URC}`,
-      ...LICENSE_ITEMS,
-      ...SCHEMA_SECTION,
-    ],
-    roundContext: REVIEW_CONTEXT,
-  },
+  wave: reviewRow("wave"),
+  branch: reviewRow("branch"),
+  "phase-spec": reviewRow("phase-spec"),
+  overall: reviewRow("overall"),
+  plan: reviewRow("plan"),
+  "single-spec": reviewRow("single-spec"),
 };
 
 /** The `## Return` zone — the single plain-prose contract block (P11: the child
@@ -474,7 +522,19 @@ export const CLAUSES = {
     "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 17
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 20
+ *  gives the charter its own review criteria body (the six charter criteria, with
+ *  none of the implementation-face evidence duty) and makes the criteria-body
+ *  selection explicit — the two spec-shaped document targets share the ONE narrative
+ *  body under the `spec` key, so the `overall` row's fixed prefix changed. $version 19
+ *  extends the work plane's ONE capability declaration (`capability: may.amend =
+ *  content`) to the docs-fix row as well: the fix face's spec / plan dispatch IS
+ *  docs-fix, so the authorization (and the structure-face ban that rides with it)
+ *  must reach the one row that edits those documents. $version 18
+ *  adds the work plane's ONE capability declaration (`capability: may.amend =
+ *  content` — an implement / fix round may amend the spec's and plan's content face,
+ *  never the structure face the engine snapshots and judges at the close; the review
+ *  variants declare nothing). $version 17
  *  adds the no-secret-access discipline clause (issue #390 — a dispatched child holds
  *  the harness's full authority, so the fixed prefix bar it from user credentials:
  *  keychain / credential files / token env vars; a missing credential is reported as
@@ -504,7 +564,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 17,
+  $version: 20,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

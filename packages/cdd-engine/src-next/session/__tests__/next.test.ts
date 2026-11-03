@@ -17,17 +17,25 @@
 // The type assertions at the bottom pin the public surface compile-time (the brief's
 // type-check checkable) — they fail under tsc if the exported signatures drift.
 
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Capsule } from "../../face/capsule.ts";
 import { CommandTreeBuilder } from "../../face/projection.ts";
+import { RouteRenderer } from "../../face/route-render.ts";
 import { Words } from "../../face/words.ts";
+import { type RouteTarget, targetFaces } from "../faces.ts";
 import type { Round, RoundPhase } from "../ledger.ts";
 import type { Route } from "../next.ts";
 import {
   FIX_READBACK_SUFFIX,
+  NEXT_HOP_REASON,
+  type NextHopInput,
   NextStepRouter,
+  PIPELINE_FACES,
   PIPELINE_NEXT,
-  type PipelineFaceReport,
+  type PipelineEntry,
   REVIEW_CYCLE_CAP,
   SOFT_CAP_SUGGESTION,
 } from "../next.ts";
@@ -168,32 +176,32 @@ describe("the failure face — BLOCKED/TIMEOUT produce no next line", () => {
 });
 
 describe("the pinned surface — Route/soft-cap constants (the brief's type-check checkable)", () => {
-  it("the soft-cap constant is the literal 20 and the wording is stable", () => {
-    expect(REVIEW_CYCLE_CAP).toBe(20);
+  it("the soft-cap constant is the literal 50 and the wording is stable", () => {
+    expect(REVIEW_CYCLE_CAP).toBe(50);
     expect(SOFT_CAP_SUGGESTION).toBe("BLOCKED: review-cycle-cap — user adjudicates");
   });
 
   it("the fix-route readback suffix is the declared single-source wording", () => {
     expect(FIX_READBACK_SUFFIX).toBe(
-      "(confirm the findings · if a finding needs a ruling, record the ruling in the findings file)",
+      "(confirm the reviews handoff · if a finding needs a ruling, record the ruling in the handoff file)",
     );
   });
 
   it("the readback suffix keeps its literal type at compile time", () => {
     // Compile-time pin — fails under `tsc --noEmit` if the constant's declared type
     // drifts from the render the capsule appends verbatim (exact suffix wording).
-    const suffix: "(confirm the findings · if a finding needs a ruling, record the ruling in the findings file)" =
+    const suffix: "(confirm the reviews handoff · if a finding needs a ruling, record the ruling in the handoff file)" =
       FIX_READBACK_SUFFIX;
     expect(suffix).toBe(FIX_READBACK_SUFFIX);
   });
 
   it("the soft-cap constants keep their literal types at compile time", () => {
     // Compile-time pins — this file fails under `tsc --noEmit` if either constant's
-    // declared type drifts from the decision table's domain (cap == 20, verbatim wording).
-    const cap: 20 = REVIEW_CYCLE_CAP;
+    // declared type drifts from the decision table's domain (cap == 50, verbatim wording).
+    const cap: 50 = REVIEW_CYCLE_CAP;
     const wording: "BLOCKED: review-cycle-cap — user adjudicates" = SOFT_CAP_SUGGESTION;
     expect({ cap, wording }).toEqual({
-      cap: 20,
+      cap: 50,
       wording: "BLOCKED: review-cycle-cap — user adjudicates",
     });
   });
@@ -293,11 +301,14 @@ describe("P4.1 T4 — the router's routes render parseable next literals (zero-e
    *  the C5 table's real consumer), then the parseable argv (the readback suffix is
    *  prompt prose, never argv). */
   function argvOf(route: Route): string[] {
-    const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", route, {
-      type: "wave",
-      id: "1,2",
-      plan: "docs/kairos/plans/p3.md",
+    // The capsule renders the ONE derived `NextHop` object (P22 §5.2).
+    const hop = router.nextHop({
+      target: { type: "wave", id: "1,2", plan: "docs/kairos/plans/p3.md" },
+      gate: { drift: false },
+      route,
+      verdict: "wave",
     });
+    const lines = new Capsule(new Words()).emit("APPROVED", "/h.json", hop);
     const literal = lines[1]!.slice("next: ".length);
     return literal
       .replace(new RegExp(`\\s*\\(${FIX_READBACK_SUFFIX.slice(1, -1)}\\)$`), "")
@@ -324,10 +335,14 @@ describe("P4.1 T4 — the router's routes render parseable next literals (zero-e
 });
 
 // ---------------------------------------------------------------------------
-// D40 — ONE "next step" concept turned single-resolver + face-to-face handoff.
+// D40 / P21 §4.2 — the face-to-face handoff route, and the wave closure's
+// NEXT-line fact as the derivation's INPUT cell. The retired `resolve` / `walk`
+// entries collapse into the ONE derivation (`nextHop`); the pipeline traversal's
+// four face-order rules live at the board's assembly face (`BoardNext` in
+// `face/cli.ts`, pinned by the board suite).
 // ---------------------------------------------------------------------------
 
-describe("D40 — the face-to-face handoff route + the single resolver", () => {
+describe("D40 — the face-to-face handoff route", () => {
   it("handoff() carries the pipeline entry for a doc-class — the ONE route kind", () => {
     expect(NextStepRouter.handoff("phase-spec")).toEqual({
       kind: "handoff",
@@ -338,162 +353,385 @@ describe("D40 — the face-to-face handoff route + the single resolver", () => {
       entry: PIPELINE_NEXT.branch,
     });
   });
+});
 
-  it("resolve() passes an ACTIVE C5 hop through untouched (the line is not drained)", () => {
-    // The line's own C5 frontier decides next until it drains — a review/fix/next-wave
-    // route is the line's next step, never the face-to-face handoff.
-    expect(NextStepRouter.resolve({ kind: "review" }, "phase-spec")).toEqual({ kind: "review" });
-    expect(NextStepRouter.resolve({ kind: "next-wave", tasks: "3" }, "wave")).toEqual({
-      kind: "next-wave",
-      tasks: "3",
+describe("P21 §4.2 — nextHop's next-line fact (the retired patch argument's fact)", () => {
+  const waveHop = (nextLineOpen?: boolean) =>
+    router.nextHop({
+      target: { type: "wave", id: "1", plan: "docs/kairos/plans/p.md" },
+      gate: { drift: false },
+      route: { kind: "done" },
+      verdict: "wave",
+      nextLineOpen,
     });
-  });
 
-  it("resolve() yields the face-to-face handoff when the line's C5 frontier drained (done)", () => {
-    expect(NextStepRouter.resolve({ kind: "done" }, "plan")).toEqual({
-      kind: "handoff",
-      entry: PIPELINE_NEXT.plan,
-    });
-    // a null C5 route (a not-yet-started frontier) also hands off to the next face.
-    expect(NextStepRouter.resolve(null, "branch")).toEqual({
-      kind: "handoff",
-      entry: PIPELINE_NEXT.branch,
-    });
-  });
-
-  it("resolve() with no face seam (null doc-class) renders the bare terminal `done`", () => {
-    // The overall line / a bare terminal: no pipeline seam carries it — the terminal word.
-    expect(NextStepRouter.resolve({ kind: "done" }, null)).toEqual({ kind: "done" });
-    expect(NextStepRouter.resolve(null, null)).toEqual({ kind: "done" });
+  it("a closed branch line lands the wave station on the branch face's own exit", () => {
+    expect(waveHop(false).to).toEqual(PIPELINE_NEXT.branch);
+    // absent / true keeps the wave row's own station (the branch-review literal)
+    expect(waveHop().to).toEqual(PIPELINE_NEXT.wave);
+    expect(waveHop(true).to).toEqual(PIPELINE_NEXT.wave);
   });
 });
 
 // ---------------------------------------------------------------------------
-// D40 / D26 — walk(): the ONE face-to-face traversal. The board reports the
-// observed faces (keyed), the router decides the next step. This is the D26 guard
-// for the board off-by-one: a just-closed spec hands off to the SPEC's exit
-// (cdd-plan), never the absent plan's exit (cdd-dev).
+// P22 §5.2 — ONE next-hop derivation (`nextHop`) on top of the count table: `hop`
+// is read out of the route the table produced, `to` follows the same path for
+// `done` / `handoff`, and `reason` names the fact that selected it. The count
+// table's own cases above stay untouched (zero judgment change).
 // ---------------------------------------------------------------------------
 
-describe("D40/D26 — walk(): the single face-to-face traversal", () => {
-  /** A face report with every face unentered/open by default (the caller overrides). */
-  const report = (over: Partial<PipelineFaceReport>): PipelineFaceReport => ({
-    "phase-spec": { closed: false, active: null, target: null },
-    plan: { closed: false, active: null, target: null },
-    wave: { closed: false, active: null, target: null },
-    branch: { closed: false, active: null, target: null },
-    ...over,
-  });
-  const tSpec = { type: "spec", id: "docs/kairos/specs/p-design.md" } as const;
-  const tPlan = {
-    type: "plan",
-    id: "docs/kairos/plans/p.md",
-    plan: "docs/kairos/plans/p.md",
-  } as const;
+const specTarget: RouteTarget = { type: "phase-spec", id: "docs/kairos/specs/p-design.md" };
+const waveTarget: RouteTarget = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p.md" };
+const branchTarget: RouteTarget = {
+  type: "branch",
+  id: "branch",
+  plan: "docs/kairos/plans/p.md",
+};
 
-  it("a face with an active C5 hop renders that hop (the in-flight work wins)", () => {
-    const next = NextStepRouter.walk(
-      report({
-        "phase-spec": { closed: true, active: null, target: tSpec },
-        plan: { closed: false, active: { kind: "review" }, target: tPlan },
+/** A next-hop input with the phase-spec closure defaults; each case overrides one. */
+const hopInput = (over: Partial<NextHopInput> = {}): NextHopInput => ({
+  target: specTarget,
+  gate: { drift: false },
+  route: { kind: "done" },
+  verdict: "phase-spec",
+  ...over,
+});
+
+describe("P22 §5.2 — hopOf(route, face): the ONE constant mapping, six values", () => {
+  it("maps every Route kind, reading the face for the review hop", () => {
+    expect(router.hopOf({ kind: "next-wave", tasks: "1,2" }, "wave")).toBe("implement");
+    expect(router.hopOf({ kind: "review" }, "phase-spec")).toBe("review");
+    expect(router.hopOf({ kind: "review" }, "wave")).toBe("review");
+    expect(router.hopOf({ kind: "review" }, "plan")).toBe("review");
+    // the branch face's re-review is the branch-review skill — the face IS an input
+    expect(router.hopOf({ kind: "review" }, "branch")).toBe("branch-review");
+    expect(router.hopOf({ kind: "fix", reviews: "tasks-1-review-1.json" }, "wave")).toBe("fix");
+    expect(router.hopOf({ kind: "soft-cap", message: SOFT_CAP_SUGGESTION }, "wave")).toBeNull();
+    expect(router.hopOf({ kind: "done" }, "wave")).toBeNull();
+    expect(router.hopOf({ kind: "handoff", entry: PIPELINE_NEXT.plan }, "plan")).toBeNull();
+  });
+});
+
+describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () => {
+  it("(a) a review leaving a blocker → the fix hop, the route as the render payload", () => {
+    const route = router.next(
+      state([]),
+      round({ phase: "review", findings: [finding("blocker", "defect")] }),
+    );
+    expect(route).toEqual({ kind: "fix", reviews: undefined });
+    const hop = router.nextHop(hopInput({ route, target: waveTarget, verdict: "wave" }));
+    expect(hop.hop).toBe("fix");
+    expect(hop.route).toEqual({ kind: "fix", reviews: undefined });
+    expect(hop.reason).toBe(NEXT_HOP_REASON.pendingFix);
+    expect(hop.to).toBeNull();
+  });
+
+  it("(b) a clean review with a ready batch → the implement hop (task-open)", () => {
+    const route = router.next(state([3]), round({ phase: "review" }));
+    const hop = router.nextHop(hopInput({ route, target: waveTarget, verdict: "wave" }));
+    expect(hop.hop).toBe("implement");
+    expect(hop.reason).toBe(NEXT_HOP_REASON.taskOpen);
+    // the payload carries the ready batch — the renderer never re-derives `--tasks`
+    expect(hop.route).toEqual({ kind: "next-wave", tasks: "3" });
+  });
+
+  it("(c) a drift-reopened closed line → the review hop (doc-drift), branch-review on the branch face", () => {
+    const hop = router.nextHop(hopInput({ route: { kind: "review" }, gate: { drift: true } }));
+    expect(hop.hop).toBe("review");
+    expect(hop.reason).toBe(NEXT_HOP_REASON.docDrift);
+    const branch = router.nextHop(
+      hopInput({
+        target: branchTarget,
+        route: { kind: "review" },
+        gate: { drift: true },
+        verdict: "branch",
       }),
     );
-    expect(next.route).toEqual({ kind: "review" });
-    expect(next.target).toEqual(tPlan);
+    expect(branch.hop).toBe("branch-review");
+    expect(branch.reason).toBe(NEXT_HOP_REASON.docDrift);
   });
 
-  it("the off-by-one D26 guard — a just-closed spec + an ABSENT plan hands off to the SPEC's exit", () => {
-    // The board's frontier is the plan face, but it was never entered (no doc). The
-    // retired fork used the frontier LINE's key → plan's exit (cdd-dev). The walk uses
-    // the PRECEDING entered face's exit → the spec's (cdd-plan).
-    const next = NextStepRouter.walk(
-      report({ "phase-spec": { closed: true, active: null, target: tSpec } }),
+  it("(d) a done line → no hop, `to` judged from the ONE target cell", () => {
+    const spec = router.nextHop(hopInput());
+    expect(spec.hop).toBeNull();
+    expect(spec.reason).toBe(NEXT_HOP_REASON.closedLine);
+    expect(spec.to).toEqual(PIPELINE_NEXT["phase-spec"]);
+
+    const overall = router.nextHop(hopInput({ verdict: "overall" }));
+    expect(overall.to).toEqual({ kind: "done" });
+    expect(overall.reason).toBe(NEXT_HOP_REASON.closedLine);
+
+    // a single-spec declares no pipeline seam — the terminal row (`to: null`)
+    const single = router.nextHop(hopInput({ verdict: "terminal" }));
+    expect(single.hop).toBeNull();
+    expect(single.to).toBeNull();
+    expect(single.reason).toBe(NEXT_HOP_REASON.faceClosed);
+  });
+
+  it("(e) the soft cap → no hop, no station, the soft-cap reason", () => {
+    const hop = router.nextHop(
+      hopInput({ route: { kind: "soft-cap", message: SOFT_CAP_SUGGESTION } }),
     );
-    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT["phase-spec"] });
-    expect(next.target).toEqual(tSpec);
+    expect(hop.hop).toBeNull();
+    expect(hop.to).toBeNull();
+    expect(hop.reason).toBe(NEXT_HOP_REASON.softCap);
   });
 
-  it("a frontier ENTERED but drained (a present doc, no active hop) renders its OWN exit", () => {
-    const next = NextStepRouter.walk(
-      report({
-        "phase-spec": { closed: true, active: null, target: tSpec },
-        plan: { closed: false, active: null, target: tPlan },
+  it("(f) an unjudgeable doc class → doc-class-blocked, no hop, no station", () => {
+    const hop = router.nextHop(hopInput({ verdict: "blocked" }));
+    expect(hop.hop).toBeNull();
+    expect(hop.to).toBeNull();
+    expect(hop.reason).toBe(NEXT_HOP_REASON.docClassBlocked);
+  });
+
+  it("(g) a fix whose source review kept a blocker → the re-review hop (fix-K → review-K)", () => {
+    const route = router.next(state([]), round({ phase: "fix", findings: [finding("blocker")] }));
+    const hop = router.nextHop(hopInput({ route, target: waveTarget, verdict: "wave" }));
+    expect(hop.hop).toBe("review");
+    expect(hop.route).toEqual({ kind: "review" });
+  });
+
+  it("(h) a blocker-free fix → the closure / next hop, never a re-review preview", () => {
+    const closed = router.nextHop(
+      hopInput({ route: router.next(state([]), round({ phase: "fix" })) }),
+    );
+    expect(closed.hop).toBeNull();
+    expect(closed.reason).toBe(NEXT_HOP_REASON.closedLine);
+
+    const ready = router.nextHop(
+      hopInput({
+        route: router.next(state([7]), round({ phase: "fix", findings: [finding("warn")] })),
+        target: waveTarget,
+        verdict: "wave",
       }),
     );
-    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.plan });
-    expect(next.target).toEqual(tPlan);
+    expect(ready.hop).toBe("implement");
+    expect(ready.hop).not.toBe("review");
   });
 
-  it("no preceding entered face → the FIRST face's exit (the pipeline entrance)", () => {
-    const next = NextStepRouter.walk(report({}));
-    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT["phase-spec"] });
+  it("(i) a terminal doc class / no target → no hop, no station, face-closed", () => {
+    const terminal = router.nextHop(hopInput({ verdict: "terminal" }));
+    expect([terminal.hop, terminal.to, terminal.reason]).toEqual([
+      null,
+      null,
+      NEXT_HOP_REASON.faceClosed,
+    ]);
+    const bare = router.nextHop(hopInput({ route: null, target: null }));
+    expect([bare.hop, bare.to, bare.reason]).toEqual([null, null, NEXT_HOP_REASON.faceClosed]);
+    // the failure face holds no route at all — the object still renders honestly
+    expect(bare.route).toBeNull();
   });
 
-  it("every face closed → the LAST entered face's exit (the pipeline terminus)", () => {
-    const next = NextStepRouter.walk(
-      report({
-        "phase-spec": { closed: true, active: null, target: tSpec },
-        plan: { closed: true, active: null, target: tPlan },
-        wave: { closed: true, active: null, target: { type: "wave", id: "1", plan: tPlan.plan } },
-        branch: {
-          closed: true,
-          active: null,
-          target: { type: "branch", id: "branch", plan: tPlan.plan },
-        },
-      }),
+  it("a handoff route carries its own entry (the same `to` path as done)", () => {
+    const hop = router.nextHop(
+      hopInput({ route: { kind: "handoff", entry: PIPELINE_NEXT.plan }, verdict: "plan" }),
     );
-    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.branch });
+    expect(hop.hop).toBeNull();
+    expect(hop.to).toEqual(PIPELINE_NEXT.plan);
+    expect(hop.reason).toBe(NEXT_HOP_REASON.closedLine);
+  });
+});
+
+describe("P22 §5.2 — the ONE message shape (three forms)", () => {
+  /** The station renderer the CLI passes — the shared route renderer's entry face. */
+  const station = (entry: PipelineEntry): string =>
+    new RouteRenderer(new Words()).render({ kind: "handoff", entry }, specTarget);
+
+  it("a hop names the verb", () => {
+    const hop = router.nextHop(hopInput({ route: { kind: "review" } }));
+    expect(router.message(hop, station)).toBe("task-open · the next round is review");
   });
 
-  it("every face closed with nothing entered → the bare terminal `done`", () => {
-    expect(
-      NextStepRouter.walk(
-        report({
-          "phase-spec": { closed: true, active: null, target: null },
-          plan: { closed: true, active: null, target: null },
-          wave: { closed: true, active: null, target: null },
-          branch: { closed: true, active: null, target: null },
-        }),
-      ).route,
-    ).toEqual({ kind: "done" });
+  it("a closed face names its handoff station", () => {
+    const hop = router.nextHop(hopInput());
+    expect(router.message(hop, station)).toBe(
+      "closed-line · next: route to /kairos:cdd-plan skill",
+    );
+  });
+
+  it("neither a hop nor a station renders the bare reason (no invented verb slot)", () => {
+    const blocked = router.nextHop(hopInput({ verdict: "blocked" }));
+    expect(router.message(blocked, station)).toBe("doc-class-blocked");
+    const capped = router.nextHop(
+      hopInput({ route: { kind: "soft-cap", message: SOFT_CAP_SUGGESTION } }),
+    );
+    expect(router.message(capped, station)).toBe("soft-cap");
   });
 });
 
 // ---------------------------------------------------------------------------
-// P21 T3 — resolve(): the target line's open fact (§4.2). The wave line's closure
-// only hands off to the branch-review literal when the branch line HAS a
-// dispatchable open round; otherwise it lands on the branch face's own station.
+// P22 T14 — one target vocabulary: the faces table and the pipeline table answer to
+// the SAME six target-type words the CLI's `--type` declares, and the retired `spec`
+// spelling is not among them (the spec ⇄ phase-spec translation class is gone).
 // ---------------------------------------------------------------------------
 
-describe("P21 T3 — resolve() with the target line's open fact", () => {
-  it("a closed wave line with NO dispatchable branch round lands on the branch station", () => {
-    // `kairos:cdd-close` — the branch face's own next station, never the
-    // `review --type branch` literal its own gate would refuse.
-    for (const active of [{ kind: "done" } as const, null]) {
-      expect(NextStepRouter.resolve(active, "wave", false)).toEqual({
-        kind: "handoff",
-        entry: PIPELINE_NEXT.branch,
-      });
+describe("P22 T14 — the target vocabulary is the single key set", () => {
+  const TARGET_TYPES = ["phase-spec", "overall", "plan", "single-spec", "wave", "branch"];
+
+  it("targetFaces carries exactly one row per TargetType (six rows)", () => {
+    expect(Object.keys(targetFaces).sort()).toEqual([...TARGET_TYPES].sort());
+    for (const [key, row] of Object.entries(targetFaces)) expect(row.type).toBe(key);
+    expect(Object.keys(targetFaces)).not.toContain("spec");
+  });
+
+  it("the four doc shapes audit a doc path; wave audits the graph, branch the tree", () => {
+    const audits = Object.fromEntries(
+      Object.entries(targetFaces).map(([key, row]) => [key, row.audit.kind]),
+    );
+    expect(audits).toEqual({
+      "phase-spec": "doc-path",
+      overall: "doc-path",
+      plan: "doc-path",
+      "single-spec": "doc-path",
+      wave: "task-graph",
+      branch: "branch-tree",
+    });
+  });
+
+  it("only the branch line reviews as branch-review — every other face leads with review", () => {
+    const leads = Object.fromEntries(
+      Object.entries(targetFaces).map(([key, row]) => [key, row.product.reviewLead]),
+    );
+    expect(leads).toEqual({
+      "phase-spec": "review",
+      overall: "review",
+      plan: "review",
+      "single-spec": "review",
+      wave: "review",
+      branch: "branch-review",
+    });
+  });
+
+  it("PIPELINE_NEXT is keyed by TargetType — overall / single-spec are the terminals", () => {
+    expect(Object.keys(PIPELINE_NEXT).sort()).toEqual([...TARGET_TYPES].sort());
+    expect(PIPELINE_NEXT.overall).toEqual({ kind: "done" });
+    expect(PIPELINE_NEXT["single-spec"]).toEqual({ kind: "done" });
+    expect(PIPELINE_NEXT["phase-spec"]).toEqual({ kind: "ref", ref: "kairos:cdd-plan" });
+  });
+
+  it("PipelineKey is DERIVED from TargetType — `single-spec` is not a pipeline seam", () => {
+    const source = readFileSync(new URL("../next.ts", import.meta.url), "utf8");
+    expect(source).toContain('export type PipelineKey = Exclude<TargetType, "single-spec">');
+    // the derivation's runtime consequence: every phase-level face named by the
+    // traversal order is a row of the real pipeline table, and `single-spec` is a
+    // table row only — never a seam a hop can land on.
+    const seams: readonly string[] = PIPELINE_FACES;
+    expect(seams.length).toBeGreaterThan(0);
+    expect(Object.keys(PIPELINE_NEXT)).toEqual(expect.arrayContaining([...seams]));
+    expect(seams).not.toContain("single-spec");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P22 §5.2 — the structural pins: the derivation holds no second judgment and the
+// session plane never imports a face class (the doc class is INJECTED).
+// ---------------------------------------------------------------------------
+
+describe("P22 §5.2 — the derivation's structural pins", () => {
+  const source = readFileSync(new URL("../next.ts", import.meta.url), "utf8");
+
+  it("session/next.ts never imports the board-view face — no runtime cycle", () => {
+    const specifiers = [...source.matchAll(/from\s+"([^"]+)"/g)].map((match) => match[1]);
+    expect(specifiers.length).toBeGreaterThan(0);
+    expect(specifiers.some((specifier) => specifier?.includes("board-view"))).toBe(false);
+    // the doc class arrives ONLY through the ONE assembly entry (`Ledger#nextHopOf`):
+    // this module reads the verdict cell and holds no discrimination of its own.
+    expect(source).not.toContain("docClassOf");
+  });
+
+  it("the doc-class discrimination has ONE assembly entry (Ledger#nextHopOf)", () => {
+    const ledger = readFileSync(new URL("../ledger.ts", import.meta.url), "utf8");
+    expect(ledger).toContain("input.docClassOf(input.target)");
+  });
+
+  it("the three read faces fill facts only — no face re-assembles `verdict → face`", () => {
+    for (const file of ["../run.ts", "../../face/gate.ts", "../../face/board-view.ts"]) {
+      const text = readFileSync(new URL(file, import.meta.url), "utf8");
+      expect(text).not.toContain('verdict === "blocked" || verdict === "terminal"');
     }
   });
 
-  it("a closed wave line WITH a dispatchable branch round keeps the branch-review literal", () => {
-    expect(NextStepRouter.resolve({ kind: "done" }, "wave", true)).toEqual({
-      kind: "handoff",
-      entry: PIPELINE_NEXT.wave,
-    });
+  it("the CLI refusal's declaration read is rooted in the repo basis (never a cwd resolve)", () => {
+    const gate = readFileSync(new URL("../../face/gate.ts", import.meta.url), "utf8");
+    expect(gate).toContain("BoardView.docClassOf(basis, candidate)");
+    expect(gate).not.toContain("docClassOf(null");
+    // the lookahead refusal renders the PEEKED hop — the fourth read face's object is
+    // consumed, never computed and dropped
+    const cli = readFileSync(new URL("../../face/cli.ts", import.meta.url), "utf8");
+    expect(cli).toContain("lineHopMessage(scene, peeked.hop");
   });
 
-  it("leaves every other face and the absent-fact call exactly as before", () => {
-    expect(NextStepRouter.resolve({ kind: "done" }, "wave")).toEqual({
-      kind: "handoff",
-      entry: PIPELINE_NEXT.wave,
-    });
-    expect(NextStepRouter.resolve({ kind: "done" }, "plan", false)).toEqual({
-      kind: "handoff",
-      entry: PIPELINE_NEXT.plan,
-    });
-    // an active C5 hop still passes through — the fact only judges a drained line
-    expect(NextStepRouter.resolve({ kind: "review" }, "wave", false)).toEqual({ kind: "review" });
+  it("PIPELINE_NEXT is data only — the declaration carries no judgment", () => {
+    const start = source.indexOf("export const PIPELINE_NEXT");
+    const end = source.indexOf("The pipeline's phase-level face keys");
+    const declaration = source.slice(start, end);
+    expect(start).toBeGreaterThan(-1);
+    expect(declaration).toContain('"phase-spec"');
+    expect(declaration).not.toMatch(/\bif \(|\bswitch\b|=>/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P22 §5.4 — the deletion surface. The retired resolver entries and the render-side
+// patch parameter are gone by EXACT name; the gate faces the deletion does NOT touch
+// stay in place (the broad `resolve(` spelling is not a pin: `path.resolve` /
+// `Workspace#resolve` live in the non-test tree).
+// ---------------------------------------------------------------------------
+
+describe("P22 §5.4 — the retired next-face entries and the retained gate faces", () => {
+  it("zero residue of the retired resolver entries and the patch parameter (exact names)", () => {
+    const base = new URL("../../", import.meta.url); // …/src-next/
+    const entries = readdirSync(base, { recursive: true, withFileTypes: true });
+    const hits: string[] = [];
+    let scanned = 0;
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.endsWith(".ts")) continue;
+      const rel = path.relative(fileURLToPath(base), path.join(entry.parentPath, entry.name));
+      const text = readFileSync(path.join(entry.parentPath, entry.name), "utf8");
+      scanned += 1;
+      // The banned names are ASSEMBLED so this pin's own source never spells them
+      // (the same exact-name grep over the tree must stay at zero hits). The retired
+      // readback wording rides the same scan: the fix route's prose is the declared
+      // `FIX_READBACK_SUFFIX`, so a header paraphrasing the P4-era byte is residue.
+      for (const banned of [
+        /NextStepRouter\.(resolve|walk)\b/,
+        new RegExp(`\\b${"target" + "Line" + "Open"}\\b`),
+        new RegExp(["read file", "back", "to"].join(" ")),
+      ]) {
+        if (banned.test(text)) hits.push(`${rel}: ${banned}`);
+      }
+    }
+    // The scan sees the whole tree (a silent empty walk would make this vacuous).
+    expect(scanned).toBeGreaterThan(50);
+    expect(hits).toEqual([]);
+  });
+
+  it("the retained gate faces stay — `lineGate` · `#linePhase` · `#lineKey` in face/gate.ts", () => {
+    const gate = readFileSync(new URL("../../face/gate.ts", import.meta.url), "utf8");
+    expect(gate).toMatch(/\blineGate\b/);
+    expect(gate).toContain("#linePhase");
+    expect(gate).toContain("#lineKey");
+    // the block-message faces the deletion does not touch
+    expect(gate).toContain("docLineBlock");
+    expect(gate).toContain("pendingFixBlock");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P22 §5.2 — drift never wins over a pending fix: an unclosed line's blocker keeps
+// the fix hop (the reason order is soft-cap · pending-fix · doc-drift · …).
+// ---------------------------------------------------------------------------
+
+describe("P22 §5.2 — drift does not outrank a pending fix", () => {
+  it("an unclosed line holding a blocker keeps the fix hop even when the doc drifted", () => {
+    const hop = router.nextHop(
+      hopInput({
+        route: { kind: "fix", reviews: "plan-review-1.json" },
+        gate: { drift: true },
+      }),
+    );
+    expect(hop.hop).toBe("fix");
+    expect(hop.reason).toBe(NEXT_HOP_REASON.pendingFix);
+    expect(hop.reason).not.toBe(NEXT_HOP_REASON.docDrift);
   });
 });

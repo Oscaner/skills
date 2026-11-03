@@ -64,7 +64,7 @@ import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
 import { TemplateAssembler } from "../render/templates.ts";
 import type { TargetFace, TargetType } from "../session/faces.ts";
-import { targetFaces } from "../session/faces.ts";
+import { TargetFaceTable, targetFaces } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import { HoldingError, InFlight } from "../session/inflight.ts";
 import type { RoundStatus } from "../session/ledger.ts";
@@ -74,7 +74,7 @@ import { PreFlight, type PreFlightVerdict } from "../session/preflight.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { CliArtifacts } from "./artifacts.ts";
-import { BoardView } from "./board-view.ts";
+import { BoardNext, BoardView } from "./board-view.ts";
 import { Capsule } from "./capsule.ts";
 import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import { CliGate } from "./gate.ts";
@@ -468,6 +468,11 @@ export class Cli {
       new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
       entry.slug ?? "",
     );
+    // The board's `next:` line renders ONE injected `NextHop` (P22 §5.2): the
+    // pipeline OBSERVATION comes from the board face, the four face-order rules and
+    // the ONE derivation from this assembly point (`BoardNext`) — the board itself
+    // holds no ledger for the next line and judges nothing.
+    const next = BoardNext.of(index, entry, root);
     const board = BoardView.render(
       index,
       entry,
@@ -476,6 +481,7 @@ export class Cli {
       host,
       ARGV_CHANNEL,
       await inflight.inspect(),
+      next,
     );
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;
@@ -607,17 +613,16 @@ export class Cli {
       planText: scene.planText,
       tasks: type === "wave" ? new Set(this.#gate.tasksOf(parsed)) : null,
       ledger: scene.ledger,
-      doc:
-        type === "spec" || type === "plan"
-          ? {
-              // The ONE declaration reading face (spec §12 · D34) — both the spec and
-              // the plan dispatch read the doc's front-matter `doc-type:` key;
-              // a key-less doc reads null and the seam BLOCKs (zero command-type
-              // carve-out, zero filename-suffix fallback).
-              docKey: BoardView.readDocType(root, docRel),
-              path: docRel,
-            }
-          : null,
+      doc: TargetFaceTable.isDocShape(type)
+        ? {
+            // The ONE declaration reading face (spec §12 · D34) — every doc shape
+            // dispatch reads the doc's front-matter `doc-type:` key;
+            // a key-less doc reads null and the seam BLOCKs (zero command-type
+            // carve-out, zero filename-suffix fallback).
+            docKey: BoardView.readDocType(root, docRel),
+            path: docRel,
+          }
+        : null,
       inflight,
       // The explicit takeover flag — VOID under --dry-run: the preview face never
       // acquires, so a takeover there would have no write channel at all. The
@@ -721,6 +726,10 @@ export class Cli {
         scene.workspace.root.basis,
       ),
       planPath: scene.planPath,
+      // The hop derivation's pipeline-station discrimination (§5.2) — the ONE
+      // declaration-reading judgment, injected so the session plane never imports a
+      // face class.
+      docClassOf: (candidate) => BoardView.docClassOf(scene.workspace.root.basis, candidate),
     });
 
     // The requested-phase gate — the line faces (branch/spec/plan) keep the
@@ -732,9 +741,16 @@ export class Cli {
         const pendingBlock =
           verdict === "pending-fix" ? this.#gate.pendingFixBlock(scene, reviewed) : null;
         const docBlock = open === null ? this.#gate.docLineBlock(scene, reviewed) : null;
-        this.#io.stderr(
-          `cdd ${verb}: cannot dispatch a ${expected} round — ${pendingBlock ?? docBlock ?? (open === null ? "the line holds no open round" : `the next round is ${open}${this.#phaseHint(open)}`)}\n`,
-        );
+        // The generic refusal renders the SAME `NextHop` the capsule / board /
+        // frontier read (P22 §5.2 · the ONE message shape): `<reason> · the next
+        // round is <hop>` · `<reason> · next: <station>` · the bare reason. The two
+        // identity-aware block messages above own their facts (`reviewed` has no
+        // Home in `NextHop`) and stay verbatim.
+        const reject =
+          pendingBlock ??
+          docBlock ??
+          this.#gate.lineHopMessage(scene, this.#gate.lineHop(scene), this.#words);
+        this.#io.stderr(`cdd ${verb}: cannot dispatch a ${expected} round — ${reject}\n`);
         return 1;
       }
     }
@@ -751,17 +767,22 @@ export class Cli {
     let latest: readonly string[] = [];
     let lastStatus: RoundStatus | null = null;
     for (;;) {
-      const frame = run.peekNext();
-      if (frame === null) break;
+      const peeked = run.peekNext();
+      if (peeked === null) break;
+      const frame = peeked.frame;
       const waveTasks = frame.target.kind === "wave" ? frame.target.tasks : null;
       const mismatch =
         frame.phase !== expected ||
         (group !== null && (waveTasks === null || !waveTasks.every((id) => group!.has(id))));
       if (mismatch) {
         if (dispatched === 0) {
-          this.#io.stderr(
-            `cdd ${verb}: cannot dispatch a ${expected} round — the next round is ${frame.phase}${waveTasks !== null ? ` for wave ${waveTasks.join(",")}` : ""}${this.#phaseHint(frame.phase)}\n`,
-          );
+          // The lookahead refusal renders the SAME `NextHop` the frame's line just
+          // derived (`peekNext`), through the ONE message shape — so one command can
+          // never print two different "next round" answers (the gate refusal above
+          // and this one name one object). The wave key stays an added clause.
+          const waveContext = waveTasks !== null ? ` for wave ${waveTasks.join(",")}` : "";
+          const reject = `${this.#gate.lineHopMessage(scene, peeked.hop, this.#words)}${waveContext}`;
+          this.#io.stderr(`cdd ${verb}: cannot dispatch a ${expected} round — ${reject}\n`);
           return 1;
         }
         break;
@@ -873,19 +894,6 @@ export class Cli {
     return typeof artifact?.base === "string" ? artifact.base : "";
   }
 
-  /** The phase-mismatch hint — what to run instead. */
-  #phaseHint(phase: string): string {
-    switch (phase) {
-      case "implement":
-        return " — run cdd implement first";
-      case "review":
-      case "branch-review":
-        return " — run cdd review first";
-      default:
-        return " — run cdd fix first";
-    }
-  }
-
   /** Render a refused pre-flight verdict — the work command's BLOCK face (P4.1 T1).
    *  The dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel (the
    *  commit/discard guidance + the named structural findings); the graph / wave
@@ -993,9 +1001,11 @@ export class Cli {
         slug = resolved;
         break;
       }
-      case "spec": {
+      case "phase-spec":
+      case "overall":
+      case "single-spec": {
         if (specPath === null || specRel === null)
-          this.#usage(node, `cdd ${verb} --type spec: missing required --spec <path>`);
+          this.#usage(node, `cdd ${verb} --type ${type}: missing required --spec <path>`);
         // An unreadable target declares no identity: the SAME slug carrier hard-refuses
         // it (CDD_BLOCKED + exit 1, never a filename-derived key). The T7 null-verdict
         // face covers the other shape — a document ON DISK that declares no
@@ -1004,10 +1014,11 @@ export class Cli {
         if (resolved === null) return null;
         slug = resolved;
         target = { kind: "spec", doc: specPath };
-        // The judged spec's own `program:` — the parent charter (INPUT_OVERALL) the
-        // spec-scope reviewer judges the phase against. A spec without `program:`
-        // (a single-spec) leaves the slot null; an off-disk target reads null here
-        // and the existing slug-ref invariant reports it (never a second reporter).
+        // The judged document's own `program:` — the parent charter (INPUT_OVERALL)
+        // the phase-spec reviewer judges the phase against. A document without
+        // `program:` (an overall charter or a single-spec) leaves the slot null; an
+        // off-disk target reads null here and the existing slug-ref invariant reports
+        // it (never a second reporter).
         const specEntry = index.entryAt(specRel);
         const overallEntry = specEntry?.program == null ? null : index.overallOf(specEntry.program);
         overallLink = overallEntry === null ? null : root.relativize(overallEntry.path);

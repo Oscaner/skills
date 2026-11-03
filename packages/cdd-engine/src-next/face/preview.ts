@@ -144,13 +144,15 @@ export class Preview {
       .join(" · ");
   }
 
-  /** The ledger writes the round would record — the progress cycle (the frame's OWN
-   *  round identity, never a flattened ordinal) plus, on a completed review, the
+  /** The ledger writes the round would record — the round RECORD it would append
+   *  (identity: op · cycle · attempt) plus, on a completed review, the
    *  reviewed-revision write-back. The three legs are `#bookkeep`'s own: the doc line
    *  binds its document's revision, the wave line its RENDERED brief's, and the
    *  branch line binds none (its review judges the live tree). */
   #recordsOf(frame: OpenFrame): string {
-    const parts = [`progress.waves["${frame.key}"].rounds.${frame.phase} += [${frame.round}]`];
+    const parts = [
+      `progress.waves["${frame.key}"].rounds += { op: ${this.#naming.op(frame)}, cycle: ${frame.round}, attempt: ${frame.attempt ?? 1} }`,
+    ];
     if (frame.phase === "review") {
       if (frame.target.kind === "wave") parts.push("reviewedRevision(brief)");
       else if (frame.target.kind === "plan" || frame.target.kind === "spec")

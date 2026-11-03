@@ -199,6 +199,8 @@ const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
   startedAt: Date.parse("2026-10-28T10:00:00.000Z"),
   wave: "1",
   phase: "implement",
+  cycle: 1,
+  attempt: 1,
   briefHash: null,
   plan: "docs/p.md",
   sampledAt: null,
@@ -269,14 +271,14 @@ const docCtx = (
   const ledger = new Ledger(workspace, new ConfigLoader());
   return {
     verb,
-    type: docKey === "plan" ? "plan" : "spec",
+    type: docKey === "plan" ? "plan" : "phase-spec",
     repoRoot,
     planText: null,
     tasks: null,
     ledger,
     doc: {
       docKey,
-      path: `docs/kairos/specs/${docKey === "plan" ? "plan" : "spec"}.md` as RepoPath,
+      path: `docs/kairos/specs/${docKey === "plan" ? "plan" : "phase-spec"}.md` as RepoPath,
     },
     inflight: inflightOf(repoRoot, false),
   };
@@ -346,7 +348,7 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
       // The self-published keep-out marker sits at the namespace root
       expect(readFileSync(path.join(repoRoot, ".kairos", ".gitignore"), "utf8")).toBe("*\n");
       const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "review");
-      ctx.ledger!.recordRound("1", "implement"); // the first dispatch's progress — review now opens
+      ctx.ledger!.recordRound("1", { op: "implement" }); // the first dispatch's progress — review now opens
       const preflight = preflightOf();
       const verdict = await preflight.vet(ctx);
       expect(verdict.ok).toBe(true);
@@ -466,7 +468,7 @@ describe("PreFlight — the wave gate inside the seam", () => {
     try {
       const preflight = preflightOf();
       const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "implement");
-      ctx.ledger!.recordRound("1", "implement"); // the open wave now sits at review
+      ctx.ledger!.recordRound("1", { op: "implement" }); // the open wave now sits at review
       const verdict = await preflight.vet(ctx);
       expect(verdict.ok).toBe(false);
       expect(verdict.gate).toBe("wave");
@@ -634,7 +636,7 @@ describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch
         checked: ["tree-clean"],
       };
       const run = new Lifecycle({
-        face: targetFaces.spec,
+        face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger: new Ledger(
           new Workspace(
@@ -689,7 +691,7 @@ const branchCtx = (
 };
 
 describe("PreFlight — the checked rule list (derived from the declaration surface)", () => {
-  it("lists 19 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
+  it("lists 20 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(
@@ -697,7 +699,7 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
       );
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        19,
+        20,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
       expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: passed");
@@ -710,13 +712,13 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
     }
   });
 
-  it("lists the same 19 doc-scope skips on a branch dispatch", async () => {
+  it("lists the same 20 doc-scope skips on a branch dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(branchCtx(repoRoot, [task(1, "none")]));
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        19,
+        20,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
     } finally {
@@ -740,6 +742,28 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
       cleanup();
     }
   });
+
+  it("renders the wave-width rule's degradation when the call site injected no plan layers", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      // A plan doc judged with NO plan text in the context: no graph gate ran, so no
+      // `TaskGraph#batches()` layers reached the contract. The width rule then yields
+      // zero findings (it never re-derives a second batch set) and its checked row
+      // says so visibly, instead of claiming `passed`.
+      const blocks = [task(1, "none"), task(2, "none"), task(3, "none"), task(4, "none")];
+      const verdict = await preflightOf(memoryFs(planDoc(blocks))).vet(
+        docCtx(repoRoot, "plan", "review"),
+      );
+      expect(verdict.checked).toContain(
+        "wave-width-at-most-three: info (plan layers: unavailable)",
+      );
+      expect(
+        verdict.checked.filter((row) => row.startsWith("wave-width-at-most-three:")),
+      ).toHaveLength(1);
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 describe("PreFlight — the plan-ledger gate", () => {
@@ -747,11 +771,32 @@ describe("PreFlight — the plan-ledger gate", () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const ctx = branchCtx(repoRoot, [task(1, "none"), task(2, "1")], (ledger) => {
-        ledger.recordRound("1", "implement");
+        ledger.recordRound("1", { op: "implement" });
       });
       const verdict = await preflightOf().vet(ctx);
       expect(verdict.ok).toBe(true);
       expect(verdict.reason).toBeUndefined();
+      expect(verdict.checked).toContain("plan-ledger: info (plan leads ledger by 1 tasks)");
+      expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: passed");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("reads a legacy `rounds` row as recorded — the completion fold keeps the agreement", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      // The pre-record stored form (the per-mode cycle array) records task 1 as done:
+      // the plan carries tasks 1..2, so the ledger leads by one — never a phantom
+      // "unrecorded" wave, which would read the old row as a round-less one.
+      const ctx = branchCtx(repoRoot, [task(1, "none"), task(2, "1")], (ledger) => {
+        ledger.writeProgress({
+          ...ledger.emptyProgress(),
+          waves: [{ wave: "1", rounds: { implement: [1], review: [1] } }],
+        });
+      });
+      const verdict = await preflightOf().vet(ctx);
+      expect(verdict.ok).toBe(true);
       expect(verdict.checked).toContain("plan-ledger: info (plan leads ledger by 1 tasks)");
       expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: passed");
     } finally {
@@ -765,8 +810,8 @@ describe("PreFlight — the plan-ledger gate", () => {
       // The plan carries 1..3 while the ledger recorded 1 and 11 — the executed task
       // 11 is absent from the plan, the ONE disagreement this gate judges.
       const ctx = branchCtx(repoRoot, [task(1, "none"), task(2, "1"), task(3, "2")], (ledger) => {
-        ledger.recordRound("1", "implement");
-        ledger.recordRound("11", "implement");
+        ledger.recordRound("1", { op: "implement" });
+        ledger.recordRound("11", { op: "implement" });
       });
       const verdict = await preflightOf().vet(ctx);
       expect(verdict.ok).toBe(false);

@@ -64,7 +64,7 @@ class Fixtures {
 describe("selector coverage — every declared element carries a resolvable locator", () => {
   const fixtures = new Fixtures();
 
-  it("declares a well-formed selector on all 114 elements", () => {
+  it("declares a well-formed selector on all 111 elements", () => {
     let total = 0;
     for (const registry of Object.values(declaredRegistries)) {
       for (const element of registry.elements) {
@@ -75,10 +75,10 @@ describe("selector coverage — every declared element carries a resolvable loca
         ).toBe(true);
       }
     }
-    expect(total).toBe(114);
+    expect(total).toBe(111);
   });
 
-  it("resolves all 114 elements on a conforming document of their own type", () => {
+  it("resolves all 111 elements on a conforming document of their own type", () => {
     // The matrix reads the repository's own document of each type first; an element
     // the document legitimately leaves out (an optional facet, a conditional
     // section) resolves on the declared sample block of that type — a CONFORMING
@@ -98,7 +98,7 @@ describe("selector coverage — every declared element carries a resolvable loca
       }
     }
     expect(missing, `unresolved elements: ${missing.join(" | ")}`).toEqual([]);
-    expect(total).toBe(114);
+    expect(total).toBe(111);
   });
 
   it("keeps the selector face and the declared value shape aligned — zero domain findings on the canonical charter", () => {
@@ -129,16 +129,28 @@ describe("selector coverage — every declared element carries a resolvable loca
     expect(offenders, `out-of-domain resolved nodes: ${offenders.join(" | ")}`).toEqual([]);
   });
 
-  it("reads the canonical overall charter at zero findings, with its real table sizes", () => {
+  it("reads the canonical overall charter at zero findings, with every table located", () => {
     const charter = path.join(
       REPO_ROOT,
       "docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md",
     );
     const tree = fixtures.tree("overall");
-    expect(tree.tableUnder("## Phase inventory")?.body.length).toBe(21);
-    expect(tree.tableUnder("## Issue inventory")?.body.length).toBe(21);
-    expect(tree.tableUnder("## Change history")?.body.length).toBe(99);
-    expect(tree.tableUnder("## File paths")?.body.length).toBe(3);
+    // What this covers is the SELECTOR (does `tableUnder` still land on the real table
+    // and read its body?), not how many rows the charter happens to carry: an exact row
+    // count is a copy of the document that rots on every charter append and forces a
+    // re-anchor commit per appended row. A table that stops being found reads 0, so the
+    // non-empty floor keeps the discriminating power and drops the churn.
+    for (const heading of [
+      "## Phase inventory",
+      "## Issue inventory",
+      "## Change history",
+      "## File paths",
+    ]) {
+      const table = tree.tableUnder(heading);
+      expect(table, `${heading} is located`).toBeDefined();
+      expect(table?.body.length, `${heading} carries rows`).toBeGreaterThan(0);
+      expect(table?.header?.length ?? 0, `${heading} carries columns`).toBeGreaterThan(1);
+    }
     const findings = new Contract().validate({
       docKey: "overall",
       path: charter,

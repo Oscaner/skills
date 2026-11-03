@@ -2,7 +2,7 @@
 // P4.1 T7 — find #7 closeout (design §5.6): the complete-executable next literal's
 // required-flag coverage. One literal per verb × type must secondary-parse with zero
 // errors (T4) AND carry every runtime-required flag of its type — the design §5.6
-// "parse green ⇒ full required-flag coverage" rule. The regression the suite pins: #routeText's review→wave
+// "parse green ⇒ full required-flag coverage" rule. The regression the suite pins: the retired route-text
 // branch rendered `review --type wave --tasks <n>` WITHOUT the runtime-required
 // `--plan` (the implement/next-wave and fix→wave branches both carried it — a
 // composition-face inconsistency), so the literal parsed green yet BLOCKED the
@@ -19,8 +19,9 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { RepoRoot } from "../../infra/root.ts";
 import type { RouteTarget } from "../../session/faces.ts";
-import type { Route } from "../../session/next.ts";
-import { FIX_READBACK_SUFFIX, PIPELINE_NEXT } from "../../session/next.ts";
+import type { DocClassVerdict, NextHop, Route } from "../../session/next.ts";
+import { FIX_READBACK_SUFFIX, NextStepRouter, PIPELINE_NEXT } from "../../session/next.ts";
+import { BoardView } from "../board-view.ts";
 import { Capsule } from "../capsule.ts";
 import { CommandTreeBuilder } from "../projection.ts";
 import { Words } from "../words.ts";
@@ -29,9 +30,23 @@ import { Words } from "../words.ts";
  *  composition root parses through the projection's program; `Cli#parse()` retired). */
 const parseGate = new CommandTreeBuilder().program;
 
+/** One `NextHop` from the ONE derivation — the capsule's input object, never a
+ *  hand-built shape. The station discrimination is injectable per case. */
+const hopOf = (
+  route: Route,
+  target: RouteTarget | null = null,
+  docClassOf: (candidate: RouteTarget) => DocClassVerdict = () => "phase-spec",
+): NextHop =>
+  new NextStepRouter().nextHop({
+    target,
+    gate: { drift: false },
+    route,
+    verdict: target === null ? "terminal" : docClassOf(target),
+  });
+
 /** The next-text of a capsule emit (the second line, the station prefix stripped). */
 const literalOf = (route: Route, target?: RouteTarget): string => {
-  const lines = new Capsule(new Words()).emit("APPROVED", "0", "/h.json", route, target);
+  const lines = new Capsule(new Words()).emit("APPROVED", "/h.json", hopOf(route, target));
   return lines[1]!.slice("next: ".length);
 };
 
@@ -45,7 +60,7 @@ const argvOf = (literal: string): string[] => {
 
 /** The frame-fact targets of the four types (the dispatch frame's own identity). */
 const wave = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p3.md" } as const;
-const spec = { type: "spec", id: "docs/kairos/specs/p3-design.md" } as const;
+const spec = { type: "phase-spec", id: "docs/kairos/specs/p3-design.md" } as const;
 const planT = { type: "plan", id: "docs/kairos/plans/p3.md" } as const;
 // find #9 — the branch target carries the workspace --plan · the id is the branch
 // line's stable key `"branch"` (the range shas retired engine-wide · spec §6.6)
@@ -166,7 +181,7 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
     const planLiteral = literalOf({ kind: "review" }, planT);
     expect(waveLiteral).toBe("review --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md");
     expect(branchLiteral).toBe("review --type branch --plan docs/kairos/plans/p3.md");
-    expect(specLiteral).toBe("review --type spec --spec docs/kairos/specs/p3-design.md");
+    expect(specLiteral).toBe("review --type phase-spec --spec docs/kairos/specs/p3-design.md");
     expect(planLiteral).toBe("review --type plan --plan docs/kairos/plans/p3.md");
     for (const literal of [waveLiteral, branchLiteral, specLiteral, planLiteral]) {
       expect(literal).not.toContain("--base");
@@ -188,10 +203,11 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
     const capsule = new Capsule(new Words(), {}, "", new RepoRoot(repo));
     const lines = capsule.emit(
       "CHANGES_REQUESTED",
-      "1",
       `${repo}/.kairos/cdd/p3/tasks-1-review-1.json`,
-      { kind: "fix", reviews: `${repo}/.kairos/cdd/p3/tasks-1-review-1.json` },
-      { type: "plan", id: `${repo}/docs/kairos/plans/p3.md` },
+      hopOf(
+        { kind: "fix", reviews: `${repo}/.kairos/cdd/p3/tasks-1-review-1.json` },
+        { type: "plan", id: `${repo}/docs/kairos/plans/p3.md` },
+      ),
     );
     const literal = lines[1]!.slice("next: ".length);
     expect(literal).toBe(
@@ -236,25 +252,36 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
             "---",
           ];
     writeFileSync(path.join(repo, name), [...head, ""].join("\n"), "utf8");
-    return { type: "spec", id: name } as const;
+    return { type: "phase-spec", id: name } as const;
   };
 
-  /** The done-text of a capsule emit for a host-injected capsule over the repo. */
+  /** The done-text of a capsule emit for a host-injected capsule over the repo —
+   *  the hop is derived with the declaration-reading discrimination, so a spec's
+   *  declared `doc-type:` picks its pipeline station (the production seam). */
   const doneOf = (target?: RouteTarget, host = ""): string => {
-    const lines = new Capsule(new Words(), {}, host, new RepoRoot(repo)).emit(
+    const root = new RepoRoot(repo);
+    const lines = new Capsule(new Words(), {}, host, root).emit(
       "APPROVED",
-      "0",
       "/h.json",
-      { kind: "done" },
-      target,
+      hopOf({ kind: "done" }, target ?? null, (candidate) => BoardView.docClassOf(root, candidate)),
     );
     return lines[1]!.slice("next: ".length);
   };
 
-  it("PIPELINE_NEXT carries exactly the five pipeline keys", () => {
+  it("PIPELINE_NEXT carries exactly one row per target type (six — the CLI's `--type` domain)", () => {
     expect(Object.keys(PIPELINE_NEXT).sort()).toEqual(
-      ["branch", "overall", "phase-spec", "plan", "wave"].sort(),
+      ["branch", "overall", "phase-spec", "plan", "single-spec", "wave"].sort(),
     );
+  });
+
+  it("an overall target closes the pipeline — the terminal word", () => {
+    const overall = declareSpec("docs/kairos/overalls/prog-overall.md", "overall");
+    expect(doneOf(overall)).toBe("done");
+  });
+
+  it("a single-spec target closes the pipeline — the terminal word", () => {
+    const single = declareSpec("docs/kairos/specs/prog-single-spec.md", "single-spec");
+    expect(doneOf(single)).toBe("done");
   });
 
   it("no target renders the bare terminal word (the byte-pinned fallback)", () => {
@@ -272,14 +299,14 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
     // §8 — a pipeline skill-ref is an INSTRUCTION (route to a skill), never a
     // pseudo-command: the line names the per-host ref inside `route to … skill`.
     const phaseSpec = declareSpec("docs/kairos/specs/prog-p8-design.md", "phase-spec");
-    const nextLine = (host: string): string =>
-      new Capsule(new Words(), {}, host, new RepoRoot(repo)).emit(
+    const nextLine = (host: string): string => {
+      const root = new RepoRoot(repo);
+      return new Capsule(new Words(), {}, host, root).emit(
         "APPROVED",
-        "0",
         "/h.json",
-        { kind: "done" },
-        phaseSpec,
+        hopOf({ kind: "done" }, phaseSpec, (candidate) => BoardView.docClassOf(root, candidate)),
       )[1]!;
+    };
     expect(nextLine("pi")).toBe("next: route to /skill:cdd-plan skill");
     expect(nextLine("claude")).toBe("next: route to /kairos:cdd-plan skill");
   });
@@ -314,5 +341,160 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
     expect(doneOf({ type: "wave", id: "1,2", plan: "docs/kairos/plans/prog-p8.md" })).toBe(
       "review --type branch --plan docs/kairos/plans/prog-p8.md",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P22 §5.2 — the six-row `next:` render freeze. The capsule renders the ONE injected
+// `NextHop`; the table's rows are byte-frozen, and `hop: null` is NOT the "no next
+// line" gate — only the ABSENT object is (the BLOCKED / TIMEOUT failure face).
+// ---------------------------------------------------------------------------
+
+describe("P22 §5.2 — the six-row render freeze", () => {
+  let repo: string;
+
+  beforeEach(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "capsule-rows-"));
+  });
+
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  /** A spec doc on disk declaring (or omitting) its `doc-type:`. */
+  const declare = (name: string, docType: string | null): RouteTarget => {
+    const head =
+      docType === null
+        ? ["---", "title: The doc", "version: v1.0", "---"]
+        : ["---", "title: The doc", "version: v1.0", `doc-type: ${docType}`, "---"];
+    mkdirSync(path.dirname(path.join(repo, name)), { recursive: true });
+    writeFileSync(path.join(repo, name), [...head, ""].join("\n"), "utf8");
+    return { type: "phase-spec", id: name } as const;
+  };
+
+  /** The next line of a capsule over the injected hop (null = the second line). */
+  const nextOf = (hop: NextHop | null): string | null => {
+    const root = new RepoRoot(repo);
+    const lines = new Capsule(new Words(), {}, "", root).emit("APPROVED", "/h.json", hop);
+    return lines[1] ?? null;
+  };
+
+  const derived = (route: Route, target: RouteTarget | null): NextHop => {
+    const root = new RepoRoot(repo);
+    return hopOf(route, target, (candidate) => BoardView.docClassOf(root, candidate));
+  };
+
+  it("① a NextHop ABSENT (BLOCKED / TIMEOUT) prints no next line — the two keys stay byte-identical", () => {
+    expect(new Capsule(new Words()).emit("BLOCKED", "/h.json", null)).toEqual(["status: BLOCKED"]);
+    expect(nextOf(null)).toBeNull();
+    // the success face's two keys are untouched by the converged render
+    expect(new Capsule(new Words()).emit("APPROVED", "/h.json", null)[0]).toBe(
+      "status: APPROVED · handoff: /h.json",
+    );
+  });
+
+  it("② an in-line hop renders the route payload verbatim (--tasks / --reviews)", () => {
+    const wave = { type: "wave", id: "1,2", plan: "docs/kairos/plans/p.md" } as const;
+    expect(nextOf(derived({ kind: "next-wave", tasks: "7,9" }, wave))).toBe(
+      "next: implement --plan docs/kairos/plans/p.md --tasks 7,9",
+    );
+    expect(nextOf(derived({ kind: "fix", reviews: "tasks-1-review-1.json" }, wave))).toBe(
+      `next: fix --type wave --tasks 1,2 --plan docs/kairos/plans/p.md --reviews tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
+    );
+  });
+
+  it("③ `hop: null` + a soft-cap payload renders the declared suggestion verbatim", () => {
+    const hop = derived(
+      { kind: "soft-cap", message: "BLOCKED: review-cycle-cap — user adjudicates" },
+      {
+        type: "wave",
+        id: "1",
+        plan: "docs/kairos/plans/p.md",
+      },
+    );
+    expect(hop.hop).toBeNull();
+    expect(nextOf(hop)).toBe("next: BLOCKED: review-cycle-cap — user adjudicates");
+  });
+
+  it("④ `done` + a station renders `next: <to>` — overall lands on the `done` entry, phase-spec on its ref", () => {
+    const overall = derived(
+      { kind: "done" },
+      declare("docs/kairos/specs/prog-overall.md", "overall"),
+    );
+    expect(overall.to).toEqual({ kind: "done" });
+    expect(nextOf(overall)).toBe("next: done");
+
+    const phaseSpec = derived(
+      { kind: "done" },
+      declare("docs/kairos/specs/prog-p1-design.md", "phase-spec"),
+    );
+    expect(phaseSpec.to).toEqual(PIPELINE_NEXT["phase-spec"]);
+    expect(nextOf(phaseSpec)).toBe("next: route to /kairos:cdd-plan skill");
+  });
+
+  it("⑤ `hop: null` · `to: null` · face-closed (a single-spec) still prints `next: done`", () => {
+    const hop = derived(
+      { kind: "done" },
+      declare("docs/kairos/specs/prog-single.md", "single-spec"),
+    );
+    expect([hop.hop, hop.to, hop.reason]).toEqual([null, null, "face-closed"]);
+    expect(nextOf(hop)).toBe("next: done");
+  });
+
+  it("⑥ a missing `doc-type:` renders the CDD_BLOCKED docType line (hop null, to null)", () => {
+    const hop = derived({ kind: "done" }, declare("docs/kairos/specs/prog-p9-design.md", null));
+    expect(hop.reason).toBe("doc-class-blocked");
+    expect(nextOf(hop)).toBe(
+      "next: CDD_BLOCKED: the doc declares no `doc-type:` key — add `doc-type: <overall|phase-spec|single-spec|plan>` to the doc's front-matter (spec §12 · D34) and re-run",
+    );
+  });
+
+  it("(j) reading `hop: null` as 'no next line' would turn rows ③/④/⑤ red — the counterexample", () => {
+    // Every row below carries `hop: null` yet MUST print a line; the absent-object
+    // gate is the only no-line condition (row ①).
+    const rows = [
+      derived({ kind: "soft-cap", message: "BLOCKED: review-cycle-cap — user adjudicates" }, null),
+      derived({ kind: "done" }, declare("docs/kairos/specs/prog-overall.md", "overall")),
+      derived({ kind: "done" }, declare("docs/kairos/specs/prog-single.md", "single-spec")),
+    ];
+    for (const hop of rows) {
+      expect(hop.hop).toBeNull();
+      expect(nextOf(hop)).not.toBeNull();
+    }
+  });
+});
+
+describe("P22 §10 — the two-key capsule and the `next:` close", () => {
+  it("① a success round renders `status · handoff` — the blocker cell is gone", () => {
+    const lines = new Capsule(new Words()).emit("APPROVED", "/h.json");
+    expect(lines).toEqual(["status: APPROVED · handoff: /h.json"]);
+    expect(lines[0]).not.toContain("blocker:");
+  });
+
+  it("② the fix round's summary sits between the status line and the trailing `next:` line", () => {
+    const lines = new Capsule(new Words()).emit(
+      "APPROVED",
+      "/h.json",
+      hopOf({ kind: "done" }),
+      false,
+      "fixed 1 · rejected 0",
+    );
+    expect(lines).toEqual([
+      "status: APPROVED · handoff: /h.json",
+      "fixed 1 · rejected 0",
+      "next: done",
+    ]);
+  });
+
+  it("③ the failure face is byte-unchanged — it never printed a blocker cell", () => {
+    expect(new Capsule(new Words()).emit("BLOCKED", "/h.json")).toEqual(["status: BLOCKED"]);
+    expect(new Capsule(new Words()).emit("TIMEOUT", "/h.json", null, true)).toEqual([
+      "status: TIMEOUT · handoff: /h.json",
+    ]);
+  });
+
+  it("④ a non-fix round carries no summary line — the plain two-line shape", () => {
+    const lines = new Capsule(new Words()).emit("APPROVED", "/h.json", hopOf({ kind: "done" }));
+    expect(lines).toEqual(["status: APPROVED · handoff: /h.json", "next: done"]);
   });
 });

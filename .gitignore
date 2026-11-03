@@ -1,6 +1,7 @@
 node_modules
 .pnpm-store
 .venv
+.vitest
 .kairos
 __pycache__/
 tmp

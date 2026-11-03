@@ -15,21 +15,35 @@
 // The module exports the shared seams + the lifecycle class — zero behavior-carrying
 // bare functions.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
+import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
 import { GitClient } from "../infra/git.ts";
 import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
 import type { RepoRoot } from "../infra/root.ts";
+import { RoundLog } from "../infra/round-log.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
+import { TargetFaceTable } from "../session/faces.ts";
 import type { CarrierPlane } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
-import type { CrashCause, Ledger, OpType, RoundStatus, Termination } from "../session/ledger.ts";
+import {
+  type CrashCause,
+  Ledger,
+  type OpType,
+  type ProgressRow,
+  type RoundIdentity,
+  type RoundStatus,
+  type RoundVerdict,
+  RoundViolation,
+  type Termination,
+} from "../session/ledger.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
+import { PlanStructure } from "../session/run.ts";
 import { DISPATCH, HOSTS, HostDetect, type HostId, type HostReferenceTable, REFS } from "./host.ts";
 import {
   type ChildOutcome,
@@ -37,12 +51,18 @@ import {
   TerminationPolicy,
   Terminator,
 } from "./termination.ts";
-import { Words } from "./words.ts";
+import { FIX_DISPOSITIONS_SUMMARY, Words } from "./words.ts";
 
 /** The crash-record stdout-tail cap (P11 T2) — the child's last STDOUT_TAIL_MAX
  *  non-empty stdout lines ride the crash record's `stdoutTail` (the diagnostic
  *  channel; the child's Return is prose, never the round's content). */
 const STDOUT_TAIL_MAX = 40;
+
+/** The structure-face change message — the round's graded entry when the plan's Task id
+ *  set or a task's `DependsOn` set moved inside the round (design spec §7.3). The
+ *  vanished / unreadable document cases name their own damage instead. */
+const STRUCTURE_CHANGED =
+  "the plan's structure changed inside this round (the Task id set or a task's DependsOn set) — the structure face belongs to the orchestrator and lands as its own commit";
 
 // ---------------------------------------------------------------------------
 // the stable seams — the shared faces the composition root + the lifecycle ride
@@ -85,6 +105,14 @@ export interface DispatchScene {
   overallLink?: string | null;
 }
 
+/** One dispatch's PRE-VERDICT outcome — the round's read-back facts before the
+ *  terminal verdict is written (design spec §3.1: the verdict first, the gate split
+ *  second). The status is the handoff-derived conclusion, and NULL on a round whose
+ *  handoff was never written: there the completion criterion alone concludes (an
+ *  implement round continues on its commits — the missing carrier is a soft
+ *  observation — while a review/fix round fails on its carrier criterion). */
+type DraftedOutcome = Omit<DispatchOutcome, "status"> & { status: RoundStatus | null };
+
 /**
  * CliLifecycle — the lifecycle's dispatch-seam production default (the split contract's
  * lifecycle face; face/cli.ts re-exports it as HarnessDispatch so the composition
@@ -97,6 +125,10 @@ export interface DispatchScene {
  * BLOCKED outcome over the CDD_BLOCKED channel (never a thrown dispatch).
  */
 export class CliLifecycle {
+  /** The workspace-relative directory every round log lands in — built by
+   *  `RoundLog.create` on first use, never by the workspace's own mkdir. */
+  static readonly LOGS_DIR = "logs";
+
   readonly #env: ProcessEnvLike;
   readonly #sync: ChildRunner;
   readonly #template: TemplateAssembler;
@@ -135,6 +167,14 @@ export class CliLifecycle {
    *  P11 T2) — set in #dispatch after the child returns, read by #reject. The child's
    *  Return is prose; the engine never parses it — this is the failure channel only. */
   #stdoutTail: readonly string[] = [];
+  /** The current dispatch's round log path (repoRoot-relative), null when the round has
+   *  no log channel — the crash record's postmortem pointer (one file to open instead
+   *  of reading `ps` from outside). */
+  #roundLogPath: string | null = null;
+  /** The current dispatch's log-channel failure (a SOFT entry naming the path), null
+   *  when the channel opened — the record face must see a channel that never opened,
+   *  not only the stderr notice. */
+  #logUnavailable: RoundViolation | null = null;
 
   constructor(opts: {
     env?: ProcessEnvLike;
@@ -180,10 +220,257 @@ export class CliLifecycle {
     return (frame) => this.#dispatch(frame);
   }
 
-  /** One dispatch — prompt from the template plane + the frame, host child via
-   *  the harness-contract rows, the child's write-back read in (the draft at
-   *  OUTPUT_HANDOFF is the round's content; the child's Return is prose, never parsed). */
+  /** One dispatch — the round's work, the observation facts every record carries (the
+   *  dispatch baseline HEAD captured before the spawn, the dispatch-after
+   *  `treeClean` observation) and the TERMINAL VERDICT the round is booked under
+   *  (design spec §3.1: the verdict is written first, the violation family splits the
+   *  gate second — never the child's exit code). A hard verdict is the round's
+   *  failure face: `targetAction: false`, the concluded status is BLOCKED (so the
+   *  invocation exits non-zero and the same command re-offers the round), and the ONE
+   *  `CDD_BLOCKED` line names the round's own log file (§4.1). A soft entry is
+   *  bookkeeping only — it never touches the exit code. */
   async #dispatch(frame: OpenFrame): Promise<DispatchOutcome> {
+    // The round's STRUCTURE baseline (design spec §7.3): taken HERE — after the
+    // pre-flight gate (which ran before the step was handed over) and before the
+    // spawn — so the close-time comparison judges this round's OWN plan edit only.
+    // It rides the frame and nowhere else (no progress key, no carrier slot, no
+    // in-flight field).
+    const baseline = PlanStructure.of(this.#scene.planPath);
+    const carried: OpenFrame = {
+      ...frame,
+      structure: baseline.kind === "ok" ? baseline.structure : null,
+    };
+    const drafted = await this.#runDispatch(carried);
+    const terminal = drafted.status === "BLOCKED" || drafted.status === "TIMEOUT";
+    const observed: DraftedOutcome = {
+      ...drafted,
+      dispatchBase: this.#dispatchBase,
+      treeClean: await this.#git.isClean(this.#scene.workspace.root.repoRoot),
+    };
+    const judged = await this.#verdictOf(carried, observed);
+    // The death faces author their own entry AND emit their own line (`#reject`), so
+    // only a hard verdict concluded HERE adds the shared line.
+    if (judged.violations.some((violation) => violation.grade === "hard") && !terminal) {
+      this.#blocked(this.#hardReason(judged.violations), false);
+    }
+    this.#warnSoft(judged.violations);
+    return {
+      ...observed,
+      // A hard round's conclusion is the failure: no hard entry can leave a round
+      // reading as approved. A soft-only round keeps its handoff conclusion, and a
+      // round whose handoff was never written concludes APPROVED on its criterion
+      // alone (the missing carrier is bookkeeping, never a gate).
+      status: this.#concludedStatus(judged.verdict, observed.status),
+      verdict: judged.verdict,
+      violations: judged.violations,
+    };
+  }
+
+  /** The round's concluded status under its verdict — a done round keeps its handoff
+   *  conclusion (APPROVED when the handoff was never written: the completion criterion
+   *  concluded it), and a hard-failed round concludes BLOCKED — or keeps TIMEOUT, the
+   *  terminated round's own conveyed face (the §4.3 judging order is unchanged). */
+  #concludedStatus(verdict: RoundVerdict, drafted: RoundStatus | null): RoundStatus {
+    if (verdict.targetAction) return drafted ?? "APPROVED";
+    return drafted === "TIMEOUT" ? "TIMEOUT" : "BLOCKED";
+  }
+
+  /** The terminal verdict of one dispatched round (design spec §3.1/§3.2) — the
+   *  completion criterion of the round's verb judge its OWN facts (the group's
+   *  records, the persisted carrier, the round's baseline) plus the work plane's
+   *  evidence gate, and the graded entries decide the verdict: a round with no hard
+   *  entry is done. The judgment's two provider cells are supplied HERE, the single
+   *  point: `records` is the key's in-register history read with the line's DECLARED
+   *  word, and `reviewsPath` is the fix route's `--reviews` carrier or the ledger's
+   *  RESOLVED review-carrier fallback — the retired twin's name when the canonical
+   *  file is absent, never the never-minted canonical spelling.
+   *
+   *  A death face (a killed child, a non-zero exit, a rejected draft) already carries
+   *  its authored hard entry and needs no second judgment — the criterion table and
+   *  the violation family never judge the same round twice. */
+  async #verdictOf(
+    frame: OpenFrame,
+    outcome: DraftedOutcome,
+  ): Promise<{ verdict: RoundVerdict; violations: readonly RoundViolation[] }> {
+    const treeClean = outcome.treeClean ?? true;
+    // The log channel's own failure is booked on every face: a round whose record
+    // face never opened is not a silent absence (§3.3), and a dead round carries the
+    // fact too.
+    const logEntries: readonly RoundViolation[] =
+      this.#logUnavailable === null ? [] : [this.#logUnavailable];
+    if (outcome.status === "BLOCKED" || outcome.status === "TIMEOUT") {
+      const authored = outcome.violations ?? [];
+      return {
+        verdict: { treeClean, targetAction: false },
+        // A failure is never a silent absence (§3.3): a concluded BLOCKED round that
+        // authored no entry books one here (`contract-violation`, the existing cause).
+        violations: [
+          ...(authored.length > 0
+            ? authored
+            : [RoundViolation.hard(`the round concluded ${outcome.status}`)]),
+          ...logEntries,
+        ],
+      };
+    }
+    const violations: RoundViolation[] = [
+      ...(outcome.violations ?? []),
+      ...(await this.#criterionViolations(frame, outcome)),
+      ...this.#evidenceViolations(frame),
+      ...this.#structureViolations(frame),
+      ...logEntries,
+    ];
+    return {
+      verdict: {
+        treeClean,
+        targetAction: !violations.some((violation) => violation.grade === "hard"),
+      },
+      violations,
+    };
+  }
+
+  /** The verb's completion-criterion verdict as graded entries — the criterion's own
+   *  hard violation plus its SOFT observations (design spec §3.2/§3.3). */
+  async #criterionViolations(
+    frame: OpenFrame,
+    outcome: DraftedOutcome,
+  ): Promise<readonly RoundViolation[]> {
+    const scene = this.#scene;
+    const judged = await CompletionCriteria.of(this.#opOf(frame)).judge({
+      record: this.#judgedRecordOf(frame, outcome),
+      row: this.#rowOf(frame),
+      records: scene.ledger.recordsOf(frame.key, frame.type),
+      carrier: outcome.carrier ?? null,
+      reviewsPath: this.#reviewsPath(frame),
+      git: this.#git,
+      repoRoot: scene.workspace.root.repoRoot,
+    });
+    return [
+      ...(judged.violation === null ? [] : [judged.violation]),
+      ...(judged.observations ?? []),
+    ];
+  }
+
+  /** The round IDENTITY the criterion judges from — its op / cycle / attempt, the
+   *  group baseline and the carrier path the round writes. Deliberately verdict-free:
+   *  this judgment PRODUCES the verdict, so a verdict cell here would be a
+   *  self-fulfilling input. The group's already-recorded verdicts arrive through
+   *  `CompletionContext.records`, never through this cell. */
+  #judgedRecordOf(frame: OpenFrame, outcome: DraftedOutcome): RoundIdentity {
+    const op = this.#opOf(frame);
+    return {
+      op,
+      cycle: frame.round,
+      attempt: frame.attempt ?? 1,
+      dispatchBase: outcome.dispatchBase ?? null,
+      carrierPath:
+        outcome.carrier === undefined
+          ? null
+          : this.#scene.ledger.handoffPath(op, frame.type, frame.params),
+    };
+  }
+
+  /** The progress row the round belongs to (the criterion's context cell) — the key's
+   *  row when it exists, else the fresh entry form of that key. */
+  #rowOf(frame: OpenFrame): ProgressRow {
+    const ledger = this.#scene.ledger;
+    const data = ledger.readProgress();
+    return (
+      (data === null ? undefined : Ledger.rowFor(data, frame.key, frame.type)) ??
+      ledger.entryFor(frame.key)
+    );
+  }
+
+  /** The evidence gate as a graded entry (design spec §3.3) — the work plane's wave /
+   *  branch rounds write the canonical `{family-prefix}-{key}-test-evidence.json`; a
+   *  missing / malformed / schema-violating file is HARD. The tri-state read reports
+   *  each cause truly (D27): a corrupt file is never misreported as absent. */
+  #evidenceViolations(frame: OpenFrame): readonly RoundViolation[] {
+    if (HandoffSchema.planeOf(this.#opOf(frame)) !== "work") return [];
+    if (TargetFaceTable.isDocShape(frame.type)) return [];
+    const scene = this.#scene;
+    const evidencePath = scene.workspace.resolve(this.#naming.evidenceName(frame));
+    const read = scene.workspace.readJson<unknown>(this.#naming.evidenceName(frame));
+    if (read.kind === "malformed") {
+      return [this.#hard(`the test evidence at ${evidencePath} is malformed JSON`)];
+    }
+    if (read.kind === "missing") {
+      return [this.#hard(`the test evidence at ${evidencePath} was not written`)];
+    }
+    const problems = this.#handoffSchema.evidenceViolations(read.value);
+    if (problems.length === 0) return [];
+    return [
+      this.#hard(
+        `the test evidence at ${evidencePath} violates the contract: ${problems.join("; ")}`,
+      ),
+    ];
+  }
+
+  /** The round's OWN plan-structure edit as a graded entry (design spec §7.3) — the
+   *  close-time comparison against the dispatch-time snapshot: a changed Task-id set
+   *  or a changed `DependsOn` set is a HARD entry under the existing
+   *  `contract-violation` cause (zero new violation enum), because the structure face
+   *  belongs to the orchestrator and lands as its own commit. A content-only amendment
+   *  differs on neither face and judges nothing.
+   *
+   *  The two sides are judged apart. An ABSENT baseline (no plan fact, or a document
+   *  already unreadable at dispatch) judges nothing — there is nothing to compare
+   *  against. A PRESENT baseline with a missing / unreadable current side is the
+   *  round's own damage: the document the dispatch read is gone or damaged inside this
+   *  round, which is the structure face's most extreme edit and is judged hard rather
+   *  than skipped. */
+  #structureViolations(frame: OpenFrame): readonly RoundViolation[] {
+    const baseline = frame.structure ?? null;
+    if (baseline === null) return [];
+    const current = PlanStructure.of(this.#scene.planPath);
+    if (current.kind === "ok") {
+      if (!current.structure.differsFrom(baseline)) return [];
+      return [this.#hard(STRUCTURE_CHANGED)];
+    }
+    return [
+      this.#hard(
+        current.kind === "absent"
+          ? "the plan document disappeared inside this round — the structure face belongs to the orchestrator and lands as its own commit"
+          : `the plan document became unreadable inside this round (${current.reason}) — the structure face belongs to the orchestrator and lands as its own commit`,
+      ),
+    ];
+  }
+
+  /** One self-authored HARD entry — the ledger's existing `contract-violation` cause,
+   *  zero new violation enum (design spec §3.3). */
+  #hard(message: string): RoundViolation {
+    return RoundViolation.hard(message);
+  }
+
+  /** The hard entries' one-line reason (the `CDD_BLOCKED` line's message). */
+  #hardReason(violations: readonly RoundViolation[]): string {
+    return violations
+      .filter((violation) => violation.grade === "hard")
+      .map((violation) => violation.message)
+      .join("; ");
+  }
+
+  /** Warn once per round about its SOFT entries (design spec §3.3 — soft is
+   *  bookkeeping only, so it never touches the verdict, the exit code or the gate). */
+  #warnSoft(violations: readonly RoundViolation[]): void {
+    const soft = violations
+      .filter((violation) => violation.grade === "soft")
+      .map((violation) => violation.message);
+    if (soft.length === 0) return;
+    this.#io.stderr(
+      `${this.#words.station("warn")} ${this.#words.softViolation(soft.join("; "))}\n`,
+    );
+  }
+
+  /** One dispatch's round work — prompt from the template plane + the frame, host
+   *  child via the harness-contract rows, the child's write-back read in (the draft
+   *  at OUTPUT_HANDOFF is the round's content; the child's Return is prose, never
+   *  parsed). */
+  async #runDispatch(frame: OpenFrame): Promise<DraftedOutcome> {
+    // The baseline belongs to THIS dispatch alone: cleared at entry, so an early
+    // return (no host harness) records "no baseline" rather than a previous round's.
+    this.#dispatchBase = null;
+    this.#roundLogPath = null;
+    this.#logUnavailable = null;
     const host = this.detectHost();
     if (host === "") {
       this.#io.stderr(
@@ -203,25 +490,41 @@ export class CliLifecycle {
     // `HoldingError` (carrying the holder's facts), which rides the CLI's held BLOCK.
     this.#dispatchBase = await this.#git.head(this.#scene.workspace.root.repoRoot);
     await this.#inflight.acquire(await this.#recordOf(frame), { stealStale: this.#stealStale });
+    // The round's own log file — created BEFORE the spawn (append stream open, zero
+    // bytes), so the channel exists from the dispatch's first millisecond. A create
+    // failure is a named soft observation and the round continues on the CPU leg
+    // alone (the log leg is null, never a kill authorization).
+    const roundLog = await this.#openRoundLog(frame);
+    // The postmortem pointer of THIS round — the log the child's bytes land in (absent
+    // when the channel could not be opened: the record then carries the honest null).
+    this.#roundLogPath = roundLog === null ? null : this.#rel(roundLog.path);
     // The child receives ONE prompt argument — per the host's promptForm data column
     // (§3.5): the ref-prefixed form embeds the slash ref at the start of the single
     // prompt positional (claude -p consumes the whole first positional as the prompt;
     // a standalone ref arg after the flags would be swallowed, losing everything after
     // the ref) — the prompt assembly is data, never a code assumption.
-    const result = await this.#sync.run({
-      command: cliName,
-      args: [...args, this.#childPrompt(row.promptForm, ref, prompt)],
-      // The child's spawn directory is the repo root; the in-flight record handle
-      // carries the sampler's own write path (the record is the ONE trail, and its
-      // path is the tree leg's exclusion). The same `cwd` is also the tree-leg scan
-      // root, so the scan root ≡ child cwd correspondence is structural.
-      cwd: this.#scene.workspace.root.repoRoot,
-      inflight: this.#inflight,
-      policy: TerminationPolicy.of(frame.phase),
-      // The host row's own child env — the TTL pin the terminator layers over the
-      // inherited env at spawn (the host difference is data, never a dispatcher branch).
-      env: row.env,
-    });
+    let result: ChildOutcome;
+    try {
+      result = await this.#sync.run({
+        command: cliName,
+        args: [...args, this.#childPrompt(row.promptForm, ref, prompt)],
+        // The child's spawn directory is the repo root; the in-flight record handle
+        // carries the sampler's own write path (the record is the ONE trail, and its
+        // path is the tree leg's exclusion). The same `cwd` is also the tree-leg scan
+        // root, so the scan root ≡ child cwd correspondence is structural.
+        cwd: this.#scene.workspace.root.repoRoot,
+        inflight: this.#inflight,
+        policy: TerminationPolicy.of(frame.phase),
+        // The host row's own child env — the TTL pin the terminator layers over the
+        // inherited env at spawn (the host difference is data, never a dispatcher branch).
+        env: row.env,
+        log: roundLog ?? undefined,
+      });
+    } finally {
+      // Drain → close BEFORE any read-back judgment: the append stream's tail bytes can
+      // land after the exit event, so the postmortem face is only complete after close.
+      if (roundLog !== null) await roundLog.close();
+    }
     // The postmortem pair's second leg: what the (possibly crashed) child added on top
     // of the dispatch baseline. Computed ONCE here, so every reject path below writes
     // the same facts without a second git read.
@@ -270,11 +573,11 @@ export class CliLifecycle {
       );
     }
     // The normal end: the child finished on its own and its handoff was read back —
-    // the ONE release point. The rejections of this path (a missing / malformed draft,
-    // an evidence violation) still release: the CHILD did not die, the round's artifacts
-    // were judged. The record survives only the round-ending paths above (a non-zero
-    // child exit, a kill, a timeout) and an uncaught throw — i.e. the process-death
-    // paths the record exists for.
+    // the ONE release point. The read-back's own refusals (a malformed / schema-
+    // violating draft) still release: the CHILD did not die, the round's artifacts were
+    // judged. The record survives only the round-ending paths above (a non-zero child
+    // exit, a kill, a timeout) and an uncaught throw — i.e. the process-death paths the
+    // record exists for.
     const outcome = this.#reconstruct(frame);
     await this.#inflight.release();
     return outcome;
@@ -299,11 +602,45 @@ export class CliLifecycle {
       startedAt: (await this.#proc.startOf(process.pid)) ?? Date.now(),
       wave: frame.type === "wave" ? (frame.params.tasks ?? null) : null,
       phase: frame.phase,
+      cycle: frame.round,
+      attempt: frame.attempt ?? 1,
       briefHash: this.#briefHashOf(frame),
       plan: scene.planPath === null ? null : this.#rel(scene.planPath),
       sampledAt: null,
       verdict: null,
     };
+  }
+
+  /** Open one round's log file — the per-round channel the child's stdout/stderr
+   *  land in, under the workspace's `logs/` directory (which no other writer creates).
+   *  A create failure is a named soft observation and the round continues on the CPU
+   *  leg alone (the log leg stays null); a fault AFTER the channel is live marks the
+   *  log leg dead and is reported through the same channel — never a second notice. */
+  async #openRoundLog(frame: OpenFrame): Promise<RoundLog | null> {
+    const name = this.#naming.logName(
+      this.#opOf(frame),
+      frame.type,
+      frame.params,
+      frame.attempt ?? 1,
+    );
+    const target = this.#scene.workspace.resolve(`${CliLifecycle.LOGS_DIR}/${name}`);
+    try {
+      return await RoundLog.create(target, () =>
+        this.#io.stderr(
+          `${this.#words.station("warn")} round log write failed at ${this.#rel(target)}\n`,
+        ),
+      );
+    } catch {
+      this.#io.stderr(
+        `${this.#words.station("warn")} round log unavailable at ${this.#rel(target)}\n`,
+      );
+      // The record sees the same fact the stderr notice names (design spec §3.3): a
+      // soft entry, so the round concludes and the derived count carries it.
+      this.#logUnavailable = RoundViolation.soft(
+        `the round log could not be created at ${this.#rel(target)} — the round ran on CPU evidence alone`,
+      );
+      return null;
+    }
   }
 
   /** The wave frame's brief hash at acquire time — `ReviewRefs.briefRevision` over the
@@ -329,11 +666,11 @@ export class CliLifecycle {
     return this.#naming.op(frame);
   }
 
-  /** The dispatch-table work-mode (ROLE) of a frame — the spec/plan fix faces ride
+  /** The dispatch-table work-mode (ROLE) of a frame — the doc shapes' fix faces ride
    *  the docs-fix mode; everything else maps by its phase (§3.5's four-mode table). */
   #roleOf(frame: OpenFrame): WorkMode {
     if (frame.phase === "fix") {
-      return frame.type === "spec" || frame.type === "plan" ? "docs-fix" : "fix";
+      return TargetFaceTable.isDocShape(frame.type) ? "docs-fix" : "fix";
     }
     return frame.phase === "implement" ? "implement" : "review";
   }
@@ -405,10 +742,7 @@ export class CliLifecycle {
       // v1.9: INPUT_REVIEWS is fix/docs-fix only — the source review's handoff
       // carrier; a review writes its own draft (INPUT_REVIEWS === OUTPUT_HANDOFF
       // would be a short-circuit).
-      INPUT_REVIEWS:
-        op === "fix"
-          ? this.#rel(this.#reviews ?? scene.ledger.handoffPath("review", frame.type, params))
-          : "",
+      INPUT_REVIEWS: op === "fix" ? this.#rel(this.#reviewsPath(frame) ?? "") : "",
       // The kind-named judged-doc anchors (the semantic retirement of the generic
       // INPUT_DOC): the plan/branch lines carry the plan document (INPUT_PLAN — the
       // doc path on a plan line, the plan path on a branch line, whose review/fix
@@ -424,19 +758,24 @@ export class CliLifecycle {
             ? this.#rel(scene.planPath ?? "")
             : "",
       INPUT_SPEC:
-        frame.type === "spec"
-          ? this.#rel(docPath ?? "")
-          : frame.type === "plan" || frame.type === "branch"
-            ? this.#rel(scene.specLink ?? "")
-            : "",
+        frame.type === "plan" || frame.type === "branch"
+          ? this.#rel(scene.specLink ?? "")
+          : frame.type === "wave"
+            ? ""
+            : // the doc shapes (phase-spec · overall · single-spec) carry the judged
+              // document — the charter line's own charter is its spec anchor.
+              this.#rel(docPath ?? ""),
       // The parent charter of the spec the face reads (INPUT_OVERALL) — the same
-      // value condition as INPUT_SPEC, one face (spec = its own `program:`; plan/
-      // branch = the same-slug identity doc's `program:`); empty off those faces and
-      // when the spec names no program (the assembler drops the empty slot).
+      // value condition as INPUT_SPEC, one face (the phase-spec line = its own
+      // `program:`; plan/branch = the same-slug identity doc's `program:`; the
+      // overall line itself = the judged charter); empty off those faces and when
+      // the named program is absent (the assembler drops the empty slot).
       INPUT_OVERALL:
-        frame.type === "spec" || frame.type === "plan" || frame.type === "branch"
-          ? this.#rel(scene.overallLink ?? "")
-          : "",
+        frame.type === "overall"
+          ? this.#rel(docPath ?? "")
+          : frame.type === "phase-spec" || frame.type === "plan" || frame.type === "branch"
+            ? this.#rel(scene.overallLink ?? "")
+            : "",
       // The branch/wave tree-review scope anchor (BASE_BRANCH) — engine-injected
       // from the base artifact at dispatch; empty off those faces (spec/plan reviews
       // carry none, and the empty slot is dropped by the assembler).
@@ -540,7 +879,7 @@ export class CliLifecycle {
     draft: Record<string, unknown>,
     termination: Termination,
     dead: ChildOutcome,
-  ): DispatchOutcome {
+  ): DraftedOutcome {
     const op = this.#opOf(frame);
     const path = this.#scene.ledger.handoffPath(op, frame.type, frame.params);
     const outcome = this.#reconstruct(frame, draft);
@@ -567,18 +906,18 @@ export class CliLifecycle {
    *  subset (projection ② of session/handoff-schema.ts — the SAME declared objects
    *  the prompt injected), then build the final carrier the lifecycle persists in
    *  place (agent draft → finalized, full-replace at the same path — the engine
-   *  remains the carrier's single author). A missing or schema-violating draft →
-   *  BLOCK over the CDD_BLOCKED channel + a crash record + the draft untouched
-   *  (on failure, no overwrite — the child's work is never clobbered; resume re-runs the same
-   *  command, which re-offers the round). The test-evidence file (work-plane wave /
-   *  branch rounds only) is read back with the same stakes: a missing/violating file
-   *  rewrites the carrier to BLOCKED (persisted — the child's work is kept, marked
-   *  bad), the second fix for a prose-only claim.
+   *  remains the carrier's single author). A malformed or schema-violating draft is a
+   *  contract violation at the read-back face (the draft untouched — the child's work
+   *  is never clobbered; resume re-runs the same command, which re-offers the round).
+   *  A MISSING draft is not a rejection: the completion criterion owns it (§3.3) — an
+   *  implement round continues on its commits with a soft observation, a review/fix
+   *  round fails on its carrier criterion — so no carrier is materialized and the
+   *  verdict is written against the null status.
    *
    *  `prefetched` is the terminated-review promotion's already-probed draft — the ONE
    *  draft parse stays single-sourced (`#readDraft`), and the promotion rides this
    *  same validation/persistence/conclusion path rather than a second implementation. */
-  #reconstruct(frame: OpenFrame, prefetched?: Record<string, unknown>): DispatchOutcome {
+  #reconstruct(frame: OpenFrame, prefetched?: Record<string, unknown>): DraftedOutcome {
     const scene = this.#scene;
     const op = this.#opOf(frame);
     const plane = HandoffSchema.planeOf(op);
@@ -596,13 +935,7 @@ export class CliLifecycle {
       // jsonc-parser tolerates the lenient dialect while a real break (a missing
       // brace, …) still reports malformed.
       const draftRead = this.#readDraft(frame);
-      if (draftRead.kind === "missing") {
-        return this.#reject(frame, path, `the handoff draft was not written at ${path}`, {
-          exitCode: 0,
-          cause: "handoff-absent",
-          termination: null,
-        });
-      }
+      if (draftRead.kind === "missing") return { status: null };
       if (draftRead.kind === "malformed") {
         // The lenient face carries the parser's precise error codes (D39) — surface
         // them in the rejection so a genuinely corrupt draft is diagnosable, not just
@@ -635,51 +968,79 @@ export class CliLifecycle {
     // — so the `?? "BLOCKED"` never fires here (a work draft without a status never
     // reaches this line; the absent→undefined case exists only for on-disk legacy
     // carriers the ledger reads back, never a schema-validated draft).
-    let status: RoundStatus = schema.conclusionOf(plane, draft) ?? "BLOCKED";
-    let reason: string | null = null;
-    // The evidence gate (v1.9) — the work plane's wave / branch rounds (implement/fix
-    // task+branch) write the canonical `{family-prefix}-{key}-test-evidence.json` under
-    // the workspace (§3.7 naming: tasks- for the task families, branch- for the branch
-    // fix); the doc rounds (review/docs-fix) carry no evidence file. The read-back is
-    // REAL — a missing/malformed/schema-violating file rewrites the draft to BLOCKED
-    // (each cause reported truly — the tri-state read, D27).
-    if (plane === "work" && (frame.type === "wave" || frame.type === "branch")) {
-      const evidenceName = this.#naming.evidenceName(frame);
-      const evidencePath = scene.workspace.resolve(evidenceName);
-      const evidenceRead = scene.workspace.readJson<unknown>(evidenceName);
-      // The SAME tri-state discrimination as the draft leg (D27): a PRESENT-but-corrupt
-      // evidence file reports its true cause, never the misleading "missing" — only a
-      // genuinely absent file (or a schema-violating present one) rides the schema
-      // verdict below.
-      if (evidenceRead.kind === "malformed") {
-        status = "BLOCKED";
-        reason = `the test evidence at ${evidencePath} is malformed JSON`;
-      } else {
-        const evidence = evidenceRead.kind === "ok" ? evidenceRead.value : null;
-        const evidenceProblems = schema.evidenceViolations(evidence);
-        if (evidenceProblems.length > 0) {
-          status = "BLOCKED";
-          reason = `the test evidence at ${evidencePath} violates the contract: ${evidenceProblems.join("; ")}`;
-        }
-      }
-    }
+    const status: RoundStatus = schema.conclusionOf(plane, draft) ?? "BLOCKED";
+    const carrier = this.#materialize(frame, plane, draft, status);
     return {
       status,
       findings: plane === "judge" ? schema.findingsOf(findings) : undefined,
-      carrier: this.#materialize(frame, plane, draft, status, reason),
+      carrier,
+      dispositionsSummary: this.#dispositionsSummary(frame, plane, carrier),
     };
+  }
+
+  /** The fix round's ONE summary line (design spec §3.4) — computed from the PERSISTED
+   *  carrier's dispositions and the REQUESTING carrier's input set (the same pair the
+   *  fix criterion judges), never stored: no record field, no carrier key, no capsule
+   *  key, no second read face. Undefined off the fix face and when the input set
+   *  cannot be located or read (the round fails on grounds the line cannot describe).
+   *  The criterion supplies the counts; the `FIX_DISPOSITIONS_SUMMARY` template — the
+   *  presentation plane's byte fact — renders the row here. */
+  #dispositionsSummary(
+    frame: OpenFrame,
+    plane: CarrierPlane,
+    carrier: Record<string, unknown>,
+  ): string | undefined {
+    if (plane !== "work" || this.#opOf(frame) !== "fix") return undefined;
+    const requester = FixDispositions.requesterInputOf(
+      this.#scene.ledger.recordsOf(frame.key, frame.type),
+      frame.round,
+      this.#reviewsPath(frame),
+      this.#repoRootValue().absolute,
+    );
+    if (requester.kind !== "read") return undefined;
+    const counts = new FixDispositions().summaryOf(carrier, requester.summaries);
+    return FIX_DISPOSITIONS_SUMMARY.replace("{fixed}", String(counts.fixed)).replace(
+      "{rejected}",
+      String(counts.rejected),
+    );
+  }
+
+  /** The requesting review carrier's path — the fix round's `--reviews` input, or the
+   *  ledger's resolved review handoff path when the route carried none (the ONE
+   *  resolution the round context's INPUT_REVIEWS and the disposition summary share).
+   *  A migrated line resolves the carrier that EXISTS — the retired twin's name, never
+   *  the never-minted canonical spelling.
+   *
+   *  A same-cycle review record that RECORDED no carrier path, with no carrier at
+   *  either spelling on disk, leaves the requester input UNRECORDED: the answer is
+   *  null, and the fix criterion books its visible skip (design spec §3.4's legacy
+   *  row) instead of failing the round on a hard absent-carrier refusal. An absent
+   *  record is a different fact — it keeps the resolved path, so the criterion reports
+   *  the missing requesting carrier it truly is. */
+  #reviewsPath(frame: OpenFrame): string | null {
+    if (this.#reviews !== null) return this.#reviews;
+    const resolved = this.#scene.ledger.resolveHandoffPath("review", frame.type, frame.params);
+    if (existsSync(resolved)) return resolved;
+    const legacy = this.#scene.ledger
+      .recordsOf(frame.key, frame.type)
+      .some(
+        (record) =>
+          record.op === "review" && record.cycle === frame.round && record.carrierPath === null,
+      );
+    return legacy ? null : resolved;
   }
 
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the
    *  same-command resume's decision source: the attempted handoff + the resume
    *  command) + NO carrier (the bookkeep leaves the draft untouched). The crash
-   *  record carries the caller's REAL death facts: an absent draft is the
-   *  `handoff-absent` read-back face (exit 0), a present-but-unqualified draft
-   *  (malformed JSON / schema) is `contract-violation` (the default), a dead
-   *  child passes its own exit code + `child-exit`, and a terminated round passes
-   *  its whole `termination` fact (cause + last sample) — one record shape, four
-   *  truthful callers (the record is the postmortem artifact; a misreported death
-   *  sends a maintainer hunting the wrong fault).
+   *  record carries the caller's REAL death facts: a present-but-unqualified draft
+   *  (malformed JSON / schema) is `contract-violation` (the default), a dead child
+   *  passes its own exit code + `child-exit`, and a terminated round passes its whole
+   *  `termination` fact (cause + last sample) — one record shape, three truthful
+   *  callers (the record is the postmortem artifact; a misreported death sends a
+   *  maintainer hunting the wrong fault). A MISSING draft is not this face: the
+   *  completion criterion owns it, so no rejection — and no crash record — ever fires
+   *  for an absent draft.
    *
    *  The returned status derives from the death facts alone (§4.3 — no status
    *  parameter): a termination rides it → `TIMEOUT`; otherwise → `BLOCKED` (the
@@ -698,7 +1059,8 @@ export class CliLifecycle {
       cause: "contract-violation",
       termination: null,
     },
-  ): DispatchOutcome {
+  ): DraftedOutcome {
+    const cause = this.#causeOf(death);
     this.#writeCrash(frame, path, reason, death, false);
     // A terminated round extends its ONE CDD_BLOCKED line with the idle time and the
     // last sample's verdict (the crash record carries the full sample).
@@ -712,9 +1074,30 @@ export class CliLifecycle {
     // Every cut-short round (kill · timeout · crash) carries the late-landing hint: the
     // child may still write after the engine stopped watching, and the recovery starts
     // from the working tree, never from the assumption that nothing landed.
-    this.#io.stderr(`CDD_BLOCKED: ${reason}${detail} — ${this.#words.lateLandingHint()}\n`);
-    if (death.termination === null) return { status: "BLOCKED" };
-    return { status: "TIMEOUT", termination: death.termination };
+    this.#blocked(`${reason}${detail}`, true);
+    // The rejected round's own HARD entry — the verdict is `targetAction: false` and the
+    // failure is named, never a silent absence (§3.3). The cause rides the death facts'
+    // existing vocabulary (no new enum row).
+    const violations: readonly RoundViolation[] = [RoundViolation.hard(reason, cause)];
+    if (death.termination === null) return { status: "BLOCKED", violations };
+    return { status: "TIMEOUT", termination: death.termination, violations };
+  }
+
+  /** The crash cause of one death fact — the termination's own cause when present,
+   *  else the caller's. One derivation, two readers (the crash record and the round's
+   *  hard entry). */
+  #causeOf(death: { cause: CrashCause; termination: Termination | null }): CrashCause {
+    return death.termination?.cause ?? death.cause;
+  }
+
+  /** The ONE `CDD_BLOCKED` line (§3.3): the hard verdict and the rejected / cut-short
+   *  rounds share it, and every line names the round's own log file (§4.1) — a
+   *  diagnose-one-round job is one path away, never a `ps` read from outside. The
+   *  late-landing hint is a CUT-SHORT fact alone (a hard round's child finished). */
+  #blocked(reason: string, cutShort: boolean): void {
+    const log = this.#roundLogPath === null ? "" : ` — log: ${this.#roundLogPath}`;
+    const hint = cutShort ? ` — ${this.#words.lateLandingHint()}` : "";
+    this.#io.stderr(`CDD_BLOCKED: ${reason}${log}${hint}\n`);
   }
 
   /** Write the lane's crash record — the postmortem artifact and same-command
@@ -734,7 +1117,7 @@ export class CliLifecycle {
   ): void {
     // The cause rides the termination fact when one is present (one of the three
     // causes or the `unknown` fallback); without it, the caller's own cause.
-    const cause: CrashCause = death.termination?.cause ?? death.cause;
+    const cause = this.#causeOf(death);
     this.#scene.ledger.writeCrash(this.#naming.crashName(frame), {
       exitCode: death.exitCode,
       stderrTail: [reason],
@@ -744,8 +1127,11 @@ export class CliLifecycle {
       attemptedHandoff: this.#rel(path),
       next: this.#resumeOf(frame),
       cause,
-      // The last sample rides WITH the termination (in memory, zero re-read of the
-      // in-flight record) — null on every non-terminated face.
+      // The postmortem's observation pair: the round's own log file (one file to open
+      // instead of reading `ps` from outside) and its last sample, which rides WITH the
+      // termination (in memory, zero re-read of the in-flight record) — null on every
+      // non-terminated face.
+      logPath: this.#roundLogPath,
       lastSample: death.termination?.lastSample ?? null,
       promoted,
       idleMs: death.termination?.idleMs ?? null,
@@ -754,25 +1140,23 @@ export class CliLifecycle {
       dispatchBase: this.#dispatchBase,
       commitsSince: this.#commitsSince,
     });
-    // P14 — the sole contractViolationCount write seam: observe the FINAL crash
-    // cause (termination override wins). Never keyed off status === "BLOCKED".
-    if (cause === "handoff-absent" || cause === "contract-violation") {
-      this.#scene.ledger.incrementContractViolationCount();
-    }
+    // P22 — the crash record is the postmortem, never a counter write: the soft
+    // counter derives from the round records (`Ledger#softViolations`), and a hard
+    // crash reads as the round's failed verdict (design spec §3.3).
   }
 
   /** Build the final carrier — the validated writable fields from the draft (the
    *  engine-seated identity rides the canonical file name, never inline: phase/tasks
    *  are not declared and never written — v1.30), persisted by the bookkeep
-   *  full-replace at the SAME path (agent draft → finalized). The evidence override
-   *  rewrites the status to BLOCKED + the reason note (the child's work preserved,
-   *  marked bad). */
+   *  full-replace at the SAME path (agent draft → finalized). The ROUND VERDICT is a
+   *  separate fact (`#verdictOf`): a hard round fails on its record + exit code, while
+   *  the carrier keeps the child's own declared status (the engine never rewrites a
+   *  declaration to encode a judgment). */
   #materialize(
     frame: OpenFrame,
     plane: CarrierPlane,
     draft: Record<string, unknown>,
     status: RoundStatus,
-    reason: string | null,
   ): Record<string, unknown> {
     const ledger = this.#scene.ledger;
     const notes: string[] = [];
@@ -813,13 +1197,9 @@ export class CliLifecycle {
     const draftNotes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
     if (plane === "work") {
       carrier.status = status;
-      // The evidence-contract override (work-plane wave / branch rounds only — the
-      // evidence gate reads that round's evidence file) rewrites the persisted
-      // conclusion to BLOCKED.
-      if (reason !== null) {
-        carrier.status = "BLOCKED";
-        draftNotes.push(reason);
-      }
+      // The fix dispositions ride the carrier VERBATIM (the child's declaration, never
+      // an engine rewrite) — the schema pinned the slot's object shape.
+      if (draft.dispositions !== undefined) carrier.dispositions = draft.dispositions;
     }
     if (notes.length > 0 || draftNotes.length > 0) carrier.notes = [...notes, ...draftNotes];
     return carrier;
@@ -924,20 +1304,26 @@ export class CliLifecycle {
         // engine-injected at dispatch), so no range rides the command.
         return `cdd review --type branch --plan ${plan}`;
       case "review":
-        if (frame.type === "spec") return `cdd review --type spec --spec ${this.#docOf(frame)}`;
+        if (frame.type === "wave")
+          return `cdd review --type wave --tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
+        if (frame.type === "branch") return `cdd review --type branch --plan ${plan}`;
         if (frame.type === "plan") return `cdd review --type plan --plan ${this.#docOf(frame)}`;
-        return `cdd review --type wave --tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
+        // phase-spec · overall · single-spec — the document under review rides
+        // the retained `--spec` flag.
+        return `cdd review --type ${frame.type} --spec ${this.#docOf(frame)}`;
       case "fix": {
-        const findings = scene.ledger.handoffPath("review", frame.type, frame.params);
+        const findings = scene.ledger.resolveHandoffPath("review", frame.type, frame.params);
         const target =
-          frame.target.kind === "plan" || frame.target.kind === "spec"
-            ? `--${frame.type === "spec" ? "spec" : "plan"} ${frame.target.doc}`
-            : // The branch fix carries no refs — the source findings ride the
-              // --reviews handoff; the workspace-identity `--plan` still rides
-              // (the plan is the branch line's identity, zero orchestrator fallback).
-              frame.target.kind === "branch"
-              ? `--plan ${plan}`
-              : `--tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
+          frame.target.kind === "plan"
+            ? `--plan ${frame.target.doc}`
+            : frame.target.kind === "spec"
+              ? `--spec ${frame.target.doc}`
+              : // The branch fix carries no refs — the source findings ride the
+                // --reviews handoff; the workspace-identity `--plan` still rides
+                // (the plan is the branch line's identity, zero orchestrator fallback).
+                frame.target.kind === "branch"
+                ? `--plan ${plan}`
+                : `--tasks ${frame.params.tasks ?? ""} --plan ${plan}`;
         return `cdd fix --type ${frame.type} ${target} --reviews ${findings}`;
       }
     }

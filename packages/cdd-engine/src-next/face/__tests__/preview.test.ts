@@ -76,7 +76,7 @@ describe("Preview — the §3.3 five-row block", () => {
       "  step:        review round 1 — wave 1",
       "  reads:       .kairos/cdd/p3/tasks-1-brief.md (would re-render from the current plan)",
       "  would write: .kairos/cdd/p3/tasks-1-review-1.json · .kairos/cdd/p3/tasks-1-review-1-report.md",
-      '  would record: progress.waves["1"].rounds.review += [1] · reviewedRevision(brief)',
+      '  would record: progress.waves["1"].rounds += { op: review, cycle: 1, attempt: 1 } · reviewedRevision(brief)',
       "  child:       (no host detected — real run would BLOCK)",
     ]);
   });
@@ -97,27 +97,29 @@ describe("Preview — the §3.3 five-row block", () => {
       "  would write: .kairos/cdd/p3/tasks-2,5-implement.json · .kairos/cdd/p3/tasks-2,5-implement-report.md · .kairos/cdd/p3/tasks-2,5-test-evidence.json",
     );
     // the implement round is never a review: no reviewed-revision write-back leg
-    expect(lines[4]).toBe('  would record: progress.waves["2,5"].rounds.implement += [1]');
+    expect(lines[4]).toBe(
+      '  would record: progress.waves["2,5"].rounds += { op: implement, cycle: 1, attempt: 1 }',
+    );
   });
 
   it("renders the spec line — the judged document as the read input, no brief re-render", () => {
     const lines = preview().render(
       "review",
       frame({
-        type: "spec",
+        type: "phase-spec",
         round: 1,
         target: { kind: "spec", doc: path.join(ROOT, "docs", "kairos", "specs", "p3-design.md") },
         params: { round: 1 },
-        key: "spec",
+        key: "phase-spec",
       }),
     );
-    expect(lines[1]).toBe("  step:        review round 1 — spec");
+    expect(lines[1]).toBe("  step:        review round 1 — phase-spec");
     expect(lines[2]).toBe("  reads:       docs/kairos/specs/p3-design.md");
     expect(lines[3]).toBe(
-      "  would write: .kairos/cdd/p3/spec-review-1.json · .kairos/cdd/p3/spec-review-1-report.md",
+      "  would write: .kairos/cdd/p3/phase-spec-review-1.json · .kairos/cdd/p3/phase-spec-review-1-report.md",
     );
     expect(lines[4]).toBe(
-      '  would record: progress.waves["spec"].rounds.review += [1] · reviewedRevision(doc)',
+      '  would record: progress.waves["phase-spec"].rounds += { op: review, cycle: 1, attempt: 1 } · reviewedRevision(doc)',
     );
   });
 
@@ -138,7 +140,9 @@ describe("Preview — the §3.3 five-row block", () => {
     expect(lines[3]).toBe(
       "  would write: .kairos/cdd/p3/branch-review-2.json · .kairos/cdd/p3/branch-review-2-report.md",
     );
-    expect(lines[4]).toBe('  would record: progress.waves["branch"].rounds.branch-review += [2]');
+    expect(lines[4]).toBe(
+      '  would record: progress.waves["branch"].rounds += { op: review, cycle: 2, attempt: 1 }',
+    );
   });
 
   it("the child row names the detected host id + the row's invoke string, never the detect marker", () => {
@@ -327,12 +331,14 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
         await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       ).toBe(0);
       const progress = JSON.parse(readFileSync(progressPath(repoRoot), "utf8")) as {
-        waves: { wave: string; rounds?: Record<string, number[]> }[];
+        waves: { wave: string; rounds?: { op: string; cycle: number }[] }[];
       };
-      expect(progress.waves.find((row) => row.wave === "1")?.rounds).toEqual({
-        implement: [1],
-        review: [1],
-      });
+      // rounds are the per-round records: one implement, one review, same cycle
+      expect(
+        progress.waves
+          .find((row) => row.wave === "1")
+          ?.rounds?.map((record) => `${record.op}:${record.cycle}`),
+      ).toEqual(["implement:1", "review:1"]);
     } finally {
       cleanup();
     }

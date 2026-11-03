@@ -262,9 +262,9 @@ describe("base nine invariants — one negative case each", () => {
   });
 
   it("domain: a front-matter value outside its declared shape is reported", () => {
-    const content = GOOD_OVERALL.replace("status: Approved", "status: Deleted");
+    const content = GOOD_OVERALL.replace("version: v1.21", "version: 1.21.0");
     const findings = judge("overall", content, GOOD_OVERALL_FS);
-    expect(withKind(findings, "domain", "status")).toBe(true);
+    expect(withKind(findings, "domain", "version")).toBe(true);
   });
 
   it("domain: the placeholder exemption covers only the keys the skeleton fills", () => {
@@ -857,12 +857,12 @@ describe("the six context-seam invariants — one negative case each", () => {
 
 describe("the coordinator", () => {
   it("aggregates findings from multiple strategies on one document", () => {
-    const content = GOOD_OVERALL.replace("status: Approved", "status: Deleted").replace(
+    const content = GOOD_OVERALL.replace("version: v1.21", "version: <v1.21>").replace(
       "| P2 | none | issue two |",
       "| P9 | prose | issue nine |",
     );
     const findings = judge("overall", content, GOOD_OVERALL_FS, "P9");
-    expect(withKind(findings, "domain", "status")).toBe(true);
+    expect(withKind(findings, "domain", "version")).toBe(true);
     expect(withKind(findings, "crosslink", "Issue inventory")).toBe(true);
     expect(withKind(findings, "section-scoped-domain", "Issue inventory")).toBe(true);
     expect(withKind(findings, "presence", "Issue inventory")).toBe(false); // sections are present
@@ -1119,22 +1119,18 @@ describe("P10 W7 T11 — the migration judgment-regression pins (spec §6 · §5
     expect(withKind(plan, "front-matter-version-in-lineage", "version")).toBe(true);
   });
 
-  it("presence — a doc missing the status key reports exactly one presence finding (typed head, not a line scan)", () => {
-    const presence = judge(
-      "phase-spec",
-      specLineage("v1.1", [ROW_100, ROW_101]).replace("\nstatus: Draft", ""),
-    ).filter((finding) => finding.kind === "presence");
-    expect(presence).toHaveLength(1);
-    expect(presence[0]!.field).toBe("status");
-  });
-
-  it("domain — a status outside the declared enum reports exactly one domain finding", () => {
-    const domain = judge(
-      "phase-spec",
-      specLineage("v1.1", [ROW_100, ROW_101]).replace("status: Draft", "status: Bogus"),
-    ).filter((finding) => finding.kind === "domain");
-    expect(domain).toHaveLength(1);
-    expect(domain[0]!.field).toBe("status");
+  it("retired — a stray `status:` value outside the old enum no longer fires (residue neither fixed nor judged)", () => {
+    // The field left the contract, so the old domain arm is gone with it. A
+    // stray head key is a harmless residue: no presence finding (not required)
+    // and no domain finding (not declared). A "no residual status" gate would be
+    // a new machine paying for an old field.
+    const stray = GOOD_OVERALL.replace("status: Approved", "status: Deleted");
+    expect(judge("overall", stray, GOOD_OVERALL_FS)).toEqual([]);
+    // The conforming document — its own residual `status:` included — stays green.
+    expect(judge("overall", GOOD_OVERALL, GOOD_OVERALL_FS)).toEqual([]);
+    // No strategy reports the residue either way — zero findings name the field.
+    const spec = judge("phase-spec", specLineage("v1.1", [ROW_100, ROW_101]));
+    expect(spec.filter((finding) => finding.field === "status")).toEqual([]);
   });
 
   it("RAW — the head value extracts verbatim while the body still canonicalizes (both sides of the same doc)", () => {

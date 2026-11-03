@@ -20,6 +20,7 @@
 
 import { readFileSync } from "node:fs";
 import { PlanDocType } from "../contract/doc.ts";
+import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
 import {
   type HandoffParams,
@@ -28,9 +29,11 @@ import {
   type OpType,
   type RoundFinding,
   type RoundStatus,
+  type RoundVerdict,
+  type RoundViolation,
   type Termination,
 } from "./ledger.ts";
-import type { Route } from "./next.ts";
+import type { DocClassVerdict, NextHop, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import type { PreFlightVerdict } from "./preflight.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
@@ -72,9 +75,11 @@ export type AuditTarget =
   /** branch: the branch line itself (no commit identity — the review's scope anchor
    *  rides the engine-injected BASE_BRANCH, never a stored range). */
   | { kind: "branch" }
-  /** plan: the audit plan document path. */
+  /** The audit plan document path. */
   | { kind: "plan"; doc: string }
-  /** spec: the audit spec document path. */
+  /** The `--spec` channel's document path (the doc shapes: phase-spec · overall ·
+   *  single-spec). The `kind` names the flag channel, never a target type — the
+   *  frame's `type` carries the vocabulary word. */
   | { kind: "spec"; doc: string };
 
 /** One dispatch step's full identity — what the lifecycle dispatches. */
@@ -93,6 +98,106 @@ export interface OpenFrame {
   /** The progress ledger key the round records under (a wave key string / a
    *  line-type constant — branch · spec · plan). */
   key: LedgerKey;
+  /** The attempt number of this dispatch (1 = the first attempt of the op/cycle).
+   *  Allocated ONCE by the frame builder (`RoundNaming#attemptOf` over the row's
+   *  records) and shared by the round record and the log name; absent reads 1. */
+  attempt?: number;
+  /** The plan's STRUCTURE baseline of this round (design spec §7.3) — the dispatch-time
+   *  snapshot the close re-reads and compares. Held on the frame alone: it never lands
+   *  in `progress.json`, in the round carrier or in the in-flight record, and an absent
+   *  value (no plan fact) judges nothing. */
+  structure?: PlanStructure | null;
+}
+
+/** One plan-structure read's outcome — the three cases stay distinct so a caller never
+ *  confuses a line with no plan document (`absent`) with a document that exists but
+ *  could not be read (`unreadable`, carrying its reason). */
+export type PlanStructureRead =
+  | { readonly kind: "absent" }
+  | { readonly kind: "ok"; readonly structure: PlanStructure }
+  | { readonly kind: "unreadable"; readonly reason: string };
+
+/**
+ * PlanStructure — one plan document's STRUCTURE face: the task-id set and each task's
+ * declared `DependsOn` set (design spec §7.3).
+ *
+ * It is a per-round DISPATCH baseline, not a stored fact: the lifecycle snapshots it
+ * right before the spawn and re-reads it at the round's close, so only the round's OWN
+ * structure edit is judged — a content-only amendment (facts, file lists, steps,
+ * acceptance detail, cited line numbers) stays legal. The judgment has ONE presentation
+ * face (the round's graded `violations`): no doc-contract rule row is registered for it,
+ * because the engine's single doc-contract evaluation point is the pre-dispatch gate.
+ */
+export class PlanStructure {
+  /** The registered task ids, ascending. */
+  readonly #taskIds: readonly number[];
+  /** Each task's declared dependency set, keyed by task id. */
+  readonly #dependsOn: ReadonlyMap<number, readonly number[]>;
+
+  private constructor(
+    taskIds: readonly number[],
+    dependsOn: ReadonlyMap<number, readonly number[]>,
+  ) {
+    this.#taskIds = taskIds;
+    this.#dependsOn = dependsOn;
+  }
+
+  /** Read a plan document's two structure faces. `absent` when there is no plan fact
+   *  (no path, or a path whose document does not exist); `unreadable` when the path
+   *  exists but the document cannot be read (the reason rides the read result); `ok`
+   *  with the snapshot otherwise. The three cases stay apart so a caller can tell "there
+   *  is no plan" from "the plan is damaged" — the two carry different judgments. */
+  static of(planPath: string | null): PlanStructureRead {
+    if (planPath === null) return { kind: "absent" };
+    try {
+      return { kind: "ok", structure: PlanStructure.parse(readFileSync(planPath, "utf8")) };
+    } catch (error) {
+      // A path with no document is the absent case, never a read failure; every other
+      // error is the damaged-document case, its reason carried into the caller's message.
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "absent" };
+      return { kind: "unreadable", reason: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /** Parse one plan document into its structure face — the ONE task-block read face. */
+  static parse(content: string): PlanStructure {
+    const reader = new PlanTaskBlocksReader();
+    const blocks = reader.parse(content);
+    const dependsOn = new Map<number, readonly number[]>();
+    for (const block of blocks) dependsOn.set(block.id, reader.dependsOn(block));
+    const taskIds = blocks.map((block) => block.id).sort((left, right) => left - right);
+    return new PlanStructure(taskIds, dependsOn);
+  }
+
+  /** The task-id set, ascending. */
+  get taskIds(): readonly number[] {
+    return this.#taskIds;
+  }
+
+  /** One task's declared dependency set ([] when it declares none). */
+  dependsOnOf(taskId: number): readonly number[] {
+    return this.#dependsOn.get(taskId) ?? [];
+  }
+
+  /** Whether the two snapshots differ on either structure face — SET equality over the
+   *  task-id set and over every task's dependency set (a task added, removed or rewired
+   *  differs; a prose edit does not; declaration order is prose, the edge set is the
+   *  structure). */
+  differsFrom(other: PlanStructure): boolean {
+    if (this.#taskIds.length !== other.#taskIds.length) return true;
+    if (!this.#taskIds.every((id, index) => id === other.#taskIds[index])) return true;
+    return this.#taskIds.some(
+      (id) => !PlanStructure.#sameIds(this.dependsOnOf(id), other.dependsOnOf(id)),
+    );
+  }
+
+  /** Set equality of two id lists (order-insensitive). */
+  static #sameIds(left: readonly number[], right: readonly number[]): boolean {
+    if (left.length !== right.length) return false;
+    const sortedLeft = [...left].sort((a, b) => a - b);
+    const sortedRight = [...right].sort((a, b) => a - b);
+    return sortedLeft.every((id, index) => id === sortedRight[index]);
+  }
 }
 
 /** One round's dispatch outcome — what the lifecycle records and routes on. */
@@ -111,6 +216,29 @@ export interface DispatchOutcome {
   /** The termination fact — present iff the round was cut short; a fact orthogonal to
    *  the conclusion (the status still derives from the handoff). */
   termination?: Termination;
+  /** The HEAD the dispatch started from — the round record's `dispatchBase`. */
+  dispatchBase?: string | null;
+  /** The dispatch-after working-tree observation — the round record's `treeClean`
+   *  (an observation, never a gate). */
+  treeClean?: boolean;
+  /** The round's TERMINAL VERDICT (P22 · design spec §3.1): `targetAction` is the
+   *  completion judgment (the verb's criterion holds and no hard violation was
+   *  graded) and `treeClean` the dispatch-after observation. The bookkeep records it
+   *  verbatim; its readers ask `verdict.targetAction`, never the exit code. Absent
+   *  from the hermetic / injected dispatchers — the bookkeep falls back to the
+   *  status-derived verdict. Its presence is also the PRODUCTION-face marker: a round
+   *  carrying a verdict actually ran, so the bookkeep never synthesizes a carrier for
+   *  it (a production round that wrote no draft is booked with a null carrier path). */
+  verdict?: RoundVerdict;
+  /** The round's GRADED violations — hard entries failed the round, soft entries are
+   *  bookkeeping only (design spec §3.3). Recorded verbatim on the round's record. */
+  violations?: readonly RoundViolation[];
+  /** The fix round's ONE summary line (`fixed N · rejected M`, design spec §3.4) —
+   *  computed at the round's finish from the persisted dispositions and the
+   *  requesting carrier's input set. A face fact only: it rides the capsule render
+   *  between the status line and the trailing `next:` literal (P22 §10), and is
+   *  never stored on the record or the carrier. Absent off the fix face. */
+  dispositionsSummary?: string;
 }
 
 /** The dispatch instruction — runs one round's actual work (the harness call in
@@ -125,21 +253,19 @@ export type DispatchStep = (frame: OpenFrame) => Promise<DispatchOutcome>;
  *  attachCapsule only renders the step's round facts when a capsule is connected. */
 export interface CapsuleFace {
   /** Render the capsule lines for one round's facts — the status-class key set
-   *  (`status · blocker · handoff` on success; `status` plus the crash `handoff` on
-   *  TIMEOUT/BLOCKED) via the face's word table. The additive optional RouteTarget
-   *  supplies the dispatch frame's own type + id for the dispatch-ready `next:`
-   *  literal (v1.25 — the 4-param call stays valid: the target is an optional 5th).
-   *  `withHandoff` is the round's crash-record fact (the failure handoff cell).
-   *  `targetLineOpen` is the NEXT line's fact (P21 §4.2), passed through to the
-   *  `next:` judgment unchanged — the capsule itself judges nothing. */
+   *  (`status · handoff` on success; `status` plus the crash `handoff` on
+   *  TIMEOUT/BLOCKED) via the face's word table. `hop` is the ONE `NextHop` object the
+   *  round renders (P22 §5.2) — its ABSENCE (`null`: the failure face) prints no
+   *  `next:` line; the capsule itself judges nothing. `withHandoff` is the round's
+   *  crash-record fact (the failure handoff cell). `summary` is the fix round's ONE
+   *  disposition line, rendered between the status line and the trailing `next:`
+   *  literal (P22 §10 — `next:` closes the output). */
   emit(
     status: string,
-    blocker: string,
     handoff: string,
-    next?: Route | string | null,
-    target?: RouteTarget | null,
+    hop?: NextHop | null,
     withHandoff?: boolean,
-    targetLineOpen?: boolean,
+    summary?: string,
   ): string[];
 }
 
@@ -147,7 +273,8 @@ export interface CapsuleFace {
 export interface StepResult {
   /** The frame the step dispatched. */
   frame: OpenFrame;
-  /** The round count on record after bookkeeping. */
+  /** The line's round number after bookkeeping — the count of DISTINCT recorded
+   *  cycles (a cycle re-dispatched as a new attempt stays one round number). */
   round: number;
   /** The C5 next-hop route after this step (consumed per the face's next
    *  semantics: a next-wave advances the task batch — batch faces only). */
@@ -201,6 +328,11 @@ export class Lifecycle {
   /** The workspace plan path — the `next:` implement literal's required `--plan`
    *  arg (P4.1 T4 — the task face's implement-consuming fact). */
   readonly #planPath: string | null;
+  /** The pipeline-station discrimination the hop derivation injects (P22 §5.2) —
+   *  the SAME face read the capsule/board use (`BoardView.docClassOf`). The
+   *  composition root passes it; the session-plane default keys by target type
+   *  (the CLI is the seam that reads a spec's DECLARED class). */
+  readonly #docClassOf: (target: RouteTarget) => DocClassVerdict;
 
   constructor(opts: {
     face: TargetFace;
@@ -217,6 +349,10 @@ export class Lifecycle {
     preflight?: PreFlightGate | null;
     /** The workspace plan path (P4.1 T4 — the implement `next:` literal's `--plan`). */
     planPath?: string | null;
+    /** The pipeline-station discrimination (P22 §5.2) — injected by the composition
+     *  root (the declaration-reading face); the type-keyed default covers the
+     *  session-plane callers. */
+    docClassOf?: (target: RouteTarget) => DocClassVerdict;
   }) {
     this.#face = opts.face;
     this.#state = opts.state;
@@ -227,6 +363,17 @@ export class Lifecycle {
     this.#capsule = opts.capsule ?? null;
     this.#preflight = opts.preflight ?? null;
     this.#planPath = opts.planPath ?? null;
+    this.#docClassOf = opts.docClassOf ?? Lifecycle.#docClassByType;
+  }
+
+  /** The session-plane default discrimination — the target type's own pipeline key.
+   *  Every target type but the standalone `single-spec` IS a pipeline key (the
+   *  `PipelineKey` derivation), so the map is the identity plus the one terminal row
+   *  (a single-spec carries no pipeline seam). The declaration-reading judgment (a
+   *  doc's `doc-type:`) belongs to the face plane; the composition root injects it as
+   *  `BoardView.docClassOf`. */
+  static #docClassByType(target: RouteTarget): DocClassVerdict {
+    return target.type === "single-spec" ? "terminal" : target.type;
   }
 
   /** The face row this instance drives. */
@@ -245,9 +392,18 @@ export class Lifecycle {
    *  cursor pre-checks the next step against the requested verb before it advances
    *  (a mismatch must not consume the round: advance() dispatches on entry — the
    *  {16,22,24} bug's loop reordered lookahead-after-dispatch and spent the next
-   *  phase's round in the same invocation). Null = the run is exhausted / capped. */
-  peekNext(): OpenFrame | null {
-    return this.#openFrame();
+   *  phase's round in the same invocation). The returned `hop` is the SAME `NextHop`
+   *  object the board and the CLI rejection message read (P22 §5.2's fourth read
+   *  face): one derivation over this line's facts, never a lookahead-only copy.
+   *  Null = the run is exhausted / capped (no open frame → no line to name). */
+  peekNext(): { frame: OpenFrame; hop: NextHop } | null {
+    const frame = this.#openFrame();
+    if (frame === null) return null;
+    const route =
+      frame.type === "wave"
+        ? this.#ledger.waveLineRoute(String(frame.key))
+        : this.#ledger.lineRoute(frame.key, frame.type);
+    return { frame, hop: this.#hopOf(frame, route) };
   }
 
   /** advance() — one dispatch step: frontier → pre-flight gate → dispatch → result →
@@ -263,7 +419,7 @@ export class Lifecycle {
       if (verdict !== null && !verdict.ok) {
         return {
           frame,
-          round: this.#ledger.roundCount(frame.key, frame.phase),
+          round: this.#ledger.roundCount(frame.key, frame.phase, frame.type),
           route: null,
           capsuleLines: [],
           preflight: verdict,
@@ -280,14 +436,15 @@ export class Lifecycle {
     // review empties the ready batch, so the step routes `done` (an exhausted run),
     // not a phantom next-wave of the just-closed task.
     const route = this.#routeNext(frame);
-    // The `next:` judgment's NEXT-line fact (P21 §4.2): only a closing route on the
-    // wave line needs it, so the ledger read happens only there.
-    const targetLineOpen = route?.kind === "done" ? this.#targetLineOpen() : undefined;
+    // The failure face holds NO next object at all (the `next:` line's absence gate
+    // is the NextHop's absence, never `hop: null` — that still renders `done` / the
+    // soft-cap / the doc-class rows).
+    const failed = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     return {
       frame,
       round,
       route,
-      capsuleLines: this.#capsuleLines(frame, outcome, route, targetLineOpen),
+      capsuleLines: this.#capsuleLines(frame, outcome, failed ? null : this.#hopOf(frame, route)),
       termination: outcome.termination,
     };
   }
@@ -317,6 +474,7 @@ export class Lifecycle {
     if (phase === null) return null;
     const target = { kind: "wave", tasks: ready } as const;
     const round = this.#roundFor(phase, key);
+    const attempt = this.#attemptFor(phase, key, round);
     return {
       type: "wave",
       phase,
@@ -324,7 +482,17 @@ export class Lifecycle {
       target,
       params: this.#paramsOf({ type: "wave", phase, target, round }),
       key,
+      attempt,
     };
+  }
+
+  /** The attempt number one dispatch takes — allocated ONCE here from the row's
+   *  records (`RoundNaming#attemptOf`, the naming single source) and shared by the
+   *  round record and the round log's name. */
+  #attemptFor(phase: DispatchPhase, key: LedgerKey, round: number): number {
+    return this.#ledger
+      .naming()
+      .attemptOf(this.#ledger.recordsOf(key, this.#face.type), this.#opOf(phase), round);
   }
 
   /** The next phase of one wave line — the SAME single derivation the wave gate reads
@@ -345,6 +513,7 @@ export class Lifecycle {
     const phase = this.#nextLinePhase(key, target, reviewLead);
     if (phase === null) return null;
     const round = this.#roundFor(phase, key);
+    const attempt = this.#attemptFor(phase, key, round);
     return {
       type: this.#face.type,
       phase,
@@ -352,16 +521,19 @@ export class Lifecycle {
       target,
       params: this.#paramsOf({ type: this.#face.type, phase, target, round }),
       key,
+      attempt,
     };
   }
 
   /** The next phase of a single-target line — the doc-revision gate (lifecycle-side:
    *  its reviewGate needs the target doc path) then the ledger's SINGLE rounds/routes
    *  judge (`Ledger#linePhase`, D40 — the retired lifecycle twin). A CLOSED doc line
-   *  reopens through the identity verdict (T7): a drifted doc opens the review lead
-   *  whatever the round/route state says (the fix-awaited route never freezes a
-   *  revised doc); an unchanged doc with the pending fix derived opens the fix; the
-   *  unbound / same-without-pending faces fall through to the shared rounds/routes
+   *  reopens through the identity verdict (T7) — the ONE `Ledger#docReopens` judgment,
+   *  the same one the dispatch gate reads, so an exit-side drift opens the review lead
+   *  whatever the round/route state says while a still-pending fix keeps its round
+   *  (drift never outranks it, §5.5 ② — the gate never names a round this frontier
+   *  would not frame); an unchanged doc with the pending fix derived opens the fix;
+   *  the unbound / same-without-pending faces fall through to the shared rounds/routes
    *  walk (a completed-fix line reopens review through the fix round's route). */
   #nextLinePhase(
     key: LedgerKey,
@@ -370,7 +542,7 @@ export class Lifecycle {
   ): DispatchPhase | null {
     if (target.kind === "plan" || target.kind === "spec") {
       const verdict = this.#ledger.reviewGate(key, target.doc, this.#face.type);
-      if (verdict.kind === "open") return reviewLead;
+      if (this.#ledger.docReopens(key, this.#face.type, verdict)) return reviewLead;
       if (verdict.kind === "same" && verdict.pending) return "fix";
     }
     // The branch line's identity is its PLAN document (P21 §4.1): a plan revision
@@ -379,19 +551,21 @@ export class Lifecycle {
     // the line's plan (the audit target itself carries no doc).
     if (target.kind === "branch" && this.#planPath !== null) {
       const verdict = this.#ledger.reviewGate(key, this.#planPath, "branch");
-      if (verdict.kind === "open") return reviewLead;
+      if (this.#ledger.docReopens(key, "branch", verdict)) return reviewLead;
       if (verdict.kind === "same" && verdict.pending) return "fix";
     }
     return this.#ledger.linePhase(key, this.#face.type);
   }
 
   /** The round number one phase dispatches under: implement = the fixed family (1);
-   *  the review-lead = the next increment; fix = the source review-lead round. */
+   *  the review-lead = the next increment (every in-register cycle consumes a number);
+   *  fix = the source review-lead's latest COMPLETED cycle (a failed fix never pushes
+   *  it forward — a retry is fix-K's attempt + 1, never a phantom fix-(K+1)). */
   #roundFor(phase: DispatchPhase, key: LedgerKey): number {
     if (phase === "implement") return 1;
     if (phase === "fix") {
-      const reviews = this.#reviewCount(key);
-      return reviews > 0 ? reviews : 1;
+      const completed = this.#ledger.completedCycles(key, "review", this.#face.type);
+      return completed.length > 0 ? Math.max(...completed) : 1;
     }
     return this.#reviewCount(key) + 1;
   }
@@ -399,13 +573,14 @@ export class Lifecycle {
   /** The review-lead round count of a key (branch counts its branch-review mode,
    *  the others the review mode — the face row's single source). */
   #reviewCount(key: LedgerKey): number {
-    return this.#ledger.roundCount(key, this.#face.product.reviewLead);
+    return this.#ledger.roundCount(key, this.#face.product.reviewLead, this.#face.type);
   }
 
   /** The progress key of a single-target line — the line's STABLE key (find #9 ·
    *  spec §6.5/§3.7 — `"branch"` per workspace for the branch line, accumulating
-   *  across re-reviews; the doc line keys by its line-type constant `"spec"`/`"plan"`
-   *  — the argv path copy never resets the round: a moved argv string (absolute vs
+   *  across re-reviews; a doc line keys by its target-type word (`"phase-spec"` /
+   *  `"overall"` / `"plan"` / `"single-spec"`) — the argv path copy never resets the
+   *  round: a moved argv string (absolute vs
    *  relative) must not fork the same line into two ledger rows). The task face
    *  never routes here — frames key by the wave key. */
   #lineKey(target: AuditTarget): LedgerKey {
@@ -435,8 +610,10 @@ export class Lifecycle {
       }
       case "branch":
         return { round: frame.round };
-      case "spec":
+      case "phase-spec":
+      case "overall":
       case "plan":
+      case "single-spec":
         return { round: frame.round };
     }
   }
@@ -445,22 +622,23 @@ export class Lifecycle {
   // dispatch → result → bookkeeping
   // -------------------------------------------------------------------------
 
-  /** Bookkeeping — persist the round's handoff carrier and record the progress round.
-   *  The persisted carrier is either the dispatch's materialized form (the production
+  /** Bookkeeping — persist the round's handoff carrier and record the round. The
+   *  persisted carrier is either the dispatch's materialized form (the production
    *  read-back reconstruct — outcome.carrier, full-replace at the SAME path, so the
    *  child's draft becomes the finalized carrier — the two-state single file, the engine is the single
-   *  author) or the engine-built fallback from the outcome fields (the hermetic /
-   *  injected dispatchers). A BLOCKED/TIMEOUT round WITHOUT a carrier is neither persisted nor
-   *  recorded — the child's draft (if any) stays untouched (no-overwrite on failure) and the
-   *  frontier re-offers the same round (resume = re-run the same command); a BLOCKED
-   *  round WITH a carrier (e.g. the evidence-contract override — the child's work is
-   *  preserved as the BLOCKED carrier) is persisted but not counted as a completed
-   *  round, so the frontier still re-dispatches it. Returns the round count on record
-   *  (the task done-marking rides the step's C5 route — #markTerminal, after
-   *  #routeNext). */
+   *  author) or — on the INJECTED face alone (an outcome carrying no verdict) — the
+   *  engine-built fallback from the outcome fields. A production round that wrote no
+   *  carrier is booked with `carrierPath: null` and no file at the handoff path: the
+   *  completion criterion owns the absence (§3.3), and a re-dispatch's draft read must
+   *  see the child's own draft, never an engine synthesis of it. A failure round
+   *  WITHOUT a carrier leaves the child's draft untouched (no-overwrite on failure) but
+   *  is STILL recorded — every dispatched round lands; "completed" is the record's
+   *  verdict, never a membership test. Returns the in-register round count (the task
+   *  done-marking rides the step's C5 route — #markTerminal, after #routeNext). */
   #bookkeep(frame: OpenFrame, outcome: DispatchOutcome): number {
     const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
-    if (outcome.carrier !== undefined || !blocked) {
+    let carrierPath: string | null = null;
+    if (outcome.carrier !== undefined || (outcome.verdict === undefined && !blocked)) {
       const op = this.#opOf(frame.phase);
       // T2 — the engine-built fallback rides the FRAME's op-derived plane (never the
       // outcome's field presence): a judge-plane round (review) builds the findings
@@ -483,35 +661,57 @@ export class Lifecycle {
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
       if (plane === "work" && carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
-      this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
+      carrierPath = this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
     }
-    if (!blocked) {
-      // The recorded CYCLE is the frame's own round — its identity (fix-K ⟷ review-K ·
-      // D28): a skipped cycle records its own number, never a flattened ordinal.
-      const count = this.#ledger.recordRound(frame.key, frame.phase, frame.round);
-      // The completed-review revision write-back — the doc line and the wave line
-      // each bind their OWN reviewed revision (T7 doc · T11 wave / D16 / D30): a
-      // completed review binds the CURRENT revision of the reviewed input — read at
-      // bookkeep, the clean-tree dispatch gate keeps the read-only review's input
-      // stable across the round. For a doc line that input is the target doc (the
-      // whole-content doc-revision). For a wave line it is the RENDERED BRIEF —
-      // `#recordReviewedWaveBrief` → `recordReviewedBrief(String(frame.key),
-      // #planPath)` hashes the brief the plan renders to, holding #planPath only as
-      // the plan the brief renders FROM (the render-from POINTER, not the hashed
-      // identity; the wave gate derives the plan path FROM this record, so
-      // cli.ts/preflight.ts stay untouched). The two legs do NOT share one gate —
-      // each ref kind carries its own reviewed identity. An unreadable input records
-      // nothing (present facts only); a null plan path (no plan fact) leaves a legacy
-      // wave row — null stays backward compatible.
-      if (frame.phase === "review" || frame.phase === "branch-review") {
-        if (frame.target.kind === "plan" || frame.target.kind === "spec")
-          this.#recordReviewedDocRevision(frame);
-        else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);
-        else if (frame.target.kind === "branch") this.#recordReviewedBranchRevision(frame);
-      }
-      return count;
+    // The recorded CYCLE is the frame's own round — its identity (fix-K ⟷ review-K ·
+    // D28): a skipped cycle records its own number, never a flattened ordinal. The
+    // attempt was allocated once by the frame builder and rides both the record and
+    // the round log's name.
+    const record = this.#ledger.recordRound(
+      frame.key,
+      {
+        op: this.#opOf(frame.phase),
+        cycle: frame.round,
+        attempt: frame.attempt ?? 1,
+        dispatchBase: outcome.dispatchBase ?? null,
+        // The verdict is the dispatch's own judgment when it carries one (the
+        // production lifecycle's `#verdictOf`); the injected dispatchers keep the
+        // status-derived fallback.
+        verdict: outcome.verdict ?? {
+          treeClean: outcome.treeClean ?? true,
+          targetAction: !blocked,
+        },
+        violations: outcome.violations ?? [],
+        carrierPath,
+      },
+      frame.type,
+    );
+    // The completed-review revision write-back is gated on the round's VERDICT (a
+    // hard-failed review must not bind the current revision — that would silently
+    // close the drift identity the review never judged). The doc line and the wave
+    // line each bind their OWN reviewed revision (T7 doc · T11 wave / D16 / D30): a
+    // completed review binds the CURRENT revision of the reviewed input — read at
+    // bookkeep, the clean-tree dispatch gate keeps the read-only review's input
+    // stable across the round. For a doc line that input is the target doc (the
+    // whole-content doc-revision). For a wave line it is the RENDERED BRIEF —
+    // `#recordReviewedWaveBrief` → `recordReviewedBrief(String(frame.key),
+    // #planPath)` hashes the brief the plan renders to, holding #planPath only as
+    // the plan the brief renders FROM (the render-from POINTER, not the hashed
+    // identity; the wave gate derives the plan path FROM this record, so
+    // cli.ts/preflight.ts stay untouched). The two legs do NOT share one gate —
+    // each ref kind carries its own reviewed identity. An unreadable input records
+    // nothing (present facts only); a null plan path (no plan fact) leaves a legacy
+    // wave row — null stays backward compatible.
+    if (
+      record.verdict.targetAction &&
+      (frame.phase === "review" || frame.phase === "branch-review")
+    ) {
+      if (frame.target.kind === "plan" || frame.target.kind === "spec")
+        this.#recordReviewedDocRevision(frame);
+      else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);
+      else if (frame.target.kind === "branch") this.#recordReviewedBranchRevision(frame);
     }
-    return this.#ledger.roundCount(frame.key, frame.phase);
+    return this.#ledger.roundCount(frame.key, frame.phase, frame.type);
   }
 
   /** The reviewed-revision write-back — bind the reviewed input's revision to the
@@ -523,7 +723,7 @@ export class Lifecycle {
    *  legacy closed face (only present facts land, never an invented identity). */
   #recordReviewedDocRevision(frame: OpenFrame): void {
     if (frame.target.kind !== "plan" && frame.target.kind !== "spec") return;
-    this.#recordDocRevisionOf(frame.key, frame.target.doc);
+    this.#recordDocRevisionOf(frame.key, frame.target.doc, frame.type);
   }
 
   /** The wave line's reviewed-brief write-back (D30) — bind the RENDERED brief's
@@ -540,17 +740,21 @@ export class Lifecycle {
    *  An unreadable plan / a null plan path records nothing (present facts only). */
   #recordReviewedBranchRevision(frame: OpenFrame): void {
     if (this.#planPath === null) return;
-    this.#recordDocRevisionOf(frame.key, this.#planPath);
+    this.#recordDocRevisionOf(frame.key, this.#planPath, frame.type);
   }
 
   /** The doc-revision write-back body — read the reviewed document and bind its
    *  current revision to the line row (the ONE read + hash + record path the doc and
    *  branch legs share; each passes its own path source). An unreadable input records
    *  nothing — the line keeps the legacy closed face (present facts only). */
-  #recordDocRevisionOf(key: LedgerKey, path: string): void {
+  #recordDocRevisionOf(key: LedgerKey, path: string, identity: TargetType): void {
     try {
       const content = readFileSync(path, "utf8");
-      this.#ledger.recordReviewedRevision(key, this.#ledger.refs().docRevision(path, content));
+      this.#ledger.recordReviewedRevision(
+        key,
+        this.#ledger.refs().docRevision(path, content),
+        identity,
+      );
     } catch {
       // unreadable input — no reviewed identity recorded (present facts only)
     }
@@ -621,13 +825,43 @@ export class Lifecycle {
     return this.#face.nextSemantics.batch ? this.#state : EMPTY_RUN_STATE;
   }
 
-  /** Whether the branch line has a dispatchable open round — the `next:` judgment's
-   *  fact (P21 §4.2), computed HERE (the ledger-holding side) from the two already-
-   *  registered ledger faces: the branch row's drift-aware gate (the plan moved past
-   *  its reviewed doc-revision) or a still-active C5 hop. Deliberately NOT
-   *  `PipelineFaceState.closed`. `undefined` when no plan fact exists (the legacy face
-   *  keeps `resolve`'s exact pre-existing behavior). */
-  #targetLineOpen(): boolean | undefined {
+  /** The line's ONE next-hop object (§5.2) — this lifecycle's facts handed to the
+   *  ONE derivation (`Ledger#nextHopOf`): the recorded round's route, the line's
+   *  completed records, the drift-aware gate and the injected station
+   *  discrimination. The nullable route is handed over UNJUDGED — the assembly owns
+   *  the exit-side decision (a closed line's `null` route is where the drift reopen
+   *  lands), so the frontier face reads the same object the board and the gate read.
+   *  The failure face's absent hop is the CALLER's fact (`advance` passes null for a
+   *  BLOCKED/TIMEOUT round), never a second short-circuit here. */
+  #hopOf(frame: OpenFrame, route: Route | null): NextHop {
+    const target = this.#routeTarget(frame);
+    return this.#ledger.nextHopOf({
+      type: frame.type,
+      key: frame.key,
+      route,
+      target,
+      doc: this.#docOf(frame),
+      // The wave closure's NEXT-line fact (P21 §4.2) rides the derivation's input
+      // face — the retired render-side patch parameter is gone, the fact is not.
+      nextLineOpen: frame.type === "wave" ? this.#branchLineOpen() : undefined,
+      docClassOf: (candidate) => this.#docClassOf(candidate),
+    });
+  }
+
+  /** The line's judged document — the doc lines' own path, the branch line's plan
+   *  (its identity document, P21 §4.1); null off the doc faces. */
+  #docOf(frame: OpenFrame): string | null {
+    if (frame.target.kind === "plan" || frame.target.kind === "spec") return frame.target.doc;
+    if (frame.target.kind === "branch") return this.#planPath;
+    return null;
+  }
+
+  /** Whether the branch line has a dispatchable open round — the wave closure's
+   *  NEXT-line fact (P21 §4.2), read HERE (the ledger-holding side) from the two
+   *  already-registered ledger faces: the branch row's drift-aware gate (the plan
+   *  moved past its reviewed doc-revision) or a still-active C5 hop. `undefined` when
+   *  no plan fact exists (the wave row keeps its plain station). */
+  #branchLineOpen(): boolean | undefined {
     if (this.#planPath === null) return undefined;
     const gate = this.#ledger.reviewGate("branch", this.#planPath, "branch");
     if (gate.kind === "open") return true;
@@ -635,20 +869,18 @@ export class Lifecycle {
   }
 
   /** The capsule lines of one step — empty unless a capsule is attached (the non-hard
-   *  interaction point). A success round carries the real blocker count and the
-   *  handoff carrier path. A failure round (TIMEOUT / BLOCKED) carries no blocker
-   *  cell (its count would be a filler); its handoff cell is the crash record and is
-   *  emitted only when that record exists (a no-host BLOCKED writes none). The
-   *  dispatch-ready `next:` literal rides the frame's own RouteTarget identity
-   *  (type + id — the v1.25 combination point: frame.type + params.tasks + route
-   *  are all present here). */
+   *  interaction point). A success round carries the handoff carrier path; a failure
+   *  round (TIMEOUT / BLOCKED) carries the crash record as its handoff cell, emitted
+   *  only when that record exists (a no-host BLOCKED writes none). The fix round's
+   *  disposition summary is handed to the capsule as its `summary` — the render places
+   *  it between the status line and the trailing `next:` literal (P22 §10). */
   #capsuleLines(
     frame: OpenFrame,
     outcome: DispatchOutcome,
-    route: Route | null,
-    targetLineOpen?: boolean,
+    hop: NextHop | null,
   ): readonly string[] {
-    if (this.#capsule === null) return [];
+    const summary = outcome.dispositionsSummary;
+    if (this.#capsule === null) return summary === undefined ? [] : [summary];
     const op = this.#opOf(frame.phase);
     const failure = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     const naming = this.#ledger.naming();
@@ -657,22 +889,11 @@ export class Lifecycle {
     // round's handoff carrier path. The name derives from the frame through the ONE
     // naming source (`RoundNaming`), the same name the lifecycle wrote it under.
     const crash = failure ? this.#ledger.readCrash(naming.crashName(frame)) : null;
-    const blockers = (outcome.findings ?? []).filter(
-      (finding) => finding.severity === "blocker",
-    ).length;
     const handoff =
       crash !== null
         ? naming.crashPath(frame)
         : this.#ledger.handoffPath(op, frame.type, frame.params);
-    return this.#capsule.emit(
-      outcome.status,
-      String(blockers),
-      handoff,
-      route,
-      this.#routeTarget(frame),
-      crash !== null,
-      targetLineOpen,
-    );
+    return this.#capsule.emit(outcome.status, handoff, hop, crash !== null, summary);
   }
 
   /** The frame's RouteTarget — the dispatch-ready literal's target identity (the
@@ -693,8 +914,10 @@ export class Lifecycle {
           id: "branch",
           plan: this.#planPath ?? undefined,
         };
-      case "spec":
+      case "phase-spec":
+      case "overall":
       case "plan":
+      case "single-spec":
         return {
           type: frame.type,
           id: (frame.target as { kind: "plan" | "spec"; doc: string }).doc,

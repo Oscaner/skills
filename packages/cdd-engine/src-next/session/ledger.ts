@@ -28,10 +28,10 @@ import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
-import { type TargetType, targetFaces } from "./faces.ts";
+import { type RouteTarget, type TargetType, targetFaces } from "./faces.ts";
 import { type Carrier, type CarrierPlane, HandoffSchema } from "./handoff-schema.ts";
 import { LineIdentity } from "./line-identity.ts";
-import type { Route } from "./next.ts";
+import type { DocClassVerdict, NextHop, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import { RoundNaming } from "./round-naming.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
@@ -70,6 +70,77 @@ export interface RoundFinding {
 export type OpType = "implement" | "review" | "fix";
 export type RoundPhase = OpType | "branch-review";
 
+/** The terminal verdict of one dispatched round — the two facts the completion
+ *  readers and the board judge. `targetAction` is the completion verdict (the round
+ *  did what its verb promised); `treeClean` is the dispatch-after observation of the
+ *  working tree (not a gate). */
+export interface RoundVerdict {
+  readonly treeClean: boolean;
+  readonly targetAction: boolean;
+}
+
+/** One graded violation of a round — `hard` fails the round, `soft` is bookkeeping
+ *  only (never a gate). */
+export type RoundViolation = {
+  readonly grade: "hard" | "soft";
+  readonly cause: string;
+  readonly message: string;
+};
+
+/** The graded-violation literals' ONE construction point — the cause vocabulary is
+ *  a declared convergence point, so its shape is held here rather than copied per
+ *  call site. `cause` defaults to `contract-violation`, the ledger's existing row
+ *  for a self-authored entry; a death fact passes its own cause. */
+export const RoundViolation = {
+  hard: (message: string, cause = "contract-violation"): RoundViolation => ({
+    grade: "hard",
+    cause,
+    message,
+  }),
+  soft: (message: string, cause = "contract-violation"): RoundViolation => ({
+    grade: "soft",
+    cause,
+    message,
+  }),
+};
+
+/** One dispatched round's record — its identity (`op` + `cycle` + `attempt`), the
+ *  dispatch baseline HEAD, the terminal verdict, its graded violations and the
+ *  carrier path (null when the round wrote none). A dispatched round is recorded
+ *  unconditionally; "completed" is a read of `verdict.targetAction`, never a
+ *  membership test. */
+export interface RoundRecord {
+  readonly op: OpType;
+  readonly cycle: number;
+  readonly attempt: number;
+  readonly dispatchBase: string | null;
+  readonly verdict: RoundVerdict;
+  readonly violations: readonly RoundViolation[];
+  readonly carrierPath: string | null;
+}
+
+/** One dispatched round's identity — the verdict-free projection a completion
+ *  judgment reads. A completion verdict must never be an input to the judgment that
+ *  produces it, so the criteria see this shape, not a record whose `verdict` cell
+ *  the judgment itself would fill. */
+export type RoundIdentity = Pick<
+  RoundRecord,
+  "op" | "cycle" | "attempt" | "dispatchBase" | "carrierPath"
+>;
+
+/** The writable shape of one round record — the stored record with the identity
+ *  facts defaultable (the seeding form still allocates the cycle from the row's
+ *  latest in-register cycle). Production dispatch passes the whole identity. */
+export interface RoundRecordInit {
+  readonly op: OpType;
+  readonly cycle?: number;
+  readonly attempt?: number;
+  readonly dispatchBase?: string | null;
+  readonly verdict?: RoundVerdict;
+  readonly violations?: readonly RoundViolation[];
+  readonly carrierPath?: string | null;
+}
+
 /** The round-concluding statuses the router's failure face reads. */
 export type RoundStatus = "APPROVED" | "BLOCKED" | "TIMEOUT" | "CHANGES_REQUESTED" | "REVIEW_FIX";
 
@@ -97,17 +168,27 @@ export interface Round {
 // progress — the fixed key set
 // ---------------------------------------------------------------------------
 
-/** The fixed counter key set — the five engine-config failure-category counters, verbatim. */
+/** The fixed counter key set — the failure-category counters the engine still WRITES,
+ *  verbatim. */
 export const PROGRESS_COUNTER_ZERO = {
   timeoutCount: 0,
-  contractViolationCount: 0,
   engineSelfWrittenCount: 0,
   engineRecoveryCount: 0,
   harnessAbortCount: 0,
 } as const;
 
+/** The retired counter keys — still READABLE through `counterOf` (its callers name
+ *  them), never written: their value derives from the round records
+ *  (`Ledger#softViolations`), and a legacy scalar left on disk is ignored — zero
+ *  migration, zero rewrite of history. */
+export const PROGRESS_COUNTER_RETIRED = {
+  contractViolationCount: 0,
+} as const;
+
 /** The counter member keys — the derived literal union (never re-typed). */
-export type ProgressCounterKey = keyof typeof PROGRESS_COUNTER_ZERO;
+export type ProgressCounterKey =
+  | keyof typeof PROGRESS_COUNTER_ZERO
+  | keyof typeof PROGRESS_COUNTER_RETIRED;
 
 /** One progress row — keyed by the wave key string (T26 · the wave-unitary model:
  *  every dispatch is a wave — `--tasks 1` is the single-task wave `"1"`, `--tasks
@@ -115,13 +196,11 @@ export type ProgressCounterKey = keyof typeof PROGRESS_COUNTER_ZERO;
 export type ProgressRow = {
   /** The wave key string — the dispatch group identity (`"1"` · `"1,2"`). */
   wave: string;
-  /** The completed rounds per mode (implement/review/fix), each as its CYCLE NUMBER —
-   *  the round's IDENTITY, not a count (D28 · one fact one place). A fix cycle equals
-   *  the review cycle it addressed (fix-K ⟷ review-K), so a fix that skips a cycle
-   *  (a drift-voided review) records its identity — `[2]` — where a count would have
-   *  flattened it to `1` and diverged from the carrier name `fix-2`. Review cycles are
-   *  contiguous (1..N); `implement` is `[1]`. */
-  rounds?: Record<string, number[]>;
+  /** The dispatched rounds of this row — the per-round records (identity + verdict +
+   *  violations + carrier). The read-time normalizer (`RoundRecords.of`) folds the
+   *  legacy two forms (a per-mode cycle array / a numeric cycle count) into completed
+   *  records; the write face appends the new form only. */
+  rounds?: RoundRecord[] | Record<string, number[] | number>;
   /** The line's reviewed identity — the doc-revision a spec/plan line bound (T7) OR
    *  the brief-revision a wave line bound (D30). Written at review completion; the
    *  identity-aware gate reopens the closed line on drift from it. The two kinds are
@@ -140,15 +219,93 @@ export interface ProgressData {
   /** The `--plan` path recorded at first create. */
   plan?: string;
   timeoutCount: number;
-  contractViolationCount: number;
+  /** Retired by P22 (design spec §3.3): the soft-violation count derives from the
+   *  round records. A scalar persisted by an older engine is read and IGNORED — the
+   *  file keeps its bytes, the read face never republishes it. */
+  contractViolationCount?: number;
   engineSelfWrittenCount: number;
   engineRecoveryCount: number;
   harnessAbortCount: number;
   waves: ProgressRow[];
 }
 
+/**
+ * RoundRecords — the ONE read-time normalizer of a progress row's `rounds` plane.
+ * The stored form is a record array; the two legacy forms (a per-mode cycle-number
+ * array / a bare numeric cycle count) fold into completed records (the old write
+ * recorded only `!blocked` rounds, so every legacy cycle IS a completed round).
+ * Every reader (the ledger, the board, the dry-run preview, the pre-flight gate)
+ * normalizes here — zero second read seam, zero migration write-back.
+ */
+// biome-ignore lint/complexity/noStaticOnlyClass: the normalization single point — the zero-bare-function discipline admits no standalone predicate functions.
+export class RoundRecords {
+  /** The row's round records, legacy forms folded — [] when the row carries none. */
+  static of(row: ProgressRow | undefined): readonly RoundRecord[] {
+    const raw = row?.rounds;
+    if (raw === undefined) return [];
+    if (Array.isArray(raw)) {
+      return raw.filter(
+        (entry): entry is RoundRecord =>
+          typeof entry === "object" &&
+          entry !== null &&
+          typeof (entry as RoundRecord).op === "string",
+      );
+    }
+    const records: RoundRecord[] = [];
+    for (const [mode, value] of Object.entries(raw)) {
+      const op = RoundRecords.opOf(mode);
+      if (op === null) continue;
+      const cycles = Array.isArray(value) ? value : RoundRecords.#contiguous(value);
+      for (const cycle of cycles) records.push(RoundRecords.completed(op, cycle));
+    }
+    return records.sort((left, right) => left.cycle - right.cycle);
+  }
+
+  /** One completed record of an op/cycle — the legacy fold and the test/seed form. */
+  static completed(op: OpType, cycle: number): RoundRecord {
+    return {
+      op,
+      cycle,
+      attempt: 1,
+      dispatchBase: null,
+      verdict: { treeClean: true, targetAction: true },
+      violations: [],
+      carrierPath: null,
+    };
+  }
+
+  /** The op a recorded mode key belongs to — branch-review rides the review family;
+   *  an unknown mode key reads null (a hand-written row is not a round record). */
+  static opOf(mode: string): OpType | null {
+    if (mode === "branch-review") return "review";
+    return mode === "implement" || mode === "review" || mode === "fix" ? mode : null;
+  }
+
+  /** `n` as the contiguous identity list `1..n` (the retired numeric-count form). */
+  static #contiguous(count: number): readonly number[] {
+    return Array.from({ length: count }, (_unused, index) => index + 1);
+  }
+}
+
 /** The ledger lookup key — a scalar task id or the group key string. */
 export type LedgerKey = number | string;
+
+/** The retired phase-spec row key — the spelling the round records carried before the
+ *  target vocabulary unified on `phase-spec` (P22 D73). Rows already on disk keep it
+ *  byte-frozen; the row read normalizes it (see `Ledger.rowFor`). */
+const RETIRED_SPEC_KEY = "spec";
+
+/** The identity-DOCUMENT line words a retired `spec` row may belong to — the words a
+ *  workspace's document line keys under after the vocabulary unification. A workspace
+ *  holds at most ONE identity document, so a retired `spec` row is exactly that
+ *  document's line: `phase-spec` (the pre-rename default), a charter's `overall`, or a
+ *  standalone `single-spec`. The plan line carried `plan` before the rename too and
+ *  never lived under `spec`, so it stays out. */
+const RETIRED_SPEC_LINE_KEYS: ReadonlySet<string> = new Set([
+  "phase-spec",
+  "overall",
+  "single-spec",
+]);
 
 /** The dispatch-termination vocabulary — why a round was cut short (single source:
  *  the terminator derives the cause from the child's own result face, the crash
@@ -159,24 +316,27 @@ export type LedgerKey = number | string;
 export type TerminationCause = "stalled" | "over-budget" | "signal";
 
 /** The stall judge's verdict per sample tick: `progress` (a leg advanced), `unknown`
- *  (a leg is unreadable — the fail-open state, never a kill), `idled` (no progress
- *  yet, the idle window is open) and `stalled` (no progress and the window is spent
- *  — the kill). */
+ *  (no leg was readable anywhere in the stall window — the fail-open state, never a
+ *  kill), `idled` (no progress yet, the idle window is open) and `stalled` (no progress
+ *  and the window is spent — the kill). */
 export type StallVerdict = "progress" | "unknown" | "idled" | "stalled";
 
-/** One sample tick's two legs — the process group's cumulative CPU (ms) and the
- *  newest mtime (ms) of the scanned tree. `null` = that leg is unreadable (the
- *  fail-open face: an unreadable leg never authorizes a kill). The field names are
- *  the in-flight record's names (one naming, two references). */
+/** One sample tick's two legs — the round log's size in bytes and the process group's
+ *  cumulative CPU (ms). `null` = that leg is unreadable (the fail-open face: an
+ *  unreadable leg neither advances, nor conjures `unknown`, nor blocks a stall). The
+ *  field names are the recorded sample's own (`SampleRecord` extends this). The tick's
+ *  instant is the one fact two record shapes name differently — `SampleRecord.at` on
+ *  the recorded sample, `InFlightRecord.sampledAt` on the in-flight record — so neither
+ *  shape renames the other's cells; the two names are one instant, never two facts. */
 export interface Sample {
-  groupCpuMs: number | null;
-  newestMtimeMs: number | null;
+  logSize: number | null;
+  cpuMs: number | null;
 }
 
-/** The recorded sample — a `Sample` extended with its tick's timestamp and the
- *  judge's verdict (the sampling trail's field set; the crash record embeds it). */
+/** The recorded sample — a `Sample` extended with the tick's instant and the judge's
+ *  verdict (the sampling trail's field set; the crash record embeds it). */
 export interface SampleRecord extends Sample {
-  sampledAt: number;
+  at: number;
   verdict: StallVerdict;
 }
 
@@ -194,17 +354,14 @@ export interface Termination {
 /** The lane-crash cause vocabulary — postmortem classification of why a dispatch
  *  terminated before the exit gate (zero behavior fork: resume never routes on it).
  *  The termination causes cover the round that was cut short; `child-exit` is the
- *  child's own non-zero exit; `handoff-absent` is the read-back face when the child
- *  exited 0 but wrote no draft at all; `contract-violation` is the read-back face
+ *  child's own non-zero exit; `contract-violation` is the read-back rejection face
  *  when a draft is present but unqualified (malformed JSON / schema); and `unknown`
- *  is the unattributable termination fallback. Both read-back causes increment
- *  `contractViolationCount` — never folded under one cause word. */
-export type CrashCause =
-  | TerminationCause
-  | "child-exit"
-  | "handoff-absent"
-  | "contract-violation"
-  | "unknown";
+ *  is the unattributable termination fallback. A MISSING draft is not a crash cause:
+ *  the completion criterion owns it (§3.3), so the read-back rejection never fires
+ *  there and this vocabulary names a present-but-unqualified draft alone. The crash
+ *  record is a postmortem artifact only — the violation family, not this vocabulary,
+ *  is what the round's counters derive from. */
+export type CrashCause = TerminationCause | "child-exit" | "contract-violation" | "unknown";
 
 /** The crash record — the lane crash's recovery record (`crash-<lane>-<round>.json`):
  *  the same-command resume's decision source (the resume command + the dead child's
@@ -221,6 +378,10 @@ export interface CrashRecord {
   stdoutTail: readonly string[];
   /** The handoff path the dead child was expected to write (null when the lane carries none). */
   attemptedHandoff: string | null;
+  /** The round's log file (repoRoot-relative), null when the round had no log channel
+   *  (a create failure, or a dispatch that never reached its spawn). The postmortem
+   *  opens one file instead of reading `ps` from outside. */
+  logPath: string | null;
   /** The same-command resume string — emitted verbatim as `next: <resumeCommand>`. */
   next: string;
   /** The unified termination cause — postmortem, zero behavior fork. */
@@ -345,14 +506,14 @@ export class ReviewRefs {
 }
 
 // ---------------------------------------------------------------------------
-// the review gate — the T8 doc-revision-first verdict (spec §3.5)
+// the review gate — the T8 drift-aware verdict (spec §3.5)
 // ---------------------------------------------------------------------------
 
 /** The review-gate verdict (T8 · §3.5 · v0.12 ruled) — the doc line's review
- *  request judgment, doc-revision FIRST: a doc moved past the reviewed revision
- *  OPENS the review lead whatever the round/route state says (fix after · backfill
- *  after · user-decision after are the SAME case — the stuck "next round is fix
- *  after an aborted fix" path never freezes a revised doc); an unchanged doc stays
+ *  request judgment: a doc moved past the reviewed revision reports `open`, and the
+ *  reopen's SCOPE is the ONE `Ledger#docReopens` judgment its callers read (an
+ *  exit-side line reopens onto the review lead; a still-pending fix keeps its round,
+ *  §5.5 ②); an unchanged doc stays
  *  REJECTED (Review Convergence anti-spin), with the pending fix DERIVED from the
  *  latest review's non-APPROVED conclusion — zero independent state field (the
  *  progress.json key set carries no pending-fix key). `unbound` = no reviewed
@@ -473,9 +634,32 @@ export class Ledger {
   }
 
   /** The ledger-row lookup single point — a scalar key (or the single-task wave key
-   *  `"1"`) resolves the `{ task }` row; a multi-task wave key (`"1,2"`) the `{ wave }` row. */
-  rowFor(data: ProgressData, key: LedgerKey): ProgressRow | undefined {
-    return data.waves.find((row) => row.wave === String(key));
+   *  `"1"`) resolves the `{ task }` row; a multi-task wave key (`"1,2"`) the `{ wave }` row.
+   *  A DOCUMENT-line lookup falls back to a row still carrying the retired `spec` key —
+   *  the read-time alias keeps an in-flight line's recorded reviews/fixes on its board
+   *  (the normalization is never written back: the stored key stays byte-frozen). The
+   *  alias keys on the workspace's DECLARED line word (`identity` — the caller's
+   *  declaration), never on the requested word alone: the retired row IS the line whose
+   *  declaration names it (`phase-spec` / `overall` / `single-spec`). A caller holding no
+   *  declaration keeps the pre-rename default (the `phase-spec` line). A row read is a
+   *  pure function of the progress data, so every face — this class and the board's
+   *  read-only line face — enters through this ONE lookup (no second key spelling). */
+  static rowFor(
+    data: ProgressData,
+    key: LedgerKey,
+    identity: TargetType | null = null,
+  ): ProgressRow | undefined {
+    const literal = data.waves.find((row) => row.wave === String(key));
+    if (literal !== undefined || !Ledger.#retiredSpecApplies(key, identity)) return literal;
+    return data.waves.find((row) => row.wave === RETIRED_SPEC_KEY);
+  }
+
+  /** Whether a retired `spec` row IS the requested line — the requested word must be a
+   *  document-line word and, when the declaration is known, BE that declaration. */
+  static #retiredSpecApplies(key: LedgerKey, identity: TargetType | null): boolean {
+    const word = String(key);
+    if (!RETIRED_SPEC_LINE_KEYS.has(word)) return false;
+    return identity === null ? word === "phase-spec" : word === identity;
   }
 
   /** The fresh row for an absent key — always the wave form (a single trivial
@@ -484,54 +668,126 @@ export class Ledger {
     return { wave: String(key) };
   }
 
-  /** One mode's recorded cycle numbers on a row — the raw identity list, normalizing a
-   *  legacy numeric count (`fix: 1`) to its assumed contiguous identity (`[1]`, the old
-   *  1:1 assumption). Absent/empty → `[]`. */
+  /** One op's recorded cycle numbers on a row — every DISPATCHED cycle (legacy forms
+   *  normalized through `RoundRecords`). A cycle re-dispatched several times is one
+   *  cycle: the attempt count never widens the identity set. Absent/empty → `[]`. */
   #cyclesOf(row: ProgressRow | undefined, mode: string): readonly number[] {
-    const raw = row?.rounds?.[mode];
-    if (raw === undefined) return [];
-    return Array.isArray(raw) ? raw : Array.from({ length: raw }, (_unused, index) => index + 1);
+    const op = RoundRecords.opOf(mode);
+    if (op === null) return [];
+    return [
+      ...new Set(
+        RoundRecords.of(row)
+          .filter((record) => record.op === op)
+          .map((record) => record.cycle),
+      ),
+    ];
   }
 
-  /** The last completed round of a dispatch key + mode — 0 when none on record (the
-   *  round COUNT: the length of the recorded cycle set — for a contiguous review line
-   *  this equals the latest cycle, but the identity is the cycle list, never the count). */
-  roundCount(key: LedgerKey, mode: string): number {
+  /** The row's round records — the ONE read face the ledger's consumers share. A
+   *  caller holding the line's DECLARED word passes it, so the retired `spec` row
+   *  resolves as that line (the same basis as `rowFor`'s). */
+  recordsOf(key: LedgerKey, identity: TargetType | null = null): readonly RoundRecord[] {
+    const data = this.readProgress();
+    if (data === null) return [];
+    return RoundRecords.of(Ledger.rowFor(data, key, identity));
+  }
+
+  /** One op's COMPLETED cycles on a key — only `verdict.targetAction === true` records.
+   *  The completion questions read this face; the dispatch-number allocation reads
+   *  `roundCount` (every in-register cycle). The caller holding the line's DECLARED
+   *  word passes it, so a migrated row is judged as that line (one basis with
+   *  `rowFor`'s). */
+  completedCycles(
+    key: LedgerKey,
+    op: OpType,
+    identity: TargetType | null = null,
+  ): readonly number[] {
+    const data = this.readProgress();
+    if (data === null) return [];
+    return RoundRecords.of(Ledger.rowFor(data, key, identity))
+      .filter((record) => record.op === op && record.verdict.targetAction)
+      .map((record) => record.cycle);
+  }
+
+  /** The number of DISTINCT cycles on a dispatch key + mode — 0 when none on record
+   *  (the round COUNT: the length of the recorded cycle identity set — for a
+   *  contiguous review line this equals the latest cycle, but the identity is the
+   *  cycle list, never the count, and a re-attempt at an existing cycle adds none). */
+  roundCount(key: LedgerKey, mode: string, identity: TargetType | null = null): number {
     const data = this.readProgress();
     if (data === null) return 0;
-    return this.#cyclesOf(this.rowFor(data, key), mode).length;
+    return this.#cyclesOf(Ledger.rowFor(data, key, identity), mode).length;
   }
 
-  /** Whether a dispatch key + mode has a round recorded for a given CYCLE — the
-   *  identity test the round-read gate uses (a fix cycle that skipped a number is
-   *  present at its own number, not at its ordinal — D28). */
-  roundRecorded(key: LedgerKey, mode: string, cycle: number): boolean {
+  /** Whether a dispatch key + mode has a round REGISTERED for a given CYCLE — the
+   *  identity test for the register (a fix cycle that skipped a number is present at
+   *  its own number, not at its ordinal — D28). This is the test/seeding face: it
+   *  answers register membership, NOT completion (a hard-failed round is registered),
+   *  so no production completion question reads it — those read `completedCycles`. */
+  roundRecorded(
+    key: LedgerKey,
+    mode: string,
+    cycle: number,
+    identity: TargetType | null = null,
+  ): boolean {
     const data = this.readProgress();
     if (data === null) return false;
-    return this.#cyclesOf(this.rowFor(data, key), mode).includes(cycle);
+    return this.#cyclesOf(Ledger.rowFor(data, key, identity), mode).includes(cycle);
   }
 
-  /** Record a completed round — the on-disk done record (the ledger edge of the
-   *  ExecutionState carrier: TaskGraph in memory, the ledger on disk). The round's
-   *  CYCLE is its identity (fix-K ⟷ review-K · D28), so a skipped cycle records its
-   *  own number, never a flattened ordinal. The production caller passes the frame's
-   *  own `round`; the default (the next cycle after the latest) records a sequential
-   *  round. Creates the row on demand; the write is idempotent per cycle (a re-record
-   *  of the same cycle does not double it). */
-  recordRound(key: LedgerKey, mode: string, cycle?: number): number {
+  /** Record a dispatched round — the on-disk round record (the ledger edge of the
+   *  ExecutionState carrier: TaskGraph in memory, the ledger on disk). Every dispatched
+   *  round lands, failed rounds included; "completed" is the record's
+   *  `verdict.targetAction`, never the write. The round's CYCLE is its identity
+   *  (fix-K ⟷ review-K · D28), so a skipped cycle records its own number, never a
+   *  flattened ordinal. The production caller passes the frame's whole identity
+   *  (`Run`); the seeding form allocates the next cycle after the latest in-register
+   *  one. The write is idempotent per (op, cycle, attempt): a re-record of the same
+   *  identity does not double it. A caller holding the line's DECLARED word passes it
+   *  too, so a migrated row is APPENDED TO rather than forked into a second identity
+   *  row (the same one basis `rowFor` reads by). */
+  recordRound(
+    key: LedgerKey,
+    init: RoundRecordInit,
+    identity: TargetType | null = null,
+  ): RoundRecord {
     const data = this.readProgress() ?? this.emptyProgress();
-    let row = this.rowFor(data, key);
+    let row = Ledger.rowFor(data, key, identity);
     if (row === undefined) {
       row = this.entryFor(key);
       data.waves.push(row);
     }
-    const cycles = [...this.#cyclesOf(row, mode)];
-    const recorded = cycle ?? (cycles.length > 0 ? Math.max(...cycles) + 1 : 1);
-    if (!cycles.includes(recorded)) cycles.push(recorded);
-    cycles.sort((a, b) => a - b);
-    row.rounds = { ...row.rounds, [mode]: cycles };
+    const records = [...RoundRecords.of(row)];
+    const cycle = init.cycle ?? this.#nextCycle(records, init.op);
+    const record: RoundRecord = {
+      op: init.op,
+      cycle,
+      attempt: init.attempt ?? 1,
+      dispatchBase: init.dispatchBase ?? null,
+      verdict: init.verdict ?? { treeClean: true, targetAction: true },
+      violations: init.violations ?? [],
+      carrierPath: init.carrierPath ?? null,
+    };
+    const existing = records.findIndex(
+      (candidate) =>
+        candidate.op === record.op &&
+        candidate.cycle === record.cycle &&
+        candidate.attempt === record.attempt,
+    );
+    if (existing === -1) records.push(record);
+    else records[existing] = record;
+    records.sort((left, right) =>
+      left.cycle === right.cycle ? left.attempt - right.attempt : left.cycle - right.cycle,
+    );
+    row.rounds = records;
     this.writeProgress(data);
-    return cycles.length;
+    return record;
+  }
+
+  /** The next un-registered cycle of an op — latest in-register + 1 (1 when none). */
+  #nextCycle(records: readonly RoundRecord[], op: OpType): number {
+    const cycles = records.filter((record) => record.op === op).map((record) => record.cycle);
+    return cycles.length > 0 ? Math.max(...cycles) + 1 : 1;
   }
 
   /** Record a line's reviewed identity — the identity-aware gate's basis (written
@@ -539,9 +795,13 @@ export class Ledger {
    *  revision, and BLOCKs revision-aware when unchanged). The kind IS part of the
    *  identity: a doc line binds a doc-revision (T7), a wave line a brief-revision
    *  (D30) — one row, one reviewed identity. */
-  recordReviewedRevision(key: LedgerKey, revision: ReviewedRevisionRef): void {
+  recordReviewedRevision(
+    key: LedgerKey,
+    revision: ReviewedRevisionRef,
+    identity: TargetType | null = null,
+  ): void {
     const data = this.readProgress() ?? this.emptyProgress();
-    let row = this.rowFor(data, key);
+    let row = Ledger.rowFor(data, key, identity);
     if (row === undefined) {
       row = this.entryFor(key);
       data.waves.push(row);
@@ -580,10 +840,13 @@ export class Ledger {
   /** A line's recorded reviewed identity — null when none on record (a line with no
    *  reviewed identity keeps the legacy closed face). Callers narrow by `kind`: a doc
    *  line binds a doc-revision, a wave line a brief-revision (the kinds never mix). */
-  reviewedRevisionOf(key: LedgerKey): ReviewedRevisionRef | null {
+  reviewedRevisionOf(
+    key: LedgerKey,
+    identity: TargetType | null = null,
+  ): ReviewedRevisionRef | null {
     const data = this.readProgress();
     if (data === null) return null;
-    return this.rowFor(data, key)?.reviewedRevision ?? null;
+    return Ledger.rowFor(data, key, identity)?.reviewedRevision ?? null;
   }
 
   /** Record a wave row's plan-task snapshot — the task set the plan carried at the
@@ -592,7 +855,7 @@ export class Ledger {
    *  afterwards; re-deriving would erase the append-vs-stall evidence). */
   recordPlanTasks(waveKey: LedgerKey, planTasks: readonly number[]): void {
     const data = this.readProgress() ?? this.emptyProgress();
-    let row = this.rowFor(data, waveKey);
+    let row = Ledger.rowFor(data, waveKey);
     if (row === undefined) {
       row = this.entryFor(waveKey);
       data.waves.push(row);
@@ -609,14 +872,14 @@ export class Ledger {
   planTasksOf(waveKey: LedgerKey): readonly number[] | null {
     const data = this.readProgress();
     if (data === null) return null;
-    return this.rowFor(data, waveKey)?.planTasks ?? null;
+    return Ledger.rowFor(data, waveKey)?.planTasks ?? null;
   }
 
   /** The doc line's recorded reviewed doc revision — the doc-revision narrowing of
    *  `reviewedRevisionOf` (null when none on record, or when a non-doc kind sits on
    *  the row — a doc line is never a wave line). */
-  reviewedDocRevisionOf(key: LedgerKey): DocRevisionRef | null {
-    const reviewed = this.reviewedRevisionOf(key);
+  reviewedDocRevisionOf(key: LedgerKey, identity: TargetType | null = null): DocRevisionRef | null {
+    const reviewed = this.reviewedRevisionOf(key, identity);
     return reviewed !== null && reviewed.kind === "doc-revision" ? reviewed : null;
   }
 
@@ -628,8 +891,12 @@ export class Ledger {
    *  `same` → unchanged (the revision-aware BLOCK). Null when no reviewed revision
    *  is on record or the doc is unreadable (the legacy closed face keeps its
    *  generic message — only present facts land). */
-  docLineVerdict(key: LedgerKey, doc: string): "drift" | "same" | null {
-    const reviewed = this.reviewedDocRevisionOf(key);
+  docLineVerdict(
+    key: LedgerKey,
+    doc: string,
+    identity: TargetType | null = null,
+  ): "drift" | "same" | null {
+    const reviewed = this.reviewedDocRevisionOf(key, identity);
     if (reviewed === null) return null;
     try {
       // Both sides on ONE basis (P9 T4 §2.7): the recorded ref is repoRoot-relative;
@@ -644,25 +911,23 @@ export class Ledger {
   }
 
   /** The review-gate method (T8 · §3.5) — the doc line's review request judgment +
-   *  the phase advance, doc-revision FIRST: the shared docLineVerdict comparison is
-   *  the PRIMARY criterion — a drifted doc OPENS the review lead regardless of the
-   *  round/route state (fix / backfill / user-decision are one case: the stuck
-   *  "next round is fix after an aborted fix" gate never freezes a revised doc);
-   *  an unchanged doc yields the `same` verdict (review Convergence anti-spin:
+   *  the phase advance: the shared docLineVerdict comparison reports the drift, and
+   *  the REOPEN's scope is the callers' ONE judgment (`Ledger#docReopens` — an
+   *  exit-side route is replaced by the review lead, while an already-pending fix
+   *  keeps its round, §5.5 ②).
+   *  An unchanged doc yields the `same` verdict (review Convergence anti-spin:
    *  the callers' reject/reopen decision — the derived pending fix opens the fix
    *  face only, while the no-pending face falls back to the legacy rounds/routes
    *  judgment: a completed-fix line's C5-1 route reopens the review lead). The OPEN
    *  side performs no disk advance: the round + the revision snapshot land with the
    *  round's completion (Ledger#recordRound + the T7 write-back), so a BLOCKED
    *  re-review resumes the same round (nothing pre-binds). `unbound` (no identity on
-   *  record / an unreadable doc) keeps the legacy round/route judgment. The
-   *  judgment order change is the whole gate: the old rounds/routes-first read made
-   *  the round/route state shadow the doc movement (the pre-T8 stuck path). */
+   *  record / an unreadable doc) keeps the legacy round/route judgment. */
   reviewGate(key: LedgerKey, doc: string, type: TargetType): ReviewGateVerdict {
-    const verdict = this.docLineVerdict(key, doc);
+    const verdict = this.docLineVerdict(key, doc, type);
     if (verdict === "drift") return { kind: "open" };
     if (verdict === "same") {
-      const reviewed = this.reviewedDocRevisionOf(key);
+      const reviewed = this.reviewedDocRevisionOf(key, type);
       if (reviewed === null) return { kind: "unbound" };
       return { kind: "same", pending: this.#pendingFix(key, type), reviewed };
     }
@@ -689,11 +954,11 @@ export class Ledger {
    *  the board's `next:` derivation reads the route itself (D40 — the active hop, never
    *  a bare face handoff). */
   waveLineRoute(waveKey: string): Route | null {
-    const implemented = this.roundCount(waveKey, "implement");
-    if (implemented === 0) return { kind: "next-wave", tasks: waveKey };
+    const implemented = this.completedCycles(waveKey, "implement");
+    if (implemented.length === 0) return { kind: "next-wave", tasks: waveKey };
     const data = this.readProgress();
-    const row = data === null ? undefined : this.rowFor(data, waveKey);
-    const latestReview = row === undefined ? 0 : this.#latestCycleOfRow(row, "review");
+    const row = data === null ? undefined : Ledger.rowFor(data, waveKey);
+    const latestReview = row === undefined ? 0 : this.#latestCompletedCycleOfRow(row, "review");
     if (latestReview === 0) return { kind: "review" };
     // The latest recorded round is a fix iff a fix is recorded at the latest review's
     // CYCLE (D28 identity — fix-K ⟷ review-K); otherwise it is the latest review itself
@@ -701,7 +966,8 @@ export class Ledger {
     // ⇒ pending fix" short-circuit read a re-review-closed line (`review=[1,2] · fix=[1]`)
     // as forever at `fix`, missing the closing review-2 — the router read below is the
     // single judge (the `waveLineRoute` twin of `#rowClosed`).
-    const fixRecorded = row !== undefined && this.#cyclesOf(row, "fix").includes(latestReview);
+    const fixRecorded =
+      row !== undefined && this.#completedCyclesOfRow(row, "fix").includes(latestReview);
     const carried = this.round(
       fixRecorded ? "fix" : "review",
       "wave",
@@ -755,18 +1021,27 @@ export class Ledger {
   /** The pending-fix derivation — the "doc same + not APPROVED" face (T8): the
    *  latest review round has an outstanding fix AND its conclusion was not an
    *  approval. The identity test is the operable leg (D28): the latest review cycle
-   *  is ABSENT from the fix cycle set (`roundRecorded(key, "fix", reviews)`) — a
+   *  is ABSENT from the fix COMPLETION set (`#completedCyclesOfRow(row, "fix")`) — a
    *  membership test, never a `reviews > fixes` count comparison, which would read a
    *  phantom pending fix when a cycle was skipped (a drift-voided review-1 → the first
-   *  fix is cycle 2, present at its own number, not ordinal 1). The status read keeps
-   *  the derivation's second leg explicit, degrading to the conservative pending on a
-   *  missing carrier (a recorded round is a present fact — the same-doc re-review
-   *  stays refused until its fix lands). A completed fix (the latest review cycle IS
-   *  in the fix set) is NOT the pending face — the completed-fix line's re-review
+   *  fix is cycle 2, present at its own number, not ordinal 1). The completion set —
+   *  not bare register membership (`roundRecorded`, the test/seeding face) — is the
+   *  judging face: every dispatched round is registered, so a hard-failed `fix-K` IS
+   *  in register while NOT completed, and a register test would read that failure as
+   *  a done fix and strand the line forever. The status read keeps the derivation's
+   *  second leg explicit, degrading to the conservative pending on a missing carrier
+   *  (a recorded round is a present fact — the same-doc re-review stays refused until
+   *  its fix lands). A completed fix (the latest review cycle IS in the fix
+   *  completion set) is NOT the pending face — the completed-fix line's re-review
    *  reopens through the fix round's C5 route (the legacy judgment). */
   #pendingFix(key: LedgerKey, type: TargetType): boolean {
-    const reviews = this.roundCount(key, "review");
-    if (reviews === 0 || this.roundRecorded(key, "fix", reviews)) return false;
+    const data = this.readProgress();
+    if (data === null) return false;
+    const row = Ledger.rowFor(data, key, type);
+    if (row === undefined) return false;
+    const reviews = this.#latestCompletedCycleOfRow(row, "review");
+    if (reviews === 0) return false;
+    if (this.#completedCyclesOfRow(row, "fix").includes(reviews)) return false;
     const carried = this.round("review", type, { round: reviews }, reviews);
     // `carried.status` is the review round's DERIVED conclusion — `round()` sets it
     // through the `HandoffSchema.conclusionOf` single source (the findings carrier
@@ -774,9 +1049,42 @@ export class Ledger {
     return carried === null || carried.status === undefined || carried.status !== "APPROVED";
   }
 
-  /** Read one counter — a failure-category count on record (0 when the file is missing). */
+  /** Read one counter — a failure-category count on record (0 when the file is
+   *  missing). The RETIRED key derives from the round records: the soft entries of
+   *  every row plus the one each dirty-tree observation derives (design spec §3.3) —
+   *  one read exit, `counterOf`, never a second stored scalar. */
   counterOf(key: ProgressCounterKey): number {
+    if (key === "contractViolationCount") return this.softViolations();
     return this.readProgress()?.[key] ?? 0;
+  }
+
+  /** One key's SOFT violation count — the row's soft entries across its records plus
+   *  the single row the `treeClean === false` observation derives (at most one per
+   *  round: the verdict field IS that fact, never a second copy of it). Hard entries
+   *  are the round's failure verdict (exit + `targetAction: false`), never a count. */
+  softViolationsOf(key: LedgerKey): number {
+    const data = this.readProgress();
+    if (data === null) return 0;
+    return this.#softOf(Ledger.rowFor(data, key));
+  }
+
+  /** The session's SOFT violation count — the derived `contractViolationCount` read
+   *  face (`counterOf`'s retired key). A legacy scalar on disk is ignored. */
+  softViolations(): number {
+    const data = this.readProgress();
+    if (data === null) return 0;
+    return data.waves.reduce((total, row) => total + this.#softOf(row), 0);
+  }
+
+  /** One row's soft count — one derivation, both read faces above. */
+  #softOf(row: ProgressRow | undefined): number {
+    return RoundRecords.of(row).reduce(
+      (total, record) =>
+        total +
+        record.violations.filter((violation) => violation.grade === "soft").length +
+        (record.verdict.treeClean ? 0 : 1),
+      0,
+    );
   }
 
   /** Increment the timeout counter — the terminated-round write point (one TIMEOUT
@@ -786,16 +1094,6 @@ export class Ledger {
     data.timeoutCount += 1;
     this.writeProgress(data);
     return data.timeoutCount;
-  }
-
-  /** Increment the contract-violation counter — the read-back write point (one
-   *  `handoff-absent` or `contract-violation` crash lands, the count goes up by
-   *  one). The counter's only writer. */
-  incrementContractViolationCount(): number {
-    const data = this.readProgress() ?? this.emptyProgress();
-    data.contractViolationCount += 1;
-    this.writeProgress(data);
-    return data.contractViolationCount;
   }
 
   // -------------------------------------------------------------------------
@@ -829,15 +1127,37 @@ export class Ledger {
    *  derivation and its branch row consume (and `closedWaves()` reads through the
    *  same core). The C5 route of the line's LATEST recorded round must lie on the
    *  closure side ({done, next-wave}). The key is the line-type constant the round
-   *  records under ("spec" / "plan" / "branch"); a row with no review round yet
+   *  records under (the target-type word — `"phase-spec"` / `"overall"` / `"plan"` /
+   *  `"single-spec"` / `"branch"`); a row with no review round yet
    *  (implement-only or absent) holds the line open. One judge, one source: the
    *  board never re-derives closure in the face (zero second judge). */
   lineClosed(key: LedgerKey, type: TargetType): boolean {
     const data = this.readProgress();
     if (data === null) return false;
-    const row = this.rowFor(data, key);
+    const row = Ledger.rowFor(data, key, type);
     if (row === undefined) return false;
     return this.#rowClosed(type, type === "wave" ? { tasks: String(key) } : {}, row);
+  }
+
+  /** One line's closure state AS OF its identity document — the drift-aware judge
+   *  both board read faces consume (the branch row's mark and the pipeline facts'
+   *  branch `closed` cell), so the mark and the `next:` line can never print two
+   *  different facts about one state. `closed` — the recorded rounds/routes lie on
+   *  the closure side AND the identity document still matches the revision the line
+   *  bound, or no identity document is on hand (`doc === null`): with no document
+   *  there is no drift evidence, so the conservative answer is closed — a false
+   *  reopen costs a whole branch review, while a false closure is what the `next:`
+   *  face reports separately; `reopened` — the rounds/routes say closed but the
+   *  document moved past them, which IS the gate's reopen (`reviewGate` → `open`, the
+   *  ruling the CLI dispatch consults), so the line is the face awaiting review;
+   *  `open` — the rounds/routes themselves hold the line open. */
+  lineStateAt(
+    key: LedgerKey,
+    type: TargetType,
+    doc: string | null,
+  ): "closed" | "reopened" | "open" {
+    if (!this.lineClosed(key, type)) return "open";
+    return doc !== null && this.reviewGate(key, doc, type).kind === "open" ? "reopened" : "closed";
   }
 
   /** The single-target line's active C5 Route — the next C5 hop the dispatch engine
@@ -851,14 +1171,18 @@ export class Ledger {
    *  The pending-fix test is the latest review's IDENTITY membership in the fix cycle
    *  set (D28) — a count comparison would flatten a skipped cycle into a phantom pending
    *  fix. The doc-revision gate is NOT part of this walk — the callers run their own
-   *  reviewGate first (doc-drift-first ordering). `linePhase` maps this route to its
-   *  phase word (one walk), and the board's `next:` derivation reads the route itself
-   *  (D40 — the active hop, never a bare face handoff). */
+   *  reviewGate first and scope the reopen through `Ledger#docReopens`. `linePhase`
+   *  maps this route to its phase word (one walk), and the board's `next:` derivation
+   *  reads the route itself (D40 — the active hop, never a bare face handoff). */
   lineRoute(key: LedgerKey, type: TargetType): Route | null {
+    const data = this.readProgress();
+    if (data === null) return { kind: "review" };
+    const row = Ledger.rowFor(data, key, type);
+    if (row === undefined) return { kind: "review" };
     const reviewLead = targetFaces[type].product.reviewLead;
-    const reviews = this.roundCount(key, reviewLead);
+    const reviews = this.#latestCompletedCycleOfRow(row, reviewLead);
     if (reviews === 0) return { kind: "review" };
-    if (!this.roundRecorded(key, "fix", reviews)) {
+    if (!this.#completedCyclesOfRow(row, "fix").includes(reviews)) {
       const route = this.#lineRoundRoute("review", type, reviews);
       return route?.kind === "fix" ? route : null;
     }
@@ -878,6 +1202,58 @@ export class Ledger {
     return route.kind === "review" ? targetFaces[type].product.reviewLead : "fix";
   }
 
+  /** One line's next hop (§5.2) — the derivation's INPUT face gathered from the
+   *  line's OWN facts and handed to the router's ONE derivation: the drift-aware gate
+   *  verdict, the ONE doc-class verdict (the declared station the face axis is read
+   *  out of), the caller's route (the count table's row for a single line, the
+   *  pipeline walk's route for the board) and the judged document. Every read face
+   *  (capsule · CLI rejection · board · the lifecycle frontier) comes through here,
+   *  so the four faces share one object by construction — no face assembles a second
+   *  copy of the inputs, and no judgment is re-made here (the route is the count
+   *  table's). The ONE exception is the drift-reopened line: the gate's `drift`
+   *  verdict IS the reopen, and the closure-side route the count table recorded
+   *  predates the document movement — so the assembly hands the derivation the
+   *  reopened review hop in that case. A presentation-level substitution: the count
+   *  table's judgment (`NextStepRouter#next`) stays the only judge, and a still-open
+   *  hop (review / fix) is never overridden by the drift fact. */
+  nextHopOf(input: {
+    readonly type: TargetType;
+    readonly key: LedgerKey;
+    readonly route: Route | null;
+    readonly target: RouteTarget | null;
+    /** The line's judged document (spec/plan path, or the branch line's plan) — its
+     *  drift verdict is the gate cell; absent off the doc lines. */
+    readonly doc?: string | null;
+    readonly nextLineOpen?: boolean;
+    readonly docClassOf: (target: RouteTarget) => DocClassVerdict;
+  }): NextHop {
+    const drift =
+      input.doc != null && input.type !== "wave"
+        ? this.reviewGate(input.key, input.doc, input.type).kind === "open"
+        : false;
+    // The drift-reopened line — its active hop IS the review lead (the gate's own
+    // ruling): the EXIT-side route the table recorded (the line's closure or a
+    // face-to-face handoff, or no route at all) predates the document movement, so
+    // the derivation receives the review hop instead. An already-open hop (review /
+    // fix) and the soft-cap adjudication row keep their own route — the pending-fix
+    // face outranks drift (§5.1 · §5.5 ②). The exit side is the ONE predicate
+    // (`Ledger.onExitSide`) every drift-reopen reader shares, so this assembly, the
+    // dispatch gate and the lifecycle frontier can never disagree on the scope.
+    const route =
+      drift && Ledger.onExitSide(input.route) ? ({ kind: "review" } as const) : input.route;
+    // The face axis is the ONE verdict this assembly reads (spec §5.2's doc-class
+    // discrimination): no target carries no judgeable class (the bare terminal).
+    const verdict: DocClassVerdict =
+      input.target === null ? "terminal" : input.docClassOf(input.target);
+    return this.#router.nextHop({
+      target: input.target,
+      gate: { drift },
+      verdict,
+      route,
+      nextLineOpen: input.nextLineOpen,
+    });
+  }
+
   /** One single-target line round's C5 route — the review-lead / fix round read back
    *  through the ledger and judged by the router (null when unreadable). Single-target
    *  lines key their handoff params `{ round }` (the run.ts / gate.ts shaping) — the
@@ -893,6 +1269,26 @@ export class Ledger {
     return route !== null && (route.kind === "done" || route.kind === "next-wave");
   }
 
+  /** Whether a C5 route sits on the line's EXIT side — a closure, the face-to-face
+   *  `handoff` station a pipeline consumer hands over (an exit station, not a closure
+   *  — the closure predicate deliberately excludes it), or no route at all. This is
+   *  the drift reopen's ONE override scope (§5.1 · §5.5 ②): only an exit-side route
+   *  predates the document movement, so only it is replaced by the review lead; a
+   *  still-pending fix keeps its hop, and every drift-reopen reader asks HERE. */
+  static onExitSide(route: Route | null): boolean {
+    return route === null || route.kind === "handoff" || Ledger.routeClosed(route);
+  }
+
+  /** Whether the document's drift reopens the line onto its review lead — the ONE
+   *  drift-reopen judgment the dispatch gate and the lifecycle frontier BOTH consume
+   *  (the gate verdict is handed in: the comparison is read once). Drift never
+   *  outranks a pending fix (§5.5 ②): a live review/fix hop on the non-exit side
+   *  keeps its round, so no face names a round another face refuses. */
+  docReopens(key: LedgerKey, type: TargetType, gate: ReviewGateVerdict): boolean {
+    if (gate.kind !== "open") return false;
+    return Ledger.onExitSide(this.lineRoute(key, type));
+  }
+
   /** Whether one progress row's line is closed — the LATEST recorded round's C5 route
    *  lies on the closure side ({done, next-wave}). The latest recorded round is a fix
    *  iff a fix is recorded at the latest review's CYCLE (D28 identity — fix-K ⟷
@@ -905,19 +1301,28 @@ export class Ledger {
    *  review-lead mode rides the faces table (branch→branch-review, the others→review),
    *  so the wave/spec/plan/branch lines share ONE judge. */
   #rowClosed(type: TargetType, params: HandoffParams, row: ProgressRow): boolean {
-    const latestReview = this.#latestCycleOfRow(row, targetFaces[type].product.reviewLead);
+    const latestReview = this.#latestCompletedCycleOfRow(row, targetFaces[type].product.reviewLead);
     if (latestReview === 0) return false;
-    const fixRecorded = this.#cyclesOf(row, "fix").includes(latestReview);
+    const fixRecorded = this.#completedCyclesOfRow(row, "fix").includes(latestReview);
     return Ledger.routeClosed(
       this.#roundRoute(fixRecorded ? "fix" : "review", type, params, latestReview),
     );
   }
 
-  /** The latest recorded cycle of a row + mode — 0 when none (the identity read; a
-   *  skipped cycle reports its own number, never the count). */
-  #latestCycleOfRow(row: ProgressRow, mode: string): number {
-    const cycles = this.#cyclesOf(row, mode);
+  /** The latest COMPLETED cycle of a row + mode — 0 when none. A failed round consumed
+   *  its cycle but is not a carrier, so every active-hop read starts here. */
+  #latestCompletedCycleOfRow(row: ProgressRow, mode: string): number {
+    const cycles = this.#completedCyclesOfRow(row, mode);
     return cycles.length > 0 ? Math.max(...cycles) : 0;
+  }
+
+  /** One mode's completed cycles on a row — the row-level twin of `completedCycles`. */
+  #completedCyclesOfRow(row: ProgressRow, mode: string): readonly number[] {
+    const op = RoundRecords.opOf(mode);
+    if (op === null) return [];
+    return RoundRecords.of(row)
+      .filter((record) => record.op === op && record.verdict.targetAction)
+      .map((record) => record.cycle);
   }
 
   /** The C5 route of one recorded round — null when the round is unreadable (a
@@ -997,27 +1402,79 @@ export class Ledger {
     return this.handoffPath(op, type, params);
   }
 
-  /** Read a handoff carrier; null when missing/corrupt. */
+  /** The handoff file NAME a read actually resolves — the canonical family name, or a
+   *  DOCUMENT line's retired `spec` twin when the canonical file is absent (the
+   *  one-release read alias, P22 D73). The alias reports the name it RESOLVED, not the
+   *  one it was asked for: a hop that points a later round at this carrier
+   *  (`--reviews`, `INPUT_REVIEWS`, the criterion's input set) must name the file that
+   *  exists — a read alias that renamed only the row would leave a never-minted path
+   *  behind. The alias keys on the line's declared word and never covers the node
+   *  shapes; it is READ-ONLY (every write goes through `persistHandoff`'s canonical
+   *  spelling). */
+  resolveHandoffName(op: string, type: string, params: HandoffParams = {}): string {
+    const canonical = this.handoffName(op, type, params);
+    if (!RETIRED_SPEC_LINE_KEYS.has(type) || this.#read<unknown>(canonical) !== null) {
+      return canonical;
+    }
+    const retired = Ledger.#retiredCarrierName(op, params);
+    return this.#read<unknown>(retired) === null ? canonical : retired;
+  }
+
+  /** The resolved handoff path — `resolveHandoffName`'s on-disk form (the read face's
+   *  single path exit; the writers keep `handoffPath`). */
+  resolveHandoffPath(op: string, type: string, params: HandoffParams = {}): string {
+    return this.#workspace.resolve(this.resolveHandoffName(op, type, params));
+  }
+
+  /** Read a handoff carrier; null when missing/corrupt. A DOCUMENT-line read falls
+   *  back to the retired `spec` file name (the one-release read alias, P22 D73): the
+   *  rounds a line recorded before the vocabulary unification stay judgeable — the
+   *  closure walk still reads their C5 route, so a closed line does not re-open. The
+   *  alias keys on the line's declared word (`phase-spec` / `overall` / `single-spec`,
+   *  the same basis as `rowFor`'s) and never covers the node shapes. Every WRITE goes
+   *  through `persistHandoff`'s current spelling — the alias is read-only, and the name
+   *  it resolves is `resolveHandoffName`'s ONE answer. */
   readHandoff(op: string, type: string, params: HandoffParams): Record<string, unknown> | null {
-    return this.#read<Record<string, unknown>>(this.handoffName(op, type, params));
+    return this.#read<Record<string, unknown>>(this.resolveHandoffName(op, type, params));
+  }
+
+  /** The retired document-line carrier name of one round — `spec-review-{round}.json` /
+   *  `spec-fix-{round}.json`. It lives here, never in the family table: it is a read
+   *  fallback for already-recorded rounds, not a name the engine can mint. */
+  static #retiredCarrierName(op: string, params: HandoffParams): string {
+    return `${RETIRED_SPEC_KEY}-${op}-${params.round ?? ""}.json`;
   }
 
   /** The workspace's ORPHAN handoff drafts — the `handoff` family files whose
    *  (line key, op, round) never landed in `progress.json` (a draft written by a
    *  round that never booked). The board and the `--dry-run` preview render them;
    *  this is a PURE READ — the engine never writes, moves or deletes a draft. The
-   *  family names are the ledger's own single naming truth (no second pattern). */
+   *  family names are the ledger's own single naming truth (no second pattern), and
+   *  the owning row is read through the ONE basis `rowFor` establishes — the draft's
+   *  own line word IS its declaration — so a migrated workspace's carrier resolves
+   *  its retired row instead of reading as an orphan. */
   orphanHandoffs(): readonly string[] {
-    const rows = this.readProgress()?.waves ?? [];
+    const progress = this.readProgress() ?? this.emptyProgress();
     const orphans: string[] = [];
     for (const name of this.#workspaceFiles()) {
       const owner = Ledger.#handoffOwner(name, this.#families);
       if (owner === null) continue;
-      const row = rows.find((candidate) => candidate.wave === owner.key);
-      const rounds = row?.rounds?.[owner.op] ?? [];
-      if (!rounds.includes(owner.round)) orphans.push(name);
+      const row = Ledger.rowFor(progress, owner.key, Ledger.#lineWord(owner.key));
+      const completed = RoundRecords.of(row)
+        .filter((record) => record.verdict.targetAction)
+        .map((record) => `${record.op}:${record.cycle}`);
+      if (!completed.includes(`${RoundRecords.opOf(owner.op) ?? owner.op}:${owner.round}`)) {
+        orphans.push(name);
+      }
     }
     return orphans.sort();
+  }
+
+  /** A handoff file's key as a declared line word — the three document words declare
+   *  themselves; every other key (a wave's tasks, `plan`, `branch`) declares nothing
+   *  and reads literally. */
+  static #lineWord(key: string): TargetType | null {
+    return RETIRED_SPEC_LINE_KEYS.has(key) ? (key as TargetType) : null;
   }
 
   /** The workspace directory's file names (an absent/unreadable directory is an
@@ -1034,24 +1491,53 @@ export class Ledger {
 
   /** Which recorded round one handoff file belongs to — the family name pattern is
    *  the ONE naming truth, read backwards: `tasks-{tasks}-{op}[-{round}].json` /
-   *  `{spec|plan|branch}-{op}-{round}.json`. Null for a non-handoff file. */
+   *  `{line}-{op}-{round}.json`, plus a document line's retired `spec` twin (the
+   *  pre-rename name a still-unbooked draft can carry). Null for a non-handoff file. */
   static #handoffOwner(
     name: string,
     families: Readonly<Record<string, HandoffFamily>>,
   ): { readonly key: string; readonly op: string; readonly round: number } | null {
     for (const [family, record] of Object.entries(families)) {
       const [op = "", type = ""] = family.split(".");
-      const escaped = record.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = new RegExp(
-        `^${escaped.replace("\\{tasks\\}", "(.+?)").replace("\\{round\\}", "(\\d+)")}$`,
-      );
-      const match = pattern.exec(name);
-      if (match === null) continue;
-      const key = type === "wave" ? (match[1] ?? "") : type;
-      const round = match[2] === undefined ? 1 : Number(match[2]);
-      return { key, op, round };
+      for (const spelling of Ledger.#familySpellings(record.name, type)) {
+        const captures = Ledger.#familyCaptures(spelling, name);
+        if (captures === null) continue;
+        const key = type === "wave" ? (captures.tasks ?? "") : type;
+        // Each family carries the placeholder IT declares: a wave's review/fix name
+        // carries `{tasks}` AND `{round}`, a document / branch line carries `{round}`
+        // alone, and the fixed implement family carries `{tasks}` alone (round 1).
+        const round = captures.round === null ? 1 : Number(captures.round);
+        return { key, op, round };
+      }
     }
     return null;
+  }
+
+  /** The name spellings one family answers to — its canonical pattern, and for a
+   *  document line the retired `spec` twin it was minted under before the rename. */
+  static #familySpellings(name: string, type: string): readonly string[] {
+    if (!RETIRED_SPEC_LINE_KEYS.has(type)) return [name];
+    return [name, name.replace(`${type}-`, `${RETIRED_SPEC_KEY}-`)];
+  }
+
+  /** One family spelling matched against a file name — the `{tasks}` / `{round}`
+   *  tokens read backwards as NAMED captures, so a family's round is read from the
+   *  group its own name actually carries (a document family's sole group is the
+   *  round; `tasks-{tasks}-implement.json`'s is the task list, never a round). A
+   *  positional read would resolve every `{round}`-only family to 1. */
+  static #familyCaptures(
+    spelling: string,
+    name: string,
+  ): { readonly tasks: string | null; readonly round: string | null } | null {
+    const escaped = spelling.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(
+      `^${escaped
+        .replace("\\{tasks\\}", "(?<tasks>.+?)")
+        .replace("\\{round\\}", "(?<round>\\d+)")}$`,
+    );
+    const match = pattern.exec(name);
+    if (match === null) return null;
+    return { tasks: match.groups?.tasks ?? null, round: match.groups?.round ?? null };
   }
 
   // -------------------------------------------------------------------------
@@ -1122,41 +1608,48 @@ export class Ledger {
   /** The progress key a round's dispatch records under — the same line-identity key
    *  the lifecycle records with (run.ts #lineKey): the wave task key (the only
    *  params-bearing face — every other line keys by its line-type constant:
-   *  `"branch"` / `"spec"` / `"plan"`). */
+   *  `"branch"` / `"phase-spec"` / `"overall"` / `"plan"` / `"single-spec"`). */
   #roundKey(type: TargetType, params: HandoffParams): LedgerKey {
     return type === "wave" ? (params.tasks ?? "") : type;
   }
 
-  /** The recorded mode one op's round records its cycle under — the review leg reads
-   *  the face table's review-lead mode (the single source: branch→branch-review, the
-   *  others→review), matching `recordRound(frame.key, frame.phase, frame.round)`; the
-   *  implement/fix legs their own name. */
-  #recordedMode(op: OpType, type: TargetType): string {
-    return op === "review" ? targetFaces[type].product.reviewLead : op;
-  }
-
   /** Read a round's concluding record as the Round the dispatch next-router judges.
-   *  A round is present ONLY when `recordRound` recorded it (the round verdict's
-   *  single source): an unrecorded round returns null whatever draft sits on disk —
-   *  a rejected child's leftover draft is never read back as a completed round
-   *  (the §2.8 gate; without it a BLOCKED round with a stale draft rendered a
-   *  contradictory `status: BLOCKED · next: done`). A fix round carries the SOURCE
-   *  review's findings (C5-1: the `--reviews` input content, never its own
+   *  A round is present ONLY when its recorded verdict says the round COMPLETED
+   *  (`targetAction === true`): a dispatched-but-failed round returns null whatever
+   *  draft sits on disk — a rejected child's leftover draft is never read back as a
+   *  completed round (the §2.8 gate; without it a BLOCKED round with a stale draft
+   *  rendered a contradictory `status: BLOCKED · next: done`). A fix round carries the
+   *  SOURCE review's findings (C5-1: the `--reviews` input content, never its own
    *  carrier); the consecutive-S1 run is walked from the review history.
    *  Missing/corrupt evaluated handoff → null too — a fix round whose source review
    *  is unreadable is never a zero-findings fabrication: a round whose blocker set
-   *  was never read must not be judged clean. */
+   *  was never read must not be judged clean.
+   *
+   *  A cycle may carry several ATTEMPTS (a failed dispatch re-dispatched at the same
+   *  cycle); the gate reads the cycle's LATEST attempt, then judges ITS verdict.
+   *  Reading the first in-register record would let a failed attempt 1 shadow the
+   *  successful attempt 2 forever — a retry that succeeded would read as no round. */
   round(op: OpType, type: TargetType, params: HandoffParams, round: number): Round | null {
-    // §2.8 — the round-read gate: only a recorded round is a round. The test is the
+    // §2.8 — the round-read gate: only a COMPLETED round is a round. The test is the
     // round's IDENTITY (its cycle number), not a count: a fix that skipped a cycle
     // (a drift-voided review → the first fix is cycle 2, not ordinal 1) is present at
     // cycle 2 (D28). A count comparison would flatten that to 1 and refuse the read.
-    if (!this.roundRecorded(this.#roundKey(type, params), this.#recordedMode(op, type), round)) {
-      return null;
-    }
+    // Completion is the recorded VERDICT, never membership — every dispatched round
+    // is recorded now, so a failed round's cycle is in register but reads no carrier.
+    const recorded = this.recordsOf(this.#roundKey(type, params), type)
+      .filter((record) => record.op === op && record.cycle === round)
+      .reduce<RoundRecord | undefined>(
+        (latest, record) =>
+          latest === undefined || record.attempt >= latest.attempt ? record : latest,
+        undefined,
+      );
+    if (recorded === undefined || !recorded.verdict.targetAction) return null;
     if (op === "implement") {
-      const carrier = this.readHandoff("implement", type, params);
-      if (carrier === null) return null;
+      // An implement round is judged by its COMMITS, never by its draft (design spec
+      // §3.3): the recorded verdict above is its completion face, so an absent carrier
+      // is the round's soft bookkeeping observation and never a reason to refuse the
+      // read. The implement round carries no carrier content — the next hop is the
+      // group's review regardless — so the gate is the verdict alone.
       return {
         phase: "implement",
         findings: [],
@@ -1174,7 +1667,7 @@ export class Ledger {
         // source shared with the fix leg below (`HandoffSchema.conclusionOf`).
         status: this.#handoffSchema.conclusionOf("judge", carrier),
         findings: this.#findingsOf(carrier),
-        reviewsPath: this.handoffPath("review", type, reviewParams),
+        reviewsPath: this.resolveHandoffPath("review", type, reviewParams),
         consecutiveS1: this.#consecutiveS1Run(type, params, round),
       };
     }
@@ -1193,7 +1686,7 @@ export class Ledger {
       // work plane reads its status) — the same `conclusionOf` single source (D27).
       status: this.#handoffSchema.conclusionOf(this.planeOf("fix"), fixCarrier),
       findings: this.#findingsOf(reviewCarrier),
-      reviewsPath: this.handoffPath("review", type, reviewParams),
+      reviewsPath: this.resolveHandoffPath("review", type, reviewParams),
       consecutiveS1: this.#consecutiveS1Run(type, params, round),
     };
   }

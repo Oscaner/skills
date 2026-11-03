@@ -15,7 +15,7 @@ import { TerminationPolicy } from "../../face/termination.ts";
 import { Words } from "../../face/words.ts";
 import { BriefRenderer } from "../brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
-import { REVIEWS, TEMPLATE_PROMPT, TemplateAssembler } from "../templates.ts";
+import { REVIEWS, reviewGuideOf, TEMPLATE_PROMPT, TemplateAssembler } from "../templates.ts";
 
 /** The full per-dispatch slot values — every declared template token (the v1.8
  *  INPUT_/OUTPUT_/WORKSPACE_/BASE_BRANCH/ROLE/WAVE vocabulary), optional slots
@@ -155,7 +155,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       const out = assembler.render({
         ...ALL_VALUES,
         ROLE: role,
-        REVIEW_TYPE: "spec",
+        REVIEW_TYPE: "phase-spec",
         INPUT_SPEC: "docs/x-design.md",
       });
       expect(out, role).toContain("Put a `timeout` on every Bash command");
@@ -173,7 +173,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       const out = assembler.render({
         ...ALL_VALUES,
         ROLE: role,
-        REVIEW_TYPE: "spec",
+        REVIEW_TYPE: "phase-spec",
         INPUT_SPEC: "docs/x-design.md",
       });
       for (const pin of pins) expect(out, role).toContain(pin);
@@ -252,14 +252,14 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const spec = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "spec",
+      REVIEW_TYPE: "phase-spec",
       INPUT_WAVE_BRIEF: "",
       INPUT_SPEC: "docs/kairos/specs/s1-design.md",
       INPUT_OVERALL: "docs/kairos/overalls/s1-overall.md",
-      OUTPUT_HANDOFF: "/ws/spec-review-1.json",
+      OUTPUT_HANDOFF: "/ws/phase-spec-review-1.json",
     });
     expect(spec.startsWith("# CDD dispatch — review round")).toBe(true);
-    expect(spec).toContain("**Criteria — spec:**");
+    expect(spec).toContain("**Criteria — phase-spec:**");
     expect(spec).toContain("Follow URC");
     expect(spec).toContain("completeness | consistency | clarity");
     // the claimed→pin clause (T4) — every behavior claim must cite a colocated pin;
@@ -282,6 +282,8 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // judged against its charter's registered Phase inventory), lens set unchanged
     expect(REVIEWS.spec.axesGuide).toContain("program conformance");
     expect(REVIEWS.spec.axesGuide).toContain("INPUT_OVERALL");
+    // the shared calibration tail is the fragment's, reached through `reviewGuideOf`
+    expect(reviewGuideOf("spec")).toContain("reasonable downstream author");
     expect(REVIEWS.spec.lensEnum).toEqual(["completeness", "consistency", "clarity"]);
     expect(spec).not.toContain("- `INPUT_PLAN`");
     expect(spec).not.toContain("- `INPUT_WAVE_BRIEF`");
@@ -377,8 +379,11 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(plan).toContain("**Single agent:**");
     // the template contract's version tracks the fixed-prefix text (P16/D60: 12 → 13;
     // the sync-completion rewrite: 13 → 14; the handoff-carrier plane unification: 15 → 16;
-    // issue #390 — the no-secret-access clause: 16 → 17)
-    expect(TEMPLATE_PROMPT.$version).toBe(17);
+    // issue #390 — the no-secret-access clause: 16 → 17; P22 §7.3 — the work plane's
+    // capability declaration: 17 → 18; the docs-fix row's capability declaration
+    // (the fix face's spec / plan dispatch): 18 → 19; P22 T15 — the charter's own
+    // criteria body + the explicit criteria-body selection: 19 → 20)
+    expect(TEMPLATE_PROMPT.$version).toBe(20);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)
@@ -392,6 +397,20 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(wave).not.toContain("- `INPUT_PLAN`");
     expect(wave).not.toContain("- `INPUT_SPEC`");
     expect(wave).not.toContain("- `INPUT_OVERALL`");
+  });
+
+  it("P22 §7.3 — the work-plane capability line rides every work row (a review declares nothing)", () => {
+    // The document-amendment right is a PROMPT slot, never a carrier slot: the engine
+    // judges the result (the structure-face snapshot), never the declaration. The
+    // docs-fix row carries it too — the fix face's spec / plan dispatch IS docs-fix,
+    // so the authorization must reach that row (and the structure-face ban with it).
+    const line = "capability: may.amend = content";
+    expect(TEMPLATE_PROMPT.modes.implement.shell.join("\n")).toContain(line);
+    expect(TEMPLATE_PROMPT.modes.fix.shell.join("\n")).toContain(line);
+    expect(TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n")).toContain(line);
+    for (const variant of Object.values(TEMPLATE_PROMPT.reviews)) {
+      expect(variant.shell.join("\n")).not.toContain(line);
+    }
   });
 
   it("P14 — the sync-completion clause lands identically on implement / review / fix shells (single LICENSE_ITEMS source)", () => {
@@ -463,7 +482,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       INPUT_SPEC: "docs/x-design.md",
       INPUT_OVERALL: "docs/kairos/overalls/x-overall.md",
     });
-    const reviews = (["wave", "branch", "spec", "plan"] as const).map((type) =>
+    const reviews = (
+      ["wave", "branch", "phase-spec", "overall", "plan", "single-spec"] as const
+    ).map((type) =>
       assembler.render({
         ...ALL_VALUES,
         ROLE: "review",

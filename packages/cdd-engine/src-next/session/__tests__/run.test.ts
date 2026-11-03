@@ -122,7 +122,14 @@ const phasesOf = (steps: readonly StepResult[]): readonly (string | null)[] =>
 
 describe("the faces table — one row per target type", () => {
   it("declares the four CLI `--type` values in the single table", () => {
-    expect(Object.keys(targetFaces)).toEqual(["wave", "branch", "spec", "plan"]);
+    expect(Object.keys(targetFaces).sort()).toEqual([
+      "branch",
+      "overall",
+      "phase-spec",
+      "plan",
+      "single-spec",
+      "wave",
+    ]);
     for (const type of Object.keys(targetFaces) as TargetType[]) {
       expect(targetFaces[type].type).toBe(type);
     }
@@ -143,7 +150,7 @@ describe("the faces table — one row per target type", () => {
   });
 
   it("spec/plan — the doc-path audit, the review lead, no batch", () => {
-    for (const type of ["spec", "plan"] as const) {
+    for (const type of ["phase-spec", "overall", "plan", "single-spec"] as const) {
       const face = targetFaces[type];
       expect(face.audit).toEqual({ kind: "doc-path" });
       expect(face.product.reviewLead).toBe("review");
@@ -435,7 +442,7 @@ describe("the task small loop — implement → review → the next ready group"
         return { status: "APPROVED", findings: [finding("warn"), finding("nit")] };
       });
       const run = new Lifecycle({
-        face: targetFaces.spec,
+        face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
@@ -466,7 +473,7 @@ describe("the task small loop — implement → review → the next ready group"
         };
       });
       const run = new Lifecycle({
-        face: targetFaces.spec,
+        face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
@@ -509,6 +516,91 @@ describe("the task small loop — implement → review → the next ready group"
       // done-marking — a failed round is not a closure, whatever its findings hold
       expect(blocked!.route).toBeNull();
       expect(graph.doneTasks()).toEqual(new Set());
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a BLOCKED implement round lands as a record — the retry takes attempt 2 at the same cycle", async () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      let blocked = true;
+      const dispatch = stub(() => (blocked ? { status: "BLOCKED" } : APPROVED_IMPLEMENT));
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+
+      const first = await run.advance();
+      // every dispatched round lands — the failed verdict is the record's fact
+      expect(ledger.recordsOf("1")).toEqual([
+        expect.objectContaining({
+          op: "implement",
+          cycle: 1,
+          attempt: 1,
+          verdict: { treeClean: true, targetAction: false },
+        }),
+      ]);
+      expect(ledger.completedCycles("1", "implement")).toEqual([]);
+      expect(first!.route).toBeNull();
+
+      // the retry is the SAME cycle's next attempt — allocated once by the naming source
+      expect(run.peekNext()?.frame.attempt).toBe(2);
+      blocked = false;
+      const retry = await run.advance();
+      expect(
+        ledger.recordsOf("1").map((record) => `${record.op}:${record.cycle}:a${record.attempt}`),
+      ).toEqual(["implement:1:a1", "implement:1:a2"]);
+      // the failed attempt's record is never overwritten by the retry
+      expect(ledger.completedCycles("1", "implement")).toEqual([1]);
+      // the successful retry IS the round the line reads back: the failed attempt 1
+      // must never shadow it (the read-back gate takes the cycle's LATEST attempt)
+      expect(retry!.route).toEqual({ kind: "review" });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a BLOCKED fix round lands as a record — the retry takes attempt 2 at the source review's cycle", async () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      let blockedFix = true;
+      const dispatch = stub((frame) => {
+        if (frame.phase === "implement") return APPROVED_IMPLEMENT;
+        if (frame.phase === "review") return { status: "APPROVED", findings: [finding("blocker")] };
+        return blockedFix ? { status: "BLOCKED" } : { status: "APPROVED" };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+      });
+
+      await run.advance(); // implement
+      const review = await run.advance(); // review — the blocker awaits its fix
+      expect(review!.route!.kind).toBe("fix");
+      const fix = await run.advance(); // fix 1 BLOCKED
+      expect(fix!.frame.phase).toBe("fix");
+      expect(fix!.route).toBeNull();
+      // the failed fix is registered but not completed — the completed-set read keeps
+      // the line at fix-K instead of reading the failure as a done fix
+      expect(ledger.completedCycles("1", "fix")).toEqual([]);
+
+      // the retry is the SAME cycle's next attempt, allocated once by the naming source
+      const retry = run.peekNext()?.frame;
+      expect(retry?.phase).toBe("fix");
+      expect(retry?.round).toBe(1);
+      expect(retry?.attempt).toBe(2);
+
+      blockedFix = false;
+      const completed = await run.advance();
+      expect(completed!.route!.kind).toBe("review"); // the completed fix awaits its re-review
+      expect(ledger.completedCycles("1", "fix")).toEqual([1]);
     } finally {
       cleanup();
     }
@@ -590,7 +682,7 @@ describe("the task small loop — implement → review → the next ready group"
 });
 
 describe("the spec/plan small loop — review → fix → re-review → closure", () => {
-  for (const type of ["spec", "plan"] as const) {
+  for (const type of ["phase-spec", "overall", "plan", "single-spec"] as const) {
     it(`drives the ${type} line to the closure without a task frontier`, async () => {
       const { ledger, cleanup } = fixture();
       try {
@@ -608,7 +700,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
           state: EMPTY_RUN_STATE,
           ledger,
           dispatch: dispatch.step,
-          target: { kind: type, doc: DOC },
+          target: { kind: type === "plan" ? "plan" : "spec", doc: DOC },
         });
 
         const review1 = await run.advance();
@@ -642,7 +734,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
     try {
       const dispatch = stub(() => ({ status: "APPROVED", findings: [] }));
       const run = new Lifecycle({
-        face: targetFaces.spec,
+        face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
@@ -652,6 +744,44 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
       expect(step!.frame.phase).toBe("review");
       expect(step!.route).toEqual({ kind: "done" });
       expect(await run.advance()).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a migrated charter line books its next round on the legacy row — no forked twin", async () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // The pre-rename facts of a charter mid-flight: reviews 1-2 recorded, fix 1
+      // landed, and review 2 still carries an open blocker. Only the retired carriers
+      // exist — the round context and the criterion read them, the writes stay current.
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "spec", rounds: { review: [1, 2], fix: [1] } }],
+      });
+      workspace.writeJson("spec-review-1.json", { artifacts: {}, findings: [] });
+      workspace.writeJson("spec-review-2.json", {
+        artifacts: {},
+        findings: [finding("blocker")],
+      });
+      workspace.writeJson("spec-fix-1.json", { artifacts: {}, status: "APPROVED" });
+      const dispatch = stub(() => ({ status: "APPROVED" }));
+      const run = new Lifecycle({
+        face: targetFaces.overall,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "spec", doc: DOC },
+      });
+      const fix = await run.advance();
+      expect(fix!.frame.phase).toBe("fix");
+      // The fix pairs with review 2 — the numbering reads the retired row's cycles.
+      expect(fix!.frame.round).toBe(2);
+      // ONE row: the round booked where the line has always been.
+      expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec"]);
+      const reload = new Ledger(workspace, new ConfigLoader());
+      expect(reload.completedCycles("overall", "fix", "overall")).toEqual([1, 2]);
+      expect(fix!.route?.kind).toBe("review");
     } finally {
       cleanup();
     }
@@ -688,7 +818,7 @@ describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", 
           : { status: "APPROVED", findings: [finding("blocker")] },
       );
       const run = new Lifecycle({
-        face: targetFaces.spec,
+        face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
         dispatch: dispatch.step,
@@ -696,7 +826,7 @@ describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", 
       });
       expect((await run.advance())!.route!.kind).toBe("fix");
       await run.advance();
-      const carrier = ledger.readHandoff("fix", "spec", { round: 1 });
+      const carrier = ledger.readHandoff("fix", "phase-spec", { round: 1 });
       expect(carrier).not.toBeNull();
       // the fix op derives the work plane — the fallback carrier reports the round's
       // status and declares no findings slot (a findings-shaped fallback fails this)
@@ -856,7 +986,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
 
 /** A CLOSED branch line in the fixture — a clean branch review over the plan binds the
  *  line's reviewed plan revision, so the drift-aware gate reads `same` and the line
- *  holds no active C5 hop (the §4.2 `targetLineOpen === false` station). */
+ *  holds no active C5 hop (the §4.2 closed-station fact). */
 const closedBranchLine = async (ledger: Ledger, planPath: string): Promise<void> => {
   const branch = new Lifecycle({
     face: targetFaces.branch,
@@ -938,6 +1068,42 @@ describe("P21 §4.2 — the wave closure's next: reads the branch line's open fa
   });
 });
 
+describe("P22 §5.2 — the capsule's NextHop absence on the failure face", () => {
+  it("(g) a BLOCKED round prints no `next:` line, and the success face's two keys stay byte-identical", async () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      let blocked = true;
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: stub((frame) => {
+          if (frame.phase === "implement")
+            return blocked ? { status: "BLOCKED" } : APPROVED_IMPLEMENT;
+          return { status: "APPROVED", findings: [] };
+        }).step,
+        capsule: new Capsule(new Words()),
+      });
+      const failure = await run.advance();
+      // The failure face holds NO next object — the capsule's line set is the
+      // status-only shape (the key table's failure class), never a `hop: null` row.
+      expect(failure!.route).toBeNull();
+      expect(failure!.capsuleLines).toEqual(["status: BLOCKED"]);
+      expect(failure!.capsuleLines.some((line) => line.startsWith("next:"))).toBe(false);
+
+      // The success face keeps the two pinned keys, byte-for-byte.
+      blocked = false;
+      const success = await run.advance();
+      expect(success!.capsuleLines[0]).toMatch(/^status: APPROVED · handoff: .+/);
+      expect(success!.capsuleLines[0]).not.toContain("blocker:");
+      expect(success!.capsuleLines[1]).toMatch(/^next: /);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("the capsule interaction seam — non-hard consumption", () => {
   it("advances output-less without a capsule; the attached seam renders the round facts", async () => {
     const { ledger, cleanup } = fixture();
@@ -955,7 +1121,7 @@ describe("the capsule interaction seam — non-hard consumption", () => {
       expect(silent!.capsuleLines).toEqual([]);
 
       const capsule: CapsuleFace = {
-        emit: (status, blocker, handoff) => [`${status}: ${blocker} · ${handoff}`],
+        emit: (status, handoff) => [`${status}: ${handoff}`],
       };
       run.attachCapsule(capsule);
       const rendered = await run.advance();
@@ -969,10 +1135,8 @@ describe("the capsule interaction seam — non-hard consumption", () => {
   it("the interaction seam accepts a plain route-less emit — the interface shape is pinned", () => {
     // Compile-time pins — this file fails under `tsc --noEmit` if the seam surface
     // drifts from the face/capsule contact (T10's Capsule satisfies the same type).
-    const seam: CapsuleFace["emit"] = (status, blocker, handoff) => [
-      `${status} ${blocker} ${handoff}`,
-    ];
-    expect(seam("APPROVED", "0", "/ws/h.json")).toEqual(["APPROVED 0 /ws/h.json"]);
+    const seam: CapsuleFace["emit"] = (status, handoff) => [`${status} ${handoff}`];
+    expect(seam("APPROVED", "/ws/h.json")).toEqual(["APPROVED /ws/h.json"]);
   });
 });
 
@@ -1035,6 +1199,47 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
       await run.advance();
       await run.advance();
       expect(ledger.reviewedRevisionOf("1")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a FAILED wave review binds no revision — the verdict is the write-back gate", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none")]));
+      const graph = taskGraph([task(1, "none")]);
+      // the review's first two passes fail (one BLOCKED, one TIMEOUT); the third completes
+      const failures: Array<"BLOCKED" | "TIMEOUT"> = ["BLOCKED", "TIMEOUT"];
+      const dispatch = stub((frame) => {
+        if (frame.phase === "implement") return APPROVED_IMPLEMENT;
+        const failed = failures.shift();
+        return failed === undefined ? { status: "APPROVED", findings: [] } : { status: failed };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        planPath,
+      });
+      await run.advance(); // implement
+      for (let pass = 0; pass < 2; pass += 1) {
+        const failed = await run.advance();
+        expect(failed!.frame.phase).toBe("review");
+        // every dispatched round lands, the failed verdict riding its record
+        expect(ledger.recordsOf("1").at(-1)).toMatchObject({
+          op: "review",
+          verdict: { targetAction: false },
+        });
+        // a hard-failed review never judged this revision — binding it would close the
+        // drift identity the review did not read (AC: the write-back is verdict-gated)
+        expect(ledger.reviewedRevisionOf("1")).toBeNull();
+      }
+      const completed = await run.advance(); // review — the completed round binds the brief
+      expect(completed!.frame.phase).toBe("review");
+      expect(ledger.reviewedRevisionOf("1")).not.toBeNull();
     } finally {
       cleanup();
     }

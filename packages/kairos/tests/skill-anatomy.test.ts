@@ -20,6 +20,7 @@ import { expect, test } from "vitest";
 import { parse as parseYaml } from "yaml";
 
 import {
+  SELF_REVIEW_OBLIGATIONS,
   SKILL_ANATOMY,
   type SkillAnatomyContract,
   type SkillRosterRow,
@@ -494,6 +495,27 @@ test("the six SKILL.md products pass the skill-anatomy contract (the live green 
   const findings = new SkillAnatomyCheck().check();
   const lines = findings.map((f) => `  ${f.skill}: ${f.label}`);
   expect(lines, `anatomy findings:\n${lines.join("\n")}`).toEqual([]);
+});
+
+test("the self-review obligations are registered once — four questions, no digraph fact", () => {
+  // P22 §7.1 — the four questions have ONE home (this contract plane); the
+  // `cdd-spec-writer` / `cdd-plan` pointer pins live in the self-review-obligations
+  // suite, and the registration adds no node, no edge and no growth-boundary crossing.
+  expect(SELF_REVIEW_OBLIGATIONS.map((row) => row.id)).toEqual([
+    "evidence-before-assertion",
+    "two-axis-self-check",
+    "fix-in-round",
+    "self-check-is-not-review",
+  ]);
+  for (const row of SELF_REVIEW_OBLIGATIONS) {
+    expect(row.question.length, `${row.id} carries no question`).toBeGreaterThan(0);
+    expect(row.body.length, `${row.id} carries no body`).toBeGreaterThan(0);
+  }
+  // The regression pin — the registration changes no structure fact: the growth
+  // boundary and the crossing registry are exactly what the live digraphs sit inside.
+  expect(SKILL_ANATOMY.growthBoundary.nodeLimit).toBe(15);
+  expect(SKILL_ANATOMY.growthBoundary.edgeLimit).toBe(17);
+  expect(Object.keys(SKILL_ANATOMY.growthBoundary.registry.crossings)).toEqual([]);
 });
 
 test("the frontmatter gate is non-vacuous — a bare-colon description is a real YAML break (D42)", () => {

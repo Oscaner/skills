@@ -5,7 +5,6 @@ version: v0.8
 date: 2026-10-19
 slug: 2026-10-10-engine-doc-tooling-p12
 program: 2026-10-10-engine-doc-tooling
-status: Draft
 author: Oscar M. · Claude Opus 5（kairos:cdd-design [P12] 会话 · 用户逐轮裁定 Q1–Q14 · 2026-10-19）
 parent-version: v2.58
 ---

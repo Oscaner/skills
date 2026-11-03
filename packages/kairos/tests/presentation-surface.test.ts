@@ -303,11 +303,15 @@ const ENGINE_README_CLI_TABLES = [
 
 /** The `## CLI` section's subcommand column, in document order. The row SET alone would stay
  *  green when a row is inserted at the wrong position or when the two language tables disagree
- *  on order — the extracted SEQUENCE is what the gates compare. */
+ *  on order — the extracted SEQUENCE is what the gates compare. Scoped to the section's FIRST
+ *  table: the prose subsections below it (`### Review criteria`) carry tables of their own, and
+ *  a documentation row whose first cell is a bare token must never read as a subcommand row. */
 const cliTableCommands = (rel: string): readonly string[] => {
-  return [...sectionOf(read(rel), "## CLI").matchAll(/^\|\s*`([a-z-]+)`\s*\|/gm)].map(
-    (row) => row[1]!,
-  );
+  const lines = sectionOf(read(rel), "## CLI").split("\n");
+  const start = lines.findIndex((line) => line.startsWith("|"));
+  const stop = lines.findIndex((line, index) => index > start && !line.startsWith("|"));
+  const table = lines.slice(start, stop === -1 ? undefined : stop).join("\n");
+  return [...table.matchAll(/^\|\s*`([a-z-]+)`\s*\|/gm)].map((row) => row[1]!);
 };
 
 for (const rel of ENGINE_README_CLI_TABLES) {

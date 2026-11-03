@@ -81,14 +81,38 @@ describe("RoundNaming — the frame → prescribed artifact names (report / evid
     expect(
       NAMING.report(
         frame({
-          type: "spec",
+          type: "phase-spec",
           phase: "review",
           round: 1,
           target: { kind: "spec", doc: "s.md" },
           params: { round: 1 },
         }),
       ),
-    ).toBe(inWorkspace("spec-review-1-report.md"));
+    ).toBe(inWorkspace("phase-spec-review-1-report.md"));
+    // the overall charter line keys its own round line — never folded into the spec line
+    expect(
+      NAMING.report(
+        frame({
+          type: "overall",
+          phase: "review",
+          round: 1,
+          target: { kind: "spec", doc: "o-overall.md" },
+          params: { round: 1 },
+        }),
+      ),
+    ).toBe(inWorkspace("overall-review-1-report.md"));
+    // the standalone single-spec line keys its own stem too
+    expect(
+      NAMING.report(
+        frame({
+          type: "single-spec",
+          phase: "review",
+          round: 1,
+          target: { kind: "spec", doc: "x-single-spec.md" },
+          params: { round: 1 },
+        }),
+      ),
+    ).toBe(inWorkspace("single-spec-review-1-report.md"));
     expect(
       NAMING.report(
         frame({
@@ -128,7 +152,7 @@ describe("RoundNaming — the frame → prescribed artifact names (report / evid
     ).toBe("");
     expect(
       NAMING.evidenceName(
-        frame({ type: "spec", phase: "review", target: { kind: "spec", doc: "s.md" } }),
+        frame({ type: "phase-spec", phase: "review", target: { kind: "spec", doc: "s.md" } }),
       ),
     ).toBe("");
     expect(
@@ -142,6 +166,68 @@ describe("RoundNaming — the frame → prescribed artifact names (report / evid
     expect(NAMING.op(frame({ phase: "fix" }))).toBe("fix");
     const branchReview = NAMING.op(frame({ type: "branch", phase: "branch-review" })) as OpType;
     expect(branchReview).toBe("review");
+  });
+
+  it("derives the per-round log name — the report stem, the attempt suffix and the .log face", () => {
+    expect(NAMING.logName("review", "phase-spec", { round: 2 }, 1)).toBe("phase-spec-review-2.log");
+    expect(NAMING.logName("fix", "wave", { tasks: "1", round: 1 }, 1)).toBe("tasks-1-fix-1.log");
+    // implement carries no round token — the line keys the implement round alone
+    expect(NAMING.logName("implement", "wave", { tasks: "1" }, 1)).toBe("tasks-1-implement.log");
+    // a re-attempt never overwrites attempt 1's log
+    expect(NAMING.logName("fix", "wave", { tasks: "1", round: 1 }, 2)).toBe("tasks-1-fix-1-a2.log");
+  });
+
+  it("the log name is the report stem — the two names read ONE derivation", () => {
+    // every shape the two faces cover: the wave implement (round-less family), the wave
+    // review / fix rounds, the branch review (branch-review → review) and the doc lines.
+    const shapes: ReadonlyArray<{ frame: OpenFrame; op: OpType; attempt: number }> = [
+      { frame: frame({ type: "wave", phase: "implement" }), op: "implement", attempt: 1 },
+      {
+        frame: frame({ type: "wave", phase: "review", round: 2, params: { tasks: "1", round: 2 } }),
+        op: "review",
+        attempt: 1,
+      },
+      {
+        frame: frame({
+          type: "branch",
+          phase: "branch-review",
+          round: 3,
+          target: { kind: "branch" },
+          params: { round: 3 },
+          key: "branch",
+        }),
+        op: "review",
+        attempt: 1,
+      },
+      {
+        frame: frame({
+          type: "phase-spec",
+          phase: "review",
+          round: 1,
+          target: { kind: "spec", doc: "s.md" },
+          params: { round: 1 },
+        }),
+        op: "review",
+        attempt: 2,
+      },
+    ];
+    for (const shape of shapes) {
+      const stem = path.basename(NAMING.report(shape.frame)).replace(/-report\.md$/, "");
+      const suffix = shape.attempt > 1 ? `-a${shape.attempt}` : "";
+      expect(NAMING.logName(shape.op, shape.frame.type, shape.frame.params, shape.attempt)).toBe(
+        `${stem}${suffix}.log`,
+      );
+    }
+  });
+
+  it("allocates the attempt number — max attempt of the op/cycle plus one", () => {
+    const records = [
+      { op: "fix" as const, cycle: 1, attempt: 1 },
+      { op: "review" as const, cycle: 1, attempt: 1 },
+    ];
+    expect(NAMING.attemptOf(records, "fix", 1)).toBe(2);
+    expect(NAMING.attemptOf(records, "fix", 2)).toBe(1);
+    expect(NAMING.attemptOf([], "implement", 1)).toBe(1);
   });
 
   it("carries the evidence family prefix — tasks for the wave families, branch for the branch line", () => {
@@ -257,5 +343,15 @@ describe("the crash-name single source — RoundNaming derives every crash recor
     // The narrowed checkable: the crash-name DERIVATION is what is guarded, so the
     // legitimate `cdd fix --type ${frame.type}` resume form is never a hit.
     expect(crashNamesOnRawFrameType()).toEqual([]);
+  });
+});
+
+describe("the artifact-stem single source — the report and its log name read ONE derivation", () => {
+  it("builds the wave/branch family stem at exactly ONE production site", () => {
+    // The family template IS the artifact stem's body: a second copy would let the
+    // report and its round log diverge silently (one fact, one place).
+    expect(hitsOf("tasks-${params.tasks").map((hit) => hit.split(":")[0])).toEqual([
+      "session/round-naming.ts",
+    ]);
   });
 });

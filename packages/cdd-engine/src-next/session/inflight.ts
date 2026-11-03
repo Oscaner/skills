@@ -57,6 +57,14 @@ export interface InFlightRecord {
   /** The dispatched phase (`implement` / `review` / `fix` / `branch-review`); null
    *  when the record was not written by a dispatch. */
   readonly phase: string | null;
+  /** The dispatched round's cycle number — the round identity's second cell, so a
+   *  takeover can tell WHICH round holds the tree (spec §5.3). Null on a record
+   *  written before this cell existed (a present fact only). */
+  readonly cycle: number | null;
+  /** The dispatched round's attempt number (1 = the first attempt of the op/cycle) —
+   *  the identity's third cell (spec §5.3). Null on a record written before this cell
+   *  existed. */
+  readonly attempt: number | null;
   /** The rendered brief's content hash at acquire time (`ReviewRefs.briefRevision`
    *  — the SAME hash face the ledger binds, zero new hash surface); null off the
    *  wave face. */
@@ -64,7 +72,9 @@ export interface InFlightRecord {
   /** The plan path the dispatch read (repoRoot-relative); null when the face carries
    *  no plan fact. */
   readonly plan: string | null;
-  /** The sampling trail's last tick instant (epoch ms); null before the first tick. */
+  /** The sampling trail's last tick instant (epoch ms) — the same instant a recorded
+   *  sample carries as `at` (each record shape names its own cells: one fact, one
+   *  spelling per shape); null before the first tick. */
   readonly sampledAt: number | null;
   /** The last sample's stall verdict (`progress` / `unknown` / `idled` / `stalled`);
    *  null before the first tick. */
@@ -334,6 +344,8 @@ export class InFlight {
       startedAt: row.startedAt,
       wave: typeof row.wave === "string" ? row.wave : null,
       phase: typeof row.phase === "string" ? row.phase : null,
+      cycle: typeof row.cycle === "number" ? row.cycle : null,
+      attempt: typeof row.attempt === "number" ? row.attempt : null,
       briefHash: typeof row.briefHash === "string" ? row.briefHash : null,
       plan: typeof row.plan === "string" ? row.plan : null,
       sampledAt: typeof row.sampledAt === "number" ? row.sampledAt : null,

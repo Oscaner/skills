@@ -4,10 +4,10 @@
 // → schema shape → word-table accessor → guard-lexicon) converges into ONE word
 // table with three families served by one class:
 //
-//   capsule — the capsule-station words: the capsule keys (status · blocker ·
-//           handoff, the pinned emit order), the `next:` route station + the stderr
-//           stations, the status vocabulary and the route classifier words. Every
-//           byte the capsule emits rides this family — a reorder is a red test.
+//   capsule — the capsule-station words: the capsule keys (status · handoff, the
+//           pinned emit order), the `next:` route station + the stderr stations, the
+//           status vocabulary and the route classifier words. Every byte the capsule
+//           emits rides this family — a reorder is a red test.
 //   guard — the guard-ban words: the retired-vocabulary ban rows (STALE / GATE /
 //           shape) the guards assert absent from the live faces. This is the ban
 //           table's data-source face — the guard scan releases these rows as its
@@ -22,9 +22,9 @@
 //           translation data (a new word is a new data row, never a code branch).
 //
 // The vocabulary is English-primary and death-stable: v1 keeps the same word face
-// the consumers already read (status · blocker · handoff · next:) — a steady state,
-// never a compatibility shim. The capsule class reads ALL its words through this
-// instance (constructor injection) — the guaranteed "one table, zero second table".
+// the consumers already read (status · handoff · next:) — a steady state, never a
+// compatibility shim. The capsule class reads ALL its words through this instance
+// (constructor injection) — the guaranteed "one table, zero second table".
 // The capsule machine face (status · next: · CDD_BLOCKED:) is never a locale row —
 // the machine surface stays English-constant, never localizeable.
 //
@@ -40,8 +40,8 @@ import type { InFlightRecord } from "../session/inflight.ts";
 // capsule — the station-word family (the declared steady word face)
 // ---------------------------------------------------------------------------
 
-/** The capsule emit keys — the pinned `status · blocker · handoff` order. */
-export type CapsuleKey = "status" | "blocker" | "handoff";
+/** The capsule emit keys — the pinned `status · handoff` order. */
+export type CapsuleKey = "status" | "handoff";
 
 /** The route station kinds — the addressed channels of the command surface. */
 export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
@@ -81,6 +81,12 @@ export interface WaveGateWords {
   /** The mixed-batch BLOCK — a requested task hits a derived batch that holds both
    *  closed and open tasks (a batch closes as a unit; re-declare the edges). */
   mixedBatch: string;
+  /** The wave-too-wide BLOCK — the derived wave carries more than the ceiling's tasks;
+   *  the message names the member ids and the only repair (the plan's DependsOn). */
+  waveTooWide: string;
+  /** The too-many-tasks BLOCK — the requested `--tasks` set is wider than the ceiling.
+   *  Slots: {tasks} · {count} · {max}. */
+  tooManyTasks: string;
 }
 
 /** The pre-flight BLOCK wording rows — the lifecycle pre-flight seam's refusal
@@ -152,16 +158,25 @@ export interface CheckedWords {
   skippedUnreadableDoc: string;
   /** The plan-ahead info row (a `plan-ledger` gate row — `{count}` fill slot). */
   planAhead: string;
+  /** The wave-width rule's degraded row — the call site injected no plan layers, so
+   *  the rule judged nothing (a visible degradation, never a refusal). */
+  planLayersUnavailable: string;
 }
+
+/** The fix round's disposition summary line — the ONE template of the deliberate
+ *  stdout byte addition (design spec §3.4). The template lives here, on the
+ *  presentation plane; the contract criterion (`FixDispositions#summaryOf`) supplies
+ *  the two counts it fills, so the contract plane never imports this table. */
+export const FIX_DISPOSITIONS_SUMMARY = "fixed {fixed} · rejected {rejected}";
 
 /** The capsule word rows — every word the capsule face emits, one table. */
 export const CAPSULE_WORDS = {
   /** The capsule emit key rows — one declaration per status class (the summary
    *  face's key-set single source; a reorder is a red test — the pinned face).
-   *  A success status renders `status · blocker · handoff`; a failure status renders
+   *  A success status renders `status · handoff`; a failure status renders
    *  `status` alone, plus `handoff` only when the round wrote a crash record. */
   keys: {
-    success: ["status", "blocker", "handoff"] as const,
+    success: ["status", "handoff"] as const,
     failure: ["status"] as const,
     handoff: "handoff" as const,
   } as const satisfies {
@@ -213,6 +228,10 @@ export const CAPSULE_WORDS = {
     wrongPhase: "the open wave is at {phase} — run cdd {phase} first",
     mixedBatch:
       "the derived batch ({batch}) mixes closed and open tasks ({closed} closed, {open} open) — a wave closes as a unit; re-declare the **DependsOn** edges so no task joins an already-executed batch",
+    waveTooWide:
+      "the open wave ({tasks}) carries more than {max} tasks — narrow the wave by adjusting the plan's **DependsOn** edges (chain the extra tasks) and re-run",
+    tooManyTasks:
+      "the requested task set ({tasks}) carries {count} tasks, above the {max}-task wave limit — dispatch at most {max} tasks per wave by adjusting the plan's **DependsOn** edges and re-run",
   } as const satisfies WaveGateWords,
   /** The pre-flight BLOCK wording rows (P4.1 T1) — the seam's refusal vocabulary,
    *  single-sourced (the seam fills the {count} slot, never a re-type). */
@@ -235,6 +254,7 @@ export const CAPSULE_WORDS = {
     skippedNotJudged: "skipped (not judged)",
     skippedUnreadableDoc: "skipped (unreadable doc)",
     planAhead: "plan-ledger: info (plan leads ledger by {count} tasks)",
+    planLayersUnavailable: "info (plan layers: unavailable)",
     inFlight: {
       free: "free — no dispatch holds this tree",
       held: "held — pid {pid}",
@@ -251,6 +271,10 @@ export const CAPSULE_WORDS = {
   /** The terminated-round diagnostic suffix — appended to the one CDD_BLOCKED reason
    *  line of a non-promoted terminated round. Fill slots: {idleMs} / {verdict}. */
   terminationDetail: " — idleMs: {idleMs}, last sample verdict: {verdict}",
+  /** The round's soft-violation warning — a soft entry is bookkeeping only (design
+   *  spec §3.3): the round still concludes, and this line names what was booked.
+   *  Fill slot: {message}. */
+  softViolation: "round soft violation: {message}",
   /** The in-flight rows (P21 §2.2) — the held report, the takeover hint, the two
    *  corrupt shapes and the three canonical recovery sentences. */
   inFlight: {
@@ -386,9 +410,9 @@ export class Words implements WordLocaleFace {
   // -------------------------------------------------------------------------
 
   /** The capsule emit keys of one status class, in the pinned byte order — the key
-   *  set's single source. A success status renders `status · blocker · handoff`; a
-   *  failure status (TIMEOUT / BLOCKED) renders `status`, plus `handoff` only when
-   *  the round wrote a crash record (`withHandoff`). */
+   *  set's single source. A success status renders `status · handoff`; a failure
+   *  status (TIMEOUT / BLOCKED) renders `status`, plus `handoff` only when the round
+   *  wrote a crash record (`withHandoff`). */
   capsuleKeys(status: string, withHandoff: boolean): readonly CapsuleKey[] {
     const rows = CAPSULE_WORDS.keys;
     const failure = (CAPSULE_WORDS.failureStatuses as readonly string[]).includes(status);
@@ -485,6 +509,12 @@ export class Words implements WordLocaleFace {
     return CAPSULE_WORDS.terminationDetail
       .replace("{idleMs}", String(facts.idleMs))
       .replace("{verdict}", facts.verdict);
+  }
+
+  /** The soft-violation warning, rendered from the entry's message — the single
+   *  filler of its slot. */
+  softViolation(message: string): string {
+    return CAPSULE_WORDS.softViolation.replace("{message}", message);
   }
 
   /** The in-flight wording rows — the held report, the takeover hint, the two corrupt

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P22 计划：定级口径 · 派发终态契约 · 活性信号 · Next 收敛
 doc-type: plan
-version: v0.13
+version: v0.14
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling-p22
 base: develop
@@ -540,11 +540,39 @@ Task 1–12 的全部产物。
 #### DependsOn
 15
 
+### Task 17: 计划漂移重开分支面
+
+#### Objective
+`lineGate` 的漂移感知腿只对 `plan` / `spec` 面生效，分支面落到 `#linePhase` ⇒ 分支闭合后即使其身份文档（**计划**）漂移，派发面仍报 `face-closed`（实测：`next:` 建议 `review --type branch`，同一条命令随即被同一门拒绝）。按用户裁定：**计划漂移时分支面必须重开**，因为分支复审依据的正是计划修订。
+
+#### Files
+- Modify: `packages/cdd-engine/src-next/face/gate.ts`（`lineGate` 补分支面）· `packages/cdd-engine/src-next/session/ledger.ts`（若 `reviewGate` 的 identity-doc 解析需按 face 取计划文档）
+- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts` · `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`
+
+#### Consumes
+`Ledger#reviewGate(key, doc, faceType)`（漂移感知的判据，P21 `LineIdentity`）· `CliGate#linePhase`（既有的 rounds/routes 兜底）· `scene.target.kind === "branch"` 时的身份文档 = 计划路径（P21 §3：branch 线复用其计划文档的 doc-revision）。
+
+#### Produces
+- `CliGate#lineGate` 对 `scene.target?.kind === "branch"` 走与文档面同一条漂移腿：计划当前修订 ≠ 分支行已绑修订 ⇒ `{ phase: "branch-review", verdict: null }`；未漂移 ⇒ 维持闭合面（`face: null`）。
+- 拒绝报文继续复用同一个 `NextHop`（`drift` ⇒ `reason: doc-drift`、hop = `branch-review`）。
+
+#### Steps
+- [ ] **Step 1: 写失败用例** —— (a) 分支行闭合后改计划文档 ⇒ `review --type branch` 被接受（`lineGate` 返回 `branch-review`）；(b) 计划未动 ⇒ 仍报 `face-closed`（不得因本改动放开闭合面）；(c) 计划漂移时 `lineHop` 的 `reason === doc-drift`、报文与 board 的 `next:` 是同一个对象。 — checkable: 三组用例先红（分支面现在恒 `face-closed`）
+- [ ] **Step 2: 接线** —— `lineGate` 的分支分支复用 `reviewGate`（identity doc = 计划路径）；`branch-review` 作为该面的 `reviewLead` 返回。 — checkable: `review --type branch --plan …` 在计划漂移时通过干跑门（`--dry-run` 五门全过）
+- [ ] **Step 3: 跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS（既有 `face-closed` 断言按新语义分组：未漂移仍闭合）。 — checkable: `pnpm -C packages/cdd-engine test` exit 0
+
+#### Acceptance
+计划漂移 ⇒ 分支面重开（`branch-review` 被接受且 `reason === doc-drift`）· 计划未漂移 ⇒ 仍 `face-closed`（红 pin 各一）· 拒绝/放行两条报文仍是同一个 `NextHop`（跨面 pin）· 分支闭合的其它既有用例全绿。
+
+#### DependsOn
+16
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.13 | 2026-11-03 | **T16 验收面收窄（W16 review-1 的 warn · 编排器裁定）**：语料 sweep 只删**文档头部**的 `status:` 行；P10 §2.1 围栏里的 `status: Draft` 是该 phase 自身头部形态的规范引文，围栏不是活文档头部，故回填原行、让冻结 spec 不自我矛盾。Step 3 / Produces / Acceptance 的判据由全语料 `grep -rn '^status:'` 改为 **front-matter 感知**（只读每个文件的首个块），正文围栏内的引文不计 | Oscaner M. · Claude（kairos:cdd-dev · fix-round backfill · 2026-11-03） |
+| v0.14 | 2026-11-03 | **T17 入库（用户裁定）**：计划漂移必须重开分支面——`lineGate` 的漂移感知腿只覆盖 `plan`/`spec`，分支面落到 `#linePhase` 后恒 `face-closed`（实测 `next:` 建议 branch 复审、随即被同一门拒绝）。W11 独占一层 | Oscaner M. · Claude（kairos:cdd-dev · scope append · 2026-11-03） |
 | v0.12 | 2026-11-03 | **T16 入库（用户裁定 · 章程 D75）**：退役 `status` front-matter 字段——零读者（`rules.ts` 零命中）、却要每轮手工同步，22 篇里 21 篇永停 `Draft`。面：登记元素 ×3 · 骨架输出 · 仓内文档 · pin 重锚；**不加门**（野外残留不修不判）。W10 独占一层（依赖 T15），engine minor | Oscaner M. · Claude（kairos:cdd-dev · scope append · 2026-11-03） |
 | v0.11 | 2026-11-03 | **判据键的落地名回填（branch-review-1 的 nit · T1 / T15 落地行）**：`ReviewVariant` / `REVIEW_VARIANT_TEXT` / `ReviewVariants.of` 实际落地为 `ReviewKey` / `REVIEW_BODY_TEXT` / `reviewBodyOf`（`render/templates.ts`）——T15 的 `overall` 判据需要第五个判据键，而 `TargetType` 的六个目标值里 `phase-spec` / `single-spec` 共用 `spec`；且单方法静态面被仓库的零裸函数纪律改写为模块常量。语义等价，代码不动，计划侧让行 | Oscaner M. · Claude（kairos:cdd-dev · symbol backfill · 2026-11-03） |
 | v0.10 | 2026-11-03 | **T14 验收补全（W8 五轮评审的取证）**：迁移一致性由「三面」改为**六面**——值域/帮助 · 消费面字面（含散文枚举与 skill 固定词）· 行键 · 载体文件名 · 编号与写侧 · 呈现面；每一面各对应一次 W8 的 blocker，并附失败形态，使同类改名不再以「别名只做一半」通过 | Oscaner M. · Claude（kairos:cdd-dev · acceptance backfill · 2026-11-03） |

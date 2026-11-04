@@ -34,15 +34,34 @@ npx -y @oscaner-skills/cdd-engine@latest init --harness=claude
 npx -y @oscaner-skills/cdd-engine@latest init --harness=pi
 ```
 
-`cdd init` installs `kairos` and its two upstream packages (superpowers, mattpocock-skills) in order, through the harness's own command channel. Add `--update` to refresh an installed set rather than installing one, and drop the `npx -y @oscaner-skills/cdd-engine@latest` prefix once `cdd` is installed globally.
+`cdd init` installs `kairos` and its two upstream packages (superpowers, mattpocock-skills) in order, through the harness's own command channel — the first three rows below are that install contract. The six rows after them are the recommended tier: pi capability packages that Claude Code already carries natively, installed only when you pass `--include-recommends`. Add `--update` to refresh an installed set rather than installing one, and drop the `npx -y @oscaner-skills/cdd-engine@latest` prefix once `cdd` is installed globally.
 
-For manual installation without the engine, run the commands in one cell one at a time — `；` separates them for display and is not a shell separator:
+For manual installation without the engine, run the commands in one cell one at a time — `；` separates them for display and is not a shell separator. `—` marks a package the harness does not need:
 
 | Package | Claude Code | Pi |
 |---------|-------------|-----|
 | superpowers | `claude plugin marketplace add obra/superpowers-marketplace；claude plugin install superpowers@superpowers-marketplace` | `pi install git:github.com/obra/superpowers` |
 | mattpocock-skills | `claude plugin marketplace add mattpocock/skills；claude plugin install mattpocock-skills@mattpocock` | `pi install git:github.com/mattpocock/skills` |
 | kairos | `claude plugin marketplace add oscaner/skills；claude plugin install kairos@oscaner-skills` | `pi install npm:@oscaner-skills/kairos` |
+| pi-fff | — | `pi install npm:@ff-labs/pi-fff` |
+| rpiv-todo | — | `pi install npm:@juicesharp/rpiv-todo` |
+| rpiv-ask-user-question | — | `pi install npm:@juicesharp/rpiv-ask-user-question` |
+| pi-web-access | — | `pi install npm:pi-web-access` |
+| pi-background-tasks | — | `pi install npm:pi-background-tasks` |
+| pi-agentsmd | — | `pi install npm:pi-agentsmd` |
+
+### The recommended tier
+
+Claude Code ships six capabilities natively that pi needs a package for — file search, todo tracking, structured questioning, web access, background tasks and `AGENTS.md` injection:
+
+- `pi-fff` — file search
+- `rpiv-todo` — todo tracking
+- `rpiv-ask-user-question` — structured questioning
+- `pi-web-access` — web access
+- `pi-background-tasks` — background tasks
+- `pi-agentsmd` — the `AGENTS.md` project-instruction injection the workflow assumes
+
+They are opt-in: `cdd init --harness=pi --include-recommends` installs them beside the core three, and `cdd init --harness=pi --update --include-recommends` refreshes them. Claude Code needs neither the flag nor the packages.
 
 ## Quick start
 

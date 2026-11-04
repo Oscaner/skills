@@ -126,3 +126,42 @@ test("grep sweep: the retired consumer-face lexicon in shipped prose → 0 hits"
     0,
   );
 });
+
+// P23 §6.2 — the consumer-face tier sweep: the install surface belongs to the READMEs,
+// so the shipped skill prose (six SKILL.md + cdd-dev/docs/base.md) must carry zero
+// `--include-recommends` literal and zero recommended package name. The command shape
+// is `-e` only: everything after `-e` is pattern position, so a leading `--` never
+// reaches option parsing (a bare interpolation would let BSD grep read it as an option
+// and `| wc -l` would swallow the exit code into a green zero). Never "escape" the
+// dashes either — this command is built in a TS template literal, where `\-` is a
+// NonEscapeCharacter and evaluates back to `-`.
+test("grep sweep: the recommended-tier flag and package names in skill prose → 0 hits", () => {
+  const count = (literal: string) =>
+    parseInt(
+      execSync(
+        `grep -rn --include="*.md" -e "${literal}" packages/kairos/skills/ 2>/dev/null | wc -l`,
+        { cwd: REPO, encoding: "utf8" },
+      ).trim(),
+      10,
+    );
+  // The positive control must itself start with `--`, in this same command shape: a
+  // plain word (`kairos`) hits through a bare interpolation too, so it cannot prove the
+  // `-e` shape is live. `--plan` is a registered token with live hits in this tree.
+  expect(
+    count("--plan"),
+    "the positive control must hit, or this gate cannot go red",
+  ).toBeGreaterThanOrEqual(1);
+  const literals = [
+    "--include-recommends",
+    "pi-fff",
+    "rpiv-todo",
+    "rpiv-ask-user-question",
+    "pi-web-access",
+    "pi-background-tasks",
+    "pi-agentsmd",
+  ];
+  for (const literal of literals) {
+    const hits = count(literal);
+    expect(hits, `"${literal}" has ${hits} hits in the shipped skill prose — expected 0`).toBe(0);
+  }
+});

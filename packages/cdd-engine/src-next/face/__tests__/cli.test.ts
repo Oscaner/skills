@@ -78,6 +78,11 @@ import type { ChildOutcome, ChildRun, ChildRunner, Termination } from "../termin
 import { Words } from "../words.ts";
 import { negatedOf } from "./negation.ts";
 
+/** The roster narrowed to its CORE rows — the flag-less face's plan source. `cdd init`
+ *  without the recommended-tier flag flattens the core rows only, so the flag-less
+ *  wiring mirrors below compare against this narrowing, never the whole table. */
+const CORE_ROSTER: readonly PluginRow[] = PLUGINS.filter((row) => row.tier === "core");
+
 // The retired usage corpus — the pre-T2 usage product's bytes for the two verbs
 // whose old rows still run as negative anchors (the survivors assert the old
 // self-built face is gone from the commander-native output; the review/fix/
@@ -626,7 +631,7 @@ describe("cdd init — the harness bootstrap wiring", () => {
       const code = await command.runArgv(["init", "--harness=pi"]);
       expect(code).toBe(0);
       expect(io.stderrText).toBe("");
-      const roster: readonly PluginRow[] = PLUGINS;
+      const roster: readonly PluginRow[] = CORE_ROSTER;
       expect(runner.calls).toEqual(roster.flatMap((row) => row.pi.install));
       expect(headers.at(-1)).toBe("init: 3 steps ok (pi · install)");
       // §2.4's second half — the cwd is left untouched: no workspace, no ledger.
@@ -646,7 +651,7 @@ describe("cdd init — the harness bootstrap wiring", () => {
     });
     try {
       expect(await command.runArgv(["init", "--harness=claude", "--update"])).toBe(0);
-      const roster: readonly PluginRow[] = PLUGINS;
+      const roster: readonly PluginRow[] = CORE_ROSTER;
       expect(runner.calls).toEqual(roster.flatMap((row) => row.claude.update));
       // The install column is a distinct argv set, so a dropped or inverted update
       // derivation shows up here as install commands riding an update request.
@@ -700,6 +705,100 @@ describe("cdd init — the harness bootstrap wiring", () => {
         "would run: claude plugin marketplace add obra/superpowers-marketplace",
       );
       expect(headers.at(-1)).toBe("init: 6 steps (claude · install) — dry run, nothing executed");
+      expect(runner.calls).toEqual([]);
+      expect(io.stderrText).toBe("");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("--include-recommends flattens the recommended tier — nine pi steps, the tier split in the summary", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    const { command, io, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      expect(await command.runArgv(["init", "--harness=pi", "--include-recommends"])).toBe(0);
+      const rows: readonly PluginRow[] = PLUGINS;
+      expect(runner.calls).toEqual(rows.flatMap((row) => row.pi.install));
+      expect(runner.calls).toHaveLength(9);
+      expect(headers.at(-1)).toBe("init: 9 steps ok (pi · install · 3 core + 6 recommended)");
+      expect(io.stderrText).toBe("");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("--include-recommends on claude adds zero steps — the empty-tier info line follows the summary", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    const { command, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      expect(await command.runArgv(["init", "--harness=claude", "--include-recommends"])).toBe(0);
+      const rows: readonly PluginRow[] = CORE_ROSTER;
+      expect(runner.calls).toEqual(rows.flatMap((row) => row.claude.install));
+      expect(headers.slice(-2)).toEqual([
+        "init: 6 steps ok (claude · install · 6 core + 0 recommended)",
+        "init: no recommended packages for claude",
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("--update --include-recommends runs the update column on both harnesses — zero install argv", async () => {
+    const rows: readonly PluginRow[] = PLUGINS;
+    for (const host of ["pi", "claude"] as const) {
+      const runner = new RecordingRunner();
+      const { command, cleanup } = fixture({ initRunner: runner });
+      try {
+        expect(
+          await command.runArgv(["init", `--harness=${host}`, "--update", "--include-recommends"]),
+        ).toBe(0);
+        // the update column is the independent source — never reverse-derived from install
+        expect(runner.calls).toEqual(rows.flatMap((row) => row[host].update));
+        const installs = new Set(
+          rows.flatMap((row) => row[host].install).map((argv) => argv.join(" ")),
+        );
+        expect(runner.calls.filter((argv) => installs.has(argv.join(" ")))).toEqual([]);
+      } finally {
+        cleanup();
+      }
+    }
+  });
+
+  it("a missing --harness rejects the flag's invocation too (exit 2, zero spawn)", async () => {
+    const runner = new RecordingRunner();
+    const { command, cleanup } = fixture({ initRunner: runner });
+    try {
+      expect(await command.runArgv(["init", "--include-recommends"])).toBe(2);
+      expect(runner.calls).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("--dry-run --include-recommends previews nine would-run lines — exit 0, zero spawn", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    const { command, io, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      expect(
+        await command.runArgv(["init", "--harness=pi", "--dry-run", "--include-recommends"]),
+      ).toBe(0);
+      const wouldRun = headers.filter((line) => line.startsWith("would run: "));
+      expect(wouldRun).toHaveLength(9);
+      expect(headers.at(-1)).toBe(
+        "init: 9 steps (pi · install · 3 core + 6 recommended) — dry run, nothing executed",
+      );
       expect(runner.calls).toEqual([]);
       expect(io.stderrText).toBe("");
     } finally {

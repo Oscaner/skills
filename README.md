@@ -83,7 +83,7 @@ npx -y @oscaner-skills/cdd-engine@latest init --harness=claude
 npx -y @oscaner-skills/cdd-engine@latest init --harness=pi
 ```
 
-Re-run with `--update` to refresh an existing install, or install `cdd` globally (`npm i -g @oscaner-skills/cdd-engine`) to drop the prefix. Manual per-harness commands live in the [`packages/kairos/README.md`](packages/kairos/README.md) installation table.
+Re-run with `--update` to refresh an existing install, add `--include-recommends` to bring in the six pi capability packages beside the core set, or install `cdd` globally (`npm i -g @oscaner-skills/cdd-engine`) to drop the prefix. Manual per-harness commands live in the [`packages/kairos/README.md`](packages/kairos/README.md) installation table.
 
 Then invoke the first orchestrator — `/kairos:cdd-design` — and follow the engine's `next:` line from there. Nothing else to set up: skills fetch the engine on demand with `npx -y @oscaner-skills/cdd-engine@latest <subcommand>`, and the engine keeps run state under `.kairos/cdd/`, publishing `.kairos/.gitignore` (`*`) at first dispatch.
 

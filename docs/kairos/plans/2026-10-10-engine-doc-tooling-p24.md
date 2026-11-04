@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 计划：NEXT-LOOP 收口面（基线随轮推进 + hop 原因可读）
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p24
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（v0.12）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（v0.13）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。
 - **单点判据**：drift 的「记了什么 identity」只有一个写入点（`Ledger#recordReviewedRevision`，wave 经 `recordReviewedBrief`），读取面按既有事实分两条（doc/branch 走 `docReopens`、wave 走 `waveLineRoute` 的 D30 腿）。不得为任何一面新开第二个 drift 判定或第二个写入点。
 - **只推进完成的轮**：`targetAction` 为假的轮（BLOCKED / TIMEOUT）一律不推进基线；读不到输入（文档 / plan 不可读）时什么都不记录，保留旧基线。
 - **`next:` 字节零变**：`next:` 行仍是可执行字面，整行抄进 shell 必须能跑。诊断信息只落**另一行**（`reason:`）。字面上不得出现 `—`/`#`/任何后缀。
@@ -346,6 +346,47 @@ none
 
 1, 2, 3
 
+### Task 5: 板面 frontier 的选面读 drift（§9）
+
+#### Objective
+
+让板面的 pipeline frontier 与门的判定同源：spec 已收口、其后其身份文档被轮外改动时，板面**不得**把 frontier 推到下一面（今日印 `implement --plan … --tasks …`，一条引擎会拒的命令），而应停在该 doc 面并渲该面的 review lead + `reason: doc-drift`。
+
+#### Files
+
+- Modify: `packages/cdd-engine/src-next/face/board-view.ts`（`pipelineFacts` 的 `phase-spec` 与 `plan` 两面的 `closed` 单元格，约 `:704-716`）
+- Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`
+
+#### Consumes
+
+- `Ledger#lineStateAt(key, type, doc): "closed" | "reopened" | "open"`（`session/ledger.ts:1154-1161`，既有；`branch` 面已在用）
+- `BoardView.pipelineFacts` / `BoardNext.of`（既有）
+
+#### Produces
+
+- 无新导出、无新状态位：行为变化——spec/plan 面的 `closed` 读 drift。
+
+#### Steps
+
+- [ ] **Step 1: 写红测试** — checkable: 构造「spec 行已收口（review 零 finding）→ 轮外改 spec 内容 → plan 存在」，断言板面 `next:` 为该 spec 的 review lead（`review --type <specType> --spec <path>`）且其 `reason:` 行为 `doc-drift`；今日 FAIL（印 `implement --plan … --tasks …`）
+- [ ] **Step 2: 跑它并确认红** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/board-view.test.ts -t "frontier reads drift"` FAIL，实际值为 implement 字面
+- [ ] **Step 3: 换用 `lineStateAt`** — checkable: `phase-spec` 的 `closed: ledger.lineClosed(specType, specType)` → `closed: ledger.lineStateAt(specType, specType, specPath) === "closed"`；`plan` 的 `closed: ledger.lineClosed("plan", "plan")` → `closed: ledger.lineStateAt("plan", "plan", planPath) === "closed"`；`branch` 面与 wave 面一字不动
+- [ ] **Step 4: 孪生绿（正常推进不破）** — checkable: 同一夹具里让该 spec 的 review 闭合（零 finding）后，frontier 前进到 plan 的波形（`next:` 为 implement 字面）；既有 board 用例全绿
+- [ ] **Step 5: 两个例外仍零变** — checkable: 无 spec / 无 plan 的板面路径（`specPath === null` / `planPath === null`）行为不变——`lineStateAt` 传 `null` doc 时退化与 `lineClosed` 等价
+- [ ] **Step 6: 跑套件 + 提交** — checkable: `board-view.test.ts` / `cli.test.ts` 全绿；`pnpm run precommit` 绿；`git commit -m "fix(cdd-engine): the board frontier reads drift on the doc lines"`
+- [ ] **Step 7: 本波验收** — checkable: `env -u AI_AGENT pnpm run validate` 退出码 0
+
+#### Acceptance
+
+- drifted spec + plan 存在 ⇒ 板面 `next:` 为 spec 的 review lead、`reason:` 为 `doc-drift`；改动前必红。
+- 该 review 闭合后 frontier 前进到 plan 的波形（回归 pin）。
+- 无 spec / 无 plan / wave / branch 四个面的既有行为零变。
+- `env -u AI_AGENT pnpm run validate` 退出码 0。
+
+#### DependsOn
+
+1, 2, 3, 4
+
 ## Change history
 
 | Version | date | summary | author |
@@ -357,3 +398,4 @@ none
 | v0.5 | 2026-11-04 | 第 3 轮评审回填（内容面）：① **`nextHopOf` 的两个值分开**——替换驱动仍只取 doc 面 `reviewGate`，原因 cell 取 `drift \|\| briefDrift`；v0.4 的「cell 只喂 `gate.drift`、替换谓词不动」在代码上不成立（一个值同时驱动两件事）② 负控的期望 token 改为 `closed-line`（`handoff` 的 `hopOf` 为 null ⇒ `#reasonOf` 落末行；`task-open` 在该状态不可产生）③ 语义注释补 `run.ts:689-693`（白名单正上方那句）④ 范围锁的 spec 版本改为 v0.11 | Constraint · Task 1 Files/Steps · Task 3 Steps · Change history v0.5 | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-04） |
 | v0.6 | 2026-11-04 | 第 3 轮评审回填（核验 `d0312bcd` 的落地后补完内容面）：① Task 3 Objective 删掉「板面只在 wave 自己的 C5 路由非 null 时取值」——v0.4 删闸、v0.5 把两个值分开之后，wave 的 exit 侧路由不可能被替换，这句旧表述与 Step 4 自相矛盾 ② Step 4 末尾的「由 Step 5 的注入闸挡掉」改为如实描述：板面会拿到 `#exitRoute` 的 `handoff`，替换驱动对 wave 恒 false，故 `next:` 零变、`reason:` 落 `closed-line`，并把该 `handoff` 补进可达路由的枚举 ③ Step 5 的 rationale 按实际守卫重写——只有 `target.type === "wave"` 一道条件（防止非 wave frontier 用文档路径去问 brief drift），`active !== null` 之类不设，exit 侧安全来自两个值分开 ④ 负控与 Acceptance 标签由「注入闸」改「替换不触发」，并在 Step 7 补 `closed-line` 的取值来源（`doc-drift` 只落 `review` 路由）⑤ Task 1 的注释同步范围由 `run.ts:689-693` 扩为 `:689-704`（白名单正上方的整段注释） | Constraint 保持 · Task 1 Files/Step 7 · Task 3 Objective/Step 5/Step 7/Acceptance · Change history v0.6 | Oscaner M. · Claude（kairos:cdd-plan [P24] 第 3 轮评审回填 · 2026-11-04） |
 | v0.7 | 2026-11-04 | 第 4 轮评审回填（内容面，无结构变更）：① Task 3 Produces 由「一个 drift 值」改为两值口径——`gate.drift = drift \|\| (input.briefDrift ?? false)`，替换驱动 `drift` 对 wave 恒为 `false`（与 Step 4 同一词汇） ② Task 3 Files 补 `session/ledger.ts:1205-1218`（`nextHopOf` 的 docstring 同入同步列），Step 4 写明两值口径的注释改写 ③ Task 2 补三条 back —— 站表第五行的**值**逐键断言（`face.test.ts:66-69` 旁同形补一条）、胶囊**确实读该行**（`:101` 注释旁补 `emitted[2]` 前缀取自 `words.station("reason")`）、板面 `  reason:  ` 的 11 列前缀在 `tokenOf` 归一化之前自带断言 ④ Task 1 Step 9 删掉「判别式一旦被复制成第二份就红」的假敏感度——`#bookkeep` 有 `targetAction` 门、`#recordsOf` 是无 verdict 的 dry run，两处 phase 列表**各存一份**，`preview.test.ts` 的 fix 轮用例是行为 pin 而非漂移探针；Constraint 与 Acceptance 同步登记该双写债务 ⑤ `#abs` 的行号引脚由 `:905-906`（`docLineVerdict` 的读基准处）改为 `docLineVerdict:905-906` → `#abs:598-600` ⑥ `drift \|\| briefDrift` 的写法改为 `drift \|\| (input.briefDrift ?? false)`（否则 `boolean \| undefined` 在 `strict` 下不过 `tsc`） | Oscaner M. · Claude（kairos:cdd-plan [P24] 第 4 轮评审回填 · 2026-11-04） |
+| v0.8 | 2026-11-04 | **范围追加（用户裁定并入 P24，对齐 spec v0.13 §9）**：新增 **Task 5**「板面 frontier 的选面读 drift」——`pipelineFacts` 的 spec/plan 两面 `closed` 由 `lineClosed` 改 `lineStateAt(...) === "closed"`（既有 drift-aware 读数），含必红断言（drifted spec + plan ⇒ 板面给 review lead 而非 implement）、孪生回归（review 闭合后 frontier 前进）、两处 null 路径零变、本波自带 validate；`DependsOn: 1,2,3,4` ⇒ 新波 W4。范围锁版本改 v0.13 | Task 5 + 范围锁 + Change history v0.8 | Oscaner M. · Claude（kairos:cdd-plan · 范围追加 · 2026-11-04） |

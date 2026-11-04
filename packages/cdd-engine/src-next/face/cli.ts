@@ -481,9 +481,9 @@ export class Cli {
       entry.slug ?? "",
     );
     // The board's `next:` line renders ONE injected `NextHop` (P22 §5.2): the
-    // pipeline OBSERVATION comes from the board face, the four face-order rules and
-    // the ONE derivation from this assembly point (`BoardNext`) — the board itself
-    // holds no ledger for the next line and judges nothing.
+    // pipeline FACTS come from the board face, the four face-order rules from the
+    // session plane's `PipelineFrontier`, and the ONE derivation from this assembly
+    // point (`BoardNext`) — the board itself judges nothing.
     const next = BoardNext.of(index, entry, root);
     const board = BoardView.render(
       index,

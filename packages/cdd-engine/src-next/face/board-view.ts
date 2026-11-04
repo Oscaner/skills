@@ -9,16 +9,17 @@
 //
 // This module carries the header `{version, status, docType}` read, the per-node
 // progress projection, the render face (the phase/program board layouts) and the
-// pipeline OBSERVATION (`#pipelineFacts`). The doc type is the DECLARED fact — the
+// pipeline OBSERVATION (`pipelineFacts`). The doc type is the DECLARED fact — the
 // front-matter `doc-type:` head key (spec §12 · D34) — never a filename-suffix
 // derivation; an absent key reads null and the consumer blocks (zero dual-read
 // fallback).
 //
 // P22 §5.2 — the board's `next:` line renders an INJECTED `NextHop` and judges
-// nothing: the pipeline traversal (the four face-order rules) lives on the
-// assembly face (`face/cli.ts`), the ONE derivation is `NextStepRouter#nextHop`,
-// and the ONE literal renderer is `RouteRenderer` (shared with the capsule). The
-// board only OBSERVES each face's facts (`#pipelineFacts`) and renders.
+// nothing: the pipeline traversal (the four face-order rules) lives in the session
+// plane (`session/pipeline.ts` `PipelineFrontier`), the ONE derivation is
+// `NextStepRouter#nextHop`, and the ONE literal renderer is `RouteRenderer` (shared
+// with the capsule). The board only OBSERVES each face's facts (`pipelineFacts`)
+// and renders.
 //
 // P22 §5.3 — the default layout aggregates each line's rounds BY VERB into
 // `{label} {count}{attempt} {mark}` tokens (the judgement glyph is mandatory, the
@@ -45,16 +46,8 @@ import type { RouteTarget, TargetType } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import type { InFlightState } from "../session/inflight.ts";
 import { Ledger, type ProgressData, type RoundRecord, RoundRecords } from "../session/ledger.ts";
-import {
-  type DocClassVerdict,
-  type NextHop,
-  NextStepRouter,
-  PIPELINE_FACES,
-  PIPELINE_NEXT,
-  type PipelineFaceReport,
-  type PipelineFaceState,
-  type Route,
-} from "../session/next.ts";
+import type { DocClassVerdict, NextHop } from "../session/next.ts";
+import { PipelineFrontier, type PipelineFrontierInput } from "../session/pipeline.ts";
 import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
 import { type RouteChannelRow, RouteRenderer } from "./route-render.ts";
 import type { Words } from "./words.ts";
@@ -108,14 +101,14 @@ interface NodeSources {
 }
 
 /** The board's per-face OBSERVATION of the pipeline (spec §5.2) — the facts the
- *  board reads off the ledger and the plan, plus the ledger the assembly face hands
- *  the derivation (the round records' own read point). Pure facts: the traversal and
- *  the derivation belong to the assembly face. */
+ *  board reads off the ledger and the plan: the ledger itself (the round records'
+ *  own read point) and the pipeline frontier's declared input. Pure facts: the
+ *  traversal and the derivation belong to the session plane's `PipelineFrontier`. */
 export interface BoardPipelineFacts {
   /** The node's ledger — the round/closure read face the hop derivation consumes. */
   readonly ledger: Ledger;
-  /** One observation per `PIPELINE_FACES` key (the order stays `PIPELINE_FACES`'). */
-  readonly report: PipelineFaceReport;
+  /** The pipeline frontier's whole input (the declared identity + the guarded plan read). */
+  readonly input: PipelineFrontierInput;
 }
 
 /** The DocKey domain of the `doc-type:` declaration — the declared value must
@@ -690,14 +683,12 @@ export class BoardView {
     return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader());
   }
 
-  /** pipelineFacts(index, entry, root) — the board's per-face OBSERVATION of the
-   *  pipeline (spec §5.2): each face's closed fact, its ACTIVE C5 hop (the SAME
-   *  state→next chain the dispatch engine walks — `Ledger#lineRoute` for the
-   *  doc/branch lines, the plan frontier + `Ledger#waveLineRoute` for the wave line)
-   *  and its render target, keyed by the ONE `PIPELINE_FACES` key set. The board
-   *  reports facts; the traversal (the four face-order rules) and the ONE hop
-   *  derivation belong to the assembly face. Null when the node holds no legal slug
-   *  (no workspace to observe). */
+  /** pipelineFacts(index, entry, root) — the board's FACTS about the pipeline (spec
+   *  §5.2): the node's ledger and the pipeline frontier's declared input (the spec
+   *  word and path, the plan path, the guarded plan read). The board reports facts
+   *  only — the per-face observations and the four face-order rules live in the
+   *  session plane's `PipelineFrontier`. Null when the node holds no legal slug (no
+   *  workspace to observe). */
   static pipelineFacts(
     index: SlugIndex,
     entry: DocEntry,
@@ -707,69 +698,22 @@ export class BoardView {
     if (nodeSlug === null) return null;
     const ledger = BoardView.#ledgerOf(nodeSlug, root.absolute);
     const sources = BoardView.#nodeSources(index, entry);
-    const progress = ledger.readProgress();
-    const waves = BoardView.#waveLines(sources.plan?.path ?? null, progress, ledger);
     const specPath = sources.spec?.path ?? null;
     const planPath = sources.plan?.path ?? null;
     // The identity line's OWN word — the document's DECLARED `doc-type:` — keys the
     // line and names the pipeline station (`single-spec` closes onto its `done` row).
     const specType = BoardView.#lineWordOf(sources.spec);
-    // The plan's open frontier wave — the SAME ready batch the dispatch engine's
-    // task-graph frontier yields (frontier over closedWaves()).
-    const waveKey = BoardView.#waveFrontierKey(ledger, planPath);
-    const report: PipelineFaceReport = {
-      // The report KEY is the pipeline POSITION (the first face — `PIPELINE_FACES`);
-      // the line's type/key/target cells are the declaration the document carries.
-      "phase-spec": {
-        // The identity face's closure is judged AT its identity document: a spec
-        // revision past the one the clean review bound reopens the face, so the
-        // frontier holds here (the SAME drift-aware judge the branch face reads)
-        // instead of walking on to a plan command the dispatch would reject.
-        closed: ledger.lineStateAt(specType, specType, specPath) === "closed",
-        active: specPath === null ? null : ledger.lineRoute(specType, specType),
-        target: specPath === null ? null : { type: specType, id: specPath },
-      },
-      plan: {
-        // The plan line's identity document IS the plan itself — the same read.
-        closed: ledger.lineStateAt("plan", "plan", planPath) === "closed",
-        active: planPath === null ? null : ledger.lineRoute("plan", "plan"),
-        target: planPath === null ? null : { type: "plan", id: planPath, plan: planPath },
-      },
-      wave: {
-        // The wave face is exhausted (skipped) only when the plan yields a wave set
-        // and every wave is done — an empty wave segment (no plan) is not an exhausted
-        // face (nothing was closed), so it stays the frontier and hands off.
-        closed: waves.length > 0 && waves.every((wave) => wave.marker === PROGRESS_MARKERS.done),
-        active: waveKey === null ? null : ledger.waveLineRoute(waveKey),
-        target: planPath === null ? null : { type: "wave", id: waveKey ?? "", plan: planPath },
-      },
-      branch: {
-        // The branch line's closure is judged AT its identity document (the plan): a
-        // plan revision past the one the completed branch review bound reopens the
-        // face, so the mark above and this frontier cell read ONE judgment.
-        closed: ledger.lineStateAt("branch", "branch", planPath) === "closed",
-        active: ledger.lineRoute("branch", "branch"),
-        target: { type: "branch", id: "branch", plan: planPath ?? undefined },
-      },
+    return {
+      ledger,
+      input: { specType, specPath, planPath, planGraph: BoardView.#planGraph(planPath) },
     };
-    return { ledger, report };
   }
 
-  /** The plan's open frontier wave key — the ready batch over the node's `closedWaves()`
-   *  set, the SAME derivation the dispatch engine's task-graph frontier walks (T26, the
-   *  wave-unitary model). Null when the plan is absent or no wave remains open — the wave
-   *  face then holds no active hop (a not-yet-started wave line hands off to the next face). */
-  static #waveFrontierKey(ledger: Ledger, planPath: string | null): string | null {
-    const graph = BoardView.#planGraph(planPath);
-    if (graph === null) return null;
-    const frontier = graph.frontier(ledger.closedWaves());
-    return frontier.length === 0 ? null : frontier.join(",");
-  }
-
-  /** The plan's task graph — the ONE guarded plan read shared by the wave frontier
-   *  key and the wave segment (`readFileSync` throwing on an unreadable plan is
-   *  caught here: a null plan path or an unreadable/absent file yields null, honoring
-   *  the wave face's "degradation, never a throw" contract). */
+  /** The plan's task graph — the ONE guarded plan read behind the board's own wave
+   *  segment and the plan graph cell it injects into the pipeline frontier
+   *  (`readFileSync` throwing on an unreadable plan is caught here: a null plan path
+   *  or an unreadable/absent file yields null, honoring the wave face's "degradation,
+   *  never a throw" contract). The frontier itself reads no file. */
   static #planGraph(planPath: string | null): TaskGraph | null {
     if (planPath === null) return null;
     try {
@@ -842,14 +786,14 @@ export class BoardView {
 }
 
 /**
- * BoardNext — the board's next-hop assembly face (P22 §5.2): the retired router
- * `walk`'s four face-order rules, re-homed at the board's CONSTRUCTION face. The
- * board (`BoardView`) only REPORTS each pipeline face's facts; `BoardNext` decides
- * the next pipeline step (iterating the ONE `PIPELINE_FACES` order imported from
- * the session plane, never a second order declaration) and hands the result to the
- * ONE derivation (`Ledger#nextHopOf` → `NextStepRouter#nextHop`), so the board's
- * `next:` and the capsule's `next:` render ONE object. The composition root's board
- * assembly point (`face/cli.ts` `#runBoard`) constructs it.
+ * BoardNext — the board's next-hop assembly face (P22 §5.2): a thin carrier, never a
+ * judge. The board (`BoardView`) REPORTS the pipeline facts; the session plane's
+ * `PipelineFrontier` decides the next pipeline step (its four face-order rules over
+ * the ONE `PIPELINE_FACES` order); `BoardNext` only hands that verdict's
+ * `{ route, target }` to the ONE derivation (`Ledger#nextHopOf` →
+ * `NextStepRouter#nextHop`), so the board's `next:` and the capsule's `next:` render
+ * ONE object. The composition root's board assembly point (`face/cli.ts` `#runBoard`)
+ * constructs it.
  */
 // biome-ignore lint/complexity/noStaticOnlyClass: the board's assembly fact surface — the zero-bare-function discipline admits no standalone functions here.
 export class BoardNext {
@@ -869,7 +813,7 @@ export class BoardNext {
    *  only, so the walked route (a `handoff` on the soft-capped / unreadable face) is
    *  never rewritten here. */
   static #hopOf(facts: BoardPipelineFacts, root: RepoRoot): NextHop {
-    const next = BoardNext.#pipeline(facts.report);
+    const next = new PipelineFrontier(facts.ledger).next(facts.input);
     const target = next.target;
     return facts.ledger.nextHopOf({
       type: target?.type ?? "branch",
@@ -878,66 +822,13 @@ export class BoardNext {
       target,
       doc: target === null ? null : target.type === "branch" ? (target.plan ?? null) : target.id,
       // The wave half is gated on the target TYPE: off the wave face `target.id` is a
-      // document path, never a wave key (`facts.report.wave.active` may be non-null
-      // while the frontier sits on another face). No further gate — the derivation
-      // keeps the two drift values apart, so this cell can only reach a `reason:` row.
+      // document path, never a wave key (the frontier's wave cell may hold an active
+      // hop while the frontier itself sits on another face). No further gate — the
+      // derivation keeps the two drift values apart, so this cell can only reach a
+      // `reason:` row.
       briefDrift:
         target?.type === "wave" ? facts.ledger.briefDrifted(String(target.id)) : undefined,
       docClassOf: (candidate) => BoardView.docClassOf(root, candidate),
     });
-  }
-
-  /** The pipeline's face-to-face traversal (D40 · P22 §5.2) — the four face-order
-   *  rules over the ONE `PIPELINE_FACES` order the caller REPORTS facts against:
-   *    · the FRONTIER face (first not-closed) with an active C5 hop renders that hop
-   *      (the in-flight work — `review` / `fix` / `implement` / `next-wave`);
-   *    · the frontier has no active hop but IS entered (a target is present) → its
-   *      OWN pipeline exit entry;
-   *    · the frontier is NOT entered (no target — an absent doc) → the transition
-   *      INTO it: the PRECEDING entered face's exit entry (a just-closed spec hands
-   *      off to `cdd-plan`, never the absent plan's `cdd-dev`); none preceding → the
-   *      FIRST face's exit entry;
-   *    · every face closed → the LAST entered face's exit entry (the terminus —
-   *      `cdd-close` for a phase slug).
-   *  The order stays `PIPELINE_FACES`' (imported, never re-declared here). */
-  static #pipeline(report: PipelineFaceReport): { route: Route; target: RouteTarget | null } {
-    const states = PIPELINE_FACES.map((key) => report[key]);
-    const frontierIndex = states.findIndex((face) => !face.closed);
-    if (frontierIndex === -1) {
-      const terminalIndex = BoardNext.#lastEnteredIndex(states);
-      const terminal = terminalIndex === -1 ? null : states[terminalIndex]!;
-      return terminal === null
-        ? { route: { kind: "done" }, target: null }
-        : { route: BoardNext.#exitRoute(terminalIndex, terminal), target: terminal.target };
-    }
-    const frontier = states[frontierIndex]!;
-    if (frontier.active !== null) return { route: frontier.active, target: frontier.target };
-    const anchorIndex =
-      frontier.target !== null
-        ? frontierIndex
-        : Math.max(0, BoardNext.#lastEnteredIndex(states.slice(0, frontierIndex)));
-    const anchor = states[anchorIndex]!;
-    return { route: BoardNext.#exitRoute(anchorIndex, anchor), target: anchor.target };
-  }
-
-  /** The anchor face's OWN pipeline exit — the row its render TARGET declares
-   *  (`PIPELINE_NEXT[target.type]`, the SAME one table the capsule's `done` face reads
-   *  through the ONE derivation). The identity face's target type IS the document's
-   *  declared word, so a `single-spec` closes onto its `done` row, never the phase-spec
-   *  line's `cdd-plan` ref; every node face's target type is its face key, so the lookup
-   *  is the face key there. A face with no target (never entered) falls back to its
-   *  pipeline face's row. */
-  static #exitRoute(faceIndex: number, state: PipelineFaceState): Route {
-    if (state.target === null) return NextStepRouter.handoff(PIPELINE_FACES[faceIndex]!);
-    return { kind: "handoff", entry: PIPELINE_NEXT[state.target.type] };
-  }
-
-  /** The index of the last OBSERVED face carrying a render target — the last face the
-   *  pipeline has REACHED (a face with no target was never entered). -1 when none is. */
-  static #lastEnteredIndex(states: readonly PipelineFaceState[]): number {
-    for (let i = states.length - 1; i >= 0; i--) {
-      if (states[i]!.target !== null) return i;
-    }
-    return -1;
   }
 }

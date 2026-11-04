@@ -338,8 +338,8 @@ describe("P4.1 T4 — the router's routes render parseable next literals (zero-e
 // D40 / P21 §4.2 — the face-to-face handoff route, and the wave closure's
 // NEXT-line fact as the derivation's INPUT cell. The retired `resolve` / `walk`
 // entries collapse into the ONE derivation (`nextHop`); the pipeline traversal's
-// four face-order rules live at the board's assembly face (`BoardNext` in
-// `face/cli.ts`, pinned by the board suite).
+// four face-order rules live in the session plane's `PipelineFrontier`, pinned by
+// the pipeline suite.
 // ---------------------------------------------------------------------------
 
 describe("D40 — the face-to-face handoff route", () => {

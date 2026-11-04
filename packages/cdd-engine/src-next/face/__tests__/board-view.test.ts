@@ -1387,7 +1387,7 @@ describe("cdd board — the in-flight read face (zero write)", () => {
 
 // ---------------------------------------------------------------------------
 // P22 §5.2 / §5.3 — the board renders the ONE injected `NextHop`, the traversal's
-// four face-order rules land at the board's construction face (`BoardNext`), and the
+// four face-order rules live in the session plane's `PipelineFrontier`, and the
 // default layout aggregates by verb × judgement.
 // ---------------------------------------------------------------------------
 

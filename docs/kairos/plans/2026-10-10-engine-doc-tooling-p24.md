@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 计划：NEXT-LOOP 收口面（基线随轮推进 + hop 原因可读）
 doc-type: plan
-version: v0.6
+version: v0.7
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p24
 base: develop
@@ -16,7 +16,7 @@ base: develop
 - **重锚在册**：`next:` 断言 152 处中 137 处零改动（按行抽取 / `toContain`），15 处整块 `toEqual` 快照逐条重锚（每处新增一个 `reason:` 元素；逐处行号见 Task 2 Step 7），另有 1 处站表长度 pin 由 4 改 5；总数 16，一条不许漏、一条不许顺带。
 - **陈旧散文在册**：凡声称 `next:` / `reason:` 行形状的注释与用例标题（spec §7 第 5 类列出的 11 处）同笔改写；它们不承载断言。扫描词面取「末行 / `LAST` / `close` / `last line` / `trailing` / 唯一站锚 / 唯一站词」——只凭「九处」不足以免漏。
 - **前缀各有其家**：胶囊取站表 `words.station("reason")`；板面取布局字面 `  reason:  `（与它自己的 `  next:    ` 同形）。不得为「统一」给板面的 static 加 `Words` 参数。
-- **预览不得留第二份策略**：`face/preview.ts#recordsOf` 的写回判别式与 `#bookkeep` 必须同源（共用一处判定），否则以 preview 的 fix 轮用例把副本钉死。
+- **预览的策略副本是显式债务**：`face/preview.ts#recordsOf` 与 `#bookkeep` **无法共用同一处判别**——`#bookkeep` 有 verdict 门（`record.verdict.targetAction`），`#recordsOf` 是无 verdict 的 dry run；故 phase 白名单 `review | branch-review | fix` **各存一份**。`preview.test.ts` 的 fix 轮用例只钉住**预览侧当前行为**（行为 pin），**不是**漂移探针：任一侧日后单独改动，该用例都不必红。**不得**再声称「复制成第二份就红」——这是已知双写及其守卫边界，Task 1 Acceptance 在册。
 - **wave 面禁分叉**：`BoardNext#hopOf` 只发**一次** `nextHopOf` 调用，`briefDrift` 作为该输入对象里的一格条件值；**不需要 `active !== null` 之类的闸**——因为 `nextHopOf` 把两个值分开（Task 3 Step 4）：替换驱动仍只取 doc 面 `reviewGate`，wave 的 exit 侧路由不会被改写；禁止为 wave 另开第二个调用。`Lifecycle#hopOf` 只在 wave 帧注入。
 - **胶囊在 wave 面不承诺 drift**：`advance` 出的胶囊恒看不到 brief drift（其帧在 `#bookkeep` 重绑之后）。这不是缺陷，是结构事实；**任何任务不得**为了让胶囊渲 `doc-drift` 去改 `#routeNext` 或加第二套路由。
 - **零状态迁移**：`progress.json` 的任何键名 / 键集不变；`recordReviewedRevision` 只改文档注释。
@@ -30,11 +30,11 @@ base: develop
 - **BLOCKED / TIMEOUT 轮**：既无 `next:` 行就不得有 `reason:` 行——凭空造一个 reason 会让人以为有一个可执行去向。由 Task 2 的 hop-null 断言覆盖。
 - **wave 面的胶囊**：drifted wave 上胶囊印的是 C5 路由（`fix` / `pending-fix`），板面与 `peekNext` 印 `review` / `doc-drift`。这是结构差异、不是缺陷；不得有人把它「修」成一致（那要改 `#routeNext` 的路由来源）。由 Task 3 的断言范围（只打 `peekNext` 与板面）固定。
 
-### Task 1: 写回白名单加 `fix` + 预览副本同源 + 三条互锁测试
+### Task 1: 写回白名单加 `fix` + 预览的 fix 腿 + 三条互锁测试
 
 #### Objective
 
-让**完成**的 fix 轮把它产出的一版写回为该行的 reviewed identity，使 C5 的 `fix blocker==0 → close(state)` 在 doc 线四型与 branch 线上真正可达；同一条判别式在 dry-run 预览里与 `#bookkeep` 同源，不留第二份会烂的策略。
+让**完成**的 fix 轮把它产出的一版写回为该行的 reviewed identity，使 C5 的 `fix blocker==0 → close(state)` 在 doc 线四型与 branch 线上真正可达；dry-run 预览也认 `fix` 轮，但其 phase 列表**自存一份**（判别门不同，无法共用一处判定），以行为 pin 守住、并登记为已知双写债务。
 
 #### Files
 
@@ -52,7 +52,7 @@ base: develop
 #### Produces
 
 - 行为变化（无新导出）：完成的 fix 轮写回 reviewed identity；`face/preview.ts#recordsOf` 对 `fix` 轮报告同一条写。
-- 测试助手约定：文档写在 **ledger 的读取基准**下并传**绝对路径**——`doc = path.join(repo, ".kairos", "cdd", DOC)`，首次写前 `mkdirSync(path.dirname(doc), { recursive: true })`（`fixture()` 只建了 `<repo>/.kairos/cdd`）；`stub` 的 dispatch 回调用这个 `doc` 改写文件，代表「fix 轮编辑文档」。`target.doc` 与 branch 线的 `planPath` 一律传绝对路径（branch 线传 `planPath` 本身）：相对值会让 `#abs`（`ledger.ts:905-906`，基准 = workspace root）与 `#recordDocRevisionOf`（`run.ts:750-762`，从 `process.cwd()` 读）读到两个不同文件，用例从此恒绿。`run.test.ts` 的 `node:fs` import 增 `mkdirSync`。
+- 测试助手约定：文档写在 **ledger 的读取基准**下并传**绝对路径**——`doc = path.join(repo, ".kairos", "cdd", DOC)`，首次写前 `mkdirSync(path.dirname(doc), { recursive: true })`（`fixture()` 只建了 `<repo>/.kairos/cdd`）；`stub` 的 dispatch 回调用这个 `doc` 改写文件，代表「fix 轮编辑文档」。`target.doc` 与 branch 线的 `planPath` 一律传绝对路径（branch 线传 `planPath` 本身）：相对值会让 `#abs`（`docLineVerdict:905-906` → `#abs:598-600`，基准 = workspace root）与 `#recordDocRevisionOf`（`run.ts:750-762`，从 `process.cwd()` 读）读到两个不同文件，用例从此恒绿。`run.test.ts` 的 `node:fs` import 增 `mkdirSync`。
 
 #### Steps
 
@@ -167,7 +167,7 @@ const run = new Lifecycle({
 - [ ] **Step 6: wave 收口回归 pin（白名单加 `fix` 后 wave 仍收口）** — checkable: 一条既有 wave 小循环夹具的用例——blocker-free 的 fix 之后 `await run.advance()` 为 `null` 且 `run.peekNext()` 为 `null`；先在改动前的树上跑一次并记录为绿，改动后仍绿。`#recordReviewedWaveBrief`（`run.ts:733`）从此在 fix 轮也绑定 brief，这条 pin 是「wave 分支零可观测收益」的唯一守门人
 - [ ] **Step 7: 实现白名单** — checkable: `run.ts:705-718` 的条件从 `frame.phase === "review" || frame.phase === "branch-review"` 改为三者并含 `"fix"`，三分支（doc / wave / branch）原样复用；`run.ts:689-704`（白名单正上方的整段注释，含 `:693` 的「a completed review binds the CURRENT revision」）、`ledger.ts:793-797` 与三个 `#record…` 的注释改为「完成的 review **或 fix** 轮把该轮产出的 identity 入账」
 - [ ] **Step 8: 跑全部用例确认绿** — checkable: `-t "P24 §2"` 全绿（doc 四型 + branch 线 + wave 回归 pin）；且 `-t "the spec/plan small loop"` 与 `-t "the branch small loop"` 既有用例全绿（未被白名单改动打破）
-- [ ] **Step 9: 预览副本同源 + fix 轮用例** — checkable: `face/preview.ts#recordsOf` 的写回判别式与 `#bookkeep` **必须同源**（共用一处判定，phase 白名单同为 `review | branch-review | fix`，腿按 target 取）；**不许**用注释当第二套策略写下来——注释不是门，`preview.test.ts` 的 fix 轮用例才是这条约束的行为 pin（判别式一旦被复制成第二份就红）。docstring 改为「on a completed review **or a fix**」，并删掉 `face/preview.ts:147-151` 里的「the branch line binds none」（自 P21 的 `#recordReviewedBranchRevision` 起就是错的——分支线绑 plan 的 doc-revision）；`preview.test.ts` 新增用例断言 doc 线 fix 轮 dry-run 的 `would record:` 含 `reviewedRevision(doc)`，并改写 `:126-146` 的陈旧 branch 用例（标题与 `:144` 的期望同笔改为含 `reviewedRevision(doc)`）
+- [ ] **Step 9: 预览的 fix 腿 + 行为 pin + 陈旧 branch pin** — checkable: `face/preview.ts#recordsOf` 的 phase 白名单扩为 `review | branch-review | fix`，腿按 target 取；它与 `#bookkeep` **各存一份**——`#bookkeep` 另有 `record.verdict.targetAction` 门，dry run 无 verdict，两处物理上无法共用同一处判定（spec §7 允许的 fallback 即此）。`preview.test.ts` 的 fix 轮用例只钉住**预览侧当前行为**，是行为 pin 而**不是**漂移探针：任一侧日后单独改动它都不必红，不得据此宣称能拦单侧漂移（双写与守卫边界见 Constraint「预览的策略副本是显式债务」与 Acceptance）。docstring 改为「on a completed review **or a fix**」，并删掉 `face/preview.ts:147-151` 里的「the branch line binds none」（自 P21 的 `#recordReviewedBranchRevision` 起就是错的——分支线绑 plan 的 doc-revision）；`preview.test.ts` 新增用例断言 doc 线 fix 轮 dry-run 的 `would record:` 含 `reviewedRevision(doc)`，并改写 `:126-146` 的陈旧 branch 用例（标题与 `:144` 的期望同笔改为含 `reviewedRevision(doc)`）
 - [ ] **Step 10: 跑 preview 套件 + 提交** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/preview.test.ts` 绿；`pnpm run precommit` 绿；`git commit -m "fix(cdd-engine): a completed fix round advances the line's reviewed identity"`
 
 #### Acceptance
@@ -179,6 +179,7 @@ const run = new Lifecycle({
 - `{ status: "BLOCKED" }` 的 fix 且改了文档 → 基线不推进（`reviewedDocRevisionOf(type, type)` 仍指向 review 1 绑定的内容哈希），frontier 给的是该 fix 的重试面（`peekNext()` 帧为 `fix`；drift 不压 pending fix），重试若再次带 blocker 才回到 `review`。
 - 预览面 fix 轮 dry-run 报告 `reviewedRevision(doc)`；preview 的陈旧 branch 断言已改为实际行为。
 - `progress.json` 键集不变（无迁移）。
+- **已登记的双写债务**：`#recordsOf` 与 `#bookkeep` 的 phase 列表各存一份（判别门不同：前者无 verdict、后者有 `targetAction` 门，无法共用一处判定）；守卫边界是「预览侧行为 pin」——它**不**宣称能拦住单侧漂移，合并两处判别另开后续 issue 记录。
 
 #### DependsOn
 
@@ -215,7 +216,7 @@ none
 
 - [ ] **Step 1: 写红测试（胶囊）** — checkable: `face.test.ts` 新增用例断言 `capsule.emit("APPROVED", "/h.json", hopOf({ kind: "review" }))` 的**末元素**为 `` `reason: ${NEXT_HOP_REASON.taskOpen}` `` —— 今日 FAIL（无该行）
 - [ ] **Step 2: 写红测试（hop 为 null 不渲）** — checkable: 既有 hop-absent 快照（`face.test.ts:109`（成功无 hop）· `:114`/`:118`（BLOCKED / TIMEOUT）· `:222`/`:223`；`capsule.test.ts:470`/`:490`/`:491`）**一行不改**仍绿（若实现给它们加了 `reason:` 行则红）
-- [ ] **Step 3: 站表加第五行** — checkable: `StationKind` 与 `stations` 各加 `reason`；`face.test.ts:103` 的长度断言由 4 改 5；`:66-69` 四条逐键断言不动
+- [ ] **Step 3: 站表加第五行** — checkable: `StationKind` 与 `stations` 各加 `reason`；`face.test.ts:103` 的长度断言由 4 改 5；`:66-69` 四条逐键断言不动；同处**补第五条**逐键断言 `expect(words.station("reason")).toBe("reason:")`——只改长度 pin 时把值写成 `"reason"`（少冒号）也能全绿
 - [ ] **Step 4: 实现 `renderReason` 并接到胶囊** — checkable: `renderHop` 一行未动；胶囊在 `next` 非 null 时追加一行
 
 ```ts
@@ -234,9 +235,9 @@ if (next !== null) {
 ```
 
 - [ ] **Step 5: 板面渲染** — checkable: `reasonLine` 与 `nextLine` 同形（布局字面，不取词表），`:558` 之后追加；`:556` 的 `(none)` 与 `:623` 的程序板 `done` **不追加**（字节零变）
-- [ ] **Step 6: 胶囊 ⇄ 板面 `reason:` 同值 pin** — checkable: 沿用 `board-view.test.ts:1612-1654` 的 frontier-hop 夹具形状（`peekNext().hop` → 胶囊 `emit(…)` 的 `reason:` 行对板面那行），断言两面的 **token 等值**，且**两边同一归一化**：`const tokenOf = (line: string) => line.trim().replace(/^reason:\s+/, "");`，然后 `expect(tokenOf(boardReasonLine)).toBe(tokenOf(capsuleReasonLine))`。胶囊行是 `reason: <token>`（一个空格），板面行是 `  reason:  <token>`（11 列 + 两空格）——**不归一化就恒红**，而恒红的 pin 会逗人把它弱化成 `toContain`（那是把 pin 变成永不红）。前缀各按自己的家（胶囊走站表、板面走布局字面），故只比 token；两面共用 `renderReason`，这条 pin 只钉「将来有人只改一面」
+- [ ] **Step 6: 胶囊 ⇄ 板面 `reason:` 同值 pin** — checkable: 沿用 `board-view.test.ts:1612-1654` 的 frontier-hop 夹具形状（`peekNext().hop` → 胶囊 `emit(…)` 的 `reason:` 行对板面那行），断言两面的 **token 等值**，且**两边同一归一化**：`const tokenOf = (line: string) => line.trim().replace(/^reason:\s+/, "");`，然后 `expect(tokenOf(boardReasonLine)).toBe(tokenOf(capsuleReasonLine))`。**比较之前先钉板面前缀本身**：`expect(boardReasonLine.startsWith("  reason:  ")).toBe(true)`——`tokenOf` 的 `^reason:\s+` 会把 `  reason:  ` 这个布局字面归一化掉，不另钉就没人断言 spec §4 声明的 11 列形状。胶囊行是 `reason: <token>`（一个空格），板面行是 `  reason:  <token>`（11 列 + 两空格）——**不归一化就恒红**，而恒红的 pin 会逗人把它弱化成 `toContain`（那是把 pin 变成永不红）。前缀各按自己的家（胶囊走站表、板面走布局字面），故只比 token；两面共用 `renderReason`，这条 pin 只钉「将来有人只改一面」
 - [ ] **Step 7: 重锚 15 处整块快照** — checkable: `face.test.ts` 13 处 / `capsule.test.ts` 2 处，各新增**一个** `reason:` 元素。13 处按 `toEqual(` 行在册：`:124`（done）· `:128`（next-wave）· `:136`（review）· `:147`（fix + reviews）· `:152`（bare fix）· `:163`（soft-cap，单行数组）· `:171`（review + wave target）· `:182`（fix + wave target）· `:195`（review + branch target）· `:205`（review + phase-spec target）· `:213`（next-wave + wave target）· `:226`（done）· `:266`（T8 seam 的 `lines`），另 `capsule.test.ts:482` · `:498`（spec §7 第 2 类按 `capsule.emit(...)` 调用行登记，两者逐处一一对应）。**token 不得猜**——先实现再一次性重锚：跑套件，从失败断言的 `received` 里逐处抄实际值，一条不漏。取值来源（`#reasonOf` 的序，`session/next.ts:396-404`）：`fix` ⇒ `pending-fix` · `soft-cap` ⇒ `soft-cap` · `review` + drift ⇒ `doc-drift` · 其余活 hop（`review` 未 drift / `next-wave`）⇒ `task-open` · doc-class blocked ⇒ `doc-class-blocked` · 无路由或 terminal ⇒ `face-closed` · 闭线 ⇒ `closed-line`；`received` 仍是权威
-- [ ] **Step 8: 改写陈旧散文（11 处）** — checkable: `face.test.ts:8` · `:101` · `capsule.ts:19` · `:67` · `:100` · `run.ts:262` · `capsule.test.ts:467`（describe 标题）· `:474` · `cli.test.ts:1960` · `run.ts:239` · `:876` —— 一律改为「`next:` 行 + 紧随其后的 `reason:` 行」；断言字节零变。**扫描词面**：末行 / `LAST` / `close` / `last line` / `trailing` / 唯一站锚 / 唯一站词——`capsule.ts:100` 的「line LAST … the output's close」正是旧词面（只扫「末行」）漏掉的；「九处」不是穷尽的证明。`session/__tests__/run.test.ts` 无此散文（其 `next:` 提及是断言，以及一条「prints no `next:` line」的缺席断言），不进这十一处
+- [ ] **Step 8: 改写陈旧散文（11 处）** — checkable: `face.test.ts:8` · `:101` · `capsule.ts:19` · `:67` · `:100` · `run.ts:262` · `capsule.test.ts:467`（describe 标题）· `:474` · `cli.test.ts:1960` · `run.ts:239` · `:876` —— 一律改为「`next:` 行 + 紧随其后的 `reason:` 行」；断言字节零变。**`face.test.ts:101` 的那句改写必须由断言承载**：`:102` 只钉 `emitted[1]` 的 `next:`，故同处补 `expect(emitted[2].split(" ")[0]).toBe(words.station("reason"))`——否则 `renderReason` 里硬编码 `reason:` 也会全绿，新站行成了死声明。**扫描词面**：末行 / `LAST` / `close` / `last line` / `trailing` / 唯一站锚 / 唯一站词——`capsule.ts:100` 的「line LAST … the output's close」正是旧词面（只扫「末行」）漏掉的；「九处」不是穷尽的证明。`session/__tests__/run.test.ts` 无此散文（其 `next:` 提及是断言，以及一条「prints no `next:` line」的缺席断言），不进这十一处
 - [ ] **Step 9: 跑三套件 + 提交** — checkable: `face.test.ts` / `capsule.test.ts` / `board-view.test.ts` 全绿；`next:` 行断言（`lines[1]` 抽取与 `toContain`）零改动仍绿；`pnpm run precommit` 绿；`git commit -m "feat(cdd-engine): render the hop reason on its own line after next:"`
 
 #### Acceptance
@@ -246,6 +247,7 @@ if (next !== null) {
 - hop 为 `null` 的轮（BLOCKED / TIMEOUT）两面都不渲 `reason:` 行。
 - 胶囊与板面对同一 hop 渲同值（token 等值；前缀各按自己的家：胶囊走站表、板面走布局字面），由 Step 6 的 pin 钉住；板面的 `(none)` 与程序板 `done` 两行字节零变。
 - 站表五行（长度 pin 已重锚），`routeWords` 一行未动。
+- 站表第五行的**值**有逐键断言（`words.station("reason") === "reason:"`，与 `:66-69` 同形）；胶囊**确实读该行**——`face.test.ts:101` 旁的 `emitted[2]` 前缀断言承载「两个站锚都走站表」这句注释；板面 `  reason:  ` 的 11 列前缀自身有断言（Step 6 在归一化之前钉住），不靠 `tokenOf` 抹平。
 
 #### DependsOn
 
@@ -259,7 +261,7 @@ none
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`#briefDrift` → public `briefDrifted(waveKey: string): boolean`，内部读 `reviewedRevisionOf(waveKey)`）· `:983`（`waveLineRoute` 的 D30 腿改调它）· `:1219-1229`（`nextHopOf` 的**内联入参类型**新增可选 `briefDrift?: boolean`，落在 `nextLineOpen` 旁）· `:1230-1233`（drift cell 读注入值）
+- Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`#briefDrift` → public `briefDrifted(waveKey: string): boolean`，内部读 `reviewedRevisionOf(waveKey)`）· `:983`（`waveLineRoute` 的 D30 腿改调它）· `:1219-1229`（`nextHopOf` 的**内联入参类型**新增可选 `briefDrift?: boolean`，落在 `nextLineOpen` 旁）· `:1230-1233`（原因 cell 读注入值，替换驱动仍只读 `reviewGate`）· `:1205-1218`（`nextHopOf` 的 docstring 同笔改为两值口径）
 - No change: `packages/cdd-engine/src-next/session/next.ts:208-226`——`NextHopInput` **不**加 cell。它是 `NextStepRouter#nextHop` 的输入面（`:341-355`），drift 事实在那里走既有 `gate.drift`（由 `nextHopOf` 填）；加到这个类型上会是一个没人读的字段，且两个注入点会因 excess property 被 `tsc` 拒绝
 - Modify: `packages/cdd-engine/src-next/session/run.ts:836-849`（`#hopOf` 在 wave 帧注入）· `packages/cdd-engine/src-next/face/board-view.ts:849-861`（那一次 `nextHopOf` 调用的输入对象加一格：`target?.type === "wave" ? … : undefined`，无额外闸）
 - Test: `packages/cdd-engine/src-next/session/__tests__/run.test.ts`（`peekNext` 的 token 红→绿）· `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（板面 token 红→绿 · soft-capped + drifted 的替换负控）
@@ -272,7 +274,7 @@ none
 #### Produces
 
 - `Ledger#briefDrifted(waveKey: string): boolean`（public；`#briefDrift` 唯一实现）
-- `Ledger#nextHopOf` 入参新增可选 `briefDrift?: boolean` ——只改该调用的 drift cell（`true` 时 wave 线的 `drift` 为真，`gate.drift` 随之填真）；`NextHopInput` 形状不变，缺省 `undefined` 时行为与今日一致
+- `Ledger#nextHopOf` 入参新增可选 `briefDrift?: boolean` ——只改该调用的**原因 cell**：`gate.drift` 取 `drift || (input.briefDrift ?? false)`；**替换驱动 `drift` 对 wave 恒为 `false`**（`input.doc != null && input.type !== "wave"` 的既有形状保留，Step 4 的两个值分开），故 `drift && onExitSide(route)` 在 wave 面不触发。`NextHopInput` 形状不变，缺省 `undefined` 时行为与今日一致
 - 行为变化：drifted 且 fix 待办的 wave 在 `peekNext()` 与板面渲 `reason: doc-drift`（今日为 `task-open`）
 
 #### Steps
@@ -280,7 +282,7 @@ none
 - [ ] **Step 1: 写红测试（`peekNext` 的 token）** — checkable: 构造「wave review 出 warn（绑定 brief）→ 轮外改 plan 的该 wave 段 → 无 fix 记录」，断言 `run.peekNext()!.hop.reason === "doc-drift"` 且 `renderReason` 渲 `reason: doc-drift` —— 今日为 `"task-open"`
 - [ ] **Step 2: 跑它并确认红** — checkable: 实际值 `"task-open"`
 - [ ] **Step 3: 提公开读 + 改 D30 腿调用点** — checkable: `briefDrifted` 与 `#briefDrift` 只有一份实现；`waveLineRoute` 行为不变（既有 T11/D30 用例全绿）
-- [ ] **Step 4: 加 `nextHopOf` 入参的 `briefDrift` cell + 改 drift cell** — checkable: 入参 `briefDrift` 为 `true` 时 wave 面的 `drift` 为真（`gate.drift` 为真 ⇒ `#reasonOf` 把 `review` 路由的 token 从 `task-open` 改为 `doc-drift`），其余面仍读 `reviewGate`；缺省 `undefined` 时行为零变。**两个值分开**：替换驱动 `drift` 仍只取 doc 面 `reviewGate`（既有 `input.doc != null && input.type !== "wave"` 形状保留），`drift && Ledger.onExitSide(input.route)` 的替换谓词对 wave **不触发**；原因 cell `gate.drift` 取 `drift || briefDrift`——一个值同时驱动两件事是不行的：调用方交给 `nextHopOf` 的 wave 路由只有四种——`next-wave`（无 implement 轮 ⇒ 无已绑 brief ⇒ drift 恒假）、`review`（drifted 的 fix 待办面已在 `waveLineRoute:983` 改写成 review）、`fix`（未 drift）、`null`（`Lifecycle` 侧：soft-cap / 不可读轮时 `#openWaveFrame` 已不出发帧，`peekNext` 到不了这里）——板面侧另会拿到 `handoff`（`#exitRoute`：`active` 为 null 的 soft-cap / 不可读 carried 轮，`face/board-view.ts:886-892` · `:902-905`），它虽在 exit 侧，但替换驱动对 wave 恒为 `false`，故 `onExitSide` 为真且 `drift` 为真的组合只落在 `review` 上，不需要 wave 例外、不写死分支、也不需要第二道闸；该 `handoff` 的 `next:` 逐字节不变、`reason:` 落 `closed-line`（Step 7 的负控钉住）
+- [ ] **Step 4: 加 `nextHopOf` 入参的 `briefDrift` cell + 改原因 cell** — checkable: 入参 `briefDrift` 为 `true` 时 wave 面的 `gate.drift` 为真（替换驱动 `drift` 仍为 `false`；`gate.drift` 为真 ⇒ `#reasonOf` 把 `review` 路由的 token 从 `task-open` 改为 `doc-drift`），其余面仍读 `reviewGate`；缺省 `undefined` 时行为零变。**两个值分开**：替换驱动 `drift` 仍只取 doc 面 `reviewGate`（既有 `input.doc != null && input.type !== "wave"` 形状保留），`drift && Ledger.onExitSide(input.route)` 的替换谓词对 wave **不触发**；原因 cell `gate.drift` 取 `drift || (input.briefDrift ?? false)`（`briefDrift?: boolean` 下 `drift || briefDrift` 的类型是 `boolean | undefined`，而 `NextHopInput.gate.drift` 是 `boolean`，`strict: true` 会在 Task 3 Step 9 / Task 4 Step 5 直接红）——一个值同时驱动两件事是不行的：调用方交给 `nextHopOf` 的 wave 路由只有四种——`next-wave`（无 implement 轮 ⇒ 无已绑 brief ⇒ drift 恒假）、`review`（drifted 的 fix 待办面已在 `waveLineRoute:983` 改写成 review）、`fix`（未 drift）、`null`（`Lifecycle` 侧：soft-cap / 不可读轮时 `#openWaveFrame` 已不出发帧，`peekNext` 到不了这里）——板面侧另会拿到 `handoff`（`#exitRoute`：`active` 为 null 的 soft-cap / 不可读 carried 轮，`face/board-view.ts:886-892` · `:902-905`），它虽在 exit 侧，但替换驱动对 wave 恒为 `false`，故 `onExitSide` 为真且 `drift` 为真的组合只落在 `review` 上，不需要 wave 例外、不写死分支、也不需要第二道闸；该 `handoff` 的 `next:` 逐字节不变、`reason:` 落 `closed-line`（Step 7 的负控钉住）。**同笔同步 docstring**：`session/ledger.ts:1205-1218` 今天教「the drift-aware gate verdict」与「the gate's `drift` verdict IS the reopen」；改后须写成「替换驱动只读 gate 判定；原因 cell 另认调用方注入的 wave brief-drift 事实」——本步在装配里留下两个 drift 量，注释不改就是新的陈旧契约
 - [ ] **Step 5: 两处注入** — checkable: `Lifecycle#hopOf` 在该 `nextHopOf` 入参对象的 `briefDrift` 一格上于 `frame.type === "wave"` 时传 `this.#ledger.briefDrifted(String(frame.key))`；`BoardNext#hopOf` 在既有那一次 `nextHopOf` 调用里传 `target?.type === "wave" ? facts.ledger.briefDrifted(String(target.id)) : undefined`（**不得**新增第二次调用，方法签名不动；`target.type` 那半个条件不能省——引擎走到非 wave frontier 时 `facts.report.wave.active` 也可能非 null，而 `target.id` 那时是文档路径）。**这一格只有 `target.type` 一道条件，且它不是路由闸**：**不需要（也不该加）`active !== null` 之类的闸**：`#pipeline` 交给 `#hopOf` 的是 frontier 自己的路由，wave 的 `active` 为 null 时它是 `#exitRoute` 的 `{ kind: "handoff", entry: PIPELINE_NEXT.wave }`（`face/board-view.ts:886-892` · `:902-905`），属 exit 侧，而替换驱动 `drift` 对 wave 恒为 `false`（Step 4 的两个值分开），故 `drift && onExitSide(handoff)` 不可能命中——该 `handoff` 不会被改写成 `review --type wave …`，注入只改它 `reason:` 的取值（`#reasonOf` 对 `handoff` 落末行 `closed-line`）。`WaveGate.vet` 按 `waveLinePhase` 判 phase，板面因此与门同侧，P22 T17(c) 的分叉不可达——由 Step 7 的负控钉住；两个注入点也因不设闸而对称。
 - [ ] **Step 6: 板面断言** — checkable: `board-view.test.ts` 断言同一状态下板面的 `next:` 行为 review lead、`reason:` 行为 `doc-drift`
 - [ ] **Step 7: 负控（soft-capped + drifted 的板面不翻路由）** — checkable: `board-view.test.ts` 再加一条——构造 `waveLineRoute` 落 `null`（review 周期打到 `REVIEW_CYCLE_CAP` 的 soft-cap 面）**且**该 wave 的 brief 已 drift 的行，断言板面的 `next:` 行与 drift 前**逐字节相同**（仍为该 wave 的 pipeline exit `handoff` 站，**不得**出现 `review`），`reason:` 行为该路由的既有取值 `closed-line`（**不是** `task-open`：`handoff` 的 `hopOf` 为 null，`#reasonOf` 落末行 `closedLine`；`doc-drift` 只可能落在 `review` 路由上，`session/next.ts:399`），并断言 `ledger.waveLinePhase(key)` 为 `null`（板面与门同侧）
@@ -354,3 +356,4 @@ none
 | v0.4 | 2026-11-04 | 编排器裁定对齐 spec v0.10：**删掉板面注入的 `active !== null` 闸**（三处：Constraint「wave 面禁分叉」· Task 3 Files · Task 3 Step 5）——wave 面从不做路由替换，替换谓词不适用于 wave，故 soft-capped wave 的 `handoff` 路由不会被劫持，闸是多余的死防御；两处注入点因此对称 | Constraint · Task 3 Files/Steps · Change history v0.4 | Oscaner M. · Claude（kairos:cdd-plan · 裁定回填 · 2026-11-04） |
 | v0.5 | 2026-11-04 | 第 3 轮评审回填（内容面）：① **`nextHopOf` 的两个值分开**——替换驱动仍只取 doc 面 `reviewGate`，原因 cell 取 `drift \|\| briefDrift`；v0.4 的「cell 只喂 `gate.drift`、替换谓词不动」在代码上不成立（一个值同时驱动两件事）② 负控的期望 token 改为 `closed-line`（`handoff` 的 `hopOf` 为 null ⇒ `#reasonOf` 落末行；`task-open` 在该状态不可产生）③ 语义注释补 `run.ts:689-693`（白名单正上方那句）④ 范围锁的 spec 版本改为 v0.11 | Constraint · Task 1 Files/Steps · Task 3 Steps · Change history v0.5 | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-04） |
 | v0.6 | 2026-11-04 | 第 3 轮评审回填（核验 `d0312bcd` 的落地后补完内容面）：① Task 3 Objective 删掉「板面只在 wave 自己的 C5 路由非 null 时取值」——v0.4 删闸、v0.5 把两个值分开之后，wave 的 exit 侧路由不可能被替换，这句旧表述与 Step 4 自相矛盾 ② Step 4 末尾的「由 Step 5 的注入闸挡掉」改为如实描述：板面会拿到 `#exitRoute` 的 `handoff`，替换驱动对 wave 恒 false，故 `next:` 零变、`reason:` 落 `closed-line`，并把该 `handoff` 补进可达路由的枚举 ③ Step 5 的 rationale 按实际守卫重写——只有 `target.type === "wave"` 一道条件（防止非 wave frontier 用文档路径去问 brief drift），`active !== null` 之类不设，exit 侧安全来自两个值分开 ④ 负控与 Acceptance 标签由「注入闸」改「替换不触发」，并在 Step 7 补 `closed-line` 的取值来源（`doc-drift` 只落 `review` 路由）⑤ Task 1 的注释同步范围由 `run.ts:689-693` 扩为 `:689-704`（白名单正上方的整段注释） | Constraint 保持 · Task 1 Files/Step 7 · Task 3 Objective/Step 5/Step 7/Acceptance · Change history v0.6 | Oscaner M. · Claude（kairos:cdd-plan [P24] 第 3 轮评审回填 · 2026-11-04） |
+| v0.7 | 2026-11-04 | 第 4 轮评审回填（内容面，无结构变更）：① Task 3 Produces 由「一个 drift 值」改为两值口径——`gate.drift = drift \|\| (input.briefDrift ?? false)`，替换驱动 `drift` 对 wave 恒为 `false`（与 Step 4 同一词汇） ② Task 3 Files 补 `session/ledger.ts:1205-1218`（`nextHopOf` 的 docstring 同入同步列），Step 4 写明两值口径的注释改写 ③ Task 2 补三条 back —— 站表第五行的**值**逐键断言（`face.test.ts:66-69` 旁同形补一条）、胶囊**确实读该行**（`:101` 注释旁补 `emitted[2]` 前缀取自 `words.station("reason")`）、板面 `  reason:  ` 的 11 列前缀在 `tokenOf` 归一化之前自带断言 ④ Task 1 Step 9 删掉「判别式一旦被复制成第二份就红」的假敏感度——`#bookkeep` 有 `targetAction` 门、`#recordsOf` 是无 verdict 的 dry run，两处 phase 列表**各存一份**，`preview.test.ts` 的 fix 轮用例是行为 pin 而非漂移探针；Constraint 与 Acceptance 同步登记该双写债务 ⑤ `#abs` 的行号引脚由 `:905-906`（`docLineVerdict` 的读基准处）改为 `docLineVerdict:905-906` → `#abs:598-600` ⑥ `drift \|\| briefDrift` 的写法改为 `drift \|\| (input.briefDrift ?? false)`（否则 `boolean \| undefined` 在 `strict` 下不过 `tsc`） | Oscaner M. · Claude（kairos:cdd-plan [P24] 第 4 轮评审回填 · 2026-11-04） |

@@ -103,7 +103,9 @@ interface NodeSources {
 /** The board's per-face OBSERVATION of the pipeline (spec §5.2) — the facts the
  *  board reads off the ledger and the plan: the ledger itself (the round records'
  *  own read point) and the pipeline frontier's declared input. Pure facts: the
- *  traversal and the derivation belong to the session plane's `PipelineFrontier`. */
+ *  traversal belongs to the session plane's `PipelineFrontier`, the ONE derivation
+ *  is `NextStepRouter#nextHop` reached through `Ledger#nextHopOf`, and the board
+ *  renders the result. */
 export interface BoardPipelineFacts {
   /** The node's ledger — the round/closure read face the hop derivation consumes. */
   readonly ledger: Ledger;

@@ -140,11 +140,6 @@ export interface PipelineFaceState {
   target: RouteTarget | null;
 }
 
-/** The consumer's face report — one observation per phase face, keyed by its
- *  `PIPELINE_FACES` key (the order stays `PIPELINE_FACES`'; the consumer names
- *  faces). */
-export type PipelineFaceReport = Readonly<Record<PhaseFaceKey, PipelineFaceState>>;
-
 /** The walk's verdict — the ONE next Route + the render target it belongs to (the
  *  frontier face's own target; the last face's on the all-closed terminal). */
 export interface PipelineNext {

@@ -22,6 +22,11 @@
 // as an equation here: a not-entered frontier (the board takes the PRECEDING face's
 // exit), an entered frontier with no active hop (its own exit), and an all-closed
 // pipeline (the terminus). This suite therefore never compares against board output.
+//
+// The plan face's OWN drift cell is pinned here (the judgement's home): a reviewed
+// plan that moved past its bound revision reopens the plan face, so the frontier
+// HOLDS there — a rule-2 instance — instead of walking on to the wave batch. The
+// board suite keeps a separate pin on the bytes that cell renders.
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -179,5 +184,38 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     expect(next.face).toBeNull();
     expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.branch });
     expect(next.target).toEqual({ type: "branch", id: "branch", plan: planPath });
+  });
+
+  it("rule 2 — the plan face's drift cell halts a drifted reviewed plan on its own face", () => {
+    const specPath = specDoc();
+    const planPath = planDoc([[1]]);
+    const ledger = ledgerOf();
+    // Both doc lines close on a clean round and bind the revision each judged — the
+    // key/identity pairs a real run's write-back records, so the plan cell has a real
+    // identity to drift past.
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    ledger.recordReviewedRevision(
+      "phase-spec",
+      ledger.refs().docRevision(specPath, readFileSync(specPath, "utf8")),
+      "phase-spec",
+    );
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+    ledger.recordReviewedRevision(
+      "plan",
+      ledger.refs().docRevision(planPath, readFileSync(planPath, "utf8")),
+      "plan",
+    );
+    const frontier = new PipelineFrontier(ledger);
+    const input = inputOf({ specPath, planPath, planGraph: graphOf(planPath) });
+    // Undrifted: both doc faces are closed, so the frontier walks on to the wave batch.
+    expect(frontier.next(input).face).toBe("wave");
+    // One plan revision later the plan face's own cell reopens on the document it bound.
+    writeFileSync(planPath, `${readFileSync(planPath, "utf8")}\n<!-- drift -->\n`, "utf8");
+    const drifted = frontier.next(input);
+    expect(drifted.face).toBe("plan");
+    expect(drifted.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.plan });
+    expect(drifted.target).toEqual({ type: "plan", id: planPath, plan: planPath });
   });
 });

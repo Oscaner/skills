@@ -1865,10 +1865,11 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     expect(nextOfBoard("prog-p1")).toBe("implement --plan docs/kairos/plans/prog-p1.md --tasks 1");
   });
 
-  // The plan face's OWN drift cell (`lineStateAt("plan", "plan", planPath)`): the same
-  // judgment the spec half reads, on the document the plan line actually bound. When the
-  // frontier relocates into the session plane, this case moves with it — the cell keeps
-  // its pin in the new home.
+  // The plan face's OWN drift cell (`lineStateAt("plan", "plan", planPath)`) — the same
+  // judgment the spec half reads, on the document the plan line actually bound. The cell
+  // itself lives in the session plane (`PipelineFrontier#planState`), and the judgement
+  // face it yields is pinned in `session/__tests__/pipeline.test.ts`; this case keeps a
+  // separate, board-side pin: the `next:` / `reason:` bytes a drifted plan renders.
   it("(s3) the plan face reads drift on its own identity document — a drifted reviewed plan halts at its review lead", () => {
     nodeDocs();
     const specFile = path.join(repo, "docs/kairos/specs/prog-p1-design.md");

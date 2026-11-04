@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 设计：NEXT-LOOP 收口面（drift 语义收窄 + hop 原因可读）
 doc-type: phase-spec
-version: v0.11
+version: v0.12
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p24
 program: 2026-10-10-engine-doc-tooling
@@ -113,7 +113,7 @@ reason: doc-drift
 |---|---|---|
 | 写回白名单 | `session/run.ts` | `:705-718` phase 白名单加 `fix`；`#recordReviewedDocRevision` / `#recordReviewedWaveBrief` / `#recordReviewedBranchRevision` 的文档注释同步语义 |
 | dry-run 预览 | `face/preview.ts` | `#recordsOf`（`:152-162`）的写回判别式与 `#bookkeep` 同源——phase 白名单同为 `review \| branch-review \| fix`，腿按 target 取（plan / spec / branch 绑 `reviewedRevision(doc)`、wave 绑 `reviewedRevision(brief)`），**不得留第二份策略**：能共用的判别就共用（`#bookkeep` 与 `#recordsOf` 读同一处判定），否则以 `face/__tests__/preview.test.ts` 的一条 **fix 轮**用例（doc 线断言 `would record:` 含 `reviewedRevision(doc)`）把副本钉死；`:147-151` 的 docstring 同步改为「on a completed review **or a fix**」，并删掉「the branch line binds none」——分支线自 P21 起就绑 plan 的 doc-revision。**这一行的两半**：`fix` 腿是本相位加的；同一次改动顺带治好既有的 `branch-review` 残差——`face/__tests__/preview.test.ts:126-146` 至今仍钉「the branch line — its review binds no reviewed revision」，而 `session/run.ts:707-713` 早已在 `branch-review` 上经 `#recordReviewedBranchRevision`（`:741`）绑 plan 的 doc-revision，故该用例的标题与 `:144` 的 `would record:` 期望同笔改为含 `reviewedRevision(doc)`（陈旧 pin 的修复，不进下面 1–5 类的 `next:` 字节账） |
-| 语义注释 | `session/ledger.ts` | `recordReviewedRevision`（文档注释 `:793-797`）改为「已入账 identity」 |
+| 语义注释 | `session/ledger.ts` · `session/run.ts` | `recordReviewedRevision`（文档注释 `:793-797`）改为「已入账 identity」；**`nextHopOf` 的 docstring（`:1205-1218`）同笔改为两值口径**——它今天教「input face 就是 drift-aware 的 gate 裁决、gate 的 drift 就是重开」，本相位之后该装配里有两个 drift 量（替换驱动只取 doc 面 `reviewGate`；`gate.drift` 取 `drift || briefDrift`），注释不改就是新的陈旧契约；`run.ts:689-693`（白名单正上方）同属同步列 |
 | reason 渲染 | `face/route-render.ts` | 新增 `renderReason(hop): string \| null`；`renderHop` 不动 |
 | reason 站表 | `face/words.ts` | `StationKind`（`:47`）加 `"reason"`；`CAPSULE_WORDS.stations`（`:194-199`）增 `reason: "reason:"` 一行（锚的既有家，注释即「the `: `-suffixed channel anchors」）——**只有胶囊取用**，板面按自己的布局字面写法（见下一行）；`RouteWordKind`（`:57`）与 `routeWords`（`:201-222`）一行不动；站表长度 pin `face/__tests__/face.test.ts:103` 由 4 重锚为 5 |
 | 胶囊 | `face/capsule.ts` | `:133-134` 之后追加 `reason:` 行（前缀取 `station("reason")`，不硬编码；值取 `renderReason(hop)`；hop 为 `null` 时不追加） |
@@ -180,3 +180,4 @@ reason: doc-drift
 | v0.9 | 2026-11-04 | plan 第 2 轮评审回填（`backfill-design` · 无结构变更，内容面三处订正）：① **半途被砍的 fix 的 frontier 面写对了**——BLOCKED 的 fix 之后 `lineRoute` 仍是 `{ kind: "fix" }`（非 exit 侧），故 `docReopens` 为假、`linePhase` 回 `fix`，frontier 给的是该 fix 的重试面而不是 review（§5.5 ②：drift 不压 pending fix）；§2 / §6 第 3 条 / Acceptance 同步改写，负控改为直读账本 `doc_hash` 未推进 + `peekNext()` 帧为 `fix` ② **板面注入加闸**——`briefDrift` 只在 `target?.type === "wave" && facts.report.wave.active !== null` 时取值：soft-capped / carried 轮不可读时 wave 的路由是 `#exitRoute` 的 `handoff`（exit 侧）且未闭合，故板面会把该 wave 当 frontier，不设闸则待用户裁定被翻成 review、与 `waveLinePhase` 为 null 的门分叉；§4 wave 面与 §7 注入点行同步，并要求一条负控 ③ **陈旧散文 9→11 处**——补 `face/capsule.ts:100`（「line LAST … the output's close」）与 `face/__tests__/capsule.test.ts:467` 的 describe 标题，扫描词面扩为末行 / `LAST` / `close` / `last line` / `trailing` / 唯一站锚 / 唯一站词 （落点：§2 · §4 wave 面 · §6 第 3 条 · §7 第 5 类与注入点行 · Acceptance） | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-04） |
 | v0.10 | 2026-11-04 | 编排器裁定（把 v0.9 里并存的两套说法收敛成一套）：**wave 面从不做路由替换**——删掉「wave 面不受 exit-side 限制」那句（它与 v0.8 的「不做替换」直接矛盾），同时删掉 v0.9 在板面注入处加的 `facts.report.wave.active !== null` 闸（它防的正是替换；不替换就不需要防，且只加在板面一侧会让两处注入不对称）。收敛后的口径：cell 只喂 `gate.drift`，替换谓词 `drift && onExitSide(route)` 对 wave 不适用 | §4 wave 面 · Change history v0.10 | Oscaner M. · Claude（kairos:cdd-plan · 裁定回填 · 2026-11-04） |
 | v0.11 | 2026-11-04 | **设计订正（本轮 blocker）**：v0.10 说「cell 只喂 `gate.drift`、替换谓词一字不动」在代码上不成立——`nextHopOf` 里的 `drift` 一个值同时驱动替换与原因，故 wave 的 exit 侧路由仍会被替换。订正为**两个值分开**：替换驱动 `drift` 仍只取 doc 面 `reviewGate`（wave 恒 false，谓词不触发）；原因 cell 取 `drift || briefDrift`。§4「wave 面」与 §7 判据行同步 | §4 wave 面 + §7 | Oscaner M. · Claude（kairos:cdd-plan · 裁定回填 · 2026-11-04） |
+| v0.12 | 2026-11-04 | plan 第 4 轮评审回填（内容面一行）：§7「语义注释」行补两处——`nextHopOf` 的 docstring（`:1205-1218`）改为两值口径、`run.ts:689-693` 入同步列；理由：本相位在同一个装配里引入两个 drift 量，注释仍教「gate 的 drift 就是重开」即新的陈旧契约 | §7 语义注释行 + Change history v0.12 | Oscaner M. · Claude（kairos:cdd-plan · backfill-design · 2026-11-04） |

@@ -791,10 +791,10 @@ export class Ledger {
   }
 
   /** Record a line's reviewed identity — the identity-aware gate's basis (written
-   *  when the review round completes: the line reopens on drift from this recorded
-   *  revision, and BLOCKs revision-aware when unchanged). The kind IS part of the
-   *  identity: a doc line binds a doc-revision (T7), a wave line a brief-revision
-   *  (D30) — one row, one reviewed identity. */
+   *  when a review or a fix round completes: the line reopens on drift from this
+   *  recorded revision, and BLOCKs revision-aware when unchanged). The kind IS part
+   *  of the identity: a doc line binds a doc-revision (T7), a wave line a
+   *  brief-revision (D30) — one row, one reviewed identity. */
   recordReviewedRevision(
     key: LedgerKey,
     revision: ReviewedRevisionRef,

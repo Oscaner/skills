@@ -14,7 +14,7 @@
 // production loop does.
 
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -978,6 +978,210 @@ describe("the branch small loop — branch-review → fix → closure", () => {
       expect(ledger.readHandoff("review", "branch", { round: 1 })).not.toBeNull();
       expect(ledger.readHandoff("review", "branch", { round: 2 })).not.toBeNull();
       expect(ledger.readHandoff("fix", "branch", { round: 1 })).not.toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("P24 §2 — a completed round advances the line's reviewed identity", () => {
+  /** The target doc path under the ledger's read basis (`<repo>/.kairos/cdd`) — the
+   *  basis-relative drift verdict and the absolute write-back read must hit ONE file,
+   *  so every fixture below passes an absolute path. */
+  const docUnder = (repo: string): string => path.join(repo, ".kairos", "cdd", DOC);
+
+  const docOf = (version: string, body: string): string =>
+    `---\ndoc-type: phase-spec\nversion: ${version}\nslug: x-design\n---\n\n## Design\n\n- ${body}\n`;
+
+  for (const type of ["phase-spec", "overall", "plan", "single-spec"] as const) {
+    it(`${type} — a warn-only fix that edited the doc still closes the line`, async () => {
+      const { ledger, repo, cleanup } = fixture();
+      try {
+        // The ledger's read basis is `<repo>/.kairos/cdd` (WorkspaceRoot) — the doc
+        // lives there and BOTH reads (the basis-relative verdict, the absolute
+        // write-back) must hit one file: an absolute path.
+        const doc = docUnder(repo);
+        mkdirSync(path.dirname(doc), { recursive: true });
+        writeFileSync(doc, docOf("v0.1", "one"));
+        let fixes = 0;
+        const dispatch = stub((frame) => {
+          if (frame.phase === "fix") {
+            fixes += 1;
+            writeFileSync(doc, docOf(`v0.${fixes + 1}`, `${fixes}`));
+            return { status: "APPROVED" };
+          }
+          return { status: "APPROVED", findings: [finding("warn")] };
+        });
+        const run = new Lifecycle({
+          face: targetFaces[type],
+          state: EMPTY_RUN_STATE,
+          ledger,
+          dispatch: dispatch.step,
+          target: { kind: type === "plan" ? "plan" : "spec", doc },
+        });
+        run.attachCapsule(new Capsule(new Words()));
+
+        const review1 = await run.advance();
+        expect(review1!.route!.kind).toBe("fix");
+        const fix1 = await run.advance();
+        expect(fix1!.frame.phase).toBe("fix");
+        // `[1]` is the `next:` row (the stub passes no dispositionsSummary); the
+        // `reason:` row that follows it is a later element.
+        expect(fix1!.capsuleLines[1]).not.toMatch(/^next: review\b/);
+        expect(run.peekNext()).toBeNull();
+        // The auxiliary fact: C5 already judged the closure (green with and without
+        // the write-back) — the capsule's `next:` row is the red probe.
+        expect(fix1!.route).toEqual({ kind: "done" });
+        expect(await run.advance()).toBeNull();
+      } finally {
+        cleanup();
+      }
+    });
+  }
+
+  for (const type of ["phase-spec", "overall", "plan", "single-spec"] as const) {
+    it(`${type} — an out-of-round doc edit after the closure still reopens the review`, async () => {
+      const { ledger, repo, cleanup } = fixture();
+      try {
+        const doc = docUnder(repo);
+        mkdirSync(path.dirname(doc), { recursive: true });
+        writeFileSync(doc, docOf("v0.1", "one"));
+        let fixes = 0;
+        const dispatch = stub((frame) => {
+          if (frame.phase === "fix") {
+            fixes += 1;
+            writeFileSync(doc, docOf(`v0.${fixes + 1}`, `${fixes}`));
+            return { status: "APPROVED" };
+          }
+          return { status: "APPROVED", findings: [finding("warn")] };
+        });
+        const run = new Lifecycle({
+          face: targetFaces[type],
+          state: EMPTY_RUN_STATE,
+          ledger,
+          dispatch: dispatch.step,
+          target: { kind: type === "plan" ? "plan" : "spec", doc },
+        });
+
+        await run.advance();
+        await run.advance();
+        // Closed: the frontier holds no frame.
+        expect(run.peekNext()).toBeNull();
+        // One revision outside the round later the SAME line is open again — the
+        // closure is not a blanket lock on the document.
+        writeFileSync(doc, docOf("v0.3", "out-of-round"));
+        expect(run.peekNext()!.frame.phase).toBe("review");
+      } finally {
+        cleanup();
+      }
+    });
+  }
+
+  for (const type of ["phase-spec", "overall", "plan", "single-spec"] as const) {
+    it(`${type} — a BLOCKED fix that edited the doc advances nothing`, async () => {
+      const { ledger, repo, cleanup } = fixture();
+      try {
+        const doc = docUnder(repo);
+        mkdirSync(path.dirname(doc), { recursive: true });
+        const original = docOf("v0.1", "one");
+        const half = docOf("v0.2", "half");
+        writeFileSync(doc, original); // the review-1 input — the baseline's source content
+        const dispatch = stub((frame) => {
+          if (frame.phase === "fix") {
+            writeFileSync(doc, half);
+            return { status: "BLOCKED" };
+          }
+          return { status: "APPROVED", findings: [finding("warn")] };
+        });
+        const run = new Lifecycle({
+          face: targetFaces[type],
+          state: EMPTY_RUN_STATE,
+          ledger,
+          dispatch: dispatch.step,
+          target: { kind: type === "plan" ? "plan" : "spec", doc },
+        });
+
+        await run.advance(); // review 1 — the write-back binds `original`
+        await run.advance(); // fix — BLOCKED: writes `half`, binds nothing (targetAction false)
+        // The frontier offers the fix RETRY — drift never outranks a pending fix.
+        expect(run.peekNext()!.frame.phase).toBe("fix");
+        // The baseline did not advance — it still names the reviewed content, not the
+        // half-written fix.
+        const bound = ledger.reviewedDocRevisionOf(type, type)!;
+        expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, original).doc_hash);
+        expect(bound.doc_hash).not.toBe(ledger.refs().docRevision(doc, half).doc_hash);
+      } finally {
+        cleanup();
+      }
+    });
+  }
+
+  it("branch — a fix that edited the plan closes the branch line", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, ".kairos", "cdd", "docs/kairos/plans/x-plan.md");
+      mkdirSync(path.dirname(planPath), { recursive: true });
+      writeFileSync(planPath, planDoc([task(1, "none")]));
+      const dispatch = stub((frame) => {
+        if (frame.phase === "fix") {
+          // A real fix rewrites its own output: one appended line changes the revision
+          // without touching the plan structure the parser reads.
+          writeFileSync(planPath, `${readFileSync(planPath, "utf8")}\n<!-- fix round edit -->\n`);
+          return { status: "APPROVED" };
+        }
+        return { status: "APPROVED", findings: [finding("warn")] };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.branch,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "branch" },
+        planPath,
+      });
+      run.attachCapsule(new Capsule(new Words()));
+
+      const review1 = await run.advance();
+      expect(review1!.route!.kind).toBe("fix");
+      const fix1 = await run.advance();
+      expect(fix1!.frame.phase).toBe("fix");
+      expect(fix1!.capsuleLines[1]).not.toMatch(/^next: review\b/);
+      expect(run.peekNext()).toBeNull();
+      expect(fix1!.route).toEqual({ kind: "done" });
+      expect(await run.advance()).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("wave — a blocker-free fix still closes the wave line", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, ".kairos", "cdd", "plan.md");
+      mkdirSync(path.dirname(planPath), { recursive: true });
+      writeFileSync(planPath, planDoc([task(1, "none")]));
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) => {
+        if (frame.phase === "implement") return APPROVED_IMPLEMENT;
+        if (frame.phase === "fix") return { status: "APPROVED" };
+        return { status: "APPROVED", findings: [finding("nit")] };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        planPath,
+      });
+
+      await run.advance(); // implement
+      await run.advance(); // the nit review
+      const fix = await run.advance();
+      expect(fix!.frame.phase).toBe("fix");
+      expect(fix!.route).toEqual({ kind: "done" });
+      expect(run.peekNext()).toBeNull();
+      expect(await run.advance()).toBeNull();
+      expect(graph.doneTasks()).toEqual(new Set([1]));
     } finally {
       cleanup();
     }

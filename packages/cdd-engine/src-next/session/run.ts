@@ -686,15 +686,18 @@ export class Lifecycle {
       },
       frame.type,
     );
-    // The completed-review revision write-back is gated on the round's VERDICT (a
-    // hard-failed review must not bind the current revision — that would silently
-    // close the drift identity the review never judged). The doc line and the wave
-    // line each bind their OWN reviewed revision (T7 doc · T11 wave / D16 / D30): a
-    // completed review binds the CURRENT revision of the reviewed input — read at
-    // bookkeep, the clean-tree dispatch gate keeps the read-only review's input
-    // stable across the round. For a doc line that input is the target doc (the
-    // whole-content doc-revision). For a wave line it is the RENDERED BRIEF —
-    // `#recordReviewedWaveBrief` → `recordReviewedBrief(String(frame.key),
+    // The completed-round revision write-back is gated on the round's VERDICT (a
+    // hard-failed round must not bind the current revision — that would silently
+    // close the drift identity the round never delivered). The completed REVIEW and
+    // the completed FIX both bind: a review binds the revision it judged, a fix binds
+    // the revision it produced — the round that made the document move is the round
+    // that owns the new identity, so a warn-only fix cannot leave the line adrift in
+    // its own delta. The doc line and the wave line each bind their OWN reviewed
+    // revision (T7 doc · T11 wave / D16 / D30): the completed round binds the CURRENT
+    // revision of the reviewed input — read at bookkeep, the clean-tree dispatch gate
+    // keeps the round's input stable across it. For a doc line that input is the
+    // target doc (the whole-content doc-revision). For a wave line it is the RENDERED
+    // BRIEF — `#recordReviewedWaveBrief` → `recordReviewedBrief(String(frame.key),
     // #planPath)` hashes the brief the plan renders to, holding #planPath only as
     // the plan the brief renders FROM (the render-from POINTER, not the hashed
     // identity; the wave gate derives the plan path FROM this record, so
@@ -704,7 +707,7 @@ export class Lifecycle {
     // wave row — null stays backward compatible.
     if (
       record.verdict.targetAction &&
-      (frame.phase === "review" || frame.phase === "branch-review")
+      (frame.phase === "review" || frame.phase === "branch-review" || frame.phase === "fix")
     ) {
       if (frame.target.kind === "plan" || frame.target.kind === "spec")
         this.#recordReviewedDocRevision(frame);
@@ -714,8 +717,8 @@ export class Lifecycle {
     return this.#ledger.roundCount(frame.key, frame.phase, frame.type);
   }
 
-  /** The reviewed-revision write-back — bind the reviewed input's revision to the
-   *  line record (the T7 doc + D30 wave identity gates' reopen-compare basis). The
+  /** The reviewed-revision write-back — bind the completed round's input revision to
+   *  the line record (the T7 doc + D30 wave identity gates' reopen-compare basis). The
    *  doc face binds its target doc's whole-content revision; the wave face binds its
    *  RENDERED BRIEF's revision (D30 — the wave's true judgment input is the brief,
    *  never the whole plan: transcript edits outside the wave's task sections must not
@@ -727,8 +730,9 @@ export class Lifecycle {
   }
 
   /** The wave line's reviewed-brief write-back (D30) — bind the RENDERED brief's
-   *  revision for the wave's tasks to the row (the D30 wave-gate reopen basis). Null
-   *  plan path / underivable brief records nothing (present facts only). */
+   *  revision for the wave's tasks to the row (the D30 wave-gate reopen basis) on a
+   *  completed review or fix round. Null plan path / underivable brief records nothing
+   *  (present facts only). */
   #recordReviewedWaveBrief(frame: OpenFrame): void {
     if (frame.target.kind !== "wave" || this.#planPath === null) return;
     this.#ledger.recordReviewedBrief(String(frame.key), this.#planPath);
@@ -743,7 +747,7 @@ export class Lifecycle {
     this.#recordDocRevisionOf(frame.key, this.#planPath, frame.type);
   }
 
-  /** The doc-revision write-back body — read the reviewed document and bind its
+  /** The doc-revision write-back body — read the round's document and bind its
    *  current revision to the line row (the ONE read + hash + record path the doc and
    *  branch legs share; each passes its own path source). An unreadable input records
    *  nothing — the line keeps the legacy closed face (present facts only). */

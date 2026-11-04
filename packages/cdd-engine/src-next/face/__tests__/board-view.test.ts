@@ -1774,6 +1774,44 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     expect(rows.reason).toBe("  reason:  doc-drift");
   });
 
+  it("(w2) the negative control — a SOFT-CAPPED drifted wave is never rewritten into a review", () => {
+    const { ledger, planFile } = warnReviewedWave();
+    // REVIEW_CYCLE_CAP consecutive blocker reviews each fixed: the wave's fix round
+    // reaches the cap, so `waveLineRoute` defers to the user (null) — the soft-cap face.
+    for (let cycle = 1; cycle <= REVIEW_CYCLE_CAP; cycle += 1) {
+      ledger.recordRound("1", { op: "review", cycle });
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: cycle },
+        {
+          tasks: [1],
+          phase: "review",
+          findings: [{ severity: "blocker", lens: "plan", summary: "s" }],
+        },
+      );
+      ledger.recordRound("1", { op: "fix", cycle });
+      ledger.persistHandoff(
+        "fix",
+        "wave",
+        { tasks: "1", round: cycle },
+        { tasks: [1], phase: "fix", status: "APPROVED" },
+      );
+    }
+    expect(ledger.waveLinePhase("1")).toBeNull(); // the cap holds the line
+    const before = nextReasonRows();
+    // the soft-capped wave face is the frontier with NO active hop — its OWN pipeline
+    // exit station (the branch handoff literal), not a wave review
+    expect(before.next).toBe("review --type branch --plan docs/kairos/plans/prog-p1.md");
+    // the brief drifts AFTER the cap — the injected fact must not rewrite the route
+    driftWaveSection(planFile);
+    const after = nextReasonRows();
+    expect(after.next).toBe(before.next);
+    expect(after.next).not.toContain("--type wave");
+    expect(after.reason).toBe("  reason:  closed-line");
+    expect(ledger.waveLinePhase("1")).toBeNull(); // the board stays on the gate's side
+  });
+
   it("(s1) the board frontier reads drift on the spec line — a drifted reviewed spec halts at its review lead", () => {
     nodeDocs();
     const specFile = path.join(repo, "docs/kairos/specs/prog-p1-design.md");
@@ -1827,42 +1865,50 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     expect(nextOfBoard("prog-p1")).toBe("implement --plan docs/kairos/plans/prog-p1.md --tasks 1");
   });
 
-  it("(w2) the negative control — a SOFT-CAPPED drifted wave is never rewritten into a review", () => {
-    const { ledger, planFile } = warnReviewedWave();
-    // REVIEW_CYCLE_CAP consecutive blocker reviews each fixed: the wave's fix round
-    // reaches the cap, so `waveLineRoute` defers to the user (null) — the soft-cap face.
-    for (let cycle = 1; cycle <= REVIEW_CYCLE_CAP; cycle += 1) {
-      ledger.recordRound("1", { op: "review", cycle });
-      ledger.persistHandoff(
-        "review",
-        "wave",
-        { tasks: "1", round: cycle },
-        {
-          tasks: [1],
-          phase: "review",
-          findings: [{ severity: "blocker", lens: "plan", summary: "s" }],
-        },
-      );
-      ledger.recordRound("1", { op: "fix", cycle });
-      ledger.persistHandoff(
-        "fix",
-        "wave",
-        { tasks: "1", round: cycle },
-        { tasks: [1], phase: "fix", status: "APPROVED" },
-      );
-    }
-    expect(ledger.waveLinePhase("1")).toBeNull(); // the cap holds the line
-    const before = nextReasonRows();
-    // the soft-capped wave face is the frontier with NO active hop — its OWN pipeline
-    // exit station (the branch handoff literal), not a wave review
-    expect(before.next).toBe("review --type branch --plan docs/kairos/plans/prog-p1.md");
-    // the brief drifts AFTER the cap — the injected fact must not rewrite the route
-    driftWaveSection(planFile);
-    const after = nextReasonRows();
-    expect(after.next).toBe(before.next);
-    expect(after.next).not.toContain("--type wave");
-    expect(after.reason).toBe("  reason:  closed-line");
-    expect(ledger.waveLinePhase("1")).toBeNull(); // the board stays on the gate's side
+  // The plan face's OWN drift cell (`lineStateAt("plan", "plan", planPath)`): the same
+  // judgment the spec half reads, on the document the plan line actually bound. When the
+  // frontier relocates into the session plane, this case moves with it — the cell keeps
+  // its pin in the new home.
+  it("(s3) the plan face reads drift on its own identity document — a drifted reviewed plan halts at its review lead", () => {
+    nodeDocs();
+    const specFile = path.join(repo, "docs/kairos/specs/prog-p1-design.md");
+    const planFile = planDoc([[1]]);
+    const ledger = ledgerOf();
+    // Both doc lines close on a clean round and bind the revision each judged — the
+    // key/identity pairs a real run's write-back records (`phase-spec` at its own line,
+    // `plan` at its own line), so the plan cell has a real identity to drift past.
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    ledger.recordReviewedRevision(
+      "phase-spec",
+      ledger.refs().docRevision(specFile, readFileSync(specFile, "utf8")),
+      "phase-spec",
+    );
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+    ledger.recordReviewedRevision(
+      "plan",
+      ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
+      "plan",
+    );
+    // Undrifted: the frontier has walked past both doc faces onto the wave's batch.
+    expect(nextOfBoard("prog-p1")).toBe("implement --plan docs/kairos/plans/prog-p1.md --tasks 1");
+    // One plan revision later the plan face is open — the frontier holds THERE and
+    // names the plan's review lead, never the wave command the engine would reject.
+    writeFileSync(planFile, `${readFileSync(planFile, "utf8")}\n<!-- drift -->\n`, "utf8");
+    const rows = nextReasonRows();
+    expect(rows.next).toBe("review --type plan --plan docs/kairos/plans/prog-p1.md");
+    expect(rows.reason).toBe("  reason:  doc-drift");
+    // The drifted plan's own review lead runs clean: the line rebinds the moved revision
+    // and the frontier advances again — the plan-side half of the regression pin.
+    ledger.persistHandoff("review", "plan", { round: 2 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review", cycle: 2 });
+    ledger.recordReviewedRevision(
+      "plan",
+      ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
+      "plan",
+    );
+    expect(nextOfBoard("prog-p1")).toBe("implement --plan docs/kairos/plans/prog-p1.md --tasks 1");
   });
 
   it("(r2) a hop-less board renders `next: (none)` with no reason row — byte-unchanged", () => {

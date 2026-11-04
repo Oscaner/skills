@@ -48,6 +48,14 @@ const ROSTER: readonly PluginRow[] = PLUGINS.filter((row) => row.tier === "core"
 const sequenceOf = (host: HostId, shape: "install" | "update"): string[][] =>
   ROSTER.flatMap((row) => row[host][shape].map((argv) => [...argv]));
 
+/** The flattened argv of an arbitrary row set — the independent source a tiered
+ *  request is compared against (derived from the roster, never from the run's order). */
+const stepsOf = (
+  rows: readonly PluginRow[],
+  host: HostId,
+  shape: "install" | "update",
+): string[][] => rows.flatMap((row) => row[host][shape].map((argv) => [...argv]));
+
 /** One flatten request — the flag-less face (core rows only) unless a case opts in. */
 const req = (host: HostId, shape: "install" | "update", recommended = false): InitRequest => ({
   host,
@@ -244,12 +252,129 @@ describe("CliInit — the --dry-run preview face", () => {
     const runner = new RecordingRunner();
     const { init } = initFace(runner);
     const lines = init.preview(req("claude", "install", true));
-    const steps = lines.slice(0, -1);
+    // the flag face closes with the summary and the empty-tier info line — the step
+    // lines themselves are the core span, argv-identical to the flag-less plan
+    const steps = lines.filter((line) => line.startsWith("would run: "));
     expect(steps).toHaveLength(6);
     expect(steps).toEqual(
       sequenceOf("claude", "install").map((argv) => `would run: ${argv.join(" ")}`),
     );
     expect(runner.calls).toEqual([]);
+  });
+});
+
+describe("CliInit — the recommended tier on the run face", () => {
+  it("runs the pi recommended plan — nine steps, the core three first, the six recommended rows after", async () => {
+    const runner = new RecordingRunner();
+    const { init, io, headers } = initFace(runner);
+    expect(await init.run(req("pi", "install", true))).toBe(0);
+    expect(runner.calls).toEqual(stepsOf(PLUGINS, "pi", "install"));
+    expect(runner.calls).toHaveLength(9);
+    // the core span is argv-identical to the flag-less plan — only the denominator grows
+    expect(runner.calls.slice(0, 3)).toEqual(sequenceOf("pi", "install"));
+    expect(headers.at(-1)).toBe("init: 9 steps ok (pi · install · 3 core + 6 recommended)");
+    // r > 0 — the empty-tier info line is the r === 0 face only
+    expect(headers).not.toContain("init: no recommended packages for pi");
+    expect(io.stderrText).toBe("");
+  });
+
+  it("the claude recommended plan adds zero steps and reports the empty tier after the summary", async () => {
+    const runner = new RecordingRunner();
+    const { init, io, headers } = initFace(runner);
+    expect(await init.run(req("claude", "install", true))).toBe(0);
+    expect(runner.calls).toEqual(sequenceOf("claude", "install"));
+    expect(headers.slice(-2)).toEqual([
+      "init: 6 steps ok (claude · install · 6 core + 0 recommended)",
+      "init: no recommended packages for claude",
+    ]);
+    expect(io.stderrText).toBe("");
+  });
+});
+
+describe("CliInit — the recommended tier on the preview face", () => {
+  it("the pi recommended preview carries ten lines — nine steps, the tier split in the summary", () => {
+    const runner = new RecordingRunner();
+    const { init } = initFace(runner);
+    const lines = init.preview(req("pi", "install", true));
+    expect(lines).toHaveLength(10);
+    expect(lines.slice(0, -1)).toEqual(
+      stepsOf(PLUGINS, "pi", "install").map((argv) => `would run: ${argv.join(" ")}`),
+    );
+    expect(lines.at(-1)).toBe(
+      "init: 9 steps (pi · install · 3 core + 6 recommended) — dry run, nothing executed",
+    );
+    expect(lines).not.toContain("init: no recommended packages for pi");
+    expect(runner.calls).toEqual([]);
+  });
+
+  it("the claude recommended preview states the empty tier after the summary — the run face's order", () => {
+    const runner = new RecordingRunner();
+    const { init } = initFace(runner);
+    const lines = init.preview(req("claude", "install", true));
+    expect(lines).toHaveLength(8);
+    expect(lines.slice(-2)).toEqual([
+      "init: 6 steps (claude · install · 6 core + 0 recommended) — dry run, nothing executed",
+      "init: no recommended packages for claude",
+    ]);
+    expect(runner.calls).toEqual([]);
+  });
+
+  it("the update shape previews the update column on both harnesses — zero install argv", () => {
+    const runner = new RecordingRunner();
+    const { init } = initFace(runner);
+    const piLines = init.preview(req("pi", "update", true));
+    // the update column is the independent source — never reverse-derived from install
+    const piSteps = piLines.filter((line) => line.startsWith("would run: "));
+    expect(piSteps).toEqual(
+      stepsOf(PLUGINS, "pi", "update").map((argv) => `would run: ${argv.join(" ")}`),
+    );
+    expect(piLines).toHaveLength(10);
+    const installs = new Set(stepsOf(PLUGINS, "pi", "install").map((argv) => argv.join(" ")));
+    for (const line of piSteps) {
+      expect(installs.has(line.replace("would run: ", ""))).toBe(false);
+    }
+    const claudeLines = init.preview(req("claude", "update", true));
+    const claudeSteps = claudeLines.filter((line) => line.startsWith("would run: "));
+    expect(claudeSteps).toEqual(
+      stepsOf(PLUGINS, "claude", "update").map((argv) => `would run: ${argv.join(" ")}`),
+    );
+    expect(claudeLines.slice(-2)).toEqual([
+      "init: 6 steps (claude · update · 6 core + 0 recommended) — dry run, nothing executed",
+      "init: no recommended packages for claude",
+    ]);
+    expect(runner.calls).toEqual([]);
+  });
+});
+
+describe("CliInit — the recommended-tier failure face", () => {
+  it("the install form names the package as recommended — core already installed, zero update hint", async () => {
+    const runner = new RecordingRunner([0, 0, 0, 9]);
+    const { init, io } = initFace(runner);
+    expect(await init.run(req("pi", "install", true))).toBe(1);
+    // the first recommended step failed — the fifth never ran
+    expect(runner.calls).toHaveLength(4);
+    expect(io.stderrText).toBe(
+      "init[4/9] · pi install npm:@ff-labs/pi-fff · exit 9\n" +
+        "init: pi-fff is a recommended package — the core plugin set is already installed\n",
+    );
+  });
+
+  it("the update form appends the recommended line before the unchanged not-installed hint", async () => {
+    const runner = new RecordingRunner([0, 0, 0, 9]);
+    const { init, io } = initFace(runner);
+    expect(await init.run(req("pi", "update", true))).toBe(1);
+    expect(io.stderrText).toBe(
+      "init[4/9] · pi update npm:@ff-labs/pi-fff · exit 9\n" +
+        "init: pi-fff is a recommended package — run cdd init --harness=pi --include-recommends without --update first\n" +
+        "if the package is not installed, run cdd init --harness=pi without --update first\n",
+    );
+  });
+
+  it("a core-tier failure under the flag carries zero recommended line — the tier is the step's own fact", async () => {
+    const runner = new RecordingRunner([9]);
+    const { init, io } = initFace(runner);
+    expect(await init.run(req("pi", "install", true))).toBe(1);
+    expect(io.stderrText).toBe("init[1/9] · pi install git:github.com/obra/superpowers · exit 9\n");
   });
 });
 

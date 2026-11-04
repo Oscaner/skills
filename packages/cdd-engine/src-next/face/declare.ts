@@ -100,6 +100,11 @@ export const ARGV_CHANNEL = {
     type: "bool",
     help: "update the installed plugin set instead of installing it",
   },
+  includeRecommends: {
+    flag: "--include-recommends",
+    type: "bool",
+    help: "also install/update the recommended pi capability packages",
+  },
   dryRun: {
     flag: "--dry-run",
     type: "bool",
@@ -320,7 +325,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     name: "init",
     description: "install or update the kairos plugin set for a harness",
     example: "cdd init --harness=claude",
-    keys: [{ key: "harness", required: true }, { key: "update" }],
+    keys: [{ key: "harness", required: true }, { key: "update" }, { key: "includeRecommends" }],
   },
 ];
 

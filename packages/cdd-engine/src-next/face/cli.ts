@@ -179,6 +179,9 @@ export interface RunInput {
   harness?: HostId;
   /** The `cdd init` update form — the parsed `--update` boolean. */
   update?: boolean;
+  /** The `cdd init` recommended-tier flag — the parsed `--include-recommends`
+   *  boolean (the tier is opt-in, so an absent flag is the core-only face). */
+  includeRecommends?: boolean;
 }
 
 /**
@@ -393,13 +396,14 @@ export class Cli {
       // stays here rather than sinking into CliInit).
       if (parsed.harness === undefined) this.#usage(command, "cdd init: missing --harness");
       const update = parsed.update ?? false;
-      // The flatten request — the ONE shape `preview` and `run` both read. The
-      // recommended tier is not yet reachable from the flag face, so this path
-      // flattens the core rows only (the P20 byte face, unchanged).
+      // The recommended tier is its own parsed boolean — an absent flag means the
+      // core-only face, never a derived default.
+      const recommended = parsed.includeRecommends ?? false;
+      // The flatten request — the ONE shape `preview` and `run` both read.
       const request: InitRequest = {
         host: parsed.harness,
         shape: update ? "update" : "install",
-        recommended: false,
+        recommended,
       };
       if (dryRun) {
         for (const line of this.#init.preview(request)) this.#initHeader(line);
@@ -532,6 +536,7 @@ export class Cli {
       // boolean, never a truthy string.
       harness: HOST_IDS.find((id) => id === harnessToken),
       update: globals.update === true,
+      includeRecommends: globals.includeRecommends === true,
     };
   }
 

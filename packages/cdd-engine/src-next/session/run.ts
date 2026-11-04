@@ -849,6 +849,9 @@ export class Lifecycle {
       // The wave closure's NEXT-line fact (P21 §4.2) rides the derivation's input
       // face — the retired render-side patch parameter is gone, the fact is not.
       nextLineOpen: frame.type === "wave" ? this.#branchLineOpen() : undefined,
+      // The wave line's OWN drift fact (D30): the reason cell's second source. Only
+      // the wave face injects it — every doc line reads its gate verdict instead.
+      briefDrift: frame.type === "wave" ? this.#ledger.briefDrifted(String(frame.key)) : undefined,
       docClassOf: (candidate) => this.#docClassOf(candidate),
     });
   }

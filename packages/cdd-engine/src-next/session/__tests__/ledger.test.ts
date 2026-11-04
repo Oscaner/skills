@@ -1375,3 +1375,75 @@ describe("lineClosed — the single line-closure judge (the board + closedWaves 
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// P24 T3 — `briefDrifted` is the ONE public read of the wave line's D30 drift
+// (`waveLineRoute`'s D30 leg and the next-hop reason cell both read it).
+// ---------------------------------------------------------------------------
+
+describe("P24 T3 — briefDrifted, the wave line's ONE drift read", () => {
+  /** A minimal plan body over one task block (the brief renderer's input). */
+  const planText = (extra: readonly string[] = []): string =>
+    [
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "slug: x-p3",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      "### Task 1: task 1",
+      "- **DependsOn**: none",
+      ...extra,
+    ].join("\n");
+
+  it("is false with no reviewed brief on record — present facts only", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const planPath = path.join(workspace.path, "plan.md");
+      mkdirSync(path.dirname(planPath), { recursive: true });
+      writeFileSync(planPath, planText(), "utf8");
+      expect(ledger.briefDrifted("1")).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("is true when the wave's OWN section moves, false for an OUTSIDE-wave edit", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const planPath = path.join(workspace.path, "plan.md");
+      mkdirSync(path.dirname(planPath), { recursive: true });
+      writeFileSync(planPath, planText(), "utf8");
+      ledger.recordReviewedBrief("1", planPath);
+      expect(ledger.briefDrifted("1")).toBe(false);
+      // an append-only backfill ADDS a sibling task — wave {1}'s brief is byte-identical
+      writeFileSync(planPath, `${planText()}\n### Task 2: task 2\n- **DependsOn**: 1\n`, "utf8");
+      expect(ledger.briefDrifted("1")).toBe(false);
+      // the wave's OWN section moves — the reviewed brief drifts
+      writeFileSync(planPath, planText(["  - extra step — checkable: green"]), "utf8");
+      expect(ledger.briefDrifted("1")).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("is false when the plan is unreadable — an absent fact never invents a drift", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const planPath = path.join(workspace.path, "plan.md");
+      mkdirSync(path.dirname(planPath), { recursive: true });
+      writeFileSync(planPath, planText(), "utf8");
+      ledger.recordReviewedBrief("1", planPath);
+      rmSync(planPath);
+      expect(ledger.briefDrifted("1")).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+});

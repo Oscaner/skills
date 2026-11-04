@@ -859,7 +859,10 @@ export class BoardNext {
   /** The derivation's input face — the walked route + target, the ledger's own
    *  round facts and the declaration-reading station discrimination. The
    *  `verdict → face` assembly lives in the ONE derivation (`Ledger#nextHopOf`), so
-   *  this face fills facts only. */
+   *  this face fills facts only. The wave frontier's OWN drift fact (D30) rides the
+   *  same input object as one more cell — the derivation reads it for the reason row
+   *  only, so the walked route (a `handoff` on the soft-capped / unreadable face) is
+   *  never rewritten here. */
   static #hopOf(facts: BoardPipelineFacts, root: RepoRoot): NextHop {
     const next = BoardNext.#pipeline(facts.report);
     const target = next.target;
@@ -869,6 +872,12 @@ export class BoardNext {
       route: next.route,
       target,
       doc: target === null ? null : target.type === "branch" ? (target.plan ?? null) : target.id,
+      // The wave half is gated on the target TYPE: off the wave face `target.id` is a
+      // document path, never a wave key (`facts.report.wave.active` may be non-null
+      // while the frontier sits on another face). No further gate — the derivation
+      // keeps the two drift values apart, so this cell can only reach a `reason:` row.
+      briefDrift:
+        target?.type === "wave" ? facts.ledger.briefDrifted(String(target.id)) : undefined,
       docClassOf: (candidate) => BoardView.docClassOf(root, candidate),
     });
   }

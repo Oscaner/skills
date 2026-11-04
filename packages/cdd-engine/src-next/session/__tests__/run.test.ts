@@ -20,6 +20,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PlanDocType } from "../../contract/doc.ts";
 import { Capsule } from "../../face/capsule.ts";
+import { RouteRenderer } from "../../face/route-render.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
@@ -1512,6 +1513,66 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
       writeFileSync(planPath, planDoc([task(1, "none"), task(2, "1"), task(3, "1,2")]));
       const kept = await run.advance();
       expect(kept!.frame.phase).toBe("fix");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("P24 T3 — a drifted wave reaches the next-hop reason", () => {
+  /** The drifted fix-pending wave: implement → a warn review (the brief binds) → the
+   *  wave's OWN plan section moves, with no fix on record. The frontier reopens at
+   *  review (D30) — the state whose `reason:` cell this task fills. */
+  const driftedWave = async (): Promise<{
+    ledger: Ledger;
+    run: Lifecycle;
+    cleanup: () => void;
+  }> => {
+    const { ledger, repo, cleanup } = fixture();
+    const planPath = path.join(repo, "plan.md");
+    writeFileSync(planPath, planDoc([task(1, "none")]));
+    const run = new Lifecycle({
+      face: targetFaces.wave,
+      state: taskGraph([task(1, "none")]),
+      ledger,
+      dispatch: stub((frame) =>
+        frame.phase === "implement"
+          ? APPROVED_IMPLEMENT
+          : { status: "APPROVED", findings: [finding("warn")] },
+      ).step,
+      planPath,
+    });
+    await run.advance(); // implement
+    await run.advance(); // review — the brief binds; the warn awaits its fix
+    // the wave's OWN section moves mid-flight — the recorded brief now drifts
+    writeFileSync(planPath, planDoc([task(1, "none"), ["  - extra step — checkable: green"]]));
+    return { ledger, run, cleanup };
+  };
+
+  it("the frontier's hop names `doc-drift` and the reason row renders it", async () => {
+    const { run, cleanup } = await driftedWave();
+    try {
+      const peeked = run.peekNext();
+      expect(peeked).not.toBeNull();
+      expect(peeked!.frame.phase).toBe("review"); // the wave line reopens at review (D30)
+      expect(peeked!.hop.hop).toBe("review");
+      expect(peeked!.hop.reason).toBe("doc-drift");
+      expect(new RouteRenderer(new Words()).renderReason(peeked!.hop)).toBe("reason: doc-drift");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the capsule never promises the wave brief drift — its frame sits AFTER the re-bind", async () => {
+    const { ledger, run, cleanup } = await driftedWave();
+    try {
+      run.attachCapsule(new Capsule(new Words()));
+      // the review runs ON the drifted brief, then re-binds the brief it judged
+      const step = await run.advance();
+      expect(step!.frame.phase).toBe("review");
+      expect(step!.capsuleLines.some((line) => line.includes("doc-drift"))).toBe(false);
+      expect(ledger.briefDrifted("1")).toBe(false);
+      expect(run.peekNext()!.hop.reason).not.toBe("doc-drift");
     } finally {
       cleanup();
     }

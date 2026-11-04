@@ -26,7 +26,7 @@ import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { type RouteTarget, targetFaces } from "../../session/faces.ts";
 import type { InFlightRecord } from "../../session/inflight.ts";
 import { Ledger, type RoundRecord } from "../../session/ledger.ts";
-import { type NextHop, NextStepRouter, type Route } from "../../session/next.ts";
+import { type NextHop, NextStepRouter, REVIEW_CYCLE_CAP, type Route } from "../../session/next.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
 import { BoardNext, BoardView } from "../board-view.ts";
 import { Capsule } from "../capsule.ts";
@@ -1707,6 +1707,109 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const tokenOf = (line: string): string => line.trim().replace(/^reason:\s+/, "");
     expect(tokenOf(boardReason)).toBe(tokenOf(capsuleReason));
     expect(tokenOf(boardReason)).toBe(hop!.reason);
+  });
+
+  /** The spec + plan lines closed on a clean round and wave {1} implemented + reviewed
+   *  with a WARN — the wave's finding awaits its fix and its brief is bound. */
+  const warnReviewedWave = (): { ledger: Ledger; planFile: string } => {
+    nodeDocs();
+    const planFile = planDoc([[1]]);
+    const ledger = ledgerOf();
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+    ledger.recordRound("1", { op: "implement" });
+    ledger.recordRound("1", { op: "review" });
+    ledger.persistHandoff(
+      "review",
+      "wave",
+      { tasks: "1", round: 1 },
+      { tasks: [1], phase: "review", findings: [{ severity: "warn", lens: "plan", summary: "w" }] },
+    );
+    ledger.recordReviewedBrief("1", planFile);
+    return { ledger, planFile };
+  };
+
+  /** One plan revision INSIDE the wave's own section — the reviewed brief moves. */
+  const driftWaveSection = (planFile: string): void => {
+    const moved = `${readFileSync(planFile, "utf8").trimEnd()}\n  - extra step — checkable: green\n`;
+    writeFileSync(planFile, moved, "utf8");
+  };
+
+  /** The board's `next:` / `reason:` row pair, in layout order. */
+  const nextReasonRows = (): { next: string; reason: string | undefined } => {
+    const index = SlugIndex.build(repo);
+    const entry = entryOf("prog-p1");
+    const lines = BoardView.render(
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      undefined,
+      BoardNext.of(index, entry, new RepoRoot(repo)),
+    ).lines;
+    const nextAt = lines.findIndex((row) => row.startsWith("  next:    "));
+    return {
+      next: lines[nextAt]!.slice("  next:    ".length),
+      reason: lines[nextAt + 1],
+    };
+  };
+
+  it("(w1) a drifted fix-pending WAVE renders the review lead with `reason: doc-drift`", () => {
+    const { planFile } = warnReviewedWave();
+    driftWaveSection(planFile);
+    const index = SlugIndex.build(repo);
+    const entry = entryOf("prog-p1");
+    const hop = BoardNext.of(index, entry, new RepoRoot(repo));
+    expect(hop).not.toBeNull();
+    expect(hop!.hop).toBe("review");
+    expect(hop!.reason).toBe("doc-drift");
+    const rows = nextReasonRows();
+    // the dispatchable row is still the executable review literal — `reason:` is the
+    // DIAGNOSTIC row of its own (never a suffix on `next:`)
+    expect(rows.next).toMatch(/^review --type wave --tasks 1 --plan /);
+    expect(rows.reason).toBe("  reason:  doc-drift");
+  });
+
+  it("(w2) the negative control — a SOFT-CAPPED drifted wave is never rewritten into a review", () => {
+    const { ledger, planFile } = warnReviewedWave();
+    // REVIEW_CYCLE_CAP consecutive blocker reviews each fixed: the wave's fix round
+    // reaches the cap, so `waveLineRoute` defers to the user (null) — the soft-cap face.
+    for (let cycle = 1; cycle <= REVIEW_CYCLE_CAP; cycle += 1) {
+      ledger.recordRound("1", { op: "review", cycle });
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: cycle },
+        {
+          tasks: [1],
+          phase: "review",
+          findings: [{ severity: "blocker", lens: "plan", summary: "s" }],
+        },
+      );
+      ledger.recordRound("1", { op: "fix", cycle });
+      ledger.persistHandoff(
+        "fix",
+        "wave",
+        { tasks: "1", round: cycle },
+        { tasks: [1], phase: "fix", status: "APPROVED" },
+      );
+    }
+    expect(ledger.waveLinePhase("1")).toBeNull(); // the cap holds the line
+    const before = nextReasonRows();
+    // the soft-capped wave face is the frontier with NO active hop — its OWN pipeline
+    // exit station (the branch handoff literal), not a wave review
+    expect(before.next).toBe("review --type branch --plan docs/kairos/plans/prog-p1.md");
+    // the brief drifts AFTER the cap — the injected fact must not rewrite the route
+    driftWaveSection(planFile);
+    const after = nextReasonRows();
+    expect(after.next).toBe(before.next);
+    expect(after.next).not.toContain("--type wave");
+    expect(after.reason).toBe("  reason:  closed-line");
+    expect(ledger.waveLinePhase("1")).toBeNull(); // the board stays on the gate's side
   });
 
   it("(r2) a hop-less board renders `next: (none)` with no reason row — byte-unchanged", () => {

@@ -208,8 +208,10 @@ export interface NextHop {
 export interface NextHopInput {
   /** The line's render target (null = the face was never entered / a bare terminal). */
   readonly target: RouteTarget | null;
-  /** The drift-aware gate's verdict on the line (`drift` = the doc moved past its
-   *  reviewed revision, so the closed line reopens). */
+  /** The drift-aware gate's verdict on the line (`drift` = the line's own recorded
+   *  reviewed identity moved — a doc line's revision, or a wave line's brief revision —
+   *  so the closed line reopens). Only the DOC lines' exit-side routes are SUBSTITUTED
+   *  by it; on the wave line it names the reason alone, the route staying the caller's. */
   readonly gate: { readonly drift: boolean };
   /** The count table's route for the line (null = the failure face). */
   readonly route: Route | null;
@@ -390,7 +392,8 @@ export class NextStepRouter {
   }
 
   /** The named fact behind the hop — one `NEXT_HOP_REASON` row, in this order: the
-   *  soft cap · a pending fix · a drift-reopened line · an open line advancing · an
+   *  soft cap · a pending fix · a drift-reopened line (its reviewed identity moved —
+   *  a doc revision or a wave's brief revision) · an open line advancing · an
    *  unjudgeable doc class · a closed face · the closed line's handoff. Drift never
    *  outranks a pending fix (an unclosed line's blocker keeps the fix hop). */
   #reasonOf(input: NextHopInput, route: Route | null, verdict: DocClassVerdict): string {

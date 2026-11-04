@@ -1774,6 +1774,59 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     expect(rows.reason).toBe("  reason:  doc-drift");
   });
 
+  it("(s1) the board frontier reads drift on the spec line — a drifted reviewed spec halts at its review lead", () => {
+    nodeDocs();
+    const specFile = path.join(repo, "docs/kairos/specs/prog-p1-design.md");
+    planDoc([[1]]);
+    const ledger = ledgerOf();
+    // The spec line closes on a clean round and binds the revision it judged (the
+    // identity a real run's write-back records); the plan line closes the same way.
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    ledger.recordReviewedRevision(
+      "phase-spec",
+      ledger.refs().docRevision(specFile, readFileSync(specFile, "utf8")),
+      "phase-spec",
+    );
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+    // Undrifted: the frontier has walked past the doc faces onto the wave's ready batch.
+    expect(nextOfBoard("prog-p1")).toBe("implement --plan docs/kairos/plans/prog-p1.md --tasks 1");
+    // One spec revision later the SAME face is open — the frontier holds on the spec
+    // face and names its review lead, never the wave command the engine would reject.
+    writeFileSync(specFile, `${readFileSync(specFile, "utf8")}\n<!-- drift -->\n`, "utf8");
+    const rows = nextReasonRows();
+    expect(rows.next).toBe("review --type phase-spec --spec docs/kairos/specs/prog-p1-design.md");
+    expect(rows.reason).toBe("  reason:  doc-drift");
+  });
+
+  it("(s2) the twin stays green — a clean re-review closes the spec face and the frontier advances", () => {
+    nodeDocs();
+    const specFile = path.join(repo, "docs/kairos/specs/prog-p1-design.md");
+    planDoc([[1]]);
+    const ledger = ledgerOf();
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    ledger.recordReviewedRevision(
+      "phase-spec",
+      ledger.refs().docRevision(specFile, readFileSync(specFile, "utf8")),
+      "phase-spec",
+    );
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+    writeFileSync(specFile, `${readFileSync(specFile, "utf8")}\n<!-- drift -->\n`, "utf8");
+    // The drifted spec's own review lead runs clean: the line rebinds the moved
+    // revision and the frontier walks on to the plan's wave shape (the regression pin).
+    ledger.persistHandoff("review", "phase-spec", { round: 2 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review", cycle: 2 });
+    ledger.recordReviewedRevision(
+      "phase-spec",
+      ledger.refs().docRevision(specFile, readFileSync(specFile, "utf8")),
+      "phase-spec",
+    );
+    expect(nextOfBoard("prog-p1")).toBe("implement --plan docs/kairos/plans/prog-p1.md --tasks 1");
+  });
+
   it("(w2) the negative control — a SOFT-CAPPED drifted wave is never rewritten into a review", () => {
     const { ledger, planFile } = warnReviewedWave();
     // REVIEW_CYCLE_CAP consecutive blocker reviews each fixed: the wave's fix round

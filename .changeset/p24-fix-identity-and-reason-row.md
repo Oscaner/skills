@@ -28,3 +28,10 @@ could only say `task-open` in that state now names the movement, on `cdd board -
 <path>` and in the `peekNext` directive alike. The wave still derives its hop from a single
 `nextHopOf` call — the brief-drift fact is one conditional field on that input object,
 never a second route, and it never moves the wave's station.
+
+The board's pipeline frontier reads drift on the spec and plan lines too: a spec (or plan)
+whose content moved after a clean review no longer counts as a closed face, so the frontier
+holds on that document's face and renders its review lead with `reason: doc-drift` instead
+of walking on to the next command (the wave's `implement --plan … --tasks …`, which the
+dispatch would reject). Once that re-review closes, the frontier advances again. An absent
+spec or plan is judged exactly as before.

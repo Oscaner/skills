@@ -721,12 +721,17 @@ export class BoardView {
       // The report KEY is the pipeline POSITION (the first face — `PIPELINE_FACES`);
       // the line's type/key/target cells are the declaration the document carries.
       "phase-spec": {
-        closed: ledger.lineClosed(specType, specType),
+        // The identity face's closure is judged AT its identity document: a spec
+        // revision past the one the clean review bound reopens the face, so the
+        // frontier holds here (the SAME drift-aware judge the branch face reads)
+        // instead of walking on to a plan command the dispatch would reject.
+        closed: ledger.lineStateAt(specType, specType, specPath) === "closed",
         active: specPath === null ? null : ledger.lineRoute(specType, specType),
         target: specPath === null ? null : { type: specType, id: specPath },
       },
       plan: {
-        closed: ledger.lineClosed("plan", "plan"),
+        // The plan line's identity document IS the plan itself — the same read.
+        closed: ledger.lineStateAt("plan", "plan", planPath) === "closed",
         active: planPath === null ? null : ledger.lineRoute("plan", "plan"),
         target: planPath === null ? null : { type: "plan", id: planPath, plan: planPath },
       },

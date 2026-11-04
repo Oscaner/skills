@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 计划：NEXT-LOOP 收口面（基线随轮推进 + hop 原因可读）
 doc-type: plan
-version: v0.12
+version: v0.13
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p24
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（v0.16）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（v0.17）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。
 - **单点判据**：drift 的「记了什么 identity」只有一个写入点（`Ledger#recordReviewedRevision`，wave 经 `recordReviewedBrief`），读取面按既有事实分两条（doc/branch 走 `docReopens`、wave 走 `waveLineRoute` 的 D30 腿）。不得为任何一面新开第二个 drift 判定或第二个写入点。
 - **只推进完成的轮**：`targetAction` 为假的轮（BLOCKED / TIMEOUT）一律不推进基线；读不到输入（文档 / plan 不可读）时什么都不记录，保留旧基线。
 - **`next:` 字节零变**：`next:` 行仍是可执行字面，整行抄进 shell 必须能跑。诊断信息只落**另一行**（`reason:`）。字面上不得出现 `—`/`#`/任何后缀。
@@ -387,6 +387,53 @@ none
 
 1, 2, 3, 4
 
+### Task 6: pipeline frontier 归 session 平面（§10）
+
+#### Objective
+
+把「哪条线在下」的判定从板面搬到 session 平面：新增 `PipelineFrontier` 承担选面（逐面只读该线自己的 `lineStateAt` / `lineRoute` / `waveLineRoute`），板面退化为纯渲染。落地后**板面的 `next:` 恒等于 frontier 那条线自己的 `peekNext()`**。
+
+#### Files
+
+- Create: `packages/cdd-engine/src-next/session/pipeline.ts`（`PipelineFrontier`）
+- Modify: `packages/cdd-engine/src-next/face/board-view.ts`（删 `pipelineFacts` 的逐面 `closed` / `active`、`#waveFrontierKey`、`#pipeline`、`#exitRoute`、`#lastEnteredIndex`；`BoardNext.#hopOf` 改调 `PipelineFrontier`）
+- Test: `packages/cdd-engine/src-next/session/__tests__/pipeline.test.ts`（新增：parity + 面序规则）
+- Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（既有断言**零改动**即证零字节）
+
+#### Consumes
+
+- `Ledger#lineStateAt(key, type, doc)` · `lineRoute(key, type)` · `waveLineRoute(waveKey)` · `lineClosed(key, type)`（既有）
+- `PIPELINE_FACES` / `PIPELINE_NEXT`（`session/faces.ts`，既有）
+- `NextStepRouter.handoff(face)`（既有）
+
+#### Produces
+
+- `PipelineFrontier.next(ledger, input: { specType: TargetType | null; specPath: string | null; planPath: string | null }): { face: PipelineEntry; route: Route; target: RouteTarget | null }` —— 板面与 parity 断言共用。
+
+#### Steps
+
+- [ ] **Step 1: 写 parity 必红测试** — checkable: 构造「spec 已收口 → 轮外改 spec（drift）→ plan 存在且波形有活动 hop」，断言板面 `next:` **等于**该 spec 线 `peekNext()` 的渲染值；今日 FAIL
+- [ ] **Step 2: 搬面序规则** — checkable: 四条面序 + `#exitRoute` + `#lastEnteredIndex` 从 `board-view.ts` 移到 `session/pipeline.ts`，逐条保持语义（frontier 取第一个未闭合面；有 active hop 渲该 hop；未进入则取前一已进入面的 exit；全闭合取最后一个已进入面的 exit）
+- [ ] **Step 3: 每面只读该线自己的判定** — checkable: `phase-spec` / `plan` / `branch` 用 `lineStateAt(...) === "closed"` + `lineRoute(...)`；`wave` 用 ready batch（不得自走）+ `waveLineRoute(...)`；`session/pipeline.ts` 内**零**第二份 drift 或闭合判定
+- [ ] **Step 4: 板面退化** — checkable: `board-view.ts` 里 `#pipeline` / `#exitRoute` / `#lastEnteredIndex` / `#waveFrontierKey` / `pipelineFacts` 的 `closed`·`active` 单元格全部不存在（`grep` 为空）；`BoardNext.#hopOf` 直接吃 `PipelineFrontier.next(...)` 的 `{ route, target }`
+- [ ] **Step 5: 零字节回归** — checkable: `board-view.test.ts` / `cli.test.ts` 既有断言**一行不改**仍全绿（`next:` / `reason:` 字节零变）
+- [ ] **Step 6: parity 转绿 + 面序用例** — checkable: Step 1 的断言绿；`pipeline.test.ts` 补四条面序规则各一例（frontier-active / frontier-no-active / not-entered / all-closed）
+- [ ] **Step 7: 跑套件 + 提交** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next` 全绿；`pnpm run precommit` 绿；`git commit -m "refactor(cdd-engine): the pipeline frontier moves into the session plane"`
+- [ ] **Step 8: 本波验收** — checkable: `env -u AI_AGENT pnpm run validate` 退出码 0
+
+#### Acceptance
+
+- 板面 `next:` == frontier 线的 `peekNext()` 渲染值（parity，改动前必红）。
+- `face/board-view.ts` 内不再存在 frontier 判定代码（`#pipeline` / `#exitRoute` / `#lastEnteredIndex` / `#waveFrontierKey` / 逐面 `closed`·`active` 全无）。
+- 既有 `next:` / `reason:` 字节零变（既有断言零改动即证）。
+- 四条面序规则各有 `pipeline.test.ts` 用例。
+- C5 决策表、drift 判据、pending-fix、写回、派发动词、round 记账零改动（不做越序拒绝）。
+- `env -u AI_AGENT pnpm run validate` 退出码 0。
+
+#### DependsOn
+
+5
+
 ## Change history
 
 | Version | date | summary | author |
@@ -403,3 +450,4 @@ none
 | v0.10 | 2026-11-04 | 任务 1,2 实现轮第 1 轮 fix（内容面，结构面未动）：Task 2 的 reason 面按实际代码校正——① `renderReason` 由 `(hop: NextHop \| null): string \| null` 改为 `(hop: NextHop): string`（`renderHop` 只对 null hop 返回 null，故内部 null 分支永不可达；hop 的缺席由胶囊的 `hopValue !== null` 门一次判定） ② 板面 `reasonLine(hop, renderer)` 改为 `reasonLine(hop)`，值直取 `hop.reason`（`renderReason` 的值自带站表前缀，板面取来只能弃用）；原写法里「渲不出就退化成 `(none)`」的分支因此不可达，docstring 一并改正——absent hop 的行本来就没有 `reason:` 行 ③ Files / Produces / Step 4 片段 / Step 5 / Step 6 末句同笔同步；范围锁的 spec 版本随 spec v0.15 | Task 2 Files/Produces/Steps + 范围锁 + Change history v0.10 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 1 轮 fix · 2026-11-04） |
 | v0.11 | 2026-11-04 | **§6 验收演示留证 + 一处计划笔误**：① 修复前有 **4 次实案**（spec fix 6 / plan fix 4 / spec fix 7 / plan fix 5，均为「review 零 blocker → fix 改完 → `next:` 仍印 `review`」，靠人工推进基线才闭合）；**修复后的第一次自证是 W1**——review 1 零 blocker（1 warn + 4 nit）→ fix 1 修完 5 条 → `next: implement --tasks 3` / `reason: task-open`，**无人工干预即收口**。② Task 4 Step 6 的提交类型 `docs+release:` 不在仓库词表（feat/fix/docs/chore/test）内，已改为 `docs:`（该提交已在历史中，不改写历史，只在计划里订正） | Task 4 Step 6 + Change history v0.10 | Oscaner M. · Claude（kairos:cdd-dev · W3 裁定回填 · 2026-11-04） |
 | v0.12 | 2026-11-04 | **W3 评审第 2 轮 fix（内容面，结构面未动）**：① Task 4 Files 的 `Create: .changeset/p24-nextloop-closeout.md` 改为 `Modify: .changeset/p24-fix-identity-and-reason-row.md`——本相位只落**一份**发布条目 ② Task 4 Step 4 由「写 `p24-nextloop-closeout.md`」改写为「写 `p24-fix-identity-and-reason-row.md`」，写明三件真事的口径，并禁止再开第二条、禁止声称 wave 的写回修好了既有收口缺陷 ③ 范围锁的 spec 版本随 spec v0.16 | Task 4 Files/Step 4 + 范围锁 + Change history v0.12 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 2 轮 fix · 2026-11-04） |
+| v0.13 | 2026-11-04 | **范围追加（用户裁定 · 对齐 spec v0.17 §10）**：新增 **Task 6**「pipeline frontier 归 session 平面」——新增 `session/pipeline.ts` 的 `PipelineFrontier`，板面删除 `#pipeline` / `#exitRoute` / `#lastEnteredIndex` / `#waveFrontierKey` / 逐面 `closed`·`active` 并改为纯渲染；必红验收是 parity（板面 `next:` == frontier 线 `peekNext()`） + 零字节回归 + 四条面序用例；`DependsOn: 5` ⇒ 新波 W5；明确不做越序拒绝 | Task 6 + 范围锁 + Change history v0.13 | Oscaner M. · Claude（kairos:cdd-dev · 范围追加 · 2026-11-04） |

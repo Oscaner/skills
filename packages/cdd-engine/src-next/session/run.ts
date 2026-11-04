@@ -236,7 +236,7 @@ export interface DispatchOutcome {
   /** The fix round's ONE summary line (`fixed N · rejected M`, design spec §3.4) —
    *  computed at the round's finish from the persisted dispositions and the
    *  requesting carrier's input set. A face fact only: it rides the capsule render
-   *  between the status line and the trailing `next:` literal (P22 §10), and is
+   *  between the status line and the `next:` row (P22 §10), and is
    *  never stored on the record or the carrier. Absent off the fix face. */
   dispositionsSummary?: string;
 }
@@ -256,10 +256,11 @@ export interface CapsuleFace {
    *  (`status · handoff` on success; `status` plus the crash `handoff` on
    *  TIMEOUT/BLOCKED) via the face's word table. `hop` is the ONE `NextHop` object the
    *  round renders (P22 §5.2) — its ABSENCE (`null`: the failure face) prints no
-   *  `next:` line; the capsule itself judges nothing. `withHandoff` is the round's
-   *  crash-record fact (the failure handoff cell). `summary` is the fix round's ONE
-   *  disposition line, rendered between the status line and the trailing `next:`
-   *  literal (P22 §10 — `next:` closes the output). */
+   *  `next:` row and no `reason:` row; the capsule itself judges nothing. `withHandoff`
+   *  is the round's crash-record fact (the failure handoff cell). `summary` is the fix
+   *  round's ONE disposition line, rendered between the status line and the `next:`
+   *  row (P22 §10 — the dispatchable literal keeps its bytes, the reason rides the
+   *  line after it). */
   emit(
     status: string,
     handoff: string,
@@ -877,7 +878,7 @@ export class Lifecycle {
    *  round (TIMEOUT / BLOCKED) carries the crash record as its handoff cell, emitted
    *  only when that record exists (a no-host BLOCKED writes none). The fix round's
    *  disposition summary is handed to the capsule as its `summary` — the render places
-   *  it between the status line and the trailing `next:` literal (P22 §10). */
+   *  it between the status line and the `next:` row (P22 §10). */
   #capsuleLines(
     frame: OpenFrame,
     outcome: DispatchOutcome,

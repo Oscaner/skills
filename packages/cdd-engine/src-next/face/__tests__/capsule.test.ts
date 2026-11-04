@@ -464,14 +464,14 @@ describe("P22 §5.2 — the six-row render freeze", () => {
   });
 });
 
-describe("P22 §10 — the two-key capsule and the `next:` close", () => {
+describe("P22 §10 — the two-key capsule and the `next:` + `reason:` close", () => {
   it("① a success round renders `status · handoff` — the blocker cell is gone", () => {
     const lines = new Capsule(new Words()).emit("APPROVED", "/h.json");
     expect(lines).toEqual(["status: APPROVED · handoff: /h.json"]);
     expect(lines[0]).not.toContain("blocker:");
   });
 
-  it("② the fix round's summary sits between the status line and the trailing `next:` line", () => {
+  it("② the fix round's summary sits between the status line and the `next:` + `reason:` close", () => {
     const lines = new Capsule(new Words()).emit(
       "APPROVED",
       "/h.json",
@@ -483,6 +483,7 @@ describe("P22 §10 — the two-key capsule and the `next:` close", () => {
       "status: APPROVED · handoff: /h.json",
       "fixed 1 · rejected 0",
       "next: done",
+      "reason: face-closed",
     ]);
   });
 
@@ -493,8 +494,12 @@ describe("P22 §10 — the two-key capsule and the `next:` close", () => {
     ]);
   });
 
-  it("④ a non-fix round carries no summary line — the plain two-line shape", () => {
+  it("④ a non-fix round carries no summary line — the plain three-line shape", () => {
     const lines = new Capsule(new Words()).emit("APPROVED", "/h.json", hopOf({ kind: "done" }));
-    expect(lines).toEqual(["status: APPROVED · handoff: /h.json", "next: done"]);
+    expect(lines).toEqual([
+      "status: APPROVED · handoff: /h.json",
+      "next: done",
+      "reason: face-closed",
+    ]);
   });
 });

@@ -5,7 +5,8 @@
 // table with three families served by one class:
 //
 //   capsule — the capsule-station words: the capsule keys (status · handoff, the
-//           pinned emit order), the `next:` route station + the stderr stations, the
+//           pinned emit order), the two route stations (`next:` + `reason:`) and the
+//           stderr stations, the
 //           status vocabulary and the route classifier words. Every byte the capsule
 //           emits rides this family — a reorder is a red test.
 //   guard — the guard-ban words: the retired-vocabulary ban rows (STALE / GATE /
@@ -44,7 +45,7 @@ import type { InFlightRecord } from "../session/inflight.ts";
 export type CapsuleKey = "status" | "handoff";
 
 /** The route station kinds — the addressed channels of the command surface. */
-export type StationKind = "next" | "blocked" | "warn" | "cliMissing";
+export type StationKind = "next" | "reason" | "blocked" | "warn" | "cliMissing";
 
 /** The route classifier words — the station vocabulary the `next:` line renders
  *  (v1.20: the `none` word is retired — closure is `done`, never "no suggestion";
@@ -190,9 +191,12 @@ export const CAPSULE_WORDS = {
   separator: " · ",
   /** The status vocabulary — the five handoff-conclusion values. */
   status: ["APPROVED", "BLOCKED", "CHANGES_REQUESTED", "REVIEW_FIX", "TIMEOUT"] as const,
-  /** The route stations — the `: `-suffixed channel anchors. */
+  /** The route stations — the `: `-suffixed channel anchors. The two route anchors
+   *  (`next:` and the `reason:` row that follows it) open the capsule's output;
+   *  the three stderr anchors open the diagnostics channels. */
   stations: {
     next: "next:",
+    reason: "reason:",
     blocked: "CDD_BLOCKED:",
     warn: "CDD_WARN:",
     cliMissing: "CDD_CLI_MISSING:",

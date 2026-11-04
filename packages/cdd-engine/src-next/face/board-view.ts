@@ -357,6 +357,19 @@ export class BoardView {
     return `  next:    ${value}`;
   }
 
+  /** reasonLine(hop, renderer) — the board's `reason:` row under `next:`, rendered
+   *  through the shared render face so the board's token and the capsule's token are
+   *  one value by construction. The PREFIX is this face's own layout literal
+   *  (`  reason:  ` — the same 11-column shape `nextLine` uses); the capsule takes its
+   *  prefix from the word table instead, so each face keeps its own prefix and only
+   *  the token is shared. `renderer` supplies the null gate: a hop whose reason the
+   *  render face declines degrades to the same `(none)` bytes the absent-hop row
+   *  carries, never to a half-built row. */
+  static reasonLine(hop: NextHop, renderer: RouteRenderer): string {
+    const rendered = renderer.renderReason(hop);
+    return `  reason:  ${rendered === null ? "(none)" : hop.reason}`;
+  }
+
   /** inFlightRows(state, orphans, words) — the tree's dispatch fact + the
    *  workspace's orphan handoff drafts, as board lines. The held row names the
    *  holder's IDENTITY facts alone (the operating verb, the round's cycle + attempt
@@ -555,7 +568,9 @@ export class BoardView {
     if (next === null) {
       lines.push("  next:    (none)");
     } else {
-      lines.push(BoardView.nextLine(next, new RouteRenderer(words, channels, host, root)));
+      const renderer = new RouteRenderer(words, channels, host, root);
+      lines.push(BoardView.nextLine(next, renderer));
+      lines.push(BoardView.reasonLine(next, renderer));
     }
     return blocked ? 2 : 0;
   }

@@ -1653,6 +1653,101 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     expect(capsuleNext.slice("next: ".length)).toBe(nextOfBoard("prog-p1"));
   });
 
+  it("(r1) the board's `reason:` row carries the SAME token as the capsule's — each prefix its own", () => {
+    nodeDocs();
+    const planFile = planDoc([[1]]);
+    const ledger = ledgerOf();
+    // Every face closed on a clean round and the branch row bound the plan — then one
+    // plan revision reopens the branch line (the exit-side drift hop).
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+    ledger.persistHandoff("review", "branch", { round: 1 }, { findings: [] });
+    ledger.recordRound("branch", { op: "review" });
+    ledger.recordReviewedRevision(
+      "branch",
+      ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
+      "branch",
+    );
+    ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+    ledger.recordRound("1", { op: "review" });
+    writeFileSync(planFile, `${readFileSync(planFile, "utf8")}\n<!-- drift -->\n`, "utf8");
+
+    const index = SlugIndex.build(repo);
+    const entry = entryOf("prog-p1");
+    const root = new RepoRoot(repo);
+    const hop = BoardNext.of(index, entry, root);
+    expect(hop).not.toBeNull();
+    const boardLines = BoardView.render(
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      undefined,
+      hop,
+    ).lines;
+    const nextAt = boardLines.findIndex((row) => row.startsWith("  next:    "));
+    const boardReason = boardLines[nextAt + 1]!;
+    // The row's OWN layout prefix is pinned BEFORE any normalization — otherwise
+    // `tokenOf` below would paper over a wrong shape.
+    expect(boardReason.startsWith("  reason:  ")).toBe(true);
+
+    const capsuleLines = new Capsule(new Words(), ARGV_CHANNEL, "claude", root).emit(
+      "APPROVED",
+      "/h2.json",
+      hop,
+    );
+    const capsuleReason = capsuleLines[capsuleLines.length - 1]!;
+    // The capsule's prefix rides the word table (one space), the board's its own
+    // layout literal (two) — only the token is shared.
+    expect(capsuleReason.startsWith(`reason: `)).toBe(true);
+    const tokenOf = (line: string): string => line.trim().replace(/^reason:\s+/, "");
+    expect(tokenOf(boardReason)).toBe(tokenOf(capsuleReason));
+    expect(tokenOf(boardReason)).toBe(hop!.reason);
+  });
+
+  it("(r2) a hop-less board renders `next: (none)` with no reason row — byte-unchanged", () => {
+    nodeDocs();
+    planDoc([[1]]);
+    const index = SlugIndex.build(repo);
+    const entry = entryOf("prog-p1");
+    const lines = BoardView.render(index, entry, repo, new Words(), "claude", ARGV_CHANNEL).lines;
+    expect(lines).toContain("  next:    (none)");
+    expect(lines.some((row) => row.startsWith("  reason:"))).toBe(false);
+  });
+
+  it("(r3) the program board's literal `next: done` takes no reason row", () => {
+    nodeDocs();
+    planDoc([[1]]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "version: v0.14",
+      "status: Done",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+    const index = SlugIndex.build(repo);
+    const entry = entryOf("prog-overall");
+    const lines = BoardView.render(
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      undefined,
+      BoardNext.of(index, entry, new RepoRoot(repo)),
+    ).lines;
+    expect(lines).toContain("  next:    done");
+    expect(lines.some((row) => row.startsWith("  reason:"))).toBe(false);
+  });
+
   it("(e) the whole board output carries zero absolute paths (doc names collapse to basenames)", () => {
     nodeDocs();
     planDoc([[1]]);

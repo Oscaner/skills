@@ -1957,7 +1957,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const nextAt = io.stdoutText.indexOf("next: ", capsuleAt);
       const lines = io.stdoutText.match(/fixed \d+ · rejected \d+/g) ?? [];
       expect(lines).toEqual(["fixed 1 · rejected 1"]);
-      // The summary sits between the status line and the trailing `next:` line.
+      // The summary sits between the status line and the `next:` row.
       expect(summaryAt).toBeGreaterThan(capsuleAt);
       expect(nextAt).toBeGreaterThan(summaryAt);
       // The line is a face fact, never a stored one: the carrier carries the

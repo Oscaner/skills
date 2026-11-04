@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 计划：NEXT-LOOP 收口面（基线随轮推进 + hop 原因可读）
 doc-type: plan
-version: v0.17
+version: v0.18
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p24
 base: develop
@@ -468,6 +468,50 @@ none
 
 5
 
+### Task 7: 每轮的下一跳读 pipeline frontier（§11）
+
+#### Objective
+
+让胶囊与板面渲染**同一个对象**：`#capsuleLines` 改喂 `PipelineFrontier.next(...)` 的结果，而不是本线的 `#routeNext(frame)`。做完之后「板面与胶囊不可能不同」是结构事实，不是约定。
+
+#### Files
+
+- Modify: `packages/cdd-engine/src-next/session/run.ts`（`#capsuleLines` 的输入源；`Lifecycle` / `SessionRun` opts 增 `specType` / `specPath`）
+- Modify: `packages/cdd-engine/src-next/face/cli.ts`（场景从文档索引填这两个字段）
+- Test: `packages/cdd-engine/src-next/session/__tests__/run.test.ts`（必红 parity）
+- Test: `packages/cdd-engine/src-next/face/__tests__/capsule.test.ts` · `face.test.ts`（受影响快照重锚）
+
+#### Consumes
+
+- `PipelineFrontier.next(ledger, { specType, specPath, planPath, planGraph })`（Task 6，既有）
+- `Ledger#nextHopOf`（既有）
+
+#### Produces
+
+- `Lifecycle` / `SessionRun` 的新可选 opts：`specType?: TargetType | null` · `specPath?: string | null`（缺省 null ⇒ 裸 slug 退化为今日行为）。
+
+#### Steps
+
+- [ ] **Step 1: 写必红 parity** — checkable: 构造「spec 未闭（或未审）+ 波形轮到点」，断言胶囊的 `next:` 行**等于**板面同一状态的 `next:`；今日 FAIL（胶囊印本线字面）
+- [ ] **Step 2: 补 opts 并接线** — checkable: `cli.ts` 从文档索引填 `specType`/`specPath`；`#capsuleLines` 用 `PipelineFrontier.next(...)` 的 `{ route, target }`；`#routeNext` 仍服务 `#markTerminal`（那一处不动）
+- [ ] **Step 3: 裸 slug 退化** — checkable: `specType === null || specPath === null` 时胶囊行为与今日逐字节相同（有测试）
+- [ ] **Step 4: 重锚受影响快照** — checkable: 跑套件，**逐条登记**每个因「pipeline next ≠ 本线 next」而变的快照（文件:行 + 变化前后），不许只说「若干处」
+- [ ] **Step 5: 全套件 + 提交** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next` 全绿；`pnpm run precommit` 绿；`git commit -m "refactor(cdd-engine): the round capsule renders the pipeline frontier's hop"`
+- [ ] **Step 6: 本波验收** — checkable: `env -u AI_AGENT pnpm run validate` 退出码 0
+
+#### Acceptance
+
+- spec 未闭而行完一轮波形时，胶囊 `next:` == 板面 `next:`（改动前必红）。
+- `next:` 仍是可执行字面；`reason:` 仍取 `NEXT_HOP_REASON` 同一 source。
+- 裸 slug（无 spec / 无 plan）行为零变，有测试。
+- 受影响快照的重锚逐条在册。
+- C5 / drift / pending-fix / 写回 / 派发动词零改动；不做越序拒绝。
+- `env -u AI_AGENT pnpm run validate` 退出码 0。
+
+#### DependsOn
+
+6
+
 ## Change history
 
 | Version | date | summary | author |
@@ -489,3 +533,4 @@ none
 | v0.15 | 2026-11-04 | **plan 第 7 轮评审回填（内容面，结构面未动；Task 6 引用精度与搬移完整性）**：① **W1**——散文改写面由两处扩为**八处同义**：`board-view.ts:17-19`（「the traversal lives on the assembly face」——正是本任务要推翻的那句）· `:110-113`（`BoardPipelineFacts` 的「the traversal and the derivation belong to the assembly face」）· `:696-700`（`pipelineFacts` docstring）· `:844-853`（`BoardNext` 的「re-homed at the board's CONSTRUCTION face … decides the next pipeline step」）· 随 `#pipeline` 删除的 `:890-902`，并新增三个文件进范围：`face/cli.ts:483-487`（原不在 Files 里）· `session/next.ts:33-34`（本任务已改的同一模块）· 两处测试分节横幅 `board-view.test.ts:1389-1392` / `next.test.ts:339-343`；Step 5 与 Acceptance 同笔写明「既有断言零改动」只绑 `expect`，两处横幅改写不动任何断言 ② **W2**——Step 4 按 `board-view.ts:890-902` **逐条照抄四条面序规则**，补回被漏掉的规则②（已进入但无 active hop ⇒ 该面自己的 exit，k2 `board-view.test.ts:1494-1507` 覆盖的正是它）与规则③的兜底半句（无前置已进入面 ⇒ 第一个面的 exit，代码 `:918` 的 `Math.max(0, #lastEnteredIndex(...))`），并标注原文随 Step 5 删除 ③ **N1**——Step 5 分清两条**零门**（`#pipeline\b|…` grep 为空 · `^\s+(closed|active):` 计数为 0，两者都点名 `face/board-view.ts`）与**观察项**（`pipelineFacts` 计数须非 0）；Acceptance 的 closed/active 计数同步点名文件（全仓永不为 0，因为 `session/pipeline.ts` 会建同名单元格） ④ **N2**——Produces 改写：`face` 是「该 route 自己所属的面」，两条 exchange 规则（未进入 / 全闭合）下为 `null`、锚面由 `target` 反推，类型改 `PhaseFaceKey \| null`；消费者改为 Step 3 的四个 `pipeline.test.ts` 用例，`BoardNext.#hopOf` 只吃 `{ route, target }`，parity pin 不碰 `PipelineFrontier` ⑤ **N3**——Consumes 改正 `session/faces.ts` 的导出清单（`TargetType` / `DispatchPhase` / `ReviewLead` / `AuditFace` / `RouteTarget:50` / `targetFaces` / `TargetFace`，**不含** `PIPELINE_*` 与 `PhaseFaceKey` / `PipelineFaceState`），并补上返回类型用到的 `Route`（`session/next.ts:46`）与 `RouteTarget`（`session/faces.ts:50`） | Task 6 Files/Consumes/Produces/Step 4/Step 5/Acceptance + Change history v0.15 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 7 轮 fix · 2026-11-04） |
 | v0.16 | 2026-11-04 | **branch 第 1 轮评审回填（内容面，结构面未动）**：① **W1**——Task 1 Acceptance 的双写债务句改为指向 [#414]（`#recordsOf` 与 `#bookkeep` 两处判别的合并另开该 issue，债的收敛不在本相位），并把守卫边界写实为「行为 pin 而**不是**漂移探针」：任一侧日后单独改动该用例都不必红，不得据此宣称能拦单侧漂移 ② **N1**——`board-view.test.ts:1633` 的 `targetFaces["branch"]` 改 `targetFaces.branch`（biome `useLiteralKeys`，本轮 diff 唯一新增命中；其余 `targetFaces[…]` 站点键名含连字符，无法点取） | Task 1 Acceptance + Change history v0.16（N1 落测试文件，非本文档） | Oscaner M. · Claude（kairos:cdd-dev [P24] 分支第 1 轮 fix · 2026-11-04） |
 | v0.17 | 2026-11-04 | **plan 第 8 轮评审回填（内容面，结构面未动）**：① **W1**——发布条目由「三件」改为**四件**：板面 pipeline frontier 改读 drift（§9）也是消费面可见字节变化（收口后被轮外改动的 doc 让板面从 `implement --plan … --tasks …` 改印该 doc 线的 review lead + `reason: doc-drift`），故 Task 4 的 Files / Step 4 / Acceptance 三处一律改为四件，并把 `.changeset/p24-fix-identity-and-reason-row.md` 加进 Task 5 的 Files（只核对 ④）与其 Acceptance（「该变化由 Task 4 的发布条目承载」）——此前没有任何在 Task 4 之后的任务 owner 这份条目，实落时第四句只能靠 Task 5 顺手补 ② **N1**——四份 diagram 源的 pin 归属记实：`next-loop-twin` 的 `SOURCES` 是 `next-loop` ×2 + `architecture` ×2（`:93-95`）且只钉三条收敛语句，`journey` 两份在三个测试面里零命中（**完全没有** pin），故 Step 3 / Acceptance / Constraints 的已知限制三项一并改写（不再声称「四份源的孪生断言」）③ **N2**——Task 5 Acceptance 加交叉引用：它调度的两个 `closed` 单元格由 Task 6 删除并迁入 `session/pipeline.ts`（spec §10），红→绿证据取自本任务的提交 | Task 4 Files/Consumes/Step3/Step4/Acceptance + Task 5 Files/Acceptance + Constraints + 范围锁 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 8 轮 fix · 2026-11-04） |
+| v0.18 | 2026-11-04 | **范围追加（用户裁定 · 对齐 spec v0.21 §11）**：新增 **Task 7**「每轮的下一跳读 pipeline frontier」——`#capsuleLines` 改喂 `PipelineFrontier.next(...)`，`Lifecycle`/`SessionRun` 增 `specType`/`specPath`（`cli.ts` 从文档索引填）；必红 parity（波形轮完而未闭 spec 时胶囊 == 板面）、裸 slug 退化、受影响快照逐条重锚；`DependsOn: 6` ⇒ 新波 W6 | Task 7 + 范围锁 + Change history v0.18 | Oscaner M. · Claude（kairos:cdd-dev · 范围追加 · 2026-11-04） |

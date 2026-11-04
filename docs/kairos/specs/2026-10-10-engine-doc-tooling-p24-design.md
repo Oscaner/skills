@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 设计：NEXT-LOOP 收口面（drift 语义收窄 + hop 原因可读）
 doc-type: phase-spec
-version: v0.17
+version: v0.18
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p24
 program: 2026-10-10-engine-doc-tooling
@@ -102,9 +102,9 @@ reason: doc-drift
 | `journey.en.json` | `:573` | "next: closes the run as its last line, and cdd board renders the same judgment from the ledger" | "next: and the reason line that follows it close the run, and cdd board renders the same judgment from the ledger" |
 | `journey.zh-CN.json` | `:573` | 「next: 作为最后一行收尾，而 cdd board 从账本渲染同一个判定」 | 「next: 与紧随其后的原因行一起收尾，而 cdd board 从账本渲染同一个判定」 |
 
-**生成物不手改**：四份源各有一份生成 HTML（`next-loop.{en,zh-CN}.html` · `journey.{en,zh-CN}.html`），按 `docs/diagrams/README.md` 的 Archify finalize 命令重生成——**禁手改 HTML**，`packages/cdd-engine/src-next/face/__tests__/diagrams.guard.test.ts` 的生成物检验会抓「改了源没重生成」与手改。该 guard 的取证跨度只覆盖 `upstream` / `host` / `engine` 三节点（`plugins.ts` · `host.ts` · `cli.ts`），本相位一个都不改；`capsule` / `board` / `ledger` / `next` 的跨度也不脱钩——本相位的每一处编辑都插在这些跨度**之下**。
+**生成物不手改**：四份源各有一份生成 HTML（`next-loop.{en,zh-CN}.html` · `journey.{en,zh-CN}.html`），按 `docs/diagrams/README.md` 的 Archify finalize 命令重生成——**禁手改 HTML**。这是纪律而非门：上面那段已写明这四份产物上没有任何常驻门，源与生成 HTML 的一致性由人负责，`packages/cdd-engine/src-next/face/__tests__/diagrams.guard.test.ts` 的源→HTML 腿只覆盖 `architecture.{en,zh-CN}`，抓不到这四份文件。该 guard 的取证跨度只覆盖 `upstream` / `host` / `engine` 三节点（`plugins.ts` · `host.ts` · `cli.ts`），本相位一个都不改；`capsule` / `board` / `ledger` / `next` 的跨度也不脱钩——本相位的每一处编辑都插在这些跨度**之下**。
 
-**不破的孪生 pin**：`scripts/__tests__/next-loop-twin.test.ts` 的三条断言（blocker → 重新评审 · warn/nit → `REVIEW_FIX` · 软上限）一字未动，故这四份源的改写只动「最后一行」这一句、断言不红。**该面的落点与验收归 plan Task 4**（已登记该面：四份源 + 重生成 + `diagrams.guard` 跑绿），§5 此处只把消费面补齐，不另立第二条验收条目。
+**不破的孪生 pin**：`scripts/__tests__/next-loop-twin.test.ts` 的三条断言（blocker → 重新评审 · warn/nit → `REVIEW_FIX` · 软上限）一字未动，故这四份源的改写只动「最后一行」这一句、断言不红。**该面的落点与验收归 plan Task 4**（已登记该面：四份源 + 重生成 + 一次性新鲜度校验；`diagrams.guard` 只覆盖 `architecture.*`，见上），§5 此处只把消费面补齐，不另立第二条验收条目。
 
 ### 6. 定案：证据（三条互锁 + 一次演示）
 
@@ -122,7 +122,7 @@ reason: doc-drift
 
 ### 7. 落点、依赖与发行
 
-**源码落点**（十行：七处既有面 + 一处判据收窄 + 一行输入面 + 一行注入点）：
+**源码落点**（十一行：七处既有面 + 一行新增面（frontier 归 `session/pipeline.ts`）+ 一处判据收窄 + 一行输入面 + 一行注入点）：
 
 | 面 | 文件 | 落点 |
 |---|---|---|
@@ -137,7 +137,6 @@ reason: doc-drift
 | reason 输入面 | `session/ledger.ts` | **`Ledger#nextHopOf` 的内联参数类型**（`:1219-1230`）新增可选 cell `briefDrift?: boolean`；`session/next.ts` 的 `NextHopInput`（`:208-226`）**形状一行不动**（不加 cell、`NextHop.reason` 与 `#reasonOf` 也不动）——`nextHopOf` 自己把该值折进 `NextHopInput.gate.drift`（`:1248-1254`）；该接口唯一被改的是 `gate` 的 docstring（`:211-213`），见「语义注释」行：行为契约不变，只有教它的散文陈旧 |
 | frontier 归属 | `session/pipeline.ts`（新增）· `face/board-view.ts` | 新增 `PipelineFrontier`（逐面读该线自己的 `lineStateAt` / `lineRoute` / ready batch + `waveLineRoute`；四条面序规则与 `#exitRoute` / `#lastEnteredIndex` 搬入）；板面删除 `pipelineFacts` 的逐面 `closed` / `active`、`#waveFrontierKey`、`#pipeline`、`#exitRoute`、`#lastEnteredIndex` |
 | ~~板面选面~~（已作废） | `face/board-view.ts` | ~~`pipelineFacts` 的 spec / plan 两面 `closed` 改 `lineStateAt`~~——被上一行的整体搬迁取代（它改的两行会被删除） |
-| 板面选面 | `face/board-view.ts` | `pipelineFacts` 的 `phase-spec` / `plan` 两面把 `closed: ledger.lineClosed(type, type)` 改为 `closed: ledger.lineStateAt(type, type, docPath) === "closed"`（`session/ledger.ts:1154-1161`，与 `branch` 面同一条判定；`#pipeline` 的面序规则不动） |
 | 注入点 | `session/run.ts` · `face/board-view.ts` | 两个调用点喂同一 fact：`Lifecycle#hopOf`（`session/run.ts:836-851`，`nextHopOf` 调用在 `:838`）在 wave 帧上注入 `briefDrift`——对 `peekNext`（frontier，帧未重绑 ⇒ 活判据）生效、对 `advance`（`:447`，`#bookkeep` 已在 `:429-430` 重绑 brief ⇒ 恒假）是死代码，方法签名不动；`BoardNext#hopOf`（`face/board-view.ts:849-861`）在既有 `nextHopOf` 输入对象（`:852`）里加一格 `briefDrift: target?.type === "wave" ? facts.ledger.briefDrifted(String(target.id)) : undefined`（唯一条件是「这一面是 wave」：`target.type` 非 wave 时 `target.id` 是文档路径，不该拿去问 brief drift；**不要**再加 `active !== null` 之类的闸——wave 面从不做路由替换，`handoff` 不会被劫持，见 §4「wave 面」）——该 static 没有 wave 分支（`type` / `key` / `doc` 全由 walked target 派生），**禁止**为 wave 另开第二次 `nextHopOf` 调用；板面 wave key 即 `target.id`（`waveKey ?? ""`，`:725`），空 key 经 `reviewedRevisionOf` 与 null identity 同退化 ⇒ `false`，不另加守卫——从而使板面的 `next:` / `reason:` 与 `peekNext` 同读一个 fact（§4「wave 面」） |
 
 **依赖**：P23 已 Done（`P23 -> P24` hard，本相位不依赖 P23 的任何产物，只依赖其闭合后的树）。
@@ -236,5 +235,6 @@ reason: doc-drift
 | v0.13 | 2026-11-04 | **范围追加（用户裁定并入 P24）**：新增 §9「板面 frontier 的选面读 drift」——`pipelineFacts` 的 spec/plan 两面用只读 C5 的 `lineClosed`，branch 面用的却是 drift-aware 的 `lineStateAt`；实案即本相位自身（spec 收口后裁定回填 5 次，门要求重审、板面却印 `implement`）。修法：两面 `closed` 改用既有的 `lineStateAt`（不新增判定）；§7 加「板面选面」行；Acceptance 加一条必红断言 + 孪生回归 | §9 + §7 板面选面行 + Acceptance + Change history v0.13 | Oscaner M. · Claude（kairos:cdd-plan · 范围追加 · 2026-11-04） |
 | v0.14 | 2026-11-04 | spec 第 7 轮评审回填（无结构变更，内容面四条）：① §7「reason 判据（wave）」行由单值口径改为**两值口径**——替换驱动 `drift` 仍只取 doc 面 `reviewGate`（`:1230-1233` 形状保留 ⇒ `:1242-1243` 对 wave 不触发），原因 cell `gate.drift` 取 `drift \| (briefDrift ?? false)`（`:1248-1254`），与 §4 逐字对齐；v0.11 声称的 §7 同步当轮并未发生，其条目同笔订正 ② §5 补第三块消费面：`docs/diagrams/src/` 四份源（`next-loop.{en,zh-CN}.json:278` · `journey.{en,zh-CN}.json:573`）同笔改写 + 用 Archify finalize 重生成四份 HTML（禁手改）+ `diagrams.guard` / `next-loop-twin` 的边界说明，落点归 plan Task 4 ③ §7 第 5 类补三处文件自述：`face/capsule.ts:2` · `face/capsule.ts:7-10`（示意图补 `reason:` 行）· `face/words.ts:7-8`（两个路由站锚、五行站表）④ §7「语义注释」行补 `NextHopInput.gate` 的 docstring（`session/next.ts:211-213`），并把「reason 输入面」行的「一行不动」收窄为「形状一行不动」——两行原先对这同三行指向相反 | §5 + §7（语义注释 · reason 判据 · reason 输入面 · 第 5 类）+ Change history | Oscaner M. · Claude（kairos:cdd-plan · spec 第 7 轮评审回填 · 2026-11-04） |
 | v0.15 | 2026-11-04 | 实现轮修复（内容面，任务 1,2 第 1 轮 fix）：① §4「两面同字节」与 §7「reason 渲染」「板面」两行按实际代码校正面——`renderReason(hop: NextHop)` 取非 null 入参、只服务胶囊（其值自带站表前缀），板面 `reasonLine(hop)` 直取 `hop.reason`，hop 的缺席由调用方一次把门（`renderHop` 只对 null hop 返回 null），删除「`reasonLine(hop, renderer)` 值取 `renderer.renderReason(hop)`」与「`null` hop 返回 `null`」两句——前者与代码不符，后者是 `renderReason` 内部永不可达的 null 分支；② 由此登记 `reasonLine` 无不可达 `(none)` 退化分支这条事实 | §4 + §7（reason 渲染 · 板面）+ Change history | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 1 轮 fix · 2026-11-04） |
-| v0.16 | 2026-11-04 | **W3 评审回填（消除一处过度承诺）**：§5 的 diagram 段补一段边界——`diagrams.guard` 只覆盖 `architecture.*`、`next-loop` / `journey` 无 HTML 腿，故本相位对这四份产物的保证只是「本轮重生成 + 一次性校验」，**不**声明常驻孪生门；该门缺失作为已知限制登记（W3 评审实测：曾有一份 HTML 读作「最后一一行」而全部门绿） | §5 diagram 段 + Change history v0.15 | Oscaner M. · Claude（kairos:cdd-dev · W3 裁定回填 · 2026-11-04） |
+| v0.16 | 2026-11-04 | **W3 评审回填（消除一处过度承诺）**：§5 的 diagram 段补一段边界——`diagrams.guard` 只覆盖 `architecture.*`、`next-loop` / `journey` 无 HTML 腿，故本相位对这四份产物的保证只是「本轮重生成 + 一次性校验」，**不**声明常驻孪生门；该门缺失作为已知限制登记（W3 评审实测：曾有一份 HTML 读作「最后一一行」而全部门绿） | §5 diagram 段 + Change history v0.16 | Oscaner M. · Claude（kairos:cdd-dev · W3 裁定回填 · 2026-11-04） |
 | v0.17 | 2026-11-04 | **范围追加（用户裁定 · 第三次并入 P24）**：新增 §10「pipeline frontier 归 session 平面（板面即投影）」——板面自持三份判定（逐面 `closed`/`active` · `#waveFrontierKey` · `#pipeline` 四条面序）是第二套逻辑；§9 只换了一个单元格，实案随即显形（spec drift 时板面印 spec review、波形自印 wave review，两条都可执行）。定案：新增 `session/pipeline.ts` 的 `PipelineFrontier` 承担选面，板面只渲染；§9 的「板面选面」落点行作废；必红验收为「板面 `next:` == frontier 线的 `peekNext()`」parity + 零字节回归；不含越序拒绝 | §10 + §7 frontier 归属行 + Acceptance + Change history v0.17 | Oscaner M. · Claude（kairos:cdd-dev · 范围追加 · 2026-11-04） |
+| v0.18 | 2026-11-04 | **spec 第 8 轮评审回填（内容面三条 + 一行残留清理）**：① §5「生成物不手改」不再断言 `diagrams.guard` 能抓这四份产物——该 guard 的源→HTML 腿只覆盖 `architecture.{en,zh-CN}`，与本段上文「不声明常驻门」对齐：只留「禁手改 HTML」这条纪律，并指回上文说清一致性由人负责；§5 末句的 Task 4 验收要点同步由「跑绿」改为**一次性新鲜度校验（guard 只覆盖 `architecture.*`）** ② §7 源码落点表头「十行」改为**十一行**并按现表重算分解（七处既有面 + frontier 归属这一行新增面 + 一处判据收窄 + 一行输入面 + 一行注入点），同笔删去 v0.17 残留的第二份「板面选面」活行（该面已由 v0.17 整体搬迁取代，表内上方已有一份带删除线的墓石）③ Change history 的 v0.16 行落点列「v0.15」订正为「v0.16」 | §5 diagram 段 + §7 源码落点 + Change history | Oscaner M. · Claude（kairos:cdd-dev · spec-fix（docs-fix）· 2026-11-04） |

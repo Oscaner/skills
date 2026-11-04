@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 设计：NEXT-LOOP 收口面（drift 语义收窄 + hop 原因可读）
 doc-type: phase-spec
-version: v0.15
+version: v0.16
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p24
 program: 2026-10-10-engine-doc-tooling
@@ -217,4 +217,4 @@ reason: doc-drift
 | v0.13 | 2026-11-04 | **范围追加（用户裁定并入 P24）**：新增 §9「板面 frontier 的选面读 drift」——`pipelineFacts` 的 spec/plan 两面用只读 C5 的 `lineClosed`，branch 面用的却是 drift-aware 的 `lineStateAt`；实案即本相位自身（spec 收口后裁定回填 5 次，门要求重审、板面却印 `implement`）。修法：两面 `closed` 改用既有的 `lineStateAt`（不新增判定）；§7 加「板面选面」行；Acceptance 加一条必红断言 + 孪生回归 | §9 + §7 板面选面行 + Acceptance + Change history v0.13 | Oscaner M. · Claude（kairos:cdd-plan · 范围追加 · 2026-11-04） |
 | v0.14 | 2026-11-04 | spec 第 7 轮评审回填（无结构变更，内容面四条）：① §7「reason 判据（wave）」行由单值口径改为**两值口径**——替换驱动 `drift` 仍只取 doc 面 `reviewGate`（`:1230-1233` 形状保留 ⇒ `:1242-1243` 对 wave 不触发），原因 cell `gate.drift` 取 `drift \| (briefDrift ?? false)`（`:1248-1254`），与 §4 逐字对齐；v0.11 声称的 §7 同步当轮并未发生，其条目同笔订正 ② §5 补第三块消费面：`docs/diagrams/src/` 四份源（`next-loop.{en,zh-CN}.json:278` · `journey.{en,zh-CN}.json:573`）同笔改写 + 用 Archify finalize 重生成四份 HTML（禁手改）+ `diagrams.guard` / `next-loop-twin` 的边界说明，落点归 plan Task 4 ③ §7 第 5 类补三处文件自述：`face/capsule.ts:2` · `face/capsule.ts:7-10`（示意图补 `reason:` 行）· `face/words.ts:7-8`（两个路由站锚、五行站表）④ §7「语义注释」行补 `NextHopInput.gate` 的 docstring（`session/next.ts:211-213`），并把「reason 输入面」行的「一行不动」收窄为「形状一行不动」——两行原先对这同三行指向相反 | §5 + §7（语义注释 · reason 判据 · reason 输入面 · 第 5 类）+ Change history | Oscaner M. · Claude（kairos:cdd-plan · spec 第 7 轮评审回填 · 2026-11-04） |
 | v0.15 | 2026-11-04 | 实现轮修复（内容面，任务 1,2 第 1 轮 fix）：① §4「两面同字节」与 §7「reason 渲染」「板面」两行按实际代码校正面——`renderReason(hop: NextHop)` 取非 null 入参、只服务胶囊（其值自带站表前缀），板面 `reasonLine(hop)` 直取 `hop.reason`，hop 的缺席由调用方一次把门（`renderHop` 只对 null hop 返回 null），删除「`reasonLine(hop, renderer)` 值取 `renderer.renderReason(hop)`」与「`null` hop 返回 `null`」两句——前者与代码不符，后者是 `renderReason` 内部永不可达的 null 分支；② 由此登记 `reasonLine` 无不可达 `(none)` 退化分支这条事实 | §4 + §7（reason 渲染 · 板面）+ Change history | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 1 轮 fix · 2026-11-04） |
-| v0.15 | 2026-11-04 | **W3 评审回填（消除一处过度承诺）**：§5 的 diagram 段补一段边界——`diagrams.guard` 只覆盖 `architecture.*`、`next-loop` / `journey` 无 HTML 腿，故本相位对这四份产物的保证只是「本轮重生成 + 一次性校验」，**不**声明常驻孪生门；该门缺失作为已知限制登记（W3 评审实测：曾有一份 HTML 读作「最后一一行」而全部门绿） | §5 diagram 段 + Change history v0.15 | Oscaner M. · Claude（kairos:cdd-dev · W3 裁定回填 · 2026-11-04） |
+| v0.16 | 2026-11-04 | **W3 评审回填（消除一处过度承诺）**：§5 的 diagram 段补一段边界——`diagrams.guard` 只覆盖 `architecture.*`、`next-loop` / `journey` 无 HTML 腿，故本相位对这四份产物的保证只是「本轮重生成 + 一次性校验」，**不**声明常驻孪生门；该门缺失作为已知限制登记（W3 评审实测：曾有一份 HTML 读作「最后一一行」而全部门绿） | §5 diagram 段 + Change history v0.15 | Oscaner M. · Claude（kairos:cdd-dev · W3 裁定回填 · 2026-11-04） |

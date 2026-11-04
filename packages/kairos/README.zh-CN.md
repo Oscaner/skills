@@ -36,15 +36,34 @@ npx -y @oscaner-skills/cdd-engine@latest init --harness=claude
 npx -y @oscaner-skills/cdd-engine@latest init --harness=pi
 ```
 
-`cdd init` 按序安装 `kairos` 及其两个上游包（superpowers、mattpocock-skills），经该 harness 自己的命令渠道。加 `--update` 即刷新已安装集合而不是新装；`cdd` 已全局安装后可省去 `npx -y @oscaner-skills/cdd-engine@latest` 前缀。
+`cdd init` 按序安装 `kairos` 及其两个上游包（superpowers、mattpocock-skills），经该 harness 自己的命令渠道——下表前三行即这份安装契约。其后六行是推荐档：这些能力 Claude Code 原生具备，pi 需要相应包，且只在你传入 `--include-recommends` 时才安装。加 `--update` 即刷新已安装集合而不是新装；`cdd` 已全局安装后可省去 `npx -y @oscaner-skills/cdd-engine@latest` 前缀。
 
-不经引擎、手工安装时，请逐条执行单元格中的命令——`；` 只是并列分隔，不是 shell 分隔符：
+不经引擎、手工安装时，请逐条执行单元格中的命令——`；` 只是并列分隔，不是 shell 分隔符；`—` 表示该 harness 不需要这个包：
 
 | Package | Claude Code | Pi |
 |---------|-------------|-----|
 | superpowers | `claude plugin marketplace add obra/superpowers-marketplace；claude plugin install superpowers@superpowers-marketplace` | `pi install git:github.com/obra/superpowers` |
 | mattpocock-skills | `claude plugin marketplace add mattpocock/skills；claude plugin install mattpocock-skills@mattpocock` | `pi install git:github.com/mattpocock/skills` |
 | kairos | `claude plugin marketplace add oscaner/skills；claude plugin install kairos@oscaner-skills` | `pi install npm:@oscaner-skills/kairos` |
+| pi-fff | — | `pi install npm:@ff-labs/pi-fff` |
+| rpiv-todo | — | `pi install npm:@juicesharp/rpiv-todo` |
+| rpiv-ask-user-question | — | `pi install npm:@juicesharp/rpiv-ask-user-question` |
+| pi-web-access | — | `pi install npm:pi-web-access` |
+| pi-background-tasks | — | `pi install npm:pi-background-tasks` |
+| pi-agentsmd | — | `pi install npm:pi-agentsmd` |
+
+### 推荐档
+
+Claude Code 原生具备六类能力，pi 则需要为每一类装一个包——文件搜索、todo 跟踪、结构化提问、网页取用、后台任务与 `AGENTS.md` 注入：
+
+- `pi-fff` — 文件搜索
+- `rpiv-todo` — todo 跟踪
+- `rpiv-ask-user-question` — 结构化提问
+- `pi-web-access` — 网页取用
+- `pi-background-tasks` — 后台任务
+- `pi-agentsmd` — 工作流所依赖的 `AGENTS.md` 项目指令注入
+
+它们是可选档：`cdd init --harness=pi --include-recommends` 会把它们连同核心三行一起装上，`cdd init --harness=pi --update --include-recommends` 刷新已装集合。Claude Code 既不需要这个旗标，也不需要这些包。
 
 ## 快速开始
 

@@ -87,7 +87,7 @@ npx -y @oscaner-skills/cdd-engine@latest init --harness=claude
 npx -y @oscaner-skills/cdd-engine@latest init --harness=pi
 ```
 
-对已有安装加 `--update` 刷新，或全局安装 `cdd`（`npm i -g @oscaner-skills/cdd-engine`）以省去前缀。逐 harness 的手工安装命令见 [`packages/kairos/README.md`](packages/kairos/README.md) 的安装表。
+对已有安装加 `--update` 刷新，加 `--include-recommends` 则在核心集合之外装上六个 pi 能力包，或全局安装 `cdd`（`npm i -g @oscaner-skills/cdd-engine`）以省去前缀。逐 harness 的手工安装命令见 [`packages/kairos/README.md`](packages/kairos/README.md) 的安装表。
 
 然后调用第一个编排器——`/kairos:cdd-design`——并跟着引擎的 `next:` 行走下去。其余无需配置：技能按需通过 `npx -y @oscaner-skills/cdd-engine@latest <子命令>` 获取引擎，引擎把运行态保存在 `.kairos/cdd/` 下，并在首次派发时自发布 `.kairos/.gitignore`（内容 `*`）。
 

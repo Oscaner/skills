@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 计划：NEXT-LOOP 收口面（基线随轮推进 + hop 原因可读）
 doc-type: plan
-version: v0.11
+version: v0.12
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p24
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（v0.15）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（v0.16）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。
 - **单点判据**：drift 的「记了什么 identity」只有一个写入点（`Ledger#recordReviewedRevision`，wave 经 `recordReviewedBrief`），读取面按既有事实分两条（doc/branch 走 `docReopens`、wave 走 `waveLineRoute` 的 D30 腿）。不得为任何一面新开第二个 drift 判定或第二个写入点。
 - **只推进完成的轮**：`targetAction` 为假的轮（BLOCKED / TIMEOUT）一律不推进基线；读不到输入（文档 / plan 不可读）时什么都不记录，保留旧基线。
 - **`next:` 字节零变**：`next:` 行仍是可执行字面，整行抄进 shell 必须能跑。诊断信息只落**另一行**（`reason:`）。字面上不得出现 `—`/`#`/任何后缀。
@@ -314,7 +314,7 @@ none
 - Modify: `README.zh-CN.md:64`（镜像同步）
 - Modify: `docs/diagrams/src/next-loop.en.json:278` · `next-loop.zh-CN.json:278` · `journey.en.json:573` · `journey.zh-CN.json:573`（四句措辞——`next:` 不再是末行）
 - Regenerate（**禁手改**）：`docs/diagrams/next-loop.{en,zh-CN}.html` · `journey.{en,zh-CN}.html`——按 `docs/diagrams/README.md` 的 Archify `finalize` 命令从源 JSON 重生成（`--repo-root .`，类型 `lifecycle` / `workflow`）；`*.finalize*.json` / `*.browser-check.json` / `*.delivery.json` 是 gitignored 机器回执，不入库
-- Create: `.changeset/p24-nextloop-closeout.md`
+- Modify: `.changeset/p24-fix-identity-and-reason-row.md`（本相位**唯一**一份发布条目——三件消费面事实都写进它，同包同级别不得再开第二条）
 
 #### Consumes
 
@@ -329,7 +329,7 @@ none
 - [ ] **Step 1: 改英文 bullet** — checkable: 该 bullet 读作「The next hop is derived, then printed with its reason. Each run ends with its `next:` line and the reason line that follows it, and `cdd board --plan <path>` renders that same judgment as a progress board — the line and the board cannot disagree.」（三个从句都在）
 - [ ] **Step 2: 同步中文镜像** — checkable: `README.zh-CN.md:64` 用 spec §5 给的整句（不得自行转述）：「**下一个去向是推演出来的，并连同其原因一起打印。** 每次运行以 `next:` 行收尾，紧接着是它的原因行，而 `cdd board --plan <path>` 会把同一个判定渲染成进度看板——这一行与看板不可能互相矛盾。」（含第三从句，即看板一致性）
 - [ ] **Step 3: 刷四份 diagram 源 + 重生成 HTML** — checkable: 四句**一律引用 spec §5 定案表的原句**（不另记措辞）：`next-loop.en.json:278`「The next: line and the reason line that follows it are the last two lines of a run — the route and its cause; a BLOCKED or TIMEOUT round carries neither」· `next-loop.zh-CN.json:278`「next: 行与紧随其后的原因行是运行的最后两行——去向与它的原因；BLOCKED 或 TIMEOUT 的轮次两者都不带」· `journey.en.json:573`「next: and the reason line that follows it close the run, and cdd board renders the same judgment from the ledger」· `journey.zh-CN.json:573`「next: 与紧随其后的原因行一起收尾，而 cdd board 从账本渲染同一个判定」；四份源里旧措辞（`the last line of a run` · `最后一行` · `its last line` · `作为最后一行收尾`）零残留。重生成后逐份核验：新 HTML 含新句、**不含**旧句（`grep -q "the last line of a run" docs/diagrams/next-loop.en.html` 必须非零退出；中英四份同法各验一句）；`pnpm exec vitest run scripts/__tests__/next-loop-twin.test.ts` 与 `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/diagrams.guard.test.ts` 均绿。Archify 工具链不可用 ⇒ 报 BLOCKED（**禁止**手改 HTML）
-- [ ] **Step 4: 写 changeset** — checkable: `.changeset/p24-nextloop-closeout.md` front-matter 为 `"@oscaner-skills/cdd-engine": minor`，正文写清三件消费面可见的事：① 零 blocker 的 fix 之后行能收口（此前被自己的产出打回）② 每条 `next:` 行后多一行 `reason: <token>` ③ wave 线的 drift 重开在 board / `peekNext` 上标 `doc-drift`
+- [ ] **Step 4: 写 changeset** — checkable: `.changeset/p24-fix-identity-and-reason-row.md` 的 front-matter 为 `"@oscaner-skills/cdd-engine": minor`，正文覆盖本相位的三件消费面事实：① 完成的 fix 轮把该行 identity 入账（doc 线由此能收口）② 每条 hop 渲染的 `next:` 行后多一行 `reason: <token>` ③ wave 线的 drift 重开在 `peekNext` / 板面上标 `doc-drift`（此前只会说 `task-open`）；**只此一份**——不得另建第二条（同包同级别的两条声明会在 changelog 里生成两条同义条目），也不得声称 wave 的写回修好了某个既有收口缺陷
 - [ ] **Step 5: 全量验收** — checkable: `env -u AI_AGENT pnpm run validate` 退出码 0（emit fresh · root · kairos · engine 三套件 · typecheck ×3 · version-sync · no-bare-functions）
 - [ ] **Step 6: 提交** — checkable: `git commit -m "docs: P24 consumer face and the cdd-engine minor changeset"`；`git status --porcelain` 为空
 
@@ -402,3 +402,4 @@ none
 | v0.9 | 2026-11-04 | 第 5 轮评审回填（内容面，对齐 spec v0.14）：① Task 2 补三处**文件自述散文**——`face/capsule.ts:2` · `:7-10` · `face/words.ts:7-8`（补第十一行 `reason: <token>` 并注明 hop 为 `null` 时不渲）；Step 8 由 11 处改 **14 处**并逐条列出，Constraint 计数同笔同步 ② Task 3 的 `session/next.ts:208-226` 由「No change」改为「**形状**一行不动」，`NextHopInput.gate` 的 docstring（`:211-213`）改为两值口径并入 Step 4 的同步列 ③ 范围锁的 spec 版本由 v0.13 改 **v0.14** ④ Task 1 用例 C 的 dispatch 返回值改为 `{ status: "BLOCKED" }`（`DispatchOutcome` 无 `reason` 字段，照抄会 TS2353），Step 4 补「片段须过 `tsc -p packages/cdd-engine`」 ⑤ Task 4 的四份 diagram 源与 README 中文镜像一律引用 spec §5 的定案句 ⑥ Task 1 Step 9 指名预览面 branch 腿的路径来源为 `this.#scene.planPath`（与 `#readsOf` 同源） | Oscaner M. · Claude（kairos:cdd-plan [P24] 第 5 轮评审回填 · 2026-11-04） |
 | v0.10 | 2026-11-04 | 任务 1,2 实现轮第 1 轮 fix（内容面，结构面未动）：Task 2 的 reason 面按实际代码校正——① `renderReason` 由 `(hop: NextHop \| null): string \| null` 改为 `(hop: NextHop): string`（`renderHop` 只对 null hop 返回 null，故内部 null 分支永不可达；hop 的缺席由胶囊的 `hopValue !== null` 门一次判定） ② 板面 `reasonLine(hop, renderer)` 改为 `reasonLine(hop)`，值直取 `hop.reason`（`renderReason` 的值自带站表前缀，板面取来只能弃用）；原写法里「渲不出就退化成 `(none)`」的分支因此不可达，docstring 一并改正——absent hop 的行本来就没有 `reason:` 行 ③ Files / Produces / Step 4 片段 / Step 5 / Step 6 末句同笔同步；范围锁的 spec 版本随 spec v0.15 | Task 2 Files/Produces/Steps + 范围锁 + Change history v0.10 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 1 轮 fix · 2026-11-04） |
 | v0.11 | 2026-11-04 | **§6 验收演示留证 + 一处计划笔误**：① 修复前有 **4 次实案**（spec fix 6 / plan fix 4 / spec fix 7 / plan fix 5，均为「review 零 blocker → fix 改完 → `next:` 仍印 `review`」，靠人工推进基线才闭合）；**修复后的第一次自证是 W1**——review 1 零 blocker（1 warn + 4 nit）→ fix 1 修完 5 条 → `next: implement --tasks 3` / `reason: task-open`，**无人工干预即收口**。② Task 4 Step 6 的提交类型 `docs+release:` 不在仓库词表（feat/fix/docs/chore/test）内，已改为 `docs:`（该提交已在历史中，不改写历史，只在计划里订正） | Task 4 Step 6 + Change history v0.10 | Oscaner M. · Claude（kairos:cdd-dev · W3 裁定回填 · 2026-11-04） |
+| v0.12 | 2026-11-04 | **W3 评审第 2 轮 fix（内容面，结构面未动）**：① Task 4 Files 的 `Create: .changeset/p24-nextloop-closeout.md` 改为 `Modify: .changeset/p24-fix-identity-and-reason-row.md`——本相位只落**一份**发布条目 ② Task 4 Step 4 由「写 `p24-nextloop-closeout.md`」改写为「写 `p24-fix-identity-and-reason-row.md`」，写明三件真事的口径，并禁止再开第二条、禁止声称 wave 的写回修好了既有收口缺陷 ③ 范围锁的 spec 版本随 spec v0.16 | Task 4 Files/Step 4 + 范围锁 + Change history v0.12 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 2 轮 fix · 2026-11-04） |

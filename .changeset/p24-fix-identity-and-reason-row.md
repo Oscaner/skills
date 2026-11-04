@@ -2,8 +2,9 @@
 "@oscaner-skills/cdd-engine": minor
 ---
 
-**A completed fix round advances the line's reviewed identity, and every hop-rendered
-`next:` line gains a `reason:` row (P24).** Two consumer-visible face changes.
+**A completed fix round advances the line's reviewed identity, every hop-rendered `next:`
+line gains a `reason:` row, and a drifted wave hop names `doc-drift` (P24).** Three
+consumer-visible face changes, carried by one release entry.
 
 The reviewed-revision write-back now fires on a completed **fix** round, not only on a
 review: the round that moved the document is the round that binds the new identity, so a
@@ -21,3 +22,9 @@ prefix from the word table (a fifth `reason:` station), the board from its own 1
 layout literal; both render the same token for the same hop. The `--dry-run` preview gains
 the fix leg and reports the branch line's `reviewedRevision(doc)` write-back it always
 performed.
+
+A wave hop whose brief moved after the review bound it now says `doc-drift`: the row that
+could only say `task-open` in that state now names the movement, on `cdd board --plan
+<path>` and in the `peekNext` directive alike. The wave still derives its hop from a single
+`nextHopOf` call — the brief-drift fact is one conditional field on that input object,
+never a second route, and it never moves the wave's station.

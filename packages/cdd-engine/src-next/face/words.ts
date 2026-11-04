@@ -5,10 +5,10 @@
 // table with three families served by one class:
 //
 //   capsule — the capsule-station words: the capsule keys (status · handoff, the
-//           pinned emit order), the two route stations (`next:` + `reason:`) and the
-//           stderr stations, the
-//           status vocabulary and the route classifier words. Every byte the capsule
-//           emits rides this family — a reorder is a red test.
+//           pinned emit order), the two route stations (`next:` + `reason:`) and
+//           the stderr stations, the status vocabulary and the route classifier
+//           words. Every byte the capsule emits rides this family — a reorder is a
+//           red test.
 //   guard — the guard-ban words: the retired-vocabulary ban rows (STALE / GATE /
 //           shape) the guards assert absent from the live faces. This is the ban
 //           table's data-source face — the guard scan releases these rows as its

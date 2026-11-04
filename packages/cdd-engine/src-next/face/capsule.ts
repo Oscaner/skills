@@ -135,11 +135,11 @@ export class Capsule {
       .join(words.capsuleSeparator());
     const lines = [capsuleLine];
     if (summary !== undefined) lines.push(summary);
-    const next = this.#route.renderHop(hop ?? null);
-    if (next !== null) {
+    const hopValue = hop ?? null;
+    const next = this.#route.renderHop(hopValue);
+    if (hopValue !== null && next !== null) {
       lines.push(`${words.station("next")} ${next}`);
-      const reason = this.#route.renderReason(hop ?? null);
-      if (reason !== null) lines.push(reason);
+      lines.push(this.#route.renderReason(hopValue));
     }
     return lines;
   }

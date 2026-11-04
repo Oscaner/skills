@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 计划：NEXT-LOOP 收口面（基线随轮推进 + hop 原因可读）
 doc-type: plan
-version: v0.9
+version: v0.10
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p24
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（v0.14）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（v0.15）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。
 - **单点判据**：drift 的「记了什么 identity」只有一个写入点（`Ledger#recordReviewedRevision`，wave 经 `recordReviewedBrief`），读取面按既有事实分两条（doc/branch 走 `docReopens`、wave 走 `waveLineRoute` 的 D30 腿）。不得为任何一面新开第二个 drift 判定或第二个写入点。
 - **只推进完成的轮**：`targetAction` 为假的轮（BLOCKED / TIMEOUT）一律不推进基线；读不到输入（文档 / plan 不可读）时什么都不记录，保留旧基线。
 - **`next:` 字节零变**：`next:` 行仍是可执行字面，整行抄进 shell 必须能跑。诊断信息只落**另一行**（`reason:`）。字面上不得出现 `—`/`#`/任何后缀。
@@ -194,9 +194,9 @@ none
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/face/words.ts:47`（`StationKind` 加 `"reason"`）· `:194-199`（`CAPSULE_WORDS.stations` 增 `reason: "reason:"`）· 文件自述散文 `:7-8`（「the `next:` route station + the stderr stations」→ 两枚路由站锚、五行站表）
-- Modify: `packages/cdd-engine/src-next/face/route-render.ts`（新增 `renderReason(hop: NextHop | null): string | null`；`renderHop` 不动）
+- Modify: `packages/cdd-engine/src-next/face/route-render.ts`（新增 `renderReason(hop: NextHop): string`——hop 的缺席由调用方一次把门（`renderHop` 只对 null hop 返回 null），不设 null 入参、不留不可达的 null 分支；`renderHop` 不动）
 - Modify: `packages/cdd-engine/src-next/face/capsule.ts:133-134`（前缀取 `words.station("reason")`，值取 `renderReason`）· 陈旧散文 `:19` · `:67` · `:100` · 文件自述散文 `:2`（摘要行）· `:7-10`（文件自己的渲染示意图：补第十一行 `reason: <token>`，并注明 hop 为 `null` 时不渲）
-- Modify: `packages/cdd-engine/src-next/face/board-view.ts:349-358`（`nextLine` 旁增 `static reasonLine(hop, renderer)`，前缀布局字面 `  reason:  `）· `:558`（调用点后追加一行）
+- Modify: `packages/cdd-engine/src-next/face/board-view.ts:349-358`（`nextLine` 旁增 `static reasonLine(hop)`：值直取 `hop.reason`、前缀布局字面 `  reason:  `；无 `renderer` 参数，`next === null` 分支不调用它）· `:558`（调用点后追加一行）
 - Test: `packages/cdd-engine/src-next/face/__tests__/face.test.ts`（13 处整块快照 + 站表长度 4→5 + 陈旧散文 `:8` · `:101`）
 - Test: `packages/cdd-engine/src-next/face/__tests__/capsule.test.ts`（2 处整块快照 + 陈旧散文：`:467` 的 describe 标题 · `:474`）
 - Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（`reason:` 行渲染 · hop-null 无行 · 胶囊 ⇄ 板面 token 同值 pin）
@@ -209,33 +209,33 @@ none
 #### Produces
 
 - `StationKind` 增 `"reason"`；`CAPSULE_WORDS.stations.reason === "reason:"`
-- `RouteRenderer#renderReason(hop: NextHop | null): string | null` — hop 为 `null` 返回 `null`，否则返回 `reason: <hop.reason>`
-- `BoardView.reasonLine(hop: NextHop, renderer: RouteRenderer): string` — 返回 `  reason:  <token>`
+- `RouteRenderer#renderReason(hop: NextHop): string` — 返回 `reason: <hop.reason>`（站表前缀 + token）；hop 的缺席由胶囊的 `hopValue !== null` 门一次判定，与 `renderHop` 读同一对象
+- `BoardView.reasonLine(hop: NextHop): string` — 返回 `  reason:  <token>`（token 直取 `hop.reason`；无 renderer 参数，故无不可达的 `(none)` 退化分支）
 
 #### Steps
 
 - [ ] **Step 1: 写红测试（胶囊）** — checkable: `face.test.ts` 新增用例断言 `capsule.emit("APPROVED", "/h.json", hopOf({ kind: "review" }))` 的**末元素**为 `` `reason: ${NEXT_HOP_REASON.taskOpen}` `` —— 今日 FAIL（无该行）
 - [ ] **Step 2: 写红测试（hop 为 null 不渲）** — checkable: 既有 hop-absent 快照（`face.test.ts:109`（成功无 hop）· `:114`/`:118`（BLOCKED / TIMEOUT）· `:222`/`:223`；`capsule.test.ts:470`/`:490`/`:491`）**一行不改**仍绿（若实现给它们加了 `reason:` 行则红）
 - [ ] **Step 3: 站表加第五行** — checkable: `StationKind` 与 `stations` 各加 `reason`；`face.test.ts:103` 的长度断言由 4 改 5；`:66-69` 四条逐键断言不动；同处**补第五条**逐键断言 `expect(words.station("reason")).toBe("reason:")`——只改长度 pin 时把值写成 `"reason"`（少冒号）也能全绿
-- [ ] **Step 4: 实现 `renderReason` 并接到胶囊** — checkable: `renderHop` 一行未动；胶囊在 `next` 非 null 时追加一行
+- [ ] **Step 4: 实现 `renderReason` 并接到胶囊** — checkable: `renderHop` 一行未动；胶囊在 hop 非 null 时追加一行，且**不再**判 `reason !== null`（`renderHop` 只对 null hop 返回 null，故 `hopValue !== null` 这一门同时管住两行，内层 null 判是不可达的死代码）
 
 ```ts
 // face/route-render.ts
-renderReason(hop: NextHop | null): string | null {
-  return hop === null ? null : `${this.#words.station("reason")} ${hop.reason}`;
+renderReason(hop: NextHop): string {
+  return `${this.#words.station("reason")} ${hop.reason}`;
 }
 
 // face/capsule.ts（:133-134 之后）
-const next = this.#route.renderHop(hop ?? null);
-if (next !== null) {
+const hopValue = hop ?? null;
+const next = this.#route.renderHop(hopValue);
+if (hopValue !== null && next !== null) {
   lines.push(`${words.station("next")} ${next}`);
-  const reason = this.#route.renderReason(hop ?? null);
-  if (reason !== null) lines.push(reason);
+  lines.push(this.#route.renderReason(hopValue));
 }
 ```
 
-- [ ] **Step 5: 板面渲染** — checkable: `reasonLine` 与 `nextLine` 同形（布局字面，不取词表），`:558` 之后追加；`:556` 的 `(none)` 与 `:623` 的程序板 `done` **不追加**（字节零变）
-- [ ] **Step 6: 胶囊 ⇄ 板面 `reason:` 同值 pin** — checkable: 沿用 `board-view.test.ts:1612-1654` 的 frontier-hop 夹具形状（`peekNext().hop` → 胶囊 `emit(…)` 的 `reason:` 行对板面那行），断言两面的 **token 等值**，且**两边同一归一化**：`const tokenOf = (line: string) => line.trim().replace(/^reason:\s+/, "");`，然后 `expect(tokenOf(boardReasonLine)).toBe(tokenOf(capsuleReasonLine))`。**比较之前先钉板面前缀本身**：`expect(boardReasonLine.startsWith("  reason:  ")).toBe(true)`——`tokenOf` 的 `^reason:\s+` 会把 `  reason:  ` 这个布局字面归一化掉，不另钉就没人断言 spec §4 声明的 11 列形状。胶囊行是 `reason: <token>`（一个空格），板面行是 `  reason:  <token>`（11 列 + 两空格）——**不归一化就恒红**，而恒红的 pin 会逗人把它弱化成 `toContain`（那是把 pin 变成永不红）。前缀各按自己的家（胶囊走站表、板面走布局字面），故只比 token；两面共用 `renderReason`，这条 pin 只钉「将来有人只改一面」
+- [ ] **Step 5: 板面渲染** — checkable: `reasonLine` 与 `nextLine` 同形（布局字面，不取词表），值直取 `hop.reason`（`renderReason` 的值自带站表前缀，不直取），`:558` 之后追加；`:556` 的 `(none)` 与 `:623` 的程序板 `done` **不追加**（字节零变）
+- [ ] **Step 6: 胶囊 ⇄ 板面 `reason:` 同值 pin** — checkable: 沿用 `board-view.test.ts:1612-1654` 的 frontier-hop 夹具形状（`peekNext().hop` → 胶囊 `emit(…)` 的 `reason:` 行对板面那行），断言两面的 **token 等值**，且**两边同一归一化**：`const tokenOf = (line: string) => line.trim().replace(/^reason:\s+/, "");`，然后 `expect(tokenOf(boardReasonLine)).toBe(tokenOf(capsuleReasonLine))`。**比较之前先钉板面前缀本身**：`expect(boardReasonLine.startsWith("  reason:  ")).toBe(true)`——`tokenOf` 的 `^reason:\s+` 会把 `  reason:  ` 这个布局字面归一化掉，不另钉就没人断言 spec §4 声明的 11 列形状。胶囊行是 `reason: <token>`（一个空格），板面行是 `  reason:  <token>`（11 列 + 两空格）——**不归一化就恒红**，而恒红的 pin 会逗人把它弱化成 `toContain`（那是把 pin 变成永不红）。前缀各按自己的家（胶囊走站表、板面走布局字面），故只比 token；两面共用同一事实 `NextHop.reason`（胶囊经站表前缀渲、板面直取），这条 pin 只钉「将来有人只改一面」
 - [ ] **Step 7: 重锚 15 处整块快照** — checkable: `face.test.ts` 13 处 / `capsule.test.ts` 2 处，各新增**一个** `reason:` 元素。13 处按 `toEqual(` 行在册：`:124`（done）· `:128`（next-wave）· `:136`（review）· `:147`（fix + reviews）· `:152`（bare fix）· `:163`（soft-cap，单行数组）· `:171`（review + wave target）· `:182`（fix + wave target）· `:195`（review + branch target）· `:205`（review + phase-spec target）· `:213`（next-wave + wave target）· `:226`（done）· `:266`（T8 seam 的 `lines`），另 `capsule.test.ts:482` · `:498`（spec §7 第 2 类按 `capsule.emit(...)` 调用行登记，两者逐处一一对应）。**token 不得猜**——先实现再一次性重锚：跑套件，从失败断言的 `received` 里逐处抄实际值，一条不漏。取值来源（`#reasonOf` 的序，`session/next.ts:396-404`）：`fix` ⇒ `pending-fix` · `soft-cap` ⇒ `soft-cap` · `review` + drift ⇒ `doc-drift` · 其余活 hop（`review` 未 drift / `next-wave`）⇒ `task-open` · doc-class blocked ⇒ `doc-class-blocked` · 无路由或 terminal ⇒ `face-closed` · 闭线 ⇒ `closed-line`；`received` 仍是权威
 - [ ] **Step 8: 改写陈旧散文（14 处）** — checkable: `face.test.ts:8` · `:101` · `capsule.ts:19` · `:67` · `:100` · `run.ts:262` · `capsule.test.ts:467`（describe 标题）· `:474` · `cli.test.ts:1960` · `run.ts:239` · `:876` —— 一律改为「`next:` 行 + 紧随其后的 `reason:` 行」；断言字节零变。**另三处文件自述散文同笔同义**：`face/capsule.ts:2`（摘要行 → 「both station anchors ride the table (`next:` + the new `reason:`)」）· `face/capsule.ts:7-10`（文件自己的渲染示意图补第十一行 `reason: <token>`，并注明 hop 为 `null` 时不渲）· `face/words.ts:7-8`（「the `next:` route station + the stderr stations」→ 两枚路由站锚、五行站表）。改写留在 `face/capsule.ts:1-12` 与 `face/words.ts:1-12` 的既有散文内——架构图 `face` 节点的取证跨度不脱钩；`diagrams.guard.test.ts` 只校验 upstream/host/engine 三锚，故这是文档一致性要求而非门的要求。**`face.test.ts:101` 的那句改写必须由断言承载**：`:102` 只钉 `emitted[1]` 的 `next:`，故同处补 `expect(emitted[2].split(" ")[0]).toBe(words.station("reason"))`——否则 `renderReason` 里硬编码 `reason:` 也会全绿，新站行成了死声明。**扫描词面**：末行 / `LAST` / `close` / `last line` / `trailing` / 唯一站锚 / 唯一站词——`capsule.ts:100` 的「line LAST … the output's close」正是旧词面（只扫「末行」）漏掉的；「九处」不是穷尽的证明。`session/__tests__/run.test.ts` 无此散文（其 `next:` 提及是断言，以及一条「prints no `next:` line」的缺席断言），不进这十四处
 - [ ] **Step 9: 跑三套件 + 提交** — checkable: `face.test.ts` / `capsule.test.ts` / `board-view.test.ts` 全绿；`next:` 行断言（`lines[1]` 抽取与 `toContain`）零改动仍绿；`pnpm run precommit` 绿；`git commit -m "feat(cdd-engine): render the hop reason on its own line after next:"`
@@ -400,3 +400,4 @@ none
 | v0.7 | 2026-11-04 | 第 4 轮评审回填（内容面，无结构变更）：① Task 3 Produces 由「一个 drift 值」改为两值口径——`gate.drift = drift \|\| (input.briefDrift ?? false)`，替换驱动 `drift` 对 wave 恒为 `false`（与 Step 4 同一词汇） ② Task 3 Files 补 `session/ledger.ts:1205-1218`（`nextHopOf` 的 docstring 同入同步列），Step 4 写明两值口径的注释改写 ③ Task 2 补三条 back —— 站表第五行的**值**逐键断言（`face.test.ts:66-69` 旁同形补一条）、胶囊**确实读该行**（`:101` 注释旁补 `emitted[2]` 前缀取自 `words.station("reason")`）、板面 `  reason:  ` 的 11 列前缀在 `tokenOf` 归一化之前自带断言 ④ Task 1 Step 9 删掉「判别式一旦被复制成第二份就红」的假敏感度——`#bookkeep` 有 `targetAction` 门、`#recordsOf` 是无 verdict 的 dry run，两处 phase 列表**各存一份**，`preview.test.ts` 的 fix 轮用例是行为 pin 而非漂移探针；Constraint 与 Acceptance 同步登记该双写债务 ⑤ `#abs` 的行号引脚由 `:905-906`（`docLineVerdict` 的读基准处）改为 `docLineVerdict:905-906` → `#abs:598-600` ⑥ `drift \|\| briefDrift` 的写法改为 `drift \|\| (input.briefDrift ?? false)`（否则 `boolean \| undefined` 在 `strict` 下不过 `tsc`） | Oscaner M. · Claude（kairos:cdd-plan [P24] 第 4 轮评审回填 · 2026-11-04） |
 | v0.8 | 2026-11-04 | **范围追加（用户裁定并入 P24，对齐 spec v0.13 §9）**：新增 **Task 5**「板面 frontier 的选面读 drift」——`pipelineFacts` 的 spec/plan 两面 `closed` 由 `lineClosed` 改 `lineStateAt(...) === "closed"`（既有 drift-aware 读数），含必红断言（drifted spec + plan ⇒ 板面给 review lead 而非 implement）、孪生回归（review 闭合后 frontier 前进）、两处 null 路径零变、本波自带 validate；`DependsOn: 1,2,3,4` ⇒ 新波 W4。范围锁版本改 v0.13 | Task 5 + 范围锁 + Change history v0.8 | Oscaner M. · Claude（kairos:cdd-plan · 范围追加 · 2026-11-04） |
 | v0.9 | 2026-11-04 | 第 5 轮评审回填（内容面，对齐 spec v0.14）：① Task 2 补三处**文件自述散文**——`face/capsule.ts:2` · `:7-10` · `face/words.ts:7-8`（补第十一行 `reason: <token>` 并注明 hop 为 `null` 时不渲）；Step 8 由 11 处改 **14 处**并逐条列出，Constraint 计数同笔同步 ② Task 3 的 `session/next.ts:208-226` 由「No change」改为「**形状**一行不动」，`NextHopInput.gate` 的 docstring（`:211-213`）改为两值口径并入 Step 4 的同步列 ③ 范围锁的 spec 版本由 v0.13 改 **v0.14** ④ Task 1 用例 C 的 dispatch 返回值改为 `{ status: "BLOCKED" }`（`DispatchOutcome` 无 `reason` 字段，照抄会 TS2353），Step 4 补「片段须过 `tsc -p packages/cdd-engine`」 ⑤ Task 4 的四份 diagram 源与 README 中文镜像一律引用 spec §5 的定案句 ⑥ Task 1 Step 9 指名预览面 branch 腿的路径来源为 `this.#scene.planPath`（与 `#readsOf` 同源） | Oscaner M. · Claude（kairos:cdd-plan [P24] 第 5 轮评审回填 · 2026-11-04） |
+| v0.10 | 2026-11-04 | 任务 1,2 实现轮第 1 轮 fix（内容面，结构面未动）：Task 2 的 reason 面按实际代码校正——① `renderReason` 由 `(hop: NextHop \| null): string \| null` 改为 `(hop: NextHop): string`（`renderHop` 只对 null hop 返回 null，故内部 null 分支永不可达；hop 的缺席由胶囊的 `hopValue !== null` 门一次判定） ② 板面 `reasonLine(hop, renderer)` 改为 `reasonLine(hop)`，值直取 `hop.reason`（`renderReason` 的值自带站表前缀，板面取来只能弃用）；原写法里「渲不出就退化成 `(none)`」的分支因此不可达，docstring 一并改正——absent hop 的行本来就没有 `reason:` 行 ③ Files / Produces / Step 4 片段 / Step 5 / Step 6 末句同笔同步；范围锁的 spec 版本随 spec v0.15 | Task 2 Files/Produces/Steps + 范围锁 + Change history v0.10 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 1 轮 fix · 2026-11-04） |

@@ -7,9 +7,9 @@
 //   · the byte pin — Capsule#emit renders the `status · handoff` line and the
 //     optional `next:` + `reason:` rows byte-stably (every route row rendered,
 //     the two route rows last);
-//   · the word-face comparison — the v1 emitted face is byte-identical to the
-//     existing consumed word face (status · handoff · next:) — same words, no
-//     re-judgment: a steady state, not a compatibility shim;
+//   · the word-face comparison — the v1 emitted word face keeps its consumed words
+//     (status · handoff) byte-identical and gains the `reason:` row after `next:` —
+//     same words, no re-judgment: a steady state, not a compatibility shim;
 //   · the locale face (T19) — the word table's locale columns: the locale key set
 //     (the langs projection source), the issue-label rows (one per finding type ×
 //     segment) + the charter anchor rows (the P7 canonicalize data — charter.*), and

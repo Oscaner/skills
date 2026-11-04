@@ -357,17 +357,16 @@ export class BoardView {
     return `  next:    ${value}`;
   }
 
-  /** reasonLine(hop, renderer) — the board's `reason:` row under `next:`, rendered
-   *  through the shared render face so the board's token and the capsule's token are
-   *  one value by construction. The PREFIX is this face's own layout literal
-   *  (`  reason:  ` — the same 11-column shape `nextLine` uses); the capsule takes its
-   *  prefix from the word table instead, so each face keeps its own prefix and only
-   *  the token is shared. `renderer` supplies the null gate: a hop whose reason the
-   *  render face declines degrades to the same `(none)` bytes the absent-hop row
-   *  carries, never to a half-built row. */
-  static reasonLine(hop: NextHop, renderer: RouteRenderer): string {
-    const rendered = renderer.renderReason(hop);
-    return `  reason:  ${rendered === null ? "(none)" : hop.reason}`;
+  /** reasonLine(hop) — the board's `reason:` row under `next:`: the hop's OWN named
+   *  fact (`NextHop.reason`), the same field the capsule's `renderReason` row prints,
+   *  so the two faces state one value by construction. The PREFIX is this face's own
+   *  layout literal (`  reason:  ` — the same 11-column shape `nextLine` uses); the
+   *  capsule takes its prefix from the word table instead, so each face keeps its own
+   *  prefix and only the token is shared. A row exists only for an existing hop: the
+   *  absent hop renders `  next:    (none)` and NO reason row at all (the caller's
+   *  null-next branch), never a half-built one. */
+  static reasonLine(hop: NextHop): string {
+    return `  reason:  ${hop.reason}`;
   }
 
   /** inFlightRows(state, orphans, words) — the tree's dispatch fact + the
@@ -570,7 +569,7 @@ export class BoardView {
     } else {
       const renderer = new RouteRenderer(words, channels, host, root);
       lines.push(BoardView.nextLine(next, renderer));
-      lines.push(BoardView.reasonLine(next, renderer));
+      lines.push(BoardView.reasonLine(next));
     }
     return blocked ? 2 : 0;
   }

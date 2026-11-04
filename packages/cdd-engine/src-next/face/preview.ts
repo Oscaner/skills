@@ -166,12 +166,16 @@ export class Preview {
   /** The reviewed-revision leg one recording round would write, stated per target
    *  kind: the wave face binds its brief, the doc faces their judged document, the
    *  branch face its plan document (a null plan path states no leg rather than an
-   *  empty identity). */
+   *  empty identity). An unlisted kind states no leg — the same conservative chain
+   *  `#bookkeep` walks, so a target union that ever grows fails the same way on both
+   *  faces instead of silently recording a doc write-back. */
   #reviewedLegOf(frame: OpenFrame): string | null {
     if (frame.target.kind === "wave") return "reviewedRevision(brief)";
     if (frame.target.kind === "plan" || frame.target.kind === "spec")
       return "reviewedRevision(doc)";
-    return this.#scene.planPath === null ? null : "reviewedRevision(doc)";
+    if (frame.target.kind === "branch")
+      return this.#scene.planPath === null ? null : "reviewedRevision(doc)";
+    return null;
   }
 
   /** The child invocation the real run would spawn — `<HostId> <invoke>`: the host

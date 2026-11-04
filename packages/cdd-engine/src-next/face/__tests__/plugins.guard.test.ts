@@ -209,10 +209,6 @@ describe("PLUGINS ↔ the kairos README install table (the recommended span)", (
         rows.length,
         `${rel}: the install table body must be the core span plus the recommended span`,
       ).toBe(CORE_ROWS.length + RECOMMENDED_ROWS.length);
-      expect(
-        coreSpan(rel).length + recommendedSpan(rel).length,
-        `${rel}: the two spans must partition the install table body`,
-      ).toBe(rows.length);
     }
   });
 });

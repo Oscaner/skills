@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P23 计划：`cdd init --include-recommends` 推荐包档
 doc-type: plan
-version: v0.3
+version: v0.4
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p23
 base: develop
@@ -112,7 +112,7 @@ Task 1 的 `InitRequest` / `#stepsOf` / `PLUGINS` 与 `tier` · spec §3.1（`AR
 
 #### Files
 - Modify: `packages/kairos/README.md` · `packages/kairos/README.zh-CN.md` · `README.md` · `README.zh-CN.md` · `packages/cdd-engine/README.md` · `packages/cdd-engine/README.zh-CN.md`
-- Test: `packages/cdd-engine/src-next/face/__tests__/plugins.guard.test.ts`（推荐 span + 守恒 pin + 引擎 README usage 行断言）
+- Test: `packages/cdd-engine/src-next/face/__tests__/plugins.guard.test.ts`（推荐 span + 守恒 pin + 引擎 README usage 行断言）· `packages/kairos/tests/grep-sweep-regression.test.ts`（消费面 markdown 漏断言随 README 同笔交付）
 
 #### Consumes
 Task 1 的 `PLUGINS` 九行与 argv · spec §6.1（六份 README 的三处内容）· §7.2（推荐 span 逐格断言与 `—` 的写法）· §7.1 的守恒 pin。
@@ -121,12 +121,14 @@ Task 1 的 `PLUGINS` 九行与 argv · spec §6.1（六份 README 的三处内�
 - 安装表九行：推荐行首列 = `name`、claude 单元格 = `—`、pi 单元格 = install argv 全角 `；` 连接。
 - guard 两个新断言：推荐 span 逐格；`rows.length === core.length + recommended.length`。
 - 四份 README 的 `cdd init` 命令字节断言保留，新增引擎 README 双语 usage 行含 `[--include-recommends]`。
+- 消费面泄漏门：`grep -rn --include="*.md" -e "<字面>" packages/kairos/skills/ | wc -l` 对 `--include-recommends` 与推荐六条包名断 0、对 `--plan` 正控断 ≥1；与 README 字面同笔落地——任一 README 回退时门与表一起红。
 
 #### Steps
 - [ ] **Step 1: 先写红用例（guard）** —— 推荐 span 逐格断言 + 守恒 pin + 引擎 README usage 行断言。 — checkable: 先红（README 表仍三行、usage 行无旗标）
 - [ ] **Step 2: kairos README 双语** —— lead-in 分档一句（前三行安装契约 / 后六行推荐档 / `--include-recommends` 才装）+ 表扩到九行（推荐行 claude 列 `—`）+ 表下六条一组理由段（文件搜索 / todo / 结构化提问 / 网页取用 / 后台任务 / `AGENTS.md` 注入，Claude Code 原生而 pi 需自装）+ 用法句 `--update --include-recommends`。 — checkable: 双语段结构逐段对应，guard 的 kairos 侧断言转绿
 - [ ] **Step 3: 根 README 与引擎 README 双语** —— 根 Installation 一句提及旗标（不复制包清单）；引擎 CLI 表 `init` 行改 `cdd init --harness=<claude\|pi> [--update] [--include-recommends]`。 — checkable: guard 的 usage 行断言转绿
-- [ ] **Step 4: 全量跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS（含 guard 全绿）。 — checkable: 套件 exit 0，`pnpm run precommit` 通过后提交
+- [ ] **Step 4: 消费面泄漏门同笔落地** —— `packages/kairos/tests/grep-sweep-regression.test.ts` 增消费面 markdown 漏断言（只许 `-e` 形，正控 `--plan` ≥1）；门与 README 字面同笔交付。 — checkable: 探针存在时该腿红、移除后绿；`pnpm -C packages/kairos exec vitest run tests/grep-sweep-regression.test.ts` 绿
+- [ ] **Step 5: 全量跑绿 + 提交** —— `pnpm -C packages/cdd-engine test` → PASS（含 guard 全绿）。 — checkable: 套件 exit 0，`pnpm run precommit` 通过后提交
 
 #### Acceptance
 kairos 双语九行表（推荐行 `—`）· 分档 lead-in 与六条一组理由段在册（英文主源 + zh 镜像同步）· `--update --include-recommends` 用法句在册 · 根双语各一句旗标 · 引擎双语 usage 行含旗标 · guard 推荐 span 逐格 + 守恒 pin 绿 · README 表少一行/多一行/空单元格非 `—` 均红。
@@ -134,30 +136,29 @@ kairos 双语九行表（推荐行 `—`）· 分档 lead-in 与六条一组理�
 #### DependsOn
 1
 
-### Task 4: 消费面泄漏门（可红）+ changeset + 全量验收
+### Task 4: 泄漏门可红证明 + changeset + 全量验收
 
 #### Objective
-用一条**能红的**门把「skill 面不出现安装字面」变成可判事实，并收尾发行面。
+用一次临时探针证明**已随 Task 3 落地**的消费面泄漏门真能红，并收尾发行面。
 
 #### Files
-- Modify: `packages/kairos/tests/grep-sweep-regression.test.ts`（新增消费面 markdown 漏断言）· `.changeset/p23-include-recommends.md`（新）
+- Modify: `.changeset/p23-include-recommends.md`（新）
 - 无源码改动。
 
 #### Consumes
 spec §6.2（七份消费面 markdown、`-e` 形命令、`--plan` 正控）· §8.1（落点与波次）· Task 3 的 README 字面（作为「README 该有、skill 不该有」的对照）。
 
 #### Produces
-- 一条测试：对 `packages/kairos/skills/` 全树 `--include="*.md"`，命令形状固定为 `grep -rn --include="*.md" -e "<字面>" … | wc -l`；断言 `--include-recommends` 与推荐六条包名各为 0，且同一形状下 `--plan` ≥ 1（可红证明）。
+- 一条可红证明：把旗标字面写进一个临时探针文件后泄漏门转红，移除后转绿（门本体已在 Task 3 随 README 字面落地，本任务只证明它会红）。
 - `.changeset/p23-include-recommends.md`：`cdd-engine` **minor** + `kairos` **patch**。
 
 #### Steps
-- [ ] **Step 1: 先写红用例（可红证明先行）** —— 断言 `--plan` 命中 ≥ 1（今日 13）；把旗标字面写进一个临时探针文件（或断言当前 0 命中后再反证探针可被检出），确认门能红。 — checkable: 探针存在时该腿红、移除后绿
-- [ ] **Step 2: 落门** —— 七条字面（旗标 + 六条包名）走 `-e` 形断 0；`--plan` 正控断 ≥1；源码里不得出现裸内插与 `\-\-` 转义形。 — checkable: `pnpm -C packages/kairos exec vitest run tests/grep-sweep-regression.test.ts` 绿
-- [ ] **Step 3: changeset** —— 写 `.changeset/p23-include-recommends.md`（`cdd-engine` minor · `kairos` patch），说明新增可选旗标与数据行、无既有字节破坏。 — checkable: `pnpm run version-sync` 不报错
-- [ ] **Step 4: 全量验收 + 提交** —— `env -u AI_AGENT pnpm run validate` → ALL PASS，`pnpm run emit:check` fresh。 — checkable: validate exit 0（emit · root · kairos · engine · typecheck ×3 · version-sync · 零裸函数），然后提交
+- [ ] **Step 1: 可红证明** —— 把旗标字面（或推荐包名之一）写进一个临时探针文件（`packages/kairos/skills/` 下的 `.md`），确认泄漏门该腿转红后删除探针。 — checkable: 探针存在时该腿红、移除后绿
+- [ ] **Step 2: changeset** —— 写 `.changeset/p23-include-recommends.md`（`cdd-engine` minor · `kairos` patch），说明新增可选旗标与数据行、无既有字节破坏。 — checkable: `pnpm run version-sync` 不报错
+- [ ] **Step 3: 全量验收 + 提交** —— `env -u AI_AGENT pnpm run validate` → ALL PASS，`pnpm run emit:check` fresh。 — checkable: validate exit 0（emit · root · kairos · engine · typecheck ×3 · version-sync · 零裸函数），然后提交
 
 #### Acceptance
-泄漏门在册且**可红**（`--plan` 正控 ≥1、七条字面 0、命令形状只许 `-e` 形）· 七份消费面 markdown（六份 `SKILL.md` + `cdd-dev/docs/base.md`）零命中 · changeset `cdd-engine` minor + `kairos` patch 在册 · `env -u AI_AGENT pnpm run validate` exit 0 · `pnpm run emit:check` fresh · `cdd` 仍八命令（结构 pin 不变）。
+泄漏门已随 Task 3 在册且本轮拿到**可红证明**（临时探针红 → 移除后绿；`--plan` 正控 ≥1、七条字面 0、命令形状只许 `-e` 形）· 七份消费面 markdown（六份 `SKILL.md` + `cdd-dev/docs/base.md`）零命中 · changeset `cdd-engine` minor + `kairos` patch 在册 · `env -u AI_AGENT pnpm run validate` exit 0 · `pnpm run emit:check` fresh · `cdd` 仍八命令（结构 pin 不变）。
 
 #### DependsOn
 3
@@ -166,6 +167,7 @@ spec §6.2（七份消费面 markdown、`-e` 形命令、`--plan` 正控）· §
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.4 | 2026-11-04 | W2 评审回填（无结构变更，内容面）：按已交付事实校正泄漏门的落位——Task 3 的 `#### Files` 增 `packages/kairos/tests/grep-sweep-regression.test.ts`、`#### Produces` 增门条目、新增 Step 4（门与 README 字面同笔落地，原 Step 4 顺延为 Step 5）；Task 4 的 `#### Files` 去掉该测试文件、只留 `.changeset/p23-include-recommends.md`，`#### Objective` / `#### Produces` / `#### Steps` / `#### Acceptance` 同步改为「可红证明（临时探针）+ changeset + `env -u AI_AGENT pnpm run validate` 全量」。理由：门与它守护的 README 字面同笔落地时，任一 README 回退都会让门与表一起红，比拆到下一波次更可判（结构面零改动：Task id 集与 `DependsOn` 集不动） | [human] · Claude（kairos:cdd-dev [P23] W2 fix · 2026-11-04） |
 | v0.3 | 2026-11-04 | 评审回填（无结构变更，内容面）：① warn 收下——两条收尾的「先提交再取 sha 钉 revision」与「通过后提交」互斥，改为**每任务两笔提交**：Step A 只提交源码面（该笔在 `diagrams.guard.test.ts` 的 containment 腿上明知为红，`pnpm run precommit` 不含该 guard，故提交不受阻），Step B 重锚 citation、把 `meta.repository.revision` 钉到 Step A 的 40-hex、用 Archify finalize 重生成两份 HTML，绿态只在这一笔，并明确禁止 `--amend` 被 pin 的那笔；Task 1 / Task 2 的 Acceptance 各补一句「提交形状：两笔，验收点是第二笔」· ② nit 收下——Task 1 Step 1 点名「推荐行 claude 列为空数组而非缺列」的两层机制：类型层由 `PluginRow` 的 `Readonly<Record<HostId, PluginCommands>>` 列集派生（缺列即编译错，ambient typecheck ×3，不另造 fixture）+ 运行层两条 pin（`plugins.test.ts:72-77` 键集含两列 · 推荐行 claude `install`/`update` 均为空数组），Acceptance 同名（结构面零改动：Task id 集与 `DependsOn` 集不动） | [human] · Claude（kairos:cdd-plan [P23] · 2026-11-04） |
 | v0.2 | 2026-11-04 | 评审回填（无结构变更，内容面）：① blocker 收下——架构图证据面入册：Task 1 / Task 2 的 Files 增两份 `docs/diagrams/src/architecture.{en,zh-CN}.json` 与重生成的 HTML，各自新增「证据重锚 + 重生成」步骤（`plugins.ts` 的 `upstream` citation、`cli.ts` 的 `engine` citation，各 en / zh 两处），`meta.repository.revision` 随提交重钉，Task 1 / Task 2 的收尾 step checkable 与两份 Acceptance 补 `diagrams.guard.test.ts` 四条腿全绿（结构面零改动：Task id 集与 `DependsOn` 集不动，改动落在原任务的文件与步骤内）· ② warn 收下——Task 2 Step 1 补 `--update --include-recommends` 两档成功面（pi 9 / claude 6 条 update argv，与 install 列零交集），Acceptance 同名 · ③ nit——Task 1 Step 4 由私有 `#stepsOf` 改走公开 `preview({ host, shape, recommended })` 面 · ④ nit——Task 1 Consumes 补 §8.2，Acceptance 列出五处既有字节 pin 的实测行号（`cli.test.ts:631` / `:657` / `:702` · `init.test.ts:184-186` / `:193-198` / `:269` · `preview.test.ts:408` / `:430`） | [human] · Claude（kairos:cdd-plan [P23] · 2026-11-04） |
 | v0.1 | 2026-11-04 | P23 实施计划：四任务三波——**W1** `PLUGINS` 落九行 + `InitRequest` 按档过滤（无旗标字节零变）+ guard 核心 span 改吃行对象 + 名册派生基座按 core 取行；**W2（T2 ‖ T3）**——T2 = 旗标两行（`ARGV_CHANNEL` + `CLI_COMMANDS` `keys`）+ `InitStep.tier` 席位 + 输出面三句（分档汇总 / 空档 info / 分形失败补行），T3 = 六份 README 九行 + guard 推荐 span 与守恒 pin（两者只依赖 T1，文件面不重叠）；**W3**——T4 = 可红的消费面泄漏门（`-e` 形 + `--plan` 正控）+ changeset + `env -u AI_AGENT pnpm run validate` 全量验收（依赖 T3 的 README 字面） | [human] · Claude（kairos:cdd-plan [P23] · 2026-11-04） |

@@ -43,11 +43,6 @@ import { PLUGINS, type PluginRow } from "../plugins.ts";
  *  recommended tier is opt-in, so a flag-less mirror takes the core rows only). */
 const ROSTER: readonly PluginRow[] = PLUGINS.filter((row) => row.tier === "core");
 
-/** The roster's flattened argv for one harness + shape — the independent source the
- *  run is compared against (never reverse-derived from the run's own order). */
-const sequenceOf = (host: HostId, shape: "install" | "update"): string[][] =>
-  ROSTER.flatMap((row) => row[host][shape].map((argv) => [...argv]));
-
 /** The flattened argv of an arbitrary row set — the independent source a tiered
  *  request is compared against (derived from the roster, never from the run's order). */
 const stepsOf = (
@@ -55,6 +50,12 @@ const stepsOf = (
   host: HostId,
   shape: "install" | "update",
 ): string[][] => rows.flatMap((row) => row[host][shape].map((argv) => [...argv]));
+
+/** The roster's core-only flattened argv for one harness + shape — the independent
+ *  source a flag-less run is compared against (never reverse-derived from the run's
+ *  own order). The flatten shape itself lives once, in `stepsOf`. */
+const sequenceOf = (host: HostId, shape: "install" | "update"): string[][] =>
+  stepsOf(ROSTER, host, shape);
 
 /** One flatten request — the flag-less face (core rows only) unless a case opts in. */
 const req = (host: HostId, shape: "install" | "update", recommended = false): InitRequest => ({

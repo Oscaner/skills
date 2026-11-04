@@ -24,8 +24,8 @@ existing failure line and before the unchanged hint. The engine never parses har
 output, so no step is skipped on the strength of what a subprocess printed.
 
 The kairos README family carries the consumer face: a tier-split lead-in, the nine-row
-install table (every recommended claude cell `—`), one group paragraph per recommended
-package, and the `cdd init --harness=pi --update --include-recommends` usage line; the
+install table (every recommended claude cell `—`), one grouped six-line rationale below the
+table, and the `cdd init --harness=pi --update --include-recommends` usage line; the
 root READMEs name the flag once in Installation and the engine READMEs' `init` row reads
 `cdd init --harness=<claude|pi> [--update] [--include-recommends]`. Zero `SKILL.md`
 change: the install surface belongs to the READMEs, and a guard sweeps the shipped skill

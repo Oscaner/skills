@@ -1630,7 +1630,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       "branch",
     );
     const run = new Lifecycle({
-      face: targetFaces["branch"],
+      face: targetFaces.branch,
       state: EMPTY_RUN_STATE,
       ledger,
       dispatch: async () => ({ status: "APPROVED", findings: [] }),

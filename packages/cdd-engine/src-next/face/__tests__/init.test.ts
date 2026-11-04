@@ -29,16 +29,31 @@ import { describe, expect, it } from "vitest";
 
 import type { CliIo } from "../cli.ts";
 import type { HostId } from "../host.ts";
-import { CliInit, ExecaStepRunner, SPAWN_FAILURE_CODE, STDIO, type StepRunner } from "../init.ts";
+import {
+  CliInit,
+  ExecaStepRunner,
+  type InitRequest,
+  SPAWN_FAILURE_CODE,
+  STDIO,
+  type StepRunner,
+} from "../init.ts";
 import { PLUGINS, type PluginRow } from "../plugins.ts";
 
-/** The roster widened to its row face — the literal tuple union flattens cleanly. */
-const ROSTER: readonly PluginRow[] = PLUGINS;
+/** The roster narrowed to its CORE rows — the flag-less face's plan source (the
+ *  recommended tier is opt-in, so a flag-less mirror takes the core rows only). */
+const ROSTER: readonly PluginRow[] = PLUGINS.filter((row) => row.tier === "core");
 
 /** The roster's flattened argv for one harness + shape — the independent source the
  *  run is compared against (never reverse-derived from the run's own order). */
 const sequenceOf = (host: HostId, shape: "install" | "update"): string[][] =>
   ROSTER.flatMap((row) => row[host][shape].map((argv) => [...argv]));
+
+/** One flatten request — the flag-less face (core rows only) unless a case opts in. */
+const req = (host: HostId, shape: "install" | "update", recommended = false): InitRequest => ({
+  host,
+  shape,
+  recommended,
+});
 
 /** The shipped CLI entry — executed the way the consumer runs it (never imported). */
 const BIN = fileURLToPath(new URL("../../bin.ts", import.meta.url));
@@ -125,7 +140,7 @@ describe("CliInit — the harness plugin sequence", () => {
   it("runs the claude install sequence — the roster's flattened install argv, in declared order", async () => {
     const runner = new RecordingRunner();
     const { init } = initFace(runner);
-    expect(await init.run("claude", false)).toBe(0);
+    expect(await init.run(req("claude", "install"))).toBe(0);
     expect(runner.calls).toEqual(sequenceOf("claude", "install"));
     // the sequence is the full six steps (3 packages × 2 claude commands)
     expect(runner.calls).toHaveLength(6);
@@ -134,7 +149,7 @@ describe("CliInit — the harness plugin sequence", () => {
   it("runs the pi install sequence — one step per package", async () => {
     const runner = new RecordingRunner();
     const { init } = initFace(runner);
-    expect(await init.run("pi", false)).toBe(0);
+    expect(await init.run(req("pi", "install"))).toBe(0);
     expect(runner.calls).toEqual(sequenceOf("pi", "install"));
     expect(runner.calls).toHaveLength(3);
   });
@@ -142,7 +157,7 @@ describe("CliInit — the harness plugin sequence", () => {
   it("--update runs the update sequence — zero install argv rides the run", async () => {
     const runner = new RecordingRunner();
     const { init } = initFace(runner);
-    expect(await init.run("claude", true)).toBe(0);
+    expect(await init.run(req("claude", "update"))).toBe(0);
     expect(runner.calls).toEqual(sequenceOf("claude", "update"));
     const installs = sequenceOf("claude", "install").map((argv) => argv.join(" "));
     for (const call of runner.calls) expect(installs).not.toContain(call.join(" "));
@@ -153,7 +168,7 @@ describe("CliInit — the --dry-run preview face", () => {
   it("previews the claude install plan — one would-run line per step, then the summary", () => {
     const runner = new RecordingRunner();
     const { init } = initFace(runner);
-    const lines = init.preview("claude", false);
+    const lines = init.preview(req("claude", "install"));
     // one line per step plus the summary — the same denominator the real run prints
     expect(lines).toHaveLength(ROSTER.flatMap((row) => row.claude.install).length + 1);
     // every step line is the roster's own argv, joined — never a re-derived shape
@@ -169,7 +184,7 @@ describe("CliInit — the --dry-run preview face", () => {
   it("previews the update shape — the update commands, and the summary names the update verb", () => {
     const runner = new RecordingRunner();
     const { init } = initFace(runner);
-    const lines = init.preview("claude", true);
+    const lines = init.preview(req("claude", "update"));
     expect(lines.slice(0, -1)).toEqual(
       sequenceOf("claude", "update").map((argv) => `would run: ${argv.join(" ")}`),
     );
@@ -181,7 +196,7 @@ describe("CliInit — the --dry-run preview face", () => {
   it("the pi preview counts three steps — the harness sequence, never the package count", () => {
     const runner = new RecordingRunner();
     const { init } = initFace(runner);
-    const lines = init.preview("pi", false);
+    const lines = init.preview(req("pi", "install"));
     expect(lines).toHaveLength(4);
     expect(lines.at(-1)).toBe("init: 3 steps (pi · install) — dry run, nothing executed");
     expect(runner.calls).toEqual([]);
@@ -190,12 +205,50 @@ describe("CliInit — the --dry-run preview face", () => {
   it("the pi update preview reads the update sequence — three steps, the update verb in the summary", () => {
     const runner = new RecordingRunner();
     const { init } = initFace(runner);
-    const lines = init.preview("pi", true);
+    const lines = init.preview(req("pi", "update"));
     expect(lines.slice(0, -1)).toEqual(
       sequenceOf("pi", "update").map((argv) => `would run: ${argv.join(" ")}`),
     );
     expect(lines).toHaveLength(4);
     expect(lines.at(-1)).toBe("init: 3 steps (pi · update) — dry run, nothing executed");
+    expect(runner.calls).toEqual([]);
+  });
+
+  it("the recommended tier joins the pi plan — nine steps, the core three first and argv-identical", () => {
+    const runner = new RecordingRunner();
+    const { init } = initFace(runner);
+    const lines = init.preview(req("pi", "install", true));
+    // The step lines carry argv, never the "[<i>/<n>]" denominator — the denominator
+    // grows 3 → 9 with the tier, so the core span is compared by its argv sequence.
+    const steps = lines.slice(0, -1);
+    expect(steps).toHaveLength(9);
+    expect(steps.slice(0, 3)).toEqual(
+      sequenceOf("pi", "install").map((argv) => `would run: ${argv.join(" ")}`),
+    );
+    const recommended = PLUGINS.filter((row) => row.tier === "recommended");
+    expect(recommended.map((row) => row.name)).toEqual([
+      "pi-fff",
+      "rpiv-todo",
+      "rpiv-ask-user-question",
+      "pi-web-access",
+      "pi-background-tasks",
+      "pi-agentsmd",
+    ]);
+    expect(steps.slice(3)).toEqual(
+      recommended.flatMap((row) => row.pi.install.map((argv) => `would run: ${argv.join(" ")}`)),
+    );
+    expect(runner.calls).toEqual([]);
+  });
+
+  it("the recommended tier adds zero claude steps — the recommended claude column is empty", () => {
+    const runner = new RecordingRunner();
+    const { init } = initFace(runner);
+    const lines = init.preview(req("claude", "install", true));
+    const steps = lines.slice(0, -1);
+    expect(steps).toHaveLength(6);
+    expect(steps).toEqual(
+      sequenceOf("claude", "install").map((argv) => `would run: ${argv.join(" ")}`),
+    );
     expect(runner.calls).toEqual([]);
   });
 });
@@ -204,7 +257,7 @@ describe("CliInit — the first-failure stop and its report", () => {
   it("stops at the first non-zero exit and reports the failing step (global ordinal, exit code)", async () => {
     const runner = new RecordingRunner([0, 0, 9]);
     const { init, io } = initFace(runner);
-    expect(await init.run("claude", false)).toBe(1);
+    expect(await init.run(req("claude", "install"))).toBe(1);
     // the third step failed — the fourth never ran
     expect(runner.calls).toHaveLength(3);
     expect(io.stderrText).toBe(
@@ -215,7 +268,7 @@ describe("CliInit — the first-failure stop and its report", () => {
   it("the update form appends the not-installed hint; the install form carries zero hint", async () => {
     const updateRunner = new RecordingRunner([0, 0, 9]);
     const updateFace = initFace(updateRunner);
-    expect(await updateFace.init.run("claude", true)).toBe(1);
+    expect(await updateFace.init.run(req("claude", "update"))).toBe(1);
     expect(updateFace.io.stderrText.split("\n")[0]).toBe(
       "init[3/6] · claude plugin marketplace update mattpocock · exit 9",
     );
@@ -224,7 +277,7 @@ describe("CliInit — the first-failure stop and its report", () => {
     );
     const installRunner = new RecordingRunner([0, 0, 9]);
     const installFace = initFace(installRunner);
-    expect(await installFace.init.run("claude", false)).toBe(1);
+    expect(await installFace.init.run(req("claude", "install"))).toBe(1);
     expect(installFace.io.stderrText).not.toContain("if the package is not installed");
   });
 });
@@ -234,7 +287,7 @@ describe("CliInit — the step headers and the summary line", () => {
     const log = new EventLog();
     const runner = new RecordingRunner([], log);
     const { init } = initFace(runner, log);
-    expect(await init.run("claude", false)).toBe(0);
+    expect(await init.run(req("claude", "install"))).toBe(0);
     // Every step is one header immediately followed by its own spawn — the order the
     // synchronous writer exists to guarantee (§2.5). An unrelated pair of arrays
     // could not see an inverted pair; this one log can.
@@ -253,18 +306,18 @@ describe("CliInit — the step headers and the summary line", () => {
   it("closes a green run with the summary line — the harness and the shape verb", async () => {
     const installRunner = new RecordingRunner();
     const installFace = initFace(installRunner);
-    expect(await installFace.init.run("claude", false)).toBe(0);
+    expect(await installFace.init.run(req("claude", "install"))).toBe(0);
     expect(installFace.headers.at(-1)).toBe("init: 6 steps ok (claude · install)");
     const updateRunner = new RecordingRunner();
     const updateFace = initFace(updateRunner);
-    expect(await updateFace.init.run("claude", true)).toBe(0);
+    expect(await updateFace.init.run(req("claude", "update"))).toBe(0);
     expect(updateFace.headers.at(-1)).toBe("init: 6 steps ok (claude · update)");
   });
 
   it("the pi face counts three steps — the denominator is the harness sequence, never the package count", async () => {
     const runner = new RecordingRunner();
     const { init, headers } = initFace(runner);
-    expect(await init.run("pi", false)).toBe(0);
+    expect(await init.run(req("pi", "install"))).toBe(0);
     expect(headers[0]).toBe("init[1/3] pi · superpowers · install git:github.com/obra/superpowers");
     expect(headers.at(-1)).toBe("init: 3 steps ok (pi · install)");
   });
@@ -272,7 +325,7 @@ describe("CliInit — the step headers and the summary line", () => {
   it("a failing run writes no summary line", async () => {
     const runner = new RecordingRunner([0, 9]);
     const { init, headers } = initFace(runner);
-    expect(await init.run("claude", false)).toBe(1);
+    expect(await init.run(req("claude", "install"))).toBe(1);
     expect(headers).toHaveLength(2);
     expect(headers.some((line) => line.startsWith("init: "))).toBe(false);
   });

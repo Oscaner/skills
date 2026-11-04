@@ -80,7 +80,7 @@ import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import { CliGate } from "./gate.ts";
 import { GraphView } from "./graph-view.ts";
 import { HOST_IDS, HostDetect, type HostId } from "./host.ts";
-import { CliInit, ExecaStepRunner, type StepRunner } from "./init.ts";
+import { CliInit, ExecaStepRunner, type InitRequest, type StepRunner } from "./init.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "./lifecycle.ts";
 import { Preview } from "./preview.ts";
 import { CommandTreeBuilder } from "./projection.ts";
@@ -393,12 +393,20 @@ export class Cli {
       // stays here rather than sinking into CliInit).
       if (parsed.harness === undefined) this.#usage(command, "cdd init: missing --harness");
       const update = parsed.update ?? false;
+      // The flatten request — the ONE shape `preview` and `run` both read. The
+      // recommended tier is not yet reachable from the flag face, so this path
+      // flattens the core rows only (the P20 byte face, unchanged).
+      const request: InitRequest = {
+        host: parsed.harness,
+        shape: update ? "update" : "install",
+        recommended: false,
+      };
       if (dryRun) {
-        for (const line of this.#init.preview(parsed.harness, update)) this.#initHeader(line);
+        for (const line of this.#init.preview(request)) this.#initHeader(line);
         this.#exitCode = 0;
         return;
       }
-      this.#exitCode = await this.#init.run(parsed.harness, update);
+      this.#exitCode = await this.#init.run(request);
     });
   }
 

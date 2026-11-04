@@ -68,6 +68,18 @@ interface InitStep {
   argv: readonly string[];
 }
 
+/** The ONE flatten request — the harness, the command shape, and whether the
+ *  recommended tier rides along. A request object rather than a growing positional
+ *  tail: the tier is a third axis, and `preview` / `run` must read the same shape. */
+export interface InitRequest {
+  /** The harness whose column is flattened. */
+  readonly host: HostId;
+  /** Which command shape of each column: install or update. */
+  readonly shape: "install" | "update";
+  /** Whether the `recommended` tier joins the core rows (`false` = core only). */
+  readonly recommended: boolean;
+}
+
 /** The init face's injected collaborators. */
 export interface CliInitOptions {
   /** The failure-report / summary io face. */
@@ -94,13 +106,19 @@ export class CliInit {
     this.#header = opts.header;
   }
 
-  /** The ordered step plan for one harness + shape — the ONE flatten source the
-   *  preview and the real run both read. The only branch point between them is
-   *  whether `StepRunner` is called, so a preview can never drift from the run. */
-  #stepsOf(host: HostId, update: boolean): InitStep[] {
+  /** The ordered step plan for one request — the ONE flatten source the preview and
+   *  the real run both read. A `recommended === false` request takes the `core` rows
+   *  only, which is the flag-less face's byte-identical plan; `true` takes the whole
+   *  table in roster order (the recommended rows carry zero claude commands, so a
+   *  claude request cannot grow beyond its core span). The only branch point between
+   *  preview and run is whether `StepRunner` is called, so a preview can never drift
+   *  from the run. */
+  #stepsOf(request: InitRequest): InitStep[] {
     const steps: InitStep[] = [];
     for (const row of PLUGINS) {
-      for (const argv of update ? row[host].update : row[host].install) {
+      if (!request.recommended && row.tier !== "core") continue;
+      const column = row[request.host];
+      for (const argv of request.shape === "update" ? column.update : column.install) {
         steps.push({ packageName: row.name, argv });
       }
     }
@@ -110,17 +128,19 @@ export class CliInit {
   /** Render the step plan the run would execute — one `would run: <argv join>` line
    *  per step, then the summary. Zero spawn, zero write: the runner is never
    *  reached on this path (a preview is a rendering, not an execution). */
-  preview(host: HostId, update: boolean): readonly string[] {
-    const steps = this.#stepsOf(host, update);
+  preview(request: InitRequest): readonly string[] {
+    const steps = this.#stepsOf(request);
     return [
       ...steps.map((step) => `would run: ${step.argv.join(" ")}`),
-      `init: ${steps.length} steps (${host} · ${update ? "update" : "install"}) — dry run, nothing executed`,
+      `init: ${steps.length} steps (${request.host} · ${request.shape}) — dry run, nothing executed`,
     ];
   }
 
-  /** Run the harness's sequence — 0 all green, 1 the first failed step. */
-  async run(host: HostId, update: boolean): Promise<number> {
-    const steps = this.#stepsOf(host, update);
+  /** Run one request — 0 all green, 1 the first failed step. */
+  async run(request: InitRequest): Promise<number> {
+    const steps = this.#stepsOf(request);
+    const { host, shape } = request;
+    const update = shape === "update";
     const total = steps.length;
     for (const [index, step] of steps.entries()) {
       const ordinal = index + 1;
@@ -140,7 +160,7 @@ export class CliInit {
         return 1;
       }
     }
-    this.#header(`init: ${total} steps ok (${host} · ${update ? "update" : "install"})`);
+    this.#header(`init: ${total} steps ok (${host} · ${shape})`);
     return 0;
   }
 }

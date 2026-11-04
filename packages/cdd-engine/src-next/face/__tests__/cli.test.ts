@@ -78,6 +78,11 @@ import type { ChildOutcome, ChildRun, ChildRunner, Termination } from "../termin
 import { Words } from "../words.ts";
 import { negatedOf } from "./negation.ts";
 
+/** The roster narrowed to its CORE rows — the flag-less face's plan source. `cdd init`
+ *  without the recommended-tier flag flattens the core rows only, so the flag-less
+ *  wiring mirrors below compare against this narrowing, never the whole table. */
+const CORE_ROSTER: readonly PluginRow[] = PLUGINS.filter((row) => row.tier === "core");
+
 // The retired usage corpus — the pre-T2 usage product's bytes for the two verbs
 // whose old rows still run as negative anchors (the survivors assert the old
 // self-built face is gone from the commander-native output; the review/fix/
@@ -626,7 +631,7 @@ describe("cdd init — the harness bootstrap wiring", () => {
       const code = await command.runArgv(["init", "--harness=pi"]);
       expect(code).toBe(0);
       expect(io.stderrText).toBe("");
-      const roster: readonly PluginRow[] = PLUGINS;
+      const roster: readonly PluginRow[] = CORE_ROSTER;
       expect(runner.calls).toEqual(roster.flatMap((row) => row.pi.install));
       expect(headers.at(-1)).toBe("init: 3 steps ok (pi · install)");
       // §2.4's second half — the cwd is left untouched: no workspace, no ledger.
@@ -646,7 +651,7 @@ describe("cdd init — the harness bootstrap wiring", () => {
     });
     try {
       expect(await command.runArgv(["init", "--harness=claude", "--update"])).toBe(0);
-      const roster: readonly PluginRow[] = PLUGINS;
+      const roster: readonly PluginRow[] = CORE_ROSTER;
       expect(runner.calls).toEqual(roster.flatMap((row) => row.claude.update));
       // The install column is a distinct argv set, so a dropped or inverted update
       // derivation shows up here as install commands riding an update request.

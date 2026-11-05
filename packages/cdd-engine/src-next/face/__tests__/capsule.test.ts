@@ -449,6 +449,29 @@ describe("P22 §5.2 — the six-row render freeze", () => {
     );
   });
 
+  it("⑦ P25 §6 — the unentered wave face's plan handoff: `next: cdd-dev` + `reason: closed-line`", () => {
+    // The assembly's verdict for the fresh-plan window (rule 3): the route belongs to the
+    // anchor (plan) face, so the capsule's closing pair is the handoff ref and the
+    // closed-line reason — the SAME two values the board renders
+    // (`board-view.test.ts` "P25 §6 — the fresh-plan window").
+    const hop = derived(
+      { kind: "handoff", entry: PIPELINE_NEXT.plan },
+      {
+        type: "plan",
+        id: "docs/kairos/plans/p.md",
+      },
+    );
+    expect(hop.hop).toBeNull();
+    expect(hop.reason).toBe("closed-line");
+    const lines = new Capsule(new Words(), {}, "pi", new RepoRoot(repo)).emit(
+      "APPROVED",
+      "/h.json",
+      hop,
+    );
+    expect(lines[lines.length - 2]).toBe("next: route to /skill:cdd-dev skill");
+    expect(lines[lines.length - 1]).toBe("reason: closed-line");
+  });
+
   it("(j) reading `hop: null` as 'no next line' would turn rows ③/④/⑤ red — the counterexample", () => {
     // Every row below carries `hop: null` yet MUST print a line; the absent-object
     // gate is the only no-line condition (row ①).

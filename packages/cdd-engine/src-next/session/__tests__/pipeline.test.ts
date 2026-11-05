@@ -7,9 +7,9 @@
 //     that hop (the in-flight work — `review` / `fix` / `implement` / `next-wave`);
 //   · rule 2 — the frontier holds no active hop but IS entered (a render target is
 //     present) → its OWN pipeline exit;
-//   · rule 3 — the frontier is NOT entered (no target — an absent doc) → the
-//     transition INTO it: the PRECEDING entered face's exit; none preceding → the
-//     FIRST face's exit (the `Math.max(0, …)` clamp);
+//   · rule 3 — the frontier is NOT entered (no target — an absent doc, or a face whose
+//     OWN entry predicate never held) → the transition INTO it: the PRECEDING entered
+//     face's exit; none preceding → the FIRST face's exit (the `Math.max(0, …)` clamp);
 //   · rule 4 — every face closed → the LAST entered face's exit (the terminus).
 // `face` is the face the ROUTE belongs to: rules 1 / 2 answer the frontier face, and
 // the two exchange rules (3 / 4) answer `null` — the route belongs to the anchor face
@@ -39,6 +39,15 @@ import { TaskGraph } from "../graph.ts";
 import { Ledger } from "../ledger.ts";
 import { PIPELINE_NEXT } from "../next.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "../pipeline.ts";
+
+/** The frontier assembly's injected station port — this suite's own reading: the
+ *  target's type IS its doc class for the two faces these cases reach. The real
+ *  port lives on the face plane (`BoardView.docClassOf`); the session plane never
+ *  imports a face class. */
+const PORTS = {
+  docClassOf: (target: { readonly type: string }): "wave" | "plan" =>
+    target.type === "wave" ? "wave" : "plan",
+} as const;
 
 describe("PipelineFrontier — the four face-order rules at their session-plane home", () => {
   let repo: string;
@@ -94,7 +103,13 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
       "",
       "- c",
       "",
-      ...tasks.flatMap((layer) => layer.flatMap((id) => taskBlock(id, "none"))),
+      // Each layer depends on the PREVIOUS layer's ids, so the declared layers are the
+      // derived batches (`[[1]]` == one batch, `[[1], [2]]` == two).
+      ...tasks.flatMap((layer, index) =>
+        layer.flatMap((id) =>
+          taskBlock(id, index === 0 ? "none" : (tasks[index - 1] ?? []).join(", ")),
+        ),
+      ),
     ]);
 
   const graphOf = (planPath: string): TaskGraph =>
@@ -128,6 +143,12 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     const planPath = planDoc([[1]]);
     const ledger = ledgerOf();
     closeSpecAndPlan(ledger);
+    // One DISPATCHED-but-BLOCKED implement round (a non-target action): the wave face
+    // counts as entered, while its line still awaits the implement dispatch.
+    ledger.recordRound("1", {
+      op: "implement",
+      verdict: { treeClean: true, targetAction: false },
+    });
     const next = new PipelineFrontier(ledger).next(
       inputOf({ specPath, planPath, planGraph: graphOf(planPath) }),
     );
@@ -136,18 +157,96 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     expect(next.target).toEqual({ type: "wave", id: "1", plan: planPath });
   });
 
-  it("rule 2 — the frontier face entered with NO active hop renders its OWN exit", () => {
+  it("rule 3 — a plan with NO task block never enters the wave face (re-anchored)", () => {
     const specPath = specDoc();
-    // A plan with no task block: the wave face holds a target but no open wave.
+    // Zero-batch fixture: no wave was ever dispatched, so the wave face's OWN entry
+    // predicate never held — the face is NOT entered and the frontier exchanges from
+    // the preceding (plan) face. Rule 2's own pin lives in the next case.
     const planPath = planDoc([]);
     const ledger = ledgerOf();
     closeSpecAndPlan(ledger);
     const next = new PipelineFrontier(ledger).next(
       inputOf({ specPath, planPath, planGraph: graphOf(planPath) }),
     );
+    expect(next.face).toBeNull();
+    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.plan });
+    expect(next.target).toEqual({ type: "plan", id: planPath, plan: planPath });
+  });
+
+  it("rule 2 — an ENTERED wave face with no active hop renders its OWN exit", () => {
+    const specPath = specDoc();
+    const planPath = planDoc([[1]]);
+    const ledger = ledgerOf();
+    closeSpecAndPlan(ledger);
+    // The face IS entered (an implement round was dispatched) but the line holds no
+    // active hop: the review round carries no readable review handoff, so
+    // `waveLineRoute` answers null (`ledger.ts` `carried === null`).
+    ledger.recordRound("1", { op: "implement" });
+    ledger.recordRound("1", { op: "review" });
+    const frontier = new PipelineFrontier(ledger);
+    const next = frontier.next(inputOf({ specPath, planPath, planGraph: graphOf(planPath) }));
     expect(next.face).toBe("wave");
     expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.wave });
-    expect(next.target).toEqual({ type: "wave", id: "", plan: planPath });
+    expect(next.target).toEqual({ type: "wave", id: "1", plan: planPath });
+  });
+
+  it("rule 3 — an UNENTERED wave face hands off from the plan face (the fresh-plan window)", () => {
+    const specPath = specDoc();
+    const planPath = planDoc([[1]]);
+    const ledger = ledgerOf();
+    closeSpecAndPlan(ledger);
+    // Both doc lines closed, a task graph present, and ZERO wave rounds: the wave face
+    // was never entered. All THREE verdict cells are asserted — clearing `active`
+    // alone would fall into rule 2 and render the wave face's own exit instead.
+    const frontier = new PipelineFrontier(ledger);
+    const input = inputOf({ specPath, planPath, planGraph: graphOf(planPath) });
+    const next = frontier.next(input);
+    expect(next.face).toBeNull();
+    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.plan });
+    expect(next.target).toEqual({ type: "plan", id: planPath, plan: planPath });
+    // The hop assembly follows the same verdict: no hop, the closed-line reason.
+    const hop = frontier.hopOf(input, PORTS);
+    expect(hop.hop).toBeNull();
+    expect(hop.reason).toBe("closed-line");
+  });
+
+  it("the entry predicate is FACE-level — a closed batch 1 does not retreat", () => {
+    const specPath = specDoc();
+    // Two batches: batch 1 = {1}, batch 2 = {2}. Once batch 1 closes, the ready wave
+    // key IS "2" and it carries no round of its own — a per-key predicate would read
+    // this batch boundary as "never entered" and retreat to the plan handoff.
+    const planPath = planDoc([[1], [2]]);
+    const ledger = ledgerOf();
+    closeSpecAndPlan(ledger);
+    ledger.recordRound("1", { op: "implement" });
+    ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+    ledger.recordRound("1", { op: "review" });
+    const next = new PipelineFrontier(ledger).next(
+      inputOf({ specPath, planPath, planGraph: graphOf(planPath) }),
+    );
+    expect(next.face).toBe("wave");
+    expect(next.route).toEqual({ kind: "next-wave", tasks: "2" });
+    expect(next.target).toEqual({ type: "wave", id: "2", plan: planPath });
+  });
+
+  it("rule 3's twin — one wave round restores the wave face's own literals", () => {
+    const specPath = specDoc();
+    const planPath = planDoc([[1]]);
+    const ledger = ledgerOf();
+    closeSpecAndPlan(ledger);
+    const frontier = new PipelineFrontier(ledger);
+    const input = inputOf({ specPath, planPath, planGraph: graphOf(planPath) });
+    // The SAME fixture as the fresh-plan window, one wave round later (an implement
+    // dispatch whose verdict need not be a target action). A completed implement round
+    // puts the wave line at its review hop — the wave face's own literal, not a handoff.
+    ledger.recordRound("1", { op: "implement" });
+    const next = frontier.next(input);
+    expect(next.face).toBe("wave");
+    expect(next.route).toEqual({ kind: "review" });
+    expect(next.target).toEqual({ type: "wave", id: "1", plan: planPath });
+    const hop = frontier.hopOf(input, PORTS);
+    expect(hop.hop).toBe("review");
+    expect(hop.reason).toBe("task-open");
   });
 
   it("rule 3 — a NOT-entered frontier hands off from the PRECEDING face, `face` is null", () => {
@@ -209,6 +308,12 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     );
     const frontier = new PipelineFrontier(ledger);
     const input = inputOf({ specPath, planPath, planGraph: graphOf(planPath) });
+    // A wave round enters the wave face (outside P25 §6's window), so the undrifted
+    // frontier walks past both doc faces onto it.
+    ledger.recordRound("1", {
+      op: "implement",
+      verdict: { treeClean: true, targetAction: false },
+    });
     // Undrifted: both doc faces are closed, so the frontier walks on to the wave batch.
     expect(frontier.next(input).face).toBe("wave");
     // One plan revision later the plan face's own cell reopens on the document it bound.

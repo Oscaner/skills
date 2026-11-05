@@ -95,12 +95,14 @@ walk 于是这样落地：`pipeline.ts` 全闭合 → `#terminal` → 最后进�
 
 - `session/next.ts:111`：`single-spec` 行改 `{ kind: "ref", ref: "kairos:cdd-plan" }`，与 `phase-spec` 行同值。
 - `session/next.ts:90`：`PipelineKey` 收进 `single-spec`（它成了可交接的站）。
-- `session/next.ts:119`：`PhaseFaceKey` 相应改为「`PipelineKey` 去掉 `overall` 与 `single-spec`」——**面序仍是四面**（`phase-spec · plan · wave · branch`），身份面在面序里永远叫 `phase-spec`，`single-spec` 只是它的声明词。
+- `session/next.ts:119`：`PhaseFaceKey` 相应改为「`PipelineKey` 去掉 `overall` 与 `single-spec`」——`PhaseFaceKey` / `PIPELINE_FACES` 仍是四面 `phase-spec · plan · wave · branch`，`single-spec` **永不进面序**；但它仍是自成一体的 `TargetType` 与 ledger 行键，**不是** `phase-spec` 的别名——两者只共享 `PIPELINE_NEXT` 的交棒目标（`kairos:cdd-plan`）。面序与身份面的精确判据由验收 8 的编译期 pin 持有。
 - `face/board-view.ts:190` 与 `session/run.ts:409-410`：`docClassOf` / `#docClassByType` 不再把 `single-spec` 折成 `terminal`，改回传声明值本身。
 
 **不动的三处**：`overall` 行仍是 `{ kind: "done" }`（章程闭合是终点）· `DocClassVerdict` 的 `terminal` 值保留（无 target 的裸终点仍靠它）· D33 ③「引擎 next 止于 `cdd-close`、不跨 phase」原样不动。
 
-**随动的字节**：闭合的 single-spec 评审，`next:` 由 `done` 变为 host 渲染的 skill ref（`kairos:cdd-plan` → claude `/kairos:cdd-plan` · pi `/skill:cdd-plan`），`reason:` 仍是 `face-closed`。这是本 spec 允许的第二处字节变化。
+**随动的字节**：闭合的 single-spec 评审，`next:` 由 `done` 变为 host 渲染的 cdd-plan 指令串（claude：`route to /kairos:cdd-plan skill` · pi：`route to /skill:cdd-plan skill`），`reason:` 由 `face-closed` 变为 **`closed-line`**——与今日闭合的 `phase-spec` 同形。这是本 spec 允许的第二处字节变化。
+
+**`reason:` 为何必然跟变（机制，不是选择）**：`NextStepRouter.#reasonOf`（`session/next.ts:403`）只在 `route === null || verdict === "terminal"` 时返回 `face-closed`，`#entryOf`（`session/next.ts:386`）也只在同一条件下返回 null station。`single-spec` 一旦不再折成 `terminal`，闭合后就走与 `phase-spec` 同一条路：`to` 是 `PIPELINE_NEXT["single-spec"]`（非空），`reason` 落 `closed-line`。所以这两处**零源码改动**——它们本就只按 `terminal` 分流，行为由上述四处声明自动跟随；若本节写死 `face-closed`，验收 7 恒红（或逼出第五处未文档化的特例）。**同一次验收里改判的既有 pin**：裸 single-spec 的 `face/__tests__/capsule.test.ts:435`（`:440-441` 的三值断言与 `next: done`）、`session/__tests__/run.test.ts:1983-1984`、board 的 `face/__tests__/board-view.test.ts:990`。`session/__tests__/next.test.ts:464-470` / `:512-521` 断言的是 `verdict: "terminal"` 而非 single-spec，断言本身不动（其中引用 single-spec 的措辞属随动的散文）。
 
 **链成立的前提（已核对）**：plan 的 front-matter 没有 `spec:` 键，plan 与它的 spec 靠**同 slug** 相连，所以 single-spec 交棒后的 plan 走 `docs/kairos/plans/` 下同 slug 的那一份，不需要新链键；plan 线的 `INPUT_SPEC` 值源是该身份文档的 `program:`，single-spec 无 `program:` ⇒ 空槽丢弃（既有行为，非新增例外）。
 
@@ -112,7 +114,7 @@ walk 于是这样落地：`pipeline.ts` 全闭合 → `#terminal` → 最后进�
 4. **拒审文案更新**：`face/gate.ts` 的 doc 行 BLOCK 文案为「amend body to open a new review」——改的是 `:119` `#docLineBlock` 的模板串，以及 `:109` 那句引用旧文案的 JSDoc（两处必须一致）。既有用例**不**字面 pin 「amend body/version」子句（`cli.test.ts:3059` 只断言 `target revision unchanged`），所以随动的只是引用旧文案的注释（`cli.test.ts:3333`）；只有新增或既有 expect 真的 pin 了该子句时才需要改断言。其余 `next:` / `reason:` 字节零变化（由既有字节级用例守住）。
 5. **六份孪生门全绿**：`diagram-twin.guard.test.ts` 对六份源全部通过，且引用腿在两个方向上对三种 `diagram_type` 复用同一套归一化（`components` / `states` / `nodes` 三个根都覆盖）；手工把任一份 HTML 的引用块改一行、或把任一份源改一句文案后不重生成，该门即红（两种反向注入各一条用例）。
 6. **`journey` 语义 pin 全绿且可反向红**：三条断言各有一条「把源改成错值即红」的用例，`MAX_TASKS_PER_WAVE` 由源文本解析后与常量比较（与 `next-loop-twin` 的周期数同一手法）。
-7. **闭合的 single-spec 交棒 `cdd-plan`**：`cdd review --type single-spec` 收口后 `next:` 为 host 渲染的 cdd-plan ref（claude 与 pi 两种拼写各一条 pin），`reason:` 仍 `face-closed`；`cdd board --spec` 对同一份文档打印同一指向（跨面 pin）。
+7. **闭合的 single-spec 交棒 `cdd-plan`**：`cdd review --type single-spec` 收口后 `next:` 为 host 渲染的 cdd-plan 指令串（claude `route to /kairos:cdd-plan skill` 与 pi `route to /skill:cdd-plan skill` 各一条 pin），`reason:` 为 `closed-line`（机制见 §3：`#reasonOf` / `#entryOf` 按 `terminal` 分流，两处零源码改动）；同一次验收把既有裸 single-spec 的 `face-closed` / `next: done` pin 一并改判（`capsule.test.ts:435`、`run.test.ts:1983-1984`、`board-view.test.ts:990`）；`cdd board --spec` 对同一份文档打印同一指向（跨面 pin）。
 8. **终点语义只留章程**：`overall` 行的 `next:` 仍是 `done`；`single-spec` 已不再是 `terminal`（`docClassOf` 与 `#docClassByType` 两条各一条红 pin，改成 `terminal` 即红）；`PhaseFaceKey` 仍是四面、`single-spec` 不进面序（编译期字面 pin）。
 9. **其余面字节零变化**：plan / wave / branch 三行的 `next:` 字面与既有字节用例全绿；`DocClassVerdict` 的 `terminal` 仍由「无 target」持有。
 10. `pnpm run validate` 全绿；`packages/cdd-engine` 与 `packages/kairos` 有行为改动 ⇒ 附一条 minor changeset。

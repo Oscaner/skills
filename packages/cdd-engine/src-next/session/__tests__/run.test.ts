@@ -1567,7 +1567,7 @@ describe("P24 T3 — a drifted wave reaches the next-hop reason", () => {
     }
   });
 
-  it("the review round's scroll re-binds the brief it judged — the frame no longer drifts", async () => {
+  it("the review round re-binds the brief it judged — the frame no longer drifts", async () => {
     const { ledger, run, cleanup } = await driftedWave();
     try {
       run.attachCapsule(new Capsule(new Words()));

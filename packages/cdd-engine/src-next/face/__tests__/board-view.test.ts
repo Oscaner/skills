@@ -380,6 +380,20 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "doc-type: plan",
       "slug: prog-p1",
       "---",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: a",
+      "- **Objective**: o",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
     const ledger = new Ledger(workspace, new ConfigLoader());
@@ -392,12 +406,20 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     ledger.recordRound("plan", { op: "review", cycle: 1 });
     ledger.recordRound("plan", { op: "review", cycle: 2 });
     ledger.recordRound("plan", { op: "fix", cycle: 2 });
+    // A dispatched-but-blocked wave round: the wave face counts as entered (P25 §6), so
+    // the frontier past the plan face is the wave face, not the fresh-plan handoff.
+    ledger.recordRound("1", {
+      op: "implement",
+      verdict: { treeClean: true, targetAction: false },
+    });
 
     const { text } = render("prog-p1");
 
-    // plan closed → past the plan face; no plan task blocks → the wave face is the frontier
+    // plan closed by identity → past the plan face onto the wave face. A count-based
+    // closure judge reads the nonexistent fix cycle 1 → plan OPEN → its own exit (the
+    // cdd-dev handoff), which the second assertion rules out.
     expect(text).not.toContain("  next:    route to /kairos:cdd-dev skill");
-    expect(text).toContain("  next:    review --type branch --plan");
+    expect(text).toContain("  next:    implement --plan docs/kairos/plans/prog-p1.md --tasks 1");
   });
 
   it("D40 — a skipped-cycle row's board judgment EQUALS the engine's Ledger#lineClosed verdict", () => {
@@ -1625,18 +1647,67 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       new ConfigLoader(),
     );
 
-  it("(k2) a frontier ENTERED with no active hop renders its OWN exit (the empty-plan wave face)", () => {
+  /** Enter the wave face without completing a dispatch: one BLOCKED implement round on
+   *  wave {1} (a non-target action). The face counts as entered (P25 §6) while its line
+   *  still awaits the implement hop — the fixture shape OUTSIDE the fresh-plan window. */
+  const enterWaveFace = (ledger: Ledger): void => {
+    ledger.recordRound("1", {
+      op: "implement",
+      verdict: { treeClean: true, targetAction: false },
+    });
+  };
+
+  it("(k2) a zero-batch plan was NEVER entered — the frontier hands off from the plan face", () => {
     nodeDocs();
-    // A plan with no task blocks: the wave face holds a target but no open wave, and
-    // no wave was ever closed — so the frontier is the wave face and its own pipeline
-    // exit (the branch-review literal) renders, exactly as the retired walk decided.
+    // A plan with no task blocks yields no batch at all, so the wave face's OWN entry
+    // predicate never held (P25 §6): the face carries no target and the frontier walks
+    // rule 3 — the preceding (plan) face's exit, never the wave face's own branch-review
+    // literal. An ENTERED wave face with no active hop is pinned by `(w2)` below.
     planDoc([]);
     const ledger = ledgerOf();
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
     ledger.recordRound("phase-spec", { op: "review" });
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
     ledger.recordRound("plan", { op: "review" });
-    expect(nextOfBoard("prog-p1")).toBe("review --type branch --plan docs/kairos/plans/prog-p1.md");
+    expect(nextOfBoard("prog-p1")).toBe("route to /kairos:cdd-dev skill");
+  });
+
+  it("P25 §6 — the fresh-plan window: an UNENTERED wave face hands off to cdd-dev, two faces one assembly", () => {
+    nodeDocs();
+    planDoc([[1]]);
+    const ledger = ledgerOf();
+    // The window, byte for byte: spec + plan closed on clean rounds, a task graph
+    // present, ZERO wave rounds. The wave face was never entered, so the frontier
+    // exchanges from the plan face and the wave face's own literals never render.
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+    const index = SlugIndex.build(repo);
+    const entry = entryOf("prog-p1");
+    const root = new RepoRoot(repo);
+    const facts = BoardView.pipelineFacts(index, entry, root)!;
+    const hop = new PipelineFrontier(ledger).hopOf(facts.input, {
+      docClassOf: (target) => BoardView.docClassOf(root, target),
+    });
+    expect(hop.hop).toBeNull();
+    expect(hop.reason).toBe("closed-line");
+    // The board's two rows, on the pi host's flat `/skill:` form.
+    const rows = nextReasonRows("pi");
+    expect(rows.next).toBe("route to /skill:cdd-dev skill");
+    expect(rows.reason).toBe("  reason:  closed-line");
+    // The board fills no cell of its own: its rows ARE the ONE assembly's render.
+    const renderer = new RouteRenderer(new Words(), ARGV_CHANNEL, "pi", root);
+    expect(rows.next).toBe(renderer.renderHop(hop));
+    expect(rows.reason).toBe(BoardView.reasonLine(hop));
+    // ... and the capsule renders the SAME object into its own two closing lines.
+    const capsuleLines = new Capsule(new Words(), ARGV_CHANNEL, "pi", root).emit(
+      "APPROVED",
+      "/p25-6.json",
+      hop,
+    );
+    expect(capsuleLines[capsuleLines.length - 2]).toBe(`next: ${rows.next}`);
+    expect(capsuleLines[capsuleLines.length - 1]).toBe(`reason: ${hop.reason}`);
   });
 
   it("(a) the board renders the SAME NextHop object the capsule renders — byte equality", () => {
@@ -1901,7 +1972,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
   };
 
   /** The board's `next:` / `reason:` row pair, in layout order. */
-  const nextReasonRows = (): { next: string; reason: string | undefined } => {
+  const nextReasonRows = (host = "claude"): { next: string; reason: string | undefined } => {
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const lines = BoardView.render(
@@ -1909,7 +1980,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       entry,
       repo,
       new Words(),
-      "claude",
+      host,
       ARGV_CHANNEL,
       undefined,
       BoardNext.of(index, entry, new RepoRoot(repo)),
@@ -1991,6 +2062,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     );
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
     ledger.recordRound("plan", { op: "review" });
+    enterWaveFace(ledger);
     // Undrifted: the frontier has walked past the doc faces onto the wave's ready batch.
     expect(nextOfBoard("prog-p1")).toBe("implement --plan docs/kairos/plans/prog-p1.md --tasks 1");
     // One spec revision later the SAME face is open — the frontier holds on the spec
@@ -2015,6 +2087,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     );
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
     ledger.recordRound("plan", { op: "review" });
+    enterWaveFace(ledger);
     writeFileSync(specFile, `${readFileSync(specFile, "utf8")}\n<!-- drift -->\n`, "utf8");
     // The drifted spec's own review lead runs clean: the line rebinds the moved
     // revision and the frontier walks on to the plan's wave shape (the regression pin).
@@ -2056,6 +2129,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       "plan",
     );
     // Undrifted: the frontier has walked past both doc faces onto the wave's batch.
+    enterWaveFace(ledger);
     expect(nextOfBoard("prog-p1")).toBe("implement --plan docs/kairos/plans/prog-p1.md --tasks 1");
     // One plan revision later the plan face is open — the frontier holds THERE and
     // names the plan's review lead, never the wave command the engine would reject.

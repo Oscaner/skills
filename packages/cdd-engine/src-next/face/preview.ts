@@ -20,6 +20,7 @@
 import process from "node:process";
 import type { RepoRoot } from "../infra/root.ts";
 import type { InFlightState } from "../session/inflight.ts";
+import { ReviewedIdentity, type ReviewedLeg } from "../session/reviewed-identity.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { OpenFrame } from "../session/run.ts";
 import type { CliVerb } from "./declare.ts";
@@ -145,37 +146,38 @@ export class Preview {
   }
 
   /** The ledger writes the round would record — the round RECORD it would append
-   *  (identity: op · cycle · attempt) plus, on a completed review or a fix round, the
-   *  reviewed-revision write-back. The legs are `#bookkeep`'s own: the doc line binds
-   *  its document's revision, the wave line its RENDERED brief's, and the branch line
-   *  its plan document's (`#scene.planPath` — the same source the `reads:` row names;
-   *  no plan fact ⇒ no leg). The phase list is a SECOND copy of `#bookkeep`'s, kept
-   *  apart on purpose: `#bookkeep` also gates on the verdict's `targetAction`, which a
-   *  dry run never holds. */
+   *  (identity: op · cycle · attempt) plus, when the round lands one, the
+   *  reviewed-revision write-back. WHICH reviewed input the round binds is the ONE
+   *  judgment both faces share (`ReviewedIdentity.legOf`): the same phases — review,
+   *  branch-review, fix — and the same kind → leg mapping. The verdict's
+   *  `targetAction` is the lifecycle's own input and never rides a dry run: the
+   *  preview states the write-back a completed round WOULD record. */
   #recordsOf(frame: OpenFrame): string {
     const parts = [
       `progress.waves["${frame.key}"].rounds += { op: ${this.#naming.op(frame)}, cycle: ${frame.round}, attempt: ${frame.attempt ?? 1} }`,
     ];
-    if (frame.phase === "review" || frame.phase === "branch-review" || frame.phase === "fix") {
-      const leg = this.#reviewedLegOf(frame);
-      if (leg !== null) parts.push(leg);
+    const leg = ReviewedIdentity.legOf(frame.phase, frame.target.kind);
+    if (leg !== null) {
+      const stated = this.#reviewedLegOf(leg);
+      if (stated !== null) parts.push(stated);
     }
     return parts.join(" · ");
   }
 
-  /** The reviewed-revision leg one recording round would write, stated per target
-   *  kind: the wave face binds its brief, the doc faces their judged document, the
-   *  branch face its plan document (a null plan path states no leg rather than an
-   *  empty identity). An unlisted kind states no leg — the same conservative chain
-   *  `#bookkeep` walks, so a target union that ever grows fails the same way on both
-   *  faces instead of silently recording a doc write-back. */
-  #reviewedLegOf(frame: OpenFrame): string | null {
-    if (frame.target.kind === "wave") return "reviewedRevision(brief)";
-    if (frame.target.kind === "plan" || frame.target.kind === "spec")
-      return "reviewedRevision(doc)";
-    if (frame.target.kind === "branch")
-      return this.#scene.planPath === null ? null : "reviewedRevision(doc)";
-    return null;
+  /** The rendered write-back leg of one judgment leg: the wave line states its
+   *  RENDERED brief, the doc lines their judged document, the branch line its plan
+   *  document. The branch leg's plan path is an INPUT, not part of the judgment —
+   *  with no plan fact the preview states no leg rather than an empty identity (the
+   *  same source the `reads:` row names, and what the real run records too). */
+  #reviewedLegOf(leg: ReviewedLeg): string | null {
+    switch (leg) {
+      case "doc":
+        return "reviewedRevision(doc)";
+      case "brief":
+        return "reviewedRevision(brief)";
+      case "branch":
+        return this.#scene.planPath === null ? null : "reviewedRevision(doc)";
+    }
   }
 
   /** The child invocation the real run would spawn — `<HostId> <invoke>`: the host

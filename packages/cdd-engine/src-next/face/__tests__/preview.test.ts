@@ -145,6 +145,28 @@ describe("Preview — the §3.3 five-row block", () => {
     );
   });
 
+  it("a branch line with no plan path states no leg — its write-back needs the plan fact", () => {
+    // The branch leg's plan path is an INPUT of the write-back, not part of the
+    // judgment: with no plan fact the real round records nothing, so the preview
+    // states no reviewed-revision leg and names no plan document to read.
+    const lines = new Preview({ scene: scene({ planPath: null }), env: {} }).render(
+      "review",
+      frame({
+        type: "branch",
+        phase: "branch-review",
+        round: 2,
+        target: { kind: "branch" },
+        params: { round: 2 },
+        key: "branch",
+      }),
+    );
+    expect(lines[2].trimEnd()).toBe("  reads:");
+    expect(lines[2]).not.toContain("plans");
+    expect(lines[4]).toBe(
+      '  would record: progress.waves["branch"].rounds += { op: review, cycle: 2, attempt: 1 }',
+    );
+  });
+
   it("a fix round reports the same reviewed-revision write-back a review does", () => {
     const lines = preview().render(
       "fix",

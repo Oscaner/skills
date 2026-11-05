@@ -20,9 +20,10 @@
 //     (the in-flight work — `review` / `fix` / `implement` / `next-wave`);
 //   · the frontier has no active hop but IS entered (a target is present) → its
 //     OWN pipeline exit entry;
-//   · the frontier is NOT entered (no target — an absent doc) → the transition
-//     INTO it: the PRECEDING entered face's exit entry (a just-closed spec hands
-//     off to `cdd-plan`, never the absent plan's `cdd-dev`); none preceding → the
+//   · the frontier is NOT entered (no target — the document is absent, OR the
+//     face's own entry predicate never held) → the transition INTO it: the
+//     PRECEDING entered face's exit entry (a just-closed spec hands off to
+//     `cdd-plan`, never the absent plan's `cdd-dev`); none preceding → the
 //     FIRST face's exit entry;
 //   · every face closed → the LAST entered face's exit entry (the terminus —
 //     `cdd-close` for a phase slug).
@@ -35,7 +36,7 @@
 
 import type { RouteTarget, TargetType } from "./faces.ts";
 import type { TaskGraph } from "./graph.ts";
-import type { Ledger } from "./ledger.ts";
+import type { Ledger, OpType } from "./ledger.ts";
 import {
   type DocClassVerdict,
   type NextHop,
@@ -46,6 +47,10 @@ import {
   type PipelineFaceState,
   type Route,
 } from "./next.ts";
+
+/** The three modes a wave row records — the wave face's entry scan (P25 §6). A wave
+ *  row is written by the dispatch rounds only; `branch-review` rides the branch face. */
+const WAVE_ROUND_MODES: readonly OpType[] = ["implement", "review", "fix"];
 
 /** The frontier's whole input — the node's declared identity plus the board's
  *  guarded plan read. `planGraph` is INJECTED (the board's `#planGraph`): the
@@ -207,18 +212,30 @@ export class PipelineFrontier {
   }
 
   /** The wave face — exhausted (skipped) only when the plan yields a wave set and
-   *  every wave is done: an empty wave segment (a plan with no task block) is not an
-   *  exhausted face (nothing was closed), so it stays the frontier and hands off. The
-   *  active hop reads the READY batch's wave key (`TaskGraph#frontier`, never a local
-   *  walk) through the ledger's ONE wave route. */
+   *  every wave is done: an empty wave segment (a plan with no task block) closes
+   *  nothing, so it is not an exhausted face. The active hop reads the READY batch's
+   *  wave key (`TaskGraph#frontier`, never a local walk) through the ledger's ONE wave
+   *  route.
+   *
+   *  P25 §6 — the face-level ENTRY predicate. `waveLineRoute` answers `next-wave` for
+   *  a batch that was never dispatched, which is right for the LINE but must not read
+   *  as "this face is in flight": the documented window is plan-closed + graph present
+   *  + zero wave rounds, and there the pipeline owes the plan face's `cdd-dev`
+   *  handoff. A plan with no task block holds no batch at all, so it is the same
+   *  never-entered case. BOTH cells are gated on the SAME predicate — clearing `active`
+   *  alone would fall into rule 2 and render the wave face's own exit
+   *  (`PIPELINE_NEXT.wave`), a worse literal than the one being removed. */
   #waveState(input: PipelineFrontierInput): PipelineFaceState {
     const graph = input.planGraph;
     const waveKey = graph === null ? null : this.#waveKeyOf(graph);
+    const entered = graph !== null && this.#wavesEntered(graph);
     return {
       closed: graph !== null && this.#wavesExhausted(graph),
-      active: waveKey === null ? null : this.#ledger.waveLineRoute(waveKey),
+      active: entered && waveKey !== null ? this.#ledger.waveLineRoute(waveKey) : null,
       target:
-        input.planPath === null ? null : { type: "wave", id: waveKey ?? "", plan: input.planPath },
+        !entered || input.planPath === null
+          ? null
+          : { type: "wave", id: waveKey ?? "", plan: input.planPath },
     };
   }
 
@@ -240,6 +257,21 @@ export class PipelineFrontier {
   #waveKeyOf(graph: TaskGraph): string | null {
     const frontier = graph.frontier(this.#ledger.closedWaves());
     return frontier.length === 0 ? null : frontier.join(",");
+  }
+
+  /** Whether the wave FACE was ever entered — the face-level predicate (P25 §6), never
+   *  a per-key one: `#waveKeyOf` answers the READY batch, whose own row is empty the
+   *  moment the previous batch closes, so a per-key read would call every batch
+   *  boundary "never entered" and retreat to the plan handoff mid-plan. The scan
+   *  therefore walks EVERY derived batch's key (the same `join(",")` spelling as
+   *  `#waveKeyOf`) and sums the three dispatch modes' round counts — a dispatched but
+   *  BLOCKED round counts, because the face WAS entered. No `identity` argument: a wave
+   *  row is keyed by its joined task ids alone (`rowFor` matches `row.wave`). */
+  #wavesEntered(graph: TaskGraph): boolean {
+    return graph.batches().some((batch) => {
+      const key = batch.join(",");
+      return WAVE_ROUND_MODES.some((mode) => this.#ledger.roundCount(key, mode) > 0);
+    });
   }
 
   /** Whether every derived wave is done — the wave face's closure cell (a plan with
@@ -265,7 +297,8 @@ export class PipelineFrontier {
   }
 
   /** The index of the last OBSERVED face carrying a render target — the last face the
-   *  pipeline has REACHED (a face with no target was never entered). -1 when none is. */
+   *  pipeline has REACHED. A face carries no target when its document is absent OR its
+   *  own entry predicate never held; either way it was never entered. -1 when none is. */
   static #lastEnteredIndex(states: readonly PipelineFaceState[]): number {
     for (let i = states.length - 1; i >= 0; i--) {
       if (states[i]!.target !== null) return i;

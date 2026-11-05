@@ -1,5 +1,128 @@
 # @oscaner-skills/cdd-engine
 
+## 4.4.0
+
+### Minor Changes
+
+- [#413](https://github.com/Oscaner/skills/pull/413) [`b73b088`](https://github.com/Oscaner/skills/commit/b73b08864576499cefbc1e3634f4c00f3cda09df) Thanks [@Oscaner](https://github.com/Oscaner)! - **`cdd init --include-recommends` — the recommended plugin tier (P23).** The three core
+  packages remain the install contract and the six recommended pi capability packages are
+  opt-in: `PLUGINS` grows one `tier` field (`"core" | "recommended"`) and six rows
+  (`@ff-labs/pi-fff` · `@juicesharp/rpiv-todo` · `@juicesharp/rpiv-ask-user-question` ·
+  `pi-web-access` · `pi-background-tasks` · `pi-agentsmd`), in roster order, and the single
+  flatten point filters on `tier === "core"` unless the flag is present.
+  
+  Consumer-visible effects. `cdd init --harness=pi` without the flag is byte-identical to
+  before: three steps, `init: 3 steps ok (pi · install)`, the same failure line and the same
+  `--update` hint. With the flag, `--harness=pi` runs nine steps and the summary reads
+  `<c> core + <r> recommended`; `--harness=claude` gains no step (the six capabilities are
+  native there, so its recommended column is an empty array and the README renders `—`) and
+  prints `init: no recommended packages for claude`. A recommended-tier failure stops at the
+  first failure with exit 1 and appends one line naming the package as recommended —
+  `init: <package> is a recommended package — the core plugin set is already installed` for
+  the install shape, `init: <package> is a recommended package — run cdd init
+  --harness=<host> --include-recommends without --update first` for `--update` — after the
+  existing failure line and before the unchanged hint. The engine never parses harness
+  output, so no step is skipped on the strength of what a subprocess printed.
+  
+  The kairos README family carries the consumer face: a tier-split lead-in, the nine-row
+  install table (every recommended claude cell `—`), one grouped six-line rationale below the
+  table, and the `cdd init --harness=pi --update --include-recommends` usage line; the
+  root READMEs name the flag once in Installation and the engine READMEs' `init` row reads
+  `cdd init --harness=<claude|pi> [--update] [--include-recommends]`. Zero `SKILL.md`
+  change: the install surface belongs to the READMEs, and a guard sweeps the shipped skill
+  prose (six `SKILL.md` plus `cdd-dev/docs/base.md`) for the flag literal and the six
+  package names.
+
+- [#415](https://github.com/Oscaner/skills/pull/415) [`f073a1f`](https://github.com/Oscaner/skills/commit/f073a1f6a8cd1b6378424fbb9ce299bc51630a58) Thanks [@Oscaner](https://github.com/Oscaner)! - **A completed fix round advances the line's reviewed identity, every hop-rendered `next:`
+  line gains a `reason:` row, a drifted wave hop names `doc-drift`, and the round capsule
+  renders the board's own hop (P24).** Consumer-visible face changes carried by one release
+  entry:
+  
+  The reviewed-revision write-back now fires on a completed **fix** round, not only on a
+  review: the round that moved the document is the round that binds the new identity, so a
+  warn-only fix no longer leaves the line drifting in its own delta and the `next:` row
+  closes (`done` / the pipeline handoff / the next wave) where it used to print
+  `review --type …` forever. A `BLOCKED` / `TIMEOUT` fix binds nothing, an out-of-round
+  document edit still reopens the review, and `progress.json` keeps its key set.
+  
+  Each `next:` line a hop renders is followed by exactly one `reason: <token>` row carrying
+  one of the seven named facts (`doc-drift`, `pending-fix`, `soft-cap`, `task-open`,
+  `doc-class-blocked`, `face-closed`, `closed-line`). The `next:` bytes are unchanged — the
+  diagnostic fact takes its own line, so the literal still pastes into a shell verbatim. A
+  round with no hop (BLOCKED / TIMEOUT) prints neither row. The capsule takes the row's
+  prefix from the word table (a fifth `reason:` station), the board from its own 11-column
+  layout literal; both render the same token for the same hop. The `--dry-run` preview gains
+  the fix leg and reports the branch line's `reviewedRevision(doc)` write-back it always
+  performed.
+  
+  A wave hop whose brief moved after the review bound it now says `doc-drift`: the row that
+  could only say `task-open` in that state now names the movement, on `cdd board --plan
+  <path>` and in the `peekNext` directive alike. The wave still derives its hop from a single
+  `nextHopOf` call — the brief-drift fact is one conditional field on that input object,
+  never a second route, and it never moves the wave's station.
+  
+  The board's pipeline frontier reads drift on the spec and plan lines too: a spec (or plan)
+  whose content moved after a clean review no longer counts as a closed face, so the frontier
+  holds on that document's face and renders its review lead with `reason: doc-drift` instead
+  of walking on to the next command (the wave's `implement --plan … --tasks …`, which the
+  dispatch would reject). Once that re-review closes, the frontier advances again. An absent
+  spec or plan is judged exactly as before.
+  
+  The round capsule now renders the object `cdd board` renders. One assembly in the session
+  plane answers both — the verdict's target supplies the hop, its document and the named
+  reason — so where the capsule used to print this line's own next step it prints the
+  pipeline frontier's, `next:` and `reason:` alike, and the two faces can no longer disagree.
+  On a closed line that also holds a same-slug plan, the three documents that own the
+  identity slot take the successor plan face's review literal: a closed phase-spec prints
+  `review --type plan --plan …` with `reason: task-open` (it printed `route to …:cdd-plan
+  skill` with `reason: closed-line`), and a closed `overall` charter and a closed
+  `single-spec` print the same literal (they printed `done` with `closed-line` / `face-closed`
+  respectively). A closed charter with no plan document keeps its `next: done` /
+  `reason: closed-line` bytes, and a node with no spec document keeps its line-local hop
+  unchanged.
+  
+  The board's summary cell no longer conflates success volume with failure history. Within
+  the board's summary cell, a verb that carries a failed attempt now shows an ok/attempts
+  ratio (omitted when that verb has no successful round, so a failure-only row keeps its
+  bare ✗ token) and marks a recovered retry with `✗→✓`; every row that carries no failed
+  attempt keeps its bytes unchanged. The cell renders the plan line's own
+  history as `review 13 ✓+74 · fix 13/14 ✓ · fix 12 ✗→✓` where it printed `review 13 ✓+74 ·
+  fix 11 ✓ · fix 1 ✗ · fix 2 ✓`: the count reads as attempts, the failed round is named by
+  its cycle instead of a re-counted segment, and a failed attempt whose same-cycle
+  re-dispatch completed is marked as recovered.
+
+- [#416](https://github.com/Oscaner/skills/pull/416) [`be216c5`](https://github.com/Oscaner/skills/commit/be216c58a4b85c53c819c5e6081caaecc84e22cf) Thanks [@Oscaner](https://github.com/Oscaner)! - **The reviewed-revision write-back is decided in one place, and a plan that just closed
+  hands off to `cdd-dev` instead of holding its wave face (P25).** One release entry
+  covering two distinct faces:
+  
+  The write-back judgment — which completed round binds a reviewed revision, and to which
+  leg — now has a single home (`session/reviewed-identity.ts`): the phase whitelist
+  (review · branch-review · fix) is declared once and the kind → leg mapping (`doc` ·
+  `brief` · `branch`) is decided once, so the lifecycle's record (`session/run.ts`) and
+  the dry-run preview (`face/preview.ts`) can no longer drift from each other. **This half
+  is byte-identical on the consumer face**: `cdd fix --dry-run` and every real run print
+  and record exactly what they printed and recorded before, and the five `would record:`
+  assertions of the preview suite are unmodified — that is the evidence. The two
+  asymmetries the two faces have always carried stay as they were, now stated beside the
+  judgment instead of being an undocumented divergence: the verdict flag survives on a
+  real run alone (a dry run holds no verdict), and a wave round whose line carries no plan
+  path records nothing while the preview still states the brief leg.
+  
+  The plan-to-dev handoff is a **consumer-visible byte change**, and it is why this entry
+  is `minor`. In the window where a plan has just closed, carries a task graph, and its
+  wave face has no round on record, the board's and the capsule's `next:` row reads
+  `route to /skill:cdd-dev skill` where it printed `implement --plan <plan> --tasks <N>`,
+  and the `reason:` row reads `closed-line` where it printed `task-open` (the `claude`
+  host spells the same handoff `route to /kairos:cdd-dev skill`). The wave face is now
+  judged entered by its own face-level fact — any batch of the plan carrying an implement,
+  review or fix round — instead of by the line's next hop, which a fresh line always
+  fills. A same-plan multi-batch run therefore keeps rendering `implement --plan … --tasks
+  2` at each batch boundary, and once any wave round is recorded both faces return to
+  their previous bytes. Outside that window nothing changes.
+  
+  `minor` rather than `patch` by D74: consumer-visible bytes moved. `minor` rather than
+  `major`: the methodology — design → spec → plan → dev → close — is untouched.
+
 ## 4.3.0
 
 ### Minor Changes

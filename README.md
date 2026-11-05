@@ -57,7 +57,7 @@ The engine, not the orchestrator, decides what happens next, and it decides from
 
 - **Every dispatch closes with a verdict.** A round books a record even when it is blocked or times out, so "the round did nothing" is never a silent absence.
 - **Completion is a criterion per verb, never the child's exit code.** `implement` must leave a commit, `review` must leave a findings carrier that validates, `fix` must answer every finding of the request.
-- **The next hop is derived, then printed last.** Each run ends with its `next:` line, and `cdd board --plan <path>` renders that same judgment as a progress board — the line and the board cannot disagree.
+- **The next hop is derived, then printed with its reason.** Each run ends with its `next:` line and the reason line that follows it, and `cdd board --plan <path>` renders that same judgment as a progress board — the line and the board cannot disagree.
 - **You are the stop point.** Every orchestrator presents its artifact and stops for your explicit approval before dispatching its first round.
 
 ## Get started

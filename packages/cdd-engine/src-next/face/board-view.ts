@@ -9,23 +9,28 @@
 //
 // This module carries the header `{version, status, docType}` read, the per-node
 // progress projection, the render face (the phase/program board layouts) and the
-// pipeline OBSERVATION (`#pipelineFacts`). The doc type is the DECLARED fact — the
+// pipeline OBSERVATION (`pipelineFacts`). The doc type is the DECLARED fact — the
 // front-matter `doc-type:` head key (spec §12 · D34) — never a filename-suffix
 // derivation; an absent key reads null and the consumer blocks (zero dual-read
 // fallback).
 //
 // P22 §5.2 — the board's `next:` line renders an INJECTED `NextHop` and judges
-// nothing: the pipeline traversal (the four face-order rules) lives on the
-// assembly face (`face/cli.ts`), the ONE derivation is `NextStepRouter#nextHop`,
-// and the ONE literal renderer is `RouteRenderer` (shared with the capsule). The
-// board only OBSERVES each face's facts (`#pipelineFacts`) and renders.
+// nothing: the pipeline traversal (the four face-order rules) lives in the session
+// plane (`session/pipeline.ts` `PipelineFrontier`), the ONE derivation is
+// `NextStepRouter#nextHop`, and the ONE literal renderer is `RouteRenderer` (shared
+// with the capsule). The board only OBSERVES each face's facts (`pipelineFacts`)
+// and renders.
 //
-// P22 §5.3 — the default layout aggregates each line's rounds BY VERB into
-// `{label} {count}{attempt} {mark}` tokens (the judgement glyph is mandatory, the
-// findings count rides a `+N` suffix, a re-dispatch carries its `a{attempt}`
-// superscript); range forms never render (there is no `--verbose` in this phase).
-// Each wave line's label carries the wave's task scope in braces (`W1 {5,11}`)
-// with the ✔/▶/○ marker column fixed-width aligned.
+// P22 §5.3 — the default layout aggregates each line's rounds BY VERB (the judgement
+// glyph is mandatory, the findings count rides a `+N` suffix, a plain token carries the
+// last record's `a{attempt}` superscript); range forms never render (there is no
+// `--verbose` in this phase). P24 §12 splits that aggregation into two shapes: the
+// success face merges per verb — an `{ok}/{attempts}` ratio with NO superscript once
+// the verb has a failed attempt — and the anomaly face expands one token per failed
+// attempt, each naming its own cycle and, past the first, its own `a{attempt}`
+// (`fix 12 ✗→✓` when that cycle's next attempt completed). Each wave line's label
+// carries the wave's task scope in braces (`W1 {5,11}`) with the ✔/▶/○ marker
+// column fixed-width aligned.
 //
 // Module-level exports are types / constants / the classes — zero behavior-carrying
 // bare functions (the plan's zero-bare-function discipline).
@@ -45,16 +50,8 @@ import type { RouteTarget, TargetType } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import type { InFlightState } from "../session/inflight.ts";
 import { Ledger, type ProgressData, type RoundRecord, RoundRecords } from "../session/ledger.ts";
-import {
-  type DocClassVerdict,
-  type NextHop,
-  NextStepRouter,
-  PIPELINE_FACES,
-  PIPELINE_NEXT,
-  type PipelineFaceReport,
-  type PipelineFaceState,
-  type Route,
-} from "../session/next.ts";
+import type { DocClassVerdict, NextHop } from "../session/next.ts";
+import { PipelineFrontier, type PipelineFrontierInput } from "../session/pipeline.ts";
 import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
 import { type RouteChannelRow, RouteRenderer } from "./route-render.ts";
 import type { Words } from "./words.ts";
@@ -66,7 +63,15 @@ const VERB_ORDER: readonly string[] = ["implement", "review", "branch-review", "
 
 /** The judgement glyphs of one aggregated token (spec §5.3 — the mark is MANDATORY:
  *  `✓` a completed round, `✗` a round that failed its target action). */
-const JUDGEMENT_MARKERS = { passed: "✓", failed: "✗" } as const;
+const JUDGEMENT_MARKERS = { passed: "✓", failed: "✗", recovered: "✗→✓" } as const;
+
+/** One verb's two judgement faces (P24 §12) — the success face, which merges into at
+ *  most one token per verb, and the anomaly face, which expands one token per failed
+ *  attempt. */
+interface VerdictFaces {
+  readonly successes: readonly RoundRecord[];
+  readonly failures: readonly RoundRecord[];
+}
 
 /** One rendered board — the stdout lines + the process exit code (0 on a clean
  *  board, 2 when a present doc line carried no `doc-type:` declaration). */
@@ -107,15 +112,17 @@ interface NodeSources {
   readonly programMissing: boolean;
 }
 
-/** The board's per-face OBSERVATION of the pipeline (spec §5.2) — the facts the
- *  board reads off the ledger and the plan, plus the ledger the assembly face hands
- *  the derivation (the round records' own read point). Pure facts: the traversal and
- *  the derivation belong to the assembly face. */
+/** The board's pipeline FACTS (spec §5.2) — the ledger and the pipeline frontier's
+ *  declared input, read off the ledger and the plan: the ledger itself (the round
+ *  records' own read point) and the frontier's whole input (the declared identity
+ *  + the guarded plan read). Pure facts, nothing else: the per-face observations, the
+ *  four face-order rules AND the six-cell hop assembly live in the session plane
+ *  (`PipelineFrontier#next` / `#hopOf`), and the board renders the result. */
 export interface BoardPipelineFacts {
   /** The node's ledger — the round/closure read face the hop derivation consumes. */
   readonly ledger: Ledger;
-  /** One observation per `PIPELINE_FACES` key (the order stays `PIPELINE_FACES`'). */
-  readonly report: PipelineFaceReport;
+  /** The pipeline frontier's whole input (the declared identity + the guarded plan read). */
+  readonly input: PipelineFrontierInput;
 }
 
 /** The DocKey domain of the `doc-type:` declaration — the declared value must
@@ -273,37 +280,85 @@ export class BoardView {
     };
   }
 
-  /** summaryCell(records) — the line's aggregated rounds cell (spec §5.3): one token
-   *  per verb × judgement run (`{label} {count}{attempt} {mark}`), joined by ` · `.
-   *  The count is the run's round count, the attempt superscript belongs to the run's
-   *  LAST record (a re-dispatch: `fix 1 ✗ · fix 1a2 ✓`), the mark is the run's verdict
-   *  (`✓` completed / `✗` failed — never omitted), and the run's graded findings ride
-   *  the `+N` suffix (omitted at 0). The range form (`review 1–10 ✓`) never renders:
-   *  the aggregation IS the count. */
+  /** summaryCell(records) — the line's aggregated rounds cell (P24 §12): the SUCCESS
+   *  face of each verb merges into at most one token (never rendered at zero successes),
+   *  the ANOMALY face expands one token per failed attempt. Tokens are verb-major in
+   *  `VERB_ORDER`, a verb's success token before its failures, those in stored order. The
+   *  range form (`review 1–10 ✓`) never renders: the aggregation IS the count. */
   static summaryCell(records: readonly RoundRecord[]): string {
     const tokens: string[] = [];
     const extra = [...new Set(records.map((record) => record.op))].filter(
       (op) => !VERB_ORDER.includes(op),
     );
     for (const verb of [...VERB_ORDER, ...extra]) {
-      const ofVerb = records.filter((record) => record.op === verb);
-      for (const run of BoardView.#judgementRuns(ofVerb)) {
-        tokens.push(BoardView.#summaryToken(verb, run));
-      }
+      const faces = BoardView.#judgementRuns(records.filter((record) => record.op === verb));
+      tokens.push(...BoardView.#verbTokens(verb, faces));
     }
     return tokens.join(" · ");
   }
 
-  /** One aggregated token of a verb × judgement run. The `+N` suffix counts the
-   *  run's graded FINDINGS, read from each round's own carrier (`carrierPath` → the
-   *  handoff's `findings` array, spec §5.3) — never the round's hard/soft contract
-   *  violations, which are a different fact. A record with no carrier (a legacy row,
-   *  or a work-plane round whose carrier declares no findings) contributes zero. */
-  static #summaryToken(verb: string, run: readonly RoundRecord[]): string {
-    const mark = run[0]!.verdict.targetAction ? JUDGEMENT_MARKERS.passed : JUDGEMENT_MARKERS.failed;
+  /** One verb's tokens — its success token (absent at zero successes) followed by one
+   *  token per failed attempt, so a failure never drifts to the line's tail (P24 §12). */
+  static #verbTokens(verb: string, faces: VerdictFaces): readonly string[] {
+    const tokens: string[] = [];
+    const success = BoardView.#successToken(verb, faces);
+    if (success !== null) tokens.push(success);
+    for (const record of faces.failures) {
+      tokens.push(BoardView.#failureToken(verb, record, faces.successes));
+    }
+    return tokens;
+  }
+
+  /** One verb's success token — absent when no round of the verb succeeded (a
+   *  failure-only verb renders its `✗` tokens alone), the plain count plus the LAST
+   *  success's attempt superscript when the verb has no failed attempt, and the
+   *  `{succeeded}/{attempts}` ratio — never a superscript — once it has one (P24 §12).
+   *  Its `+N` counts the SUCCESS records' carriers alone; a failed attempt's findings
+   *  already ride that attempt's own token. */
+  static #successToken(verb: string, faces: VerdictFaces): string | null {
+    const count = faces.successes.length;
+    if (count === 0) return null;
+    const last = faces.successes[count - 1]!;
+    const body =
+      faces.failures.length === 0
+        ? `${count}${BoardView.attemptSuffix(last)}`
+        : `${count}/${count + faces.failures.length}`;
+    return BoardView.#summaryToken(verb, body, JUDGEMENT_MARKERS.passed, faces.successes);
+  }
+
+  /** One failed attempt's token — `{verb} {cycle}{aN} ✗{+N}`, the cycle naming the round
+   *  that failed rather than a re-counted segment, and `✗→✓` when the SAME cycle's next
+   *  attempt (`attempt + 1`) completed: recovery reads exactly that one edge — a later
+   *  cycle's success and a further same-cycle attempt are historical failures. The `+N`
+   *  counts this record's own carrier alone, never erased by a later success (P24 §12). */
+  static #failureToken(
+    verb: string,
+    record: RoundRecord,
+    successes: readonly RoundRecord[],
+  ): string {
+    const recovered = successes.some(
+      (other) => other.cycle === record.cycle && other.attempt === record.attempt + 1,
+    );
+    const mark = recovered ? JUDGEMENT_MARKERS.recovered : JUDGEMENT_MARKERS.failed;
+    const body = `${record.cycle}${BoardView.attemptSuffix(record)}`;
+    return BoardView.#summaryToken(verb, body, mark, [record]);
+  }
+
+  /** One token of a verb's success face or of one failed attempt, `{verb} {body} {mark}`
+   *  (P24 §12). The `+N` suffix counts the run's graded FINDINGS, read from each round's
+   *  own carrier (`carrierPath` → the handoff's `findings` array, spec §5.3) — never the
+   *  round's hard/soft contract violations, which are a different fact. A record with no
+   *  carrier (a legacy row, or a work-plane round whose carrier declares no findings)
+   *  contributes zero. */
+  static #summaryToken(
+    verb: string,
+    body: string,
+    mark: string,
+    run: readonly RoundRecord[],
+  ): string {
     const findings = run.reduce((total, record) => total + BoardView.#findingsCountOf(record), 0);
     const suffix = findings === 0 ? "" : `+${findings}`;
-    return `${verb} ${run.length}${BoardView.attemptSuffix(run[run.length - 1]!)} ${mark}${suffix}`;
+    return `${verb} ${body} ${mark}${suffix}`;
   }
 
   /** One round's findings count — the `findings` array length of the carrier the round
@@ -330,20 +385,14 @@ export class BoardView {
     return record.attempt === 1 ? "" : `a${record.attempt}`;
   }
 
-  /** The judgement runs of one verb — contiguous records sharing a verdict, in the
-   *  stored (chronological) order, so a re-dispatch's `✗ → ✓` pair renders as two
-   *  tokens and an unbroken green history collapses into one (spec §5.3). */
-  static #judgementRuns(records: readonly RoundRecord[]): readonly (readonly RoundRecord[])[] {
-    const runs: RoundRecord[][] = [];
-    for (const record of records) {
-      const last = runs[runs.length - 1];
-      if (last !== undefined && last[0]!.verdict.targetAction === record.verdict.targetAction) {
-        last.push(record);
-      } else {
-        runs.push([record]);
-      }
-    }
-    return runs;
+  /** The judgement faces of one verb — the success face and the anomaly face, each in
+   *  the stored (chronological) order: successes merge into ONE token per verb while
+   *  failed attempts expand one token each (P24 §12). */
+  static #judgementRuns(records: readonly RoundRecord[]): VerdictFaces {
+    return {
+      successes: records.filter((record) => record.verdict.targetAction),
+      failures: records.filter((record) => !record.verdict.targetAction),
+    };
   }
 
   /** nextLine(hop, renderer) — the board's `next:` row rendered from the INJECTED
@@ -355,6 +404,18 @@ export class BoardView {
   static nextLine(hop: NextHop, renderer: RouteRenderer): string {
     const value = renderer.renderHop(hop) ?? "(none)";
     return `  next:    ${value}`;
+  }
+
+  /** reasonLine(hop) — the board's `reason:` row under `next:`: the hop's OWN named
+   *  fact (`NextHop.reason`), the same field the capsule's `renderReason` row prints,
+   *  so the two faces state one value by construction. The PREFIX is this face's own
+   *  layout literal (`  reason:  ` — the same 11-column shape `nextLine` uses); the
+   *  capsule takes its prefix from the word table instead, so each face keeps its own
+   *  prefix and only the token is shared. A row exists only for an existing hop: the
+   *  absent hop renders `  next:    (none)` and NO reason row at all (the caller's
+   *  null-next branch), never a half-built one. */
+  static reasonLine(hop: NextHop): string {
+    return `  reason:  ${hop.reason}`;
   }
 
   /** inFlightRows(state, orphans, words) — the tree's dispatch fact + the
@@ -555,7 +616,9 @@ export class BoardView {
     if (next === null) {
       lines.push("  next:    (none)");
     } else {
-      lines.push(BoardView.nextLine(next, new RouteRenderer(words, channels, host, root)));
+      const renderer = new RouteRenderer(words, channels, host, root);
+      lines.push(BoardView.nextLine(next, renderer));
+      lines.push(BoardView.reasonLine(next));
     }
     return blocked ? 2 : 0;
   }
@@ -676,14 +739,12 @@ export class BoardView {
     return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader());
   }
 
-  /** pipelineFacts(index, entry, root) — the board's per-face OBSERVATION of the
-   *  pipeline (spec §5.2): each face's closed fact, its ACTIVE C5 hop (the SAME
-   *  state→next chain the dispatch engine walks — `Ledger#lineRoute` for the
-   *  doc/branch lines, the plan frontier + `Ledger#waveLineRoute` for the wave line)
-   *  and its render target, keyed by the ONE `PIPELINE_FACES` key set. The board
-   *  reports facts; the traversal (the four face-order rules) and the ONE hop
-   *  derivation belong to the assembly face. Null when the node holds no legal slug
-   *  (no workspace to observe). */
+  /** pipelineFacts(index, entry, root) — the board's FACTS about the pipeline (spec
+   *  §5.2): the node's ledger and the pipeline frontier's declared input (the spec
+   *  word and path, the plan path, the guarded plan read). The board reports facts
+   *  only — the per-face observations and the four face-order rules live in the
+   *  session plane's `PipelineFrontier`. Null when the node holds no legal slug (no
+   *  workspace to observe). */
   static pipelineFacts(
     index: SlugIndex,
     entry: DocEntry,
@@ -693,65 +754,23 @@ export class BoardView {
     if (nodeSlug === null) return null;
     const ledger = BoardView.#ledgerOf(nodeSlug, root.absolute);
     const sources = BoardView.#nodeSources(index, entry);
-    const progress = ledger.readProgress();
-    const waves = BoardView.#waveLines(sources.plan?.path ?? null, progress, ledger);
     const specPath = sources.spec?.path ?? null;
     const planPath = sources.plan?.path ?? null;
     // The identity line's OWN word — the document's DECLARED `doc-type:` — keys the
     // line and names the pipeline station (`single-spec` closes onto its `done` row).
     const specType = BoardView.#lineWordOf(sources.spec);
-    // The plan's open frontier wave — the SAME ready batch the dispatch engine's
-    // task-graph frontier yields (frontier over closedWaves()).
-    const waveKey = BoardView.#waveFrontierKey(ledger, planPath);
-    const report: PipelineFaceReport = {
-      // The report KEY is the pipeline POSITION (the first face — `PIPELINE_FACES`);
-      // the line's type/key/target cells are the declaration the document carries.
-      "phase-spec": {
-        closed: ledger.lineClosed(specType, specType),
-        active: specPath === null ? null : ledger.lineRoute(specType, specType),
-        target: specPath === null ? null : { type: specType, id: specPath },
-      },
-      plan: {
-        closed: ledger.lineClosed("plan", "plan"),
-        active: planPath === null ? null : ledger.lineRoute("plan", "plan"),
-        target: planPath === null ? null : { type: "plan", id: planPath, plan: planPath },
-      },
-      wave: {
-        // The wave face is exhausted (skipped) only when the plan yields a wave set
-        // and every wave is done — an empty wave segment (no plan) is not an exhausted
-        // face (nothing was closed), so it stays the frontier and hands off.
-        closed: waves.length > 0 && waves.every((wave) => wave.marker === PROGRESS_MARKERS.done),
-        active: waveKey === null ? null : ledger.waveLineRoute(waveKey),
-        target: planPath === null ? null : { type: "wave", id: waveKey ?? "", plan: planPath },
-      },
-      branch: {
-        // The branch line's closure is judged AT its identity document (the plan): a
-        // plan revision past the one the completed branch review bound reopens the
-        // face, so the mark above and this frontier cell read ONE judgment.
-        closed: ledger.lineStateAt("branch", "branch", planPath) === "closed",
-        active: ledger.lineRoute("branch", "branch"),
-        target: { type: "branch", id: "branch", plan: planPath ?? undefined },
-      },
+    return {
+      ledger,
+      input: { specType, specPath, planPath, planGraph: BoardView.planGraph(planPath) },
     };
-    return { ledger, report };
   }
 
-  /** The plan's open frontier wave key — the ready batch over the node's `closedWaves()`
-   *  set, the SAME derivation the dispatch engine's task-graph frontier walks (T26, the
-   *  wave-unitary model). Null when the plan is absent or no wave remains open — the wave
-   *  face then holds no active hop (a not-yet-started wave line hands off to the next face). */
-  static #waveFrontierKey(ledger: Ledger, planPath: string | null): string | null {
-    const graph = BoardView.#planGraph(planPath);
-    if (graph === null) return null;
-    const frontier = graph.frontier(ledger.closedWaves());
-    return frontier.length === 0 ? null : frontier.join(",");
-  }
-
-  /** The plan's task graph — the ONE guarded plan read shared by the wave frontier
-   *  key and the wave segment (`readFileSync` throwing on an unreadable plan is
-   *  caught here: a null plan path or an unreadable/absent file yields null, honoring
-   *  the wave face's "degradation, never a throw" contract). */
-  static #planGraph(planPath: string | null): TaskGraph | null {
+  /** The plan's task graph — the ONE guarded plan read behind the board's own wave
+   *  segment. `readFileSync` throwing on an unreadable plan is caught here: a null
+   *  plan path or an unreadable/absent file yields null, honoring the wave face's
+   *  "degradation, never a throw" contract. The pipeline frontier itself reads no
+   *  file — the composition root injects this read's result as its `planGraph` cell. */
+  static planGraph(planPath: string | null): TaskGraph | null {
     if (planPath === null) return null;
     try {
       return new TaskGraph(
@@ -798,7 +817,7 @@ export class BoardView {
     progress: ProgressData | null,
     ledger: Ledger | null,
   ): BoardLine[] {
-    const graph = BoardView.#planGraph(planPath);
+    const graph = BoardView.planGraph(planPath);
     if (graph === null) return [];
     const report = graph.report(ledger === null ? new Set<number>() : ledger.closedWaves());
     const done = new Set(report.done);
@@ -823,14 +842,13 @@ export class BoardView {
 }
 
 /**
- * BoardNext — the board's next-hop assembly face (P22 §5.2): the retired router
- * `walk`'s four face-order rules, re-homed at the board's CONSTRUCTION face. The
- * board (`BoardView`) only REPORTS each pipeline face's facts; `BoardNext` decides
- * the next pipeline step (iterating the ONE `PIPELINE_FACES` order imported from
- * the session plane, never a second order declaration) and hands the result to the
- * ONE derivation (`Ledger#nextHopOf` → `NextStepRouter#nextHop`), so the board's
- * `next:` and the capsule's `next:` render ONE object. The composition root's board
- * assembly point (`face/cli.ts` `#runBoard`) constructs it.
+ * BoardNext — the board's hop entry point (P22 §5.2 · P24 §11): the board (`BoardView`)
+ *  REPORTS the pipeline facts, and the session plane's `PipelineFrontier` both decides
+ *  the next pipeline step and ASSEMBLES the hop (`PipelineFrontier#hopOf`, the ONE
+ *  assembly the capsule renders too), so the board's `next:` and the capsule's `next:`
+ *  render one object by construction. This class fills no cell and makes no judgment:
+ *  it hands the facts over and returns what the assembly answered. The composition
+ *  root's board assembly point (`face/cli.ts` `#runBoard`) constructs it.
  */
 // biome-ignore lint/complexity/noStaticOnlyClass: the board's assembly fact surface — the zero-bare-function discipline admits no standalone functions here.
 export class BoardNext {
@@ -842,74 +860,12 @@ export class BoardNext {
     return facts === null ? null : BoardNext.#hopOf(facts, root);
   }
 
-  /** The derivation's input face — the walked route + target, the ledger's own
-   *  round facts and the declaration-reading station discrimination. The
-   *  `verdict → face` assembly lives in the ONE derivation (`Ledger#nextHopOf`), so
-   *  this face fills facts only. */
+  /** The session plane's ONE assembly, called with the board's facts and the face
+   *  plane's declaration-reading station port. The board contributes no cell of its
+   *  own — the hop is whatever the assembly answers. */
   static #hopOf(facts: BoardPipelineFacts, root: RepoRoot): NextHop {
-    const next = BoardNext.#pipeline(facts.report);
-    const target = next.target;
-    return facts.ledger.nextHopOf({
-      type: target?.type ?? "branch",
-      key: target?.type === "wave" ? target.id : (target?.type ?? "branch"),
-      route: next.route,
-      target,
-      doc: target === null ? null : target.type === "branch" ? (target.plan ?? null) : target.id,
+    return new PipelineFrontier(facts.ledger).hopOf(facts.input, {
       docClassOf: (candidate) => BoardView.docClassOf(root, candidate),
     });
-  }
-
-  /** The pipeline's face-to-face traversal (D40 · P22 §5.2) — the four face-order
-   *  rules over the ONE `PIPELINE_FACES` order the caller REPORTS facts against:
-   *    · the FRONTIER face (first not-closed) with an active C5 hop renders that hop
-   *      (the in-flight work — `review` / `fix` / `implement` / `next-wave`);
-   *    · the frontier has no active hop but IS entered (a target is present) → its
-   *      OWN pipeline exit entry;
-   *    · the frontier is NOT entered (no target — an absent doc) → the transition
-   *      INTO it: the PRECEDING entered face's exit entry (a just-closed spec hands
-   *      off to `cdd-plan`, never the absent plan's `cdd-dev`); none preceding → the
-   *      FIRST face's exit entry;
-   *    · every face closed → the LAST entered face's exit entry (the terminus —
-   *      `cdd-close` for a phase slug).
-   *  The order stays `PIPELINE_FACES`' (imported, never re-declared here). */
-  static #pipeline(report: PipelineFaceReport): { route: Route; target: RouteTarget | null } {
-    const states = PIPELINE_FACES.map((key) => report[key]);
-    const frontierIndex = states.findIndex((face) => !face.closed);
-    if (frontierIndex === -1) {
-      const terminalIndex = BoardNext.#lastEnteredIndex(states);
-      const terminal = terminalIndex === -1 ? null : states[terminalIndex]!;
-      return terminal === null
-        ? { route: { kind: "done" }, target: null }
-        : { route: BoardNext.#exitRoute(terminalIndex, terminal), target: terminal.target };
-    }
-    const frontier = states[frontierIndex]!;
-    if (frontier.active !== null) return { route: frontier.active, target: frontier.target };
-    const anchorIndex =
-      frontier.target !== null
-        ? frontierIndex
-        : Math.max(0, BoardNext.#lastEnteredIndex(states.slice(0, frontierIndex)));
-    const anchor = states[anchorIndex]!;
-    return { route: BoardNext.#exitRoute(anchorIndex, anchor), target: anchor.target };
-  }
-
-  /** The anchor face's OWN pipeline exit — the row its render TARGET declares
-   *  (`PIPELINE_NEXT[target.type]`, the SAME one table the capsule's `done` face reads
-   *  through the ONE derivation). The identity face's target type IS the document's
-   *  declared word, so a `single-spec` closes onto its `done` row, never the phase-spec
-   *  line's `cdd-plan` ref; every node face's target type is its face key, so the lookup
-   *  is the face key there. A face with no target (never entered) falls back to its
-   *  pipeline face's row. */
-  static #exitRoute(faceIndex: number, state: PipelineFaceState): Route {
-    if (state.target === null) return NextStepRouter.handoff(PIPELINE_FACES[faceIndex]!);
-    return { kind: "handoff", entry: PIPELINE_NEXT[state.target.type] };
-  }
-
-  /** The index of the last OBSERVED face carrying a render target — the last face the
-   *  pipeline has REACHED (a face with no target was never entered). -1 when none is. */
-  static #lastEnteredIndex(states: readonly PipelineFaceState[]): number {
-    for (let i = states.length - 1; i >= 0; i--) {
-      if (states[i]!.target !== null) return i;
-    }
-    return -1;
   }
 }

@@ -70,6 +70,7 @@ import { HoldingError, InFlight } from "../session/inflight.ts";
 import type { RoundStatus } from "../session/ledger.ts";
 import { Ledger } from "../session/ledger.ts";
 import { NextStepRouter } from "../session/next.ts";
+import type { PipelineFrontierInput } from "../session/pipeline.ts";
 import { PreFlight, type PreFlightVerdict } from "../session/preflight.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
@@ -135,6 +136,13 @@ export interface WorkScene extends DispatchScene {
   target: { kind: "branch" } | { kind: "plan"; doc: string } | { kind: "spec"; doc: string } | null;
   state: RunState;
   router: NextStepRouter;
+  /** The pipeline frontier's declared input (§11) — the four cells the capsule's
+   *  hop assembly consumes: the identity document's DECLARED word + path (the
+   *  document index, never the argv spelling), the plan path (the argv value on the
+   *  plan / branch lines, the index's same-slug plan on a `--spec` round) and the
+   *  guarded plan read. The session plane reads no file, so the composition root
+   *  collects all four and injects them. */
+  pipeline: PipelineFrontierInput;
   /** The plan's `spec:` front-matter link target (plan docs only) — the plan-review
    *  round context's spec anchor; null off the plan face. */
   specLink: string | null;
@@ -480,10 +488,11 @@ export class Cli {
       new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
       entry.slug ?? "",
     );
-    // The board's `next:` line renders ONE injected `NextHop` (P22 §5.2): the
-    // pipeline OBSERVATION comes from the board face, the four face-order rules and
-    // the ONE derivation from this assembly point (`BoardNext`) — the board itself
-    // holds no ledger for the next line and judges nothing.
+    // The board's `next:` line renders ONE injected `NextHop` (P22 §5.2 · P24 §11):
+    // the pipeline FACTS come from the board face, and the ONE hop assembly (the four
+    // face-order rules + the six hop cells) lives in the session plane's
+    // `PipelineFrontier` — the same assembly the capsule renders, so the board and the
+    // capsule state one hop. Neither face judges anything here.
     const next = BoardNext.of(index, entry, root);
     const board = BoardView.render(
       index,
@@ -738,7 +747,10 @@ export class Cli {
         HostDetect.detect(process.env),
         scene.workspace.root.basis,
       ),
-      planPath: scene.planPath,
+      planPath: scene.pipeline.planPath,
+      specType: scene.pipeline.specType,
+      specPath: scene.pipeline.specPath,
+      planGraph: scene.pipeline.planGraph,
       // The hop derivation's pipeline-station discrimination (§5.2) — the ONE
       // declaration-reading judgment, injected so the session plane never imports a
       // face class.
@@ -754,9 +766,10 @@ export class Cli {
         const pendingBlock =
           verdict === "pending-fix" ? this.#gate.pendingFixBlock(scene, reviewed) : null;
         const docBlock = open === null ? this.#gate.docLineBlock(scene, reviewed) : null;
-        // The generic refusal renders the SAME `NextHop` the capsule / board /
-        // frontier read (P22 §5.2 · the ONE message shape): `<reason> · the next
-        // round is <hop>` · `<reason> · next: <station>` · the bare reason. The two
+        // The generic refusal renders this LINE's own hop (the line frontier's
+        // assembly): `<reason> · the next round is <hop>` · `<reason> · next:
+        // <station>` · the bare reason. The capsule and the board render the PIPELINE
+        // frontier's assembly — a different reader, a different object. The two
         // identity-aware block messages above own their facts (`reviewed` has no
         // Home in `NextHop`) and stay verbatim.
         const reject =
@@ -1080,6 +1093,23 @@ export class Cli {
       type === "wave"
         ? new TaskGraph(new PlanDocType("plan").parse(planText!.split("\n")))
         : EMPTY_RUN_STATE;
+    // The pipeline frontier's four declared cells (§11) — the composition root's ONE
+    // collection point. The identity word + path come from the document index (never
+    // the argv `--type` spelling): every non-plan declared document owns the identity
+    // slot, so `phase-spec` / `single-spec` / `overall` all reach the same assembly.
+    // The plan path is the argv value on the plan / branch lines and the index's
+    // same-slug plan on a `--spec` round whose argv names none — a spec round that
+    // dropped it would leave the frontier blind to the plan face and the capsule
+    // printing this line's own exit. The graph is the ONE guarded plan read (the wave
+    // run's already-parsed state stands in; the session plane reads no file).
+    const identity = index.identityDoc(slug);
+    const hopPlanPath = planPath ?? index.planOf(slug)?.path ?? null;
+    const pipeline: PipelineFrontierInput = {
+      specType: identity?.docType ?? null,
+      specPath: identity?.path ?? null,
+      planPath: hopPlanPath,
+      planGraph: state instanceof TaskGraph ? state : BoardView.planGraph(hopPlanPath),
+    };
     return {
       workspace,
       ledger,
@@ -1090,6 +1120,7 @@ export class Cli {
       target,
       state,
       router: new NextStepRouter(),
+      pipeline,
       briefPath: null,
       specLink,
       overallLink,

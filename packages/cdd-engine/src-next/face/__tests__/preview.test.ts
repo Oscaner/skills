@@ -123,7 +123,7 @@ describe("Preview — the §3.3 five-row block", () => {
     );
   });
 
-  it("renders the branch line — its review binds no reviewed revision (the live-tree audit)", () => {
+  it("renders the branch line — its review binds the plan document's revision", () => {
     const lines = preview().render(
       "review",
       frame({
@@ -141,7 +141,25 @@ describe("Preview — the §3.3 five-row block", () => {
       "  would write: .kairos/cdd/p3/branch-review-2.json · .kairos/cdd/p3/branch-review-2-report.md",
     );
     expect(lines[4]).toBe(
-      '  would record: progress.waves["branch"].rounds += { op: review, cycle: 2, attempt: 1 }',
+      '  would record: progress.waves["branch"].rounds += { op: review, cycle: 2, attempt: 1 } · reviewedRevision(doc)',
+    );
+  });
+
+  it("a fix round reports the same reviewed-revision write-back a review does", () => {
+    const lines = preview().render(
+      "fix",
+      frame({
+        type: "phase-spec",
+        phase: "fix",
+        round: 1,
+        target: { kind: "spec", doc: path.join(ROOT, "docs", "kairos", "specs", "p3-design.md") },
+        params: { round: 1 },
+        key: "phase-spec",
+      }),
+    );
+    expect(lines[1]).toBe("  step:        fix round 1 — phase-spec");
+    expect(lines[4]).toBe(
+      '  would record: progress.waves["phase-spec"].rounds += { op: fix, cycle: 1, attempt: 1 } · reviewedRevision(doc)',
     );
   });
 

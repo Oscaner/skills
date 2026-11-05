@@ -145,20 +145,37 @@ export class Preview {
   }
 
   /** The ledger writes the round would record — the round RECORD it would append
-   *  (identity: op · cycle · attempt) plus, on a completed review, the
-   *  reviewed-revision write-back. The three legs are `#bookkeep`'s own: the doc line
-   *  binds its document's revision, the wave line its RENDERED brief's, and the
-   *  branch line binds none (its review judges the live tree). */
+   *  (identity: op · cycle · attempt) plus, on a completed review or a fix round, the
+   *  reviewed-revision write-back. The legs are `#bookkeep`'s own: the doc line binds
+   *  its document's revision, the wave line its RENDERED brief's, and the branch line
+   *  its plan document's (`#scene.planPath` — the same source the `reads:` row names;
+   *  no plan fact ⇒ no leg). The phase list is a SECOND copy of `#bookkeep`'s, kept
+   *  apart on purpose: `#bookkeep` also gates on the verdict's `targetAction`, which a
+   *  dry run never holds. */
   #recordsOf(frame: OpenFrame): string {
     const parts = [
       `progress.waves["${frame.key}"].rounds += { op: ${this.#naming.op(frame)}, cycle: ${frame.round}, attempt: ${frame.attempt ?? 1} }`,
     ];
-    if (frame.phase === "review") {
-      if (frame.target.kind === "wave") parts.push("reviewedRevision(brief)");
-      else if (frame.target.kind === "plan" || frame.target.kind === "spec")
-        parts.push("reviewedRevision(doc)");
+    if (frame.phase === "review" || frame.phase === "branch-review" || frame.phase === "fix") {
+      const leg = this.#reviewedLegOf(frame);
+      if (leg !== null) parts.push(leg);
     }
     return parts.join(" · ");
+  }
+
+  /** The reviewed-revision leg one recording round would write, stated per target
+   *  kind: the wave face binds its brief, the doc faces their judged document, the
+   *  branch face its plan document (a null plan path states no leg rather than an
+   *  empty identity). An unlisted kind states no leg — the same conservative chain
+   *  `#bookkeep` walks, so a target union that ever grows fails the same way on both
+   *  faces instead of silently recording a doc write-back. */
+  #reviewedLegOf(frame: OpenFrame): string | null {
+    if (frame.target.kind === "wave") return "reviewedRevision(brief)";
+    if (frame.target.kind === "plan" || frame.target.kind === "spec")
+      return "reviewedRevision(doc)";
+    if (frame.target.kind === "branch")
+      return this.#scene.planPath === null ? null : "reviewedRevision(doc)";
+    return null;
   }
 
   /** The child invocation the real run would spawn — `<HostId> <invoke>`: the host

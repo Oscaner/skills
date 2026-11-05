@@ -97,6 +97,16 @@ export class RouteRenderer {
     return this.#words.routeWord("done");
   }
 
+  /** renderReason(hop) → the `reason:` VALUE of one derived NextHop — the named fact
+   *  that selected the hop (one of the seven `NEXT_HOP_REASON` tokens), rendered as a
+   *  row of its OWN so the dispatchable `next:` literal keeps its exact bytes. A
+   *  hop-absent round renders no row at all: the caller gates on the SAME hop object
+   *  its `next:` render reads, so the two rows can never disagree. The station word
+   *  rides the word table, so the capsule's prefix and this face's value never fork. */
+  renderReason(hop: NextHop): string {
+    return `${this.#words.station("reason")} ${hop.reason}`;
+  }
+
   /** render(route, target) → the `next:` value: the complete executable command (a
    *  C5 hop), the pipeline entry (a `handoff`), or the bare terminal word (`done`).
    *  The additive optional RouteTarget supplies the frame's own type + id + plan for

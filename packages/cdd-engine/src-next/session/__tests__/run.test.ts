@@ -14,14 +14,19 @@
 // production loop does.
 
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PlanDocType } from "../../contract/doc.ts";
+import { BoardNext, BoardView } from "../../face/board-view.ts";
 import { Capsule } from "../../face/capsule.ts";
+import { ARGV_CHANNEL } from "../../face/declare.ts";
+import { RouteRenderer } from "../../face/route-render.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { RepoRoot } from "../../infra/root.ts";
+import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
 import { type TargetFace, type TargetType, targetFaces } from "../faces.ts";
@@ -984,6 +989,210 @@ describe("the branch small loop — branch-review → fix → closure", () => {
   });
 });
 
+describe("P24 §2 — a completed round advances the line's reviewed identity", () => {
+  /** The target doc path under the ledger's read basis (`<repo>/.kairos/cdd`) — the
+   *  basis-relative drift verdict and the absolute write-back read must hit ONE file,
+   *  so every fixture below passes an absolute path. */
+  const docUnder = (repo: string): string => path.join(repo, ".kairos", "cdd", DOC);
+
+  const docOf = (version: string, body: string): string =>
+    `---\ndoc-type: phase-spec\nversion: ${version}\nslug: x-design\n---\n\n## Design\n\n- ${body}\n`;
+
+  for (const type of ["phase-spec", "overall", "plan", "single-spec"] as const) {
+    it(`${type} — a warn-only fix that edited the doc still closes the line`, async () => {
+      const { ledger, repo, cleanup } = fixture();
+      try {
+        // The ledger's read basis is `<repo>/.kairos/cdd` (WorkspaceRoot) — the doc
+        // lives there and BOTH reads (the basis-relative verdict, the absolute
+        // write-back) must hit one file: an absolute path.
+        const doc = docUnder(repo);
+        mkdirSync(path.dirname(doc), { recursive: true });
+        writeFileSync(doc, docOf("v0.1", "one"));
+        let fixes = 0;
+        const dispatch = stub((frame) => {
+          if (frame.phase === "fix") {
+            fixes += 1;
+            writeFileSync(doc, docOf(`v0.${fixes + 1}`, `${fixes}`));
+            return { status: "APPROVED" };
+          }
+          return { status: "APPROVED", findings: [finding("warn")] };
+        });
+        const run = new Lifecycle({
+          face: targetFaces[type],
+          state: EMPTY_RUN_STATE,
+          ledger,
+          dispatch: dispatch.step,
+          target: { kind: type === "plan" ? "plan" : "spec", doc },
+        });
+        run.attachCapsule(new Capsule(new Words()));
+
+        const review1 = await run.advance();
+        expect(review1!.route!.kind).toBe("fix");
+        const fix1 = await run.advance();
+        expect(fix1!.frame.phase).toBe("fix");
+        // `[1]` is the `next:` row (the stub passes no dispositionsSummary); the
+        // `reason:` row that follows it is a later element.
+        expect(fix1!.capsuleLines[1]).not.toMatch(/^next: review\b/);
+        expect(run.peekNext()).toBeNull();
+        // The auxiliary fact: C5 already judged the closure (green with and without
+        // the write-back) — the capsule's `next:` row is the red probe.
+        expect(fix1!.route).toEqual({ kind: "done" });
+        expect(await run.advance()).toBeNull();
+      } finally {
+        cleanup();
+      }
+    });
+  }
+
+  for (const type of ["phase-spec", "overall", "plan", "single-spec"] as const) {
+    it(`${type} — an out-of-round doc edit after the closure still reopens the review`, async () => {
+      const { ledger, repo, cleanup } = fixture();
+      try {
+        const doc = docUnder(repo);
+        mkdirSync(path.dirname(doc), { recursive: true });
+        writeFileSync(doc, docOf("v0.1", "one"));
+        let fixes = 0;
+        const dispatch = stub((frame) => {
+          if (frame.phase === "fix") {
+            fixes += 1;
+            writeFileSync(doc, docOf(`v0.${fixes + 1}`, `${fixes}`));
+            return { status: "APPROVED" };
+          }
+          return { status: "APPROVED", findings: [finding("warn")] };
+        });
+        const run = new Lifecycle({
+          face: targetFaces[type],
+          state: EMPTY_RUN_STATE,
+          ledger,
+          dispatch: dispatch.step,
+          target: { kind: type === "plan" ? "plan" : "spec", doc },
+        });
+
+        await run.advance();
+        await run.advance();
+        // Closed: the frontier holds no frame.
+        expect(run.peekNext()).toBeNull();
+        // One revision outside the round later the SAME line is open again — the
+        // closure is not a blanket lock on the document.
+        writeFileSync(doc, docOf("v0.3", "out-of-round"));
+        expect(run.peekNext()!.frame.phase).toBe("review");
+      } finally {
+        cleanup();
+      }
+    });
+  }
+
+  for (const type of ["phase-spec", "overall", "plan", "single-spec"] as const) {
+    it(`${type} — a BLOCKED fix that edited the doc advances nothing`, async () => {
+      const { ledger, repo, cleanup } = fixture();
+      try {
+        const doc = docUnder(repo);
+        mkdirSync(path.dirname(doc), { recursive: true });
+        const original = docOf("v0.1", "one");
+        const half = docOf("v0.2", "half");
+        writeFileSync(doc, original); // the review-1 input — the baseline's source content
+        const dispatch = stub((frame) => {
+          if (frame.phase === "fix") {
+            writeFileSync(doc, half);
+            return { status: "BLOCKED" };
+          }
+          return { status: "APPROVED", findings: [finding("warn")] };
+        });
+        const run = new Lifecycle({
+          face: targetFaces[type],
+          state: EMPTY_RUN_STATE,
+          ledger,
+          dispatch: dispatch.step,
+          target: { kind: type === "plan" ? "plan" : "spec", doc },
+        });
+
+        await run.advance(); // review 1 — the write-back binds `original`
+        await run.advance(); // fix — BLOCKED: writes `half`, binds nothing (targetAction false)
+        // The frontier offers the fix RETRY — drift never outranks a pending fix.
+        expect(run.peekNext()!.frame.phase).toBe("fix");
+        // The baseline did not advance — it still names the reviewed content, not the
+        // half-written fix.
+        const bound = ledger.reviewedDocRevisionOf(type, type)!;
+        expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, original).doc_hash);
+        expect(bound.doc_hash).not.toBe(ledger.refs().docRevision(doc, half).doc_hash);
+      } finally {
+        cleanup();
+      }
+    });
+  }
+
+  it("branch — a fix that edited the plan closes the branch line", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, ".kairos", "cdd", "docs/kairos/plans/x-plan.md");
+      mkdirSync(path.dirname(planPath), { recursive: true });
+      writeFileSync(planPath, planDoc([task(1, "none")]));
+      const dispatch = stub((frame) => {
+        if (frame.phase === "fix") {
+          // A real fix rewrites its own output: one appended line changes the revision
+          // without touching the plan structure the parser reads.
+          writeFileSync(planPath, `${readFileSync(planPath, "utf8")}\n<!-- fix round edit -->\n`);
+          return { status: "APPROVED" };
+        }
+        return { status: "APPROVED", findings: [finding("warn")] };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.branch,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "branch" },
+        planPath,
+      });
+      run.attachCapsule(new Capsule(new Words()));
+
+      const review1 = await run.advance();
+      expect(review1!.route!.kind).toBe("fix");
+      const fix1 = await run.advance();
+      expect(fix1!.frame.phase).toBe("fix");
+      expect(fix1!.capsuleLines[1]).not.toMatch(/^next: review\b/);
+      expect(run.peekNext()).toBeNull();
+      expect(fix1!.route).toEqual({ kind: "done" });
+      expect(await run.advance()).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("wave — a blocker-free fix still closes the wave line", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, ".kairos", "cdd", "plan.md");
+      mkdirSync(path.dirname(planPath), { recursive: true });
+      writeFileSync(planPath, planDoc([task(1, "none")]));
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) => {
+        if (frame.phase === "implement") return APPROVED_IMPLEMENT;
+        if (frame.phase === "fix") return { status: "APPROVED" };
+        return { status: "APPROVED", findings: [finding("nit")] };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        planPath,
+      });
+
+      await run.advance(); // implement
+      await run.advance(); // the nit review
+      const fix = await run.advance();
+      expect(fix!.frame.phase).toBe("fix");
+      expect(fix!.route).toEqual({ kind: "done" });
+      expect(run.peekNext()).toBeNull();
+      expect(await run.advance()).toBeNull();
+      expect(graph.doneTasks()).toEqual(new Set([1]));
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 /** A CLOSED branch line in the fixture — a clean branch review over the plan binds the
  *  line's reviewed plan revision, so the drift-aware gate reads `same` and the line
  *  holds no active C5 hop (the §4.2 closed-station fact). */
@@ -1314,6 +1523,70 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
   });
 });
 
+describe("P24 T3 — a drifted wave reaches the next-hop reason", () => {
+  /** The drifted fix-pending wave: implement → a warn review (the brief binds) → the
+   *  wave's OWN plan section moves, with no fix on record. The frontier reopens at
+   *  review (D30) — the state whose `reason:` cell this task fills. */
+  const driftedWave = async (): Promise<{
+    ledger: Ledger;
+    run: Lifecycle;
+    cleanup: () => void;
+  }> => {
+    const { ledger, repo, cleanup } = fixture();
+    const planPath = path.join(repo, "plan.md");
+    writeFileSync(planPath, planDoc([task(1, "none")]));
+    const run = new Lifecycle({
+      face: targetFaces.wave,
+      state: taskGraph([task(1, "none")]),
+      ledger,
+      dispatch: stub((frame) =>
+        frame.phase === "implement"
+          ? APPROVED_IMPLEMENT
+          : { status: "APPROVED", findings: [finding("warn")] },
+      ).step,
+      planPath,
+    });
+    await run.advance(); // implement
+    await run.advance(); // review — the brief binds; the warn awaits its fix
+    // the wave's OWN section moves mid-flight — the recorded brief now drifts
+    writeFileSync(planPath, planDoc([task(1, "none"), ["  - extra step — checkable: green"]]));
+    return { ledger, run, cleanup };
+  };
+
+  it("the frontier's hop names `doc-drift` and the reason row renders it", async () => {
+    const { run, cleanup } = await driftedWave();
+    try {
+      const peeked = run.peekNext();
+      expect(peeked).not.toBeNull();
+      expect(peeked!.frame.phase).toBe("review"); // the wave line reopens at review (D30)
+      expect(peeked!.hop.hop).toBe("review");
+      expect(peeked!.hop.reason).toBe("doc-drift");
+      expect(new RouteRenderer(new Words()).renderReason(peeked!.hop)).toBe("reason: doc-drift");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the review round re-binds the brief it judged — the frame no longer drifts", async () => {
+    const { ledger, run, cleanup } = await driftedWave();
+    try {
+      run.attachCapsule(new Capsule(new Words()));
+      // The review runs ON the drifted brief and its bookkeep re-binds the brief it
+      // judged — so the round's own frame (the line-frontier assembly this spec-less
+      // fixture degrades to) is no longer drifted. That is a fact about the FRAME, not
+      // about the capsule: with a spec document the capsule renders the pipeline
+      // frontier's hop and names the movement (the P24 T7 parity block below).
+      const step = await run.advance();
+      expect(step!.frame.phase).toBe("review");
+      expect(step!.capsuleLines.some((line) => line.includes("doc-drift"))).toBe(false);
+      expect(ledger.briefDrifted("1")).toBe(false);
+      expect(run.peekNext()!.hop.reason).not.toBe("doc-drift");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // P21 T3 — the branch line's identity is its PLAN's doc-revision (§4.1): the
 // terminal branch review binds it, a later plan revision reopens the line, and an
@@ -1430,6 +1703,288 @@ describe("P21 §5.1 — the wave closure's plan-task snapshot (the append-vs-sta
       const row = ledger.readProgress()?.waves.find((entry) => entry.wave === "1");
       expect(row).toBeDefined();
       expect("planTasks" in (row ?? {})).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P24 §11 — the capsule renders the PIPELINE frontier's hop: one assembly, two
+// render faces. The parity pins live here (the capsule side), the board's own
+// bytes stay pinned in `face/__tests__/board-view.test.ts`.
+// ---------------------------------------------------------------------------
+
+/** The `reason:` token of one row — the value after the face's own prefix (the
+ *  capsule's word-table station, the board's layout literal), never the prefix. */
+const reasonTokenOf = (line: string): string => line.trim().replace(/^reason:\s+/, "");
+
+describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () => {
+  /** A node whose ledger the board and the lifecycle BOTH read: the board's own
+   *  workspace root (`<repo>/.kairos/cdd/<slug>`), the phase-spec identity document
+   *  and the same-slug plan. The plan literal carries the fixture slug (`x-p3`). */
+  const nodeFixture = (): {
+    ledger: Ledger;
+    repo: string;
+    specPath: string;
+    planPath: string;
+    cleanup: () => void;
+  } => {
+    const repo = mkdtempSync(path.join(tmpdir(), "hop-parity-"));
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "x-p3").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    const specPath = path.join(repo, DOC);
+    mkdirSync(path.dirname(specPath), { recursive: true });
+    writeFileSync(
+      specPath,
+      [
+        "---",
+        "title: S",
+        "doc-type: phase-spec",
+        "slug: x-p3",
+        "program: x-overall",
+        "---",
+        "",
+        "## Design",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    writeFileSync(
+      path.join(repo, "docs", "kairos", "specs", "x-overall.md"),
+      "---\ntitle: O\ndoc-type: overall\nslug: x-overall\n---\n",
+      "utf8",
+    );
+    const planPath = path.join(repo, "docs", "kairos", "plans", "x-plan.md");
+    mkdirSync(path.dirname(planPath), { recursive: true });
+    writeFileSync(planPath, planDoc([task(1, "none")]), "utf8");
+    return {
+      ledger,
+      repo,
+      specPath,
+      planPath,
+      cleanup: () => rmSync(repo, { recursive: true, force: true }),
+    };
+  };
+
+  /** The board's two rows for one node — the render the CLI's `cdd board` performs,
+   *  its own layout prefixes stripped. */
+  const boardRows = (repo: string, slug: string): { next: string; reason: string } => {
+    const index = SlugIndex.build(repo);
+    const entry = index.identityDoc(slug);
+    if (entry === null) throw new Error(`no identity doc for ${slug}`);
+    const root = new RepoRoot(repo);
+    const board = BoardView.render(
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      undefined,
+      BoardNext.of(index, entry, root),
+    );
+    const row = (prefix: string): string => {
+      const line = board.lines.find((candidate) => candidate.startsWith(prefix));
+      if (line === undefined) throw new Error(`no board row ${prefix.trim()}`);
+      return line.slice(prefix.length);
+    };
+    return { next: row("  next:    "), reason: reasonTokenOf(row("  reason:  ")) };
+  };
+
+  it("spec open + a dispatched wave round ⇒ the capsule's `next:` AND `reason:` are the board's", async () => {
+    const { ledger, repo, specPath, planPath, cleanup } = nodeFixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: stub((frame) =>
+          frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+        ).step,
+        planPath,
+        // The node's declared identity — a spec document exists, so the capsule and
+        // the board share the pipeline frontier's assembly.
+        specType: "phase-spec",
+        specPath,
+        planGraph: graph,
+        capsule: new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)),
+      });
+
+      const step = await run.advance(); // implement wave {1}
+      expect(step!.frame.phase).toBe("implement");
+      // The line's own assembly would hand off to the wave's review literal: the
+      // pipeline frontier holds on the UNREVIEWED spec face instead.
+      const board = boardRows(repo, "x-p3");
+      expect(board.next).toBe(`review --type phase-spec --spec ${DOC}`);
+      expect(board.reason).toBe("task-open");
+
+      const nextLine = step!.capsuleLines.find((line) => line.startsWith("next: "));
+      const reasonLine = step!.capsuleLines.find((line) => line.startsWith("reason: "));
+      expect(nextLine).toBe(`next: ${board.next}`);
+      // The reason half is the cell-derived evidence: a route-only swap would keep
+      // THIS round's frame cells and print a different token.
+      expect(reasonLine).toBeDefined();
+      expect(reasonTokenOf(reasonLine!)).toBe(board.reason);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a bare slug degrades to this line's own assembly — bytes unchanged", async () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: taskGraph([task(1, "none")]),
+        ledger,
+        dispatch: stub((frame) =>
+          frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+        ).step,
+        capsule: new Capsule(new Words()),
+      });
+      const step = await run.advance(); // implement wave {1}
+      expect(step!.capsuleLines[1]).toMatch(/^next: review --type wave --tasks 1 --plan /);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a plan-only node (the ordinary spec-less phase shape) degrades too — no passed-phase transition", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none")]), "utf8");
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: taskGraph([task(1, "none")]),
+        ledger,
+        dispatch: stub((frame) =>
+          frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+        ).step,
+        planPath,
+        capsule: new Capsule(new Words()),
+      });
+      const step = await run.advance(); // implement wave {1}
+      // The degradation key is `specPath === null`, never `planPath === null`: a
+      // plan-only node would otherwise print the identity slot's passed transition
+      // (`route to …:cdd-plan skill`) on every round.
+      expect(step!.capsuleLines[1]).toMatch(/^next: review --type wave --tasks 1 --plan /);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a spec with no plan does NOT degrade — the frontier hands off to the plan face", async () => {
+    const { ledger, specPath, cleanup } = nodeFixture();
+    try {
+      const run = new Lifecycle({
+        face: targetFaces["phase-spec"],
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+        target: { kind: "spec", doc: specPath },
+        specType: "phase-spec",
+        specPath,
+        capsule: new Capsule(new Words()),
+      });
+      const step = await run.advance(); // the clean spec review closes the line
+      expect(step!.route).toEqual({ kind: "done" });
+      // The plan face is not entered (no plan document) ⇒ rule 3: the anchor face's
+      // OWN exit — the identity transition into `cdd-plan`.
+      expect(step!.capsuleLines[1]).toBe("next: route to /kairos:cdd-plan skill");
+      expect(reasonTokenOf(step!.capsuleLines[2]!)).toBe("closed-line");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a closed `overall` charter with a same-slug plan names the successor plan face", async () => {
+    const { ledger, specPath, planPath, cleanup } = nodeFixture();
+    try {
+      const run = new Lifecycle({
+        face: targetFaces.overall,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+        target: { kind: "spec", doc: specPath },
+        specType: "overall",
+        specPath,
+        planPath,
+        capsule: new Capsule(new Words()),
+      });
+      const step = await run.advance(); // the clean charter review closes the line
+      expect(step!.route).toEqual({ kind: "done" });
+      // The identity slot is the `overall` row's (one judge, `#identityState`), so
+      // the closed charter hands off to the untouched plan face rather than the
+      // charter's own `done` row.
+      expect(step!.capsuleLines[1]).toBe(`next: review --type plan --plan ${planPath}`);
+      expect(reasonTokenOf(step!.capsuleLines[2]!)).toBe("task-open");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a closed `overall` charter with no plan stays `done` / `closed-line` — the regression pin", async () => {
+    const { ledger, specPath, cleanup } = nodeFixture();
+    try {
+      const run = new Lifecycle({
+        face: targetFaces.overall,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+        target: { kind: "spec", doc: specPath },
+        specType: "overall",
+        specPath,
+        capsule: new Capsule(new Words()),
+      });
+      const step = await run.advance();
+      expect(step!.capsuleLines[1]).toBe("next: done");
+      expect(reasonTokenOf(step!.capsuleLines[2]!)).toBe("closed-line");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a closed `single-spec` (the identity slot's third owner) shares the assembly — plan successor, no plan `face-closed`", async () => {
+    const { ledger, specPath, planPath, cleanup } = nodeFixture();
+    try {
+      const withPlan = new Lifecycle({
+        face: targetFaces["single-spec"],
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+        target: { kind: "spec", doc: specPath },
+        specType: "single-spec",
+        specPath,
+        planPath,
+        capsule: new Capsule(new Words()),
+      });
+      const step = await withPlan.advance();
+      expect(step!.capsuleLines[1]).toBe(`next: review --type plan --plan ${planPath}`);
+      expect(reasonTokenOf(step!.capsuleLines[2]!)).toBe("task-open");
+
+      // The same owner with no plan document: the class is terminal, so the reason
+      // row is `face-closed` (never the charter's `closed-line`).
+      const { ledger: bareLedger, specPath: bareSpec, cleanup: bareCleanup } = nodeFixture();
+      try {
+        const withoutPlan = new Lifecycle({
+          face: targetFaces["single-spec"],
+          state: EMPTY_RUN_STATE,
+          ledger: bareLedger,
+          dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+          target: { kind: "spec", doc: bareSpec },
+          specType: "single-spec",
+          specPath: bareSpec,
+          capsule: new Capsule(new Words()),
+        });
+        const bare = await withoutPlan.advance();
+        expect(bare!.capsuleLines[1]).toBe("next: done");
+        expect(reasonTokenOf(bare!.capsuleLines[2]!)).toBe("face-closed");
+      } finally {
+        bareCleanup();
+      }
     } finally {
       cleanup();
     }

@@ -570,7 +570,7 @@
       "items": [
         "A round record per dispatch: the baseline HEAD, a terminal verdict, the graded violations, the carrier path",
         "Each child's own output lands in .kairos/cdd/<slug>/logs/ and a blocked run names that file on stderr",
-        "next: closes the run as its last line, and cdd board renders the same judgment from the ledger"
+        "next: and the reason line that follows it close the run, and cdd board renders the same judgment from the ledger"
       ]
     }
   ]

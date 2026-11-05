@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P25 计划：写回判定的单源
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p25
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p25-design.md` **现行 `version`**（v0.8）所指的面；spec 版本一变，本约束的字面同笔改。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p25-design.md` **现行 `version`**（v0.10）所指的面；spec 版本一变，本约束的字面同笔改。
 - **纯重构**：任何消费面字节变化都是越界。`preview.test.ts` 的五条 `would record:` 断言（`:79` · `:101` · `:122` · `:144` · `:162`）**一行不改**即证据。
 - **判定必须纯（由纯度文本门钉住，spec v0.7 §3）**：`legOf` 不读账本、不读文件、不接 verdict、不接 plan path——只凭 `(phase, kind)` 回答。门读 `reviewed-identity.ts` 时**先剥注释（行注释 + 块注释），再对剥后的代码文本断言**：(a) 无 `node:fs`、无 `readFile` / `readFileSync`（不读文件）；(b) 对 `./run.ts` / `./ledger.ts` 的 import 全是 `import type`（零值导入，拿不到账本）；(c) 代码里不出现 `targetAction` 与 `planPath` 两个词。剥注释是必须的：Step 2 要求在旁注里**点名**这两项不属于判定，不剥注释的门会与那条要求自相矛盾——门管的是**代码**不读它们（与「白名单消失门」不同，那道门计字面量原文**含注释**）。
 - **参数类型不得放宽**：`phase: RoundPhase`（`session/ledger.ts:71` = `OpType | "branch-review"`）· `kind: AuditTarget["kind"]`（`session/run.ts:73-80`）。**禁用 `TargetType`**（它没有 `spec` 成员，会诱出第二张 type → 腿映射表）。
@@ -141,43 +141,49 @@ none
 
 1
 
-### Task 3: wave 面的「未进入」判据（§6）
+### Task 3: wave 面的「未进入」判据（§6 · 面层、active 与 target 同时清空）
 
 #### Objective
 
-让 `PipelineFrontier` 不再把「这条波从未派发」读成「该面已进入」：wave 零轮记录时 `active = null`，frontier 因此渲染前一个已进入面（plan）的出口 —— `route to /skill:cdd-dev skill`；一旦有任一 wave 轮记账，恢复渲 `implement` / `review` 字面。
+让 `PipelineFrontier` 不再把「wave 面从未进入」读成「该面已进入」：**面层**进入判据为「该 plan 的任务图存在且任一波有任何轮记录」，为假时 wave 面 `active` 与 `target` **同时置 null**，frontier 于是走 `#pipeline` 规则③（未进入 ⇒ 取前一个已进入面的 exit），渲 plan 面的出口 = `route to /skill:cdd-dev skill`；一旦有任一 wave 轮记账，两面恢复为 `waveLineRoute(...)` 与「该批次的 wave target」。
+
+**为什么必须同时清 `target`**（review 4 的 blocker）：`#pipeline` 的规则② 判「`active === null` 且 `target !== null`」⇒ 渲**该面自己的 exit**（`PIPELINE_NEXT.wave` = `review --type branch --plan <plan>`），不是规则③。只清 `active` 会让 fresh plan 印出 branch review 字面，而不是 `cdd-dev`。
+
+**为什么判据必须在面层**（review 4 的第二个 blocker）：`#waveKeyOf` 是 ready batch，批次 1 闭合后批次 2 的 key 自然零轮记录；若按 key 判，每个**批次之间**都会误退回 handoff。面层判据用「任一波有轮记录」，避免这个抖动。
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/session/pipeline.ts`（wave 面的 `active` 单元格）
-- Test: `packages/cdd-engine/src-next/session/__tests__/pipeline.test.ts`（必红 + 孪生回归）
+- Modify: `packages/cdd-engine/src-next/session/pipeline.ts`（`#waveState`：`active` 与 `target` 的产出条件）
+- Test: `packages/cdd-engine/src-next/session/__tests__/pipeline.test.ts`（必红 + 孪生回归 + 批次间不抖）
 
 #### Consumes
 
-- `Ledger#roundCount(key, mode)`（`session/ledger.ts:716-719`，既有）· `Ledger#waveLineRoute(waveKey)`（既有）· `PipelineFrontier.next`
+- `Ledger#roundCount(key, mode, identity?)`（`session/ledger.ts:716-719`）——**key 用该波的行键 `String(waveKey)`**（与 `waveLineRoute(waveKey)` 同一把钥匙），`identity` **不传**（wave 行不带 type identity，传了会走 `rowFor` 的 retired-spec 回退）
+- `TaskGraph#batches()` / `#frontier`（既有，经 `PipelineFrontierInput.planGraph`）· `Ledger#waveLineRoute(waveKey)`（既有）
 
 #### Produces
 
-- 无新导出；行为变化——wave 零轮记录时该面 `active` 为 `null`。
+- 无新导出；行为变化——wave 面未进入时 `active` 与 `target` 均为 `null`。
 
 #### Steps
 
-- [ ] **Step 1: 写必红用例** — checkable: 夹具 = plan 已收口 + 有任务图 + wave 零轮记录；断言 `PipelineFrontier.next(...)` 的 route 是 `{ kind: "handoff", entry: { ref: "kairos:cdd-dev" } }` —— 今日为 `{ kind: "next-wave", tasks: "1" }` ⇒ FAIL
-- [ ] **Step 2: 写孪生回归用例** — checkable: 同一夹具记一条 wave 轮（`implement`，`targetAction` 任意）后，`next(...)` 的 route 回到 `next-wave` / `review` 字面（面已进入）
-- [ ] **Step 3: 实现进入判据** — checkable: wave 面 `active` = `entered ? ledger.waveLineRoute(waveKey) : null`，其中 `entered = roundCount(waveKey,"implement") + roundCount(waveKey,"review") + roundCount(waveKey,"fix") > 0`；`waveKey === null` 仍为 `null`（既有分支不动）
-- [ ] **Step 4: 板面侧同源** — checkable: 同一夹具下 `cdd board` 的 `next:` 行为 `route to /skill:cdd-dev skill` 且 `reason:` 为 `task-open`（板面吃同一个 `PipelineFrontier`，不需要单独改）
-- [ ] **Step 5: 跑套件 + 提交** — checkable: `pipeline.test.ts` / `board-view.test.ts` / `cli.test.ts` 全绿（既有 `next:` 断言不得因此变红——**若有既有用例依赖「fresh plan 印 implement」，它们必须在册重锚并逐条说明**）；`pnpm run precommit` 绿；`git commit -m "fix(cdd-engine): an unentered wave face hands off to cdd-dev"`
-- [ ] **Step 6: 本波验收** — checkable: `env -u AI_AGENT pnpm run validate` 退出码 0
+- [ ] **Step 1: 写必红用例** — checkable: 夹具 = plan 已收口 + 有任务图 + **任一波零轮记录**；断言 `PipelineFrontier.next(...)` 的 route 为 `{ kind: "handoff", entry: { ref: "kairos:cdd-dev" } }`——今日为 `{ kind: "next-wave", tasks: "1" }` ⇒ FAIL
+- [ ] **Step 2: 写批次间不抖用例** — checkable: 构造「批次 1 已闭合、批次 2 零轮记录」（面已进入，因为波 1 有轮记录），断言 route 仍为 `{ kind: "next-wave", tasks: "<batch2>" }`，**不得**退回 `handoff`
+- [ ] **Step 3: 写孪生回归用例** — checkable: 同一「从未进入」夹具里记一条 wave 轮（`implement`，`targetAction` 任意）后，route 回到 `next-wave` / `review` 字面
+- [ ] **Step 4: 实现面层进入判据** — checkable: `#waveState` 增 `entered = graph !== null && <任一波 roundCount_sum > 0>`；`active = entered && waveKey !== null ? ledger.waveLineRoute(waveKey) : null`；`target = !entered || input.planPath === null ? null : { type: "wave", id: waveKey ?? "", plan: input.planPath }`。任一波的扫描用 `graph.batches()`（或既有 ready-batch 派生）逐批取 key 再 `roundCount` 求和
+- [ ] **Step 5: 板面侧同源** — checkable: 同一夹具下 `cdd board` 的 `next:` 行为 `route to /skill:cdd-dev skill`、`reason:` 为 `task-open`（板面与胶囊都吃同一个 `PipelineFrontier`，无需单独改）
+- [ ] **Step 6: 跑套件 + 提交** — checkable: `pipeline.test.ts` / `board-view.test.ts` / `capsule.test.ts` / `cli.test.ts` 全绿；**既有 `next:` 断言若依赖「fresh plan 印 implement」，逐条重锚并在提交信息里点名**；`pnpm run precommit` 绿；`git commit -m "fix(cdd-engine): an unentered wave face hands off to cdd-dev"`
+- [ ] **Step 7: 本波验收** — checkable: `env -u AI_AGENT pnpm run validate` 退出码 0
 
 #### Acceptance
 
-- plan 已收口 + wave 零轮记录 ⇒ route 为 `handoff → kairos:cdd-dev`（改动前必红）；板面 `next:` 同值。
+- plan 已收口 + 有任务图 + 任一波零轮记录 ⇒ route 为 `handoff → kairos:cdd-dev`（改动前必红）；板面 `next:` 同值、`reason:` 为 `task-open`。
+- **批次间不误退**：批次 1 闭合、批次 2 零轮记录时 route 仍为 `next-wave`（面层判据，不是 per-key）。
 - 记一条 wave 轮之后 ⇒ 恢复 `implement` / `review` 字面（孪生回归 pin）。
-- `waveKey === null`（无任务图）分支行为零变。
+- `planGraph === null` / `planPath === null` 的既有分支行为零变。
 - 既有 `next:` 断言若有依赖「fresh plan 印 implement」的，重锚逐条在册。
 - `env -u AI_AGENT pnpm run validate` 退出码 0。
 
-#### DependsOn
 
 1, 2
 
@@ -192,3 +198,4 @@ none
 | v0.5 | 2026-11-05 | **吸收 spec v0.7**：① 范围锁 v0.6 → **v0.7** ② 补**两条 pin**（spec 第 3 轮 W1）：**纯度文本门**（`reviewed-identity.ts` 不含 `targetAction` / `planPath` 字样、不 import 状态读取面）+ **保守链运行时 pin**（未列举 kind 返回 `null`——矩阵碰不到它，因为矩阵禁止调 `legOf`）③ 落点：Constraints · Task 1 S6 · Acceptance · 本表 | Oscaner M. · Claude（kairos:cdd-plan · 对齐回填 · 2026-11-05） |
 | v0.6 | 2026-11-05 | **plan 评审第 3 轮 fix（五条 findings 全接受 · 作者裁定入文）**：① **W1 纯度门先剥注释再断言**——Constraints / Review Focus / Step 6 三处统一为 spec v0.7 §3 的口径（先剥行注释与块注释，再对代码文本断言不含 `targetAction` / `planPath`），并补齐 spec §3 的两条子断言（无 `node:fs` / `readFile*`；对 `./run.ts` / `./ledger.ts` 只有 `import type`），明确 Step 2 的旁注豁免 ② **W2** 补 `implement` 四格（`wave` / `branch` / `plan` / `spec` → `null`）的所有者：Task 1 Step 6 与 Acceptance（不归 T2）③ **N1** 本表 v0.5 行五格 → 四格（落点并入 summary）；**并立规矩：`docs/kairos` 的 change-history 行一律四格** ④ **N2** 锚点 `preview.ts:147-158` → **`:147-154`**（Review Focus · Files · Step 5 三处；`:155-158` 已是 `#recordsOf` 代码起始）⑤ **N3** `#bookkeep` 切片锚到**签名行 `run.ts:675`**（正则定位，点名 `run.ts:463` 是**调用点**），且 `legOf` 逐格期望改为**手写字面表** + `REVIEWED_WRITE_PHASES` 恒等于三值 | Oscaner M. · Claude（kairos:cdd-plan · plan fix 3 · 2026-11-05） |
 | v0.7 | 2026-11-05 | **范围追加（用户裁定 · 对齐 spec v0.8 §6）**：新增 **Task 3**「wave 面的未进入判据」——`PipelineFrontier` 的 wave `active` 在 `roundCount` 三 op 之和为 0 时置 `null`，使 fresh plan 渲 `route to /skill:cdd-dev skill` 而非 `implement`；必红 + 孪生回归 + 既有断言重锚逐条在册；changeset 级别 patch → **minor**；`DependsOn: 1, 2` ⇒ 新波 W3 |
+| v0.8 | 2026-11-05 | **吸收 spec v0.9/v0.10（面层进入判据）**：Task 3 由「per-key 只清 `active`」改为「**面层**判据 + `active` 与 `target` 同时清空」——review 4 的 blocker 证明只清 `active` 会走规则②（渲该面自己的 exit = branch review 字面）而非规则③（前一面 exit = `cdd-dev`），且 per-key 判据会在**批次之间**误退回 handoff；补「批次间不抖」用例、`roundCount` 的 key/identity 拼法（`String(waveKey)`、不传 identity）、锁改 v0.10 | Task 3 全节 + 范围锁 + Change history v0.8 | Oscaner M. · Claude（kairos:cdd-plan · 对齐回填 · 2026-11-05） |

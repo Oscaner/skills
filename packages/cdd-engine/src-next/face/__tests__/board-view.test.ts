@@ -1265,16 +1265,145 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     expect(BoardView.summaryCell([record({ cycle: 1 })])).toBe("review 1 ✓");
   });
 
-  it("(d) a re-dispatch carries its attempt superscript and attempt 1 never renders `a1`", () => {
+  it("(d) a same-cycle re-dispatch renders a ratio plus a recovered failure token, and attempt 1 never renders `a1`", () => {
     expect(
       BoardView.summaryCell([
         record({ op: "fix", verdict: { treeClean: true, targetAction: false } }),
         record({ op: "fix", attempt: 2, verdict: { treeClean: true, targetAction: true } }),
       ]),
-    ).toBe("fix 1 ✗ · fix 1a2 ✓");
+    ).toBe("fix 1/2 ✓ · fix 1 ✗→✓");
     expect(BoardView.attemptSuffix(record({ attempt: 1 }))).toBe("");
     expect(BoardView.attemptSuffix(record({ attempt: 3 }))).toBe("a3");
     expect(BoardView.summaryCell([record({})])).not.toContain("a1");
+  });
+
+  it("(e) the live shape — a recovered re-dispatch renders the attempt ratio plus the failed cycle", () => {
+    const findingsCarrier = carrier(
+      Array.from({ length: 74 }, (_, index) => ({ severity: "nit", summary: `n${index}` })),
+    );
+    const reviews = Array.from({ length: 13 }, (_, index) =>
+      record({
+        op: "review",
+        cycle: index + 1,
+        carrierPath: index === 12 ? findingsCarrier : null,
+      }),
+    );
+    const fixes: RoundRecord[] = [];
+    for (let cycle = 1; cycle <= 11; cycle += 1) fixes.push(record({ op: "fix", cycle }));
+    fixes.push(
+      record({ op: "fix", cycle: 12, verdict: { treeClean: false, targetAction: false } }),
+    );
+    fixes.push(record({ op: "fix", cycle: 12, attempt: 2 }));
+    fixes.push(record({ op: "fix", cycle: 13 }));
+    expect(BoardView.summaryCell([...reviews, ...fixes])).toBe(
+      "review 13 ✓+74 · fix 13/14 ✓ · fix 12 ✗→✓",
+    );
+  });
+
+  it("(f) an unrecovered failure renders its cycle with no arrow, and an `aN` failure keeps its superscript", () => {
+    const lone = record({
+      op: "fix",
+      cycle: 1,
+      verdict: { treeClean: true, targetAction: false },
+    });
+    expect(BoardView.summaryCell([lone])).toBe("fix 1 ✗");
+    expect(BoardView.summaryCell([lone])).not.toContain("→✓");
+    const reDispatched = record({
+      op: "fix",
+      cycle: 1,
+      attempt: 2,
+      verdict: { treeClean: true, targetAction: false },
+    });
+    expect(BoardView.summaryCell([reDispatched])).toBe("fix 1a2 ✗");
+  });
+
+  it("(g) recovery reads the NEXT attempt of the SAME cycle — not another cycle, not a further attempt", () => {
+    expect(
+      BoardView.summaryCell([
+        record({ op: "fix", cycle: 1, verdict: { treeClean: true, targetAction: false } }),
+        record({ op: "fix", cycle: 2 }),
+      ]),
+    ).toBe("fix 1/2 ✓ · fix 1 ✗");
+    const line = BoardView.summaryCell([
+      record({
+        op: "fix",
+        cycle: 1,
+        attempt: 1,
+        verdict: { treeClean: true, targetAction: false },
+      }),
+      record({
+        op: "fix",
+        cycle: 1,
+        attempt: 2,
+        verdict: { treeClean: true, targetAction: false },
+      }),
+      record({ op: "fix", cycle: 1, attempt: 3 }),
+    ]);
+    expect(line).toBe("fix 1/3 ✓ · fix 1 ✗ · fix 1a2 ✗→✓");
+    expect(line).not.toContain("a1");
+  });
+
+  it("(h) a recovered failure keeps its own +N — the success token counts the success carriers alone", () => {
+    const at = carrier([{ severity: "nit" }, { severity: "warn" }]);
+    const line = BoardView.summaryCell([
+      record({ op: "fix", cycle: 1 }),
+      record({ op: "fix", cycle: 2 }),
+      record({ op: "fix", cycle: 3 }),
+      record({
+        op: "fix",
+        cycle: 5,
+        verdict: { treeClean: false, targetAction: false },
+        carrierPath: at,
+      }),
+      record({ op: "fix", cycle: 5, attempt: 2 }),
+    ]);
+    expect(line).toBe("fix 4/5 ✓ · fix 5 ✗→✓+2");
+  });
+
+  it("(i) a failure in one verb leaves another verb's plate alone, and an all-green verb never renders a ratio", () => {
+    const at = carrier([{ severity: "blocker" }]);
+    const line = BoardView.summaryCell([
+      record({ op: "review", cycle: 1, carrierPath: at }),
+      record({ op: "review", cycle: 2 }),
+      record({ op: "fix", cycle: 1, verdict: { treeClean: true, targetAction: false } }),
+      record({ op: "fix", cycle: 1, attempt: 2 }),
+    ]);
+    expect(line).toBe("review 2 ✓+1 · fix 1/2 ✓ · fix 1 ✗→✓");
+    expect(line).not.toContain("review 2/2");
+    expect(
+      BoardView.summaryCell([
+        record({ op: "fix", cycle: 1 }),
+        record({ op: "fix", cycle: 2, attempt: 2 }),
+      ]),
+    ).toBe("fix 2a2 ✓");
+  });
+
+  it("(j) the token order is verb-major and success-token-first — failure tokens never drift to the line's tail", () => {
+    expect(
+      BoardView.summaryCell([
+        record({ op: "review", cycle: 1 }),
+        record({ op: "review", cycle: 2 }),
+        record({ op: "review", cycle: 3, verdict: { treeClean: false, targetAction: false } }),
+        record({ op: "review", cycle: 3, attempt: 2 }),
+        record({ op: "fix", cycle: 1 }),
+        record({ op: "fix", cycle: 2 }),
+        record({ op: "fix", cycle: 3 }),
+      ]),
+    ).toBe("review 3/4 ✓ · review 3 ✗→✓ · fix 3 ✓");
+  });
+
+  it("(k) a verb with zero successes renders no success token at all", () => {
+    const review = BoardView.summaryCell([
+      record({ verdict: { treeClean: false, targetAction: false } }),
+    ]);
+    expect(review).toBe("review 1 ✗");
+    expect(review).not.toContain("review 0/1 ✓");
+    expect(review).not.toContain("✓");
+    expect(
+      BoardView.summaryCell([
+        record({ op: "implement", verdict: { treeClean: false, targetAction: false } }),
+      ]),
+    ).toBe("implement 1 ✗");
   });
 });
 

@@ -48,4 +48,12 @@ skill` with `reason: closed-line`), and a closed `overall` charter and a closed
 `single-spec` print the same literal (they printed `done` with `closed-line` / `face-closed`
 respectively). A closed charter with no plan document keeps its `next: done` /
 `reason: closed-line` bytes, and a node with no spec document keeps its line-local hop
-unchanged. `cdd board` output is unchanged — the board was already the assembly's reader.
+unchanged.
+
+The board's summary cell no longer conflates success volume with failure history. Within
+the board's summary cell, rows that carry no failed attempt stay byte-identical; rows with
+one show an ok/attempts ratio and a recovery marker. The cell renders the plan line's own
+history as `review 13 ✓+74 · fix 13/14 ✓ · fix 12 ✗→✓` where it printed `review 13 ✓+74 ·
+fix 11 ✓ · fix 1 ✗ · fix 2 ✓`: the count reads as attempts, the failed round is named by
+its cycle instead of a re-counted segment, and a failed attempt whose same-cycle
+re-dispatch completed is marked as recovered.

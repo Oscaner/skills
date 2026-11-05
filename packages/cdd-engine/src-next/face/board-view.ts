@@ -59,7 +59,15 @@ const VERB_ORDER: readonly string[] = ["implement", "review", "branch-review", "
 
 /** The judgement glyphs of one aggregated token (spec §5.3 — the mark is MANDATORY:
  *  `✓` a completed round, `✗` a round that failed its target action). */
-const JUDGEMENT_MARKERS = { passed: "✓", failed: "✗" } as const;
+const JUDGEMENT_MARKERS = { passed: "✓", failed: "✗", recovered: "✗→✓" } as const;
+
+/** One verb's two judgement faces (P24 §12) — the success face, which merges into at
+ *  most one token per verb, and the anomaly face, which expands one token per failed
+ *  attempt. */
+interface VerdictFaces {
+  readonly successes: readonly RoundRecord[];
+  readonly failures: readonly RoundRecord[];
+}
 
 /** One rendered board — the stdout lines + the process exit code (0 on a clean
  *  board, 2 when a present doc line carried no `doc-type:` declaration). */
@@ -268,37 +276,85 @@ export class BoardView {
     };
   }
 
-  /** summaryCell(records) — the line's aggregated rounds cell (spec §5.3): one token
-   *  per verb × judgement run (`{label} {count}{attempt} {mark}`), joined by ` · `.
-   *  The count is the run's round count, the attempt superscript belongs to the run's
-   *  LAST record (a re-dispatch: `fix 1 ✗ · fix 1a2 ✓`), the mark is the run's verdict
-   *  (`✓` completed / `✗` failed — never omitted), and the run's graded findings ride
-   *  the `+N` suffix (omitted at 0). The range form (`review 1–10 ✓`) never renders:
-   *  the aggregation IS the count. */
+  /** summaryCell(records) — the line's aggregated rounds cell (P24 §12): the SUCCESS
+   *  face of each verb merges into at most one token (never rendered at zero successes),
+   *  the ANOMALY face expands one token per failed attempt. Tokens are verb-major in
+   *  `VERB_ORDER`, a verb's success token before its failures, those in stored order. The
+   *  range form (`review 1–10 ✓`) never renders: the aggregation IS the count. */
   static summaryCell(records: readonly RoundRecord[]): string {
     const tokens: string[] = [];
     const extra = [...new Set(records.map((record) => record.op))].filter(
       (op) => !VERB_ORDER.includes(op),
     );
     for (const verb of [...VERB_ORDER, ...extra]) {
-      const ofVerb = records.filter((record) => record.op === verb);
-      for (const run of BoardView.#judgementRuns(ofVerb)) {
-        tokens.push(BoardView.#summaryToken(verb, run));
-      }
+      const faces = BoardView.#judgementRuns(records.filter((record) => record.op === verb));
+      tokens.push(...BoardView.#verbTokens(verb, faces));
     }
     return tokens.join(" · ");
   }
 
-  /** One aggregated token of a verb × judgement run. The `+N` suffix counts the
-   *  run's graded FINDINGS, read from each round's own carrier (`carrierPath` → the
-   *  handoff's `findings` array, spec §5.3) — never the round's hard/soft contract
-   *  violations, which are a different fact. A record with no carrier (a legacy row,
-   *  or a work-plane round whose carrier declares no findings) contributes zero. */
-  static #summaryToken(verb: string, run: readonly RoundRecord[]): string {
-    const mark = run[0]!.verdict.targetAction ? JUDGEMENT_MARKERS.passed : JUDGEMENT_MARKERS.failed;
+  /** One verb's tokens — its success token (absent at zero successes) followed by one
+   *  token per failed attempt, so a failure never drifts to the line's tail (P24 §12). */
+  static #verbTokens(verb: string, faces: VerdictFaces): readonly string[] {
+    const tokens: string[] = [];
+    const success = BoardView.#successToken(verb, faces);
+    if (success !== null) tokens.push(success);
+    for (const record of faces.failures) {
+      tokens.push(BoardView.#failureToken(verb, record, faces.successes));
+    }
+    return tokens;
+  }
+
+  /** One verb's success token — absent when no round of the verb succeeded (a
+   *  failure-only verb renders its `✗` tokens alone), the plain count plus the LAST
+   *  success's attempt superscript when the verb has no failed attempt, and the
+   *  `{succeeded}/{attempts}` ratio — never a superscript — once it has one (P24 §12).
+   *  Its `+N` counts the SUCCESS records' carriers alone; a failed attempt's findings
+   *  already ride that attempt's own token. */
+  static #successToken(verb: string, faces: VerdictFaces): string | null {
+    const count = faces.successes.length;
+    if (count === 0) return null;
+    const last = faces.successes[count - 1]!;
+    const body =
+      faces.failures.length === 0
+        ? `${count}${BoardView.attemptSuffix(last)}`
+        : `${count}/${count + faces.failures.length}`;
+    return BoardView.#summaryToken(verb, body, JUDGEMENT_MARKERS.passed, faces.successes);
+  }
+
+  /** One failed attempt's token — `{verb} {cycle}{aN} ✗{+N}`, the cycle naming the round
+   *  that failed rather than a re-counted segment, and `✗→✓` when the SAME cycle's next
+   *  attempt (`attempt + 1`) completed: recovery reads exactly that one edge — a later
+   *  cycle's success and a further same-cycle attempt are historical failures. The `+N`
+   *  counts this record's own carrier alone, never erased by a later success (P24 §12). */
+  static #failureToken(
+    verb: string,
+    record: RoundRecord,
+    successes: readonly RoundRecord[],
+  ): string {
+    const recovered = successes.some(
+      (other) => other.cycle === record.cycle && other.attempt === record.attempt + 1,
+    );
+    const mark = recovered ? JUDGEMENT_MARKERS.recovered : JUDGEMENT_MARKERS.failed;
+    const body = `${record.cycle}${BoardView.attemptSuffix(record)}`;
+    return BoardView.#summaryToken(verb, body, mark, [record]);
+  }
+
+  /** One token of a verb's success face or of one failed attempt, `{verb} {body} {mark}`
+   *  (P24 §12). The `+N` suffix counts the run's graded FINDINGS, read from each round's
+   *  own carrier (`carrierPath` → the handoff's `findings` array, spec §5.3) — never the
+   *  round's hard/soft contract violations, which are a different fact. A record with no
+   *  carrier (a legacy row, or a work-plane round whose carrier declares no findings)
+   *  contributes zero. */
+  static #summaryToken(
+    verb: string,
+    body: string,
+    mark: string,
+    run: readonly RoundRecord[],
+  ): string {
     const findings = run.reduce((total, record) => total + BoardView.#findingsCountOf(record), 0);
     const suffix = findings === 0 ? "" : `+${findings}`;
-    return `${verb} ${run.length}${BoardView.attemptSuffix(run[run.length - 1]!)} ${mark}${suffix}`;
+    return `${verb} ${body} ${mark}${suffix}`;
   }
 
   /** One round's findings count — the `findings` array length of the carrier the round
@@ -325,20 +381,14 @@ export class BoardView {
     return record.attempt === 1 ? "" : `a${record.attempt}`;
   }
 
-  /** The judgement runs of one verb — contiguous records sharing a verdict, in the
-   *  stored (chronological) order, so a re-dispatch's `✗ → ✓` pair renders as two
-   *  tokens and an unbroken green history collapses into one (spec §5.3). */
-  static #judgementRuns(records: readonly RoundRecord[]): readonly (readonly RoundRecord[])[] {
-    const runs: RoundRecord[][] = [];
-    for (const record of records) {
-      const last = runs[runs.length - 1];
-      if (last !== undefined && last[0]!.verdict.targetAction === record.verdict.targetAction) {
-        last.push(record);
-      } else {
-        runs.push([record]);
-      }
-    }
-    return runs;
+  /** The judgement faces of one verb — the success face and the anomaly face, each in
+   *  the stored (chronological) order: successes merge into ONE token per verb while
+   *  failed attempts expand one token each (P24 §12). */
+  static #judgementRuns(records: readonly RoundRecord[]): VerdictFaces {
+    return {
+      successes: records.filter((record) => record.verdict.targetAction),
+      failures: records.filter((record) => !record.verdict.targetAction),
+    };
   }
 
   /** nextLine(hop, renderer) — the board's `next:` row rendered from the INJECTED

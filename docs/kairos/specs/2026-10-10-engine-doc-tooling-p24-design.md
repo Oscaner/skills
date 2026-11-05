@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 设计：NEXT-LOOP 收口面（drift 语义收窄 + hop 原因可读）
 doc-type: phase-spec
-version: v0.24
+v0.25
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p24
 program: 2026-10-10-engine-doc-tooling
@@ -200,7 +200,9 @@ reason: doc-drift
 
 因此：**把板面 `BoardNext#hopOf` 填 cell 的那段装配（target → `type` / `key` / `doc` / `briefDrift`）与 `PipelineFrontier` 一起收进 session 平面**，胶囊与板面调**同一个装配**，各自只负责渲染。做完之后「板面与胶囊是同一个对象」是结构事实。
 
-**输入事实的来源**：`PipelineFrontierInput` 有四格（`specType` / `specPath` / `planPath` / `planGraph`）。生命周期手上只有 argv 派生的 `#planPath`（`--spec` 轮为 null），doc 轮的 run state 是 `EMPTY_RUN_STATE` 而非 `TaskGraph`——**都不够**。故四格一律由 `face/cli.ts` 的场景从文档索引填入（它本来就持有索引），生命周期不再自己推。
+**输入事实的来源**：`PipelineFrontierInput` 有四格（`specType` / `specPath` / `planPath` / `planGraph`）。生命周期手上只有 argv 派生的 `#planPath`（`--spec` 轮为 null），doc 轮的 run state 是 `EMPTY_RUN_STATE` 而非 `TaskGraph`——**都不够**。故其中三格（`specType` / `specPath` / `planPath`）由 `face/cli.ts` 的场景从文档索引填；**第四格 `planGraph` 不是索引单元格**——它是 `face/board-view.ts:720-728` 的受守卫读（`readFileSync` + `PlanDocType` 解析），由该处的 `pipelineFacts` 注入 frontier（`session/pipeline.ts` 自身不读文件，`:9` / `:43` 已定此规）。即：**四格的来路都要在 `cli.ts` 的装配层收齐**，frontier 只消费。
+
+**术语消歧（本相位之后必须分开说的两件事）**：**pipeline frontier** 指 `PipelineFrontier.next(...)` 的产物——胶囊与板面**共用**它；**line frontier** 指 `Lifecycle#peekNext`——它仍从被派发的 frame 与本线 C5 路由装配，是**单线**视角。故「胶囊与板面是同一个对象」成立，「胶囊与 `peekNext` 是同一个对象」**不成立**（§11 的旗舰夹具本身就把两者分开）。凡是把两者混称「frontier」的句子都要改准；parity 断言只打 board ⇄ capsule 这一对，**不**打 capsule ⇄ peekNext。
 
 **落空面**：无 spec / 无 plan 的裸 slug，frontier 退化为该面自己的 exit；此时胶囊与今日逐字节相同（有测试）。
 
@@ -217,7 +219,7 @@ reason: doc-drift
 - **每轮的 next 读同一 frontier（§11）**：spec 未闭而行完一轮波形时，胶囊的 `next:` **等于**板面的 `next:`（spec 的 review lead），今日必红、改后相等；且 `next:` 仍是可执行字面、`reason:` 仍取同一 token 源；胶囊快照中受影响处的重锚逐条在册。
 - **板面即投影（§10 · 纯重构）**：同一 slug 上，板面的 `next:` 等于 frontier 那条线自己的 `peekNext()` 渲染值（parity，**改动前后皆成立**——它是回归事实而非必红）；① `board-view` 既有测试的 `next:` / `reason:` 字节零变（断言一行不改仍全绿）② `face/board-view.ts` 里不再存在 frontier 判定代码（`#pipeline` / `#exitRoute` / `#lastEnteredIndex` / `#waveFrontierKey` 均已移出）③ 四条面序规则由 `pipeline.test.ts` 直接钉。
 - **板面 frontier 的选面读 drift（§9）**：spec 已收口、其后其身份文档被轮外改动、且存在 plan 时，板面 `next:` 为该 spec 的 review lead 且 `reason:` 为 `doc-drift`（今日为 `implement --plan … --tasks …`），断言在改动前的树**必红**；该 review 闭合后 frontier 前进到 plan 的波形（孪生回归 pin）。
-- **doc 线（四型共用 `docReopens`，任取一型）与 branch 线**：`review`（仅 warn/nit）→ `fix`（改文档、blocker 计数为 0）之后的下一次调用**收口**：`next:` 为 `done` / `handoff` / `next-wave`，不是 `review`；每线一条测试；**断言面按 §11 之后的规范写**：胶囊与板面现在渲染同一个 `NextHop`，故对**带 plan 的 slug** 收口轮的胶囊 `next:` 是本线的 exit（`handoff` / `done`），而对**裸 doc slug**（无 plan）两者逐字节相同——测试夹具须显式选其一并写明，不得笼统说「两面此面皆 drift-aware」，且该测试在改动前的树上**必红**（先证红，后转绿）。
+- **doc 线（四型共用 `docReopens`，任取一型）与 branch 线**：`review`（仅 warn/nit）→ `fix`（改文档、blocker 计数为 0）之后的下一次调用**收口**：`next:` 为 `done` / `handoff` / `next-wave`，不是 `review`；每线一条测试；**断言面按 §11 之后的规范写**：胶囊与板面现在渲染同一个 `NextHop`，故对**带 plan 的 slug**，收口轮的胶囊 `next:` 是 **frontier 面的 active hop**——spec 收口而后继 plan 未起步时即 `review --type plan --plan …`（板面侧同形，`board-view.test.ts:316` 已钉）；只有**裸 doc slug**（无 plan）才是本线的 exit（`handoff` / `done`），而对**裸 doc slug**（无 plan）两者逐字节相同——测试夹具须显式选其一并写明，不得笼统说「两面此面皆 drift-aware」，且该测试在改动前的树上**必红**（先证红，后转绿）。
 - **wave 线无收口自锁，证据按 §6 第 1 条的分型给**：不做「必红 → 绿」的收口断言——零 blocker 的 fix 其 wave 路由今日已是 `done` → 已闭合（`session/ledger.ts:989` · `:1303-1310`）。wave 的必红证据是 **frontier / 板面这一跳**的 reason token：drifted wave，今日在 `peekNext` 帧与板面上 `reason` 为 `task-open`（drift cell 对 wave 排除，`session/ledger.ts:1230-1233`）、改动后为 `doc-drift`（frontier 经 `Lifecycle#hopOf` 注入、`nextHopOf` 调用在 `session/run.ts:838`；板面经 `BoardNext#hopOf` 注入，`face/board-view.ts:849-861`）；drift 的 wave fix 待办面已在 `waveLineRoute`（`session/ledger.ts:983`）里改写成 `review`，故其 token 是 `doc-drift`，`#reasonOf` 的 `fix` 行（`session/next.ts:398`）只对未 drift 的 `fix` 路由给出 `pending-fix`（drift 行 `:399` 在其后）。wave 的收口另作**回归**断言（改动前后都收口）；**frontier ⇄ 板面**的 token **一致性**是回归 pin（改动前后都不得分叉），而 token 取值 `doc-drift` 是本相位新增的必红 → 绿断言。**胶囊在 wave 面同属断言面（§11 之后同一个 `NextHop`）**：它渲的是 frontier 的 hop，故 `reason:` 与 frontier / 板面同值；不新增胶囊 ⇄ frontier 的 parity 断言（两者已是同一个对象，§11 的 Acceptance 一条已覆盖），且该面上新增的必红断言仍只落在 `peekNext` 与板面这两条注入路径上。
 - wave 面的 `reason:` 与其重开判据同源：drifted wave brief 在 frontier / 板面渲 `reason: doc-drift`，与 frontier 的 `frame.phase`（review）一致；非 drifted 的 wave 面 token 仍按既有序取值（`pending-fix` / `task-open` / `closed-line`）。胶囊在该面上渲的是 §11 之后的**同一个** frontier hop（故 token 与 frontier 同值）——原先「不保证与 frontier 同值」的限定随 §11 作废。
 - 收口之后由编排器侧改同一文档 → `next:` 仍回 review lead（drift 重开语义未失效），有测试。
@@ -266,3 +268,4 @@ reason: doc-drift
 | v0.22 | 2026-11-04 | **spec 第 10 轮回填（blocker）**：① **§11 的定案改深了一层**——胶囊要渲染的不是 route 而是板面那个 `NextHop`；只换 route 会让 cell 仍取自本轮 frame（`type`/`key`/`doc`/`briefDrift`），与 frontier 的 target 打架。改为：把 `BoardNext#hopOf` 的 cell 装配与 `PipelineFrontier` 一起收进 session 平面，两面调同一装配 ② 四格输入由 `cli.ts` 的场景从文档索引填（doc 轮是 `EMPTY_RUN_STATE`、`--spec` 轮 `#planPath` 为 null，生命周期本就不够） ③ Acceptance 的「`next:` 字节逐字节相同」收窄为「非胶囊读者」——胶囊侧另立重锚清单 ④ 删掉不存在的 `SessionRun` 类名 | §11 + §7 渲染源统一行 + §3 注释 + Acceptance + Change history v0.22 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-04） |
 | v0.23 | 2026-11-04 | **spec 第 10 轮 W3 回填**：三处关于胶囊的旧陈述随 §11 更新——① doc/branch 收口轮的断言面按「带 plan 的 slug vs 裸 doc slug」显式分写 ② wave 面的「胶囊不保证与 frontier 同值」作废（§11 之后同值）③ 「胶囊在 wave 面不在断言面内」改为同属断言面 | Acceptance + Change history v0.23 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-04） |
 | v0.24 | 2026-11-04 | **spec 第 10 轮 fix 回填（W3 残留）**：v0.23 只改了 Acceptance 的三处，`§4`/`§6`/`§8`/`Constraints` 仍留着「胶囊在 wave 面 drift 恒为假（不可达）」这套说法，与 §11「胶囊渲 frontier 的同一 `NextHop`」直接矛盾——四处同笔改为「胶囊渲 frontier 的 hop，故 `reason:` 与 frontier / 板面同值」，并把取证边界收窄为「`briefDrift` 注入只在 `peekNext` 与板面两条路径上可观察」；`§6` 第 1 条的 doc 线断言面随之按「裸 doc slug vs 带 plan 的 slug」分写，不再笼统说「两面此面皆 drift-aware」 | §4 wave 面 · §6 第 1 条（doc 线与 wave (ii)）· §8 · Constraints + Change history v0.24 | Oscaner M. · Claude（kairos:cdd-dev · spec docs-fix 第 10 轮 · 2026-11-04） |
+| v0.25 | 2026-11-04 | **spec 第 11 轮回填**：① **术语消歧**——`pipeline frontier`（胶囊+板面共用）与 `line frontier`（`peekNext`，单线）不是同一个东西；「胶囊与板面同一对象」成立、「胶囊与 `peekNext` 同一」不成立，parity 只打 board ⇄ capsule ② 收口轮胶囊印的是 **frontier 面的 active hop**（spec 收口而 plan 未起步 ⇒ `review --type plan`），只有裸 doc slug 才是本线 exit ③ `planGraph` 的来路改为「板面的受守卫读 + 装配层注入」，不是索引单元格 ④ §7 表头 11→12 行 | §11 术语段 + Acceptance doc 线 + §11 输入来源 + §7 表头 + Change history v0.25 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-04） |

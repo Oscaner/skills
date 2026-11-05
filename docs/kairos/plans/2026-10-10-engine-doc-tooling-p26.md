@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P26 计划：收口面残余三笔 + 文档形状归属判据
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p26
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p26-design.md` **现行 `version`**（v0.1）所指的面；spec 版本一变，本约束的字面同笔改。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p26-design.md` **现行 `version`**（v0.2）所指的面；spec 版本一变，本约束的字面同笔改。
 - **零新状态 / 零迁移**：不改 `progress.json` 行结构；旧 `doc_hash` 行只在下一轮 review/fix 写回时自然改写。
 - **`brief-revision` 不动**：wave 线的 D30 投影零改。
 - **正文投影定义点唯一**：哈希文档内容的站点只有 `ReviewRefs#docRevision`；投影类住 `contract/`，`session/` 不自行切片。
@@ -54,8 +54,8 @@ base: develop
 
 #### Steps
 
-- [ ] **Step 1: 写投影单测（先红）** — checkable: `doc-body.test.ts` 五格 FAIL——① 仅改 `version:` + 追加 Change history 行 ⇒ `project` 字节相同；② 改某 `### Task` 正文一句 ⇒ 不同；③ 无 front-matter 的文档仍剥 Change history；④ 无 Change history 的文档仍剥 front-matter；⑤ 正文里代码围栏含 `## Change history` 字样 ⇒ 该围栏保留在投影里
-- [ ] **Step 2: 实现 `DocBodyProjection`** — checkable: Step 1 五格全绿；类上零裸函数；YAML 块只认文件开头连续栅栏（正文中间的 `---` 不动）
+- [ ] **Step 1: 写投影单测（先红）** — checkable: `doc-body.test.ts` 六格 FAIL——① 仅改 `version:` + 追加 Change history 行 ⇒ `project` 字节相同；② 改某 `### Task` 正文一句 ⇒ 不同；③ 无 front-matter 的文档仍剥 Change history；④ 无 Change history 的文档仍剥 front-matter；⑤ 正文里代码围栏含 `## Change history` 字样 ⇒ 该围栏保留在投影里；⑥ 两侧都没有的纯正文样本（无 YAML 栅栏、无 Change history 节）⇒ `project(content) === content`，非空串且逐字节相同
+- [ ] **Step 2: 实现 `DocBodyProjection`** — checkable: Step 1 六格全绿；类上零裸函数；YAML 块只认文件开头连续栅栏（正文中间的 `---` 不动）
 - [ ] **Step 3: `ReviewRefs#docRevision` 改吃投影** — checkable: `docRevision` 内对 `string | Buffer` 先转 utf8，再 `new DocBodyProjection().project(…)`，再 `#hash`；`briefRevision` 零改
 - [ ] **Step 4: 漂移行为单测** — checkable: `doc-revision-body.test.ts`——plan 与 phase-spec 样本各一对「只记账 ⇒ `doc_hash` 相同 / 改正文 ⇒ 不同」；branch 行：先 `recordReviewedRevision("branch", refs.docRevision(plan, body1), "branch")`，再只改 front-matter+Change history ⇒ `docLineVerdict("branch", plan2, "branch") === "same"`，再改 Task 正文 ⇒ `"drift"`；plan 行同形各一
 - [ ] **Step 5: 单一定义结构门** — checkable: 同文件断言 `session/ledger.ts` 源码里 `createHash("sha1")`（或 `#hash(` 的私有定义）只服务 `ReviewRefs`；`docRevision` 方法体含 `DocBodyProjection`；`session/` 下除 `ledger.ts` 外无第二处对文档全文直接 `#hash`/`docRevision` 外包一层切片
@@ -95,8 +95,8 @@ none
 
 - [ ] **Step 1: 孪生门骨架（先对现网绿）** — checkable: `diagram-twin.guard.test.ts` 枚举六份源；每份读 `meta.output` 指向的 HTML；解析 `script#archify-source-evidence-data`；断言 `repository.revision` 等于源 `meta.repository.revision`；`meta.output` 路径与被检 HTML 一致
 - [ ] **Step 2: 引用证据归一化** — checkable: 源侧按 `diagram_type` 取根——`architecture` → `components` · `lifecycle`（next-loop）→ `states` · `workflow`（journey）→ `nodes`——收集每节点 `sources[]` 的 `(path, line, end_line)`；HTML 侧遍历 `nodes` 映射下数组的 `(path, line, endLine)`；两侧都投影成 `(path, line, end)` 多重集后深等；`referenceCount` 等于条数；三种 `diagram_type` 在六份里都有覆盖（不得写死只走 `components`）
-- [ ] **Step 3: 文案孪生** — checkable: 源中每条 `label` / `sublabel` / `tag` / 卡片 `items[]` 条目，经 HTML 转义后出现在 HTML 文本中（空串跳过）
-- [ ] **Step 4: 反向注入各一** — checkable: 临时改 HTML 引用块一行（测后还原）⇒ 引用腿红；临时改源一句 label（测后还原）⇒ 文案腿红——用临时目录拷贝或对解析结果直接断言归一化函数，避免污染工作树；选定方案在测试文件头注写明
+- [ ] **Step 3: 文案孪生** — checkable: 源中每条 `label` / `sublabel` / `tag` / 卡片 `title` 与卡片 `items[]` 条目，经 HTML 转义后出现在 HTML 文本中（空串跳过）；卡片 `title` 与 `items[]` 同属一腿——只改一条 `title` 而不重生成同样必须红
+- [ ] **Step 4: 反向注入三条** — checkable: ① 临时改 HTML 引用块一行（测后还原）⇒ 引用腿红；② 临时改源一句 `sublabel` 而不重生成（测后还原）⇒ 文案腿红；③ 只改源中一张卡片 `title` 而不重生成（测后还原）⇒ 卡片标题腿红——用临时目录拷贝或对解析结果直接断言归一化函数，避免污染工作树；选定方案在测试文件头注写明
 - [ ] **Step 5: `journey-twin.test.ts`** — checkable: 复用 `DiagramSource` 类形态（可从 next-loop-twin 抽共享，或文件内自备同类）；两份 journey 源均携带：(1) 波宽陈述，解析出的数字 `=== MAX_TASKS_PER_WAVE`（en「at most three」/ zh「至多三个」）；(2) `--type` 词表含 `phase-spec · overall · plan · single-spec · wave · branch` 且含「retired」/「退役」句，**不含**作为独立 `--type` 值的裸 `spec`（与 `TargetType` 联合一致——读 `faces.ts` 源码断言联合成员）；(3) 日志路径陈述同时含 `ENGINE_RUNTIME.handoffNamespace.workspaceRoot`（`.kairos/cdd`）与 `CliLifecycle.LOGS_DIR`（`logs`）
 - [ ] **Step 6: 三条反向红** — checkable: 各有一条「把匹配句改成错值则期望失败」的用例（对拷贝字符串断言，不改仓库源）
 - [ ] **Step 7: 提交** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/diagram-twin.guard.test.ts` 绿；`pnpm exec vitest run scripts/__tests__/journey-twin.test.ts` 绿；`diagrams.guard.test.ts` 与 `next-loop-twin.test.ts` 仍绿；commit `test(cdd-engine): pin six diagram twins and journey semantics`
@@ -104,6 +104,7 @@ none
 #### Acceptance
 
 - Acceptance 5–6（spec）全绿；既有 `diagrams.guard` / `next-loop-twin` 零改语义仍绿。
+- 文案腿的字段表含卡片 `title` 与 `items[]`；反向注入三例在册且各自点名失败腿：HTML 引用行 ⇒ 引用腿 · 源 `sublabel` 不重生成 ⇒ 文案腿 · 只改卡片 `title` 不重生成 ⇒ 卡片标题腿。
 
 #### DependsOn
 none
@@ -123,7 +124,7 @@ none
 - Modify: `packages/cdd-engine/src-next/face/__tests__/capsule.test.ts`（`:435-441`）
 - Modify: `packages/cdd-engine/src-next/session/__tests__/run.test.ts`（`:1983-1984`）
 - Modify: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（`:990`）
-- Create: `.changeset/closeout-debts.md`（若本波未由前两任务创建）
+- Create: `.changeset/closeout-debts.md`（若本波未由前两任务创建；同一文件同时承载 `cdd-engine` 与 `kairos` 两条 minor）
 
 #### Consumes
 
@@ -140,7 +141,7 @@ none
 - [ ] **Step 3: 翻裸 single-spec 三处 pin** — checkable: `capsule.test.ts:435-441`——`to` 为 `PIPELINE_NEXT["single-spec"]`，`reason` 为 `closed-line`，`nextOf` 为 `next: route to /kairos:cdd-plan skill`（测试宿主词表若固定 claude 拼写则钉该串；另补或参数化 pi 的 `/skill:cdd-plan`）；`run.test.ts:1983-1984` 同形；`board-view.test.ts:990` 的 `nextOf` 从 `done` 改为交棒指向（与 capsule 同值）
 - [ ] **Step 4: 红 pin——折回 terminal 即红** — checkable: 既有或新增断言：`BoardView.docClassOf` 在声明为 `single-spec` 时返回 `"single-spec"`；源码门断言 `board-view.ts` 与 `run.ts` 不再含把 `single-spec` 折成 `terminal` 的三元式
 - [ ] **Step 5: 回归正交面** — checkable: `next.test.ts` 里 `verdict: "terminal"` 通用用例仍绿；`run.test.ts` 带 plan 的 single-spec `task-open` 用例仍绿；plan / wave / branch 的 `next:` 字节用例全绿
-- [ ] **Step 6: changeset + 提交** — checkable: `.changeset/closeout-debts.md` 声明 `cdd-engine` minor（正文点名：body-only doc-revision · 六图孪生门 · single-spec→cdd-plan）；`pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/next.test.ts src-next/session/__tests__/run.test.ts src-next/face/__tests__/capsule.test.ts src-next/face/__tests__/board-view.test.ts` 绿；`pnpm run validate` 绿；commit `fix(cdd-engine): hand a closed single-spec to cdd-plan`
+- [ ] **Step 6: changeset + 提交** — checkable: `.changeset/closeout-debts.md` 声明 `@oscaner-skills/cdd-engine` **minor**（正文点名：body-only doc-revision · 六图孪生门 · single-spec→cdd-plan）**与 `@oscaner-skills/kairos` minor**（正文点名技能文本面：`cdd-design` 的 `mode?` 归属判定 / `size?` 收窄 / 新增失败面，`cdd-close` 的 `closeout-backfill` 两分支与 I4）；`pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/next.test.ts src-next/session/__tests__/run.test.ts src-next/face/__tests__/capsule.test.ts src-next/face/__tests__/board-view.test.ts` 绿；`pnpm run validate` 绿；commit `fix(cdd-engine): hand a closed single-spec to cdd-plan`
 
 #### Acceptance
 
@@ -160,6 +161,7 @@ none
 - Modify: `packages/kairos/skills/cdd-design/SKILL.md`（`mode?` 节点 → 归属判定 · `size?` 收窄 · Failure Modes 增行）
 - Modify: `packages/kairos/skills/cdd-close/SKILL.md`（`closeout-backfill` 两分支 · I4 措辞）
 - Test: `packages/kairos/tests/`（既有 anatomy / presentation-surface / grep-sweep 面；仅在旧句被 pin 时同笔改）
+- Modify: `.changeset/closeout-debts.md`（`@oscaner-skills/kairos` minor 条目；与 Task 3 Step 6 同一文件，缺则补、有则核对）
 
 #### Consumes
 
@@ -177,13 +179,15 @@ none
 - [ ] **Step 3: 失败面** — checkable: Failure Modes 表新增一行，reason 为「形状与归属不符」，行为 BLOCKED，与 spec §4.2 同字
 - [ ] **Step 4: `cdd-close` 两分支** — checkable: `closeout-backfill` 的 Do 显式两分支；I4 措辞覆盖两分支（有相位行 / 无相位行）；关闭 issue 的读面同时覆盖两分支（游离 single-spec 的 issue 来源 = spec 的 `issues:`）
 - [ ] **Step 5: 跑技能面门** — checkable: `pnpm -C packages/kairos exec vitest run` 全绿（anatomy / presentation-surface / grep-sweep 全绿）；若某条文本 pin 引用改掉的旧句，同笔改 pin 而不放宽断言
-- [ ] **Step 6: 提交** — checkable: `pnpm run precommit` 绿；commit `docs(kairos): judge belonging before spec shape`
+- [ ] **Step 6: kairos minor changeset 落册** — checkable: `.changeset/closeout-debts.md` 含 `@oscaner-skills/kairos` 的 **minor** 条目，正文点名 `cdd-design` / `cdd-close` 的技能文本面；Task 3 已写全则只核对，不新开第二份 changeset
+- [ ] **Step 7: 提交** — checkable: `pnpm run precommit` 绿；commit `docs(kairos): judge belonging before spec shape`
 
 #### Acceptance
 
 - 两份 skill 的 digraph 与节点文本自洽（`skill-anatomy` 门全绿，无新节标题、无 registry 外标题）。
 - `grep -n "single-spec" packages/kairos/skills/cdd-design/SKILL.md` 的每一处都落在「游离 ⇒ single-spec」语境（不存在把程序内工作判成 single-spec 的句子）。
 - `cdd-close` 的两分支与 I4 在册且互不矛盾；`close-issues` 的读面覆盖游离 single-spec。
+- 技能文本面变更随 `.changeset/closeout-debts.md` 的 `@oscaner-skills/kairos` minor 条目落册（与 Task 3 同一条目，不重开第二份）。
 
 #### DependsOn
 3
@@ -231,3 +235,4 @@ none
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-05 | 初版（slug 随 spec 迁入 P26）：五任务三层——T1 正文 doc-revision · T2 六图孪生+journey pin · T3 single-spec 交棒 cdd-plan（同层无边）· T4 归属判据落两 skill 文本 · T5 新 doc-contract 门 | Claude（本会话 cdd-plan） |
+| v0.2 | 2026-11-05 | **plan 评审第 1 轮 fix（三条 findings 全接受）**：① **B1** Constraints 的 spec 版本锁 v0.1 → **v0.2**；T2 Step 3 的孪生字段表补卡片 `title`，Step 4 改**三条反向注入**（HTML 引用行 / `sublabel` 不重生成 / 只改卡片 `title` 不重生成），对齐 spec §2.3 与验收 ② **W1** 补 `kairos` minor 落册：T3 Step 6 与 Files 的 `closeout-debts.md` 同笔声明两条 minor，T4 新增 Step 6 核对落册并在 Files / Acceptance 点名 ③ **N1** T1 Step 1 补第六格「两侧都没有 ⇒ `project(content) === content` 非空」 | Claude（kairos:cdd-plan · plan fix 1 · 2026-11-05） |

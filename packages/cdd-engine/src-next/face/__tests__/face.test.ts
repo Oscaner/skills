@@ -5,10 +5,11 @@
 //     tables — the capsule's every emitted word is
 //     looked up on the same Words instance;
 //   · the byte pin — Capsule#emit renders the `status · handoff` line and the
-//     optional `next:` line byte-stably (every route row rendered, `next:` last);
-//   · the word-face comparison — the v1 emitted face is byte-identical to the
-//     existing consumed word face (status · handoff · next:) — same words, no
-//     re-judgment: a steady state, not a compatibility shim;
+//     optional `next:` + `reason:` rows byte-stably (every route row rendered,
+//     the two route rows last);
+//   · the word-face comparison — the v1 emitted word face keeps its consumed words
+//     (status · handoff) byte-identical and gains the `reason:` row after `next:` —
+//     same words, no re-judgment: a steady state, not a compatibility shim;
 //   · the locale face (T19) — the word table's locale columns: the locale key set
 //     (the langs projection source), the issue-label rows (one per finding type ×
 //     segment) + the charter anchor rows (the P7 canonicalize data — charter.*), and
@@ -22,6 +23,7 @@ import { Translator } from "../../contract/translate.ts";
 import type { RouteTarget } from "../../session/faces.ts";
 import {
   FIX_READBACK_SUFFIX,
+  NEXT_HOP_REASON,
   type NextHop,
   NextStepRouter,
   type Route,
@@ -64,6 +66,7 @@ describe("the word table — one table, three families", () => {
       "TIMEOUT",
     ]);
     expect(words.station("next")).toBe("next:");
+    expect(words.station("reason")).toBe("reason:");
     expect(words.station("blocked")).toBe("CDD_BLOCKED:");
     expect(words.station("warn")).toBe("CDD_WARN:");
     expect(words.station("cliMissing")).toBe("CDD_CLI_MISSING:");
@@ -98,9 +101,13 @@ describe("the word table — one table, three families", () => {
       .split(words.capsuleSeparator())
       .map((cell) => cell.slice(0, cell.indexOf(": ")));
     expect(keysOf).toEqual([...words.capsuleKeys("APPROVED", true)]);
-    // the only station word in the output is the table's own `next:`
+    // both route station words in the output are the table's own (`next:` then
+    // `reason:`) — a hard-coded anchor would pass the byte pin alone
     expect(emitted[1].split(" ")[0]).toBe(words.station("next"));
-    expect(Object.values(CAPSULE_WORDS.stations).length).toBe(4);
+    // the reason row rides the table too — a hard-coded `reason:` would pass the
+    // byte pin alone, so the second route station is asserted here
+    expect(emitted[2].split(" ")[0]).toBe(words.station("reason"));
+    expect(Object.values(CAPSULE_WORDS.stations).length).toBe(5);
   });
 });
 
@@ -124,6 +131,7 @@ describe("the capsule byte pin — the single output face", () => {
     expect(capsule.emit("APPROVED", "/h.json", hopOf({ kind: "done" }))).toEqual([
       "status: APPROVED · handoff: /h.json",
       "next: done",
+      "reason: face-closed",
     ]);
     expect(capsule.emit("APPROVED", "/h.json", hopOf({ kind: "next-wave", tasks: "7,9" }))).toEqual(
       [
@@ -131,12 +139,14 @@ describe("the capsule byte pin — the single output face", () => {
         // P4.1 T4 — the complete executable literal; the absent target seeds the
         // `<plan>` placeholder (the crash-resume's own seed convention)
         "next: implement --plan <plan> --tasks 7,9",
+        "reason: task-open",
       ],
     );
     expect(capsule.emit("REVIEW_FIX", "/h.json", hopOf({ kind: "review" }))).toEqual([
       "status: REVIEW_FIX · handoff: /h.json",
       // the bare review fallback (no target — the type discriminator is absent)
       "next: review",
+      "reason: task-open",
     ]);
     expect(
       capsule.emit(
@@ -147,11 +157,13 @@ describe("the capsule byte pin — the single output face", () => {
     ).toEqual([
       "status: CHANGES_REQUESTED · handoff: /h.json",
       `next: fix --reviews tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
+      "reason: pending-fix",
     ]);
     // a fix route without its input renders the bare classifier
     expect(capsule.emit("CHANGES_REQUESTED", "/h.json", hopOf({ kind: "fix" }))).toEqual([
       "status: CHANGES_REQUESTED · handoff: /h.json",
       "next: fix",
+      "reason: pending-fix",
     ]);
     // the soft-cap message rides verbatim — the user-adjudication station
     expect(
@@ -160,7 +172,11 @@ describe("the capsule byte pin — the single output face", () => {
         "/h.json",
         hopOf({ kind: "soft-cap", message: "BLOCKED: review-cycle-cap — user adjudicates" }),
       ),
-    ).toEqual(["status: BLOCKED", "next: BLOCKED: review-cycle-cap — user adjudicates"]);
+    ).toEqual([
+      "status: BLOCKED",
+      "next: BLOCKED: review-cycle-cap — user adjudicates",
+      "reason: soft-cap",
+    ]);
   });
 
   it("renders the complete executable `next:` literal with the frame's RouteTarget (P4.1 T4)", () => {
@@ -171,6 +187,7 @@ describe("the capsule byte pin — the single output face", () => {
     expect(capsule.emit("REVIEW_FIX", "/h.json", hopOf({ kind: "review" }, target))).toEqual([
       "status: REVIEW_FIX · handoff: /h.json",
       "next: review --type wave --tasks 1,2 --plan docs/kairos/plans/p.md",
+      "reason: task-open",
     ]);
     // the one-way fix hop — `fix --type wave --tasks {tasks} --plan <p> --reviews <f>`
     expect(
@@ -182,6 +199,7 @@ describe("the capsule byte pin — the single output face", () => {
     ).toEqual([
       "status: CHANGES_REQUESTED · handoff: /h.json",
       `next: fix --type wave --tasks 1,2 --plan docs/kairos/plans/p.md --reviews tasks-1,2-review-1.json ${FIX_READBACK_SUFFIX}`,
+      "reason: pending-fix",
     ]);
     // the other target types render their discriminator arg — branch (the
     // workspace --plan only — the review judges the live tree, no range rides the
@@ -195,6 +213,7 @@ describe("the capsule byte pin — the single output face", () => {
     ).toEqual([
       "status: REVIEW_FIX · handoff: /h.json",
       "next: review --type branch --plan docs/kairos/plans/p.md",
+      "reason: task-open",
     ]);
     expect(
       capsule.emit(
@@ -205,6 +224,7 @@ describe("the capsule byte pin — the single output face", () => {
     ).toEqual([
       "status: REVIEW_FIX · handoff: /h.json",
       "next: review --type phase-spec --spec docs/kairos/specs/x-design.md",
+      "reason: task-open",
     ]);
     // implement renders NO `--type` — the single-type wave verb (the declaration's
     // `parsed.args.type ?? "wave"` default unchanged; the plan rides the plan path)
@@ -213,7 +233,17 @@ describe("the capsule byte pin — the single output face", () => {
     ).toEqual([
       "status: APPROVED · handoff: /h.json",
       "next: implement --plan docs/kairos/plans/p.md --tasks 1,2",
+      "reason: task-open",
     ]);
+  });
+
+  it("renders the hop's reason on its own line right after `next:`", () => {
+    const review = capsule.emit("APPROVED", "/h.json", hopOf({ kind: "review" }));
+    expect(review[review.length - 1]).toBe(`reason: ${NEXT_HOP_REASON.taskOpen}`);
+    const fix = capsule.emit("CHANGES_REQUESTED", "/h.json", hopOf({ kind: "fix" }));
+    expect(fix[fix.length - 1]).toBe(`reason: ${NEXT_HOP_REASON.pendingFix}`);
+    // the row follows `next:` — it never replaces or precedes it
+    expect(review[review.length - 2]).toBe("next: review");
   });
 
   it("an ABSENT NextHop emits no `next:` line — `hop: null` still prints its frozen row", () => {
@@ -226,6 +256,7 @@ describe("the capsule byte pin — the single output face", () => {
     expect(capsule.emit("APPROVED", "/h.json", hopOf({ kind: "done" }))).toEqual([
       "status: APPROVED · handoff: /h.json",
       "next: done",
+      "reason: face-closed",
     ]);
   });
 
@@ -263,7 +294,11 @@ describe("the T8 run seam — the capsule plugs into the lifecycle interaction p
     // drifts from the seam the run attaches (status · handoff · next).
     const seam: CapsuleFace = capsule;
     const lines = seam.emit("APPROVED", "/ws/tasks-1-implement.json", hopOf({ kind: "done" }));
-    expect(lines).toEqual(["status: APPROVED · handoff: /ws/tasks-1-implement.json", "next: done"]);
+    expect(lines).toEqual([
+      "status: APPROVED · handoff: /ws/tasks-1-implement.json",
+      "next: done",
+      "reason: face-closed",
+    ]);
   });
 });
 

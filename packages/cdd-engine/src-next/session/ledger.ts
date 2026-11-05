@@ -791,10 +791,10 @@ export class Ledger {
   }
 
   /** Record a line's reviewed identity — the identity-aware gate's basis (written
-   *  when the review round completes: the line reopens on drift from this recorded
-   *  revision, and BLOCKs revision-aware when unchanged). The kind IS part of the
-   *  identity: a doc line binds a doc-revision (T7), a wave line a brief-revision
-   *  (D30) — one row, one reviewed identity. */
+   *  when a review or a fix round completes: the line reopens on drift from this
+   *  recorded revision, and BLOCKs revision-aware when unchanged). The kind IS part
+   *  of the identity: a doc line binds a doc-revision (T7), a wave line a
+   *  brief-revision (D30) — one row, one reviewed identity. */
   recordReviewedRevision(
     key: LedgerKey,
     revision: ReviewedRevisionRef,
@@ -979,8 +979,7 @@ export class Ledger {
     if (route?.kind === "review") return { kind: "review" };
     if (route?.kind === "fix") {
       // The fix-awaited face — a drifted wave BRIEF reopens at review (D30/D16), else fix.
-      const reviewed = this.reviewedRevisionOf(waveKey);
-      if (reviewed !== null && this.#briefDrift(waveKey, reviewed)) return { kind: "review" };
+      if (this.briefDrifted(waveKey)) return { kind: "review" };
       return {
         kind: "fix",
         reviews: this.handoffPath("review", "wave", { tasks: waveKey, round: latestReview }),
@@ -1010,9 +1009,12 @@ export class Ledger {
    *  (the append-only backfill case the whole-plan hash wrongly flagged). An
    *  underivable brief (unreadable plan / absent task) is not a drift (present
    *  facts only). A row bound to a non-brief kind (a doc kind, only via a corrupt
-   *  hand-write) is not a wave brief — no drift. */
-  #briefDrift(waveKey: string, reviewed: ReviewedRevisionRef): boolean {
-    if (reviewed.kind !== "brief-revision") return false;
+   *  hand-write) is not a wave brief — no drift. The ONE public read of the fact:
+   *  `waveLineRoute`'s D30 leg and the next-hop assembly's reason-only `briefDrift`
+   *  cell both come through here. */
+  briefDrifted(waveKey: string): boolean {
+    const reviewed = this.reviewedRevisionOf(waveKey);
+    if (reviewed === null || reviewed.kind !== "brief-revision") return false;
     const current = this.#briefRevision(waveKey, reviewed.plan);
     if (current === null) return false;
     return this.#identity.verdict(reviewed, { ref: current }) === "drift";
@@ -1206,16 +1208,23 @@ export class Ledger {
    *  line's OWN facts and handed to the router's ONE derivation: the drift-aware gate
    *  verdict, the ONE doc-class verdict (the declared station the face axis is read
    *  out of), the caller's route (the count table's row for a single line, the
-   *  pipeline walk's route for the board) and the judged document. Every read face
-   *  (capsule · CLI rejection · board · the lifecycle frontier) comes through here,
-   *  so the four faces share one object by construction — no face assembles a second
-   *  copy of the inputs, and no judgment is re-made here (the route is the count
-   *  table's). The ONE exception is the drift-reopened line: the gate's `drift`
-   *  verdict IS the reopen, and the closure-side route the count table recorded
-   *  predates the document movement — so the assembly hands the derivation the
-   *  reopened review hop in that case. A presentation-level substitution: the count
-   *  table's judgment (`NextStepRouter#next`) stays the only judge, and a still-open
-   *  hop (review / fix) is never overridden by the drift fact. */
+   *  pipeline walk's route for the board) and the judged document. TWO assemblies
+   *  call this derivation (the line frontier's and the pipeline frontier's
+   *  `PipelineFrontier#hopOf`) and neither keeps a private copy of the inputs — the
+   *  line frontier serves `peekNext` and the CLI rejection, the pipeline assembly
+   *  serves the capsule and the board — and no judgment is re-made here (the route is
+   *  the count table's). TWO drift values leave this assembly, kept apart on purpose:
+   *    · the ROUTE SUBSTITUTION driver reads the gate verdict alone (a doc line's
+   *      `reviewGate`); the injected `briefDrift` cell never moves a route — a wave's
+   *      exit-side station (`handoff`) is never rewritten into a review;
+   *    · the REASON cell adds the caller-injected wave brief-drift fact to that
+   *      verdict, so a drifted wave names `doc-drift` without a second judgment.
+   *  The ONE exception to the route being the caller's is the drift-reopened doc
+   *  line: the gate's `drift` verdict IS its reopen, and the closure-side route the
+   *  count table recorded predates the document movement — so the assembly hands the
+   *  derivation the reopened review hop in that case. A presentation-level
+   *  substitution: the count table's judgment (`NextStepRouter#next`) stays the only
+   *  judge, and a still-open hop (review / fix) is never overridden by the drift fact. */
   nextHopOf(input: {
     readonly type: TargetType;
     readonly key: LedgerKey;
@@ -1225,6 +1234,9 @@ export class Ledger {
      *  drift verdict is the gate cell; absent off the doc lines. */
     readonly doc?: string | null;
     readonly nextLineOpen?: boolean;
+    /** The wave line's injected brief-drift fact (D30) — the reason cell's second
+     *  source, never a route driver (see above). Absent off the wave line. */
+    readonly briefDrift?: boolean;
     readonly docClassOf: (target: RouteTarget) => DocClassVerdict;
   }): NextHop {
     const drift =
@@ -1245,9 +1257,13 @@ export class Ledger {
     // discrimination): no target carries no judgeable class (the bare terminal).
     const verdict: DocClassVerdict =
       input.target === null ? "terminal" : input.docClassOf(input.target);
+    // The REASON cell's drift value — `drift` above plus the caller-injected wave
+    // brief-drift fact. The two are kept apart: only `drift` drives the route
+    // substitution, so a wave's exit-side station keeps its bytes while its `reason:`
+    // row still names the movement.
     return this.#router.nextHop({
       target: input.target,
-      gate: { drift },
+      gate: { drift: drift || (input.briefDrift ?? false) },
       verdict,
       route,
       nextLineOpen: input.nextLineOpen,

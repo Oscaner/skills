@@ -275,7 +275,7 @@
       "dot": "violet",
       "title": "next: 契约",
       "items": [
-        "next: 是运行的最后一行，也是唯一的延续；BLOCKED 或 TIMEOUT 的轮次不带它",
+        "next: 行与紧随其后的原因行是运行的最后两行——去向与它的原因；BLOCKED 或 TIMEOUT 的轮次两者都不带",
         "一次推演给出下一个去向，看板渲染同一个判定——这一行与看板不可能互相矛盾",
         "流水线交接：phase-spec → cdd-plan · plan → cdd-dev · wave → 分支评审 · branch → cdd-close · overall → done",
         "计划修订会重开已关闭的分支线，于是重新评审判定的是分支评审真正绑定过的那份计划"

@@ -78,6 +78,11 @@ import type { ChildOutcome, ChildRun, ChildRunner, Termination } from "../termin
 import { Words } from "../words.ts";
 import { negatedOf } from "./negation.ts";
 
+/** The roster narrowed to its CORE rows — the flag-less face's plan source. `cdd init`
+ *  without the recommended-tier flag flattens the core rows only, so the flag-less
+ *  wiring mirrors below compare against this narrowing, never the whole table. */
+const CORE_ROSTER: readonly PluginRow[] = PLUGINS.filter((row) => row.tier === "core");
+
 // The retired usage corpus — the pre-T2 usage product's bytes for the two verbs
 // whose old rows still run as negative anchors (the survivors assert the old
 // self-built face is gone from the commander-native output; the review/fix/
@@ -626,7 +631,7 @@ describe("cdd init — the harness bootstrap wiring", () => {
       const code = await command.runArgv(["init", "--harness=pi"]);
       expect(code).toBe(0);
       expect(io.stderrText).toBe("");
-      const roster: readonly PluginRow[] = PLUGINS;
+      const roster: readonly PluginRow[] = CORE_ROSTER;
       expect(runner.calls).toEqual(roster.flatMap((row) => row.pi.install));
       expect(headers.at(-1)).toBe("init: 3 steps ok (pi · install)");
       // §2.4's second half — the cwd is left untouched: no workspace, no ledger.
@@ -646,7 +651,7 @@ describe("cdd init — the harness bootstrap wiring", () => {
     });
     try {
       expect(await command.runArgv(["init", "--harness=claude", "--update"])).toBe(0);
-      const roster: readonly PluginRow[] = PLUGINS;
+      const roster: readonly PluginRow[] = CORE_ROSTER;
       expect(runner.calls).toEqual(roster.flatMap((row) => row.claude.update));
       // The install column is a distinct argv set, so a dropped or inverted update
       // derivation shows up here as install commands riding an update request.
@@ -700,6 +705,100 @@ describe("cdd init — the harness bootstrap wiring", () => {
         "would run: claude plugin marketplace add obra/superpowers-marketplace",
       );
       expect(headers.at(-1)).toBe("init: 6 steps (claude · install) — dry run, nothing executed");
+      expect(runner.calls).toEqual([]);
+      expect(io.stderrText).toBe("");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("--include-recommends flattens the recommended tier — nine pi steps, the tier split in the summary", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    const { command, io, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      expect(await command.runArgv(["init", "--harness=pi", "--include-recommends"])).toBe(0);
+      const rows: readonly PluginRow[] = PLUGINS;
+      expect(runner.calls).toEqual(rows.flatMap((row) => row.pi.install));
+      expect(runner.calls).toHaveLength(9);
+      expect(headers.at(-1)).toBe("init: 9 steps ok (pi · install · 3 core + 6 recommended)");
+      expect(io.stderrText).toBe("");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("--include-recommends on claude adds zero steps — the empty-tier info line follows the summary", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    const { command, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      expect(await command.runArgv(["init", "--harness=claude", "--include-recommends"])).toBe(0);
+      const rows: readonly PluginRow[] = CORE_ROSTER;
+      expect(runner.calls).toEqual(rows.flatMap((row) => row.claude.install));
+      expect(headers.slice(-2)).toEqual([
+        "init: 6 steps ok (claude · install · 6 core + 0 recommended)",
+        "init: no recommended packages for claude",
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("--update --include-recommends runs the update column on both harnesses — zero install argv", async () => {
+    const rows: readonly PluginRow[] = PLUGINS;
+    for (const host of ["pi", "claude"] as const) {
+      const runner = new RecordingRunner();
+      const { command, cleanup } = fixture({ initRunner: runner });
+      try {
+        expect(
+          await command.runArgv(["init", `--harness=${host}`, "--update", "--include-recommends"]),
+        ).toBe(0);
+        // the update column is the independent source — never reverse-derived from install
+        expect(runner.calls).toEqual(rows.flatMap((row) => row[host].update));
+        const installs = new Set(
+          rows.flatMap((row) => row[host].install).map((argv) => argv.join(" ")),
+        );
+        expect(runner.calls.filter((argv) => installs.has(argv.join(" ")))).toEqual([]);
+      } finally {
+        cleanup();
+      }
+    }
+  });
+
+  it("a missing --harness rejects the flag's invocation too (exit 2, zero spawn)", async () => {
+    const runner = new RecordingRunner();
+    const { command, cleanup } = fixture({ initRunner: runner });
+    try {
+      expect(await command.runArgv(["init", "--include-recommends"])).toBe(2);
+      expect(runner.calls).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("--dry-run --include-recommends previews nine would-run lines — exit 0, zero spawn", async () => {
+    const runner = new RecordingRunner();
+    const headers: string[] = [];
+    const { command, io, cleanup } = fixture({
+      initRunner: runner,
+      initHeader: (line) => headers.push(line),
+    });
+    try {
+      expect(
+        await command.runArgv(["init", "--harness=pi", "--dry-run", "--include-recommends"]),
+      ).toBe(0);
+      const wouldRun = headers.filter((line) => line.startsWith("would run: "));
+      expect(wouldRun).toHaveLength(9);
+      expect(headers.at(-1)).toBe(
+        "init: 9 steps (pi · install · 3 core + 6 recommended) — dry run, nothing executed",
+      );
       expect(runner.calls).toEqual([]);
       expect(io.stderrText).toBe("");
     } finally {
@@ -1858,7 +1957,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const nextAt = io.stdoutText.indexOf("next: ", capsuleAt);
       const lines = io.stdoutText.match(/fixed \d+ · rejected \d+/g) ?? [];
       expect(lines).toEqual(["fixed 1 · rejected 1"]);
-      // The summary sits between the status line and the trailing `next:` line.
+      // The summary sits between the status line and the `next:` row.
       expect(summaryAt).toBeGreaterThan(capsuleAt);
       expect(nextAt).toBeGreaterThan(summaryAt);
       // The line is a face fact, never a stored one: the carrier carries the
@@ -2179,6 +2278,14 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // find #9 — the line key is the stable "branch" (round accumulates across
       // re-reviews; the old range-short key reset to 1 on every head move).
       ledger.recordRound("branch", { op: "review" });
+      // The upstream faces are closed, so the PIPELINE frontier — the assembly the
+      // capsule now renders (P24 §11) — sits on the branch line this fix reopens.
+      ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+      ledger.recordRound("phase-spec", { op: "review" });
+      ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+      ledger.recordRound("plan", { op: "review" });
+      ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+      ledger.recordRound("1", { op: "review" });
       const reviewsPath = workspace.resolve("branch-review-1.json");
       const code = await command.runArgv([
         "fix",
@@ -2210,6 +2317,17 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     try {
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
+      // The upstream faces (spec · plan · wave) are closed on clean recorded rounds,
+      // so the PIPELINE frontier — the assembly the capsule now renders (P24 §11) —
+      // sits on the branch face this review closes.
+      const node = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const seed = new Ledger(node, new ConfigLoader());
+      seed.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+      seed.recordRound("phase-spec", { op: "review" });
+      seed.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+      seed.recordRound("plan", { op: "review" });
+      seed.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+      seed.recordRound("1", { op: "review" });
       const code = await command.runArgv(["review", "--type", "branch", "--plan", plan]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED ·");
@@ -2759,6 +2877,71 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("P24 T7 — the capsule and `cdd board` state ONE hop (the assembly layer collects all four cells)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const spec = conformingSpec(repoRoot);
+      // The same-slug plan the `--spec` round's argv never names: only the document
+      // index can supply it, and without it the frontier cannot see the plan face.
+      const planFile = path.join(repoRoot, "docs", "kairos", "plans", "s1-plan.md");
+      mkdirSync(path.dirname(planFile), { recursive: true });
+      writeFileSync(
+        planFile,
+        [
+          "---",
+          "title: S1 Plan",
+          "doc-type: plan",
+          "version: v1.0",
+          "date: 2026-10-09",
+          "slug: s1",
+          "---",
+          "",
+          "## Constraints",
+          "",
+          "- delta",
+        ].join("\n"),
+        "utf8",
+      );
+
+      // The clean spec review closes the identity line. The capsule renders the
+      // PIPELINE frontier's hop — the untouched plan face — not this line's own
+      // `route to /…:cdd-plan skill` exit.
+      expect(await command.runArgv(["review", "--type", "phase-spec", "--spec", spec])).toBe(0);
+      const capsuleLines = io.stdoutText.split("\n");
+      const capsuleNext = capsuleLines.find((line) => line.startsWith("next: "))!;
+      const capsuleReason = capsuleLines.find((line) => line.startsWith("reason: "))!;
+      const planLiteral = "review --type plan --plan docs/kairos/plans/s1-plan.md";
+      expect(capsuleNext).toBe(`next: ${planLiteral}`);
+
+      io.stdoutText = "";
+      expect(
+        await command.runArgv([
+          "board",
+          "--spec",
+          "docs/kairos/specs/s1-design.md",
+          "--plan",
+          "docs/kairos/plans/s1-plan.md",
+        ]),
+      ).toBe(0);
+      const boardNext = io.stdoutText
+        .split("\n")
+        .find((line) => line.startsWith("  next:    "))!
+        .slice("  next:    ".length);
+      const boardReason = io.stdoutText
+        .split("\n")
+        .find((line) => line.startsWith("  reason:  "))!
+        .slice("  reason:  ".length);
+      // One assembly, two render faces: the `next:` value and the `reason:` token are
+      // equal, each row keeping its own prefix.
+      expect(boardNext).toBe(capsuleNext.slice("next: ".length));
+      expect(boardReason).toBe(capsuleReason.replace(/^reason:\s+/, ""));
+      expect(boardReason).toBe("task-open");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("review --type plan on a declaration-less plan BLOCKs — the plan face reads the declaration, zero command-type carve-out (spec §12 · D34)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
@@ -2795,7 +2978,15 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         overall,
       ]);
       expect(overallCode).toBe(0);
-      expect(io.stdoutText).toContain("next: done");
+      // P24 §11 — the capsule renders the PIPELINE frontier's hop: the identity slot is
+      // keyed by the DECLARED word (`overall`), while this round recorded under the
+      // `phase-spec` command word, so the frontier still reads the declared charter
+      // line as unreviewed and names its review lead — the same bytes `cdd board`
+      // renders for this node (the retired `done` was this line's own view).
+      expect(io.stdoutText).toContain(
+        "next: review --type overall --spec docs/kairos/specs/o1-overall.md",
+      );
+      expect(io.stdoutText).toContain("reason: task-open");
       // The overall was judged under the overall key (its declared
       // `doc-type:` key, spec §12 · D34) — a phase-spec misjudge would trip
       // the doc-contract gate: the charter fails the phase-spec face, the pre-flight
@@ -2820,7 +3011,12 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // reviewed doc revision (the line's identity — the T7 write-back at bookkeep).
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       // T3 deliberate pin break: the plan closure routes the cdd-dev ref (PIPELINE_NEXT.plan).
-      expect(io.stdoutText).toContain("next: route to /kairos:cdd-dev skill");
+      // P24 §11 — the capsule renders the PIPELINE frontier's hop: the spec line this
+      // fixture never reviewed holds the frontier, so the plan line's own `cdd-dev`
+      // forward hop is no longer the capsule's value (the board states the same).
+      expect(io.stdoutText).toContain(
+        "next: review --type phase-spec --spec docs/kairos/specs/p3-design.md",
+      );
       // The target doc then DRIFTS (a backfill edits the plan — the pre-T7 flow
       // froze the closed doc at "reviewed" with no reopen entry: the line held no
       // open round). The target identity moved — review is the requested phase and
@@ -2847,7 +3043,12 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = conformingPlan(repoRoot);
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
-      expect(io.stdoutText).toContain("next: route to /kairos:cdd-dev skill");
+      // P24 §11 — the capsule renders the PIPELINE frontier's hop: the spec line this
+      // fixture never reviewed holds the frontier, so the plan line's own `cdd-dev`
+      // forward hop is no longer the capsule's value (the board states the same).
+      expect(io.stdoutText).toContain(
+        "next: review --type phase-spec --spec docs/kairos/specs/p3-design.md",
+      );
       // The doc did NOT move — the line gate compares the current revision to the
       // reviewed one and BLOCKs with the identity-aware message (the old "no open
       // round" text retires on the doc face).
@@ -3033,7 +3234,12 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           plan, // the ABSOLUTE argv spelling
         ]),
       ).toBe(0);
-      expect(io.stdoutText).toContain("next: route to /kairos:cdd-dev skill");
+      // P24 §11 — the capsule renders the PIPELINE frontier's hop: the spec line this
+      // fixture never reviewed holds the frontier, so the plan line's own `cdd-dev`
+      // forward hop is no longer the capsule's value (the board states the same).
+      expect(io.stdoutText).toContain(
+        "next: review --type phase-spec --spec docs/kairos/specs/p3-design.md",
+      );
       // The doc DRIFTS (a backfill edits the plan) so the second review reopens the
       // line at the NEXT round rather than being refused as an unchanged doc.
       writeFileSync(
@@ -3052,7 +3258,12 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         relativePlan, // the RELATIVE argv spelling — the same file
       ]);
       expect(relative).toBe(0);
-      expect(io.stdoutText).toContain("next: route to /kairos:cdd-dev skill");
+      // P24 §11 — the capsule renders the PIPELINE frontier's hop: the spec line this
+      // fixture never reviewed holds the frontier, so the plan line's own `cdd-dev`
+      // forward hop is no longer the capsule's value (the board states the same).
+      expect(io.stdoutText).toContain(
+        "next: review --type phase-spec --spec docs/kairos/specs/p3-design.md",
+      );
       // ONE line under the line-type key `"plan"` — the two argv spellings did NOT
       // fork a second row keyed by the other spelling; the round CONTINUED (2), it
       // did not reset to 1 (the §3.7 dogfood fix)

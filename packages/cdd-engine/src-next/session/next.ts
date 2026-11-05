@@ -30,8 +30,8 @@
 // so a consumer never consults a second table. The face-to-face station selection
 // rides the ONE derivation (`nextHop`): a `done` route's `to` cell is
 // `PIPELINE_NEXT`'s row for the judged doc class, a `handoff` route carries its own
-// entry, and the pipeline traversal itself belongs to the board's assembly face —
-// no second resolver.
+// entry, and the pipeline traversal itself belongs to the session plane's
+// `PipelineFrontier` — no second resolver.
 //
 // Module-level exports are types / constants / the class — zero behavior-carrying
 // bare functions (the plan's zero-bare-function discipline).
@@ -119,29 +119,26 @@ export const PIPELINE_NEXT: Readonly<Record<TargetType, PipelineEntry>> = {
 export type PhaseFaceKey = Exclude<PipelineKey, "overall">;
 
 /** The pipeline's phase-level face order (D40) — the face-to-face traversal
- *  `spec → plan → wave → branch`, the ONE order declaration: the board's assembly
- *  face iterates it, so a consumer maps key → facts and declares NO order of its own. */
+ *  `spec → plan → wave → branch`, the ONE order declaration: the session plane's
+ *  `PipelineFrontier` iterates it, so a consumer maps key → facts and declares NO
+ *  order of its own. */
 export const PIPELINE_FACES: readonly PhaseFaceKey[] = ["phase-spec", "plan", "wave", "branch"];
 
 /** One pipeline face's OBSERVED state — the per-face facts a consumer reads off
  *  disk and the ledger (never a judgment): whether the face is closed, its ACTIVE
  *  C5 hop (null when the face never started), and the render target the literal
- *  needs. The board's assembly face is the ONE decider over these observations —
- *  the board reports facts, the assembly resolves the next step. */
+ *  needs. The session plane's `PipelineFrontier` is the ONE decider over these
+ *  observations — the board reports facts, the frontier resolves the next step. */
 export interface PipelineFaceState {
   /** Whether the face's line is closed (its latest C5 route lies on the closure
-   *  side) — a face holding no open work (an empty wave segment) is closed. */
+   *  side) — a face with no wave set at all (an empty wave segment) is NOT closed
+   *  (nothing was closed), so it stays the frontier and hands off. */
   closed: boolean;
   /** The face's active C5 hop — null when the face holds no open hop (not started). */
   active: Route | null;
   /** The face's render target (the literal's type + id + plan), or null when absent. */
   target: RouteTarget | null;
 }
-
-/** The consumer's face report — one observation per phase face, keyed by its
- *  `PIPELINE_FACES` key (the order stays the assembly face's; the consumer names
- *  faces). */
-export type PipelineFaceReport = Readonly<Record<PhaseFaceKey, PipelineFaceState>>;
 
 /** The walk's verdict — the ONE next Route + the render target it belongs to (the
  *  frontier face's own target; the last face's on the all-closed terminal). */
@@ -208,8 +205,10 @@ export interface NextHop {
 export interface NextHopInput {
   /** The line's render target (null = the face was never entered / a bare terminal). */
   readonly target: RouteTarget | null;
-  /** The drift-aware gate's verdict on the line (`drift` = the doc moved past its
-   *  reviewed revision, so the closed line reopens). */
+  /** The drift-aware gate's verdict on the line (`drift` = the line's own recorded
+   *  reviewed identity moved — a doc line's revision, or a wave line's brief revision —
+   *  so the closed line reopens). Only the DOC lines' exit-side routes are SUBSTITUTED
+   *  by it; on the wave line it names the reason alone, the route staying the caller's. */
   readonly gate: { readonly drift: boolean };
   /** The count table's route for the line (null = the failure face). */
   readonly route: Route | null;
@@ -390,7 +389,8 @@ export class NextStepRouter {
   }
 
   /** The named fact behind the hop — one `NEXT_HOP_REASON` row, in this order: the
-   *  soft cap · a pending fix · a drift-reopened line · an open line advancing · an
+   *  soft cap · a pending fix · a drift-reopened line (its reviewed identity moved —
+   *  a doc revision or a wave's brief revision) · an open line advancing · an
    *  unjudgeable doc class · a closed face · the closed line's handoff. Drift never
    *  outranks a pending fix (an unclosed line's blocker keeps the fix hop). */
   #reasonOf(input: NextHopInput, route: Route | null, verdict: DocClassVerdict): string {

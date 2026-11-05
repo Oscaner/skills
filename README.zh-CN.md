@@ -61,7 +61,7 @@
 
 - **每次派发都以判定收尾。** 即便被阻断或超时，轮次也会登记记录，所以“这一轮什么都没做”永远是显式记录，而非沉默的缺席。
 - **完成与否按动词各自的判据裁定，绝不看子进程退出码。** `implement` 必须留下提交，`review` 必须留下能通过校验的 findings 载体，`fix` 必须回应请求里的每一条发现。
-- **下一个去向是推演出来的，并且最后打印。** 每次运行都以 `next:` 行收尾，而 `cdd board --plan <path>` 会把同一个判定渲染成进度看板——这一行与看板不可能互相矛盾。
+- **下一个去向是推演出来的，并连同其原因一起打印。** 每次运行以 `next:` 行收尾，紧接着是它的原因行，而 `cdd board --plan <path>` 会把同一个判定渲染成进度看板——这一行与看板不可能互相矛盾。
 - **你就是停点。** 每个编排器都会先呈上产物，并在派发第一轮之前停下来等待你的明确批准。
 
 ## 快速上手
@@ -87,7 +87,7 @@ npx -y @oscaner-skills/cdd-engine@latest init --harness=claude
 npx -y @oscaner-skills/cdd-engine@latest init --harness=pi
 ```
 
-对已有安装加 `--update` 刷新，或全局安装 `cdd`（`npm i -g @oscaner-skills/cdd-engine`）以省去前缀。逐 harness 的手工安装命令见 [`packages/kairos/README.md`](packages/kairos/README.md) 的安装表。
+对已有安装加 `--update` 刷新，加 `--include-recommends` 则在核心集合之外装上六个 pi 能力包，或全局安装 `cdd`（`npm i -g @oscaner-skills/cdd-engine`）以省去前缀。逐 harness 的手工安装命令见 [`packages/kairos/README.md`](packages/kairos/README.md) 的安装表。
 
 然后调用第一个编排器——`/kairos:cdd-design`——并跟着引擎的 `next:` 行走下去。其余无需配置：技能按需通过 `npx -y @oscaner-skills/cdd-engine@latest <子命令>` 获取引擎，引擎把运行态保存在 `.kairos/cdd/` 下，并在首次派发时自发布 `.kairos/.gitignore`（内容 `*`）。
 

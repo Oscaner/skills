@@ -6,8 +6,15 @@
 // plus a gate, never a second source.
 //
 // Row order is a first-class fact — the array order IS the execution order and the
-// README row order (upstream dependencies first, kairos last). Object key order
-// would not carry that promise, so the roster is an array of rows, not an object.
+// README row order (the core three first: upstream dependencies then kairos; the six
+// recommended capability packages after them). Object key order would not carry that
+// promise, so the roster is an array of rows, not an object.
+//
+// The `tier` field splits the same table in two without a second list: `core` rows
+// are the install contract `cdd init` always runs, `recommended` rows are the pi
+// capability packages the `--include-recommends` flag opts into. Claude Code carries
+// those six capabilities natively, so a recommended row's claude column is an EMPTY
+// array — an empty cell, never a missing column.
 //
 // The host vocabulary stays single-sourced in `face/host.ts`: this module declares
 // no host id list — the row's column set closes over `HostId` (a missing column, or
@@ -31,15 +38,22 @@ export interface PluginCommands {
   readonly update: readonly Command[];
 }
 
+/** The roster's two tiers — the install contract vs. the opt-in capability set. */
+export type PluginTier = "core" | "recommended";
+
 /** One roster row — the column set derives from `HostId`, so a missing host column
  *  is a type error today and a newly declared host without its column is a type
  *  error tomorrow. */
-export type PluginRow = { readonly name: string } & Readonly<Record<HostId, PluginCommands>>;
+export type PluginRow = {
+  readonly name: string;
+  readonly tier: PluginTier;
+} & Readonly<Record<HostId, PluginCommands>>;
 
 /** The plugin roster — row order is execution order (upstream first, kairos last). */
 export const PLUGINS = [
   {
     name: "superpowers",
+    tier: "core",
     claude: {
       install: [
         ["claude", "plugin", "marketplace", "add", "obra/superpowers-marketplace"],
@@ -57,6 +71,7 @@ export const PLUGINS = [
   },
   {
     name: "mattpocock-skills",
+    tier: "core",
     claude: {
       install: [
         ["claude", "plugin", "marketplace", "add", "mattpocock/skills"],
@@ -74,6 +89,7 @@ export const PLUGINS = [
   },
   {
     name: "kairos",
+    tier: "core",
     claude: {
       install: [
         ["claude", "plugin", "marketplace", "add", "oscaner/skills"],
@@ -87,6 +103,64 @@ export const PLUGINS = [
     pi: {
       install: [["pi", "install", "npm:@oscaner-skills/kairos"]],
       update: [["pi", "update", "npm:@oscaner-skills/kairos"]],
+    },
+  },
+  // The six recommended capability packages — pi-only rows. Claude Code carries file
+  // search, todo tracking, structured questioning, web access, background tasks and
+  // AGENTS.md injection natively, so the claude column stays EMPTY here: an empty
+  // array is the fact, never a placeholder to be filled for symmetry.
+  {
+    name: "pi-fff",
+    tier: "recommended",
+    claude: { install: [], update: [] },
+    pi: {
+      install: [["pi", "install", "npm:@ff-labs/pi-fff"]],
+      update: [["pi", "update", "npm:@ff-labs/pi-fff"]],
+    },
+  },
+  {
+    name: "rpiv-todo",
+    tier: "recommended",
+    claude: { install: [], update: [] },
+    pi: {
+      install: [["pi", "install", "npm:@juicesharp/rpiv-todo"]],
+      update: [["pi", "update", "npm:@juicesharp/rpiv-todo"]],
+    },
+  },
+  {
+    name: "rpiv-ask-user-question",
+    tier: "recommended",
+    claude: { install: [], update: [] },
+    pi: {
+      install: [["pi", "install", "npm:@juicesharp/rpiv-ask-user-question"]],
+      update: [["pi", "update", "npm:@juicesharp/rpiv-ask-user-question"]],
+    },
+  },
+  {
+    name: "pi-web-access",
+    tier: "recommended",
+    claude: { install: [], update: [] },
+    pi: {
+      install: [["pi", "install", "npm:pi-web-access"]],
+      update: [["pi", "update", "npm:pi-web-access"]],
+    },
+  },
+  {
+    name: "pi-background-tasks",
+    tier: "recommended",
+    claude: { install: [], update: [] },
+    pi: {
+      install: [["pi", "install", "npm:pi-background-tasks"]],
+      update: [["pi", "update", "npm:pi-background-tasks"]],
+    },
+  },
+  {
+    name: "pi-agentsmd",
+    tier: "recommended",
+    claude: { install: [], update: [] },
+    pi: {
+      install: [["pi", "install", "npm:pi-agentsmd"]],
+      update: [["pi", "update", "npm:pi-agentsmd"]],
     },
   },
 ] as const satisfies readonly PluginRow[];

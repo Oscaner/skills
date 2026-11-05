@@ -57,7 +57,7 @@ The engine, not the orchestrator, decides what happens next, and it decides from
 
 - **Every dispatch closes with a verdict.** A round books a record even when it is blocked or times out, so "the round did nothing" is never a silent absence.
 - **Completion is a criterion per verb, never the child's exit code.** `implement` must leave a commit, `review` must leave a findings carrier that validates, `fix` must answer every finding of the request.
-- **The next hop is derived, then printed last.** Each run ends with its `next:` line, and `cdd board --plan <path>` renders that same judgment as a progress board — the line and the board cannot disagree.
+- **The next hop is derived, then printed with its reason.** Each run ends with its `next:` line and the reason line that follows it, and `cdd board --plan <path>` renders that same judgment as a progress board — the line and the board cannot disagree.
 - **You are the stop point.** Every orchestrator presents its artifact and stops for your explicit approval before dispatching its first round.
 
 ## Get started
@@ -83,7 +83,7 @@ npx -y @oscaner-skills/cdd-engine@latest init --harness=claude
 npx -y @oscaner-skills/cdd-engine@latest init --harness=pi
 ```
 
-Re-run with `--update` to refresh an existing install, or install `cdd` globally (`npm i -g @oscaner-skills/cdd-engine`) to drop the prefix. Manual per-harness commands live in the [`packages/kairos/README.md`](packages/kairos/README.md) installation table.
+Re-run with `--update` to refresh an existing install, add `--include-recommends` to bring in the six pi capability packages beside the core set, or install `cdd` globally (`npm i -g @oscaner-skills/cdd-engine`) to drop the prefix. Manual per-harness commands live in the [`packages/kairos/README.md`](packages/kairos/README.md) installation table.
 
 Then invoke the first orchestrator — `/kairos:cdd-design` — and follow the engine's `next:` line from there. Nothing else to set up: skills fetch the engine on demand with `npx -y @oscaner-skills/cdd-engine@latest <subcommand>`, and the engine keeps run state under `.kairos/cdd/`, publishing `.kairos/.gitignore` (`*`) at first dispatch.
 

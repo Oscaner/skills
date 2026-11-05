@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { PlanDocType } from "../contract/doc.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
+import type { TaskGraph } from "./graph.ts";
 import {
   type HandoffParams,
   Ledger,
@@ -35,7 +36,9 @@ import {
 } from "./ledger.ts";
 import type { DocClassVerdict, NextHop, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
+import { PipelineFrontier, type PipelineFrontierInput } from "./pipeline.ts";
 import type { PreFlightVerdict } from "./preflight.ts";
+import { ReviewedIdentity } from "./reviewed-identity.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
 
 /** The pre-flight dispatch-entry gate — the lifecycle's hard "no child on a refused
@@ -236,7 +239,7 @@ export interface DispatchOutcome {
   /** The fix round's ONE summary line (`fixed N · rejected M`, design spec §3.4) —
    *  computed at the round's finish from the persisted dispositions and the
    *  requesting carrier's input set. A face fact only: it rides the capsule render
-   *  between the status line and the trailing `next:` literal (P22 §10), and is
+   *  between the status line and the `next:` row (P22 §10), and is
    *  never stored on the record or the carrier. Absent off the fix face. */
   dispositionsSummary?: string;
 }
@@ -255,11 +258,14 @@ export interface CapsuleFace {
   /** Render the capsule lines for one round's facts — the status-class key set
    *  (`status · handoff` on success; `status` plus the crash `handoff` on
    *  TIMEOUT/BLOCKED) via the face's word table. `hop` is the ONE `NextHop` object the
-   *  round renders (P22 §5.2) — its ABSENCE (`null`: the failure face) prints no
-   *  `next:` line; the capsule itself judges nothing. `withHandoff` is the round's
-   *  crash-record fact (the failure handoff cell). `summary` is the fix round's ONE
-   *  disposition line, rendered between the status line and the trailing `next:`
-   *  literal (P22 §10 — `next:` closes the output). */
+   *  round renders — the PIPELINE frontier's assembly (`PipelineFrontier#hopOf`, the
+   *  same object the board's `next:` row renders) when the node holds a spec document,
+   *  this line's own frame-keyed assembly otherwise. Its ABSENCE (`null`: the failure
+   *  face) prints no `next:` row and no `reason:` row; the capsule itself judges
+   *  nothing. `withHandoff` is the round's crash-record fact (the failure handoff
+   *  cell). `summary` is the fix round's ONE disposition line, rendered between the
+   *  status line and the `next:` row (P22 §10 — the dispatchable literal keeps its
+   *  bytes, the reason rides the line after it). */
   emit(
     status: string,
     handoff: string,
@@ -280,7 +286,9 @@ export interface StepResult {
    *  semantics: a next-wave advances the task batch — batch faces only). */
   route: Route | null;
   /** The capsule lines rendered at the interaction point (empty when no capsule is
-   *  attached — the seam is non-hard). */
+   *  attached — the seam is non-hard). The `next:` / `reason:` rows come from the
+   *  pipeline frontier's ONE assembly (`PipelineFrontier#hopOf`), the object the
+   *  board renders too. */
   capsuleLines: readonly string[];
   /** The pre-flight verdict of a refused dispatch — the lifecycle's dispatch-entry
    *  gate blocked the frame before ANY child dispatch (absent on ordinary steps).
@@ -326,8 +334,23 @@ export class Lifecycle {
    *  keep their existing behavior). */
   readonly #preflight: PreFlightGate | null;
   /** The workspace plan path — the `next:` implement literal's required `--plan`
-   *  arg (P4.1 T4 — the task face's implement-consuming fact). */
+   *  arg (P4.1 T4 — the task face's implement-consuming fact), and the plan cell of
+   *  the pipeline frontier's input. A `--spec` round fills it from the document index
+   *  (the same-slug plan the argv does not name); the plan / branch lines carry their
+   *  argv value. */
   readonly #planPath: string | null;
+  /** The pipeline frontier's declared identity — the spec line's DECLARED word (the
+   *  `doc-type:` head key) and its document path. A node with no spec document
+   *  (`#specPath === null`) keeps this line's own hop assembly: the frontier's rules
+   *  anchor on an absent identity face, which would print a passed phase's transition. */
+  readonly #specType: TargetType | null;
+  readonly #specPath: string | null;
+  /** The plan's task graph — the pipeline frontier's guarded plan read, injected by
+   *  the composition root (the session plane reads no file). */
+  readonly #planGraph: TaskGraph | null;
+  /** The pipeline frontier — the ONE hop assembly this lifecycle's capsule renders
+   *  (the same object the board renders). */
+  readonly #frontier: PipelineFrontier;
   /** The pipeline-station discrimination the hop derivation injects (P22 §5.2) —
    *  the SAME face read the capsule/board use (`BoardView.docClassOf`). The
    *  composition root passes it; the session-plane default keys by target type
@@ -347,8 +370,15 @@ export class Lifecycle {
     /** The dispatch-entry pre-flight gate (P4.1 T1 — the lifecycle's hard "no child
      *  on a refused frame" wiring; optional, null = unguarded). */
     preflight?: PreFlightGate | null;
-    /** The workspace plan path (P4.1 T4 — the implement `next:` literal's `--plan`). */
+    /** The workspace plan path (P4.1 T4 — the implement `next:` literal's `--plan`;
+     *  also the pipeline frontier's plan cell). */
     planPath?: string | null;
+    /** The spec line's DECLARED word and document path (the pipeline frontier's
+     *  identity cells) — absent on a bare slug or a spec-less phase. */
+    specType?: TargetType | null;
+    specPath?: string | null;
+    /** The plan's task graph (the pipeline frontier's guarded plan read). */
+    planGraph?: TaskGraph | null;
     /** The pipeline-station discrimination (P22 §5.2) — injected by the composition
      *  root (the declaration-reading face); the type-keyed default covers the
      *  session-plane callers. */
@@ -363,6 +393,10 @@ export class Lifecycle {
     this.#capsule = opts.capsule ?? null;
     this.#preflight = opts.preflight ?? null;
     this.#planPath = opts.planPath ?? null;
+    this.#specType = opts.specType ?? null;
+    this.#specPath = opts.specPath ?? null;
+    this.#planGraph = opts.planGraph ?? null;
+    this.#frontier = new PipelineFrontier(this.#ledger);
     this.#docClassOf = opts.docClassOf ?? Lifecycle.#docClassByType;
   }
 
@@ -392,10 +426,10 @@ export class Lifecycle {
    *  cursor pre-checks the next step against the requested verb before it advances
    *  (a mismatch must not consume the round: advance() dispatches on entry — the
    *  {16,22,24} bug's loop reordered lookahead-after-dispatch and spent the next
-   *  phase's round in the same invocation). The returned `hop` is the SAME `NextHop`
-   *  object the board and the CLI rejection message read (P22 §5.2's fourth read
-   *  face): one derivation over this line's facts, never a lookahead-only copy.
-   *  Null = the run is exhausted / capped (no open frame → no line to name). */
+   *  phase's round in the same invocation). The returned `hop` is this line's own
+   *  LINE FRONTIER assembly (`#hopOf`): the frame-keyed hop the CLI rejection message
+   *  reads — never the pipeline frontier's assembly, which the capsule and the board
+   *  share. Null = the run is exhausted / capped (no open frame → no line to name). */
   peekNext(): { frame: OpenFrame; hop: NextHop } | null {
     const frame = this.#openFrame();
     if (frame === null) return null;
@@ -444,7 +478,11 @@ export class Lifecycle {
       frame,
       round,
       route,
-      capsuleLines: this.#capsuleLines(frame, outcome, failed ? null : this.#hopOf(frame, route)),
+      capsuleLines: this.#capsuleLines(
+        frame,
+        outcome,
+        failed ? null : this.#roundHop(frame, route),
+      ),
       termination: outcome.termination,
     };
   }
@@ -686,36 +724,40 @@ export class Lifecycle {
       },
       frame.type,
     );
-    // The completed-review revision write-back is gated on the round's VERDICT (a
-    // hard-failed review must not bind the current revision — that would silently
-    // close the drift identity the review never judged). The doc line and the wave
-    // line each bind their OWN reviewed revision (T7 doc · T11 wave / D16 / D30): a
-    // completed review binds the CURRENT revision of the reviewed input — read at
-    // bookkeep, the clean-tree dispatch gate keeps the read-only review's input
-    // stable across the round. For a doc line that input is the target doc (the
-    // whole-content doc-revision). For a wave line it is the RENDERED BRIEF —
-    // `#recordReviewedWaveBrief` → `recordReviewedBrief(String(frame.key),
-    // #planPath)` hashes the brief the plan renders to, holding #planPath only as
-    // the plan the brief renders FROM (the render-from POINTER, not the hashed
-    // identity; the wave gate derives the plan path FROM this record, so
-    // cli.ts/preflight.ts stay untouched). The two legs do NOT share one gate —
-    // each ref kind carries its own reviewed identity. An unreadable input records
-    // nothing (present facts only); a null plan path (no plan fact) leaves a legacy
-    // wave row — null stays backward compatible.
-    if (
-      record.verdict.targetAction &&
-      (frame.phase === "review" || frame.phase === "branch-review")
-    ) {
-      if (frame.target.kind === "plan" || frame.target.kind === "spec")
-        this.#recordReviewedDocRevision(frame);
-      else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);
-      else if (frame.target.kind === "branch") this.#recordReviewedBranchRevision(frame);
+    // The completed-round revision write-back is gated on the round's VERDICT (a
+    // hard-failed round must not bind the current revision — that would silently
+    // close the drift identity the round never delivered). WHICH reviewed input the
+    // round binds is ONE judgment, shared with the preview face:
+    // `ReviewedIdentity.legOf(frame.phase, frame.target.kind)`. Its phases — review,
+    // branch-review, fix — are declared there once, and its legs are 1:1 with this
+    // class's three `#record…` methods (doc · brief · branch). Two facts stay this
+    // face's OWN input, never the judgment: the verdict's `targetAction` (a real run
+    // alone holds it) and the plan path (the branch leg's render-from pointer). One
+    // asymmetry is preserved: on a wave round whose line carries no plan path the
+    // real run records nothing while the preview still states the brief leg. The
+    // record methods keep their own defensive narrowing; an unreadable input records
+    // nothing (present facts only).
+    const leg = record.verdict.targetAction
+      ? ReviewedIdentity.legOf(frame.phase, frame.target.kind)
+      : null;
+    if (leg !== null) {
+      switch (leg) {
+        case "doc":
+          this.#recordReviewedDocRevision(frame);
+          break;
+        case "brief":
+          this.#recordReviewedWaveBrief(frame);
+          break;
+        case "branch":
+          this.#recordReviewedBranchRevision(frame);
+          break;
+      }
     }
     return this.#ledger.roundCount(frame.key, frame.phase, frame.type);
   }
 
-  /** The reviewed-revision write-back — bind the reviewed input's revision to the
-   *  line record (the T7 doc + D30 wave identity gates' reopen-compare basis). The
+  /** The reviewed-revision write-back — bind the completed round's input revision to
+   *  the line record (the T7 doc + D30 wave identity gates' reopen-compare basis). The
    *  doc face binds its target doc's whole-content revision; the wave face binds its
    *  RENDERED BRIEF's revision (D30 — the wave's true judgment input is the brief,
    *  never the whole plan: transcript edits outside the wave's task sections must not
@@ -727,8 +769,9 @@ export class Lifecycle {
   }
 
   /** The wave line's reviewed-brief write-back (D30) — bind the RENDERED brief's
-   *  revision for the wave's tasks to the row (the D30 wave-gate reopen basis). Null
-   *  plan path / underivable brief records nothing (present facts only). */
+   *  revision for the wave's tasks to the row (the D30 wave-gate reopen basis) on a
+   *  completed review or fix round. Null plan path / underivable brief records nothing
+   *  (present facts only). */
   #recordReviewedWaveBrief(frame: OpenFrame): void {
     if (frame.target.kind !== "wave" || this.#planPath === null) return;
     this.#ledger.recordReviewedBrief(String(frame.key), this.#planPath);
@@ -743,7 +786,7 @@ export class Lifecycle {
     this.#recordDocRevisionOf(frame.key, this.#planPath, frame.type);
   }
 
-  /** The doc-revision write-back body — read the reviewed document and bind its
+  /** The doc-revision write-back body — read the round's document and bind its
    *  current revision to the line row (the ONE read + hash + record path the doc and
    *  branch legs share; each passes its own path source). An unreadable input records
    *  nothing — the line keeps the legacy closed face (present facts only). */
@@ -825,14 +868,15 @@ export class Lifecycle {
     return this.#face.nextSemantics.batch ? this.#state : EMPTY_RUN_STATE;
   }
 
-  /** The line's ONE next-hop object (§5.2) — this lifecycle's facts handed to the
-   *  ONE derivation (`Ledger#nextHopOf`): the recorded round's route, the line's
-   *  completed records, the drift-aware gate and the injected station
-   *  discrimination. The nullable route is handed over UNJUDGED — the assembly owns
-   *  the exit-side decision (a closed line's `null` route is where the drift reopen
-   *  lands), so the frontier face reads the same object the board and the gate read.
-   *  The failure face's absent hop is the CALLER's fact (`advance` passes null for a
-   *  BLOCKED/TIMEOUT round), never a second short-circuit here. */
+  /** The line's OWN next-hop object — the LINE FRONTIER assembly: this lifecycle's
+   *  frame facts handed to the ONE derivation (`Ledger#nextHopOf`): the recorded
+   *  round's route, the line's completed records, the drift-aware gate and the
+   *  injected station discrimination. The nullable route is handed over UNJUDGED — the
+   *  assembly owns the exit-side decision (a closed line's `null` route is where the
+   *  drift reopen lands). Serves `peekNext` and the capsule's spec-less degradation
+   *  only; the capsule's ordinary hop is the pipeline frontier's assembly
+   *  (`#roundHop`). The failure face's absent hop is the CALLER's fact (`advance`
+   *  passes null for a BLOCKED/TIMEOUT round), never a second short-circuit here. */
   #hopOf(frame: OpenFrame, route: Route | null): NextHop {
     const target = this.#routeTarget(frame);
     return this.#ledger.nextHopOf({
@@ -844,6 +888,9 @@ export class Lifecycle {
       // The wave closure's NEXT-line fact (P21 §4.2) rides the derivation's input
       // face — the retired render-side patch parameter is gone, the fact is not.
       nextLineOpen: frame.type === "wave" ? this.#branchLineOpen() : undefined,
+      // The wave line's OWN drift fact (D30): the reason cell's second source. Only
+      // the wave face injects it — every doc line reads its gate verdict instead.
+      briefDrift: frame.type === "wave" ? this.#ledger.briefDrifted(String(frame.key)) : undefined,
       docClassOf: (candidate) => this.#docClassOf(candidate),
     });
   }
@@ -856,16 +903,34 @@ export class Lifecycle {
     return null;
   }
 
+  /** The round's rendered hop — the PIPELINE frontier's ONE assembly when the node
+   *  holds a spec document (the object the board's `next:` row renders, so the two
+   *  faces state one hop), this line's own frame-keyed assembly otherwise. The
+   *  degradation key is `#specPath === null` and nothing else: a plan-only phase is the
+   *  ordinary spec-less shape, and there the frontier's rules anchor on an absent
+   *  identity face (rule 3) — it would print a transition the line has already taken. */
+  #roundHop(frame: OpenFrame, route: Route | null): NextHop {
+    if (this.#specPath === null) return this.#hopOf(frame, route);
+    return this.#frontier.hopOf(this.#pipelineInput(), { docClassOf: (c) => this.#docClassOf(c) });
+  }
+
+  /** The pipeline frontier's four declared cells — assembled once from the injected
+   *  facts so no second judge is introduced here. */
+  #pipelineInput(): PipelineFrontierInput {
+    return {
+      specType: this.#specType,
+      specPath: this.#specPath,
+      planPath: this.#planPath,
+      planGraph: this.#planGraph,
+    };
+  }
+
   /** Whether the branch line has a dispatchable open round — the wave closure's
-   *  NEXT-line fact (P21 §4.2), read HERE (the ledger-holding side) from the two
-   *  already-registered ledger faces: the branch row's drift-aware gate (the plan
-   *  moved past its reviewed doc-revision) or a still-active C5 hop. `undefined` when
-   *  no plan fact exists (the wave row keeps its plain station). */
+   *  NEXT-line fact (P21 §4.2), delegated to the pipeline frontier's ONE judge (the
+   *  shared hop assembly's sixth cell). The lifecycle now holds no copy of the gate /
+   *  route combination. */
   #branchLineOpen(): boolean | undefined {
-    if (this.#planPath === null) return undefined;
-    const gate = this.#ledger.reviewGate("branch", this.#planPath, "branch");
-    if (gate.kind === "open") return true;
-    return this.#ledger.lineRoute("branch", "branch") !== null;
+    return this.#frontier.branchLineOpen(this.#planPath);
   }
 
   /** The capsule lines of one step — empty unless a capsule is attached (the non-hard
@@ -873,7 +938,7 @@ export class Lifecycle {
    *  round (TIMEOUT / BLOCKED) carries the crash record as its handoff cell, emitted
    *  only when that record exists (a no-host BLOCKED writes none). The fix round's
    *  disposition summary is handed to the capsule as its `summary` — the render places
-   *  it between the status line and the trailing `next:` literal (P22 §10). */
+   *  it between the status line and the `next:` row (P22 §10). */
   #capsuleLines(
     frame: OpenFrame,
     outcome: DispatchOutcome,

@@ -449,6 +449,29 @@ describe("P22 §5.2 — the six-row render freeze", () => {
     );
   });
 
+  it("⑦ P25 §6 — the unentered wave face's plan handoff: `next: cdd-dev` + `reason: closed-line`", () => {
+    // The assembly's verdict for the fresh-plan window (rule 3): the route belongs to the
+    // anchor (plan) face, so the capsule's closing pair is the handoff ref and the
+    // closed-line reason — the SAME two values the board renders
+    // (`board-view.test.ts` "P25 §6 — the fresh-plan window").
+    const hop = derived(
+      { kind: "handoff", entry: PIPELINE_NEXT.plan },
+      {
+        type: "plan",
+        id: "docs/kairos/plans/p.md",
+      },
+    );
+    expect(hop.hop).toBeNull();
+    expect(hop.reason).toBe("closed-line");
+    const lines = new Capsule(new Words(), {}, "pi", new RepoRoot(repo)).emit(
+      "APPROVED",
+      "/h.json",
+      hop,
+    );
+    expect(lines[lines.length - 2]).toBe("next: route to /skill:cdd-dev skill");
+    expect(lines[lines.length - 1]).toBe("reason: closed-line");
+  });
+
   it("(j) reading `hop: null` as 'no next line' would turn rows ③/④/⑤ red — the counterexample", () => {
     // Every row below carries `hop: null` yet MUST print a line; the absent-object
     // gate is the only no-line condition (row ①).
@@ -464,14 +487,14 @@ describe("P22 §5.2 — the six-row render freeze", () => {
   });
 });
 
-describe("P22 §10 — the two-key capsule and the `next:` close", () => {
+describe("P22 §10 — the two-key capsule and the `next:` + `reason:` close", () => {
   it("① a success round renders `status · handoff` — the blocker cell is gone", () => {
     const lines = new Capsule(new Words()).emit("APPROVED", "/h.json");
     expect(lines).toEqual(["status: APPROVED · handoff: /h.json"]);
     expect(lines[0]).not.toContain("blocker:");
   });
 
-  it("② the fix round's summary sits between the status line and the trailing `next:` line", () => {
+  it("② the fix round's summary sits between the status line and the `next:` + `reason:` close", () => {
     const lines = new Capsule(new Words()).emit(
       "APPROVED",
       "/h.json",
@@ -483,6 +506,7 @@ describe("P22 §10 — the two-key capsule and the `next:` close", () => {
       "status: APPROVED · handoff: /h.json",
       "fixed 1 · rejected 0",
       "next: done",
+      "reason: face-closed",
     ]);
   });
 
@@ -493,8 +517,12 @@ describe("P22 §10 — the two-key capsule and the `next:` close", () => {
     ]);
   });
 
-  it("④ a non-fix round carries no summary line — the plain two-line shape", () => {
+  it("④ a non-fix round carries no summary line — the plain three-line shape", () => {
     const lines = new Capsule(new Words()).emit("APPROVED", "/h.json", hopOf({ kind: "done" }));
-    expect(lines).toEqual(["status: APPROVED · handoff: /h.json", "next: done"]);
+    expect(lines).toEqual([
+      "status: APPROVED · handoff: /h.json",
+      "next: done",
+      "reason: face-closed",
+    ]);
   });
 });

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 计划：NEXT-LOOP 收口面（基线随轮推进 + hop 原因可读）
 doc-type: plan
-version: v0.23
+version: v0.24
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p24
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（**v0.26**）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。本周这次对齐不是排版：v0.22 把 §11 的定案加深为「渲染板面那个 `NextHop`」并把 cell 装配一并搬进 session 平面，v0.25 按名拆开 **pipeline frontier** / **line frontier**，v0.26 重写了 doc 线的验收面——Task 7 据此重写（见其 Objective 与 Steps 1-9），照 v0.21 读到的浅版 Task 7（只换 route）会漏掉装配搬迁。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（**v0.27**）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。本周这次对齐不是排版：v0.22 把 §11 的定案加深为「渲染板面那个 `NextHop`」并把 cell 装配一并搬进 session 平面，v0.25 按名拆开 **pipeline frontier** / **line frontier**，v0.26 重写了 doc 线的验收面——Task 7 据此重写（见其 Objective 与 Steps 1-9），照 v0.21 读到的浅版 Task 7（只换 route）会漏掉装配搬迁。
 - **单点判据**：drift 的「记了什么 identity」只有一个写入点（`Ledger#recordReviewedRevision`，wave 经 `recordReviewedBrief`），读取面按既有事实分两条（doc/branch 走 `docReopens`、wave 走 `waveLineRoute` 的 D30 腿）。不得为任何一面新开第二个 drift 判定或第二个写入点。
 - **只推进完成的轮**：`targetAction` 为假的轮（BLOCKED / TIMEOUT）一律不推进基线；读不到输入（文档 / plan 不可读）时什么都不记录，保留旧基线。
 - **`next:` 字节零变**：`next:` 行仍是可执行字面，整行抄进 shell 必须能跑。诊断信息只落**另一行**（`reason:`）。字面上不得出现 `—`/`#`/任何后缀。
@@ -542,6 +542,46 @@ none
 
 6
 
+### Task 8: 板面汇总单元按「成功总量 + 失败尝试」重排（§12）
+
+#### Objective
+
+让汇总单元说得清「有几轮成功、失败发生在哪一轮」：成功按 verb 合并成一个令牌，失败逐条带 cycle 号；在 P22 §5.3 的两条既有门（区间形不出现 · `a1` 不出现）之内落地。
+
+#### Files
+
+- Modify: `packages/cdd-engine/src-next/face/board-view.ts`（`summaryCell` `:278` · `#summaryToken` `:296` · `#judgementRuns` `:328`；docstring 的「spec §5.3」改指 P24 §12）
+- Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（既有 pin `:1274` 重锚 + 新增实况用例 + 两条零变用例）
+
+#### Consumes
+
+- `RoundRecord`（`op` / `cycle` / `attempt` / `verdict.targetAction` · `carrierPath`）· `attemptSuffix`（既有）· `#findingsCountOf`（既有）
+
+#### Produces
+
+- 无新导出；行为变化：`summaryCell` 的令牌排列。
+
+#### Steps
+
+- [ ] **Step 1: 写实况用例（必红）** — checkable: 构造 11 条成功 + cycle 12 a1 失败 + cycle 12 a2 成功 + cycle 13 成功，断言 `fix 13 ✓ · fix 12 ✗`；今日实际为 `fix 11 ✓ · fix 1 ✗ · fix 2 ✓` ⇒ FAIL
+- [ ] **Step 2: 重锚既有 pin** — checkable: `board-view.test.ts:1274` 的 `fix 1 ✗ · fix 1a2 ✓` 改为 `fix 1a2 ✓ · fix 1 ✗`（同 cycle 重派）
+- [ ] **Step 3: 实现合并** — checkable: 成功记录按 verb 合并（计数 = 成功条数，后缀取**末条成功记录**的 `attemptSuffix`），失败记录逐条按 `cycle` 渲（`attempt > 1` 才带后缀）；`+N` 算法不变
+- [ ] **Step 4: 两条零变用例** — checkable: ① 无失败的行字节零变（`review 13 ✓+74 · fix 13 ✓`）② 区间形与 `a1` 两个既有门仍红（既有断言一行不改）
+- [ ] **Step 5: 跑套件 + 提交** — checkable: `board-view.test.ts` / `cli.test.ts` 全绿；`pnpm run precommit` 绿；`git commit -m "fix(cdd-engine): the board summary names the cycle that failed"`
+- [ ] **Step 6: 本波验收** — checkable: `env -u AI_AGENT pnpm run validate` 退出码 0
+
+#### Acceptance
+
+- 有失败尝试的行渲 `{verb} {成功轮数}{末条后缀} ✓ · {verb} {cycle} ✗`（实况 `fix 13 ✓ · fix 12 ✗`），改动前必红。
+- 无失败记录的行**字节零变**。
+- 区间形（`review 1–10 ✓`）与 `a1` 两个既有门仍红，既有断言不改。
+- `board-view.ts` 的 docstring 指 P24 §12，不再以 P22 §5.3 作为代码的直接依据。
+- `env -u AI_AGENT pnpm run validate` 退出码 0。
+
+#### DependsOn
+
+7
+
 ## Change history
 
 | Version | date | summary | author |
@@ -569,3 +609,4 @@ none
 | v0.21 | 2026-11-05 | **plan 第 11 轮评审回填（内容面，结构面未动；三条全收）**：① **B1**——删掉「板面缺 `nextLineOpen` 故 wave 收口态站位与胶囊不同」的假前提：`NextStepRouter#entryOf` 在 `handoff` 之后提前返回（`session/next.ts:384` 先于 `:387`），wave 目标的 route 只来自 `waveLineRoute`（从不返回 `done`）或 `#exitRoute` 的 `handoff`，故第六格在共享装配上是**惰性**的。**保留**六格并入（两面同源、判据一份，本身是对的），但删掉 Objective / Files / Produces / Step 3 / Step 7 / Step 8 / Acceptance 里一切「站位翻转」与「板面改前改后各在册」的描述，并把惰性论证写进 Objective 与 Acceptance；验收改断言**两面 `NextHop` 全等（含 `reason`）**，第六格两侧只作零变回归 pin ② **W1**——三处 pin 按树重钉：`face/cli.ts:738`→`:741`（`:738` 是 `HostDetect.detect` 行）· `:744`→`:745` · 「33 个夹具」→**14**（`run.test.ts` 里传 `planPath` 的 Lifecycle 夹具，逐行在册；33 是 `cli.test.ts` 的 `planPath` 行数）；并在 Constraints 新增一条：凡引用行号 / 计数，落地时以当时树为准并回填 ③ **W2**——补一条 **cli 层 E2E**（Task 7 Step 1b）：`run.test.ts` 的用例均自带 opts 直接驱动 `Lifecycle`，装配层（`face/cli.ts` 场景 + `Lifecycle` opts）漏填四格时全绿；新用例真跑一次 `cdd review --spec …` 再跑 `cdd board`，断言胶囊与板面 `next:` / `reason:` 同值；`face/__tests__/cli.test.ts` 写进 Files 与 Acceptance | Task 7（Objective / Files / Produces / Step 1b / Step 3 / Step 7 / Step 8 / Acceptance）· Constraints · Change history v0.21 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 11 轮 fix · 2026-11-05） |
 | v0.22 | 2026-11-05 | **plan 第 12 轮评审回填（内容面，结构面未动；四条全收）**：① **B1**——退化键只在 `phase-spec` 上验过，而 `overall` 占**同一身份槽**（`#identityState` 的键是 `input.specType ?? "phase-spec"`，`session/pipeline.ts:131`；`SlugIndex#identityDoc` 对任何非 plan 的声明文档都给路径，`infra/slug-index.ts:174` · `:336-338`），故带 `--spec` 的 `overall` 节点**不退化**、走共享装配。做法：Objective 新增「身份槽有两个主人」段；Step 5 新增 ⑤（三路取值均不得退化 + 已测三例：收口带 plan ⇒ `review --type plan --plan …` / `task-open`；收口无 plan ⇒ `reason:` 由 `face-closed` 变 `closed-line`；未收口 ⇒ `review`）与一条 `overall` 用例；Acceptance 的退化键条与「spec 缺席」条同笔；changeset 第五件改为**两半**（含 `overall`） ② **W1**——散文清单补 `session/ledger.ts:1211-1213` · `face/gate.ts:134-142` · `face/cli.ts:757-761`（三处把多面写成同一对象的陈述），并把「不作零门」改为**逐处复读 + 三条零门**（`share one object by construction` · `the board and the lifecycle frontier read` · 「the SAME NextHop the capsule」，今日各 1 命中：`ledger.ts:1213` · `gate.ts:135` · `cli.ts:757`），Acceptance 同步 ③ **W2**——第六格「自洽但不是工作项」：删掉它的独立 Acceptance 条与独立散文段（Step 7 的零变 pin、Step 8 的板面零变提醒、Task 7 Acceptance 的第六格专条），并入 parity 断言（两面 `NextHop` 全等，含 `reason`），并写明惰性与「不进 changeset 清单」 ④ **N1**——`.changeset/p24-fix-identity-and-reason-row.md`:6-7 的硬计数 `Three consumer-visible face changes` 与四项/五项对不上：**去掉硬数字**（无编号列举），Task 4 Files / Step 4 / Acceptance 与 Task 7 Step 8 同笔加上「引导句不带硬计数」的指令 | Task 7（Objective / Files / Produces / Steps 3,5,6,7,8 / Acceptance）· Task 4（Files / Step 4 / Acceptance）· Change history v0.22 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 12 轮 fix · 2026-11-05） |
 | v0.23 | 2026-11-05 | **plan 第 13 轮评审回填（内容面，结构面未动；三条接受、一条 rejected）**：① **W1**——`overall` **没有板面半边**：`BoardNext.of` 对 `docType === "overall"` 返回 `null`（`face/board-view.ts:807`），程序板不跑 pipeline frontier，故 Step 5 ⑤(a) 的「胶囊与板面值全等」在 `overall` 上不可能构造——改为只断言**胶囊侧**与其身份槽（`#identityState`）一致，并写明板面半边不存在及其原因；Objective / Produces / Acceptance 的「一个装配、两个渲染面」同笔收窄为「板面跑 frontier 的节点」 ② **W2**——纠正 `overall` 的实测值：收口的 `overall` 今日渲 `next: done` / `reason: closed-line`（**不是** `face-closed`），带同 slug plan 时 pipeline frontier 给后继 plan 面的 `review --type plan --plan …` / `task-open`；changeset 第五件**删掉**「收口无 plan 的 `face-closed → closed-line`」（该形状字节零变），并把身份槽三主人（`phase-spec` / `single-spec` / `overall`）的同一形状在册，`single-spec` 的收口无 plan 形状定为 `done` / `face-closed` 回归 pin ③ **W3 rejected**——「第六格证据不可能红」的论证正确但结论不成立：该格在本相位的全部作用就是「两面同源且惰性」，要求一条能红的断言是伪要求；Acceptance 改按作者裁定的三段替代证据在册（`session/next.ts:384` 先于 `:387` 的反证 · 不进 changeset · **变异不变量**：临时把装配里对 `nextLineOpen` 的取值换成 `undefined` 后套件仍全绿、跑后还原） ④ **N1**——零门枚举补 `:796`（`BoardNext` 类 docstring 的 `Ledger#nextHopOf →`），并注明重写 `:791-800` 必须一并删掉该字样，否则门绿不了；Task 4 Step 4 / Acceptance 的「引导句不带硬计数」标注为 **Task 7 Step 8** 的 owner，不再作为 Task 4 的未达成判据 | Task 4 Step 4/Acceptance · Task 7 Objective/Files/Produces/Steps 3·5·8/Acceptance · Constraints · Change history v0.23 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 13 轮 fix · 2026-11-05） |
+| v0.24 | 2026-11-04 | **范围追加（用户裁定 · 对齐 spec v0.27 §12）**：新增 **Task 8**「板面汇总单元重排」——成功按 verb 合并、失败逐条带 cycle；既有 pin `:1274` 重锚为 `fix 1a2 ✓ · fix 1 ✗`；两条零变用例（无失败行字节不变 · 区间形与 `a1` 门仍红）；`DependsOn: 7` ⇒ 新波 W7 | Task 8 + 范围锁 + Change history v0.24 | Oscaner M. · Claude（kairos:cdd-dev · 范围追加 · 2026-11-04） |

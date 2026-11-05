@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P25 计划：写回判定的单源
 doc-type: plan
-version: v0.10
+version: v0.11
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p25
 base: develop
@@ -161,7 +161,7 @@ none
 
 #### Consumes
 
-- `Ledger#roundCount(key, mode, identity?)`（`session/ledger.ts:716-719`）——**key 用该波的行键 `String(waveKey)`**（与 `waveLineRoute(waveKey)` 同一把钥匙），`identity` **不传**（wave 行不带 type identity，传了会走 `rowFor` 的 retired-spec 回退）
+- `Ledger#roundCount(key, mode, identity?)`（`session/ledger.ts:716-719`）——**key 用每一批自己的行键**：逐批取该批的 joined key（`graph.batches()[i].join(",")`，与 `#waveKeyOf` 的 ready-batch 拼法一致）**再各自求和**（面层判据要扫全部批次，不是只取 ready batch 那一个键）；`identity` **不传**（wave 行不带 type identity，传了会走 `rowFor` 的 retired-spec 回退）
 - `TaskGraph#batches()` / `#frontier`（既有，经 `PipelineFrontierInput.planGraph`）· `Ledger#waveLineRoute(waveKey)`（既有）
 
 #### Produces
@@ -210,3 +210,4 @@ none
 | v0.8 | 2026-11-05 | 吸收 spec v0.9/v0.10（面层进入判据）: Task 3 由 per-key 改为面层（补批次间不抖用例 · `roundCount` 拼法注明 · 锁改 v0.10） | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-05） |
 | v0.9 | 2026-11-05 | B1 changeset minor，B2 `reason: closed-line`，W2 删游离的 `1, 2`，N1 v0.8 行改四格 | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-05） |
 | v0.10 | 2026-11-05 | **plan 评审第 4 轮 fix（六条 findings 全接受）**：① **B1** Task 2 的 Objective / Files / Step 5 / Acceptance 由 `patch` 全改 **`minor`**，正文同时覆盖 §1–§5 零字节与 T3 字节变化 ② **B2** Task 3 Files 补 `board-view.test.ts` 与 `capsule.test.ts`，Step 8 钉 `rows.next` / `rows.reason` / 胶囊末两行 ③ **W1** Task 3 Step 1 改三值全断言（`face` / `route` / `target`），Step 2 钉 `planDoc([[1], [2]])` 的 `tasks: "2"`，新增规则② 的已进入 pin、文件头 `:19-33` 与 `:268` 改述、`pipeline.test.ts:139-151` 按名重锚 ④ **W2** 确认 Task 3 Acceptance 后无游离的 `1, 2` 行 ⑤ **N1** 确认 v0.8 行为四格 ⑥ **N2** Constraints 的纯重构 bullet 声明只约束 T1/T2、T3 是 §6 的故意例外，并同步 Review Focus | Oscaner M. · Claude（kairos:cdd-plan · plan fix 4 · 2026-11-05） |
+| v0.11 | 2026-11-05 | Consumes 的 `roundCount` key 说明改准：面层判据扫**每一批自己的** joined key（`graph.batches()[i].join(",")`）、逐批求和，不是只取 ready batch 那一个键 | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-05） |

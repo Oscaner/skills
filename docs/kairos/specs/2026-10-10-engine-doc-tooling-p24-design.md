@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 设计：NEXT-LOOP 收口面（drift 语义收窄 + hop 原因可读）
 doc-type: phase-spec
-version: v0.29
+version: v0.30
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p24
 program: 2026-10-10-engine-doc-tooling
@@ -240,7 +240,7 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 
 **定案（两类令牌，形状不同故不会混淆）**：
 
-- **成功令牌**：`{verb} {成功数}{末条成功记录的 attempt 后缀} ✓{+N}`；**该 verb 存在失败记录时**改渲 `{verb} {成功数}/{尝试总数}{后缀} ✓{+N}`（比率只在有失败时出现 ⇒ 干净行字节零变）。
+- **成功令牌**：无失败时 `{verb} {成功数}{末条成功记录的 attempt 后缀} ✓{+N}`；**该 verb 存在失败记录时**改渲 `{verb} {成功数}/{尝试总数} ✓{+N}`——**比率形不带 attempt 后缀**（后缀与分母不同时出现，避免 `fix 1/2a2 ✓` 这类读法；末条尝试是第几次已由同行的 ✗ 令牌说明）。
 - **失败令牌**：每条失败记录一个，`{verb} {cycle}{attempt>1 ? aN : ""} ✗{+N}`；**若该 cycle 后有成功尝试**，改为 `{verb} {cycle}{aN} ✗→✓`（已恢复）。
 
 **令牌数的界**：✓ 每个 verb 至多一枚（成功面严格合并）；✗ **每条失败记录一枚、逐条不设上限**（展开只发生在异常面）——实际条数由 `REVIEW_CYCLE_CAP`（`session/next.ts:65` = 50）封顶。
@@ -329,3 +329,4 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 | v0.27 | 2026-11-05 | **范围追加（用户裁定 · 第五次并入）**：新增 §12「板面汇总单元按成功总量 + 失败尝试重排」——现按判决连续段切分并段内重计数，于是 `fix 11 ✓ · fix 1 ✗ · fix 2 ✓` 既看不出失败在第 12 轮、也丢掉了那次重派。定案：成功按 verb 合并为一个令牌、失败逐条带 cycle；在 P22 §5.3 的两条既有门之内落地（区间形不出现 · `a1` 不出现）；无失败的行字节零变 | §12 + §7 汇总单元行 + Acceptance + Change history v0.27 | Oscaner M. · Claude（kairos:cdd-dev · 范围追加 · 2026-11-04） |
 | v0.28 | 2026-11-05 | **spec 第 12 轮回填（重设 §12）**：① 原「成功数 + cycle」把两个量塞进同一槽位（`fix 3 ✓ · fix 3 ✗` 读着自相矛盾），改为「成功用 `{成功}/{尝试}` 比率（仅在存在失败时出现）+ 失败令牌带 `✗→✓` 恢复标记」 ② **显式列出对 P22 §5.3 的三条修订**（逐轮展开限定于异常面 · 令牌形增比率与 cycle · 旧示例字面作废），不再声称『在门内』 ③ 缺口改引真实行输出 ④ 落空面收窄为 `summaryCell`/`#summaryToken` 两处 docstring ⑤ changeset 须改写（现有『board output is unchanged』作废） ⑥ §7 表头 13 行 ⑦ 证据每条带 pin | §12 + §7 汇总单元行/表头 + Acceptance + Change history v0.28 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-05） |
 | v0.29 | 2026-11-05 | **spec 第 12 轮 fix 回填（docs-fix）**：① **W1**——§7「发行」与 Acceptance 的 changeset 末条补 §12：板面汇总单元在有失败尝试的行上改字节是**消费面可见变化**，并入同一份 `.changeset/p24-fix-identity-and-reason-row.md`（仍 minor、不另开第二条），该条目末句「`cdd board` output is unchanged」须改写（Task 8 owner） ② **N1**——§7 表头分项补「一行汇总单元（§12）」，7+1+1+1+1+1+1 = 十三行（此前十三行却只列 12 项） ③ **W2 尾项**——§12 写明 ✗ 令牌逐条不设上限、实际由 `REVIEW_CYCLE_CAP` 封顶 ④ **N2 尾项**——§12 证据第 5 条：`:1274` 的重锚在 §7 的 1–5 类 `next:` 账之外，按账外修复在册 ⑤ **N3**——Change history v0.27 行日期 2026-11-04 → 2026-11-05（不再早于 v0.26 与 front-matter） | §7 表头/发行 + Acceptance 末条 + §12 定案/证据 + Change history | Oscaner M. · Claude（kairos:cdd-dev [P24] spec 第 12 轮 fix · 2026-11-05） |
+| v0.30 | 2026-11-05 | **spec 自查订正（plan 第 14 轮 W3）**：成功令牌原本「永远带末条成功记录的 attempt 后缀」，与本相位自己钉的目标 `fix 1/2 ✓`（末条成功是 a2 ⇒ 会渲成 `1/2a2`）矛盾。订正为**后缀与分母互斥**：有失败时渲比率且不带后缀，无失败时才可能带后缀。 | §12 成功令牌一句 + Change history v0.30 | Oscaner M. · Claude（kairos:cdd-dev · spec 自查订正 · 2026-11-05） |

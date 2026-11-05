@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（**v0.27**）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。本周这次对齐不是排版：v0.22 把 §11 的定案加深为「渲染板面那个 `NextHop`」并把 cell 装配一并搬进 session 平面，v0.25 按名拆开 **pipeline frontier** / **line frontier**，v0.26 重写了 doc 线的验收面——Task 7 据此重写（见其 Objective 与 Steps 1-9），照 v0.21 读到的浅版 Task 7（只换 route）会漏掉装配搬迁。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（**v0.30**）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。本周这次对齐不是排版：v0.22 把 §11 的定案加深为「渲染板面那个 `NextHop`」并把 cell 装配一并搬进 session 平面，v0.25 按名拆开 **pipeline frontier** / **line frontier**，v0.26 重写了 doc 线的验收面——Task 7 据此重写（见其 Objective 与 Steps 1-9），照 v0.21 读到的浅版 Task 7（只换 route）会漏掉装配搬迁。
 - **单点判据**：drift 的「记了什么 identity」只有一个写入点（`Ledger#recordReviewedRevision`，wave 经 `recordReviewedBrief`），读取面按既有事实分两条（doc/branch 走 `docReopens`、wave 走 `waveLineRoute` 的 D30 腿）。不得为任何一面新开第二个 drift 判定或第二个写入点。
 - **只推进完成的轮**：`targetAction` 为假的轮（BLOCKED / TIMEOUT）一律不推进基线；读不到输入（文档 / plan 不可读）时什么都不记录，保留旧基线。
 - **`next:` 字节零变**：`next:` 行仍是可执行字面，整行抄进 shell 必须能跑。诊断信息只落**另一行**（`reason:`）。字面上不得出现 `—`/`#`/任何后缀。

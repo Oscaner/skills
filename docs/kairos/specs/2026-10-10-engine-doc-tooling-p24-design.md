@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 设计：NEXT-LOOP 收口面（drift 语义收窄 + hop 原因可读）
 doc-type: phase-spec
-version: v0.21
+version: v0.23
 date: 2026-11-04
 slug: 2026-10-10-engine-doc-tooling-p24
 program: 2026-10-10-engine-doc-tooling
@@ -58,7 +58,7 @@ author: "[human] · Claude（kairos:cdd-design [P24] grilling → 本会话落 s
 
 机制让该字段的语义从「reviewer 读过的版本」变为「该行**已入账**的版本」。字段落在 `.kairos/cdd/<slug>/progress.json`（持久化状态），改名会让旧文件缺新键、静默退化成「未绑定」的 legacy 面。
 
-**定案**：**不改名、不迁移**——`Ledger#recordReviewedRevision` 与 `SessionRun` 的写回注释改为「已入账 identity（review 轮绑定被审版本，fix 轮绑定自产版本）」，spec 留存该决策。命名代价用文档还，不用状态迁移还。
+**定案**：**不改名、不迁移**——`Ledger#recordReviewedRevision` 与 `Lifecycle`（`session/run.ts` 唯一导出的 run 类）的写回注释改为「已入账 identity（review 轮绑定被审版本，fix 轮绑定自产版本）」，spec 留存该决策。命名代价用文档还，不用状态迁移还。
 
 ### 4. 定案：reason 行（形态 · 覆盖 · 两面）
 
@@ -135,7 +135,7 @@ reason: doc-drift
 | 板面 | `face/board-view.ts` | `:349-358` 的 `nextLine(hop, renderer)` 旁增 `reasonLine(hop)`：前缀为布局字面 `  reason:  `（与 `nextLine` 的 `  next:    ` 同形，不取词表），值直取 `hop.reason`（`renderReason` 的值自带站表前缀，板面不直取；无 `renderer` 参数，故无「渲不出就退化成 `(none)`」的不可达分支）；调用点 `:558` 之后追加一行。**两处 hop-less 字面不改**：`:556` 的 `  next:    (none)`（null-next 分支，不调用 `reasonLine`）与 `:623` 程序板的 `  next:    done` 都不是 `renderHop` 产物，**不追加 `reason:` 行**、字节零变 |
 | reason 判据（wave） | `session/ledger.ts` | `nextHopOf`（`:1229-1243`）的 drift 装配**拆成两个局部量**（§4「wave 面」是判据源，本行逐字对齐它）：① **替换驱动** `drift` 仍只取 doc 面 `reviewGate`——`input.doc != null && input.type !== "wave"`，`:1230-1233` 的既有形状**保留**，故 `drift && onExitSide(input.route)`（`:1242-1243`）对 wave 面**完全不触发**；② **原因 cell** 喂 router 的 `gate.drift`（`:1248-1254`）取 `drift \| (briefDrift ?? false)`，wave 面因此能命中 `doc-drift`。**两个值必须分开**：只用一个值会让 wave 的 exit 侧路由被替换成 review，劫持 soft-capped wave 的 `handoff`（而 `WaveGate.vet` 又按 `waveLinePhase` 为 null 拒绝它）；wave 的路由本身仍由 `waveLineRoute` / `#pipeline` 给出。`#briefDrift`（`:1014-1019`）提为 public `briefDrifted(waveKey)`，`waveLineRoute` 的 D30 腿（`:983`）共用 |
 | reason 输入面 | `session/ledger.ts` | **`Ledger#nextHopOf` 的内联参数类型**（`:1219-1230`）新增可选 cell `briefDrift?: boolean`；`session/next.ts` 的 `NextHopInput`（`:208-226`）**形状一行不动**（不加 cell、`NextHop.reason` 与 `#reasonOf` 也不动）——`nextHopOf` 自己把该值折进 `NextHopInput.gate.drift`（`:1248-1254`）；该接口唯一被改的是 `gate` 的 docstring（`:211-213`），见「语义注释」行：行为契约不变，只有教它的散文陈旧 |
-| 渲染源统一 | `session/run.ts` · `face/cli.ts` | `#capsuleLines`（`:439-448`）改喂 `PipelineFrontier.next(...)` 的结果（不再是 `#routeNext(frame)`）；`Lifecycle` / `SessionRun` 的 opts 增 `specType` / `specPath`，由 `face/cli.ts` 的场景从文档索引填入 |
+| 渲染源统一 | `session/pipeline.ts` · `session/run.ts` · `face/cli.ts` · `face/board-view.ts` | 把 `BoardNext#hopOf` 的 cell 装配（target → `type` / `key` / `doc` / `briefDrift`）与 `PipelineFrontier` 一起收进 session 平面；胶囊（`#capsuleLines`，`:439-448`）与板面调**同一个**装配，`#routeNext` 仍只服务 `#markTerminal`；四格输入（`specType` / `specPath` / `planPath` / `planGraph`）由 `face/cli.ts` 的场景从文档索引填入 |
 | frontier 归属 | `session/pipeline.ts`（新增）· `face/board-view.ts` | 新增 `PipelineFrontier`（逐面读该线自己的 `lineStateAt` / `lineRoute` / ready batch + `waveLineRoute`；四条面序规则与 `#exitRoute` / `#lastEnteredIndex` 搬入）；板面删除 `pipelineFacts` 的逐面 `closed` / `active`、`#waveFrontierKey`、`#pipeline`、`#exitRoute`、`#lastEnteredIndex` |
 | ~~板面选面~~（已作废） | `face/board-view.ts` | ~~`pipelineFacts` 的 spec / plan 两面 `closed` 改 `lineStateAt`~~——被上一行的整体搬迁取代（它改的两行会被删除） |
 | 注入点 | `session/run.ts` · `face/board-view.ts` | 两个调用点喂同一 fact：`Lifecycle#hopOf`（`session/run.ts:836-851`，`nextHopOf` 调用在 `:838`）在 wave 帧上注入 `briefDrift`——对 `peekNext`（frontier，帧未重绑 ⇒ 活判据）生效、对 `advance`（`:447`，`#bookkeep` 已在 `:429-430` 重绑 brief ⇒ 恒假）是死代码，方法签名不动；`BoardNext#hopOf`（`face/board-view.ts:849-861`）在既有 `nextHopOf` 输入对象（`:852`）里加一格 `briefDrift: target?.type === "wave" ? facts.ledger.briefDrifted(String(target.id)) : undefined`（唯一条件是「这一面是 wave」：`target.type` 非 wave 时 `target.id` 是文档路径，不该拿去问 brief drift；**不要**再加 `active !== null` 之类的闸——wave 面从不做路由替换，`handoff` 不会被劫持，见 §4「wave 面」）——该 static 没有 wave 分支（`type` / `key` / `doc` 全由 walked target 派生），**禁止**为 wave 另开第二次 `nextHopOf` 调用；板面 wave key 即 `target.id`（`waveKey ?? ""`，`:725`），空 key 经 `reviewedRevisionOf` 与 null identity 同退化 ⇒ `false`，不另加守卫——从而使板面的 `next:` / `reason:` 与 `peekNext` 同读一个 fact（§4「wave 面」） |
@@ -196,15 +196,19 @@ reason: doc-drift
 
 **缺口**：§10 统一了「**哪条线在下**」的判定，但每轮胶囊仍喂 `#routeNext(frame)`（本线的 C5 路由），板面喂的是 frontier 路由。两者共用 `nextHopOf` / `NextStepRouter`（判定确实同源），但**输入路由有两个来源**，所以结果会不同——实测同一时刻：spec 行收起后其自身 `next:` 是 `route to /skill:cdd-plan skill`，而板面（全流程已闭）是 `route to /skill:cdd-close skill`。
 
-**定案**：`#capsuleLines` 不再喂 `#routeNext(frame)`，改喂 `PipelineFrontier.next(...)` 的结果。生命周期当前只持 `#planPath`，缺 `specType` / `specPath`——由 `face/cli.ts` 的场景补齐（它本来就持有文档索引）。**做完之后板面与胶囊是同一个对象**，D40 的「line 与 board 不可能互相矛盾」从「同一 hop 的字节一致」升级为字面成立。
+**定案（比「只换路由」更深一层）**：胶囊要渲染的**不是一个路由，而是板面渲染的那个 `NextHop` 对象**。因为 `#hopOf(frame, route)` 的 `type` / `key` / `doc` / `briefDrift` 全部取自**被派发的那个 frame**，而 `Ledger#nextHopOf` 又基于同一组 frame-keyed 输入重算 drift——所以只把 route 换掉，cell 仍是本轮的，frontier 的 target（例如 spec）与 cell（例如 wave）就会打架。
 
-**落空面**：无 spec / 无 plan 的裸 slug，frontier 退化为该面自己的 exit，行为与今日相同。
+因此：**把板面 `BoardNext#hopOf` 填 cell 的那段装配（target → `type` / `key` / `doc` / `briefDrift`）与 `PipelineFrontier` 一起收进 session 平面**，胶囊与板面调**同一个装配**，各自只负责渲染。做完之后「板面与胶囊是同一个对象」是结构事实。
+
+**输入事实的来源**：`PipelineFrontierInput` 有四格（`specType` / `specPath` / `planPath` / `planGraph`）。生命周期手上只有 argv 派生的 `#planPath`（`--spec` 轮为 null），doc 轮的 run state 是 `EMPTY_RUN_STATE` 而非 `TaskGraph`——**都不够**。故四格一律由 `face/cli.ts` 的场景从文档索引填入（它本来就持有索引），生命周期不再自己推。
+
+**落空面**：无 spec / 无 plan 的裸 slug，frontier 退化为该面自己的 exit；此时胶囊与今日逐字节相同（有测试）。
 
 **证据**：
 
-- **必红（真必红，不是 §10 那次）**：一条断言——「spec 未闭而行完一轮波形，胶囊的 `next:` 必须等于板面的 `next:`（即 spec 的 review lead）」；今日两者**不等**（胶囊印本线的 review / implement 字面），改后相等。
-- **行为边界**：`next:` 仍是可执行字面；`reason:` 仍取同一 token 源；C5 / drift / pending-fix / 写回 / 派发动词一字不动——只换「渲染哪条路由」。
-- **重锚在册**：胶囊整块快照中「pipeline next ≠ 本线 next」的那些会随之改变，实施轮须逐条登记实际差异（不许只说「若干处」）。
+- **必红（真必红，不是 §10 那次）**：一条断言——「spec 未闭而行完一轮波形，胶囊的 `next:` 必须等于板面的 `next:`，且其 `reason:` 同值」；今日两者**不等**（胶囊印本线的 review / implement 字面），改后相等。
+- **行为边界**：`next:` 仍是可执行字面；`reason:` 仍取同一 token 源；C5 / drift / pending-fix / 写回 / 派发动词一字不动。
+- **重锚在册**：胶囊整块快照中「frontier next ≠ 本线 next」的那些会改变，实施轮须**逐条**登记（文件:行 + 变化前后），不许只说「若干处」；§7 的 137/15 分类只描述**非胶囊**读者，胶囊侧另立一份清单。
 
 **非目标**：不引入越序拒绝。frontier 仍是**建议**，只是这条建议现在由每轮输出承载，而不是只有板面承载。
 
@@ -213,12 +217,12 @@ reason: doc-drift
 - **每轮的 next 读同一 frontier（§11）**：spec 未闭而行完一轮波形时，胶囊的 `next:` **等于**板面的 `next:`（spec 的 review lead），今日必红、改后相等；且 `next:` 仍是可执行字面、`reason:` 仍取同一 token 源；胶囊快照中受影响处的重锚逐条在册。
 - **板面即投影（§10 · 纯重构）**：同一 slug 上，板面的 `next:` 等于 frontier 那条线自己的 `peekNext()` 渲染值（parity，**改动前后皆成立**——它是回归事实而非必红）；① `board-view` 既有测试的 `next:` / `reason:` 字节零变（断言一行不改仍全绿）② `face/board-view.ts` 里不再存在 frontier 判定代码（`#pipeline` / `#exitRoute` / `#lastEnteredIndex` / `#waveFrontierKey` 均已移出）③ 四条面序规则由 `pipeline.test.ts` 直接钉。
 - **板面 frontier 的选面读 drift（§9）**：spec 已收口、其后其身份文档被轮外改动、且存在 plan 时，板面 `next:` 为该 spec 的 review lead 且 `reason:` 为 `doc-drift`（今日为 `implement --plan … --tasks …`），断言在改动前的树**必红**；该 review 闭合后 frontier 前进到 plan 的波形（孪生回归 pin）。
-- **doc 线（四型共用 `docReopens`，任取一型）与 branch 线**：`review`（仅 warn/nit）→ `fix`（改文档、blocker 计数为 0）之后的下一次调用**收口**：`next:` 为 `done` / `handoff` / `next-wave`，不是 `review`；每线一条测试，断言面取胶囊或板面的 `next:` 行（两面此面皆 drift-aware），且该测试在改动前的树上**必红**（先证红，后转绿）。
-- **wave 线无收口自锁，证据按 §6 第 1 条的分型给**：不做「必红 → 绿」的收口断言——零 blocker 的 fix 其 wave 路由今日已是 `done` → 已闭合（`session/ledger.ts:989` · `:1303-1310`）。wave 的必红证据是 **frontier / 板面这一跳**的 reason token：drifted wave，今日在 `peekNext` 帧与板面上 `reason` 为 `task-open`（drift cell 对 wave 排除，`session/ledger.ts:1230-1233`）、改动后为 `doc-drift`（frontier 经 `Lifecycle#hopOf` 注入、`nextHopOf` 调用在 `session/run.ts:838`；板面经 `BoardNext#hopOf` 注入，`face/board-view.ts:849-861`）；drift 的 wave fix 待办面已在 `waveLineRoute`（`session/ledger.ts:983`）里改写成 `review`，故其 token 是 `doc-drift`，`#reasonOf` 的 `fix` 行（`session/next.ts:398`）只对未 drift 的 `fix` 路由给出 `pending-fix`（drift 行 `:399` 在其后）。wave 的收口另作**回归**断言（改动前后都收口）；**frontier ⇄ 板面**的 token **一致性**是回归 pin（改动前后都不得分叉），而 token 取值 `doc-drift` 是本相位新增的必红 → 绿断言。**胶囊在 wave 面不在本相位的断言面内**：`advance` 交付的胶囊 hop 恒取 recorded round 的 C5 路由（`session/run.ts:438` → `:813-818` · `:447`），其 brief 已在 `#bookkeep`（`:705-713`）重绑，drift 恒为假——不新增胶囊 ⇄ frontier 的 parity 断言（该面上断言只能证渲染器，证不了注入）。
-- wave 面的 `reason:` 与其重开判据同源：drifted wave brief 在 frontier / 板面渲 `reason: doc-drift`，与 frontier 的 `frame.phase`（review）一致；非 drifted 的 wave 面 token 仍按既有序取值（`pending-fix` / `task-open` / `closed-line`）。胶囊在该面上只保证渲一条 `reason:` 行，token 随其 recorded round 的 C5 路由取值，**不**保证与 frontier 同值。
+- **doc 线（四型共用 `docReopens`，任取一型）与 branch 线**：`review`（仅 warn/nit）→ `fix`（改文档、blocker 计数为 0）之后的下一次调用**收口**：`next:` 为 `done` / `handoff` / `next-wave`，不是 `review`；每线一条测试；**断言面按 §11 之后的规范写**：胶囊与板面现在渲染同一个 `NextHop`，故对**带 plan 的 slug** 收口轮的胶囊 `next:` 是本线的 exit（`handoff` / `done`），而对**裸 doc slug**（无 plan）两者逐字节相同——测试夹具须显式选其一并写明，不得笼统说「两面此面皆 drift-aware」，且该测试在改动前的树上**必红**（先证红，后转绿）。
+- **wave 线无收口自锁，证据按 §6 第 1 条的分型给**：不做「必红 → 绿」的收口断言——零 blocker 的 fix 其 wave 路由今日已是 `done` → 已闭合（`session/ledger.ts:989` · `:1303-1310`）。wave 的必红证据是 **frontier / 板面这一跳**的 reason token：drifted wave，今日在 `peekNext` 帧与板面上 `reason` 为 `task-open`（drift cell 对 wave 排除，`session/ledger.ts:1230-1233`）、改动后为 `doc-drift`（frontier 经 `Lifecycle#hopOf` 注入、`nextHopOf` 调用在 `session/run.ts:838`；板面经 `BoardNext#hopOf` 注入，`face/board-view.ts:849-861`）；drift 的 wave fix 待办面已在 `waveLineRoute`（`session/ledger.ts:983`）里改写成 `review`，故其 token 是 `doc-drift`，`#reasonOf` 的 `fix` 行（`session/next.ts:398`）只对未 drift 的 `fix` 路由给出 `pending-fix`（drift 行 `:399` 在其后）。wave 的收口另作**回归**断言（改动前后都收口）；**frontier ⇄ 板面**的 token **一致性**是回归 pin（改动前后都不得分叉），而 token 取值 `doc-drift` 是本相位新增的必红 → 绿断言。**胶囊在 wave 面同属断言面（§11 之后与 frontier 同源）**：`advance` 交付的胶囊 hop 恒取 recorded round 的 C5 路由（`session/run.ts:438` → `:813-818` · `:447`），其 brief 已在 `#bookkeep`（`:705-713`）重绑，drift 恒为假——不新增胶囊 ⇄ frontier 的 parity 断言（该面上断言只能证渲染器，证不了注入）。
+- wave 面的 `reason:` 与其重开判据同源：drifted wave brief 在 frontier / 板面渲 `reason: doc-drift`，与 frontier 的 `frame.phase`（review）一致；非 drifted 的 wave 面 token 仍按既有序取值（`pending-fix` / `task-open` / `closed-line`）。胶囊在该面上渲的是 §11 之后的**同一个** frontier hop（故 token 与 frontier 同值）——原先「不保证与 frontier 同值」的限定随 §11 作废。
 - 收口之后由编排器侧改同一文档 → `next:` 仍回 review lead（drift 重开语义未失效），有测试。
 - `targetAction` 为假的 fix（BLOCKED / TIMEOUT）不推进基线 → 仍判 drift（负控读账本的 `doc_hash`），frontier 给的是该 fix 的重试面（`peekNext()` 帧 `fix`；drift 不压 pending fix，§5.5 ②），有测试。
-- 每条**由 hop 渲染出的** `next:` 行（`RouteRenderer#renderHop` 的产物）之后紧跟一行 `reason: <token>`，token 取 `NEXT_HOP_REASON` 七值之一。两处**非 hop** 的 `next:` 字面是显式例外、字节零变且**不带** `reason:` 行：`face/board-view.ts:556`（null-next 分支的 `  next:    (none)`）与 `:623`（程序板收尾的 `  next:    done`），二者登记在 §7 的板面行。`next:` 行字节与今日**逐字节相同**——证据是 §7 pin 清单的分类：152 处引用中 137 处按行抽取 / `toContain` 零改动，15 处整块 `toEqual` 快照各**只**追加一个 `reason:` 元素（`face/__tests__/face.test.ts` 13 处 · `face/__tests__/capsule.test.ts` 2 处，逐条在册），外加站表长度 pin 1 处（`face/__tests__/face.test.ts:103`，4 → 5）重锚。
+- **非胶囊读者的**每条由 hop 渲染出的 `next:` 行（`RouteRenderer#renderHop` 的产物）之后紧跟一行 `reason: <token>`，token 取 `NEXT_HOP_REASON` 七值之一。两处**非 hop** 的 `next:` 字面是显式例外、字节零变且**不带** `reason:` 行：`face/board-view.ts:556`（null-next 分支的 `  next:    (none)`）与 `:623`（程序板收尾的 `  next:    done`），二者登记在 §7 的板面行。`next:` 行字节与今日**逐字节相同**——证据是 §7 pin 清单的分类：152 处引用中 137 处按行抽取 / `toContain` 零改动，15 处整块 `toEqual` 快照各**只**追加一个 `reason:` 元素（`face/__tests__/face.test.ts` 13 处 · `face/__tests__/capsule.test.ts` 2 处，逐条在册），外加站表长度 pin 1 处（`face/__tests__/face.test.ts:103`，4 → 5）重锚。
 - 胶囊与板面渲染同值（同一 hop 的同一 token）；BLOCKED / TIMEOUT 轮两面都不渲 `reason:`。前缀**字节同值而不共用来源**：胶囊走**站表**行（`words.station("reason")`，与它取 `next:` 同路），板面走与其 `next:` 行同形的布局字面 `  reason:  `；站表由四行变五行，`face/__tests__/face.test.ts:103` 的站表长度 pin 重锚为 5（全单第 16 处重锚，§7 在册），`routeWords` 与 `face/__tests__/cli.test.ts:3794` 的 routeWords-sync 不动。
 - 根 `README.md:60` 与其 `.zh-CN.md:64` 镜像同步更新该 bullet 的**首句与后半句**（「printed last」/「最后打印」在加行后不再成立），第三个从句（板面）原样保留并因 `reason:` 同值而更强，`SKILL.md` 零变更。
 - `env -u AI_AGENT pnpm run validate` 退出码 0；`pnpm run emit:check` fresh；changeset 为 `@oscaner-skills/cdd-engine` minor。
@@ -259,3 +263,5 @@ reason: doc-drift
 | v0.19 | 2026-11-04 | **分支终审回填（撤回一条假必红）**：§10 的证据段与 Acceptance 原写「parity 今日必红」，而实测（`c2626b68`）该 parity 在 §9 落地后**已成立**（(h)/(h2) 早已钉住）；用户观察到的分叉是两条不同线的 next，不是 parity 违约。改为纯重构的三条证据（行为零变 / 结构断言 / 新家用例），并明写不得再声称必红 | §10 证据段 + Acceptance + Change history v0.19 | Oscaner M. · Claude（kairos:cdd-dev · 分支终审回填 · 2026-11-04） |
 | v0.20 | 2026-11-04 | **spec 第 9 轮回填**：① 撤回假必红时引错了两条 pin——(h) 的 spec 从未被审过（无 drift）、(h2) 漂的是 plan 且钉的是 branch 线；改为如实：该状态是 round-6 评审的**一次实测事实、无既有 pin 覆盖**，本相位不为它新增 pin ② Acceptance 的三条证据去重（v0.19 合并时 v0.17 的复述未删） | §10 证据段 + Acceptance + Change history v0.20 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-04） |
 | v0.21 | 2026-11-04 | **范围追加（用户裁定 · 第四次并入）**：新增 §11「每轮的下一跳也读 pipeline frontier」——§10 只统一了「哪条线在下」的判定，每轮胶囊仍喂本线 C5 路由，于是同一时刻两条 next 可不同（实测：spec 自身 `cdd-plan` vs 板面 `cdd-close`）。定案：胶囊改喂 `PipelineFrontier.next(...)`，`cli.ts` 补 `specType`/`specPath`；必红断言为「波形轮完而 spec 未闭时，胶囊 `next:` == 板面 `next:`」；重锚逐条在册；不含越序拒绝 | §11 + §7 渲染源统一行 + Acceptance + Change history v0.21 | Oscaner M. · Claude（kairos:cdd-dev · 范围追加 · 2026-11-04） |
+| v0.22 | 2026-11-04 | **spec 第 10 轮回填（blocker）**：① **§11 的定案改深了一层**——胶囊要渲染的不是 route 而是板面那个 `NextHop`；只换 route 会让 cell 仍取自本轮 frame（`type`/`key`/`doc`/`briefDrift`），与 frontier 的 target 打架。改为：把 `BoardNext#hopOf` 的 cell 装配与 `PipelineFrontier` 一起收进 session 平面，两面调同一装配 ② 四格输入由 `cli.ts` 的场景从文档索引填（doc 轮是 `EMPTY_RUN_STATE`、`--spec` 轮 `#planPath` 为 null，生命周期本就不够） ③ Acceptance 的「`next:` 字节逐字节相同」收窄为「非胶囊读者」——胶囊侧另立重锚清单 ④ 删掉不存在的 `SessionRun` 类名 | §11 + §7 渲染源统一行 + §3 注释 + Acceptance + Change history v0.22 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-04） |
+| v0.23 | 2026-11-04 | **spec 第 10 轮 W3 回填**：三处关于胶囊的旧陈述随 §11 更新——① doc/branch 收口轮的断言面按「带 plan 的 slug vs 裸 doc slug」显式分写 ② wave 面的「胶囊不保证与 frontier 同值」作废（§11 之后同值）③ 「胶囊在 wave 面不在断言面内」改为同属断言面 | Acceptance + Change history v0.23 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-04） |

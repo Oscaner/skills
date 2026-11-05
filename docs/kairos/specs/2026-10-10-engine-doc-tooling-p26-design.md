@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P26 设计：收口面残余三笔 + 文档形状归属判据
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p26
 program: 2026-10-10-engine-doc-tooling
@@ -78,7 +78,7 @@ P24 的实证（同一分支）：`41bf1406`（branch fix 1）⇒ plan 行 drift
 
 #### 2.3 文案孪生
 
-源里每条 `label` / `sublabel` / `tag` / 摘要卡片条目，必须在该 HTML 中逐字出现（HTML 转义后比较）。⇒「源文案改了没重生成」红。
+源里每条 `label` / `sublabel` / `tag` / 卡片 `title` 与卡片条目（`items[]` 各条 `<li>` 文本），必须在该 HTML 中逐字出现（HTML 转义后比较）。卡片 `title` 属于同一面：只改一条 `title` 而不重生成，同样必须红。⇒「源文案改了没重生成」红。
 
 #### 2.4 journey 从零 pin 到一腿
 
@@ -130,7 +130,9 @@ walk 于是这样落地：`pipeline.ts` 全闭合 → `#terminal` → 最后进�
 
 #### 3.4 链成立的前提（已核对）
 
-plan 的 front-matter 没有 `spec:` 键，plan 与它的 spec 靠**同 slug** 相连，所以 single-spec 交棒后的 plan 走 `docs/kairos/plans/` 下同 slug 的那一份，不需要新链键；plan 线的 `INPUT_SPEC` 值源是该身份文档的 `program:`，single-spec 无 `program:` ⇒ 空槽丢弃（既有行为，非新增例外）。
+plan 的 front-matter 没有 `spec:` 键，plan 与它的 spec 靠**同 slug** 相连，所以 single-spec 交棒后的 plan 走 `docs/kairos/plans/` 下同 slug 的那一份，不需要新链键。
+
+同一个 slug 也让交棒后的 plan / branch 评审照旧拿得到 spec 锚点：这两行的 `INPUT_SPEC` 取 `SlugIndex#identityDoc(slug)` 解析出的**路径**（`face/cli.ts:1073-1074` 产出 `specLink`，`face/lifecycle.ts:760-762` 读它），与 `spec:` 标量无关、与 `program:` 无关——single-spec 交棒后该槽仍然非空。被空槽丢弃的是 `INPUT_OVERALL`（父章程）：它读**同一份身份文档的 `program:`**（`face/cli.ts:1077-1078` 产出 `overallLink`，`face/lifecycle.ts:773-777` 读它），single-spec 无 `program:` ⇒ 空槽丢弃（既有行为，非新增例外）。故「不新增链键」的结论不变。
 
 ### 4. single-spec ⇄ phase-spec 归属判据
 
@@ -170,8 +172,8 @@ plan 的 front-matter 没有 `spec:` 键，plan 与它的 spec 靠**同 slug** �
 - `ReviewRefs#docRevision` 对「仅追加 change-history 行 + 递增 `version:`」的前后两份内容给出**相同** `doc_hash`；对「正文改一句」给出**不同** `doc_hash`（plan 与 spec 各一对单测）。
 - **互踢复现门**：分支行已绑定 plan 身份后，只改 plan 的 front-matter 与 Change history ⇒ `docLineVerdict("branch", plan)` 判 `same`；改 plan 的某条 Task 正文 ⇒ 判 `drift`；plan 行同形各一。
 - **单一定义**：结构守卫断言 `session/ledger.ts` 里对文档内容求 hash 的站点只有一处（`ReviewRefs#docRevision`），且正文投影由 `contract` 面的投影类产生，`session` 面不再自行切片。
-- **拒审文案**：`face/gate.ts` 的 doc 行 BLOCK 文案为「amend body to open a new review」，`:109` JSDoc 同字；`cli.test.ts:3059` 的 `target revision unchanged` 断言不动仍绿；其余 `next:` / `reason:` 字节零变化。
-- **六份孪生门**：`diagram-twin.guard.test.ts` 对六份源全绿，引用腿对三种 `diagram_type`（`components` / `states` / `nodes`）复用同一套归一化；两种反向注入（改 HTML 引用块一行 / 改源文案不重生成）各一条红用例。
+- **拒审文案**：`face/gate.ts` 的 doc 行 BLOCK 文案为「amend body to open a new review」，`:109` JSDoc 同字；`cli.test.ts:3059` 的 `target revision unchanged` 断言不动仍绿；除 §3 交棒面（closed single-spec 的 `next:` / `reason:`）外，其余 `next:` / `reason:` 字节零变化——本条不约束 §3 的随动字节。
+- **六份孪生门**：`diagram-twin.guard.test.ts` 对六份源全绿，引用腿对三种 `diagram_type`（`components` / `states` / `nodes`）复用同一套归一化；三种反向注入（改 HTML 引用块一行 / 改源 `sublabel` 不重生成 / 只改一条卡片 `title` 不重生成）各一条红用例。
 - **journey 语义 pin**：三条断言全绿，各配一条「把源改成错值即红」的用例；`MAX_TASKS_PER_WAVE` 由源文本解析后与常量比较。
 - **closed single-spec 交棒**：`cdd review --type single-spec` 收口后 `next:` 为 host 渲染的 cdd-plan 指令串（claude 与 pi 两种拼写各一条 pin），`reason:` 为 `closed-line`；既有裸 single-spec 的 `face-closed` / `next: done` pin 同笔改判（`capsule.test.ts:435` · `run.test.ts:1983-1984` · `board-view.test.ts:990`）；`next.test.ts:605-608` 与 `:612-614` 两条类型/pin 同笔翻转；`cdd board --spec` 对同一份文档打印同一指向。
 - **终点语义只留章程**：`overall` 行的 `next:` 仍是 `done`；`single-spec` 不再是 `terminal`（`docClassOf` 与 `#docClassByType` 各一条红 pin）；`PhaseFaceKey` 仍是四面、`single-spec` 不进面序（编译期字面 pin）；plan / wave / branch 三行 `next:` 字节零变化。
@@ -196,3 +198,4 @@ plan 的 front-matter 没有 `spec:` 键，plan 与它的 spec 靠**同 slug** �
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-05 | 初版（由游离 single-spec v0.2 迁入并补 §4）：四笔收口面残余——正文 doc-revision（#417）· 六份图源孪生门（#418）· spec 闭合交棒 cdd-plan · single-spec ⇄ phase-spec 归属判据 + 机检门；§1–§3 沿已过三轮评审的 single-spec 文本 | [human] 裁定 · Claude（本会话） |
+| v0.2 | 2026-11-05 | 按首轮评审更正内容面：§3.4 改为 `INPUT_SPEC` = 同 slug 身份文档路径（交棒后仍非空），空槽归属 `INPUT_OVERALL` 的 `program:`；§2.3 文案孪生补卡片 `title`；验收的零变化子句收窄到 §3 交棒面外 | Claude（本会话） |

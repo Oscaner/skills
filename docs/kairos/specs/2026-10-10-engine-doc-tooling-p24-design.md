@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 设计：NEXT-LOOP 收口面（drift 语义收窄 + hop 原因可读）
 doc-type: phase-spec
-version: v0.31
+version: v0.32
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p24
 program: 2026-10-10-engine-doc-tooling
@@ -135,7 +135,7 @@ reason: doc-drift
 | 板面 | `face/board-view.ts` | `:349-358` 的 `nextLine(hop, renderer)` 旁增 `reasonLine(hop)`：前缀为布局字面 `  reason:  `（与 `nextLine` 的 `  next:    ` 同形，不取词表），值直取 `hop.reason`（`renderReason` 的值自带站表前缀，板面不直取；无 `renderer` 参数，故无「渲不出就退化成 `(none)`」的不可达分支）；调用点 `:558` 之后追加一行。**两处 hop-less 字面不改**：`:556` 的 `  next:    (none)`（null-next 分支，不调用 `reasonLine`）与 `:623` 程序板的 `  next:    done` 都不是 `renderHop` 产物，**不追加 `reason:` 行**、字节零变 |
 | reason 判据（wave） | `session/ledger.ts` | `nextHopOf`（`:1229-1243`）的 drift 装配**拆成两个局部量**（§4「wave 面」是判据源，本行逐字对齐它）：① **替换驱动** `drift` 仍只取 doc 面 `reviewGate`——`input.doc != null && input.type !== "wave"`，`:1230-1233` 的既有形状**保留**，故 `drift && onExitSide(input.route)`（`:1242-1243`）对 wave 面**完全不触发**；② **原因 cell** 喂 router 的 `gate.drift`（`:1248-1254`）取 `drift \| (briefDrift ?? false)`，wave 面因此能命中 `doc-drift`。**两个值必须分开**：只用一个值会让 wave 的 exit 侧路由被替换成 review，劫持 soft-capped wave 的 `handoff`（而 `WaveGate.vet` 又按 `waveLinePhase` 为 null 拒绝它）；wave 的路由本身仍由 `waveLineRoute` / `#pipeline` 给出。`#briefDrift`（`:1014-1019`）提为 public `briefDrifted(waveKey)`，`waveLineRoute` 的 D30 腿（`:983`）共用 |
 | reason 输入面 | `session/ledger.ts` | **`Ledger#nextHopOf` 的内联参数类型**（`:1219-1230`）新增可选 cell `briefDrift?: boolean`；`session/next.ts` 的 `NextHopInput`（`:208-226`）**形状一行不动**（不加 cell、`NextHop.reason` 与 `#reasonOf` 也不动）——`nextHopOf` 自己把该值折进 `NextHopInput.gate.drift`（`:1248-1254`）；该接口唯一被改的是 `gate` 的 docstring（`:211-213`），见「语义注释」行：行为契约不变，只有教它的散文陈旧 |
-| 汇总单元 | `face/board-view.ts` | `summaryCell`（`:278`）/ `#summaryToken`（`:296`）/ `#judgementRuns`（`:328`）改为「成功令牌（有失败时带 `/尝试总数`）+ 失败令牌（cycle + `✗→✓` 恢复标记）」；**仅这两处** docstring 改指 P24 §12 |
+| 汇总单元 | `face/board-view.ts` | `summaryCell`（`:278`）/ `#summaryToken`（`:296`）/ `#judgementRuns`（`:328`）改为「成功令牌（成功数为 0 时不渲；有失败时带 `/尝试总数`）+ 失败令牌（cycle + `✗→✓` 恢复标记）」；**仅 `summaryCell` / `#summaryToken` 两处** docstring 改指 P24 §12，`#judgementRuns` 的 docstring 同笔改写（按「成功面按 verb 合并、异常面逐条」）但**不删、不改名** |
 | 渲染源统一 | `session/pipeline.ts` · `session/run.ts` · `face/cli.ts` · `face/board-view.ts` | 把 `BoardNext#hopOf` 的 cell 装配（target → `type` / `key` / `doc` / `briefDrift`）与 `PipelineFrontier` 一起收进 session 平面；胶囊（`#capsuleLines`，`:439-448`）与板面调**同一个**装配，`#routeNext` 仍只服务 `#markTerminal`；四格输入由 `face/cli.ts` 的装配层收齐——三格（`specType` / `specPath` / `planPath`）取自文档索引，第四格 `planGraph` 取自既有受守卫读（见 §11「输入事实的来源」） |
 | frontier 归属 | `session/pipeline.ts`（新增）· `face/board-view.ts` | 新增 `PipelineFrontier`（逐面读该线自己的 `lineStateAt` / `lineRoute` / ready batch + `waveLineRoute`；四条面序规则与 `#exitRoute` / `#lastEnteredIndex` 搬入）；板面删除 `pipelineFacts` 的逐面 `closed` / `active`、`#waveFrontierKey`、`#pipeline`、`#exitRoute`、`#lastEnteredIndex` |
 | ~~板面选面~~（已作废） | `face/board-view.ts` | ~~`pipelineFacts` 的 spec / plan 两面 `closed` 改 `lineStateAt`~~——被上一行的整体搬迁取代（它改的两行会被删除） |
@@ -253,7 +253,9 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 |---|---|---|
 | plan 行（cycle 1–11 胜 · 12a1 败 · 12a2 胜 · 13 胜） | `review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓` | `review 13 ✓+74 · fix 13/14 ✓ · fix 12 ✗→✓` |
 | 既有 pin（`board-view.test.ts:1274`：cycle 1 的 a1 败、a2 胜） | `fix 1 ✗ · fix 1a2 ✓` | `fix 1/2 ✓ · fix 1 ✗→✓` |
-| 干净行（无失败，如 `review 13 ✓+74 · fix 13 ✓`） | 同 | **逐字节相同** |
+| 无失败行（该 verb 无失败记录，如 `review 13 ✓+74 · fix 13 ✓`） | 同 | **逐字节相同** |
+| 纯失败行（该 verb 成功数为 0，如 `review 1 ✗` · `implement 1 ✗`） | 同 | **逐字节相同**（成功数为 0 ⇒ 不渲 ✓ 令牌） |
+| 两 verb 且前者有失败（顺序样例） | — | `review 3/4 ✓ · review 3 ✗→✓ · fix 3 ✓`（失败令牌紧跟其 verb 的成功令牌，不聚到行尾） |
 
 新形的读法：`13/14 ✓` = 14 次 fix 尝试、13 次成功；`fix 12 ✗→✓` = cycle 12 的尝试失败过一次、随后重派成功。四个问题逐条消解：数字是**尝试口径**而非段内计数 · 重派由 `→✓` 显式出现 · 是否恢复一眼可读 · ✓ 与 ✗ 是**两种形状**（比率 vs cycle），不再同槽。
 
@@ -261,13 +263,13 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 
 1. **实况行必红**：上表第 1 行的目标字面，断言在 `face/__tests__/board-view.test.ts` 新增用例；改动前必红（今日渲 `fix 11 ✓ · fix 1 ✗ · fix 2 ✓`）。
 2. **既有 pin 重锚**：`board-view.test.ts:1274` 的 `"fix 1 ✗ · fix 1a2 ✓"` → `"fix 1/2 ✓ · fix 1 ✗→✓"`。
-3. **干净行零变**：`board-view.test.ts:1218-1228` · `:1242-1246` · `:1256-1265` 与 `cli.test.ts:7356-7357` 的既有断言**一行不改**仍绿。
+3. **无失败行与纯失败行零变**：`board-view.test.ts:1218-1228` · `:1242-1246` · `:1256-1265` 与 `cli.test.ts:7356-7357` 的既有断言**一行不改**仍绿。这四段既有**无失败行**（`:1218` 的 `review 10 ✓` · `:1225` 的 `review 1 ✓` · `:1242` 的 `review 3 ✓+2` · `:1263` 的 `review 1 ✓+2`），也有**纯失败行**——`:1228` / `:1246` 的 `review 1 ✗` 与 `cli.test.ts:7356-7357` 的 `implement 1 ✗` 是「有失败记录、成功数为 0」的行：按定案该 verb 的 ✓ 令牌不渲，故它们照旧只出 ✗ 令牌、字节零变（若渲 `review 0/1 ✓` 便与这些 pin 直接冲突）。新增用例再为纯失败 verb 立一条独立断言（`review 1 ✗`，与 `:1228` 同形）。
 4. **两条 P22 门仍红**：区间形（`review 1–10 ✓`）与 `a1`（任何令牌出现 `a1`）的既有断言不改。
 5. **重锚在 §7 的 1–5 类账之外**：板面汇总单元不是 `next:` 行，故 `board-view.test.ts:1274` 的重锚与上面的新增实况用例不占 §7 的 152 处引用、15 处 `toEqual` 快照、站表长度 1 处任何一格——§7 的账只覆盖 `next:` 字节，本处按**账外修复**在册（先例：`preview.test.ts:126-146` 的陈旧 pin，同属 `next:` 账外）。
 
-**陈旧散文登记（随本任务同笔改写，不含断言）**：`board-view.test.ts:1268` 的用例标题 `(d) a re-dispatch carries its attempt superscript and attempt 1 never renders a1` 在 §12 之后不准（新形 `fix 1/2 ✓ · fix 1 ✗→✓` 无上标；上标只在失败令牌且 `attempt>1`、或无失败的成功令牌上出现）；`#judgementRuns` 的 docstring（「contiguous verdict runs」）同时改名并把注释改为「成功面按 verb 合并、异常面逐条」。
+**陈旧散文登记（随本任务同笔改写，不含断言）**：`board-view.test.ts:1268` 的用例标题 `(d) a re-dispatch carries its attempt superscript and attempt 1 never renders a1` 在 §12 之后不准（新形 `fix 1/2 ✓ · fix 1 ✗→✓` 无上标；上标只在失败令牌且 `attempt>1`、或无失败的成功令牌上出现）；`#judgementRuns`（`face/board-view.ts:328`）**保留**——不删除、不改方法名，只改其 docstring：标题与注释由「contiguous verdict runs」改为「成功面按 verb 合并、异常面逐条」，并指 P24 §12。
 
-**落空面（范围写窄）**：`face/board-view.ts` 里 `spec §5.3` 的引用约十处（`:24` 文件头 · `:60` 字形 · `:294` `+N` · `:370` 在飞单元 · `:406`/`:511`/`:530` 排版 · `:612` 波单元 · `:655` doc 单元）。**只有承载令牌规则的 `summaryCell` / `#summaryToken` 两处 docstring 改指 P24 §12**；其余引用的是排版与字形规则，P22 §5.3 对它们仍然是正确依据，**不动**。
+**落空面（范围写窄）**：`face/board-view.ts` 里 `spec §5.3` 的引用约十处（`:24` 文件头 · `:60` 字形 · `:294` `+N` · `:370` 在飞单元 · `:406`/`:511`/`:530` 排版 · `:612` 波单元 · `:655` doc 单元）。**只有承载令牌规则的三处 docstring（`summaryCell` / `#summaryToken` / `#judgementRuns`）改指 P24 §12**；其余引用的是排版与字形规则，P22 §5.3 对它们仍然是正确依据，**不动**。
 
 **发行面**：`cdd board` 对有失败的行输出变了 ⇒ changeset 必须新增一条（`.changeset/p24-fix-identity-and-reason-row.md` 现有末句「cdd board output is unchanged」随之作废，须改写而不是追加）。
 
@@ -275,7 +277,7 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 
 ### Acceptance criteria
 
-- **汇总单元（§12）**：有失败尝试的行渲 `{verb} {成功}/{尝试} ✓ · {verb} {cycle} ✗→✓`（实况 `fix 13/14 ✓ · fix 12 ✗→✓`，同 cycle 重派 `fix 1/2 ✓ · fix 1 ✗→✓`），改动前必红；无失败记录的行**字节零变**；区间形（`review 1–10 ✓`）与 `a1` 两个既有门仍红。
+- **汇总单元（§12）**：有失败尝试的行渲 `{verb} {成功}/{尝试} ✓ · {verb} {cycle} ✗→✓`（实况 `fix 13/14 ✓ · fix 12 ✗→✓`，同 cycle 重派 `fix 1/2 ✓ · fix 1 ✗→✓`），改动前必红；**成功数为 0 的 verb 不渲 ✓ 令牌**（纯失败行 `review 1 ✗` / `implement 1 ✗` 字节零变，另有一条独立用例钉住）；**令牌顺序钉死**（外层 `VERB_ORDER`，同 verb 内先成功令牌、后失败令牌，失败按时间序，不聚到行尾——样例 `review 3/4 ✓ · review 3 ✗→✓ · fix 3 ✓`）；无失败记录的行**字节零变**；区间形（`review 1–10 ✓`）与 `a1` 两个既有门仍红。
 - **每轮的 next 读同一 frontier（§11）**：spec 未闭而行完一轮波形时，胶囊的 `next:` **等于**板面的 `next:`（spec 的 review lead），今日必红、改后相等；且 `next:` 仍是可执行字面、`reason:` 仍取同一 token 源；胶囊快照中受影响处的重锚逐条在册。
 - **板面即投影（§10 · 纯重构）**：同一 slug 上，板面的 `next:` 等于 frontier 那条线自己的 `peekNext()` 渲染值（parity，**改动前后皆成立**——它是回归事实而非必红）；① `board-view` 既有测试的 `next:` / `reason:` 字节零变（断言一行不改仍全绿）② `face/board-view.ts` 里不再存在 frontier 判定代码（`#pipeline` / `#exitRoute` / `#lastEnteredIndex` / `#waveFrontierKey` 均已移出）③ 四条面序规则由 `pipeline.test.ts` 直接钉。
 - **板面 frontier 的选面读 drift（§9）**：spec 已收口、其后其身份文档被轮外改动、且存在 plan 时，板面 `next:` 为该 spec 的 review lead 且 `reason:` 为 `doc-drift`（今日为 `implement --plan … --tasks …`），断言在改动前的树**必红**；该 review 闭合后 frontier 前进到 plan 的波形（孪生回归 pin）。
@@ -335,3 +337,4 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 | v0.29 | 2026-11-05 | **spec 第 12 轮 fix 回填（docs-fix）**：① **W1**——§7「发行」与 Acceptance 的 changeset 末条补 §12：板面汇总单元在有失败尝试的行上改字节是**消费面可见变化**，并入同一份 `.changeset/p24-fix-identity-and-reason-row.md`（仍 minor、不另开第二条），该条目末句「`cdd board` output is unchanged」须改写（Task 8 owner） ② **N1**——§7 表头分项补「一行汇总单元（§12）」，7+1+1+1+1+1+1 = 十三行（此前十三行却只列 12 项） ③ **W2 尾项**——§12 写明 ✗ 令牌逐条不设上限、实际由 `REVIEW_CYCLE_CAP` 封顶 ④ **N2 尾项**——§12 证据第 5 条：`:1274` 的重锚在 §7 的 1–5 类 `next:` 账之外，按账外修复在册 ⑤ **N3**——Change history v0.27 行日期 2026-11-04 → 2026-11-05（不再早于 v0.26 与 front-matter） | §7 表头/发行 + Acceptance 末条 + §12 定案/证据 + Change history | Oscaner M. · Claude（kairos:cdd-dev [P24] spec 第 12 轮 fix · 2026-11-05） |
 | v0.30 | 2026-11-05 | **spec 自查订正（plan 第 14 轮 W3）**：成功令牌原本「永远带末条成功记录的 attempt 后缀」，与本相位自己钉的目标 `fix 1/2 ✓`（末条成功是 a2 ⇒ 会渲成 `1/2a2`）矛盾。订正为**后缀与分母互斥**：有失败时渲比率且不带后缀，无失败时才可能带后缀。 | §12 成功令牌一句 + Change history v0.30 | Oscaner M. · Claude（kairos:cdd-dev · spec 自查订正 · 2026-11-05） |
 | v0.31 | 2026-11-05 | **spec 第 13 轮回填**：① 成功令牌在**成功数为 0** 时不渲（否则纯失败 verb 会渲 `review 0/1 ✓`，与既有 `review 1 ✗` pin 冲突） ② 删掉「✗ 条数由 `REVIEW_CYCLE_CAP` 封顶」这条**假依据**（它界 blocker 循环、不界同 cycle 的 attempt 重派；✗ 数理论上无界，本相位不加界） ③ 补**令牌顺序**（外层 `VERB_ORDER`、内层先成功后失败、失败按时间序、不聚到行尾） ④ 恢复形 `✗→✓` 也带 `+N`，并点明「同 cycle 的后续 attempt」 ⑤ 陈旧散文登记（`:1268` 用例标题 · `#judgementRuns` docstring） | §12 五处 + Change history v0.31 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-05） |
+| v0.32 | 2026-11-05 | **spec 第 13 轮 fix 回填（docs-fix）**：v0.31 已落五条的正文，本笔补齐三处**落尾**：① **W1 尾**——§12 表把「干净行」拆为**无失败行**与**纯失败行**并各给目标字节（纯失败行成功数为 0 ⇒ 不渲 ✓ 令牌），证据 3 改标题为「无失败行与纯失败行零变」并点名 `:1228`/`:1246` 的 `review 1 ✗` 与 `cli.test.ts:7356-7357` 的 `implement 1 ✗` 正是纯失败行、另加一条独立用例；Acceptance 同笔补该条 ② **W3 尾**——表再补一行**两 verb 顺序样例** `review 3/4 ✓ · review 3 ✗→✓ · fix 3 ✓`，Acceptance 把**令牌顺序**列为钉死项 ③ **N2 尾**——陈旧散文登记与 §7 汇总单元行写准 `#judgementRuns` 的去向（**保留**、不删不改名，docstring 同笔改写并改指 P24 §12），落空面的「两处 docstring」随之修为三处 | §12 表/证据 3/陈旧散文/落空面 + §7 汇总单元行 + Acceptance §12 + Change history v0.32 | Oscaner M. · Claude（kairos:cdd-dev [P24] spec 第 13 轮 fix · 2026-11-05） |

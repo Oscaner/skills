@@ -345,11 +345,11 @@ export class BoardView {
   }
 
   /** One token of a verb's success face or of one failed attempt, `{verb} {body} {mark}`
-   *  (P24 §12). The `+N` suffix counts the
-   *  run's graded FINDINGS, read from each round's own carrier (`carrierPath` → the
-   *  handoff's `findings` array, spec §5.3) — never the round's hard/soft contract
-   *  violations, which are a different fact. A record with no carrier (a legacy row,
-   *  or a work-plane round whose carrier declares no findings) contributes zero. */
+   *  (P24 §12). The `+N` suffix counts the run's graded FINDINGS, read from each round's
+   *  own carrier (`carrierPath` → the handoff's `findings` array, spec §5.3) — never the
+   *  round's hard/soft contract violations, which are a different fact. A record with no
+   *  carrier (a legacy row, or a work-plane round whose carrier declares no findings)
+   *  contributes zero. */
   static #summaryToken(
     verb: string,
     body: string,

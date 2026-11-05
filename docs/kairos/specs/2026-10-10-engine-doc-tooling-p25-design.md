@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P25 设计：写回判定的单源（`#bookkeep` ⇄ `#recordsOf`）
 doc-type: phase-spec
-version: v0.7
+version: v0.8
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p25
 program: 2026-10-10-engine-doc-tooling
@@ -129,6 +129,7 @@ class ReviewedIdentity {
 | 真实记账 | `session/run.ts` | `:746-748` 的 phase 白名单与 `:749-752` 的 kind 三分支改调 `legOf`；`#recordReviewedDocRevision` / `#recordReviewedWaveBrief` / `#recordReviewedBranchRevision` 保留（它们做的是**写**，不是判定） |
 | 预览 | `face/preview.ts` | `:159` 的 phase 字面量与 `:172-178` 的 `#reviewedLegOf` 改调 `legOf`；`#reviewedLegOf` 退化为「腿 → 字符串」的渲染映射（或直接内联），**不再持有 phase 白名单或 kind 三分支** |
 | 陈旧的旁注 | `face/preview.ts` · `session/run.ts` | 同笔改写三处将变假的注释：`preview.ts:147-154`（`#recordsOf` 的「a SECOND copy … kept apart on purpose」段）· `preview.ts:165-171`（`#reviewedLegOf` 的链描述）· `run.ts:726-745`（phase 门与三分支的内联叙述）——三者改指向 `ReviewedIdentity`，并保留 `targetAction` 与 null plan path 的事实；叙述按**相位名字**（“review / branch-review / fix”），**不复述** `frame.phase === "branch-review"` 这类比较式字面量——白名单消失门计的是字面量原文（含注释），复述一句会把门留在红 |
+| 流水线前沿 | `session/pipeline.ts` | wave 面 `active` 增进入判据：`roundCount(waveKey, implement/review/fix)` 之和 > 0 才取 `waveLineRoute(...)`，否则 `null`（§6） |
 | 测试 | `session/__tests__/reviewed-identity.matrix.test.ts`（新增）· `session/__tests__/reviewed-identity.guard.test.ts`（新增）· `face/__tests__/preview.test.ts` · `session/__tests__/run.test.ts` | **矩阵只有一个家**：`reviewed-identity.matrix.test.ts` 持手写的 oracle 表 + `left == right == expected` 三值断言（左侧自建 `Preview`，右侧复刻 `run.test.ts` 的 runner double 真跑一轮——`session/__tests__` 早已 `../../face/*` 跳面 import）· `reviewed-identity.guard.test.ts` 持两条结构门（§3）+ **两条验收文本 pin**（`#bookkeep` 方法体内零 `frame.target.kind ===` · `reviewed-identity.ts` 对 `./run.ts` / `./ledger.ts` 的 import 必须走 `import type`；它们是验收 pin，**不计入** §3 的两条结构门）+ **保守链的两条 pin**（§3：直调 `legOf` 的「越界 kind / `implement` 全 `null`」断言 · 剥注释后的纯度文本门）· `preview.test.ts` **只保留**五条既有 `would record:` 断言（不重锚、不搬），加一条 `branch` + 无 plan path 的新 preview pin · `run.test.ts` 不动（矩阵不复用它已有的用例，只照其夹具形状） |
 | 发行 | `.changeset/p25-one-write-back-judgment.md`（新增） | `@oscaner-skills/cdd-engine` **patch** 一条 |
 
@@ -136,7 +137,7 @@ class ReviewedIdentity {
 
 **依赖**：P24 已 Done（`P24 -> P25` hard，本相位不依赖 P24 的产物，只依赖其闭合后的树——那里的 `fix` 白名单正是本相位要收的那一份）。
 
-**发行**：`@oscaner-skills/cdd-engine` **patch**（`.changeset/p25-one-write-back-judgment.md`）——这是一次纯重构：零消费面字节变化、零新命令、零新旗标。按 D74，方法契约不变，故不是 minor。
+**发行**：`@oscaner-skills/cdd-engine` **minor**（`.changeset/p25-one-write-back-judgment.md`）——§1–§5 的写回判定单源本身是纯重构（零字节变化），但 §6 改变 fresh plan 的板面/胶囊输出（`implement` → `route to /skill:cdd-dev skill`），属**消费面可见字节变化**；按 D74 取 minor（方法论契约未变，故不是 major）。零新命令、零新旗标。
 
 ### 5. 非目标
 
@@ -145,11 +146,42 @@ class ReviewedIdentity {
 - 不给判定加第二个入参（如 `completed`）——那是把运行时结果泄进纯判定。
 - 不顺手改 `preview.ts` 的其它重复（例如 `reads:` 行的路径来源）——不在本相位证据面内。
 
+### 6. 定案：wave 面的「未进入」不得编码成 active hop
+
+**缺口**：`Ledger#waveLineRoute` 在**零完成 implement** 时返回 `{ kind: "next-wave", tasks }`（`session/ledger.ts:957-958`）。这个返回对**线视角**是对的——「这条波该派发了」。但 `PipelineFrontier` 把它当**该面已进入**的证据：
+
+- `#pipeline` 规则①：frontier 面**有 active hop 时优先渲它**，面到面的 handoff 让位；
+- 于是 plan 刚收口时，frontier 落在 wave 面、其 active 非 null ⇒ 渲 `implement --plan … --tasks N`；
+- 而 `PIPELINE_NEXT.plan` 的面到面出口是 `{ kind: "ref", ref: "kairos:cdd-dev" }`（`session/next.ts:107-114`）——**这一面被挤掉了**。
+
+**实案**：P24 全程只在**波次全部耗尽**之后才印出 `route to /skill:cdd-dev skill`；plan 刚收口那一跳一律印 `implement`。kairos 链的契约是 `plan → cdd-dev`（dev 技能负责 base 解析、批准门与 implement/review/fix 的整链），故这个面不该只在耗尽后出现。
+
+**这是同一族第三次**：一个值被用来表达两件事——
+
+| 值 | 今天同时表达 | 应当分开 |
+|---|---|---|
+| `Route.kind === "next-wave"` | ①「这条线的下一跳」②「这个流水线面已进入」 | 线视角保留 ①；面视角需要 ② 的**独立判据** |
+
+（前两次：§2 的 `drift` 一值驱动「路由替换」与「原因 cell」；P24 §12 前的 `nextLineOpen` 惰性格。）
+
+**定案**：`PipelineFrontier` 的 wave 面 `active` 增加一道**进入判据**——该 wave 行**零轮记录**时置 `null`（未进入），于是 frontier 走「未进入」分支、渲前一个已进入面（plan）的出口 = `cdd-dev`；一旦有任一 wave 轮记账，`active` 恢复为 `waveLineRoute(...)` 的结果。
+
+**进入判据的读数**：用既有的 `Ledger#roundCount`（`session/ledger.ts:716-719`，DISTINCT cycle 计数，**含失败尝试**）——`roundCount(waveKey, "implement") + roundCount(waveKey, "review") + roundCount(waveKey, "fix") > 0`。**不加新 API**；用 `roundCount` 而非 `completedCycles`，因为「派发过但被 BLOCKED」也算已进入（面不该退回去重交一次 handoff）。
+
+**证据（必红 → 绿）**：构造「plan 已收口 + 有任务图 + wave 零轮记录」，断言板面与胶囊渲 `route to /skill:cdd-dev skill`——**今日渲 `implement --plan … --tasks N`，必红**。
+
+**孪生回归**：同一夹具里记一条 wave 轮（哪怕 BLOCKED）之后，输出恢复为 `implement` / `review` 字面（面已进入，handoff 不再出现）。
+
+**发行级别**：本项**改变消费面字节**（fresh plan 的板面/胶囊输出），故 P25 由**纯重构（patch）**升为 **minor**（D74：消费面可见字节变化即 minor；方法论契约未变）。
+
+**非目标**：不改 `waveLineRoute` 本身的返回值（线视角不看这道进入判据）· 不改 `#pipeline` 的四条面序规则 · 不改 `PIPELINE_NEXT` 表 · 不动 `branch` 面。
+
 ### Acceptance criteria
 
 - `ReviewedIdentity.legOf(phase: RoundPhase, kind: AuditTarget["kind"]): ReviewedLeg | null` 是「写不写 + 写哪条腿」的**唯一实现**；`#bookkeep` 与 `#recordsOf` 都调它——两处传的是 `frame.phase` 与 `frame.target.kind`（今天分支的就是这两个值：`run.ts:749-752` · `preview.ts:172-178`），未列出的 kind 一律 `null`。
 - **矩阵用例（禁止调用 `legOf`）**：`phase × kind × planPath` 三轴逐格、**三值**（可达格与跳过格见 §3 表），**`expected` 取用例里手写的 oracle 表**（不从 `legOf` 推导、不 import 判定文件），**`left` 取预览面的真实输出**（逐相 `Preview#render(op, frame)` 的 `would record:` 行中的 `reviewedRevision(doc|brief)`），**`right` 取真实记账后的账本事实，判据分型（与 §3 一致，不是「每格都比哈希」）**：**`fix` 格比哈希**——完成轮后账本绑定的 `doc_hash` / `brief_hash` 等于**该轮判断输入的当前内容哈希**（`fix` 轮越过一个已绑过同 key 的 review 轮，只比 ref kind 时「fix 写回被丢掉」恒绿）；**`review` / `branch-review` 格比 ref kind**——它们的上一轮不是同 key 的绑定。两面都不许走 `legOf`，否则用例只证「同一函数被调了两次」。矩阵住在 **`session/__tests__/reviewed-identity.matrix.test.ts`（单一新文件）**。**今日为何不会红、本相位之后靠什么红**：今天两面恰好一致且判定不错，故三值断言今日**是绿的**——它能红的是**未来只有一面被改**或**`legOf` 自己判错**（后者是只比左右拦不住的）；`wave` + 无 plan path 一格按**已登记不对称**断言（两侧各自对登记值），`branch` + 无 plan path 一格**新增 pin**。
 - **结构门（两条，今日必红）**：`session/__tests__/reviewed-identity.guard.test.ts` 的**白名单消失门 / 声明单源门**（§3）——今日 `frame.phase === "branch-review"` 在 `preview.ts:159` 与 `run.ts:747` 各一处 ⇒ 白名单消失门必红；改完转绿；把副本加回去即重新红；声明单源门今日无声明亦红，门得恰好一处声明在 `session/reviewed-identity.ts` 后转绿。第三个「调用门」已按评审第 2 轮 W2 **删除**，理由写在 §3（文件级调用匹配可被一句 docstring 满足，宁可无门不要死门）。限度（换一种写法的副本可绕过）已在 §3 写明。
+- **wave 未进入的面到面转换（§6）**：plan 已收口 + 有任务图 + wave 零轮记录 ⇒ 板面与胶囊渲 `route to /skill:cdd-dev skill`（今日渲 `implement --plan …`，必红）；记一条 wave 轮之后恢复渲 `implement` / `review` 字面（孪生回归）。
 - **保守链与纯度的 pin（两条，本轮补）**：`reviewed-identity.guard.test.ts` 直调 `legOf`——越界 kind（`"bogus" as AuditTarget["kind"]`）返回 `null`、`implement × {wave, branch, plan, spec}` 四格全 `null`；同一文件持**纯度文本门**——`session/reviewed-identity.ts` 剥注释后无文件读取（无 `node:fs` / `readFile*`）、对 `./run.ts` / `./ledger.ts` 只有 `import type`、且不出现 `targetAction` 与 `planPath`。矩阵**证不到**这两件事（只枚举四个合法 kind 且禁止调 `legOf`），不补 pin 的话「未列出的 kind 一律 `null`」只是无 pin 的声称。
 - 五条既有 `would record:` 断言（`preview.test.ts:79` · `:101` · `:122` · `:144` · `:162`）**一行不改**仍绿。
 - `next:` / `reason:` / 板面任何字节零变；`env -u AI_AGENT pnpm run validate` 退出码 0；changeset `.changeset/p25-one-write-back-judgment.md` 为 `@oscaner-skills/cdd-engine` **patch**。
@@ -173,3 +205,4 @@ class ReviewedIdentity {
 | v0.5 | 2026-11-05 | **spec 评审第 2 轮 fix（W1 · W2 · W3 · W4 · N1 · N2 全接受；N3 已由编排器落地）**：① 矩阵改**三值**断言 `left == right == expected`（`expected` 取手写 oracle 表，不从 `legOf` 推导）——只比左右封不住「`legOf` 自己判错」，§3 的「门和矩阵都是绿的」句随之改正 ② **删除结构门①（调用门）**并写明理由（文件级匹配可被一句 docstring 满足，宁可无门不要死门），结构门降为**两条** ③ 门②（声明单源）作用域钉死为 `src-next/**/*.ts` 排除 `__tests__/`，断言恰 1 处且落在 `session/reviewed-identity.ts` ④ §4 签名补 `\| null` ⑤ 「不再残留任何 kind 分支」改为准确说法（派发点无分支，三个 `#record…` 保留类型收窄守卫） ⑥ 矩阵单一归属 `session/__tests__/reviewed-identity.matrix.test.ts`，`preview.test.ts` 只保留五条 pin + 新 `branch` 空 plan path 一格 ⑦ N3 由编排器落地（overall **v3.18**，提交 `49b797a0`） | Oscaner M. · Claude（kairos:cdd-spec-writer · spec fix 2 · 2026-11-05） |
 | v0.6 | 2026-11-05 | **plan 评审第 2 轮 fix（作者裁定 B1 · N3 同笔落地）**：① §3 的 `right` 判据由「账本 ref kind」改**哈希**——`fix` 轮绕过已完成的 review 轮到达、同 key 同 kind 已被 review 绑过，「丢掉的 fix 写回」在 kind 上**恒绿**；改为 `doc_hash` / `brief_hash` 等于**该轮判断输入的当前内容哈希**，并规定夹具必须让 fix 的判断输入与 review 不同、且先断言两侧哈希不相等（否则该格惰性）② §4 的测试行写明 `reviewed-identity.guard.test.ts` 另持两条**验收文本 pin**（`#bookkeep` 体内零 `frame.target.kind ===` · `reviewed-identity.ts` 的 import 必须 `import type`），不计入 §3 的两条结构门 | Oscaner M. · Claude（kairos:cdd-plan · plan fix 2 · 2026-11-05） |
 | v0.7 | 2026-11-05 | **spec 评审第 3 轮 fix（W1 · N1 · N2 接受；N3 已由编排器落地）**：① **W1 保守链与纯度补 pin**——矩阵碰不到「未列出 kind」与「判定只收 `(phase, kind)`」这两件事（只枚举四个合法 kind 且禁止调 `legOf`），故 `reviewed-identity.guard.test.ts` 新增两条：直调 `legOf` 断言越界 kind（`"bogus" as AuditTarget["kind"]`）与 `implement × {wave, branch, plan, spec}` 全 `null`；以及**纯度文本门**（剥注释后无 `node:fs` / `readFile*`、对 `./run.ts` / `./ledger.ts` 只有 `import type`、代码不出现 `targetAction` / `planPath`）。两条同时写进 §2 · §3 · §4 · Acceptance · Constraints ② **N1** Acceptance 的矩阵右侧判据改为**分型**（`fix` 格比哈希、`review` / `branch-review` 格比 ref kind），与 §3 一致，不再读成「每格都比哈希」 ③ **N2** §3 两句过度声称改正——矩阵证的是「两面同值且值与手写 oracle 一致」，不是「只有一份」；私有而**当前恰好正确**的副本照样取得 oracle 的值、矩阵照样绿，能抓它的是白名单消失门，而该门对换字面写法的副本无效（限度照旧登记） ④ **N3** 编排器已落地（overall **v3.19**，提交 `4e1a4061`），本轮不改 overall | Oscaner M. · Claude（kairos:cdd-plan · spec fix 3 · 2026-11-05） |
+| v0.8 | 2026-11-05 | **范围追加（用户裁定）**：新增 §6「wave 面的『未进入』不得编码成 active hop」——`waveLineRoute` 零完成 implement 时返回 `next-wave`，被 frontier 误读为「面已进入」，挤掉 `PIPELINE_NEXT.plan = kairos:cdd-dev` 的面到面 handoff（P24 全程只在波次耗尽后才印该 handoff）；判据改为 `roundCount` 三 op 之和 > 0；发行级别 patch → **minor**（§4 同笔）；§4 落点表与 Acceptance 同步 |

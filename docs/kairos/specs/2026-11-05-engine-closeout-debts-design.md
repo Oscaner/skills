@@ -1,7 +1,7 @@
 ---
-title: '两条收尾债的收口：文档身份只算正文 · 六份图源常驻孪生门'
+title: '三条收尾债的收口：文档身份只算正文 · 六份图源常驻孪生门 · spec 闭合交棒 cdd-plan'
 doc-type: single-spec
-version: v0.1
+version: v0.2
 date: 2026-11-05
 slug: 2026-11-05-engine-closeout-debts
 author: '[human] 裁定 · Claude（本会话 brainstorming → 本会话落 spec · 2026-11-05）'
@@ -10,7 +10,7 @@ issues: '#417 #418'
 
 ## Background & root cause
 
-两笔债各自独立，共同点是**没有任何自动门会因它变红**：一笔靠多跑评审轮次偿付，一笔靠人工比对发现。
+两笔债各自独立，共同点是**没有任何自动门会因它变红**：一笔靠多跑评审轮次偿付，一笔靠人工比对发现。（本 spec 落定日又发现并并入第三笔——流水线交棒在 spec 面丢了一步，见下 §三。）
 
 ### 一 · 两条行绑同一个身份文档（#417）
 
@@ -41,6 +41,25 @@ P24 的实证（同一分支）：`41bf1406`（branch fix 1）⇒ plan 行 drift
 
 `docs/diagrams/README.md` 要求「改源必须用 Archify finalize 重生成 HTML，禁手改」——**这条纪律没有任何自动检查**。P24 踩过一次：`next-loop.zh-CN.html` 曾读作「最后一一行」而源写「最后一行」，所有门全绿，人工比对才发现；`journey` 两份连这种偶然发现的机会都没有。
 
+### 三 · spec 面闭合后 `next:` 指向流水线终点（本 spec 落定日发现）
+
+本 spec 的评审收口（`cdd review --type single-spec`）打印了 `next: done` · `reason: face-closed`，而流水线的下一站本该是 `/kairos:cdd-plan`。
+
+根因不是流水线走丢，是**四处声明把 `single-spec` 定成「程序级终点」**：
+
+| 位置 | 内容 |
+| --- | --- |
+| `session/next.ts:111` | `"single-spec": { kind: "done" }` |
+| `session/next.ts:90` | `PipelineKey` 由 `TargetType` 派生并排除 `single-spec`——它连「可交接的站」都不是 |
+| `face/board-view.ts:190` | `docClassOf`：`declared === "single-spec" ? "terminal" : declared` |
+| `session/run.ts:409-410` | `#docClassByType`：`target.type === "single-spec" ? "terminal" : target.type` |
+
+walk 于是这样落地：`pipeline.ts` 全闭合 → `#terminal` → 最后进入的面其 target 是 `single-spec` → `#exitRoute` 查 `PIPELINE_NEXT[target.type]` → `done`。
+
+**四处的源头是 D73（2026-11-03 裁定）**：「`PipelineKey` 由 `TargetType` 派生，**`overall` / `single-spec` 为程序级终点**（`PIPELINE_NEXT` 两行 `{kind:"done"}`）」。而 D33（P8）的原话没有这个例外：「**spec 线全闭合 → `/kairos:cdd-plan`（skill ref）**」——`single-spec` 是在 11-03 词表统一时与 `overall` 并成一类才被带走的。
+
+**代价**：`cdd-design` 的 digraph 明确 `single-spec → run-cdd-spec → handoff-next`，`cdd-spec-writer` 也写着「on closure the engine's `next:` face carries the pipeline continuation」。引擎判 `done` 之后，继续往 plan 走这一步只能靠会话记忆——正是 D33 亲手拔掉的「流水线序在 skills 与引擎各存一份」那根债又长回来。
+
 ## Design decisions
 
 ### 1 · doc-revision 只算正文（#417）
@@ -65,8 +84,25 @@ P24 的实证（同一分支）：`41bf1406`（branch fix 1）⇒ plan 行 drift
   - **文案孪生**：源里每条 `label` / `sublabel` / `tag` / 摘要卡片条目，必须在该 HTML 中逐字出现（HTML 转义后比较）。⇒「源文案改了没重生成」红。
   - 另外断言源的 `meta.output` 指向被检查的那份 HTML，源与产物不许配对错位。
 - **既有语义守卫不动**：`diagrams.guard.test.ts` 继续 pin `architecture` 两条的八条命令面与三处引用跨度，不并入孪生门（语义 pin 与孪生门是两种判据，混在一起会让失败原因不可分）。
-- **`journey` 从零 pin 补到一腿**：新增 `scripts/__tests__/journey-twin.test.ts`，把 `journey` 两份的散文断言钉到运行时常量上——至少三条：(1) 波宽「至多三个任务」⇄ `contract/wave-width.ts:16` 的 `MAX_TASKS_PER_WAVE`；(2) `--type` 词表不含已退役的 `spec` ⇄ `session/faces.ts:26` 的 `TargetType` 联合；(3) 每轮派发的日志落在 `.kairos/cdd/<slug>/logs/` ⇄ 两个具名符号：`face/lifecycle.ts:130` 的 `CliLifecycle.LOGS_DIR`（`"logs"`）与 `infra/runtime.ts:127` 的 `ENGINE_RUNTIME.handoffNamespace.workspaceRoot`（`.kairos/cdd`）。任一侧改动即红。
+- **`journey` 从零 pin 补到一腿**：新增 `scripts/__tests__/journey-twin.test.ts`，把 `journey` 两份的散文断言钉到运行时常量上——至少三条：(1) 波宽「至多三个任务」⇄ `contract/wave-width.ts:16` 的 `MAX_TASKS_PER_WAVE`；(2) `--type` 词表不含已退役的 `spec` ⇄ `session/faces.ts:26` 的 `TargetType` 联合；(3) 每轮派发的日志落在 `.kairos/cdd/…/logs/` ⇄ 两个具名符号：`face/lifecycle.ts:130` 的 `CliLifecycle.LOGS_DIR`（`"logs"`）与 `infra/runtime.ts:127` 的 `ENGINE_RUNTIME.handoffNamespace.workspaceRoot`（`.kairos/cdd`）。任一侧改动即红。
 - **不采纳的两条路**：只补 `journey` 源级 pin（HTML 腿仍靠人记）；把重生成塞进 `emit`（CI 要引 Archify 的 finalize 链路，稳定性与耗时全得重裁——留作后续独立议题，不在本 spec 内）。
+
+### 3 · spec 面闭合即交棒 `cdd-plan`（`single-spec` 不是程序终点）
+
+**裁定（作者，2026-11-05，本会话确认并入）**：`overall` 是程序章程，闭合即程序终点；`single-spec` 是「没有父程序的 spec」，是 spec 线的一种载体，不是章程。因此 spec 线闭合一律交棒 `cdd-plan`，不分 spec 的载体形状。
+
+落点（四处同改，一处不漏）：
+
+- `session/next.ts:111`：`single-spec` 行改 `{ kind: "ref", ref: "kairos:cdd-plan" }`，与 `phase-spec` 行同值。
+- `session/next.ts:90`：`PipelineKey` 收进 `single-spec`（它成了可交接的站）。
+- `session/next.ts:119`：`PhaseFaceKey` 相应改为「`PipelineKey` 去掉 `overall` 与 `single-spec`」——**面序仍是四面**（`phase-spec · plan · wave · branch`），身份面在面序里永远叫 `phase-spec`，`single-spec` 只是它的声明词。
+- `face/board-view.ts:190` 与 `session/run.ts:409-410`：`docClassOf` / `#docClassByType` 不再把 `single-spec` 折成 `terminal`，改回传声明值本身。
+
+**不动的三处**：`overall` 行仍是 `{ kind: "done" }`（章程闭合是终点）· `DocClassVerdict` 的 `terminal` 值保留（无 target 的裸终点仍靠它）· D33 ③「引擎 next 止于 `cdd-close`、不跨 phase」原样不动。
+
+**随动的字节**：闭合的 single-spec 评审，`next:` 由 `done` 变为 host 渲染的 skill ref（`kairos:cdd-plan` → claude `/kairos:cdd-plan` · pi `/skill:cdd-plan`），`reason:` 仍是 `face-closed`。这是本 spec 允许的第二处字节变化。
+
+**链成立的前提（已核对）**：plan 的 front-matter 没有 `spec:` 键，plan 与它的 spec 靠**同 slug** 相连，所以 single-spec 交棒后的 plan 走 `docs/kairos/plans/` 下同 slug 的那一份，不需要新链键；plan 线的 `INPUT_SPEC` 值源是该身份文档的 `program:`，single-spec 无 `program:` ⇒ 空槽丢弃（既有行为，非新增例外）。
 
 ## Acceptance
 
@@ -76,7 +112,10 @@ P24 的实证（同一分支）：`41bf1406`（branch fix 1）⇒ plan 行 drift
 4. **拒审文案更新**：`face/gate.ts` 的 doc 行 BLOCK 文案为「amend body to open a new review」——改的是 `:119` `#docLineBlock` 的模板串，以及 `:109` 那句引用旧文案的 JSDoc（两处必须一致）。既有用例**不**字面 pin 「amend body/version」子句（`cli.test.ts:3059` 只断言 `target revision unchanged`），所以随动的只是引用旧文案的注释（`cli.test.ts:3333`）；只有新增或既有 expect 真的 pin 了该子句时才需要改断言。其余 `next:` / `reason:` 字节零变化（由既有字节级用例守住）。
 5. **六份孪生门全绿**：`diagram-twin.guard.test.ts` 对六份源全部通过，且引用腿在两个方向上对三种 `diagram_type` 复用同一套归一化（`components` / `states` / `nodes` 三个根都覆盖）；手工把任一份 HTML 的引用块改一行、或把任一份源改一句文案后不重生成，该门即红（两种反向注入各一条用例）。
 6. **`journey` 语义 pin 全绿且可反向红**：三条断言各有一条「把源改成错值即红」的用例，`MAX_TASKS_PER_WAVE` 由源文本解析后与常量比较（与 `next-loop-twin` 的周期数同一手法）。
-7. `pnpm run validate` 全绿；`packages/cdd-engine` 与 `packages/kairos` 有行为改动 ⇒ 附一条 minor changeset。
+7. **闭合的 single-spec 交棒 `cdd-plan`**：`cdd review --type single-spec` 收口后 `next:` 为 host 渲染的 cdd-plan ref（claude 与 pi 两种拼写各一条 pin），`reason:` 仍 `face-closed`；`cdd board --spec` 对同一份文档打印同一指向（跨面 pin）。
+8. **终点语义只留章程**：`overall` 行的 `next:` 仍是 `done`；`single-spec` 已不再是 `terminal`（`docClassOf` 与 `#docClassByType` 两条各一条红 pin，改成 `terminal` 即红）；`PhaseFaceKey` 仍是四面、`single-spec` 不进面序（编译期字面 pin）。
+9. **其余面字节零变化**：plan / wave / branch 三行的 `next:` 字面与既有字节用例全绿；`DocClassVerdict` 的 `terminal` 仍由「无 target」持有。
+10. `pnpm run validate` 全绿；`packages/cdd-engine` 与 `packages/kairos` 有行为改动 ⇒ 附一条 minor changeset。
 
 ## Constraints
 
@@ -86,9 +125,11 @@ P24 的实证（同一分支）：`41bf1406`（branch fix 1）⇒ plan 行 drift
 - 孪生门**只读**生成产物，绝不写 HTML；`docs/diagrams/*.html` 仍由 Archify finalize 产出，禁手改。
 - 新的守卫读 `docs/diagrams` 与 `packages/cdd-engine` 两个面，按既有先例（语义守卫的跨面读）落在 engine 套件；`journey` 的语义 pin 与 `next-loop-twin` 同落在 `scripts/` 根套件。
 - 零模块级裸函数：投影与守卫的读面写成类（`MarkdownTree` / 既有守卫的 `DiagramSource` 类的先例）。
+- 流水线序仍只在引擎一处声明：交棒目标进 `PIPELINE_NEXT`（数据表），skills 侧不新增「我完了该谁上」的节点或句子——D33 的裁定面不回退。
 
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-05 | 初版：两笔收尾债（#417 文档身份只算正文 · #418 六份图源常驻孪生门）的裁定、落点与验收 | [human] 裁定 · Claude（本会话） |
+| v0.2 | 2026-11-05 | 并入第三笔（作者裁定并入本 spec 一起实现）：spec 面闭合后 `next:` 应交棒 `cdd-plan`——`single-spec` 不是程序终点，四处声明（`PIPELINE_NEXT` 行 · `PipelineKey` · `docClassOf` · `#docClassByType`）同改，`overall` 保持 `done`；新增背景 §三、裁定 §3 与验收 7–9 | [human] 裁定 · Claude（本会话） |

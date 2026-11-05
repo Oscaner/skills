@@ -139,7 +139,7 @@ export class CliGate {
    *  message, which renders THIS object's `reason` + hop/station
    *  — never a second judgment, never a second shape. The doc-class
    *  discrimination is ROOTED in the workspace's own repo basis (the same basis the
-   *  life cycle injects), so an engine invoked from a subdirectory reads the
+   *  lifecycle injects), so an engine invoked from a subdirectory reads the
    *  same declared `doc-type:` the board does. Null when the scene holds no
    *  registered line (no fixed target → there is no line to name). */
   lineHop(scene: WorkScene): NextHop | null {

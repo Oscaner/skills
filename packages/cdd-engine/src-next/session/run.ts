@@ -261,11 +261,10 @@ export interface CapsuleFace {
    *  same object the board's `next:` row renders) when the node holds a spec document,
    *  this line's own frame-keyed assembly otherwise. Its ABSENCE (`null`: the failure
    *  face) prints no `next:` row and no `reason:` row; the capsule itself judges
-   *  nothing. `withHandoff`
-   *  is the round's crash-record fact (the failure handoff cell). `summary` is the fix
-   *  round's ONE disposition line, rendered between the status line and the `next:`
-   *  row (P22 §10 — the dispatchable literal keeps its bytes, the reason rides the
-   *  line after it). */
+   *  nothing. `withHandoff` is the round's crash-record fact (the failure handoff
+   *  cell). `summary` is the fix round's ONE disposition line, rendered between the
+   *  status line and the `next:` row (P22 §10 — the dispatchable literal keeps its
+   *  bytes, the reason rides the line after it). */
   emit(
     status: string,
     handoff: string,

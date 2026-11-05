@@ -4,6 +4,12 @@
 // live HERE, next to the ledger they read; the board face only OBSERVES each face's
 // facts and RENDERS the result (`PipelineFrontier.next`'s `{ route, target }`).
 //
+// P24 §11 — the ASSEMBLY lives here too, beside `next` (`PipelineFrontier#hopOf`):
+// one `next(input)` verdict → the six hop cells derived from that verdict's TARGET →
+// `Ledger#nextHopOf` → one `NextHop`. The capsule (`session/run.ts`) and the board
+// (`face/board-view.ts` `BoardNext`) both call this ONE assembly and each only
+// renders the result, so the two faces cannot disagree by construction.
+//
 // Constructed with the node's `Ledger` (the `Ledger` / `Lifecycle` shape: one read
 // face injected, no global state). The plan is never read here — the guarded plan
 // read stays on the board side and rides in as `planGraph`, so this module holds
@@ -31,6 +37,8 @@ import type { RouteTarget, TargetType } from "./faces.ts";
 import type { TaskGraph } from "./graph.ts";
 import type { Ledger } from "./ledger.ts";
 import {
+  type DocClassVerdict,
+  type NextHop,
   NextStepRouter,
   type PhaseFaceKey,
   PIPELINE_FACES,
@@ -63,6 +71,13 @@ export interface PipelineFrontierVerdict {
   face: PhaseFaceKey | null;
   route: Route;
   target: RouteTarget | null;
+}
+
+/** The assembly's ONE injected port — the pipeline-station discrimination the face
+ *  plane owns (the declaration read, `BoardView.docClassOf`). The session plane never
+ *  imports a face class, so the composition root passes it in. */
+export interface PipelineFrontierPorts {
+  readonly docClassOf: (target: RouteTarget) => DocClassVerdict;
 }
 
 export class PipelineFrontier {
@@ -100,6 +115,50 @@ export class PipelineFrontier {
       route: PipelineFrontier.#exitRoute(anchorIndex, anchor),
       target: anchor.target,
     };
+  }
+
+  /** The pipeline hop — the session plane's ONE assembly: one `next(input)` verdict,
+   *  the six hop cells derived from that verdict's TARGET (never from a dispatch
+   *  frame), the ledger's own branch-line fact as the sixth cell, and the injected
+   *  station discrimination, handed to the ONE derivation (`Ledger#nextHopOf`).
+   *  `face/board-view.ts` and `session/run.ts` BOTH call this and only render the
+   *  result, so the board's `next:` and the capsule's `next:` are one object by
+   *  construction. */
+  hopOf(input: PipelineFrontierInput, ports: PipelineFrontierPorts): NextHop {
+    const verdict = this.next(input);
+    const target = verdict.target;
+    return this.#ledger.nextHopOf({
+      type: target?.type ?? "branch",
+      key: target?.type === "wave" ? target.id : (target?.type ?? "branch"),
+      route: verdict.route,
+      target,
+      doc: PipelineFrontier.#docOf(target),
+      // The wave half is gated on the target TYPE: off the wave face `target.id` is a
+      // document path, never a wave key. The cell can only reach a `reason:` row.
+      briefDrift:
+        target?.type === "wave" ? this.#ledger.briefDrifted(String(target.id)) : undefined,
+      // The sixth cell — the ledger's OWN branch-line fact, read by ONE judge here and
+      // by the line frontier's `Lifecycle#branchLineOpen` (a delegation).
+      nextLineOpen: this.branchLineOpen(input.planPath),
+      docClassOf: ports.docClassOf,
+    });
+  }
+
+  /** Whether the branch line has a dispatchable open round — the SIXTH hop cell's ONE
+   *  judge (P21 §4.2): the branch row's drift-aware gate (the plan moved past its
+   *  reviewed revision) or a still-active C5 hop. `undefined` when no plan fact
+   *  exists. Both hop assemblies read this one copy. */
+  branchLineOpen(planPath: string | null): boolean | undefined {
+    if (planPath === null) return undefined;
+    if (this.#ledger.reviewGate("branch", planPath, "branch").kind === "open") return true;
+    return this.#ledger.lineRoute("branch", "branch") !== null;
+  }
+
+  /** The judged document of one render target — the node shapes' own id, a branch
+   *  target's plan (its identity document); null for a target-less verdict. */
+  static #docOf(target: RouteTarget | null): string | null {
+    if (target === null) return null;
+    return target.type === "branch" ? (target.plan ?? null) : target.id;
   }
 
   /** Rule 4 — every face closed: the terminus is the LAST entered face's exit; a

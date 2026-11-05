@@ -3,8 +3,9 @@
 ---
 
 **A completed fix round advances the line's reviewed identity, every hop-rendered `next:`
-line gains a `reason:` row, and a drifted wave hop names `doc-drift` (P24).** Three
-consumer-visible face changes, carried by one release entry.
+line gains a `reason:` row, a drifted wave hop names `doc-drift`, and the round capsule
+renders the board's own hop (P24).** Consumer-visible face changes carried by one release
+entry:
 
 The reviewed-revision write-back now fires on a completed **fix** round, not only on a
 review: the round that moved the document is the round that binds the new identity, so a
@@ -35,3 +36,16 @@ holds on that document's face and renders its review lead with `reason: doc-drif
 of walking on to the next command (the wave's `implement --plan … --tasks …`, which the
 dispatch would reject). Once that re-review closes, the frontier advances again. An absent
 spec or plan is judged exactly as before.
+
+The round capsule now renders the object `cdd board` renders. One assembly in the session
+plane answers both — the verdict's target supplies the hop, its document and the named
+reason — so where the capsule used to print this line's own next step it prints the
+pipeline frontier's, `next:` and `reason:` alike, and the two faces can no longer disagree.
+On a closed line that also holds a same-slug plan, the three documents that own the
+identity slot take the successor plan face's review literal: a closed phase-spec prints
+`review --type plan --plan …` with `reason: task-open` (it printed `route to …:cdd-plan
+skill` with `reason: closed-line`), and a closed `overall` charter and a closed
+`single-spec` print the same literal (they printed `done` with `closed-line` / `face-closed`
+respectively). A closed charter with no plan document keeps its `next: done` /
+`reason: closed-line` bytes, and a node with no spec document keeps its line-local hop
+unchanged. `cdd board` output is unchanged — the board was already the assembly's reader.

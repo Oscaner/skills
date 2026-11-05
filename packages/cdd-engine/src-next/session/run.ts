@@ -22,6 +22,7 @@ import { readFileSync } from "node:fs";
 import { PlanDocType } from "../contract/doc.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
+import type { TaskGraph } from "./graph.ts";
 import {
   type HandoffParams,
   Ledger,
@@ -35,6 +36,7 @@ import {
 } from "./ledger.ts";
 import type { DocClassVerdict, NextHop, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
+import { PipelineFrontier, type PipelineFrontierInput } from "./pipeline.ts";
 import type { PreFlightVerdict } from "./preflight.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
 
@@ -255,8 +257,11 @@ export interface CapsuleFace {
   /** Render the capsule lines for one round's facts — the status-class key set
    *  (`status · handoff` on success; `status` plus the crash `handoff` on
    *  TIMEOUT/BLOCKED) via the face's word table. `hop` is the ONE `NextHop` object the
-   *  round renders (P22 §5.2) — its ABSENCE (`null`: the failure face) prints no
-   *  `next:` row and no `reason:` row; the capsule itself judges nothing. `withHandoff`
+   *  round renders — the PIPELINE frontier's assembly (`PipelineFrontier#hopOf`, the
+   *  same object the board's `next:` row renders) when the node holds a spec document,
+   *  this line's own frame-keyed assembly otherwise. Its ABSENCE (`null`: the failure
+   *  face) prints no `next:` row and no `reason:` row; the capsule itself judges
+   *  nothing. `withHandoff`
    *  is the round's crash-record fact (the failure handoff cell). `summary` is the fix
    *  round's ONE disposition line, rendered between the status line and the `next:`
    *  row (P22 §10 — the dispatchable literal keeps its bytes, the reason rides the
@@ -281,7 +286,9 @@ export interface StepResult {
    *  semantics: a next-wave advances the task batch — batch faces only). */
   route: Route | null;
   /** The capsule lines rendered at the interaction point (empty when no capsule is
-   *  attached — the seam is non-hard). */
+   *  attached — the seam is non-hard). The `next:` / `reason:` rows come from the
+   *  pipeline frontier's ONE assembly (`PipelineFrontier#hopOf`), the object the
+   *  board renders too. */
   capsuleLines: readonly string[];
   /** The pre-flight verdict of a refused dispatch — the lifecycle's dispatch-entry
    *  gate blocked the frame before ANY child dispatch (absent on ordinary steps).
@@ -327,8 +334,23 @@ export class Lifecycle {
    *  keep their existing behavior). */
   readonly #preflight: PreFlightGate | null;
   /** The workspace plan path — the `next:` implement literal's required `--plan`
-   *  arg (P4.1 T4 — the task face's implement-consuming fact). */
+   *  arg (P4.1 T4 — the task face's implement-consuming fact), and the plan cell of
+   *  the pipeline frontier's input. A `--spec` round fills it from the document index
+   *  (the same-slug plan the argv does not name); the plan / branch lines carry their
+   *  argv value. */
   readonly #planPath: string | null;
+  /** The pipeline frontier's declared identity — the spec line's DECLARED word (the
+   *  `doc-type:` head key) and its document path. A node with no spec document
+   *  (`#specPath === null`) keeps this line's own hop assembly: the frontier's rules
+   *  anchor on an absent identity face, which would print a passed phase's transition. */
+  readonly #specType: TargetType | null;
+  readonly #specPath: string | null;
+  /** The plan's task graph — the pipeline frontier's guarded plan read, injected by
+   *  the composition root (the session plane reads no file). */
+  readonly #planGraph: TaskGraph | null;
+  /** The pipeline frontier — the ONE hop assembly this lifecycle's capsule renders
+   *  (the same object the board renders). */
+  readonly #frontier: PipelineFrontier;
   /** The pipeline-station discrimination the hop derivation injects (P22 §5.2) —
    *  the SAME face read the capsule/board use (`BoardView.docClassOf`). The
    *  composition root passes it; the session-plane default keys by target type
@@ -348,8 +370,15 @@ export class Lifecycle {
     /** The dispatch-entry pre-flight gate (P4.1 T1 — the lifecycle's hard "no child
      *  on a refused frame" wiring; optional, null = unguarded). */
     preflight?: PreFlightGate | null;
-    /** The workspace plan path (P4.1 T4 — the implement `next:` literal's `--plan`). */
+    /** The workspace plan path (P4.1 T4 — the implement `next:` literal's `--plan`;
+     *  also the pipeline frontier's plan cell). */
     planPath?: string | null;
+    /** The spec line's DECLARED word and document path (the pipeline frontier's
+     *  identity cells) — absent on a bare slug or a spec-less phase. */
+    specType?: TargetType | null;
+    specPath?: string | null;
+    /** The plan's task graph (the pipeline frontier's guarded plan read). */
+    planGraph?: TaskGraph | null;
     /** The pipeline-station discrimination (P22 §5.2) — injected by the composition
      *  root (the declaration-reading face); the type-keyed default covers the
      *  session-plane callers. */
@@ -364,6 +393,10 @@ export class Lifecycle {
     this.#capsule = opts.capsule ?? null;
     this.#preflight = opts.preflight ?? null;
     this.#planPath = opts.planPath ?? null;
+    this.#specType = opts.specType ?? null;
+    this.#specPath = opts.specPath ?? null;
+    this.#planGraph = opts.planGraph ?? null;
+    this.#frontier = new PipelineFrontier(this.#ledger);
     this.#docClassOf = opts.docClassOf ?? Lifecycle.#docClassByType;
   }
 
@@ -393,10 +426,10 @@ export class Lifecycle {
    *  cursor pre-checks the next step against the requested verb before it advances
    *  (a mismatch must not consume the round: advance() dispatches on entry — the
    *  {16,22,24} bug's loop reordered lookahead-after-dispatch and spent the next
-   *  phase's round in the same invocation). The returned `hop` is the SAME `NextHop`
-   *  object the board and the CLI rejection message read (P22 §5.2's fourth read
-   *  face): one derivation over this line's facts, never a lookahead-only copy.
-   *  Null = the run is exhausted / capped (no open frame → no line to name). */
+   *  phase's round in the same invocation). The returned `hop` is this line's own
+   *  LINE FRONTIER assembly (`#hopOf`): the frame-keyed hop the CLI rejection message
+   *  reads — never the pipeline frontier's assembly, which the capsule and the board
+   *  share. Null = the run is exhausted / capped (no open frame → no line to name). */
   peekNext(): { frame: OpenFrame; hop: NextHop } | null {
     const frame = this.#openFrame();
     if (frame === null) return null;
@@ -445,7 +478,11 @@ export class Lifecycle {
       frame,
       round,
       route,
-      capsuleLines: this.#capsuleLines(frame, outcome, failed ? null : this.#hopOf(frame, route)),
+      capsuleLines: this.#capsuleLines(
+        frame,
+        outcome,
+        failed ? null : this.#roundHop(frame, route),
+      ),
       termination: outcome.termination,
     };
   }
@@ -830,14 +867,15 @@ export class Lifecycle {
     return this.#face.nextSemantics.batch ? this.#state : EMPTY_RUN_STATE;
   }
 
-  /** The line's ONE next-hop object (§5.2) — this lifecycle's facts handed to the
-   *  ONE derivation (`Ledger#nextHopOf`): the recorded round's route, the line's
-   *  completed records, the drift-aware gate and the injected station
-   *  discrimination. The nullable route is handed over UNJUDGED — the assembly owns
-   *  the exit-side decision (a closed line's `null` route is where the drift reopen
-   *  lands), so the frontier face reads the same object the board and the gate read.
-   *  The failure face's absent hop is the CALLER's fact (`advance` passes null for a
-   *  BLOCKED/TIMEOUT round), never a second short-circuit here. */
+  /** The line's OWN next-hop object — the LINE FRONTIER assembly: this lifecycle's
+   *  frame facts handed to the ONE derivation (`Ledger#nextHopOf`): the recorded
+   *  round's route, the line's completed records, the drift-aware gate and the
+   *  injected station discrimination. The nullable route is handed over UNJUDGED — the
+   *  assembly owns the exit-side decision (a closed line's `null` route is where the
+   *  drift reopen lands). Serves `peekNext` and the capsule's spec-less degradation
+   *  only; the capsule's ordinary hop is the pipeline frontier's assembly
+   *  (`#roundHop`). The failure face's absent hop is the CALLER's fact (`advance`
+   *  passes null for a BLOCKED/TIMEOUT round), never a second short-circuit here. */
   #hopOf(frame: OpenFrame, route: Route | null): NextHop {
     const target = this.#routeTarget(frame);
     return this.#ledger.nextHopOf({
@@ -864,16 +902,34 @@ export class Lifecycle {
     return null;
   }
 
+  /** The round's rendered hop — the PIPELINE frontier's ONE assembly when the node
+   *  holds a spec document (the object the board's `next:` row renders, so the two
+   *  faces state one hop), this line's own frame-keyed assembly otherwise. The
+   *  degradation key is `#specPath === null` and nothing else: a plan-only phase is the
+   *  ordinary spec-less shape, and there the frontier's rules anchor on an absent
+   *  identity face (rule 3) — it would print a transition the line has already taken. */
+  #roundHop(frame: OpenFrame, route: Route | null): NextHop {
+    if (this.#specPath === null) return this.#hopOf(frame, route);
+    return this.#frontier.hopOf(this.#pipelineInput(), { docClassOf: (c) => this.#docClassOf(c) });
+  }
+
+  /** The pipeline frontier's four declared cells — assembled once from the injected
+   *  facts so no second judge is introduced here. */
+  #pipelineInput(): PipelineFrontierInput {
+    return {
+      specType: this.#specType,
+      specPath: this.#specPath,
+      planPath: this.#planPath,
+      planGraph: this.#planGraph,
+    };
+  }
+
   /** Whether the branch line has a dispatchable open round — the wave closure's
-   *  NEXT-line fact (P21 §4.2), read HERE (the ledger-holding side) from the two
-   *  already-registered ledger faces: the branch row's drift-aware gate (the plan
-   *  moved past its reviewed doc-revision) or a still-active C5 hop. `undefined` when
-   *  no plan fact exists (the wave row keeps its plain station). */
+   *  NEXT-line fact (P21 §4.2), delegated to the pipeline frontier's ONE judge (the
+   *  shared hop assembly's sixth cell). The lifecycle now holds no copy of the gate /
+   *  route combination. */
   #branchLineOpen(): boolean | undefined {
-    if (this.#planPath === null) return undefined;
-    const gate = this.#ledger.reviewGate("branch", this.#planPath, "branch");
-    if (gate.kind === "open") return true;
-    return this.#ledger.lineRoute("branch", "branch") !== null;
+    return this.#frontier.branchLineOpen(this.#planPath);
   }
 
   /** The capsule lines of one step — empty unless a capsule is attached (the non-hard

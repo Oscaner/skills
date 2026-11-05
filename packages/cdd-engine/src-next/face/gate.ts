@@ -131,13 +131,15 @@ export class CliGate {
     return `the pending fix applies to the unchanged doc (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — run cdd fix first`;
   }
 
-  /** lineHop(scene) — the line's ONE next-hop object (§5.2): the SAME derivation
-   *  the capsule, the board and the lifecycle frontier read, built from this line's
-   *  facts through `Ledger#nextHopOf` (the ONE assembly entry: the drift gate + the
-   *  declaration read). The CLI rejection message renders THIS object's `reason` +
-   *  hop/station — never a second judgment, never a second shape. The doc-class
+  /** lineHop(scene) — this LINE's next-hop object (§5.2), the LINE FRONTIER's
+   *  assembly: built from this line's facts through `Ledger#nextHopOf` (the ONE
+   *  derivation entry: the drift gate + the declaration read). The capsule and the
+   *  board render the PIPELINE frontier's assembly (`PipelineFrontier#hopOf`) instead,
+   *  a different reader over a different input; this one serves the CLI rejection
+   *  message, which renders THIS object's `reason` + hop/station
+   *  — never a second judgment, never a second shape. The doc-class
    *  discrimination is ROOTED in the workspace's own repo basis (the same basis the
-   *  lifecycle frontier injects), so an engine invoked from a subdirectory reads the
+   *  life cycle injects), so an engine invoked from a subdirectory reads the
    *  same declared `doc-type:` the board does. Null when the scene holds no
    *  registered line (no fixed target → there is no line to name). */
   lineHop(scene: WorkScene): NextHop | null {

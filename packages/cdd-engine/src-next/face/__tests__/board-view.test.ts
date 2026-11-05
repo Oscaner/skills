@@ -27,11 +27,13 @@ import { type RouteTarget, targetFaces } from "../../session/faces.ts";
 import type { InFlightRecord } from "../../session/inflight.ts";
 import { Ledger, type RoundRecord } from "../../session/ledger.ts";
 import { type NextHop, NextStepRouter, REVIEW_CYCLE_CAP, type Route } from "../../session/next.ts";
+import { PipelineFrontier } from "../../session/pipeline.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
 import { BoardNext, BoardView } from "../board-view.ts";
 import { Capsule } from "../capsule.ts";
 import { Cli, type CliIo, type CliOptions } from "../cli.ts";
 import { ARGV_CHANNEL } from "../declare.ts";
+import { RouteRenderer } from "../route-render.ts";
 import { Words } from "../words.ts";
 
 /** One `NextHop` from the ONE derivation — a route + the frame's target, with the
@@ -1707,6 +1709,38 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const tokenOf = (line: string): string => line.trim().replace(/^reason:\s+/, "");
     expect(tokenOf(boardReason)).toBe(tokenOf(capsuleReason));
     expect(tokenOf(boardReason)).toBe(hop!.reason);
+  });
+
+  it("P24 T7 (b1) — the spec-unreviewed frontier: the board and the capsule render ONE assembly", () => {
+    nodeDocs();
+    planDoc([[1]]);
+    const ledger = ledgerOf();
+    const index = SlugIndex.build(repo);
+    const entry = entryOf("prog-p1");
+    const root = new RepoRoot(repo);
+    // The divergence state: the identity line was never reviewed, so the pipeline
+    // frontier HOLDS on the spec face while the wave line is at its own point. The
+    // pre-T7 capsule printed the frame-keyed wave literal here; the board printed this.
+    const facts = BoardView.pipelineFacts(index, entry, root)!;
+    const hop = new PipelineFrontier(ledger).hopOf(facts.input, {
+      docClassOf: (target) => BoardView.docClassOf(root, target),
+    });
+    const rows = nextReasonRows();
+    expect(rows.next).toBe("review --type phase-spec --spec docs/kairos/specs/prog-p1-design.md");
+    expect(rows.reason).toBe("  reason:  task-open");
+    // The board fills no cell of its own: its rows ARE the session-plane assembly's
+    // render, through the ONE shared literal face.
+    const renderer = new RouteRenderer(new Words(), ARGV_CHANNEL, "claude", root);
+    expect(rows.next).toBe(renderer.renderHop(hop)!);
+    expect(rows.reason).toBe(BoardView.reasonLine(hop));
+    // ... and the capsule renders the same object, its prefix from the word table.
+    const capsuleLines = new Capsule(new Words(), ARGV_CHANNEL, "claude", root).emit(
+      "APPROVED",
+      "/b1.json",
+      hop,
+    );
+    expect(capsuleLines[capsuleLines.length - 2]).toBe(`next: ${rows.next}`);
+    expect(capsuleLines[capsuleLines.length - 1]).toBe(`reason: ${hop.reason}`);
   });
 
   /** The spec + plan lines closed on a clean round and wave {1} implemented + reviewed

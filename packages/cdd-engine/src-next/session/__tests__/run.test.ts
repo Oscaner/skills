@@ -19,10 +19,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PlanDocType } from "../../contract/doc.ts";
+import { BoardNext, BoardView } from "../../face/board-view.ts";
 import { Capsule } from "../../face/capsule.ts";
+import { ARGV_CHANNEL } from "../../face/declare.ts";
 import { RouteRenderer } from "../../face/route-render.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { RepoRoot } from "../../infra/root.ts";
+import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
 import { type TargetFace, type TargetType, targetFaces } from "../faces.ts";
@@ -1563,11 +1567,15 @@ describe("P24 T3 — a drifted wave reaches the next-hop reason", () => {
     }
   });
 
-  it("the capsule never promises the wave brief drift — its frame sits AFTER the re-bind", async () => {
+  it("the review round's scroll re-binds the brief it judged — the frame no longer drifts", async () => {
     const { ledger, run, cleanup } = await driftedWave();
     try {
       run.attachCapsule(new Capsule(new Words()));
-      // the review runs ON the drifted brief, then re-binds the brief it judged
+      // The review runs ON the drifted brief and its bookkeep re-binds the brief it
+      // judged — so the round's own frame (the line-frontier assembly this spec-less
+      // fixture degrades to) is no longer drifted. That is a fact about the FRAME, not
+      // about the capsule: with a spec document the capsule renders the pipeline
+      // frontier's hop and names the movement (the P24 T7 parity block below).
       const step = await run.advance();
       expect(step!.frame.phase).toBe("review");
       expect(step!.capsuleLines.some((line) => line.includes("doc-drift"))).toBe(false);
@@ -1695,6 +1703,288 @@ describe("P21 §5.1 — the wave closure's plan-task snapshot (the append-vs-sta
       const row = ledger.readProgress()?.waves.find((entry) => entry.wave === "1");
       expect(row).toBeDefined();
       expect("planTasks" in (row ?? {})).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P24 §11 — the capsule renders the PIPELINE frontier's hop: one assembly, two
+// render faces. The parity pins live here (the capsule side), the board's own
+// bytes stay pinned in `face/__tests__/board-view.test.ts`.
+// ---------------------------------------------------------------------------
+
+/** The `reason:` token of one row — the value after the face's own prefix (the
+ *  capsule's word-table station, the board's layout literal), never the prefix. */
+const reasonTokenOf = (line: string): string => line.trim().replace(/^reason:\s+/, "");
+
+describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () => {
+  /** A node whose ledger the board and the lifecycle BOTH read: the board's own
+   *  workspace root (`<repo>/.kairos/cdd/<slug>`), the phase-spec identity document
+   *  and the same-slug plan. The plan literal carries the fixture slug (`x-p3`). */
+  const nodeFixture = (): {
+    ledger: Ledger;
+    repo: string;
+    specPath: string;
+    planPath: string;
+    cleanup: () => void;
+  } => {
+    const repo = mkdtempSync(path.join(tmpdir(), "hop-parity-"));
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "x-p3").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader());
+    const specPath = path.join(repo, DOC);
+    mkdirSync(path.dirname(specPath), { recursive: true });
+    writeFileSync(
+      specPath,
+      [
+        "---",
+        "title: S",
+        "doc-type: phase-spec",
+        "slug: x-p3",
+        "program: x-overall",
+        "---",
+        "",
+        "## Design",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    writeFileSync(
+      path.join(repo, "docs", "kairos", "specs", "x-overall.md"),
+      "---\ntitle: O\ndoc-type: overall\nslug: x-overall\n---\n",
+      "utf8",
+    );
+    const planPath = path.join(repo, "docs", "kairos", "plans", "x-plan.md");
+    mkdirSync(path.dirname(planPath), { recursive: true });
+    writeFileSync(planPath, planDoc([task(1, "none")]), "utf8");
+    return {
+      ledger,
+      repo,
+      specPath,
+      planPath,
+      cleanup: () => rmSync(repo, { recursive: true, force: true }),
+    };
+  };
+
+  /** The board's two rows for one node — the render the CLI's `cdd board` performs,
+   *  its own layout prefixes stripped. */
+  const boardRows = (repo: string, slug: string): { next: string; reason: string } => {
+    const index = SlugIndex.build(repo);
+    const entry = index.identityDoc(slug);
+    if (entry === null) throw new Error(`no identity doc for ${slug}`);
+    const root = new RepoRoot(repo);
+    const board = BoardView.render(
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      undefined,
+      BoardNext.of(index, entry, root),
+    );
+    const row = (prefix: string): string => {
+      const line = board.lines.find((candidate) => candidate.startsWith(prefix));
+      if (line === undefined) throw new Error(`no board row ${prefix.trim()}`);
+      return line.slice(prefix.length);
+    };
+    return { next: row("  next:    "), reason: reasonTokenOf(row("  reason:  ")) };
+  };
+
+  it("spec open + a dispatched wave round ⇒ the capsule's `next:` AND `reason:` are the board's", async () => {
+    const { ledger, repo, specPath, planPath, cleanup } = nodeFixture();
+    try {
+      const graph = taskGraph([task(1, "none")]);
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: stub((frame) =>
+          frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+        ).step,
+        planPath,
+        // The node's declared identity — a spec document exists, so the capsule and
+        // the board share the pipeline frontier's assembly.
+        specType: "phase-spec",
+        specPath,
+        planGraph: graph,
+        capsule: new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)),
+      });
+
+      const step = await run.advance(); // implement wave {1}
+      expect(step!.frame.phase).toBe("implement");
+      // The line's own assembly would hand off to the wave's review literal: the
+      // pipeline frontier holds on the UNREVIEWED spec face instead.
+      const board = boardRows(repo, "x-p3");
+      expect(board.next).toBe(`review --type phase-spec --spec ${DOC}`);
+      expect(board.reason).toBe("task-open");
+
+      const nextLine = step!.capsuleLines.find((line) => line.startsWith("next: "));
+      const reasonLine = step!.capsuleLines.find((line) => line.startsWith("reason: "));
+      expect(nextLine).toBe(`next: ${board.next}`);
+      // The reason half is the cell-derived evidence: a route-only swap would keep
+      // THIS round's frame cells and print a different token.
+      expect(reasonLine).toBeDefined();
+      expect(reasonTokenOf(reasonLine!)).toBe(board.reason);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a bare slug degrades to this line's own assembly — bytes unchanged", async () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: taskGraph([task(1, "none")]),
+        ledger,
+        dispatch: stub((frame) =>
+          frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+        ).step,
+        capsule: new Capsule(new Words()),
+      });
+      const step = await run.advance(); // implement wave {1}
+      expect(step!.capsuleLines[1]).toMatch(/^next: review --type wave --tasks 1 --plan /);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a plan-only node (the ordinary spec-less phase shape) degrades too — no passed-phase transition", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none")]), "utf8");
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: taskGraph([task(1, "none")]),
+        ledger,
+        dispatch: stub((frame) =>
+          frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+        ).step,
+        planPath,
+        capsule: new Capsule(new Words()),
+      });
+      const step = await run.advance(); // implement wave {1}
+      // The degradation key is `specPath === null`, never `planPath === null`: a
+      // plan-only node would otherwise print the identity slot's passed transition
+      // (`route to …:cdd-plan skill`) on every round.
+      expect(step!.capsuleLines[1]).toMatch(/^next: review --type wave --tasks 1 --plan /);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a spec with no plan does NOT degrade — the frontier hands off to the plan face", async () => {
+    const { ledger, specPath, cleanup } = nodeFixture();
+    try {
+      const run = new Lifecycle({
+        face: targetFaces["phase-spec"],
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+        target: { kind: "spec", doc: specPath },
+        specType: "phase-spec",
+        specPath,
+        capsule: new Capsule(new Words()),
+      });
+      const step = await run.advance(); // the clean spec review closes the line
+      expect(step!.route).toEqual({ kind: "done" });
+      // The plan face is not entered (no plan document) ⇒ rule 3: the anchor face's
+      // OWN exit — the identity transition into `cdd-plan`.
+      expect(step!.capsuleLines[1]).toBe("next: route to /kairos:cdd-plan skill");
+      expect(reasonTokenOf(step!.capsuleLines[2]!)).toBe("closed-line");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a closed `overall` charter with a same-slug plan names the successor plan face", async () => {
+    const { ledger, specPath, planPath, cleanup } = nodeFixture();
+    try {
+      const run = new Lifecycle({
+        face: targetFaces.overall,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+        target: { kind: "spec", doc: specPath },
+        specType: "overall",
+        specPath,
+        planPath,
+        capsule: new Capsule(new Words()),
+      });
+      const step = await run.advance(); // the clean charter review closes the line
+      expect(step!.route).toEqual({ kind: "done" });
+      // The identity slot is the `overall` row's (one judge, `#identityState`), so
+      // the closed charter hands off to the untouched plan face rather than the
+      // charter's own `done` row.
+      expect(step!.capsuleLines[1]).toBe(`next: review --type plan --plan ${planPath}`);
+      expect(reasonTokenOf(step!.capsuleLines[2]!)).toBe("task-open");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a closed `overall` charter with no plan stays `done` / `closed-line` — the regression pin", async () => {
+    const { ledger, specPath, cleanup } = nodeFixture();
+    try {
+      const run = new Lifecycle({
+        face: targetFaces.overall,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+        target: { kind: "spec", doc: specPath },
+        specType: "overall",
+        specPath,
+        capsule: new Capsule(new Words()),
+      });
+      const step = await run.advance();
+      expect(step!.capsuleLines[1]).toBe("next: done");
+      expect(reasonTokenOf(step!.capsuleLines[2]!)).toBe("closed-line");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a closed `single-spec` (the identity slot's third owner) shares the assembly — plan successor, no plan `face-closed`", async () => {
+    const { ledger, specPath, planPath, cleanup } = nodeFixture();
+    try {
+      const withPlan = new Lifecycle({
+        face: targetFaces["single-spec"],
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+        target: { kind: "spec", doc: specPath },
+        specType: "single-spec",
+        specPath,
+        planPath,
+        capsule: new Capsule(new Words()),
+      });
+      const step = await withPlan.advance();
+      expect(step!.capsuleLines[1]).toBe(`next: review --type plan --plan ${planPath}`);
+      expect(reasonTokenOf(step!.capsuleLines[2]!)).toBe("task-open");
+
+      // The same owner with no plan document: the class is terminal, so the reason
+      // row is `face-closed` (never the charter's `closed-line`).
+      const { ledger: bareLedger, specPath: bareSpec, cleanup: bareCleanup } = nodeFixture();
+      try {
+        const withoutPlan = new Lifecycle({
+          face: targetFaces["single-spec"],
+          state: EMPTY_RUN_STATE,
+          ledger: bareLedger,
+          dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+          target: { kind: "spec", doc: bareSpec },
+          specType: "single-spec",
+          specPath: bareSpec,
+          capsule: new Capsule(new Words()),
+        });
+        const bare = await withoutPlan.advance();
+        expect(bare!.capsuleLines[1]).toBe("next: done");
+        expect(reasonTokenOf(bare!.capsuleLines[2]!)).toBe("face-closed");
+      } finally {
+        bareCleanup();
+      }
     } finally {
       cleanup();
     }

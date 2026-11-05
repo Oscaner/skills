@@ -103,10 +103,9 @@ interface NodeSources {
 /** The board's pipeline FACTS (spec §5.2) — the ledger and the pipeline frontier's
  *  declared input, read off the ledger and the plan: the ledger itself (the round
  *  records' own read point) and the frontier's whole input (the declared identity
- *  + the guarded plan read). Pure facts: the per-face observations and the four
- *  face-order rules live in the session plane's `PipelineFrontier`, the ONE
- *  derivation is `NextStepRouter#nextHop` reached through `Ledger#nextHopOf`, and
- *  the board renders the result. */
+ *  + the guarded plan read). Pure facts, nothing else: the per-face observations, the
+ *  four face-order rules AND the six-cell hop assembly live in the session plane
+ *  (`PipelineFrontier#next` / `#hopOf`), and the board renders the result. */
 export interface BoardPipelineFacts {
   /** The node's ledger — the round/closure read face the hop derivation consumes. */
   readonly ledger: Ledger;
@@ -708,16 +707,16 @@ export class BoardView {
     const specType = BoardView.#lineWordOf(sources.spec);
     return {
       ledger,
-      input: { specType, specPath, planPath, planGraph: BoardView.#planGraph(planPath) },
+      input: { specType, specPath, planPath, planGraph: BoardView.planGraph(planPath) },
     };
   }
 
   /** The plan's task graph — the ONE guarded plan read behind the board's own wave
-   *  segment and the plan graph cell it injects into the pipeline frontier
-   *  (`readFileSync` throwing on an unreadable plan is caught here: a null plan path
-   *  or an unreadable/absent file yields null, honoring the wave face's "degradation,
-   *  never a throw" contract). The frontier itself reads no file. */
-  static #planGraph(planPath: string | null): TaskGraph | null {
+   *  segment. `readFileSync` throwing on an unreadable plan is caught here: a null
+   *  plan path or an unreadable/absent file yields null, honoring the wave face's
+   *  "degradation, never a throw" contract. The pipeline frontier itself reads no
+   *  file — the composition root injects this read's result as its `planGraph` cell. */
+  static planGraph(planPath: string | null): TaskGraph | null {
     if (planPath === null) return null;
     try {
       return new TaskGraph(
@@ -764,7 +763,7 @@ export class BoardView {
     progress: ProgressData | null,
     ledger: Ledger | null,
   ): BoardLine[] {
-    const graph = BoardView.#planGraph(planPath);
+    const graph = BoardView.planGraph(planPath);
     if (graph === null) return [];
     const report = graph.report(ledger === null ? new Set<number>() : ledger.closedWaves());
     const done = new Set(report.done);
@@ -789,14 +788,13 @@ export class BoardView {
 }
 
 /**
- * BoardNext — the board's next-hop assembly face (P22 §5.2): a thin carrier, never a
- * judge. The board (`BoardView`) REPORTS the pipeline facts; the session plane's
- * `PipelineFrontier` decides the next pipeline step (its four face-order rules over
- * the ONE `PIPELINE_FACES` order); `BoardNext` only hands that verdict's
- * `{ route, target }` to the ONE derivation (`Ledger#nextHopOf` →
- * `NextStepRouter#nextHop`), so the board's `next:` and the capsule's `next:` render
- * ONE object. The composition root's board assembly point (`face/cli.ts` `#runBoard`)
- * constructs it.
+ * BoardNext — the board's hop entry point (P22 §5.2 · P24 §11): the board (`BoardView`)
+ *  REPORTS the pipeline facts, and the session plane's `PipelineFrontier` both decides
+ *  the next pipeline step and ASSEMBLES the hop (`PipelineFrontier#hopOf`, the ONE
+ *  assembly the capsule renders too), so the board's `next:` and the capsule's `next:`
+ *  render one object by construction. This class fills no cell and makes no judgment:
+ *  it hands the facts over and returns what the assembly answered. The composition
+ *  root's board assembly point (`face/cli.ts` `#runBoard`) constructs it.
  */
 // biome-ignore lint/complexity/noStaticOnlyClass: the board's assembly fact surface — the zero-bare-function discipline admits no standalone functions here.
 export class BoardNext {
@@ -808,29 +806,11 @@ export class BoardNext {
     return facts === null ? null : BoardNext.#hopOf(facts, root);
   }
 
-  /** The derivation's input face — the walked route + target, the ledger's own
-   *  round facts and the declaration-reading station discrimination. The
-   *  `verdict → face` assembly lives in the ONE derivation (`Ledger#nextHopOf`), so
-   *  this face fills facts only. The wave frontier's OWN drift fact (D30) rides the
-   *  same input object as one more cell — the derivation reads it for the reason row
-   *  only, so the walked route (a `handoff` on the soft-capped / unreadable face) is
-   *  never rewritten here. */
+  /** The session plane's ONE assembly, called with the board's facts and the face
+   *  plane's declaration-reading station port. The board contributes no cell of its
+   *  own — the hop is whatever the assembly answers. */
   static #hopOf(facts: BoardPipelineFacts, root: RepoRoot): NextHop {
-    const next = new PipelineFrontier(facts.ledger).next(facts.input);
-    const target = next.target;
-    return facts.ledger.nextHopOf({
-      type: target?.type ?? "branch",
-      key: target?.type === "wave" ? target.id : (target?.type ?? "branch"),
-      route: next.route,
-      target,
-      doc: target === null ? null : target.type === "branch" ? (target.plan ?? null) : target.id,
-      // The wave half is gated on the target TYPE: off the wave face `target.id` is a
-      // document path, never a wave key (the frontier's wave cell may hold an active
-      // hop while the frontier itself sits on another face). No further gate — the
-      // derivation keeps the two drift values apart, so this cell can only reach a
-      // `reason:` row.
-      briefDrift:
-        target?.type === "wave" ? facts.ledger.briefDrifted(String(target.id)) : undefined,
+    return new PipelineFrontier(facts.ledger).hopOf(facts.input, {
       docClassOf: (candidate) => BoardView.docClassOf(root, candidate),
     });
   }

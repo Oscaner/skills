@@ -1208,11 +1208,12 @@ export class Ledger {
    *  line's OWN facts and handed to the router's ONE derivation: the drift-aware gate
    *  verdict, the ONE doc-class verdict (the declared station the face axis is read
    *  out of), the caller's route (the count table's row for a single line, the
-   *  pipeline walk's route for the board) and the judged document. Every read face
-   *  (capsule · CLI rejection · board · the lifecycle frontier) comes through here,
-   *  so the four faces share one object by construction — no face assembles a second
-   *  copy of the inputs, and no judgment is re-made here (the route is the count
-   *  table's). TWO drift values leave this assembly, kept apart on purpose:
+   *  pipeline walk's route for the board) and the judged document. TWO assemblies
+   *  call this derivation (the line frontier's and the pipeline frontier's
+   *  `PipelineFrontier#hopOf`) and neither keeps a private copy of the inputs — the
+   *  line frontier serves `peekNext` and the CLI rejection, the pipeline assembly
+   *  serves the capsule and the board — and no judgment is re-made here (the route is
+   *  the count table's). TWO drift values leave this assembly, kept apart on purpose:
    *    · the ROUTE SUBSTITUTION driver reads the gate verdict alone (a doc line's
    *      `reviewGate`); the injected `briefDrift` cell never moves a route — a wave's
    *      exit-side station (`handoff`) is never rewritten into a review;

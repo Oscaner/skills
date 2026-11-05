@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 设计：NEXT-LOOP 收口面（drift 语义收窄 + hop 原因可读）
 doc-type: phase-spec
-version: v0.30
+version: v0.31
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p24
 program: 2026-10-10-engine-doc-tooling
@@ -238,12 +238,14 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 - P22 `:257` 令牌形 `{label} {count} {mark}`——**修订**：✗ 令牌携带 **cycle 号**而非 count；有失败时 ✓ 令牌携带 **`{成功}/{尝试}` 比率**而非纯计数。
 - P22 `:260` 的示例字面 `fix 1 ✗ · fix 1a2 ✓`——**作废**，由下面的新形取代。
 
+**令牌顺序**：外层按 `VERB_ORDER`（`implement` → `review` → `branch-review` → `fix`，其余 verb 追加在后，`face/board-view.ts:58`）；**内层同一 verb 内先成功令牌、后失败令牌**，失败令牌按时间序（`rounds` 的存储序，同今日 `#judgementRuns` 的读序）。示例中若前一个 verb 有失败，形如 `review 3/4 ✓ · review 3 ✗→✓ · fix 3 ✓`（失败令牌**紧跟**其 verb 的成功令牌，不聚到行尾）。
+
 **定案（两类令牌，形状不同故不会混淆）**：
 
-- **成功令牌**：无失败时 `{verb} {成功数}{末条成功记录的 attempt 后缀} ✓{+N}`；**该 verb 存在失败记录时**改渲 `{verb} {成功数}/{尝试总数} ✓{+N}`——**比率形不带 attempt 后缀**（后缀与分母不同时出现，避免 `fix 1/2a2 ✓` 这类读法；末条尝试是第几次已由同行的 ✗ 令牌说明）。
-- **失败令牌**：每条失败记录一个，`{verb} {cycle}{attempt>1 ? aN : ""} ✗{+N}`；**若该 cycle 后有成功尝试**，改为 `{verb} {cycle}{aN} ✗→✓`（已恢复）。
+- **成功令牌**：**该 verb 的成功数为 0 时不渲**（纯失败 verb 只有 ✗ 令牌，故既有 pin `review 1 ✗` / `implement 1 ✗` 字节零变）；无失败时 `{verb} {成功数}{末条成功记录的 attempt 后缀} ✓{+N}`；**该 verb 存在失败记录时**改渲 `{verb} {成功数}/{尝试总数} ✓{+N}`——**比率形不带 attempt 后缀**（后缀与分母不同时出现，避免 `fix 1/2a2 ✓` 这类读法；末条尝试是第几次已由同行的 ✗ 令牌说明）。
+- **失败令牌**：每条失败记录一个，`{verb} {cycle}{attempt>1 ? aN : ""} ✗{+N}`；**若该 cycle 的后续 attempt 成功**（重派 = 同 cycle 的 `attempt + 1`，不是「后续 cycle」），改为 `{verb} {cycle}{aN} ✗→✓{+N}`（已恢复，**`+N` 照带**——该轮的 findings 数不因后来成功而消失）。
 
-**令牌数的界**：✓ 每个 verb 至多一枚（成功面严格合并）；✗ **每条失败记录一枚、逐条不设上限**（展开只发生在异常面）——实际条数由 `REVIEW_CYCLE_CAP`（`session/next.ts:65` = 50）封顶。
+**令牌数的界**：✓ 每个 verb 至多一枚（成功面严格合并）；✗ **每条失败记录一枚、逐条不设上限**（展开只发生在异常面）。**没有既有常量封顶它**——`REVIEW_CYCLE_CAP`（`session/next.ts:65`，读点在 `:274`）只对 `ref.consecutiveS1` 生效（`Ledger#consecutiveS1Run`，`session/ledger.ts:1613-1622`：连续「每轮都带 blocker」的 review 轮数），它界的是 blocker 循环，**不界同一 cycle 的 attempt 重派**（重派即 `attempt + 1`，`session/run.ts:595-600`）。故 ✗ 令牌数在理论上无界，本相位**不为它加界**（异常面本就该完整暴露）。
 
 **本相位实况与既有 pin 的前后**：
 
@@ -262,6 +264,8 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 3. **干净行零变**：`board-view.test.ts:1218-1228` · `:1242-1246` · `:1256-1265` 与 `cli.test.ts:7356-7357` 的既有断言**一行不改**仍绿。
 4. **两条 P22 门仍红**：区间形（`review 1–10 ✓`）与 `a1`（任何令牌出现 `a1`）的既有断言不改。
 5. **重锚在 §7 的 1–5 类账之外**：板面汇总单元不是 `next:` 行，故 `board-view.test.ts:1274` 的重锚与上面的新增实况用例不占 §7 的 152 处引用、15 处 `toEqual` 快照、站表长度 1 处任何一格——§7 的账只覆盖 `next:` 字节，本处按**账外修复**在册（先例：`preview.test.ts:126-146` 的陈旧 pin，同属 `next:` 账外）。
+
+**陈旧散文登记（随本任务同笔改写，不含断言）**：`board-view.test.ts:1268` 的用例标题 `(d) a re-dispatch carries its attempt superscript and attempt 1 never renders a1` 在 §12 之后不准（新形 `fix 1/2 ✓ · fix 1 ✗→✓` 无上标；上标只在失败令牌且 `attempt>1`、或无失败的成功令牌上出现）；`#judgementRuns` 的 docstring（「contiguous verdict runs」）同时改名并把注释改为「成功面按 verb 合并、异常面逐条」。
 
 **落空面（范围写窄）**：`face/board-view.ts` 里 `spec §5.3` 的引用约十处（`:24` 文件头 · `:60` 字形 · `:294` `+N` · `:370` 在飞单元 · `:406`/`:511`/`:530` 排版 · `:612` 波单元 · `:655` doc 单元）。**只有承载令牌规则的 `summaryCell` / `#summaryToken` 两处 docstring 改指 P24 §12**；其余引用的是排版与字形规则，P22 §5.3 对它们仍然是正确依据，**不动**。
 
@@ -330,3 +334,4 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 | v0.28 | 2026-11-05 | **spec 第 12 轮回填（重设 §12）**：① 原「成功数 + cycle」把两个量塞进同一槽位（`fix 3 ✓ · fix 3 ✗` 读着自相矛盾），改为「成功用 `{成功}/{尝试}` 比率（仅在存在失败时出现）+ 失败令牌带 `✗→✓` 恢复标记」 ② **显式列出对 P22 §5.3 的三条修订**（逐轮展开限定于异常面 · 令牌形增比率与 cycle · 旧示例字面作废），不再声称『在门内』 ③ 缺口改引真实行输出 ④ 落空面收窄为 `summaryCell`/`#summaryToken` 两处 docstring ⑤ changeset 须改写（现有『board output is unchanged』作废） ⑥ §7 表头 13 行 ⑦ 证据每条带 pin | §12 + §7 汇总单元行/表头 + Acceptance + Change history v0.28 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-05） |
 | v0.29 | 2026-11-05 | **spec 第 12 轮 fix 回填（docs-fix）**：① **W1**——§7「发行」与 Acceptance 的 changeset 末条补 §12：板面汇总单元在有失败尝试的行上改字节是**消费面可见变化**，并入同一份 `.changeset/p24-fix-identity-and-reason-row.md`（仍 minor、不另开第二条），该条目末句「`cdd board` output is unchanged」须改写（Task 8 owner） ② **N1**——§7 表头分项补「一行汇总单元（§12）」，7+1+1+1+1+1+1 = 十三行（此前十三行却只列 12 项） ③ **W2 尾项**——§12 写明 ✗ 令牌逐条不设上限、实际由 `REVIEW_CYCLE_CAP` 封顶 ④ **N2 尾项**——§12 证据第 5 条：`:1274` 的重锚在 §7 的 1–5 类 `next:` 账之外，按账外修复在册 ⑤ **N3**——Change history v0.27 行日期 2026-11-04 → 2026-11-05（不再早于 v0.26 与 front-matter） | §7 表头/发行 + Acceptance 末条 + §12 定案/证据 + Change history | Oscaner M. · Claude（kairos:cdd-dev [P24] spec 第 12 轮 fix · 2026-11-05） |
 | v0.30 | 2026-11-05 | **spec 自查订正（plan 第 14 轮 W3）**：成功令牌原本「永远带末条成功记录的 attempt 后缀」，与本相位自己钉的目标 `fix 1/2 ✓`（末条成功是 a2 ⇒ 会渲成 `1/2a2`）矛盾。订正为**后缀与分母互斥**：有失败时渲比率且不带后缀，无失败时才可能带后缀。 | §12 成功令牌一句 + Change history v0.30 | Oscaner M. · Claude（kairos:cdd-dev · spec 自查订正 · 2026-11-05） |
+| v0.31 | 2026-11-05 | **spec 第 13 轮回填**：① 成功令牌在**成功数为 0** 时不渲（否则纯失败 verb 会渲 `review 0/1 ✓`，与既有 `review 1 ✗` pin 冲突） ② 删掉「✗ 条数由 `REVIEW_CYCLE_CAP` 封顶」这条**假依据**（它界 blocker 循环、不界同 cycle 的 attempt 重派；✗ 数理论上无界，本相位不加界） ③ 补**令牌顺序**（外层 `VERB_ORDER`、内层先成功后失败、失败按时间序、不聚到行尾） ④ 恢复形 `✗→✓` 也带 `+N`，并点明「同 cycle 的后续 attempt」 ⑤ 陈旧散文登记（`:1268` 用例标题 · `#judgementRuns` docstring） | §12 五处 + Change history v0.31 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-05） |

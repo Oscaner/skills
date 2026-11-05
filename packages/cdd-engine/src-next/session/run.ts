@@ -38,6 +38,7 @@ import type { DocClassVerdict, NextHop, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "./pipeline.ts";
 import type { PreFlightVerdict } from "./preflight.ts";
+import { ReviewedIdentity } from "./reviewed-identity.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
 
 /** The pre-flight dispatch-entry gate — the lifecycle's hard "no child on a refused
@@ -725,31 +726,32 @@ export class Lifecycle {
     );
     // The completed-round revision write-back is gated on the round's VERDICT (a
     // hard-failed round must not bind the current revision — that would silently
-    // close the drift identity the round never delivered). The completed REVIEW and
-    // the completed FIX both bind: a review binds the revision it judged, a fix binds
-    // the revision it produced — the round that made the document move is the round
-    // that owns the new identity, so a warn-only fix cannot leave the line adrift in
-    // its own delta. The doc line and the wave line each bind their OWN reviewed
-    // revision (T7 doc · T11 wave / D16 / D30): the completed round binds the CURRENT
-    // revision of the reviewed input — read at bookkeep, the clean-tree dispatch gate
-    // keeps the round's input stable across it. For a doc line that input is the
-    // target doc (the whole-content doc-revision). For a wave line it is the RENDERED
-    // BRIEF — `#recordReviewedWaveBrief` → `recordReviewedBrief(String(frame.key),
-    // #planPath)` hashes the brief the plan renders to, holding #planPath only as
-    // the plan the brief renders FROM (the render-from POINTER, not the hashed
-    // identity; the wave gate derives the plan path FROM this record, so
-    // cli.ts/preflight.ts stay untouched). The two legs do NOT share one gate —
-    // each ref kind carries its own reviewed identity. An unreadable input records
-    // nothing (present facts only); a null plan path (no plan fact) leaves a legacy
-    // wave row — null stays backward compatible.
-    if (
-      record.verdict.targetAction &&
-      (frame.phase === "review" || frame.phase === "branch-review" || frame.phase === "fix")
-    ) {
-      if (frame.target.kind === "plan" || frame.target.kind === "spec")
-        this.#recordReviewedDocRevision(frame);
-      else if (frame.target.kind === "wave") this.#recordReviewedWaveBrief(frame);
-      else if (frame.target.kind === "branch") this.#recordReviewedBranchRevision(frame);
+    // close the drift identity the round never delivered). WHICH reviewed input the
+    // round binds is ONE judgment, shared with the preview face:
+    // `ReviewedIdentity.legOf(frame.phase, frame.target.kind)`. Its phases — review,
+    // branch-review, fix — are declared there once, and its legs are 1:1 with this
+    // class's three `#record…` methods (doc · brief · branch). Two facts stay this
+    // face's OWN input, never the judgment: the verdict's `targetAction` (a real run
+    // alone holds it) and the plan path (the branch leg's render-from pointer). One
+    // asymmetry is preserved: on a wave round whose line carries no plan path the
+    // real run records nothing while the preview still states the brief leg. The
+    // record methods keep their own defensive narrowing; an unreadable input records
+    // nothing (present facts only).
+    const leg = record.verdict.targetAction
+      ? ReviewedIdentity.legOf(frame.phase, frame.target.kind)
+      : null;
+    if (leg !== null) {
+      switch (leg) {
+        case "doc":
+          this.#recordReviewedDocRevision(frame);
+          break;
+        case "brief":
+          this.#recordReviewedWaveBrief(frame);
+          break;
+        case "branch":
+          this.#recordReviewedBranchRevision(frame);
+          break;
+      }
     }
     return this.#ledger.roundCount(frame.key, frame.phase, frame.type);
   }

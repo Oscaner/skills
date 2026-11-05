@@ -1,15 +1,15 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 计划：NEXT-LOOP 收口面（基线随轮推进 + hop 原因可读）
 doc-type: plan
-version: v0.18
-date: 2026-11-04
+version: v0.19
+date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p24
 base: develop
 ---
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（v0.21）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` **现行 `version`**（**v0.26**）所指的面；面与裁决以现行 spec 与 handoff 裁定为准，需要改动即回评审，不在计划里顺手扩面。本周这次对齐不是排版：v0.22 把 §11 的定案加深为「渲染板面那个 `NextHop`」并把 cell 装配一并搬进 session 平面，v0.25 按名拆开 **pipeline frontier** / **line frontier**，v0.26 重写了 doc 线的验收面——Task 7 据此重写（见其 Objective 与 Steps 1-8），照 v0.21 读到的浅版 Task 7（只换 route）会漏掉装配搬迁。
 - **单点判据**：drift 的「记了什么 identity」只有一个写入点（`Ledger#recordReviewedRevision`，wave 经 `recordReviewedBrief`），读取面按既有事实分两条（doc/branch 走 `docReopens`、wave 走 `waveLineRoute` 的 D30 腿）。不得为任何一面新开第二个 drift 判定或第二个写入点。
 - **只推进完成的轮**：`targetAction` 为假的轮（BLOCKED / TIMEOUT）一律不推进基线；读不到输入（文档 / plan 不可读）时什么都不记录，保留旧基线。
 - **`next:` 字节零变**：`next:` 行仍是可执行字面，整行抄进 shell 必须能跑。诊断信息只落**另一行**（`reason:`）。字面上不得出现 `—`/`#`/任何后缀。
@@ -18,7 +18,7 @@ base: develop
 - **前缀各有其家**：胶囊取站表 `words.station("reason")`；板面取布局字面 `  reason:  `（与它自己的 `  next:    ` 同形）。不得为「统一」给板面的 static 加 `Words` 参数。
 - **预览的策略副本是显式债务**：`face/preview.ts#recordsOf` 与 `#bookkeep` **无法共用同一处判别**——`#bookkeep` 有 verdict 门（`record.verdict.targetAction`），`#recordsOf` 是无 verdict 的 dry run；故 phase 白名单 `review | branch-review | fix` **各存一份**。`preview.test.ts` 的 fix 轮用例只钉住**预览侧当前行为**（行为 pin），**不是**漂移探针：任一侧日后单独改动，该用例都不必红。**不得**再声称「复制成第二份就红」——这是已知双写及其守卫边界，Task 1 Acceptance 在册。
 - **wave 面禁分叉**：`BoardNext#hopOf` 只发**一次** `nextHopOf` 调用，`briefDrift` 作为该输入对象里的一格条件值；**不需要 `active !== null` 之类的闸**——因为 `nextHopOf` 把两个值分开（Task 3 Step 4）：替换驱动仍只取 doc 面 `reviewGate`，wave 的 exit 侧路由不会被改写；禁止为 wave 另开第二个调用。`Lifecycle#hopOf` 只在 wave 帧注入。
-- **胶囊在 wave 面不承诺 drift**：`advance` 出的胶囊恒看不到 brief drift（其帧在 `#bookkeep` 重绑之后）。这不是缺陷，是结构事实；**任何任务不得**为了让胶囊渲 `doc-drift` 去改 `#routeNext` 或加第二套路由。
+- **两个 frontier 不许混称，胶囊不承诺「与 `peekNext` 同值」**：**pipeline frontier** 指 `PipelineFrontier.next(...)` 装出的产物——胶囊（§11 之后）与板面**共用**它；**line frontier** 指 `Lifecycle#peekNext`（`session/run.ts:400-408`），仍从被派发的 frame 与本线 C5 路由装配，是单线视角。`#bookkeep` 的 brief 重绑发生在 `advance` 之前（`:429-430`），故「帧上 drift 恒为假」只描述那条 frame-keyed 的 line frontier 装配（`advance` 那一跳对 `briefDrift` 注入是死代码，`peekNext` 那一跳才是活判据），**不是**胶囊的输出事实——胶囊渲 pipeline frontier 的 hop，故在 wave 面与板面同值。**任何任务不得**为了让两面「更一致」去改 `#routeNext` 或加第二套路由；也不得把 capsule ⇄ `peekNext` 写成等式（两个不同对象，同值只是夹具级期望）。
 - **零状态迁移**：`progress.json` 的任何键名 / 键集不变；`recordReviewedRevision` 只改文档注释。
 - **调用与提交纪律**：引擎一律本地 `node packages/cdd-engine/src-next/bin.ts`；每任务提交过 `pnpm run precommit`；末任务跑 `env -u AI_AGENT pnpm run validate`（`AI_AGENT` 在场会让 5 条既有注入派发 E2E 误红）；changeset `@oscaner-skills/cdd-engine` **minor**（D74），不涉 kairos 包、不发布。
 - **spec 版本与范围锁同笔**：spec 的 `version` 一变，本约束的版本字面同笔改（本轮起，避免「改完 spec 不改锁」）。
@@ -30,7 +30,7 @@ base: develop
 - **半途被砍的 fix 改了文档**：基线不得推进（负控直读账本的 `doc_hash`），而 frontier 给的是**该 fix 的重试面**——drift 不压 pending fix（§5.5 ②）。由 Task 1 的用例 C 覆盖。
 - **`next:` 行被脚本 / 技能整行抄走**：`review --type plan --plan <path>` 后面多一个 ` — reason: x` 就会在 shell 里炸。由 Task 2 的「`next:` 字节不变」断言与独立 `reason:` 行覆盖。
 - **BLOCKED / TIMEOUT 轮**：既无 `next:` 行就不得有 `reason:` 行——凭空造一个 reason 会让人以为有一个可执行去向。由 Task 2 的 hop-null 断言覆盖。
-- **wave 面的胶囊**：drifted wave 上胶囊印的是 C5 路由（`fix` / `pending-fix`），板面与 `peekNext` 印 `review` / `doc-drift`。这是结构差异、不是缺陷；不得有人把它「修」成一致（那要改 `#routeNext` 的路由来源）。由 Task 3 的断言范围（只打 `peekNext` 与板面）固定。
+- **wave 面的两个 frontier**：§11 之后胶囊与板面印的是 **pipeline frontier** 的同一个 `NextHop`（故 `reason:` 同值），**line frontier**（`peekNext`，frame-keyed）是另一个对象：drifted wave 上它给 `review` / `doc-drift` 的帧，正是 Task 3 的注入活判据。不得有人把 capsule ⇄ `peekNext` 「修」成等式（那要改 `#routeNext` 的路由来源）；board ⇄ capsule 才是 Task 7 的结构事实。Task 3 Step 8 的落地负控保留，但其理由按 §11 改写（该夹具的 review 在胶囊渲染前重绑了 brief，故**帧**不再 drift）。
 
 ### Task 1: 写回白名单加 `fix` + 预览的 fix 腿 + 三条互锁测试
 
@@ -58,7 +58,7 @@ base: develop
 
 #### Steps
 
-- [ ] **Step 1: 写用例 A（doc 线四型：warn-only 的 review → 改文档的 fix → 收口）** — checkable: 断言面取**胶囊的 `next:` 行**（doc/branch 线上它是 drift 感知的：`#hopOf` → `Ledger#nextHopOf`，其 drift cell 读 `reviewGate`）；在改动前的树上 `fix1.capsuleLines[1]` 以 `next: review` 开头（红），实现后不再以 `review` 开头（收口值随型而定：`done` / 流水线 handoff / `next-wave`）。同一条用例里 `run.peekNext()` 今日给出非 null 的 `review` 帧（`hop.reason === "doc-drift"`）、实现后为 `null`。`fix1.route` 今日已是 `{ kind: "done" }`——它是 C5 的判定（`:813-818`），不读文档——只作辅助事实，**不得**当红证据
+- [ ] **Step 1: 写用例 A（doc 线四型：warn-only 的 review → 改文档的 fix → 收口）** — checkable: 断言面取**胶囊的 `next:` 行**（doc/branch 线上它是 drift 感知的：`#hopOf` → `Ledger#nextHopOf`，其 drift cell 读 `reviewGate`）；在改动前的树上 `fix1.capsuleLines[1]` 以 `next: review` 开头（红），实现后不再以 `review` 开头。**夹具是裸 slug，这一点要写明**：该 `Lifecycle` 不传 `specPath` / `planPath`（`run.test.ts:1016-1022`），故胶囊走 Task 7 的**整组输入缺席**退化、印本线自己的 exit（`done` / `handoff` / `next-wave`）；§11 之后**带 plan 的 slug** 上收口轮印的是**下一面的 active hop**，它完全可能以 `next: review --type plan --plan …` 开头——那句字面不是本线被重开，也不是本断言的普适形式（spec v0.26 §6 第 1 条）。故「不以 `review` 开头」只在该裸 slug 夹具上成立，不得读成普遍事实。同一条用例里 `run.peekNext()` 今日给出非 null 的 `review` 帧（`hop.reason === "doc-drift"`）、实现后为 `null`（这是**line frontier**，与 §11 的 pipeline frontier 不是同一个对象）。`fix1.route` 今日已是 `{ kind: "done" }`——它是 C5 的判定（`:813-818`），不读文档——只作辅助事实，**不得**当红证据
 
 ```ts
 describe("P24 §2 — a completed round advances the line's reviewed identity", () => {
@@ -96,7 +96,9 @@ describe("P24 §2 — a completed round advances the line's reviewed identity", 
         expect(fix1!.frame.phase).toBe("fix");
         // `[1]` is the `next:` row (the stub passes no dispositionsSummary); Task 2's
         // `reason:` row lands at `[2]`, so this index holds whichever task lands first.
-        // 今日：`next: review --type …`（drift 自噬）· 实现后：收口值（done / handoff / next-wave）
+        // 今日：`next: review --type …`（drift 自噬）· 实现后：本线自己的 exit（裸 slug）
+       // 夹具未传 specPath/planPath ⇒ Task 7 的整组输入缺席退化；带 plan 的 slug 上
+       // 收口轮印的是下一面的 active hop（可以是 `review --type plan …`），不属本断言面
         expect(fix1!.capsuleLines[1]).not.toMatch(/^next: review\b/);
         expect(run.peekNext()).toBeNull();
         // 辅助事实：C5 今日即判了收口，故这条断言前后都绿，不作红证据
@@ -174,7 +176,7 @@ const run = new Lifecycle({
 
 #### Acceptance
 
-- doc 线四型（phase-spec / overall / plan / single-spec）各有一条用例：warn-only review → 改文档的 fix → 胶囊的 `next:` 行为收口（不再以 `review` 开头）且 `peekNext()` 为 `null`，并在改动前的树上**必红**。`route` 为 `{ kind: "done" }` 同时成立，但它是 C5 的既有事实（今日即绿），只作辅助断言。
+- doc 线四型（phase-spec / overall / plan / single-spec）各有一条用例：warn-only review → 改文档的 fix → 胶囊的 `next:` 行为收口（不再以 `review` 开头）且 `peekNext()` 为 `null`，并在改动前的树上**必红**。**该断言只在裸 slug 夹具上成立**（不传 `specPath` / `planPath`，走 Task 7 的整组输入缺席退化，故印本线 exit）；带 plan 的 slug 上收口轮印**下一面的 active hop**（`review --type plan --plan …`），那是别的面的 lead，不构成本线重开，也不得拿来当本用例的红证据。`route` 为 `{ kind: "done" }` 同时成立，但它是 C5 的既有事实（今日即绿），只作辅助断言。
 - branch 线同断言一条（branch fix 改 plan → 胶囊 `next:` 收口 + `peekNext()` 为 `null`，改动前必红）。
 - wave 收口回归 pin 一条：白名单加 `fix` 后，blocker-free 的 fix 仍收口（`advance()` 与 `peekNext()` 均为 `null`），改动前后都绿。
 - 收口后由「轮外」写文档 → `peekNext()` 的帧为 `review`（防自旋未失效）。
@@ -245,7 +247,7 @@ if (hopValue !== null && next !== null) {
 #### Acceptance
 
 - 每个由 hop 渲染出的 `next:` 行之后紧跟一行 `reason: <token>`，token ∈ `NEXT_HOP_REASON` 七值。
-- `next:` 行字节与今日逐字节相同（152 处既有断言中 137 处零改动即证）。
+- **非胶囊读者**的 `next:` 行字节与今日逐字节相同（152 处既有断言中 137 处零改动即证）。**该字节声明限非胶囊读者**（spec v0.22 / v0.26 的收窄）：§7 的 137/15 分类只描述板面、门与按行抽取的读者；胶囊侧在 pipeline frontier 与本线 C5 分歧处的 `next:` 字面**会变**（Task 7），故胶囊的重锚另立清单（Task 7 Step 7），不得用本条本包它。
 - hop 为 `null` 的轮（BLOCKED / TIMEOUT）两面都不渲 `reason:` 行。
 - 胶囊与板面对同一 hop 渲同值（token 等值；前缀各按自己的家：胶囊走站表、板面走布局字面），由 Step 6 的 pin 钉住；板面的 `(none)` 与程序板 `done` 两行字节零变。
 - 站表五行（长度 pin 已重锚），`routeWords` 一行未动。
@@ -288,7 +290,7 @@ none
 - [ ] **Step 5: 两处注入** — checkable: `Lifecycle#hopOf` 在该 `nextHopOf` 入参对象的 `briefDrift` 一格上于 `frame.type === "wave"` 时传 `this.#ledger.briefDrifted(String(frame.key))`；`BoardNext#hopOf` 在既有那一次 `nextHopOf` 调用里传 `target?.type === "wave" ? facts.ledger.briefDrifted(String(target.id)) : undefined`（**不得**新增第二次调用，方法签名不动；`target.type` 那半个条件不能省——引擎走到非 wave frontier 时 `facts.report.wave.active` 也可能非 null，而 `target.id` 那时是文档路径）。**这一格只有 `target.type` 一道条件，且它不是路由闸**：**不需要（也不该加）`active !== null` 之类的闸**：`#pipeline` 交给 `#hopOf` 的是 frontier 自己的路由，wave 的 `active` 为 null 时它是 `#exitRoute` 的 `{ kind: "handoff", entry: PIPELINE_NEXT.wave }`（`face/board-view.ts:886-892` · `:902-905`），属 exit 侧，而替换驱动 `drift` 对 wave 恒为 `false`（Step 4 的两个值分开），故 `drift && onExitSide(handoff)` 不可能命中——该 `handoff` 不会被改写成 `review --type wave …`，注入只改它 `reason:` 的取值（`#reasonOf` 对 `handoff` 落末行 `closed-line`）。`WaveGate.vet` 按 `waveLinePhase` 判 phase，板面因此与门同侧，P22 T17(c) 的分叉不可达——由 Step 7 的负控钉住；两个注入点也因不设闸而对称。
 - [ ] **Step 6: 板面断言** — checkable: `board-view.test.ts` 断言同一状态下板面的 `next:` 行为 review lead、`reason:` 行为 `doc-drift`
 - [ ] **Step 7: 负控（soft-capped + drifted 的板面不翻路由）** — checkable: `board-view.test.ts` 再加一条——构造 `waveLineRoute` 落 `null`（review 周期打到 `REVIEW_CYCLE_CAP` 的 soft-cap 面）**且**该 wave 的 brief 已 drift 的行，断言板面的 `next:` 行与 drift 前**逐字节相同**（仍为该 wave 的 pipeline exit `handoff` 站，**不得**出现 `review`），`reason:` 行为该路由的既有取值 `closed-line`（**不是** `task-open`：`handoff` 的 `hopOf` 为 null，`#reasonOf` 落末行 `closedLine`；`doc-drift` 只可能落在 `review` 路由上，`session/next.ts:399`），并断言 `ledger.waveLinePhase(key)` 为 `null`（板面与门同侧）
-- [ ] **Step 8: 负控（胶囊不承诺 drift）** — checkable: 断言 `advance()` 产出的胶囊在 drifted wave 上**不带** `doc-drift`（其帧在重绑之后）；该断言写进用例，防止后人「修一致」而改掉 `#routeNext`
+- [ ] **Step 8: 负控（line frontier 的帧在重绑之后）** — checkable: 落地的那条断言保留，但**理由按 §11 改写**：`advance()` 的胶囊帧在 `#bookkeep` 重绑之后，故**该帧**不再 drift（`ledger.briefDrifted(key)` 为假）——这是 frame-keyed **line frontier** 的事实，不是「胶囊不承诺 drift」；胶囊渲的是 **pipeline frontier** 的 hop（§11），改动后与板面同值。`run.test.ts:1566` 的标题「the capsule never promises the wave brief drift — its frame sits AFTER the re-bind」按此重写（标题归 Task 7 Step 6 的散文清单），断言本身保留：它钉的是「帧不再 drift」，不得再被读成「胶囊渲染面不管 drift」。不因此改 `#routeNext`。
 - [ ] **Step 9: 跑套件 + 提交** — checkable: `run.test.ts` / `board-view.test.ts` / `ledger.test.ts` 全绿；`pnpm run precommit` 绿；`git commit -m "feat(cdd-engine): the wave line's drift fact feeds the next-hop reason"`
 
 #### Acceptance
@@ -297,7 +299,7 @@ none
 - `briefDrifted` 是唯一实现，`waveLineRoute` 的 D30 腿与它同源；既有 T11/D30 用例全绿。
 - `briefDrift` 缺省时行为与今日逐字节一致（wave 之外的四个 face 不受影响）。
 - **替换不触发的负控**：soft-capped（`waveLineRoute` 落 `null`）且 brief 已 drift 的 wave，板面 `next:` 不得被改写成 `review`（仍为该 wave 的 pipeline exit `handoff` 站），`reason:` 为该路由的既有取值 `closed-line`，且 `waveLinePhase` 为 `null`——板面与门同侧，由 Step 7 钉住。
-- 胶囊路径不被承诺：一条断言固定「`advance` 的胶囊不带 `doc-drift`」。
+- **line frontier 的帧在重绑之后**：一条断言固定「`advance` 的胶囊帧上 `doc-drift` 不出现、`briefDrifted` 为假」——这是 frame-keyed 装配的事实；胶囊渲的是 pipeline frontier 的 hop（§11），故不得把这句读成「胶囊渲染面不管 drift」。
 - wave 的收口回归 pin 归 Task 1（白名单加 `fix` 是唯一会改变 wave 写回的改动）；本任务只负责 frontier ⇄ 板面的 token 断言与胶囊负控。
 
 #### DependsOn
@@ -316,7 +318,7 @@ none
 - Modify: `README.zh-CN.md:64`（镜像同步）
 - Modify: `docs/diagrams/src/next-loop.en.json:278` · `next-loop.zh-CN.json:278` · `journey.en.json:573` · `journey.zh-CN.json:573`（四句措辞——`next:` 不再是末行）
 - Regenerate（**禁手改**）：`docs/diagrams/next-loop.{en,zh-CN}.html` · `journey.{en,zh-CN}.html`——按 `docs/diagrams/README.md` 的 Archify `finalize` 命令从源 JSON 重生成（`--repo-root .`，类型 `lifecycle` / `workflow`）；`*.finalize*.json` / `*.browser-check.json` / `*.delivery.json` 是 gitignored 机器回执，不入库
-- Modify: `.changeset/p24-fix-identity-and-reason-row.md`（本相位**唯一**一份发布条目——本相位**四件**消费面事实都写进它，其中第 ④ 件由 Task 5 落地、由该任务核对同一份文件的这一句；同包同级别不得再开第二条）
+- Modify: `.changeset/p24-fix-identity-and-reason-row.md`——本相位**唯一**一份发布条目，且它的覆盖规则是**不变式**：**本相位每一件消费面可见变化都写进这一条**（不是固定的「四件」这个数）。落笔时在册四件（①–④），其中第 ④ 件由 Task 5 落地、由该任务核对同一份文件的这一句；本任务之后若又落一件消费面可见变化（§11 的胶囊 frontier hop = 第 ⑤ 件），由**最后落地的那一个任务**（Task 7）在同一份条目上补，不另开第二条、不改级别。
 
 #### Consumes
 
@@ -332,7 +334,7 @@ none
 - [ ] **Step 1: 改英文 bullet** — checkable: 该 bullet 读作「The next hop is derived, then printed with its reason. Each run ends with its `next:` line and the reason line that follows it, and `cdd board --plan <path>` renders that same judgment as a progress board — the line and the board cannot disagree.」（三个从句都在）
 - [ ] **Step 2: 同步中文镜像** — checkable: `README.zh-CN.md:64` 用 spec §5 给的整句（不得自行转述）：「**下一个去向是推演出来的，并连同其原因一起打印。** 每次运行以 `next:` 行收尾，紧接着是它的原因行，而 `cdd board --plan <path>` 会把同一个判定渲染成进度看板——这一行与看板不可能互相矛盾。」（含第三从句，即看板一致性）
 - [ ] **Step 3: 刷四份 diagram 源 + 重生成 HTML** — checkable: 四句**一律引用 spec §5 定案表的原句**（不另记措辞）：`next-loop.en.json:278`「The next: line and the reason line that follows it are the last two lines of a run — the route and its cause; a BLOCKED or TIMEOUT round carries neither」· `next-loop.zh-CN.json:278`「next: 行与紧随其后的原因行是运行的最后两行——去向与它的原因；BLOCKED 或 TIMEOUT 的轮次两者都不带」· `journey.en.json:573`「next: and the reason line that follows it close the run, and cdd board renders the same judgment from the ledger」· `journey.zh-CN.json:573`「next: 与紧随其后的原因行一起收尾，而 cdd board 从账本渲染同一个判定」；四份源里旧措辞（`the last line of a run` · `最后一行` · `its last line` · `作为最后一行收尾`）零残留。重生成后逐份核验（**本轮一次性新鲜度校验**，四份结果都记入报告）：新 HTML 含新句、**不含**旧句（`grep -c "the last line of a run" docs/diagrams/next-loop.en.html` 为 0，今日即是；中英四份同法各验一句）。两处 pin 各只对**自己的面**绿、且都不钉本段改写的句子——`pnpm exec vitest run scripts/__tests__/next-loop-twin.test.ts` 的 `SOURCES` 是 `next-loop` ×2 + `architecture` ×2（`:93-95`；**不是**四份，`journey` 不在其中），钉的是三条收敛语句、不是「`next:` 是否末行」，且无 HTML 腿；`pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/diagrams.guard.test.ts` 证的是 `architecture.{en,zh-CN}` 的源→HTML 腿（`SOURCES`，`:77-90`）；`journey.{en,zh-CN}` 在三个测试面里零命中、**没有任何 pin**。故四份源的措辞与「源→HTML」两头都只能靠上面那条一次性校验，两处 pin 不构成常驻新鲜度证明（见 Constraints 的已知限制）。Archify 工具链不可用 ⇒ 报 BLOCKED（**禁止**手改 HTML）
-- [ ] **Step 4: 写 changeset** — checkable: `.changeset/p24-fix-identity-and-reason-row.md` 的 front-matter 为 `"@oscaner-skills/cdd-engine": minor`，正文覆盖本相位的**四件**消费面事实（本相位全部消费面可见变化，一条不得漏）：① 完成的 fix 轮把该行 identity 入账（doc 线由此能收口）② 每条 hop 渲染的 `next:` 行后多一行 `reason: <token>` ③ wave 线的 drift 重开在 `peekNext` / 板面上标 `doc-drift`（此前只会说 `task-open`）④ 板面的 pipeline frontier 的 spec / plan 两面改读 drift：收口后被轮外改动的 doc 让板面停回该 doc 线的 review lead 并标 `reason: doc-drift`（此前印 `implement --plan … --tasks …`）——④ 由 Task 5 落地，本条目**先写定**，Task 5 只核对/订正同一份文件的这一句，不另开条目；**只此一份**——不得另建第二条（同包同级别的两条声明会在 changelog 里生成两条同义条目），也不得声称 wave 的写回修好了某个既有收口缺陷
+- [ ] **Step 4: 写 changeset** — checkable: `.changeset/p24-fix-identity-and-reason-row.md` 的 front-matter 为 `"@oscaner-skills/cdd-engine": minor`，正文覆盖**落笔时在册的四件**消费面事实（不变式：本相位每一件消费面可见变化都在此条目内，一条不得漏）：① 完成的 fix 轮把该行 identity 入账（doc 线由此能收口）② 每条 hop 渲染的 `next:` 行后多一行 `reason: <token>` ③ wave 线的 drift 重开在 `peekNext` / 板面上标 `doc-drift`（此前只会说 `task-open`）④ 板面的 pipeline frontier 的 spec / plan 两面改读 drift：收口后被轮外改动的 doc 让板面停回该 doc 线的 review lead 并标 `reason: doc-drift`（此前印 `implement --plan … --tasks …`）——④ 由 Task 5 落地，本条目**先写定**，Task 5 只核对/订正同一份文件的这一句；**⑤ 不在本任务落笔**：§11 之后胶囊的 `next:` 会改印 pipeline frontier 的 hop（收口的 spec 轮改印后继面的 `review --type plan --plan …`）——它是本相位第五件消费面事实，由最后落地的 Task 7 在同一份条目上补一句（Task 7 Step 8 是它的 owner）。**只此一份**——不得另建第二条（同包同级别的两条声明会在 changelog 里生成两条同义条目），也不得声称 wave 的写回修好了某个既有收口缺陷
 - [ ] **Step 5: 全量验收** — checkable: `env -u AI_AGENT pnpm run validate` 退出码 0（emit fresh · root · kairos · engine 三套件 · typecheck ×3 · version-sync · no-bare-functions）
 - [ ] **Step 6: 提交** — checkable: `git commit -m "docs: P24 consumer face and the cdd-engine minor changeset"`；`git status --porcelain` 为空
 
@@ -340,7 +342,7 @@ none
 
 - 根 README 英中两处表述一致且保留「line 与 board 不可能互相矛盾」这一句。
 - 四份 diagram 源与它们的生成 HTML 同步刷新：源无旧措辞、HTML 含新措辞且不含旧措辞（`next:` 不再是末行在发布面上成立），证据是**本轮的一次性校验**（四份 grep，逐份记入报告），不是常驻门；HTML 从源重生成（无手改）。两处 pin **各只对自己的面**绿、且都不钉这四句——`diagrams.guard` 的源→HTML 腿只覆盖 `architecture.{en,zh-CN}`；`next-loop-twin` 读 `next-loop` ×2 + `architecture` ×2（`:93-95`）、只钉三条收敛语句、无 HTML 腿；`journey.{en,zh-CN}` 无任何 pin——故它们**不**证明这四份产物「措辞正确」或「与源同步」；「四份源的新措辞无常驻 pin · `next-loop` / `journey` 的源↔HTML 无孪生门 · `journey` 两份完全无覆盖」三项一并登记为已知限制（建门超出本相位范围）。
-- changeset 存在、级别为 `cdd-engine` minor、正文覆盖**四件**消费面可见变化（第四件是 Task 5 落地的板面 frontier，正文由本任务先写定、Task 5 只核对）。
+- changeset 存在、级别为 `cdd-engine` minor、正文覆盖**落笔时在册的四件**消费面可见变化（规则是不变式：每件消费面可见变化都在同一份条目内；第四件是 Task 5 落地的板面 frontier，正文由本任务先写定、Task 5 只核对；第五件是 §11 的胶囊 hop，由最后落地的 Task 7 补写）。
 - `env -u AI_AGENT pnpm run validate` 退出码 0；`pnpm run emit:check` fresh。
 - 树干净。
 - **§6 的验收演示留证**：本相位之后的 plan 线 / 波形若出现「零 blocker 的 fix 之后收口」，取其 `next:` 输出记入 plan 的 change history；若 plan 一轮即 APPROVED，则以 spec 线已发生的六轮（零 blocker 的 fix 被 drift 打回三次）为既有事实，在 change history 里指回 spec。
@@ -426,7 +428,7 @@ none
 
 - `PipelineFrontierInput = { specType: TargetType | null; specPath: string | null; planPath: string | null; planGraph: TaskGraph | null }` —— frontier 的全部入参。`planGraph` 是**注入**的受守卫 plan 读（板面侧 `#planGraph`，`board-view.ts:769-782`），frontier 自己不读 plan。
 - `new PipelineFrontier(ledger).next(input: PipelineFrontierInput): { face: PhaseFaceKey | null; route: Route; target: RouteTarget | null }` —— `face` 是**该 `route` 自己所属的面**：面序规则①（frontier 有 active hop）与②（已进入但无 active hop ⇒ 该面自己的 exit）下，`face` 就是 **frontier 面**（第一个未闭合面）；规则③（未进入）与④（全闭合）是两条 **exchange** 规则，`route` 属**锚面**而非 frontier 面，故 `face` 为 **`null`**，锚面可由 `target` 反推（exchange 规则下 `target` 就是锚面的 render target）。`face` 的静态类型是 `PhaseFaceKey | null`（`"phase-spec" / "plan" / "wave" / "branch"`，`session/next.ts:119`），**不是** `PipelineEntry`（那是 pipeline-next 的行联合 `{ref} / {literal} / {done}`，`:95`）——写错返回点直接 `tsc` 失败。
-- 消费者两处，都不在板面的 hop 组装上：① Step 3 的四个 `pipeline.test.ts` 用例（唯一直接断言 `{ face, route, target }` 的地方）② `BoardNext.#hopOf` 只吃 `{ route, target }` 两格（`face` 今天不用；`#hopOf` 也不消费 `{ face }`）。既有的 parity pin（`board-view.test.ts:1589` / `:1612`）比的是板面 `next:` 与该线 `Lifecycle#peekNext()` 的 hop，**不碰** `PipelineFrontier`——不要写成「板面与 parity pin 共用」。
+- 消费者两处，都不在板面的 hop 组装上：① Step 3 的四个 `pipeline.test.ts` 用例（唯一直接断言 `{ face, route, target }` 的地方）② `BoardNext.#hopOf` 只吃 `{ route, target }` 两格（`face` 今天不用；`#hopOf` 也不消费 `{ face }`）。**本任务的 `#hopOf` 仍填 cell**——那描述的是本任务落地时的树；Task 7 随后把这段 cell 装配整体搬进 session 平面（胶囊与板面共用一个装配）。既有的 parity pin（`board-view.test.ts:1589` / `:1612`）比的是板面 `next:` 与该线 `Lifecycle#peekNext()` 的 hop（那是 **line frontier**），**不碰** `PipelineFrontier`——不要写成「板面与 parity pin 共用」。
 - `face` 在两条 exchange 规则下为 `null`，这一点由 Step 3 的 ③④ 两例直接断言（未经板面），避免后人把它当必填而造一个不存在的 frontier 面。
 - 无新导出自 `face/board-view.ts`：板面只剩事实面与渲染。
 
@@ -468,43 +470,63 @@ none
 
 5
 
-### Task 7: 每轮的下一跳读 pipeline frontier（§11）
+### Task 7: 每轮的下一跳读 pipeline frontier（§11 · 渲染源统一）
 
 #### Objective
 
-让胶囊与板面渲染**同一个对象**：`#capsuleLines` 改喂 `PipelineFrontier.next(...)` 的结果，而不是本线的 `#routeNext(frame)`。做完之后「板面与胶囊不可能不同」是结构事实，不是约定。
+让胶囊与板面渲染**同一个对象**，并把**装出**该对象的那段装配一并收进 session 平面：`PipelineFrontier` 旁多一个与 `next` 并列的装配入口（下文按 `hopOf` 称呼），吃 `next(input)` 的 `{ route, target }` 与端口，产出 `Ledger#nextHopOf` 的 `NextHop`；胶囊的 `#capsuleLines` 与板面 `BoardNext` 都调**这一个装配**，各自只负责渲染。做完之后「板面与胶囊不可能不同」是**结构事实**（一个装配、两个渲染面），不是约定。
+
+**本任务按 spec v0.26 §11 定案 ¶2 与 §7「渲染源统一」行重写**：只换 route（把 `#routeNext(frame)` 的产物塞给 frontier）**不算完成**——`BoardNext#hopOf` 填的 cell（target → `type` / `key` / `doc` / `briefDrift` / `docClassOf`）全部取自**被派发的那个 frame**，只换路由会让 frontier 的 target（例如 spec）与本轮的 cell（例如 wave）打架：`BoardNext#hopOf`（`face/board-view.ts:818-836`）与 `Lifecycle#hopOf`（`session/run.ts:841`）各派生同样五格，`Ledger#nextHopOf` 又用 `input.key` / `input.doc` / `input.type` 判 drift（`session/ledger.ts:1241-1269`）。只喂 `{ route, target }` 得到的是「frontier 的路由 + frame 的 cell」——旗舰夹具（波形轮完而 spec 面是 frontier）上 `next:` 可能对上而 `reason:` 与板面相反，正是 spec v0.22 关掉的缺陷。
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/session/run.ts`（`#capsuleLines` 的输入源；`Lifecycle` / `SessionRun` opts 增 `specType` / `specPath`）
-- Modify: `packages/cdd-engine/src-next/face/cli.ts`（场景从文档索引填这两个字段）
-- Test: `packages/cdd-engine/src-next/session/__tests__/run.test.ts`（必红 parity）
-- Test: `packages/cdd-engine/src-next/face/__tests__/capsule.test.ts` · `face.test.ts`（受影响快照重锚）
+- Modify: `packages/cdd-engine/src-next/session/pipeline.ts`（**装配入口**与 `PipelineFrontier` 同居、与 `next` 并列：`next(input)` 一次 → `{ route, target }` → cell 装配 → `Ledger#nextHopOf` → `NextHop`；`next` 的签名与四条面序规则一字不动，本文件仍**零文件读**、零第二份 drift / 闭合判定）
+- Modify: `packages/cdd-engine/src-next/session/run.ts`（`:448` 的 `#capsuleLines` 输入源改为该装配；`Lifecycle` opts 收四格输入 + `docClassOf` 端口；`#routeNext`（`:818`）仍只服务 `#markTerminal`（`:435`）；`#hopOf`（`:841`）**保留**给 `peekNext`，并正名为 **line frontier** 的装配）
+- Modify: `packages/cdd-engine/src-next/face/board-view.ts`（`BoardNext.#hopOf` 的 cell 装配整段移出——`:818-836` 退化为「取 `pipelineFacts` → 交会话平面装配 → 返回 `NextHop`」；`BoardNext` 的类 docstring `:805-816` 同笔改写为「不再填任何 cell」）
+- Modify: `packages/cdd-engine/src-next/face/cli.ts`（场景从文档索引收齐四格 + 受守卫读：`:738` 的 argv `planPath` 在索引知道同 slug plan 时由索引值替代；胶囊路径的 `planGraph` 由装配层注入；`:486-490` 的装配散文与 `:1080-1082` 的 `state` 事实同笔说准）
+- Modify: `.changeset/p24-fix-identity-and-reason-row.md`（补本相位**第五件**消费面事实：胶囊的 `next:` 在 pipeline frontier 与 line frontier 分歧处会变；同一份条目、同一级别，不另开第二条）
+- Test: `packages/cdd-engine/src-next/session/__tests__/run.test.ts`（必红 parity：`next:` **与** `reason:` 两半；`:1566` 的「the capsule never promises the wave brief drift」标题按 §11 改写——该夹具的 review 在胶囊渲染前重绑了 brief，故**帧**不再 drift，不是「胶囊不承诺」）
+- Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（板面侧同一状态的 `next:` / `reason:` 对照；既有断言零改动）
+- Test: `packages/cdd-engine/src-next/face/__tests__/capsule.test.ts` · `face.test.ts`（因「pipeline frontier next ≠ 本线 C5 next」而变的整块快照逐条重锚）
 
 #### Consumes
 
-- `PipelineFrontier.next(ledger, { specType, specPath, planPath, planGraph })`（Task 6，既有）
-- `Ledger#nextHopOf`（既有）
+- `new PipelineFrontier(ledger).next(input: PipelineFrontierInput)` → `{ face, route, target }`（Task 6 落地，`session/pipeline.ts:73` / `:79`；**构造注入**，不是 `next(ledger, …)`——与本计划 Task 6 的 Produces 同一形式）
+- `Ledger#nextHopOf`（既有，`session/ledger.ts:1227-1270`）· `Ledger#briefDrifted`（Task 3，`:1015`）
+- `BoardView.docClassOf(root, candidate)`（既有端口，今日经 `Lifecycle` opts 注入，`face/cli.ts:744`）
+- `SlugIndex#identityDoc(slug)` / `#planOf(slug)`（既有，`infra/slug-index.ts:174` / `:182`）——`specType` / `specPath` / 索引侧 `planPath` 三格的来路
+- `BoardView.#planGraph(planPath)`（既有受守卫读，`face/board-view.ts:720-728`）——第四格 `planGraph` 的来路
 
 #### Produces
 
-- `Lifecycle` / `SessionRun` 的新可选 opts：`specType?: TargetType | null` · `specPath?: string | null`（缺省 null ⇒ 裸 slug 退化为今日行为）。
+- 会话平面新增与 `next` 并列的装配入口（同一 `PipelineFrontier` 实例）：`hopOf(input: PipelineFrontierInput, ports): NextHop`——内部一次 `next(input)` 得 `{ route, target }`，再按 target 填 `type` / `key` / `doc` / `briefDrift` 四格与 `docClassOf` 端口，交既有 `Ledger#nextHopOf`。它是**唯一**装配：板面与胶囊都吃它的返回值，谁也拿不到「自己填的 cell」。
+- `Lifecycle` opts 增四格：`specType?: TargetType | null` · `specPath?: string | null` · `planPath`（既有键：plan / branch 线沿用 argv 值，`--spec` 线由索引填）· `planGraph?: TaskGraph | null`；四格全缺省 ⇒ 裸 slug 退化。
+- 行为变化（消费面可见）：pipeline frontier 与 line frontier 分歧处，胶囊的 `next:` 换成 frontier 那条线的 hop（例如收口的 spec 轮印后继面的 `review --type plan --plan …`），`reason:` 与板面同值。
+- 无新导出自 `face/board-view.ts`：`BoardNext` 只剩「取 facts → 交会话平面装配 → 返回 `NextHop`」，板面不填任何 cell。
 
 #### Steps
 
-- [ ] **Step 1: 写必红 parity** — checkable: 构造「spec 未闭（或未审）+ 波形轮到点」，断言胶囊的 `next:` 行**等于**板面同一状态的 `next:`；今日 FAIL（胶囊印本线字面）
-- [ ] **Step 2: 补 opts 并接线** — checkable: `cli.ts` 从文档索引填 `specType`/`specPath`；`#capsuleLines` 用 `PipelineFrontier.next(...)` 的 `{ route, target }`；`#routeNext` 仍服务 `#markTerminal`（那一处不动）
-- [ ] **Step 3: 裸 slug 退化** — checkable: `specType === null || specPath === null` 时胶囊行为与今日逐字节相同（有测试）
-- [ ] **Step 4: 重锚受影响快照** — checkable: 跑套件，**逐条登记**每个因「pipeline next ≠ 本线 next」而变的快照（文件:行 + 变化前后），不许只说「若干处」
-- [ ] **Step 5: 全套件 + 提交** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next` 全绿；`pnpm run precommit` 绿；`git commit -m "refactor(cdd-engine): the round capsule renders the pipeline frontier's hop"`
-- [ ] **Step 6: 本波验收** — checkable: `env -u AI_AGENT pnpm run validate` 退出码 0
+- [ ] **Step 1: 写必红 parity（`next:` 与 `reason:` 两半）** — checkable: 构造「spec 未闭（或未审）+ 波形轮到点」，断言胶囊的 `next:` 行**等于**板面同一状态的 `next:`，**且**两条 `reason:` 行的 token 同值（`const tokenOf = (line: string) => line.trim().replace(/^reason:\s+/, "");`，前缀各按自己的家：胶囊走站表、板面走布局字面）；今日 FAIL（胶囊印本线字面）。**`reason:` 这一半是这条断言的重心**：`next:` 只由 `{ route, target }` 渲染，`reason:` 才是 cell 派生（`doc` / `type` / `briefDrift` → 路由侧 drift / gate）的下游——只钉 `next:` 会放过「路由换了、cell 仍取本轮 frame」的实现，那正是 §11 缺口段点名的打架。
+- [ ] **Step 2: 四格来路逐格指名** — checkable: `specType` 取 `index.identityDoc(slug)` 的声明词（既有读法 `BoardView.#lineWordOf`）、`specPath` 取该 entry 的路径、`planPath` 取 `index.planOf(slug)`（plan / branch 线沿用 argv 的 `scene.planPath`；**`--spec` 轮 argv 为 null**——`scene.planPath` 由 `parsed.paths.plan` 派生，`face/cli.ts:994-995` · `:738`——而索引知道同 slug plan，故**必须**由索引值补上，否则 spec 轮 frontier 看不到 plan 面，胶囊会印本线 exit，§11 的实案（spec 行印 `cdd-plan`、板面印 `cdd-close`）原样留下）、`planGraph` 取装配层那次既有受守卫读（`face/board-view.ts:720-728`：搬走后它要么提成 `face` 侧 seam 把 `TaskGraph | null` 交给装配层，要么在组合根 `face/cli.ts` 的场景里读出后注入——两条都可，frontier 自己**不许**读文件）。**不得复用生命周期的事实**：`--spec` 轮 `Lifecycle#planPath` 是 argv 派生（值即 `scene.planPath`，为 null），`scene.state` 在非 wave 面是 `EMPTY_RUN_STATE` 而非 `TaskGraph`（`face/cli.ts:1080-1082`）——两处都不够四格。
+- [ ] **Step 3: 装配搬迁（B2）** — checkable: `face/board-view.ts:818-836` 的 cell 装配整段移入会话平面，五格取值规则与今日逐字节同一：`type: target?.type ?? "branch"` · `key: target?.type === "wave" ? target.id : (target?.type ?? "branch")` · `doc: target === null ? null : target.type === "branch" ? (target.plan ?? null) : target.id` · `briefDrift: target?.type === "wave" ? ledger.briefDrifted(String(target.id)) : undefined` · `docClassOf`（面侧端口，注入而非导入）。`BoardNext.#hopOf` 只剩一行调用。**两个调用点都换成同一装配**：板面 `board-view.ts:818` 与胶囊路径 `run.ts:448`。这一步之后「板面与胶囊取同一 `NextHop`」由结构保证，`next:` / `reason:` 的渲染面一行不改。
+- [ ] **Step 4: 接线胶囊** — checkable: `#capsuleLines` 只吃装配产出的 `NextHop`；`#routeNext`（`session/run.ts:818`）仍只服务 `#markTerminal`（`:435`）；`peekNext`（`:400-408`）仍走 `#hopOf`（`:841`，line frontier）——两条路径各司其职，`peekNext` 不进本任务的装配（它不参与 board ⇄ capsule 的 parity）。
+- [ ] **Step 5: 裸 slug 退化按整组输入** — checkable: **整组输入缺席**（`specPath === null && planPath === null`，故 `specType` / `planGraph` 亦为 null）时胶囊行为与今日逐字节相同（有测试）；**不得**把退化键成 `specType === null || specPath === null`——那会把「spec 已声明但索引未给 plan」这类半组输入误判成裸 slug，正好掩盖 Step 2 的补格。
+- [ ] **Step 6: 散文正名** — checkable: 逐处改写，术语按 spec v0.25 / v0.26 分开（**pipeline frontier** = `PipelineFrontier` 的装配产物，胶囊与板面共用；**line frontier** = `Lifecycle#peekNext`，frame-keyed 的单线视角）：`session/run.ts:396`（`peekNext` docstring「the SAME `NextHop` object the board and the CLI rejection message read」→ 它是 line frontier，板面共用的那个不是它）· `:838`（`#hopOf` 的「the frontier face reads the same object the board and the gate read」→ 同一处分）· `:257`（`CapsuleFace.emit` 的「`hop` is the ONE `NextHop` object the round renders」→ 指明取 pipeline frontier 的装配）· `StepResult.capsuleLines`（`:283-285`，「rendered at the interaction point」补一句「取自 pipeline frontier 的装配」）· `run.test.ts:1566` 的标题（见 Files）· `face/board-view.ts:805-816`（`BoardNext` 类 docstring 的「the board's next-hop assembly face」→ 装配已归会话平面，它只交 facts）· `session/pipeline.ts:1-30` 的模块头（补一句装配在此、胶囊与板面同吃）。验收是「搬走后不再有任何一处把两个 frontier 混称」，逐处复读，**不作零门**。
+- [ ] **Step 7: 重锚受影响快照** — checkable: 跑套件，**逐条登记**每个因「pipeline frontier next ≠ 本线 next」而变的整块快照（文件:行 + 变化前后），不许只说「若干处」；§7 的 137/15 分类只描述**非胶囊**读者，胶囊侧这份清单是本步的产物（与 Task 2 Step 7 的 15 处不重叠：那 15 处是追加 `reason:` 元素，本步是 `next:` 取值变化）。
+- [ ] **Step 8: changeset 第五件 + 提交** — checkable: `.changeset/p24-fix-identity-and-reason-row.md` 补**第五件**（Task 4 已写定前四件；本步只加这一句，不另开文件、不改级别）；`pnpm -C packages/cdd-engine exec vitest run src-next` 全绿；`pnpm run precommit` 绿；`git commit -m "feat(cdd-engine): the round capsule renders the pipeline frontier's hop"`——**类型是 `feat` 而不是 `refactor`**：`next:` / `reason:` 是消费面可见输出，收口轮的字面会变，把它写成重构会让那条发行说明失去依据。
+- [ ] **Step 9: 本波验收** — checkable: `env -u AI_AGENT pnpm run validate` 退出码 0
 
 #### Acceptance
 
-- spec 未闭而行完一轮波形时，胶囊 `next:` == 板面 `next:`（改动前必红）。
+- **必红 parity（两半）**：spec 未闭而行完一轮波形时，胶囊 `next:` == 板面 `next:`（改动前必红），**且**两条 `reason:` 行的 token 同值——`reason:` 这一半才是「cell 也换了」的证据，只钉 `next:` 会放过仍读本轮 frame 的实现。
+- **一个装配、两个渲染面（结构事实）**：cell 装配（target → `type` / `key` / `doc` / `briefDrift` / `docClassOf`）只剩会话平面一份——`grep -n "nextHopOf\|briefDrifted" packages/cdd-engine/src-next/face/board-view.ts` 搬后为空（今日 `:821` 一处 `nextHopOf`、`:833` 一处 `briefDrifted`）；板面（`:818`）与胶囊（`run.ts:448`）两个调用点都吃同一入口的返回值，故「板面与胶囊不可能不同」由结构保证，不是约定。
+- **四格来路在册**：`specType` / `specPath` 取自文档索引，`planPath` 在索引知道同 slug plan 时由索引值替代 argv（`--spec` 轮的 argv 值为 null），`planGraph` 取自既有受守卫读（`board-view.ts:720-728`）并由装配层注入；`session/pipeline.ts` 仍零文件读。
+- **退化按整组输入**：`specPath === null && planPath === null` 时胶囊与今日逐字节相同，有测试；半组输入（spec 已声明、plan 由索引缺）**不**走退化。
+- **散文正名在册**：`run.ts:257` / `:396` / `:838` / `:283-285`、`run.test.ts:1566` 的标题、`board-view.ts:805-816`、`pipeline.ts` 模块头全部按 pipeline frontier / line frontier 分开说；`peekNext` 不被称作「胶囊与板面共用的那个 frontier」。
 - `next:` 仍是可执行字面；`reason:` 仍取 `NEXT_HOP_REASON` 同一 source。
 - 裸 slug（无 spec / 无 plan）行为零变，有测试。
-- 受影响快照的重锚逐条在册。
+- 受影响快照的重锚逐条在册（胶囊侧另立清单，不混 §7 的 137/15）。
+- 消费面第五件事实进 `.changeset/p24-fix-identity-and-reason-row.md`（唯一一份条目、级别不变），提交类型为 `feat`。
 - C5 / drift / pending-fix / 写回 / 派发动词零改动；不做越序拒绝。
 - `env -u AI_AGENT pnpm run validate` 退出码 0。
 
@@ -533,4 +555,5 @@ none
 | v0.15 | 2026-11-04 | **plan 第 7 轮评审回填（内容面，结构面未动；Task 6 引用精度与搬移完整性）**：① **W1**——散文改写面由两处扩为**八处同义**：`board-view.ts:17-19`（「the traversal lives on the assembly face」——正是本任务要推翻的那句）· `:110-113`（`BoardPipelineFacts` 的「the traversal and the derivation belong to the assembly face」）· `:696-700`（`pipelineFacts` docstring）· `:844-853`（`BoardNext` 的「re-homed at the board's CONSTRUCTION face … decides the next pipeline step」）· 随 `#pipeline` 删除的 `:890-902`，并新增三个文件进范围：`face/cli.ts:483-487`（原不在 Files 里）· `session/next.ts:33-34`（本任务已改的同一模块）· 两处测试分节横幅 `board-view.test.ts:1389-1392` / `next.test.ts:339-343`；Step 5 与 Acceptance 同笔写明「既有断言零改动」只绑 `expect`，两处横幅改写不动任何断言 ② **W2**——Step 4 按 `board-view.ts:890-902` **逐条照抄四条面序规则**，补回被漏掉的规则②（已进入但无 active hop ⇒ 该面自己的 exit，k2 `board-view.test.ts:1494-1507` 覆盖的正是它）与规则③的兜底半句（无前置已进入面 ⇒ 第一个面的 exit，代码 `:918` 的 `Math.max(0, #lastEnteredIndex(...))`），并标注原文随 Step 5 删除 ③ **N1**——Step 5 分清两条**零门**（`#pipeline\b|…` grep 为空 · `^\s+(closed|active):` 计数为 0，两者都点名 `face/board-view.ts`）与**观察项**（`pipelineFacts` 计数须非 0）；Acceptance 的 closed/active 计数同步点名文件（全仓永不为 0，因为 `session/pipeline.ts` 会建同名单元格） ④ **N2**——Produces 改写：`face` 是「该 route 自己所属的面」，两条 exchange 规则（未进入 / 全闭合）下为 `null`、锚面由 `target` 反推，类型改 `PhaseFaceKey \| null`；消费者改为 Step 3 的四个 `pipeline.test.ts` 用例，`BoardNext.#hopOf` 只吃 `{ route, target }`，parity pin 不碰 `PipelineFrontier` ⑤ **N3**——Consumes 改正 `session/faces.ts` 的导出清单（`TargetType` / `DispatchPhase` / `ReviewLead` / `AuditFace` / `RouteTarget:50` / `targetFaces` / `TargetFace`，**不含** `PIPELINE_*` 与 `PhaseFaceKey` / `PipelineFaceState`），并补上返回类型用到的 `Route`（`session/next.ts:46`）与 `RouteTarget`（`session/faces.ts:50`） | Task 6 Files/Consumes/Produces/Step 4/Step 5/Acceptance + Change history v0.15 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 7 轮 fix · 2026-11-04） |
 | v0.16 | 2026-11-04 | **branch 第 1 轮评审回填（内容面，结构面未动）**：① **W1**——Task 1 Acceptance 的双写债务句改为指向 [#414]（`#recordsOf` 与 `#bookkeep` 两处判别的合并另开该 issue，债的收敛不在本相位），并把守卫边界写实为「行为 pin 而**不是**漂移探针」：任一侧日后单独改动该用例都不必红，不得据此宣称能拦单侧漂移 ② **N1**——`board-view.test.ts:1633` 的 `targetFaces["branch"]` 改 `targetFaces.branch`（biome `useLiteralKeys`，本轮 diff 唯一新增命中；其余 `targetFaces[…]` 站点键名含连字符，无法点取） | Task 1 Acceptance + Change history v0.16（N1 落测试文件，非本文档） | Oscaner M. · Claude（kairos:cdd-dev [P24] 分支第 1 轮 fix · 2026-11-04） |
 | v0.17 | 2026-11-04 | **plan 第 8 轮评审回填（内容面，结构面未动）**：① **W1**——发布条目由「三件」改为**四件**：板面 pipeline frontier 改读 drift（§9）也是消费面可见字节变化（收口后被轮外改动的 doc 让板面从 `implement --plan … --tasks …` 改印该 doc 线的 review lead + `reason: doc-drift`），故 Task 4 的 Files / Step 4 / Acceptance 三处一律改为四件，并把 `.changeset/p24-fix-identity-and-reason-row.md` 加进 Task 5 的 Files（只核对 ④）与其 Acceptance（「该变化由 Task 4 的发布条目承载」）——此前没有任何在 Task 4 之后的任务 owner 这份条目，实落时第四句只能靠 Task 5 顺手补 ② **N1**——四份 diagram 源的 pin 归属记实：`next-loop-twin` 的 `SOURCES` 是 `next-loop` ×2 + `architecture` ×2（`:93-95`）且只钉三条收敛语句，`journey` 两份在三个测试面里零命中（**完全没有** pin），故 Step 3 / Acceptance / Constraints 的已知限制三项一并改写（不再声称「四份源的孪生断言」）③ **N2**——Task 5 Acceptance 加交叉引用：它调度的两个 `closed` 单元格由 Task 6 删除并迁入 `session/pipeline.ts`（spec §10），红→绿证据取自本任务的提交 | Task 4 Files/Consumes/Step3/Step4/Acceptance + Task 5 Files/Acceptance + Constraints + 范围锁 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 8 轮 fix · 2026-11-04） |
-| v0.18 | 2026-11-04 | **范围追加（用户裁定 · 对齐 spec v0.21 §11）**：新增 **Task 7**「每轮的下一跳读 pipeline frontier」——`#capsuleLines` 改喂 `PipelineFrontier.next(...)`，`Lifecycle`/`SessionRun` 增 `specType`/`specPath`（`cli.ts` 从文档索引填）；必红 parity（波形轮完而未闭 spec 时胶囊 == 板面）、裸 slug 退化、受影响快照逐条重锚；`DependsOn: 6` ⇒ 新波 W6 | Task 7 + 范围锁 + Change history v0.18 | Oscaner M. · Claude（kairos:cdd-dev · 范围追加 · 2026-11-04） |
+| v0.18 | 2026-11-04 | **范围追加（用户裁定 · 对齐 spec v0.21 §11）**：新增 **Task 7**「每轮的下一跳读 pipeline frontier」——`#capsuleLines` 改喂 `PipelineFrontier.next(...)`，`Lifecycle` 增 `specType`/`specPath`（`cli.ts` 从文档索引填）；必红 parity（波形轮完而未闭 spec 时胶囊 == 板面）、裸 slug 退化、受影响快照逐条重锚；`DependsOn: 6` ⇒ 新波 W6 | Task 7 + 范围锁 + Change history v0.18 | Oscaner M. · Claude（kairos:cdd-dev · 范围追加 · 2026-11-04） |
+| v0.19 | 2026-11-05 | **plan 第 9 轮评审回填（内容面，结构面未动；九条全收）**：根因单一——Task 7 照 spec v0.21 写而 spec 已到 v0.26。① **B1**——范围锁的版本字面由 v0.21 改 **v0.26**，并写明这不是排版（v0.22 加深 §11、v0.25 拆开两个 frontier 术语、v0.26 重写 doc 线验收）；Task 7 按 §11 定案 ¶2 与 §7「渲染源统一」行重写 ② **B2**——Task 7 必须涵盖 **cell 装配的搬迁**：target → `type` / `key` / `doc` / `briefDrift` / `docClassOf` 与 `PipelineFrontier` 一起进 session 平面，`face/board-view.ts:818-836` 进 Files，胶囊与板面调**同一个装配**，Acceptance 改为「一个装配、两个渲染面」的结构事实（`grep nextHopOf\|briefDrifted board-view.ts` 搬后为空） ③ **W1**——parity 同时钉 `next:` **与** `reason:` token（`reason:` 才是 cell 派生的下游，只钉 `next:` 会放过仍读本轮 frame 的实现） ④ **W2**——删掉不存在的 `SessionRun`（三处：Files · Produces · v0.18 行），Consumes 改为构造注入 `new PipelineFrontier(ledger).next(input)` ⑤ **W3**——四格来路逐格指名（三格索引 + 一格受守卫读；`--spec` 轮 argv `planPath` 为 null、`scene.state` 非 `TaskGraph`），Step 5 的退化改按**整组输入缺席**（`specPath === null && planPath === null`） ⑥ **W4**——Constraints 的「胶囊在 wave 面不承诺 drift」与 Review Focus 的「不得修一致」、Task 3 Step 8 及其 Acceptance 按 §11 改写：frame-keyed 的 **line frontier** 才是看不到重绑 brief 的那个，胶囊渲 **pipeline frontier** 故与板面同值；`run.test.ts:1566` 的标题理由改写（标题归 Task 7 Step 6） ⑦ **W5**——changeset 规则改为**不变式**（每件消费面可见变化都在同一份条目内，落笔时在册四件、第五件由最后落地的 Task 7 补），Task 7 的 Files 加 changeset、提交类型 `refactor` → `feat` ⑧ **W6**——Task 1 的夹具裸 slug 选择写明（不传 specPath/planPath ⇒ 印本线 exit；带 plan 的 slug 收口轮印下一面的 active hop，可以是 `review --type plan …`），Task 2 的字节声明收窄为**非胶囊读者** ⑨ **W7**——Task 7 新增散文正名步：`session/run.ts:257` · `:396` · `:838` · `:283-285` 与 `PipelineFrontier` 模块头按两个 frontier 分开说 | Constraints · Review Focus · Task 1 Steps/Acceptance · Task 2 Acceptance · Task 3 Step 8/Acceptance · Task 4 Files/Step 4/Acceptance · Task 7（整体重写）· 范围锁 · Change history v0.19 | Oscaner M. · Claude（kairos:cdd-dev [P24] 第 9 轮 fix · 2026-11-05） |

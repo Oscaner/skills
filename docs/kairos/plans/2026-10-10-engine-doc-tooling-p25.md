@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P25 计划：写回判定的单源
 doc-type: plan
-version: v0.4
+version: v0.5
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p25
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p25-design.md` **现行 `version`**（v0.6）所指的面；spec 版本一变，本约束的字面同笔改。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p25-design.md` **现行 `version`**（v0.7）所指的面；spec 版本一变，本约束的字面同笔改。
 - **纯重构**：任何消费面字节变化都是越界。`preview.test.ts` 的五条 `would record:` 断言（`:79` · `:101` · `:122` · `:144` · `:162`）**一行不改**即证据。
 - **判定必须纯**：`legOf` 不读账本、不读文件、不接 verdict、不接 plan path——只凭 `(phase, kind)` 回答。
 - **参数类型不得放宽**：`phase: RoundPhase`（`session/ledger.ts:71` = `OpType | "branch-review"`）· `kind: AuditTarget["kind"]`（`session/run.ts:73-80`）。**禁用 `TargetType`**（它没有 `spec` 成员，会诱出第二张 type → 腿映射表）。
@@ -26,7 +26,8 @@ base: develop
 - **只有一份**：两条结构门（白名单消失门 / 声明单源）；白名单门**今日必红**（两文件各一处）。「两面真的调了它」由矩阵三值断言承担（见上一条）。
 - **判定自身的不变式**：`REVIEWED_WRITE_PHASES` × 每个 kind 的返回值逐格，以及未列出的 kind 与 `implement` 一律 `null`——这两条是**运行时断言**（类型层不会把测试变红），落在 T1 的门测试里。
 - **wave + 无 plan path 的既有不对称**：真跑不写、预览陈述 brief 腿——不得当成失败去「修」，必须单列一条断言把它**钉住**。
-- **未列出的 kind**：不得落成 doc 写回（保守链）。
+- **未列出的 kind**：不得落成 doc 写回（保守链）——由 T1 的**运行时 pin** 钉住（`legOf("review", "bogus" as AuditTarget["kind"])` 必须为 `null`）。
+- **判定必须可证纯**：`session/reviewed-identity.ts` 内**不得出现** `targetAction` 或 `planPath` 字样（文本门），也不得 import 任何状态读取面——这是「判定只收 `(phase, kind)`」的可执行证据，不是口头承诺。
 - **陈旧 docstring**：`preview.ts:147-158`（「a SECOND copy… kept apart on purpose」）· `:165-171`（`#reviewedLegOf` 链描述）· `run.ts:726-745`（phase 门内联叙述）——改完必须不再声称有两份。
 
 ### Task 1: `ReviewedIdentity.legOf` + 两个调用点迁移 + 两条结构门 + 两条验收 pin
@@ -60,7 +61,7 @@ base: develop
 - [ ] **Step 3: 记账侧迁移** — checkable: `run.ts:746-752` 改写为**语句式**（不得写「条件里赋值」——`lint/suspicious/noAssignInExpressions` 会让 `pnpm run precommit` 直接红）：先 `const leg = record.verdict.targetAction ? ReviewedIdentity.legOf(frame.phase, frame.target.kind) : null;`，再 `if (leg !== null)` 按 `leg` 分派（`switch (leg)` 或 `if` 均可）；派发与三个 `#record…` 方法是 **1:1**，`run.ts` 里**不再残留任何 kind 分支**（`#recordReviewedDocRevision` 体内既有的 kind 收窄守卫保留不动——那是写方法自己的防御，不是判定）；三个方法本体**不动**（它们做写，不做判定）
 - [ ] **Step 4: 预览侧迁移** — checkable: `preview.ts:159` 的 phase 白名单与 `:172-178` 的 kind 三分支改为 `const leg = ReviewedIdentity.legOf(frame.phase, frame.target.kind)`，`#reviewedLegOf` 退化成「腿 → 字符串」的渲染映射（`doc` / `branch` → `reviewedRevision(doc)`，`brief` → `reviewedRevision(brief)`）；`branch` 的 `#scene.planPath === null` 守卫**保留**在渲染映射里（那是输入，不是判定），故五条既有 `would record:` 行的字节不变
 - [ ] **Step 5: 改写陈旧 docstring** — checkable: 三处不再声称「a SECOND copy … kept apart on purpose」（`preview.ts:147-158` · `:165-171` · `run.ts:726-745`），改为「判定在 `ReviewedIdentity.legOf`，两面共用；`targetAction` 与 plan path 是两面各自的输入；`wave` + 无 plan path 的不对称仍保留」。**硬约束（N1）**：改写后的 docstring **按相位名叙述**（review / branch-review / fix 这几个词），**不得复述** `frame.phase === "branch-review"` 这类比较式字面量——白名单消失门数的是**字面量原文，含注释**，注释里抄一句就把门留在红。
-- [ ] **Step 6: 两条门转绿 + 两条验收 pin + `legOf` 单元 pin + 限度注释** — checkable: `reviewed-identity.guard.test.ts` 两条结构门全绿；**同文件加两条验收文本 pin（N3）**：① `#bookkeep` 的方法体切片（自 `#bookkeep(` 签名行起、至下一个恰为 `  }` 的行止）内 `frame.target.kind ===` 的出现数为 **0**（切片先自检非空且含 `ReviewedIdentity.legOf(`，让切错的方法体**响亮失败**而不是空片恒绿）② `reviewed-identity.ts` 中对 `./run.ts` 与 `./ledger.ts` 的每一条 import 行都以 `import type {` 开头（零值导入）；`run.ts` 反方向若需要 `ReviewedLeg` 这个类型，必须用 `type` 修饰符形式（`import { ReviewedIdentity, type ReviewedLeg }`），不用普通具名导入；同文件内加 `legOf` 的**运行时**单元 pin（全仓唯一被允许直接调 `legOf` 的测试）：每个 `REVIEWED_WRITE_PHASES` 成员 × 每个 kind 的返回值逐格断言，且未列举的 kind 返回 `null`；注释写明「字面量门挡不住换写法的副本」
+- [ ] **Step 6: 两条门转绿 + 两条验收 pin + `legOf` 单元 pin + 限度注释** — checkable: `reviewed-identity.guard.test.ts` 两条结构门全绿；**同文件加两条验收文本 pin（N3）**：① `#bookkeep` 的方法体切片（自 `#bookkeep(` 签名行起、至下一个恰为 `  }` 的行止）内 `frame.target.kind ===` 的出现数为 **0**（切片先自检非空且含 `ReviewedIdentity.legOf(`，让切错的方法体**响亮失败**而不是空片恒绿）② `reviewed-identity.ts` 中对 `./run.ts` 与 `./ledger.ts` 的每一条 import 行都以 `import type {` 开头（零值导入）；`run.ts` 反方向若需要 `ReviewedLeg` 这个类型，必须用 `type` 修饰符形式（`import { ReviewedIdentity, type ReviewedLeg }`），不用普通具名导入；同文件内加 `legOf` 的**运行时**单元 pin（全仓唯一被允许直接调 `legOf` 的测试）：每个 `REVIEWED_WRITE_PHASES` 成员 × 每个 kind 的返回值逐格断言，且未列举的 kind 返回 `null`；注释写明「字面量门挡不住换写法的副本」；同文件加**纯度文本门**（该文件不含 `targetAction` / `planPath` 字样）与**保守链运行时 pin**（`legOf("review", "bogus" as AuditTarget["kind"])` 为 `null`）
 - [ ] **Step 7: 字节零变** — checkable: `preview.test.ts` 五条 `would record:` 断言**一行不改**仍绿；`pnpm -C packages/cdd-engine exec vitest run src-next` 全绿
 - [ ] **Step 8: 提交** — checkable: `pnpm run precommit` 绿；`git commit -m "refactor(cdd-engine): one home for the write-back judgment"`
 
@@ -148,3 +149,4 @@ none
 | v0.2 | 2026-11-05 | **评审第 1 轮 fix（九条 findings 全接受 · 作者裁定入文）**：① 腿类型三值 `doc`/`brief`/`branch`，与三个 `#record…` 方法 1:1，记账侧不再残留 kind 分支（spec §2 同笔改 v0.4）② Step 3 改语句式，去掉条件内赋值（biome `noAssignInExpressions` 会红）③ 三条门按 D26 锚到 `#bookkeep` / `#recordsOf` 方法体，写明门③只扫判定文件、两消费者文件零 `REVIEWED_WRITE_PHASES` ④⑤ 矩阵改「可达格 + 显式跳格清单 + 单文件单 oracle」，删掉 `4×4×2 = 32 格`算术 ⑥ `legOf` 的运行时单元 pin 落 T1 门测试（含未列出的 kind → `null`）⑦ Step 2 列三处同址事实，plan path 那条写在 `legOf` 旁边 ⑧ `import type` 避开运行时静态环 ⑨ 补文件末尾换行 | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-05） |
 | v0.3 | 2026-11-05 | **吸收 spec v0.5（编排器对齐）**：① 范围锁 v0.4 → **v0.5** ② **结构门三条 → 两条**（删「调用门」——文件级匹配可被 docstring 满足、锚方法体又脆弱；「两面真的调了它」改由矩阵承担） ③ 门② 作用域钉死 `src-next/**/*.ts` 排除 `__tests__/` ④ 矩阵纪事由「两侧同值」改 **三值 `preview == ledgerKind == 期望腿`**（`legOf` 返回错值时两者仍同值，必须三值才封住） ⑤ Acceptance 同步 ⑥ 签名 `\| null` 已在 spec v0.5 §4 补齐（落点：Constraints · Review Focus · Task 1 S1/S6 · Task 2 S1 · Acceptance · Change history） | Oscaner M. · Claude（kairos:cdd-plan · 对齐回填 · 2026-11-05） |
 | v0.4 | 2026-11-05 | **评审第 2 轮 fix（六条 findings 全接受 · 作者裁定入文）**：① **B1 矩阵右侧 oracle 从「ref kind」改「哈希」**——`fix` 格断言 `doc_hash` / `brief_hash` 等于该轮判断输入的当前内容哈希；fix 轮经 review 轮先进、同 key 同 kind 已绑过，kind 判据看不丢写回；夹具必须让 fix 输入移动并先断言两侧哈希不等（spec §3 同笔改 v0.6）② **W1** Task 1 Acceptance 改两条门 + 正确归属（白名单消失门今日必红；调用门已删）③ **W2** `preview.test.ts` 由「不动」改「新增一条 `branch` + 无 plan path 的 pin」，删掉 spec §4 落点的陈旧引注 ④ **N1** Task 1 Step 5 补「按相位名叙述、不复述比较字面量」⑤ **N2** 本表 v0.3 行（实为八格，`\| null` 未转义又劈了两格）改回四格 ⑥ **N3** 两条缺 pin 的验收各补一条文本 pin（`#bookkeep` 体内零 `frame.target.kind ===` · `reviewed-identity.ts` 的 import type） | Oscaner M. · Claude（kairos:cdd-plan · plan fix 2 · 2026-11-05） |
+| v0.5 | 2026-11-05 | **吸收 spec v0.7**：① 范围锁 v0.6 → **v0.7** ② 补**两条 pin**（spec 第 3 轮 W1）：**纯度文本门**（`reviewed-identity.ts` 不含 `targetAction` / `planPath` 字样、不 import 状态读取面）+ **保守链运行时 pin**（未列举 kind 返回 `null`——矩阵碰不到它，因为矩阵禁止调 `legOf`）③ Constraint / Step 6 / Acceptance 三处同步 | Constraints · Task 1 S6 · Acceptance · Change history v0.5 | Oscaner M. · Claude（kairos:cdd-plan · 对齐回填 · 2026-11-05） |

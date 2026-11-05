@@ -139,7 +139,7 @@ none
 
 #### DependsOn
 
-1
+1, 2
 
 ### Task 3: wave 面的「未进入」判据（§6 · 面层、active 与 target 同时清空）
 

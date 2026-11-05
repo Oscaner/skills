@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 设计：NEXT-LOOP 收口面（drift 语义收窄 + hop 原因可读）
 doc-type: phase-spec
-version: v0.28
+version: v0.29
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p24
 program: 2026-10-10-engine-doc-tooling
@@ -122,7 +122,7 @@ reason: doc-drift
 
 ### 7. 落点、依赖与发行
 
-**源码落点**（十三行：七处既有面 + 一行渲染源统一（胶囊与板面同一装配）+ 一行新增面（frontier 归 `session/pipeline.ts`）+ 一处判据收窄 + 一行输入面 + 一行注入点）：
+**源码落点**（十三行：七处既有面 + 一行渲染源统一（胶囊与板面同一装配）+ 一行新增面（frontier 归 `session/pipeline.ts`）+ 一处判据收窄 + 一行输入面 + 一行汇总单元（§12）+ 一行注入点）：
 
 | 面 | 文件 | 落点 |
 |---|---|---|
@@ -143,7 +143,7 @@ reason: doc-drift
 
 **依赖**：P23 已 Done（`P23 -> P24` hard，本相位不依赖 P23 的任何产物，只依赖其闭合后的树）。
 
-**发行**：`@oscaner-skills/cdd-engine` **minor**（D74：消费面可见字节变化即 minor——新增 `reason:` 行、根 README 一句）；不涉 kairos 包，故不给 kairos changeset。
+**发行**：`@oscaner-skills/cdd-engine` **minor**（D74：消费面可见字节变化即 minor——新增 `reason:` 行、根 README 一句、**§12 的板面汇总单元在有失败尝试的行上改字节**）。§12 **并入同一份** `.changeset/p24-fix-identity-and-reason-row.md`（不另开第二条、级别不变仍 minor），该条目现有的末句「`cdd board` output is unchanged」随之**改写**而非追加——由落地 §12 的 **Task 8** 在同一次提交里负责（Task 4 的不变式是「每件消费面可见变化都在这一份条目内」）；不涉 kairos 包，故不给 kairos changeset。
 
 **pin 清单（分类在册：零改动 137 处 + 重锚 16 处 = 整块快照 15 处 + 站表长度 1 处；另有第 5 类陈旧散文，断言字节零变）**：`next:` 断言分布于 11 个测试文件、152 处引用，另有一处站表长度 pin 落在同一批词表测试里。分类逐条在册，不许含糊：
 
@@ -243,6 +243,8 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 - **成功令牌**：`{verb} {成功数}{末条成功记录的 attempt 后缀} ✓{+N}`；**该 verb 存在失败记录时**改渲 `{verb} {成功数}/{尝试总数}{后缀} ✓{+N}`（比率只在有失败时出现 ⇒ 干净行字节零变）。
 - **失败令牌**：每条失败记录一个，`{verb} {cycle}{attempt>1 ? aN : ""} ✗{+N}`；**若该 cycle 后有成功尝试**，改为 `{verb} {cycle}{aN} ✗→✓`（已恢复）。
 
+**令牌数的界**：✓ 每个 verb 至多一枚（成功面严格合并）；✗ **每条失败记录一枚、逐条不设上限**（展开只发生在异常面）——实际条数由 `REVIEW_CYCLE_CAP`（`session/next.ts:65` = 50）封顶。
+
 **本相位实况与既有 pin 的前后**：
 
 | 数据 | 今日 | 本相位之后 |
@@ -259,6 +261,7 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 2. **既有 pin 重锚**：`board-view.test.ts:1274` 的 `"fix 1 ✗ · fix 1a2 ✓"` → `"fix 1/2 ✓ · fix 1 ✗→✓"`。
 3. **干净行零变**：`board-view.test.ts:1218-1228` · `:1242-1246` · `:1256-1265` 与 `cli.test.ts:7356-7357` 的既有断言**一行不改**仍绿。
 4. **两条 P22 门仍红**：区间形（`review 1–10 ✓`）与 `a1`（任何令牌出现 `a1`）的既有断言不改。
+5. **重锚在 §7 的 1–5 类账之外**：板面汇总单元不是 `next:` 行，故 `board-view.test.ts:1274` 的重锚与上面的新增实况用例不占 §7 的 152 处引用、15 处 `toEqual` 快照、站表长度 1 处任何一格——§7 的账只覆盖 `next:` 字节，本处按**账外修复**在册（先例：`preview.test.ts:126-146` 的陈旧 pin，同属 `next:` 账外）。
 
 **落空面（范围写窄）**：`face/board-view.ts` 里 `spec §5.3` 的引用约十处（`:24` 文件头 · `:60` 字形 · `:294` `+N` · `:370` 在飞单元 · `:406`/`:511`/`:530` 排版 · `:612` 波单元 · `:655` doc 单元）。**只有承载令牌规则的 `summaryCell` / `#summaryToken` 两处 docstring 改指 P24 §12**；其余引用的是排版与字形规则，P22 §5.3 对它们仍然是正确依据，**不动**。
 
@@ -280,7 +283,7 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 - **非胶囊读者的**每条由 hop 渲染出的 `next:` 行（`RouteRenderer#renderHop` 的产物）之后紧跟一行 `reason: <token>`，token 取 `NEXT_HOP_REASON` 七值之一。两处**非 hop** 的 `next:` 字面是显式例外、字节零变且**不带** `reason:` 行：`face/board-view.ts:556`（null-next 分支的 `  next:    (none)`）与 `:623`（程序板收尾的 `  next:    done`），二者登记在 §7 的板面行。`next:` 行字节与今日**逐字节相同**——证据是 §7 pin 清单的分类：152 处引用中 137 处按行抽取 / `toContain` 零改动，15 处整块 `toEqual` 快照各**只**追加一个 `reason:` 元素（`face/__tests__/face.test.ts` 13 处 · `face/__tests__/capsule.test.ts` 2 处，逐条在册），外加站表长度 pin 1 处（`face/__tests__/face.test.ts:103`，4 → 5）重锚。
 - 胶囊与板面渲染同值（同一 hop 的同一 token）；BLOCKED / TIMEOUT 轮两面都不渲 `reason:`。前缀**字节同值而不共用来源**：胶囊走**站表**行（`words.station("reason")`，与它取 `next:` 同路），板面走与其 `next:` 行同形的布局字面 `  reason:  `；站表由四行变五行，`face/__tests__/face.test.ts:103` 的站表长度 pin 重锚为 5（全单第 16 处重锚，§7 在册），`routeWords` 与 `face/__tests__/cli.test.ts:3794` 的 routeWords-sync 不动。
 - 根 `README.md:60` 与其 `.zh-CN.md:64` 镜像同步更新该 bullet 的**首句与后半句**（「printed last」/「最后打印」在加行后不再成立），第三个从句（板面）原样保留并因 `reason:` 同值而更强，`SKILL.md` 零变更。
-- `env -u AI_AGENT pnpm run validate` 退出码 0；`pnpm run emit:check` fresh；changeset 为 `@oscaner-skills/cdd-engine` minor。
+- `env -u AI_AGENT pnpm run validate` 退出码 0；`pnpm run emit:check` fresh；changeset 为 `@oscaner-skills/cdd-engine` minor，且 **§12 的板面字节变化并入同一份 p24 条目**（不另开第二条、不改级别），该条目末句「`cdd board` output is unchanged」已改写为「在有失败尝试的行上会变」。
 
 ## Constraints
 
@@ -323,5 +326,6 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 | v0.24 | 2026-11-04 | **spec 第 10 轮 fix 回填（W3 残留）**：v0.23 只改了 Acceptance 的三处，`§4`/`§6`/`§8`/`Constraints` 仍留着「胶囊在 wave 面 drift 恒为假（不可达）」这套说法，与 §11「胶囊渲 frontier 的同一 `NextHop`」直接矛盾——四处同笔改为「胶囊渲 frontier 的 hop，故 `reason:` 与 frontier / 板面同值」，并把取证边界收窄为「`briefDrift` 注入只在 `peekNext` 与板面两条路径上可观察」；`§6` 第 1 条的 doc 线断言面随之按「裸 doc slug vs 带 plan 的 slug」分写，不再笼统说「两面此面皆 drift-aware」 | §4 wave 面 · §6 第 1 条（doc 线与 wave (ii)）· §8 · Constraints + Change history v0.24 | Oscaner M. · Claude（kairos:cdd-dev · spec docs-fix 第 10 轮 · 2026-11-04） |
 | v0.25 | 2026-11-04 | **spec 第 11 轮回填**：① **术语消歧**——`pipeline frontier`（胶囊+板面共用）与 `line frontier`（`peekNext`，单线）不是同一个东西；「胶囊与板面同一对象」成立、「胶囊与 `peekNext` 同一」不成立，parity 只打 board ⇄ capsule ② 收口轮胶囊印的是 **frontier 面的 active hop**（spec 收口而 plan 未起步 ⇒ `review --type plan`），只有裸 doc slug 才是本线 exit ③ `planGraph` 的来路改为「板面的受守卫读 + 装配层注入」，不是索引单元格 ④ §7 表头 11→12 行 | §11 术语段 + Acceptance doc 线 + §11 输入来源 + §7 表头 + Change history v0.25 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-04） |
 | v0.26 | 2026-11-05 | **spec 第 11 轮 fix 回填（docs-fix）**：v0.25 落了裁定的一半，本条补齐残差——① §6 第 1 条与 Acceptance 的 doc 线不再写「`next:` 为 `done` / `handoff` / `next-wave`，不是 `review`」（在带 plan 的 slug 上是直言为假），改为断言**该线自身闭合**（`lineRoute(type, type)` 为 `null` · 或 `peekNext()` 为 `null` · 或该记录轮路由在 exit 侧），并明写收口轮印的是**下一面的 active hop**：`review --type plan --plan …`（`board-view.test.ts:316`）与 `review --type branch --plan …`（`:1497`）是别的面的 lead，不是本线重开 ② 五处混称「frontier」的句子（§4 wave 面 · §6 (ii) · §8 · Acceptance wave · Constraints）改为分开说：胶囊与板面共用 **pipeline frontier**（`PipelineFrontier.next(...)`），`peekNext` 是 **line frontier**（frame-keyed 装配），被跳过的 parity 断言是 capsule ⇄ `peekNext`，板面的那条（§10）才存在；wave 面上 capsule ⇄ `peekNext` 同值是夹具级期望 ③ §7 表头「十一行」改**十二行**并补「一行渲染源统一」的分解 ④ `planGraph` 的来路在 §11 与 §7「渲染源统一」行同时说准：三格来自文档索引、第四格来自既有受守卫读，并写明装配搬走后该读的家（`face` 侧 seam 交装配层，或组合根注入；frontier 仍不读文件） | §4 wave 面 · §6 第 1 条与 (ii) · §7 表头与渲染源统一行 · §8 · §11 输入来源 · Acceptance doc 线与 wave · Constraints + Change history v0.26 | Oscaner M. · Claude（kairos:cdd-dev · spec docs-fix 第 11 轮 · 2026-11-05） |
-| v0.27 | 2026-11-04 | **范围追加（用户裁定 · 第五次并入）**：新增 §12「板面汇总单元按成功总量 + 失败尝试重排」——现按判决连续段切分并段内重计数，于是 `fix 11 ✓ · fix 1 ✗ · fix 2 ✓` 既看不出失败在第 12 轮、也丢掉了那次重派。定案：成功按 verb 合并为一个令牌、失败逐条带 cycle；在 P22 §5.3 的两条既有门之内落地（区间形不出现 · `a1` 不出现）；无失败的行字节零变 | §12 + §7 汇总单元行 + Acceptance + Change history v0.27 | Oscaner M. · Claude（kairos:cdd-dev · 范围追加 · 2026-11-04） |
+| v0.27 | 2026-11-05 | **范围追加（用户裁定 · 第五次并入）**：新增 §12「板面汇总单元按成功总量 + 失败尝试重排」——现按判决连续段切分并段内重计数，于是 `fix 11 ✓ · fix 1 ✗ · fix 2 ✓` 既看不出失败在第 12 轮、也丢掉了那次重派。定案：成功按 verb 合并为一个令牌、失败逐条带 cycle；在 P22 §5.3 的两条既有门之内落地（区间形不出现 · `a1` 不出现）；无失败的行字节零变 | §12 + §7 汇总单元行 + Acceptance + Change history v0.27 | Oscaner M. · Claude（kairos:cdd-dev · 范围追加 · 2026-11-04） |
 | v0.28 | 2026-11-05 | **spec 第 12 轮回填（重设 §12）**：① 原「成功数 + cycle」把两个量塞进同一槽位（`fix 3 ✓ · fix 3 ✗` 读着自相矛盾），改为「成功用 `{成功}/{尝试}` 比率（仅在存在失败时出现）+ 失败令牌带 `✗→✓` 恢复标记」 ② **显式列出对 P22 §5.3 的三条修订**（逐轮展开限定于异常面 · 令牌形增比率与 cycle · 旧示例字面作废），不再声称『在门内』 ③ 缺口改引真实行输出 ④ 落空面收窄为 `summaryCell`/`#summaryToken` 两处 docstring ⑤ changeset 须改写（现有『board output is unchanged』作废） ⑥ §7 表头 13 行 ⑦ 证据每条带 pin | §12 + §7 汇总单元行/表头 + Acceptance + Change history v0.28 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-05） |
+| v0.29 | 2026-11-05 | **spec 第 12 轮 fix 回填（docs-fix）**：① **W1**——§7「发行」与 Acceptance 的 changeset 末条补 §12：板面汇总单元在有失败尝试的行上改字节是**消费面可见变化**，并入同一份 `.changeset/p24-fix-identity-and-reason-row.md`（仍 minor、不另开第二条），该条目末句「`cdd board` output is unchanged」须改写（Task 8 owner） ② **N1**——§7 表头分项补「一行汇总单元（§12）」，7+1+1+1+1+1+1 = 十三行（此前十三行却只列 12 项） ③ **W2 尾项**——§12 写明 ✗ 令牌逐条不设上限、实际由 `REVIEW_CYCLE_CAP` 封顶 ④ **N2 尾项**——§12 证据第 5 条：`:1274` 的重锚在 §7 的 1–5 类 `next:` 账之外，按账外修复在册 ⑤ **N3**——Change history v0.27 行日期 2026-11-04 → 2026-11-05（不再早于 v0.26 与 front-matter） | §7 表头/发行 + Acceptance 末条 + §12 定案/证据 + Change history | Oscaner M. · Claude（kairos:cdd-dev [P24] spec 第 12 轮 fix · 2026-11-05） |

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P25 设计：写回判定的单源（`#bookkeep` ⇄ `#recordsOf`）
 doc-type: phase-spec
-version: v0.9
+version: v0.10
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p25
 program: 2026-10-10-engine-doc-tooling
@@ -177,6 +177,8 @@ class ReviewedIdentity {
 
 用既有的 `Ledger#roundCount`（`session/ledger.ts:716-719`，DISTINCT cycle 计数，**含失败尝试**），**不加新 API**；不取 `completedCycles`，因为「派发过但被 BLOCKED」也算已进入（面不该退回去重交一次 handoff）。零 batch 的 plan（无任务块）与无 plan graph 同等落进「未进入」——那是同一个事实：这一面从未进入。
 
+**`LedgerKey` 与 identity 的拼法（评审第 5 轮 N1）**：三次读数写成 `roundCount(key, mode)`——**不传第三参**，`identity` 取默认 `null`。`key` 是该 batch 的任务 id 用 `,` 拼成的字符串（`LedgerKey = number | string` · `ledger.ts:291` · 与 `#waveKeyOf` 的 `frontier.join(",")` 同拼法），`mode` 逐次取 `"implement"` / `"review"` / `"fix"`。这与 `waveLineRoute` 读的是**同一个形态**（`ledger.ts:957`：`completedCycles(waveKey, "implement")` 同样不带 identity），也与 `closedWaves()` 落的那一行一致——`rowFor` 只按 `row.wave === String(key)` 找行（`ledger.ts:652`），identity 只在退役 `spec` 行的兼容回退里被读（`:659-662`），永远匹配不上一个 batch key。故「同一行」由**拼接拼法 + 省略 identity** 两件事保证；实现里不得把 `frame.type` 之类的文档类型字样当 identity 传进来。
+
 **不变的是什么**：四条面序规则的**文本**、`#next` 的判定顺序、`PIPELINE_NEXT` 表、`waveLineRoute` 的返回值都不变；变的是 wave 面 `target` 是否在场这一**输入**，于是同一个 frontier 从规则 ① 改走规则 ③。文件头 `pipeline.ts:19-33` 今天把「未进入」写成「no target — an absent doc」，同笔改成「no target：文档缺席，**或**该面自己的进入判据未成立」，否则注释与代码各说一套（`#lastEnteredIndex` 的 docstring `:268` 同口径）。
 
 **改动的字节（逐字，只在这个窗口内）**：窗口 = plan 已收口 + 有任务图 + 该 plan 的 wave 面零轮记录。窗口内板面与胶囊的两行改变：
@@ -232,3 +234,4 @@ class ReviewedIdentity {
 | v0.7 | 2026-11-05 | **spec 评审第 3 轮 fix（W1 · N1 · N2 接受；N3 已由编排器落地）**：① **W1 保守链与纯度补 pin**——矩阵碰不到「未列出 kind」与「判定只收 `(phase, kind)`」这两件事（只枚举四个合法 kind 且禁止调 `legOf`），故 `reviewed-identity.guard.test.ts` 新增两条：直调 `legOf` 断言越界 kind（`"bogus" as AuditTarget["kind"]`）与 `implement × {wave, branch, plan, spec}` 全 `null`；以及**纯度文本门**（剥注释后无 `node:fs` / `readFile*`、对 `./run.ts` / `./ledger.ts` 只有 `import type`、代码不出现 `targetAction` / `planPath`）。两条同时写进 §2 · §3 · §4 · Acceptance · Constraints ② **N1** Acceptance 的矩阵右侧判据改为**分型**（`fix` 格比哈希、`review` / `branch-review` 格比 ref kind），与 §3 一致，不再读成「每格都比哈希」 ③ **N2** §3 两句过度声称改正——矩阵证的是「两面同值且值与手写 oracle 一致」，不是「只有一份」；私有而**当前恰好正确**的副本照样取得 oracle 的值、矩阵照样绿，能抓它的是白名单消失门，而该门对换字面写法的副本无效（限度照旧登记） ④ **N3** 编排器已落地（overall **v3.19**，提交 `4e1a4061`），本轮不改 overall | Oscaner M. · Claude（kairos:cdd-plan · spec fix 3 · 2026-11-05） |
 | v0.8 | 2026-11-05 | **范围追加（用户裁定）**：新增 §6「wave 面的『未进入』不得编码成 active hop」——`waveLineRoute` 零完成 implement 时返回 `next-wave`，被 frontier 误读为「面已进入」，挤掉 `PIPELINE_NEXT.plan = kairos:cdd-dev` 的面到面 handoff（P24 全程只在波次耗尽后才印该 handoff）；判据改为 `roundCount` 三 op 之和 > 0；发行级别 patch → **minor**（§4 同笔）；§4 落点表与 Acceptance 同步 |
 | v0.9 | 2026-11-05 | **spec 评审第 4 轮 fix（B1 · B2 · B3 · W1 · W2 · N1 全接受）**：① **B1** §6 机制重设：只置 `active = null` 会落进规则 ②（渲 wave 面自有出口的 branch 字面），故进入判据**同时**作用于 `active` 与 `target`，两者俱 `null` 才落规则 ③（渲 plan 面出口 = cdd-dev）；写明裁决 face / route / target、`pipeline.ts:102-107` 与 `:108-117` 的行锚、文件头 `:19-33` 的「未进入」定义同笔改述 ② **B2** 进入判据由 wave key 级改**面级**（该 plan 任一 batch 的 wave key 上三 op `roundCount` 之和 > 0），并补多批次 pin（wave 1 收口后仍渲 `tasks 2`）与「零 batch 夹具改锚规则 ③」的如实登记 ③ **B3** 字节口径分节：边界 / §3 / Constraints / Acceptance 四处一律归为「§1–§5 零字节」，§6 划为例外并逐字点名改变的 `next:` 与 `reason:` 两行 ④ **W1** 发行级别三处对齐 **minor**（§4 表行与 Acceptance 的 `patch` 改正） ⑤ **W2** §6 的 pin 家登记：`session/__tests__/pipeline.test.ts` · `face/__tests__/board-view.test.ts` · `face/__tests__/capsule.test.ts` ⑥ **N1** 点名规则 ③ 与「entered」的定义，并与 `pipeline.ts` 头注释对齐 | Oscaner M. · Claude（kairos:cdd-spec-writer · spec fix 4 · 2026-11-05） |
+| v0.10 | 2026-11-05 | **spec 评审第 5 轮 fix（N1 接受；W1 由编排器落地）**：§6 补一节「`LedgerKey` 与 identity 的拼法」——面级进入判据的三次 `roundCount` 读数一律写成 `roundCount(key, mode)`，`key` 为该 batch 任务 id 的 `,` 拼接串（与 `#waveKeyOf` 同拼法）、**省略**第三参（`identity` 默认 `null`），与 `waveLineRoute` 的 `completedCycles(waveKey, "implement")`（`ledger.ts:957`）读同一行；`rowFor` 只按 `row.wave === String(key)` 找行（`:652`），identity 仅用于退役 `spec` 行的回退（`:659-662`），故实现不得传 `frame.type`。W1（overall P25 行 AC ④ `patch` → `minor` 与 scope ⑥ 改面级）属编排器面，本环节无权改；overall v3.21 只追加了 Change history 行，P25 行正文仍读旧值（见本轮 report 的 note） | Oscaner M. · Claude（kairos:cdd-spec-writer · spec fix 5 · 2026-11-05） |

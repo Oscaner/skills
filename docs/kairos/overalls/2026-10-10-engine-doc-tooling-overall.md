@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 doc-type: overall
-version: v3.20
+version: v3.21
 date: 2026-11-03
 slug: 2026-10-10-engine-doc-tooling
 author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）"
@@ -380,3 +380,4 @@ Legend:
 | v3.18 | 2026-11-05 | **P25 行措辞对齐 spec v0.4（spec 第 2 轮 N3）**：scope 的「dry-run 侧以 `op` / `target kind` 而非 verdict」改为「判定只收 `(phase, target kind)` 两个纯输入，verdict 与 plan path 均不进判定」；依赖图行同笔改；「矩阵证同源」→「矩阵证**同值**」（单源由结构门证） | Phase inventory P25 行 + 依赖图 + Change history v3.18 | Oscaner M. · Claude（kairos:cdd-plan · P25 回填 · 2026-11-05） |
 | v3.19 | 2026-11-05 | **P25 AC ② 对齐 spec v0.6（spec 第 3 轮 N3）**：由「矩阵同源 / 右侧取 ref kind」改为「矩阵**同值**（`left == right == expected`，expected 取手写 oracle）/ 右侧判据**分型**（review·branch-review 比 kind、**fix 比哈希**）」——fix 轮越过已绑同 key 的 review 轮，只比 kind 时「fix 写回被丢」恒绿 | Phase inventory P25 行（AC ②）+ Change history v3.19 | Oscaner M. · Claude（kairos:cdd-plan · P25 回填 · 2026-11-05） |
 | v3.20 | 2026-11-05 | **P25 范围追加（用户裁定 · 第二次并入）**：⑥ wave 面的「未进入」被编码成 active hop（`waveLineRoute` 零完成 implement 时返回 `next-wave`），挤掉 `plan → cdd-dev` 的面到面 handoff；plan 刚收口时印 `implement --plan …` 而非 `route to /skill:cdd-dev skill`（P24 里该 handoff 只在波次耗尽后出现）。判据改为 `roundCount` 之和 > 0；发行级别 patch → **minor** |
+| v3.21 | 2026-11-05 | **P25 行 AC/scope 订正（spec 第 5 轮 W1）**：① AC ⑤ `changeset patch` → **`minor`** ② scope 的 ⑥ 改为面级判据（`graph !== null && roundCount_sum > 0`，target 与 active 同时置 null） | Phase inventory P25 行（AC ⑤ / scope ⑥）+ Change history v3.21 | Oscaner M. · Claude（kairos:cdd-plan · P25 回填 · 2026-11-05） |

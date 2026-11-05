@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P24 设计：NEXT-LOOP 收口面（drift 语义收窄 + hop 原因可读）
 doc-type: phase-spec
-version: v0.32
+version: v0.33
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p24
 program: 2026-10-10-engine-doc-tooling
@@ -267,9 +267,9 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 4. **两条 P22 门仍红**：区间形（`review 1–10 ✓`）与 `a1`（任何令牌出现 `a1`）的既有断言不改。
 5. **重锚在 §7 的 1–5 类账之外**：板面汇总单元不是 `next:` 行，故 `board-view.test.ts:1274` 的重锚与上面的新增实况用例不占 §7 的 152 处引用、15 处 `toEqual` 快照、站表长度 1 处任何一格——§7 的账只覆盖 `next:` 字节，本处按**账外修复**在册（先例：`preview.test.ts:126-146` 的陈旧 pin，同属 `next:` 账外）。
 
-**陈旧散文登记（随本任务同笔改写，不含断言）**：`board-view.test.ts:1268` 的用例标题 `(d) a re-dispatch carries its attempt superscript and attempt 1 never renders a1` 在 §12 之后不准（新形 `fix 1/2 ✓ · fix 1 ✗→✓` 无上标；上标只在失败令牌且 `attempt>1`、或无失败的成功令牌上出现）；`#judgementRuns`（`face/board-view.ts:328`）**保留**——不删除、不改方法名，只改其 docstring：标题与注释由「contiguous verdict runs」改为「成功面按 verb 合并、异常面逐条」，并指 P24 §12。
+**陈旧散文登记（随本任务同笔改写，不含断言）**：`board-view.test.ts:1268` 的用例标题 `(d) a re-dispatch carries its attempt superscript and attempt 1 never renders a1` 在 §12 之后不准（新形 `fix 1/2 ✓ · fix 1 ✗→✓` 无上标；上标只在失败令牌且 `attempt>1`、或无失败的成功令牌上出现）；`#judgementRuns`（`face/board-view.ts:328`）**保留**——不删除、不改方法名，只改其 docstring：标题与注释由「contiguous verdict runs」改为「成功面按 verb 合并、异常面逐条」，并指 P24 §12。**文件头自述**同在此列（v0.33 补登）：`face/board-view.ts:26-31` 那段 `P22 §5.3` 散文（「tokens 是 `{label} {count}{attempt} {mark}`」「a re-dispatch 带自己的 `a{attempt}` 上标」）在 §12 之后部分陈旧——**`P22 §5.3` 的引用保留**（该段仍陈述聚合的地基），只改它旁边的散文：聚合仍按 verb，但成功面按 verb 合并成**至多一枚**令牌（有失败时渲 `{成功}/{尝试}` 比率且**不带**后缀，无失败时才带末条成功记录的 `aN`），异常面**逐条**展开、每条带自己的 cycle 与（`attempt > 1` 时）自己的 `aN`，同 cycle 紧邻的下一次 attempt 成功时渲 `✗→✓`。
 
-**落空面（范围写窄）**：`face/board-view.ts` 里 `spec §5.3` 的引用约十处（`:24` 文件头 · `:60` 字形 · `:294` `+N` · `:370` 在飞单元 · `:406`/`:511`/`:530` 排版 · `:612` 波单元 · `:655` doc 单元）。**只有承载令牌规则的三处 docstring（`summaryCell` / `#summaryToken` / `#judgementRuns`）改指 P24 §12**；其余引用的是排版与字形规则，P22 §5.3 对它们仍然是正确依据，**不动**。
+**落空面（范围写窄）**：`face/board-view.ts` 里 `spec §5.3` 的引用约十处（`:24` 文件头 · `:60` 字形 · `:294` `+N` · `:370` 在飞单元 · `:406`/`:511`/`:530` 排版 · `:612` 波单元 · `:655` doc 单元）。**只有承载令牌规则的三处 docstring（`summaryCell` / `#summaryToken` / `#judgementRuns`）改指 P24 §12**；文件头 `:24` 的**引用**同在不改列，但其散文按上面的陈旧散文登记按新形重述；其余引用的是排版与字形规则，P22 §5.3 对它们仍然是正确依据，**不动**。
 
 **发行面**：`cdd board` 对有失败的行输出变了 ⇒ changeset 必须新增一条（`.changeset/p24-fix-identity-and-reason-row.md` 现有末句「cdd board output is unchanged」随之作废，须改写而不是追加）。
 
@@ -338,3 +338,4 @@ review 13 ✓+74 · fix 11 ✓ · fix 1 ✗ · fix 2 ✓
 | v0.30 | 2026-11-05 | **spec 自查订正（plan 第 14 轮 W3）**：成功令牌原本「永远带末条成功记录的 attempt 后缀」，与本相位自己钉的目标 `fix 1/2 ✓`（末条成功是 a2 ⇒ 会渲成 `1/2a2`）矛盾。订正为**后缀与分母互斥**：有失败时渲比率且不带后缀，无失败时才可能带后缀。 | §12 成功令牌一句 + Change history v0.30 | Oscaner M. · Claude（kairos:cdd-dev · spec 自查订正 · 2026-11-05） |
 | v0.31 | 2026-11-05 | **spec 第 13 轮回填**：① 成功令牌在**成功数为 0** 时不渲（否则纯失败 verb 会渲 `review 0/1 ✓`，与既有 `review 1 ✗` pin 冲突） ② 删掉「✗ 条数由 `REVIEW_CYCLE_CAP` 封顶」这条**假依据**（它界 blocker 循环、不界同 cycle 的 attempt 重派；✗ 数理论上无界，本相位不加界） ③ 补**令牌顺序**（外层 `VERB_ORDER`、内层先成功后失败、失败按时间序、不聚到行尾） ④ 恢复形 `✗→✓` 也带 `+N`，并点明「同 cycle 的后续 attempt」 ⑤ 陈旧散文登记（`:1268` 用例标题 · `#judgementRuns` docstring） | §12 五处 + Change history v0.31 | Oscaner M. · Claude（kairos:cdd-dev · spec 回填 · 2026-11-05） |
 | v0.32 | 2026-11-05 | **spec 第 13 轮 fix 回填（docs-fix）**：v0.31 已落五条的正文，本笔补齐三处**落尾**：① **W1 尾**——§12 表把「干净行」拆为**无失败行**与**纯失败行**并各给目标字节（纯失败行成功数为 0 ⇒ 不渲 ✓ 令牌），证据 3 改标题为「无失败行与纯失败行零变」并点名 `:1228`/`:1246` 的 `review 1 ✗` 与 `cli.test.ts:7356-7357` 的 `implement 1 ✗` 正是纯失败行、另加一条独立用例；Acceptance 同笔补该条 ② **W3 尾**——表再补一行**两 verb 顺序样例** `review 3/4 ✓ · review 3 ✗→✓ · fix 3 ✓`，Acceptance 把**令牌顺序**列为钉死项 ③ **N2 尾**——陈旧散文登记与 §7 汇总单元行写准 `#judgementRuns` 的去向（**保留**、不删不改名，docstring 同笔改写并改指 P24 §12），落空面的「两处 docstring」随之修为三处 | §12 表/证据 3/陈旧散文/落空面 + §7 汇总单元行 + Acceptance §12 + Change history v0.32 | Oscaner M. · Claude（kairos:cdd-dev [P24] spec 第 13 轮 fix · 2026-11-05） |
+| v0.33 | 2026-11-05 | **spec 第 13 轮 fix 回填（docs-fix）**：把**文件头自述**补进 §12「陈旧散文登记」——`face/board-view.ts:26-31` 那段 `P22 §5.3` 散文在 §12 之后部分陈旧（`{label} {count}{attempt} {mark}` 与「a re-dispatch 带 `a{attempt}` 上标」），但 **`P22 §5.3` 的引用保留**，只按新形重述旁边的散文（成功面按 verb 合并、比率形不带后缀 · 异常面逐条带 cycle 与自己的 `aN`、同 cycle 紧邻的下一次 attempt 成功时渲 `✗→✓`）；「落空面」的 `:24` 条目随之写明「引用不动、散文重述」，不再把文件头整体列为「一处不得触碰」 | §12 陈旧散文登记 + 落空面 + Change history v0.33 | Oscaner M. · Claude（kairos:cdd-dev [P24] spec 第 13 轮 fix · 2026-11-05） |

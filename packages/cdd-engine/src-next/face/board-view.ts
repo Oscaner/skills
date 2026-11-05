@@ -21,12 +21,16 @@
 // with the capsule). The board only OBSERVES each face's facts (`pipelineFacts`)
 // and renders.
 //
-// P22 §5.3 — the default layout aggregates each line's rounds BY VERB into
-// `{label} {count}{attempt} {mark}` tokens (the judgement glyph is mandatory, the
-// findings count rides a `+N` suffix, a re-dispatch carries its `a{attempt}`
-// superscript); range forms never render (there is no `--verbose` in this phase).
-// Each wave line's label carries the wave's task scope in braces (`W1 {5,11}`)
-// with the ✔/▶/○ marker column fixed-width aligned.
+// P22 §5.3 — the default layout aggregates each line's rounds BY VERB (the judgement
+// glyph is mandatory, the findings count rides a `+N` suffix, a plain token carries the
+// last record's `a{attempt}` superscript); range forms never render (there is no
+// `--verbose` in this phase). P24 §12 splits that aggregation into two shapes: the
+// success face merges per verb — an `{ok}/{attempts}` ratio with NO superscript once
+// the verb has a failed attempt — and the anomaly face expands one token per failed
+// attempt, each naming its own cycle and, past the first, its own `a{attempt}`
+// (`fix 12 ✗→✓` when that cycle's next attempt completed). Each wave line's label
+// carries the wave's task scope in braces (`W1 {5,11}`) with the ✔/▶/○ marker
+// column fixed-width aligned.
 //
 // Module-level exports are types / constants / the classes — zero behavior-carrying
 // bare functions (the plan's zero-bare-function discipline).
@@ -341,11 +345,11 @@ export class BoardView {
   }
 
   /** One token of a verb's success face or of one failed attempt, `{verb} {body} {mark}`
-   *  (P24 §12). The `+N` suffix counts the run's graded FINDINGS, read from each round's
-   *  own carrier (`carrierPath` → the handoff's `findings` array, spec §5.3) — never the
-   *  round's hard/soft contract violations, which are a different fact. A record with no
-   *  carrier (a legacy row, or a work-plane round whose carrier declares no findings)
-   *  contributes zero. */
+   *  (P24 §12). The `+N` suffix counts the
+   *  run's graded FINDINGS, read from each round's own carrier (`carrierPath` → the
+   *  handoff's `findings` array, spec §5.3) — never the round's hard/soft contract
+   *  violations, which are a different fact. A record with no carrier (a legacy row,
+   *  or a work-plane round whose carrier declares no findings) contributes zero. */
   static #summaryToken(
     verb: string,
     body: string,

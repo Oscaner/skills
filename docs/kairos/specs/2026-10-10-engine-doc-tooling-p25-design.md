@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P25 设计：写回判定的单源（`#bookkeep` ⇄ `#recordsOf`）
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p25
 program: 2026-10-10-engine-doc-tooling
@@ -43,11 +43,13 @@ author: "[human] · Claude（kairos:cdd-design [P25] grilling → 本会话落 s
 **形状**（grilling Q1 裁定）：返回值是**腿类型**而非布尔——
 
 ```ts
-type ReviewedLeg = "doc" | "brief";
+type ReviewedLeg = "doc" | "brief" | "branch";
 class ReviewedIdentity {
   static legOf(phase: RoundPhase, kind: AuditTarget["kind"]): ReviewedLeg | null;
 }
 ```
+
+三条腿与记账侧三个写方法**一一对应**：`doc` → `#recordReviewedDocRevision`（`plan` / `spec` 两个 kind 共用这条腿，doc 路径从 `frame.target.doc` 取）· `brief` → `#recordReviewedWaveBrief` · `branch` → `#recordReviewedBranchRevision`（读 `#planPath`）。`branch` 独享一条腿名而不是并进 `doc`，因为「有没有 plan path」是调用方的**输入**：`legOf` 只回答「写 branch 腿」，写不写由调用方按输入决定。记账侧因此是 `switch (leg)` 的 1:1 派发，**不再残留任何 kind 分支**；预览侧把 `doc` 与 `branch` 都渲染为 `reviewedRevision(doc)`、`brief` 渲染为 `reviewedRevision(brief)`——消费面字节不变。
 
 **参数类型必须写准**：
 
@@ -65,7 +67,7 @@ class ReviewedIdentity {
 
 **不对称不止一处**：`targetAction` 之外还有一处**既有**且被字节冻结的差异——`wave` 目标在 `planPath === null`（或 brief 不可渲染）时，真跑 `#recordReviewedWaveBrief` **什么都不写**，预览 `:173` 却无论有无 plan path 都陈述 `reviewedRevision(brief)`。§3 把两处一起登记并说明矩阵如何对待它们（不要把它当「两面唯一的合法差异」）。
 
-**plan path 的归属**：`branch` 的「有没有 plan path」是**输入**不是判定，仍由调用方各自提供（记账侧 `#planPath`、预览侧 `#scene.planPath`）；`legOf` 只回答「branch 写到 doc 腿」。
+**plan path 的归属**：`branch` 的「有没有 plan path」是**输入**不是判定，仍由调用方各自提供（记账侧 `#planPath`、预览侧 `#scene.planPath`）；`legOf` 只回答「branch 写 branch 腿」（渲染成 `reviewedRevision(doc)`）——这就是 `branch` 在腿类型里独享一名、而不是与 `plan` / `spec` 合为 `doc` 的原因。
 
 ### 3. 定案：双面证据（缺一不可）
 
@@ -157,3 +159,4 @@ class ReviewedIdentity {
 | v0.1 | 2026-11-05 | 初稿：P25 写回判定单源——腿类型返回（非布尔）· 新家 `session/reviewed-identity.ts` · 双面证据（矩阵 + 结构零门，附「为何缺一不可」）· `targetAction` 留 `#bookkeep` 并显式登记不对称 · 纯重构、patch | Oscaner M. · Claude（kairos:cdd-design [P25] grilling → 本会话落 spec · 2026-11-05） |
 | v0.2 | 2026-11-05 | **自查订正（编排器）**：原 Acceptance 说「矩阵用例在改动前的树上必红」不准确——今日两面恰好一致，「同值」断言今天是绿的。改为：**矩阵用例禁止调用 `legOf`**（左取预览真实输出、右取真跑后的账本 ref kind），它防的是「未来只有一面被改」的漂移；而「今天就有两份」由**结构零门**直接证明（今日必红）。两条各证一件事（Acceptance 两条 + Change history v0.2） | Oscaner M. · Claude（kairos:cdd-spec-writer · 自查 · 2026-11-05） |
 | v0.3 | 2026-11-05 | **评审第 1 轮 fix（七条 findings 全接受）**：① `legOf` 参数类型写准——`(phase: RoundPhase, kind: AuditTarget["kind"])`，调用点传 `frame.phase` / `frame.target.kind`（`TargetType` 无 `spec` 成员，传 kind 不过类型检查）；§1.2 的 `op` 改 `phase` ② 矩阵补第三轴 `planPath` + 可达 / 跳过格表 + **两处**已登记不对称（`targetAction` · `wave` + 无 plan path），新增 `branch` + 无 plan path 的 pin ③ 结构门写成三条可红的门（调用 / 白名单消失 / 声明单源）并写明限度 ④ overall 已回填 **v3.17**（编排器落地：AC ②/③ 与 `(phase, target kind, plan path)` 措辞） ⑤ §4 补三处陈旧 docstring、changeset 文件名、`biome-ignore` 行与「为什么是类」 ⑥ change history 行统一四格 ⑦ 规模改准（`ledger.ts` 1709 行 / ~88K 字节 · `run.ts` 990 行 / ~50K 字节），「same source」统一为「同值 / 单源」 ⑧ 矩阵左侧改逐相 `Preview#render`（`cdd fix --dry-run` 只跑 fix 面） | Oscaner M. · Claude（kairos:cdd-spec-writer · spec fix 1 · 2026-11-05） |
+| v0.4 | 2026-11-05 | **plan 评审第 1 轮 fix（作者裁定 W1）**：`ReviewedLeg` 由两值改三值 `"doc" \| "brief" \| "branch"`，与 `#recordReviewedDocRevision` / `#recordReviewedWaveBrief` / `#recordReviewedBranchRevision` **一一对应**——`branch` 独享一名，因为 plan path 是它的输入；记账侧 `switch (leg)` 后零 kind 分支残留，预览侧 `doc` 与 `branch` 同渲染 `reviewedRevision(doc)`（消费面字节不变）。§2「plan path 的归属」同口径 | Oscaner M. · Claude（kairos:cdd-plan · plan fix 1 · 2026-11-05） |

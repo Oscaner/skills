@@ -1,11 +1,11 @@
 ---
 name: cdd-design
-description: Independent brainstorm orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） flow inline as this session's baseline (one import per session), gates on mode and phase registration, runs grilling, and dispatches the parameterized spec-writer（/kairos:cdd-spec-writer） under one template (single-spec / phase-spec / overall charter). Callable standalone; invoke as kairos:cdd-design（pi：/skill:cdd-design）.
+description: Independent brainstorm orchestrator -- Node-anchored flow with digraph as single control-flow source of truth. Consumes the /superpowers:brainstorming（pi：/skill:brainstorming） flow inline as this session's baseline (one import per session), judges which program owns the change and gates on phase registration, runs grilling, and dispatches the parameterized spec-writer（/kairos:cdd-spec-writer） under one template (single-spec / phase-spec / overall charter). Callable standalone; invoke as kairos:cdd-design（pi：/skill:cdd-design）.
 ---
 
 # Kairos CDD-Design
 
-Full brainstorm flow orchestration, callable standalone — the imported brainstorm flow lands the program mode (`new-program` routes straight to grilling, no inventory check; `phase-within-program` gates on whether the phase is registered in the parent overall).
+Full brainstorm flow orchestration, callable standalone — the imported brainstorm flow lands the request's design context, and the `mode?` gate then judges OWNERSHIP: does this change fall inside a registered program's charter scope? Belongs ⇒ `phase-within-program`, which gates on whether the phase is registered in the parent overall; belongs to no registered program ⇒ `new-program`, which routes straight to grilling with no inventory check.
 
 **Invocation discipline** — every engine command runs as a background dispatch: launch it in the background and await the completion notification — never poll — then read the full output (stdout/stderr). Output filtering is forbidden — no piping to `tail`/`head`, no `2>&1 |`, no `EXIT=$?` capture. **Dispatch boundary** — the obligation runs both ways: a dispatched child carries every verification / build command to completion inside its own turn, never ending that turn to await a background task it launched itself — ending the turn terminates the child, so the awaited notification never arrives and the round dies half-finished while still looking successful; the launching side certifies success by the terminal contract (a clean working tree and the target action actually completed), never by exit code 0. **Round rhythm** — one review pass per dispatch; a fix round re-enters the review while the route is not done; ensure the working tree is clean before entering review (dirty → BLOCKED; the orchestrator writes no tree during dispatch). **Failure face** — cross-node failure handling lives in the Failure Modes table below (the single source); node `Fail` entries keep only local behavior.
 
@@ -16,17 +16,17 @@ flowchart TD
   A[run-cdd-design-session] --> B[explore-context]
   A --> Z1((BLOCKED: upstream plugin missing))
   B --> M{mode?}
-  M -->|new-program| G[run-grilling-session]
-  M -->|phase-within-program| P{phase-registered?}
+  M -->|belongs to a registered program · phase-within-program| P{phase-registered?}
+  M -->|belongs to no registered program · new-program| G[run-grilling-session]
   P -->|not registered| S[run-cdd-charter · sync]
   S --> P
   P -->|registered| G[run-grilling-session]
   G --> Z2((BLOCKED: grilling plugin missing))
   G --> X{size?}
-  X -->|single-spec| W[run-cdd-spec]
-  X -->|fit| W[run-cdd-spec]
-  X -->|multi| C[run-cdd-charter]
-  X -->|oversized| C[run-cdd-charter]
+  X -->|phase-within-program · fit| W[run-cdd-spec]
+  X -->|phase-within-program · oversized| C[run-cdd-charter]
+  X -->|new-program · single-spec| W[run-cdd-spec]
+  X -->|new-program · multi| C[run-cdd-charter]
   W --> H[handoff-next]
   C --> D[handoff-phase-design]
 ```
@@ -35,23 +35,23 @@ flowchart TD
 
 ### `run-cdd-design-session`
 
-- **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming）; it lands the mode marker (`new-program` = no parent overall; `phase-within-program` = has a parent overall) and the design context this flow routes on
-- **Read**: nothing before the import; the import resolves mode + design context
+- **Do**: Import `/superpowers:brainstorming`（pi：/skill:brainstorming）; it lands the design context this flow routes on — the request's scope and its exploration surface. It settles no mode: which program owns the change is the `mode?` gate's judgment, never the import's default
+- **Read**: nothing before the import; the import resolves the design context
 - **Exit**: Import landed → `explore-context`
 - **Fail**: Upstream superpowers plugin missing → BLOCKED (no downgrade, no skip, no inline restatement)
 
 ### `explore-context`
 
-- **Do**: Explore project context in the resolved mode so the routing and the delegated flows have what they need — code, issues, docs, and git log are reference examples of exploration surfaces, **not a fixed channel set**; scale the surface to what the task needs (exploration does not constitute a resolved-mode constraint)
-- **Read**: whatever the task needs — e.g. project files, docs, git log, the parent overall (phase-within-program mode)
+- **Do**: Explore project context — mode is not settled yet, so the exploration has to surface both sides of the ownership judgment: the request's own material and the program ledger it is judged against
+- **Read**: whatever the task needs — e.g. project files, docs, git log, and the program ledger the ownership gate judges against (each registered overall's charter scope + Phase inventory)
 - **Exit**: Exploration complete → `mode?`
 - **Fail**: Context read fails → report + fail-open
 
 ### `mode?`
 
-- **Do**: Branch on the mode the import resolved. Gate order matters — mode is decided **before** the register gate: `new-program` connects straight to `run-grilling-session` and **skips the inventory check** (a new program checks no parent inventory, which does not exist yet); `phase-within-program` → `phase-registered?`
-- **Read**: mode marker from `run-cdd-design-session`
-- **Exit**: `new-program` → `run-grilling-session`; `phase-within-program` → `phase-registered?`
+- **Do**: Judge OWNERSHIP, not existence — the criterion is not "does a parent overall exist" but "does this change belong to a registered program's charter scope". A program that exists (even one whose phases are all Done) does not own a change outside its scope, and sharing the repository is not belonging. Belongs to a registered program → `phase-within-program`, which must then pass the register gate; belongs to none (possibly no program exists at all) → `new-program`, which connects straight to `run-grilling-session` and **skips the inventory check** — an unowned program has no parent inventory to check. Gate order matters: ownership is decided **before** the register gate
+- **Read**: the program ledger from `explore-context` — the parent overall's Phase inventory + charter scope, i.e. every registered program's declared scope — plus the request's design context
+- **Exit**: inside a registered program's charter scope → `phase-within-program` ⇒ `phase-registered?`; inside no registered program's charter scope → `new-program` ⇒ `run-grilling-session`
 - **Fail**: —
 
 ### `phase-registered?`
@@ -71,16 +71,16 @@ flowchart TD
 ### `run-grilling-session`
 
 - **Do**: Import `/mattpocock-skills:grilling`（pi：/skill:grilling）, scoped by mode: `new-program` → scope-level grilling (each candidate phase's scope / dependencies / acceptance / issue ownership, one grilling pass); `phase-within-program` → enumerate-then-grill: enumerate the requirements registered for the phase in the parent overall item by item (each requirement's status — `[Pending]` / Done / dropped), restate the full list to the user, and enter the grilling frontier several passes after the user confirms the enumerated coverage is complete. It lands the grilling outcome; the size judgment (`size?`) routes on it. Register-before-grill is guaranteed by the `phase-registered?` gate.
-- **Read**: landed grilling outcome + mode marker + gate verdict
+- **Read**: landed grilling outcome + the `mode?` ownership verdict + gate verdict
 - **Exit**: Grilling outcome landed → the size judgment
 - **Fail**: Grilling an unregistered phase → register-gate violation (BLOCKED upstream at `phase-registered?`)
 
 ### `size?`
 
-- **Do**: Judge the scope size to route the write target: on the `new-program` path — does the program fit one single spec or become an overall program (`single-spec` → one spec · `multi`/`oversized` → a charter); on the `phase-within-program` path — does this phase fit one phase spec (`fit` → phase-spec · `oversized` → a charter that syncs the sub-phase split into the parent)
-- **Read**: grilling output + exploration context + parent overall (phase-within-program mode)
-- **Exit**: `single-spec` → `run-cdd-spec` (single-spec target); `fit` → `run-cdd-spec` (phase-spec target); `multi`/`oversized` → `run-cdd-charter` (the overall / charter target)
-- **Fail**: —
+- **Do**: Judge SIZE only — `mode?` has already fixed the shape family, so size no longer decides between single-spec and phase-spec: on the `new-program` path — does the program fit one freestanding spec (`single-spec` → one unregistered standalone spec) or become a multi-phase program (`multi` → an overall charter)? on the `phase-within-program` path — does this phase fit one phase spec (`fit` → phase-spec · `oversized` → a charter that syncs the sub-phase split into the parent)? Size moves the document's length and task split, never its belonging
+- **Read**: grilling output + exploration context + the parent overall's charter scope (phase-within-program mode)
+- **Exit**: `phase-within-program` path — `fit` → `run-cdd-spec` (phase-spec target) · `oversized` → `run-cdd-charter`; `new-program` path — `single-spec` → `run-cdd-spec` (standalone single-spec target) · `multi` → `run-cdd-charter` (overall charter target). The `phase-within-program` path carries no `single-spec` exit
+- **Fail**: A `phase-within-program` path resolving to a `single-spec` target → BLOCKED (shape contradicts ownership)
 
 ### `run-cdd-spec`
 
@@ -127,5 +127,6 @@ flowchart TD
 | Grilling plugin missing | BLOCKED (install mattpocock-skills — see the kairos README's installation table) | Block policy: no degradation |
 | Phase inventory missing / unparseable | BLOCKED (overall-sync-failed) | Registration gate cannot run |
 | Registering with predecessor Design spec ≠ Done | BLOCKED (serial-phase) | Never release grilling for an unmet phase |
+| A `phase-within-program` path producing a `single-spec` | BLOCKED (stop before the write, re-judge the ownership) | Shape contradicts ownership |
 | Four-table sync inconsistent | BLOCKED (overall-sync-failed) | Refuse to register an inconsistent phase |
 | Completed round with no `next:` line (not BLOCKED/TIMEOUT) | HARD_ERROR — report the carried reason, re-run the same command to continue | No dispatchable next |

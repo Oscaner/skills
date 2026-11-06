@@ -1,5 +1,11 @@
 # @oscaner-skills/kairos
 
+## 1.5.0
+
+### Minor Changes
+
+- [#432](https://github.com/Oscaner/skills/pull/432) [`4516f94`](https://github.com/Oscaner/skills/commit/4516f94a415a4f4446489927a10c0bdb9428c555) Thanks [@Oscaner](https://github.com/Oscaner)! - The spec review prompt and the two authoring skills now ask for a claim's **shape**, not a snapshot of today's tree. `render/templates.ts#docNarrativeAxes` carries the three-shape `Claimed→pin` clause — a pin cites the module path + symbol name (a line number is not a pin), a count is stated as pinned by the named guard or test, and a present-tense description of today's shape belongs to the plan while a design spec states the condition that must hold; the plan variant is byte-unchanged, because a plan's `path:line` is a delivery target. `cdd-spec-writer`'s `author-spec` node states the same three shapes in three lines and `cdd-plan`'s `author-plan` node keeps citations in the plan, so the citation line never migrates into a spec. No new gate: the writing moment is ungated, the review is where a violation surfaces.
+
 ## 1.4.0
 
 ### Minor Changes

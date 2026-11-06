@@ -1,16 +1,16 @@
 // packages/cdd-engine/src-next/session/__tests__/preflight.test.ts
 // P4.1 T1 — PreFlight suite: the lifecycle pre-flight seam (design §1) — the
-// tree-clean + graph + wave + doc-contract dispatch gates converge into ONE
-// single-entry gate:
+// STRUCTURE gates converge into ONE single-entry gate:
 //   · the dirty-tree hard gate — implement/review/fix on a dirty working tree
-//     BLOCKs (the CDD_BLOCKED guidance) BEFORE any wave/doc judgment, child zero;
-//   · the gate order — tree-clean → in-flight → graph → plan-ledger → wave →
+//     BLOCKs (the CDD_BLOCKED guidance) BEFORE any graph/doc judgment, child zero;
+//   · the gate order — tree-clean → in-flight → graph → plan-ledger →
 //     doc-contract, one verdict carries the run gate list (the judgeable order);
 //   · the graph gate — a plan whose DependsOn edges fail validates refuses;
-//   · the wave gate — the three-verb split/wrong-phase refusals ride the seam;
 //   · the doc-contract gate — the doc faces judge the target doc's structure;
 //   · the unreadable-doc skip — an absent doc carries no doc-contract judgment;
 //   · the lifecycle wiring — a refused frame never reaches the child dispatch.
+// The dispatch's OWN phase (the wave face's gate, the doc/branch line's) is not this
+// seam's: it lives in the ONE dispatch authority (`dispatch-authority.test.ts`).
 // Fixtures are hermetic git repos (the dirty/clean tree) + a memory fs for the
 // doc-contract backstop (the contract's context seam reads through it).
 
@@ -34,7 +34,6 @@ import type { PreFlightContext, PreFlightVerdict } from "../preflight.ts";
 import { PreFlight } from "../preflight.ts";
 import type { DispatchStep, OpenFrame } from "../run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../run.ts";
-import { WaveGate } from "../wave.ts";
 
 // ---------------------------------------------------------------------------
 // fixtures
@@ -96,13 +95,12 @@ const task = (id: number, dependsOn: string): readonly string[] => {
   ];
 };
 
-/** The hermetic PreFlight — real git + the real contract + the shared wave gate. */
+/** The hermetic PreFlight — real git + the real contract. */
 const preflightOf = (fs?: DocFs): PreFlight => {
   return new PreFlight({
     git: new GitClient(),
     contract: new Contract(),
     words: new Words(),
-    waveGate: new WaveGate(),
     fs,
   });
 };
@@ -232,12 +230,18 @@ const inFlightSnapshot = (repoRoot: string): string => {
   });
 };
 
-/** The wave-face context — the plan + the requested group over a fresh ledger. */
+/** The dispatch verb a fixture names — a DISPATCH fact: the seam judges structure
+ *  only, so the helpers keep the argument as the case's label while the context
+ *  carries none. */
+type CaseVerb = "implement" | "review" | "fix";
+
+/** The wave-face context — the plan over a fresh ledger (the seam's graph +
+ *  plan-ledger facts; the requested group is the dispatch authority's input). */
 const waveCtx = (
   repoRoot: string,
   blocks: readonly (readonly string[])[],
-  tasks: number[],
-  verb: PreFlightContext["verb"],
+  _tasks: number[],
+  _verb: CaseVerb,
 ): PreFlightContext => {
   const workspace = new Workspace(
     new WorkspaceRoot(path.join(repoRoot, ".kairos", "cdd"), "session"),
@@ -245,11 +249,9 @@ const waveCtx = (
   ).ensure();
   const ledger = new Ledger(workspace, new ConfigLoader());
   return {
-    verb,
     type: "wave",
     repoRoot,
     planText: planDoc(blocks),
-    tasks: new Set(tasks),
     ledger,
     doc: null,
     inflight: inflightOf(repoRoot, false),
@@ -259,22 +261,16 @@ const waveCtx = (
 /** The doc-face context — the target doc judged by the doc-contract gate. `docKey`
  *  is the doc's declared type (spec §12 · D34); null models a present doc carrying
  *  no `doc-type:` key (the seam BLOCKs). */
-const docCtx = (
-  repoRoot: string,
-  docKey: DocKey | null,
-  verb: PreFlightContext["verb"],
-): PreFlightContext => {
+const docCtx = (repoRoot: string, docKey: DocKey | null, _verb: CaseVerb): PreFlightContext => {
   const workspace = new Workspace(
     new WorkspaceRoot(path.join(repoRoot, ".kairos", "cdd"), "session"),
     "preflight-slug",
   ).ensure();
   const ledger = new Ledger(workspace, new ConfigLoader());
   return {
-    verb,
     type: docKey === "plan" ? "plan" : "phase-spec",
     repoRoot,
     planText: null,
-    tasks: null,
     ledger,
     doc: {
       docKey,
@@ -352,7 +348,7 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
       const preflight = preflightOf();
       const verdict = await preflight.vet(ctx);
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "in-flight", "graph", "plan-ledger", "wave"]);
+      expect(verdict.order).toEqual(["tree-clean", "in-flight", "graph", "plan-ledger"]);
       // A genuinely dirty USER file still refuses — the ignore is the workspace's
       // own self-published marker, never a pass for the user's uncommitted work.
       dirty(repoRoot);
@@ -388,8 +384,8 @@ describe("PreFlight — the clean-tree hard gate (implement/review/fix)", () => 
 // the gate order composition — the judgeable gate order
 // ---------------------------------------------------------------------------
 
-describe("PreFlight — the gate order composition (tree-clean → in-flight → graph → plan-ledger → wave → doc-contract)", () => {
-  it("a clean wave dispatch passes through tree-clean → in-flight → graph → plan-ledger → wave in order", async () => {
+describe("PreFlight — the gate order composition (tree-clean → in-flight → graph → plan-ledger → doc-contract)", () => {
+  it("a clean wave dispatch passes through tree-clean → in-flight → graph → plan-ledger in order", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const preflight = preflightOf();
@@ -397,7 +393,7 @@ describe("PreFlight — the gate order composition (tree-clean → in-flight →
         waveCtx(repoRoot, [task(1, "none"), task(2, "1")], [1], "implement"),
       );
       expect(verdict.ok).toBe(true);
-      expect(verdict.order).toEqual(["tree-clean", "in-flight", "graph", "plan-ledger", "wave"]);
+      expect(verdict.order).toEqual(["tree-clean", "in-flight", "graph", "plan-ledger"]);
     } finally {
       cleanup();
     }
@@ -433,47 +429,6 @@ describe("PreFlight — the graph gate", () => {
       expect(verdict.reason).toBe("graph");
       expect(verdict.message).toContain("edge violation");
       expect((verdict.details ?? []).length).toBeGreaterThan(0);
-    } finally {
-      cleanup();
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
-// the wave gate
-// ---------------------------------------------------------------------------
-
-describe("PreFlight — the wave gate inside the seam", () => {
-  it("a split/subset --tasks rides the WaveGate split BLOCK (the word-table row)", async () => {
-    const { repoRoot, cleanup } = gitRepo();
-    try {
-      const preflight = preflightOf();
-      // two independent tasks open the single root wave {1,2} — a {1} request splits
-      const verdict = await preflight.vet(
-        waveCtx(repoRoot, [task(1, "none"), task(2, "none")], [1], "review"),
-      );
-      expect(verdict.ok).toBe(false);
-      expect(verdict.gate).toBe("wave");
-      expect(verdict.reason).toBe("split");
-      expect(verdict.message).toContain("derived wave");
-      // the wave gate ran AFTER tree-clean + graph
-      expect(verdict.order).toEqual(["tree-clean", "in-flight", "graph", "plan-ledger", "wave"]);
-    } finally {
-      cleanup();
-    }
-  });
-
-  it("a wrong-phase request rides the WaveGate wrong-phase BLOCK", async () => {
-    const { repoRoot, cleanup } = gitRepo();
-    try {
-      const preflight = preflightOf();
-      const ctx = waveCtx(repoRoot, [task(1, "none")], [1], "implement");
-      ctx.ledger!.recordRound("1", { op: "implement" }); // the open wave now sits at review
-      const verdict = await preflight.vet(ctx);
-      expect(verdict.ok).toBe(false);
-      expect(verdict.gate).toBe("wave");
-      expect(verdict.reason).toBe("wrong-phase");
-      expect(verdict.message).toContain("at review");
     } finally {
       cleanup();
     }
@@ -679,11 +634,9 @@ const branchCtx = (
   const ledger = new Ledger(workspace, new ConfigLoader());
   seed(ledger);
   return {
-    verb: "review",
     type: "branch",
     repoRoot,
     planText: planDoc(blocks),
-    tasks: null,
     ledger,
     doc: null,
     inflight: inflightOf(repoRoot, false),
@@ -691,7 +644,7 @@ const branchCtx = (
 };
 
 describe("PreFlight — the checked rule list (derived from the declaration surface)", () => {
-  it("lists 20 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
+  it("lists 21 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(
@@ -699,7 +652,7 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
       );
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        20,
+        21,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
       expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: passed");
@@ -712,13 +665,13 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
     }
   });
 
-  it("lists the same 20 doc-scope skips on a branch dispatch", async () => {
+  it("lists the same 21 doc-scope skips on a branch dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(branchCtx(repoRoot, [task(1, "none")]));
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        20,
+        21,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
     } finally {

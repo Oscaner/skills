@@ -1480,6 +1480,106 @@ describe("P21 T2 — planned-tasks-vs-recorded-tasks (the plan may lead the ledg
   });
 });
 
+// ---------------------------------------------------------------------------
+// P26 §4.4 — phase-design-spec-is-phase-spec (belonging made checkable)
+// ---------------------------------------------------------------------------
+
+/** The Design-spec cell of the conforming overall's P1 row — the judged cell. */
+const P1_DESIGN_CELL = "[P1-design](docs/kairos/specs/x-p1-design.md)";
+
+/** The Design-spec target document declaring `docType` in its front-matter. */
+const designDoc = (docType: string): string =>
+  `---\ntitle: D\ndoc-type: ${docType}\nslug: x-p1\nprogram: x-overall\n---\n`;
+
+/** The sibling fs of the conforming overall, plus the READABLE Design-spec target
+ *  `content` (null → the seam cannot read it: the skip arm). */
+const designSpecFs = (content: string | null): DocFs => ({
+  ...GOOD_OVERALL_FS,
+  read: (p) => (content === null || !p.endsWith("/x-p1-design.md") ? null : content),
+});
+
+/** The same overall with P1's Design-spec cell swapped for `cell`. */
+const overallWithDesignCell = (cell: string): string => GOOD_OVERALL.replace(P1_DESIGN_CELL, cell);
+
+describe("P26 §4.4 — a Phase-inventory row's Design spec must be a phase-spec", () => {
+  it("turns red when the Design spec points at a `doc-type: single-spec` document", () => {
+    const findings = judge("overall", GOOD_OVERALL, designSpecFs(designDoc("single-spec")));
+    expect(withKind(findings, "phase-design-spec-is-phase-spec")).toBe(true);
+    // The finding names the offending row (the phase id is the attribution face).
+    expect(withKind(findings, "phase-design-spec-is-phase-spec", "Phase inventory · P1")).toBe(
+      true,
+    );
+  });
+
+  it("turns red when the Design spec points at a document declaring no doc-type", () => {
+    // The cell must point at a document that DECLARES `phase-spec` — an undeclared
+    // target fails the same shape (the message names the absence, not an empty value).
+    const findings = judge("overall", GOOD_OVERALL, designSpecFs("# An unregistered doc\n"));
+    const [finding] = findings.filter(
+      (candidate) => candidate.kind === "phase-design-spec-is-phase-spec",
+    );
+    expect(finding?.message).toContain("declares no doc-type");
+  });
+
+  it("stays green when the Design spec points at a `doc-type: phase-spec` document", () => {
+    const findings = judge("overall", GOOD_OVERALL, designSpecFs(designDoc("phase-spec")));
+    expect(withKind(findings, "phase-design-spec-is-phase-spec")).toBe(false);
+  });
+
+  it("does not judge a cell that carries no link target (the registered design does not exist yet)", () => {
+    // `[Pending]` / `Done` are non-link values: the row's design is not registered
+    // yet, so there is nothing whose doc-type could contradict the phase shape.
+    for (const cell of ["[Pending]", "Done", "P2-design"]) {
+      const findings = judge(
+        "overall",
+        overallWithDesignCell(cell),
+        designSpecFs(designDoc("single-spec")),
+      );
+      expect(withKind(findings, "phase-design-spec-is-phase-spec"), cell).toBe(false);
+    }
+  });
+
+  it("does not judge an unreadable target (the present-facts boundary)", () => {
+    // A target the seam cannot read is file-existence's judgment, never this rule's
+    // — reading it as "wrong doc-type" would double-report one absence.
+    const findings = judge("overall", GOOD_OVERALL, designSpecFs(null));
+    expect(withKind(findings, "phase-design-spec-is-phase-spec")).toBe(false);
+  });
+
+  it("does not judge the Implementation-plan cell (the plan cell's shapes differ)", () => {
+    // The plan cell allows `[Pending]`-like forms and its target's doc-type is not
+    // this rule's fact: only the Design-spec cell is judged.
+    const content = GOOD_OVERALL.replace(
+      "[P1 plan](docs/kairos/plans/x-p1.md)",
+      "[P1 plan](docs/kairos/specs/x-p1-design.md)",
+    );
+    const findings = judge("overall", content, designSpecFs(designDoc("single-spec")));
+    // P1's design cell still points at the target, so the red is the DESIGN leg —
+    // the plan leg adds nothing of its own.
+    expect(
+      findings.filter((finding) => finding.kind === "phase-design-spec-is-phase-spec"),
+    ).toHaveLength(1);
+  });
+
+  it("is composed into the overall policy only, and its id is a declared checked row", () => {
+    // The `checked:` list renders the declaration rows (one row, one rule) and the
+    // policy composition instantiates the same rows per doc key — so the rule
+    // reaching `cdd review --type overall` is the registry row itself, never a
+    // second registration.
+    const policy = Contract.policy();
+    expect(policy.overall.map((rule) => rule.name)).toContain("phase-design-spec-is-phase-spec");
+    for (const key of ["plan", "phase-spec", "single-spec"] as const) {
+      expect(policy[key].map((rule) => rule.name)).not.toContain("phase-design-spec-is-phase-spec");
+    }
+    expect(Contract.ruleRows().map((row) => row.id)).toContain("phase-design-spec-is-phase-spec");
+  });
+
+  it("is not judged on a doc type it does not declare", () => {
+    const findings = judge("plan", ledgerPlanDoc(), designSpecFs(designDoc("single-spec")));
+    expect(withKind(findings, "phase-design-spec-is-phase-spec")).toBe(false);
+  });
+});
+
 describe("P21 T2 — closed-wave-fits-depends-on-layers", () => {
   it("turns red for a closed wave spanning two layers", () => {
     const findings = ledgerJudge({

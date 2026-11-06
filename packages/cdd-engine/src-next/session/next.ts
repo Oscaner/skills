@@ -84,10 +84,10 @@ export const ROUTE_DECISION_WORDS = ["done", "next-wave", "review", "fix", "soft
 // ---------------------------------------------------------------------------
 
 /** The doc-class keys of the unified next face — DERIVED from the target vocabulary:
- *  every target type except the standalone `single-spec`, which carries no pipeline
- *  seam (a single-spec is the chain root — its closure is the pipeline terminus, so
- *  it holds a `PIPELINE_NEXT` row but no key of this union). */
-export type PipelineKey = Exclude<TargetType, "single-spec">;
+ *  EVERY declared target class is a pipeline key. A closed standalone `single-spec`
+ *  hands off to `cdd-plan` exactly as a closed `phase-spec` does (the spec face's
+ *  chain continues); the only program-level terminal is the charter (`overall`). */
+export type PipelineKey = TargetType;
 
 /** One pipeline-next row — the skill ref to dispatch (`ref`), a literal command
  *  (`literal`, the wave→branch transition — the wiring literal with its `<plan>`
@@ -99,24 +99,26 @@ export type PipelineEntry =
 
 /** The pipeline next table — the ONE face-indirection source (D33 · single-addressed
  *  at session/next.ts), keyed by the SAME TargetType the CLI declares: the target
- *  type → the next pipeline entrypoint. The two program-level rows (`overall` and
- *  the standalone `single-spec`) are the pipeline's terminals — nothing follows a
- *  closed charter line. The skill refs ride REFS (face/host.ts) resolved per host
- *  at the render — never a hard-coded plugin spelling; the wave literal's `<plan>`
- *  slot is filled by the capsule with the frame's plan fact. */
+ *  type → the next pipeline entrypoint. The ONE program-level terminal row is
+ *  `overall` — nothing follows a closed charter line; a closed `single-spec` is a
+ *  spec line like any other, so it hands off to `cdd-plan`. The skill refs ride REFS
+ *  (face/host.ts) resolved per host at the render — never a hard-coded plugin
+ *  spelling; the wave literal's `<plan>` slot is filled by the capsule with the
+ *  frame's plan fact. */
 export const PIPELINE_NEXT: Readonly<Record<TargetType, PipelineEntry>> = {
   "phase-spec": { kind: "ref", ref: "kairos:cdd-plan" },
   overall: { kind: "done" },
   plan: { kind: "ref", ref: "kairos:cdd-dev" },
-  "single-spec": { kind: "done" },
+  "single-spec": { kind: "ref", ref: "kairos:cdd-plan" },
   wave: { kind: "literal", literal: "review --type branch --plan <plan>" },
   branch: { kind: "ref", ref: "kairos:cdd-close" },
 };
 
-/** The pipeline's phase-level face keys (D40) — `PipelineKey` minus the program-level
- *  `overall` (whose closure is the pipeline terminus, rendered by the capsule,
- *  never walked). */
-export type PhaseFaceKey = Exclude<PipelineKey, "overall">;
+/** The pipeline's phase-level face keys (D40) — `PipelineKey` minus the two
+ *  program-level rows (the charter's closure is the pipeline terminus, rendered by the
+ *  capsule never walked; the standalone `single-spec` is a spec line whose handoff
+ *  target lives in the table, not a face of the traversal). */
+export type PhaseFaceKey = Exclude<PipelineKey, "overall" | "single-spec">;
 
 /** The pipeline's phase-level face order (D40) — the face-to-face traversal
  *  `spec → plan → wave → branch`, the ONE order declaration: the session plane's
@@ -153,20 +155,79 @@ export type Hop = "implement" | "review" | "branch-review" | "fix";
 
 /** The doc-class verdict of a render target — the pipeline key a closed face hands
  *  off to, or one of the two the pipeline cannot route (`blocked` = the declaration
- *  is missing · `terminal` = no pipeline seam carries the declared class). */
+ *  is missing · `terminal` = no target at all). */
 export type DocClassVerdict = PipelineKey | "blocked" | "terminal";
 
-/** The single reason table (§5.2) — every `NextHop.reason` value comes from here, so
- *  the four read faces and the CLI rejection message name a fact by ONE spelling (a
- *  hyphenated fact name, never a sentence). */
+/** The reason table's leg partition (§2.5) — the pre-flight structure gates, the
+ *  line's own refusals, and the station signs a `next:` hop is named by. NOT the
+ *  dispatch verdict's leg (`structure | upstream | line`): that is a different axis,
+ *  so the table holds no `upstream` row — an upstream refusal reuses a line/station
+ *  token and names its leg on the verdict, never in this table. */
+export type DispatchReasonLeg = "structure" | "line" | "station";
+
+/** One reason row — the token's ONE spelling and the leg it is partitioned into. */
+export interface DispatchReasonRow {
+  readonly token: string;
+  readonly leg: DispatchReasonLeg;
+}
+
+/** The single reason table (§2.5) — every refusal row and every `NextHop.reason`
+ *  value names a fact by ONE spelling from here (a hyphenated fact name, never a
+ *  sentence). The structure rows reuse the pre-flight gate ids as their tokens (no
+ *  newly minted token); the line rows are the wave gate's five plus the doc/branch
+ *  refusals (including the same-revision `unchanged` row); the station rows are the
+ *  signs a `next:` hop is named by. */
+export const DISPATCH_REASON = {
+  // structure — the pre-flight gate ids, reused as tokens
+  treeClean: { token: "tree-clean", leg: "structure" },
+  inFlight: { token: "in-flight", leg: "structure" },
+  graph: { token: "graph", leg: "structure" },
+  planLedger: { token: "plan-ledger", leg: "structure" },
+  docContract: { token: "doc-contract", leg: "structure" },
+  // line — the wave gate's five rows
+  mixedBatch: { token: "mixed-batch", leg: "line" },
+  waveTooWide: { token: "wave-too-wide", leg: "line" },
+  tooManyTasks: { token: "too-many-tasks", leg: "line" },
+  split: { token: "split", leg: "line" },
+  wrongPhase: { token: "wrong-phase", leg: "line" },
+  // line — the doc/branch refusals
+  pendingFix: { token: "pending-fix", leg: "line" },
+  unchanged: { token: "unchanged", leg: "line" },
+  closedLine: { token: "closed-line", leg: "line" },
+  faceClosed: { token: "face-closed", leg: "line" },
+  // station — the signs a `next:` hop is named by
+  docDrift: { token: "doc-drift", leg: "station" },
+  softCap: { token: "soft-cap", leg: "station" },
+  taskOpen: { token: "task-open", leg: "station" },
+  docClassBlocked: { token: "doc-class-blocked", leg: "station" },
+} as const satisfies Record<string, DispatchReasonRow>;
+
+/** Every token the table declares — the one domain a refusal reason is drawn from. */
+export type DispatchReason = (typeof DISPATCH_REASON)[keyof typeof DISPATCH_REASON]["token"];
+
+/** The wave gate's five rows — the table's `leg: "line"` wave rows as a typed view
+ *  (the token spellings live in the table ONLY; `wave.ts` carries no second copy). */
+export const WAVE_GATE_REASON = {
+  mixedBatch: DISPATCH_REASON.mixedBatch.token,
+  waveTooWide: DISPATCH_REASON.waveTooWide.token,
+  tooManyTasks: DISPATCH_REASON.tooManyTasks.token,
+  split: DISPATCH_REASON.split.token,
+  wrongPhase: DISPATCH_REASON.wrongPhase.token,
+} as const;
+
+/** The wave gate's refusal rows — the five-token view of the shared table. */
+export type WaveGateReason = (typeof WAVE_GATE_REASON)[keyof typeof WAVE_GATE_REASON];
+
+/** The named accessors for `NextHop.reason` — every value is the table's own token
+ *  (one spelling source; the hop reason domain spans both the line and station legs). */
 export const NEXT_HOP_REASON = {
-  docDrift: "doc-drift",
-  pendingFix: "pending-fix",
-  closedLine: "closed-line",
-  faceClosed: "face-closed",
-  softCap: "soft-cap",
-  taskOpen: "task-open",
-  docClassBlocked: "doc-class-blocked",
+  docDrift: DISPATCH_REASON.docDrift.token,
+  pendingFix: DISPATCH_REASON.pendingFix.token,
+  closedLine: DISPATCH_REASON.closedLine.token,
+  faceClosed: DISPATCH_REASON.faceClosed.token,
+  softCap: DISPATCH_REASON.softCap.token,
+  taskOpen: DISPATCH_REASON.taskOpen.token,
+  docClassBlocked: DISPATCH_REASON.docClassBlocked.token,
 } as const;
 
 /** One line's next hop (§5.2) — the ONE object every read face renders.
@@ -189,8 +250,9 @@ export interface NextHop {
   readonly hop: Hop | null;
   /** The pipeline axis — the face-to-face handoff station (null = none). */
   readonly to: PipelineEntry | null;
-  /** The named fact that selected this hop (one `NEXT_HOP_REASON` value). */
-  readonly reason: string;
+  /** The named fact that selected this hop — one token of the ONE table (§2.5), so
+   *  a dispatch refusal can carry it as its verdict's `reason` without a re-typing. */
+  readonly reason: DispatchReason;
   /** The render payload — the count table's own Route (null = no route). */
   readonly route: Route | null;
 }
@@ -393,7 +455,7 @@ export class NextStepRouter {
    *  a doc revision or a wave's brief revision) · an open line advancing · an
    *  unjudgeable doc class · a closed face · the closed line's handoff. Drift never
    *  outranks a pending fix (an unclosed line's blocker keeps the fix hop). */
-  #reasonOf(input: NextHopInput, route: Route | null, verdict: DocClassVerdict): string {
+  #reasonOf(input: NextHopInput, route: Route | null, verdict: DocClassVerdict): DispatchReason {
     if (route?.kind === "soft-cap") return NEXT_HOP_REASON.softCap;
     if (route?.kind === "fix") return NEXT_HOP_REASON.pendingFix;
     if (route?.kind === "review" && input.gate.drift) return NEXT_HOP_REASON.docDrift;

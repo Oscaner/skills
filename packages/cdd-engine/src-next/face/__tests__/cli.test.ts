@@ -60,7 +60,7 @@ import { BriefRenderer } from "../../render/brief.ts";
 import { REVIEWS } from "../../render/templates.ts";
 import type { RouteTarget } from "../../session/faces.ts";
 import { InFlight, type InFlightRecord } from "../../session/inflight.ts";
-import { type CrashRecord, Ledger, type SampleRecord } from "../../session/ledger.ts";
+import { type CrashRecord, Ledger, ReviewRefs, type SampleRecord } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
 import { FIX_READBACK_SUFFIX, MAX_TASKS_PER_WAVE, NextStepRouter } from "../../session/next.ts";
 import type { PreFlightVerdict } from "../../session/preflight.ts";
@@ -456,7 +456,13 @@ const conformingOverall = (repoRoot: string): string => {
   for (const sibling of ["o1-p1-design.md", "o1-p2-design.md"]) {
     const siblingPath = path.join(repoRoot, "docs", "kairos", "specs", sibling);
     mkdirSync(path.dirname(siblingPath), { recursive: true });
-    writeFileSync(siblingPath, `# ${sibling}\n`, "utf8");
+    // The Design-spec targets declare their doc-type: the Phase-inventory rule reads
+    // it (a phase row whose design spec names a doc with no declared shape is red).
+    writeFileSync(
+      siblingPath,
+      `---\ntitle: ${sibling}\ndoc-type: phase-spec\nslug: ${sibling.replace("-design.md", "")}\n---\n`,
+      "utf8",
+    );
   }
   for (const sibling of ["o1-p1.md", "o1-p2.md"]) {
     const siblingPath = path.join(repoRoot, "docs", "kairos", "plans", sibling);
@@ -1803,11 +1809,12 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // the invocation's single stdout face — only the LAST step's capsule
       expect(io.stdoutText.split("status: APPROVED").length - 1).toBe(1);
       expect(existsSync(path.join(workspace, "tasks-2-implement.json"))).toBe(true);
-      // the strict-wave gate (T24): a `--tasks` splitting the derived wave BLOCKs
+      // the strict-wave gate (T24): a `--tasks` splitting the derived wave BLOCKs,
+      // and the refusal is the ONE verdict line (`split · next: <command>`).
       io.stderrText = "";
       const split = await command.runArgv(["implement", "--tasks", "1,2", "--plan", plan]);
       expect(split).toBe(1);
-      expect(io.stderrText).toContain("derived wave");
+      expect(io.stderrText).toContain("split · next: ");
       // T18 (§2.13) — the graph title's embedded plan path is repoRoot-relative
       // (the argv plan is relativized before it reaches the `graph:` line; the
       // absolute argv form never renders).
@@ -1842,6 +1849,54 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stdoutText).toContain("next: review --type branch --plan ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(workspace, "tasks-1-review-1.json"))).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P27 §2.3 — an open upstream station refuses the wave dispatch: `reason · next:` on stderr, exit 1", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      // The same-slug identity document, its line on record and closed — so the plan
+      // face is the station the refusal names.
+      const spec = path.join(repoRoot, "docs", "kairos", "specs", "p3-design.md");
+      mkdirSync(path.dirname(spec), { recursive: true });
+      writeFileSync(spec, "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\n---\n\nspec\n", "utf8");
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        { phase: "review", findings: [] },
+      );
+      ledger.recordRound("phase-spec", { op: "review" });
+      // The plan review is on record and bound the body it judged; the plan then moves.
+      const reviewed = readFileSync(plan, "utf8");
+      ledger.persistHandoff("review", "plan", { round: 1 }, { phase: "review", findings: [] });
+      ledger.recordRound("plan", { op: "review" });
+      ledger.recordReviewedRevision(
+        "plan",
+        new ReviewRefs().docRevision("docs/kairos/plans/p3.md", reviewed),
+      );
+      writeFileSync(
+        plan,
+        readFileSync(plan, "utf8").replace("- **Acceptance**: ok", "- **Acceptance**: ok (moved)"),
+        "utf8",
+      );
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      expect(code).toBe(1);
+      // The ONE refusal line (§2.6) names the upstream round the station holds.
+      expect(io.stderrText).toContain(
+        "doc-drift · next: review --type plan --plan docs/kairos/plans/p3.md",
+      );
+      // Refuse-without-ledger: the refusal precedes every write — no brief, no
+      // phantom round.
+      const node = path.join(repoRoot, ".kairos", "cdd", "p3");
+      expect(existsSync(path.join(node, "tasks-1-brief.md"))).toBe(false);
+      expect(existsSync(path.join(node, "tasks-1-implement.json"))).toBe(false);
     } finally {
       cleanup();
     }
@@ -2452,7 +2507,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           workspace.resolve("branch-review-1.json"),
         ]),
       ).toBe(1);
-      expect(io.stderrText).toContain("doc-drift · the next round is branch-review");
+      expect(io.stderrText).toContain("doc-drift · next: review --type branch");
     } finally {
       cleanup();
     }
@@ -2501,7 +2556,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // ... the refusal of any other round names that same object ...
       io.stderrText = "";
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(1);
-      expect(io.stderrText).toContain("pending-fix · the next round is fix");
+      expect(io.stderrText).toContain("pending-fix · next: fix --type plan");
       expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(false);
       // ... and the named verb is the DISPATCHABLE one (the engine never names a
       // round it then refuses — the cross-face property §5.5 ④).
@@ -3055,8 +3110,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       io.stderrText = "";
       const unchanged = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
       expect(unchanged).toBe(1);
-      expect(io.stderrText).toContain("already reviewed at v1.0");
-      expect(io.stderrText).toContain("target revision unchanged");
+      expect(io.stderrText).toContain("unchanged · next: review --type phase-spec");
       // no phantom round files land on the unchanged line
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.json"))).toBe(
         false,
@@ -3099,7 +3153,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // P22 §5.2 — the generic refusal renders the ONE NextHop's reason (the closed
       // line's face-closed row), never a second judgment's prose.
       expect(io.stderrText).toContain("face-closed");
-      expect(io.stderrText).not.toContain("target revision unchanged");
+      expect(io.stderrText).not.toContain("unchanged · next:");
       // no phantom round files land on the null-verdict line
       expect(
         existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "phase-spec-review-2.json")),
@@ -3122,11 +3176,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
       ledger.recordRound("phase-spec", { op: "review" });
       // The plan line has not started its C5 — asking for a `fix` round is refused,
-      // and the refusal renders the ONE derived hop (`task-open · the next round is
-      // review`), not a second judgment's prose.
+      // and the refusal renders the ONE derived hop (`task-open · next: review …`),
+      // not a second judgment's prose.
       io.stderrText = "";
       expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan])).toBe(1);
-      expect(io.stderrText).toContain("task-open · the next round is review");
+      expect(io.stderrText).toContain("task-open · next: review --type plan");
       // The board reads the SAME derivation and renders the same verb's literal.
       io.stdoutText = "";
       expect(await command.runArgv(["board", "--plan", plan])).toBe(0);
@@ -3196,7 +3250,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       io.stdoutText = "";
       const refused = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
       expect(refused).toBe(1);
-      expect(io.stderrText).toContain("pending-fix · the next round is fix");
+      expect(io.stderrText).toContain("pending-fix · next: ");
       expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(false);
       // ... and the named verb IS the accepted one: this fix reaches the dispatch (its
       // BLOCKED verdict is the child's, never a gate refusal).
@@ -3296,13 +3350,12 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       // The SAME doc (no drift) — the repeat review stays REFUSED (Review
       // Convergence anti-spin): the pending fix derives from the doc-same +
-      // non-APPROVED face (the review's own fix is still outstanding), and the
-      // message names the derived hop.
+      // non-APPROVED face (the review's own fix is still outstanding), and the ONE
+      // line names that fact plus the hop to run.
       io.stderrText = "";
       const repeat = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
       expect(repeat).toBe(1);
-      expect(io.stderrText).toContain("the pending fix applies to the unchanged doc");
-      expect(io.stderrText).toContain("— run cdd fix first");
+      expect(io.stderrText).toContain("pending-fix · next: ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       // no phantom re-review lands on the unchanged line
       expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(false);
@@ -3330,7 +3383,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // and the fix round's C5-1 route (blockers → re-review the fix delta) opens
       // the review lead. The lifecycle already dispatches this face; the CLI gate
       // must agree (an open gate and a dispatchable frame — the run.ts JSDoc
-      // invariant) instead of the revision-aware "amend body/version" rejection.
+      // invariant) instead of the revision-aware "amend body" rejection.
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       io.stdoutText = "";
       io.stderrText = "";
@@ -3364,7 +3417,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         plan,
       ]);
       expect(code).toBe(1);
-      expect(io.stderrText).toContain("the open wave is at implement");
+      expect(io.stderrText).toContain("wrong-phase · next: ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(workspace, "tasks-1-implement.json"))).toBe(false);
       expect(existsSync(path.join(workspace, "progress.json"))).toBe(false);
@@ -3493,13 +3546,13 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(
         await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", planPath]),
       ).toBe(1);
-      expect(io.stderrText).toContain("splits/mismatches the derived wave");
+      expect(io.stderrText).toContain("split · next: ");
       io.stderrText = "";
       // fix of a subset {2} before its implement → the split BLOCK (fix shares the gate)
       expect(
         await command.runArgv(["fix", "--type", "wave", "--tasks", "2", "--plan", planPath]),
       ).toBe(1);
-      expect(io.stderrText).toContain("splits/mismatches the derived wave");
+      expect(io.stderrText).toContain("split · next: ");
     } finally {
       cleanup();
     }
@@ -3533,7 +3586,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(
         await command.runArgv(["implement", "--tasks", "1,2", "--plan", planPath, "--dry-run"]),
       ).toBe(1);
-      expect(io.stderrText).toContain("at review");
+      expect(io.stderrText).toContain("wrong-phase · next: ");
     } finally {
       cleanup();
     }
@@ -3610,11 +3663,14 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         ),
       ).toBe(true);
       expect(io.stderrText).toContain("  plan-ledger: info (plan leads ledger by 1 tasks)\n");
-      expect(io.stderrText).toContain("  wave\n  presence: skipped (no doc target)\n");
+      // The wave face's row is NOT here: the dispatch's own phase is the authority's
+      // verdict (`session/dispatch-authority.ts`), never a structure gate's row.
+      expect(io.stderrText).not.toContain("  wave\n");
+      expect(io.stderrText).toContain("  presence: skipped (no doc target)\n");
       expect(io.stderrText).toContain("  planned-tasks-vs-recorded-tasks: passed\n");
       expect(
         io.stderrText.split("\n").filter((line) => line.endsWith(": skipped (no doc target)")),
-      ).toHaveLength(20);
+      ).toHaveLength(21);
 
       // ② the refused path: the same face after the BLOCK wording + its details
       writeFileSync(path.join(repoRoot, "seed.txt"), "modified\n", "utf8");
@@ -3705,7 +3761,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         "--dry-run",
       ]);
       expect(review).toBe(1);
-      expect(io.stderrText).toContain("the open wave is at implement");
+      expect(io.stderrText).toContain("wrong-phase · next: ");
       expect(io.stdoutText).toBe("");
       // zero writes across both previews — the chain never materialized the workspace
       expect(existsSync(path.join(repoRoot, ".kairos"))).toBe(false);

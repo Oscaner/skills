@@ -23,6 +23,7 @@
 
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
+import { DocBodyProjection } from "../contract/doc-body.ts";
 import type { ConfigLoader } from "../infra/config.ts";
 import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
@@ -427,8 +428,9 @@ export interface HandoffParams {
 
 /** The review-reference kind — each line-type binds its OWN reviewed identity (D30:
  *  honest identity, one concept one name — a `doc_hash` layer must never point at a
- *  non-document). `doc-revision` = the spec/plan line (the whole document file + its
- *  content hash); `brief-revision` = the wave line (the plan it renders FROM + the
+ *  non-document). `doc-revision` = the spec/plan line (the document PATH + its BODY's
+ *  content hash — the front matter and `## Change history` are projected away first,
+ *  P26 T1); `brief-revision` = the wave line (the plan it renders FROM + the
  *  RENDERED brief's content hash — the wave's true judgment input, never the plan).
  *  The commit-bearing kinds (commit-set-ledger · commit-range) retired with the
  *  commit-sha surface (P7): a review judges the live tree, so no committed range
@@ -443,7 +445,8 @@ export interface DocRevisionRef {
   kind: "doc-revision";
   /** The document path — the first layer of the two-layer ref. */
   doc: string;
-  /** The document revision — the sha1 content hash of the reviewed file. */
+  /** The document revision — the sha1 hash of the reviewed BODY (the front matter
+   *  and `## Change history` projected away, P26 T1). */
   doc_hash: string;
 }
 
@@ -472,10 +475,15 @@ export type ReviewedRevisionRef = DocRevisionRef | BriefRevisionRef;
  * derivation point — typed data, zero prose.
  */
 export class ReviewRefs {
-  /** The doc-revision two-layer binding — the doc path + the content-hash revision
-   *  (sha1 of the reviewed file content — the second layer of the doc ref). */
+  /** The doc-revision two-layer binding — the doc path + the BODY's content-hash
+   *  revision (sha1 of the reviewed body — the second layer of the doc ref). The
+   *  bookkeeping faces (front matter, `## Change history`) are projected away by the
+   *  `contract/` projection first (P26 T1): a closed-out registration write never
+   *  reopens a reviewed line, while a substantive body edit still drifts. */
   docRevision(doc: string, content: string | Buffer): DocRevisionRef {
-    return { kind: "doc-revision", doc, doc_hash: this.#hash(content) };
+    const body = typeof content === "string" ? content : content.toString("utf8");
+    const projected = new DocBodyProjection().project(body);
+    return { kind: "doc-revision", doc, doc_hash: this.#hash(projected) };
   }
 
   /** The brief-revision two-layer binding (D30) — the plan path the brief renders
@@ -500,7 +508,7 @@ export class ReviewRefs {
   #hash(content: string | Buffer): string {
     // The revision hash is a content digest (a fingerprint of the reviewed bytes),
     // never a commit ref — the full sha1 hex stays unsliced so the bind basis covers
-    // the whole content, not a truncated prefix.
+    // the whole input, not a truncated prefix.
     return createHash("sha1").update(content).digest("hex");
   }
 }
@@ -1193,8 +1201,8 @@ export class Ledger {
   }
 
   /** The single-target line's open phase — the rounds/routes walk the lifecycle's
-   *  frame frontier (run.ts #nextLinePhase) and the CLI gate (gate.ts #linePhase)
-   *  BOTH consume (one judge, one source — the retired twin copies), mapped from
+   *  frame frontier (run.ts #nextLinePhase) and the authority's line-phase read both
+   *  consume (one judge, one source — the retired twin copies), mapped from
    *  `lineRoute`'s active C5 hop: the review-lead hop reads the face's own review-lead
    *  mode word (branch→branch-review, the others→review), the fix hop `"fix"`, a closed
    *  line null. */

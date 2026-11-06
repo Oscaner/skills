@@ -401,13 +401,13 @@ export class Lifecycle {
   }
 
   /** The session-plane default discrimination — the target type's own pipeline key.
-   *  Every target type but the standalone `single-spec` IS a pipeline key (the
-   *  `PipelineKey` derivation), so the map is the identity plus the one terminal row
-   *  (a single-spec carries no pipeline seam). The declaration-reading judgment (a
-   *  doc's `doc-type:`) belongs to the face plane; the composition root injects it as
-   *  `BoardView.docClassOf`. */
+   *  Every declared target type IS a pipeline key (the `PipelineKey` derivation), so
+   *  the map is the identity: a standalone `single-spec` reads as `single-spec` and its
+   *  closure hands off to `cdd-plan` like any other spec line. The declaration-reading
+   *  judgment (a doc's `doc-type:`) belongs to the face plane; the composition root
+   *  injects it as `BoardView.docClassOf`. */
   static #docClassByType(target: RouteTarget): DocClassVerdict {
-    return target.type === "single-spec" ? "terminal" : target.type;
+    return target.type;
   }
 
   /** The face row this instance drives. */
@@ -758,7 +758,8 @@ export class Lifecycle {
 
   /** The reviewed-revision write-back — bind the completed round's input revision to
    *  the line record (the T7 doc + D30 wave identity gates' reopen-compare basis). The
-   *  doc face binds its target doc's whole-content revision; the wave face binds its
+   *  doc face binds its target doc's BODY revision (the front matter and
+   *  `## Change history` projected away, P26 T1); the wave face binds its
    *  RENDERED BRIEF's revision (D30 — the wave's true judgment input is the brief,
    *  never the whole plan: transcript edits outside the wave's task sections must not
    *  void a reviewed wave). An unreadable input records nothing — the line keeps the

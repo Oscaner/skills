@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PlanDocType } from "../../contract/doc.ts";
+import { DocBodyProjection } from "../../contract/doc-body.ts";
 import { BoardNext, BoardView } from "../../face/board-view.ts";
 import { Capsule } from "../../face/capsule.ts";
 import { ARGV_CHANNEL } from "../../face/declare.ts";
@@ -1617,7 +1618,11 @@ describe("P21 T3 — the branch line binds its plan's doc-revision", () => {
       if (recorded?.kind !== "doc-revision") throw new Error("unreachable");
       // the persisted plan layer speaks the canonical repoRoot-relative shape
       expect(recorded.doc).toBe("../../plan.md");
-      expect(recorded.doc_hash).toBe(createHash("sha1").update(content).digest("hex"));
+      // P26 T1: the doc-revision hashes the BODY projection (front matter and the
+      // change-history section stripped), not the whole file.
+      expect(recorded.doc_hash).toBe(
+        createHash("sha1").update(new DocBodyProjection().project(content)).digest("hex"),
+      );
       expect(ledger.reviewedRevisionOf("1")).toBeNull();
     } finally {
       cleanup();
@@ -1947,7 +1952,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
     }
   });
 
-  it("a closed `single-spec` (the identity slot's third owner) shares the assembly — plan successor, no plan `face-closed`", async () => {
+  it("a closed `single-spec` (the identity slot's third owner) shares the assembly — plan successor, plan-less handoff to `cdd-plan`", async () => {
     const { ledger, specPath, planPath, cleanup } = nodeFixture();
     try {
       const withPlan = new Lifecycle({
@@ -1965,8 +1970,9 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
       expect(step!.capsuleLines[1]).toBe(`next: review --type plan --plan ${planPath}`);
       expect(reasonTokenOf(step!.capsuleLines[2]!)).toBe("task-open");
 
-      // The same owner with no plan document: the class is terminal, so the reason
-      // row is `face-closed` (never the charter's `closed-line`).
+      // The same owner with no plan document: the closed spec line hands off to
+      // `cdd-plan` with the closed-line reason (P26 T3 — a single-spec is a spec
+      // line, not a program terminus).
       const { ledger: bareLedger, specPath: bareSpec, cleanup: bareCleanup } = nodeFixture();
       try {
         const withoutPlan = new Lifecycle({
@@ -1980,8 +1986,8 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
           capsule: new Capsule(new Words()),
         });
         const bare = await withoutPlan.advance();
-        expect(bare!.capsuleLines[1]).toBe("next: done");
-        expect(reasonTokenOf(bare!.capsuleLines[2]!)).toBe("face-closed");
+        expect(bare!.capsuleLines[1]).toBe("next: route to /kairos:cdd-plan skill");
+        expect(reasonTokenOf(bare!.capsuleLines[2]!)).toBe("closed-line");
       } finally {
         bareCleanup();
       }

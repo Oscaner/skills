@@ -1952,7 +1952,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
     }
   });
 
-  it("a closed `single-spec` (the identity slot's third owner) shares the assembly — plan successor, no plan `face-closed`", async () => {
+  it("a closed `single-spec` (the identity slot's third owner) shares the assembly — plan successor, plan-less handoff to `cdd-plan`", async () => {
     const { ledger, specPath, planPath, cleanup } = nodeFixture();
     try {
       const withPlan = new Lifecycle({

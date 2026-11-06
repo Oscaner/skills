@@ -461,11 +461,12 @@ describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () 
     expect(overall.to).toEqual({ kind: "done" });
     expect(overall.reason).toBe(NEXT_HOP_REASON.closedLine);
 
-    // a single-spec declares no pipeline seam — the terminal row (`to: null`)
-    const single = router.nextHop(hopInput({ verdict: "terminal" }));
-    expect(single.hop).toBeNull();
-    expect(single.to).toBeNull();
-    expect(single.reason).toBe(NEXT_HOP_REASON.faceClosed);
+    // the residual `terminal` doc class — no pipeline row claims it, so the bare
+    // null `to` holds (a closed `single-spec` has a real row, see PIPELINE_NEXT below)
+    const terminal = router.nextHop(hopInput({ verdict: "terminal" }));
+    expect(terminal.hop).toBeNull();
+    expect(terminal.to).toBeNull();
+    expect(terminal.reason).toBe(NEXT_HOP_REASON.faceClosed);
   });
 
   it("(e) the soft cap → no hop, no station, the soft-cap reason", () => {

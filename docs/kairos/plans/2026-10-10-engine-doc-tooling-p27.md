@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P27 计划：派发权威收口
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-06
 slug: 2026-10-10-engine-doc-tooling-p27
 base: develop
@@ -14,6 +14,7 @@ base: develop
 - **判据语义逐条等价**：wave 五行（`mixed-batch` · `wave-too-wide` · `too-many-tasks` · `split` · `wrong-phase`）与 doc/branch 四条只换宿主与输出通道；任何行为差异都是缺陷。
 - **既有 token 拼写保留**：合表只加 `leg` 字段，`NEXT_HOP_REASON` 的既有拼写（`doc-drift` · `pending-fix` · `closed-line` · `face-closed` · `soft-cap` · `task-open` · `doc-class-blocked`）一个不改，不另立并行拼写；结构门沿用既有 gate id（tree-clean 等），不新造 token。
 - **不动的面**：`PIPELINE_FACES`（`next.ts:127`）的顺序与成员 · `PIPELINE_NEXT` 的交棒目标 · `PipelineKey`（`:90`）/ `PhaseFaceKey`（`:121`）的既有区分 · overall 不进上游腿 · 无新命令/旗标/环境变量 · 不回流 `progress.json`。
+- **不改 D30 的 brief 投影**：wave 的已审身份仍是渲染 brief 的指纹（plan 里不涉及本波任务段的改动不作废已审 wave）；leg U **只读** live 事实——`briefDrifted`（`ledger.ts:1023`）与 `closedWaves()`（`ledger.ts:1124`）——不重写投影、不改指纹口径。
 - **只拒不记账**：announce 上游陈旧时**不**顺手触发复评——派发门只拒，不动账本：不开评审轮、不推进 `progress`、不改任何轮数。
 - **波宽 ≤ 3**：本计划三任务链式 `DependsOn`（1 → 2 → 3），每层 1 个任务。
 - **changeset**：`@oscaner-skills/cdd-engine` **minor**（拒绝行为与报文形状可见变化）。
@@ -149,7 +150,7 @@ none
 
 #### Acceptance
 
-- spec 的 7 条 Acceptance 全绿（红 pin 今日必红 → 改后转绿；绿 pin 零摩擦；权威单点；13 个 token 逐拼写 + `leg` 分区；五行等价；各面上游红 pin 含两种 spec 声明；validate + minor changeset），外加「闭合但漂移仍拒」与「只拒不记账」两条 pin。
+- spec 的 8 条 Acceptance 全绿（红 pin 今日必红 → 改后转绿；绿 pin 零摩擦；权威单点；13 个 token 逐拼写 + `leg` 分区；五行等价；各面上游红 pin 含两种 spec 声明；判收敛主线零变化（`#close` / `#blockerCount` / `REVIEW_CYCLE_CAP` 与 Loop-vs-converge 转移表、`next-loop-twin` 零重锚）；validate + minor changeset），外加「闭合但漂移仍拒」与「只拒不记账」两条 pin。
 - 上游腿只按 spec §2.3 的两条判据裁决：① identity 陈旧（`reviewGate` / `briefDrifted`）· ② 未闭合（`lineStateAt` / `#wavesExhausted`）；`waveLineRoute !== null` 不作判据。
 - 收敛主线零变化（§4 的硬约束在验）。
 
@@ -162,3 +163,4 @@ none
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-06 | 初版：三任务链式（T1 词表合一·零行为 → T2 authority + leg L·行为保持 → T3 leg U·行为变化），把 spec 的 13 行表、优先级、面序派生与收敛冻结拆成三步可独立评审的交付 | Claude（本会话 cdd-plan） |
 | v0.2 | 2026-11-06 | 按首轮计划评审更正内容面：T3 上游判据改回 spec §2.3 的 ① identity 陈旧（`reviewGate` / `briefDrifted`）与 ② 未闭合（`lineStateAt` / `#wavesExhausted`），点名 `waveLineRoute !== null` 不是判据，并补「闭合但漂移」红 pin；T2 Step 1 拒绝面补全为五行 + doc/branch 四条 + drift 重开放行；T1 的 token `leg` 收为 `structure`/`line`/`station`（与 verdict 腿 `upstream` 区分）、口径改为 13 个 token 按拼写；Constraints 补「只拒不记账」及对应 pin；Review Focus 更正 `recordPlanTasks` / `appendedSinceClosure` 归属 | Claude（本会话 · docs-fix） |
+| v0.3 | 2026-11-06 | 按第二轮计划评审补两条内容面：Constraints 补「不改 D30 的 brief 投影」（wave 已审身份仍是渲染 brief 指纹，leg U 只读 `briefDrifted` / `closedWaves()`）；T3 Acceptance 的 spec 条数由 7 更正为 8，并把「判收敛主线零变化」补进枚举 | Claude（本会话 · docs-fix） |

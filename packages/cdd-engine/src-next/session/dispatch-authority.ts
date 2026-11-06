@@ -176,6 +176,10 @@ type LineRuling =
  * DispatchAuthority — the ONE dispatch verdict (§2.1/§2.2). One `verdict` call walks
  * the three legs in priority order and returns the single verdict the CLI renders,
  * the capsule's `next:` and the board's `next:` all read the same hop through it.
+ *
+ * Rule zero on the ≤200-line class cap (broke by design, not by accident): the three
+ * legs are one short-circuit chain over one `next:` assembly — extracted, the chain's
+ * order moves to a caller and a refusal can name a round another leg contradicts.
  */
 export class DispatchAuthority {
   /** The wave face's five rows — this leg's wave judge (the judgment body stays in

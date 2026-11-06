@@ -452,7 +452,7 @@ describe("P27 §2.7 — the authority is the ONLY dispatch call site", () => {
       fileURLToPath(new URL("../dispatch-authority.ts", import.meta.url)),
       "utf8",
     );
-    // 只拒不记账: announcing a stale upstream never triggers a re-review — the gate
+    // Refuse-without-ledger: a stale upstream never triggers a re-review — the gate
     // refuses, it never opens a round, advances `progress.json` or moves a count.
     for (const write of [
       "recordRound(",
@@ -831,7 +831,7 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
     }
   });
 
-  it("只拒不记账 — a refusal leaves every round count and the progress file untouched", () => {
+  it("refuse-without-ledger — a refusal leaves every round count and the progress file untouched", () => {
     const { repo, ledger, cleanup } = fixture();
     try {
       const reviewed = planDoc([task(1, "none")]);

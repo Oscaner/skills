@@ -1892,7 +1892,8 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stderrText).toContain(
         "doc-drift · next: review --type plan --plan docs/kairos/plans/p3.md",
       );
-      // 只拒不记账: the refusal precedes every write — no brief, no phantom round.
+      // Refuse-without-ledger: the refusal precedes every write — no brief, no
+      // phantom round.
       const node = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(node, "tasks-1-brief.md"))).toBe(false);
       expect(existsSync(path.join(node, "tasks-1-implement.json"))).toBe(false);

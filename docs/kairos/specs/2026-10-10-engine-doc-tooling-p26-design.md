@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P26 设计：收口面残余三笔 + 文档形状归属判据
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p26
 program: 2026-10-10-engine-doc-tooling
@@ -199,3 +199,4 @@ plan 的 front-matter 没有 `spec:` 键，plan 与它的 spec 靠**同 slug** �
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-05 | 初版（由游离 single-spec v0.2 迁入并补 §4）：四笔收口面残余——正文 doc-revision（#417）· 六份图源孪生门（#418）· spec 闭合交棒 cdd-plan · single-spec ⇄ phase-spec 归属判据 + 机检门；§1–§3 沿已过三轮评审的 single-spec 文本 | [human] 裁定 · Claude（本会话） |
 | v0.2 | 2026-11-05 | 按首轮评审更正内容面：§3.4 改为 `INPUT_SPEC` = 同 slug 身份文档路径（交棒后仍非空），空槽归属 `INPUT_OVERALL` 的 `program:`；§2.3 文案孪生补卡片 `title`；验收的零变化子句收窄到 §3 交棒面外 | Claude（本会话） |
+| v0.3 | 2026-11-06 | **closeout 登记（cdd-close）**：P26 全链闭合——三波实现链全绿（W1 = {1,2,3} · W2 = {4} · W3 = {5}，每波 implement → wave review → fix 全 APPROVED）+ 分支终审 → branch-fix 闭环（branch-review-1 一条 warn：父 overall 的 P26 验收单元口径落后于相位验收 → `d0489e7e` 回填）。交付：正文哈希投影（`contract/doc-body.ts` + `ReviewRefs#docRevision`）· 六份孪生门 + `journey` 三条常量 pin · `single-spec` 交棒 `cdd-plan`（`reason: closed-line`）· 归属判据落两 skill 文本 · 新门 `phase-design-spec-is-phase-spec`。`pnpm run validate` exit 0（引擎 1379 · kairos 95 · root 25 · typecheck ×3 · version-sync · emit fresh · 零裸函数） | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-06） |

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P26 计划：收口面残余三笔 + 文档形状归属判据
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-05
 slug: 2026-10-10-engine-doc-tooling-p26
 base: develop
@@ -236,3 +236,4 @@ none
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-05 | 初版（slug 随 spec 迁入 P26）：五任务三层——T1 正文 doc-revision · T2 六图孪生+journey pin · T3 single-spec 交棒 cdd-plan（同层无边）· T4 归属判据落两 skill 文本 · T5 新 doc-contract 门 | Claude（本会话 cdd-plan） |
 | v0.2 | 2026-11-05 | **plan 评审第 1 轮 fix（三条 findings 全接受）**：① **B1** Constraints 的 spec 版本锁 v0.1 → **v0.2**；T2 Step 3 的孪生字段表补卡片 `title`，Step 4 改**三条反向注入**（HTML 引用行 / `sublabel` 不重生成 / 只改卡片 `title` 不重生成），对齐 spec §2.3 与验收 ② **W1** 补 `kairos` minor 落册：T3 Step 6 与 Files 的 `closeout-debts.md` 同笔声明两条 minor，T4 新增 Step 6 核对落册并在 Files / Acceptance 点名 ③ **N1** T1 Step 1 补第六格「两侧都没有 ⇒ `project(content) === content` 非空」 | Claude（kairos:cdd-plan · plan fix 1 · 2026-11-05） |
+| v0.3 | 2026-11-06 | **closeout 登记（cdd-close）**：五任务三层全部闭合——W1 {1,2,3}（正文投影 · 六图孪生 · 交棒）· W2 {4}（归属判据两 skill 文本）· W3 {5}（新 doc-contract 门）；实现期事实三条：① 哈希口径换代使 spec / plan 两行各触发一次自然重评（`doc-drift`，spec review 3 与 plan review 3 均 APPROVED），即 spec §Constraints 接受的那次改写；② 波内实施把父 overall 的 Issue 单元改回多引用形态 `（#417 · #418）`（原 `[#417] · [#418]` 不过 selector）；③ `wave fix 1` 清掉 D73 残留叙述。`validate` exit 0 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-06） |

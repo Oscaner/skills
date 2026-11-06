@@ -82,6 +82,13 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   release-plugin:
+    # Explicit display name — without it GitHub renders the DEFAULT matrix name
+    # `<job_id> (<every matrix value>)`, which reads as
+    # `release-plugin (cdd-engine, cdd-engine@)`: the trailing `@` is the matrix's
+    # `tag_prefix`, not an empty version. Naming the job by `matrix.name` keeps the
+    # tag-vs-no-tag judgment unambiguous in the run list (the judgment itself is the
+    # versioned/tag-exists steps below, untouched).
+    name: release-plugin (${{ matrix.name }})
     needs: release
     if: needs.release.outputs.hasChangesets == 'false'
     runs-on: ubuntu-latest

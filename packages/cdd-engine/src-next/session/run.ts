@@ -758,7 +758,8 @@ export class Lifecycle {
 
   /** The reviewed-revision write-back — bind the completed round's input revision to
    *  the line record (the T7 doc + D30 wave identity gates' reopen-compare basis). The
-   *  doc face binds its target doc's whole-content revision; the wave face binds its
+   *  doc face binds its target doc's BODY revision (the front matter and
+   *  `## Change history` projected away, P26 T1); the wave face binds its
    *  RENDERED BRIEF's revision (D30 — the wave's true judgment input is the brief,
    *  never the whole plan: transcript edits outside the wave's task sections must not
    *  void a reviewed wave). An unreadable input records nothing — the line keeps the

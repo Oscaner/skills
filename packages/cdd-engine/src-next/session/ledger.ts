@@ -428,8 +428,9 @@ export interface HandoffParams {
 
 /** The review-reference kind — each line-type binds its OWN reviewed identity (D30:
  *  honest identity, one concept one name — a `doc_hash` layer must never point at a
- *  non-document). `doc-revision` = the spec/plan line (the whole document file + its
- *  content hash); `brief-revision` = the wave line (the plan it renders FROM + the
+ *  non-document). `doc-revision` = the spec/plan line (the document PATH + its BODY's
+ *  content hash — the front matter and `## Change history` are projected away first,
+ *  P26 T1); `brief-revision` = the wave line (the plan it renders FROM + the
  *  RENDERED brief's content hash — the wave's true judgment input, never the plan).
  *  The commit-bearing kinds (commit-set-ledger · commit-range) retired with the
  *  commit-sha surface (P7): a review judges the live tree, so no committed range
@@ -444,7 +445,8 @@ export interface DocRevisionRef {
   kind: "doc-revision";
   /** The document path — the first layer of the two-layer ref. */
   doc: string;
-  /** The document revision — the sha1 content hash of the reviewed file. */
+  /** The document revision — the sha1 hash of the reviewed BODY (the front matter
+   *  and `## Change history` projected away, P26 T1). */
   doc_hash: string;
 }
 
@@ -506,7 +508,7 @@ export class ReviewRefs {
   #hash(content: string | Buffer): string {
     // The revision hash is a content digest (a fingerprint of the reviewed bytes),
     // never a commit ref — the full sha1 hex stays unsliced so the bind basis covers
-    // the whole content, not a truncated prefix.
+    // the whole input, not a truncated prefix.
     return createHash("sha1").update(content).digest("hex");
   }
 }

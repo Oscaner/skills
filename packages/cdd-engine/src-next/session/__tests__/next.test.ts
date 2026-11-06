@@ -29,6 +29,7 @@ import { type RouteTarget, targetFaces } from "../faces.ts";
 import type { Round, RoundPhase } from "../ledger.ts";
 import type { Route } from "../next.ts";
 import {
+  DISPATCH_REASON,
   FIX_READBACK_SUFFIX,
   NEXT_HOP_REASON,
   type NextHopInput,
@@ -38,6 +39,7 @@ import {
   type PipelineEntry,
   REVIEW_CYCLE_CAP,
   SOFT_CAP_SUGGESTION,
+  WAVE_GATE_REASON,
 } from "../next.ts";
 import type { ExecutionState } from "../state.ts";
 
@@ -758,5 +760,82 @@ describe("P22 §5.2 — drift does not outrank a pending fix", () => {
     expect(hop.hop).toBe("fix");
     expect(hop.reason).toBe(NEXT_HOP_REASON.pendingFix);
     expect(hop.reason).not.toBe(NEXT_HOP_REASON.docDrift);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P27 §2.5 — ONE reason table with a `leg` partition. The 13 non-structure tokens
+// are pinned by SPELLING (never by row count: the same table also carries the
+// structure gate-id rows). The row leg domain is structure | line | station — the
+// dispatch verdict's own leg (`structure | upstream | line`) is a different axis,
+// so no `upstream` row exists here and the upstream refusals reuse the existing
+// line/station tokens.
+// ---------------------------------------------------------------------------
+
+describe("P27 §2.5 — the reason table: 13 non-structure tokens with a leg partition", () => {
+  const rows = Object.values(DISPATCH_REASON);
+  const LINE_TOKENS = [
+    // the wave gate's five (moved onto the shared table, leg L)
+    "mixed-batch",
+    "wave-too-wide",
+    "too-many-tasks",
+    "split",
+    "wrong-phase",
+    // the doc/branch refusals (leg L) — `unchanged` is the new same-revision token
+    "pending-fix",
+    "unchanged",
+    "closed-line",
+    "face-closed",
+  ] as const;
+  const STATION_TOKENS = [
+    // the station signs a `next:` hop is named by
+    "doc-drift",
+    "soft-cap",
+    "task-open",
+    "doc-class-blocked",
+  ] as const;
+  const WAVE_TOKENS = ["mixed-batch", "wave-too-wide", "too-many-tasks", "split", "wrong-phase"];
+
+  it("puts every non-structure token on its declared leg, one spelling each", () => {
+    const line = rows.filter((row) => row.leg === "line").map((row) => row.token);
+    const station = rows.filter((row) => row.leg === "station").map((row) => row.token);
+    expect(line.sort()).toEqual([...LINE_TOKENS].sort());
+    expect(station.sort()).toEqual([...STATION_TOKENS].sort());
+    // 13 non-structure tokens — counted by leg, never asserted as a row total
+    expect(line.length + station.length).toBe(13);
+    // a second parallel spelling of any token fails here
+    expect(new Set(rows.map((row) => row.token)).size).toBe(rows.length);
+  });
+
+  it("the leg domain is structure | line | station — no upstream row, structurals reuse gate ids", () => {
+    expect([...new Set(rows.map((row) => row.leg))].sort()).toEqual([
+      "line",
+      "station",
+      "structure",
+    ]);
+    expect(
+      rows
+        .filter((row) => row.leg === "structure")
+        .map((row) => row.token)
+        .sort(),
+    ).toEqual(["doc-contract", "graph", "in-flight", "plan-ledger", "tree-clean"]);
+  });
+
+  it("keeps the existing seven NEXT_HOP_REASON spellings verbatim", () => {
+    expect(NEXT_HOP_REASON.docDrift).toBe("doc-drift");
+    expect(NEXT_HOP_REASON.pendingFix).toBe("pending-fix");
+    expect(NEXT_HOP_REASON.closedLine).toBe("closed-line");
+    expect(NEXT_HOP_REASON.faceClosed).toBe("face-closed");
+    expect(NEXT_HOP_REASON.softCap).toBe("soft-cap");
+    expect(NEXT_HOP_REASON.taskOpen).toBe("task-open");
+    expect(NEXT_HOP_REASON.docClassBlocked).toBe("doc-class-blocked");
+  });
+
+  it("the wave gate's five rows are a table view — wave.ts restates no spelling", () => {
+    expect(Object.values(WAVE_GATE_REASON).sort()).toEqual([...WAVE_TOKENS].sort());
+    const source = readFileSync(new URL("../wave.ts", import.meta.url), "utf8");
+    for (const token of WAVE_TOKENS) {
+      expect(source, `wave.ts restates the ${token} spelling`).not.toContain(`"${token}"`);
+    }
   });
 });

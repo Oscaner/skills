@@ -3,7 +3,8 @@
 // Today's session carried two parallel comparisons (the doc line's doc-revision and
 // the wave line's brief-revision); the branch line had none at all. This class is the
 // single identity face all three read:
-//   · spec / plan — the document's `doc-revision` (a hash of the whole content);
+//   · spec / plan — the document's `doc-revision` (a hash of the BODY: front matter
+//                   and `## Change history` are projected away, P26 T1);
 //   · wave        — the RENDERED brief's `brief-revision` (its task sections plus the
 //                   plan's `## Constraints` — a plan edit elsewhere is not a drift);
 //   · branch      — its plan document's `doc-revision` (the SAME kind, no new ref

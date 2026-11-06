@@ -60,7 +60,7 @@ import { BriefRenderer } from "../../render/brief.ts";
 import { REVIEWS } from "../../render/templates.ts";
 import type { RouteTarget } from "../../session/faces.ts";
 import { InFlight, type InFlightRecord } from "../../session/inflight.ts";
-import { type CrashRecord, Ledger, type SampleRecord } from "../../session/ledger.ts";
+import { type CrashRecord, Ledger, ReviewRefs, type SampleRecord } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
 import { FIX_READBACK_SUFFIX, MAX_TASKS_PER_WAVE, NextStepRouter } from "../../session/next.ts";
 import type { PreFlightVerdict } from "../../session/preflight.ts";
@@ -1849,6 +1849,53 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stdoutText).toContain("next: review --type branch --plan ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(workspace, "tasks-1-review-1.json"))).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P27 §2.3 — an open upstream station refuses the wave dispatch: `reason · next:` on stderr, exit 1", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      // The same-slug identity document, its line on record and closed — so the plan
+      // face is the station the refusal names.
+      const spec = path.join(repoRoot, "docs", "kairos", "specs", "p3-design.md");
+      mkdirSync(path.dirname(spec), { recursive: true });
+      writeFileSync(spec, "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\n---\n\nspec\n", "utf8");
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        { phase: "review", findings: [] },
+      );
+      ledger.recordRound("phase-spec", { op: "review" });
+      // The plan review is on record and bound the body it judged; the plan then moves.
+      const reviewed = readFileSync(plan, "utf8");
+      ledger.persistHandoff("review", "plan", { round: 1 }, { phase: "review", findings: [] });
+      ledger.recordRound("plan", { op: "review" });
+      ledger.recordReviewedRevision(
+        "plan",
+        new ReviewRefs().docRevision("docs/kairos/plans/p3.md", reviewed),
+      );
+      writeFileSync(
+        plan,
+        readFileSync(plan, "utf8").replace("- **Acceptance**: ok", "- **Acceptance**: ok (moved)"),
+        "utf8",
+      );
+      const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      expect(code).toBe(1);
+      // The ONE refusal line (§2.6) names the upstream round the station holds.
+      expect(io.stderrText).toContain(
+        "doc-drift · next: review --type plan --plan docs/kairos/plans/p3.md",
+      );
+      // 只拒不记账: the refusal precedes every write — no brief, no phantom round.
+      const node = path.join(repoRoot, ".kairos", "cdd", "p3");
+      expect(existsSync(path.join(node, "tasks-1-brief.md"))).toBe(false);
+      expect(existsSync(path.join(node, "tasks-1-implement.json"))).toBe(false);
     } finally {
       cleanup();
     }

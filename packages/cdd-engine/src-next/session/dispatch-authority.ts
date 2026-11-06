@@ -16,9 +16,15 @@
 //     (the ordered gate rows + the named findings) renders beside the refusal. The
 //     leg names no hop — a dirty tree has no `next:` round.
 //   · upstream — the station's reviewed-identity + closure pair over the faces that
-//     precede the request's face (P27 §2.3). It lands with the upstream wave; until
-//     then the chain inserts nothing here, so every dispatch stays exactly as wide
-//     as it was.
+//     precede the request's face (P27 §2.3): the faces are read off `PIPELINE_FACES`
+//     (the ONE order), each judged by ① whether its reviewed identity moved (a doc
+//     line's `reviewGate` · a wave line's `briefDrifted`) and ② whether it has closed
+//     for the request (a doc line's `lineStateAt` · the wave face's exhaustion over
+//     `closedWaves()`). A face the pipeline never entered holds no station — its
+//     line carries no round to hold the request — so the request face is the
+//     pipeline's own first entry. `waveLineRoute !== null` is never a closure judge:
+//     a never-entered face's `active` is null, and a closed-but-drifted wave is ①'s
+//     catch, because exhaustion only answers "every task is done".
 //   · line — this line's own phase: the wave face's five rows (the `WaveGate` stays
 //     the leg's judge) and the doc/branch face's rows (pending-fix · unchanged ·
 //     face-closed, plus the drift reopen, which ADMITS the review round).
@@ -47,6 +53,8 @@ import {
   type DispatchReason,
   type DocClassVerdict,
   type NextHop,
+  type PhaseFaceKey,
+  PIPELINE_FACES,
 } from "./next.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "./pipeline.ts";
 import type { PreFlightVerdict } from "./preflight.ts";
@@ -141,6 +149,20 @@ export interface DispatchRefusalRender {
   readonly detail?: string;
 }
 
+/** One upstream face's line identity — the ledger key, the judged document and the
+ *  declared target type. The identity face's key IS its declared word (`phase-spec` /
+ *  `single-spec`), so the slot and the line never diverge. */
+interface UpstreamDocLine {
+  readonly type: TargetType;
+  readonly key: string;
+  readonly doc: string;
+}
+
+/** An upstream station's sign — ① the reviewed identity moved (`drift`), ② the face
+ *  has not closed for the request (`open`), or nothing to report (`null`: the face
+ *  handed off cleanly, or the pipeline never entered it). */
+type UpstreamStation = "drift" | "open" | null;
+
 /** A leg's ruling before the hop is assembled — the hop is only read when a refusal
  *  actually names one (an allowed dispatch pays no station read). */
 type LineRuling =
@@ -170,9 +192,8 @@ export class DispatchAuthority {
   verdict(request: DispatchRequest): DispatchVerdict {
     const structure = this.structureRefusal(request.structure);
     if (structure !== null) return structure;
-    // The upstream leg (§2.3) inserts HERE — the station's reviewed-identity and
-    // closure pair over the faces preceding the request's face. It refuses nothing
-    // until that read lands (P27 task 3), so no dispatch narrows in this round.
+    const upstream = this.#upstreamLeg(request);
+    if (upstream !== null) return upstream;
     return this.#lineLeg(request);
   }
 
@@ -200,6 +221,51 @@ export class DispatchAuthority {
     // structure verdict at all (the seam keeps its own report face).
     if (gate === undefined) return null;
     return { allowed: false, leg: "structure", reason: gate, next: null };
+  }
+
+  /** The upstream leg (§2.3) — the faces that PRECEDE the request's face, in the ONE
+   *  `PIPELINE_FACES` order: the request face's index cuts the order, and the first
+   *  upstream face that reports owns the verdict. Its `next` is the pipeline
+   *  frontier's own hop — the object the capsule and the board render — so a refusal
+   *  never names a round another face contradicts. */
+  #upstreamLeg(request: DispatchRequest): DispatchRefusal | null {
+    const index = DispatchAuthority.#faceIndexOf(request.type);
+    if (index <= 0) return null;
+    for (const face of PIPELINE_FACES.slice(0, index)) {
+      const station = this.#stationOf(face, request.line);
+      if (station === null) continue;
+      const next = this.#hopOf(request.line);
+      const reason = station === "drift" ? DISPATCH_REASON.docDrift.token : next.reason;
+      return { allowed: false, leg: "upstream", reason, next };
+    }
+    return null;
+  }
+
+  /** One upstream face's station sign — ① first (a moved reviewed identity refuses as
+   *  `doc-drift` whatever the closure cell says), then ② (the face has not closed for
+   *  the request, so the frontier's own hop reason rules). */
+  #stationOf(face: PhaseFaceKey, facts: DispatchLineFacts): UpstreamStation {
+    if (face === "wave") return this.#waveStation(facts);
+    const line = DispatchAuthority.#docFaceOf(face, facts.pipeline);
+    if (line === null) return null;
+    const ledger = facts.ledger;
+    // A line with no recorded round was never entered: no station, nothing to hold.
+    if (!DispatchAuthority.#docEntered(ledger, line)) return null;
+    if (ledger.reviewGate(line.key, line.doc, line.type).kind === "open") return "drift";
+    return ledger.lineStateAt(line.key, line.type, line.doc) === "closed" ? null : "open";
+  }
+
+  /** The wave face's station — read off the SAME two judges the frontier runs, never a
+   *  local walk: entered over the three dispatch modes, drifted over the derived
+   *  batches' reviewed briefs, exhausted over `closedWaves()`. */
+  #waveStation(facts: DispatchLineFacts): UpstreamStation {
+    const graph = facts.pipeline.planGraph;
+    if (graph === null) return null;
+    const frontier = this.#frontierOf(facts);
+    if (!frontier.wavesEntered(graph)) return null;
+    const drifted = graph.batches().some((batch) => facts.ledger.briefDrifted(batch.join(",")));
+    if (drifted) return "drift";
+    return frontier.wavesExhausted(graph) ? null : "open";
   }
 
   /** The line leg — this line's phase against the requested one, with the refusal's
@@ -304,8 +370,50 @@ export class DispatchAuthority {
   /** The refusal's `next` — the pipeline frontier's ONE assembly (§2.1), the object
    *  the capsule and the board render. */
   #hopOf(facts: DispatchLineFacts): NextHop {
-    return new PipelineFrontier(facts.ledger).hopOf(facts.pipeline, {
+    return this.#frontierOf(facts).hopOf(facts.pipeline, {
       docClassOf: facts.docClassOf,
     });
+  }
+
+  /** The pipeline frontier over this line's ledger — ONE construction per read. */
+  #frontierOf(facts: DispatchLineFacts): PipelineFrontier {
+    return new PipelineFrontier(facts.ledger);
+  }
+
+  /** The pipeline face a target type occupies — the identity slot's declared words
+   *  (`phase-spec` / `single-spec`) share face 0, every node face is its own key, and
+   *  the charter (`overall`) occupies no pipeline face at all (-1). Read off
+   *  `PIPELINE_FACES` (the ONE order declaration), never a second order table. */
+  static #faceIndexOf(type: TargetType): number {
+    const face = type === "single-spec" ? "phase-spec" : type;
+    return DispatchAuthority.#isPipelineFace(face) ? PIPELINE_FACES.indexOf(face) : -1;
+  }
+
+  static #isPipelineFace(key: string): key is PhaseFaceKey {
+    return (PIPELINE_FACES as readonly string[]).includes(key);
+  }
+
+  /** One upstream doc face's line identity — a node face's own key/document, the
+   *  identity slot's DECLARED word (`specType`, the `single-spec` / `phase-spec`
+   *  spelling the document carries). A face with no document was never entered; the
+   *  charter is no pipeline face at all, so it is never an upstream station. */
+  static #docFaceOf(face: PhaseFaceKey, pipeline: PipelineFrontierInput): UpstreamDocLine | null {
+    if (face === "plan" || face === "branch") {
+      return pipeline.planPath === null ? null : { type: face, key: face, doc: pipeline.planPath };
+    }
+    if (pipeline.specType === "overall") return null;
+    const type = pipeline.specType ?? "phase-spec";
+    return pipeline.specPath === null ? null : { type, key: type, doc: pipeline.specPath };
+  }
+
+  /** Whether an upstream doc face was ever WORKED — its line carries at least one
+   *  recorded round (the review lead or a fix). A face the pipeline never entered
+   *  holds no station: the request face is the pipeline's own first entry. */
+  static #docEntered(ledger: Ledger, line: UpstreamDocLine): boolean {
+    const lead = targetFaces[line.type].product.reviewLead;
+    return (
+      ledger.roundCount(line.key, lead, line.type) > 0 ||
+      ledger.roundCount(line.key, "fix", line.type) > 0
+    );
   }
 }

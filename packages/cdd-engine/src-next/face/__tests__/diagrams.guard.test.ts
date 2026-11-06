@@ -178,6 +178,13 @@ const cardLead = (source: DiagramSource, title: string): string => {
   return lead!;
 };
 
+/** This gate's own source file — the comparative pin below scans it. */
+const GATE_SOURCE = "packages/cdd-engine/src-next/face/__tests__/diagrams.guard.test.ts";
+
+/** The twin gate's repair suffix, assembled from its two halves so this file never
+ *  carries the literal string it forbids. */
+const TWIN_REPAIR_HINT = ["regenerate:", "pnpm run emit"].join(" ");
+
 for (const [rel, pin] of Object.entries(SOURCES)) {
   describe(`architecture diagram: ${rel}`, () => {
     const text = read(rel);
@@ -266,3 +273,16 @@ for (const [rel, pin] of Object.entries(SOURCES)) {
     });
   });
 }
+
+// P28 T2 — the comparative pin. The twin gate (`diagram-twin.guard.test.ts`) closes
+// every mismatch with its "regenerate via the repo emit" suffix, because there a red
+// means "the source moved and the artifact did not follow". Here a red means the
+// opposite: the source itself is wrong, so regenerating would re-print the mistake and
+// the repair is to edit the source. This gate's messages are inline template literals,
+// so scanning the gate's own text is the only mechanical way to keep the WHOLE message
+// set hint-free: one pasted suffix anywhere in this file turns this pin red.
+describe("the semantic gate carries no regeneration hint (P28 T2)", () => {
+  it("never names the twin gate's repair suffix — its red is a wrong source, not a stale artifact", () => {
+    expect(read(GATE_SOURCE)).not.toContain(TWIN_REPAIR_HINT);
+  });
+});

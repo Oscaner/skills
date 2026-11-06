@@ -23,6 +23,12 @@
 // construction, and `docs/diagrams/*.html` stays untouchable (no hand-edited
 // artifact, no restore dance).
 //
+// The repair path (P28 T2): every leg's red means the SAME thing — the source moved
+// and the artifact did not follow — so every mismatch string ends with the one repair
+// that needs no extra install, `pnpm run emit`. The semantic gate
+// (`diagrams.guard.test.ts`) deliberately carries no such suffix: there the source
+// itself is wrong, and regenerating it would only re-print the mistake.
+//
 // Rule zero (over the 200-line class/limit): the reader stays one class because every
 // leg is a pure projection of the SAME (source, artifact) pair.
 
@@ -86,11 +92,14 @@ const EVIDENCE_SCRIPT =
 
 /**
  * DiagramTwin — one (source, artifact) pair judged on the three legs. Pure reads:
- * every assertion method returns the mismatches it found, and its message carries the
+ * every assertion method returns the mismatches it found, and each message carries the
  * leg token (`revision:` / `reference:` / `copy:` / `card-title:`) so a failure names
- * the leg that broke.
+ * the leg that broke, then closes with `REPAIR_HINT` — the repair is one command.
  */
 class DiagramTwin {
+  /** The repair suffix every mismatch ends with — see `#withRepair`. */
+  static readonly REPAIR_HINT = "— regenerate: pnpm run emit";
+
   /** The source's structural root per `diagram_type` — one normalization, three roots. */
   static readonly ROOT_BY_TYPE: Readonly<Record<string, "components" | "states" | "nodes">> = {
     architecture: "components",
@@ -148,13 +157,16 @@ class DiagramTwin {
   revisionMismatches(): string[] {
     const pinned = this.#source.meta.repository.revision;
     const embedded = this.#evidence?.repository.revision ?? "<no evidence block>";
-    return pinned === embedded ? [] : [`revision: source ${pinned} ≠ artifact ${embedded}`];
+    return pinned === embedded
+      ? []
+      : this.#withRepair([`revision: source ${pinned} ≠ artifact ${embedded}`]);
   }
 
   /** The citation twin as a multiset comparison, plus the artifact's `referenceCount`. */
   referenceMismatches(): string[] {
     const evidence = this.#evidence;
-    if (evidence === null) return ["reference: the artifact carries no evidence block"];
+    if (evidence === null)
+      return this.#withRepair(["reference: the artifact carries no evidence block"]);
     const expected = this.#sourceReferences();
     const actual = this.#artifactReferences(evidence);
     const out: string[] = [];
@@ -169,7 +181,7 @@ class DiagramTwin {
         `reference: referenceCount ${evidence.referenceCount} ≠ ${actual.length} embedded references`,
       );
     }
-    return out;
+    return this.#withRepair(out);
   }
 
   /** The copy twin — every source string must appear in the artifact, escaped or raw. */
@@ -192,7 +204,14 @@ class DiagramTwin {
         if (!this.#carries(item)) out.push(`copy: card "${card.title}" item "${item}" is absent`);
       }
     }
-    return out;
+    return this.#withRepair(out);
+  }
+
+  /** The repair suffix, appended once per mismatch: a twin red always means the source
+   *  moved and the artifact did not follow, and `emit` is the repair that needs no
+   *  extra install. One wording for all three legs. */
+  #withRepair(mismatches: readonly string[]): string[] {
+    return mismatches.map((message) => `${message} ${DiagramTwin.REPAIR_HINT}`);
   }
 
   /** Every card title the source declares — the card-title leg's own list. */
@@ -280,6 +299,9 @@ const withSublabel = (
 
 const ARCHITECTURE = "docs/diagrams/src/architecture.en.json";
 
+/** The repair suffix every twin mismatch ends with — one wording for all three legs. */
+const REPAIR_HINT = "— regenerate: pnpm run emit";
+
 describe("the six diagram twins — citation, copy and revision legs (P26 T2)", () => {
   it("covers six sources and all three diagram_type roots", () => {
     const twins = DiagramTwin.SOURCES.map((rel) => DiagramTwin.of(rel));
@@ -331,7 +353,22 @@ describe("the twin legs go red when one side moves (reverse injection)", () => {
     const references = drifted.referenceMismatches();
     expect(references.length).toBeGreaterThan(0);
     expect(references.every((message) => message.startsWith("reference:"))).toBe(true);
+    expect(references.every((message) => message.endsWith(REPAIR_HINT))).toBe(true);
     expect(drifted.revisionMismatches()).toEqual([]);
+    expect(drifted.copyMismatches()).toEqual([]);
+  });
+
+  it("a source revision pin without a regeneration names the repair", () => {
+    const twin = DiagramTwin.of(ARCHITECTURE);
+    const html = withEvidence(twin, (evidence) => ({
+      ...evidence,
+      repository: { revision: "0".repeat(40) },
+    }));
+    const drifted = DiagramTwin.withSource(sourceOf(ARCHITECTURE), html);
+    const revisions = drifted.revisionMismatches();
+    expect(revisions.length).toBeGreaterThan(0);
+    expect(revisions.every((message) => message.startsWith("revision:"))).toBe(true);
+    expect(revisions.every((message) => message.endsWith(REPAIR_HINT))).toBe(true);
     expect(drifted.copyMismatches()).toEqual([]);
   });
 
@@ -345,6 +382,7 @@ describe("the twin legs go red when one side moves (reverse injection)", () => {
     expect(
       copy.some((message) => message.startsWith("copy:") && message.includes("never regenerated")),
     ).toBe(true);
+    expect(copy.every((message) => message.endsWith(REPAIR_HINT))).toBe(true);
     expect(drifted.referenceMismatches()).toEqual([]);
     expect(drifted.cardTitles()).toEqual(twin.cardTitles());
   });
@@ -357,6 +395,7 @@ describe("the twin legs go red when one side moves (reverse injection)", () => {
     const drifted = DiagramTwin.withSource({ ...source, cards }, twin.html);
     const copy = drifted.copyMismatches();
     expect(copy.some((message) => message.startsWith("card-title:"))).toBe(true);
+    expect(copy.every((message) => message.endsWith(REPAIR_HINT))).toBe(true);
     // the items leg stays green for every card whose title did not move
     expect(copy.filter((message) => message.startsWith("copy:"))).toEqual([]);
     expect(drifted.referenceMismatches()).toEqual([]);

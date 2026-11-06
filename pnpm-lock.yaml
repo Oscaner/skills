@@ -184,6 +184,9 @@ importers:
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
+      archify:
+        specifier: github:tt-a1i/archify#a4065941f12be7967436261d9934784e381d423c&path:/archify
+        version: https://codeload.github.com/tt-a1i/archify/tar.gz/a4065941f12be7967436261d9934784e381d423c#path:/archify
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -725,6 +728,12 @@ packages:
 
   '@vitest/spy@5.0.5':
     resolution: {integrity: sha512-lwJRExuH417257Q5wv9QYugN9IMJkoxcrKrYxGPQkBzl7wlNpTUxD/5yNX4ESKVUIShKPgkGchYPFMWOOk0wzw==}
+
+  archify@https://codeload.github.com/tt-a1i/archify/tar.gz/a4065941f12be7967436261d9934784e381d423c#path:/archify:
+    resolution: {gitHosted: true, integrity: sha512-d8xoZfn2qyWq0yrf76UZxpUVrUp19IRgsoovTuTQ/Bu1X86JWadZddBkF3fJmtI7/K7srq7aJzh4Ot3HBren9w==, path: /archify, tarball: https://codeload.github.com/tt-a1i/archify/tar.gz/a4065941f12be7967436261d9934784e381d423c}
+    version: 3.2.0
+    engines: {node: '>=18'}
+    hasBin: true
 
   assertion-error@2.0.1:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
@@ -1693,6 +1702,8 @@ snapshots:
       vite: 8.3.5(@types/node@26.6.6)(yaml@2.9.1)
 
   '@vitest/spy@5.0.5': {}
+
+  archify@https://codeload.github.com/tt-a1i/archify/tar.gz/a4065941f12be7967436261d9934784e381d423c#path:/archify: {}
 
   assertion-error@2.0.1: {}
 

@@ -21,6 +21,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join, posix, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stringify } from "yaml";
+import { DiagramProducts } from "./lib/diagrams.ts";
 import type { OscanerFields, PluginSource } from "./lib/first-party.ts";
 import { FirstParty } from "./lib/first-party.ts";
 
@@ -233,6 +234,13 @@ export class ProductRootWalk {
  * temp tree in check mode), recording every repo-relative path produced.
  */
 export class EmitService {
+  /** The diagram plane — its write-back rides this service's `writeText`, so the
+   *  whole product set shares ONE record face and one `generatedPaths` list. */
+  private readonly diagrams = new DiagramProducts(REPO_ROOT, {
+    write: (outRoot, rel, content, generatedPaths) =>
+      this.writeText(outRoot, rel, content, generatedPaths),
+  });
+
   /** Write a text product into `outRoot` (mkdir -p the parent) + record it. */
   writeText(outRoot: string, rel: string, content: string, generatedPaths: string[]): void {
     const p = join(outRoot, rel);
@@ -296,6 +304,7 @@ export class EmitService {
       generatedPaths,
     );
     this.writeIssueTemplates(outRoot, generatedPaths);
+    this.diagrams.emit(outRoot, generatedPaths);
   }
 
   /** The .github/ISSUE_TEMPLATE forms — rendered from the canonical issue-body.json
@@ -330,6 +339,10 @@ export class EmitService {
     for (const rel of PRODUCT_FILES) {
       if (existsSync(join(root, rel)) && !generatedSet.has(rel)) stale.push(rel);
     }
+    // The diagram artifacts are not a product root (their directory also holds the
+    // hand-written index.html), so their stale leg is the orphan walk — the same
+    // seam `EmitComparer.compareTrees` already delegates to.
+    stale.push(...this.diagrams.orphanHtml(root, generatedSet));
     return stale;
   }
 }

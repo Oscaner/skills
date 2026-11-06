@@ -1,5 +1,13 @@
 # @oscaner-skills/cdd-engine
 
+## 4.6.0
+
+### Minor Changes
+
+- [#432](https://github.com/Oscaner/skills/pull/432) [`e7e9c76`](https://github.com/Oscaner/skills/commit/e7e9c768fc7aa10ca62d5b43383b97a2364ec8bf) Thanks [@Oscaner](https://github.com/Oscaner)! - The diagram twin gate now names its own repair. Every mismatch it reports — citation multiset, copy twin, revision pin — ends with `— regenerate: pnpm run emit`, because a twin red always means the same thing: the source moved and the artifact did not follow, and the repository's emit is the one fix that needs no extra install. The semantic gate (`face/__tests__/diagrams.guard.test.ts`) stays deliberately hint-free — there the source itself is wrong, so regenerating would only re-print the mistake — and a comparative pin now keeps that distinction from eroding. `docs/diagrams/README.md` and `AGENTS.md` point daily regeneration at `pnpm run emit`, with `archify finalize` kept as the documented manual full-gate path.
+
+- [#432](https://github.com/Oscaner/skills/pull/432) [`4516f94`](https://github.com/Oscaner/skills/commit/4516f94a415a4f4446489927a10c0bdb9428c555) Thanks [@Oscaner](https://github.com/Oscaner)! - The spec review prompt and the two authoring skills now ask for a claim's **shape**, not a snapshot of today's tree. `render/templates.ts#docNarrativeAxes` carries the three-shape `Claimed→pin` clause — a pin cites the module path + symbol name (a line number is not a pin), a count is stated as pinned by the named guard or test, and a present-tense description of today's shape belongs to the plan while a design spec states the condition that must hold; the plan variant is byte-unchanged, because a plan's `path:line` is a delivery target. `cdd-spec-writer`'s `author-spec` node states the same three shapes in three lines and `cdd-plan`'s `author-plan` node keeps citations in the plan, so the citation line never migrates into a spec. No new gate: the writing moment is ungated, the review is where a violation surfaces.
+
 ## 4.5.0
 
 ### Minor Changes

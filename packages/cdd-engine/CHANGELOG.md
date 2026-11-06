@@ -1,5 +1,33 @@
 # @oscaner-skills/cdd-engine
 
+## 4.5.0
+
+### Minor Changes
+
+- [#423](https://github.com/Oscaner/skills/pull/423) [`082b9b3`](https://github.com/Oscaner/skills/commit/082b9b330be2402966b2b6221ccad29d7c212296) Thanks [@Oscaner](https://github.com/Oscaner)! - P26 — the closeout surface's remaining debts and the doc-shape ownership criterion.
+  
+  `cdd-engine` (consumer-visible):
+  
+  - **Body-only doc revisions ([#417](https://github.com/Oscaner/skills/issues/417)).** Every `doc-revision` (plan line, spec line, branch line) now hashes the document BODY: the YAML front matter and the `## Change history` section are projected away by the contract plane's `DocBodyProjection`. A bookkeeping write (a `version:` bump, an appended change-history row) no longer reopens a reviewed line, while a substantive body edit still drifts. The doc-revision rejection message follows (`amend body to open a new review`).
+  - **Six diagram twins + journey semantics ([#418](https://github.com/Oscaner/skills/issues/418)).** `diagram-twin.guard.test.ts` twins all six diagram sources (architecture · journey · next-loop, each en + zh-CN) against their generated HTML — citation multiset, `referenceCount`, revision pin, and every label / sublabel / tag / card title / card item — and `journey-twin.test.ts` pins the journey pair's wave width, `--type` vocabulary and log path to the runtime constants. No product is written and no Archify dependency is added.
+  - **A closed single-spec hands off to `cdd-plan`.** `PIPELINE_NEXT["single-spec"]` is now the `kairos:cdd-plan` ref (the `overall` charter stays the only program-level terminal), so a closed standalone spec renders `next: route to <host cdd-plan> skill` with `reason: closed-line` instead of `next: done` — in the capsule and on the board.
+  - **A Phase-inventory row's Design spec must be a phase-spec (§4.4).** The new doc-contract rule `phase-design-spec-is-phase-spec` (`docKeys: ["overall"]`) resolves each row's Design-spec link target through the existing chain-link resolution and reads its front-matter `doc-type:`. A target declaring anything other than `phase-spec` turns the overall review red and names the offending row, with both fixes (`register it as a phase` / `drop the row`); a cell with no link target (`[Pending]`, `Done`) or an unreadable target is not judged.
+  
+  `kairos` skill text (`@oscaner-skills/kairos`, the same phase, wave 2):
+  
+  - `cdd-design`: the `mode?` question becomes an OWNERSHIP judgment (does the change fall inside a registered program's scope?), `size?` narrows to charter-or-not, and a `phase-within-program` producing a single-spec is BLOCKED.
+  - `cdd-close`: the `closeout-backfill` node carries its two branches explicitly (a registered phase row → Done + delivery evidence; a standalone single-spec → close only the spec's own version row, change history and issue).
+
+- [#426](https://github.com/Oscaner/skills/pull/426) [`172da2b`](https://github.com/Oscaner/skills/commit/172da2b717725abf349020810fae5b0f6fa26064) Thanks [@Oscaner](https://github.com/Oscaner)! - P27 — one dispatch authority: the line's phase becomes a verdict, and `next:` joins it.
+  
+  `cdd-engine` (consumer-visible):
+  
+  - **One verdict object.** `DispatchAuthority` (`src-next/session/dispatch-authority.ts`) judges a work dispatch over three legs in one priority order — structure → upstream → line — and returns the single `DispatchVerdict` (`{ allowed }` or `{ allowed: false, leg, reason, next }`). The two parallel call sites are gone: the wave face's phase judgment leaves the pre-flight seam (`session/preflight.ts` no longer runs `WaveGate.vet`, and its gate list is now the structure gates alone), and the doc/branch line's readiness judgment leaves the CLI (`face/cli.ts` no longer calls `CliGate#lineGate`). `CliGate#lineGate` stays as the face's line-fact read, never a dispatch authority.
+  - **Nine refusal rows, one table.** The wave face's five rows (`mixed-batch` · `wave-too-wide` · `too-many-tasks` · `split` · `wrong-phase`) and the doc/branch rows (`pending-fix` · `unchanged` · `face-closed`) now yield a reason token from the ONE table (`DISPATCH_REASON`). The semantics are unchanged row for row; `unchanged` is the new token for the same-revision refusal, which used to carry prose only.
+  - **`reason · next:` on the refusal line.** A line refusal renders one line — `<reason> · next: <command>` — where the command is the SAME hop the capsule and the board print (`PipelineFrontier#hopOf` through the shared route renderer), so the engine never names a round another face refuses. The wave gate's prose rows and the doc line's identity prose (`already reviewed at vX …`, `the pending fix applies to the unchanged doc …`) retire from that line. A structure refusal renders `<reason> · <the pre-flight's own wording>` and names no `next:` — a dirty tree or a broken plan graph has no dispatchable round.
+  - **`NextHop.reason` is the reason table's domain.** The hop's named fact is typed as a table token, so a dispatch verdict carries it without a second spelling.
+  - **An open upstream station refuses downstream dispatch.** The upstream leg now judges every face that precedes the request's face, read off `PIPELINE_FACES` (the one order): a face whose reviewed identity moved (a doc line's `reviewGate` drift, a wave line's `briefDrifted`) refuses as `doc-drift`, and a face that has not closed for the request (a doc line's `lineStateAt`, the wave face's exhaustion over `closedWaves()`) refuses with that station's own reason (`task-open` · `pending-fix` · `closed-line`). The refusal line names the frontier's hop, so `implement --tasks …` after a plan revision now exits 1 with `doc-drift · next: review --type plan --plan <path>` instead of dispatching. A face the pipeline never entered holds no station, so a first dispatch is unaffected; a closed-but-drifted wave is caught by the identity criterion because exhaustion never reads the brief. The leg only reads — it opens no round and leaves `progress.json` untouched.
+
 ## 4.4.0
 
 ### Minor Changes

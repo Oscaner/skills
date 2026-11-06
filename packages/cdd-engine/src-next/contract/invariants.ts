@@ -6,7 +6,8 @@
 //   doc scope    — presence (with the registration-uniqueness leg) · domain ·
 //                  crosslink · section-order · continuity · residue · hollow ·
 //                  file-existence · sibling-scan · link-shape · slug-ref ·
-//                  cross-doc-chain · section-scoped-domain;
+//                  cross-doc-chain · section-scoped-domain ·
+//                  phase-design-spec-is-phase-spec;
 //                 the change-history family — change-history-version-unique ·
 //                  front-matter-version-in-lineage ·
 //                  change-history-row-not-in-other-table · list-marker-not-doubled;
@@ -35,7 +36,7 @@ import type {
   TaskBlock,
 } from "./doc.ts";
 import { docTypeParsers, MarkdownPrimitives } from "./doc.ts";
-import type { FrontMatterHead } from "./frontmatter.ts";
+import { FrontMatterExtractor, type FrontMatterHead } from "./frontmatter.ts";
 import type { LedgerFacts } from "./judge.ts";
 import type { MarkdownTree, ResolvedNode } from "./markdown-tree.ts";
 import type { DocKey, DocShape, DocSkeleton, DocSlices, ElementSlice } from "./project.ts";
@@ -1349,6 +1350,68 @@ export class SiblingScanInvariant extends FileExistenceInvariant {
       path.dirname(path.resolve(root, docPath)),
       ...Object.values(ENGINE_DOC_ROOTS).map((dir) => path.join(root, dir)),
     ];
+  }
+}
+
+/** phase-design-spec-is-phase-spec — a Phase-inventory row's Design-spec cell must
+ *  point at a document declaring `doc-type: phase-spec` (§4.4: the belonging judgment
+ *  made executable). A phase row registered in a program's ledger cannot borrow a
+ *  bespoke `single-spec` as its design: either the design belongs to the program (and
+ *  is therefore a phase-spec) or it belongs nowhere and the row must leave the
+ *  inventory. The cell's link target resolves through the ONE link-space reading
+ *  (`FileExistenceInvariant.targetPath`); the target document's front-matter
+ *  `doc-type:` is the judged fact — a document declaring no doc-type at all fails
+ *  the same "must declare phase-spec" shape. Present facts only: a cell with no
+ *  single bare link target, a placeholder, or a target the seam cannot read is NOT
+ *  judged — a missing file is `file-existence`'s call, never a doc-type
+ *  contradiction. */
+export class PhaseDesignSpecIsPhaseSpecInvariant extends Invariant {
+  readonly name = "phase-design-spec-is-phase-spec";
+
+  evaluate(ctx: JudgeContext): Finding[] {
+    if (ctx.docKey !== "overall") return [];
+    const data = this.record(ctx, "overall");
+    if (data === null) return [];
+    const findings: Finding[] = [];
+    for (const phase of data.chain.phases) {
+      const docType = this.#targetDocType(ctx, phase.designCell);
+      // `undefined` = not judged (no judgeable target); `null` = the target declares
+      // no doc-type, which is red — the cell must point at a phase-spec.
+      if (docType === undefined || docType === "phase-spec") continue;
+      findings.push(
+        this.finding(
+          ctx,
+          `Phase inventory · ${phase.id}`,
+          PhaseDesignSpecIsPhaseSpecInvariant.#messageOf(phase.id, docType),
+          "either register this design as a phase document (doc-type: phase-spec, with program: and parent-version: naming this program) or drop the row from the Phase inventory",
+        ),
+      );
+    }
+    return findings;
+  }
+
+  /** The one-line message — the row, the doc-type the target actually declares.
+   *  A target declaring no doc-type reads as that absence, never as an empty value. */
+  static #messageOf(phaseId: string, docType: string | null): string {
+    const declared = docType === null ? "declares no doc-type" : `declares doc-type: ${docType}`;
+    return `the Phase inventory row ${phaseId} points its Design spec at a document that ${declared} — a registered phase's design spec must be a phase-spec`;
+  }
+
+  /** The `doc-type:` the cell's single link target declares — `undefined` when the
+   *  cell carries no judgeable target (no single link, a placeholder, a malformed
+   *  target shape, or an unreadable document), null when the readable target
+   *  declares no doc-type. */
+  #targetDocType(ctx: JudgeContext, cell: string): string | null | undefined {
+    const links = this.linksOnLine(cell);
+    if (links.length !== 1) return undefined;
+    const shape = LinkTargetShape.of(links[0].target);
+    if (shape.target === null || this.isPlaceholder(shape.target)) return undefined;
+    const resolved = FileExistenceInvariant.targetPath(ctx.root, ctx.path, shape.target, (p) =>
+      ctx.fs.exists(p),
+    );
+    const content = ctx.fs.read(resolved);
+    if (content === null) return undefined;
+    return FrontMatterExtractor.split(content).head.docType;
   }
 }
 

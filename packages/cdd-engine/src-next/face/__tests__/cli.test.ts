@@ -456,7 +456,13 @@ const conformingOverall = (repoRoot: string): string => {
   for (const sibling of ["o1-p1-design.md", "o1-p2-design.md"]) {
     const siblingPath = path.join(repoRoot, "docs", "kairos", "specs", sibling);
     mkdirSync(path.dirname(siblingPath), { recursive: true });
-    writeFileSync(siblingPath, `# ${sibling}\n`, "utf8");
+    // The Design-spec targets declare their doc-type: the Phase-inventory rule reads
+    // it (a phase row whose design spec names a doc with no declared shape is red).
+    writeFileSync(
+      siblingPath,
+      `---\ntitle: ${sibling}\ndoc-type: phase-spec\nslug: ${sibling.replace("-design.md", "")}\n---\n`,
+      "utf8",
+    );
   }
   for (const sibling of ["o1-p1.md", "o1-p2.md"]) {
     const siblingPath = path.join(repoRoot, "docs", "kairos", "plans", sibling);
@@ -3614,7 +3620,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stderrText).toContain("  planned-tasks-vs-recorded-tasks: passed\n");
       expect(
         io.stderrText.split("\n").filter((line) => line.endsWith(": skipped (no doc target)")),
-      ).toHaveLength(20);
+      ).toHaveLength(21);
 
       // ② the refused path: the same face after the BLOCK wording + its details
       writeFileSync(path.join(repoRoot, "seed.txt"), "modified\n", "utf8");

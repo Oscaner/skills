@@ -34,11 +34,11 @@ const PUBLIC_RULE_IDS = [
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 describe("RULE_REGISTRY — the declaration surface", () => {
-  it("declares 22 rows: 20 doc-scope + 2 ledger-scope", () => {
+  it("declares 23 rows: 21 doc-scope + 2 ledger-scope", () => {
     const doc = RULE_REGISTRY.filter((declaration) => declaration.scope === "doc");
     const ledger = RULE_REGISTRY.filter((declaration) => declaration.scope === "ledger");
-    expect(RULE_REGISTRY).toHaveLength(22);
-    expect(doc).toHaveLength(20);
+    expect(RULE_REGISTRY).toHaveLength(23);
+    expect(doc).toHaveLength(21);
     expect(ledger).toHaveLength(2);
   });
 

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P28 计划：再生层入仓 + spec 易变事实纪律
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-06
 slug: 2026-10-10-engine-doc-tooling-p28
 base: develop
@@ -175,3 +175,4 @@ none
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-06 | 初版：三任务按 spec §6 切分 — T1 再生层（根依赖 + `DiagramProducts` + emit/孤儿 + 两条 pin）· T2 孪生门修法 + README/AGENTS（DependsOn 1）· T3 易变事实（`docNarrativeAxes` + 三子串 + 两 skill）；波次 W1={1,3} / W2={2}；全有或全无与 plan 变体零变化写入 Constraints / Review Focus | [human] 裁定 · Claude（kairos:cdd-plan · 本会话） |
 | v0.2 | 2026-11-06 | 评审修轮（plan-review-1 全数应用）：T1 Step 1 增缺 bin 报错红 pin（默认渲染器、零写盘）· T2 增收口波全量门 `env -u AI_AGENT pnpm run validate`（Step + Acceptance + Produces）· T1 Step 4 孤儿腿收成单一缝 `EmitService.findStaleCommittedFiles`（去掉 `EmitComparer` 备选） | Claude（kairos:cdd-plan · docs-fix） |
+| v0.3 | 2026-11-06 | **closeout 登记（cdd-close）**：三任务全部关闭并交付——T1 `c4566ffb` + fix `c77e0b28`（pin 曾误钉 HEAD，按裁定改回 `208acba8…`）· T3 `4516f94a` · T2 `e7e9c768`；wave review-1 一条 blocker + 一条 nit → fix → review-2 APPROVED，wave2 review-1 APPROVED，分支终审 APPROVED 零 finding。结构面（Task id 集 · 每任务 `DependsOn` 集）全程未改 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-06） |

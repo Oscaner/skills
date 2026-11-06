@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P28 设计：再生层入仓 + spec 易变事实纪律
 doc-type: phase-spec
-version: v0.4
+version: v0.5
 date: 2026-11-06
 slug: 2026-10-10-engine-doc-tooling-p28
 program: 2026-10-10-engine-doc-tooling
@@ -197,3 +197,4 @@ author: '[human] 裁定 · Claude（本会话 · 2026-11-06）'
 | v0.2 | 2026-11-06 | 结构合规重排（内容不变）：Design 各分组补 `#### N.M` 条目层级、`### Acceptance criteria` 归三级、验收条目改以代码片段起头——三处均按 `contract/declare.ts` 的 `presence` 元素对齐，此前形态过不了 doc-contract | Claude（本会话 · 2026-11-06） |
 | v0.3 | 2026-11-06 | 评审修轮（phase-spec-review-1 全数应用）：§4.3 与验收格记录「plan 只收一行」与父相位登记格的回填口径（三形态只落 `cdd-spec-writer`）· 去掉 §1.2 与 §2.3 的实测叙述、§2.5 前提改「必须字节一致」· 代码行为声称改 `path#symbol`（`#DiagramTwin` · `#docNarrativeAxes` · `#EmitService.writeText` · `#DiagramProducts` · `#SOURCES`）· 文件补 EOF 换行 | Claude（本会话 · 2026-11-06） |
 | v0.4 | 2026-11-06 | **design-backfill（cdd-plan）**：`parent-version` 跟进父 overall v3.35（Phase inventory P28 AC 写作 skill 口径对齐） | Claude（kairos:cdd-plan · design-backfill） |
+| v0.5 | 2026-11-06 | **closeout 登记（cdd-close）**：P28 全链闭合——两波实现链全绿（W1 = {T1, T3} · W2 = {T2}）+ 分支终审 APPROVED 零 finding。交付面与 §2–§5 逐条对齐：根 Archify 钉 `208acba8…`（wave review-1 blocker 曾抓出误钉 HEAD，按裁定改回 tag）· `DiagramProducts` + `emit` 一档（全有或全无 · `index.html` 豁免的孤儿走查 · 两条 colocated pin）· 孪生门 `regenerate: pnpm run emit` 与语义门对照 · `docNarrativeAxes` 三形态 + 两 skill 写作口径（不设门） | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-06） |

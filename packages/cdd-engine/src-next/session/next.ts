@@ -250,8 +250,9 @@ export interface NextHop {
   readonly hop: Hop | null;
   /** The pipeline axis — the face-to-face handoff station (null = none). */
   readonly to: PipelineEntry | null;
-  /** The named fact that selected this hop (one `NEXT_HOP_REASON` value). */
-  readonly reason: string;
+  /** The named fact that selected this hop — one token of the ONE table (§2.5), so
+   *  a dispatch refusal can carry it as its verdict's `reason` without a re-typing. */
+  readonly reason: DispatchReason;
   /** The render payload — the count table's own Route (null = no route). */
   readonly route: Route | null;
 }
@@ -454,7 +455,7 @@ export class NextStepRouter {
    *  a doc revision or a wave's brief revision) · an open line advancing · an
    *  unjudgeable doc class · a closed face · the closed line's handoff. Drift never
    *  outranks a pending fix (an unclosed line's blocker keeps the fix hop). */
-  #reasonOf(input: NextHopInput, route: Route | null, verdict: DocClassVerdict): string {
+  #reasonOf(input: NextHopInput, route: Route | null, verdict: DocClassVerdict): DispatchReason {
     if (route?.kind === "soft-cap") return NEXT_HOP_REASON.softCap;
     if (route?.kind === "fix") return NEXT_HOP_REASON.pendingFix;
     if (route?.kind === "review" && input.gate.drift) return NEXT_HOP_REASON.docDrift;

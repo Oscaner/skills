@@ -39,7 +39,12 @@ export class CliGate {
   }
 
   /** The single-target line's current open phase plus the doc-line verdict the gate
-   *  judged — the {phase, verdict} pair IS the gate's ruling: the revision-aware
+   *  judged — a FACE-LEVEL FACT READ (P27 §2.7): the dispatch VERDICT belongs to
+   *  `session/dispatch-authority.ts` (the ONE authority, whose structure → upstream →
+   *  line chain gates every dispatch), so this method never decides a dispatch — it
+   *  reads the line's facts for the faces that render them.
+   *
+   *  The {phase, verdict} pair IS the gate's ruling: the revision-aware
    *  BLOCK renders only the "same" verdict the gate returned, the pending-fix note
    *  only the derived pending face, never a recomputed one. The task face holds no
    *  separate gate here: the WaveGate's wrong-phase verdict (the pre-flight) IS the
@@ -163,14 +168,38 @@ export class CliGate {
    *  uses), and neither renders an invented verb slot. */
   lineHopMessage(scene: WorkScene, hop: NextHop | null, words: Words): string {
     if (hop === null) return "the line holds no open round";
-    const renderer = new RouteRenderer(
+    const renderer = this.#renderer(scene, words);
+    return scene.router.message(hop, (entry) =>
+      renderer.render({ kind: "handoff", entry }, hop.target),
+    );
+  }
+
+  /** hopCommand(scene, hop, words) — the `next:` VALUE of one hop through the SAME
+   *  route renderer the capsule and the board read, so a dispatch refusal's `next:`
+   *  and the board's `next:` row are byte-identical by construction. Empty string
+   *  when the hop renders no command (the bare terminal rows). */
+  hopCommand(scene: WorkScene, hop: NextHop, words: Words): string {
+    return this.#renderer(scene, words).renderHop(hop) ?? "";
+  }
+
+  /** lineIdentity(scene) — this line's stable identity facts: the ledger KEY (the
+   *  branch line's constant, a doc line's declared word) and the judged document (a
+   *  doc line's own path, the branch line's plan, P21 §4.1). A FACT read, never a
+   *  judgment: the dispatch verdict belongs to `session/dispatch-authority.ts`, so
+   *  this accessor only spares its request assembly a second key/doc derivation. */
+  lineIdentity(scene: WorkScene): { key: string | null; doc: string | null } {
+    return { key: this.#lineKey(scene), doc: this.#docOf(scene) };
+  }
+
+  /** The ONE route renderer of this face — the argv channel, the host spelling and
+   *  the scene's repo basis (the same instance shape the capsule and the board
+   *  build), so every `next:` literal this file prints speaks one rendering. */
+  #renderer(scene: WorkScene, words: Words): RouteRenderer {
+    return new RouteRenderer(
       words,
       ARGV_CHANNEL,
       HostDetect.detect(process.env),
       scene.workspace.root.basis,
-    );
-    return scene.router.message(hop, (entry) =>
-      renderer.render({ kind: "handoff", entry }, hop.target),
     );
   }
 

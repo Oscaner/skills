@@ -63,8 +63,18 @@ import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
 import { TemplateAssembler } from "../render/templates.ts";
-import type { TargetFace, TargetType } from "../session/faces.ts";
-import { TargetFaceTable, targetFaces } from "../session/faces.ts";
+import {
+  DispatchAuthority,
+  type DispatchRefusal,
+  type DispatchVerb,
+} from "../session/dispatch-authority.ts";
+import {
+  type DispatchPhase,
+  type TargetFace,
+  TargetFaceTable,
+  type TargetType,
+  targetFaces,
+} from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import { HoldingError, InFlight } from "../session/inflight.ts";
 import type { RoundStatus } from "../session/ledger.ts";
@@ -119,6 +129,7 @@ export interface CliOptions {
   dryRun?: boolean;
   dispatch?: DispatchStep | null;
   preflight?: PreFlight;
+  authority?: DispatchAuthority;
   template?: TemplateAssembler;
   brief?: BriefRenderer;
   stdinRead?: () => string;
@@ -215,10 +226,14 @@ export class Cli {
   readonly #translator: Translator;
   /** The pre-flight board face (the blocked-dispatch wave hint). */
   readonly #graphView: GraphView;
-  /** The lifecycle pre-flight seam (P4.1 T1) — the single dispatch gate the work
+  /** The lifecycle pre-flight seam (P4.1 T1) — the STRUCTURE gates the work
    *  commands consult before ANY child dispatch (tree-clean → in-flight → graph →
-   *  plan-ledger → wave → doc-contract; the CLI orchestrates, never a re-type). */
+   *  plan-ledger → doc-contract; the CLI orchestrates, never a re-type). */
   readonly #preflight: PreFlight;
+  /** The dispatch authority (P27 §2) — the ONE verdict over structure → upstream →
+   *  line, and the ONE refusal line. The dispatch gate reads it before its first
+   *  write; the capsule and the board read the same hop the refusal names. */
+  readonly #authority: DispatchAuthority;
   /** The contract coordinator — the doc-contract judgment face the pre-flight's
    *  doc gate reads (the single interpreter entry; spec §12 · D34 retired the
    *  filename→type derivation — the doc type is now the declared header fact read
@@ -274,6 +289,7 @@ export class Cli {
         contract: this.#contract,
         words: this.#words,
       });
+    this.#authority = opts.authority ?? new DispatchAuthority();
     this.#gate = new CliGate({ brief: this.#brief });
     this.#artifacts = new CliArtifacts({
       io: this.#io,
@@ -606,13 +622,14 @@ export class Cli {
     const scene = await this.#sceneOf(verb, type, node, root, parsed);
     if (scene === null) return 1;
 
-    // THE pre-flight seam (P4.1 T1 · design §1): the single dispatch gate —
-    // tree-clean → in-flight → graph → plan-ledger → wave → doc-contract — ONE call,
-    // the whole sequence lives in the seam (session/preflight.ts), the CLI orchestrates
-    // the call + the verdict render (zero re-implemented gate here). A refused verdict
-    // returns before any brief/lifecycle: no child dispatch ever runs. The
-    // dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel; the
-    // graph / wave refusals keep the pre-existing refusal face. The doc-face read
+    // THE pre-flight seam (P4.1 T1 · design §1): the STRUCTURE gates —
+    // tree-clean → in-flight → graph → plan-ledger → doc-contract — ONE call, the
+    // whole sequence lives in the seam (session/preflight.ts), the CLI orchestrates
+    // the call + the verdict render (zero re-implemented gate here). The dispatch's
+    // own phase is the authority's verdict below (P27 §2), never a second seam. A
+    // refused verdict returns before any brief/lifecycle: no child dispatch ever
+    // runs. The dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel; the
+    // graph / plan-ledger refusals keep the pre-existing refusal face. The doc-face read
     // path is the repoRoot-relative branded `RepoPath` (T4 §2.2 — a bare `string`
     // never reaches the read faces `BoardView.readDocType`/`PreFlightDoc.path`; the
     // CLI feeds the funnel-shaped relative value, each read face erasing to the
@@ -629,11 +646,9 @@ export class Cli {
     // only inspects it; the lifecycle's real dispatch path acquires it after the gate.
     const inflight = new InFlight(scene.workspace.root, scene.workspace.slug);
     const preflight = await this.#preflight.vet({
-      verb: verb as "implement" | "review" | "fix",
       type,
       repoRoot: scene.workspace.root.repoRoot,
       planText: scene.planText,
-      tasks: type === "wave" ? new Set(this.#gate.tasksOf(parsed)) : null,
       ledger: scene.ledger,
       doc: TargetFaceTable.isDocShape(type)
         ? {
@@ -651,22 +666,81 @@ export class Cli {
       // preview still judges the same gate, sees the same holder facts, and exits 1.
       stealStale: !parsed.dryRun && parsed.args.stealStale === "true",
     });
-    if (!preflight.ok) {
-      if (parsed.dryRun && preflight.gate === "in-flight" && preflight.holding !== undefined) {
-        // The preview's read-only held face: the SAME gate verdict, rendered as the
-        // lock row + the takeover hint, exit 1. Zero write (the preview never
-        // acquires / steals / releases).
-        for (const line of new Preview({ scene, words: this.#words }).heldBlock(
-          verb,
-          preflight.holding,
-        ))
-          this.#io.stdout(`${line}\n`);
-        // The checked face rides the SAME stdout stream here: every dry-run shape
-        // (pass / dirty / held / blocked) reports which gates ran.
-        this.#renderChecked(preflight, (text) => this.#io.stdout(text));
+    // The per-invocation batch cursor: the in-memory done set mirrors the on-disk
+    // ledger's closed waves (the C5 closure single face) — NOT a "every non-group
+    // task pre-done" shortcut. The old shortcut made the frontier yield exactly the
+    // requested group, but it also emptied readyBatch() at every closure: a mid-run
+    // wave's fix rendered `next: done` instead of the next wave (the {16,22,24} →
+    // {25,26,27} bug — the closure routing judged a per-invocation cursor, not the
+    // plan's real remaining frontier). The ledger mirror keeps the progress face
+    // cross-invocation: the dispatched group's own closure marks in #markTerminal
+    // as the loop advances, and the next wave surfaces from the live closed set. The
+    // request's own validity (a task id absent from the plan) is a USAGE rejection,
+    // judged before any gate, write or child: nothing of the dispatch exists yet.
+    let group: Set<number> | null = null;
+    if (type === "wave") {
+      group = new Set(this.#gate.tasksOf(parsed));
+      const planIds =
+        scene.planText !== null
+          ? new PlanDocType("plan")
+              .parse(scene.planText.split("\n"))
+              .taskBlocks.map((block) => block.id)
+          : [];
+      for (const id of group) {
+        if (!planIds.includes(id)) {
+          this.#usage(node, `cdd ${verb}: task ${id} not found in the plan`);
+        }
+      }
+      for (const id of scene.ledger.closedWaves()) scene.state.markDone(id);
+    }
+    const expected =
+      verb === "implement" ? "implement" : verb === "fix" ? "fix" : scene.face.product.reviewLead;
+
+    // THE dispatch verdict (P27 §2.2) — ONE authority over the three legs, in
+    // priority order: the structure leg (the pre-flight verdict just judged), the
+    // upstream station leg, then this line's own phase. A refusal is ONE verdict —
+    // the stderr face, the capsule's `next:` and the board's `next:` all read the
+    // same hop, so a command can never name a round another face refuses. The
+    // dispatch gate consults the verdict BEFORE its first write: a refused dispatch
+    // creates no workspace, no brief, no round.
+    const identity = this.#gate.lineIdentity(scene);
+    const verdict = this.#authority.verdict({
+      verb: verb as DispatchVerb,
+      type,
+      structure: preflight,
+      line: {
+        ledger: scene.ledger,
+        words: this.#words,
+        // The wave face's frontier source is the run state's own parsed graph (one
+        // plan read per invocation); the doc/branch faces carry none.
+        graph: scene.state instanceof TaskGraph ? scene.state : null,
+        tasks: group,
+        lineKey: identity.key,
+        doc: identity.doc,
+        pipeline: scene.pipeline,
+        docClassOf: (candidate) => BoardView.docClassOf(scene.workspace.root.basis, candidate),
+      },
+    });
+    if (!verdict.allowed) {
+      if (verdict.leg === "structure") {
+        if (parsed.dryRun && preflight.gate === "in-flight" && preflight.holding !== undefined) {
+          // The preview's read-only held face: the SAME gate verdict, rendered as the
+          // lock row + the takeover hint, exit 1. Zero write (the preview never
+          // acquires / steals / releases).
+          for (const line of new Preview({ scene, words: this.#words }).heldBlock(
+            verb,
+            preflight.holding,
+          ))
+            this.#io.stdout(`${line}\n`);
+          // The checked face rides the SAME stdout stream here: every dry-run shape
+          // (pass / dirty / held / blocked) reports which gates ran.
+          this.#renderChecked(preflight, (text) => this.#io.stdout(text));
+          return 1;
+        }
+        this.#renderPreflightBlocked(verb, verdict, preflight);
         return 1;
       }
-      this.#renderPreflightBlocked(verb, preflight, scene);
+      this.#renderLineRefusal(verb, expected, verdict, scene, preflight);
       return 1;
     }
     // The approved path's checked face (P21 §3.4): the SAME rows the refusal path
@@ -694,35 +768,6 @@ export class Cli {
     // preview names the same path through RoundNaming instead of rendering it.
     if (!parsed.dryRun && type === "wave" && scene.planText !== null)
       scene.briefPath = this.#gate.renderBrief(scene, parsed);
-    const expected =
-      verb === "implement" ? "implement" : verb === "fix" ? "fix" : scene.face.product.reviewLead;
-
-    // The per-invocation batch cursor: the in-memory done set mirrors the on-disk
-    // ledger's closed waves (the C5 closure single face) — NOT a "every non-group
-    // task pre-done" shortcut. The old shortcut made the frontier yield exactly the
-    // requested group, but it also emptied readyBatch() at every closure: a mid-run
-    // wave's fix rendered `next: done` instead of the next wave (the {16,22,24} →
-    // {25,26,27} bug — the closure routing judged a per-invocation cursor, not the
-    // plan's real remaining frontier). The ledger mirror keeps the progress face
-    // cross-invocation: the dispatched group's own closure marks in #markTerminal
-    // as the loop advances, and the next wave surfaces from the live closed set.
-    let group: Set<number> | null = null;
-    if (type === "wave") {
-      group = new Set(this.#gate.tasksOf(parsed));
-      const planIds =
-        scene.planText !== null
-          ? new PlanDocType("plan")
-              .parse(scene.planText.split("\n"))
-              .taskBlocks.map((block) => block.id)
-          : [];
-      for (const id of group) {
-        if (!planIds.includes(id)) {
-          this.#usage(node, `cdd ${verb}: task ${id} not found in the plan`);
-        }
-      }
-      for (const id of scene.ledger.closedWaves()) scene.state.markDone(id);
-    }
-
     const statuses: (RoundStatus | null)[] = [];
     const dispatch: DispatchStep = this.#dispatchOf(scene, parsed);
     const run = new Lifecycle({
@@ -756,30 +801,6 @@ export class Cli {
       // face class.
       docClassOf: (candidate) => BoardView.docClassOf(scene.workspace.root.basis, candidate),
     });
-
-    // The requested-phase gate — the line faces (branch/spec/plan) keep the
-    // line-phase readiness check; the task face needs no second gate (the WaveGate's
-    // wrong-phase verdict above IS the phase authority for the requested wave).
-    if (group === null) {
-      const { phase: open, verdict, reviewed } = this.#gate.lineGate(scene);
-      if (open !== expected) {
-        const pendingBlock =
-          verdict === "pending-fix" ? this.#gate.pendingFixBlock(scene, reviewed) : null;
-        const docBlock = open === null ? this.#gate.docLineBlock(scene, reviewed) : null;
-        // The generic refusal renders this LINE's own hop (the line frontier's
-        // assembly): `<reason> · the next round is <hop>` · `<reason> · next:
-        // <station>` · the bare reason. The capsule and the board render the PIPELINE
-        // frontier's assembly — a different reader, a different object. The two
-        // identity-aware block messages above own their facts (`reviewed` has no
-        // Home in `NextHop`) and stay verbatim.
-        const reject =
-          pendingBlock ??
-          docBlock ??
-          this.#gate.lineHopMessage(scene, this.#gate.lineHop(scene), this.#words);
-        this.#io.stderr(`cdd ${verb}: cannot dispatch a ${expected} round — ${reject}\n`);
-        return 1;
-      }
-    }
 
     // Advance the requested phase across the wave (one dispatch per frame — the
     // lifecycle's "one dispatch, one advance" step), keeping only the LAST step's
@@ -837,7 +858,10 @@ export class Cli {
       // The dispatch-entry gate's refusal (the lifecycle's hard child zero-dispatch wiring —
       // structurally unreachable here: the seam already returned above on refusal).
       if (step.preflight !== undefined) {
-        this.#renderPreflightBlocked(verb, step.preflight, scene);
+        // The lifecycle re-states the seam's refusal (structurally unreachable — the
+        // verdict above already returned on it): the structure leg's own line.
+        const rejection = this.#authority.structureRefusal(step.preflight);
+        if (rejection !== null) this.#renderPreflightBlocked(verb, rejection, step.preflight);
         return 1;
       }
       dispatched += 1;
@@ -920,38 +944,68 @@ export class Cli {
     return typeof artifact?.base === "string" ? artifact.base : "";
   }
 
-  /** Render a refused pre-flight verdict — the work command's BLOCK face (P4.1 T1).
-   *  The dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel (the
-   *  commit/discard guidance + the named structural findings); the graph / wave
-   *  refusals keep the pre-existing refusal face (the wave-board hint renders for the
-   *  wave gate's split row — its done face rides the SAME closedWaves() read the gate
-   *  judged, one closed set, one source). */
-  #renderPreflightBlocked(verb: CliVerb, verdict: PreFlightVerdict, scene: WorkScene): void {
+  /** Render a refused STRUCTURE-leg verdict — the work command's BLOCK face (P4.1
+   *  T1). The structure leg's ONE line (§2.6) is `<reason> · <the seam's own
+   *  wording>`: the dirty-tree / doc-contract rows ride the CDD_BLOCKED channel (the
+   *  commit/discard guidance + the named structural findings), the graph /
+   *  plan-ledger rows keep their refusal face. The leg names no hop — a refused
+   *  structure carries no `next:` round. */
+  #renderPreflightBlocked(
+    verb: CliVerb,
+    rejection: DispatchRefusal,
+    preflight: PreFlightVerdict,
+  ): void {
+    const message = this.#authority.message(rejection, { detail: preflight.message });
     if (
-      verdict.gate === "tree-clean" ||
-      verdict.gate === "in-flight" ||
-      verdict.gate === "doc-contract"
+      preflight.gate === "tree-clean" ||
+      preflight.gate === "in-flight" ||
+      preflight.gate === "doc-contract"
     ) {
-      this.#io.stderr(`${this.#words.station("blocked")} ${verdict.message ?? ""}\n`);
-      for (const detail of verdict.details ?? []) this.#io.stderr(`  ${detail}\n`);
-      this.#renderChecked(verdict);
+      this.#io.stderr(`${this.#words.station("blocked")} ${message}\n`);
+      for (const detail of preflight.details ?? []) this.#io.stderr(`  ${detail}\n`);
+      this.#renderChecked(preflight);
       return;
     }
-    this.#io.stderr(`cdd ${verb}: ${verdict.message ?? "the dispatch gate refused the request"}\n`);
-    for (const detail of verdict.details ?? []) this.#io.stderr(`  ${detail}\n`);
-    if (verdict.gate === "wave" && verdict.reason === "split" && scene.planText !== null) {
-      const graph = new TaskGraph(new PlanDocType("plan").parse(scene.planText.split("\n")));
-      const closed = scene.ledger.closedWaves();
-      // The graph title's plan path renders repoRoot-relative (D47 · the ONE shape;
-      // `scene.planPath` is argv-origin) — normalized through the scene's OWN basis
-      // value object (F2: never a per-call re-wrap).
-      const titlePlan = scene.workspace.root.basis.relativize(scene.planPath ?? "");
-      for (const line of this.#graphView
-        .render(graph.report(closed), `graph: ${titlePlan}`)
-        .split("\n"))
-        this.#io.stderr(`  ${line}\n`);
+    this.#io.stderr(`cdd ${verb}: ${message}\n`);
+    for (const detail of preflight.details ?? []) this.#io.stderr(`  ${detail}\n`);
+    this.#renderChecked(preflight);
+  }
+
+  /** Render a refused LINE-leg verdict (§2.6) — ONE line, `<reason> · next: <the
+   *  command the capsule and the board print>`. The wave face's split row keeps its
+   *  wave-board hint (the graph the refusal is about — its done face rides the SAME
+   *  closedWaves() read the gate judged, one closed set, one source), and the checked
+   *  face reports the structure gates that passed. */
+  #renderLineRefusal(
+    verb: CliVerb,
+    expected: DispatchPhase,
+    rejection: DispatchRefusal,
+    scene: WorkScene,
+    preflight: PreFlightVerdict,
+  ): void {
+    const message = this.#authority.message(rejection, {
+      command: (hop) => this.#gate.hopCommand(scene, hop, this.#words),
+    });
+    this.#io.stderr(`cdd ${verb}: cannot dispatch a ${expected} round — ${message}\n`);
+    if (rejection.reason === "split" && scene.planText !== null) {
+      this.#renderWaveBoard(scene, scene.planText);
     }
-    this.#renderChecked(verdict);
+    this.#renderChecked(preflight);
+  }
+
+  /** The wave-board hint of a split refusal — the derived graph the refusal is
+   *  about, rendered on the stderr detail channel. */
+  #renderWaveBoard(scene: WorkScene, planText: string): void {
+    const graph = new TaskGraph(new PlanDocType("plan").parse(planText.split("\n")));
+    const closed = scene.ledger.closedWaves();
+    // The graph title's plan path renders repoRoot-relative (D47 · the ONE shape;
+    // `scene.planPath` is argv-origin) — normalized through the scene's OWN basis
+    // value object (F2: never a per-call re-wrap).
+    const titlePlan = scene.workspace.root.basis.relativize(scene.planPath ?? "");
+    for (const line of this.#graphView
+      .render(graph.report(closed), `graph: ${titlePlan}`)
+      .split("\n"))
+      this.#io.stderr(`  ${line}\n`);
   }
 
   /** Render the acquire race's held BLOCK — the in-flight gate's own message face

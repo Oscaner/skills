@@ -9,6 +9,11 @@
 // `overall` target is judged on six charter criteria and carries none of the
 // implementation-face evidence duty, the two spec-shaped document targets share the
 // ONE narrative body, and `reviewBodyOf` is the single target → criteria map.
+//
+// P28 T3 — the volatile-facts discipline: the narrative body names the three claim
+// shapes a spec may pin (a symbol, a guarded count, a condition) instead of accepting
+// today's shape, while the plan variant stays byte-frozen — a plan's `path:line` is a
+// delivery target, not a spec claim.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -130,5 +135,40 @@ describe("P22 T15 — the charter criteria (REVIEWS.overall) and the criteria-bo
       const line = `**Criteria — ${type}:** ${REVIEWS[reviewBodyOf(type)].axesGuide}`;
       expect(TEMPLATE_PROMPT.reviews[type].shell.join("\n")).toContain(line);
     }
+  });
+});
+
+/**
+ * The three claim shapes the narrative body names — one stable substring each, so a
+ * rewording that keeps the shape stays green while dropping a shape goes red. A whole
+ * byte pin is deliberately absent: punctuation must not be the thing that breaks.
+ */
+const VOLATILE_FACT_ANCHORS = [
+  "module path + symbol name",
+  "pinned by the named guard",
+  "belongs to the plan",
+] as const;
+
+/** The plan variant's byte-frozen prefix — the volatile-facts rewrite lands on the
+ *  spec variant only: a plan's `path:line` is the delivery target of a task, so
+ *  banning it there buys nothing. */
+const PLAN_GUIDE_PREFIX =
+  "Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at `INPUT_SPEC` (the plan's `spec` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ";
+
+describe("P28 T3 — the narrative body names the claim shapes, not today's shape", () => {
+  it("carries one stable substring per claim shape", () => {
+    for (const anchor of VOLATILE_FACT_ANCHORS) {
+      expect(REVIEWS.spec.axesGuide).toContain(anchor);
+    }
+  });
+
+  it("keeps every other narrative anchor — the older pins never re-anchor", () => {
+    for (const anchor of ["typecheck", "test command", "Claimed→pin"]) {
+      expect(REVIEWS.spec.axesGuide).toContain(anchor);
+    }
+  });
+
+  it("keeps the plan variant byte-frozen — the rewrite is the spec variant's only", () => {
+    expect(REVIEWS.plan.axesGuide).toBe(`${PLAN_GUIDE_PREFIX}${reviewGuideOf("plan")}`);
   });
 });

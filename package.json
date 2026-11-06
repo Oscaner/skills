@@ -24,6 +24,7 @@
     "@changesets/config": "^4.0.1",
     "@changesets/read": "^1.0.1",
     "@types/node": "^26.6.6",
+    "archify": "github:tt-a1i/archify#208acba8d412335185b2056fedf54b3405df43fb&path:/archify",
     "husky": "^9.1.7",
     "lint-staged": "^17.6.0",
     "typescript": "^7.0.2",

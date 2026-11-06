@@ -741,9 +741,6 @@ describe("P22 §5.4 — the retired next-face entries and the retained gate face
     // the line gate reads the authority's ONE line-phase walk (P27 §2.7), never a
     // private copy of it
     expect(gate).toContain("this.#authority.linePhaseFacts(");
-    // the block-message faces the deletion does not touch
-    expect(gate).toContain("docLineBlock");
-    expect(gate).toContain("pendingFixBlock");
   });
 });
 

@@ -2,23 +2,22 @@
 // T8 — the split contract's gate face (§6.2: face/gate.ts — the target/line gate
 // family). The work commands' readiness gate facts — the single-target line's phase
 // derivation (lineGate/#lineKey, reading the ONE walk
-// `DispatchAuthority#linePhaseFacts`), the doc line's revision-aware BLOCK +
-// pending-fix faces (#docLineBlock/#pendingFixBlock/#docContent/#docVersionOf), the
-// refusal-prose renderers the CLI still prints (`lineHopMessage` for the lifecycle's
-// peeked hop, `hopCommand` for the dispatch verdict's `next:` value, P22 §5.2) and
-// the group/line helpers (#tasksOf/#renderBrief). The dispatch VERDICT itself is not
-// this face's: `session/dispatch-authority.ts` owns it, and the CLI refusal renders
-// the authority's hop (`PipelineFrontier#hopOf`). The method bodies are the
+// `DispatchAuthority#linePhaseFacts`), the line identity facts the dispatch request
+// assembles from (lineIdentity), the refusal-prose renderers the CLI still prints
+// (`lineHopMessage` for the lifecycle's peeked hop, `hopCommand` for the dispatch
+// verdict's `next:` value, P22 §5.2) and the group helpers (#tasksOf/#renderBrief).
+// The dispatch VERDICT itself is not this face's: `session/dispatch-authority.ts`
+// owns it, and the CLI refusal renders the authority's hop
+// (`PipelineFrontier#hopOf`) on the ONE `reason · next:` line (P27 §2.4) — the
+// pre-P27 doc BLOCK and pending-fix prose rows retired with that collapse, so this
+// face renders no literal of its own for a refusal. The method bodies are the
 // pre-split Cli members moved verbatim — behavior bytes identical; the root Cli
 // holds the gate instance and composes through it via its .action thin shells (zero
 // bare functions).
 
-import { readFileSync } from "node:fs";
 import process from "node:process";
-import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { DispatchAuthority, type LinePhaseFacts } from "../session/dispatch-authority.ts";
-import type { DocRevisionRef } from "../session/ledger.ts";
 import type { NextHop } from "../session/next.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { RunInput, WorkScene } from "./cli.ts";
@@ -51,9 +50,8 @@ export class CliGate {
    *  this face read one derivation and can never disagree on the line's phase. The
    *  gate renders the value; it never judges a dispatch.
    *
-   *  The {phase, verdict} pair IS the gate's ruling: the revision-aware
-   *  BLOCK renders only the "same" verdict the gate returned, the pending-fix note
-   *  only the derived pending face, never a recomputed one. The task face holds no
+   *  The {phase, verdict} pair IS the gate's ruling: the verdict is the one the
+   *  authority's walk returned, never a recomputed one. The task face holds no
    *  separate gate here: the wave rows are the authority's line leg — the ONE phase
    *  authority. A doc line's gate is the reviewGate method family (T8 · §3.5), shared
    *  by the lifecycle's frame phase so an opened gate dispatches: a moved doc reopens
@@ -66,9 +64,8 @@ export class CliGate {
    *  falls back to the legacy rounds/routes judgment: a completed-fix line reopens
    *  the review lead through its fix round's C5-1 route (the lifecycle's own
    *  fall-through — an open gate and a dispatchable frame agree), a truly closed line
-   *  keeps the revision-aware BLOCK. An unbound line (no identity on record / an
-   *  unreadable doc) keeps the legacy round/route judgment + the generic closed
-   *  message (only present facts land).
+   *  keeps the revision-aware "same" verdict. An unbound line (no identity on
+   *  record / an unreadable doc) keeps the legacy round/route judgment.
    *
    *  The branch line rides the SAME drift leg (its identity document is the PLAN,
    *  P21 §3/§4.1 — the very document a branch re-review judges): a plan revision
@@ -76,8 +73,7 @@ export class CliGate {
    *  lead, so the `next:` a closure hands the user is never a command this gate
    *  refuses. An unchanged plan falls through to the SAME derived faces the doc lines
    *  reach: a branch review that left findings yields the derived `fix` face
-   *  (`pending-fix` — no doc-class BLOCK message binds the branch face, so the refusal
-   *  renders through the ONE hop), while only a fully closed, drift-free branch
+   *  (`pending-fix`), while only a fully closed, drift-free branch
    *  line keeps the generic `face-closed` row. */
   lineGate(scene: WorkScene): LinePhaseFacts {
     return this.#authority.linePhaseFacts(scene.ledger, {
@@ -85,33 +81,6 @@ export class CliGate {
       doc: this.#docOf(scene),
       type: scene.face.type,
     });
-  }
-
-  /** The doc line's revision-aware BLOCK message (T7/T8) — the unchanged-approved
-   *  face: "{plan|spec} already reviewed at vX.Y (doc-hash …) — target revision
-   *  unchanged; amend body to open a new review". Renders ONLY on the
-   *  gate's "same" verdict — the approved identity the gate judged, whose reviewed
-   *  ref the message names: the block consumes the verdict's identity, never a
-   *  second ledger lookup (the face's judgment read points converge to the
-   *  method family). Null off that face or with no identity ("target revision
-   *  unchanged" is a present fact only there). */
-  docLineBlock(scene: WorkScene, reviewed: DocRevisionRef | null): string | null {
-    if (reviewed === null || (scene.target?.kind !== "plan" && scene.target?.kind !== "spec"))
-      return null;
-    const version = this.#docVersionOf(this.#docContent(scene.target.doc));
-    return `${scene.type} already reviewed at ${version ?? "the current version"} (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — target revision unchanged; amend body to open a new review`;
-  }
-
-  /** The doc line's derived pending-fix note (T8) — the unchanged + non-APPROVED
-   *  face: "the pending fix applies to the unchanged doc (doc-hash …) — run cdd
-   *  fix first". Renders ONLY for the gate's "pending-fix" verdict — the derived
-   *  fix-awaited face (a same-doc re-review stays refused until its fix lands,
-   *  Review Convergence anti-spin); the message names the reviewed identity the
-   *  gate judged. */
-  pendingFixBlock(scene: WorkScene, reviewed: DocRevisionRef | null): string | null {
-    if (reviewed === null || (scene.target?.kind !== "plan" && scene.target?.kind !== "spec"))
-      return null;
-    return `the pending fix applies to the unchanged doc (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — run cdd fix first`;
   }
 
   /** lineHopMessage(scene, hop, words) — the CLI rejection prose of one `NextHop`
@@ -193,29 +162,5 @@ export class CliGate {
     if (scene.target?.kind === "branch") return "branch";
     if (scene.target?.kind === "plan" || scene.target?.kind === "spec") return scene.face.type;
     return null;
-  }
-
-  /** The doc's live content — readable doc else null. This helper backs the face's
-   *  one remaining doc read site, the revision-aware BLOCK's version token — a read
-   *  fired only when the BLOCK message actually renders (the version is raw doc
-   *  grammar — zero parse dependence: the revision hash is a raw-content digest).
-   *  The gate's own doc read lives in the ledger (Ledger#docLineVerdict — one read
-   *  per reviewGate, the shared comparison). A BLOCK render is a run-failure prose
-   *  channel — never a usage face — so the read is guarded here (null on unreadable),
-   *  not routed through the artifacts readText's usage error. */
-  #docContent(doc: string): string | null {
-    try {
-      return readFileSync(doc, "utf8");
-    } catch {
-      return null;
-    }
-  }
-
-  /** The doc's `v<major>.<minor>` version token — the front-matter `version:`
-   *  scalar (the T6 read point: the header version facts ride the typed head
-   *  record — the fence split + `yaml` engine, never a line scan). */
-  #docVersionOf(content: string | null): string | null {
-    if (content === null) return null;
-    return FrontMatterExtractor.split(content).head.version;
   }
 }

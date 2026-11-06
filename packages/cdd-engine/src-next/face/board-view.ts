@@ -174,20 +174,20 @@ export class BoardView {
    *  target (spec §5.2 · D33): a doc shape's class reads its DECLARED type (the
    *  front-matter `doc-type:` key — the ONE declaration reading face above), never
    *  the filename suffix or the `--type` spelling; the node shapes key by their own
-   *  type. `blocked` — the key is missing (the renderer prints the BLOCKED face);
-   *  `terminal` — no pipeline seam carries the declared class (`single-spec`, the
-   *  `PipelineKey` derivation excludes it). This is the injected seam of the ONE hop
-   *  derivation: `session/next.ts` never imports a face class, and every read face
-   *  shares this ONE judgment. The basis is REQUIRED — an unrooted resolve would read
-   *  the target against `process.cwd()`, so an engine invoked from a subdirectory
-   *  could report a declared line as `doc-class-blocked`; the root is always the value
-   *  object the read face holds. */
+   *  type. `blocked` — the key is missing (the renderer prints the BLOCKED face).
+   *  Every declared class is a pipeline key, a standalone `single-spec` included: its
+   *  closure hands off to `cdd-plan`, never to a terminus. This is the injected seam
+   *  of the ONE hop derivation: `session/next.ts` never imports a face class, and
+   *  every read face shares this ONE judgment. The basis is REQUIRED — an unrooted
+   *  resolve would read the target against `process.cwd()`, so an engine invoked from
+   *  a subdirectory could report a declared line as `doc-class-blocked`; the root is
+   *  always the value object the read face holds. */
   static docClassOf(root: RepoRoot, target: RouteTarget): DocClassVerdict {
     if (target.type === "plan") return "plan";
     if (target.type === "wave") return "wave";
     if (target.type === "branch") return "branch";
     const declared = BoardView.readDocType(root, root.relativize(target.id));
-    return declared === null ? "blocked" : declared === "single-spec" ? "terminal" : declared;
+    return declared === null ? "blocked" : declared;
   }
 
   /** The doc file's raw text — an absent/unreadable file reads null (the reads

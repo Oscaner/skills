@@ -691,7 +691,7 @@ const branchCtx = (
 };
 
 describe("PreFlight — the checked rule list (derived from the declaration surface)", () => {
-  it("lists 20 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
+  it("lists 21 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(
@@ -699,7 +699,7 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
       );
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        20,
+        21,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
       expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: passed");
@@ -712,13 +712,13 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
     }
   });
 
-  it("lists the same 20 doc-scope skips on a branch dispatch", async () => {
+  it("lists the same 21 doc-scope skips on a branch dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(branchCtx(repoRoot, [task(1, "none")]));
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        20,
+        21,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
     } finally {

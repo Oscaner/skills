@@ -23,6 +23,7 @@
 
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
+import { DocBodyProjection } from "../contract/doc-body.ts";
 import type { ConfigLoader } from "../infra/config.ts";
 import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
@@ -472,10 +473,15 @@ export type ReviewedRevisionRef = DocRevisionRef | BriefRevisionRef;
  * derivation point — typed data, zero prose.
  */
 export class ReviewRefs {
-  /** The doc-revision two-layer binding — the doc path + the content-hash revision
-   *  (sha1 of the reviewed file content — the second layer of the doc ref). */
+  /** The doc-revision two-layer binding — the doc path + the BODY's content-hash
+   *  revision (sha1 of the reviewed body — the second layer of the doc ref). The
+   *  bookkeeping faces (front matter, `## Change history`) are projected away by the
+   *  `contract/` projection first (P26 T1): a closed-out registration write never
+   *  reopens a reviewed line, while a substantive body edit still drifts. */
   docRevision(doc: string, content: string | Buffer): DocRevisionRef {
-    return { kind: "doc-revision", doc, doc_hash: this.#hash(content) };
+    const body = typeof content === "string" ? content : content.toString("utf8");
+    const projected = new DocBodyProjection().project(body);
+    return { kind: "doc-revision", doc, doc_hash: this.#hash(projected) };
   }
 
   /** The brief-revision two-layer binding (D30) — the plan path the brief renders

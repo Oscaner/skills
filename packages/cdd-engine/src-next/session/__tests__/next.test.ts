@@ -461,11 +461,12 @@ describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () 
     expect(overall.to).toEqual({ kind: "done" });
     expect(overall.reason).toBe(NEXT_HOP_REASON.closedLine);
 
-    // a single-spec declares no pipeline seam — the terminal row (`to: null`)
-    const single = router.nextHop(hopInput({ verdict: "terminal" }));
-    expect(single.hop).toBeNull();
-    expect(single.to).toBeNull();
-    expect(single.reason).toBe(NEXT_HOP_REASON.faceClosed);
+    // the residual `terminal` doc class — no pipeline row claims it, so the bare
+    // null `to` holds (a closed `single-spec` has a real row, see PIPELINE_NEXT below)
+    const terminal = router.nextHop(hopInput({ verdict: "terminal" }));
+    expect(terminal.hop).toBeNull();
+    expect(terminal.to).toBeNull();
+    expect(terminal.reason).toBe(NEXT_HOP_REASON.faceClosed);
   });
 
   it("(e) the soft cap → no hop, no station, the soft-cap reason", () => {
@@ -602,23 +603,35 @@ describe("P22 T14 — the target vocabulary is the single key set", () => {
     });
   });
 
-  it("PIPELINE_NEXT is keyed by TargetType — overall / single-spec are the terminals", () => {
+  it("PIPELINE_NEXT is keyed by TargetType — only overall is a terminal, single-spec hands off to cdd-plan", () => {
     expect(Object.keys(PIPELINE_NEXT).sort()).toEqual([...TARGET_TYPES].sort());
     expect(PIPELINE_NEXT.overall).toEqual({ kind: "done" });
-    expect(PIPELINE_NEXT["single-spec"]).toEqual({ kind: "done" });
+    // P26 T3: a closed standalone single-spec is a spec line, not a program terminus
+    expect(PIPELINE_NEXT["single-spec"]).toEqual({ kind: "ref", ref: "kairos:cdd-plan" });
+    expect(PIPELINE_NEXT["single-spec"]).toEqual(PIPELINE_NEXT["phase-spec"]);
     expect(PIPELINE_NEXT["phase-spec"]).toEqual({ kind: "ref", ref: "kairos:cdd-plan" });
+    // `done` is the charter's row ONLY
+    const terminals = Object.entries(PIPELINE_NEXT)
+      .filter(([, entry]) => entry.kind === "done")
+      .map(([key]) => key);
+    expect(terminals).toEqual(["overall"]);
   });
 
-  it("PipelineKey is DERIVED from TargetType — `single-spec` is not a pipeline seam", () => {
+  it("PipelineKey INCLUDES single-spec; the phase faces stay the four (P26 T3)", () => {
     const source = readFileSync(new URL("../next.ts", import.meta.url), "utf8");
-    expect(source).toContain('export type PipelineKey = Exclude<TargetType, "single-spec">');
-    // the derivation's runtime consequence: every phase-level face named by the
-    // traversal order is a row of the real pipeline table, and `single-spec` is a
-    // table row only — never a seam a hop can land on.
-    const seams: readonly string[] = PIPELINE_FACES;
-    expect(seams.length).toBeGreaterThan(0);
-    expect(Object.keys(PIPELINE_NEXT)).toEqual(expect.arrayContaining([...seams]));
-    expect(seams).not.toContain("single-spec");
+    // the derivation no longer carves `single-spec` out, and the face order carves out
+    // both program-level rows (`overall` · `single-spec`) instead
+    expect(source).not.toContain('Exclude<TargetType, "single-spec">');
+    expect(source).toContain("export type PipelineKey = TargetType");
+    expect(source).toContain('Exclude<PipelineKey, "overall" | "single-spec">');
+    // the runtime consequences: single-spec holds a real handoff row, and it is not a
+    // face of the `spec → plan → wave → branch` traversal
+    expect(PIPELINE_NEXT["single-spec"].kind).toBe("ref");
+    const faces: readonly string[] = PIPELINE_FACES;
+    expect(faces.length).toBe(4);
+    expect(faces).toEqual(["phase-spec", "plan", "wave", "branch"]);
+    expect(faces).not.toContain("single-spec");
+    expect(Object.keys(PIPELINE_NEXT)).toEqual(expect.arrayContaining([...faces]));
   });
 });
 
@@ -629,6 +642,18 @@ describe("P22 T14 — the target vocabulary is the single key set", () => {
 
 describe("P22 §5.2 — the derivation's structural pins", () => {
   const source = readFileSync(new URL("../next.ts", import.meta.url), "utf8");
+
+  it("P26 T3 — no source folds a single-spec into a terminal verdict (red if reverted)", () => {
+    for (const rel of ["../run.ts", "../../face/board-view.ts"]) {
+      const text = readFileSync(new URL(rel, import.meta.url), "utf8");
+      expect(text, `${rel} still folds a class into a terminal verdict`).not.toContain(
+        '? "terminal"',
+      );
+      expect(text, `${rel} still special-cases single-spec`).not.toContain(
+        'target.type === "single-spec"',
+      );
+    }
+  });
 
   it("session/next.ts never imports the board-view face — no runtime cycle", () => {
     const specifiers = [...source.matchAll(/from\s+"([^"]+)"/g)].map((match) => match[1]);

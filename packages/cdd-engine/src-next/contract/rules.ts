@@ -38,6 +38,7 @@ import {
   LedgerTaskSetRule,
   LinkShapeInvariant,
   ListMarkerInvariant,
+  PhaseDesignSpecIsPhaseSpecInvariant,
   PhaseIdUniqueInvariant,
   PresenceInvariant,
   ResidueInvariant,
@@ -82,7 +83,7 @@ export interface LedgerRule {
   evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[];
 }
 
-/** The rule registry — doc scope 20 rows + ledger scope 2 rows = 22. */
+/** The rule registry — doc scope 21 rows + ledger scope 2 rows = 23. */
 export const RULE_REGISTRY: readonly RuleDeclaration[] = [
   { scope: "doc", id: "presence", docKeys: "all", create: () => new PresenceInvariant() },
   {
@@ -148,6 +149,12 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     id: "wave-width-at-most-three",
     docKeys: ["plan"],
     create: () => new WaveWidthInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "phase-design-spec-is-phase-spec",
+    docKeys: ["overall"],
+    create: () => new PhaseDesignSpecIsPhaseSpecInvariant(),
   },
   {
     scope: "ledger",

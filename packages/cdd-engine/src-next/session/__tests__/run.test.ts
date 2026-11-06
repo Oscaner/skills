@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PlanDocType } from "../../contract/doc.ts";
+import { DocBodyProjection } from "../../contract/doc-body.ts";
 import { BoardNext, BoardView } from "../../face/board-view.ts";
 import { Capsule } from "../../face/capsule.ts";
 import { ARGV_CHANNEL } from "../../face/declare.ts";
@@ -1617,7 +1618,11 @@ describe("P21 T3 — the branch line binds its plan's doc-revision", () => {
       if (recorded?.kind !== "doc-revision") throw new Error("unreachable");
       // the persisted plan layer speaks the canonical repoRoot-relative shape
       expect(recorded.doc).toBe("../../plan.md");
-      expect(recorded.doc_hash).toBe(createHash("sha1").update(content).digest("hex"));
+      // P26 T1: the doc-revision hashes the BODY projection (front matter and the
+      // change-history section stripped), not the whole file.
+      expect(recorded.doc_hash).toBe(
+        createHash("sha1").update(new DocBodyProjection().project(content)).digest("hex"),
+      );
       expect(ledger.reviewedRevisionOf("1")).toBeNull();
     } finally {
       cleanup();

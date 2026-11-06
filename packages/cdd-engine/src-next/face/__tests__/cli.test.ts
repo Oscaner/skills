@@ -3330,7 +3330,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // and the fix round's C5-1 route (blockers → re-review the fix delta) opens
       // the review lead. The lifecycle already dispatches this face; the CLI gate
       // must agree (an open gate and a dispatchable frame — the run.ts JSDoc
-      // invariant) instead of the revision-aware "amend body/version" rejection.
+      // invariant) instead of the revision-aware "amend body" rejection.
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       io.stdoutText = "";
       io.stderrText = "";

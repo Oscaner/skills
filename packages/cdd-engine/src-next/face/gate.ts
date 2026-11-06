@@ -106,7 +106,7 @@ export class CliGate {
 
   /** The doc line's revision-aware BLOCK message (T7/T8) — the unchanged-approved
    *  face: "{plan|spec} already reviewed at vX.Y (doc-hash …) — target revision
-   *  unchanged; amend body/version to open a new review". Renders ONLY on the
+   *  unchanged; amend body to open a new review". Renders ONLY on the
    *  gate's "same" verdict — the approved identity the gate judged, whose reviewed
    *  ref the message names: the block consumes the verdict's identity, never a
    *  second ledger lookup (the face's judgment read points converge to the
@@ -116,7 +116,7 @@ export class CliGate {
     if (reviewed === null || (scene.target?.kind !== "plan" && scene.target?.kind !== "spec"))
       return null;
     const version = this.#docVersionOf(this.#docContent(scene.target.doc));
-    return `${scene.type} already reviewed at ${version ?? "the current version"} (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — target revision unchanged; amend body/version to open a new review`;
+    return `${scene.type} already reviewed at ${version ?? "the current version"} (doc-hash ${reviewed.doc_hash.slice(0, 12)}…) — target revision unchanged; amend body to open a new review`;
   }
 
   /** The doc line's derived pending-fix note (T8) — the unchanged + non-APPROVED

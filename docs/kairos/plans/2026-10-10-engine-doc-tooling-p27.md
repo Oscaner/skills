@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P27 计划：派发权威收口
 doc-type: plan
-version: v0.3
+version: v0.4
 date: 2026-11-06
 slug: 2026-10-10-engine-doc-tooling-p27
 base: develop
@@ -164,3 +164,4 @@ none
 | v0.1 | 2026-11-06 | 初版：三任务链式（T1 词表合一·零行为 → T2 authority + leg L·行为保持 → T3 leg U·行为变化），把 spec 的 13 行表、优先级、面序派生与收敛冻结拆成三步可独立评审的交付 | Claude（本会话 cdd-plan） |
 | v0.2 | 2026-11-06 | 按首轮计划评审更正内容面：T3 上游判据改回 spec §2.3 的 ① identity 陈旧（`reviewGate` / `briefDrifted`）与 ② 未闭合（`lineStateAt` / `#wavesExhausted`），点名 `waveLineRoute !== null` 不是判据，并补「闭合但漂移」红 pin；T2 Step 1 拒绝面补全为五行 + doc/branch 四条 + drift 重开放行；T1 的 token `leg` 收为 `structure`/`line`/`station`（与 verdict 腿 `upstream` 区分）、口径改为 13 个 token 按拼写；Constraints 补「只拒不记账」及对应 pin；Review Focus 更正 `recordPlanTasks` / `appendedSinceClosure` 归属 | Claude（本会话 · docs-fix） |
 | v0.3 | 2026-11-06 | 按第二轮计划评审补两条内容面：Constraints 补「不改 D30 的 brief 投影」（wave 已审身份仍是渲染 brief 指纹，leg U 只读 `briefDrifted` / `closedWaves()`）；T3 Acceptance 的 spec 条数由 7 更正为 8，并把「判收敛主线零变化」补进枚举 | Claude（本会话 · docs-fix） |
+| v0.4 | 2026-11-06 | **closeout 登记（cdd-close）**：三任务三层全闭合。实施期事实四条：① W2 因 `cli.ts` 的 init 块位移触动 `diagrams.guard` 的引用 pin，图源与两份产物 evidence 块同笔重锚（`73cd9a44`）——评审判为可归因、非违规；② W2 的 wave review 发现 `lineGate` 被重实现成第二份宿主 → fix 收成一条 line-phase walk（`e5a18ab7`）；③ W3 的 wave review 要求补 rule-zero 理由（authority 423 行）与英文注释 → fix（`38601208`）；④ 分支终审删掉 `docLineBlock`/`pendingFixBlock` 两个无生产调用者的死面。`validate` exit 0 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-06） |

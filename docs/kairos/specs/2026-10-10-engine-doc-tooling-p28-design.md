@@ -1,11 +1,11 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P28 设计：再生层入仓 + spec 易变事实纪律
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-11-06
 slug: 2026-10-10-engine-doc-tooling-p28
 program: 2026-10-10-engine-doc-tooling
-parent-version: v3.34
+parent-version: v3.35
 author: '[human] 裁定 · Claude（本会话 · 2026-11-06）'
 ---
 
@@ -196,3 +196,4 @@ author: '[human] 裁定 · Claude（本会话 · 2026-11-06）'
 | v0.1 | 2026-11-06 | 初版：grilling 三轮的前沿全部落成设计——再生层走根 devDependency + 源自派生清单 + `render`（非 `finalize`）· `emit` 全有或全无并含孤儿走查 · 孪生门红时给修法、两份守卫分工不合并 · spec 变体三形态与两条写作落点、不设门 · 任务切分 W1={T1,T3} / W2={T2} | [human] 裁定 · Claude（本会话 · 2026-11-06） |
 | v0.2 | 2026-11-06 | 结构合规重排（内容不变）：Design 各分组补 `#### N.M` 条目层级、`### Acceptance criteria` 归三级、验收条目改以代码片段起头——三处均按 `contract/declare.ts` 的 `presence` 元素对齐，此前形态过不了 doc-contract | Claude（本会话 · 2026-11-06） |
 | v0.3 | 2026-11-06 | 评审修轮（phase-spec-review-1 全数应用）：§4.3 与验收格记录「plan 只收一行」与父相位登记格的回填口径（三形态只落 `cdd-spec-writer`）· 去掉 §1.2 与 §2.3 的实测叙述、§2.5 前提改「必须字节一致」· 代码行为声称改 `path#symbol`（`#DiagramTwin` · `#docNarrativeAxes` · `#EmitService.writeText` · `#DiagramProducts` · `#SOURCES`）· 文件补 EOF 换行 | Claude（本会话 · 2026-11-06） |
+| v0.4 | 2026-11-06 | **design-backfill（cdd-plan）**：`parent-version` 跟进父 overall v3.35（Phase inventory P28 AC 写作 skill 口径对齐） | Claude（kairos:cdd-plan · design-backfill） |

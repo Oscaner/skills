@@ -290,7 +290,7 @@ export class Cli {
         words: this.#words,
       });
     this.#authority = opts.authority ?? new DispatchAuthority();
-    this.#gate = new CliGate({ brief: this.#brief });
+    this.#gate = new CliGate({ brief: this.#brief, authority: this.#authority });
     this.#artifacts = new CliArtifacts({
       io: this.#io,
       projector: this.#projector,

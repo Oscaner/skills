@@ -1201,8 +1201,8 @@ export class Ledger {
   }
 
   /** The single-target line's open phase — the rounds/routes walk the lifecycle's
-   *  frame frontier (run.ts #nextLinePhase) and the CLI gate (gate.ts #linePhase)
-   *  BOTH consume (one judge, one source — the retired twin copies), mapped from
+   *  frame frontier (run.ts #nextLinePhase) and the authority's line-phase read both
+   *  consume (one judge, one source — the retired twin copies), mapped from
    *  `lineRoute`'s active C5 hop: the review-lead hop reads the face's own review-lead
    *  mode word (branch→branch-review, the others→review), the fix hop `"fix"`, a closed
    *  line null. */

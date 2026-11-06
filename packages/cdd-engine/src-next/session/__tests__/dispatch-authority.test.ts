@@ -425,4 +425,24 @@ describe("P27 §2.7 — the authority is the ONLY dispatch call site", () => {
     );
     expect(authority).toContain("this.#waveGate.vet(");
   });
+
+  it("the line-phase walk has ONE host — the gate's `lineGate` reads the authority's fact", () => {
+    const gate = readFileSync(
+      fileURLToPath(new URL("../../face/gate.ts", import.meta.url)),
+      "utf8",
+    );
+    const authority = readFileSync(
+      fileURLToPath(new URL("../dispatch-authority.ts", import.meta.url)),
+      "utf8",
+    );
+    // The walk (reviewGate → drift reopen → pending fix → linePhase) lives ONCE, on the
+    // session plane; the face's line-gate is that value's render shell.
+    expect(authority).toContain("linePhaseFacts(");
+    expect(gate).toContain("this.#authority.linePhaseFacts(");
+    // No second host: the face keeps no private phase walk of its own …
+    expect(gate).not.toContain("ledger.linePhase(");
+    expect(gate).not.toContain("ledger.docReopens(");
+    // … and the dead line-hop reader is gone (the refusal renders the verdict's hop).
+    expect(gate).not.toMatch(/lineHop\(scene/);
+  });
 });

@@ -41,7 +41,7 @@ import {
   targetFaces,
 } from "./faces.ts";
 import type { TaskGraph } from "./graph.ts";
-import type { Ledger, ReviewGateVerdict } from "./ledger.ts";
+import type { DocRevisionRef, Ledger } from "./ledger.ts";
 import {
   DISPATCH_REASON,
   type DispatchReason,
@@ -74,9 +74,30 @@ export type DispatchVerdict =
 /** The refusal face — the verdict's `allowed: false` arm. */
 export type DispatchRefusal = Extract<DispatchVerdict, { readonly allowed: false }>;
 
-/** This line's dispatch facts — the phase the request is judged against, the wave
- *  face's gate inputs, and the frontier cells the refusal's `next` is assembled
- *  from. Filled by the composition root; nothing here is a judgment. */
+/** This line's phase as ONE read — the identity gate (`reviewGate`), the drift
+ *  reopen's scope (`docReopens`, which ADMITS the review lead), the derived pending
+ *  fix and the ledger's rounds/routes judge (`linePhase`), composed once. TWO hosts
+ *  read this value — the verdict's line leg here and the face gate's `lineGate` — so
+ *  the line-phase fact is derived in exactly one place and cannot drift between them. */
+export interface LinePhaseFacts {
+  readonly phase: DispatchPhase | null;
+  readonly verdict: "same" | "pending-fix" | null;
+  readonly reviewed: DocRevisionRef | null;
+}
+
+/** The line a phase read judges — its stable key, its judged identity document and
+ *  the declared target type. Filled by the composition root's scene read. */
+export interface LinePhaseInput {
+  /** The line's stable ledger key (`plan` / `branch` / the declared doc word). */
+  readonly key: string | null;
+  /** The line's judged document (a doc line's path, the branch line's plan). */
+  readonly doc: string | null;
+  readonly type: TargetType;
+}
+
+/** This line's dispatch facts — the wave face's gate inputs and the frontier cells
+ *  the refusal's `next` is assembled from. Filled by the composition root; nothing
+ *  here is a judgment. */
 export interface DispatchLineFacts {
   /** The session ledger — the ONE round/closure/drift read face. */
   readonly ledger: Ledger;
@@ -207,44 +228,69 @@ export class DispatchAuthority {
     return { kind: "row", reason: verdict.reason };
   }
 
-  /** The doc/branch face's rows, in order: the line's open phase (the ONE ledger
-   *  walk — the drift reopen is a ROW that admits the review lead), then the named
-   *  refusals, then the hop's own fact when the line sits at another open round. */
+  /** linePhaseFacts(ledger, input) — this line's phase, read ONCE (§2.7): the drift
+   *  reopen (which ADMITS the review lead), the derived pending fix, then the
+   *  rounds/routes judge. The face gate renders this value; this object's line leg
+   *  judges it — one derivation, two readers, no second walk to drift from. */
+  linePhaseFacts(ledger: Ledger, input: LinePhaseInput): LinePhaseFacts {
+    const gate =
+      input.key !== null && input.doc !== null
+        ? ledger.reviewGate(input.key, input.doc, input.type)
+        : null;
+    if (input.key !== null && gate !== null && ledger.docReopens(input.key, input.type, gate)) {
+      return { phase: targetFaces[input.type].product.reviewLead, verdict: null, reviewed: null };
+    }
+    if (gate !== null && gate.kind === "same") {
+      return gate.pending
+        ? { phase: "fix", verdict: "pending-fix", reviewed: gate.reviewed }
+        : this.#sameDocFallback(ledger, input, gate.reviewed);
+    }
+    return { phase: this.#lineRoutePhase(ledger, input), verdict: null, reviewed: null };
+  }
+
+  /** An unchanged doc holding no pending fix — the legacy rounds/routes fall-through:
+   *  a completed-fix line reopens the review lead through its fix round's route, while
+   *  a truly closed line keeps the "same" verdict (the revision-aware BLOCK's face). */
+  #sameDocFallback(
+    ledger: Ledger,
+    input: LinePhaseInput,
+    reviewed: DocRevisionRef,
+  ): LinePhaseFacts {
+    const open = this.#lineRoutePhase(ledger, input);
+    return open !== null
+      ? { phase: open, verdict: null, reviewed: null }
+      : { phase: null, verdict: "same", reviewed };
+  }
+
+  /** The rounds/routes phase — the ledger's SINGLE line-phase judge (D40). */
+  #lineRoutePhase(ledger: Ledger, input: LinePhaseInput): DispatchPhase | null {
+    return input.key === null ? null : ledger.linePhase(input.key, input.type);
+  }
+
+  /** The doc/branch face's rows, in order: the line's phase (the drift reopen is a ROW
+   *  that admits the review lead), then the named refusals, then the hop's own fact
+   *  when the line sits at another open round. */
   #docRuling(request: DispatchRequest): LineRuling {
     const facts = request.line;
-    const key = facts.lineKey;
-    const gate =
-      key !== null && facts.doc !== null
-        ? facts.ledger.reviewGate(key, facts.doc, request.type)
-        : null;
-    const open = key === null ? null : this.#openPhase(facts.ledger, key, request.type, gate);
-    if (open === this.#expectedPhase(request.type, request.verb)) return { kind: "allowed" };
+    const phase = this.linePhaseFacts(facts.ledger, {
+      key: facts.lineKey,
+      doc: facts.doc,
+      type: request.type,
+    });
+    if (phase.phase === this.#expectedPhase(request.type, request.verb)) {
+      return { kind: "allowed" };
+    }
     // A pending fix is the line's own row: the fix it awaits is a present fact, and
     // the refusal names it whatever the requested verb was.
-    if (open === "fix") return { kind: "row", reason: DISPATCH_REASON.pendingFix.token };
-    if (open !== null) return { kind: "hop" };
+    if (phase.phase === "fix") return { kind: "row", reason: DISPATCH_REASON.pendingFix.token };
+    if (phase.phase !== null) return { kind: "hop" };
     // The closed line: the doc shapes name their unchanged reviewed identity (the
     // anti-spin row); every other line keeps the generic closed face.
-    const unchanged = TargetFaceTable.isDocShape(request.type) && gate?.kind === "same";
+    const unchanged = TargetFaceTable.isDocShape(request.type) && phase.verdict === "same";
     return {
       kind: "row",
       reason: unchanged ? DISPATCH_REASON.unchanged.token : DISPATCH_REASON.faceClosed.token,
     };
-  }
-
-  /** The line's open phase — the SAME derivation the face's line gate reads: a drift
-   *  reopened line sits at its review lead (the gate's own ruling), a pending fix at
-   *  the fix round, everything else at the ledger's line phase. */
-  #openPhase(
-    ledger: Ledger,
-    key: string,
-    type: TargetType,
-    gate: ReviewGateVerdict | null,
-  ): DispatchPhase | null {
-    const reviewLead = targetFaces[type].product.reviewLead;
-    if (gate !== null && ledger.docReopens(key, type, gate)) return reviewLead;
-    if (gate?.kind === "same" && gate.pending) return "fix";
-    return ledger.linePhase(key, type);
   }
 
   /** The phase the requested verb dispatches on this face — the review verb asks for

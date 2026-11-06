@@ -679,12 +679,13 @@ describe("P22 §5.2 — the derivation's structural pins", () => {
   });
 
   it("the CLI refusal's declaration read is rooted in the repo basis (never a cwd resolve)", () => {
-    const gate = readFileSync(new URL("../../face/gate.ts", import.meta.url), "utf8");
-    expect(gate).toContain("BoardView.docClassOf(basis, candidate)");
-    expect(gate).not.toContain("docClassOf(null");
+    // The declaration read the refusal's hop is assembled from lives at the dispatch
+    // entry (face/cli.ts), on the authority's own doc-class port.
+    const cli = readFileSync(new URL("../../face/cli.ts", import.meta.url), "utf8");
+    expect(cli).toContain("BoardView.docClassOf(scene.workspace.root.basis, candidate)");
+    expect(cli).not.toContain("docClassOf(null");
     // the lookahead refusal renders the PEEKED hop — the fourth read face's object is
     // consumed, never computed and dropped
-    const cli = readFileSync(new URL("../../face/cli.ts", import.meta.url), "utf8");
     expect(cli).toContain("lineHopMessage(scene, peeked.hop");
   });
 
@@ -733,11 +734,13 @@ describe("P22 §5.4 — the retired next-face entries and the retained gate face
     expect(hits).toEqual([]);
   });
 
-  it("the retained gate faces stay — `lineGate` · `#linePhase` · `#lineKey` in face/gate.ts", () => {
+  it("the retained gate faces stay — `lineGate` · `#lineKey` · the ONE phase read in face/gate.ts", () => {
     const gate = readFileSync(new URL("../../face/gate.ts", import.meta.url), "utf8");
     expect(gate).toMatch(/\blineGate\b/);
-    expect(gate).toContain("#linePhase");
     expect(gate).toContain("#lineKey");
+    // the line gate reads the authority's ONE line-phase walk (P27 §2.7), never a
+    // private copy of it
+    expect(gate).toContain("this.#authority.linePhaseFacts(");
     // the block-message faces the deletion does not touch
     expect(gate).toContain("docLineBlock");
     expect(gate).toContain("pendingFixBlock");

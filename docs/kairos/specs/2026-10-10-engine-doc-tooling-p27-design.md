@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P27 设计：派发权威收口（`next:` 由建议升为裁决）
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-11-06
 slug: 2026-10-10-engine-doc-tooling-p27
 program: 2026-10-10-engine-doc-tooling
@@ -61,7 +61,10 @@ DispatchVerdict =
 
 - **面序单一来源**：`PIPELINE_FACES`（`session/next.ts:127`）。请求面的索引 i，上游 = 面序前 i 项；不手写第二个顺序表。
 - **身份面是槽位**：面序第一项 `phase-spec` 是**身份面**，行键取文档自己声明的 `doc-type`（`specType`）——`single-spec` 与 `phase-spec` 同属第 0 面、各自成行。P26 T3 已立的区分不动：`PipelineKey = TargetType`（`next.ts:90`）含 `single-spec`，`PhaseFaceKey`（`:121`）不含。**所以两种 spec 都被上游腿覆盖**，不需要额外一支。
-- **每个上游面两条判据**：① reviewed identity 陈旧（`reviewGate(...).kind === "open"`，即 drift）⇒ 拒；② 该面还有开放 hop（`lineRoute` / `waveLineRoute` 非 null）⇒ 拒。两条都带出该面的 `next:`。
+- **每个上游面两条判据**（读 `PipelineFrontier` 用的同一对事实，不新造判据）：
+  - ① **reviewed identity 陈旧** ⇒ 拒——doc 面读 `reviewGate(...).kind === "open"`（`ledger.ts:934`，即 drift）；wave 面读 `briefDrifted(waveKey)`（`ledger.ts:1023`，brief-revision）。
+  - ② **该面未对请求面闭合** ⇒ 拒——doc 面读 `lineStateAt(...) !== "closed"`（`ledger.ts:1164`；该判据已含 `lineClosed` 与 drift 两腿，开放 hop 自然落在 `!= "closed"` 一侧）；wave 面读 `PipelineFrontier#wavesExhausted`（`pipeline.ts:279`，判据集是 `ledger.closedWaves()`）为 false。
+  - 两条都带出该面的 `next:`。**`waveLineRoute !== null` 不是闭合判据**：面未进入时 `#waveState` 的 `active` 本就是 null（`#wavesEntered`，`pipeline.ts:270`），所以「无开放 hop」不等于「已闭合」；「闭合但漂移」的波由 ① 判——`#wavesExhausted` 只回答「每个派生波的任务都 done」，不看 brief。
 - **`overall` 不计入**：它不在 `PIPELINE_FACES` 里（章程不参与流水线），改一个字不挡派发。
 - **陈旧即拒，不看 brief**：不按「drift 是否触及本波 brief」放行——P26 那次内容一字未改、只有口径变了，按 brief 判会被放行，等于本例仍不拦。
 
@@ -69,7 +72,7 @@ DispatchVerdict =
 
 `WaveGate` 的五条改写为 leg L 的规则表行，判据语义逐条保持（静态批次开闭混放 · 派生宽度上限 · 请求宽度上限 · 精确匹配 · 相位不符），只换宿主与输出通道。doc/branch 行的四条（drift 重开 → 允许；pending-fix 拒；same-revision 拒；face-closed 拒）同样入表，与 wave 五行同形：**一个 leg，一张规则表，一个 verdict**。
 
-#### 2.5 reason 表：13 行 + `leg` 分区
+#### 2.5 reason 表：13 个 token + `leg` 分区
 
 | 分区 | 行 |
 | --- | --- |
@@ -79,6 +82,8 @@ DispatchVerdict =
 | 站牌（`next` 的理由） | `doc-drift` · `soft-cap` · `task-open` · `doc-class-blocked` |
 
 合一张表、逐行带 `leg` 字段。**计数更正**：grilling 时按 wave 5 + 站牌 7 = 12 计，并入 doc/branch 四条时实际为 **13 个 token**（新增 `unchanged`）——结构门沿用既有 gate id，不新造 token。
+
+**本表即 pin 面**：13 个 token + `leg` 分区，实施以本表为准；overall P27 验收 #4 已回填为同一分区，两边不得各读一套。`closed-line` / `face-closed` 沿用 `NEXT_HOP_REASON`（`next.ts:164`）的既有拼写，合并后只加 `leg` 字段——不铸第二套并行 token。
 
 #### 2.6 报文：`reason · next:` 一行
 
@@ -109,7 +114,7 @@ D30 保的是「plan 里不涉及本波任务段的改动，不作废已审的 w
 - **红 pin（今日必红）**：plan 行 reviewed identity 陈旧时，`implement --tasks …` 被拒，`leg: "upstream"`、`reason: "doc-drift"`、报文点名 `review --type plan`。
 - **绿 pin**：上游全新鲜 + 本行相位正确 ⇒ 派发照旧（零摩擦，既有 happy path 用例不重锚）。
 - **权威只剩一处**：`WaveGate.vet` 与 `lineGate` 不再是两个面各自的调用点（源码 pin：两处调用的出现数为 0）；派发门、capsule、board 读同一个 verdict 对象（跨面 pin）。
-- **reason 表 13 行 + `leg` 分区**，逐行 pin；报文形状 `reason · next:` 逐字 pin；结构拒无 `next`。
+- **reason 表 13 个 token + `leg` 分区**（pin 面是 §2.5 的 13-token 表；overall P27 验收 #4 已与之一致），**逐 token** pin；报文形状 `reason · next:` 逐字 pin；结构拒无 `next`。
 - **WaveGate 五行语义逐条等价**：`mixed-batch` / `wave-too-wide` / `too-many-tasks` / `split` / `wrong-phase` 各一条行为 pin（改写后仍红）。
 - **每种面各一条上游红 pin**：spec 陈旧挡 plan review · plan 陈旧挡 wave 派发 · wave 未闭合挡 branch review；**身份面两种声明各一条**（`single-spec` 与 `phase-spec` 都能被上游腿判到）。
 - **判收敛主线零变化**：`#close` / `#blockerCount` / `REVIEW_CYCLE_CAP` 的取值与派生顺序不动（源码 pin），Loop-vs-converge 转移表逐行 pin 与 `next-loop-twin` 的三条陈述 + 符号 pin **一行不改仍绿**；`soft-cap` 仍只在软上限成立时出现（一条行为 pin）。
@@ -131,3 +136,4 @@ D30 保的是「plan 里不涉及本波任务段的改动，不作废已审的 w
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-06 | 初版（含作者追加的硬约束 §4：判收敛主线一字不动）：病根取证（十三处判断 · 三个权威 · 站牌无派发读者 · P26 实证）· 一个 `DispatchAuthority`（三腿 + 优先级）· 上游腿按面序派生（身份面含 `single-spec`）· 五规则入表 · reason 表 13 行分区（计数更正）· 报文统一 · 与 D30 的澄清 | [human] 裁定 · Claude（本会话 · 2026-11-06） |
+| v0.2 | 2026-11-06 | 按首轮评审更正内容面：§2.3 上游两条判据改述为「reviewed identity 陈旧（doc `reviewGate` / wave `briefDrifted`）」与「该面未闭合（doc `lineStateAt` / wave `#wavesExhausted` over `closedWaves()`）」，并点名 `waveLineRoute !== null` 不是闭合判据（面未进入时 `active` 本就 null）；§2.5 补「本表即 pin 面」与 `closed-line` / `face-closed` 沿用 `NEXT_HOP_REASON` 拼写只加 `leg`；「13 行」口径统一为「13 个 token」 | Claude（本会话 · 2026-11-06） |

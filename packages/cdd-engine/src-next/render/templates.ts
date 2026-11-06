@@ -377,9 +377,14 @@ export const reviewGuideOf = (key: ReviewKey): string => {
 /** The spec-shaped documents' narrative criteria body — the phase-spec line's URC
  *  + its program-conformance clause, the ONE body both spec-shaped target rows
  *  select (the filled rubric is what differs per row). The charter's own criteria
- *  body is `docCharterAxes` — never a second narrative copy alongside this one. */
+ *  body is `docCharterAxes` — never a second narrative copy alongside this one.
+ *  The `Claimed→pin` clause names the three claim SHAPES a spec may state (a symbol,
+ *  a guarded count, a condition that must hold) instead of accepting whatever shape
+ *  today's tree happens to have: a line number is not a pin, a prose count is the
+ *  guard's business, and a present-tense description of today's shape belongs to the
+ *  plan. Nothing gates the writing moment — the review is where a violation surfaces. */
 const docNarrativeAxes = (guide: string): string =>
-  `Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at \`INPUT_OVERALL\` (the charter its \`program:\` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. ${guide}`;
+  `Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin by module path + symbol name — a line number is not a pin; a count ("N places" · "N rows" · "N modules") must be stated as pinned by the named guard or test; a present-tense description of today's shape belongs to the plan — in a design spec a measurement input is a lens-tagged finding unless restated as a condition that must hold — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at \`INPUT_OVERALL\` (the charter its \`program:\` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. ${guide}`;
 
 /** The charter's criteria body — the six things a program charter owns, and only
  *  those. It carries none of the implementation-face evidence duty the narrative

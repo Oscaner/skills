@@ -36,17 +36,13 @@ import type { Words } from "../face/words.ts";
 import type { DispatchPhase } from "./faces.ts";
 import type { TaskGraph } from "./graph.ts";
 import type { Ledger } from "./ledger.ts";
-import { MAX_TASKS_PER_WAVE } from "./next.ts";
+import { MAX_TASKS_PER_WAVE, WAVE_GATE_REASON, type WaveGateReason } from "./next.ts";
 
 /** The verdict kinds — the named gate rows (the BLOCK reason each carries): the
  *  static-batch mix guard · the two wave-width refusals · the split/subset refusal ·
- *  the wrong-phase refusal. */
-export type WaveGateReason =
-  | "mixed-batch"
-  | "wave-too-wide"
-  | "too-many-tasks"
-  | "split"
-  | "wrong-phase";
+ *  the wrong-phase refusal. A typed view over the ONE reason table (§2.5), never a
+ *  second spelling list. */
+export type { WaveGateReason } from "./next.ts";
 
 /** One open-wave task's phase row — every member carries the WAVE's single phase
  *  (the wave-unitary read: one ledger row per wave; a per-task read would miss the
@@ -116,7 +112,7 @@ export class WaveGate {
       if (!this.#appendedSinceClosure(ledger, closed, closedMembers, openMembers)) {
         return {
           ok: false,
-          reason: "mixed-batch",
+          reason: WAVE_GATE_REASON.mixedBatch,
           message: this.#fill(wordsGate.mixedBatch, {
             batch: batch.join(","),
             closed: closedMembers.join(","),
@@ -137,7 +133,7 @@ export class WaveGate {
     if (open.length > MAX_TASKS_PER_WAVE) {
       return {
         ok: false,
-        reason: "wave-too-wide",
+        reason: WAVE_GATE_REASON.waveTooWide,
         message: this.#fill(wordsGate.waveTooWide, {
           tasks: openKey,
           max: String(MAX_TASKS_PER_WAVE),
@@ -153,7 +149,7 @@ export class WaveGate {
     if (asked.length > MAX_TASKS_PER_WAVE) {
       return {
         ok: false,
-        reason: "too-many-tasks",
+        reason: WAVE_GATE_REASON.tooManyTasks,
         message: this.#fill(wordsGate.tooManyTasks, {
           tasks: requestedKey,
           count: String(asked.length),
@@ -170,7 +166,7 @@ export class WaveGate {
     if (!exact) {
       return {
         ok: false,
-        reason: "split",
+        reason: WAVE_GATE_REASON.split,
         message: this.#fill(wordsGate.split, { requested: requestedKey, open: openKey }),
         open,
         phases: this.#phasesOf(ledger, open),
@@ -185,7 +181,7 @@ export class WaveGate {
     if (phase !== verb) {
       return {
         ok: false,
-        reason: "wrong-phase",
+        reason: WAVE_GATE_REASON.wrongPhase,
         message: this.#fill(wordsGate.wrongPhase, { phase: phase ?? "held" }),
         open,
         phases,

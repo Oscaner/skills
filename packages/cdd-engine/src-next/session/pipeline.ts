@@ -274,6 +274,21 @@ export class PipelineFrontier {
     });
   }
 
+  /** Whether the wave FACE was ever entered — the face-level predicate (P25 §6), never
+   *  a per-key one (the private scan's own judgment). Public because the dispatch
+   *  authority's upstream leg asks the SAME question (P27 §2.3: a face the pipeline
+   *  never entered holds no station), and no second entered-scan may exist. */
+  wavesEntered(graph: TaskGraph): boolean {
+    return this.#wavesEntered(graph);
+  }
+
+  /** Whether every derived wave is done — the wave face's closure cell (a plan with
+   *  no wave holds nothing closed). Public for the same reason as `wavesEntered`: the
+   *  upstream leg's criterion ② reads this ONE judge, never a local task walk. */
+  wavesExhausted(graph: TaskGraph): boolean {
+    return this.#wavesExhausted(graph);
+  }
+
   /** Whether every derived wave is done — the wave face's closure cell (a plan with
    *  no wave holds nothing closed). */
   #wavesExhausted(graph: TaskGraph): boolean {

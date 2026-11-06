@@ -29,6 +29,7 @@ import { type RouteTarget, targetFaces } from "../faces.ts";
 import type { Round, RoundPhase } from "../ledger.ts";
 import type { Route } from "../next.ts";
 import {
+  DISPATCH_REASON,
   FIX_READBACK_SUFFIX,
   NEXT_HOP_REASON,
   type NextHopInput,
@@ -38,6 +39,7 @@ import {
   type PipelineEntry,
   REVIEW_CYCLE_CAP,
   SOFT_CAP_SUGGESTION,
+  WAVE_GATE_REASON,
 } from "../next.ts";
 import type { ExecutionState } from "../state.ts";
 
@@ -677,12 +679,13 @@ describe("P22 §5.2 — the derivation's structural pins", () => {
   });
 
   it("the CLI refusal's declaration read is rooted in the repo basis (never a cwd resolve)", () => {
-    const gate = readFileSync(new URL("../../face/gate.ts", import.meta.url), "utf8");
-    expect(gate).toContain("BoardView.docClassOf(basis, candidate)");
-    expect(gate).not.toContain("docClassOf(null");
+    // The declaration read the refusal's hop is assembled from lives at the dispatch
+    // entry (face/cli.ts), on the authority's own doc-class port.
+    const cli = readFileSync(new URL("../../face/cli.ts", import.meta.url), "utf8");
+    expect(cli).toContain("BoardView.docClassOf(scene.workspace.root.basis, candidate)");
+    expect(cli).not.toContain("docClassOf(null");
     // the lookahead refusal renders the PEEKED hop — the fourth read face's object is
     // consumed, never computed and dropped
-    const cli = readFileSync(new URL("../../face/cli.ts", import.meta.url), "utf8");
     expect(cli).toContain("lineHopMessage(scene, peeked.hop");
   });
 
@@ -731,14 +734,13 @@ describe("P22 §5.4 — the retired next-face entries and the retained gate face
     expect(hits).toEqual([]);
   });
 
-  it("the retained gate faces stay — `lineGate` · `#linePhase` · `#lineKey` in face/gate.ts", () => {
+  it("the retained gate faces stay — `lineGate` · `#lineKey` · the ONE phase read in face/gate.ts", () => {
     const gate = readFileSync(new URL("../../face/gate.ts", import.meta.url), "utf8");
     expect(gate).toMatch(/\blineGate\b/);
-    expect(gate).toContain("#linePhase");
     expect(gate).toContain("#lineKey");
-    // the block-message faces the deletion does not touch
-    expect(gate).toContain("docLineBlock");
-    expect(gate).toContain("pendingFixBlock");
+    // the line gate reads the authority's ONE line-phase walk (P27 §2.7), never a
+    // private copy of it
+    expect(gate).toContain("this.#authority.linePhaseFacts(");
   });
 });
 
@@ -758,5 +760,82 @@ describe("P22 §5.2 — drift does not outrank a pending fix", () => {
     expect(hop.hop).toBe("fix");
     expect(hop.reason).toBe(NEXT_HOP_REASON.pendingFix);
     expect(hop.reason).not.toBe(NEXT_HOP_REASON.docDrift);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P27 §2.5 — ONE reason table with a `leg` partition. The 13 non-structure tokens
+// are pinned by SPELLING (never by row count: the same table also carries the
+// structure gate-id rows). The row leg domain is structure | line | station — the
+// dispatch verdict's own leg (`structure | upstream | line`) is a different axis,
+// so no `upstream` row exists here and the upstream refusals reuse the existing
+// line/station tokens.
+// ---------------------------------------------------------------------------
+
+describe("P27 §2.5 — the reason table: 13 non-structure tokens with a leg partition", () => {
+  const rows = Object.values(DISPATCH_REASON);
+  const LINE_TOKENS = [
+    // the wave gate's five (moved onto the shared table, leg L)
+    "mixed-batch",
+    "wave-too-wide",
+    "too-many-tasks",
+    "split",
+    "wrong-phase",
+    // the doc/branch refusals (leg L) — `unchanged` is the new same-revision token
+    "pending-fix",
+    "unchanged",
+    "closed-line",
+    "face-closed",
+  ] as const;
+  const STATION_TOKENS = [
+    // the station signs a `next:` hop is named by
+    "doc-drift",
+    "soft-cap",
+    "task-open",
+    "doc-class-blocked",
+  ] as const;
+  const WAVE_TOKENS = ["mixed-batch", "wave-too-wide", "too-many-tasks", "split", "wrong-phase"];
+
+  it("puts every non-structure token on its declared leg, one spelling each", () => {
+    const line = rows.filter((row) => row.leg === "line").map((row) => row.token);
+    const station = rows.filter((row) => row.leg === "station").map((row) => row.token);
+    expect(line.sort()).toEqual([...LINE_TOKENS].sort());
+    expect(station.sort()).toEqual([...STATION_TOKENS].sort());
+    // 13 non-structure tokens — counted by leg, never asserted as a row total
+    expect(line.length + station.length).toBe(13);
+    // a second parallel spelling of any token fails here
+    expect(new Set(rows.map((row) => row.token)).size).toBe(rows.length);
+  });
+
+  it("the leg domain is structure | line | station — no upstream row, structurals reuse gate ids", () => {
+    expect([...new Set(rows.map((row) => row.leg))].sort()).toEqual([
+      "line",
+      "station",
+      "structure",
+    ]);
+    expect(
+      rows
+        .filter((row) => row.leg === "structure")
+        .map((row) => row.token)
+        .sort(),
+    ).toEqual(["doc-contract", "graph", "in-flight", "plan-ledger", "tree-clean"]);
+  });
+
+  it("keeps the existing seven NEXT_HOP_REASON spellings verbatim", () => {
+    expect(NEXT_HOP_REASON.docDrift).toBe("doc-drift");
+    expect(NEXT_HOP_REASON.pendingFix).toBe("pending-fix");
+    expect(NEXT_HOP_REASON.closedLine).toBe("closed-line");
+    expect(NEXT_HOP_REASON.faceClosed).toBe("face-closed");
+    expect(NEXT_HOP_REASON.softCap).toBe("soft-cap");
+    expect(NEXT_HOP_REASON.taskOpen).toBe("task-open");
+    expect(NEXT_HOP_REASON.docClassBlocked).toBe("doc-class-blocked");
+  });
+
+  it("the wave gate's five rows are a table view — wave.ts restates no spelling", () => {
+    expect(Object.values(WAVE_GATE_REASON).sort()).toEqual([...WAVE_TOKENS].sort());
+    const source = readFileSync(new URL("../wave.ts", import.meta.url), "utf8");
+    for (const token of WAVE_TOKENS) {
+      expect(source, `wave.ts restates the ${token} spelling`).not.toContain(`"${token}"`);
+    }
   });
 });

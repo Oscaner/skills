@@ -1,14 +1,16 @@
 // packages/cdd-engine/src-next/session/preflight.ts
-// P4.1 T1 — the lifecycle pre-flight seam (design spec §1): the dispatch gates
+// P4.1 T1 — the lifecycle pre-flight seam (design spec §1): the STRUCTURE gates
 // converge into ONE single-entry gate a work command consults before ANY child
 // dispatch — the clean-tree hard gate (tree-clean → BLOCKED with the commit/discard
 // guidance, the skill-side claim `engine entry gate: dirty → BLOCKED` finally made
-// real), then the plan/ledger structure gate (`plan-ledger`, P21 §3.1/§6.4), the
-// wave-side gates (graph validate + the three-verb WaveGate) and the doc-side gate
-// (Contract.validate over the target doc).
+// real), then the in-flight gate, the plan/ledger structure gate (`plan-ledger`, P21
+// §3.1/§6.4), the graph validate and the doc-side gate (Contract.validate over the
+// target doc). The dispatch's own phase — the wave face's gate and the doc/branch
+// line's — is NOT judged here: it belongs to the ONE dispatch authority
+// (`session/dispatch-authority.ts`, P27 §2), the seam's single consumer.
 //
 // Gate order (the design's pinned sequence, judgeable on every verdict):
-//   tree-clean → in-flight → graph → plan-ledger → (wave face) WaveGate.vet →
+//   tree-clean → in-flight → graph → plan-ledger →
 //   (spec/plan faces) Contract.validate → dispatch
 // The evidence/read-back gates stay at the dispatch child face (the seam never
 // touches the round's produced artifacts — non-pre-flight by design).
@@ -38,29 +40,23 @@ import { TaskGraph } from "./graph.ts";
 import type { InFlight, InFlightState } from "./inflight.ts";
 import type { Ledger, ProgressData } from "./ledger.ts";
 import { RoundRecords } from "./ledger.ts";
-import { WaveGate, type WaveGateReason } from "./wave.ts";
 
-/** The named gates the seam composes — the run evidence + the blocking gate label. */
+/** The named gates the seam composes — the run evidence + the blocking gate label.
+ *  Each name is also the structure leg's reason token in the ONE reason table
+ *  (`DISPATCH_REASON`, §2.5), so the dispatch authority reuses this word list rather
+ *  than spelling the gate ids a second time. */
 export type PreFlightGateName =
   | "tree-clean"
   | "in-flight"
   | "graph"
   | "plan-ledger"
-  | "wave"
   | "doc-contract";
 
-/** The named refusal rows — the BLOCK reason the CDD_BLOCKED wording fills (the
- *  wave-gate rows derive from `WaveGateReason` — one declaration, never a re-list).
+/** The named refusal rows — the BLOCK reason the CDD_BLOCKED wording fills.
  *  Refusals exist only on the failure face (`ok: true` carries no `reason`), so the
  *  enum has zero dead values: "the plan leads the ledger" is a `checked` info row, and
  *  a missing ledger fact bundle is a `checked` skipped row — neither is a refusal. */
-export type PreFlightReason =
-  | "dirty-tree"
-  | "held"
-  | "corrupt-record"
-  | "graph"
-  | WaveGateReason
-  | "doc-contract";
+export type PreFlightReason = "dirty-tree" | "held" | "corrupt-record" | "graph" | "doc-contract";
 
 /** The doc-scope judgment outcome of one dispatch — what the checked list renders.
  *  `layersUnavailable` marks the shape where the call site had no plan layers to inject
@@ -96,13 +92,13 @@ export interface PreFlightVerdict {
   gate?: PreFlightGateName;
   /** The named refusal row (absent when ok). */
   reason?: PreFlightReason;
-  /** The rendered BLOCK wording — the CDD_BLOCKED channel carries it (word-table
-   *  rows + the WaveGate verdict's own filled rows). */
+  /** The rendered BLOCK wording — the CDD_BLOCKED channel carries it (the
+   *  word-table rows). */
   message?: string;
   /** The named issue/finding lines the renderer prints under the message. */
   details?: readonly string[];
   /** The gates that ran, in order — the judgeable order (tree-clean → in-flight →
-   *  graph → plan-ledger → wave → doc-contract, per the face's applicable set). */
+   *  graph → plan-ledger → doc-contract, per the face's applicable set). */
   order: readonly PreFlightGateName[];
   /** The checked face — one row per gate (`${gate}`) and per declared rule
    *  (`${ruleId}: ${passed|failed|skipped (reason)|info (hint)}`), derived from the
@@ -129,19 +125,17 @@ export interface PreFlightDoc {
   path: RepoPath;
 }
 
-/** One dispatch's pre-flight inputs — the facts the seam judges. */
+/** One dispatch's pre-flight inputs — the STRUCTURE facts the seam judges. The
+ *  dispatch's own phase inputs (the verb, the requested task group) are the dispatch
+ *  authority's, never this seam's. */
 export interface PreFlightContext {
-  /** The requested dispatch verb (the three work verbs — the WaveGate's verb). */
-  verb: "implement" | "review" | "fix";
   /** The dispatch's target type (wave / branch / spec / plan). */
   type: TargetType;
   /** The repo root the tree-clean gate reads. */
   repoRoot: string;
   /** The plan text (the wave/plan faces' graph gate input; null otherwise). */
   planText: string | null;
-  /** The requested `--tasks` group (the wave face's WaveGate input). */
-  tasks: ReadonlySet<number> | null;
-  /** The session ledger (the wave face's WaveGate input). */
+  /** The session ledger (the plan-ledger gate's fact source). */
   ledger: Ledger | null;
   /** The doc-contract target of a spec/plan dispatch (null on the other faces). */
   doc: PreFlightDoc | null;
@@ -167,30 +161,21 @@ export class PreFlight {
   readonly #git: GitClient;
   /** The doc-contract coordinator the doc faces judge through. */
   readonly #contract: Contract;
-  /** The three-verb unified wave gate the wave face consults. */
-  readonly #waveGate: WaveGate;
   /** The word table the BLOCK wording rides. */
   readonly #words: Words;
   /** The filesystem seam the doc-contract gate reads (defaults to node:fs). */
   readonly #fs: DocFs;
 
-  constructor(opts: {
-    git: GitClient;
-    contract: Contract;
-    words: Words;
-    waveGate?: WaveGate;
-    fs?: DocFs;
-  }) {
+  constructor(opts: { git: GitClient; contract: Contract; words: Words; fs?: DocFs }) {
     this.#git = opts.git;
     this.#contract = opts.contract;
     this.#words = opts.words;
-    this.#waveGate = opts.waveGate ?? new WaveGate();
     this.#fs = opts.fs ?? new NodeFs();
   }
 
   /** vet(ctx) — the single seam call: tree-clean → in-flight → graph → plan-ledger
-   *  → wave → doc-contract. The first refused gate owns the verdict; the gates that
-   *  ran precede it (the judgeable order). */
+   *  → doc-contract. The first refused gate owns the verdict; the gates that ran
+   *  precede it (the judgeable order). */
   async vet(ctx: PreFlightContext): Promise<PreFlightVerdict> {
     const gates: PreFlightGateName[] = [];
     const checked: string[] = [];
@@ -292,27 +277,7 @@ export class PreFlight {
         }
       }
     }
-    // 5. wave — the three-verb unified wave gate.
-    if (ctx.type === "wave" && graph !== null && ctx.ledger !== null && ctx.tasks !== null) {
-      gates.push("wave");
-      checked.push("wave");
-      const verdict = this.#waveGate.vet(ctx.tasks, ctx.verb, graph, ctx.ledger, this.#words);
-      if (!verdict.ok) {
-        return this.#refusal(
-          {
-            ok: false,
-            gate: "wave",
-            reason: verdict.reason,
-            message: verdict.message ?? "",
-          },
-          gates,
-          checked,
-          this.#docOutcomeOf(ctx),
-          ledgerOutcome,
-        );
-      }
-    }
-    // 6. doc-contract — the doc shapes' structural gate (the doc-scope rules).
+    // 5. doc-contract — the doc shapes' structural gate (the doc-scope rules).
     //    The four document shapes (`phase-spec` · `overall` · `plan` · `single-spec`)
     //    are judged by the SAME gate: the document's declared `doc-type:` picks the
     //    contract, never the command's `--type` spelling.

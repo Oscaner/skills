@@ -279,9 +279,11 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
     expect(doneOf(overall)).toBe("done");
   });
 
-  it("a single-spec target closes the pipeline — the terminal word", () => {
+  it("a single-spec target hands off to cdd-plan per host — never the terminal word (P26 T3)", () => {
     const single = declareSpec("docs/kairos/specs/prog-single-spec.md", "single-spec");
-    expect(doneOf(single)).toBe("done");
+    expect(doneOf(single)).toBe("route to /kairos:cdd-plan skill");
+    expect(doneOf(single, "claude")).toBe("route to /kairos:cdd-plan skill");
+    expect(doneOf(single, "pi")).toBe("route to /skill:cdd-plan skill");
   });
 
   it("no target renders the bare terminal word (the byte-pinned fallback)", () => {
@@ -323,9 +325,11 @@ describe("Capsule — the `done` route's PIPELINE_NEXT doc-class lookup (D33 · 
     );
   });
 
-  it("a single-spec-declared target renders the bare terminal word — no pipeline seam carries it", () => {
+  it("a single-spec-declared target resolves the SAME row as phase-spec — the handoff, not a terminus", () => {
     const single = declareSpec("docs/kairos/specs/prog-single-spec.md", "single-spec");
-    expect(doneOf(single)).toBe("done");
+    expect(PIPELINE_NEXT["single-spec"]).toEqual(PIPELINE_NEXT["phase-spec"]);
+    expect(doneOf(single)).toBe("route to /kairos:cdd-plan skill");
+    expect(doneOf(single)).not.toBe("done");
   });
 
   it("a plan target routes the cdd-dev ref; a branch target the cdd-close ref", () => {
@@ -432,13 +436,18 @@ describe("P22 §5.2 — the six-row render freeze", () => {
     expect(nextOf(phaseSpec)).toBe("next: route to /kairos:cdd-plan skill");
   });
 
-  it("⑤ `hop: null` · `to: null` · face-closed (a single-spec) still prints `next: done`", () => {
+  it("⑤ a closed single-spec hands off to cdd-plan — `reason: closed-line`, never a terminus (P26 T3)", () => {
     const hop = derived(
       { kind: "done" },
       declare("docs/kairos/specs/prog-single.md", "single-spec"),
     );
-    expect([hop.hop, hop.to, hop.reason]).toEqual([null, null, "face-closed"]);
-    expect(nextOf(hop)).toBe("next: done");
+    expect([hop.hop, hop.reason]).toEqual([null, "closed-line"]);
+    expect(hop.to).toEqual(PIPELINE_NEXT["single-spec"]);
+    expect(hop.to).toEqual({ kind: "ref", ref: "kairos:cdd-plan" });
+    // the claude spelling (this fixture's word table), and the pi spelling by hand
+    expect(nextOf(hop)).toBe("next: route to /kairos:cdd-plan skill");
+    const pi = new Capsule(new Words(), {}, "pi");
+    expect(pi.emit("APPROVED", "/h.json", hop)[1]).toBe("next: route to /skill:cdd-plan skill");
   });
 
   it("⑥ a missing `doc-type:` renders the CDD_BLOCKED docType line (hop null, to null)", () => {

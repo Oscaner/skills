@@ -84,10 +84,10 @@ export const ROUTE_DECISION_WORDS = ["done", "next-wave", "review", "fix", "soft
 // ---------------------------------------------------------------------------
 
 /** The doc-class keys of the unified next face — DERIVED from the target vocabulary:
- *  every target type except the standalone `single-spec`, which carries no pipeline
- *  seam (a single-spec is the chain root — its closure is the pipeline terminus, so
- *  it holds a `PIPELINE_NEXT` row but no key of this union). */
-export type PipelineKey = Exclude<TargetType, "single-spec">;
+ *  EVERY declared target class is a pipeline key. A closed standalone `single-spec`
+ *  hands off to `cdd-plan` exactly as a closed `phase-spec` does (the spec face's
+ *  chain continues); the only program-level terminal is the charter (`overall`). */
+export type PipelineKey = TargetType;
 
 /** One pipeline-next row — the skill ref to dispatch (`ref`), a literal command
  *  (`literal`, the wave→branch transition — the wiring literal with its `<plan>`
@@ -99,24 +99,26 @@ export type PipelineEntry =
 
 /** The pipeline next table — the ONE face-indirection source (D33 · single-addressed
  *  at session/next.ts), keyed by the SAME TargetType the CLI declares: the target
- *  type → the next pipeline entrypoint. The two program-level rows (`overall` and
- *  the standalone `single-spec`) are the pipeline's terminals — nothing follows a
- *  closed charter line. The skill refs ride REFS (face/host.ts) resolved per host
- *  at the render — never a hard-coded plugin spelling; the wave literal's `<plan>`
- *  slot is filled by the capsule with the frame's plan fact. */
+ *  type → the next pipeline entrypoint. The ONE program-level terminal row is
+ *  `overall` — nothing follows a closed charter line; a closed `single-spec` is a
+ *  spec line like any other, so it hands off to `cdd-plan`. The skill refs ride REFS
+ *  (face/host.ts) resolved per host at the render — never a hard-coded plugin
+ *  spelling; the wave literal's `<plan>` slot is filled by the capsule with the
+ *  frame's plan fact. */
 export const PIPELINE_NEXT: Readonly<Record<TargetType, PipelineEntry>> = {
   "phase-spec": { kind: "ref", ref: "kairos:cdd-plan" },
   overall: { kind: "done" },
   plan: { kind: "ref", ref: "kairos:cdd-dev" },
-  "single-spec": { kind: "done" },
+  "single-spec": { kind: "ref", ref: "kairos:cdd-plan" },
   wave: { kind: "literal", literal: "review --type branch --plan <plan>" },
   branch: { kind: "ref", ref: "kairos:cdd-close" },
 };
 
-/** The pipeline's phase-level face keys (D40) — `PipelineKey` minus the program-level
- *  `overall` (whose closure is the pipeline terminus, rendered by the capsule,
- *  never walked). */
-export type PhaseFaceKey = Exclude<PipelineKey, "overall">;
+/** The pipeline's phase-level face keys (D40) — `PipelineKey` minus the two
+ *  program-level rows (the charter's closure is the pipeline terminus, rendered by the
+ *  capsule never walked; the standalone `single-spec` is a spec line whose handoff
+ *  target lives in the table, not a face of the traversal). */
+export type PhaseFaceKey = Exclude<PipelineKey, "overall" | "single-spec">;
 
 /** The pipeline's phase-level face order (D40) — the face-to-face traversal
  *  `spec → plan → wave → branch`, the ONE order declaration: the session plane's
@@ -153,7 +155,7 @@ export type Hop = "implement" | "review" | "branch-review" | "fix";
 
 /** The doc-class verdict of a render target — the pipeline key a closed face hands
  *  off to, or one of the two the pipeline cannot route (`blocked` = the declaration
- *  is missing · `terminal` = no pipeline seam carries the declared class). */
+ *  is missing · `terminal` = no target at all). */
 export type DocClassVerdict = PipelineKey | "blocked" | "terminal";
 
 /** The single reason table (§5.2) — every `NextHop.reason` value comes from here, so

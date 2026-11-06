@@ -967,11 +967,11 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).toContain("  next:    done");
   });
 
-  it("a single-spec entry reads its OWN line — the declared word, then the terminal station", () => {
-    // P22 D73 — the board's spec face follows the identity document's DECLARED
+  it("a single-spec entry reads its OWN line — the declared word, then the cdd-plan handoff", () => {
+    // P26 T3 — the board's spec face follows the identity document's DECLARED
     // `doc-type:` (never a hardcoded `phase-spec`): the row counts ride the
-    // `single-spec` line the engine books, and the exit is the standalone document's
-    // terminal station (`done`) — the SAME word the capsule renders for the target.
+    // `single-spec` line the engine books, and the exit is the pipeline handoff
+    // (`PIPELINE_NEXT["single-spec"]` → cdd-plan) — the SAME word the capsule renders.
     writeDoc("docs/kairos/specs/prog-single.md", [
       "---",
       "title: S",
@@ -987,7 +987,17 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     expect(text).toContain("  spec     prog-single.md");
     expect(text).toContain("review 2 ✓ · fix 1 ✓");
-    expect(nextOf("prog-single")).toBe("done");
+    expect(nextOf("prog-single")).toBe("route to /kairos:cdd-plan skill");
+    // the pi spelling resolves from the same ref row
+    expect(nextOf("prog-single", "pi")).toBe("route to /skill:cdd-plan skill");
+    // P26 T3 red pin: the declared class IS the pipeline key — folding it back into
+    // `terminal` turns this red (the retired D73 shape).
+    expect(
+      BoardView.docClassOf(new RepoRoot(repo), {
+        type: "single-spec",
+        id: "docs/kairos/specs/prog-single.md",
+      }),
+    ).toBe("single-spec");
     expect(text).not.toContain("--type phase-spec");
   });
 

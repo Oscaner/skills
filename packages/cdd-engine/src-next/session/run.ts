@@ -401,13 +401,13 @@ export class Lifecycle {
   }
 
   /** The session-plane default discrimination — the target type's own pipeline key.
-   *  Every target type but the standalone `single-spec` IS a pipeline key (the
-   *  `PipelineKey` derivation), so the map is the identity plus the one terminal row
-   *  (a single-spec carries no pipeline seam). The declaration-reading judgment (a
-   *  doc's `doc-type:`) belongs to the face plane; the composition root injects it as
-   *  `BoardView.docClassOf`. */
+   *  Every declared target type IS a pipeline key (the `PipelineKey` derivation), so
+   *  the map is the identity: a standalone `single-spec` reads as `single-spec` and its
+   *  closure hands off to `cdd-plan` like any other spec line. The declaration-reading
+   *  judgment (a doc's `doc-type:`) belongs to the face plane; the composition root
+   *  injects it as `BoardView.docClassOf`. */
   static #docClassByType(target: RouteTarget): DocClassVerdict {
-    return target.type === "single-spec" ? "terminal" : target.type;
+    return target.type;
   }
 
   /** The face row this instance drives. */

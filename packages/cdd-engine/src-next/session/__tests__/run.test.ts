@@ -1970,8 +1970,9 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
       expect(step!.capsuleLines[1]).toBe(`next: review --type plan --plan ${planPath}`);
       expect(reasonTokenOf(step!.capsuleLines[2]!)).toBe("task-open");
 
-      // The same owner with no plan document: the class is terminal, so the reason
-      // row is `face-closed` (never the charter's `closed-line`).
+      // The same owner with no plan document: the closed spec line hands off to
+      // `cdd-plan` with the closed-line reason (P26 T3 — a single-spec is a spec
+      // line, not a program terminus).
       const { ledger: bareLedger, specPath: bareSpec, cleanup: bareCleanup } = nodeFixture();
       try {
         const withoutPlan = new Lifecycle({
@@ -1985,8 +1986,8 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
           capsule: new Capsule(new Words()),
         });
         const bare = await withoutPlan.advance();
-        expect(bare!.capsuleLines[1]).toBe("next: done");
-        expect(reasonTokenOf(bare!.capsuleLines[2]!)).toBe("face-closed");
+        expect(bare!.capsuleLines[1]).toBe("next: route to /kairos:cdd-plan skill");
+        expect(reasonTokenOf(bare!.capsuleLines[2]!)).toBe("closed-line");
       } finally {
         bareCleanup();
       }

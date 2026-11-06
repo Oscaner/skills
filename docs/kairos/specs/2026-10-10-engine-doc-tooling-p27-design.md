@@ -92,6 +92,18 @@ DispatchVerdict =
 
 D30 保的是「plan 里不涉及本波任务段的改动，不作废已审的 wave」——那是**身份**面：wave 行不因无关改动重开。本相位说的是**派发**面：上游没复评完，就不往下游投料。两者不矛盾：波内 `implement → review → fix` 循环照旧（wave 行身份不动），但**新一轮派发**要等上游复评。裁定 (a) 是对 D30 的正向补充，不是反转——D30 原文没区分这两层。
 
+### 4. 与判收敛主线的关系（只收口「谁说了算」，不动「算不算收敛」）
+
+**「这一轮算不算收敛」的主线逻辑一字不动**，仍是 `NextStepRouter` 那一条：review 的 `blocker > 0` ⇒ `fix`；只有 `warn` / `nit` ⇒ `fix` 且修完**不进** re-review；全 0 ⇒ 闭合 / 下一跳；fix 的请求含 blocker ⇒ `review`，不含 ⇒ 闭合；连续 `REVIEW_CYCLE_CAP`（`session/next.ts:65`，值 50）个 blocker 周期 ⇒ `soft-cap` 交用户裁定。店主是 `#close`（`:300`）与 `#blockerCount`（`:306`）。
+
+本相位只动**「谁能派这一轮」**这一侧的裁决与词表，不动**「这一轮之后该哪一轮」**这一侧的推导。两者的接缝很窄，写清三条避免误伤：
+
+1. **`Route` 的六种 kind 与派生顺序不变**（`next.ts:46` 起的 `done` · `next-wave` · `review` · `fix` · `soft-cap` · `handoff`）。
+2. **reason 表合一只搬 token 与渲染，不改 `#close` / `#blockerCount` / `REVIEW_CYCLE_CAP`**：`soft-cap` 这一行照旧只在软上限成立时出现；`pending-fix` / `closed-line` 的判定条件也不因为换了表而变。
+3. **原有的收敛 pin 全部零重锚**：`scripts/__tests__/next-loop-twin.test.ts`（三条陈述 + 周期数与常量对齐 + 运行时符号 `#blockerCount(` / `#close(` / `export const REVIEW_CYCLE_CAP`）与引擎侧 Loop-vs-converge 转移表逐行 pin 都必须**原样绿**——这是本相位「只管派发面」的证据。
+
+一句话：本相位让 `next:` 变成必须遵守的裁决，但**不改变裁决内容怎么算出来的**。
+
 ### Acceptance criteria
 
 - **红 pin（今日必红）**：plan 行 reviewed identity 陈旧时，`implement --tasks …` 被拒，`leg: "upstream"`、`reason: "doc-drift"`、报文点名 `review --type plan`。
@@ -100,6 +112,7 @@ D30 保的是「plan 里不涉及本波任务段的改动，不作废已审的 w
 - **reason 表 13 行 + `leg` 分区**，逐行 pin；报文形状 `reason · next:` 逐字 pin；结构拒无 `next`。
 - **WaveGate 五行语义逐条等价**：`mixed-batch` / `wave-too-wide` / `too-many-tasks` / `split` / `wrong-phase` 各一条行为 pin（改写后仍红）。
 - **每种面各一条上游红 pin**：spec 陈旧挡 plan review · plan 陈旧挡 wave 派发 · wave 未闭合挡 branch review；**身份面两种声明各一条**（`single-spec` 与 `phase-spec` 都能被上游腿判到）。
+- **判收敛主线零变化**：`#close` / `#blockerCount` / `REVIEW_CYCLE_CAP` 的取值与派生顺序不动（源码 pin），Loop-vs-converge 转移表逐行 pin 与 `next-loop-twin` 的三条陈述 + 符号 pin **一行不改仍绿**；`soft-cap` 仍只在软上限成立时出现（一条行为 pin）。
 - `pnpm run validate` exit 0；changeset `cdd-engine` **minor**（拒绝行为与报文可见变化）。
 
 ## Constraints
@@ -111,9 +124,10 @@ D30 保的是「plan 里不涉及本波任务段的改动，不作废已审的 w
 - 零模块级裸函数：`DispatchAuthority` 与规则表写成类/常量；静态面带 biome-ignore 与一行理由。
 - 波宽 ≤ 3：本相位任务的 `DependsOn` 分层任一不超过 3。
 - 门与报文只读既有事实：announce 上游陈旧时**不**顺手触发复评（派发门只拒，不动账本）。
+- **判收敛主线不动（硬约束）**：`NextStepRouter#close`（`:300`）· `#blockerCount`（`:306`）· `REVIEW_CYCLE_CAP`（`:65`，值 50）· 软上限阈值与 `soft-cap` 的触发条件，一行不改；`Route` 六种 kind 与派生顺序不改；`scripts/__tests__/next-loop-twin.test.ts` 与引擎侧 Loop-vs-converge 转移表 pin **零重锚**。任何一条被改动，本相位即判缺陷。
 
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
-| v0.1 | 2026-11-06 | 初版：病根取证（十三处判断 · 三个权威 · 站牌无派发读者 · P26 实证）· 一个 `DispatchAuthority`（三腿 + 优先级）· 上游腿按面序派生（身份面含 `single-spec`）· 五规则入表 · reason 表 13 行分区（计数更正）· 报文统一 · 与 D30 的澄清 | [human] 裁定 · Claude（本会话 · 2026-11-06） |
+| v0.1 | 2026-11-06 | 初版（含作者追加的硬约束 §4：判收敛主线一字不动）：病根取证（十三处判断 · 三个权威 · 站牌无派发读者 · P26 实证）· 一个 `DispatchAuthority`（三腿 + 优先级）· 上游腿按面序派生（身份面含 `single-spec`）· 五规则入表 · reason 表 13 行分区（计数更正）· 报文统一 · 与 D30 的澄清 | [human] 裁定 · Claude（本会话 · 2026-11-06） |

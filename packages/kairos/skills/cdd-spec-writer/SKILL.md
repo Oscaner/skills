@@ -37,6 +37,11 @@ flowchart TD
   - **single-spec** — the free-form spec form; the docs-lane doc-contract gate asserts the version-lineage on every reviewed spec
   - **phase-spec** — the phase scope is an increment only: when the phase scope changed vs the parent overall, sync the parent overall (Issue/Phase inventory + Dependency graph + version bump + change history) BEFORE writing (the four-table sync ordering; the sync is the registration gate, never a silent skip)
   - **overall** — the phase registration for a new phase is the parent's own table sync (see run-cdd-design's `run-cdd-charter · sync`)
+
+  State the condition, never a snapshot of today's tree — three claim shapes, one line each:
+  - **pin** — a behavior claim cites a colocated pin by module path + symbol name; a line number is not a pin
+  - **count** — "N places" · "N rows" · "N modules" is stated as pinned by the named guard or test; the guard maintains the number
+  - **narrative** — a present-tense description of today's shape belongs to the plan; restate it as the condition that must hold
 - **Read**: Session output + the target's structural contract (phase-spec/overall variants also read the parent overall)
 - **Exit**: File written → `self-review`
 - **Fail**: Session output unusable or write error → BLOCKED (missing design input)

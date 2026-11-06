@@ -85,9 +85,9 @@ Kairos skills invoke `npx -y @oscaner-skills/cdd-engine@latest <subcommand>` —
 
 Hand-maintained neighbours (safe to edit): `marketplace/README.md`, `marketplace/source.schema.json`.
 
-Also generated / off-limits: `packages/cdd-engine/dist/` (build output, gitignored), `docs/diagrams/*.html` (and `.delivery.json`, gitignored — machine-specific). Regenerate diagrams from `docs/diagrams/src/*.json` with the Archify command in [`docs/diagrams/README.md`](docs/diagrams/README.md); never hand-edit the HTML.
+Also generated / off-limits: `packages/cdd-engine/dist/` (build output, gitignored), `docs/diagrams/*.html` (and the Archify gate receipts, gitignored — machine-specific). Regenerate diagrams with `pnpm run emit` — the same batch as every other generated product, rendered from `docs/diagrams/src/*.json`; [`docs/diagrams/README.md`](docs/diagrams/README.md) carries the manual `archify finalize` full-gate command. Never hand-edit the HTML.
 
-**Re-emit triggers:** any first-party `package.json#oscaner` or version change, or a change to `packages/cdd-engine/templates/report/issue-body.json` → `pnpm run emit`, then commit the result. `pnpm run emit:check` is the gate (exit 1 on drift).
+**Re-emit triggers:** any first-party `package.json#oscaner` or version change, a change to `packages/cdd-engine/templates/report/issue-body.json`, or a change to `docs/diagrams/src/*.json` → `pnpm run emit`, then commit the result. `pnpm run emit:check` is the gate (exit 1 on drift).
 
 No hand-written version literals in shipped docs: the README plugin table must not carry a version (a kairos-suite probe enforces it). Version single source = `package.json` → emit products → npm.
 

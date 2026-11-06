@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P28 计划：再生层入仓 + spec 易变事实纪律
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-11-06
 slug: 2026-10-10-engine-doc-tooling-p28
 base: develop
@@ -35,13 +35,13 @@ base: develop
 
 #### Objective
 
-把 Archify 钉进根 `devDependencies`；新建 `scripts/lib/diagrams.ts#DiagramProducts`（清单从源派生 · 渲染器可注入 · 全有或全无落盘 · 孤儿走查）；把它挂进 `scripts/emit.ts#EmitService.emitAll` 与 stale 面；两条 colocated pin 钉住派生集与 `index.html` 排除。
+把 Archify 钉进根 `devDependencies`；新建 `scripts/lib/diagrams.ts#DiagramProducts`（清单从源派生 · 渲染器可注入 · 全有或全无落盘 · 孤儿走查）；把它挂进 `scripts/emit.ts#EmitService.emitAll` 与 stale 面；两条 colocated pin 钉住派生集与 `index.html` 排除，另加一条行为 pin 钉「缺 bin 时默认渲染器抛错、零写盘」（不静默跳过）。
 
 #### Files
 
 - Modify: 根 `package.json` · `pnpm-lock.yaml`（加 Archify `github:#path:` 钉）
 - Create: `scripts/lib/diagrams.ts`（`DiagramProducts`）
-- Modify: `scripts/emit.ts`（`EmitService.emitAll` 调图档 · `findStaleCommittedFiles` / `EmitComparer` 接孤儿腿）
+- Modify: `scripts/emit.ts`（`EmitService.emitAll` 调图档 · 孤儿腿只开一个缝：`EmitService.findStaleCommittedFiles` —— `EmitComparer.compareTrees` 已把 stale 委托给它，不另加调用点）
 - Test: `scripts/__tests__/diagrams.test.ts`（新建）· 既有 `scripts/__tests__/emit.test.ts` 仍绿
 
 #### Consumes
@@ -59,10 +59,10 @@ base: develop
 
 #### Steps
 
-- [ ] **Step 1: 写红 pin（派生集 + `index.html` 排除 + 全有或全无）** — checkable: `scripts/__tests__/diagrams.test.ts` 用桩渲染器断言：`list()` 的 `outRel` 多重集恰为六条 `meta.output`；`list()` 的路径集合不含 `docs/diagrams/index.html`；桩对第五份抛错时 `emit` 后 `outRoot` 内零图 HTML、`generatedPaths` 不增图路径；今日无 `DiagramProducts` ⇒ 红
-- [ ] **Step 2: 实现 `DiagramProducts`** — checkable: Step 1 的三条转绿；默认渲染器走 `process.execPath` + `node_modules/archify/bin/archify.mjs`（源码 pin：调用面不经 PATH / shell 垫片）
-- [ ] **Step 3: 钉根依赖并安装** — checkable: 根 `package.json#devDependencies` 含 `github:tt-a1i/archify#208acba8d412335185b2056fedf54b3405df43fb&path:/archify`；`pnpm install` 后 `node_modules/archify/bin/archify.mjs` 存在；`pnpm-lock.yaml` 记同一 sha
-- [ ] **Step 4: 接入 `emitAll` + 孤儿腿** — checkable: `EmitService.emitAll` 末尾调用图档；`findStaleCommittedFiles`（或 `EmitComparer.compareTrees`）在 `generatedSet` 之外对 `docs/diagrams/*.html` 跑孤儿走查（豁免 `index.html`）；手改一份产物一行后 `pnpm run emit:check` 红并点名该文件；删一份源（测试用临时改名/夹具）后孤儿腿红
+- [ ] **Step 1: 写红 pin（派生集 + `index.html` 排除 + 全有或全无 + 缺 bin 报错）** — checkable: `scripts/__tests__/diagrams.test.ts` 用桩渲染器断言：`list()` 的 `outRel` 多重集恰为六条 `meta.output`；`list()` 的路径集合不含 `docs/diagrams/index.html`；桩对第五份抛错时 `emit` 后 `outRoot` 内零图 HTML、`generatedPaths` 不增图路径；**不注入 `render`**（走默认渲染器）而把 `repoRoot` 指到缺 `node_modules/archify/bin/archify.mjs` 的临时目录时，`emit` 抛「Archify missing — run pnpm install」类错误且 `outRoot` / `generatedPaths` 零写盘（不静默跳过）；今日无 `DiagramProducts` ⇒ 红
+- [ ] **Step 2: 实现 `DiagramProducts`** — checkable: Step 1 的四条转绿；默认渲染器走 `process.execPath` + `node_modules/archify/bin/archify.mjs`（源码 pin：调用面不经 PATH / shell 垫片），bin 缺失时抛错而非返回
+- [ ] **Step 3: 钉根依赖并安装** — checkable: 根 `package.json#devDependencies` 含 `github:tt-a1i/archify#208acba8d412335185b2056fedf54b3405df43fb&path:/archify`；`pnpm install` 后 `node_modules/archify/bin/archify.mjs` 存在（装好后的 happy-path 对照，补 Step 1 的缺 bin 红 pin）；`pnpm-lock.yaml` 记同一 sha
+- [ ] **Step 4: 接入 `emitAll` + 孤儿腿** — checkable: `EmitService.emitAll` 末尾调用图档；孤儿腿只挂在 `EmitService.findStaleCommittedFiles` 内——在 `generatedSet` 之外对 `docs/diagrams/*.html` 跑 `DiagramProducts.orphanHtml`（豁免 `index.html`），`EmitComparer.compareTrees` 不新增调用点（它已委托该方法）；手改一份产物一行后 `pnpm run emit:check` 红并点名该文件；删一份源（测试用临时改名/夹具）后孤儿腿红
 - [ ] **Step 5: 真渲染回归** — checkable: `pnpm run emit` 后 `git status --porcelain docs/diagrams` 空；`pnpm run emit:check` exit 0；`pnpm exec vitest run scripts/__tests__/diagrams.test.ts scripts/__tests__/emit.test.ts` 全绿
 - [ ] **Step 6: 提交** — checkable: commit `feat(scripts): emit owns diagram regeneration via Archify render`
 
@@ -70,6 +70,7 @@ base: develop
 
 - 派生集 pin 与 `index.html` 排除 pin 各可反向红。
 - 全有或全无：失败路径零写盘（行为 pin）。
+- 缺 bin 报错：默认渲染器在 bin 缺失时抛错且零写盘（行为 pin）；Step 3 的 bin 存在性是装好后的 happy-path 对照。
 - 根依赖钉到 `208acba8…`；bin 由 `process.execPath` 直起。
 - `pnpm run emit` / `emit:check` 对 `docs/diagrams/` 干净；`BASE_PRODUCT_ROOTS` / `PRODUCT_FILES` 既有项字节不动。
 
@@ -80,7 +81,7 @@ none
 
 #### Objective
 
-孪生门 mismatch 消息统一附 `— regenerate: pnpm run emit`；语义门消息对照 pin 不含该提示；`docs/diagrams/README.md` 与 `AGENTS.md` 的日常再生改指 `pnpm run emit`，人工 `finalize` 保留为全门路径说明；人填 Archify 占位参数零残留。
+孪生门 mismatch 消息统一附 `— regenerate: pnpm run emit`；语义门消息对照 pin 不含该提示；`docs/diagrams/README.md` 与 `AGENTS.md` 的日常再生改指 `pnpm run emit`，人工 `finalize` 保留为全门路径说明；人填 Archify 占位参数零残留；收口波（W2）跑全量门 `env -u AI_AGENT pnpm run validate` exit 0。
 
 #### Files
 
@@ -100,6 +101,7 @@ none
 - 语义门既有失败消息集合零命中该后缀（对照 pin）。
 - README 两条路径：日常 = `pnpm run emit`；人工全门 = `pnpm exec archify finalize` 加 type/src/out 与 `--repo-root . --quality showcase --out-dir` 指向临时目录加 `--json`（点名需要宿主 Chrome · receipt 走 `--out-dir`）。
 - `AGENTS.md` 再生句改指 `pnpm run emit`（不再指「用 README 里的 Archify 命令」作为日常路径）。
+- `env -u AI_AGENT pnpm run validate` exit 0 —— 全量门由本收口波拥有（覆盖 T1 与 T3 的全部交付）。
 
 #### Steps
 
@@ -108,13 +110,15 @@ none
 - [ ] **Step 3: 语义门对照 pin** — checkable: Step 1 对照断言绿；语义门既有用例零重锚仍绿
 - [ ] **Step 4: 改 README + AGENTS.md** — checkable: `docs/diagrams/README.md` 与 `AGENTS.md` 均含 `pnpm run emit` 作为日常再生；人填 Archify 路径占位（形如 `node <…>/archify.mjs` 的占位参数）零残留；人工 `finalize` 命令可复制
 - [ ] **Step 5: changeset** — checkable: `.changeset/` 下有 `cdd-engine` **minor** 条目覆盖门消息（可与 Task 3 合并为单文件，但 package 级必须点名）
-- [ ] **Step 6: 提交** — checkable: commit `docs(diagrams): twin gate names emit as the repair path`
+- [ ] **Step 6: 全量门** — checkable: `env -u AI_AGENT pnpm run validate` exit 0（emit 新鲜 · root / kairos / engine 三套件 · typecheck ×3 · version-sync · 零裸函数）
+- [ ] **Step 7: 提交** — checkable: commit `docs(diagrams): twin gate names emit as the repair path`
 
 #### Acceptance
 
 - 孪生门 mismatch 含 `regenerate: pnpm run emit`（字符串 pin）；语义门不含（对照 pin）。
 - README / `AGENTS.md` 日常再生指向 `pnpm run emit`；人填占位零残留；人工 `finalize` 可复制。
 - 孪生门三腿判据语义零变化（既有反向注入仍红在同一腿）。
+- 全量门：`env -u AI_AGENT pnpm run validate` exit 0（收口波拥有该门，不留给编排器）。
 
 #### DependsOn
 1
@@ -170,3 +174,4 @@ none
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-06 | 初版：三任务按 spec §6 切分 — T1 再生层（根依赖 + `DiagramProducts` + emit/孤儿 + 两条 pin）· T2 孪生门修法 + README/AGENTS（DependsOn 1）· T3 易变事实（`docNarrativeAxes` + 三子串 + 两 skill）；波次 W1={1,3} / W2={2}；全有或全无与 plan 变体零变化写入 Constraints / Review Focus | [human] 裁定 · Claude（kairos:cdd-plan · 本会话） |
+| v0.2 | 2026-11-06 | 评审修轮（plan-review-1 全数应用）：T1 Step 1 增缺 bin 报错红 pin（默认渲染器、零写盘）· T2 增收口波全量门 `env -u AI_AGENT pnpm run validate`（Step + Acceptance + Produces）· T1 Step 4 孤儿腿收成单一缝 `EmitService.findStaleCommittedFiles`（去掉 `EmitComparer` 备选） | Claude（kairos:cdd-plan · docs-fix） |

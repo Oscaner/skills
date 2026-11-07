@@ -430,8 +430,9 @@ export interface HandoffParams {
  *  honest identity, one concept one name — a `doc_hash` layer must never point at a
  *  non-document). `doc-revision` = the spec/plan line (the document PATH + its BODY's
  *  content hash — the front matter and `## Change history` are projected away first,
- *  P26 T1); `brief-revision` = the wave line (the plan it renders FROM + the
- *  RENDERED brief's content hash — the wave's true judgment input, never the plan).
+ *  P26 T1); `brief-revision` = the wave line (the plan it renders FROM + its
+ *  TASK-ONLY projection's content hash — the wave's true judgment input, never the
+ *  whole plan and never the `## Constraints` dispatch input, P29 §2.2).
  *  The commit-bearing kinds (commit-set-ledger · commit-range) retired with the
  *  commit-sha surface (P7): a review judges the live tree, so no committed range
  *  is ever a ref. Node-level review is structurally absent (R5 · the wave-atomic
@@ -582,9 +583,11 @@ export class Ledger {
    *  through the same face). Injected with this ledger's own ref face, so the
    *  same-ref predicate keeps one definition. */
   readonly #identity = new LineIdentity(this.#refs);
-  /** The task-brief renderer (D30) — the wave line's judgment-input derivation:
-   *  the wave's reviewed basis is the RENDERED brief's content, never the whole
-   *  plan (a backfill touching other tasks must not void a reviewed wave). */
+  /** The task-brief renderer (D30 · P29 §2.2) — the wave line's judgment-input
+   *  derivation: the wave's reviewed basis is the TASK-ONLY projection
+   *  (`BriefRenderer#taskBody`), never the whole plan and never the `## Constraints`
+   *  dispatch input (a backfill touching other tasks, or a Constraints reword, must
+   *  not void a reviewed wave). */
   readonly #brief = new BriefRenderer();
   /** The round-naming single source over this ledger's workspace — the crash
    *  artifact names derive here (zero second derivation). */

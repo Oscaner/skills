@@ -759,20 +759,22 @@ export class Lifecycle {
   /** The reviewed-revision write-back — bind the completed round's input revision to
    *  the line record (the T7 doc + D30 wave identity gates' reopen-compare basis). The
    *  doc face binds its target doc's BODY revision (the front matter and
-   *  `## Change history` projected away, P26 T1); the wave face binds its
-   *  RENDERED BRIEF's revision (D30 — the wave's true judgment input is the brief,
-   *  never the whole plan: transcript edits outside the wave's task sections must not
-   *  void a reviewed wave). An unreadable input records nothing — the line keeps the
+   *  `## Change history` projected away, P26 T1); the wave face binds its TASK-ONLY
+   *  brief projection's revision (D30 · P29 §2.2 — the wave's true judgment input is
+   *  the brief's task sections, never the whole plan and never the `## Constraints`
+   *  dispatch input: transcript edits outside the wave's task sections must not void a
+   *  reviewed wave). An unreadable input records nothing — the line keeps the
    *  legacy closed face (only present facts land, never an invented identity). */
   #recordReviewedDocRevision(frame: OpenFrame): void {
     if (frame.target.kind !== "plan" && frame.target.kind !== "spec") return;
     this.#recordDocRevisionOf(frame.key, frame.target.doc, frame.type);
   }
 
-  /** The wave line's reviewed-brief write-back (D30) — bind the RENDERED brief's
-   *  revision for the wave's tasks to the row (the D30 wave-gate reopen basis) on a
-   *  completed review or fix round. Null plan path / underivable brief records nothing
-   *  (present facts only). */
+  /** The wave line's reviewed-brief write-back (D30 · P29 §2.2) — bind the wave's
+   *  TASK-ONLY projection revision (`BriefRenderer#taskBody` — the same face the
+   *  lifecycle hashes) to the row (the D30 wave-gate reopen basis) on a completed
+   *  review or fix round. Null plan path / underivable brief records nothing (present
+   *  facts only). */
   #recordReviewedWaveBrief(frame: OpenFrame): void {
     if (frame.target.kind !== "wave" || this.#planPath === null) return;
     this.#ledger.recordReviewedBrief(String(frame.key), this.#planPath);

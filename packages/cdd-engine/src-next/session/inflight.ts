@@ -65,9 +65,10 @@ export interface InFlightRecord {
    *  the identity's third cell (spec §5.3). Null on a record written before this cell
    *  existed. */
   readonly attempt: number | null;
-  /** The rendered brief's content hash at acquire time (`ReviewRefs.briefRevision`
-   *  — the SAME hash face the ledger binds, zero new hash surface); null off the
-   *  wave face. */
+  /** The wave's TASK-ONLY brief projection hash at acquire time
+   *  (`ReviewRefs.briefRevision` over `BriefRenderer#taskBody` — `## Constraints`
+   *  excluded, the SAME hash face the ledger binds, zero new hash surface); null off
+   *  the wave face. */
   readonly briefHash: string | null;
   /** The plan path the dispatch read (repoRoot-relative); null when the face carries
    *  no plan fact. */

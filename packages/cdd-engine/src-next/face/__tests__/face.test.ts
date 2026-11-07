@@ -40,7 +40,7 @@ const capsule = new Capsule(words);
 const hopOf = (route: Route, target: RouteTarget | null = null): NextHop =>
   new NextStepRouter().nextHop({
     target,
-    gate: { drift: false },
+    gate: { docDrift: false, briefDrift: false },
     route,
     verdict: target === null ? "terminal" : "phase-spec",
   });

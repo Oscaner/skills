@@ -196,6 +196,9 @@ export const DISPATCH_REASON = {
   closedLine: { token: "closed-line", leg: "line" },
   faceClosed: { token: "face-closed", leg: "line" },
   // station — the signs a `next:` hop is named by
+  /** A wave line's TASK-ONLY projection moved past the one its review bound. */
+  briefDrift: { token: "brief-drift", leg: "station" },
+  /** A document's revision moved past the one its review bound. */
   docDrift: { token: "doc-drift", leg: "station" },
   softCap: { token: "soft-cap", leg: "station" },
   taskOpen: { token: "task-open", leg: "station" },
@@ -219,8 +222,12 @@ export const WAVE_GATE_REASON = {
 export type WaveGateReason = (typeof WAVE_GATE_REASON)[keyof typeof WAVE_GATE_REASON];
 
 /** The named accessors for `NextHop.reason` — every value is the table's own token
- *  (one spelling source; the hop reason domain spans both the line and station legs). */
+ *  (one spelling source; the hop reason domain spans both the line and station legs).
+ *  `briefDrift` and `docDrift` are TWO facts, never one: a wave brief's task-only
+ *  projection vs a document's revision (§2.3), so a reader never has to guess which
+ *  identity moved from the token alone. */
 export const NEXT_HOP_REASON = {
+  briefDrift: DISPATCH_REASON.briefDrift.token,
   docDrift: DISPATCH_REASON.docDrift.token,
   pendingFix: DISPATCH_REASON.pendingFix.token,
   closedLine: DISPATCH_REASON.closedLine.token,
@@ -267,11 +274,14 @@ export interface NextHop {
 export interface NextHopInput {
   /** The line's render target (null = the face was never entered / a bare terminal). */
   readonly target: RouteTarget | null;
-  /** The drift-aware gate's verdict on the line (`drift` = the line's own recorded
-   *  reviewed identity moved — a doc line's revision, or a wave line's brief revision —
-   *  so the closed line reopens). Only the DOC lines' exit-side routes are SUBSTITUTED
-   *  by it; on the wave line it names the reason alone, the route staying the caller's. */
-  readonly gate: { readonly drift: boolean };
+  /** The drift-aware gate's TWO verdict cells, kept apart on purpose (§2.3):
+   *  `docDrift` = a DOCUMENT moved past the revision its review bound (`reviewGate`
+   *  → open, so a closed doc line reopens); `briefDrift` = a WAVE's task-only brief
+   *  projection moved past the one its review bound. Only `docDrift` SUBSTITUTES a
+   *  route (the doc lines' exit-side routes); the brief cell names the reason alone,
+   *  the route staying the caller's. Neither boolean may ever stand in for the other:
+   *  the two movements call for different re-reviews, so they name different tokens. */
+  readonly gate: { readonly docDrift: boolean; readonly briefDrift: boolean };
   /** The count table's route for the line (null = the failure face). */
   readonly route: Route | null;
   /** The doc-class discrimination's own verdict on the `target` cell — the ONE
@@ -452,13 +462,16 @@ export class NextStepRouter {
 
   /** The named fact behind the hop — one `NEXT_HOP_REASON` row, in this order: the
    *  soft cap · a pending fix · a drift-reopened line (its reviewed identity moved —
-   *  a doc revision or a wave's brief revision) · an open line advancing · an
-   *  unjudgeable doc class · a closed face · the closed line's handoff. Drift never
-   *  outranks a pending fix (an unclosed line's blocker keeps the fix hop). */
+   *  the wave brief's task-only projection, or a document's revision) · an open line
+   *  advancing · an unjudgeable doc class · a closed face · the closed line's handoff.
+   *  Drift never outranks a pending fix (an unclosed line's blocker keeps the fix hop),
+   *  and the two drift kinds never share a token: the wave brief's movement is
+   *  `brief-drift`, a document revision's is `doc-drift` (§2.3). */
   #reasonOf(input: NextHopInput, route: Route | null, verdict: DocClassVerdict): DispatchReason {
     if (route?.kind === "soft-cap") return NEXT_HOP_REASON.softCap;
     if (route?.kind === "fix") return NEXT_HOP_REASON.pendingFix;
-    if (route?.kind === "review" && input.gate.drift) return NEXT_HOP_REASON.docDrift;
+    if (route?.kind === "review" && input.gate.briefDrift) return NEXT_HOP_REASON.briefDrift;
+    if (route?.kind === "review" && input.gate.docDrift) return NEXT_HOP_REASON.docDrift;
     if (route !== null && this.hopOf(route, NextStepRouter.#faceOf(verdict)) !== null)
       return NEXT_HOP_REASON.taskOpen;
     if (verdict === "blocked") return NEXT_HOP_REASON.docClassBlocked;

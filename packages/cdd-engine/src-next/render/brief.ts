@@ -7,7 +7,9 @@
 // the plan's `## Constraints` section (the complete plan mirror). The checkable
 // gate blocks step surfaces that carry a step
 // with no checkable clause; a requested task with no matching heading blocks the
-// whole render (the group-level out-of-bounds contract).
+// whole render (the group-level out-of-bounds contract). The task sections are
+// also exposed alone (`taskBody`) — the wave's reviewed-basis projection (P29
+// §2.2), so the child's bytes and the reopen fingerprint share one assembly.
 
 import type { TaskStep } from "../contract/doc.ts";
 import { PlanDocType } from "../contract/doc.ts";
@@ -92,10 +94,13 @@ export class BriefRenderer {
     return { data, missing };
   }
 
-  /** Render the brief content — the requested task sections + the plan's
-   *  `## Constraints` section (the complete plan mirror). Any requested task without
-   *  a heading blocks the whole render (out-of-bounds). */
-  render(planContent: string, tasks: readonly number[]): string {
+  /** The task-only projection — the wave's reviewed-basis content face: the requested
+   *  `### Task N:` sections and nothing else. `render` appends the plan's
+   *  `## Constraints` on top of this projection for the child; the reviewed-brief hash
+   *  (`Ledger#briefRevision` / `#briefDrifted`) covers this projection alone (P29 §2.2
+   *  — a Constraints reword is dispatch input, never a brief drift). One assembly,
+   *  two consumers: zero second slicing logic. */
+  taskBody(planContent: string, tasks: readonly number[]): string {
     const { data, missing } = this.extract(planContent, tasks);
     if (missing.length > 0) {
       throw new Error(
@@ -103,11 +108,16 @@ export class BriefRenderer {
       );
     }
     const lines = planContent.split("\n");
-    const sections = data.map((task) => this.#slice(lines, task.range));
+    return data.map((task) => this.#slice(lines, task.range)).join("\n\n");
+  }
+
+  /** Render the brief content — the task-only projection + the plan's `## Constraints`
+   *  section (the complete plan mirror the child reads). Any requested task without a
+   *  heading blocks the whole render (out-of-bounds). */
+  render(planContent: string, tasks: readonly number[]): string {
+    const body = this.taskBody(planContent, tasks);
     const constraints = this.#reader.section(planContent, "Constraints");
-    const body =
-      constraints === "" ? sections.join("\n\n") : `${sections.join("\n\n")}\n\n${constraints}`;
-    return `${body}\n`;
+    return constraints === "" ? `${body}\n` : `${body}\n\n${constraints}\n`;
   }
 
   /** The AST-range slice of one task block — the block's own lines verbatim, its

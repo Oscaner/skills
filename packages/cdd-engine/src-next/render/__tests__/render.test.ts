@@ -605,6 +605,17 @@ describe("BriefRenderer — the brief data rendering + the checkable gate", () =
     expect(() => brief.render(PLAN, [1, 5])).toThrow(/task 5/);
   });
 
+  it("taskBody — the task-only projection the reviewed hash binds, `## Constraints` excluded", () => {
+    const planWithConstraints = `${PLAN}\n\n## Constraints\n\n- keep it simple\n`;
+    const body = brief.taskBody(planWithConstraints, [1]);
+    expect(body).toContain("### Task 1: one");
+    expect(body).not.toContain("## Constraints");
+    // the child's render is that projection plus the Constraints mirror
+    expect(brief.render(planWithConstraints, [1])).toContain(body.trimEnd());
+    // out-of-bounds blocks the projection too (one gate, two consumers)
+    expect(() => brief.taskBody(PLAN, [5])).toThrow(/task 5/);
+  });
+
   it("renders the brief content — the raw task sections + the plan's ## Constraints mirror", () => {
     const planWithConstraints = `${PLAN}\n\n## Constraints\n\n- keep it simple\n`;
     const out = brief.render(planWithConstraints, [1]);
@@ -743,6 +754,85 @@ describe("IssueBodyRenderer — the aggregate issue body (the P7 render face)", 
     expect(renderer.validateInput("bogus")).toEqual([
       "input: expected an object with harness / findings / related?",
     ]);
+  });
+
+  /** A findings-valid input — the related leg is judged alone (zero findings noise). */
+  const VALID_FINDINGS = [
+    {
+      type: "bug",
+      lang: "en",
+      context: "c",
+      problem: "p",
+      impact: "i",
+      suggestedFix: "f",
+      meta: { skill: "cdd-dev", step: "implement" },
+    },
+  ];
+  const RELATED_MESSAGE = "related: object with open / closed / program expected";
+
+  it("validateInput — a FLAT related is refused with the related field path (the nested shape is the only one)", () => {
+    // the acceptance face: a flat array renders no Related section today, so the
+    // shape gate — never a silent drop — is what keeps dedup trustworthy
+    expect(
+      renderer.validateInput({
+        harness: "claude",
+        findings: VALID_FINDINGS,
+        related: [{ issue: 1 }],
+      }),
+    ).toEqual([RELATED_MESSAGE]);
+  });
+
+  it("validateInput — a null / scalar related is refused with the same related field path", () => {
+    for (const related of [null, "x", 7]) {
+      expect(
+        renderer.validateInput({ harness: "claude", findings: VALID_FINDINGS, related }),
+        `related: ${JSON.stringify(related)}`,
+      ).toEqual([RELATED_MESSAGE]);
+    }
+  });
+
+  it("validateInput — the nested related leg reports element field paths", () => {
+    expect(
+      renderer.validateInput({
+        harness: "claude",
+        findings: VALID_FINDINGS,
+        related: {
+          open: [{ issue: 1 }],
+          closed: [5],
+          program: {},
+        },
+      }),
+    ).toEqual([
+      "related.open[0].component: non-empty string required",
+      "related.open[0].reason: non-empty string required",
+      "related.closed[0]: object with issue required",
+      "related.program.issue: number required",
+    ]);
+  });
+
+  it("validateInput — a non-array open / closed and a non-object program carry their own paths", () => {
+    expect(
+      renderer.validateInput({
+        harness: "claude",
+        findings: VALID_FINDINGS,
+        related: { open: "x", closed: {}, program: "y" },
+      }),
+    ).toEqual([
+      "related.open: array of open hits expected",
+      "related.closed: array of closed hits expected",
+      "related.program: object with issue required",
+    ]);
+  });
+
+  it("validateInput — a legal nested related and an absent related add zero errors", () => {
+    expect(
+      renderer.validateInput({
+        harness: "claude",
+        findings: VALID_FINDINGS,
+        related: EN_INPUT.related,
+      }),
+    ).toEqual([]);
+    expect(renderer.validateInput({ harness: "claude", findings: VALID_FINDINGS })).toEqual([]);
   });
 
   it("the label data is complete — every declared type × segment resolves on the word table", () => {

@@ -1,12 +1,12 @@
 // packages/cdd-engine/src-next/render/__tests__/brief.test.ts
-// The brief fingerprint-stability pin (P21 D30): the wave line's reviewed identity is
-// the RENDERED brief's content hash, so the brief's bytes are a review contract —
-// a header line, a version prefix or any other "helpful" preamble would move every
-// already-reviewed wave's `brief-revision` and reopen the whole gate. These pins hold
-// the two invariants that keep the fingerprint stable:
-//   · the same plan renders byte-identically twice (and the same hash the ledger's
-//     `recordReviewedBrief` binds — one hash face, no second derivation);
-//   · the brief's first line is the first requested `### Task …` heading — zero
+// The brief fingerprint-stability pin (P21 D30, narrowed by P29 §2.2): the wave line's
+// reviewed identity is the hash of the brief's TASK-ONLY projection, so that projection's
+// bytes are a review contract — a header line, a version prefix or any other "helpful"
+// preamble would move every already-reviewed wave's `brief-revision` and reopen the whole
+// gate. These pins hold the two invariants that keep the fingerprint stable:
+//   · the same plan projects byte-identically twice (and the same hash the ledger's
+//     `recordReviewedBrief` binds — one projection face, no second derivation);
+//   · the projection's first line is the first requested `### Task …` heading — zero
 //     preamble lines, so the task sections start the document.
 // The render/materialize pins of `BriefRenderer` proper stay in render.test.ts.
 
@@ -46,10 +46,10 @@ const PLAN = [
 ].join("\n");
 
 describe("BriefRenderer — the reviewed-fingerprint stability (D30)", () => {
-  it("renders the same plan to the same bytes twice — the fingerprint never depends on render state", () => {
+  it("renders the same plan to the same bytes twice — the projection never depends on render state", () => {
     const renderer = new BriefRenderer();
-    const first = renderer.render(PLAN, [1]);
-    const second = renderer.render(PLAN, [1]);
+    const first = renderer.taskBody(PLAN, [1]);
+    const second = renderer.taskBody(PLAN, [1]);
     expect(second).toBe(first);
     const refs = new Ledger(
       new Workspace(new WorkspaceRoot("/repo", ".kairos/cdd"), "p3"),
@@ -61,7 +61,7 @@ describe("BriefRenderer — the reviewed-fingerprint stability (D30)", () => {
   });
 
   it("starts with the first requested `### Task …` heading — zero preamble, zero version line", () => {
-    const brief = new BriefRenderer().render(PLAN, [1]);
+    const brief = new BriefRenderer().taskBody(PLAN, [1]);
     expect(brief.split("\n")[0]).toBe("### Task 1: first task");
     // The rendered brief opens the task section verbatim (no injected header), so a
     // pre-existing plan's reviewed hash stays derivable.
@@ -69,7 +69,7 @@ describe("BriefRenderer — the reviewed-fingerprint stability (D30)", () => {
     expect(brief).not.toMatch(/^---/);
   });
 
-  it("binds the SAME hash the ledger records — recordReviewedBrief reads the one render face", () => {
+  it("binds the SAME hash the ledger records — recordReviewedBrief reads the one projection face", () => {
     const repo = mkdtempSync(path.join(tmpdir(), "brief-"));
     try {
       const workspace = new Workspace(
@@ -83,10 +83,20 @@ describe("BriefRenderer — the reviewed-fingerprint stability (D30)", () => {
       const recorded = ledger.reviewedRevisionOf("1");
       expect(recorded?.kind).toBe("brief-revision");
       if (recorded?.kind !== "brief-revision") return;
-      const rendered = new BriefRenderer().render(PLAN, [1]);
-      const direct = new Ledger(workspace, new ConfigLoader()).refs().briefRevision("x", rendered);
+      const projection = new BriefRenderer().taskBody(PLAN, [1]);
+      const direct = new Ledger(workspace, new ConfigLoader())
+        .refs()
+        .briefRevision("x", projection);
       expect(recorded.brief_hash).toBe(direct.brief_hash);
       expect(recorded.plan).toBe("p3.md");
+      // the child's render still carries the plan's `## Constraints` mirror, while the
+      // reviewed hash covers the task projection alone (P29 §2.2)
+      expect(new BriefRenderer().render(PLAN, [1])).toContain("## Constraints");
+      expect(recorded.brief_hash).not.toBe(
+        new Ledger(workspace, new ConfigLoader())
+          .refs()
+          .briefRevision("x", new BriefRenderer().render(PLAN, [1])).brief_hash,
+      );
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

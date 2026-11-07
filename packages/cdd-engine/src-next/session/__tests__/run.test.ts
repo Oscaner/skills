@@ -114,10 +114,11 @@ const APPROVED_IMPLEMENT: DispatchOutcome = {
 
 const finding = (severity: "blocker" | "warn" | "nit") => ({ severity, summary: "drift" });
 
-/** The D30 wave-line reviewed-basis hash — the RENDERED brief's sha1 for a wave's
- *  tasks (the wave gate binds the brief, never the whole plan). */
+/** The D30 wave-line reviewed-basis hash — the sha1 of the brief's TASK-ONLY
+ *  projection for a wave's tasks (P29 §2.2: the wave gate binds the task sections,
+ *  never the whole plan and never the `## Constraints` mirror). */
 const briefHash = (planPath: string, tasks: string): string => {
-  const brief = new BriefRenderer().render(
+  const brief = new BriefRenderer().taskBody(
     readFileSync(planPath, "utf8"),
     tasks.split(",").map(Number),
   );
@@ -1554,15 +1555,17 @@ describe("P24 T3 — a drifted wave reaches the next-hop reason", () => {
     return { ledger, run, cleanup };
   };
 
-  it("the frontier's hop names `doc-drift` and the reason row renders it", async () => {
+  it("the frontier's hop names `brief-drift` and the reason row renders it", async () => {
     const { run, cleanup } = await driftedWave();
     try {
       const peeked = run.peekNext();
       expect(peeked).not.toBeNull();
       expect(peeked!.frame.phase).toBe("review"); // the wave line reopens at review (D30)
       expect(peeked!.hop.hop).toBe("review");
-      expect(peeked!.hop.reason).toBe("doc-drift");
-      expect(new RouteRenderer(new Words()).renderReason(peeked!.hop)).toBe("reason: doc-drift");
+      // P29 §2.3 — a wave brief's task-only projection moved: its OWN token.
+      expect(peeked!.hop.reason).toBe("brief-drift");
+      expect(peeked!.hop.reason).not.toBe("doc-drift");
+      expect(new RouteRenderer(new Words()).renderReason(peeked!.hop)).toBe("reason: brief-drift");
     } finally {
       cleanup();
     }
@@ -1579,9 +1582,9 @@ describe("P24 T3 — a drifted wave reaches the next-hop reason", () => {
       // frontier's hop and names the movement (the P24 T7 parity block below).
       const step = await run.advance();
       expect(step!.frame.phase).toBe("review");
-      expect(step!.capsuleLines.some((line) => line.includes("doc-drift"))).toBe(false);
+      expect(step!.capsuleLines.some((line) => line.includes("brief-drift"))).toBe(false);
       expect(ledger.briefDrifted("1")).toBe(false);
-      expect(run.peekNext()!.hop.reason).not.toBe("doc-drift");
+      expect(run.peekNext()!.hop.reason).not.toBe("brief-drift");
     } finally {
       cleanup();
     }

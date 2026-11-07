@@ -39,7 +39,7 @@ const hopOf = (
 ): NextHop =>
   new NextStepRouter().nextHop({
     target,
-    gate: { drift: false },
+    gate: { docDrift: false, briefDrift: false },
     route,
     verdict: target === null ? "terminal" : docClassOf(target),
   });

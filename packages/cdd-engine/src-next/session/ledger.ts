@@ -1014,17 +1014,18 @@ export class Ledger {
     return null;
   }
 
-  /** The wave line's brief-drift verdict (D30) — the wave's CURRENT rendered brief
-   *  vs the recorded reviewed brief. `true` when the wave's judgment input moved past
-   *  the reviewed basis (the wave reopens at review). A plan edit OUTSIDE the wave's
-   *  task sections — the `## Constraints` block included (P29 §2.2) — leaves the
-   *  projection byte-identical → `false`
-   *  (the append-only backfill case the whole-plan hash wrongly flagged). An
-   *  underivable brief (unreadable plan / absent task) is not a drift (present
-   *  facts only). A row bound to a non-brief kind (a doc kind, only via a corrupt
-   *  hand-write) is not a wave brief — no drift. The ONE public read of the fact:
-   *  `waveLineRoute`'s D30 leg and the next-hop assembly's reason-only `briefDrift`
-   *  cell both come through here. */
+  /** The wave line's brief-drift verdict (D30) — the wave's CURRENT task-only
+   *  projection (P29 §2.2) vs the recorded reviewed projection. `true` when the
+   *  wave's judgment input moved past the reviewed basis (the wave reopens at
+   *  review). A plan edit outside the wave's task sections — a `## Constraints`
+   *  reword included, since Constraints is dispatch input rather than a fingerprint
+   *  byte — leaves the task-only projection byte-identical → `false` (the
+   *  append-only backfill case the whole-plan hash wrongly flagged). An underivable
+   *  brief (unreadable plan / absent task) is not a drift (present facts only). A
+   *  row bound to a non-brief kind (a doc kind, only via a corrupt hand-write) is
+   *  not a wave brief — no drift. The ONE public read of the fact: `waveLineRoute`'s
+   *  D30 leg and the next-hop assembly's reason-only `briefDrift` cell both come
+   *  through here. */
   briefDrifted(waveKey: string): boolean {
     const reviewed = this.reviewedRevisionOf(waveKey);
     if (reviewed === null || reviewed.kind !== "brief-revision") return false;

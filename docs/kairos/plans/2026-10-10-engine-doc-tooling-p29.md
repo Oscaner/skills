@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P29 计划：闭合 wave 不追溯 briefDrift + `brief-drift` 拆词/诊断同源 + issue related 形状门
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-07
 slug: 2026-10-10-engine-doc-tooling-p29
 base: develop
@@ -26,6 +26,7 @@ base: develop
 - **related 只 warn / 仍 exit 0**：与 spec「同级 exit 1」冲突。
 - **D76 误伤**：闭合过滤或拆词改写把 plan→branch 重开腿弄坏。
 - **Task 2 红测恒绿**：Task 1 落地后仅改 `## Constraints` 已使 `briefDrifted` 为 false；用「改 Constraints / 陈旧 hash」作闭合站红测夹具会恒绿，必须以**闭合波 Task 段陈旧**为夹具。
+- **诊断只落一半**：「P22 T17 仍绿」只证明 doc 漂移行为不破，不证明诊断字段存在；若只给 `brief-drift` 分支加 `layer/line/recorded/current`，各条「仍绿」断言照样通过。doc 侧必须有独立红测钉诊断。
 
 ### Task 1: brief-revision 只 hash task 正本
 
@@ -80,7 +81,7 @@ none
 - Modify: `packages/cdd-engine/src-next/session/ledger.ts` / `session/pipeline.ts` / `session/run.ts`（若 `NextHopInput.gate` 需区分 `docDrift`/`briefDrift` 字段——按最小改动拆；route 替换仍只由**文档** drift 驱动）
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`（若诊断行需在 `#renderLineRefusal` 加明细通道——与 `authority.message` 单源，禁止第二套文案）
 - Create: `.changeset/p29-brief-drift-and-related-gate.md`（front matter 行 `"@oscaner-skills/cdd-engine": minor`）
-- Test: `packages/cdd-engine/src-next/session/__tests__/dispatch-authority.test.ts`（重锚既有「closed wave with a moved brief」夹具：闭合波 **Task 段**陈旧不挡 branch；open 波 Task 漂移 → brief-drift + wave next；诊断串）
+- Test: `packages/cdd-engine/src-next/session/__tests__/dispatch-authority.test.ts`（重锚既有「closed wave with a moved brief」夹具：闭合波 **Task 段**陈旧不挡 branch；open 波 Task 漂移 → brief-drift + wave next；诊断串 **两半**——brief 侧 open-Task 漂移拒，doc 侧既有 stale-plan-identity `doc-drift` 拒）
 - Test: `packages/cdd-engine/src-next/session/__tests__/next.test.ts` / `ledger.test.ts`（reason token 分流）
 - Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts` · `cli.test.ts`（原 wave `reason: doc-drift` 夹具重锚为 `brief-drift`；board↔dispatch 成对；P22 T17 doc-drift·branch 仍绿）
 
@@ -97,15 +98,17 @@ none
 - `DISPATCH_REASON.briefDrift = { token: "brief-drift", leg: "station" }`（或等价登记）；`NEXT_HOP_REASON.briefDrift` 同源
 - upstream wave drift 拒绝：`reason: brief-drift`，`next` 可渲染为 `review --type wave --tasks <first-drifted-open-batch> --plan …`
 - `message(...)`（或拒绝对象的诊断字段）在 brief/doc 漂移时含 `layer=` · `line=` · `recorded=` · `current=`（hash 至少稳定前缀）
-- pins：闭合波 **Task 段**陈旧不挡 branch（既有「closed wave with a moved brief」夹具重锚为 allowed；仅改 `## Constraints` 已不构成漂移，只作 Task 1 pin 与合流后绿测，不作本站红测）；open Task 漂移 brief-drift+wave next；诊断子串；board/dispatch 成对；D76/P22 T17 仍绿；原「wave reason doc-drift」夹具改锚 brief-drift
+- doc 侧诊断读源：行键取文档路径（`docs/kairos/plans/…` 一族），recorded = `Ledger#reviewedDocRevisionOf(key).doc_hash`，current = `ReviewRefs#docRevision(doc, content).doc_hash`——与 brief 侧同一诊断字段形状，禁止两套键名
+- pins：闭合波 **Task 段**陈旧不挡 branch（既有「closed wave with a moved brief」夹具重锚为 allowed；仅改 `## Constraints` 已不构成漂移，只作 Task 1 pin 与合流后绿测，不作本站红测）；open Task 漂移 brief-drift+wave next；诊断子串 **两半**（`brief-drift` 拒含 `layer=brief` · batch key · 双 hash 前缀；既有 upstream `doc-drift` 拒含 `layer=doc` · 文档行键 · 双 hash 前缀）；board/dispatch 成对；D76/P22 T17 仍绿；原「wave reason doc-drift」夹具改锚 brief-drift
 - changeset `.changeset/p29-brief-drift-and-related-gate.md`：`@oscaner-skills/cdd-engine` minor，叙述覆盖 task-only brief hash · 闭合站过滤 · `brief-drift` 词与同源 next · 强制诊断 · related 形状门
 
 #### Steps
 
 - 写失败测（红）：重锚既有「closed wave with a moved brief」夹具——全 wave 已闭合 + 该 batch 的 Task 段（Acceptance/正文）改写使 task-only `brief_hash` 陈旧后，`verdict(branch review)` 仍 allowed — checkable: 今日 upstream `doc-drift` 拒 → FAIL；`#waveStation` 滤闭合后 PASS。前置断言 `briefDrifted` 为 true——只改 `## Constraints` 的夹具在 Task 1 后恒绿，禁用
 - 写失败测：一未闭合 batch Task 漂移后拒 branch，`reason==="brief-drift"` 且 message/next 含该 batch 的 wave review 字面 — checkable: 今日 reason 为 doc-drift 或 next 为 branch → FAIL
-- 写失败测：上述拒绝 message 含 layer/line/recorded/current（或规范键名）— checkable: FAIL until 诊断落地
-- 扩展 reason 表 + 拆 `#reasonOf` / gate 输入；改 `#waveStation` 与 `#upstreamLeg` next 组装；message 附诊断 — checkable: 上列测 PASS
+- 写失败测：上述 `brief-drift` 拒绝 message 含 layer/line/recorded/current（或规范键名）— checkable: FAIL until 诊断落地
+- 写失败测（**doc 侧独立红测**，不得以「P22 T17 仍绿」代替）：既有 upstream `doc-drift` 拒绝——`dispatch-authority.test.ts` 的 stale-plan-identity 用例（`docs/kairos/plans/p3.md` 一族）或 `cli.test.ts` P22 T17 branch 重开——其 message/诊断字段含 `layer=doc`（或规范键名）、该文档行键、recorded/current hash 前缀 — checkable: 今日拒绝语仅 `doc-drift · next: …`（或 `doc-drift · next: review --type branch`）→ 断言 FAIL until doc 侧诊断落地；只在 brief 分支加诊断时本测仍 FAIL
+- 扩展 reason 表 + 拆 `#reasonOf` / gate 输入；改 `#waveStation` 与 `#upstreamLeg` next 组装；message 附诊断 — checkable: 上列测 PASS（含 brief 与 doc 两条诊断测）
 - 重锚 board/cli 中 wave brief 的 `doc-drift` 期望为 `brief-drift`；跑 P22 T17 branch doc-drift 夹具确认仍绿 — checkable: 定向 vitest PASS
 - board↔dispatch 成对夹具（仅闭合 Task 段陈旧）— checkable: 两者都不以漂移拒 branch / 或以同一 token 同意开放
 - 建 changeset（`Create` 行）：front matter `"@oscaner-skills/cdd-engine": minor`，叙述覆盖 task-only brief hash · 闭合站过滤 · `brief-drift` 词与同源 next · 强制诊断 · related 形状门（Task 3 已在 W1 落地，可一并叙述）— checkable: `pnpm exec vitest run scripts/__tests__/changeset-levels.test.ts` PASS（level 非空、无 major）
@@ -114,6 +117,7 @@ none
 #### Acceptance
 
 - spec §2.1–§2.7 与 AC 中 brief/branch 相关条全部由本任务 pins 覆盖；D76 不破。
+- spec §2.5 诊断条由**两条**红测共同钉住：`brief-drift` 侧（open Task 漂移）与 `doc-drift` 侧（既有 upstream / P22 T17 夹具）各自断言 layer · 行键 · recorded/current；「P22 T17 仍绿」仅证明行为不破，不算诊断覆盖。
 - AC 的 changeset 条有归属：`.changeset/p29-brief-drift-and-related-gate.md` 随本任务落地（minor）。
 
 #### DependsOn
@@ -164,3 +168,4 @@ none
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-07 | 初版：三任务 W1={1,3}·W2={2}——task-only brief hash · station 过滤+brief-drift/next/诊断/D76 · related 严校验 | [human] 裁定 · Claude（kairos:cdd-plan · 2026-11-07） |
 | v0.2 | 2026-11-07 | plan-review-1 收口：② 闭合站红测改用「闭合波 Task 段陈旧」夹具（Constraints-only 在 Task 1 后恒绿）· ③ changeset minor 归属 Task 2 的 Create+Step · ④ Task 3 补齐 related 非对象/嵌套路径错误与 CLI exit 1 必做 pin | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-07） |
+| v0.3 | 2026-11-07 | plan-review-2 收口：Task 2 补 doc 侧诊断红测（既有 upstream / P22 T17 `doc-drift` 夹具断言 `layer=doc` · 文档行键 · recorded/current 前缀）· Produces 增 doc 诊断读源 pin · Acceptance 明确 §2.5 由 brief/doc 两条红测共同钉住（「T17 仍绿」不算诊断覆盖） | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-07） |

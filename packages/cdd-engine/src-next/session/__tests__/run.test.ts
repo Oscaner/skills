@@ -114,10 +114,11 @@ const APPROVED_IMPLEMENT: DispatchOutcome = {
 
 const finding = (severity: "blocker" | "warn" | "nit") => ({ severity, summary: "drift" });
 
-/** The D30 wave-line reviewed-basis hash — the RENDERED brief's sha1 for a wave's
- *  tasks (the wave gate binds the brief, never the whole plan). */
+/** The D30 wave-line reviewed-basis hash — the sha1 of the brief's TASK-ONLY
+ *  projection for a wave's tasks (P29 §2.2: the wave gate binds the task sections,
+ *  never the whole plan and never the `## Constraints` mirror). */
 const briefHash = (planPath: string, tasks: string): string => {
-  const brief = new BriefRenderer().render(
+  const brief = new BriefRenderer().taskBody(
     readFileSync(planPath, "utf8"),
     tasks.split(",").map(Number),
   );

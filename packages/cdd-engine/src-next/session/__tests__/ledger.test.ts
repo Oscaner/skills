@@ -1433,6 +1433,22 @@ describe("P24 T3 — briefDrifted, the wave line's ONE drift read", () => {
     }
   });
 
+  it("is false when ONLY the plan's `## Constraints` moves — the fingerprint is the task projection (P29 §2.2)", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const planPath = path.join(workspace.path, "plan.md");
+      mkdirSync(path.dirname(planPath), { recursive: true });
+      writeFileSync(planPath, planText(), "utf8");
+      ledger.recordReviewedBrief("1", planPath);
+      // the SAME task section, a reworded Constraints block: Constraints is dispatch
+      // input for the child, never part of the wave's reopen fingerprint
+      writeFileSync(planPath, planText().replace("- delta", "- delta (reworded)"), "utf8");
+      expect(ledger.briefDrifted("1")).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("is false when the plan is unreadable — an absent fact never invents a drift", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {

@@ -451,15 +451,17 @@ export interface DocRevisionRef {
 }
 
 /** The brief-revision ref (D30) — the wave line's two-layer ref: the plan path the
- *  brief renders FROM (the re-render pointer judgment time needs) AND the RENDERED
- *  brief's content hash. The wave's judgment input is the brief (§5: its task
- *  sections + `## Constraints`), never the whole plan — so a plan edit outside the
- *  wave's tasks leaves this ref identical and the reviewed wave is not reopened. */
+ *  brief renders FROM (the re-render pointer judgment time needs) AND the wave's
+ *  TASK-ONLY projection hash (P29 §2.2). The wave's judgment input is the brief's
+ *  task sections (§5); the plan's `## Constraints` is dispatch input for the child,
+ *  never part of the reopen fingerprint — so a Constraints reword leaves this ref
+ *  identical and the reviewed wave is not reopened. */
 export interface BriefRevisionRef {
   kind: "brief-revision";
   /** The plan path the brief renders from — the first layer (the re-render pointer). */
   plan: string;
-  /** The RENDERED brief's revision — the sha1 content hash of the brief, the second layer. */
+  /** The TASK-ONLY projection's revision — the sha1 content hash of the wave's task
+   *  sections, the second layer (`BriefRenderer#taskBody`). */
   brief_hash: string;
 }
 
@@ -469,8 +471,8 @@ export type ReviewedRevisionRef = DocRevisionRef | BriefRevisionRef;
 
 /**
  * ReviewRefs — the review-reference face (T25): the two-layer bindings (`docRevision`
- * — the doc hash from its content · `briefRevision` — the rendered brief's hash from
- * the plan it renders from) and the same-ref predicate (the SAME identity already
+ * — the doc hash from its content · `briefRevision` — the wave's task-only projection
+ * hash from the plan it renders from) and the same-ref predicate (the SAME identity already
  * bound is refused, never silently re-reviewed). The face is the ledger's review-ref
  * derivation point — typed data, zero prose.
  */
@@ -486,8 +488,10 @@ export class ReviewRefs {
     return { kind: "doc-revision", doc, doc_hash: this.#hash(projected) };
   }
 
-  /** The brief-revision two-layer binding (D30) — the plan path the brief renders
-   *  from + the RENDERED brief content's hash (the wave line's reviewed identity). */
+  /** The brief-revision two-layer binding (D30, narrowed by P29 §2.2) — the plan path
+   *  the brief renders from + the hash of the brief's TASK-ONLY projection (the wave
+   *  line's reviewed identity; `## Constraints` is dispatch input, not a fingerprint
+   *  byte). */
   briefRevision(plan: string, briefContent: string | Buffer): BriefRevisionRef {
     return { kind: "brief-revision", plan, brief_hash: this.#hash(briefContent) };
   }
@@ -818,27 +822,27 @@ export class Ledger {
     this.writeProgress(data);
   }
 
-  /** Record a wave line's reviewed BRIEF revision (D30) — the RENDERED brief's
-   *  content hash for the wave's tasks: the wave's true judgment input is the brief
-   *  (§5: the wave's task sections + the plan's `## Constraints`), never the whole
-   *  plan. A backfill touching OTHER tasks leaves this brief byte-identical, so the
-   *  reviewed wave is not spuriously reopened (the backfill's whole point). An
+  /** Record a wave line's reviewed BRIEF revision (D30) — the hash of the wave's
+   *  TASK-ONLY projection (P29 §2.2: the task sections, `## Constraints` excluded).
+   *  A backfill touching OTHER tasks leaves this projection byte-identical, and so
+   *  does a Constraints reword, so the reviewed wave is not spuriously reopened. An
    *  underivable brief records nothing (present facts only — the legacy face holds). */
   recordReviewedBrief(waveKey: string, planPath: string): void {
     const revision = this.#briefRevision(waveKey, planPath);
     if (revision !== null) this.recordReviewedRevision(waveKey, revision);
   }
 
-  /** The wave line's reviewed-basis revision (D30) — the RENDERED brief's content
-   *  hash for the wave's tasks (the `plan` layer is the plan the brief renders from,
-   *  the `brief_hash` layer the brief's own digest). Null when the plan is unreadable
+  /** The wave line's reviewed-basis revision (D30) — the hash of the wave's TASK-ONLY
+   *  projection (`BriefRenderer#taskBody`: the task sections, `## Constraints`
+   *  excluded — P29 §2.2). The `plan` layer is the plan the brief renders from, the
+   *  `brief_hash` layer the projection's own digest. Null when the plan is unreadable
    *  or a requested task is absent (present facts only). */
   #briefRevision(waveKey: string, planPath: string): BriefRevisionRef | null {
     try {
       const tasks = waveKey.split(",").map((part) => Number(part));
       // The plan layer is stored repoRoot-relative (P9 T4 §2.7) — one basis with
       // every persisted path field; the read erases to absolute at the syscall edge.
-      const brief = this.#brief.render(readFileSync(this.#abs(planPath), "utf8"), tasks);
+      const brief = this.#brief.taskBody(readFileSync(this.#abs(planPath), "utf8"), tasks);
       return this.#refs.briefRevision(this.#rel(planPath), brief);
     } catch {
       return null;
@@ -950,7 +954,7 @@ export class Ledger {
    *  blockers outstanding) is the one-way fix hop carrying the source review's handoff
    *  path. Null when the wave line holds no open hop (drained / deferred by the soft
    *  cap). The D16/T11 revision precheck belongs HERE, not in a per-consumer copy: a
-   *  completed wave review bound the RENDERED BRIEF it judged to the row (run.ts
+   *  completed wave review bound the BRIEF's task-only projection to the row (run.ts
    *  bookkeep `#recordReviewedWaveBrief` → `#briefRevision`), and a drifted BRIEF
    *  reopens the wave at review regardless of the fix-awaited round state (the
    *  stale-revision findings are voided — new revision, new review). Same revision + a
@@ -1013,7 +1017,8 @@ export class Ledger {
   /** The wave line's brief-drift verdict (D30) — the wave's CURRENT rendered brief
    *  vs the recorded reviewed brief. `true` when the wave's judgment input moved past
    *  the reviewed basis (the wave reopens at review). A plan edit OUTSIDE the wave's
-   *  task sections + `## Constraints` leaves the brief byte-identical → `false`
+   *  task sections — the `## Constraints` block included (P29 §2.2) — leaves the
+   *  projection byte-identical → `false`
    *  (the append-only backfill case the whole-plan hash wrongly flagged). An
    *  underivable brief (unreadable plan / absent task) is not a drift (present
    *  facts only). A row bound to a non-brief kind (a doc kind, only via a corrupt

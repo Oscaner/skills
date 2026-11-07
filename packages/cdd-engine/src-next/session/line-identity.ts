@@ -5,8 +5,9 @@
 // single identity face all three read:
 //   · spec / plan — the document's `doc-revision` (a hash of the BODY: front matter
 //                   and `## Change history` are projected away, P26 T1);
-//   · wave        — the RENDERED brief's `brief-revision` (its task sections plus the
-//                   plan's `## Constraints` — a plan edit elsewhere is not a drift);
+//   · wave        — the RENDERED brief's `brief-revision` over its TASK-ONLY
+//                   projection (P29 §2.2: `## Constraints` is dispatch input, never a
+//                   fingerprint byte — a plan edit elsewhere is not a drift);
 //   · branch      — its plan document's `doc-revision` (the SAME kind, no new ref
 //                   kind, no commit sha — the ledger keeps no second code identity).
 //

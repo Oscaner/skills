@@ -293,10 +293,11 @@ const readJson = <T>(file: string): T => {
 };
 
 /** The D30 wave-line reviewed identity — the brief-revision ref a wave row binds:
- *  the plan it renders FROM + the RENDERED brief's sha1 (the wave gate binds the
- *  brief, never the whole plan). */
+ *  the plan it renders FROM + the TASK-ONLY projection's sha1 (P29 §2.2: the wave
+ *  gate binds the task sections, never the whole plan and never the `## Constraints`
+ *  mirror the child receives). */
 const briefRevision = (repoRoot: string, plan: string, tasks: string) => {
-  const brief = new BriefRenderer().render(
+  const brief = new BriefRenderer().taskBody(
     readFileSync(plan, "utf8"),
     tasks.split(",").map(Number),
   );
@@ -4291,6 +4292,35 @@ describe("the pure commands — schema / issue / base", () => {
     invalid.cleanup();
   });
 
+  it("issue render — a FLAT related exits 1 with the related field path, a nested one exits 0", async () => {
+    const base = {
+      harness: "claude",
+      findings: [
+        {
+          type: "bug",
+          lang: "en",
+          context: "c",
+          problem: "p",
+          impact: "i",
+          suggestedFix: "f",
+          meta: { skill: "cdd-dev", step: "implement" },
+        },
+      ],
+    };
+    const flat = fixture({
+      stdinRead: () => JSON.stringify({ ...base, related: [{ issue: 1 }] }),
+    });
+    expect(await flat.command.runArgv(["issue", "render"])).toBe(1);
+    expect(flat.io.stderrText).toContain("related");
+    flat.cleanup();
+    const nested = fixture({
+      stdinRead: () => JSON.stringify({ ...base, related: { closed: [{ issue: 9 }] } }),
+    });
+    expect(await nested.command.runArgv(["issue", "render"])).toBe(0);
+    expect(nested.io.stdoutText).toContain("## Related");
+    nested.cleanup();
+  });
+
   it("base set/get — the single --plan artifact write-through + the force gate (T20 face)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
@@ -8082,15 +8112,18 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
     }
   });
 
-  it("computes the brief hash at acquire time — the ledger's ONE hash face, non-null on a wave's FIRST dispatch", async () => {
+  it("computes the brief hash at acquire time — the ledger's ONE projection face, non-null on a wave's FIRST dispatch", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
       const planPath = planFor(repoRoot);
       const briefPath = path.join(repoRoot, ".kairos", "brief.md");
       mkdirSync(path.dirname(briefPath), { recursive: true });
-      const brief = new BriefRenderer().render(readFileSync(planPath, "utf8"), [1]);
-      writeFileSync(briefPath, brief, "utf8");
+      const renderer = new BriefRenderer();
+      const plan = readFileSync(planPath, "utf8");
+      // the child's brief file carries the Constraints mirror; the reviewed hash covers
+      // the task-only projection (P29 §2.2)
+      writeFileSync(briefPath, renderer.render(plan, [1]), "utf8");
       const scene = sceneOf(repoRoot, planPath, briefPath);
       // The ledger carries NO `brief-revision` record yet (the wave's first dispatch).
       expect(scene.ledger.reviewedRevisionOf("1")).toBeNull();
@@ -8101,9 +8134,9 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const record = JSON.parse(runner.recordAtSpawn as string) as InFlightRecord;
       const expected = scene.ledger
         .refs()
-        .briefRevision(path.relative(repoRoot, planPath), brief).brief_hash;
+        .briefRevision(path.relative(repoRoot, planPath), renderer.taskBody(plan, [1])).brief_hash;
       expect(record.briefHash).toBe(expected);
-      // The SAME hash the ledger binds when the review completes (same hash face).
+      // The SAME hash the ledger binds when the review completes (same projection face).
       expect(record.briefHash).toBe(briefRevision(repoRoot, planPath, "1").brief_hash);
     } finally {
       cleanup();

@@ -24,6 +24,7 @@ import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
 import type { RepoRoot } from "../infra/root.ts";
 import { RoundLog } from "../infra/round-log.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
+import { BriefRenderer } from "../render/brief.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
 import { TargetFaceTable } from "../session/faces.ts";
@@ -135,6 +136,9 @@ export class CliLifecycle {
   readonly #io: CliIo;
   readonly #scene: DispatchScene;
   readonly #reviews: string | null;
+  /** The brief projection face — the wave frame's reviewed-basis hash rides the same
+   *  task-only assembly the ledger binds (one projection, two callers). */
+  readonly #brief: BriefRenderer;
   /** The single word table (the promotion WARN wording + its station) — one instance,
    *  injected at the composition root, so the lifecycle never re-types a user-facing
    *  line. */
@@ -188,6 +192,7 @@ export class CliLifecycle {
     git?: GitClient;
     proc?: ProcessStartReader;
     stealStale?: boolean;
+    brief?: BriefRenderer;
   }) {
     this.#env = opts.env ?? process.env;
     this.#scene = opts.scene;
@@ -199,6 +204,7 @@ export class CliLifecycle {
     this.#stealStale = opts.stealStale ?? false;
     this.#sync = opts.sync ?? new Terminator();
     this.#template = opts.template ?? new TemplateAssembler();
+    this.#brief = opts.brief ?? new BriefRenderer();
     this.#words = opts.words ?? new Words();
     this.#io = opts.io ?? {
       stdout: (t) => process.stdout.write(t),
@@ -643,17 +649,20 @@ export class CliLifecycle {
     }
   }
 
-  /** The wave frame's brief hash at acquire time — `ReviewRefs.briefRevision` over the
-   *  brief file this dispatch rendered (the SAME hash face the ledger binds as the
-   *  reviewed revision). Computed independently of the ledger's records, so a wave's
-   *  FIRST dispatch (no `brief-revision` row yet) still carries the hash. Null off the
-   *  wave face and when the brief is not on disk yet. */
+  /** The wave frame's reviewed-basis hash at acquire time — `ReviewRefs.briefRevision`
+   *  over the SAME task-only projection the ledger binds (`BriefRenderer#taskBody` of
+   *  the plan for this wave's tasks — P29 §2.2, `## Constraints` excluded). Computed
+   *  independently of the ledger's records, so a wave's FIRST dispatch (no
+   *  `brief-revision` row yet) still carries the hash. Null off the wave face, on a
+   *  plan-less scene and when the plan is unreadable. */
   #briefHashOf(frame: OpenFrame): string | null {
     const scene = this.#scene;
-    if (frame.type !== "wave" || scene.planPath === null || scene.briefPath === null) return null;
+    if (frame.type !== "wave" || frame.target.kind !== "wave" || scene.planPath === null)
+      return null;
     try {
-      const brief = readFileSync(scene.briefPath, "utf8");
-      return scene.ledger.refs().briefRevision(this.#rel(scene.planPath), brief).brief_hash;
+      const plan = readFileSync(scene.planPath, "utf8");
+      const body = this.#brief.taskBody(plan, frame.target.tasks);
+      return scene.ledger.refs().briefRevision(this.#rel(scene.planPath), body).brief_hash;
     } catch {
       return null;
     }

@@ -1260,6 +1260,28 @@ describe("nextHopOf — the drift-reopened line's hop (the ONE assembly entry)",
       cleanup();
     }
   });
+
+  it("a wave line's brief drift names `brief-drift` — the doc cell alone never does", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const hop = (briefDrift: boolean) =>
+        ledger.nextHopOf({
+          type: "wave",
+          key: "1",
+          route: { kind: "review" },
+          target: { type: "wave", id: "1", plan: "docs/kairos/plans/p3.md" },
+          briefDrift,
+          docClassOf: () => "wave",
+        });
+      // the injected brief fact is the reason cell's second source (§2.3)
+      expect(hop(true)).toMatchObject({ hop: "review", reason: "brief-drift" });
+      // ... and its ABSENCE is not a doc revision either: the wave face has no doc
+      // identity, so the counted row stands (task-open) — never `doc-drift`.
+      expect(hop(false)).toMatchObject({ hop: "review", reason: "task-open" });
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 describe("lineClosed — the single line-closure judge (the board + closedWaves core)", () => {
@@ -1428,6 +1450,22 @@ describe("P24 T3 — briefDrifted, the wave line's ONE drift read", () => {
       // the wave's OWN section moves — the reviewed brief drifts
       writeFileSync(planPath, planText(["  - extra step — checkable: green"]), "utf8");
       expect(ledger.briefDrifted("1")).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("is false when ONLY the plan's `## Constraints` moves — the fingerprint is the task projection (P29 §2.2)", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const planPath = path.join(workspace.path, "plan.md");
+      mkdirSync(path.dirname(planPath), { recursive: true });
+      writeFileSync(planPath, planText(), "utf8");
+      ledger.recordReviewedBrief("1", planPath);
+      // the SAME task section, a reworded Constraints block: Constraints is dispatch
+      // input for the child, never part of the wave's reopen fingerprint
+      writeFileSync(planPath, planText().replace("- delta", "- delta (reworded)"), "utf8");
+      expect(ledger.briefDrifted("1")).toBe(false);
     } finally {
       cleanup();
     }

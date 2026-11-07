@@ -157,6 +157,50 @@ export class IssueBodyRenderer {
         }
       });
     }
+    errors.push(...this.#relatedErrors(input.related));
+    return errors;
+  }
+
+  /** The `related` tail's shape leg — the nested `{ open?, closed?, program? }` is the
+   *  only shape `renderBody` reads, so any other shape (a flat array, `null`, a
+   *  scalar) is refused with its field path instead of silently dropping the tail. An
+   *  absent `related` stays legal. */
+  #relatedErrors(raw: unknown): string[] {
+    if (raw === undefined) return [];
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+      return ["related: object with open / closed / program expected"];
+    const related = raw as Record<string, unknown>;
+    return [
+      ...this.#hitErrors("open", related.open),
+      ...this.#hitErrors("closed", related.closed),
+      ...(related.program === undefined
+        ? []
+        : this.#issueErrors("related.program", related.program, false)),
+    ];
+  }
+
+  /** The open / closed hit rows — the array shape plus every element's `issue` number
+   *  (an open hit carries `component` / `reason` on top). */
+  #hitErrors(kind: "open" | "closed", raw: unknown): string[] {
+    if (raw === undefined) return [];
+    const base = `related.${kind}`;
+    if (!Array.isArray(raw)) return [`${base}: array of ${kind} hits expected`];
+    return raw.flatMap((hit, i) => this.#issueErrors(`${base}[${i}]`, hit, kind === "open"));
+  }
+
+  /** One `{ issue: number }` row — `withContext` adds the open hit's two string rows. */
+  #issueErrors(base: string, raw: unknown, withContext: boolean): string[] {
+    const shape = withContext ? "issue / component / reason" : "issue";
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+      return [`${base}: object with ${shape} required`];
+    const row = raw as Record<string, unknown>;
+    const errors: string[] = [];
+    if (typeof row.issue !== "number") errors.push(`${base}.issue: number required`);
+    if (!withContext) return errors;
+    for (const field of ["component", "reason"]) {
+      if (typeof row[field] !== "string" || (row[field] as string).length === 0)
+        errors.push(`${base}.${field}: non-empty string required`);
+    }
     return errors;
   }
 }

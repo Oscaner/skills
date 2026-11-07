@@ -468,7 +468,9 @@ const runCell = async (
     cell.kind === "wave"
       ? planPath === null
         ? ""
-        : new BriefRenderer().render(readFileSync(planPath, "utf8"), [1])
+        : // the wave's judgment input is the TASK-ONLY projection (P29 §2.2) — the
+          // child's render adds `## Constraints`, the reviewed fingerprint never does
+          new BriefRenderer().taskBody(readFileSync(planPath, "utf8"), [1])
       : docPath === null
         ? ""
         : readFileSync(docPath, "utf8");

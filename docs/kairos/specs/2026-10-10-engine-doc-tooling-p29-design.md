@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P29 设计：闭合 wave 不追溯 briefDrift + `brief-drift` 拆词/诊断同源 + issue related 形状门
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-11-07
 slug: 2026-10-10-engine-doc-tooling-p29
 program: 2026-10-10-engine-doc-tooling
@@ -123,3 +123,4 @@ plan 正文投影（`DocBodyProjection`）漂移仍使 branch 面重开：`doc-d
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-07 | 初版：病根（闭合波 brief 扫全表 · reason 混用 · Constraints 进 hash · related 无门）· 裁定九条（只滤 `#waveStation` · task-only hash · 旧 hash 不迁 · `brief-drift` · next 同源 · 强制诊断 · board/dispatch 同源 station · D76 保持 · related 只认嵌套）· 非目标与验收 | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-07） |
+| v0.2 | 2026-11-07 | **closeout 登记（cdd-close）**：P29 全链闭合——W1={1,3} implement→review→fix(1 warn) · W2={2} implement→review(2 findings)→fix · 分支终审 `branch-review-1` 2 findings（warn JSDoc / nit changeset EOF）→ branch-fix 全 APPROVED。交付：`BriefRenderer#taskBody` task-only 投影（child `render` 仍附 Constraints · hash/`briefDrifted` 只算 task 正本）· `#waveStation` 经 `closedWaves()` 先滤闭合 batch · `brief-drift` 与 `doc-drift` 拆词 + 漂移波 `next:` 指第一个漂移未闭合 batch 的 wave review · 拒绝语强制 `layer/line/recorded/current` · `IssueBodyRenderer#validateInput` related 只认嵌套（平铺 → exit 1 带字段路径）。`pnpm run validate` exit 0（root 34 · kairos 95 · engine 1425 · typecheck ×3 · version-sync kairos 1.5.0 / cdd-engine 4.6.0 · emit fresh · 零裸函数）· changeset `p29-brief-drift-and-related-gate`（cdd-engine minor）pending · 不发布 · #438 关闭 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-07） |

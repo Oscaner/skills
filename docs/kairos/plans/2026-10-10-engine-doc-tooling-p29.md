@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P29 计划：闭合 wave 不追溯 briefDrift + `brief-drift` 拆词/诊断同源 + issue related 形状门
 doc-type: plan
-version: v0.3
+version: v0.4
 date: 2026-11-07
 slug: 2026-10-10-engine-doc-tooling-p29
 base: develop
@@ -169,3 +169,4 @@ none
 | v0.1 | 2026-11-07 | 初版：三任务 W1={1,3}·W2={2}——task-only brief hash · station 过滤+brief-drift/next/诊断/D76 · related 严校验 | [human] 裁定 · Claude（kairos:cdd-plan · 2026-11-07） |
 | v0.2 | 2026-11-07 | plan-review-1 收口：② 闭合站红测改用「闭合波 Task 段陈旧」夹具（Constraints-only 在 Task 1 后恒绿）· ③ changeset minor 归属 Task 2 的 Create+Step · ④ Task 3 补齐 related 非对象/嵌套路径错误与 CLI exit 1 必做 pin | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-07） |
 | v0.3 | 2026-11-07 | plan-review-2 收口：Task 2 补 doc 侧诊断红测（既有 upstream / P22 T17 `doc-drift` 夹具断言 `layer=doc` · 文档行键 · recorded/current 前缀）· Produces 增 doc 诊断读源 pin · Acceptance 明确 §2.5 由 brief/doc 两条红测共同钉住（「T17 仍绿」不算诊断覆盖） | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-07） |
+| v0.4 | 2026-11-07 | **closeout 登记（cdd-close）**：三任务全交付，W1={T1,T3} · W2={T2} 各 implement→review→fix 闭合；分支终审 2 findings 闭合。任务 1 = task-only brief hash（`taskBody`）+ child 仍收 Constraints；任务 3 = related 嵌套严校验 + CLI exit 1；任务 2 = `#waveStation` 闭合过滤 · `brief-drift` 拆词 · 首漂移 batch 的 wave `next:` · 强制诊断 · board↔dispatch 同源 · D76 保留。`pnpm run validate` exit 0（engine 1425 tests）| Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-07） |

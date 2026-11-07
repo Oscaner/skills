@@ -67,6 +67,25 @@ export type DispatchVerb = "implement" | "review" | "fix";
  *  (`structure` → `upstream` → `line`). */
 export type DispatchLeg = "structure" | "upstream" | "line";
 
+/** The stable prefix of one hash end in a refusal's diagnosis — long enough to tell the
+ *  two ends apart at a glance, short enough for one line (§2.5 leaves the exact
+ *  completeness to the implementation; the two ends must stay distinguishable). */
+export const DRIFT_HASH_PREFIX = 12;
+
+/** A refusal's drift diagnosis (§2.5) — the MANDATORY detail whenever the reason is
+ *  `brief-drift` or `doc-drift`: which layer moved, the line key it moved on, and both
+ *  hash ends. One shape for both layers (no second key spelling per layer). */
+export interface DispatchDrift {
+  /** The moved identity's layer — a wave brief's task-only projection, or a document. */
+  readonly layer: "brief" | "doc";
+  /** The wave batch key (brief) or the document path (doc). */
+  readonly line: string;
+  /** The hash the review bound. */
+  readonly recorded: string;
+  /** The hash the identity holds now. */
+  readonly current: string;
+}
+
 /** One dispatch's verdict (§2.1) — allowed, or a refusal named by its leg, its
  *  reason token (the ONE table) and the hop the refusal points at. `next` is null
  *  exactly on the structure leg: a structural refusal names no dispatchable round. */
@@ -77,6 +96,8 @@ export type DispatchVerdict =
       readonly leg: DispatchLeg;
       readonly reason: DispatchReason;
       readonly next: NextHop | null;
+      /** §2.5 — present exactly when the reason is a drift token. */
+      readonly drift?: DispatchDrift;
     };
 
 /** The refusal face — the verdict's `allowed: false` arm. */
@@ -158,10 +179,14 @@ interface UpstreamDocLine {
   readonly doc: string;
 }
 
-/** An upstream station's sign — ① the reviewed identity moved (`drift`), ② the face
- *  has not closed for the request (`open`), or nothing to report (`null`: the face
+/** An upstream station's sign — ① the reviewed identity moved (`doc-drift` for a doc
+ *  face, `brief-drift` for the wave face, carrying the first drifted OPEN batch), ② the
+ *  face has not closed for the request (`open`), or nothing to report (`null`: the face
  *  handed off cleanly, or the pipeline never entered it). */
-type UpstreamStation = "drift" | "open" | null;
+type UpstreamStation =
+  | { readonly kind: "doc-drift" }
+  | { readonly kind: "brief-drift"; readonly batch: string }
+  | { readonly kind: "open" };
 
 /** A leg's ruling before the hop is assembled — the hop is only read when a refusal
  *  actually names one (an allowed dispatch pays no station read). */
@@ -179,7 +204,9 @@ type LineRuling =
  *
  * Rule zero on the ≤200-line class cap (broke by design, not by accident): the three
  * legs are one short-circuit chain over one `next:` assembly — extracted, the chain's
- * order moves to a caller and a refusal can name a round another leg contradicts.
+ * order moves to a caller and a refusal can name a round another leg contradicts. The
+ * drift diagnosis (§2.5) rides the same chain: it is read off the hop the refusal
+ * already names, and its ONE rendering site is `message`.
  */
 export class DispatchAuthority {
   /** The wave face's five rows — this leg's wave judge (the judgment body stays in
@@ -202,15 +229,18 @@ export class DispatchAuthority {
   }
 
   /** message(verdict, render) — the ONE refusal line (§2.6): `reason · next: ` plus
-   *  the command the hop renders, or `reason · <wording>` on the structure leg. */
+   *  the command the hop renders, or `reason · <wording>` on the structure leg. A drift
+   *  refusal carries its mandatory diagnosis (§2.5) between the reason and the hop, so
+   *  the CLI prints layer · line key · both hash ends without a second wording source. */
   message(verdict: DispatchRefusal, render: DispatchRefusalRender): string {
+    const reason = DispatchAuthority.#driftReasonText(verdict);
     if (verdict.next === null) {
       return render.detail === undefined || render.detail === ""
-        ? verdict.reason
-        : `${verdict.reason} · ${render.detail}`;
+        ? reason
+        : `${reason} · ${render.detail}`;
     }
     const command = render.command === undefined ? "" : render.command(verdict.next);
-    return `${verdict.reason} · next: ${command}`;
+    return `${reason} · next: ${command}`;
   }
 
   /** The structure leg's verdict — the seam's refusal re-expressed as this chain's
@@ -238,38 +268,93 @@ export class DispatchAuthority {
     for (const face of PIPELINE_FACES.slice(0, index)) {
       const station = this.#stationOf(face, request.line);
       if (station === null) continue;
-      const next = this.#hopOf(request.line);
-      const reason = station === "drift" ? DISPATCH_REASON.docDrift.token : next.reason;
-      return { allowed: false, leg: "upstream", reason, next };
+      return this.#stationRefusal(station, request.line);
     }
     return null;
   }
 
-  /** One upstream face's station sign — ① first (a moved reviewed identity refuses as
-   *  `doc-drift` whatever the closure cell says), then ② (the face has not closed for
-   *  the request, so the frontier's own hop reason rules). */
-  #stationOf(face: PhaseFaceKey, facts: DispatchLineFacts): UpstreamStation {
+  /** One upstream station's refusal (§2.3/§2.4) — the reason and the `next:` are read
+   *  off the SAME station sign: a moved brief names `brief-drift` and points at that
+   *  batch's wave review (never the pipeline frontier's branch hop, which belongs to a
+   *  different face's fact), a moved document names `doc-drift` and points at the
+   *  frontier's own hop, and an unclosed face keeps the hop's own reason. */
+  #stationRefusal(station: UpstreamStation, facts: DispatchLineFacts): DispatchRefusal {
+    if (station.kind === "brief-drift") {
+      return this.#refusal(
+        "upstream",
+        DISPATCH_REASON.briefDrift.token,
+        this.#waveReviewHop(facts, station.batch),
+        facts,
+      );
+    }
+    const next = this.#hopOf(facts);
+    const reason = station.kind === "doc-drift" ? DISPATCH_REASON.docDrift.token : next.reason;
+    return this.#refusal("upstream", reason, next, facts);
+  }
+
+  /** The wave review hop of a drifted batch (P29 §2.4) — the ONE assembly
+   *  (`Ledger#nextHopOf`) with the moved-brief cell injected and the wave target of the
+   *  FIRST drifted open batch, so the refusal's `next:` is `review --type wave --tasks
+   *  <batch> --plan <plan>` and its reason is the brief's own token. */
+  #waveReviewHop(facts: DispatchLineFacts, batch: string): NextHop {
+    const planPath = facts.pipeline.planPath;
+    return facts.ledger.nextHopOf({
+      type: "wave",
+      key: batch,
+      route: { kind: "review" },
+      target: { type: "wave", id: batch, plan: planPath ?? undefined },
+      briefDrift: true,
+      docClassOf: facts.docClassOf,
+    });
+  }
+
+  /** One upstream face's station sign (§2.1/§2.3) — ① first (a moved reviewed identity
+   *  refuses whatever the closure cell says), then ② (the face has not closed for the
+   *  request, so the frontier's own hop reason rules). The wave face reports the
+   *  BRIEF's movement, the doc faces the document's — two layers, two tokens. */
+  #stationOf(face: PhaseFaceKey, facts: DispatchLineFacts): UpstreamStation | null {
     if (face === "wave") return this.#waveStation(facts);
     const line = DispatchAuthority.#docFaceOf(face, facts.pipeline);
     if (line === null) return null;
     const ledger = facts.ledger;
     // A line with no recorded round was never entered: no station, nothing to hold.
     if (!DispatchAuthority.#docEntered(ledger, line)) return null;
-    if (ledger.reviewGate(line.key, line.doc, line.type).kind === "open") return "drift";
-    return ledger.lineStateAt(line.key, line.type, line.doc) === "closed" ? null : "open";
+    if (ledger.reviewGate(line.key, line.doc, line.type).kind === "open")
+      return { kind: "doc-drift" };
+    return ledger.lineStateAt(line.key, line.type, line.doc) === "closed" ? null : { kind: "open" };
   }
 
   /** The wave face's station — read off the SAME two judges the frontier runs, never a
    *  local walk: entered over the three dispatch modes, drifted over the derived
-   *  batches' reviewed briefs, exhausted over `closedWaves()`. */
-  #waveStation(facts: DispatchLineFacts): UpstreamStation {
+   *  batches' reviewed briefs, exhausted over `closedWaves()`.
+   *
+   *  P29 §2.1 — the drift read is NOT retroactive: a batch whose tasks all sit in
+   *  `closedWaves()` is filtered out before `briefDrifted` runs. A closed wave has no
+   *  round left to reopen, so its stale brief is nobody's `next:` (the #438 face: a
+   *  finished run's plan edit blocked the branch review). Only an OPEN batch's brief
+   *  movement refuses the faces below the wave face. */
+  #waveStation(facts: DispatchLineFacts): UpstreamStation | null {
     const graph = facts.pipeline.planGraph;
     if (graph === null) return null;
     const frontier = this.#frontierOf(facts);
     if (!frontier.wavesEntered(graph)) return null;
-    const drifted = graph.batches().some((batch) => facts.ledger.briefDrifted(batch.join(",")));
-    if (drifted) return "drift";
-    return frontier.wavesExhausted(graph) ? null : "open";
+    const batch = DispatchAuthority.#firstDriftedOpenBatch(graph, facts.ledger);
+    if (batch !== null) return { kind: "brief-drift", batch };
+    return frontier.wavesExhausted(graph) ? null : { kind: "open" };
+  }
+
+  /** The FIRST open batch whose task-only brief moved (`graph.batches()` order — the
+   *  ONE order §2.4 makes executable) — null when every batch is either closed or
+   *  undrifted. The closure cell is `closedWaves()`, the same read the frontier's
+   *  exhaustion uses: a batch is closed when every one of its tasks is. */
+  static #firstDriftedOpenBatch(graph: TaskGraph, ledger: Ledger): string | null {
+    const closed = ledger.closedWaves();
+    for (const batch of graph.batches()) {
+      if (batch.every((id) => closed.has(id))) continue;
+      const key = batch.join(",");
+      if (ledger.briefDrifted(key)) return key;
+    }
+    return null;
   }
 
   /** The line leg — this line's phase against the requested one, with the refusal's
@@ -279,7 +364,69 @@ export class DispatchAuthority {
     if (ruling.kind === "allowed") return { allowed: true };
     const next = this.#hopOf(request.line);
     const reason = ruling.kind === "row" ? ruling.reason : next.reason;
-    return { allowed: false, leg: "line", reason, next };
+    return this.#refusal("line", reason, next, request.line);
+  }
+
+  /** One refusal, with its drift diagnosis attached when the reason is a drift token
+   *  (§2.5 — one construction point, so no drift refusal can print without it). The
+   *  diagnosis reads the identity the hop itself names (`NextHop.target`), never a
+   *  second lookup of which line moved. */
+  #refusal(
+    leg: DispatchLeg,
+    reason: DispatchReason,
+    next: NextHop,
+    facts: DispatchLineFacts,
+  ): DispatchRefusal {
+    const drift = DispatchAuthority.#isDriftReason(reason)
+      ? DispatchAuthority.#driftOf(next, facts)
+      : undefined;
+    return drift === undefined
+      ? { allowed: false, leg, reason, next }
+      : { allowed: false, leg, reason, next, drift };
+  }
+
+  /** Whether a token names a moved reviewed identity — the two rows whose refusal line
+   *  must carry the diagnosis (§2.5). */
+  static #isDriftReason(reason: DispatchReason): boolean {
+    return reason === DISPATCH_REASON.briefDrift.token || reason === DISPATCH_REASON.docDrift.token;
+  }
+
+  /** The diagnosis of the hop's OWN render target (§2.5) — a wave target is judged on
+   *  its brief's task-only projection, every doc shape on its document revision, and the
+   *  hop's target is the identity the refusal already names (never a second lookup of
+   *  which line moved). Undefined when the target holds no identity on record: a
+   *  diagnosis never invents a fact. */
+  static #driftOf(next: NextHop, facts: DispatchLineFacts): DispatchDrift | undefined {
+    const target = next.target;
+    if (target === null) return undefined;
+    const brief = target.type === "wave";
+    const pair = brief
+      ? facts.ledger.briefDriftHashes(String(target.id))
+      : DispatchAuthority.#docDriftPair(target, facts);
+    return pair === null ? undefined : { layer: brief ? "brief" : "doc", ...pair };
+  }
+
+  /** The doc target's diagnosis read — the target's own type is the ledger key of the
+   *  line it renders (`plan` / `branch` / the declared spec word), and a branch target
+   *  carries its document in `plan`, every other shape in `id`. */
+  static #docDriftPair(
+    target: RouteTarget,
+    facts: DispatchLineFacts,
+  ): { line: string; recorded: string; current: string } | null {
+    const doc = target.type === "branch" ? (target.plan ?? null) : target.id;
+    return doc === null ? null : facts.ledger.docDriftHashes(target.type, doc, target.type);
+  }
+
+  /** The refusal line's reason head — the token alone, or the token plus the mandatory
+   *  diagnosis (§2.5): `layer=` · `line=` · `recorded=` · `current=` with a stable hash
+   *  prefix per end. ONE rendering site, so the CLI cannot print a second wording. */
+  static #driftReasonText(verdict: DispatchRefusal): string {
+    const drift = verdict.drift;
+    if (drift === undefined) return verdict.reason;
+    const prefix = (hash: string): string => hash.slice(0, DRIFT_HASH_PREFIX);
+    return `${verdict.reason} · layer=${drift.layer} · line=${drift.line} · recorded=${prefix(
+      drift.recorded,
+    )} · current=${prefix(drift.current)}`;
   }
 
   /** The wave face's rows — the three-verb gate judged whole (its order IS the

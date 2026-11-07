@@ -306,7 +306,7 @@ describe("P4.1 T4 — the router's routes render parseable next literals (zero-e
     // The capsule renders the ONE derived `NextHop` object (P22 §5.2).
     const hop = router.nextHop({
       target: { type: "wave", id: "1,2", plan: "docs/kairos/plans/p3.md" },
-      gate: { drift: false },
+      gate: { docDrift: false, briefDrift: false },
       route,
       verdict: "wave",
     });
@@ -361,7 +361,7 @@ describe("P21 §4.2 — nextHop's next-line fact (the retired patch argument's f
   const waveHop = (nextLineOpen?: boolean) =>
     router.nextHop({
       target: { type: "wave", id: "1", plan: "docs/kairos/plans/p.md" },
-      gate: { drift: false },
+      gate: { docDrift: false, briefDrift: false },
       route: { kind: "done" },
       verdict: "wave",
       nextLineOpen,
@@ -393,7 +393,7 @@ const branchTarget: RouteTarget = {
 /** A next-hop input with the phase-spec closure defaults; each case overrides one. */
 const hopInput = (over: Partial<NextHopInput> = {}): NextHopInput => ({
   target: specTarget,
-  gate: { drift: false },
+  gate: { docDrift: false, briefDrift: false },
   route: { kind: "done" },
   verdict: "phase-spec",
   ...over,
@@ -438,19 +438,45 @@ describe("P22 §5.2 — nextHop: the count table's route read out as a hop", () 
   });
 
   it("(c) a drift-reopened closed line → the review hop (doc-drift), branch-review on the branch face", () => {
-    const hop = router.nextHop(hopInput({ route: { kind: "review" }, gate: { drift: true } }));
+    const hop = router.nextHop(
+      hopInput({ route: { kind: "review" }, gate: { docDrift: true, briefDrift: false } }),
+    );
     expect(hop.hop).toBe("review");
     expect(hop.reason).toBe(NEXT_HOP_REASON.docDrift);
     const branch = router.nextHop(
       hopInput({
         target: branchTarget,
         route: { kind: "review" },
-        gate: { drift: true },
+        gate: { docDrift: true, briefDrift: false },
         verdict: "branch",
       }),
     );
     expect(branch.hop).toBe("branch-review");
     expect(branch.reason).toBe(NEXT_HOP_REASON.docDrift);
+  });
+
+  it("(c2) a drifted wave BRIEF → its own token (`brief-drift`), never the doc revision's", () => {
+    const hop = router.nextHop(
+      hopInput({
+        target: waveTarget,
+        route: { kind: "review" },
+        gate: { docDrift: false, briefDrift: true },
+        verdict: "wave",
+      }),
+    );
+    expect(hop.hop).toBe("review");
+    expect(hop.reason).toBe(NEXT_HOP_REASON.briefDrift);
+    expect(hop.reason).not.toBe(NEXT_HOP_REASON.docDrift);
+    // The doc cell alone never yields the brief token — the two facts stay apart.
+    const docOnly = router.nextHop(
+      hopInput({
+        target: waveTarget,
+        route: { kind: "review" },
+        gate: { docDrift: true, briefDrift: false },
+        verdict: "wave",
+      }),
+    );
+    expect(docOnly.reason).toBe(NEXT_HOP_REASON.docDrift);
   });
 
   it("(d) a done line → no hop, `to` judged from the ONE target cell", () => {
@@ -754,7 +780,7 @@ describe("P22 §5.2 — drift does not outrank a pending fix", () => {
     const hop = router.nextHop(
       hopInput({
         route: { kind: "fix", reviews: "plan-review-1.json" },
-        gate: { drift: true },
+        gate: { docDrift: true, briefDrift: false },
       }),
     );
     expect(hop.hop).toBe("fix");
@@ -764,7 +790,7 @@ describe("P22 §5.2 — drift does not outrank a pending fix", () => {
 });
 
 // ---------------------------------------------------------------------------
-// P27 §2.5 — ONE reason table with a `leg` partition. The 13 non-structure tokens
+// P27 §2.5 — ONE reason table with a `leg` partition. The 14 non-structure tokens
 // are pinned by SPELLING (never by row count: the same table also carries the
 // structure gate-id rows). The row leg domain is structure | line | station — the
 // dispatch verdict's own leg (`structure | upstream | line`) is a different axis,
@@ -772,7 +798,7 @@ describe("P22 §5.2 — drift does not outrank a pending fix", () => {
 // line/station tokens.
 // ---------------------------------------------------------------------------
 
-describe("P27 §2.5 — the reason table: 13 non-structure tokens with a leg partition", () => {
+describe("P27 §2.5 — the reason table: 14 non-structure tokens with a leg partition", () => {
   const rows = Object.values(DISPATCH_REASON);
   const LINE_TOKENS = [
     // the wave gate's five (moved onto the shared table, leg L)
@@ -788,7 +814,9 @@ describe("P27 §2.5 — the reason table: 13 non-structure tokens with a leg par
     "face-closed",
   ] as const;
   const STATION_TOKENS = [
-    // the station signs a `next:` hop is named by
+    // the station signs a `next:` hop is named by (`brief-drift` and `doc-drift` are
+    // TWO facts: a wave brief's task-only projection vs a document's revision)
+    "brief-drift",
     "doc-drift",
     "soft-cap",
     "task-open",
@@ -801,8 +829,8 @@ describe("P27 §2.5 — the reason table: 13 non-structure tokens with a leg par
     const station = rows.filter((row) => row.leg === "station").map((row) => row.token);
     expect(line.sort()).toEqual([...LINE_TOKENS].sort());
     expect(station.sort()).toEqual([...STATION_TOKENS].sort());
-    // 13 non-structure tokens — counted by leg, never asserted as a row total
-    expect(line.length + station.length).toBe(13);
+    // 14 non-structure tokens — counted by leg, never asserted as a row total
+    expect(line.length + station.length).toBe(14);
     // a second parallel spelling of any token fails here
     expect(new Set(rows.map((row) => row.token)).size).toBe(rows.length);
   });
@@ -821,8 +849,9 @@ describe("P27 §2.5 — the reason table: 13 non-structure tokens with a leg par
     ).toEqual(["doc-contract", "graph", "in-flight", "plan-ledger", "tree-clean"]);
   });
 
-  it("keeps the existing seven NEXT_HOP_REASON spellings verbatim", () => {
+  it("keeps the NEXT_HOP_REASON spellings verbatim, `brief-drift` included", () => {
     expect(NEXT_HOP_REASON.docDrift).toBe("doc-drift");
+    expect(NEXT_HOP_REASON.briefDrift).toBe("brief-drift");
     expect(NEXT_HOP_REASON.pendingFix).toBe("pending-fix");
     expect(NEXT_HOP_REASON.closedLine).toBe("closed-line");
     expect(NEXT_HOP_REASON.faceClosed).toBe("face-closed");

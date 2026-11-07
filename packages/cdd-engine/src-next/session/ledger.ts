@@ -469,6 +469,18 @@ export interface BriefRevisionRef {
  *  line) OR the brief-revision (a wave line); the two are mutually exclusive per row. */
 export type ReviewedRevisionRef = DocRevisionRef | BriefRevisionRef;
 
+/** One drifted identity's diagnosis (§2.5) — the layer's line key plus the two hash
+ *  ends the refusal must print: what the review bound, and what the disk holds now.
+ *  The full sha1 hex is the value; the caller renders a stable prefix. */
+export interface DriftHashPair {
+  /** The line key of the moved identity — the wave batch key, or the document path. */
+  readonly line: string;
+  /** The hash the review bound (the recorded revision's second layer). */
+  readonly recorded: string;
+  /** The hash the identity holds now. */
+  readonly current: string;
+}
+
 /**
  * ReviewRefs — the review-reference face (T25): the two-layer bindings (`docRevision`
  * — the doc hash from its content · `briefRevision` — the wave's task-only projection
@@ -908,6 +920,23 @@ export class Ledger {
     doc: string,
     identity: TargetType | null = null,
   ): "drift" | "same" | null {
+    const pair = this.#docRevisionPair(key, doc, identity);
+    if (pair === null) return null;
+    return this.#identity.verdict(pair.reviewed, { ref: pair.current }) === "same"
+      ? "same"
+      : "drift";
+  }
+
+  /** The doc line's two revision sides — the recorded reviewed revision and the one
+   *  the document holds NOW (null when no reviewed revision is on record or the doc is
+   *  unreadable). ONE read for TWO consumers: the drift verdict (`docLineVerdict`) and
+   *  the refusal's mandatory diagnosis (`docDriftHashes`), so the two can never
+   *  compare different bytes. */
+  #docRevisionPair(
+    key: LedgerKey,
+    doc: string,
+    identity: TargetType | null,
+  ): { reviewed: DocRevisionRef; current: DocRevisionRef } | null {
     const reviewed = this.reviewedDocRevisionOf(key, identity);
     if (reviewed === null) return null;
     try {
@@ -916,10 +945,37 @@ export class Ledger {
       // false-drift comparison never reads one document as two.
       const rel = this.#rel(doc);
       const current = this.#refs.docRevision(rel, readFileSync(this.#abs(doc), "utf8"));
-      return this.#identity.verdict(reviewed, { ref: current }) === "same" ? "same" : "drift";
+      return { reviewed, current };
     } catch {
       return null;
     }
+  }
+
+  /** The doc line's drift diagnosis (§2.5) — the layer's line key (the document path
+   *  the review bound, on the ONE persisted basis) and both hash ends. Null when there
+   *  is no recorded revision or the document is unreadable: a diagnosis never invents
+   *  a fact. */
+  docDriftHashes(
+    key: LedgerKey,
+    doc: string,
+    identity: TargetType | null = null,
+  ): DriftHashPair | null {
+    const pair = this.#docRevisionPair(key, doc, identity);
+    if (pair === null) return null;
+    return {
+      line: pair.reviewed.doc,
+      recorded: pair.reviewed.doc_hash,
+      current: pair.current.doc_hash,
+    };
+  }
+
+  /** The wave line's drift diagnosis (§2.5) — the line key is the wave batch key, the
+   *  hashes are the recorded vs current TASK-ONLY brief projections. Null when the row
+   *  holds no brief identity or the plan's task section is underivable. */
+  briefDriftHashes(waveKey: string): DriftHashPair | null {
+    const pair = this.#briefRevisionPair(waveKey);
+    if (pair === null) return null;
+    return { line: waveKey, recorded: pair.reviewed.brief_hash, current: pair.current.brief_hash };
   }
 
   /** The review-gate method (T8 · §3.5) — the doc line's review request judgment +
@@ -1027,11 +1083,24 @@ export class Ledger {
    *  D30 leg and the next-hop assembly's reason-only `briefDrift` cell both come
    *  through here. */
   briefDrifted(waveKey: string): boolean {
+    const pair = this.#briefRevisionPair(waveKey);
+    if (pair === null) return false;
+    return this.#identity.verdict(pair.reviewed, { ref: pair.current }) === "drift";
+  }
+
+  /** The wave line's two brief-projection sides — the recorded task-only revision and
+   *  the one the plan renders NOW (null when the row holds no brief identity or the
+   *  plan is unreadable / a requested task is absent). ONE read for TWO consumers: the
+   *  drift predicate (`briefDrifted`) and the refusal's diagnosis
+   *  (`briefDriftHashes`), so neither can hash a different projection. */
+  #briefRevisionPair(
+    waveKey: string,
+  ): { reviewed: BriefRevisionRef; current: BriefRevisionRef } | null {
     const reviewed = this.reviewedRevisionOf(waveKey);
-    if (reviewed === null || reviewed.kind !== "brief-revision") return false;
+    if (reviewed === null || reviewed.kind !== "brief-revision") return null;
     const current = this.#briefRevision(waveKey, reviewed.plan);
-    if (current === null) return false;
-    return this.#identity.verdict(reviewed, { ref: current }) === "drift";
+    if (current === null) return null;
+    return { reviewed, current };
   }
 
   /** The pending-fix derivation — the "doc same + not APPROVED" face (T8): the
@@ -1232,9 +1301,10 @@ export class Ledger {
    *      `reviewGate`); the injected `briefDrift` cell never moves a route — a wave's
    *      exit-side station (`handoff`) is never rewritten into a review;
    *    · the REASON cell adds the caller-injected wave brief-drift fact to that
-   *      verdict, so a drifted wave names `doc-drift` without a second judgment.
+   *      verdict, so a drifted wave names `brief-drift` without a second judgment —
+   *      the document's own movement keeps `doc-drift` (§2.3: two facts, two tokens).
    *  The ONE exception to the route being the caller's is the drift-reopened doc
-   *  line: the gate's `drift` verdict IS its reopen, and the closure-side route the
+   *  line: the gate's `docDrift` verdict IS its reopen, and the closure-side route the
    *  count table recorded predates the document movement — so the assembly hands the
    *  derivation the reopened review hop in that case. A presentation-level
    *  substitution: the count table's judgment (`NextStepRouter#next`) stays the only
@@ -1271,13 +1341,14 @@ export class Ledger {
     // discrimination): no target carries no judgeable class (the bare terminal).
     const verdict: DocClassVerdict =
       input.target === null ? "terminal" : input.docClassOf(input.target);
-    // The REASON cell's drift value — `drift` above plus the caller-injected wave
-    // brief-drift fact. The two are kept apart: only `drift` drives the route
-    // substitution, so a wave's exit-side station keeps its bytes while its `reason:`
-    // row still names the movement.
+    // The REASON cell's drift values — the doc verdict plus the caller-injected wave
+    // brief-drift fact, each landing on ITS own boolean (§2.3). The two are kept
+    // apart: only `docDrift` drives the route substitution, so a wave's exit-side
+    // station keeps its bytes while its `reason:` row still names the movement — and
+    // names it with the brief's own token, never the document's.
     return this.#router.nextHop({
       target: input.target,
-      gate: { drift: drift || (input.briefDrift ?? false) },
+      gate: { docDrift: drift, briefDrift: input.briefDrift ?? false },
       verdict,
       route,
       nextLineOpen: input.nextLineOpen,

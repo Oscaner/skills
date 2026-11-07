@@ -1889,9 +1889,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       );
       const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(1);
-      // The ONE refusal line (§2.6) names the upstream round the station holds.
-      expect(io.stderrText).toContain(
-        "doc-drift · next: review --type plan --plan docs/kairos/plans/p3.md",
+      // The ONE refusal line (§2.6) names the upstream round the station holds — and
+      // carries the MANDATORY drift diagnosis (P29 §2.5: layer · line key · both hashes).
+      expect(io.stderrText).toMatch(
+        /doc-drift · layer=doc · line=docs\/kairos\/plans\/p3\.md · recorded=[0-9a-f]{12} · current=[0-9a-f]{12} · next: review --type plan --plan docs\/kairos\/plans\/p3\.md/,
       );
       // Refuse-without-ledger: the refusal precedes every write — no brief, no
       // phantom round.
@@ -2508,7 +2509,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           workspace.resolve("branch-review-1.json"),
         ]),
       ).toBe(1);
-      expect(io.stderrText).toContain("doc-drift · next: review --type branch");
+      expect(io.stderrText).toContain(
+        "doc-drift · layer=doc · line=docs/kairos/plans/p3.md · recorded=",
+      );
+      expect(io.stderrText).toContain(" · next: review --type branch");
     } finally {
       cleanup();
     }
@@ -3853,7 +3857,7 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
   function literalOf(route: Route, target?: RouteTarget): string {
     const hop = new NextStepRouter().nextHop({
       target: target ?? null,
-      gate: { drift: false },
+      gate: { docDrift: false, briefDrift: false },
       route,
       verdict: target === undefined ? "terminal" : "phase-spec",
     });

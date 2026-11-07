@@ -23,6 +23,7 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { type DocEntry, SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { DispatchAuthority } from "../../session/dispatch-authority.ts";
 import { type RouteTarget, targetFaces } from "../../session/faces.ts";
 import type { InFlightRecord } from "../../session/inflight.ts";
 import { Ledger, type RoundRecord } from "../../session/ledger.ts";
@@ -42,7 +43,7 @@ const hopOf = (repo: string, route: Route, target: RouteTarget | null = null): N
   const root = new RepoRoot(repo);
   return new NextStepRouter().nextHop({
     target,
-    gate: { drift: false },
+    gate: { docDrift: false, briefDrift: false },
     route,
     verdict: target === null ? "terminal" : BoardView.docClassOf(root, target),
   });
@@ -2002,7 +2003,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     };
   };
 
-  it("(w1) a drifted fix-pending WAVE renders the review lead with `reason: doc-drift`", () => {
+  it("(w1) a drifted fix-pending WAVE renders the review lead with `reason: brief-drift`", () => {
     const { planFile } = warnReviewedWave();
     driftWaveSection(planFile);
     const index = SlugIndex.build(repo);
@@ -2010,12 +2011,75 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const hop = BoardNext.of(index, entry, new RepoRoot(repo));
     expect(hop).not.toBeNull();
     expect(hop!.hop).toBe("review");
-    expect(hop!.reason).toBe("doc-drift");
+    // P29 §2.3 — a wave brief's task-only projection is not a document revision:
+    // the row names its own token, never `doc-drift`.
+    expect(hop!.reason).toBe("brief-drift");
+    expect(hop!.reason).not.toBe("doc-drift");
     const rows = nextReasonRows();
     // the dispatchable row is still the executable review literal — `reason:` is the
     // DIAGNOSTIC row of its own (never a suffix on `next:`)
     expect(rows.next).toMatch(/^review --type wave --tasks 1 --plan /);
+    expect(rows.reason).toBe("  reason:  brief-drift");
+  });
+
+  it("(w3) board ↔ dispatch agree: a CLOSED wave's stale brief opens no drift refusal", () => {
+    nodeDocs();
+    const planFile = planDoc([[1]]);
+    const ledger = ledgerOf();
+    // Every face closed on a clean round, the wave's brief bound, the branch line
+    // bound to the plan revision it judged — a finished run's state.
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+    ledger.recordRound("1", { op: "implement" });
+    ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
+    ledger.recordRound("1", { op: "review" });
+    ledger.recordReviewedBrief("1", planFile);
+    ledger.persistHandoff("review", "branch", { round: 1 }, { findings: [] });
+    ledger.recordRound("branch", { op: "review" });
+    ledger.recordReviewedRevision(
+      "branch",
+      ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
+      "branch",
+    );
+    // The wave's TASK section moves. The PLAN line is re-reviewed on the moved body
+    // (its own round rebinds); the closed wave's brief stays stale — the P29 state.
+    driftWaveSection(planFile);
+    ledger.persistHandoff("review", "plan", { round: 2 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review", cycle: 2 });
+    ledger.recordReviewedRevision(
+      "plan",
+      ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
+      "plan",
+    );
+    expect(ledger.briefDrifted("1")).toBe(true);
+    // The board names the branch review (the D76 plan drift), never a wave brief row.
+    const rows = nextReasonRows();
+    expect(rows.next).toBe("review --type branch --plan docs/kairos/plans/prog-p1.md");
     expect(rows.reason).toBe("  reason:  doc-drift");
+    // ... and the dispatch face allows the very round the board names: the closed
+    // wave's stale brief refuses nothing (§2.1/§2.6 — one station read, two faces).
+    const index = SlugIndex.build(repo);
+    const entry = entryOf("prog-p1");
+    const root = new RepoRoot(repo);
+    const facts = BoardView.pipelineFacts(index, entry, root)!;
+    const verdict = new DispatchAuthority().verdict({
+      verb: "review",
+      type: "branch",
+      structure: { ok: true, order: [], checked: [] },
+      line: {
+        ledger,
+        words: new Words(),
+        graph: null,
+        tasks: null,
+        lineKey: "branch",
+        doc: planFile,
+        pipeline: facts.input,
+        docClassOf: (candidate) => BoardView.docClassOf(root, candidate),
+      },
+    });
+    expect(verdict).toEqual({ allowed: true });
   });
 
   it("(w2) the negative control — a SOFT-CAPPED drifted wave is never rewritten into a review", () => {

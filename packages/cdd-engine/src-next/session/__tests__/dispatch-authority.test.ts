@@ -169,6 +169,21 @@ const cleanReviewCarrier = (ledger: Ledger, tasks: string, round: number): void 
   );
 };
 
+/** A warn-carrying review carrier — the wave line stays OPEN (its fix is awaited). */
+const warnReviewCarrier = (ledger: Ledger, tasks: string, round: number): void => {
+  ledger.recordRound(tasks, { op: "review" });
+  ledger.persistHandoff(
+    "review",
+    "wave",
+    { tasks, round },
+    {
+      tasks: tasks.split(",").map(Number),
+      phase: "review",
+      findings: [{ severity: "warn", lens: "plan", summary: "w" }],
+    },
+  );
+};
+
 describe("P27 §2.4 — the wave face's five rows (each its own case)", () => {
   it("mixed-batch — a static batch mixing closed and open tasks", () => {
     const { ledger, cleanup } = fixture();
@@ -503,7 +518,7 @@ const specDoc = (docType: "phase-spec" | "single-spec", body = "body"): string =
  *  reviewed identity — the drift ① compares against). */
 const closeDoc = (
   ledger: Ledger,
-  type: "phase-spec" | "single-spec" | "plan" | "overall",
+  type: "phase-spec" | "single-spec" | "plan" | "branch" | "overall",
   rel: string,
   content: string,
   findings: readonly Record<string, unknown>[] = [],
@@ -580,8 +595,15 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
       );
       expect(refusal.leg).toBe("upstream");
       expect(refusal.reason).toBe("doc-drift");
+      // §2.5 — the doc-side diagnosis is MANDATORY: the layer, the line the review
+      // bound, and both hash ends (the recorded revision vs what the disk holds now).
+      const recorded = refs.docRevision(UPSTREAM_PLAN_REL, reviewed).doc_hash.slice(0, 12);
+      const current = refs
+        .docRevision(UPSTREAM_PLAN_REL, planDoc([task(1, "none"), task(2, "1")]))
+        .doc_hash.slice(0, 12);
+      expect(recorded).not.toBe(current);
       expect(render(refusal, basis)).toBe(
-        "doc-drift · next: review --type plan --plan docs/kairos/plans/p3.md",
+        `doc-drift · layer=doc · line=${UPSTREAM_PLAN_REL} · recorded=${recorded} · current=${current} · next: review --type plan --plan docs/kairos/plans/p3.md`,
       );
     } finally {
       cleanup();
@@ -608,8 +630,8 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
       );
       expect(refusal.leg).toBe("upstream");
       expect(refusal.reason).toBe("doc-drift");
-      expect(render(refusal, basis)).toBe(
-        "doc-drift · next: review --type phase-spec --spec docs/kairos/specs/s1-design.md",
+      expect(render(refusal, basis)).toMatch(
+        /^doc-drift · layer=doc · line=docs\/kairos\/specs\/s1-design\.md · recorded=[0-9a-f]{12} · current=[0-9a-f]{12} · next: review --type phase-spec --spec docs\/kairos\/specs\/s1-design\.md$/,
       );
     } finally {
       cleanup();
@@ -636,8 +658,8 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
       );
       expect(refusal.leg).toBe("upstream");
       expect(refusal.reason).toBe("doc-drift");
-      expect(render(refusal, basis)).toBe(
-        "doc-drift · next: review --type single-spec --spec docs/kairos/specs/s1-design.md",
+      expect(render(refusal, basis)).toMatch(
+        /^doc-drift · layer=doc · line=docs\/kairos\/specs\/s1-design\.md · recorded=[0-9a-f]{12} · current=[0-9a-f]{12} · next: review --type single-spec --spec docs\/kairos\/specs\/s1-design\.md$/,
       );
     } finally {
       cleanup();
@@ -718,20 +740,59 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
     }
   });
 
-  it("① a closed wave with a moved brief still refuses — exhaustion never reads the brief", () => {
+  it("a CLOSED wave with a moved Task section no longer refuses — closed stations are not re-trodden", () => {
     const { repo, ledger, cleanup } = fixture();
     try {
       const content = planDoc([task(1, "none")]);
       const planAbs = writeAt(repo, UPSTREAM_PLAN_REL, content);
+      // The wave runs and closes (its review binds the task-only brief), and the branch
+      // line closes on the plan revision it judged — a finished run's state.
       ledger.recordRound("1", { op: "implement" });
       cleanReviewCarrier(ledger, "1", 1);
       ledger.recordReviewedBrief("1", planAbs);
-      // Every task is done (`#wavesExhausted` holds) while the judged brief moved.
+      closeDoc(ledger, "branch", UPSTREAM_PLAN_REL, content);
+      // The wave's TASK section moves past the bound projection — a real brief drift
+      // (never a Constraints-only reword, which is no drift at all since P29 T1).
       writeAt(
         repo,
         UPSTREAM_PLAN_REL,
         planDoc([["### Task 1: task 1", "- **DependsOn**: none", "- **Acceptance**: moved"]]),
       );
+      expect(ledger.briefDrifted("1")).toBe(true);
+      const graph = graphOf([task(1, "none")]);
+      const verdict = authority.verdict(
+        upstreamCase({
+          ledger,
+          type: "branch",
+          verb: "review",
+          lineKey: "branch",
+          doc: planAbs,
+          pipeline: { planPath: planAbs, planGraph: graph },
+        }),
+      );
+      // §2.1 — the closed batch is filtered out of the station read, so the upstream leg
+      // never holds the branch dispatch on a brief nobody will review again.
+      expect(verdict.allowed).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("② an OPEN wave whose Task section moved refuses as `brief-drift`, naming that batch's wave review", () => {
+    const { repo, basis, ledger, cleanup } = fixture();
+    try {
+      const content = planDoc([task(1, "none")]);
+      const planAbs = writeAt(repo, UPSTREAM_PLAN_REL, content);
+      // The wave is entered (implemented) but not closed, and its brief was bound by a
+      // completed review — the row P29 §2.2 hashes the task-only projection against.
+      ledger.recordRound("1", { op: "implement" });
+      warnReviewCarrier(ledger, "1", 1);
+      ledger.recordReviewedBrief("1", planAbs);
+      const moved = planDoc([
+        ["### Task 1: task 1", "- **DependsOn**: none", "- **Acceptance**: moved"],
+      ]);
+      writeAt(repo, UPSTREAM_PLAN_REL, moved);
+      expect(ledger.briefDrifted("1")).toBe(true);
       const graph = graphOf([task(1, "none")]);
       const refusal = refusalOf(
         upstreamCase({
@@ -743,9 +804,28 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
           pipeline: { planPath: planAbs, planGraph: graph },
         }),
       );
-      // ① owns this refusal: ② cannot see it, because exhaustion ignores the brief.
+      // §2.3/§2.4 — the brief drift names ITS own token, and the hop points at the wave
+      // review of the drifted batch, never at the branch station's own literal.
       expect(refusal.leg).toBe("upstream");
-      expect(refusal.reason).toBe("doc-drift");
+      expect(refusal.reason).toBe("brief-drift");
+      const message = render(refusal, basis);
+      expect(message).toContain(
+        "next: review --type wave --tasks 1 --plan docs/kairos/plans/p3.md",
+      );
+      expect(message).not.toContain("review --type branch");
+      // §2.5 — the mandatory diagnosis: layer · line key · both hash ends.
+      expect(message).toMatch(
+        /layer=brief · line=1 · recorded=[0-9a-f]{12} · current=[0-9a-f]{12} /,
+      );
+      const hashes = message.match(/recorded=([0-9a-f]{12}) · current=([0-9a-f]{12}) /);
+      expect(hashes).not.toBeNull();
+      const reviewed = ledger.reviewedRevisionOf("1");
+      expect(reviewed?.kind).toBe("brief-revision");
+      // the recorded end IS the bound task-only projection; the current end moved.
+      expect(hashes![1]).toBe(
+        reviewed?.kind === "brief-revision" ? reviewed.brief_hash.slice(0, 12) : "",
+      );
+      expect(hashes![2]).not.toBe(hashes![1]);
     } finally {
       cleanup();
     }

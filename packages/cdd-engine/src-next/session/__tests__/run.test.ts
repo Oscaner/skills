@@ -1555,15 +1555,17 @@ describe("P24 T3 — a drifted wave reaches the next-hop reason", () => {
     return { ledger, run, cleanup };
   };
 
-  it("the frontier's hop names `doc-drift` and the reason row renders it", async () => {
+  it("the frontier's hop names `brief-drift` and the reason row renders it", async () => {
     const { run, cleanup } = await driftedWave();
     try {
       const peeked = run.peekNext();
       expect(peeked).not.toBeNull();
       expect(peeked!.frame.phase).toBe("review"); // the wave line reopens at review (D30)
       expect(peeked!.hop.hop).toBe("review");
-      expect(peeked!.hop.reason).toBe("doc-drift");
-      expect(new RouteRenderer(new Words()).renderReason(peeked!.hop)).toBe("reason: doc-drift");
+      // P29 §2.3 — a wave brief's task-only projection moved: its OWN token.
+      expect(peeked!.hop.reason).toBe("brief-drift");
+      expect(peeked!.hop.reason).not.toBe("doc-drift");
+      expect(new RouteRenderer(new Words()).renderReason(peeked!.hop)).toBe("reason: brief-drift");
     } finally {
       cleanup();
     }
@@ -1580,9 +1582,9 @@ describe("P24 T3 — a drifted wave reaches the next-hop reason", () => {
       // frontier's hop and names the movement (the P24 T7 parity block below).
       const step = await run.advance();
       expect(step!.frame.phase).toBe("review");
-      expect(step!.capsuleLines.some((line) => line.includes("doc-drift"))).toBe(false);
+      expect(step!.capsuleLines.some((line) => line.includes("brief-drift"))).toBe(false);
       expect(ledger.briefDrifted("1")).toBe(false);
-      expect(run.peekNext()!.hop.reason).not.toBe("doc-drift");
+      expect(run.peekNext()!.hop.reason).not.toBe("brief-drift");
     } finally {
       cleanup();
     }

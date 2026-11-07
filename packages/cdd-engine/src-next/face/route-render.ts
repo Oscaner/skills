@@ -98,7 +98,7 @@ export class RouteRenderer {
   }
 
   /** renderReason(hop) → the `reason:` VALUE of one derived NextHop — the named fact
-   *  that selected the hop (one of the seven `NEXT_HOP_REASON` tokens), rendered as a
+   *  that selected the hop (one of the eight `NEXT_HOP_REASON` tokens), rendered as a
    *  row of its OWN so the dispatchable `next:` literal keeps its exact bytes. A
    *  hop-absent round renders no row at all: the caller gates on the SAME hop object
    *  its `next:` render reads, so the two rows can never disagree. The station word

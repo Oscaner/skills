@@ -96,7 +96,8 @@ export type DispatchVerdict =
       readonly leg: DispatchLeg;
       readonly reason: DispatchReason;
       readonly next: NextHop | null;
-      /** §2.5 — present exactly when the reason is a drift token. */
+      /** §2.5 — present when the reason is a drift token and the hop's target yields
+       *  both hash ends (an underivable identity prints the bare token). */
       readonly drift?: DispatchDrift;
     };
 
@@ -368,9 +369,11 @@ export class DispatchAuthority {
   }
 
   /** One refusal, with its drift diagnosis attached when the reason is a drift token
-   *  (§2.5 — one construction point, so no drift refusal can print without it). The
+   *  (§2.5 — one construction point, so no refusal has a second path to print by). The
    *  diagnosis reads the identity the hop itself names (`NextHop.target`), never a
-   *  second lookup of which line moved. */
+   *  second lookup of which line moved. It is absent exactly when the target records no
+   *  pair — a diagnosis never invents a fact, so an underivable identity prints the
+   *  bare token. */
   #refusal(
     leg: DispatchLeg,
     reason: DispatchReason,

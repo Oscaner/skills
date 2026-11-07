@@ -831,6 +831,58 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
     }
   });
 
+  it("② two drifted OPEN waves — the refusal names the FIRST drifted batch only, never the later one", () => {
+    const { repo, basis, ledger, cleanup } = fixture();
+    try {
+      const content = planDoc([task(1, "none"), task(2, "1")]);
+      const planAbs = writeAt(repo, UPSTREAM_PLAN_REL, content);
+      // Both batches are entered and each brief is bound by a warn-carrying review, so
+      // both stay OPEN — the shape two drifted OPEN batches need.
+      for (const batch of ["1", "2"]) {
+        ledger.recordRound(batch, { op: "implement" });
+        warnReviewCarrier(ledger, batch, 1);
+        ledger.recordReviewedBrief(batch, planAbs);
+      }
+      // Both Task sections then move: two drifted OPEN batches in `batches()` order.
+      writeAt(
+        repo,
+        UPSTREAM_PLAN_REL,
+        planDoc([
+          ["### Task 1: task 1", "- **DependsOn**: none", "- **Acceptance**: moved"],
+          ["### Task 2: task 2", "- **DependsOn**: 1", "- **Acceptance**: moved"],
+        ]),
+      );
+      expect(ledger.briefDrifted("1")).toBe(true);
+      expect(ledger.briefDrifted("2")).toBe(true);
+      const graph = graphOf([task(1, "none"), task(2, "1")]);
+      expect(graph.batches().map((batch) => batch.join(","))).toEqual(["1", "2"]);
+      const refusal = refusalOf(
+        upstreamCase({
+          ledger,
+          type: "branch",
+          verb: "review",
+          lineKey: "branch",
+          doc: planAbs,
+          pipeline: { planPath: planAbs, planGraph: graph },
+        }),
+      );
+      expect(refusal.leg).toBe("upstream");
+      expect(refusal.reason).toBe("brief-drift");
+      // §2.4 — the hop is the FIRST drifted OPEN batch, not the last one and not a join
+      // of every drifted batch.
+      const message = render(refusal, basis);
+      expect(message).toContain(
+        "next: review --type wave --tasks 1 --plan docs/kairos/plans/p3.md",
+      );
+      expect(message).not.toContain("--tasks 2");
+      expect(message).not.toContain("--tasks 1,2");
+      // §2.5 — the diagnosis names the same batch the hop names.
+      expect(message).toContain("layer=brief · line=1 ·");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("zero friction — a never-entered upstream face holds no station, a closed one hands off", () => {
     const { repo, ledger, cleanup } = fixture();
     try {

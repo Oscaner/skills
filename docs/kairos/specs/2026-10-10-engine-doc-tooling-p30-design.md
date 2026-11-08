@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P30 设计：中断可表达 · 完成判据换代理 · 机械判据硬化
 doc-type: phase-spec
-version: v0.4
+version: v0.5
 date: 2026-11-08
 slug: 2026-10-10-engine-doc-tooling-p30
 program: 2026-10-10-engine-doc-tooling
@@ -41,7 +41,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-08）'
 
 #### 1.5 change-history 的行与版本读面过松
 
-`contract/invariants.ts` 的版本读面用未锚定的版本正则读任意行，行集来自表格解析；GFM 表格的折行续行**不以竖线起首**，却仍被收进行集，折行片段里出现的版本号于是变成第二个 lineage 行，`change-history-version-unique` 假红（#443②）。同时 `front-matter-version-in-lineage` 的语义是成员（header 属于 lineage）而非「等于最新行」，于是 fix 轮追加一行新版本而 header 停在旧版本时全门皆绿（#443③）。这一族与文档内容无关，纯粹是判据读面的松。
+`contract/invariants.ts` 的版本读面用未锚定的版本正则读任意行，行集来自表格解析；GFM 表格的折行续行**不以竖线起首**，却仍被收进行集，折行片段里出现的版本号于是变成第二个 lineage 行，`change-history-version-unique` 假红（#443②）。同时 `front-matter-version-in-lineage` 的语义是成员（header 属于 lineage）而非「等于 lineage 中数值最大的版本」，于是 fix 轮追加一行新版本而 header 停在旧版本时全门皆绿（#443③）。这一族与文档内容无关，纯粹是判据读面的松。
 
 ### 2. 裁定
 
@@ -121,7 +121,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-08）'
 - **零 diff 验证型**：wave 内每个 task 的 `Files` 皆空且 `evidenceOk` → 通过并带 soft 观察；`Files` 皆空但证据缺失或违约 → 仍 BLOCKED（既有证据门）；任一 task `Files` 非空的零 diff → 仍 `committed nothing`（既有判据不动，成对 pin）。
 - **finding id**：review materialize 的 carrier 每条 finding 带稳定 id，序即 carrier 序；fix 的 dispositions 以 id 为键，改写 summary 不再产生 unknown；两侧差集同现于一次失败报文。
 - **旧 carrier 无 `id`**：present-facts 路径退回 summary 匹配，且记一条 soft 观察（colocated pin：软观察缺失即红）；历史 carrier 零迁移、零改写。
-- **change-history**：折行续行（列数与表头不一致的表体行）不产生第二个 lineage 行，且只报一条 shape finding（折叠夹具 pin，反向 pin：静默丢弃即红）；header 停在旧版本而追加新行 → 新不变量红；header 等于最新行 → 绿；docs-fix 变体含「同步 bump front-matter」与「单元格不得硬折行」两句（子串 pin）。
+- **change-history**：折行续行（列数与表头不一致的表体行）不产生第二个 lineage 行，且只报一条 shape finding（折叠夹具 pin，反向 pin：静默丢弃即红）；header 停在旧版本而追加新行 → 新不变量红；header 等于 lineage 中数值最大的版本 → 绿（与表序无关，最新优先表同样成立）；docs-fix 变体含「同步 bump front-matter」与「单元格不得硬折行」两句（子串 pin）。
 - **已关闭波纪律**：`render/templates.ts` 评审轴与 `cdd-plan` fix 节点含对应句（子串 pin）；引擎侧零新增 finding 路由分支（结构性 pin）。
 - **判收敛主线**：既有 next-loop / architecture 孪生门与 `NextStepRouter` 相关 pin 全绿、零字节改动（结构性 pin）。
 - `pnpm run validate` exit 0；changeset `cdd-engine` minor；不发布；#431 / #436 / #437 / #443 各得终态（其中 #437 与 #431③ 以 D81 裁定关闭，无代码改动）。
@@ -144,3 +144,4 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-08）'
 | v0.2 | 2026-11-08 | 自检补洞：① `#pendingFix` 跳过 `supersededBy` + reopen 动作序（先分 `N+1` 再盖戳再派）；② 完成判据双 cell（`emptyFileTasks` + `evidenceOk`）与「wave 内每个 task 皆空」；③ abort/reopen 腿的动词与行种触发面钉死；④ §2.7 落点改为 `render/templates.ts` + `cdd-plan`；⑤ §1.5 病根改为「折行不以竖线起首却进了行集」；⑥ abort 不写 crash、旧记录无 `dispatchBase` 的 present-facts 语义、`Files` 空判定；⑦ **判收敛主线零改**升为 §3 与 Constraints 硬底线（D70） | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-08） |
 | v0.3 | 2026-11-08 | 评审回填（phase-spec-review-1）：① §2.2 的 cause 陈述改为「向既有 `CrashCause` 联合新增一个字面 `interrupted`」——原「既有字面面」不实；② §2.6 行集判据改为「表体行 + 列数须与表头一致，不一致只报一条 shape finding」，版本读面保留 `^v\d+\.\d+$` 锚定，fix 模板增「单元格不得硬折行」；③ §2.5 旧 carrier 无 `id` 的 soft 观察补 AC 与 pin，不许计划静默丢弃；④ 已关闭波纪律的回填已在 overall v3.41 落定（提交 `04b123a4`），本相位 spec 与 overall 一致 | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |
 | v0.4 | 2026-11-08 | **计划期设计回填（cdd-plan · backfill-design）**：§2.5 的 `FINDING.id` 由「read-back 要求存在」改为「列为**可选**属性 + 引擎 materialize 时写入并覆盖」——原句把引擎自有的值推给 child 去写，与「主键归引擎」相反，且多出一个无意义的 BLOCK 面（`PLANE_REQUIRED.judge` / `FINDING.required` 均不含 `id`）。判据键集与回退语义不变 | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-08） |
+| v0.5 | 2026-11-08 | **评审回填（phase-spec-review-2 F1/F2）**：① §2.6 的行集与版本读面已与 overall v3.42（提交 `cb9238d6`）一致——mdast/GFM 表体行为唯一来源、列数与表头不一致的表体行报一条 shape finding、版本只读首列锚定 `^v\d+\.\d+$`；本轮核对无正文改动，overall 由编排方回填；② 「最新」消歧为「lineage 中数值最大的版本」——§1.5 与 change-history AC 的绿例同步改写（原「等于最新行」在最新优先表序下与数值最大不等价），验收结论「折行续行不再产生假 duplicate version」不变 | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |

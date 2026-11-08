@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P30 计划：中断可表达 · 完成判据换代理 · 机械判据硬化
 doc-type: plan
-version: v0.4
+version: v0.5
 date: 2026-11-08
 slug: 2026-10-10-engine-doc-tooling-p30
 base: develop
@@ -68,7 +68,7 @@ base: develop
 - 写失败测：`words` 与 help 渲染输出对 `--steal-stale` 的命中数为 0 且对 `--recover` 命中数 ≥ 1 — checkable: 定向 vitest 该用例 FAIL（今日 `--steal-stale` 命中数大于 0）
 - 写失败测：`cdd implement --help` 输出含 `--recover` — checkable: FAIL（今日含 `--steal-stale`）
 - 改名 declare 旗标行与三处引用；words 四行报文改词；cli 读取点改键名 — checkable: 上两测 PASS，且 `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0
-- 全库 grep 断言：`--steal-stale` 在 `packages/cdd-engine/src-next` 与 `packages/kairos/skills` 零命中（除历史 changeset 与本计划/spec 文本） — checkable: `grep -rn 'steal-stale' packages/cdd-engine/src-next packages/kairos/skills` 只余历史文档命中
+- 全库 grep 断言：`--steal-stale` 在 `packages/cdd-engine/src-next` 与 `packages/kairos/skills` 的**生产面**零命中；豁免面只有两条——历史 changeset 与本计划/spec 文本，以及 `src-next/**/__tests__/` 下的退役字面 pin（`face/__tests__/words.guard.test.ts` 必须以该字面断言它不存在，线上已按 `__tests__/` 过滤） — checkable: `grep -rn 'steal-stale' packages/cdd-engine/src-next packages/kairos/skills` 的命中全部落在 `__tests__/` 内的 pin 行（今日 5 行同为 `words.guard.test.ts`），生产面命中数 0
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
@@ -89,7 +89,7 @@ none
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/contract/completion-criterion.ts`（`CompletionContext` 两 cell；`CommitsSinceGroupBase.judge` OR 分支 + soft 观察）
+- Modify: `packages/cdd-engine/src-next/contract/completion-criterion.ts`（`CompletionContext` 两 cell；`CommitsSinceGroupBase.judge` OR 分支 + soft 观察；`CompletionContext.row` 的 RESERVED 注记改写为该 cell 的新读者声明）
 - Modify: `packages/cdd-engine/src-next/contract/task-blocks.ts`（`PlanTaskBlocksReader#filePathsOf(block)`：`Files` 字段值行里的路径 token）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#criterionViolations` 的 `judge({...})` 填两 cell：计划面读 `Files` + 证据门读回的 `evidenceOk`）
 - Test: `packages/cdd-engine/src-next/contract/__tests__/completion-criterion.test.ts`
@@ -107,13 +107,14 @@ none
 - `CompletionContext.emptyFileTasks: ReadonlySet<number>` · `CompletionContext.evidenceOk: boolean`
 - `PlanTaskBlocksReader#filePathsOf(block: TaskBlock): readonly string[]`
 - `CommitsSinceGroupBase` 的放行条件 = 有提交 **或**（该 wave 每个 task 都 ∈ `emptyFileTasks` ∧ `evidenceOk`）
+- wave 的 task id 集由 `ctx.row.wave`（`ProgressRow.wave`，`session/ledger.ts:197-199`——逗号分隔的 wave 键，`"1,2"` 即 `{1,2}`）现读：`emptyFileTasks` 只是空 `Files` 子集、不含成员面，缺这一读就退化成「子集非空」；`CompletionContext.row` 的 RESERVED 注记同步改为「`CommitsSinceGroupBase.judge` 是本 cell 的读者」
 - soft 观察字面（零 diff 验证型通过时记一条）
 
 #### Steps
 
 - 写失败测：`Files` 空集 + `evidenceOk: true` + 零提交的 implement 上下文 → `fulfilled: true` 且 `observations` 非空 — checkable: FAIL（今日 `committed nothing` hard）
 - 写失败测：同一夹具但 `evidenceOk: false` → `fulfilled: false`（仍 BLOCKED） — checkable: FAIL 或语义断言不成立
-- 写失败测：`emptyFileTasks` 只含一个 id 的双 task wave（另一个 task 有 `Files`）→ `fulfilled: false` — checkable: FAIL（若实现按「至少一个空」即绿）
+- 写失败测：`row.wave = "1,2"` ∧ `emptyFileTasks = {1}` ∧ task 2 的 `Files` 非空 → `fulfilled: false`；成对夹具同 wave 但 `emptyFileTasks = {1,2}` → 放行（两个夹具只差成员集，区分「全集空」与「子集非空」两种读法） — checkable: FAIL（若实现按「至少一个空」即绿）
 - 写失败测：`Files` 值为字面 `(none)` → 该 task id ∈ `emptyFileTasks`（`filePathsOf` 视为零路径 token，`(none)` 不得被读成一个路径；与空值 / 仅空白 / 缺字段同一判定） — checkable: FAIL（今日无该判定面）
 - 实现两 cell 与 OR 分支；`#criterionViolations` 填值（`Files` 取自计划解析，`evidenceOk` 取自既有证据判决，不二次读盘） — checkable: 上四测 PASS；既有 completion-criterion 族全绿
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
@@ -195,8 +196,8 @@ none
 
 - Modify: `packages/cdd-engine/src-next/session/inflight.ts`（`InFlightRecord.dispatchBase`；`acquire` 记录时写入）
 - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`CrashCause` 增 `interrupted`；`RoundRecord` 读面无需新增字段）
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（acquire 传 HEAD；新增 `#foldAbort(record: InFlightRecord): void` 走 `ledger.recordRound`）
-- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`--recover` 且在飞记录陈旧 → 调 `#foldAbort` 再接管）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（acquire 传 HEAD；新增**公开**成员 `foldAbort(): Promise<boolean>`——`InFlight#inspect` 判陈旧 → `InFlight#steal("the holder is dead")` 取回记录 → `ledger.recordRound` 折账，返回本次是否落了一条 abort 记录。必须是公开入口：`CliLifecycle` 今日只对外露 `detectHost` / `step()`，而接管发生在 `step()` 内部的 `#runDispatch` → `#inflight.acquire(..., { recover })`，`#` 私有成员在 composition root 无法先折账再盖戳）
+- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`#dispatchOf` 拆出 `#lifecycleOf(scene, parsed)`，由 composition root 持有 harness 实例；`--recover` 判定里先 `await lifecycle.foldAbort()`，再进 `step()`——`step()` 不承担 abort 折账）
 - Test: `packages/cdd-engine/src-next/session/__tests__/inflight.test.ts`
 - Test: `packages/cdd-engine/src-next/contract/__tests__/completion-criterion.test.ts`（组基线读被杀轮 base）
 
@@ -210,7 +211,7 @@ none
 
 - `InFlightRecord.dispatchBase: string | null`
 - `CrashCause` 含 `interrupted`
-- `CliLifecycle#foldAbort(record)`：写一条 abort `RoundRecord`（op 由 phase 派生 · cycle/attempt/dispatchBase 取记录值 · `verdict.targetAction: false` · 一条 hard violation cause `interrupted`），**不写** `crash-*.json`、不提升草稿
+- `CliLifecycle.foldAbort(): Promise<boolean>`（公开入口，composition root 调用）：写一条 abort `RoundRecord`（op 由 phase 派生 · cycle/attempt/dispatchBase 取记录值 · `verdict.targetAction: false` · `verdict.treeClean: true` · 一条 hard violation cause `interrupted`），**不写** `crash-*.json`、不提升草稿。`treeClean` 必须显式钉 true：`RoundRecordInit.verdict` 缺省即 `{ treeClean: true, targetAction: true }`（`session/ledger.ts:794`），但 `#softOf`（同文件 `:1173`）把 `treeClean === false` 记成一条脏树 soft——折账没有 dispatch-after 观察，不是脏树信号，留缺省推断会让两种实现落下不同的账面事实
 - 组基线因此回到被杀轮之前：恢复提交落在 base 之后可被看见
 
 #### Steps
@@ -218,12 +219,13 @@ none
 - 写失败测：陈旧 in-flight（持有进程已死）夹具下 `--recover` 后 progress 出现一条 abort 记录，`targetAction: false` 且 cause 为 `interrupted` — checkable: FAIL（今日只丢锁不记账）
 - 写失败测：abort 轮 base=B、恢复提交落在 B 之后、重派 attempt 2 base=C（C 含恢复提交）→ `CommitsSinceGroupBase.judge` 通过 — checkable: FAIL（今日 `committed nothing`）
 - 写失败测：旧记录（无 `dispatchBase`）被 abort 时仍入账且 `dispatchBase: null`，判据退回更早的有值记录 — checkable: FAIL
-- 实现 `dispatchBase` 落记录、`interrupted` 字面、`#foldAbort` 与 cli 调用点 — checkable: 上三测 PASS；`pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/inflight.test.ts` 全绿
+- 写失败测（账面）：abort 折账后该记录 `verdict` 恰为 `{ treeClean: true, targetAction: false }`，且该行 soft 计数零增量（成对 pin：`treeClean: false` 会凭空多一条脏树观察，被 retired `contractViolationCount` 读走） — checkable: FAIL（今日无折账面）
+- 实现 `dispatchBase` 落记录、`interrupted` 字面、公开 `foldAbort()` 与 cli 调用点 — checkable: 上四测 PASS；`pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/inflight.test.ts` 全绿
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 
-- 陈旧 in-flight + `--recover` → 账本留 abort 记录（`targetAction:false` · cause `interrupted` · 携带该轮 `dispatchBase`）
+- 陈旧 in-flight + `--recover` → 账本留 abort 记录（`targetAction:false` · `treeClean:true` · cause `interrupted` · 携带该轮 `dispatchBase`），只此一条 hard，零脏树 soft
 - 恢复提交（abort base 之后、重派 base 之前）能通过完成判据
 - 不写 crash 文件、不提升草稿、`progress.json` 键集不变
 - `CrashCause` 只有一处扩展（无并行枚举）
@@ -240,8 +242,8 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`FINDING` 增 `id`；`#materialize` 路径上引擎写值）
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#findingsList` 按序盖 `id`，覆盖子代理写的值）
+- Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`FINDING` 子节点增**可选** `id` 属性——只改声明形状，写值点不在此文件：该类的面是 `schemaText` / `violations` / `evidenceViolations`）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#findingsList`（`face/lifecycle.ts:1297`）按序盖 `id`，覆盖子代理写的值——引擎写值的唯一落点）
 - Modify: `packages/cdd-engine/src-next/contract/completion-criterion.ts`（`FixDispositions` 键集改 id；`#keyRefusal` 两侧差集；无 id carrier 回退 summary + soft）
 - Test: `packages/cdd-engine/src-next/contract/__tests__/completion-criterion.test.ts`
 - Test: `packages/cdd-engine/src-next/session/__tests__/handoff-schema.test.ts`
@@ -255,14 +257,14 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 #### Produces
 
 - carrier 的每条 finding 带 `id`（`F` + 序号，序 = carrier 序），声明侧 `id` 为可选（child 零义务）
-- dispositions 以 `id` 为键；未知/缺失键两侧差集同报文
+- dispositions 以 `id` 为键；未知/缺失键两侧差集同报文，且**每条目带 `id` + summary 首句**：missing 侧摘要取自请求方 carrier 的 finding 行（按 carrier 序），unknown 侧 carrier 无该 id，只打 `id` 并标 `unknown`，不编造摘要
 - 旧 carrier（无 `id`）：summary 匹配 + 一条 soft 观察（colocated pin）
 
 #### Steps
 
 - 写失败测：review 载体落盘后每条 finding 带等序 `id`，且子代理不写 `id` 的草稿仍通过 read-back — checkable: FAIL（今日无 `id`；若把 `id` 写成必填，无 `id` 草稿会被误 BLOCK）
 - 写失败测：fix 载体把某条 finding 的 summary 改写一个词、按原 `id` 写 disposition → 判据通过 — checkable: FAIL（今日报 `never raised`）
-- 写失败测：disposition 多一条未知 `id` 且少一条应有 `id` → 报文字面同时含两个差集 — checkable: FAIL（今日只打 unknown 即返回）
+- 写失败测：disposition 多一条未知 `id`（`F9`）且少一条应有 `id`（`F2`）→ 一次报文同时含两个差集，且 `F2` 那侧带该 finding 的 summary 首句（今日 `#keyRefusal`（`contract/completion-criterion.ts:357`）只打裸键） — checkable: FAIL（今日只打 unknown 即返回，且裸键无摘要）
 - 写失败测：无 `id` 的旧 carrier → 按 summary 匹配通过且 `observations` 含 soft — checkable: FAIL
 - 实现 `id` 写入点、键集切换、双侧差集与回退 — checkable: 上四测 PASS；`pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__/completion-criterion.test.ts` 全绿
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
@@ -270,7 +272,7 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 #### Acceptance
 
 - carrier 每条 finding 带稳定 `id`，子代理写值被覆盖
-- 改写 summary 不再产生 unknown；两侧差集同现于一次失败报文
+- 改写 summary 不再产生 unknown；两侧差集同现于一次失败报文，missing 侧每条带 `id` + summary 首句、unknown 侧带 `id` 并标 `unknown`（一次失败即可行动）
 - 旧 carrier 走 summary 回退并记 soft（软观察缺失即红）
 - 历史 carrier 零迁移
 
@@ -282,14 +284,14 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 
 #### Objective
 
-把「已关闭波的内容是历史」落成写作纪律：引擎评审 prompt 轴（plan / spec 变体）与 `cdd-plan` 的 fix 节点各加一句，附子串 pin；引擎侧零新增 finding 路由分支。
+把「已关闭波的内容是历史」落成写作纪律：引擎评审 prompt 轴（plan / spec 变体）与 `cdd-plan` 的 `NEXT-LOOP` 节点各加一句，附子串 pin；引擎侧零新增 finding 路由分支。`NEXT-LOOP` 是该 skill 唯一派发 fix 轮的节点（`packages/kairos/skills/cdd-plan/SKILL.md:68-73`）——该 skill 没有 `fix` 节点，其节点集是 `run-cdd-plan-session` / `backfill-design` / `author-plan` / `self-review` / `commit-plan` / `NEXT-LOOP`。
 
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/render/templates.ts`（plan / spec 评审轴的 closed-wave 句）
-- Modify: `packages/kairos/skills/cdd-plan/SKILL.md`（fix 节点句）
+- Modify: `packages/kairos/skills/cdd-plan/SKILL.md`（在 `NEXT-LOOP` 的 `- **Do**` 段末**追加第二句**，写明 finding 落在已关闭 task 块的内容面时改文档去对齐已交付切分、禁止搬运已关闭任务的工作；`author-plan` 的「Appending work」句（第 47 行）不动，也不复用——那句讲的是「新工作以新 task 追加」）
 - Test: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`
-- Test: `packages/kairos/tests/skill-anatomy.test.ts`（或既有 word-face pin 测文件）
+- Test: `packages/kairos/tests/skill-anatomy.test.ts`（或既有 word-face pin 测文件；断言按**节点段**切分——`### \`NEXT-LOOP\`` 起到下一个 `### ` 之前——整文件子串不算交付）
 
 #### Consumes
 
@@ -299,19 +301,19 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 #### Produces
 
 - 两处文本各一句（改文档对齐已交付切分 · 禁止搬动已关闭任务的工作）
-- 子串 pin 各一条
+- 子串 pin 各一条（`cdd-plan` 那条是 `NEXT-LOOP` 节点段内子串，不是整文件子串）
 
 #### Steps
 
 - 写失败测：`templates` 的 plan 与 spec 变体渲染文本含该句 — checkable: FAIL（今日无该句）
-- 写失败测：`cdd-plan` 的 fix 节点文本含该句 — checkable: FAIL
+- 写失败测：`cdd-plan` 的 `NEXT-LOOP` 节点段（`### \`NEXT-LOOP\`` 起至下一个 `### ` 前）含该句；同测断言该句不靠 `author-plan` 第 47 行的既有闭波句满足（两句措辞不同，整文件子串会让未交付的 fix 轮指令假绿） — checkable: FAIL（今日 `NEXT-LOOP` 段内无该句）
 - 落两句文本 — checkable: 上两测 PASS
 - 结构性 pin：`dispatch-authority` 与 `next` 侧零新增 finding 路由分支（对相关符号的命中数断言） — checkable: 断言 PASS
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 
-- `render/templates.ts` 评审轴与 `cdd-plan` fix 节点含对应句（子串 pin）
+- `render/templates.ts` 评审轴与 `cdd-plan` 的 `NEXT-LOOP` 节点段含对应句（节点段内子串 pin，非整文件子串）
 - 引擎侧零新增 finding 路由分支（结构性 pin）
 
 #### DependsOn
@@ -328,15 +330,15 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 
 - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`RoundRecord.supersededBy`；`#pendingFix` / `lineRoute` 的 review 选取跳过；`supersedeReview(cycle, byCycle)`）
 - Modify: `packages/cdd-engine/src-next/session/dispatch-authority.ts`（`pending-fix` 且 drift 的拒绝语 `next` 变体携带 `--recover`）
-- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`--recover` 三段判定与双缺 BLOCKED 报文、reopen 腿的触发条件与调用序）
+- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`--recover` 三段判定与双缺 BLOCKED 报文、reopen 腿的触发条件与调用序：composition root 持有的 `lifecycle.foldAbort()`（Task 4 的公开入口）→ `ledger.supersedeReview` 盖戳 → 派 `N+1`；不得靠 `step()` 内部顺序实现）
 - Test: `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`
-- Test: `packages/cdd-engine/src-next/session/__tests__/dispatch-authority.test.ts`
+- Test: `packages/cdd-engine/src-next/session/__tests__/dispatch-authority.test.ts`（`DispatchAuthority#message` 渲染的 `drift ∧ pending-fix` 拒绝语：一行内同现 pending-fix 理由 token 与 `--recover` 字面）
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（双缺拒绝面不落普通派发 · 三动词与 wave 行的负向触发面 · abort→reopen 合并序）
 
 #### Consumes
 
 - `Ledger#reviewGate` / `#pendingFix` / `lineRoute` / `#latestCompletedCycleOfRow` / `#rowClosed`
-- `ReviewedIdentity`（fix ⟷ review 同 cycle 的身份）
+- `Ledger#pendingFix` 的成员腿 `#completedCyclesOfRow(row, "fix")`（`session/ledger.ts:1424`）——「fix 是否仍被欠着」的判据，也就是 fix ⟷ review 同 cycle 的 D28 身份面（`ReviewedIdentity` 是 reviewed-revision 的回写腿判定，不是这个面）
 - Task 4 的 abort 折账入口
 
 #### Produces
@@ -344,9 +346,9 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 - `RoundRecord.supersededBy?: { cycle: number; cause: "recover" }`
 - `Ledger#supersedeReview(cycle, byCycle)`（只盖戳，不写假 fix）
 - `#pendingFix` / `lineRoute` 跳过 superseded review；`#rowClosed` 零改
-- 拒绝语 `next`：`drift ∧ pending-fix` 时给出带 `--recover` 的同形 review 命令
+- 拒绝语 `next`：`drift ∧ pending-fix` 时给出带 `--recover` 的同形 review 命令——命令经 `CliGate#hopCommand`（`face/gate.ts:102`，调用点 `face/cli.ts:987`）渲染，`DispatchAuthority#message` 把理由与它拼成一行
 - 双缺拒绝面（§2.1③）：无陈旧 in-flight 且无 `drift ∧ pending-fix` → BLOCKED，报文同时点名两个缺失条件，命令在此终止、不进普通派发
-- 合并腿序（§2.1④）：同一条 `--recover` 先折 abort、再盖 `supersededBy`、再派 `N+1` review
+- 合并腿序（§2.1④）：同一条 `--recover` 先调 `lifecycle.foldAbort()`（Task 4 的公开入口）、再盖 `supersededBy`、再派 `N+1` review——次序在 CLI 的判定处固定
 
 #### Steps
 
@@ -355,18 +357,20 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 - 写失败测：supersede 后 `#rowClosed` 对一条已闭合线的判定不变（成对 pin：闭合不被 supersede 打开） — checkable: FAIL 若实现顺手改了 `#rowClosed`
 - 写失败测（双缺拒绝面）：既无陈旧 in-flight、也无 `drift ∧ pending-fix` 时 `--recover` → BLOCKED，报文同时点名两个缺失条件；同夹具下 `review` / `implement` / `fix` 三动词都不得落普通派发（断言派发入口零调用） — checkable: FAIL（今日无该判定面，flag 直落普通派发）
 - 写失败测（合并腿）：陈旧 in-flight ∧ drift ∧ pending-fix 的一条 `--recover` → 账本里 abort `RoundRecord`（cause `interrupted`）先落、旧 review 后被 `supersededBy` 盖戳、随后派 cycle `N+1` 的 review（按落账序与 cycle 断言，不按实现内部调用序） — checkable: FAIL（今日两条腿都不存在）
+- 写失败测（`next:` 面）：`drift ∧ pending-fix` 行上 review 被拒 → `DispatchAuthority#message` 的一行同现 pending-fix 理由 token 与 `--recover` 字面（命令由 `CliGate#hopCommand`（`face/gate.ts:102`）渲染 `cdd review … --recover`） — checkable: FAIL（今日只打 `reason · next: <旧 review 命令>`，零 `--recover`）
 - 写失败测（负向触发面）：同夹具下 `fix --recover` 与 `implement --recover` 只走 abort 腿——旧 review 无 `supersededBy`、无新 review cycle；wave 行的 `review --recover` 同样不重开（brief-drift 仍是 P29 的路）；三动词的 abort 腿仍可用 — checkable: FAIL（今日无 reopen 判定，负向断言无从成立）
-- 实现 `--recover` 三段判定、双缺报文、`supersededBy`、两处跳过、调用序与拒绝语 `next` — checkable: 上六测 PASS；`pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/ledger.test.ts src-next/face/__tests__/cli.test.ts` 全绿
+- 实现 `--recover` 三段判定、双缺报文、`supersededBy`、两处跳过、调用序与拒绝语 `next` — checkable: 上七测 PASS；`pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/ledger.test.ts src-next/face/__tests__/cli.test.ts` 全绿
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 
 - drift ∧ pending-fix（无在飞）经 `--recover` 后 `review` 可派发，新 cycle = 旧 +1，旧轮带 `supersededBy`
 - 双缺（无陈旧 in-flight 且无 `drift ∧ pending-fix`）→ BLOCKED 且报文点名两个缺失条件，绝不静默降级为普通派发（`review` / `implement` / `fix` 三动词 pin）
+- `drift ∧ pending-fix` 的拒绝语一行内同现 pending-fix 理由与 `--recover`（`next:` 面 pin，经 `CliGate#hopCommand` 渲染）
 - 单条 `--recover` 上 abort 与 reopen 同现时顺序固定：abort 记录先落、`supersededBy` 后盖、`N+1` 再派（落账序 pin）
 - reopen 触发面：仅 `review` + doc / branch 行；`fix --recover`、`implement --recover`、wave 行一律不重开（负向 pin），abort 腿三动词皆可用
 - `#rowClosed` / 波行闭合判定零行为变化（成对 pin）
-- fix 身份仍与请求方 review 同 cycle
+- fix 身份仍与请求方 review 同 cycle（按 `Ledger#pendingFix` 的成员判据断言，不用 `ReviewedIdentity` 的回写腿）
 
 #### DependsOn
 
@@ -420,3 +424,4 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 | v0.2 | 2026-11-08 | 评审回填（plan-review-1 F1–F7）：① Task 1 Files 扩到 `--steal-stale` 的全部字面面——`lifecycle.ts` / `inflight.ts` / `preflight.ts` 传递链，加 preview / board-view / preflight / inflight 四个测试文件（报文字面改词，`stealable` 键名不变）；② Task 7 补「双缺 → BLOCKED 且不得降级为普通派发」红测；③ Task 7 补 abort→reopen 合并腿序红测；④ Task 2 补 `Files` 字面 `(none)` 的空判定 pin；⑤ Task 7 补 reopen 触发面负向 pin（`fix` / `implement` / wave 行）；⑥ Task 3 增 corpus guard 测——仓内 spec / plan / overall 对两条新不变量与 `change-history-version-unique` 零误伤成为可红 pin（不断言既有 `presence` 面上的存量红），Task 8 全量门引用；⑦ Task 5 DependsOn 4 由编排方落定（`2c80fb21`），本轮零结构面改动 | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |
 | v0.3 | 2026-11-08 | **W1 评审期裁定回填（tasks-1,3-review-1 B1）**：Task 3 Acceptance 由「存量全绿」改为「每文档具名 ceiling 的不得新增」——既有语料里 15 篇冻结文档的 Change-history 表列宽不齐（overall 单篇 110 行），历史零迁移下本相位不修表，故以基线钉「修好即绿 / 变坏即点名」；`latest-matches-front-matter` 与 `version-unique` 的 ceiling 仍为 0，P30 自身文档零 finding。原「全绿」措辞是规划期没有量过语料就写下的断言 | [human] 裁定 · Claude（kairos:cdd-plan · 2026-11-08） |
 | v0.4 | 2026-11-08 | **评审回填（plan-review-3 F1–F5）**：① Task 3 Acceptance 残留的「存量全绿」改为每文档具名 ceiling（与 Files/Produces 同口径），Review Focus 与 Task 8 的 Objective/Steps/Acceptance 同步改为「相对具名 ceiling 无新增漂移」；② 补齐 latest-matches 的非零 ceiling——p24 对（spec 与 plan）各 1，因形状折行的最新行携带数值最大版本且历史零迁移下不修表，`change-history-version-unique` 仍为 0；③ Task 3 增「成员读面取全部表体行首列版本」pin（Produces + Acceptance + colocated 测步），生重与 latest-matches 仍只读表头列宽一致的行集；④ Acceptance 的「最新行」消歧为「lineage 中数值最大的版本（与表序无关）」；⑤ 波图 W1={1,3}·W2={2,6}·W3={4}·W4={5,7}·W5={8} 与 Task 4 DependsOn 1, 2 已由编排方在 `d806c1e4` 落定，本轮零结构面改动 | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |
+| v0.5 | 2026-11-08 | **评审回填（plan-review-4 F1–F9）**：① Task 4 的折账入口改为公开成员 `CliLifecycle.foldAbort()`（私有 `#foldAbort` 在 composition root 不可达——接管发生在 `step()` 内部的 `#runDispatch` → `acquire`），并拆出 `#lifecycleOf` 由 composition root 持有实例，使 §2.1④ 的「先 abort 再 reopen」在 CLI 判定处可得；② Task 2 声明 wave 成员集取自 `ctx.row.wave`（`ProgressRow.wave`，`ledger.ts:197-199`），`CompletionContext.row` 的 RESERVED 注记同步改，部分为空的夹具补 `row.wave = "1,2"` 与 `emptyFileTasks = {1}` 成对读法；③ Task 4 钉 `verdict.treeClean: true`（`#softOf` 会把 false 折成脏树 soft）并加账面 pin；④ Task 7 补 `next:` 面红测与验收（`DispatchAuthority#message` 一行同现 pending-fix 理由与 `--recover`，命令经 `CliGate#hopCommand`（`gate.ts:102`，调用点 `cli.ts:987`）），并把 Consumes 从 `ReviewedIdentity` 改指 `Ledger#pendingFix` / `#completedCyclesOfRow`；⑤ Task 6 的落点由不存在的「fix 节点」改为 `NEXT-LOOP` 节点段（第 68–73 行），pin 改节点段内子串、`author-plan` 第 47 行不动；⑥ Task 5 的失败报文补「每条目带 `id` + summary 首句」的红测与验收，并从 `handoff-schema.ts` 条目删除 `#materialize` 归属；⑦ Task 1 的全库 grep 豁免面改为「`__tests__/` 内的退役字面 pin」——今日 5 命中全在 `words.guard.test.ts` | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |

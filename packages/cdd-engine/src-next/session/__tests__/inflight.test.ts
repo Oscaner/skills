@@ -61,6 +61,9 @@ const DEAD_PID = 4_000_001;
  *  directory does not refuse a root writer, so the fail-open write pin cannot hold. */
 const isRoot = (): boolean => typeof process.getuid === "function" && process.getuid() === 0;
 
+/** The dispatch baseline of the fixture — the HEAD the round started from. */
+const DISPATCH_BASE = "4f1c8a2be0d9765c3a1b7f2048e6d93c5b8a0f27";
+
 /** An intent record over the given identity facts. */
 const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
   pid: process.pid,
@@ -73,6 +76,7 @@ const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
   attempt: 1,
   briefHash: null,
   plan: "docs/p3.md",
+  dispatchBase: DISPATCH_BASE,
   sampledAt: null,
   verdict: null,
   ...over,
@@ -82,6 +86,12 @@ const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
 const plantRecord = (inflight: InFlight, record: InFlightRecord): void => {
   inflight.ensureMarker();
   writeFileSync(inflight.path(), `${JSON.stringify(record, null, 2)}\n`, "utf8");
+};
+
+/** Plant RAW record bytes — a record written by an older engine (`dispatchBase` absent). */
+const plantRaw = (inflight: InFlight, body: string): void => {
+  inflight.ensureMarker();
+  writeFileSync(inflight.path(), body, "utf8");
 };
 
 /** Initialize a git repo (the tree-clean judgment's environment). */
@@ -203,6 +213,43 @@ describe("InFlight.acquire — the intent record before the spawn", () => {
     } finally {
       await inflight.release();
     }
+  });
+});
+
+describe("InFlightRecord.dispatchBase — the killed round's group baseline (P30 §2.2)", () => {
+  it("writes the dispatch baseline the acquire was handed", async () => {
+    const repo = scratch();
+    initRepo(repo);
+    const inflight = inflightOf(repo);
+    await inflight.acquire(recordOf({ dispatchBase: DISPATCH_BASE }));
+    try {
+      const written = JSON.parse(readFileSync(inflight.path(), "utf8")) as InFlightRecord;
+      expect(written.dispatchBase).toBe(DISPATCH_BASE);
+    } finally {
+      await inflight.release();
+    }
+  });
+
+  it("reads a record written before this cell existed as null — a present fact only", async () => {
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    const { dispatchBase: _absent, ...legacy } = recordOf();
+    plantRaw(inflight, `${JSON.stringify(legacy, null, 2)}\n`);
+    const state = await inflight.inspect();
+    expect(state.kind).toBe("held");
+    if (state.kind !== "held") return;
+    // Zero migration, zero invention: the older record simply carries no baseline.
+    expect(state.record.dispatchBase).toBeNull();
+  });
+
+  it("keeps the baseline through a sampling tick — the trail never rewrites identity", async () => {
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    plantRecord(inflight, recordOf({ dispatchBase: DISPATCH_BASE }));
+    inflight.heartbeat({ sampledAt: Date.now(), verdict: "progress" });
+    const written = JSON.parse(readFileSync(inflight.path(), "utf8")) as InFlightRecord;
+    expect(written.dispatchBase).toBe(DISPATCH_BASE);
+    expect(written.verdict).toBe("progress");
   });
 });
 

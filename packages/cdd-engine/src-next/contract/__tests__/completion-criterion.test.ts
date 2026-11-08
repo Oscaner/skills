@@ -168,6 +168,53 @@ describe("(a) CommitsSinceGroupBase — the group baseline decides", () => {
     expect(git.calls[0]?.base).toBe("base-attempt-1");
   });
 
+  it("reads the KILLED round's base as the group baseline — the recovery commit lands after it", async () => {
+    // The abort fold's booking (P30 §2.2): `targetAction: false`, ONE hard
+    // `interrupted` entry, and the killed round's OWN `dispatchBase`. The re-dispatch
+    // starts at `base-C`, so the recovery commit (B → C) is visible only from B.
+    const abort: RoundRecord = record({
+      op: "implement",
+      cycle: 1,
+      attempt: 1,
+      dispatchBase: "base-B",
+      verdict: { treeClean: true, targetAction: false },
+      violations: [{ grade: "hard", cause: "interrupted", message: "interrupted" }],
+    });
+    const retry = record({ op: "implement", cycle: 1, attempt: 2, dispatchBase: "base-C" });
+    const git = new StubGit(["abc123 fix: the recovery commit"]);
+    const verdict = await new CommitsSinceGroupBase().judge(
+      context({ record: retry, records: [abort], git, carrier: { status: "APPROVED" } }),
+    );
+    expect(verdict.fulfilled).toBe(true);
+    expect(git.calls).toEqual([{ cwd: "/repo", base: "base-B" }]);
+  });
+
+  it("a legacy abort record with a null baseline keeps the earlier valued baseline", async () => {
+    // An aborted record written before `dispatchBase` existed carries the honest null;
+    // the group baseline falls back to the earlier VALUED record, never an invention.
+    const first = record({ op: "implement", cycle: 1, attempt: 1, dispatchBase: "base-A" });
+    const legacyAbort = record({
+      op: "implement",
+      cycle: 1,
+      attempt: 2,
+      dispatchBase: null,
+      verdict: { treeClean: true, targetAction: false },
+      violations: [{ grade: "hard", cause: "interrupted", message: "interrupted" }],
+    });
+    const retry = record({ op: "implement", cycle: 1, attempt: 3, dispatchBase: "base-C" });
+    const git = new StubGit(["abc123 feat: the work"]);
+    const verdict = await new CommitsSinceGroupBase().judge(
+      context({
+        record: retry,
+        records: [first, legacyAbort],
+        git,
+        carrier: { status: "APPROVED" },
+      }),
+    );
+    expect(verdict.fulfilled).toBe(true);
+    expect(git.calls).toEqual([{ cwd: "/repo", base: "base-A" }]);
+  });
+
   it("a group with no baseline at all cannot judge — hard, never a silent done", async () => {
     const records = [record({ op: "implement", dispatchBase: null })];
     const verdict = await new CommitsSinceGroupBase().judge(

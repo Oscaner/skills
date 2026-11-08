@@ -769,7 +769,7 @@ export class Cli {
     if (!parsed.dryRun && type === "wave" && scene.planText !== null)
       scene.briefPath = this.#gate.renderBrief(scene, parsed);
     const statuses: (RoundStatus | null)[] = [];
-    const dispatch: DispatchStep = this.#dispatchOf(scene, parsed);
+    const dispatch: DispatchStep = await this.#dispatchOf(scene, parsed);
     const run = new Lifecycle({
       face: scene.face,
       state: scene.state,
@@ -909,9 +909,22 @@ export class Cli {
    *  retired synthetic approval (`() => ({ status: "APPROVED", findings: [] })`)
    *  has no remaining caller: a preview books no round and fabricates no
    *  conclusion. */
-  #dispatchOf(scene: WorkScene, parsed: RunInput): DispatchStep {
+  async #dispatchOf(scene: WorkScene, parsed: RunInput): Promise<DispatchStep> {
     if (this.#dispatch !== null) return this.#dispatch;
-    const harness = new CliLifecycle({
+    const harness = this.#lifecycleOf(scene, parsed);
+    // The `--recover` abort leg (spec §2.1①/§2.2) is judged at the composition root,
+    // BEFORE the round dispatches: a stale in-flight record is folded into the ledger
+    // first, so the new dispatch's own record never stands over an unbooked kill. The
+    // preview is void here (`--dry-run` takes over nothing and books no round).
+    if (!parsed.dryRun && parsed.args.recover === "true") await harness.foldAbort();
+    return harness.step();
+  }
+
+  /** The invocation's lifecycle harness — the production dispatch face, held by the
+   *  composition root so the abort fold can ride the SAME instance that dispatches
+   *  (the takeover precedes the stamp, spec §2.1④). */
+  #lifecycleOf(scene: WorkScene, parsed: RunInput): CliLifecycle {
+    return new CliLifecycle({
       env: process.env,
       sync: this.#sync,
       template: this.#template,
@@ -931,7 +944,6 @@ export class Cli {
       // standing in-flight record — and only when its holder is dead.
       recover: parsed.args.recover === "true",
     });
-    return harness.step();
   }
 
   /** The branch scope anchor (BASE_BRANCH) — the base artifact's branch name read

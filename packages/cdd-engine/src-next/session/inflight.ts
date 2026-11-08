@@ -73,6 +73,11 @@ export interface InFlightRecord {
   /** The plan path the dispatch read (repoRoot-relative); null when the face carries
    *  no plan fact. */
   readonly plan: string | null;
+  /** The HEAD the dispatch started from (the round's postmortem baseline) — written by
+   *  `acquire` from the dispatching lifecycle's own read, so a takeover can restore the
+   *  killed round's group baseline (spec §2.2). Null on a record written before this
+   *  cell existed (a present fact only) and on a tree with no HEAD. */
+  readonly dispatchBase: string | null;
   /** The sampling trail's last tick instant (epoch ms) — the same instant a recorded
    *  sample carries as `at` (each record shape names its own cells: one fact, one
    *  spelling per shape); null before the first tick. */
@@ -132,6 +137,16 @@ export class InFlight {
 
   /** The lock's refresh interval (ms). */
   static readonly LOCK_UPDATE_MS = 60 * 1000;
+
+  /** The three takeover reasons of a stale tree — ONE literal per morphology (spec
+   *  §2.1①: a dead holder, a corrupt record with a leftover lock, a lock with no record
+   *  behind it). Shared by `acquire({ recover })`'s pre-step and the abort fold, so a
+   *  takeover can never be named two ways. */
+  static readonly STEAL_REASON = {
+    deadHolder: "the holder is dead",
+    corruptRecord: "the record is corrupt and the lock is left behind",
+    lockOnly: "a lock without a record",
+  } as const;
 
   readonly #root: WorkspaceRoot;
   readonly #slug: string;
@@ -291,15 +306,15 @@ export class InFlight {
   async #stealIfDead(): Promise<void> {
     const state = await this.inspect();
     if (state.kind === "held" && !state.alive) {
-      await this.steal("the holder is dead");
+      await this.steal(InFlight.STEAL_REASON.deadHolder);
       return;
     }
     if (state.kind === "corrupt" && state.locked) {
-      await this.steal("the record is corrupt and the lock is left behind");
+      await this.steal(InFlight.STEAL_REASON.corruptRecord);
       return;
     }
     if (state.kind === "absent" && existsSync(this.lockPath())) {
-      await this.steal("a lock without a record");
+      await this.steal(InFlight.STEAL_REASON.lockOnly);
     }
   }
 
@@ -349,6 +364,7 @@ export class InFlight {
       attempt: typeof row.attempt === "number" ? row.attempt : null,
       briefHash: typeof row.briefHash === "string" ? row.briefHash : null,
       plan: typeof row.plan === "string" ? row.plan : null,
+      dispatchBase: typeof row.dispatchBase === "string" ? row.dispatchBase : null,
       sampledAt: typeof row.sampledAt === "number" ? row.sampledAt : null,
       verdict: typeof row.verdict === "string" ? row.verdict : null,
     };

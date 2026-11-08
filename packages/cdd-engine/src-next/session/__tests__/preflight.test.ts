@@ -201,6 +201,7 @@ const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
   attempt: 1,
   briefHash: null,
   plan: "docs/p.md",
+  dispatchBase: null,
   sampledAt: null,
   verdict: null,
   ...over,

@@ -17,7 +17,7 @@
 // commit, so a round that commits nothing has a real baseline to be judged against).
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -28,6 +28,7 @@ import {
   IMPLEMENT_VERIFICATION_WAVE,
 } from "../../contract/completion-criterion.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
@@ -261,6 +262,181 @@ describe("CliLifecycle — the verification provider cells (P30 §2.4)", () => {
       expect(outcome.status).toBe("BLOCKED");
       expect(messagesOf(outcome)[0]).toContain("committed nothing since its baseline");
       expect(f.io.stderrText).toContain("CDD_BLOCKED");
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P30 T4 — the abort fold (`--recover`'s abort leg)
+// ---------------------------------------------------------------------------
+
+/** A dead pid — far outside every platform's pid range (the table never carries it). */
+const DEAD_PID = 4_000_001;
+
+/** The tree-level record path of a fixture. */
+const recordPathOf = (f: Fixture): string =>
+  path.join(f.scene.workspace.root.path, "in-flight.json");
+
+/** The tree-level lock path of a fixture (the `proper-lockfile` carrier). */
+const lockPathOf = (f: Fixture): string => `${recordPathOf(f)}.lock`;
+
+/** One standing record's bytes — the killed round's identity facts. */
+const staleRecord = (over: Record<string, unknown> = {}): string =>
+  `${JSON.stringify(
+    {
+      pid: DEAD_PID,
+      command: "cdd implement --tasks 1 --plan docs/kairos/plans/p30.md",
+      slug: "p30",
+      startedAt: Date.parse("2026-11-08T05:00:00.000Z"),
+      wave: "1",
+      phase: "implement",
+      cycle: 2,
+      attempt: 1,
+      briefHash: null,
+      plan: "docs/kairos/plans/p30.md",
+      dispatchBase: "base-B",
+      sampledAt: null,
+      verdict: null,
+      ...over,
+    },
+    null,
+    2,
+  )}\n`;
+
+/** Plant a stale record (the engine-outside kill's postmortem fact). */
+const plantStale = (f: Fixture, body: string): void => {
+  f.scene.workspace.root.ensure();
+  writeFileSync(recordPathOf(f), body, "utf8");
+};
+
+/** One lifecycle over a fixture — the production liveness reader (a dead pid reads dead). */
+const lifecycleOf = (f: Fixture): CliLifecycle =>
+  new CliLifecycle({
+    scene: f.scene,
+    io: f.io,
+    sync: new SilentRunner(),
+    env: { CLAUDE_CODE_SESSION_ID: "s" },
+  });
+
+describe("CliLifecycle.foldAbort — the `--recover` abort leg (P30 §2.1①/§2.2)", () => {
+  it("folds a dead holder's record into ONE abort round record", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      plantStale(f, staleRecord());
+      expect(await lifecycleOf(f).foldAbort()).toBe(true);
+      const records = f.scene.ledger.recordsOf("1", "wave");
+      expect(records).toHaveLength(1);
+      const [abort] = records;
+      // The record's OWN identity: op derived from its phase, cycle / attempt / base
+      // verbatim — never allocated, never invented.
+      expect(abort?.op).toBe("implement");
+      expect(abort?.cycle).toBe(2);
+      expect(abort?.attempt).toBe(1);
+      expect(abort?.dispatchBase).toBe("base-B");
+      // The verdict is pinned EXACTLY: `treeClean: true` is explicit, so the ledger's
+      // dirty-tree fold (`#softOf`) books no observation the fold never made.
+      expect(abort?.verdict).toEqual({ treeClean: true, targetAction: false });
+      expect(abort?.violations).toEqual([
+        { grade: "hard", cause: "interrupted", message: abort?.violations[0]?.message },
+      ]);
+      expect(abort?.carrierPath).toBeNull();
+      // One hard entry, zero soft: the row's soft count carries no increment.
+      expect(f.scene.ledger.softViolations()).toBe(0);
+      // The takeover cleared the record and its lock; no crash file was written.
+      expect(existsSync(recordPathOf(f))).toBe(false);
+      expect(existsSync(lockPathOf(f))).toBe(false);
+      expect(existsSync(path.join(f.scene.workspace.path, "crash-tasks-1-implement-2.json"))).toBe(
+        false,
+      );
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("takes over a corrupt record with a leftover lock WITHOUT inventing a round", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      plantStale(f, '{"pid": 12, "starl');
+      mkdirSync(lockPathOf(f), { recursive: true });
+      expect(await lifecycleOf(f).foldAbort()).toBe(false);
+      // No record was readable, so no op / cycle identity exists to book: the takeover
+      // is the whole effect (a fabricated identity would be worse than no record).
+      expect(f.scene.ledger.recordsOf("1", "wave")).toEqual([]);
+      expect(f.scene.ledger.readProgress()).toBeNull();
+      expect(existsSync(recordPathOf(f))).toBe(false);
+      expect(existsSync(lockPathOf(f))).toBe(false);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("takes over a bare lock with no record behind it and books nothing", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      f.scene.workspace.root.ensure();
+      mkdirSync(lockPathOf(f), { recursive: true });
+      expect(await lifecycleOf(f).foldAbort()).toBe(false);
+      expect(f.scene.ledger.recordsOf("1", "wave")).toEqual([]);
+      expect(existsSync(lockPathOf(f))).toBe(false);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("books a record written before `dispatchBase` existed with a null baseline", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const { dispatchBase: _absent, ...legacy } = JSON.parse(staleRecord()) as Record<
+        string,
+        unknown
+      >;
+      plantStale(f, `${JSON.stringify(legacy, null, 2)}\n`);
+      expect(await lifecycleOf(f).foldAbort()).toBe(true);
+      const [abort] = f.scene.ledger.recordsOf("1", "wave");
+      // Present facts only: the abort lands, the baseline is the honest null.
+      expect(abort?.dispatchBase).toBeNull();
+      expect(abort?.verdict).toEqual({ treeClean: true, targetAction: false });
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it.each([
+    ["the wave key", { wave: null }],
+    ["the cycle", { cycle: null }],
+    ["the attempt", { attempt: null }],
+    ["the phase", { phase: null }],
+  ])("takes over an incomplete identity WITHOUT booking — %s missing", async (_cell, over) => {
+    // A doc / branch-line record carries no wave key, and a pre-P21 record carries no
+    // cycle: the takeover still happens, and no row is invented for it (an allocated
+    // cycle or a defaulted attempt could even overwrite a real round's record).
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      plantStale(f, staleRecord(over));
+      expect(await lifecycleOf(f).foldAbort()).toBe(false);
+      expect(f.scene.ledger.readProgress()).toBeNull();
+      expect(existsSync(recordPathOf(f))).toBe(false);
+      expect(existsSync(lockPathOf(f))).toBe(false);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("never crosses a LIVE holder — the fold takes over nothing and books nothing", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      plantStale(
+        f,
+        staleRecord({
+          pid: process.pid,
+          startedAt: (await ProcessFacts.startOf(process.pid)) ?? Date.now(),
+        }),
+      );
+      expect(await lifecycleOf(f).foldAbort()).toBe(false);
+      expect(f.scene.ledger.recordsOf("1", "wave")).toEqual([]);
+      expect(existsSync(recordPathOf(f))).toBe(true);
     } finally {
       f.cleanup();
     }

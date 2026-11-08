@@ -59,6 +59,7 @@ const recordOf = (): InFlightRecord => ({
   attempt: 1,
   briefHash: null,
   plan: null,
+  dispatchBase: null,
   sampledAt: null,
   verdict: null,
 });

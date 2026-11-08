@@ -38,6 +38,7 @@ import {
   type OpType,
   type ProgressRow,
   type RoundIdentity,
+  RoundRecords,
   type RoundStatus,
   type RoundVerdict,
   RoundViolation,
@@ -65,6 +66,14 @@ const STDOUT_TAIL_MAX = 40;
  *  vanished / unreadable document cases name their own damage instead. */
 const STRUCTURE_CHANGED =
   "the plan's structure changed inside this round (the Task id set or a task's DependsOn set) — the structure face belongs to the orchestrator and lands as its own commit";
+
+/** The abort fold's ONE hard entry (spec §2.2) — the killed round's grade, cause
+ *  (`interrupted`, the vocabulary's new literal) and prose. One entry, one cause: the
+ *  fold records WHY the round has no conclusion, never a second diagnosis. */
+const ABORT_INTERRUPTED = RoundViolation.hard(
+  "the dispatch was interrupted outside the engine — its in-flight record named a dead holder at takeover, so the round concluded nothing (the same command re-offers it)",
+  "interrupted",
+);
 
 // ---------------------------------------------------------------------------
 // the stable seams — the shared faces the composition root + the lifecycle ride
@@ -167,7 +176,8 @@ export class CliLifecycle {
    *  `--recover` flag — the only takeover path). */
   readonly #recover: boolean;
   /** The HEAD the current dispatch started from (null off a repo / before a spawn) —
-   *  the postmortem baseline of `commitsSince`. */
+   *  the postmortem baseline of `commitsSince` AND the in-flight record's
+   *  `dispatchBase` cell (the killed round's group baseline a takeover restores, §2.2). */
   #dispatchBase: string | null = null;
   /** The commits added after `#dispatchBase` (computed once the child returned). */
   #commitsSince: readonly string[] = [];
@@ -228,6 +238,70 @@ export class CliLifecycle {
   /** The DispatchStep the lifecycle runs — one frame → the outcome. */
   step(): DispatchStep {
     return (frame) => this.#dispatch(frame);
+  }
+
+  /** The `--recover` abort leg (spec §2.1①/§2.2) — take over a stale in-flight record
+   *  and, when the record can still name the killed round, fold that round into the
+   *  ledger as an abort: `targetAction: false` plus ONE hard `interrupted` entry, the
+   *  record's own cycle / attempt / `dispatchBase`. The group baseline therefore returns
+   *  to before the killed round, so a recovery commit lands inside the next dispatch's
+   *  window instead of being invisible.
+   *
+   *  The three stale morphologies are judged HERE, exactly as `acquire({ recover })`
+   *  judges them: a dead holder's readable record, a corrupt record with a leftover
+   *  lock, a lock with no record behind it. Only the first carries a record back, so
+   *  only it is booked — the other two have no op / cycle / baseline to read, and an
+   *  invented identity is worse than no record (zero invention, same discipline as the
+   *  `treeClean` pin below). A live holder is never displaced.
+   *
+   *  Writes NO `crash-*.json` and promotes no draft: the crash record is the death face's
+   *  (`#reject`), and this is the postmortem fold of a dispatch killed outside the
+   *  engine — the two paths never mix. Returns whether an abort record was written. */
+  async foldAbort(): Promise<boolean> {
+    const state = await this.#inflight.inspect();
+    if (state.kind === "held" && !state.alive) {
+      const record = await this.#inflight.steal(InFlight.STEAL_REASON.deadHolder);
+      return record === null ? false : this.#bookAbort(record);
+    }
+    if (state.kind === "corrupt" && state.locked) {
+      await this.#inflight.steal(InFlight.STEAL_REASON.corruptRecord);
+      return false;
+    }
+    if (state.kind === "absent" && existsSync(this.#inflight.lockPath())) {
+      await this.#inflight.steal(InFlight.STEAL_REASON.lockOnly);
+    }
+    return false;
+  }
+
+  /** Book one taken-over record as the killed round's abort fact — the cells are the
+   *  record's OWN (op from its phase through the ledger's one mode mapping, cycle /
+   *  attempt / baseline verbatim). `treeClean` is pinned TRUE explicitly: the fold makes
+   *  no dispatch-after observation, so leaving the ledger's default to be re-read would
+   *  let two implementations book different facts (`#softOf` folds
+   *  `treeClean === false` into a dirty-tree observation).
+   *
+   *  A record that cannot name its whole identity — the row key, the op, the cycle or the
+   *  attempt — is NOT booked: the takeover happens, and no identity is made up for it. An
+   *  allocated cycle or a defaulted attempt would be invented facts, and either could
+   *  overwrite a real round's record on the same `(op, cycle, attempt)`. */
+  #bookAbort(record: InFlightRecord): boolean {
+    const op = RoundRecords.opOf(record.phase ?? "");
+    const { wave: key, cycle, attempt } = record;
+    if (op === null || key === null || cycle === null || attempt === null) return false;
+    this.#scene.ledger.recordRound(
+      key,
+      {
+        op,
+        cycle,
+        attempt,
+        dispatchBase: record.dispatchBase,
+        verdict: { treeClean: true, targetAction: false },
+        violations: [ABORT_INTERRUPTED],
+        carrierPath: null,
+      },
+      "wave",
+    );
+    return true;
   }
 
   /** One dispatch — the round's work, the observation facts every record carries (the
@@ -648,6 +722,7 @@ export class CliLifecycle {
       attempt: frame.attempt ?? 1,
       briefHash: this.#briefHashOf(frame),
       plan: scene.planPath === null ? null : this.#rel(scene.planPath),
+      dispatchBase: this.#dispatchBase,
       sampledAt: null,
       verdict: null,
     };

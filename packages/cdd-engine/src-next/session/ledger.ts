@@ -356,13 +356,21 @@ export interface Termination {
  *  terminated before the exit gate (zero behavior fork: resume never routes on it).
  *  The termination causes cover the round that was cut short; `child-exit` is the
  *  child's own non-zero exit; `contract-violation` is the read-back rejection face
- *  when a draft is present but unqualified (malformed JSON / schema); and `unknown`
- *  is the unattributable termination fallback. A MISSING draft is not a crash cause:
- *  the completion criterion owns it (§3.3), so the read-back rejection never fires
- *  there and this vocabulary names a present-but-unqualified draft alone. The crash
- *  record is a postmortem artifact only — the violation family, not this vocabulary,
- *  is what the round's counters derive from. */
-export type CrashCause = TerminationCause | "child-exit" | "contract-violation" | "unknown";
+ *  when a draft is present but unqualified (malformed JSON / schema); `interrupted`
+ *  is the abort fold's cause — a dispatch killed OUTSIDE the engine, booked when the
+ *  stale in-flight record is taken over (spec §2.2), so the ledger carries the killed
+ *  round's fact instead of only the lost lock; and `unknown` is the unattributable
+ *  termination fallback. A MISSING draft is not a crash cause: the completion
+ *  criterion owns it (§3.3), so the read-back rejection never fires there and this
+ *  vocabulary names a present-but-unqualified draft alone. The crash record is a
+ *  postmortem artifact only — the violation family, not this vocabulary, is what the
+ *  round's counters derive from. */
+export type CrashCause =
+  | TerminationCause
+  | "child-exit"
+  | "contract-violation"
+  | "interrupted"
+  | "unknown";
 
 /** The crash record — the lane crash's recovery record (`crash-<lane>-<round>.json`):
  *  the same-command resume's decision source (the resume command + the dead child's

@@ -8186,6 +8186,78 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
   });
 });
 
+// ---------------------------------------------------------------------------
+// P30 T4 — the `--recover` abort leg (the fold at the composition root)
+// ---------------------------------------------------------------------------
+
+describe("P30 — `--recover` folds a stale in-flight record before the new round", () => {
+  it("books the killed round as an abort record, then dispatches — the abort leg's order", async () => {
+    const sync = new StubRunner();
+    sync.commit = "feat: the recovered round's work";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const base = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot })
+        .stdout.toString()
+        .trim();
+      // The killed round's standing record: a dead holder, its OWN baseline, its identity.
+      const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+      mkdirSync(path.dirname(recordPath), { recursive: true });
+      writeFileSync(
+        recordPath,
+        `${JSON.stringify(
+          {
+            pid: 4_000_001,
+            command: "cdd implement --tasks 1 --plan docs/kairos/plans/p3.md",
+            slug: "p3",
+            startedAt: Date.parse("2026-11-08T05:00:00.000Z"),
+            wave: "1",
+            phase: "implement",
+            cycle: 1,
+            attempt: 1,
+            briefHash: null,
+            plan: "docs/kairos/plans/p3.md",
+            dispatchBase: base,
+            sampledAt: null,
+            verdict: null,
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--recover"]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3");
+      const records = new Ledger(workspace, new ConfigLoader()).recordsOf("1", "wave");
+      // The abort fact landed FIRST, with the record's own identity and baseline.
+      expect(records[0]).toMatchObject({
+        op: "implement",
+        cycle: 1,
+        attempt: 1,
+        dispatchBase: base,
+        verdict: { treeClean: true, targetAction: false },
+      });
+      expect(records[0]?.violations).toEqual([
+        expect.objectContaining({ grade: "hard", cause: "interrupted" }),
+      ]);
+      // …then the round actually dispatched (the take-over never blocks the new round).
+      expect(records).toHaveLength(2);
+      expect(sync.calls).toHaveLength(1);
+      expect(existsSync(recordPath)).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("P21 — the crash record's identity and git facts", () => {
   it("names the crash after the frame's wave key and round — the ledger row's key, the frame's handoff", async () => {
     const { repoRoot, cleanup } = fixture();
@@ -8372,6 +8444,7 @@ describe("cdd <verb> — the in-flight acquire race", () => {
       attempt: 1,
       briefHash: null,
       plan: "docs/kairos/plans/p3.md",
+      dispatchBase: null,
       sampledAt: null,
       verdict: null,
     };

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P30 设计：中断可表达 · 完成判据换代理 · 机械判据硬化
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-11-08
 slug: 2026-10-10-engine-doc-tooling-p30
 program: 2026-10-10-engine-doc-tooling
@@ -85,7 +85,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-08）'
 
 #### 2.5 disposition 主键引擎化
 
-- review materialize 时由引擎按 findings 序写入稳定 `id`（`F1`、`F2` 依此类推），写进 carrier；`FINDING` 声明增 `id`（read-back 要求存在，且引擎是唯一作者：子代理写的值被 materialize 覆盖，与既有 reserved-key 丢弃同一条纪律）。
+- review materialize 时由引擎按 findings 序写入稳定 `id`（`F1`、`F2` 依此类推），写进 carrier；`FINDING` 声明把 `id` 列为**可选**属性——prompt 展示该字段存在但不要求 child 填（`PLANE_REQUIRED.judge` 与 `FINDING.required` 都不含 `id`），引擎在 materialize 时按序写入并覆盖子代理可能写的值（与既有 reserved-key 丢弃同一条纪律）。把 `id` 写成必填会把一个引擎自有的值推给 child 去写——与「主键归引擎」相反，且多出一个无意义的 BLOCK 面。
 - `FixDispositions` 的键集改为请求方 carrier 的 `id` 集；`summary` 降为说明文本，不再参与匹配。
 - 失败报文同打两侧差集：carrier 有而 disposition 缺（missing）与 disposition 有而 carrier 无（unknown），各带 id 与 summary 首句，让一次失败即可行动。
 - 兼容：旧 carrier 无 `id` 时退回 summary 匹配并记一条 soft 观察（present facts only），不迁移历史 carrier。
@@ -143,3 +143,4 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-08）'
 | v0.1 | 2026-11-08 | 初版：病根五条（账本只认识跑完的轮次 · pending-fix 压过 drift 且无出口 · commit 代理干完活 · disposition 以散文为主键 · change-history 读面过松）· 裁定七条（`--recover` 一词收两面 · abort 入账 · 严格 reopen · 完成判据加证据分支 · finding 主键归引擎 · 版本头交叉校验 · 已关闭波纪律落写作面）· 非目标与验收 | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-08） |
 | v0.2 | 2026-11-08 | 自检补洞：① `#pendingFix` 跳过 `supersededBy` + reopen 动作序（先分 `N+1` 再盖戳再派）；② 完成判据双 cell（`emptyFileTasks` + `evidenceOk`）与「wave 内每个 task 皆空」；③ abort/reopen 腿的动词与行种触发面钉死；④ §2.7 落点改为 `render/templates.ts` + `cdd-plan`；⑤ §1.5 病根改为「折行不以竖线起首却进了行集」；⑥ abort 不写 crash、旧记录无 `dispatchBase` 的 present-facts 语义、`Files` 空判定；⑦ **判收敛主线零改**升为 §3 与 Constraints 硬底线（D70） | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-08） |
 | v0.3 | 2026-11-08 | 评审回填（phase-spec-review-1）：① §2.2 的 cause 陈述改为「向既有 `CrashCause` 联合新增一个字面 `interrupted`」——原「既有字面面」不实；② §2.6 行集判据改为「表体行 + 列数须与表头一致，不一致只报一条 shape finding」，版本读面保留 `^v\d+\.\d+$` 锚定，fix 模板增「单元格不得硬折行」；③ §2.5 旧 carrier 无 `id` 的 soft 观察补 AC 与 pin，不许计划静默丢弃；④ 已关闭波纪律的回填已在 overall v3.41 落定（提交 `04b123a4`），本相位 spec 与 overall 一致 | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |
+| v0.4 | 2026-11-08 | **计划期设计回填（cdd-plan · backfill-design）**：§2.5 的 `FINDING.id` 由「read-back 要求存在」改为「列为**可选**属性 + 引擎 materialize 时写入并覆盖」——原句把引擎自有的值推给 child 去写，与「主键归引擎」相反，且多出一个无意义的 BLOCK 面（`PLANE_REQUIRED.judge` / `FINDING.required` 均不含 `id`）。判据键集与回退语义不变 | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-08） |

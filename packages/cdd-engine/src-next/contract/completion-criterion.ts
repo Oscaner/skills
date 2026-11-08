@@ -1,7 +1,8 @@
 // packages/cdd-engine/src-next/contract/completion-criterion.ts
 // P22 T4/T6 — "is this round done?" as criteria behind ONE verb-keyed registry
 // (design spec §8 · the completion-criterion row): `implement` is done when the
-// group's baseline carries at least one commit, `review` (branch review included —
+// group's baseline carries at least one commit OR the round is a zero-diff
+// verification wave with green evidence (P30 §2.4), `review` (branch review included —
 // branch-review folds to the review op) is done when its carrier is schema-shaped,
 // and `fix` is done when its work carrier's `dispositions` cover every finding of
 // the REQUESTING review carrier (design spec §3.4).
@@ -9,9 +10,9 @@
 // The criterion judges a CompletionContext the dispatch side assembles (Task 7):
 // the round's verdict-free identity, its ledger row, the row's in-register records,
 // the persisted carrier bytes, the requester's review path, the git read face and the
-// repoRoot path basis. The two cells with a provider seam (`records`, `reviewsPath`) are
-// filled by `CliLifecycle` — this module pins the context SHAPE only and imports
-// neither `face/` nor the lifecycle.
+// repoRoot path basis. The four cells with a provider seam (`records`, `reviewsPath`,
+// `emptyFileTasks`, `evidenceOk`) are filled by `CliLifecycle` — this module pins the
+// context SHAPE only and imports neither `face/` nor the lifecycle.
 //
 // The registry is deliberately PARTIAL while the verbs are ported one at a time: a
 // verb with no criterion throws at lookup (`CompletionCriteria.of`), so a dispatch of
@@ -40,10 +41,11 @@ export interface CompletionContext {
    *  violations are deliberately absent: a completion verdict must never be an input
    *  to the judgment that produces it. */
   readonly record: RoundIdentity;
-  /** The progress row the round belongs to (the wave key's line) — RESERVED. No
-   *  criterion reads it today; it rides the context so a future criterion that needs
-   *  the row's line-level facts has one supplied cell instead of a second ledger read.
-   *  A criterion that starts reading it must say so here. */
+  /** The progress row the round belongs to (the wave key's line) — read by
+   *  `CommitsSinceGroupBase.judge`, which takes the wave's task-id set from the row's
+   *  `wave` key: the empty-`Files` cell carries membership only (no member face of its
+   *  own), so the classification needs the wave key from here rather than a second
+   *  ledger read. */
   readonly row: ProgressRow;
   /** The row's in-register records (the group's history) — `CommitsSinceGroupBase`
    *  derives the group baseline from them, `FixDispositions` finds the request-side
@@ -58,6 +60,15 @@ export interface CompletionContext {
   readonly git: GitClient;
   /** The repo root the git read runs against. */
   readonly repoRoot: string;
+  /** The plan tasks whose `Files` declaration names no path — the verification-wave
+   *  cell, filled from the plan document by `CliLifecycle` (the criterion reads no
+   *  disk). Membership only: the wave's task ids come from `row.wave`, so a set that
+   *  is merely a SUBSET of the wave is never a verification wave. */
+  readonly emptyFileTasks: ReadonlySet<number>;
+  /** Whether this round's test evidence already passed the existing `HandoffSchema`
+   *  evidence check — the lifecycle's evidence gate has judged it, so the criterion
+   *  never re-reads the disk to ask again. */
+  readonly evidenceOk: boolean;
 }
 
 /** One criterion's verdict — done or one graded violation (hard fails the round,
@@ -78,13 +89,20 @@ export interface CompletionCriterion {
 
 /**
  * CommitsSinceGroupBase — the implement criterion: the round is done when the GROUP
- * has at least one commit since the group's baseline (design spec §8).
+ * has at least one commit since the group's baseline (design spec §8), OR when the
+ * round is a VERIFICATION wave with green evidence (P30 §2.4).
  *
  * The baseline is the EARLIEST record's `dispatchBase` of the group — not the round's
  * own. A group re-dispatched after a failed attempt carries a newer per-attempt base,
  * so comparing against the round's own base would read "attempt 1 committed, attempt 2
  * committed nothing" as an empty round (the cross-attempt false negative the group
  * baseline exists to prevent).
+ *
+ * The second leg is a strictly additive OR branch: a wave whose EVERY task declares an
+ * empty `Files` (a verification wave — it changes no file by design) commits nothing,
+ * so its green evidence is the round's completion. The commit test itself is
+ * untouched — a wave with any non-empty `Files` row keeps the `committed nothing`
+ * refusal on a zero diff.
  */
 export class CommitsSinceGroupBase implements CompletionCriterion {
   /** The group baseline — the first record (ledger order = cycle/attempt order) that
@@ -95,6 +113,29 @@ export class CommitsSinceGroupBase implements CompletionCriterion {
       if (record.dispatchBase !== null) return record.dispatchBase;
     }
     return null;
+  }
+
+  /** Whether the wave is a VERIFICATION wave: EVERY task id the wave key declares has
+   *  an empty `Files` declaration. The id set is read from the row's `wave` key (the
+   *  wave-unitary model's group identity, `"1,2"` = `{1, 2}`) — the empty-`Files` cell
+   *  carries membership only, so a set that is a mere subset of the wave must not read
+   *  as "the whole wave changes nothing". A wave key declaring no id is never a
+   *  verification wave: an empty member set would satisfy "every member" vacuously. */
+  static isVerificationWave(row: ProgressRow, emptyFileTasks: ReadonlySet<number>): boolean {
+    const ids = CommitsSinceGroupBase.waveIdsOf(row.wave);
+    if (ids.length === 0) return false;
+    return ids.every((id) => emptyFileTasks.has(id));
+  }
+
+  /** The task ids one wave key declares — the comma-separated digits of `row.wave`,
+   *  deduped. A non-numeric token carries no task identity and is dropped. */
+  static waveIdsOf(wave: string): readonly number[] {
+    const ids = new Set<number>();
+    for (const token of wave.split(",")) {
+      const trimmed = token.trim();
+      if (/^\d+$/.test(trimmed)) ids.add(Number(trimmed));
+    }
+    return [...ids];
   }
 
   async judge(ctx: CompletionContext): Promise<CompletionVerdict> {
@@ -109,16 +150,38 @@ export class CommitsSinceGroupBase implements CompletionCriterion {
       );
     }
     const commits = await ctx.git.commitsSince(ctx.repoRoot, base);
-    if (commits.length === 0) {
-      return this.#hard(`the group committed nothing since its baseline ${base}`);
-    }
-    // An implement round is judged by its COMMITS, never by its handoff draft: the
-    // absent carrier is a bookkeeping observation (design spec §3.3), so the round
-    // still concludes.
+    if (commits.length > 0) return this.#committed(ctx);
+    return this.#zeroCommit(ctx, base);
+  }
+
+  /** A round with commits concludes. An implement round is judged by its COMMITS, never
+   *  by its handoff draft: the absent carrier is a bookkeeping observation (design spec
+   *  §3.3), so the round still concludes. */
+  #committed(ctx: CompletionContext): CompletionVerdict {
     if (ctx.carrier === null) {
       return { fulfilled: true, violation: null, observations: [this.#observation()] };
     }
     return { fulfilled: true, violation: null };
+  }
+
+  /** A zero-commit round: a verification wave with green evidence concludes (its empty
+   *  diff is the plan's declaration, not an empty round), every other zero-commit round
+   *  keeps the `committed nothing` refusal. The two refusals name DIFFERENT gaps — a
+   *  wave that declares no file changes and owes evidence is not the same defect as a
+   *  wave that simply produced nothing. */
+  #zeroCommit(ctx: CompletionContext, base: string): CompletionVerdict {
+    const verification = CommitsSinceGroupBase.isVerificationWave(ctx.row, ctx.emptyFileTasks);
+    if (!verification) {
+      return this.#hard(`the group committed nothing since its baseline ${base}`);
+    }
+    if (!ctx.evidenceOk) {
+      return this.#hard(
+        "the wave declares no file changes on every task, but this round's test evidence is not green — a verification wave still owes green evidence",
+      );
+    }
+    const observations: RoundViolation[] = [this.#verificationObservation()];
+    if (ctx.carrier === null) observations.push(this.#observation());
+    return { fulfilled: true, violation: null, observations };
   }
 
   /** The hard verdict of this criterion — the ledger's existing `contract-violation`
@@ -131,6 +194,12 @@ export class CommitsSinceGroupBase implements CompletionCriterion {
    *  it); the same cause vocabulary, the soft grade. */
   #observation(): RoundViolation {
     return RoundViolation.soft(IMPLEMENT_CARRIER_ABSENT);
+  }
+
+  /** The verification-wave observation — the round passed on its plan declaration plus
+   *  green evidence rather than on a diff; booked soft, it never gates. */
+  #verificationObservation(): RoundViolation {
+    return RoundViolation.soft(IMPLEMENT_VERIFICATION_WAVE);
   }
 }
 
@@ -166,6 +235,14 @@ export class JudgeCarrier implements CompletionCriterion {
  *  handoff draft still concludes; the missing carrier is booked, never gated. */
 export const IMPLEMENT_CARRIER_ABSENT =
   "the implement round wrote no handoff carrier — the round is judged by its commits, not by its draft";
+
+/** The zero-diff verification-wave observation (P30 §2.4) — the wave's every task
+ *  declares an empty `Files`, so its empty diff IS the plan's declaration and its
+ *  green evidence is the round's completion. Booked soft: the round concluded on the
+ *  declaration, and the ledger says so instead of reading it as an ordinary commit
+ *  round that happened to leave nothing. */
+export const IMPLEMENT_VERIFICATION_WAVE =
+  "the implement round committed nothing — every task of this wave declares an empty `Files`, so the round concluded on its green evidence as a verification wave";
 
 /** The zero-commit observation of a fix round — a NEW literal (the engine had no
  *  reusable zero-commit warning; `commitsSince` fed the crash postmortem alone).

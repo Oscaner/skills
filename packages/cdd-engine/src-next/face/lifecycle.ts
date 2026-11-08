@@ -19,6 +19,7 @@ import { existsSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
+import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import { GitClient } from "../infra/git.ts";
 import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
 import type { RepoRoot } from "../infra/root.ts";
@@ -147,6 +148,9 @@ export class CliLifecycle {
    *  frame derives here (the report/evidence/brief names + the family op), so the
    *  lifecycle and the dry-run preview name the same artifacts by one rule. */
   readonly #naming: RoundNaming;
+  /** The plan's task-block read face — the `Files` declaration the implement
+   *  criterion's verification cell derives from (P30 §2.4). */
+  readonly #blocks = new PlanTaskBlocksReader();
   /** The handoff-schema face — stateless, one shared instance (the read-back
    *  validator + the injected prompt text). */
   readonly #handoffSchema = new HandoffSchema();
@@ -318,10 +322,14 @@ export class CliLifecycle {
         ],
       };
     }
+    // The evidence gate is judged ONCE: its graded entries ride the verdict AND its
+    // result feeds the criterion's read-only `evidenceOk` cell (P30 §2.4) — the round
+    // pays for one evidence read, never two.
+    const evidence = this.#evidenceViolations(frame);
     const violations: RoundViolation[] = [
       ...(outcome.violations ?? []),
-      ...(await this.#criterionViolations(frame, outcome)),
-      ...this.#evidenceViolations(frame),
+      ...(await this.#criterionViolations(frame, outcome, evidence)),
+      ...evidence,
       ...this.#structureViolations(frame),
       ...logEntries,
     ];
@@ -335,10 +343,16 @@ export class CliLifecycle {
   }
 
   /** The verb's completion-criterion verdict as graded entries — the criterion's own
-   *  hard violation plus its SOFT observations (design spec §3.2/§3.3). */
+   *  hard violation plus its SOFT observations (design spec §3.2/§3.3).
+   *
+   *  The verification cells (P30 §2.4) are filled HERE, the single point: the wave's
+   *  empty-`Files` task ids come from the plan document the dispatch already reads
+   *  (`#emptyFileTasks`), and `evidenceOk` is the evidence judgment the round already
+   *  ran — the gate's own result, never a second disk read. */
   async #criterionViolations(
     frame: OpenFrame,
     outcome: DraftedOutcome,
+    evidence: readonly RoundViolation[],
   ): Promise<readonly RoundViolation[]> {
     const scene = this.#scene;
     const judged = await CompletionCriteria.of(this.#opOf(frame)).judge({
@@ -349,11 +363,33 @@ export class CliLifecycle {
       reviewsPath: this.#reviewsPath(frame),
       git: this.#git,
       repoRoot: scene.workspace.root.repoRoot,
+      emptyFileTasks: this.#emptyFileTasks(),
+      evidenceOk: evidence.length === 0,
     });
     return [
       ...(judged.violation === null ? [] : [judged.violation]),
       ...(judged.observations ?? []),
     ];
+  }
+
+  /** The plan tasks whose `Files` declaration names no path — the verification-wave
+   *  cell. The PLAN document is the only source (never the diff): an absent plan, a
+   *  plan path pointing at no document or an unreadable one declares no empty row, so
+   *  a wave can never read as verification on a plan this dispatch could not see. */
+  #emptyFileTasks(): ReadonlySet<number> {
+    const planPath = this.#scene.planPath;
+    if (planPath === null) return new Set();
+    let content: string;
+    try {
+      content = readFileSync(planPath, "utf8");
+    } catch {
+      return new Set();
+    }
+    const empty = new Set<number>();
+    for (const block of this.#blocks.parse(content)) {
+      if (this.#blocks.filePathsOf(block).length === 0) empty.add(block.id);
+    }
+    return empty;
   }
 
   /** The round IDENTITY the criterion judges from — its op / cycle / attempt, the

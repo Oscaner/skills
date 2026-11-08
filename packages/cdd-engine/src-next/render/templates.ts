@@ -376,6 +376,15 @@ export const reviewGuideOf = (key: ReviewKey): string => {
   );
 };
 
+/** The closed-wave discipline's ONE sentence (P30 §2.7) — the document review axes'
+ *  shared body: a finding on an already-closed task block's content face is answered
+ *  by the document, never by moving the work. Both document criteria bodies select
+ *  it, so the duty cannot fork between the plan variant and the spec shapes; the
+ *  engine routes nothing on it (no finding classification, no dispatch branch) — it is
+ *  prompt text, judged by the reviewer. */
+export const CLOSED_WAVE_DISCIPLINE =
+  "Closed waves are history: a finding on the content face of an already-closed task block is answered by amending the document to align with the delivered split — never by carrying work into or out of a closed task, and a finding that would rewrite the historical split is not raised.";
+
 /** The spec-shaped documents' narrative criteria body — the phase-spec line's URC
  *  + its program-conformance clause, the ONE body both spec-shaped target rows
  *  select (the filled rubric is what differs per row). The charter's own criteria
@@ -386,7 +395,7 @@ export const reviewGuideOf = (key: ReviewKey): string => {
  *  guard's business, and a present-tense description of today's shape belongs to the
  *  plan. Nothing gates the writing moment — the review is where a violation surfaces. */
 const docNarrativeAxes = (guide: string): string =>
-  `Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin by module path + symbol name — a line number is not a pin; a count ("N places" · "N rows" · "N modules") must be stated as pinned by the named guard or test; a present-tense description of today's shape belongs to the plan — in a design spec a measurement input is a lens-tagged finding unless restated as a condition that must hold — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at \`INPUT_OVERALL\` (the charter its \`program:\` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. ${guide}`;
+  `Follow URC: single-cycle, lens-tagged findings (completeness/consistency/clarity) + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin by module path + symbol name — a line number is not a pin; a count ("N places" · "N rows" · "N modules") must be stated as pinned by the named guard or test; a present-tense description of today's shape belongs to the plan — in a design spec a measurement input is a lens-tagged finding unless restated as a condition that must hold — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding + program conformance — judge the phase against its parent overall at \`INPUT_OVERALL\` (the charter its \`program:\` names): the phase must sit inside the scope the overall's Phase inventory registered for it, and a phase that reaches beyond it is a completeness finding. ${CLOSED_WAVE_DISCIPLINE} ${guide}`;
 
 /** The charter's criteria body — the six things a program charter owns, and only
  *  those. It carries none of the implementation-face evidence duty the narrative
@@ -419,7 +428,7 @@ export const REVIEWS = {
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
-    axesGuide: `Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at \`INPUT_SPEC\` (the plan's \`spec\` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ${reviewGuideOf("plan")}`,
+    axesGuide: `Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at \`INPUT_SPEC\` (the plan's \`spec\` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ${CLOSED_WAVE_DISCIPLINE} ${reviewGuideOf("plan")}`,
   },
 } as const satisfies ReviewGuides;
 

@@ -93,6 +93,7 @@ none
 - Modify: `packages/cdd-engine/src-next/contract/task-blocks.ts`（`PlanTaskBlocksReader#filePathsOf(block)`：`Files` 字段值行里的路径 token）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#criterionViolations` 的 `judge({...})` 填两 cell：计划面读 `Files` + 证据门读回的 `evidenceOk`）
 - Test: `packages/cdd-engine/src-next/contract/__tests__/completion-criterion.test.ts`
+- Test: `packages/cdd-engine/src-next/contract/__tests__/task-blocks.test.ts`（`filePathsOf` 的 colocated home——空值 / 仅空白 / 缺字段 / 字面 `(none)` 四形态同判的 pin 落在 reader 自己的测试面）
 - Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`
 
 #### Consumes
@@ -291,7 +292,8 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 - Modify: `packages/cdd-engine/src-next/render/templates.ts`（plan / spec 评审轴的 closed-wave 句）
 - Modify: `packages/kairos/skills/cdd-plan/SKILL.md`（在 `NEXT-LOOP` 的 `- **Do**` 段末**追加第二句**，写明 finding 落在已关闭 task 块的内容面时改文档去对齐已交付切分、禁止搬运已关闭任务的工作；`author-plan` 的「Appending work」句（第 47 行）不动，也不复用——那句讲的是「新工作以新 task 追加」）
 - Test: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`
-- Test: `packages/kairos/tests/skill-anatomy.test.ts`（或既有 word-face pin 测文件；断言按**节点段**切分——`### \`NEXT-LOOP\`` 起到下一个 `### ` 之前——整文件子串不算交付）
+- Test: `packages/kairos/tests/cdd-plan-spec.test.ts`（该 skill 的既有节点段 pin 文件；断言按**节点段**切分——`### \`NEXT-LOOP\`` 起到下一个 `### ` 之前，而 `NEXT-LOOP` 是 `## Invariants` 前的最后一个节点，故段界取最近的 `### ` 或 `## `，整文件子串不算交付）
+- Test: `packages/cdd-engine/src-next/session/__tests__/dispatch-authority.test.ts`（结构性 pin 的 home——路由两面的源文件按行命中数断言，零命中即「零新增 finding 路由分支」）
 
 #### Consumes
 

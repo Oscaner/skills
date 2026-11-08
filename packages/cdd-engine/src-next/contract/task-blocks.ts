@@ -74,6 +74,17 @@ export class PlanTaskBlocksReader {
   /** The `— checkable:` clause separator. */
   static readonly CHECKABLE = TaskBlockGrammar.CHECKABLE;
 
+  /** The placeholder spellings a `Files` value line may carry INSTEAD of a path — the
+   *  wave's "this task changes no file" declaration: a blank value, the bare `none`
+   *  and the parenthetical `(none)`. Matched case-insensitively on the trimmed,
+   *  bullet- and label-stripped remainder, and token by token for a quoted one. */
+  static readonly FILE_PLACEHOLDERS: ReadonlySet<string> = new Set(["", "none", "(none)"]);
+
+  /** The optional line label a `Files` row may carry (`- Modify: …` · `- Test: …`) —
+   *  stripped so the value's own token is what remains; a line without one keeps its
+   *  whole remainder. */
+  static readonly FILE_ROW_LABEL = /^[A-Za-z][\w ()/.+-]*?:\s+/;
+
   /** A dependency id token — the declared `DependsOn id` value domain (the SAME
    *  source string the registry element carries). */
   static readonly ID_TOKEN = new RegExp(TASK_ID_VALUE_PATTERN);
@@ -103,5 +114,42 @@ export class PlanTaskBlocksReader {
    *  never truncates it. "" when absent. */
   section(content: string, heading: string): string {
     return MarkdownTree.parse(content).sectionText(heading);
+  }
+
+  /** The path tokens one block's `Files` declaration names — the read face behind the
+   *  implement criterion's verification-wave cell (P30 §2.4). An empty result is a
+   *  REAL claim ("this task changes no file"), so the read fails SAFE: an absent
+   *  section, a blank value, a bare bullet and the `(none)` placeholder declare zero
+   *  paths, while an unrecognized remainder is returned as one token — text this
+   *  reader does not understand never reads as "no paths". */
+  filePathsOf(block: TaskBlock): readonly string[] {
+    const field = block.fields.find((entry) => entry.key === "Files");
+    if (field === undefined) return [];
+    const tokens: string[] = [];
+    for (const line of field.lines) {
+      for (const token of PlanTaskBlocksReader.#fileTokensOf(line)) tokens.push(token);
+    }
+    return tokens;
+  }
+
+  /** One `Files` value line's tokens — the quoted spans when the line quotes its paths
+   *  (the plan convention), else the whole stripped remainder. The bullet marker is
+   *  stripped with its trailing whitespace OR at the line's end, so a bare `-` bullet
+   *  (a row that declares no path at all) reads as an empty value. */
+  static #fileTokensOf(line: string): readonly string[] {
+    const remainder = line
+      .replace(/^[-*+](?:\s+|$)/, "")
+      .replace(PlanTaskBlocksReader.FILE_ROW_LABEL, "")
+      .trim();
+    if (PlanTaskBlocksReader.FILE_PLACEHOLDERS.has(remainder.toLowerCase())) return [];
+    const spans = [...remainder.matchAll(/`([^`]+)`/g)]
+      .map((match) => (match[1] ?? "").trim())
+      .filter((token) => token.length > 0);
+    // A line that quotes its paths declares exactly those; a quoted placeholder
+    // (`` `(none)` ``) declares none of them.
+    if (spans.length === 0) return [remainder];
+    return spans.filter(
+      (token) => !PlanTaskBlocksReader.FILE_PLACEHOLDERS.has(token.toLowerCase()),
+    );
   }
 }

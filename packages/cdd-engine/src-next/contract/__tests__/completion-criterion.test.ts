@@ -8,8 +8,12 @@
 //       carrier or a non-array `findings` is hard;
 //   (c) the registry — its registered keys are a subset of the verb set, and an
 //       unregistered verb throws at lookup;
-//   (d) the context is a pure shape — a literal seven-cell context feeds both criteria,
+//   (d) the context is a pure shape — a literal nine-cell context feeds both criteria,
 //       which read only what it carries (the group baseline comes from `records`).
+//   (e) the zero-diff verification branch (P30 §2.4) — a verification wave's empty
+//       commit set is completion when its evidence is green, the wave's id set is READ
+//       from the row key (a partial empty subset is not a verification wave), and every
+//       non-verification zero-commit round keeps the `committed nothing` refusal.
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -28,9 +32,11 @@ import {
   CommitsSinceGroupBase,
   type CompletionContext,
   CompletionCriteria,
+  type CompletionVerdict,
   FIX_DISPOSITIONS_ZERO_COMMIT,
   FixDispositions,
   IMPLEMENT_CARRIER_ABSENT,
+  IMPLEMENT_VERIFICATION_WAVE,
   JudgeCarrier,
 } from "../completion-criterion.ts";
 
@@ -77,7 +83,10 @@ const row = (wave: string, records: readonly RoundRecord[]): ProgressRow => ({
   rounds: [...records],
 });
 
-/** One completion context literal — all seven cells, no lifecycle, no face. */
+/** One completion context literal — all nine cells, no lifecycle, no face. The two
+ *  verification cells default to the REFUSING pair (no empty-`Files` task, evidence not
+ *  green), so a case that does not care about them can never read as a verification
+ *  wave by omission. */
 const context = (
   over: Partial<CompletionContext> & {
     record: RoundIdentity;
@@ -89,6 +98,8 @@ const context = (
   reviewsPath: null,
   git: new StubGit(),
   repoRoot: "/repo",
+  emptyFileTasks: new Set<number>(),
+  evidenceOk: false,
   ...over,
 });
 
@@ -167,6 +178,90 @@ describe("(a) CommitsSinceGroupBase — the group baseline decides", () => {
   });
 });
 
+describe("(a2) CommitsSinceGroupBase — the zero-diff verification branch", () => {
+  /** The wave-under-judgment fixture — one implement round, the wave key `1,2`, zero
+   *  commits since the baseline. Each case overrides exactly the cell it judges. */
+  const zeroCommit = async (over: Partial<CompletionContext>): Promise<CompletionVerdict> => {
+    const records = [record({ op: "implement", dispatchBase: "base-1" })];
+    return new CommitsSinceGroupBase().judge(
+      context({
+        record: records[0]!,
+        records,
+        git: new StubGit([]),
+        carrier: { status: "APPROVED", artifacts: {} },
+        ...over,
+      }),
+    );
+  };
+
+  it("a verification wave with green evidence concludes, and books ONE soft observation", async () => {
+    const verdict = await zeroCommit({
+      row: row("1,2", []),
+      emptyFileTasks: new Set([1, 2]),
+      evidenceOk: true,
+    });
+    expect(verdict.fulfilled).toBe(true);
+    expect(verdict.violation).toBeNull();
+    expect(verdict.observations).toEqual([
+      { grade: "soft", cause: "contract-violation", message: IMPLEMENT_VERIFICATION_WAVE },
+    ]);
+  });
+
+  it("the same fixture with red evidence is still BLOCKED, and the reason names the gap", async () => {
+    const verdict = await zeroCommit({
+      row: row("1,2", []),
+      emptyFileTasks: new Set([1, 2]),
+      evidenceOk: false,
+    });
+    expect(verdict.fulfilled).toBe(false);
+    expect(verdict.violation?.grade).toBe("hard");
+    expect(verdict.violation?.message).toContain("test evidence is not green");
+  });
+
+  it("reads the wave's id set from the row key — a PARTIAL empty subset is never a verification wave", async () => {
+    // The pair differs in ONE cell: the empty-`Files` membership set. `{1}` is a
+    // subset of the wave `1,2`, so a "some task declares no files" reading would pass
+    // it; the whole-set reading refuses.
+    const partial = await zeroCommit({
+      row: row("1,2", []),
+      emptyFileTasks: new Set([1]),
+      evidenceOk: true,
+    });
+    expect(partial.fulfilled).toBe(false);
+    expect(partial.violation?.message).toContain("committed nothing since its baseline");
+    const whole = await zeroCommit({
+      row: row("1,2", []),
+      emptyFileTasks: new Set([1, 2]),
+      evidenceOk: true,
+    });
+    expect(whole.fulfilled).toBe(true);
+  });
+
+  it("a wave key that declares no task id is never a verification wave — the empty set is not a vacuous pass", async () => {
+    const verdict = await zeroCommit({
+      row: row("", []),
+      emptyFileTasks: new Set(),
+      evidenceOk: true,
+    });
+    expect(verdict.fulfilled).toBe(false);
+    expect(verdict.violation?.grade).toBe("hard");
+  });
+
+  it("a verification wave with NO handoff carrier books both soft observations, never a gate", async () => {
+    const verdict = await zeroCommit({
+      row: row("2", []),
+      emptyFileTasks: new Set([2]),
+      evidenceOk: true,
+      carrier: null,
+    });
+    expect(verdict.fulfilled).toBe(true);
+    expect(verdict.observations?.map((entry) => entry.message)).toEqual([
+      IMPLEMENT_VERIFICATION_WAVE,
+      IMPLEMENT_CARRIER_ABSENT,
+    ]);
+  });
+});
+
 describe("(b) JudgeCarrier — the carrier's findings shape decides", () => {
   it("`{ findings: [] }` is an approval, never a violation", async () => {
     const records = [record({ op: "review" })];
@@ -229,7 +324,7 @@ describe("(c) the verb-keyed registry", () => {
 });
 
 describe("(d) the completion context is a pure shape", () => {
-  it("a literal seven-cell context feeds both criteria, which read only what it carries", async () => {
+  it("a literal nine-cell context feeds both criteria, which read only what it carries", async () => {
     const record0 = record({ op: "implement", dispatchBase: "group-base" });
     const record1 = record({ op: "review", cycle: 2, dispatchBase: "review-base" });
     const records = [record0, record1];
@@ -242,9 +337,12 @@ describe("(d) the completion context is a pure shape", () => {
       git,
       repoRoot: "/repo",
     });
-    // Both cells are readable on the literal context.
+    // Both read seams are readable on the literal context.
     expect(ctx.records).toHaveLength(2);
     expect(ctx.reviewsPath).toBe("/ws/review-1.json");
+    // The two verification cells (P30 §2.4) are readable here too.
+    expect(ctx.emptyFileTasks.size).toBe(0);
+    expect(ctx.evidenceOk).toBe(false);
     // The implement criterion's whole consumption face is `records` + `git`.
     const implement = await new CommitsSinceGroupBase().judge(ctx);
     expect(implement.fulfilled).toBe(true);

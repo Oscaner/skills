@@ -994,3 +994,38 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
     }
   });
 });
+
+describe("P30 T6 — the closed-wave discipline adds zero finding-routing branch", () => {
+  /** The two planes that route a dispatch — the authority and the next-hop router. */
+  const ROUTING_PLANES = ["../dispatch-authority.ts", "../next.ts"] as const;
+
+  const planeText = (file: string): string =>
+    readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8");
+
+  /** Every hit of a pattern in one plane's source, as `line` records (an empty list is
+   *  the assertion; a hit names itself, so a new branch cannot land silently). */
+  const hitsOf = (text: string, pattern: RegExp): readonly string[] =>
+    text
+      .split("\n")
+      .map((line, index) => ({ line: line.trim(), number: index + 1 }))
+      .filter((entry) => pattern.test(entry.line))
+      .map((entry) => `${entry.number}: ${entry.line}`);
+
+  it("no routing plane reads a finding's `section` — the engine classifies nothing", () => {
+    // A finding's `section` is not guaranteed to resolve to a task block, so the
+    // engine has no routing input for the discipline (design spec §2.7). A section
+    // read appearing here would be the routing table the spec forbids.
+    for (const plane of ROUTING_PLANES) {
+      expect(hitsOf(planeText(plane), /section/i), `section read in ${plane}`).toEqual([]);
+    }
+  });
+
+  it("no routing plane speaks closed-task vocabulary — the discipline is prompt text", () => {
+    for (const plane of ROUTING_PLANES) {
+      expect(
+        hitsOf(planeText(plane), /closed[- ]task/i),
+        `closed-task wording in ${plane}`,
+      ).toEqual([]);
+    }
+  });
+});

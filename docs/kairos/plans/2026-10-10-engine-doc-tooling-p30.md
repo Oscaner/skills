@@ -17,7 +17,7 @@ base: develop
 - **历史零迁移**：旧 `InFlightRecord`（无 `dispatchBase`）、旧 carrier（无 finding `id`）、旧 `brief_hash` 一律按 present-facts 读，不写迁移。
 - **`--steal-stale` 硬切**：不保留别名、不留双旗标；pin 整体重锚属本相位的 deliberate break（D74 → minor）。
 - 无新 CLI 动词；changeset `@oscaner-skills/cdd-engine` **minor**；不发布。
-- 零模块级裸函数；波宽 ≤ 3：本计划分层 W1={1,2,3} · W2={4,6} · W3={5,7} · W4={8}。
+- 零模块级裸函数；波宽 ≤ 3：本计划分层 W1={1,3} · W2={2,4,6} · W3={5,7} · W4={8}。
 
 ## Review Focus
 
@@ -128,7 +128,7 @@ none
 
 #### DependsOn
 
-none
+1
 
 ### Task 3: change-history 行集与版本读面硬化
 
@@ -413,5 +413,5 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
-| v0.1 | 2026-11-08 | 初版：八任务四波 W1={1,2,3}·W2={4,6}·W3={5,7}·W4={8}——recover 旗标硬切 · 完成判据证据分支 · change-history 硬化 · abort 入账 · finding id 双侧差集 · 已关闭波纪律 · reopen 严格条件 · changeset 与全量门 | [human] 裁定 · Claude（kairos:cdd-plan · 2026-11-08） |
+| v0.1 | 2026-11-08 | 初版：八任务四波 W1={1,3}·W2={2,4,6}·W3={5,7}·W4={8}——recover 旗标硬切 · 完成判据证据分支 · change-history 硬化 · abort 入账 · finding id 双侧差集 · 已关闭波纪律 · reopen 严格条件 · changeset 与全量门 | [human] 裁定 · Claude（kairos:cdd-plan · 2026-11-08） |
 | v0.2 | 2026-11-08 | 评审回填（plan-review-1 F1–F7）：① Task 1 Files 扩到 `--steal-stale` 的全部字面面——`lifecycle.ts` / `inflight.ts` / `preflight.ts` 传递链，加 preview / board-view / preflight / inflight 四个测试文件（报文字面改词，`stealable` 键名不变）；② Task 7 补「双缺 → BLOCKED 且不得降级为普通派发」红测；③ Task 7 补 abort→reopen 合并腿序红测；④ Task 2 补 `Files` 字面 `(none)` 的空判定 pin；⑤ Task 7 补 reopen 触发面负向 pin（`fix` / `implement` / wave 行）；⑥ Task 3 增 corpus guard 测——仓内 spec / plan / overall 对两条新不变量与 `change-history-version-unique` 零误伤成为可红 pin（不断言既有 `presence` 面上的存量红），Task 8 全量门引用；⑦ Task 5 DependsOn 4 由编排方落定（`2c80fb21`），本轮零结构面改动 | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |

@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p30-design.md` **现行 `version`**（v0.3）所指的面；spec 版本一变，本约束的字面同笔改。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p30-design.md` **现行 `version`**（v0.4）所指的面；spec 版本一变，本约束的字面同笔改。
 - **判收敛主线零改（硬底线 · D70）**：`NextStepRouter` 的闭合判定、`#blockerCount`、`REVIEW_CYCLE_CAP`、next-loop / architecture 孪生门、finding severity 词表与 rollup 规则，本计划**零字节改动**；任何任务不得顺手改那条转移表。
 - **D81 裁定不得被实现推翻**：#431③ 免审区即全部豁免面（不做 `--diff-since`、不加 `origin`）· #437 契约 ∪ 台账同身份不拆。
 - **组基线语义不动**：`CommitsSinceGroupBase.groupBaseOf` 仍取组内最早 `dispatchBase`；零 diff 放行只加 OR 分支。
@@ -221,7 +221,7 @@ none
 
 #### Objective
 
-review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…）；fix 的 dispositions 改按 `id` 键；失败报文同打「carrier 有而 disposition 缺」与「disposition 有而 carrier 无」两侧差集；旧 carrier 无 `id` 时退回 summary 匹配并记 soft。
+review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING` 声明里 `id` 为**可选**，child 不必填，引擎 materialize 时写入并覆盖）；fix 的 dispositions 改按 `id` 键；失败报文同打「carrier 有而 disposition 缺」与「disposition 有而 carrier 无」两侧差集；旧 carrier 无 `id` 时退回 summary 匹配并记 soft。
 
 #### Files
 
@@ -239,13 +239,13 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…）；fix �
 
 #### Produces
 
-- carrier 的每条 finding 带 `id`（`F` + 序号，序 = carrier 序）
+- carrier 的每条 finding 带 `id`（`F` + 序号，序 = carrier 序），声明侧 `id` 为可选（child 零义务）
 - dispositions 以 `id` 为键；未知/缺失键两侧差集同报文
 - 旧 carrier（无 `id`）：summary 匹配 + 一条 soft 观察（colocated pin）
 
 #### Steps
 
-- 写失败测：review 载体落盘后每条 finding 带等序 `id` — checkable: FAIL（今日无 `id`）
+- 写失败测：review 载体落盘后每条 finding 带等序 `id`，且子代理不写 `id` 的草稿仍通过 read-back — checkable: FAIL（今日无 `id`；若把 `id` 写成必填，无 `id` 草稿会被误 BLOCK）
 - 写失败测：fix 载体把某条 finding 的 summary 改写一个词、按原 `id` 写 disposition → 判据通过 — checkable: FAIL（今日报 `never raised`）
 - 写失败测：disposition 多一条未知 `id` 且少一条应有 `id` → 报文字面同时含两个差集 — checkable: FAIL（今日只打 unknown 即返回）
 - 写失败测：无 `id` 的旧 carrier → 按 summary 匹配通过且 `observations` 含 soft — checkable: FAIL

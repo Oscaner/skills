@@ -17,7 +17,7 @@ base: develop
 - **历史零迁移**：旧 `InFlightRecord`（无 `dispatchBase`）、旧 carrier（无 finding `id`）、旧 `brief_hash` 一律按 present-facts 读，不写迁移。
 - **`--steal-stale` 硬切**：不保留别名、不留双旗标；pin 整体重锚属本相位的 deliberate break（D74 → minor）。
 - 无新 CLI 动词；changeset `@oscaner-skills/cdd-engine` **minor**；不发布。
-- 零模块级裸函数；波宽 ≤ 3：本计划分层 W1={1,4,6} · W2={2,5,7} · W3={3} · W4={8}。
+- 零模块级裸函数；波宽 ≤ 3：本计划分层 W1={1,2,3} · W2={4,5,6} · W3={7} · W4={8}。
 
 ## Review Focus
 
@@ -34,7 +34,7 @@ base: develop
 
 #### Objective
 
-把 `--steal-stale` 从旗标表、报文表、CLI 读取点整类改名到 `--recover`（本期硬切，不留别名），并让 `implement` / `review` / `fix` 三个派发动词都声明它。只做旗标面；abort 与 reopen 的语义留给 Task 2 / Task 3。
+把 `--steal-stale` 从旗标表、报文表、CLI 读取点整类改名到 `--recover`（本期硬切，不留别名），并让 `implement` / `review` / `fix` 三个派发动词都声明它。只做旗标面；abort 与 reopen 的语义留给 Task 4 / Task 7。
 
 #### Files
 
@@ -74,7 +74,7 @@ base: develop
 
 none
 
-### Task 4: 完成判据加证据分支（零 diff 验证型）
+### Task 2: 完成判据加证据分支（零 diff 验证型）
 
 #### Objective
 
@@ -121,7 +121,7 @@ none
 
 none
 
-### Task 6: change-history 行集与版本读面硬化
+### Task 3: change-history 行集与版本读面硬化
 
 #### Objective
 
@@ -170,7 +170,7 @@ none
 
 none
 
-### Task 2: abort 入账（`--recover` 的 abort 腿）
+### Task 4: abort 入账（`--recover` 的 abort 腿）
 
 #### Objective
 
@@ -261,9 +261,9 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…）；fix �
 
 #### DependsOn
 
-4
+2
 
-### Task 7: 已关闭波纪律（文字面）
+### Task 6: 已关闭波纪律（文字面）
 
 #### Objective
 
@@ -301,9 +301,9 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…）；fix �
 
 #### DependsOn
 
-6
+3
 
-### Task 3: 外部改设计的 reopen（`--recover` 的 reopen 腿）
+### Task 7: 外部改设计的 reopen（`--recover` 的 reopen 腿）
 
 #### Objective
 
@@ -321,7 +321,7 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…）；fix �
 
 - `Ledger#reviewGate` / `#pendingFix` / `lineRoute` / `#latestCompletedCycleOfRow` / `#rowClosed`
 - `ReviewedIdentity`（fix ⟷ review 同 cycle 的身份）
-- Task 2 的 abort 折账入口
+- Task 4 的 abort 折账入口
 
 #### Produces
 
@@ -347,7 +347,7 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…）；fix �
 
 #### DependsOn
 
-2
+4
 
 ### Task 8: changeset 与全量门
 
@@ -386,10 +386,11 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…）；fix �
 
 #### DependsOn
 
-3,5,7
+7, 5, 6
 
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
-| v0.1 | 2026-11-08 | 初版：八任务四波 W1={1,4,6}·W2={2,5,7}·W3={3}·W4={8}——recover 旗标硬切 · 完成判据证据分支 · change-history 硬化 · abort 入账 · finding id 双侧差集 · 已关闭波纪律 · reopen 严格条件 · changeset 与全量门 | [human] 裁定 · Claude（kairos:cdd-plan · 2026-11-08） |
+| v0.1 | 2026-11-08 | 初版：八任务四波 W1={1,2,3}·W2={4,5,6}·W3={7}·W4={8}——recover 旗标硬切 · 完成判据证据分支 · change-history 硬化 · abort 入账 · finding id 双侧差集 · 已关闭波纪律 · reopen 严格条件 · changeset 与全量门 | [human] 裁定 · Claude（kairos:cdd-plan · 2026-11-08） |
+

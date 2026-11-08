@@ -258,18 +258,19 @@ export class CliLifecycle {
    *  (`#reject`), and this is the postmortem fold of a dispatch killed outside the
    *  engine — the two paths never mix. Returns whether an abort record was written. */
   async foldAbort(): Promise<boolean> {
-    const state = await this.#inflight.inspect();
-    if (state.kind === "held" && !state.alive) {
+    const stale = await this.#inflight.staleState();
+    if (stale === null) return false;
+    if (stale.kind === "held") {
       const record = await this.#inflight.steal(InFlight.STEAL_REASON.deadHolder);
       return record === null ? false : this.#bookAbort(record);
     }
-    if (state.kind === "corrupt" && state.locked) {
-      await this.#inflight.steal(InFlight.STEAL_REASON.corruptRecord);
-      return false;
-    }
-    if (state.kind === "absent" && existsSync(this.#inflight.lockPath())) {
-      await this.#inflight.steal(InFlight.STEAL_REASON.lockOnly);
-    }
+    // The two record-less morphologies: the takeover is the whole effect (no op /
+    // cycle / baseline is readable, and an invented identity would be worse).
+    await this.#inflight.steal(
+      stale.kind === "corrupt"
+        ? InFlight.STEAL_REASON.corruptRecord
+        : InFlight.STEAL_REASON.lockOnly,
+    );
     return false;
   }
 

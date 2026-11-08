@@ -99,6 +99,10 @@ export type DispatchVerdict =
       /** §2.5 — present when the reason is a drift token and the hop's target yields
        *  both hash ends (an underivable identity prints the bare token). */
       readonly drift?: DispatchDrift;
+      /** P30 §2.3 — the drift-∧-pending-fix face: the `next:` review command carries
+       *  `--recover`, the ONE flag that reopens the line (a pending fix otherwise holds
+       *  it forever). Absent on every other refusal. */
+      readonly recover?: boolean;
     };
 
 /** The refusal face — the verdict's `allowed: false` arm. */
@@ -193,8 +197,16 @@ type UpstreamStation =
  *  actually names one (an allowed dispatch pays no station read). */
 type LineRuling =
   | { readonly kind: "allowed" }
-  /** The leg's own row named the fact. */
-  | { readonly kind: "row"; readonly reason: DispatchReason }
+  /** The leg's own row named the fact. `recover` marks the drift-∧-pending-fix face
+   *  (P30 §2.3): the refusal's `next:` is the same review command carrying `--recover`
+   *  — the hop is stated here when the row replaces the frontier's hop with the
+   *  reopenable review round. */
+  | {
+      readonly kind: "row";
+      readonly reason: DispatchReason;
+      readonly recover?: boolean;
+      readonly hop?: NextHop;
+    }
   /** The line sits at another open round — the hop's own named fact rules. */
   | { readonly kind: "hop" };
 
@@ -241,7 +253,10 @@ export class DispatchAuthority {
         : `${reason} · ${render.detail}`;
     }
     const command = render.command === undefined ? "" : render.command(verdict.next);
-    return `${reason} · next: ${command}`;
+    // The reopen flag rides the command the renderer produced — the SAME review
+    // command, one flag added (`--recover`), never a second literal (P30 §2.3).
+    const recover = verdict.recover === true ? " --recover" : "";
+    return `${reason} · next: ${command}${recover}`;
   }
 
   /** The structure leg's verdict — the seam's refusal re-expressed as this chain's
@@ -363,9 +378,11 @@ export class DispatchAuthority {
   #lineLeg(request: DispatchRequest): DispatchVerdict {
     const ruling = request.type === "wave" ? this.#waveRuling(request) : this.#docRuling(request);
     if (ruling.kind === "allowed") return { allowed: true };
-    const next = this.#hopOf(request.line);
+    const next =
+      ruling.kind === "row" && ruling.hop !== undefined ? ruling.hop : this.#hopOf(request.line);
     const reason = ruling.kind === "row" ? ruling.reason : next.reason;
-    return this.#refusal("line", reason, next, request.line);
+    const recover = ruling.kind === "row" ? ruling.recover : undefined;
+    return this.#refusal("line", reason, next, request.line, recover);
   }
 
   /** One refusal, with its drift diagnosis attached when the reason is a drift token
@@ -379,13 +396,17 @@ export class DispatchAuthority {
     reason: DispatchReason,
     next: NextHop,
     facts: DispatchLineFacts,
+    recover?: boolean,
   ): DispatchRefusal {
     const drift = DispatchAuthority.#isDriftReason(reason)
       ? DispatchAuthority.#driftOf(next, facts)
       : undefined;
-    return drift === undefined
-      ? { allowed: false, leg, reason, next }
-      : { allowed: false, leg, reason, next, drift };
+    const base: DispatchRefusal = { allowed: false, leg, reason, next };
+    return {
+      ...base,
+      ...(drift === undefined ? {} : { drift }),
+      ...(recover === true ? { recover: true } : {}),
+    };
   }
 
   /** Whether a token names a moved reviewed identity — the two rows whose refusal line
@@ -501,8 +522,15 @@ export class DispatchAuthority {
       return { kind: "allowed" };
     }
     // A pending fix is the line's own row: the fix it awaits is a present fact, and
-    // the refusal names it whatever the requested verb was.
-    if (phase.phase === "fix") return { kind: "row", reason: DISPATCH_REASON.pendingFix.token };
+    // the refusal names it whatever the requested verb was. On a DRIFTED line the same
+    // row is reopenable — the `next:` is then the review round the `--recover` flag
+    // reopens (P30 §2.3), never the fix the old design already outran.
+    if (phase.phase === "fix") {
+      const reopen = DispatchAuthority.#reopenHop(facts, request.type);
+      return reopen === null
+        ? { kind: "row", reason: DISPATCH_REASON.pendingFix.token }
+        : { kind: "row", reason: DISPATCH_REASON.pendingFix.token, recover: true, hop: reopen };
+    }
     if (phase.phase !== null) return { kind: "hop" };
     // The closed line: the doc shapes name their unchanged reviewed identity (the
     // anti-spin row); every other line keeps the generic closed face.
@@ -511,6 +539,40 @@ export class DispatchAuthority {
       kind: "row",
       reason: unchanged ? DISPATCH_REASON.unchanged.token : DISPATCH_REASON.faceClosed.token,
     };
+  }
+
+  /** Whether the line sits at the REOPENABLE face — `reviewGate` open (the document
+   *  drifted past what the review bound) AND a fix still owed (P30 §2.3's condition
+   *  pair ①②). Read from the ledger's own derivations (`reviewGate` · `pendingFix`),
+   *  never a second walk: the refusal's `--recover` hint and the CLI's reopen leg judge
+   *  the same pair. */
+  static #reopenable(facts: DispatchLineFacts, type: TargetType): boolean {
+    const { lineKey: key, doc, ledger } = facts;
+    if (key === null || doc === null) return false;
+    if (type === "wave") return false;
+    return ledger.reviewGate(key, doc, type).kind === "open" && ledger.pendingFix(key, type);
+  }
+
+  /** The reopenable line's REVIEW hop — the round `--recover` makes dispatchable, built
+   *  through the ONE hop assembly (`Ledger#nextHopOf`) so the refusal's `next:` is the
+   *  same command the capsule and the board render (P30 §2.3). Null when the line is
+   *  not reopenable (the refusal then keeps the frontier's own hop). */
+  static #reopenHop(facts: DispatchLineFacts, type: TargetType): NextHop | null {
+    if (!DispatchAuthority.#reopenable(facts, type)) return null;
+    const { lineKey: key, doc } = facts;
+    if (key === null || doc === null) return null;
+    // The render target's own shape (a branch line carries its plan as `plan`, every
+    // doc shape carries the document as `id`) — the frontier's own construction.
+    const target: RouteTarget =
+      type === "branch" ? { type: "branch", id: "branch", plan: doc } : { type, id: doc };
+    return facts.ledger.nextHopOf({
+      type,
+      key,
+      route: { kind: "review" },
+      target,
+      doc,
+      docClassOf: facts.docClassOf,
+    });
   }
 
   /** The phase the requested verb dispatches on this face — the review verb asks for

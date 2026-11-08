@@ -320,6 +320,47 @@ describe("P27 §2.4 — the doc/branch face's rows", () => {
     }
   });
 
+  it("drift ∧ pending-fix — the refusal's `next:` is the REOPENABLE review command carrying `--recover` (P30 §2.3)", () => {
+    const { repo, ledger, cleanup } = fixture();
+    try {
+      const content = planDoc([task(1, "none")]);
+      const planAbs = planAt(repo, content);
+      closedPlan(ledger, content, [{ severity: "blocker", summary: "open" }]);
+      // The plan moves past the revision its review bound: drift ∧ pending-fix.
+      writeFileSync(planAbs, planDoc([task(1, "none"), task(2, "1")]), "utf8");
+      const refusal = refusalOf(docCase(ledger, "plan", planAbs, "review", planAbs));
+      expect(refusal.reason).toBe("pending-fix");
+      expect(refusal.recover).toBe(true);
+      // The hop the refusal names IS the reopenable review round (never the fix the
+      // moved design already outran).
+      expect(refusal.next?.route?.kind).toBe("review");
+      const line = authority.message(refusal, {
+        command: (hop) => `cdd review --type plan --plan ${String(hop.target?.id)}`,
+      });
+      expect(line).toContain("pending-fix");
+      expect(line).toContain("--recover");
+      expect(line.split("\n")).toHaveLength(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("pending-fix on an UNCHANGED doc keeps the bare `next:` — no `--recover` where nothing drifted", () => {
+    const { repo, ledger, cleanup } = fixture();
+    try {
+      const content = planDoc([task(1, "none")]);
+      const planAbs = planAt(repo, content);
+      closedPlan(ledger, content, [{ severity: "blocker", summary: "open" }]);
+      const refusal = refusalOf(docCase(ledger, "plan", planAbs, "review", planAbs));
+      expect(refusal.reason).toBe("pending-fix");
+      expect(refusal.recover).toBeUndefined();
+      const line = authority.message(refusal, { command: () => "cdd fix --type plan" });
+      expect(line).toBe("pending-fix · next: cdd fix --type plan");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("the branch line's unchanged identity keeps the face-closed row (no doc-class prose)", () => {
     const { repo, ledger, cleanup } = fixture();
     try {

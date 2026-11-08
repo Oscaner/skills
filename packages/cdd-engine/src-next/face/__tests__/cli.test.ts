@@ -2606,10 +2606,14 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // ... the refusal of any other round names that same object ...
       io.stderrText = "";
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(1);
-      expect(io.stderrText).toContain("pending-fix · next: fix --type plan");
+      // P30 §2.3 moves this refusal's `next:` onto the reopenable review round: the
+      // drift the pending fix used to outrun is now the ONE exit (`--recover`), and the
+      // named command is the one the flag makes dispatchable.
+      expect(io.stderrText).toContain("pending-fix · next: review --type plan");
+      expect(io.stderrText).toContain("--recover");
       expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(false);
-      // ... and the named verb is the DISPATCHABLE one (the engine never names a
-      // round it then refuses — the cross-face property §5.5 ④).
+      // ... the fix verb stays dispatchable (the engine never names a round it then
+      // refuses — the cross-face property §5.5 ④) ...
       io.stderrText = "";
       io.stdoutText = "";
       expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan])).toBe(0);
@@ -8302,6 +8306,251 @@ describe("P30 — `--recover` folds a stale in-flight record before the new roun
       expect(records).toHaveLength(2);
       expect(sync.calls).toHaveLength(1);
       expect(existsSync(recordPath)).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P30 T7 — the `--recover` reopen leg (drift ∧ pending-fix on a doc / branch line)
+// ---------------------------------------------------------------------------
+
+/** The reopen fixture's dispatch: the FIRST review round leaves a blocker (the
+ *  pending-fix face), every later round approves. `frames` records what reached the
+ *  dispatch seam, so the REFUSAL cases can pin "zero dispatch". */
+const blockerThenApprove = (frames: OpenFrame[]) => {
+  let reviews = 0;
+  return async (frame: OpenFrame) => {
+    frames.push(frame);
+    if (frame.phase === "review") {
+      reviews += 1;
+      if (reviews === 1) {
+        return {
+          status: "CHANGES_REQUESTED" as const,
+          findings: [{ severity: "blocker" as const, summary: "pending" }],
+        };
+      }
+    }
+    return { status: "APPROVED" as const, findings: [] };
+  };
+};
+
+/** Move the plan past the revision its review bound (the document drift). */
+const driftPlan = (plan: string): void => {
+  writeFileSync(
+    plan,
+    readFileSync(plan, "utf8").replace("- **Acceptance**: ok", "- **Acceptance**: ok (drifted)"),
+    "utf8",
+  );
+};
+
+/** The killed round's standing record — the abort leg's fixture (a dead holder whose
+ *  record still names its round). */
+const plantStaleRecord = (repoRoot: string): void => {
+  const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+  mkdirSync(path.dirname(recordPath), { recursive: true });
+  writeFileSync(
+    recordPath,
+    `${JSON.stringify(
+      {
+        pid: 4_000_001,
+        command: "cdd implement --tasks 1 --plan docs/kairos/plans/p3.md",
+        slug: "p3",
+        startedAt: Date.parse("2026-11-08T05:00:00.000Z"),
+        wave: "1",
+        phase: "implement",
+        cycle: 2,
+        attempt: 1,
+        briefHash: null,
+        plan: "docs/kairos/plans/p3.md",
+        dispatchBase: "base-B",
+        sampledAt: null,
+        verdict: null,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+};
+
+/** The fixture's ledger read (the assertions' one read face). */
+const ledgerOf = (repoRoot: string): Ledger => {
+  const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+  return new Ledger(workspace, new ConfigLoader());
+};
+
+describe("P30 §2.3 — the `--recover` reopen leg", () => {
+  it("drift ∧ pending-fix: `review --recover` supersedes the old review and dispatches cycle N+1", async () => {
+    const frames: OpenFrame[] = [];
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: blockerThenApprove(frames) });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // Review 1 leaves a blocker: the line awaits its fix and binds the reviewed revision.
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      const ledger = ledgerOf(repoRoot);
+      expect(ledger.pendingFix("plan", "plan")).toBe(true);
+      driftPlan(plan);
+      // Without the flag the pending fix still holds the line (the drift does not
+      // outrank it) — the refusal now names the ONE exit.
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(1);
+      expect(io.stderrText).toContain("pending-fix · next: review --type plan");
+      expect(io.stderrText).toContain("--recover");
+      // With the flag the review round IS dispatchable: the old review is stamped and
+      // the new round lands at cycle N+1.
+      io.stderrText = "";
+      io.stdoutText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--recover"])).toBe(
+        0,
+      );
+      const records = ledger.recordsOf("plan", "plan");
+      expect(records[0]).toMatchObject({
+        op: "review",
+        cycle: 1,
+        supersededBy: { cycle: 2, cause: "recover" },
+      });
+      // The superseded record keeps its own verdict — a stamp is not a failure.
+      expect(records[0]?.verdict.targetAction).toBe(true);
+      expect(records[1]).toMatchObject({
+        op: "review",
+        cycle: 2,
+        verdict: { targetAction: true },
+      });
+      // No fake completed fix: the fix identity stays with its requesting review (D28).
+      expect(ledger.completedCycles("plan", "fix", "plan")).toEqual([]);
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.json"))).toBe(
+        true,
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("neither leg holds: `--recover` is BLOCKED naming BOTH gaps, and no verb dispatches", async () => {
+    const frames: OpenFrame[] = [];
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: blockerThenApprove(frames) });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      const dispatched = frames.length;
+      // No stale record and no drift: nothing to take over, nothing to reopen.
+      // `implement` declares no `--type` (its face is the wave), so it carries the group.
+      const verbs: readonly string[][] = [
+        ["review", "--type", "plan", "--plan", plan, "--recover"],
+        ["fix", "--type", "plan", "--plan", plan, "--recover"],
+        ["implement", "--tasks", "1", "--plan", plan, "--recover"],
+      ];
+      for (const argv of verbs) {
+        io.stderrText = "";
+        expect(await command.runArgv(argv)).toBe(1);
+        expect(io.stderrText, argv[0]).toContain("CDD_BLOCKED");
+        expect(io.stderrText, argv[0]).toContain("no stale in-flight record");
+        expect(io.stderrText, argv[0]).toContain("drift ∧ pending-fix");
+      }
+      // A wave line never reopens either (its reopen face is P29's brief-drift).
+      io.stderrText = "";
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--recover",
+        ]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("drift ∧ pending-fix");
+      // Zero dispatch across every refused shape.
+      expect(frames).toHaveLength(dispatched);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("stacks both legs in ONE command: abort record first, supersede second, the N+1 review third", async () => {
+    const frames: OpenFrame[] = [];
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: blockerThenApprove(frames) });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      driftPlan(plan);
+      plantStaleRecord(repoRoot);
+      io.stderrText = "";
+      io.stdoutText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--recover"])).toBe(
+        0,
+      );
+      const ledger = ledgerOf(repoRoot);
+      // ① the killed round is booked with its OWN identity (the abort record)
+      const aborted = ledger.recordsOf("1", "wave");
+      expect(aborted).toHaveLength(1);
+      expect(aborted[0]).toMatchObject({
+        op: "implement",
+        cycle: 2,
+        attempt: 1,
+        dispatchBase: "base-B",
+        verdict: { treeClean: true, targetAction: false },
+      });
+      expect(aborted[0]?.violations[0]).toMatchObject({ grade: "hard", cause: "interrupted" });
+      // ② the supersede stamp … ③ the N+1 review round (both on the plan line)
+      const reviews = ledger.recordsOf("plan", "plan");
+      expect(reviews[0]?.supersededBy).toEqual({ cycle: 2, cause: "recover" });
+      expect(reviews[1]).toMatchObject({ op: "review", cycle: 2 });
+      // The stale record is gone and the new round did dispatch.
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "in-flight.json"))).toBe(false);
+      expect(frames.filter((frame) => frame.phase === "review")).toHaveLength(2);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("`fix --recover` takes the abort leg ONLY — the review is never superseded, no N+1 round", async () => {
+    const frames: OpenFrame[] = [];
+    const { command, repoRoot, cleanup } = fixture({ dispatch: blockerThenApprove(frames) });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      driftPlan(plan);
+      plantStaleRecord(repoRoot);
+      expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan, "--recover"])).toBe(0);
+      const ledger = ledgerOf(repoRoot);
+      // The abort leg booked the killed round …
+      expect(ledger.recordsOf("1", "wave")).toHaveLength(1);
+      // … and the fix's own re-review is an ORDINARY round: review-1 keeps no stamp, so
+      // nothing was reopened (the review verb alone owns the reopen leg).
+      const reviews = ledger.recordsOf("plan", "plan");
+      expect(reviews[0]?.supersededBy).toBeUndefined();
+      expect(reviews.every((record) => record.supersededBy === undefined)).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("`implement --recover` takes the abort leg ONLY — no supersede either", async () => {
+    const frames: OpenFrame[] = [];
+    const { command, repoRoot, cleanup } = fixture({ dispatch: blockerThenApprove(frames) });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      driftPlan(plan);
+      plantStaleRecord(repoRoot);
+      // The implement round is not this line's phase — the abort leg still books, and the
+      // reopen leg never fires on the implement verb.
+      // `implement` has no `--type` (the wave face) — its abort leg is face-independent.
+      await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--recover"]);
+      const ledger = ledgerOf(repoRoot);
+      expect(ledger.recordsOf("1", "wave")).toHaveLength(1);
+      const reviews = ledger.recordsOf("plan", "plan");
+      expect(reviews[0]?.supersededBy).toBeUndefined();
     } finally {
       cleanup();
     }

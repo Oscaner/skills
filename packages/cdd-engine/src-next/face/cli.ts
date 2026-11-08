@@ -203,6 +203,19 @@ export interface RunInput {
   includeRecommends?: boolean;
 }
 
+/** The `--recover` double-gap refusal (P30 §2.1③) — NEITHER leg holds: no stale
+ *  in-flight record stands on this tree, and the line is not at drift ∧ pending-fix.
+ *  The command dispatches nothing: a flag that silently degrades into an ordinary
+ *  dispatch is exactly the silent fallback §2.1③ forbids. */
+const RECOVER_NOTHING =
+  "--recover has nothing to take over and nothing to reopen — no stale in-flight record stands on this tree (①), and this line is not at drift ∧ pending-fix (②); nothing was dispatched";
+
+/** The `--recover` judgment's answer: the harness to dispatch through (its abort leg
+ *  already ran), or the refusal to print. */
+type RecoverRun =
+  | { readonly kind: "allowed"; readonly harness: CliLifecycle }
+  | { readonly kind: "blocked"; readonly message: string };
+
 /**
  * The Cli — the command face's parse/run surface over the assembled object graph.
  * runArgv() parses through the commander program and rejects unknown flags (the
@@ -696,6 +709,22 @@ export class Cli {
     const expected =
       verb === "implement" ? "implement" : verb === "fix" ? "fix" : scene.face.product.reviewLead;
 
+    // THE `--recover` judgment (P30 §2.1①–③), at the composition root and BEFORE the
+    // dispatch verdict: the takeover lands first, the supersede stamp second and the
+    // `N+1` review dispatch third — the order is fixed HERE, never inside `step()`.
+    // A STRUCTURE refusal keeps its own face: the recovery legs are skipped, so a dirty
+    // tree or a live holder is never displaced by an argument.
+    const recovery =
+      !parsed.dryRun &&
+      parsed.args.recover === "true" &&
+      this.#authority.structureRefusal(preflight) === null
+        ? await this.#recoverRun(verb, type, scene, parsed, inflight)
+        : null;
+    if (recovery !== null && recovery.kind === "blocked") {
+      this.#io.stderr(`${this.#words.station("blocked")} ${recovery.message}\n`);
+      return 1;
+    }
+
     // THE dispatch verdict (P27 §2.2) — ONE authority over the three legs, in
     // priority order: the structure leg (the pre-flight verdict just judged), the
     // upstream station leg, then this line's own phase. A refusal is ONE verdict —
@@ -769,7 +798,7 @@ export class Cli {
     if (!parsed.dryRun && type === "wave" && scene.planText !== null)
       scene.briefPath = this.#gate.renderBrief(scene, parsed);
     const statuses: (RoundStatus | null)[] = [];
-    const dispatch: DispatchStep = await this.#dispatchOf(scene, parsed);
+    const dispatch: DispatchStep = await this.#dispatchOf(scene, parsed, recovery?.harness ?? null);
     const run = new Lifecycle({
       face: scene.face,
       state: scene.state,
@@ -909,15 +938,78 @@ export class Cli {
    *  retired synthetic approval (`() => ({ status: "APPROVED", findings: [] })`)
    *  has no remaining caller: a preview books no round and fabricates no
    *  conclusion. */
-  async #dispatchOf(scene: WorkScene, parsed: RunInput): Promise<DispatchStep> {
+  async #dispatchOf(
+    scene: WorkScene,
+    parsed: RunInput,
+    recovered: CliLifecycle | null = null,
+  ): Promise<DispatchStep> {
     if (this.#dispatch !== null) return this.#dispatch;
-    const harness = this.#lifecycleOf(scene, parsed);
-    // The `--recover` abort leg (spec §2.1①/§2.2) is judged at the composition root,
-    // BEFORE the round dispatches: a stale in-flight record is folded into the ledger
-    // first, so the new dispatch's own record never stands over an unbooked kill. The
-    // preview is void here (`--dry-run` takes over nothing and books no round).
-    if (!parsed.dryRun && parsed.args.recover === "true") await harness.foldAbort();
+    const harness = recovered ?? this.#lifecycleOf(scene, parsed);
+    // The abort fold already ran at the composition root's `--recover` judgment
+    // (`#recoverRun`) when a harness was handed in; the injected/default face keeps
+    // its own fold here, so the takeover always precedes this dispatch's own record.
+    if (recovered === null && !parsed.dryRun && parsed.args.recover === "true") {
+      await harness.foldAbort();
+    }
     return harness.step();
+  }
+
+  /** The `--recover` judgment (spec §2.1①–③) — the two legs, judged in order and
+   *  allowed to stack:
+   *    ① the ABORT leg — a stale in-flight record is taken over and, when it still
+   *      names the killed round, folded into the ledger (`foldAbort`);
+   *    ② the REOPEN leg — `review` on a doc / branch line only, at drift ∧ pending-fix,
+   *      with no round in flight: the old review is stamped `supersededBy` and the
+   *      dispatch that follows allocates `N+1`;
+   *    ③ neither → the double-gap BLOCKED, naming both missing conditions, and no
+   *      dispatch at all.
+   *  The ORDER is the ruling (§2.1④): the abort fold first, the stamp second, the
+   *  `N+1` dispatch third — it lives here, not in `step()`'s internals. `fix --recover`
+   *  and `implement --recover` take leg ① only (never a reopen), wave lines likewise
+   *  (their reopen face stays P29's brief-drift). */
+  async #recoverRun(
+    verb: CliVerb,
+    type: TargetType,
+    scene: WorkScene,
+    parsed: RunInput,
+    inflight: InFlight,
+  ): Promise<RecoverRun> {
+    const harness = this.#lifecycleOf(scene, parsed);
+    const stale = (await inflight.staleState()) !== null;
+    if (stale) await harness.foldAbort();
+    const reopened = await this.#reopenLeg(verb, type, scene, inflight);
+    if (stale || reopened) return { kind: "allowed", harness };
+    return { kind: "blocked", message: RECOVER_NOTHING };
+  }
+
+  /** The reopen leg (spec §2.3) — its three conditions judged here, and the stamp
+   *  written when all hold: ① `reviewGate` open (the doc drifted), ② a fix still owed
+   *  (`pendingFix`), ③ no round in flight (a live holder was refused upstream; a stale
+   *  one was already taken over). Trigger face pinned: `review` on a doc / branch line
+   *  ONLY — `fix` / `implement` and the wave line never reopen. Returns whether the
+   *  supersede stamp landed. */
+  async #reopenLeg(
+    verb: CliVerb,
+    type: TargetType,
+    scene: WorkScene,
+    inflight: InFlight,
+  ): Promise<boolean> {
+    if (verb !== "review") return false;
+    if (type !== "branch" && !TargetFaceTable.isDocShape(type)) return false;
+    const identity = this.#gate.lineIdentity(scene);
+    if (identity.key === null || identity.doc === null) return false;
+    const state = await inflight.inspect();
+    if (state.kind !== "absent" || existsSync(inflight.lockPath())) return false;
+    const ledger = scene.ledger;
+    if (ledger.reviewGate(identity.key, identity.doc, type).kind !== "open") return false;
+    if (!ledger.pendingFix(identity.key, type)) return false;
+    const completed = ledger.completedCycles(identity.key, "review", type);
+    if (completed.length === 0) return false;
+    // The next review cycle is the latest completed review's + 1 — allocated BEFORE
+    // the stamp lands (the spec's fixed action order), and it is exactly the cycle the
+    // following dispatch allocates (the register's cycle count is unchanged by a stamp).
+    const latest = Math.max(...completed);
+    return ledger.supersedeReview(identity.key, type, latest, latest + 1);
   }
 
   /** The invocation's lifecycle harness — the production dispatch face, held by the

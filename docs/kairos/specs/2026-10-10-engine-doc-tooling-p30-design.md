@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P30 设计：中断可表达 · 完成判据换代理 · 机械判据硬化
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-11-08
 slug: 2026-10-10-engine-doc-tooling-p30
 program: 2026-10-10-engine-doc-tooling
@@ -58,7 +58,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-08）'
 #### 2.2 abort 入账
 
 - `InFlightRecord` 增 `dispatchBase`（acquire 时写入 HEAD）。没有这一格，abort 记录的组基线无从复原（§1.3 的第二个失真）。
-- `InFlight#steal` 的返回值折成一条 `RoundRecord`：`op` 由 `phase` 派生、`cycle` 与 `attempt` 取记录值、`dispatchBase` 取记录值、`verdict.targetAction` 为 `false`、一条 hard violation，cause 记为 `interrupted`（进 `CrashCause` 家族的既有字面面，零新枚举类）。
+- `InFlight#steal` 的返回值折成一条 `RoundRecord`：`op` 由 `phase` 派生、`cycle` 与 `attempt` 取记录值、`dispatchBase` 取记录值、`verdict.targetAction` 为 `false`、一条 hard violation，cause 记为 `interrupted` —— 向既有 `CrashCause` 联合（`session/ledger.ts`：`stalled` · `over-budget` · `signal` · `child-exit` · `contract-violation` · `unknown`）**新增一个字面**，不新建并行枚举类型；该字面今日不在联合内，是本相位的一处真实增量。
 - **只写 `RoundRecord`，不写 `crash-*.json`**：crash 仍是进程内死亡面（`#reject`）的产物；abort 是引擎外杀进程后的事后折账，两条路径不得混。
 - **旧记录无 `dispatchBase`（present facts）**：abort 仍入账，`dispatchBase: null`；组基线退回更早的有值记录（与今日「记录无 base」同语义，不发明 base）。
 - 效果：组基线回到被杀那一轮之前，恢复提交落在 base 之后，重派看得见（#431②）；pending-fix 仍读「未完成」，同命令可重跑，但账本现在有记录说明为什么。
@@ -92,10 +92,10 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-08）'
 
 #### 2.6 change-history 与版本头的读面硬化
 
-- 行：只取表格解析出的表体行，selector 收紧为「行首是竖线且首列匹配 `^v\d+\.\d+$`」；折行续行不入行集。
-- 版本：只读首列并对同一锚定模式匹配 —— 行内任意位置出现的版本号不再算数。
+- 行：行集只有一个来源 —— 表格解析出的表体行（mdast/GFM 单一解析模型，手写行扫描零参与）；表体行的列数与表头不一致时不算 lineage 行，并作为一条 shape finding 报一次（折行续行即此形态），不得静默丢弃。
+- 版本：只读首列并锚定 `^v\d+\.\d+$` 匹配 —— 行内任意位置出现的版本号不再算数（折行续行于是也不再冒充 lineage 行）。
 - 新增不变量 `change-history-latest-matches-front-matter`：front-matter `version:` 必须等于 lineage 中最新（数值最大）的版本；落后或超前都红，报错点名两端。
-- fix 模板同步一句「追加 change-history 行必须同步 bump front-matter」，让写作面与门禁面说同一件事。
+- fix 模板（`render/templates.ts` 的 docs-fix 变体）同步两句：追加 change-history 行必须同步 bump front-matter `version:`；表格单元格不得硬折行（折行续行会落成错列的表体行）。
 
 #### 2.7 已关闭波的 finding 路由（文字面）
 
@@ -120,7 +120,8 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-08）'
 - **`--steal-stale` 退役**：帮助面、拒绝语、capsule、words 表零 `--steal-stale` 字面；同位置出现 `--recover`（grep pin 加行为 pin）。
 - **零 diff 验证型**：wave 内每个 task 的 `Files` 皆空且 `evidenceOk` → 通过并带 soft 观察；`Files` 皆空但证据缺失或违约 → 仍 BLOCKED（既有证据门）；任一 task `Files` 非空的零 diff → 仍 `committed nothing`（既有判据不动，成对 pin）。
 - **finding id**：review materialize 的 carrier 每条 finding 带稳定 id，序即 carrier 序；fix 的 dispositions 以 id 为键，改写 summary 不再产生 unknown；两侧差集同现于一次失败报文。
-- **change-history**：不以竖线起首的折行续行不产生第二个 lineage 行（折叠夹具 pin）；header 停在旧版本而追加新行 → 新不变量红；header 等于最新行 → 绿。
+- **旧 carrier 无 `id`**：present-facts 路径退回 summary 匹配，且记一条 soft 观察（colocated pin：软观察缺失即红）；历史 carrier 零迁移、零改写。
+- **change-history**：折行续行（列数与表头不一致的表体行）不产生第二个 lineage 行，且只报一条 shape finding（折叠夹具 pin，反向 pin：静默丢弃即红）；header 停在旧版本而追加新行 → 新不变量红；header 等于最新行 → 绿；docs-fix 变体含「同步 bump front-matter」与「单元格不得硬折行」两句（子串 pin）。
 - **已关闭波纪律**：`render/templates.ts` 评审轴与 `cdd-plan` fix 节点含对应句（子串 pin）；引擎侧零新增 finding 路由分支（结构性 pin）。
 - **判收敛主线**：既有 next-loop / architecture 孪生门与 `NextStepRouter` 相关 pin 全绿、零字节改动（结构性 pin）。
 - `pnpm run validate` exit 0；changeset `cdd-engine` minor；不发布；#431 / #436 / #437 / #443 各得终态（其中 #437 与 #431③ 以 D81 裁定关闭，无代码改动）。
@@ -141,3 +142,4 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-08）'
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-08 | 初版：病根五条（账本只认识跑完的轮次 · pending-fix 压过 drift 且无出口 · commit 代理干完活 · disposition 以散文为主键 · change-history 读面过松）· 裁定七条（`--recover` 一词收两面 · abort 入账 · 严格 reopen · 完成判据加证据分支 · finding 主键归引擎 · 版本头交叉校验 · 已关闭波纪律落写作面）· 非目标与验收 | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-08） |
 | v0.2 | 2026-11-08 | 自检补洞：① `#pendingFix` 跳过 `supersededBy` + reopen 动作序（先分 `N+1` 再盖戳再派）；② 完成判据双 cell（`emptyFileTasks` + `evidenceOk`）与「wave 内每个 task 皆空」；③ abort/reopen 腿的动词与行种触发面钉死；④ §2.7 落点改为 `render/templates.ts` + `cdd-plan`；⑤ §1.5 病根改为「折行不以竖线起首却进了行集」；⑥ abort 不写 crash、旧记录无 `dispatchBase` 的 present-facts 语义、`Files` 空判定；⑦ **判收敛主线零改**升为 §3 与 Constraints 硬底线（D70） | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-08） |
+| v0.3 | 2026-11-08 | 评审回填（phase-spec-review-1）：① §2.2 的 cause 陈述改为「向既有 `CrashCause` 联合新增一个字面 `interrupted`」——原「既有字面面」不实；② §2.6 行集判据改为「表体行 + 列数须与表头一致，不一致只报一条 shape finding」，版本读面保留 `^v\d+\.\d+$` 锚定，fix 模板增「单元格不得硬折行」；③ §2.5 旧 carrier 无 `id` 的 soft 观察补 AC 与 pin，不许计划静默丢弃；④ 已关闭波纪律的回填已在 overall v3.41 落定（提交 `04b123a4`），本相位 spec 与 overall 一致 | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |

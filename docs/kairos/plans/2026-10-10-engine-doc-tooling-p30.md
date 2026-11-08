@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P30 计划：中断可表达 · 完成判据换代理 · 机械判据硬化
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-08
 slug: 2026-10-10-engine-doc-tooling-p30
 base: develop
@@ -144,7 +144,7 @@ none
 - Modify: `packages/cdd-engine/src-next/render/templates.ts`（docs-fix 变体两句：追加行必须 bump front-matter；表格单元格不得硬折行）
 - Test: `packages/cdd-engine/src-next/contract/__tests__/invariants.test.ts`（或既有 lint/invariants 测文件）
 - Test: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`
-- Test: `packages/cdd-engine/src-next/contract/__tests__/doc-corpus.guard.test.ts`（corpus guard：遍历 `docs/kairos/{specs,plans,overalls}`，按 front-matter `doc-type` 取 doc key，断言 `Contract#validate` 对两条新不变量零 finding、`change-history-version-unique` 无回归；断言面不扩到既有 `presence` 等判定面）
+- Test: `packages/cdd-engine/src-next/contract/__tests__/doc-corpus.guard.test.ts`（corpus guard：遍历 `docs/kairos/{specs,plans,overalls}`，按 front-matter `doc-type` 取 doc key，以**每文档具名 ceiling** 断言「存量不得更加红」——`change-history-row-shape` 的冻结基线（15 篇历史文档，overall 单篇 110 行）由测内常量具名并写明「历史零迁移」理由，`change-history-latest-matches-front-matter` 与 `change-history-version-unique` 的 ceiling 为 0，P30 自身文档一律零 finding；断言面不扩到既有 `presence` 等判定面）
 
 #### Consumes
 
@@ -158,7 +158,7 @@ none
 - 不变量 `change-history-latest-matches-front-matter`（front-matter 版本 == lineage 最新数值版本，两端点名）
 - 不变量 `change-history-row-shape`（列数 != 表头列数的表体行：一条 finding，不静默丢弃）
 - docs-fix 模板两句（子串 pin）
-- corpus guard 测：仓内存量 spec / plan / overall 对两条新不变量零 finding、对 `change-history-version-unique` 无新增命中（可红的全量 pin，不是 dry-run 抽样；存量有一处与新不变量无关的既有红——`p19-design` 的 `presence` 面——本测不吞它、也不修它）
+- corpus guard 测（**ceiling 口径**，非全零口径）：仓内存量 spec / plan / overall 对三条 lineage 腿按**每文档具名 ceiling** 断言「不得新增」——`change-history-row-shape` 的存量漂移（15 篇冻结文档 / overall 单篇 110 行）属既有语料事实，历史零迁移下不在本相位修复，故以基线钉住「修好即绿、变坏即红并点名」；`change-history-latest-matches-front-matter`、`change-history-version-unique` **ceiling 为 0**；P30 自身文档零 finding。该测可红，不是抽样；存量一处与新不变量无关的既有红（`p19-design` 的 `presence` 面）本测既不吞也不修
 
 #### Steps
 
@@ -167,7 +167,7 @@ none
 - 写失败测：行内正文含 `spec vX.Y` 但首列不是版本 → 不产生 lineage 行 — checkable: FAIL（今日 `firstVersion` 会读该行）
 - 实现锚定读面与两条不变量；docs-fix 模板加两句 — checkable: 上三测 PASS；`pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__` 全绿
 - 仓内全量自检：`node packages/cdd-engine/src-next/bin.ts review --type phase-spec --spec docs/kairos/specs/2026-10-10-engine-doc-tooling-p30-design.md --dry-run` 与 plan 同形各跑一次 — checkable: 两次 exit 0（两个抽样目标不被新不变量误伤）
-- 写 corpus guard 测：逐篇遍历 `docs/kairos/{specs,plans,overalls}`，`doc-type` → doc key，`Contract#validate` 对 `change-history-latest-matches-front-matter`、`change-history-row-shape` 零 finding，且 `change-history-version-unique` 无新增命中 — checkable: FAIL（今日新不变量不存在；上线后任一存量文档误伤即该测红并点名文件）
+- 写 corpus guard 测：逐篇遍历 `docs/kairos/{specs,plans,overalls}`，`doc-type` → doc key，按每文档 ceiling 断言三条 lineage 腿「不得新增」，ceiling 常量在测内具名并附「历史零迁移」理由 — checkable: FAIL（今日新不变量不存在；上线后任一存量文档比基线更红即该测红并点名文件）
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
@@ -415,3 +415,4 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-08 | 初版：八任务四波 W1={1,3}·W2={2,4,6}·W3={5,7}·W4={8}——recover 旗标硬切 · 完成判据证据分支 · change-history 硬化 · abort 入账 · finding id 双侧差集 · 已关闭波纪律 · reopen 严格条件 · changeset 与全量门 | [human] 裁定 · Claude（kairos:cdd-plan · 2026-11-08） |
 | v0.2 | 2026-11-08 | 评审回填（plan-review-1 F1–F7）：① Task 1 Files 扩到 `--steal-stale` 的全部字面面——`lifecycle.ts` / `inflight.ts` / `preflight.ts` 传递链，加 preview / board-view / preflight / inflight 四个测试文件（报文字面改词，`stealable` 键名不变）；② Task 7 补「双缺 → BLOCKED 且不得降级为普通派发」红测；③ Task 7 补 abort→reopen 合并腿序红测；④ Task 2 补 `Files` 字面 `(none)` 的空判定 pin；⑤ Task 7 补 reopen 触发面负向 pin（`fix` / `implement` / wave 行）；⑥ Task 3 增 corpus guard 测——仓内 spec / plan / overall 对两条新不变量与 `change-history-version-unique` 零误伤成为可红 pin（不断言既有 `presence` 面上的存量红），Task 8 全量门引用；⑦ Task 5 DependsOn 4 由编排方落定（`2c80fb21`），本轮零结构面改动 | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |
+| v0.3 | 2026-11-08 | **W1 评审期裁定回填（tasks-1,3-review-1 B1）**：Task 3 Acceptance 由「存量全绿」改为「每文档具名 ceiling 的不得新增」——既有语料里 15 篇冻结文档的 Change-history 表列宽不齐（overall 单篇 110 行），历史零迁移下本相位不修表，故以基线钉「修好即绿 / 变坏即点名」；`latest-matches-front-matter` 与 `version-unique` 的 ceiling 仍为 0，P30 自身文档零 finding。原「全绿」措辞是规划期没有量过语料就写下的断言 | [human] 裁定 · Claude（kairos:cdd-plan · 2026-11-08） |

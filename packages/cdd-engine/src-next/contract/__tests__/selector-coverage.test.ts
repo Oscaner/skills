@@ -1,6 +1,6 @@
 // packages/cdd-engine/src-next/contract/__tests__/selector-coverage.test.ts
 // P21 §7.5 — the selector coverage matrix. Every declared element of the four
-// registries (114 rows) carries a `selector`, every selector is a well-formed
+// registries (111 rows) carries a `selector`, every selector is a well-formed
 // query that terminates at the document root, and every selector RESOLVES on a
 // conforming document of its own type.
 //
@@ -129,7 +129,7 @@ describe("selector coverage — every declared element carries a resolvable loca
     expect(offenders, `out-of-domain resolved nodes: ${offenders.join(" | ")}`).toEqual([]);
   });
 
-  it("reads the canonical overall charter at zero findings, with every table located", () => {
+  it("locates every overall table, then reads the charter's non-shape rules clean", () => {
     const charter = path.join(
       REPO_ROOT,
       "docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md",
@@ -157,16 +157,28 @@ describe("selector coverage — every declared element carries a resolvable loca
       content: fixtures.text("overall"),
       root: REPO_ROOT,
     });
-    // The charter's Change-history table is width-ragged by history (the header
-    // declares one column count, older rows carry another), which the P30
-    // `change-history-row-shape` leg reports on purpose — the drift is recorded as a
-    // ceiling in `doc-corpus.guard.test.ts`, never repaired here. This gate covers the
-    // SELECTOR read, so the shape leg is excluded from its zero-findings assertion.
+    // The subject here is the SELECTOR read — the rules that judge the located nodes —
+    // not the charter's history. Its Change-history table is width-ragged by frozen
+    // history, which the P30 `change-history-row-shape` leg reports on purpose; that
+    // drift is pinned as a named ceiling in `doc-corpus.guard.test.ts`, never repaired
+    // here. So the shape kind is NOT dropped from this gate: it is asserted against the
+    // table's own ragged-row count, which keeps the leg live (a silently dead leg goes
+    // red) without copying a row count that rots on every charter append.
+    const changeHistory = tree.tableUnder("## Change history");
+    const width = changeHistory?.header?.length ?? 0;
+    const ragged = (changeHistory?.body ?? []).filter((row) => row.length !== width).length;
+    expect(ragged, "the charter's Change history is width-ragged by history").toBeGreaterThan(0);
+    const shape = findings.filter((finding) => finding.kind === "change-history-row-shape");
+    expect(shape, "the shape leg reports the charter's ragged rows, one each").toHaveLength(ragged);
+    expect(
+      shape.every((finding) => finding.field === "Change history"),
+      "every shape finding is anchored on the ## Change history table",
+    ).toBe(true);
     expect(
       findings
         .filter((finding) => finding.kind !== "change-history-row-shape")
         .map((finding) => `${finding.kind} · ${finding.field} · ${finding.message}`),
-      "the canonical charter must judge clean",
+      "the canonical charter's non-shape rules judge clean",
     ).toEqual([]);
   });
 

@@ -87,7 +87,7 @@ export interface LedgerRule {
   evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[];
 }
 
-/** The rule registry — doc scope 21 rows + ledger scope 2 rows = 23. */
+/** The rule registry — doc scope 23 rows + ledger scope 2 rows = 25. */
 export const RULE_REGISTRY: readonly RuleDeclaration[] = [
   { scope: "doc", id: "presence", docKeys: "all", create: () => new PresenceInvariant() },
   {

@@ -1364,6 +1364,47 @@ describe("P30 T3 — shape-invalid change-history rows are not lineage rows", ()
   });
 });
 
+describe("P30 T3 — membership reads every body row, the lineage set keeps the header width", () => {
+  /** A shape-ragged newest row (a hard-wrapped summary cell: 3 cells against the
+   *  4-column header) whose ANCHORED cell 0 carries the header version — the live
+   *  shape of the repo's p24 pair, where the newest version exists only on a row the
+   *  lineage set cannot hold. */
+  const raggedNewest = "| v1.2 | 2026-10-10 | a summary that hard-wraps |";
+
+  const lineageDoc = (docKey: "plan" | "phase-spec"): string =>
+    docKey === "plan"
+      ? planLineage("v1.2", [ROW_100, ROW_101, raggedNewest])
+      : specLineage("v1.2", [ROW_100, ROW_101, raggedNewest]);
+
+  for (const docKey of ["plan", "phase-spec"] as const) {
+    it(`keeps membership green on ${docKey} — the ragged row still carries the header version`, () => {
+      const findings = judge(docKey, lineageDoc(docKey));
+      // Membership is the anchored cell-0 read over ALL body rows: a shape-ragged row
+      // that carries the header version is the document's own lineage, not an orphan.
+      expect(withKind(findings, "front-matter-version-in-lineage", "version"), docKey).toBe(false);
+      // The row is still a SHAPE fact — membership never silences the defect.
+      const shape = findings.filter((finding) => finding.kind === "change-history-row-shape");
+      expect(shape, docKey).toHaveLength(1);
+      expect(shape[0]?.message, docKey).toContain("3");
+    });
+
+    it(`registers no lineage identity for ${docKey}'s ragged row — the newest leg still reads v1.1`, () => {
+      const findings = judge(docKey, lineageDoc(docKey));
+      // Duplicate detection and latest-matches keep the header-width set, so the ragged
+      // row's v1.2 never becomes a lineage version: the newest lineage version stays
+      // v1.1 and the header's v1.2 is reported against it.
+      const latest = findings.filter(
+        (finding) => finding.kind === "change-history-latest-matches-front-matter",
+      );
+      expect(latest, docKey).toHaveLength(1);
+      expect(latest[0]?.message, docKey).toContain("v1.1");
+      expect(withKind(findings, "change-history-version-unique", "Change history"), docKey).toBe(
+        false,
+      );
+    });
+  }
+});
+
 describe("P30 T3 — the anchored first-column version read", () => {
   it("ignores a version token in an in-cell prose row — it is not a lineage identity", () => {
     const prose = "| see spec v1.9 | 2026-10-10 | note | [human] |";

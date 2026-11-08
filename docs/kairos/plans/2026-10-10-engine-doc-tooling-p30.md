@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P30 计划：中断可表达 · 完成判据换代理 · 机械判据硬化
 doc-type: plan
-version: v0.5
+version: v0.6
 date: 2026-11-08
 slug: 2026-10-10-engine-doc-tooling-p30
 base: develop
@@ -89,7 +89,7 @@ none
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/contract/completion-criterion.ts`（`CompletionContext` 两 cell；`CommitsSinceGroupBase.judge` OR 分支 + soft 观察；`CompletionContext.row` 的 RESERVED 注记改写为该 cell 的新读者声明）
+- Modify: `packages/cdd-engine/src-next/contract/completion-criterion.ts`（`CompletionContext` 两 cell；`CommitsSinceGroupBase.judge` OR 分支 + soft 观察；`CompletionContext.row` 的读者声明**保持**——W2 已把它写进该 cell 的 docstring（具名 `CommitsSinceGroupBase.judge` 读 `row.wave`），今日源码零 `RESERVED` 字面，本任务只确认这条声明与两 cell 的实现一致，不重写注记）
 - Modify: `packages/cdd-engine/src-next/contract/task-blocks.ts`（`PlanTaskBlocksReader#filePathsOf(block)`：`Files` 字段值行里的路径 token）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#criterionViolations` 的 `judge({...})` 填两 cell：计划面读 `Files` + 证据门读回的 `evidenceOk`）
 - Test: `packages/cdd-engine/src-next/contract/__tests__/completion-criterion.test.ts`
@@ -108,7 +108,7 @@ none
 - `CompletionContext.emptyFileTasks: ReadonlySet<number>` · `CompletionContext.evidenceOk: boolean`
 - `PlanTaskBlocksReader#filePathsOf(block: TaskBlock): readonly string[]`
 - `CommitsSinceGroupBase` 的放行条件 = 有提交 **或**（该 wave 每个 task 都 ∈ `emptyFileTasks` ∧ `evidenceOk`）
-- wave 的 task id 集由 `ctx.row.wave`（`ProgressRow.wave`，`session/ledger.ts:197-199`——逗号分隔的 wave 键，`"1,2"` 即 `{1,2}`）现读：`emptyFileTasks` 只是空 `Files` 子集、不含成员面，缺这一读就退化成「子集非空」；`CompletionContext.row` 的 RESERVED 注记同步改为「`CommitsSinceGroupBase.judge` 是本 cell 的读者」
+- wave 的 task id 集由 `ctx.row.wave`（`ProgressRow.wave`，`session/ledger.ts:197-199`——逗号分隔的 wave 键，`"1,2"` 即 `{1,2}`）现读：`emptyFileTasks` 只是空 `Files` 子集、不含成员面，缺这一读就退化成「子集非空」；`CompletionContext.row` 的读者声明落定（`CommitsSinceGroupBase.judge` 是本 cell 的读者）——W2 已在 docstring 落地，本任务只保持不改
 - soft 观察字面（零 diff 验证型通过时记一条）
 
 #### Steps
@@ -191,15 +191,16 @@ none
 
 #### Objective
 
-让「引擎外被杀的那一轮」在账本上留下事实：`InFlightRecord` 增 `dispatchBase`（acquire 写 HEAD），`--recover` 接管陈旧 in-flight 时折一条 `RoundRecord`（`targetAction: false` + hard violation cause `interrupted`），并把 `interrupted` 加进既有 `CrashCause` 联合。
+让「引擎外被杀的那一轮」在账本上留下事实：`InFlightRecord` 增 `dispatchBase`（acquire 写 HEAD），`--recover` 接管陈旧 in-flight 时折一条 `RoundRecord`（`targetAction: false` + hard violation cause `interrupted`），并把 `interrupted` 加进既有 `CrashCause` 联合。陈旧面按 spec §2.1① 有三个形态，折账不得只认死持有者：`inspect()` 的 `held ∧ ¬alive`（持有进程已死）· `corrupt`（记录不可读且锁残留）· `absent` 但锁残留（锁无记录）——三者都在接管面，steal reason 取 `#stealIfDead` 已有的三条；折账面按 §2.2 的机制只覆盖带得回记录的形态（另两形态 `steal()` 返回 `null`，没有 `op` / `cycle` / `dispatchBase` 可读，虚构身份比不记账更坏）。
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/session/inflight.ts`（`InFlightRecord.dispatchBase`；`acquire` 记录时写入）
+- Modify: `packages/cdd-engine/src-next/session/inflight.ts`（`InFlightRecord.dispatchBase`；`acquire` 记录时写入；`foldAbort` 分支的事实来源即 `inspect()` 的三形态与 `steal()` 的返回值——`held` 回记录，`corrupt` 与锁残留回 `null`）
 - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`CrashCause` 增 `interrupted`；`RoundRecord` 读面无需新增字段）
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（acquire 传 HEAD；新增**公开**成员 `foldAbort(): Promise<boolean>`——`InFlight#inspect` 判陈旧 → `InFlight#steal("the holder is dead")` 取回记录 → `ledger.recordRound` 折账，返回本次是否落了一条 abort 记录。必须是公开入口：`CliLifecycle` 今日只对外露 `detectHost` / `step()`，而接管发生在 `step()` 内部的 `#runDispatch` → `#inflight.acquire(..., { recover })`，`#` 私有成员在 composition root 无法先折账再盖戳）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（acquire 传 HEAD；新增**公开**成员 `foldAbort(): Promise<boolean>`——`InFlight#inspect` 判陈旧后按三形态分支接管（`held ∧ ¬alive` → `steal("the holder is dead")` 取回记录 → `ledger.recordRound` 折账；`corrupt` 与锁残留 → 对应 steal reason 只接管），返回本次是否落了一条 abort 记录。必须是公开入口：`CliLifecycle` 今日只对外露 `detectHost` / `step()`，而接管发生在 `step()` 内部的 `#runDispatch` → `#inflight.acquire(..., { recover })`，`#` 私有成员在 composition root 无法先折账再盖戳）
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`（`#dispatchOf` 拆出 `#lifecycleOf(scene, parsed)`，由 composition root 持有 harness 实例；`--recover` 判定里先 `await lifecycle.foldAbort()`，再进 `step()`——`step()` 不承担 abort 折账）
 - Test: `packages/cdd-engine/src-next/session/__tests__/inflight.test.ts`
+- Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（`foldAbort` 三形态的 colocated pin：`held ∧ ¬alive` 折一条 abort 记录；`corrupt` 与锁残留两形态只接管、零新增 `RoundRecord`；Task 4 DependsOn 2，与该任务串行，不并行写同一文件）
 - Test: `packages/cdd-engine/src-next/contract/__tests__/completion-criterion.test.ts`（组基线读被杀轮 base）
 
 #### Consumes
@@ -212,12 +213,12 @@ none
 
 - `InFlightRecord.dispatchBase: string | null`
 - `CrashCause` 含 `interrupted`
-- `CliLifecycle.foldAbort(): Promise<boolean>`（公开入口，composition root 调用）：写一条 abort `RoundRecord`（op 由 phase 派生 · cycle/attempt/dispatchBase 取记录值 · `verdict.targetAction: false` · `verdict.treeClean: true` · 一条 hard violation cause `interrupted`），**不写** `crash-*.json`、不提升草稿。`treeClean` 必须显式钉 true：`RoundRecordInit.verdict` 缺省即 `{ treeClean: true, targetAction: true }`（`session/ledger.ts:794`），但 `#softOf`（同文件 `:1173`）把 `treeClean === false` 记成一条脏树 soft——折账没有 dispatch-after 观察，不是脏树信号，留缺省推断会让两种实现落下不同的账面事实
+- `CliLifecycle.foldAbort(): Promise<boolean>`（公开入口，composition root 调用）：先 `InFlight#inspect()`，按三形态分支——`held ∧ ¬alive` → `steal("the holder is dead")`，用取回的记录写一条 abort `RoundRecord`（op 由 phase 派生 · cycle/attempt/dispatchBase 取记录值 · `verdict.targetAction: false` · `verdict.treeClean: true` · 一条 hard violation cause `interrupted`）；`corrupt` → `steal("the record is corrupt and the lock is left behind")` 只接管，不写记录；`absent` + 锁残留 → `steal("a lock without a record")` 只接管，不写记录（无记录即无身份，见 `treeClean` 段同一「只记可得事实」纪律）。返回值 = 本次是否落了一条 abort 记录。**不写** `crash-*.json`、不提升草稿。`treeClean` 必须显式钉 true：`RoundRecordInit.verdict` 缺省即 `{ treeClean: true, targetAction: true }`（`session/ledger.ts:794`），但 `#softOf`（同文件 `:1173`）把 `treeClean === false` 记成一条脏树 soft——折账没有 dispatch-after 观察，不是脏树信号，留缺省推断会让两种实现落下不同的账面事实
 - 组基线因此回到被杀轮之前：恢复提交落在 base 之后可被看见
 
 #### Steps
 
-- 写失败测：陈旧 in-flight（持有进程已死）夹具下 `--recover` 后 progress 出现一条 abort 记录，`targetAction: false` 且 cause 为 `interrupted` — checkable: FAIL（今日只丢锁不记账）
+- 写失败测（三形态各一夹具）：`held ∧ ¬alive` / `corrupt` + 残留锁 / 无记录但锁残留 → `--recover` 后三形态都被接管；`held` 形态 progress 出现一条 abort 记录（`targetAction: false`、cause `interrupted`），另两形态零新增 `RoundRecord`（反向 pin：虚构 `op` / `cycle` 即红） — checkable: FAIL（今日只丢锁不记账，三形态无一在账本上有事实）
 - 写失败测：abort 轮 base=B、恢复提交落在 B 之后、重派 attempt 2 base=C（C 含恢复提交）→ `CommitsSinceGroupBase.judge` 通过 — checkable: FAIL（今日 `committed nothing`）
 - 写失败测：旧记录（无 `dispatchBase`）被 abort 时仍入账且 `dispatchBase: null`，判据退回更早的有值记录 — checkable: FAIL
 - 写失败测（账面）：abort 折账后该记录 `verdict` 恰为 `{ treeClean: true, targetAction: false }`，且该行 soft 计数零增量（成对 pin：`treeClean: false` 会凭空多一条脏树观察，被 retired `contractViolationCount` 读走） — checkable: FAIL（今日无折账面）
@@ -226,7 +227,7 @@ none
 
 #### Acceptance
 
-- 陈旧 in-flight + `--recover` → 账本留 abort 记录（`targetAction:false` · `treeClean:true` · cause `interrupted` · 携带该轮 `dispatchBase`），只此一条 hard，零脏树 soft
+- 陈旧 in-flight + `--recover` → 三形态都接管（`held ∧ ¬alive` · `corrupt` + 残留锁 · 锁残留无记录）；`held` 形态账本留 abort 记录（`targetAction:false` · `treeClean:true` · cause `interrupted` · 携带该轮 `dispatchBase`），只此一条 hard，零脏树 soft；另两形态只接管、零新增记录（禁止虚构 `op` / `cycle`）
 - 恢复提交（abort base 之后、重派 base 之前）能通过完成判据
 - 不写 crash 文件、不提升草稿、`progress.json` 键集不变
 - `CrashCause` 只有一处扩展（无并行枚举）
@@ -244,7 +245,7 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`FINDING` 子节点增**可选** `id` 属性——只改声明形状，写值点不在此文件：该类的面是 `schemaText` / `violations` / `evidenceViolations`）
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#findingsList`（`face/lifecycle.ts:1297`）按序盖 `id`，覆盖子代理写的值——引擎写值的唯一落点）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#findingsList`（`face/lifecycle.ts:1333`）按序盖 `id`，覆盖子代理写的值——引擎写值的唯一落点）
 - Modify: `packages/cdd-engine/src-next/contract/completion-criterion.ts`（`FixDispositions` 键集改 id；`#keyRefusal` 两侧差集；无 id carrier 回退 summary + soft）
 - Test: `packages/cdd-engine/src-next/contract/__tests__/completion-criterion.test.ts`
 - Test: `packages/cdd-engine/src-next/session/__tests__/handoff-schema.test.ts`
@@ -265,7 +266,7 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 
 - 写失败测：review 载体落盘后每条 finding 带等序 `id`，且子代理不写 `id` 的草稿仍通过 read-back — checkable: FAIL（今日无 `id`；若把 `id` 写成必填，无 `id` 草稿会被误 BLOCK）
 - 写失败测：fix 载体把某条 finding 的 summary 改写一个词、按原 `id` 写 disposition → 判据通过 — checkable: FAIL（今日报 `never raised`）
-- 写失败测：disposition 多一条未知 `id`（`F9`）且少一条应有 `id`（`F2`）→ 一次报文同时含两个差集，且 `F2` 那侧带该 finding 的 summary 首句（今日 `#keyRefusal`（`contract/completion-criterion.ts:357`）只打裸键） — checkable: FAIL（今日只打 unknown 即返回，且裸键无摘要）
+- 写失败测：disposition 多一条未知 `id`（`F9`）且少一条应有 `id`（`F2`）→ 一次报文同时含两个差集，且 `F2` 那侧带该 finding 的 summary 首句（今日 `#keyRefusal`（`contract/completion-criterion.ts:434`）只打裸键） — checkable: FAIL（今日只打 unknown 即返回，且裸键无摘要）
 - 写失败测：无 `id` 的旧 carrier → 按 summary 匹配通过且 `observations` 含 soft — checkable: FAIL
 - 实现 `id` 写入点、键集切换、双侧差集与回退 — checkable: 上四测 PASS；`pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__/completion-criterion.test.ts` 全绿
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
@@ -427,3 +428,4 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 | v0.3 | 2026-11-08 | **W1 评审期裁定回填（tasks-1,3-review-1 B1）**：Task 3 Acceptance 由「存量全绿」改为「每文档具名 ceiling 的不得新增」——既有语料里 15 篇冻结文档的 Change-history 表列宽不齐（overall 单篇 110 行），历史零迁移下本相位不修表，故以基线钉「修好即绿 / 变坏即点名」；`latest-matches-front-matter` 与 `version-unique` 的 ceiling 仍为 0，P30 自身文档零 finding。原「全绿」措辞是规划期没有量过语料就写下的断言 | [human] 裁定 · Claude（kairos:cdd-plan · 2026-11-08） |
 | v0.4 | 2026-11-08 | **评审回填（plan-review-3 F1–F5）**：① Task 3 Acceptance 残留的「存量全绿」改为每文档具名 ceiling（与 Files/Produces 同口径），Review Focus 与 Task 8 的 Objective/Steps/Acceptance 同步改为「相对具名 ceiling 无新增漂移」；② 补齐 latest-matches 的非零 ceiling——p24 对（spec 与 plan）各 1，因形状折行的最新行携带数值最大版本且历史零迁移下不修表，`change-history-version-unique` 仍为 0；③ Task 3 增「成员读面取全部表体行首列版本」pin（Produces + Acceptance + colocated 测步），生重与 latest-matches 仍只读表头列宽一致的行集；④ Acceptance 的「最新行」消歧为「lineage 中数值最大的版本（与表序无关）」；⑤ 波图 W1={1,3}·W2={2,6}·W3={4}·W4={5,7}·W5={8} 与 Task 4 DependsOn 1, 2 已由编排方在 `d806c1e4` 落定，本轮零结构面改动 | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |
 | v0.5 | 2026-11-08 | **评审回填（plan-review-4 F1–F9）**：① Task 4 的折账入口改为公开成员 `CliLifecycle.foldAbort()`（私有 `#foldAbort` 在 composition root 不可达——接管发生在 `step()` 内部的 `#runDispatch` → `acquire`），并拆出 `#lifecycleOf` 由 composition root 持有实例，使 §2.1④ 的「先 abort 再 reopen」在 CLI 判定处可得；② Task 2 声明 wave 成员集取自 `ctx.row.wave`（`ProgressRow.wave`，`ledger.ts:197-199`），`CompletionContext.row` 的 RESERVED 注记同步改，部分为空的夹具补 `row.wave = "1,2"` 与 `emptyFileTasks = {1}` 成对读法；③ Task 4 钉 `verdict.treeClean: true`（`#softOf` 会把 false 折成脏树 soft）并加账面 pin；④ Task 7 补 `next:` 面红测与验收（`DispatchAuthority#message` 一行同现 pending-fix 理由与 `--recover`，命令经 `CliGate#hopCommand`（`gate.ts:102`，调用点 `cli.ts:987`）），并把 Consumes 从 `ReviewedIdentity` 改指 `Ledger#pendingFix` / `#completedCyclesOfRow`；⑤ Task 6 的落点由不存在的「fix 节点」改为 `NEXT-LOOP` 节点段（第 68–73 行），pin 改节点段内子串、`author-plan` 第 47 行不动；⑥ Task 5 的失败报文补「每条目带 `id` + summary 首句」的红测与验收，并从 `handoff-schema.ts` 条目删除 `#materialize` 归属；⑦ Task 1 的全库 grep 豁免面改为「`__tests__/` 内的退役字面 pin」——今日 5 命中全在 `words.guard.test.ts` | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |
+| v0.6 | 2026-11-08 | **评审回填（plan-review-5 F1–F3）**：① Task 4 的陈旧面按 spec §2.1① 三形态展开——Objective / Files / Produces / Steps / Acceptance 逐条覆盖 `held ∧ ¬alive` · `corrupt` + 残留锁 · 锁残留无记录，`foldAbort` 按 `Inspect()` 分支并取 `#stealIfDead` 已有的三条 steal reason；折账面按 §2.2 的机制只覆盖带得回记录的形态（另两形态 `steal()` 返回 `null`），加 pin 禁虚构 `op` / `cycle`，并补 `face/__tests__/lifecycle.test.ts` 三形态 colocated pin；② Task 5 的两处行号重锚到当前符号家（`#findingsList` @ `face/lifecycle.ts:1333` · `#keyRefusal` @ `contract/completion-criterion.ts:434`）；③ Task 2 的 `CompletionContext.row` 事项由「RESERVED 注记改写」改为「保持 W2 已落地的读者声明」（docstring 已具名 `CommitsSinceGroupBase.judge`，源码零 `RESERVED` 字面） | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |

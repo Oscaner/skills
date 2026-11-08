@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p30-design.md` **现行 `version`**（v0.4）所指的面；spec 版本一变，本约束的字面同笔改。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p30-design.md` **现行 `version`**（v0.5）所指的面；spec 版本一变，本约束的字面同笔改。
 - **判收敛主线零改（硬底线 · D70）**：`NextStepRouter` 的闭合判定、`#blockerCount`、`REVIEW_CYCLE_CAP`、next-loop / architecture 孪生门、finding severity 词表与 rollup 规则，本计划**零字节改动**；任何任务不得顺手改那条转移表。
 - **D81 裁定不得被实现推翻**：#431③ 免审区即全部豁免面（不做 `--diff-since`、不加 `origin`）· #437 契约 ∪ 台账同身份不拆。
 - **组基线语义不动**：`CommitsSinceGroupBase.groupBaseOf` 仍取组内最早 `dispatchBase`；零 diff 放行只加 OR 分支。
@@ -152,7 +152,7 @@ none
 #### Steps
 
 - 写失败测：折行夹具（表格单元格硬换行且续行含管道符）→ 今日产出 `duplicate change-history version`，期望改为「一条 shape finding，且无 duplicate」 — checkable: 定向 vitest FAIL（今日报 duplicate）
-- 写失败测：front-matter `v0.4` + lineage 最新 `v0.5` → 新不变量红；`v0.5` + `v0.5` → 绿 — checkable: FAIL（今日成员制通过）
+- 写失败测：front-matter `v0.4` + lineage 数值最大 `v0.5` → 新不变量红；`v0.5` + `v0.5` → 绿 — checkable: FAIL（今日成员制通过）
 - 写失败测：行内正文含 `spec vX.Y` 但首列不是版本 → 不产生 lineage 行 — checkable: FAIL（今日 `firstVersion` 会读该行）
 - 实现锚定读面与两条不变量；docs-fix 模板加两句 — checkable: 上三测 PASS；`pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__` 全绿
 - 仓内全量自检：`node packages/cdd-engine/src-next/bin.ts review --type phase-spec --spec docs/kairos/specs/2026-10-10-engine-doc-tooling-p30-design.md --dry-run` 与 plan 同形各跑一次 — checkable: 两次 exit 0（存量文档不被新不变量误伤）

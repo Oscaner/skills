@@ -259,11 +259,27 @@ export const FIX_DISPOSITIONS_ZERO_COMMIT =
 export const FIX_DISPOSITIONS_EMPTY_INPUT =
   "the requesting review carrier carries no findings — the fix round owes no dispositions";
 
+/** The legacy-key-set observation (P30 §2.5) — the requesting carrier carries no
+ *  finding `id` (it predates the engine-written key), so the dispositions were matched
+ *  by summary text. Booked soft: the round is judged, and the ledger says the key it
+ *  used. No carrier migration — present facts only. */
+export const FIX_DISPOSITIONS_LEGACY_KEYS =
+  "the requesting review carrier carries no finding `id` — the dispositions were matched by summary text, the legacy key";
+
 /** The legacy-record observation — no requesting carrier is locatable, so the
  *  judgment is skipped visibly (reading the gap as an empty input set would restore
  *  an always-passing criterion). */
 export const FIX_DISPOSITIONS_UNRECORDED =
   "the requesting review round records no carrierPath and the route carried no --reviews path — the disposition judgment is skipped";
+
+/** One requesting-side finding — the disposition key's provenance. `id` is the
+ *  engine-written stable key (`F1`, `F2` …) of an id-bearing carrier; a LEGACY carrier
+ *  (written before P30 §2.5) carries none, and its `summary` stands in as the key.
+ *  `summary` is description text — the failure message's label, never the key. */
+export interface RequesterFinding {
+  readonly id: string | null;
+  readonly summary: string;
+}
 
 /** One read of the requesting review carrier — the input set's provenance. A path
  *  neither recorded nor handed over is `unrecorded` (legacy); a path that yields no
@@ -274,7 +290,11 @@ export const FIX_DISPOSITIONS_UNRECORDED =
 export type RequesterRead =
   | { readonly kind: "unrecorded" }
   | { readonly kind: "unreadable"; readonly path: string; readonly detail: string }
-  | { readonly kind: "read"; readonly path: string; readonly summaries: readonly string[] };
+  | {
+      readonly kind: "read";
+      readonly path: string;
+      readonly findings: readonly RequesterFinding[];
+    };
 
 /** The summary line's two counts — the criterion's half of the design spec §3.4
  *  summary row: counts only, so the presentation plane (the `face/words.ts` template)
@@ -287,14 +307,24 @@ export interface DispositionCounts {
 /**
  * FixDispositions — the fix criterion: the round is done when its work carrier's
  * `dispositions` cover every finding of the requesting review carrier (design spec
- * §3.4). The input set is the REQUESTING side's carrier — the same-key same-cycle
- * completed review record's `carrierPath`, falling back to the fix route's
+ * §3.4, P30 §2.5). The input set is the REQUESTING side's carrier — the same-key
+ * same-cycle completed review record's `carrierPath`, falling back to the fix route's
  * `--reviews` path; the round's own `carrierPath` is never the input set.
  *
- * Keys are the findings' `summary` strings VERBATIM (no normalization, no
- * fingerprint); repeated summaries collapse to one key (one defect owes one
- * disposition). Values are `{ status: "fixed" | "rejected", reason?: string }` —
- * `rejected` without a reason is a shape violation, hard like the missing slot.
+ * Keys are the findings' engine-written `id`s (`F1`, `F2` … in carrier order) — the
+ * primary key the engine authors, so rewriting a summary no longer produces an unknown
+ * key. `summary` is description text: it labels the failure message (its first
+ * sentence) and nothing else. A LEGACY carrier that predates the `id` column carries
+ * none, so its `summary` stands in as the key and the round books one soft observation
+ * (present facts only — no carrier migration).
+ *
+ * The key-set refusal prints BOTH diffs in ONE message: the missing side (a carrier
+ * finding with no disposition — `id` + summary first sentence, carrier order) and the
+ * unknown side (a disposition no finding raised — its bare key, marked `unknown`). One
+ * failure therefore names everything the child has to fix.
+ *
+ * Values are `{ status: "fixed" | "rejected", reason?: string }` — `rejected` without a
+ * reason is a shape violation, hard like the missing slot.
  *
  * The fix round's zero-commit fact is an OBSERVATION, not a refusal: this criterion
  * answers from the carrier, never from the diff.
@@ -316,9 +346,10 @@ export class FixDispositions implements CompletionCriterion {
     return reviewsPath;
   }
 
-  /** Read the requesting carrier's input set (the summaries, deduped in order). The
-   *  read is synchronous on purpose: the input is ONE small carrier, and the dispatch
-   *  face already reads its small inputs synchronously at the same seam.
+  /** Read the requesting carrier's input set (the findings, deduped by disposition
+   *  key in carrier order). The read is synchronous on purpose: the input is ONE small
+   *  carrier, and the dispatch face already reads its small inputs synchronously at
+   *  the same seam.
    *
    *  Every path resolves against `repoRoot`, never `process.cwd()`: the engine runs
    *  from a subdirectory too, `--reviews` arrives repoRoot-relative and a record's
@@ -347,7 +378,7 @@ export class FixDispositions implements CompletionCriterion {
         detail: "the carrier declares no `findings` array",
       };
     }
-    const set = FixDispositions.#summariesOf(findings);
+    const set = FixDispositions.#findingsOf(findings);
     if ("index" in set) {
       return {
         kind: "unreadable",
@@ -355,7 +386,7 @@ export class FixDispositions implements CompletionCriterion {
         detail: `finding #${set.index} carries no string \`summary\``,
       };
     }
-    return { kind: "read", path: target, summaries: set.summaries };
+    return { kind: "read", path: target, findings: set.findings };
   }
 
   /** The carrier's `dispositions` map — null when the slot is absent or not an
@@ -385,29 +416,36 @@ export class FixDispositions implements CompletionCriterion {
       );
     }
     const dispositions = FixDispositions.dispositionsOf(ctx.carrier) ?? {};
-    const refusal = FixDispositions.#keyRefusal(dispositions, requester.summaries);
+    const refusal = FixDispositions.#keyRefusal(dispositions, requester.findings);
     if (refusal !== null) return this.#hard(refusal);
     const shape = FixDispositions.#valueRefusal(dispositions);
     if (shape !== null) return this.#hard(shape);
-    return this.#complete(await this.#observationsOf(ctx, requester.summaries));
+    return this.#complete(await this.#observationsOf(ctx, requester.findings));
   }
 
   /** The round's two summary counts — `fixed` / `rejected`, counted over the SAME
-   *  pair the judgment reads (dispositions ∩ the input set). Counts only: the
+   *  pair the judgment reads (dispositions ∩ the input key set). Counts only: the
    *  `fixed N · rejected M` line is rendered by the presentation plane
    *  (`face/words.ts` template). A face fact: never stored, never a capsule key,
    *  never a second read face. */
-  summaryOf(carrier: unknown, input: readonly string[]): DispositionCounts {
-    const wanted = new Set(input);
+  summaryOf(carrier: unknown, input: readonly RequesterFinding[]): DispositionCounts {
+    const wanted = new Set(input.map((finding) => FixDispositions.keyOf(finding)));
     let fixed = 0;
     let rejected = 0;
-    for (const [summary, value] of Object.entries(FixDispositions.dispositionsOf(carrier) ?? {})) {
-      if (!wanted.has(summary)) continue;
+    for (const [key, value] of Object.entries(FixDispositions.dispositionsOf(carrier) ?? {})) {
+      if (!wanted.has(key)) continue;
       const status = (value as { status?: unknown } | null)?.status;
       if (status === "fixed") fixed += 1;
       else if (status === "rejected") rejected += 1;
     }
     return { fixed, rejected };
+  }
+
+  /** One finding's disposition key — the engine-written `id`, or the summary on a
+   *  LEGACY carrier that carries none (`keyOf` is the ONE fallback ruling: the read,
+   *  the judgment and the counts all derive the key here). */
+  static keyOf(finding: RequesterFinding): string {
+    return finding.id ?? finding.summary;
   }
 
   /** The round's own carrier refusals (① missing carrier, ② missing slot). */
@@ -429,22 +467,54 @@ export class FixDispositions implements CompletionCriterion {
     return null;
   }
 
-  /** The key-set refusals (③ missing entries, ④ unknown entries) — exact matching,
-   *  one defect one disposition. */
+  /** The key-set refusal — BOTH diffs in one message (P30 §2.5), each entry carrying
+   *  what makes it actionable: the missing side names the finding by `id` + the summary's
+   *  first sentence (carrier order), the unknown side names the bare key and marks it
+   *  `unknown` (the carrier raised no such finding, so there is no summary to quote —
+   *  inventing one would be worse than saying `unknown`). */
   static #keyRefusal(
     dispositions: Readonly<Record<string, unknown>>,
-    input: readonly string[],
+    input: readonly RequesterFinding[],
   ): string | null {
-    const wanted = new Set(input);
+    const wanted = new Set(input.map((finding) => FixDispositions.keyOf(finding)));
     const unknown = Object.keys(dispositions).filter((key) => !wanted.has(key));
-    if (unknown.length > 0) {
-      return `disposition(s) for finding(s) the requesting carrier never raised: ${unknown.join(", ")}`;
-    }
-    const missing = input.filter((summary) => !Object.hasOwn(dispositions, summary));
+    const missing = input.filter(
+      (finding) => !Object.hasOwn(dispositions, FixDispositions.keyOf(finding)),
+    );
+    if (unknown.length === 0 && missing.length === 0) return null;
+    const parts: string[] = [];
     if (missing.length > 0) {
-      return `no disposition for finding(s) of the requesting carrier: ${missing.join(", ")}`;
+      parts.push(
+        `no disposition for finding(s) of the requesting carrier: ${missing
+          .map((finding) => FixDispositions.#labelOf(finding))
+          .join(", ")}`,
+      );
     }
-    return null;
+    if (unknown.length > 0) {
+      parts.push(
+        `disposition(s) for finding(s) the requesting carrier never raised: ${unknown
+          .map((key) => `${key} (unknown)`)
+          .join(", ")}`,
+      );
+    }
+    return parts.join(" · ");
+  }
+
+  /** One finding's failure label — an id-bearing finding reads `F2 "<summary first
+   *  sentence>"`; a legacy finding's key IS its summary, so the sentence alone is the
+   *  whole label. */
+  static #labelOf(finding: RequesterFinding): string {
+    const sentence = FixDispositions.#firstSentence(finding.summary);
+    return finding.id === null ? `"${sentence}"` : `${finding.id} "${sentence}"`;
+  }
+
+  /** The summary's first sentence — the message's actionable excerpt (the whole summary
+   *  is a paragraph in practice). A summary with no terminator is its own sentence; a
+   *  leading terminator falls back to the whole line rather than an empty quote. */
+  static #firstSentence(summary: string): string {
+    const text = summary.trim();
+    const cut = text.search(/[.!?。！？]/);
+    return cut <= 0 ? text : text.slice(0, cut + 1);
   }
 
   /** The value-shape refusal (⑥ `rejected` without a reason; a status outside the
@@ -463,14 +533,17 @@ export class FixDispositions implements CompletionCriterion {
     return null;
   }
 
-  /** The two soft observations of a completed fix round — the empty input set and the
-   *  zero-commit round (both bookkeeping, neither a gate). */
+  /** The soft observations of a completed fix round — the empty input set, the legacy
+   *  (id-less) key set and the zero-commit round (all bookkeeping, none a gate). */
   async #observationsOf(
     ctx: CompletionContext,
-    input: readonly string[],
+    input: readonly RequesterFinding[],
   ): Promise<readonly RoundViolation[]> {
     const observations: RoundViolation[] = [];
     if (input.length === 0) observations.push(this.#soft(FIX_DISPOSITIONS_EMPTY_INPUT));
+    if (input.some((finding) => finding.id === null)) {
+      observations.push(this.#soft(FIX_DISPOSITIONS_LEGACY_KEYS));
+    }
     // THIS round's own baseline — a null one (legacy fold, non-git tree) carries no
     // present fact, so the observation is simply unmeasurable, never invented.
     const base = ctx.record.dispatchBase;
@@ -481,23 +554,32 @@ export class FixDispositions implements CompletionCriterion {
     return observations;
   }
 
-  /** The deduped input set — repeated summaries collapse to one key. A finding
-   *  without a string `summary` is NOT skipped (a silently dropped finding owes no
-   *  disposition and passes forever): the caller grades it `unreadable`.
-   *  `index` is the first offending entry. */
-  static #summariesOf(
+  /** The deduped input set — repeated disposition KEYS collapse to one entry (a legacy
+   *  carrier with the same summary twice owes one disposition; id-bearing findings keep
+   *  their own keys, so distinct findings never collapse). A finding without a string
+   *  `summary` is NOT skipped (a silently dropped finding owes no disposition and passes
+   *  forever): the caller grades it `unreadable`. `index` is the first offending entry.
+   *  An `id` that is absent or not a non-empty string is `null` — the legacy key, never
+   *  an invented one. */
+  static #findingsOf(
     findings: readonly unknown[],
-  ): { readonly summaries: readonly string[] } | { readonly index: number } {
-    const summaries: string[] = [];
+  ): { readonly findings: readonly RequesterFinding[] } | { readonly index: number } {
+    const rows: RequesterFinding[] = [];
     const seen = new Set<string>();
     for (const [index, finding] of findings.entries()) {
       const summary = (finding as { summary?: unknown } | null)?.summary;
       if (typeof summary !== "string") return { index };
-      if (seen.has(summary)) continue;
-      seen.add(summary);
-      summaries.push(summary);
+      const raw = (finding as { id?: unknown } | null)?.id;
+      const row: RequesterFinding = {
+        id: typeof raw === "string" && raw.length > 0 ? raw : null,
+        summary,
+      };
+      const key = FixDispositions.keyOf(row);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push(row);
     }
-    return { summaries };
+    return { findings: rows };
   }
 
   #complete(observations: readonly RoundViolation[]): CompletionVerdict {

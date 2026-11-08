@@ -1118,7 +1118,7 @@ export class CliLifecycle {
       this.#repoRootValue().absolute,
     );
     if (requester.kind !== "read") return undefined;
-    const counts = new FixDispositions().summaryOf(carrier, requester.summaries);
+    const counts = new FixDispositions().summaryOf(carrier, requester.findings);
     return FIX_DISPOSITIONS_SUMMARY.replace("{fixed}", String(counts.fixed)).replace(
       "{rejected}",
       String(counts.rejected),
@@ -1403,10 +1403,18 @@ export class CliLifecycle {
     return Object.keys(out).length > 0 ? out : undefined;
   }
 
-  /** The draft findings as a plain list (the materialized carrier keeps them
-   *  verbatim; the schema validated their shape before this ran). */
+  /** The draft findings as the carrier's list — the child's rows kept VERBATIM except
+   *  for the ONE engine-owned column: `id`, stamped from the carrier position (`F1`,
+   *  `F2` …) and overwriting whatever the child wrote (P30 §2.5 — the disposition
+   *  primary key belongs to the engine, never to the audited prose). This is the only
+   *  write point of a finding id in the engine. */
   #findingsList(findings: unknown): unknown[] {
-    return Array.isArray(findings) ? findings : [];
+    const rows = Array.isArray(findings) ? findings : [];
+    return rows.map((row, index) =>
+      typeof row === "object" && row !== null && !Array.isArray(row)
+        ? { ...(row as Record<string, unknown>), id: `F${index + 1}` }
+        : row,
+    );
   }
 
   /** The same-command resume string — the crash record's `next`, mirroring the

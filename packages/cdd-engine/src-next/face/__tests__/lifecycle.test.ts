@@ -150,11 +150,13 @@ const writeEvidence = (f: Fixture, key: string): void => {
   );
 };
 
-/** Run one dispatch, handing back its outcome plus every context the criterion judged
- *  (the spy delegates to the REAL criterion, so the outcome stays the production one). */
-const dispatch = async (
+/** Run one dispatch frame through a child stand-in, handing back its outcome plus every
+ *  context the criterion judged (the spy delegates to the REAL criterion, so the
+ *  outcome stays the production one). */
+const dispatchFrame = async (
   f: Fixture,
-  key: string,
+  frame: OpenFrame,
+  runner: ChildRunner = new SilentRunner(),
 ): Promise<{ seen: readonly CompletionContext[]; outcome: DispatchOutcome }> => {
   const seen: CompletionContext[] = [];
   const original = CompletionCriteria.of.bind(CompletionCriteria);
@@ -171,14 +173,21 @@ const dispatch = async (
     const lifecycle = new CliLifecycle({
       scene: f.scene,
       io: f.io,
-      sync: new SilentRunner(),
+      sync: runner,
       env: { CLAUDE_CODE_SESSION_ID: "s" },
     });
-    return { seen, outcome: await lifecycle.step()(waveFrame(key)) };
+    return { seen, outcome: await lifecycle.step()(frame) };
   } finally {
     spy.mockRestore();
   }
 };
+
+/** Run one wave implement dispatch (the fixture's standing form). */
+const dispatch = (
+  f: Fixture,
+  key: string,
+): Promise<{ seen: readonly CompletionContext[]; outcome: DispatchOutcome }> =>
+  dispatchFrame(f, waveFrame(key));
 
 const messagesOf = (outcome: DispatchOutcome): readonly string[] =>
   (outcome.violations ?? []).map((violation) => violation.message);
@@ -437,6 +446,79 @@ describe("CliLifecycle.foldAbort — the `--recover` abort leg (P30 §2.1①/§2
       expect(await lifecycleOf(f).foldAbort()).toBe(false);
       expect(f.scene.ledger.recordsOf("1", "wave")).toEqual([]);
       expect(existsSync(recordPathOf(f))).toBe(true);
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P30 T5 — the engine-written finding id (`F1`, `F2` … in carrier order)
+// ---------------------------------------------------------------------------
+
+/** A review child that writes its findings draft at the wave's canonical handoff path. */
+class ReviewDraftRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+
+  readonly #findings: readonly Record<string, unknown>[];
+
+  constructor(findings: readonly Record<string, unknown>[]) {
+    this.#findings = findings;
+  }
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    mkdirSync(path.join(run.cwd, ".kairos", "cdd", "p30"), { recursive: true });
+    writeFileSync(
+      path.join(run.cwd, ".kairos", "cdd", "p30", "tasks-1-review-1.json"),
+      JSON.stringify({ findings: this.#findings }),
+      "utf8",
+    );
+    return { code: 0, stdout: "", stderr: "", termination: null };
+  }
+}
+
+/** The review wave frame of wave key `1`, round 1. */
+const reviewFrame: OpenFrame = {
+  type: "wave",
+  phase: "review",
+  round: 1,
+  target: { kind: "wave", tasks: [1] },
+  params: { tasks: "1", round: 1 },
+  key: "1",
+};
+
+describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2.5)", () => {
+  it("stamps one stable id per finding in carrier order and OVERWRITES a child-written value", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const runner = new ReviewDraftRunner([
+        { id: "X9", severity: "blocker", lens: "spec", summary: "drift" },
+        { severity: "warn", lens: "scope", summary: "typo" },
+      ]);
+      const { outcome } = await dispatchFrame(f, reviewFrame, runner);
+      expect(outcome.status).toBe("CHANGES_REQUESTED");
+      // The lifecycle's materialized carrier IS the persisted one (the session plane's
+      // bookkeep full-replaces the child's draft with it at the same path).
+      const carrier = outcome.carrier as { findings: { id?: string; summary?: string }[] };
+      // Carrier order IS id order; the child's `X9` never survives materialize.
+      expect(carrier.findings.map((row) => row.id)).toEqual(["F1", "F2"]);
+      expect(carrier.findings.map((row) => row.summary)).toEqual(["drift", "typo"]);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("a child draft that writes NO id still passes the read-back — the id is never the child's duty", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const runner = new ReviewDraftRunner([{ severity: "warn", lens: "spec", summary: "drift" }]);
+      const { outcome } = await dispatchFrame(f, reviewFrame, runner);
+      // No read-back BLOCK: an id-less draft is the normal shape the prompt invites.
+      expect(f.io.stderrText).not.toContain("CDD_BLOCKED");
+      expect(outcome.status).toBe("REVIEW_FIX");
+      const carrier = outcome.carrier as { findings: { id?: string }[] };
+      expect(carrier.findings[0]?.id).toBe("F1");
     } finally {
       f.cleanup();
     }

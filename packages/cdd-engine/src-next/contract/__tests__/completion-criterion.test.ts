@@ -33,6 +33,7 @@ import {
   type CompletionContext,
   CompletionCriteria,
   type CompletionVerdict,
+  FIX_DISPOSITIONS_LEGACY_KEYS,
   FIX_DISPOSITIONS_ZERO_COMMIT,
   FixDispositions,
   IMPLEMENT_CARRIER_ABSENT,
@@ -428,15 +429,17 @@ describe("(d) the completion context is a pure shape", () => {
 });
 
 // ---------------------------------------------------------------------------
-// (e)–(g) FixDispositions — a fix round is done when its dispositions cover
-// every finding of the REQUESTING review carrier (design spec §3.4)
+// (e)–(i) FixDispositions — a fix round is done when its dispositions cover
+// every finding of the REQUESTING review carrier (design spec §3.4). The key is the
+// engine-written finding `id` (P30 §2.5); a legacy id-less carrier falls back to the
+// summary and books a soft observation, and the key refusal prints BOTH diffs.
 // ---------------------------------------------------------------------------
 
 /** The round's own work carrier — one disposition per requesting finding. */
 const DISPOSITIONS = {
   status: "APPROVED",
   artifacts: {},
-  dispositions: { drift: { status: "fixed" } },
+  dispositions: { F1: { status: "fixed" } },
 };
 
 /** A temp fixture holding the requesting review carrier on disk, so a case can name
@@ -458,8 +461,19 @@ class CarrierFixture {
   }
 }
 
-/** The two-finding requester carrier — the input set `drift` + `typo`. */
+/** The two-finding requester carrier — the input set `F1` (drift) + `F2` (typo), the
+ *  shape the engine's review materialize writes (P30 §2.5: the `id` is the key, the
+ *  summary is description). */
 const REQUESTER = {
+  findings: [
+    { id: "F1", severity: "blocker", lens: "scope", summary: "drift" },
+    { id: "F2", severity: "warn", lens: "spec", summary: "typo" },
+  ],
+};
+
+/** The LEGACY two-finding requester carrier — no `id` column at all (a carrier written
+ *  before P30 §2.5): the summary stands in as the disposition key. */
+const LEGACY_REQUESTER = {
   findings: [
     { severity: "blocker", lens: "scope", summary: "drift" },
     { severity: "warn", lens: "spec", summary: "typo" },
@@ -524,31 +538,40 @@ describe("(e) FixDispositions — the six hard refusals", () => {
     try {
       const verdict = await new FixDispositions().judge(
         fixContext(
-          { status: "APPROVED", dispositions: { drift: { status: "fixed" } } },
+          { status: "APPROVED", dispositions: { F1: { status: "fixed" } } },
           { carrierPath: fixture.requesterPath },
         ),
       );
       expect(verdict.violation?.grade).toBe("hard");
-      expect(verdict.violation?.message).toContain("typo");
+      // The missing side names the finding by its engine-written id AND its summary —
+      // one failure is actionable without opening the requesting carrier.
+      expect(verdict.violation?.message).toContain('F2 "typo"');
     } finally {
       fixture.cleanup();
     }
   });
 
-  it("④ a disposition key outside the input set → hard, naming the unknown finding", async () => {
-    const fixture = new CarrierFixture({ findings: [{ severity: "nit", summary: "drift" }] });
+  it("④ a disposition key outside the input set → hard, naming the unknown key and marking it", async () => {
+    const fixture = new CarrierFixture(REQUESTER);
     try {
       const verdict = await new FixDispositions().judge(
         fixContext(
           {
             status: "APPROVED",
-            dispositions: { drift: { status: "fixed" }, stale: { status: "fixed" } },
+            dispositions: {
+              F1: { status: "fixed" },
+              F2: { status: "fixed" },
+              F9: { status: "fixed" },
+            },
           },
           { carrierPath: fixture.requesterPath },
         ),
       );
       expect(verdict.violation?.grade).toBe("hard");
-      expect(verdict.violation?.message).toContain("stale");
+      // The unknown side carries no summary (the carrier raised no such finding) — the
+      // bare key plus the explicit `unknown` marker, never an invented summary.
+      expect(verdict.violation?.message).toContain("F9 (unknown)");
+      expect(verdict.violation?.message).not.toContain("no disposition for finding");
     } finally {
       fixture.cleanup();
     }
@@ -597,13 +620,13 @@ describe("(e) FixDispositions — the six hard refusals", () => {
         fixContext(
           {
             status: "APPROVED",
-            dispositions: { drift: { status: "rejected" }, typo: { status: "fixed" } },
+            dispositions: { F1: { status: "rejected" }, F2: { status: "fixed" } },
           },
           { carrierPath: fixture.requesterPath },
         ),
       );
       expect(verdict.violation?.grade).toBe("hard");
-      expect(verdict.violation?.message).toContain("drift");
+      expect(verdict.violation?.message).toContain("F1");
       expect(verdict.violation?.message).toContain("reason");
     } finally {
       fixture.cleanup();
@@ -620,8 +643,8 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
           {
             status: "APPROVED",
             dispositions: {
-              drift: { status: "fixed" },
-              typo: { status: "rejected", reason: "the review misread the guard" },
+              F1: { status: "fixed" },
+              F2: { status: "rejected", reason: "the review misread the guard" },
             },
           },
           { carrierPath: fixture.requesterPath },
@@ -677,8 +700,8 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
           {
             status: "APPROVED",
             dispositions: {
-              drift: { status: "fixed" },
-              typo: { status: "fixed" },
+              F1: { status: "fixed" },
+              F2: { status: "fixed" },
             },
           },
           { carrierPath: fixture.requesterPath },
@@ -706,7 +729,7 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
         fixContext(
           {
             status: "APPROVED",
-            dispositions: { drift: { status: "fixed" }, typo: { status: "fixed" } },
+            dispositions: { F1: { status: "fixed" }, F2: { status: "fixed" } },
           },
           { carrierPath: fixture.requesterPath },
           { git },
@@ -723,7 +746,7 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
     }
   });
 
-  it("dedupes repeated summaries — one defect owes one disposition", async () => {
+  it("dedupes repeated LEGACY summaries — one defect owes one disposition", async () => {
     const fixture = new CarrierFixture({
       findings: [
         { severity: "blocker", summary: "drift" },
@@ -739,6 +762,10 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
         ),
       );
       expect(verdict.fulfilled).toBe(true);
+      // The legacy key set is booked once, never once per repeated row.
+      expect(verdict.observations?.map((row) => row.message)).toEqual([
+        FIX_DISPOSITIONS_LEGACY_KEYS,
+      ]);
     } finally {
       fixture.cleanup();
     }
@@ -750,18 +777,21 @@ describe("(g) FixDispositions#summaryOf — the counts the summary line renders"
     const carrier = {
       status: "APPROVED",
       dispositions: {
-        drift: { status: "fixed" },
-        typo: { status: "fixed" },
-        nit: { status: "rejected", reason: "out of scope" },
+        F1: { status: "fixed" },
+        F2: { status: "fixed" },
+        F3: { status: "rejected", reason: "out of scope" },
         // Not in the input set — never counted (the line reads the same pair the
         // judgment reads).
-        stale: { status: "fixed" },
+        F9: { status: "fixed" },
       },
     };
-    expect(new FixDispositions().summaryOf(carrier, ["drift", "typo", "nit"])).toEqual({
-      fixed: 2,
-      rejected: 1,
-    });
+    expect(
+      new FixDispositions().summaryOf(carrier, [
+        { id: "F1", summary: "drift" },
+        { id: "F2", summary: "typo" },
+        { id: "F3", summary: "nit" },
+      ]),
+    ).toEqual({ fixed: 2, rejected: 1 });
   });
 
   it("returns the zero pair for an empty input set and an absent slot", () => {
@@ -788,7 +818,7 @@ describe("(h) the requesting carrier's read basis — repoRoot, never process.cw
         fixContext(
           {
             status: "APPROVED",
-            dispositions: { drift: { status: "fixed" }, typo: { status: "fixed" } },
+            dispositions: { F1: { status: "fixed" }, F2: { status: "fixed" } },
           },
           // Both seams repoRoot-relative: the record's `carrierPath` and the route's
           // `--reviews` value (the CLI normalizes argv paths to a `RepoPath`).
@@ -799,6 +829,120 @@ describe("(h) the requesting carrier's read basis — repoRoot, never process.cw
       expect(verdict).toEqual({ fulfilled: true, violation: null, observations: [] });
     } finally {
       process.chdir(cwdBefore);
+      fixture.cleanup();
+    }
+  });
+});
+
+describe("(i) FixDispositions — the engine-written finding id is the key (P30 §2.5)", () => {
+  it("a REWORDED summary no longer produces an unknown key — the id matches, the prose differs", async () => {
+    // The old defect: the child copied the finding's summary into the key, so any
+    // reworded summary read as a finding the review never raised. The id is the key
+    // now, so a reworded summary is description only.
+    const fixture = new CarrierFixture({
+      findings: [{ id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" }],
+    });
+    try {
+      const verdict = await new FixDispositions().judge(
+        fixContext(
+          // The fix round's own copy of the finding reads the prose differently — the
+          // dispositions still key the engine's id.
+          {
+            status: "APPROVED",
+            findings: [{ severity: "blocker", summary: "the guard appears to be missing" }],
+            dispositions: { F1: { status: "fixed" } },
+          },
+          { carrierPath: fixture.requesterPath },
+          { git: new StubGit(["abc123 fix: restore the guard"]) },
+        ),
+      );
+      expect(verdict).toEqual({ fulfilled: true, violation: null, observations: [] });
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("prints BOTH diffs in ONE message — the missing finding by id + summary first sentence, the unknown key marked", async () => {
+    const fixture = new CarrierFixture({
+      findings: [
+        { id: "F1", severity: "blocker", lens: "scope", summary: "drift" },
+        {
+          id: "F2",
+          severity: "warn",
+          lens: "spec",
+          summary: "the heading repeats the phase title. A second sentence explains it.",
+        },
+      ],
+    });
+    try {
+      const verdict = await new FixDispositions().judge(
+        fixContext(
+          // F2 is missing, F9 was never raised: one failure names both.
+          {
+            status: "APPROVED",
+            dispositions: { F1: { status: "fixed" }, F9: { status: "fixed" } },
+          },
+          { carrierPath: fixture.requesterPath },
+        ),
+      );
+      const message = verdict.violation?.message ?? "";
+      expect(verdict.violation?.grade).toBe("hard");
+      // Both sides of the diff, in one message — one failure is enough to act on.
+      expect(message).toContain("no disposition for finding(s) of the requesting carrier:");
+      expect(message).toContain(
+        "disposition(s) for finding(s) the requesting carrier never raised:",
+      );
+      // The missing side: the id + the summary's FIRST sentence only (the rest of the
+      // paragraph is not the message's business).
+      expect(message).toContain('F2 "the heading repeats the phase title."');
+      expect(message).not.toContain("A second sentence explains it.");
+      // The unknown side: the bare key plus the explicit marker — no invented summary.
+      expect(message).toContain("F9 (unknown)");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("a LEGACY carrier without `id` falls back to summary matching and books ONE soft observation", async () => {
+    const fixture = new CarrierFixture(LEGACY_REQUESTER);
+    try {
+      const verdict = await new FixDispositions().judge(
+        fixContext(
+          {
+            status: "APPROVED",
+            dispositions: {
+              drift: { status: "fixed" },
+              typo: { status: "rejected", reason: "the review misread the guard" },
+            },
+          },
+          { carrierPath: fixture.requesterPath },
+          { git: new StubGit(["abc123 fix: apply the findings"]) },
+        ),
+      );
+      expect(verdict.fulfilled).toBe(true);
+      expect(verdict.violation).toBeNull();
+      expect(verdict.observations?.map((row) => row.message)).toEqual([
+        FIX_DISPOSITIONS_LEGACY_KEYS,
+      ]);
+      expect(verdict.observations?.[0]?.grade).toBe("soft");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("still refuses a legacy carrier's missing summary key — the fallback is a key, not a leniency", async () => {
+    const fixture = new CarrierFixture(LEGACY_REQUESTER);
+    try {
+      const verdict = await new FixDispositions().judge(
+        fixContext(
+          { status: "APPROVED", dispositions: { drift: { status: "fixed" } } },
+          { carrierPath: fixture.requesterPath },
+        ),
+      );
+      expect(verdict.fulfilled).toBe(false);
+      // No id on the carrier, so the label is the summary alone.
+      expect(verdict.violation?.message).toContain('"typo"');
+    } finally {
       fixture.cleanup();
     }
   });

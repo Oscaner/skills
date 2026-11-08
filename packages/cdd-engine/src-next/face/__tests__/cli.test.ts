@@ -2034,6 +2034,51 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("fix — dispositions keyed by the review carrier's engine-written id pass; a reworded summary never reads as unknown", async () => {
+    // The production key path (P30 §2.5): the review carrier prints `F1`/`F2`, the child
+    // keys its dispositions by those ids, and the summary prose is description only —
+    // so a reworded summary can no longer produce a "finding the review never raised".
+    const { command, io, repoRoot, cleanup } = fixture({
+      sync: new FixDraftRunner({
+        F1: { status: "fixed" },
+        F2: { status: "rejected", reason: "the review misread the guard" },
+      }),
+    });
+    const envBefore = process.env.AI_AGENT;
+    process.env.AI_AGENT = "pi";
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.recordRound(1, { op: "implement" });
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1 },
+        {
+          tasks: [1],
+          phase: "review",
+          findings: [
+            { id: "F1", severity: "blocker", summary: "the guard is missing" },
+            { id: "F2", severity: "warn", summary: "the heading repeats the phase title" },
+          ],
+        },
+      );
+      ledger.recordRound(1, { op: "review" });
+      const code = await command.runArgv(["fix", "--type", "wave", "--tasks", "1", "--plan", plan]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("status: APPROVED · handoff: ");
+      // Both findings were covered by their ids — one fixed, one rejected.
+      expect(io.stdoutText).toContain("fixed 1 · rejected 1");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+    } finally {
+      if (envBefore === undefined) delete process.env.AI_AGENT;
+      else process.env.AI_AGENT = envBefore;
+      cleanup();
+    }
+  });
+
   it("fix — an empty requesting input renders the zero pair `fixed 0 · rejected 0`", async () => {
     const { command, io, repoRoot, cleanup } = fixture({ sync: new FixDraftRunner({}) });
     const envBefore = process.env.AI_AGENT;
@@ -6007,9 +6052,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the persisted findings carrier holds NO status field (D27 — the conclusion is
       // derived at judgment time, never stored on the findings plane); the conclusion
       // still rides the outcome.status above, derived from the findings
+      // … and every finding carries the ENGINE-written key (P30 §2.5: `F1`, `F2` … in
+      // carrier order — the disposition primary key, never the child's prose).
       expect(outcome.carrier).toEqual({
         artifacts: {},
-        findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
+        findings: [{ id: "F1", severity: "blocker", lens: "spec", summary: "drift" }],
       });
       expect("status" in (outcome.carrier as Record<string, unknown>)).toBe(false);
       // the URC criteria ride the review prompt's fixed prefix (the spec review has
@@ -7600,10 +7647,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(outcome.violations?.map((violation) => violation.grade)).toEqual(["hard"]);
         expect(outcome.violations?.[0]?.message).toContain("dispositions");
         // the obligation sentence rides the fix prompt (the child's only warning) and
-        // states the SHAPE: keyed by the finding's own summary text, valued status/reason
+        // states the SHAPE: keyed by the finding's engine-written `id`, valued
+        // status/reason (P30 §2.5 — the summary is description only)
         const fixPrompt = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
         expect(fixPrompt).toContain(
-          'keyed by its own summary text (verbatim), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }`',
+          'keyed by its `id` exactly as the requesting carrier prints it (`F1`, `F2`, … — the summary is description only), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }`',
         );
         expect(fixPrompt).toContain("a missing or mis-keyed disposition fails the round");
         // … and the docs-fix shell carries the same obligation (a docs-fix round is a
@@ -7625,7 +7673,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         });
         const docsPrompt = docsSync.calls[0]!.args[docsSync.calls[0]!.args.length - 1];
         expect(docsPrompt).toContain("a missing or mis-keyed disposition fails the round");
-        expect(docsPrompt).toContain("keyed by its own summary text (verbatim)");
+        expect(docsPrompt).toContain(
+          "keyed by its `id` exactly as the requesting carrier prints it",
+        );
       } finally {
         cleanup();
       }

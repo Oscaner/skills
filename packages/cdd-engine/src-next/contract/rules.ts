@@ -17,15 +17,19 @@
 // list — these declarations are the rule surface. One rule = one strategy: the
 // multi-surface strategies of the old family were split per leg (uniqueness → three,
 // order → one section-order row, selfBounded → one lineage row), so a declaration row
-// never hides a second rule. The version-order leg and the header-equals-last-row leg
-// are not declared at all: ordering is presentation, not data integrity, and the
-// lineage judgment is membership-only.
+// never hides a second rule. Version ORDER stays presentation, not data integrity; the
+// header-to-newest-row agreement and the row's cell shape are declared legs of their
+// own (`change-history-latest-matches-front-matter` · `change-history-row-shape`), and
+// the lineage identity read is membership-plus-anchor (the first cell must BE a
+// version).
 //
 // Module-level exports are types / the declared data — zero behavior-carrying bare
 // functions.
 
 import type { Finding, Invariant, JudgeContext } from "./invariants.ts";
 import {
+  ChangeHistoryLatestMatchesFrontMatterInvariant,
+  ChangeHistoryRowShapeInvariant,
   ChangeHistoryVersionUniqueInvariant,
   ContinuityInvariant,
   CrossDocChainInvariant,
@@ -91,6 +95,18 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     id: "change-history-version-unique",
     docKeys: "all",
     create: () => new ChangeHistoryVersionUniqueInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "change-history-row-shape",
+    docKeys: "all",
+    create: () => new ChangeHistoryRowShapeInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "change-history-latest-matches-front-matter",
+    docKeys: "all",
+    create: () => new ChangeHistoryLatestMatchesFrontMatterInvariant(),
   },
   { scope: "doc", id: "task-id-unique", docKeys: "all", create: () => new TaskIdUniqueInvariant() },
   {

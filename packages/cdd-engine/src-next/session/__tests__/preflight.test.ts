@@ -644,7 +644,7 @@ const branchCtx = (
 };
 
 describe("PreFlight — the checked rule list (derived from the declaration surface)", () => {
-  it("lists 21 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
+  it("lists 23 doc-scope skips (`no doc target`) and the 2 ledger rows on a wave dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(
@@ -652,7 +652,7 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
       );
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        21,
+        23,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
       expect(verdict.checked).toContain("planned-tasks-vs-recorded-tasks: passed");
@@ -665,13 +665,13 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
     }
   });
 
-  it("lists the same 21 doc-scope skips on a branch dispatch", async () => {
+  it("lists the same 23 doc-scope skips on a branch dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
       const verdict = await preflightOf().vet(branchCtx(repoRoot, [task(1, "none")]));
       expect(verdict.ok).toBe(true);
       expect(verdict.checked.filter((row) => row.endsWith("skipped (no doc target)"))).toHaveLength(
-        21,
+        23,
       );
       expect(verdict.checked).toContain("closed-wave-fits-depends-on-layers: passed");
     } finally {
@@ -801,7 +801,7 @@ describe("PreFlight — the in-flight gate", () => {
       const verdict = await preflightOf().vet({
         ...ctx,
         inflight: inflightOf(repoRoot, true),
-        stealStale: true,
+        recover: true,
       });
 
       expect(verdict.ok).toBe(false);
@@ -816,7 +816,7 @@ describe("PreFlight — the in-flight gate", () => {
       ]) {
         expect(verdict.message).toContain(token);
       }
-      expect(verdict.message).not.toContain("--steal-stale");
+      expect(verdict.message).not.toContain("--recover");
       expect(verdict.order).toEqual(["tree-clean", "in-flight"]);
       expect(verdict.checked[0]).toBe("tree-clean");
       expect(verdict.checked[1]).toMatch(/^in-flight: held/);
@@ -839,7 +839,7 @@ describe("PreFlight — the in-flight gate", () => {
       expect(refused.ok).toBe(false);
       expect(refused.gate).toBe("in-flight");
       expect(refused.reason).toBe("held");
-      expect(refused.message).toContain("--steal-stale");
+      expect(refused.message).toContain("--recover");
       expect(inFlightSnapshot(repoRoot)).toBe(before);
 
       // the flag only lets the GATE pass; the takeover itself is the real
@@ -847,11 +847,11 @@ describe("PreFlight — the in-flight gate", () => {
       const takeover = await preflightOf().vet({
         ...ctx,
         inflight: inflightOf(repoRoot, false),
-        stealStale: true,
+        recover: true,
       });
       expect(takeover.ok).toBe(true);
       expect(takeover.checked).toContain(
-        "in-flight: stale holder — pid 4242 (re-run with --steal-stale to take over)",
+        "in-flight: stale holder — pid 4242 (re-run with --recover to take over)",
       );
       expect(inFlightSnapshot(repoRoot)).toBe(before);
     } finally {
@@ -877,7 +877,7 @@ describe("PreFlight — the in-flight gate", () => {
       const takeover = await preflightOf().vet({
         ...ctx,
         inflight: inflightOf(repoRoot, true),
-        stealStale: true,
+        recover: true,
       });
       expect(takeover.ok).toBe(true);
       expect(inFlightSnapshot(repoRoot)).toBe(before);

@@ -3675,7 +3675,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stderrText).toContain("  planned-tasks-vs-recorded-tasks: passed\n");
       expect(
         io.stderrText.split("\n").filter((line) => line.endsWith(": skipped (no doc target)")),
-      ).toHaveLength(21);
+      ).toHaveLength(23);
 
       // ② the refused path: the same face after the BLOCK wording + its details
       writeFileSync(path.join(repoRoot, "seed.txt"), "modified\n", "utf8");
@@ -8330,19 +8330,19 @@ describe("P21 — the in-flight word rows", () => {
     expect(held).toContain("running for 90m");
     expect(held).toContain("3,4");
     expect(held).toContain("p3");
-    expect(words.inFlightWords().stealable).toContain("--steal-stale");
-    expect(words.inFlightWords().corruptLocked).toContain("--steal-stale");
-    expect(words.inFlightWords().corruptUnlocked).toContain("--steal-stale");
+    expect(words.inFlightWords().stealable).toContain("--recover");
+    expect(words.inFlightWords().corruptLocked).toContain("--recover");
+    expect(words.inFlightWords().corruptUnlocked).toContain("--recover");
   });
 
-  it("declares --steal-stale on the implement / review / fix help faces — the command face stays eight", async () => {
+  it("declares --recover on the implement / review / fix help faces — the command face stays eight", async () => {
     const { command, io, cleanup } = fixture();
     try {
       for (const verb of ["implement", "review", "fix"] as const) {
         io.stdoutText = "";
         const code = await command.runArgv([verb, "--help"]);
         expect(code).toBe(0);
-        expect(io.stdoutText, `${verb}: --steal-stale`).toContain("--steal-stale");
+        expect(io.stdoutText, `${verb}: --recover`).toContain("--recover");
         expect(io.stdoutText, `${verb}: the takeover help row`).toContain(
           "take over a standing in-flight record",
         );

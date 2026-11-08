@@ -157,8 +157,15 @@ describe("selector coverage — every declared element carries a resolvable loca
       content: fixtures.text("overall"),
       root: REPO_ROOT,
     });
+    // The charter's Change-history table is width-ragged by history (the header
+    // declares one column count, older rows carry another), which the P30
+    // `change-history-row-shape` leg reports on purpose — the drift is recorded as a
+    // ceiling in `doc-corpus.guard.test.ts`, never repaired here. This gate covers the
+    // SELECTOR read, so the shape leg is excluded from its zero-findings assertion.
     expect(
-      findings.map((finding) => `${finding.kind} · ${finding.field} · ${finding.message}`),
+      findings
+        .filter((finding) => finding.kind !== "change-history-row-shape")
+        .map((finding) => `${finding.kind} · ${finding.field} · ${finding.message}`),
       "the canonical charter must judge clean",
     ).toEqual([]);
   });

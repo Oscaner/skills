@@ -1327,6 +1327,84 @@ describe("P21 T2 — front-matter-version-in-lineage on the real change-history 
   });
 });
 
+// ---------------------------------------------------------------------------
+// P30 T3 — the change-history row set and the anchored version read: a row whose
+// cell count disagrees with the header is a SHAPE fact (never a lineage row), the
+// version is read from the first cell only, and the header version must be the
+// lineage's newest numeric version.
+// ---------------------------------------------------------------------------
+
+describe("P30 T3 — shape-invalid change-history rows are not lineage rows", () => {
+  it("turns a hard-wrapped continuation row into one shape finding — zero duplicate version", () => {
+    // The summary cell hard-wraps: the wrap line keeps the leading pipe, so the
+    // parse reads a body row with 3 cells against the header's 4.
+    const content = planLineage("v1.0", [
+      ROW_100,
+      "| v1.0 | 2026-10-10 | a summary that hard-wraps |",
+    ]);
+    const findings = judge("plan", content);
+    const shape = findings.filter((finding) => finding.kind === "change-history-row-shape");
+    expect(shape).toHaveLength(1);
+    expect(shape[0]?.field).toBe("Change history");
+    expect(shape[0]?.message).toContain("3");
+    expect(shape[0]?.message).toContain("4");
+    // The malformed row is NOT a lineage row: its `v1.0` never registers twice.
+    expect(withKind(findings, "change-history-version-unique", "Change history")).toBe(false);
+  });
+
+  it("keeps a conforming lineage row shape-clean on every doc type", () => {
+    for (const docKey of ["overall", "plan", "phase-spec", "single-spec"] as const) {
+      const findings = judge(
+        docKey,
+        lineageOf(docKey),
+        docKey === "overall" ? GOOD_OVERALL_FS : EMPTY_FS,
+      );
+      expect(withKind(findings, "change-history-row-shape", "Change history"), docKey).toBe(false);
+    }
+  });
+});
+
+describe("P30 T3 — the anchored first-column version read", () => {
+  it("ignores a version token in an in-cell prose row — it is not a lineage identity", () => {
+    const prose = "| see spec v1.9 | 2026-10-10 | note | [human] |";
+    const content = planLineage("v1.0", [ROW_100, prose, prose]);
+    const findings = judge("plan", content);
+    // Neither the uniqueness leg nor the header-newest leg sees the prose tokens.
+    expect(withKind(findings, "change-history-version-unique", "Change history")).toBe(false);
+    expect(withKind(findings, "change-history-latest-matches-front-matter", "version")).toBe(false);
+    expect(withKind(findings, "front-matter-version-in-lineage", "version")).toBe(false);
+  });
+});
+
+describe("P30 T3 — change-history-latest-matches-front-matter", () => {
+  it("is red — naming both sides — when the newest lineage version runs ahead of the header", () => {
+    const content = planLineage("v1.0", [ROW_100, "| v1.1 | 2026-10-09 | merged | [human] |"]);
+    const findings = judge("plan", content).filter(
+      (finding) => finding.kind === "change-history-latest-matches-front-matter",
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.field).toBe("version");
+    expect(findings[0]?.message).toContain("v1.0");
+    expect(findings[0]?.message).toContain("v1.1");
+  });
+
+  it("is green when the header version IS the newest numeric lineage version", () => {
+    const content = planLineage("v1.1", [ROW_100, ROW_101]);
+    const findings = judge("plan", content);
+    expect(withKind(findings, "change-history-latest-matches-front-matter", "version")).toBe(false);
+  });
+
+  it("compares numerically, never lexically (v0.10 is newer than v0.9)", () => {
+    const content = planLineage("v0.9", [
+      "| v0.9 | 2026-10-08 | prior | [human] |",
+      "| v0.10 | 2026-10-09 | newest | [human] |",
+    ]);
+    expect(
+      withKind(judge("plan", content), "change-history-latest-matches-front-matter", "version"),
+    ).toBe(true);
+  });
+});
+
 describe("P21 T2 — change-history-row-not-in-other-table", () => {
   it("reports a version-led row parked in another table, naming the fix", () => {
     const stray = "| v0.9 | 2026-10-27 | stray lineage row |";

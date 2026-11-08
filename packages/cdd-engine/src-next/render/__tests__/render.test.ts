@@ -139,6 +139,13 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out.startsWith("# CDD dispatch — docs-fix round")).toBe(true);
     expect(out).toContain("apply `INPUT_REVIEWS` (all severities) directly to the judged doc");
     expect(out).toContain("- `INPUT_SPEC`: docs/x-design.md");
+    // P30 T3 — the two lineage edits the round must not get wrong: appending a
+    // Change-history row bumps the front-matter version in the same edit, and a
+    // table cell is never hard-wrapped.
+    expect(out).toContain(
+      "a new `## Change history` row bumps the front-matter `version:` in the same edit",
+    );
+    expect(out).toContain("never hard-wrap a table cell");
     // D61-4 — the docs-fix round context declares the parent charter slot too
     expect(out).toContain("- `INPUT_OVERALL`: docs/kairos/overalls/x-overall.md");
     expect(out).not.toContain("BASE_BRANCH");

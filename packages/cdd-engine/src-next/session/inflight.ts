@@ -171,16 +171,16 @@ export class InFlight {
    *  → live-holder guard → lock → record. The guard is the class's OWN fail-closed
    *  check that a standing record is never displaced while its holder lives: the
    *  pre-flight gate is the primary guard, this one keeps the invariant true for any
-   *  other write point. `stealStale` only acts HERE: a standing record whose holder is
+   *  other write point. `recover` only acts HERE: a standing record whose holder is
    *  dead (or a corrupt record with a leftover lock) is taken over first; a live holder
    *  is never displaced. A failed lock throws `HoldingError` carrying the holder's
    *  facts and leaves the record bytes untouched. */
   async acquire(
     record: InFlightRecord,
-    options: { readonly stealStale?: boolean } = {},
+    options: { readonly recover?: boolean } = {},
   ): Promise<void> {
     this.ensureMarker();
-    if (options.stealStale === true) await this.#stealIfDead();
+    if (options.recover === true) await this.#stealIfDead();
     await this.#refuseLiveHolder();
     try {
       this.#unlock = await lockfile.lock(this.path(), {
@@ -262,7 +262,7 @@ export class InFlight {
     return { kind: "corrupt", locked: existsSync(this.lockPath()) };
   }
 
-  /** Take the record over explicitly — the `--steal-stale` path. The precondition is
+  /** Take the record over explicitly — the `--recover` path. The precondition is
    *  that the holder cannot be alive: a readable record whose pid is live is refused
    *  (the flag never crosses "alive → no takeover"); a corrupt record has no live
    *  fact to honor and is cleared. Clears the lock, then the record. */
@@ -285,7 +285,7 @@ export class InFlight {
     return record;
   }
 
-  /** The `stealStale` pre-step of acquire: take over a standing record whose holder is
+  /** The `recover` pre-step of acquire: take over a standing record whose holder is
    *  dead, a corrupt record with a leftover lock, or a lock remnant with no record —
    *  and do nothing while the holder is alive (the lock then refuses the acquire). */
   async #stealIfDead(): Promise<void> {
@@ -309,7 +309,7 @@ export class InFlight {
     if (holder === null) {
       return `another dispatch holds the in-flight lock under ${this.#root.path} — the standing record is unreadable (dispatch ${this.#slug} refuses to overwrite it)`;
     }
-    return `another dispatch is in flight: pid ${holder.pid} (${holder.command}), slug ${holder.slug}, started ${new Date(holder.startedAt).toISOString()} — it must finish, or its record must be taken over with --steal-stale`;
+    return `another dispatch is in flight: pid ${holder.pid} (${holder.command}), slug ${holder.slug}, started ${new Date(holder.startedAt).toISOString()} — it must finish, or its record must be taken over with --recover`;
   }
 
   /** The record write — the JSON shape through the ONE atomic write seam, with the

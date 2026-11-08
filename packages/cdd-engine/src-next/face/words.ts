@@ -262,7 +262,7 @@ export const CAPSULE_WORDS = {
     inFlight: {
       free: "free — no dispatch holds this tree",
       held: "held — pid {pid}",
-      stale: "stale holder — pid {pid} (re-run with --steal-stale to take over)",
+      stale: "stale holder — pid {pid} (re-run with --recover to take over)",
       corruptLocked: "unreadable record — lock on disk",
       corruptUnlocked: "unreadable record — no lock behind",
     },
@@ -284,11 +284,11 @@ export const CAPSULE_WORDS = {
   inFlight: {
     held: "a dispatch is already in flight — pid {pid} · command: {command} · started: {startedAt} · running for {uptime} · wave: {wave} · slug: {slug}",
     stealable:
-      "the holding process is gone — re-run the same command with --steal-stale to take the in-flight record over",
+      "the holding process is gone — re-run the same command with --recover to take the in-flight record over",
     corruptLocked:
-      "the in-flight record is unreadable and its lock is still on disk — re-run with --steal-stale to take it over",
+      "the in-flight record is unreadable and its lock is still on disk — re-run with --recover to take it over",
     corruptUnlocked:
-      "the in-flight record is unreadable and no lock is left behind — re-run with --steal-stale to take it over",
+      "the in-flight record is unreadable and no lock is left behind — re-run with --recover to take it over",
     lockHeld:
       "held by pid {pid} · command: {command} · started: {startedAt} · wave: {wave} · slug: {slug}",
     lockOnly: "held by an unreadable in-flight record — the lock is still on disk",

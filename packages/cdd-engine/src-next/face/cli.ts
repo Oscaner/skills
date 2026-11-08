@@ -664,7 +664,7 @@ export class Cli {
       // The explicit takeover flag — VOID under --dry-run: the preview face never
       // acquires, so a takeover there would have no write channel at all. The
       // preview still judges the same gate, sees the same holder facts, and exits 1.
-      stealStale: !parsed.dryRun && parsed.args.stealStale === "true",
+      recover: !parsed.dryRun && parsed.args.recover === "true",
     });
     // The per-invocation batch cursor: the in-memory done set mirrors the on-disk
     // ledger's closed waves (the C5 closure single face) — NOT a "every non-group
@@ -927,9 +927,9 @@ export class Cli {
         overallLink: scene.overallLink,
       },
       reviews: parsed.paths.reviews,
-      // The explicit takeover flag (`--steal-stale`): the ONLY path that displaces a
+      // The explicit takeover flag (`--recover`): the ONLY path that displaces a
       // standing in-flight record — and only when its holder is dead.
-      stealStale: parsed.args.stealStale === "true",
+      recover: parsed.args.recover === "true",
     });
     return harness.step();
   }

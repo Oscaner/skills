@@ -160,8 +160,8 @@ export class CliLifecycle {
    *  (`ProcessFacts.startOf`; injected by the tests to span a long session). */
   readonly #proc: ProcessStartReader;
   /** Whether this invocation asked to take over a dead holder's record (the
-   *  `--steal-stale` flag — the only takeover path). */
-  readonly #stealStale: boolean;
+   *  `--recover` flag — the only takeover path). */
+  readonly #recover: boolean;
   /** The HEAD the current dispatch started from (null off a repo / before a spawn) —
    *  the postmortem baseline of `commitsSince`. */
   #dispatchBase: string | null = null;
@@ -191,7 +191,7 @@ export class CliLifecycle {
     inflight?: InFlight;
     git?: GitClient;
     proc?: ProcessStartReader;
-    stealStale?: boolean;
+    recover?: boolean;
     brief?: BriefRenderer;
   }) {
     this.#env = opts.env ?? process.env;
@@ -201,7 +201,7 @@ export class CliLifecycle {
       opts.inflight ?? new InFlight(opts.scene.workspace.root, opts.scene.workspace.slug);
     this.#git = opts.git ?? new GitClient();
     this.#proc = opts.proc ?? ProcessFacts;
-    this.#stealStale = opts.stealStale ?? false;
+    this.#recover = opts.recover ?? false;
     this.#sync = opts.sync ?? new Terminator();
     this.#template = opts.template ?? new TemplateAssembler();
     this.#brief = opts.brief ?? new BriefRenderer();
@@ -495,7 +495,7 @@ export class CliLifecycle {
     // A sibling dispatch that won the lock in between makes `acquire` throw
     // `HoldingError` (carrying the holder's facts), which rides the CLI's held BLOCK.
     this.#dispatchBase = await this.#git.head(this.#scene.workspace.root.repoRoot);
-    await this.#inflight.acquire(await this.#recordOf(frame), { stealStale: this.#stealStale });
+    await this.#inflight.acquire(await this.#recordOf(frame), { recover: this.#recover });
     // The round's own log file — created BEFORE the spawn (append stream open, zero
     // bytes), so the channel exists from the dispatch's first millisecond. A create
     // failure is a named soft observation and the round continues on the CPU leg

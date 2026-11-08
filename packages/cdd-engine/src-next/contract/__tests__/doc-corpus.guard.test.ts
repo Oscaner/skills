@@ -165,6 +165,15 @@ describe("P30 T3 — the doc corpus's change-history lineage legs", () => {
     // Non-vacuity: an empty walk would make every pin below trivially green.
     expect(CORPUS.docs.length).toBeGreaterThan(0);
     expect(CORPUS.undocumented).toEqual([]);
+    // Per-root non-vacuity: each of the three declared roots must contribute at least
+    // one judged doc, so a root that silently empties out cannot leave its lineage legs
+    // unpinned while the global count still reads non-zero.
+    for (const dir of Object.values(ENGINE_DOC_ROOTS)) {
+      expect(
+        CORPUS.docs.filter((doc) => doc.rel.startsWith(`${dir}/`)).length,
+        `${dir} contributed no judged doc`,
+      ).toBeGreaterThan(0);
+    }
   });
 
   it("leaves the program's own spec and plan clean on both new legs", () => {

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P30 计划：中断可表达 · 完成判据换代理 · 机械判据硬化
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-11-08
 slug: 2026-10-10-engine-doc-tooling-p30
 base: develop
@@ -25,25 +25,32 @@ base: develop
 - **`--recover` 盖戳后 review 仍被拒**：`supersededBy` 若只在 `#pendingFix` 生效而 `lineRoute` 仍读旧 review，派发门会以 `hop` 拒——两处必须同改，且 `#rowClosed` 不得被波及（改了会让已闭合线看起来还开着）。
 - **reopen 变成万能后门**：条件写松（无 drift 也放行、或有在飞轮次也放行）会绕过 fix——红测要覆盖「无条件调用 → BLOCKED」。
 - **验证型判据被当成零 diff 豁免**：`Files` 非空却零 diff 必须仍 `committed nothing`；「至少一个 task 空」不得算验证型。
-- **flag 面残留**：`--steal-stale` 只在 declare/words/cli 三处不彻底，帮助面或拒绝语会漏字面。
+- **flag 面残留**：`--steal-stale` 只在 declare/words/cli 三处不彻底——`lifecycle.ts` 的传递链、`inflight.ts` 的 holding message、`preflight.ts` 的 `DispatchFacts`，以及 preview / board-view / preflight / inflight 四个测试文件都会漏字面（`stealable` 是键名不是字面，键名不改）。
 - **finding id 双向差集只打一侧**：改写 summary 的失败报文若仍只 print unknown，`#443④` 的可读性没修。
 - **折行续行被静默丢弃**：列数不一致的行必须报一条 shape finding；静默过滤等于把假绿换成漏报。
-- **版本头交叉校验误伤存量**：新增不变量上线时仓内 25 篇 spec/plan 必须全绿（现状 front-matter 版本是否已等于最新行，是任务的红测前置事实）。
+- **版本头交叉校验误伤存量**：新增不变量上线时仓内 spec / plan / overall 不得被误伤；这条全量判定由 Task 3 的 corpus guard 测钉住——任一存量文档在新不变量下报 finding 即该测红并点名文件，而存量在既有判定面上的旧红（`p19-design` 的 `presence`）不在本测断言面内。
 
 ### Task 1: `--recover` 旗标面与 `--steal-stale` 硬切
 
 #### Objective
 
-把 `--steal-stale` 从旗标表、报文表、CLI 读取点整类改名到 `--recover`（本期硬切，不留别名），并让 `implement` / `review` / `fix` 三个派发动词都声明它。只做旗标面；abort 与 reopen 的语义留给 Task 4 / Task 7。
+把 `--steal-stale` 从旗标表、报文表、CLI 读取点整面改名到 `--recover`（含 `lifecycle` / `preflight` / `inflight` 传递链与四个测试文件的字面锚点；本期硬切，不留别名），并让 `implement` / `review` / `fix` 三个派发动词都声明它。只做旗标面；abort 与 reopen 的语义留给 Task 4 / Task 7。
 
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/face/declare.ts`（旗标行 `stealStale` 改名 `recover`、`flag: "--recover"`；三个动词的旗标引用同步）
-- Modify: `packages/cdd-engine/src-next/face/words.ts`（`stealable` 等四行报文改词）
-- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`--steal-stale` 读取点改键名）
-- Modify: `packages/cdd-engine/src-next/face/preview.ts`（`--steal-stale` 注释改词）
-- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（帮助面与拒绝语零 `--steal-stale`）
+- Modify: `packages/cdd-engine/src-next/face/words.ts`（`stale` / `stealable` / `corruptLocked` / `corruptUnlocked` 四行报文的 `--steal-stale` 字面与注释改词；`InFlightWords` 键名不变——`stealable` 是标识符，不属字面门）
+- Modify: `packages/cdd-engine/src-next/face/cli.ts`（两处 `parsed.args.stealStale` 读取点与 `--steal-stale` 注释改键名改词）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#stealStale` 字段 / `opts.stealStale` / `acquire({ stealStale })` 传参与 `--steal-stale` 注释——旗标面的唯一传递链，不改行为）
+- Modify: `packages/cdd-engine/src-next/face/preview.ts`（`--steal-stale` 注释改词；`words.inFlightWords().stealable` 键引用不变）
+- Modify: `packages/cdd-engine/src-next/session/inflight.ts`（`acquire` 的 `stealStale` 选项、`#stealIfDead` 注释、`holdingMessage` 里的 `--steal-stale` 字面——用户可见的接管语）
+- Modify: `packages/cdd-engine/src-next/session/preflight.ts`（`DispatchFacts.stealStale` 与 `#inFlightRefusal` 形参、`--steal-stale` 注释改键名改词）
+- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（帮助面与拒绝语零 `--steal-stale`；`words.inFlightWords()` 三行字面重锚）
 - Test: `packages/cdd-engine/src-next/face/__tests__/words.guard.test.ts`
+- Test: `packages/cdd-engine/src-next/face/__tests__/preview.test.ts`（`--steal-stale --dry-run` 用例与 `not.toContain("--steal-stale")` 断言重锚到 `--recover`）
+- Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（`toContain("--steal-stale")` 字面锚点重锚；`.stealable` 键引用不变）
+- Test: `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts`（拒绝语字面 `stale holder — pid 4242 (re-run with …)` 与 `toContain` / `not.toContain` 用例重锚；`stealStale` 选项名随改）
+- Test: `packages/cdd-engine/src-next/session/__tests__/inflight.test.ts`（`stealStale` 选项名与注释重锚；Task 4 在同一文件追加密钥面 pin——Task 4 DependsOn 1，串行，无并行写同一文件）
 
 #### Consumes
 
@@ -107,12 +114,14 @@ none
 - 写失败测：`Files` 空集 + `evidenceOk: true` + 零提交的 implement 上下文 → `fulfilled: true` 且 `observations` 非空 — checkable: FAIL（今日 `committed nothing` hard）
 - 写失败测：同一夹具但 `evidenceOk: false` → `fulfilled: false`（仍 BLOCKED） — checkable: FAIL 或语义断言不成立
 - 写失败测：`emptyFileTasks` 只含一个 id 的双 task wave（另一个 task 有 `Files`）→ `fulfilled: false` — checkable: FAIL（若实现按「至少一个空」即绿）
-- 实现两 cell 与 OR 分支；`#criterionViolations` 填值（`Files` 取自计划解析，`evidenceOk` 取自既有证据判决，不二次读盘） — checkable: 上三测 PASS；既有 completion-criterion 族全绿
+- 写失败测：`Files` 值为字面 `(none)` → 该 task id ∈ `emptyFileTasks`（`filePathsOf` 视为零路径 token，`(none)` 不得被读成一个路径；与空值 / 仅空白 / 缺字段同一判定） — checkable: FAIL（今日无该判定面）
+- 实现两 cell 与 OR 分支；`#criterionViolations` 填值（`Files` 取自计划解析，`evidenceOk` 取自既有证据判决，不二次读盘） — checkable: 上四测 PASS；既有 completion-criterion 族全绿
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 
 - 验证型（wave 内每个 task 的 `Files` 皆空）∧ 证据绿 → 通过并带 soft 观察
+- `Files` 空判定：空值 / 仅空白 / 缺字段 / 字面 `(none)` 皆空，四者同判（`(none)` pin）
 - `Files` 皆空但证据缺失或违约 → 仍 BLOCKED（既有证据门）
 - 任一 task `Files` 非空 → 零提交仍 `committed nothing`（成对 pin）
 - `groupBaseOf` 语义零改
@@ -135,6 +144,7 @@ none
 - Modify: `packages/cdd-engine/src-next/render/templates.ts`（docs-fix 变体两句：追加行必须 bump front-matter；表格单元格不得硬折行）
 - Test: `packages/cdd-engine/src-next/contract/__tests__/invariants.test.ts`（或既有 lint/invariants 测文件）
 - Test: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`
+- Test: `packages/cdd-engine/src-next/contract/__tests__/doc-corpus.guard.test.ts`（corpus guard：遍历 `docs/kairos/{specs,plans,overalls}`，按 front-matter `doc-type` 取 doc key，断言 `Contract#validate` 对两条新不变量零 finding、`change-history-version-unique` 无回归；断言面不扩到既有 `presence` 等判定面）
 
 #### Consumes
 
@@ -148,6 +158,7 @@ none
 - 不变量 `change-history-latest-matches-front-matter`（front-matter 版本 == lineage 最新数值版本，两端点名）
 - 不变量 `change-history-row-shape`（列数 != 表头列数的表体行：一条 finding，不静默丢弃）
 - docs-fix 模板两句（子串 pin）
+- corpus guard 测：仓内存量 spec / plan / overall 对两条新不变量零 finding、对 `change-history-version-unique` 无新增命中（可红的全量 pin，不是 dry-run 抽样；存量有一处与新不变量无关的既有红——`p19-design` 的 `presence` 面——本测不吞它、也不修它）
 
 #### Steps
 
@@ -155,7 +166,8 @@ none
 - 写失败测：front-matter `v0.4` + lineage 数值最大 `v0.5` → 新不变量红；`v0.5` + `v0.5` → 绿 — checkable: FAIL（今日成员制通过）
 - 写失败测：行内正文含 `spec vX.Y` 但首列不是版本 → 不产生 lineage 行 — checkable: FAIL（今日 `firstVersion` 会读该行）
 - 实现锚定读面与两条不变量；docs-fix 模板加两句 — checkable: 上三测 PASS；`pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__` 全绿
-- 仓内全量自检：`node packages/cdd-engine/src-next/bin.ts review --type phase-spec --spec docs/kairos/specs/2026-10-10-engine-doc-tooling-p30-design.md --dry-run` 与 plan 同形各跑一次 — checkable: 两次 exit 0（存量文档不被新不变量误伤）
+- 仓内全量自检：`node packages/cdd-engine/src-next/bin.ts review --type phase-spec --spec docs/kairos/specs/2026-10-10-engine-doc-tooling-p30-design.md --dry-run` 与 plan 同形各跑一次 — checkable: 两次 exit 0（两个抽样目标不被新不变量误伤）
+- 写 corpus guard 测：逐篇遍历 `docs/kairos/{specs,plans,overalls}`，`doc-type` → doc key，`Contract#validate` 对 `change-history-latest-matches-front-matter`、`change-history-row-shape` 零 finding，且 `change-history-version-unique` 无新增命中 — checkable: FAIL（今日新不变量不存在；上线后任一存量文档误伤即该测红并点名文件）
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
@@ -164,7 +176,7 @@ none
 - 版本只从首列锚定读；行内任意位置的版本号不算
 - header 落后于最新行 → 红；相等 → 绿
 - docs-fix 模板含两句（子串 pin）
-- 仓内存量 spec / plan 在 dry-run 下全绿
+- 仓内存量 spec / plan / overall 在 corpus guard 测下对两条新不变量与 `change-history-version-unique` 全绿（该测可红：任一存量文档误伤即点名文件）；两个采样 dry-run 同绿，存量既有红不归本任务
 
 #### DependsOn
 
@@ -313,9 +325,10 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 
 - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`RoundRecord.supersededBy`；`#pendingFix` / `lineRoute` 的 review 选取跳过；`supersedeReview(cycle, byCycle)`）
 - Modify: `packages/cdd-engine/src-next/session/dispatch-authority.ts`（`pending-fix` 且 drift 的拒绝语 `next` 变体携带 `--recover`）
-- Modify: `packages/cdd-engine/src-next/face/cli.ts`（reopen 腿的触发条件与调用序）
+- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`--recover` 三段判定与双缺 BLOCKED 报文、reopen 腿的触发条件与调用序）
 - Test: `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`
 - Test: `packages/cdd-engine/src-next/session/__tests__/dispatch-authority.test.ts`
+- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（双缺拒绝面不落普通派发 · 三动词与 wave 行的负向触发面 · abort→reopen 合并序）
 
 #### Consumes
 
@@ -329,19 +342,26 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 - `Ledger#supersedeReview(cycle, byCycle)`（只盖戳，不写假 fix）
 - `#pendingFix` / `lineRoute` 跳过 superseded review；`#rowClosed` 零改
 - 拒绝语 `next`：`drift ∧ pending-fix` 时给出带 `--recover` 的同形 review 命令
+- 双缺拒绝面（§2.1③）：无陈旧 in-flight 且无 `drift ∧ pending-fix` → BLOCKED，报文同时点名两个缺失条件，命令在此终止、不进普通派发
+- 合并腿序（§2.1④）：同一条 `--recover` 先折 abort、再盖 `supersededBy`、再派 `N+1` review
 
 #### Steps
 
 - 写失败测：drift ∧ pending-fix ∧ 无在飞 → `--recover` 后 `review` 可派发，新 review cycle 为旧 +1，旧 review 带 `supersededBy` — checkable: FAIL（今日 `pending-fix` 拒绝）
 - 写失败测：同夹具缺任一条条件（无 drift / 无 pending-fix / 有在飞）→ BLOCKED 且报文点名缺项 — checkable: FAIL（今日无该报文）
 - 写失败测：supersede 后 `#rowClosed` 对一条已闭合线的判定不变（成对 pin：闭合不被 supersede 打开） — checkable: FAIL 若实现顺手改了 `#rowClosed`
-- 实现 `supersededBy`、两处跳过、调用序与拒绝语 `next` — checkable: 上三测 PASS；`pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/ledger.test.ts` 全绿
+- 写失败测（双缺拒绝面）：既无陈旧 in-flight、也无 `drift ∧ pending-fix` 时 `--recover` → BLOCKED，报文同时点名两个缺失条件；同夹具下 `review` / `implement` / `fix` 三动词都不得落普通派发（断言派发入口零调用） — checkable: FAIL（今日无该判定面，flag 直落普通派发）
+- 写失败测（合并腿）：陈旧 in-flight ∧ drift ∧ pending-fix 的一条 `--recover` → 账本里 abort `RoundRecord`（cause `interrupted`）先落、旧 review 后被 `supersededBy` 盖戳、随后派 cycle `N+1` 的 review（按落账序与 cycle 断言，不按实现内部调用序） — checkable: FAIL（今日两条腿都不存在）
+- 写失败测（负向触发面）：同夹具下 `fix --recover` 与 `implement --recover` 只走 abort 腿——旧 review 无 `supersededBy`、无新 review cycle；wave 行的 `review --recover` 同样不重开（brief-drift 仍是 P29 的路）；三动词的 abort 腿仍可用 — checkable: FAIL（今日无 reopen 判定，负向断言无从成立）
+- 实现 `--recover` 三段判定、双缺报文、`supersededBy`、两处跳过、调用序与拒绝语 `next` — checkable: 上六测 PASS；`pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/ledger.test.ts src-next/face/__tests__/cli.test.ts` 全绿
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 
 - drift ∧ pending-fix（无在飞）经 `--recover` 后 `review` 可派发，新 cycle = 旧 +1，旧轮带 `supersededBy`
-- 条件不满足一律 BLOCKED 且点名缺项
+- 双缺（无陈旧 in-flight 且无 `drift ∧ pending-fix`）→ BLOCKED 且报文点名两个缺失条件，绝不静默降级为普通派发（`review` / `implement` / `fix` 三动词 pin）
+- 单条 `--recover` 上 abort 与 reopen 同现时顺序固定：abort 记录先落、`supersededBy` 后盖、`N+1` 再派（落账序 pin）
+- reopen 触发面：仅 `review` + doc / branch 行；`fix --recover`、`implement --recover`、wave 行一律不重开（负向 pin），abort 腿三动词皆可用
 - `#rowClosed` / 波行闭合判定零行为变化（成对 pin）
 - fix 身份仍与请求方 review 同 cycle
 
@@ -373,7 +393,8 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 #### Steps
 
 - 写 changeset（minor；正文一句话说明四个面） — checkable: 文件存在且 front-matter 含 `"@oscaner-skills/cdd-engine": minor`
-- 跑 `pnpm run validate` — checkable: exit 0（root · kairos · engine · typecheck ×3 · version-sync · emit fresh · 零裸函数）
+- 跑 `pnpm run validate` — checkable: exit 0（root · kairos · engine · typecheck ×3 · version-sync · emit fresh · 零裸函数）；engine suite 内含 Task 3 的 corpus guard 测，故「存量文档全绿」在本门里可红
+- 复核 corpus guard 覆盖：`docs/kairos/{specs,plans,overalls}` 三目录皆被遍历（不是只测两份样本） — checkable: 目录遍历断言命中数 ≥ 1 且三目录各至少一篇
 - 断言判收敛主线零改：`git diff develop -- packages/cdd-engine/src-next/session/next.ts` 对闭合判定与 blocker 计数零命中 — checkable: 命中数 0（或只有注释级改动并有说明）
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
@@ -382,7 +403,7 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 - changeset 存在且为 minor
 - `pnpm run validate` exit 0
 - 判收敛主线零字节改动
-- 仓内 spec / plan 在 doc-contract 下全绿
+- 仓内 spec / plan / overall 对两条新不变量与 `change-history-version-unique` 全绿（Task 3 的 corpus guard 测随 engine suite 在 `pnpm run validate` 内绿，非口头声称；存量既有红不归本相位）
 
 #### DependsOn
 
@@ -393,4 +414,4 @@ review 载体落盘时由引擎按序写稳定 `id`（`F1`、`F2`…；`FINDING`
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-08 | 初版：八任务四波 W1={1,2,3}·W2={4,6}·W3={5,7}·W4={8}——recover 旗标硬切 · 完成判据证据分支 · change-history 硬化 · abort 入账 · finding id 双侧差集 · 已关闭波纪律 · reopen 严格条件 · changeset 与全量门 | [human] 裁定 · Claude（kairos:cdd-plan · 2026-11-08） |
-
+| v0.2 | 2026-11-08 | 评审回填（plan-review-1 F1–F7）：① Task 1 Files 扩到 `--steal-stale` 的全部字面面——`lifecycle.ts` / `inflight.ts` / `preflight.ts` 传递链，加 preview / board-view / preflight / inflight 四个测试文件（报文字面改词，`stealable` 键名不变）；② Task 7 补「双缺 → BLOCKED 且不得降级为普通派发」红测；③ Task 7 补 abort→reopen 合并腿序红测；④ Task 2 补 `Files` 字面 `(none)` 的空判定 pin；⑤ Task 7 补 reopen 触发面负向 pin（`fix` / `implement` / wave 行）；⑥ Task 3 增 corpus guard 测——仓内 spec / plan / overall 对两条新不变量与 `change-history-version-unique` 零误伤成为可红 pin（不断言既有 `presence` 面上的存量红），Task 8 全量门引用；⑦ Task 5 DependsOn 4 由编排方落定（`2c80fb21`），本轮零结构面改动 | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |

@@ -31,7 +31,7 @@ import {
   type RoundFinding,
   type RoundStatus,
   type RoundVerdict,
-  type RoundViolation,
+  RoundViolation,
   type Termination,
 } from "./ledger.ts";
 import type { DocClassVerdict, NextHop, Route } from "./next.ts";
@@ -69,6 +69,13 @@ export const EMPTY_RUN_STATE: RunState = {
   frontier: () => [],
   markDone: () => undefined,
 };
+
+/** The P31 §2.7 write-back observation — the round could not tell whether it touched
+ *  the reviewed document (no dispatch baseline, or git unreadable). The bind keeps
+ *  today's behaviour and this entry records the blindness; it is SOFT, so it never
+ *  flips the verdict or blocks the next dispatch. */
+const WRITE_BACK_UNMEASURED =
+  "the reviewed-revision write-back could not measure whether this round touched the document (no dispatch baseline or an unreadable repository) — the current bytes were bound";
 
 /** The audit target of one dispatch step — what the round audits. */
 export type AuditTarget =
@@ -233,6 +240,13 @@ export interface DispatchOutcome {
    *  carrying a verdict actually ran, so the bookkeep never synthesizes a carrier for
    *  it (a production round that wrote no draft is booked with a null carrier path). */
   verdict?: RoundVerdict;
+  /** Whether this round touched the document its write-back binds (P31 §2.7) — the
+   *  `dispatchBase..HEAD` path set's judgment. Three states plus the unmeasured one:
+   *  `true` the round's commits touched it, `false` a READABLE range touched it not at
+   *  all, `null` the range could not be read (no dispatch baseline / git unreadable),
+   *  `undefined` never measured (hermetic / injected dispatchers). `false` and `null`
+   *  never collapse: only `false` may skip the bind. */
+  touchedDoc?: boolean | null;
   /** The round's GRADED violations — hard entries failed the round, soft entries are
    *  bookkeeping only (design spec §3.3). Recorded verbatim on the round's record. */
   violations?: readonly RoundViolation[];
@@ -705,6 +719,15 @@ export class Lifecycle {
     // D28): a skipped cycle records its own number, never a flattened ordinal. The
     // attempt was allocated once by the frame builder and rides both the record and
     // the round log's name.
+    //
+    // P31 §2.7 — the write-back's three states become a graded entry HERE, before the
+    // record is written: an UNMEASURABLE range (`null`) keeps today's bind and books
+    // one soft observation (never a verdict flip); `true` / `false` / unmeasured ride
+    // the write-back gate below.
+    const violations: RoundViolation[] = [
+      ...(outcome.violations ?? []),
+      ...(outcome.touchedDoc === null ? [RoundViolation.soft(WRITE_BACK_UNMEASURED)] : []),
+    ];
     const record = this.#ledger.recordRound(
       frame.key,
       {
@@ -719,7 +742,7 @@ export class Lifecycle {
           treeClean: outcome.treeClean ?? true,
           targetAction: !blocked,
         },
-        violations: outcome.violations ?? [],
+        violations,
         carrierPath,
       },
       frame.type,
@@ -737,9 +760,17 @@ export class Lifecycle {
     // real run records nothing while the preview still states the brief leg. The
     // record methods keep their own defensive narrowing; an unreadable input records
     // nothing (present facts only).
-    const leg = record.verdict.targetAction
-      ? ReviewedIdentity.legOf(frame.phase, frame.target.kind)
-      : null;
+    //
+    // P31 §2.7 — the bind is conditional on the round's OWN bytes: a READABLE range
+    // that touched the document not at all (`false`) keeps the OLD binding, so the
+    // existing drift / reopen face pushes the line back to review instead of silently
+    // closing it on bytes the round never delivered. `true`, `null` (unmeasurable —
+    // its soft entry is booked above) and `undefined` (hermetic / injected dispatchers)
+    // keep today's bind.
+    const leg =
+      record.verdict.targetAction && outcome.touchedDoc !== false
+        ? ReviewedIdentity.legOf(frame.phase, frame.target.kind)
+        : null;
     if (leg !== null) {
       switch (leg) {
         case "doc":

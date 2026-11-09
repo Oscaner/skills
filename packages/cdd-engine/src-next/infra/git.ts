@@ -48,6 +48,31 @@ export class GitClient {
     }
   }
 
+  /** The paths the commits after `base` touched — `git log --name-only
+   *  --pretty=format: <base>..HEAD`, deduped and blank-free (P31 §2.7: the write-back's
+   *  "did this round touch the document" evidence). Three facts, never two: a readable
+   *  range with no change yields `[]`, an absent base / non-repo / unreadable git yields
+   *  `null` — "nothing changed" and "cannot tell" are different, and collapsing the
+   *  second into the first would silently claim a round touched nothing. */
+  async pathsSince(cwd: string, base: string | null): Promise<readonly string[] | null> {
+    if (base === null) return null;
+    try {
+      const raw = await this.#git(cwd).raw([
+        "log",
+        "--name-only",
+        "--pretty=format:",
+        `${base}..HEAD`,
+      ]);
+      const paths = raw
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line !== "");
+      return [...new Set(paths)];
+    } catch {
+      return null;
+    }
+  }
+
   /** The commits added after `base`, oldest first, each as `{sha} {subject}` — the
    *  work a crashed child left behind. An absent base or an unreadable repo yields
    *  the empty list (fail-open: the diagnostic fact never breaks a crash record). */

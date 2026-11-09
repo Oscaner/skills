@@ -16,6 +16,7 @@
 // bare functions.
 
 import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
@@ -332,6 +333,9 @@ export class CliLifecycle {
       ...drafted,
       dispatchBase: this.#dispatchBase,
       treeClean: await this.#git.isClean(this.#scene.workspace.root.repoRoot),
+      // P31 §2.7 — whether THIS round's commits touched the document its write-back
+      // binds. Measured once, here, from the same baseline the postmortem reads.
+      touchedDoc: await this.#touchedDocOf(carried),
     };
     const judged = await this.#verdictOf(carried, observed);
     // The death faces author their own entry AND emit their own line (`#reject`), so
@@ -350,6 +354,29 @@ export class CliLifecycle {
       verdict: judged.verdict,
       violations: judged.violations,
     };
+  }
+
+  /** The document path the round's write-back would bind (P31 §2.7) — the doc leg's
+   *  target document, the branch leg's plan document. The wave leg binds a brief
+   *  PROJECTION rather than a document, so it does not participate (null). */
+  #reviewedDocTargetOf(frame: OpenFrame): string | null {
+    if (frame.target.kind === "plan" || frame.target.kind === "spec") return frame.target.doc;
+    if (frame.type === "branch") return this.#scene.planPath;
+    return null;
+  }
+
+  /** Whether this round's own commits touched that document — `true` / `false` read off
+   *  the `dispatchBase..HEAD` path set, `null` when the range cannot be read (no
+   *  baseline / unreadable repo), `undefined` when the leg binds no document. The four
+   *  states stay distinct all the way to the bookkeep: only `false` may skip the bind,
+   *  and `null` books its own soft observation. */
+  async #touchedDocOf(frame: OpenFrame): Promise<boolean | null | undefined> {
+    const target = this.#reviewedDocTargetOf(frame);
+    if (target === null) return undefined;
+    const repoRoot = this.#scene.workspace.root.repoRoot;
+    const touched = await this.#git.pathsSince(repoRoot, this.#dispatchBase);
+    if (touched === null) return null;
+    return touched.includes(path.relative(repoRoot, path.resolve(repoRoot, target)));
   }
 
   /** The round's concluded status under its verdict — a done round keeps its handoff

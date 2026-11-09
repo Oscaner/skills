@@ -14,7 +14,7 @@
 // production loop does.
 
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -1994,6 +1994,197 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
       } finally {
         bareCleanup();
       }
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P31 T6 — the reviewed-revision write-back binds only the bytes this round touched
+// (design spec §2.7). The dispatch reports `touchedDoc`; `#bookkeep` reads it as three
+// states plus the unmeasured default, and the difference is behavioural: an untouched
+// document keeps its OLD binding, so the next frontier pass reopens the review as drift.
+// ---------------------------------------------------------------------------
+
+describe("P31 T6 — the write-back binds only bytes the round touched", () => {
+  /** The doc path under the ledger's read basis (the same absolute form the P24 pins
+   *  use: the basis-relative drift verdict and the absolute write-back hit one file). */
+  const docUnder = (repo: string): string => path.join(repo, ".kairos", "cdd", DOC);
+
+  const docOf = (version: string, body: string): string =>
+    `---\ndoc-type: phase-spec\nversion: ${version}\nslug: x-design\n---\n\n## Design\n\n- ${body}\n`;
+
+  const ORIGINAL = docOf("v0.1", "one");
+  const REWRITTEN = docOf("v0.2", "two");
+
+  /** One clean review round that rewrites the doc inside the round and reports the
+   *  given `touchedDoc` (absent = the injected dispatcher's unmeasured default). */
+  const reviewScript =
+    (doc: string, touchedDoc: boolean | null | undefined) =>
+    (frame: OpenFrame): DispatchOutcome => {
+      if (frame.phase !== "review") return { status: "APPROVED", findings: [] };
+      writeFileSync(doc, REWRITTEN);
+      return {
+        status: "APPROVED",
+        findings: [],
+        ...(touchedDoc === undefined ? {} : { touchedDoc }),
+      };
+    };
+
+  /** Drive one phase-spec review round over the fixture doc. */
+  const review = async (
+    touchedDoc: boolean | null | undefined,
+  ): Promise<{
+    ledger: Ledger;
+    doc: string;
+    run: Lifecycle;
+    route: StepResult["route"];
+    cleanup: () => void;
+  }> => {
+    const { ledger, repo, cleanup } = fixture();
+    const doc = docUnder(repo);
+    mkdirSync(path.dirname(doc), { recursive: true });
+    writeFileSync(doc, ORIGINAL);
+    const run = new Lifecycle({
+      face: targetFaces["phase-spec"],
+      state: EMPTY_RUN_STATE,
+      ledger,
+      dispatch: stub(reviewScript(doc, touchedDoc)).step,
+      target: { kind: "spec", doc },
+    });
+    const step = await run.advance();
+    return { ledger, doc, run, route: step!.route, cleanup };
+  };
+
+  /** The line's latest recorded round. */
+  const lastRecord = (ledger: Ledger) => ledger.recordsOf("phase-spec", "phase-spec").at(-1)!;
+
+  it("`true` — the round's own bytes are bound and the line stays closed", async () => {
+    const { ledger, doc, run, route, cleanup } = await review(true);
+    try {
+      const bound = ledger.reviewedDocRevisionOf("phase-spec", "phase-spec")!;
+      expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, REWRITTEN).doc_hash);
+      expect(route).toEqual({ kind: "done" });
+      expect(run.peekNext()).toBeNull();
+      expect(lastRecord(ledger).violations).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("`false` — the OLD binding survives, and the next pass reopens the review as drift", async () => {
+    // The acceptance fixture: review closes on `ORIGINAL`, the document is committed
+    // OUTSIDE the round, then a fix round that touches nothing claims `false`. The
+    // binding must still name the review's bytes, and the drift face must reopen.
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const doc = docUnder(repo);
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, ORIGINAL);
+      const dispatch = stub((frame) => {
+        if (frame.phase === "review") return { status: "APPROVED", findings: [finding("warn")] };
+        return { status: "APPROVED", touchedDoc: false };
+      });
+      const run = new Lifecycle({
+        face: targetFaces["phase-spec"],
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "spec", doc },
+      });
+      const reviewStep = await run.advance();
+      expect(reviewStep!.frame.phase).toBe("review");
+      // The out-of-round commit — the round never sees it as its own work.
+      writeFileSync(doc, REWRITTEN);
+      const fixStep = await run.advance();
+      expect(fixStep!.frame.phase).toBe("fix");
+
+      const bound = ledger.reviewedDocRevisionOf("phase-spec", "phase-spec")!;
+      // The untouched claim keeps the pre-round bytes: the round did not deliver them.
+      expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, ORIGINAL).doc_hash);
+      expect(bound.doc_hash).not.toBe(ledger.refs().docRevision(doc, REWRITTEN).doc_hash);
+      // The behaviour, not just the field: the line reads open again (drift / reopen).
+      expect(run.peekNext()!.frame.phase).toBe("review");
+      expect(lastRecord(ledger).violations).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("`null` — the current bytes are bound and the round books ONE soft observation", async () => {
+    const { ledger, doc, run, cleanup } = await review(null);
+    try {
+      const bound = ledger.reviewedDocRevisionOf("phase-spec", "phase-spec")!;
+      expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, REWRITTEN).doc_hash);
+      const violations = lastRecord(ledger).violations;
+      expect(violations).toHaveLength(1);
+      expect(violations[0]?.grade).toBe("soft");
+      expect(violations[0]?.message).toContain("could not measure");
+      // A soft observation never flips the verdict: the round still closes.
+      expect(lastRecord(ledger).verdict.targetAction).toBe(true);
+      expect(run.peekNext()).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("absent — the injected dispatcher keeps today's behaviour: bind current, no observation", async () => {
+    const { ledger, doc, run, cleanup } = await review(undefined);
+    try {
+      const bound = ledger.reviewedDocRevisionOf("phase-spec", "phase-spec")!;
+      expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, REWRITTEN).doc_hash);
+      expect(lastRecord(ledger).violations).toEqual([]);
+      expect(run.peekNext()).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P31 T5 — a round that books NO carrier still closes its own write window
+// (design spec §2.4). The lifecycle's terminals are one entry point; `#bookkeep`'s
+// `carrierPath === null` branch is the failure face's second leg, so an injected
+// dispatcher (the session plane's own seam) can never leave a carrier writable.
+// ---------------------------------------------------------------------------
+
+describe("P31 T5 — the carrier-less failure face seals its own two names", () => {
+  /** The permission bits of one path — the seal pin's observation. */
+  const modeOf = (target: string): number => statSync(target).mode & 0o777;
+
+  /** A dispatcher that leaves BOTH of the round's names writable — what a child and a
+   *  failed materialization leave behind — then concludes BLOCKED with no carrier. */
+  const plantThenBlock =
+    (ledger: Ledger, workspace: Workspace, seen: number[][]) =>
+    (frame: OpenFrame): DispatchOutcome => {
+      const draftName = ledger.handoffName("review", frame.type, frame.params);
+      const names = [draftName, ledger.naming().finalName(draftName, frame.params.round)];
+      for (const name of names) workspace.writeJson(name, { findings: [] });
+      seen.push(names.map((name) => modeOf(workspace.resolve(name))));
+      return { status: "BLOCKED" };
+    };
+
+  it("seals the draft and the final a BLOCKED round left writable", async () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const seen: number[][] = [];
+      const dispatch = stub(plantThenBlock(ledger, workspace, seen));
+      const run = new Lifecycle({
+        face: targetFaces["phase-spec"],
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "spec", doc: DOC },
+      });
+      const step = await run.advance();
+      // The fixture's premise: both names were writable when the round failed.
+      expect(seen).toEqual([[0o644, 0o644]]);
+      const draftName = ledger.handoffName("review", step!.frame.type, step!.frame.params);
+      const names = [draftName, ledger.naming().finalName(draftName, step!.frame.params.round)];
+      expect(names.map((name) => modeOf(workspace.resolve(name)))).toEqual([0o444, 0o444]);
+      // The round is still recorded — the seal is bookkeeping, never a lost round.
+      expect(ledger.recordsOf("phase-spec", "phase-spec")).toHaveLength(1);
     } finally {
       cleanup();
     }

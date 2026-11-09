@@ -23,6 +23,7 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { type DocEntry, SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { CarrierIntegrity, CarrierMismatchError } from "../../session/carrier-integrity.ts";
 import { DispatchAuthority } from "../../session/dispatch-authority.ts";
 import { type RouteTarget, targetFaces } from "../../session/faces.ts";
 import type { InFlightRecord } from "../../session/inflight.ts";
@@ -1297,6 +1298,31 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     expect(BoardView.summaryCell([findingsOnly])).toBe("review 1 ✓+2");
     // A record with no carrier (a legacy row / a work-plane round) contributes zero.
     expect(BoardView.summaryCell([record({ cycle: 1 })])).toBe("review 1 ✓");
+  });
+
+  it("(c3) the +N read is CHECKED against the record's digest — a tampered carrier raises, an absent one counts zero", () => {
+    // P31 §2.2 — absent and mismatch are DIFFERENT facts: an absent carrier is a
+    // present-facts zero, a carrier whose bytes moved past its digest is a refusal.
+    const findings = [{ severity: "warn" }];
+    const at = carrier(findings);
+    const digest = CarrierIntegrity.digestOf({ findings });
+    expect(
+      BoardView.summaryCell([record({ cycle: 1, carrierPath: at, carrierDigest: digest })]),
+    ).toBe("review 1 ✓+1");
+    writeFileSync(
+      at,
+      `${JSON.stringify({ findings: [...findings, { severity: "blocker" }] }, null, 2)}\n`,
+    );
+    expect(() =>
+      BoardView.summaryCell([record({ cycle: 1, carrierPath: at, carrierDigest: digest })]),
+    ).toThrow(CarrierMismatchError);
+    // An absent carrier with a recorded digest stays the zero count (absence ≠ mismatch).
+    const ghost = path.join(path.dirname(at), "tasks-9-review-1.json");
+    expect(
+      BoardView.summaryCell([record({ cycle: 1, carrierPath: ghost, carrierDigest: digest })]),
+    ).toBe("review 1 ✓");
+    // A LEGACY record (no digest) over the same tampered bytes keeps the present-facts read.
+    expect(BoardView.summaryCell([record({ cycle: 1, carrierPath: at })])).toBe("review 1 ✓+2");
   });
 
   it("(d) a same-cycle re-dispatch renders a ratio plus a recovered failure token, and attempt 1 never renders `a1`", () => {

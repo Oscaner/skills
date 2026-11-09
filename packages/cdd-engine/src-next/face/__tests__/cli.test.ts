@@ -39,6 +39,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -52,6 +53,7 @@ import {
   IMPLEMENT_CARRIER_ABSENT,
 } from "../../contract/completion-criterion.ts";
 import { Contract } from "../../contract/judge.ts";
+import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
@@ -447,10 +449,10 @@ const conformingOverall = (repoRoot: string): string => {
       "- maintenance note",
       "",
       "## Change history",
-      "| Version | Date | Summary |",
-      "| --- | --- | --- |",
-      "| v1.20 | 2026-10-06 | prior change |",
-      "| v1.21 | 2026-10-07 | merged change |",
+      "| Version | date | summary | author |",
+      "| --- | --- | --- | --- |",
+      "| v1.20 | 2026-10-06 | prior change | [human] |",
+      "| v1.21 | 2026-10-07 | merged change | [human] |",
     ].join("\n"),
     "utf8",
   );
@@ -1849,7 +1851,12 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // the bare terminal word.
       expect(io.stdoutText).toContain("next: review --type branch --plan ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
-      expect(existsSync(path.join(workspace, "tasks-1-review-1.json"))).toBe(true);
+      expect(existsSync(path.join(workspace, "tasks-1-review-1.c1.json"))).toBe(true);
+      // P31 §2.3 — the capsule's `handoff:` cell names the FINAL carrier (the round's
+      // judged artifact), repoRoot-relative like every cell path.
+      expect(io.stdoutText).toContain(
+        `handoff: ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.json"))}`,
+      );
     } finally {
       cleanup();
     }
@@ -1936,7 +1943,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       // D47 — the next: literal's embedded paths are repoRoot-relative (the ONE shape).
       expect(io.stdoutText).toContain(
-        `next: fix --type wave --tasks 1 --plan ${path.relative(repoRoot, plan)} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.json"))} ${FIX_READBACK_SUFFIX}`,
+        `next: fix --type wave --tasks 1 --plan ${path.relative(repoRoot, plan)} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.json"))} ${FIX_READBACK_SUFFIX}`,
       );
     } finally {
       cleanup();
@@ -1967,7 +1974,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · handoff: ");
       expect(io.stdoutText).toContain(`next: review --type wave --tasks 1`);
-      expect(existsSync(path.join(workspace.path, "tasks-1-fix-1.json"))).toBe(true);
+      expect(existsSync(path.join(workspace.path, "tasks-1-fix-1.c1.json"))).toBe(true);
     } finally {
       cleanup();
     }
@@ -2439,7 +2446,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // the branch line's workspace is the plan-slug (the fix dispatch's --plan) and
       // the handoff is the spine `branch-review-1.json` (no range token in the name)
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
-      expect(existsSync(path.join(workspace, "branch-review-1.json"))).toBe(true);
+      expect(existsSync(path.join(workspace, "branch-review-1.c1.json"))).toBe(true);
     } finally {
       cleanup();
     }
@@ -2470,7 +2477,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stderrText).not.toContain("face-closed");
       // the round CONTINUES on the same line key (branch-review-2, never a reset)
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
-      expect(existsSync(path.join(workspace, "branch-review-2.json"))).toBe(true);
+      expect(existsSync(path.join(workspace, "branch-review-2.c2.json"))).toBe(true);
       const progress = readJson<{
         waves: Array<{ wave: string; rounds?: unknown[] }>;
       }>(path.join(workspace, "progress.json"));
@@ -2580,7 +2587,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // revision (the findings are a present fact, not a stale reading).
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
-      expect(existsSync(path.join(workspace, "plan-review-1.json"))).toBe(true);
+      expect(existsSync(path.join(workspace, "plan-review-1.c1.json"))).toBe(true);
       // The spec line is seeded closed so the plan face IS the board's frontier.
       const ledger = new Ledger(
         new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure(),
@@ -2618,7 +2625,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       io.stdoutText = "";
       expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan])).toBe(0);
       expect(io.stderrText).not.toContain("cannot dispatch");
-      expect(existsSync(path.join(workspace, "plan-fix-1.json"))).toBe(true);
+      expect(existsSync(path.join(workspace, "plan-fix-1.c1.json"))).toBe(true);
     } finally {
       cleanup();
     }
@@ -2969,7 +2976,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // T3 deliberate pin break: the phase-spec closure routes the cdd-plan ref (PIPELINE_NEXT.phase-spec).
       expect(io.stdoutText).toContain("next: route to /kairos:cdd-plan skill");
       expect(
-        existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "phase-spec-review-1.json")),
+        existsSync(path.join(repoRoot, ".kairos", "cdd", "s1", "phase-spec-review-1.c1.json")),
       ).toBe(true);
       io.stdoutText = "";
       // The plan face is doc-contract-gated (P4.1 T1): a contract-clean plan (the
@@ -2978,7 +2985,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const plan = conformingPlan(repoRoot);
       const planCode = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
       expect(planCode).toBe(0);
-      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-1.json"))).toBe(
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-1.c1.json"))).toBe(
         true,
       );
     } finally {
@@ -3102,7 +3109,13 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // refuses over CDD_BLOCKED and no round lands. The exit 0 + round +
       // empty-findings carrier pin the zero misreport; the stderr stays free of the
       // blocked channel.
-      const round = path.join(repoRoot, ".kairos", "cdd", "o1-overall", "phase-spec-review-1.json");
+      const round = path.join(
+        repoRoot,
+        ".kairos",
+        "cdd",
+        "o1-overall",
+        "phase-spec-review-1.c1.json",
+      );
       expect(existsSync(round)).toBe(true);
       expect(io.stderrText).not.toContain("CDD_BLOCKED");
       expect(readJson<{ findings: unknown[] }>(round).findings).toEqual([]);
@@ -3138,7 +3151,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       io.stdoutText = "";
       const reopen = await command.runArgv(["review", "--type", "plan", "--plan", plan]);
       expect(reopen).toBe(0);
-      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.json"))).toBe(
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.c2.json"))).toBe(
         true,
       );
     } finally {
@@ -3283,7 +3296,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // Review round 1 with blockers — the line awaits its fix.
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
-      expect(existsSync(path.join(workspace, "plan-review-1.json"))).toBe(true);
+      expect(existsSync(path.join(workspace, "plan-review-1.c1.json"))).toBe(true);
       // The aborted fix — the round lands with its failure verdict (a dispatched round
       // always records), earns the second attempt, and the pending fix survives it.
       io.stdoutText = "";
@@ -3450,7 +3463,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stderrText).not.toContain("already reviewed");
       expect(io.stderrText).not.toContain("cannot dispatch");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
-      expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(true);
+      expect(existsSync(path.join(workspace, "plan-review-2.c2.json"))).toBe(true);
     } finally {
       cleanup();
     }
@@ -3724,7 +3737,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stderrText).toContain("  planned-tasks-vs-recorded-tasks: passed\n");
       expect(
         io.stderrText.split("\n").filter((line) => line.endsWith(": skipped (no doc target)")),
-      ).toHaveLength(23);
+      ).toHaveLength(24);
 
       // ② the refused path: the same face after the BLOCK wording + its details
       writeFileSync(path.join(repoRoot, "seed.txt"), "modified\n", "utf8");
@@ -3873,7 +3886,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         0,
       );
       const fixCarrier = JSON.parse(
-        readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-fix-1.json"), "utf8"),
+        readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-fix-1.c1.json"), "utf8"),
       ) as Record<string, unknown>;
       expect("findings" in fixCarrier).toBe(false);
       expect(Object.keys(fixCarrier)).not.toContain("findings");
@@ -4061,7 +4074,7 @@ describe("P4.1 T4 — the real chain: next literals dispatch the next round (rev
         await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       ).toBe(0);
       expect(nextOf()).toBe(
-        `fix --type wave --tasks 1 --plan ${planRel} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.json"))} ${FIX_READBACK_SUFFIX}`,
+        `fix --type wave --tasks 1 --plan ${planRel} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.json"))} ${FIX_READBACK_SUFFIX}`,
       );
       io.stdoutText = "";
 
@@ -5035,6 +5048,45 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
       // one header, one board — the node shape taken from the phase-spec entry
       expect(io.stdoutText.match(/^cdd board: /gm)).toHaveLength(1);
       expect(io.stdoutText).toContain("cdd board: prog-p1");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P31 T3 — a tampered carrier on the board's `+N` read is a CDD_BLOCKED stop, never a silent zero", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      const workspace = new Workspace(
+        new WorkspaceRoot(repoRoot, ".kairos/cdd"),
+        "prog-p1",
+      ).ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      const persisted = ledger.persistHandoff(
+        "review",
+        "plan",
+        { round: 1 },
+        {
+          findings: [{ severity: "warn", summary: "drift" }],
+        },
+      );
+      ledger.recordRound("plan", {
+        op: "review",
+        cycle: 1,
+        carrierPath: persisted.path,
+        carrierDigest: persisted.digest,
+      });
+      // The tamper: an EXTERNAL writer reopens the sealed carrier (P31 §2.4) and
+      // replaces the bytes the recorded digest covers.
+      CarrierSeal.unseal(persisted.path);
+      writeFileSync(persisted.path, `${JSON.stringify({ findings: [] }, null, 2)}\n`, "utf8");
+      const code = await command.runArgv(["board", "--plan", PLAN]);
+      expect(code).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED: carrier-mismatch");
+      expect(io.stderrText).toContain("line=");
+      expect(io.stderrText).toContain("recorded=");
+      expect(io.stderrText).toContain("current=");
     } finally {
       cleanup();
     }
@@ -8232,11 +8284,15 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
     }
   });
 
-  it("keeps the brief hash's ONLY derivation in ReviewRefs — zero new hash surface", () => {
+  it("keeps the brief hash's ONLY derivation in ReviewRefs — the engine's hash sites stay enumerated", () => {
+    // The brief hash's one derivation is `ReviewRefs` (P? — the `doc-revision-body`
+    // guard pins the doc-body side). The list is the engine's WHOLE `createHash` surface:
+    // P31 §2.2 sanctions exactly one more — the workspace plane's raw-bytes digest
+    // primitive the carrier rule delegates to. A third site is still a red.
     const carriers = engineSourceTexts()
       .filter(([, text]) => text.includes("createHash"))
       .map(([file]) => file);
-    expect(carriers).toEqual(["session/ledger.ts"]);
+    expect(carriers).toEqual(["infra/workspace.ts", "session/ledger.ts"]);
   });
 });
 
@@ -8421,7 +8477,7 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
       });
       // No fake completed fix: the fix identity stays with its requesting review (D28).
       expect(ledger.completedCycles("plan", "fix", "plan")).toEqual([]);
-      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.json"))).toBe(
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.c2.json"))).toBe(
         true,
       );
     } finally {
@@ -8834,7 +8890,7 @@ describe("P22 T14 — the target vocabulary (six values, one spelling)", () => {
       expect(io.stderrText).not.toContain("CDD_BLOCKED");
       // the round records on the OVERALL line (`overall-review-N`) — the charter
       // review is no longer folded into the phase-spec line
-      const round = path.join(repoRoot, ".kairos", "cdd", "o1-overall", "overall-review-1.json");
+      const round = path.join(repoRoot, ".kairos", "cdd", "o1-overall", "overall-review-1.c1.json");
       expect(existsSync(round)).toBe(true);
       expect(readJson<{ findings: unknown[] }>(round).findings).toEqual([]);
       // and its closure is the pipeline terminus
@@ -8882,6 +8938,69 @@ describe("P22 T15 — the charter review prompt", () => {
       for (const forbidden of ["typecheck", "test command", "Claimed→pin"]) {
         expect(prompt).not.toContain(forbidden);
       }
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P31 T5 — the seal cycle at the composition root (design spec §2.4): a round that
+// SUCCEEDS books its carrier through the production read-back → materialize →
+// persist path, and both of the round's own names (the child's draft, the engine's
+// final) land read-only. The other three terminals (a child death's `#reject`, a
+// pre-spawn gate refusal, the `--recover` abort fold) are pinned at their own faces.
+// ---------------------------------------------------------------------------
+
+/** The permission bits of one path (group/other/sticky bits are noise). */
+const sealModeOf = (target: string): number => statSync(target).mode & 0o777;
+
+/** The review child stand-in — writes the round's findings draft at the wave's
+ *  canonical handoff path, the production read-back's input. */
+class ReviewCarrierRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    const workspace = path.join(run.cwd, ".kairos", "cdd", "p3");
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(
+      path.join(workspace, "tasks-1-review-1.json"),
+      JSON.stringify({ findings: [{ severity: "warn", lens: "spec", summary: "drift" }] }),
+      "utf8",
+    );
+    return { code: 0, stdout: "", stderr: "", termination: null };
+  }
+}
+
+describe("P31 T5 — a successful round lands both of its own carriers read-only", () => {
+  it("books the FINAL beside the child's draft and seals both to 0o444", async () => {
+    const runner = new ReviewCarrierRunner();
+    const { command, io, repoRoot, cleanup } = fixture({ sync: runner });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace, ledger } = sceneOf(repoRoot);
+      // The wave's review phase is open once the implement round is recorded.
+      ledger.recordRound("1", { op: "implement" });
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      expect(runner.calls).toHaveLength(1);
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+      const draft = workspace.resolve("tasks-1-review-1.json");
+      const final = workspace.resolve("tasks-1-review-1.c1.json");
+      // The draft keeps the child's bytes (the final never overwrites it) …
+      expect(existsSync(draft)).toBe(true);
+      expect(existsSync(final)).toBe(true);
+      // … and BOTH of this round's names are closed to writes.
+      expect(sealModeOf(draft)).toBe(0o444);
+      expect(sealModeOf(final)).toBe(0o444);
     } finally {
       cleanup();
     }

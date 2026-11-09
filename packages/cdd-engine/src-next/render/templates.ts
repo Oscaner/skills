@@ -238,6 +238,7 @@ const DOCS_FIX_SHELL: readonly string[] = [
   "**docs-fix:** apply `INPUT_REVIEWS` (all severities) directly to the judged doc — `INPUT_PLAN` on a plan-doc line, `INPUT_SPEC` on a spec-doc line — removing fixed findings; record the path in `artifacts.doc` and report the round in `status` (APPROVED once every finding is applied, else BLOCKED + the reason in `notes`). Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; retry = full re-run (idempotent).",
   "**Change-history rows:** a new `## Change history` row bumps the front-matter `version:` in the same edit — the header version is the lineage's newest numeric version, and the two can never disagree.",
   "**Table cells:** never hard-wrap a table cell — a wrapped continuation parses as a row whose cell count disagrees with the header, and the lineage row it was meant to be stops registering.",
+  "**Escaped pipes:** a `## Change history` summary cell that needs a literal vertical bar carries `\\|` — a bare `|` splits the cell in two and the row stops matching the declared header.",
   '**Dispositions:** every requested finding needs a disposition keyed by its `id` exactly as the requesting carrier prints it (`F1`, `F2`, … — the summary is description only), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` — a missing or mis-keyed disposition fails the round.',
   ...LICENSE_ITEMS,
   // The generic strict-schema sentence — the SAME one the work shells carry: the
@@ -307,6 +308,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `INPUT_SPEC`: {{INPUT_SPEC}}",
       "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
       "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
+      "- `INPUT_RULINGS`: {{INPUT_RULINGS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -326,6 +328,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `INPUT_SPEC`: {{INPUT_SPEC}}",
       "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
       "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
+      "- `INPUT_RULINGS`: {{INPUT_RULINGS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
       "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
@@ -502,6 +505,9 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "INPUT_SPEC", zone: "round-context" },
   { name: "INPUT_OVERALL", zone: "round-context" },
   { name: "INPUT_REVIEWS", zone: "round-context" },
+  // P31 — the fix round's ruling sidecar (the source carrier's `.rulings.json`
+  // sibling); a review writes its own draft, so its round context never carries it.
+  { name: "INPUT_RULINGS", zone: "round-context" },
   { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
   // find #5 — the prescribed artifact write paths (the {family}-{key}-{artifact}
   // single naming; the brief is a pure read input with no write slot).

@@ -82,10 +82,10 @@ const GOOD_OVERALL = [
   "- maintenance note",
   "",
   "## Change history",
-  "| Version | Date | Summary |",
-  "| --- | --- | --- |",
-  "| v1.20 | 2026-10-06 | prior change |",
-  "| v1.21 | 2026-10-07 | merged change |",
+  "| Version | date | summary | author |",
+  "| --- | --- | --- | --- |",
+  "| v1.20 | 2026-10-06 | prior change | [human] |",
+  "| v1.21 | 2026-10-07 | merged change | [human] |",
 ].join("\n");
 
 const OVERALL_PATH = "docs/kairos/specs/x-overall.md";
@@ -406,8 +406,8 @@ describe("base nine invariants — one negative case each", () => {
 
   it("front-matter-version-in-lineage: a header version outside the lineage is reported", () => {
     const content = GOOD_OVERALL.replace(
-      "| v1.21 | 2026-10-07 | merged change |",
-      "| v1.20 | 2026-10-06 | older only |",
+      "| v1.21 | 2026-10-07 | merged change | [human] |",
+      "| v1.20 | 2026-10-06 | older only | [human] |",
     );
     const findings = judge("overall", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "front-matter-version-in-lineage", "version")).toBe(true);
@@ -565,8 +565,8 @@ describe("the canonical repo forms (no false positives on real conventions)", ()
 
   it("domain: a table-cell citation of a section anchor is not judged as a value", () => {
     const content = GOOD_OVERALL.replace(
-      "| v1.20 | 2026-10-06 | prior change |",
-      "| v1.20 | 2026-10-06 | `## Program charter` 重构 |",
+      "| v1.20 | 2026-10-06 | prior change | [human] |",
+      "| v1.20 | 2026-10-06 | `## Program charter` 重构 | [human] |",
     );
     const findings = judge("overall", content, GOOD_OVERALL_FS);
     expect(withKind(findings, "domain", "## Program charter")).toBe(false);
@@ -1035,10 +1035,10 @@ describe("P4.1 T2 — `## Change history` presence required ×3", () => {
     const content = GOOD_OVERALL.replace(
       [
         "## Change history",
-        "| Version | Date | Summary |",
-        "| --- | --- | --- |",
-        "| v1.20 | 2026-10-06 | prior change |",
-        "| v1.21 | 2026-10-07 | merged change |",
+        "| Version | date | summary | author |",
+        "| --- | --- | --- | --- |",
+        "| v1.20 | 2026-10-06 | prior change | [human] |",
+        "| v1.21 | 2026-10-07 | merged change | [human] |",
       ].join("\n"),
       "",
     );
@@ -1253,8 +1253,8 @@ describe("P21 T2 — change-history-version-unique on all four doc types", () =>
       const content =
         docKey === "overall"
           ? GOOD_OVERALL.replace(
-              "| v1.21 | 2026-10-07 | merged change |",
-              "| v1.20 | 2026-10-07 | duplicate row |",
+              "| v1.21 | 2026-10-07 | merged change | [human] |",
+              "| v1.20 | 2026-10-07 | duplicate row | [human] |",
             )
           : lineageOf(docKey).replace(ROW_101, ROW_100);
       const findings = judge(docKey, content, GOOD_OVERALL_FS);

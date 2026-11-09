@@ -30,7 +30,8 @@ const RULINGS_SUFFIX = ".rulings.json";
  */
 // biome-ignore lint/complexity/noStaticOnlyClass: every method is a judgment over a path argument; there is no per-instance state to hold.
 export class CarrierSeal {
-  /** The mode a carrier lands in: owner-read/write, everyone else read-only. */
+  /** The mode a carrier lands in: owner, group and other all read-only — the engine
+   *  rewrites a carrier by unsealing it first, never by writing through the sealed bit. */
   static readonly SEALED = 0o444;
 
   /** The mode a dispatch opens its OWN names with (the child writes the draft, the

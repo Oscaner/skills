@@ -14,7 +14,7 @@
 // production loop does.
 
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -2136,6 +2136,55 @@ describe("P31 T6 — the write-back binds only bytes the round touched", () => {
       expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, REWRITTEN).doc_hash);
       expect(lastRecord(ledger).violations).toEqual([]);
       expect(run.peekNext()).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P31 T5 — a round that books NO carrier still closes its own write window
+// (design spec §2.4). The lifecycle's terminals are one entry point; `#bookkeep`'s
+// `carrierPath === null` branch is the failure face's second leg, so an injected
+// dispatcher (the session plane's own seam) can never leave a carrier writable.
+// ---------------------------------------------------------------------------
+
+describe("P31 T5 — the carrier-less failure face seals its own two names", () => {
+  /** The permission bits of one path — the seal pin's observation. */
+  const modeOf = (target: string): number => statSync(target).mode & 0o777;
+
+  /** A dispatcher that leaves BOTH of the round's names writable — what a child and a
+   *  failed materialization leave behind — then concludes BLOCKED with no carrier. */
+  const plantThenBlock =
+    (ledger: Ledger, workspace: Workspace, seen: number[][]) =>
+    (frame: OpenFrame): DispatchOutcome => {
+      const draftName = ledger.handoffName("review", frame.type, frame.params);
+      const names = [draftName, ledger.naming().finalName(draftName, frame.params.round)];
+      for (const name of names) workspace.writeJson(name, { findings: [] });
+      seen.push(names.map((name) => modeOf(workspace.resolve(name))));
+      return { status: "BLOCKED" };
+    };
+
+  it("seals the draft and the final a BLOCKED round left writable", async () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const seen: number[][] = [];
+      const dispatch = stub(plantThenBlock(ledger, workspace, seen));
+      const run = new Lifecycle({
+        face: targetFaces["phase-spec"],
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "spec", doc: DOC },
+      });
+      const step = await run.advance();
+      // The fixture's premise: both names were writable when the round failed.
+      expect(seen).toEqual([[0o644, 0o644]]);
+      const draftName = ledger.handoffName("review", step!.frame.type, step!.frame.params);
+      const names = [draftName, ledger.naming().finalName(draftName, step!.frame.params.round)];
+      expect(names.map((name) => modeOf(workspace.resolve(name)))).toEqual([0o444, 0o444]);
+      // The round is still recorded — the seal is bookkeeping, never a lost round.
+      expect(ledger.recordsOf("phase-spec", "phase-spec")).toHaveLength(1);
     } finally {
       cleanup();
     }

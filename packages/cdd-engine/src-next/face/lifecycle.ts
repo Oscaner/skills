@@ -678,7 +678,16 @@ export class CliLifecycle {
     // A sibling dispatch that won the lock in between makes `acquire` throw
     // `HoldingError` (carrying the holder's facts), which rides the CLI's held BLOCK.
     this.#dispatchBase = await this.#git.head(this.#scene.workspace.root.repoRoot);
-    await this.#inflight.acquire(await this.#recordOf(frame), { recover: this.#recover });
+    try {
+      await this.#inflight.acquire(await this.#recordOf(frame), { recover: this.#recover });
+    } catch (raw) {
+      // P31 T5 §2.4 — the preflight half already opened this round's two names, so
+      // EVERY exit after it closes them, including this one: a losing dispatch (the
+      // gate→acquire race the CLI renders as the held BLOCK) must not leave a
+      // writable carrier behind for the next preflight sweep to recover.
+      this.#sealRoundCarriers(frame);
+      throw raw;
+    }
     // The round's own log file — created BEFORE the spawn (append stream open, zero
     // bytes), so the channel exists from the dispatch's first millisecond. A create
     // failure is a named soft observation and the round continues on the CPU leg

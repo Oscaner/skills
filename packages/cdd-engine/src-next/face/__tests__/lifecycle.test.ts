@@ -40,7 +40,7 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierRulings } from "../../session/carrier-rulings.ts";
-import { InFlight } from "../../session/inflight.ts";
+import { HoldingError, InFlight } from "../../session/inflight.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "../lifecycle.ts";
@@ -1059,6 +1059,33 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
       writeFileSync(draft, JSON.stringify({ findings: [] }), "utf8");
       expect(await lifecycleOf(f).foldAbort()).toBe(true);
       // The record's OWN identity seals the draft the dead child left writable.
+      expect(modeOf(draft)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("a losing acquire race (HoldingError) re-seals the window the preflight opened", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const draft = path.join(f.scene.workspace.path, "tasks-1-review-1.json");
+      writeFileSync(draft, JSON.stringify({ findings: [] }), "utf8");
+      expect(modeOf(draft)).toBe(0o644);
+      // The gate→acquire race: a sibling dispatch holds the tree, so `acquire` refuses
+      // with `HoldingError` AFTER the preflight half opened this round's own names.
+      plantStale(f, staleRecord({ pid: 1 }));
+      const holding = new InFlight(f.scene.workspace.root, f.scene.workspace.slug, {
+        live: async () => true,
+      });
+      const lifecycle = new CliLifecycle({
+        scene: f.scene,
+        io: f.io,
+        sync: new SilentRunner(),
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        inflight: holding,
+      });
+      await expect(lifecycle.step()(reviewFrame)).rejects.toBeInstanceOf(HoldingError);
+      // The refused dispatch leaves no writable carrier behind.
       expect(modeOf(draft)).toBe(0o444);
     } finally {
       f.cleanup();

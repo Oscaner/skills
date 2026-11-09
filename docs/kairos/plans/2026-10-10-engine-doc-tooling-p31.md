@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P31 计划：账本事实与磁盘一致性
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-11-09
 slug: 2026-10-10-engine-doc-tooling-p31
 base: develop
@@ -105,18 +105,18 @@ none
 
 #### Steps
 
-- 写失败测 `carrier-rulings.test.ts`：`pathFor` 两种入参、缺文件 `absent`、合法文件 `ok`、五条 `invalid`（非 JSON · `rulings` 非数组 · 条目缺 `ruling` · 未知顶层键 · `finding` 不在 carrier id 集）— checkable: 定向 vitest 该文件 FAIL（模块不存在）
-- 实现 `session/carrier-rulings.ts`：`pathFor` 换后缀 · `read` 只在文件存在时解析 · `verdict` 三态并逐条给 reason · 白名单拒未知键 — checkable: 上一步全 PASS，typecheck exit 0
+- 写失败测 `carrier-rulings.test.ts`：`pathFor` 两种入参、缺文件 `absent`、合法文件 `ok`、九条 `invalid`（非 JSON · 缺 `rulings` 键 · `rulings` 非数组 · 条目缺 `finding` · 条目缺 `ruling` · 未知顶层键 · 条目出现未知键 · `finding` 不在 carrier id 集 · `carrier` 键存在但 ≠ 载体文件名）— checkable: 定向 vitest 该文件 FAIL（模块不存在）
+- 实现 `session/carrier-rulings.ts`：`pathFor` 换后缀 · `read` 只在文件存在时解析 · `verdict` 三态并逐条给 reason · 顶层与 ruling 两级白名单拒未知键 · `carrier` 出现时须等于载体文件名 — checkable: 上一步全 PASS，typecheck exit 0
 - 写失败测（渲染面）：有 sidecar 夹具时 fix prompt 含裁定正文；无 sidecar 时 prompt 零 `INPUT_RULINGS` 字面；review 轮（`op !== "fix"`）零该字面 — checkable: 定向 vitest FAIL（`TOKENS` 无该行）
 - `render/templates.ts` 的 `TOKENS` 加 `{ name: "INPUT_RULINGS", zone: "round-context" }`，fix 与 docs-fix 的 `roundContext` 在 `INPUT_REVIEWS` 之后加该行；`face/lifecycle.ts#valuesOf` 填 `op === "fix"` 时按 `CarrierRulings.verdict` 推导路径、其余空串 — checkable: 上一步三例 PASS，且空值行被既有 assembler 丢弃（prompt 内零该字面）
-- 派发前硬停：`#runDispatch` 在 `#inflight.acquire` 之前对 `invalid` 走 `#blocked` 并返回 `{ status: "BLOCKED", violations: [RoundViolation.hard(reason)] }` — checkable: 坏 sidecar 夹具下 dispatcher 零调用（注入 dispatcher 的 spy 计数为 0）
+- 派发前硬停：`#runDispatch` 在 `#inflight.acquire` 之前对九种 `invalid` 任一种走 `#blocked` 并返回 `{ status: "BLOCKED", violations: [RoundViolation.hard(reason)] }` — checkable: 坏 sidecar 夹具下 dispatcher 零调用（注入 dispatcher 的 spy 计数为 0）
 - `session/next.ts` 的 `FIX_READBACK_SUFFIX` 改为指向 sidecar 的新字面；`cli.test.ts` 七处 anchors 整体重锚 — checkable: `cli.test.ts` 四条 fix 的 `next:` 断言 PASS，且全库 `FIX_READBACK_SUFFIX` 引用零字面复制
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 - `CarrierRulings.pathFor` 与 spec §2.1 的 `.json → .rulings.json` 规则一致（成对 pin：draft 名与 `.cN` 名两种输入）。
 - 有 sidecar 的 fix 渲染含裁定正文；无 sidecar 时 prompt 内零 `INPUT_RULINGS` 字面（成对 pin）。
-- sidecar 五种坏形态在派发前 `CDD_BLOCKED`，child 零 spawn（断言 dispatcher 未被调用）。
+- sidecar 九种坏形态（缺 `rulings` · 非 JSON · `rulings` 非数组 · 条目缺 `finding` · 条目缺 `ruling` · 未知顶层键 · 条目未知键 · `finding` 不在 carrier id 集 · `carrier` ≠ 载体文件名）各自单独一枚用例，均在派发前 `CDD_BLOCKED` 且 dispatcher 零调用（逐例单独断言，不合并成一枚）。
 - review 轮（`op !== "fix"`）的 round-context 零 `INPUT_RULINGS`。
 
 #### DependsOn
@@ -128,7 +128,7 @@ none
 
 #### Objective
 
-载体落盘时把字节 sha256 记进 `RoundRecord.carrierDigest`；凡引擎读载体的入口先比对，不匹配即 `CDD_BLOCKED` 并打印 `carrier-mismatch · line=<path> · recorded=<sha8> · current=<sha8>`，且不启动 child。三态严格区分：absent / ok / mismatch。
+载体落盘时把规范载荷摘要（`CarrierIntegrity.digestOf`，单点规则）记进 `RoundRecord.carrierDigest`；凡引擎读载体的入口先比对，不匹配即 `CDD_BLOCKED` 并打印 `carrier-mismatch · line=<path> · recorded=<sha8> · current=<sha8>`，且不启动 child。三态严格区分：absent / ok / mismatch。
 
 #### Files
 - 新建：`packages/cdd-engine/src-next/session/carrier-integrity.ts`
@@ -144,7 +144,10 @@ none
 - `session/run.ts#bookkeep`：`carrierPath = this.#ledger.persistHandoff(op, frame.type, frame.params, carrier)`
 
 #### Produces
-- `export class CarrierIntegrity`，`static sha256(bytes: string): string`、`static mismatch(recorded: string | null, current: string | null): { recorded: string; current: string } | null`（任一为 `null` → `null`，表示无从比对）
+- `export class CarrierIntegrity`，静态方法：
+  - `static sha256(bytes: string): string` — 原始字节的 sha256 hex
+  - `static digestOf(value: unknown): string` — 载体摘要的**唯一规则**：删去顶层可选 `contentSha256` 键，按 `JSON.stringify(payload, null, 2) + "\n"` 重序列化，取 `sha256`。draft 无该键时与写盘字节同值；final 有该键时摘要覆盖 payload 而非文件字节（Task 4 复用，非循环）
+  - `static mismatch(recorded: string | null, current: string | null): { recorded: string; current: string } | null` — 任一 `null` → `null`（无从比对）
 - `export class CarrierMismatchError extends Error`，字段 `readonly line: string; readonly recorded: string; readonly current: string`，`message` = `carrier-mismatch · line=<line> · recorded=<sha8> · current=<sha8>`
 - `Workspace.writeJsonHashed(name: string, value: unknown): string`（返回写入字节的 sha256 hex）；`writeJson` 改为 `writeJsonHashed` 的薄壳（单点序列化）
 - `Ledger.persistHandoff(...): { readonly path: string; readonly digest: string }`
@@ -155,8 +158,8 @@ none
 
 - 写失败测 `carrier-integrity.test.ts`：`sha256` 固定串已知 hex · `mismatch` 四例（`null` 任一端 · 同值 · 异值两端）— checkable: 定向 vitest FAIL（模块不存在）
 - 写失败测（三态）：写 carrier 并记 digest → 未改字节可读 · 删文件返 `null` · 改字节抛 `CarrierMismatchError` 且报文含 `recorded=`/`current=` · 旧记录无 digest 时即便改字节也不抛 — checkable: 定向 vitest FAIL（今日 `readHandoff` 无 digest 面）
-- `infra/workspace.ts` 拆出 `writeJsonHashed(name, value): string`（返回写入字节 sha256），`writeJson` 改为其薄壳；`#{persist}` 返回该 digest — checkable: 既有 `infra.test.ts` 全绿（写盘字节零变化），新方法单测 PASS
-- `RoundRecord` 加 `carrierDigest?: string | null`、`recordRound` 透传；`#bookkeep` 存 digest；`readHandoff` 读到对象后取该 (op,type,round) 最新记录的 digest 比对，不等即抛 — checkable: 三态四例 PASS
+- `infra/workspace.ts` 拆出 `writeJsonHashed(name, value): string`（返回写入字节 sha256），`writeJson` 改为其薄壳；`#{persist}` 返回该 digest（draft 无 `contentSha256`，故与 `CarrierIntegrity.digestOf` 同值）— checkable: 既有 `infra.test.ts` 全绿（写盘字节零变化），新方法单测 PASS
+- `RoundRecord` 加 `carrierDigest?: string | null`、`recordRound` 透传；`#bookkeep` 存 digest；`readHandoff` 解析出对象后按 `CarrierIntegrity.digestOf(对象)` 重算（同一规则，不另写 hash 分支），与该 (op,type,round) 最新记录的 digest 比对，不等即抛 — checkable: 三态四例 PASS
 - 两条通道接线：`face/cli.ts` 顶层捕获该错误走 `CDD_BLOCKED` 通道与既有 blocked 退出码；`face/lifecycle.ts#reconstruct` 捕获转 BLOCKED outcome — checkable: 篡改载体后 fix 派发前被拒且 dispatcher 零调用；board/capsule 读同一路径同判
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
@@ -175,7 +178,7 @@ none
 
 #### Objective
 
-定稿不再覆盖草稿：final 写 `<stem>.c<N>.json`（N = 该轮 cycle），草稿留在派发原路径；`RoundRecord` 同时记 `carrierPath`（final）与 `draftPath`，digest 改为对 final 字节，且 final JSON 本体带同值 `contentSha256` 字段（spec §2.3 的两处记录面）。
+定稿不再覆盖草稿：final 写 `<stem>.c<N>.json`（N = 该轮 cycle），草稿留在派发原路径；`RoundRecord` 同时记 `carrierPath`（final）与 `draftPath`，digest 改为对 final **载荷**（不含 `contentSha256` 字段）的摘要，且 final JSON 本体带同值 `contentSha256` 字段（spec §2.3 的两处记录面）。
 
 #### Files
 - 修改：`packages/cdd-engine/src-next/session/round-naming.ts`（新增 `finalName` / `finalPath`）
@@ -191,22 +194,22 @@ none
 - `RoundNaming.finalName(op: string, type: string, params: HandoffParams): string` — 把 `handoffName` 结尾的 `.json` 换成 `.c<N>.json`，`N = params.round`
 - `RoundNaming.finalPath(...)` — resolve 后的绝对路径
 - `Ledger.persistHandoff(...): { readonly path: string; readonly draftPath: string; readonly digest: string }`
-- final JSON 的内嵌字段 `contentSha256: string`（与返回的 `digest`、`RoundRecord.carrierDigest` 三者同值）
+- final JSON 的内嵌字段 `contentSha256: string` — 值 = `CarrierIntegrity.digestOf(final 载荷)`，载荷**不含**该字段（规则来自 Task 3，单点不改）；与返回的 `digest`、`RoundRecord.carrierDigest` 三者同值，读回按同一规则「删 `contentSha256` → 重序列化 → sha256」比对，故该值**不**等于含该字段的整个文件字节 sha256
 
 
 
 #### Steps
 
 - 写失败测（命名）：`finalName("review","wave",{tasks:"1",round:2}) === "tasks-1-review-2.c2.json"` 与 `finalName("fix","phase-spec",{round:3}) === "phase-spec-fix-3.c3.json"`；`round` 缺省时回落 `handoffName`，不产 `.c.json` — checkable: 定向 vitest FAIL（方法不存在）
-- 写失败测（共存与三处同值）：bookkeep 后草稿名与 `.c<N>.json` 并存 · 记录 `carrierPath`=final 与 `draftPath`=草稿 · final 内 `contentSha256`、返回 `digest`、记录 `carrierDigest` 三者相等且等于 final 最终字节 sha256 · 删草稿后经 final 仍可读 — checkable: 定向 vitest FAIL
+- 写失败测（共存与三处同值）：bookkeep 后草稿名与 `.c<N>.json` 并存 · 记录 `carrierPath`=final 与 `draftPath`=草稿 · final 内 `contentSha256`、返回 `digest`、记录 `carrierDigest` 三者相等且等于 `CarrierIntegrity.digestOf(删去 contentSha256 后的 final 载荷)`（断言不落在含该字段的文件字节上）· 删草稿后经 final 仍可读 — checkable: 定向 vitest FAIL
 - `RoundNaming` 加 `finalName` / `finalPath`（`params.round` 拼 `.c<N>`，缺 `round` 回落）— checkable: 命名两例 PASS
-- `persistHandoff` 写 final、对已写字节算 digest、把 `contentSha256` 补进该 JSON、对补写后的最终字节重算 digest 并返回 `{ path, draftPath, digest }`；**不写不删草稿**（代码注释写明「digest 必须覆盖含该字段的字节」）— checkable: 共存三处同值例 PASS
+- `persistHandoff` 一次组装 final 载荷：先 `digest = CarrierIntegrity.digestOf(payload)`（payload 尚无该字段）→ 把 `contentSha256: digest` 作为**最后追加键**并入 payload 并一次落盘 → 返回 `{ path, draftPath, digest }`（不二次重算）；**不写不删草稿**（代码注释写明「摘要覆盖 payload 而非含该字段的文件字节——`H = sha256(JSON 含 H)` 不可满足」）— checkable: 共存三处同值例 PASS
 - `RoundRecord` 加 `draftPath?: string | null`，`#bookkeep` 与 `carrierDigest` 同笔落记录 — checkable: 记录两路径例 PASS，typecheck exit 0
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 - final 与 draft 同名 stem、不同后缀，且 `RoundRecord` 两路径都可读（成对 pin）。
-- final 文件内 `contentSha256`、返回的 `digest`、记录 `carrierDigest` 三者同值，且等于 final 最终字节的 sha256（三处同值 pin）。
+- final 文件内 `contentSha256`、返回的 `digest`、记录 `carrierDigest` 三者同值，且等于 `CarrierIntegrity.digestOf` 对「删去 `contentSha256` 的 final 载荷」的重算值（三处同值 pin；摘要覆盖 payload 而非含该字段的文件字节，规则非循环）。
 - bookkeep 不再对同一路径整文件替换（结构性 pin：`persistHandoff` 的写入名与 `handoffName` 不同）。
 - `round` 缺省的调用不产生 `.c.json` 畸形名（边界 pin）。
 
@@ -233,7 +236,7 @@ none
 - `infra/workspace.ts#resolve`（工作区路径解析）
 
 #### Produces
-- `export class CarrierSeal`，静态方法：`static seal(target: string): void`（存在则 `chmodSync(target, 0o444)`）、`static unseal(target: string): void`（存在则 `chmodSync(target, 0o644)`）、`static sweep(directory: string, keep: readonly string[]): readonly string[]`（把该目录下 `*.json` 中模式为 `0o444` 且不在 `keep` 的**引擎产物**重新 seal 并返回被处理的文件名；返回空数组即无事可做）
+- `export class CarrierSeal`，静态方法：`static seal(target: string): void`（存在则 `chmodSync(target, 0o444)`）、`static unseal(target: string): void`（存在则 `chmodSync(target, 0o644)`）、`static sweep(directory: string, keep: readonly string[]): readonly string[]`（把该目录下**未 seal**——模式非 `0o444`、即被外部 `chmod` 过的可写文件——的引擎 `*.json` 重新 seal，跳过 `keep` 与 `*.rulings.json`，返回**实际被 seal 的文件名**；已 `0o444` 的不计入，返回空数组即无事可做）
 
 
 
@@ -241,7 +244,7 @@ none
 
 - 写失败测 `carrier-seal.test.ts`：`seal` 后 `stat.mode & 0o777 === 0o444`、`unseal` 后 `0o644`、不存在路径两方法不抛 — checkable: 定向 vitest FAIL（模块不存在）
 - 写失败测（终态四条 + 一条范围）：成功 bookkeep · `#reject` · spawn 前门禁拒 · `--recover` abort 各自收工后本轮草稿与 final 均 `0o444`；fix 派发全程作为输入的上一轮 review 载体仍 `0o444` — checkable: 定向 vitest FAIL
-- 实现 `infra/carrier-seal.ts`：`seal`/`unseal` 走 `chmodSync` 并吞 `ENOENT`；`sweep(directory, keep)` 只处理 `*.json`、跳过 `keep` 与 `.rulings.json`，重新 seal 并返回处理的文件名 — checkable: 权限三例 PASS
+- 实现 `infra/carrier-seal.ts`：`seal`/`unseal` 走 `chmodSync` 并吞 `ENOENT`；`sweep(directory, keep)` 只处理**可写**（模式非 `0o444`）的 `*.json`、跳过 `keep` 与 `*.rulings.json`，seal 后把该文件名计入返回值（已 `0o444` 的零改动、不返回）— checkable: 权限三例 PASS + 「644 恢复」一例
 - preflight 接线：`#runDispatch` 在 `#inflight.acquire` 之前 `sweep(workspaceDir, [])` + `unseal(handoffPath)` + `unseal(finalPath)` — checkable: 范围例 PASS（输入载体未被解封）
 - 收工与终态接线：`persistHandoff` 写完 seal final 与草稿名；`#reject`／门禁拒／abort 折账／`#bookkeep` 的 `carrierPath === null` 分支各 seal 一次 — checkable: 终态四条 PASS
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
@@ -250,7 +253,7 @@ none
 - 四条终态（成功 / stall-reject / 门禁拒 / recover-abort）收工后本轮载体均 `0o444`（四条独立 pin）。
 - 输入载体在 fix 全程 `0o444`（范围不过宽 pin）。
 - `sweep` 不触碰 `.rulings.json`（sidecar 永不 seal pin）。
-- 下一轮 preflight 能恢复一个被外部 `chmod 644` 的旧载体（sweep 有效性 pin）。
+- 下一轮 preflight 能恢复一个被外部 `chmod 644` 的旧载体（sweep 有效性 pin：其名出现在返回值中，且模式回到 `0o444`；同目录已 `0o444` 的载体模式不变、不出现在返回值中）。
 
 #### DependsOn
 4
@@ -275,22 +278,22 @@ none
 - `DispatchOutcome.dispatchBase`：本轮派发基线
 
 #### Produces
-- `GitClient.pathsSince(cwd: string, base: string | null): Promise<readonly string[]>` — `git log --name-only --pretty=format: <base>..HEAD` 的行集，去重去空；非 repo / base 为 `null` → `[]`
+- `GitClient.pathsSince(cwd: string, base: string | null): Promise<readonly string[] | null>` — `git log --name-only --pretty=format: <base>..HEAD` 的行集，去重去空；读成功零命中 → `[]`；`base` 为 `null`（无派发基线）、非 repo、git 不可读 → `null`（**不可**退化成 `[]`：空集与读不到是两种事实）
 - `DispatchOutcome.touchedDoc?: boolean | null` — `true` 动过、`false` 未动过、`null` git 不可读、`undefined` 未测量（hermetic / injected dispatcher）
 
 
 
 #### Steps
 
-- 写失败测（git 读面）：临时 repo 提交 A 后轮内提交改 `docs/x.md` → `pathsSince(base)` 含之；只改 `docs/y.md` 时不含；`base=null` → `[]` — checkable: 定向 vitest `infra.test.ts` FAIL（方法不存在）
+- 写失败测（git 读面）：临时 repo 提交 A 后轮内提交改 `docs/x.md` → `pathsSince(base)` 含之；只改 `docs/y.md` 时不含；真 repo 真 base 零改动提交 → `[]`；`base=null` → `null`；非 repo 目录 → `null`（后两例钉住 `null ≠ []`）— checkable: 定向 vitest `infra.test.ts` FAIL（方法不存在）
 - 写失败测（写回判据四例）：`touchedDoc:true` 绑收工字节 · `false` 保持旧值且随后 dry-run 报 drift/open · `null` 绑当前且本轮 violations 含一条 soft · 缺省（injected）与今日一致零 soft — checkable: 定向 vitest `run.test.ts` FAIL（②③ 今日不成立）
-- `infra/git.ts` 加 `pathsSince(cwd, base)`：`git log --name-only --pretty=format: <base>..HEAD` 按行切、去重去空、`try/catch` 返 `[]` — checkable: 三例 PASS
-- `DispatchOutcome` 加 `touchedDoc?: boolean | null`；`#runDispatch` 在 `#commitsSince` 旁算（doc 腿用 `frame.target.doc`、branch 腿用 `planPath`、wave 腿不参与；`base===null` → `null`）— checkable: typecheck exit 0，三腿分支各有一条用例
-- `#bookkeep` 写回门改为三态：`false` 跳过不改行 · `null` 照旧写回 + 推 `RoundViolation.soft(...)` · 其余照旧 — checkable: 四例 PASS，既有 P24「fix 自产不算 drift」pin 全绿
+- `infra/git.ts` 加 `pathsSince(cwd, base)`：`git log --name-only --pretty=format: <base>..HEAD` 按行切、去重去空；`base === null` 与 `try/catch`（spawn 失败 / 非 repo / 非零退出）一律返 `null`，仅成功读取才返数组 — checkable: 五例 PASS
+- `DispatchOutcome` 加 `touchedDoc?: boolean | null`；`#runDispatch` 在 `#commitsSince` 旁算（doc 腿用 `frame.target.doc`、branch 腿用 `planPath`、wave 腿不参与；`base===null` → `null`；`pathsSince` 返 `null` 时同样落 `touchedDoc: null`——读不到不等于未动过）— checkable: typecheck exit 0，三腿分支各有一条用例
+- `#bookkeep` 写回门改为三态：`false`（`[]`，读成功且零命中）跳过不改行 · `null`（不可读 / 无基线）照旧写回 + 推 `RoundViolation.soft(...)` · 其余照旧 — checkable: 四例 PASS，既有 P24「fix 自产不算 drift」pin 全绿
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
-- 四例判据各自独立 pin；② 的验收以「后续 review 报 drift」而非仅字段值断言（行为面）。
+- 四例判据各自独立 pin；② 的验收以「后续 review 报 drift」而非仅字段值断言（行为面）。`false` 只由 `[]`（读成功零命中）产生，`null`（不可读 / 无 base 基线）不与 `[]` 混用（类型级 + 用例级双 pin）。
 - `review` / `fix` / `branch-review` 三相位共用同一判据（`ReviewedIdentity.legOf` 未改，写回门在 `#bookkeep` 单点）。
 - 免审区口径不变：既有「front matter / `## Change history` / version 头改动不算 drift」pin 全绿。
 
@@ -339,3 +342,4 @@ none
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-09 | 初版：七任务（表头列集门 · sidecar+INPUT_RULINGS · 摘要与 mismatch · draft/final 分路径 · seal/sweep · 条件写回 · changeset 与全门）· 波序 W1{1,2,6}/W2{3}/W3{4}/W4{5}/W5{7} 对应 spec 落地序 · Review Focus 六条 | Claude（kairos:cdd-plan · 2026-11-09） |
+| v0.2 | 2026-11-09 | 评审回填（plan-review-1 F1–F5）：Task 2 坏 schema 用例扩到九面并补 `carrier` ≠ 文件名的派发前硬停 pin · Task 3 立 `CarrierIntegrity.digestOf` 单点摘要规则、Task 4 摘要改覆盖「删 `contentSha256` 后的载荷」以消循环（文件字节口径作废）· Task 5 `sweep` 改为处理未 seal 的 `*.json` 并返回实际 sealed 名 · Task 6 `pathsSince` 以 `null` 区分不可读与零命中、`touchedDoc: null` 保留 soft 观察 | Claude（kairos:cdd-dev · plan-fix-1 · 2026-11-09） |

@@ -24,6 +24,7 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { DocBodyProjection } from "../contract/doc-body.ts";
+import { CarrierSeal } from "../infra/carrier-seal.ts";
 import type { ConfigLoader } from "../infra/config.ts";
 import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
@@ -1594,7 +1595,13 @@ export class Ledger {
    *  key joins the payload — the key is appended LAST and the payload is written once
    *  (the read recomputes by the same rule: drop the key, re-serialize, sha256). The
    *  draft is neither written nor deleted here: it is the child's artifact, and the
-   *  final is the engine's answer to it. */
+   *  final is the engine's answer to it.
+   *
+   *  P31 §2.4 — the write CLOSES the carrier: the final and the draft name beside it
+   *  land at `0o444` in the same step, so a carrier is read-only from the instant the
+   *  engine authored it. A name that never landed (a round whose child wrote no draft,
+   *  a round-less family whose draft IS the final) is not an error — the seal is
+   *  idempotent and absence is the round's own fact. */
   persistHandoff(
     op: string,
     type: string,
@@ -1609,6 +1616,9 @@ export class Ledger {
     payload.contentSha256 = digest;
     const finalName = this.#naming.finalName(draftName, params.round);
     this.#persist(finalName, payload);
+    // The carrier is read-only the moment it exists; the draft beside it closes with it.
+    CarrierSeal.seal(this.#workspace.resolve(finalName));
+    CarrierSeal.seal(this.#workspace.resolve(draftName));
     return {
       path: this.#workspace.resolve(finalName),
       draftPath: this.#workspace.resolve(draftName),

@@ -21,6 +21,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../carrier-integrity.ts";
@@ -260,6 +261,9 @@ describe("Ledger — the digest is recorded beside carrierPath and read back thr
         { findings: [] },
       );
       ledger.recordRound("1", { op: "review", cycle: 1, carrierPath: at, carrierDigest: digest });
+      // The tamper is an EXTERNAL writer: a sealed carrier is read-only, so the bytes
+      // move only after the permission bit is reopened (P31 §2.4).
+      CarrierSeal.unseal(at);
       writeFileSync(at, `${JSON.stringify({ findings: [{ severity: "blocker" }] }, null, 2)}\n`);
       let thrown: unknown;
       try {

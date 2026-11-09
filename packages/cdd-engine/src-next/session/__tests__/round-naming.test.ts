@@ -395,7 +395,7 @@ describe("RoundNaming — the carrier's FINAL name (the draft never holds the fi
       "plan-fix-1.c1.json",
       "single-spec-review-1.json",
     ];
-    for (const name of minted) expect(NAMING.isCarrierName(name)).toBe(true);
+    for (const name of minted) expect(RoundNaming.isCarrierName(name)).toBe(true);
     // every neighbour artifact the workspace also holds is NOT a carrier
     const neighbours = [
       "progress.json",
@@ -410,6 +410,6 @@ describe("RoundNaming — the carrier's FINAL name (the draft never holds the fi
       // implement is the wave-only family — a branch/doc line never mints it
       "branch-implement.json",
     ];
-    for (const name of neighbours) expect(NAMING.isCarrierName(name)).toBe(false);
+    for (const name of neighbours) expect(RoundNaming.isCarrierName(name)).toBe(false);
   });
 });

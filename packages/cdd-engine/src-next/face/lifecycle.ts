@@ -21,6 +21,7 @@ import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
+import { CarrierSeal } from "../infra/carrier-seal.ts";
 import { GitClient } from "../infra/git.ts";
 import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
 import type { RepoRoot } from "../infra/root.ts";
@@ -37,6 +38,7 @@ import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
 import {
   type CrashCause,
+  type HandoffParams,
   Ledger,
   type OpType,
   type ProgressRow,
@@ -306,7 +308,19 @@ export class CliLifecycle {
       },
       "wave",
     );
+    // P31 T5 §2.4 — the killed round's carrier names close with its abort record: the
+    // draft the dead child may have left writable and the final it never materialized.
+    // The identity is the record's OWN (the same op/cycle the abort booked), never a
+    // re-derivation from the current frontier.
+    this.#sealRoundCarriersOf(op, "wave", CliLifecycle.#waveParams(key, cycle, op));
     return true;
+  }
+
+  /** The handoff params of a wave round, replayed from a dead holder's record — the
+   *  same shaping the frame builder applies (the implement family is round-less, the
+   *  review / fix families carry the cycle). */
+  static #waveParams(key: string, cycle: number, op: OpType): HandoffParams {
+    return op === "implement" ? { tasks: key } : { tasks: key, round: cycle };
   }
 
   /** One dispatch — the round's work, the observation facts every record carries (the
@@ -625,6 +639,13 @@ export class CliLifecycle {
       );
       return { status: "BLOCKED" };
     }
+    // P31 T5 §2.4 — the preflight half of the seal cycle: the workspace's ORPHAN
+    // carriers first (a process killed outside the engine leaves a writable carrier
+    // behind), then this round's OWN two names become writable — its draft for the
+    // child, its final for the materialization. The scope is the round's own paths,
+    // never the directory or the slug: an input carrier of an earlier round (the fix
+    // leg's `--reviews`) stays 0o444 for the whole dispatch.
+    this.#openRoundCarriers(frame);
     // P31 T3 — the carrier-integrity gate: the fix round's requesting carrier is
     // compared against the digest its round recorded BEFORE the in-flight record and
     // the child, so a tampered input never reaches a child (the read-back and the CLI
@@ -633,6 +654,7 @@ export class CliLifecycle {
     // would name a ruling reason for a carrier whose bytes simply changed.
     const carrierRefusal = this.#carrierRefusal(frame);
     if (carrierRefusal !== null) {
+      this.#sealRoundCarriers(frame);
       this.#blocked(carrierRefusal, false);
       return { status: "BLOCKED", violations: [RoundViolation.hard(carrierRefusal)] };
     }
@@ -641,6 +663,7 @@ export class CliLifecycle {
     // (a written-but-invisible ruling is the defect this gate removes).
     const rulingsRefusal = this.#rulingsRefusal(frame);
     if (rulingsRefusal !== null) {
+      this.#sealRoundCarriers(frame);
       this.#blocked(rulingsRefusal, false);
       return { status: "BLOCKED", violations: [RoundViolation.hard(rulingsRefusal)] };
     }
@@ -1006,6 +1029,55 @@ export class CliLifecycle {
   #tailOf(stdout: string): readonly string[] {
     const lines = stdout.split("\n").filter((line) => line.trim() !== "");
     return lines.slice(-STDOUT_TAIL_MAX);
+  }
+
+  // -------------------------------------------------------------------------
+  // the carrier seal cycle (P31 T5 §2.4) — the round's own write window
+  // -------------------------------------------------------------------------
+
+  /** P31 §2.4 preflight — recover the workspace's orphans, then open THIS round's own
+   *  two names. The sweep runs FIRST so a carrier this round is about to own (a stale
+   *  draft of a retried round) is already closed when it is reopened here: the window
+   *  is the two names, never a third file. */
+  #openRoundCarriers(frame: OpenFrame): void {
+    CarrierSeal.sweep(this.#scene.workspace.path, []);
+    for (const name of this.#roundCarrierNames(frame)) CarrierSeal.unseal(name);
+  }
+
+  /** P31 §2.4 terminal — close the round's own write window. Every exit path that ran
+   *  the preflight half calls this (a gate refusal, a death face, an abort fold), so no
+   *  terminal leaves an engine carrier writable. */
+  #sealRoundCarriers(frame: OpenFrame): void {
+    this.#sealRoundCarriersOf(this.#opOf(frame), frame.type, frame.params);
+  }
+
+  /** The seal of one (op, type, params) identity — the frame-shaped callers and the
+   *  dead-holder fold share this ONE derivation. */
+  #sealRoundCarriersOf(op: OpType, type: OpenFrame["type"], params: HandoffParams): void {
+    for (const name of this.#roundCarrierNamesOf(op, type, params)) CarrierSeal.seal(name);
+  }
+
+  /** A frame's own carrier paths — the child's draft (`Ledger#handoffPath`, the family
+   *  table's fill) and the engine's final (`RoundNaming#finalPath`, `.c{N}` suffixed).
+   *  A round-less family (implement) resolves both to the same path — one name, sealed
+   *  once. */
+  #roundCarrierNames(frame: OpenFrame): readonly string[] {
+    return this.#roundCarrierNamesOf(this.#opOf(frame), frame.type, frame.params);
+  }
+
+  /** `#roundCarrierNames` over an identity — the abort fold's entry (it holds a dead
+   *  holder's op/cycle, never a frame). */
+  #roundCarrierNamesOf(
+    op: OpType,
+    type: OpenFrame["type"],
+    params: HandoffParams,
+  ): readonly string[] {
+    const ledger = this.#scene.ledger;
+    const draftName = ledger.handoffName(op, type, params);
+    return [
+      this.#scene.workspace.resolve(draftName),
+      this.#naming.finalPath(draftName, params.round),
+    ];
   }
 
   // -------------------------------------------------------------------------
@@ -1398,6 +1470,11 @@ export class CliLifecycle {
     // failure is named, never a silent absence (§3.3). The cause rides the death facts'
     // existing vocabulary (no new enum row).
     const violations: readonly RoundViolation[] = [RoundViolation.hard(reason, cause)];
+    // P31 T5 §2.4 — the death face seals the round's own names: the draft the child may
+    // have written before it died, and the final the round never materialized. A seal
+    // here keeps the failure face from leaving the writable window open for whatever
+    // the late-landing child still tries to write.
+    this.#sealRoundCarriers(frame);
     if (death.termination === null) return { status: "BLOCKED", violations };
     return { status: "TIMEOUT", termination: death.termination, violations };
   }

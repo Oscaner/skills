@@ -74,8 +74,10 @@ export class RoundNaming {
   /** Whether a workspace file name is one of the two carrier shapes this engine mints.
    *  Every neighbouring artifact — `progress.json` · `base.json` · the test-evidence
    *  sibling · a carrier's `.rulings.json` sidecar · a report · a crash record — is NOT
-   *  a carrier, so the sweep that seals carriers can never touch them. */
-  isCarrierName(name: string): boolean {
+   *  a carrier, so the sweep that seals carriers can never touch them. Static: the
+   *  judgment reads a NAME and nothing else, so the seal sweep (`CarrierSeal`) applies
+   *  the same predicate without holding a workspace. */
+  static isCarrierName(name: string): boolean {
     return RoundNaming.#CARRIER.test(name);
   }
 

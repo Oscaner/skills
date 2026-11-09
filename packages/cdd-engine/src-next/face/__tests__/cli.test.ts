@@ -39,6 +39,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -52,6 +53,7 @@ import {
   IMPLEMENT_CARRIER_ABSENT,
 } from "../../contract/completion-criterion.ts";
 import { Contract } from "../../contract/judge.ts";
+import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
@@ -5075,7 +5077,9 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
         carrierPath: persisted.path,
         carrierDigest: persisted.digest,
       });
-      // The tamper: bytes the recorded digest no longer covers.
+      // The tamper: an EXTERNAL writer reopens the sealed carrier (P31 §2.4) and
+      // replaces the bytes the recorded digest covers.
+      CarrierSeal.unseal(persisted.path);
       writeFileSync(persisted.path, `${JSON.stringify({ findings: [] }, null, 2)}\n`, "utf8");
       const code = await command.runArgv(["board", "--plan", PLAN]);
       expect(code).toBe(1);
@@ -8934,6 +8938,69 @@ describe("P22 T15 — the charter review prompt", () => {
       for (const forbidden of ["typecheck", "test command", "Claimed→pin"]) {
         expect(prompt).not.toContain(forbidden);
       }
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P31 T5 — the seal cycle at the composition root (design spec §2.4): a round that
+// SUCCEEDS books its carrier through the production read-back → materialize →
+// persist path, and both of the round's own names (the child's draft, the engine's
+// final) land read-only. The other three terminals (a child death's `#reject`, a
+// pre-spawn gate refusal, the `--recover` abort fold) are pinned at their own faces.
+// ---------------------------------------------------------------------------
+
+/** The permission bits of one path (group/other/sticky bits are noise). */
+const sealModeOf = (target: string): number => statSync(target).mode & 0o777;
+
+/** The review child stand-in — writes the round's findings draft at the wave's
+ *  canonical handoff path, the production read-back's input. */
+class ReviewCarrierRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    const workspace = path.join(run.cwd, ".kairos", "cdd", "p3");
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(
+      path.join(workspace, "tasks-1-review-1.json"),
+      JSON.stringify({ findings: [{ severity: "warn", lens: "spec", summary: "drift" }] }),
+      "utf8",
+    );
+    return { code: 0, stdout: "", stderr: "", termination: null };
+  }
+}
+
+describe("P31 T5 — a successful round lands both of its own carriers read-only", () => {
+  it("books the FINAL beside the child's draft and seals both to 0o444", async () => {
+    const runner = new ReviewCarrierRunner();
+    const { command, io, repoRoot, cleanup } = fixture({ sync: runner });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace, ledger } = sceneOf(repoRoot);
+      // The wave's review phase is open once the implement round is recorded.
+      ledger.recordRound("1", { op: "implement" });
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      expect(runner.calls).toHaveLength(1);
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+      const draft = workspace.resolve("tasks-1-review-1.json");
+      const final = workspace.resolve("tasks-1-review-1.c1.json");
+      // The draft keeps the child's bytes (the final never overwrites it) …
+      expect(existsSync(draft)).toBe(true);
+      expect(existsSync(final)).toBe(true);
+      // … and BOTH of this round's names are closed to writes.
+      expect(sealModeOf(draft)).toBe(0o444);
+      expect(sealModeOf(final)).toBe(0o444);
     } finally {
       cleanup();
     }

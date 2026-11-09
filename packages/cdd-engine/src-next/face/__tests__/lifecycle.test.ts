@@ -17,7 +17,15 @@
 // commit, so a round that commits nothing has a real baseline to be judged against).
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -27,6 +35,7 @@ import {
   IMPLEMENT_CARRIER_ABSENT,
   IMPLEMENT_VERIFICATION_WAVE,
 } from "../../contract/completion-criterion.ts";
+import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
@@ -630,7 +639,9 @@ describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => 
     const f = fixture(planDoc([[1, []]]));
     try {
       const sealed = seedReview(f);
-      // The tamper: a smuggled blocker the reviewed round never wrote.
+      // The tamper is an EXTERNAL writer: the carrier lands 0o444 (P31 §2.4), so the
+      // bytes move only after the permission bit is reopened — the smuggled blocker.
+      CarrierSeal.unseal(sealed.path);
       writeFileSync(
         sealed.path,
         `${JSON.stringify(
@@ -670,7 +681,9 @@ describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => 
       const sealed = seedReview(f);
       // The tamper drops the finding the sidecar rules on (F4) and smuggles F9: judged
       // against the tampered bytes the ruling set reads as broken, which would hide the
-      // integrity refusal the round actually owes.
+      // integrity refusal the round actually owes. The seal is reopened first — the
+      // external writer's own step.
+      CarrierSeal.unseal(sealed.path);
       writeFileSync(
         sealed.path,
         `${JSON.stringify(
@@ -948,6 +961,144 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
       await runFix(f, fixFrameOf(specPath), carrier, runner);
       expect(runner.calls).toHaveLength(1);
       expect(promptOf(runner)).not.toContain("INPUT_RULINGS");
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P31 T5 — the seal cycle (design spec §2.4): the preflight opens THIS round's own
+// two names, every terminal closes them again, and the round's INPUT carriers are
+// never opened. The success leg (bookkeep → persist → seal) is pinned at the
+// composition root; the pins here are the faces this file owns.
+// ---------------------------------------------------------------------------
+
+/** The permission bits of one path (group/other/sticky bits are noise). */
+const modeOf = (target: string): number => statSync(target).mode & 0o777;
+
+/** A child stand-in that reports the permission bits of a carrier at the spawn
+ *  instant — the scope pin's observation point (the window is open, the input must
+ *  still be read-only). */
+class ModeProbeRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+  readonly #probes: readonly string[];
+  readonly #seen: number[];
+
+  constructor(probes: readonly string[], seen: number[]) {
+    this.#probes = probes;
+    this.#seen = seen;
+  }
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    for (const probe of this.#probes) this.#seen.push(modeOf(probe));
+    return { code: 0, stdout: "", stderr: "", termination: null };
+  }
+}
+
+describe("P31 T5 — the seal cycle: every terminal closes the round's own window", () => {
+  /** The fix round's own draft name of the fixture's spec line. */
+  const FIX_DRAFT = "phase-spec-fix-1.json";
+
+  /** Plant the round's own draft, writable — a previous attempt's leftover. */
+  const plantWritableDraft = (f: Fixture): string => {
+    const draft = path.join(f.scene.workspace.path, FIX_DRAFT);
+    writeFileSync(draft, JSON.stringify({ status: "APPROVED", artifacts: {} }), "utf8");
+    expect(modeOf(draft)).toBe(0o644);
+    return draft;
+  };
+
+  it("a pre-spawn gate refusal re-seals the round's own draft", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const draft = plantWritableDraft(f);
+      // The requesting carrier + a sidecar the strict schema refuses: the P31 T2 gate
+      // stops the round before the child exists.
+      const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
+      writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
+      writeFileSync(CarrierRulings.pathFor(carrier), "{ not json", "utf8");
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const outcome = await runFix(f, fixFrameOf(specPath), carrier, runner);
+      expect(outcome.status).toBe("BLOCKED");
+      expect(runner.calls).toHaveLength(0);
+      // The window the preflight opened is closed by the refusal itself.
+      expect(modeOf(draft)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("a child death (#reject) seals the draft the child left behind", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const runner = new ReviewDraftRunner([{ severity: "blocker", lens: "spec", summary: "x" }]);
+      // The child dies AFTER writing a valid draft — the rejection face, not promotion.
+      const dying: ChildRunner = {
+        run: async (run) => {
+          await runner.run(run);
+          return { code: 1, stdout: "", stderr: "", termination: null };
+        },
+      };
+      const { outcome } = await dispatchFrame(f, reviewFrame, dying);
+      expect(outcome.status).toBe("BLOCKED");
+      const draft = path.join(f.scene.workspace.path, "tasks-1-review-1.json");
+      expect(modeOf(draft)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("the `--recover` abort fold seals the killed round's draft", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // The killed round's identity: a dead holder naming a REVIEW cycle 2.
+      plantStale(f, staleRecord({ phase: "review", cycle: 2 }));
+      const draft = path.join(f.scene.workspace.path, "tasks-1-review-2.json");
+      writeFileSync(draft, JSON.stringify({ findings: [] }), "utf8");
+      expect(await lifecycleOf(f).foldAbort()).toBe(true);
+      // The record's OWN identity seals the draft the dead child left writable.
+      expect(modeOf(draft)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("leaves the round's INPUT carrier sealed for the whole dispatch (the window is two names)", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const seeded = f.scene.ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        {
+          status: "CHANGES_REQUESTED",
+          findings: [{ id: "F1", severity: "blocker", lens: "scope", summary: "the guard" }],
+        },
+      );
+      f.scene.ledger.recordRound("phase-spec", {
+        op: "review",
+        cycle: 1,
+        carrierPath: seeded.path,
+        carrierDigest: seeded.digest,
+      });
+      expect(modeOf(seeded.path)).toBe(0o444);
+      const seen: number[] = [];
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const probe = new ModeProbeRunner([seeded.path], seen);
+      const lifecycle = new CliLifecycle({
+        scene: f.scene,
+        io: f.io,
+        sync: probe,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        reviews: seeded.path,
+      });
+      await lifecycle.step()(fixFrameOf(specPath));
+      expect(probe.calls).toHaveLength(1);
+      // Visible to the child AND after the round: an input carrier is never reopened.
+      expect(seen).toEqual([0o444]);
+      expect(modeOf(seeded.path)).toBe(0o444);
     } finally {
       f.cleanup();
     }

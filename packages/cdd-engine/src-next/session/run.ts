@@ -21,6 +21,7 @@
 import { readFileSync } from "node:fs";
 import { PlanDocType } from "../contract/doc.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
+import { CarrierSeal } from "../infra/carrier-seal.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
 import type { TaskGraph } from "./graph.ts";
 import {
@@ -723,6 +724,13 @@ export class Lifecycle {
       carrierPath = persisted.path;
       carrierDigest = persisted.digest;
       draftPath = persisted.draftPath;
+    } else {
+      // P31 T5 §2.4 — a round that books NO carrier still owns its two names: the
+      // draft the child may have written before the round failed must not stay
+      // writable. The persistence seals its own pair above; this is the failure
+      // face's leg (the lifecycle's terminals seal too — one invariant, two entry
+      // points, so an injected dispatcher can never leave the window open).
+      this.#sealRoundCarriers(frame);
     }
     // The recorded CYCLE is the frame's own round — its identity (fix-K ⟷ review-K ·
     // D28): a skipped cycle records its own number, never a flattened ordinal. The
@@ -889,6 +897,16 @@ export class Lifecycle {
   /** The handoff-family op of a phase — branch-review rides the review family. */
   #opOf(phase: DispatchPhase): OpType {
     return phase === "branch-review" ? "review" : phase;
+  }
+
+  /** P31 §2.4 — seal one round's OWN carrier names (its draft and its final). The
+   *  derivation is the same pair the lifecycle's preflight opens; a round-less family
+   *  (implement) resolves both to one path, so the seal is idempotent by construction. */
+  #sealRoundCarriers(frame: OpenFrame): void {
+    const op = this.#opOf(frame.phase);
+    const draftName = this.#ledger.handoffName(op, frame.type, frame.params);
+    CarrierSeal.seal(this.#ledger.handoffPath(op, frame.type, frame.params));
+    CarrierSeal.seal(this.#ledger.naming().finalPath(draftName, frame.params.round));
   }
 
   // -------------------------------------------------------------------------

@@ -624,6 +624,17 @@ export class CliLifecycle {
       );
       return { status: "BLOCKED" };
     }
+    // P31 T3 — the carrier-integrity gate: the fix round's requesting carrier is
+    // compared against the digest its round recorded BEFORE the in-flight record and
+    // the child, so a tampered input never reaches a child (the read-back and the CLI
+    // catch are the fallbacks, never the gate). It runs BEFORE the ruling gate: the
+    // integrity diagnostic is the fact, and a sidecar judged against tampered bytes
+    // would name a ruling reason for a carrier whose bytes simply changed.
+    const carrierRefusal = this.#carrierRefusal(frame);
+    if (carrierRefusal !== null) {
+      this.#blocked(carrierRefusal, false);
+      return { status: "BLOCKED", violations: [RoundViolation.hard(carrierRefusal)] };
+    }
     // P31 T2 — the ruling sidecar gate: a sidecar the strict schema refuses stops the
     // round HERE, before the in-flight record is acquired and before any child exists
     // (a written-but-invisible ruling is the defect this gate removes).
@@ -631,15 +642,6 @@ export class CliLifecycle {
     if (rulingsRefusal !== null) {
       this.#blocked(rulingsRefusal, false);
       return { status: "BLOCKED", violations: [RoundViolation.hard(rulingsRefusal)] };
-    }
-    // P31 T3 — the carrier-integrity gate: the fix round's requesting carrier is
-    // compared against the digest its round recorded BEFORE the in-flight record and
-    // the child, so a tampered input never reaches a child (the read-back and the CLI
-    // catch are the fallbacks, never the gate).
-    const carrierRefusal = this.#carrierRefusal(frame);
-    if (carrierRefusal !== null) {
-      this.#blocked(carrierRefusal, false);
-      return { status: "BLOCKED", violations: [RoundViolation.hard(carrierRefusal)] };
     }
     const prompt = this.#template.render(this.#valuesOf(frame));
     const row = HOSTS[host as HostId];
@@ -1262,7 +1264,7 @@ export class CliLifecycle {
     if (this.#opOf(frame) !== "fix") return "";
     const carrier = this.#reviewsPath(frame);
     if (carrier === null) return "";
-    const verdict = CarrierRulings.verdict(carrier, this.#carrierFindingIds(carrier));
+    const verdict = this.#rulingsVerdict(frame, carrier);
     if (verdict.kind !== "ok") return "";
     const sidecar = this.#rel(CarrierRulings.pathFor(carrier));
     return [sidecar, ...verdict.rulings.map((ruling) => this.#rulingLine(ruling))].join("\n");
@@ -1279,27 +1281,50 @@ export class CliLifecycle {
   /** The pre-dispatch ruling gate — the strict sidecar verdict's refusal reason, or null
    *  when the round may proceed (no fix face, no resolved carrier, an absent sidecar, or
    *  a conforming one). A refusal is HARD and lands before the in-flight record and the
-   *  child, so a broken ruling set can never be dispatched unnoticed (§2.6). */
+   *  child, so a broken ruling set can never be dispatched unnoticed (§2.6).
+   *
+   *  A `carrier-mismatch` from the sidecar's id read is the integrity refusal, never a
+   *  ruling reason: a tampered carrier is not judged (its id set is not a fact this
+   *  round may read), so the diagnostic names the bytes that changed. */
   #rulingsRefusal(frame: OpenFrame): string | null {
     if (this.#opOf(frame) !== "fix") return null;
     const carrier = this.#reviewsPath(frame);
     if (carrier === null) return null;
-    const verdict: RulingVerdict = CarrierRulings.verdict(
-      carrier,
-      this.#carrierFindingIds(carrier),
-    );
+    let verdict: RulingVerdict;
+    try {
+      verdict = this.#rulingsVerdict(frame, carrier);
+    } catch (raw) {
+      if (!(raw instanceof CarrierMismatchError)) throw raw;
+      return raw.message;
+    }
     return verdict.kind === "invalid" ? `rulings sidecar — ${verdict.reason}` : null;
   }
 
+  /** The strict sidecar verdict over the requesting carrier's CHECKED id set — one call
+   *  shape for the gate and the round-context cell, so neither can read the ids by a
+   *  path the other does not take. */
+  #rulingsVerdict(frame: OpenFrame, carrier: string): RulingVerdict {
+    return CarrierRulings.verdict(carrier, this.#carrierFindingIds(frame, carrier));
+  }
+
   /** The requesting carrier's engine-written finding ids (`F1`, `F2` …) — the id set a
-   *  ruling must name. An unreadable carrier declares none, so any ruling beside it is
-   *  refused by the strict schema instead of being accepted against an empty set. */
-  #carrierFindingIds(carrier: string): ReadonlySet<string> {
+   *  ruling must name. The read is the ONE checked carrier read (`CarrierIntegrity.read`,
+   *  the digest its review round recorded): a tampered carrier is never observed at all —
+   *  the mismatch throws and the integrity refusal wins over any ruling reason. An absent
+   *  or unparseable carrier declares no ids, so any ruling beside it is refused by the
+   *  strict schema instead of being accepted against an empty set. */
+  #carrierFindingIds(frame: OpenFrame, carrier: string): ReadonlySet<string> {
     const ids = new Set<string>();
     let carrierJson: unknown;
     try {
-      carrierJson = JSON.parse(readFileSync(carrier, "utf8"));
-    } catch {
+      const bytes = CarrierIntegrity.read(
+        path.resolve(this.#repoRootValue().absolute, carrier),
+        this.#requesterDigest(frame),
+      );
+      if (bytes === null) return ids;
+      carrierJson = JSON.parse(bytes);
+    } catch (raw) {
+      if (raw instanceof CarrierMismatchError) throw raw;
       return ids;
     }
     const findings = (carrierJson as { findings?: unknown } | null)?.findings;

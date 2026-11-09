@@ -664,6 +664,52 @@ describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => 
     }
   });
 
+  it("names the carrier-mismatch, never a rulings reason, when a tampered carrier meets a sidecar", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = seedReview(f);
+      // The tamper drops the finding the sidecar rules on (F4) and smuggles F9: judged
+      // against the tampered bytes the ruling set reads as broken, which would hide the
+      // integrity refusal the round actually owes.
+      writeFileSync(
+        sealed.path,
+        `${JSON.stringify(
+          {
+            status: "CHANGES_REQUESTED",
+            findings: [
+              { id: "F1", severity: "blocker", summary: "the guard is missing" },
+              { id: "F9", severity: "blocker", summary: "smuggled" },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      writeFileSync(
+        CarrierRulings.pathFor(sealed.path),
+        JSON.stringify({
+          carrier: path.basename(sealed.path),
+          rulings: [{ finding: "F4", ruling: "REJECTED as stated", by: "orchestrator" }],
+        }),
+        "utf8",
+      );
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const outcome = await runFix(f, fixFrameOf(specPath), sealed.path, runner);
+      expect(outcome.status).toBe("BLOCKED");
+      expect(runner.calls).toHaveLength(0);
+      expect(f.io.stderrText).toContain("CDD_BLOCKED");
+      expect(f.io.stderrText).toContain("carrier-mismatch");
+      expect(f.io.stderrText).toContain("recorded=");
+      expect(f.io.stderrText).toContain("current=");
+      expect(f.io.stderrText).not.toContain("rulings sidecar");
+      expect(gradesOf(outcome)).toEqual(["hard"]);
+    } finally {
+      f.cleanup();
+    }
+  });
+
   it("lets the untampered carrier through — the child is spawned and the gate stays silent", async () => {
     const f = fixture(planDoc([[1, []]]));
     try {

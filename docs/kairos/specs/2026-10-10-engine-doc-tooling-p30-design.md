@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P30 设计：中断可表达 · 完成判据换代理 · 机械判据硬化
 doc-type: phase-spec
-version: v0.5
+version: v0.6
 date: 2026-11-08
 slug: 2026-10-10-engine-doc-tooling-p30
 program: 2026-10-10-engine-doc-tooling
@@ -145,3 +145,4 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-08）'
 | v0.3 | 2026-11-08 | 评审回填（phase-spec-review-1）：① §2.2 的 cause 陈述改为「向既有 `CrashCause` 联合新增一个字面 `interrupted`」——原「既有字面面」不实；② §2.6 行集判据改为「表体行 + 列数须与表头一致，不一致只报一条 shape finding」，版本读面保留 `^v\d+\.\d+$` 锚定，fix 模板增「单元格不得硬折行」；③ §2.5 旧 carrier 无 `id` 的 soft 观察补 AC 与 pin，不许计划静默丢弃；④ 已关闭波纪律的回填已在 overall v3.41 落定（提交 `04b123a4`），本相位 spec 与 overall 一致 | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |
 | v0.4 | 2026-11-08 | **计划期设计回填（cdd-plan · backfill-design）**：§2.5 的 `FINDING.id` 由「read-back 要求存在」改为「列为**可选**属性 + 引擎 materialize 时写入并覆盖」——原句把引擎自有的值推给 child 去写，与「主键归引擎」相反，且多出一个无意义的 BLOCK 面（`PLANE_REQUIRED.judge` / `FINDING.required` 均不含 `id`）。判据键集与回退语义不变 | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-08） |
 | v0.5 | 2026-11-08 | **评审回填（phase-spec-review-2 F1/F2）**：① §2.6 的行集与版本读面已与 overall v3.42（提交 `cb9238d6`）一致——mdast/GFM 表体行为唯一来源、列数与表头不一致的表体行报一条 shape finding、版本只读首列锚定 `^v\d+\.\d+$`；本轮核对无正文改动，overall 由编排方回填；② 「最新」消歧为「lineage 中数值最大的版本」——§1.5 与 change-history AC 的绿例同步改写（原「等于最新行」在最新优先表序下与数值最大不等价），验收结论「折行续行不再产生假 duplicate version」不变 | Oscaner M. · Claude（kairos:cdd-dev · docs-fix · 2026-11-08） |
+| v0.6 | 2026-11-08 | **closeout 登记（cdd-close）**：P30 全链闭合——五波 W1{1,3}·W2{2,6}·W3{4}·W4{5,7}·W5{8} 各 implement→review（W1 三轮、其余一轮）→分支终审 **零 finding**（`3e4e2ad7 → f92c89d8` · 45 文件）。交付与 §2 七条裁定逐条对应：`--recover` 一词收 steal+reopen（abort 三形态各一条红测 · `supersededBy` 两步放行）· 完成判据验证型 OR 分支（`emptyFileTasks` 从 `row.wave` 取 wave id 集）· 引擎盖 finding `id` + 双侧差集 · change-history 行集/版本硬化（新增两不变量 + corpus guard 具名 ceiling）。`pnpm run validate` exit 0 · `session/next.ts` 零字节 · changeset minor ×2 · #431/#436/#437/#443 关闭 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-08） |

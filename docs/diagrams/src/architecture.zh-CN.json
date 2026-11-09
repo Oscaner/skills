@@ -9,7 +9,7 @@
     "repository": {
       "url": "https://github.com/Oscaner/skills",
       "provider": "github",
-      "revision": "172da2b717725abf349020810fae5b0f6fa26064"
+      "revision": "d346fc8487b9bf176779cc455048be2498e2ec79"
     }
   },
   "components": [
@@ -206,8 +206,8 @@
       "sources": [
         {
           "path": "packages/cdd-engine/src-next/face/cli.ts",
-          "line": 414,
-          "end_line": 438
+          "line": 427,
+          "end_line": 451
         }
       ]
     },

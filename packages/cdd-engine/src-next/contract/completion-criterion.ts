@@ -1,7 +1,8 @@
 // packages/cdd-engine/src-next/contract/completion-criterion.ts
 // P22 T4/T6 — "is this round done?" as criteria behind ONE verb-keyed registry
 // (design spec §8 · the completion-criterion row): `implement` is done when the
-// group's baseline carries at least one commit, `review` (branch review included —
+// group's baseline carries at least one commit OR the round is a zero-diff
+// verification wave with green evidence (P30 §2.4), `review` (branch review included —
 // branch-review folds to the review op) is done when its carrier is schema-shaped,
 // and `fix` is done when its work carrier's `dispositions` cover every finding of
 // the REQUESTING review carrier (design spec §3.4).
@@ -9,9 +10,9 @@
 // The criterion judges a CompletionContext the dispatch side assembles (Task 7):
 // the round's verdict-free identity, its ledger row, the row's in-register records,
 // the persisted carrier bytes, the requester's review path, the git read face and the
-// repoRoot path basis. The two cells with a provider seam (`records`, `reviewsPath`) are
-// filled by `CliLifecycle` — this module pins the context SHAPE only and imports
-// neither `face/` nor the lifecycle.
+// repoRoot path basis. The four cells with a provider seam (`records`, `reviewsPath`,
+// `emptyFileTasks`, `evidenceOk`) are filled by `CliLifecycle` — this module pins the
+// context SHAPE only and imports neither `face/` nor the lifecycle.
 //
 // The registry is deliberately PARTIAL while the verbs are ported one at a time: a
 // verb with no criterion throws at lookup (`CompletionCriteria.of`), so a dispatch of
@@ -40,10 +41,11 @@ export interface CompletionContext {
    *  violations are deliberately absent: a completion verdict must never be an input
    *  to the judgment that produces it. */
   readonly record: RoundIdentity;
-  /** The progress row the round belongs to (the wave key's line) — RESERVED. No
-   *  criterion reads it today; it rides the context so a future criterion that needs
-   *  the row's line-level facts has one supplied cell instead of a second ledger read.
-   *  A criterion that starts reading it must say so here. */
+  /** The progress row the round belongs to (the wave key's line) — read by
+   *  `CommitsSinceGroupBase.judge`, which takes the wave's task-id set from the row's
+   *  `wave` key: the empty-`Files` cell carries membership only (no member face of its
+   *  own), so the classification needs the wave key from here rather than a second
+   *  ledger read. */
   readonly row: ProgressRow;
   /** The row's in-register records (the group's history) — `CommitsSinceGroupBase`
    *  derives the group baseline from them, `FixDispositions` finds the request-side
@@ -58,6 +60,15 @@ export interface CompletionContext {
   readonly git: GitClient;
   /** The repo root the git read runs against. */
   readonly repoRoot: string;
+  /** The plan tasks whose `Files` declaration names no path — the verification-wave
+   *  cell, filled from the plan document by `CliLifecycle` (the criterion reads no
+   *  disk). Membership only: the wave's task ids come from `row.wave`, so a set that
+   *  is merely a SUBSET of the wave is never a verification wave. */
+  readonly emptyFileTasks: ReadonlySet<number>;
+  /** Whether this round's test evidence already passed the existing `HandoffSchema`
+   *  evidence check — the lifecycle's evidence gate has judged it, so the criterion
+   *  never re-reads the disk to ask again. */
+  readonly evidenceOk: boolean;
 }
 
 /** One criterion's verdict — done or one graded violation (hard fails the round,
@@ -78,13 +89,20 @@ export interface CompletionCriterion {
 
 /**
  * CommitsSinceGroupBase — the implement criterion: the round is done when the GROUP
- * has at least one commit since the group's baseline (design spec §8).
+ * has at least one commit since the group's baseline (design spec §8), OR when the
+ * round is a VERIFICATION wave with green evidence (P30 §2.4).
  *
  * The baseline is the EARLIEST record's `dispatchBase` of the group — not the round's
  * own. A group re-dispatched after a failed attempt carries a newer per-attempt base,
  * so comparing against the round's own base would read "attempt 1 committed, attempt 2
  * committed nothing" as an empty round (the cross-attempt false negative the group
  * baseline exists to prevent).
+ *
+ * The second leg is a strictly additive OR branch: a wave whose EVERY task declares an
+ * empty `Files` (a verification wave — it changes no file by design) commits nothing,
+ * so its green evidence is the round's completion. The commit test itself is
+ * untouched — a wave with any non-empty `Files` row keeps the `committed nothing`
+ * refusal on a zero diff.
  */
 export class CommitsSinceGroupBase implements CompletionCriterion {
   /** The group baseline — the first record (ledger order = cycle/attempt order) that
@@ -95,6 +113,29 @@ export class CommitsSinceGroupBase implements CompletionCriterion {
       if (record.dispatchBase !== null) return record.dispatchBase;
     }
     return null;
+  }
+
+  /** Whether the wave is a VERIFICATION wave: EVERY task id the wave key declares has
+   *  an empty `Files` declaration. The id set is read from the row's `wave` key (the
+   *  wave-unitary model's group identity, `"1,2"` = `{1, 2}`) — the empty-`Files` cell
+   *  carries membership only, so a set that is a mere subset of the wave must not read
+   *  as "the whole wave changes nothing". A wave key declaring no id is never a
+   *  verification wave: an empty member set would satisfy "every member" vacuously. */
+  static isVerificationWave(row: ProgressRow, emptyFileTasks: ReadonlySet<number>): boolean {
+    const ids = CommitsSinceGroupBase.waveIdsOf(row.wave);
+    if (ids.length === 0) return false;
+    return ids.every((id) => emptyFileTasks.has(id));
+  }
+
+  /** The task ids one wave key declares — the comma-separated digits of `row.wave`,
+   *  deduped. A non-numeric token carries no task identity and is dropped. */
+  static waveIdsOf(wave: string): readonly number[] {
+    const ids = new Set<number>();
+    for (const token of wave.split(",")) {
+      const trimmed = token.trim();
+      if (/^\d+$/.test(trimmed)) ids.add(Number(trimmed));
+    }
+    return [...ids];
   }
 
   async judge(ctx: CompletionContext): Promise<CompletionVerdict> {
@@ -109,16 +150,38 @@ export class CommitsSinceGroupBase implements CompletionCriterion {
       );
     }
     const commits = await ctx.git.commitsSince(ctx.repoRoot, base);
-    if (commits.length === 0) {
-      return this.#hard(`the group committed nothing since its baseline ${base}`);
-    }
-    // An implement round is judged by its COMMITS, never by its handoff draft: the
-    // absent carrier is a bookkeeping observation (design spec §3.3), so the round
-    // still concludes.
+    if (commits.length > 0) return this.#committed(ctx);
+    return this.#zeroCommit(ctx, base);
+  }
+
+  /** A round with commits concludes. An implement round is judged by its COMMITS, never
+   *  by its handoff draft: the absent carrier is a bookkeeping observation (design spec
+   *  §3.3), so the round still concludes. */
+  #committed(ctx: CompletionContext): CompletionVerdict {
     if (ctx.carrier === null) {
       return { fulfilled: true, violation: null, observations: [this.#observation()] };
     }
     return { fulfilled: true, violation: null };
+  }
+
+  /** A zero-commit round: a verification wave with green evidence concludes (its empty
+   *  diff is the plan's declaration, not an empty round), every other zero-commit round
+   *  keeps the `committed nothing` refusal. The two refusals name DIFFERENT gaps — a
+   *  wave that declares no file changes and owes evidence is not the same defect as a
+   *  wave that simply produced nothing. */
+  #zeroCommit(ctx: CompletionContext, base: string): CompletionVerdict {
+    const verification = CommitsSinceGroupBase.isVerificationWave(ctx.row, ctx.emptyFileTasks);
+    if (!verification) {
+      return this.#hard(`the group committed nothing since its baseline ${base}`);
+    }
+    if (!ctx.evidenceOk) {
+      return this.#hard(
+        "the wave declares no file changes on every task, but this round's test evidence is not green — a verification wave still owes green evidence",
+      );
+    }
+    const observations: RoundViolation[] = [this.#verificationObservation()];
+    if (ctx.carrier === null) observations.push(this.#observation());
+    return { fulfilled: true, violation: null, observations };
   }
 
   /** The hard verdict of this criterion — the ledger's existing `contract-violation`
@@ -131,6 +194,12 @@ export class CommitsSinceGroupBase implements CompletionCriterion {
    *  it); the same cause vocabulary, the soft grade. */
   #observation(): RoundViolation {
     return RoundViolation.soft(IMPLEMENT_CARRIER_ABSENT);
+  }
+
+  /** The verification-wave observation — the round passed on its plan declaration plus
+   *  green evidence rather than on a diff; booked soft, it never gates. */
+  #verificationObservation(): RoundViolation {
+    return RoundViolation.soft(IMPLEMENT_VERIFICATION_WAVE);
   }
 }
 
@@ -167,6 +236,14 @@ export class JudgeCarrier implements CompletionCriterion {
 export const IMPLEMENT_CARRIER_ABSENT =
   "the implement round wrote no handoff carrier — the round is judged by its commits, not by its draft";
 
+/** The zero-diff verification-wave observation (P30 §2.4) — the wave's every task
+ *  declares an empty `Files`, so its empty diff IS the plan's declaration and its
+ *  green evidence is the round's completion. Booked soft: the round concluded on the
+ *  declaration, and the ledger says so instead of reading it as an ordinary commit
+ *  round that happened to leave nothing. */
+export const IMPLEMENT_VERIFICATION_WAVE =
+  "the implement round committed nothing — every task of this wave declares an empty `Files`, so the round concluded on its green evidence as a verification wave";
+
 /** The zero-commit observation of a fix round — a NEW literal (the engine had no
  *  reusable zero-commit warning; `commitsSince` fed the crash postmortem alone).
  *  The yardstick is THIS round's own `dispatchBase`: the implement criterion asks
@@ -182,11 +259,27 @@ export const FIX_DISPOSITIONS_ZERO_COMMIT =
 export const FIX_DISPOSITIONS_EMPTY_INPUT =
   "the requesting review carrier carries no findings — the fix round owes no dispositions";
 
+/** The legacy-key-set observation (P30 §2.5) — the requesting carrier carries no
+ *  finding `id` (it predates the engine-written key), so the dispositions were matched
+ *  by summary text. Booked soft: the round is judged, and the ledger says the key it
+ *  used. No carrier migration — present facts only. */
+export const FIX_DISPOSITIONS_LEGACY_KEYS =
+  "the requesting review carrier carries no finding `id` — the dispositions were matched by summary text, the legacy key";
+
 /** The legacy-record observation — no requesting carrier is locatable, so the
  *  judgment is skipped visibly (reading the gap as an empty input set would restore
  *  an always-passing criterion). */
 export const FIX_DISPOSITIONS_UNRECORDED =
   "the requesting review round records no carrierPath and the route carried no --reviews path — the disposition judgment is skipped";
+
+/** One requesting-side finding — the disposition key's provenance. `id` is the
+ *  engine-written stable key (`F1`, `F2` …) of an id-bearing carrier; a LEGACY carrier
+ *  (written before P30 §2.5) carries none, and its `summary` stands in as the key.
+ *  `summary` is description text — the failure message's label, never the key. */
+export interface RequesterFinding {
+  readonly id: string | null;
+  readonly summary: string;
+}
 
 /** One read of the requesting review carrier — the input set's provenance. A path
  *  neither recorded nor handed over is `unrecorded` (legacy); a path that yields no
@@ -197,7 +290,11 @@ export const FIX_DISPOSITIONS_UNRECORDED =
 export type RequesterRead =
   | { readonly kind: "unrecorded" }
   | { readonly kind: "unreadable"; readonly path: string; readonly detail: string }
-  | { readonly kind: "read"; readonly path: string; readonly summaries: readonly string[] };
+  | {
+      readonly kind: "read";
+      readonly path: string;
+      readonly findings: readonly RequesterFinding[];
+    };
 
 /** The summary line's two counts — the criterion's half of the design spec §3.4
  *  summary row: counts only, so the presentation plane (the `face/words.ts` template)
@@ -210,14 +307,24 @@ export interface DispositionCounts {
 /**
  * FixDispositions — the fix criterion: the round is done when its work carrier's
  * `dispositions` cover every finding of the requesting review carrier (design spec
- * §3.4). The input set is the REQUESTING side's carrier — the same-key same-cycle
- * completed review record's `carrierPath`, falling back to the fix route's
+ * §3.4, P30 §2.5). The input set is the REQUESTING side's carrier — the same-key
+ * same-cycle completed review record's `carrierPath`, falling back to the fix route's
  * `--reviews` path; the round's own `carrierPath` is never the input set.
  *
- * Keys are the findings' `summary` strings VERBATIM (no normalization, no
- * fingerprint); repeated summaries collapse to one key (one defect owes one
- * disposition). Values are `{ status: "fixed" | "rejected", reason?: string }` —
- * `rejected` without a reason is a shape violation, hard like the missing slot.
+ * Keys are the findings' engine-written `id`s (`F1`, `F2` … in carrier order) — the
+ * primary key the engine authors, so rewriting a summary no longer produces an unknown
+ * key. `summary` is description text: it labels the failure message (its first
+ * sentence) and nothing else. A LEGACY carrier that predates the `id` column carries
+ * none, so its `summary` stands in as the key and the round books one soft observation
+ * (present facts only — no carrier migration).
+ *
+ * The key-set refusal prints BOTH diffs in ONE message: the missing side (a carrier
+ * finding with no disposition — `id` + summary first sentence, carrier order) and the
+ * unknown side (a disposition no finding raised — its bare key, marked `unknown`). One
+ * failure therefore names everything the child has to fix.
+ *
+ * Values are `{ status: "fixed" | "rejected", reason?: string }` — `rejected` without a
+ * reason is a shape violation, hard like the missing slot.
  *
  * The fix round's zero-commit fact is an OBSERVATION, not a refusal: this criterion
  * answers from the carrier, never from the diff.
@@ -239,9 +346,10 @@ export class FixDispositions implements CompletionCriterion {
     return reviewsPath;
   }
 
-  /** Read the requesting carrier's input set (the summaries, deduped in order). The
-   *  read is synchronous on purpose: the input is ONE small carrier, and the dispatch
-   *  face already reads its small inputs synchronously at the same seam.
+  /** Read the requesting carrier's input set (the findings, deduped by disposition
+   *  key in carrier order). The read is synchronous on purpose: the input is ONE small
+   *  carrier, and the dispatch face already reads its small inputs synchronously at
+   *  the same seam.
    *
    *  Every path resolves against `repoRoot`, never `process.cwd()`: the engine runs
    *  from a subdirectory too, `--reviews` arrives repoRoot-relative and a record's
@@ -270,7 +378,7 @@ export class FixDispositions implements CompletionCriterion {
         detail: "the carrier declares no `findings` array",
       };
     }
-    const set = FixDispositions.#summariesOf(findings);
+    const set = FixDispositions.#findingsOf(findings);
     if ("index" in set) {
       return {
         kind: "unreadable",
@@ -278,7 +386,7 @@ export class FixDispositions implements CompletionCriterion {
         detail: `finding #${set.index} carries no string \`summary\``,
       };
     }
-    return { kind: "read", path: target, summaries: set.summaries };
+    return { kind: "read", path: target, findings: set.findings };
   }
 
   /** The carrier's `dispositions` map — null when the slot is absent or not an
@@ -308,29 +416,36 @@ export class FixDispositions implements CompletionCriterion {
       );
     }
     const dispositions = FixDispositions.dispositionsOf(ctx.carrier) ?? {};
-    const refusal = FixDispositions.#keyRefusal(dispositions, requester.summaries);
+    const refusal = FixDispositions.#keyRefusal(dispositions, requester.findings);
     if (refusal !== null) return this.#hard(refusal);
     const shape = FixDispositions.#valueRefusal(dispositions);
     if (shape !== null) return this.#hard(shape);
-    return this.#complete(await this.#observationsOf(ctx, requester.summaries));
+    return this.#complete(await this.#observationsOf(ctx, requester.findings));
   }
 
   /** The round's two summary counts — `fixed` / `rejected`, counted over the SAME
-   *  pair the judgment reads (dispositions ∩ the input set). Counts only: the
+   *  pair the judgment reads (dispositions ∩ the input key set). Counts only: the
    *  `fixed N · rejected M` line is rendered by the presentation plane
    *  (`face/words.ts` template). A face fact: never stored, never a capsule key,
    *  never a second read face. */
-  summaryOf(carrier: unknown, input: readonly string[]): DispositionCounts {
-    const wanted = new Set(input);
+  summaryOf(carrier: unknown, input: readonly RequesterFinding[]): DispositionCounts {
+    const wanted = new Set(input.map((finding) => FixDispositions.keyOf(finding)));
     let fixed = 0;
     let rejected = 0;
-    for (const [summary, value] of Object.entries(FixDispositions.dispositionsOf(carrier) ?? {})) {
-      if (!wanted.has(summary)) continue;
+    for (const [key, value] of Object.entries(FixDispositions.dispositionsOf(carrier) ?? {})) {
+      if (!wanted.has(key)) continue;
       const status = (value as { status?: unknown } | null)?.status;
       if (status === "fixed") fixed += 1;
       else if (status === "rejected") rejected += 1;
     }
     return { fixed, rejected };
+  }
+
+  /** One finding's disposition key — the engine-written `id`, or the summary on a
+   *  LEGACY carrier that carries none (`keyOf` is the ONE fallback ruling: the read,
+   *  the judgment and the counts all derive the key here). */
+  static keyOf(finding: RequesterFinding): string {
+    return finding.id ?? finding.summary;
   }
 
   /** The round's own carrier refusals (① missing carrier, ② missing slot). */
@@ -352,22 +467,54 @@ export class FixDispositions implements CompletionCriterion {
     return null;
   }
 
-  /** The key-set refusals (③ missing entries, ④ unknown entries) — exact matching,
-   *  one defect one disposition. */
+  /** The key-set refusal — BOTH diffs in one message (P30 §2.5), each entry carrying
+   *  what makes it actionable: the missing side names the finding by `id` + the summary's
+   *  first sentence (carrier order), the unknown side names the bare key and marks it
+   *  `unknown` (the carrier raised no such finding, so there is no summary to quote —
+   *  inventing one would be worse than saying `unknown`). */
   static #keyRefusal(
     dispositions: Readonly<Record<string, unknown>>,
-    input: readonly string[],
+    input: readonly RequesterFinding[],
   ): string | null {
-    const wanted = new Set(input);
+    const wanted = new Set(input.map((finding) => FixDispositions.keyOf(finding)));
     const unknown = Object.keys(dispositions).filter((key) => !wanted.has(key));
-    if (unknown.length > 0) {
-      return `disposition(s) for finding(s) the requesting carrier never raised: ${unknown.join(", ")}`;
-    }
-    const missing = input.filter((summary) => !Object.hasOwn(dispositions, summary));
+    const missing = input.filter(
+      (finding) => !Object.hasOwn(dispositions, FixDispositions.keyOf(finding)),
+    );
+    if (unknown.length === 0 && missing.length === 0) return null;
+    const parts: string[] = [];
     if (missing.length > 0) {
-      return `no disposition for finding(s) of the requesting carrier: ${missing.join(", ")}`;
+      parts.push(
+        `no disposition for finding(s) of the requesting carrier: ${missing
+          .map((finding) => FixDispositions.#labelOf(finding))
+          .join(", ")}`,
+      );
     }
-    return null;
+    if (unknown.length > 0) {
+      parts.push(
+        `disposition(s) for finding(s) the requesting carrier never raised: ${unknown
+          .map((key) => `${key} (unknown)`)
+          .join(", ")}`,
+      );
+    }
+    return parts.join(" · ");
+  }
+
+  /** One finding's failure label — an id-bearing finding reads `F2 "<summary first
+   *  sentence>"`; a legacy finding's key IS its summary, so the sentence alone is the
+   *  whole label. */
+  static #labelOf(finding: RequesterFinding): string {
+    const sentence = FixDispositions.#firstSentence(finding.summary);
+    return finding.id === null ? `"${sentence}"` : `${finding.id} "${sentence}"`;
+  }
+
+  /** The summary's first sentence — the message's actionable excerpt (the whole summary
+   *  is a paragraph in practice). A summary with no terminator is its own sentence; a
+   *  leading terminator falls back to the whole line rather than an empty quote. */
+  static #firstSentence(summary: string): string {
+    const text = summary.trim();
+    const cut = text.search(/[.!?。！？]/);
+    return cut <= 0 ? text : text.slice(0, cut + 1);
   }
 
   /** The value-shape refusal (⑥ `rejected` without a reason; a status outside the
@@ -386,14 +533,17 @@ export class FixDispositions implements CompletionCriterion {
     return null;
   }
 
-  /** The two soft observations of a completed fix round — the empty input set and the
-   *  zero-commit round (both bookkeeping, neither a gate). */
+  /** The soft observations of a completed fix round — the empty input set, the legacy
+   *  (id-less) key set and the zero-commit round (all bookkeeping, none a gate). */
   async #observationsOf(
     ctx: CompletionContext,
-    input: readonly string[],
+    input: readonly RequesterFinding[],
   ): Promise<readonly RoundViolation[]> {
     const observations: RoundViolation[] = [];
     if (input.length === 0) observations.push(this.#soft(FIX_DISPOSITIONS_EMPTY_INPUT));
+    if (input.some((finding) => finding.id === null)) {
+      observations.push(this.#soft(FIX_DISPOSITIONS_LEGACY_KEYS));
+    }
     // THIS round's own baseline — a null one (legacy fold, non-git tree) carries no
     // present fact, so the observation is simply unmeasurable, never invented.
     const base = ctx.record.dispatchBase;
@@ -404,23 +554,32 @@ export class FixDispositions implements CompletionCriterion {
     return observations;
   }
 
-  /** The deduped input set — repeated summaries collapse to one key. A finding
-   *  without a string `summary` is NOT skipped (a silently dropped finding owes no
-   *  disposition and passes forever): the caller grades it `unreadable`.
-   *  `index` is the first offending entry. */
-  static #summariesOf(
+  /** The deduped input set — repeated disposition KEYS collapse to one entry (a legacy
+   *  carrier with the same summary twice owes one disposition; id-bearing findings keep
+   *  their own keys, so distinct findings never collapse). A finding without a string
+   *  `summary` is NOT skipped (a silently dropped finding owes no disposition and passes
+   *  forever): the caller grades it `unreadable`. `index` is the first offending entry.
+   *  An `id` that is absent or not a non-empty string is `null` — the legacy key, never
+   *  an invented one. */
+  static #findingsOf(
     findings: readonly unknown[],
-  ): { readonly summaries: readonly string[] } | { readonly index: number } {
-    const summaries: string[] = [];
+  ): { readonly findings: readonly RequesterFinding[] } | { readonly index: number } {
+    const rows: RequesterFinding[] = [];
     const seen = new Set<string>();
     for (const [index, finding] of findings.entries()) {
       const summary = (finding as { summary?: unknown } | null)?.summary;
       if (typeof summary !== "string") return { index };
-      if (seen.has(summary)) continue;
-      seen.add(summary);
-      summaries.push(summary);
+      const raw = (finding as { id?: unknown } | null)?.id;
+      const row: RequesterFinding = {
+        id: typeof raw === "string" && raw.length > 0 ? raw : null,
+        summary,
+      };
+      const key = FixDispositions.keyOf(row);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push(row);
     }
-    return { summaries };
+    return { findings: rows };
   }
 
   #complete(observations: readonly RoundViolation[]): CompletionVerdict {

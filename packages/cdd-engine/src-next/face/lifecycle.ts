@@ -19,6 +19,7 @@ import { existsSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
+import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import { GitClient } from "../infra/git.ts";
 import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
 import type { RepoRoot } from "../infra/root.ts";
@@ -37,6 +38,7 @@ import {
   type OpType,
   type ProgressRow,
   type RoundIdentity,
+  RoundRecords,
   type RoundStatus,
   type RoundVerdict,
   RoundViolation,
@@ -64,6 +66,14 @@ const STDOUT_TAIL_MAX = 40;
  *  vanished / unreadable document cases name their own damage instead. */
 const STRUCTURE_CHANGED =
   "the plan's structure changed inside this round (the Task id set or a task's DependsOn set) — the structure face belongs to the orchestrator and lands as its own commit";
+
+/** The abort fold's ONE hard entry (spec §2.2) — the killed round's grade, cause
+ *  (`interrupted`, the vocabulary's new literal) and prose. One entry, one cause: the
+ *  fold records WHY the round has no conclusion, never a second diagnosis. */
+const ABORT_INTERRUPTED = RoundViolation.hard(
+  "the dispatch was interrupted outside the engine — its in-flight record named a dead holder at takeover, so the round concluded nothing (the same command re-offers it)",
+  "interrupted",
+);
 
 // ---------------------------------------------------------------------------
 // the stable seams — the shared faces the composition root + the lifecycle ride
@@ -147,6 +157,9 @@ export class CliLifecycle {
    *  frame derives here (the report/evidence/brief names + the family op), so the
    *  lifecycle and the dry-run preview name the same artifacts by one rule. */
   readonly #naming: RoundNaming;
+  /** The plan's task-block read face — the `Files` declaration the implement
+   *  criterion's verification cell derives from (P30 §2.4). */
+  readonly #blocks = new PlanTaskBlocksReader();
   /** The handoff-schema face — stateless, one shared instance (the read-back
    *  validator + the injected prompt text). */
   readonly #handoffSchema = new HandoffSchema();
@@ -160,10 +173,11 @@ export class CliLifecycle {
    *  (`ProcessFacts.startOf`; injected by the tests to span a long session). */
   readonly #proc: ProcessStartReader;
   /** Whether this invocation asked to take over a dead holder's record (the
-   *  `--steal-stale` flag — the only takeover path). */
-  readonly #stealStale: boolean;
+   *  `--recover` flag — the only takeover path). */
+  readonly #recover: boolean;
   /** The HEAD the current dispatch started from (null off a repo / before a spawn) —
-   *  the postmortem baseline of `commitsSince`. */
+   *  the postmortem baseline of `commitsSince` AND the in-flight record's
+   *  `dispatchBase` cell (the killed round's group baseline a takeover restores, §2.2). */
   #dispatchBase: string | null = null;
   /** The commits added after `#dispatchBase` (computed once the child returned). */
   #commitsSince: readonly string[] = [];
@@ -191,7 +205,7 @@ export class CliLifecycle {
     inflight?: InFlight;
     git?: GitClient;
     proc?: ProcessStartReader;
-    stealStale?: boolean;
+    recover?: boolean;
     brief?: BriefRenderer;
   }) {
     this.#env = opts.env ?? process.env;
@@ -201,7 +215,7 @@ export class CliLifecycle {
       opts.inflight ?? new InFlight(opts.scene.workspace.root, opts.scene.workspace.slug);
     this.#git = opts.git ?? new GitClient();
     this.#proc = opts.proc ?? ProcessFacts;
-    this.#stealStale = opts.stealStale ?? false;
+    this.#recover = opts.recover ?? false;
     this.#sync = opts.sync ?? new Terminator();
     this.#template = opts.template ?? new TemplateAssembler();
     this.#brief = opts.brief ?? new BriefRenderer();
@@ -224,6 +238,71 @@ export class CliLifecycle {
   /** The DispatchStep the lifecycle runs — one frame → the outcome. */
   step(): DispatchStep {
     return (frame) => this.#dispatch(frame);
+  }
+
+  /** The `--recover` abort leg (spec §2.1①/§2.2) — take over a stale in-flight record
+   *  and, when the record can still name the killed round, fold that round into the
+   *  ledger as an abort: `targetAction: false` plus ONE hard `interrupted` entry, the
+   *  record's own cycle / attempt / `dispatchBase`. The group baseline therefore returns
+   *  to before the killed round, so a recovery commit lands inside the next dispatch's
+   *  window instead of being invisible.
+   *
+   *  The three stale morphologies are judged HERE, exactly as `acquire({ recover })`
+   *  judges them: a dead holder's readable record, a corrupt record with a leftover
+   *  lock, a lock with no record behind it. Only the first carries a record back, so
+   *  only it is booked — the other two have no op / cycle / baseline to read, and an
+   *  invented identity is worse than no record (zero invention, same discipline as the
+   *  `treeClean` pin below). A live holder is never displaced.
+   *
+   *  Writes NO `crash-*.json` and promotes no draft: the crash record is the death face's
+   *  (`#reject`), and this is the postmortem fold of a dispatch killed outside the
+   *  engine — the two paths never mix. Returns whether an abort record was written. */
+  async foldAbort(): Promise<boolean> {
+    const stale = await this.#inflight.staleState();
+    if (stale === null) return false;
+    if (stale.kind === "held") {
+      const record = await this.#inflight.steal(InFlight.STEAL_REASON.deadHolder);
+      return record === null ? false : this.#bookAbort(record);
+    }
+    // The two record-less morphologies: the takeover is the whole effect (no op /
+    // cycle / baseline is readable, and an invented identity would be worse).
+    await this.#inflight.steal(
+      stale.kind === "corrupt"
+        ? InFlight.STEAL_REASON.corruptRecord
+        : InFlight.STEAL_REASON.lockOnly,
+    );
+    return false;
+  }
+
+  /** Book one taken-over record as the killed round's abort fact — the cells are the
+   *  record's OWN (op from its phase through the ledger's one mode mapping, cycle /
+   *  attempt / baseline verbatim). `treeClean` is pinned TRUE explicitly: the fold makes
+   *  no dispatch-after observation, so leaving the ledger's default to be re-read would
+   *  let two implementations book different facts (`#softOf` folds
+   *  `treeClean === false` into a dirty-tree observation).
+   *
+   *  A record that cannot name its whole identity — the row key, the op, the cycle or the
+   *  attempt — is NOT booked: the takeover happens, and no identity is made up for it. An
+   *  allocated cycle or a defaulted attempt would be invented facts, and either could
+   *  overwrite a real round's record on the same `(op, cycle, attempt)`. */
+  #bookAbort(record: InFlightRecord): boolean {
+    const op = RoundRecords.opOf(record.phase ?? "");
+    const { wave: key, cycle, attempt } = record;
+    if (op === null || key === null || cycle === null || attempt === null) return false;
+    this.#scene.ledger.recordRound(
+      key,
+      {
+        op,
+        cycle,
+        attempt,
+        dispatchBase: record.dispatchBase,
+        verdict: { treeClean: true, targetAction: false },
+        violations: [ABORT_INTERRUPTED],
+        carrierPath: null,
+      },
+      "wave",
+    );
+    return true;
   }
 
   /** One dispatch — the round's work, the observation facts every record carries (the
@@ -318,10 +397,14 @@ export class CliLifecycle {
         ],
       };
     }
+    // The evidence gate is judged ONCE: its graded entries ride the verdict AND its
+    // result feeds the criterion's read-only `evidenceOk` cell (P30 §2.4) — the round
+    // pays for one evidence read, never two.
+    const evidence = this.#evidenceViolations(frame);
     const violations: RoundViolation[] = [
       ...(outcome.violations ?? []),
-      ...(await this.#criterionViolations(frame, outcome)),
-      ...this.#evidenceViolations(frame),
+      ...(await this.#criterionViolations(frame, outcome, evidence)),
+      ...evidence,
       ...this.#structureViolations(frame),
       ...logEntries,
     ];
@@ -335,10 +418,16 @@ export class CliLifecycle {
   }
 
   /** The verb's completion-criterion verdict as graded entries — the criterion's own
-   *  hard violation plus its SOFT observations (design spec §3.2/§3.3). */
+   *  hard violation plus its SOFT observations (design spec §3.2/§3.3).
+   *
+   *  The verification cells (P30 §2.4) are filled HERE, the single point: the wave's
+   *  empty-`Files` task ids come from the plan document the dispatch already reads
+   *  (`#emptyFileTasks`), and `evidenceOk` is the evidence judgment the round already
+   *  ran — the gate's own result, never a second disk read. */
   async #criterionViolations(
     frame: OpenFrame,
     outcome: DraftedOutcome,
+    evidence: readonly RoundViolation[],
   ): Promise<readonly RoundViolation[]> {
     const scene = this.#scene;
     const judged = await CompletionCriteria.of(this.#opOf(frame)).judge({
@@ -349,11 +438,33 @@ export class CliLifecycle {
       reviewsPath: this.#reviewsPath(frame),
       git: this.#git,
       repoRoot: scene.workspace.root.repoRoot,
+      emptyFileTasks: this.#emptyFileTasks(),
+      evidenceOk: evidence.length === 0,
     });
     return [
       ...(judged.violation === null ? [] : [judged.violation]),
       ...(judged.observations ?? []),
     ];
+  }
+
+  /** The plan tasks whose `Files` declaration names no path — the verification-wave
+   *  cell. The PLAN document is the only source (never the diff): an absent plan, a
+   *  plan path pointing at no document or an unreadable one declares no empty row, so
+   *  a wave can never read as verification on a plan this dispatch could not see. */
+  #emptyFileTasks(): ReadonlySet<number> {
+    const planPath = this.#scene.planPath;
+    if (planPath === null) return new Set();
+    let content: string;
+    try {
+      content = readFileSync(planPath, "utf8");
+    } catch {
+      return new Set();
+    }
+    const empty = new Set<number>();
+    for (const block of this.#blocks.parse(content)) {
+      if (this.#blocks.filePathsOf(block).length === 0) empty.add(block.id);
+    }
+    return empty;
   }
 
   /** The round IDENTITY the criterion judges from — its op / cycle / attempt, the
@@ -495,7 +606,7 @@ export class CliLifecycle {
     // A sibling dispatch that won the lock in between makes `acquire` throw
     // `HoldingError` (carrying the holder's facts), which rides the CLI's held BLOCK.
     this.#dispatchBase = await this.#git.head(this.#scene.workspace.root.repoRoot);
-    await this.#inflight.acquire(await this.#recordOf(frame), { stealStale: this.#stealStale });
+    await this.#inflight.acquire(await this.#recordOf(frame), { recover: this.#recover });
     // The round's own log file — created BEFORE the spawn (append stream open, zero
     // bytes), so the channel exists from the dispatch's first millisecond. A create
     // failure is a named soft observation and the round continues on the CPU leg
@@ -612,6 +723,7 @@ export class CliLifecycle {
       attempt: frame.attempt ?? 1,
       briefHash: this.#briefHashOf(frame),
       plan: scene.planPath === null ? null : this.#rel(scene.planPath),
+      dispatchBase: this.#dispatchBase,
       sampledAt: null,
       verdict: null,
     };
@@ -1007,7 +1119,7 @@ export class CliLifecycle {
       this.#repoRootValue().absolute,
     );
     if (requester.kind !== "read") return undefined;
-    const counts = new FixDispositions().summaryOf(carrier, requester.summaries);
+    const counts = new FixDispositions().summaryOf(carrier, requester.findings);
     return FIX_DISPOSITIONS_SUMMARY.replace("{fixed}", String(counts.fixed)).replace(
       "{rejected}",
       String(counts.rejected),
@@ -1292,10 +1404,18 @@ export class CliLifecycle {
     return Object.keys(out).length > 0 ? out : undefined;
   }
 
-  /** The draft findings as a plain list (the materialized carrier keeps them
-   *  verbatim; the schema validated their shape before this ran). */
+  /** The draft findings as the carrier's list — the child's rows kept VERBATIM except
+   *  for the ONE engine-owned column: `id`, stamped from the carrier position (`F1`,
+   *  `F2` …) and overwriting whatever the child wrote (P30 §2.5 — the disposition
+   *  primary key belongs to the engine, never to the audited prose). This is the only
+   *  write point of a finding id in the engine. */
   #findingsList(findings: unknown): unknown[] {
-    return Array.isArray(findings) ? findings : [];
+    const rows = Array.isArray(findings) ? findings : [];
+    return rows.map((row, index) =>
+      typeof row === "object" && row !== null && !Array.isArray(row)
+        ? { ...(row as Record<string, unknown>), id: `F${index + 1}` }
+        : row,
+    );
   }
 
   /** The same-command resume string — the crash record's `next`, mirroring the

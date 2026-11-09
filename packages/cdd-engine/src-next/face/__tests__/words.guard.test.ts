@@ -10,7 +10,10 @@
 //
 // The stale + gate families are the retired-mechanism tokens the engine's live
 // faces must stay clean of; the shape family is the consumer-skill surface's
-// concern (the kairos plane) and rides no source-face scan here.
+// concern (the kairos plane) and rides no source-face scan here. The takeover
+// flag's retired spelling (`--steal-stale` → `--recover`) rides its own pin below:
+// a hard cut leaves the old lexeme nowhere on the source plane but the negative
+// assertions that name it.
 //
 // Zero module-level bare functions — the walk/scan helpers are `const` (the P5
 // zero-`function`-declaration discipline).
@@ -20,7 +23,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { GUARD_BAN_WORDS } from "../words.ts";
+import { ARGV_CHANNEL } from "../declare.ts";
+import { GUARD_BAN_WORDS, Words } from "../words.ts";
 
 /** The src-next plane root — the engine's own source face (the scan set). */
 const FACE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -89,5 +93,37 @@ describe("the engine-literal word-face audit — the guard-ban vocabulary on the
     for (const token of tokens) {
       expect(all.includes(token), `the data home carries its declared row "${token}"`).toBe(true);
     }
+  });
+});
+
+describe("the takeover flag's hard cut — `--recover` replaced `--steal-stale`, zero alias", () => {
+  it("declares the one takeover row under its current spelling", () => {
+    expect(ARGV_CHANNEL.recover.flag).toBe("--recover");
+    const flags = Object.values(ARGV_CHANNEL).map((row) => row.flag);
+    expect(flags).not.toContain("--steal-stale");
+  });
+
+  it("renders the takeover hint rows under the current spelling", () => {
+    // The data home's quoted rows are release-masked from the source scan above,
+    // so the hint rows are pinned here by value: the current spelling, never the
+    // retired one.
+    const words = new Words();
+    const rows = [
+      words.inFlightWords().stealable,
+      words.inFlightWords().corruptLocked,
+      words.inFlightWords().corruptUnlocked,
+      words.checkedWords().inFlight.stale,
+    ];
+    for (const row of rows) {
+      expect(row).toContain("--recover");
+      expect(row).not.toContain("--steal-stale");
+    }
+  });
+
+  it("leaves the retired lexeme nowhere on the source plane (negative assertions aside)", () => {
+    // A `__tests__` file may NAME the retired lexeme to assert its absence; the
+    // live faces may not, so the scan drops the test plane's own negative pins.
+    const hits = scanHits("--steal-stale").filter((hit) => !hit.includes("__tests__/"));
+    expect(hits, "the source face still carries the retired takeover lexeme").toEqual([]);
   });
 });

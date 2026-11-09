@@ -145,9 +145,9 @@ export interface PreFlightContext {
   readonly inflight: InFlight;
   /** The explicit takeover flag: true lets the gate PASS a dead holder's record (or
    *  a corrupt record with its lock still on disk). The takeover itself is the real
-   *  dispatch's `acquire(record, { stealStale })` — the gate only judges. Under
+   *  dispatch's `acquire(record, { recover })` — the gate only judges. Under
    *  `--dry-run` this flag is void (the preview never acquires). */
-  readonly stealStale?: boolean;
+  readonly recover?: boolean;
 }
 
 /**
@@ -203,7 +203,7 @@ export class PreFlight {
     gates.push("in-flight");
     const inFlight = await ctx.inflight.inspect();
     checked.push(this.#inFlightRow(inFlight));
-    const held = this.#inFlightRefusal(inFlight, ctx.stealStale === true);
+    const held = this.#inFlightRefusal(inFlight, ctx.recover === true);
     if (held !== null) {
       return this.#refusal(
         {
@@ -394,11 +394,11 @@ export class PreFlight {
 
   /** The in-flight gate's refusal — the three-state judgment + the explicit takeover
    *  flag. A live holder is always refused (the flag never crosses "alive"); a dead
-   *  holder or a corrupt-record-with-lock passes only under `stealStale`; a corrupt
+   *  holder or a corrupt-record-with-lock passes only under `recover`; a corrupt
    *  record with no lock behind it is no holder at all (pass, named on the row). */
   #inFlightRefusal(
     state: InFlightState,
-    stealStale: boolean,
+    recover: boolean,
   ): { readonly reason: PreFlightReason; readonly message: string } | null {
     if (state.kind === "held") {
       if (state.alive) {
@@ -407,13 +407,13 @@ export class PreFlight {
           message: this.#words.inFlightBlocked(state.record, true),
         };
       }
-      if (stealStale) return null;
+      if (recover) return null;
       return {
         reason: "held",
         message: this.#words.inFlightBlocked(state.record, false),
       };
     }
-    if (state.kind === "corrupt" && state.locked && !stealStale) {
+    if (state.kind === "corrupt" && state.locked && !recover) {
       return {
         reason: "corrupt-record",
         message: this.#words.inFlightWords().corruptLocked,

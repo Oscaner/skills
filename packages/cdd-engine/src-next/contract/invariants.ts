@@ -9,6 +9,8 @@
 //                  cross-doc-chain · section-scoped-domain ·
 //                  phase-design-spec-is-phase-spec;
 //                 the change-history family — change-history-version-unique ·
+//                  change-history-row-shape ·
+//                  change-history-latest-matches-front-matter ·
 //                  front-matter-version-in-lineage ·
 //                  change-history-row-not-in-other-table · list-marker-not-doubled;
 //                 the identity legs — task-id-unique · phase-id-unique;
@@ -265,23 +267,60 @@ export abstract class Invariant extends MarkdownPrimitives {
 
   /** The doc's `## Change history` table — the ONE lineage read face all four doc
    *  types expose (each parse record carries it, filled by the same table-section
-   *  read). The change-history strategies read ONLY through this accessor. */
+   *  read). The change-history strategies read ONLY through this accessor. The
+   *  record keeps the header and the body rows verbatim: a row whose cell count
+   *  disagrees with the header is judged by `change-history-row-shape`, never
+   *  repaired or dropped here. */
   protected changeHistory(ctx: JudgeContext): ParsedTable {
     return ctx.parsed.tables["Change history"];
   }
 
-  /** The first `vX.Y` version token on a line — the lineage row's identity read. */
-  protected firstVersion(text: string): string | null {
-    const match = text.match(/v\d+\.\d+/);
-    return match === null ? null : match[0];
+  /** The version token of a lineage row — the FIRST cell read ANCHORED: the cell must
+   *  BE the version, never merely carry one (an in-cell prose mention of `spec v0.4`
+   *  is not an identity). */
+  protected lineageVersion(row: readonly string[]): string | null {
+    const cell = (row[0] ?? "").trim();
+    return /^v\d+\.\d+$/.test(cell) ? cell : null;
+  }
+
+  /** The change-history rows that ARE lineage rows — the ones whose cell count matches
+   *  the table's column header. A row whose cells disagree with the header (a
+   *  hard-wrapped cell) is a SHAPE fact — reported by `change-history-row-shape`,
+   *  never silently read as a lineage identity. Duplicate detection and the
+   *  newest-row leg read ONLY this set. */
+  protected lineageRows(ctx: JudgeContext): readonly (readonly string[])[] {
+    const table = this.changeHistory(ctx);
+    const width = table.headerRow?.length ?? 0;
+    if (width === 0) return [];
+    return table.rows.filter((row) => row.length === width);
+  }
+
+  /** The anchored cell-0 versions of EVERY change-history body row, whatever its width.
+   *  Membership is the one read a shape-ragged row must not starve: when the header
+   *  version lives only on the newest row and that row hard-wraps, the version is still
+   *  the document's own lineage (its shape is a separate defect).
+   *  `front-matter-version-in-lineage` reads this set; the duplicate and newest-row legs
+   *  keep `historyVersions`. */
+  protected membershipVersions(ctx: JudgeContext): readonly string[] {
+    return this.changeHistory(ctx)
+      .rows.map((row) => this.lineageVersion(row))
+      .filter((version) => version !== null) as readonly string[];
+  }
+
+  /** The numeric comparison rank of a version token — the lineage's newest row is a
+   *  NUMERIC read (`v0.10` outranks `v0.9`), never a lexical one. */
+  protected versionRank(version: string): number {
+    const [major, minor] = version.replace(/^v/, "").split(".");
+    return Number(major) * 1_000_000 + Number(minor);
   }
 
   /** The doc's Change-history row versions, in row order — the ONE lineage identity
-   *  read every lineage strategy shares (one copy on the base, zero per-strategy
-   *  private duplicates). */
+   *  read the duplicate and newest-row strategies share (one copy on the base, zero
+   *  per-strategy private duplicates). Header-width rows only: a shape-ragged row is
+   *  no lineage identity (membership's wider read is `membershipVersions`). */
   protected historyVersions(ctx: JudgeContext): readonly string[] {
-    return this.changeHistory(ctx)
-      .rows.map((row) => this.firstVersion(row[0] ?? ""))
+    return this.lineageRows(ctx)
+      .map((row) => this.lineageVersion(row))
       .filter((version) => version !== null) as readonly string[];
   }
 
@@ -549,9 +588,8 @@ export class ChangeHistoryVersionUniqueInvariant extends Invariant {
   evaluate(ctx: JudgeContext): Finding[] {
     const findings: Finding[] = [];
     const seenVersions = new Set<string>();
-    for (const row of this.changeHistory(ctx).rows) {
-      const version = this.firstVersion(row[0] ?? "");
-      if (version !== null && seenVersions.has(version)) {
+    for (const version of this.historyVersions(ctx)) {
+      if (seenVersions.has(version)) {
         findings.push(
           this.finding(
             ctx,
@@ -561,9 +599,61 @@ export class ChangeHistoryVersionUniqueInvariant extends Invariant {
           ),
         );
       }
-      if (version !== null) seenVersions.add(version);
+      seenVersions.add(version);
     }
     return findings;
+  }
+}
+
+/** change-history-row-shape — a Change-history body row whose cell count disagrees with
+ *  the table's column header is a rendering defect (a hard-wrapped cell parsed as its
+ *  own row). The row is REPORTED, never silently dropped from the lineage read. */
+export class ChangeHistoryRowShapeInvariant extends Invariant {
+  readonly name = "change-history-row-shape";
+
+  evaluate(ctx: JudgeContext): Finding[] {
+    const table = this.changeHistory(ctx);
+    const width = table.headerRow?.length ?? 0;
+    if (width === 0) return [];
+    const findings: Finding[] = [];
+    for (const row of table.rows) {
+      if (row.length === width) continue;
+      findings.push(
+        this.finding(
+          ctx,
+          "Change history",
+          `a Change-history row carries ${row.length} cells against the ${width}-column header`,
+          "keep the row on one line — a hard-wrapped cell parses as a row of its own",
+        ),
+      );
+    }
+    return findings;
+  }
+}
+
+/** change-history-latest-matches-front-matter — the front-matter `version:` IS the
+ *  lineage's newest numeric version: appending a row lifts both in the same edit, so
+ *  the two sides can never disagree. */
+export class ChangeHistoryLatestMatchesFrontMatterInvariant extends Invariant {
+  readonly name = "change-history-latest-matches-front-matter";
+
+  evaluate(ctx: JudgeContext): Finding[] {
+    const headerVersion = ctx.head.version;
+    if (headerVersion === null) return [];
+    const versions = this.historyVersions(ctx);
+    if (versions.length === 0) return [];
+    const latest = versions.reduce((newest, version) =>
+      this.versionRank(version) > this.versionRank(newest) ? version : newest,
+    );
+    if (latest === headerVersion) return [];
+    return [
+      this.finding(
+        ctx,
+        "version",
+        `the header version ${headerVersion} is not the newest lineage version ${latest}`,
+        `align the two in one edit — bump the version front-matter key to ${latest}, or add the row that reaches ${headerVersion}`,
+      ),
+    ];
   }
 }
 
@@ -1074,22 +1164,24 @@ export class HollowInvariant extends Invariant {
  *  the endpoints and the age of the row carrying the value are the author's
  *  presentation choice, never a judgment input (a newest-first lineage, a
  *  non-monotone frozen history and an ascending one all judge the same). The fix
- *  names the header key, never a row to reorder. */
+ *  names the header key, never a row to reorder. Membership reads EVERY body row's
+ *  anchored cell 0 (`membershipVersions`), so a version carried only by a
+ *  shape-ragged row still counts as lineage. */
 export class FrontMatterVersionInLineageInvariant extends Invariant {
   readonly name = "front-matter-version-in-lineage";
 
   evaluate(ctx: JudgeContext): Finding[] {
     const headerVersion = ctx.head.version;
     if (headerVersion === null) return [];
-    const historyVersions = this.historyVersions(ctx);
-    if (historyVersions.length === 0) return [];
-    if (historyVersions.includes(headerVersion)) return [];
+    const membership = this.membershipVersions(ctx);
+    if (membership.length === 0) return [];
+    if (membership.includes(headerVersion)) return [];
     return [
       this.finding(
         ctx,
         "version",
         `the header version ${headerVersion} is outside the document's own lineage`,
-        `the version front-matter key must belong to the Change-history row versions: ${historyVersions.join(", ")}`,
+        `the version front-matter key must belong to the Change-history row versions: ${membership.join(", ")}`,
       ),
     ];
   }

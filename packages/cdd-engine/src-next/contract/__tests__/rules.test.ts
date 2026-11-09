@@ -33,12 +33,19 @@ const PUBLIC_RULE_IDS = [
 
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
+/** The P30 change-history hardening ids — the row-shape and header-newest legs the
+ *  lineage family gained (the ledger count above follows this list). */
+const HARDENED_RULE_IDS = [
+  "change-history-latest-matches-front-matter",
+  "change-history-row-shape",
+] as const;
+
 describe("RULE_REGISTRY — the declaration surface", () => {
-  it("declares 23 rows: 21 doc-scope + 2 ledger-scope", () => {
+  it("declares 25 rows: 23 doc-scope + 2 ledger-scope", () => {
     const doc = RULE_REGISTRY.filter((declaration) => declaration.scope === "doc");
     const ledger = RULE_REGISTRY.filter((declaration) => declaration.scope === "ledger");
-    expect(RULE_REGISTRY).toHaveLength(23);
-    expect(doc).toHaveLength(21);
+    expect(RULE_REGISTRY).toHaveLength(25);
+    expect(doc).toHaveLength(23);
     expect(ledger).toHaveLength(2);
   });
 
@@ -75,6 +82,13 @@ describe("RULE_REGISTRY — the declaration surface", () => {
   it("carries the six public rule ids of the phase spec", () => {
     const ids = new Set(RULE_REGISTRY.map((declaration) => declaration.id));
     for (const id of PUBLIC_RULE_IDS) expect(ids.has(id), id).toBe(true);
+  });
+
+  it("carries the change-history hardening ids on the doc scope", () => {
+    const docIds = new Set(
+      RULE_REGISTRY.filter((declaration) => declaration.scope === "doc").map((row) => row.id),
+    );
+    for (const id of HARDENED_RULE_IDS) expect(docIds.has(id), id).toBe(true);
   });
 });
 

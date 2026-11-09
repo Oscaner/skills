@@ -11,7 +11,7 @@
 //     corroborating fact; `steal` refuses a live holder and clears a dead/corrupt one;
 //   · `alive` is `ProcessFacts.live`'s judgment — an unreadable start time folds to
 //     true (never an authorized takeover), a reused pid reads dead;
-//   · `stealStale` acts inside acquire only: a dead holder is taken over, a live one
+//   · `recover` acts inside acquire only: a dead holder is taken over, a live one
 //     still refuses;
 //   · the sampling trail is fail-open on both sides: an unwritable record write is
 //     swallowed by `heartbeat` while `acquire`'s own record write stays loud.
@@ -61,6 +61,9 @@ const DEAD_PID = 4_000_001;
  *  directory does not refuse a root writer, so the fail-open write pin cannot hold. */
 const isRoot = (): boolean => typeof process.getuid === "function" && process.getuid() === 0;
 
+/** The dispatch baseline of the fixture — the HEAD the round started from. */
+const DISPATCH_BASE = "4f1c8a2be0d9765c3a1b7f2048e6d93c5b8a0f27";
+
 /** An intent record over the given identity facts. */
 const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
   pid: process.pid,
@@ -73,6 +76,7 @@ const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
   attempt: 1,
   briefHash: null,
   plan: "docs/p3.md",
+  dispatchBase: DISPATCH_BASE,
   sampledAt: null,
   verdict: null,
   ...over,
@@ -82,6 +86,12 @@ const recordOf = (over: Partial<InFlightRecord> = {}): InFlightRecord => ({
 const plantRecord = (inflight: InFlight, record: InFlightRecord): void => {
   inflight.ensureMarker();
   writeFileSync(inflight.path(), `${JSON.stringify(record, null, 2)}\n`, "utf8");
+};
+
+/** Plant RAW record bytes — a record written by an older engine (`dispatchBase` absent). */
+const plantRaw = (inflight: InFlight, body: string): void => {
+  inflight.ensureMarker();
+  writeFileSync(inflight.path(), body, "utf8");
 };
 
 /** Initialize a git repo (the tree-clean judgment's environment). */
@@ -203,6 +213,43 @@ describe("InFlight.acquire — the intent record before the spawn", () => {
     } finally {
       await inflight.release();
     }
+  });
+});
+
+describe("InFlightRecord.dispatchBase — the killed round's group baseline (P30 §2.2)", () => {
+  it("writes the dispatch baseline the acquire was handed", async () => {
+    const repo = scratch();
+    initRepo(repo);
+    const inflight = inflightOf(repo);
+    await inflight.acquire(recordOf({ dispatchBase: DISPATCH_BASE }));
+    try {
+      const written = JSON.parse(readFileSync(inflight.path(), "utf8")) as InFlightRecord;
+      expect(written.dispatchBase).toBe(DISPATCH_BASE);
+    } finally {
+      await inflight.release();
+    }
+  });
+
+  it("reads a record written before this cell existed as null — a present fact only", async () => {
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    const { dispatchBase: _absent, ...legacy } = recordOf();
+    plantRaw(inflight, `${JSON.stringify(legacy, null, 2)}\n`);
+    const state = await inflight.inspect();
+    expect(state.kind).toBe("held");
+    if (state.kind !== "held") return;
+    // Zero migration, zero invention: the older record simply carries no baseline.
+    expect(state.record.dispatchBase).toBeNull();
+  });
+
+  it("keeps the baseline through a sampling tick — the trail never rewrites identity", async () => {
+    const repo = scratch();
+    const inflight = inflightOf(repo);
+    plantRecord(inflight, recordOf({ dispatchBase: DISPATCH_BASE }));
+    inflight.heartbeat({ sampledAt: Date.now(), verdict: "progress" });
+    const written = JSON.parse(readFileSync(inflight.path(), "utf8")) as InFlightRecord;
+    expect(written.dispatchBase).toBe(DISPATCH_BASE);
+    expect(written.verdict).toBe("progress");
   });
 });
 
@@ -347,13 +394,13 @@ describe("InFlight.heartbeat — the fail-open trail write", () => {
   );
 });
 
-describe("InFlight.acquire({ stealStale }) — the one explicit takeover path", () => {
+describe("InFlight.acquire({ recover }) — the one explicit takeover path", () => {
   it("takes over a dead holder's record before locking — the new dispatch's facts replace it", async () => {
     const repo = scratch();
     const inflight = inflightOf(repo);
     plantRecord(inflight, recordOf({ pid: DEAD_PID, command: "cdd implement --tasks 9" }));
     const fresh = recordOf({ command: "cdd implement --tasks 1", wave: "1" });
-    await inflight.acquire(fresh, { stealStale: true });
+    await inflight.acquire(fresh, { recover: true });
     try {
       const state = (await inflight.inspect()) as Extract<InFlightState, { kind: "held" }>;
       expect(state.record.command).toBe(fresh.command);
@@ -370,7 +417,7 @@ describe("InFlight.acquire({ stealStale }) — the one explicit takeover path", 
     plantRecord(inflight, recordOf({ pid: DEAD_PID }));
     mkdirSync(inflight.lockPath(), { recursive: true });
     await inflight.acquire(recordOf({ command: "cdd implement --tasks 2", wave: "2" }), {
-      stealStale: true,
+      recover: true,
     });
     try {
       const state = (await inflight.inspect()) as Extract<InFlightState, { kind: "held" }>;
@@ -380,7 +427,7 @@ describe("InFlight.acquire({ stealStale }) — the one explicit takeover path", 
     }
   });
 
-  it("never crosses a LIVE holder — stealStale still refuses the acquire", async () => {
+  it("never crosses a LIVE holder — recover still refuses the acquire", async () => {
     const repo = scratch();
     const holder = inflightOf(repo);
     await holder.acquire(recordOf());
@@ -388,7 +435,7 @@ describe("InFlight.acquire({ stealStale }) — the one explicit takeover path", 
       // The current process is alive and its `startedAt` matches — a live holder.
       await expect(
         inflightOf(repo).acquire(recordOf({ command: "cdd review --type wave --tasks 1" }), {
-          stealStale: true,
+          recover: true,
         }),
       ).rejects.toBeInstanceOf(HoldingError);
     } finally {

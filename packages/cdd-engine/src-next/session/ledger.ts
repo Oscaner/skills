@@ -118,6 +118,12 @@ export interface RoundRecord {
   readonly verdict: RoundVerdict;
   readonly violations: readonly RoundViolation[];
   readonly carrierPath: string | null;
+  /** The supersede stamp (P30 §2.3) — the cycle that REPLACED this review's judgment
+   *  (the `--recover` reopen dispatched `cycle` next, so this round's pending fix is no
+   *  longer owed). Absent on every ordinary round and on every record written before
+   *  the column existed (zero migration). The record keeps its own verdict: the stamp
+   *  records that a newer judgment supersedes it, never that it failed. */
+  readonly supersededBy?: { readonly cycle: number; readonly cause: "recover" };
 }
 
 /** One dispatched round's identity — the verdict-free projection a completion
@@ -356,13 +362,21 @@ export interface Termination {
  *  terminated before the exit gate (zero behavior fork: resume never routes on it).
  *  The termination causes cover the round that was cut short; `child-exit` is the
  *  child's own non-zero exit; `contract-violation` is the read-back rejection face
- *  when a draft is present but unqualified (malformed JSON / schema); and `unknown`
- *  is the unattributable termination fallback. A MISSING draft is not a crash cause:
- *  the completion criterion owns it (§3.3), so the read-back rejection never fires
- *  there and this vocabulary names a present-but-unqualified draft alone. The crash
- *  record is a postmortem artifact only — the violation family, not this vocabulary,
- *  is what the round's counters derive from. */
-export type CrashCause = TerminationCause | "child-exit" | "contract-violation" | "unknown";
+ *  when a draft is present but unqualified (malformed JSON / schema); `interrupted`
+ *  is the abort fold's cause — a dispatch killed OUTSIDE the engine, booked when the
+ *  stale in-flight record is taken over (spec §2.2), so the ledger carries the killed
+ *  round's fact instead of only the lost lock; and `unknown` is the unattributable
+ *  termination fallback. A MISSING draft is not a crash cause: the completion
+ *  criterion owns it (§3.3), so the read-back rejection never fires there and this
+ *  vocabulary names a present-but-unqualified draft alone. The crash record is a
+ *  postmortem artifact only — the violation family, not this vocabulary, is what the
+ *  round's counters derive from. */
+export type CrashCause =
+  | TerminationCause
+  | "child-exit"
+  | "contract-violation"
+  | "interrupted"
+  | "unknown";
 
 /** The crash record — the lane crash's recovery record (`crash-<lane>-<round>.json`):
  *  the same-command resume's decision source (the resume command + the dead child's
@@ -1121,13 +1135,16 @@ export class Ledger {
    *  (a recorded round is a present fact — the same-doc re-review stays refused until
    *  its fix lands). A completed fix (the latest review cycle IS in the fix
    *  completion set) is NOT the pending face — the completed-fix line's re-review
-   *  reopens through the fix round's C5 route (the legacy judgment). */
+   *  reopens through the fix round's C5 route (the legacy judgment).
+   *
+   *  A SUPERSEDED review (P30 §2.3) is not a candidate: the reopen replaced its
+   *  judgment, so the fix it awaited is no longer owed. */
   #pendingFix(key: LedgerKey, type: TargetType): boolean {
     const data = this.readProgress();
     if (data === null) return false;
     const row = Ledger.rowFor(data, key, type);
     if (row === undefined) return false;
-    const reviews = this.#latestCompletedCycleOfRow(row, "review");
+    const reviews = this.#latestLiveCycleOfRow(row, "review");
     if (reviews === 0) return false;
     if (this.#completedCyclesOfRow(row, "fix").includes(reviews)) return false;
     const carried = this.round("review", type, { round: reviews }, reviews);
@@ -1135,6 +1152,13 @@ export class Ledger {
     // through the `HandoffSchema.conclusionOf` single source (the findings carrier
     // stores no status field · D27), never a second read of the carrier here.
     return carried === null || carried.status === undefined || carried.status !== "APPROVED";
+  }
+
+  /** The line's derived pending-fix fact — the PUBLIC read face of `#pendingFix`
+   *  (the `--recover` reopen's condition ②, P30 §2.3). One derivation, two readers;
+   *  never a second walk from the face. */
+  pendingFix(key: LedgerKey, type: TargetType): boolean {
+    return this.#pendingFix(key, type);
   }
 
   /** Read one counter — a failure-category count on record (0 when the file is
@@ -1268,7 +1292,7 @@ export class Ledger {
     const row = Ledger.rowFor(data, key, type);
     if (row === undefined) return { kind: "review" };
     const reviewLead = targetFaces[type].product.reviewLead;
-    const reviews = this.#latestCompletedCycleOfRow(row, reviewLead);
+    const reviews = this.#latestLiveCycleOfRow(row, reviewLead);
     if (reviews === 0) return { kind: "review" };
     if (!this.#completedCyclesOfRow(row, "fix").includes(reviews)) {
       const route = this.#lineRoundRoute("review", type, reviews);
@@ -1418,6 +1442,47 @@ export class Ledger {
   #latestCompletedCycleOfRow(row: ProgressRow, mode: string): number {
     const cycles = this.#completedCyclesOfRow(row, mode);
     return cycles.length > 0 ? Math.max(...cycles) : 0;
+  }
+
+  /** The latest completed cycle of a row + mode that no later round SUPERSEDED — the
+   *  active-hop read of a reopenable line (P30 §2.3: `--recover` replaced the old
+   *  review's judgment, so it may no longer lead this line's hop). Deliberately a
+   *  SEPARATE reader from `#latestCompletedCycleOfRow`: closure is a ledger-wide-order
+   *  fact, and a supersede must never make a closed line look open (`#rowClosed` and the
+   *  wave-line closure judgment keep the unfiltered read). 0 when none. */
+  #latestLiveCycleOfRow(row: ProgressRow, mode: string): number {
+    const op = RoundRecords.opOf(mode);
+    if (op === null) return 0;
+    const cycles = RoundRecords.of(row)
+      .filter(
+        (record) =>
+          record.op === op && record.verdict.targetAction && record.supersededBy === undefined,
+      )
+      .map((record) => record.cycle);
+    return cycles.length > 0 ? Math.max(...cycles) : 0;
+  }
+
+  /** Stamp a completed review round as SUPERSEDED (P30 §2.3) — the `--recover` reopen'
+   *  s ONE write. It writes no fake completed fix: the old review keeps its own verdict
+   *  and gains `supersededBy: { cycle, cause: "recover" }`, and the fix identity stays
+   *  with its requesting review's cycle (D28 unchanged). Idempotent: a second stamp of
+   *  the same record is a no-op rewrite. Returns whether a completed review of that
+   *  cycle was stamped. */
+  supersedeReview(key: LedgerKey, type: TargetType, cycle: number, byCycle: number): boolean {
+    const data = this.readProgress();
+    if (data === null) return false;
+    const row = Ledger.rowFor(data, key, type);
+    if (row === undefined) return false;
+    const records = [...RoundRecords.of(row)];
+    const index = records.findIndex(
+      (record) => record.op === "review" && record.cycle === cycle && record.verdict.targetAction,
+    );
+    const target = records[index];
+    if (target === undefined) return false;
+    records[index] = { ...target, supersededBy: { cycle: byCycle, cause: "recover" } };
+    row.rounds = records;
+    this.writeProgress(data);
+    return true;
   }
 
   /** One mode's completed cycles on a row — the row-level twin of `completedCycles`. */

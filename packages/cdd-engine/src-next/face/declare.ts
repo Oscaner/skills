@@ -84,8 +84,8 @@ export const ARGV_CHANNEL = {
     help: "the base artifact's source channel",
   },
   force: { flag: "--force", type: "bool", help: "override the existing base artifact" },
-  stealStale: {
-    flag: "--steal-stale",
+  recover: {
+    flag: "--recover",
     type: "bool",
     help: "take over a standing in-flight record whose holder is dead (the only takeover path)",
   },
@@ -231,11 +231,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     name: "implement",
     description: `run the task implement phase — at most ${MAX_TASKS_PER_WAVE} tasks per wave`,
     example: `cdd implement --tasks 1,2 --plan ${ENGINE_DOC_ROOTS.plans}/p3.md`,
-    keys: [
-      { key: "tasks", required: true },
-      { key: "plan", required: true },
-      { key: "stealStale" },
-    ],
+    keys: [{ key: "tasks", required: true }, { key: "plan", required: true }, { key: "recover" }],
   },
   {
     name: "review",
@@ -247,7 +243,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
       { key: "plan" },
       { key: "spec" },
       { key: "round" },
-      { key: "stealStale" },
+      { key: "recover" },
     ],
   },
   {
@@ -260,7 +256,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
       { key: "reviews" },
       { key: "spec" },
       { key: "plan" },
-      { key: "stealStale" },
+      { key: "recover" },
     ],
   },
   {

@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { TargetType } from "../../session/faces.ts";
 import {
+  CLOSED_WAVE_DISCIPLINE,
   REVIEWS,
   type ReviewKey,
   reviewBodyOf,
@@ -169,6 +170,48 @@ describe("P28 T3 — the narrative body names the claim shapes, not today's shap
   });
 
   it("keeps the plan variant byte-frozen — the rewrite is the spec variant's only", () => {
-    expect(REVIEWS.plan.axesGuide).toBe(`${PLAN_GUIDE_PREFIX}${reviewGuideOf("plan")}`);
+    // The closed-wave discipline (P30 §2.7) is the ONE body both document variants
+    // select, so it rides between the frozen prefix and the shared rubric.
+    expect(REVIEWS.plan.axesGuide).toBe(
+      `${PLAN_GUIDE_PREFIX}${CLOSED_WAVE_DISCIPLINE} ${reviewGuideOf("plan")}`,
+    );
+  });
+});
+
+/**
+ * The closed-wave discipline's two stable anchors (P30 §2.7) — a finding on the
+ * content face of an already-closed task block is answered by the DOCUMENT, never by
+ * moving the work. One substring per clause: a rewording that keeps the duty stays
+ * green, dropping the duty goes red.
+ */
+const CLOSED_WAVE_ANCHORS = [
+  "align with the delivered split",
+  "never by carrying work into or out of a closed task",
+] as const;
+
+/** The three document targets the discipline governs — the plan variant and the two
+ *  spec shapes (they share the ONE narrative body). */
+const DOCUMENT_TARGETS: readonly TargetType[] = ["plan", "phase-spec", "single-spec"];
+
+describe("P30 T6 — the closed-wave discipline rides the document review axes", () => {
+  it("names the closed-wave duty in the plan variant and in both spec-shaped variants", () => {
+    for (const type of DOCUMENT_TARGETS) {
+      const guide = REVIEWS[reviewBodyOf(type)].axesGuide;
+      for (const anchor of CLOSED_WAVE_ANCHORS) expect(guide).toContain(anchor);
+    }
+  });
+
+  it("carries the discipline in the rendered review prompt, not only the registry", () => {
+    for (const type of DOCUMENT_TARGETS) {
+      const shell = TEMPLATE_PROMPT.reviews[type].shell.join("\n");
+      for (const anchor of CLOSED_WAVE_ANCHORS) expect(shell).toContain(anchor);
+    }
+  });
+
+  it("stays out of the wave / branch / charter bodies — the discipline belongs to the documents", () => {
+    for (const type of ["wave", "branch", "overall"] as const) {
+      const guide = REVIEWS[reviewBodyOf(type)].axesGuide;
+      for (const anchor of CLOSED_WAVE_ANCHORS) expect(guide).not.toContain(anchor);
+    }
   });
 });

@@ -55,6 +55,8 @@ base: develop
 
 
 
+#### Steps
+
 - 写失败测 `change-history-header.test.ts` 五例（四列零 finding · 多一列一条 · 少一列一条 · `Date` 大写列名一条 · 无节零 finding）— checkable: 定向 vitest 该文件 FAIL（`ChangeHistoryHeaderColumnsInvariant` 未定义）
 - 在 `ChangeHistoryRowShapeInvariant` 之后加 `CHANGE_HISTORY_COLUMNS` 常量与新 invariant 类：`headerRow` 为 `null`/空返 `[]`，否则 `trim` 后逐格比长度与文案，不等即 `this.finding(ctx, "Change history", …)` 一条 — checkable: 上一步五例 PASS，`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0
 - `contract/rules.ts` 在 `change-history-row-shape` 行之后登记 `{ scope: "doc", id: "change-history-header-columns", docKeys: "all", create }`；`rules.test.ts` 登记表快照按新行更新 — checkable: `rules.test.ts` 快照断言 PASS（缺登记行即红）
@@ -100,6 +102,8 @@ none
 - 新 `FIX_READBACK_SUFFIX` 字面：`"(confirm the reviews handoff · if a finding needs a ruling, record it beside that handoff — same path with .json replaced by .rulings.json)"`
 
 
+
+#### Steps
 
 - 写失败测 `carrier-rulings.test.ts`：`pathFor` 两种入参、缺文件 `absent`、合法文件 `ok`、五条 `invalid`（非 JSON · `rulings` 非数组 · 条目缺 `ruling` · 未知顶层键 · `finding` 不在 carrier id 集）— checkable: 定向 vitest 该文件 FAIL（模块不存在）
 - 实现 `session/carrier-rulings.ts`：`pathFor` 换后缀 · `read` 只在文件存在时解析 · `verdict` 三态并逐条给 reason · 白名单拒未知键 — checkable: 上一步全 PASS，typecheck exit 0
@@ -147,6 +151,8 @@ none
 
 
 
+#### Steps
+
 - 写失败测 `carrier-integrity.test.ts`：`sha256` 固定串已知 hex · `mismatch` 四例（`null` 任一端 · 同值 · 异值两端）— checkable: 定向 vitest FAIL（模块不存在）
 - 写失败测（三态）：写 carrier 并记 digest → 未改字节可读 · 删文件返 `null` · 改字节抛 `CarrierMismatchError` 且报文含 `recorded=`/`current=` · 旧记录无 digest 时即便改字节也不抛 — checkable: 定向 vitest FAIL（今日 `readHandoff` 无 digest 面）
 - `infra/workspace.ts` 拆出 `writeJsonHashed(name, value): string`（返回写入字节 sha256），`writeJson` 改为其薄壳；`#{persist}` 返回该 digest — checkable: 既有 `infra.test.ts` 全绿（写盘字节零变化），新方法单测 PASS
@@ -189,6 +195,8 @@ none
 
 
 
+#### Steps
+
 - 写失败测（命名）：`finalName("review","wave",{tasks:"1",round:2}) === "tasks-1-review-2.c2.json"` 与 `finalName("fix","phase-spec",{round:3}) === "phase-spec-fix-3.c3.json"`；`round` 缺省时回落 `handoffName`，不产 `.c.json` — checkable: 定向 vitest FAIL（方法不存在）
 - 写失败测（共存与三处同值）：bookkeep 后草稿名与 `.c<N>.json` 并存 · 记录 `carrierPath`=final 与 `draftPath`=草稿 · final 内 `contentSha256`、返回 `digest`、记录 `carrierDigest` 三者相等且等于 final 最终字节 sha256 · 删草稿后经 final 仍可读 — checkable: 定向 vitest FAIL
 - `RoundNaming` 加 `finalName` / `finalPath`（`params.round` 拼 `.c<N>`，缺 `round` 回落）— checkable: 命名两例 PASS
@@ -228,6 +236,8 @@ none
 - `export class CarrierSeal`，静态方法：`static seal(target: string): void`（存在则 `chmodSync(target, 0o444)`）、`static unseal(target: string): void`（存在则 `chmodSync(target, 0o644)`）、`static sweep(directory: string, keep: readonly string[]): readonly string[]`（把该目录下 `*.json` 中模式为 `0o444` 且不在 `keep` 的**引擎产物**重新 seal 并返回被处理的文件名；返回空数组即无事可做）
 
 
+
+#### Steps
 
 - 写失败测 `carrier-seal.test.ts`：`seal` 后 `stat.mode & 0o777 === 0o444`、`unseal` 后 `0o644`、不存在路径两方法不抛 — checkable: 定向 vitest FAIL（模块不存在）
 - 写失败测（终态四条 + 一条范围）：成功 bookkeep · `#reject` · spawn 前门禁拒 · `--recover` abort 各自收工后本轮草稿与 final 均 `0o444`；fix 派发全程作为输入的上一轮 review 载体仍 `0o444` — checkable: 定向 vitest FAIL
@@ -270,6 +280,8 @@ none
 
 
 
+#### Steps
+
 - 写失败测（git 读面）：临时 repo 提交 A 后轮内提交改 `docs/x.md` → `pathsSince(base)` 含之；只改 `docs/y.md` 时不含；`base=null` → `[]` — checkable: 定向 vitest `infra.test.ts` FAIL（方法不存在）
 - 写失败测（写回判据四例）：`touchedDoc:true` 绑收工字节 · `false` 保持旧值且随后 dry-run 报 drift/open · `null` 绑当前且本轮 violations 含一条 soft · 缺省（injected）与今日一致零 soft — checkable: 定向 vitest `run.test.ts` FAIL（②③ 今日不成立）
 - `infra/git.ts` 加 `pathsSince(cwd, base)`：`git log --name-only --pretty=format: <base>..HEAD` 按行切、去重去空、`try/catch` 返 `[]` — checkable: 三例 PASS
@@ -305,6 +317,8 @@ none
 - changeset 文件：`@oscaner-skills/cdd-engine` 一条 `minor`，正文三句（sidecar rulings · carrier 摘要与只读 · 条件写回）与一句 header 列集门
 
 
+
+#### Steps
 
 - 写 changeset `.changeset/p31-ledger-disk-integrity.md`：`"@oscaner-skills/cdd-engine": minor` + 五句（sidecar 与 `INPUT_RULINGS` · 载体摘要与只读 · draft/final 分路径 · 条件写回 · 表头列集门）— checkable: `scripts/__tests__/changeset-levels.test.ts` PASS（无 major、级别齐备）
 - `pnpm run validate` — checkable: exit 0（root · kairos · engine · typecheck ×3 · version-sync · emit fresh · 零裸函数）

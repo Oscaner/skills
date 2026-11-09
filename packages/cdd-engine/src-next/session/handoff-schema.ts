@@ -46,11 +46,18 @@ interface SchemaNode {
 
 /** One finding row — the shared base declaration of the judge plane (severity +
  *  lens + summary required; the extra review columns — section / line / fix — are
- *  declared optional, and unknown extra fields ride along). */
+ *  declared optional, and unknown extra fields ride along).
+ *
+ *  `id` is declared OPTIONAL on purpose (P30 §2.5): the engine writes the stable key
+ *  (`F1`, `F2` … in carrier order) at materialize and overwrites whatever the child
+ *  put there, so the prompt shows the field exists while the child owes nothing. A
+ *  required `id` would push an engine-owned value onto the child and add a pointless
+ *  read-back BLOCK face for a field the engine always rewrites. */
 const FINDING: SchemaNode = {
   type: "object",
   required: ["severity", "lens", "summary"],
   properties: {
+    id: { type: "string" },
     severity: { type: "string", enum: ["blocker", "warn", "nit"] },
     lens: { type: "string" },
     section: { type: "string" },
@@ -138,6 +145,9 @@ export type CarrierValue = {
   notes: string[];
   dispositions: Record<string, { status: "fixed" | "rejected"; reason?: string }>;
   findings: {
+    /** Engine-written at materialize (carrier order → `F1`, `F2` …); a child value
+     *  is overwritten, so the draft may carry it or omit it. */
+    id?: string;
     severity: "blocker" | "warn" | "nit";
     lens: string;
     section?: string;

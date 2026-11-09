@@ -1127,6 +1127,7 @@ const inFlightRecord = (over: Partial<InFlightRecord> = {}): InFlightRecord => (
   attempt: 1,
   briefHash: null,
   plan: "docs/p.md",
+  dispatchBase: null,
   sampledAt: null,
   verdict: null,
   ...over,
@@ -1534,7 +1535,7 @@ describe("cdd board — the in-flight read face (zero write)", () => {
 
       expect(await command.runArgv(["board", "--plan", "docs/kairos/plans/p3.md"])).toBe(0);
       expect(stdoutText()).toContain("in-flight: pid 999999");
-      expect(stdoutText()).toContain("--steal-stale");
+      expect(stdoutText()).toContain("--recover");
       expect(stdoutText()).toContain("orphan: tasks-1-review-1.json");
       // zero write: the record bytes, the lock carrier and the draft are untouched
       expect(readFileSync(path.join(dir, "in-flight.json"), "utf8")).toBe(record);

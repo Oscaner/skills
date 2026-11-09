@@ -1485,3 +1485,83 @@ describe("P24 T3 — briefDrifted, the wave line's ONE drift read", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// P30 T7 — supersedeReview: the reopen stamp (design spec §2.3)
+// ---------------------------------------------------------------------------
+
+describe("supersedeReview — the reopen stamp, the two skip readers and the closure pair", () => {
+  /** A pending-fix doc line: review-1 carries a blocker and the reviewed revision is
+   *  bound, so the line awaits its fix (the reopen's condition ②). */
+  const pendingDocLine = (ledger: Ledger, doc: string): void => {
+    mkdirSync(path.dirname(doc), { recursive: true });
+    writeFileSync(doc, "the reviewed body", "utf8");
+    ledger.persistHandoff(
+      "review",
+      "phase-spec",
+      { round: 1 },
+      { findings: [{ severity: "blocker", summary: "open" }] },
+    );
+    ledger.recordRound("phase-spec", { op: "review", cycle: 1 });
+    ledger.recordReviewedRevision(
+      "phase-spec",
+      ledger.refs().docRevision(doc, "the reviewed body"),
+    );
+  };
+
+  it("stamps the review with the replacing cycle, clears the pending fix and writes NO fake fix", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const doc = path.join(workspace.path, "docs", "s-spec.md");
+      pendingDocLine(ledger, doc);
+      expect(ledger.pendingFix("phase-spec", "phase-spec")).toBe(true);
+      expect(ledger.lineRoute("phase-spec", "phase-spec")).toMatchObject({ kind: "fix" });
+
+      expect(ledger.supersedeReview("phase-spec", "phase-spec", 1, 2)).toBe(true);
+
+      const [stamped] = ledger.recordsOf("phase-spec", "phase-spec");
+      expect(stamped?.supersededBy).toEqual({ cycle: 2, cause: "recover" });
+      // A stamp is not a failure: the record keeps its own verdict.
+      expect(stamped?.verdict.targetAction).toBe(true);
+      // The two derived readers skip it — the line is back at the review lead …
+      expect(ledger.pendingFix("phase-spec", "phase-spec")).toBe(false);
+      expect(ledger.lineRoute("phase-spec", "phase-spec")).toMatchObject({ kind: "review" });
+      // … and no completed fix was invented (the fix identity stays D28's).
+      expect(ledger.completedCycles("phase-spec", "fix", "phase-spec")).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("refuses to stamp a cycle that holds no completed review — present facts only", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const doc = path.join(workspace.path, "docs", "s-spec.md");
+      pendingDocLine(ledger, doc);
+      expect(ledger.supersedeReview("phase-spec", "phase-spec", 9, 10)).toBe(false);
+      expect(ledger.recordsOf("phase-spec", "phase-spec")[0]?.supersededBy).toBeUndefined();
+      expect(ledger.supersedeReview("missing", "phase-spec", 1, 2)).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("PAIR PIN — a CLOSED line stays closed across a supersede: closure is a full-order fact", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // Review-1 carries no finding: its route is the closure.
+      ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+      ledger.recordRound("plan", { op: "review", cycle: 1 });
+      expect(ledger.lineClosed("plan", "plan")).toBe(true);
+
+      expect(ledger.supersedeReview("plan", "plan", 1, 2)).toBe(true);
+
+      // `#rowClosed` keeps the UNFILTERED latest-completed read: the stamp never
+      // reopens a closed line (only `#pendingFix` and `lineRoute` skip superseded rounds).
+      expect(ledger.lineClosed("plan", "plan")).toBe(true);
+      expect(ledger.lineStateAt("plan", "plan", null)).toBe("closed");
+    } finally {
+      cleanup();
+    }
+  });
+});

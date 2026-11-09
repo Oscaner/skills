@@ -592,7 +592,10 @@ const OVERALL_ELEMENTS = [
     home: "table",
     selector: SelectorSpec.table(SelectorSpec.heading("## File paths"), /^\| [^|]+ \| `[^`]+` \|$/),
   },
-  // Change history — the version-lineage surface.
+  // Change history — the version-lineage surface. Both the row selector and the
+  // version-cell read are anchored at the FIRST column: a row's identity is a cell
+  // that IS `v<n>.<m>`, never prose carrying a version token. The judgment plane's
+  // `lineageRows` / `lineageVersion` reads hold the same anchor (`invariants.ts`).
   {
     anchor: "Change history row",
     presence: "required",

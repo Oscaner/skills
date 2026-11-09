@@ -221,6 +221,39 @@ describe("projection ② — the read-back validation (violations)", () => {
   });
 });
 
+describe("the finding `id` — declared optional, engine-written (P30 §2.5)", () => {
+  it("declares `id` on the finding row but keeps it OUT of the required set", () => {
+    const findings = schema.planeSchema("judge").properties?.findings;
+    // The prompt SHOWS the field (the child learns the engine's key shape)…
+    expect(findings?.items?.properties ?? {}).toHaveProperty("id");
+    expect(findings?.items?.properties?.id).toEqual({ type: "string" });
+    // …and the child owes nothing: the required set is the three content columns.
+    expect(findings?.items?.required).toEqual(["severity", "lens", "summary"]);
+    expect(schema.planeSchema("judge").required).toEqual(["findings"]);
+  });
+
+  it("accepts a findings draft WITHOUT an id and one with a child-written id — the engine overwrites it at materialize", () => {
+    expect(schema.violations("judge", FINDINGS)).toEqual([]);
+    expect(
+      schema.violations("judge", {
+        findings: [{ id: "F7", severity: "warn", lens: "spec", summary: "drift" }],
+      }),
+    ).toEqual([]);
+  });
+
+  it("still judges the declared column's TYPE — a non-string id is a read-back problem", () => {
+    expect(
+      schema.violations("judge", {
+        findings: [{ id: 7, severity: "warn", lens: "spec", summary: "drift" }],
+      }),
+    ).toEqual(["findings[0].id: expected a string"]);
+  });
+
+  it("projects the id into the injected judge fence", () => {
+    expect(schema.schemaText("judge", false)).toContain('"id":{"type":"string"}');
+  });
+});
+
 describe("projection ② — the evidence read-back (evidenceViolations)", () => {
   it("accepts the canonical evidence file", () => {
     expect(schema.evidenceViolations(EVIDENCE)).toEqual([]);

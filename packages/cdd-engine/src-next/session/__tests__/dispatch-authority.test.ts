@@ -320,6 +320,47 @@ describe("P27 §2.4 — the doc/branch face's rows", () => {
     }
   });
 
+  it("drift ∧ pending-fix — the refusal's `next:` is the REOPENABLE review command carrying `--recover` (P30 §2.3)", () => {
+    const { repo, ledger, cleanup } = fixture();
+    try {
+      const content = planDoc([task(1, "none")]);
+      const planAbs = planAt(repo, content);
+      closedPlan(ledger, content, [{ severity: "blocker", summary: "open" }]);
+      // The plan moves past the revision its review bound: drift ∧ pending-fix.
+      writeFileSync(planAbs, planDoc([task(1, "none"), task(2, "1")]), "utf8");
+      const refusal = refusalOf(docCase(ledger, "plan", planAbs, "review", planAbs));
+      expect(refusal.reason).toBe("pending-fix");
+      expect(refusal.recover).toBe(true);
+      // The hop the refusal names IS the reopenable review round (never the fix the
+      // moved design already outran).
+      expect(refusal.next?.route?.kind).toBe("review");
+      const line = authority.message(refusal, {
+        command: (hop) => `cdd review --type plan --plan ${String(hop.target?.id)}`,
+      });
+      expect(line).toContain("pending-fix");
+      expect(line).toContain("--recover");
+      expect(line.split("\n")).toHaveLength(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("pending-fix on an UNCHANGED doc keeps the bare `next:` — no `--recover` where nothing drifted", () => {
+    const { repo, ledger, cleanup } = fixture();
+    try {
+      const content = planDoc([task(1, "none")]);
+      const planAbs = planAt(repo, content);
+      closedPlan(ledger, content, [{ severity: "blocker", summary: "open" }]);
+      const refusal = refusalOf(docCase(ledger, "plan", planAbs, "review", planAbs));
+      expect(refusal.reason).toBe("pending-fix");
+      expect(refusal.recover).toBeUndefined();
+      const line = authority.message(refusal, { command: () => "cdd fix --type plan" });
+      expect(line).toBe("pending-fix · next: cdd fix --type plan");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("the branch line's unchanged identity keeps the face-closed row (no doc-class prose)", () => {
     const { repo, ledger, cleanup } = fixture();
     try {
@@ -991,6 +1032,41 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
       expect(ledger.roundCount("1", "implement")).toBe(0);
     } finally {
       cleanup();
+    }
+  });
+});
+
+describe("P30 T6 — the closed-wave discipline adds zero finding-routing branch", () => {
+  /** The two planes that route a dispatch — the authority and the next-hop router. */
+  const ROUTING_PLANES = ["../dispatch-authority.ts", "../next.ts"] as const;
+
+  const planeText = (file: string): string =>
+    readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8");
+
+  /** Every hit of a pattern in one plane's source, as `line` records (an empty list is
+   *  the assertion; a hit names itself, so a new branch cannot land silently). */
+  const hitsOf = (text: string, pattern: RegExp): readonly string[] =>
+    text
+      .split("\n")
+      .map((line, index) => ({ line: line.trim(), number: index + 1 }))
+      .filter((entry) => pattern.test(entry.line))
+      .map((entry) => `${entry.number}: ${entry.line}`);
+
+  it("no routing plane reads a finding's `section` — the engine classifies nothing", () => {
+    // A finding's `section` is not guaranteed to resolve to a task block, so the
+    // engine has no routing input for the discipline (design spec §2.7). A section
+    // read appearing here would be the routing table the spec forbids.
+    for (const plane of ROUTING_PLANES) {
+      expect(hitsOf(planeText(plane), /section/i), `section read in ${plane}`).toEqual([]);
+    }
+  });
+
+  it("no routing plane speaks closed-task vocabulary — the discipline is prompt text", () => {
+    for (const plane of ROUTING_PLANES) {
+      expect(
+        hitsOf(planeText(plane), /closed[- ]task/i),
+        `closed-task wording in ${plane}`,
+      ).toEqual([]);
     }
   });
 });

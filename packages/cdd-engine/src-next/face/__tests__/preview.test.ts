@@ -540,7 +540,7 @@ describe("cdd <verb> --dry-run — the in-flight read face", () => {
       ).toBe(1);
       expect(io.stdoutText).toContain("lock: held by pid");
       expect(io.stdoutText).toContain(String(process.pid));
-      expect(io.stdoutText).not.toContain("--steal-stale");
+      expect(io.stdoutText).not.toContain("--recover");
       // the held preview reports the same checked face as the other dry-run shapes
       expect(io.stdoutText).toContain("checked:");
       expect(io.stdoutText).toContain("in-flight: held — pid");
@@ -552,7 +552,7 @@ describe("cdd <verb> --dry-run — the in-flight read face", () => {
     }
   });
 
-  it("prints the takeover hint for a dead holder — `--steal-stale --dry-run` still takes nothing over", async () => {
+  it("prints the takeover hint for a dead holder — `--recover --dry-run` still takes nothing over", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
@@ -567,12 +567,12 @@ describe("cdd <verb> --dry-run — the in-flight read face", () => {
           "1",
           "--plan",
           plan,
-          "--steal-stale",
+          "--recover",
           "--dry-run",
         ]),
       ).toBe(1);
       expect(io.stdoutText).toContain("lock: held by pid 999999");
-      expect(io.stdoutText).toContain("--steal-stale");
+      expect(io.stdoutText).toContain("--recover");
       // the same checked face as the other dry-run shapes
       expect(io.stdoutText).toContain("checked:");
       expect(io.stdoutText).toContain("in-flight: stale holder — pid 999999");

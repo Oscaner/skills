@@ -339,3 +339,60 @@ describe("PlanTaskBlocksReader — the compatibility arm's shape and line ending
     );
   });
 });
+
+/** One heading-shape block carrying the given `Files` value lines — the
+ *  `filePathsOf` probe's fixture (an empty list = the section is present but blank). */
+const filesBlock = (lines: readonly string[]): TaskBlock => {
+  const content = [
+    TASK_ONE_TITLE,
+    "",
+    "#### Objective",
+    "do x",
+    "",
+    "#### Files",
+    ...lines,
+    "",
+    "#### Acceptance",
+    "ok",
+    "",
+  ].join("\n");
+  return reader.parse(content)[0]!;
+};
+
+describe("PlanTaskBlocksReader — the `Files` path tokens (P30 T2)", () => {
+  it("reads the path tokens out of the labelled value lines", () => {
+    const block = filesBlock([
+      "- Modify: `packages/cdd-engine/src-next/contract/completion-criterion.ts`（cells）",
+      "- Test: `packages/cdd-engine/src-next/contract/__tests__/completion-criterion.test.ts`",
+    ]);
+    expect(reader.filePathsOf(block)).toEqual([
+      "packages/cdd-engine/src-next/contract/completion-criterion.ts",
+      "packages/cdd-engine/src-next/contract/__tests__/completion-criterion.test.ts",
+    ]);
+  });
+
+  it("reads the legacy bullet value — the compatibility arm carries the same tokens", () => {
+    const [legacy] = reader.parse(LEGACY_FORM);
+    expect(reader.filePathsOf(legacy!)).toEqual(["a.ts"]);
+  });
+
+  it("judges every empty declaration alike — absent section · blank · whitespace · bare bullet · `(none)`", () => {
+    const absent = reader.parse([TASK_ONE_TITLE, "", "#### Objective", "do x", ""].join("\n"))[0]!;
+    const forms: readonly TaskBlock[] = [
+      absent,
+      filesBlock([]),
+      filesBlock(["", "   "]),
+      filesBlock(["- "]),
+      filesBlock(["(none)"]),
+      filesBlock(["- Modify: `(none)`"]),
+    ];
+    for (const block of forms) expect(reader.filePathsOf(block)).toEqual([]);
+  });
+
+  it("counts an UNQUOTED value as a path token — unknown text never reads as `no paths`", () => {
+    // The conservative direction: a `Files` row the reader does not recognize must
+    // never classify its task as change-free (that would pass a zero-commit round).
+    expect(reader.filePathsOf(filesBlock(["- Modify: a.ts"]))).toEqual(["a.ts"]);
+    expect(reader.filePathsOf(filesBlock(["a.ts"]))).toEqual(["a.ts"]);
+  });
+});

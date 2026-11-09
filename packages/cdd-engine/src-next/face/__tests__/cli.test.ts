@@ -2034,6 +2034,51 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("fix — dispositions keyed by the review carrier's engine-written id pass; a reworded summary never reads as unknown", async () => {
+    // The production key path (P30 §2.5): the review carrier prints `F1`/`F2`, the child
+    // keys its dispositions by those ids, and the summary prose is description only —
+    // so a reworded summary can no longer produce a "finding the review never raised".
+    const { command, io, repoRoot, cleanup } = fixture({
+      sync: new FixDraftRunner({
+        F1: { status: "fixed" },
+        F2: { status: "rejected", reason: "the review misread the guard" },
+      }),
+    });
+    const envBefore = process.env.AI_AGENT;
+    process.env.AI_AGENT = "pi";
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      ledger.recordRound(1, { op: "implement" });
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1 },
+        {
+          tasks: [1],
+          phase: "review",
+          findings: [
+            { id: "F1", severity: "blocker", summary: "the guard is missing" },
+            { id: "F2", severity: "warn", summary: "the heading repeats the phase title" },
+          ],
+        },
+      );
+      ledger.recordRound(1, { op: "review" });
+      const code = await command.runArgv(["fix", "--type", "wave", "--tasks", "1", "--plan", plan]);
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("status: APPROVED · handoff: ");
+      // Both findings were covered by their ids — one fixed, one rejected.
+      expect(io.stdoutText).toContain("fixed 1 · rejected 1");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+    } finally {
+      if (envBefore === undefined) delete process.env.AI_AGENT;
+      else process.env.AI_AGENT = envBefore;
+      cleanup();
+    }
+  });
+
   it("fix — an empty requesting input renders the zero pair `fixed 0 · rejected 0`", async () => {
     const { command, io, repoRoot, cleanup } = fixture({ sync: new FixDraftRunner({}) });
     const envBefore = process.env.AI_AGENT;
@@ -2561,10 +2606,14 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // ... the refusal of any other round names that same object ...
       io.stderrText = "";
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(1);
-      expect(io.stderrText).toContain("pending-fix · next: fix --type plan");
+      // P30 §2.3 moves this refusal's `next:` onto the reopenable review round: the
+      // drift the pending fix used to outrun is now the ONE exit (`--recover`), and the
+      // named command is the one the flag makes dispatchable.
+      expect(io.stderrText).toContain("pending-fix · next: review --type plan");
+      expect(io.stderrText).toContain("--recover");
       expect(existsSync(path.join(workspace, "plan-review-2.json"))).toBe(false);
-      // ... and the named verb is the DISPATCHABLE one (the engine never names a
-      // round it then refuses — the cross-face property §5.5 ④).
+      // ... the fix verb stays dispatchable (the engine never names a round it then
+      // refuses — the cross-face property §5.5 ④) ...
       io.stderrText = "";
       io.stdoutText = "";
       expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan])).toBe(0);
@@ -3675,7 +3724,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stderrText).toContain("  planned-tasks-vs-recorded-tasks: passed\n");
       expect(
         io.stderrText.split("\n").filter((line) => line.endsWith(": skipped (no doc target)")),
-      ).toHaveLength(21);
+      ).toHaveLength(23);
 
       // ② the refused path: the same face after the BLOCK wording + its details
       writeFileSync(path.join(repoRoot, "seed.txt"), "modified\n", "utf8");
@@ -6007,9 +6056,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the persisted findings carrier holds NO status field (D27 — the conclusion is
       // derived at judgment time, never stored on the findings plane); the conclusion
       // still rides the outcome.status above, derived from the findings
+      // … and every finding carries the ENGINE-written key (P30 §2.5: `F1`, `F2` … in
+      // carrier order — the disposition primary key, never the child's prose).
       expect(outcome.carrier).toEqual({
         artifacts: {},
-        findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
+        findings: [{ id: "F1", severity: "blocker", lens: "spec", summary: "drift" }],
       });
       expect("status" in (outcome.carrier as Record<string, unknown>)).toBe(false);
       // the URC criteria ride the review prompt's fixed prefix (the spec review has
@@ -7600,10 +7651,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(outcome.violations?.map((violation) => violation.grade)).toEqual(["hard"]);
         expect(outcome.violations?.[0]?.message).toContain("dispositions");
         // the obligation sentence rides the fix prompt (the child's only warning) and
-        // states the SHAPE: keyed by the finding's own summary text, valued status/reason
+        // states the SHAPE: keyed by the finding's engine-written `id`, valued
+        // status/reason (P30 §2.5 — the summary is description only)
         const fixPrompt = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
         expect(fixPrompt).toContain(
-          'keyed by its own summary text (verbatim), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }`',
+          'keyed by its `id` exactly as the requesting carrier prints it (`F1`, `F2`, … — the summary is description only), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }`',
         );
         expect(fixPrompt).toContain("a missing or mis-keyed disposition fails the round");
         // … and the docs-fix shell carries the same obligation (a docs-fix round is a
@@ -7625,7 +7677,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         });
         const docsPrompt = docsSync.calls[0]!.args[docsSync.calls[0]!.args.length - 1];
         expect(docsPrompt).toContain("a missing or mis-keyed disposition fails the round");
-        expect(docsPrompt).toContain("keyed by its own summary text (verbatim)");
+        expect(docsPrompt).toContain(
+          "keyed by its `id` exactly as the requesting carrier prints it",
+        );
       } finally {
         cleanup();
       }
@@ -8186,6 +8240,323 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
   });
 });
 
+// ---------------------------------------------------------------------------
+// P30 T4 — the `--recover` abort leg (the fold at the composition root)
+// ---------------------------------------------------------------------------
+
+describe("P30 — `--recover` folds a stale in-flight record before the new round", () => {
+  it("books the killed round as an abort record, then dispatches — the abort leg's order", async () => {
+    const sync = new StubRunner();
+    sync.commit = "feat: the recovered round's work";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const base = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot })
+        .stdout.toString()
+        .trim();
+      // The killed round's standing record: a dead holder, its OWN baseline, its identity.
+      const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+      mkdirSync(path.dirname(recordPath), { recursive: true });
+      writeFileSync(
+        recordPath,
+        `${JSON.stringify(
+          {
+            pid: 4_000_001,
+            command: "cdd implement --tasks 1 --plan docs/kairos/plans/p3.md",
+            slug: "p3",
+            startedAt: Date.parse("2026-11-08T05:00:00.000Z"),
+            wave: "1",
+            phase: "implement",
+            cycle: 1,
+            attempt: 1,
+            briefHash: null,
+            plan: "docs/kairos/plans/p3.md",
+            dispatchBase: base,
+            sampledAt: null,
+            verdict: null,
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--recover"]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3");
+      const records = new Ledger(workspace, new ConfigLoader()).recordsOf("1", "wave");
+      // The abort fact landed FIRST, with the record's own identity and baseline.
+      expect(records[0]).toMatchObject({
+        op: "implement",
+        cycle: 1,
+        attempt: 1,
+        dispatchBase: base,
+        verdict: { treeClean: true, targetAction: false },
+      });
+      expect(records[0]?.violations).toEqual([
+        expect.objectContaining({ grade: "hard", cause: "interrupted" }),
+      ]);
+      // …then the round actually dispatched (the take-over never blocks the new round).
+      expect(records).toHaveLength(2);
+      expect(sync.calls).toHaveLength(1);
+      expect(existsSync(recordPath)).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P30 T7 — the `--recover` reopen leg (drift ∧ pending-fix on a doc / branch line)
+// ---------------------------------------------------------------------------
+
+/** The reopen fixture's dispatch: the FIRST review round leaves a blocker (the
+ *  pending-fix face), every later round approves. `frames` records what reached the
+ *  dispatch seam, so the REFUSAL cases can pin "zero dispatch". */
+const blockerThenApprove = (frames: OpenFrame[]) => {
+  let reviews = 0;
+  return async (frame: OpenFrame) => {
+    frames.push(frame);
+    if (frame.phase === "review") {
+      reviews += 1;
+      if (reviews === 1) {
+        return {
+          status: "CHANGES_REQUESTED" as const,
+          findings: [{ severity: "blocker" as const, summary: "pending" }],
+        };
+      }
+    }
+    return { status: "APPROVED" as const, findings: [] };
+  };
+};
+
+/** Move the plan past the revision its review bound (the document drift). */
+const driftPlan = (plan: string): void => {
+  writeFileSync(
+    plan,
+    readFileSync(plan, "utf8").replace("- **Acceptance**: ok", "- **Acceptance**: ok (drifted)"),
+    "utf8",
+  );
+};
+
+/** The killed round's standing record — the abort leg's fixture (a dead holder whose
+ *  record still names its round). */
+const plantStaleRecord = (repoRoot: string): void => {
+  const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+  mkdirSync(path.dirname(recordPath), { recursive: true });
+  writeFileSync(
+    recordPath,
+    `${JSON.stringify(
+      {
+        pid: 4_000_001,
+        command: "cdd implement --tasks 1 --plan docs/kairos/plans/p3.md",
+        slug: "p3",
+        startedAt: Date.parse("2026-11-08T05:00:00.000Z"),
+        wave: "1",
+        phase: "implement",
+        cycle: 2,
+        attempt: 1,
+        briefHash: null,
+        plan: "docs/kairos/plans/p3.md",
+        dispatchBase: "base-B",
+        sampledAt: null,
+        verdict: null,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+};
+
+/** The fixture's ledger read (the assertions' one read face). */
+const ledgerOf = (repoRoot: string): Ledger => {
+  const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+  return new Ledger(workspace, new ConfigLoader());
+};
+
+describe("P30 §2.3 — the `--recover` reopen leg", () => {
+  it("drift ∧ pending-fix: `review --recover` supersedes the old review and dispatches cycle N+1", async () => {
+    const frames: OpenFrame[] = [];
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: blockerThenApprove(frames) });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // Review 1 leaves a blocker: the line awaits its fix and binds the reviewed revision.
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      const ledger = ledgerOf(repoRoot);
+      expect(ledger.pendingFix("plan", "plan")).toBe(true);
+      driftPlan(plan);
+      // Without the flag the pending fix still holds the line (the drift does not
+      // outrank it) — the refusal now names the ONE exit.
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(1);
+      expect(io.stderrText).toContain("pending-fix · next: review --type plan");
+      expect(io.stderrText).toContain("--recover");
+      // With the flag the review round IS dispatchable: the old review is stamped and
+      // the new round lands at cycle N+1.
+      io.stderrText = "";
+      io.stdoutText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--recover"])).toBe(
+        0,
+      );
+      const records = ledger.recordsOf("plan", "plan");
+      expect(records[0]).toMatchObject({
+        op: "review",
+        cycle: 1,
+        supersededBy: { cycle: 2, cause: "recover" },
+      });
+      // The superseded record keeps its own verdict — a stamp is not a failure.
+      expect(records[0]?.verdict.targetAction).toBe(true);
+      expect(records[1]).toMatchObject({
+        op: "review",
+        cycle: 2,
+        verdict: { targetAction: true },
+      });
+      // No fake completed fix: the fix identity stays with its requesting review (D28).
+      expect(ledger.completedCycles("plan", "fix", "plan")).toEqual([]);
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.json"))).toBe(
+        true,
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("neither leg holds: `--recover` is BLOCKED naming BOTH gaps, and no verb dispatches", async () => {
+    const frames: OpenFrame[] = [];
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: blockerThenApprove(frames) });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      const dispatched = frames.length;
+      // No stale record and no drift: nothing to take over, nothing to reopen.
+      // `implement` declares no `--type` (its face is the wave), so it carries the group.
+      const verbs: readonly string[][] = [
+        ["review", "--type", "plan", "--plan", plan, "--recover"],
+        ["fix", "--type", "plan", "--plan", plan, "--recover"],
+        ["implement", "--tasks", "1", "--plan", plan, "--recover"],
+      ];
+      for (const argv of verbs) {
+        io.stderrText = "";
+        expect(await command.runArgv(argv)).toBe(1);
+        expect(io.stderrText, argv[0]).toContain("CDD_BLOCKED");
+        expect(io.stderrText, argv[0]).toContain("no stale in-flight record");
+        expect(io.stderrText, argv[0]).toContain("drift ∧ pending-fix");
+      }
+      // A wave line never reopens either (its reopen face is P29's brief-drift).
+      io.stderrText = "";
+      expect(
+        await command.runArgv([
+          "review",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--recover",
+        ]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("drift ∧ pending-fix");
+      // Zero dispatch across every refused shape.
+      expect(frames).toHaveLength(dispatched);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("stacks both legs in ONE command: abort record first, supersede second, the N+1 review third", async () => {
+    const frames: OpenFrame[] = [];
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: blockerThenApprove(frames) });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      driftPlan(plan);
+      plantStaleRecord(repoRoot);
+      io.stderrText = "";
+      io.stdoutText = "";
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--recover"])).toBe(
+        0,
+      );
+      const ledger = ledgerOf(repoRoot);
+      // ① the killed round is booked with its OWN identity (the abort record)
+      const aborted = ledger.recordsOf("1", "wave");
+      expect(aborted).toHaveLength(1);
+      expect(aborted[0]).toMatchObject({
+        op: "implement",
+        cycle: 2,
+        attempt: 1,
+        dispatchBase: "base-B",
+        verdict: { treeClean: true, targetAction: false },
+      });
+      expect(aborted[0]?.violations[0]).toMatchObject({ grade: "hard", cause: "interrupted" });
+      // ② the supersede stamp … ③ the N+1 review round (both on the plan line)
+      const reviews = ledger.recordsOf("plan", "plan");
+      expect(reviews[0]?.supersededBy).toEqual({ cycle: 2, cause: "recover" });
+      expect(reviews[1]).toMatchObject({ op: "review", cycle: 2 });
+      // The stale record is gone and the new round did dispatch.
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "in-flight.json"))).toBe(false);
+      expect(frames.filter((frame) => frame.phase === "review")).toHaveLength(2);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("`fix --recover` takes the abort leg ONLY — the review is never superseded, no N+1 round", async () => {
+    const frames: OpenFrame[] = [];
+    const { command, repoRoot, cleanup } = fixture({ dispatch: blockerThenApprove(frames) });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      driftPlan(plan);
+      plantStaleRecord(repoRoot);
+      expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan, "--recover"])).toBe(0);
+      const ledger = ledgerOf(repoRoot);
+      // The abort leg booked the killed round …
+      expect(ledger.recordsOf("1", "wave")).toHaveLength(1);
+      // … and the fix's own re-review is an ORDINARY round: review-1 keeps no stamp, so
+      // nothing was reopened (the review verb alone owns the reopen leg).
+      const reviews = ledger.recordsOf("plan", "plan");
+      expect(reviews[0]?.supersededBy).toBeUndefined();
+      expect(reviews.every((record) => record.supersededBy === undefined)).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("`implement --recover` takes the abort leg ONLY — no supersede either", async () => {
+    const frames: OpenFrame[] = [];
+    const { command, repoRoot, cleanup } = fixture({ dispatch: blockerThenApprove(frames) });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      expect(await command.runArgv(["review", "--type", "plan", "--plan", plan])).toBe(0);
+      driftPlan(plan);
+      plantStaleRecord(repoRoot);
+      // The implement round is not this line's phase — the abort leg still books, and the
+      // reopen leg never fires on the implement verb.
+      // `implement` has no `--type` (the wave face) — its abort leg is face-independent.
+      await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--recover"]);
+      const ledger = ledgerOf(repoRoot);
+      expect(ledger.recordsOf("1", "wave")).toHaveLength(1);
+      const reviews = ledger.recordsOf("plan", "plan");
+      expect(reviews[0]?.supersededBy).toBeUndefined();
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("P21 — the crash record's identity and git facts", () => {
   it("names the crash after the frame's wave key and round — the ledger row's key, the frame's handoff", async () => {
     const { repoRoot, cleanup } = fixture();
@@ -8330,19 +8701,19 @@ describe("P21 — the in-flight word rows", () => {
     expect(held).toContain("running for 90m");
     expect(held).toContain("3,4");
     expect(held).toContain("p3");
-    expect(words.inFlightWords().stealable).toContain("--steal-stale");
-    expect(words.inFlightWords().corruptLocked).toContain("--steal-stale");
-    expect(words.inFlightWords().corruptUnlocked).toContain("--steal-stale");
+    expect(words.inFlightWords().stealable).toContain("--recover");
+    expect(words.inFlightWords().corruptLocked).toContain("--recover");
+    expect(words.inFlightWords().corruptUnlocked).toContain("--recover");
   });
 
-  it("declares --steal-stale on the implement / review / fix help faces — the command face stays eight", async () => {
+  it("declares --recover on the implement / review / fix help faces — the command face stays eight", async () => {
     const { command, io, cleanup } = fixture();
     try {
       for (const verb of ["implement", "review", "fix"] as const) {
         io.stdoutText = "";
         const code = await command.runArgv([verb, "--help"]);
         expect(code).toBe(0);
-        expect(io.stdoutText, `${verb}: --steal-stale`).toContain("--steal-stale");
+        expect(io.stdoutText, `${verb}: --recover`).toContain("--recover");
         expect(io.stdoutText, `${verb}: the takeover help row`).toContain(
           "take over a standing in-flight record",
         );
@@ -8372,6 +8743,7 @@ describe("cdd <verb> — the in-flight acquire race", () => {
       attempt: 1,
       briefHash: null,
       plan: "docs/kairos/plans/p3.md",
+      dispatchBase: null,
       sampledAt: null,
       verdict: null,
     };

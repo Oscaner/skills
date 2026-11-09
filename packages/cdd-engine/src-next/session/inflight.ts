@@ -73,6 +73,11 @@ export interface InFlightRecord {
   /** The plan path the dispatch read (repoRoot-relative); null when the face carries
    *  no plan fact. */
   readonly plan: string | null;
+  /** The HEAD the dispatch started from (the round's postmortem baseline) — written by
+   *  `acquire` from the dispatching lifecycle's own read, so a takeover can restore the
+   *  killed round's group baseline (spec §2.2). Null on a record written before this
+   *  cell existed (a present fact only) and on a tree with no HEAD. */
+  readonly dispatchBase: string | null;
   /** The sampling trail's last tick instant (epoch ms) — the same instant a recorded
    *  sample carries as `at` (each record shape names its own cells: one fact, one
    *  spelling per shape); null before the first tick. */
@@ -133,6 +138,16 @@ export class InFlight {
   /** The lock's refresh interval (ms). */
   static readonly LOCK_UPDATE_MS = 60 * 1000;
 
+  /** The three takeover reasons of a stale tree — ONE literal per morphology (spec
+   *  §2.1①: a dead holder, a corrupt record with a leftover lock, a lock with no record
+   *  behind it). Shared by `acquire({ recover })`'s pre-step and the abort fold, so a
+   *  takeover can never be named two ways. */
+  static readonly STEAL_REASON = {
+    deadHolder: "the holder is dead",
+    corruptRecord: "the record is corrupt and the lock is left behind",
+    lockOnly: "a lock without a record",
+  } as const;
+
   readonly #root: WorkspaceRoot;
   readonly #slug: string;
   readonly #liveness: LivenessReader;
@@ -171,16 +186,16 @@ export class InFlight {
    *  → live-holder guard → lock → record. The guard is the class's OWN fail-closed
    *  check that a standing record is never displaced while its holder lives: the
    *  pre-flight gate is the primary guard, this one keeps the invariant true for any
-   *  other write point. `stealStale` only acts HERE: a standing record whose holder is
+   *  other write point. `recover` only acts HERE: a standing record whose holder is
    *  dead (or a corrupt record with a leftover lock) is taken over first; a live holder
    *  is never displaced. A failed lock throws `HoldingError` carrying the holder's
    *  facts and leaves the record bytes untouched. */
   async acquire(
     record: InFlightRecord,
-    options: { readonly stealStale?: boolean } = {},
+    options: { readonly recover?: boolean } = {},
   ): Promise<void> {
     this.ensureMarker();
-    if (options.stealStale === true) await this.#stealIfDead();
+    if (options.recover === true) await this.#stealIfDead();
     await this.#refuseLiveHolder();
     try {
       this.#unlock = await lockfile.lock(this.path(), {
@@ -262,7 +277,21 @@ export class InFlight {
     return { kind: "corrupt", locked: existsSync(this.lockPath()) };
   }
 
-  /** Take the record over explicitly — the `--steal-stale` path. The precondition is
+  /** The tree's STALE in-flight — the three takeover morphologies of spec §2.1①
+   *  define the answer, so every reader names the same stale face: a dead holder's
+   *  readable record, a corrupt record with a leftover lock, or a lock with no record
+   *  behind it. Null when the tree is FREE or a LIVE holder stands (a live holder is
+   *  never displaced). ONE predicate for `acquire({ recover })`'s pre-step, the abort
+   *  fold and the composition root's reopen judgment — a stale tree can never be
+   *  named two ways. */
+  async staleState(): Promise<InFlightState | null> {
+    const state = await this.inspect();
+    if (state.kind === "held") return state.alive ? null : state;
+    if (state.kind === "corrupt") return state.locked ? state : null;
+    return existsSync(this.lockPath()) ? state : null;
+  }
+
+  /** Take the record over explicitly — the `--recover` path. The precondition is
    *  that the holder cannot be alive: a readable record whose pid is live is refused
    *  (the flag never crosses "alive → no takeover"); a corrupt record has no live
    *  fact to honor and is cleared. Clears the lock, then the record. */
@@ -285,22 +314,22 @@ export class InFlight {
     return record;
   }
 
-  /** The `stealStale` pre-step of acquire: take over a standing record whose holder is
+  /** The `recover` pre-step of acquire: take over a standing record whose holder is
    *  dead, a corrupt record with a leftover lock, or a lock remnant with no record —
-   *  and do nothing while the holder is alive (the lock then refuses the acquire). */
+   *  and do nothing while the holder is alive (the lock then refuses the acquire).
+   *  The morphology predicate is `staleState()`; this only names the takeover. */
   async #stealIfDead(): Promise<void> {
-    const state = await this.inspect();
-    if (state.kind === "held" && !state.alive) {
-      await this.steal("the holder is dead");
+    const stale = await this.staleState();
+    if (stale === null) return;
+    if (stale.kind === "held") {
+      await this.steal(InFlight.STEAL_REASON.deadHolder);
       return;
     }
-    if (state.kind === "corrupt" && state.locked) {
-      await this.steal("the record is corrupt and the lock is left behind");
-      return;
-    }
-    if (state.kind === "absent" && existsSync(this.lockPath())) {
-      await this.steal("a lock without a record");
-    }
+    await this.steal(
+      stale.kind === "corrupt"
+        ? InFlight.STEAL_REASON.corruptRecord
+        : InFlight.STEAL_REASON.lockOnly,
+    );
   }
 
   /** The refusal message — the holder's identity facts as plain text (the words
@@ -309,7 +338,7 @@ export class InFlight {
     if (holder === null) {
       return `another dispatch holds the in-flight lock under ${this.#root.path} — the standing record is unreadable (dispatch ${this.#slug} refuses to overwrite it)`;
     }
-    return `another dispatch is in flight: pid ${holder.pid} (${holder.command}), slug ${holder.slug}, started ${new Date(holder.startedAt).toISOString()} — it must finish, or its record must be taken over with --steal-stale`;
+    return `another dispatch is in flight: pid ${holder.pid} (${holder.command}), slug ${holder.slug}, started ${new Date(holder.startedAt).toISOString()} — it must finish, or its record must be taken over with --recover`;
   }
 
   /** The record write — the JSON shape through the ONE atomic write seam, with the
@@ -349,6 +378,7 @@ export class InFlight {
       attempt: typeof row.attempt === "number" ? row.attempt : null,
       briefHash: typeof row.briefHash === "string" ? row.briefHash : null,
       plan: typeof row.plan === "string" ? row.plan : null,
+      dispatchBase: typeof row.dispatchBase === "string" ? row.dispatchBase : null,
       sampledAt: typeof row.sampledAt === "number" ? row.sampledAt : null,
       verdict: typeof row.verdict === "string" ? row.verdict : null,
     };

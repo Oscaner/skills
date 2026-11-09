@@ -41,6 +41,7 @@ import {
   type OpType,
   type ProgressRow,
   type RoundIdentity,
+  type RoundRecord,
   RoundRecords,
   type RoundStatus,
   type RoundVerdict,
@@ -1193,8 +1194,12 @@ export class CliLifecycle {
   /** The requesting review carrier's path — the fix round's `--reviews` input, or the
    *  ledger's resolved review handoff path when the route carried none (the ONE
    *  resolution the round context's INPUT_REVIEWS and the disposition summary share).
-   *  A migrated line resolves the carrier that EXISTS — the retired twin's name, never
-   *  the never-minted canonical spelling.
+   *  Four layers, ONE identity (P31 §2.3): the explicit `--reviews` flag → the
+   *  same-cycle review record's own `carrierPath` (the FINAL carrier the round wrote) →
+   *  the ledger's resolved family name (a draft, or a migrated line's retired twin —
+   *  the carrier that EXISTS, never the never-minted canonical spelling) → the legacy
+   *  `null`. Record-present means final-wins: a draft sitting beside the final never
+   *  becomes the judged input.
    *
    *  A same-cycle review record that RECORDED no carrier path, with no carrier at
    *  either spelling on disk, leaves the requester input UNRECORDED: the answer is
@@ -1204,6 +1209,8 @@ export class CliLifecycle {
    *  the missing requesting carrier it truly is. */
   #reviewsPath(frame: OpenFrame): string | null {
     if (this.#reviews !== null) return this.#reviews;
+    const recorded = this.#requesterRecord(frame)?.carrierPath;
+    if (typeof recorded === "string" && recorded !== "") return recorded;
     const resolved = this.#scene.ledger.resolveHandoffPath("review", frame.type, frame.params);
     if (existsSync(resolved)) return resolved;
     const legacy = this.#scene.ledger
@@ -1213,6 +1220,20 @@ export class CliLifecycle {
           record.op === "review" && record.cycle === frame.round && record.carrierPath === null,
       );
     return legacy ? null : resolved;
+  }
+
+  /** The same-cycle review record this fix round answers — its LATEST attempt (a
+   *  re-dispatched review supersedes its predecessor, the same rule the round-read gate
+   *  applies). Null when the line records no review for this cycle. ONE basis for the
+   *  requesting carrier's path and its digest. */
+  #requesterRecord(frame: OpenFrame): RoundRecord | null {
+    const reviewed = this.#scene.ledger
+      .recordsOf(frame.key, frame.type)
+      .filter((record) => record.op === "review" && record.cycle === frame.round);
+    return reviewed.reduce<RoundRecord | null>(
+      (newest, record) => (newest === null || record.attempt >= newest.attempt ? record : newest),
+      null,
+    );
   }
 
   /** The fix input's carrier-integrity gate — the `carrier-mismatch` refusal when the
@@ -1241,15 +1262,7 @@ export class CliLifecycle {
    *  latest attempt (the round `#reviewsPath` resolves). Null when no record carries
    *  one: the present-facts read. */
   #requesterDigest(frame: OpenFrame): string | null {
-    const reviewed = this.#scene.ledger
-      .recordsOf(frame.key, frame.type)
-      .filter((record) => record.op === "review" && record.cycle === frame.round);
-    const latest = reviewed.reduce<(typeof reviewed)[number] | undefined>(
-      (newest, record) =>
-        newest === undefined || record.attempt >= newest.attempt ? record : newest,
-      undefined,
-    );
-    return latest?.carrierDigest ?? null;
+    return this.#requesterRecord(frame)?.carrierDigest ?? null;
   }
 
   /** The fix round's ruling sidecar as the round-context value — the repo-relative
@@ -1626,7 +1639,13 @@ export class CliLifecycle {
         // the retained `--spec` flag.
         return `cdd review --type ${frame.type} --spec ${this.#docOf(frame)}`;
       case "fix": {
-        const findings = scene.ledger.resolveHandoffPath("review", frame.type, frame.params);
+        // The `--reviews` input is the SAME carrier the fix prompt names (P31 §2.3): one
+        // four-layer resolution, never a second family spelling spliced here. The
+        // fallback fires only when the recorded face resolves to `null` (a legacy record
+        // with no carrier on disk) — the never-null guard keeps a command shape.
+        const findings =
+          this.#reviewsPath(frame) ??
+          scene.ledger.resolveHandoffPath("review", frame.type, frame.params);
         const target =
           frame.target.kind === "plan"
             ? `--plan ${frame.target.doc}`

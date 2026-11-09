@@ -743,6 +743,126 @@ describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => 
   });
 });
 
+// ---------------------------------------------------------------------------
+// P31 T4 — the fix input's identity is the FINAL carrier (design spec §2.1/§2.3):
+// with the child's draft and the round's `.c<N>` final coexisting, every face that
+// names the fix input names the final — the round read, the sidecar's stem, the
+// round context and the resume command (one resolution, four readers).
+// ---------------------------------------------------------------------------
+
+/** A child stand-in that DIES — the round-ending path that writes the crash record
+ *  (and with it the same-command resume `next:`). */
+class FailingRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    return { code: 1, stdout: "", stderr: "", termination: null };
+  }
+}
+
+describe("P31 T4 — the fix input names the FINAL carrier", () => {
+  /** Plant a completed review round: the FINAL carrier + the record naming it. */
+  const seedFinalReview = (f: Fixture): { path: string; draftPath: string; digest: string } => {
+    const persisted = f.scene.ledger.persistHandoff(
+      "review",
+      "phase-spec",
+      { round: 1 },
+      {
+        status: "CHANGES_REQUESTED",
+        findings: [
+          { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+        ],
+      },
+    );
+    f.scene.ledger.recordRound("phase-spec", {
+      op: "review",
+      cycle: 1,
+      carrierPath: persisted.path,
+      carrierDigest: persisted.digest,
+      draftPath: persisted.draftPath,
+    });
+    return persisted;
+  };
+
+  const specPathOf = (f: Fixture): string =>
+    path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+
+  const relOf = (f: Fixture, at: string): string =>
+    path.relative(f.scene.workspace.root.repoRoot, at);
+
+  const runFixFrame = async (f: Fixture, runner: ChildRunner): Promise<void> => {
+    const lifecycle = new CliLifecycle({
+      scene: f.scene,
+      io: f.io,
+      sync: runner,
+      env: { CLAUDE_CODE_SESSION_ID: "s" },
+    });
+    await lifecycle.step()(fixFrameOf(specPathOf(f)));
+  };
+
+  it("names the final on every face while the child's draft sits beside it", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = seedFinalReview(f);
+      // the child's draft at the pre-split spelling — both files exist on disk
+      writeFileSync(sealed.draftPath, JSON.stringify({ findings: [] }), "utf8");
+      // (1) the round read — the fix leg's `--reviews` source (and the router's)
+      expect(f.scene.ledger.round("review", "phase-spec", { round: 1 }, 1)?.reviewsPath).toBe(
+        sealed.path,
+      );
+      // (2) the ruling sidecar rides the FINAL's stem — never the draft's
+      const sidecar = CarrierRulings.pathFor(sealed.path);
+      expect(path.basename(sidecar)).toBe("phase-spec-review-1.c1.rulings.json");
+      writeFileSync(
+        sidecar,
+        JSON.stringify({
+          carrier: path.basename(sealed.path),
+          rulings: [{ finding: "F1", ruling: "ACCEPTED" }],
+        }),
+        "utf8",
+      );
+      // (3) the round context — INPUT_REVIEWS / INPUT_RULINGS
+      const runner = new SilentRunner();
+      await runFixFrame(f, runner);
+      const prompt = promptOf(runner);
+      expect(prompt).toContain(`- \`INPUT_REVIEWS\`: ${relOf(f, sealed.path)}`);
+      expect(prompt).toContain(`- \`INPUT_RULINGS\`: ${relOf(f, sidecar)}`);
+      // (4) the resume command — the crash record's `next:` names the same carrier
+      await runFixFrame(f, new FailingRunner());
+      const frame = fixFrameOf(specPathOf(f));
+      const crash = f.scene.ledger.readCrash(f.scene.ledger.naming().crashName(frame));
+      expect(crash?.next).toContain(`--reviews ${sealed.path}`);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("falls back to the draft family name for a record that names no carrier (legacy row)", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // the legacy shape: the carrier sits at the family name, the record names none
+      const draftPath = path.join(f.scene.workspace.path, REQUEST_CARRIER);
+      writeFileSync(
+        draftPath,
+        JSON.stringify({
+          status: "CHANGES_REQUESTED",
+          findings: [{ id: "F1", severity: "blocker", summary: "legacy" }],
+        }),
+        "utf8",
+      );
+      f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1 });
+      expect(f.scene.ledger.round("review", "phase-spec", { round: 1 }, 1)?.reviewsPath).toBe(
+        draftPath,
+      );
+      const runner = new SilentRunner();
+      await runFixFrame(f, runner);
+      expect(promptOf(runner)).toContain(`- \`INPUT_REVIEWS\`: ${relOf(f, draftPath)}`);
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
 describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
   for (const [label, body] of BAD_SIDECARS) {
     it(`refuses ${label} before the child is spawned`, async () => {

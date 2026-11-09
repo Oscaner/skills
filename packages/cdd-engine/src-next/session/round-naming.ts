@@ -1,14 +1,15 @@
 // packages/cdd-engine/src-next/session/round-naming.ts
 // P11 T4 — the round-naming single source: the frame → artifact-name derivations
 // (report · evidence · brief) the lifecycle's read-back and the dry-run preview
-// share, plus the frame → family-op mapping those names key on. The handoff carrier
-// name is NOT derived here — it stays with the Ledger's HANDOFF_FAMILIES table (the
-// naming table is the single truth, never a second list).
+// share, plus the frame → family-op mapping those names key on. The handoff carrier's
+// DRAFT name is NOT derived here — it stays with the Ledger's HANDOFF_FAMILIES table
+// (the naming table is the single truth, never a second list); the FINAL name (P31
+// §2.3) is that name with its suffix swapped, so the rule runs on the filled name.
 //
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
 import type { Workspace } from "../infra/workspace.ts";
-import { TargetFaceTable, type TargetType } from "./faces.ts";
+import { TargetFaceTable, type TargetType, targetFaces } from "./faces.ts";
 import type { HandoffParams, OpType } from "./ledger.ts";
 import type { OpenFrame } from "./run.ts";
 
@@ -33,6 +34,49 @@ export class RoundNaming {
 
   constructor(workspace: Workspace) {
     this.#workspace = workspace;
+  }
+
+  /** The two carrier-name shapes this engine MINTS — the draft family spelling
+   *  (`{line}-{op}[-{round}].json`) and its final twin (`…[-{round}].c{N}.json`). The
+   *  line words come from the ONE target-face table (the wave line's spelling is the
+   *  `tasks-` spine, never the `wave` word itself) and the ops from the ONE op
+   *  vocabulary, so neither set is re-spelled here. */
+  static readonly #CARRIER = RoundNaming.#carrierPattern();
+
+  /** The carrier-name predicate's compiled pattern — `tasks-{tasks}` is the one
+   *  wave-only line (implement exists there alone), the other line words take the
+   *  round-bearing ops. */
+  static #carrierPattern(): RegExp {
+    const lines = Object.keys(targetFaces).filter((word) => word !== "wave");
+    return new RegExp(
+      `^(?:tasks-.+-(?:implement|review|fix)(?:-\\d+)?|(?:${lines.join("|")})-(?:review|fix)(?:-\\d+)?)(?:\\.c\\d+)?\\.json$`,
+    );
+  }
+
+  /** The carrier's FINAL name of one round — the draft family name with its `.json`
+   *  suffix swapped for `.c{round}.json` (P31 §2.3: the finalized carrier never
+   *  overwrites the child's draft, so the two names share the stem and differ in the
+   *  suffix). The draft spelling stays the Ledger's family table (`handoffName` — the
+   *  naming truth); this rule runs on the name that table filled, so the two spellings
+   *  cannot drift. A round-less family has no cycle to key on: the family name comes
+   *  back unchanged, never a `.c.json` malformed suffix. */
+  finalName(draftName: string, round: HandoffParams["round"] = undefined): string {
+    if (round === undefined) return draftName;
+    return `${draftName.replace(/\.json$/, "")}.c${round}.json`;
+  }
+
+  /** The final carrier's on-disk path — `finalName` resolved against the workspace
+   *  (the name is the input, so an absolute path is never re-joined). */
+  finalPath(draftName: string, round: HandoffParams["round"] = undefined): string {
+    return this.#workspace.resolve(this.finalName(draftName, round));
+  }
+
+  /** Whether a workspace file name is one of the two carrier shapes this engine mints.
+   *  Every neighbouring artifact — `progress.json` · `base.json` · the test-evidence
+   *  sibling · a carrier's `.rulings.json` sidecar · a report · a crash record — is NOT
+   *  a carrier, so the sweep that seals carriers can never touch them. */
+  isCarrierName(name: string): boolean {
+    return RoundNaming.#CARRIER.test(name);
   }
 
   /** The handoff-family op of a frame — branch-review rides the review family. The

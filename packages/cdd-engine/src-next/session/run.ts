@@ -676,11 +676,12 @@ export class Lifecycle {
 
   /** Bookkeeping — persist the round's handoff carrier and record the round. The
    *  persisted carrier is either the dispatch's materialized form (the production
-   *  read-back reconstruct — outcome.carrier, full-replace at the SAME path, so the
-   *  child's draft becomes the finalized carrier — the two-state single file, the engine is the single
-   *  author) or — on the INJECTED face alone (an outcome carrying no verdict) — the
-   *  engine-built fallback from the outcome fields. A production round that wrote no
-   *  carrier is booked with `carrierPath: null` and no file at the handoff path: the
+   *  read-back reconstruct — outcome.carrier) or — on the INJECTED face alone (an
+   *  outcome carrying no verdict) — the engine-built fallback from the outcome fields.
+   *  Either way it lands as the FINAL carrier beside the child's draft, never over it
+   *  (P31 §2.3: the draft keeps the child's bytes, the final carries the engine's
+   *  materialization, and the record names both paths). A production round that wrote
+   *  no carrier is booked with `carrierPath: null` and no file at either name: the
    *  completion criterion owns the absence (§3.3), and a re-dispatch's draft read must
    *  see the child's own draft, never an engine synthesis of it. A failure round
    *  WITHOUT a carrier leaves the child's draft untouched (no-overwrite on failure) but
@@ -691,6 +692,7 @@ export class Lifecycle {
     const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     let carrierPath: string | null = null;
     let carrierDigest: string | null = null;
+    let draftPath: string | null = null;
     if (outcome.carrier !== undefined || (outcome.verdict === undefined && !blocked)) {
       const op = this.#opOf(frame.phase);
       // T2 — the engine-built fallback rides the FRAME's op-derived plane (never the
@@ -714,11 +716,13 @@ export class Lifecycle {
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
       if (plane === "work" && carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
-      // P31 §2.2 — the persist hands the digest of exactly the bytes it wrote, so the
-      // round record can replay the comparison on every later read of this carrier.
+      // P31 §2.2/§2.3 — the persist hands the FINAL carrier path, the draft path it
+      // landed beside and the payload digest, so the round record can name both
+      // artifacts and replay the comparison on every later read of this carrier.
       const persisted = this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
       carrierPath = persisted.path;
       carrierDigest = persisted.digest;
+      draftPath = persisted.draftPath;
     }
     // The recorded CYCLE is the frame's own round — its identity (fix-K ⟷ review-K ·
     // D28): a skipped cycle records its own number, never a flattened ordinal. The
@@ -750,6 +754,7 @@ export class Lifecycle {
         violations,
         carrierPath,
         carrierDigest,
+        draftPath,
       },
       frame.type,
     );
@@ -991,13 +996,16 @@ export class Lifecycle {
     const naming = this.#ledger.naming();
     // The failure face's handoff is the crash record — the engine's own postmortem
     // artifact, its existence the emission condition; the success face keeps the
-    // round's handoff carrier path. The name derives from the frame through the ONE
-    // naming source (`RoundNaming`), the same name the lifecycle wrote it under.
+    // round's handoff carrier path — the FINAL carrier the round wrote (P31 §2.3),
+    // resolved through the ledger's ONE read-name rule (the draft's family spelling is
+    // the fallback, never the cell's own derivation). The crash name derives from the
+    // frame through the ONE naming source (`RoundNaming`), the same name the lifecycle
+    // wrote it under.
     const crash = failure ? this.#ledger.readCrash(naming.crashName(frame)) : null;
     const handoff =
       crash !== null
         ? naming.crashPath(frame)
-        : this.#ledger.handoffPath(op, frame.type, frame.params);
+        : this.#ledger.resolveHandoffPath(op, frame.type, frame.params);
     return this.#capsule.emit(outcome.status, handoff, hop, crash !== null, summary);
   }
 

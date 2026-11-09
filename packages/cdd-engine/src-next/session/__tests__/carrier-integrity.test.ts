@@ -197,7 +197,7 @@ describe("Workspace.writeJsonHashed — the write seam's returned digest", () =>
 });
 
 describe("Ledger — the digest is recorded beside carrierPath and read back through the ONE rule", () => {
-  it("persistHandoff returns `{ path, digest }` and recordRound stores the digest", () => {
+  it("persistHandoff returns `{ path, draftPath, digest }` and recordRound stores both", () => {
     const { ledger, cleanup } = fixture();
     try {
       const persisted = ledger.persistHandoff(
@@ -206,17 +206,25 @@ describe("Ledger — the digest is recorded beside carrierPath and read back thr
         { round: 1 },
         { findings: [] },
       );
-      expect(persisted.path).toBe(ledger.handoffPath("review", "phase-spec", { round: 1 }));
-      expect(persisted.digest).toBe(CarrierIntegrity.sha256(readFileSync(persisted.path, "utf8")));
+      // P31 §2.3 — the FINAL carrier is the round's read identity; the family name is
+      // the child's draft beside it.
+      expect(persisted.path).toBe(
+        ledger.naming().finalPath(ledger.handoffName("review", "phase-spec", { round: 1 }), 1),
+      );
+      expect(persisted.draftPath).toBe(ledger.handoffPath("review", "phase-spec", { round: 1 }));
+      // The digest covers the payload, never the file bytes that hold it.
+      expect(persisted.digest).toBe(CarrierIntegrity.digestOf({ findings: [] }));
       ledger.recordRound("phase-spec", {
         op: "review",
         cycle: 1,
         carrierPath: persisted.path,
         carrierDigest: persisted.digest,
+        draftPath: persisted.draftPath,
       });
       const [record] = ledger.recordsOf("phase-spec", "phase-spec");
       expect(record?.carrierPath).toBe(persisted.path);
       expect(record?.carrierDigest).toBe(persisted.digest);
+      expect(record?.draftPath).toBe(persisted.draftPath);
     } finally {
       cleanup();
     }
@@ -232,9 +240,11 @@ describe("Ledger — the digest is recorded beside carrierPath and read back thr
         { findings: [{ severity: "warn" }] },
       );
       ledger.recordRound("1", { op: "review", cycle: 1, carrierPath: at, carrierDigest: digest });
-      expect(ledger.readHandoff("review", "wave", { tasks: "1", round: 1 })).toEqual({
-        findings: [{ severity: "warn" }],
-      });
+      // The parsed carrier holds the engine's own `contentSha256` key too — the read
+      // returns the FINAL file, whose payload carries the embedded digest (P31 §2.3).
+      const carrier = ledger.readHandoff("review", "wave", { tasks: "1", round: 1 });
+      expect(carrier?.findings).toEqual([{ severity: "warn" }]);
+      expect(carrier?.contentSha256).toBe(digest);
     } finally {
       cleanup();
     }

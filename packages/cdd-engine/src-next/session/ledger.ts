@@ -125,6 +125,11 @@ export interface RoundRecord {
    *  existed (zero migration) and null on a round that persisted no carrier; either
    *  way the read is a present-facts read with zero comparison. */
   readonly carrierDigest?: string | null;
+  /** The child's DRAFT carrier the round wrote its final beside (P31 §2.3) — the
+   *  family-path draft the finalized carrier no longer overwrites. Absent on every
+   *  record written before the column existed (zero migration): a legacy round's one
+   *  path IS its carrier, and the read keeps the resolved family name. */
+  readonly draftPath?: string | null;
   /** The supersede stamp (P30 §2.3) — the cycle that REPLACED this review's judgment
    *  (the `--recover` reopen dispatched `cycle` next, so this round's pending fix is no
    *  longer owed). Absent on every ordinary round and on every record written before
@@ -154,6 +159,7 @@ export interface RoundRecordInit {
   readonly violations?: readonly RoundViolation[];
   readonly carrierPath?: string | null;
   readonly carrierDigest?: string | null;
+  readonly draftPath?: string | null;
 }
 
 /** The round-concluding statuses the router's failure face reads. */
@@ -820,6 +826,8 @@ export class Ledger {
       // The digest column exists only on rounds that recorded one (a legacy record
       // keeps no key at all — the read then compares nothing, zero migration).
       ...(init.carrierDigest === undefined ? {} : { carrierDigest: init.carrierDigest }),
+      // …and the same for the draft path column (P31 §2.3).
+      ...(init.draftPath === undefined ? {} : { draftPath: init.draftPath }),
     };
     const existing = records.findIndex(
       (candidate) =>
@@ -1077,9 +1085,14 @@ export class Ledger {
     if (route?.kind === "fix") {
       // The fix-awaited face — a drifted wave BRIEF reopens at review (D30/D16), else fix.
       if (this.briefDrifted(waveKey)) return { kind: "review" };
+      // The `--reviews` identity is the ROUTE's own (P31 §2.3): the round read resolves
+      // the FINAL carrier the record names, so a draft beside it never becomes the input
+      // — the board's `next:` and the dispatch's read the same file by construction.
       return {
         kind: "fix",
-        reviews: this.handoffPath("review", "wave", { tasks: waveKey, round: latestReview }),
+        reviews:
+          route.reviews ??
+          this.resolveHandoffPath("review", "wave", { tasks: waveKey, round: latestReview }),
       };
     }
     return null;
@@ -1571,18 +1584,36 @@ export class Ledger {
     return carrier as Carrier;
   }
 
-  /** Persist a handoff payload at the canonical name — the single-author full-replace
-   *  write (never a merge: the engine owns the file). Returns the written path AND the
-   *  digest of the bytes that landed, so the round record can remember what it wrote
-   *  (P31 §2.2: the one place a carrier digest is born). */
+  /** Persist a handoff payload as the round's FINAL carrier — the engine's single-author
+   *  write, at a name the child's DRAFT never occupies (P31 §2.3). Returns the final
+   *  path (what the round is judged by), the draft path it landed beside, and the
+   *  payload's digest, so the round record can remember all three.
+   *
+   *  The digest covers the PAYLOAD, never the file bytes that hold it: `H = sha256(JSON
+   *  containing H)` is unsatisfiable, so the value is taken BEFORE the `contentSha256`
+   *  key joins the payload — the key is appended LAST and the payload is written once
+   *  (the read recomputes by the same rule: drop the key, re-serialize, sha256). The
+   *  draft is neither written nor deleted here: it is the child's artifact, and the
+   *  final is the engine's answer to it. */
   persistHandoff(
     op: string,
     type: string,
     params: HandoffParams,
     data: Record<string, unknown>,
-  ): { readonly path: string; readonly digest: string } {
-    const digest = this.#persist(this.handoffName(op, type, params), data);
-    return { path: this.handoffPath(op, type, params), digest };
+  ): { readonly path: string; readonly draftPath: string; readonly digest: string } {
+    const draftName = this.handoffName(op, type, params);
+    const payload: Record<string, unknown> = { ...data };
+    // The engine owns this key — a caller-supplied value never seeds a self-covering digest.
+    delete payload.contentSha256;
+    const digest = CarrierIntegrity.digestOf(payload);
+    payload.contentSha256 = digest;
+    const finalName = this.#naming.finalName(draftName, params.round);
+    this.#persist(finalName, payload);
+    return {
+      path: this.#workspace.resolve(finalName),
+      draftPath: this.#workspace.resolve(draftName),
+      digest,
+    };
   }
 
   /** The handoff file NAME a read actually resolves — the canonical family name, or a
@@ -1596,6 +1627,12 @@ export class Ledger {
    *  spelling). */
   resolveHandoffName(op: string, type: string, params: HandoffParams = {}): string {
     const canonical = this.handoffName(op, type, params);
+    // P31 §2.3 — the FINAL carrier wins the read whenever the round has one: it is the
+    // round's finalized answer, and the draft beside it is the child's raw input (an
+    // un-materialized payload whose findings carry no engine id). A round-less family
+    // (implement) has one name only, so `final` equals the canonical spelling.
+    const final = this.#naming.finalName(canonical, params.round);
+    if (final !== canonical && this.#read<unknown>(final) !== null) return final;
     if (!RETIRED_SPEC_LINE_KEYS.has(type) || this.#read<unknown>(canonical) !== null) {
       return canonical;
     }
@@ -1643,17 +1680,34 @@ export class Ledger {
    *  carries one: the present-facts face (legacy rows, and reads of a round that never
    *  booked its own carrier). */
   #carrierDigestOf(op: string, type: string, params: HandoffParams): string | null {
+    return this.#latestRecordOf(op, type, params)?.carrierDigest ?? null;
+  }
+
+  /** The latest recorded attempt of an (op, type, round) identity — null when the line
+   *  carries no record for it (a legacy row, or a round never dispatched). ONE basis for
+   *  every "what did that round record" question (the digest the read compares against,
+   *  the carrier path `--reviews` names). */
+  #latestRecordOf(op: string, type: string, params: HandoffParams): RoundRecord | null {
     const mode = RoundRecords.opOf(op) ?? op;
     const round = params.round === undefined ? null : Number(params.round);
-    const latest = this.recordsOf(this.#roundKey(type as TargetType, params), type as TargetType)
+    return this.recordsOf(this.#roundKey(type as TargetType, params), type as TargetType)
       .filter((record) => record.op === mode)
       .filter((record) => round === null || record.cycle === round)
-      .reduce<RoundRecord | undefined>(
-        (newest, record) =>
-          newest === undefined || record.attempt >= newest.attempt ? record : newest,
-        undefined,
+      .reduce<RoundRecord | null>(
+        (newest, record) => (newest === null || record.attempt >= newest.attempt ? record : newest),
+        null,
       );
-    return latest?.carrierDigest ?? null;
+  }
+
+  /** The review carrier a round's fix leg reads as `--reviews` — the round's OWN
+   *  recorded carrier path (the FINAL carrier, P31 §2.3) when the record names one, and
+   *  the resolved family name (the draft spelling — legacy rows, and a round that
+   *  persisted no carrier) otherwise. Record-present means final-wins: a draft sitting
+   *  beside a final never becomes the judged input. */
+  #reviewsPathOf(type: TargetType, params: HandoffParams, round: number): string {
+    const recorded = this.#latestRecordOf("review", type, { ...params, round })?.carrierPath;
+    if (typeof recorded === "string" && recorded !== "") return recorded;
+    return this.resolveHandoffPath("review", type, { ...params, round });
   }
 
   /** The retired document-line carrier name of one round — `spec-review-{round}.json` /
@@ -1715,10 +1769,13 @@ export class Ledger {
     name: string,
     families: Readonly<Record<string, HandoffFamily>>,
   ): { readonly key: string; readonly op: string; readonly round: number } | null {
+    // A FINAL carrier (`<stem>.c{round}.json`, P31 §2.3) is the same artifact as its
+    // draft — the cycle is the name's own suffix, never a second family.
+    const draft = name.replace(/\.c\d+\.json$/, ".json");
     for (const [family, record] of Object.entries(families)) {
       const [op = "", type = ""] = family.split(".");
       for (const spelling of Ledger.#familySpellings(record.name, type)) {
-        const captures = Ledger.#familyCaptures(spelling, name);
+        const captures = Ledger.#familyCaptures(spelling, draft);
         if (captures === null) continue;
         const key = type === "wave" ? (captures.tasks ?? "") : type;
         // Each family carries the placeholder IT declares: a wave's review/fix name
@@ -1885,7 +1942,7 @@ export class Ledger {
         // source shared with the fix leg below (`HandoffSchema.conclusionOf`).
         status: this.#handoffSchema.conclusionOf("judge", carrier),
         findings: this.#findingsOf(carrier),
-        reviewsPath: this.resolveHandoffPath("review", type, reviewParams),
+        reviewsPath: this.#reviewsPathOf(type, params, round),
         consecutiveS1: this.#consecutiveS1Run(type, params, round),
       };
     }
@@ -1904,7 +1961,7 @@ export class Ledger {
       // work plane reads its status) — the same `conclusionOf` single source (D27).
       status: this.#handoffSchema.conclusionOf(this.planeOf("fix"), fixCarrier),
       findings: this.#findingsOf(reviewCarrier),
-      reviewsPath: this.resolveHandoffPath("review", type, reviewParams),
+      reviewsPath: this.#reviewsPathOf(type, params, round),
       consecutiveS1: this.#consecutiveS1Run(type, params, round),
     };
   }

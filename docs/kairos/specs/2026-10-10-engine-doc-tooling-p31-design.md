@@ -1,17 +1,17 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P31 设计：账本事实与磁盘一致性
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-11-09
 slug: 2026-10-10-engine-doc-tooling-p31
 program: 2026-10-10-engine-doc-tooling
-parent-version: v3.44
+parent-version: v3.45
 author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-09）'
 ---
 
 ## Design
 
-本相位收口 github #444 / #446 / #447 三单。三单场景不同，撞在同一结构上：**账本声称的事实与磁盘/身份上的事实可以静默分叉**——载体字节可被任意覆盖而 `carrierPath` 仍指向「该轮结论」；`reviewedRevision` 可被 fix 收工无条件重绑成「当前」正文，把评审后的未审改动盖成已审；change-history 表头可自造第 5 列而 `row-shape` 只要求「行宽=表头宽」。P30 已交付 overall 表头 4 列规范化与 corpus ceiling 0，以及 shape 腿本身；本相位补上写保护、条件写回与表头列集门。设计决策 D82；grilling 定案见母 overall Phase inventory P31 行与本篇 §2。
+本相位收口 github #444 / #446 / #447 三单。三单场景不同，撞在同一结构上：**账本声称的事实与磁盘/身份上的事实可以静默分叉**——载体字节可被任意覆盖而 `carrierPath` 仍指向「该轮结论」；`reviewedRevision` 可被 fix 收工无条件重绑成「当前」正文，把评审后的未审改动盖成已审；change-history 表头可自造第 5 列而 `row-shape` 只要求「行宽=表头宽」。P30 已交付 overall 表头 4 列规范化与 corpus ceiling 0，以及 shape 腿本身；本相位补上写保护、条件写回与表头列集门。设计决策 D82；grilling 定案（Q1–Q12 · 含 Q5′ / Q6″）见母 overall Phase inventory P31 行与本篇 §2。
 
 ### 1. 病根
 
@@ -41,12 +41,12 @@ P30 实测：编排器用 `jq … > carrier` 把已 APPROVED 的 review 载体�
 
 #### 2.1 载体归引擎，裁定归编排者（#444 · ①）
 
-- 引擎产物 `<carrier>.json`（及定稿，见 §2.3）落盘后**字节冻结**；编排者的裁写进同目录 `<carrier-stem>.rulings.json` sidecar。
+- 引擎产物载体（draft 与定稿，见 §2.3）落盘后**字节冻结**；编排者的裁写进同目录 sidecar——路径 = **本轮载体路径把结尾 `.json` 换成 `.rulings.json`**（例 `phase-spec-review-1.c2.json` → `phase-spec-review-1.c2.rulings.json`），即与 fix 输入 `--reviews` 同一个 stem。
 - sidecar 形状（严格 schema，见 §2.6）：
 
 ```json
 {
-  "carrier": "phase-spec-review-1.json",
+  "carrier": "phase-spec-review-1.c2.json",
   "rulings": [
     { "finding": "F4", "ruling": "REJECTED as stated…", "at": "…", "by": "orchestrator" }
   ]
@@ -55,7 +55,7 @@ P30 实测：编排器用 `jq … > carrier` 把已 APPROVED 的 review 载体�
 
 - **无新 CLI 动词**（grilling Q4）：编排者直接写 sidecar 文件；引擎读回校验。
 - **sidecar 永不 seal**（grilling Q11）：只 seal 引擎自己的 carrier；编排者在 carrier seal 之后仍须能写裁定。
-- child 侧：fix 派发时引擎读载体；若有 sidecar 则合并进 round-context 的 `INPUT_RULINGS`（载体本身字节不动）。
+- child 侧：fix 派发时引擎读载体，并按同一条 `.json` → `.rulings.json` 规则定位 sidecar（不猜 cycle 号）；存在则合并进 round-context 的 `INPUT_RULINGS`（载体本身字节不动）。
 - `FIX_READBACK_SUFFIX` 改指向 sidecar 路径（grilling Q12）：不再教改 handoff 文件；策略（先看 findings 再裁）不变。
 
 #### 2.2 落盘记摘要，凡读比对（#444 · ②）
@@ -91,7 +91,7 @@ postflight       materialize final → seal(0o444)
 #### 2.5 `INPUT_RULINGS` 进 fix 输入侧 round-context（#444 · 补充）
 
 - `render/templates.ts` 的 `TOKENS` 增 `INPUT_RULINGS`（`zone: "round-context"`）。
-- `face/lifecycle.ts` 填 context 时按 `INPUT_REVIEWS` 路径推导 sidecar；无 sidecar → 空串（既有空值行丢弃）。
+- `face/lifecycle.ts` 填 context 时按 `INPUT_REVIEWS` 的值把结尾 `.json` 换成 `.rulings.json` 定位 sidecar；无 sidecar → 空串（既有空值行丢弃）。
 - 渲染位置与 `INPUT_REVIEWS` 相邻。
 - **仅 fix 输入侧**：review 轮自己的 round-context 不渲染 sidecar 位（那时它还不存在）。
 - pin：有 sidecar 时 fix 渲染文本含裁定正文；无 sidecar 时不含该行。
@@ -99,9 +99,9 @@ postflight       materialize final → seal(0o444)
 
 #### 2.6 sidecar 严格 schema（#444 · grilling Q9）
 
-- 读 fix 输入时校验：JSON 可解析、`rulings` 为数组、每条含 `finding` / `ruling`、`finding` id 必须出现在对应 carrier 的 findings id 集中。
+- 读 fix 输入时校验：JSON 可解析；顶层仅 `carrier` / `rulings` 两键（`carrier` 可选，出现时须等于该轮载体文件名）；`rulings` 为数组；每条 ruling 仅 `finding` / `ruling` / `at` / `by` 四键且必含 `finding` / `ruling`；`finding` id 必须出现在对应 carrier 的 findings id 集中。
 - 失败 → `CDD_BLOCKED`（与 carrier-mismatch 同级硬停），避免「写了但 child 看不见」的假裁定。
-- 未知字段策略：拒绝（严格），不静默忽略。
+- 未知字段策略：拒绝（严格），顶层与 ruling 两级都不静默忽略。
 
 #### 2.7 写回只绑本轮造成的字节（#446）
 
@@ -110,14 +110,14 @@ postflight       materialize final → seal(0o444)
 - **收工写回**（grilling Q2：凡 `ReviewedIdentity.legOf` 会写的相位——review / fix / branch-review 统一）：
   - 动过 → 绑当前正文 revision（保 P24「fix 自产不算 drift」）；
   - 未动过 → **保持旧** `reviewedRevision`，让既有 drift / reopen 面把行推回评审；
-  - 无 git 可读 / 非 git 树 → 保持现状（绑当前）并记一条 soft 观察，不发明判据。
+  - 无 git 可读 / 非 git 树 → 保持现状（绑当前）并记一条 soft 观察——经 `RoundViolation.soft` 进该轮 `violations` 的软档（不翻 verdict、不拦派发），不发明判据。
 - 非目标：不改免审区口径；不改 drift 语义与重开面骨架；不迁移历史 `reviewedRevision`。
 
 #### 2.8 钉 change-history 表头列集（#447）
 
 - 新增不变量 `change-history-header-columns`：`## Change history` 表头必须**精确等于**声明列集 `Version · date · summary · author`（单元格文案按 trim 后逐格相等）；否则一条 finding。
 - `change-history-row-shape` **保留**，只判行宽=表头宽（grilling Q3：两腿正交，corpus 可分别钉）。
-- **语料门**：全语料零容忍（grilling Q7）。落地前实测 59 篇文档表头已全部为声明四列（bad=0），故 `DRIFT_CEILING` 对该 kind 为空表（≡ 全 0）；PROGRAM_DOCS 随本相 spec/plan 更新。
+- **语料门**：全语料零容忍（grilling Q7）——`DRIFT_CEILING` 对该 kind 为空表（≡ 全语料 0），由 `doc-corpus.guard.test.ts` 钉住；`PROGRAM_DOCS` 随本相 spec/plan 更新。语料篇数不进设计面（D75：计数由具名守卫钉住，不写实测值）。
 - docs-fix 模板（`render/templates.ts`）补一句：summary 内不得直接写竖线，必须 `\|`。
 - 非目标：v3.20 author 考古；overall ceiling 已 0（P30），本相不重做 shape ceiling。
 
@@ -133,13 +133,14 @@ postflight       materialize final → seal(0o444)
 
 ### Acceptance criteria
 
-- **sidecar 写与读**：编排者写入 `<stem>.rulings.json` 后，fix 派发的 prompt round-context 含 `INPUT_RULINGS` 且正文与 sidecar 一致；无 sidecar 时该行不出现（成对 pin）。
-- **`FIX_READBACK_SUFFIX`**：字面指向 sidecar 路径（或「与 --reviews 同 stem 的 `.rulings.json`」），零「记进 handoff / carrier」教唆（子串 pin）。
+- **sidecar 写与读**：编排者按 `.json` → `.rulings.json` 规则写入 sidecar 后，fix 派发的 prompt round-context 含 `INPUT_RULINGS` 且正文与 sidecar 一致；无 sidecar 时该行不出现（成对 pin）。
+- **`FIX_READBACK_SUFFIX`**：字面教「把 `--reviews` 结尾的 `.json` 换成 `.rulings.json`」，零「记进 handoff / carrier」教唆（子串 pin）。
 - **carrier-mismatch**：篡改 final 字节后，任一引擎读入口（fix 输入 / board / capsule）→ `CDD_BLOCKED` 且报文含 recorded/current 前缀；不启动 child。
 - **draft/final**：bookkeep 后盘上同时存在 draft 原路径与 `<stem>.c<N>.json`；`RoundRecord.carrierPath` 为 final、`draftPath` 为 draft；final JSON 内与 RoundRecord 均有同一 content sha。
 - **seal**：成功收工后 final 模式为 `0o444`；对已 seal 的输入载体，fix preflight **不解封**它；stall/`#reject`/spawn 前门禁拒/`--recover` abort 后本轮产物仍被 seal 或被下一轮 sweep 收口（行为 pin 覆盖终态集）。
-- **sidecar 坏 schema**：缺 `rulings`、finding id 不在 carrier、非 JSON → fix 派发前 `CDD_BLOCKED`。
+- **sidecar 坏 schema**：缺 `rulings` · 非 JSON · ruling 缺 `finding` / `ruling` 键 · 顶层或 ruling 出现未知键 · finding id 不在 carrier——各自单独一枚用例，均在 fix 派发前 `CDD_BLOCKED`（未知键两级都不静默忽略）。
 - **条件写回**：夹具「review 收口 → 轮外正文提交 → fix 零提交收工」后 `reviewedRevision` **仍为 review 收口时的字节**（或等价：随后 dry-run review 报 drift / open，而非 `unchanged`）；夹具「fix 自身提交改了该文档」后写回为新字节（P24 语义成对 pin）。
+- **非 git soft 观察**：`git` 不可读（或树非 git）时写回保持现状，且该轮 `violations` 里落一条 `grade: "soft"` 的观察（verdict 不因此翻）；git 可读的对照夹具下这条观察不出现（成对 pin）。
 - **写回作用域**：review / fix / branch-review 凡 `ReviewedIdentity` 写回路径均走「动过才绑」；wave brief 腿若绑定的不是整篇正文 revision，其既有 brief 语义不变（结构性说明 + 既有 pin 全绿）。
 - **header-columns**：表头多一列或少一列或列名漂移 → 一条 `change-history-header-columns` finding；声明四列表头 + 行宽一致 → 该 kind 零 finding；`row-shape` 腿行为不变（正交 pin）。
 - **语料**：`doc-corpus.guard.test.ts` 对 `change-history-header-columns` 全语料 0；既有 shape ceiling 表不被本相放宽。
@@ -162,4 +163,5 @@ postflight       materialize final → seal(0o444)
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
-| v0.1 | 2026-11-09 | 初版：病根三条（载体无写保护 · fix 写回绑当前字节 · 表头不在门内）· 裁定八条（sidecar 文件约定 · digest 凡读硬停 · draft/final 周期名+内嵌 sha · 本轮路径 unseal/seal · INPUT_RULINGS · sidecar 严格 schema · dispatchBase..HEAD 条件写回 · header-columns 不变量+全语料 0）· 非目标与验收；grilling Q1–Q13 定案；语料实测 59/59 四列 | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-09） |
+| v0.1 | 2026-11-09 | 初版：病根三条（载体无写保护 · fix 写回绑当前字节 · 表头不在门内）· 裁定八条（sidecar 文件约定 · digest 凡读硬停 · draft/final 周期名+内嵌 sha · 本轮路径 unseal/seal · INPUT_RULINGS · sidecar 严格 schema · dispatchBase..HEAD 条件写回 · header-columns 不变量+全语料 0）· 非目标与验收；grilling Q1–Q12（含 Q5′ / Q6″）定案 | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-09） |
+| v0.2 | 2026-11-09 | 评审回填（phase-spec-review-1 F1–F5）：母 overall 的 D82 与 P31 两表行由 working scope 升 grilling settled（parent-version 随行对齐 v3.45）· sidecar 路径统一为载体路径结尾 `.json` → `.rulings.json`（与 `--reviews` 同 stem，`<carrier>` / `<carrier-stem>` 两模板作废）· grilling 问题数订正为 Q1–Q12（含 Q5′ / Q6″）· 删去 §2.8 的语料实测值、改为具名守卫表述 · §2.6 两级未知键与 §2.7 非 git soft 观察补 AC 与 pin | [human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-1 · 2026-11-09） |

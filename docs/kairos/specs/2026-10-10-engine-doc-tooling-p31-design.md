@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P31 设计：账本事实与磁盘一致性
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-11-09
 slug: 2026-10-10-engine-doc-tooling-p31
 program: 2026-10-10-engine-doc-tooling
@@ -165,3 +165,4 @@ postflight       materialize final → seal(0o444)
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-09 | 初版：病根三条（载体无写保护 · fix 写回绑当前字节 · 表头不在门内）· 裁定八条（sidecar 文件约定 · digest 凡读硬停 · draft/final 周期名+内嵌 sha · 本轮路径 unseal/seal · INPUT_RULINGS · sidecar 严格 schema · dispatchBase..HEAD 条件写回 · header-columns 不变量+全语料 0）· 非目标与验收；grilling Q1–Q12（含 Q5′ / Q6″）定案 | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-09） |
 | v0.2 | 2026-11-09 | 评审回填（phase-spec-review-1 F1–F5）：母 overall 的 D82 与 P31 两表行由 working scope 升 grilling settled（parent-version 随行对齐 v3.45）· sidecar 路径统一为载体路径结尾 `.json` → `.rulings.json`（与 `--reviews` 同 stem，`<carrier>` / `<carrier-stem>` 两模板作废）· grilling 问题数订正为 Q1–Q12（含 Q5′ / Q6″）· 删去 §2.8 的语料实测值、改为具名守卫表述 · §2.6 两级未知键与 §2.7 非 git soft 观察补 AC 与 pin | [human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-1 · 2026-11-09） |
+| v0.3 | 2026-11-09 | **closeout 登记（cdd-close）**：P31 全链闭合——五波 W1{1,2,6}·W2{3}·W3{4}·W4{5}·W5{7} 各 implement→review（W1/W2/W4 各一轮 fix）→ 分支终审 **零 finding**（21 提交 · 43 文件 +4010/−179）。交付与 §2 八条裁定逐条对应：sidecar 与 `INPUT_RULINGS`（裁定正文入 round-context · 九类坏 schema 派发前硬停）· 摘要与只读（`contentSha256` 非循环规则 · 三态 · 单点 `CarrierIntegrity.read` · pre-spawn 门 · 五条终态回封）· draft/final 分路径（fix 输入身份五面同指 final）· 条件写回（`dispatchBase..HEAD` 路径命中，未动过保持旧绑定）· 表头列集门（全语料 0）。`pnpm run validate` exit 0 · `session/next.ts` 零 diff（D70）· changeset `cdd-engine` minor · #444/#446/#447 关闭 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-09） |

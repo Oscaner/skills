@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P31 计划：账本事实与磁盘一致性
 doc-type: plan
-version: v0.4
+version: v0.5
 date: 2026-11-09
 slug: 2026-10-10-engine-doc-tooling-p31
 base: develop
@@ -376,3 +376,4 @@ none
 | v0.2 | 2026-11-09 | 评审回填（plan-review-1 F1–F5）：Task 2 坏 schema 用例扩到九面并补 `carrier` ≠ 文件名的派发前硬停 pin · Task 3 立 `CarrierIntegrity.digestOf` 单点摘要规则、Task 4 摘要改覆盖「删 `contentSha256` 后的载荷」以消循环（文件字节口径作废）· Task 5 `sweep` 改为处理未 seal 的 `*.json` 并返回实际 sealed 名 · Task 6 `pathsSince` 以 `null` 区分不可读与零命中、`touchedDoc: null` 保留 soft 观察 | Claude（kairos:cdd-dev · plan-fix-1 · 2026-11-09） |
 | v0.3 | 2026-11-09 | 评审回填（plan-review-2 F1–F2）：Task 4 补 fix 输入身份接线——`Round.reviewsPath` / `#reviewsPath` 改取记录 `carrierPath`（final），`existsSync(draft)` 不再是胜者，sidecar 随同落 `.c<N>.rulings.json`，并补四者同名的成对 pin；Task 5 `sweep` 收窄到 `RoundNaming.isCarrierName` 认可的 draft/final 家族，`progress.json` / `base.json` / `*-test-evidence.json` 零触碰 | Claude（kairos:cdd-dev · plan-fix-2 · 2026-11-09） |
 | v0.4 | 2026-11-09 | 评审回填（plan-review-3 F1–F3）：Task 3 立单点校验读 `CarrierIntegrity.read` / `readFor`，`readHandoff` · fix 裁定读 · board 计数读三面统一接线，spawn 前门放进 `#runDispatch`（`#inflight.acquire` 之前硬停、dispatcher 零调用、未 acquire），逐面行为 pin 取代结构性 pin；Task 4 把 `#resumeOf` 的 `--reviews` 与 `#reviewsPath` 同源到 final，身份 pin 扩到五面 | Claude（kairos:cdd-dev · plan-fix-3 · 2026-11-09） |
+| v0.5 | 2026-11-09 | **closeout 登记（cdd-close）**：七任务五波全部交付——W1{1,2,6} `ad0f4181`/`c9cfe177`/`212c453e` + fix `d471f2ee` · W2{3} `19b56e7a`/`1fa59b2b` + fix `76f27d55`（review-2 零 finding）· W3{4} `8f2e1aa4`（零 finding） · W4{5} `5dbb8ad3` + fix `68ed5436` · W5{7} `b1fb2abf`（零 finding）· 分支终审 0 finding。实现期计划回填仅一处：Task 7 的 spec 行「追加 v0.3 若有」判为 **none**（spec 正文未动；加行会触发 `change-history-latest-matches-front-matter` 并逼 bump spec 版本，反过来证伪 Constraints 的「只实现 v0.2 所指的面」）。`pnpm run validate` exit 0（engine 73/1594）· changeset `cdd-engine` minor | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-09） |

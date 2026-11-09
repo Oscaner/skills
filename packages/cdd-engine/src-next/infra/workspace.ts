@@ -14,11 +14,19 @@
 //     key is the document's declared `slug:`, judged by the ONE identity index
 //     (infra/slug-index.ts).
 
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { type ParseError, parse } from "jsonc-parser";
 import { AtomicWriter } from "./atomic.ts";
 import { RepoRoot } from "./root.ts";
+
+/** The raw-bytes sha256 (hex) — the workspace plane's ONE digest primitive. The
+ *  session plane's carrier rule (`CarrierIntegrity.sha256`) delegates HERE, so the
+ *  engine holds one hashing implementation: the carrier's payload rule is layered over
+ *  it, never re-spelled. */
+export const sha256Hex = (bytes: string): string =>
+  createHash("sha256").update(bytes, "utf8").digest("hex");
 
 /** The tri-state JSON read — the read's three DISTINCT outcomes, discriminated: a
  *  `missing` file (never written) and a `malformed` file (present but unparseable)
@@ -178,10 +186,22 @@ export class Workspace {
    *  normalizes any straggler). The written bytes carry exactly one trailing `\n`
    *  (the repo's EOF rule), so an engine-written file is byte-canonical and the
    *  one-time migration leaves it byte-identical (zero churn). */
-  writeJson(name: string, value: unknown): void {
+  /** Write a JSON child and hand back the digest of exactly the bytes that landed —
+   *  the ONE serialization point (`writeJson` is this method's thin shell, so the
+   *  written bytes and the returned digest can never describe two different
+   *  documents). The digest is the sha256 hex of the written string; for a carrier
+   *  with no top-level `contentSha256` key it equals
+   *  `CarrierIntegrity.digestOf(value)` — whose payload rule is the session plane's
+   *  single carrier-digest rule (this seam owns the bytes primitive only). */
+  writeJsonHashed(name: string, value: unknown): string {
     this.ensure();
-    const normalized = this.#normalizePaths(value);
-    this.#atomic.write(this.resolve(name), `${JSON.stringify(normalized, null, 2)}\n`);
+    const bytes = `${JSON.stringify(this.#normalizePaths(value), null, 2)}\n`;
+    this.#atomic.write(this.resolve(name), bytes);
+    return sha256Hex(bytes);
+  }
+
+  writeJson(name: string, value: unknown): void {
+    this.writeJsonHashed(name, value);
   }
 
   /** Write a text child — mkdir before write (the text twin of `writeJson`; the

@@ -31,6 +31,7 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierRulings } from "../../session/carrier-rulings.ts";
+import { InFlight } from "../../session/inflight.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "../lifecycle.ts";
@@ -592,6 +593,109 @@ const runFix = async (
 
 /** The prompt the child stand-in received (the joined argv). */
 const promptOf = (runner: SilentRunner): string => (runner.calls[0]?.args ?? []).join(" ");
+
+// ---------------------------------------------------------------------------
+// P31 T3 — the carrier-integrity gate (design spec §2.2): a fix round whose
+// requesting review carrier no longer digests to the value its round recorded stops
+// BEFORE the in-flight record and the child — the tamper never reaches a child.
+// ---------------------------------------------------------------------------
+
+/** The requesting review round's carrier name (the fix input's own file). */
+const REQUEST_CARRIER = "phase-spec-review-1.json";
+
+describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => {
+  /** Plant a completed review round whose carrier + digest the ledger recorded. */
+  const seedReview = (f: Fixture): { path: string; digest: string } => {
+    const persisted = f.scene.ledger.persistHandoff(
+      "review",
+      "phase-spec",
+      { round: 1 },
+      {
+        status: "CHANGES_REQUESTED",
+        findings: [
+          { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+        ],
+      },
+    );
+    f.scene.ledger.recordRound("phase-spec", {
+      op: "review",
+      cycle: 1,
+      carrierPath: persisted.path,
+      carrierDigest: persisted.digest,
+    });
+    return persisted;
+  };
+
+  it("refuses a tampered input carrier before the child exists — no spawn, no acquire", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = seedReview(f);
+      // The tamper: a smuggled blocker the reviewed round never wrote.
+      writeFileSync(
+        sealed.path,
+        `${JSON.stringify(
+          {
+            status: "CHANGES_REQUESTED",
+            findings: [
+              { id: "F1", severity: "blocker", summary: "the guard is missing" },
+              { id: "F9", severity: "blocker", summary: "smuggled" },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const outcome = await runFix(f, fixFrameOf(specPath), sealed.path, runner);
+      expect(outcome.status).toBe("BLOCKED");
+      expect(gradesOf(outcome)).toEqual(["hard"]);
+      // The gate is BEFORE the spawn and BEFORE the in-flight record's acquisition.
+      expect(runner.calls).toHaveLength(0);
+      expect(f.io.stderrText).toContain("CDD_BLOCKED");
+      expect(f.io.stderrText).toContain("carrier-mismatch");
+      expect(f.io.stderrText).toContain("recorded=");
+      expect(f.io.stderrText).toContain("current=");
+      const inFlight = await new InFlight(f.scene.workspace.root, f.scene.workspace.slug).inspect();
+      expect(inFlight.kind).toBe("absent");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("lets the untampered carrier through — the child is spawned and the gate stays silent", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = seedReview(f);
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const outcome = await runFix(f, fixFrameOf(specPath), sealed.path, runner);
+      expect(runner.calls).toHaveLength(1);
+      expect(f.io.stderrText).not.toContain("carrier-mismatch");
+      // The silent child wrote no draft — the criterion owns the absence, never a crash.
+      expect(outcome.status).not.toBe("TIMEOUT");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("reads a LEGACY review round (no digest) as present facts — the tamper is not refused", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const at = path.join(f.scene.workspace.path, REQUEST_CARRIER);
+      writeFileSync(at, JSON.stringify({ findings: [] }), "utf8");
+      f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1, carrierPath: at });
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      await runFix(f, fixFrameOf(specPath), at, runner);
+      expect(runner.calls).toHaveLength(1);
+      expect(f.io.stderrText).not.toContain("carrier-mismatch");
+    } finally {
+      f.cleanup();
+    }
+  });
+});
 
 describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
   for (const [label, body] of BAD_SIDECARS) {

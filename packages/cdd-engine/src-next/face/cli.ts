@@ -63,6 +63,7 @@ import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
 import { TemplateAssembler } from "../render/templates.ts";
+import { CarrierMismatchError } from "../session/carrier-integrity.ts";
 import {
   DispatchAuthority,
   type DispatchRefusal,
@@ -354,6 +355,15 @@ export class Cli {
    *  invalid argument (incl. the preAction conditional-required) · excess args ·
    *  missing required) → 2, an unexpected error → 1. */
   #normalizeExit(err: unknown): number {
+    // P31 §2.2 — a carrier whose bytes no longer digest to the recorded value is a
+    // hard stop on the CDD_BLOCKED channel (the ordered-rank of every blocked gate),
+    // with the existing blocked exit code. The read faces that can meet it (board's
+    // `+N` count, the fix criterion's input, the ledger's carrier read) all throw it
+    // through their own seam.
+    if (err instanceof CarrierMismatchError) {
+      this.#io.stderr(`${this.#words.station("blocked")} ${err.message}\n`);
+      return 1;
+    }
     if (err instanceof CommanderError) {
       if (err.code === "commander.help") return err.exitCode === 0 ? 0 : 2;
       if (err.code === "commander.helpDisplayed") return 0;

@@ -29,6 +29,7 @@ import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
+import { CarrierIntegrity } from "./carrier-integrity.ts";
 import { type RouteTarget, type TargetType, targetFaces } from "./faces.ts";
 import { type Carrier, type CarrierPlane, HandoffSchema } from "./handoff-schema.ts";
 import { LineIdentity } from "./line-identity.ts";
@@ -118,6 +119,12 @@ export interface RoundRecord {
   readonly verdict: RoundVerdict;
   readonly violations: readonly RoundViolation[];
   readonly carrierPath: string | null;
+  /** The content digest the engine recorded for the carrier it wrote (P31 §2.2) —
+   *  the payload rule's `CarrierIntegrity.digestOf` value, taken from the write seam's
+   *  own bytes at persist time. Absent on every record written before the column
+   *  existed (zero migration) and null on a round that persisted no carrier; either
+   *  way the read is a present-facts read with zero comparison. */
+  readonly carrierDigest?: string | null;
   /** The supersede stamp (P30 §2.3) — the cycle that REPLACED this review's judgment
    *  (the `--recover` reopen dispatched `cycle` next, so this round's pending fix is no
    *  longer owed). Absent on every ordinary round and on every record written before
@@ -146,6 +153,7 @@ export interface RoundRecordInit {
   readonly verdict?: RoundVerdict;
   readonly violations?: readonly RoundViolation[];
   readonly carrierPath?: string | null;
+  readonly carrierDigest?: string | null;
 }
 
 /** The round-concluding statuses the router's failure face reads. */
@@ -642,9 +650,10 @@ export class Ledger {
 
   // ---- the single author's write/read primitives ----
 
-  /** Persist a JSON artifact — the ledger's single write point (engine sole author). */
-  #persist(name: string, data: unknown): void {
-    this.#workspace.writeJson(name, data);
+  /** Persist a JSON artifact — the ledger's single write point (engine sole author).
+   *  Returns the digest of the written bytes (the carrier record's `carrierDigest`). */
+  #persist(name: string, data: unknown): string {
+    return this.#workspace.writeJsonHashed(name, data);
   }
 
   /** Read a JSON artifact; null when missing/corrupt (the ledger's read face keeps the
@@ -808,6 +817,9 @@ export class Ledger {
       verdict: init.verdict ?? { treeClean: true, targetAction: true },
       violations: init.violations ?? [],
       carrierPath: init.carrierPath ?? null,
+      // The digest column exists only on rounds that recorded one (a legacy record
+      // keeps no key at all — the read then compares nothing, zero migration).
+      ...(init.carrierDigest === undefined ? {} : { carrierDigest: init.carrierDigest }),
     };
     const existing = records.findIndex(
       (candidate) =>
@@ -1560,15 +1572,17 @@ export class Ledger {
   }
 
   /** Persist a handoff payload at the canonical name — the single-author full-replace
-   *  write (never a merge: the engine owns the file). Returns the written path. */
+   *  write (never a merge: the engine owns the file). Returns the written path AND the
+   *  digest of the bytes that landed, so the round record can remember what it wrote
+   *  (P31 §2.2: the one place a carrier digest is born). */
   persistHandoff(
     op: string,
     type: string,
     params: HandoffParams,
     data: Record<string, unknown>,
-  ): string {
-    this.#persist(this.handoffName(op, type, params), data);
-    return this.handoffPath(op, type, params);
+  ): { readonly path: string; readonly digest: string } {
+    const digest = this.#persist(this.handoffName(op, type, params), data);
+    return { path: this.handoffPath(op, type, params), digest };
   }
 
   /** The handoff file NAME a read actually resolves — the canonical family name, or a
@@ -1602,9 +1616,44 @@ export class Ledger {
    *  alias keys on the line's declared word (`phase-spec` / `overall` / `single-spec`,
    *  the same basis as `rowFor`'s) and never covers the node shapes. Every WRITE goes
    *  through `persistHandoff`'s current spelling — the alias is read-only, and the name
-   *  it resolves is `resolveHandoffName`'s ONE answer. */
+   *  it resolves is `resolveHandoffName`'s ONE answer.
+   *
+   *  P31 §2.2 — the read is CHECKED: the (op, type, round) round's latest recorded
+   *  attempt supplies the digest the engine wrote, and `CarrierIntegrity.read` compares
+   *  the bytes against it before they are parsed (a mismatch throws
+   *  `CarrierMismatchError`, never a silently-judged tampered carrier). A legacy record
+   *  with no digest — or no record at all — reads as present facts, zero comparison. */
   readHandoff(op: string, type: string, params: HandoffParams): Record<string, unknown> | null {
-    return this.#read<Record<string, unknown>>(this.resolveHandoffName(op, type, params));
+    const name = this.resolveHandoffName(op, type, params);
+    const bytes = CarrierIntegrity.read(
+      this.#workspace.resolve(name),
+      this.#carrierDigestOf(op, type, params),
+    );
+    if (bytes === null) return null;
+    try {
+      return JSON.parse(bytes) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+
+  /** The digest the round recorded for the carrier this read resolves — its LATEST
+   *  attempt of the (op, type, round) identity (a re-dispatch supersedes its
+   *  predecessor, the same rule the round-read gate applies). Null when no record
+   *  carries one: the present-facts face (legacy rows, and reads of a round that never
+   *  booked its own carrier). */
+  #carrierDigestOf(op: string, type: string, params: HandoffParams): string | null {
+    const mode = RoundRecords.opOf(op) ?? op;
+    const round = params.round === undefined ? null : Number(params.round);
+    const latest = this.recordsOf(this.#roundKey(type as TargetType, params), type as TargetType)
+      .filter((record) => record.op === mode)
+      .filter((record) => round === null || record.cycle === round)
+      .reduce<RoundRecord | undefined>(
+        (newest, record) =>
+          newest === undefined || record.attempt >= newest.attempt ? record : newest,
+        undefined,
+      );
+    return latest?.carrierDigest ?? null;
   }
 
   /** The retired document-line carrier name of one round — `spec-review-{round}.json` /

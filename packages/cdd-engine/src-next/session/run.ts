@@ -690,6 +690,7 @@ export class Lifecycle {
   #bookkeep(frame: OpenFrame, outcome: DispatchOutcome): number {
     const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     let carrierPath: string | null = null;
+    let carrierDigest: string | null = null;
     if (outcome.carrier !== undefined || (outcome.verdict === undefined && !blocked)) {
       const op = this.#opOf(frame.phase);
       // T2 — the engine-built fallback rides the FRAME's op-derived plane (never the
@@ -713,7 +714,11 @@ export class Lifecycle {
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
       if (plane === "work" && carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
-      carrierPath = this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
+      // P31 §2.2 — the persist hands the digest of exactly the bytes it wrote, so the
+      // round record can replay the comparison on every later read of this carrier.
+      const persisted = this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
+      carrierPath = persisted.path;
+      carrierDigest = persisted.digest;
     }
     // The recorded CYCLE is the frame's own round — its identity (fix-K ⟷ review-K ·
     // D28): a skipped cycle records its own number, never a flattened ordinal. The
@@ -744,6 +749,7 @@ export class Lifecycle {
         },
         violations,
         carrierPath,
+        carrierDigest,
       },
       frame.type,
     );

@@ -5040,6 +5040,43 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
     }
   });
 
+  it("P31 T3 — a tampered carrier on the board's `+N` read is a CDD_BLOCKED stop, never a silent zero", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      const workspace = new Workspace(
+        new WorkspaceRoot(repoRoot, ".kairos/cdd"),
+        "prog-p1",
+      ).ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      const persisted = ledger.persistHandoff(
+        "review",
+        "plan",
+        { round: 1 },
+        {
+          findings: [{ severity: "warn", summary: "drift" }],
+        },
+      );
+      ledger.recordRound("plan", {
+        op: "review",
+        cycle: 1,
+        carrierPath: persisted.path,
+        carrierDigest: persisted.digest,
+      });
+      // The tamper: bytes the recorded digest no longer covers.
+      writeFileSync(persisted.path, `${JSON.stringify({ findings: [] }, null, 2)}\n`, "utf8");
+      const code = await command.runArgv(["board", "--plan", PLAN]);
+      expect(code).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED: carrier-mismatch");
+      expect(io.stderrText).toContain("line=");
+      expect(io.stderrText).toContain("recorded=");
+      expect(io.stderrText).toContain("current=");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("two flags on different slugs are an argument conflict — exit 2, both values on stderr", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
@@ -8232,11 +8269,15 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
     }
   });
 
-  it("keeps the brief hash's ONLY derivation in ReviewRefs — zero new hash surface", () => {
+  it("keeps the brief hash's ONLY derivation in ReviewRefs — the engine's hash sites stay enumerated", () => {
+    // The brief hash's one derivation is `ReviewRefs` (P? — the `doc-revision-body`
+    // guard pins the doc-body side). The list is the engine's WHOLE `createHash` surface:
+    // P31 §2.2 sanctions exactly one more — the workspace plane's raw-bytes digest
+    // primitive the carrier rule delegates to. A third site is still a red.
     const carriers = engineSourceTexts()
       .filter(([, text]) => text.includes("createHash"))
       .map(([file]) => file);
-    expect(carriers).toEqual(["session/ledger.ts"]);
+    expect(carriers).toEqual(["infra/workspace.ts", "session/ledger.ts"]);
   });
 });
 

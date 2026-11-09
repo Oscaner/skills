@@ -23,9 +23,9 @@
 // Module-level exports are types / the declared registry / the class — zero
 // behavior-carrying bare functions.
 
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { GitClient } from "../infra/git.ts";
+import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
 import {
   type OpType,
   type ProgressRow,
@@ -354,7 +354,11 @@ export class FixDispositions implements CompletionCriterion {
    *  Every path resolves against `repoRoot`, never `process.cwd()`: the engine runs
    *  from a subdirectory too, `--reviews` arrives repoRoot-relative and a record's
    *  `carrierPath` arrives absolute — both must land on the one basis (`RepoRoot`'s
-   *  rule). The reported `path` is the resolved one, so a failure names a real file. */
+   *  rule). The reported `path` is the resolved one, so a failure names a real file.
+   *
+   *  P31 §2.2 — the read is the ONE checked carrier read (`CarrierIntegrity.read`):
+   *  the requesting round's recorded digest decides ok / mismatch, so a tampered
+   *  input throws instead of being judged as if the round had written those bytes. */
   static requesterInputOf(
     records: readonly RoundRecord[],
     cycle: number,
@@ -366,8 +370,21 @@ export class FixDispositions implements CompletionCriterion {
     const target = path.resolve(repoRoot, declared);
     let carrier: unknown;
     try {
-      carrier = JSON.parse(readFileSync(target, "utf8")) as unknown;
-    } catch {
+      // P31 §2.2 — the input carrier is read through the ONE checked seam: the
+      // requesting review record's digest when it declared the path, no comparison on
+      // the legacy `--reviews` fallback. A mismatch is NOT an `unreadable` input (that
+      // would silently judge the tampered bytes): the error propagates and the CLI's
+      // blocked channel names it.
+      const bytes = CarrierIntegrity.read(
+        target,
+        FixDispositions.#requesterDigestOf(records, cycle),
+      );
+      if (bytes === null) {
+        return { kind: "unreadable", path: target, detail: "the file is absent or not JSON" };
+      }
+      carrier = JSON.parse(bytes) as unknown;
+    } catch (raw) {
+      if (raw instanceof CarrierMismatchError) throw raw;
       return { kind: "unreadable", path: target, detail: "the file is absent or not JSON" };
     }
     const findings = (carrier as { findings?: unknown } | null)?.findings;
@@ -387,6 +404,19 @@ export class FixDispositions implements CompletionCriterion {
       };
     }
     return { kind: "read", path: target, findings: set.findings };
+  }
+
+  /** The digest the requesting review round recorded — the SAME record
+   *  `requesterPathOf` selects (the completed same-cycle review), null when that
+   *  record declared no path (the legacy `--reviews` fallback carries no digest, so the
+   *  read performs no comparison) or when the record predates the digest column. */
+  static #requesterDigestOf(records: readonly RoundRecord[], cycle: number): string | null {
+    for (const record of records) {
+      if (record.op !== "review" || record.cycle !== cycle) continue;
+      if (!record.verdict.targetAction) continue;
+      return record.carrierPath === null ? null : (record.carrierDigest ?? null);
+    }
+    return null;
   }
 
   /** The carrier's `dispositions` map — null when the slot is absent or not an

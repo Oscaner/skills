@@ -46,6 +46,7 @@ import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
 import { type DocEntry, SlugIndex, type SlugRole } from "../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
+import { CarrierIntegrity } from "../session/carrier-integrity.ts";
 import type { RouteTarget, TargetType } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import type { InFlightState } from "../session/inflight.ts";
@@ -363,12 +364,12 @@ export class BoardView {
 
   /** One round's findings count — the `findings` array length of the carrier the round
    *  persisted (the judge plane's declared field). Zero when the record carries no
-   *  carrier path or the file is absent/unreadable/unparseable (present facts only,
-   *  never a throw on a read face). */
+   *  carrier path or the file is absent (present facts only). P31 §2.2 — the read goes
+   *  through the ONE checked seam: a carrier whose bytes no longer match the recorded
+   *  digest THROWS (`carrier-mismatch` rides the CLI's blocked channel), never a
+   *  silent zero. */
   static #findingsCountOf(record: RoundRecord): number {
-    const at = record.carrierPath;
-    if (at === null) return 0;
-    const text = BoardView.#read(at);
+    const text = CarrierIntegrity.readFor(record);
     if (text === null) return 0;
     try {
       const value: unknown = JSON.parse(text);

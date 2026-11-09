@@ -13,6 +13,7 @@
 // engine-config (the external contract JSONs — allowed steady-data reads, never the
 // old tree's derived products).
 
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -601,8 +602,12 @@ describe("handoff — naming / carrier / single-author persist", () => {
         { tasks: "7,9", round: 1 },
         { tasks: [7, 9], phase: "review", findings: [{ severity: "blocker" }] },
       );
-      expect(written).toBe(workspace.resolve("tasks-7,9-review-1.json"));
-      expect(JSON.parse(readFileSync(written, "utf8"))).toEqual({
+      expect(written.path).toBe(workspace.resolve("tasks-7,9-review-1.json"));
+      // The returned digest is the bytes that landed (P31 §2.2) — the same sha256.
+      expect(written.digest).toBe(
+        createHash("sha256").update(readFileSync(written.path, "utf8")).digest("hex"),
+      );
+      expect(JSON.parse(readFileSync(written.path, "utf8"))).toEqual({
         tasks: [7, 9],
         phase: "review",
         findings: [{ severity: "blocker" }],
@@ -615,7 +620,7 @@ describe("handoff — naming / carrier / single-author persist", () => {
         { tasks: "7,9", round: 1 },
         { tasks: [7, 9], phase: "review", findings: [] },
       );
-      expect(JSON.parse(readFileSync(second, "utf8"))).toEqual({
+      expect(JSON.parse(readFileSync(second.path, "utf8"))).toEqual({
         tasks: [7, 9],
         phase: "review",
         findings: [],

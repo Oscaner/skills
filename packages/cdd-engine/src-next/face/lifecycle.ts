@@ -29,6 +29,7 @@ import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
+import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
 import { CarrierRulings, type Ruling, type RulingVerdict } from "../session/carrier-rulings.ts";
 import { TargetFaceTable } from "../session/faces.ts";
 import type { CarrierPlane } from "../session/handoff-schema.ts";
@@ -631,6 +632,15 @@ export class CliLifecycle {
       this.#blocked(rulingsRefusal, false);
       return { status: "BLOCKED", violations: [RoundViolation.hard(rulingsRefusal)] };
     }
+    // P31 T3 — the carrier-integrity gate: the fix round's requesting carrier is
+    // compared against the digest its round recorded BEFORE the in-flight record and
+    // the child, so a tampered input never reaches a child (the read-back and the CLI
+    // catch are the fallbacks, never the gate).
+    const carrierRefusal = this.#carrierRefusal(frame);
+    if (carrierRefusal !== null) {
+      this.#blocked(carrierRefusal, false);
+      return { status: "BLOCKED", violations: [RoundViolation.hard(carrierRefusal)] };
+    }
     const prompt = this.#template.render(this.#valuesOf(frame));
     const row = HOSTS[host as HostId];
     const cliName = row.cli;
@@ -1132,11 +1142,22 @@ export class CliLifecycle {
     // carriers the ledger reads back, never a schema-validated draft).
     const status: RoundStatus = schema.conclusionOf(plane, draft) ?? "BLOCKED";
     const carrier = this.#materialize(frame, plane, draft, status);
+    // P31 §2.2 — the disposition summary reads the REQUESTING carrier. A mismatch
+    // found here (the bytes moved inside the round) is a BLOCKED outcome: the read-back
+    // is the FALLBACK behind the pre-dispatch gate, never the gate itself.
+    let summary: string | undefined;
+    try {
+      summary = this.#dispositionsSummary(frame, plane, carrier);
+    } catch (raw) {
+      if (!(raw instanceof CarrierMismatchError)) throw raw;
+      this.#blocked(raw.message, false);
+      return { status: "BLOCKED", violations: [RoundViolation.hard(raw.message)] };
+    }
     return {
       status,
       findings: plane === "judge" ? schema.findingsOf(findings) : undefined,
       carrier,
-      dispositionsSummary: this.#dispositionsSummary(frame, plane, carrier),
+      dispositionsSummary: summary,
     };
   }
 
@@ -1190,6 +1211,43 @@ export class CliLifecycle {
           record.op === "review" && record.cycle === frame.round && record.carrierPath === null,
       );
     return legacy ? null : resolved;
+  }
+
+  /** The fix input's carrier-integrity gate — the `carrier-mismatch` refusal when the
+   *  requesting review carrier no longer digests to the value its round recorded, null
+   *  when the round may proceed (P31 §2.2). Only the fix face reads a carrier that
+   *  already existed before this dispatch (`INPUT_REVIEWS` is its own input), so every
+   *  other phase has no gate to set. A carrier with no recorded digest — a legacy round,
+   *  or a resolved path no record declared — is read as present facts: no comparison,
+   *  no refusal. */
+  #carrierRefusal(frame: OpenFrame): string | null {
+    if (this.#opOf(frame) !== "fix") return null;
+    const carrier = this.#reviewsPath(frame);
+    if (carrier === null) return null;
+    const digest = this.#requesterDigest(frame);
+    if (digest === null) return null;
+    try {
+      CarrierIntegrity.read(path.resolve(this.#repoRootValue().absolute, carrier), digest);
+      return null;
+    } catch (raw) {
+      if (raw instanceof CarrierMismatchError) return raw.message;
+      throw raw;
+    }
+  }
+
+  /** The digest the requesting review round recorded — the same-cycle review record's
+   *  latest attempt (the round `#reviewsPath` resolves). Null when no record carries
+   *  one: the present-facts read. */
+  #requesterDigest(frame: OpenFrame): string | null {
+    const reviewed = this.#scene.ledger
+      .recordsOf(frame.key, frame.type)
+      .filter((record) => record.op === "review" && record.cycle === frame.round);
+    const latest = reviewed.reduce<(typeof reviewed)[number] | undefined>(
+      (newest, record) =>
+        newest === undefined || record.attempt >= newest.attempt ? record : newest,
+      undefined,
+    );
+    return latest?.carrierDigest ?? null;
   }
 
   /** The fix round's ruling sidecar as the round-context value — the repo-relative

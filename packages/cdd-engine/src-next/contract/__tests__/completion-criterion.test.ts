@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { GitClient } from "../../infra/git.ts";
+import { CarrierIntegrity, CarrierMismatchError } from "../../session/carrier-integrity.ts";
 import type {
   OpType,
   ProgressRow,
@@ -830,6 +831,92 @@ describe("(h) the requesting carrier's read basis — repoRoot, never process.cw
     } finally {
       process.chdir(cwdBefore);
       fixture.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// (h2) P31 §2.2 — the requesting carrier is read through the ONE checked seam:
+// the review record's digest decides ok / mismatch, and a mismatch is NOT folded
+// into `unreadable` (that would silently judge the tampered bytes as if the child
+// had produced them). Absent stays its own present-facts face, and a LEGACY record
+// (no digest) performs no comparison at all.
+// ---------------------------------------------------------------------------
+
+describe("(h2) FixDispositions — the requesting carrier is a CHECKED read", () => {
+  /** The requester records with the review round's digest stamped on. */
+  const digestsOf = (records: readonly RoundRecord[], digest: string | null): RoundRecord[] =>
+    records.map((record) =>
+      record.op === "review" ? { ...record, carrierDigest: digest } : record,
+    );
+
+  it("reads the declaring review record's digest — untampered bytes read, tampered bytes THROW", () => {
+    const fixture = new CarrierFixture(REQUESTER);
+    try {
+      const records = digestsOf(fixRecords(fixture.requesterPath), "sha-of-the-requester");
+      // The digest here is a stand-in: the read compares VALUES, so a truthful one is
+      // the only kind that passes.
+      const truthful = digestsOf(
+        fixRecords(fixture.requesterPath),
+        CarrierIntegrity.digestOf(REQUESTER),
+      );
+      const read = FixDispositions.requesterInputOf(truthful, 2, null, "/repo");
+      expect(read.kind).toBe("read");
+      // A wrong digest on untouched bytes is a mismatch too — never a silent read.
+      expect(() => FixDispositions.requesterInputOf(records, 2, null, "/repo")).toThrow(
+        CarrierMismatchError,
+      );
+      // Tampering the bytes behind a truthful digest is the real refusal.
+      writeFileSync(
+        fixture.requesterPath,
+        JSON.stringify({ findings: [{ id: "F9", severity: "blocker", summary: "smuggled" }] }),
+        "utf8",
+      );
+      let thrown: unknown;
+      try {
+        FixDispositions.requesterInputOf(truthful, 2, null, "/repo");
+      } catch (raw) {
+        thrown = raw;
+      }
+      expect(thrown).toBeInstanceOf(CarrierMismatchError);
+      expect((thrown as CarrierMismatchError).message).toContain("recorded=");
+      expect((thrown as CarrierMismatchError).message).toContain("current=");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it("an ABSENT requester stays `unreadable` (never mismatch) and a LEGACY record compares nothing", () => {
+    const empty = new CarrierFixture(null);
+    const legacy = new CarrierFixture(REQUESTER);
+    try {
+      // Absent file + a recorded digest: the absence is its own fact, not a refusal.
+      const absent = FixDispositions.requesterInputOf(
+        digestsOf(fixRecords(empty.requesterPath), CarrierIntegrity.digestOf(REQUESTER)),
+        2,
+        empty.requesterPath,
+        "/repo",
+      );
+      expect(absent.kind).toBe("unreadable");
+      // A record with NO digest over hand-changed bytes: present facts, zero comparison.
+      writeFileSync(
+        legacy.requesterPath,
+        JSON.stringify({ findings: [{ id: "F7", severity: "nit", summary: "hand-edited" }] }),
+        "utf8",
+      );
+      const read = FixDispositions.requesterInputOf(
+        fixRecords(legacy.requesterPath),
+        2,
+        legacy.requesterPath,
+        "/repo",
+      );
+      expect(read.kind).toBe("read");
+      expect(read.kind === "read" ? read.findings.map((finding) => finding.id) : []).toEqual([
+        "F7",
+      ]);
+    } finally {
+      empty.cleanup();
+      legacy.cleanup();
     }
   });
 });

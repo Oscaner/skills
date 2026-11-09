@@ -53,28 +53,14 @@ base: develop
 - `export const CHANGE_HISTORY_COLUMNS: readonly ["Version", "date", "summary", "author"]`（`invariants.ts`）
 - `export class ChangeHistoryHeaderColumnsInvariant extends Invariant`，`readonly name = "change-history-header-columns"`
 
-#### Steps
 
-- [ ] **Step 1: 写红测** — `change-history-header.test.ts` 五例：四列声明表头零 finding；多一列（`Version · date · summary · 落点 · author`）一条 finding 且 `kind` 为 `change-history-header-columns`、`section` 为 `Change history`；少一列一条；列名漂移（`Date` 大写）一条；无 `## Change history` 节零 finding（不虚构判定对象）。
 
-```ts
-const judge = (body: string): Finding[] =>
-  new ChangeHistoryHeaderColumnsInvariant().evaluate(
-    ctxOf(`---\ntitle: t\nversion: v1.0\n---\n\n## Change history\n\n${body}`),
-  );
-expect(judge("| Version | date | summary | author |\n| --- | --- | --- | --- |\n")).toEqual([]);
-expect(judge("| Version | date | summary | 落点 | author |\n")).toHaveLength(1);
-```
-
-- [ ] **Step 2: 跑红** — `pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__/change-history-header.test.ts` 期望 `ReferenceError`/集合为空（类未定义）。
-
-- [ ] **Step 3: 实现类** — 在 `ChangeHistoryRowShapeInvariant` 之后加 `CHANGE_HISTORY_COLUMNS` 常量与新类：取 `this.changeHistory(ctx).headerRow`，`null`/空返回 `[]`；`trim` 后逐格与声明集比对，`length` 或任一格不等则 `this.finding(ctx, "Change history", \`the header reads <实际> against the declared colum...\`, "keep the four declared columns — the skeleton emits them; adding a fifth hides its rows from the lineage")` 一条。
-
-- [ ] **Step 4: 登记与模板** — `rules.ts` 加 `{ scope: "doc", id: "change-history-header-columns", docKeys: "all", create: () => new ChangeHistoryHeaderColumnsInvariant() }`（紧邻 `change-history-row-shape` 行之后）；`templates.ts` 的 docs-fix 固定前缀在既有 change-history 两句旁加：`A Change-history summary must escape a literal pipe as \\| — an unescaped one splits the cell and corrupts every lineage read.`
-
-- [ ] **Step 5: 语料与登记表** — `doc-corpus.guard.test.ts` 的 `PINNED_KINDS` 追加该 kind、`DRIFT_CEILING["change-history-header-columns"] = {}`（空表 ≡ 全 0）；`PROGRAM_DOCS` 追加 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p31-design.md` 与 `docs/kairos/plans/2026-10-10-engine-doc-tooling-p31.md`，并在该测的 `findingsOn` 断言里加 `change-history-header-columns` 一行。`rules.test.ts` 快照按新登记行更新。
-
-- [ ] **Step 6: 全绿 + 提交** — `pnpm -C packages/cdd-engine exec vitest run src-next/contract` 全绿；`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0；`git commit -m "feat(contract): pin the change-history header column set (#447)"`。
+- 写失败测 `change-history-header.test.ts` 五例（四列零 finding · 多一列一条 · 少一列一条 · `Date` 大写列名一条 · 无节零 finding）— checkable: 定向 vitest 该文件 FAIL（`ChangeHistoryHeaderColumnsInvariant` 未定义）
+- 在 `ChangeHistoryRowShapeInvariant` 之后加 `CHANGE_HISTORY_COLUMNS` 常量与新 invariant 类：`headerRow` 为 `null`/空返 `[]`，否则 `trim` 后逐格比长度与文案，不等即 `this.finding(ctx, "Change history", …)` 一条 — checkable: 上一步五例 PASS，`pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0
+- `contract/rules.ts` 在 `change-history-row-shape` 行之后登记 `{ scope: "doc", id: "change-history-header-columns", docKeys: "all", create }`；`rules.test.ts` 登记表快照按新行更新 — checkable: `rules.test.ts` 快照断言 PASS（缺登记行即红）
+- `render/templates.ts` 的 docs-fix 固定前缀补一句：summary 内字面竖线须写 `\|`（与既有 change-history 两句相邻） — checkable: 定向 vitest 的模板子串断言 PASS（今日该句零命中）
+- `doc-corpus.guard.test.ts` 的 `PINNED_KINDS` 加该 kind、`DRIFT_CEILING` 加空表 `{}`、`PROGRAM_DOCS` 加 P31 spec 与 plan 两条并在 `findingsOn` 断言里加该 kind — checkable: `excessOver("change-history-header-columns", {})` 为空且 PROGRAM_DOCS 两条各 0 条，全测 PASS
+- 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 - 表头多/少一列或列名漂移各产生**恰好一条** `change-history-header-columns` finding；声明四列表头零 finding。
@@ -113,21 +99,15 @@ none
 - `export interface Ruling { readonly finding: string; readonly ruling: string; readonly at?: string; readonly by?: string }`
 - 新 `FIX_READBACK_SUFFIX` 字面：`"(confirm the reviews handoff · if a finding needs a ruling, record it beside that handoff — same path with .json replaced by .rulings.json)"`
 
-#### Steps
 
-- [ ] **Step 1: 写红测（carrier-rulings）** — `pathFor("a/b/phase-spec-review-1.c2.json") === "a/b/phase-spec-review-1.c2.rulings.json"`；缺文件 → `{kind:"absent"}`；合法文件 → `{kind:"ok"}` 且 rulings 逐条等于写入；五条 invalid 各一例：非 JSON、`rulings` 非数组、条目缺 `ruling`、未知顶层键、`finding` 不在 carrier 的 id 集。
 
-- [ ] **Step 2: 跑红** — 该测试文件失败（模块不存在）。
-
-- [ ] **Step 3: 实现 `CarrierRulings`** — 单类、只读文件；`readFileSync` 包 try；`verdict` 按上面五例逐条返回 `invalid` 并带一句 reason；未知键用「顶层 `carrier`/`rulings` + 条目 `finding`/`ruling`/`at`/`by`」白名单拒绝。
-
-- [ ] **Step 4: 写红测（渲染）** — `templates.test.ts`：fix 模板在有 sidecar 夹具时渲染出 `INPUT_RULINGS` 行且含裁定正文；无 sidecar 时整行缺席（`not.toContain("INPUT_RULINGS")`）。`cli.test.ts`：`FIX_READBACK_SUFFIX` 新字面出现在 wave / plan / branch / doc 四条 fix 的 `next:` 行（既有 7 处锚点整体重锚）。
-
-- [ ] **Step 5: 实现渲染与文案** — `TOKENS` 加 `{ name: "INPUT_RULINGS", zone: "round-context" }`；fix 与 docs-fix 的 `roundContext` 紧跟 `INPUT_REVIEWS` 插入该行；`#valuesOf` 里 `INPUT_RULINGS: op === "fix" ? this.#rulingsRel(frame) : ""`，`#rulingsRel` 读 `CarrierRulings.verdict(reviewsPath, findingIds)`：`ok` → `this.#rel(CarrierRulings.pathFor(path))`，其余 → `""`；`invalid` 时向 `#valuesOf` 的违规收集面推一条 hard（见 Step 6）。`next.ts` 改常量字面。
-
-- [ ] **Step 6: 违反面接线** — `verdict.kind === "invalid"` 在**派发前**转成 `CDD_BLOCKED`（与既有 pre-flight 拒绝同通道，`outcome` 不产生、child 零 spawn）：在 `face/lifecycle.ts#runDispatch` 开头、`#inflight.acquire` 之前判一次，命中即 `this.#blocked(...)` + 返回 `{ status: "BLOCKED", violations: [RoundViolation.hard(reason, "contract-violation")] }`。
-
-- [ ] **Step 7: 全绿 + 提交** — `pnpm -C packages/cdd-engine exec vitest run src-next/render src-next/face src-next/session` 全绿；typecheck exit 0；`git commit -m "feat(session): carrier rulings sidecar and INPUT_RULINGS round context (#444)"`。
+- 写失败测 `carrier-rulings.test.ts`：`pathFor` 两种入参、缺文件 `absent`、合法文件 `ok`、五条 `invalid`（非 JSON · `rulings` 非数组 · 条目缺 `ruling` · 未知顶层键 · `finding` 不在 carrier id 集）— checkable: 定向 vitest 该文件 FAIL（模块不存在）
+- 实现 `session/carrier-rulings.ts`：`pathFor` 换后缀 · `read` 只在文件存在时解析 · `verdict` 三态并逐条给 reason · 白名单拒未知键 — checkable: 上一步全 PASS，typecheck exit 0
+- 写失败测（渲染面）：有 sidecar 夹具时 fix prompt 含裁定正文；无 sidecar 时 prompt 零 `INPUT_RULINGS` 字面；review 轮（`op !== "fix"`）零该字面 — checkable: 定向 vitest FAIL（`TOKENS` 无该行）
+- `render/templates.ts` 的 `TOKENS` 加 `{ name: "INPUT_RULINGS", zone: "round-context" }`，fix 与 docs-fix 的 `roundContext` 在 `INPUT_REVIEWS` 之后加该行；`face/lifecycle.ts#valuesOf` 填 `op === "fix"` 时按 `CarrierRulings.verdict` 推导路径、其余空串 — checkable: 上一步三例 PASS，且空值行被既有 assembler 丢弃（prompt 内零该字面）
+- 派发前硬停：`#runDispatch` 在 `#inflight.acquire` 之前对 `invalid` 走 `#blocked` 并返回 `{ status: "BLOCKED", violations: [RoundViolation.hard(reason)] }` — checkable: 坏 sidecar 夹具下 dispatcher 零调用（注入 dispatcher 的 spy 计数为 0）
+- `session/next.ts` 的 `FIX_READBACK_SUFFIX` 改为指向 sidecar 的新字面；`cli.test.ts` 七处 anchors 整体重锚 — checkable: `cli.test.ts` 四条 fix 的 `next:` 断言 PASS，且全库 `FIX_READBACK_SUFFIX` 引用零字面复制
+- 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 - `CarrierRulings.pathFor` 与 spec §2.1 的 `.json → .rulings.json` 规则一致（成对 pin：draft 名与 `.cN` 名两种输入）。
@@ -165,21 +145,14 @@ none
 - `Workspace.writeJsonHashed(name: string, value: unknown): string`（返回写入字节的 sha256 hex）；`writeJson` 改为 `writeJsonHashed` 的薄壳（单点序列化）
 - `Ledger.persistHandoff(...): { readonly path: string; readonly digest: string }`
 
-#### Steps
 
-- [ ] **Step 1: 写红测（完整性）** — `CarrierIntegrity.sha256` 对固定串返回已知 hex（钉一个常量）；`mismatch(null, "x")` 与 `mismatch("x", null)` 都为 `null`；`mismatch("a","a")` 为 `null`；`mismatch("a","b")` 返回两端。
 
-- [ ] **Step 2: 写红测（三态）** — 夹具：写一个 carrier 并记 digest → 不改字节时 `readHandoff` 返回对象；删除文件时返回 `null`（absent 合法）；把文件改成另一串字节时 `readHandoff` 抛 `CarrierMismatchError`，`message` 含 `recorded=` 与 `current=` 且两者不同。第四例：旧记录无 `carrierDigest`（present-facts）→ 即便字节被改也**不抛**、照常返回（零迁移）。
-
-- [ ] **Step 3: 跑红** — 两文件失败。
-
-- [ ] **Step 4: 实现完整性类与写盘** — `carrier-integrity.ts` 两个类（`node:crypto` 的 sha256）；`workspace.writeJsonHashed` 把既有 `JSON.stringify(normalized, null, 2) + "\n"` 算一次 digest 后返回，`writeJson` 调它并丢弃返回值；`#persist` 返回该 digest。
-
-- [ ] **Step 5: 实现记录与校验** — `RoundRecord` 加 `readonly carrierDigest?: string | null`；`recordRound` 透传；`#bookkeep` 存 `carrierDigest: digest`；`readHandoff` 在读到对象后取该 (op,type,round) 最新记录的 digest（新私有读 `#digestOf(op, type, params)`），`mismatch` 非空即抛 `CarrierMismatchError`。
-
-- [ ] **Step 6: 接入两条通道** — `face/cli.ts` 顶层 catch 该错误 → `io.stderr("CDD_BLOCKED: " + message)` + 既有 blocked 退出码；`face/lifecycle.ts#reconstruct` 捕获 → 返回 `{ status:"BLOCKED", violations:[RoundViolation.hard(message, "contract-violation")] }`（child 已跑完的那条通道，与派发前拒绝互补）。`#bookkeep` 的 `carrierPath` 读新返回形状。
-
-- [ ] **Step 7: 全绿 + 提交** — `pnpm -C packages/cdd-engine exec vitest run src-next/session src-next/face src-next/infra` 全绿；typecheck exit 0；`git commit -m "feat(session): carrier digest and carrier-mismatch hard stop (#444)"`。
+- 写失败测 `carrier-integrity.test.ts`：`sha256` 固定串已知 hex · `mismatch` 四例（`null` 任一端 · 同值 · 异值两端）— checkable: 定向 vitest FAIL（模块不存在）
+- 写失败测（三态）：写 carrier 并记 digest → 未改字节可读 · 删文件返 `null` · 改字节抛 `CarrierMismatchError` 且报文含 `recorded=`/`current=` · 旧记录无 digest 时即便改字节也不抛 — checkable: 定向 vitest FAIL（今日 `readHandoff` 无 digest 面）
+- `infra/workspace.ts` 拆出 `writeJsonHashed(name, value): string`（返回写入字节 sha256），`writeJson` 改为其薄壳；`#{persist}` 返回该 digest — checkable: 既有 `infra.test.ts` 全绿（写盘字节零变化），新方法单测 PASS
+- `RoundRecord` 加 `carrierDigest?: string | null`、`recordRound` 透传；`#bookkeep` 存 digest；`readHandoff` 读到对象后取该 (op,type,round) 最新记录的 digest 比对，不等即抛 — checkable: 三态四例 PASS
+- 两条通道接线：`face/cli.ts` 顶层捕获该错误走 `CDD_BLOCKED` 通道与既有 blocked 退出码；`face/lifecycle.ts#reconstruct` 捕获转 BLOCKED outcome — checkable: 篡改载体后 fix 派发前被拒且 dispatcher 零调用；board/capsule 读同一路径同判
+- 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 - absent / ok / mismatch 三态各有独立 pin；absent 与 mismatch 不得合并成同一返回值。
@@ -214,17 +187,14 @@ none
 - `Ledger.persistHandoff(...): { readonly path: string; readonly draftPath: string; readonly digest: string }`
 - final JSON 的内嵌字段 `contentSha256: string`（与返回的 `digest`、`RoundRecord.carrierDigest` 三者同值）
 
-#### Steps
 
-- [ ] **Step 1: 写红测（命名）** — `finalName("review","wave",{tasks:"1",round:2}) === "tasks-1-review-2.c2.json"`；`finalName("fix","phase-spec",{round:3}) === "phase-spec-fix-3.c3.json"`；`round` 缺省时 `N` 为空串导致的名字**不得**出现——缺 `round` 直接返回 `handoffName`（不制造 `.c.json`）。
 
-- [ ] **Step 2: 写红测（共存与三处同值）** — 一个 review 轮 bookkeep 后：磁盘上同时存在草稿名与 `.c<N>.json`；记录 `carrierPath` 指向 final、`draftPath` 指向草稿；final 文件内 `contentSha256`、`persistHandoff` 返回的 `digest`、记录里的 `carrierDigest` 三者相等且等于该文件字节的 sha256；把草稿删掉后 `readHandoff`（走 final）仍可读。
-
-- [ ] **Step 3: 实现命名与写入** — `finalName` 用 `params.round` 拼；`persistHandoff` 对**已写入 final 的字节**算 digest 后，把 `contentSha256` 补进该 JSON（重写一次 final，字节随之变，故 digest 必须对**补写后**的最终字节重算一次并以此为准），再返回 `{ path: finalPath, draftPath: handoffPath, digest }`；**不删除草稿、不写草稿**。（两步写法要在代码注释里写明理由：字段在文件内，所以 digest 必须覆盖含该字段的字节。）
-
-- [ ] **Step 4: 记录两路径** — `RoundRecord.draftPath?: string | null`；`#bookkeep` 三字段一起落记录；`readHandoff` 的 digest 查找不变（仍按 `carrierPath` 对应的 final）。
-
-- [ ] **Step 5: 全绿 + 提交** — `pnpm -C packages/cdd-engine exec vitest run src-next/session src-next/face` 全绿；typecheck exit 0；`git commit -m "feat(session): final carriers land at their cycle path, drafts stay (#444)"`。
+- 写失败测（命名）：`finalName("review","wave",{tasks:"1",round:2}) === "tasks-1-review-2.c2.json"` 与 `finalName("fix","phase-spec",{round:3}) === "phase-spec-fix-3.c3.json"`；`round` 缺省时回落 `handoffName`，不产 `.c.json` — checkable: 定向 vitest FAIL（方法不存在）
+- 写失败测（共存与三处同值）：bookkeep 后草稿名与 `.c<N>.json` 并存 · 记录 `carrierPath`=final 与 `draftPath`=草稿 · final 内 `contentSha256`、返回 `digest`、记录 `carrierDigest` 三者相等且等于 final 最终字节 sha256 · 删草稿后经 final 仍可读 — checkable: 定向 vitest FAIL
+- `RoundNaming` 加 `finalName` / `finalPath`（`params.round` 拼 `.c<N>`，缺 `round` 回落）— checkable: 命名两例 PASS
+- `persistHandoff` 写 final、对已写字节算 digest、把 `contentSha256` 补进该 JSON、对补写后的最终字节重算 digest 并返回 `{ path, draftPath, digest }`；**不写不删草稿**（代码注释写明「digest 必须覆盖含该字段的字节」）— checkable: 共存三处同值例 PASS
+- `RoundRecord` 加 `draftPath?: string | null`，`#bookkeep` 与 `carrierDigest` 同笔落记录 — checkable: 记录两路径例 PASS，typecheck exit 0
+- 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 - final 与 draft 同名 stem、不同后缀，且 `RoundRecord` 两路径都可读（成对 pin）。
@@ -257,19 +227,14 @@ none
 #### Produces
 - `export class CarrierSeal`，静态方法：`static seal(target: string): void`（存在则 `chmodSync(target, 0o444)`）、`static unseal(target: string): void`（存在则 `chmodSync(target, 0o644)`）、`static sweep(directory: string, keep: readonly string[]): readonly string[]`（把该目录下 `*.json` 中模式为 `0o444` 且不在 `keep` 的**引擎产物**重新 seal 并返回被处理的文件名；返回空数组即无事可做）
 
-#### Steps
 
-- [ ] **Step 1: 写红测（权限）** — 临时目录写一文件，`seal` 后 `stat.mode & 0o777 === 0o444`；`unseal` 后 `0o644`；对不存在的路径两方法都不抛。
 
-- [ ] **Step 2: 写红测（终态全覆盖）** — 四条夹具各断言收工后本轮草稿名与 final 都是 `0o444`：① 成功 bookkeep；② `#reject`（模拟非零退出）；③ spawn 前门禁拒；④ `--recover` abort 折账。第五条：fix 轮派发后，作为输入的上一轮 review 载体仍 `0o444`（unseal 范围不过宽）。
-
-- [ ] **Step 3: 实现 `CarrierSeal`** — `chmodSync` + `try/catch` 忽略 `ENOENT`；`sweep` 用 `readdirSync` 过滤 `*.json`，跳过 `keep` 与 `.rulings.json`（sidecar 永不动）。
-
-- [ ] **Step 4: 接线 preflight** — `#runDispatch` 在 `#inflight.acquire` 之前：`CarrierSeal.sweep(workspaceDir, [])`，随后 `unseal(handoffPath)` 与 `unseal(finalPath)`（本轮两名）。
-
-- [ ] **Step 5: 接线收工与终态** — `Ledger.persistHandoff` 写完立即 `seal(finalPath)` 与 `seal(draftPath)`；`#reject` 返回前 `seal(handoffPath)`；门禁拒分支返回前同；abort 折账处 `seal(handoffPath)`；`#bookkeep` 的 `carrierPath === null` 分支 `seal(handoffPath)`。
-
-- [ ] **Step 6: 全绿 + 提交** — `pnpm -C packages/cdd-engine exec vitest run src-next/infra src-next/session src-next/face` 全绿；typecheck exit 0；`git commit -m "feat(infra): seal round carriers and sweep orphaned unseals (#444)"`。
+- 写失败测 `carrier-seal.test.ts`：`seal` 后 `stat.mode & 0o777 === 0o444`、`unseal` 后 `0o644`、不存在路径两方法不抛 — checkable: 定向 vitest FAIL（模块不存在）
+- 写失败测（终态四条 + 一条范围）：成功 bookkeep · `#reject` · spawn 前门禁拒 · `--recover` abort 各自收工后本轮草稿与 final 均 `0o444`；fix 派发全程作为输入的上一轮 review 载体仍 `0o444` — checkable: 定向 vitest FAIL
+- 实现 `infra/carrier-seal.ts`：`seal`/`unseal` 走 `chmodSync` 并吞 `ENOENT`；`sweep(directory, keep)` 只处理 `*.json`、跳过 `keep` 与 `.rulings.json`，重新 seal 并返回处理的文件名 — checkable: 权限三例 PASS
+- preflight 接线：`#runDispatch` 在 `#inflight.acquire` 之前 `sweep(workspaceDir, [])` + `unseal(handoffPath)` + `unseal(finalPath)` — checkable: 范围例 PASS（输入载体未被解封）
+- 收工与终态接线：`persistHandoff` 写完 seal final 与草稿名；`#reject`／门禁拒／abort 折账／`#bookkeep` 的 `carrierPath === null` 分支各 seal 一次 — checkable: 终态四条 PASS
+- 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 - 四条终态（成功 / stall-reject / 门禁拒 / recover-abort）收工后本轮载体均 `0o444`（四条独立 pin）。
@@ -303,19 +268,14 @@ none
 - `GitClient.pathsSince(cwd: string, base: string | null): Promise<readonly string[]>` — `git log --name-only --pretty=format: <base>..HEAD` 的行集，去重去空；非 repo / base 为 `null` → `[]`
 - `DispatchOutcome.touchedDoc?: boolean | null` — `true` 动过、`false` 未动过、`null` git 不可读、`undefined` 未测量（hermetic / injected dispatcher）
 
-#### Steps
 
-- [ ] **Step 1: 写红测（路径命中）** — 临时 repo：提交 A 后派发，轮内提交改 `docs/x.md` → `pathsSince(base)` 含 `docs/x.md`；只改 `docs/y.md` 时不含 `docs/x.md`；`base = null` → `[]`。
 
-- [ ] **Step 2: 写红测（写回判据）** — 四例：① `touchedDoc: true` → `reviewedRevisionOf` 等于收工字节（P24 语义保）；② `touchedDoc: false` → `reviewedRevisionOf` 仍是旧值，且随后 dry-run review 报 drift/open（不是 `unchanged`）；③ `touchedDoc: null` → 写回当前字节**且**本轮 `violations` 含一条 soft（观测面）；④ `touchedDoc` 缺省（injected dispatcher）→ 与今日一致（写回），零 soft。
-
-- [ ] **Step 3: 运行红** — ② 与 ③ 失败（今日无条件写回、无 soft）。
-
-- [ ] **Step 4: 实现 git 读面** — `GitClient.pathsSince` 用 `this.#git(cwd).log({ from: base, to: "HEAD", "--name-only": null })` 的 `diff`/`files` 面不可靠，改用 `raw(["log","--name-only","--pretty=format:","${base}..HEAD"])` 并按行切分；`try/catch` 返 `[]`。
-
-- [ ] **Step 5: 实现判据** — `#runDispatch` 收工处（`#commitsSince` 旁）算：`docPath` = 本轮会被写回的文档路径（doc 腿用 `frame.target.doc`、branch 腿用 `planPath`、wave 腿不参与）；`base === null` → `touchedDoc: null`；否则 `pathsSince(base).includes(rel(docPath))`。`#bookkeep` 的 `leg !== null` 分支改为：`touchedDoc === false` → 跳过并**不**改行；`touchedDoc === null` → 照旧写回 + 推一条 `RoundViolation.soft("the round's own commits were unreadable — the reviewed revision was bound to the current bytes", "unknown")`；其余照旧。
-
-- [ ] **Step 6: 全绿 + 提交** — `pnpm -C packages/cdd-engine exec vitest run src-next/session src-next/infra src-next/face` 全绿；typecheck exit 0；`git commit -m "fix(session): bind the reviewed revision only to bytes this round touched (#446)"`。
+- 写失败测（git 读面）：临时 repo 提交 A 后轮内提交改 `docs/x.md` → `pathsSince(base)` 含之；只改 `docs/y.md` 时不含；`base=null` → `[]` — checkable: 定向 vitest `infra.test.ts` FAIL（方法不存在）
+- 写失败测（写回判据四例）：`touchedDoc:true` 绑收工字节 · `false` 保持旧值且随后 dry-run 报 drift/open · `null` 绑当前且本轮 violations 含一条 soft · 缺省（injected）与今日一致零 soft — checkable: 定向 vitest `run.test.ts` FAIL（②③ 今日不成立）
+- `infra/git.ts` 加 `pathsSince(cwd, base)`：`git log --name-only --pretty=format: <base>..HEAD` 按行切、去重去空、`try/catch` 返 `[]` — checkable: 三例 PASS
+- `DispatchOutcome` 加 `touchedDoc?: boolean | null`；`#runDispatch` 在 `#commitsSince` 旁算（doc 腿用 `frame.target.doc`、branch 腿用 `planPath`、wave 腿不参与；`base===null` → `null`）— checkable: typecheck exit 0，三腿分支各有一条用例
+- `#bookkeep` 写回门改为三态：`false` 跳过不改行 · `null` 照旧写回 + 推 `RoundViolation.soft(...)` · 其余照旧 — checkable: 四例 PASS，既有 P24「fix 自产不算 drift」pin 全绿
+- 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 - 四例判据各自独立 pin；② 的验收以「后续 review 报 drift」而非仅字段值断言（行为面）。
@@ -344,15 +304,13 @@ none
 #### Produces
 - changeset 文件：`@oscaner-skills/cdd-engine` 一条 `minor`，正文三句（sidecar rulings · carrier 摘要与只读 · 条件写回）与一句 header 列集门
 
-#### Steps
 
-- [ ] **Step 1: 写 changeset** — `---\n"@oscaner-skills/cdd-engine": minor\n---\n\n` + 四句（载体 sidecar 与 `INPUT_RULINGS` · 载体 sha 与 `carrier-mismatch` · draft/final 分路径与只读 · reviewed revision 只绑本轮字节 · change-history 表头列集门）。
 
-- [ ] **Step 2: 跑全门** — `pnpm run validate`；期望 exit 0（root · kairos · engine · typecheck ×3 · version-sync · emit fresh · 零裸函数）。
-
-- [ ] **Step 3: 修红或报告** — 红则按失败项修；修不动的 BLOCKED 交回，不掩盖。
-
-- [ ] **Step 4: 提交** — `git add .changeset docs/kairos` + `git commit -m "chore(cdd-engine): changeset and full gate for P31"`。
+- 写 changeset `.changeset/p31-ledger-disk-integrity.md`：`"@oscaner-skills/cdd-engine": minor` + 五句（sidecar 与 `INPUT_RULINGS` · 载体摘要与只读 · draft/final 分路径 · 条件写回 · 表头列集门）— checkable: `scripts/__tests__/changeset-levels.test.ts` PASS（无 major、级别齐备）
+- `pnpm run validate` — checkable: exit 0（root · kairos · engine · typecheck ×3 · version-sync · emit fresh · 零裸函数）
+- `pnpm run emit:check` — checkable: 无 drift 报告
+- 红则按失败项修，修不动即 BLOCKED 交回（不掩盖、不放宽 ceiling） — checkable: validate 与 emit:check 同时 exit 0
+- 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 - `pnpm run validate` exit 0。

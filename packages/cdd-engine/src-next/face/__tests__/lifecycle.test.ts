@@ -631,8 +631,38 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
       await runFix(f, fixFrameOf(specPath), carrier, runner);
       expect(runner.calls).toHaveLength(1);
       const rel = path.relative(f.scene.workspace.root.repoRoot, sidecar);
-      expect(promptOf(runner)).toContain("- `INPUT_RULINGS`: " + rel);
+      expect(promptOf(runner)).toContain(`- \`INPUT_RULINGS\`: ${rel}`);
       expect(promptOf(runner)).toContain("- `INPUT_REVIEWS`: ");
+      // The cell carries the ruling BODY too (§2.5 AC: the prompt's text matches
+      // the sidecar) — the path alone would leave the child to re-open the file.
+      expect(promptOf(runner)).toContain(LEGAL_SIDECAR.rulings[0]?.ruling ?? "");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("renders one verbatim body line per ruling of the sidecar", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
+      writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
+      const sidecar = CarrierRulings.pathFor(carrier);
+      const rulings = [
+        { finding: "F1", ruling: "ACCEPTED — the guard lands in W2" },
+        { finding: "F4", ruling: "REJECTED as stated · wording only" },
+      ];
+      writeFileSync(sidecar, JSON.stringify({ carrier: CARRIER_NAME, rulings }), "utf8");
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      await runFix(f, fixFrameOf(specPath), carrier, runner);
+      expect(runner.calls).toHaveLength(1);
+      const prompt = promptOf(runner);
+      const rel = path.relative(f.scene.workspace.root.repoRoot, sidecar);
+      for (const ruling of rulings) {
+        expect(prompt).toContain(`\`${ruling.finding}\` — ${ruling.ruling}`);
+      }
+      // The body rides BELOW the path line — the cell reads path then verdicts.
+      expect(prompt.indexOf(rulings[1]?.ruling ?? "")).toBeGreaterThan(prompt.indexOf(rel));
     } finally {
       f.cleanup();
     }

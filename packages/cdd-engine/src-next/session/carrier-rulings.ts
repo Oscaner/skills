@@ -52,6 +52,7 @@ type ParsedSidecar =
 /** CarrierRulings — the sidecar path rule, the lenient read and the strict judgment.
  *  Stateless: every call takes the carrier path (and, for the judgment, the carrier's
  *  own finding-id set), so the class holds no per-round state. */
+// biome-ignore lint/complexity/noStaticOnlyClass: the plan-mandated sidecar read surface — the zero-bare-function discipline admits no standalone predicate functions.
 export class CarrierRulings {
   /** The sidecar path of a carrier — its trailing `.json` replaced by `.rulings.json`
    *  (a path that does not end in `.json` gains the suffix as-is, never a guess). */

@@ -656,7 +656,7 @@ export class ChangeHistoryHeaderColumnsInvariant extends Invariant {
       this.finding(
         ctx,
         "Change history",
-        `the Change-history header reads \"${cells.join(" | ")}\" against the declared \"${declared.join(" | ")}\"`,
+        `the Change-history header reads "${cells.join(" | ")}" against the declared "${declared.join(" | ")}"`,
         `write the header as | ${declared.join(" | ")} | — the column set is declared, not free-form`,
       ),
     ];

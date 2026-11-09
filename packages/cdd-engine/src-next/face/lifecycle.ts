@@ -29,7 +29,7 @@ import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
-import { CarrierRulings, type RulingVerdict } from "../session/carrier-rulings.ts";
+import { CarrierRulings, type Ruling, type RulingVerdict } from "../session/carrier-rulings.ts";
 import { TargetFaceTable } from "../session/faces.ts";
 import type { CarrierPlane } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
@@ -1193,17 +1193,29 @@ export class CliLifecycle {
   }
 
   /** The fix round's ruling sidecar as the round-context value — the repo-relative
-   *  sidecar path when a conforming sidecar sits beside the requesting carrier, the
-   *  empty string otherwise (off the fix face, with no resolved carrier, and when the
-   *  sidecar is absent — the assembler drops the empty line). The strict judgment is
-   *  the dispatch gate's `#rulingsRefusal`; this cell only names the file the round
-   *  may read. */
+   *  sidecar path when a conforming sidecar sits beside the requesting carrier, plus the
+   *  ruling bodies it carries, the empty string otherwise (off the fix face, with no
+   *  resolved carrier, and when the sidecar is absent — the assembler drops the empty
+   *  line). The strict judgment is the dispatch gate's `#rulingsRefusal`; this cell
+   *  names the file the round may read AND states the verdicts (§2.5 AC: the rendered
+   *  text matches the sidecar), so a ruling is never merely a path the child must
+   *  re-open to discover. */
   #rulingsInputOf(frame: OpenFrame): string {
     if (this.#opOf(frame) !== "fix") return "";
     const carrier = this.#reviewsPath(frame);
     if (carrier === null) return "";
     const verdict = CarrierRulings.verdict(carrier, this.#carrierFindingIds(carrier));
-    return verdict.kind === "ok" ? this.#rel(CarrierRulings.pathFor(carrier)) : "";
+    if (verdict.kind !== "ok") return "";
+    const sidecar = this.#rel(CarrierRulings.pathFor(carrier));
+    return [sidecar, ...verdict.rulings.map((ruling) => this.#rulingLine(ruling))].join("\n");
+  }
+
+  /** One rendering of a recorded ruling — the finding id it answers and the ruling's
+   *  own text VERBATIM (never re-worded: the sidecar is the orchestrator's words, and
+   *  the round context quotes them). Indented under the sidecar path's bullet so the
+   *  cell reads as one input. */
+  #rulingLine(ruling: Ruling): string {
+    return `  - \`${ruling.finding}\` — ${ruling.ruling}`;
   }
 
   /** The pre-dispatch ruling gate — the strict sidecar verdict's refusal reason, or null

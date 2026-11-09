@@ -869,10 +869,17 @@ describe("P31 T2 — INPUT_RULINGS rides the fix input side alone", () => {
   it("renders the sidecar line and its rulings body when the fix round carries one", () => {
     const out = new TemplateAssembler().render({
       ...FIX_VALUES,
-      INPUT_RULINGS: "/ws/tasks-1-review-1.rulings.json",
+      INPUT_RULINGS: [
+        "/ws/tasks-1-review-1.rulings.json",
+        "  - `F1` — ACCEPTED, the guard lands in W2",
+        "  - `F2` — REJECTED as stated",
+      ].join("\n"),
     });
     expect(out).toContain("- `INPUT_REVIEWS`: /ws/tasks-1-review-1.json");
     expect(out).toContain("- `INPUT_RULINGS`: /ws/tasks-1-review-1.rulings.json");
+    // The body rides the same bullet, indented below the path (§2.5 AC).
+    expect(out).toContain("  - `F1` — ACCEPTED, the guard lands in W2");
+    expect(out).toContain("  - `F2` — REJECTED as stated");
     // The rendered position is adjacent to INPUT_REVIEWS — the pair reads as one input.
     expect(out.indexOf("INPUT_RULINGS")).toBeGreaterThan(out.indexOf("INPUT_REVIEWS"));
   });

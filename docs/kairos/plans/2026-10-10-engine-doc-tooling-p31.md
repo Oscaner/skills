@@ -196,7 +196,7 @@ none
 
 #### Objective
 
-定稿不再覆盖草稿：final 写 `<stem>.c<N>.json`（N = 该轮 cycle），草稿留在派发原路径；`RoundRecord` 同时记 `carrierPath`（final）与 `draftPath`，digest 改为对 final 字节。
+定稿不再覆盖草稿：final 写 `<stem>.c<N>.json`（N = 该轮 cycle），草稿留在派发原路径；`RoundRecord` 同时记 `carrierPath`（final）与 `draftPath`，digest 改为对 final 字节，且 final JSON 本体带同值 `contentSha256` 字段（spec §2.3 的两处记录面）。
 
 #### Files
 - 修改：`packages/cdd-engine/src-next/session/round-naming.ts`（新增 `finalName` / `finalPath`）
@@ -212,14 +212,15 @@ none
 - `RoundNaming.finalName(op: string, type: string, params: HandoffParams): string` — 把 `handoffName` 结尾的 `.json` 换成 `.c<N>.json`，`N = params.round`
 - `RoundNaming.finalPath(...)` — resolve 后的绝对路径
 - `Ledger.persistHandoff(...): { readonly path: string; readonly draftPath: string; readonly digest: string }`
+- final JSON 的内嵌字段 `contentSha256: string`（与返回的 `digest`、`RoundRecord.carrierDigest` 三者同值）
 
 #### Steps
 
 - [ ] **Step 1: 写红测（命名）** — `finalName("review","wave",{tasks:"1",round:2}) === "tasks-1-review-2.c2.json"`；`finalName("fix","phase-spec",{round:3}) === "phase-spec-fix-3.c3.json"`；`round` 缺省时 `N` 为空串导致的名字**不得**出现——缺 `round` 直接返回 `handoffName`（不制造 `.c.json`）。
 
-- [ ] **Step 2: 写红测（共存）** — 一个 review 轮 bookkeep 后：磁盘上同时存在草稿名与 `.c<N>.json`；记录 `carrierPath` 指向 final、`draftPath` 指向草稿；两者 digest 一致；把草稿删掉后 `readHandoff`（走 final）仍可读。
+- [ ] **Step 2: 写红测（共存与三处同值）** — 一个 review 轮 bookkeep 后：磁盘上同时存在草稿名与 `.c<N>.json`；记录 `carrierPath` 指向 final、`draftPath` 指向草稿；final 文件内 `contentSha256`、`persistHandoff` 返回的 `digest`、记录里的 `carrierDigest` 三者相等且等于该文件字节的 sha256；把草稿删掉后 `readHandoff`（走 final）仍可读。
 
-- [ ] **Step 3: 实现命名与写入** — `finalName` 用 `params.round` 拼；`persistHandoff` 先 `#persist(finalName, data)`（拿 digest），再原样返回 `{ path: finalPath, draftPath: handoffPath, digest }`；**不删除草稿、不写草稿**。
+- [ ] **Step 3: 实现命名与写入** — `finalName` 用 `params.round` 拼；`persistHandoff` 对**已写入 final 的字节**算 digest 后，把 `contentSha256` 补进该 JSON（重写一次 final，字节随之变，故 digest 必须对**补写后**的最终字节重算一次并以此为准），再返回 `{ path: finalPath, draftPath: handoffPath, digest }`；**不删除草稿、不写草稿**。（两步写法要在代码注释里写明理由：字段在文件内，所以 digest 必须覆盖含该字段的字节。）
 
 - [ ] **Step 4: 记录两路径** — `RoundRecord.draftPath?: string | null`；`#bookkeep` 三字段一起落记录；`readHandoff` 的 digest 查找不变（仍按 `carrierPath` 对应的 final）。
 
@@ -227,6 +228,7 @@ none
 
 #### Acceptance
 - final 与 draft 同名 stem、不同后缀，且 `RoundRecord` 两路径都可读（成对 pin）。
+- final 文件内 `contentSha256`、返回的 `digest`、记录 `carrierDigest` 三者同值，且等于 final 最终字节的 sha256（三处同值 pin）。
 - bookkeep 不再对同一路径整文件替换（结构性 pin：`persistHandoff` 的写入名与 `handoffName` 不同）。
 - `round` 缺省的调用不产生 `.c.json` 畸形名（边界 pin）。
 

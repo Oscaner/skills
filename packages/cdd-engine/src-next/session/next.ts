@@ -300,16 +300,17 @@ export interface NextHopInput {
 export const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
 
 /** The fix-route readback suffix — appended verbatim to the fix findings path on the
- *  route's `next:` render (`(confirm the reviews handoff · if a finding needs a
- *  ruling, record the ruling in the handoff file)`), a pure wording prompt: the
- *  anti-blind-fix mechanical guard is the ledger round / C5-1, the suffix only
- *  reminds the orchestrator to confirm the captured findings and, when a finding
- *  needs a user ruling, record that ruling back into the reviews handoff the fix
- *  round consumes. `annotate` names the carrier action alone — distinct from
- *  `backfill` (a durable fact landed into its owning doc), which stays the
- *  ruling's destination when it asserts a project-level fact. */
+ *  route's `next:` render (`(confirm the reviews handoff · if a finding needs a ruling,
+ *  record it beside that handoff — same path with .json replaced by .rulings.json)`), a
+ *  pure wording prompt: the anti-blind-fix mechanical guard is the ledger round / C5-1,
+ *  the suffix only reminds the orchestrator to confirm the captured findings and, when a
+ *  finding needs a user ruling, to record it in the SIDECAR beside the reviews handoff
+ *  (the carrier's bytes are frozen — the ruling never edits them; P31 §2.1/§2.5).
+ *  `annotate` names the carrier action alone — distinct from `backfill` (a durable fact
+ *  landed into its owning doc), which stays the ruling's destination when it asserts a
+ *  project-level fact. */
 export const FIX_READBACK_SUFFIX =
-  "(confirm the reviews handoff · if a finding needs a ruling, record the ruling in the handoff file)";
+  "(confirm the reviews handoff · if a finding needs a ruling, record it beside that handoff — same path with .json replaced by .rulings.json)";
 
 /** The failure face — a BLOCKED/TIMEOUT round goes the stderr CDD_BLOCKED channel and
  *  produces no `next:` line on any op. Exported as the ONE failure-status set: the

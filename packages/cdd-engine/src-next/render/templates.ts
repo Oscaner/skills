@@ -308,6 +308,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `INPUT_SPEC`: {{INPUT_SPEC}}",
       "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
       "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
+      "- `INPUT_RULINGS`: {{INPUT_RULINGS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
@@ -327,6 +328,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "- `INPUT_SPEC`: {{INPUT_SPEC}}",
       "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
       "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
+      "- `INPUT_RULINGS`: {{INPUT_RULINGS}}",
       "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
       "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
       "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
@@ -503,6 +505,9 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "INPUT_SPEC", zone: "round-context" },
   { name: "INPUT_OVERALL", zone: "round-context" },
   { name: "INPUT_REVIEWS", zone: "round-context" },
+  // P31 — the fix round's ruling sidecar (the source carrier's `.rulings.json`
+  // sibling); a review writes its own draft, so its round context never carries it.
+  { name: "INPUT_RULINGS", zone: "round-context" },
   { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
   // find #5 — the prescribed artifact write paths (the {family}-{key}-{artifact}
   // single naming; the brief is a pure read input with no write slot).

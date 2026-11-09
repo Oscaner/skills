@@ -30,6 +30,7 @@ import {
 import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { CarrierRulings } from "../../session/carrier-rulings.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "../lifecycle.ts";
@@ -519,6 +520,134 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
       expect(outcome.status).toBe("REVIEW_FIX");
       const carrier = outcome.carrier as { findings: { id?: string }[] };
       expect(carrier.findings[0]?.id).toBe("F1");
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P31 T2 — the ruling sidecar gate (design spec §2.6): a refused sidecar stops the
+// round BEFORE the in-flight record and the child, a conforming one rides the fix
+// round context, and an absent one leaves the line out.
+// ---------------------------------------------------------------------------
+
+/** The requesting review carrier's file name — the `carrier` key's expected value. */
+const CARRIER_NAME = "phase-spec-review-1.json";
+
+/** The requesting carrier body — two engine-written finding ids (`F1`, `F4`). */
+const CARRIER_BODY = {
+  status: "CHANGES_REQUESTED",
+  findings: [
+    { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+    { id: "F4", severity: "nit", lens: "style", summary: "wording" },
+  ],
+};
+
+/** A legal sidecar body over which the refused shapes are written. */
+const LEGAL_SIDECAR = {
+  carrier: CARRIER_NAME,
+  rulings: [{ finding: "F4", ruling: "REJECTED as stated", by: "orchestrator" }],
+};
+
+/** The nine refused shapes — each its own case (one broken fact per row). */
+const BAD_SIDECARS: readonly (readonly [string, unknown])[] = [
+  ["not JSON", "not json at all"],
+  ["no `rulings` key", { carrier: CARRIER_NAME }],
+  ["`rulings` not an array", { rulings: { F1: "no" } }],
+  ["a ruling without `finding`", { rulings: [{ ruling: "accepted" }] }],
+  ["a ruling without `ruling`", { rulings: [{ finding: "F1" }] }],
+  ["an unknown top-level key", { ...LEGAL_SIDECAR, extra: true }],
+  ["an unknown key inside a ruling", { rulings: [{ finding: "F1", ruling: "ok", extra: 1 }] }],
+  ["a ruling on a finding the carrier lacks", { rulings: [{ finding: "F9", ruling: "ok" }] }],
+  ["a `carrier` key naming another file", { ...LEGAL_SIDECAR, carrier: "other.c2.json" }],
+];
+
+/** The fix frame on the fixture's spec line (the `--reviews` seam injects the carrier). */
+const fixFrameOf = (specPath: string): OpenFrame => ({
+  type: "phase-spec",
+  phase: "fix",
+  round: 1,
+  target: { kind: "spec", doc: specPath },
+  params: { round: 1 },
+  key: "phase-spec",
+});
+
+/** Run one fix dispatch with the injected reviews carrier. */
+const runFix = async (
+  f: Fixture,
+  frame: OpenFrame,
+  reviews: string,
+  runner: SilentRunner,
+): Promise<DispatchOutcome> => {
+  const lifecycle = new CliLifecycle({
+    scene: f.scene,
+    io: f.io,
+    sync: runner,
+    env: { CLAUDE_CODE_SESSION_ID: "s" },
+    reviews,
+  });
+  return lifecycle.step()(frame);
+};
+
+/** The prompt the child stand-in received (the joined argv). */
+const promptOf = (runner: SilentRunner): string => (runner.calls[0]?.args ?? []).join(" ");
+
+describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
+  for (const [label, body] of BAD_SIDECARS) {
+    it(`refuses ${label} before the child is spawned`, async () => {
+      const f = fixture(planDoc([[1, []]]));
+      try {
+        const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
+        writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
+        writeFileSync(
+          CarrierRulings.pathFor(carrier),
+          typeof body === "string" ? body : JSON.stringify(body),
+          "utf8",
+        );
+        const runner = new SilentRunner();
+        const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+        const outcome = await runFix(f, fixFrameOf(specPath), carrier, runner);
+        expect(outcome.status).toBe("BLOCKED");
+        expect(runner.calls).toHaveLength(0);
+        expect(f.io.stderrText).toContain("CDD_BLOCKED");
+        expect(f.io.stderrText).toContain("rulings sidecar");
+        expect(gradesOf(outcome)).toEqual(["hard"]);
+      } finally {
+        f.cleanup();
+      }
+    });
+  }
+
+  it("names the sidecar in the fix round context when one conforms", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
+      writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
+      const sidecar = CarrierRulings.pathFor(carrier);
+      writeFileSync(sidecar, JSON.stringify(LEGAL_SIDECAR), "utf8");
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      await runFix(f, fixFrameOf(specPath), carrier, runner);
+      expect(runner.calls).toHaveLength(1);
+      const rel = path.relative(f.scene.workspace.root.repoRoot, sidecar);
+      expect(promptOf(runner)).toContain("- `INPUT_RULINGS`: " + rel);
+      expect(promptOf(runner)).toContain("- `INPUT_REVIEWS`: ");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("leaves the fix round context without the line when no sidecar exists", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
+      writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      await runFix(f, fixFrameOf(specPath), carrier, runner);
+      expect(runner.calls).toHaveLength(1);
+      expect(promptOf(runner)).not.toContain("INPUT_RULINGS");
     } finally {
       f.cleanup();
     }

@@ -28,6 +28,7 @@ import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
+import { CarrierRulings, type RulingVerdict } from "../session/carrier-rulings.ts";
 import { TargetFaceTable } from "../session/faces.ts";
 import type { CarrierPlane } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
@@ -595,6 +596,14 @@ export class CliLifecycle {
       );
       return { status: "BLOCKED" };
     }
+    // P31 T2 — the ruling sidecar gate: a sidecar the strict schema refuses stops the
+    // round HERE, before the in-flight record is acquired and before any child exists
+    // (a written-but-invisible ruling is the defect this gate removes).
+    const rulingsRefusal = this.#rulingsRefusal(frame);
+    if (rulingsRefusal !== null) {
+      this.#blocked(rulingsRefusal, false);
+      return { status: "BLOCKED", violations: [RoundViolation.hard(rulingsRefusal)] };
+    }
     const prompt = this.#template.render(this.#valuesOf(frame));
     const row = HOSTS[host as HostId];
     const cliName = row.cli;
@@ -864,6 +873,11 @@ export class CliLifecycle {
       // carrier; a review writes its own draft (INPUT_REVIEWS === OUTPUT_HANDOFF
       // would be a short-circuit).
       INPUT_REVIEWS: op === "fix" ? this.#rel(this.#reviewsPath(frame) ?? "") : "",
+      // P31 T2 — the ruling sidecar rides the fix input side alone (the review round's
+      // own context has no sidecar yet). The path derives from the requesting carrier
+      // by the ONE `.json` → `.rulings.json` rule; an absent sidecar leaves the slot
+      // empty, so the assembler drops the line entirely.
+      INPUT_RULINGS: this.#rulingsInputOf(frame),
       // The kind-named judged-doc anchors (the semantic retirement of the generic
       // INPUT_DOC): the plan/branch lines carry the plan document (INPUT_PLAN — the
       // doc path on a plan line, the plan path on a branch line, whose review/fix
@@ -1149,6 +1163,55 @@ export class CliLifecycle {
           record.op === "review" && record.cycle === frame.round && record.carrierPath === null,
       );
     return legacy ? null : resolved;
+  }
+
+  /** The fix round's ruling sidecar as the round-context value — the repo-relative
+   *  sidecar path when a conforming sidecar sits beside the requesting carrier, the
+   *  empty string otherwise (off the fix face, with no resolved carrier, and when the
+   *  sidecar is absent — the assembler drops the empty line). The strict judgment is
+   *  the dispatch gate's `#rulingsRefusal`; this cell only names the file the round
+   *  may read. */
+  #rulingsInputOf(frame: OpenFrame): string {
+    if (this.#opOf(frame) !== "fix") return "";
+    const carrier = this.#reviewsPath(frame);
+    if (carrier === null) return "";
+    const verdict = CarrierRulings.verdict(carrier, this.#carrierFindingIds(carrier));
+    return verdict.kind === "ok" ? this.#rel(CarrierRulings.pathFor(carrier)) : "";
+  }
+
+  /** The pre-dispatch ruling gate — the strict sidecar verdict's refusal reason, or null
+   *  when the round may proceed (no fix face, no resolved carrier, an absent sidecar, or
+   *  a conforming one). A refusal is HARD and lands before the in-flight record and the
+   *  child, so a broken ruling set can never be dispatched unnoticed (§2.6). */
+  #rulingsRefusal(frame: OpenFrame): string | null {
+    if (this.#opOf(frame) !== "fix") return null;
+    const carrier = this.#reviewsPath(frame);
+    if (carrier === null) return null;
+    const verdict: RulingVerdict = CarrierRulings.verdict(
+      carrier,
+      this.#carrierFindingIds(carrier),
+    );
+    return verdict.kind === "invalid" ? `rulings sidecar — ${verdict.reason}` : null;
+  }
+
+  /** The requesting carrier's engine-written finding ids (`F1`, `F2` …) — the id set a
+   *  ruling must name. An unreadable carrier declares none, so any ruling beside it is
+   *  refused by the strict schema instead of being accepted against an empty set. */
+  #carrierFindingIds(carrier: string): ReadonlySet<string> {
+    const ids = new Set<string>();
+    let carrierJson: unknown;
+    try {
+      carrierJson = JSON.parse(readFileSync(carrier, "utf8"));
+    } catch {
+      return ids;
+    }
+    const findings = (carrierJson as { findings?: unknown } | null)?.findings;
+    if (!Array.isArray(findings)) return ids;
+    for (const finding of findings) {
+      const id = (finding as { id?: unknown } | null)?.id;
+      if (typeof id === "string") ids.add(id);
+    }
+    return ids;
   }
 
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the

@@ -8,8 +8,9 @@
 // and is NAMED. The three legs' corpus state at that landing is recorded as a CEILING
 // (`DRIFT_CEILING`) because the pre-existing drift is a corpus fact, not a regression of
 // this round: the Change-history tables of fifteen historical documents declare one
-// column count in the header while older rows carry another (the overall alone carries
-// 110 such rows), and those documents are frozen history — the spec forbids a migration.
+// column count in the header while older rows carry another, and those documents are
+// frozen history — the spec forbids a migration. The program's OWN charter is not frozen
+// and was repaired in P30's closeout, so its ceiling is now 0.
 // A ceiling keeps the gate honest in both directions: repairing a table is green (the
 // count drops below its ceiling), while any NEW drifted doc, any NEW wrapped row and any
 // sharper count is red by name. The assertions stay scoped to the lineage legs — the
@@ -52,7 +53,9 @@ const DRIFT_CEILING: Readonly<
   Record<(typeof PINNED_KINDS)[number], Readonly<Record<string, number>>>
 > = {
   "change-history-row-shape": {
-    "docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md": 110,
+    // Repaired in P30 closeout: the hand-widened five-column header was normalized to
+    // the skeleton's four, so the charter may not re-introduce a ragged row.
+    "docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md": 0,
     "docs/kairos/specs/2026-10-10-engine-doc-tooling-p5-design.md": 2,
     "docs/kairos/specs/2026-10-10-engine-doc-tooling-p8-design.md": 1,
     "docs/kairos/specs/2026-10-10-engine-doc-tooling-p12-design.md": 1,

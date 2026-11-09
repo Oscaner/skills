@@ -158,18 +158,19 @@ describe("selector coverage — every declared element carries a resolvable loca
       root: REPO_ROOT,
     });
     // The subject here is the SELECTOR read — the rules that judge the located nodes —
-    // not the charter's history. Its Change-history table is width-ragged by frozen
-    // history, which the P30 `change-history-row-shape` leg reports on purpose; that
-    // drift is pinned as a named ceiling in `doc-corpus.guard.test.ts`, never repaired
-    // here. So the shape kind is NOT dropped from this gate: it is asserted against the
-    // table's own ragged-row count, which keeps the leg live (a silently dead leg goes
-    // red) without copying a row count that rots on every charter append.
+    // not the charter's history. P30's closeout REPAIRED that table's width drift (the
+    // header had been widened by hand to five columns), so this gate no longer assumes
+    // the charter is ragged: it asserts agreement with the document's OWN ragged count
+    // (0 today; an append that goes ragged reds here by name). The leg's LIVENESS is
+    // asserted separately below against a synthetic ragged table — a dead leg can no
+    // longer hide behind a clean document.
     const changeHistory = tree.tableUnder("## Change history");
     const width = changeHistory?.header?.length ?? 0;
     const ragged = (changeHistory?.body ?? []).filter((row) => row.length !== width).length;
-    expect(ragged, "the charter's Change history is width-ragged by history").toBeGreaterThan(0);
     const shape = findings.filter((finding) => finding.kind === "change-history-row-shape");
-    expect(shape, "the shape leg reports the charter's ragged rows, one each").toHaveLength(ragged);
+    expect(shape, "the shape leg agrees with the charter's own ragged-row count").toHaveLength(
+      ragged,
+    );
     expect(
       shape.every((finding) => finding.field === "Change history"),
       "every shape finding is anchored on the ## Change history table",
@@ -180,6 +181,36 @@ describe("selector coverage — every declared element carries a resolvable loca
         .map((finding) => `${finding.kind} · ${finding.field} · ${finding.message}`),
       "the canonical charter's non-shape rules judge clean",
     ).toEqual([]);
+  });
+
+  it("reports one shape finding per width-ragged change-history row (synthetic fixture)", () => {
+    // Liveness of the `change-history-row-shape` leg, independent of any repo document:
+    // a uniform row passes, a row whose cell count differs from the header is named.
+    const content = [
+      "---",
+      "title: synthetic overall",
+      "doc-type: overall",
+      "version: v0.1",
+      "date: 2026-01-01",
+      "slug: synthetic-overall-probe",
+      "---",
+      "",
+      "## Change history",
+      "",
+      "| Version | date | summary | author |",
+      "| --- | --- | --- | --- |",
+      "| v0.1 | 2026-01-01 | a uniform row | someone |",
+      "| v0.1 | 2026-01-01 | a short row |",
+      "",
+    ].join("\n");
+    const findings = new Contract().validate({
+      docKey: "overall",
+      path: "synthetic-overall-probe.md",
+      content,
+      root: REPO_ROOT,
+    });
+    const shape = findings.filter((finding) => finding.kind === "change-history-row-shape");
+    expect(shape, "one shape finding per ragged row, none for the uniform row").toHaveLength(1);
   });
 
   it("keeps the two Phase-inventory cell elements on their own columns", () => {

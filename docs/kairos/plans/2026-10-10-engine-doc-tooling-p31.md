@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P31 计划：账本事实与磁盘一致性
 doc-type: plan
-version: v0.3
+version: v0.4
 date: 2026-11-09
 slug: 2026-10-10-engine-doc-tooling-p31
 base: develop
@@ -128,7 +128,7 @@ none
 
 #### Objective
 
-载体落盘时把规范载荷摘要（`CarrierIntegrity.digestOf`，单点规则）记进 `RoundRecord.carrierDigest`；凡引擎读载体的入口先比对，不匹配即 `CDD_BLOCKED` 并打印 `carrier-mismatch · line=<path> · recorded=<sha8> · current=<sha8>`，且不启动 child。三态严格区分：absent / ok / mismatch。
+载体落盘时把规范载荷摘要（`CarrierIntegrity.digestOf`，单点规则）记进 `RoundRecord.carrierDigest`；凡引擎读载体的入口先经同一校验读比对，不匹配即 `CDD_BLOCKED` 并打印 `carrier-mismatch · line=<path> · recorded=<sha8> · current=<sha8>`，且不启动 child。三态严格区分：absent / ok / mismatch。校验读是**单点**（`CarrierIntegrity.read` / `readFor`）：`Ledger.readHandoff`、fix 输入的裁定读（`FixDispositions.requesterInputOf`）、board/capsule 的 `+N` 计数读（`BoardView.#findingsCountOf`）三处读入口全部走它，读面无第二条 `readFileSync` 裸读；`#runDispatch` 在 `#inflight.acquire` 与 spawn 之前就做同一次校验读，篡改因此挡在 child 存在之前，`#reconstruct` 与 `cli.ts` 的捕获只作退路。
 
 #### Files
 - 新建：`packages/cdd-engine/src-next/session/carrier-integrity.ts`
@@ -137,20 +137,31 @@ none
 - 修改：`packages/cdd-engine/src-next/session/ledger.ts:1564-1572`（`persistHandoff` 返回 `{ path, digest }`）、`:113-135`（`RoundRecord` 加 `carrierDigest`）、`:1606-1608`（`readHandoff` 校验）、`:646-648`（`#persist` 返回字节串）
 - 修改：`packages/cdd-engine/src-next/session/run.ts:702-717`（`persistHandoff` 新返回形状 + 记录 `carrierDigest`）
 - 修改：`packages/cdd-engine/src-next/face/cli.ts`（捕获 `CarrierMismatchError` → CDD_BLOCKED 通道 + 既有 blocked 退出码）
-- 修改：`packages/cdd-engine/src-next/face/lifecycle.ts`（`#reconstruct` 捕获 → BLOCKED outcome）
+- 修改：`packages/cdd-engine/src-next/face/lifecycle.ts:585-609`（`#runDispatch` 在 `#inflight.acquire` 之前做 fix 输入载体的校验读，不匹配走 `#blocked` 并返回 BLOCKED，不 acquire 不 spawn）、`:1041-1100`（`#reconstruct` 捕获 → BLOCKED outcome，退路而非门）
+- 修改：`packages/cdd-engine/src-next/contract/completion-criterion.ts:358-392`（`FixDispositions.requesterInputOf` 改走同一校验读；mismatch 不得折叠成 `kind: "unreadable"`）
+- 修改：`packages/cdd-engine/src-next/face/board-view.ts:368-380`（`#findingsCountOf` 改走同一校验读；absent 仍 0，mismatch 抛出）
+- 修改：`packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`、`packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`、`packages/cdd-engine/src-next/contract/__tests__/completion-criterion.test.ts`、`packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（spawn 前门与逐面读入口的行为 pin）
 
 #### Consumes
 - `infra/workspace.ts#writeJson`：`ensure()` → `#normalizePaths` → `#atomic.write(resolve(name), JSON.stringify(normalized, null, 2) + "\n")`
 - `session/run.ts#bookkeep`：`carrierPath = this.#ledger.persistHandoff(op, frame.type, frame.params, carrier)`
+- `session/ledger.ts#readHandoff`（`:1606-1608`）：今日经私有 `#read<T>` 裸读载体，无摘要比对
+- `contract/completion-criterion.ts#requesterInputOf`（`:358-392`）与 `face/board-view.ts#findingsCountOf`（`:368-380`）：今日各自 `readFileSync` + `JSON.parse` 裸读 `carrierPath`（分别为 `--reviews` / 记录路径），两处都绕过 `readHandoff`
+- `face/lifecycle.ts#runDispatch`（`:585-609`）：`#inflight.acquire`（`:609`）之前只渲染 prompt，无任何载体读 —— 今日 tamper 只能在 child 返回后的 `#reconstruct` 才被看见，而 `#reconstruct` 今日连摘要面都没有
 
 #### Produces
 - `export class CarrierIntegrity`，静态方法：
   - `static sha256(bytes: string): string` — 原始字节的 sha256 hex
   - `static digestOf(value: unknown): string` — 载体摘要的**唯一规则**：删去顶层可选 `contentSha256` 键，按 `JSON.stringify(payload, null, 2) + "\n"` 重序列化，取 `sha256`。draft 无该键时与写盘字节同值；final 有该键时摘要覆盖 payload 而非文件字节（Task 4 复用，非循环）
   - `static mismatch(recorded: string | null, current: string | null): { recorded: string; current: string } | null` — 任一 `null` → `null`（无从比对）
+  - `static read(path: string, recordedDigest: string | null): string | null` — **唯一校验读**：文件不存在 → `null`（absent，不抛）；`recordedDigest === null`（legacy 记录）→ 原样返回字节、零比对（present facts）；两者皆有则按 `digestOf(解析结果)` 重算并比对，不等抛 `CarrierMismatchError`（mismatch）
+  - `static readFor(record: { readonly carrierPath: string | null; readonly carrierDigest?: string | null }): string | null` — `read` 的记录形薄壳（`carrierPath === null` → `null`）。只依赖结构类型、不 import `ledger`，故 `contract/` 与 `face/` 两侧都能直接用，无循环依赖
 - `export class CarrierMismatchError extends Error`，字段 `readonly line: string; readonly recorded: string; readonly current: string`，`message` = `carrier-mismatch · line=<line> · recorded=<sha8> · current=<sha8>`
 - `Workspace.writeJsonHashed(name: string, value: unknown): string`（返回写入字节的 sha256 hex）；`writeJson` 改为 `writeJsonHashed` 的薄壳（单点序列化）
 - `Ledger.persistHandoff(...): { readonly path: string; readonly digest: string }`
+- `Ledger.readHandoff`：同名读先取该 (op,type,round) 最新记录的 `carrierDigest`，再走 `CarrierIntegrity.read(path, digest)`，最后解析 —— 摘要规则只此一处，不另写 hash 分支
+- `FixDispositions.requesterInputOf`：requester 载体经 `CarrierIntegrity.readFor(requester 记录)`（legacy 回落 `--reviews` 路径时摘要为 `null`、不比对）；mismatch 抛出，**不**折叠成 `kind: "unreadable"`
+- `BoardView.#findingsCountOf`：`CarrierIntegrity.readFor(record)`；absent 仍返 0（present facts），mismatch 抛出 → CLI 顶层通道转 `CDD_BLOCKED`（不再静默成 0）
 
 
 
@@ -159,13 +170,18 @@ none
 - 写失败测 `carrier-integrity.test.ts`：`sha256` 固定串已知 hex · `mismatch` 四例（`null` 任一端 · 同值 · 异值两端）— checkable: 定向 vitest FAIL（模块不存在）
 - 写失败测（三态）：写 carrier 并记 digest → 未改字节可读 · 删文件返 `null` · 改字节抛 `CarrierMismatchError` 且报文含 `recorded=`/`current=` · 旧记录无 digest 时即便改字节也不抛 — checkable: 定向 vitest FAIL（今日 `readHandoff` 无 digest 面）
 - `infra/workspace.ts` 拆出 `writeJsonHashed(name, value): string`（返回写入字节 sha256），`writeJson` 改为其薄壳；`#{persist}` 返回该 digest（draft 无 `contentSha256`，故与 `CarrierIntegrity.digestOf` 同值）— checkable: 既有 `infra.test.ts` 全绿（写盘字节零变化），新方法单测 PASS
-- `RoundRecord` 加 `carrierDigest?: string | null`、`recordRound` 透传；`#bookkeep` 存 digest；`readHandoff` 解析出对象后按 `CarrierIntegrity.digestOf(对象)` 重算（同一规则，不另写 hash 分支），与该 (op,type,round) 最新记录的 digest 比对，不等即抛 — checkable: 三态四例 PASS
-- 两条通道接线：`face/cli.ts` 顶层捕获该错误走 `CDD_BLOCKED` 通道与既有 blocked 退出码；`face/lifecycle.ts#reconstruct` 捕获转 BLOCKED outcome — checkable: 篡改载体后 fix 派发前被拒且 dispatcher 零调用；board/capsule 读同一路径同判
+- `RoundRecord` 加 `carrierDigest?: string | null`、`recordRound` 透传；`#bookkeep` 存 digest；`CarrierIntegrity` 加 `read` / `readFor` 两个校验读；`readHandoff` 取该 (op,type,round) 最新记录的 `carrierDigest` 后走 `CarrierIntegrity.read` 再解析（同一规则，不另写 hash 分支）— checkable: 三态四例 PASS
+- 写失败测（spawn 前门，行为 pin）：篡改 fix 输入载体（上一轮 review 载体）后 `cdd fix` **在 child 存在之前**硬停 —— stderr 含 `CDD_BLOCKED` 与 `recorded=` / `current=` 两段前缀，注入 dispatcher 的 spy 调用计数为 0，且 `InFlight.inspect()` 为空（未 acquire）— checkable: 定向 vitest FAIL（今日 `#runDispatch` 不读载体）
+- `#runDispatch` 在 `#inflight.acquire` 之前插入该门：`op === "fix"` 且 `#reviewsPath(frame) !== null` 时，取同轮 review 记录的 `carrierDigest`（无记录 → `null`，present-facts 零比对），`CarrierIntegrity.read` 抛 `CarrierMismatchError` 即 `#blocked(err.message, false)` 并返回 `{ status: "BLOCKED" }`（不 acquire、不 spawn）。其余 op 派发前不读既有载体（`INPUT_REVIEWS` 本就是 `op === "fix"` 专属），无门可设 — checkable: 上一步 PASS
+- 写失败测（逐面读入口，行为 pin 各一枚）：board/capsule 的 `+N` 计数读与 `FixDispositions.requesterInputOf` 的裁定读分别篡改各自读到的载体后均 `CDD_BLOCKED` 且报文含 recorded/current；absent 仍走 present-facts（board 0 · fix 输入 `unreadable`）— checkable: 定向 vitest FAIL（今日两处裸读：篡改只读成 0 / `unreadable`）
+- 逐面接线：`BoardView.#findingsCountOf` 改 `CarrierIntegrity.readFor(record)`（absent → 0，mismatch 抛出）；`FixDispositions.requesterInputOf` 改 `CarrierIntegrity.readFor(requester 记录)`，legacy 回落 `--reviews` 路径且无摘要不比对，mismatch 抛出而不折叠成 `kind: "unreadable"` — checkable: 上一步两例 PASS，`board-view.test.ts` / `completion-criterion.test.ts` 既有断言全绿
+- 退路接线（不是门）：`face/cli.ts` 顶层捕获该错误走 `CDD_BLOCKED` 通道与既有 blocked 退出码；`face/lifecycle.ts#reconstruct` 捕获转 BLOCKED outcome — checkable: 直调 `#reconstruct` 的用例仍 `CDD_BLOCKED`（child 已存在时的最后一道，非本任务的验收门）
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 - absent / ok / mismatch 三态各有独立 pin；absent 与 mismatch 不得合并成同一返回值。
-- 篡改后的载体在 fix 派发前被拒，dispatcher 零调用；board / capsule 读同一路径亦走同一判定（结构性 pin：读面无第二条 `readHandoff` 旁路）。
+- 篡改后的载体在 fix 派发前被拒（行为 pin）：stderr `CDD_BLOCKED` + 报文含 `recorded=` / `current=`，注入 dispatcher 的 spy 调用计数 0，`InFlight.inspect()` 为空；门在 spawn 之前，`#reconstruct` / `cli.ts` 的捕获只是退路。
+- 逐面读入口行为 pin（互不合并）：board/capsule 的 `+N` 计数读、fix 输入的裁定读，篡改各自载体后均 `CDD_BLOCKED` 且报文带 recorded/current；absent 两态仍按 present-facts 走（board 0 · fix `unreadable`），absent 与 mismatch 不可混同。
 - 旧记录（无 `carrierDigest`）零迁移：既有 fixture 全绿，无新 mismatch。
 - `carrier-mismatch` 报文含 `line` / `recorded` / `current` 三段（子串断言）。
 
@@ -178,13 +194,13 @@ none
 
 #### Objective
 
-定稿不再覆盖草稿：final 写 `<stem>.c<N>.json`（N = 该轮 cycle），草稿留在派发原路径；`RoundRecord` 同时记 `carrierPath`（final）与 `draftPath`，digest 改为对 final **载荷**（不含 `contentSha256` 字段）的摘要，且 final JSON 本体带同值 `contentSha256` 字段（spec §2.3 的两处记录面）。
+定稿不再覆盖草稿：final 写 `<stem>.c<N>.json`（N = 该轮 cycle），草稿留在派发原路径；`RoundRecord` 同时记 `carrierPath`（final）与 `draftPath`，digest 改为对 final **载荷**（不含 `contentSha256` 字段）的摘要，且 final JSON 本体带同值 `contentSha256` 字段（spec §2.3 的两处记录面）。final 胜出这一身份口径贯穿全部读面：`--reviews` · `INPUT_REVIEWS` · `#reviewsPath` · 崩溃记录与 BLOCKED 的 resume 命令（`#resumeOf` 的 fix 分支）。
 
 #### Files
 - 修改：`packages/cdd-engine/src-next/session/round-naming.ts`（新增 `finalName` / `finalPath` / `isCarrierName`）
 - 修改：`packages/cdd-engine/src-next/session/ledger.ts`（`persistHandoff` 写 final 并返回 `{ path, draftPath, digest }`；`RoundRecord` 加 `draftPath`；`recordRound` 透传；`round` 的两处 `reviewsPath` 改取该轮 review 记录已记的 `carrierPath`）
 - 修改：`packages/cdd-engine/src-next/session/run.ts:702-717`（读新返回形状，记录两路径）
-- 修改：`packages/cdd-engine/src-next/face/lifecycle.ts:1141-1151`（`#reviewsPath` 以记录 `carrierPath`（final）取代 `existsSync(draft)` 作胜者）
+- 修改：`packages/cdd-engine/src-next/face/lifecycle.ts:1141-1151`（`#reviewsPath` 以记录 `carrierPath`（final）取代 `existsSync(draft)` 作胜者）、`:1424-1457`（`#resumeOf` 的 fix 分支 `--reviews` 改取 `#reviewsPath(frame)` 同一口径，不再自拼 `resolveHandoffPath`）
 - 修改：`packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`、`packages/cdd-engine/src-next/session/__tests__/run.test.ts`、`packages/cdd-engine/src-next/session/__tests__/next.test.ts`、`packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（`--reviews` / `INPUT_REVIEWS` 重锚到 final）
 
 #### Consumes
@@ -192,6 +208,7 @@ none
 - `RoundNaming#stem(op, type, params)` 与 `handoffName(op, type, params)`
 - `face/lifecycle.ts#reviewsPath`（`:1141-1151`）今日的三层回落：显式 `--reviews` 旗标 → `resolveHandoffPath("review", …)` → `existsSync(draft)` → legacy `null`
 - `session/ledger.ts#round`（`:1839` / `:1858`）：`reviewsPath: this.resolveHandoffPath("review", type, reviewParams)` 是 `--reviews` 的唯一路由来源；`session/next.ts:341` / `:362` 只透传 `ref.reviewsPath`，故本任务不动 `session/next.ts`
+- `face/lifecycle.ts#resumeOf`（`:1424-1457`）：fix 分支今日 `const findings = scene.ledger.resolveHandoffPath("review", frame.type, frame.params)` 自拼草稿家族名，与 `#reviewsPath` 不同源 —— draft 与 `.c<N>.json` 并存时 resume 命令指回草稿，resume 的 `--reviews` 与 sidecar stem 就此分叉
 
 #### Produces
 - `RoundNaming.finalName(op: string, type: string, params: HandoffParams): string` — 把 `handoffName` 结尾的 `.json` 换成 `.c<N>.json`，`N = params.round`
@@ -199,6 +216,7 @@ none
 - `RoundNaming.isCarrierName(name: string): boolean` — 只认本引擎 mint 的两类名字（draft 家族 `<stem>-<op>-<round>.json` 与 final `<stem>-<op>-<round>.c<N>.json`，即 `handoffName` 尾部加可选 `.c<N>`）；`progress.json` / `base.json` / `*-test-evidence.json` / `*.rulings.json` 一律 `false`（Task 5 的 sweep 谓词单点）
 - `Round.reviewsPath`（`session/ledger.ts#round` 两个分支）= 该轮 review 记录已记的 `carrierPath`（final 绝对路径）；记录缺失或该值为 `null`（legacy 行）才回落 `resolveHandoffPath` 的草稿家族名 —— 记录存在即 final 胜出
 - `face/lifecycle.ts#reviewsPath(frame)` 四层同源：显式 `--reviews` 旗标 → 同轮 review 记录的 `carrierPath` → 今日的 `resolveHandoffPath` + `existsSync` 回落 → legacy `null`
+- `face/lifecycle.ts#resumeOf(frame)` 的 fix 分支 = `#reviewsPath(frame) ?? resolveHandoffPath("review", …)` —— `null` 只在 legacy 记录且盘上无载体时出现，此时保留今日字面，绝不把 `null` 印进命令；崩溃记录与 BLOCKED 的 `next:` 因此与 fix prompt 同指一个载体
 - `Ledger.persistHandoff(...): { readonly path: string; readonly draftPath: string; readonly digest: string }`
 - final JSON 的内嵌字段 `contentSha256: string` — 值 = `CarrierIntegrity.digestOf(final 载荷)`，载荷**不含**该字段（规则来自 Task 3，单点不改）；与返回的 `digest`、`RoundRecord.carrierDigest` 三者同值，读回按同一规则「删 `contentSha256` → 重序列化 → sha256」比对，故该值**不**等于含该字段的整个文件字节 sha256
 
@@ -211,13 +229,13 @@ none
 - `RoundNaming` 加 `finalName` / `finalPath`（`params.round` 拼 `.c<N>`，缺 `round` 回落）— checkable: 命名两例 PASS
 - `persistHandoff` 一次组装 final 载荷：先 `digest = CarrierIntegrity.digestOf(payload)`（payload 尚无该字段）→ 把 `contentSha256: digest` 作为**最后追加键**并入 payload 并一次落盘 → 返回 `{ path, draftPath, digest }`（不二次重算）；**不写不删草稿**（代码注释写明「摘要覆盖 payload 而非含该字段的文件字节——`H = sha256(JSON 含 H)` 不可满足」）— checkable: 共存三处同值例 PASS
 - `RoundRecord` 加 `draftPath?: string | null`，`#bookkeep` 与 `carrierDigest` 同笔落记录 — checkable: 记录两路径例 PASS，typecheck exit 0
-- 写失败测（reviews 身份，成对 pin）：同轮 draft 与 `<stem>.c<N>.json` 并存时，`ledger.round("review", …).reviewsPath`、`next` 渲染的 `--reviews`、fix prompt 的 `INPUT_REVIEWS`、`#reviewsPath` 四者都指 `.c<N>.json`，故 `CarrierRulings.pathFor` 得 `.c<N>.rulings.json`；删掉 final 后回落草稿名（legacy 回落例）— checkable: 定向 vitest FAIL（今日四者皆指草稿）
-- 接线：`session/ledger.ts#round` 两条 `reviewsPath` 改为「记录 `carrierPath` 为字符串 → 用它；缺记录或为 `null` → 今日的 `resolveHandoffPath` 回落」；`face/lifecycle.ts#reviewsPath` 按 Produces 的四层顺序接线（`existsSync(draft)` 只在记录未给 final 时参与）— checkable: 上一步 PASS，`cli.test.ts` 与 `next.test.ts` 的 `--reviews` 断言重锚后全绿，typecheck exit 0
+- 写失败测（reviews 身份，成对 pin）：同轮 draft 与 `<stem>.c<N>.json` 并存时，`ledger.round("review", …).reviewsPath`、`next` 渲染的 `--reviews`、fix prompt 的 `INPUT_REVIEWS`、`#reviewsPath`、`#resumeOf` 生成的 `cdd fix … --reviews <path>` 五者都指 `.c<N>.json`，故 `CarrierRulings.pathFor` 得 `.c<N>.rulings.json`；删掉 final 后五者回落草稿名（legacy 回落例）— checkable: 定向 vitest FAIL（今日前三面指草稿，resume 另走自拼路径）
+- 接线：`session/ledger.ts#round` 两条 `reviewsPath` 改为「记录 `carrierPath` 为字符串 → 用它；缺记录或为 `null` → 今日的 `resolveHandoffPath` 回落」；`face/lifecycle.ts#reviewsPath` 按 Produces 的四层顺序接线（`existsSync(draft)` 只在记录未给 final 时参与）；`#resumeOf` 的 fix 分支改读 `#reviewsPath(frame)`（走同一次四层顺序，只在得 `null` 时回落 `resolveHandoffPath`）— checkable: 上一步 PASS，`cli.test.ts` 与 `next.test.ts` 的 `--reviews` 断言重锚后全绿，typecheck exit 0
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 - final 与 draft 同名 stem、不同后缀，且 `RoundRecord` 两路径都可读（成对 pin）。
-- fix 输入身份落在 final（spec §2.1 / §2.3 同 stem）：draft 与 `.c<N>.json` 并存时 `--reviews` / `INPUT_REVIEWS` / `#reviewsPath` 名字段一律为 `.c<N>.json`，sidecar 因此是 `.c<N>.rulings.json`；final 缺失时回落草稿名且 legacy 行仍可读（成对 pin）。
+- fix 输入身份落在 final（spec §2.1 / §2.3 同 stem）：draft 与 `.c<N>.json` 并存时 `--reviews` / `INPUT_REVIEWS` / `#reviewsPath` 名字段一律为 `.c<N>.json`，sidecar 因此是 `.c<N>.rulings.json`；崩溃记录 / BLOCKED 的 `next:`（`#resumeOf`）里的 `--reviews` 同指 `.c<N>.json`（与上述三面同源，不另拼路径）；final 缺失时各处回落草稿名且 legacy 行仍可读（成对 pin，resume 命令含在断言内）。
 - `session/next.ts` 仍只改 `FIX_READBACK_SUFFIX` 一处字面（结构性 pin：本任务对该文件零 diff；`--reviews` 的身份改在 `Round.reviewsPath` 的构造处，不在路由表）。
 - final 文件内 `contentSha256`、返回的 `digest`、记录 `carrierDigest` 三者同值，且等于 `CarrierIntegrity.digestOf` 对「删去 `contentSha256` 的 final 载荷」的重算值（三处同值 pin；摘要覆盖 payload 而非含该字段的文件字节，规则非循环）。
 - bookkeep 不再对同一路径整文件替换（结构性 pin：`persistHandoff` 的写入名与 `handoffName` 不同）。
@@ -357,3 +375,4 @@ none
 | v0.1 | 2026-11-09 | 初版：七任务（表头列集门 · sidecar+INPUT_RULINGS · 摘要与 mismatch · draft/final 分路径 · seal/sweep · 条件写回 · changeset 与全门）· 波序 W1{1,2,6}/W2{3}/W3{4}/W4{5}/W5{7} 对应 spec 落地序 · Review Focus 六条 | Claude（kairos:cdd-plan · 2026-11-09） |
 | v0.2 | 2026-11-09 | 评审回填（plan-review-1 F1–F5）：Task 2 坏 schema 用例扩到九面并补 `carrier` ≠ 文件名的派发前硬停 pin · Task 3 立 `CarrierIntegrity.digestOf` 单点摘要规则、Task 4 摘要改覆盖「删 `contentSha256` 后的载荷」以消循环（文件字节口径作废）· Task 5 `sweep` 改为处理未 seal 的 `*.json` 并返回实际 sealed 名 · Task 6 `pathsSince` 以 `null` 区分不可读与零命中、`touchedDoc: null` 保留 soft 观察 | Claude（kairos:cdd-dev · plan-fix-1 · 2026-11-09） |
 | v0.3 | 2026-11-09 | 评审回填（plan-review-2 F1–F2）：Task 4 补 fix 输入身份接线——`Round.reviewsPath` / `#reviewsPath` 改取记录 `carrierPath`（final），`existsSync(draft)` 不再是胜者，sidecar 随同落 `.c<N>.rulings.json`，并补四者同名的成对 pin；Task 5 `sweep` 收窄到 `RoundNaming.isCarrierName` 认可的 draft/final 家族，`progress.json` / `base.json` / `*-test-evidence.json` 零触碰 | Claude（kairos:cdd-dev · plan-fix-2 · 2026-11-09） |
+| v0.4 | 2026-11-09 | 评审回填（plan-review-3 F1–F3）：Task 3 立单点校验读 `CarrierIntegrity.read` / `readFor`，`readHandoff` · fix 裁定读 · board 计数读三面统一接线，spawn 前门放进 `#runDispatch`（`#inflight.acquire` 之前硬停、dispatcher 零调用、未 acquire），逐面行为 pin 取代结构性 pin；Task 4 把 `#resumeOf` 的 `--reviews` 与 `#reviewsPath` 同源到 final，身份 pin 扩到五面 | Claude（kairos:cdd-dev · plan-fix-3 · 2026-11-09） |

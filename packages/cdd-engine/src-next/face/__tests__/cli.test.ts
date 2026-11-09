@@ -447,10 +447,10 @@ const conformingOverall = (repoRoot: string): string => {
       "- maintenance note",
       "",
       "## Change history",
-      "| Version | Date | Summary |",
-      "| --- | --- | --- |",
-      "| v1.20 | 2026-10-06 | prior change |",
-      "| v1.21 | 2026-10-07 | merged change |",
+      "| Version | date | summary | author |",
+      "| --- | --- | --- | --- |",
+      "| v1.20 | 2026-10-06 | prior change | [human] |",
+      "| v1.21 | 2026-10-07 | merged change | [human] |",
     ].join("\n"),
     "utf8",
   );
@@ -3724,7 +3724,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(io.stderrText).toContain("  planned-tasks-vs-recorded-tasks: passed\n");
       expect(
         io.stderrText.split("\n").filter((line) => line.endsWith(": skipped (no doc target)")),
-      ).toHaveLength(23);
+      ).toHaveLength(24);
 
       // ② the refused path: the same face after the BLOCK wording + its details
       writeFileSync(path.join(repoRoot, "seed.txt"), "modified\n", "utf8");

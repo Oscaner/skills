@@ -215,3 +215,17 @@ describe("P30 T6 — the closed-wave discipline rides the document review axes",
     }
   });
 });
+
+/**
+ * P31 T1 — the docs-fix row's escaped-pipe discipline: a Change-history summary cell
+ * carrying a literal vertical bar must write `\|`, because a bare `|` splits the cell
+ * and the row stops matching the declared four-column header. One substring pin — a
+ * rewording that keeps the duty stays green, dropping the duty goes red.
+ */
+describe("P31 T1 — the docs-fix row names the escaped-pipe duty", () => {
+  it("carries the `\\|` sentence in the docs-fix fixed prefix", () => {
+    const shell = TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n");
+    expect(shell).toContain("carries `\\|`");
+    expect(shell).toContain("splits the cell in two");
+  });
+});

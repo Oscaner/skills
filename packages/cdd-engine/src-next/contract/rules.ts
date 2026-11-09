@@ -18,16 +18,17 @@
 // multi-surface strategies of the old family were split per leg (uniqueness → three,
 // order → one section-order row, selfBounded → one lineage row), so a declaration row
 // never hides a second rule. Version ORDER stays presentation, not data integrity; the
-// header-to-newest-row agreement and the row's cell shape are declared legs of their
-// own (`change-history-latest-matches-front-matter` · `change-history-row-shape`), and
-// the lineage identity read is membership-plus-anchor (the first cell must BE a
-// version).
+// header-to-newest-row agreement, the header's own column set and the row's cell shape
+// are declared legs of their own (`change-history-latest-matches-front-matter` ·
+// `change-history-header-columns` · `change-history-row-shape`), and the lineage
+// identity read is membership-plus-anchor (the first cell must BE a version).
 //
 // Module-level exports are types / the declared data — zero behavior-carrying bare
 // functions.
 
 import type { Finding, Invariant, JudgeContext } from "./invariants.ts";
 import {
+  ChangeHistoryHeaderColumnsInvariant,
   ChangeHistoryLatestMatchesFrontMatterInvariant,
   ChangeHistoryRowShapeInvariant,
   ChangeHistoryVersionUniqueInvariant,
@@ -87,7 +88,7 @@ export interface LedgerRule {
   evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[];
 }
 
-/** The rule registry — doc scope 23 rows + ledger scope 2 rows = 25. */
+/** The rule registry — doc scope 24 rows + ledger scope 2 rows = 26. */
 export const RULE_REGISTRY: readonly RuleDeclaration[] = [
   { scope: "doc", id: "presence", docKeys: "all", create: () => new PresenceInvariant() },
   {
@@ -101,6 +102,12 @@ export const RULE_REGISTRY: readonly RuleDeclaration[] = [
     id: "change-history-row-shape",
     docKeys: "all",
     create: () => new ChangeHistoryRowShapeInvariant(),
+  },
+  {
+    scope: "doc",
+    id: "change-history-header-columns",
+    docKeys: "all",
+    create: () => new ChangeHistoryHeaderColumnsInvariant(),
   },
   {
     scope: "doc",

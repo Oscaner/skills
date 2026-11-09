@@ -13,12 +13,22 @@
 // engine-config (the external contract JSONs — allowed steady-data reads, never the
 // old tree's derived products).
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { CarrierIntegrity } from "../carrier-integrity.ts";
 import { Ledger, type ProgressData, type RefKind, RoundViolation } from "../ledger.ts";
 import { RoundNaming } from "../round-naming.ts";
 import type { OpenFrame } from "../run.ts";
@@ -592,7 +602,7 @@ describe("handoff — naming / carrier / single-author persist", () => {
     }
   });
 
-  it("persistHandoff writes the canonical file verbatim — the single-author full-replace write", () => {
+  it("persistHandoff writes the FINAL carrier verbatim beside the draft — the single-author write", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
       const written = ledger.persistHandoff(
@@ -601,24 +611,29 @@ describe("handoff — naming / carrier / single-author persist", () => {
         { tasks: "7,9", round: 1 },
         { tasks: [7, 9], phase: "review", findings: [{ severity: "blocker" }] },
       );
-      expect(written).toBe(workspace.resolve("tasks-7,9-review-1.json"));
-      expect(JSON.parse(readFileSync(written, "utf8"))).toEqual({
-        tasks: [7, 9],
-        phase: "review",
-        findings: [{ severity: "blocker" }],
+      expect(written.path).toBe(workspace.resolve("tasks-7,9-review-1.c1.json"));
+      expect(written.draftPath).toBe(workspace.resolve("tasks-7,9-review-1.json"));
+      // The payload lands verbatim plus the ONE engine-owned key (P31 §2.3): the
+      // embedded digest is appended last, and it covers the payload without itself.
+      const payload = { tasks: [7, 9], phase: "review", findings: [{ severity: "blocker" }] };
+      expect(JSON.parse(readFileSync(written.path, "utf8"))).toEqual({
+        ...payload,
+        contentSha256: written.digest,
       });
-      // The engine is the sole author: a second persist FULLY replaces — the stale finding
-      // never survives a merge.
+      expect(written.digest).toBe(CarrierIntegrity.digestOf(payload));
+      // The engine is the sole author of the FINAL: a second persist FULLY replaces —
+      // the stale finding never survives a merge (the draft stays the child's bytes).
       const second = ledger.persistHandoff(
         "review",
         "wave",
         { tasks: "7,9", round: 1 },
         { tasks: [7, 9], phase: "review", findings: [] },
       );
-      expect(JSON.parse(readFileSync(second, "utf8"))).toEqual({
+      expect(JSON.parse(readFileSync(second.path, "utf8"))).toEqual({
         tasks: [7, 9],
         phase: "review",
         findings: [],
+        contentSha256: second.digest,
       });
     } finally {
       cleanup();
@@ -635,9 +650,11 @@ describe("handoff — naming / carrier / single-author persist", () => {
         { tasks: "7,9", round: 1 },
         { findings: [{ severity: "warn" }] },
       );
-      expect(ledger.readHandoff("review", "wave", { tasks: "7,9", round: 1 })).toEqual({
-        findings: [{ severity: "warn" }],
-      });
+      // The final carrier (P31 §2.3) holds the payload plus its own digest — the
+      // engine-owned key rides every persisted carrier, so the read sees it too.
+      const carrier = ledger.readHandoff("review", "wave", { tasks: "7,9", round: 1 });
+      expect(carrier?.findings).toEqual([{ severity: "warn" }]);
+      expect(typeof carrier?.contentSha256).toBe("string");
     } finally {
       cleanup();
     }
@@ -649,8 +666,9 @@ describe("handoff — naming / carrier / single-author persist", () => {
       // a completed review owns its carrier — the round's verdict says so
       ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
       ledger.recordRound("1", { op: "review", cycle: 1 });
-      // a hard-failed review leaves a draft no COMPLETED round owns: it is registered
-      // (every dispatched round lands) but its verdict is not a completion
+      // a hard-failed review leaves a carrier no COMPLETED round owns: it is registered
+      // (every dispatched round lands) but its verdict is not a completion. The file is
+      // the FINAL carrier — the family pattern reads its `.c<N>` suffix as its own cycle.
       ledger.persistHandoff(
         "review",
         "wave",
@@ -667,7 +685,7 @@ describe("handoff — naming / carrier / single-author persist", () => {
         cycle: 2,
         verdict: { treeClean: true, targetAction: false },
       });
-      expect(ledger.orphanHandoffs()).toEqual(["tasks-1-review-2.json"]);
+      expect(ledger.orphanHandoffs()).toEqual(["tasks-1-review-2.c2.json"]);
     } finally {
       cleanup();
     }
@@ -736,6 +754,137 @@ describe("handoff — naming / carrier / single-author persist", () => {
       });
       workspace.writeJson("spec-fix-9.json", { artifacts: {} });
       expect(ledger.orphanHandoffs()).toEqual(["spec-fix-9.json"]);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("handoff — the draft/final split (P31 §2.3: the final never overwrites the draft)", () => {
+  it("persists the final beside the untouched draft and records BOTH paths", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const draftName = "tasks-1-review-2.json";
+      // the child's draft — the engine never mutates it once the round is booked
+      workspace.writeJson(draftName, { findings: [{ severity: "warn", summary: "draft" }] });
+      const written = ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 2 },
+        { findings: [{ severity: "warn", summary: "final", id: "F1" }] },
+      );
+      // the final is the same stem, a different suffix — the two names never collide
+      expect(written.path).toBe(workspace.resolve("tasks-1-review-2.c2.json"));
+      expect(written.draftPath).toBe(workspace.resolve(draftName));
+      expect(existsSync(written.path)).toBe(true);
+      // the draft keeps the child's own bytes (no full-replace of the draft path)
+      expect(JSON.parse(readFileSync(written.draftPath, "utf8"))).toEqual({
+        findings: [{ severity: "warn", summary: "draft" }],
+      });
+      ledger.recordRound("1", {
+        op: "review",
+        cycle: 2,
+        carrierPath: written.path,
+        carrierDigest: written.digest,
+        draftPath: written.draftPath,
+      });
+      const record = ledger.recordsOf("1")[0];
+      expect(record?.carrierPath).toBe(written.path);
+      expect(record?.draftPath).toBe(written.draftPath);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the final's contentSha256, the returned digest and the record's carrierDigest are ONE value — the payload rule, never the file bytes", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const written = ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 2 },
+        { artifacts: {}, findings: [{ severity: "warn", id: "F1" }] },
+      );
+      const bytes = readFileSync(written.path, "utf8");
+      const final = JSON.parse(bytes) as Record<string, unknown>;
+      // the embedded digest is appended LAST — the payload it covers carries no key
+      expect(Object.keys(final).at(-1)).toBe("contentSha256");
+      expect(final.contentSha256).toBe(written.digest);
+      // the rule: digest = sha256(payload WITHOUT the embedded key) — never
+      // sha256(the file bytes that hold it) (`H = sha256(JSON 含 H)` is unsatisfiable)
+      expect(written.digest).toBe(CarrierIntegrity.digestOf(final));
+      expect(written.digest).not.toBe(createHash("sha256").update(bytes).digest("hex"));
+      ledger.recordRound("1", {
+        op: "review",
+        cycle: 2,
+        carrierPath: written.path,
+        carrierDigest: written.digest,
+        draftPath: written.draftPath,
+      });
+      expect(ledger.recordsOf("1")[0]?.carrierDigest).toBe(written.digest);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("reads the FINAL once the draft is gone — the final is the round's read identity", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // the child's own draft sits beside the final from the start
+      workspace.writeJson("tasks-1-review-2.json", { findings: [] });
+      const written = ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 2 },
+        { findings: [{ severity: "warn", id: "F1" }] },
+      );
+      ledger.recordRound("1", {
+        op: "review",
+        cycle: 2,
+        carrierPath: written.path,
+        carrierDigest: written.digest,
+      });
+      unlinkSync(written.draftPath);
+      expect(ledger.readHandoff("review", "wave", { tasks: "1", round: 2 })).toEqual({
+        findings: [{ severity: "warn", id: "F1" }],
+        contentSha256: written.digest,
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("round().reviewsPath names the FINAL carrier of the round — the fix leg's identity", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const written = ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 2 },
+        { findings: [{ severity: "warn", id: "F1" }] },
+      );
+      ledger.recordRound("1", {
+        op: "review",
+        cycle: 2,
+        carrierPath: written.path,
+        carrierDigest: written.digest,
+      });
+      // the review record carries the carrier it wrote — the reviewsPath reads THAT,
+      // never a re-derived family spelling (draft and final coexist on disk)
+      expect(ledger.round("review", "wave", { tasks: "1" }, 2)?.reviewsPath).toBe(written.path);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("round().reviewsPath falls back to the draft family name when the record names no carrier (legacy row)", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      ledger.recordRound("1", { op: "review", cycle: 2 });
+      workspace.writeJson("tasks-1-review-2.json", { findings: [] });
+      expect(ledger.round("review", "wave", { tasks: "1" }, 2)?.reviewsPath).toBe(
+        workspace.resolve("tasks-1-review-2.json"),
+      );
     } finally {
       cleanup();
     }
@@ -874,7 +1023,7 @@ describe("round — the round carrier", () => {
         { severity: "blocker", summary: "defect" },
         { severity: "warn", summary: "smell" },
       ]);
-      expect(carrier!.reviewsPath).toBe(workspace.resolve("tasks-7,9-review-1.json"));
+      expect(carrier!.reviewsPath).toBe(workspace.resolve("tasks-7,9-review-1.c1.json"));
       expect(carrier!.consecutiveS1).toBe(1);
     } finally {
       cleanup();
@@ -902,7 +1051,7 @@ describe("round — the round carrier", () => {
       expect(carrier!.phase).toBe("fix");
       // the judgment findings are the source review's input, never the fix's own empty carrier
       expect(carrier!.findings).toEqual([{ severity: "blocker", summary: "the input findings" }]);
-      expect(carrier!.reviewsPath).toBe(workspace.resolve("tasks-7,9-review-1.json"));
+      expect(carrier!.reviewsPath).toBe(workspace.resolve("tasks-7,9-review-1.c1.json"));
       expect(carrier!.consecutiveS1).toBe(1);
     } finally {
       cleanup();

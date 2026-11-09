@@ -17,7 +17,15 @@
 // commit, so a round that commits nothing has a real baseline to be judged against).
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -27,9 +35,12 @@ import {
   IMPLEMENT_CARRIER_ABSENT,
   IMPLEMENT_VERIFICATION_WAVE,
 } from "../../contract/completion-criterion.ts";
+import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { CarrierRulings } from "../../session/carrier-rulings.ts";
+import { HoldingError, InFlight } from "../../session/inflight.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "../lifecycle.ts";
@@ -519,6 +530,602 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
       expect(outcome.status).toBe("REVIEW_FIX");
       const carrier = outcome.carrier as { findings: { id?: string }[] };
       expect(carrier.findings[0]?.id).toBe("F1");
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P31 T2 — the ruling sidecar gate (design spec §2.6): a refused sidecar stops the
+// round BEFORE the in-flight record and the child, a conforming one rides the fix
+// round context, and an absent one leaves the line out.
+// ---------------------------------------------------------------------------
+
+/** The requesting review carrier's file name — the `carrier` key's expected value. */
+const CARRIER_NAME = "phase-spec-review-1.json";
+
+/** The requesting carrier body — two engine-written finding ids (`F1`, `F4`). */
+const CARRIER_BODY = {
+  status: "CHANGES_REQUESTED",
+  findings: [
+    { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+    { id: "F4", severity: "nit", lens: "style", summary: "wording" },
+  ],
+};
+
+/** A legal sidecar body over which the refused shapes are written. */
+const LEGAL_SIDECAR = {
+  carrier: CARRIER_NAME,
+  rulings: [{ finding: "F4", ruling: "REJECTED as stated", by: "orchestrator" }],
+};
+
+/** The nine refused shapes — each its own case (one broken fact per row). */
+const BAD_SIDECARS: readonly (readonly [string, unknown])[] = [
+  ["not JSON", "not json at all"],
+  ["no `rulings` key", { carrier: CARRIER_NAME }],
+  ["`rulings` not an array", { rulings: { F1: "no" } }],
+  ["a ruling without `finding`", { rulings: [{ ruling: "accepted" }] }],
+  ["a ruling without `ruling`", { rulings: [{ finding: "F1" }] }],
+  ["an unknown top-level key", { ...LEGAL_SIDECAR, extra: true }],
+  ["an unknown key inside a ruling", { rulings: [{ finding: "F1", ruling: "ok", extra: 1 }] }],
+  ["a ruling on a finding the carrier lacks", { rulings: [{ finding: "F9", ruling: "ok" }] }],
+  ["a `carrier` key naming another file", { ...LEGAL_SIDECAR, carrier: "other.c2.json" }],
+];
+
+/** The fix frame on the fixture's spec line (the `--reviews` seam injects the carrier). */
+const fixFrameOf = (specPath: string): OpenFrame => ({
+  type: "phase-spec",
+  phase: "fix",
+  round: 1,
+  target: { kind: "spec", doc: specPath },
+  params: { round: 1 },
+  key: "phase-spec",
+});
+
+/** Run one fix dispatch with the injected reviews carrier. */
+const runFix = async (
+  f: Fixture,
+  frame: OpenFrame,
+  reviews: string,
+  runner: SilentRunner,
+): Promise<DispatchOutcome> => {
+  const lifecycle = new CliLifecycle({
+    scene: f.scene,
+    io: f.io,
+    sync: runner,
+    env: { CLAUDE_CODE_SESSION_ID: "s" },
+    reviews,
+  });
+  return lifecycle.step()(frame);
+};
+
+/** The prompt the child stand-in received (the joined argv). */
+const promptOf = (runner: SilentRunner): string => (runner.calls[0]?.args ?? []).join(" ");
+
+// ---------------------------------------------------------------------------
+// P31 T3 — the carrier-integrity gate (design spec §2.2): a fix round whose
+// requesting review carrier no longer digests to the value its round recorded stops
+// BEFORE the in-flight record and the child — the tamper never reaches a child.
+// ---------------------------------------------------------------------------
+
+/** The requesting review round's carrier name (the fix input's own file). */
+const REQUEST_CARRIER = "phase-spec-review-1.json";
+
+describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => {
+  /** Plant a completed review round whose carrier + digest the ledger recorded. */
+  const seedReview = (f: Fixture): { path: string; digest: string } => {
+    const persisted = f.scene.ledger.persistHandoff(
+      "review",
+      "phase-spec",
+      { round: 1 },
+      {
+        status: "CHANGES_REQUESTED",
+        findings: [
+          { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+        ],
+      },
+    );
+    f.scene.ledger.recordRound("phase-spec", {
+      op: "review",
+      cycle: 1,
+      carrierPath: persisted.path,
+      carrierDigest: persisted.digest,
+    });
+    return persisted;
+  };
+
+  it("refuses a tampered input carrier before the child exists — no spawn, no acquire", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = seedReview(f);
+      // The tamper is an EXTERNAL writer: the carrier lands 0o444 (P31 §2.4), so the
+      // bytes move only after the permission bit is reopened — the smuggled blocker.
+      CarrierSeal.unseal(sealed.path);
+      writeFileSync(
+        sealed.path,
+        `${JSON.stringify(
+          {
+            status: "CHANGES_REQUESTED",
+            findings: [
+              { id: "F1", severity: "blocker", summary: "the guard is missing" },
+              { id: "F9", severity: "blocker", summary: "smuggled" },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const outcome = await runFix(f, fixFrameOf(specPath), sealed.path, runner);
+      expect(outcome.status).toBe("BLOCKED");
+      expect(gradesOf(outcome)).toEqual(["hard"]);
+      // The gate is BEFORE the spawn and BEFORE the in-flight record's acquisition.
+      expect(runner.calls).toHaveLength(0);
+      expect(f.io.stderrText).toContain("CDD_BLOCKED");
+      expect(f.io.stderrText).toContain("carrier-mismatch");
+      expect(f.io.stderrText).toContain("recorded=");
+      expect(f.io.stderrText).toContain("current=");
+      const inFlight = await new InFlight(f.scene.workspace.root, f.scene.workspace.slug).inspect();
+      expect(inFlight.kind).toBe("absent");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("names the carrier-mismatch, never a rulings reason, when a tampered carrier meets a sidecar", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = seedReview(f);
+      // The tamper drops the finding the sidecar rules on (F4) and smuggles F9: judged
+      // against the tampered bytes the ruling set reads as broken, which would hide the
+      // integrity refusal the round actually owes. The seal is reopened first — the
+      // external writer's own step.
+      CarrierSeal.unseal(sealed.path);
+      writeFileSync(
+        sealed.path,
+        `${JSON.stringify(
+          {
+            status: "CHANGES_REQUESTED",
+            findings: [
+              { id: "F1", severity: "blocker", summary: "the guard is missing" },
+              { id: "F9", severity: "blocker", summary: "smuggled" },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      writeFileSync(
+        CarrierRulings.pathFor(sealed.path),
+        JSON.stringify({
+          carrier: path.basename(sealed.path),
+          rulings: [{ finding: "F4", ruling: "REJECTED as stated", by: "orchestrator" }],
+        }),
+        "utf8",
+      );
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const outcome = await runFix(f, fixFrameOf(specPath), sealed.path, runner);
+      expect(outcome.status).toBe("BLOCKED");
+      expect(runner.calls).toHaveLength(0);
+      expect(f.io.stderrText).toContain("CDD_BLOCKED");
+      expect(f.io.stderrText).toContain("carrier-mismatch");
+      expect(f.io.stderrText).toContain("recorded=");
+      expect(f.io.stderrText).toContain("current=");
+      expect(f.io.stderrText).not.toContain("rulings sidecar");
+      expect(gradesOf(outcome)).toEqual(["hard"]);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("lets the untampered carrier through — the child is spawned and the gate stays silent", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = seedReview(f);
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const outcome = await runFix(f, fixFrameOf(specPath), sealed.path, runner);
+      expect(runner.calls).toHaveLength(1);
+      expect(f.io.stderrText).not.toContain("carrier-mismatch");
+      // The silent child wrote no draft — the criterion owns the absence, never a crash.
+      expect(outcome.status).not.toBe("TIMEOUT");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("reads a LEGACY review round (no digest) as present facts — the tamper is not refused", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const at = path.join(f.scene.workspace.path, REQUEST_CARRIER);
+      writeFileSync(at, JSON.stringify({ findings: [] }), "utf8");
+      f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1, carrierPath: at });
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      await runFix(f, fixFrameOf(specPath), at, runner);
+      expect(runner.calls).toHaveLength(1);
+      expect(f.io.stderrText).not.toContain("carrier-mismatch");
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P31 T4 — the fix input's identity is the FINAL carrier (design spec §2.1/§2.3):
+// with the child's draft and the round's `.c<N>` final coexisting, every face that
+// names the fix input names the final — the round read, the sidecar's stem, the
+// round context and the resume command (one resolution, four readers).
+// ---------------------------------------------------------------------------
+
+/** A child stand-in that DIES — the round-ending path that writes the crash record
+ *  (and with it the same-command resume `next:`). */
+class FailingRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    return { code: 1, stdout: "", stderr: "", termination: null };
+  }
+}
+
+describe("P31 T4 — the fix input names the FINAL carrier", () => {
+  /** Plant a completed review round: the FINAL carrier + the record naming it. */
+  const seedFinalReview = (f: Fixture): { path: string; draftPath: string; digest: string } => {
+    const persisted = f.scene.ledger.persistHandoff(
+      "review",
+      "phase-spec",
+      { round: 1 },
+      {
+        status: "CHANGES_REQUESTED",
+        findings: [
+          { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+        ],
+      },
+    );
+    f.scene.ledger.recordRound("phase-spec", {
+      op: "review",
+      cycle: 1,
+      carrierPath: persisted.path,
+      carrierDigest: persisted.digest,
+      draftPath: persisted.draftPath,
+    });
+    return persisted;
+  };
+
+  const specPathOf = (f: Fixture): string =>
+    path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+
+  const relOf = (f: Fixture, at: string): string =>
+    path.relative(f.scene.workspace.root.repoRoot, at);
+
+  const runFixFrame = async (f: Fixture, runner: ChildRunner): Promise<void> => {
+    const lifecycle = new CliLifecycle({
+      scene: f.scene,
+      io: f.io,
+      sync: runner,
+      env: { CLAUDE_CODE_SESSION_ID: "s" },
+    });
+    await lifecycle.step()(fixFrameOf(specPathOf(f)));
+  };
+
+  it("names the final on every face while the child's draft sits beside it", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = seedFinalReview(f);
+      // the child's draft at the pre-split spelling — both files exist on disk
+      writeFileSync(sealed.draftPath, JSON.stringify({ findings: [] }), "utf8");
+      // (1) the round read — the fix leg's `--reviews` source (and the router's)
+      expect(f.scene.ledger.round("review", "phase-spec", { round: 1 }, 1)?.reviewsPath).toBe(
+        sealed.path,
+      );
+      // (2) the ruling sidecar rides the FINAL's stem — never the draft's
+      const sidecar = CarrierRulings.pathFor(sealed.path);
+      expect(path.basename(sidecar)).toBe("phase-spec-review-1.c1.rulings.json");
+      writeFileSync(
+        sidecar,
+        JSON.stringify({
+          carrier: path.basename(sealed.path),
+          rulings: [{ finding: "F1", ruling: "ACCEPTED" }],
+        }),
+        "utf8",
+      );
+      // (3) the round context — INPUT_REVIEWS / INPUT_RULINGS
+      const runner = new SilentRunner();
+      await runFixFrame(f, runner);
+      const prompt = promptOf(runner);
+      expect(prompt).toContain(`- \`INPUT_REVIEWS\`: ${relOf(f, sealed.path)}`);
+      expect(prompt).toContain(`- \`INPUT_RULINGS\`: ${relOf(f, sidecar)}`);
+      // (4) the resume command — the crash record's `next:` names the same carrier
+      await runFixFrame(f, new FailingRunner());
+      const frame = fixFrameOf(specPathOf(f));
+      const crash = f.scene.ledger.readCrash(f.scene.ledger.naming().crashName(frame));
+      expect(crash?.next).toContain(`--reviews ${sealed.path}`);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("falls back to the draft family name for a record that names no carrier (legacy row)", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // the legacy shape: the carrier sits at the family name, the record names none
+      const draftPath = path.join(f.scene.workspace.path, REQUEST_CARRIER);
+      writeFileSync(
+        draftPath,
+        JSON.stringify({
+          status: "CHANGES_REQUESTED",
+          findings: [{ id: "F1", severity: "blocker", summary: "legacy" }],
+        }),
+        "utf8",
+      );
+      f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1 });
+      expect(f.scene.ledger.round("review", "phase-spec", { round: 1 }, 1)?.reviewsPath).toBe(
+        draftPath,
+      );
+      const runner = new SilentRunner();
+      await runFixFrame(f, runner);
+      expect(promptOf(runner)).toContain(`- \`INPUT_REVIEWS\`: ${relOf(f, draftPath)}`);
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
+  for (const [label, body] of BAD_SIDECARS) {
+    it(`refuses ${label} before the child is spawned`, async () => {
+      const f = fixture(planDoc([[1, []]]));
+      try {
+        const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
+        writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
+        writeFileSync(
+          CarrierRulings.pathFor(carrier),
+          typeof body === "string" ? body : JSON.stringify(body),
+          "utf8",
+        );
+        const runner = new SilentRunner();
+        const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+        const outcome = await runFix(f, fixFrameOf(specPath), carrier, runner);
+        expect(outcome.status).toBe("BLOCKED");
+        expect(runner.calls).toHaveLength(0);
+        expect(f.io.stderrText).toContain("CDD_BLOCKED");
+        expect(f.io.stderrText).toContain("rulings sidecar");
+        expect(gradesOf(outcome)).toEqual(["hard"]);
+      } finally {
+        f.cleanup();
+      }
+    });
+  }
+
+  it("names the sidecar in the fix round context when one conforms", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
+      writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
+      const sidecar = CarrierRulings.pathFor(carrier);
+      writeFileSync(sidecar, JSON.stringify(LEGAL_SIDECAR), "utf8");
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      await runFix(f, fixFrameOf(specPath), carrier, runner);
+      expect(runner.calls).toHaveLength(1);
+      const rel = path.relative(f.scene.workspace.root.repoRoot, sidecar);
+      expect(promptOf(runner)).toContain(`- \`INPUT_RULINGS\`: ${rel}`);
+      expect(promptOf(runner)).toContain("- `INPUT_REVIEWS`: ");
+      // The cell carries the ruling BODY too (§2.5 AC: the prompt's text matches
+      // the sidecar) — the path alone would leave the child to re-open the file.
+      expect(promptOf(runner)).toContain(LEGAL_SIDECAR.rulings[0]?.ruling ?? "");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("renders one verbatim body line per ruling of the sidecar", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
+      writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
+      const sidecar = CarrierRulings.pathFor(carrier);
+      const rulings = [
+        { finding: "F1", ruling: "ACCEPTED — the guard lands in W2" },
+        { finding: "F4", ruling: "REJECTED as stated · wording only" },
+      ];
+      writeFileSync(sidecar, JSON.stringify({ carrier: CARRIER_NAME, rulings }), "utf8");
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      await runFix(f, fixFrameOf(specPath), carrier, runner);
+      expect(runner.calls).toHaveLength(1);
+      const prompt = promptOf(runner);
+      const rel = path.relative(f.scene.workspace.root.repoRoot, sidecar);
+      for (const ruling of rulings) {
+        expect(prompt).toContain(`\`${ruling.finding}\` — ${ruling.ruling}`);
+      }
+      // The body rides BELOW the path line — the cell reads path then verdicts.
+      expect(prompt.indexOf(rulings[1]?.ruling ?? "")).toBeGreaterThan(prompt.indexOf(rel));
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("leaves the fix round context without the line when no sidecar exists", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
+      writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      await runFix(f, fixFrameOf(specPath), carrier, runner);
+      expect(runner.calls).toHaveLength(1);
+      expect(promptOf(runner)).not.toContain("INPUT_RULINGS");
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P31 T5 — the seal cycle (design spec §2.4): the preflight opens THIS round's own
+// two names, every terminal closes them again, and the round's INPUT carriers are
+// never opened. The success leg (bookkeep → persist → seal) is pinned at the
+// composition root; the pins here are the faces this file owns.
+// ---------------------------------------------------------------------------
+
+/** The permission bits of one path (group/other/sticky bits are noise). */
+const modeOf = (target: string): number => statSync(target).mode & 0o777;
+
+/** A child stand-in that reports the permission bits of a carrier at the spawn
+ *  instant — the scope pin's observation point (the window is open, the input must
+ *  still be read-only). */
+class ModeProbeRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+  readonly #probes: readonly string[];
+  readonly #seen: number[];
+
+  constructor(probes: readonly string[], seen: number[]) {
+    this.#probes = probes;
+    this.#seen = seen;
+  }
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    for (const probe of this.#probes) this.#seen.push(modeOf(probe));
+    return { code: 0, stdout: "", stderr: "", termination: null };
+  }
+}
+
+describe("P31 T5 — the seal cycle: every terminal closes the round's own window", () => {
+  /** The fix round's own draft name of the fixture's spec line. */
+  const FIX_DRAFT = "phase-spec-fix-1.json";
+
+  /** Plant the round's own draft, writable — a previous attempt's leftover. */
+  const plantWritableDraft = (f: Fixture): string => {
+    const draft = path.join(f.scene.workspace.path, FIX_DRAFT);
+    writeFileSync(draft, JSON.stringify({ status: "APPROVED", artifacts: {} }), "utf8");
+    expect(modeOf(draft)).toBe(0o644);
+    return draft;
+  };
+
+  it("a pre-spawn gate refusal re-seals the round's own draft", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const draft = plantWritableDraft(f);
+      // The requesting carrier + a sidecar the strict schema refuses: the P31 T2 gate
+      // stops the round before the child exists.
+      const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
+      writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
+      writeFileSync(CarrierRulings.pathFor(carrier), "{ not json", "utf8");
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const outcome = await runFix(f, fixFrameOf(specPath), carrier, runner);
+      expect(outcome.status).toBe("BLOCKED");
+      expect(runner.calls).toHaveLength(0);
+      // The window the preflight opened is closed by the refusal itself.
+      expect(modeOf(draft)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("a child death (#reject) seals the draft the child left behind", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const runner = new ReviewDraftRunner([{ severity: "blocker", lens: "spec", summary: "x" }]);
+      // The child dies AFTER writing a valid draft — the rejection face, not promotion.
+      const dying: ChildRunner = {
+        run: async (run) => {
+          await runner.run(run);
+          return { code: 1, stdout: "", stderr: "", termination: null };
+        },
+      };
+      const { outcome } = await dispatchFrame(f, reviewFrame, dying);
+      expect(outcome.status).toBe("BLOCKED");
+      const draft = path.join(f.scene.workspace.path, "tasks-1-review-1.json");
+      expect(modeOf(draft)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("the `--recover` abort fold seals the killed round's draft", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // The killed round's identity: a dead holder naming a REVIEW cycle 2.
+      plantStale(f, staleRecord({ phase: "review", cycle: 2 }));
+      const draft = path.join(f.scene.workspace.path, "tasks-1-review-2.json");
+      writeFileSync(draft, JSON.stringify({ findings: [] }), "utf8");
+      expect(await lifecycleOf(f).foldAbort()).toBe(true);
+      // The record's OWN identity seals the draft the dead child left writable.
+      expect(modeOf(draft)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("a losing acquire race (HoldingError) re-seals the window the preflight opened", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const draft = path.join(f.scene.workspace.path, "tasks-1-review-1.json");
+      writeFileSync(draft, JSON.stringify({ findings: [] }), "utf8");
+      expect(modeOf(draft)).toBe(0o644);
+      // The gate→acquire race: a sibling dispatch holds the tree, so `acquire` refuses
+      // with `HoldingError` AFTER the preflight half opened this round's own names.
+      plantStale(f, staleRecord({ pid: 1 }));
+      const holding = new InFlight(f.scene.workspace.root, f.scene.workspace.slug, {
+        live: async () => true,
+      });
+      const lifecycle = new CliLifecycle({
+        scene: f.scene,
+        io: f.io,
+        sync: new SilentRunner(),
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        inflight: holding,
+      });
+      await expect(lifecycle.step()(reviewFrame)).rejects.toBeInstanceOf(HoldingError);
+      // The refused dispatch leaves no writable carrier behind.
+      expect(modeOf(draft)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("leaves the round's INPUT carrier sealed for the whole dispatch (the window is two names)", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const seeded = f.scene.ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        {
+          status: "CHANGES_REQUESTED",
+          findings: [{ id: "F1", severity: "blocker", lens: "scope", summary: "the guard" }],
+        },
+      );
+      f.scene.ledger.recordRound("phase-spec", {
+        op: "review",
+        cycle: 1,
+        carrierPath: seeded.path,
+        carrierDigest: seeded.digest,
+      });
+      expect(modeOf(seeded.path)).toBe(0o444);
+      const seen: number[] = [];
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const probe = new ModeProbeRunner([seeded.path], seen);
+      const lifecycle = new CliLifecycle({
+        scene: f.scene,
+        io: f.io,
+        sync: probe,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        reviews: seeded.path,
+      });
+      await lifecycle.step()(fixFrameOf(specPath));
+      expect(probe.calls).toHaveLength(1);
+      // Visible to the child AND after the round: an input carrier is never reopened.
+      expect(seen).toEqual([0o444]);
+      expect(modeOf(seeded.path)).toBe(0o444);
     } finally {
       f.cleanup();
     }

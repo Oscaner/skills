@@ -21,6 +21,7 @@
 import { readFileSync } from "node:fs";
 import { PlanDocType } from "../contract/doc.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
+import { CarrierSeal } from "../infra/carrier-seal.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
 import type { TaskGraph } from "./graph.ts";
 import {
@@ -31,7 +32,7 @@ import {
   type RoundFinding,
   type RoundStatus,
   type RoundVerdict,
-  type RoundViolation,
+  RoundViolation,
   type Termination,
 } from "./ledger.ts";
 import type { DocClassVerdict, NextHop, Route } from "./next.ts";
@@ -69,6 +70,13 @@ export const EMPTY_RUN_STATE: RunState = {
   frontier: () => [],
   markDone: () => undefined,
 };
+
+/** The P31 §2.7 write-back observation — the round could not tell whether it touched
+ *  the reviewed document (no dispatch baseline, or git unreadable). The bind keeps
+ *  today's behaviour and this entry records the blindness; it is SOFT, so it never
+ *  flips the verdict or blocks the next dispatch. */
+const WRITE_BACK_UNMEASURED =
+  "the reviewed-revision write-back could not measure whether this round touched the document (no dispatch baseline or an unreadable repository) — the current bytes were bound";
 
 /** The audit target of one dispatch step — what the round audits. */
 export type AuditTarget =
@@ -233,6 +241,13 @@ export interface DispatchOutcome {
    *  carrying a verdict actually ran, so the bookkeep never synthesizes a carrier for
    *  it (a production round that wrote no draft is booked with a null carrier path). */
   verdict?: RoundVerdict;
+  /** Whether this round touched the document its write-back binds (P31 §2.7) — the
+   *  `dispatchBase..HEAD` path set's judgment. Three states plus the unmeasured one:
+   *  `true` the round's commits touched it, `false` a READABLE range touched it not at
+   *  all, `null` the range could not be read (no dispatch baseline / git unreadable),
+   *  `undefined` never measured (hermetic / injected dispatchers). `false` and `null`
+   *  never collapse: only `false` may skip the bind. */
+  touchedDoc?: boolean | null;
   /** The round's GRADED violations — hard entries failed the round, soft entries are
    *  bookkeeping only (design spec §3.3). Recorded verbatim on the round's record. */
   violations?: readonly RoundViolation[];
@@ -662,11 +677,12 @@ export class Lifecycle {
 
   /** Bookkeeping — persist the round's handoff carrier and record the round. The
    *  persisted carrier is either the dispatch's materialized form (the production
-   *  read-back reconstruct — outcome.carrier, full-replace at the SAME path, so the
-   *  child's draft becomes the finalized carrier — the two-state single file, the engine is the single
-   *  author) or — on the INJECTED face alone (an outcome carrying no verdict) — the
-   *  engine-built fallback from the outcome fields. A production round that wrote no
-   *  carrier is booked with `carrierPath: null` and no file at the handoff path: the
+   *  read-back reconstruct — outcome.carrier) or — on the INJECTED face alone (an
+   *  outcome carrying no verdict) — the engine-built fallback from the outcome fields.
+   *  Either way it lands as the FINAL carrier beside the child's draft, never over it
+   *  (P31 §2.3: the draft keeps the child's bytes, the final carries the engine's
+   *  materialization, and the record names both paths). A production round that wrote
+   *  no carrier is booked with `carrierPath: null` and no file at either name: the
    *  completion criterion owns the absence (§3.3), and a re-dispatch's draft read must
    *  see the child's own draft, never an engine synthesis of it. A failure round
    *  WITHOUT a carrier leaves the child's draft untouched (no-overwrite on failure) but
@@ -676,6 +692,8 @@ export class Lifecycle {
   #bookkeep(frame: OpenFrame, outcome: DispatchOutcome): number {
     const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
     let carrierPath: string | null = null;
+    let carrierDigest: string | null = null;
+    let draftPath: string | null = null;
     if (outcome.carrier !== undefined || (outcome.verdict === undefined && !blocked)) {
       const op = this.#opOf(frame.phase);
       // T2 — the engine-built fallback rides the FRAME's op-derived plane (never the
@@ -699,12 +717,34 @@ export class Lifecycle {
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
       if (plane === "work" && carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
-      carrierPath = this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
+      // P31 §2.2/§2.3 — the persist hands the FINAL carrier path, the draft path it
+      // landed beside and the payload digest, so the round record can name both
+      // artifacts and replay the comparison on every later read of this carrier.
+      const persisted = this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
+      carrierPath = persisted.path;
+      carrierDigest = persisted.digest;
+      draftPath = persisted.draftPath;
+    } else {
+      // P31 T5 §2.4 — a round that books NO carrier still owns its two names: the
+      // draft the child may have written before the round failed must not stay
+      // writable. The persistence seals its own pair above; this is the failure
+      // face's leg (the lifecycle's terminals seal too — one invariant, two entry
+      // points, so an injected dispatcher can never leave the window open).
+      this.#sealRoundCarriers(frame);
     }
     // The recorded CYCLE is the frame's own round — its identity (fix-K ⟷ review-K ·
     // D28): a skipped cycle records its own number, never a flattened ordinal. The
     // attempt was allocated once by the frame builder and rides both the record and
     // the round log's name.
+    //
+    // P31 §2.7 — the write-back's three states become a graded entry HERE, before the
+    // record is written: an UNMEASURABLE range (`null`) keeps today's bind and books
+    // one soft observation (never a verdict flip); `true` / `false` / unmeasured ride
+    // the write-back gate below.
+    const violations: RoundViolation[] = [
+      ...(outcome.violations ?? []),
+      ...(outcome.touchedDoc === null ? [RoundViolation.soft(WRITE_BACK_UNMEASURED)] : []),
+    ];
     const record = this.#ledger.recordRound(
       frame.key,
       {
@@ -719,8 +759,10 @@ export class Lifecycle {
           treeClean: outcome.treeClean ?? true,
           targetAction: !blocked,
         },
-        violations: outcome.violations ?? [],
+        violations,
         carrierPath,
+        carrierDigest,
+        draftPath,
       },
       frame.type,
     );
@@ -737,9 +779,17 @@ export class Lifecycle {
     // real run records nothing while the preview still states the brief leg. The
     // record methods keep their own defensive narrowing; an unreadable input records
     // nothing (present facts only).
-    const leg = record.verdict.targetAction
-      ? ReviewedIdentity.legOf(frame.phase, frame.target.kind)
-      : null;
+    //
+    // P31 §2.7 — the bind is conditional on the round's OWN bytes: a READABLE range
+    // that touched the document not at all (`false`) keeps the OLD binding, so the
+    // existing drift / reopen face pushes the line back to review instead of silently
+    // closing it on bytes the round never delivered. `true`, `null` (unmeasurable —
+    // its soft entry is booked above) and `undefined` (hermetic / injected dispatchers)
+    // keep today's bind.
+    const leg =
+      record.verdict.targetAction && outcome.touchedDoc !== false
+        ? ReviewedIdentity.legOf(frame.phase, frame.target.kind)
+        : null;
     if (leg !== null) {
       switch (leg) {
         case "doc":
@@ -849,6 +899,16 @@ export class Lifecycle {
     return phase === "branch-review" ? "review" : phase;
   }
 
+  /** P31 §2.4 — seal one round's OWN carrier names (its draft and its final). The
+   *  derivation is the same pair the lifecycle's preflight opens; a round-less family
+   *  (implement) resolves both to one path, so the seal is idempotent by construction. */
+  #sealRoundCarriers(frame: OpenFrame): void {
+    const op = this.#opOf(frame.phase);
+    const draftName = this.#ledger.handoffName(op, frame.type, frame.params);
+    CarrierSeal.seal(this.#ledger.handoffPath(op, frame.type, frame.params));
+    CarrierSeal.seal(this.#ledger.naming().finalPath(draftName, frame.params.round));
+  }
+
   // -------------------------------------------------------------------------
   // next routing + the capsule interaction
   // -------------------------------------------------------------------------
@@ -954,13 +1014,16 @@ export class Lifecycle {
     const naming = this.#ledger.naming();
     // The failure face's handoff is the crash record — the engine's own postmortem
     // artifact, its existence the emission condition; the success face keeps the
-    // round's handoff carrier path. The name derives from the frame through the ONE
-    // naming source (`RoundNaming`), the same name the lifecycle wrote it under.
+    // round's handoff carrier path — the FINAL carrier the round wrote (P31 §2.3),
+    // resolved through the ledger's ONE read-name rule (the draft's family spelling is
+    // the fallback, never the cell's own derivation). The crash name derives from the
+    // frame through the ONE naming source (`RoundNaming`), the same name the lifecycle
+    // wrote it under.
     const crash = failure ? this.#ledger.readCrash(naming.crashName(frame)) : null;
     const handoff =
       crash !== null
         ? naming.crashPath(frame)
-        : this.#ledger.handoffPath(op, frame.type, frame.params);
+        : this.#ledger.resolveHandoffPath(op, frame.type, frame.params);
     return this.#capsule.emit(outcome.status, handoff, hop, crash !== null, summary);
   }
 

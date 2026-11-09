@@ -11,7 +11,7 @@
 //   · workspace — the root/workspace pair + the slug rule + the JSON read/write.
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -232,16 +232,17 @@ describe("git — the single git seam over a real temp repo", () => {
     }
   });
 
-  it("exposes exactly the four read seams — topLevel + isClean + head + commitsSince, the write seams retired (§2.1)", () => {
+  it("exposes exactly the five read seams — topLevel + isClean + head + commitsSince + pathsSince, the write seams retired (§2.1)", () => {
     // The GitClient is the engine's git READ adapter: repo-root location (topLevel),
-    // working-tree cleanliness (isClean), and the crash record's two postmortem facts
-    // (head — the dispatch baseline; commitsSince — what a crashed child committed).
+    // working-tree cleanliness (isClean), the crash record's two postmortem facts
+    // (head — the dispatch baseline; commitsSince — what a crashed child committed)
+    // and the write-back's touched-paths fact (pathsSince — P31 §2.7).
     // The retired WRITE seams (addAll / commit) must not survive on the prototype —
     // the engine never writes a commit; it judges and records the live tree.
     const methods = Object.getOwnPropertyNames(GitClient.prototype).filter(
       (name) => name !== "constructor",
     );
-    expect(methods.sort()).toEqual(["commitsSince", "head", "isClean", "topLevel"]);
+    expect(methods.sort()).toEqual(["commitsSince", "head", "isClean", "pathsSince", "topLevel"]);
   });
 
   it("reads the dispatch baseline (head) and the commits after it (commitsSince)", async () => {
@@ -270,6 +271,58 @@ describe("git — the single git seam over a real temp repo", () => {
       expect(since[0]).toBe(`${await git.head(dir)} child work`);
       // An absent base yields no range judgment (fail-open).
       expect(await git.commitsSince(dir, null)).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads the paths the commits after the baseline touched, and keeps `null` apart from `[]`", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "infra-git-paths-"));
+    try {
+      const gitRun = (args: readonly string[]): void => {
+        execFileSync("git", [...args], { cwd: dir });
+      };
+      gitRun(["init", "-q"]);
+      gitRun(["config", "user.email", "tester@example.dev"]);
+      gitRun(["config", "user.name", "Tester"]);
+      mkdirSync(path.join(dir, "docs"), { recursive: true });
+      writeFileSync(path.join(dir, "docs", "x.md"), "x\n");
+      writeFileSync(path.join(dir, "docs", "y.md"), "y\n");
+      gitRun(["add", "-A"]);
+      gitRun(["commit", "-q", "-m", "base"]);
+      const git = new GitClient();
+      const base = await git.head(dir);
+      expect(base).not.toBeNull();
+      // A readable range with no commit after it is the EMPTY LIST — a fact, not an
+      // unknown.
+      expect(await git.pathsSince(dir, base)).toEqual([]);
+
+      writeFileSync(path.join(dir, "docs", "x.md"), "x2\n");
+      gitRun(["add", "-A"]);
+      gitRun(["commit", "-q", "-m", "touch x"]);
+      const touchedX = await git.pathsSince(dir, base);
+      expect(touchedX).toContain("docs/x.md");
+      expect(touchedX).not.toContain("docs/y.md");
+
+      writeFileSync(path.join(dir, "docs", "y.md"), "y2\n");
+      gitRun(["add", "-A"]);
+      gitRun(["commit", "-q", "-m", "touch y"]);
+      // The set accumulates over the whole range and dedupes (x.md is touched once).
+      const touchedBoth = await git.pathsSince(dir, base);
+      expect(touchedBoth?.filter((entry) => entry === "docs/x.md")).toHaveLength(1);
+      expect(touchedBoth).toContain("docs/y.md");
+
+      // No baseline is NOT an empty range: `null`, the unmeasurable fact.
+      expect(await git.pathsSince(dir, null)).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads `null` (never `[]`) outside a git repo — the two facts stay distinct", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "infra-git-paths-nogit-"));
+    try {
+      expect(await new GitClient().pathsSince(dir, "0000000")).toBeNull();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

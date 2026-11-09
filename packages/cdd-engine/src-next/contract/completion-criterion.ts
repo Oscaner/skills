@@ -23,9 +23,9 @@
 // Module-level exports are types / the declared registry / the class — zero
 // behavior-carrying bare functions.
 
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import type { GitClient } from "../infra/git.ts";
+import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
 import {
   type OpType,
   type ProgressRow,
@@ -330,20 +330,16 @@ export interface DispositionCounts {
  * answers from the carrier, never from the diff.
  */
 export class FixDispositions implements CompletionCriterion {
-  /** The requesting carrier's path — the completed review record of the SAME key (the
-   *  row's records are already the key's) and the SAME cycle as the fix round; a
-   *  legacy record without `carrierPath` falls back to the route's `--reviews` path. */
+  /** The requesting carrier's path — the LATEST attempt of the same-cycle review of the
+   *  SAME key (the row's records are already the key's), the record whose digest the
+   *  checked read compares against; a legacy record without `carrierPath` falls back to
+   *  the route's `--reviews` path. */
   static requesterPathOf(
     records: readonly RoundRecord[],
     cycle: number,
     reviewsPath: string | null,
   ): string | null {
-    for (const record of records) {
-      if (record.op !== "review" || record.cycle !== cycle) continue;
-      if (!record.verdict.targetAction) continue;
-      return record.carrierPath ?? reviewsPath;
-    }
-    return reviewsPath;
+    return FixDispositions.#requesterOf(records, cycle)?.carrierPath ?? reviewsPath;
   }
 
   /** Read the requesting carrier's input set (the findings, deduped by disposition
@@ -354,20 +350,35 @@ export class FixDispositions implements CompletionCriterion {
    *  Every path resolves against `repoRoot`, never `process.cwd()`: the engine runs
    *  from a subdirectory too, `--reviews` arrives repoRoot-relative and a record's
    *  `carrierPath` arrives absolute — both must land on the one basis (`RepoRoot`'s
-   *  rule). The reported `path` is the resolved one, so a failure names a real file. */
+   *  rule). The reported `path` is the resolved one, so a failure names a real file.
+   *
+   *  P31 §2.2 — the read is the ONE checked carrier read (`CarrierIntegrity.read`):
+   *  the requesting round's recorded digest decides ok / mismatch, so a tampered
+   *  input throws instead of being judged as if the round had written those bytes. */
   static requesterInputOf(
     records: readonly RoundRecord[],
     cycle: number,
     reviewsPath: string | null,
     repoRoot: string,
   ): RequesterRead {
-    const declared = FixDispositions.requesterPathOf(records, cycle, reviewsPath);
+    const requester = FixDispositions.#requesterOf(records, cycle);
+    const declared = requester?.carrierPath ?? reviewsPath;
     if (declared === null) return { kind: "unrecorded" };
     const target = path.resolve(repoRoot, declared);
     let carrier: unknown;
     try {
-      carrier = JSON.parse(readFileSync(target, "utf8")) as unknown;
-    } catch {
+      // P31 §2.2 — the input carrier is read through the ONE checked seam: the
+      // requesting review record's digest when it declared the path, no comparison on
+      // the legacy `--reviews` fallback. A mismatch is NOT an `unreadable` input (that
+      // would silently judge the tampered bytes): the error propagates and the CLI's
+      // blocked channel names it.
+      const bytes = CarrierIntegrity.read(target, FixDispositions.#requesterDigestOf(requester));
+      if (bytes === null) {
+        return { kind: "unreadable", path: target, detail: "the file is absent or not JSON" };
+      }
+      carrier = JSON.parse(bytes) as unknown;
+    } catch (raw) {
+      if (raw instanceof CarrierMismatchError) throw raw;
       return { kind: "unreadable", path: target, detail: "the file is absent or not JSON" };
     }
     const findings = (carrier as { findings?: unknown } | null)?.findings;
@@ -387,6 +398,30 @@ export class FixDispositions implements CompletionCriterion {
       };
     }
     return { kind: "read", path: target, findings: set.findings };
+  }
+
+  /** THE requesting record — the LATEST attempt of the same-cycle review (a re-dispatch
+   *  supersedes its predecessor, the same rule the ledger's checked carrier read and the
+   *  dispatch gate apply). Path AND digest come from this one record, so a re-dispatched
+   *  review is never read against its predecessor's digest: the gate and this criterion
+   *  cannot disagree about which review round the fix is answering. */
+  static #requesterOf(records: readonly RoundRecord[], cycle: number): RoundRecord | undefined {
+    return records
+      .filter((record) => record.op === "review" && record.cycle === cycle)
+      .reduce<RoundRecord | undefined>(
+        (newest, record) =>
+          newest === undefined || record.attempt >= newest.attempt ? record : newest,
+        undefined,
+      );
+  }
+
+  /** The digest the requesting review round recorded — read off the SAME record
+   *  `requesterPathOf` selects. Null when that record declared no path (the legacy
+   *  `--reviews` fallback carries no digest, so the read performs no comparison) or when
+   *  the record predates the digest column. */
+  static #requesterDigestOf(record: RoundRecord | undefined): string | null {
+    if (record === undefined || record.carrierPath === null) return null;
+    return record.carrierDigest ?? null;
   }
 
   /** The carrier's `dispositions` map — null when the slot is absent or not an

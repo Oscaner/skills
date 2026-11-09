@@ -1,7 +1,9 @@
 // packages/cdd-engine/src-next/contract/__tests__/doc-corpus.guard.test.ts
-// P30 T3 — the in-repo doc corpus as the change-history hardening's real acceptance
-// surface. Every stored spec / plan / overall is judged by the FULL doc contract, and
-// the three lineage legs are read back.
+// P30 T3 / P31 T1 — the in-repo doc corpus as the change-history hardening's real
+// acceptance surface. Every stored spec / plan / overall is judged by the FULL doc
+// contract, and the four lineage legs are read back (the header column set joined in
+// P31 T1 — a corpus-wide zero-tolerance pin, since every stored header already
+// declares the canonical four columns).
 //
 // The gate is a red-able full scan, never a dry-run sample: a document that starts
 // tripping a leg, or trips it harder than it did when the hardening landed, fails here
@@ -10,7 +12,8 @@
 // this round: the Change-history tables of fifteen historical documents declare one
 // column count in the header while older rows carry another, and those documents are
 // frozen history — the spec forbids a migration. The program's OWN charter is not frozen
-// and was repaired in P30's closeout, so its ceiling is now 0.
+// and was repaired in P30's closeout, so its ceiling is now 0. The header column set
+// carries no such history: its ceiling is the empty table (zero findings corpus-wide).
 // A ceiling keeps the gate honest in both directions: repairing a table is green (the
 // count drops below its ceiling), while any NEW drifted doc, any NEW wrapped row and any
 // sharper count is red by name. The assertions stay scoped to the lineage legs — the
@@ -31,19 +34,22 @@ import { DOC_KEYS, type DocKey } from "../project.ts";
 /** The repo root — the doc roots are declared relative to it. */
 const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
 
-/** The lineage legs this gate reads — the two new rules plus the uniqueness leg whose
- *  false red the hardening removes. */
+/** The lineage legs this gate reads — the header column set (P31), the two P30 legs
+ *  plus the uniqueness leg whose false red the hardening removes. */
 const PINNED_KINDS = [
   "change-history-row-shape",
+  "change-history-header-columns",
   "change-history-latest-matches-front-matter",
   "change-history-version-unique",
 ] as const;
 
-/** The program's own two documents — the docs this phase writes, which carry no drift
- *  at all (the hardening's positive acceptance face). */
+/** The program's own documents — the docs the phases write, which carry no drift at all
+ *  (the hardening's positive acceptance face). */
 const PROGRAM_DOCS = [
   "docs/kairos/specs/2026-10-10-engine-doc-tooling-p30-design.md",
   "docs/kairos/plans/2026-10-10-engine-doc-tooling-p30.md",
+  "docs/kairos/specs/2026-10-10-engine-doc-tooling-p31-design.md",
+  "docs/kairos/plans/2026-10-10-engine-doc-tooling-p31.md",
 ] as const;
 
 /** The corpus's pre-existing Change-history drift, measured when the hardening landed —
@@ -71,6 +77,9 @@ const DRIFT_CEILING: Readonly<
     "docs/kairos/plans/2026-10-10-engine-doc-tooling-p22.md": 1,
     "docs/kairos/plans/2026-10-10-engine-doc-tooling-p24.md": 24,
   },
+  // Zero: every stored `## Change history` header declares the same four columns, so
+  // the header column set is a plain full-corpus pin (P31 T1).
+  "change-history-header-columns": {},
   // The two rows the shape ceiling starves out of those lineages: the newest row of
   // each p24 Change-history table is one of its own shape-drifted rows.
   "change-history-latest-matches-front-matter": {
@@ -186,6 +195,7 @@ describe("P30 T3 — the doc corpus's change-history lineage legs", () => {
         rel,
       ).toBe(true);
       expect(CORPUS.findingsOn(rel, "change-history-row-shape"), rel).toEqual([]);
+      expect(CORPUS.findingsOn(rel, "change-history-header-columns"), rel).toEqual([]);
       expect(CORPUS.findingsOn(rel, "change-history-latest-matches-front-matter"), rel).toEqual([]);
       expect(CORPUS.findingsOn(rel, "change-history-version-unique"), rel).toEqual([]);
     }

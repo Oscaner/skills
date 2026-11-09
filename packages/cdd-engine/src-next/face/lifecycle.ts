@@ -16,10 +16,12 @@
 // bare functions.
 
 import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
+import { CarrierSeal } from "../infra/carrier-seal.ts";
 import { GitClient } from "../infra/git.ts";
 import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
 import type { RepoRoot } from "../infra/root.ts";
@@ -28,16 +30,20 @@ import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
+import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
+import { CarrierRulings, type Ruling, type RulingVerdict } from "../session/carrier-rulings.ts";
 import { TargetFaceTable } from "../session/faces.ts";
 import type { CarrierPlane } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
 import {
   type CrashCause,
+  type HandoffParams,
   Ledger,
   type OpType,
   type ProgressRow,
   type RoundIdentity,
+  type RoundRecord,
   RoundRecords,
   type RoundStatus,
   type RoundVerdict,
@@ -302,7 +308,19 @@ export class CliLifecycle {
       },
       "wave",
     );
+    // P31 T5 §2.4 — the killed round's carrier names close with its abort record: the
+    // draft the dead child may have left writable and the final it never materialized.
+    // The identity is the record's OWN (the same op/cycle the abort booked), never a
+    // re-derivation from the current frontier.
+    this.#sealRoundCarriersOf(op, "wave", CliLifecycle.#waveParams(key, cycle, op));
     return true;
+  }
+
+  /** The handoff params of a wave round, replayed from a dead holder's record — the
+   *  same shaping the frame builder applies (the implement family is round-less, the
+   *  review / fix families carry the cycle). */
+  static #waveParams(key: string, cycle: number, op: OpType): HandoffParams {
+    return op === "implement" ? { tasks: key } : { tasks: key, round: cycle };
   }
 
   /** One dispatch — the round's work, the observation facts every record carries (the
@@ -331,6 +349,9 @@ export class CliLifecycle {
       ...drafted,
       dispatchBase: this.#dispatchBase,
       treeClean: await this.#git.isClean(this.#scene.workspace.root.repoRoot),
+      // P31 §2.7 — whether THIS round's commits touched the document its write-back
+      // binds. Measured once, here, from the same baseline the postmortem reads.
+      touchedDoc: await this.#touchedDocOf(carried),
     };
     const judged = await this.#verdictOf(carried, observed);
     // The death faces author their own entry AND emit their own line (`#reject`), so
@@ -349,6 +370,29 @@ export class CliLifecycle {
       verdict: judged.verdict,
       violations: judged.violations,
     };
+  }
+
+  /** The document path the round's write-back would bind (P31 §2.7) — the doc leg's
+   *  target document, the branch leg's plan document. The wave leg binds a brief
+   *  PROJECTION rather than a document, so it does not participate (null). */
+  #reviewedDocTargetOf(frame: OpenFrame): string | null {
+    if (frame.target.kind === "plan" || frame.target.kind === "spec") return frame.target.doc;
+    if (frame.type === "branch") return this.#scene.planPath;
+    return null;
+  }
+
+  /** Whether this round's own commits touched that document — `true` / `false` read off
+   *  the `dispatchBase..HEAD` path set, `null` when the range cannot be read (no
+   *  baseline / unreadable repo), `undefined` when the leg binds no document. The four
+   *  states stay distinct all the way to the bookkeep: only `false` may skip the bind,
+   *  and `null` books its own soft observation. */
+  async #touchedDocOf(frame: OpenFrame): Promise<boolean | null | undefined> {
+    const target = this.#reviewedDocTargetOf(frame);
+    if (target === null) return undefined;
+    const repoRoot = this.#scene.workspace.root.repoRoot;
+    const touched = await this.#git.pathsSince(repoRoot, this.#dispatchBase);
+    if (touched === null) return null;
+    return touched.includes(path.relative(repoRoot, path.resolve(repoRoot, target)));
   }
 
   /** The round's concluded status under its verdict — a done round keeps its handoff
@@ -595,6 +639,34 @@ export class CliLifecycle {
       );
       return { status: "BLOCKED" };
     }
+    // P31 T5 §2.4 — the preflight half of the seal cycle: the workspace's ORPHAN
+    // carriers first (a process killed outside the engine leaves a writable carrier
+    // behind), then this round's OWN two names become writable — its draft for the
+    // child, its final for the materialization. The scope is the round's own paths,
+    // never the directory or the slug: an input carrier of an earlier round (the fix
+    // leg's `--reviews`) stays 0o444 for the whole dispatch.
+    this.#openRoundCarriers(frame);
+    // P31 T3 — the carrier-integrity gate: the fix round's requesting carrier is
+    // compared against the digest its round recorded BEFORE the in-flight record and
+    // the child, so a tampered input never reaches a child (the read-back and the CLI
+    // catch are the fallbacks, never the gate). It runs BEFORE the ruling gate: the
+    // integrity diagnostic is the fact, and a sidecar judged against tampered bytes
+    // would name a ruling reason for a carrier whose bytes simply changed.
+    const carrierRefusal = this.#carrierRefusal(frame);
+    if (carrierRefusal !== null) {
+      this.#sealRoundCarriers(frame);
+      this.#blocked(carrierRefusal, false);
+      return { status: "BLOCKED", violations: [RoundViolation.hard(carrierRefusal)] };
+    }
+    // P31 T2 — the ruling sidecar gate: a sidecar the strict schema refuses stops the
+    // round HERE, before the in-flight record is acquired and before any child exists
+    // (a written-but-invisible ruling is the defect this gate removes).
+    const rulingsRefusal = this.#rulingsRefusal(frame);
+    if (rulingsRefusal !== null) {
+      this.#sealRoundCarriers(frame);
+      this.#blocked(rulingsRefusal, false);
+      return { status: "BLOCKED", violations: [RoundViolation.hard(rulingsRefusal)] };
+    }
     const prompt = this.#template.render(this.#valuesOf(frame));
     const row = HOSTS[host as HostId];
     const cliName = row.cli;
@@ -606,7 +678,16 @@ export class CliLifecycle {
     // A sibling dispatch that won the lock in between makes `acquire` throw
     // `HoldingError` (carrying the holder's facts), which rides the CLI's held BLOCK.
     this.#dispatchBase = await this.#git.head(this.#scene.workspace.root.repoRoot);
-    await this.#inflight.acquire(await this.#recordOf(frame), { recover: this.#recover });
+    try {
+      await this.#inflight.acquire(await this.#recordOf(frame), { recover: this.#recover });
+    } catch (raw) {
+      // P31 T5 §2.4 — the preflight half already opened this round's two names, so
+      // EVERY exit after it closes them, including this one: a losing dispatch (the
+      // gate→acquire race the CLI renders as the held BLOCK) must not leave a
+      // writable carrier behind for the next preflight sweep to recover.
+      this.#sealRoundCarriers(frame);
+      throw raw;
+    }
     // The round's own log file — created BEFORE the spawn (append stream open, zero
     // bytes), so the channel exists from the dispatch's first millisecond. A create
     // failure is a named soft observation and the round continues on the CPU leg
@@ -864,6 +945,11 @@ export class CliLifecycle {
       // carrier; a review writes its own draft (INPUT_REVIEWS === OUTPUT_HANDOFF
       // would be a short-circuit).
       INPUT_REVIEWS: op === "fix" ? this.#rel(this.#reviewsPath(frame) ?? "") : "",
+      // P31 T2 — the ruling sidecar rides the fix input side alone (the review round's
+      // own context has no sidecar yet). The path derives from the requesting carrier
+      // by the ONE `.json` → `.rulings.json` rule; an absent sidecar leaves the slot
+      // empty, so the assembler drops the line entirely.
+      INPUT_RULINGS: this.#rulingsInputOf(frame),
       // The kind-named judged-doc anchors (the semantic retirement of the generic
       // INPUT_DOC): the plan/branch lines carry the plan document (INPUT_PLAN — the
       // doc path on a plan line, the plan path on a branch line, whose review/fix
@@ -952,6 +1038,55 @@ export class CliLifecycle {
   #tailOf(stdout: string): readonly string[] {
     const lines = stdout.split("\n").filter((line) => line.trim() !== "");
     return lines.slice(-STDOUT_TAIL_MAX);
+  }
+
+  // -------------------------------------------------------------------------
+  // the carrier seal cycle (P31 T5 §2.4) — the round's own write window
+  // -------------------------------------------------------------------------
+
+  /** P31 §2.4 preflight — recover the workspace's orphans, then open THIS round's own
+   *  two names. The sweep runs FIRST so a carrier this round is about to own (a stale
+   *  draft of a retried round) is already closed when it is reopened here: the window
+   *  is the two names, never a third file. */
+  #openRoundCarriers(frame: OpenFrame): void {
+    CarrierSeal.sweep(this.#scene.workspace.path, []);
+    for (const name of this.#roundCarrierNames(frame)) CarrierSeal.unseal(name);
+  }
+
+  /** P31 §2.4 terminal — close the round's own write window. Every exit path that ran
+   *  the preflight half calls this (a gate refusal, a death face, an abort fold), so no
+   *  terminal leaves an engine carrier writable. */
+  #sealRoundCarriers(frame: OpenFrame): void {
+    this.#sealRoundCarriersOf(this.#opOf(frame), frame.type, frame.params);
+  }
+
+  /** The seal of one (op, type, params) identity — the frame-shaped callers and the
+   *  dead-holder fold share this ONE derivation. */
+  #sealRoundCarriersOf(op: OpType, type: OpenFrame["type"], params: HandoffParams): void {
+    for (const name of this.#roundCarrierNamesOf(op, type, params)) CarrierSeal.seal(name);
+  }
+
+  /** A frame's own carrier paths — the child's draft (`Ledger#handoffPath`, the family
+   *  table's fill) and the engine's final (`RoundNaming#finalPath`, `.c{N}` suffixed).
+   *  A round-less family (implement) resolves both to the same path — one name, sealed
+   *  once. */
+  #roundCarrierNames(frame: OpenFrame): readonly string[] {
+    return this.#roundCarrierNamesOf(this.#opOf(frame), frame.type, frame.params);
+  }
+
+  /** `#roundCarrierNames` over an identity — the abort fold's entry (it holds a dead
+   *  holder's op/cycle, never a frame). */
+  #roundCarrierNamesOf(
+    op: OpType,
+    type: OpenFrame["type"],
+    params: HandoffParams,
+  ): readonly string[] {
+    const ledger = this.#scene.ledger;
+    const draftName = ledger.handoffName(op, type, params);
+    return [
+      this.#scene.workspace.resolve(draftName),
+      this.#naming.finalPath(draftName, params.round),
+    ];
   }
 
   // -------------------------------------------------------------------------
@@ -1091,11 +1226,22 @@ export class CliLifecycle {
     // carriers the ledger reads back, never a schema-validated draft).
     const status: RoundStatus = schema.conclusionOf(plane, draft) ?? "BLOCKED";
     const carrier = this.#materialize(frame, plane, draft, status);
+    // P31 §2.2 — the disposition summary reads the REQUESTING carrier. A mismatch
+    // found here (the bytes moved inside the round) is a BLOCKED outcome: the read-back
+    // is the FALLBACK behind the pre-dispatch gate, never the gate itself.
+    let summary: string | undefined;
+    try {
+      summary = this.#dispositionsSummary(frame, plane, carrier);
+    } catch (raw) {
+      if (!(raw instanceof CarrierMismatchError)) throw raw;
+      this.#blocked(raw.message, false);
+      return { status: "BLOCKED", violations: [RoundViolation.hard(raw.message)] };
+    }
     return {
       status,
       findings: plane === "judge" ? schema.findingsOf(findings) : undefined,
       carrier,
-      dispositionsSummary: this.#dispositionsSummary(frame, plane, carrier),
+      dispositionsSummary: summary,
     };
   }
 
@@ -1129,8 +1275,12 @@ export class CliLifecycle {
   /** The requesting review carrier's path — the fix round's `--reviews` input, or the
    *  ledger's resolved review handoff path when the route carried none (the ONE
    *  resolution the round context's INPUT_REVIEWS and the disposition summary share).
-   *  A migrated line resolves the carrier that EXISTS — the retired twin's name, never
-   *  the never-minted canonical spelling.
+   *  Four layers, ONE identity (P31 §2.3): the explicit `--reviews` flag → the
+   *  same-cycle review record's own `carrierPath` (the FINAL carrier the round wrote) →
+   *  the ledger's resolved family name (a draft, or a migrated line's retired twin —
+   *  the carrier that EXISTS, never the never-minted canonical spelling) → the legacy
+   *  `null`. Record-present means final-wins: a draft sitting beside the final never
+   *  becomes the judged input.
    *
    *  A same-cycle review record that RECORDED no carrier path, with no carrier at
    *  either spelling on disk, leaves the requester input UNRECORDED: the answer is
@@ -1140,6 +1290,8 @@ export class CliLifecycle {
    *  the missing requesting carrier it truly is. */
   #reviewsPath(frame: OpenFrame): string | null {
     if (this.#reviews !== null) return this.#reviews;
+    const recorded = this.#requesterRecord(frame)?.carrierPath;
+    if (typeof recorded === "string" && recorded !== "") return recorded;
     const resolved = this.#scene.ledger.resolveHandoffPath("review", frame.type, frame.params);
     if (existsSync(resolved)) return resolved;
     const legacy = this.#scene.ledger
@@ -1149,6 +1301,133 @@ export class CliLifecycle {
           record.op === "review" && record.cycle === frame.round && record.carrierPath === null,
       );
     return legacy ? null : resolved;
+  }
+
+  /** The same-cycle review record this fix round answers — its LATEST attempt (a
+   *  re-dispatched review supersedes its predecessor, the same rule the round-read gate
+   *  applies). Null when the line records no review for this cycle. ONE basis for the
+   *  requesting carrier's path and its digest. */
+  #requesterRecord(frame: OpenFrame): RoundRecord | null {
+    const reviewed = this.#scene.ledger
+      .recordsOf(frame.key, frame.type)
+      .filter((record) => record.op === "review" && record.cycle === frame.round);
+    return reviewed.reduce<RoundRecord | null>(
+      (newest, record) => (newest === null || record.attempt >= newest.attempt ? record : newest),
+      null,
+    );
+  }
+
+  /** The fix input's carrier-integrity gate — the `carrier-mismatch` refusal when the
+   *  requesting review carrier no longer digests to the value its round recorded, null
+   *  when the round may proceed (P31 §2.2). Only the fix face reads a carrier that
+   *  already existed before this dispatch (`INPUT_REVIEWS` is its own input), so every
+   *  other phase has no gate to set. A carrier with no recorded digest — a legacy round,
+   *  or a resolved path no record declared — is read as present facts: no comparison,
+   *  no refusal. */
+  #carrierRefusal(frame: OpenFrame): string | null {
+    if (this.#opOf(frame) !== "fix") return null;
+    const carrier = this.#reviewsPath(frame);
+    if (carrier === null) return null;
+    const digest = this.#requesterDigest(frame);
+    if (digest === null) return null;
+    try {
+      CarrierIntegrity.read(path.resolve(this.#repoRootValue().absolute, carrier), digest);
+      return null;
+    } catch (raw) {
+      if (raw instanceof CarrierMismatchError) return raw.message;
+      throw raw;
+    }
+  }
+
+  /** The digest the requesting review round recorded — the same-cycle review record's
+   *  latest attempt (the round `#reviewsPath` resolves). Null when no record carries
+   *  one: the present-facts read. */
+  #requesterDigest(frame: OpenFrame): string | null {
+    return this.#requesterRecord(frame)?.carrierDigest ?? null;
+  }
+
+  /** The fix round's ruling sidecar as the round-context value — the repo-relative
+   *  sidecar path when a conforming sidecar sits beside the requesting carrier, plus the
+   *  ruling bodies it carries, the empty string otherwise (off the fix face, with no
+   *  resolved carrier, and when the sidecar is absent — the assembler drops the empty
+   *  line). The strict judgment is the dispatch gate's `#rulingsRefusal`; this cell
+   *  names the file the round may read AND states the verdicts (§2.5 AC: the rendered
+   *  text matches the sidecar), so a ruling is never merely a path the child must
+   *  re-open to discover. */
+  #rulingsInputOf(frame: OpenFrame): string {
+    if (this.#opOf(frame) !== "fix") return "";
+    const carrier = this.#reviewsPath(frame);
+    if (carrier === null) return "";
+    const verdict = this.#rulingsVerdict(frame, carrier);
+    if (verdict.kind !== "ok") return "";
+    const sidecar = this.#rel(CarrierRulings.pathFor(carrier));
+    return [sidecar, ...verdict.rulings.map((ruling) => this.#rulingLine(ruling))].join("\n");
+  }
+
+  /** One rendering of a recorded ruling — the finding id it answers and the ruling's
+   *  own text VERBATIM (never re-worded: the sidecar is the orchestrator's words, and
+   *  the round context quotes them). Indented under the sidecar path's bullet so the
+   *  cell reads as one input. */
+  #rulingLine(ruling: Ruling): string {
+    return `  - \`${ruling.finding}\` — ${ruling.ruling}`;
+  }
+
+  /** The pre-dispatch ruling gate — the strict sidecar verdict's refusal reason, or null
+   *  when the round may proceed (no fix face, no resolved carrier, an absent sidecar, or
+   *  a conforming one). A refusal is HARD and lands before the in-flight record and the
+   *  child, so a broken ruling set can never be dispatched unnoticed (§2.6).
+   *
+   *  A `carrier-mismatch` from the sidecar's id read is the integrity refusal, never a
+   *  ruling reason: a tampered carrier is not judged (its id set is not a fact this
+   *  round may read), so the diagnostic names the bytes that changed. */
+  #rulingsRefusal(frame: OpenFrame): string | null {
+    if (this.#opOf(frame) !== "fix") return null;
+    const carrier = this.#reviewsPath(frame);
+    if (carrier === null) return null;
+    let verdict: RulingVerdict;
+    try {
+      verdict = this.#rulingsVerdict(frame, carrier);
+    } catch (raw) {
+      if (!(raw instanceof CarrierMismatchError)) throw raw;
+      return raw.message;
+    }
+    return verdict.kind === "invalid" ? `rulings sidecar — ${verdict.reason}` : null;
+  }
+
+  /** The strict sidecar verdict over the requesting carrier's CHECKED id set — one call
+   *  shape for the gate and the round-context cell, so neither can read the ids by a
+   *  path the other does not take. */
+  #rulingsVerdict(frame: OpenFrame, carrier: string): RulingVerdict {
+    return CarrierRulings.verdict(carrier, this.#carrierFindingIds(frame, carrier));
+  }
+
+  /** The requesting carrier's engine-written finding ids (`F1`, `F2` …) — the id set a
+   *  ruling must name. The read is the ONE checked carrier read (`CarrierIntegrity.read`,
+   *  the digest its review round recorded): a tampered carrier is never observed at all —
+   *  the mismatch throws and the integrity refusal wins over any ruling reason. An absent
+   *  or unparseable carrier declares no ids, so any ruling beside it is refused by the
+   *  strict schema instead of being accepted against an empty set. */
+  #carrierFindingIds(frame: OpenFrame, carrier: string): ReadonlySet<string> {
+    const ids = new Set<string>();
+    let carrierJson: unknown;
+    try {
+      const bytes = CarrierIntegrity.read(
+        path.resolve(this.#repoRootValue().absolute, carrier),
+        this.#requesterDigest(frame),
+      );
+      if (bytes === null) return ids;
+      carrierJson = JSON.parse(bytes);
+    } catch (raw) {
+      if (raw instanceof CarrierMismatchError) throw raw;
+      return ids;
+    }
+    const findings = (carrierJson as { findings?: unknown } | null)?.findings;
+    if (!Array.isArray(findings)) return ids;
+    for (const finding of findings) {
+      const id = (finding as { id?: unknown } | null)?.id;
+      if (typeof id === "string") ids.add(id);
+    }
+    return ids;
   }
 
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the
@@ -1200,6 +1479,11 @@ export class CliLifecycle {
     // failure is named, never a silent absence (§3.3). The cause rides the death facts'
     // existing vocabulary (no new enum row).
     const violations: readonly RoundViolation[] = [RoundViolation.hard(reason, cause)];
+    // P31 T5 §2.4 — the death face seals the round's own names: the draft the child may
+    // have written before it died, and the final the round never materialized. A seal
+    // here keeps the failure face from leaving the writable window open for whatever
+    // the late-landing child still tries to write.
+    this.#sealRoundCarriers(frame);
     if (death.termination === null) return { status: "BLOCKED", violations };
     return { status: "TIMEOUT", termination: death.termination, violations };
   }
@@ -1441,7 +1725,13 @@ export class CliLifecycle {
         // the retained `--spec` flag.
         return `cdd review --type ${frame.type} --spec ${this.#docOf(frame)}`;
       case "fix": {
-        const findings = scene.ledger.resolveHandoffPath("review", frame.type, frame.params);
+        // The `--reviews` input is the SAME carrier the fix prompt names (P31 §2.3): one
+        // four-layer resolution, never a second family spelling spliced here. The
+        // fallback fires only when the recorded face resolves to `null` (a legacy record
+        // with no carrier on disk) — the never-null guard keeps a command shape.
+        const findings =
+          this.#reviewsPath(frame) ??
+          scene.ledger.resolveHandoffPath("review", frame.type, frame.params);
         const target =
           frame.target.kind === "plan"
             ? `--plan ${frame.target.doc}`

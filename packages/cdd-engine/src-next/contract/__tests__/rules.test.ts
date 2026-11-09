@@ -33,19 +33,21 @@ const PUBLIC_RULE_IDS = [
 
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-/** The P30 change-history hardening ids — the row-shape and header-newest legs the
- *  lineage family gained (the ledger count above follows this list). */
+/** The P30/P31 change-history hardening ids — the row-shape, header-newest and
+ *  header-column-set legs the lineage family gained (the ledger count above follows
+ *  this list). */
 const HARDENED_RULE_IDS = [
   "change-history-latest-matches-front-matter",
   "change-history-row-shape",
+  "change-history-header-columns",
 ] as const;
 
 describe("RULE_REGISTRY — the declaration surface", () => {
-  it("declares 25 rows: 23 doc-scope + 2 ledger-scope", () => {
+  it("declares 26 rows: 24 doc-scope + 2 ledger-scope", () => {
     const doc = RULE_REGISTRY.filter((declaration) => declaration.scope === "doc");
     const ledger = RULE_REGISTRY.filter((declaration) => declaration.scope === "ledger");
-    expect(RULE_REGISTRY).toHaveLength(25);
-    expect(doc).toHaveLength(23);
+    expect(RULE_REGISTRY).toHaveLength(26);
+    expect(doc).toHaveLength(24);
     expect(ledger).toHaveLength(2);
   });
 

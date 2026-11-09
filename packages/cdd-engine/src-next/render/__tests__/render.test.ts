@@ -27,6 +27,7 @@ const ALL_VALUES: Record<string, string> = {
   WAVE: "4,12",
   INPUT_WAVE_BRIEF: "/ws/tasks-4,12-brief.md",
   INPUT_REVIEWS: "",
+  INPUT_RULINGS: "",
   INPUT_PLAN: "",
   INPUT_SPEC: "",
   INPUT_OVERALL: "",
@@ -849,5 +850,53 @@ describe("IssueBodyRenderer — the aggregate issue body (the P7 render face)", 
         expect(words.localeRow(`${type}.${segment}`), `${type}.${segment}`).not.toBeNull();
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P31 T2 — the fix round's `INPUT_RULINGS` input cell (design spec §2.5)
+// ---------------------------------------------------------------------------
+
+/** The fix round's standing values — the mode asserts on top of them. */
+const FIX_VALUES: Record<string, string> = {
+  ...ALL_VALUES,
+  ROLE: "fix",
+  INPUT_PLAN: "docs/kairos/plans/p.md",
+  INPUT_REVIEWS: "/ws/tasks-1-review-1.json",
+};
+
+describe("P31 T2 — INPUT_RULINGS rides the fix input side alone", () => {
+  it("renders the sidecar line and its rulings body when the fix round carries one", () => {
+    const out = new TemplateAssembler().render({
+      ...FIX_VALUES,
+      INPUT_RULINGS: [
+        "/ws/tasks-1-review-1.rulings.json",
+        "  - `F1` — ACCEPTED, the guard lands in W2",
+        "  - `F2` — REJECTED as stated",
+      ].join("\n"),
+    });
+    expect(out).toContain("- `INPUT_REVIEWS`: /ws/tasks-1-review-1.json");
+    expect(out).toContain("- `INPUT_RULINGS`: /ws/tasks-1-review-1.rulings.json");
+    // The body rides the same bullet, indented below the path (§2.5 AC).
+    expect(out).toContain("  - `F1` — ACCEPTED, the guard lands in W2");
+    expect(out).toContain("  - `F2` — REJECTED as stated");
+    // The rendered position is adjacent to INPUT_REVIEWS — the pair reads as one input.
+    expect(out.indexOf("INPUT_RULINGS")).toBeGreaterThan(out.indexOf("INPUT_REVIEWS"));
+  });
+
+  it("emits no INPUT_RULINGS line on a fix round with no sidecar (the empty slot is dropped)", () => {
+    const out = new TemplateAssembler().render(FIX_VALUES);
+    expect(out).not.toContain("INPUT_RULINGS");
+  });
+
+  it("emits no INPUT_RULINGS line on a review round (the sidecar does not exist yet)", () => {
+    const out = new TemplateAssembler().render({
+      ...ALL_VALUES,
+      ROLE: "review",
+      REVIEW_TYPE: "wave",
+      INPUT_WAVE_BRIEF: "/ws/tasks-1-brief.md",
+      INPUT_RULINGS: "/ws/tasks-1-review-1.rulings.json",
+    });
+    expect(out).not.toContain("INPUT_RULINGS");
   });
 });

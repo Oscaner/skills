@@ -355,3 +355,61 @@ describe("the artifact-stem single source — the report and its log name read O
     ]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// the carrier's two names — draft (the family table's spelling) and final
+// (the same stem, `.c<N>` suffixed) — P31 §2.3
+// ---------------------------------------------------------------------------
+
+describe("RoundNaming — the carrier's FINAL name (the draft never holds the final)", () => {
+  it("swaps the family name's `.json` suffix for `.c<N>.json` — the round is the cycle", () => {
+    expect(NAMING.finalName("tasks-1-review-2.json", 2)).toBe("tasks-1-review-2.c2.json");
+    expect(NAMING.finalName("phase-spec-fix-3.json", 3)).toBe("phase-spec-fix-3.c3.json");
+  });
+
+  it("resolves the final path against the workspace — one derivation, two spellings", () => {
+    expect(NAMING.finalPath("tasks-1-review-2.json", 2)).toBe(
+      inWorkspace("tasks-1-review-2.c2.json"),
+    );
+  });
+
+  it("a round-less name comes back unchanged — never a `.c.json` malformed suffix", () => {
+    // the implement family carries no round token, so a draft/final split has no round
+    // to key on: the family name IS the carrier's one name
+    expect(NAMING.finalName("tasks-1-implement.json", undefined)).toBe("tasks-1-implement.json");
+    expect(NAMING.finalName("tasks-1-implement.json")).toBe("tasks-1-implement.json");
+  });
+
+  it("recognizes the engine's two minted carrier shapes and nothing else", () => {
+    // draft (the family table's spellings) and final (the same, `.c<N>` suffixed)
+    const minted = [
+      "tasks-1-implement.json",
+      "tasks-7,9-review-2.json",
+      "tasks-7,9-review-2.c2.json",
+      "branch-review-3.json",
+      "branch-fix-2.c2.json",
+      "phase-spec-review-1.json",
+      "phase-spec-fix-1.c1.json",
+      "overall-review-2.json",
+      "overall-fix-2.c2.json",
+      "plan-fix-1.c1.json",
+      "single-spec-review-1.json",
+    ];
+    for (const name of minted) expect(RoundNaming.isCarrierName(name)).toBe(true);
+    // every neighbour artifact the workspace also holds is NOT a carrier
+    const neighbours = [
+      "progress.json",
+      "base.json",
+      "tasks-1-test-evidence.json",
+      "branch-test-evidence.json",
+      "tasks-1-review-2.c2.rulings.json",
+      "tasks-1-review-2-report.md",
+      "crash-tasks-1-review-2.json",
+      "tasks-1-brief.md",
+      "notes.json",
+      // implement is the wave-only family — a branch/doc line never mints it
+      "branch-implement.json",
+    ];
+    for (const name of neighbours) expect(RoundNaming.isCarrierName(name)).toBe(false);
+  });
+});

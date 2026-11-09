@@ -9,7 +9,7 @@
 //                  cross-doc-chain · section-scoped-domain ·
 //                  phase-design-spec-is-phase-spec;
 //                 the change-history family — change-history-version-unique ·
-//                  change-history-row-shape ·
+//                  change-history-header-columns · change-history-row-shape ·
 //                  change-history-latest-matches-front-matter ·
 //                  front-matter-version-in-lineage ·
 //                  change-history-row-not-in-other-table · list-marker-not-doubled;
@@ -628,6 +628,38 @@ export class ChangeHistoryRowShapeInvariant extends Invariant {
       );
     }
     return findings;
+  }
+}
+
+/** The DECLARED `## Change history` column set — the header must equal it cell for
+ *  cell (after `trim`). The row-shape leg judges a row against whatever the header
+ *  declares; this declaration is what makes the header itself a judged fact. */
+export const CHANGE_HISTORY_COLUMNS = ["Version", "date", "summary", "author"] as const;
+
+/** change-history-header-columns — the `## Change history` header must BE the declared
+ *  column set: a grown, dropped or renamed column silently redefines what every row
+ *  means, so it is reported once, independently of the row widths (the two legs are
+ *  orthogonal: this one reads the header, `change-history-row-shape` reads the rows
+ *  against that header). An absent section / header judges nothing here. */
+export class ChangeHistoryHeaderColumnsInvariant extends Invariant {
+  readonly name = "change-history-header-columns";
+
+  evaluate(ctx: JudgeContext): Finding[] {
+    const header = this.changeHistory(ctx).headerRow;
+    if (header === null || header.length === 0) return [];
+    const cells = header.map((cell) => cell.trim());
+    const declared = CHANGE_HISTORY_COLUMNS;
+    const conforms =
+      cells.length === declared.length && cells.every((cell, index) => cell === declared[index]);
+    if (conforms) return [];
+    return [
+      this.finding(
+        ctx,
+        "Change history",
+        `the Change-history header reads "${cells.join(" | ")}" against the declared "${declared.join(" | ")}"`,
+        `write the header as | ${declared.join(" | ")} | — the column set is declared, not free-form`,
+      ),
+    ];
   }
 }
 

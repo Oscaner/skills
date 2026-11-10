@@ -780,14 +780,20 @@ export class Lifecycle {
     // record methods keep their own defensive narrowing; an unreadable input records
     // nothing (present facts only).
     //
-    // P31 §2.7 — the bind is conditional on the round's OWN bytes: a READABLE range
-    // that touched the document not at all (`false`) keeps the OLD binding, so the
-    // existing drift / reopen face pushes the line back to review instead of silently
-    // closing it on bytes the round never delivered. `true`, `null` (unmeasurable —
-    // its soft entry is booked above) and `undefined` (hermetic / injected dispatchers)
-    // keep today's bind.
+    // P31 §2.7 — the bind is conditional on the round's OWN bytes, but ONLY where the
+    // phase is expected to produce those bytes (P32 §2.1): a READABLE range that
+    // touched the document not at all (`false`) keeps the OLD binding on a `fix` round,
+    // so the existing drift / reopen face pushes the line back to review instead of
+    // silently closing it on bytes the round never delivered. A `review` /
+    // `branch-review` is not gated: its job is to conclude on bytes it does not write,
+    // and a completed conclusion must bind them or the drift identity never closes.
+    // WHICH phases are gated is the judgment's own cell
+    // (`ReviewedIdentity.gatedByTouchedDoc`), beside the leg decision; `true`, `null`
+    // (unmeasurable — its soft entry is booked above) and `undefined` (hermetic /
+    // injected dispatchers) keep today's bind.
     const leg =
-      record.verdict.targetAction && outcome.touchedDoc !== false
+      record.verdict.targetAction &&
+      (!ReviewedIdentity.gatedByTouchedDoc(frame.phase) || outcome.touchedDoc !== false)
         ? ReviewedIdentity.legOf(frame.phase, frame.target.kind)
         : null;
     if (leg !== null) {

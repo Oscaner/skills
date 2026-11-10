@@ -146,12 +146,50 @@ describe("the judgment's runtime grid — hand-written cells, never derived", ()
   });
 });
 
+/** P32 T1 — the `touchedDoc` gate's phases, HAND-WRITTEN from the specification:
+ *  the gate's reason is whether the phase is EXPECTED to rewrite the document it
+ *  judges, and only `fix` is. A review / branch-review judges bytes it never writes,
+ *  so a claim of "touched nothing" must not void its own conclusion; `implement`
+ *  binds nothing at all. */
+const TOUCHED_DOC_GATED: readonly RoundPhase[] = ["fix"];
+const TOUCHED_DOC_FREE: readonly RoundPhase[] = ["review", "branch-review", "implement"];
+
+describe("P32 T1 — gatedByTouchedDoc is phase-scoped, fix alone", () => {
+  for (const phase of TOUCHED_DOC_GATED) {
+    it(`${phase} is gated by touchedDoc`, () => {
+      expect(ReviewedIdentity.gatedByTouchedDoc(phase)).toBe(true);
+    });
+  }
+
+  for (const phase of TOUCHED_DOC_FREE) {
+    it(`${phase} is NOT gated by touchedDoc`, () => {
+      expect(ReviewedIdentity.gatedByTouchedDoc(phase)).toBe(false);
+    });
+  }
+});
+
+describe("P32 T1 — #bookkeep reads the phase-scoped gate from the judgment, never re-spells it", () => {
+  it("the write-back gate calls ReviewedIdentity.gatedByTouchedDoc", () => {
+    expect(bookkeepBody()).toContain("ReviewedIdentity.gatedByTouchedDoc(");
+  });
+
+  it("no face compares the fix phase against touchedDoc on its own", () => {
+    for (const relative of WRITE_BACK_FACES) {
+      expect(
+        occurrences(read(relative), 'frame.phase === "fix"'),
+        `${relative} re-spells the phase-scoped gate`,
+      ).toBe(0);
+    }
+  });
+});
+
 describe("purity — the judgment reads nothing but (phase, kind)", () => {
   const code = stripComments(read(JUDGMENT_FILE));
 
   it("strips to non-empty code that still holds the judgment (the stripper is not vacuous)", () => {
     expect(code).toContain("class ReviewedIdentity");
     expect(code).toContain("static legOf(");
+    expect(code).toContain("static gatedByTouchedDoc(");
     expect(code).toContain("REVIEWED_WRITE_PHASES");
   });
 

@@ -127,7 +127,7 @@ package.json#oscaner → pnpm run emit → marketplace/source.json
 
 ## 参与贡献
 
-Node 26（`.nvmrc`）与 pnpm 12.16.1（`packageManager`）——若使用 fnm，先执行 `fnm use`。
+Node 26（`.nvmrc`）与 pnpm 12.18.0（`packageManager`）——若使用 fnm，先执行 `fnm use`。
 
 ```bash
 pnpm install

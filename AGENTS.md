@@ -15,7 +15,7 @@ The home of **CDD (continuously-discovered development)** and the vehicle that d
 ## Toolchain
 
 - **Node 26** — `.nvmrc` says `v26` and `.github/actions/setup/action.yml` defaults to `26`. Managed by **fnm**: run `fnm use` before `node`/`pnpm` when `.nvmrc` is present. Never suggest nvm.
-- **pnpm 12.16.1** — pinned by `package.json#packageManager` (corepack honours it); CI installs with `--frozen-lockfile`.
+- **pnpm 12.18.0** — pinned by `package.json#packageManager` (corepack honours it); CI installs with `--frozen-lockfile`.
 
 ## Layout and package boundaries
 

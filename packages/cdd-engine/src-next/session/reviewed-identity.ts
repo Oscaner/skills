@@ -55,4 +55,20 @@ export class ReviewedIdentity {
     if (kind === "branch") return "branch";
     return null;
   }
+
+  /** Whether one binding phase is gated by the round's own-bytes measurement
+   *  (`touchedDoc`) — the second half of this file's one judgment: `legOf` says WHICH
+   *  leg a completed round writes, this says whether that leg is CONDITIONAL.
+   *
+   *  The split's ground is whether the phase is EXPECTED to rewrite the document it
+   *  judges: a `fix` is (so an untouched claim keeps the old binding and the next
+   *  review reports drift), a `review` / `branch-review` is not (its job is to
+   *  conclude on existing bytes, so a completed conclusion binds them — otherwise
+   *  every review leaves no trace and the line is dispatched forever). `implement`
+   *  binds nothing (`legOf` answers null), so its answer never applies.
+   *
+   *  Pure: it reads the phase and nothing else. */
+  static gatedByTouchedDoc(phase: RoundPhase): boolean {
+    return phase === "fix";
+  }
 }

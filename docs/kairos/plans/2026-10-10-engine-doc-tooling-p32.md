@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P32 计划：已审版本写回的相位判别
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-11-10
 slug: 2026-10-10-engine-doc-tooling-p32
 base: develop
@@ -116,3 +116,4 @@ none
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-10 | 初版：两任务（相位分治判定 + 正交 pin / patch changeset 与全门）· Review Focus 六条（fix 侧回归 · branch-review 漏判 · 夹具构造在改写上 · 带 finding · `undefined` 归并 · 路由仍循环） | Claude（kairos:cdd-plan · 2026-11-10） |
+| v0.2 | 2026-11-09 | **closeout 登记（cdd-close）**：两任务五提交全部交付——Task 1 `5b677ec5`（相位分治 + 三组 pin）· Task 2 `71817702`（patch changeset）；两轮 wave review 与分支终审均零 finding，无 fix 轮。计划与实际一致，无回填。`pnpm run validate` exit 0（engine 73/1603）· `session/next.ts` 零 diff | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-09） |

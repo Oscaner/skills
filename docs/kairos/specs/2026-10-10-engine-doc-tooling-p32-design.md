@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P32 设计：已审版本写回的相位判别
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-11-10
 slug: 2026-10-10-engine-doc-tooling-p32
 program: 2026-10-10-engine-doc-tooling
@@ -120,3 +120,4 @@ const leg =
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-10 | 初版：病根三条（条件写回归纳相位无关 · 无界循环机制 · P31 三条 pin 全部构造在「本轮改写文档」的夹具上）· 裁定五条（`gatedByTouchedDoc` 只对 fix 为真 · review 任何完成结论都绑 · branch-review 同判 · 只补正交 pin 不加门 · #458 超时半边另立）· 非目标与验收；grilling Q1–Q4 定案 | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-09） |
 | v0.2 | 2026-11-10 | 评审回填（phase-spec-review-1 F1/F2）：母 overall 的 D83 与 P32 两表行由 working scope 升 grilling settled（D83 记 Q1–Q4 · Phase inventory 的 P32 验收对齐本文的八条 · 执行序 P32 段同改 · Change history v3.48），`parent-version` 随行对齐 v3.48；文件末尾补齐单一换行 | [human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-1 · 2026-11-10） |
+| v0.3 | 2026-11-09 | **closeout 登记（cdd-close）**：P32 全链闭合——两波 W1{1}·W2{2} 各 implement→review，**两轮零 finding**，分支终审 0 finding（5 提交）。交付与 §2 五条裁定逐条对应：`gatedByTouchedDoc` 只对 `fix` 为真 · review 任何完成结论都绑 · branch-review 同判 · 只补正交 pin 不加新门 · #458 超时半边转 #459。三组 pin（核心正交面 / CHANGES_REQUESTED / branch-review）+ P31 四态零回归。`pnpm run validate` exit 0（engine 73/1603）· `session/next.ts` 零 diff（D70）· changeset `cdd-engine` patch | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-09） |

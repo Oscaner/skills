@@ -2143,6 +2143,142 @@ describe("P31 T6 — the write-back binds only bytes the round touched", () => {
 });
 
 // ---------------------------------------------------------------------------
+// P32 T1 — the `touchedDoc` gate is PHASE-SCOPED (design spec §2.1): only `fix` keeps
+// the round's own-bytes condition, because only a fix is expected to rewrite the
+// document it judges. The review family binds whatever bytes it concluded on — even
+// while claiming it touched nothing — otherwise every APPROVED review leaves no trace
+// and the same line is dispatched forever.
+// ---------------------------------------------------------------------------
+
+describe("P32 T1 — a review binds the bytes it judged, whatever it touched", () => {
+  /** The doc path under the ledger's read basis (the P31 T6 fixture's shape). */
+  const docUnder = (repo: string): string => path.join(repo, ".kairos", "cdd", DOC);
+
+  const docOf = (version: string, body: string): string =>
+    `---\ndoc-type: phase-spec\nversion: ${version}\nslug: x-design\n---\n\n## Design\n\n- ${body}\n`;
+
+  const ORIGINAL = docOf("v0.1", "one");
+  const REWRITTEN = docOf("v0.2", "two");
+
+  /** The phase-spec line over a fixture doc written to disk. */
+  const line = (doc: string, dispatch: ReturnType<typeof stub>, ledger: Ledger): Lifecycle =>
+    new Lifecycle({
+      face: targetFaces["phase-spec"],
+      state: EMPTY_RUN_STATE,
+      ledger,
+      dispatch: dispatch.step,
+      target: { kind: "spec", doc },
+    });
+
+  it("core orthogonal face — a bound line, an out-of-round edit, then a `touchedDoc: false` review closes it", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const doc = docUnder(repo);
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, ORIGINAL);
+      // The review NEVER writes: its claim `touchedDoc: false` is the truth of this
+      // fixture, and the bind must still land on the bytes it just judged.
+      const dispatch = stub((frame) => {
+        expect(frame.phase).toBe("review");
+        return { status: "APPROVED", findings: [], touchedDoc: false };
+      });
+      const run = line(doc, dispatch, ledger);
+      const first = await run.advance();
+      expect(first!.frame.phase).toBe("review");
+      expect(ledger.docLineVerdict("phase-spec", doc, "phase-spec")).toBe("same");
+
+      // The edit lands OUTSIDE every round — the round never sees it as its own work.
+      writeFileSync(doc, REWRITTEN);
+      expect(ledger.docLineVerdict("phase-spec", doc, "phase-spec")).toBe("drift");
+      expect(ledger.lineStateAt("phase-spec", "phase-spec", doc)).toBe("reopened");
+
+      const second = await run.advance();
+      expect(second!.frame.phase).toBe("review");
+      const bound = ledger.reviewedDocRevisionOf("phase-spec", "phase-spec")!;
+      expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, REWRITTEN).doc_hash);
+      expect(ledger.docLineVerdict("phase-spec", doc, "phase-spec")).toBe("same");
+      expect(ledger.reviewGate("phase-spec", doc, "phase-spec").kind).toBe("same");
+      expect(ledger.lineStateAt("phase-spec", "phase-spec", doc)).toBe("closed");
+
+      // The unbounded re-dispatch is gone: nothing is offered after the closure.
+      expect(run.peekNext()).toBeNull();
+      expect(await run.advance()).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a CHANGES_REQUESTED review with `touchedDoc: false` still binds, and a fix edit re-drifts", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const doc = docUnder(repo);
+      mkdirSync(path.dirname(doc), { recursive: true });
+      writeFileSync(doc, ORIGINAL);
+      const dispatch = stub((frame) => {
+        if (frame.phase === "review")
+          return { status: "CHANGES_REQUESTED", findings: [finding("blocker")], touchedDoc: false };
+        // The fixture's device, not a claim about a real fix: `false` holds the
+        // review's binding so the re-drift is observable (the fix gate's own
+        // semantics are pinned by P31 T6).
+        writeFileSync(doc, REWRITTEN);
+        return { status: "APPROVED", touchedDoc: false };
+      });
+      const run = line(doc, dispatch, ledger);
+      const reviewStep = await run.advance();
+      expect(reviewStep!.frame.phase).toBe("review");
+      // Today's regression: a judge round claiming "touched nothing" left the line
+      // unbound, so the blocker-carrying conclusion left no identity behind.
+      const bound = ledger.reviewedDocRevisionOf("phase-spec", "phase-spec")!;
+      expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, ORIGINAL).doc_hash);
+      expect(ledger.docLineVerdict("phase-spec", doc, "phase-spec")).toBe("same");
+
+      const fixStep = await run.advance();
+      expect(fixStep!.frame.phase).toBe("fix");
+      // The fix-gated write-back keeps the review's bytes: the fix edit re-drifts and
+      // the P24 fix→review chain is not narrowed.
+      expect(ledger.docLineVerdict("phase-spec", doc, "phase-spec")).toBe("drift");
+      expect(run.peekNext()!.frame.phase).toBe("review");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a `touchedDoc: false` branch-review binds the plan revision it judged and closes the line", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      const content = planDoc([task(1, "none")]);
+      writeFileSync(planPath, content);
+      const dispatch = stub((frame) => {
+        expect(frame.phase).toBe("branch-review");
+        return { status: "APPROVED", findings: [], touchedDoc: false };
+      });
+      const run = new Lifecycle({
+        face: targetFaces.branch,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: dispatch.step,
+        target: { kind: "branch" },
+        planPath,
+      });
+      const step = await run.advance();
+      expect(step!.frame.phase).toBe("branch-review");
+      const recorded = ledger.reviewedRevisionOf("branch");
+      expect(recorded).not.toBeNull();
+      expect(recorded?.kind).toBe("doc-revision");
+      if (recorded?.kind !== "doc-revision") throw new Error("unreachable");
+      expect(recorded.doc_hash).toBe(
+        createHash("sha1").update(new DocBodyProjection().project(content)).digest("hex"),
+      );
+      expect(ledger.reviewGate("branch", planPath, "branch").kind).toBe("same");
+      expect(ledger.lineStateAt("branch", "branch", planPath)).toBe("closed");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // P31 T5 — a round that books NO carrier still closes its own write window
 // (design spec §2.4). The lifecycle's terminals are one entry point; `#bookkeep`'s
 // `carrierPath === null` branch is the failure face's second leg, so an injected

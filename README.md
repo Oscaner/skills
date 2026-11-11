@@ -123,7 +123,7 @@ Architecture and the developer/engine journey are maintained as bilingual, check
 
 ## Contributing
 
-Node 26 (`.nvmrc`) and pnpm 12.16.1 (`packageManager`) — run `fnm use` first if you use fnm.
+Node 26 (`.nvmrc`) and pnpm 12.18.0 (`packageManager`) — run `fnm use` first if you use fnm.
 
 ```bash
 pnpm install

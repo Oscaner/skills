@@ -123,7 +123,7 @@
       "id": "softcap",
       "type": "waiting",
       "label": "软上限",
-      "sublabel": "连续 50 个 blocker 周期",
+      "sublabel": "连续 80 个 blocker 周期",
       "tag": "用户裁定",
       "sources": [
         {
@@ -258,7 +258,7 @@
         "评审的发现决定路由：有任何发现 → fix；零发现 → 立即关闭",
         "fix 为每一条发现给出处置，绝不自撰一份判定",
         "修复后仍有 blocker → 重新评审；仅 warn/nit → 以 REVIEW_FIX 收口，不再重新评审",
-        "连续 50 个 blocker 周期触及软上限：本轮交给用户裁定，而不是无人观察地循环"
+        "连续 80 个 blocker 周期触及软上限：本轮交给用户裁定，而不是无人观察地循环"
       ]
     },
     {

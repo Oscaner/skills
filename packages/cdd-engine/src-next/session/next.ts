@@ -62,7 +62,7 @@ export type Route =
 /** The review-cycle soft cap — the consecutive-S1 run length at which the fix face
  *  defers the next hop to user adjudication (soft by nature: a default suggestion,
  *  never a hard stop — the user / the plan write authority override it). */
-export const REVIEW_CYCLE_CAP = 50;
+export const REVIEW_CYCLE_CAP = 80;
 
 /** The wave-width ceiling (design spec §6) — at most this many tasks per dispatch wave.
  *  Declared once on the contract plane (`contract/wave-width.ts`), so the plan-scope

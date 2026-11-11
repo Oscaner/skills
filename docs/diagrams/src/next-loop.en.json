@@ -123,7 +123,7 @@
       "id": "softcap",
       "type": "waiting",
       "label": "Soft cap",
-      "sublabel": "50 consecutive blocker cycles",
+      "sublabel": "80 consecutive blocker cycles",
       "tag": "the user adjudicates",
       "sources": [
         {
@@ -258,7 +258,7 @@
         "The review's findings decide the route: any finding → fix; zero findings → close now",
         "The fix answers every finding with a disposition — it never authors a verdict of its own",
         "After the fix: a blocker left → re-review; warn/nit only → REVIEW_FIX closure, no re-review",
-        "50 consecutive blocker cycles reaches the soft cap: the run defers to the user instead of looping unseen"
+        "80 consecutive blocker cycles reaches the soft cap: the run defers to the user instead of looping unseen"
       ]
     },
     {

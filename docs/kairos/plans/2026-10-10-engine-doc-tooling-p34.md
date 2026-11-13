@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 计划：轮次产物身份的单射渲染'
 doc-type: plan
-version: v0.13
+version: v0.14
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p34
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p34-design.md` **现行 version v0.13** 所指的面；spec 版本一变，本约束的字面同笔改。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p34-design.md` **现行 version v0.14** 所指的面；spec 版本一变，本约束的字面同笔改。
 - **单射性是唯一不变量**：条件只允许出现在**渲染的省略**上（`attempt === 1` 不拼 `-a{n}`）；坐标本身恒从身份取，任何「满足某条件才拼坐标」的写法都是 §2.1 的反例。
 - **`progress.json` 形状不变**：只停写 `carrierPath` / `draftPath`，不迁移旧值、不加版本标记。
 - **不加运行时守护门**：写一次是构造属性；seal 的既有 unseal→写→seal 循环保留，不加「重写即拒」。
@@ -327,18 +327,19 @@ none
 
 #### Objective
 
-两处过严判据按**事实负载度**分档（同一条判据：不该红的地方不要红），外加一处「第二份手写拼写」的收敛。① 载体坏值：`required` 字段（work 的 `status` / `artifacts`、judge 的 `findings`、finding 的 `severity` / `lens` / `summary`）坏值仍 BLOCKED；非 `required` 的装饰字段（**定义**：`PLANE_SLOTS` 减 `PLANE_REQUIRED`，finding 面同法取 `FINDING` 的 slot 减 required——下列括号只为举例、不是清单：judge 的 `artifacts` / `notes`、work 的 `dispositions`，与 finding 的 `id` / `section` / `line` / `fix` 皆在其中）坏值 drop 该键 + 一条 soft observation；`dispositions` 的成员资格不动、但坏值不被原谅——drop 之后载体里没有这个对象，`FixDispositions#ownRefusal`（`contract/completion-criterion.ts:487`，判定 `:497-500`，经 `dispositionsOf` `:429`）对「缺席或非对象」仍硬拒，拒因从类型不符换成 `declares no dispositions object`，那条 soft observation 必须点出被丢掉的键名——落点是三处真实的缝、四处赋值：`HandoffSchema#check` 返丢弃键集、`#reconstruct` 的 `schema.readBack` required 档门与 `#materialize` 消费它（四处顶层拷贝赋值覆盖三个装饰槽——judge 面 `artifacts` 的三元、`draftNotes`、`dispositions`、`notes`）、`#findingsList` 剝掉嵌套越档键。② `closed-wave-fits-depends-on-layers` 只判**未闭合** wave，闭合面交既有的 `planned-tasks-vs-recorded-tasks`——它读**当前** plan 的 task id 集、只判「已记录而当前 plan 不再携带」一个方向，快照列不接进该规则（那会改变它判的东西，快照属于 append-vs-stall）。③ 同一文件的派发 prompt 契约面（`HandoffSchema#schemaText` :196-203，第 200 行）把证据名以旧拼写渲进每一条 work 面 prompt——改述为「the file named by `OUTPUT_EVIDENCE`」，拼写只留 `RoundNaming` 一处；不动则守卫 (b) 红，且子 agent 照 prompt 的旧形状写文件，读回门（`face/lifecycle.ts:552-553` 按 `RoundNaming.evidenceName` 的新名字取文件）判其缺失、改写为 BLOCKED。三处合并为一任务的理由：同一个「第二份手写副本 / 过严判据」根因，每处一两行改动，`session/handoff-schema.ts` 本就在本任务的 Files 内（同波次不再撞行），合并后波宽仍 ≤ 3。
+两处过严判据按**事实负载度**分档（同一条判据：不该红的地方不要红），外加一处「第二份手写拼写」的收敛。① 载体坏值：`required` 字段（work 的 `status` / `artifacts`、judge 的 `findings`、finding 的 `severity` / `lens` / `summary`）坏值仍 BLOCKED；非 `required` 的装饰字段（**定义**：`PLANE_SLOTS` 减 `PLANE_REQUIRED`，finding 面同法取 `FINDING` 的 slot 减 required——下列括号只为举例、不是清单：judge 的 `artifacts` / `notes`、work 的 `dispositions`，与 finding 的 `id` / `section` / `line` / `fix` 皆在其中）坏值 drop 该键 + 一条 soft observation；`dispositions` 的成员资格不动、但坏值不被原谅——drop 之后载体里没有这个对象，`FixDispositions#ownRefusal`（`contract/completion-criterion.ts:487`，判定 `:497-500`，经 `dispositionsOf` `:429`）对「缺席或非对象」仍硬拒，拒因从类型不符换成 `declares no dispositions object`，那条 soft observation 必须点出被丢掉的键名——落点是三处真实的缝、四处赋值：`HandoffSchema#check` 返丢弃键集、`#reconstruct` 的 `schema.readBack` required 档门与 `#materialize` 消费它（四处顶层拷贝赋值覆盖三个装饰槽——judge 面 `artifacts` 的三元、`draftNotes`、`dispositions`、`notes`）、`#findingsList` 剝掉嵌套越档键（引擎的 `id` 在剥键之后才盖，坏形状的草稿 `id` 只丢孩子那份）。② `closed-wave-fits-depends-on-layers` 只判**未闭合** wave，闭合面交既有的 `planned-tasks-vs-recorded-tasks`——它读**当前** plan 的 task id 集、只判「已记录而当前 plan 不再携带」一个方向，快照列不接进该规则（那会改变它判的东西，快照属于 append-vs-stall）。③ 同一文件的派发 prompt 契约面（`HandoffSchema#schemaText` :196-203，第 200 行）把证据名以旧拼写渲进每一条 work 面 prompt——改述为「the file named by `OUTPUT_EVIDENCE`」，拼写只留 `RoundNaming` 一处；不动则守卫 (b) 红，且子 agent 照 prompt 的旧形状写文件，读回门（`face/lifecycle.ts:552-553` 按 `RoundNaming.evidenceName` 的新名字取文件）判其缺失、改写为 BLOCKED。三处合并为一任务的理由：同一个「第二份手写副本 / 过严判据」根因，每处一两行改动，`session/handoff-schema.ts` 本就在本任务的 Files 内（同波次不再撞行），合并后波宽仍 ≤ 3。
 
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`HandoffSchema#check`（:328，整数分支 `:378`）改为 tier-aware：非 required 节点失配时记录并跳过该键、不产生 problem；`#check` 返**被丢掉的键集**，谓词不抄第二份；`schemaText`（:196-203，第 200 行）把证据名改述为「the file named by `OUTPUT_EVIDENCE`」，不再以 `{prefix}-{key}-test-evidence.json` 抄第二份拼写）
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（坏值缝的另两处：`#reconstruct` 的 `schema.readBack` required 档门（:1223）消费 tier-aware 结果、`#materialize`（:1566）的 `droppedKeys` 路（:1579）与四个顶层拷贝赋值消费同一键集——`const artifacts = droppedDecorative.includes("artifacts") ? undefined : draft.artifacts`（judge 面 `artifacts` 槽；该文件行号本轮已漂，按赋值点名）· `draftNotes` 的按档取值 · `carrier.dispositions = draft.dispositions` · `carrier.notes = [...notes, ...draftNotes]`（四处赋值覆盖三个装饰槽）、`#findingsList`（:1702）剝掉越档的嵌套键）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（坏值缝的另两处：`#reconstruct` 的 `schema.readBack` required 档门（:1223）消费 tier-aware 结果、`#materialize`（:1566）的 `droppedKeys` 路（:1579）与四个顶层拷贝赋值消费同一键集——`const artifacts = droppedDecorative.includes("artifacts") ? undefined : draft.artifacts`（judge 面 `artifacts` 槽；该文件行号本轮已漂，按赋值点名）· `draftNotes` 的按档取值 · `carrier.dispositions = draft.dispositions` · `carrier.notes = [...notes, ...draftNotes]`（四处赋值覆盖三个装饰槽）、`#findingsList`（:1702）剝掉越档的嵌套键并在剥键之后盖引擎的 `id`（`copy.id`，坏形状的草稿 `id` 只丢孩子那份））
 - Modify: `packages/cdd-engine/src-next/contract/judge.ts`（`LedgerFacts`（:45-63）补 `openWaves` 装配格，与 `closedWaves` 相邻且同形（`readonly (readonly number[])[]`，每个元素一组 task id、不携 wave key））
 - Modify: `packages/cdd-engine/src-next/session/preflight.ts`（`#ledgerFactsOf`（:506）装配 `openWaves`——读同一个 `progress.waves`，与 `closedWaves` 同批）
 - Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（层判据体 `LedgerLayeringRule`（:388）改迭代 `openWaves`；判词与 heading 同改——`the closed wave {…}` → `the open wave {…}`、`closed Waves` → `open Waves`（收窄后闭合 wave 被豁免、永远不会被这条判据说出来，判词再写 `closed` 就是对一条未闭合 wave 说谎），规则 id `closed-wave-fits-depends-on-layers` 与 `contract/rules.ts:184` 的声明行保持不动；`contract/rules.ts:184` 只携带声明行，无判据体，随动无行为）
 - Test: `packages/cdd-engine/src-next/session/__tests__/handoff-schema.test.ts`（`line: null` 被接受 + 一条 soft · judge 面 `artifacts` / `notes` 坏值同档（drop + soft、不搬进载体）· `severity` / `findings` / `status` 坏值仍 BLOCKED · `findings[].line = null` 的载体自过 `CARRIER` 声明 · `schemaText(plane, true, prefix)` 的 work 面 prompt 不再出现 `{prefix}-{key}-test-evidence.json` 第二份拼写、只指 `OUTPUT_EVIDENCE`）
 - Test: `packages/cdd-engine/src-next/contract/__tests__/judge.test.ts`（已闭合 wave 事后改依赖零红 · 未闭合 wave 跨层仍红，开放集来自 `LedgerFacts.openWaves`；红例的 finding message / heading 断言用新判词 `open wave` / `open Waves`）
 - Test: `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts`（`#ledgerFactsOf` 的 `openWaves` 与 `closedWaves` 同批装配、两端不相交）
+- Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（`#findingsList` 的两步顺序：草稿 `findings[0].id = 0` 物化后载体行仍带 `id: "F1"`，一条 soft 点名 `findings[0].id`）
 
 #### Consumes
 
@@ -358,17 +359,19 @@ none
 - 写失败测（装饰字段容错）：judge 载体含 `findings[].line = null` → 载体被接受，记一条 soft — checkable: 定向 vitest FAIL（今日整条被拒）
 - 写失败测（judge 面 `artifacts` / `notes` 同档）：judge 载体带非对象 `artifacts` 与坏值 `notes` → 被接受、两键不搬进载体、各记一条 soft — checkable: FAIL
 - 写失败测（载体自过声明）：`findings[].line = null` 的载体写出后自过 `CARRIER` 声明 — checkable: FAIL
+- 写失败测（装饰剥键不吞引擎主键）：judge 草稿 `findings[0].id = 0` → 物化后的载体行 `id === "F1"`、一条 soft 点名 `findings[0].id` — checkable: 定向 vitest FAIL（今日载体行无 `id`）
 - 写失败测（负载字段不放宽）：`severity` / `findings` / `status` 任一处坏值 → 仍 BLOCKED — checkable: FAIL
 - 写失败测（闭合豁免）：一条已闭合 wave，事后改 `DependsOn` 使其与现算层不符 → 零红（闭合面由 `planned-tasks-vs-recorded-tasks` 承担，读当前 plan、单向）— checkable: FAIL
 - 写失败测（未闭合仍红）：未闭合 wave 跨层 → 仍红，红例的开放集来自 `LedgerFacts.openWaves` — checkable: FAIL
 - 写失败测（派发 prompt 契约面）：一条 work 面 `schemaText` 的证据段含旧拼写 `{prefix}-{key}-test-evidence.json` → 断言它已改述为 `OUTPUT_EVIDENCE`、且 prompt 里不再出现第二份证据名拼写 — checkable: 定向 vitest FAIL（今日 `session/handoff-schema.ts:200` 以旧拼写渲入）
-- 实现分档校验、层判据收窄与 prompt 面的单源改述 — checkable: 七条测 PASS
+- 实现分档校验、层判据收窄与 prompt 面的单源改述 — checkable: 八条测 PASS
 - 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run` 与 typecheck exit 0
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 
 - `line: null` 的 review 载体被接受并记一条 soft，轮次照常结束且引擎写出的载体自过 `CARRIER` 声明；judge 面 `artifacts` / `notes` 坏值同档（drop + soft、不搬进载体）。
+- 装饰剥键不吞引擎主键：草稿的 `findings[].id` 形状不符时 drop 只落在草稿值上，物化后的载体行仍带 `id: "F{n}"`（一条 soft 点名该键），下一轮 fix 的 dispositions 键不缺。
 - `severity` / `findings` / `status` 的坏值仍 BLOCKED（负载面不缩）。
 - 已闭合 wave 事后改依赖零红（闭合面由 `planned-tasks-vs-recorded-tasks` 承担，读当前 plan、单向；快照列不接）；未闭合 wave 跨层仍红，开放集来自 `LedgerFacts.openWaves`。
 - 坏值分档的边界读 `required` 声明，不在 `#materialize` 手写第二份清单：tier-aware `#check` 返丢弃键集，`#materialize` 与 `#findingsList` 消费它。
@@ -394,3 +397,4 @@ none
 | v0.11 | 2026-11-14 | 评审回改（docs-fix round 7）：T1 的反向读表补第三类 legacy 拼写退役 `{spec}-{op}-{round}.json`（同 round · attempt 1），并写明该线词不在 `families` 里、须像 `#LINE_CARRIER` 并 `RETIRED_SPEC_KEY` 那样显式并入（Files / Consumes / Test / Steps / Acceptance 五处同笔），T4 的 Test 与 Acceptance 同步补第三类；T3 按 HEAD 收窄——abort fold 的 attempt 同源已由 `c2feec9f` 落地，实现步改为覆盖测（现状即绿），Files 删去对今日 `#waveParams` 分支的旧描述，`session/run.ts` 由 Modify 降为 Confirm（docstring 已改述）；docstring 退役清单补第三处 `face/lifecycle.ts:1076-1080` 的 `#roundCarrierNames` 注释。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
 | v0.12 | 2026-11-14 | 评审回改（branch-fix-1）：T2 的阶梯补 cycle 1 · attempt 1 的 implement legacy 级（`#legacyCarrierName`）并说明它是 T4 反向归属的读面孪生（Objective / Files / Test / Steps / Acceptance 同笔）；T2 的 board 行装配点名 `overall` 行读 program workspace（Test / Acceptance）；T5 的 cause 值域补引擎合成的 `round-blocked`，并补「作者零条目才合成」「声明式 BLOCKED soft-only 不进 `crashed:`」两条写失败测与 acceptance；spec 字面随版移到 v0.12。 | '[ai] Claude（kairos:cdd-dev · branch-fix-1 · 2026-11-14）' |
 | v0.13 | 2026-11-14 | 评审回改（docs-fix round 8）：T1 把适用面搬到帧面——`renderName` 全域渲染、单射网格六 type × 六 kind 全比（Constraints / Test / Steps / Acceptance 同笔），`evidenceName` 的两道空串闸（文档形 · 非 implement / fix 相位）留在帧面、委派只替拼写，补 `round-naming.test.ts:205-243` 的空串 pin；T1 Produces 的 `HandoffParams.attempt` 缺省拆两档（写面落 1、解析面经 `#attemptAware` 落该轮最新记录），T2 的 Files / Consumes / Test / Acceptance 点名该中央缺省；T2 Objective 的阶梯改为 shipped 次序（活线 implement legacy 先于 canonical，退役 `spec` 孪生线另序）并按新次序重述自探存在；T6 的 `LedgerFacts.openWaves` 改为与 `closedWaves` 同形的 task-id 数组列表，`#materialize` 的拷贝点补 judge 面 `artifacts` 三元（四处赋值覆盖三个装饰槽）；spec 字面随版移到 v0.13。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
+| v0.14 | 2026-11-14 | 评审回改（branch-fix-2）：T6 写明 `#findingsList` 的两步顺序——装饰剥键先跑、引擎自印的 `id` 后盖，草稿里形状不符的 `id` 只丢孩子那份（Objective / Files / Test / Steps / Acceptance 同笔），并新增一条定向 vitest 步骤与 `lifecycle.test.ts` 的顺序 pin；Steps 的通过计数 七条 → 八条；spec 字面随版移到 v0.14。 | '[ai] Claude（kairos:cdd-fix · 2026-11-14）' |

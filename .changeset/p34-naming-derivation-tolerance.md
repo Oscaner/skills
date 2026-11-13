@@ -33,7 +33,10 @@ contract.
 blocks the round; a decorative slot — `notes` on either plane, the judge plane's
 `artifacts`, a work round's `dispositions`, or a finding's `id` / `section` / `line` /
 `fix` — is dropped from the draft in place and surfaced once on the carrier's notes. A
-wrong optional column costs a field, never a round.
+wrong optional column costs a field, never a round. A finding's own `id` is the one
+decorative column with an engine replacement: the drop retires the child's value and the
+engine stamps its `F{n}` key afterwards, so the persisted row always carries the
+primary key the next fix round's dispositions are keyed by.
 
 **Only an open wave is judged against the layers.** `closed-wave-fits-depends-on-layers`
 now reads the ledger's open waves: a closed wave's layer fit was judged when it was

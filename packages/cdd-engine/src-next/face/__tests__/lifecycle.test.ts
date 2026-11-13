@@ -578,6 +578,25 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
     }
   });
 
+  it("keeps the engine-stamped id when the draft's own id breaks its declared shape", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const runner = new ReviewDraftRunner([
+        { id: 0, severity: "warn", lens: "spec", summary: "drift" },
+      ]);
+      const { outcome } = await dispatchFrame(f, reviewFrame, runner);
+      const carrier = outcome.carrier as { findings: Record<string, unknown>[] };
+      // The decorative drop retires the CHILD's value, never the engine's own key:
+      // the persisted row still carries the primary key the next fix round's
+      // dispositions are keyed by (P30 §2.5).
+      expect(carrier.findings[0]?.id).toBe("F1");
+      expect((outcome.violations ?? []).map((violation) => violation.grade)).toEqual(["soft"]);
+      expect(outcome.violations?.[0]?.message).toContain("findings[0].id");
+    } finally {
+      f.cleanup();
+    }
+  });
+
   it("drops a judge-plane `artifacts` / `notes` outside its declared shape — two losses, ONE soft entry, a conforming carrier", async () => {
     const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
     try {

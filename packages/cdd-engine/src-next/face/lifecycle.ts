@@ -1722,7 +1722,9 @@ export class CliLifecycle {
    *  for the ONE engine-owned column: `id`, stamped from the carrier position (`F1`,
    *  `F2` …) and overwriting whatever the child wrote (P30 §2.5 — the disposition
    *  primary key belongs to the engine, never to the audited prose). This is the only
-   *  write point of a finding id in the engine.
+   *  write point of a finding id in the engine, and it runs AFTER the decorative
+   *  deletions: a draft `id` outside its declared shape drops the CHILD's value only,
+   *  never the key the engine owns (a non-string id must still land as `F1`).
    *
    *  `dropped` is the tiered read-back's decorative paths — the finding row's own
    *  out-of-tier columns (`findings[i].line` and friends) are removed HERE, the copy
@@ -1732,14 +1734,12 @@ export class CliLifecycle {
     const rows = Array.isArray(findings) ? findings : [];
     return rows.map((row, index) => {
       if (typeof row !== "object" || row === null || Array.isArray(row)) return row;
-      const copy: Record<string, unknown> = {
-        ...(row as Record<string, unknown>),
-        id: `F${index + 1}`,
-      };
+      const copy: Record<string, unknown> = { ...(row as Record<string, unknown>) };
       for (const path of dropped) {
         const column = HandoffSchema.findingColumnOf(path, index);
         if (column !== null) delete copy[column];
       }
+      copy.id = `F${index + 1}`;
       return copy;
     });
   }

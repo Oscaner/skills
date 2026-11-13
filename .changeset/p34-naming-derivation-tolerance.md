@@ -11,7 +11,9 @@ log, the crash record and the evidence file can no longer disagree about a round
 identity. The `-a{n}` attempt suffix is inserted at the stem tail (before `.c{c}`) and
 omitted at attempt 1; the implement family carries its cycle like the review and fix
 families do, so a task's implement carrier is `tasks-1-implement-1.json` and never
-shadows a later attempt.
+shadows a later attempt. Round records no longer carry `carrierPath` / `draftPath`: the
+ledger derives both from the record's own identity, so a record cannot disagree with the
+name it was written under, and an existing row's values are still read as history.
 
 **The board names a crash.** A round that booked a withheld target action with at least
 one hard violation renders its token in the top fact block's single `crashed:` row —

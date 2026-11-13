@@ -1638,9 +1638,9 @@ export class Ledger {
   }
 
   /** Persist a handoff payload as the round's FINAL carrier — the engine's single-author
-   *  write, at a name the child's DRAFT never occupies (P31 §2.3). Returns the final
-   *  path (what the round is judged by), the draft path it landed beside, and the
-   *  payload's digest, so the round record can remember all three.
+   *  write, at a name the child's DRAFT never occupies (P31 §2.3). Writes the final,
+   *  seals the draft + final pair, returns the payload digest the record remembers — the
+   *  record names neither path, it derives both from its own identity.
    *
    *  The digest covers the PAYLOAD, never the file bytes that hold it: `H = sha256(JSON
    *  containing H)` is unsatisfiable, so the value is taken BEFORE the `contentSha256`
@@ -1793,7 +1793,7 @@ export class Ledger {
   }
 
   /** One record's carrier PATH — the ONE read face of a record's carrier identity
-   *  (spec §2.12), so no consumer spells `record.carrierPath` itself. Step ① returns the
+   *  (spec §2.10), so no consumer spells `record.carrierPath` itself. Step ① returns the
    *  path the record already remembers (the historical fact — a pre-P34 row keeps its
    *  own spelling, zero migration). Step ② otherwise resolves the read ladder
    *  `resolveHandoffName` owns, seeded with the record's FULL identity (line · op ·

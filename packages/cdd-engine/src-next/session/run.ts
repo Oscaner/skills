@@ -715,9 +715,6 @@ export class Lifecycle {
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
       if (plane === "work" && carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
-      // P31 §2.2/§2.3 — the persist hands the FINAL carrier path, the draft path it
-      // landed beside and the payload digest, so the round record can name both
-      // artifacts and replay the comparison on every later read of this carrier.
       // P31 §2.2/§2.3 — the persist seals the round's two names and hands back the
       // payload digest, so the record can replay the comparison on every later read of
       // this carrier. The PATHS stay out of the record: the ledger derives them from

@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P33 计划：dispatch prompt 判别符 + 参照面校准
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-13
 slug: 2026-10-10-engine-doc-tooling-p33
 base: develop
@@ -16,6 +16,7 @@ base: develop
 - **`TEMPLATE_PROMPT.$version` 20 → 21**：token 登记表与 round-context 面变更按既有惯例 bump；`render.test.ts` 的版本 pin 同步。
 - **不改 `session/next.ts`**（D70 收敛主线），不改 `next:` 字面。
 - changeset 只 `@oscaner-skills/cdd-engine` **minor**；不发布；波宽 ≤ 3；零模块级裸函数。
+- **`LICENSE_ITEMS` 保持单一共享块**：不拆成按模式的 clause 集合（D87 的 α）；G/H 的修法是两句自我限定，不是按壳分家。
 
 ## Review Focus
 
@@ -24,6 +25,8 @@ base: develop
 - **共享句里的 `BASE_BRANCH` 被改成无条件引用**：非 branch 面该槽为空、行被丢——既有 pin（branch 渲出 `BASE_BRANCH`、spec / wave 面不渲）是本条的回归面；句子本身必须保留条件式（「the branch review judges … against `BASE_BRANCH`」）。
 - **overall 面 `INPUT_SPEC` 置空后取错目标**：docs-fix 的「judged doc」若仍按 `INPUT_SPEC` 取路径，overall 的 docs-fix 会拿到空串或改错文件——overall 行的目标必须是 `INPUT_OVERALL`。
 - **只改 pin 不改 prose**：`$version` 与 `REVIEW_TYPE` 的注释/报错文案若只改测试不改实现侧文案，模板契约的文件级说明与实际 token 表不符，下一轮改名会再踩一次。
+- **自我限定写成反向收窄**：把 freeze 改成「任何轮都不得改」或把 capability 一起限定，会让 docs-fix 自己拒绝工作（本轮的全部工作就是原地改文档）。限定只能加在 freeze 一侧。
+- **program-conformance 句限定过宽**：若把「phase-spec only」写成对整个 `spec` 体的限定，phase-spec 自己的 program conformance 也会被摘掉——限定必须只包住那一句。
 
 ---
 
@@ -135,9 +138,62 @@ none
 
 1
 
+---
+
+### Task 3: 主体面五处校准（G/H/I/J/K）
+
+#### Objective
+
+按 spec §2.6 校准共享主体五处：`cl:plan-freeze` 与 `cl:atomic-commit` 两句自我限定（限定到本轮声明的 capability 之外 / 明示只读轮无提交），program-conformance 句限定 phase-spec，branch 判据体换掉退役词 task，overall 的 rubric 槽改 charter / phase author。`LICENSE_ITEMS` 仍是单一共享块。
+
+#### Files
+
+- Modify: `packages/cdd-engine/src-next/render/templates.ts`（`CLAUSES` 的 `cl:plan-freeze` 与 `cl:atomic-commit` · `docNarrativeAxes` 的 program-conformance 句 · `REVIEWS.branch.axesGuide` 首句 · `REVIEW_BODY_TEXT.overall` 两槽）
+- Test: `packages/cdd-engine/src-next/render/__tests__/render.test.ts`（五条字节 pin）
+
+#### Consumes
+
+- Task 2 落地的 `REVIEW_ITEM` 与 docs-fix 句（同壳，需并读不冲突）
+- `SEVERITY_RUBRIC` 与 `reviewGuideOf(key)`（`render/templates.ts`）——rubric 槽的唯一消费点
+- `CLAUSES` 容器与 `{{> cl:…}}` 解析（`TemplateAssembler#fill`）
+
+#### Produces
+
+- `CLAUSES` 的 `cl:plan-freeze` = Approved plan/spec files are frozen **beyond the round's declared `capability: may.amend` scope** — without that declaration a needed change goes out through findings, never an in-place edit; the structure face is outside amending authority in every round.
+- `CLAUSES` 的 `cl:atomic-commit` = 原句 + A read-only round has nothing to commit: its only writes are the prescribed `OUTPUT_*` artifacts, and committing belongs to the orchestrator.
+- `docNarrativeAxes` 的 program-conformance 句显式限定 phase-spec（single-spec 无 `program:`、无 `INPUT_OVERALL`，且不是 phase）
+- `REVIEWS.branch.axesGuide` 首句 Same four axes as the wave review
+- `REVIEW_BODY_TEXT.overall` = `{ artifact: "charter", audience: "phase author" }`
+
+#### Steps
+
+- 写失败测（五条字节 pin）：docs-fix 渲染物的 freeze 丧含 beyond the round's declared 且不含 zero modification authority；review 渲染物的 commit 丧含 has nothing to commit；single-spec 的 program-conformance 丧含 phase-spec only；branch 的 Criteria 行含 Same four axes as the wave review 且不含 as task；overall 的渲染物含 The reviewed charter is a vision — checkable: 五条各自一 FAIL
+- 改 `CLAUSES` 的 freeze 与 commit 两条（只改文案，不拆块）— checkable: 前两条 PASS
+- 改 `docNarrativeAxes` 的 program-conformance 句（限定只包住这一句）— checkable: 第三条 PASS
+- 改 `REVIEWS.branch.axesGuide` 首句 — checkable: 第四条 PASS
+- 改 `REVIEW_BODY_TEXT.overall` 两槽 — checkable: 第五条 PASS
+- 零残留核查 — checkable: `grep -rn "as task" packages/cdd-engine/src-next/render/templates.ts` 零命中；`grep -rn "zero modification authority" packages/cdd-engine/src-next` 零命中
+- 全量回归 + 整门 validate — checkable: 三套 vitest · 三套 typecheck · `pnpm run validate` exit 0
+- 提交 — checkable: `git log -1 --oneline` 含本任务主题
+
+#### Acceptance
+
+- 五条 pin 全绿。
+- docs-fix 壳的 freeze / capability / 指令三句不再互斥（freeze 只限定到声明范围之外，capability 一字不动）。
+- review 壳的 commit 句与 `**Read-only:**` 不再对冲。
+- single-spec 不再被要求对照 `INPUT_OVERALL`；phase-spec 的行为不变（program conformance 仍在）。
+- `LICENSE_ITEMS` 仍是单一共享块（未拆成按模式的集合）。
+- 退役词 task 在判据体零残留；`zero modification authority` 零残留。
+- 三套 vitest + 三套 typecheck + `pnpm run validate` exit 0。
+
+#### DependsOn
+
+2
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-13 | P33 初稿：T1 类型判别符 `TARGET_TYPE` 进 round context（implement 不渲）· T2 参照面四处校准 A/B/C2/D + changeset。 | '[human] 裁定 · Claude（kairos:cdd-plan · 2026-11-13）' |
 | v0.2 | 2026-11-13 | 并入 plan-review-1 全部三条：F1 `TARGET_TYPE` 的 `zone` 保持 `round-context`，撤掉登记项“移入 shell 区”的说法，与 Objective / spec §2.1 对齐；F2 T2 收尾补 `pnpm run validate` 整门步骤（提交后干净树）并同步进 Acceptance；F3 overall 锚矩阵补 single-spec 面，与 Acceptance 的四面表述对齐。 | '[human] 裁定 · Claude（kairos:cdd-plan · 2026-11-13）' |
+| v0.3 | 2026-11-13 | 追加 T3：主体面五处校准（G/H/I/J/K · D87 · 修法取 α）· `DependsOn 2`；Constraints 增「`LICENSE_ITEMS` 单一共享块」；Review Focus 增两条（自我限定反向收窄、限定过宽摘掉 phase-spec 自己的判据）；spec 同步升至 v0.4。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |

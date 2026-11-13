@@ -191,6 +191,30 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(implement).not.toContain("TARGET_TYPE");
   });
 
+  it("P33 T2 — the three referent sentences name the judged face, never a shared substitute (§2.5 A · B · D)", () => {
+    // The review item rides every review row's fixed prefix. The shared sentence used
+    // to fold the branch review into the plan review, contradicting the branch
+    // criteria body (branch review IS the full diff).
+    const reviewItem = TEMPLATE_PROMPT.reviews.branch.shell.join("\n");
+    expect(reviewItem).toContain("the branch review judges the live tree");
+    expect(reviewItem).not.toContain("the plan/branch reviews judge the plan");
+    // the plan review still reads the plan document as its judged doc
+    expect(reviewItem).toContain("the plan review judges the plan at `INPUT_PLAN`");
+    // the spec / overall faces carry their own judged anchor, one sentence each
+    expect(reviewItem).toContain("the spec review judges the spec at `INPUT_SPEC`");
+    expect(reviewItem).toContain("the overall review judges the charter at `INPUT_OVERALL`");
+    // A — the fix shell reaches no spec line; the branch line's INPUT_SPEC is a
+    // conformance reference, never the judged document
+    const fix = TEMPLATE_PROMPT.modes.fix.shell.join("\n");
+    expect(fix).not.toContain("the spec line");
+    expect(fix).toContain("never the judged document");
+    // D — the docs-fix shell marks the plan-doc line's spec reference un-editable in
+    // this round and names the overall line's own anchor
+    const docsFix = TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n");
+    expect(docsFix).toContain("never edited here");
+    expect(docsFix).toContain("`INPUT_OVERALL` on the overall line");
+  });
+
   it("every work shell carries the Bash discipline clause — a timeout on every command, ceiling from the constant", () => {
     // The clause's minute value is DERIVED from the constant, never re-spelled in
     // prose — the pin reads the constant, so a budget change cannot leave the
@@ -428,8 +452,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // capability declaration: 17 → 18; the docs-fix row's capability declaration
     // (the fix face's spec / plan dispatch): 18 → 19; P22 T15 — the charter's own
     // criteria body + the explicit criteria-body selection: 19 → 20; P33 T1 — the
-    // target discriminant rendered as a round-context line on every targeted face: 20 → 21)
-    expect(TEMPLATE_PROMPT.$version).toBe(21);
+    // target discriminant rendered as a round-context line on every targeted face: 20 → 21;
+    // P33 T2 — the three referent sentences (§2.5 A · B · D): 21 → 22)
+    expect(TEMPLATE_PROMPT.$version).toBe(22);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)

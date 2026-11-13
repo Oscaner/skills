@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 设计：载体身份收为轮次身份的单射渲染'
 doc-type: phase-spec
-version: v0.4
+version: v0.5
 date: 2026-11-13
 slug: '2026-10-10-engine-doc-tooling-p34'
 program: 2026-10-10-engine-doc-tooling
@@ -70,7 +70,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 
 implement 一族的每个 kind 都携 `cycle` 令牌：`#stem` 对 implement 省掉 round 令牌、`finalName` 在 `round === undefined` 时原样返回 draft 名，这两条约定同时退役，`HandoffParams.round` 对 implement 也照常填（今天 `Lifecycle#paramsOf` 对该相位刻意不填，正是同一个省法的另一半）。于是 `render(id, draft) ≠ render(id, final)` 恒真，`final ≠ draft` 恒成立——这既是「种类是坐标」的直接后果，也是 P31 §2.3「final 永不覆盖 draft」第一次在该族兑现。
 
-补的是全部 kind，不只 final：cycle 若只出现在 final 上，draft / report / log / evidence 仍会在 cycle 之间共用一格，§1.2 那条「重派销毁上一轮的物证」就在本族内原样残留。今天 implement 的 cycle 恒为 1（`Run#roundFor` · `session/run.ts` · 对该相位返回固定值），所以这个令牌当下不区分任何两轮；正因为如此，把它留给运行面那个常量去保证，单射性就依赖 `RoundNaming` 之外的一条事实，而本相位的第一原则恰恰是名字只从身份派生。
+补的是全部 kind，不只 final：cycle 若只出现在 final 上，draft / report / log / evidence 仍会在 cycle 之间共用一格，§1.2 那条「重派销毁上一轮的物证」就在本族内原样残留。今天 implement 的 cycle 恒为 1（`Lifecycle#roundFor` · `session/run.ts:617` · 对该相位返回固定值；树里没有 `Run` 类，`session/ledger.ts:801` 注释里的 `(Run)` 是陈旧散文），所以这个令牌当下不区分任何两轮；正因为如此，把它留给运行面那个常量去保证，单射性就依赖 `RoundNaming` 之外的一条事实，而本相位的第一原则恰恰是名字只从身份派生。
 
 #### 2.3 写一次是构造属性，不加门
 
@@ -86,7 +86,7 @@ P31 §2.4 的 unseal / seal 窗口照旧存在，它管的是「谁在这一轮�
 
 #### 2.5 记录缺席时回退取 attempt 1
 
-凡派发过的轮无条件入账（P22 ②），所以「无记录」只可能是第 1 次派发，回退取 `attempt 1`（即今天的家族名，逐字节不变）。不为旧引擎「blocked 轮不入账」的边缘去扫目录猜最大 attempt。
+凡派发过的轮无条件入账（P22 ②），所以「无记录」只可能是第 1 次派发，回退取 `attempt 1`——attempt 1 的渲染即今天的名字；实现族与 evidence 的跨度为 §2.6 的例外，不在这条回退的守恒面里。不为旧引擎「blocked 轮不入账」的边缘去扫目录猜最大 attempt。
 
 #### 2.6 attempt=1 的渲染逐字节守恒（implement 族与 evidence 除外）
 
@@ -121,14 +121,15 @@ owner 判据要有名字与输入，否则这条读法无法实现：**`RoundRec
 
 **一个 accessor**：`Ledger#carrierPathOf(type, key, record)`——记录的载体路径。取值顺序固定：记录里的 `carrierPath` 存在就用它（legacy 行的历史事实，零迁移），否则由该记录的身份 `renderPath(…, final)` 派生。行的 line 与 type 由调用方持有（记录本身不带 line，这是行的键），所以 accessor 收 `(type, key, record)` 三样，绝不从记录本身猜 line。
 
-四条读面改写为经它取路径，语义不变：
+五条读面改写为经它取路径，语义不变：
 
 - `BoardView` 的 `+N` 计数：路径来自 accessor，摘要来自记录的 `carrierDigest`，owner 判定来自 §2.7；
 - `Ledger#reviewsPathOf`：requester 是同一 (key, op, round) 的**最新 review attempt**，其 final 由 accessor 给出；无记录时回退家族名并取该 review 的最新 attempt（无则 1，§2.5）；
-- `FixDispositions` 的 requester 路径：字段退役后「优先记录里的路径」这一支消失——requester 路径就是 lifecycle 已解析的 `ctx.reviewsPath`（其来源正是 `#reviewsPathOf`），digest 仍按同一条 requester 记录取；
-- `Lifecycle#capsuleLines` 的成功面：`resolveHandoffPath` 带上帧的 `attempt`，名字只经渲染面来。
+- `CliLifecycle#reviewsPath`（`face/lifecycle.ts:1297`）——**第五读面，也是 `ctx.reviewsPath`（`:482`）、`INPUT_REVIEWS`（`:947`）与 `#resumeOf` 的 `--reviews`（`:1739`）真正的来源**，不是私有的 `#reviewsPathOf`（只在 `session/ledger.ts:1955` / `:1974` 被调用）。记录里的路径取自 accessor，attempt 取自 **requester review 记录自己的最新 attempt，绝不取 fix 帧的 `attempt`**：重派到 attempt 2 的 fix 轮若拿帧的 attempt 解析 review 家族，会去要 `…-review-{round}-a2.json`——review（attempt 1）从未写过它，`FixDispositions#requesterInputOf`（`contract/completion-criterion.ts:365-380`）读到缺席载体就硬拒一个合法轮次；`#resumeOf` 的同一条回退会把这个错的 attempt 带进崩溃记录的 `next`。recorded-path 直读（`:1299`）与 legacy `carrierPath === null` 判别（`:1307`）在本相位退役，路径一律走 accessor；
+- `FixDispositions` 的 requester 路径：字段退役后「优先记录里的路径」这一支消失——`requesterPathOf` 的 `carrierPath ?? reviewsPath`（`:337-342`）与 `#requesterInputOf` 的 `declared`（`:365`）改由 accessor 取出，requester 路径就是 lifecycle 已解析的 `ctx.reviewsPath`（其来源是 `CliLifecycle#reviewsPath`）；`#requesterDigestOf`（`:423`）不再以 `carrierPath === null` 判「无摘要」（改看 `carrierDigest` 是否缺席），`#ownRefusal`（`:490`）的报错路径取 ctx 里 accessor 已给的路径——摘要面本身不变；
+- `Lifecycle#capsuleLines`（`session/run.ts:1011`）的成功面：它是**名字解析面，不是路径读面**——不读任何路径字段，只把帧交给 `Ledger#resolveHandoffPath` 要一个名字；该调用带上帧的 `attempt`，名字只经渲染面来。
 
-**`HandoffParams` 补 `attempt`**：`{tasks, round, attempt}`。派发产出的 params 恒带帧的 `attempt`，于是 `handoffName` / `handoffPath` / `resolveHandoffName` / `resolveHandoffPath` / `readHandoff` / `--reviews` 都能命名并读回第 n attempt 的文件；`attempt` 缺省即 1（legacy 调用与 §2.5 的回退同一条规则）。
+**`HandoffParams` 补 `attempt`**：`{tasks, round, attempt}`。派发产出的 params 恒带帧的 `attempt`，于是 `handoffName` / `handoffPath` / `resolveHandoffName` / `resolveHandoffPath` / `readHandoff` 都能命名并读回第 n attempt 的文件；`attempt` 缺省即 1（legacy 调用与 §2.5 的回退同一条规则）。`--reviews` 是唯一例外：它命名的是 requester review 轮自己的 attempt（上一条），不是 fix 帧的 attempt。
 
 **摘要面不动**：`carrierDigest` 保留——它才是完整性事实。`CarrierIntegrity.readFor` 的「从记录里取路径」职责退役，读面传 `(accessor 给出的路径, record.carrierDigest)`；`persistHandoff` 的写点也随 `draftPath` 一起收窄为「写 `render(id, final)`、封印 draft + final 两个名字」。
 
@@ -175,8 +176,9 @@ P31 §2.4 的窗口成员必须与本轮渲染同源，否则新名字让人「�
 
 - 单射性网格 pin 绿：六个 `TargetType` × 适用 kind × attempt 1–3 × cycle 1–2，同一 kind 下任意两个不同身份不同名；`""` 不入比较；implement 的 draft/final 对、相邻 attempt、相邻 cycle 各有一条具名断言；四个文档形各断言自己的拼写前缀。
 - implement 的 `final ≠ draft` 且 final 带 `.c{cycle}`；draft / report / log / evidence 同样携 `-{cycle}`（§2.2），相邻 cycle 不同名。
-- 记录不带路径仍可读：`carrierPath` / `draftPath` 不再写入新记录；board 的 `+N`、`--reviews` 的 latest 解析、`FixDispositions` 的 requester 路径、capsule 成功面、摘要读面全部经 `Ledger#carrierPathOf(type, key, record)` 派生（守卫 pin：`RoundNaming` 与 accessor 之外零 `carrierPath` 读、零名字拼装）。
-- `HandoffParams.attempt` 贯通：attempt 2 的 draft / final / report / log 由 `render` 命名，`readHandoff` 与 `--reviews` 读回的就是 attempt 2 自己的文件（一条 attempt-2 夹具）。
+- 记录不带路径仍可读：`carrierPath` / `draftPath` 不再写入新记录；board 的 `+N`、`--reviews` 的 latest 解析、`CliLifecycle#reviewsPath`、`FixDispositions` 的 requester 路径、capsule 成功面、摘要读面全部经 `Ledger#carrierPathOf(type, key, record)` 派生（守卫 pin：`RoundNaming` 与 accessor 之外零 `carrierPath` 读、零名字拼装）。
+- 重派到 attempt 2 的 fix 轮仍读 requester 自己的 attempt：一条 attempt-2 fix 夹具断言 `--reviews` / `INPUT_REVIEWS` / `FixDispositions#requesterInputOf` 解析到 review 记录（attempt 1）的 final 名、合法轮次不被硬拒，`#resumeOf` 写出的 `next` 也带同一个名字。
+- `HandoffParams.attempt` 贯通：attempt 2 的 draft / final / report / log 由 `render` 命名，`readHandoff` 与 `handoffName` / `handoffPath` 命名并读回的就是 attempt 2 自己的文件；`--reviews` 读回的是 requester review 记录自己的 attempt（上一条夹具）。
 - preflight / seal 同批对齐：attempt 2 的派发只 unseal attempt-2 的 draft/final 对，attempt-1 的一对在轮内不可写；terminal（gate 拒 / death / abort）seal 同一对；崩溃遗留的 `-a{n}` 载体被 sweep 认出并封印。
 - 重派 N 次（N ≥ 2）后：旧 attempt 的记录仍可读，board 零 `carrier-mismatch`；每个 attempt 的 `+N` 来自它自己的产物。
 - 外部篡改仍抛 `carrier-mismatch`（owner 记录的摘要与产物字节不符）——保护不退化。
@@ -203,4 +205,5 @@ P31 §2.4 的窗口成员必须与本轮渲染同源，否则新名字让人「�
 | v0.1 | 2026-11-13 | P34 初稿：产物名收为轮次身份的单射渲染（`(line, op, cycle, attempt)` × `kind` 一处派生）· implement 补 cycle 坐标 · 写一次作构造属性 · `carrierPath`/`draftPath` 新记录退役 · 记录缺席回退 attempt 1 · attempt=1 逐字节守恒 · legacy 失配行 present-facts。作用面覆盖 carrier / report / evidence / crash（log 已有）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.2 | 2026-11-13 | 并入 phase-spec-review-1 全部十条。F1 新增 §2.10 读写缝（`Ledger#carrierPathOf` 一个 accessor + `HandoffParams.attempt` + 四条读面改写 + 摘要面不动）；F2 新增 §2.11 preflight/seal 与本轮 attempt 同批（含崩溃遗留的 sweep 与 legacy 轮）；F3 改正 crash 适用面为「每一个派发轮」并新增 §3.5 pin；F4 把 implement 的 cycle 补到全部 kind（§2.2）并重写 §2.6 为守恒 + 例外清单；F5/F6 对齐母 charter 回填（D88 · P34 行 · overall v3.59：全部轮次产物 + `draftPath` 同批退役 · 签名 `(line, op, cycle, attempt) × kind`），`parent-version` 随行 v3.59；F7 点名 owner 判据 `RoundRecords#ownerOf`（§2.7）；F8 网格改按适用对比较、覆盖六个 `TargetType`（§3.1）；F9 守恒示例改回规范拼写 `phase-spec-review-1.c1.json`；F10 统一用「单射性」。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-1 · 2026-11-13）' |
 | v0.3 | 2026-11-13 | 并入 phase-spec-review-2 两条。F1：母 charter 的守恒边界回填为与 §2.6 同一条（overall v3.60 · D88 · Issue inventory P34 ⑤ · Phase inventory P34 scope + acceptance 格），§2.6 的字节 pin 不动；F2：§3.4 的扫描面符号改正为 `RoundNaming.isCarrierName`（`CarrierSeal.sweep` 的消费面），`CarrierSeal.isCarrierName` 不存在。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-2 · 2026-11-13）' |
-| v0.4 | 2026-11-13 | **§2.2 符号回填（plan-review-1 F7 · 设计文档事实错误）**：implement 的 cycle 常量持有者是 `Run#roundFor`（`session/run.ts`），不是 `Lifecycle#roundFor` / `CliLifecycle#roundFor`——后者在树里不存在。设计意图与结论不变，只纠正引用；plan 的 Review Focus 条目由计划 fix 轮同笔改。 | '[human] 裁定 · Claude（kairos:cdd-plan · backfill-design · 2026-11-13）' |
+| v0.4 | 2026-11-13 | **§2.2 符号回填（plan-review-1 F7 · 设计文档事实错误）**：implement 的 cycle 常量持有者是 `Lifecycle#roundFor`（`session/run.ts:617`），树里没有 `Run` 类（`session/ledger.ts:801` 注释里的 `(Run)` 是陈旧散文）。设计意图与结论不变，只纠正引用；plan 的 Review Focus 条目由计划 fix 轮同笔改。 | '[human] 裁定 · Claude（kairos:cdd-plan · backfill-design · 2026-11-13）' |
+| v0.5 | 2026-11-13 | 并入 phase-spec-review-3 三条。F1：§2.2 的 cycle 常量持有者回到 `Lifecycle#roundFor`（`session/run.ts:617`），树里无 `Run` 类，v0.4 行同笔改写。F2：§2.10 补第五读面 `CliLifecycle#reviewsPath` 并改正 `ctx.reviewsPath` / `INPUT_REVIEWS` / `#resumeOf` 的来源；`--reviews` 的 attempt 改取 requester review 记录自己的最新 attempt，recorded-path 直读与 `FixDispositions#requesterPathOf` / `#requesterDigestOf` / `#ownRefusal` 的路径判别同批退役；点名 `Lifecycle#capsuleLines` 是名字解析面而非路径读面；acceptance 增 attempt-2 fix 夹具。F3：§2.5 的守恒 gloss 收回为 §2.6 的例外边界。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-3 · 2026-11-13）' |

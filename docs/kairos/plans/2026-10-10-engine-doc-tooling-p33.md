@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P33 计划：dispatch prompt 判别符 + 参照面校准
 doc-type: plan
-version: v0.3
+version: v0.4
 date: 2026-11-13
 slug: 2026-10-10-engine-doc-tooling-p33
 base: develop
@@ -9,8 +9,8 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p33-design.md` **现行 `version` v0.3** 所指的面；spec 版本一变，本约束的字面同笔改。
-- **标题与判据行零字节**：`reviewRow` / `FIX_SHELL` / `DOCS_FIX_SHELL` 的首行标题一字不动；`**Criteria — …:**` 行一字不动。§2.5 允许改的只有 `REVIEW_ITEM`、`FIX_SHELL` 的 fix 句、`DOCS_FIX_SHELL` 的 docs-fix 句。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p33-design.md` **现行 `version` v0.5** 所指的面；spec 版本一变，本约束的字面同笔改。
+- **标题与标签行零字节**：`reviewRow` / `FIX_SHELL` / `DOCS_FIX_SHELL` 的首行标题一字不动；`**Criteria — …:**` 的**标签**与 `**Lens labels:**` 行零字节；而 criteria **体**可在 I/J/K 需要处改（改动对共享该体的变体一致）。§2.5 允许改的句子是 `REVIEW_ITEM`、`FIX_SHELL` 的 fix 句、`DOCS_FIX_SHELL` 的 docs-fix 句。
 - **不动四模式词汇表**：`WORK_MODES`、`TEMPLATE_PROMPT.modes` 的表键、`#rowOf` 的行选择结构保持（D85 否决 ROLE 拆值）。
 - **不新增门**：`#assertShellLayout` 只保留「名字 ⊆ layout」这一条结构校验，不引入名字↔所指的语义门（P28 同向）。
 - **`TEMPLATE_PROMPT.$version` 20 → 21**：token 登记表与 round-context 面变更按既有惯例 bump；`render.test.ts` 的版本 pin 同步。
@@ -146,10 +146,12 @@ none
 
 按 spec §2.6 校准共享主体五处：`cl:plan-freeze` 与 `cl:atomic-commit` 两句自我限定（限定到本轮声明的 capability 之外 / 明示只读轮无提交），program-conformance 句限定 phase-spec，branch 判据体换掉退役词 task，overall 的 rubric 槽改 charter / phase author。`LICENSE_ITEMS` 仍是单一共享块。
 
+自限定以本轮声明的 capability 为界，故 **`WORK_CAPABILITY` 的措辞成为承重面**：它必须点名被判文档族本身（phase-spec / single-spec / overall charter / plan）——否则 overall 的 docs-fix 会落成「下令改 charter、冻结句却判它是 spec」。三句的对冲落在 implement / fix / docs-fix 三张 work 壳上，验证面须同时覆盖三张。
+
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/render/templates.ts`（`CLAUSES` 的 `cl:plan-freeze` 与 `cl:atomic-commit` · `docNarrativeAxes` 的 program-conformance 句 · `REVIEWS.branch.axesGuide` 首句 · `REVIEW_BODY_TEXT.overall` 两槽）
-- Test: `packages/cdd-engine/src-next/render/__tests__/render.test.ts`（五条字节 pin）
+- Modify: `packages/cdd-engine/src-next/render/templates.ts`（`CLAUSES` 的 `cl:plan-freeze` 与 `cl:atomic-commit` · `WORK_CAPABILITY` 点名被判文档族 · `docNarrativeAxes` 的 program-conformance 句 · `REVIEWS.branch.axesGuide` 首句 · `REVIEW_BODY_TEXT.overall` 两槽）
+- Test: `packages/cdd-engine/src-next/render/__tests__/render.test.ts`（五条字节 pin + 三壳覆盖面）
 
 #### Consumes
 
@@ -161,14 +163,16 @@ none
 
 - `CLAUSES` 的 `cl:plan-freeze` = Approved plan/spec files are frozen **beyond the round's declared `capability: may.amend` scope** — without that declaration a needed change goes out through findings, never an in-place edit; the structure face is outside amending authority in every round.
 - `CLAUSES` 的 `cl:atomic-commit` = 原句 + A read-only round has nothing to commit: its only writes are the prescribed `OUTPUT_*` artifacts, and committing belongs to the orchestrator.
+- `WORK_CAPABILITY` 点名被判文档族 = phase-spec / single-spec / overall charter / plan（结构面禁令一字不动）
 - `docNarrativeAxes` 的 program-conformance 句显式限定 phase-spec（single-spec 无 `program:`、无 `INPUT_OVERALL`，且不是 phase）
 - `REVIEWS.branch.axesGuide` 首句 Same four axes as the wave review
 - `REVIEW_BODY_TEXT.overall` = `{ artifact: "charter", audience: "phase author" }`
 
 #### Steps
 
-- 写失败测（五条字节 pin）：docs-fix 渲染物的 freeze 丧含 beyond the round's declared 且不含 zero modification authority；review 渲染物的 commit 丧含 has nothing to commit；single-spec 的 program-conformance 丧含 phase-spec only；branch 的 Criteria 行含 Same four axes as the wave review 且不含 as task；overall 的渲染物含 The reviewed charter is a vision — checkable: 五条各自一 FAIL
-- 改 `CLAUSES` 的 freeze 与 commit 两条（只改文案，不拆块）— checkable: 前两条 PASS
+- 写失败测（五条字节 pin + 三壳覆盖面）：implement / fix / docs-fix 三张壳的 freeze 句含 beyond the round's declared 且不含 zero modification authority，三张壳的 capability 句含 overall charter；review 渲染物的 commit 句含 has nothing to commit；single-spec 的 program-conformance 句含 phase-spec only；branch 的 Criteria 行含 Same four axes as the wave review 且不含 as task；overall 的渲染物含 The reviewed charter is a vision — checkable: 五组各自一 FAIL
+- 改 `CLAUSES` 的 freeze 与 commit 两条（只改文案，不拆块）— checkable: freeze / commit 两组 PASS
+- 改 `WORK_CAPABILITY`：把 the spec's and the plan's content face 改为点名被判文档族（phase-spec / single-spec / overall charter / plan），结构面禁令不动 — checkable: 三壳 capability pin PASS
 - 改 `docNarrativeAxes` 的 program-conformance 句（限定只包住这一句）— checkable: 第三条 PASS
 - 改 `REVIEWS.branch.axesGuide` 首句 — checkable: 第四条 PASS
 - 改 `REVIEW_BODY_TEXT.overall` 两槽 — checkable: 第五条 PASS
@@ -178,8 +182,8 @@ none
 
 #### Acceptance
 
-- 五条 pin 全绿。
-- docs-fix 壳的 freeze / capability / 指令三句不再互斥（freeze 只限定到声明范围之外，capability 一字不动）。
+- 五组 pin（含三壳覆盖面）全绿。
+- 三张 work 壳（implement · fix · docs-fix）的 freeze / capability / 指令三句不再互斥：freeze 限定到声明范围之外，capability 点名被判文档族（含 overall charter）。
 - review 壳的 commit 句与 `**Read-only:**` 不再对冲。
 - single-spec 不再被要求对照 `INPUT_OVERALL`；phase-spec 的行为不变（program conformance 仍在）。
 - `LICENSE_ITEMS` 仍是单一共享块（未拆成按模式的集合）。
@@ -197,3 +201,4 @@ none
 | v0.1 | 2026-11-13 | P33 初稿：T1 类型判别符 `TARGET_TYPE` 进 round context（implement 不渲）· T2 参照面四处校准 A/B/C2/D + changeset。 | '[human] 裁定 · Claude（kairos:cdd-plan · 2026-11-13）' |
 | v0.2 | 2026-11-13 | 并入 plan-review-1 全部三条：F1 `TARGET_TYPE` 的 `zone` 保持 `round-context`，撤掉登记项“移入 shell 区”的说法，与 Objective / spec §2.1 对齐；F2 T2 收尾补 `pnpm run validate` 整门步骤（提交后干净树）并同步进 Acceptance；F3 overall 锚矩阵补 single-spec 面，与 Acceptance 的四面表述对齐。 | '[human] 裁定 · Claude（kairos:cdd-plan · 2026-11-13）' |
 | v0.3 | 2026-11-13 | 追加 T3：主体面五处校准（G/H/I/J/K · D87 · 修法取 α）· `DependsOn 2`；Constraints 增「`LICENSE_ITEMS` 单一共享块」；Review Focus 增两条（自我限定反向收窄、限定过宽摘掉 phase-spec 自己的判据）；spec 同步升至 v0.4。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
+| v0.4 | 2026-11-13 | 对齐 spec v0.5（phase-spec-review-2 的 F1/F3/F4）：Constraints 的冻结面从「Criteria 行」收窄为「标签 + Lens 行，体可改」；T3 增 `WORK_CAPABILITY` 点名被判文档族（承重面），验证面由 docs-fix 单面扩为 implement / fix / docs-fix 三壳。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |

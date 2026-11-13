@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P33 计划：dispatch prompt 判别符 + 参照面校准
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-11-13
 slug: 2026-10-10-engine-doc-tooling-p33
 base: develop
@@ -35,7 +35,7 @@ base: develop
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/render/templates.ts`（`TOKENS` 登记项改名并移入 shell 区 · `REVIEW_CONTEXT` 与 `MODE_PROMPTS.fix` / `MODE_PROMPTS["docs-fix"]` 的 `roundContext` 各加一行 · `#rowOf` / `#reviewRow` / `#gate` 读 `values.TARGET_TYPE` · 两处报错文案与三处注释同改 · `$version` 20 → 21）
+- Modify: `packages/cdd-engine/src-next/render/templates.ts`（`TOKENS` 登记项改名，`zone` 保持 `round-context` · `REVIEW_CONTEXT` 与 `MODE_PROMPTS.fix` / `MODE_PROMPTS["docs-fix"]` 的 `roundContext` 各加一行 · `#rowOf` / `#reviewRow` / `#gate` 读 `values.TARGET_TYPE` · 两处报错文案与三处注释同改 · `$version` 20 → 21）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#valuesOf` 的 `REVIEW_TYPE` 槽改 `TARGET_TYPE`，取值按 `#roleOf` 分键）
 - Test: `packages/cdd-engine/src-next/render/__tests__/render.test.ts`（十二变体矩阵 + implement 缺席 + `$version` pin）
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（四条注入面端到端）
@@ -48,7 +48,7 @@ base: develop
 
 #### Produces
 
-- `TOKENS` 项 `{ name: "TARGET_TYPE", zone: "shell" }`（替下 `REVIEW_TYPE`）
+- `TOKENS` 项 `{ name: "TARGET_TYPE", zone: "round-context" }`（替下 `REVIEW_TYPE`；该 token 随 round context 渲染，与今日 `REVIEW_TYPE` 同区）
 - round-context 行 `- \`TARGET_TYPE\`: {{TARGET_TYPE}}`，位置紧跟 `- \`ROLE\`: {{ROLE}}`，携带者 = `REVIEW_CONTEXT` + `MODE_PROMPTS.fix` + `MODE_PROMPTS["docs-fix"]`（`MODE_PROMPTS.implement` 不携）
 - `#valuesOf` 的槽值 = `role === "implement" ? "" : frame.type`
 - `TEMPLATE_PROMPT.$version` = 21
@@ -110,7 +110,7 @@ none
 #### Steps
 
 - 写失败测（三句字节 pin）：`render.test.ts` 断言 `REVIEW_ITEM` 含「the branch review judges the live tree」且不含「the plan/branch reviews judge the plan」；`FIX_SHELL` 的 fix 句不含「the spec line」且含「never the judged document」；docs-fix 句含「never edited here」与「`INPUT_OVERALL` on the overall line」 — checkable: 三条各自 FAIL
-- 写失败测（overall 锚矩阵）：overall 的 review 与 docs-fix 两面渲染结果含 `- \`INPUT_OVERALL\`:` 且**不含** `- \`INPUT_SPEC\``；phase-spec / plan / branch 三面仍含 `INPUT_SPEC` — checkable: 两面 FAIL（今日两面都带 INPUT_SPEC）
+- 写失败测（overall 锚矩阵）：overall 的 review 与 docs-fix 两面渲染结果含 `- \`INPUT_OVERALL\`:` 且**不含** `- \`INPUT_SPEC\``；phase-spec / single-spec / plan / branch 四面仍含 `INPUT_SPEC` — checkable: 两面 FAIL（今日两面都带 INPUT_SPEC）
 - 写失败测（端到端两条）：`promptOf(["review","--type","overall","--spec",…])` 与 `promptOf(["fix","--type","overall","--spec",…])` 均含 `INPUT_OVERALL` 路径且不含 `INPUT_SPEC` 行 — checkable: 两条 FAIL
 - 改 `REVIEW_ITEM`（branch 单列 + overall 锚句 + 保留 `program:` 条件句）— checkable: 三句 pin 的第一条 PASS
 - 改 `FIX_SHELL` 的 fix 句（删掉 spec line 子句，branch 线的 `INPUT_SPEC` 定性为参考）— checkable: 第二条 PASS
@@ -120,6 +120,7 @@ none
 - 写 changeset `@oscaner-skills/cdd-engine` **minor** — checkable: `pnpm exec changeset status` 无 empty 条目
 - 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run` · `pnpm -C packages/kairos exec vitest run` · `pnpm exec vitest run` · `pnpm exec tsc --noEmit -p packages/cdd-engine` · `-p packages/kairos/tests` · `-p scripts` 全 exit 0
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
+- 整门 validate（spec AC 的 `pnpm run validate` exit 0）— checkable: 提交后的干净树上 `pnpm run validate` exit 0，其构成 = `emit:check` · root vitest · kairos suite · engine suite · typecheck ×3 · `version-sync` · `check:no-bare-functions`（引擎黑盒 dispatch 测需干净树，故本步排在提交之后）
 
 #### Acceptance
 
@@ -128,7 +129,7 @@ none
 - docs-fix 的 plan-doc 行明示 `INPUT_SPEC` 为不可编辑参考。
 - overall 面 round context 只有一个 charter 锚且名为 `INPUT_OVERALL`；`INPUT_SPEC` 在该面为空（review 与 docs-fix 同判）。
 - phase-spec / single-spec / plan / branch 四面参照面零回归。
-- changeset `cdd-engine` minor 在册；三套 vitest + 三套 typecheck 全绿。
+- changeset `cdd-engine` minor 在册；三套 vitest + 三套 typecheck 全绿；提交后 `pnpm run validate` exit 0（含 `check:no-bare-functions` 与 `emit:check`）。
 
 #### DependsOn
 
@@ -139,3 +140,4 @@ none
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-13 | P33 初稿：T1 类型判别符 `TARGET_TYPE` 进 round context（implement 不渲）· T2 参照面四处校准 A/B/C2/D + changeset。 | '[human] 裁定 · Claude（kairos:cdd-plan · 2026-11-13）' |
+| v0.2 | 2026-11-13 | 并入 plan-review-1 全部三条：F1 `TARGET_TYPE` 的 `zone` 保持 `round-context`，撤掉登记项“移入 shell 区”的说法，与 Objective / spec §2.1 对齐；F2 T2 收尾补 `pnpm run validate` 整门步骤（提交后干净树）并同步进 Acceptance；F3 overall 锚矩阵补 single-spec 面，与 Acceptance 的四面表述对齐。 | '[human] 裁定 · Claude（kairos:cdd-plan · 2026-11-13）' |

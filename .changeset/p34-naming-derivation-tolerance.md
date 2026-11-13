@@ -14,9 +14,10 @@ families do, so a task's implement carrier is `tasks-1-implement-1.json` and nev
 shadows a later attempt.
 
 **The board names a crash.** A round that booked a withheld target action with at least
-one hard violation renders one `crashed:` row in the top fact block — op, cycle ·
-attempt, and the first hard cause. The row is an observation: the counts, the legend and
-the `next:` hop are byte-identical with or without it.
+one hard violation renders its token in the top fact block's single `crashed:` row —
+op, cycle · attempt, and the first hard cause — with every crashed round joined by
+` · ` on that one line. The row is an observation: the counts, the legend and the
+`next:` hop are byte-identical with or without it.
 
 **The read-back has two tiers.** A required slot that breaks its declaration still
 blocks the round; a decorative slot — `notes`, `dispositions`, or a finding's `id` /

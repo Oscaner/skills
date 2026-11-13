@@ -487,6 +487,9 @@ describe("RoundNaming — the carrier's two names (the draft never holds the fin
       "notes.json",
       // implement is the wave-only family — a branch/doc line never mints it
       "branch-implement-1.json",
+      // a cycle-less name has no cycle to suffix: `.c{n}` is only ever the final of a
+      // cycle-bearing identity, so this shape is never minted
+      "tasks-1-implement.c1.json",
     ];
     for (const name of neighbours) expect(RoundNaming.isCarrierName(name)).toBe(false);
   });

@@ -455,9 +455,10 @@ export interface CrashRecord {
 // handoff — the family naming params
 // ---------------------------------------------------------------------------
 
-/** Per-family handoff params — the canonical name placeholders of the handoff
- *  namespace families ({tasks}/{round}; the branch family keys by `branch-{op}-{round}`,
- *  no range token — the branch line holds no commit identity). */
+/** Per-round handoff params — the naming identity's cells the renderer reads
+ *  (`round` = the cycle, `tasks` = the wave line's task group, `attempt` = the
+ *  dispatch's re-attempt). The branch line holds no commit identity — its cycle is its
+ *  own round. */
 export interface HandoffParams {
   /** The dispatch group's key string (comma-joined task ids). */
   tasks?: string;
@@ -612,8 +613,9 @@ export type ReviewGateVerdict =
 export class Ledger {
   /** The one dispatch workspace this ledger records. */
   readonly #workspace: Workspace;
-  /** The handoff-family records, keyed by `op.type` — the naming truth the ledger fills. */
-  readonly #families: Readonly<Record<string, HandoffFamily>>;
+  /** The handoff-family key set, keyed by `op.type` — the loud unknown-family check's
+   *  input (the file names are the naming face's one mint, never a table here). */
+  readonly #families: readonly HandoffFamily[];
   /** The C5 next router — the closure-side judge of the round carriers (stateless;
    *  the `closedWaves()` read face and the wave gate share the same router). */
   readonly #router = new NextStepRouter();
@@ -1554,12 +1556,13 @@ export class Ledger {
   // handoff — naming / carrier / single-author persist
   // -------------------------------------------------------------------------
 
-  /** The family record of an op/type pair — the engine-config handoff namespace data
-   *  (loud on an unknown family: the naming table is the single truth, never a second list). */
-  #family(op: string, type: string): HandoffFamily {
-    const family = this.#families[`${op}.${type}`];
-    if (family === undefined) throw new Error(`unknown handoff family: ${op}.${type}`);
-    return family;
+  /** The family key check of an op/type pair — the engine-config handoff namespace data
+   *  (loud on an unknown family: the key set is the resolution truth, never a second list;
+   *  the NAME is the naming face's one mint). */
+  #family(op: string, type: string): void {
+    if (!this.#families.includes(`${op}.${type}` as HandoffFamily)) {
+      throw new Error(`unknown handoff family: ${op}.${type}`);
+    }
   }
 
   /** The carrier PLANE of an op — the ONE op-derived derivation (`HandoffSchema.planeOf`).
@@ -1571,10 +1574,10 @@ export class Ledger {
   }
 
   /** The canonical handoff file name — the round identity's DRAFT, rendered by the
-   *  ONE naming rule (`RoundNaming#renderName`). The family table still declares the
-   *  op/type pairs (a loud unknown-family throw), but it no longer spells the name:
-   *  the renderer does, so the draft, its final, the report, the log and the crash
-   *  record cannot drift apart. */
+   *  ONE naming rule (`RoundNaming#renderName`). The family key set still guards the
+   *  op/type pairs (a loud unknown-family throw), but it spells no name: the renderer
+   *  does, so the draft, its final, the report, the log and the crash record cannot
+   *  drift apart. */
   handoffName(op: string, type: string, params: HandoffParams = {}): string {
     this.#family(op, type);
     return RoundNaming.renderName(Ledger.#artifactOf(op, type, params), "draft");
@@ -1756,8 +1759,14 @@ export class Ledger {
    *  persisted no carrier) otherwise. Record-present means final-wins: a draft sitting
    *  beside a final never becomes the judged input. */
   #reviewsPathOf(type: TargetType, params: HandoffParams, round: number): string {
-    const recorded = this.#latestRecordOf("review", type, { ...params, round })?.carrierPath;
-    if (typeof recorded === "string" && recorded !== "") return recorded;
+    const record = this.#latestRecordOf("review", type, { ...params, round });
+    // The record's carrier identity has ONE read face — `carrierPathOf` (step ① the
+    // recorded path, step ②③ the read ladder a pre-P34 row needs). A bare
+    // `record?.carrierPath` here would skip the ladder and, for a record whose row
+    // names no path, silently fall past the final carrier it did write.
+    const key = String(this.#roundKey(type, params));
+    const recorded = record === null ? "" : this.carrierPathOf(type, key, record);
+    if (recorded !== "") return recorded;
     return this.resolveHandoffPath("review", type, { ...params, round });
   }
 

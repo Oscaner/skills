@@ -118,14 +118,23 @@ export class RoundNaming {
    *  `tasks-` spine, every other line word takes the round-bearing ops. The op set and
    *  the line words come from the ONE target-face table, so neither is re-spelled here.
    *  Only `implement` has a cycle-less spelling (the pre-P34 draft on disk); `review`
-   *  and `fix` always carry their cycle, so a `tasks-1-review.json` is no carrier at all. */
+   *  and `fix` always carry their cycle, so a `tasks-1-review.json` is no carrier at all.
+   *  The `.c{cycle}` final suffix hangs off the CYCLE-BEARING alternatives alone — a
+   *  cycle-less identity has no cycle to suffix, so `tasks-1-implement.c1.json` is a
+   *  shape the renderer can never mint. */
   static #carrierPattern(): RegExp {
     const lines = Object.keys(targetFaces).filter((word) => word !== "wave");
     const attempt = "(?:-a\\d+)?";
     const final = "(?:\\.c\\d+)?";
-    return new RegExp(
-      `^(?:tasks-.+?-implement(?:-\\d+)?|tasks-.+?-(?:review|fix)-\\d+|(?:${lines.join("|")})-(?:review|fix)-\\d+)${attempt}${final}\\.json$`,
-    );
+    const cycleBearing = [
+      "tasks-.+?-implement-\\d+",
+      "tasks-.+?-(?:review|fix)-\\d+",
+      `(?:${lines.join("|")})-(?:review|fix)-\\d+`,
+    ].join("|");
+    // The legacy cycle-less implement draft: a draft on disk, never a final and never
+    // an attempt — this engine mints neither on a cycle-less identity.
+    const legacy = "tasks-.+?-implement";
+    return new RegExp(`^(?:(?:${cycleBearing})${attempt}${final}|${legacy})\\.json$`);
   }
 
   /** The rendered name resolved against the workspace — the read/write syscall form. */

@@ -1125,10 +1125,10 @@ export class CliLifecycle {
     const plane = HandoffSchema.planeOf(op);
     const read = this.#readDraft(frame);
     if (read.kind !== "ok") return null;
-    // The SAME tier the reconstruct later applies — the strict projection would refuse
-    // a draft the round itself accepts (a decorative column's mistake is a drop, not a
-    // failure). The read-back is a pure ruling; the shallow copy keeps the probe's
-    // draft independent of it either way.
+    // The SAME tier the reconstruct later applies — one read-back ruling, so the probe
+    // and the materialize step can never disagree about a draft's validity (a
+    // decorative column's mistake is a drop, not a failure). The read-back is a pure
+    // ruling; the shallow copy keeps the probe's draft independent of it either way.
     const draft = read.value;
     if (this.#handoffSchema.readBack(plane, { ...draft }).problems.length > 0) return null;
     const findings = Array.isArray(draft.findings) ? draft.findings : [];

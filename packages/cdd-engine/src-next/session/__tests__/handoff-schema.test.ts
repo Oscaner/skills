@@ -146,22 +146,25 @@ describe("projection ① — the injected writable-subset schema text", () => {
   });
 });
 
-describe("projection ② — the read-back validation (violations)", () => {
+describe("projection ② — the read-back validation (readBack's required tier)", () => {
   it("accepts the canonical work draft and the canonical judge draft", () => {
-    expect(schema.violations("work", WORK)).toEqual([]);
-    expect(schema.violations("judge", FINDINGS)).toEqual([]);
+    expect(schema.readBack("work", WORK).problems).toEqual([]);
+    expect(schema.readBack("judge", FINDINGS).problems).toEqual([]);
   });
 
   it("refuses a work draft missing the required status / artifacts", () => {
-    expect(schema.violations("work", { artifacts: { report: "/r" } })).toContain(
+    expect(schema.readBack("work", { artifacts: { report: "/r" } }).problems).toContain(
       "status: required",
     );
-    expect(schema.violations("work", { status: "APPROVED" })).toContain("artifacts: required");
+    expect(schema.readBack("work", { status: "APPROVED" }).problems).toContain(
+      "artifacts: required",
+    );
   });
 
   it("refuses a non-object draft and an out-of-enum status", () => {
-    expect(schema.violations("work", "nope")).toEqual(["expected an object"]);
-    expect(schema.violations("work", { status: "NEEDS_CONTEXT", artifacts: {} })).toEqual([
+    // the read-back's signature takes the parsed draft object (a non-object carrier
+    // body is refused earlier by the reader), so the object-shape case is the enum
+    expect(schema.readBack("work", { status: "NEEDS_CONTEXT", artifacts: {} }).problems).toEqual([
       "status: must be one of APPROVED | BLOCKED",
     ]);
   });
@@ -169,19 +172,19 @@ describe("projection ② — the read-back validation (violations)", () => {
   it("drops non-declared fields instead of BLOCKing (materialize judges the same way)", () => {
     // a work draft carrying engine-reserved or extra keys is dropped by materialize
     // and never refuses the draft (the drop-not-BLOCK ruling · §8.7)
-    expect(
-      schema.violations("work", { status: "APPROVED", artifacts: {}, phase: "implement" }),
-    ).toEqual([]);
-    expect(schema.violations("work", { status: "APPROVED", artifacts: {}, tasks: [1] })).toEqual(
-      [],
-    );
+    const dropped = (draft: Record<string, unknown>): readonly string[] =>
+      schema.readBack("work", draft).problems;
+    expect(dropped({ status: "APPROVED", artifacts: {}, phase: "implement" })).toEqual([]);
+    expect(dropped({ status: "APPROVED", artifacts: {}, tasks: [1] })).toEqual([]);
     // a residual findings payload on a docs-fix work draft is non-declared — dropped,
     // not refused (D62: the work plane carries no findings slot)
-    expect(schema.violations("work", { status: "APPROVED", artifacts: {}, findings: [] })).toEqual(
-      [],
-    );
+    expect(dropped({ status: "APPROVED", artifacts: {}, findings: [] })).toEqual([]);
     // a stray `commits` key on a work draft is no longer declared — dropped
-    expect(schema.violations("work", { ...WORK, commits: { base: "short" } })).toEqual([]);
+    expect(dropped({ ...WORK, commits: { base: "short" } })).toEqual([]);
+    // the drop is REPORTED, never silent: `droppedKeys` names the non-declared slots
+    expect(schema.droppedKeys("work", { ...WORK, commits: { base: "short" } })).toEqual([
+      "commits",
+    ]);
   });
 
   it("accepts the work plane's `dispositions` map and drops it on the judge plane", () => {
@@ -189,34 +192,36 @@ describe("projection ② — the read-back validation (violations)", () => {
       ...WORK,
       dispositions: { drift: { status: "fixed" }, "no-op": { status: "rejected", reason: "x" } },
     };
-    expect(schema.violations("work", draft)).toEqual([]);
+    expect(schema.readBack("work", draft).problems).toEqual([]);
     // A judge draft's dispositions slot is non-declared — dropped, never a BLOCK.
-    expect(schema.violations("judge", { ...FINDINGS, dispositions: {} })).toEqual([]);
+    expect(schema.readBack("judge", { ...FINDINGS, dispositions: {} }).problems).toEqual([]);
     expect(schema.droppedKeys("judge", { ...FINDINGS, dispositions: {} })).toEqual([
       "dispositions",
     ]);
   });
 
-  it("refuses a non-object dispositions value — the slot's declared shape", () => {
-    expect(schema.violations("work", { ...WORK, dispositions: [] })).toEqual([
-      "dispositions: expected an object",
-    ]);
+  it("drops a non-object dispositions value — the slot's declared shape, decorative tier", () => {
+    // `dispositions` is declared, not required: a wrong shape costs the field, never the
+    // round — the drop is what materialize's copy points see
+    const ruling = schema.readBack("work", { ...WORK, dispositions: [] });
+    expect(ruling.problems).toEqual([]);
+    expect(ruling.dropped).toEqual(["dispositions"]);
   });
 
   it("refuses a judge draft with a missing findings array or a bad severity", () => {
-    expect(schema.violations("judge", {})).toEqual(["findings: required"]);
-    expect(schema.violations("judge", { findings: "nope" })).toEqual([
+    expect(schema.readBack("judge", {}).problems).toEqual(["findings: required"]);
+    expect(schema.readBack("judge", { findings: "nope" }).problems).toEqual([
       "findings: expected an array",
     ]);
     expect(
-      schema.violations("judge", {
+      schema.readBack("judge", {
         findings: [{ severity: "fatal", lens: "spec", summary: "x" }],
-      }),
+      }).problems,
     ).toEqual(["findings[0].severity: must be one of blocker | warn | nit"]);
     expect(
-      schema.violations("judge", {
+      schema.readBack("judge", {
         findings: [{ severity: "warn", lens: "spec" }],
-      }),
+      }).problems,
     ).toEqual(["findings[0].summary: required"]);
   });
 });
@@ -234,17 +239,12 @@ describe("projection ② — the tiered read-back (readBack: required refuses, d
   it("DROPS a decorative slot instead of refusing — the path is reported, the draft is never edited", () => {
     // `dispositions` is declared but not required: an array instead of the declared
     // object costs the FIELD, never the round. The read-back is a pure ruling — it
-    // reports the path and the materialize's copy points are what drop the key, so the
-    // same walk can also serve the strict projection.
+    // reports the path and the materialize's copy points are what drop the key.
     const draft: Record<string, unknown> = { ...WORK, dispositions: [] };
     const result = schema.readBack("work", draft);
     expect(result.problems).toEqual([]);
     expect(result.dropped).toEqual(["dispositions"]);
     expect(draft.dispositions).toEqual([]);
-    // the strict walk still judges the same bytes (one declaration, two readings)
-    expect(schema.violations("work", { ...WORK, dispositions: [] })).toEqual([
-      "dispositions: expected an object",
-    ]);
   });
 
   it("drops a wrongly typed `notes` / `artifacts` — the two shared decorative slots", () => {
@@ -299,20 +299,22 @@ describe("the finding `id` — declared optional, engine-written (P30 §2.5)", (
   });
 
   it("accepts a findings draft WITHOUT an id and one with a child-written id — the engine overwrites it at materialize", () => {
-    expect(schema.violations("judge", FINDINGS)).toEqual([]);
+    expect(schema.readBack("judge", FINDINGS).problems).toEqual([]);
     expect(
-      schema.violations("judge", {
+      schema.readBack("judge", {
         findings: [{ id: "F7", severity: "warn", lens: "spec", summary: "drift" }],
-      }),
+      }).problems,
     ).toEqual([]);
   });
 
-  it("still judges the declared column's TYPE — a non-string id is a read-back problem", () => {
-    expect(
-      schema.violations("judge", {
-        findings: [{ id: 7, severity: "warn", lens: "spec", summary: "drift" }],
-      }),
-    ).toEqual(["findings[0].id: expected a string"]);
+  it("still judges the declared column's TYPE — a non-string id is dropped, never refused", () => {
+    // the id is DECORATIVE (the engine writes its own at materialize): a wrong type
+    // costs the column, never the round — the same ruling as any decorative slot
+    const ruling = schema.readBack("judge", {
+      findings: [{ id: 7, severity: "warn", lens: "spec", summary: "drift" }],
+    });
+    expect(ruling.problems).toEqual([]);
+    expect(ruling.dropped).toEqual(["findings[0].id"]);
   });
 
   it("projects the id into the injected judge fence", () => {

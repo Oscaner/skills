@@ -174,8 +174,8 @@ export interface SchemaProblem {
 }
 
 /** The walk's two tiers over one declaration: `strict` records every mismatch as a
- *  problem (the evidence gate and the strict projection), `tiered` turns a DECORATIVE
- *  slot's mismatch into a drop while a required slot's mismatch stays a problem. */
+ *  problem (the evidence gate's ruling), `tiered` turns a DECORATIVE slot's mismatch
+ *  into a drop while a required slot's mismatch stays a problem (the dispatch gate's). */
 type CheckTier = "strict" | "tiered";
 
 /** One walk's accumulating ruling — the tier it judges in, the refusal list and the
@@ -195,8 +195,12 @@ export interface ReadBack {
 }
 
 /**
- * HandoffSchema — one declaration, two projections. `violations(plane, value)` is
- * the read-back validator (projection ② — the engine's seat, session plane);
+ * HandoffSchema — one declaration, two projections. `readBack(plane, draft)` is the
+ * carrier read-back validator (projection ② — the engine's seat, session plane: the
+ * dispatch gate's tiered ruling), and `evidenceViolations(value)` is the strict walk
+ * of the evidence file's own declaration (the evidence gate's input). The carrier
+ * plane has no strict reader: a decorative slot's mistake there costs a field, never
+ * a round, so a second strict walk of the carrier would judge nothing.
  * `schemaText(plane, evidence)` is the injected prompt text (projection ① — fixed
  * prefix tail, byte-stable per plane so the dispatch prompt stays cache-friendly).
  * `rollup(findings)` derives the review conclusion the old JSON face rolled up.
@@ -227,16 +231,6 @@ export class HandoffSchema {
   /** The declared evidence schema, as text (the evidence-gate prompt's shared fence). */
   evidenceSchemaText(): string {
     return this.#json(EVIDENCE);
-  }
-
-  /** Projection ② — the STRICT walk over a plane's writable subset: every declared
-   *  slot judged at its declared shape, the draft left untouched. The evidence gate
-   *  reads it; the dispatch gate reads `readBack` below — the SAME walk kept for the
-   *  required tier, with a decorative slot's mistake turned into a DROP. */
-  violations(plane: CarrierPlane, value: unknown): string[] {
-    const out: CheckOut = { tier: "strict", problems: [], dropped: [] };
-    this.#check(this.#writable(plane), value, "", out);
-    return HandoffSchema.#problemsOf(out.problems);
   }
 
   /** The TIERED read-back — the dispatch gate's ONE ruling (spec §2.1): a REQUIRED
@@ -368,8 +362,8 @@ export class HandoffSchema {
     return JSON.stringify(node);
   }
 
-  /** The `path: reason` forms of one walk's problems — the ONE wording the read-back,
-   *  the strict projection and the evidence gate report. */
+  /** The `path: reason` forms of one walk's problems — the ONE wording the read-back
+   *  and the evidence gate report. */
   static #problemsOf(problems: readonly SchemaProblem[]): string[] {
     return problems.map((problem) =>
       problem.path.length === 0 ? problem.reason : `${problem.path}: ${problem.reason}`,

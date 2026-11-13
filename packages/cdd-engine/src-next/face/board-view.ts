@@ -459,27 +459,34 @@ export class BoardView {
     return rows;
   }
 
-  /** crashedRows(records) — the node's CRASHED rounds as board lines, one token per
-   *  round: `crashed: {op} {cycle}·a{attempt} · {cause}`. A round crashed when its
-   *  booked verdict withheld the target action AND at least one of its violations is
-   *  HARD; the cause is the FIRST hard entry in record order — the round's own
-   *  narrative never re-orders it. The list reads `(cycle, attempt)` — the session's
-   *  own sequence, never the progress file's write order (spec §2.13) — and one round
-   *  identity yields ONE row even when a recovery re-booked it. The row is an
-   *  observation only: it joins no aggregation, the counts, the legend and the `next:`
-   *  hop stay byte-identical with and without it (spec §5.3 — a failed round is never
-   *  hidden, never re-counted). */
+  /** crashedRows(records) — the node's CRASHED rounds as ONE board line, one token per
+   *  round: `crashed: {op} {cycle}·a{attempt} {cause} · {op} {cycle}·a{attempt} {cause}`.
+   *  A round crashed when its booked verdict withheld the target action AND at least one
+   *  of its violations is HARD; the cause is the FIRST hard entry in record order — the
+   *  round's own narrative never re-orders it. The tokens read `(cycle, attempt)` — the
+   *  session's own sequence, never the progress file's write order (spec §2.13) — and one
+   *  round identity yields ONE token even when a recovery re-booked it. The ` · ` is the
+   *  INTER-TOKEN separator alone (a cause stays space-separated, so a token never splits),
+   *  and zero crashed rounds render no line at all. The row is an observation only: it
+   *  joins no aggregation, the counts, the legend and the `next:` hop stay byte-identical
+   *  with and without it (spec §5.3 — a failed round is never hidden, never re-counted). */
   static crashedRows(records: readonly RoundRecord[]): readonly string[] {
+    const tokens = BoardView.#crashTokens(records);
+    return tokens.length === 0 ? [] : [`  crashed: ${tokens.join(" · ")}`];
+  }
+
+  /** The crashed rounds as ordered, de-duplicated tokens — the ONE line's cells. */
+  static #crashTokens(records: readonly RoundRecord[]): readonly string[] {
     const seen = new Set<string>();
-    const rows: string[] = [];
+    const tokens: string[] = [];
     for (const record of BoardView.#byRound(records.filter((entry) => BoardView.#crashed(entry)))) {
       const identity = `${record.op}:${record.cycle}:${record.attempt}`;
       if (seen.has(identity)) continue;
       seen.add(identity);
       const cause = record.violations.find((violation) => violation.grade === "hard")!;
-      rows.push(`  crashed: ${record.op} ${record.cycle}·a${record.attempt} · ${cause.cause}`);
+      tokens.push(`${record.op} ${record.cycle}·a${record.attempt} ${cause.cause}`);
     }
-    return rows;
+    return tokens;
   }
 
   /** The records in board order — `(cycle, attempt)`, the round identity's own sequence.

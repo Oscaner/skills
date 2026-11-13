@@ -318,7 +318,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "- **Acceptance**: ok",
       "- **DependsOn**: none",
     ]);
-    const crashRow = "  crashed: implement 1·a1 · no-commits";
+    const crashRow = "  crashed: implement 1·a1 no-commits";
     // The SAME identity, the SAME anomaly token, one difference: the crash is booked
     // by a HARD violation rather than a soft one — the crashed row is the ONLY new
     // bytes, so the counts, the legend and the `next:` hop judge the same way.
@@ -1340,11 +1340,11 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
     expect(rows[2]).toContain("branch-fix-1.json");
   });
 
-  it("appends the crashed rows after the orphan rows — the same top fact block", () => {
+  it("appends the crashed row after the orphan rows — the same top fact block", () => {
     const rows = BoardView.inFlightRows({ kind: "absent" }, ["tasks-1-review-1.json"], words, [
-      "  crashed: implement 1·a1 · contract-violation",
+      "  crashed: implement 1·a1 contract-violation",
     ]);
-    expect(rows.at(-1)).toBe("  crashed: implement 1·a1 · contract-violation");
+    expect(rows.at(-1)).toBe("  crashed: implement 1·a1 contract-violation");
   });
 });
 
@@ -1363,7 +1363,7 @@ describe("BoardView.crashedRows — the crashed round as an observation (spec §
   const hard = (cause: string): RoundRecord["violations"][number] =>
     RoundViolation.hard("the round's target action did not land", cause);
 
-  it("renders one token per crashed round — op · cycle·attempt · the FIRST hard cause", () => {
+  it("renders ONE line, one token per crashed round — op cycle·attempt then the FIRST hard cause", () => {
     const rows = BoardView.crashedRows([
       record({
         cycle: 2,
@@ -1372,7 +1372,27 @@ describe("BoardView.crashedRows — the crashed round as an observation (spec §
         violations: [hard("no-commits"), hard("hygiene")],
       }),
     ]);
-    expect(rows).toEqual(["  crashed: implement 2·a3 · no-commits"]);
+    expect(rows).toEqual(["  crashed: implement 2·a3 no-commits"]);
+  });
+
+  it("joins every crashed round into the ONE line the spec renders", () => {
+    // the design spec's literal row: `crashed: review 1·a1 contract-violation · review 3·a2 stalled`
+    const rows = BoardView.crashedRows([
+      record({
+        op: "review",
+        cycle: 1,
+        verdict: { treeClean: false, targetAction: false },
+        violations: [hard("contract-violation")],
+      }),
+      record({
+        op: "review",
+        cycle: 3,
+        attempt: 2,
+        verdict: { treeClean: true, targetAction: false },
+        violations: [hard("stalled")],
+      }),
+    ]);
+    expect(rows).toEqual(["  crashed: review 1·a1 contract-violation · review 3·a2 stalled"]);
   });
 
   it("skips a round that landed its action and a round whose failures are all SOFT", () => {
@@ -1402,23 +1422,18 @@ describe("BoardView.crashedRows — the crashed round as an observation (spec §
       crashed(1, 2),
     ]);
     expect(rows).toEqual([
-      "  crashed: implement 1·a2 · child-exit",
-      "  crashed: implement 2·a1 · child-exit",
-      "  crashed: implement 3·a1 · child-exit",
+      "  crashed: implement 1·a2 child-exit · implement 2·a1 child-exit · implement 3·a1 child-exit",
     ]);
   });
 
-  it("renders ONE row per round identity — a re-booked round never doubles its token", () => {
+  it("renders ONE token per round identity — a re-booked round never doubles its token", () => {
     const crashed: RoundRecord = record({
       cycle: 2,
       verdict: { treeClean: true, targetAction: false },
       violations: [hard("child-exit")],
     });
     const rows = BoardView.crashedRows([crashed, crashed, { ...crashed, op: "review" }]);
-    expect(rows).toEqual([
-      "  crashed: implement 2·a1 · child-exit",
-      "  crashed: review 2·a1 · child-exit",
-    ]);
+    expect(rows).toEqual(["  crashed: implement 2·a1 child-exit · review 2·a1 child-exit"]);
   });
 });
 

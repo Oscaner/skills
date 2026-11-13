@@ -3,8 +3,9 @@
 // stance is "a declaration is a fact": a field/constant/helper with zero reader is
 // either deleted or given a real consumer, never left as a dead declaration.
 //   · ⑧ HOSTS[*].cache — deleted (zero reader).
-//   · ⑯ HandoffFamily.round/phase/fixFamily/fixTemplate/prev — deleted (name +
-//     schema are the only readers).
+//   · ⑯ HandoffFamily.round/phase/fixFamily/fixTemplate/prev — deleted; the residual
+//     `name` column is deleted too (the family surface is an `op.type` KEY SET — the
+//     file names are the session plane's one mint, so no row spells a carrier pattern).
 //   · ⑱ CRASH_TAIL_LINES — the ghost comment referencing the nonexistent symbol.
 //   · ⑲ setupRepo — the zero-caller helper (kairos tests plane).
 
@@ -27,10 +28,15 @@ describe("dead-declaration zero residue (spec §3.4)", () => {
     for (const dead of ["fixFamily", "fixTemplate"]) {
       expect(runtimeSrc, dead).not.toContain(dead);
     }
-    // the round/phase/prev fields are gone (the table rows carry name + schema only)
+    // the round/phase/prev fields are gone (the family surface is a bare key set)
     expect(runtimeSrc).not.toMatch(/^\s*round:/m);
     expect(runtimeSrc).not.toMatch(/^\s*phase:/m);
     expect(runtimeSrc).not.toMatch(/^\s*prev:/m);
+    // the residual `name` column is gone with it — no row spells a {placeholder}
+    // carrier pattern the session plane's renderer alone may mint
+    expect(runtimeSrc).not.toMatch(/^\s*name:\s*["'`]/m);
+    expect(runtimeSrc).not.toContain("{tasks}");
+    expect(runtimeSrc).not.toContain("{round}");
   });
 
   it("⑱ the CRASH_TAIL_LINES ghost symbol is gone from ledger.ts", () => {

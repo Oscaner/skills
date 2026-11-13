@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 设计：载体身份收为轮次身份的单射渲染'
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-11-13
 slug: '2026-10-10-engine-doc-tooling-p34'
 program: 2026-10-10-engine-doc-tooling
@@ -70,7 +70,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 
 implement 一族的每个 kind 都携 `cycle` 令牌：`#stem` 对 implement 省掉 round 令牌、`finalName` 在 `round === undefined` 时原样返回 draft 名，这两条约定同时退役，`HandoffParams.round` 对 implement 也照常填（今天 `Lifecycle#paramsOf` 对该相位刻意不填，正是同一个省法的另一半）。于是 `render(id, draft) ≠ render(id, final)` 恒真，`final ≠ draft` 恒成立——这既是「种类是坐标」的直接后果，也是 P31 §2.3「final 永不覆盖 draft」第一次在该族兑现。
 
-补的是全部 kind，不只 final：cycle 若只出现在 final 上，draft / report / log / evidence 仍会在 cycle 之间共用一格，§1.2 那条「重派销毁上一轮的物证」就在本族内原样残留。今天 implement 的 cycle 恒为 1（`Lifecycle#roundFor` 对该相位返回固定值），所以这个令牌当下不区分任何两轮；正因为如此，把它留给运行面那个常量去保证，单射性就依赖 `RoundNaming` 之外的一条事实，而本相位的第一原则恰恰是名字只从身份派生。
+补的是全部 kind，不只 final：cycle 若只出现在 final 上，draft / report / log / evidence 仍会在 cycle 之间共用一格，§1.2 那条「重派销毁上一轮的物证」就在本族内原样残留。今天 implement 的 cycle 恒为 1（`Run#roundFor` · `session/run.ts` · 对该相位返回固定值），所以这个令牌当下不区分任何两轮；正因为如此，把它留给运行面那个常量去保证，单射性就依赖 `RoundNaming` 之外的一条事实，而本相位的第一原则恰恰是名字只从身份派生。
 
 #### 2.3 写一次是构造属性，不加门
 
@@ -203,3 +203,4 @@ P31 §2.4 的窗口成员必须与本轮渲染同源，否则新名字让人「�
 | v0.1 | 2026-11-13 | P34 初稿：产物名收为轮次身份的单射渲染（`(line, op, cycle, attempt)` × `kind` 一处派生）· implement 补 cycle 坐标 · 写一次作构造属性 · `carrierPath`/`draftPath` 新记录退役 · 记录缺席回退 attempt 1 · attempt=1 逐字节守恒 · legacy 失配行 present-facts。作用面覆盖 carrier / report / evidence / crash（log 已有）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.2 | 2026-11-13 | 并入 phase-spec-review-1 全部十条。F1 新增 §2.10 读写缝（`Ledger#carrierPathOf` 一个 accessor + `HandoffParams.attempt` + 四条读面改写 + 摘要面不动）；F2 新增 §2.11 preflight/seal 与本轮 attempt 同批（含崩溃遗留的 sweep 与 legacy 轮）；F3 改正 crash 适用面为「每一个派发轮」并新增 §3.5 pin；F4 把 implement 的 cycle 补到全部 kind（§2.2）并重写 §2.6 为守恒 + 例外清单；F5/F6 对齐母 charter 回填（D88 · P34 行 · overall v3.59：全部轮次产物 + `draftPath` 同批退役 · 签名 `(line, op, cycle, attempt) × kind`），`parent-version` 随行 v3.59；F7 点名 owner 判据 `RoundRecords#ownerOf`（§2.7）；F8 网格改按适用对比较、覆盖六个 `TargetType`（§3.1）；F9 守恒示例改回规范拼写 `phase-spec-review-1.c1.json`；F10 统一用「单射性」。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-1 · 2026-11-13）' |
 | v0.3 | 2026-11-13 | 并入 phase-spec-review-2 两条。F1：母 charter 的守恒边界回填为与 §2.6 同一条（overall v3.60 · D88 · Issue inventory P34 ⑤ · Phase inventory P34 scope + acceptance 格），§2.6 的字节 pin 不动；F2：§3.4 的扫描面符号改正为 `RoundNaming.isCarrierName`（`CarrierSeal.sweep` 的消费面），`CarrierSeal.isCarrierName` 不存在。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-2 · 2026-11-13）' |
+| v0.4 | 2026-11-13 | **§2.2 符号回填（plan-review-1 F7 · 设计文档事实错误）**：implement 的 cycle 常量持有者是 `Run#roundFor`（`session/run.ts`），不是 `Lifecycle#roundFor` / `CliLifecycle#roundFor`——后者在树里不存在。设计意图与结论不变，只纠正引用；plan 的 Review Focus 条目由计划 fix 轮同笔改。 | '[human] 裁定 · Claude（kairos:cdd-plan · backfill-design · 2026-11-13）' |

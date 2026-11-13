@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P33 设计：dispatch prompt 判别符 + 参照面校准'
 doc-type: phase-spec
-version: v0.5
+version: v0.6
 date: 2026-11-13
 slug: '2026-10-10-engine-doc-tooling-p33'
 program: 2026-10-10-engine-doc-tooling
@@ -134,3 +134,4 @@ round-context 渲染器对空值**丢行而不报错**。若注入面回退成�
 | v0.3 | 2026-11-13 | 并入 phase-spec-review-1 全部四条：F1 §1.2 的 LCP 实测值撤出正文，改述为必须成立的条件（标题与 `**Criteria — …:**` 行零字节 · §2.5 句子同模式内全类型一致）；F2 §3.2 的改名残留面改按 AC「零残留」判据全量列出（`TOKENS` · `#rowOf`/`#gate`/`#reviewRow` · `#valuesOf` · 测试夹具）；F3 parent-version 对齐 v3.54（overall 侧已由编排器回填）；F4 新增 §3.3 标题，结构门盲区说明独立成节。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.4 | 2026-11-13 | 并入主体面五处（D87）：G docs-fix 的 freeze/capability/指令三句互斥 · H review 的 commit/只读对冲 · I single-spec 被要求对照被丢弃的 `INPUT_OVERALL` · J branch 判据体的退役词 task · K overall rubric 槽仍是 spec。修法取 α（clause 自我限定，保住 `LICENSE_ITEMS` 单一共享块）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.5 | 2026-11-13 | 并入 phase-spec-review-2 全部六条：F1 冻结面收窄为标签（标题 · `**Criteria — <type>:**` 标签 · `**Lens labels:**` 行零字节，criteria 体可在 I/J/K 需要处改）并 parent-version 对齐 v3.56；F2 §1.2 撤掉「壳内唯一随类型变化」的过宽断言，点名注入 `## Handoff schema` 的 `RoundNaming#prefix` 分化；F3 G 扩到三张 work 壳并让 AC3 的均匀句覆盖 §2.6；F4 α 自限定须点名被判文档族；F5 §2.6 导语的根因句改为「分化在前、块无条件拼入」；F6 历史表按版本序重排。 | '[human] 裁定 · Claude（kairos:cdd-spec-writer · P33 review 2 fix · 2026-11-13）' |
+| v0.6 | 2026-11-13 | **closeout 登记（cdd-close）**：P33 全链闭合——三波 W1{1} · W2{2} · W3{3} 各 implement→review；W1 一轮 fix（1 nit：changeset EOF）、W2 一轮 fix（3 warn + 1 nit：两处 referent 注释、缺 render 整体锚矩阵、EOF），**W3 零 finding**；分支终审 **0 finding**。交付与本文逐节对应：§2.1–§2.3 判别符渲染且 implement 不渲 · §2.5 A/B/C2/D 四句参照面 · §2.6 G/H/I/J/K 主体面五处（freeze/commit 自我限定、capability 点名四族、program-conformance 限 phase-spec、branch 改口 wave、rubric 槽 charter / phase author）。`TEMPLATE_PROMPT.$version` 20 → 23 · `pnpm run validate` exit 0（root 34 · kairos 96 · engine 1614 · typecheck ×3 · emit fresh · version-sync · 零裸函数）· changeset `cdd-engine` **minor** 单条 · 不发布。 | '[human] 裁定 · Claude（kairos:cdd-close · 2026-11-13）' |

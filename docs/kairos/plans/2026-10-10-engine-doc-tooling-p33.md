@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— P33 计划：dispatch prompt 判别符 + 参照面校准
 doc-type: plan
-version: v0.5
+version: v0.6
 date: 2026-11-13
 slug: 2026-10-10-engine-doc-tooling-p33
 base: develop
@@ -209,3 +209,4 @@ none
 | v0.3 | 2026-11-13 | 追加 T3：主体面五处校准（G/H/I/J/K · D87 · 修法取 α）· `DependsOn 2`；Constraints 增「`LICENSE_ITEMS` 单一共享块」；Review Focus 增两条（自我限定反向收窄、限定过宽摘掉 phase-spec 自己的判据）；spec 同步升至 v0.4。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.4 | 2026-11-13 | 对齐 spec v0.5（phase-spec-review-2 的 F1/F3/F4）：Constraints 的冻结面从「Criteria 行」收窄为「标签 + Lens 行，体可改」；T3 增 `WORK_CAPABILITY` 点名被判文档族（承重面），验证面由 docs-fix 单面扩为 implement / fix / docs-fix 三壳。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.5 | 2026-11-13 | 并入 plan-review-2 全部五条：F1 T1 端到端 pin 的 plan 线改为 `--plan`（`--type plan` 消费 `--plan`，`--spec` 只属三个 spec 型）；F2 T1 Files 补 `infra/__tests__/infra.test.ts`、注释计数改为六处并点名 `TOKENS` 的「supplied but never rendered」行，Acceptance 的零残留域展到 grep 全域；F3 T2 把 `REVIEW_CONTEXT` 的 doc 注释纳入改名面并改写 A/B/C2 后的映射；F4 字节 pin 从标题 + Criteria 展到 `**Lens labels:**` 行，T3 增九壳收尾 pin；F5 T3 capability pin 从 overall charter 展为四族名逐一断言。 | '[human] 裁定 · Claude（kairos:cdd-plan · 2026-11-13）' |
+| v0.6 | 2026-11-13 | **closeout 登记（cdd-close）**：三任务全部交付——Task 1 `a9baeb13`（判别符 + 十二面矩阵 + 四条端到端）与 `8803e23a`（changeset EOF）· Task 2 `10d2f17b`（三句参照面 + C2 + 整体锚矩阵）与 `d4549028`（两处 referent 注释 + render 矩阵 + EOF）· Task 3 `bdf70aeb`（主体面五组 pin，该波零 finding）；编排器另落 `97a5d4ef`（三条 changeset 归并为一条）。计划与实现一致，无回填；任务 id 集与 `DependsOn` 图一字未动。`pnpm run validate` exit 0（root 34 · kairos 96 · engine 1614）。 | '[human] 裁定 · Claude（kairos:cdd-close · 2026-11-13）' |

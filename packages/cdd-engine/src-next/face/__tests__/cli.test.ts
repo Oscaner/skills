@@ -2756,6 +2756,115 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("P33 T1 — the round context carries the CLI `--type` word as TARGET_TYPE on every targeted face, never on implement", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      const promptOf = async (argv: readonly string[]): Promise<string> => {
+        await command.runArgv([...argv]);
+        const call = sync.calls[sync.calls.length - 1];
+        if (call === undefined) throw new Error(`no child spawned for: ${argv.join(" ")}`);
+        return call.args[call.args.length - 1]!;
+      };
+      try {
+        // ① a spec review — the token carries the spec-shaped type word
+        const spec = await promptOf([
+          "review",
+          "--type",
+          "phase-spec",
+          "--spec",
+          conformingSpec(repoRoot),
+        ]);
+        expect(spec).toContain("- `TARGET_TYPE`: phase-spec");
+        // the line sits immediately below ROLE — one reading order on every face
+        expect(spec).toContain("- `ROLE`: review\n- `TARGET_TYPE`: phase-spec\n");
+
+        // ② a wave fix round — the fix role carries the wave word
+        const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+        const ledger = new Ledger(workspace, new ConfigLoader());
+        const findings = [{ severity: "blocker", lens: "code", summary: "drift" }];
+        ledger.persistHandoff(
+          "implement",
+          "wave",
+          { tasks: "1" },
+          { status: "APPROVED", artifacts: {} },
+        );
+        ledger.recordRound(1, { op: "implement" });
+        const reviews = path.join(workspace.path, "tasks-1-review-1.json");
+        writeFileSync(reviews, JSON.stringify({ findings }), "utf8");
+        ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings });
+        ledger.recordRound(1, { op: "review" });
+        const fix = await promptOf([
+          "fix",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--reviews",
+          reviews,
+        ]);
+        expect(fix).toContain("- `TARGET_TYPE`: wave");
+        expect(fix).toContain("- `ROLE`: fix\n- `TARGET_TYPE`: wave\n");
+
+        // ③ a plan-doc fix round — the docs-fix row carries the plan word (the fix
+        // face's plan line IS docs-fix, so the type travels the same slot)
+        const planReviews = path.join(workspace.path, "plan-review-1.json");
+        writeFileSync(planReviews, JSON.stringify({ findings }), "utf8");
+        ledger.persistHandoff("review", "plan", { round: 1 }, { findings });
+        ledger.recordRound("plan", { op: "review" });
+        const docsFix = await promptOf([
+          "fix",
+          "--type",
+          "plan",
+          "--plan",
+          plan,
+          "--reviews",
+          planReviews,
+        ]);
+        expect(docsFix).toContain("- `TARGET_TYPE`: plan");
+        expect(docsFix).toContain("- `ROLE`: docs-fix\n- `TARGET_TYPE`: plan\n");
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P33 T1 — an implement round's round context carries no TARGET_TYPE line", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const call = sync.calls[sync.calls.length - 1];
+      expect(call).toBeDefined();
+      const prompt = call!.args[call!.args.length - 1]!;
+      // the implement layout carries no such line, and the empty value is dropped
+      expect(prompt).not.toContain("TARGET_TYPE");
+      expect(prompt).toContain("- `ROLE`: implement");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("D61-4 — INPUT_OVERALL carries the parent charter the spec's `program:` names", async () => {
     const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";

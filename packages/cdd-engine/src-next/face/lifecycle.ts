@@ -999,7 +999,10 @@ export class CliLifecycle {
       OUTPUT_REPORT: this.#rel(this.#naming.report(frame)),
       OUTPUT_EVIDENCE: this.#rel(this.#naming.evidence(frame)),
       OUTPUT_HANDOFF: this.#rel(scene.ledger.handoffPath(op, frame.type, params)),
-      REVIEW_TYPE: isReview ? frame.type : "",
+      // P33 T1 — the target discriminant the child reads (the CLI's `--type` word).
+      // It renders right below ROLE on every face that has a target; implement is the
+      // one role without one, so the slot stays empty and the assembler drops the line.
+      TARGET_TYPE: role === "implement" ? "" : frame.type,
       WORKSPACE_DIR: this.#rel(scene.workspace.path),
       WORKSPACE_ID: scene.workspace.slug,
       // v1.9 — the injected writable-subset schema (projection ①): the `## Handoff

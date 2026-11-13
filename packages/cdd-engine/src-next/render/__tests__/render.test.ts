@@ -35,7 +35,7 @@ const ALL_VALUES: Record<string, string> = {
   OUTPUT_REPORT: "/ws/tasks-4,12-implement-report.md",
   OUTPUT_EVIDENCE: "/ws/tasks-4,12-test-evidence.json",
   OUTPUT_HANDOFF: "/ws/tasks-4,12-implement.json",
-  REVIEW_TYPE: "",
+  TARGET_TYPE: "",
   WORKSPACE_DIR: "/ws",
   WORKSPACE_ID: "2026-10-02-x",
   HANDOFF_SCHEMA: "$$SCHEMA$$",
@@ -54,6 +54,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(assembler.declaredTokens()).toContain("OUTPUT_EVIDENCE");
     expect(assembler.declaredTokens()).toContain("BASE_BRANCH");
     expect(assembler.declaredTokens()).toContain("HANDOFF_SCHEMA");
+    // P33 T1 — the target discriminant is a declared round-context token (it renders
+    // on every face that has a target; the value stays empty on implement)
+    expect(assembler.declaredTokens()).toContain("TARGET_TYPE");
     // the retired reference tokens — the range/brief tokens are gone; INPUT_PLAN is
     // resurrected as the semantic plan-doc anchor (the kind-named round context)
     expect(assembler.declaredTokens()).not.toContain("INPUT_RANGE");
@@ -154,6 +157,40 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).not.toContain("INPUT_CRITERIA");
   });
 
+  it("P33 T1 — the twelve target faces render their TARGET_TYPE word right after ROLE; implement carries none", () => {
+    // The discriminant is a ROUND-CONTEXT fact (the child reads the target word the
+    // CLI `--type` declared), one line below ROLE on every face that has a target:
+    // the six review rows, the two fix rows (wave · branch) and the four docs-fix
+    // rows (plan · phase-spec · overall · single-spec).
+    const faces = [
+      ...(["wave", "branch", "phase-spec", "overall", "plan", "single-spec"] as const).map(
+        (type) => ({ role: "review", type }),
+      ),
+      ...(["wave", "branch"] as const).map((type) => ({ role: "fix", type })),
+      ...(["plan", "phase-spec", "overall", "single-spec"] as const).map((type) => ({
+        role: "docs-fix",
+        type,
+      })),
+    ];
+    // the matrix is complete by construction — twelve faces, no silent drop
+    expect(faces).toHaveLength(12);
+    for (const { role, type } of faces) {
+      const out = assembler.render({
+        ...ALL_VALUES,
+        ROLE: role,
+        TARGET_TYPE: type,
+        INPUT_SPEC: "docs/x-design.md",
+        INPUT_REVIEWS: "/ws/x-review-1.json",
+      });
+      // the line sits IMMEDIATELY below ROLE (one block, one reading order)
+      expect(out, `${role}/${type}`).toContain(`- \`ROLE\`: ${role}\n- \`TARGET_TYPE\`: ${type}\n`);
+    }
+    // implement is the ONE role without a target: its layout carries no such line,
+    // and the empty slot is dropped even when the value is supplied empty.
+    const implement = assembler.render({ ...ALL_VALUES, ROLE: "implement" });
+    expect(implement).not.toContain("TARGET_TYPE");
+  });
+
   it("every work shell carries the Bash discipline clause — a timeout on every command, ceiling from the constant", () => {
     // The clause's minute value is DERIVED from the constant, never re-spelled in
     // prose — the pin reads the constant, so a budget change cannot leave the
@@ -163,7 +200,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       const out = assembler.render({
         ...ALL_VALUES,
         ROLE: role,
-        REVIEW_TYPE: "phase-spec",
+        TARGET_TYPE: "phase-spec",
         INPUT_SPEC: "docs/x-design.md",
       });
       expect(out, role).toContain("Put a `timeout` on every Bash command");
@@ -181,7 +218,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       const out = assembler.render({
         ...ALL_VALUES,
         ROLE: role,
-        REVIEW_TYPE: "phase-spec",
+        TARGET_TYPE: "phase-spec",
         INPUT_SPEC: "docs/x-design.md",
       });
       for (const pin of pins) expect(out, role).toContain(pin);
@@ -260,7 +297,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const spec = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "phase-spec",
+      TARGET_TYPE: "phase-spec",
       INPUT_WAVE_BRIEF: "",
       INPUT_SPEC: "docs/kairos/specs/s1-design.md",
       INPUT_OVERALL: "docs/kairos/overalls/s1-overall.md",
@@ -306,7 +343,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const task = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "wave",
+      TARGET_TYPE: "wave",
       BASE_BRANCH: "develop",
       OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
     });
@@ -339,7 +376,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const branch = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "branch",
+      TARGET_TYPE: "branch",
       INPUT_WAVE_BRIEF: "",
       INPUT_PLAN: "docs/kairos/plans/p.md",
       INPUT_SPEC: "docs/kairos/specs/p-design.md",
@@ -368,7 +405,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const plan = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "plan",
+      TARGET_TYPE: "plan",
       INPUT_WAVE_BRIEF: "",
       INPUT_PLAN: "docs/kairos/plans/p.md",
       INPUT_SPEC: "docs/kairos/specs/p-design.md",
@@ -390,15 +427,16 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // issue #390 — the no-secret-access clause: 16 → 17; P22 §7.3 — the work plane's
     // capability declaration: 17 → 18; the docs-fix row's capability declaration
     // (the fix face's spec / plan dispatch): 18 → 19; P22 T15 — the charter's own
-    // criteria body + the explicit criteria-body selection: 19 → 20)
-    expect(TEMPLATE_PROMPT.$version).toBe(20);
+    // criteria body + the explicit criteria-body selection: 19 → 20; P33 T1 — the
+    // target discriminant rendered as a round-context line on every targeted face: 20 → 21)
+    expect(TEMPLATE_PROMPT.$version).toBe(21);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)
     const wave = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "wave",
+      TARGET_TYPE: "wave",
       BASE_BRANCH: "develop",
       OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
     });
@@ -440,7 +478,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const review = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "wave",
+      TARGET_TYPE: "wave",
       OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
     });
     const fix = assembler.render({
@@ -496,7 +534,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       assembler.render({
         ...ALL_VALUES,
         ROLE: "review",
-        REVIEW_TYPE: type,
+        TARGET_TYPE: type,
         INPUT_SPEC: "docs/x-design.md",
         OUTPUT_HANDOFF: `/ws/tasks-1-${type}-review-1.json`,
       }),
@@ -514,8 +552,8 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(() => assembler.render(partial)).toThrow(/ROLE/);
     // an unknown ROLE is refused by the mode table (never a phantom assemble)
     expect(() => assembler.render({ ...ALL_VALUES, ROLE: "bogus" })).toThrow(/work-mode/);
-    // a review without its REVIEW_TYPE discriminant is refused by the variants
-    expect(() => assembler.render({ ...ALL_VALUES, ROLE: "review", REVIEW_TYPE: "" })).toThrow(
+    // a review without its TARGET_TYPE discriminant is refused by the variants
+    expect(() => assembler.render({ ...ALL_VALUES, ROLE: "review", TARGET_TYPE: "" })).toThrow(
       /review type not declared/,
     );
   });
@@ -893,7 +931,7 @@ describe("P31 T2 — INPUT_RULINGS rides the fix input side alone", () => {
     const out = new TemplateAssembler().render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "wave",
+      TARGET_TYPE: "wave",
       INPUT_WAVE_BRIEF: "/ws/tasks-1-brief.md",
       INPUT_RULINGS: "/ws/tasks-1-review-1.rulings.json",
     });

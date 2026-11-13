@@ -93,7 +93,7 @@ export interface ModePromptRow {
 export interface TemplatePrompt {
   $version: number;
   /** The work-mode rows — one per non-review ROLE (§3.5; the review rows live in
-   *  `reviews` — their ROLE value is "review" and REVIEW_TYPE selects the row). */
+   *  `reviews` — their ROLE value is "review" and TARGET_TYPE selects the row). */
   modes: Readonly<Record<WorkModeRowKey, ModePromptRow>>;
   /** The review mode's per-type rows — each variant's fixed prefix carries its
    *  criteria + lens (folded in, never tokens). */
@@ -262,6 +262,7 @@ const REVIEW_CONTEXT: readonly string[] = [
   "## Round context",
   "",
   "- `ROLE`: {{ROLE}}",
+  "- `TARGET_TYPE`: {{TARGET_TYPE}}",
   "- `WAVE`: {{WAVE}}",
   "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
   "- `INPUT_PLAN`: {{INPUT_PLAN}}",
@@ -302,6 +303,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "## Round context",
       "",
       "- `ROLE`: {{ROLE}}",
+      "- `TARGET_TYPE`: {{TARGET_TYPE}}",
       "- `WAVE`: {{WAVE}}",
       "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
       "- `INPUT_PLAN`: {{INPUT_PLAN}}",
@@ -323,6 +325,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
       "## Round context",
       "",
       "- `ROLE`: {{ROLE}}",
+      "- `TARGET_TYPE`: {{TARGET_TYPE}}",
       "- `WAVE`: {{WAVE}}",
       "- `INPUT_PLAN`: {{INPUT_PLAN}}",
       "- `INPUT_SPEC`: {{INPUT_SPEC}}",
@@ -496,8 +499,8 @@ const RETURN_ZONE: TemplatePrompt["return"] = {
 /** The token registry — the union across every mode's round context + the shell's
  *  schema slot (the v1.8 normalized vocabulary; the assembly face supplies every
  *  declared slot, empty where the mode does not consume it — the round-context
- *  renderer drops the empty-valued lines). REVIEW_TYPE is the review-mode row
- *  selector (supplied but never rendered). */
+ *  renderer drops the empty-valued lines). TARGET_TYPE is the target discriminant:
+ *  it selects the review row AND renders on every targeted face. */
 const TOKENS: readonly TemplateToken[] = [
   { name: "BASE_BRANCH", zone: "round-context" },
   { name: "HANDOFF_SCHEMA", zone: "shell" },
@@ -514,8 +517,11 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "OUTPUT_REPORT", zone: "round-context" },
   { name: "OUTPUT_EVIDENCE", zone: "round-context" },
   { name: "OUTPUT_HANDOFF", zone: "round-context" },
-  { name: "REVIEW_TYPE", zone: "round-context" },
   { name: "ROLE", zone: "round-context" },
+  // P33 T1 — the target discriminant RENDERS, immediately below ROLE: the child
+  // reads the target word the CLI `--type` declared. Implement is the one role
+  // without a target, so its layout carries no such line and its value is empty.
+  { name: "TARGET_TYPE", zone: "round-context" },
   { name: "WAVE", zone: "round-context" },
   { name: "WORKSPACE_DIR", zone: "round-context" },
   { name: "WORKSPACE_ID", zone: "round-context" },
@@ -544,7 +550,13 @@ export const CLAUSES = {
     "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 20
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 21
+ *  renames the target discriminant token to TARGET_TYPE and RENDERS it as a
+ *  round-context line (`- \`TARGET_TYPE\`: <target word>`) immediately below ROLE on
+ *  every face that has a target — the review variants, the two fix rows (wave ·
+ *  branch) and the two document-fix rows' plan/spec types (plan · phase-spec ·
+ *  overall · single-spec). Implement is the one role without a target, so its layout
+ *  carries no such line and the empty value is dropped. $version 20
  *  gives the charter its own review criteria body (the six charter criteria, with
  *  none of the implementation-face evidence duty) and makes the criteria-body
  *  selection explicit — the two spec-shaped document targets share the ONE narrative
@@ -586,7 +598,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 20,
+  $version: 21,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,
@@ -601,7 +613,7 @@ export const WORK_MODES: readonly WorkMode[] = ["implement", "fix", "review", "d
  * The template assembler — the ONE renderer over the typed template-prompt data
  * plane. Construction reads the typed contract (the module's declared data —
  * no file reads, no second copy). render(values) selects the row by the ROLE value
- * (the review mode by ROLE + REVIEW_TYPE) — the row's fixed prefix + the single
+ * (the review mode by ROLE + TARGET_TYPE) — the row's fixed prefix + the single
  * return contract + its reduced round context (empty-value keys not emitted).
  */
 export class TemplateAssembler {
@@ -640,13 +652,13 @@ export class TemplateAssembler {
   }
 
   /** The row of a ROLE — the review mode's per-type variant (selected by the
-   *  REVIEW_TYPE discriminant), the work modes from the modes table. */
+   *  TARGET_TYPE discriminant), the work modes from the modes table. */
   #rowOf(values: TemplateValues): ModePromptRow {
     if (values.ROLE === "review") {
-      const row = this.#contract.reviews[values.REVIEW_TYPE as TargetType];
+      const row = this.#contract.reviews[values.TARGET_TYPE as TargetType];
       if (row === undefined) {
         throw new Error(
-          `template review type not declared: ${values.REVIEW_TYPE === undefined || values.REVIEW_TYPE === "" ? "(missing REVIEW_TYPE)" : values.REVIEW_TYPE}`,
+          `template review type not declared: ${values.TARGET_TYPE === undefined || values.TARGET_TYPE === "" ? "(missing TARGET_TYPE)" : values.TARGET_TYPE}`,
         );
       }
       return row;
@@ -672,7 +684,7 @@ export class TemplateAssembler {
     return lines.join("\n");
   }
 
-  /** The hard gates — a known ROLE (+ its REVIEW_TYPE for reviews), every declared
+  /** The hard gates — a known ROLE (+ its TARGET_TYPE for reviews), every declared
    *  token supplied (empty allowed — a mode's non-consumed slots are legitimately
    *  empty and merely not emitted), no undeclared values, the single return
    *  contract declared, and every round-context name the mode's shell prose
@@ -688,7 +700,7 @@ export class TemplateAssembler {
     if (row === undefined) {
       const message =
         role === "review"
-          ? `template review type not declared: ${values.REVIEW_TYPE === undefined || values.REVIEW_TYPE === "" ? "(missing REVIEW_TYPE)" : values.REVIEW_TYPE}`
+          ? `template review type not declared: ${values.TARGET_TYPE === undefined || values.TARGET_TYPE === "" ? "(missing TARGET_TYPE)" : values.TARGET_TYPE}`
           : `template work-mode not declared: ${role === undefined ? "(missing ROLE)" : role}`;
       throw new Error(message);
     }
@@ -727,9 +739,9 @@ export class TemplateAssembler {
     }
   }
 
-  /** The review variant of a REVIEW_TYPE (verified in the gate). */
+  /** The review variant of a TARGET_TYPE (verified in the gate). */
   #reviewRow(values: TemplateValues): ModePromptRow | undefined {
-    return this.#contract.reviews[values.REVIEW_TYPE as TargetType];
+    return this.#contract.reviews[values.TARGET_TYPE as TargetType];
   }
 
   /** The work-mode row of a ROLE (verified in the gate). */

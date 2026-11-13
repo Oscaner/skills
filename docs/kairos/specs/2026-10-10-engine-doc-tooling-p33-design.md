@@ -1,19 +1,19 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P33 设计：dispatch prompt 判别符 + 参照面校准'
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-11-13
 slug: '2026-10-10-engine-doc-tooling-p33'
 program: 2026-10-10-engine-doc-tooling
-parent-version: v3.53
+parent-version: v3.54
 author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 ---
 
 ## Design
 
-本相位收口 dispatch prompt 的一处读面缺口：被派发的 child 无法从自己收到的文本里直接读到自己正跑哪种 target type，只能从旁证反推。实测同模式跨类型的 prompt 今天在 fix 面 **100% 字节相同**，在 review 面也仅靠壳内一行 `**Criteria — …:**` 与 lens 集合间接可读。
+本相位收口 dispatch prompt 的一处读面缺口：被派发的 child 无法从自己收到的文本里直接读到自己正跑哪种 target type，只能从旁证反推。fix 面壳内没有任何类型字节，同模式跨类型的 prompt 因而是全等的；review 面也仅靠壳内一行 `**Criteria — …:**` 与 lens 集合间接可读。
 
-裁定把类型事实落进 **round context**（拼装序的尾部）：标题不动，参照面四处校准（§2.5）改的是**同模式内全类型一致**的句子。两件都不破坏跨型共享前缀。塞标题的方案与拆 ROLE 的方案均已实测/结构评估后否决（§1.2、§2.4）。
+裁定把类型事实落进 **round context**（拼装序的尾部）：标题不动，参照面四处校准（§2.5）改的是**同模式内全类型一致**的句子。两件都不破坏跨型共享前缀。塞标题的方案与拆 ROLE 的方案均经结构评估后否决（§1.2、§2.4）。
 
 ### 1. 病根
 
@@ -27,14 +27,9 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 
 `TemplateAssembler.render`（`render/templates.ts`）的拼装序是 `shell + return + round-context`。标题是**第 1 字节**，即整条 prompt 前缀的起点；prompt 缓存以最长公共前缀命中。
 
-实测（同一装配器的两次渲染求最长公共前缀）：
+壳内唯一随类型变化的字节是 review 壳的 `**Criteria — …:**` 行与 lens 集合；fix / docs-fix 壳内的标题是常量，一个字都不随类型变。这两点不是测量值，而是 `render()` 的拼装序与 `reviewRow` / `FIX_SHELL` / `DOCS_FIX_SHELL` 三个常量标题的直接后果。
 
-| 对比 | 共享前缀 | 分叉点 |
-|---|---|---|
-| review `phase-spec` vs `plan` | 1675 字符（占全篇约 22%） | 壳内 `**Criteria — …:**` 行 |
-| fix 跨类型（`plan` vs `branch`） | **100%**（5969 字符全等） | 无——壳内根本没有类型 |
-
-round context 起始于 5679/5969 位置。结论：类型事实落标题，跨类型共享前缀直接归零（fix 面损失整壳）；落 round context，前缀一字不动。
+因此本节只钉**必须成立的条件**，可机器判的那一半落在 Acceptance criteria 的对应条目上：标题与 `**Criteria — …:**` 行零字节变更，且 §2.5 的句子修改对同模式内全类型一致。两条同时成立时，同模式跨类型的共享前缀按字节复用；标题带类型则把类型字节放到第 1 位，这条复用在 fix 面整壳归零。round context 在拼装序尾部，改它不动前缀。
 
 ### 2. 裁定
 
@@ -83,7 +78,9 @@ round-context 渲染器对空值**丢行而不报错**。若注入面回退成�
 
 #### 3.2 改名残留
 
-`REVIEW_TYPE` 出现在装配器的两处错误消息与三处注释里。改名须同步，否则报错文本指向一个不存在的 token，把下一次真缺陷的定位成本抬高。
+`REVIEW_TYPE` 的改写面就是 Acceptance criteria 里「零残留」那条判据的全部范围，不多不少：token 登记表（`TOKENS`）· 装配器的行选择与门与报错路径（`TemplateAssembler#rowOf` / `#gate` / `#reviewRow`）· 注入面（`face/lifecycle.ts#valuesOf`）· 以及与之同址的 render / infra 测试夹具。改名须在这个范围里全量同步，否则报错文本指向一个不存在的 token，把下一次真缺陷的定位成本抬高。
+
+#### 3.3 结构门看不见名字所指
 
 `#assertShellLayout` 是「名字 ⊆ layout」的结构校验。本轮四处缺陷的名字全部被携带，因此门恒绿。**本相位不新增门**（与 P28「易变事实不设门」同向）：校准后的句子由评审读，pins 只钉可机器判的两件事——每个变体的 round context 行集（§2.1 / §2.2 / §2.5 的锤名与类型行），以及 shell 里出现的 `INPUT_*` / `BASE_BRANCH` 名字仍在其 layout 内（既有门）。名字↔对象的正确性不设门。
 
@@ -113,3 +110,4 @@ round-context 渲染器对空值**丢行而不报错**。若注入面回退成�
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-13 | P33 初稿：判别符 `REVIEW_TYPE` → `TARGET_TYPE` 并渲染进 round context；全轮注入真实 type；implement 单成员不渲染；标题与 shell 零改动（D85）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.2 | 2026-11-13 | 并入参照面四处校准（D86）：A `FIX_SHELL` 的 `INPUT_SPEC` 子句改按面点名；B `REVIEW_ITEM` 把 branch 从 plan review 拆出；C2 overall 面只留 `INPUT_OVERALL`、`INPUT_SPEC` 置空（补完 P17 的改名）；D docs-fix plan 面给 `INPUT_SPEC` 定性。§3.3 记明结构门看不见名字所指，本相位不新增门。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
+| v0.3 | 2026-11-13 | 并入 phase-spec-review-1 全部四条：F1 §1.2 的 LCP 实测值撤出正文，改述为必须成立的条件（标题与 `**Criteria — …:**` 行零字节 · §2.5 句子同模式内全类型一致）；F2 §3.2 的改名残留面改按 AC「零残留」判据全量列出（`TOKENS` · `#rowOf`/`#gate`/`#reviewRow` · `#valuesOf` · 测试夹具）；F3 parent-version 对齐 v3.54（overall 侧已由编排器回填）；F4 新增 §3.3 标题，结构门盲区说明独立成节。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |

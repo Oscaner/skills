@@ -1,19 +1,19 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P33 设计：dispatch prompt 判别符 + 参照面校准'
 doc-type: phase-spec
-version: v0.4
+version: v0.5
 date: 2026-11-13
 slug: '2026-10-10-engine-doc-tooling-p33'
 program: 2026-10-10-engine-doc-tooling
-parent-version: v3.55
+parent-version: v3.56
 author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 ---
 
 ## Design
 
-本相位收口 dispatch prompt 的一处读面缺口：被派发的 child 无法从自己收到的文本里直接读到自己正跑哪种 target type，只能从旁证反推。fix 面壳内没有任何类型字节，同模式跨类型的 prompt 因而是全等的；review 面也仅靠壳内一行 `**Criteria — …:**` 与 lens 集合间接可读。
+本相位收口 dispatch prompt 的一处读面缺口：被派发的 child 无法从自己收到的文本里直接读到自己正跑哪种 target type，只能从旁证反推。fix 面壳内没有一个字节把类型当成声明来印（类型只从证物文件名这类旁证反推），同模式跨类型的 prompt 在注入的 `## Handoff schema` 之前逐字节相同；review 面也仅靠壳内一行 `**Criteria — …:**` 与 lens 集合间接可读。
 
-裁定把类型事实落进 **round context**（拼装序的尾部）：标题不动，参照面四处校准（§2.5）改的是**同模式内全类型一致**的句子。两件都不破坏跨型共享前缀。塞标题的方案与拆 ROLE 的方案均经结构评估后否决（§1.2、§2.4）。
+裁定把类型事实落进 **round context**（拼装序的尾部）：标题不动，参照面四处校准（§2.5）与主体面五处校准（§2.6）改的是**同模式内全类型一致**的句子。两件都不破坏跨型共享前缀。塞标题的方案与拆 ROLE 的方案均经结构评估后否决（§1.2、§2.4）。
 
 ### 1. 病根
 
@@ -27,9 +27,9 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 
 `TemplateAssembler.render`（`render/templates.ts`）的拼装序是 `shell + return + round-context`。标题是**第 1 字节**，即整条 prompt 前缀的起点；prompt 缓存以最长公共前缀命中。
 
-壳内唯一随类型变化的字节是 review 壳的 `**Criteria — …:**` 行与 lens 集合；fix / docs-fix 壳内的标题是常量，一个字都不随类型变。这两点不是测量值，而是 `render()` 的拼装序与 `reviewRow` / `FIX_SHELL` / `DOCS_FIX_SHELL` 三个常量标题的直接后果。
+三个壳的标题都是常量，一个字都不随类型变；注入 `## Handoff schema` 之前的壳内类型字节只有 review 壳的 `**Criteria — <type>:**` 行（标签 + 其后的 axesGuide 体）与 `**Lens labels:**` 行。这两点不是测量值，而是 `render()` 的拼装序与 `reviewRow` / `FIX_SHELL` / `DOCS_FIX_SHELL` 三个常量标题的直接后果。注入的 `## Handoff schema` 同样在壳内，其证据文件名取自 `RoundNaming#prefix`（wave 线 `tasks` · branch 线 `branch`），所以 fix 面的类型分化落在 schema 段——共享前缀只覆盖到它之前。
 
-因此本节只钉**必须成立的条件**，可机器判的那一半落在 Acceptance criteria 的对应条目上：标题与 `**Criteria — …:**` 行零字节变更，且 §2.5 的句子修改对同模式内全类型一致。两条同时成立时，同模式跨类型的共享前缀按字节复用；标题带类型则把类型字节放到第 1 位，这条复用在 fix 面整壳归零。round context 在拼装序尾部，改它不动前缀。
+因此本节只钉**必须成立的条件**，可机器判的那一半落在 Acceptance criteria 的对应条目上：标题零字节变更，`**Criteria — <type>:**` 的标签与 `**Lens labels:**` 行零字节变更（criteria 体按 I / J / K 的要求改），且 §2.5 / §2.6 的句子修改对同模式内全类型一致。两条同时成立时，同模式跨类型的共享前缀按字节复用；标题带类型则把类型字节放到第 1 位，这条复用在 fix 面整壳归零。round context 在拼装序尾部，改它不动前缀。
 
 ### 2. 裁定
 
@@ -73,9 +73,9 @@ implement 的类型集只有一个成员：它唯一的产出点是 `session/led
 
 #### 2.6 主体面五处校准（D87）
 
-把 round context 以外的共享主体逐块摊开——`FRAME_ITEMS` · `WORK_CAPABILITY` · 每模式指令句 · lens 行 · criteria 体 · `LICENSE_ITEMS` · rubric 槽——选出五处。其中两处的共同根因是 `LICENSE_ITEMS` 是无条件拼进每个壳的单一共享块（注释自陈 the same bytes, one per shell），而 docs-fix 面与 review 面的语义在这块之后才分化。
+把 round context 以外的共享主体逐块摊开——`FRAME_ITEMS` · `WORK_CAPABILITY` · 每模式指令句 · lens 行 · criteria 体 · `LICENSE_ITEMS` · rubric 槽——选出五处。其中两处的共同根因是 `LICENSE_ITEMS` 是无条件拼进每个壳的单一共享块（注释自陈 the same bytes, one per shell），而各模式的语义（docs-fix 的授权与原地编辑 · review 的只读）在这块之前就已分化，这块却无条件拼入。
 
-**G · docs-fix 壳三句互斥。** 同一个 prompt 里：`capability: may.amend = content` 声明本轮**可**改 spec 与 plan 的内容面；`**docs-fix:**` 指令它**原地**把 findings 应用到被判文档；而共享 clause `cl:plan-freeze` 写「Approved plan/spec files are frozen — zero modification authority … never edited in place」。一句授权、一句下令、一句绝对禁止。
+**G · docs-fix 壳三句互斥。** 同一个 prompt 里：`capability: may.amend = content` 声明本轮**可**改 spec 与 plan 的内容面；`**docs-fix:**` 指令它**原地**把 findings 应用到被判文档；而共享 clause `cl:plan-freeze` 写「Approved plan/spec files are frozen — zero modification authority … never edited in place」。一句授权、一句下令、一句绝对禁止。冲突不限于 docs-fix：`WORK_CAPABILITY` 与 `LICENSE_ITEMS` 的 clause 同样拼进 implement 与 fix 壳，故这三句的对冲落在三张 work 壳上，交付改动与验证面都须覆盖 implement · fix · docs-fix。
 
 **H · review 壳的提交纪律与只读对冲。** 同一个壳里 `cl:atomic-commit` 要求「Commit each round's change as one atomic conventional commit」而 `**Read-only:**` 写 committing belongs to the orchestrator。review 轮本无改动可提交。
 
@@ -85,7 +85,7 @@ implement 的类型集只有一个成员：它唯一的产出点是 `session/led
 
 **K · overall 的 rubric 槽仍是 spec。** `REVIEW_BODY_TEXT.overall` 的 `artifact` 是 `spec`、`audience` 是 `downstream author`，于是 charter 的 prompt 里出现 the reviewed spec … a reasonable downstream author。与 C 同根（P17 `overall-spec` → `overall` 的残留），只是落在 rubric 槽值上。
 
-**修法裁定（α）：两句自限定，不拆共享块。** G/H 都是「共享 clause 没有被告知当前轮的权限」。修法让它们**自己限定**：freeze 句限定到本轮声明的 `capability: may.amend` 之外（无声明即不得原地改，这与 review 的现有语义一致），commit 句补一句「只读轮无提交 · 其写入仅 `OUTPUT_*`」。保留 `LICENSE_ITEMS` 单一共享块（与每轮的指令句、能力声明各就各位），不拆成按模式的集合（β 的维护面翻倍，换来的只是同源性的形式化）。I / J / K 为纯文本修正。
+**修法裁定（α）：两句自限定，不拆共享块。** G/H 都是「共享 clause 没有被告知当前轮的权限」。修法让它们**自己限定**：freeze 句限定到本轮声明的 `capability: may.amend` 之外（无声明即不得原地改，这与 review 的现有语义一致），commit 句补一句「只读轮无提交 · 其写入仅 `OUTPUT_*`」。保留 `LICENSE_ITEMS` 单一共享块（与每轮的指令句、能力声明各就各位），不拆成按模式的集合（β 的维护面翻倍，换来的只是同源性的形式化）。自限定以轮声明的 `capability` 为界，故该声明的措辞成为承重面：它须点名被判文档族本身（phase-spec / single-spec / overall charter / plan），否则 docs-fix 的 overall 变体（`cdd fix --type overall` 走 docs-fix；K 又裁定 charter 不是 spec）会落成「下令原地改 charter、冻结句却判它是 spec」的自相矛盾。I / J / K 为纯文本修正。
 
 ### 3. 失败面
 #### 3.1 空注入的静默丢行
@@ -104,7 +104,7 @@ round-context 渲染器对空值**丢行而不报错**。若注入面回退成�
 
 - `cdd review --type phase-spec|overall|plan|single-spec|wave|branch` 的 dispatch prompt round context 含 `- \`TARGET_TYPE\`: 该词`；`cdd fix --type wave|branch` 与 docs-fix 的四 doc 型同理。
 - implement 轮的 prompt 不含 `TARGET_TYPE` 行。
-- 标题与 `**Criteria — …:**` 行零字节变更；§2.5 的句子修改对同模式内全类型一致，故跨型共享前缀复用保持。
+- 标题零字节变更；`**Criteria — <type>:**` 的标签与 `**Lens labels:**` 行零字节变更；criteria 体可在 I / J / K 要求处改，且对共享该体的变体一致；§2.5 与 §2.6 的句子修改对同模式内全类型一致，故跨型共享前缀复用保持。
 - `TARGET_TYPE` 命名单源：装配器与生命周期内 `REVIEW_TYPE` 零残留；非 review 面不再注入空串。
 - 引擎 vitest 全绿（新增按型的 round-context 行 pins）；`pnpm run validate` exit 0。
 - changeset `cdd-engine` **minor**；不发布。
@@ -112,7 +112,7 @@ round-context 渲染器对空值**丢行而不报错**。若注入面回退成�
 - **B**：共享句与 branch criteria 的判定面一致（活的树 + 计划参考），二者不再互斥。
 - **C2**：overall 面的 round context 只有一个 charter 锤且名为 `INPUT_OVERALL`，`INPUT_SPEC` 在该面为空；review 与 docs-fix 两面同判；`REVIEW_ITEM` 与 `DOCS_FIX_SHELL` 各含一句 overall 锤名。
 - **D**：plan-doc 行明示 `INPUT_SPEC` 为不可在本轮编辑的参考。
-- **G**：docs-fix 壳的 freeze clause 不再与本轮的 `may.amend = content` 与原地编辑指令互斥——它限定到声明范围之外。
+- **G**：三张 work 壳（implement · fix · docs-fix）都不再「授权同时禁止」同一内容面——`cl:plan-freeze` 限定到本轮声明的 `capability: may.amend` 范围之外，且该声明点名被判文档族（phase-spec / single-spec / overall charter / plan），使 docs-fix 四型与冻结句一致；docs-fix 壳的原地编辑指令不再与之互斥。
 - **H**：review 壳的 commit clause 明示只读轮无提交、写入仅 `OUTPUT_*`；与 `**Read-only:**` 不再对冲。
 - **I**：single-spec 的 prompt 不再要求对照一个被丢弃的 `INPUT_OVERALL`——program-conformance 句显式限定 phase-spec。
 - **J**：branch 判据体不再出现退役词 task。
@@ -122,7 +122,7 @@ round-context 渲染器对空值**丢行而不报错**。若注入面回退成�
 
 - 不动 `next:` 字面（D70 收敛主线）。
 - 不动 `WORK_MODES` 四模式词汇表与 `TEMPLATE_PROMPT.modes` 的表键（D85 否决 ROLE 拆值）。
-- 不改 review 壳内既有的 `**Criteria — …:**` 与 lens 行——与新增行并存，前者是判据标签，后者是声明事实。
+- 不改 review 壳内既有的判据标签 `**Criteria — <type>:**` 与 `**Lens labels:**` 行——与新增行并存，前者是判据标签，后者是声明事实；criteria 体按 I / J / K 的要求改。
 - 不引入新依赖；不发布。
 
 ## Change history
@@ -131,5 +131,6 @@ round-context 渲染器对空值**丢行而不报错**。若注入面回退成�
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-13 | P33 初稿：判别符 `REVIEW_TYPE` → `TARGET_TYPE` 并渲染进 round context；全轮注入真实 type；implement 单成员不渲染；标题与 shell 零改动（D85）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.2 | 2026-11-13 | 并入参照面四处校准（D86）：A `FIX_SHELL` 的 `INPUT_SPEC` 子句改按面点名；B `REVIEW_ITEM` 把 branch 从 plan review 拆出；C2 overall 面只留 `INPUT_OVERALL`、`INPUT_SPEC` 置空（补完 P17 的改名）；D docs-fix plan 面给 `INPUT_SPEC` 定性。§3.3 记明结构门看不见名字所指，本相位不新增门。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
-| v0.4 | 2026-11-13 | 并入主体面五处（D87）：G docs-fix 的 freeze/capability/指令三句互斥 · H review 的 commit/只读对冲 · I single-spec 被要求对照被丢弃的 `INPUT_OVERALL` · J branch 判据体的退役词 task · K overall rubric 槽仍是 spec。修法取 α（clause 自我限定，保住 `LICENSE_ITEMS` 单一共享块）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.3 | 2026-11-13 | 并入 phase-spec-review-1 全部四条：F1 §1.2 的 LCP 实测值撤出正文，改述为必须成立的条件（标题与 `**Criteria — …:**` 行零字节 · §2.5 句子同模式内全类型一致）；F2 §3.2 的改名残留面改按 AC「零残留」判据全量列出（`TOKENS` · `#rowOf`/`#gate`/`#reviewRow` · `#valuesOf` · 测试夹具）；F3 parent-version 对齐 v3.54（overall 侧已由编排器回填）；F4 新增 §3.3 标题，结构门盲区说明独立成节。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
+| v0.4 | 2026-11-13 | 并入主体面五处（D87）：G docs-fix 的 freeze/capability/指令三句互斥 · H review 的 commit/只读对冲 · I single-spec 被要求对照被丢弃的 `INPUT_OVERALL` · J branch 判据体的退役词 task · K overall rubric 槽仍是 spec。修法取 α（clause 自我限定，保住 `LICENSE_ITEMS` 单一共享块）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
+| v0.5 | 2026-11-13 | 并入 phase-spec-review-2 全部六条：F1 冻结面收窄为标签（标题 · `**Criteria — <type>:**` 标签 · `**Lens labels:**` 行零字节，criteria 体可在 I/J/K 需要处改）并 parent-version 对齐 v3.56；F2 §1.2 撤掉「壳内唯一随类型变化」的过宽断言，点名注入 `## Handoff schema` 的 `RoundNaming#prefix` 分化；F3 G 扩到三张 work 壳并让 AC3 的均匀句覆盖 §2.6；F4 α 自限定须点名被判文档族；F5 §2.6 导语的根因句改为「分化在前、块无条件拼入」；F6 历史表按版本序重排。 | '[human] 裁定 · Claude（kairos:cdd-spec-writer · P33 review 2 fix · 2026-11-13）' |

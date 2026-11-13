@@ -1,11 +1,11 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 设计：载体身份收为轮次身份的单射渲染'
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-11-13
 slug: '2026-10-10-engine-doc-tooling-p34'
 program: 2026-10-10-engine-doc-tooling
-parent-version: v3.59
+parent-version: v3.60
 author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 ---
 
@@ -15,7 +15,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 
 裁定不取「加个后缀」「按所有者限定校验」「降级渲染」这类对账式修法，而是把两者收成同构：**产物名 = 轮次身份 × 产物种类的单次渲染**，单射由构造保证，写一次成为自然结果（§2.1–§2.3）。同一缺陷在 `report` / `evidence` / `crash` 三类产物上早已存在、只因没有摘要无人察觉，故作用面覆盖全部轮次产物（§1.2）。
 
-身份与签名已由母 charter 回填（D88 · Phase inventory P34 行 · overall v3.59）：身份是 `(line, op, cycle, attempt)`，`kind` 是第二个参数、`role` 不再作为参数名，作用面是全部轮次产物，`carrierPath` 与 `draftPath` 同批退役。本文与该登记逐条对齐，不再另立形态。
+身份与签名已由母 charter 回填（D88 · Phase inventory P34 行 · overall v3.60）：身份是 `(line, op, cycle, attempt)`，`kind` 是第二个参数、`role` 不再作为参数名，作用面是全部轮次产物，`carrierPath` 与 `draftPath` 同批退役。本文与该登记逐条对齐，不再另立形态。
 
 ### 1. 病根
 
@@ -33,7 +33,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 
 所以缺陷类不是「载体名少了 attempt」，而是「**每轮产物名不是轮次身份的渲染**」；载体只是唯一带摘要、因而唯一会被发现的那个实例。
 
-这条推论就是作用面从「载体」扩到「全部轮次产物」的依据，也由母 charter 回填登记（D88 · Phase inventory P34 行 · overall v3.59：`kind ∈ {draft, final, report, log, crash, evidence}`）。本相位不越登记面：`draftPath` 与 `carrierPath` 同批退役是同一条的必然（留一个是半个真源），同样已在 D88 与 P34 行登记。
+这条推论就是作用面从「载体」扩到「全部轮次产物」的依据，也由母 charter 回填登记（D88 · Phase inventory P34 行 · overall v3.60：`kind ∈ {draft, final, report, log, crash, evidence}`）。本相位不越登记面：`draftPath` 与 `carrierPath` 同批退役是同一条的必然（留一个是半个真源），同样已在 D88 与 P34 行登记。
 
 #### 1.3 为什么只有渲染面受害
 
@@ -165,7 +165,7 @@ P31 §2.4 的窗口成员必须与本轮渲染同源，否则新名字让人「�
 
 #### 3.4 产物扫描面不认识新名字
 
-`-a{n}` 进名字之后，按名字扫目录的两处会错：`CarrierSeal.isCarrierName` 的 pattern 若不接受 `-a{n}`，崩溃遗留的载体就 sweep 不到（残留可写，§2.3 判它不可能存在的窗口）；若反过来放宽过头，`report` / `evidence` / `crash` 会被当成载体 seal 或当孤儿列上 board。`orphanHandoffs` 的家族归属读法同理。把门方式：扫描面只认 `draft` / `final` 两种 kind 的形状（`(?:-a\d+)?` 插在 `.c\d+` 之前），且新尝试的名字在其中；`-report.md` / `.log` / `-test-evidence.json` / `crash-` 前缀四种形状一律不入判定。
+`-a{n}` 进名字之后，按名字扫目录的两处会错：`RoundNaming.isCarrierName`（`infra/carrier-seal.ts` 的 `CarrierSeal.sweep` / `#isStray` 消费它）的 pattern 若不接受 `-a{n}`，崩溃遗留的载体就 sweep 不到（残留可写，§2.3 判它不可能存在的窗口）；若反过来放宽过头，`report` / `evidence` / `crash` 会被当成载体 seal 或当孤儿列上 board。`orphanHandoffs` 的家族归属读法同理。把门方式：扫描面只认 `draft` / `final` 两种 kind 的形状（`(?:-a\d+)?` 插在 `.c\d+` 之前），且新尝试的名字在其中；`-report.md` / `.log` / `-test-evidence.json` / `crash-` 前缀四种形状一律不入判定。
 
 #### 3.5 `crash` 的适用面被按 phase 收窄
 
@@ -202,3 +202,4 @@ P31 §2.4 的窗口成员必须与本轮渲染同源，否则新名字让人「�
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-13 | P34 初稿：产物名收为轮次身份的单射渲染（`(line, op, cycle, attempt)` × `kind` 一处派生）· implement 补 cycle 坐标 · 写一次作构造属性 · `carrierPath`/`draftPath` 新记录退役 · 记录缺席回退 attempt 1 · attempt=1 逐字节守恒 · legacy 失配行 present-facts。作用面覆盖 carrier / report / evidence / crash（log 已有）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.2 | 2026-11-13 | 并入 phase-spec-review-1 全部十条。F1 新增 §2.10 读写缝（`Ledger#carrierPathOf` 一个 accessor + `HandoffParams.attempt` + 四条读面改写 + 摘要面不动）；F2 新增 §2.11 preflight/seal 与本轮 attempt 同批（含崩溃遗留的 sweep 与 legacy 轮）；F3 改正 crash 适用面为「每一个派发轮」并新增 §3.5 pin；F4 把 implement 的 cycle 补到全部 kind（§2.2）并重写 §2.6 为守恒 + 例外清单；F5/F6 对齐母 charter 回填（D88 · P34 行 · overall v3.59：全部轮次产物 + `draftPath` 同批退役 · 签名 `(line, op, cycle, attempt) × kind`），`parent-version` 随行 v3.59；F7 点名 owner 判据 `RoundRecords#ownerOf`（§2.7）；F8 网格改按适用对比较、覆盖六个 `TargetType`（§3.1）；F9 守恒示例改回规范拼写 `phase-spec-review-1.c1.json`；F10 统一用「单射性」。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-1 · 2026-11-13）' |
+| v0.3 | 2026-11-13 | 并入 phase-spec-review-2 两条。F1：母 charter 的守恒边界回填为与 §2.6 同一条（overall v3.60 · D88 · Issue inventory P34 ⑤ · Phase inventory P34 scope + acceptance 格），§2.6 的字节 pin 不动；F2：§3.4 的扫描面符号改正为 `RoundNaming.isCarrierName`（`CarrierSeal.sweep` 的消费面），`CarrierSeal.isCarrierName` 不存在。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-2 · 2026-11-13）' |

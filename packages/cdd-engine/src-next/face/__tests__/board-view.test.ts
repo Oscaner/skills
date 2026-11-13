@@ -27,7 +27,7 @@ import { CarrierIntegrity, CarrierMismatchError } from "../../session/carrier-in
 import { DispatchAuthority } from "../../session/dispatch-authority.ts";
 import { type RouteTarget, targetFaces } from "../../session/faces.ts";
 import type { InFlightRecord } from "../../session/inflight.ts";
-import { Ledger, type RoundRecord } from "../../session/ledger.ts";
+import { Ledger, type RoundRecord, RoundViolation } from "../../session/ledger.ts";
 import { type NextHop, NextStepRouter, REVIEW_CYCLE_CAP, type Route } from "../../session/next.ts";
 import { PipelineFrontier } from "../../session/pipeline.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
@@ -279,6 +279,87 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     // the wave line's aggregated cell renders the recorded round under its verb
     expect(text).toContain("review 1 ✓");
+  });
+
+  it("renders a crashed round in the top fact block without touching the counts or the hop", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", [
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "slug: prog-p1",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: a",
+      "- **Objective**: o",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+    ]);
+    const crashRow = "  crashed: implement 1·a1 · no-commits";
+    // The SAME identity, the SAME anomaly token, one difference: the crash is booked
+    // by a HARD violation rather than a soft one — the crashed row is the ONLY new
+    // bytes, so the counts, the legend and the `next:` hop judge the same way.
+    const seedCrash = (grade: "hard" | "soft"): void =>
+      seed("prog-p1", [
+        {
+          wave: "1",
+          rounds: [
+            {
+              op: "implement",
+              cycle: 1,
+              attempt: 1,
+              dispatchBase: null,
+              carrierPath: null,
+              verdict: { treeClean: true, targetAction: false },
+              violations: [{ grade, cause: "no-commits", message: "the round committed nothing" }],
+            },
+          ],
+        },
+      ]);
+
+    seedCrash("hard");
+    const crashed = render("prog-p1").text;
+    seedCrash("soft");
+    const soft = render("prog-p1").text;
+
+    expect(crashed.split("\n")).toContain(crashRow);
+    expect(soft).not.toContain("crashed:");
+    // the observer claim: the crashed row is additive alone — strip it (and the blank
+    // row that separates its block from the line rows) and the two boards are
+    // byte-identical: the aggregation, the legend, the `next:` hop.
+    const substance = (text: string): string =>
+      text
+        .split("\n")
+        .filter((row) => row !== crashRow && row !== "")
+        .join("\n");
+    expect(substance(crashed)).toBe(substance(soft));
+    // the crashed row renders in the top fact block, before the first line row
+    expect(crashed.indexOf(crashRow)).toBeLessThan(crashed.indexOf("  overall "));
+    // the legend never advertises the row
+    expect(crashed.split("\n").at(-1)).toBe("progress: ✔ done · ▶ current · ○ pending");
   });
 
   it("phase board next: the first not-closed line renders its ACTIVE C5 hop (the spec review)", () => {
@@ -1216,6 +1297,67 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
     expect(rows[0]).toBe("  in-flight: free — no dispatch holds this tree");
     expect(rows[1]).toContain("tasks-1-review-1.json");
     expect(rows[2]).toContain("branch-fix-1.json");
+  });
+
+  it("appends the crashed rows after the orphan rows — the same top fact block", () => {
+    const rows = BoardView.inFlightRows({ kind: "absent" }, ["tasks-1-review-1.json"], words, [
+      "  crashed: implement 1·a1 · contract-violation",
+    ]);
+    expect(rows.at(-1)).toBe("  crashed: implement 1·a1 · contract-violation");
+  });
+});
+
+describe("BoardView.crashedRows — the crashed round as an observation (spec §5.3)", () => {
+  /** One round record fixture — the identity, the verdict and the booked violations. */
+  const record = (over: Partial<RoundRecord>): RoundRecord => ({
+    op: "implement",
+    cycle: 1,
+    attempt: 1,
+    dispatchBase: null,
+    verdict: { treeClean: true, targetAction: true },
+    violations: [],
+    carrierPath: null,
+    ...over,
+  });
+  const hard = (cause: string): RoundRecord["violations"][number] =>
+    RoundViolation.hard("the round's target action did not land", cause);
+
+  it("renders one token per crashed round — op · cycle·attempt · the FIRST hard cause", () => {
+    const rows = BoardView.crashedRows([
+      record({
+        cycle: 2,
+        attempt: 3,
+        verdict: { treeClean: true, targetAction: false },
+        violations: [hard("no-commits"), hard("hygiene")],
+      }),
+    ]);
+    expect(rows).toEqual(["  crashed: implement 2·a3 · no-commits"]);
+  });
+
+  it("skips a round that landed its action and a round whose failures are all SOFT", () => {
+    const rows = BoardView.crashedRows([
+      record({ cycle: 1 }),
+      record({
+        cycle: 2,
+        verdict: { treeClean: false, targetAction: false },
+        violations: [RoundViolation.soft("a dirty tree", "hygiene")],
+      }),
+    ]);
+    expect(rows).toEqual([]);
+  });
+
+  it("keeps the records' own order — one row per crashed round, never a re-sorted list", () => {
+    const crashed = (cycle: number): RoundRecord =>
+      record({
+        cycle,
+        verdict: { treeClean: true, targetAction: false },
+        violations: [hard("child-exit")],
+      });
+    const rows = BoardView.crashedRows([crashed(3), record({ cycle: 1 }), crashed(2)]);
+    expect(rows).toEqual([
+      "  crashed: implement 3·a1 · child-exit",
+      "  crashed: implement 2·a1 · child-exit",
+    ]);
   });
 });
 

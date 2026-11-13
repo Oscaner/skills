@@ -433,6 +433,7 @@ export class BoardView {
     state: InFlightState,
     orphans: readonly string[],
     words: Words,
+    crashes: readonly string[] = [],
   ): readonly string[] {
     const rows: string[] = [];
     if (state.kind === "held") {
@@ -454,7 +455,40 @@ export class BoardView {
       rows.push(`  in-flight: ${words.checkedWords().inFlight.free}`);
     }
     for (const orphan of orphans) rows.push(`  orphan: ${orphan} — no recorded round owns it`);
+    rows.push(...crashes);
     return rows;
+  }
+
+  /** crashedRows(records) — the node's CRASHED rounds as board lines, one token per
+   *  round: `crashed: {op} {cycle}·a{attempt} · {cause}`. A round crashed when its
+   *  booked verdict withheld the target action AND at least one of its violations is
+   *  HARD; the cause is the FIRST hard entry in record order — the round's own
+   *  narrative never re-orders it. The row is an observation only: it joins no
+   *  aggregation, the counts, the legend and the `next:` hop stay byte-identical with
+   *  and without it (spec §5.3 — a failed round is never hidden, never re-counted). */
+  static crashedRows(records: readonly RoundRecord[]): readonly string[] {
+    return records
+      .filter((record) => BoardView.#crashed(record))
+      .map((record) => {
+        const cause = record.violations.find((violation) => violation.grade === "hard")!;
+        return `  crashed: ${record.op} ${record.cycle}·a${record.attempt} · ${cause.cause}`;
+      });
+  }
+
+  /** Whether one round crashed — the verdict withheld the target action AND a HARD
+   *  violation is booked (a soft-only failure stays the anomaly face's `✗` token). */
+  static #crashed(record: RoundRecord): boolean {
+    return (
+      record.verdict?.targetAction === false &&
+      record.violations.some((violation) => violation.grade === "hard")
+    );
+  }
+
+  /** The node's every booked round — one flat read over the progress rows' records
+   *  (the normalizer folds the legacy forms), so the crash scan needs no key grammar.
+   *  An absent progress row carries no rounds. */
+  static #nodeRecordsOf(progress: ProgressData | null): readonly RoundRecord[] {
+    return progress === null ? [] : progress.waves.flatMap((row) => RoundRecords.of(row));
   }
 
   // -------------------------------------------------------------------------
@@ -520,15 +554,24 @@ export class BoardView {
     const sources = BoardView.#nodeSources(index, entry);
     const nodeSlug = BoardView.#validSlug(entry);
     const ledger = nodeSlug === null ? null : BoardView.#ledgerOf(nodeSlug, repoRoot);
-    // The tree's dispatch fact + the node workspace's orphan drafts render before the
-    // line rows (a reader answers "is anyone working here?" before reading progress).
-    const orphans = ledger?.orphanHandoffs() ?? [];
-    for (const row of BoardView.inFlightRows(holding, orphans, words)) lines.push(row);
-    if (holding.kind !== "absent" || orphans.length > 0) lines.push("");
     const progress = ledger?.readProgress() ?? null;
     const overallSlug = BoardView.#validSlug(sources.overall);
     const overallProgress =
       overallSlug === null ? null : BoardView.#ledgerOf(overallSlug, repoRoot).readProgress();
+    // The tree's dispatch fact + the node workspace's orphan drafts + the node's
+    // crashed rounds render before the line rows (a reader answers "is anyone working
+    // here?" before reading progress).
+    const orphans = ledger?.orphanHandoffs() ?? [];
+    const crashes = [
+      ...new Set(
+        BoardView.crashedRows([
+          ...BoardView.#nodeRecordsOf(overallProgress),
+          ...BoardView.#nodeRecordsOf(progress),
+        ]),
+      ),
+    ];
+    for (const row of BoardView.inFlightRows(holding, orphans, words, crashes)) lines.push(row);
+    if (holding.kind !== "absent" || orphans.length > 0 || crashes.length > 0) lines.push("");
 
     const docRows: Array<{
       readonly label: string;

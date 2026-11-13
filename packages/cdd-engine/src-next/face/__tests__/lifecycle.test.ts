@@ -148,14 +148,15 @@ const waveFrame = (key: string): OpenFrame => ({
   phase: "implement",
   round: 1,
   target: { kind: "wave", tasks: key.split(",").map(Number) },
-  params: { tasks: key },
+  params: { tasks: key, round: 1, attempt: 1 },
   key,
 });
 
-/** Write the round's canonical evidence file at the wave's own name. */
+/** Write the round's canonical evidence file at the round's own name (the identity
+ *  carries line · cycle · attempt — the implement family included). */
 const writeEvidence = (f: Fixture, key: string): void => {
   writeFileSync(
-    path.join(f.scene.workspace.path, `tasks-${key}-test-evidence.json`),
+    path.join(f.scene.workspace.path, `tasks-${key}-implement-1-test-evidence.json`),
     JSON.stringify(EVIDENCE),
     "utf8",
   );

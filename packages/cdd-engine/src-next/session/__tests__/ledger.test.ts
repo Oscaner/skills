@@ -760,6 +760,65 @@ describe("handoff — naming / carrier / single-author persist", () => {
   });
 });
 
+describe("orphanHandoffs — the reverse parse reads the identity it renders (P34 T1)", () => {
+  it("attributes an attempt-1 record and an attempt-2 record to their OWN files", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      ledger.recordRound("1", { op: "fix", cycle: 1, attempt: 1 });
+      ledger.recordRound("1", { op: "fix", cycle: 1, attempt: 2 });
+      // the attempt segment is an identity coordinate: each draft is owned by its own
+      // record, and a re-attempt does not orphan its predecessor either
+      workspace.writeJson("tasks-1-fix-1.json", { artifacts: {} });
+      workspace.writeJson("tasks-1-fix-1-a2.json", { artifacts: {} });
+      expect(ledger.orphanHandoffs()).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an attempt-1 record never claims an attempt-2 draft — the re-dispatch's file stays orphaned", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      ledger.recordRound("1", { op: "fix", cycle: 1, attempt: 1 });
+      workspace.writeJson("tasks-1-fix-1-a2.json", { artifacts: {} });
+      expect(ledger.orphanHandoffs()).toEqual(["tasks-1-fix-1-a2.json"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("claims a pathless legacy fixture's implement carrier — the folded round is attempt 1", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "1", rounds: { implement: [1], review: [1] } }],
+      });
+      workspace.writeJson("tasks-1-implement.json", { artifacts: {} });
+      expect(ledger.orphanHandoffs()).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("never claims a report, a log, a crash record or an evidence file — the parse is carrier-only", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      for (const name of [
+        "tasks-1-review-1-report.md",
+        "tasks-1-review-1.log",
+        "crash-tasks-1-review-1.json",
+        "tasks-1-review-1-test-evidence.json",
+      ]) {
+        workspace.writeJson(name, {});
+      }
+      expect(ledger.orphanHandoffs()).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
 describe("handoff — the draft/final split (P31 §2.3: the final never overwrites the draft)", () => {
   it("persists the final beside the untouched draft and records BOTH paths", () => {
     const { ledger, workspace, cleanup } = fixture();
@@ -1491,7 +1550,9 @@ describe("lineClosed — the single line-closure judge (the board + closedWaves 
         verdict: { treeClean: true, targetAction: false },
       });
       ledger.recordRound("plan", { op: "fix", cycle: 1, attempt: 2 });
-      ledger.persistHandoff("fix", "plan", params, { findings: [] });
+      // the successful attempt owns ITS OWN names (`-a2`) — an attempt is an identity
+      // coordinate now, so the retry's carrier is a different file from attempt 1's
+      ledger.persistHandoff("fix", "plan", { ...params, attempt: 2 }, { findings: [] });
 
       // the line closed on the successful re-attempt, not on the failed first one
       expect(ledger.lineClosed("plan", "plan")).toBe(true);

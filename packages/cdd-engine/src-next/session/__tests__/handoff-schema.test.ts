@@ -221,6 +221,64 @@ describe("projection ② — the read-back validation (violations)", () => {
   });
 });
 
+describe("projection ② — the tiered read-back (readBack: required refuses, decorative drops)", () => {
+  it("refuses the draft on a REQUIRED slot's violation — the round blocks", () => {
+    const missing = schema.readBack("work", { artifacts: { report: "/r" } });
+    expect(missing.problems).toEqual(["status: required"]);
+    expect(missing.dropped).toEqual([]);
+    // an out-of-enum status is a required slot's semantic break — still a refusal
+    const badStatus = schema.readBack("work", { status: "NEEDS_CONTEXT", artifacts: {} });
+    expect(badStatus.problems).toEqual(["status: must be one of APPROVED | BLOCKED"]);
+  });
+
+  it("DROPS a decorative slot instead of refusing — the key leaves the draft in place", () => {
+    // `dispositions` is declared but not required: an array instead of the declared
+    // object costs the FIELD, never the round.
+    const draft: Record<string, unknown> = { ...WORK, dispositions: [] };
+    const result = schema.readBack("work", draft);
+    expect(result.problems).toEqual([]);
+    expect(result.dropped).toEqual(["dispositions"]);
+    expect(draft).not.toHaveProperty("dispositions");
+    // the strict walk still judges the same bytes (one declaration, two readings)
+    expect(schema.violations("work", { ...WORK, dispositions: [] })).toEqual([
+      "dispositions: expected an object",
+    ]);
+  });
+
+  it("drops a wrongly typed `notes` / `artifacts` — the two shared decorative slots", () => {
+    const notesDraft: Record<string, unknown> = { ...WORK, notes: "not-an-array" };
+    expect(schema.readBack("work", notesDraft)).toEqual({ problems: [], dropped: ["notes"] });
+    expect(notesDraft.notes).toBeUndefined();
+    const artifactsDraft: Record<string, unknown> = { ...WORK, artifacts: "nope" };
+    // `artifacts` is REQUIRED on the work plane — a wrong shape refuses, never drops
+    expect(schema.readBack("work", artifactsDraft).problems).toEqual([
+      "artifacts: expected an object",
+    ]);
+  });
+
+  it("DROPS a finding row's decorative column, keeping the row and the required columns", () => {
+    const draft: Record<string, unknown> = {
+      findings: [{ severity: "warn", lens: "spec", summary: "drift", line: "42", id: 7 }],
+    };
+    const result = schema.readBack("judge", draft);
+    expect(result.problems).toEqual([]);
+    expect(result.dropped).toEqual(["findings[0].id", "findings[0].line"]);
+    expect(draft.findings).toEqual([{ severity: "warn", lens: "spec", summary: "drift" }]);
+  });
+
+  it("refuses a finding row missing a REQUIRED column — the required tier inside the row", () => {
+    const draft: Record<string, unknown> = {
+      findings: [{ severity: "warn", lens: "spec" }],
+    };
+    expect(schema.readBack("judge", draft).problems).toEqual(["findings[0].summary: required"]);
+  });
+
+  it("accepts the canonical drafts untouched — zero problems, zero drops", () => {
+    expect(schema.readBack("work", { ...WORK })).toEqual({ problems: [], dropped: [] });
+    expect(schema.readBack("judge", { ...FINDINGS })).toEqual({ problems: [], dropped: [] });
+  });
+});
+
 describe("the finding `id` — declared optional, engine-written (P30 §2.5)", () => {
   it("declares `id` on the finding row but keeps it OUT of the required set", () => {
     const findings = schema.planeSchema("judge").properties?.findings;

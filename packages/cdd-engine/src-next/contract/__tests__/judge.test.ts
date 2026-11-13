@@ -1561,7 +1561,8 @@ const ledgerJudge = (
 const agreeingFacts = {
   planTasks: [1, 2, 3],
   recordedTasks: [1, 2],
-  closedWaves: [[1], [2]],
+  closedWaves: [[1]],
+  openWaves: [[2]],
   snapshots: [],
   layers: [[1], [2], [3]],
 };
@@ -1699,21 +1700,35 @@ describe("P26 §4.4 — a Phase-inventory row's Design spec must be a phase-spec
   });
 });
 
-describe("P21 T2 — closed-wave-fits-depends-on-layers", () => {
-  it("turns red for a closed wave spanning two layers", () => {
+describe("P21 T2 — closed-wave-fits-depends-on-layers (the open-wave read)", () => {
+  it("turns red for an OPEN wave spanning two layers", () => {
     const findings = ledgerJudge({
       ...agreeingFacts,
-      closedWaves: [[2, 3]],
+      openWaves: [[2, 3]],
       recordedTasks: [1, 2, 3],
       layers: [[1], [2], [3]],
     });
-    expect(withKind(findings, "closed-wave-fits-depends-on-layers", "closed Waves")).toBe(true);
+    expect(withKind(findings, "closed-wave-fits-depends-on-layers", "open Waves")).toBe(true);
+  });
+
+  it("never judges a CLOSED wave — settled history keeps its own dispatch-time verdict", () => {
+    // The closed wave spans two layers under today's plan; its layer fit was judged
+    // when it was open, so the rule leaves it alone (the P34 D-rule: the plan edit
+    // after closure must not retro-flag a shipped wave).
+    const findings = ledgerJudge({
+      ...agreeingFacts,
+      closedWaves: [[2, 3]],
+      openWaves: [],
+      recordedTasks: [1, 2, 3],
+      layers: [[1], [2], [3]],
+    });
+    expect(withKind(findings, "closed-wave-fits-depends-on-layers")).toBe(false);
   });
 
   it("lets a whole-layer batch through", () => {
     const findings = ledgerJudge({
       ...agreeingFacts,
-      closedWaves: [[2, 3]],
+      openWaves: [[2, 3]],
       recordedTasks: [1, 2, 3],
       layers: [[1], [2, 3]],
     });
@@ -1723,7 +1738,7 @@ describe("P21 T2 — closed-wave-fits-depends-on-layers", () => {
   it("lets a partial layer through — the subset read the append wave relies on", () => {
     const findings = ledgerJudge({
       ...agreeingFacts,
-      closedWaves: [[2]],
+      openWaves: [[2]],
       layers: [[1], [2, 3]],
     });
     expect(findings).toEqual([]);

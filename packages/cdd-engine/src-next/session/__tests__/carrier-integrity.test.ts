@@ -26,6 +26,7 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../carrier-integrity.ts";
 import { Ledger } from "../ledger.ts";
+import { RoundNaming } from "../round-naming.ts";
 
 interface Fixture {
   readonly ledger: Ledger;
@@ -210,7 +211,9 @@ describe("Ledger — the digest is recorded beside carrierPath and read back thr
       // P31 §2.3 — the FINAL carrier is the round's read identity; the family name is
       // the child's draft beside it.
       expect(persisted.path).toBe(
-        ledger.naming().finalPath(ledger.handoffName("review", "phase-spec", { round: 1 }), 1),
+        ledger
+          .naming()
+          .renderPath(RoundNaming.artifactOf("review", "phase-spec", { round: 1 }), "final"),
       );
       expect(persisted.draftPath).toBe(ledger.handoffPath("review", "phase-spec", { round: 1 }));
       // The digest covers the payload, never the file bytes that hold it.

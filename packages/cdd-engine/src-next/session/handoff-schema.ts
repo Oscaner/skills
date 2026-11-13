@@ -172,6 +172,14 @@ export interface SchemaProblem {
   reason: string;
 }
 
+/** The tiered read-back ruling: the problems the draft is REFUSED on (a required
+ *  slot's violation) and the decorative slots DROPPED in place (a declared but
+ *  non-required slot whose value breaks its own declaration). */
+export interface ReadBack {
+  problems: readonly string[];
+  dropped: readonly string[];
+}
+
 /**
  * HandoffSchema — one declaration, two projections. `violations(plane, value)` is
  * the read-back validator (projection ② — the engine's seat, session plane);
@@ -190,14 +198,14 @@ export class HandoffSchema {
   /** Projection ① — the `## Handoff schema` section text: the plane's writable
    *  subset in a ```json fence + (work plane) the evidence file's schema in a second
    *  fence. The text is byte-stable per (plane, evidence, prefix) — the fixed bytes
-   *  of the dispatch prompt's contract surface. The evidence prefix is the family
-   *  spine (§3.7 naming: `tasks-` for the task families, `branch-` for the branch
-   *  fix — a branch evidence file never carries the misleading tasks- prefix). */
-  schemaText(plane: CarrierPlane, evidence: boolean, evidencePrefix = "tasks"): string {
+   *  of the dispatch prompt's contract surface. The evidence sentence names the
+   *  `OUTPUT_EVIDENCE` slot alone — the file's own name is the naming face's single
+   *  source (`tasks-*` / `branch-*` per family), never a second spelling here. */
+  schemaText(plane: CarrierPlane, evidence: boolean): string {
     const carrier = this.#json(this.#writable(plane));
     let text = `Write the handoff draft at \`OUTPUT_HANDOFF\` per this writable subset — the engine validates it, then materializes the final carrier in place; fields not listed here are engine-reserved, do not write them.\n\n\`\`\`json\n${carrier}\n\`\`\``;
     if (evidence) {
-      text += `\n\nThe evidence file (\`${evidencePrefix}-{key}-test-evidence.json\` under \`WORKSPACE_DIR\`) must comply with this schema — the engine reads it back with the same stakes:\n\n\`\`\`json\n${this.#json(EVIDENCE)}\n\`\`\``;
+      text += `\n\nThe evidence file (the file named by \`OUTPUT_EVIDENCE\`) must comply with this schema — the engine reads it back with the same stakes:\n\n\`\`\`json\n${this.#json(EVIDENCE)}\n\`\`\``;
     }
     return text;
   }
@@ -207,15 +215,35 @@ export class HandoffSchema {
     return this.#json(EVIDENCE);
   }
 
-  /** Projection ② — validate a child draft against a plane's writable subset. Every
-   *  problem is a read-back BLOCK; the draft is left untouched for the child's
-   *  resume (never overwritten — the engine never clobbers a child's work). */
+  /** Projection ② — the STRICT walk over a plane's writable subset: every declared
+   *  slot judged at its declared shape, the draft left untouched. The dispatch gate
+   *  reads `readBack` below — the same judgment kept for the required tier, with a
+   *  decorative slot's mistake turned into a DROP. */
   violations(plane: CarrierPlane, value: unknown): string[] {
     const problems: SchemaProblem[] = [];
     this.#check(this.#writable(plane), value, "", problems);
     return problems.map((problem) =>
       problem.path.length === 0 ? problem.reason : `${problem.path}: ${problem.reason}`,
     );
+  }
+
+  /** The TIERED read-back — the dispatch gate's ONE ruling (spec §2.1): a REQUIRED
+   *  slot that violates its declaration REFUSES the draft (the round blocks), while a
+   *  DECORATIVE slot (declared, not required — the work plane's `notes` /
+   *  `dispositions`, the finding row's `id` / `section` / `line` / `fix`) is DROPPED
+   *  from the draft in place: the key leaves the carrier, its path is reported once
+   *  for the carrier's notes. A wrong decorative value costs a field, never a round —
+   *  the refusal face stays exactly as wide as the fields the child owes. */
+  readBack(plane: CarrierPlane, draft: Record<string, unknown>): ReadBack {
+    const problems: SchemaProblem[] = [];
+    const dropped: string[] = [];
+    this.#tiered(this.#writable(plane), draft, "", { problems, dropped });
+    return {
+      problems: problems.map((problem) =>
+        problem.path.length === 0 ? problem.reason : `${problem.path}: ${problem.reason}`,
+      ),
+      dropped,
+    };
   }
 
   /** Projection ② — validate the test-evidence file (work-plane wave / branch rounds). */
@@ -383,6 +411,61 @@ export class HandoffSchema {
         if (typeof value !== "boolean") problems.push({ path, reason: "expected a boolean" });
         return;
       }
+    }
+  }
+
+  /** The tiered walk — `#check`'s structure with the two tiers separated: a required
+   *  slot's subtree keeps its problems (the refusal), a decorative slot's subtree is
+   *  pruned (its own bad columns deleted) and, when it still breaks its declaration,
+   *  the whole slot is deleted and its path reported as dropped. */
+  #tiered(
+    node: SchemaNode,
+    value: unknown,
+    path: string,
+    out: { problems: SchemaProblem[]; dropped: string[] },
+  ): void {
+    if (node.type === "object" && typeof value === "object" && value !== null) {
+      if (Array.isArray(value)) {
+        out.problems.push({ path, reason: "expected an object" });
+        return;
+      }
+      this.#tieredObject(node, value as Record<string, unknown>, path, out);
+      return;
+    }
+    if (node.type === "array" && Array.isArray(value) && node.items !== undefined) {
+      const items = node.items;
+      value.forEach((entry, index) => {
+        this.#tiered(items, entry, `${path}[${index}]`, out);
+      });
+      return;
+    }
+    this.#check(node, value, path, out.problems);
+  }
+
+  /** The object half of the tiered walk — required keys first (missing → refusal),
+   *  then each present declared slot: recurse, and on a surviving problem drop the
+   *  slot when it is decorative, keep the problem when it is required. */
+  #tieredObject(
+    node: SchemaNode,
+    obj: Record<string, unknown>,
+    path: string,
+    out: { problems: SchemaProblem[]; dropped: string[] },
+  ): void {
+    const required = node.required ?? [];
+    for (const key of required) {
+      if (obj[key] === undefined)
+        out.problems.push({ path: this.#at(path, key), reason: "required" });
+    }
+    for (const [key, sub] of Object.entries(node.properties ?? {})) {
+      if (obj[key] === undefined) continue;
+      const at = this.#at(path, key);
+      const markP = out.problems.length;
+      this.#tiered(sub, obj[key], at, out);
+      if (out.problems.length === markP) continue;
+      if (required.includes(key)) continue;
+      out.problems.length = markP;
+      delete obj[key];
+      out.dropped.push(at);
     }
   }
 

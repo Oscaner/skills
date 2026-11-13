@@ -40,6 +40,7 @@ import { NextStepRouter } from "./next.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "./pipeline.ts";
 import type { PreFlightVerdict } from "./preflight.ts";
 import { ReviewedIdentity } from "./reviewed-identity.ts";
+import { RoundNaming } from "./round-naming.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
 
 /** The pre-flight dispatch-entry gate — the lifecycle's hard "no child on a refused
@@ -533,7 +534,7 @@ export class Lifecycle {
       phase,
       round,
       target,
-      params: this.#paramsOf({ type: "wave", phase, target, round }),
+      params: this.#paramsOf({ type: "wave", phase, target, round, attempt }),
       key,
       attempt,
     };
@@ -572,7 +573,7 @@ export class Lifecycle {
       phase,
       round,
       target,
-      params: this.#paramsOf({ type: this.#face.type, phase, target, round }),
+      params: this.#paramsOf({ type: this.#face.type, phase, target, round, attempt }),
       key,
       attempt,
     };
@@ -645,29 +646,28 @@ export class Lifecycle {
   // the frame → handoff params shaping
   // -------------------------------------------------------------------------
 
-  /** The handoff params one frame fills — the type's placeholders from the target
-   *  and round. The round rides the increment families (review / fix / branch-review
-   *  — the family name carries it); the fixed implement family stays round-less. */
+  /** The handoff params one frame fills — the type's placeholders from the target,
+   *  the round and the attempt. EVERY family carries its cycle now (P34 T1: the
+   *  implement family included, so its draft and final are two names), and every
+   *  family carries the attempt the naming face renders as `-a{n}`. */
   #paramsOf(frame: {
     type: TargetType;
     phase: DispatchPhase;
     target: AuditTarget;
     round: number;
+    attempt: number;
   }): HandoffParams {
     switch (frame.type) {
       case "wave": {
         const waveTarget = frame.target as { kind: "wave"; tasks: readonly number[] };
-        const params: HandoffParams = { tasks: waveTarget.tasks.join(",") };
-        if (frame.phase !== "implement") params.round = frame.round;
-        return params;
+        return { tasks: waveTarget.tasks.join(","), round: frame.round, attempt: frame.attempt };
       }
       case "branch":
-        return { round: frame.round };
       case "phase-spec":
       case "overall":
       case "plan":
       case "single-spec":
-        return { round: frame.round };
+        return { round: frame.round, attempt: frame.attempt };
     }
   }
 
@@ -910,9 +910,9 @@ export class Lifecycle {
    *  (implement) resolves both to one path, so the seal is idempotent by construction. */
   #sealRoundCarriers(frame: OpenFrame): void {
     const op = this.#opOf(frame.phase);
-    const draftName = this.#ledger.handoffName(op, frame.type, frame.params);
-    CarrierSeal.seal(this.#ledger.handoffPath(op, frame.type, frame.params));
-    CarrierSeal.seal(this.#ledger.naming().finalPath(draftName, frame.params.round));
+    const artifact = RoundNaming.artifactOf(op, frame.type, frame.params);
+    CarrierSeal.seal(this.#ledger.naming().renderPath(artifact, "draft"));
+    CarrierSeal.seal(this.#ledger.naming().renderPath(artifact, "final"));
   }
 
   // -------------------------------------------------------------------------

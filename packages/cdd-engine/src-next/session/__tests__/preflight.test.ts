@@ -666,6 +666,49 @@ describe("PreFlight — the checked rule list (derived from the declaration surf
     }
   });
 
+  it("judges the OPEN waves only — a closed wave spanning layers stays green (P34 T6)", async () => {
+    // the chain 1 → 2 → 3 decomposes into three singleton layers, so the wave {2,3}
+    // spans layers {2} and {3}
+    const blocks = [task(1, "none"), task(2, "1"), task(3, "2")];
+    const closedSeed = (ledger: Ledger): void => {
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "2,3", round: 1 },
+        { tasks: [2, 3], phase: "review", findings: [] },
+      );
+      ledger.recordRound("2,3", { op: "review" });
+    };
+    const closedRepo = gitRepo();
+    try {
+      const closed = await preflightOf().vet(branchCtx(closedRepo.repoRoot, blocks, closedSeed));
+      // the wave is CLOSED — its layer fit was judged at its own dispatch, so a plan
+      // edit afterwards never retro-flags a shipped wave
+      expect(closed.checked).toContain("closed-wave-fits-depends-on-layers: passed");
+      expect(closed.ok).toBe(true);
+    } finally {
+      closedRepo.cleanup();
+    }
+    const openRepo = gitRepo();
+    try {
+      // the SAME wave, still OPEN (an implement round closes nothing) → the rule speaks
+      const open = await preflightOf().vet(
+        branchCtx(openRepo.repoRoot, blocks, (ledger) => {
+          ledger.recordRound("2,3", { op: "implement" });
+        }),
+      );
+      expect(open.ok).toBe(false);
+      // the finding rides the rule's own row and the findings list (one judgment, two
+      // renderings), never a second wording
+      expect(open.checked).toContain("closed-wave-fits-depends-on-layers: failed");
+      expect(open.details).toContain(
+        "closed-wave-fits-depends-on-layers@open Waves: the open wave {2,3} spans more than one DependsOn layer ({1} {2} {3})",
+      );
+    } finally {
+      openRepo.cleanup();
+    }
+  });
+
   it("lists the same 24 doc-scope skips on a branch dispatch", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {

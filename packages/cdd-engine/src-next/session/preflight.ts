@@ -512,13 +512,16 @@ export class PreFlight {
     const data = ledger.readProgress();
     const recorded = this.#recordedTasksOf(data);
     const closed = ledger.closedWaves();
-    const closedWaves = (data?.waves ?? [])
+    const waves = (data?.waves ?? [])
       .map((row) => this.#taskIdsOf(row.wave))
-      .filter((ids) => ids.length > 0 && ids.every((id) => closed.has(id)));
+      .filter((ids) => ids.length > 0);
+    const closedWaves = waves.filter((ids) => ids.every((id) => closed.has(id)));
+    const openWaves = waves.filter((ids) => ids.some((id) => !closed.has(id)));
     return {
       planTasks,
       recordedTasks: recorded,
       closedWaves,
+      openWaves,
       // The wave rows' closure-time plan-task snapshots (P21 §5.1) — read from the
       // SAME ledger face the wave gate's append judgment reads (zero second source).
       snapshots: this.#snapshotsOf(data),

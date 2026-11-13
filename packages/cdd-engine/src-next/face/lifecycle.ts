@@ -1072,10 +1072,10 @@ export class CliLifecycle {
     for (const name of this.#roundCarrierNamesOf(op, type, params)) CarrierSeal.seal(name);
   }
 
-  /** A frame's own carrier paths — the child's draft (`Ledger#handoffPath`, the family
-   *  table's fill) and the engine's final (`RoundNaming#finalPath`, `.c{N}` suffixed).
-   *  A round-less family (implement) resolves both to the same path — one name, sealed
-   *  once. */
+  /** A frame's own carrier paths — the child's draft and the engine's final, both
+   *  rendered by the one naming rule (`RoundNaming#renderName`), the final carrying the
+   *  `.c{N}` cycle suffix. A cycle-less identity resolves both to the same path — one
+   *  name, sealed once. */
   #roundCarrierNames(frame: OpenFrame): readonly string[] {
     return this.#roundCarrierNamesOf(this.#opOf(frame), frame.type, frame.params);
   }
@@ -1087,12 +1087,8 @@ export class CliLifecycle {
     type: OpenFrame["type"],
     params: HandoffParams,
   ): readonly string[] {
-    const ledger = this.#scene.ledger;
-    const draftName = ledger.handoffName(op, type, params);
-    return [
-      this.#scene.workspace.resolve(draftName),
-      this.#naming.finalPath(draftName, params.round),
-    ];
+    const artifact = RoundNaming.artifactOf(op, type, params);
+    return [this.#naming.renderPath(artifact, "draft"), this.#naming.renderPath(artifact, "final")];
   }
 
   // -------------------------------------------------------------------------
@@ -1210,12 +1206,15 @@ export class CliLifecycle {
       }
       draft = draftRead.value;
     }
-    const problems = schema.violations(plane, draft);
-    if (problems.length > 0) {
+    // The TIERED read-back (spec §2.1): a required slot's violation refuses the round,
+    // a decorative slot's violation is DROPPED from the draft in place (surfaced once on
+    // the carrier's notes by materialize) — a wrong optional column never costs a round.
+    const readBack = schema.readBack(plane, draft);
+    if (readBack.problems.length > 0) {
       return this.#reject(
         frame,
         path,
-        `the handoff draft at ${path} violates the ${plane} schema: ${problems.join("; ")}`,
+        `the handoff draft at ${path} violates the ${plane} schema: ${readBack.problems.join("; ")}`,
       );
     }
     // T2 — the plane-aware read: the judge plane ALONE reads `draft.findings` (its
@@ -1231,7 +1230,7 @@ export class CliLifecycle {
     // reaches this line; the absent→undefined case exists only for on-disk legacy
     // carriers the ledger reads back, never a schema-validated draft).
     const status: RoundStatus = schema.conclusionOf(plane, draft) ?? "BLOCKED";
-    const carrier = this.#materialize(frame, plane, draft, status);
+    const carrier = this.#materialize(frame, plane, draft, status, readBack.dropped);
     // P31 §2.2 — the disposition summary reads the REQUESTING carrier. A mismatch
     // found here (the bytes moved inside the round) is a BLOCKED outcome: the read-back
     // is the FALLBACK behind the pre-dispatch gate, never the gate itself.
@@ -1568,9 +1567,18 @@ export class CliLifecycle {
     plane: CarrierPlane,
     draft: Record<string, unknown>,
     status: RoundStatus,
+    droppedDecorative: readonly string[] = [],
   ): Record<string, unknown> {
     const ledger = this.#scene.ledger;
     const notes: string[] = [];
+    // The tiered read-back's decorative drops (spec §2.1) — the field the child shaped
+    // wrongly was removed before materialize reads the draft; the carrier's notes carry
+    // the one audit line so the loss is visible, never silent.
+    if (droppedDecorative.length > 0) {
+      notes.push(
+        `dropped decorative draft field(s) outside their declared shape: ${droppedDecorative.join(", ")} — never written`,
+      );
+    }
     // The §8.7 classification ruling — the SAME judgment the read-back validator makes
     // (non-declared keys are dropped, never a BLOCK): materialize drops them and books
     // AT MOST ONE WARN on the carrier's notes (auditable, non-interrupting — replacing
@@ -1678,8 +1686,7 @@ export class CliLifecycle {
   #schemaText(frame: OpenFrame): string {
     const plane = HandoffSchema.planeOf(this.#opOf(frame));
     const evidence = plane === "work" && (frame.type === "wave" || frame.type === "branch");
-    const prefix = evidence ? this.#naming.prefix(frame) : "tasks";
-    return this.#handoffSchema.schemaText(plane, evidence, prefix);
+    return this.#handoffSchema.schemaText(plane, evidence);
   }
 
   /** The artifacts field as a string-map (only string values land — non-string rows

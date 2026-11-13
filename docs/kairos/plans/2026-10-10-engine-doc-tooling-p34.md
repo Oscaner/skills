@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 计划：轮次产物身份的单射渲染'
 doc-type: plan
-version: v0.8
+version: v0.9
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p34
 base: develop
@@ -178,15 +178,16 @@ none
 
 #### Objective
 
-preflight 的 unseal 集合与 terminal 的 seal 集合都改用本轮身份的 `renderPath(draft)` / `renderPath(final)`；崩溃遗留由 `sweep` 按新 pattern 认出。补 spec 的三条守卫 pin（`RoundNaming` 与 accessor 之外零 `carrierPath` 读 / 零名字拼装 / 写面零 `families` 调用）与 `crash` 对每个派发轮适用的断言（写入名与失败面 / resume 的读回同一名字），收尾落 changeset。
+preflight 的 unseal 集合、terminal 的 seal 集合与 `#writeCrash` 的写入名在 HEAD 已随 T1 同源落地：`#openRoundCarriers`（`face/lifecycle.ts:1058`）→ `#roundCarrierNames`（`:1080`）→ `#roundCarrierNamesOf`（`:1086`）走 `artifactOf` + `renderPath` 的 draft / final 两 kind，`session/run.ts:908-912` 的 `#sealRoundCarriers` 同形，`#writeCrash`（`:1515`）写 `this.#naming.crashName(frame)`（`:1529`），帧的 `params.attempt` 由 `session/run.ts:653-674` 的 `#paramsOf` 每帧填好。T3 的剩余范围因此收窄成三块：**abort fold 的 params 不携记录自己的 attempt**（`#waveParams` 在 implement 族连 `round` 都不带，attempt-2 的 review / fix 轮折叠后封的是 attempt-1 那一对）——这是 HEAD 仍活着的缺陷；三条守卫 pin 的收口（(a) 已由 T2 落在 `session/__tests__/carrier-path.guard.test.ts:37-60`，只核不写；新增 (b) 零名字拼装与 (c) 写路径零占位表）；attempt-2 的窗口 / 崩溃覆盖测与既有 changeset 的确认。
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#roundCarrierNamesOf` 收 `attempt` · `#openRoundCarriers` 只 unseal 本轮一对 · terminal 同对 seal · `#writeCrash` 走渲染名）
-- Modify: `packages/cdd-engine/src-next/session/run.ts`（`#sealRoundCarriers` 同源）
-- Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（attempt-2 窗口：attempt-1 一对不可写 · 窗口内只有 attempt-2 一对可写 · review 轮崩溃记录落在渲染名上且 attempt 2 不覆盖 attempt 1 · 失败面 capsule 行与 resume 决策读回同一个 attempt-2 崩溃名 · attempt-2 fix 轮的 `#resumeOf` 写出的 `next` 携 attempt-1 review final 名，不携 `…-review-1-a2` 幽灵名）
-- Test: `packages/cdd-engine/src-next/session/__tests__/round-naming.test.ts`（三条守卫：(a) `RoundNaming` 与 `carrierPathOf` 之外零「读记录的 `carrierPath`」——写入侧的局部变量与赋值点不算；(b) 零 `.c${` / `-report.md` / `-a${` / `-test-evidence` 名字拼装字面，判面是「`RoundNaming` 之外的**非注释代码行**」，已知红集今日只有 `session/handoff-schema.ts:200`（`schemaText` 把证据名以旧拼写渲进每条 work 面 prompt），已知非红集 `infra/carrier-seal.ts:11` / `infra/workspace.ts:150` / `face/lifecycle.ts:545` 是注释、不入集；(c) 写面零 `families` 调用）
-- Add: `.changeset/p34-round-artifact-identity.md`（`@oscaner-skills/cdd-engine` minor）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#bookAbort`（:294）把记录的 `attempt` 交给 `#waveParams`；`#waveParams`（:321）改收 `(key, cycle, op, attempt)` 且 implement 族同样带 `round`——今日 implement 分支返回 `{ tasks: key }`，折叠封的是 legacy 无 cycle 名、其余族也不带 attempt；:318-320 的「the implement family is round-less」docstring 同笔退役。窗口面与 `#writeCrash` 已同源，不动）
+- Modify: `packages/cdd-engine/src-next/session/run.ts`（`#sealRoundCarriers` 的 docstring（:905-907）「a round-less family (implement) resolves both to one path」退役——T1 之后 implement 也带 cycle、两 kind 是两个名；封印体本身已同源，不动）
+- Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（attempt-2 窗口覆盖测：attempt-1 一对不可写 · 窗口内只有 attempt-2 一对可写 · review 轮崩溃记录落在渲染名上且 attempt 2 不覆盖 attempt 1 · 失败面 capsule 行与 resume 决策读回同一个 attempt-2 崩溃名 · attempt-2 fix 轮的 `#resumeOf` 写出的 `next` 携 attempt-1 review final 名，不携 `…-review-1-a2` 幽灵名 · abort fold 用例：attempt-2 记录折叠后 attempt-2 一对 sealed 且 attempt-1 一对未动，implement 折叠出 `tasks-{tasks}-implement-{cycle}` 而非 legacy 名。今日只 P31 的通用封印窗用例（:1154 起），无 attempt-2 专门用例）
+- Test: `packages/cdd-engine/src-next/session/__tests__/round-naming.test.ts`（守卫 (b) 零 `.c${` / `-report.md` / `-a${` / `-test-evidence` 名字拼装字面，判面「`RoundNaming` 之外的**非注释代码行**」，今日零命中；守卫 (c) 写路径零 `families` 占位替换——`#family(op, type)` 的键集校验（`session/ledger.ts:1584-1588`）是 loud unknown-family 抛错、不铸名字，不入判面）
+- 守卫 (a) 归 `packages/cdd-engine/src-next/session/__tests__/carrier-path.guard.test.ts:37-60`（T2 已落：作用域是 `session/ledger.ts` 单文件，文件头 :10-20 写明收窄理由——其他平面把载体当**入参事实**读、不解析名字，故不可跳过阶梯），T3 只核不写，不重开第二份
+- Confirm: `.changeset/p34-naming-derivation-tolerance.md`（`@oscaner-skills/cdd-engine` minor）已在册，正文覆盖本相位全部消费面字节（命名单源 · 记录不带路径 · board 崩溃行 · 两档读回 · 开放 wave 层判据 · 证据名单源），T3 不再新增第二份 minor
 
 #### Consumes
 
@@ -196,27 +197,32 @@ preflight 的 unseal 集合与 terminal 的 seal 集合都改用本轮身份的 
 
 #### Produces
 
-- `CliLifecycle#roundCarrierNamesOf` 返回本轮的两个名字（attempt 与记录/帧同源）
-- 三条守卫测试（零 `carrierPath` 读 · 零名字拼装 · 写面零占位表）
+- `CliLifecycle#roundCarrierNamesOf` 返回本轮的两个名字（attempt 与记录/帧同源；HEAD 已交付）
+- `CliLifecycle#waveParams(key, cycle, op, attempt)` 返回记录自己的完整身份（implement 族同带 `cycle`，abort fold 与帧路径同形）
+- 两条新守卫测试（零名字拼装 · 写路径零占位表）＋ 守卫 (a) 的核验（既有文件，不重写）
 
 #### Steps
 
-- 写失败测（窗口同源，terminal 后）：attempt-2 轮结束后 attempt-1 的 draft/final 仍是 sealed，attempt-2 的一对也是 sealed — checkable: 定向 vitest FAIL
-- 写失败测（窗口内可写面）：窗口打开期间只有 attempt-2 的一对可写 — checkable: FAIL
-- 写失败测（review 轮崩溃）：review 失败面写出 `crash-{line}-{op}-{cycle}.json`，attempt 2 写 `…-a2.json` 且 attempt 1 的文件不被覆盖；同一夹具的失败面 capsule 行与前 `next:` resume 决策都读回 attempt 2 的名字（不是 attempt 1、不是无后缀的默认名）；fix resume 的 `--reviews` 携 requester review 记录的 attempt-1 final 名（fix 帧的 `attempt = 2` 不泄漏进 review 家族）— checkable: FAIL
-- 写失败测（三条守卫）：`RoundNaming` 与 `carrierPathOf` 之外零「读记录 `carrierPath`」；零产物名拼装字面；写路径零 `families` 调用 — checkable: FAIL（真实红集：`face/lifecycle.ts:1299` / `:1307` / `:526`、`contract/completion-criterion.ts:365` / `:423` / `:490`。写入侧的局部变量与赋值点不在集内：`session/run.ts:694` 声明 / `:724` 赋值 / `:763` 记录初始化、`RoundRecords` `:295`——它们不读 `record.carrierPath`，守卫只判读面。守卫 (b) 的判面 = `RoundNaming` 之外的非注释代码行：红集今日只有 `session/handoff-schema.ts:200`（由 T6 改述为 `OUTPUT_EVIDENCE`），非红集是三条注释（`infra/carrier-seal.ts:11` / `infra/workspace.ts:150` / `face/lifecycle.ts:545`）——不得为此开豁免让旧拼写留下）
-- 实现 preflight / terminal 的同源窗口、`#writeCrash` 的渲染名与失败面 / resume 的读回 — checkable: 前三条测 PASS
-- 补三条守卫测试并让它们绿 — checkable: 三条守卫 PASS
-- 落 changeset（minor，理由：产物命名是消费面可见的字节）— checkable: `pnpm exec changeset status` 列出该条
+- 补覆盖测（窗口同源，terminal 后）：attempt-2 轮结束后尝试写 attempt-1 的 draft/final 被拒，attempt-2 的一对也是 sealed — checkable: 定向 vitest PASS（现状即绿：`#roundCarrierNamesOf` 已走 `renderPath` 的两 kind，作回归防线）
+- 补覆盖测（窗口内可写面）：窗口打开期间只有 attempt-2 的一对可写 — checkable: PASS（回归防线）
+- 补覆盖测（review 轮崩溃 + fix resume）：review 失败面写出 `crash-{line}-{op}-{cycle}.json`，attempt 2 写 `…-a2.json` 且 attempt 1 的文件不被覆盖；同一夹具的失败面 capsule 行与前 `next:` resume 决策都读回 attempt 2 的名字；fix resume 的 `--reviews` 携 requester review 记录的 attempt-1 final 名（fix 帧的 `attempt = 2` 不泄漏进 review 家族）— checkable: PASS（`#writeCrash` 已走 `crashName`，`--reviews` 由 T2 的解析读者规则承载；缺的是 attempt-2 专门用例，不是实现）
+- 写失败测（abort fold 的 attempt 同源）：attempt-2 的 review / fix 记录 abort fold 后 attempt-2 一对 sealed、attempt-1 一对未动；implement 轮折叠出 `tasks-{tasks}-implement-{cycle}.json` 而非 legacy 无 cycle 名 — checkable: 定向 vitest FAIL（今日 `#waveParams`（:321）implement 分支返回 `{ tasks: key }`、其余族 `{ tasks: key, round: cycle }`，两者都不带 attempt）
+- 实现 `#bookAbort` → `#waveParams(…, attempt)`，并退役 `face/lifecycle.ts:318-320` 与 `session/run.ts:905-907` 两处「implement 族 round-less」docstring — checkable: 上一条 PASS
+- 写守卫 (b)：`RoundNaming` 之外非注释代码行零 `.c${` / `-report.md` / `-a${` / `-test-evidence` 拼装字面 — checkable: PASS（今日零命中：`session/handoff-schema.ts:226` 已由 T6 ③ 改述为 `OUTPUT_EVIDENCE`，历史拼写不入集；三条注释 `infra/carrier-seal.ts:11` / `infra/workspace.ts:150` / `face/lifecycle.ts:545` 不入集；零命中即绿，不得为新开豁免着色）
+- 写守卫 (c)：写路径零 `families` 占位替换（名字只经 `RoundNaming.renderName` 铸出） — checkable: PASS（`#family` 的键集校验不入判面）
+- 核守卫 (a)：`session/__tests__/carrier-path.guard.test.ts` 仍在且绿 — checkable: PASS（不重写；非测试全树唯一读点是守卫自身作用域内的 `session/ledger.ts:1804`，红集为零）
+- 确认既有 changeset 覆盖命名面 — checkable: `pnpm exec changeset status` 列出 `p34-naming-derivation-tolerance`
 - 全量回归 — checkable: `pnpm run validate` exit 0
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 
-- attempt-2 的派发只 unseal attempt-2 的一对；attempt-1 一对在整轮不可写；terminal seal 同一对。
+- attempt-2 的派发只 unseal attempt-2 的一对；attempt-1 一对在整轮不可写；terminal seal 同一对；abort fold 取记录自己的 attempt——attempt-2 折叠封 attempt-2 一对、attempt-1 不动，implement 折叠出 `tasks-{tasks}-implement-{cycle}` 而非 legacy 名。
 - 崩溃遗留的 `-a{n}` 载体被 sweep 认出并封印；四种非载体形状不被当载体。
 - review 轮的崩溃记录落在渲染名上，attempt 2 不覆盖 attempt 1；失败面 capsule 行与 resume 决策读回同一个 attempt-2 名字；fix resume 的 `next` 携 requester review 的 attempt-1 final 名。
-- 三条守卫 pin 绿（(a) `RoundNaming` 与 `carrierPathOf` 之外零读记录的 `carrierPath`、(c) 写面零 `families`——写入侧局部变量与赋值点不在判面内；(b) 零名字拼装，判面为「`RoundNaming` 之外的非注释代码行」，红集今日只余 `session/handoff-schema.ts:200` 且经 T6 改述后归零，三条注释（`infra/carrier-seal.ts:11` / `infra/workspace.ts:150` / `face/lifecycle.ts:545`）不入集）；changeset minor 在册；`pnpm run validate` exit 0。
+- legacy 轮窗口 = 本轮身份渲染出的那一对：implement 族换新拼写 `tasks-{tasks}-implement-{cycle}.json`（§2.6 的例外），其余族与历史拼写同字节；历史 implement draft 保持 sealed，由 T4 的 legacy 拼写档认领——preflight 不为它开窗（spec §2.11 的「窗口名与历史名同字节」在 implement 族不成立，例外以本行为准）。
+- 守卫 pin 三条、判面各自写死：(a) 由 `session/__tests__/carrier-path.guard.test.ts:37-60` 承担——判面是 `session/ledger.ts` 的记录存储 + `#reviewsPathOf` 的委派路由，不是全树；与 spec §2.12 全树口径之间的差额（其他平面以入参事实读、不解析名字）理由写在守卫文件头 :10-20，spec 那侧的收敛属 spec 文档轮，不在本轮判面。(b) `RoundNaming` 之外非注释代码行零拼装：今日零命中即绿，不得开豁免。(c) 写路径零 `families` 占位替换（`#family` 的键集校验不入判面）。
+- changeset：既有 `.changeset/p34-naming-derivation-tolerance.md`（minor）在册且覆盖命名面，不新增第二份；`pnpm run validate` exit 0。
 
 #### DependsOn
 
@@ -376,4 +382,4 @@ none
 | v0.5 | 2026-11-14 | 评审回改（docs-fix round 3）：T1 反向归属改为名字 → 身份比对并补两族 legacy 拼写、p16 pathless 夹具与 attempt 负向 pin，`isCarrierName` 字面补 cycle，`finalName` / `finalPath` 退役及其四个调用点，守恒边界补四条文档线各一条字面；T2 补阶梯种子取 `record.attempt`、doc/wave/branch 三线自探与 pre-P31 行读全 findings；T3 补 fix resume 的 `--reviews` 携带 attempt-1 review final；T4 认领键改完整身份（含 attempt），legacy 档经 `carrierPathOf` 且两侧 `path.basename`；T5 成员谓词补 `targetAction === false` 且 hard 条目，补两组 soft-only 反例与每轮一个 token；T6 坏值缝改指 `HandoffSchema#check` + `face/lifecycle.ts`（`#reconstruct` / `#materialize` / `#findingsList`），新增 `LedgerFacts.openWaves` 与 `LedgerLayeringRule` 判据体坐标，闭合面改述为当前 plan 的单向判据。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
 | v0.6 | 2026-11-14 | 评审回改（docs-fix round 4）：T1 的 cli 扫描面改为两段（40 行载体夹具 + 36 行证据夹具，证据名旧形不在 implement 名集合），并补 `carrier-seal.test.ts:78` / `render.test.ts:42` `:126` / `handoff-schema.test.ts:42` 三处证据夹具，守恒边界与对应失败测给 `crash` 名字加 `attempt === 1` 限定；T3 守卫 (b) 的判面定为「`RoundNaming` 之外的非注释代码行」并列出红集与非红集；T6 新增 ③（`schemaText` 的证据名改述为 `OUTPUT_EVIDENCE`、拼写单源）及对应失败测、断言与 acceptance 行，标题同步改名；T6 的装饰字段枚举改为 `PLANE_SLOTS` 减 `PLANE_REQUIRED` 的定义式（括号仅举例），层判据的判词与 heading 同改为 `open wave`。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
 | v0.7 | 2026-11-14 | 评审回改（docs-fix round 5）：Constraints 的 spec 字面随版移到 v0.11；T6 补 `dispositions` 坏值的边界（成员资格不动、drop 后 `ownRefusal` 仍硬拒、soft observation 点名被丢键），同笔记下 T6 两处缝已从 `schema.violations`（:1213）移到 `schema.readBack` 的 required 档门（:1223）这一未入版的改动；T2 的 `#reviewsPath` 写成一条取路（`--reviews` → `carrierPathOf` → 解析不到即 `null`），删掉「记录在、载体缺席 → 返回 resolved 名」的第三档，Files / Test / Step / Acceptance 四处同笔对齐；T4 与 T5 的 checkable 计数改为五条 / 六条；T5 的 Objective 与 Acceptance 补行内 token 按 `(cycle, attempt)` 排序（与 `BoardView#byRound` 同序）。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
-| v0.8 | 2026-11-14 | 实现回改（fix round 1 · wave 2 · review-1 findings F2）：T2 的三处声明与树对齐——Produces 的 `carrierPathOf` 记为 `type: string, key: string`（board 的行构造以 `string` 持 `line` / `key`，收窄只会把两个调用点变成断言），`ownerOf` 补第三参 `pathOf` 投影（`RoundRecords` 无 workspace，解析不了名字）；Files 的 `requesterPathOf` 改述为退休、归属判定内联进 `#requesterOf`，`#capsuleLines` 的坐标随 `run.ts` 的注释删除上移到 `:1008-1031`。 | '[ai] Claude（kairos:cdd-fix · 2026-11-14）' |
+| v0.9 | 2026-11-14 | 评审回改（docs-fix round 6）：T3 按 HEAD 收窄剩余范围——窗口面与 `#writeCrash` 已随 T1 同源落地，三条窗口 / 崩溃步骤改为覆盖测（现状即绿），Objective 显式收窄；守卫 (a) 改指 T2 已落的 `session/__tests__/carrier-path.guard.test.ts:37-60`（作用域 `session/ledger.ts` 记录存储 + 委派路由，spec §2.12 全树口径的差额记在文件头），守卫 (b) 红集由过期的 `session/handoff-schema.ts:200` 改为今日零命中（T6 ③ 已改述 `OUTPUT_EVIDENCE`），守卫 (c) 的判面排除 `#family` 键集校验；新增 abort fold 的 attempt 同源：Files / Steps / Produces / Acceptance 点名 `#bookAbort` → `#waveParams(…, attempt)` 与两处 round-less docstring 退役；Acceptance 补 legacy 轮窗口的 implement 例外；changeset 由新增第二份改为确认既有 `p34-naming-derivation-tolerance.md`。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |

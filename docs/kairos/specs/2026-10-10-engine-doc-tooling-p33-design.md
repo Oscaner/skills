@@ -1,11 +1,11 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P33 设计：dispatch prompt 判别符 + 参照面校准'
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-11-13
 slug: '2026-10-10-engine-doc-tooling-p33'
 program: 2026-10-10-engine-doc-tooling
-parent-version: v3.54
+parent-version: v3.55
 author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 ---
 
@@ -71,6 +71,22 @@ implement 的类型集只有一个成员：它唯一的产出点是 `session/led
 
 **E · 不并入（nit）。** `**Single agent:**` 说覆盖被派发 skill 的并行默认，而只有 wave / branch review 挂 skill，其余四型空转——留着无害，不占本相位。
 
+#### 2.6 主体面五处校准（D87）
+
+把 round context 以外的共享主体逐块摊开——`FRAME_ITEMS` · `WORK_CAPABILITY` · 每模式指令句 · lens 行 · criteria 体 · `LICENSE_ITEMS` · rubric 槽——选出五处。其中两处的共同根因是 `LICENSE_ITEMS` 是无条件拼进每个壳的单一共享块（注释自陈 the same bytes, one per shell），而 docs-fix 面与 review 面的语义在这块之后才分化。
+
+**G · docs-fix 壳三句互斥。** 同一个 prompt 里：`capability: may.amend = content` 声明本轮**可**改 spec 与 plan 的内容面；`**docs-fix:**` 指令它**原地**把 findings 应用到被判文档；而共享 clause `cl:plan-freeze` 写「Approved plan/spec files are frozen — zero modification authority … never edited in place」。一句授权、一句下令、一句绝对禁止。
+
+**H · review 壳的提交纪律与只读对冲。** 同一个壳里 `cl:atomic-commit` 要求「Commit each round's change as one atomic conventional commit」而 `**Read-only:**` 写 committing belongs to the orchestrator。review 轮本无改动可提交。
+
+**I · single-spec 被要求对照一个不存在的父。** `spec` 判据体由 phase-spec 与 single-spec 共用，其 program-conformance 句要求对 `INPUT_OVERALL` 判；而 single-spec 无 `program:`、该行被丢，且它不是一个 phase。
+
+**J · branch 判据体用退役词。** 「Same four axes as task」——task 已在 T26 重命名为 wave，CLI 里不存在 `--type task`。
+
+**K · overall 的 rubric 槽仍是 spec。** `REVIEW_BODY_TEXT.overall` 的 `artifact` 是 `spec`、`audience` 是 `downstream author`，于是 charter 的 prompt 里出现 the reviewed spec … a reasonable downstream author。与 C 同根（P17 `overall-spec` → `overall` 的残留），只是落在 rubric 槽值上。
+
+**修法裁定（α）：两句自限定，不拆共享块。** G/H 都是「共享 clause 没有被告知当前轮的权限」。修法让它们**自己限定**：freeze 句限定到本轮声明的 `capability: may.amend` 之外（无声明即不得原地改，这与 review 的现有语义一致），commit 句补一句「只读轮无提交 · 其写入仅 `OUTPUT_*`」。保留 `LICENSE_ITEMS` 单一共享块（与每轮的指令句、能力声明各就各位），不拆成按模式的集合（β 的维护面翻倍，换来的只是同源性的形式化）。I / J / K 为纯文本修正。
+
 ### 3. 失败面
 #### 3.1 空注入的静默丢行
 
@@ -96,6 +112,11 @@ round-context 渲染器对空值**丢行而不报错**。若注入面回退成�
 - **B**：共享句与 branch criteria 的判定面一致（活的树 + 计划参考），二者不再互斥。
 - **C2**：overall 面的 round context 只有一个 charter 锤且名为 `INPUT_OVERALL`，`INPUT_SPEC` 在该面为空；review 与 docs-fix 两面同判；`REVIEW_ITEM` 与 `DOCS_FIX_SHELL` 各含一句 overall 锤名。
 - **D**：plan-doc 行明示 `INPUT_SPEC` 为不可在本轮编辑的参考。
+- **G**：docs-fix 壳的 freeze clause 不再与本轮的 `may.amend = content` 与原地编辑指令互斥——它限定到声明范围之外。
+- **H**：review 壳的 commit clause 明示只读轮无提交、写入仅 `OUTPUT_*`；与 `**Read-only:**` 不再对冲。
+- **I**：single-spec 的 prompt 不再要求对照一个被丢弃的 `INPUT_OVERALL`——program-conformance 句显式限定 phase-spec。
+- **J**：branch 判据体不再出现退役词 task。
+- **K**：overall 的 rubric 槽为 charter / phase author，不再把 charter 叫 spec。
 
 ## Constraints
 
@@ -110,4 +131,6 @@ round-context 渲染器对空值**丢行而不报错**。若注入面回退成�
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-13 | P33 初稿：判别符 `REVIEW_TYPE` → `TARGET_TYPE` 并渲染进 round context；全轮注入真实 type；implement 单成员不渲染；标题与 shell 零改动（D85）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.2 | 2026-11-13 | 并入参照面四处校准（D86）：A `FIX_SHELL` 的 `INPUT_SPEC` 子句改按面点名；B `REVIEW_ITEM` 把 branch 从 plan review 拆出；C2 overall 面只留 `INPUT_OVERALL`、`INPUT_SPEC` 置空（补完 P17 的改名）；D docs-fix plan 面给 `INPUT_SPEC` 定性。§3.3 记明结构门看不见名字所指，本相位不新增门。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
+| v0.3 | 2026-11-13 | 并入 phase-spec-review-1 全部四条：F1 §1.2 的 LCP 实测值撤出正文改述为条件；F2 §3.2 改名残留面按 AC 全量列出；F3 overall 已由编排器回填 7642465b（v3.54），本相位只对齐 parent-version；F4 补 §3.3 标题。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
+| v0.4 | 2026-11-13 | 并入主体面五处（D87）：G docs-fix 的 freeze/capability/指令三句互斥 · H review 的 commit/只读对冲 · I single-spec 被要求对照被丢弃的 `INPUT_OVERALL` · J branch 判据体的退役词 task · K overall rubric 槽仍是 spec。修法取 α（clause 自我限定，保住 `LICENSE_ITEMS` 单一共享块）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.3 | 2026-11-13 | 并入 phase-spec-review-1 全部四条：F1 §1.2 的 LCP 实测值撤出正文，改述为必须成立的条件（标题与 `**Criteria — …:**` 行零字节 · §2.5 句子同模式内全类型一致）；F2 §3.2 的改名残留面改按 AC「零残留」判据全量列出（`TOKENS` · `#rowOf`/`#gate`/`#reviewRow` · `#valuesOf` · 测试夹具）；F3 parent-version 对齐 v3.54（overall 侧已由编排器回填）；F4 新增 §3.3 标题，结构门盲区说明独立成节。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |

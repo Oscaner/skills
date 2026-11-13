@@ -991,6 +991,20 @@ describe("orphanHandoffs — the reverse parse reads the identity it renders (P3
     }
   });
 
+  it("attributes a multi-task wave's carrier to its OWN task group — the comma survives", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      ledger.recordRound("6,7", { op: "implement", cycle: 1 });
+      // The line's task group IS the identity: `6,7` is one wave, never two, so the
+      // neighbouring group's same-cycle carrier stays an orphan.
+      workspace.writeJson("tasks-6,7-implement-1.json", { artifacts: {} });
+      workspace.writeJson("tasks-6,8-implement-1.json", { artifacts: {} });
+      expect(ledger.orphanHandoffs()).toEqual(["tasks-6,8-implement-1.json"]);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("an attempt-1 record never claims an attempt-2 draft — the re-dispatch's file stays orphaned", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {

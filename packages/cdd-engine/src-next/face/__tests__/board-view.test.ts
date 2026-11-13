@@ -1886,6 +1886,37 @@ describe("cdd board — the in-flight read face (zero write)", () => {
       cleanup();
     }
   });
+
+  it("renders no orphan row for a carrier a recorded round owns (P34 T4)", async () => {
+    const { repoRoot, command, stdoutText, cleanup } = fixture();
+    try {
+      const dir = path.join(repoRoot, ".kairos", "cdd");
+      const workspace = path.join(dir, "p3");
+      mkdirSync(workspace, { recursive: true });
+      // The round IS recorded, so its carrier is owned — and a second, unrecorded
+      // group on the same line stays the only true orphan.
+      writeFileSync(
+        path.join(workspace, "progress.json"),
+        `${JSON.stringify({ timeoutCount: 0, waves: [{ wave: "1", rounds: { implement: [1] } }] }, null, 2)}\n`,
+        "utf8",
+      );
+      writeFileSync(
+        path.join(workspace, "tasks-1-implement-1.json"),
+        `${JSON.stringify({ status: "BLOCKED", artifacts: {} })}\n`,
+        "utf8",
+      );
+      writeFileSync(
+        path.join(workspace, "tasks-2-implement-1.json"),
+        `${JSON.stringify({ status: "BLOCKED", artifacts: {} })}\n`,
+        "utf8",
+      );
+      expect(await command.runArgv(["board", "--plan", "docs/kairos/plans/p3.md"])).toBe(0);
+      expect(stdoutText()).not.toContain("orphan: tasks-1-implement-1.json");
+      expect(stdoutText()).toContain("orphan: tasks-2-implement-1.json");
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

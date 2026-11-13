@@ -425,6 +425,44 @@ describe("the artifact-stem single source — the report and its log name read O
   });
 });
 
+describe("the name-template single source — no second derivation site (P34 T3)", () => {
+  /** The tokens that spell one artifact kind's suffix — each belongs to `renderName`. */
+  const KIND_TOKENS = ["-report.md", "-test-evidence", ".c${", "-a${"];
+
+  /** Production hits minus the renderer's own home (the ONE place they may live). */
+  const outsideRenderer = (token: string): string[] =>
+    hitsOf(token).filter((hit) => !hit.startsWith("session/round-naming.ts:"));
+
+  it("keeps every kind suffix inside RoundNaming — a caller assembles no name", () => {
+    // A suffix copied into a caller would let one artifact's spelling drift from its
+    // siblings' while every unit test still passes (the two faces would disagree).
+    for (const token of KIND_TOKENS) expect(outsideRenderer(token), token).toEqual([]);
+  });
+
+  it("keeps the family surface a membership key set — never a name template", () => {
+    // The family table answers ONE question ("is this op · type a handoff family?"), so
+    // `#family(op, type)`'s key-set check is deliberately OUTSIDE this judge surface.
+    // A family row interpolated into a name would re-open the derivation this wave
+    // closed, so no production line may combine the surface with a name body.
+    const files: string[] = [];
+    collectProductionTs(SRC_ROOT, files);
+    const assembled: string[] = [];
+    for (const file of files) {
+      const lines = stripComments(readFileSync(file, "utf8")).split("\n");
+      for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index]!;
+        if (!/families/.test(line)) continue;
+        // The membership check IS the key-set read this surface is allowed to be.
+        if (/this\.#families\.includes\(/.test(line)) continue;
+        if (/(\$\{|replace\(|tasks-|crash-|\.json)/.test(line)) {
+          assembled.push(`${path.relative(SRC_ROOT, file)}:${index + 1}`);
+        }
+      }
+    }
+    expect(assembled).toEqual([]);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // the carrier's two names — draft and final, the same stem, `.c<N>` suffixed
 // ---------------------------------------------------------------------------

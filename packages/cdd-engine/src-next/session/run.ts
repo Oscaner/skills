@@ -903,8 +903,9 @@ export class Lifecycle {
   }
 
   /** P31 §2.4 — seal one round's OWN carrier names (its draft and its final). The
-   *  derivation is the same pair the lifecycle's preflight opens; a round-less family
-   *  (implement) resolves both to one path, so the seal is idempotent by construction. */
+   *  derivation is the same pair the lifecycle's preflight opens, off the frame's own
+   *  identity (cycle + attempt): two rounds of the same line never close each other's
+   *  window. */
   #sealRoundCarriers(frame: OpenFrame): void {
     const op = this.#opOf(frame.phase);
     const artifact = RoundNaming.artifactOf(op, frame.type, frame.params);

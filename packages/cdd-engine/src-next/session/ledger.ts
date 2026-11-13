@@ -1652,7 +1652,7 @@ export class Ledger {
    *  P31 §2.4 — the write CLOSES the carrier: the final and the draft name beside it
    *  land at `0o444` in the same step, so a carrier is read-only from the instant the
    *  engine authored it. A name that never landed (a round whose child wrote no draft,
-   *  a round-less family whose draft IS the final) is not an error — the seal is
+   *  a legacy cycle-less name whose draft IS the final) is not an error — the seal is
    *  idempotent and absence is the round's own fact. */
   persistHandoff(
     op: string,

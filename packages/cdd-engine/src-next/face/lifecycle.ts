@@ -309,17 +309,17 @@ export class CliLifecycle {
     );
     // P31 T5 §2.4 — the killed round's carrier names close with its abort record: the
     // draft the dead child may have left writable and the final it never materialized.
-    // The identity is the record's OWN (the same op/cycle the abort booked), never a
-    // re-derivation from the current frontier.
-    this.#sealRoundCarriersOf(op, "wave", CliLifecycle.#waveParams(key, cycle, op));
+    // The identity is the record's OWN (op / cycle / attempt), never a re-derivation
+    // from the current frontier.
+    this.#sealRoundCarriersOf(op, "wave", CliLifecycle.#waveParams(key, cycle, attempt));
     return true;
   }
 
   /** The handoff params of a wave round, replayed from a dead holder's record — the
-   *  same shaping the frame builder applies (the implement family is round-less, the
-   *  review / fix families carry the cycle). */
-  static #waveParams(key: string, cycle: number, op: OpType): HandoffParams {
-    return op === "implement" ? { tasks: key } : { tasks: key, round: cycle };
+   *  same shaping the frame builder applies: every family carries its cycle and its
+   *  attempt, so the abort record seals exactly the pair the round itself owned. */
+  static #waveParams(key: string, cycle: number, attempt: number): HandoffParams {
+    return { tasks: key, round: cycle, attempt };
   }
 
   /** One dispatch — the round's work, the observation facts every record carries (the

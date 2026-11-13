@@ -18,9 +18,11 @@
 
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   rmSync,
   statSync,
@@ -473,16 +475,18 @@ class ReviewDraftRunner implements ChildRunner {
   calls: ChildRun[] = [];
 
   readonly #findings: readonly Record<string, unknown>[];
+  readonly #draft: string;
 
-  constructor(findings: readonly Record<string, unknown>[]) {
+  constructor(findings: readonly Record<string, unknown>[], draft = "tasks-1-review-1.json") {
     this.#findings = findings;
+    this.#draft = draft;
   }
 
   async run(run: ChildRun): Promise<ChildOutcome> {
     this.calls.push(run);
     mkdirSync(path.join(run.cwd, ".kairos", "cdd", "p30"), { recursive: true });
     writeFileSync(
-      path.join(run.cwd, ".kairos", "cdd", "p30", "tasks-1-review-1.json"),
+      path.join(run.cwd, ".kairos", "cdd", "p30", this.#draft),
       JSON.stringify({ findings: this.#findings }),
       "utf8",
     );
@@ -1279,6 +1283,191 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
       // Visible to the child AND after the round: an input carrier is never reopened.
       expect(seen).toEqual([0o444]);
       expect(modeOf(seeded.path)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P34 T3 — the round's OWN identity keys the window, the crash record and the
+// resume read: the attempt is part of the identity everywhere (design spec §2.4),
+// never a naming decoration the seal cycle and the abort fold drop.
+// ---------------------------------------------------------------------------
+
+/** The same frame on a later attempt — the shape `#paramsOf` builds (the attempt
+ *  rides both the frame and its params; the naming reads the frame first). */
+const atAttempt = (frame: OpenFrame, attempt: number): OpenFrame => ({
+  ...frame,
+  attempt,
+  params: { ...frame.params, attempt },
+});
+
+/** One carrier path inside the fixture's `.kairos/cdd/p30` workspace. */
+const carrierAt = (f: Fixture, name: string): string => path.join(f.scene.workspace.path, name);
+
+describe("P34 T3 — the attempt is the round's identity (window · crash · resume)", () => {
+  it("opens ONLY the attempt-2 pair and re-seals it at the terminal, leaving attempt 1 closed", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // Attempt 1 completed: its draft and final exist at the attempt-1 names, sealed.
+      const firstDraft = carrierAt(f, "tasks-1-review-1.json");
+      const firstFinal = carrierAt(f, "tasks-1-review-1.c1.json");
+      for (const seeded of [firstDraft, firstFinal]) {
+        writeFileSync(seeded, JSON.stringify({ findings: [] }), "utf8");
+        chmodSync(seeded, 0o444);
+      }
+      // Attempt 2's pair, left writable by a previous attempt.
+      const retryDraft = carrierAt(f, "tasks-1-review-1-a2.json");
+      const retryFinal = carrierAt(f, "tasks-1-review-1-a2.c1.json");
+      for (const leftover of [retryDraft, retryFinal]) {
+        writeFileSync(leftover, JSON.stringify({ findings: [] }), "utf8");
+      }
+      const seen: number[] = [];
+      const probe = new ModeProbeRunner([firstDraft, firstFinal, retryDraft, retryFinal], seen);
+      const draft = new ReviewDraftRunner(
+        [{ severity: "warn", lens: "scope", summary: "x" }],
+        "tasks-1-review-1-a2.json",
+      );
+      // Probe the window at the spawn instant, then die — the death face seals the pair.
+      const combined: ChildRunner = {
+        run: async (run) => {
+          await probe.run(run);
+          await draft.run(run);
+          return { code: 1, stdout: "", stderr: "", termination: null };
+        },
+      };
+      const { outcome } = await dispatchFrame(f, atAttempt(reviewFrame, 2), combined);
+      expect(outcome.status).toBe("BLOCKED");
+      // The window: attempt 1 stays read-only, ONLY the attempt-2 pair opens.
+      expect(seen).toEqual([0o444, 0o444, 0o644, 0o644]);
+      // The terminal closes the pair the round actually owned.
+      expect(modeOf(retryDraft)).toBe(0o444);
+      expect(modeOf(retryFinal)).toBe(0o444);
+      expect(modeOf(firstDraft)).toBe(0o444);
+      expect(modeOf(firstFinal)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("an attempt-2 review death writes and re-reads the attempt-2 crash record", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // Attempt 1's crash record already exists — a later attempt must not clobber it.
+      const firstCrash = carrierAt(f, "crash-tasks-1-review-1.json");
+      writeFileSync(firstCrash, "attempt-1 sentinel", "utf8");
+      const draft = new ReviewDraftRunner(
+        [{ severity: "blocker", lens: "spec", summary: "x" }],
+        "tasks-1-review-1-a2.json",
+      );
+      const dying: ChildRunner = {
+        run: async (run) => {
+          await draft.run(run);
+          return { code: 1, stdout: "", stderr: "", termination: null };
+        },
+      };
+      const frame = atAttempt(reviewFrame, 2);
+      const { outcome } = await dispatchFrame(f, frame, dying);
+      expect(outcome.status).toBe("BLOCKED");
+      // The crash face's own derivation — the same call the capsule line reads.
+      const naming = f.scene.ledger.naming();
+      expect(naming.crashName(frame)).toBe("crash-tasks-1-review-1-a2.json");
+      const crash = f.scene.ledger.readCrash(naming.crashName(frame));
+      expect(crash).not.toBeNull();
+      // The record names the attempt-2 draft — the identity rides the name, and the
+      // postmortem points back at the file the dead child was writing.
+      expect(crash?.attemptedHandoff).toBe(".kairos/cdd/p30/tasks-1-review-1-a2.json");
+      expect(crash?.cause).toBe("child-exit");
+      // The resume command is the review leg's own, off the same crash record.
+      expect(crash?.next).toContain("cdd review");
+      expect(path.basename(naming.crashPath(frame))).toBe("crash-tasks-1-review-1-a2.json");
+      // Attempt 1's crash record is untouched.
+      expect(readFileSync(firstCrash, "utf8")).toBe("attempt-1 sentinel");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("a fix retry reads the review carrier its record names — never an attempt tail off its own frame", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const seeded = f.scene.ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        {
+          status: "CHANGES_REQUESTED",
+          findings: [
+            { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+          ],
+        },
+      );
+      f.scene.ledger.recordRound("phase-spec", {
+        op: "review",
+        cycle: 1,
+        attempt: 1,
+        carrierDigest: seeded.digest,
+      });
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const frame = atAttempt(fixFrameOf(specPath), 2);
+      const lifecycle = new CliLifecycle({
+        scene: f.scene,
+        io: f.io,
+        sync: new FailingRunner(),
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      await lifecycle.step()(frame);
+      const naming = f.scene.ledger.naming();
+      expect(naming.crashName(frame)).toBe("crash-phase-spec-fix-1-a2.json");
+      const crash = f.scene.ledger.readCrash(naming.crashName(frame));
+      // The requesting carrier is the review round's FINAL — its own attempt, not the fix's.
+      expect(crash?.next).toContain(`--reviews ${seeded.path}`);
+      expect(crash?.next).not.toContain("-a2");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("the abort fold seals the ATTEMPT-2 pair — attempt 1's window stays closed", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      plantStale(f, staleRecord({ phase: "review", cycle: 1, attempt: 2 }));
+      const firstDraft = carrierAt(f, "tasks-1-review-1.json");
+      writeFileSync(firstDraft, JSON.stringify({ findings: [] }), "utf8");
+      chmodSync(firstDraft, 0o444);
+      const retryDraft = carrierAt(f, "tasks-1-review-1-a2.json");
+      const retryFinal = carrierAt(f, "tasks-1-review-1-a2.c1.json");
+      for (const leftover of [retryDraft, retryFinal]) {
+        writeFileSync(leftover, JSON.stringify({ findings: [] }), "utf8");
+      }
+      expect(await lifecycleOf(f).foldAbort()).toBe(true);
+      // The record's OWN identity (cycle 1 · attempt 2) seals the pair the dead child owned.
+      expect(modeOf(retryDraft)).toBe(0o444);
+      expect(modeOf(retryFinal)).toBe(0o444);
+      expect(modeOf(firstDraft)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("the implement family's fold lands on the cycle-bearing name, not the retired round-less one", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      plantStale(f, staleRecord({ phase: "implement", cycle: 2, attempt: 2 }));
+      // A retired-spelling leftover: the round-less name is not this round's identity.
+      const legacy = carrierAt(f, "tasks-1-implement.json");
+      writeFileSync(legacy, JSON.stringify({ status: "BLOCKED", artifacts: {} }), "utf8");
+      const own = carrierAt(f, "tasks-1-implement-2-a2.json");
+      const ownFinal = carrierAt(f, "tasks-1-implement-2-a2.c2.json");
+      for (const leftover of [own, ownFinal]) {
+        writeFileSync(leftover, JSON.stringify({ status: "BLOCKED", artifacts: {} }), "utf8");
+      }
+      expect(await lifecycleOf(f).foldAbort()).toBe(true);
+      expect(modeOf(own)).toBe(0o444);
+      expect(modeOf(ownFinal)).toBe(0o444);
+      // The retired spelling belongs to no round of this file — the fold never claims it.
+      expect(modeOf(legacy)).toBe(0o644);
     } finally {
       f.cleanup();
     }

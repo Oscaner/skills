@@ -681,19 +681,17 @@ export class Lifecycle {
    *  outcome carrying no verdict) — the engine-built fallback from the outcome fields.
    *  Either way it lands as the FINAL carrier beside the child's draft, never over it
    *  (P31 §2.3: the draft keeps the child's bytes, the final carries the engine's
-   *  materialization, and the record names both paths). A production round that wrote
-   *  no carrier is booked with `carrierPath: null` and no file at either name: the
-   *  completion criterion owns the absence (§3.3), and a re-dispatch's draft read must
-   *  see the child's own draft, never an engine synthesis of it. A failure round
-   *  WITHOUT a carrier leaves the child's draft untouched (no-overwrite on failure) but
-   *  is STILL recorded — every dispatched round lands; "completed" is the record's
-   *  verdict, never a membership test. Returns the in-register round count (the task
+   *  materialization, and the ledger DERIVES the record's path from its own identity —
+   *  the record remembers the digest, never a path). A production round that wrote no
+   *  carrier leaves no file at either name: the completion criterion owns the absence
+   *  (§3.3), and a re-dispatch's draft read must see the child's own draft, never an
+   *  engine synthesis of it. A failure round WITHOUT a carrier leaves the child's
+   *  draft untouched (no-overwrite on failure) but is STILL recorded — every dispatched
+   *  round lands; "completed" is the record's verdict, never a membership test. Returns the in-register round count (the task
    *  done-marking rides the step's C5 route — #markTerminal, after #routeNext). */
   #bookkeep(frame: OpenFrame, outcome: DispatchOutcome): number {
     const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
-    let carrierPath: string | null = null;
     let carrierDigest: string | null = null;
-    let draftPath: string | null = null;
     if (outcome.carrier !== undefined || (outcome.verdict === undefined && !blocked)) {
       const op = this.#opOf(frame.phase);
       // T2 — the engine-built fallback rides the FRAME's op-derived plane (never the
@@ -720,10 +718,12 @@ export class Lifecycle {
       // P31 §2.2/§2.3 — the persist hands the FINAL carrier path, the draft path it
       // landed beside and the payload digest, so the round record can name both
       // artifacts and replay the comparison on every later read of this carrier.
+      // P31 §2.2/§2.3 — the persist seals the round's two names and hands back the
+      // payload digest, so the record can replay the comparison on every later read of
+      // this carrier. The PATHS stay out of the record: the ledger derives them from
+      // the record's own identity.
       const persisted = this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
-      carrierPath = persisted.path;
       carrierDigest = persisted.digest;
-      draftPath = persisted.draftPath;
     } else {
       // P31 T5 §2.4 — a round that books NO carrier still owns its two names: the
       // draft the child may have written before the round failed must not stay
@@ -760,9 +760,9 @@ export class Lifecycle {
           targetAction: !blocked,
         },
         violations,
-        carrierPath,
-        carrierDigest,
-        draftPath,
+        // A round that persisted no carrier records no digest column at all — the
+        // absence is the fact, never a null placeholder.
+        ...(carrierDigest === null ? {} : { carrierDigest }),
       },
       frame.type,
     );

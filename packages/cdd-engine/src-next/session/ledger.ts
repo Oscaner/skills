@@ -110,7 +110,7 @@ export const RoundViolation = {
 
 /** One dispatched round's record — its identity (`op` + `cycle` + `attempt`), the
  *  dispatch baseline HEAD, the terminal verdict, its graded violations and the
- *  carrier path (null when the round wrote none). A dispatched round is recorded
+ *  carrier digest (the path is DERIVED, spec §2.10). A dispatched round is recorded
  *  unconditionally; "completed" is a read of `verdict.targetAction`, never a
  *  membership test. */
 export interface RoundRecord {
@@ -120,17 +120,19 @@ export interface RoundRecord {
   readonly dispatchBase: string | null;
   readonly verdict: RoundVerdict;
   readonly violations: readonly RoundViolation[];
-  readonly carrierPath: string | null;
+  /** The LEGACY carrier path a pre-P34 row remembers — read-only history, resolved
+   *  through `Ledger#carrierPathOf`'s step ① alone. New records never carry it: the
+   *  path is a function of the record's own identity. */
+  readonly carrierPath?: string | null;
   /** The content digest the engine recorded for the carrier it wrote (P31 §2.2) —
    *  the payload rule's `CarrierIntegrity.digestOf` value, taken from the write seam's
    *  own bytes at persist time. Absent on every record written before the column
    *  existed (zero migration) and null on a round that persisted no carrier; either
    *  way the read is a present-facts read with zero comparison. */
   readonly carrierDigest?: string | null;
-  /** The child's DRAFT carrier the round wrote its final beside (P31 §2.3) — the
-   *  family-path draft the finalized carrier no longer overwrites. Absent on every
-   *  record written before the column existed (zero migration): a legacy round's one
-   *  path IS its carrier, and the read keeps the resolved family name. */
+  /** The child's DRAFT carrier the round wrote its final beside (P31 §2.3) — a
+   *  LEGACY cell (spec §2.10): the draft name is derived from the identity too, so no
+   *  write face records it. */
   readonly draftPath?: string | null;
   /** The supersede stamp (P30 §2.3) — the cycle that REPLACED this review's judgment
    *  (the `--recover` reopen dispatched `cycle` next, so this round's pending fix is no
@@ -144,10 +146,7 @@ export interface RoundRecord {
  *  judgment reads. A completion verdict must never be an input to the judgment that
  *  produces it, so the criteria see this shape, not a record whose `verdict` cell
  *  the judgment itself would fill. */
-export type RoundIdentity = Pick<
-  RoundRecord,
-  "op" | "cycle" | "attempt" | "dispatchBase" | "carrierPath"
->;
+export type RoundIdentity = Pick<RoundRecord, "op" | "cycle" | "attempt" | "dispatchBase">;
 
 /** The writable shape of one round record — the stored record with the identity
  *  facts defaultable (the seeding form still allocates the cycle from the row's
@@ -159,9 +158,7 @@ export interface RoundRecordInit {
   readonly dispatchBase?: string | null;
   readonly verdict?: RoundVerdict;
   readonly violations?: readonly RoundViolation[];
-  readonly carrierPath?: string | null;
   readonly carrierDigest?: string | null;
-  readonly draftPath?: string | null;
 }
 
 /** The round-concluding statuses the router's failure face reads. */
@@ -293,8 +290,35 @@ export class RoundRecords {
       dispatchBase: null,
       verdict: { treeClean: true, targetAction: true },
       violations: [],
-      carrierPath: null,
     };
+  }
+
+  /** Whether a record OWNS its carrier path (spec §2.7) — no other record of the same
+   *  line sits on that path with a larger `(cycle, attempt)`. New records are each
+   *  their own owner (their names are unique by identity), so the judgment only
+   *  discriminates LEGACY rows: a row whose carrier path was overwritten by a later
+   *  round is present facts, never a mismatch (the engine cannot tell a lawful
+   *  overwrite from a tamper). The path comes in as a projection — the record's own
+   *  identity, never a stored cell (`RoundRecords` has no workspace to resolve a
+   *  name). */
+  static ownerOf(
+    records: readonly RoundRecord[],
+    record: RoundRecord,
+    pathOf: (candidate: RoundRecord) => string,
+  ): boolean {
+    const path = pathOf(record);
+    if (path === "") return false;
+    return !records.some(
+      (other) => RoundRecords.#laterRound(other, record) && pathOf(other) === path,
+    );
+  }
+
+  /** Whether `other` is the later round of the two — `(cycle, attempt)` order, the
+   *  round identity's own sequence. Identical identities are not later. */
+  static #laterRound(other: RoundRecord, record: RoundRecord): boolean {
+    return other.cycle === record.cycle
+      ? other.attempt > record.attempt
+      : other.cycle > record.cycle;
   }
 
   /** The op a recorded mode key belongs to — branch-review rides the review family;
@@ -842,12 +866,10 @@ export class Ledger {
       dispatchBase: init.dispatchBase ?? null,
       verdict: init.verdict ?? { treeClean: true, targetAction: true },
       violations: init.violations ?? [],
-      carrierPath: init.carrierPath ?? null,
       // The digest column exists only on rounds that recorded one (a legacy record
-      // keeps no key at all — the read then compares nothing, zero migration).
+      // keeps no key at all — the read then compares nothing, zero migration). The
+      // carrier PATH is never written (spec §2.10): it is derived from this identity.
       ...(init.carrierDigest === undefined ? {} : { carrierDigest: init.carrierDigest }),
-      // …and the same for the draft path column (P31 §2.3).
-      ...(init.draftPath === undefined ? {} : { draftPath: init.draftPath }),
     };
     const existing = records.findIndex(
       (candidate) =>
@@ -1738,36 +1760,36 @@ export class Ledger {
   }
 
   /** The latest recorded attempt of an (op, type, round) identity — null when the line
-   *  carries no record for it (a legacy row, or a round never dispatched). ONE basis for
-   *  every "what did that round record" question (the digest the read compares against,
-   *  the carrier path `--reviews` names). */
+   *  carries no record for it (a legacy row, or a round never dispatched). When the
+   *  caller NAMES an attempt (`params.attempt`), that attempt is the one selected: the
+   *  name a read resolves and the digest it compares against come from the SAME record,
+   *  so a re-dispatched cycle (attempt 2 booked, attempt 1's final still on disk by
+   *  conservation) can never read attempt 1's bytes against attempt 2's digest. */
   #latestRecordOf(op: string, type: string, params: HandoffParams): RoundRecord | null {
     const mode = RoundRecords.opOf(op) ?? op;
     const round = params.round === undefined ? null : Number(params.round);
     return this.recordsOf(this.#roundKey(type as TargetType, params), type as TargetType)
       .filter((record) => record.op === mode)
       .filter((record) => round === null || record.cycle === round)
+      .filter((record) => params.attempt === undefined || record.attempt === params.attempt)
       .reduce<RoundRecord | null>(
         (newest, record) => (newest === null || record.attempt >= newest.attempt ? record : newest),
         null,
       );
   }
 
-  /** The review carrier a round's fix leg reads as `--reviews` — the round's OWN
-   *  recorded carrier path (the FINAL carrier, P31 §2.3) when the record names one, and
-   *  the resolved family name (the draft spelling — legacy rows, and a round that
-   *  persisted no carrier) otherwise. Record-present means final-wins: a draft sitting
-   *  beside a final never becomes the judged input. */
+  /** The review carrier a round's fix leg reads as `--reviews` — the same-cycle review
+   *  record's own carrier identity through the ONE accessor (step ① the recorded path,
+   *  step ②③ the read ladder a pre-P31 row needs). A record that resolves no carrier
+   *  (the ladder's candidates are all absent) reads `""` — the soft `unrecorded` face,
+   *  never a fabricated name. No record at all falls back to the family name of the
+   *  cycle's latest review attempt (attempt 1 when none): a fix leg knows the cycle,
+   *  never the review's attempt, so the FRAME's attempt is deliberately not inherited. */
   #reviewsPathOf(type: TargetType, params: HandoffParams, round: number): string {
-    const record = this.#latestRecordOf("review", type, { ...params, round });
-    // The record's carrier identity has ONE read face — `carrierPathOf` (step ① the
-    // recorded path, step ②③ the read ladder a pre-P34 row needs). A bare
-    // `record?.carrierPath` here would skip the ladder and, for a record whose row
-    // names no path, silently fall past the final carrier it did write.
-    const key = String(this.#roundKey(type, params));
-    const recorded = record === null ? "" : this.carrierPathOf(type, key, record);
-    if (recorded !== "") return recorded;
-    return this.resolveHandoffPath("review", type, { ...params, round });
+    const reviewParams: HandoffParams = { tasks: params.tasks, round };
+    const record = this.#latestRecordOf("review", type, reviewParams);
+    if (record === null) return this.resolveHandoffPath("review", type, reviewParams);
+    return this.carrierPathOf(type, String(this.#roundKey(type, params)), record);
   }
 
   /** One record's carrier PATH — the ONE read face of a record's carrier identity
@@ -1988,7 +2010,10 @@ export class Ledger {
   #consecutiveS1Run(type: string, params: HandoffParams, round: number): number {
     let run = 0;
     for (let index = round; index >= 1; index--) {
-      const carrier = this.readHandoff("review", type, { ...params, round: index });
+      // The frame's attempt belongs to the op it was allocated for — a review read
+      // resolves the review's own latest attempt (the ledger's own fallback), never
+      // the fix frame's.
+      const carrier = this.readHandoff("review", type, { tasks: params.tasks, round: index });
       if (carrier === null) break;
       if (this.#blockerCountOf(carrier) === 0) break;
       run += 1;
@@ -2079,8 +2104,8 @@ export class Ledger {
       // work plane reads its status) — the same `conclusionOf` single source (D27).
       status: this.#handoffSchema.conclusionOf(this.planeOf("fix"), fixCarrier),
       findings: this.#findingsOf(reviewCarrier),
-      reviewsPath: this.#reviewsPathOf(type, params, round),
-      consecutiveS1: this.#consecutiveS1Run(type, params, round),
+      reviewsPath: this.#reviewsPathOf(type, reviewParams, round),
+      consecutiveS1: this.#consecutiveS1Run(type, reviewParams, round),
     };
   }
 }

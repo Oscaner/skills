@@ -15,6 +15,7 @@
 
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -28,8 +29,15 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
-import { CarrierIntegrity } from "../carrier-integrity.ts";
-import { Ledger, type ProgressData, type RefKind, RoundViolation } from "../ledger.ts";
+import { CarrierIntegrity, CarrierMismatchError } from "../carrier-integrity.ts";
+import {
+  Ledger,
+  type ProgressData,
+  type RefKind,
+  type RoundRecord,
+  RoundRecords,
+  RoundViolation,
+} from "../ledger.ts";
 import { RoundNaming } from "../round-naming.ts";
 import type { OpenFrame } from "../run.ts";
 
@@ -500,7 +508,6 @@ describe("rounds — the per-round records (P22 T3: record → status, one direc
           dispatchBase: null,
           verdict: { treeClean: true, targetAction: true },
           violations: [],
-          carrierPath: null,
         },
         {
           op: "review",
@@ -509,7 +516,6 @@ describe("rounds — the per-round records (P22 T3: record → status, one direc
           dispatchBase: null,
           verdict: { treeClean: true, targetAction: true },
           violations: [],
-          carrierPath: null,
         },
       ]);
       // the old write recorded only completed rounds, so every legacy cycle IS complete
@@ -546,15 +552,198 @@ describe("rounds — the per-round records (P22 T3: record → status, one direc
     }
   });
 
-  it("returns the recorded carrier path as-is — the record carries the artifact it wrote", () => {
-    const { ledger, cleanup } = fixture();
+  it("carrierPathOf derives a new record's carrier from its identity — the record names no path", () => {
+    const { ledger, workspace, cleanup } = fixture();
     try {
-      const carrierPath = ledger.handoffPath("implement", "wave", { tasks: "1" });
-      ledger.recordRound("1", { op: "implement", cycle: 1, carrierPath });
-      expect(ledger.recordsOf("1")[0]?.carrierPath).toBe(carrierPath);
+      const name = "tasks-1-implement-1.c1.json";
+      workspace.writeJson(name, { status: "APPROVED" });
+      const record = ledger.recordRound("1", {
+        op: "implement",
+        cycle: 1,
+        carrierDigest: CarrierIntegrity.digestOf({ status: "APPROVED" }),
+      });
+      expect(record.carrierPath).toBeUndefined();
+      expect(ledger.carrierPathOf("wave", "1", record)).toBe(workspace.resolve(name));
     } finally {
       cleanup();
     }
+  });
+
+  it("carrierPathOf step ① wins — a legacy record's own recorded path is returned as-is", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const recorded = workspace.resolve("tasks-1-review-1.json");
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [
+          {
+            wave: "1",
+            rounds: [
+              {
+                op: "review",
+                cycle: 1,
+                attempt: 1,
+                dispatchBase: null,
+                verdict: { treeClean: true, targetAction: true },
+                violations: [],
+                carrierPath: recorded,
+                carrierDigest: null,
+              },
+            ],
+          },
+        ],
+      });
+      const record = ledger.recordsOf("1")[0]!;
+      expect(ledger.carrierPathOf("wave", "1", record)).toBe(recorded);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("carrierPathOf falls through the read ladder for a pathless legacy record — the final the round wrote", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // A pre-P34 row: the record names no path, its final sits on disk under the
+      // identity's rendered name. The ladder resolves the final, never the bare name.
+      const written = ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 2, attempt: 2 },
+        { findings: [] },
+      );
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [
+          {
+            wave: "1",
+            rounds: [
+              {
+                op: "review",
+                cycle: 2,
+                attempt: 2,
+                dispatchBase: null,
+                verdict: { treeClean: true, targetAction: true },
+                violations: [],
+              },
+            ],
+          },
+        ],
+      });
+      const record = ledger.recordsOf("1")[0]!;
+      expect(ledger.carrierPathOf("wave", "1", record)).toBe(written.path);
+      expect(written.path).not.toBe(workspace.resolve("tasks-1-review-2.json"));
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("carrierPathOf's ladder hits the CANONICAL name a pre-P31 row left on disk", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // A pre-P31 row never minted a `.c{cycle}` final, so the bare family name IS its
+      // carrier. The ladder's final-if-exists rung misses; the canonical rung names it,
+      // and the self-probe confirms the file is really there.
+      const canonical = workspace.resolve("tasks-1-review-2.json");
+      workspace.writeJson("tasks-1-review-2.json", { findings: [{ severity: "warn" }] });
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [
+          {
+            wave: "1",
+            rounds: [
+              {
+                op: "review",
+                cycle: 2,
+                attempt: 1,
+                dispatchBase: null,
+                verdict: { treeClean: true, targetAction: true },
+                violations: [],
+              },
+            ],
+          },
+        ],
+      });
+      const record = ledger.recordsOf("1")[0]!;
+      expect(ledger.carrierPathOf("wave", "1", record)).toBe(canonical);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('carrierPathOf reads `""` when every rung misses — the unrecorded face, never a fabricated name', () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const record = ledger.recordRound("plan", { op: "review", cycle: 1 });
+      expect(ledger.carrierPathOf("plan", "plan", record)).toBe("");
+      const waveRecord = ledger.recordRound("1", { op: "review", cycle: 1 });
+      expect(ledger.carrierPathOf("wave", "1", waveRecord)).toBe("");
+      const branchRecord = ledger.recordRound("branch", { op: "review", cycle: 1 });
+      expect(ledger.carrierPathOf("branch", "branch", branchRecord)).toBe("");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("carrierPathOf seeds the ladder with the RECORD's attempt — an attempt-2 record resolves the attempt-2 final", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      const attempt1 = ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1, attempt: 1 },
+        { findings: [{ severity: "warn", summary: "first" }] },
+      );
+      const attempt2 = ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1, attempt: 2 },
+        { findings: [] },
+      );
+      const record = ledger.recordRound("1", { op: "review", cycle: 1, attempt: 2 });
+      expect(ledger.carrierPathOf("wave", "1", record)).toBe(attempt2.path);
+      expect(ledger.carrierPathOf("wave", "1", record)).not.toBe(attempt1.path);
+      expect(workspace.resolve("tasks-1-review-1.json")).not.toBe(attempt1.path);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("RoundRecords.ownerOf — the path's owner (P34 §2.7)", () => {
+  /** A legacy-shaped record literal — the path cell the accessor's step ① reads. */
+  const recordOf = (over: Partial<RoundRecord>): RoundRecord => ({
+    op: "review",
+    cycle: 1,
+    attempt: 1,
+    dispatchBase: null,
+    verdict: { treeClean: true, targetAction: true },
+    violations: [],
+    ...over,
+  });
+  const pathOf = (record: RoundRecord): string => record.carrierPath ?? "";
+
+  it("a lone record owns its path", () => {
+    const record = recordOf({ carrierPath: "/ws/tasks-1-review-1.json" });
+    expect(RoundRecords.ownerOf([record], record, pathOf)).toBe(true);
+  });
+
+  it("a later round on the same path takes ownership — the earlier record is overwritten", () => {
+    const first = recordOf({ cycle: 1, carrierPath: "/ws/a.json" });
+    const second = recordOf({ op: "fix", cycle: 2, carrierPath: "/ws/a.json" });
+    expect(RoundRecords.ownerOf([first, second], first, pathOf)).toBe(false);
+    expect(RoundRecords.ownerOf([first, second], second, pathOf)).toBe(true);
+  });
+
+  it("a record that resolves no path owns nothing", () => {
+    const record = recordOf({});
+    expect(RoundRecords.ownerOf([record], record, pathOf)).toBe(false);
+  });
+
+  it("a LATER attempt of the same cycle supersedes — attempt 1 no longer owns its path", () => {
+    const first = recordOf({ attempt: 1, carrierPath: "/ws/a.json" });
+    const second = recordOf({ attempt: 2, carrierPath: "/ws/a.json" });
+    expect(RoundRecords.ownerOf([first, second], first, pathOf)).toBe(false);
+    expect(RoundRecords.ownerOf([first, second], second, pathOf)).toBe(true);
   });
 });
 
@@ -848,11 +1037,24 @@ describe("orphanHandoffs — the reverse parse reads the identity it renders (P3
       // drifted (attempt 2 under an attempt-less file). The identity tier misses, the
       // legacy tier compares the two basenames — the recorded absolute path and the
       // scanned bare name — and the record claims its own file.
-      ledger.recordRound("plan", {
-        op: "fix",
-        cycle: 2,
-        attempt: 2,
-        carrierPath: workspace.resolve("plan-fix-2.json"),
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [
+          {
+            wave: "plan",
+            rounds: [
+              {
+                op: "fix",
+                cycle: 2,
+                attempt: 2,
+                dispatchBase: null,
+                verdict: { treeClean: true, targetAction: true },
+                violations: [],
+                carrierPath: workspace.resolve("plan-fix-2.json"),
+              },
+            ],
+          },
+        ],
       });
       workspace.writeJson("plan-fix-2.json", { artifacts: {} });
       expect(ledger.orphanHandoffs()).toEqual([]);
@@ -915,7 +1117,7 @@ describe("orphanHandoffs — the reverse parse reads the identity it renders (P3
 });
 
 describe("handoff — the draft/final split (P31 §2.3: the final never overwrites the draft)", () => {
-  it("persists the final beside the untouched draft and records BOTH paths", () => {
+  it("persists the final beside the untouched draft — the record keeps the DIGEST, the ledger derives the paths", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
       const draftName = "tasks-1-review-2.json";
@@ -935,16 +1137,14 @@ describe("handoff — the draft/final split (P31 §2.3: the final never overwrit
       expect(JSON.parse(readFileSync(written.draftPath, "utf8"))).toEqual({
         findings: [{ severity: "warn", summary: "draft" }],
       });
-      ledger.recordRound("1", {
+      const record = ledger.recordRound("1", {
         op: "review",
         cycle: 2,
-        carrierPath: written.path,
         carrierDigest: written.digest,
-        draftPath: written.draftPath,
       });
-      const record = ledger.recordsOf("1")[0];
-      expect(record?.carrierPath).toBe(written.path);
-      expect(record?.draftPath).toBe(written.draftPath);
+      expect(record.carrierPath).toBeUndefined();
+      expect(record.draftPath).toBeUndefined();
+      expect(ledger.carrierPathOf("wave", "1", record)).toBe(written.path);
     } finally {
       cleanup();
     }
@@ -968,13 +1168,7 @@ describe("handoff — the draft/final split (P31 §2.3: the final never overwrit
       // sha256(the file bytes that hold it) (`H = sha256(JSON 含 H)` is unsatisfiable)
       expect(written.digest).toBe(CarrierIntegrity.digestOf(final));
       expect(written.digest).not.toBe(createHash("sha256").update(bytes).digest("hex"));
-      ledger.recordRound("1", {
-        op: "review",
-        cycle: 2,
-        carrierPath: written.path,
-        carrierDigest: written.digest,
-        draftPath: written.draftPath,
-      });
+      ledger.recordRound("1", { op: "review", cycle: 2, carrierDigest: written.digest });
       expect(ledger.recordsOf("1")[0]?.carrierDigest).toBe(written.digest);
     } finally {
       cleanup();
@@ -992,17 +1186,51 @@ describe("handoff — the draft/final split (P31 §2.3: the final never overwrit
         { tasks: "1", round: 2 },
         { findings: [{ severity: "warn", id: "F1" }] },
       );
-      ledger.recordRound("1", {
-        op: "review",
-        cycle: 2,
-        carrierPath: written.path,
-        carrierDigest: written.digest,
-      });
+      ledger.recordRound("1", { op: "review", cycle: 2, carrierDigest: written.digest });
       unlinkSync(written.draftPath);
       expect(ledger.readHandoff("review", "wave", { tasks: "1", round: 2 })).toEqual({
         findings: [{ severity: "warn", id: "F1" }],
         contentSha256: written.digest,
       });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("resolves the PATH and the DIGEST from ONE record — a re-dispatch is never judged against its predecessor's bytes", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const first = ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 2, attempt: 1 },
+        { findings: [{ severity: "blocker", summary: "first" }] },
+      );
+      const second = ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 2, attempt: 2 },
+        { findings: [] },
+      );
+      ledger.recordRound("1", { op: "review", cycle: 2, attempt: 1, carrierDigest: first.digest });
+      ledger.recordRound("1", { op: "review", cycle: 2, attempt: 2, carrierDigest: second.digest });
+      // The attempt-addressed read checks its OWN record's digest.
+      expect(ledger.readHandoff("review", "wave", { tasks: "1", round: 2, attempt: 1 })).toEqual({
+        findings: [{ severity: "blocker", summary: "first" }],
+        contentSha256: first.digest,
+      });
+      // Attempt 1's final is then tampered with. The attempt-less read belongs to
+      // attempt 2, so ITS digest decides — no cross-attempt comparison, no throw.
+      chmodSync(first.path, 0o644);
+      writeFileSync(first.path, JSON.stringify({ findings: [{ summary: "smuggled" }] }), "utf8");
+      expect(ledger.readHandoff("review", "wave", { tasks: "1", round: 2 })).toEqual({
+        findings: [],
+        contentSha256: second.digest,
+      });
+      // …while the attempt-1 read now refuses the bytes its own record never wrote.
+      expect(() =>
+        ledger.readHandoff("review", "wave", { tasks: "1", round: 2, attempt: 1 }),
+      ).toThrow(CarrierMismatchError);
     } finally {
       cleanup();
     }
@@ -1017,14 +1245,8 @@ describe("handoff — the draft/final split (P31 §2.3: the final never overwrit
         { tasks: "1", round: 2 },
         { findings: [{ severity: "warn", id: "F1" }] },
       );
-      ledger.recordRound("1", {
-        op: "review",
-        cycle: 2,
-        carrierPath: written.path,
-        carrierDigest: written.digest,
-      });
-      // the review record carries the carrier it wrote — the reviewsPath reads THAT,
-      // never a re-derived family spelling (draft and final coexist on disk)
+      ledger.recordRound("1", { op: "review", cycle: 2, carrierDigest: written.digest });
+      // the record resolves the FINAL carrier it wrote — never the draft sitting beside it
       expect(ledger.round("review", "wave", { tasks: "1" }, 2)?.reviewsPath).toBe(written.path);
     } finally {
       cleanup();
@@ -1039,6 +1261,50 @@ describe("handoff — the draft/final split (P31 §2.3: the final never overwrit
       expect(ledger.round("review", "wave", { tasks: "1" }, 2)?.reviewsPath).toBe(
         workspace.resolve("tasks-1-review-2.json"),
       );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("round() strips the frame's attempt for its review reads — a fix at attempt 2 addresses the review's own latest attempt", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const first = ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1, attempt: 1 },
+        { findings: [{ severity: "warn", summary: "a" }] },
+      );
+      const second = ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1, attempt: 2 },
+        { findings: [] },
+      );
+      ledger.recordRound("1", {
+        op: "review",
+        cycle: 1,
+        attempt: 1,
+        verdict: { treeClean: true, targetAction: false },
+        carrierDigest: first.digest,
+      });
+      ledger.recordRound("1", { op: "review", cycle: 1, attempt: 2, carrierDigest: second.digest });
+      ledger.persistHandoff(
+        "fix",
+        "wave",
+        { tasks: "1", round: 1, attempt: 2 },
+        { dispositions: {} },
+      );
+      ledger.recordRound("1", { op: "fix", cycle: 1, attempt: 2 });
+      const round = ledger.round("fix", "wave", { tasks: "1", attempt: 2 }, 1);
+      // the fix frame's attempt 2 is NOT a review attempt: the review read resolves the
+      // review's own latest attempt (2), never the frame's number by coincidence
+      expect(round?.reviewsPath).toBe(second.path);
+      expect(round?.reviewsPath).not.toBe(first.path);
+      // …and the S1 run reads the same review chain, so the frame's attempt cannot
+      // change the fix round's continuation facts either.
+      const frameFree = ledger.round("fix", "wave", { tasks: "1" }, 1);
+      expect(round?.consecutiveS1).toBe(frameFree?.consecutiveS1);
     } finally {
       cleanup();
     }

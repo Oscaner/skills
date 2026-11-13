@@ -5326,12 +5326,7 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
           findings: [{ severity: "warn", summary: "drift" }],
         },
       );
-      ledger.recordRound("plan", {
-        op: "review",
-        cycle: 1,
-        carrierPath: persisted.path,
-        carrierDigest: persisted.digest,
-      });
+      ledger.recordRound("plan", { op: "review", cycle: 1, carrierDigest: persisted.digest });
       // The tamper: an EXTERNAL writer reopens the sealed carrier (P31 §2.4) and
       // replaces the bytes the recorded digest covers.
       CarrierSeal.unseal(persisted.path);
@@ -8034,10 +8029,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         ]);
         expect(ledger.counterOf("contractViolationCount")).toBe(1);
         // the production round wrote NO carrier, so the engine synthesizes none: the
-        // record's carrier path stays null and the handoff path holds no file — a
+        // record names no path and no digest, and the handoff path holds no file — a
         // re-dispatch's draft read must see the child's own (absent) draft, never an
         // engine-authored `{status: APPROVED, artifacts: {}}` (§3.3)
-        expect(record?.carrierPath).toBeNull();
+        expect(record?.carrierPath).toBeUndefined();
+        expect(record?.carrierDigest).toBeUndefined();
         expect(existsSync(path.join(workspace.path, "tasks-1-implement-1.json"))).toBe(false);
         // the soft row warns, the blocked channel stays silent
         expect(io.stderrText).toContain("CDD_WARN:");
@@ -8164,14 +8160,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       }
     });
 
-    it("(f2) the legacy skip is REACHABLE through the provider — a review record with no carrierPath and no carrier on disk gives the criterion no path", async () => {
+    it("(f2) the legacy skip is REACHABLE through the provider — a review record whose identity resolves no carrier and no --reviews path gives the criterion no input", async () => {
       const { repoRoot, cleanup } = fixture();
       try {
         gitInit(repoRoot);
         // The pre-rename legacy row: the review round landed but recorded no carrier
         // path, and no carrier exists at the canonical spelling or the retired twin.
         const legacy = harnessScene(repoRoot, "p3-legacy");
-        legacy.ledger.recordRound("1", { op: "review", cycle: 1, carrierPath: null });
+        legacy.ledger.recordRound("1", { op: "review", cycle: 1 });
         const run = async (scene: DispatchScene) => {
           writeFileSync(
             path.join(scene.workspace.path, "tasks-1-fix-1.json"),

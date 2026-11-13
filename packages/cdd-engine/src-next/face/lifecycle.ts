@@ -15,7 +15,7 @@
 // The module exports the shared seams + the lifecycle class — zero behavior-carrying
 // bare functions.
 
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
@@ -304,7 +304,6 @@ export class CliLifecycle {
         dispatchBase: record.dispatchBase,
         verdict: { treeClean: true, targetAction: false },
         violations: [ABORT_INTERRUPTED],
-        carrierPath: null,
       },
       "wave",
     );
@@ -514,22 +513,19 @@ export class CliLifecycle {
     return empty;
   }
 
-  /** The round IDENTITY the criterion judges from — its op / cycle / attempt, the
-   *  group baseline and the carrier path the round writes. Deliberately verdict-free:
-   *  this judgment PRODUCES the verdict, so a verdict cell here would be a
-   *  self-fulfilling input. The group's already-recorded verdicts arrive through
-   *  `CompletionContext.records`, never through this cell. */
+  /** The round IDENTITY the criterion judges from — its op / cycle / attempt and the
+   *  group baseline. Deliberately verdict-free AND path-free: the carrier a round
+   *  wrote is DERIVED from that identity (the ledger's accessor), never a cell the
+   *  frame hands over. Deliberately verdict-free: this judgment PRODUCES the verdict,
+   *  so a verdict cell here would be a self-fulfilling input. The group's
+   *  already-recorded verdicts arrive through `CompletionContext.records`, never
+   *  through this cell. */
   #judgedRecordOf(frame: OpenFrame, outcome: DraftedOutcome): RoundIdentity {
-    const op = this.#opOf(frame);
     return {
-      op,
+      op: this.#opOf(frame),
       cycle: frame.round,
       attempt: frame.attempt ?? 1,
       dispatchBase: outcome.dispatchBase ?? null,
-      carrierPath:
-        outcome.carrier === undefined
-          ? null
-          : this.#scene.ledger.handoffPath(op, frame.type, frame.params),
     };
   }
 
@@ -1292,34 +1288,22 @@ export class CliLifecycle {
   }
 
   /** The requesting review carrier's path — the fix round's `--reviews` input, or the
-   *  ledger's resolved review handoff path when the route carried none (the ONE
-   *  resolution the round context's INPUT_REVIEWS and the disposition summary share).
-   *  Four layers, ONE identity (P31 §2.3): the explicit `--reviews` flag → the
-   *  same-cycle review record's own `carrierPath` (the FINAL carrier the round wrote) →
-   *  the ledger's resolved family name (a draft, or a migrated line's retired twin —
-   *  the carrier that EXISTS, never the never-minted canonical spelling) → the legacy
-   *  `null`. Record-present means final-wins: a draft sitting beside the final never
-   *  becomes the judged input.
-   *
-   *  A same-cycle review record that RECORDED no carrier path, with no carrier at
-   *  either spelling on disk, leaves the requester input UNRECORDED: the answer is
-   *  null, and the fix criterion books its visible skip (design spec §3.4's legacy
-   *  row) instead of failing the round on a hard absent-carrier refusal. An absent
-   *  record is a different fact — it keeps the resolved path, so the criterion reports
-   *  the missing requesting carrier it truly is. */
+   *  same-cycle review record's carrier identity through the ledger's ONE accessor
+   *  (the recorded path, then the read ladder a pre-P31 row needs), or the ledger's
+   *  resolved family name when the line records no review for this cycle. A record
+   *  that resolves no carrier reads `null` — the UNRECORDED face, which the criterion
+   *  books as a visible skip instead of failing the round on a hard absent-carrier
+   *  refusal. Record-present means the record's own final wins: a draft sitting beside
+   *  it never becomes the judged input. */
   #reviewsPath(frame: OpenFrame): string | null {
     if (this.#reviews !== null) return this.#reviews;
-    const recorded = this.#requesterRecord(frame)?.carrierPath;
-    if (typeof recorded === "string" && recorded !== "") return recorded;
-    const resolved = this.#scene.ledger.resolveHandoffPath("review", frame.type, frame.params);
-    if (existsSync(resolved)) return resolved;
-    const legacy = this.#scene.ledger
-      .recordsOf(frame.key, frame.type)
-      .some(
-        (record) =>
-          record.op === "review" && record.cycle === frame.round && record.carrierPath === null,
-      );
-    return legacy ? null : resolved;
+    const record = this.#requesterRecord(frame);
+    if (record !== null) {
+      const recorded = this.#scene.ledger.carrierPathOf(frame.type, String(frame.key), record);
+      return recorded === "" ? null : recorded;
+    }
+    const reviewParams = { tasks: frame.params.tasks, round: frame.round };
+    return this.#scene.ledger.resolveHandoffPath("review", frame.type, reviewParams);
   }
 
   /** The same-cycle review record this fix round answers — its LATEST attempt (a

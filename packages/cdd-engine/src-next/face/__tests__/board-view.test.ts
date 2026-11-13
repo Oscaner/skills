@@ -31,7 +31,7 @@ import { Ledger, type RoundRecord, RoundViolation } from "../../session/ledger.t
 import { type NextHop, NextStepRouter, REVIEW_CYCLE_CAP, type Route } from "../../session/next.ts";
 import { PipelineFrontier } from "../../session/pipeline.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
-import { BoardNext, BoardView } from "../board-view.ts";
+import { BoardNext, BoardView, LineCarriers } from "../board-view.ts";
 import { Capsule } from "../capsule.ts";
 import { Cli, type CliIo, type CliOptions } from "../cli.ts";
 import { ARGV_CHANNEL } from "../declare.ts";
@@ -1438,17 +1438,34 @@ describe("BoardView.crashedRows — the crashed round as an observation (spec §
 });
 
 describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.3)", () => {
+  /** Each fixture record's carrier path — out of band, because a round record names no
+   *  path (P34 §2.7): the path is derived from the record's identity in production, and
+   *  these fixtures supply it the same way the ledger accessor would. */
+  const paths = new WeakMap<RoundRecord, string>();
+
   /** One round record fixture — the identity + verdict the aggregation reads. */
-  const record = (over: Partial<RoundRecord>): RoundRecord => ({
-    op: "review",
-    cycle: 1,
-    attempt: 1,
-    dispatchBase: null,
-    verdict: { treeClean: true, targetAction: true },
-    violations: [],
-    carrierPath: null,
-    ...over,
-  });
+  const record = (over: Partial<RoundRecord> & { carrierPath?: string | null }): RoundRecord => {
+    const { carrierPath, ...rest } = over;
+    const built: RoundRecord = {
+      op: "review",
+      cycle: 1,
+      attempt: 1,
+      dispatchBase: null,
+      verdict: { treeClean: true, targetAction: true },
+      violations: [],
+      ...rest,
+    };
+    if (typeof carrierPath === "string") paths.set(built, carrierPath);
+    return built;
+  };
+
+  /** The aggregation under test — the line's carriers derived per record from the
+   *  fixture map (the board's own call shape). */
+  const cell = (records: readonly RoundRecord[]): string =>
+    BoardView.summaryCell(
+      records,
+      LineCarriers.of(records, (record) => paths.get(record) ?? ""),
+    );
 
   const scratchDirs: string[] = [];
 
@@ -1468,17 +1485,15 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
 
   it("(a) ten green review rounds collapse into `review 10 ✓` — the range form never renders", () => {
     const records = Array.from({ length: 10 }, (_, index) => record({ cycle: index + 1 }));
-    expect(BoardView.summaryCell(records)).toBe("review 10 ✓");
-    expect(BoardView.summaryCell(records)).not.toContain("1–10");
+    expect(cell(records)).toBe("review 10 ✓");
+    expect(cell(records)).not.toContain("1–10");
   });
 
   it("(b) the judgement glyph is mandatory — a token never renders without it", () => {
-    expect(
-      BoardView.summaryCell([record({ verdict: { treeClean: true, targetAction: true } })]),
-    ).toBe("review 1 ✓");
-    expect(
-      BoardView.summaryCell([record({ verdict: { treeClean: false, targetAction: false } })]),
-    ).toBe("review 1 ✗");
+    expect(cell([record({ verdict: { treeClean: true, targetAction: true } })])).toBe("review 1 ✓");
+    expect(cell([record({ verdict: { treeClean: false, targetAction: false } })])).toBe(
+      "review 1 ✗",
+    );
   });
 
   it("(c) the round's FINDINGS ride the +N suffix (read from its carrier, omitted at zero)", () => {
@@ -1492,11 +1507,11 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
       record({ cycle: 2 }),
       record({ cycle: 3 }),
     ];
-    expect(BoardView.summaryCell(withFindings)).toBe("review 3 ✓+2");
-    expect(BoardView.summaryCell(approved)).toBe("review 3 ✓");
-    expect(
-      BoardView.summaryCell([record({ verdict: { treeClean: true, targetAction: false } })]),
-    ).toBe("review 1 ✗");
+    expect(cell(withFindings)).toBe("review 3 ✓+2");
+    expect(cell(approved)).toBe("review 3 ✓");
+    expect(cell([record({ verdict: { treeClean: true, targetAction: false } })])).toBe(
+      "review 1 ✗",
+    );
   });
 
   it("(c2) the count is the CARRIER's findings — contract violations are a different fact", () => {
@@ -1505,17 +1520,16 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     // a carrier with two findings prints `+2`. Reading `record.violations` fails here.
     const violation = { grade: "soft" as const, cause: "c", message: "m" };
     const cleanCarrier = carrier([]);
-    const violationsOnly = record({ cycle: 1, violations: [violation, violation] });
-    expect(BoardView.summaryCell([{ ...violationsOnly, carrierPath: cleanCarrier }])).toBe(
-      "review 1 ✓",
-    );
+    expect(
+      cell([record({ cycle: 1, violations: [violation, violation], carrierPath: cleanCarrier })]),
+    ).toBe("review 1 ✓");
     const findingsOnly = record({
       cycle: 1,
       carrierPath: carrier([{ severity: "warn" }, { severity: "nit" }]),
     });
-    expect(BoardView.summaryCell([findingsOnly])).toBe("review 1 ✓+2");
+    expect(cell([findingsOnly])).toBe("review 1 ✓+2");
     // A record with no carrier (a legacy row / a work-plane round) contributes zero.
-    expect(BoardView.summaryCell([record({ cycle: 1 })])).toBe("review 1 ✓");
+    expect(cell([record({ cycle: 1 })])).toBe("review 1 ✓");
   });
 
   it("(c3) the +N read is CHECKED against the record's digest — a tampered carrier raises, an absent one counts zero", () => {
@@ -1524,35 +1538,124 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     const findings = [{ severity: "warn" }];
     const at = carrier(findings);
     const digest = CarrierIntegrity.digestOf({ findings });
-    expect(
-      BoardView.summaryCell([record({ cycle: 1, carrierPath: at, carrierDigest: digest })]),
-    ).toBe("review 1 ✓+1");
+    expect(cell([record({ cycle: 1, carrierPath: at, carrierDigest: digest })])).toBe(
+      "review 1 ✓+1",
+    );
     writeFileSync(
       at,
       `${JSON.stringify({ findings: [...findings, { severity: "blocker" }] }, null, 2)}\n`,
     );
-    expect(() =>
-      BoardView.summaryCell([record({ cycle: 1, carrierPath: at, carrierDigest: digest })]),
-    ).toThrow(CarrierMismatchError);
+    expect(() => cell([record({ cycle: 1, carrierPath: at, carrierDigest: digest })])).toThrow(
+      CarrierMismatchError,
+    );
     // An absent carrier with a recorded digest stays the zero count (absence ≠ mismatch).
     const ghost = path.join(path.dirname(at), "tasks-9-review-1.json");
-    expect(
-      BoardView.summaryCell([record({ cycle: 1, carrierPath: ghost, carrierDigest: digest })]),
-    ).toBe("review 1 ✓");
+    expect(cell([record({ cycle: 1, carrierPath: ghost, carrierDigest: digest })])).toBe(
+      "review 1 ✓",
+    );
     // A LEGACY record (no digest) over the same tampered bytes keeps the present-facts read.
-    expect(BoardView.summaryCell([record({ cycle: 1, carrierPath: at })])).toBe("review 1 ✓+2");
+    expect(cell([record({ cycle: 1, carrierPath: at })])).toBe("review 1 ✓+2");
+  });
+
+  it("(c4) a re-dispatched cycle counts EACH attempt's own carrier — never attempt 1's bytes against attempt 2's digest", () => {
+    const firstFindings = [{ severity: "warn" }];
+    const secondFindings = [{ severity: "warn" }, { severity: "nit" }];
+    const first = carrier(firstFindings);
+    const second = carrier(secondFindings);
+    const records = [
+      record({
+        op: "review",
+        cycle: 1,
+        carrierPath: first,
+        carrierDigest: CarrierIntegrity.digestOf({ findings: firstFindings }),
+        verdict: { treeClean: true, targetAction: false },
+      }),
+      record({
+        op: "review",
+        cycle: 1,
+        attempt: 2,
+        carrierPath: second,
+        carrierDigest: CarrierIntegrity.digestOf({ findings: secondFindings }),
+      }),
+    ];
+    // each attempt's digest belongs to its own carrier: no mismatch is raised, and the
+    // success token counts attempt 2 (+2) while the failed token counts attempt 1 (+1)
+    expect(cell(records)).toBe("review 1/2 ✓+2 · review 1 ✗→✓+1");
+  });
+
+  it("(c5) two legacy rounds collapsed onto ONE path count the owner alone — the overwritten record is a plain zero", () => {
+    const at = carrier([{ severity: "warn" }, { severity: "nit" }]);
+    const records = [
+      record({ op: "review", cycle: 1, carrierPath: at }),
+      record({ op: "review", cycle: 2, carrierPath: at }),
+    ];
+    // cycle 2 is the path's owner (no later round sits on it); cycle 1's bytes are gone
+    // by definition, so its derived count is zero — never a second read of the same file
+    expect(cell(records)).toBe("review 2 ✓+2");
+  });
+
+  it("(c6) the owner's read stays CHECKED — a tampered owner raises while the overwritten record reads nothing", () => {
+    const findings = [{ severity: "warn" }];
+    const at = carrier(findings);
+    const digest = CarrierIntegrity.digestOf({ findings });
+    const records = [
+      record({ op: "review", cycle: 1, carrierPath: at }),
+      record({ op: "review", cycle: 2, carrierPath: at, carrierDigest: digest }),
+    ];
+    writeFileSync(at, `${JSON.stringify({ findings: [] }, null, 2)}\n`);
+    expect(() => cell(records)).toThrow(CarrierMismatchError);
+  });
+
+  it("(c7) a pathless LEGACY record reaches its canonical carrier through the ledger's ladder — and counts", () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "board-ladder-"));
+    try {
+      const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      // Pre-P31: the carrier sits on the bare family name, the record names no path.
+      writeFileSync(
+        path.join(workspace.path, "tasks-1-review-2.json"),
+        JSON.stringify({ findings: [{ severity: "warn" }, { severity: "nit" }] }),
+        "utf8",
+      );
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [
+          {
+            wave: "1",
+            rounds: [
+              {
+                op: "review",
+                cycle: 2,
+                attempt: 1,
+                dispatchBase: null,
+                verdict: { treeClean: true, targetAction: true },
+                violations: [],
+              },
+            ],
+          },
+        ],
+      });
+      const records = ledger.recordsOf("1");
+      // Zero digest comparison (the record declares none) and the count is real: the
+      // success token's body is the run length, not the cycle.
+      expect(
+        BoardView.summaryCell(records, LineCarriers.ofLedger(ledger, "wave", "1", records)),
+      ).toBe("review 1 ✓+2");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 
   it("(d) a same-cycle re-dispatch renders a ratio plus a recovered failure token, and attempt 1 never renders `a1`", () => {
     expect(
-      BoardView.summaryCell([
+      cell([
         record({ op: "fix", verdict: { treeClean: true, targetAction: false } }),
         record({ op: "fix", attempt: 2, verdict: { treeClean: true, targetAction: true } }),
       ]),
     ).toBe("fix 1/2 ✓ · fix 1 ✗→✓");
     expect(BoardView.attemptSuffix(record({ attempt: 1 }))).toBe("");
     expect(BoardView.attemptSuffix(record({ attempt: 3 }))).toBe("a3");
-    expect(BoardView.summaryCell([record({})])).not.toContain("a1");
+    expect(cell([record({})])).not.toContain("a1");
   });
 
   it("(e) the live shape — a recovered re-dispatch renders the attempt ratio plus the failed cycle", () => {
@@ -1573,9 +1676,7 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     );
     fixes.push(record({ op: "fix", cycle: 12, attempt: 2 }));
     fixes.push(record({ op: "fix", cycle: 13 }));
-    expect(BoardView.summaryCell([...reviews, ...fixes])).toBe(
-      "review 13 ✓+74 · fix 13/14 ✓ · fix 12 ✗→✓",
-    );
+    expect(cell([...reviews, ...fixes])).toBe("review 13 ✓+74 · fix 13/14 ✓ · fix 12 ✗→✓");
   });
 
   it("(f) an unrecovered failure renders its cycle with no arrow, and an `aN` failure keeps its superscript", () => {
@@ -1584,25 +1685,25 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
       cycle: 1,
       verdict: { treeClean: true, targetAction: false },
     });
-    expect(BoardView.summaryCell([lone])).toBe("fix 1 ✗");
-    expect(BoardView.summaryCell([lone])).not.toContain("→✓");
+    expect(cell([lone])).toBe("fix 1 ✗");
+    expect(cell([lone])).not.toContain("→✓");
     const reDispatched = record({
       op: "fix",
       cycle: 1,
       attempt: 2,
       verdict: { treeClean: true, targetAction: false },
     });
-    expect(BoardView.summaryCell([reDispatched])).toBe("fix 1a2 ✗");
+    expect(cell([reDispatched])).toBe("fix 1a2 ✗");
   });
 
   it("(g) recovery reads the NEXT attempt of the SAME cycle — not another cycle, not a further attempt", () => {
     expect(
-      BoardView.summaryCell([
+      cell([
         record({ op: "fix", cycle: 1, verdict: { treeClean: true, targetAction: false } }),
         record({ op: "fix", cycle: 2 }),
       ]),
     ).toBe("fix 1/2 ✓ · fix 1 ✗");
-    const line = BoardView.summaryCell([
+    const line = cell([
       record({
         op: "fix",
         cycle: 1,
@@ -1623,7 +1724,7 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
 
   it("(h) a recovered failure keeps its own +N — the success token counts the success carriers alone", () => {
     const at = carrier([{ severity: "nit" }, { severity: "warn" }]);
-    const line = BoardView.summaryCell([
+    const line = cell([
       record({ op: "fix", cycle: 1 }),
       record({ op: "fix", cycle: 2 }),
       record({ op: "fix", cycle: 3 }),
@@ -1640,7 +1741,7 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
 
   it("(i) a failure in one verb leaves another verb's plate alone, and an all-green verb never renders a ratio", () => {
     const at = carrier([{ severity: "blocker" }]);
-    const line = BoardView.summaryCell([
+    const line = cell([
       record({ op: "review", cycle: 1, carrierPath: at }),
       record({ op: "review", cycle: 2 }),
       record({ op: "fix", cycle: 1, verdict: { treeClean: true, targetAction: false } }),
@@ -1649,16 +1750,13 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     expect(line).toBe("review 2 ✓+1 · fix 1/2 ✓ · fix 1 ✗→✓");
     expect(line).not.toContain("review 2/2");
     expect(
-      BoardView.summaryCell([
-        record({ op: "fix", cycle: 1 }),
-        record({ op: "fix", cycle: 2, attempt: 2 }),
-      ]),
+      cell([record({ op: "fix", cycle: 1 }), record({ op: "fix", cycle: 2, attempt: 2 })]),
     ).toBe("fix 2a2 ✓");
   });
 
   it("(j) the token order is verb-major and success-token-first — failure tokens never drift to the line's tail", () => {
     expect(
-      BoardView.summaryCell([
+      cell([
         record({ op: "review", cycle: 1 }),
         record({ op: "review", cycle: 2 }),
         record({ op: "review", cycle: 3, verdict: { treeClean: false, targetAction: false } }),
@@ -1671,16 +1769,12 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
   });
 
   it("(k) a verb with zero successes renders no success token at all", () => {
-    const review = BoardView.summaryCell([
-      record({ verdict: { treeClean: false, targetAction: false } }),
-    ]);
+    const review = cell([record({ verdict: { treeClean: false, targetAction: false } })]);
     expect(review).toBe("review 1 ✗");
     expect(review).not.toContain("review 0/1 ✓");
     expect(review).not.toContain("✓");
     expect(
-      BoardView.summaryCell([
-        record({ op: "implement", verdict: { treeClean: false, targetAction: false } }),
-      ]),
+      cell([record({ op: "implement", verdict: { treeClean: false, targetAction: false } })]),
     ).toBe("implement 1 ✗");
   });
 });

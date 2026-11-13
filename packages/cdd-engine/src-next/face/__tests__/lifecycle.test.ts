@@ -362,7 +362,7 @@ describe("CliLifecycle.foldAbort — the `--recover` abort leg (P30 §2.1①/§2
       expect(abort?.violations).toEqual([
         { grade: "hard", cause: "interrupted", message: abort?.violations[0]?.message },
       ]);
-      expect(abort?.carrierPath).toBeNull();
+      expect(abort?.carrierPath).toBeUndefined();
       // One hard entry, zero soft: the row's soft count carries no increment.
       expect(f.scene.ledger.softViolations()).toBe(0);
       // The takeover cleared the record and its lock; no crash file was written.
@@ -484,6 +484,23 @@ class ReviewDraftRunner implements ChildRunner {
     writeFileSync(
       path.join(run.cwd, ".kairos", "cdd", "p30", "tasks-1-review-1.json"),
       JSON.stringify({ findings: this.#findings }),
+      "utf8",
+    );
+    return { code: 0, stdout: "", stderr: "", termination: null };
+  }
+}
+
+/** A fix child that writes its OWN round draft — the fix carrier the criterion
+ *  refuses when absent, so a case can isolate the requesting side's read. */
+class FixDraftRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    mkdirSync(path.join(run.cwd, ".kairos", "cdd", "p30"), { recursive: true });
+    writeFileSync(
+      path.join(run.cwd, ".kairos", "cdd", "p30", "phase-spec-fix-1.json"),
+      JSON.stringify({ status: "APPROVED", artifacts: {}, dispositions: {} }),
       "utf8",
     );
     return { code: 0, stdout: "", stderr: "", termination: null };
@@ -656,7 +673,6 @@ describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => 
     f.scene.ledger.recordRound("phase-spec", {
       op: "review",
       cycle: 1,
-      carrierPath: persisted.path,
       carrierDigest: persisted.digest,
     });
     return persisted;
@@ -771,11 +787,124 @@ describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => 
     try {
       const at = path.join(f.scene.workspace.path, REQUEST_CARRIER);
       writeFileSync(at, JSON.stringify({ findings: [] }), "utf8");
-      f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1, carrierPath: at });
+      // No path recorded, no digest: the identity's ladder resolves the very carrier
+      // the fix leg reads, and the read stays present-facts.
+      f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1 });
       const runner = new SilentRunner();
       const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
       await runFix(f, fixFrameOf(specPath), at, runner);
       expect(runner.calls).toHaveLength(1);
+      expect(f.io.stderrText).not.toContain("carrier-mismatch");
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P34 T2 — the fix input's carrier is DERIVED from the requesting review record
+// (design spec §2.10): no record names a path, so the ledger's accessor resolves the
+// round's own attempt, and a record that resolves nothing books the soft skip.
+// ---------------------------------------------------------------------------
+
+describe("P34 T2 — a derived fix input never inherits the frame's attempt", () => {
+  /** Plant a review round at attempt 2 with its FINAL carrier + the record's digest. */
+  const seedAttemptTwo = (f: Fixture): { path: string; digest: string } =>
+    (() => {
+      const persisted = f.scene.ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1, attempt: 2 },
+        {
+          status: "CHANGES_REQUESTED",
+          findings: [
+            { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+          ],
+        },
+      );
+      f.scene.ledger.recordRound("phase-spec", {
+        op: "review",
+        cycle: 1,
+        attempt: 2,
+        carrierDigest: persisted.digest,
+      });
+      return persisted;
+    })();
+
+  /** The lifecycle with NO `--reviews` flag — the derived resolution alone. */
+  const runDerivedFix = async (f: Fixture, runner: SilentRunner): Promise<DispatchOutcome> => {
+    const lifecycle = new CliLifecycle({
+      scene: f.scene,
+      io: f.io,
+      sync: runner,
+      env: { CLAUDE_CODE_SESSION_ID: "s" },
+    });
+    const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+    return lifecycle.step()(fixFrameOf(specPath));
+  };
+
+  it("reads the attempt-2 FINAL the record resolves — the fix child sees that carrier", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = seedAttemptTwo(f);
+      const runner = new SilentRunner();
+      const outcome = await runDerivedFix(f, runner);
+      expect(runner.calls).toHaveLength(1);
+      // The prompt carries the repo-root-relative spelling of the SAME attempt-2 final.
+      expect(promptOf(runner)).toContain(
+        path.relative(f.scene.workspace.root.repoRoot, sealed.path),
+      );
+      expect(promptOf(runner)).not.toContain("phase-spec-review-1.c1.json");
+      expect(f.io.stderrText).not.toContain("carrier-mismatch");
+      expect(outcome.status).not.toBe("TIMEOUT");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("refuses a tampered attempt-2 FINAL before the child exists", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = seedAttemptTwo(f);
+      CarrierSeal.unseal(sealed.path);
+      writeFileSync(
+        sealed.path,
+        `${JSON.stringify(
+          {
+            status: "CHANGES_REQUESTED",
+            findings: [
+              { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+              { id: "F9", severity: "blocker", lens: "scope", summary: "smuggled" },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      const runner = new SilentRunner();
+      const outcome = await runDerivedFix(f, runner);
+      expect(outcome.status).toBe("BLOCKED");
+      expect(gradesOf(outcome)).toEqual(["hard"]);
+      expect(runner.calls).toHaveLength(0);
+      expect(f.io.stderrText).toContain("carrier-mismatch");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("books the soft unrecorded skip when the record resolves no carrier at all", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // The record exists but none of the ladder's rungs is on disk: the accessor
+      // resolves nothing, so the answer is `null` — the unrecorded soft skip, never a
+      // hard absent-carrier refusal on a path nobody could name.
+      f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1 });
+      const runner = new FixDraftRunner();
+      const outcome = await runDerivedFix(f, runner);
+      expect(outcome.status, f.io.stderrText).not.toBe("BLOCKED");
+      expect(runner.calls).toHaveLength(1);
+      expect(f.io.stderrText).toContain("resolves no carrier");
       expect(f.io.stderrText).not.toContain("carrier-mismatch");
     } finally {
       f.cleanup();
@@ -817,9 +946,7 @@ describe("P31 T4 — the fix input names the FINAL carrier", () => {
     f.scene.ledger.recordRound("phase-spec", {
       op: "review",
       cycle: 1,
-      carrierPath: persisted.path,
       carrierDigest: persisted.digest,
-      draftPath: persisted.draftPath,
     });
     return persisted;
   };
@@ -1134,7 +1261,6 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
       f.scene.ledger.recordRound("phase-spec", {
         op: "review",
         cycle: 1,
-        carrierPath: seeded.path,
         carrierDigest: seeded.digest,
       });
       expect(modeOf(seeded.path)).toBe(0o444);

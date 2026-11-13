@@ -13,7 +13,7 @@
 //     bytes `writeJson` lands (the draft shape: no `contentSha256`, so the payload
 //     digest and the file digest are the same value);
 //   · the ledger's record-shaped read — `persistHandoff` hands the digest back,
-//     `recordRound` stores it beside `carrierPath`, and `readHandoff` compares through
+//     `recordRound` stores it, and `readHandoff` compares through
 //     the ONE rule.
 // Fixtures are hermetic mkdtemp workspaces; no git, no child.
 
@@ -155,51 +155,10 @@ describe("CarrierIntegrity.read — absent / ok / mismatch are three distinct ou
       cleanup();
     }
   });
-
-  it("readFor is the record-shaped shell — a null carrier path reads null without touching the disk", () => {
-    const { workspace, cleanup } = fixture();
-    try {
-      expect(CarrierIntegrity.readFor({ carrierPath: null })).toBeNull();
-      const body = { findings: [] };
-      const at = writeCarrier(workspace, "tasks-1-review-1.json", body);
-      expect(CarrierIntegrity.readFor({ carrierPath: at })).toBe(readFileSync(at, "utf8"));
-      expect(
-        CarrierIntegrity.readFor({
-          carrierPath: at,
-          carrierDigest: CarrierIntegrity.digestOf(body),
-        }),
-      ).toBe(readFileSync(at, "utf8"));
-      expect(() =>
-        CarrierIntegrity.readFor({ carrierPath: at, carrierDigest: CarrierIntegrity.digestOf({}) }),
-      ).toThrow(CarrierMismatchError);
-    } finally {
-      cleanup();
-    }
-  });
 });
 
-describe("Workspace.writeJsonHashed — the write seam's returned digest", () => {
-  it("returns the sha256 of exactly the bytes written (writeJson lands the same bytes)", () => {
-    const { workspace, cleanup } = fixture();
-    try {
-      const value = { findings: [], artifacts: { brief: "/tmp/brief.md" } };
-      const digest = workspace.writeJsonHashed("tasks-1-review-1.json", value);
-      const at = workspace.resolve("tasks-1-review-1.json");
-      const bytes = readFileSync(at, "utf8");
-      expect(digest).toBe(CarrierIntegrity.sha256(bytes));
-      // The plain write is the same seam — identical bytes, no second serialization.
-      workspace.writeJson("twin.json", value);
-      expect(readFileSync(workspace.resolve("twin.json"), "utf8")).toBe(bytes);
-      // And the payload rule agrees for a digest-key-free draft (the ledger's case).
-      expect(digest).toBe(CarrierIntegrity.digestOf(value));
-    } finally {
-      cleanup();
-    }
-  });
-});
-
-describe("Ledger — the digest is recorded beside carrierPath and read back through the ONE rule", () => {
-  it("persistHandoff returns `{ path, draftPath, digest }` and recordRound stores both", () => {
+describe("Ledger — the digest is recorded, the carrier PATH is derived, and both read back through the ONE rule", () => {
+  it("persistHandoff returns `{ path, draftPath, digest }`, the record keeps the digest and the ledger derives the path", () => {
     const { ledger, cleanup } = fixture();
     try {
       const persisted = ledger.persistHandoff(
@@ -218,17 +177,15 @@ describe("Ledger — the digest is recorded beside carrierPath and read back thr
       expect(persisted.draftPath).toBe(ledger.handoffPath("review", "phase-spec", { round: 1 }));
       // The digest covers the payload, never the file bytes that hold it.
       expect(persisted.digest).toBe(CarrierIntegrity.digestOf({ findings: [] }));
-      ledger.recordRound("phase-spec", {
+      const record = ledger.recordRound("phase-spec", {
         op: "review",
         cycle: 1,
-        carrierPath: persisted.path,
         carrierDigest: persisted.digest,
-        draftPath: persisted.draftPath,
       });
-      const [record] = ledger.recordsOf("phase-spec", "phase-spec");
-      expect(record?.carrierPath).toBe(persisted.path);
-      expect(record?.carrierDigest).toBe(persisted.digest);
-      expect(record?.draftPath).toBe(persisted.draftPath);
+      // P34 §2.7 — the record names no path; the ledger derives it from the identity.
+      expect(record.carrierPath).toBeUndefined();
+      expect(record.carrierDigest).toBe(persisted.digest);
+      expect(ledger.carrierPathOf("phase-spec", "phase-spec", record)).toBe(persisted.path);
     } finally {
       cleanup();
     }
@@ -237,13 +194,13 @@ describe("Ledger — the digest is recorded beside carrierPath and read back thr
   it("readHandoff returns the parsed carrier while the bytes still digest to the record", () => {
     const { ledger, cleanup } = fixture();
     try {
-      const { path: at, digest } = ledger.persistHandoff(
+      const { digest } = ledger.persistHandoff(
         "review",
         "wave",
         { tasks: "1", round: 1 },
         { findings: [{ severity: "warn" }] },
       );
-      ledger.recordRound("1", { op: "review", cycle: 1, carrierPath: at, carrierDigest: digest });
+      ledger.recordRound("1", { op: "review", cycle: 1, carrierDigest: digest });
       // The parsed carrier holds the engine's own `contentSha256` key too — the read
       // returns the FINAL file, whose payload carries the embedded digest (P31 §2.3).
       const carrier = ledger.readHandoff("review", "wave", { tasks: "1", round: 1 });
@@ -263,7 +220,7 @@ describe("Ledger — the digest is recorded beside carrierPath and read back thr
         { tasks: "1", round: 1 },
         { findings: [] },
       );
-      ledger.recordRound("1", { op: "review", cycle: 1, carrierPath: at, carrierDigest: digest });
+      ledger.recordRound("1", { op: "review", cycle: 1, carrierDigest: digest });
       // The tamper is an EXTERNAL writer: a sealed carrier is read-only, so the bytes
       // move only after the permission bit is reopened (P31 §2.4).
       CarrierSeal.unseal(at);
@@ -288,17 +245,12 @@ describe("Ledger — the digest is recorded beside carrierPath and read back thr
     const { ledger, workspace, cleanup } = fixture();
     try {
       // A record carrying a digest with no file on disk: the absence wins, no throw.
-      ledger.recordRound("1", {
-        op: "review",
-        cycle: 1,
-        carrierPath: ledger.handoffPath("review", "wave", { tasks: "1", round: 1 }),
-        carrierDigest: "0000",
-      });
+      ledger.recordRound("1", { op: "review", cycle: 1, carrierDigest: "0000" });
       expect(ledger.readHandoff("review", "wave", { tasks: "1", round: 1 })).toBeNull();
 
       // A LEGACY record (no digest column) over hand-written bytes: zero comparison.
-      const at = writeCarrier(workspace, "tasks-1-review-1.json", { findings: [] });
-      ledger.recordRound("1", { op: "review", cycle: 1, carrierPath: at });
+      writeCarrier(workspace, "tasks-1-review-1.json", { findings: [] });
+      ledger.recordRound("1", { op: "review", cycle: 1 });
       expect(ledger.readHandoff("review", "wave", { tasks: "1", round: 1 })).toEqual({
         findings: [],
       });

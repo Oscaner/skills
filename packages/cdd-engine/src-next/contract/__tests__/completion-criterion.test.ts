@@ -35,6 +35,7 @@ import {
   CompletionCriteria,
   type CompletionVerdict,
   FIX_DISPOSITIONS_LEGACY_KEYS,
+  FIX_DISPOSITIONS_UNRECORDED,
   FIX_DISPOSITIONS_ZERO_COMMIT,
   FixDispositions,
   IMPLEMENT_CARRIER_ABSENT,
@@ -75,7 +76,6 @@ const record = (over: Partial<RoundRecord> & { op: OpType }): RoundRecord => ({
   dispatchBase: null,
   verdict: APPROVED,
   violations: [],
-  carrierPath: null,
   ...over,
 });
 
@@ -403,14 +403,14 @@ describe("(d) the completion context is a pure shape", () => {
 
   it("the judged record is a verdict-FREE identity — a verdict is never an input to its own judgment", async () => {
     // The lifecycle hands the criteria the round's identity alone (op / cycle /
-    // attempt / dispatchBase / carrierPath): the verdict the judgment produces has no
-    // cell here, so no criterion can read its own conclusion as an input.
+    // attempt / dispatchBase): the verdict the judgment produces has no cell here, so
+    // no criterion can read its own conclusion as an input — and no PATH cell exists
+    // either (the carrier is DERIVED from that identity, never handed over).
     const identity: RoundIdentity = {
       op: "implement",
       cycle: 1,
       attempt: 1,
       dispatchBase: "group-base",
-      carrierPath: null,
     };
     const git = new StubGit(["abc123 feat: work"]);
     const verdict = await new CommitsSinceGroupBase().judge(
@@ -419,13 +419,7 @@ describe("(d) the completion context is a pure shape", () => {
     expect(verdict.fulfilled).toBe(true);
     expect(git.calls).toEqual([{ cwd: "/repo", base: "group-base" }]);
     // No `verdict` / `violations` key exists to be mistaken for a real record.
-    expect(Object.keys(identity).sort()).toEqual([
-      "attempt",
-      "carrierPath",
-      "cycle",
-      "dispatchBase",
-      "op",
-    ]);
+    expect(Object.keys(identity).sort()).toEqual(["attempt", "cycle", "dispatchBase", "op"]);
   });
 });
 
@@ -482,27 +476,24 @@ const LEGACY_REQUESTER = {
 };
 
 /** The fix round's group records — the implement baseline, the requesting review
- *  round of the SAME cycle (`carrierPath` is the requesting side's read seam) and
- *  the fix round itself. */
-const fixRecords = (requesterCarrierPath: string | null): readonly RoundRecord[] => [
+ *  round of the SAME cycle (`carrierDigest` is the requesting side's checked-read
+ *  seam; the PATH arrives from the caller's `reviewsPath` cell) and the fix round
+ *  itself. */
+const fixRecords = (): readonly RoundRecord[] => [
   record({ op: "implement", cycle: 1, dispatchBase: "group-base" }),
-  record({
-    op: "review",
-    cycle: 2,
-    dispatchBase: "review-base",
-    carrierPath: requesterCarrierPath,
-  }),
+  record({ op: "review", cycle: 2, dispatchBase: "review-base" }),
   record({ op: "fix", cycle: 2, attempt: 1, dispatchBase: "fix-base" }),
 ];
 
-/** The fix context — the round's own carrier + the group records + the two request
- *  seams (`reviewsPath` stands in for the fix route's `--reviews` argument). */
+/** The fix context — the round's own carrier + the group records + the request
+ *  seam (`reviewsPath` stands in for the fix route's `--reviews` argument AND for
+ *  the ledger's resolved requester path: one cell, one read). */
 const fixContext = (
   own: unknown,
-  seams: { carrierPath?: string | null; reviewsPath?: string | null } = {},
+  seams: { reviewsPath?: string | null } = {},
   over: Partial<CompletionContext> = {},
 ): CompletionContext => {
-  const records = fixRecords(seams.carrierPath ?? null);
+  const records = fixRecords();
   return context({
     record: records[2]!,
     records,
@@ -513,17 +504,13 @@ const fixContext = (
 };
 
 describe("(e) FixDispositions — the six hard refusals", () => {
-  it("① the round's own work carrier is missing → hard, naming the carrier path", async () => {
+  it("① the round's own work carrier is missing → hard, naming the absent carrier", async () => {
     const verdict = await new FixDispositions().judge(
-      fixContext(
-        null,
-        {},
-        { record: record({ op: "fix", cycle: 2, carrierPath: "/ws/tasks-1-fix-1.json" }) },
-      ),
+      fixContext(null, {}, { record: record({ op: "fix", cycle: 2 }) }),
     );
     expect(verdict.fulfilled).toBe(false);
     expect(verdict.violation?.grade).toBe("hard");
-    expect(verdict.violation?.message).toContain("/ws/tasks-1-fix-1.json");
+    expect(verdict.violation?.message).toContain("persisted no work carrier");
   });
 
   it("② the carrier is present but declares no `dispositions` slot → hard", async () => {
@@ -540,7 +527,7 @@ describe("(e) FixDispositions — the six hard refusals", () => {
       const verdict = await new FixDispositions().judge(
         fixContext(
           { status: "APPROVED", dispositions: { F1: { status: "fixed" } } },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
         ),
       );
       expect(verdict.violation?.grade).toBe("hard");
@@ -565,7 +552,7 @@ describe("(e) FixDispositions — the six hard refusals", () => {
               F9: { status: "fixed" },
             },
           },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
         ),
       );
       expect(verdict.violation?.grade).toBe("hard");
@@ -579,9 +566,9 @@ describe("(e) FixDispositions — the six hard refusals", () => {
   });
 
   it("⑤ the requesting carrier is missing on disk → hard, naming ITS path (never the round's own)", async () => {
-    // The round's own carrier exists; the requesting record's `carrierPath` is null, so
-    // the read falls back to `reviewsPath` — which is not on disk. The criterion reads
-    // the requester, so this is hard despite a sound own carrier.
+    // The round's own carrier exists; the requester path the caller resolved is not on
+    // disk. The criterion reads the requester, so this is hard despite a sound own
+    // carrier.
     const fixture = new CarrierFixture(null);
     try {
       const verdict = await new FixDispositions().judge(
@@ -602,7 +589,7 @@ describe("(e) FixDispositions — the six hard refusals", () => {
       const verdict = await new FixDispositions().judge(
         fixContext(
           { status: "APPROVED", dispositions: {} },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
         ),
       );
       expect(verdict.fulfilled).toBe(false);
@@ -623,7 +610,7 @@ describe("(e) FixDispositions — the six hard refusals", () => {
             status: "APPROVED",
             dispositions: { F1: { status: "rejected" }, F2: { status: "fixed" } },
           },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
         ),
       );
       expect(verdict.violation?.grade).toBe("hard");
@@ -648,7 +635,7 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
               F2: { status: "rejected", reason: "the review misread the guard" },
             },
           },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
           { git: new StubGit(["abc123 feat: the round's work"]) },
         ),
       );
@@ -664,7 +651,7 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
       const verdict = await new FixDispositions().judge(
         fixContext(
           { status: "APPROVED", dispositions: {} },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
           { git: new StubGit(["abc123 feat: the round's work"]) },
         ),
       );
@@ -678,7 +665,7 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
     }
   });
 
-  it("(c) a legacy record without `carrierPath` skips the judgment — a visible observation, never an empty set", async () => {
+  it("(c) a round that resolves no requester carrier skips the judgment — a visible observation, never an empty set", async () => {
     const verdict = await new FixDispositions().judge(
       fixContext(DISPOSITIONS, {}, { git: new StubGit(["abc123 feat: the round's work"]) }),
     );
@@ -688,7 +675,7 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
     expect(verdict.violation).toBeNull();
     expect(verdict.observations).toHaveLength(1);
     expect(verdict.observations?.[0]?.grade).toBe("soft");
-    expect(verdict.observations?.[0]?.message).toContain("carrierPath");
+    expect(verdict.observations?.[0]?.message).toBe(FIX_DISPOSITIONS_UNRECORDED);
   });
 
   it("(f) a fix round with zero commits is a soft observation, never a failure", async () => {
@@ -705,7 +692,7 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
               F2: { status: "fixed" },
             },
           },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
           { git: new StubGit([]) },
         ),
       );
@@ -732,7 +719,7 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
             status: "APPROVED",
             dispositions: { F1: { status: "fixed" }, F2: { status: "fixed" } },
           },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
           { git },
         ),
       );
@@ -758,7 +745,7 @@ describe("(f) FixDispositions — completion, empty input, the legacy skip and z
       const verdict = await new FixDispositions().judge(
         fixContext(
           { status: "APPROVED", dispositions: { drift: { status: "fixed" } } },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
           { git: new StubGit(["abc123 feat: the round's work"]) },
         ),
       );
@@ -821,9 +808,10 @@ describe("(h) the requesting carrier's read basis — repoRoot, never process.cw
             status: "APPROVED",
             dispositions: { F1: { status: "fixed" }, F2: { status: "fixed" } },
           },
-          // Both seams repoRoot-relative: the record's `carrierPath` and the route's
-          // `--reviews` value (the CLI normalizes argv paths to a `RepoPath`).
-          { carrierPath: "tasks-1-review-1.json", reviewsPath: "tasks-1-review-1.json" },
+          // The seam repoRoot-relative: the route's `--reviews` value (the CLI
+          // normalizes argv paths to a `RepoPath`) — the SAME basis a resolved
+          // requester path arrives on.
+          { reviewsPath: "tasks-1-review-1.json" },
           { repoRoot: fixture.dir, git: new StubGit(["abc123 feat: the round's work"]) },
         ),
       );
@@ -853,19 +841,16 @@ describe("(h2) FixDispositions — the requesting carrier is a CHECKED read", ()
   it("reads the declaring review record's digest — untampered bytes read, tampered bytes THROW", () => {
     const fixture = new CarrierFixture(REQUESTER);
     try {
-      const records = digestsOf(fixRecords(fixture.requesterPath), "sha-of-the-requester");
+      const records = digestsOf(fixRecords(), "sha-of-the-requester");
       // The digest here is a stand-in: the read compares VALUES, so a truthful one is
       // the only kind that passes.
-      const truthful = digestsOf(
-        fixRecords(fixture.requesterPath),
-        CarrierIntegrity.digestOf(REQUESTER),
-      );
-      const read = FixDispositions.requesterInputOf(truthful, 2, null, "/repo");
+      const truthful = digestsOf(fixRecords(), CarrierIntegrity.digestOf(REQUESTER));
+      const read = FixDispositions.requesterInputOf(truthful, 2, fixture.requesterPath, "/repo");
       expect(read.kind).toBe("read");
       // A wrong digest on untouched bytes is a mismatch too — never a silent read.
-      expect(() => FixDispositions.requesterInputOf(records, 2, null, "/repo")).toThrow(
-        CarrierMismatchError,
-      );
+      expect(() =>
+        FixDispositions.requesterInputOf(records, 2, fixture.requesterPath, "/repo"),
+      ).toThrow(CarrierMismatchError);
       // Tampering the bytes behind a truthful digest is the real refusal.
       writeFileSync(
         fixture.requesterPath,
@@ -874,7 +859,7 @@ describe("(h2) FixDispositions — the requesting carrier is a CHECKED read", ()
       );
       let thrown: unknown;
       try {
-        FixDispositions.requesterInputOf(truthful, 2, null, "/repo");
+        FixDispositions.requesterInputOf(truthful, 2, fixture.requesterPath, "/repo");
       } catch (raw) {
         thrown = raw;
       }
@@ -892,7 +877,7 @@ describe("(h2) FixDispositions — the requesting carrier is a CHECKED read", ()
     try {
       // Absent file + a recorded digest: the absence is its own fact, not a refusal.
       const absent = FixDispositions.requesterInputOf(
-        digestsOf(fixRecords(empty.requesterPath), CarrierIntegrity.digestOf(REQUESTER)),
+        digestsOf(fixRecords(), CarrierIntegrity.digestOf(REQUESTER)),
         2,
         empty.requesterPath,
         "/repo",
@@ -904,12 +889,7 @@ describe("(h2) FixDispositions — the requesting carrier is a CHECKED read", ()
         JSON.stringify({ findings: [{ id: "F7", severity: "nit", summary: "hand-edited" }] }),
         "utf8",
       );
-      const read = FixDispositions.requesterInputOf(
-        fixRecords(legacy.requesterPath),
-        2,
-        legacy.requesterPath,
-        "/repo",
-      );
+      const read = FixDispositions.requesterInputOf(fixRecords(), 2, legacy.requesterPath, "/repo");
       expect(read.kind).toBe("read");
       expect(read.kind === "read" ? read.findings.map((finding) => finding.id) : []).toEqual([
         "F7",
@@ -938,21 +918,24 @@ describe("(h2) FixDispositions — the requesting carrier is a CHECKED read", ()
           op: "review",
           cycle: 2,
           attempt: 1,
-          carrierPath: fixture.requesterPath,
           carrierDigest: CarrierIntegrity.digestOf(first),
         }),
         record({
           op: "review",
           cycle: 2,
           attempt: 2,
-          carrierPath: fixture.requesterPath,
           carrierDigest: CarrierIntegrity.digestOf(second),
         }),
         record({ op: "fix", cycle: 2 }),
       ];
       writeFileSync(fixture.requesterPath, `${JSON.stringify(second, null, 2)}\n`, "utf8");
       // The superseded digest must not decide the read: D2 is the recorded value.
-      const read = FixDispositions.requesterInputOf([...records], 2, null, "/repo");
+      const read = FixDispositions.requesterInputOf(
+        [...records],
+        2,
+        fixture.requesterPath,
+        "/repo",
+      );
       expect(read.kind).toBe("read");
       expect(read.kind === "read" ? read.findings.map((finding) => finding.id) : []).toEqual([
         "F1",
@@ -982,7 +965,7 @@ describe("(i) FixDispositions — the engine-written finding id is the key (P30 
             findings: [{ severity: "blocker", summary: "the guard appears to be missing" }],
             dispositions: { F1: { status: "fixed" } },
           },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
           { git: new StubGit(["abc123 fix: restore the guard"]) },
         ),
       );
@@ -1012,7 +995,7 @@ describe("(i) FixDispositions — the engine-written finding id is the key (P30 
             status: "APPROVED",
             dispositions: { F1: { status: "fixed" }, F9: { status: "fixed" } },
           },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
         ),
       );
       const message = verdict.violation?.message ?? "";
@@ -1045,7 +1028,7 @@ describe("(i) FixDispositions — the engine-written finding id is the key (P30 
               typo: { status: "rejected", reason: "the review misread the guard" },
             },
           },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
           { git: new StubGit(["abc123 fix: apply the findings"]) },
         ),
       );
@@ -1066,7 +1049,7 @@ describe("(i) FixDispositions — the engine-written finding id is the key (P30 
       const verdict = await new FixDispositions().judge(
         fixContext(
           { status: "APPROVED", dispositions: { drift: { status: "fixed" } } },
-          { carrierPath: fixture.requesterPath },
+          { reviewsPath: fixture.requesterPath },
         ),
       );
       expect(verdict.fulfilled).toBe(false);

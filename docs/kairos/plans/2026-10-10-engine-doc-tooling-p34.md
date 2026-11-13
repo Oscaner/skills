@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 计划：轮次产物身份的单射渲染'
 doc-type: plan
-version: v0.9
+version: v0.10
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p34
 base: develop
@@ -182,7 +182,7 @@ preflight 的 unseal 集合、terminal 的 seal 集合与 `#writeCrash` 的写�
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#bookAbort`（:294）把记录的 `attempt` 交给 `#waveParams`；`#waveParams`（:321）改收 `(key, cycle, op, attempt)` 且 implement 族同样带 `round`——今日 implement 分支返回 `{ tasks: key }`，折叠封的是 legacy 无 cycle 名、其余族也不带 attempt；:318-320 的「the implement family is round-less」docstring 同笔退役。窗口面与 `#writeCrash` 已同源，不动）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#bookAbort`（:294）把记录的 `attempt` 交给 `#waveParams`；`#waveParams`（:321）改收 `(key, cycle, attempt)`——折叠封的形状不再取决于 `op`，故 `op` 不是参数；且 implement 族同样带 `round`——今日 implement 分支返回 `{ tasks: key }`，折叠封的是 legacy 无 cycle 名、其余族也不带 attempt；:318-320 的「the implement family is round-less」docstring 同笔退役。窗口面与 `#writeCrash` 已同源，不动）
 - Modify: `packages/cdd-engine/src-next/session/run.ts`（`#sealRoundCarriers` 的 docstring（:905-907）「a round-less family (implement) resolves both to one path」退役——T1 之后 implement 也带 cycle、两 kind 是两个名；封印体本身已同源，不动）
 - Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（attempt-2 窗口覆盖测：attempt-1 一对不可写 · 窗口内只有 attempt-2 一对可写 · review 轮崩溃记录落在渲染名上且 attempt 2 不覆盖 attempt 1 · 失败面 capsule 行与 resume 决策读回同一个 attempt-2 崩溃名 · attempt-2 fix 轮的 `#resumeOf` 写出的 `next` 携 attempt-1 review final 名，不携 `…-review-1-a2` 幽灵名 · abort fold 用例：attempt-2 记录折叠后 attempt-2 一对 sealed 且 attempt-1 一对未动，implement 折叠出 `tasks-{tasks}-implement-{cycle}` 而非 legacy 名。今日只 P31 的通用封印窗用例（:1154 起），无 attempt-2 专门用例）
 - Test: `packages/cdd-engine/src-next/session/__tests__/round-naming.test.ts`（守卫 (b) 零 `.c${` / `-report.md` / `-a${` / `-test-evidence` 名字拼装字面，判面「`RoundNaming` 之外的**非注释代码行**」，今日零命中；守卫 (c) 写路径零 `families` 占位替换——`#family(op, type)` 的键集校验（`session/ledger.ts:1584-1588`）是 loud unknown-family 抛错、不铸名字，不入判面）
@@ -198,7 +198,7 @@ preflight 的 unseal 集合、terminal 的 seal 集合与 `#writeCrash` 的写�
 #### Produces
 
 - `CliLifecycle#roundCarrierNamesOf` 返回本轮的两个名字（attempt 与记录/帧同源；HEAD 已交付）
-- `CliLifecycle#waveParams(key, cycle, op, attempt)` 返回记录自己的完整身份（implement 族同带 `cycle`，abort fold 与帧路径同形）
+- `CliLifecycle#waveParams(key, cycle, attempt)` 返回记录自己的完整身份（折叠封的形状不再取决于 `op`，故 `op` 不是参数；implement 族同带 `cycle`，abort fold 与帧路径同形）
 - 两条新守卫测试（零名字拼装 · 写路径零占位表）＋ 守卫 (a) 的核验（既有文件，不重写）
 
 #### Steps
@@ -383,3 +383,4 @@ none
 | v0.6 | 2026-11-14 | 评审回改（docs-fix round 4）：T1 的 cli 扫描面改为两段（40 行载体夹具 + 36 行证据夹具，证据名旧形不在 implement 名集合），并补 `carrier-seal.test.ts:78` / `render.test.ts:42` `:126` / `handoff-schema.test.ts:42` 三处证据夹具，守恒边界与对应失败测给 `crash` 名字加 `attempt === 1` 限定；T3 守卫 (b) 的判面定为「`RoundNaming` 之外的非注释代码行」并列出红集与非红集；T6 新增 ③（`schemaText` 的证据名改述为 `OUTPUT_EVIDENCE`、拼写单源）及对应失败测、断言与 acceptance 行，标题同步改名；T6 的装饰字段枚举改为 `PLANE_SLOTS` 减 `PLANE_REQUIRED` 的定义式（括号仅举例），层判据的判词与 heading 同改为 `open wave`。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
 | v0.7 | 2026-11-14 | 评审回改（docs-fix round 5）：Constraints 的 spec 字面随版移到 v0.11；T6 补 `dispositions` 坏值的边界（成员资格不动、drop 后 `ownRefusal` 仍硬拒、soft observation 点名被丢键），同笔记下 T6 两处缝已从 `schema.violations`（:1213）移到 `schema.readBack` 的 required 档门（:1223）这一未入版的改动；T2 的 `#reviewsPath` 写成一条取路（`--reviews` → `carrierPathOf` → 解析不到即 `null`），删掉「记录在、载体缺席 → 返回 resolved 名」的第三档，Files / Test / Step / Acceptance 四处同笔对齐；T4 与 T5 的 checkable 计数改为五条 / 六条；T5 的 Objective 与 Acceptance 补行内 token 按 `(cycle, attempt)` 排序（与 `BoardView#byRound` 同序）。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
 | v0.9 | 2026-11-14 | 评审回改（docs-fix round 6）：T3 按 HEAD 收窄剩余范围——窗口面与 `#writeCrash` 已随 T1 同源落地，三条窗口 / 崩溃步骤改为覆盖测（现状即绿），Objective 显式收窄；守卫 (a) 改指 T2 已落的 `session/__tests__/carrier-path.guard.test.ts:37-60`（作用域 `session/ledger.ts` 记录存储 + 委派路由，spec §2.12 全树口径的差额记在文件头），守卫 (b) 红集由过期的 `session/handoff-schema.ts:200` 改为今日零命中（T6 ③ 已改述 `OUTPUT_EVIDENCE`），守卫 (c) 的判面排除 `#family` 键集校验；新增 abort fold 的 attempt 同源：Files / Steps / Produces / Acceptance 点名 `#bookAbort` → `#waveParams(…, attempt)` 与两处 round-less docstring 退役；Acceptance 补 legacy 轮窗口的 implement 例外；changeset 由新增第二份改为确认既有 `p34-naming-derivation-tolerance.md`。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
+| v0.10 | 2026-11-14 | 评审回改（fix round 7）：`#waveParams` 的声明对齐实现——四参形 `(key, cycle, op, attempt)` 收为三参 `(key, cycle, attempt)`（折叠封的形状不再取决于 `op`，`op` 不是参数），Files / Produces 两处同笔；Steps 的 `#bookAbort` → `#waveParams(…, attempt)` 与其余字面不动。 | '[ai] Claude（kairos:cdd-fix · 2026-11-14）' |

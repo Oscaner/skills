@@ -42,11 +42,15 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierRulings } from "../../session/carrier-rulings.ts";
+import { targetFaces } from "../../session/faces.ts";
 import { HoldingError, InFlight } from "../../session/inflight.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
+import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
+import { Capsule } from "../capsule.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "../lifecycle.ts";
 import type { ChildOutcome, ChildRun, ChildRunner } from "../termination.ts";
+import { Words } from "../words.ts";
 
 class CaptureIo implements CliIo {
   stdoutText = "";
@@ -1384,6 +1388,71 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
       expect(path.basename(naming.crashPath(frame))).toBe("crash-tasks-1-review-1-a2.json");
       // Attempt 1's crash record is untouched.
       expect(readFileSync(firstCrash, "utf8")).toBe("attempt-1 sentinel");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("the failure face's capsule cell prints the attempt-2 crash path the round wrote", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      // Review 1 concluded CHANGES_REQUESTED, so the line awaits the fix; fix 1's first
+      // attempt died, so the SAME fix cycle re-opens on attempt 2 — the frame the crash
+      // name derives from. (The fix leg pins its round to the review's cycle, which is
+      // what makes the attempt — not the cycle — the re-dispatch coordinate here.)
+      const seeded = f.scene.ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        {
+          status: "CHANGES_REQUESTED",
+          findings: [
+            { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+          ],
+        },
+      );
+      f.scene.ledger.recordRound("phase-spec", {
+        op: "review",
+        cycle: 1,
+        attempt: 1,
+        carrierDigest: seeded.digest,
+      });
+      f.scene.ledger.recordRound("phase-spec", {
+        op: "fix",
+        cycle: 1,
+        attempt: 1,
+        verdict: { treeClean: true, targetAction: false },
+      });
+      const dying: ChildRunner = {
+        async run(): Promise<ChildOutcome> {
+          return { code: 1, stdout: "", stderr: "", termination: null };
+        },
+      };
+      // The production composition: the session lifecycle's dispatch IS the CLI
+      // lifecycle's step, so this ONE round writes the crash record and the attached
+      // capsule reads it back through its own derivation.
+      const lifecycle = new Lifecycle({
+        face: targetFaces["phase-spec"],
+        state: EMPTY_RUN_STATE,
+        ledger: f.scene.ledger,
+        dispatch: new CliLifecycle({
+          scene: f.scene,
+          io: f.io,
+          sync: dying,
+          env: { CLAUDE_CODE_SESSION_ID: "s" },
+        }).step(),
+        target: { kind: "spec", doc: specPath },
+        capsule: new Capsule(new Words()),
+      });
+      const step = await lifecycle.advance();
+      expect(step?.frame.phase).toBe("fix");
+      expect(step?.frame.attempt).toBe(2);
+      // The cell IS the attempt-2 crash record's path — the same name the write point
+      // derived, never attempt 1's record and never a hand-spelled name.
+      expect(step?.capsuleLines[0]).toBe(
+        `status: BLOCKED · handoff: ${carrierAt(f, "crash-phase-spec-fix-1-a2.json")}`,
+      );
     } finally {
       f.cleanup();
     }

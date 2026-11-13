@@ -463,16 +463,31 @@ export class BoardView {
    *  round: `crashed: {op} {cycle}·a{attempt} · {cause}`. A round crashed when its
    *  booked verdict withheld the target action AND at least one of its violations is
    *  HARD; the cause is the FIRST hard entry in record order — the round's own
-   *  narrative never re-orders it. The row is an observation only: it joins no
-   *  aggregation, the counts, the legend and the `next:` hop stay byte-identical with
-   *  and without it (spec §5.3 — a failed round is never hidden, never re-counted). */
+   *  narrative never re-orders it. The list reads `(cycle, attempt)` — the session's
+   *  own sequence, never the progress file's write order (spec §2.13) — and one round
+   *  identity yields ONE row even when a recovery re-booked it. The row is an
+   *  observation only: it joins no aggregation, the counts, the legend and the `next:`
+   *  hop stay byte-identical with and without it (spec §5.3 — a failed round is never
+   *  hidden, never re-counted). */
   static crashedRows(records: readonly RoundRecord[]): readonly string[] {
-    return records
-      .filter((record) => BoardView.#crashed(record))
-      .map((record) => {
-        const cause = record.violations.find((violation) => violation.grade === "hard")!;
-        return `  crashed: ${record.op} ${record.cycle}·a${record.attempt} · ${cause.cause}`;
-      });
+    const seen = new Set<string>();
+    const rows: string[] = [];
+    for (const record of BoardView.#byRound(records.filter((entry) => BoardView.#crashed(entry)))) {
+      const identity = `${record.op}:${record.cycle}:${record.attempt}`;
+      if (seen.has(identity)) continue;
+      seen.add(identity);
+      const cause = record.violations.find((violation) => violation.grade === "hard")!;
+      rows.push(`  crashed: ${record.op} ${record.cycle}·a${record.attempt} · ${cause.cause}`);
+    }
+    return rows;
+  }
+
+  /** The records in board order — `(cycle, attempt)`, the round identity's own sequence.
+   *  A copy: the caller's array (a progress row's records) stays untouched. */
+  static #byRound(records: readonly RoundRecord[]): readonly RoundRecord[] {
+    return [...records].sort(
+      (left, right) => left.cycle - right.cycle || left.attempt - right.attempt,
+    );
   }
 
   /** Whether one round crashed — the verdict withheld the target action AND a HARD
@@ -562,14 +577,10 @@ export class BoardView {
     // crashed rounds render before the line rows (a reader answers "is anyone working
     // here?" before reading progress).
     const orphans = ledger?.orphanHandoffs() ?? [];
-    const crashes = [
-      ...new Set(
-        BoardView.crashedRows([
-          ...BoardView.#nodeRecordsOf(overallProgress),
-          ...BoardView.#nodeRecordsOf(progress),
-        ]),
-      ),
-    ];
+    // The node's OWN rounds — the overall document's records belong to the program
+    // board, never to this node's crash observation (a parent's failed round is not
+    // this node's work). `crashedRows` dedupes by round identity itself.
+    const crashes = BoardView.crashedRows(BoardView.#nodeRecordsOf(progress));
     for (const row of BoardView.inFlightRows(holding, orphans, words, crashes)) lines.push(row);
     if (holding.kind !== "absent" || orphans.length > 0 || crashes.length > 0) lines.push("");
 

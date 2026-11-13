@@ -6,9 +6,10 @@
 //
 //   · projections: ① the prompt-injection text (schemaText — the ```json fences
 //     byte-fixed per plane, so the fixed prefix tail of the dispatch prompt stays
-//     cache-friendly) and ② the engine read-back validator (violations /
-//     evidenceViolations — the child draft is validated against exactly the same
-//     projected objects the prompt showed it).
+//     cache-friendly) and ② the engine read-back validator (readBack /
+//     evidenceViolations — the child draft is judged against exactly the same
+//     projected objects the prompt showed it, the required slots refusing the round
+//     and the decorative ones dropped in place).
 //   · planes: the carrier plane is DERIVED from the op (planeOf), never declared per
 //     family — `work` (implement/fix: status + artifacts, plus the separate
 //     test-evidence file for task-family rounds) or `judge` (reviews: findings-only
@@ -172,6 +173,19 @@ export interface SchemaProblem {
   reason: string;
 }
 
+/** The walk's two tiers over one declaration: `strict` records every mismatch as a
+ *  problem (the evidence gate and the strict projection), `tiered` turns a DECORATIVE
+ *  slot's mismatch into a drop while a required slot's mismatch stays a problem. */
+type CheckTier = "strict" | "tiered";
+
+/** One walk's accumulating ruling — the tier it judges in, the refusal list and the
+ *  decorative slots it dropped. */
+interface CheckOut {
+  readonly tier: CheckTier;
+  readonly problems: SchemaProblem[];
+  readonly dropped: string[];
+}
+
 /** The tiered read-back ruling: the problems the draft is REFUSED on (a required
  *  slot's violation) and the decorative slots DROPPED in place (a declared but
  *  non-required slot whose value breaks its own declaration). */
@@ -197,7 +211,7 @@ export class HandoffSchema {
 
   /** Projection ① — the `## Handoff schema` section text: the plane's writable
    *  subset in a ```json fence + (work plane) the evidence file's schema in a second
-   *  fence. The text is byte-stable per (plane, evidence, prefix) — the fixed bytes
+   *  fence. The carrier fence is byte-stable per (plane, evidence) — the fixed bytes
    *  of the dispatch prompt's contract surface. The evidence sentence names the
    *  `OUTPUT_EVIDENCE` slot alone — the file's own name is the naming face's single
    *  source (`tasks-*` / `branch-*` per family), never a second spelling here. */
@@ -216,44 +230,36 @@ export class HandoffSchema {
   }
 
   /** Projection ② — the STRICT walk over a plane's writable subset: every declared
-   *  slot judged at its declared shape, the draft left untouched. The dispatch gate
-   *  reads `readBack` below — the same judgment kept for the required tier, with a
-   *  decorative slot's mistake turned into a DROP. */
+   *  slot judged at its declared shape, the draft left untouched. The evidence gate
+   *  reads it; the dispatch gate reads `readBack` below — the SAME walk kept for the
+   *  required tier, with a decorative slot's mistake turned into a DROP. */
   violations(plane: CarrierPlane, value: unknown): string[] {
-    const problems: SchemaProblem[] = [];
-    this.#check(this.#writable(plane), value, "", problems);
-    return problems.map((problem) =>
-      problem.path.length === 0 ? problem.reason : `${problem.path}: ${problem.reason}`,
-    );
+    const out: CheckOut = { tier: "strict", problems: [], dropped: [] };
+    this.#check(this.#writable(plane), value, "", out);
+    return HandoffSchema.#problemsOf(out.problems);
   }
 
   /** The TIERED read-back — the dispatch gate's ONE ruling (spec §2.1): a REQUIRED
    *  slot that violates its declaration REFUSES the draft (the round blocks), while a
    *  DECORATIVE slot (declared, not required — the work plane's `notes` /
-   *  `dispositions`, the finding row's `id` / `section` / `line` / `fix`) is DROPPED
-   *  from the draft in place: the key leaves the carrier, its path is reported once
-   *  for the carrier's notes. A wrong decorative value costs a field, never a round —
-   *  the refusal face stays exactly as wide as the fields the child owes. */
+   *  `dispositions`, the finding row's `id` / `section` / `line` / `fix`) is DROPPED:
+   *  its path is reported once and the slot is never carried. The walk WRITES nothing
+   *  — materialize's copy points (`draftNotes` / `dispositions` / `#findingsList`)
+   *  consume `dropped`, so the ruling and the carrier cannot disagree. A wrong
+   *  decorative value costs a field, never a round — the refusal face stays exactly as
+   *  wide as the fields the child owes. */
   readBack(plane: CarrierPlane, draft: Record<string, unknown>): ReadBack {
-    const problems: SchemaProblem[] = [];
-    const dropped: string[] = [];
-    this.#tiered(this.#writable(plane), draft, "", { problems, dropped });
-    return {
-      problems: problems.map((problem) =>
-        problem.path.length === 0 ? problem.reason : `${problem.path}: ${problem.reason}`,
-      ),
-      dropped,
-    };
+    const out: CheckOut = { tier: "tiered", problems: [], dropped: [] };
+    this.#check(this.#writable(plane), draft, "", out);
+    return { problems: HandoffSchema.#problemsOf(out.problems), dropped: out.dropped };
   }
 
   /** Projection ② — validate the test-evidence file (work-plane wave / branch rounds). */
   evidenceViolations(value: unknown): string[] {
     if (value === null || value === undefined) return ["the evidence file is missing"];
-    const problems: SchemaProblem[] = [];
-    this.#check(EVIDENCE, value, "", problems);
-    return problems.map((problem) =>
-      problem.path.length === 0 ? problem.reason : `${problem.path}: ${problem.reason}`,
-    );
+    const out: CheckOut = { tier: "strict", problems: [], dropped: [] };
+    this.#check(EVIDENCE, value, "", out);
+    return HandoffSchema.#problemsOf(out.problems);
   }
 
   /** The round conclusion, DERIVED at judgment time from the plane — the single
@@ -332,6 +338,16 @@ export class HandoffSchema {
     return Object.keys(value as Record<string, unknown>).filter((key) => !declared.has(key));
   }
 
+  /** The column one dropped path names inside a finding row — `findings[2].line` at
+   *  index 2 reads `line`; every other dropped path (a plane-level slot, another row's
+   *  column) reads null. The dropped-path grammar is the walker's own
+   *  (`findings[{index}].{column}`), so its parse lives beside the walk that spells it —
+   *  materialize's finding copy point calls this instead of re-spelling the shape. */
+  static findingColumnOf(path: string, index: number): string | null {
+    const match = /^findings\[(\d+)\]\.(.+)$/.exec(path);
+    return match !== null && Number(match[1]) === index ? match[2] : null;
+  }
+
   /** The plane's writable subset — CARRIER's declared slots filtered to the plane's
    *  writable set (declaration order preserved) + the plane's required slots. */
   #writable(plane: CarrierPlane): SchemaNode {
@@ -352,121 +368,104 @@ export class HandoffSchema {
     return JSON.stringify(node);
   }
 
-  /** Walk one schema node against a value; every mismatch is a `path: reason`. */
-  #check(node: SchemaNode, value: unknown, path: string, problems: SchemaProblem[]): void {
+  /** The `path: reason` forms of one walk's problems — the ONE wording the read-back,
+   *  the strict projection and the evidence gate report. */
+  static #problemsOf(problems: readonly SchemaProblem[]): string[] {
+    return problems.map((problem) =>
+      problem.path.length === 0 ? problem.reason : `${problem.path}: ${problem.reason}`,
+    );
+  }
+
+  /** Walk one schema node against a value — the ONE walker behind both tiers. `owed`
+   *  says whether the slot being judged is one the child OWES: its mismatch is a
+   *  problem on either tier. A DECORATIVE slot's mismatch (a declared slot outside the
+   *  plane's required set, a finding row's decorative column) is a problem on the strict
+   *  walk and a DROP on the tiered one; the parent prunes whatever the slot booked
+   *  inside itself and reports the slot's own path.
+   *  Five parameters, one reason: `owed` is the recursion's own fact — a per-node
+   *  wrapper object would allocate a frame for one boolean and hide the frame's tier. */
+  #check(node: SchemaNode, value: unknown, path: string, out: CheckOut, owed = true): void {
     if (node.enum !== undefined && !node.enum.includes(value)) {
-      problems.push({ path, reason: `must be one of ${node.enum.join(" | ")}` });
+      this.#refuse(out, path, `must be one of ${node.enum.join(" | ")}`, owed);
       return;
     }
-    if (node.type !== undefined) {
-      if (node.type === "object") {
-        if (typeof value !== "object" || value === null || Array.isArray(value)) {
-          problems.push({ path, reason: "expected an object" });
-          return;
-        }
-        const obj = value as Record<string, unknown>;
-        for (const key of node.required ?? []) {
-          if (obj[key] === undefined)
-            problems.push({ path: this.#at(path, key), reason: "required" });
-        }
-        for (const [key, sub] of Object.entries(node.properties ?? {})) {
-          if (obj[key] !== undefined) this.#check(sub, obj[key], this.#at(path, key), problems);
-        }
-        // Non-declared keys (extra child fields such as a work-draft `findings`) are
-        // DROPPED by materialize, never a BLOCK — the validator and materialize judge
-        // the same field the same way (§8.7). Only semantic errors on declared fields
-        // (required / type / enum / length) refuse the draft.
+    if (node.type === "object") {
+      if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        this.#refuse(out, path, "expected an object", owed);
         return;
       }
-      if (node.type === "array") {
-        if (!Array.isArray(value)) {
-          problems.push({ path, reason: "expected an array" });
-          return;
-        }
-        if (node.items !== undefined) {
-          for (let index = 0; index < value.length; index += 1) {
-            this.#check(node.items, value[index], `${path}[${index}]`, problems);
-          }
-        }
-        return;
-      }
-      if (node.type === "string") {
-        if (typeof value !== "string") {
-          problems.push({ path, reason: "expected a string" });
-          return;
-        }
-        if (node.minLength !== undefined && value.length < node.minLength)
-          problems.push({ path, reason: `must be at least ${node.minLength} characters` });
-        if (node.maxLength !== undefined && value.length > node.maxLength)
-          problems.push({ path, reason: `must be at most ${node.maxLength} characters` });
-        return;
-      }
-      if (node.type === "integer") {
-        if (typeof value !== "number" || !Number.isInteger(value)) {
-          problems.push({ path, reason: "expected an integer" });
-        }
-        return;
-      }
-      if (node.type === "boolean") {
-        if (typeof value !== "boolean") problems.push({ path, reason: "expected a boolean" });
-        return;
-      }
-    }
-  }
-
-  /** The tiered walk — `#check`'s structure with the two tiers separated: a required
-   *  slot's subtree keeps its problems (the refusal), a decorative slot's subtree is
-   *  pruned (its own bad columns deleted) and, when it still breaks its declaration,
-   *  the whole slot is deleted and its path reported as dropped. */
-  #tiered(
-    node: SchemaNode,
-    value: unknown,
-    path: string,
-    out: { problems: SchemaProblem[]; dropped: string[] },
-  ): void {
-    if (node.type === "object" && typeof value === "object" && value !== null) {
-      if (Array.isArray(value)) {
-        out.problems.push({ path, reason: "expected an object" });
-        return;
-      }
-      this.#tieredObject(node, value as Record<string, unknown>, path, out);
+      // Non-declared keys (extra child fields such as a work-draft `findings`) are
+      // DROPPED by materialize, never a BLOCK — the validator and materialize judge
+      // the same field the same way (§8.7). Only semantic errors on declared fields
+      // (required / type / enum / length) refuse the draft.
+      this.#checkObject(node, value as Record<string, unknown>, path, out);
       return;
     }
-    if (node.type === "array" && Array.isArray(value) && node.items !== undefined) {
+    if (node.type === "array") {
+      if (!Array.isArray(value)) {
+        this.#refuse(out, path, "expected an array", owed);
+        return;
+      }
       const items = node.items;
-      value.forEach((entry, index) => {
-        this.#tiered(items, entry, `${path}[${index}]`, out);
-      });
+      if (items === undefined) return;
+      // An element is owed once its slot is present: a bad element is judged INSIDE the
+      // slot, and a decorative slot's parent prunes it with the rest of the slot.
+      for (const [index, entry] of value.entries()) {
+        this.#check(items, entry, `${path}[${index}]`, out);
+      }
       return;
     }
-    this.#check(node, value, path, out.problems);
+    const reason = HandoffSchema.#scalarReason(node, value);
+    if (reason !== null) this.#refuse(out, path, reason, owed);
   }
 
-  /** The object half of the tiered walk — required keys first (missing → refusal),
-   *  then each present declared slot: recurse, and on a surviving problem drop the
-   *  slot when it is decorative, keep the problem when it is required. */
-  #tieredObject(
-    node: SchemaNode,
-    obj: Record<string, unknown>,
-    path: string,
-    out: { problems: SchemaProblem[]; dropped: string[] },
-  ): void {
+  /** The object half — the required sweep (a missing owed key refuses on either tier),
+   *  then every present declared slot judged at its own owed-ness. */
+  #checkObject(node: SchemaNode, obj: Record<string, unknown>, path: string, out: CheckOut): void {
     const required = node.required ?? [];
     for (const key of required) {
-      if (obj[key] === undefined)
-        out.problems.push({ path: this.#at(path, key), reason: "required" });
+      if (obj[key] !== undefined) continue;
+      out.problems.push({ path: this.#at(path, key), reason: "required" });
     }
     for (const [key, sub] of Object.entries(node.properties ?? {})) {
       if (obj[key] === undefined) continue;
       const at = this.#at(path, key);
-      const markP = out.problems.length;
-      this.#tiered(sub, obj[key], at, out);
-      if (out.problems.length === markP) continue;
-      if (required.includes(key)) continue;
-      out.problems.length = markP;
-      delete obj[key];
+      const owed = required.includes(key);
+      const markProblems = out.problems.length;
+      const markDropped = out.dropped.length;
+      this.#check(sub, obj[key], at, out, owed);
+      if (owed || out.tier === "strict" || out.problems.length === markProblems) continue;
+      // The decorative slot breaks its own declaration — prune everything it booked
+      // inside, then report the slot once (materialize's copy point reads this path).
+      out.problems.length = markProblems;
+      out.dropped.length = markDropped;
       out.dropped.push(at);
     }
+  }
+
+  /** The scalar keywords' judgment — the reason a value breaks its declared type or
+   *  length, null when it passes. The enum is judged by the caller first (an enum value
+   *  is matched by value, never by the declared type alone). */
+  static #scalarReason(node: SchemaNode, value: unknown): string | null {
+    if (node.type === "string") {
+      if (typeof value !== "string") return "expected a string";
+      if (node.minLength !== undefined && value.length < node.minLength)
+        return `must be at least ${node.minLength} characters`;
+      if (node.maxLength !== undefined && value.length > node.maxLength)
+        return `must be at most ${node.maxLength} characters`;
+      return null;
+    }
+    if (node.type === "integer")
+      return typeof value === "number" && Number.isInteger(value) ? null : "expected an integer";
+    if (node.type === "boolean") return typeof value === "boolean" ? null : "expected a boolean";
+    return null;
+  }
+
+  /** Book one mismatch at its tier — a problem for an owed slot (or a strict walk), a
+   *  dropped path for a decorative one. */
+  #refuse(out: CheckOut, path: string, reason: string, owed: boolean): void {
+    if (owed || out.tier === "strict") out.problems.push({ path, reason });
+    else out.dropped.push(path);
   }
 
   /** The JSON-path join — `.field` (or bare, at the root). */

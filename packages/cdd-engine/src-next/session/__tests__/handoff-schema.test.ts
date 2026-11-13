@@ -231,14 +231,16 @@ describe("projection ② — the tiered read-back (readBack: required refuses, d
     expect(badStatus.problems).toEqual(["status: must be one of APPROVED | BLOCKED"]);
   });
 
-  it("DROPS a decorative slot instead of refusing — the key leaves the draft in place", () => {
+  it("DROPS a decorative slot instead of refusing — the path is reported, the draft is never edited", () => {
     // `dispositions` is declared but not required: an array instead of the declared
-    // object costs the FIELD, never the round.
+    // object costs the FIELD, never the round. The read-back is a pure ruling — it
+    // reports the path and the materialize's copy points are what drop the key, so the
+    // same walk can also serve the strict projection.
     const draft: Record<string, unknown> = { ...WORK, dispositions: [] };
     const result = schema.readBack("work", draft);
     expect(result.problems).toEqual([]);
     expect(result.dropped).toEqual(["dispositions"]);
-    expect(draft).not.toHaveProperty("dispositions");
+    expect(draft.dispositions).toEqual([]);
     // the strict walk still judges the same bytes (one declaration, two readings)
     expect(schema.violations("work", { ...WORK, dispositions: [] })).toEqual([
       "dispositions: expected an object",
@@ -248,7 +250,7 @@ describe("projection ② — the tiered read-back (readBack: required refuses, d
   it("drops a wrongly typed `notes` / `artifacts` — the two shared decorative slots", () => {
     const notesDraft: Record<string, unknown> = { ...WORK, notes: "not-an-array" };
     expect(schema.readBack("work", notesDraft)).toEqual({ problems: [], dropped: ["notes"] });
-    expect(notesDraft.notes).toBeUndefined();
+    expect(notesDraft.notes).toBe("not-an-array");
     const artifactsDraft: Record<string, unknown> = { ...WORK, artifacts: "nope" };
     // `artifacts` is REQUIRED on the work plane — a wrong shape refuses, never drops
     expect(schema.readBack("work", artifactsDraft).problems).toEqual([
@@ -263,7 +265,13 @@ describe("projection ② — the tiered read-back (readBack: required refuses, d
     const result = schema.readBack("judge", draft);
     expect(result.problems).toEqual([]);
     expect(result.dropped).toEqual(["findings[0].id", "findings[0].line"]);
-    expect(draft.findings).toEqual([{ severity: "warn", lens: "spec", summary: "drift" }]);
+    expect(draft.findings).toEqual([
+      { severity: "warn", lens: "spec", summary: "drift", line: "42", id: 7 },
+    ]);
+    // the drop path names ONE row's own column — the grammar materialize parses back
+    expect(HandoffSchema.findingColumnOf("findings[0].line", 0)).toBe("line");
+    expect(HandoffSchema.findingColumnOf("findings[0].line", 1)).toBeNull();
+    expect(HandoffSchema.findingColumnOf("notes", 0)).toBeNull();
   });
 
   it("refuses a finding row missing a REQUIRED column — the required tier inside the row", () => {

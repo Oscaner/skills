@@ -88,9 +88,14 @@ export class RoundNaming {
    *  segments (`line` · `op` · cycle · attempt) join in this order for every kind, so
    *  a kind only picks its own prefix/suffix around the shared stem. A `final` has no
    *  cycle to key on when the identity carries none: it renders the draft name back,
-   *  never a malformed `.cundefined` suffix. */
+   *  never a malformed `.cundefined` suffix. The stem's cycle segment is omitted for a
+   *  cycle-less identity; its attempt segment is omitted on the first attempt (an
+   *  `-a1` never appears). */
   static renderName(artifact: RoundArtifact, kind: ArtifactKind): string {
-    const stem = RoundNaming.#stem(artifact);
+    const cycle = artifact.cycle === undefined || artifact.cycle === "" ? "" : `-${artifact.cycle}`;
+    const attempt =
+      artifact.attempt === undefined || artifact.attempt <= 1 ? "" : `-a${artifact.attempt}`;
+    const stem = `${artifact.line}-${artifact.op}${cycle}${attempt}`;
     switch (kind) {
       case "draft":
         return `${stem}.json`;
@@ -111,24 +116,16 @@ export class RoundNaming {
 
   /** The carrier-name predicate's compiled pattern — a wave line takes the wave-only
    *  `tasks-` spine, every other line word takes the round-bearing ops. The op set and
-   *  the line words come from the ONE target-face table, so neither is re-spelled here. */
+   *  the line words come from the ONE target-face table, so neither is re-spelled here.
+   *  Only `implement` has a cycle-less spelling (the pre-P34 draft on disk); `review`
+   *  and `fix` always carry their cycle, so a `tasks-1-review.json` is no carrier at all. */
   static #carrierPattern(): RegExp {
     const lines = Object.keys(targetFaces).filter((word) => word !== "wave");
     const attempt = "(?:-a\\d+)?";
     const final = "(?:\\.c\\d+)?";
     return new RegExp(
-      `^(?:tasks-.+-(?:implement|review|fix)(?:-\\d+)?${attempt}|(?:${lines.join("|")})-(?:review|fix)-\\d+${attempt})${final}\\.json$`,
+      `^(?:tasks-.+?-implement(?:-\\d+)?|tasks-.+?-(?:review|fix)-\\d+|(?:${lines.join("|")})-(?:review|fix)-\\d+)${attempt}${final}\\.json$`,
     );
-  }
-
-  /** The shared stem of every artifact of one round — `{line}-{op}[-{cycle}][-a{n}]`.
-   *  The cycle segment is omitted for a cycle-less identity; the attempt segment is
-   *  omitted on the first attempt (an `-a1` never appears). */
-  static #stem(artifact: RoundArtifact): string {
-    const cycle = artifact.cycle === undefined || artifact.cycle === "" ? "" : `-${artifact.cycle}`;
-    const attempt =
-      artifact.attempt === undefined || artifact.attempt <= 1 ? "" : `-a${artifact.attempt}`;
-    return `${artifact.line}-${artifact.op}${cycle}${attempt}`;
   }
 
   /** The rendered name resolved against the workspace — the read/write syscall form. */

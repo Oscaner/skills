@@ -23,6 +23,7 @@
 
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
+import { basename } from "node:path";
 import { DocBodyProjection } from "../contract/doc-body.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
 import type { ConfigLoader } from "../infra/config.ts";
@@ -313,8 +314,12 @@ export class RoundRecords {
 export type LedgerKey = number | string;
 
 /** One handoff file's parsed round identity — the four coordinates the naming face
- *  renders and the orphan face reads back, so the two compare identity with identity. */
+ *  renders and the orphan face reads back, so the two compare identity with identity.
+ *  `type` is the line the file name declares (`wave`, a document word, `plan`,
+ *  `branch`, or the retired `spec` twin), so the claim's legacy tier can render the
+ *  owning record's own carrier path from the same coordinates the scan read. */
 interface HandoffOwner {
+  readonly type: string;
   readonly key: string;
   readonly op: string;
   readonly round: number;
@@ -1756,6 +1761,37 @@ export class Ledger {
     return this.resolveHandoffPath("review", type, { ...params, round });
   }
 
+  /** One record's carrier PATH — the ONE read face of a record's carrier identity
+   *  (spec §2.12), so no consumer spells `record.carrierPath` itself. Step ① returns the
+   *  path the record already remembers (the historical fact — a pre-P34 row keeps its
+   *  own spelling, zero migration). Step ② otherwise resolves the read ladder
+   *  `resolveHandoffName` owns, seeded with the record's FULL identity (line · op ·
+   *  cycle · attempt) — a bare `renderPath("final")` would miss a pre-P31 row that never
+   *  minted the `.c{cycle}` spelling. Step ③ probes the ladder's answer: a ladder that
+   *  reports a never-minted name reads as "no carrier" (empty), never as a path. */
+  carrierPathOf(type: string, key: string, record: RoundRecord): string {
+    const recorded = record.carrierPath;
+    if (typeof recorded === "string" && recorded !== "") return recorded;
+    const name = this.#resolvedCarrierName(type, key, record);
+    return this.#read<unknown>(name) === null ? "" : this.#workspace.resolve(name);
+  }
+
+  /** Step ② of `carrierPathOf` — the NAME the record's identity resolves to: the
+   *  retired `spec-{op}-{round}.json` spelling for a migrated row (its `spec` family is
+   *  not in the live config table, so the ladder would throw), the read ladder's answer
+   *  for every live line. */
+  #resolvedCarrierName(type: string, key: string, record: RoundRecord): string {
+    if (key === RETIRED_SPEC_KEY) {
+      return Ledger.#retiredCarrierName(record.op, { round: record.cycle });
+    }
+    const params: HandoffParams = {
+      tasks: type === "wave" ? key : undefined,
+      round: record.cycle,
+      attempt: record.attempt,
+    };
+    return this.resolveHandoffName(record.op, type, params);
+  }
+
   /** The retired document-line carrier name of one round — `spec-review-{round}.json` /
    *  `spec-fix-{round}.json`. It lives here, never in the family table: it is a read
    *  fallback for already-recorded rounds, not a name the engine can mint. */
@@ -1763,31 +1799,52 @@ export class Ledger {
     return `${RETIRED_SPEC_KEY}-${op}-${params.round ?? ""}.json`;
   }
 
-  /** The workspace's ORPHAN handoff drafts — the `handoff` family files whose
-   *  (line key, op, round) never landed in `progress.json` (a draft written by a
-   *  round that never booked). The board and the `--dry-run` preview render them;
-   *  this is a PURE READ — the engine never writes, moves or deletes a draft. The
-   *  family names are the ledger's own single naming truth (no second pattern), and
-   *  the owning row is read through the ONE basis `rowFor` establishes — the draft's
-   *  own line word IS its declaration — so a migrated workspace's carrier resolves
-   *  its retired row instead of reading as an orphan. */
+  /** The workspace's ORPHAN handoff files — the carrier files (draft or final) whose
+   *  (line key, op, cycle, attempt) never landed in `progress.json`. The board and the
+   *  `--dry-run` preview render them; this is a PURE READ — the engine never writes,
+   *  moves or deletes a carrier. The family names are the ledger's own single naming
+   *  truth (no second pattern), and the owning row is read through the ONE basis
+   *  `rowFor` establishes — the file's own line word IS its declaration — so a
+   *  migrated workspace's carrier resolves its live row instead of reading as an
+   *  orphan.
+   *
+   *  OWNERSHIP IS THE RECORD, NEVER ITS VERDICT (spec §2.12): a round that acted and
+   *  then failed still owns the file it wrote — completion is the judgment face, and
+   *  reading it here would relabel an honest failure's carrier as an orphan and hand it
+   *  to a recovery pass that deletes child work.
+   *
+   *  The identity is the fast tier; the LEGACY tier compares the record's own carrier
+   *  path by basename (a pre-P34 row remembers an absolute path while the scan yields a
+   *  bare name), read once through `carrierPathOf` — the only accessor of the record's
+   *  carrier identity. */
   orphanHandoffs(): readonly string[] {
     const progress = this.readProgress() ?? this.emptyProgress();
     const orphans: string[] = [];
     for (const name of this.#workspaceFiles()) {
       const owner = Ledger.#handoffOwner(name);
       if (owner === null) continue;
-      const row = Ledger.rowFor(progress, owner.key, Ledger.#lineWord(owner.key));
-      // The identity is THREE coordinates: an attempt-1 record never claims a later
-      // attempt's file, so a re-dispatch's draft reads as the orphan it is.
-      const completed = RoundRecords.of(row)
-        .filter((record) => record.verdict.targetAction)
-        .map((record) => `${record.op}:${record.cycle}:${record.attempt}`);
-      if (!completed.includes(`${owner.op}:${owner.round}:${owner.attempt}`)) {
-        orphans.push(name);
-      }
+      const records = RoundRecords.of(Ledger.#ownerRow(progress, owner.key));
+      const identity = `${owner.op}:${owner.round}:${owner.attempt}`;
+      const claimed = records.some(
+        (record) =>
+          `${record.op}:${record.cycle}:${record.attempt}` === identity ||
+          basename(this.carrierPathOf(owner.type, owner.key, record)) === name,
+      );
+      if (!claimed) orphans.push(name);
     }
     return orphans.sort();
+  }
+
+  /** The row one carrier file's line word resolves to. The retired `spec` twin is a FILE
+   *  NAME a live row already outlived: the workspace holds ONE identity document, so the
+   *  word resolves onto whichever document word that row now declares (`phase-spec` /
+   *  `overall` / `single-spec`), never onto a row name the migration retired. Every other
+   *  word — a wave's tasks, `plan`, `branch` — reads through `rowFor`'s ONE basis. */
+  static #ownerRow(progress: ProgressData, key: string): ProgressRow | undefined {
+    if (key !== RETIRED_SPEC_KEY) return Ledger.rowFor(progress, key, Ledger.#lineWord(key));
+    const literal = Ledger.rowFor(progress, key, null);
+    if (literal !== undefined) return literal;
+    return progress.waves.find((row) => RETIRED_SPEC_LINE_KEYS.has(row.wave));
   }
 
   /** A handoff file's key as a declared line word — the three document words declare
@@ -1825,6 +1882,7 @@ export class Ledger {
       // The wave row keys the task GROUP alone — the `tasks-` spine is the name's, not
       // the key's. The legacy cycle-less implement spelling is the fixed family's round 1.
       return {
+        type: "wave",
         key: line.replace(/^tasks-/, ""),
         op,
         round: cycle === undefined ? 1 : Number(cycle),
@@ -1834,7 +1892,13 @@ export class Ledger {
     const line = Ledger.#LINE_CARRIER.exec(draft);
     if (line !== null) {
       const [, key = "", op = "", cycle = "", attempt] = line;
-      return { key, op, round: Number(cycle), attempt: Ledger.#attemptOf(attempt) };
+      return {
+        type: key,
+        key,
+        op,
+        round: Number(cycle),
+        attempt: Ledger.#attemptOf(attempt),
+      };
     }
     return null;
   }

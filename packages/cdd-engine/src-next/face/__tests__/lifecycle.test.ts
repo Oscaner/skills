@@ -521,6 +521,32 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
     }
   });
 
+  it("strips a finding's decorative column outside its declared shape — the row survives, one soft entry names it", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const runner = new ReviewDraftRunner([
+        { severity: "blocker", lens: "spec", summary: "drift", line: "42", section: 3 },
+      ]);
+      const { outcome } = await dispatchFrame(f, reviewFrame, runner);
+      // The REQUIRED columns keep the row; the two decorative columns break their own
+      // declaration, so the materialize's finding copy point drops them by path — the
+      // draft's mistake never costs the round (spec §2.14).
+      const carrier = outcome.carrier as { findings: Record<string, unknown>[] };
+      expect(carrier.findings[0]).toEqual({
+        id: "F1",
+        severity: "blocker",
+        lens: "spec",
+        summary: "drift",
+      });
+      expect(outcome.status).toBe("CHANGES_REQUESTED");
+      expect((outcome.violations ?? []).map((violation) => violation.grade)).toEqual(["soft"]);
+      expect(outcome.violations?.[0]?.message).toContain("findings[0].line");
+      expect(outcome.violations?.[0]?.message).toContain("findings[0].section");
+    } finally {
+      f.cleanup();
+    }
+  });
+
   it("a child draft that writes NO id still passes the read-back — the id is never the child's duty", async () => {
     const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
     try {

@@ -555,8 +555,14 @@ describe("the task small loop — implement → review → the next ready group"
       expect(ledger.completedCycles("1", "implement")).toEqual([]);
       expect(first!.route).toBeNull();
 
-      // the retry is the SAME cycle's next attempt — allocated once by the naming source
+      // the retry is the SAME cycle's next attempt — allocated once by the naming source,
+      // and the dispatch carries it: the round's params ARE its carrier identity, so the
+      // attempt-2 round writes `-a2` files and never re-uses the failed attempt's name
       expect(run.peekNext()?.frame.attempt).toBe(2);
+      expect(run.peekNext()?.frame.params).toEqual({ tasks: "1", round: 1, attempt: 2 });
+      expect(ledger.handoffName("implement", "wave", { tasks: "1", round: 1, attempt: 2 })).toBe(
+        "tasks-1-implement-1-a2.json",
+      );
       blocked = false;
       const retry = await run.advance();
       expect(

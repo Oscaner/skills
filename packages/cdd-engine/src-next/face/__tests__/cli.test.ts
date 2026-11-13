@@ -7137,6 +7137,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect((outcome.carrier!.notes as string[] | undefined) ?? []).toContain(
         "dropped decorative draft field(s) outside their declared shape: dispositions — never written",
       );
+      // …and the same observation is booked as ONE SOFT violation on the round
+      // (spec §2.14's soft landing — the record's `violations[]` is where it rides, and
+      // `session/run.ts` copies the outcome's set verbatim): a soft entry names the
+      // drop, and it never widens the crashed row, which reads hard entries alone
+      expect(outcome.violations).toHaveLength(1);
+      expect(outcome.violations?.[0]?.grade).toBe("soft");
+      expect(outcome.violations?.[0]?.message).toContain("dispositions");
+      expect(outcome.verdict?.treeClean).toBe(true);
     } finally {
       cleanup();
     }
@@ -7547,6 +7555,48 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(crash.idleMs).toBe(1_800_000);
       expect(crash.cause).toBe("stalled");
       expect(crash.lastSample).toEqual(fact.lastSample);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("promotes a killed review draft whose only flaw is a DECORATIVE column — the probe reads the tiered back", async () => {
+    const sync = new StubRunner();
+    sync.code = null;
+    sync.termination = stalled().termination;
+    const { command, io, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace, ledger } = cliScene(repoRoot);
+      seedImplement(ledger);
+      // The required columns are all present; `line` breaks its own declared integer
+      // type. The probe's tiered read-back drops the column instead of refusing the
+      // draft — the strict projection would have hidden a recoverable round.
+      writeFileSync(
+        path.join(workspace.path, "tasks-1-review-1.json"),
+        JSON.stringify({
+          findings: [{ severity: "blocker", lens: "code", summary: "drift", line: "42" }],
+        }),
+        "utf8",
+      );
+      const code = await withHost(() =>
+        command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+      );
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("status: CHANGES_REQUESTED");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+      // the promotion's own WARN plus the drop's soft entry — both on the warn channel
+      expect(io.stderrText.match(/CDD_WARN:/g)).toHaveLength(2);
+      expect(io.stderrText).toContain("findings[0].line");
+      const crash = readJson<{ promoted: boolean }>(
+        path.join(workspace.path, "crash-tasks-1-review-1.json"),
+      );
+      expect(crash.promoted).toBe(true);
+      const carrier = ledger.readHandoff("review", "wave", { tasks: "1", round: 1 });
+      expect(carrier?.findings).toEqual([
+        { id: "F1", severity: "blocker", lens: "code", summary: "drift" },
+      ]);
     } finally {
       cleanup();
     }

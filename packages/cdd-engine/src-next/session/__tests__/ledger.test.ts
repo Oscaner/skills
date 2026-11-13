@@ -660,15 +660,16 @@ describe("handoff — naming / carrier / single-author persist", () => {
     }
   });
 
-  it("orphanHandoffs names only the drafts whose round never COMPLETED — a failed round's carrier stays orphaned", () => {
+  it("keeps a FAILED round's carrier owned — ownership is the record, never its verdict", () => {
     const { ledger, cleanup } = fixture();
     try {
       // a completed review owns its carrier — the round's verdict says so
       ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
       ledger.recordRound("1", { op: "review", cycle: 1 });
-      // a hard-failed review leaves a carrier no COMPLETED round owns: it is registered
-      // (every dispatched round lands) but its verdict is not a completion. The file is
-      // the FINAL carrier — the family pattern reads its `.c<N>` suffix as its own cycle.
+      // a hard-failed review still OWNS the carrier it wrote: ownership is the record
+      // (spec §2.12), completion is the judgment face, and the file's round IS
+      // registered. The file is the FINAL carrier — the family pattern reads its
+      // `.c<N>` suffix as its own cycle, never as a second round.
       ledger.persistHandoff(
         "review",
         "wave",
@@ -684,8 +685,33 @@ describe("handoff — naming / carrier / single-author persist", () => {
         op: "review",
         cycle: 2,
         verdict: { treeClean: true, targetAction: false },
+        violations: [{ grade: "hard", cause: "contract-violation", message: "drift" }],
       });
-      expect(ledger.orphanHandoffs()).toEqual(["tasks-1-review-2.c2.json"]);
+      expect(ledger.orphanHandoffs()).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps a BLOCKED work carrier owned — a work round's failure is no orphan either", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The work plane's failed round: the record lands with its own hard entry, and
+      // every orphan test above books a carrier with the DEFAULT verdict — this is the
+      // case where an owner deliberately did NOT complete.
+      ledger.persistHandoff(
+        "fix",
+        "wave",
+        { tasks: "4", round: 1, attempt: 1 },
+        { status: "BLOCKED", artifacts: {} },
+      );
+      ledger.recordRound("4", {
+        op: "fix",
+        cycle: 1,
+        verdict: { treeClean: true, targetAction: false },
+        violations: [{ grade: "hard", cause: "contract-violation", message: "blocked" }],
+      });
+      expect(ledger.orphanHandoffs()).toEqual([]);
     } finally {
       cleanup();
     }
@@ -795,6 +821,75 @@ describe("orphanHandoffs — the reverse parse reads the identity it renders (P3
         waves: [{ wave: "1", rounds: { implement: [1], review: [1] } }],
       });
       workspace.writeJson("tasks-1-implement.json", { artifacts: {} });
+      expect(ledger.orphanHandoffs()).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("lists an attempt-2 FINAL whose round never booked that attempt — the `.c{n}` suffix is no free pass", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      ledger.recordRound("1", { op: "fix", cycle: 1, attempt: 1 });
+      // A final carrier for a re-dispatch the row never recorded: the identity tier
+      // reads `attempt 2` from the `-a2` segment, the legacy tier matches no record's
+      // own path, so the file stays an orphan.
+      workspace.writeJson("tasks-1-fix-1-a2.c1.json", { artifacts: {} });
+      expect(ledger.orphanHandoffs()).toEqual(["tasks-1-fix-1-a2.c1.json"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("claims a doc-line carrier whose record remembers its own path — the basename tier", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // A pre-P31 plan round: the record carries its path but its identity spellings
+      // drifted (attempt 2 under an attempt-less file). The identity tier misses, the
+      // legacy tier compares the two basenames — the recorded absolute path and the
+      // scanned bare name — and the record claims its own file.
+      ledger.recordRound("plan", {
+        op: "fix",
+        cycle: 2,
+        attempt: 2,
+        carrierPath: workspace.resolve("plan-fix-2.json"),
+      });
+      workspace.writeJson("plan-fix-2.json", { artifacts: {} });
+      expect(ledger.orphanHandoffs()).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("never rewrites progress while reading — a doc-line claim is a pure read", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "spec", rounds: { review: [1] } }],
+      });
+      workspace.writeJson("phase-spec-review-1.json", { artifacts: {} });
+      const before = readFileSync(workspace.resolve("progress.json"), "utf8");
+      expect(ledger.orphanHandoffs()).toEqual([]);
+      expect(readFileSync(workspace.resolve("progress.json"), "utf8")).toBe(before);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("resolves a retired `spec` row for its OWN `spec-{op}-{round}.json` spelling — one live identity, both names", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // A migrated workspace: the row already moved to the live `phase-spec` key, and
+      // only the pre-rename carrier spelling remains on disk. The literal `spec` key
+      // finds no row, so the read falls to the ONE live identity-document row — a
+      // word-only lookup (`#lineWord("spec")` reads null) would call this file an
+      // orphan while it is the row's own round.
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [{ wave: "phase-spec", rounds: { review: [3] } }],
+      });
+      workspace.writeJson("spec-review-3.json", { findings: [] });
       expect(ledger.orphanHandoffs()).toEqual([]);
     } finally {
       cleanup();

@@ -362,6 +362,47 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(crashed.split("\n").at(-1)).toBe("progress: ✔ done · ▶ current · ○ pending");
   });
 
+  it("renders only the NODE's own crashed rounds — the program's failure is not this node's work", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+    // The PARENT program's own round crashed; the node never dispatched one.
+    seed("prog-overall", [
+      {
+        wave: "phase-spec",
+        rounds: [
+          {
+            op: "review",
+            cycle: 1,
+            attempt: 1,
+            dispatchBase: null,
+            carrierPath: null,
+            verdict: { treeClean: true, targetAction: false },
+            violations: [{ grade: "hard", cause: "child-exit", message: "the child died" }],
+          },
+        ],
+      },
+    ]);
+    seed("prog-p1", [{ wave: "1", rounds: [] }]);
+    const { text } = render("prog-p1");
+    // the overall document's records feed the program board alone — a parent's crashed
+    // round never renders on a node board as this node's failure
+    expect(text).not.toContain("crashed:");
+    expect(text).not.toContain("child-exit");
+  });
+
   it("phase board next: the first not-closed line renders its ACTIVE C5 hop (the spec review)", () => {
     // D40 deep-solve — the spec line has not started its C5 (no review round on record),
     // so its ACTIVE hop is the review-lead the dispatch engine would run (Ledger#lineRoute
@@ -1346,17 +1387,37 @@ describe("BoardView.crashedRows — the crashed round as an observation (spec §
     expect(rows).toEqual([]);
   });
 
-  it("keeps the records' own order — one row per crashed round, never a re-sorted list", () => {
-    const crashed = (cycle: number): RoundRecord =>
+  it("reads the records in (cycle, attempt) order — the session's sequence, never the file's order", () => {
+    const crashed = (cycle: number, attempt = 1): RoundRecord =>
       record({
         cycle,
+        attempt,
         verdict: { treeClean: true, targetAction: false },
         violations: [hard("child-exit")],
       });
-    const rows = BoardView.crashedRows([crashed(3), record({ cycle: 1 }), crashed(2)]);
+    const rows = BoardView.crashedRows([
+      crashed(3),
+      record({ cycle: 1 }),
+      crashed(2),
+      crashed(1, 2),
+    ]);
     expect(rows).toEqual([
-      "  crashed: implement 3·a1 · child-exit",
+      "  crashed: implement 1·a2 · child-exit",
       "  crashed: implement 2·a1 · child-exit",
+      "  crashed: implement 3·a1 · child-exit",
+    ]);
+  });
+
+  it("renders ONE row per round identity — a re-booked round never doubles its token", () => {
+    const crashed: RoundRecord = record({
+      cycle: 2,
+      verdict: { treeClean: true, targetAction: false },
+      violations: [hard("child-exit")],
+    });
+    const rows = BoardView.crashedRows([crashed, crashed, { ...crashed, op: "review" }]);
+    expect(rows).toEqual([
+      "  crashed: implement 2·a1 · child-exit",
+      "  crashed: review 2·a1 · child-exit",
     ]);
   });
 });

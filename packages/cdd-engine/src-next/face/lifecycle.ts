@@ -429,14 +429,17 @@ export class CliLifecycle {
       this.#logUnavailable === null ? [] : [this.#logUnavailable];
     if (outcome.status === "BLOCKED" || outcome.status === "TIMEOUT") {
       const authored = outcome.violations ?? [];
+      // The failure itself is the HARD fact: a failing round whose only authored entries
+      // are SOFT (the read-back's dropped decorative fields) books its own hard entry —
+      // a soft-only list is not an authored failure, and the board's crashed row and
+      // the failure reason both read hard entries alone (§3.3).
+      const failed = authored.some((violation) => violation.grade === "hard");
       return {
         verdict: { treeClean, targetAction: false },
-        // A failure is never a silent absence (§3.3): a concluded BLOCKED round that
-        // authored no entry books one here (`contract-violation`, the existing cause).
         violations: [
-          ...(authored.length > 0
+          ...(failed
             ? authored
-            : [RoundViolation.hard(`the round concluded ${outcome.status}`)]),
+            : [...authored, RoundViolation.hard(`the round concluded ${outcome.status}`)]),
           ...logEntries,
         ],
       };
@@ -542,9 +545,11 @@ export class CliLifecycle {
   }
 
   /** The evidence gate as a graded entry (design spec §3.3) — the work plane's wave /
-   *  branch rounds write the canonical `{family-prefix}-{key}-test-evidence.json`; a
-   *  missing / malformed / schema-violating file is HARD. The tri-state read reports
-   *  each cause truly (D27): a corrupt file is never misreported as absent. */
+   *  branch rounds write the evidence file at the round identity's own name
+   *  (`RoundNaming#renderName(…, "evidence")`, resolved by `#naming.evidenceName`); a
+   *  missing / malformed / schema-violating file is HARD. The name is never spelled
+   *  here — the naming face stays its single source. The tri-state read reports each
+   *  cause truly (D27): a corrupt file is never misreported as absent. */
   #evidenceViolations(frame: OpenFrame): readonly RoundViolation[] {
     if (HandoffSchema.planeOf(this.#opOf(frame)) !== "work") return [];
     if (TargetFaceTable.isDocShape(frame.type)) return [];
@@ -1106,20 +1111,26 @@ export class CliLifecycle {
   }
 
   /** The non-rejecting draft probe of the termination branch — a terminated REVIEW
-   *  round's draft is promotable iff it exists, parses, passes the judge plane's schema,
-   *  and carries at least one finding. Returns the validated draft (the promotion
-   *  then rides the reconstruct's existing validation/persistence/conclusion path) or
-   *  null (the round keeps the TIMEOUT failure face). It calls no `#reject` and
-   *  produces no outcome — a probe is a question, never a verdict. Implement/fix
-   *  rounds are outside the promotion domain (their `op` is not the review family). */
+   *  round's draft is promotable iff it exists, parses, passes the judge plane's TIERED
+   *  read-back (a required slot's violation refuses; a decorative column is only the
+   *  reconstruct's cue to drop it), and carries at least one finding. Returns the
+   *  draft (the promotion then rides the reconstruct's existing
+   *  validation/persistence/conclusion path) or null (the round keeps the TIMEOUT
+   *  failure face). It calls no `#reject` and produces no outcome — a probe is a
+   *  question, never a verdict. Implement/fix rounds are outside the promotion domain
+   *  (their `op` is not the review family). */
   #probeDraft(frame: OpenFrame): Record<string, unknown> | null {
     const op = this.#opOf(frame);
     if (op !== "review") return null;
     const plane = HandoffSchema.planeOf(op);
     const read = this.#readDraft(frame);
     if (read.kind !== "ok") return null;
+    // The SAME tier the reconstruct later applies — the strict projection would refuse
+    // a draft the round itself accepts (a decorative column's mistake is a drop, not a
+    // failure). The read-back is a pure ruling; the shallow copy keeps the probe's
+    // draft independent of it either way.
     const draft = read.value;
-    if (this.#handoffSchema.violations(plane, draft).length > 0) return null;
+    if (this.#handoffSchema.readBack(plane, { ...draft }).problems.length > 0) return null;
     const findings = Array.isArray(draft.findings) ? draft.findings : [];
     return findings.length >= 1 ? draft : null;
   }
@@ -1230,13 +1241,13 @@ export class CliLifecycle {
     // reaches this line; the absent→undefined case exists only for on-disk legacy
     // carriers the ledger reads back, never a schema-validated draft).
     const status: RoundStatus = schema.conclusionOf(plane, draft) ?? "BLOCKED";
-    const carrier = this.#materialize(frame, plane, draft, status, readBack.dropped);
+    const materialized = this.#materialize(frame, plane, draft, status, readBack.dropped);
     // P31 §2.2 — the disposition summary reads the REQUESTING carrier. A mismatch
     // found here (the bytes moved inside the round) is a BLOCKED outcome: the read-back
     // is the FALLBACK behind the pre-dispatch gate, never the gate itself.
     let summary: string | undefined;
     try {
-      summary = this.#dispositionsSummary(frame, plane, carrier);
+      summary = this.#dispositionsSummary(frame, plane, materialized.carrier);
     } catch (raw) {
       if (!(raw instanceof CarrierMismatchError)) throw raw;
       this.#blocked(raw.message, false);
@@ -1245,8 +1256,11 @@ export class CliLifecycle {
     return {
       status,
       findings: plane === "judge" ? schema.findingsOf(findings) : undefined,
-      carrier,
+      carrier: materialized.carrier,
       dispositionsSummary: summary,
+      // The read-back's drops are the round's OWN soft observations (spec §2.14) — a
+      // wrong decorative field is a loss the record must show, never a silent rewrite.
+      violations: materialized.violations,
     };
   }
 
@@ -1568,43 +1582,50 @@ export class CliLifecycle {
     draft: Record<string, unknown>,
     status: RoundStatus,
     droppedDecorative: readonly string[] = [],
-  ): Record<string, unknown> {
+  ): { readonly carrier: Record<string, unknown>; readonly violations: readonly RoundViolation[] } {
     const ledger = this.#scene.ledger;
-    const notes: string[] = [];
-    // The tiered read-back's decorative drops (spec §2.1) — the field the child shaped
-    // wrongly was removed before materialize reads the draft; the carrier's notes carry
-    // the one audit line so the loss is visible, never silent.
-    if (droppedDecorative.length > 0) {
-      notes.push(
-        `dropped decorative draft field(s) outside their declared shape: ${droppedDecorative.join(", ")} — never written`,
-      );
-    }
     // The §8.7 classification ruling — the SAME judgment the read-back validator makes
     // (non-declared keys are dropped, never a BLOCK): materialize drops them and books
     // AT MOST ONE WARN on the carrier's notes (auditable, non-interrupting — replacing
     // the retired "BLOCK + crash-resume + reopen" chain). The engine stays the carrier's
     // single author; a child's stray key is surfaced, not obeyed.
     const dropped = this.#handoffSchema.droppedKeys(plane, draft);
+    // TWO loss families, two landings. A DECLARATIVE loss (a declared slot outside its
+    // declared shape) is ONE carrier note AND ONE `RoundViolation.soft` on the record —
+    // spec §2.14's soft landing, the child owed the field and lost it. A non-declared
+    // key is §8.7's own face: ONE note and nothing else (the drop is silent on the warn
+    // channel — it cost the child no declared obligation).
+    const observations: string[] = [];
+    if (droppedDecorative.length > 0) {
+      observations.push(
+        `dropped decorative draft field(s) outside their declared shape: ${droppedDecorative.join(", ")} — never written`,
+      );
+    }
+    const reserved: string[] = [];
     if (dropped.length > 0) {
-      notes.push(
+      reserved.push(
         `dropped non-declared draft field(s): ${dropped.join(", ")} — engine-reserved, never written`,
       );
     }
+    const notes: string[] = [...observations, ...reserved];
     // The per-plane carrier — buildHandoff's typed overloads: the judge plane REQUIRES
     // its findings payload (the schema-required field — cli.test pins the review
     // carrier's findings + status), the work plane builds a findings-FREE typed carrier
     // (the work writable subset declares no findings field — a docs-fix draft's residual
     // findings are dropped, never materialized). `Record<string, unknown>` local: the
     // round conclusion (status — a RoundStatus, wider than the carrier's declared union)
-    // and the engine's extended fields ride the caller's set below.
+    // and the engine's extended fields ride the caller's set below. A dropped slot is
+    // read as absent here — the copy points are where the drop must land, never a
+    // second pass over the raw draft.
+    const artifacts = droppedDecorative.includes("artifacts") ? undefined : draft.artifacts;
     const carrier: Record<string, unknown> =
       plane === "judge"
         ? ledger.buildHandoff("judge", {
-            artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
-            findings: this.#findingsList(draft.findings),
+            artifacts: this.#canonicalArtifacts(frame, artifacts, notes),
+            findings: this.#findingsList(draft.findings, droppedDecorative),
           })
         : ledger.buildHandoff("work", {
-            artifacts: this.#canonicalArtifacts(frame, draft.artifacts, notes),
+            artifacts: this.#canonicalArtifacts(frame, artifacts, notes),
           });
     // The work plane ALONE persists the round conclusion — it is the child's own
     // declared status (the schema enum pinned it to APPROVED | BLOCKED). The judge
@@ -1613,15 +1634,21 @@ export class CliLifecycle {
     // persisted judge carrier stays the pure declaration plane
     // (findings/artifacts/notes) and a fix child's INPUT_REVIEWS carrier is
     // status-free (the judgment plane is perpendicular to the input plane · D27).
-    const draftNotes = Array.isArray(draft.notes) ? [...(draft.notes as unknown[])] : [];
+    const draftNotes = droppedDecorative.includes("notes")
+      ? []
+      : Array.isArray(draft.notes)
+        ? [...(draft.notes as unknown[])]
+        : [];
     if (plane === "work") {
       carrier.status = status;
       // The fix dispositions ride the carrier VERBATIM (the child's declaration, never
       // an engine rewrite) — the schema pinned the slot's object shape.
-      if (draft.dispositions !== undefined) carrier.dispositions = draft.dispositions;
+      if (draft.dispositions !== undefined && !droppedDecorative.includes("dispositions")) {
+        carrier.dispositions = draft.dispositions;
+      }
     }
     if (notes.length > 0 || draftNotes.length > 0) carrier.notes = [...notes, ...draftNotes];
-    return carrier;
+    return { carrier, violations: observations.map((text) => RoundViolation.soft(text)) };
   }
 
   /** The carrier's artifacts map (find #5 — the engine self-derives, never trusts a
@@ -1705,14 +1732,26 @@ export class CliLifecycle {
    *  for the ONE engine-owned column: `id`, stamped from the carrier position (`F1`,
    *  `F2` …) and overwriting whatever the child wrote (P30 §2.5 — the disposition
    *  primary key belongs to the engine, never to the audited prose). This is the only
-   *  write point of a finding id in the engine. */
-  #findingsList(findings: unknown): unknown[] {
+   *  write point of a finding id in the engine.
+   *
+   *  `dropped` is the tiered read-back's decorative paths — the finding row's own
+   *  out-of-tier columns (`findings[i].line` and friends) are removed HERE, the copy
+   *  point for a nested drop (spec §2.14), so the carrier never re-acquires a column
+   *  the read-back refused. */
+  #findingsList(findings: unknown, dropped: readonly string[] = []): unknown[] {
     const rows = Array.isArray(findings) ? findings : [];
-    return rows.map((row, index) =>
-      typeof row === "object" && row !== null && !Array.isArray(row)
-        ? { ...(row as Record<string, unknown>), id: `F${index + 1}` }
-        : row,
-    );
+    return rows.map((row, index) => {
+      if (typeof row !== "object" || row === null || Array.isArray(row)) return row;
+      const copy: Record<string, unknown> = {
+        ...(row as Record<string, unknown>),
+        id: `F${index + 1}`,
+      };
+      for (const path of dropped) {
+        const column = HandoffSchema.findingColumnOf(path, index);
+        if (column !== null) delete copy[column];
+      }
+      return copy;
+    });
   }
 
   /** The same-command resume string — the crash record's `next`, mirroring the

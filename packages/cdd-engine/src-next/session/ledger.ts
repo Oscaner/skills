@@ -91,6 +91,11 @@ export type RoundViolation = {
   readonly message: string;
 };
 
+/** The cause a declared BLOCKED / TIMEOUT round books on the entry it synthesizes when
+ *  it authored NO fact of its own — the round's own conclusion (`round-blocked`),
+ *  never `contract-violation`: nothing about the record broke (P34 T5). */
+export const CONCLUDED_BLOCKED_CAUSE = "round-blocked";
+
 /** The graded-violation literals' ONE construction point — the cause vocabulary is
  *  a declared convergence point, so its shape is held here rather than copied per
  *  call site. `cause` defaults to `contract-violation`, the ledger's existing row
@@ -1700,11 +1705,29 @@ export class Ledger {
     // un-materialized payload whose findings carry no engine id).
     const final = RoundNaming.renderName(Ledger.#artifactOf(op, type, resolved), "final");
     if (final !== canonical && this.#read<unknown>(final) !== null) return final;
-    if (!RETIRED_SPEC_LINE_KEYS.has(type) || this.#read<unknown>(canonical) !== null) {
-      return canonical;
+    if (!RETIRED_SPEC_LINE_KEYS.has(type)) {
+      return this.#legacyCarrierName(op, type, resolved) ?? canonical;
     }
+    if (this.#read<unknown>(canonical) !== null) return canonical;
     const retired = Ledger.#retiredCarrierName(op, params);
     return this.#read<unknown>(retired) === null ? canonical : retired;
+  }
+
+  /** The pre-P34 cycle-less spelling of the round's own family name — the ONE carrier
+   *  the P34 respelling moved (`tasks-{tasks}-implement.json` → `…-implement-{cycle}.json`),
+   *  so a folded legacy record (no recorded path, no digest) still resolves its own
+   *  bytes instead of reading as absent while the orphan scan still claims the file.
+   *  The rung is READ-ONLY and cycle-1 · attempt-1 alone: the legacy spelling carried
+   *  neither coordinate, so no later cycle or attempt may read it. null when the op is
+   *  not an implement, the round is past its first cycle/attempt, the family does not
+   *  exist, the legacy name IS the canonical one, or the file is absent. */
+  #legacyCarrierName(op: string, type: string, params: HandoffParams): string | null {
+    if (RoundRecords.opOf(op) !== "implement") return null;
+    if ((params.round ?? 1) !== 1 || (params.attempt ?? 1) !== 1) return null;
+    if (!this.#families.includes(`${op}.${type}` as HandoffFamily)) return null;
+    const legacy = this.handoffName(op, type, { tasks: params.tasks });
+    if (legacy === this.handoffName(op, type, params)) return null;
+    return this.#read<unknown>(legacy) === null ? null : legacy;
   }
 
   /** The params one READ resolves under — the caller's attempt when it names one, else

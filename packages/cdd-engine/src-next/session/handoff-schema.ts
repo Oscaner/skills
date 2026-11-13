@@ -235,13 +235,14 @@ export class HandoffSchema {
 
   /** The TIERED read-back — the dispatch gate's ONE ruling (spec §2.1): a REQUIRED
    *  slot that violates its declaration REFUSES the draft (the round blocks), while a
-   *  DECORATIVE slot (declared, not required — the work plane's `notes` /
-   *  `dispositions`, the finding row's `id` / `section` / `line` / `fix`) is DROPPED:
-   *  its path is reported once and the slot is never carried. The walk WRITES nothing
-   *  — materialize's copy points (`draftNotes` / `dispositions` / `#findingsList`)
-   *  consume `dropped`, so the ruling and the carrier cannot disagree. A wrong
-   *  decorative value costs a field, never a round — the refusal face stays exactly as
-   *  wide as the fields the child owes. */
+   *  DECORATIVE slot (declared, not required — BOTH planes' `notes`, the work plane's
+   *  `dispositions`, the judge plane's `artifacts` and the finding row's `id` /
+   *  `section` / `line` / `fix`) is DROPPED: its path is reported once and the slot is
+   *  never carried. The walk WRITES nothing — materialize's copy points (`draftNotes`
+   *  / `dispositions` / the judge carrier's `artifacts` read at lifecycle.ts's
+   *  `#materialize` / `#findingsList`) consume `dropped`, so the ruling and the carrier
+   *  cannot disagree. A wrong decorative value costs a field, never a round — the
+   *  refusal face stays exactly as wide as the fields the child owes. */
   readBack(plane: CarrierPlane, draft: Record<string, unknown>): ReadBack {
     const out: CheckOut = { tier: "tiered", problems: [], dropped: [] };
     this.#check(this.#writable(plane), draft, "", out);

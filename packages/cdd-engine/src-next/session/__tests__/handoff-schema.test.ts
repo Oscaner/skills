@@ -256,6 +256,28 @@ describe("projection ② — the tiered read-back (readBack: required refuses, d
     expect(schema.readBack("work", artifactsDraft).problems).toEqual([
       "artifacts: expected an object",
     ]);
+    // …and DECORATIVE on the judge plane, where the same bad value costs the field
+    // alone (spec §2.14 — the judge's own write slots are findings/artifacts/notes)
+    const judgeArtifacts: Record<string, unknown> = { ...FINDINGS, artifacts: "nope" };
+    expect(schema.readBack("judge", judgeArtifacts)).toEqual({
+      problems: [],
+      dropped: ["artifacts"],
+    });
+    expect(judgeArtifacts.artifacts).toBe("nope");
+    const judgeNotes: Record<string, unknown> = { ...FINDINGS, notes: 7 };
+    expect(schema.readBack("judge", judgeNotes)).toEqual({ problems: [], dropped: ["notes"] });
+  });
+
+  it("accepts a judge row's `line: null` — the decorative column drops, the row and its round survive", () => {
+    // The other plane's decorative column: `line` is declared integer + optional, so a
+    // null costs the column, never the finding (§2.14's review-carrier case).
+    const draft: Record<string, unknown> = {
+      findings: [{ severity: "warn", lens: "spec", summary: "drift", line: null }],
+    };
+    expect(schema.readBack("judge", draft)).toEqual({
+      problems: [],
+      dropped: ["findings[0].line"],
+    });
   });
 
   it("DROPS a finding row's decorative column, keeping the row and the required columns", () => {

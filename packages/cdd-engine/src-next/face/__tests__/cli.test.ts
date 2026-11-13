@@ -6705,12 +6705,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         dispatchBase: null,
         treeClean: false,
         // P22 — a failure is never a silent absence: the round's verdict denies the
-        // target action and names the hard entry that failed it.
+        // target action and names the hard entry that failed it. P34 T5 — the entry the
+        // engine synthesizes for a round that authored NO fact carries its own cause
+        // (`round-blocked`): the round's declared conclusion is not a broken contract.
         verdict: { treeClean: false, targetAction: false },
         violations: [
           {
             grade: "hard",
-            cause: "contract-violation",
+            cause: "round-blocked",
             message: "the round concluded BLOCKED",
           },
         ],

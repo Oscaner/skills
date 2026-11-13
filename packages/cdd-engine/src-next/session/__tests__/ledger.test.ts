@@ -670,6 +670,28 @@ describe("rounds — the per-round records (P22 T3: record → status, one direc
     }
   });
 
+  it("carrierPathOf resolves a pathless legacy IMPLEMENT record's cycle-less file — the one spelling P34 moved", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // The folded row: `rounds: { implement: [1] }`, no recorded path, no digest. Its
+      // carrier is the pre-P34 spelling — the canonical `…-implement-1.json` and the
+      // `.c1` final were never minted, so the ladder must probe the legacy name or the
+      // board reads an absent carrier while the orphan scan still claims the file.
+      const legacy = workspace.resolve("tasks-1-implement.json");
+      workspace.writeJson("tasks-1-implement.json", { status: "APPROVED" });
+      seedRaw(ledger, { wave: "1", rounds: { implement: [1] } });
+      const record = ledger.recordsOf("1")[0]!;
+      expect(record.cycle).toBe(1);
+      expect(ledger.carrierPathOf("wave", "1", record)).toBe(legacy);
+      expect(ledger.orphanHandoffs()).toEqual([]);
+      // the rung is cycle-1 alone: the legacy name carried no coordinate, so cycle 2's
+      // never-minted canonical name stays the absent read
+      expect(ledger.carrierPathOf("wave", "1", { ...record, cycle: 2 })).toBe("");
+    } finally {
+      cleanup();
+    }
+  });
+
   it('carrierPathOf reads `""` when every rung misses — the unrecorded face, never a fabricated name', () => {
     const { ledger, cleanup } = fixture();
     try {

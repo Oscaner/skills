@@ -480,10 +480,16 @@ class ReviewDraftRunner implements ChildRunner {
 
   readonly #findings: readonly Record<string, unknown>[];
   readonly #draft: string;
+  readonly #extra: Record<string, unknown>;
 
-  constructor(findings: readonly Record<string, unknown>[], draft = "tasks-1-review-1.json") {
+  constructor(
+    findings: readonly Record<string, unknown>[],
+    draft = "tasks-1-review-1.json",
+    extra: Record<string, unknown> = {},
+  ) {
     this.#findings = findings;
     this.#draft = draft;
+    this.#extra = extra;
   }
 
   async run(run: ChildRun): Promise<ChildOutcome> {
@@ -491,7 +497,7 @@ class ReviewDraftRunner implements ChildRunner {
     mkdirSync(path.join(run.cwd, ".kairos", "cdd", "p30"), { recursive: true });
     writeFileSync(
       path.join(run.cwd, ".kairos", "cdd", "p30", this.#draft),
-      JSON.stringify({ findings: this.#findings }),
+      JSON.stringify({ findings: this.#findings, ...this.#extra }),
       "utf8",
     );
     return { code: 0, stdout: "", stderr: "", termination: null };
@@ -567,6 +573,33 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
       expect((outcome.violations ?? []).map((violation) => violation.grade)).toEqual(["soft"]);
       expect(outcome.violations?.[0]?.message).toContain("findings[0].line");
       expect(outcome.violations?.[0]?.message).toContain("findings[0].section");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("drops a judge-plane `artifacts` / `notes` outside its declared shape — two losses, ONE soft entry, a conforming carrier", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      // The judge plane's shared slots are DECLARED, not required: a bad value costs the
+      // field alone (§2.14), exactly as the work plane's `dispositions` does.
+      const runner = new ReviewDraftRunner(
+        [{ severity: "warn", lens: "spec", summary: "drift" }],
+        "tasks-1-review-1.json",
+        { artifacts: "nope", notes: 7 },
+      );
+      const { outcome } = await dispatchFrame(f, reviewFrame, runner);
+      const carrier = outcome.carrier as { artifacts?: unknown; notes?: unknown };
+      // the copy points read the drop: neither bad value reaches the carrier, and the
+      // built carrier still conforms to the judge plane's own declaration
+      expect(carrier.artifacts).toEqual({});
+      expect(carrier.notes).toEqual([
+        "dropped decorative draft field(s) outside their declared shape: artifacts, notes — never written",
+      ]);
+      // the round survives — one soft entry, no hard one, the findings roll the status up
+      expect(outcome.status).toBe("REVIEW_FIX");
+      expect((outcome.violations ?? []).map((violation) => violation.grade)).toEqual(["soft"]);
+      expect(f.io.stderrText).not.toContain("CDD_BLOCKED");
     } finally {
       f.cleanup();
     }

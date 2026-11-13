@@ -403,6 +403,66 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).not.toContain("child-exit");
   });
 
+  it("the node board's overall row reads the PROGRAM workspace's own rounds — the parent's line renders once, with its own +N", () => {
+    // P34 T5 — the overall row is the program's line, never the node's: its rounds and
+    // its carriers come from the program workspace, so a node board reports the parent's
+    // progress instead of an empty row (and the node's own stray `overall` row never
+    // answers for it).
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+    const carrierAt = path.join(repo, ".kairos/cdd/prog-overall/overall-review-1.json");
+    mkdirSync(path.dirname(carrierAt), { recursive: true });
+    writeFileSync(
+      carrierAt,
+      `${JSON.stringify({ findings: [{ severity: "warn" }, { severity: "nit" }] }, null, 2)}\n`,
+      "utf8",
+    );
+    seed("prog-overall", [
+      {
+        wave: "overall",
+        rounds: [
+          {
+            op: "review",
+            cycle: 1,
+            attempt: 1,
+            dispatchBase: null,
+            carrierPath: carrierAt,
+            verdict: { treeClean: true, targetAction: true },
+            violations: [],
+          },
+        ],
+      },
+    ]);
+    // The node's own workspace carries a stray `overall` row — it must not answer: the
+    // overall line belongs to the program workspace alone.
+    seed("prog-p1", [
+      { wave: "overall", rounds: { review: [1] } },
+      { wave: "phase-spec", rounds: { review: [1] } },
+    ]);
+
+    const { text } = render("prog-p1");
+
+    const overallRows = text.split("\n").filter((row) => row.startsWith("  overall "));
+    expect(overallRows).toHaveLength(1);
+    // the program's single review round, with the findings count read from ITS carrier
+    expect(overallRows[0]).toContain("review 1 ✓+2");
+    // the node's own lines keep the node's workspace
+    expect(text).toContain("  spec     prog-p1-design.md");
+  });
+
   it("phase board next: the first not-closed line renders its ACTIVE C5 hop (the spec review)", () => {
     // D40 deep-solve — the spec line has not started its C5 (no review round on record),
     // so its ACTIVE hop is the review-lead the dispatch engine would run (Ledger#lineRoute

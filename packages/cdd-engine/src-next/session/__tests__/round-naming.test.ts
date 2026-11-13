@@ -67,20 +67,32 @@ describe("RoundNaming — the ONE renderer (every kind, every line, every cycle/
       { type: "branch", line: "branch", op: "fix" },
     ];
     const kinds: readonly ArtifactKind[] = ["draft", "final", "report", "log", "crash", "evidence"];
-    for (const { line, op } of lines) {
-      for (const cycle of [1, 2]) {
-        for (const attempt of [1, 2]) {
-          for (const kind of kinds) {
-            const rendered = RoundNaming.renderName({ line, op, cycle, attempt }, kind);
-            const stem = `${line}-${op}-${cycle}${attempt > 1 ? `-a${attempt}` : ""}`;
-            expect(rendered).toContain(stem);
-            expect(rendered.startsWith("crash-")).toBe(kind === "crash");
-            expect(rendered.endsWith("-report.md")).toBe(kind === "report");
-            expect(rendered.endsWith(".log")).toBe(kind === "log");
-            expect(rendered.endsWith("-test-evidence.json")).toBe(kind === "evidence");
-          }
-        }
+    // The acceptance grid (spec §2.3): every line × cycle 1–2 × attempt 1–3.
+    const identities = lines.flatMap(({ line, op }) =>
+      [1, 2].flatMap((cycle) => [1, 2, 3].map((attempt) => ({ line, op, cycle, attempt }))),
+    );
+    // INJECTIVITY first: no two round identities may share a name of the same kind, so a
+    // spelling that silently collapses two identities (the draft/final twin this test
+    // grew from) fails here and not only under the wave implement literals.
+    for (const kind of kinds) {
+      const rendered = identities.map((identity) => RoundNaming.renderName(identity, kind));
+      expect(new Set(rendered).size, `${kind} names must be unique per identity`).toBe(
+        identities.length,
+      );
+    }
+    for (const identity of identities) {
+      const stem = `${identity.line}-${identity.op}-${identity.cycle}${identity.attempt > 1 ? `-a${identity.attempt}` : ""}`;
+      for (const kind of kinds) {
+        const name = RoundNaming.renderName(identity, kind);
+        expect(name).toContain(stem);
+        expect(name.startsWith("crash-")).toBe(kind === "crash");
+        expect(name.endsWith(`-report.md`)).toBe(kind === "report");
+        expect(name.endsWith(".log")).toBe(kind === "log");
+        expect(name.endsWith("-test-evidence.json")).toBe(kind === "evidence");
       }
+      // the final's own coordinate — `final` closes the cycle in its name, `draft` never does
+      expect(RoundNaming.renderName(identity, "final")).toContain(`.c${identity.cycle}`);
+      expect(RoundNaming.renderName(identity, "draft")).not.toContain(`.c${identity.cycle}`);
     }
   });
 

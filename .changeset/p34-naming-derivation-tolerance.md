@@ -13,18 +13,27 @@ omitted at attempt 1; the implement family carries its cycle like the review and
 families do, so a task's implement carrier is `tasks-1-implement-1.json` and never
 shadows a later attempt. Round records no longer carry `carrierPath` / `draftPath`: the
 ledger derives both from the record's own identity, so a record cannot disagree with the
-name it was written under, and an existing row's values are still read as history.
+name it was written under, and an existing row's values are still read as history. A
+row that never recorded a path still resolves its carrier: the read ladder probes the
+retired spellings first — `spec-{op}-{round}.json`, and the cycle-less
+`tasks-{tasks}-implement.json` of a first-cycle implement — before reporting the carrier
+absent, so a folded legacy row and the orphan scan agree about the same file.
 
 **The board names a crash.** A round that booked a withheld target action with at least
 one hard violation renders its token in the top fact block's single `crashed:` row —
 op, cycle · attempt, and the first hard cause — with every crashed round joined by
 ` · ` on that one line. The row is an observation: the counts, the legend and the
-`next:` hop are byte-identical with or without it.
+`next:` hop are byte-identical with or without it. A round that declared its own
+BLOCKED / TIMEOUT and booked only soft entries has no crashed token; the failure entry
+the engine synthesizes for a round that authored no fact of its own is booked as
+`round-blocked`, never `contract-violation` — a declared conclusion is not a broken
+contract.
 
 **The read-back has two tiers.** A required slot that breaks its declaration still
-blocks the round; a decorative slot — `notes`, `dispositions`, or a finding's `id` /
-`section` / `line` / `fix` — is dropped from the draft in place and surfaced once on the
-carrier's notes. A wrong optional column costs a field, never a round.
+blocks the round; a decorative slot — `notes` on either plane, the judge plane's
+`artifacts`, a work round's `dispositions`, or a finding's `id` / `section` / `line` /
+`fix` — is dropped from the draft in place and surfaced once on the carrier's notes. A
+wrong optional column costs a field, never a round.
 
 **Only an open wave is judged against the layers.** `closed-wave-fits-depends-on-layers`
 now reads the ledger's open waves: a closed wave's layer fit was judged when it was

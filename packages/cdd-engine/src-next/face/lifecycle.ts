@@ -37,6 +37,7 @@ import type { CarrierPlane } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
 import {
+  CONCLUDED_BLOCKED_CAUSE,
   type CrashCause,
   type HandoffParams,
   Ledger,
@@ -428,19 +429,21 @@ export class CliLifecycle {
       this.#logUnavailable === null ? [] : [this.#logUnavailable];
     if (outcome.status === "BLOCKED" || outcome.status === "TIMEOUT") {
       const authored = outcome.violations ?? [];
-      // The failure itself is the HARD fact: a failing round whose only authored entries
-      // are SOFT (the read-back's dropped decorative fields) books its own hard entry —
-      // a soft-only list is not an authored failure, and the board's crashed row and
-      // the failure reason both read hard entries alone (§3.3).
-      const failed = authored.some((violation) => violation.grade === "hard");
+      // The failure itself is the HARD fact — but only for the round that authored NO
+      // entry at all (the no-host / silent route). A round that DECLARED its own
+      // BLOCKED / TIMEOUT and paid with soft entries alone (the read-back's dropped
+      // decorative fields, a write-back nothing measured) declared its failure itself:
+      // the board's crashed row and the failure reason read hard entries alone (§3.3),
+      // so an invented one would report an outcome the round never had (P34 T5 — such a
+      // round is ABSENT from `crashed:`). The synthesized entry carries its OWN cause,
+      // never `contract-violation`: a declared conclusion is not a broken contract.
+      const synthesized =
+        authored.length === 0
+          ? [RoundViolation.hard(`the round concluded ${outcome.status}`, CONCLUDED_BLOCKED_CAUSE)]
+          : [];
       return {
         verdict: { treeClean, targetAction: false },
-        violations: [
-          ...(failed
-            ? authored
-            : [...authored, RoundViolation.hard(`the round concluded ${outcome.status}`)]),
-          ...logEntries,
-        ],
+        violations: [...authored, ...synthesized, ...logEntries],
       };
     }
     // The evidence gate is judged ONCE: its graded entries ride the verdict AND its
@@ -1560,6 +1563,9 @@ export class CliLifecycle {
    *  separate fact (`#verdictOf`): a hard round fails on its record + exit code, while
    *  the carrier keeps the child's own declared status (the engine never rewrites a
    *  declaration to encode a judgment). */
+  // Rule zero — five params: the first four ARE the carrier (frame · plane · draft ·
+  // status), and `droppedDecorative` is the read-back ruling the call already owns; a
+  // parameter object would only rename the call site, not remove the coupling.
   #materialize(
     frame: OpenFrame,
     plane: CarrierPlane,

@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 计划：轮次产物身份的单射渲染'
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-13
 slug: 2026-10-10-engine-doc-tooling-p34
 base: develop
@@ -9,12 +9,14 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p34-design.md` **现行 version v0.7** 所指的面；spec 版本一变，本约束的字面同笔改。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p34-design.md` **现行 version v0.8** 所指的面；spec 版本一变，本约束的字面同笔改。
 - **单射性是唯一不变量**：条件只允许出现在**渲染的省略**上（`attempt === 1` 不拼 `-a{n}`）；坐标本身恒从身份取，任何「满足某条件才拼坐标」的写法都是 §2.1 的反例。
 - **`progress.json` 形状不变**：只停写 `carrierPath` / `draftPath`，不迁移旧值、不加版本标记。
 - **不加运行时守护门**：写一次是构造属性；seal 的既有 unseal→写→seal 循环保留，不加「重写即拒」。
 - **seal 窗口不扩**：只 `draft` + `final` 两个载体进窗口；`report` / `log` / `evidence` / `crash` 不进。
 - **`next:` 字面零变更**（D70）。
+- **来源行与层收窄都不进分级**：`crashed:` 行不进 legend 词表、不进任何计数、不改 `next:`（§2.13）；闭合 wave 的层收窄不新增持久字段（§2.15）。
+- **坏值分档的边界由 `required` 声明驱动**：不在 `#materialize` 手写第二份字段清单（§2.14 / §3.8）。
 - **不动收敛主线（D70）**：`session/next.ts`、`Ledger#nextHopOf`、`NextStepRouter`、`WaveGate` / `DispatchAuthority` 的分级计数与下一跳判定**零改动**——本相位不新增分级信号、不安装「按 route kind 反推」的分支、不改 Loop-vs-converge 的判据面。board 的 `+N` 是**渲染面**（一个计数从哪个产物读），不是分级信号；若某一步看起来必须动下一跳才能完成，停下来上报，不得顺手扩面。
 - **不引入新依赖**；changeset 只 `@oscaner-skills/cdd-engine` **minor**；不发布；波宽 ≤ 3；零模块级裸函数。
 - **不适用 kind 渲空串**：`evidence` 在四个文档形上渲 `""`，调用方按「无此产物」处理，空串不是名字、不入单射比较。
@@ -204,9 +206,139 @@ preflight 的 unseal 集合与 terminal 的 seal 集合都改用本轮身份的 
 
 2
 
+---
+
+### Task 4: 孤儿归属 = 记录归属
+
+#### Objective
+
+`Ledger#orphanHandoffs` 的认领谓词从「本行有一条 `targetAction` 的轮」改为「本行任意记录认领该 `(op, cycle)`」。abort 轮（`interrupted`）算认领；legacy 行再由记录的 `carrierPath` 直指同一文件补一档认领。board 的 `orphan:` 文案不动——它本来就是这么说的。
+
+#### Files
+
+- Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`orphanHandoffs` 的认领谓词；legacy 的 `carrierPath` 认领档）
+- Test: `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`（BLOCKED 落载体不列孤儿 · 未入账草稿仍列 · legacy `carrierPath` 直指算认领）
+- Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（board 的 `orphan:` 行只列真孤儿）
+
+#### Consumes
+
+- Task 1 的身份渲染（把名字反解成 `(line, op, cycle)`）
+- Task 2 的 `Ledger#carrierPathOf`（legacy 档）
+
+#### Produces
+
+- `orphanHandoffs()` 的认领语义：任意记录认领 + legacy 路径直指认领
+
+#### Steps
+
+- 写失败测（BLOCKED 落载体）：一行有 `targetAction: false` 且记录了 `carrierPath`，文件在 → 不列孤儿 — checkable: 定向 vitest FAIL
+- 写失败测（真孤儿仍在）：文件在、本行无记录 → 仍列 — checkable: FAIL
+- 写失败测（legacy 认领）：记录的 `carrierPath` 直指该文件、但名字反解不出同一 `(op, cycle)` → 不列 — checkable: FAIL
+- 改谓词与 legacy 档 — checkable: 三条测 PASS
+- 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run` 与 typecheck exit 0
+- 提交 — checkable: `git log -1 --oneline` 含本任务主题
+
+#### Acceptance
+
+- BLOCKED / abort 但已入账的载体不再列孤儿；真正未入账的仍列一次；legacy 路径直指算认领。
+- board 的 `orphan:` 文案保持 `no recorded round owns it`（它现在为真）。
+
+#### DependsOn
+
+1, 2
+
+---
+
+### Task 5: 崩溃 / 中断的来源行（不参与分级）
+
+#### Objective
+
+board 在 `in-flight` / `orphan` 同级加一行 `crashed:`，由记录自己的 `violations[].cause` 派生，列出 `(op, cycle·attempt, cause)`；`✗` 保留。该行是纯观测，不参与任何判定。
+
+#### Files
+
+- Modify: `packages/cdd-engine/src-next/face/board-view.ts`（`inFlightRows` 同级渲 `crashed:` 行，数据源为行内记录）
+- Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（有崩溃记录时该行存在且带 cause · 无 cause 时不出现 · 有无崩溃两夹具的 `next:` / `+N` / 计数逐字节相同）
+
+#### Consumes
+
+- `RoundRecord.violations[].cause` 的既有值域（`contract-violation` / `interrupted` / `stalled` / `over-budget` / `signal` / `child-exit`）
+
+#### Produces
+
+- `BoardView` 的 `crashed:` 行渲染（零分级接入）
+
+#### Steps
+
+- 写失败测（行存在）：一条 `interrupted` 记录 → board 含 `crashed:` 且带 `interrupted` — checkable: FAIL
+- 写失败测（无崩溃不出现）：记录无 violation → 不渲该行 — checkable: FAIL
+- 写失败测（不参与分级）：同一 slug 两夹具（有 / 无崩溃记录）的 `next:` 行、`+N` 与 blocker 计数逐字节相同 — checkable: FAIL
+- 实现渲染 — checkable: 三条 PASS
+- 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run` 与 typecheck exit 0
+- 提交 — checkable: `git log -1 --oneline` 含本任务主题
+
+#### Acceptance
+
+- `crashed:` 行按记录列出 cause 与 `(cycle, attempt)`；`✗` 保留。
+- 有无崩溃记录两种夹具下 `next:` 字面、`+N`、blocker 计数逐字节相同（D70：零第二套分级）。
+- 该行不进 legend 词表。
+
+#### DependsOn
+
+none
+
+---
+
+### Task 6: 宽容面——坏值分档 + 闭合 wave 层判据收窄
+
+#### Objective
+
+两处过严判据按**事实负载度**分档（同一条判据：不该红的地方不要红）。① 载体坏值：`required` 字段（work 的 `status` / `artifacts`、judge 的 `findings`、finding 的 `severity` / `lens` / `summary`）坏值仍 BLOCKED；非 required 的装饰字段（`id` / `section` / `line` / `fix` / `notes`）坏值 drop 该键 + 一条 soft observation。② `closed-wave-fits-depends-on-layers` 只判**未闭合** wave，闭合面交既有的 `planned-tasks-vs-recorded-tasks`（`planTasks` 快照）。两处合并为一任务的理由：同一个「过严判据」根因，两处各一行改动，合并后波宽仍 ≤ 3。
+
+#### Files
+
+- Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（按 `required` 分档的校验面，暴露装饰字段集）
+- Modify: `packages/cdd-engine/src-next/session/run.ts`（读回校验的调用点：坏值落到 drop + soft 而非整条拒绝）
+- Modify: `packages/cdd-engine/src-next/contract/rules.ts`（层判据只对未闭合 wave 生效；`invariants.ts` 的站点随动）
+- Test: `packages/cdd-engine/src-next/session/__tests__/handoff-schema.test.ts`（`line: null` 被接受 + 一条 soft · `severity` / `findings` / `status` 坏值仍 BLOCKED）
+- Test: `packages/cdd-engine/src-next/contract/__tests__/rules.test.ts`（已闭合 wave 事后改依赖零红 · 未闭合 wave 跨层仍红）
+
+#### Consumes
+
+- `PLANE_REQUIRED` / `FINDING.required` 的既有声明面
+- `#materialize` 对非声明字段的 drop + WARN 路（复用，不新造）
+- `ProgressRow.planTasks` 的闭合快照
+
+#### Produces
+
+- `handoff-schema` 的坏值分档校验（装饰字段 drop + soft，负载字段 BLOCKED）
+- 层判据的闭合豁免（`closed-wave-fits-depends-on-layers` 只对未闭合生效）
+
+#### Steps
+
+- 写失败测（装饰字段容错）：judge 载体含 `findings[].line = null` → 载体被接受，记一条 soft — checkable: 定向 vitest FAIL（今日整条被拒）
+- 写失败测（负载字段不放宽）：`severity` / `findings` / `status` 任一处坏值 → 仍 BLOCKED — checkable: FAIL
+- 写失败测（闭合豁免）：一条已闭合 wave，事后改 `DependsOn` 使其与现算层不符 → 零红 — checkable: FAIL
+- 写失败测（未闭合仍红）：未闭合 wave 跨层 → 仍红 — checkable: FAIL
+- 实现分档校验与层判据收窄 — checkable: 四条测 PASS
+- 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run` 与 typecheck exit 0
+- 提交 — checkable: `git log -1 --oneline` 含本任务主题
+
+#### Acceptance
+
+- `line: null` 的 review 载体被接受并记一条 soft，轮次照常结束。
+- `severity` / `findings` / `status` 的坏值仍 BLOCKED（负载面不缩）。
+- 已闭合 wave 事后改依赖零红；未闭合 wave 跨层仍红。
+- 坏值分档的边界读 `required` 声明，不在 `#materialize` 手写第二份清单。
+
+#### DependsOn
+
+none
+
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-13 | P34 计划初稿：T1 渲染单源 + 扫描面收窄（网格 pin · 守恒边界 · implement 五 kind 携 cycle · evidence 三坐标）· T2 读写缝（`carrierPathOf` / `ownerOf` / 四条读面 / 记录停写两字段 / implement 填 round）· T3 preflight-seal 同源窗口 + 守卫 pin + changeset。 | '[human] 裁定 · Claude（kairos:cdd-plan · 2026-11-13）' |
 | v0.2 | 2026-11-13 | 评审回改（docs-fix round 1）：T1 收 `#paramsOf` 的 implement round 与拼写夹具、`#handoffOwner` 反向归属改结构化反解；T2 补摘要缝（删 `carrierPath === null` 门）、第五条读面 `#reviewsPath`、`#judgedRecordOf` / `#ownRefusal` 摘格，`run.ts` 行改指 `session/run.ts`；T3 补第三条守卫（零 `carrierPath` 读）与崩溃记录的读回断言；Review Focus 改指 `Run#roundFor`。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-13）' |
+| v0.3 | 2026-11-13 | 并入四条同族面（spec v0.8 · 用户裁定「全并」）：新增 T4 孤儿归属（记录归属 + legacy 路径档）、T5 崩溃/中断来源行（不参与分级）、T6 宽容面（坏值按 `required` 分档 drop + soft · 闭合 wave 层判据收窄）。波次：W1{1,5,6} → W2{2} → W3{3,4}。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |

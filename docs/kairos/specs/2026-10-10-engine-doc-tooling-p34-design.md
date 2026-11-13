@@ -1,8 +1,8 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 设计：载体身份收为轮次身份的单射渲染'
 doc-type: phase-spec
-version: v0.9
-date: 2026-11-13
+version: v0.10
+date: 2026-11-14
 slug: '2026-10-10-engine-doc-tooling-p34'
 program: 2026-10-10-engine-doc-tooling
 parent-version: v3.61
@@ -166,9 +166,11 @@ P31 §2.4 的窗口成员必须与本轮渲染同源，否则新名字让人「�
 
 裁定：**归属 = 本行有一条记录，其完整身份渲染出的产物名等于该文件**，与 verdict 无关——认领键是产物自己的渲染身份 `(line, op, cycle, attempt)`（`kind` 由文件名的后缀读出，§2.1），**`attempt` 不是可以丢掉的坐标**。abort 轮（`interrupted`）也算认领——它的产物属于那一轮。真正的孤儿因此收窄为「这个文件没有任何记录认领」。
 
+判据按**反向读**实现，不按正向渲染比较：从扫描到的文件名解出 `(line, op, cycle, attempt)`（缺该坐标的 legacy 拼写按 1 读，§3.4），再看本行有没有记录的身份等于它。正向比较在两类合法输入上必错：implement 族 attempt-1 的拼写在本相位换新（§2.6 的例外：`tasks-6,7-implement.json` → `tasks-6,7-implement-1.json`），按新身份渲染出的名字永远不等于磁盘上的旧拼写；pre-P31 行又整条没有路径可回退（`RoundRecords.completed` 合成 `carrierPath: null`，`session/ledger.ts:287-296`；`RoundRecords.of` 把 legacy `rounds: {implement: [1]}` 折叠过去，`:278-281`），而这类行的文件是活着的——本仓 `.kairos/cdd/2026-10-10-engine-doc-tooling-p16/progress.json` 里 `{"wave":"1","rounds":{"implement":[1],"review":[1]}}` 就是这样一行，`tasks-1-implement.json` 归它。所以反向读的每族拼写表要同时收 legacy 形，解出的 identity 与记录 identity 直接对等，不经名字渲染。
+
 把键退回 `(op, cycle)` 会在归属面上把本相位的成果重新抹掉：attempt-2 的 draft 与 attempt-1 的 draft 是两个不同名字，前者只由 attempt-2 的记录认领；用 attempt-free 键时 attempt-1 的记录也「认领」`tasks-6,7-implement-1-a2.json`，而 §2.6 的守恒保证 attempt-1 的 final 仍在盘上、也仍被它自己的记录认领——acceptance 的「出现恰好一次」于是永远不可能成立。今天的实现正是这个键：`orphanHandoffs`（`session/ledger.ts:1738`）把完成集算成 `${record.op}:${record.cycle}`（`:1743-1749`），`#handoffOwner`（`:1778`）只返回 `{key, op, round}`——attempt 在这两处都被丢掉了，所以反向读必须先解出该坐标并保留它（§3.4）。
 
-legacy 行再加一档：记录的 `carrierPath` 指向该文件即算认领（随字段退场同时退场）。这一档必须点名比较基准，否则它静默不生效：`persistHandoff` 返回的 `path` 是 `this.#workspace.resolve(finalName)`（`session/ledger.ts:1623`）——含目录的绝对形；`carrierPath` 不在读时相对化的路径键集里（`PERSISTED_PATH_KEYS` 只有 `doc` / `plan`，`infra/workspace.ts:49`），所以它按落盘形读回；扫描面拿到的却是裸文件名（`#workspaceFiles` 映射 `entry.name`，`session/ledger.ts:1764`）。因此这一档比较 `path.basename` 的两侧（扫描名与记录的 `carrierPath`），基准写在这里而不是留给实现去猜——与 §2.7 / D46 的「一条基准」同一课。
+legacy 行再加一档：记录的载体路径指向该文件即算认领（随字段退场同时退场）。记录侧的值**一律经 `Ledger#carrierPathOf(type, key, record)` 取**，不裸读 `carrierPath`——accessor 的 step 1 就是记录的 `carrierPath` 原值（§2.10），legacy 行读到的仍是历史事实，而 acceptance 的守卫 pin（`RoundNaming` 与 accessor 之外零 `carrierPath` 读）不必为 `#orphanHandoffs` 开口子。这一档必须点名比较基准，否则它静默不生效：`persistHandoff` 返回的 `path` 是 `this.#workspace.resolve(finalName)`（`session/ledger.ts:1623`）——含目录的绝对形；`carrierPath` 不在读时相对化的路径键集里（`PERSISTED_PATH_KEYS` 只有 `doc` / `plan`，`infra/workspace.ts:49`），所以它按落盘形读回；扫描面拿到的却是裸文件名（`#workspaceFiles` 映射 `entry.name`，`session/ledger.ts:1764`）。因此这一档比较 `path.basename` 的两侧（扫描名与该 accessor 值），基准写在这里而不是留给实现去猜——与 §2.7 / D46 的「一条基准」同一课。
 
 别与 §2.7 混：`RoundRecords#ownerOf` 问的是「同路径上有没有更大的 `(cycle, attempt)`」，那是**摘要校验**的判据；孤儿问的是「有没有记录认领」，那是**归属**的判据。
 
@@ -182,9 +184,9 @@ legacy 行再加一档：记录的 `carrierPath` 指向该文件即算认领（�
   crashed: review 1·a1 contract-violation · review 3·a2 stalled
 ```
 
-数据源是记录自己的 `violations[].cause`，成员谓词是**合取**：`verdict.targetAction === false && violations.length > 0`——只有同时「没有交付」且「有登记的原因」的轮才列。单看「有 violation」不成立：成功的轮也带 soft 条目，`#verdictOf`（`face/lifecycle.ts:420`）在每个面上都附上 `#logUnavailable`（`:428`；成功分支在 `:453` 展开同一组），其 `cause` 缺省就是 `contract-violation`（`RoundViolation.soft` 的缺省值，`session/ledger.ts:103` · 赋值点 `face/lifecycle.ts:838`）；`session/run.ts:746` 的 `WRITE_BACK_UNMEASURED` 是同一形态。按字面读，一次 APPROVED 评审只要日志建不出来，就会在板上印成 `crashed: review 1·a1 contract-violation`——给已交付的轮报一次崩溃，cause 词表恰好在它该挣到意义的地方失效。
+数据源是记录自己的 `violations[].cause`，成员谓词是**合取**：`verdict.targetAction === false && violations.some((v) => v.grade === "hard")`——只有同时「没有交付」且「有一条 hard 登记」的轮才列。判别子是 `RoundViolation.grade`（`session/ledger.ts:87` · `:103-108`），不是条目数。单看「有 violation」不成立：成功的轮也带 soft 条目，`#verdictOf`（`face/lifecycle.ts:420`）在每个面上都附上 `#logUnavailable`（`:428`；成功分支在 `:453` 展开同一组），其 `cause` 缺省就是 `contract-violation`（`RoundViolation.soft` 的缺省值，`session/ledger.ts:103` · 赋值点 `face/lifecycle.ts:838`）；`session/run.ts:746` 的 `WRITE_BACK_UNMEASURED` 是同一形态，并且它落在「child 声明 BLOCKED、没写回文档」的轮上（`#bookkeep` 在 `:745-748` 追加这一条 soft，verdict 缺省 `{treeClean, targetAction: !blocked}`，`:749-757`）——那轮 `targetAction === false` 却只有 soft。按计数读，一次 APPROVED 评审只要日志建不出来，就会在板上印成 `crashed: review 1·a1 contract-violation`——给已交付的轮报一次崩溃；而一条只带 soft 的中断轮则被收进集合、又因下面「取首条 hard」的规则取不到 token，文档得替它发明一个印法。两级的失败面是同一个：谓词本身必须要求 hard。
 
-一行一轮：每轮只取**记录顺序里第一条 hard 条目**作 token（soft-only 的轮永不出现，理由同上），崩溃记录本身仍是完整的事后取证。行按 `(cycle, attempt)` 排序。
+一行一轮：每轮只取**记录顺序里第一条 hard 条目**作 token；soft-only 的轮由上一条的谓词本身排除在外，这条 token 规则因此不会遇到取不到条目的轮。崩溃记录本身仍是完整的事后取证。行按 `(cycle, attempt)` 排序。
 
 **这一行不参与任何判定**（D70）：不进 blocker / warn / nit 计数、不改 `+N`、不改 `next:`、不进 Loop-vs-converge。它只回答「这个叉是怎么来的」。
 
@@ -192,7 +194,7 @@ legacy 行再加一档：记录的 `carrierPath` 指向该文件即算认领（�
 
 载体声明分两档，边界由声明推导、不在文档里手写一份字段清单：`required`（`PLANE_REQUIRED`，`session/handoff-schema.ts:108`：work 面 `status` / `artifacts`；judge 面 `findings`）+ finding 自身 required 的 `severity` / `lens` / `summary`；**装饰档 = `PLANE_SLOTS` 声明的可写槽（`session/handoff-schema.ts:97`）减去本面的 `required` 集**，即 judge 面 `artifacts` / `notes`、work 面 `notes` / `dispositions`，再加 finding 里非 required 的 `id` / `section` / `line` / `fix`。`artifacts` 在两面都声明而 judge 面不 required，work 面的 `dispositions` 同理——二者**都在装饰档**；把括号里的举例读成一个封闭集合，正是手写清单最容易犯的错（§3.8）。今天两档同一把尺子：任何字段类型不符，整条载体被拒、整轮作废——`findings[].line = null` 即可把一次完整评审打成 BLOCKED。
 
-裁定：坏值按档处置。`required` 字段坏值仍 BLOCKED（负载面，语义会因此失真）；非 required 字段坏值 **drop 该键** + 记一条 soft observation，轮次照常结束。落点是两处缝，不是一处：**校验走查本身**（`HandoffSchema#check`，`session/handoff-schema.ts:328`；整数分支在 `:378` 记 `expected an integer`）改成 tier-aware——非 required 节点失配时记录并跳过该键，不产生 problem；**嵌套 findings 的剥键在 `#findingsList`**（`face/lifecycle.ts:1702`，今天除引擎自印的 `id` 外逐行原样拷贝）里丢掉越档的那个键。`#materialize` 的 `droppedKeys` 路（`face/lifecycle.ts:1579`）只覆盖**顶层未声明键**，是这条机制的另一半而不是全部：`#reconstruct` 先跑 `schema.violations` 并在有问题时 `#reject`（`face/lifecycle.ts:1213`），`#materialize` 在 `:1234` 才被调用，坏值的 draft 根本走不到那里。
+裁定：坏值按档处置。`required` 字段坏值仍 BLOCKED（负载面，语义会因此失真）；非 required 字段坏值 **drop 该键** + 记一条 soft observation，轮次照常结束。落点是**三处**缝，不是一处：**校验走查本身**（`HandoffSchema#check`，`session/handoff-schema.ts:328`；整数分支在 `:378` 记 `expected an integer`）改成 tier-aware——非 required 节点失配时记录并跳过该键，不产生 problem；**顶层值的搬运在 `#materialize` 的拷贝点**（`face/lifecycle.ts:1608` 的 `draftNotes`、`:1613` 的 `carrier.dispositions = draft.dispositions`、`:1615` 的 `carrier.notes = [...notes, ...draftNotes]`）——`#check` 只判不写、从不重写 draft，这两条 top-level 装饰槽是把未过筛的值原样搬进载体的地方，drop 必须也落在那里，否则引擎会写出一个自己的 `CARRIER` 声明（`session/handoff-schema.ts:120-135`）拒收的载体，而活过一个非对象 `dispositions` 还会走到 fix 判据而不是止于 drop；两处只留一处判定更好：tier-aware `#check` 返回被丢掉的键集、`#materialize` 消费它，谓词不抄第二份；**嵌套 findings 的剥键在 `#findingsList`**（`face/lifecycle.ts:1702`，今天除引擎自印的 `id` 外逐行原样拷贝）里丢掉越档的那个键。`#materialize` 的 `droppedKeys` 路（`face/lifecycle.ts:1579`）只覆盖**顶层未声明键**，是这条机制的另一半而不是全部：`#reconstruct` 先跑 `schema.violations` 并在有问题时 `#reject`（`face/lifecycle.ts:1213`），`#materialize` 在 `:1234` 才被调用，坏值的 draft 根本走不到那里。soft observation 的落点是既有那一个——`RoundViolation.soft`（`session/ledger.ts:103`）进记录的 `violations[]`，与 §2.13 的来源行读同一列；不另开告示面。
 
 理由与 D27 同源：`line` / `section` 不参与任何判定，不该有否决权。
 
@@ -202,7 +204,7 @@ legacy 行再加一档：记录的 `carrierPath` 指向该文件即算认领（�
 
 裁定：**已闭合的 wave 不再受层判据约束**，只受既有的 `planned-tasks-vs-recorded-tasks` 约束——这条规则读的是**当前** plan 的 task id 集（`const planned = new Set(ledger.planTasks)`，`contract/invariants.ts:419` · `:424`），单向地把「账本已记录而当前 plan 不再携带」的 task id 报红；它**不读快照**。`LedgerFacts` 的 `snapshots` 列（`contract/judge.ts:57`，由 `#snapshotsOf` 装配，`session/preflight.ts:533`）属于 append-vs-stall 的观察面；不要为了让这条规则「用上快照」而把它接进去——那会改变它判的东西。于是闭合 wave 的保证是：它的每个已记录 task id 必须仍在当前 plan 里。
 
-层判据只对**未闭合**的 wave 生效，而「未闭合」需要一个来源：`LedgerLayeringRule` 今天只迭代 `ledger.closedWaves`（`contract/invariants.ts:388`），`LedgerFacts` 也只有闭合集（`contract/judge.ts:55`）与层（`:60`）两格，没有开放集的格子。裁定补一格**装配事实**（不是持久字段）：**`openWaves`——未完全闭合的 wave 行，wave key → task ids**，在 `#ledgerFactsOf`（`session/preflight.ts:506`）里与 `closedWaves` 相邻、读同一个 `progress.waves`；收窄后的规则迭代它。不新增 `planLayer` 之类持久字段——消费者要的「账本为准，plan 只标未派发」由此达成。
+层判据只对**未闭合**的 wave 生效，而「未闭合」需要一个来源：`LedgerLayeringRule` 今天只迭代 `ledger.closedWaves`（`contract/invariants.ts:388`），而 `LedgerFacts` 的格子里没有一格收开放 wave——闭合集（`contract/judge.ts:55`）、层（`:60`）、`planTasks`（`:51`）与 `snapshots`（`:57`）都在，开放集不在。裁定补一格**装配事实**（不是持久字段）：**`openWaves`——未完全闭合的 wave 行，wave key → task ids**，在 `#ledgerFactsOf`（`session/preflight.ts:506`）里与 `closedWaves` 相邻、读同一个 `progress.waves`；收窄后的规则迭代它。不新增 `planLayer` 之类持久字段——消费者要的「账本为准，plan 只标未派发」由此达成。
 
 ### 3. 失败面
 
@@ -228,7 +230,7 @@ legacy 行再加一档：记录的 `carrierPath` 指向该文件即算认领（�
 `-a{n}` 进名字之后，按名字扫目录的两处会错：`RoundNaming.isCarrierName`（`infra/carrier-seal.ts` 的 `CarrierSeal.sweep` / `#isStray` 消费它）的 pattern 若不接受 `-a{n}`，崩溃遗留的载体就 sweep 不到（残留可写，§2.3 判它不可能存在的窗口）；若反过来放宽过头，`report` / `evidence` / `crash` 会被当成载体 seal 或当孤儿列上 board。`orphanHandoffs`（`session/ledger.ts:1738`）不是同一处判定：它反向读工作区每个文件名，经 `#handoffOwner`（`:1778`）→ `#familySpellings`（`:1803`）/ `#familyCaptures`（`:1818`）重建 legacy `families` 占位表的正则（`tasks-{tasks}-implement.json`、`{line}-{op}-{round}.json`），新名一个都不匹配——`tasks-6,7-implement-1-a2.json`（新 attempt）与 `tasks-6,7-implement-1.json`（implement 补 cycle）都没有 `families` 行能拼出，未入账的 draft 于是从 board 的孤儿行（`face/board-view.ts:525`）与 `--dry-run`（`face/preview.ts:129`）上静默消失。「同理」是指针不是门，两处各有一条把门方式：
 
 - **`isCarrierName`**：扫描面只认 `draft` / `final` 两种 kind 的形状（`(?:-a\d+)?` 插在 `.c\d+` 之前），且新尝试的名字在其中；`-report.md` / `.log` / `-test-evidence.json` / `crash-` 前缀四种形状一律不入判定。
-- **`orphanHandoffs`**：反向读从渲染表派生家族，且**必须解出 `-a{n}` 并把它留在认领键里**（legacy 拼写缺该坐标时取 1），使新 attempt / cycle 名下写的载体归属到它自己的 `(line, op, cycle, attempt)`；夹具——未入账的 `-a2` draft 被列出一次，已入账的不列。先剥 `-a{n}` 再匹配 legacy 拼写会把 attempt 抹平，attempt-1 的记录因此「认领」attempt-2 的文件（§2.12）。
+- **`orphanHandoffs`**：反向读从渲染表派生家族，且**必须解出 `-a{n}` 并把它留在认领键里**（legacy 拼写缺该坐标时取 1），使新 attempt / cycle 名下写的载体归属到它自己的 `(line, op, cycle, attempt)`。反向读表每族至少留**一条 legacy 拼写**，否则 pathless 的历史行无主：`tasks-{tasks}-implement.json` 读成 `cycle 1 · attempt 1`（implement 族的 attempt-1 旧拼写，§2.6）、`{line}-{op}-{round}.json` 读成该 round 的 `attempt 1`、退役的 `{spec}-{op}-{round}.json` 孪生名同 round 同 attempt 1——「记录身份会铸出的名字」于是对旧拼写也成立，而不是只对新名字成立。夹具——未入账的 `-a2` draft 被列出一次，已入账的不列；legacy 形 `tasks-1-implement.json` 在 pathless 行（legacy `rounds: {implement: [1]}` 折叠出的 `carrierPath: null` 记录）下算认领、不列孤儿。先剥 `-a{n}` 再匹配 legacy 拼写会把 attempt 抹平，attempt-1 的记录因此「认领」attempt-2 的文件（§2.12）。
 
 #### 3.5 `crash` 的适用面被按 phase 收窄
 
@@ -254,7 +256,7 @@ legacy 行再加一档：记录的 `carrierPath` 指向该文件即算认领（�
 
 - 单射性网格 pin 绿：六个 `TargetType` × 适用 kind × attempt 1–3 × cycle 1–2，同一 kind 下任意两个不同身份不同名；`""` 不入比较；implement 的 draft/final 对、相邻 attempt、相邻 cycle 各有一条具名断言；四个文档形各断言自己的拼写前缀。
 - implement 的 `final ≠ draft` 且 final 带 `.c{cycle}`；draft / report / log / evidence 同样携 `-{cycle}`（§2.2），相邻 cycle 不同名。
-- 记录不带路径仍可读：`carrierPath` / `draftPath` 不再写入新记录；board 的 `+N`、`--reviews` 的 latest 解析、`CliLifecycle#reviewsPath`、`FixDispositions` 的 requester 路径、capsule 成功面、摘要读面全部经 `Ledger#carrierPathOf(type, key, record)` 派生（守卫 pin：`RoundNaming` 与 accessor 之外零 `carrierPath` 读、零名字拼装）。
+- 记录不带路径仍可读：`carrierPath` / `draftPath` 不再写入新记录；board 的 `+N`、`--reviews` 的 latest 解析、`CliLifecycle#reviewsPath`、`FixDispositions` 的 requester 路径、capsule 成功面、摘要读面全部经 `Ledger#carrierPathOf(type, key, record)` 派生（守卫 pin：`RoundNaming` 与 accessor 之外零 `carrierPath` 读、零名字拼装——§2.12 的 legacy 认领档把记录侧的值也交给 accessor，所以 `Ledger#orphanHandoffs` 不开例外）。
 - 重派到 attempt 2 的 fix 轮仍读 requester 自己的 attempt：一条 attempt-2 fix 夹具断言 `--reviews` / `INPUT_REVIEWS` / `FixDispositions#requesterInputOf` 解析到 review 记录（attempt 1）的 final 名、合法轮次不被硬拒，`#resumeOf` 写出的 `next` 也带同一个名字。
 - `HandoffParams.attempt` 贯通：attempt 2 的 draft / final / report / log 由 `render` 命名，`readHandoff` 与 `handoffName` / `handoffPath` 命名并读回的就是 attempt 2 自己的文件；`--reviews` 读回的是 requester review 记录自己的 attempt（上一条夹具）。
 - 重派过的 cycle 读回同一条记录：一条 review cycle 重派到 attempt 2（`attempt 2` 已入账、`attempt 1` 的 final 仍在盘上）的夹具断言——`Ledger#round` / `Lifecycle#routeNext` / `#consecutiveS1Run` 读回 `attempt 2` 自己的字节并比它自己的摘要，零 `carrier-mismatch`；`readHandoff` 显式带 `attempt: 1` 时读回 `attempt 1` 的文件与 `attempt 1` 的摘要。名字与摘要必须来自同一条记录。
@@ -265,14 +267,14 @@ legacy 行再加一档：记录的 `carrierPath` 指向该文件即算认领（�
 - 外部篡改仍抛 `carrier-mismatch`（owner 记录的摘要与产物字节不符）——保护不退化。
 - `report` / `evidence` / `crash` 在重派后不再覆盖上一轮的文件；`crash` 对每个派发轮适用（review 轮的崩溃记录落在渲染名上，失败面与 resume 读得回）。
 - legacy 三类各有一条 pin：无摘要记录（零比对）· 已失配的历史记录（present-facts，不抛，`+N` = 0，owner 判定来自 `RoundRecords#ownerOf(行全量记录, 记录)`）· 旧命名文件（按记录的路径读）。
-- legacy 无 `carrierPath` 行照常把门：一条 pre-P31 行（记录整条无该字段）其载体落在 canonical 名上的夹具断言 accessor 按 `resolveHandoffName` 阶梯解析到该文件、fix 轮读到它的 findings 并照常判 dispositions（零摘要比对），不因「记录无路径」翻成 `unrecorded`；载体确实缺席的行仍落到 `RequesterRead.unrecorded` / `FIX_DISPOSITIONS_UNRECORDED` 的 soft skip。
+- legacy 无 `carrierPath` 行照常把门：一条 pre-P31 行（记录整条无该字段）其载体落在 canonical 名上的夹具断言 accessor 按 `resolveHandoffName` 阶梯解析到该文件、fix 轮读到它的 findings 并照常判 dispositions（零摘要比对），不因「记录无路径」翻成 `unrecorded`；载体确实缺席的行仍落到 `RequesterRead.unrecorded` / `FIX_DISPOSITIONS_UNRECORDED` 的 soft skip。同族的 implement 变体一条：legacy `rounds: {implement: [1], review: [1]}` 折叠出的 pathless 行（`carrierPath: null`）与磁盘上的 `tasks-1-implement.json`——孤儿面按反向读的 legacy 拼写把它认给 `(implement, cycle 1, attempt 1)`、不列孤儿，同一行的 `-a2` 新 draft 仍被列出一次。
 - 写面不调用 `families` 占位表；`RoundNaming`（含 accessor 委派）之外零产物名拼装（两条守卫测试）。
 - 扫描面只认 `draft` / `final` 两种 kind，`-a{n}` 形状被识别；`report` / `evidence` / `crash` 不被当作载体。
 - 反向归属认新拼写且认 attempt：未入账的 `-a2` draft 在 `orphanHandoffs` / board 孤儿行 / `--dry-run` 上出现恰好一次，已入账的同名 draft 不出现；同一 `(line, op, cycle)` 的 attempt-1 记录**不**认领 attempt-2 的文件（认领键含 `attempt`）；`tasks-6,7-implement-1.json` 归属到 `(6,7) · implement · cycle 1 · attempt 1`；legacy 行由 `carrierPath` 直指的目录形记录值经 `path.basename` 两侧比较同样算认领。
 - `attempt === 1` 的守恒边界按 §2.6 断言：四类文档线 · wave 线 review/fix 族 · branch 线 review/fix 族 · 全部 `crash` 名逐字节不变（branch fix 的 `branch-fix-1.json` / `branch-fix-1.c1.json` / `branch-fix-1-report.md` / `branch-fix-1.log` 在其中）；implement 族的 draft/final/report/log/evidence 与全线的 evidence 名是新拼写，各有具名断言。
 - 一条 BLOCKED / abort 但已落载体的轮不再列孤儿；一条真正未入账的草稿仍列一次；legacy 行由 `carrierPath` 直指的文件同样算认领。
-- board 的 `crashed:` 行按记录列出 cause 与 `(cycle, attempt)`，每轮一个 token（取记录顺序里第一条 hard 条目）；`✗` 保留；一条只带 soft `#logUnavailable` 的 APPROVED 评审**不**出现在该行；`+N`、blocker 计数与 `next:` 字面在有无崩溃记录两种夹具下逐字节相同。
-- `line: null` 的 review 载体被接受（drop 该键 + 一条 soft observation），轮次照常结束；judge 面的 `artifacts` 坏值同档（drop + soft，doc 型评审不再因此 BLOCKED）；`severity` / `findings` / `status` 的坏值仍 BLOCKED。
+- board 的 `crashed:` 行按记录列出 cause 与 `(cycle, attempt)`，每轮一个 token（取记录顺序里第一条 hard 条目），成员谓词要求至少一条 hard 条目（`violations.some((v) => v.grade === "hard")`）；`✗` 保留；一条只带 soft `#logUnavailable` 的 APPROVED 评审**不**出现在该行，一条 child 声明 BLOCKED 但未写回文档（只带 `WRITE_BACK_UNMEASURED` 一条 soft）的轮也**不**出现；`+N`、blocker 计数与 `next:` 字面在有无崩溃记录两种夹具下逐字节相同。
+- `line: null` 的 review 载体被接受（drop 该键 + 一条 soft observation 进记录的 `violations[]`，`RoundViolation.soft`），轮次照常结束且引擎写出的载体自过 `CARRIER` 声明；judge 面的 `artifacts` 坏值与 `notes` 坏值同档（drop + soft，不搬进载体，doc 型评审不再因此 BLOCKED）；`severity` / `findings` / `status` 的坏值仍 BLOCKED。
 - 事后追加任务使已闭合 wave 与新算层不匹配时零红；未闭合 wave 跨层仍红——红例的开放集来自 `LedgerFacts.openWaves`（与 `closedWaves` 同批装配）；`planned-tasks-vs-recorded-tasks` 仍只判「已记录而当前 plan 不再携带」一个方向，快照列不参与该规则。
 - 引擎 vitest 全绿；`pnpm run validate` exit 0；changeset `cdd-engine` **minor**；不发布。
 
@@ -301,3 +303,4 @@ legacy 行再加一档：记录的 `carrierPath` 指向该文件即算认领（�
 | v0.7 | 2026-11-13 | 并入 phase-spec-review-5 三条。F1：§2.10 的 accessor step 2 点名阶梯的种子身份——accessor 先由记录还原 `render(id, final)`（`line = type` · `op = record.op` · `cycle = record.cycle` · `attempt = record.attempt`，wave 线 `tasks = key`），名字与摘要恒同源，`HandoffParams.attempt` 缺省 1 不是坐标缺省。F2：step 3 改写成 accessor 自己探存在（阶梯对非退役 type 的 canonical 级无存在判定），`unrecorded` soft skip 与 `#requesterInputOf` 硬拒的分界随行写清。F3：摘要半边的 attempt 规则按「是否已持有记录」分两类，`#reviewsPathOf` 与 `#consecutiveS1Run` 归入解析类（先取该轮最新 review attempt、不继承 fix 帧的 attempt）；acceptance 增 attempt-2 fix 帧仍出 Round 与 accessor 自探存在两条夹具。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-5 · 2026-11-13）' |
 | v0.8 | 2026-11-13 | **并入四条同族面（issue #470 消费者 comment · 用户裁定「全并」）**：§2.12 孤儿归属改为记录归属（`targetAction` 过滤是把「完成」当「认领」，与 board 的 `no recorded round owns it` 不符）；§2.13 崩溃/中断轮的 `crashed:` 来源行（`✗` 保留，明确不参与分级）；§2.14 可选字段坏值 drop + soft（`line: null` 不再否决整轮，required 面不放宽）；§2.15 闭合 wave 的层权威收窄（层判据只判未闭合，闭合面交 `planTasks` 快照）。新增 §3.6–§3.9 失败面与四条 AC；相位命题从「产物身份」扩为「账本记录与磁盘产物互相对得上」。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.9 | 2026-11-14 | 并入 phase-spec-review-6 九条（F3 按调度方裁定 REJECTED，`#bookkeep` 原文不动）。F1：§2.12 的归属键收为完整渲染身份 `(line, op, cycle, attempt)`——attempt-free 的 `(op, cycle)` 会让 attempt-1 的记录认领 attempt-2 的文件，与 `-a2` 一次夹具直接互斥；§3.4 的反向读改为「解出 `-a{n}` 并保留」。F2：§2.13 的成员谓词改为 `targetAction === false && violations.length > 0`（成功轮也带 soft `#logUnavailable`），并补一行一轮取首条 hard 的口径。F4：§2.12 的 legacy 档点名 `path.basename` 两侧比较（`carrierPath` 是含目录的绝对形，不在 `PERSISTED_PATH_KEYS` 里）。F5：§2.15 把闭合面的证据改回 `planned-tasks-vs-recorded-tasks` 的真实读法（当前 plan、单向），快照列归 append-vs-stall——v0.8 行的「闭合面交 `planTasks` 快照」措辞由本节更正。F6：§2.15 补 `LedgerFacts.openWaves` 装配格作未闭合 wave 的来源。F7：§2.14 的 drop 缝写清为校验走查 tier-aware + `#findingsList` 嵌套剥键，`#materialize` 只是顶层那一半。F8：§2.14 / §3.8 的装饰档改为 `PLANE_SLOTS` 减 `PLANE_REQUIRED` 的推导值。F9：`parent-version` 与正文两处提到 v3.61 并引 D89。F10：§2.13 补一行一轮的 token 口径。母 charter 的 D89 措辞（`(op, cycle)` 归属键、「闭合面交 `planTasks` 快照」）需由编排者另起一笔回填，本相位不动。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-6 · 2026-11-14）' |
+| v0.10 | 2026-11-14 | 并入 phase-spec-review-7 五条。F1：§2.14 的 drop 缝补齐为三处——加 `#materialize` 的顶层拷贝点（`face/lifecycle.ts:1608` · `:1613` · `:1615`，`#check` 只判不写）并点名 soft observation 的落点（`RoundViolation.soft` → 记录的 `violations[]`），acceptance 同笔断言载体自过 `CARRIER` 声明。F2：§2.12 的归属判据改为反向读（name → identity，缺坐标读 1），§3.4 的反向读表每族留一条 legacy 拼写（`tasks-{tasks}-implement.json` = cycle 1 · attempt 1），acceptance 增 pathless legacy implement 行夹具（p16 形）。F3：§2.13 的成员谓词收为「至少一条 hard 条目」（`violations.some((v) => v.grade === "hard")`），soft-only 的轮由谓词排除而非 token 规则，acceptance 增 soft-only BLOCKED 轮的反例。F4：§2.15 收回 `LedgerFacts` 的格子计数。F5：§2.12 的 legacy 认领档改经 `Ledger#carrierPathOf` 取值，acceptance 的守卫 pin 说明 `#orphanHandoffs` 不开例外。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-7 · 2026-11-14）' |

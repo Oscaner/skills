@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 设计：载体身份收为轮次身份的单射渲染'
 doc-type: phase-spec
-version: v0.7
+version: v0.8
 date: 2026-11-13
 slug: '2026-10-10-engine-doc-tooling-p34'
 program: 2026-10-10-engine-doc-tooling
@@ -12,6 +12,8 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 ## Design
 
 本相位治 `cdd board` 在长回合 slug 上整块 `carrier-mismatch` 拒渲染（issue #470）。根因不是 board 取错了记录，而是**轮次身份与产物名身份是两个不同构的系统**：记录带 `attempt`，产物名不带；implement 一族连 `cycle` 都缺。于是重派一次就合法覆盖上一轮的物证，旧记录的内容摘要永久指向别人的字节。
+
+相位收敛过程中又并入了四条同族面——孤儿归属谓词、崩溃/中断轮的来源、可选字段坏值的处置、闭合 wave 的层权威（§2.12–§2.15）。它们与产物身份共用同一条判据：**账本记录与磁盘产物必须互相对得上**；分开看是四个 bug，合起来看是同一句话在五个面上的失效。
 
 裁定不取「加个后缀」「按所有者限定校验」「降级渲染」这类对账式修法，而是把两者收成同构：**产物名 = 轮次身份 × 产物种类的单次渲染**，单射由构造保证，写一次成为自然结果（§2.1–§2.3）。同一缺陷在 `report` / `evidence` / `crash` 三类产物上早已存在、只因没有摘要无人察觉，故作用面覆盖全部轮次产物（§1.2）。
 
@@ -158,6 +160,44 @@ P31 §2.4 的窗口成员必须与本轮渲染同源，否则新名字让人「�
 
 **legacy 轮**：当前 attempt 就是 1，窗口名与历史名同字节，打开的是它自己那一对，不是别人的文件。禁止的是 preflight 打开一个不属于本轮 attempt 的名字（今天的 `finalPath(draftName, params.round)` 在 implement 族打开的就是这一对里的同一个名字，退役后由 `render` 的两条 kind 分岔）。
 
+#### 2.12 孤儿归属 = 记录归属，不是完成归属
+
+`Ledger#orphanHandoffs` 今天问的是「本行有没有一条**完成**的轮认领这个 `(op, cycle)`」（`record.verdict.targetAction` 过滤），而 board 印的是 `no recorded round owns it`。两句不是一回事：`#bookkeep` 允许 BLOCKED 轮落载体，于是「记录了路径、`carrierDigest` 与文件逐字相同」的产物被判无主。
+
+裁定：**归属 = 本行有任何一条记录认领该 `(op, cycle)`**，与 verdict 无关。abort 轮（`interrupted`）也算认领——它的产物属于那一轮。真正的孤儿因此收窄为「这个文件没有任何记录认领」。
+
+legacy 行再加一档：记录的 `carrierPath` 直指该文件即算认领（一次字符串比较，随字段退场同时退场）。新记录不写路径，认领靠身份渲染出的 `(op, cycle)` 反解。
+
+别与 §2.7 混：`RoundRecords#ownerOf` 问的是「同路径上有没有更大的 `(cycle, attempt)`」，那是**摘要校验**的判据；孤儿问的是「有没有记录认领」，那是**归属**的判据。
+
+#### 2.13 崩溃 / 中断的来源可见，但不是分级信号
+
+`BoardView#judgementRuns` 只按 `verdict.targetAction` 分流，于是判败（`contract-violation`）、abort（`interrupted`）、终止（`stalled` / `over-budget` / `signal`）、child 自退（`child-exit`）在板上同形：都是一个 `✗`。消费者读到的是一次「判败」，实际是一次「没有结论」。
+
+裁定：`✗` 留着（那轮确实没有交付），另加一行来源事实，与 `in-flight` / `orphan` 同级：
+
+```
+  crashed: review 1·a1 contract-violation · review 3·a2 stalled
+```
+
+数据源是记录自己的 `violations[].cause`（没有 violation 的轮不列），按 `(cycle, attempt)` 排序。
+
+**这一行不参与任何判定**（D70）：不进 blocker / warn / nit 计数、不改 `+N`、不改 `next:`、不进 Loop-vs-converge。它只回答「这个叉是怎么来的」。
+
+#### 2.14 可选字段的坏值：drop + soft，不 BLOCK
+
+载体声明分两档：`required`（work 面 `status` / `artifacts`；judge 面 `findings`；finding 自身 `severity` / `lens` / `summary`）与非 required 的**装饰面**（`id` / `section` / `line` / `fix` / `notes`）。今天两档同一把尺子：任何字段类型不符，整条载体被拒、整轮作废——`findings[].line = null` 即可把一次完整评审打成 BLOCKED。
+
+裁定：坏值按档处置。`required` 字段坏值仍 BLOCKED（负载面，语义会因此失真）；非 required 字段坏值 **drop 该键** + 记一条 soft observation，轮次照常结束。复用 `#materialize` 对「非声明字段」已走的那条 drop 路，不新造一条。
+
+理由与 D27 同源：`line` / `section` 不参与任何判定，不该有否决权。
+
+#### 2.15 闭合 wave 的层权威：账本为准，不重算
+
+`TaskGraph` 从 `DependsOn` 现算分层，`closed-wave-fits-depends-on-layers` 再拿它与账本里已闭合的 wave 名比对。事后编辑依赖（追加任务的自然动作）会让一段合法历史必然报红：历史 wave 名是账本记录，层是派生面，派生面压过了记录面。
+
+裁定：**已闭合的 wave 不再受层判据约束**，只受既有的 `planned-tasks-vs-recorded-tasks`（闭合时的 `planTasks` 快照）约束；层判据只对**未闭合**的 wave 生效。不新增 `planLayer` 之类持久字段——消费者要的「账本为准，plan 只标未派发」由此达成。
+
 ### 3. 失败面
 
 #### 3.1 单射退化无人喊
@@ -188,6 +228,22 @@ P31 §2.4 的窗口成员必须与本轮渲染同源，否则新名字让人「�
 
 把 `crash` 读成「非 work 轮不产」，写点与读点就一起落到空路径上：拒绝面与终止面对每个派发相位都写崩溃记录，`Lifecycle#capsuleLines` 的失败面与 resume 又按同一名字读回。把门方式：一条 review 轮崩溃夹具断言——崩溃记录落在 `crash-{line}-{op}-{cycle}[-a{n}].json` 上（attempt 2 落在带 `-a2` 的名字上，不覆盖 attempt 1），失败面 capsule 读到它，resume 决策读到的也是它。
 
+#### 3.6 归属谓词放宽过头
+
+把「完成轮认领」改成「任意记录认领」之后，最省事的下一步是继续放宽到「文件在，就算有主」——那孤儿面就消失了，而它的用处恰恰是发现「写了文件但没入账」的轮。把门方式：一条真正未入账的草稿仍列出（正反两例同时存在）。
+
+#### 3.7 来源行退化成第二套分级
+
+`crashed:` 行天然诱人：既然知道有 `contract-violation`，下一步就会有人拿它算「本轮崩溃数」或据此改下一跳。那是 D70 明令禁止的第二套判级。把门方式：一条断言——`next:` 字面、blocker 计数、`+N` 在「有崩溃记录」与「无崩溃记录」两个夹具下逐字节相同。
+
+#### 3.8 drop 档吞掉负载字段
+
+分档的边界必须由 `required` 声明驱动，不能在 `#materialize` 里手写一份字段清单——两处清单必然分叉，而分叉的方向总是「把 `severity` 也当成装饰」。把门方式：`severity` / `findings` / `status` 的坏值仍 BLOCKED 的三条 pin，与 `line: null` 被接受的 pin 同批。
+
+#### 3.9 层判据收窄一收到底
+
+「已闭合不受层判据」若写成「层判据整体撤销」，未闭合 wave 的跨层就再也不红。把门方式：一个未闭合 wave 跨层的红例与一个已闭合 wave 事后改依赖的绿例并存。
+
 ### Acceptance criteria
 
 - 单射性网格 pin 绿：六个 `TargetType` × 适用 kind × attempt 1–3 × cycle 1–2，同一 kind 下任意两个不同身份不同名；`""` 不入比较；implement 的 draft/final 对、相邻 attempt、相邻 cycle 各有一条具名断言；四个文档形各断言自己的拼写前缀。
@@ -208,6 +264,10 @@ P31 §2.4 的窗口成员必须与本轮渲染同源，否则新名字让人「�
 - 扫描面只认 `draft` / `final` 两种 kind，`-a{n}` 形状被识别；`report` / `evidence` / `crash` 不被当作载体。
 - 反向归属认新拼写：未入账的 `-a2` draft 在 `orphanHandoffs` / board 孤儿行 / `--dry-run` 上出现恰好一次，已入账的同名 draft 不出现；`tasks-6,7-implement-1.json` 归属到 `(6,7) · implement · cycle 1`。
 - `attempt === 1` 的守恒边界按 §2.6 断言：四类文档线 · wave 线 review/fix 族 · branch 线 review/fix 族 · 全部 `crash` 名逐字节不变（branch fix 的 `branch-fix-1.json` / `branch-fix-1.c1.json` / `branch-fix-1-report.md` / `branch-fix-1.log` 在其中）；implement 族的 draft/final/report/log/evidence 与全线的 evidence 名是新拼写，各有具名断言。
+- 一条 BLOCKED / abort 但已落载体的轮不再列孤儿；一条真正未入账的草稿仍列一次；legacy 行由 `carrierPath` 直指的文件同样算认领。
+- board 的 `crashed:` 行按记录列出 cause 与 `(cycle, attempt)`；`✗` 保留；`+N`、blocker 计数与 `next:` 字面在有无崩溃记录两种夹具下逐字节相同。
+- `line: null` 的 review 载体被接受（drop 该键 + 一条 soft observation），轮次照常结束；`severity` / `findings` / `status` 的坏值仍 BLOCKED。
+- 事后追加任务使已闭合 wave 与新算层不匹配时零红；未闭合 wave 跨层仍红。
 - 引擎 vitest 全绿；`pnpm run validate` exit 0；changeset `cdd-engine` **minor**；不发布。
 
 ## Constraints
@@ -217,6 +277,9 @@ P31 §2.4 的窗口成员必须与本轮渲染同源，否则新名字让人「�
 - 不加运行时守护门（§2.3 的构造属性判定）。
 - seal 窗口的文件集不扩：仍是 `draft` + `final` 两个载体，`report` / `log` / `evidence` / `crash` 不进窗口（§2.11）。
 - legacy 回退只读，不得参与身份推导。
+- 来源行不加字形、不进 legend 词表、不参与任何计数（§2.13）。
+- 闭合 wave 的层权威收窄不新增持久字段（§2.15）。
+- drop 档只覆盖非 `required` 字段；`required` 全集不缩（§2.14）。
 - 不引入新依赖；不发布。
 
 ## Change history
@@ -230,3 +293,4 @@ P31 §2.4 的窗口成员必须与本轮渲染同源，否则新名字让人「�
 | v0.5 | 2026-11-13 | 并入 phase-spec-review-3 三条。F1：§2.2 的 cycle 常量持有者回到 `Lifecycle#roundFor`（`session/run.ts:617`），树里无 `Run` 类，v0.4 行同笔改写。F2：§2.10 补第五读面 `CliLifecycle#reviewsPath` 并改正 `ctx.reviewsPath` / `INPUT_REVIEWS` / `#resumeOf` 的来源；`--reviews` 的 attempt 改取 requester review 记录自己的最新 attempt，recorded-path 直读与 `FixDispositions#requesterPathOf` / `#requesterDigestOf` / `#ownRefusal` 的路径判别同批退役；点名 `Lifecycle#capsuleLines` 是名字解析面而非路径读面；acceptance 增 attempt-2 fix 夹具。F3：§2.5 的守恒 gloss 收回为 §2.6 的例外边界。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-3 · 2026-11-13）' |
 | v0.6 | 2026-11-13 | 并入 phase-spec-review-4 四条。F1：§2.10 补摘要半边——`#carrierDigestOf` / `#latestRecordOf` 认 `params.attempt`，名字与摘要取同一条记录，`Ledger#round` / `#consecutiveS1Run` 及其调用点传记录自己的 attempt，`--reviews` 除外；acceptance 增重派 cycle 的读回夹具。F2：§2.10 的 accessor 取值改为三步（记录路径 → `resolveHandoffName` 阶梯 → 真缺席），`unrecorded` soft skip 保留，acceptance 增无 `carrierPath` 的 legacy 行夹具。F3：§3.4 给 `orphanHandoffs` 单列把门方式与夹具（反向读认新拼写，implement 补 cycle 与 `-a{n}` 都归属得回）。F4：§2.6 的守恒侧补「branch 线的 fix 族」，acceptance 字节 pin 同步。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-4 · 2026-11-13）' |
 | v0.7 | 2026-11-13 | 并入 phase-spec-review-5 三条。F1：§2.10 的 accessor step 2 点名阶梯的种子身份——accessor 先由记录还原 `render(id, final)`（`line = type` · `op = record.op` · `cycle = record.cycle` · `attempt = record.attempt`，wave 线 `tasks = key`），名字与摘要恒同源，`HandoffParams.attempt` 缺省 1 不是坐标缺省。F2：step 3 改写成 accessor 自己探存在（阶梯对非退役 type 的 canonical 级无存在判定），`unrecorded` soft skip 与 `#requesterInputOf` 硬拒的分界随行写清。F3：摘要半边的 attempt 规则按「是否已持有记录」分两类，`#reviewsPathOf` 与 `#consecutiveS1Run` 归入解析类（先取该轮最新 review attempt、不继承 fix 帧的 attempt）；acceptance 增 attempt-2 fix 帧仍出 Round 与 accessor 自探存在两条夹具。 | '[human] 裁定 · Claude（kairos:cdd-dev · phase-spec-fix-5 · 2026-11-13）' |
+| v0.8 | 2026-11-13 | **并入四条同族面（issue #470 消费者 comment · 用户裁定「全并」）**：§2.12 孤儿归属改为记录归属（`targetAction` 过滤是把「完成」当「认领」，与 board 的 `no recorded round owns it` 不符）；§2.13 崩溃/中断轮的 `crashed:` 来源行（`✗` 保留，明确不参与分级）；§2.14 可选字段坏值 drop + soft（`line: null` 不再否决整轮，required 面不放宽）；§2.15 闭合 wave 的层权威收窄（层判据只判未闭合，闭合面交 `planTasks` 快照）。新增 §3.6–§3.9 失败面与四条 AC；相位命题从「产物身份」扩为「账本记录与磁盘产物互相对得上」。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |

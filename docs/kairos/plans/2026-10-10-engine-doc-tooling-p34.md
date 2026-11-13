@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 计划：轮次产物身份的单射渲染'
 doc-type: plan
-version: v0.12
+version: v0.13
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p34
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p34-design.md` **现行 version v0.12** 所指的面；spec 版本一变，本约束的字面同笔改。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p34-design.md` **现行 version v0.13** 所指的面；spec 版本一变，本约束的字面同笔改。
 - **单射性是唯一不变量**：条件只允许出现在**渲染的省略**上（`attempt === 1` 不拼 `-a{n}`）；坐标本身恒从身份取，任何「满足某条件才拼坐标」的写法都是 §2.1 的反例。
 - **`progress.json` 形状不变**：只停写 `carrierPath` / `draftPath`，不迁移旧值、不加版本标记。
 - **不加运行时守护门**：写一次是构造属性；seal 的既有 unseal→写→seal 循环保留，不加「重写即拒」。
@@ -19,7 +19,7 @@ base: develop
 - **坏值分档的边界由 `required` 声明驱动**：不在 `#materialize` 手写第二份字段清单（§2.14 / §3.8）。
 - **不动收敛主线（D70）**：`session/next.ts`、`Ledger#nextHopOf`、`NextStepRouter`、`WaveGate` / `DispatchAuthority` 的分级计数与下一跳判定**零改动**——本相位不新增分级信号、不安装「按 route kind 反推」的分支、不改 Loop-vs-converge 的判据面。board 的 `+N` 是**渲染面**（一个计数从哪个产物读），不是分级信号；若某一步看起来必须动下一跳才能完成，停下来上报，不得顺手扩面。
 - **不引入新依赖**；changeset 只 `@oscaner-skills/cdd-engine` **minor**；不发布；波宽 ≤ 3；零模块级裸函数。
-- **不适用 kind 渲空串**：`evidence` 在四个文档形上渲 `""`，调用方按「无此产物」处理，空串不是名字、不入单射比较。
+- **渲染面全域、适用面在帧面**：`renderName` 对六个 kind × 任何身份都出名字，不因面返回空串；`evidence` 的适用面住在帧面——`RoundNaming#evidenceName` 对文档形与非 implement / fix 相位返回空串，调用方按「无此产物」处理。空串是帧面的记号、不是渲染器的输出，所以单射网格在六个 type × 六个 kind 上全比、不按面筛，也不把 `""` 当名字（按面筛 + 空串比名会把 24 个文档身份塌成一个名字）。
 
 ## Review Focus
 
@@ -42,7 +42,7 @@ base: develop
 - Modify: `packages/cdd-engine/src-next/session/round-naming.ts`（新增 `RoundArtifact` / `ArtifactKind` 与 `renderName` / `renderPath`；`logName` / `report` / `evidenceName` / `crashName` 改为委派 `renderName`；`finalName(draftName, round)` / `finalPath(draftName, round)` **退役**——它们收的是名字而非身份，只能靠反解名字再正向渲染（§2.1 的「拿到一个名字再切字符串拼后缀」退役），`resolveHandoffName` 的 final 候选改为 `renderName(identity, "final")`、`persistHandoff` 写 `renderPath(identity, "final")`，调用点 `face/lifecycle.ts:1094` / `session/ledger.ts:1617` / `:1644` / `session/run.ts:915` 随动；删除 `#stem`——stem 与 `-a{n}` 归 `renderName`；`isCarrierName` 的 pattern 只认 draft/final 且容 `(?:-a\d+)?`）
 - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`handoffName` / `handoffPath` 委派 `renderName`；`HandoffParams` 补 `attempt?: number`；`#handoffOwner`（:1778-1799）与 `#familyCaptures`（:1813-1827）停止以 `families` 拼写匹配，改为把名字反解成 `(line, op, cycle, attempt)` 再与记录身份比对——不比名字，正向渲染比较在 implement 旧拼写与 pre-P31 的 pathless 行上必错；每族反向读表至少留一条 legacy 拼写（缺坐标按 1 读，§3.4），退役的 `{spec}-{op}-{round}.json` 孪生名同 round · attempt 1——该线词**不在 `families` 里**（`HANDOFF_FAMILIES` 只有 `implement.wave` / `review.*` / `fix.*`），须像 `#LINE_CARRIER`（`session/ledger.ts:1946` 取 `targetFaces` 后并入 `RETIRED_SPEC_KEY`）那样显式并入读表，不得从 `families` 推导；`families` 占位替换只留 legacy 读法）
 - Modify: `packages/cdd-engine/src-next/session/run.ts`（`#paramsOf`（:651-673）接帧的 `attempt`，对每一帧填 `attempt`、对 implement 也填 `round`；`:536` / `:575` 两个帧构造点传 `attempt`——`#stem` 删分支后的同笔依赖）
-- Test: `packages/cdd-engine/src-next/session/__tests__/round-naming.test.ts`（网格 pin · 守恒边界 · implement 五 kind 携 cycle · `isCarrierName` 四拒）
+- Test: `packages/cdd-engine/src-next/session/__tests__/round-naming.test.ts`（网格 pin（六个 type × 六个 kind 全比）· 守恒边界 · implement 五 kind 携 cycle · `isCarrierName` 四拒 · `evidenceName` 的两道空串闸（文档形 · 非 implement / fix 相位，`:205-243`）在委派后仍绿）
 - Test: `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`（反向归属：未入账的 `-a2` draft / final 各列出一次、已入账的不列；`tasks-6,7-implement-1.json` → `(6,7) · implement · cycle 1 · attempt 1`；负向 pin——同一 `(line, op, cycle)` 的 attempt-1 记录**不**认领 `tasks-6,7-implement-1-a2.json`（认领键含 `attempt`）；三族 legacy 拼写各一条：`tasks-{tasks}-implement.json` 读成 cycle 1 · attempt 1、`{line}-{op}-{round}.json` 读成该 round · attempt 1、退役的 `{spec}-{op}-{round}.json` 读成同 round · attempt 1（`spec` 线词不在 `families` 里，读表须显式并入，见 Files）；p16 的 pathless 夹具——`{"wave":"1","rounds":{"implement":[1],"review":[1]}}` 折叠出的记录认领 `tasks-1-implement.json`、不列孤儿，同一行的 `-a2` draft 列一次；report/evidence/crash 不入孤儿——它们不是 handoff 家族，列入会与扫描面的四拒相悖）
 - Test: `packages/cdd-engine/src-next/infra/__tests__/infra.test.ts`（`CarrierSeal.sweep` 认 `-a{n}` 载体、拒 report/evidence/crash/log）
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（锚点 + 扫描指令：锚点 `:1726` / `:1814` / `:1908` / `:3737` / `:4096` / `:5859` / `:5917`；范围是**两段**——(a) 本文件全部非 crash 的 `tasks-*-implement*` **载体**夹具（draft / final / report / log）实测 40 处；(b) 全部 `*-test-evidence.json` **证据**夹具实测 36 行（四形：`tasks-1-test-evidence.json` / `tasks-4,12-…` / `tasks-2,5-…` / `branch-test-evidence.json`，另有若干散文行）——证据名今日是 `{prefix}-{key}-test-evidence.json`（`session/round-naming.ts:124-130` 的 `evidenceName` 不带 op / cycle），**不在** `tasks-…-implement*` 名集合里，漏掉这 36 行则 acceptance 的「全线 evidence 携三坐标」缺覆盖。证据夹具的改法是把 `{prefix}-{key}-test-evidence.json` 换成 `{prefix}-{key}-{op}-{cycle}-test-evidence.json`（attempt ≥ 2 再加 `-a{n}`；wave 的 `tasks-1-…` 即 `tasks-1-implement-1-…`，`branch` 族随其线的 op / cycle，如 `branch-fix-1-test-evidence.json`）；行内清单只是锚点不是上限；`crash-tasks-…-implement-…json` 是守恒侧，逐字节不变、不得顺手改名）
@@ -61,19 +61,19 @@ base: develop
 - `interface RoundArtifact { line: string; op: OpType; cycle: number; attempt: number }`
 - `RoundNaming#renderName(identity: RoundArtifact, kind: ArtifactKind): string`
 - `RoundNaming#renderPath(identity: RoundArtifact, kind: ArtifactKind): string`
-- `HandoffParams.attempt?: number`（缺省即 1）
+- `HandoffParams.attempt?: number`（缺省分两档：`handoffName` / `handoffPath` / `renderName` 对缺省出 attempt 1 的拼写；`resolveHandoffName` / `resolveHandoffPath` 先经中央缺省 `#attemptAware`（`session/ledger.ts:1736`）把缺省解析成该轮**最新已记录**的 attempt，整轮无记录才落回 1——只持 `(tasks, round)` 的解析读者不传 attempt，靠的正是这条中央缺省）
 - `RoundNaming.isCarrierName(name): boolean`（只认 draft/final，含 `-a{n}`）
 
 #### Steps
 
-- 写失败测（网格）：六个 `TargetType`（四个文档形 + wave + branch）× 适用 kind × `attempt` 1–3 × `cycle` 1–2，断言同一 kind 下任意两个不同身份不同名；`""` 不入比较 — checkable: 定向 vitest FAIL（今日无 `renderName`）
+- 写失败测（网格）：六个 `TargetType`（四个文档形 + wave + branch）× 六个 `kind`（不按面筛——`renderName` 全域渲染）× `attempt` 1–3 × `cycle` 1–2，断言同一 kind 下任意两个不同身份不同名；`""` 不是渲染结果、不入网格 — checkable: 定向 vitest FAIL（今日无 `renderName`）
 - 写失败测（守恒边界）：四条文档线的 review / fix 族，每条文档线断言自己的拼写前缀并各带一条守恒字面（`phase-spec-review-1.json` / `phase-spec-review-1.c1.json` / `phase-spec-review-1-report.md` / `phase-spec-review-1.log` 之外，`overall-review-1*` / `plan-review-1*` / `single-spec-review-1*` 各一条），与今日拼写逐字节相同 — checkable: FAIL（今日 `render` 不存在）
 - 写失败测（守恒边界 · wave 与 branch 两族）：wave 的 review / fix 族，以及 branch 的 **review 与 fix 两族**——`branch-fix-1.json` / `branch-fix-1.c1.json` / `branch-fix-1-report.md` / `branch-fix-1.log` 与同线 review 族逐字节等于今日拼写；`crash-phase-spec-review-1.json` 这类 `crash` 名对每条线、每个 kind 在 `attempt === 1` 时逐字节不变（attempt ≥ 2 携 `-a{n}`，由 T3 钉——`crashName` 今日不带 attempt 令牌，`session/round-naming.ts:177-179`） — checkable: FAIL（今日 `render` 不存在）
 - 写失败测（implement 族）：五个非 crash kind 均携 `-1` 且 `final ≠ draft`；`crash` 保持今日拼写 `crash-tasks-6,7-implement-1.json` — checkable: FAIL
 - 写失败测（`evidence` 携三坐标）：`tasks-6,7-implement-1-test-evidence.json` 与 `branch-fix-1-test-evidence.json` — checkable: FAIL
 - 写失败测（扫描面四拒）：`isCarrierName` 对 `…-report.md` / `….log` / `…-test-evidence.json` / `crash-….json` 均为 false，对 `tasks-6,7-implement-1-a2.json` 与 `tasks-6,7-implement-1-a2.c1.json` 为 true（携 cycle 的拼写——形状若只容无 cycle 的 `-a2`，会接受渲染面永不铸出的名） — checkable: FAIL（今日 pattern 不认 `-a{n}`）
 - 实现 `RoundArtifact` / `ArtifactKind` / `renderName` / `renderPath`：`-a{n}` 插在 stem 尾部、`.c{cycle}` 之前，`attempt === 1` 省略 — checkable: 网格与守恒两组测 PASS
-- 把 `logName` / `report` / `evidenceName` / `crashName` 改成对 `renderName` 的委派，并**删除 `#stem`**——stem 与 `-a{n}` 的插入由 `renderName` 持有，`report` / `logName` 反向委派给它；`finalName` / `finalPath` **退役**（收名字的变换无法渲染身份），四个调用点改取 `renderName` / `renderPath` 的 final 候选 — checkable: implement 组与 evidence 组 PASS
+- 把 `logName` / `report` / `evidenceName` / `crashName` 改成对 `renderName` 的委派——委派只替拼写，`evidenceName` 的两道闸（文档形 · 非 implement / fix 相位）留在帧面原样不动、不得并入渲染器；并**删除 `#stem`**——stem 与 `-a{n}` 的插入由 `renderName` 持有，`report` / `logName` 反向委派给它；`finalName` / `finalPath` **退役**（收名字的变换无法渲染身份），四个调用点改取 `renderName` / `renderPath` 的 final 候选 — checkable: implement 组与 evidence 组 PASS · `round-naming.test.ts:205-243` 的两条空串 pin 仍绿
 - 把 `Ledger.handoffName` / `handoffPath` 改成委派 `renderName`，`HandoffParams` 补 `attempt`，`families` 的占位替换降为 legacy 读法 — checkable: `ledger.test.ts` 全绿
 - 收窄 `isCarrierName` 的 pattern，并让 `CarrierSeal.#isStray` 的判定与之一致 — checkable: 扫描面四拒 PASS · `infra.test.ts` 全绿
 - 写失败测（params 携帧 attempt）：一帧 `attempt = 2` 的 implement 派发，其 draft / final / report / log / evidence 名字均携 `-a2`，且 attempt-1 的同名文件不被覆盖 — checkable: FAIL（今日 `#paramsOf` 不带 `attempt`，`renderName` 缺省渲 attempt 1）
@@ -85,7 +85,7 @@ base: develop
 
 #### Acceptance
 
-- 网格 pin 绿：六个 type × 适用 kind × attempt 1–3 × cycle 1–2，同一 kind 下无同名；`""` 不入比较。
+- 网格 pin 绿：六个 type × 六个 kind × attempt 1–3 × cycle 1–2（`renderName` 全域渲染，网格不按面筛 kind），同一 kind 下无同名；`evidence` 的适用面由帧面 `RoundNaming#evidenceName` 的空串判据承担（文档形与非 implement / fix 相位返空串），那两条空串 pin（`round-naming.test.ts:205-243`）与网格同批绿，委派不删闸。
 - 守恒边界：四类文档线（每条断一条自己的守恒字面：`phase-spec-review-1*` / `overall-review-1*` / `plan-review-1*` / `single-spec-review-1*`）· wave 的 review/fix 族 · branch 的 **review/fix 两族** · `attempt === 1` 的全部 `crash` 名逐字节不变（attempt ≥ 2 携 `-a{n}`，由 T3 钉；`crashName` 今日不带 attempt 令牌）。
 - implement 五个非 crash kind 携 cycle 且 `final ≠ draft`；全线 `evidence` 携 op/cycle/attempt；`Lifecycle#paramsOf` 对每一帧填 `attempt`、对 implement 填 round，attempt-2 的派发名携 `-a2`，派发名不出现 `undefined`。
 - `isCarrierName` 只认 draft/final（含 `-a{n}`），四种非载体形状一律 false。
@@ -101,7 +101,7 @@ none
 
 #### Objective
 
-`RoundRecord` 停写 `carrierPath` / `draftPath`；新增 `Ledger#carrierPathOf(type, key, record)` 与 `RoundRecords#ownerOf(records, record, pathOf)`。accessor 取值三步：① 记录的 `carrierPath` 是非空字符串就用它（legacy 行的历史事实，零迁移）；② 否则走 `resolveHandoffName` 的既有阶梯（`session/ledger.ts:1696`：final-if-exists → canonical → 退役 `spec` 孪生 → cycle 1 · attempt 1 的 implement legacy 拼写），**不是裸 `renderPath(…, "final")`**——pre-P31 行从未铸过 `.c{cycle}` 拼写，裸渲染指向一个不存在的文件，合法轮次就被硬拒；走阶梯之前先把记录还原成完整身份（`line = type`（wave 线取 `key`）、`op = record.op`、`cycle = record.cycle`、`attempt = record.attempt`，即 `HandoffParams = { tasks: 该 wave 线的 key, round: record.cycle, attempt: record.attempt }`）——漏喂 `attempt` 就会让 attempt-2 的记录因守恒仍在盘上的 attempt-1 final 被 `final-if-exists` 命中，`+N` 拿别人的路径比本记录的 `carrierDigest`；③ 对阶梯给出的候选自探存在（`resolveHandoffName` 在 canonical 级上不 stat，只有退役 `spec` 孪生级与 implement legacy 级 stat 自己的候选，阶梯报不出「取不到文件」），探不到就返回空，调用方维持 `RequesterRead.unrecorded` / `FIX_DISPOSITIONS_UNRECORDED` 的 soft skip（`contract/completion-criterion.ts:291`），而不是 `unreadable` 硬拒。五条读面改经它们：board 的 `+N`、`Ledger#reviewsPathOf`、`CliLifecycle#reviewsPath`（`face/lifecycle.ts:1297-1310`——第五读面，也是 `CompletionContext.reviewsPath` 的来源）、`FixDispositions` 的 requester 路径、capsule 成功面；`CliLifecycle#judgedRecordOf`（`face/lifecycle.ts:519-531`）不再以 draft 拼写制造 `carrierPath`，`FixDispositions#ownRefusal`（`contract/completion-criterion.ts:487-492`）不再读该格。
+`RoundRecord` 停写 `carrierPath` / `draftPath`；新增 `Ledger#carrierPathOf(type, key, record)` 与 `RoundRecords#ownerOf(records, record, pathOf)`。accessor 取值三步：① 记录的 `carrierPath` 是非空字符串就用它（legacy 行的历史事实，零迁移）；② 否则走 `resolveHandoffName` 的既有阶梯（`session/ledger.ts:1696-1712`，次序是 shipped 形：final-if-exists → 活线的 cycle 1 · attempt 1 implement legacy 级（先于 canonical）→ canonical；退役 `spec` 孪生线另序 canonical-if-exists → 退役孪生名 → canonical），**不是裸 `renderPath(…, "final")`**——pre-P31 行从未铸过 `.c{cycle}` 拼写，裸渲染指向一个不存在的文件，合法轮次就被硬拒；走阶梯之前先把记录还原成完整身份（`line = type`（wave 线取 `key`）、`op = record.op`、`cycle = record.cycle`、`attempt = record.attempt`，即 `HandoffParams = { tasks: 该 wave 线的 key, round: record.cycle, attempt: record.attempt }`）——漏喂 `attempt` 就会让 attempt-2 的记录因守恒仍在盘上的 attempt-1 final 被 `final-if-exists` 命中，`+N` 拿别人的路径比本记录的 `carrierDigest`；③ 对阶梯给出的候选自探存在（`resolveHandoffName` 的 canonical 级从不 stat——活线在 implement legacy 级 stat 自己的候选后直接返回 `legacy ?? canonical`，退役 `spec` 孪生线只 stat canonical 与退役孪生两级，阶梯报不出「取不到文件」），探不到就返回空，调用方维持 `RequesterRead.unrecorded` / `FIX_DISPOSITIONS_UNRECORDED` 的 soft skip（`contract/completion-criterion.ts:291`），而不是 `unreadable` 硬拒。五条读面改经它们：board 的 `+N`、`Ledger#reviewsPathOf`、`CliLifecycle#reviewsPath`（`face/lifecycle.ts:1297-1310`——第五读面，也是 `CompletionContext.reviewsPath` 的来源）、`FixDispositions` 的 requester 路径、capsule 成功面；`CliLifecycle#judgedRecordOf`（`face/lifecycle.ts:519-531`）不再以 draft 拼写制造 `carrierPath`，`FixDispositions#ownRefusal`（`contract/completion-criterion.ts:487-492`）不再读该格。
 
 摘要半边同批认 `attempt`，落点是 `Ledger#carrierDigestOf`（`session/ledger.ts:1692`）→ `#latestRecordOf`（`:1700`）——**不是** `#requesterDigestOf`（那一处只删路径门）：两者今天只按 op + cycle 过滤再归约最大 attempt，名字带 attempt 而摘要仍归约最大 attempt，一条被重派的 cycle（attempt 2 已入账、attempt 1 的 final 因守恒仍在盘上）就变成「读 attempt 1 的字节、比 attempt 2 的摘要」，`CarrierIntegrity.read`（`session/carrier-integrity.ts:94-102`）对自己的记录抛 `carrier-mismatch`。所以 `#latestRecordOf` 在 `params.attempt` 存在时按它选记录，名字与摘要逐字同源。调用方按手里有没有那条记录分两类：**持有记录的读者传该记录自己的 attempt**（`Ledger#round` `:1917`，其读点 `:1946` / `:1965` / `:1966`，调用点 `:1077` / `:1176` / `:1531`，`Lifecycle#routeNext` `session/run.ts:927`）；**解析读者先取该轮最新 review attempt 再用它取名，绝不继承派发帧的 attempt**（`#reviewsPathOf` `:1717-1720`、`#consecutiveS1Run` `:1882-1893`、`Ledger#round` 的两处 review 读）——帧的 `attempt` 一经 `Lifecycle#paramsOf` 填进 params，attempt-2 的 fix 帧会把 review 记录过滤到 attempt 2、一条都取不到，回退渲出 review 从未写过的 `…-review-1-a2.c1.json`，合法 fix 轮便不产生 Round、re-review hop 也随之消失。记录缺席时回退 attempt 1（§2.5）。
 
@@ -111,20 +111,20 @@ implement 的 legacy 级（`#legacyCarrierName`，读-only，cycle 1 · attempt 
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`carrierPathOf`（三步取值序：记录值 → 阶梯的种子身份 → 自探存在）· `resolveHandoffName` 的 implement legacy 级 `#legacyCarrierName` · `RoundRecords.ownerOf` · `RoundIdentity`（:146-148）摘 `carrierPath` 格 · `#latestRecordOf` 在 `params.attempt` 存在时按它选记录 · `#reviewsPathOf` / `#consecutiveS1Run` / `Ledger#round` 的 review 读为解析读者（剥帧 attempt、取请求侧 review 记录最新 attempt）· `recordRound` 停写两字段 · `persistHandoff` 写 `renderPath(final)` 并 seal 两个名字 · `readHandoff` 接受 `attempt`）
+- Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`carrierPathOf`（三步取值序：记录值 → 阶梯的种子身份 → 自探存在）· `resolveHandoffName` 的 implement legacy 级 `#legacyCarrierName` 与阶梯次序（活线 implement legacy 先于 canonical）· `#attemptAware`（:1736）保持中央缺省——`resolveHandoffName` / `resolveHandoffPath` 的缺省仍解析成该轮最新已记录 attempt、整轮无记录才落 1 · `RoundRecords.ownerOf` · `RoundIdentity`（:146-148）摘 `carrierPath` 格 · `#latestRecordOf` 在 `params.attempt` 存在时按它选记录 · `#reviewsPathOf` / `#consecutiveS1Run` / `Ledger#round` 的 review 读为解析读者（剥帧 attempt、取请求侧 review 记录最新 attempt）· `recordRound` 停写两字段 · `persistHandoff` 写 `renderPath(final)` 并 seal 两个名字 · `readHandoff` 接受 `attempt`）
 - Modify: `packages/cdd-engine/src-next/session/carrier-integrity.ts`（`readFor` 的「从记录取路径」职责退役，调用点改 `read(path, digest)`）
 - Modify: `packages/cdd-engine/src-next/face/board-view.ts`（`#findingsCountOf` 收 `(path, digest, owner)`；行构造处一次算行内全量记录并传判定）
 - Modify: `packages/cdd-engine/src-next/contract/completion-criterion.ts`（`requesterPathOf` 退休——请求侧归属判定内联进 `#requesterOf`，`ctx.reviewsPath` 由 `requesterInputOf` 的入参直取；`#requesterDigestOf` 只取 `record.carrierDigest`、删 :423 的 `carrierPath === null` 门；`#ownRefusal` 的「no work carrier at …」文案改由 accessor 取路径或去路径片）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#reviewsPath`（:1297-1310）走 `carrierPathOf` + 请求侧 review 记录的最新 `attempt`（记录缺席回退 1），取路写成一条：`--reviews` → `carrierPathOf`（记录值 → 阶梯种子身份 → 自探存在）→ 解析不到即 `null`——recorded-path 直读（`:1299`）与 legacy `carrierPath === null` 判别（`:1307`）两道同批退役，不留「记录在、载体缺席 → 返回 resolved 名」的第三档（§2.10 的 `unrecorded` 改由 accessor 解析不到载体触发）；`#judgedRecordOf`（:519-531）不再制造 `carrierPath`）
 - Modify: `packages/cdd-engine/src-next/session/run.ts`（`#capsuleLines`（:1008-1031）成功面经 `resolveHandoffPath` 取名，`attempt` 由帧的 params 携带，不手传第二个参数）
-- Test: `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`（accessor 三步取值序 · legacy 行阶梯命中 canonical 名 · pathless implement legacy 行由 legacy 级读回（cycle 1 命中 `tasks-1-implement.json`、cycle 2 不命中，orphan 认领与读面一致）· 阶梯种子取 `record.attempt`：一条 attempt-2 记录在 attempt-1 final 仍在盘上时命中 attempt-2 的 final · 阶梯候选全缺返空（doc / wave / branch 三线各一条）· `ownerOf` 三例 · 摘要缝同源两例：attempt 2 与显式 attempt 1 · 解析读者不继承帧 attempt）
+- Test: `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`（accessor 三步取值序 · legacy 行阶梯命中 canonical 名 · pathless implement legacy 行由 legacy 级读回（cycle 1 命中 `tasks-1-implement.json`、cycle 2 不命中，orphan 认领与读面一致）· 阶梯种子取 `record.attempt`：一条 attempt-2 记录在 attempt-1 final 仍在盘上时命中 attempt-2 的 final · 阶梯候选全缺返空（doc / wave / branch 三线各一条）· `ownerOf` 三例 · 摘要缝同源两例：attempt 2 与显式 attempt 1 · 解析读者不继承帧 attempt · 中央缺省两例：只有 attempt-2 记录且无 `-a2` 候选时，只持 `(tasks, round)` 的 `resolveHandoffPath("review", …)` 仍解析到 attempt 2；整轮无记录时落回 attempt 1）
 - Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（重派两次后零 `carrier-mismatch` · 旧 attempt 的 `+N` 来自自己的产物 · legacy 失配行计 0 · 无 `carrierPath` 的 legacy 行经阶梯命中 canonical 并计入 · 节点板的 `overall` 行读 program workspace 的 progress 与 ledger：program 的 review 轮只出现一次且带自己的 `+N`，节点自身多出的 `overall` 行不参与）
 - Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（attempt-2 夹具：`--reviews` 读回 attempt-2 final；篡改 attempt-2 final 仍抛 `carrier-mismatch`；新记录在阶梯候选全缺时 `#reviewsPath` 返 `null`、fix 轮落 `RequesterRead.unrecorded` 的 soft skip 而非 `unreadable` 硬拒；attempt-2 fix 帧的 Round 非 null）
 - Test: `packages/cdd-engine/src-next/contract/__tests__/completion-criterion.test.ts`（无 `carrierPath` 而有 `carrierDigest` 的记录 + 一字节篡改 → `CarrierMismatchError`；accessor 解析不到载体 → `RequesterRead.unrecorded` 的 soft skip，不落 `unreadable`；pre-P31 pathless 行的 fix 轮读到 canonical 名载体的 findings 并照常判 dispositions、零摘要比对）
 
 #### Consumes
 
-- Task 1 的 `renderName` / `renderPath` / `HandoffParams.attempt`
+- Task 1 的 `renderName` / `renderPath` / `HandoffParams.attempt`（缺省两档：写面 `handoffName` / `handoffPath` / `renderName` 落 1；解析面 `resolveHandoffName` / `resolveHandoffPath` 经 `Ledger#attemptAware` 落该轮最新已记录 attempt，整轮无记录落 1）
 - 既有 `CarrierIntegrity.read(path, recordedDigest)` 三态读
 - 既有 `BoardView#summaryCell` 的行构造点与 `Lifecycle#capsuleLines` 的成功面
 
@@ -171,6 +171,7 @@ implement 的 legacy 级（`#legacyCarrierName`，读-only，cycle 1 · attempt 
 - 节点板的行装配按线取源：`spec` / `plan` 行读本节点 workspace 的 progress 与 ledger，`overall` 行读 program workspace（overall 文档 slug）自己的 progress 与 ledger，program 的轮次在节点板上只出现一次、带自己的 `+N`。
 - legacy 行两档：无 `carrierPath` 而载体停在 canonical 名的判为已记录（阶梯命中、零摘要比对；fix 轮读到其 findings 并照常判 dispositions）；被覆写的失配行 present-facts（`+N` = 0、不抛）；pathless 的 implement legacy 行（`rounds: {implement: [1]}`）由 legacy 级读回 `tasks-1-implement.json`（cycle 1 命中、cycle 2 不命中，与 orphan 认领同一事实）；外部篡改仍抛——包括无 `carrierPath` 而有 `carrierDigest` 的记录（摘要缝不依赖路径字段）。阶梯的种子恒取 `record.attempt`（attempt-2 记录不落到 attempt-1 的 final）；阶梯候选全缺时 doc / wave / branch 三线各落软跳过。
 - attempt-2 的 draft/final/report/log 由渲染命名；名字与摘要取自同一条记录——`readHandoff` 带 `attempt: 2` 读 attempt-2 的字节与 attempt-2 的摘要，带 `attempt: 1` 读 attempt-1 的两者，零 `carrier-mismatch`；attempt-2 的 fix 帧产生非 null Round，`reviewsPath` 是 attempt-1 的 final 名，`consecutiveS1` 与 attempt-1 读数相同，re-review hop 仍由 `Lifecycle#routeNext` 发出。
+- `HandoffParams.attempt` 的缺省两档：`handoffName` / `handoffPath` / `renderName` 落 1；`resolveHandoffName` / `resolveHandoffPath` 经 `#attemptAware` 落该轮最新已记录 attempt（整轮无记录落 1）——只持 `(tasks, round)` 的解析读者因此仍读到 attempt 2，不把缺省重新变成 1。
 
 #### DependsOn
 
@@ -326,13 +327,13 @@ none
 
 #### Objective
 
-两处过严判据按**事实负载度**分档（同一条判据：不该红的地方不要红），外加一处「第二份手写拼写」的收敛。① 载体坏值：`required` 字段（work 的 `status` / `artifacts`、judge 的 `findings`、finding 的 `severity` / `lens` / `summary`）坏值仍 BLOCKED；非 `required` 的装饰字段（**定义**：`PLANE_SLOTS` 减 `PLANE_REQUIRED`，finding 面同法取 `FINDING` 的 slot 减 required——下列括号只为举例、不是清单：judge 的 `artifacts` / `notes`、work 的 `dispositions`，与 finding 的 `id` / `section` / `line` / `fix` 皆在其中）坏值 drop 该键 + 一条 soft observation；`dispositions` 的成员资格不动、但坏值不被原谅——drop 之后载体里没有这个对象，`FixDispositions#ownRefusal`（`contract/completion-criterion.ts:487`，判定 `:497-500`，经 `dispositionsOf` `:429`）对「缺席或非对象」仍硬拒，拒因从类型不符换成 `declares no dispositions object`，那条 soft observation 必须点出被丢掉的键名——落点是三处真实的缝：`HandoffSchema#check` 返丢弃键集、`#reconstruct` 的 `schema.readBack` required 档门与 `#materialize` 消费它、`#findingsList` 剝掉嵌套越档键。② `closed-wave-fits-depends-on-layers` 只判**未闭合** wave，闭合面交既有的 `planned-tasks-vs-recorded-tasks`——它读**当前** plan 的 task id 集、只判「已记录而当前 plan 不再携带」一个方向，快照列不接进该规则（那会改变它判的东西，快照属于 append-vs-stall）。③ 同一文件的派发 prompt 契约面（`HandoffSchema#schemaText` :196-203，第 200 行）把证据名以旧拼写渲进每一条 work 面 prompt——改述为「the file named by `OUTPUT_EVIDENCE`」，拼写只留 `RoundNaming` 一处；不动则守卫 (b) 红，且子 agent 照 prompt 的旧形状写文件，读回门（`face/lifecycle.ts:552-553` 按 `RoundNaming.evidenceName` 的新名字取文件）判其缺失、改写为 BLOCKED。三处合并为一任务的理由：同一个「第二份手写副本 / 过严判据」根因，每处一两行改动，`session/handoff-schema.ts` 本就在本任务的 Files 内（同波次不再撞行），合并后波宽仍 ≤ 3。
+两处过严判据按**事实负载度**分档（同一条判据：不该红的地方不要红），外加一处「第二份手写拼写」的收敛。① 载体坏值：`required` 字段（work 的 `status` / `artifacts`、judge 的 `findings`、finding 的 `severity` / `lens` / `summary`）坏值仍 BLOCKED；非 `required` 的装饰字段（**定义**：`PLANE_SLOTS` 减 `PLANE_REQUIRED`，finding 面同法取 `FINDING` 的 slot 减 required——下列括号只为举例、不是清单：judge 的 `artifacts` / `notes`、work 的 `dispositions`，与 finding 的 `id` / `section` / `line` / `fix` 皆在其中）坏值 drop 该键 + 一条 soft observation；`dispositions` 的成员资格不动、但坏值不被原谅——drop 之后载体里没有这个对象，`FixDispositions#ownRefusal`（`contract/completion-criterion.ts:487`，判定 `:497-500`，经 `dispositionsOf` `:429`）对「缺席或非对象」仍硬拒，拒因从类型不符换成 `declares no dispositions object`，那条 soft observation 必须点出被丢掉的键名——落点是三处真实的缝、四处赋值：`HandoffSchema#check` 返丢弃键集、`#reconstruct` 的 `schema.readBack` required 档门与 `#materialize` 消费它（四处顶层拷贝赋值覆盖三个装饰槽——judge 面 `artifacts` 的三元、`draftNotes`、`dispositions`、`notes`）、`#findingsList` 剝掉嵌套越档键。② `closed-wave-fits-depends-on-layers` 只判**未闭合** wave，闭合面交既有的 `planned-tasks-vs-recorded-tasks`——它读**当前** plan 的 task id 集、只判「已记录而当前 plan 不再携带」一个方向，快照列不接进该规则（那会改变它判的东西，快照属于 append-vs-stall）。③ 同一文件的派发 prompt 契约面（`HandoffSchema#schemaText` :196-203，第 200 行）把证据名以旧拼写渲进每一条 work 面 prompt——改述为「the file named by `OUTPUT_EVIDENCE`」，拼写只留 `RoundNaming` 一处；不动则守卫 (b) 红，且子 agent 照 prompt 的旧形状写文件，读回门（`face/lifecycle.ts:552-553` 按 `RoundNaming.evidenceName` 的新名字取文件）判其缺失、改写为 BLOCKED。三处合并为一任务的理由：同一个「第二份手写副本 / 过严判据」根因，每处一两行改动，`session/handoff-schema.ts` 本就在本任务的 Files 内（同波次不再撞行），合并后波宽仍 ≤ 3。
 
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`HandoffSchema#check`（:328，整数分支 `:378`）改为 tier-aware：非 required 节点失配时记录并跳过该键、不产生 problem；`#check` 返**被丢掉的键集**，谓词不抄第二份；`schemaText`（:196-203，第 200 行）把证据名改述为「the file named by `OUTPUT_EVIDENCE`」，不再以 `{prefix}-{key}-test-evidence.json` 抄第二份拼写）
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（坏值缝的另两处：`#reconstruct` 的 `schema.readBack` required 档门（:1223）消费 tier-aware 结果、`#materialize`（:1566）的 `droppedKeys` 路（:1579）与三个顶层拷贝点（`:1608` `draftNotes` / `:1613` `dispositions` / `:1615` `notes`）消费同一键集、`#findingsList`（:1702）剝掉越档的嵌套键）
-- Modify: `packages/cdd-engine/src-next/contract/judge.ts`（`LedgerFacts`（:45-63）补 `openWaves` 装配格，与 `closedWaves` 相邻）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（坏值缝的另两处：`#reconstruct` 的 `schema.readBack` required 档门（:1223）消费 tier-aware 结果、`#materialize`（:1566）的 `droppedKeys` 路（:1579）与四个顶层拷贝赋值消费同一键集——`const artifacts = droppedDecorative.includes("artifacts") ? undefined : draft.artifacts`（judge 面 `artifacts` 槽；该文件行号本轮已漂，按赋值点名）· `draftNotes` 的按档取值 · `carrier.dispositions = draft.dispositions` · `carrier.notes = [...notes, ...draftNotes]`（四处赋值覆盖三个装饰槽）、`#findingsList`（:1702）剝掉越档的嵌套键）
+- Modify: `packages/cdd-engine/src-next/contract/judge.ts`（`LedgerFacts`（:45-63）补 `openWaves` 装配格，与 `closedWaves` 相邻且同形（`readonly (readonly number[])[]`，每个元素一组 task id、不携 wave key））
 - Modify: `packages/cdd-engine/src-next/session/preflight.ts`（`#ledgerFactsOf`（:506）装配 `openWaves`——读同一个 `progress.waves`，与 `closedWaves` 同批）
 - Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（层判据体 `LedgerLayeringRule`（:388）改迭代 `openWaves`；判词与 heading 同改——`the closed wave {…}` → `the open wave {…}`、`closed Waves` → `open Waves`（收窄后闭合 wave 被豁免、永远不会被这条判据说出来，判词再写 `closed` 就是对一条未闭合 wave 说谎），规则 id `closed-wave-fits-depends-on-layers` 与 `contract/rules.ts:184` 的声明行保持不动；`contract/rules.ts:184` 只携带声明行，无判据体，随动无行为）
 - Test: `packages/cdd-engine/src-next/session/__tests__/handoff-schema.test.ts`（`line: null` 被接受 + 一条 soft · judge 面 `artifacts` / `notes` 坏值同档（drop + soft、不搬进载体）· `severity` / `findings` / `status` 坏值仍 BLOCKED · `findings[].line = null` 的载体自过 `CARRIER` 声明 · `schemaText(plane, true, prefix)` 的 work 面 prompt 不再出现 `{prefix}-{key}-test-evidence.json` 第二份拼写、只指 `OUTPUT_EVIDENCE`）
@@ -349,7 +350,7 @@ none
 #### Produces
 
 - `handoff-schema` 的坏值分档校验（装饰字段 drop + soft，负载字段 BLOCKED；`#check` 返丢弃键集供 `#reconstruct` / `#materialize` 消费）
-- `LedgerFacts.openWaves`（wave key → task ids，与 `closedWaves` 同批装配在 `#ledgerFactsOf`）
+- `LedgerFacts.openWaves`（与 `closedWaves` 同形：`readonly (readonly number[])[]`，每个元素一组 task id、不携 wave key；与 `closedWaves` 同批装配在 `#ledgerFactsOf`，消费面 `LedgerLayeringRule#evaluate` 直接迭代它）
 - 层判据的闭合豁免（`LedgerLayeringRule` 只迭代未闭合 wave）
 
 #### Steps
@@ -392,3 +393,4 @@ none
 | v0.10 | 2026-11-14 | 评审回改（fix round 7）：`#waveParams` 的声明对齐实现——四参形 `(key, cycle, op, attempt)` 收为三参 `(key, cycle, attempt)`（折叠封的形状不再取决于 `op`，`op` 不是参数），Files / Produces 两处同笔；Steps 的 `#bookAbort` → `#waveParams(…, attempt)` 与其余字面不动。 | '[ai] Claude（kairos:cdd-fix · 2026-11-14）' |
 | v0.11 | 2026-11-14 | 评审回改（docs-fix round 7）：T1 的反向读表补第三类 legacy 拼写退役 `{spec}-{op}-{round}.json`（同 round · attempt 1），并写明该线词不在 `families` 里、须像 `#LINE_CARRIER` 并 `RETIRED_SPEC_KEY` 那样显式并入（Files / Consumes / Test / Steps / Acceptance 五处同笔），T4 的 Test 与 Acceptance 同步补第三类；T3 按 HEAD 收窄——abort fold 的 attempt 同源已由 `c2feec9f` 落地，实现步改为覆盖测（现状即绿），Files 删去对今日 `#waveParams` 分支的旧描述，`session/run.ts` 由 Modify 降为 Confirm（docstring 已改述）；docstring 退役清单补第三处 `face/lifecycle.ts:1076-1080` 的 `#roundCarrierNames` 注释。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
 | v0.12 | 2026-11-14 | 评审回改（branch-fix-1）：T2 的阶梯补 cycle 1 · attempt 1 的 implement legacy 级（`#legacyCarrierName`）并说明它是 T4 反向归属的读面孪生（Objective / Files / Test / Steps / Acceptance 同笔）；T2 的 board 行装配点名 `overall` 行读 program workspace（Test / Acceptance）；T5 的 cause 值域补引擎合成的 `round-blocked`，并补「作者零条目才合成」「声明式 BLOCKED soft-only 不进 `crashed:`」两条写失败测与 acceptance；spec 字面随版移到 v0.12。 | '[ai] Claude（kairos:cdd-dev · branch-fix-1 · 2026-11-14）' |
+| v0.13 | 2026-11-14 | 评审回改（docs-fix round 8）：T1 把适用面搬到帧面——`renderName` 全域渲染、单射网格六 type × 六 kind 全比（Constraints / Test / Steps / Acceptance 同笔），`evidenceName` 的两道空串闸（文档形 · 非 implement / fix 相位）留在帧面、委派只替拼写，补 `round-naming.test.ts:205-243` 的空串 pin；T1 Produces 的 `HandoffParams.attempt` 缺省拆两档（写面落 1、解析面经 `#attemptAware` 落该轮最新记录），T2 的 Files / Consumes / Test / Acceptance 点名该中央缺省；T2 Objective 的阶梯改为 shipped 次序（活线 implement legacy 先于 canonical，退役 `spec` 孪生线另序）并按新次序重述自探存在；T6 的 `LedgerFacts.openWaves` 改为与 `closedWaves` 同形的 task-id 数组列表，`#materialize` 的拷贝点补 judge 面 `artifacts` 三元（四处赋值覆盖三个装饰槽）；spec 字面随版移到 v0.13。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |

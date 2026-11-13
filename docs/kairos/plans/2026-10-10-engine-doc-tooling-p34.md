@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 计划：轮次产物身份的单射渲染'
 doc-type: plan
-version: v0.5
+version: v0.6
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p34
 base: develop
@@ -45,9 +45,10 @@ base: develop
 - Test: `packages/cdd-engine/src-next/session/__tests__/round-naming.test.ts`（网格 pin · 守恒边界 · implement 五 kind 携 cycle · `isCarrierName` 四拒）
 - Test: `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`（反向归属：未入账的 `-a2` draft / final 各列出一次、已入账的不列；`tasks-6,7-implement-1.json` → `(6,7) · implement · cycle 1 · attempt 1`；负向 pin——同一 `(line, op, cycle)` 的 attempt-1 记录**不**认领 `tasks-6,7-implement-1-a2.json`（认领键含 `attempt`）；两族 legacy 拼写各一条：`tasks-{tasks}-implement.json` 读成 cycle 1 · attempt 1、`{line}-{op}-{round}.json` 读成该 round · attempt 1；p16 的 pathless 夹具——`{"wave":"1","rounds":{"implement":[1],"review":[1]}}` 折叠出的记录认领 `tasks-1-implement.json`、不列孤儿，同一行的 `-a2` draft 列一次；report/evidence/crash 不入孤儿——它们不是 handoff 家族，列入会与扫描面的四拒相悖）
 - Test: `packages/cdd-engine/src-next/infra/__tests__/infra.test.ts`（`CarrierSeal.sweep` 认 `-a{n}` 载体、拒 report/evidence/crash/log）
-- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（锚点 + 扫描指令：锚点 `:1726` / `:1814` / `:1908` / `:3737` / `:4096` / `:5859` / `:5917`；范围是本文件**全部非 crash 的 `tasks-*-implement*` 夹具**（draft / report / log / evidence）随新名同批改——这类行实测 40 处，行内清单只是锚点不是上限；`crash-tasks-…-implement-…json` 是守恒侧，逐字节不变、不得顺手改名）
-- Test: `packages/cdd-engine/src-next/face/__tests__/preview.test.ts`（:97 的 implement 拼写夹具）
-- Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（:158 的 implement 拼写夹具）
+- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（锚点 + 扫描指令：锚点 `:1726` / `:1814` / `:1908` / `:3737` / `:4096` / `:5859` / `:5917`；范围是**两段**——(a) 本文件全部非 crash 的 `tasks-*-implement*` **载体**夹具（draft / final / report / log）实测 40 处；(b) 全部 `*-test-evidence.json` **证据**夹具实测 36 行（四形：`tasks-1-test-evidence.json` / `tasks-4,12-…` / `tasks-2,5-…` / `branch-test-evidence.json`，另有若干散文行）——证据名今日是 `{prefix}-{key}-test-evidence.json`（`session/round-naming.ts:124-130` 的 `evidenceName` 不带 op / cycle），**不在** `tasks-…-implement*` 名集合里，漏掉这 36 行则 acceptance 的「全线 evidence 携三坐标」缺覆盖。证据夹具的改法是把 `{prefix}-{key}-test-evidence.json` 换成 `{prefix}-{key}-{op}-{cycle}-test-evidence.json`（attempt ≥ 2 再加 `-a{n}`；wave 的 `tasks-1-…` 即 `tasks-1-implement-1-…`，`branch` 族随其线的 op / cycle，如 `branch-fix-1-test-evidence.json`）；行内清单只是锚点不是上限；`crash-tasks-…-implement-…json` 是守恒侧，逐字节不变、不得顺手改名）
+- Test: `packages/cdd-engine/src-next/face/__tests__/preview.test.ts`（:97 的 implement 载体与证据拼写夹具）
+- Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（:158 的 `tasks-${key}-test-evidence.json` 证据夹具）
+- Test: `packages/cdd-engine/src-next/infra/__tests__/carrier-seal.test.ts`（:78 的 `tasks-1-test-evidence.json` 证据夹具）、`packages/cdd-engine/src-next/render/__tests__/render.test.ts`（:42 / :126 的 `OUTPUT_EVIDENCE` 断言）、`packages/cdd-engine/src-next/session/__tests__/handoff-schema.test.ts`（:42 的 `artifacts.test_evidence` 路径）——写进 workspace 或断言的旧证据名在新读回名下不再被读到，留着就是空转夹具
 
 #### Consumes
 
@@ -67,7 +68,7 @@ base: develop
 
 - 写失败测（网格）：六个 `TargetType`（四个文档形 + wave + branch）× 适用 kind × `attempt` 1–3 × `cycle` 1–2，断言同一 kind 下任意两个不同身份不同名；`""` 不入比较 — checkable: 定向 vitest FAIL（今日无 `renderName`）
 - 写失败测（守恒边界）：四条文档线的 review / fix 族，每条文档线断言自己的拼写前缀并各带一条守恒字面（`phase-spec-review-1.json` / `phase-spec-review-1.c1.json` / `phase-spec-review-1-report.md` / `phase-spec-review-1.log` 之外，`overall-review-1*` / `plan-review-1*` / `single-spec-review-1*` 各一条），与今日拼写逐字节相同 — checkable: FAIL（今日 `render` 不存在）
-- 写失败测（守恒边界 · wave 与 branch 两族）：wave 的 review / fix 族，以及 branch 的 **review 与 fix 两族**——`branch-fix-1.json` / `branch-fix-1.c1.json` / `branch-fix-1-report.md` / `branch-fix-1.log` 与同线 review 族逐字节等于今日拼写；`crash-phase-spec-review-1.json` 这类 `crash` 名对每条线、每个 kind 均逐字节不变 — checkable: FAIL（今日 `render` 不存在）
+- 写失败测（守恒边界 · wave 与 branch 两族）：wave 的 review / fix 族，以及 branch 的 **review 与 fix 两族**——`branch-fix-1.json` / `branch-fix-1.c1.json` / `branch-fix-1-report.md` / `branch-fix-1.log` 与同线 review 族逐字节等于今日拼写；`crash-phase-spec-review-1.json` 这类 `crash` 名对每条线、每个 kind 在 `attempt === 1` 时逐字节不变（attempt ≥ 2 携 `-a{n}`，由 T3 钉——`crashName` 今日不带 attempt 令牌，`session/round-naming.ts:177-179`） — checkable: FAIL（今日 `render` 不存在）
 - 写失败测（implement 族）：五个非 crash kind 均携 `-1` 且 `final ≠ draft`；`crash` 保持今日拼写 `crash-tasks-6,7-implement-1.json` — checkable: FAIL
 - 写失败测（`evidence` 携三坐标）：`tasks-6,7-implement-1-test-evidence.json` 与 `branch-fix-1-test-evidence.json` — checkable: FAIL
 - 写失败测（扫描面四拒）：`isCarrierName` 对 `…-report.md` / `….log` / `…-test-evidence.json` / `crash-….json` 均为 false，对 `tasks-6,7-implement-1-a2.json` 与 `tasks-6,7-implement-1-a2.c1.json` 为 true（携 cycle 的拼写——形状若只容无 cycle 的 `-a2`，会接受渲染面永不铸出的名） — checkable: FAIL（今日 pattern 不认 `-a{n}`）
@@ -85,7 +86,7 @@ base: develop
 #### Acceptance
 
 - 网格 pin 绿：六个 type × 适用 kind × attempt 1–3 × cycle 1–2，同一 kind 下无同名；`""` 不入比较。
-- 守恒边界：四类文档线（每条断一条自己的守恒字面：`phase-spec-review-1*` / `overall-review-1*` / `plan-review-1*` / `single-spec-review-1*`）· wave 的 review/fix 族 · branch 的 **review/fix 两族** · 全部 `crash` 名逐字节不变。
+- 守恒边界：四类文档线（每条断一条自己的守恒字面：`phase-spec-review-1*` / `overall-review-1*` / `plan-review-1*` / `single-spec-review-1*`）· wave 的 review/fix 族 · branch 的 **review/fix 两族** · `attempt === 1` 的全部 `crash` 名逐字节不变（attempt ≥ 2 携 `-a{n}`，由 T3 钉；`crashName` 今日不带 attempt 令牌）。
 - implement 五个非 crash kind 携 cycle 且 `final ≠ draft`；全线 `evidence` 携 op/cycle/attempt；`Lifecycle#paramsOf` 对每一帧填 `attempt`、对 implement 填 round，attempt-2 的派发名携 `-a2`，派发名不出现 `undefined`。
 - `isCarrierName` 只认 draft/final（含 `-a{n}`），四种非载体形状一律 false。
 - 反向归属认新拼写且认 attempt：未入账的 `-a2` draft / final 各在 `orphanHandoffs` 出现一次，已入账的不出现；同一 `(line, op, cycle)` 的 attempt-1 记录**不**认领 attempt-2 的文件；`report` / `evidence` / `crash` 不入孤儿；implement 的 `tasks-6,7-implement-1.json` 归属到 `(6,7) · implement · cycle 1 · attempt 1`；两族 legacy 拼写（`tasks-{tasks}-implement.json` = cycle 1 · attempt 1、`{line}-{op}-{round}.json` = 该 round · attempt 1）与 p16 的 pathless 行一并认领。
@@ -184,7 +185,7 @@ preflight 的 unseal 集合与 terminal 的 seal 集合都改用本轮身份的 
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#roundCarrierNamesOf` 收 `attempt` · `#openRoundCarriers` 只 unseal 本轮一对 · terminal 同对 seal · `#writeCrash` 走渲染名）
 - Modify: `packages/cdd-engine/src-next/session/run.ts`（`#sealRoundCarriers` 同源）
 - Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（attempt-2 窗口：attempt-1 一对不可写 · 窗口内只有 attempt-2 一对可写 · review 轮崩溃记录落在渲染名上且 attempt 2 不覆盖 attempt 1 · 失败面 capsule 行与 resume 决策读回同一个 attempt-2 崩溃名 · attempt-2 fix 轮的 `#resumeOf` 写出的 `next` 携 attempt-1 review final 名，不携 `…-review-1-a2` 幽灵名）
-- Test: `packages/cdd-engine/src-next/session/__tests__/round-naming.test.ts`（三条守卫：`RoundNaming` 与 `carrierPathOf` 之外零「读记录的 `carrierPath`」——写入侧的局部变量与赋值点不算；零 `.c${` / `-report.md` / `-a${` / `-test-evidence` 名字拼装字面；写面零 `families` 调用）
+- Test: `packages/cdd-engine/src-next/session/__tests__/round-naming.test.ts`（三条守卫：(a) `RoundNaming` 与 `carrierPathOf` 之外零「读记录的 `carrierPath`」——写入侧的局部变量与赋值点不算；(b) 零 `.c${` / `-report.md` / `-a${` / `-test-evidence` 名字拼装字面，判面是「`RoundNaming` 之外的**非注释代码行**」，已知红集今日只有 `session/handoff-schema.ts:200`（`schemaText` 把证据名以旧拼写渲进每条 work 面 prompt），已知非红集 `infra/carrier-seal.ts:11` / `infra/workspace.ts:150` / `face/lifecycle.ts:545` 是注释、不入集；(c) 写面零 `families` 调用）
 - Add: `.changeset/p34-round-artifact-identity.md`（`@oscaner-skills/cdd-engine` minor）
 
 #### Consumes
@@ -203,7 +204,7 @@ preflight 的 unseal 集合与 terminal 的 seal 集合都改用本轮身份的 
 - 写失败测（窗口同源，terminal 后）：attempt-2 轮结束后 attempt-1 的 draft/final 仍是 sealed，attempt-2 的一对也是 sealed — checkable: 定向 vitest FAIL
 - 写失败测（窗口内可写面）：窗口打开期间只有 attempt-2 的一对可写 — checkable: FAIL
 - 写失败测（review 轮崩溃）：review 失败面写出 `crash-{line}-{op}-{cycle}.json`，attempt 2 写 `…-a2.json` 且 attempt 1 的文件不被覆盖；同一夹具的失败面 capsule 行与前 `next:` resume 决策都读回 attempt 2 的名字（不是 attempt 1、不是无后缀的默认名）；fix resume 的 `--reviews` 携 requester review 记录的 attempt-1 final 名（fix 帧的 `attempt = 2` 不泄漏进 review 家族）— checkable: FAIL
-- 写失败测（三条守卫）：`RoundNaming` 与 `carrierPathOf` 之外零「读记录 `carrierPath`」；零产物名拼装字面；写路径零 `families` 调用 — checkable: FAIL（真实红集：`face/lifecycle.ts:1299` / `:1307` / `:526`、`contract/completion-criterion.ts:365` / `:423` / `:490`。写入侧的局部变量与赋值点不在集内：`session/run.ts:694` 声明 / `:724` 赋值 / `:763` 记录初始化、`RoundRecords` `:295`——它们不读 `record.carrierPath`，守卫只判读面）
+- 写失败测（三条守卫）：`RoundNaming` 与 `carrierPathOf` 之外零「读记录 `carrierPath`」；零产物名拼装字面；写路径零 `families` 调用 — checkable: FAIL（真实红集：`face/lifecycle.ts:1299` / `:1307` / `:526`、`contract/completion-criterion.ts:365` / `:423` / `:490`。写入侧的局部变量与赋值点不在集内：`session/run.ts:694` 声明 / `:724` 赋值 / `:763` 记录初始化、`RoundRecords` `:295`——它们不读 `record.carrierPath`，守卫只判读面。守卫 (b) 的判面 = `RoundNaming` 之外的非注释代码行：红集今日只有 `session/handoff-schema.ts:200`（由 T6 改述为 `OUTPUT_EVIDENCE`），非红集是三条注释（`infra/carrier-seal.ts:11` / `infra/workspace.ts:150` / `face/lifecycle.ts:545`）——不得为此开豁免让旧拼写留下）
 - 实现 preflight / terminal 的同源窗口、`#writeCrash` 的渲染名与失败面 / resume 的读回 — checkable: 前三条测 PASS
 - 补三条守卫测试并让它们绿 — checkable: 三条守卫 PASS
 - 落 changeset（minor，理由：产物命名是消费面可见的字节）— checkable: `pnpm exec changeset status` 列出该条
@@ -215,7 +216,7 @@ preflight 的 unseal 集合与 terminal 的 seal 集合都改用本轮身份的 
 - attempt-2 的派发只 unseal attempt-2 的一对；attempt-1 一对在整轮不可写；terminal seal 同一对。
 - 崩溃遗留的 `-a{n}` 载体被 sweep 认出并封印；四种非载体形状不被当载体。
 - review 轮的崩溃记录落在渲染名上，attempt 2 不覆盖 attempt 1；失败面 capsule 行与 resume 决策读回同一个 attempt-2 名字；fix resume 的 `next` 携 requester review 的 attempt-1 final 名。
-- 三条守卫 pin 绿（`RoundNaming` 与 `carrierPathOf` 之外零读记录的 `carrierPath` · 零名字拼装 · 写面零 `families`；写入侧局部变量与赋值点不在判面内）；changeset minor 在册；`pnpm run validate` exit 0。
+- 三条守卫 pin 绿（(a) `RoundNaming` 与 `carrierPathOf` 之外零读记录的 `carrierPath`、(c) 写面零 `families`——写入侧局部变量与赋值点不在判面内；(b) 零名字拼装，判面为「`RoundNaming` 之外的非注释代码行」，红集今日只余 `session/handoff-schema.ts:200` 且经 T6 改述后归零，三条注释（`infra/carrier-seal.ts:11` / `infra/workspace.ts:150` / `face/lifecycle.ts:545`）不入集）；changeset minor 在册；`pnpm run validate` exit 0。
 
 #### DependsOn
 
@@ -309,21 +310,21 @@ none
 
 ---
 
-### Task 6: 宽容面——坏值分档 + 闭合 wave 层判据收窄
+### Task 6: 宽容面与单源面——坏值分档 + 闭合 wave 层判据收窄 + prompt 证据名单源
 
 #### Objective
 
-两处过严判据按**事实负载度**分档（同一条判据：不该红的地方不要红）。① 载体坏值：`required` 字段（work 的 `status` / `artifacts`、judge 的 `findings`、finding 的 `severity` / `lens` / `summary`）坏值仍 BLOCKED；非 required 的装饰字段（`id` / `section` / `line` / `fix` / `notes`）坏值 drop 该键 + 一条 soft observation——落点是三处真实的缝：`HandoffSchema#check` 返丢弃键集、`#reconstruct` 的 `schema.violations` 门与 `#materialize` 消费它、`#findingsList` 剝掉嵌套越档键。② `closed-wave-fits-depends-on-layers` 只判**未闭合** wave，闭合面交既有的 `planned-tasks-vs-recorded-tasks`——它读**当前** plan 的 task id 集、只判「已记录而当前 plan 不再携带」一个方向，快照列不接进该规则（那会改变它判的东西，快照属于 append-vs-stall）。两处合并为一任务的理由：同一个「过严判据」根因，两处各一行改动，合并后波宽仍 ≤ 3。
+两处过严判据按**事实负载度**分档（同一条判据：不该红的地方不要红），外加一处「第二份手写拼写」的收敛。① 载体坏值：`required` 字段（work 的 `status` / `artifacts`、judge 的 `findings`、finding 的 `severity` / `lens` / `summary`）坏值仍 BLOCKED；非 `required` 的装饰字段（**定义**：`PLANE_SLOTS` 减 `PLANE_REQUIRED`，finding 面同法取 `FINDING` 的 slot 减 required——下列括号只为举例、不是清单：judge 的 `artifacts` / `notes`、work 的 `dispositions`，与 finding 的 `id` / `section` / `line` / `fix` 皆在其中）坏值 drop 该键 + 一条 soft observation——落点是三处真实的缝：`HandoffSchema#check` 返丢弃键集、`#reconstruct` 的 `schema.violations` 门与 `#materialize` 消费它、`#findingsList` 剝掉嵌套越档键。② `closed-wave-fits-depends-on-layers` 只判**未闭合** wave，闭合面交既有的 `planned-tasks-vs-recorded-tasks`——它读**当前** plan 的 task id 集、只判「已记录而当前 plan 不再携带」一个方向，快照列不接进该规则（那会改变它判的东西，快照属于 append-vs-stall）。③ 同一文件的派发 prompt 契约面（`HandoffSchema#schemaText` :196-203，第 200 行）把证据名以旧拼写渲进每一条 work 面 prompt——改述为「the file named by `OUTPUT_EVIDENCE`」，拼写只留 `RoundNaming` 一处；不动则守卫 (b) 红，且子 agent 照 prompt 的旧形状写文件，读回门（`face/lifecycle.ts:552-553` 按 `RoundNaming.evidenceName` 的新名字取文件）判其缺失、改写为 BLOCKED。三处合并为一任务的理由：同一个「第二份手写副本 / 过严判据」根因，每处一两行改动，`session/handoff-schema.ts` 本就在本任务的 Files 内（同波次不再撞行），合并后波宽仍 ≤ 3。
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`HandoffSchema#check`（:328，整数分支 `:378`）改为 tier-aware：非 required 节点失配时记录并跳过该键、不产生 problem；`#check` 返**被丢掉的键集**，谓词不抄第二份）
+- Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`HandoffSchema#check`（:328，整数分支 `:378`）改为 tier-aware：非 required 节点失配时记录并跳过该键、不产生 problem；`#check` 返**被丢掉的键集**，谓词不抄第二份；`schemaText`（:196-203，第 200 行）把证据名改述为「the file named by `OUTPUT_EVIDENCE`」，不再以 `{prefix}-{key}-test-evidence.json` 抄第二份拼写）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（坏值缝的另两处：`#reconstruct` 的 `schema.violations` 门（:1213）消费 tier-aware 结果、`#materialize`（:1566）的 `droppedKeys` 路（:1579）与三个顶层拷贝点（`:1608` `draftNotes` / `:1613` `dispositions` / `:1615` `notes`）消费同一键集、`#findingsList`（:1702）剝掉越档的嵌套键）
 - Modify: `packages/cdd-engine/src-next/contract/judge.ts`（`LedgerFacts`（:45-63）补 `openWaves` 装配格，与 `closedWaves` 相邻）
 - Modify: `packages/cdd-engine/src-next/session/preflight.ts`（`#ledgerFactsOf`（:506）装配 `openWaves`——读同一个 `progress.waves`，与 `closedWaves` 同批）
-- Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（层判据体 `LedgerLayeringRule`（:388）改迭代 `openWaves`；`contract/rules.ts:184` 只携带声明行，无判据体，随动无行为）
-- Test: `packages/cdd-engine/src-next/session/__tests__/handoff-schema.test.ts`（`line: null` 被接受 + 一条 soft · judge 面 `artifacts` / `notes` 坏值同档（drop + soft、不搬进载体）· `severity` / `findings` / `status` 坏值仍 BLOCKED · `findings[].line = null` 的载体自过 `CARRIER` 声明）
-- Test: `packages/cdd-engine/src-next/contract/__tests__/judge.test.ts`（已闭合 wave 事后改依赖零红 · 未闭合 wave 跨层仍红，开放集来自 `LedgerFacts.openWaves`）
+- Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（层判据体 `LedgerLayeringRule`（:388）改迭代 `openWaves`；判词与 heading 同改——`the closed wave {…}` → `the open wave {…}`、`closed Waves` → `open Waves`（收窄后闭合 wave 被豁免、永远不会被这条判据说出来，判词再写 `closed` 就是对一条未闭合 wave 说谎），规则 id `closed-wave-fits-depends-on-layers` 与 `contract/rules.ts:184` 的声明行保持不动；`contract/rules.ts:184` 只携带声明行，无判据体，随动无行为）
+- Test: `packages/cdd-engine/src-next/session/__tests__/handoff-schema.test.ts`（`line: null` 被接受 + 一条 soft · judge 面 `artifacts` / `notes` 坏值同档（drop + soft、不搬进载体）· `severity` / `findings` / `status` 坏值仍 BLOCKED · `findings[].line = null` 的载体自过 `CARRIER` 声明 · `schemaText(plane, true, prefix)` 的 work 面 prompt 不再出现 `{prefix}-{key}-test-evidence.json` 第二份拼写、只指 `OUTPUT_EVIDENCE`）
+- Test: `packages/cdd-engine/src-next/contract/__tests__/judge.test.ts`（已闭合 wave 事后改依赖零红 · 未闭合 wave 跨层仍红，开放集来自 `LedgerFacts.openWaves`；红例的 finding message / heading 断言用新判词 `open wave` / `open Waves`）
 - Test: `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts`（`#ledgerFactsOf` 的 `openWaves` 与 `closedWaves` 同批装配、两端不相交）
 
 #### Consumes
@@ -347,7 +348,8 @@ none
 - 写失败测（负载字段不放宽）：`severity` / `findings` / `status` 任一处坏值 → 仍 BLOCKED — checkable: FAIL
 - 写失败测（闭合豁免）：一条已闭合 wave，事后改 `DependsOn` 使其与现算层不符 → 零红（闭合面由 `planned-tasks-vs-recorded-tasks` 承担，读当前 plan、单向）— checkable: FAIL
 - 写失败测（未闭合仍红）：未闭合 wave 跨层 → 仍红，红例的开放集来自 `LedgerFacts.openWaves` — checkable: FAIL
-- 实现分档校验与层判据收窄 — checkable: 六条测 PASS
+- 写失败测（派发 prompt 契约面）：一条 work 面 `schemaText` 的证据段含旧拼写 `{prefix}-{key}-test-evidence.json` → 断言它已改述为 `OUTPUT_EVIDENCE`、且 prompt 里不再出现第二份证据名拼写 — checkable: 定向 vitest FAIL（今日 `session/handoff-schema.ts:200` 以旧拼写渲入）
+- 实现分档校验、层判据收窄与 prompt 面的单源改述 — checkable: 七条测 PASS
 - 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run` 与 typecheck exit 0
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
@@ -357,6 +359,7 @@ none
 - `severity` / `findings` / `status` 的坏值仍 BLOCKED（负载面不缩）。
 - 已闭合 wave 事后改依赖零红（闭合面由 `planned-tasks-vs-recorded-tasks` 承担，读当前 plan、单向；快照列不接）；未闭合 wave 跨层仍红，开放集来自 `LedgerFacts.openWaves`。
 - 坏值分档的边界读 `required` 声明，不在 `#materialize` 手写第二份清单：tier-aware `#check` 返丢弃键集，`#materialize` 与 `#findingsList` 消费它。
+- 派发 prompt 的契约面只剩一份拼写：`HandoffSchema#schemaText` 以 `OUTPUT_EVIDENCE` 指代证据文件，不再渲 `{prefix}-{key}-test-evidence.json`；守卫 (b)（`RoundNaming` 之外零名字拼装字面）因该行改述而全绿。
 
 #### DependsOn
 
@@ -371,3 +374,4 @@ none
 | v0.3 | 2026-11-13 | 并入四条同族面（spec v0.8 · 用户裁定「全并」）：新增 T4 孤儿归属（记录归属 + legacy 路径档）、T5 崩溃/中断来源行（不参与分级）、T6 宽容面（坏值按 `required` 分档 drop + soft · 闭合 wave 层判据收窄）。波次：W1{1,5,6} → W2{2} → W3{3,4}。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.4 | 2026-11-14 | 评审回改（docs-fix round 2）：T1 补 `Lifecycle#paramsOf` 填帧的 `attempt`（两个帧构造点）+ attempt-2 派发夹具、`#stem` 改为删除、守恒边界补 branch fix 族、cli 夹具改为锚点 + 扫描指令；T2 的 accessor 改为 `resolveHandoffName` 阶梯 + 种子身份 + 自探存在，摘要半边改指 `#carrierDigestOf` / `#latestRecordOf` 的 attempt 收窄，新增解析读者类（`#reviewsPathOf` / `#consecutiveS1Run` / `Ledger#round` 的 review 读）；T3 守卫证据改到真实红集并把写入侧赋值点列为不属判面；全文 `Run#` 改为 `Lifecycle#`。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
 | v0.5 | 2026-11-14 | 评审回改（docs-fix round 3）：T1 反向归属改为名字 → 身份比对并补两族 legacy 拼写、p16 pathless 夹具与 attempt 负向 pin，`isCarrierName` 字面补 cycle，`finalName` / `finalPath` 退役及其四个调用点，守恒边界补四条文档线各一条字面；T2 补阶梯种子取 `record.attempt`、doc/wave/branch 三线自探与 pre-P31 行读全 findings；T3 补 fix resume 的 `--reviews` 携带 attempt-1 review final；T4 认领键改完整身份（含 attempt），legacy 档经 `carrierPathOf` 且两侧 `path.basename`；T5 成员谓词补 `targetAction === false` 且 hard 条目，补两组 soft-only 反例与每轮一个 token；T6 坏值缝改指 `HandoffSchema#check` + `face/lifecycle.ts`（`#reconstruct` / `#materialize` / `#findingsList`），新增 `LedgerFacts.openWaves` 与 `LedgerLayeringRule` 判据体坐标，闭合面改述为当前 plan 的单向判据。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
+| v0.6 | 2026-11-14 | 评审回改（docs-fix round 4）：T1 的 cli 扫描面改为两段（40 行载体夹具 + 36 行证据夹具，证据名旧形不在 implement 名集合），并补 `carrier-seal.test.ts:78` / `render.test.ts:42` `:126` / `handoff-schema.test.ts:42` 三处证据夹具，守恒边界与对应失败测给 `crash` 名字加 `attempt === 1` 限定；T3 守卫 (b) 的判面定为「`RoundNaming` 之外的非注释代码行」并列出红集与非红集；T6 新增 ③（`schemaText` 的证据名改述为 `OUTPUT_EVIDENCE`、拼写单源）及对应失败测、断言与 acceptance 行，标题同步改名；T6 的装饰字段枚举改为 `PLANE_SLOTS` 减 `PLANE_REQUIRED` 的定义式（括号仅举例），层判据的判词与 heading 同改为 `open wave`。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |

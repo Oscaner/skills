@@ -2756,6 +2756,254 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("P33 T1 — the round context carries the CLI `--type` word as TARGET_TYPE on every targeted face, never on implement", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      const promptOf = async (argv: readonly string[]): Promise<string> => {
+        await command.runArgv([...argv]);
+        const call = sync.calls[sync.calls.length - 1];
+        if (call === undefined) throw new Error(`no child spawned for: ${argv.join(" ")}`);
+        return call.args[call.args.length - 1]!;
+      };
+      try {
+        // ① a spec review — the token carries the spec-shaped type word
+        const spec = await promptOf([
+          "review",
+          "--type",
+          "phase-spec",
+          "--spec",
+          conformingSpec(repoRoot),
+        ]);
+        expect(spec).toContain("- `TARGET_TYPE`: phase-spec");
+        // the line sits immediately below ROLE — one reading order on every face
+        expect(spec).toContain("- `ROLE`: review\n- `TARGET_TYPE`: phase-spec\n");
+
+        // ② a wave fix round — the fix role carries the wave word
+        const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+        const ledger = new Ledger(workspace, new ConfigLoader());
+        const findings = [{ severity: "blocker", lens: "code", summary: "drift" }];
+        ledger.persistHandoff(
+          "implement",
+          "wave",
+          { tasks: "1" },
+          { status: "APPROVED", artifacts: {} },
+        );
+        ledger.recordRound(1, { op: "implement" });
+        const reviews = path.join(workspace.path, "tasks-1-review-1.json");
+        writeFileSync(reviews, JSON.stringify({ findings }), "utf8");
+        ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings });
+        ledger.recordRound(1, { op: "review" });
+        const fix = await promptOf([
+          "fix",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--reviews",
+          reviews,
+        ]);
+        expect(fix).toContain("- `TARGET_TYPE`: wave");
+        expect(fix).toContain("- `ROLE`: fix\n- `TARGET_TYPE`: wave\n");
+
+        // ③ a plan-doc fix round — the docs-fix row carries the plan word (the fix
+        // face's plan line IS docs-fix, so the type travels the same slot)
+        const planReviews = path.join(workspace.path, "plan-review-1.json");
+        writeFileSync(planReviews, JSON.stringify({ findings }), "utf8");
+        ledger.persistHandoff("review", "plan", { round: 1 }, { findings });
+        ledger.recordRound("plan", { op: "review" });
+        const docsFix = await promptOf([
+          "fix",
+          "--type",
+          "plan",
+          "--plan",
+          plan,
+          "--reviews",
+          planReviews,
+        ]);
+        expect(docsFix).toContain("- `TARGET_TYPE`: plan");
+        expect(docsFix).toContain("- `ROLE`: docs-fix\n- `TARGET_TYPE`: plan\n");
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P33 T1 — an implement round's round context carries no TARGET_TYPE line", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const call = sync.calls[sync.calls.length - 1];
+      expect(call).toBeDefined();
+      const prompt = call!.args[call!.args.length - 1]!;
+      // the implement layout carries no such line, and the empty value is dropped
+      expect(prompt).not.toContain("TARGET_TYPE");
+      expect(prompt).toContain("- `ROLE`: implement");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P33 T2 — the overall face carries the charter anchor alone: `INPUT_OVERALL`, never `INPUT_SPEC`", async () => {
+    // C2 — the charter was mapped to BOTH anchors (the judged doc landed in
+    // INPUT_SPEC and INPUT_OVERALL), so the round asked the reviewer to judge the
+    // charter against itself. The overall face keeps ONE charter anchor, on both
+    // its rounds.
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const overall = conformingOverall(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      const promptOf = async (argv: readonly string[]): Promise<string> => {
+        await command.runArgv([...argv]);
+        const call = sync.calls[sync.calls.length - 1];
+        if (call === undefined) throw new Error(`no child spawned for: ${argv.join(" ")}`);
+        return call.args[call.args.length - 1]!;
+      };
+      try {
+        // ① the review round — the charter is the judged doc AND its own anchor
+        const review = await promptOf(["review", "--type", "overall", "--spec", overall]);
+        expect(review).toContain("- `INPUT_OVERALL`: docs/kairos/specs/o1-overall.md");
+        expect(review).not.toContain("- `INPUT_SPEC`");
+
+        // ② the docs-fix round — the same face, the fix role's document line
+        const workspace = new Workspace(
+          new WorkspaceRoot(repoRoot, ".kairos/cdd"),
+          "o1-overall",
+        ).ensure();
+        const ledger = new Ledger(workspace, new ConfigLoader());
+        const findings = [{ severity: "warn", lens: "scope", summary: "drift" }];
+        const reviews = path.join(workspace.path, "overall-review-1.json");
+        writeFileSync(reviews, JSON.stringify({ findings }), "utf8");
+        ledger.persistHandoff("review", "overall", { round: 1 }, { findings });
+        ledger.recordRound("overall", { op: "review" });
+        const fix = await promptOf([
+          "fix",
+          "--type",
+          "overall",
+          "--spec",
+          overall,
+          "--reviews",
+          reviews,
+        ]);
+        expect(fix).toContain("- `INPUT_OVERALL`: docs/kairos/specs/o1-overall.md");
+        expect(fix).not.toContain("- `INPUT_SPEC`");
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P33 T2 — the four judged-document faces keep their `INPUT_SPEC` anchor", async () => {
+    // The overall face is the ONE face whose charter anchor replaces INPUT_SPEC; the
+    // spec-shaped documents carry their judged doc and the plan / branch lines carry
+    // the design-spec reference.
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      const promptOf = async (argv: readonly string[]): Promise<string> => {
+        await command.runArgv([...argv]);
+        const call = sync.calls[sync.calls.length - 1];
+        if (call === undefined) throw new Error(`no child spawned for: ${argv.join(" ")}`);
+        return call.args[call.args.length - 1]!;
+      };
+      try {
+        const phaseSpec = await promptOf([
+          "review",
+          "--type",
+          "phase-spec",
+          "--spec",
+          conformingSpec(repoRoot),
+        ]);
+        expect(phaseSpec).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
+        const planReview = await promptOf(["review", "--type", "plan", "--plan", plan]);
+        expect(planReview).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+        const branchReview = await promptOf(["review", "--type", "branch", "--plan", plan]);
+        expect(branchReview).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+        // the single-spec is an independent document class (no `program:`): its
+        // judged doc rides INPUT_SPEC and the charter anchor is dropped
+        const singleSpec = path.join(repoRoot, "docs", "kairos", "specs", "ss1-design.md");
+        mkdirSync(path.dirname(singleSpec), { recursive: true });
+        writeFileSync(
+          singleSpec,
+          [
+            "---",
+            "title: Test Single Spec",
+            "doc-type: single-spec",
+            "version: v1.0",
+            "date: 2026-10-09",
+            "slug: ss1",
+            "status: Draft",
+            "author: x",
+            "---",
+            "",
+            "## Background & root cause",
+            "",
+            "Text.",
+            "",
+            "## Design decisions",
+            "",
+            "Text.",
+            "",
+            "## Acceptance",
+            "",
+            "Text.",
+            "",
+            "## Constraints",
+            "",
+            "Text.",
+            "",
+            "## Change history",
+            "",
+            "| Version | date | summary | author |",
+            "|---|---|---|---|",
+            "| v1.0 | 2026-10-09 | initial | [human] |",
+          ].join("\n"),
+          "utf8",
+        );
+        const single = await promptOf(["review", "--type", "single-spec", "--spec", singleSpec]);
+        expect(single).toContain("- `INPUT_SPEC`: docs/kairos/specs/ss1-design.md");
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
   it("D61-4 — INPUT_OVERALL carries the parent charter the spec's `program:` names", async () => {
     const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";

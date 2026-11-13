@@ -15,7 +15,13 @@ import { TerminationPolicy } from "../../face/termination.ts";
 import { Words } from "../../face/words.ts";
 import { BriefRenderer } from "../brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
-import { REVIEWS, reviewGuideOf, TEMPLATE_PROMPT, TemplateAssembler } from "../templates.ts";
+import {
+  REVIEW_BODY_TEXT,
+  REVIEWS,
+  reviewGuideOf,
+  TEMPLATE_PROMPT,
+  TemplateAssembler,
+} from "../templates.ts";
 
 /** The full per-dispatch slot values — every declared template token (the v1.8
  *  INPUT_/OUTPUT_/WORKSPACE_/BASE_BRANCH/ROLE/WAVE vocabulary), optional slots
@@ -35,7 +41,7 @@ const ALL_VALUES: Record<string, string> = {
   OUTPUT_REPORT: "/ws/tasks-4,12-implement-report.md",
   OUTPUT_EVIDENCE: "/ws/tasks-4,12-test-evidence.json",
   OUTPUT_HANDOFF: "/ws/tasks-4,12-implement.json",
-  REVIEW_TYPE: "",
+  TARGET_TYPE: "",
   WORKSPACE_DIR: "/ws",
   WORKSPACE_ID: "2026-10-02-x",
   HANDOFF_SCHEMA: "$$SCHEMA$$",
@@ -54,6 +60,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(assembler.declaredTokens()).toContain("OUTPUT_EVIDENCE");
     expect(assembler.declaredTokens()).toContain("BASE_BRANCH");
     expect(assembler.declaredTokens()).toContain("HANDOFF_SCHEMA");
+    // P33 T1 — the target discriminant is a declared round-context token (it renders
+    // on every face that has a target; the value stays empty on implement)
+    expect(assembler.declaredTokens()).toContain("TARGET_TYPE");
     // the retired reference tokens — the range/brief tokens are gone; INPUT_PLAN is
     // resurrected as the semantic plan-doc anchor (the kind-named round context)
     expect(assembler.declaredTokens()).not.toContain("INPUT_RANGE");
@@ -154,6 +163,237 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(out).not.toContain("INPUT_CRITERIA");
   });
 
+  it("P33 T1 — the twelve target faces render their TARGET_TYPE word right after ROLE; implement carries none", () => {
+    // The discriminant is a ROUND-CONTEXT fact (the child reads the target word the
+    // CLI `--type` declared), one line below ROLE on every face that has a target:
+    // the six review rows, the two fix rows (wave · branch) and the four docs-fix
+    // rows (plan · phase-spec · overall · single-spec).
+    const faces = [
+      ...(["wave", "branch", "phase-spec", "overall", "plan", "single-spec"] as const).map(
+        (type) => ({ role: "review", type }),
+      ),
+      ...(["wave", "branch"] as const).map((type) => ({ role: "fix", type })),
+      ...(["plan", "phase-spec", "overall", "single-spec"] as const).map((type) => ({
+        role: "docs-fix",
+        type,
+      })),
+    ];
+    // the matrix is complete by construction — twelve faces, no silent drop
+    expect(faces).toHaveLength(12);
+    for (const { role, type } of faces) {
+      const out = assembler.render({
+        ...ALL_VALUES,
+        ROLE: role,
+        TARGET_TYPE: type,
+        INPUT_SPEC: "docs/x-design.md",
+        INPUT_REVIEWS: "/ws/x-review-1.json",
+      });
+      // the line sits IMMEDIATELY below ROLE (one block, one reading order)
+      expect(out, `${role}/${type}`).toContain(`- \`ROLE\`: ${role}\n- \`TARGET_TYPE\`: ${type}\n`);
+    }
+    // implement is the ONE role without a target: its layout carries no such line,
+    // and the empty slot is dropped even when the value is supplied empty.
+    const implement = assembler.render({ ...ALL_VALUES, ROLE: "implement" });
+    expect(implement).not.toContain("TARGET_TYPE");
+  });
+
+  it("P33 T2 — the three referent sentences name the judged face, never a shared substitute (§2.5 A · B · D)", () => {
+    // The review item rides every review row's fixed prefix. The shared sentence used
+    // to fold the branch review into the plan review, contradicting the branch
+    // criteria body (branch review IS the full diff).
+    const reviewItem = TEMPLATE_PROMPT.reviews.branch.shell.join("\n");
+    expect(reviewItem).toContain("the branch review judges the live tree");
+    expect(reviewItem).not.toContain("the plan/branch reviews judge the plan");
+    // the plan review still reads the plan document as its judged doc
+    expect(reviewItem).toContain("the plan review judges the plan at `INPUT_PLAN`");
+    // the spec / overall faces carry their own judged anchor, one sentence each
+    expect(reviewItem).toContain("the spec review judges the spec at `INPUT_SPEC`");
+    expect(reviewItem).toContain("the overall review judges the charter at `INPUT_OVERALL`");
+    // A — the fix shell reaches no spec line; the branch line's INPUT_SPEC is a
+    // conformance reference, never the judged document
+    const fix = TEMPLATE_PROMPT.modes.fix.shell.join("\n");
+    expect(fix).not.toContain("the spec line");
+    expect(fix).toContain("never the judged document");
+    // D — the docs-fix shell marks the plan-doc line's spec reference un-editable in
+    // this round and names the overall line's own anchor
+    const docsFix = TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n");
+    expect(docsFix).toContain("never edited here");
+    expect(docsFix).toContain("`INPUT_OVERALL` on the overall line");
+  });
+
+  it("P33 T2/C2 — the overall face renders ONE charter anchor (no INPUT_SPEC line); the four doc faces keep theirs", () => {
+    // #valuesOf empties INPUT_SPEC on the overall face (C2 — the charter is never its
+    // own spec), and the assembler drops the empty slot, so the overall review and
+    // docs-fix round contexts carry INPUT_OVERALL alone. The four doc faces keep the
+    // spec anchor they judge or reference.
+    for (const role of ["review", "docs-fix"] as const) {
+      const out = assembler.render({
+        ...ALL_VALUES,
+        ROLE: role,
+        TARGET_TYPE: "overall",
+        INPUT_SPEC: "",
+        INPUT_OVERALL: "docs/kairos/overalls/x-overall.md",
+        INPUT_REVIEWS: "/ws/x-review-1.json",
+      });
+      expect(out, role).toContain("- `INPUT_OVERALL`: docs/kairos/overalls/x-overall.md");
+      expect(out, role).not.toContain("- `INPUT_SPEC`");
+    }
+    // the slot IS declared on both faces — the missing line comes from the empty
+    // value (C2), never from a hole in the layout
+    expect(TEMPLATE_PROMPT.reviews.overall.roundContext.join("\n")).toContain("{{INPUT_SPEC}}");
+    expect(TEMPLATE_PROMPT.modes["docs-fix"].roundContext.join("\n")).toContain("{{INPUT_SPEC}}");
+    for (const { role, type } of [
+      { role: "review", type: "plan" },
+      { role: "review", type: "branch" },
+      { role: "docs-fix", type: "phase-spec" },
+      { role: "docs-fix", type: "single-spec" },
+    ] as const) {
+      const out = assembler.render({
+        ...ALL_VALUES,
+        ROLE: role,
+        TARGET_TYPE: type,
+        INPUT_SPEC: "docs/x-design.md",
+        INPUT_REVIEWS: "/ws/x-review-1.json",
+      });
+      expect(out, `${role}/${type}`).toContain("- `INPUT_SPEC`: docs/x-design.md");
+    }
+  });
+
+  it("P33 T3/G — the three work shells' freeze and capability sentences self-limit instead of contradicting (§2.6 G)", () => {
+    // The shared clause block is unconditional, so the freeze sentence must bound
+    // itself to the round's declared capability. The capability declaration is the
+    // load-bearing side: it names the judged document families by their own words,
+    // so a docs-fix round on any of the four never reads "amend the charter" beside
+    // "freeze the spec".
+    const workFaces = [
+      { role: "implement", type: "" },
+      { role: "fix", type: "wave" },
+      { role: "docs-fix", type: "phase-spec" },
+    ] as const;
+    for (const { role, type } of workFaces) {
+      const out = assembler.render({
+        ...ALL_VALUES,
+        ROLE: role,
+        TARGET_TYPE: type,
+        INPUT_SPEC: "docs/x-design.md",
+        INPUT_REVIEWS: "/ws/x-review-1.json",
+      });
+      expect(out, role).toContain(
+        "frozen beyond the round's declared `capability: may.amend` scope",
+      );
+      expect(out, role).toContain("never an in-place edit");
+      expect(out, role).toContain(
+        "the structure face is outside amending authority in every round",
+      );
+      // the old absolute claim is gone — it contradicted the authorization above it
+      expect(out, role).not.toContain("zero modification");
+      // the declaration itself names all four judged document families — pinned on
+      // its own line, not on the prompt at large ("plan" reads in plenty of other
+      // sentences there)
+      const capability = TEMPLATE_PROMPT.modes[role].shell
+        .filter((line) => line.includes("capability: may.amend = content"))
+        .join("\n");
+      expect(capability, role).toContain(
+        "the phase-spec, single-spec, overall charter and plan families",
+      );
+      for (const family of ["phase-spec", "single-spec", "overall charter", "plan"] as const) {
+        expect(capability, `${role} capability names ${family}`).toContain(family);
+      }
+      // the structure-face ban is untouched by the wording change
+      expect(capability, role).toContain("the plan's Task id set and any task's `DependsOn` set");
+    }
+  });
+
+  it("P33 T3/H — a read-only round's commit clause says there is nothing to commit (§2.6 H)", () => {
+    const out = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "review",
+      TARGET_TYPE: "wave",
+      BASE_BRANCH: "develop",
+      OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
+    });
+    expect(out).toContain("A read-only round has nothing to commit");
+    expect(out).toContain("its only writes are the prescribed `OUTPUT_*` artifacts");
+    expect(out).toContain("committing belongs to the orchestrator");
+  });
+
+  it("P33 T3/I · J · K — the shared body's three vocabulary fixes name the right object (§2.6 I · J · K)", () => {
+    // I — the program-conformance clause is scoped to the phase, the only document
+    // shape that carries a `program:` and a live `INPUT_OVERALL`.
+    expect(REVIEWS.spec.axesGuide).toContain("program conformance (phase-spec only");
+    for (const type of ["phase-spec", "single-spec"] as const) {
+      const out = assembler.render({
+        ...ALL_VALUES,
+        ROLE: "review",
+        TARGET_TYPE: type,
+        INPUT_SPEC: "docs/x-design.md",
+        OUTPUT_HANDOFF: `/ws/${type}-review-1.json`,
+      });
+      expect(out, type).toContain("program conformance (phase-spec only");
+    }
+    // J — the branch criteria body speaks the live vocabulary (task was renamed wave)
+    const branchCriteria = TEMPLATE_PROMPT.reviews.branch.shell.find((line) =>
+      line.startsWith("**Criteria — branch:**"),
+    );
+    expect(branchCriteria).toContain("Same four axes as the wave review");
+    expect(branchCriteria).not.toContain("as task");
+    // K — the charter's rubric reads charter / phase author, never spec
+    expect(REVIEW_BODY_TEXT.overall).toEqual({ artifact: "charter", audience: "phase author" });
+    const overall = assembler.render({
+      ...ALL_VALUES,
+      ROLE: "review",
+      TARGET_TYPE: "overall",
+      INPUT_SPEC: "",
+      INPUT_OVERALL: "docs/kairos/overalls/x-overall.md",
+      OUTPUT_HANDOFF: "/ws/overall-review-1.json",
+    });
+    expect(overall).toContain("The reviewed charter is a vision");
+    expect(overall).toContain("a reasonable phase author would expect");
+    expect(overall).not.toContain("The reviewed spec is a vision");
+  });
+
+  it("P33 T3 — the nine shells keep their titles, criteria labels and lens lines byte-identical", () => {
+    // The I / J / K fixes change criteria BODIES; the labels that identify a row stay
+    // byte-frozen, and so do the first-line titles of the three work shells.
+    const reviewFaces = [
+      ["wave", "**Criteria — wave:**", "standards | spec | buildability"],
+      ["branch", "**Criteria — branch:**", "standards | spec | buildability"],
+      ["phase-spec", "**Criteria — phase-spec:**", "completeness | consistency | clarity"],
+      ["single-spec", "**Criteria — single-spec:**", "completeness | consistency | clarity"],
+      ["plan", "**Criteria — plan:**", "completeness | decomposition | buildability"],
+      [
+        "overall",
+        "**Criteria — overall:**",
+        "scope | inventory | dependency | acceptance | boundary",
+      ],
+    ] as const;
+    for (const [type, label, lens] of reviewFaces) {
+      const shell = TEMPLATE_PROMPT.reviews[type].shell;
+      expect(shell[0], type).toBe("# CDD dispatch — review round");
+      expect(shell, type).toContain(
+        `**Lens labels:** one of \`${lens}\` — every finding MUST carry its \`lens\`.`,
+      );
+      expect(
+        shell.filter((line) => line.startsWith("**Criteria — ")),
+        type,
+      ).toHaveLength(1);
+      const criteriaLine = shell.find((line) => line.startsWith("**Criteria — ")) ?? "";
+      expect(criteriaLine.startsWith(label), `${type} criteria label`).toBe(true);
+    }
+    const workFaces = [
+      ["implement", "# CDD dispatch — implement round"],
+      ["fix", "# CDD dispatch — fix round"],
+      ["docs-fix", "# CDD dispatch — docs-fix round"],
+    ] as const;
+    for (const [role, title] of workFaces) {
+      expect(TEMPLATE_PROMPT.modes[role].shell[0], role).toBe(title);
+      expect(
+        TEMPLATE_PROMPT.modes[role].shell.filter((line) => line.startsWith("**Criteria — ")),
+        role,
+      ).toEqual([]);
+    }
+  });
+
   it("every work shell carries the Bash discipline clause — a timeout on every command, ceiling from the constant", () => {
     // The clause's minute value is DERIVED from the constant, never re-spelled in
     // prose — the pin reads the constant, so a budget change cannot leave the
@@ -163,7 +403,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       const out = assembler.render({
         ...ALL_VALUES,
         ROLE: role,
-        REVIEW_TYPE: "phase-spec",
+        TARGET_TYPE: "phase-spec",
         INPUT_SPEC: "docs/x-design.md",
       });
       expect(out, role).toContain("Put a `timeout` on every Bash command");
@@ -181,7 +421,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       const out = assembler.render({
         ...ALL_VALUES,
         ROLE: role,
-        REVIEW_TYPE: "phase-spec",
+        TARGET_TYPE: "phase-spec",
         INPUT_SPEC: "docs/x-design.md",
       });
       for (const pin of pins) expect(out, role).toContain(pin);
@@ -260,7 +500,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const spec = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "phase-spec",
+      TARGET_TYPE: "phase-spec",
       INPUT_WAVE_BRIEF: "",
       INPUT_SPEC: "docs/kairos/specs/s1-design.md",
       INPUT_OVERALL: "docs/kairos/overalls/s1-overall.md",
@@ -306,7 +546,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const task = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "wave",
+      TARGET_TYPE: "wave",
       BASE_BRANCH: "develop",
       OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
     });
@@ -339,7 +579,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const branch = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "branch",
+      TARGET_TYPE: "branch",
       INPUT_WAVE_BRIEF: "",
       INPUT_PLAN: "docs/kairos/plans/p.md",
       INPUT_SPEC: "docs/kairos/specs/p-design.md",
@@ -368,7 +608,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const plan = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "plan",
+      TARGET_TYPE: "plan",
       INPUT_WAVE_BRIEF: "",
       INPUT_PLAN: "docs/kairos/plans/p.md",
       INPUT_SPEC: "docs/kairos/specs/p-design.md",
@@ -390,15 +630,18 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // issue #390 — the no-secret-access clause: 16 → 17; P22 §7.3 — the work plane's
     // capability declaration: 17 → 18; the docs-fix row's capability declaration
     // (the fix face's spec / plan dispatch): 18 → 19; P22 T15 — the charter's own
-    // criteria body + the explicit criteria-body selection: 19 → 20)
-    expect(TEMPLATE_PROMPT.$version).toBe(20);
+    // criteria body + the explicit criteria-body selection: 19 → 20; P33 T1 — the
+    // target discriminant rendered as a round-context line on every targeted face: 20 → 21;
+    // P33 T2 — the three referent sentences (§2.5 A · B · D): 21 → 22;
+    // P33 T3 — the shared body's five calibrations (§2.6 G · H · I · J · K): 22 → 23)
+    expect(TEMPLATE_PROMPT.$version).toBe(23);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)
     const wave = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "wave",
+      TARGET_TYPE: "wave",
       BASE_BRANCH: "develop",
       OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
     });
@@ -440,7 +683,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const review = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "wave",
+      TARGET_TYPE: "wave",
       OUTPUT_HANDOFF: "/ws/tasks-1-review-1.json",
     });
     const fix = assembler.render({
@@ -496,7 +739,7 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
       assembler.render({
         ...ALL_VALUES,
         ROLE: "review",
-        REVIEW_TYPE: type,
+        TARGET_TYPE: type,
         INPUT_SPEC: "docs/x-design.md",
         OUTPUT_HANDOFF: `/ws/tasks-1-${type}-review-1.json`,
       }),
@@ -514,8 +757,8 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(() => assembler.render(partial)).toThrow(/ROLE/);
     // an unknown ROLE is refused by the mode table (never a phantom assemble)
     expect(() => assembler.render({ ...ALL_VALUES, ROLE: "bogus" })).toThrow(/work-mode/);
-    // a review without its REVIEW_TYPE discriminant is refused by the variants
-    expect(() => assembler.render({ ...ALL_VALUES, ROLE: "review", REVIEW_TYPE: "" })).toThrow(
+    // a review without its TARGET_TYPE discriminant is refused by the variants
+    expect(() => assembler.render({ ...ALL_VALUES, ROLE: "review", TARGET_TYPE: "" })).toThrow(
       /review type not declared/,
     );
   });
@@ -893,7 +1136,7 @@ describe("P31 T2 — INPUT_RULINGS rides the fix input side alone", () => {
     const out = new TemplateAssembler().render({
       ...ALL_VALUES,
       ROLE: "review",
-      REVIEW_TYPE: "wave",
+      TARGET_TYPE: "wave",
       INPUT_WAVE_BRIEF: "/ws/tasks-1-brief.md",
       INPUT_RULINGS: "/ws/tasks-1-review-1.rulings.json",
     });

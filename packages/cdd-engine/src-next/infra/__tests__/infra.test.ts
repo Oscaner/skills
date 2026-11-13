@@ -119,7 +119,7 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     const template = loader.templateContract();
     // v1.8 — the mode dispatch table (implement/fix/review/docs-fix) + the single return contract
     // (RETURN_JSON / DOCS_FIX retired) — the work-mode rows + the four review variants
-    // (the review mode's ROLE resolves by REVIEW_TYPE)
+    // (the review mode's ROLE resolves by TARGET_TYPE)
     expect(Object.keys(template.modes)).toEqual(["implement", "fix", "docs-fix"]);
     expect(Object.keys(template.reviews).sort()).toEqual([
       "branch",

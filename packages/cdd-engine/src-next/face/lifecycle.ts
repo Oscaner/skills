@@ -951,13 +951,16 @@ export class CliLifecycle {
       // empty, so the assembler drops the line entirely.
       INPUT_RULINGS: this.#rulingsInputOf(frame),
       // The kind-named judged-doc anchors (the semantic retirement of the generic
-      // INPUT_DOC): the plan/branch lines carry the plan document (INPUT_PLAN — the
-      // doc path on a plan line, the plan path on a branch line, whose review/fix
-      // judges the plan document) AND its design-spec reference (INPUT_SPEC — the
-      // `spec:` front-matter link target, so the plan/branch reviewer judges plan→
-      // spec conformance); the spec line carries its spec document (INPUT_SPEC; the
-      // judged doc IS the spec, no plan anchor). Empty off the off-faces (the slots
-      // are dropped by the assembler).
+      // INPUT_DOC): the plan line carries the plan document as its judged doc
+      // (INPUT_PLAN) AND its design-spec reference (INPUT_SPEC — the `spec:`
+      // front-matter link target, the plan→spec conformance anchor); the branch line
+      // carries the plan document (its plan-conformance reference) plus the same
+      // design-spec reference, while the live tree against BASE_BRANCH is the judged
+      // object; the spec-shaped doc targets (phase-spec · single-spec) carry their
+      // spec document (INPUT_SPEC, the judged doc); the overall line's ONE charter
+      // anchor is INPUT_OVERALL, so its INPUT_SPEC stays empty (C2 — the charter is
+      // never its own spec). Empty off the off-faces (the slots are dropped by the
+      // assembler).
       INPUT_PLAN:
         frame.type === "plan"
           ? this.#rel(docPath ?? "")
@@ -967,16 +970,16 @@ export class CliLifecycle {
       INPUT_SPEC:
         frame.type === "plan" || frame.type === "branch"
           ? this.#rel(scene.specLink ?? "")
-          : frame.type === "wave"
+          : frame.type === "wave" || frame.type === "overall"
             ? ""
-            : // the doc shapes (phase-spec · overall · single-spec) carry the judged
-              // document — the charter line's own charter is its spec anchor.
+            : // the spec-shaped doc targets (phase-spec · single-spec) carry the judged
+              // document; the overall line's charter anchor is INPUT_OVERALL below.
               this.#rel(docPath ?? ""),
-      // The parent charter of the spec the face reads (INPUT_OVERALL) — the same
-      // value condition as INPUT_SPEC, one face (the phase-spec line = its own
-      // `program:`; plan/branch = the same-slug identity doc's `program:`; the
-      // overall line itself = the judged charter); empty off those faces and when
-      // the named program is absent (the assembler drops the empty slot).
+      // The parent charter of the spec the face reads (INPUT_OVERALL) — the overall
+      // line's ONE charter anchor (the judged charter itself); the phase-spec line
+      // carries its own `program:`; plan/branch carry the same-slug identity doc's
+      // `program:`; empty off those faces and when the named program is absent (the
+      // assembler drops the empty slot).
       INPUT_OVERALL:
         frame.type === "overall"
           ? this.#rel(docPath ?? "")
@@ -999,7 +1002,10 @@ export class CliLifecycle {
       OUTPUT_REPORT: this.#rel(this.#naming.report(frame)),
       OUTPUT_EVIDENCE: this.#rel(this.#naming.evidence(frame)),
       OUTPUT_HANDOFF: this.#rel(scene.ledger.handoffPath(op, frame.type, params)),
-      REVIEW_TYPE: isReview ? frame.type : "",
+      // P33 T1 — the target discriminant the child reads (the CLI's `--type` word).
+      // It renders right below ROLE on every face that has a target; implement is the
+      // one role without one, so the slot stays empty and the assembler drops the line.
+      TARGET_TYPE: role === "implement" ? "" : frame.type,
       WORKSPACE_DIR: this.#rel(scene.workspace.path),
       WORKSPACE_ID: scene.workspace.slug,
       // v1.9 — the injected writable-subset schema (projection ①): the `## Handoff

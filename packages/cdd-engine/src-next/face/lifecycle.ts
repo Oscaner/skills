@@ -951,14 +951,16 @@ export class CliLifecycle {
       // empty, so the assembler drops the line entirely.
       INPUT_RULINGS: this.#rulingsInputOf(frame),
       // The kind-named judged-doc anchors (the semantic retirement of the generic
-      // INPUT_DOC): the plan line carries the plan document (INPUT_PLAN); the branch
-      // line carries the plan document AND its design-spec reference (INPUT_SPEC — the
-      // `spec:` front-matter link target, so the branch reviewer judges plan→spec
-      // conformance, the live tree being the judged object); the spec-shaped doc
-      // targets (phase-spec · single-spec) carry their spec document (INPUT_SPEC, the
-      // judged doc); the overall line's ONE charter anchor is INPUT_OVERALL, so its
-      // INPUT_SPEC stays empty (C2 — the charter is never its own spec). Empty off the
-      // off-faces (the slots are dropped by the assembler).
+      // INPUT_DOC): the plan line carries the plan document as its judged doc
+      // (INPUT_PLAN) AND its design-spec reference (INPUT_SPEC — the `spec:`
+      // front-matter link target, the plan→spec conformance anchor); the branch line
+      // carries the plan document (its plan-conformance reference) plus the same
+      // design-spec reference, while the live tree against BASE_BRANCH is the judged
+      // object; the spec-shaped doc targets (phase-spec · single-spec) carry their
+      // spec document (INPUT_SPEC, the judged doc); the overall line's ONE charter
+      // anchor is INPUT_OVERALL, so its INPUT_SPEC stays empty (C2 — the charter is
+      // never its own spec). Empty off the off-faces (the slots are dropped by the
+      // assembler).
       INPUT_PLAN:
         frame.type === "plan"
           ? this.#rel(docPath ?? "")

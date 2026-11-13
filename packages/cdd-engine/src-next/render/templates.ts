@@ -256,10 +256,11 @@ const REVIEW_ITEM =
 /** The review mode's shared reduced tail — the only dynamic region of every review
  *  variant (the criteria/lens are fixed-prefix per type, never here). Each review
  *  type carries its own judged-doc referent (wave → `INPUT_WAVE_BRIEF`; plan →
- *  `INPUT_PLAN`; branch → the live tree against `BASE_BRANCH`, with `INPUT_PLAN` as
- *  its plan-conformance reference; spec → `INPUT_SPEC`; overall → `INPUT_OVERALL`);
- *  empty slots are dropped by the assembler, so a face renders only the anchors it
- *  reads. */
+ *  `INPUT_PLAN` as the judged doc, with `INPUT_SPEC` as its plan→spec conformance
+ *  reference; branch → the live tree against `BASE_BRANCH`, with `INPUT_PLAN` as its
+ *  plan-conformance reference and the same `INPUT_SPEC` design-spec reference; spec →
+ *  `INPUT_SPEC`; overall → `INPUT_OVERALL`); empty slots are dropped by the
+ *  assembler, so a face renders only the anchors it reads. */
 const REVIEW_CONTEXT: readonly string[] = [
   "## Round context",
   "",

@@ -215,6 +215,44 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(docsFix).toContain("`INPUT_OVERALL` on the overall line");
   });
 
+  it("P33 T2/C2 — the overall face renders ONE charter anchor (no INPUT_SPEC line); the four doc faces keep theirs", () => {
+    // #valuesOf empties INPUT_SPEC on the overall face (C2 — the charter is never its
+    // own spec), and the assembler drops the empty slot, so the overall review and
+    // docs-fix round contexts carry INPUT_OVERALL alone. The four doc faces keep the
+    // spec anchor they judge or reference.
+    for (const role of ["review", "docs-fix"] as const) {
+      const out = assembler.render({
+        ...ALL_VALUES,
+        ROLE: role,
+        TARGET_TYPE: "overall",
+        INPUT_SPEC: "",
+        INPUT_OVERALL: "docs/kairos/overalls/x-overall.md",
+        INPUT_REVIEWS: "/ws/x-review-1.json",
+      });
+      expect(out, role).toContain("- `INPUT_OVERALL`: docs/kairos/overalls/x-overall.md");
+      expect(out, role).not.toContain("- `INPUT_SPEC`");
+    }
+    // the slot IS declared on both faces — the missing line comes from the empty
+    // value (C2), never from a hole in the layout
+    expect(TEMPLATE_PROMPT.reviews.overall.roundContext.join("\n")).toContain("{{INPUT_SPEC}}");
+    expect(TEMPLATE_PROMPT.modes["docs-fix"].roundContext.join("\n")).toContain("{{INPUT_SPEC}}");
+    for (const { role, type } of [
+      { role: "review", type: "plan" },
+      { role: "review", type: "branch" },
+      { role: "docs-fix", type: "phase-spec" },
+      { role: "docs-fix", type: "single-spec" },
+    ] as const) {
+      const out = assembler.render({
+        ...ALL_VALUES,
+        ROLE: role,
+        TARGET_TYPE: type,
+        INPUT_SPEC: "docs/x-design.md",
+        INPUT_REVIEWS: "/ws/x-review-1.json",
+      });
+      expect(out, `${role}/${type}`).toContain("- `INPUT_SPEC`: docs/x-design.md");
+    }
+  });
+
   it("every work shell carries the Bash discipline clause — a timeout on every command, ceiling from the constant", () => {
     // The clause's minute value is DERIVED from the constant, never re-spelled in
     // prose — the pin reads the constant, so a budget change cannot leave the

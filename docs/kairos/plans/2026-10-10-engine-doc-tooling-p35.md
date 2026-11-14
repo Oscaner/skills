@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P35 计划：plan 读取收权（一份读取 · 一个失败值 · 一条拒绝通道）'
 doc-type: plan
-version: v0.5
+version: v0.6
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p35
 base: develop
@@ -190,7 +190,7 @@ none
 
 #### DependsOn
 
-1
+1, 2
 
 ---
 
@@ -246,7 +246,7 @@ none
 
 #### DependsOn
 
-2
+2, 3
 
 ---
 
@@ -403,3 +403,4 @@ none
 | v0.3 | 2026-11-14 | 作者裁定（设计回填 v0.12 随动 · D91）：**新增 Task 7「反查」**——plan 的 slug 必须命名一份 `<slug>-design.md`：规则 `plan-slug-names-spec` 落 doc-contract 面（只对 `docKey === "plan"`，派生 `${ENGINE_DOC_ROOTS.specs}/<slug>-design.md` 后**只**探 `DocFs.exists`），`review`/`implement`/`fix` 一律 `CDD_BLOCKED`；板面 spec 行渲 `! no-spec` + hop-less `next:` + stderr `CDD_WARN:` 且 exit 0；旧 Task 7（三面一致性 + 验收收口）顺延为 **Task 8**、`DependsOn` 改 `5, 6, 7` 并补反查三条 AC 的写失败测；Constraints 加「正查不阻塞、反查阻塞」一条，「逐字取 spec」的版本字面校到 v0.12；Review Focus 把过时的 `plan:` 声明条换成「反查被写成内容判定」 | Claude（kairos:cdd-plan · 2026-11-14） |
 | v0.4 | 2026-11-14 | 作者裁定（设计 v0.13/v0.14 随动 · 反查的落地形态）：**取消独立的「反查」任务**，把它的三处切面还给各自的主人——`PlanRead` 携带 `orphan()`（`spec-absent` / `slug-absent`，只探 `DocFs.exists`）与三条词法归 **Task 2**；阻塞不登记 doc-contract 规则，随 `refusal(words)` 落 **Task 4** 既有不挂门腿（本就覆盖 `plan`/`wave`/`branch` + `--dry-run`）；规格行 `! no-spec`、`BoardNext` 短路谓词、`nameWidth` 保位、读源优先序（`--spec` 胜）归 **Task 5**。任务由八条回到七条，波次随依赖重排 | Claude（kairos:cdd-plan · 2026-11-14） |
 | v0.5 | 2026-11-14 | 评审轮 plan-review-1 落地（F1–F12，F1–F4 按裁决）：graph 门在非 ready 上**整段不运行**（删掉「非 ready 时立一行记账」的四处表述，判据改为 `checked:` 字节集与今日相同、`graph` 不出现在 `checked` 里）；Constraints 与 Review Focus 换成 spec v0.13/v0.14 的读值形态（`orphan()` 只探存在性、阻塞随 `refusal(words)` 落既有不挂门腿；不登记规则、不产 `Finding`、`kind` 零新增，并点明位置错判这个坑）；Task 3 与旧 Task 4 的场景切换合并为一条原子任务「brief 收值 + 场景切换」（`WorkScene.planText` 与它最后一个消费者 `face/gate.ts:145` 同批退役，五个供值点 + `face/cli.ts` 两处一并切换），原 Task 4 余下部分收窄为 dispatch 面，`grep -rn "planText"` 零命中写进 T3 验收；Task 2 的访问器清单补到十一个加 `path()`、`PlanReadWords` 七个成员一次写完、`cellEmpty` 标明为新增而非既有、删掉「类上还带路径校验」的措辞（路径由 slug 派生、没有作者输入可校）；`DocSlices` 的家改到 `contract/project.ts`；board 程序面逐相位 `CDD_WARN:`、未索引的 ready plan 行、spec 存在但读不出三条补写失败测；过期 Task 号与 `argv` 的拼写笔误同批校订 | Claude（kairos:cdd-fix · 2026-11-14） |
+| v0.6 | 2026-11-14 | 编排器结构面提交（fix 1 的 rejected 两半）：依赖边按 D 裁决重排——`Task 3` 的 `DependsOn` 由 `1` 改为 `1, 2`（消费 Task 2 的 `PlanRead`），`Task 4` 由 `2` 改为 `2, 3`（消费 Task 3 落地的 `scene.plan`）。结构面不属评审轮（引擎把 `DependsOn` 集当结构基线，`face/lifecycle.ts:344` 快照、`:586-604` 比对），故由编排器单独提交 | Claude（kairos:cdd-plan · 2026-11-14） |

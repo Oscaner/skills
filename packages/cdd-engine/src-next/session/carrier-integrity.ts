@@ -99,17 +99,6 @@ export class CarrierIntegrity {
     throw new CarrierMismatchError(path, gap.recorded, gap.current);
   }
 
-  /** The record-shaped thin shell — the `RoundRecord`'s own two cells, so a caller
-   *  holding a record never re-derives "which digest belongs to this path". A record
-   *  with no carrier path reads `null` without touching the disk. */
-  static readFor(record: {
-    readonly carrierPath: string | null;
-    readonly carrierDigest?: string | null;
-  }): string | null {
-    if (record.carrierPath === null) return null;
-    return CarrierIntegrity.read(record.carrierPath, record.carrierDigest ?? null);
-  }
-
   /** The payload view `digestOf` hashes — a shallow copy with the top-level
    *  `contentSha256` key dropped (a non-object payload is returned as it stands). */
   static #payloadOf(value: unknown): unknown {

@@ -1723,7 +1723,8 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(roundTokens(progress.waves.find((row) => row.wave === "1"))).toEqual([
         "implement:1:a1:true",
       ]);
-      expect(existsSync(path.join(workspace, "tasks-1-implement.json"))).toBe(true);
+      // the engine's final carrier — the write face mints `.c{N}` beside the child's draft
+      expect(existsSync(path.join(workspace, "tasks-1-implement-1.c1.json"))).toBe(true);
       expect(existsSync(path.join(workspace, "tasks-1-brief.md"))).toBe(true);
       const brief = readFileSync(path.join(workspace, "tasks-1-brief.md"), "utf8");
       expect(brief).toContain("### Task 1:");
@@ -1811,7 +1812,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       ]);
       // the invocation's single stdout face — only the LAST step's capsule
       expect(io.stdoutText.split("status: APPROVED").length - 1).toBe(1);
-      expect(existsSync(path.join(workspace, "tasks-2-implement.json"))).toBe(true);
+      expect(existsSync(path.join(workspace, "tasks-2-implement-1.c1.json"))).toBe(true);
       // the strict-wave gate (T24): a `--tasks` splitting the derived wave BLOCKs,
       // and the refusal is the ONE verdict line (`split · next: <command>`).
       io.stderrText = "";
@@ -1905,7 +1906,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // phantom round.
       const node = path.join(repoRoot, ".kairos", "cdd", "p3");
       expect(existsSync(path.join(node, "tasks-1-brief.md"))).toBe(false);
-      expect(existsSync(path.join(node, "tasks-1-implement.json"))).toBe(false);
+      expect(existsSync(path.join(node, "tasks-1-implement-1.json"))).toBe(false);
     } finally {
       cleanup();
     }
@@ -2756,6 +2757,254 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("P33 T1 — the round context carries the CLI `--type` word as TARGET_TYPE on every targeted face, never on implement", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      const promptOf = async (argv: readonly string[]): Promise<string> => {
+        await command.runArgv([...argv]);
+        const call = sync.calls[sync.calls.length - 1];
+        if (call === undefined) throw new Error(`no child spawned for: ${argv.join(" ")}`);
+        return call.args[call.args.length - 1]!;
+      };
+      try {
+        // ① a spec review — the token carries the spec-shaped type word
+        const spec = await promptOf([
+          "review",
+          "--type",
+          "phase-spec",
+          "--spec",
+          conformingSpec(repoRoot),
+        ]);
+        expect(spec).toContain("- `TARGET_TYPE`: phase-spec");
+        // the line sits immediately below ROLE — one reading order on every face
+        expect(spec).toContain("- `ROLE`: review\n- `TARGET_TYPE`: phase-spec\n");
+
+        // ② a wave fix round — the fix role carries the wave word
+        const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+        const ledger = new Ledger(workspace, new ConfigLoader());
+        const findings = [{ severity: "blocker", lens: "code", summary: "drift" }];
+        ledger.persistHandoff(
+          "implement",
+          "wave",
+          { tasks: "1" },
+          { status: "APPROVED", artifacts: {} },
+        );
+        ledger.recordRound(1, { op: "implement" });
+        const reviews = path.join(workspace.path, "tasks-1-review-1.json");
+        writeFileSync(reviews, JSON.stringify({ findings }), "utf8");
+        ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings });
+        ledger.recordRound(1, { op: "review" });
+        const fix = await promptOf([
+          "fix",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--reviews",
+          reviews,
+        ]);
+        expect(fix).toContain("- `TARGET_TYPE`: wave");
+        expect(fix).toContain("- `ROLE`: fix\n- `TARGET_TYPE`: wave\n");
+
+        // ③ a plan-doc fix round — the docs-fix row carries the plan word (the fix
+        // face's plan line IS docs-fix, so the type travels the same slot)
+        const planReviews = path.join(workspace.path, "plan-review-1.json");
+        writeFileSync(planReviews, JSON.stringify({ findings }), "utf8");
+        ledger.persistHandoff("review", "plan", { round: 1 }, { findings });
+        ledger.recordRound("plan", { op: "review" });
+        const docsFix = await promptOf([
+          "fix",
+          "--type",
+          "plan",
+          "--plan",
+          plan,
+          "--reviews",
+          planReviews,
+        ]);
+        expect(docsFix).toContain("- `TARGET_TYPE`: plan");
+        expect(docsFix).toContain("- `ROLE`: docs-fix\n- `TARGET_TYPE`: plan\n");
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P33 T1 — an implement round's round context carries no TARGET_TYPE line", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const call = sync.calls[sync.calls.length - 1];
+      expect(call).toBeDefined();
+      const prompt = call!.args[call!.args.length - 1]!;
+      // the implement layout carries no such line, and the empty value is dropped
+      expect(prompt).not.toContain("TARGET_TYPE");
+      expect(prompt).toContain("- `ROLE`: implement");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P33 T2 — the overall face carries the charter anchor alone: `INPUT_OVERALL`, never `INPUT_SPEC`", async () => {
+    // C2 — the charter was mapped to BOTH anchors (the judged doc landed in
+    // INPUT_SPEC and INPUT_OVERALL), so the round asked the reviewer to judge the
+    // charter against itself. The overall face keeps ONE charter anchor, on both
+    // its rounds.
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const overall = conformingOverall(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      const promptOf = async (argv: readonly string[]): Promise<string> => {
+        await command.runArgv([...argv]);
+        const call = sync.calls[sync.calls.length - 1];
+        if (call === undefined) throw new Error(`no child spawned for: ${argv.join(" ")}`);
+        return call.args[call.args.length - 1]!;
+      };
+      try {
+        // ① the review round — the charter is the judged doc AND its own anchor
+        const review = await promptOf(["review", "--type", "overall", "--spec", overall]);
+        expect(review).toContain("- `INPUT_OVERALL`: docs/kairos/specs/o1-overall.md");
+        expect(review).not.toContain("- `INPUT_SPEC`");
+
+        // ② the docs-fix round — the same face, the fix role's document line
+        const workspace = new Workspace(
+          new WorkspaceRoot(repoRoot, ".kairos/cdd"),
+          "o1-overall",
+        ).ensure();
+        const ledger = new Ledger(workspace, new ConfigLoader());
+        const findings = [{ severity: "warn", lens: "scope", summary: "drift" }];
+        const reviews = path.join(workspace.path, "overall-review-1.json");
+        writeFileSync(reviews, JSON.stringify({ findings }), "utf8");
+        ledger.persistHandoff("review", "overall", { round: 1 }, { findings });
+        ledger.recordRound("overall", { op: "review" });
+        const fix = await promptOf([
+          "fix",
+          "--type",
+          "overall",
+          "--spec",
+          overall,
+          "--reviews",
+          reviews,
+        ]);
+        expect(fix).toContain("- `INPUT_OVERALL`: docs/kairos/specs/o1-overall.md");
+        expect(fix).not.toContain("- `INPUT_SPEC`");
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P33 T2 — the four judged-document faces keep their `INPUT_SPEC` anchor", async () => {
+    // The overall face is the ONE face whose charter anchor replaces INPUT_SPEC; the
+    // spec-shaped documents carry their judged doc and the plan / branch lines carry
+    // the design-spec reference.
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      const promptOf = async (argv: readonly string[]): Promise<string> => {
+        await command.runArgv([...argv]);
+        const call = sync.calls[sync.calls.length - 1];
+        if (call === undefined) throw new Error(`no child spawned for: ${argv.join(" ")}`);
+        return call.args[call.args.length - 1]!;
+      };
+      try {
+        const phaseSpec = await promptOf([
+          "review",
+          "--type",
+          "phase-spec",
+          "--spec",
+          conformingSpec(repoRoot),
+        ]);
+        expect(phaseSpec).toContain("- `INPUT_SPEC`: docs/kairos/specs/s1-design.md");
+        const planReview = await promptOf(["review", "--type", "plan", "--plan", plan]);
+        expect(planReview).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+        const branchReview = await promptOf(["review", "--type", "branch", "--plan", plan]);
+        expect(branchReview).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+        // the single-spec is an independent document class (no `program:`): its
+        // judged doc rides INPUT_SPEC and the charter anchor is dropped
+        const singleSpec = path.join(repoRoot, "docs", "kairos", "specs", "ss1-design.md");
+        mkdirSync(path.dirname(singleSpec), { recursive: true });
+        writeFileSync(
+          singleSpec,
+          [
+            "---",
+            "title: Test Single Spec",
+            "doc-type: single-spec",
+            "version: v1.0",
+            "date: 2026-10-09",
+            "slug: ss1",
+            "status: Draft",
+            "author: x",
+            "---",
+            "",
+            "## Background & root cause",
+            "",
+            "Text.",
+            "",
+            "## Design decisions",
+            "",
+            "Text.",
+            "",
+            "## Acceptance",
+            "",
+            "Text.",
+            "",
+            "## Constraints",
+            "",
+            "Text.",
+            "",
+            "## Change history",
+            "",
+            "| Version | date | summary | author |",
+            "|---|---|---|---|",
+            "| v1.0 | 2026-10-09 | initial | [human] |",
+          ].join("\n"),
+          "utf8",
+        );
+        const single = await promptOf(["review", "--type", "single-spec", "--spec", singleSpec]);
+        expect(single).toContain("- `INPUT_SPEC`: docs/kairos/specs/ss1-design.md");
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
   it("D61-4 — INPUT_OVERALL carries the parent charter the spec's `program:` names", async () => {
     const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";
@@ -3486,7 +3735,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       expect(code).toBe(1);
       expect(io.stderrText).toContain("wrong-phase · next: ");
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
-      expect(existsSync(path.join(workspace, "tasks-1-implement.json"))).toBe(false);
+      expect(existsSync(path.join(workspace, "tasks-1-implement-1.json"))).toBe(false);
       expect(existsSync(path.join(workspace, "progress.json"))).toBe(false);
     } finally {
       cleanup();
@@ -3845,7 +4094,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
       const carrier = JSON.parse(
-        readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-implement.json"), "utf8"),
+        readFileSync(
+          path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-implement-1.c1.json"),
+          "utf8",
+        ),
       ) as Record<string, unknown>;
       expect("findings" in carrier).toBe(false);
       expect(Object.keys(carrier)).not.toContain("findings");
@@ -3862,7 +4114,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // the implement leg — the injected dispatch persists the work-face final carrier
       expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
       const implementCarrier = JSON.parse(
-        readFileSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-implement.json"), "utf8"),
+        readFileSync(
+          path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-implement-1.c1.json"),
+          "utf8",
+        ),
       ) as Record<string, unknown>;
       expect("findings" in implementCarrier).toBe(false);
       expect(Object.keys(implementCarrier)).not.toContain("findings");
@@ -5071,12 +5326,7 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
           findings: [{ severity: "warn", summary: "drift" }],
         },
       );
-      ledger.recordRound("plan", {
-        op: "review",
-        cycle: 1,
-        carrierPath: persisted.path,
-        carrierDigest: persisted.digest,
-      });
+      ledger.recordRound("plan", { op: "review", cycle: 1, carrierDigest: persisted.digest });
       // The tamper: an EXTERNAL writer reopens the sealed carrier (P31 §2.4) and
       // replaces the bytes the recorded digest covers.
       CarrierSeal.unseal(persisted.path);
@@ -5546,7 +5796,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     phase: "implement",
     round: 1,
     target: { kind: "wave", tasks: [1] },
-    params: { tasks: "1" },
+    params: { tasks: "1", round: 1, attempt: 1 },
     key: "1",
   };
 
@@ -5573,7 +5823,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     phase: "fix",
     round: 1,
     target: { kind: "wave", tasks: [1] },
-    params: { tasks: "1", round: 1 },
+    params: { tasks: "1", round: 1, attempt: 1 },
     key: "1",
   };
 
@@ -5608,11 +5858,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.commit = "the round's work";
       // The child's write-back: the implement draft at OUTPUT_HANDOFF per the injected
       // `delivery` schema + the canonical test-evidence file (the v1.9 read-back inputs).
-      const draft = path.join(scene.workspace.path, "tasks-1-implement.json");
+      const draft = path.join(scene.workspace.path, "tasks-1-implement-1.json");
       // The compliant child follows the prescribed OUTPUT_* names (find #5): the
       // artifacts it declares are the canonical {family}-{key}-{artifact} paths (the
-      // report at tasks-1-implement-report.md · the evidence at
-      // tasks-1-test-evidence.json); a free-named deviation is corrected in the
+      // report at tasks-1-implement-1-report.md · the evidence at
+      // tasks-1-implement-1-test-evidence.json); a free-named deviation is corrected in the
       // reconstruct (the path-deviation test below).
       writeFileSync(
         draft,
@@ -5620,14 +5870,17 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           status: "APPROVED",
           artifacts: {
             brief: "/b",
-            report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
-            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+            report: path.join(scene.workspace.path, "tasks-1-implement-1-report.md"),
+            test_evidence: path.join(
+              scene.workspace.path,
+              "tasks-1-implement-1-test-evidence.json",
+            ),
           },
         }),
         "utf8",
       );
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        path.join(scene.workspace.path, "tasks-1-implement-1-test-evidence.json"),
         JSON.stringify({
           command: "npx vitest run",
           exit_code: 0,
@@ -5666,7 +5919,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(prompt).toContain("- `ROLE`: implement");
       expect(prompt).toContain("- `WAVE`: 1");
       expect(prompt).toContain(`- \`WORKSPACE_DIR\`: ${wsRel}`);
-      expect(prompt).toContain(`- \`OUTPUT_HANDOFF\`: ${wsRel}/tasks-1-implement.json`);
+      expect(prompt).toContain(`- \`OUTPUT_HANDOFF\`: ${wsRel}/tasks-1-implement-1.json`);
       // find #4 — INPUT_RULES is gone: the implement child reads the plan's
       // `## Constraints` through the wave brief mirror (zero materialized rules file,
       // zero dead pointer — the round context carries no rules channel).
@@ -5675,8 +5928,10 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // prefix): the brief is a pure read input (INPUT_WAVE_BRIEF) with no write slot
       // (only present facts ride the prompt), while report + evidence are prescribed.
       expect(prompt).not.toContain("OUTPUT_BRIEF");
-      expect(prompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/tasks-1-implement-report.md`);
-      expect(prompt).toContain(`- \`OUTPUT_EVIDENCE\`: ${wsRel}/tasks-1-test-evidence.json`);
+      expect(prompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/tasks-1-implement-1-report.md`);
+      expect(prompt).toContain(
+        `- \`OUTPUT_EVIDENCE\`: ${wsRel}/tasks-1-implement-1-test-evidence.json`,
+      );
       // the per-mode trimming: this scene carries no brief (briefPath null) — the empty
       // INPUT_TASK key is NOT emitted (empty keys are never emitted)
       expect(prompt).not.toContain("- `INPUT_TASK`");
@@ -5697,11 +5952,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           brief: "/b",
           report: path.relative(
             repoRoot,
-            path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+            path.join(scene.workspace.path, "tasks-1-implement-1-report.md"),
           ),
           test_evidence: path.relative(
             repoRoot,
-            path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+            path.join(scene.workspace.path, "tasks-1-implement-1-test-evidence.json"),
           ),
         },
         status: "APPROVED",
@@ -5763,8 +6018,10 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const wsRel = path.relative(repoRoot, workspace.path);
       expect(prompt).toContain(`- \`INPUT_WAVE_BRIEF\`: ${wsRel}/tasks-1-brief.md`);
       expect(prompt).not.toContain("OUTPUT_BRIEF");
-      expect(prompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/tasks-1-implement-report.md`);
-      expect(prompt).toContain(`- \`OUTPUT_EVIDENCE\`: ${wsRel}/tasks-1-test-evidence.json`);
+      expect(prompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/tasks-1-implement-1-report.md`);
+      expect(prompt).toContain(
+        `- \`OUTPUT_EVIDENCE\`: ${wsRel}/tasks-1-implement-1-test-evidence.json`,
+      );
     } finally {
       cleanup();
     }
@@ -5855,7 +6112,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       sync.commit = "the round's work";
-      const draftPath = path.join(scene.workspace.path, "tasks-1-implement.json");
+      const draftPath = path.join(scene.workspace.path, "tasks-1-implement-1.json");
       writeFileSync(
         draftPath,
         JSON.stringify({
@@ -5867,7 +6124,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the evidence file at the canonical name makes the evidence gate pass — this
       // test isolates the artifact-path correction from the evidence read-back
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        path.join(scene.workspace.path, "tasks-1-implement-1-test-evidence.json"),
         JSON.stringify({
           command: "npx vitest run",
           exit_code: 0,
@@ -5893,11 +6150,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         artifacts: {
           report: path.relative(
             repoRoot,
-            path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+            path.join(scene.workspace.path, "tasks-1-implement-1-report.md"),
           ),
           test_evidence: path.relative(
             repoRoot,
-            path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+            path.join(scene.workspace.path, "tasks-1-implement-1-test-evidence.json"),
           ),
         },
         status: "APPROVED",
@@ -5928,18 +6185,18 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // The child LLM writes a draft with a routine slip — a trailing comma in the
       // notes array (the W3 {5,11} block shape). The reconstruct's draft read is the
       // LENIENT face (D39): the slip must not void the whole round.
-      const draftPath = path.join(scene.workspace.path, "tasks-1-implement.json");
+      const draftPath = path.join(scene.workspace.path, "tasks-1-implement-1.json");
       writeFileSync(
         draftPath,
         '{\n  "status": "APPROVED",\n  "artifacts": {\n    "report": "' +
-          path.join(scene.workspace.path, "tasks-1-implement-report.md") +
+          path.join(scene.workspace.path, "tasks-1-implement-1-report.md") +
           '",\n    "test_evidence": "' +
-          path.join(scene.workspace.path, "tasks-1-test-evidence.json") +
+          path.join(scene.workspace.path, "tasks-1-implement-1-test-evidence.json") +
           '"\n  },\n  "notes": [\n    "a",\n    "b",\n  ]\n}\n',
         "utf8",
       );
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        path.join(scene.workspace.path, "tasks-1-implement-1-test-evidence.json"),
         JSON.stringify({
           command: "npx vitest run",
           exit_code: 0,
@@ -5980,12 +6237,15 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // (phase). The read-back validator drops them (never a refusal); materialize
       // drops them from the carrier and books ONE WARN on the notes.
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        path.join(scene.workspace.path, "tasks-1-implement-1.json"),
         JSON.stringify({
           status: "APPROVED",
           artifacts: {
-            report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
-            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+            report: path.join(scene.workspace.path, "tasks-1-implement-1-report.md"),
+            test_evidence: path.join(
+              scene.workspace.path,
+              "tasks-1-implement-1-test-evidence.json",
+            ),
           },
           commits: { base: "a".repeat(8), head: "b".repeat(8) },
           phase: "implement",
@@ -5993,7 +6253,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        path.join(scene.workspace.path, "tasks-1-implement-1-test-evidence.json"),
         JSON.stringify({
           command: "npx vitest run",
           exit_code: 0,
@@ -6195,14 +6455,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           status: "APPROVED",
           artifacts: {
             report: path.join(scene.workspace.path, "tasks-1-fix-1-report.md"),
-            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+            test_evidence: path.join(scene.workspace.path, "tasks-1-fix-1-test-evidence.json"),
           },
           dispositions: {},
         }),
         "utf8",
       );
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        path.join(scene.workspace.path, "tasks-1-fix-1-test-evidence.json"),
         JSON.stringify({
           command: "npx vitest run",
           exit_code: 0,
@@ -6252,14 +6512,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           status: "APPROVED",
           artifacts: {
             report: path.join(scene.workspace.path, "tasks-1-fix-1-report.md"),
-            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+            test_evidence: path.join(scene.workspace.path, "tasks-1-fix-1-test-evidence.json"),
           },
           dispositions: {},
         }),
         "utf8",
       );
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        path.join(scene.workspace.path, "tasks-1-fix-1-test-evidence.json"),
         JSON.stringify({
           command: "npx vitest run",
           exit_code: 0,
@@ -6373,18 +6633,21 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // Deterministic read-back inputs per face (the spawn precedes the read-back,
       // so the cwd pin holds regardless — the drafts keep the outcome clean too).
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        path.join(scene.workspace.path, "tasks-1-implement-1.json"),
         JSON.stringify({
           status: "APPROVED",
           artifacts: {
-            report: path.join(scene.workspace.path, "tasks-1-implement-report.md"),
-            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+            report: path.join(scene.workspace.path, "tasks-1-implement-1-report.md"),
+            test_evidence: path.join(
+              scene.workspace.path,
+              "tasks-1-implement-1-test-evidence.json",
+            ),
           },
         }),
         "utf8",
       );
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        path.join(scene.workspace.path, "tasks-1-implement-1-test-evidence.json"),
         JSON.stringify({
           command: "npx vitest run",
           exit_code: 0,
@@ -6405,7 +6668,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           status: "APPROVED",
           artifacts: {
             report: path.join(scene.workspace.path, "tasks-1-fix-1-report.md"),
-            test_evidence: path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+            test_evidence: path.join(scene.workspace.path, "tasks-1-fix-1-test-evidence.json"),
           },
         }),
         "utf8",
@@ -6442,12 +6705,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         dispatchBase: null,
         treeClean: false,
         // P22 — a failure is never a silent absence: the round's verdict denies the
-        // target action and names the hard entry that failed it.
+        // target action and names the hard entry that failed it. P34 T5 — the entry the
+        // engine synthesizes for a round that authored NO fact carries its own cause
+        // (`round-blocked`): the round's declared conclusion is not a broken contract.
         verdict: { treeClean: false, targetAction: false },
         violations: [
           {
             grade: "hard",
-            cause: "contract-violation",
+            cause: "round-blocked",
             message: "the round concluded BLOCKED",
           },
         ],
@@ -6531,8 +6796,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the hard round's ONE line: the reason plus the round's own log file (§4.1)
       expect(io.stdoutText).toBe("");
       expect(io.stderrText).toMatch(/CDD_BLOCKED: .*committed nothing/);
-      expect(io.stderrText).toContain("logs/tasks-1-implement.log");
-      expect(existsSync(path.join(scene.workspace.path, "logs", "tasks-1-implement.log"))).toBe(
+      expect(io.stderrText).toContain("logs/tasks-1-implement-1.log");
+      expect(existsSync(path.join(scene.workspace.path, "logs", "tasks-1-implement-1.log"))).toBe(
         true,
       );
       // a hard verdict is the round's failure face, not a crash: no crash record lands
@@ -6544,7 +6809,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // round's verdict, never a count · §3.3)
       expect(scene.ledger.counterOf("contractViolationCount")).toBe(0);
       // the child's work is never clobbered: the round wrote no carrier at all
-      expect(existsSync(path.join(scene.workspace.path, "tasks-1-implement.json"))).toBe(false);
+      expect(existsSync(path.join(scene.workspace.path, "tasks-1-implement-1.json"))).toBe(false);
     } finally {
       cleanup();
     }
@@ -6699,7 +6964,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "done — but the draft is corrupt\n";
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        path.join(scene.workspace.path, "tasks-1-implement-1.json"),
         "{ not json",
         "utf8",
       );
@@ -6740,7 +7005,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // The tri-state read reports the true cause; a corrupt draft is never misreported
       // as absent (the "not written" path would hide the real defect).
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        path.join(scene.workspace.path, "tasks-1-implement-1.json"),
         "{ not json",
         "utf8",
       );
@@ -6781,7 +7046,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.stdout = "status: APPROVED\n";
       // the child wrote a draft MISSING the required `status` — the `delivery` subset's
       // read-back refuses it
-      const draftPath = path.join(scene.workspace.path, "tasks-1-implement.json");
+      const draftPath = path.join(scene.workspace.path, "tasks-1-implement-1.json");
       writeFileSync(draftPath, JSON.stringify({ artifacts: { report: "/r" } }), "utf8");
       const dispatch = new HarnessDispatch({
         scene,
@@ -6815,6 +7080,73 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
+  it("a decorative slot outside its declared shape is DROPPED, never a BLOCK (P34 T6 §2.1)", async () => {
+    const { repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new StubRunner();
+      sync.stdout = "Implemented the task. All checks green.\n";
+      sync.commit = "the round's work";
+      // the required core is valid; `dispositions` is declared but NOT required, and an
+      // array is outside the slot's declared object shape — the tiered read-back drops
+      // the FIELD and lets the round run (a wrong optional column never costs a round)
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-implement-1.json"),
+        JSON.stringify({
+          status: "APPROVED",
+          artifacts: {
+            brief: "/b",
+            report: path.join(scene.workspace.path, "tasks-1-implement-1-report.md"),
+            test_evidence: path.join(
+              scene.workspace.path,
+              "tasks-1-implement-1-test-evidence.json",
+            ),
+          },
+          dispositions: [],
+        }),
+        "utf8",
+      );
+      writeFileSync(
+        path.join(scene.workspace.path, "tasks-1-implement-1-test-evidence.json"),
+        JSON.stringify({
+          command: "npx vitest run",
+          exit_code: 0,
+          passed: true,
+          warnings_count: 0,
+          typecheck: { command: "tsc --noEmit", exit_code: 0, passed: true },
+        }),
+        "utf8",
+      );
+      const dispatch = new HarnessDispatch({
+        scene,
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      const outcome = await dispatch.step()(implementFrame);
+      // the round ran (never the schema-refusal face) and its declared status survived
+      expect(outcome.status).toBe("APPROVED");
+      expect(io.stderrText).not.toContain("violates the work schema");
+      expect(outcome.carrier).not.toHaveProperty("dispositions");
+      // the drop is auditable — ONE note, never a silent loss
+      expect((outcome.carrier!.notes as string[] | undefined) ?? []).toContain(
+        "dropped decorative draft field(s) outside their declared shape: dispositions — never written",
+      );
+      // …and the same observation is booked as ONE SOFT violation on the round
+      // (spec §2.14's soft landing — the record's `violations[]` is where it rides, and
+      // `session/run.ts` copies the outcome's set verbatim): a soft entry names the
+      // drop, and it never widens the crashed row, which reads hard entries alone
+      expect(outcome.violations).toHaveLength(1);
+      expect(outcome.violations?.[0]?.grade).toBe("soft");
+      expect(outcome.violations?.[0]?.message).toContain("dispositions");
+      expect(outcome.verdict?.treeClean).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
   // P22 T7 FLIP (design spec §3.3): the evidence gate is now a HARD violation on the
   // round, not a rewrite of the carrier's declared status. The observable consequences
   // are preserved (non-zero exit face, re-dispatch, the commit/tree facts booked), the
@@ -6834,7 +7166,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the implement draft is valid, but NO evidence file was written — the evidence
       // gate (v1.9) turns the round BLOCKED with the carrier preserved
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        path.join(scene.workspace.path, "tasks-1-implement-1.json"),
         JSON.stringify({
           status: "APPROVED",
           artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
@@ -6866,11 +7198,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           brief: "/b",
           report: path.relative(
             repoRoot,
-            path.join(scene.workspace.path, "tasks-1-implement-report.md"),
+            path.join(scene.workspace.path, "tasks-1-implement-1-report.md"),
           ),
           test_evidence: path.relative(
             repoRoot,
-            path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+            path.join(scene.workspace.path, "tasks-1-implement-1-test-evidence.json"),
           ),
         },
         status: "APPROVED",
@@ -6904,7 +7236,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // (the "missing" path would hide the real defect on the evidence leg, the
       // exact true-cause misreport D27 exists to eliminate).
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-implement.json"),
+        path.join(scene.workspace.path, "tasks-1-implement-1.json"),
         JSON.stringify({
           status: "APPROVED",
           artifacts: { brief: "/b", report: "/r", test_evidence: "/t" },
@@ -6912,7 +7244,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       writeFileSync(
-        path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+        path.join(scene.workspace.path, "tasks-1-implement-1-test-evidence.json"),
         "{ not json",
         "utf8",
       );
@@ -6937,7 +7269,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("find #9 — the branch fix's OUTPUT_* artifacts are the line-keyed names (report `branch-fix-{round}-report.md` · evidence `branch-test-evidence.json`), never the range", async () => {
+  it("find #9 — the branch fix's OUTPUT_* artifacts are the line-keyed names (report `branch-fix-{round}-report.md` · evidence `branch-fix-1-test-evidence.json`), never the range", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
@@ -6960,14 +7292,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           artifacts: {
             brief: "/b",
             report: path.join(scene.workspace.path, "branch-fix-1-report.md"),
-            test_evidence: path.join(scene.workspace.path, "branch-test-evidence.json"),
+            test_evidence: path.join(scene.workspace.path, "branch-fix-1-test-evidence.json"),
           },
           dispositions: {},
         }),
         "utf8",
       );
       writeFileSync(
-        path.join(scene.workspace.path, "branch-test-evidence.json"),
+        path.join(scene.workspace.path, "branch-fix-1-test-evidence.json"),
         JSON.stringify({
           command: "npx vitest run",
           exit_code: 0,
@@ -7002,11 +7334,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const prompt = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
       // find #9 — the prescribed artifact names are line-keyed: the round rides the
       // name (branch-fix-1-report.md), the evidence is the line's single file
-      // (branch-test-evidence.json); the range token appears NOWHERE in the paths.
+      // (branch-fix-1-test-evidence.json); the range token appears NOWHERE in the paths.
       // D46 — the token is repoRoot-relative (the child spawned at cwd = repoRoot).
       const wsRel = path.relative(repoRoot, scene.workspace.path);
       expect(prompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/branch-fix-1-report.md`);
-      expect(prompt).toContain(`- \`OUTPUT_EVIDENCE\`: ${wsRel}/branch-test-evidence.json`);
+      expect(prompt).toContain(`- \`OUTPUT_EVIDENCE\`: ${wsRel}/branch-fix-1-test-evidence.json`);
       expect(prompt).not.toContain("aaaaaaaa..bbbbbbbb");
     } finally {
       cleanup();
@@ -7115,7 +7447,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
       );
       expect(code).toBe(0);
-      expect(existsSync(path.join(workspace.path, "logs", "tasks-1-implement.log"))).toBe(false);
+      expect(existsSync(path.join(workspace.path, "logs", "tasks-1-implement-1.log"))).toBe(false);
       expect(sync.calls).toHaveLength(0);
     } finally {
       cleanup();
@@ -7225,6 +7557,48 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
+  it("promotes a killed review draft whose only flaw is a DECORATIVE column — the probe reads the tiered back", async () => {
+    const sync = new StubRunner();
+    sync.code = null;
+    sync.termination = stalled().termination;
+    const { command, io, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const { workspace, ledger } = cliScene(repoRoot);
+      seedImplement(ledger);
+      // The required columns are all present; `line` breaks its own declared integer
+      // type. The probe's tiered read-back drops the column instead of refusing the
+      // draft — the strict projection would have hidden a recoverable round.
+      writeFileSync(
+        path.join(workspace.path, "tasks-1-review-1.json"),
+        JSON.stringify({
+          findings: [{ severity: "blocker", lens: "code", summary: "drift", line: "42" }],
+        }),
+        "utf8",
+      );
+      const code = await withHost(() =>
+        command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+      );
+      expect(code).toBe(0);
+      expect(io.stdoutText).toContain("status: CHANGES_REQUESTED");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+      // the promotion's own WARN plus the drop's soft entry — both on the warn channel
+      expect(io.stderrText.match(/CDD_WARN:/g)).toHaveLength(2);
+      expect(io.stderrText).toContain("findings[0].line");
+      const crash = readJson<{ promoted: boolean }>(
+        path.join(workspace.path, "crash-tasks-1-review-1.json"),
+      );
+      expect(crash.promoted).toBe(true);
+      const carrier = ledger.readHandoff("review", "wave", { tasks: "1", round: 1 });
+      expect(carrier?.findings).toEqual([
+        { id: "F1", severity: "blocker", lens: "code", summary: "drift" },
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("terminated round reports idle duration and last sample on stderr and in the crash record", async () => {
     const sync = new StubRunner();
     const fact = stalled();
@@ -7249,7 +7623,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(lines[0]).toContain("last sample verdict: stalled");
       // P22 T7 — the cut-short line names the round's own log file (the same pointer the
       // crash record carries, §4.1), so a diagnosis starts from one path
-      expect(lines[0]).toContain("logs/tasks-1-implement.log");
+      expect(lines[0]).toContain("logs/tasks-1-implement-1.log");
       const crash = readJson<{
         idleMs: number | null;
         lastSample: SampleRecord | null;
@@ -7260,7 +7634,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // The postmortem's own pointer: the killed round names its log file, and that
       // path resolves to a real file (one file to open instead of reading `ps`).
       expect(crash.logPath).toBe(
-        path.relative(repoRoot, path.join(workspace.path, "logs", "tasks-1-implement.log")),
+        path.relative(repoRoot, path.join(workspace.path, "logs", "tasks-1-implement-1.log")),
       );
       expect(existsSync(path.join(repoRoot, crash.logPath ?? ""))).toBe(true);
     } finally {
@@ -7280,7 +7654,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         const { workspace, ledger } = cliScene(repoRoot);
         // even a valid work draft never promotes — the review face is the sole domain
         writeFileSync(
-          path.join(workspace.path, "tasks-1-implement.json"),
+          path.join(workspace.path, "tasks-1-implement-1.json"),
           JSON.stringify({ status: "APPROVED", artifacts: {} }),
           "utf8",
         );
@@ -7537,8 +7911,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         expect(ledger.completedCycles("1", "implement")).toEqual([]);
         // the hard round's ONE line names the round's own log file, which exists (§4.1)
         expect(io.stderrText).toMatch(/CDD_BLOCKED: .*committed nothing/);
-        expect(io.stderrText).toContain("logs/tasks-1-implement.log");
-        const logPath = path.join(workspace.path, "logs", "tasks-1-implement.log");
+        expect(io.stderrText).toContain("logs/tasks-1-implement-1.log");
+        const logPath = path.join(workspace.path, "logs", "tasks-1-implement-1.log");
         expect(existsSync(logPath)).toBe(true);
         // the board reads the same records — a hard round stays visible (it booked)
         io.stdoutText = "";
@@ -7548,7 +7922,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         // contract violation is a different fact, so this round prints no suffix).
         expect(io.stdoutText).toContain("implement 1 ✗");
         expect(io.stdoutText).not.toContain("implement 1 ✗+");
-        expect(existsSync(path.join(workspace.path, "tasks-1-implement.json"))).toBe(true);
+        expect(existsSync(path.join(workspace.path, "tasks-1-implement-1.json"))).toBe(true);
       } finally {
         cleanup();
       }
@@ -7657,11 +8031,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         ]);
         expect(ledger.counterOf("contractViolationCount")).toBe(1);
         // the production round wrote NO carrier, so the engine synthesizes none: the
-        // record's carrier path stays null and the handoff path holds no file — a
+        // record names no path and no digest, and the handoff path holds no file — a
         // re-dispatch's draft read must see the child's own (absent) draft, never an
         // engine-authored `{status: APPROVED, artifacts: {}}` (§3.3)
-        expect(record?.carrierPath).toBeNull();
-        expect(existsSync(path.join(workspace.path, "tasks-1-implement.json"))).toBe(false);
+        expect(record?.carrierPath).toBeUndefined();
+        expect(record?.carrierDigest).toBeUndefined();
+        expect(existsSync(path.join(workspace.path, "tasks-1-implement-1.json"))).toBe(false);
         // the soft row warns, the blocked channel stays silent
         expect(io.stderrText).toContain("CDD_WARN:");
         expect(io.stderrText).not.toContain("CDD_BLOCKED");
@@ -7687,7 +8062,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           "utf8",
         );
         writeFileSync(
-          path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+          path.join(scene.workspace.path, "tasks-1-fix-1-test-evidence.json"),
           JSON.stringify(P21_EVIDENCE),
           "utf8",
         );
@@ -7787,14 +8162,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       }
     });
 
-    it("(f2) the legacy skip is REACHABLE through the provider — a review record with no carrierPath and no carrier on disk gives the criterion no path", async () => {
+    it("(f2) the legacy skip is REACHABLE through the provider — a review record whose identity resolves no carrier and no --reviews path gives the criterion no input", async () => {
       const { repoRoot, cleanup } = fixture();
       try {
         gitInit(repoRoot);
         // The pre-rename legacy row: the review round landed but recorded no carrier
         // path, and no carrier exists at the canonical spelling or the retired twin.
         const legacy = harnessScene(repoRoot, "p3-legacy");
-        legacy.ledger.recordRound("1", { op: "review", cycle: 1, carrierPath: null });
+        legacy.ledger.recordRound("1", { op: "review", cycle: 1 });
         const run = async (scene: DispatchScene) => {
           writeFileSync(
             path.join(scene.workspace.path, "tasks-1-fix-1.json"),
@@ -7802,7 +8177,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
             "utf8",
           );
           writeFileSync(
-            path.join(scene.workspace.path, "tasks-1-test-evidence.json"),
+            path.join(scene.workspace.path, "tasks-1-fix-1-test-evidence.json"),
             JSON.stringify(P21_EVIDENCE),
             "utf8",
           );
@@ -8001,7 +8376,7 @@ class FixDraftRunner implements ChildRunner {
       "utf8",
     );
     writeFileSync(
-      path.join(workspace, "tasks-1-test-evidence.json"),
+      path.join(workspace, "tasks-1-fix-1-test-evidence.json"),
       JSON.stringify(P21_EVIDENCE),
       "utf8",
     );
@@ -8038,7 +8413,7 @@ class PlanStructureRunner implements ChildRunner {
       "utf8",
     );
     writeFileSync(
-      path.join(workspace, "tasks-1-test-evidence.json"),
+      path.join(workspace, "tasks-1-fix-1-test-evidence.json"),
       JSON.stringify(P21_EVIDENCE),
       "utf8",
     );
@@ -8079,13 +8454,13 @@ class RecordProbeRunner implements ChildRunner {
     this.recordAtSpawn = existsSync(recordPath) ? readFileSync(recordPath, "utf8") : null;
     if (this.draft) {
       writeFileSync(
-        path.join(this.#workspace, "tasks-1-implement.json"),
+        path.join(this.#workspace, "tasks-1-implement-1.json"),
         JSON.stringify({ status: "APPROVED", artifacts: {} }),
         "utf8",
       );
     }
     writeFileSync(
-      path.join(this.#workspace, "tasks-1-test-evidence.json"),
+      path.join(this.#workspace, "tasks-1-implement-1-test-evidence.json"),
       JSON.stringify(P21_EVIDENCE),
       "utf8",
     );
@@ -8111,7 +8486,7 @@ class NoEvidenceRunner implements ChildRunner {
     const workspace = path.join(run.cwd, ".kairos", "cdd", "p3");
     mkdirSync(workspace, { recursive: true });
     writeFileSync(
-      path.join(workspace, "tasks-1-implement.json"),
+      path.join(workspace, "tasks-1-implement-1.json"),
       JSON.stringify({ status: "APPROVED", artifacts: {} }),
       "utf8",
     );

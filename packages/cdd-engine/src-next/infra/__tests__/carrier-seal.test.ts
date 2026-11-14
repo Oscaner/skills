@@ -78,7 +78,10 @@ describe("CarrierSeal.sweep — the orphan recovery of one workspace", () => {
     "tasks-1-test-evidence.json": '{"passed":true}\n',
     "tasks-1-review-2.c2.rulings.json": '{"rulings":[]}\n',
     "tasks-1-review-2-report.md": "report\n",
+    "tasks-1-review-2.log": "log\n",
     "crash-tasks-1-review-2.json": '{"cause":"child-exit"}\n',
+    "tasks-1-review.json": "{}\n",
+    "tasks-1-fix.json": "{}\n",
   };
 
   it("seals a writable draft and a writable final — the recovery's own names", () => {
@@ -149,6 +152,9 @@ describe("CarrierSeal.sweep — the orphan recovery of one workspace", () => {
       "phase-spec-fix-1.json",
       "phase-spec-fix-1.c1.json",
       "single-spec-review-1.c1.json",
+      "tasks-1-fix-1-a2.json",
+      "tasks-1-fix-1-a2.c1.json",
+      "phase-spec-review-2-a3.json",
     ];
     const dir = directoryOf(Object.fromEntries(minted.map((name) => [name, "{}\n"])));
     // An external chmod is what makes a stale carrier an orphan (a sealed one is not).

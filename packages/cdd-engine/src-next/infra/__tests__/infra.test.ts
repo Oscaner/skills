@@ -58,12 +58,15 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
     });
   });
 
-  it("carries the handoff family naming table — every op.type the ledger resolves", () => {
-    expect(HANDOFF_FAMILIES["implement.wave"].name).toBe("tasks-{tasks}-implement.json");
-    expect(HANDOFF_FAMILIES["review.wave"].name).toBe("tasks-{tasks}-review-{round}.json");
-    // Each family is a pure name row — the carrier plane is derived from the op
-    // (`HandoffSchema.planeOf`), never declared per family. The return-format field is
-    // gone (RETURN_PROSE is the ONE return contract).
+  it("carries the handoff family key set — every op.type the ledger resolves, no name", () => {
+    // The family surface is a KEY SET: the file names are the session plane's ONE mint
+    // (`RoundNaming#renderName`), so the table spells no `{placeholder}` pattern — a
+    // retired shape here would be a second truth the renderer can no longer produce.
+    expect(HANDOFF_FAMILIES).toContain("implement.wave");
+    expect(HANDOFF_FAMILIES).toContain("review.wave");
+    // The carrier plane is derived from the op (`HandoffSchema.planeOf`), never
+    // declared per family. The return-format field is gone (RETURN_PROSE is the ONE
+    // return contract).
     expect(HandoffSchema.planeOf("review")).toBe("judge");
     expect(HandoffSchema.planeOf("implement")).toBe("work");
     expect(HandoffSchema.planeOf("fix")).toBe("work");
@@ -81,9 +84,8 @@ describe("runtime — the typed engine-config surface (the typed data plane)", (
       "fix.single-spec",
       "review.branch",
       "fix.branch",
-    ] as const satisfies readonly (keyof typeof HANDOFF_FAMILIES)[]) {
-      expect(HANDOFF_FAMILIES[key], key).toBeDefined();
-      expect(Object.keys(HANDOFF_FAMILIES[key]), key).toEqual(["name"]);
+    ]) {
+      expect(HANDOFF_FAMILIES, key).toContain(key);
     }
     // the return-format field is deleted with the divided return faces (the type-level
     // assertion — a re-added field would fail the compile)
@@ -119,7 +121,7 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     const template = loader.templateContract();
     // v1.8 — the mode dispatch table (implement/fix/review/docs-fix) + the single return contract
     // (RETURN_JSON / DOCS_FIX retired) — the work-mode rows + the four review variants
-    // (the review mode's ROLE resolves by REVIEW_TYPE)
+    // (the review mode's ROLE resolves by TARGET_TYPE)
     expect(Object.keys(template.modes)).toEqual(["implement", "fix", "docs-fix"]);
     expect(Object.keys(template.reviews).sort()).toEqual([
       "branch",

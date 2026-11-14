@@ -10292,3 +10292,192 @@ describe("P35 T5 — the board's ONE plan read: the table, the four semantics, `
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// P35 T7 — the acceptance's remaining visible bytes: the doc face's three
+// derived-path routing outcomes (`io` / `syntax` / `ready`-unregistered), the
+// `slug`-is-the-identity boundary and the reverse probe's existence-only half.
+// ---------------------------------------------------------------------------
+
+describe("P35 T7 — the doc face's derived-path routing and the identity boundary", () => {
+  const PLAN_REL = "docs/kairos/plans/s1.md";
+
+  const task = (id: number, dependsOn = "none"): readonly string[] => [
+    `### Task ${id}: t${id}`,
+    "- **Objective**: o",
+    "- **Files**: `a.ts`",
+    "- **Consumes**: x",
+    "- **Produces**: y",
+    "- **Steps**:",
+    "  - s — checkable: g",
+    "- **Acceptance**: ok",
+    `- **DependsOn**: ${dependsOn}`,
+    "",
+  ];
+
+  /** A plan document at one repo-relative path — `docType` null writes a readable
+   *  plan the index does not register (the "ready but unregistered" shape). */
+  const planAt = (
+    repoRoot: string,
+    rel: string,
+    body: readonly string[],
+    docType: string | null = "plan",
+  ): string => {
+    const file = path.join(repoRoot, rel);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(
+      file,
+      [
+        "---",
+        "title: S1 Plan",
+        ...(docType === null ? [] : [`doc-type: ${docType}`]),
+        "version: v1.0",
+        "date: 2026-10-09",
+        "slug: s1",
+        "---",
+        "",
+        "## Constraints",
+        "",
+        "- c",
+        "",
+        ...body,
+      ].join("\n"),
+      "utf8",
+    );
+    return file;
+  };
+
+  /** The grammar-breaking body — a repeated reserved section. */
+  const BROKEN_BODY: readonly string[] = [
+    "### Task 1: t1",
+    "- **Objective**: o",
+    "- **Files**: `a.ts`",
+    "- **Consumes**: x",
+    "- **Produces**: y",
+    "- **Steps**:",
+    "  - s — checkable: g",
+    "- **Acceptance**: ok",
+    "#### DependsOn",
+    "none",
+    "#### DependsOn",
+    "none",
+    "",
+  ];
+
+  const nextLineOf = (stdout: string): string =>
+    stdout.split("\n").find((line) => line.startsWith("next: ")) ?? "";
+
+  /** Close the phase's PLAN line before the doc round (the frontier's precondition):
+   *  the plan face is past, so the round's `next:` is the plan face's OWN exit, not
+   *  the plan-review hop. A real document, a recorded zero-findings review. */
+  const closePlanLine = (repoRoot: string): void => {
+    const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "s1").ensure();
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+    ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
+    ledger.recordRound("plan", { op: "review" });
+  };
+
+  it("① a derived plan that does not read keeps today's `kairos:cdd-plan` route", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const spec = conformingSpec(repoRoot);
+      const file = planAt(repoRoot, PLAN_REL, task(1));
+      chmodSync(file, 0o000);
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "phase-spec", "--spec", spec])).toBe(0);
+      // The frontier's plan path is `stationPath()` — `io` answers null, so the
+      // anchor is the closed identity face and its own exit is unchanged.
+      expect(nextLineOf(io.stdoutText)).toBe("next: route to /kairos:cdd-plan skill");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("② a derived plan that breaks the grammar routes to the plan face's hand-off phrase", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const spec = conformingSpec(repoRoot);
+      planAt(repoRoot, PLAN_REL, BROKEN_BODY);
+      closePlanLine(repoRoot);
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "phase-spec", "--spec", spec])).toBe(0);
+      // `stationPath()` is non-null (the front matter read out) while `graph()` is
+      // null: the plan face is ENTERED but holds no hop, so its own exit row renders
+      // — the hand-off phrase, never a literal with the path filled in.
+      expect(nextLineOf(io.stdoutText)).toBe("next: route to /kairos:cdd-dev skill");
+      expect(nextLineOf(io.stdoutText)).not.toContain("--plan");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("③ a derived plan that reads but the index never registered still routes to the plan exit", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const spec = conformingSpec(repoRoot);
+      // Readable and parseable, but no `doc-type: plan` — the index names no plan for
+      // this slug. The read value still carries the path (`stationPath()`), which is
+      // the registered change: today's index fallback answered null here.
+      planAt(repoRoot, PLAN_REL, task(1), null);
+      closePlanLine(repoRoot);
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["review", "--type", "phase-spec", "--spec", spec])).toBe(0);
+      expect(nextLineOf(io.stdoutText)).toBe("next: route to /kairos:cdd-dev skill");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a phase slug that names no `<slug>.md` reads `undeclared` — `(none)`, exit 0, zero guessing", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const spec = conformingSpec(repoRoot);
+      // The plan is healthy and registered — but its file name is not the derived
+      // `<slug>.md`, so `slug` alone is the identity: the phase holds no plan.
+      planAt(repoRoot, "docs/kairos/plans/s1-plan.md", task(1));
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--spec", spec])).toBe(0);
+      expect(io.stdoutText).toContain("  wave     (none)");
+      expect(io.stdoutText).not.toContain("W1 {1}");
+      expect(io.stdoutText).not.toContain("! no-spec");
+      expect(io.stderrText).not.toContain("CDD_WARN:");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the reverse probe asks existence only — an unreadable spec leaves the spec row `(none)`", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const spec = conformingSpec(repoRoot);
+      planAt(repoRoot, PLAN_REL, task(1));
+      // The spec is ON DISK (the probe's answer) but unreadable (the index drops it).
+      // The undecided face renders today's `(none)` — never a fabricated `! no-spec`.
+      chmodSync(spec, 0o000);
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--plan", PLAN_REL])).toBe(0);
+      expect(io.stdoutText).toContain("  spec     (none)");
+      // The healthy indexed plan keeps today's cell — the undecided spec row is the
+      // ONLY difference from a healthy board, and it stays `(none)`.
+      expect(io.stdoutText).toContain("  plan     s1.md   v1.0");
+      expect(io.stdoutText).toContain("W1 {1}");
+      expect(io.stdoutText).not.toContain("! no-spec");
+      expect(io.stderrText).not.toContain("CDD_WARN:");
+    } finally {
+      cleanup();
+    }
+  });
+});

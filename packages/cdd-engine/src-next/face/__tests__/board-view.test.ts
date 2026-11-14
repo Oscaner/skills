@@ -3019,6 +3019,23 @@ describe("P35 T5 — the board renders FROM the plan value, never from a second 
     expect(io.exitCode).toBe(0);
   });
 
+  it("`(empty plan)` sits next to the true-undeclared `(none)` — two rows, never mixed", () => {
+    overall();
+    phaseSpec();
+    // The legal forward gap: the phase has no plan at all — today's pinned row.
+    const undeclared = boardOf("prog-p1");
+    expect(undeclared.lines).toContain("  wave     (none)");
+    expect(undeclared.lines).toContain("  plan     (none)");
+    // The skeleton the engine just produced: the document reads, its task block is
+    // not written yet. The cell is the port's own word, never `(none)`.
+    planDoc("docs/kairos/plans/prog-p1.md", []);
+    const empty = boardOf("prog-p1");
+    expect(empty.lines).toContain("  wave     (empty plan)");
+    expect(empty.lines).not.toContain("  wave     (none)");
+    // The empty plan still names its own document — the cell is the wave segment only.
+    expect(empty.lines.join("\n")).toContain("  plan     prog-p1.md");
+  });
+
   it('the program face\'s four cells: `W1…` / `(empty plan)` / `! unparseable` / `""`', () => {
     overall();
     const index = SlugIndex.build(repo);

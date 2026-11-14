@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P35 设计：plan 读取收权（一份读取 · 一个失败值 · 一条拒绝通道）'
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-11-14
 slug: '2026-10-10-engine-doc-tooling-p35'
 program: 2026-10-10-engine-doc-tooling
@@ -29,7 +29,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-14）'
 | `face/cli.ts` 的 usage 校验（`planIds` 块，`Cli#runWork` 内） | 裸抛 | 同上 |
 | `session/preflight.ts` 的 `PreFlight#vet` graph 门禁 | 裸抛 | 同上（且被场景装配抢先） |
 | `session/preflight.ts` 的 `PreFlight#ledgerFactsOf` | 裸抛 | 同上 |
-| `render/brief.ts` 的 `BriefRenderer`（构造注入解析器，`extract` 内解析） | 裸抛 | 同上 |
+| `render/brief.ts` 的 `BriefRenderer`（构造注入解析器，`extract` 内解析） | 裸抛 | 同上（本相位删除该解析：`BriefRenderer` 改收已解析的 `PlanParsed`，见 §2.1 / §2.6） |
 | `session/run.ts` 的 `Lifecycle#recordPlanSnapshot` | 捕获 → 不记快照 | 快照缺失在 wave 门里保守读作 `stall` |
 
 `Lifecycle#recordPlanSnapshot` 是**策略正确的那一个**（缺失 → 拒绝，而非放行），本相位保留它的语义，只把「吞掉的缺失」换成「已知的缺失」——它改吃 `PlanRead`，非 ready 不记快照。
@@ -40,7 +40,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-14）'
 
 判定面另有一处通用分发：`contract/judge.ts` 的 `#contextOf` 直接调 `docTypeParsers[input.docKey].parse(...)`，于是同一份文档的 body 坏结构会把**判定门自己打死**，而不是产出一行 `Finding`。
 
-顺序事实（今日成立、须有 pin）：`PreFlight` 的 doc-contract 结构拒绝发生在 `face/gate.ts` 的 `renderBrief` **之前**，所以 `BriefRenderer` 的裸抛在真派路径上不可达——这是 §3.1「stderr 不再出现 `cdd:` 文法报文」的唯一保障，不是巧合。
+顺序事实（今日成立、须有 pin）：`PreFlight` 的 doc-contract 结构拒绝发生在 `face/gate.ts` 的 `renderBrief` **之前**。这个顺序今日是 `BriefRenderer` 裸抛的唯一保障；本相位把 brief 的第二处解析删掉（§2.1 / §2.6），保障于是不再依赖时序——`renderBrief` 拿到的已是 `PlanRead.doc`，它没有解析可抛。
 
 #### 1.2 为什么补 `catch` 不管用
 
@@ -91,6 +91,7 @@ type PlanRead =
 - `graph(): TaskGraph | null` — 门禁 / frontier / 板面的唯一图输入。`ready` 里 **eager** 派生于同一次解析（一次解析只产一份派生，不留第二重惰性事实源）。
 - `waves(): readonly TaskBatch[]` — 板面 wave 段的数据面；非 ready 返回空集。
 - `cell(words: PlanReadWords): string` — 程序面波次格的字面（§2.4 的四语义）。
+- `planLine(words: PlanReadWords): string | null` — doc 面 plan 行的字面：只有非 ready 时返回该行（声明路径 + 读失败标记，当一行文本渲出、不经 `#docCell`），`undeclared` / `ready` 返回 `null`，plan 行照旧走索引派生的那一项；读失败不是 slug 缺失，不参与 `#entryMark` 记账，板面消费点因此不写 `switch (read.kind)`。
 - `warnLine(words: PlanReadWords): string | null` — board 的 `CDD_WARN:` 行，健康 plan 返回 `null`。
 - `refusal(words: PlanReadWords): { gate: "doc-contract"; reason: "doc-contract"; message: string } | null` — preflight 的拒绝通道入参，健康 plan 返回 `null`。
 
@@ -98,7 +99,7 @@ type PlanRead =
 
 接线（一次读取、一个事实源）：`PlanSource` 在 `Cli.create()` 构造一次；`Cli#runBoard` 在**自己内部**构造 `PlanRead`（`--plan` 走 `readPath`、`--spec` 走 `readDeclared`；overall 视图逐相位读取走同一个实例，按 `index.phaseSpecsOf(slug)` 的行序形成一张有序值表），并以**参数**传给 `BoardNext.of` 与 `BoardView.pipelineFacts`。`BoardView.render` / `#programBoard` / `#waveLines` 仍是静态方法，但改为**收值不再自读**（node 板收一个 `PlanRead`，程序板收逐相位的有序值表）——`BoardView.planGraph` 删除后，板面没有第二个读取点。工作路径上 `PlanRead` 随 `WorkScene` 下行（取代 `planText: string | null` 这个第二重事实源），`PreFlight#vet` 从场景取值，不各读一次；板面不建 `WorkScene` 是既有事实——`PlanRead` 是值，不是场景成员，不为此新增场景。
 
-doc 行的 plan 项与波次格同源：相位文档声明了 `plan: X` 时，`BoardView` 以**只带路径的 entry** 覆盖索引派生的那一项（`path` / `rel` + `docType: "plan"` + 节点的合法 `slug`，其余 front-matter 事实为 `null`；`slug` 必须带——`#entryMark` 读它，空 slug 会把这次降级误判成 `(SLUG-MISSING)` 并让板面 exit 2）。声明存在时 plan 行与波次格因此不会一分为二，`plan` 行渲 `(none)` 而波次格渲 `! unreadable` 的混排不发生。
+doc 行的 plan 项与波次格同源：相位文档声明了 `plan: X` 时，`BoardView` 收到的是**同一个 `PlanRead`**。`ready` 时 plan 行按索引派生的那一项渲染；非 ready 时 plan 行**从 `PlanRead.path` 这个字符串渲染**（声明路径 + 该行的读失败标记）——不构造 `DocEntry`、不参与 `#entryMark` 记账、不进 `#docCell` 的 blocked 判定，`#nodeBoard` 照常打 overall / spec / plan / branch 四行，只把 plan 行换成 `PlanRead.planLine(words)` 渲出的这一行。反向约束同源：**不许**把无身份的值包成 `DocEntry`——`face/board-view.ts` 的 `#entryMark` 读 `entry.slug`，空 slug 回 `MARK_SLUG_MISSING`，`#docCell` 随即 `blocked: true`，`#nodeBoard` 的 `return blocked ? 2 : 0` 把这次降级误判成 exit 2。声明存在时 plan 行与波次格因此不会一分为二：同一个 `PlanRead` 供两边，`plan` 行渲声明路径、波次格渲 `! unreadable`，`plan` 行渲 `(none)` 而波次格渲 `! unreadable` 的混排不发生。
 
 `face/gate.ts` 的 `scene.planText!` 改为 `scene.plan.text()`（非抛访问器，`null` 由调用点显式处理，不再靠断言抹平）。
 
@@ -112,7 +113,7 @@ doc 行的 plan 项与波次格同源：相位文档声明了 `plan: X` 时，`B
 
 #### 2.3 拒绝复用既有 doc-contract 通道
 
-`session/preflight.ts` 的 doc-shape 块在判定前先读 `PlanRead.refusal(words)`：非 `null` → 与该块既有形状同一 gate id、同一 reason token（`gate: "doc-contract"` / `reason: "doc-contract"`），报文含 plan 路径与字段名。不新增 gate id，不新增 reason token。
+`session/preflight.ts` 的 doc-shape 块在判定前先读 `PlanRead.refusal(words)`：非 `null` → 与该块既有形状同一 gate id、同一 reason token（`gate: "doc-contract"` / `reason: "doc-contract"`），报文含 plan 路径与字段名。不新增 gate id，不新增 reason token。`graph` 门只在 `read.kind === "ready"` 时运行，其余按 `skipped` 记账——因此 plan 面上的第一处拒绝恒为 `doc-contract`，AC #3 观察到的 `reason` 不会变成 `graph`。
 
 **不新增 station kind**（`session/dispatch-authority.ts` 的三 kind 不动，P27 的十三 token 不动）：`unreadable` 与 `unparseable` 的可观察面是「结构拒绝先于 station 计算发生」——前者使下游不可达，而不是新增一个 kind。
 
@@ -132,11 +133,11 @@ board 面另落同一条意图（charter ④「读不出不得授权下游 `next
 
 `(empty plan)` 进词表（`Words#planReadWord`），不得回落 `(none)`，也不得回落空串——它是「有 plan、还没写 task」的正常态，与「没有 plan」不是一件事。
 
-board 收到非 ready 时额外打一行诊断：`CDD_WARN:` + 对应词行，走 **stderr**（`face/lifecycle.ts` 与 `face/cli.ts` 的现有一律 stderr，`words.stations.warn` 是诊断锚）；stdout 的 wave 块零字节变化（只差那一格），退出码仍 0。把诊断放 stdout 会让一个站牌词跑上没有站牌走的通道。
+board 收到非 ready 时额外打一行诊断：`CDD_WARN:` + 对应词行，走 **stderr**（`face/lifecycle.ts` 与 `face/cli.ts` 的现有一律 stderr，`words.stations.warn` 是诊断锚）；stdout 的 wave 块零字节变化（只差那一格），退出码仍 0。写者是 **`Cli#runBoard`**：`BoardView.render` 是纯函数（静态返回 `{ lines, exitCode }`，不持有 io 通道），不承担写盘——`Cli#runBoard` 在打印渲染行**之前**调用 `read.warnLine(words)` 写 stderr；overall 板由它按 §2.1 那张有序逐相位值表，对每个非 ready 相位各写一行（行内带相位 id）。把诊断放 stdout 会让一个站牌词跑上没有站牌走的通道。
 
 程序面（`BoardView.#programBoard`）一条降级、两处落点：每个坏 plan 的相位各出一行 `CDD_WARN:`（行内带该相位的 `slug:`，多相位板上才定位得到），打 **stderr**；波次格只渲 `! unparseable` / `! unreadable`（真 undeclared 仍是 `""`），不在格内另造标记，相位行其余列零字节变化。
 
-`cdd board --plan <存在但读不出>` 没有可渲的身份（索引里没有这份文档）：板面退化为 `cdd board: (none)` + 该波次格一行 + `  next:    (none)`，同一 exit 0、同一条 stderr warn；不打印 `cdd board: no docs match`。读得成功但索引里没有这份文档（不是两个 doc root 下的扫描面）仍走既有 `#boardNotFound`（exit 2）。
+`cdd board --plan <存在但读不出>` 是 argv 面，**不出板面**：读取失败即拒绝，保持 exit 2，但报文必须点明是读失败而不是「没有这份文档」——`cdd board: cannot read --plan <path>: <原因>`（`#boardNotFound` 的 `no docs match` 只留给真正不存在的路径）。没有板面就没有 `next:`，charter ④「读不出不得授权下游 `next:`」自动满足。exit 0 的 `! unreadable` 渲染只经相位文档的 `plan:` 声明到达（§2.1 的声明面），两条面各归各的通道，不复用同一个身份。读得成功但索引里没有这份文档（不是两个 doc root 下的扫描面）仍走既有 `#boardNotFound`（exit 2）。
 
 `--dry-run` / preview 与真派同批：preview 在坏 plan 上同样返回 BLOCKED，不降级。preview 的卖点是「先看这一轮会做什么」，让它照常输出等于把同一个谎报搬到第二个面。
 
@@ -148,7 +149,7 @@ board 收到非 ready 时额外打一行诊断：`CDD_WARN:` + 对应词行，�
 
 #### 2.6 机械强制三项
 
-- **唯一构造点门**：`infra/__tests__/plan-source.guard.test.ts` 以 `contract/doc.ts` 的 `docTypeParsers` **登记行为参数**——每个 doc key 的 `new <X>DocType("<key>")` 只许出现在两处：它自己的登记行，以及该 doc 型指定的唯一读取点（plan 的是 `infra/plan-source.ts`）。规则通用，plan 只是第一个受益者：防复发靠规则，不靠再写一条 plan 专属 grep。扫描面是生产源码（`**/__tests__/**` 排除——测试合法地直接构造解析器），且同一测试禁止 `infra/plan-source.ts` 出现空 `catch`（biome 无现成规则，自定义插件的维护成本高于一条正则）。
+- **唯一构造点门**：落门之前先删掉现存唯一一处越界构造——`render/brief.ts` 的 `constructor(parser = new PlanDocType("plan"))` 默认参数删除，`BriefRenderer#extract` / `#render` 改为消费**已解析的** `PlanParsed`（`sections` 与 `taskBlocks` 都在它上面），三个调用点（`face/gate.ts`、`face/lifecycle.ts`、`face/cli.ts`）从 `PlanRead.doc` 取值传入；brief 因此不再解析、不再构造，构造点白名单只剩 `contract/doc.ts` 的登记行与 `infra/plan-source.ts` 两处，本门在未改动文件上为绿。门本身：`infra/__tests__/plan-source.guard.test.ts` 以 `contract/doc.ts` 的 `docTypeParsers` **登记行为参数**——每个 doc key 的 `new <X>DocType("<key>")` 只许出现在两处：它自己的登记行，以及该 doc 型指定的唯一读取点（plan 的是 `infra/plan-source.ts`）。规则通用，plan 只是第一个受益者：防复发靠规则，不靠再写一条 plan 专属 grep。扫描面是生产源码（`**/__tests__/**` 排除——测试合法地直接构造解析器），且同一测试禁止 `infra/plan-source.ts` 出现空 `catch`（biome 无现成规则，自定义插件的维护成本高于一条正则）。
 - **三面一致性必红**：结构测试落 `session/__tests__/`（单进程内三集合都可达，不需要一次 CLI 调用同时看见三层），逐格比较三件 observable——板面渲染的 wave 行、`session/preflight.ts` 判定所用的 graph 的 wave 集、frontier 路由的 wave 键；健康 plan 与坏 plan 各一条。
 - **合法降级不误伤**：`face/__tests__/board-view.test.ts` 既有的 `  wave     (none)` 格（真 undeclared）必须保持绿，新的 `(empty plan)` pin 紧挨它。
 
@@ -156,7 +157,7 @@ board 收到非 ready 时额外打一行诊断：`CDD_WARN:` + 对应词行，�
 
 #### 3.1 裸崩面的残留路径
 
-场景装配先于 preview 与 usage 校验执行，`#renderWaveBoard` 又在拒绝分支之后。所有读取点都必须改吃同一个 `PlanRead`，否则会出现「门禁已拒绝、渲染先崩」的顺序漏洞。验收要求 stderr 不再出现 `cdd: ` 前缀的文法报文，并要求 §1.1 的「doc-contract 拒绝先于 brief 渲染」有 pin——`BriefRenderer` 一处的裸抛只有在被前置拒绝挡住时才无害，这条顺序是断言，不是假设。
+场景装配先于 preview 与 usage 校验执行，`#renderWaveBoard` 又在拒绝分支之后。所有读取点都必须改吃同一个 `PlanRead`，否则会出现「门禁已拒绝、渲染先崩」的顺序漏洞。验收要求 stderr 不再出现 `cdd: ` 前缀的文法报文。`BriefRenderer` 不再是这条要求上的风险面：默认参数删除后它**已无解析可抛**（§2.6），`#extract` / `#render` 收的是 `PlanRead.doc`——因此这条要求不再依赖「被前置拒绝挡住」的时序论证；§1.1 的顺序事实仍由 pin 钉住（doc-contract 拒绝先于 brief 渲染），但它现在是冗余保障，不是唯一保障。
 
 #### 3.2 `(none)` 与退出码的既有 pin
 
@@ -172,15 +173,16 @@ board 收到非 ready 时额外打一行诊断：`CDD_WARN:` + 对应词行，�
 
 ### Acceptance criteria
 
-- `cdd board --plan` 指向一个重复 `#### DependsOn` 节的背景 plan（fixture）：stderr 恰一行 `CDD_WARN:`（含 `plan unparseable` 词行），stdout 的 wave 格为 `! unparseable`，stdout 全文不含 `  wave     (none)`、且除那一格以外与健康 plan 逐字节相同，退出码 0 — pin `face/__tests__/cli.test.ts`
-- 坏 plan（`! unparseable` / `! unreadable`）上，板面只有两处变化：波次格与 `next:`——`next:` 为 hop-less 降级 `  next:    (none)` 且无 `reason:` 行，**不得**等于健康 plan 的波次派生路由（不得出现 `review --type branch --plan …`）；健康 plan 上 `next:` / `reason:` 逐字节不变（AC #11 已覆盖）— pin `face/__tests__/cli.test.ts`
+- `cdd board --plan` 指向一个重复 `#### DependsOn` 节的背景 plan（fixture），健康对照夹具是**单波 plan**（渲一行 `W1 {…}`）：stderr 恰一行 `CDD_WARN:`（含 `plan unparseable` 词行，由 `Cli#runBoard` 在打印渲染行之前写出），stdout 的 wave 格为 `! unparseable`，stdout 全文不含 `  wave     (none)`，且 **wave 行以外**与健康 plan 逐字节相同（波次行数差异不算破坏），退出码 0 — pin `face/__tests__/cli.test.ts`
+- 坏 plan（`! unparseable` / `! unreadable`）上，板面只有两处变化：波次格与 `next:`（本条按 `! unparseable` 的 argv 面用例量；声明面 `! unreadable` 的 plan 行另有 §2.1 裁定的第三处差异——渲声明路径而非 `(none)`，见 AC #4，不计入本条的两处）——`next:` 为 hop-less 降级 `  next:    (none)` 且无 `reason:` 行，**不得**等于健康 plan 的波次派生路由（不得出现 `review --type branch --plan …`）；健康 plan 上 `next:` / `reason:` 逐字节不变（AC #11 已覆盖）— pin `face/__tests__/cli.test.ts`
 - `cdd implement --type wave --plan` 同一 fixture：输出 `CDD_BLOCKED:` 与 `reason: doc-contract`，报文含 plan 路径与字段名，stderr 不含 `cdd: task 27 carries the reserved section`（doc-contract 拒绝先于 brief 渲染）— pin `face/__tests__/cli.test.ts`
-- 已声明但读不出（存在、权限拒绝）的 plan：board 的 wave 格为 `! unreadable`、stderr 含 `plan unreadable` 词行、退出码 0，且同一块板面的 plan 行不是 `(none)`（与波次格同源）；与文法坏结构各由一条用例覆盖 — 渲染 pin `face/__tests__/cli.test.ts`，值 pin `infra/__tests__/plan-source.test.ts`；`cdd board --plan <存在但读不出>` 同判——**存在但读不出走 `unreadable`，不存在走 `#boardNotFound`**（exit 2，`face/__tests__/cli.test.ts` 已钉），读成功但没有文档身份同样走 `#boardNotFound`
+- 已声明但读不出（存在、权限拒绝）的 plan，声明面 exit 0：`cdd board --spec <声明 plan: 的相位文档>` 的 wave 格为 `! unreadable`、stderr 含 `plan unreadable` 词行（由 `Cli#runBoard` 写出）、`next:` 为 `  next:    (none)`，且同一块板面的 plan 行渲声明路径——不是 `(none)`、不是 `(SLUG-MISSING)`，与波次格同源；与文法坏结构各由一条用例覆盖 — pin `face/__tests__/cli.test.ts`；值 pin `infra/__tests__/plan-source.test.ts`
+- argv 面保持拒绝：`cdd board --plan <存在但读不出>` exit 2，stderr 报文含 `cannot read`、**不含** `no docs match`，且不出板面；不存在的路径与「读成功但无文档身份」仍走 `#boardNotFound` 的 `no docs match`（exit 2，已钉）— pin `face/__tests__/cli.test.ts`
 - plan body 带重复保留节时，`validate` 产出一行 `Finding`（`#contextOf` 只把 `DocSyntaxError` 带出）：`path` 非空且等于契约路径、`field` 指到该节、`kind` 为 `"doc-syntax"`、无异常逃逸 — pin `contract/__tests__/judge.test.ts`
 - `ready` 但零 task block 的 plan 渲 `(empty plan)`（doc 面 wave 行与程序面波次格同），既不是 `(none)` 也不是空串 — pin `face/__tests__/board-view.test.ts`（紧挨既有的 `  wave     (none)` 一条）
-- 程序面上真 undeclared（该相位没有 plan）的波次格仍为 `""`，与 `(empty plan)` / `! unparseable` / `! unreadable` 三语义互不混同；同一张程序板里坏 plan 的相位波次格为 `! unparseable` / `! unreadable`，每个坏 plan 各出**一行** `CDD_WARN:`（含该相位 `slug:`）到 stderr，格内不另造标记 — pin `face/__tests__/board-view.test.ts`
+- 程序面上真 undeclared（该相位没有 plan）的波次格仍为 `""`，与 `(empty plan)` / `! unparseable` / `! unreadable` 三语义互不混同；同一张程序板里坏 plan 的相位波次格为 `! unparseable` / `! unreadable`，每个坏 plan 各出**一行** `CDD_WARN:`（含该相位 `slug:`）到 stderr——写者是 `Cli#runBoard`，按 §2.1 的有序逐相位值表逐行写出——格内不另造标记 — stderr 断言行 pin `face/__tests__/cli.test.ts`，格面 pin `face/__tests__/board-view.test.ts`
 - 三面一致性：结构测试同进程内比较板面渲染的 wave 行、`PreFlight` 判定所用 graph 的 wave 集、frontier 路由的 wave 键，逐格相等；健康与坏 plan 各一条 — pin `session/__tests__/`
-- 唯一构造点门：按 `docTypeParsers` 登记行参数化，每个 doc key 的构造点只出现在登记行与其唯一读取点；plan 的读取点只有 `infra/plan-source.ts`，且该文件不含空 `catch` — pin `infra/__tests__/plan-source.guard.test.ts`
+- 唯一构造点门：按 `docTypeParsers` 登记行参数化，每个 doc key 的构造点只出现在登记行与其唯一读取点——plan 只剩两处：`contract/doc.ts` 的登记行与 `infra/plan-source.ts`（`render/brief.ts` 的默认参数已删除，不再解析），且该文件不含空 `catch` — pin `infra/__tests__/plan-source.guard.test.ts`
 - 真 undeclared 的 phase 文档仍渲 `  wave     (none)` 且退出码 0 — pin `face/__tests__/board-view.test.ts`
 - 健康 plan 的板面、`next:`、`reason:` 逐字节不变 — pin `face/__tests__/board-view.test.ts`
 - `--dry-run` / preview 面在坏 plan 上同样 BLOCKED，不降级 — pin `face/__tests__/cli.test.ts`
@@ -203,3 +205,4 @@ board 收到非 ready 时额外打一行诊断：`CDD_WARN:` + 对应词行，�
 | v0.1 | 2026-11-14 | 初稿：plan 读取收权（`infra/plan-source.ts` 的 `PlanRead` 三态、`PlanSyntaxError` → `Finding`、复用 doc-contract 拒绝通道、降级显式化、缺证据不授权、三项机械强制） | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-14） |
 | v0.2 | 2026-11-14 | 评审修复轮（F1–F13）：读取点清单按实测重列为 8 读取点 + 1 登记行 / 三策略并单列渲染消费点；守卫主体改为按 `docTypeParsers` 行参数化的构造点白名单；`#recordPlanSnapshot` 改吃 `PlanRead`；`! unreadable` 的 board 可达面改由 phase 头 `plan:` 声明解析（`#scanRoot` 不动）；`#programBoard` 的 `waveCell` 重钉；坏 plan 上 `next:` / `reason:` 逐字节不变 + 不新增 station kind；补 `contract/__tests__/judge.test.ts` 的 `Finding` 验收；接线写明 `Cli.create()` 组合根、`PlanRead` 随 `WorkScene` 下行、`graph` eager、`text()` 非抛；新增 `(empty plan)` 语义；`DocSyntaxError` 入 `contract/doc.ts` 且 `kind` 统一为 `"doc-syntax"`；`CDD_WARN:` 定 stderr；`""` 只属真 undeclared；三面一致性移入 `session/__tests__/` 结构测试；overall 同步 v3.63（D90 ① / Phase-inventory P35 的 `contract/` → `infra/`、计数 8+1 / 三策略、`纯文本面` 前提更正） | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-14） |
 | v0.3 | 2026-11-14 | 评审修复轮（F1–F7）：坏 plan 上板面不派生波次路由——`BoardNext.of` 短路到既有的 hop-less `  next:    (none)`（无 `reason:` 行），删除「board 不跑 preflight 因此字节相同」的假推断，`undeclared` 不在短路之列；AC #2 改两段（健康 plan 字节不变 + 非 ready 上波次格与 `next:` 是仅有的两处变化，`next:` 不得等于健康 plan 的波次派生路由）；`plan:` 声明面补全（`FrontMatterHead#plan` + `DocEntry.declaredPlan`，索引只解析一次），声明路径提升为只带路径的 plan entry 使 doc 面 plan 行与波次格同源；`cdd board --plan` 按读的结局归类（存在但读不出走 `unreadable`，不存在走 `#boardNotFound`）；`PlanSource` 收两个入口 `readDeclared` / `readPath`，板面静态方法改为收值不再自读；`#contextOf` 只带出 `DocSyntaxError`、`Finding` 由 `validate` / `validateLedger` 物化；AC #1 字面校正（指向 / `  wave     (none)`）；§2.4 补 `#programBoard` 的逐相位 stderr warn；overall 同步 v3.64（Phase-inventory P35 的 ④ 可测形式与 ⑤ 构造点门） | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-14） |
+| v0.4 | 2026-11-14 | 评审修复轮（F1–F5）：F1 取 (b) 作 argv 面机制——`cdd board --plan <存在但读不出>` 不出板面、保持 exit 2 但报文改为 `cdd board: cannot read --plan <path>: <原因>`，`! unreadable` 的 exit 0 渲染只经相位 `plan:` 声明到达且 plan 行从 `PlanRead.path` 字符串渲染（不包 `DocEntry`、不进 `#entryMark` / `#docCell` blocked），§2.1 的空 slug 句改为正向约束，AC #4 拆声明面 / argv 面两条；F2 删除 `BriefRenderer` 的第二处解析（默认参数删除，`#extract` / `#render` 收 `PlanParsed`，三调用点传 `PlanRead.doc`），§1.1 顺序事实与 §3.1 论证同步改为「已无解析可抛」，AC #9 白名单字面收窄为登记行 + `infra/plan-source.ts`；F3 AC #1 加单波夹具前提并改判「wave 行以外逐字节相同」；F4 点明 `CDD_WARN:` 写者为 `Cli#runBoard`（overall 板按有序逐相位值表各写一行，行内带相位 id），AC #1 / AC #7 的 stderr 断言指向它；F5 §2.3 补 `graph` 门只在 `read.kind === "ready"` 时运行、其余记 `skipped`，故 plan 面第一处拒绝恒为 `doc-contract` | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-14） |

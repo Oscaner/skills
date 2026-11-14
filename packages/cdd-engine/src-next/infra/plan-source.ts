@@ -22,7 +22,10 @@
 //     violation — zero rules registered, zero `Finding`, zero new `kind` token. It
 //     runs on the argv face only (`readFor`'s entry IS the identity document, so
 //     `spec-absent` is structurally unreachable there) and it only probes
-//     existence (`DocFs.exists`), never a content predicate.
+//     existence (`DocFs.exists`), never a content predicate. The probe sits in the
+//     `readPath` entry itself, NOT in the shared read tail: the derived face passes
+//     `null`, so "the derived face never reverse-looks-up" is a fact of the seam
+//     rather than a flag each call site has to keep straight.
 //
 // Module-level exports are types / the class family — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
@@ -357,17 +360,19 @@ export class PlanSource {
     if (!this.#fs.exists(this.#abs(rel))) return new PlanRead({ kind: "undeclared" });
     const content = this.#fs.read(this.#abs(rel));
     if (content === null) return this.#ioFailure(rel);
-    return this.#classify(rel, content, false);
+    return this.#classify(rel, content, null);
   }
 
   /** The argv face: the caller names the path, so a failed read is NEVER
    *  `undeclared` — the dispatch face keeps today's usage bytes. The reverse
-   *  lookup runs once, here, before the value is returned. */
+   *  lookup runs once, here, and its result rides into the shared tail as a
+   *  parameter; the tail itself probes nothing. */
   readPath(rel: string): PlanRead {
     const path = this.#root.relativize(rel);
     const content = this.#fs.read(this.#root.resolve(path));
     if (content === null) return this.#ioFailure(path);
-    return this.#classify(path, content, true);
+    const { head } = FrontMatterExtractor.split(content);
+    return this.#classify(path, content, this.#orphanOf(head));
   }
 
   // -------------------------------------------------------------------------
@@ -392,15 +397,15 @@ export class PlanSource {
     });
   }
 
-  /** The shared read tail: front-matter split, ONE parse, the eager graph, and the
-   *  argv-only reverse lookup. A grammar break is the typed `DocSyntaxError` and
+  /** The shared read tail: front-matter split, ONE parse, the eager graph. The
+   *  reverse-lookup result arrives as a parameter (`null` on the derived face), so
+   *  this tail contains no probe. A grammar break is the typed `DocSyntaxError` and
    *  becomes the `syntax` failure; any other throw is a programming break. */
-  #classify(path: string, content: string, reverse: boolean): PlanRead {
+  #classify(path: string, content: string, orphan: PlanOrphan | null): PlanRead {
     const { head } = FrontMatterExtractor.split(content);
     try {
       const doc = this.#parser.parse(content.split("\n"), head);
       const graph = new TaskGraph(doc);
-      const orphan = reverse ? this.#orphanOf(head) : null;
       return new PlanRead({ kind: "ready", path, text: content, doc, graph, orphan });
     } catch (error) {
       if (!(error instanceof DocSyntaxError)) throw error;

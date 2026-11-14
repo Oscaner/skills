@@ -154,16 +154,19 @@ class CountingFs implements DocFs {
 }
 
 /** One concern's word table — the PlanReadWords port, hand-counted so every
- *  literal the value emits is visible in one place. */
+ *  literal the value emits is visible in one place. The five members the value
+ *  reaches through the port carry SENTINELS, not the shipped bytes: were the
+ *  fixture to repeat the production table, a hardcoded literal inside
+ *  `infra/plan-source.ts` would keep every assertion green. `planOrphanSpec` and
+ *  `planSlugMissing` already return a distinguishable shape and keep it. */
 const WORDS = {
-  planReadWord: (cause: "io" | "syntax"): string =>
-    cause === "io" ? "! unreadable" : "! unparseable",
-  planEmptyWord: (): string => "(empty plan)",
+  planReadWord: (cause: "io" | "syntax"): string => (cause === "io" ? "!w-io" : "!w-syntax"),
+  planEmptyWord: (): string => "(empty!)",
   planOrphanSpec: (slug: string, specPath: string): string => `orphan ${slug} -> ${specPath}`,
   planSlugMissing: (): string => "slug missing",
-  planOrphanWord: (): string => "! no-spec",
-  cellEmpty: "",
-  warnPrefix: "CDD_WARN:",
+  planOrphanWord: (): string => "!orphan!",
+  cellEmpty: "<cell>",
+  warnPrefix: "WARN:",
 };
 
 describe("PlanSource.readFor — the derived face's tri-state", () => {
@@ -330,6 +333,13 @@ describe("PlanRead — the accessor value tables", () => {
     };
   };
 
+  it("failure() answers only the unreadable state — null for every other read", () => {
+    const { ready, empty, undeclared, orphan, slugless } = fixture();
+    for (const read of [ready, empty, undeclared, orphan, slugless]) {
+      expect(read.failure()).toBeNull();
+    }
+  });
+
   it("text / doc / graph are null for every non-ready state", () => {
     const { ready, empty, io, syntax, undeclared } = fixture();
     expect(ready.text()).not.toBeNull();
@@ -367,25 +377,25 @@ describe("PlanRead — the accessor value tables", () => {
     const { ready, empty, io, syntax, undeclared, orphan, slugless, repo, source } = fixture();
     // undeclared: (none) on the doc face, the empty program cell.
     expect(undeclared.degradedWaveRow(WORDS)).toBe("(none)");
-    expect(undeclared.cell(WORDS)).toBe("");
+    expect(undeclared.cell(WORDS)).toBe("<cell>");
     // ready with zero task blocks: the healthy-but-empty word on both faces.
-    expect(empty.degradedWaveRow(WORDS)).toBe("(empty plan)");
-    expect(empty.cell(WORDS)).toBe("(empty plan)");
+    expect(empty.degradedWaveRow(WORDS)).toBe("(empty!)");
+    expect(empty.cell(WORDS)).toBe("(empty!)");
     // the two unreadable causes, one mark each.
-    expect(io.degradedWaveRow(WORDS)).toBe("! unreadable");
-    expect(io.cell(WORDS)).toBe("! unreadable");
-    expect(syntax.degradedWaveRow(WORDS)).toBe("! unparseable");
-    expect(syntax.cell(WORDS)).toBe("! unparseable");
+    expect(io.degradedWaveRow(WORDS)).toBe("!w-io");
+    expect(io.cell(WORDS)).toBe("!w-io");
+    expect(syntax.degradedWaveRow(WORDS)).toBe("!w-syntax");
+    expect(syntax.cell(WORDS)).toBe("!w-syntax");
     // healthy ready with waves: null (the assembler owns the healthy bytes).
     expect(ready.degradedWaveRow(WORDS)).toBeNull();
     expect(ready.cell(WORDS)).toBeNull();
     // spec-absent orphan folds BEFORE (empty plan) — both faces, including an empty plan.
-    expect(orphan.degradedWaveRow(WORDS)).toBe("! no-spec");
-    expect(orphan.cell(WORDS)).toBe("! no-spec");
+    expect(orphan.degradedWaveRow(WORDS)).toBe("!orphan!");
+    expect(orphan.cell(WORDS)).toBe("!orphan!");
     writeDoc(repo, `${PLAN_ROOT}/orphan-empty.md`, planHead("prog-p4"), "## Constraints\n");
     const orphanEmpty = source.readPath(`${PLAN_ROOT}/orphan-empty.md`);
-    expect(orphanEmpty.degradedWaveRow(WORDS)).toBe("! no-spec");
-    expect(orphanEmpty.cell(WORDS)).toBe("! no-spec");
+    expect(orphanEmpty.degradedWaveRow(WORDS)).toBe("!orphan!");
+    expect(orphanEmpty.cell(WORDS)).toBe("!orphan!");
     // slug-absent: null on both — the identity channel speaks, not this value.
     expect(slugless.degradedWaveRow(WORDS)).toBeNull();
     expect(slugless.cell(WORDS)).toBeNull();
@@ -395,13 +405,13 @@ describe("PlanRead — the accessor value tables", () => {
     const { ready, io, syntax, undeclared, orphan, slugless, empty } = fixture();
     expect(ready.planLine(WORDS)).toBe(`${PLAN_ROOT}/prog-p1.md`);
     expect(empty.planLine(WORDS)).toBe(`${PLAN_ROOT}/prog-p2.md`);
-    expect(io.planLine(WORDS)).toBe(`${PLAN_ROOT}/prog-p1.md · ! unreadable`);
-    expect(syntax.planLine(WORDS)).toBe(`${PLAN_ROOT}/broken.md · ! unparseable`);
+    expect(io.planLine(WORDS)).toBe(`${PLAN_ROOT}/prog-p1.md · !w-io`);
+    expect(syntax.planLine(WORDS)).toBe(`${PLAN_ROOT}/broken.md · !w-syntax`);
     expect(undeclared.planLine(WORDS)).toBeNull();
-    expect(orphan.planLine(WORDS)).toBe(`${PLAN_ROOT}/orphan.md · ! no-spec`);
+    expect(orphan.planLine(WORDS)).toBe(`${PLAN_ROOT}/orphan.md · !orphan!`);
     expect(slugless.planLine(WORDS)).toBeNull();
     // specLine speaks only for the spec-absent orphan.
-    expect(orphan.specLine(WORDS)).toBe("! no-spec");
+    expect(orphan.specLine(WORDS)).toBe("!orphan!");
     for (const read of [ready, empty, io, syntax, undeclared, slugless]) {
       expect(read.specLine(WORDS)).toBeNull();
     }
@@ -412,17 +422,13 @@ describe("PlanRead — the accessor value tables", () => {
     expect(undeclared.warnLine(WORDS)).toBeNull();
     expect(ready.warnLine(WORDS)).toBeNull();
     expect(empty.warnLine(WORDS)).toBeNull();
-    expect(io.warnLine(WORDS)).toBe(`CDD_WARN: ! unreadable ${PLAN_ROOT}/prog-p1.md`);
-    expect(syntax.warnLine(WORDS)).toBe(
-      `CDD_WARN: ! unparseable ${PLAN_ROOT}/broken.md: #### Files`,
-    );
-    expect(orphan.warnLine(WORDS)).toBe(
-      `CDD_WARN: orphan prog-p3 -> ${SPEC_ROOT}/prog-p3-design.md`,
-    );
-    expect(slugless.warnLine(WORDS)).toBe("CDD_WARN: slug missing");
+    expect(io.warnLine(WORDS)).toBe(`WARN: !w-io ${PLAN_ROOT}/prog-p1.md`);
+    expect(syntax.warnLine(WORDS)).toBe(`WARN: !w-syntax ${PLAN_ROOT}/broken.md: #### Files`);
+    expect(orphan.warnLine(WORDS)).toBe(`WARN: orphan prog-p3 -> ${SPEC_ROOT}/prog-p3-design.md`);
+    expect(slugless.warnLine(WORDS)).toBe("WARN: slug missing");
     // refusal: the two unreadable causes and the spec-absent orphan only.
-    expect(io.refusal(WORDS)?.message).toBe(`! unreadable ${PLAN_ROOT}/prog-p1.md`);
-    expect(syntax.refusal(WORDS)?.message).toBe(`! unparseable ${PLAN_ROOT}/broken.md: #### Files`);
+    expect(io.refusal(WORDS)?.message).toBe(`!w-io ${PLAN_ROOT}/prog-p1.md`);
+    expect(syntax.refusal(WORDS)?.message).toBe(`!w-syntax ${PLAN_ROOT}/broken.md: #### Files`);
     expect(orphan.refusal(WORDS)?.message).toBe(`orphan prog-p3 -> ${SPEC_ROOT}/prog-p3-design.md`);
     for (const read of [ready, empty, undeclared, slugless]) {
       expect(read.refusal(WORDS)).toBeNull();

@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P35 设计：plan 读取收权（一份读取 · 一个失败值 · 一条拒绝通道）'
 doc-type: phase-spec
-version: v0.11
+version: v0.12
 date: 2026-11-14
 slug: '2026-10-10-engine-doc-tooling-p35'
 program: 2026-10-10-engine-doc-tooling
@@ -157,6 +157,15 @@ board 收到**读取失败**的 `PlanRead` 时额外打一行诊断：`CDD_WARN:
 - **三面一致性必红**：结构测试落 `session/__tests__/`（单进程内三集合都可达，不需要一次 CLI 调用同时看见三层），逐格比较三件 observable——板面渲染的 wave 行、`session/preflight.ts` 判定所用的 graph 的 wave 集、frontier 路由的 wave 键；健康 plan 与坏 plan 各一条。
 - **合法降级不误伤**：`face/__tests__/board-view.test.ts` 既有的 `  wave     (none)` 格（真 undeclared）必须保持绿，新的 `(empty plan)` pin 紧挨它。
 
+#### 2.7 反查：plan 必须命名一份相位 spec
+
+前向（相位 → plan）缺失是**正常状态**：一个相位可以注册了、还没写计划，读作 `undeclared`、渲 `(none)`。反向则不同——plan 是**为一枚相位写的**，那份 spec 就是它存在的理由。plan 的 slug 找不到 `docs/kairos/specs/<slug>-design.md` 时，身份已经破了，不能像前向那样降级成 `(none)` 了事。
+
+- **反查只问存在性，不问内容谓词**：派生式与前向是同一个表达式换一个根——`${ENGINE_DOC_ROOTS.specs}/${slug}-design.md`，只经 `DocFs.exists` 探「这份文档在吗」。不得用 `SlugIndex#phaseSpecsOf` / `#planOf` 的反向拼装实现：索引把「读得出」当入册前提（`infra/slug-index.ts` 的 `#scanRoot` 丢掉不可读候选），那样写会把「存在但读不出」误判成「缺失」，凭空造出一批假孤儿。
+- **结构违规落在 doc-contract 面**：`contract/rules.ts` 登记规则 `plan-slug-names-spec`，`contract/invariants.ts` 同面实现，只在 `docKey === "plan"` 上触发，产出 `Finding { kind: "structure", field: "slug" }`，报文取新词行 `planOrphanSpec`（`<slug>` 与派生路径都进报文）。于是 `review` / `implement` / `fix` 在 `reason: doc-contract` 上 `CDD_BLOCKED`——身份破了的 plan 不该被评审，更不该被实施。
+- **板面降级到既有纪律**：`cdd board --plan <孤儿>` 的 spec 行渲 `! no-spec`（新字面，端口留 `planOrphanWord()`），`next:` 走 §2.5 的 hop-less `  next:    (none)`，`Cli#runBoard` 写一行 `CDD_WARN:` 到 stderr，**exit 0**——视图可以退化，但不能静默。plan 面上不再存在「spec 行是 `(none)`」这一状态：反向缺失恒等于 `! no-spec`。
+- **不留豁免**：语料里 34 份 plan 的 slug 全部命中 34 份 spec（0 孤儿、0 份文件名与 slug 不符），这条门从落地第一天起就是绿的——没有历史债要还，因此也不接受白名单。
+
 ### 3. 失败面
 
 #### 3.1 裸崩面的残留路径
@@ -192,6 +201,9 @@ usage 校验的 `planIds` 成员判定在非 ready 时**跳过**——它今日�
 - 真 undeclared 的 phase 文档仍渲 `  wave     (none)` 且退出码 0 — pin `face/__tests__/board-view.test.ts`
 - 健康 plan 的板面、`next:`、`reason:` 逐字节不变 — pin `face/__tests__/board-view.test.ts`
 - `--dry-run` / preview 面在坏 plan 上同样 BLOCKED，不降级 — pin `face/__tests__/cli.test.ts`
+- 反查失败读得出、也拦得住：slug 指向不存在的 `<slug>-design.md` 的 plan，在 doc-contract 面产 `Finding{kind:"structure", field:"slug"}`（报文含 `<slug>` 与派生路径，取 `planOrphanSpec`），`cdd review --type plan --plan <该文件>` / `cdd implement` / `cdd fix` 一律 `CDD_BLOCKED:` + `reason: doc-contract`，stderr 无裸 `cdd: ` 报文 — pin `session/__tests__/preflight.test.ts` 与 `face/__tests__/cli.test.ts`
+- 反查只问存在性、不问内容谓词：`<slug>-design.md` **存在但读不出**（或未入索引）时不算孤儿、不产 `Finding`——这条门不得由 `phaseSpecsOf` / `planOf` 的反向拼装实现，否则「读不出」会被误判成「不存在」 — pin `contract/__tests__/invariants.test.ts`
+- 板面对孤儿 plan 不静默：`cdd board --plan <孤儿>` 的 spec 行渲 `! no-spec`（端口成员 `planOrphanWord()`）、`next:` 为 `  next:    (none)`、stderr 一行 `CDD_WARN:`、exit 0 — pin `face/__tests__/cli.test.ts` 与 `face/__tests__/board-view.test.ts`
 - `pnpm run validate` exit 0；changeset：cdd-engine **minor**（新增拒绝面与一格渲染字面属消费可见字节变化，D74）
 
 ## Constraints
@@ -199,7 +211,7 @@ usage 校验的 `planIds` 成员判定在非 ready 时**跳过**——它今日�
 - plan grammar 语义不动：`#### DependsOn` 仍只许一节，其余重复节规则与报文措辞保持
 - `doc-contract` 判定语义不动，既有拒绝报文（front-matter 行）逐字节不变；不新增 gate id 与 reason token，不新增 station kind
 - 判定面按值收 `contract/judge.ts` 的 `ContractInput.content`，读盘归 `infra/`（`infra/slug-index.ts` 同处；`contract/invariants.ts` 的 `DocFs` / `NodeFs` 是既有读缝，不是新职责）
-- slug 是唯一的文档标识：plan 路径由 `ENGINE_DOC_ROOTS.plans` + slug 派生，不在 front matter 里声明路径；不重写 `infra/slug-index.ts` 的扫描谓词
+- slug 是唯一的文档标识：plan 路径由 `ENGINE_DOC_ROOTS.plans` + slug 派生，不在 front matter 里声明路径；不重写 `infra/slug-index.ts` 的扫描谓词；**身份的两个方向不对称**——相位没有 plan 是合法状态（正查缺失不阻塞），plan 的 slug 找不到 `<slug>-design.md` 是身份破损（反查阻塞；只探存在性，不看索引的内容谓词）
 - progress 账本口径与 `recordPlanTasks` 的形状不动；`session/run.ts` 的 stall 语义保留
 - 不新增 CLI 动词或旗标，不重排 board 既有列与 `next:` / `reason:` 字节
 - 无 module-level 裸函数；新类按 OOP-first 落（状态与行为共变），单一职责
@@ -219,3 +231,4 @@ usage 校验的 `planIds` 成员判定在非 ready 时**跳过**——它今日�
 | v0.9 | 2026-11-14 | 评审修复轮（F1–F4）：F1 plan 行的事实源写死为 `PlanRead.path`——解析到索引里的 `DocEntry` 走 `#docCell`（今日字节不变），否则走 `planLine`，故声明可读但未入索引（缺 `doc-type: plan` 或新 plan 覆盖旧 entry）渲声明路径而非 `(none)` / 旧文档的 `name  version · status`，「一分为二」在任何 kind 上都不发生，§2.1 整段按此重写、AC #4 增该条；F2 空路径哨兵逐字写死（`path === ""` 丢掉分隔符，逐字节 `  plan     ! unparseable`），`planLine` 的触发条件补 `ready` 但未入索引一支，AC #4 的断言从「不打出该路径」升级为逐字面对照该行；F3 §2.6 ③ 把构造点四处与供值点三处外加两处内部委托分开枚举，不共用一个「四」；F4 `(empty plan)` 走独立端口成员 `planEmptyWord()`（与 `cellEmpty` 并列），`planReadWord(cause)` 只承担 `io` / `syntax`，理由（健康但空不是读失败，塞进失败词法会让测试从同一处推字面量而永不红）写进 §2.4 | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-14） |
 | v0.11 | 2026-11-14 | 评审修复轮（F1–F2）：F1 语料计数校正——`docs/kairos/specs/` 的 34 份 spec 全部等于 `slug + "-design"`（逐份比对 0 失配），§2.1 的 spec 份数与 v0.10 行的同一数字同改，overall v3.66 行同步；该计数是语料事实而非门禁断言，口径与 plan 侧 34/34 一致。F2 `warnLine(words)` 的 `null` 面写全：`undeclared` 与 `ready` 都返回 `null`、只有 `unreadable`（`io` / `syntax`）产一行；§2.4 的 overall 板诊断随之从「非 ready 即诊断」收窄为「读失败才诊断」，与 AC #7「每个坏 plan 恰好一行」逐字对齐 | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-14） |
 | v0.10 | 2026-11-14 | 作者裁定（cdd-plan 前的设计回填）：**删除 `plan:` 声明键**——slug 是唯一的文档声明，spec 与 plan 的 slug 必然一致，把 plan 路径反写进相位文档的 front matter 是污染且造出第二个可与 slug 冲突的事实源（语料 34/34 plan 文件名 == slug、34/34 spec == slug + `-design`，派生方向见 `infra/doc-roots.ts` 的注释）。`readDeclared(entry, index)` 改为 `readFor(entry)`：路径 = `ENGINE_RUNTIME.docRoots.plans/<slug>.md`，先探存在性（不存在 → `undeclared`，今日 `(none)` 不变），存在才读（`read` 回 `null` → `unreadable`/`io`）；派生不咨询索引的内容谓词，故「存在但读不出」零声明即可达。连带删除 `FrontMatterHead#plan`、`DocEntry.declaredPlan`、`#scanRoot` 的新增字段、越域校验与 `planPathInvalid` 词行；AC #2 / #4 改称派生面，越域用例换成 slug 不一致的边界用例（读作 `undeclared`）；Constraints 的声明键条款改写 | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-14） |
+| v0.12 | 2026-11-14 | 作者裁定（并入 P35 ⑥ · D91）：**补上反查**——slug 是唯一身份，但两个方向不对称：相位没有 plan 是合法状态（正查缺失读作 `undeclared`、渲 `(none)`、不阻塞），plan 的 slug 找不到 `docs/kairos/specs/<slug>-design.md` 是主编排器写错的身份破损，必须阻塞（§2.7）。反查只经 `DocFs.exists` 探存在性（派生式与前向同一表达式换根），不得用 `phaseSpecsOf`/`planOf` 反向拼装——索引把「读得出」当入册前提，那样写会把「存在但读不出」误判成孤儿。结构违规落既有 doc-contract 通道（规则 `plan-slug-names-spec`，`Finding{kind:"structure", field:"slug"}`，词行 `planOrphanSpec`），`review`/`implement`/`fix` 一律 `CDD_BLOCKED`；板面渲 `! no-spec` + hop-less `next:` + stderr `CDD_WARN:` 且 exit 0。验收加三条（阻塞、存在性判定、板面字面量）；语料 34/34 配对，门落地即绿 | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-14） |

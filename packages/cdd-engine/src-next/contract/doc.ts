@@ -271,6 +271,32 @@ export abstract class MarkdownPrimitives {
 // ---------------------------------------------------------------------------
 
 /**
+ * The document-syntax rejection — a structural break of a document's OWN grammar
+ * (a reserved task section declared twice today), thrown by the parse face and
+ * materialized as a `Finding` by the judgment face. It carries the three faces a
+ * finding needs (the anchored field, the one-line message and the actionable
+ * fix), so the consumer never re-derives them from a message string. It sits
+ * beside the `DocType` base because the parse face is its only thrower: a
+ * doc-type's grammar break is a value, never a bare `Error`.
+ */
+export class DocSyntaxError extends Error {
+  /** The anchored field the break sits on (an anchor token or a section name). */
+  readonly field: string;
+  /** The one-line finding message — what is structurally wrong. */
+  readonly message: string;
+  /** The actionable fix. */
+  readonly fix: string;
+
+  constructor(field: string, message: string, fix: string) {
+    super(message);
+    this.name = "DocSyntaxError";
+    this.field = field;
+    this.message = message;
+    this.fix = fix;
+  }
+}
+
+/**
  * The abstract doc-type base. Each subclass binds its registry-derived projection
  * face (slices + shape) and implements parse — pure structural extraction into a
  * typed record. The base carries the shared extraction primitives (heading blocks,

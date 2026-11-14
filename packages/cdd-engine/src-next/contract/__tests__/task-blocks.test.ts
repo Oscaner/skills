@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import { TASK_ID_VALUE_PATTERN } from "../declare.ts";
+import { DocSyntaxError } from "../doc.ts";
 import { Contract } from "../judge.ts";
 import type { TaskBlock } from "../task-blocks.ts";
 import { PlanTaskBlocksReader } from "../task-blocks.ts";
@@ -170,6 +171,32 @@ describe("PlanTaskBlocksReader — extension sections and duplicates", () => {
       "\n",
     );
     expect(() => reader.parse(content)).toThrow(/#### Files/);
+  });
+
+  it("throws the typed DocSyntaxError carrying the field, the verbatim message and the fix", () => {
+    const content = [
+      TASK_ONE_TITLE,
+      "",
+      "#### DependsOn",
+      "2, 3",
+      "",
+      "#### DependsOn",
+      "4",
+      "",
+    ].join("\n");
+    let caught: unknown;
+    try {
+      reader.parse(content);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(DocSyntaxError);
+    const syntax = caught as DocSyntaxError;
+    expect(syntax.field).toBe("#### DependsOn");
+    expect(syntax.message).toBe(
+      'task 1 carries the reserved section "#### DependsOn" more than once',
+    );
+    expect(syntax.fix.length).toBeGreaterThan(0);
   });
 
   it("reads a `##` section body without truncating at a deeper heading", () => {

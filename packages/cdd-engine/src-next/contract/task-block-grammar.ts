@@ -9,6 +9,7 @@
 // grammar, the document index and the selector engine each own one concern.
 
 import { TASK_ID_VALUE_PATTERN } from "./declare.ts";
+import { DocSyntaxError } from "./doc.ts";
 import type { MarkdownDocument } from "./markdown-document.ts";
 import type { Candidate, MdNode, TaskSection, TaskValueEntry } from "./markdown-tree-types.ts";
 import type { TaskBlock, TaskStep } from "./task-blocks.ts";
@@ -299,9 +300,12 @@ export class TaskBlocksParser {
     const seen = new Set<string>();
     for (const field of block.fields) {
       if (!TaskBlockGrammar.RESERVED.includes(field.key)) continue;
+      const anchor = `#### ${field.key}`;
       if (seen.has(field.key)) {
-        throw new Error(
-          `task ${block.id} carries the reserved section "#### ${field.key}" more than once`,
+        throw new DocSyntaxError(
+          anchor,
+          `task ${block.id} carries the reserved section "${anchor}" more than once`,
+          `Keep one "${anchor}" section per task block — merge the duplicate bodies into the first one.`,
         );
       }
       seen.add(field.key);

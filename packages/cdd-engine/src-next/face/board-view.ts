@@ -890,8 +890,14 @@ export class BoardView {
    *  workspace to observe).
    *
    *  `read` is the caller's ONE plan read (the same `PlanSource` instance): the
-   *  frontier's graph input is the value's own `graph()`, so the board never reads a
-   *  plan a second time. */
+   *  frontier's graph input is the value's own `graph()`, so `pipelineFacts` never
+   *  reads the plan. The declared `planPath` is that same value's `stationPath()`, so
+   *  the document the board read and the path the frontier receives are ONE fact.
+   *
+   *  The board's WAVE segment is a different chain: `#waveLines` still re-reads the
+   *  plan through `BoardView.planGraph(planPath)` (Task 5's deletion target), so this
+   *  docstring speaks about the facts chain only — the second read is standing, not
+   *  denied. */
   static pipelineFacts(
     read: PlanRead,
     plan: PlanSource,
@@ -904,7 +910,9 @@ export class BoardView {
     const ledger = BoardView.#ledgerOf(plan, nodeSlug, root.absolute);
     const sources = BoardView.#nodeSources(index, entry);
     const specPath = sources.spec?.path ?? null;
-    const planPath = sources.plan?.path ?? null;
+    // The path the frontier receives IS the path of the document this read opened —
+    // never a second index-derived candidate that could name another file.
+    const planPath = read.stationPath();
     // The identity line's OWN word — the document's DECLARED `doc-type:` — keys the
     // line and names the pipeline station (`single-spec` closes onto its `done` row).
     const specType = BoardView.#lineWordOf(sources.spec);

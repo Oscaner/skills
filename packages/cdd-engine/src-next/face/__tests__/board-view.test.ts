@@ -47,39 +47,26 @@ const planReadOf = (repo: string, planPath: string | null): PlanRead =>
     ? new PlanSource(new RepoRoot(repo)).readFor(null)
     : new PlanSource(new RepoRoot(repo)).readPath(planPath);
 
-/** The board's plan read for one entry — the plan document the board's own fact
- *  bundle names (a plan entry IS its own plan; every other shape resolves the
- *  same-slug plan through the index), read through the caller's ONE seam instance. */
-const boardReadOf = (source: PlanSource, index: SlugIndex, entry: DocEntry): PlanRead => {
-  const slug = entry.slug === null || !SlugIndex.isLegalSlug(entry.slug) ? null : entry.slug;
-  const planPath =
-    entry.docType === "plan"
-      ? entry.path
-      : slug === null
-        ? null
-        : (index.planOf(slug)?.path ?? null);
-  return planPath === null ? source.readFor(null) : source.readPath(planPath);
-};
+/** The board's plan read for one entry — modeled on PRODUCTION's wiring, not on the
+ *  paths a fixture happens to name: `Cli#runBoard` passes `planSource.readFor(entry)`
+ *  (the derived face), so a plan file that is not `plans/<slug>.md` reads
+ *  `undeclared` here exactly as it does in a real board run. A helper that re-resolved
+ *  the index path would hide the board's own seam behind a different read. */
+const boardReadOf = (source: PlanSource, entry: DocEntry): PlanRead => source.readFor(entry);
 
 /** `BoardNext.of` over a fixture entry — the read and its seam come from ONE
  *  `PlanSource` instance (the board never mints a second). */
 const nextOfEntry = (repo: string, index: SlugIndex, entry: DocEntry): NextHop | null => {
   const root = new RepoRoot(repo);
   const source = new PlanSource(root);
-  return BoardNext.of(boardReadOf(source, index, entry), source, index, entry, root);
+  return BoardNext.of(boardReadOf(source, entry), source, index, entry, root);
 };
 
 /** `BoardView.pipelineFacts` over a fixture entry — the same one-instance rule. */
 const factsOfEntry = (repo: string, index: SlugIndex, entry: DocEntry): BoardPipelineFacts => {
   const root = new RepoRoot(repo);
   const source = new PlanSource(root);
-  const facts = BoardView.pipelineFacts(
-    boardReadOf(source, index, entry),
-    source,
-    index,
-    entry,
-    root,
-  );
+  const facts = BoardView.pipelineFacts(boardReadOf(source, entry), source, index, entry, root);
   if (facts === null) throw new Error("expected the node's pipeline facts");
   return facts;
 };
@@ -2218,6 +2205,56 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       hop,
     )[1]!;
     expect(capsuleNext.slice("next: ".length)).toBe(nextOfBoard("prog-p1"));
+  });
+
+  it("(a2) a plan file that is not `plans/<slug>.md` reads `undeclared` — the frontier's path is the SAME value's `stationPath()`", () => {
+    writeDoc("docs/kairos/specs/s1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: s1",
+      "---",
+    ]);
+    // The phase's plan sits beside the derived name, not on it: the index registers
+    // it (the wave rows still render from that entry), the derived read cannot see it.
+    writeDoc("docs/kairos/plans/s1-plan.md", [
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "slug: s1",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      ...taskBlock(1, "none"),
+    ]);
+    const index = SlugIndex.build(repo);
+    const entry = index.identityDoc("s1");
+    if (entry === null) throw new Error("expected the phase's identity document");
+    const facts = factsOfEntry(repo, index, entry);
+    // ONE fact: the read the board opened is `undeclared` (the derived path is not on
+    // disk), and the frontier's path is that same value's `stationPath()` — null, not
+    // the index's candidate. The retired pairing (index path + `undeclared` read) handed
+    // the frontier a path beside no graph, and the wave face silently lost its station.
+    expect(facts.input.plan.kind).toBe("undeclared");
+    expect(facts.input.planPath).toBeNull();
+    // The interim shape, pinned rather than implied: the board still renders the wave
+    // row, because `#waveLines` re-reads the index entry through `BoardView.planGraph`.
+    // That second read is Task 5's deletion target — this assertion records it.
+    const board = BoardView.render(
+      new PlanSource(new RepoRoot(repo)),
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      undefined,
+      nextOfEntry(repo, index, entry),
+    );
+    expect(board.lines.join("\n")).toContain("W1 {1}");
   });
 
   it("(k3) the branch mark and `next:` are ONE fact — drift ⇒ `▶ open`, unchanged ⇒ `✔ closed`", () => {

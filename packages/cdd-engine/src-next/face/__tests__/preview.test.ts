@@ -50,6 +50,9 @@ const scene = (over: Partial<DispatchScene> = {}): DispatchScene => ({
   workspace: WORKSPACE,
   ledger: new Ledger(WORKSPACE, new ConfigLoader(), new PlanSource(WORKSPACE.root.basis)),
   planPath: path.join(ROOT, "docs", "kairos", "plans", "p3.md"),
+  // The plan read is a REQUIRED scene cell: the no-disk scene declares the derived
+  // face's own "no plan yet" result — never a hand-minted value.
+  plan: new PlanSource(WORKSPACE.root.basis).readFor(null),
   briefPath: null,
   ...over,
 });

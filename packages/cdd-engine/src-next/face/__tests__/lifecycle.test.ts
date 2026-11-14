@@ -143,7 +143,13 @@ const fixture = (plan: string): Fixture => {
   const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p30").ensure();
   const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
   return {
-    scene: { workspace, ledger, planPath, briefPath: null },
+    scene: {
+      workspace,
+      ledger,
+      planPath,
+      plan: new PlanSource(workspace.root.basis).readFor(null),
+      briefPath: null,
+    },
     io: new CaptureIo(),
     cleanup: () => rmSync(repoRoot, { recursive: true, force: true }),
   };

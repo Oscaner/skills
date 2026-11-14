@@ -367,6 +367,7 @@ const previewWordOf = (cell: Cell): LegWord | null => {
     workspace,
     ledger: new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)),
     planPath: planPathOf(cell),
+    plan: new PlanSource(workspace.root.basis).readFor(null),
     briefPath: null,
   };
   const lines = new Preview({ scene, env: {} }).render(verbOf(cell), frameOf(cell));

@@ -5931,7 +5931,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
   function harnessScene(repoRoot: string, slug = "p3"): DispatchScene {
     const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), slug).ensure();
     const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
-    return { workspace, ledger, planPath: null, briefPath: null };
+    return {
+      workspace,
+      ledger,
+      planPath: null,
+      plan: new PlanSource(workspace.root.basis).readFor(null),
+      briefPath: null,
+    };
   }
 
   const implementFrame: OpenFrame = {
@@ -6144,6 +6150,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         workspace,
         ledger,
         planPath: null,
+        plan: new PlanSource(workspace.root.basis).readFor(null),
         briefPath: path.join(workspace.path, "tasks-1-brief.md"),
       };
       const io = new CaptureIo();
@@ -6190,6 +6197,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         workspace,
         ledger,
         planPath: null,
+        plan: new PlanSource(workspace.root.basis).readFor(null),
         briefPath,
       };
       const io = new CaptureIo();
@@ -6228,6 +6236,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         workspace,
         ledger,
         planPath: null,
+        plan: new PlanSource(workspace.root.basis).readFor(null),
         briefPath: null,
       };
       const io = new CaptureIo();
@@ -8479,11 +8488,14 @@ const sceneOf = (
 ): DispatchScene => {
   const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
   const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  // The plan-less scene takes the derived face's own "no plan yet" result (the ONE
+  // producer of `undeclared`), never a hand-minted value.
+  const plan = new PlanSource(workspace.root.basis);
   return {
     workspace,
     ledger,
     planPath,
-    plan: planPath === null ? null : new PlanSource(new RepoRoot(repoRoot)).readPath(planPath),
+    plan: planPath === null ? plan.readFor(null) : plan.readPath(planPath),
     briefPath,
   };
 };

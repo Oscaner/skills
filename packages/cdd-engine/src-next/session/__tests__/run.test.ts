@@ -1691,6 +1691,69 @@ describe("P21 T3 — the branch line binds its plan's doc-revision", () => {
     }
   });
 
+  it("the ready close records the SAME bytes the drift comparator hashes as its current side", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none")]));
+      const run = new Lifecycle({
+        face: targetFaces.branch,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+        target: { kind: "branch" },
+        plan: planReadOf(repo, planPath),
+      });
+
+      await run.advance(); // branch-review → closed
+      const recorded = ledger.reviewedRevisionOf("branch", "branch");
+      if (recorded?.kind !== "doc-revision") throw new Error("unreachable");
+      // ONE read, one hash: the recorded identity IS the comparator's current side,
+      // so an untouched plan cannot read as drifted, and a later edit moves the
+      // current side alone.
+      const pair = ledger.docDriftHashes("branch", planPath, "branch");
+      expect(pair).not.toBeNull();
+      expect(pair!.line).toBe("plan.md");
+      expect(pair!.recorded).toBe(recorded.doc_hash);
+      expect(pair!.current).toBe(recorded.doc_hash);
+      expect(ledger.reviewGate("branch", planPath, "branch").kind).toBe("same");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a plan the grammar refuses records nothing at the close — present facts only", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      // A duplicated reserved section: the read classifies `unreadable`/`syntax`.
+      writeFileSync(
+        planPath,
+        planDoc([["### Task 1: task 1", "#### DependsOn", "none", "#### DependsOn", "none"]]),
+      );
+      const plan = planReadOf(repo, planPath);
+      expect(plan.kind).toBe("unreadable");
+      expect(plan.failure()?.cause).toBe("syntax");
+      const run = new Lifecycle({
+        face: targetFaces.branch,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+        target: { kind: "branch" },
+        plan,
+      });
+
+      const step = await run.advance();
+      expect(step?.frame.phase).toBe("branch-review");
+      // The branch leg re-reads the judged plan through the ONE plan seam; a
+      // non-ready read records no identity instead of inventing one.
+      expect(ledger.reviewedRevisionOf("branch", "branch")).toBeNull();
+      expect(ledger.docDriftHashes("branch", planPath, "branch")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
   it("stays closed while the plan is unchanged, and reopens once it advances", async () => {
     const { ledger, repo, cleanup } = fixture();
     try {

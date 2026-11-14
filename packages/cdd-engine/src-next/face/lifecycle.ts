@@ -110,10 +110,12 @@ export interface DispatchScene {
   ledger: Ledger;
   planPath: string | null;
   /** The plan read this scene's rounds were assembled from (the argv face's plan, or
-   *  the doc face's derived same-slug plan; null when the harness carries none). The
+   *  the doc face's derived same-slug plan; `undeclared` when the harness carries
+   *  none). Required, exactly like the session plane's `Lifecycle` — a harness may
+   *  not drop the brief fingerprint and the plan snapshot by omission. The
    *  reviewed-brief hash reads THIS value — never a second file read — so the child's
    *  bytes and the reopen fingerprint share one plan read. */
-  plan?: PlanRead | null;
+  plan: PlanRead;
   briefPath: string | null;
   baseBranch?: string | null;
   /** The plan's design-spec reference (the `spec:` front-matter link target), read
@@ -861,8 +863,8 @@ export class CliLifecycle {
    *  plan-less scene and when the plan is unreadable. */
   #briefHashOf(frame: OpenFrame): string | null {
     const scene = this.#scene;
-    const plan = scene.plan ?? null;
-    if (frame.type !== "wave" || frame.target.kind !== "wave" || plan === null) return null;
+    const plan = scene.plan;
+    if (frame.type !== "wave" || frame.target.kind !== "wave") return null;
     const text = plan.text();
     const doc = plan.doc();
     const planPath = plan.stationPath();

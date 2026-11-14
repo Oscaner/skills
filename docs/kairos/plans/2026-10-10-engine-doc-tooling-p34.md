@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 计划：轮次产物身份的单射渲染'
 doc-type: plan
-version: v0.17
+version: v0.18
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p34
 base: develop
@@ -40,7 +40,7 @@ base: develop
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/session/round-naming.ts`（新增 `RoundArtifact` / `ArtifactKind` 与 `renderName` / `renderPath`；`logName` / `report` / `evidenceName` / `crashName` 改为委派 `renderName`；`finalName(draftName, round)` / `finalPath(draftName, round)` **退役**——它们收的是名字而非身份，只能靠反解名字再正向渲染（§2.1 的「拿到一个名字再切字符串拼后缀」退役），`resolveHandoffName` 的 final 候选改为 `renderName(identity, "final")`、`persistHandoff` 写 `renderPath(identity, "final")`，调用点 `face/lifecycle.ts:1094` / `session/ledger.ts:1617` / `:1644` / `session/run.ts:915` 随动；删除 `#stem`——stem 与 `-a{n}` 归 `renderName`；`isCarrierName` 的 pattern 只认 draft/final 且容 `(?:-a\d+)?`）
-- Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`handoffName` / `handoffPath` 委派 `renderName`；`HandoffParams` 补 `attempt?: number`；`#handoffOwner`（:1778-1799）与 `#familyCaptures`（:1813-1827）停止以 `families` 拼写匹配，改为把名字反解成 `(line, op, cycle, attempt)` 再与记录身份比对——不比名字，正向渲染比较在 implement 旧拼写与 pre-P31 的 pathless 行上必错；每族反向读表至少留一条 legacy 拼写（缺坐标按 1 读，§3.4），退役的 `{spec}-{op}-{round}.json` 孪生名同 round · attempt 1——该线词**不在 `families` 里**（`HANDOFF_FAMILIES` 只有 `implement.wave` / `review.*` / `fix.*`），须像 `#LINE_CARRIER`（`session/ledger.ts:1946` 取 `targetFaces` 后并入 `RETIRED_SPEC_KEY`）那样显式并入读表，不得从 `families` 推导；`families` 占位替换只留 legacy 读法）
+- Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`handoffName` / `handoffPath` 委派 `renderName`；`HandoffParams` 补 `attempt?: number`；`#handoffOwner`（`:1929`）经 `#WAVE_CARRIER`（`:1963`）/ `#LINE_CARRIER`（`:1969`）两张反读表反解、`#attemptOf`（`:1975`）对缺段读 1——不以 `families` 拼写匹配，而是把名字反解成 `(line, op, cycle, attempt)` 再与记录身份比对——不比名字，正向渲染比较在 implement 旧拼写与 pre-P31 的 pathless 行上必错；每族反向读表至少留一条 legacy 拼写（缺坐标按 1 读，§3.4），退役的 `{spec}-{op}-{round}.json` 孪生名同 round · attempt 1——该线词**不在 `families` 里**（`HANDOFF_FAMILIES` 只有 `implement.wave` / `review.*` / `fix.*`），须像 `#LINE_CARRIER`（`session/ledger.ts:1969` 取 `targetFaces` 后并入 `RETIRED_SPEC_KEY`）那样显式并入读表，不得从 `families` 推导；`families` 占位替换只留 legacy 读法）
 - Modify: `packages/cdd-engine/src-next/session/run.ts`（`#paramsOf`（:651-673）接帧的 `attempt`，对每一帧填 `attempt`、对 implement 也填 `round`；`:536` / `:575` 两个帧构造点传 `attempt`——`#stem` 删分支后的同笔依赖）
 - Test: `packages/cdd-engine/src-next/session/__tests__/round-naming.test.ts`（网格 pin（六个 type × 六个 kind 全比）· 守恒边界 · implement 五 kind 携 cycle · `isCarrierName` 四拒 · `evidenceName` 的两道空串闸（文档形 · 非 implement / fix 相位，`:205-243`）在委派后仍绿）
 - Test: `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`（反向归属：未入账的 `-a2` draft / final 各列出一次、已入账的不列；`tasks-6,7-implement-1.json` → `(6,7) · implement · cycle 1 · attempt 1`；负向 pin——同一 `(line, op, cycle)` 的 attempt-1 记录**不**认领 `tasks-6,7-implement-1-a2.json`（认领键含 `attempt`）；三族 legacy 拼写各一条：`tasks-{tasks}-implement.json` 读成 cycle 1 · attempt 1、`{line}-{op}-{round}.json` 读成该 round · attempt 1、退役的 `{spec}-{op}-{round}.json` 读成同 round · attempt 1（`spec` 线词不在 `families` 里，读表须显式并入，见 Files）；p16 的 pathless 夹具——`{"wave":"1","rounds":{"implement":[1],"review":[1]}}` 折叠出的记录认领 `tasks-1-implement.json`、不列孤儿，同一行的 `-a2` draft 列一次；report/evidence/crash 不入孤儿——它们不是 handoff 家族，列入会与扫描面的四拒相悖）
@@ -291,11 +291,15 @@ board 在 `in-flight` / `orphan` 同级加一行 `crashed:`，由记录自己的
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/face/board-view.ts`（`inFlightRows` 同级渲 `crashed:` 行，数据源为行内记录）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#verdictOf`（`:420`）的合成条目 `:440-443`——作者零条目时 `RoundViolation.hard(…, CONCLUDED_BLOCKED_CAUSE)`；本任务只由 `crashed:` 行消费它，判定面零改动）
+- Confirm: `packages/cdd-engine/src-next/session/ledger.ts`（`CONCLUDED_BLOCKED_CAUSE = "round-blocked"` `:97`——合成 cause 的字面单源，本任务不新增第二条字面）
+- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（no-host 派发夹具 `:6696` 在 `:6715` 逐字断言合成条目的 `cause: "round-blocked"`——它先于本任务就绿，本任务让它与 `crashed:` 行同批可核）
 - Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（有 hard 崩溃记录时该行存在且带 cause · 只带 soft `#logUnavailable` 的 APPROVED 评审不出现 · child 声明 BLOCKED 未写回文档（只带 `WRITE_BACK_UNMEASURED` 一条 soft）的轮不出现 · 同一轮两条 hard 条目只取记录顺序第一条 · 无崩溃时不出现 · 有无崩溃两夹具的 `next:` / `+N` / 计数逐字节相同）
 
 #### Consumes
 
-- `RoundRecord.violations[].cause` 的既有值域（`contract-violation` / `interrupted` / `stalled` / `over-budget` / `signal` / `child-exit`）与引擎合成的 `round-blocked`
+- `RoundRecord.violations[].cause` 的既有值域（`contract-violation` / `interrupted` / `stalled` / `over-budget` / `signal` / `child-exit`）
+- 引擎为「作者零条目」的轮合成的 `round-blocked`——**本任务首次消费**，不属于上面那条既有值域：字面单源是 `session/ledger.ts:97` 的 `CONCLUDED_BLOCKED_CAUSE`，合成点是 `face/lifecycle.ts:440-443` 的 `#verdictOf`
 
 #### Produces
 
@@ -309,15 +313,15 @@ board 在 `in-flight` / `orphan` 同级加一行 `crashed:`，由记录自己的
 - 写失败测（每轮一个 token）：同一轮两条 hard（`stalled` 后 `child-exit`）→ 只取记录顺序第一条 — checkable: FAIL
 - 写失败测（无崩溃不出现）：记录无 violation → 不渲该行 — checkable: FAIL
 - 写失败测（不参与分级）：同一 slug 两夹具（有 / 无崩溃记录）的 `next:` 行、`+N` 与 blocker 计数逐字节相同 — checkable: FAIL
-- 写失败测（合成条目自带 cause）：一条 BLOCKED / TIMEOUT 且作者零条目的轮 → 记录里合成一条 hard 条目，`cause` 是 `round-blocked`，`crashed:` 行带的是它 — checkable: FAIL（今日合成条目用 `contract-violation` 缺省值）
-- 写失败测（声明式 BLOCKED 不补条目）：一条声明 BLOCKED、只带 soft 条目（`WRITE_BACK_UNMEASURED`）的轮 → 记录里零 hard 条目，该轮不进 `crashed:` — checkable: FAIL（今日只要没有 hard 就补一条）
+- 写失败测（合成条目自带 cause）：一条 BLOCKED / TIMEOUT 且作者零条目的轮 → `crashed:` 行带的就是引擎合成的那条 `round-blocked` — checkable: FAIL（今日无该行；合成行为本身现状即绿——`face/lifecycle.ts:440-443` 以 `CONCLUDED_BLOCKED_CAUSE` 合成，no-host 夹具 `face/__tests__/cli.test.ts:6696` 的 `:6715` 逐字断言 `cause: "round-blocked"`，本步不重造它）
+- 写失败测（声明式 BLOCKED 不补条目）：与上一步同一夹具里再放一条声明 BLOCKED、只带 soft 条目（`WRITE_BACK_UNMEASURED`）的轮 → 该轮不进 `crashed:`，行内只剩上一步那条 — checkable: FAIL（今日无该行；合成条件是「作者零条目」而非「没有 hard」，单独断言「不出现」在无该行时恒绿，故与上一步同夹具）
 - 实现渲染 — checkable: 上述八条写失败测 PASS
 - 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run` 与 typecheck exit 0
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 
-- `crashed:` 行按记录列出 cause 与 `(cycle, attempt)`，每轮一个 token（该轮记录顺序第一条 hard 条目），行内 token 按 `(cycle, attempt)` 排序（与 `BoardView#byRound` 同序）；成员谓词要求 `targetAction === false` 且至少一条 `grade === "hard"`；只带 soft 的 APPROVED 评审与只带 `WRITE_BACK_UNMEASURED` 的 BLOCKED 轮均不出现；引擎为「作者零条目」的轮合成的 hard 条目带 `cause: "round-blocked"` 而不是 `contract-violation`，该轮照常出现；`✗` 保留。
+- `crashed:` 行按记录列出 cause 与 `(cycle, attempt)`，每轮一个 token（该轮记录顺序第一条 hard 条目），行内 token 按 `(cycle, attempt)` 排序（与 `BoardView#byRound` 同序）；成员谓词要求 `targetAction === false` 且至少一条 `grade === "hard"`；只带 soft 的 APPROVED 评审与只带 `WRITE_BACK_UNMEASURED` 的 BLOCKED 轮均不出现；引擎为「作者零条目」的轮合成的 hard 条目带 `cause: "round-blocked"` 而不是 `contract-violation`（合成点 `face/lifecycle.ts:440-443`，字面单源 `session/ledger.ts:97` 的 `CONCLUDED_BLOCKED_CAUSE`，夹具 `face/__tests__/cli.test.ts:6696` 逐字断言于 `:6715`），该轮照常出现；`✗` 保留。
 - 有无崩溃记录两种夹具下 `next:` 字面、`+N`、blocker 计数逐字节相同（D70：零第二套分级）。
 - 该行不进 legend 词表。
 
@@ -405,3 +409,4 @@ none
 | v0.15 | 2026-11-14 | 评审回改（docs-fix round 9）：T2 补 `#resumeOf` 的 owning 项——fix 分支的回退只持 cycle（`{ tasks: frame.params.tasks, round: frame.round }`），attempt 交中央 `#attemptAware` 缺省解析（Files / Test / Steps / Acceptance 同笔），并新增「记录在册 · 载体缺席 + fix 重派 attempt 2」的幽灵名夹具；spec 字面随版移到 v0.15。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
 | v0.16 | 2026-11-14 | 评审回改（branch-fix-3）：T2 的回退只持 cycle 已落码并钉住——`#resumeOf` 以 `{ tasks: frame.params.tasks, round: frame.round }` 解析 review 家族、新增「记录在册 · 载体缺席 + fix 重派 attempt 2」的幽灵名夹具；随落码刷新 `#reviewsPath`（`:1301-1310`）与回退（`:1778-1782`）的锚点，spec 字面随版移到 v0.16。 | '[ai] Claude（kairos:cdd-dev · branch-fix-3 · 2026-11-14）' |
 | v0.17 | 2026-11-14 | 评审回改（docs-fix round 10）：T3 的 docstring 退役闸由恒绿改为红先跑——判据换成 `grep -n "cycle-less identity resolves both"`（今日 1 命中于 `:1081`、退役后零命中），原 `grep -n "round-less\|one name, sealed once"` 在 HEAD 恒 exit 1（`round-less` 已被 P31 §2.4 段落替换、`one name, sealed once` 被 `:1081` / `:1082` 的换行与注释星号切开），退役不落地也能 PASS；Files 的行号由 `:1076-1080` 改为 `:1079-1082` 并把退役清单收窄到该一处（`:318-320` 已无该措辞，不再列为待退役）；Acceptance 新增该退役的活闸条目，并记折行时的跨行 `perl -0777` 备选。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
+| v0.18 | 2026-11-14 | 评审回改（docs-fix round 11）：T5 补 `round-blocked` 的 owner——Files 新增 `face/lifecycle.ts` 的合成条目（`#verdictOf` `:420` · `:440-443`）与 `session/ledger.ts:97` 的 `CONCLUDED_BLOCKED_CAUSE`（Confirm）、`face/__tests__/cli.test.ts:6696` 的 no-host 逐字断言（`:6715`）；Consumes 把引擎合成的 `round-blocked` 从既有值域里提出来标为本任务首次消费；两条 `checkable: FAIL` 改为真红口径（今日无 `crashed:` 行，合成行为现状即绿），Acceptance 指到这两个 owner。T1 的反向读面 pin 由不存在的 `#familyCaptures` 改为交付符号 `#handoffOwner` `:1929` · `#WAVE_CARRIER` `:1963` · `#LINE_CARRIER` `:1969` · `#attemptOf` `:1975`，同句旧锚点 `:1946` 一并改 `:1969`。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |

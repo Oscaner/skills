@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P35 计划：plan 读取收权（一份读取 · 一个失败值 · 一条拒绝通道）'
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p35
 base: develop
@@ -9,8 +9,9 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p35-design.md` **现行 version v0.9** 所指的面；spec 版本一变，本约束的字面同笔改。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p35-design.md` **现行 version v0.12** 所指的面；spec 版本一变，本约束的字面同笔改。
 - **plan grammar 语义不动**：`#### DependsOn` 仍只许一节，其余重复节规则与报文措辞逐字节保持；`parse(): PlanParsed` 的签名不变。
+- **正查不阻塞、反查阻塞**：相位没有 plan 是合法状态（读作 `undeclared`、渲 `(none)`）；plan 的 slug 找不到 `<slug>-design.md` 是身份破损（主编排器写错），落既有 doc-contract 通道（规则 `plan-slug-names-spec` → `Finding{kind:"structure", field:"slug"}`），板面渲 `! no-spec` + §2.5 的 hop-less `next:` + 一行 stderr `CDD_WARN:` 且 exit 0；反查**只探存在性**（`DocFs.exists`），不得用 `phaseSpecsOf` / `planOf` 反向拼装。
 - **`doc-contract` 判定语义不动**：既有 front-matter 拒绝报文逐字节不变；不新增 gate id、不新增 reason token、不新增 station kind、不动 P27 的十三 token。
 - **不动收敛主线**：`session/next.ts` 的 `PIPELINE_NEXT`、`NextStepRouter` 的分级判据、`TargetFaceTable` 的三 kind 与 `session/dispatch-authority.ts` 的 station 词表**零改动**。`BoardNext.of` 的短路用的是既有的 hop-less 分支（`next === null`），不是新路由。
 - **一份读取**：`new PlanDocType("plan")` 的合法构造点只留 `contract/doc.ts` 的登记行与 `infra/plan-source.ts`；`BriefRenderer` 的第二处解析**删除**，不开白名单。
@@ -21,10 +22,10 @@ base: develop
 
 ## Review Focus
 
-- **「健康字节不变」被写成排除法**：AC 里凡是「除 X 外逐字节相同」，都要先问 X 是否枚举完整——argv 面与声明面的变化点都是**恰好三处**（plan 行、波次格、`next:`），多一处少一处都是缺陷。
+- **「健康字节不变」被写成排除法**：AC 里凡是「除 X 外逐字节相同」，都要先问 X 是否枚举完整——argv 面与派生面的变化点都是**恰好三处**（plan 行、波次格、`next:`），多一处少一处都是缺陷。
 - **生产者签名产不出既有字节**：`degradedWaveRow` / `cell` 若只声明四种降级语义，健康 doc 行（`W1 {…}`）与健康程序格（`W1…`）就没有生产者，实现出来会静默丢列。两者的 `null` 逃逸是契约的一部分，不是实现细节。
 - **拒绝点的位置被 doc-shape 闸挡住**：`wave` 面是 `audit: { kind: "task-graph" }`、`ctx.doc === null`，把拒绝塞进 `TargetFaceTable.isDocShape` 块内等于 wave 面永远不拒。
-- **`plan:` 声明成了一个不设域的自由字符串**：绝对路径或 `..` 逃逸值必须在抵达 `DocFs.read` 之前被拒，且不进格。
+- **反查被写成内容判定**：`plan-slug-names-spec` 只许用 `DocFs.exists` 探 `<slug>-design.md` 在不在。用 `phaseSpecsOf` / `planOf` 反向拼装，会把「存在但读不出」误判成孤儿，凭空红掉健康相位。
 - **无身份的值被包成 `DocEntry`**：空 slug 会让 `#entryMark` 回 `MARK_SLUG_MISSING`、`#docCell` 回 `blocked: true`，`#nodeBoard` 的 `return blocked ? 2 : 0` 把降级误判成 exit 2。
 
 ---
@@ -318,7 +319,55 @@ none
 
 ---
 
-### Task 7: 三面一致性 + 验收收口
+### Task 7: 反查——plan 的 slug 必须命名一份相位 spec
+
+#### Objective
+
+让「plan 的 slug 找不到对应相位 spec」从沉默变成阻塞，且不靠索引的内容谓词。三件：`contract/rules.ts` 登记规则 `plan-slug-names-spec` 并在 `contract/invariants.ts` 实现（只在 `docKey === "plan"` 触发；派生 `${ENGINE_DOC_ROOTS.specs}/${slug}-design.md` 后**只**用 `DocFs.exists` 探存在性，缺失产 `Finding{kind:"structure", field:"slug"}`）；`face/words.ts` 加词行 `planOrphanSpec` 与端口成员 `planOrphanWord()`；板面把 spec 行渲成 `! no-spec`、`next:` 走 §2.5 的 hop-less 形态、`Cli#runBoard` 写一行 `CDD_WARN:` 到 stderr 且 exit 0。
+
+#### Files
+
+- Modify: `packages/cdd-engine/src-next/contract/rules.ts`（登记 `plan-slug-names-spec`，只绑 `plan` doc 型）
+- Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（实现：派生路径 + `DocFs.exists` → `Finding{kind:"structure", field:"slug"}`）
+- Modify: `packages/cdd-engine/src-next/face/words.ts`（`planOrphanSpec` 词行 + `planOrphanWord()` 端口成员）
+- Modify: `packages/cdd-engine/src-next/face/board-view.ts`（plan 面的 spec 行渲 `! no-spec`）
+- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`#runBoard` 对孤儿 plan 写 stderr `CDD_WARN:`）
+- Test: `packages/cdd-engine/src-next/contract/__tests__/invariants.test.ts` · `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts` · `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts` · `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`
+
+#### Consumes
+
+- Task 1 的 `Finding` 形状与规则登记面（`contract/rules.ts` / `contract/invariants.ts`）
+- Task 5 的板面渲值接口与 `Cli#runBoard` 的 `CDD_WARN:` 通道
+- `infra/doc-roots.ts` 的 `ENGINE_DOC_ROOTS.specs`（与 Task 2 的 plan 派生同一个常量，换一个根）
+
+#### Produces
+
+- 规则 `plan-slug-names-spec`（doc-contract 面，`kind: "structure"`，`field: "slug"`）
+- 词行 `planOrphanSpec` / 端口成员 `planOrphanWord()`
+- 板面字面 `! no-spec`（仅 plan 面）
+
+#### Steps
+
+- 写失败测（门）：slug 为 `x` 的 plan 而无 `docs/kairos/specs/x-design.md` → doc-contract 面产 `Finding{kind:"structure", field:"slug"}`，报文含 slug 与派生路径 — checkable: 定向 vitest FAIL（今日无此规则）
+- 写失败测（存在性优先）：`docs/kairos/specs/x-design.md` **存在但读不出**（`exists` 为真、`read` 回 `null`）→ **零** Finding — checkable: FAIL（反向拼装实现会误判成孤儿）
+- 写失败测（阻塞面）：`review --type plan --plan <孤儿>` / `implement` / `fix` 一律 `CDD_BLOCKED:` + `reason: doc-contract`，stderr 无裸 `cdd: ` — checkable: FAIL
+- 写失败测（板面）：`cdd board --plan <孤儿>` 渲 `! no-spec` + `  next:    (none)` + 一行 stderr `CDD_WARN:`，exit 0 — checkable: FAIL
+- 规则 + 词行 + 板面落地 — checkable: 四组测全绿，且 `contract/__tests__/doc-corpus.guard.test.ts` 仍绿（34/34 配对 ⇒ 语料零 Finding）
+
+#### Acceptance
+
+- 门：孤儿 plan 产 `Finding{kind:"structure", field:"slug"}`；`review` / `implement` / `fix` 一律 `CDD_BLOCKED` + `reason: doc-contract`。
+- 存在性判定：存在但读不出的 spec 不算孤儿（零 Finding）；实现里不出现 `phaseSpecsOf` / `planOf` 的反向拼装。
+- 板面：`! no-spec` + hop-less `next:` + 一行 stderr `CDD_WARN:`，exit 0。
+- 语料守卫：`contract/__tests__/doc-corpus.guard.test.ts` 绿（p35 与其余 33 份 plan 全部命中 spec）。
+
+#### DependsOn
+
+1, 5
+
+---
+
+### Task 8: 三面一致性 + 验收收口
 
 #### Objective
 
@@ -347,6 +396,7 @@ none
 - 写失败测（三面一致性 · 健康）：同一份好 plan，板面 wave 行标签序列、`PreFlight` 的 graph wave 集、frontier 的 wave 键逐格相等 — checkable: 定向 vitest FAIL（今日三处各读一次，无共同事实源）
 - 写失败测（三面一致性 · 坏）：坏 plan 上三面同时「不产出波次」而不是互不一致（板面 `! unparseable`、判定拒绝、frontier 不派生）— checkable: FAIL
 - 写失败测（AC 剩余字节）：`--type wave` / `--type branch` 的 `CDD_BLOCKED:` 与 `reason: doc-contract`、`--dry-run` 同批 BLOCKED、slug 与 plan 文件名不一致时读作 `undeclared`（`  wave     (none)` + exit 0） — checkable: FAIL（未实现前）
+- 写失败测（反查三条 AC）：孤儿 plan 的门阻塞、存在但读不出的 spec 不算孤儿、板面 `! no-spec` + hop-less `next:` + 一行 stderr `CDD_WARN:`（Task 7 已覆盖实现面，这里钉 AC 的可见面与全量绿）— checkable: FAIL
 - 跑三面一致性 + AC 组 — checkable: 全绿
 - 补 changeset（cdd-engine minor） — checkable: `scripts/__tests__/changeset-levels.test.ts` 绿
 - 全量验收 — checkable: `pnpm run validate` exit 0（含 `emit:check`、root / kairos / engine 三套测试、typecheck ×3、`check:dist-smoke`、`version-sync`、`check:no-bare-functions`）
@@ -360,7 +410,7 @@ none
 
 #### DependsOn
 
-4, 5, 6
+5, 6, 7
 
 ## Change history
 
@@ -368,3 +418,4 @@ none
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-14 | 初稿：按 spec v0.9 拆八个任务、五波（T1 契约面 `DocSyntaxError` + `DocSlices#taskHeadingPattern` + judge 物化；T2 `plan:` 声明进索引；T3 `PlanSource` / `PlanRead` / `PlanReadWords`；T4 brief 删解析；T5 dispatch 面不挂门拒绝 + 三步 frontier 收值；T6 board 面删 `planGraph` + 四语义 + argv 四步归类；T7 构造点门；T8 三面一致性 + 验收收口） | Claude（kairos:cdd-plan · 2026-11-14） |
 | v0.2 | 2026-11-14 | 作者裁定（设计回填 v0.10 随动）：**删除「`plan:` 声明」任务**——slug 是唯一身份，plan 路径由 `ENGINE_RUNTIME.docRoots.plans/<slug>.md` 派生，不写进 front matter；`PlanSource` 的派生面入口改名 `readFor(entry)`（不再收 `SlugIndex`、不再读 `entry.declaredPlan`），越域校验与 `planPathInvalid` 词行随之消失，「存在但读不出」改为「派生路径存在、读回 `null`」；任务由八条重排为七条（旧 T3–T8 → T2–T7），依赖边同步，波次 `W1 {1} · W2 {2,3} · W3 {4,6} · W4 {5} · W5 {7}` | Claude（kairos:cdd-plan · 2026-11-14） |
+| v0.3 | 2026-11-14 | 作者裁定（设计回填 v0.12 随动 · D91）：**新增 Task 7「反查」**——plan 的 slug 必须命名一份 `<slug>-design.md`：规则 `plan-slug-names-spec` 落 doc-contract 面（只对 `docKey === "plan"`，派生 `${ENGINE_DOC_ROOTS.specs}/<slug>-design.md` 后**只**探 `DocFs.exists`），`review`/`implement`/`fix` 一律 `CDD_BLOCKED`；板面 spec 行渲 `! no-spec` + hop-less `next:` + stderr `CDD_WARN:` 且 exit 0；旧 Task 7（三面一致性 + 验收收口）顺延为 **Task 8**、`DependsOn` 改 `5, 6, 7` 并补反查三条 AC 的写失败测；Constraints 加「正查不阻塞、反查阻塞」一条，「逐字取 spec」的版本字面校到 v0.12；Review Focus 把过时的 `plan:` 声明条换成「反查被写成内容判定」 | Claude（kairos:cdd-plan · 2026-11-14） |

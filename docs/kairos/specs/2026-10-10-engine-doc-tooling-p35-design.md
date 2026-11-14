@@ -1,40 +1,46 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P35 设计：plan 读取收权（一份读取 · 一个失败值 · 一条拒绝通道）'
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-11-14
 slug: '2026-10-10-engine-doc-tooling-p35'
 program: 2026-10-10-engine-doc-tooling
-parent-version: v3.62
+parent-version: v3.63
 author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-14）'
 ---
 
 ## Design
 
-本相位收口 plan 文档读取的一处权威缺口：同一份 plan 有七个解析点、三种失败策略，坏结构的两个面分别是「静默放行」与「裸崩」。根因不是某个被吞掉的 `catch`，而是**读取权落在视图平面**——`face/cli.ts` 把 `BoardView.planGraph` 这条渲染路径的产物当门禁证据注入 session，于是一个 draw 契约变成了 gate 契约。
+本相位收口 plan 文档读取的一处权威缺口：同一份 plan 有**八个读取点（共九处 `new PlanDocType("plan")` 构造点，含登记行一处）、三种失败策略**，坏结构的两个面分别是「静默放行」与「裸崩」。根因不是某个被吞掉的 `catch`，而是**读取权落在视图平面**——`face/cli.ts` 把 `BoardView.planGraph` 这条渲染路径的产物当门禁证据注入 session，于是一个 draw 契约变成了 gate 契约。计数口径写死在此：`grep -rn 'new PlanDocType("plan")' packages/cdd-engine/src-next`（排除 `__tests__/`）共 9 处 = 8 个读取点 + `contract/doc.ts` 登记行 1 处，与 overall D90 / Phase-inventory 的 `8+1` 同源。
 
-裁定把 plan 的 read + parse + classify 收进 `infra/` 的一处深类，失败成为一个判别值，坏结构走既有的 `doc-contract` 拒绝通道，降级成为带警告的显式值，「读不出」不再授权下游结论。三件不破坏的事：plan grammar 语义不动、`doc-contract` 判定语义与既有拒绝报文不动、健康 plan 的板面与 `next:` / `reason:` 字节不动。
+裁定把 plan 的 read + parse + classify 收进 `infra/plan-source.ts` 的一处深类，失败成为一个携带行为的判别值，坏结构走既有的 `doc-contract` 拒绝通道，降级成为带警告的显式值，「读不出」不再授权下游结论。三件不破坏的事：plan grammar 语义不动、`doc-contract` 判定语义与既有拒绝报文不动、健康 plan 的板面与 `next:` / `reason:` 字节不动。
 
 ### 1. 病根
 
-#### 1.1 一份文档、七个解析点、三种策略
+#### 1.1 一份文档、八个读取点、一个登记行、三种策略
 
-七个解析点（模块 + 符号，非行号）分三类策略：
+八个读取点（模块 + 符号，非行号）分三类策略：
 
-| 解析点 | 策略 | 坏 plan 的后果 |
+| 读取点 | 策略 | 坏 plan 的后果 |
 | --- | --- | --- |
-| `face/board-view.ts` 的 `BoardView.planGraph` | `catch` → `null` | 无 |
-| `face/board-view.ts` 的 `BoardView.#waveLines` | `null` → `[]` | wave 块空 |
-| `face/board-view.ts` 的 `BoardView.render` / `#programFacts` | 空集 → `(none)` / `""` | `wave  (none)`、exit 0、`next:` 照常 |
-| `face/cli.ts` 场景装配 | 裸抛 | 无 BLOCKED 面、无 path、无 `next:` |
-| `face/cli.ts` 的 `#renderWaveBoard` | 裸抛 | 同上 |
-| `face/cli.ts` 的 usage 校验 | 裸抛 | 同上 |
-| `session/preflight.ts` 的 graph 门禁 | 裸抛 | 同上（且被场景装配抢先） |
-| `session/preflight.ts` 的 `#ledgerFactsOf` | 裸抛 | 同上 |
+| `face/board-view.ts` 的 `BoardView.planGraph` | 捕获 → `null` | `wave  (none)`、exit 0、`next:` 照常 |
+| `face/cli.ts` 的 `Cli#sceneOf`（场景装配） | 裸抛 | 无 BLOCKED 面、无 path、无 `next:` |
+| `face/cli.ts` 的 `Cli#renderWaveBoard` | 裸抛 | 同上 |
+| `face/cli.ts` 的 usage 校验（`planIds` 块，`Cli#runWork` 内） | 裸抛 | 同上 |
+| `session/preflight.ts` 的 `PreFlight#vet` graph 门禁 | 裸抛 | 同上（且被场景装配抢先） |
+| `session/preflight.ts` 的 `PreFlight#ledgerFactsOf` | 裸抛 | 同上 |
+| `render/brief.ts` 的 `BriefRenderer`（构造注入解析器，`extract` 内解析） | 裸抛 | 同上 |
+| `session/run.ts` 的 `Lifecycle#recordPlanSnapshot` | 捕获 → 不记快照 | 快照缺失在 wave 门里保守读作 `stall` |
 
-`session/run.ts` 的 `#recordPlanSnapshot` 是**第三种**策略：`catch` 掉、不记快照，而快照缺失在 wave 门里保守读作 `stall`。它是唯一策略正确的读者（缺失 → 拒绝，而非放行），本相位保留其语义。
+`Lifecycle#recordPlanSnapshot` 是**策略正确的那一个**（缺失 → 拒绝，而非放行），本相位保留它的语义，只把「吞掉的缺失」换成「已知的缺失」——它改吃 `PlanRead`，非 ready 不记快照。
 
-判定面另有一处通用分发：`contract/judge.ts` 的 `#contextOf` 直接调 `docTypeParsers[docKey].parse(...)`，于是同一份文档的 body 坏结构会把**判定门自己打死**，而不是产出一行 `Finding`。
+**登记行**（唯一合法的构造点，不是读取点）：`contract/doc.ts` 的 `docTypeParsers` 里 `plan: new PlanDocType("plan")`。
+
+**渲染消费点**（只读 `null` / 空集，不是解析点，移出上表）：`BoardView.#waveLines`、doc 面 `BoardView.render`、`BoardView.#programBoard` 内的 `waveCell` 局部。三处今日把「零 task block」「没有 plan」「读不出」压成同一个空值/`(none)`，§2.4 逐个拆开。
+
+判定面另有一处通用分发：`contract/judge.ts` 的 `#contextOf` 直接调 `docTypeParsers[input.docKey].parse(...)`，于是同一份文档的 body 坏结构会把**判定门自己打死**，而不是产出一行 `Finding`。
+
+顺序事实（今日成立、须有 pin）：`PreFlight` 的 doc-contract 结构拒绝发生在 `face/gate.ts` 的 `renderBrief` **之前**，所以 `BriefRenderer` 的裸抛在真派路径上不可达——这是 §3.1「stderr 不再出现 `cdd:` 文法报文」的唯一保障，不是巧合。
 
 #### 1.2 为什么补 `catch` 不管用
 
@@ -46,7 +52,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-14）'
 
 #### 1.3 为什么读取必须离开视图面
 
-`contract/judge.ts` 的 `ContractInput` 只带 `content: string`——判定平面吃原文、从不读盘。真正读盘的是 `infra/`（`infra/slug-index.ts` 已按 front-matter 读文档，`contract/invariants.ts` 的 `DocFs` / `NodeFs` 是现成读缝）。而视图面持有读取权，就把「怎么渲染」升级成了「怎么判」：`face/cli.ts` 场景装配把 `BoardView.planGraph` 的结果当门禁证据往下传，视图因此成为门禁的上游。
+`contract/judge.ts` 的 `ContractInput` 只带 `content: string`——判定面按值收原文、从不读盘，读盘归 `infra/`（`infra/slug-index.ts` 已按 front-matter 读文档）。这是一个**按面分工**的判据，不是「`contract/` 不碰 IO」：`contract/invariants.ts` 里就住着 `DocFs` / `NodeFs` 读缝。而视图面持有读取权，就把「怎么渲染」升级成了「怎么判」：`face/cli.ts` 场景装配把 `BoardView.planGraph` 的结果当门禁证据往下传，视图因此成为门禁的上游。
 
 #### 1.4 否决面（issue 的四条建议各自停在哪）
 
@@ -57,59 +63,86 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-14）'
 
 ### 2. 裁定
 
-#### 2.1 读取收进 `infra/plan-source.ts`，失败是一个判别值
+#### 2.1 读取收进 `infra/plan-source.ts`：一个深类、一个携带行为的值
 
-新增深类 `PlanSource`，构造注入 `DocFs`（默认 `NodeFs`），一个方法 `read(path: string | null): PlanRead`：
+新增深类 `PlanSource`（家：`infra/plan-source.ts`），在组合根 `Cli.create()`（`face/cli.ts` 的静态工厂，`src-next/bin.ts` 只负责启动它）构造，构造注入 `DocFs`（默认 `NodeFs`）。一个方法 `read(identity: DocEntry, index: SlugIndex): PlanRead` 同时承担「在哪」与「读到什么」：
 
-- `{ kind: "undeclared" }` — 面没有声明 plan（今日 `planText === null` 的合法情形）
-- `{ kind: "unreadable"; path: string; cause: "io" | "syntax"; message: string; field?: string }`
-- `{ kind: "ready"; path: string; text: string; doc: PlanParsed; graph: TaskGraph }`
+- 路径解析：phase 文档头部的 `plan:` 声明（可选键，值为 plan 文档的 repo 相对路径）优先；缺省回落 `index.planOf(slug)?.path`（今日行为）。声明优先的意义是**绕开 `SlugIndex` 的内容谓词**——「声明了、但内容读不出」的 plan 因此在 board 面第一次可达 `cause: "io"`。`infra/slug-index.ts` 的 `#scanRoot` 行为不动（改它会把每条 doc-type 扫描都变成允许不可读候选，波及面远超本相位）；`plan:` 是可选增量键，不作必填，不改变任何既有文档的合法性。
+- 判别值三态：
 
-`ready` 带 `text`：wave brief（`face/gate.ts`）与 `#targetSlug`（`face/cli.ts`）都还在读原文，它们不搬家、不改字节。
+```ts
+type PlanRead =
+  | { readonly kind: "undeclared" }
+  | { readonly kind: "unreadable"; readonly path: string; readonly cause: "io" | "syntax"; readonly message: string; readonly field: string | null }
+  | { readonly kind: "ready"; readonly path: string; readonly text: string; readonly doc: PlanParsed; readonly graph: TaskGraph };
+```
 
-`BoardView.planGraph` 删除，`BoardView.#waveLines` 与场景装配改吃 `PlanRead`。场景只持 `PlanRead`，`planText` 退成 `ready` 分支的访问器——缺陷的根因就是同一份事实被读了七遍，留下两个字段等于留下第二重事实源。
+值**携带行为**，消费点不写 `switch (read.kind)`——同一个三态分支不许在七个调用点各写一遍，那正是本相位要杀的病：
 
-#### 2.2 grammar 的坏结构升级为类型化错误
+- `text(): string | null` — wave brief 与 `#targetSlug` 的原文；非抛，非 ready 返回 `null`。
+- `graph(): TaskGraph | null` — 门禁 / frontier / 板面的唯一图输入。`ready` 里 **eager** 派生于同一次解析（一次解析只产一份派生，不留第二重惰性事实源）。
+- `waves(): readonly TaskBatch[]` — 板面 wave 段的数据面；非 ready 返回空集。
+- `cell(words: PlanReadWords): string` — 程序面波次格的字面（§2.4 的四语义）。
+- `warnLine(words: PlanReadWords): string | null` — board 的 `CDD_WARN:` 行，健康 plan 返回 `null`。
+- `refusal(words: PlanReadWords): { gate: "doc-contract"; reason: "doc-contract"; message: string } | null` — preflight 的拒绝通道入参，健康 plan 返回 `null`。
 
-`contract/task-block-grammar.ts` 的 `#assertNoDuplicateKeys` 改抛 `PlanSyntaxError`（携带 `field` / `message` / `fix`），不再抛裸 `Error`。`parse(): PlanParsed` 的签名不变，其余文档类型不受牵连；`assert` 从此只承载编程不变量。
+`PlanReadWords` 是 `infra/plan-source.ts` 自己声明的词表端口（`planReadWord(cause)` / `cellEmpty` / `warnPrefix` …），由 `face/words.ts` 的 `Words` 实现——依赖方向仍是 face → infra，词表仍旧单源。
 
-`path` 不进 grammar：文件身份是读者的事实。`PlanSource` 与 `contract/judge.ts` 的 `#contextOf` 捕获 `PlanSyntaxError` 并补上 `path`，产出 `contract/invariants.ts` 的 `Finding`（`kind` 取文法所属的不变量类名）。
+接线（一次读取、一个事实源）：`PlanSource` 在 `Cli.create()` 构造一次；`PlanRead` 随 `WorkScene` 下行（取代 `planText: string | null` 这个第二重事实源）；doc 面的 `BoardView` 与 `PreFlight#vet` 都从场景取值，不各读一次；程序面（overall 视图）逐相位读取走同一个 `PlanSource` 实例。`BoardView.planGraph` 删除；`face/gate.ts` 的 `scene.planText!` 改为 `scene.plan.text()`（非抛访问器，`null` 由调用点显式处理，不再靠断言抹平）。
+
+#### 2.2 坏结构升级为类型化错误 `DocSyntaxError`
+
+在 `contract/doc.ts` 的 `DocType` 基类旁定义 `DocSyntaxError`（携带 `field` / `message` / `fix`），不设 plan 专属类；plan grammar 抛它，其余 doc 型可复用。`contract/task-block-grammar.ts` 的 `TaskBlockGrammar#assertNoDuplicateKeys` 改抛它，不再抛裸 `Error`；`parse(): PlanParsed` 的签名不变，`assert` 从此只承载编程不变量。
+
+两个生产者发出**同一个** `Finding`：`infra/plan-source.ts` 与 `contract/judge.ts` 的 `#contextOf` 都捕获 `DocSyntaxError`，补上路径后产出 `contract/invariants.ts` 的 `Finding`，`kind` 字面量统一为 `"doc-syntax"`（`Finding.kind` 是不变量类名词汇，不是 station 的 reason token，故不新增令牌）。两个字面量必须逐字节相同，由测试钉住。
+
+`path` 不进 grammar：文件身份是读者的事实。`contract/judge.ts` 一侧的路径来自 `ContractInput.path`（`Finding.path` 的既有归因源），因此 `#contextOf` 的解析必须包在 try/catch 里，坏结构产一行 `Finding` 而不是穿透判定门。
 
 #### 2.3 拒绝复用既有 doc-contract 通道
 
-`session/preflight.ts` 的 doc-shape 块在判定前先读 `PlanRead`：`unreadable` → `#refusal({ ok: false, gate: "doc-contract", reason: "doc-contract", message })`，与 front-matter 坏法同一形状、同一 gate id、同一 reason token。不新增 gate id，不新增 reason token。
+`session/preflight.ts` 的 doc-shape 块在判定前先读 `PlanRead.refusal(words)`：非 `null` → 与该块既有形状同一 gate id、同一 reason token（`gate: "doc-contract"` / `reason: "doc-contract"`），报文含 plan 路径与字段名。不新增 gate id，不新增 reason token。
 
-措辞进词表（`face/words.ts` 的 routeWord 区），两条：`planUnparseable: "plan unparseable: {path} — {message}"`、`planUnreadable: "plan unreadable: {path}"`。两种 cause 分两个词：一个要改文法，一个要修路径或权限，合成一个词等于把诊断再吞一层。
+**不新增 station kind**（`session/dispatch-authority.ts` 的三 kind 不动，P27 的十三 token 不动）：`unreadable` 与 `unparseable` 的可观察面是「结构拒绝先于 station 计算发生」——前者使下游不可达，而不是新增一个 kind。board 不跑 preflight，因此它的 `next:` / `reason:` 字节在坏 plan 上与健康 plan 相同（§2.5 验收钉这条）。
+
+措辞进词表（`face/words.ts` 的 routeWord 区），两条：`planUnparseable: "plan unparseable: {path} — {message}"`、`planUnreadable: "plan unreadable: {path}"`，并通过 `Words#planReadWord(cause)` 这一个访问器暴露（沿用 `docTypeValueWord` / `slugRefusal` / `softViolation` 的单源形状）。两种 cause 分两个词：一个要改文法，一个要修路径或权限，合成一个词等于把诊断再吞一层。
 
 #### 2.4 降级显式：视图面与 preview 面
 
-board 收到 `unreadable` 时渲一行 `CDD_WARN:`（`face/words.ts` 的 `stations.warn` 锚）+ 对应词行，打在 wave 块之后，退出码仍 0；wave 格渲 `! unparseable` / `! unreadable`。`(none)` 退守 `undeclared` 一种语义——今日它同时冒充「没有 plan」与「读不出 plan」。
+四语义一格不多一格不少：
 
-程序面（overall 视图）的波次格同规则，空串退役。
+| 语义 | doc 面 wave 行 | 程序面波次格 |
+| --- | --- | --- |
+| 真 undeclared（该相位没有 plan） | `(none)` | `""`（`""` 只属于这一种语义） |
+| `ready` 但零 task block（skeleton 刚生成） | `(empty plan)` | `(empty plan)` |
+| `unreadable` / `unparseable` | `! unreadable` / `! unparseable` | 同 |
+
+`(empty plan)` 进词表（`Words#planReadWord`），不得回落 `(none)`，也不得回落空串——它是「有 plan、还没写 task」的正常态，与「没有 plan」不是一件事。
+
+board 收到非 ready 时额外打一行诊断：`CDD_WARN:` + 对应词行，走 **stderr**（`face/lifecycle.ts` 与 `face/cli.ts` 的现有一律 stderr，`words.stations.warn` 是诊断锚）；stdout 的 wave 块零字节变化（只差那一格），退出码仍 0。把诊断放 stdout 会让一个站牌词跑上没有站牌走的通道。
 
 `--dry-run` / preview 与真派同批：preview 在坏 plan 上同样返回 BLOCKED，不降级。preview 的卖点是「先看这一轮会做什么」，让它照常输出等于把同一个谎报搬到第二个面。
 
 #### 2.5 缺证据不得授权下游
 
-`session/pipeline.ts` 的 `#waveState` 与 `#wavesExhausted`、`session/dispatch-authority.ts` 的 `#waveStation` 改吃 `PlanRead`：`undeclared` 保留今日语义，`unreadable` 落成结构阻塞，不再读作「未进入 / 没关门 / 无站牌」。
+`session/pipeline.ts` 的 `#waveState` 与 `#wavesExhausted`、`session/dispatch-authority.ts` 的 `#waveStation` 改吃 `PlanRead`：`undeclared` 保留今日语义（未进入 / 没关门 / 无站牌），非 ready 的两种 cause 不再读作这三种结论——它们在真派路径上由 §2.3 的结构拒绝先一步拦下，因此「不授权」成立而令牌表不动。
 
-`session/run.ts` 的 `#recordPlanSnapshot` 保留「缺快照读作 stall」，只把「吞掉的缺失」改成「已知的缺失」——账本是记录面，为一个坏 plan 把已完成的 wave 卡死在闭合点，会把读取缺陷升级成流程死锁，而 stall 已经给出了保守的正确答案。
+`session/run.ts` 的 `Lifecycle#recordPlanSnapshot` 改吃 `PlanRead`：非 ready → 不记快照；「缺快照读作 stall」原样保留。账本是记录面，为一个坏 plan 把已完成的 wave 卡死在闭合点，会把读取缺陷升级成流程死锁，而 stall 已经给出了保守的正确答案。
 
 #### 2.6 机械强制三项
 
-- 唯一解析点守卫：`infra/__tests__/plan-source.guard.test.ts` 扫 `src-next` 全树，`new PlanDocType("plan").parse` 只许出现在 `infra/plan-source.ts`；同一测试禁止该模块出现空 `catch`（biome 无现成规则，自定义插件的维护成本高于一条正则）。
-- 三面一致性必红：`face/__tests__/cli.test.ts` 黑盒，健康 plan 与坏 plan 各一条——板面渲染的 wave 集、门禁判的 wave 集、frontier 路由的 wave 集逐格相等。只有 CLI 面同时看得见渲染、门禁、路由三层。
-- 合法降级不误伤：`face/__tests__/board-view.test.ts` 既有的 `wave (none)` 格（真 undeclared）必须保持绿。
+- **唯一构造点门**：`infra/__tests__/plan-source.guard.test.ts` 以 `contract/doc.ts` 的 `docTypeParsers` **登记行为参数**——每个 doc key 的 `new <X>DocType("<key>")` 只许出现在两处：它自己的登记行，以及该 doc 型指定的唯一读取点（plan 的是 `infra/plan-source.ts`）。规则通用，plan 只是第一个受益者：防复发靠规则，不靠再写一条 plan 专属 grep。扫描面是生产源码（`**/__tests__/**` 排除——测试合法地直接构造解析器），且同一测试禁止 `infra/plan-source.ts` 出现空 `catch`（biome 无现成规则，自定义插件的维护成本高于一条正则）。
+- **三面一致性必红**：结构测试落 `session/__tests__/`（单进程内三集合都可达，不需要一次 CLI 调用同时看见三层），逐格比较三件 observable——板面渲染的 wave 行、`session/preflight.ts` 判定所用的 graph 的 wave 集、frontier 路由的 wave 键；健康 plan 与坏 plan 各一条。
+- **合法降级不误伤**：`face/__tests__/board-view.test.ts` 既有的 `wave  (none)` 格（真 undeclared）必须保持绿，新的 `(empty plan)` pin 紧挨它。
 
 ### 3. 失败面
 
 #### 3.1 裸崩面的残留路径
 
-场景装配先于 preview 与 usage 校验执行，`#renderWaveBoard` 又在拒绝分支之后。三处都必须改吃同一个 `PlanRead`，否则会出现「门禁已拒绝、渲染先崩」的顺序漏洞。验收要求 stderr 不再出现 `cdd: ` 前缀的文法报文。
+场景装配先于 preview 与 usage 校验执行，`#renderWaveBoard` 又在拒绝分支之后。所有读取点都必须改吃同一个 `PlanRead`，否则会出现「门禁已拒绝、渲染先崩」的顺序漏洞。验收要求 stderr 不再出现 `cdd: ` 前缀的文法报文，并要求 §1.1 的「doc-contract 拒绝先于 brief 渲染」有 pin——`BriefRenderer` 一处的裸抛只有在被前置拒绝挡住时才无害，这条顺序是断言，不是假设。
 
 #### 3.2 `(none)` 与退出码的既有 pin
 
-`cli.test.ts` 把 `(none)` 降级与 exit 0 绑在一起，`board-view.test.ts` 钉着合法的 `wave (none)`。降级面重构后这两处 pin 必须仍绿——它们是「不误伤健康路径」的证据。
+`cli.test.ts` 把 `(none)` 降级与 exit 0 绑在一起，`board-view.test.ts` 钉着合法的 `wave  (none)`。降级面重构后这两处 pin 必须仍绿——它们是「不误伤健康路径」的证据。
 
 #### 3.3 IO 与语法分叉后的报文覆盖
 
@@ -117,15 +150,19 @@ board 收到 `unreadable` 时渲一行 `CDD_WARN:`（`face/words.ts` 的 `statio
 
 #### 3.4 判定面的路径归因
 
-`contract/judge.ts` 捕获 `PlanSyntaxError` 后必须补上 `ContractInput.path`，否则 `Finding.path` 会出现空串或读者路径，判定面的锚定失效。
+`contract/judge.ts` 捕获 `DocSyntaxError` 后必须补上 `ContractInput.path`，否则 `Finding.path` 会出现空串或读者路径，判定面的锚定失效；`#contextOf` 的这个分支由 `contract/__tests__/judge.test.ts` 的新增用例覆盖。
 
 ### Acceptance criteria
 
-- `cdd board --plan` 指数到一个重复 `#### DependsOn` 节的背景 plan（fixture）：stdout 含一行 `CDD_WARN:`，wave 格为 `! unparseable`，全文不含 `wave  (none)`，退出码 0 — pin `face/__tests__/cli.test.ts`
-- `cdd implement --type wave --plan` 同一 fixture：输出 `CDD_BLOCKED:` 与 `reason: doc-contract`，报文含 plan 路径与字段名，stderr 不含 `cdd: task 27 carries the reserved section` — pin `face/__tests__/cli.test.ts`
-- 读不出文件（已声明但路径不存在或不可读）的 plan：wave 格为 `! unreadable`，词行为 `plan unreadable`，退出码 0；与文法坏结构各自被覆盖 — pin `infra/__tests__/plan-source.test.ts`
-- 健康 plan 上，板面渲染的 wave 集、`session/preflight.ts` 判定的 wave 集、frontier 路由的 wave 集逐格相等（三面一致性）— pin `face/__tests__/cli.test.ts`
-- `new PlanDocType("plan").parse` 在 `packages/cdd-engine/src-next` 只出现在 `infra/plan-source.ts`，且该文件不含空 `catch` — pin `infra/__tests__/plan-source.guard.test.ts`
+- `cdd board --plan` 指数到一个重复 `#### DependsOn` 节的背景 plan（fixture）：stderr 恰一行 `CDD_WARN:`（含 `plan unparseable` 词行），stdout 的 wave 格为 `! unparseable`，stdout 全文不含 `wave  (none)`、且除那一格以外与健康 plan 逐字节相同，退出码 0 — pin `face/__tests__/cli.test.ts`
+- 同一坏 plan 上，board 的 `next:` / `reason:` 与健康 plan 逐字节相同（不新增 station kind、不新增 reason token 的可观察面）— pin `face/__tests__/cli.test.ts`
+- `cdd implement --type wave --plan` 同一 fixture：输出 `CDD_BLOCKED:` 与 `reason: doc-contract`，报文含 plan 路径与字段名，stderr 不含 `cdd: task 27 carries the reserved section`（doc-contract 拒绝先于 brief 渲染）— pin `face/__tests__/cli.test.ts`
+- 已声明但读不出（存在、权限拒绝）的 plan：board 的 wave 格为 `! unreadable`、stderr 含 `plan unreadable` 词行、退出码 0；与文法坏结构各由一条用例覆盖 — 渲染 pin `face/__tests__/cli.test.ts`，值 pin `infra/__tests__/plan-source.test.ts`；路径不存在的那半仍走既有 `#boardNotFound`（exit 2，`face/__tests__/cli.test.ts` 已钉），不在本相位验收内
+- plan body 带重复保留节时，`contract/judge.ts` 产出一行 `Finding`：`path` 非空且等于契约路径、`field` 指到该节、`kind` 为 `"doc-syntax"`、无异常逃逸 — pin `contract/__tests__/judge.test.ts`
+- `ready` 但零 task block 的 plan 渲 `(empty plan)`（doc 面 wave 行与程序面波次格同），既不是 `(none)` 也不是空串 — pin `face/__tests__/board-view.test.ts`（紧挨既有的 `wave  (none)` 一条）
+- 程序面上真 undeclared（该相位没有 plan）的波次格仍为 `""`，与 `(empty plan)` / `! unparseable` / `! unreadable` 三语义互不混同 — pin `face/__tests__/board-view.test.ts`
+- 三面一致性：结构测试同进程内比较板面渲染的 wave 行、`PreFlight` 判定所用 graph 的 wave 集、frontier 路由的 wave 键，逐格相等；健康与坏 plan 各一条 — pin `session/__tests__/`
+- 唯一构造点门：按 `docTypeParsers` 登记行参数化，每个 doc key 的构造点只出现在登记行与其唯一读取点；plan 的读取点只有 `infra/plan-source.ts`，且该文件不含空 `catch` — pin `infra/__tests__/plan-source.guard.test.ts`
 - 真 undeclared 的 phase 文档仍渲 `wave  (none)` 且退出码 0 — pin `face/__tests__/board-view.test.ts`
 - 健康 plan 的板面、`next:`、`reason:` 逐字节不变 — pin `face/__tests__/board-view.test.ts`
 - `--dry-run` / preview 面在坏 plan 上同样 BLOCKED，不降级 — pin `face/__tests__/cli.test.ts`
@@ -134,8 +171,9 @@ board 收到 `unreadable` 时渲一行 `CDD_WARN:`（`face/words.ts` 的 `statio
 ## Constraints
 
 - plan grammar 语义不动：`#### DependsOn` 仍只许一节，其余重复节规则与报文措辞保持
-- `doc-contract` 判定语义不动，既有拒绝报文（front-matter 行）逐字节不变；不新增 gate id 与 reason token
-- `contract/` 保持纯文本面，不引入读盘职责；读取归 `infra/`
+- `doc-contract` 判定语义不动，既有拒绝报文（front-matter 行）逐字节不变；不新增 gate id 与 reason token，不新增 station kind
+- 判定面按值收 `contract/judge.ts` 的 `ContractInput.content`，读盘归 `infra/`（`infra/slug-index.ts` 同处；`contract/invariants.ts` 的 `DocFs` / `NodeFs` 是既有读缝，不是新职责）
+- phase 头的 `plan:` 声明是可选增量键，缺省回落 `index.planOf`；不重写 `infra/slug-index.ts` 的扫描谓词
 - progress 账本口径与 `recordPlanTasks` 的形状不动；`session/run.ts` 的 stall 语义保留
 - 不新增 CLI 动词或旗标，不重排 board 既有列与 `next:` / `reason:` 字节
 - 无 module-level 裸函数；新类按 OOP-first 落（状态与行为共变），单一职责
@@ -145,3 +183,4 @@ board 收到 `unreadable` 时渲一行 `CDD_WARN:`（`face/words.ts` 的 `statio
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-14 | 初稿：plan 读取收权（`infra/plan-source.ts` 的 `PlanRead` 三态、`PlanSyntaxError` → `Finding`、复用 doc-contract 拒绝通道、降级显式化、缺证据不授权、三项机械强制） | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-14） |
+| v0.2 | 2026-11-14 | 评审修复轮（F1–F13）：读取点清单按实测重列为 8 读取点 + 1 登记行 / 三策略并单列渲染消费点；守卫主体改为按 `docTypeParsers` 行参数化的构造点白名单；`#recordPlanSnapshot` 改吃 `PlanRead`；`! unreadable` 的 board 可达面改由 phase 头 `plan:` 声明解析（`#scanRoot` 不动）；`#programBoard` 的 `waveCell` 重钉；坏 plan 上 `next:` / `reason:` 逐字节不变 + 不新增 station kind；补 `contract/__tests__/judge.test.ts` 的 `Finding` 验收；接线写明 `Cli.create()` 组合根、`PlanRead` 随 `WorkScene` 下行、`graph` eager、`text()` 非抛；新增 `(empty plan)` 语义；`DocSyntaxError` 入 `contract/doc.ts` 且 `kind` 统一为 `"doc-syntax"`；`CDD_WARN:` 定 stderr；`""` 只属真 undeclared；三面一致性移入 `session/__tests__/` 结构测试；overall 同步 v3.63（D90 ① / Phase-inventory P35 的 `contract/` → `infra/`、计数 8+1 / 三策略、`纯文本面` 前提更正） | [human] 裁定 · Claude（kairos:cdd-design · 2026-11-14） |

@@ -131,7 +131,7 @@ pnpm run emit       # regenerate the derived products from package.json#oscaner
 pnpm run validate   # the full gate
 ```
 
-`pnpm run validate` holds the whole assertion surface: emit freshness · the root, kairos and engine test suites · typecheck ×3 · package version sync · zero module-level bare functions. Changing behaviour in either package also owes a changeset — the version tracks the methodology contract, so a consumer-visible byte change is still a minor, and `major` is machine-banned. Adding a first-party plugin means creating `packages/<name>/package.json` with an `oscaner` field, running `pnpm run emit`, and adding a changeset.
+`pnpm run validate` holds the whole assertion surface: emit freshness · the root, kairos and engine test suites · typecheck ×3 · a built-`dist` import and one live command · package version sync · zero module-level bare functions. Changing behaviour in either package also owes a changeset — the version tracks the methodology contract, so a consumer-visible byte change is still a minor, and `major` is machine-banned. Adding a first-party plugin means creating `packages/<name>/package.json` with an `oscaner` field, running `pnpm run emit`, and adding a changeset.
 
 Engine work calls the local source rather than the published release: `node packages/cdd-engine/src-next/bin.ts <subcommand>`. Focused commands, the generated-file inventory and the commit conventions are in [`AGENTS.md`](AGENTS.md).
 

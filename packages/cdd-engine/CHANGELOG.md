@@ -1,5 +1,118 @@
 # @oscaner-skills/cdd-engine
 
+## 4.11.0
+
+### Minor Changes
+
+- [#471](https://github.com/Oscaner/skills/pull/471) [`97a5d4e`](https://github.com/Oscaner/skills/commit/97a5d4efaa5562fba1add559f3e86286beb53fe1) Thanks [@Oscaner](https://github.com/Oscaner)! - A dispatch prompt now states which target it judges, names the face each sentence
+  actually reads, and bounds its own discipline clauses.
+  
+  **The target type renders.** The token that selected the review variant was supplied
+  but never printed, so a fix or docs-fix child never read the target word its `--type`
+  declared. It is now `TARGET_TYPE`, rendered as ``- `TARGET_TYPE`: <target word>``
+  immediately below `ROLE` on the six review faces, the two fix faces (`wave` ·
+  `branch`) and the four document-fix faces (`plan` · `phase-spec` · `overall` ·
+  `single-spec`). The value is the CLI `--type` word, so the prompt speaks the same
+  vocabulary the command line does. An implement round has no target, so its layout
+  omits the line and the empty value is dropped — no blank slot.
+  
+  **Each sentence names its own face.** The shared review sentence had folded the branch
+  review into the plan review, contradicting the branch criteria body in the same prompt.
+  The branch review now names the live tree against its base branch, with `INPUT_PLAN` as
+  its plan-conformance reference; the plan, spec and overall reviews each name their own
+  judged document. The fix sentence no longer describes a spec line — a document fix runs
+  the docs-fix row, so that face never appears there; on a branch line `INPUT_SPEC` is
+  what it always was, the design spec as a conformance reference and never the judged
+  document. A docs-fix round on a plan line marks its `INPUT_SPEC` reference un-editable.
+  
+  **One charter anchor on the overall face.** The overall round injected the same charter
+  path into both `INPUT_SPEC` and `INPUT_OVERALL`, asking for the charter to be judged
+  against itself. `INPUT_SPEC` is now empty on that face in both its rounds, leaving
+  `INPUT_OVERALL` as the single charter anchor; the four other document faces keep their
+  `INPUT_SPEC` unchanged.
+  
+  **The discipline clauses bound their own scope.** The freeze clause asserted an absolute
+  freeze beside the `capability: may.amend = content` declaration and the docs-fix
+  in-place instruction, so a document round read an authorization, an order and an
+  absolute prohibition in one prompt. It now freezes approved plan/spec files only beyond
+  this round's declared amending scope, with the structure face outside amending authority
+  in every round. The capability declaration names the judged document families
+  (phase-spec · single-spec · overall charter · plan) so it agrees with that clause on
+  every face, including a docs-fix round on a charter. The commit clause states that a
+  read-only round has nothing to commit and its only writes are the prescribed `OUTPUT_*`
+  artifacts, instead of contradicting the round's `**Read-only:**` discipline.
+  
+  **Three renamed-concept residues are gone.** The program-conformance criterion is scoped
+  to phase-spec — a single-spec carries no `program:` and no `INPUT_OVERALL` and is not a
+  phase, so it is no longer asked to judge against a parent that cannot exist. The branch
+  criteria body speaks `wave` rather than the retired `task`. The charter's severity
+  rubric reads charter / phase author instead of "the reviewed spec" against "a reasonable
+  downstream author".
+  
+  Shell titles, the `**Criteria — …:**` labels and the `**Lens labels:**` lines stay
+  byte-identical; a criteria body may change only where the scoping above requires it,
+  uniformly across the variants that share it. The template contract's `$version` moves
+  20 → 23 to mark the token- and shell-text changes.
+
+- [#473](https://github.com/Oscaner/skills/pull/473) [`246d99a`](https://github.com/Oscaner/skills/commit/246d99acb3f52b96d01a5aa6bd2fd89c185adf54) Thanks [@Oscaner](https://github.com/Oscaner)! - Every round artifact now derives its name from one place, the board names a crashed
+  round, and the handoff read-back refuses only the slots a child actually owes.
+  
+  **One name derivation.** `RoundNaming` renders every artifact from a `RoundArtifact`
+  identity — line, op, cycle, attempt — so the draft, the final carrier, the report, the
+  log, the crash record and the evidence file can no longer disagree about a round's own
+  identity. The `-a{n}` attempt suffix is inserted at the stem tail (before `.c{c}`) and
+  omitted at attempt 1; the implement family carries its cycle like the review and fix
+  families do, so a task's implement carrier is `tasks-1-implement-1.json` and never
+  shadows a later attempt. Round records no longer carry `carrierPath` / `draftPath`: the
+  ledger derives both from the record's own identity, so a record cannot disagree with the
+  name it was written under, and an existing row's values are still read as history. A
+  row that never recorded a path still resolves its carrier: the read ladder probes the
+  retired spellings first — `spec-{op}-{round}.json`, and the cycle-less
+  `tasks-{tasks}-implement.json` of a first-cycle implement — before reporting the carrier
+  absent, so a folded legacy row and the orphan scan agree about the same file.
+  
+  **The fix resume names the review's own attempt.** A fix round that resumes over a
+  review record whose carrier is gone falls back to the review family's name with only the
+  cycle in hand: the family's attempt comes from its own recorded round, never from the
+  retrying fix frame, so a crashed review is resumed on a name review attempt 1 actually
+  wrote.
+  
+  **The board names a crash.** A round that booked a withheld target action with at least
+  one hard violation renders its token in the top fact block's single `crashed:` row —
+  op, cycle · attempt, and the first hard cause — with every crashed round joined by
+  ` · ` on that one line. The row is an observation: the counts, the legend and the
+  `next:` hop are byte-identical with or without it. A round that declared its own
+  BLOCKED / TIMEOUT and booked only soft entries has no crashed token; the failure entry
+  the engine synthesizes for a round that authored no fact of its own is booked as
+  `round-blocked`, never `contract-violation` — a declared conclusion is not a broken
+  contract.
+  
+  **The read-back has two tiers.** A required slot that breaks its declaration still
+  blocks the round; a decorative slot — `notes` on either plane, the judge plane's
+  `artifacts`, a work round's `dispositions`, or a finding's `id` / `section` / `line` /
+  `fix` — is dropped from the draft in place and surfaced once on the carrier's notes. A
+  wrong optional column costs a field, never a round. A finding's own `id` is the one
+  decorative column with an engine replacement: the drop retires the child's value and the
+  engine stamps its `F{n}` key afterwards, so the persisted row always carries the
+  primary key the next fix round's dispositions are keyed by.
+  
+  **Only an open wave is judged against the layers.** `closed-wave-fits-depends-on-layers`
+  now reads the ledger's open waves: a closed wave's layer fit was judged when it was
+  dispatchable, so a later plan edit no longer retro-flags a shipped wave. The rule id is
+  unchanged.
+  
+  **The evidence sentence names its slot.** The injected contract text asks for "the file
+  named by `OUTPUT_EVIDENCE`" instead of spelling a family-prefixed file name, so the
+  naming face stays the single source of the artifact spelling.
+
+### Patch Changes
+
+- [#475](https://github.com/Oscaner/skills/pull/475) [`14ea677`](https://github.com/Oscaner/skills/commit/14ea6775a18c883ebc0335a75af96d17dec6a1dd) Thanks [@Oscaner](https://github.com/Oscaner)! - The published `cdd` binary no longer throws at import. The carrier-name predicate
+  was a private static field initialized from a private static method of its own
+  class; TypeScript down-levels that shape into a temp assigned after the class
+  body, so the built `dist` died with `Receiver must be class RoundNaming` before
+  any command ran. The pattern is now a module-scope const.
+
 ## 4.10.0
 
 ### Minor Changes

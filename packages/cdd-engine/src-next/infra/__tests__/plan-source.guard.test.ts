@@ -144,13 +144,23 @@ const guard = new ConstructorSiteGuard(docTypeParsers, loadSources());
 
 const fixture = (rel: string, text: string): SourceFile => ({ rel, text: stripComments(text) });
 
+/** An order-free view of a hit list: the judgement is membership plus count, never
+ *  the lexicographic position a declared read point happens to occupy. */
+const byFile = (hits: readonly Hit[]): Hit[] =>
+  [...hits].sort((left, right) => left.file.localeCompare(right.file));
+
 describe("the doc-type constructor-site gate (one registry row + one read point)", () => {
   it("is parameterized by the registry — every registered key is scanned", () => {
-    // The domain comes from `docTypeParsers`, never a re-typed key list; the class
-    // name comes off each registered instance.
-    expect(guard.keys()).toEqual(Object.keys(docTypeParsers).sort());
-    for (const key of guard.keys()) {
-      expect(guard.classNameOf(key), key).toMatch(/DocType$/);
+    // A key the production registry has never heard of enters the domain through the
+    // constructor alone, and a class name is read off the instance, never re-typed.
+    const injected = new ConstructorSiteGuard(
+      { ...docTypeParsers, roadmap: new RoadmapDocType() },
+      [],
+    );
+    expect(injected.keys()).toEqual([...Object.keys(docTypeParsers), "roadmap"].sort());
+    expect(injected.classNameOf("roadmap")).toBe("RoadmapDocType");
+    for (const key of injected.keys()) {
+      expect(injected.classNameOf(key), key).toMatch(/DocType$/);
     }
   });
 
@@ -163,6 +173,44 @@ describe("the doc-type constructor-site gate (one registry row + one read point)
     const violations = new ConstructorSiteGuard(parsers, sources).violations();
     // The unregistered-before key is judged by the same rule: its second site is red.
     expect(violations).toEqual([{ key: "roadmap", file: "face/cli.ts", count: 1 }]);
+
+    // The other half of the promise: designating a read point is a table edit, not a
+    // guard edit — the designated site is allowed while a third site stays red.
+    const withReadSite = new ConstructorSiteGuard(
+      parsers,
+      [
+        fixture(REGISTRY_FILE, 'const parsers = { roadmap: new RoadmapDocType("roadmap") };'),
+        fixture("infra/roadmap-source.ts", 'readonly #parser = new RoadmapDocType("roadmap");'),
+        fixture("face/board-view.ts", 'const third = new RoadmapDocType("roadmap");'),
+      ],
+      { roadmap: "infra/roadmap-source.ts" },
+    );
+    expect(withReadSite.allowedOf("roadmap")).toEqual([REGISTRY_FILE, "infra/roadmap-source.ts"]);
+    expect(withReadSite.violations()).toEqual([
+      { key: "roadmap", file: "face/board-view.ts", count: 1 },
+    ]);
+  });
+
+  it("judges a declared read point by membership, not by its sort position", () => {
+    // `bin.ts` sorts before `contract/doc.ts`: an order-sensitive equality would read
+    // this legal read point as out of bounds and fault a correct table row.
+    const parsers = { roadmap: new RoadmapDocType() };
+    const injected = new ConstructorSiteGuard(
+      parsers,
+      // Scan-surface order, as `loadSources` delivers it: `bin.ts` before the registry row.
+      [
+        fixture("bin.ts", 'readonly #parser = new RoadmapDocType("roadmap");'),
+        fixture(REGISTRY_FILE, 'roadmap: new RoadmapDocType("roadmap"),'),
+      ],
+      { roadmap: "bin.ts" },
+    );
+    expect(byFile(injected.hitsOf("roadmap"))).toEqual(
+      byFile([
+        { file: REGISTRY_FILE, count: 1 },
+        { file: "bin.ts", count: 1 },
+      ]),
+    );
+    expect(injected.violations()).toEqual([]);
   });
 
   it("spells each doc key's construction only at its registry row and designated read point", () => {
@@ -170,16 +218,16 @@ describe("the doc-type constructor-site gate (one registry row + one read point)
     // one occurrence each; every other doc type leaves only its registry row.
     for (const key of guard.keys()) {
       const expected = guard.allowedOf(key).map((file) => ({ file, count: 1 }));
-      expect(guard.hitsOf(key), key).toEqual(expected);
+      expect(byFile(guard.hitsOf(key)), key).toEqual(byFile(expected));
     }
     expect(guard.violations()).toEqual([]);
   });
 
-  it("puts the plan's legal sites at the registry row and infra/plan-source.ts — never render/brief.ts", () => {
-    const sites = guard.hitsOf("plan").map((hit) => hit.file);
-    expect(sites).toEqual([REGISTRY_FILE, PLAN_SOURCE_FILE]);
-    // The retired second parse: the brief renders a PlanRead, it never constructs one.
-    expect(sites).not.toContain("render/brief.ts");
+  it("puts the plan's legal sites at the registry row and infra/plan-source.ts", () => {
+    const sites = byFile(guard.hitsOf("plan")).map((hit) => hit.file);
+    // The retired second parse (`render/brief.ts`) is implied out: the equality names
+    // exactly these two files, so any third construction site turns it red.
+    expect(sites).toEqual([REGISTRY_FILE, PLAN_SOURCE_FILE].sort());
   });
 
   it("excludes **/__tests__/** — a parser built in a test is not a production site", () => {

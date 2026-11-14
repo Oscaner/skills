@@ -311,11 +311,6 @@ describe("RoundNaming — the ONE renderer (every kind, every line, every cycle/
     expect(NAMING.attemptOf([], "implement", 1)).toBe(1);
   });
 
-  it("carries the evidence family prefix — tasks for the wave families, branch for the branch line", () => {
-    expect(NAMING.prefix(frame({ type: "wave" }))).toBe("tasks");
-    expect(NAMING.prefix(frame({ type: "branch" }))).toBe("branch");
-  });
-
   it("derives the crash record's name off the same stem — verb preserved, no lane parameter", () => {
     // wave: the task group keys the line; the op keeps implement and review apart at
     // the same round (the two records coexist, never overwrite each other).

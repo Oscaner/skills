@@ -194,12 +194,6 @@ export class RoundNaming {
     return RoundNaming.renderName(this.#artifact(frame), "evidence");
   }
 
-  /** The evidence file's family prefix — `tasks` for the wave families, `branch`
-   *  for the branch line (never the misleading tasks- spine). */
-  prefix(frame: OpenFrame): string {
-    return frame.type === "wave" ? "tasks" : "branch";
-  }
-
   /** The attempt number a dispatch of one op/cycle would take — the max attempt
    *  already on record for that identity plus one (1 when the cycle was never
    *  dispatched). The ledger's records are the input slice, so the naming table

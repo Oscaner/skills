@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P34 计划：轮次产物身份的单射渲染'
 doc-type: plan
-version: v0.20
+version: v0.21
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p34
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p34-design.md` **现行 version v0.17** 所指的面；spec 版本一变，本约束的字面同笔改。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p34-design.md` **现行 version v0.18** 所指的面；spec 版本一变，本约束的字面同笔改。
 - **单射性是唯一不变量**：条件只允许出现在**渲染的省略**上（`attempt === 1` 不拼 `-a{n}`）；坐标本身恒从身份取，任何「满足某条件才拼坐标」的写法都是 §2.1 的反例。
 - **`progress.json` 形状不变**：只停写 `carrierPath` / `draftPath`，不迁移旧值、不加版本标记。
 - **不加运行时守护门**：写一次是构造属性；seal 的既有 unseal→写→seal 循环保留，不加「重写即拒」。
@@ -190,7 +190,6 @@ preflight 的 unseal 集合、terminal 的 seal 集合与 `#writeCrash` 的写�
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#bookAbort`（:294）→ `#waveParams(key, cycle, attempt)`（:321）的同源形已由 `c2feec9f` 落地，实现不重写；本任务的改动只是 docstring 退役——`#roundCarrierNames` 的注释（:1079-1082，句子 `A cycle-less identity resolves both to the same path — one name, sealed once.`，在 `:1081` 的 `— one` 与 `:1082` 的 `name, sealed once. */` 之间折行）随 T1 退役：T1 之后 implement 族的 draft / final 是两个名字，该句对窗口 / seal 的读者是假陈述。`:318-320` 那处「the implement family is round-less」已由 P31 §2.4 的 abort-record 段落替换，HEAD 的 `face/lifecycle.ts` 无 `round-less` 措辞，故不在退役清单内。窗口面与 `#writeCrash` 已同源，不动）
 - Confirm: `packages/cdd-engine/src-next/session/run.ts`（`#sealRoundCarriers` 的 docstring（:904-908）在 HEAD 已改述为「two rounds of the same line never close each other's window」，无 implement 族 round-less 断言——T3 只核、不改；该文件在 T1 的 Files 内随 `#paramsOf` 落笔）
 - Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（attempt-2 窗口覆盖测：attempt-1 一对不可写 · 窗口内只有 attempt-2 一对可写 · review 轮崩溃记录落在渲染名上且 attempt 2 不覆盖 attempt 1 · 失败面 capsule 行与 resume 决策读回同一个 attempt-2 崩溃名 · attempt-2 fix 轮的 `#resumeOf` 写出的 `next` 携 attempt-1 review final 名，不携 `…-review-1-a2` 幽灵名 · abort fold 用例：attempt-2 记录折叠后 attempt-2 一对 sealed 且 attempt-1 一对未动，implement 折叠出 `tasks-{tasks}-implement-{cycle}` 而非 legacy 名。今日只 P31 的通用封印窗用例（:1154 起），无 attempt-2 专门用例）
 - Test: `packages/cdd-engine/src-next/session/__tests__/round-naming.test.ts`（守卫 (b) 零 `.c${` / `-report.md` / `-a${` / `-test-evidence` 名字拼装字面，判面「`RoundNaming` 之外的**非注释代码行**」，今日零命中；守卫 (c) 写路径零 `families` 占位替换——`#family(op, type)` 的键集校验（`session/ledger.ts:1584-1588`）是 loud unknown-family 抛错、不铸名字，不入判面）
@@ -215,7 +214,6 @@ preflight 的 unseal 集合、terminal 的 seal 集合与 `#writeCrash` 的写�
 - 补覆盖测（窗口内可写面）：窗口打开期间只有 attempt-2 的一对可写 — checkable: PASS（回归防线）
 - 补覆盖测（review 轮崩溃 + fix resume）：review 失败面写出 `crash-{line}-{op}-{cycle}.json`，attempt 2 写 `…-a2.json` 且 attempt 1 的文件不被覆盖；同一夹具的失败面 capsule 行与前 `next:` resume 决策都读回 attempt 2 的名字；fix resume 的 `--reviews` 携 requester review 记录的 attempt-1 final 名（fix 帧的 `attempt = 2` 不泄漏进 review 家族）— checkable: PASS（`#writeCrash` 已走 `crashName`，`--reviews` 由 T2 的解析读者规则承载；缺的是 attempt-2 专门用例，不是实现）
 - 补覆盖测（abort fold 的 attempt 同源）：attempt-2 的 review / fix 记录 abort fold 后 attempt-2 一对 sealed、attempt-1 一对未动；implement 轮折叠出 `tasks-{tasks}-implement-{cycle}.json` 而非 legacy 无 cycle 名 — checkable: 定向 vitest PASS（现状即绿：`#waveParams`（:321）已是 `(key, cycle, attempt)`、`#bookAbort` 在 `:314` 传记录自己的 attempt，本组作回归防线）
-- 退役 `#roundCarrierNames` 的 cycle-less docstring——`face/lifecycle.ts:1079-1082`（`session/run.ts:904-908` 已改述、不动；`:318-320` 已由 P31 §2.4 段落替换，不在清单内）— checkable: 红先跑——今日 `grep -n "cycle-less identity resolves both" packages/cdd-engine/src-next/face/lifecycle.ts` 1 命中（`:1081`）、exit 0；退役后同一 grep 零命中、exit 1。判据不取 `round-less`（HEAD 已无该措辞，恒绿、exit 1）也不取 `one name, sealed once`（该句被 `:1081` 的 `— one` 与 `:1082` 的注释星号加换行切开，单行 grep 恒 0 命中——活句子因此漏网）；若要一次连折行判完，用 `perl -0777 -ne 'exit(/cycle-less identity resolves both to the same path[^\n]*\n\s*\*?\s*name, sealed once/ ? 1 : 0)' packages/cdd-engine/src-next/face/lifecycle.ts`（今日 exit 1 = 命中、退役后 exit 0 = 绿）
 - 写守卫 (b)：`RoundNaming` 之外非注释代码行零 `.c${` / `-report.md` / `-a${` / `-test-evidence` 拼装字面 — checkable: PASS（今日零命中：`session/handoff-schema.ts:226` 已由 T6 ③ 改述为 `OUTPUT_EVIDENCE`，历史拼写不入集；三条注释 `infra/carrier-seal.ts:11` / `infra/workspace.ts:150` / `face/lifecycle.ts:545` 不入集；零命中即绿，不得为新开豁免着色）
 - 写守卫 (c)：写路径零 `families` 占位替换（名字只经 `RoundNaming.renderName` 铸出） — checkable: PASS（`#family` 的键集校验不入判面）
 - 核守卫 (a)：`session/__tests__/carrier-path.guard.test.ts` 仍在且绿 — checkable: PASS（不重写；非测试全树唯一读点是守卫自身作用域内的 `session/ledger.ts:1804`，红集为零）
@@ -230,7 +228,6 @@ preflight 的 unseal 集合、terminal 的 seal 集合与 `#writeCrash` 的写�
 - review 轮的崩溃记录落在渲染名上，attempt 2 不覆盖 attempt 1；失败面 capsule 行与 resume 决策读回同一个 attempt-2 名字；fix resume 的 `next` 携 requester review 的 attempt-1 final 名。
 - legacy 轮窗口 = 本轮身份渲染出的那一对：implement 族换新拼写 `tasks-{tasks}-implement-{cycle}.json`（§2.6 的例外），其余族与历史拼写同字节；历史 implement draft 保持 sealed，由 T4 的 legacy 拼写档认领——preflight 不为它开窗（spec §2.11 的「窗口名与历史名同字节」在 implement 族不成立，例外以本行为准）。
 - 守卫 pin 三条、判面各自写死：(a) 由 `session/__tests__/carrier-path.guard.test.ts:37-60` 承担——判面是 `session/ledger.ts` 的记录存储 + `#reviewsPathOf` 的委派路由，不是全树；与 spec §2.12 全树口径之间的差额（其他平面以入参事实读、不解析名字）理由写在守卫文件头 :10-20，spec 那侧的收敛属 spec 文档轮，不在本轮判面。(b) `RoundNaming` 之外非注释代码行零拼装：今日零命中即绿，不得开豁免。(c) 写路径零 `families` 占位替换（`#family` 的键集校验不入判面）。
-- docstring 退役由活闸判：`grep -n "cycle-less identity resolves both" packages/cdd-engine/src-next/face/lifecycle.ts` 退役前 1 命中（`:1081`）、退役后零命中；判据不取 `round-less`（HEAD 已无该措辞）与 `one name, sealed once`（该句在 `:1081` / `:1082` 折行，单行 grep 不可见）。
 - changeset：既有 `.changeset/p34-naming-derivation-tolerance.md`（minor）在册且覆盖命名面，不新增第二份；`pnpm run validate` exit 0。
 
 #### DependsOn
@@ -413,3 +410,4 @@ none
 | v0.18 | 2026-11-14 | 评审回改（docs-fix round 11）：T5 补 `round-blocked` 的 owner——Files 新增 `face/lifecycle.ts` 的合成条目（`#verdictOf` `:420` · `:440-443`）与 `session/ledger.ts:97` 的 `CONCLUDED_BLOCKED_CAUSE`（Confirm）、`face/__tests__/cli.test.ts:6696` 的 no-host 逐字断言（`:6715`）；Consumes 把引擎合成的 `round-blocked` 从既有值域里提出来标为本任务首次消费；两条 `checkable: FAIL` 改为真红口径（今日无 `crashed:` 行，合成行为现状即绿），Acceptance 指到这两个 owner。T1 的反向读面 pin 由不存在的 `#familyCaptures` 改为交付符号 `#handoffOwner` `:1929` · `#WAVE_CARRIER` `:1963` · `#LINE_CARRIER` `:1969` · `#attemptOf` `:1975`，同句旧锚点 `:1946` 一并改 `:1969`。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
 | v0.19 | 2026-11-14 | 评审回改（branch-fix-4）：T2 的回退规则收成一宿——`#reviewFamilyPath`（`:1316-1321`），`#reviewsPath` 的无记录支与 `#resumeOf` 同处调用（Files 的回退项同笔点名）；随落码刷新 `#reviewsPath`（`:1301-1309`）、`#resumeOf`（`:1761`）、回退（`:1787`）与崩溃记录 `next`（`:1550`）的锚点，spec 字面随版移到 v0.17。 | '[ai] Claude（kairos:cdd-dev · branch-fix-4 · 2026-11-14）' |
 | v0.20 | 2026-11-14 | 评审回改（docs-fix round 12）：补回被覆盖的 v0.8 历史行（`f1bbfc29` 写入、`f41a8d68` 疑为覆盖而非追加，原文照录、不重编号）；T2 的 board 面改述为交付签名——`LineCarriers#countOf(record)` 持记录集与 `pathOf` 投影、自行判归属与摘要，文本计数留在私有 `#findingsCountOf(text)`。 | '[ai] Claude（kairos:cdd-docs-fix · 2026-11-14）' |
+| v0.21 | 2026-11-14 | 评审回改（branch-fix-5）：F1 按裁定收回代码侧退役——`#roundCarrierNames` 的 cycle-less 句在 HEAD 为真（`RoundNaming.renderName` 的 `final` 在无 cycle 时回渲 draft 名，`.c{N}` 只挂在携 cycle 的恒等上），故 T3 的 lifecycle.ts `Modify` 项、退役步骤与活闸 acceptance 三项同笔撤回，代码注释原样保留；F2 删除 `RoundNaming#prefix` 及其断言（`evidenceName` 已从 stem 自派生证据名，该 accessor 零生产读点），计划字面无需第二处改动。spec 字面随版移到 v0.18。 | '[ai] Claude（kairos:cdd-fix · 2026-11-14）' |

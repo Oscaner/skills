@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P35 计划：plan 读取收权（一份读取 · 一个失败值 · 一条拒绝通道）'
 doc-type: plan
-version: v0.9
+version: v0.10
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p35
 base: develop
@@ -377,7 +377,7 @@ none
 
 #### DependsOn
 
-2, 3
+3, 5
 
 ---
 
@@ -442,3 +442,4 @@ none
 | v0.6 | 2026-11-14 | 编排器结构面提交（fix 1 的 rejected 两半）：依赖边按 D 裁决重排——`Task 3` 的 `DependsOn` 由 `1` 改为 `1, 2`（消费 Task 2 的 `PlanRead`），`Task 4` 由 `2` 改为 `2, 3`（消费 Task 3 落地的 `scene.plan`）。结构面不属评审轮（引擎把 `DependsOn` 集当结构基线，`face/lifecycle.ts:344` 快照、`:586-604` 比对），故由编排器单独提交 | Claude（kairos:cdd-plan · 2026-11-14） |
 | v0.8 | 2026-11-14 | 复审轮 plan-review-2 落地（F1–F7，全部按裁决）：场景面的读取与解析转换归 **Task 3**（`PlanSource` 在 `Cli.create()` 单次构造并作为 `Cli` 字段持有，`#sceneOf` 改取 `readFor(entry)` / `readPath(rel)`，删 `planText = this.#artifacts.readText(...)` 与 `new TaskGraph(new PlanDocType("plan").parse(...))` 三行；新增 `Lifecycle` 构造项 `plan: PlanRead` 取代 `#planPath`，`session/run.ts` 与 `face/lifecycle.ts` 两处 `readFileSync` 及其 `catch` 随之消失），Task 4 只复用该实例、不再声明构造权；Task 5 的诊断行数改为**恒等于「坏 plan 数 + 孤儿数」**（`undeclared` 零行，并补反向测）；Task 2 的访问器契约升为值级表、孤儿判定先于 `(empty plan)`；Task 3 删掉 `doc: null` 的测；`planText` 零命中门按文件归属拆到 T3 / T4 / T5、整体门留 T7；全文统一改称「派生面」（旧的错误称谓清零）。结构面零改动 | Claude（kairos:cdd-fix · 2026-11-14） |
 | v0.9 | 2026-11-14 | 复审轮 plan-review-3 落地（F1–F4，全部按裁决）：`planText` 两个漏网的**读取者**（`:808` / `:1104` 两处守卫）归 **Task 3**——收成 `scene.plan.kind === "ready"`、`:1105` 实参改传 `scene.plan`，`#renderWaveBoard` 形参改 `read: PlanRead` 并附一行签名移交（方法体渲值语义仍归 Task 5，否则 T3 的 `tsc` 就红在方法体未改上）；`#sceneOf` 的 `state` 写出退化值（非 ready 的 wave 场景以 `EMPTY_RUN_STATE` 装配，不包 `try/catch`、不写 `!`，理由随句写明）；`PipelineFrontierInput.planGraph` 的退役归 **Task 4**（三处字面量与 `Lifecycle#planGraph` 单元同批改，板面经 `pipelineFacts` / `BoardNext.of` 的 `read` 形参过桥、T5 替换并删除 `BoardView.planGraph`），验收补一条 `planGraph` 残留 grep；T3 的 scoped 判据据实改（`#sceneOf` / `planIds` / `#renderWaveBoard` 三段之外零命中，不再把 T4 的段落写进 T3 的判据）。结构面零改动 | Claude（kairos:cdd-fix · 2026-11-14） |
+| v0.10 | 2026-11-14 | 编排器结构面提交（plan-review-4 F2）：**Task 6（唯一构造点门）`DependsOn` `2, 3` → `3, 5`**——参数化守卫要在 `plan` 的四处残余构造点（`face/cli.ts:708`、`session/preflight.ts:227`/`:509`、`face/board-view.ts:896`）全部退役之后才可能为绿，而它们分别归 Task 4 与 Task 5；原依赖把「此门在改动前的树上为绿」写成不可能 | Claude（kairos:cdd-plan · 2026-11-14） |

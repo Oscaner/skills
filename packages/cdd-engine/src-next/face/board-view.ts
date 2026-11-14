@@ -42,6 +42,7 @@ import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import type { DocKey } from "../contract/project.ts";
 import { DOC_KEYS } from "../contract/project.ts";
 import { ConfigLoader } from "../infra/config.ts";
+import type { PlanSource } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
 import { type DocEntry, SlugIndex, type SlugRole } from "../infra/slug-index.ts";
@@ -580,6 +581,7 @@ export class BoardView {
    *  reject face is exit 2, never the dispatch CDD_BLOCKED channel). Pure reads —
    *  zero tree writes, zero ledger writes, zero child dispatch. */
   static render(
+    plan: PlanSource,
     index: SlugIndex,
     entry: DocEntry,
     repoRoot: string,
@@ -598,8 +600,19 @@ export class BoardView {
     const root = new RepoRoot(repoRoot);
     const exitCode =
       entry.docType === "overall"
-        ? BoardView.#programBoard(lines, index, entry, root)
-        : BoardView.#nodeBoard(lines, index, entry, root, words, host, channels, holding, next);
+        ? BoardView.#programBoard(plan, lines, index, entry, root)
+        : BoardView.#nodeBoard(
+            plan,
+            lines,
+            index,
+            entry,
+            root,
+            words,
+            host,
+            channels,
+            holding,
+            next,
+          );
     lines.push("", PROGRESS_LEGEND.board);
     return { lines, exitCode };
   }
@@ -611,6 +624,7 @@ export class BoardView {
    *  2. The repo-basis `root` is threaded alone (F2) — its `absolute` feeds the
    *  fs-facing helpers, its value object the path renders. */
   static #nodeBoard(
+    plan: PlanSource,
     lines: string[],
     index: SlugIndex,
     entry: DocEntry,
@@ -624,10 +638,11 @@ export class BoardView {
     const repoRoot = root.absolute;
     const sources = BoardView.#nodeSources(index, entry);
     const nodeSlug = BoardView.#validSlug(entry);
-    const ledger = nodeSlug === null ? null : BoardView.#ledgerOf(nodeSlug, repoRoot);
+    const ledger = nodeSlug === null ? null : BoardView.#ledgerOf(plan, nodeSlug, repoRoot);
     const progress = ledger?.readProgress() ?? null;
     const overallSlug = BoardView.#validSlug(sources.overall);
-    const overallLedger = overallSlug === null ? null : BoardView.#ledgerOf(overallSlug, repoRoot);
+    const overallLedger =
+      overallSlug === null ? null : BoardView.#ledgerOf(plan, overallSlug, repoRoot);
     const overallProgress = overallLedger?.readProgress() ?? null;
     // The tree's dispatch fact + the node workspace's orphan drafts + the node's
     // crashed rounds render before the line rows (a reader answers "is anyone working
@@ -747,10 +762,16 @@ export class BoardView {
    *  index (`program:` grouping — no overall child-list array). A phase row's primary
    *  key is its `slug:`, annotated with the truncated `title:`; any overall/phase
    *  violation renders its marker and exits 2 (spec §3.1 — zero silent fallback). */
-  static #programBoard(lines: string[], index: SlugIndex, entry: DocEntry, root: RepoRoot): number {
+  static #programBoard(
+    plan: PlanSource,
+    lines: string[],
+    index: SlugIndex,
+    entry: DocEntry,
+    root: RepoRoot,
+  ): number {
     const repoRoot = root.absolute;
     const overallSlug = BoardView.#validSlug(entry);
-    const ledger = overallSlug === null ? null : BoardView.#ledgerOf(overallSlug, repoRoot);
+    const ledger = overallSlug === null ? null : BoardView.#ledgerOf(plan, overallSlug, repoRoot);
     const overallLine = BoardView.#lineOf(
       "overall",
       "overall",
@@ -770,7 +791,8 @@ export class BoardView {
     const phases = overallSlug === null ? [] : index.phaseSpecsOf(overallSlug);
     for (const phase of phases) {
       const phaseSlug = BoardView.#validSlug(phase);
-      const phaseLedger = phaseSlug === null ? null : BoardView.#ledgerOf(phaseSlug, repoRoot);
+      const phaseLedger =
+        phaseSlug === null ? null : BoardView.#ledgerOf(plan, phaseSlug, repoRoot);
       const phaseProgress = phaseLedger?.readProgress() ?? null;
       const specLine = BoardView.#lineOf("spec", "phase-spec", phase, phaseProgress, phaseLedger);
       const planEntry = phaseSlug === null ? null : index.planOf(phaseSlug);
@@ -852,10 +874,12 @@ export class BoardView {
   }
 
   /** The node's ledger — the progress.json read face the render's closure/next
-   *  derivation consumes (each node reads its OWN workspace). */
-  static #ledgerOf(nodeSlug: string, repoRoot: string): Ledger {
+   *  derivation consumes (each node reads its OWN workspace). The plan read seam is
+   *  the caller's per-command instance, threaded down unchanged: the board never
+   *  mints a second `PlanSource`. */
+  static #ledgerOf(plan: PlanSource, nodeSlug: string, repoRoot: string): Ledger {
     const root = new WorkspaceRoot(repoRoot, ENGINE_RUNTIME.handoffNamespace.workspaceRoot);
-    return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader());
+    return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader(), plan);
   }
 
   /** pipelineFacts(index, entry, root) — the board's FACTS about the pipeline (spec
@@ -865,13 +889,14 @@ export class BoardView {
    *  session plane's `PipelineFrontier`. Null when the node holds no legal slug (no
    *  workspace to observe). */
   static pipelineFacts(
+    plan: PlanSource,
     index: SlugIndex,
     entry: DocEntry,
     root: RepoRoot,
   ): BoardPipelineFacts | null {
     const nodeSlug = BoardView.#validSlug(entry);
     if (nodeSlug === null) return null;
-    const ledger = BoardView.#ledgerOf(nodeSlug, root.absolute);
+    const ledger = BoardView.#ledgerOf(plan, nodeSlug, root.absolute);
     const sources = BoardView.#nodeSources(index, entry);
     const specPath = sources.spec?.path ?? null;
     const planPath = sources.plan?.path ?? null;
@@ -984,8 +1009,9 @@ export class BoardNext {
   /** The board's ONE `NextHop` — null when the entry holds no legal slug (no
    *  workspace to observe) or the board is the program board (cross-phase never
    *  participates in next, spec §6.5). */
-  static of(index: SlugIndex, entry: DocEntry, root: RepoRoot): NextHop | null {
-    const facts = entry.docType === "overall" ? null : BoardView.pipelineFacts(index, entry, root);
+  static of(plan: PlanSource, index: SlugIndex, entry: DocEntry, root: RepoRoot): NextHop | null {
+    const facts =
+      entry.docType === "overall" ? null : BoardView.pipelineFacts(plan, index, entry, root);
     return facts === null ? null : BoardNext.#hopOf(facts, root);
   }
 

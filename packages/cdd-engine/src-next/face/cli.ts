@@ -49,16 +49,16 @@ import path from "node:path";
 import process from "node:process";
 import { type Command, CommanderError } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
-import { PlanDocType } from "../contract/doc.ts";
-import { FrontMatterExtractor } from "../contract/frontmatter.ts";
+import { FrontMatterExtractor, type FrontMatterParseError } from "../contract/frontmatter.ts";
 import { Contract } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
 import { Translator } from "../contract/translate.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import { GitClient } from "../infra/git.ts";
+import { type PlanRead, PlanSource } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
-import { SlugIndex } from "../infra/slug-index.ts";
+import { type DocEntry, SlugIndex } from "../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
@@ -140,9 +140,10 @@ export interface CliOptions {
   initHeader?: (line: string) => void;
 }
 
-/** One work command's assembled scene — the composition the run body advances. */
+/** One work command's assembled scene — the composition the run body advances. The
+ *  `plan` cell is the ONE plan read of the run (argv face or derived doc face). */
 export interface WorkScene extends DispatchScene {
-  planText: string | null;
+  plan: PlanRead;
   type: TargetType;
   face: TargetFace;
   target: { kind: "branch" } | { kind: "plan"; doc: string } | { kind: "spec"; doc: string } | null;
@@ -163,7 +164,6 @@ export interface WorkScene extends DispatchScene {
    *  when the line's spec names no program. */
   overallLink: string | null;
 }
-
 /** The path-typed argv values (T3 §2.3) — split out of the generic `args` record
  *  so the funnel's normalized `RepoPath` brand reaches the scene/read faces with
  *  NO downcast (branch-review-1 F7). The funnel is the ONE landing: before it runs
@@ -480,6 +480,10 @@ export class Cli {
     const repoRoot = await this.#rootOf();
     if (repoRoot === null) return 1;
     const root = new RepoRoot(repoRoot);
+    // The board's plan read seam — ONE instance per command, threaded down the
+    // static render chain (the board's ledgers read their brief revisions through
+    // it; a node workspace never mints its own).
+    const planSource = new PlanSource(root);
     const planRel = planArg === undefined ? null : this.#relativizePath(root, planArg);
     const specRel = specArg === undefined ? null : this.#relativizePath(root, specArg);
     // The not-found face reads ZERO documents (spec §3.1): a path outside the two
@@ -532,8 +536,9 @@ export class Cli {
     // face-order rules + the six hop cells) lives in the session plane's
     // `PipelineFrontier` — the same assembly the capsule renders, so the board and the
     // capsule state one hop. Neither face judges anything here.
-    const next = BoardNext.of(index, entry, root);
+    const next = BoardNext.of(planSource, index, entry, root);
     const board = BoardView.render(
+      planSource,
       index,
       entry,
       repoRoot,
@@ -641,8 +646,13 @@ export class Cli {
     const repoRoot = await this.#rootOf();
     if (repoRoot === null) return 1;
     const root = new RepoRoot(repoRoot);
+    // The plan read seam — ONE instance per command, built here in the command
+    // preamble (the repo root exists now; `Cli.create` runs before it does) and
+    // passed down as a parameter: the scene, the pre-flight context and the ledger
+    // all read their plan through this ONE seam.
+    const planSource = new PlanSource(root);
     const parsed = this.#funnel(root, raw);
-    const scene = await this.#sceneOf(verb, type, node, root, parsed);
+    const scene = await this.#sceneOf(verb, type, node, root, planSource, parsed);
     if (scene === null) return 1;
 
     // THE pre-flight seam (P4.1 T1 · design §1): the STRUCTURE gates —
@@ -671,7 +681,7 @@ export class Cli {
     const preflight = await this.#preflight.vet({
       type,
       repoRoot: scene.workspace.root.repoRoot,
-      planText: scene.planText,
+      plan: scene.plan,
       ledger: scene.ledger,
       doc: TargetFaceTable.isDocShape(type)
         ? {
@@ -703,15 +713,17 @@ export class Cli {
     let group: Set<number> | null = null;
     if (type === "wave") {
       group = new Set(this.#gate.tasksOf(parsed));
-      const planIds =
-        scene.planText !== null
-          ? new PlanDocType("plan")
-              .parse(scene.planText.split("\n"))
-              .taskBlocks.map((block) => block.id)
-          : [];
-      for (const id of group) {
-        if (!planIds.includes(id)) {
-          this.#usage(node, `cdd ${verb}: task ${id} not found in the plan`);
+      // The requested ids against the plan's own task set. A non-ready plan (no
+      // readable document) judges no membership here — the doc-contract refusal leg
+      // owns that verdict; an empty set here is NOT "skip", so the guard stays
+      // outside the `doc !== null` block.
+      const doc = scene.plan.doc();
+      if (doc !== null) {
+        const planIds = doc.taskBlocks.map((block) => block.id);
+        for (const id of group) {
+          if (!planIds.includes(id)) {
+            this.#usage(node, `cdd ${verb}: task ${id} not found in the plan`);
+          }
         }
       }
       for (const id of scene.ledger.closedWaves()) scene.state.markDone(id);
@@ -802,11 +814,16 @@ export class Cli {
     // The unconditional extract (§4.1): every wave-face dispatch re-renders the
     // brief from the CURRENT plan text — implement, review and fix alike (a
     // mid-run plan amendment reflects into the next dispatch; no "exists → leave
-    // it" reuse). The doc/branch faces carry no wave brief (planText is null there).
+    // it" reuse). The doc/branch faces carry no wave brief (the plan read is the
+    // derived same-slug document there, so the wave face is the only caller).
     // The preview skips it — the brief is a WRITE (`Workspace#writeText`), and the
     // preview names the same path through RoundNaming instead of rendering it.
-    if (!parsed.dryRun && type === "wave" && scene.planText !== null)
-      scene.briefPath = this.#gate.renderBrief(scene, parsed);
+    if (!parsed.dryRun && type === "wave" && scene.plan.kind === "ready") {
+      const text = scene.plan.text();
+      const doc = scene.plan.doc();
+      if (text !== null && doc !== null)
+        scene.briefPath = this.#gate.renderBrief(scene, parsed, text, doc);
+    }
     const statuses: (RoundStatus | null)[] = [];
     const dispatch: DispatchStep = await this.#dispatchOf(scene, parsed, recovery?.harness ?? null);
     const run = new Lifecycle({
@@ -831,7 +848,7 @@ export class Cli {
         HostDetect.detect(process.env),
         scene.workspace.root.basis,
       ),
-      planPath: scene.pipeline.planPath,
+      plan: scene.plan,
       specType: scene.pipeline.specType,
       specPath: scene.pipeline.specPath,
       planGraph: scene.pipeline.planGraph,
@@ -1036,6 +1053,7 @@ export class Cli {
         workspace: scene.workspace,
         ledger: scene.ledger,
         planPath: scene.planPath,
+        plan: scene.plan,
         briefPath: scene.briefPath,
         baseBranch: this.#baseBranchOf(scene),
         specLink: scene.specLink,
@@ -1101,16 +1119,17 @@ export class Cli {
       command: (hop) => this.#gate.hopCommand(scene, hop, this.#words),
     });
     this.#io.stderr(`cdd ${verb}: cannot dispatch a ${expected} round — ${message}\n`);
-    if (rejection.reason === "split" && scene.planText !== null) {
-      this.#renderWaveBoard(scene, scene.planText);
+    if (rejection.reason === "split" && scene.plan.kind === "ready") {
+      this.#renderWaveBoard(scene, scene.plan);
     }
     this.#renderChecked(preflight);
   }
 
   /** The wave-board hint of a split refusal — the derived graph the refusal is
    *  about, rendered on the stderr detail channel. */
-  #renderWaveBoard(scene: WorkScene, planText: string): void {
-    const graph = new TaskGraph(new PlanDocType("plan").parse(planText.split("\n")));
+  #renderWaveBoard(scene: WorkScene, read: PlanRead): void {
+    const graph = read.graph();
+    if (graph === null) return;
     const closed = scene.ledger.closedWaves();
     // The graph title's plan path renders repoRoot-relative (D47 · the ONE shape;
     // `scene.planPath` is argv-origin) — normalized through the scene's OWN basis
@@ -1159,6 +1178,7 @@ export class Cli {
     type: TargetType,
     node: Command,
     root: RepoRoot,
+    planSource: PlanSource,
     parsed: RunInput,
   ): Promise<WorkScene | null> {
     const config = this.#config;
@@ -1181,7 +1201,7 @@ export class Cli {
     const index = SlugIndex.build(repoRoot);
 
     let slug: string;
-    let planText: string | null = null;
+    let plan: PlanRead;
     let specLink: string | null = null;
     let overallLink: string | null = null;
     let target: WorkScene["target"] = null;
@@ -1189,8 +1209,8 @@ export class Cli {
       case "wave": {
         if (planPath === null || planRel === null)
           this.#usage(node, `cdd ${verb} --type wave: missing required --plan <path>`);
-        planText = this.#artifacts.readText(node, root, planRel);
-        const resolved = this.#targetSlug(index, planRel, planText);
+        plan = this.#argvPlanOf(node, planSource, planRel);
+        const resolved = this.#targetSlug(index, planRel, plan);
         if (resolved === null) return null;
         slug = resolved;
         break;
@@ -1204,16 +1224,20 @@ export class Cli {
         // it (CDD_BLOCKED + exit 1, never a filename-derived key). The T7 null-verdict
         // face covers the other shape — a document ON DISK that declares no
         // `doc-type:` / `slug:`.
-        const resolved = this.#targetSlug(index, specRel, this.#readTarget(root, specRel));
+        const specEntry = index.entryAt(specRel);
+        const resolved = this.#targetSlugText(index, specRel, this.#readTarget(root, specRel));
         if (resolved === null) return null;
         slug = resolved;
         target = { kind: "spec", doc: specPath };
+        // The plan face of a doc round is the SAME derived document every other face
+        // derives (`plans/<the identity doc's slug>.md`) — read through the derived
+        // entry, so the doc round and the plan round speak one document.
+        plan = this.#docPlanOf(planSource, index, specEntry, slug);
         // The judged document's own `program:` — the parent charter (INPUT_OVERALL)
         // the phase-spec reviewer judges the phase against. A document without
         // `program:` (an overall charter or a single-spec) leaves the slot null; an
         // off-disk target reads null here and the existing slug-ref invariant reports
         // it (never a second reporter).
-        const specEntry = index.entryAt(specRel);
         const overallEntry = specEntry?.program == null ? null : index.overallOf(specEntry.program);
         overallLink = overallEntry === null ? null : root.relativize(overallEntry.path);
         break;
@@ -1234,8 +1258,8 @@ export class Cli {
         // faces carry the plan + its same-slug spec anchor.
         if (planPath === null || planRel === null)
           this.#usage(node, `cdd ${verb} --type ${type}: missing required --plan <path>`);
-        planText = this.#artifacts.readText(node, root, planRel);
-        const resolved = this.#targetSlug(index, planRel, planText);
+        plan = this.#argvPlanOf(node, planSource, planRel);
+        const resolved = this.#targetSlug(index, planRel, plan);
         if (resolved === null) return null;
         slug = resolved;
         const specEntry = index.identityDoc(slug);
@@ -1256,33 +1280,32 @@ export class Cli {
     // normalization is the ONE heal path, covering `base.json` alongside
     // `progress.json` (a second healing point is gone).
     const workspace = new Workspace(rootPath, slug);
-    const ledger = new Ledger(workspace, config);
-    const state =
-      type === "wave"
-        ? new TaskGraph(new PlanDocType("plan").parse(planText!.split("\n")))
-        : EMPTY_RUN_STATE;
+    const ledger = new Ledger(workspace, config, planSource);
+    // The run state degrades to the empty state on a non-ready plan: the scene is
+    // assembled BEFORE the pre-flight verdict, and the refusal leg (Task 4's
+    // doc-contract leg) stops the dispatch before any `state` consumer runs. No
+    // try/catch: the read has already happened, so assembly has no throw point.
+    const graph = plan.graph();
+    const state: RunState = type === "wave" && graph !== null ? graph : EMPTY_RUN_STATE;
     // The pipeline frontier's four declared cells (§11) — the composition root's ONE
     // collection point. The identity word + path come from the document index (never
     // the argv `--type` spelling): every non-plan declared document owns the identity
     // slot, so `phase-spec` / `single-spec` / `overall` all reach the same assembly.
-    // The plan path is the argv value on the plan / branch lines and the index's
-    // same-slug plan on a `--spec` round whose argv names none — a spec round that
-    // dropped it would leave the frontier blind to the plan face and the capsule
-    // printing this line's own exit. The graph is the ONE guarded plan read (the wave
-    // run's already-parsed state stands in; the session plane reads no file).
+    // The plan path is the read value's OWN frontier path (`stationPath()`): a
+    // command has ONE plan path carrier, so the authority's verdict and this line's
+    // hop can never name two different documents.
     const identity = index.identityDoc(slug);
-    const hopPlanPath = planPath ?? index.planOf(slug)?.path ?? null;
     const pipeline: PipelineFrontierInput = {
       specType: identity?.docType ?? null,
       specPath: identity?.path ?? null,
-      planPath: hopPlanPath,
-      planGraph: state instanceof TaskGraph ? state : BoardView.planGraph(hopPlanPath),
+      planPath: plan.stationPath(),
+      planGraph: graph,
     };
     return {
       workspace,
       ledger,
       planPath,
-      planText,
+      plan,
       type,
       face,
       target,
@@ -1295,15 +1318,65 @@ export class Cli {
     };
   }
 
-  /** The dispatch target's workspace key — the document's declared `slug:`
-   *  (spec §2.1 · §2.4). ONE read face shared by the three work verbs and `base`:
-   *  an unreadable target, a missing `slug:`, an illegal value, or a slug the index
-   *  judges duplicated (identity or plan) each render the CDD_BLOCKED station and
-   *  return null (exit 1 at the caller — never the board's exit 2). The duplicate
-   *  judgment reads the SAME `SlugIndex` the board renders, so the two faces never
-   *  diverge (one fact, two carriers). The caller passes the document text it
-   *  already holds — the identity read never opens the file a second time. */
-  #targetSlug(index: SlugIndex, rel: RepoPath, content: string | null): string | null {
+  /** The doc face's plan read — the derived document (`plans/<slug>.md`, the face's
+   *  own naming convention) first, and the index's registered plan document when the
+   *  phase's plan is filed under another name (`s1-plan.md` beside `slug: s1` is a
+   *  legal, healthy document — the index resolves identity, not the file name). Both
+   *  entries feed the SAME `PlanSource` face, so a doc round reads one plan. */
+  #docPlanOf(
+    planSource: PlanSource,
+    index: SlugIndex,
+    entry: DocEntry | null,
+    slug: string,
+  ): PlanRead {
+    const derived = planSource.readFor(entry);
+    if (derived.kind !== "undeclared") return derived;
+    const planEntry = index.planOf(slug);
+    return planEntry === null ? derived : planSource.readPath(planEntry.path);
+  }
+
+  /** The argv-face plan read (the wave / plan / branch lines) — ONE read through the
+   *  command preamble's `PlanSource`. An `io` failure keeps today's usage byte (the
+   *  same `#usage` seam the retired `readText` rode): the workspace key has no
+   *  source, so the run stops here, BEFORE any identity is derived or any workspace
+   *  gets built — never a fabricated slug. */
+  #argvPlanOf(node: Command, planSource: PlanSource, rel: RepoPath): PlanRead {
+    const plan = planSource.readPath(rel);
+    if (plan.failure()?.cause === "io") this.#usage(node, `cannot read file: ${rel}`);
+    return plan;
+  }
+
+  /** The plan-carrier target's workspace key (the wave / plan / branch lines) — the
+   *  document's declared `slug:` (spec §2.1 · §2.4), taken from the plan READ rather
+   *  than a second text hand-off: a `ready` read supplies its parsed front-matter
+   *  head, and a `syntax` read (the grammar refused the plan, its front matter read
+   *  out) supplies the index's own entry, so the scene still assembles and the
+   *  doc-contract refusal leg can speak. An `io` failure never reaches here — it
+   *  stops at `#argvPlanOf`. A missing / illegal / duplicated slug (identity or plan)
+   *  renders the CDD_BLOCKED station and returns null (exit 1 at the caller — never
+   *  the board's exit 2). The workspace key therefore stays a `string`: no `slug!`,
+   *  no `slug ?? ""`. */
+  #targetSlug(index: SlugIndex, rel: RepoPath, read: PlanRead): string | null {
+    const head = read.doc()?.head ?? null;
+    const parseError = head?.parseError ?? null;
+    if (parseError !== null) return this.#parseErrorBlocked(parseError);
+    const slug = head !== null ? head.slug : (index.entryAt(rel)?.slug ?? null);
+    // The four-way identity gate (present · legal · indexed · unique) is the ONE
+    // `SlugIndex` judgment the pre-flight gate also reads — this carrier supplies
+    // only the CDD_BLOCKED channel, never a second spelling of the rule.
+    const verdict = index.slugVerdict(rel, slug);
+    return verdict.kind === "accepted"
+      ? verdict.slug
+      : this.#slugBlocked(this.#words.slugRefusal(verdict));
+  }
+
+  /** The text-carrier target's workspace key (the doc faces and `base`) — ONE read
+   *  face shared by the three work verbs' spec shapes and `base`: an unreadable
+   *  target, a missing `slug:`, an illegal value, or a slug the index judges
+   *  duplicated each render the CDD_BLOCKED station and return null (exit 1 at the
+   *  caller). The caller passes the document text it already holds — the identity
+   *  read never opens the file a second time. */
+  #targetSlugText(index: SlugIndex, rel: RepoPath, content: string | null): string | null {
     // An unreadable target document declares no identity — the workspace key has
     // no source, so the dispatch face refuses on the SAME carrier as a missing
     // `slug:` (never a filename-derived directory).
@@ -1313,22 +1386,25 @@ export class Cli {
       );
     const head = FrontMatterExtractor.split(content).head;
     const parseError = head.parseError;
-    if (parseError !== null)
-      return this.#slugBlocked(
-        this.#words
-          .routeWord("frontmatterParse")
-          .replace("{reason}", parseError.reason)
-          .replace("{line}", String(parseError.line))
-          .replace("{column}", String(parseError.column))
-          .replace("{source}", parseError.source),
-      );
-    // The four-way identity gate (present · legal · indexed · unique) is the ONE
-    // `SlugIndex` judgment the pre-flight gate also reads — this carrier supplies
-    // only the CDD_BLOCKED channel, never a second spelling of the rule.
+    if (parseError !== null) return this.#parseErrorBlocked(parseError);
     const verdict = index.slugVerdict(rel, head.slug);
     return verdict.kind === "accepted"
       ? verdict.slug
       : this.#slugBlocked(this.#words.slugRefusal(verdict));
+  }
+
+  /** The front-matter parse break's refusal — ONE message construction for the two
+   *  identity carriers (a broken head is unjudgeable whichever face reads it). The
+   *  bytes are the pre-existing `frontmatterParse` route word, unchanged. */
+  #parseErrorBlocked(parseError: FrontMatterParseError): null {
+    return this.#slugBlocked(
+      this.#words
+        .routeWord("frontmatterParse")
+        .replace("{reason}", parseError.reason)
+        .replace("{line}", String(parseError.line))
+        .replace("{column}", String(parseError.column))
+        .replace("{source}", parseError.source),
+    );
   }
 
   /** Read a dispatch target's text — null when the file is absent or unreadable.
@@ -1473,7 +1549,7 @@ export class Cli {
     // (and rejection carrier) the work verbs use. `base` carries no pre-flight gate,
     // so a missing / illegal / duplicated slug or an unreadable target stops HERE:
     // CDD_BLOCKED + exit 1 (never a filename-derived key).
-    const slug = this.#targetSlug(
+    const slug = this.#targetSlugText(
       SlugIndex.build(repoRoot),
       planPath,
       this.#readTarget(root, planPath),

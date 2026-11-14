@@ -34,6 +34,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PlanDocType } from "../../contract/doc.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { PlanSource } from "../../infra/plan-source.ts";
+import { RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { TaskGraph } from "../graph.ts";
 import { Ledger } from "../ledger.ts";
@@ -119,6 +121,7 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     new Ledger(
       new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure(),
       new ConfigLoader(),
+      new PlanSource(new RepoRoot(repo)),
     );
 
   const inputOf = (over: Partial<PipelineFrontierInput> = {}): PipelineFrontierInput => ({

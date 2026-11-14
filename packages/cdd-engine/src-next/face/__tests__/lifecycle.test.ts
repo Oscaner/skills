@@ -39,6 +39,7 @@ import {
 } from "../../contract/completion-criterion.ts";
 import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { PlanSource } from "../../infra/plan-source.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierRulings } from "../../session/carrier-rulings.ts";
@@ -140,7 +141,7 @@ const fixture = (plan: string): Fixture => {
   spawnSync("git", ["add", "-A"], { cwd: repoRoot });
   spawnSync("git", ["commit", "-q", "-m", "seed"], { cwd: repoRoot });
   const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p30").ensure();
-  const ledger = new Ledger(workspace, new ConfigLoader());
+  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
   return {
     scene: { workspace, ledger, planPath, briefPath: null },
     io: new CaptureIo(),

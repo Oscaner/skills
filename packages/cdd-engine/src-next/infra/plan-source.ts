@@ -352,9 +352,11 @@ export class PlanSource {
   /** The derived face: `entry.slug` is the whole identity, the path is derived from
    *  it. An absent derived path is `undeclared` (this phase has no plan yet); an
    *  existing path whose bytes do not read is `unreadable`/`io`. No reverse lookup
-   *  and no index: the entry IS the identity document. */
-  readFor(entry: DocEntry): PlanRead {
-    const slug = entry.slug;
+   *  and no index: the entry IS the identity document. A null entry (an identity the
+   *  index did not register) carries no slug, so it reads exactly like a slug-less
+   *  entry: `undeclared` — never a minted value. */
+  readFor(entry: DocEntry | null): PlanRead {
+    const slug = entry?.slug ?? null;
     if (slug === null) return new PlanRead({ kind: "undeclared" });
     const rel = `${ENGINE_RUNTIME.docRoots.plans}/${slug}.md`;
     if (!this.#fs.exists(this.#abs(rel))) return new PlanRead({ kind: "undeclared" });

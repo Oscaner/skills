@@ -21,6 +21,7 @@ import { PlanDocType } from "../../contract/doc.ts";
 import { Contract } from "../../contract/judge.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { PlanSource } from "../../infra/plan-source.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { TaskGraph } from "../graph.ts";
 import { Ledger } from "../ledger.ts";
@@ -37,7 +38,7 @@ const fixture = (): { ledger: Ledger; repo: string; cleanup: () => void } => {
     "wave-slug",
   );
   return {
-    ledger: new Ledger(workspace, new ConfigLoader()),
+    ledger: new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)),
     repo,
     cleanup: () => rmSync(repo, { recursive: true, force: true }),
   };

@@ -26,6 +26,7 @@ import { ARGV_CHANNEL } from "../../face/declare.ts";
 import { RouteRenderer } from "../../face/route-render.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { PlanSource } from "../../infra/plan-source.ts";
 import type { RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import {
@@ -63,7 +64,7 @@ const fixture = (): Fixture => {
   return {
     repo,
     basis: workspace.root.basis,
-    ledger: new Ledger(workspace, new ConfigLoader()),
+    ledger: new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)),
     cleanup: () => rmSync(repo, { recursive: true, force: true }),
   };
 };

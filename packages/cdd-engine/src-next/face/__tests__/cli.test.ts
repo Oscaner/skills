@@ -52,11 +52,14 @@ import {
   FIX_DISPOSITIONS_UNRECORDED,
   IMPLEMENT_CARRIER_ABSENT,
 } from "../../contract/completion-criterion.ts";
+import { PlanDocType } from "../../contract/doc.ts";
 import { Contract } from "../../contract/judge.ts";
 import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
+import { PlanSource } from "../../infra/plan-source.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
+import { RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
 import { REVIEWS } from "../../render/templates.ts";
@@ -299,8 +302,10 @@ const readJson = <T>(file: string): T => {
  *  gate binds the task sections, never the whole plan and never the `## Constraints`
  *  mirror the child receives). */
 const briefRevision = (repoRoot: string, plan: string, tasks: string) => {
+  const text = readFileSync(plan, "utf8");
   const brief = new BriefRenderer().taskBody(
-    readFileSync(plan, "utf8"),
+    text,
+    new PlanDocType("plan").parse(text.split("\n")),
     tasks.split(",").map(Number),
   );
   return {
@@ -1874,7 +1879,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       mkdirSync(path.dirname(spec), { recursive: true });
       writeFileSync(spec, "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\n---\n\nspec\n", "utf8");
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       ledger.persistHandoff(
         "review",
         "phase-spec",
@@ -1958,7 +1967,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const plan = planFor(repoRoot);
       // Seed the implement + a blocker review round (the fix's C5-1 input).
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
         "review",
@@ -1999,7 +2012,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
         "review",
@@ -2058,7 +2075,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
         "review",
@@ -2095,7 +2116,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       ledger.recordRound(1, { op: "implement" });
       // The routing source (the review handoff) carries findings, so the hop is `fix`;
       // the fix route's `--reviews` input is a DIFFERENT carrier with an EMPTY findings
@@ -2168,7 +2193,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         runner.planPath = plan;
         runner.rewrite = rewrite;
         const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-        const ledger = new Ledger(workspace, new ConfigLoader());
+        const ledger = new Ledger(
+          workspace,
+          new ConfigLoader(),
+          new PlanSource(workspace.root.basis),
+        );
         ledger.recordRound(1, { op: "implement" });
         ledger.persistHandoff(
           "review",
@@ -2261,7 +2290,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         runner.planPath = plan;
         runner.mutate = mutate;
         const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-        const ledger = new Ledger(workspace, new ConfigLoader());
+        const ledger = new Ledger(
+          workspace,
+          new ConfigLoader(),
+          new PlanSource(workspace.root.basis),
+        );
         ledger.recordRound(1, { op: "implement" });
         ledger.persistHandoff(
           "review",
@@ -2327,7 +2360,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           .replace("- delta", "- delta (amended)")
           .replace("  - step — checkable: green", "  - step — checkable: green (amended)");
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
         "review",
@@ -2379,7 +2416,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // find #9 — the branch line's workspace is the plan-slug (the fix dispatch's
       // --plan); the handoff file is the spine name `branch-review-{round}.json`.
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       const params = { round: 1 };
       ledger.persistHandoff("review", "branch", params, {
         phase: "branch-review",
@@ -2431,7 +2472,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // so the PIPELINE frontier — the assembly the capsule now renders (P24 §11) —
       // sits on the branch face this review closes.
       const node = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const seed = new Ledger(node, new ConfigLoader());
+      const seed = new Ledger(node, new ConfigLoader(), new PlanSource(node.root.basis));
       seed.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
       seed.recordRound("phase-spec", { op: "review" });
       seed.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
@@ -2523,7 +2564,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // anchor — the state a finished run reaches.
       expect(await command.runArgv(["review", "--type", "branch", "--plan", plan])).toBe(0);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
       ledger.recordRound("phase-spec", { op: "review" });
       ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
@@ -2593,6 +2638,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const ledger = new Ledger(
         new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure(),
         new ConfigLoader(),
+        new PlanSource(new RepoRoot(repoRoot)),
       );
       ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
       ledger.recordRound("phase-spec", { op: "review" });
@@ -2702,7 +2748,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // seed the wave's implement round so the review face is dispatchable (the wave
       // line advances implement → review as ONE train)
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       ledger.recordRound("1", { op: "implement" });
       ledger.persistHandoff(
         "implement",
@@ -2787,7 +2837,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
 
         // ② a wave fix round — the fix role carries the wave word
         const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-        const ledger = new Ledger(workspace, new ConfigLoader());
+        const ledger = new Ledger(
+          workspace,
+          new ConfigLoader(),
+          new PlanSource(workspace.root.basis),
+        );
         const findings = [{ severity: "blocker", lens: "code", summary: "drift" }];
         ledger.persistHandoff(
           "implement",
@@ -2896,7 +2950,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           new WorkspaceRoot(repoRoot, ".kairos/cdd"),
           "o1-overall",
         ).ensure();
-        const ledger = new Ledger(workspace, new ConfigLoader());
+        const ledger = new Ledger(
+          workspace,
+          new ConfigLoader(),
+          new PlanSource(workspace.root.basis),
+        );
         const findings = [{ severity: "warn", lens: "scope", summary: "drift" }];
         const reviews = path.join(workspace.path, "overall-review-1.json");
         writeFileSync(reviews, JSON.stringify({ findings }), "utf8");
@@ -3445,7 +3503,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // line-type constant (§3.7), zero reviewed revision bound. The line's identity
       // is the line type, never the argv path.
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "s1").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       ledger.persistHandoff(
         "review",
         "phase-spec",
@@ -3488,7 +3550,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // doc-contract clean, and this pin is about the hop, not the dispatch gate) so
       // the plan IS the pipeline frontier the board observes.
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
       ledger.recordRound("phase-spec", { op: "review" });
       // The plan line has not started its C5 — asking for a `fix` round is refused,
@@ -3768,7 +3834,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       expect(ledger.counterOf("timeoutCount")).toBe(0);
       const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       // The failure face — exit 1 with the capsule naming the TIMEOUT status…
@@ -3794,7 +3864,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
       expect(ledger.counterOf("timeoutCount")).toBe(1);
@@ -3816,7 +3890,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       // a recorded implement + blocker review round → the line awaits its fix
       ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
@@ -3882,7 +3960,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // the WAVE row carries the implement round — review is the open phase for the whole
       // wave (the retired per-task build could never hold a mixed-phase wave-unitary row).
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "two").ensure();
-      new Ledger(workspace, new ConfigLoader()).recordRound("1,2", { op: "implement" });
+      new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)).recordRound(
+        "1,2",
+        { op: "implement" },
+      );
       io.stderrText = "";
       // review on the implemented multi-task wave passes the gate (the preview renders).
       expect(
@@ -4125,7 +4206,11 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // dispatch reads a finding-bearing review carrier back and still lands its
       // final carrier on the work face (the fix-will-not-mirror-findings probe)
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       ledger.persistHandoff(
         "review",
         "wave",
@@ -5317,7 +5402,11 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
         new WorkspaceRoot(repoRoot, ".kairos/cdd"),
         "prog-p1",
       ).ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       const persisted = ledger.persistHandoff(
         "review",
         "plan",
@@ -5787,7 +5876,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
   /** A hermetic harness scene (workspace + ledger) for frame dispatch tests. */
   function harnessScene(repoRoot: string, slug = "p3"): DispatchScene {
     const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), slug).ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     return { workspace, ledger, planPath: null, briefPath: null };
   }
 
@@ -5992,7 +6081,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       const scene: DispatchScene = {
         workspace,
         ledger,
@@ -6031,7 +6124,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       const briefPath = path.join(workspace.path, "tasks-1-brief.md");
       // The scene carries the brief path but NO brief file is written to disk — the
       // read is the scene's fact, not the filesystem's (the retired existsSync guard).
@@ -6068,7 +6165,11 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       const scene: DispatchScene = {
         workspace,
         ledger,
@@ -7354,7 +7455,10 @@ describe("the HarnessDispatch — the production dispatch default", () => {
   /** A hermetic workspace + ledger for the CLI E2E dispatch cases. */
   function cliScene(repoRoot: string): { workspace: Workspace; ledger: Ledger } {
     const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-    return { workspace, ledger: new Ledger(workspace, new ConfigLoader()) };
+    return {
+      workspace,
+      ledger: new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)),
+    };
   }
 
   /** Seed the wave's review phase — the implement round recorded on the wave line. */
@@ -8320,8 +8424,14 @@ const sceneOf = (
   briefPath: string | null = null,
 ): DispatchScene => {
   const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-  const ledger = new Ledger(workspace, new ConfigLoader());
-  return { workspace, ledger, planPath, briefPath };
+  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  return {
+    workspace,
+    ledger,
+    planPath,
+    plan: planPath === null ? null : new PlanSource(new RepoRoot(repoRoot)).readPath(planPath),
+    briefPath,
+  };
 };
 
 const P21_IMPLEMENT: OpenFrame = {
@@ -8608,7 +8718,8 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const plan = readFileSync(planPath, "utf8");
       // the child's brief file carries the Constraints mirror; the reviewed hash covers
       // the task-only projection (P29 §2.2)
-      writeFileSync(briefPath, renderer.render(plan, [1]), "utf8");
+      const planDoc = new PlanDocType("plan").parse(plan.split("\n"));
+      writeFileSync(briefPath, renderer.render(plan, planDoc, [1]), "utf8");
       const scene = sceneOf(repoRoot, planPath, briefPath);
       // The ledger carries NO `brief-revision` record yet (the wave's first dispatch).
       expect(scene.ledger.reviewedRevisionOf("1")).toBeNull();
@@ -8619,7 +8730,10 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const record = JSON.parse(runner.recordAtSpawn as string) as InFlightRecord;
       const expected = scene.ledger
         .refs()
-        .briefRevision(path.relative(repoRoot, planPath), renderer.taskBody(plan, [1])).brief_hash;
+        .briefRevision(
+          path.relative(repoRoot, planPath),
+          renderer.taskBody(plan, planDoc, [1]),
+        ).brief_hash;
       expect(record.briefHash).toBe(expected);
       // The SAME hash the ledger binds when the review completes (same projection face).
       expect(record.briefHash).toBe(briefRevision(repoRoot, planPath, "1").brief_hash);
@@ -8721,7 +8835,11 @@ describe("P30 — `--recover` folds a stale in-flight record before the new roun
         else process.env.CLAUDE_CODE_SESSION_ID = saved;
       }
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3");
-      const records = new Ledger(workspace, new ConfigLoader()).recordsOf("1", "wave");
+      const records = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      ).recordsOf("1", "wave");
       // The abort fact landed FIRST, with the record's own identity and baseline.
       expect(records[0]).toMatchObject({
         op: "implement",
@@ -8809,7 +8927,7 @@ const plantStaleRecord = (repoRoot: string): void => {
 /** The fixture's ledger read (the assertions' one read face). */
 const ledgerOf = (repoRoot: string): Ledger => {
   const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-  return new Ledger(workspace, new ConfigLoader());
+  return new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
 };
 
 describe("P30 §2.3 — the `--recover` reopen leg", () => {

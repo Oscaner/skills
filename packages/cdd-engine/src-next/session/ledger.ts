@@ -27,6 +27,7 @@ import { basename } from "node:path";
 import { DocBodyProjection } from "../contract/doc-body.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
 import type { ConfigLoader } from "../infra/config.ts";
+import type { PlanSource } from "../infra/plan-source.ts";
 import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
@@ -666,13 +667,20 @@ export class Ledger {
    *  dispatch input (a backfill touching other tasks, or a Constraints reword, must
    *  not void a reviewed wave). */
   readonly #brief = new BriefRenderer();
+  /** The plan read seam (D30) — the reviewed brief's ONLY read of `reviewed.plan`:
+   *  the drift judgment re-reads the path the round recorded, through the same
+   *  per-command `PlanSource` the dispatch read its plan through. The ledger itself
+   *  never opens a file for the brief, so the observation face can never make the
+   *  hash subject drift. */
+  readonly #plan: PlanSource;
   /** The round-naming single source over this ledger's workspace — the crash
    *  artifact names derive here (zero second derivation). */
   readonly #naming: RoundNaming;
 
-  constructor(workspace: Workspace, config: ConfigLoader) {
+  constructor(workspace: Workspace, config: ConfigLoader, plan: PlanSource) {
     this.#workspace = workspace;
     this.#families = config.handoffNamespace().families;
+    this.#plan = plan;
     this.#naming = new RoundNaming(workspace);
   }
 
@@ -918,6 +926,19 @@ export class Ledger {
     this.writeProgress(data);
   }
 
+  /** Record a branch line's reviewed PLAN revision (P21 §4.1) — the plan
+   *  document's body revision as the round LEFT it. The read rides the ledger's own
+   *  `PlanSource` (the ONE plan read point; the incoming path is repoRoot-relative),
+   *  so a round that edited its plan binds the edited bytes — never the dispatch-time
+   *  snapshot — while a non-ready read records nothing (present facts only, the
+   *  symmetric failure face to `recordReviewedBrief`). */
+  recordReviewedPlanRevision(key: LedgerKey, planPath: string, identity: TargetType): void {
+    const read = this.#plan.readPath(planPath);
+    const text = read.text();
+    if (text === null) return;
+    this.recordReviewedRevision(key, this.#refs.docRevision(planPath, text), identity);
+  }
+
   /** Record a wave line's reviewed BRIEF revision (D30) — the hash of the wave's
    *  TASK-ONLY projection (P29 §2.2: the task sections, `## Constraints` excluded).
    *  A backfill touching OTHER tasks leaves this projection byte-identical, and so
@@ -931,14 +952,20 @@ export class Ledger {
   /** The wave line's reviewed-basis revision (D30) — the hash of the wave's TASK-ONLY
    *  projection (`BriefRenderer#taskBody`: the task sections, `## Constraints`
    *  excluded — P29 §2.2). The `plan` layer is the plan the brief renders from, the
-   *  `brief_hash` layer the projection's own digest. Null when the plan is unreadable
-   *  or a requested task is absent (present facts only). */
+   *  `brief_hash` layer the projection's own digest. The read rides the injected
+   *  `PlanSource` (the ONE plan read seam), so a non-ready read — an unreadable plan,
+   *  a grammar break — records nothing. Null when the plan is unreadable or a
+   *  requested task is absent (present facts only). */
   #briefRevision(waveKey: string, planPath: string): BriefRevisionRef | null {
+    const read = this.#plan.readPath(planPath);
+    const text = read.text();
+    const doc = read.doc();
+    if (text === null || doc === null) return null;
     try {
       const tasks = waveKey.split(",").map((part) => Number(part));
+      const brief = this.#brief.taskBody(text, doc, tasks);
       // The plan layer is stored repoRoot-relative (P9 T4 §2.7) — one basis with
-      // every persisted path field; the read erases to absolute at the syscall edge.
-      const brief = this.#brief.taskBody(readFileSync(this.#abs(planPath), "utf8"), tasks);
+      // every persisted path field.
       return this.#refs.briefRevision(this.#rel(planPath), brief);
     } catch {
       return null;

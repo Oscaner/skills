@@ -26,13 +26,13 @@
 // Module-level exports are types / the class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 
-import { PlanDocType } from "../contract/doc.ts";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { type DocFs, type Finding, LedgerTaskSetRule, NodeFs } from "../contract/invariants.ts";
 import { Contract, type ContractInput, type LedgerFacts } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import type { Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
+import type { PlanRead } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { SlugIndex } from "../infra/slug-index.ts";
 import { TargetFaceTable, type TargetType } from "./faces.ts";
@@ -133,8 +133,10 @@ export interface PreFlightContext {
   type: TargetType;
   /** The repo root the tree-clean gate reads. */
   repoRoot: string;
-  /** The plan text (the wave/plan faces' graph gate input; null otherwise). */
-  planText: string | null;
+  /** The plan read (the wave/plan faces' graph gate input and the plan-ledger fact
+   *  source; the derived face's `undeclared` value elsewhere) — the ONE plan fact of
+   *  this dispatch, read before the seam runs. */
+  plan: PlanRead;
   /** The session ledger (the plan-ledger gate's fact source). */
   ledger: Ledger | null;
   /** The doc-contract target of a spec/plan dispatch (null on the other faces). */
@@ -221,25 +223,27 @@ export class PreFlight {
     }
     // 3. graph — the wave/plan faces' structural gate.
     let graph: TaskGraph | null = null;
-    if ((ctx.type === "wave" || ctx.type === "plan") && ctx.planText !== null) {
+    if ((ctx.type === "wave" || ctx.type === "plan") && ctx.plan.kind === "ready") {
       gates.push("graph");
       checked.push("graph");
-      graph = new TaskGraph(new PlanDocType("plan").parse(ctx.planText.split("\n")));
-      const issues = graph.validate();
-      if (issues.length > 0) {
-        return this.#refusal(
-          {
-            ok: false,
-            gate: "graph",
-            reason: "graph",
-            message: this.#words.preflightWords().graph.replace("{count}", String(issues.length)),
-            details: issues.map((issue) => `${issue.kind}@T${issue.task}: ${issue.message}`),
-          },
-          gates,
-          checked,
-          this.#docOutcomeOf(ctx),
-          { kind: "no-ledger-facts" },
-        );
+      graph = ctx.plan.graph();
+      if (graph !== null) {
+        const issues = graph.validate();
+        if (issues.length > 0) {
+          return this.#refusal(
+            {
+              ok: false,
+              gate: "graph",
+              reason: "graph",
+              message: this.#words.preflightWords().graph.replace("{count}", String(issues.length)),
+              details: issues.map((issue) => `${issue.kind}@T${issue.task}: ${issue.message}`),
+            },
+            gates,
+            checked,
+            this.#docOutcomeOf(ctx),
+            { kind: "no-ledger-facts" },
+          );
+        }
       }
     }
     // 4. plan-ledger — the ledger-scope rules (P21 §3.1/§6.4). Plan / wave / branch
@@ -500,15 +504,15 @@ export class PreFlight {
     return rows;
   }
 
-  /** The ledger fact bundle of one dispatch — built from the ledger, the plan text
-   *  and the plan's topological layers. Null when either fact source is absent
-   *  (the gate then renders `skipped (no ledger facts)`). */
+  /** The ledger fact bundle of one dispatch — built from the ledger, the plan read
+   *  and the plan's topological layers. Null when either fact source is absent (the
+   *  gate then renders `skipped (no ledger facts)`). */
   #ledgerFactsOf(ctx: PreFlightContext, graph: TaskGraph | null): LedgerFacts | null {
     const ledger = ctx.ledger;
-    if (ledger === null || ctx.planText === null) return null;
-    const parsed = new PlanDocType("plan").parse(ctx.planText.split("\n"));
-    const planTasks = parsed.taskBlocks.map((block) => block.id);
-    const layers = (graph ?? new TaskGraph(parsed)).batches();
+    const doc = ctx.plan.doc();
+    if (ledger === null || doc === null) return null;
+    const planTasks = doc.taskBlocks.map((block) => block.id);
+    const layers = (graph ?? ctx.plan.graph() ?? new TaskGraph(doc)).batches();
     const data = ledger.readProgress();
     const recorded = this.#recordedTasksOf(data);
     const closed = ledger.closedWaves();
@@ -577,7 +581,7 @@ export class PreFlight {
     return {
       docKey: "plan",
       path: ctx.doc?.path ?? "",
-      content: ctx.planText ?? "",
+      content: ctx.plan.text() ?? "",
       root: ctx.repoRoot,
       fs: this.#fs,
     };

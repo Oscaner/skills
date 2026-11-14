@@ -14,7 +14,10 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { PlanDocType } from "../../contract/doc.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { PlanSource } from "../../infra/plan-source.ts";
+import { RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
 import { BriefRenderer } from "../brief.ts";
@@ -45,15 +48,19 @@ const PLAN = [
   "",
 ].join("\n");
 
+/** The plan's ONE parse — the brief renders the document the plan read produced. */
+const PLAN_DOC = new PlanDocType("plan").parse(PLAN.split("\n"));
+
 describe("BriefRenderer — the reviewed-fingerprint stability (D30)", () => {
   it("renders the same plan to the same bytes twice — the projection never depends on render state", () => {
     const renderer = new BriefRenderer();
-    const first = renderer.taskBody(PLAN, [1]);
-    const second = renderer.taskBody(PLAN, [1]);
+    const first = renderer.taskBody(PLAN, PLAN_DOC, [1]);
+    const second = renderer.taskBody(PLAN, PLAN_DOC, [1]);
     expect(second).toBe(first);
     const refs = new Ledger(
       new Workspace(new WorkspaceRoot("/repo", ".kairos/cdd"), "p3"),
       new ConfigLoader(),
+      new PlanSource(new RepoRoot("/repo")),
     ).refs();
     expect(refs.briefRevision("p.md", second).brief_hash).toBe(
       refs.briefRevision("p.md", first).brief_hash,
@@ -61,7 +68,7 @@ describe("BriefRenderer — the reviewed-fingerprint stability (D30)", () => {
   });
 
   it("starts with the first requested `### Task …` heading — zero preamble, zero version line", () => {
-    const brief = new BriefRenderer().taskBody(PLAN, [1]);
+    const brief = new BriefRenderer().taskBody(PLAN, PLAN_DOC, [1]);
     expect(brief.split("\n")[0]).toBe("### Task 1: first task");
     // The rendered brief opens the task section verbatim (no injected header), so a
     // pre-existing plan's reviewed hash stays derivable.
@@ -78,24 +85,28 @@ describe("BriefRenderer — the reviewed-fingerprint stability (D30)", () => {
       ).ensure();
       const planPath = path.join(repo, "p3.md");
       writeFileSync(planPath, PLAN, "utf8");
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       ledger.recordReviewedBrief("1", planPath);
       const recorded = ledger.reviewedRevisionOf("1");
       expect(recorded?.kind).toBe("brief-revision");
       if (recorded?.kind !== "brief-revision") return;
-      const projection = new BriefRenderer().taskBody(PLAN, [1]);
-      const direct = new Ledger(workspace, new ConfigLoader())
+      const projection = new BriefRenderer().taskBody(PLAN, PLAN_DOC, [1]);
+      const direct = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis))
         .refs()
         .briefRevision("x", projection);
       expect(recorded.brief_hash).toBe(direct.brief_hash);
       expect(recorded.plan).toBe("p3.md");
       // the child's render still carries the plan's `## Constraints` mirror, while the
       // reviewed hash covers the task projection alone (P29 §2.2)
-      expect(new BriefRenderer().render(PLAN, [1])).toContain("## Constraints");
+      expect(new BriefRenderer().render(PLAN, PLAN_DOC, [1])).toContain("## Constraints");
       expect(recorded.brief_hash).not.toBe(
-        new Ledger(workspace, new ConfigLoader())
+        new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis))
           .refs()
-          .briefRevision("x", new BriefRenderer().render(PLAN, [1])).brief_hash,
+          .briefRevision("x", new BriefRenderer().render(PLAN, PLAN_DOC, [1])).brief_hash,
       );
     } finally {
       rmSync(repo, { recursive: true, force: true });
@@ -134,9 +145,11 @@ const HEADING_PLAN = [
   "",
 ].join("\n");
 
+const HEADING_PLAN_DOC = new PlanDocType("plan").parse(HEADING_PLAN.split("\n"));
+
 describe("BriefRenderer — the heading-shape task block (P21 §7)", () => {
   it("renders a block's `####` subsections byte for byte — the retired `^#` scan truncated them", () => {
-    const out = new BriefRenderer().render(HEADING_PLAN, [1]);
+    const out = new BriefRenderer().render(HEADING_PLAN, HEADING_PLAN_DOC, [1]);
     expect(out).toContain("### Task 1: first task");
     expect(out).toContain("#### Objective\ndo the first thing");
     expect(out).toContain("#### Risks\na risk body");

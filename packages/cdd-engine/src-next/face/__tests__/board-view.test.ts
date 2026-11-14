@@ -20,6 +20,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
+import { type PlanRead, PlanSource } from "../../infra/plan-source.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { type DocEntry, SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
@@ -37,6 +38,12 @@ import { Cli, type CliIo, type CliOptions } from "../cli.ts";
 import { ARGV_CHANNEL } from "../declare.ts";
 import { RouteRenderer } from "../route-render.ts";
 import { Words } from "../words.ts";
+
+/** The plan read for one fixture plan — a REAL read through the seam (the value is
+ *  never hand-minted: `PlanRead` has no factory), on the fixture repo's own basis so
+ *  the value speaks the same path shape the ledgers normalize through. */
+const planReadOf = (repo: string, planPath: string | null): PlanRead | null =>
+  planPath === null ? null : new PlanSource(new RepoRoot(repo)).readPath(planPath);
 
 /** One `NextHop` from the ONE derivation — a route + the frame's target, with the
  *  board's declaration-reading station discrimination injected. */
@@ -103,8 +110,9 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const root = new RepoRoot(repo);
     // The board's `next:` line renders the assembly face's ONE injected `NextHop`
     // (P22 §5.2) — the same object the CLI's board command hands it.
-    const next = BoardNext.of(index, entry, root);
+    const next = BoardNext.of(new PlanSource(root), index, entry, root);
     const board = BoardView.render(
+      new PlanSource(root),
       index,
       entry,
       repo,
@@ -222,7 +230,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     ]);
     // Close wave {1}: a recorded zero-findings review round.
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
     ledger.recordRound("1", { op: "review" });
 
@@ -271,7 +279,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "- **DependsOn**: none",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     // ONE record write — op · cycle · attempt — read back through RoundRecords.of
     ledger.recordRound("1", { op: "review", cycle: 1, attempt: 1 });
 
@@ -524,7 +532,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     ]);
     // Close the spec line: a recorded zero-findings spec review.
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
     ledger.recordRound("phase-spec", { op: "review" });
 
@@ -580,7 +588,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "- **DependsOn**: none",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     // spec closed (a recorded zero-findings spec review)
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
     ledger.recordRound("phase-spec", { op: "review" });
@@ -634,7 +642,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "---",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "plan", { round: 2 }, { findings: [] });
     ledger.persistHandoff("fix", "plan", { round: 2 }, { findings: [] });
     ledger.recordRound("plan", { op: "review", cycle: 1 });
@@ -781,7 +789,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "- **DependsOn**: 5",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     // Close the spec and plan lines (a recorded zero-findings review each) so the wave
     // face IS the frontier.
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
@@ -873,7 +881,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     ]);
     // Close W1 ({1}) — a recorded zero-findings review at the "1" row.
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
     ledger.recordRound("1", { op: "review" });
 
@@ -911,7 +919,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "---",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
     ledger.recordRound("phase-spec", { op: "review" });
 
@@ -948,7 +956,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "---",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
     ledger.recordRound("phase-spec", { op: "review" });
     expect(nextOf("prog-p1", "pi")).toBe("route to /skill:cdd-plan skill");
@@ -980,7 +988,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "---",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
     ledger.recordRound("phase-spec", { op: "review" });
 
@@ -1283,6 +1291,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     ]);
 
     const board = BoardView.render(
+      new PlanSource(new RepoRoot(repo)),
       SlugIndex.build(repo),
       entryFor("prog-p1"),
       repo,
@@ -1670,7 +1679,11 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     const repo = mkdtempSync(path.join(tmpdir(), "board-ladder-"));
     try {
       const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       // Pre-P31: the carrier sits on the bare family name, the record names no path.
       writeFileSync(
         path.join(workspace.path, "tasks-1-review-2.json"),
@@ -2064,8 +2077,9 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf(slug);
     const root = new RepoRoot(repo);
-    const next = BoardNext.of(index, entry, root);
+    const next = BoardNext.of(new PlanSource(root), index, entry, root);
     const board = BoardView.render(
+      new PlanSource(root),
       index,
       entry,
       repo,
@@ -2086,6 +2100,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     new Ledger(
       new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1"),
       new ConfigLoader(),
+      new PlanSource(new RepoRoot(repo)),
     );
 
   /** Enter the wave face without completing a dispatch: one BLOCKED implement round on
@@ -2127,7 +2142,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const root = new RepoRoot(repo);
-    const facts = BoardView.pipelineFacts(index, entry, root)!;
+    const facts = BoardView.pipelineFacts(new PlanSource(root), index, entry, root)!;
     const hop = new PipelineFrontier(ledger).hopOf(facts.input, {
       docClassOf: (target) => BoardView.docClassOf(root, target),
     });
@@ -2156,7 +2171,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     planDoc([[1]]);
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
-    const hop = BoardNext.of(index, entry, new RepoRoot(repo));
+    const hop = BoardNext.of(new PlanSource(new RepoRoot(repo)), index, entry, new RepoRoot(repo));
     expect(hop).not.toBeNull();
     const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)).emit(
       "APPROVED",
@@ -2189,8 +2204,9 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       const index = SlugIndex.build(repo);
       const entry = entryOf("prog-p1");
       const root = new RepoRoot(repo);
-      const next = BoardNext.of(index, entry, root);
+      const next = BoardNext.of(new PlanSource(root), index, entry, root);
       return BoardView.render(
+        new PlanSource(root),
         index,
         entry,
         repo,
@@ -2240,7 +2256,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       ledger,
       dispatch: async () => ({ status: "APPROVED", findings: [] }),
       target: { kind: "spec", doc: specPath },
-      planPath: path.join(repo, "docs/kairos/plans/prog-p1.md"),
+      plan: planReadOf(repo, path.join(repo, "docs/kairos/plans/prog-p1.md")),
     });
     const peeked = run.peekNext();
     expect(peeked?.hop?.hop).toBe("review");
@@ -2278,7 +2294,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       ledger,
       dispatch: async () => ({ status: "APPROVED", findings: [] }),
       target: { kind: "branch" },
-      planPath: planFile,
+      plan: planReadOf(repo, planFile),
     });
     // Closed and drift-free: the frontier holds no frame at all.
     expect(run.peekNext()).toBeNull();
@@ -2320,9 +2336,10 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const root = new RepoRoot(repo);
-    const hop = BoardNext.of(index, entry, root);
+    const hop = BoardNext.of(new PlanSource(root), index, entry, root);
     expect(hop).not.toBeNull();
     const boardLines = BoardView.render(
+      new PlanSource(root),
       index,
       entry,
       repo,
@@ -2362,7 +2379,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     // The divergence state: the identity line was never reviewed, so the pipeline
     // frontier HOLDS on the spec face while the wave line is at its own point. The
     // pre-T7 capsule printed the frame-keyed wave literal here; the board printed this.
-    const facts = BoardView.pipelineFacts(index, entry, root)!;
+    const facts = BoardView.pipelineFacts(new PlanSource(root), index, entry, root)!;
     const hop = new PipelineFrontier(ledger).hopOf(facts.input, {
       docClassOf: (target) => BoardView.docClassOf(root, target),
     });
@@ -2417,6 +2434,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const lines = BoardView.render(
+      new PlanSource(new RepoRoot(repo)),
       index,
       entry,
       repo,
@@ -2424,7 +2442,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       host,
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(index, entry, new RepoRoot(repo)),
+      BoardNext.of(new PlanSource(new RepoRoot(repo)), index, entry, new RepoRoot(repo)),
     ).lines;
     const nextAt = lines.findIndex((row) => row.startsWith("  next:    "));
     return {
@@ -2438,7 +2456,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     driftWaveSection(planFile);
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
-    const hop = BoardNext.of(index, entry, new RepoRoot(repo));
+    const hop = BoardNext.of(new PlanSource(new RepoRoot(repo)), index, entry, new RepoRoot(repo));
     expect(hop).not.toBeNull();
     expect(hop!.hop).toBe("review");
     // P29 §2.3 — a wave brief's task-only projection is not a document revision:
@@ -2493,7 +2511,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const root = new RepoRoot(repo);
-    const facts = BoardView.pipelineFacts(index, entry, root)!;
+    const facts = BoardView.pipelineFacts(new PlanSource(root), index, entry, root)!;
     const verdict = new DispatchAuthority().verdict({
       verb: "review",
       type: "branch",
@@ -2658,7 +2676,15 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     planDoc([[1]]);
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
-    const lines = BoardView.render(index, entry, repo, new Words(), "claude", ARGV_CHANNEL).lines;
+    const lines = BoardView.render(
+      new PlanSource(new RepoRoot(repo)),
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+    ).lines;
     expect(lines).toContain("  next:    (none)");
     expect(lines.some((row) => row.startsWith("  reason:"))).toBe(false);
   });
@@ -2679,6 +2705,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-overall");
     const lines = BoardView.render(
+      new PlanSource(new RepoRoot(repo)),
       index,
       entry,
       repo,
@@ -2686,7 +2713,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       "claude",
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(index, entry, new RepoRoot(repo)),
+      BoardNext.of(new PlanSource(new RepoRoot(repo)), index, entry, new RepoRoot(repo)),
     ).lines;
     expect(lines).toContain("  next:    done");
     expect(lines.some((row) => row.startsWith("  reason:"))).toBe(false);
@@ -2698,6 +2725,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const board = BoardView.render(
+      new PlanSource(new RepoRoot(repo)),
       index,
       entry,
       repo,
@@ -2705,7 +2733,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       "claude",
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(index, entry, new RepoRoot(repo)),
+      BoardNext.of(new PlanSource(new RepoRoot(repo)), index, entry, new RepoRoot(repo)),
     );
     const text = board.lines.join("\n");
     expect(text).not.toContain(repo);
@@ -2723,6 +2751,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const text = BoardView.render(
+      new PlanSource(new RepoRoot(repo)),
       index,
       entry,
       repo,
@@ -2730,7 +2759,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       "claude",
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(index, entry, new RepoRoot(repo)),
+      BoardNext.of(new PlanSource(new RepoRoot(repo)), index, entry, new RepoRoot(repo)),
     ).lines.join("\n");
     expect(text).toContain("review 10 ✓");
     expect(text).not.toMatch(/review 1[–-]10/);

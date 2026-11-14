@@ -9,6 +9,7 @@
 // completeness pin over the word table.
 
 import { describe, expect, it } from "vitest";
+import { PlanDocType } from "../../contract/doc.ts";
 import { Translator } from "../../contract/translate.ts";
 import { DISPATCH } from "../../face/host.ts";
 import { TerminationPolicy } from "../../face/termination.ts";
@@ -826,11 +827,20 @@ const PLAN = [
   "- **DependsOn**: none",
 ].join("\n");
 
+/** The plan's ONE parse — the brief consumes the document the plan read produced,
+ *  never a parse of its own. */
+const PLAN_DOC = new PlanDocType("plan").parse(PLAN.split("\n"));
+
+/** A plan whose `## Constraints` section follows the task blocks (the render's
+ *  complete-mirror input) plus its parse. */
+const CONSTRAINED_PLAN = `${PLAN}\n\n## Constraints\n\n- keep it simple\n`;
+const CONSTRAINED_DOC = new PlanDocType("plan").parse(CONSTRAINED_PLAN.split("\n"));
+
 describe("BriefRenderer — the brief data rendering + the checkable gate", () => {
   const brief = new BriefRenderer();
 
   it("extracts the requested task blocks with fields, steps and checkables", () => {
-    const { data, missing } = brief.extract(PLAN, [1, 2]);
+    const { data, missing } = brief.extract(PLAN, PLAN_DOC, [1, 2]);
     expect(missing).toEqual([]);
     expect(data.map((task) => task.id)).toEqual([1, 2]);
     expect(data[0].steps.map((step) => step.action)).toEqual(["step with checkable", "step two"]);
@@ -839,44 +849,46 @@ describe("BriefRenderer — the brief data rendering + the checkable gate", () =
   });
 
   it("checkable gate: a step without — checkable: is reported and blocks the verdict", () => {
-    const { data } = brief.extract(PLAN, [1, 2]);
+    const { data } = brief.extract(PLAN, PLAN_DOC, [1, 2]);
     expect(data[0].checkableComplete).toBe(true);
     expect(data[1].checkableComplete).toBe(false);
     expect(data[1].missingCheckables).toEqual(["bare step"]);
   });
 
-  it("the task-heading pattern rides the parse face (T3 tokens consumption)", () => {
-    expect(brief.taskHeadingPattern()?.test("### Task 3:")).toBe(true);
-    expect(brief.taskHeadingPattern()?.test("### Task 12:")).toBe(true);
+  it("never parses: a bad-grammar text with another plan's parse does not throw the parse face's error", () => {
+    // The brief owns no parser. Handing it a text the grammar would refuse while
+    // the caller's parsed document is sound must render the DOCUMENT's blocks — a
+    // second parse here would reject the text and change the brief's bytes.
+    const badGrammar = `${PLAN}\n### Task 27 carries the reserved section: dup\n`;
+    const out = brief.taskBody(badGrammar, PLAN_DOC, [1]);
+    expect(out.startsWith("### Task 1: one")).toBe(true);
   });
 
   it("out-of-bounds: a missing task id is listed and the render blocks", () => {
-    const { missing } = brief.extract(PLAN, [1, 5]);
+    const { missing } = brief.extract(PLAN, PLAN_DOC, [1, 5]);
     expect(missing).toEqual([5]);
-    expect(() => brief.render(PLAN, [1, 5])).toThrow(/task 5/);
+    expect(() => brief.render(PLAN, PLAN_DOC, [1, 5])).toThrow(/task 5/);
   });
 
   it("taskBody — the task-only projection the reviewed hash binds, `## Constraints` excluded", () => {
-    const planWithConstraints = `${PLAN}\n\n## Constraints\n\n- keep it simple\n`;
-    const body = brief.taskBody(planWithConstraints, [1]);
+    const body = brief.taskBody(CONSTRAINED_PLAN, CONSTRAINED_DOC, [1]);
     expect(body).toContain("### Task 1: one");
     expect(body).not.toContain("## Constraints");
     // the child's render is that projection plus the Constraints mirror
-    expect(brief.render(planWithConstraints, [1])).toContain(body.trimEnd());
+    expect(brief.render(CONSTRAINED_PLAN, CONSTRAINED_DOC, [1])).toContain(body.trimEnd());
     // out-of-bounds blocks the projection too (one gate, two consumers)
-    expect(() => brief.taskBody(PLAN, [5])).toThrow(/task 5/);
+    expect(() => brief.taskBody(PLAN, PLAN_DOC, [5])).toThrow(/task 5/);
   });
 
   it("renders the brief content — the raw task sections + the plan's ## Constraints mirror", () => {
-    const planWithConstraints = `${PLAN}\n\n## Constraints\n\n- keep it simple\n`;
-    const out = brief.render(planWithConstraints, [1]);
+    const out = brief.render(CONSTRAINED_PLAN, CONSTRAINED_DOC, [1]);
     expect(out).toContain("### Task 1: one");
     expect(out).toContain("- **Objective**: objective");
     expect(out).toContain("## Constraints");
     expect(out).toContain("- keep it simple");
     expect(out).not.toContain("WAVE_BASE");
     // a plan without a ## Constraints section renders the task sections alone
-    const bare = brief.render(PLAN, [1]);
+    const bare = brief.render(PLAN, PLAN_DOC, [1]);
     expect(bare).not.toContain("## Constraints");
   });
 });

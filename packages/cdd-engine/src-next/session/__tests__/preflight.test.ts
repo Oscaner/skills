@@ -25,7 +25,8 @@ import type { DocKey } from "../../contract/project.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
-import type { RepoPath } from "../../infra/root.ts";
+import { type PlanRead, PlanSource } from "../../infra/plan-source.ts";
+import { type RepoPath, RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { targetFaces } from "../faces.ts";
 import { InFlight, type InFlightRecord } from "../inflight.ts";
@@ -80,6 +81,32 @@ const planDoc = (blocks: readonly (readonly string[])[]): string => {
     ...blocks.flat(),
   ].join("\n");
 };
+
+/** One synthetic plan read as the seam produces it — a REAL read (the `ready` state
+ *  has no factory): the document lands in the fixture repo and comes back through
+ *  the same `PlanSource` production uses. */
+const planReadOf = (repoRoot: string, blocks: readonly (readonly string[])[]): PlanRead => {
+  const rel = "docs/kairos/plans/preflight.md";
+  const abs = path.join(repoRoot, rel);
+  mkdirSync(path.dirname(abs), { recursive: true });
+  writeFileSync(abs, planDoc(blocks), "utf8");
+  return new PlanSource(new RepoRoot(repoRoot)).readPath(rel);
+};
+
+/** The phase with no plan yet — the derived face over an entry that declares no
+ *  slug, read for real (an absent derived path is `undeclared`; there is no
+ *  `undeclared` factory to mint one). */
+const undeclaredPlanOf = (repoRoot: string): PlanRead =>
+  new PlanSource(new RepoRoot(repoRoot)).readFor({
+    path: path.join(repoRoot, "docs/kairos/specs/plan.md"),
+    rel: "docs/kairos/specs/plan.md",
+    docType: "plan",
+    slug: null,
+    program: null,
+    version: null,
+    status: null,
+    title: null,
+  });
 
 const task = (id: number, dependsOn: string): readonly string[] => {
   return [
@@ -248,11 +275,11 @@ const waveCtx = (
     new WorkspaceRoot(path.join(repoRoot, ".kairos", "cdd"), "session"),
     "preflight-slug",
   ).ensure();
-  const ledger = new Ledger(workspace, new ConfigLoader());
+  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
   return {
     type: "wave",
     repoRoot,
-    planText: planDoc(blocks),
+    plan: planReadOf(repoRoot, blocks),
     ledger,
     doc: null,
     inflight: inflightOf(repoRoot, false),
@@ -267,11 +294,11 @@ const docCtx = (repoRoot: string, docKey: DocKey | null, _verb: CaseVerb): PreFl
     new WorkspaceRoot(path.join(repoRoot, ".kairos", "cdd"), "session"),
     "preflight-slug",
   ).ensure();
-  const ledger = new Ledger(workspace, new ConfigLoader());
+  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
   return {
     type: docKey === "plan" ? "plan" : "phase-spec",
     repoRoot,
-    planText: null,
+    plan: undeclaredPlanOf(repoRoot),
     ledger,
     doc: {
       docKey,
@@ -600,6 +627,7 @@ describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch
             "preflight-slug",
           ).ensure(),
           new ConfigLoader(),
+          new PlanSource(new RepoRoot(repoRoot)),
         ),
         dispatch,
         target: { kind: "spec", doc: "docs/kairos/specs/x.md" },
@@ -632,12 +660,12 @@ const branchCtx = (
     new WorkspaceRoot(path.join(repoRoot, ".kairos", "cdd"), "session"),
     "preflight-slug",
   ).ensure();
-  const ledger = new Ledger(workspace, new ConfigLoader());
+  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
   seed(ledger);
   return {
     type: "branch",
     repoRoot,
-    planText: planDoc(blocks),
+    plan: planReadOf(repoRoot, blocks),
     ledger,
     doc: null,
     inflight: inflightOf(repoRoot, false),

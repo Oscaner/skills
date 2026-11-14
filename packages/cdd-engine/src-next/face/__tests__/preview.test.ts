@@ -27,6 +27,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
+import { PlanSource } from "../../infra/plan-source.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
@@ -47,7 +48,7 @@ const WORKSPACE = new Workspace(new WorkspaceRoot(ROOT, ".kairos/cdd"), "p3");
  *  dispatch reads (one scene shape, never a second). */
 const scene = (over: Partial<DispatchScene> = {}): DispatchScene => ({
   workspace: WORKSPACE,
-  ledger: new Ledger(WORKSPACE, new ConfigLoader()),
+  ledger: new Ledger(WORKSPACE, new ConfigLoader(), new PlanSource(WORKSPACE.root.basis)),
   planPath: path.join(ROOT, "docs", "kairos", "plans", "p3.md"),
   briefPath: null,
   ...over,

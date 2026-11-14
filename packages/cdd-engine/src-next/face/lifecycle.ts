@@ -23,6 +23,7 @@ import { CompletionCriteria, FixDispositions } from "../contract/completion-crit
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
 import { GitClient } from "../infra/git.ts";
+import type { PlanRead } from "../infra/plan-source.ts";
 import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
 import type { RepoRoot } from "../infra/root.ts";
 import { RoundLog } from "../infra/round-log.ts";
@@ -108,6 +109,11 @@ export interface DispatchScene {
   workspace: Workspace;
   ledger: Ledger;
   planPath: string | null;
+  /** The plan read this scene's rounds were assembled from (the argv face's plan, or
+   *  the doc face's derived same-slug plan; null when the harness carries none). The
+   *  reviewed-brief hash reads THIS value — never a second file read — so the child's
+   *  bytes and the reopen fingerprint share one plan read. */
+  plan?: PlanRead | null;
   briefPath: string | null;
   baseBranch?: string | null;
   /** The plan's design-spec reference (the `spec:` front-matter link target), read
@@ -854,13 +860,20 @@ export class CliLifecycle {
    *  plan-less scene and when the plan is unreadable. */
   #briefHashOf(frame: OpenFrame): string | null {
     const scene = this.#scene;
-    if (frame.type !== "wave" || frame.target.kind !== "wave" || scene.planPath === null)
-      return null;
+    const plan = scene.plan ?? null;
+    if (frame.type !== "wave" || frame.target.kind !== "wave" || plan === null) return null;
+    const text = plan.text();
+    const doc = plan.doc();
+    const planPath = plan.stationPath();
+    if (text === null || doc === null || planPath === null) return null;
     try {
-      const plan = readFileSync(scene.planPath, "utf8");
-      const body = this.#brief.taskBody(plan, frame.target.tasks);
-      return scene.ledger.refs().briefRevision(this.#rel(scene.planPath), body).brief_hash;
+      const body = this.#brief.taskBody(text, doc, frame.target.tasks);
+      return scene.ledger.refs().briefRevision(this.#rel(planPath), body).brief_hash;
     } catch {
+      // The ONLY throw point left is the brief's own out-of-bounds gate
+      // (`task N not found in the plan` — a legal scene when the plan was amended
+      // after the wave compiled): the round then records no hash, the same failure
+      // face `Ledger#briefRevision` keeps.
       return null;
     }
   }

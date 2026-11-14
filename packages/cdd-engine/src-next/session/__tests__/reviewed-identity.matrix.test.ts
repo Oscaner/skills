@@ -53,6 +53,7 @@ import type { DispatchScene } from "../../face/cli.ts";
 import type { CliVerb } from "../../face/declare.ts";
 import { Preview } from "../../face/preview.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { PlanSource } from "../../infra/plan-source.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
 import type { TargetFace } from "../faces.ts";
@@ -364,7 +365,7 @@ const previewWordOf = (cell: Cell): LegWord | null => {
   const workspace = new Workspace(new WorkspaceRoot(PREVIEW_ROOT, ".kairos/cdd"), "p25");
   const scene: DispatchScene = {
     workspace,
-    ledger: new Ledger(workspace, new ConfigLoader()),
+    ledger: new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)),
     planPath: planPathOf(cell),
     briefPath: null,
   };
@@ -419,7 +420,7 @@ const runCell = async (
     new WorkspaceRoot(path.join(root, ".kairos", "cdd"), "session"),
     "p25",
   );
-  const ledger = new Ledger(workspace, new ConfigLoader());
+  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
   const planPath = cell.planPath === "yes" ? path.join(root, "plan.md") : null;
   const docPath =
     docPathOf(cell) === null ? null : path.join(root, path.basename(docPathOf(cell) as string));
@@ -462,7 +463,9 @@ const runCell = async (
     ledger,
     dispatch: over.dispatch ?? script,
     target,
-    planPath,
+    // The SAME basis the ledger normalizes through — one basis per fixture, so the
+    // recorded revision and the dispatch's path speak one shape.
+    plan: planPath === null ? null : new PlanSource(workspace.root.basis).readPath(planPath),
   });
   const input = (): string =>
     cell.kind === "wave"
@@ -470,7 +473,11 @@ const runCell = async (
         ? ""
         : // the wave's judgment input is the TASK-ONLY projection (P29 §2.2) — the
           // child's render adds `## Constraints`, the reviewed fingerprint never does
-          new BriefRenderer().taskBody(readFileSync(planPath, "utf8"), [1])
+          new BriefRenderer().taskBody(
+            readFileSync(planPath, "utf8"),
+            new PlanDocType("plan").parse(readFileSync(planPath, "utf8").split("\n")),
+            [1],
+          )
       : docPath === null
         ? ""
         : readFileSync(docPath, "utf8");

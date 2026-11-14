@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P35 设计：plan 读取收权（一份读取 · 一个失败值 · 一条拒绝通道）'
 doc-type: phase-spec
-version: v0.29
+version: v0.30
 date: 2026-11-14
 slug: '2026-10-10-engine-doc-tooling-p35'
 program: 2026-10-10-engine-doc-tooling
@@ -11,7 +11,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-14）'
 
 ## Design
 
-本相位收口 plan 文档读取的一处权威缺口：同一份 plan 有**九个读取点（共十处到达 plan 解析的站点，含登记行一处）、四种失败策略**，坏结构的两个面分别是「静默放行」与「裸崩」。根因不是某个被吞掉的 `catch`，而是**读取权落在视图平面**——`face/cli.ts` 把 `BoardView.planGraph` 这条渲染路径的产物当门禁证据注入 session，于是一个 draw 契约变成了 gate 契约。计数口径写死在此：度量的单位是**到达 plan 解析的站点**，不是「拼出 `new PlanDocType("plan")` 的站点」——`grep -rn 'new PlanDocType("plan")' packages/cdd-engine/src-next`（排除 `__tests__/`）共 9 处 = 8 个显式读取点 + `contract/doc.ts` 登记行 1 处；第九个读取点是 `session/ledger.ts` 的 `Ledger#briefRevision`，它经由 `readonly #brief = new BriefRenderer();`（`session/ledger.ts:668`）的默认参数到达解析，这条 grep 看不见它。故总计 10 = 9 读取点 + 1 登记行，与 overall D90 / Phase-inventory 的 `9+1`、四策略同源。
+本相位收口 plan 文档读取的一处权威缺口：同一份 plan 有**九个读取点（共十处到达 plan 解析的站点，含登记行一处）、四种失败策略**，坏结构的两个面分别是「静默放行」与「裸崩」。根因不是某个被吞掉的 `catch`，而是**读取权落在视图平面**——`face/cli.ts` 把 `BoardView.planGraph` 这条渲染路径的产物当门禁证据注入 session，于是一个 draw 契约变成了 gate 契约。计数口径写死在此：度量的单位是**到达 plan 解析的站点**，不是「拼出 `new PlanDocType("plan")` 的站点」——`grep -rn 'new PlanDocType("plan")' packages/cdd-engine/src-next`（排除 `__tests__/`）共 9 处 = 8 个显式读取点 + `contract/doc.ts` 登记行 1 处；第九个读取点是 `session/ledger.ts` 的 `Ledger#briefRevision`，它经由 `readonly #brief = new BriefRenderer();`（`session/ledger.ts:668`）的默认参数到达解析，这条 grep 看不见它。故总计 10 = 9 读取点 + 1 登记行，与 overall D90 / Phase-inventory 的 `9+1`、四策略同源。计数单位是**plan 文档文法**（`PlanDocType` / `docTypeParsers`）的到达站点；结构面的 task 块投影（`contract/task-blocks.ts` 的 `PlanTaskBlocksReader`：依赖边变了没有、这一轮的 `Files` 是否全空）不在同一单位内，其中两处经 `PlanStructure.of` 与 `CliLifecycle#emptyFileTasks` 到达 plan 解析，作为**承认的第二读**在 §1.1 的专表里登记——`PlanRead` 仍是「一份文档读取」的唯一值。
 
 裁定把 plan 的 read + parse + classify 收进 `infra/plan-source.ts` 的一处深类，失败成为一个携带行为的判别值，坏结构走既有的 `doc-contract` 拒绝通道，降级成为带警告的显式值，「读不出」不再授权下游结论。三件不破坏的事：plan grammar 语义不动、`doc-contract` 判定语义与既有拒绝报文不动、健康 plan 的板面与 `next:` / `reason:` 字节不动。
 
@@ -36,6 +36,15 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-14）'
 `Lifecycle#recordPlanSnapshot` 是**策略正确的那一个**（缺失 → 拒绝，而非放行），本相位保留它的语义，只把「吞掉的缺失」换成「已知的缺失」——它改吃 `PlanRead`，非 ready 不记快照。`Ledger#briefRevision` 是第四类：它同样 `catch → null`，但吞掉的不是图而是一条修订哈希——算不出就不记，与「present facts only」一致；它与第一类不是一件事，后者把图吞成 `null` 后板面读作「没活干」，而这里不记的是「这次评审的 brief 基准是哪一版」。
 
 **登记行**（唯一合法的构造点，不是读取点）：`contract/doc.ts` 的 `docTypeParsers` 里 `plan: new PlanDocType("plan")`。
+
+**第二读者（结构面的任务块投影，本相位承认、已列表登记）**：另有两处站点也到达 plan 解析，但它们走 `contract/task-blocks.ts` 的 `PlanTaskBlocksReader`（task 块文法），不经任何 `PlanDocType`，问的也不是「这份文档是什么」而是「它的 task 块说了什么」。它们既不在上表的九点计数里，也不在登记行守卫的单位（`PlanDocType` 家族）里——把它们塞进同一个守卫，要么换掉守卫的单位（计划 T6 的验收随之失真），要么给它们编一个不存在的 doc 型。它们是**承认的第二读**，不是待收权的读取点：
+
+| 第二读站点 | 用途 | 为何是第二读 |
+| --- | --- | --- |
+| `session/run.ts` 的 `PlanStructure.of`（轮开 `face/lifecycle.ts` 的 `#dispatch`、轮闭同文件的 `#structureViolations`） | 结构面基线：取 task id 集与每个任务的 `DependsOn` 集，判这一轮有没有改动结构边 | 问的是「依赖边变了没有」，答案是两张集合；结构面归编排器，`PlanRead` 不携带、也不该携带它 |
+| `face/lifecycle.ts` 的 `CliLifecycle#emptyFileTasks`（由 `#criterionViolations` 的完成判据调用） | 完成判据的 verification-wave 格：取每个 task 的 `Files` 是否全空 | 问的是「这一轮的 `Files` 是不是全空」，答案是一张 task id 集合——同一份字节，另一个问题 |
+
+`PlanRead` 因此是**一份文档读取**的唯一值；上面两处是同一份文档在结构面上的第二个投影读者，它们的存在由本表登记，而不是靠守卫看不见它们。
 
 **渲染消费点**（只读 `null` / 空集，不是解析点，移出上表）：`BoardView.#waveLines`、doc 面 `BoardView.render`、`BoardView.#programBoard` 内的 `waveCell` 局部。三处今日把「零 task block」「没有 plan」「读不出」压成同一个空值/`(none)`，§2.4 逐个拆开。
 
@@ -66,7 +75,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-14）'
 
 #### 2.1 读取收进 `infra/plan-source.ts`：一个深类、两个入口、一个携带行为的值
 
-新增深类 `PlanSource`（家：`infra/plan-source.ts`），构造注入 `DocFs`（默认 `NodeFs`）与 `RepoRoot`，**路径过 `RepoRoot` 的转换对**：`this.#root.resolve(this.#root.relativize(rel))`。`RepoPath` 是带品牌的值（`infra/root.ts` 的 `type RepoPath = string & { readonly __repoPath: unique symbol }`），`relativize` 是它的**唯一构造入口**（`RepoRoot#relativize`：把绝对路径或调用方相对串归一成 repo 相对——它的注释原文即「a bare `docs/x.md` is read relative to repoRoot, NEVER to `process.cwd()`」），`resolve` 是**唯一擦除点**（`RepoRoot#resolve` → 绝对串）。派生面拼出来的模板串与 `DocEntry.rel` 都是普通 `string`，不经这一对就过不了 `tsc`；也不存在「先裸读再兜底」的支路。理由不是洁癖：`NodeFs` 吃字面路径（`existsSync` / `readFileSync`，不经 rebase），按 `process.cwd()` 解析，而仓库根是**逐命令**的事实（`#rootOf()` = `git.topLevel(process.cwd())`，cwd 可以是仓库子目录），今日 dispatch 面的读正因此是根锚定的——站点 `packages/cdd-engine/src-next/face/artifacts.ts` 的 `Artifacts#readText`（`readText(node: Command, root: RepoRoot, file: RepoPath)` → `root.resolve(file)` → `readFileSync`）；不经 `RepoRoot` 的 repo 相对串在子目录下会把健康 plan 读成 `unreadable` / `io`，静默违反「健康 dispatch 报文逐字节不变」。因根要逐命令解析，实例在**命令前奏**（`#rootOf()` 之后）构造一次，作为该命令的单一实例经参数下行到 `Cli#runBoard` / `Cli#sceneOf` / `PreFlight`；`Cli.create()` 阶段尚无根，不在那里构造——「一份读取」的落地口径是**每个命令一个实例、每份文档一次读**，不是进程级单例。两个入口，同一个 `PlanRead`：
+新增深类 `PlanSource`（家：`infra/plan-source.ts`），构造注入 `DocFs`（默认 `NodeFs`）与 `RepoRoot`，**路径过 `RepoRoot` 的转换对**：`this.#root.resolve(this.#root.relativize(rel))`。`RepoPath` 是带品牌的值（`infra/root.ts` 的 `type RepoPath = string & { readonly __repoPath: unique symbol }`），`relativize` 是它的**唯一构造入口**（`RepoRoot#relativize`：把绝对路径或调用方相对串归一成 repo 相对——它的注释原文即「a bare `docs/x.md` is read relative to repoRoot, NEVER to `process.cwd()`」），`resolve` 是**唯一擦除点**（`RepoRoot#resolve` → 绝对串）。派生面拼出来的模板串与 `DocEntry.rel` 都是普通 `string`，不经这一对就过不了 `tsc`；也不存在「先裸读再兜底」的支路。理由不是洁癖：`NodeFs` 吃字面路径（`existsSync` / `readFileSync`，不经 rebase），按 `process.cwd()` 解析，而仓库根是**逐命令**的事实（`#rootOf()` = `git.topLevel(process.cwd())`，cwd 可以是仓库子目录），今日 dispatch 面的读正因此是根锚定的——站点 `packages/cdd-engine/src-next/face/artifacts.ts` 的 `Artifacts#readText`（`readText(node: Command, root: RepoRoot, file: RepoPath)` → `root.resolve(file)` → `readFileSync`）；不经 `RepoRoot` 的 repo 相对串在子目录下会把健康 plan 读成 `unreadable` / `io`，静默违反「健康 dispatch 报文逐字节不变」。因根要逐命令解析，实例在**命令前奏**（`#rootOf()` 之后）构造一次，作为该命令的单一实例经参数下行到 `Cli#runBoard` / `Cli#sceneOf` / `PreFlight`；`Cli.create()` 阶段尚无根，不在那里构造——「一份**文档**读取」的落地口径是**每个命令一个实例、每份文档一次读**，不是进程级单例；结构面的任务块投影（`PlanStructure.of`、`CliLifecycle#emptyFileTasks`）是本相位承认的第二读者，已在 §1.1 列表登记——它们不经 `PlanDocType`，不参与这条口径。两个入口，同一个 `PlanRead`：
 
 - `readFor(entry: DocEntry | null): PlanRead` — 相位文档的**派生面**：`entry.slug` 是唯一身份，路径是 slug 的纯函数——`` `${ENGINE_RUNTIME.docRoots.plans}/${slug}.md` ``（`infra/doc-roots.ts` 的 `ENGINE_DOC_ROOTS.plans` 就是「slug → doc-tree 反向派生」的根，该文件的注释原文即如此；`ENGINE_DOC_ROOTS` 是全库唯一的根值，`face/declare.ts` 的 help 示例也从它派生）。`entry === null` 或 `entry.slug === null` → `undeclared`（这条早退是唯一守卫：doc 面的 `specEntry` 本就可空，调用方把 `index.entryAt(specRel)` 的结果直接交进来，不在调用点判空）；否则**先探存在性**（`DocFs.exists`），不存在 → `undeclared`（该相位还没有 plan，今日的 `(none)` 逐字节不变）；存在才读字节——`read` 回 `null` → `unreadable` / `io`。这条派生**不咨询索引的内容谓词**（索引把「读得出」当入册前提，`infra/slug-index.ts` 的 `#scanRoot` 丢掉不可读候选），所以「存在但读不出」零声明、零新字段就可达 `cause: "io"`。
 
@@ -79,17 +88,19 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-14）'
 ```ts
 type PlanRead =
   | { readonly kind: "undeclared" }
-  | { readonly kind: "unreadable"; readonly path: string; readonly cause: "io" | "syntax"; readonly message: string; readonly field: string | null }
+  | { readonly kind: "unreadable"; readonly path: string; readonly cause: "io" | "syntax"; readonly field: string | null }
   | { readonly kind: "ready"; readonly path: string; readonly text: string; readonly doc: PlanParsed; readonly graph: TaskGraph; readonly orphan: PlanOrphan | null };
 
 type PlanOrphan = { readonly cause: "spec-absent" | "slug-absent"; readonly specPath: string | null };
 ```
 
+实现上三态是**带品牌的联合**：`PlanReadState` 带一个模块私有 `symbol` 属性（不导出，别的模块拼不出这个键），`PlanRead` 的构造参数要求该 brand。于是「只有一个生产者、没有第二构造路径」由 `tsc` 判而不是靠注释——今天五处 `new PlanRead` 全在 `infra/plan-source.ts` 内（`PlanSource` 的两条 `undeclared` 早退、`#ioFailure` 的 `io`、`#classify` 的 `ready` / `syntax`），`BoardView.render` 的 `readFor(null)` 回退也是经 `PlanSource` 到达的同一个铸造面。
+
 值**携带行为**，消费点不写 `switch (read.kind)`——同一个三态分支不许在七个调用点各写一遍，那正是本相位要杀的病：
 
 - `path(): string | null` — 派生的 repo 相对路径；`undeclared` 返回 `null`，`unreadable` 与 `ready` 返回那条路径（读不出不等于没有路径）。它是 plan **行**的唯一事实源：对非 `undeclared` 一律取它（读不出也要看得见它去读哪，AC #4）；frontier 输入**不取它**，取下面的 `stationPath()`（见接线段）。类型必须写死成 `string | null`：今日「无 plan 面」的判据就是 `=== null`（`session/pipeline.ts` 的 `#planState` 与 `branchLineOpen`），`PipelineFrontierInput.planPath` 原样吃它；若 `undeclared` 回 `""`，plan 面会从「无」变成 `{ type: "plan", id: "", plan: "" }`，在 argv 字节不变的幌子下悄悄改掉派生路由。
 - `stationPath(): string | null` — **frontier 可引用的路径**，`PipelineFrontierInput.planPath` 的唯一取处。判据是「这份文档读得出来（front matter 可解析）」，不是「解析得成图」：`undeclared` → `null`（没有文档）；`unreadable` / `io` → `null`（连 slug 键都没有，面装配不出来，plan 面不可能是下一面——§2.3 的 `io` 边界）；`unreadable` / `syntax` → 那条路径（front matter 已经读出来了，plan 面装配得出，它的 doc-contract 拒绝正是应当被指向的下一面）；`ready` → 那条路径。这正是今日 doc 面的值分布：今日 `planPath` 取自 `index.planOf(slug)?.path`，而索引把「front matter 读得出来」当入册前提（`infra/slug-index.ts` 的 `#scanRoot`），所以 `syntax` 输入今日的 `planPath` 本就非 `null`、图却是 `null`（`face/board-view.ts:892-901` 的 `planGraph` 捕获回 `null`），落到 `PIPELINE_NEXT.plan`；`io` 与 `undeclared` 今日回 `null`。这条访问器因此把今日的分布落成一个**值行为**，消费者不写 `switch (read.kind)`，也不改任何 `next:` 字节；与 `graph()` 的差别只在图——`syntax` 的图仍是 `null`。
-- `failure(): { readonly path: string; readonly cause: "io" | "syntax"; readonly field: string | null; readonly message: string } | null` — 失败四件的**唯一取处**（`unreadable` 时非 `null`，`undeclared` 与 `ready` 回 `null`）：`path` 是派生/argv 路径，`cause` 是失败种类，且是**值上的一等字段而不是代理**——`stationPath() === null` 同时答得出 `io` 与 `undeclared`，答不出这二选一，而场景装配要的正是「读不出」与「没有」的区分（`#sceneOf` 只在 `cause === "io"` 时走 usage 通道，§2.3）；`message` 取 grammar 的 `DocSyntaxError#message` 或 `io` 的读取失败描述，`field` 取 `DocSyntaxError#field`（`io` 没有字段，回 `null`）。**取件面写窄**：只有 `unreadable` 的 `warnLine()` / `refusal()` 从它取 `path` / `cause` / `field`（三条合成的契约见本节末「诊断行合成」）；`spec-absent` 孤儿的 `failure()` 恒为 `null`——那份读是 `ready`——它的报文取 `planOrphanSpec`（§2.7）；`slug-absent` 取 `planSlugMissing()`。`message` 因此只服务判定面的 `Finding`（§2.2）：板面行与拒绝报文的字面全由端口成员加 `path` / `field` 产出，不读它。（类型是 `field: string | null`，不是 `field?: string`：可选会让「没有字段」与「没读」在类型上不可分。）
+- `failure(): { readonly path: string; readonly cause: "io" | "syntax"; readonly field: string | null } | null` — 失败三件的**唯一取处**（`unreadable` 时非 `null`，`undeclared` 与 `ready` 回 `null`）：`path` 是派生/argv 路径，`cause` 是失败种类，且是**值上的一等字段而不是代理**——`stationPath() === null` 同时答得出 `io` 与 `undeclared`，答不出这二选一，而场景装配要的正是「读不出」与「没有」的区分（`#sceneOf` 只在 `cause === "io"` 时走 usage 通道，§2.3）；`field` 取 `DocSyntaxError#field`（`io` 没有字段，回 `null`）。**诊断文案不在本值里**（D26 一事实一处）：`DocSyntaxError#message` 已是那条语法事实的唯一来源（判定面的 `Finding` 从它取，§2.2），读取值再存一份既无生产消费者、又在 `io` 上重复了 `face/cli.ts` usage 的 `cannot read file: <path>` 字节；读者看见的那句话由词端口 + `path` + `field` 合成（本节末「诊断行合成」）。**取件面写窄**：只有 `unreadable` 的 `warnLine()` / `refusal()` 从它取 `path` / `cause` / `field`；`spec-absent` 孤儿的 `failure()` 恒为 `null`——那份读是 `ready`——它的报文取 `planOrphanSpec`（§2.7）；`slug-absent` 取 `planSlugMissing()`。（类型是 `field: string | null`，不是 `field?: string`：可选会让「没有字段」与「没读」在类型上不可分。）
 - `text(): string | null` — wave brief 与 `#targetSlug` 的原文；非抛，非 ready 返回 `null`。
 - `doc(): PlanParsed | null` — brief 的数据面（§2.6 的 `render` / `taskBody` 第二个入参）；非 ready 返回 `null`（`undeclared` 与 `unreadable` 一律没有已解析文档）。
 - `graph(): TaskGraph | null` — 门禁 / frontier / 板面的唯一图输入。`ready` 里 **eager** 派生于同一次解析（一次解析只产一份派生，不留第二重惰性事实源）。
@@ -117,7 +128,7 @@ doc 行的 plan 项与 wave 行同源，规则是一句可判定的话：**plan 
 
 在 `contract/doc.ts` 的 `DocType` 基类旁定义 `DocSyntaxError`（携带 `field` / `message` / `fix`），不设 plan 专属类；plan grammar 抛它，其余 doc 型可复用。`contract/task-block-grammar.ts` 的 `TaskBlockGrammar#assertNoDuplicateKeys` 改抛它，不再抛裸 `Error`；`parse(): PlanParsed` 的签名不变，`assert` 从此只承载编程不变量。
 
-物化只发生在**有消费者**的地方——判官边界：`contract/judge.ts` 的 `#contextOf` 只**把 `DocSyntaxError` 带出来**（它返回 `JudgeContext`，物化不在这一层），`Finding` 由 `validate` / `validateLedger` 物化——`path` 取 `ContractInput.path`、`field` 取错误自带的字段、`fix` 取错误自带的修复提示。`infra/plan-source.ts` **不物化** `Finding`：`unreadable` 自带的 `path` / `message` / `field` 就是失败值本身，`refusal(words)` 直接交出 `{ gate, reason, message }`——同一事实不在同一对象图里携带两遍（D26「一事实一处」）；`DocSyntaxError` 的 `fix` 因此只服务判定面的 `Finding`。`kind` 字面量统一为 `"doc-syntax"`（`Finding.kind` 是不变量类名词汇，不是 station 的 reason token，故不新增令牌）。两个字面量必须逐字节相同，由测试钉住。
+物化只发生在**有消费者**的地方——判官边界：`contract/judge.ts` 的 `#contextOf` 只**把 `DocSyntaxError` 带出来**（它返回 `JudgeContext`，物化不在这一层），`Finding` 由 `validate` / `validateLedger` 物化——`path` 取 `ContractInput.path`、`field` 取错误自带的字段、`fix` 取错误自带的修复提示。`infra/plan-source.ts` **不物化** `Finding`：`unreadable` 自带的 `path` / `field` / `cause` 就是失败值本身，`refusal(words)` 直接交出 `{ gate, reason, message }`——同一事实不在同一对象图里携带两遍（D26「一事实一处」）；`DocSyntaxError` 的 `fix` 因此只服务判定面的 `Finding`。`kind` 字面量统一为 `"doc-syntax"`（`Finding.kind` 是不变量类名词汇，不是 station 的 reason token，故不新增令牌）。两个字面量必须逐字节相同，由测试钉住。
 
 `path` 不进 grammar：文件身份是读者的事实。`contract/judge.ts` 一侧的路径来自 `ContractInput.path`（`Finding.path` 的既有归因源），因此 `validate` / `validateLedger` 对 `#contextOf` 的调用包在 try/catch 里：捕获 `DocSyntaxError` → 产一行 `Finding`，而不是穿透判定门。
 
@@ -275,3 +286,4 @@ usage 校验的 `planIds` 成员判定在非 ready 时**跳过**——它今日�
 | v0.28 | 2026-11-15 | 实施期偏差回填：`PlanRead#document(): { text, doc }` 进入 §2.1 的访问器表——它由实施轮在 T3 落地（`infra/plan-source.ts`，唯一消费点 `face/cli.ts` 的 ready 分支，pin 在 `infra/__tests__/plan-source.test.ts`），把 §2.6「调用点先守卫、再取 `text()`/`doc()`，不写 `!`、不写 `?? ""`」收成类型契约：`ready` 上取出对值，非 ready 调用即抛。它不参与降级矩阵、不产字面量、不进 `PlanReadWords`——是可观测状态之外的编程不变式。此行同时把 `readFor` 的入参形参写实为 `DocEntry \| null`（doc 面的 `specEntry` 本就可空，早退即 `undeclared`） | [human] 裁定 · Claude（kairos:cdd-dev · 2026-11-15） |
 | v0.27 | 2026-11-14 | 评审修复轮（F1–F4）：F1 AC 的非法 slug 一条只说一件——删掉「`planLine` 回 `null`」的说法（`readFor` 只吃 `DocEntry`、值里没有合法性判据，硬加守卫就是给一个拿不到事实的类编一条分支），只留 `orphan()` 回 `null`（`SlugIndex.isLegalSlug` 是纯谓词、值内部可判），并补机制句：装配者因 `#entryMark` 非空而**不问** `planLine`，绕行只对 `spec-absent` 孤儿成立。F2 §2.1 的优先级段删掉序数、改为指向 §2.7 的三层编号——同一文档里「第一层」不再指两件不同的事。F3 §2.4 与 AC #5 的「判定 0」更正为「判定 ①」（v0.6 遗留的零编号；四步本就编成 ①–④），既有锚点上的编号不动。F4 §2.1 的 `planLine` 分支一补出返回值（降级格内容 `<repo 相对路径> · <标记>`，标记 `! unparseable` / `! unreadable`），四个分支各写各的返回。 | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-14） |
 | v0.29 | 2026-11-15 | 评审修复轮（F1–F4）：F1 `readFor` 的入参按实际实现写回可空——§2.1 签名改 `readFor(entry: DocEntry \| null): PlanRead`，早退写清 `entry === null` 或 `slug === null` → `undeclared` 且是唯一守卫（doc 面的 `specEntry` 本就可空），planLine 段的「`readFor` 收 `DocEntry`」同步改口。F2 合成契约从 `failure()` 段拆出、在 §2.1 一处写死三条：`unreadable` 取 `failure()` 的 `path` / `cause` / `field`，`spec-absent` 取 `planOrphanSpec`（该读是 `ready`、`failure()` 恒 `null`），`slug-absent` 取 `planSlugMissing()`；`failure().message` 降为 grammar / io 原文、只服务判定面 `Finding`，不参与板面合成。F3 诊断字面统一到端口成员——`warnLine()` 的 `spec-absent` 改回「报文取 `planOrphanSpec`」（`! no-spec` 只属格），AC #1 / AC #4 的 stderr 子串改为 `! unparseable` / `! unreadable`（`Words#planReadWord` 的出口），`warnPrefix` 写明是访问器（`get warnPrefix` 返回 `this.stations.warn`）。F4 AC 第 2 条的交叉引用改按主题（健康 plan 的板面 / `next:` / `reason:` 逐字节不变），不再差一位。 | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-15） |
+| v0.30 | 2026-11-15 | 评审修复轮（F1–F4，全按裁决）：F1 读取点计数补上结构面的第二读者——§1.1 增设登记表两行（`PlanStructure.of` 的轮开 / 轮闭、`CliLifecycle#emptyFileTasks`：站点 + 用途 + 为何是第二读），计数句写明单位是 plan **文档**文法（`PlanDocType` / `docTypeParsers`）的到达站点，登记行守卫不扩（它的单位是 `PlanDocType` 家族，塞进结构面就要换单位或编一个不存在的 doc 型）；§2.1 的「一份读取」收窄为「一份**文档**读取」。F2 波次段的批列表改走 `PlanRead.waves()`，`graph()` 只剩 `report(closedWaves())` 一个用途（§2.4 本就如此写，实现曾是 `graph().batches()` 的第二拼法）。F3 `PlanFailure` / `failure()` 删去 `message`——`DocSyntaxError#message` 是那条语法事实的唯一来源，读取值只回 `{ path, field, cause }`，诊断文案由词端口 + path + field 合成；v0.29 的 F2 句里「`failure().message` 只服务判定面 `Finding`」作废。F4 三态以**模块私有 `symbol` 品牌**携带，`PlanRead` 的构造参数要求该 brand，「只有一个生产者」由 `tsc` 判。 | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-15） |

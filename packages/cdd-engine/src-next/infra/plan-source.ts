@@ -65,11 +65,14 @@ export interface PlanReadWords {
   readonly warnPrefix: string;
 }
 
-/** One plan-read failure — the `unreadable` state's four facts, the ONE place the
+/** One plan-read failure — the `unreadable` state's three facts, the ONE place the
  *  accessors take them from. `cause` is a first-class field, not a proxy: a null
  *  `stationPath()` answers both `io` and `undeclared`, and the scene assembly needs
  *  exactly that distinction. `field` is `string | null` (not optional) so "no
- *  field" and "never read" stay distinct in the type. */
+ *  field" and "never read" stay distinct in the type. The diagnostic text is NOT
+ *  carried here: `DocSyntaxError#message` is that grammar fact's single source, and
+ *  the rendered sentence is composed from the word port + `path` + `field`
+ *  (`#failureWords`) — a copied string would be a second source no consumer reads. */
 export interface PlanFailure {
   /** The plan's repo-relative path (present for both causes). */
   readonly path: string;
@@ -77,8 +80,6 @@ export interface PlanFailure {
   readonly cause: "io" | "syntax";
   /** The anchored field of a grammar break; null for an io failure. */
   readonly field: string | null;
-  /** The grammar break's message, or the io read-failure detail. */
-  readonly message: string;
 }
 
 /** The reverse-lookup read fact (§2.7): does this plan name a phase? `spec-absent`
@@ -115,7 +116,6 @@ interface UnreadableState {
   readonly path: string;
   readonly cause: "io" | "syntax";
   readonly field: string | null;
-  readonly message: string;
 }
 
 /** The `ready` state — one read, one parse, and the eager derivations (§2.1: the
@@ -129,8 +129,17 @@ interface ReadyState {
   readonly orphan: PlanOrphan | null;
 }
 
-/** The module-private tri-state carried by `PlanRead`. */
-type PlanReadState = UndeclaredState | UnreadableState | ReadyState;
+/** The state brand: a module-private symbol key that `PlanRead`'s constructor
+ *  requires, so "exactly one producer family" is judged by `tsc` rather than by a
+ *  comment. The symbol is not exported, therefore no other module can spell the key
+ *  and a structural object literal there fails to type-check; every mint lives in
+ *  this file (`PlanSource`'s three states and the fallbacks it threads). */
+const READ_STATE_BRAND: unique symbol = Symbol("cdd.plan-read-state");
+
+/** The module-private tri-state carried by `PlanRead`, sealed by the brand above. */
+type PlanReadState = (UndeclaredState | UnreadableState | ReadyState) & {
+  readonly [READ_STATE_BRAND]: true;
+};
 
 /** The undeclared doc-face wave row (`(none)` — today's bytes for "no plan yet"). */
 const UNDECLARED_WAVE = "(none)";
@@ -148,6 +157,9 @@ export class PlanRead {
   /** The private discriminant — the state is the single source of every accessor. */
   readonly #state: PlanReadState;
 
+  /** The constructor takes the branded state, so a `PlanRead` can only be built from
+   *  a value minted in this module — the single-producer claim is a type, not a
+   *  convention. */
   constructor(state: PlanReadState) {
     this.#state = state;
   }
@@ -178,12 +190,13 @@ export class PlanRead {
     return null;
   }
 
-  /** The failure's four facts, the ONE place they are taken from; null unless the
-   *  read was `unreadable`. */
+  /** The failure's three facts, the ONE place they are taken from; null unless the
+   *  read was `unreadable`. The rendered sentence is the word port's, not this
+   *  value's. */
   failure(): PlanFailure | null {
     const state = this.#state;
     if (state.kind !== "unreadable") return null;
-    return { path: state.path, cause: state.cause, field: state.field, message: state.message };
+    return { path: state.path, cause: state.cause, field: state.field };
   }
 
   /** The document text (the wave brief's and `#targetSlug`'s source); null when not ready. */
@@ -369,9 +382,10 @@ export class PlanSource {
    *  entry: `undeclared` — never a minted value. */
   readFor(entry: DocEntry | null): PlanRead {
     const slug = entry?.slug ?? null;
-    if (slug === null) return new PlanRead({ kind: "undeclared" });
+    if (slug === null) return new PlanRead({ kind: "undeclared", [READ_STATE_BRAND]: true });
     const rel = `${ENGINE_RUNTIME.docRoots.plans}/${slug}.md`;
-    if (!this.#fs.exists(this.#abs(rel))) return new PlanRead({ kind: "undeclared" });
+    if (!this.#fs.exists(this.#abs(rel)))
+      return new PlanRead({ kind: "undeclared", [READ_STATE_BRAND]: true });
     const content = this.#fs.read(this.#abs(rel));
     if (content === null) return this.#ioFailure(rel);
     return this.#classify(rel, content, null);
@@ -400,14 +414,15 @@ export class PlanSource {
   }
 
   /** The io read failure — the bytes did not read. `DocFs.read` carries no errno,
-   *  so the message names the path with the existing usage wording (one source). */
+   *  so the failure records the path and the cause only; the sentence the reader
+   *  sees is composed by the diagnostics (`#failureWords`), never stored. */
   #ioFailure(path: string): PlanRead {
     return new PlanRead({
       kind: "unreadable",
       path,
       cause: "io",
       field: null,
-      message: `cannot read file: ${path}`,
+      [READ_STATE_BRAND]: true,
     });
   }
 
@@ -420,7 +435,15 @@ export class PlanSource {
     try {
       const doc = this.#parser.parse(content.split("\n"), head);
       const graph = new TaskGraph(doc);
-      return new PlanRead({ kind: "ready", path, text: content, doc, graph, orphan });
+      return new PlanRead({
+        kind: "ready",
+        path,
+        text: content,
+        doc,
+        graph,
+        orphan,
+        [READ_STATE_BRAND]: true,
+      });
     } catch (error) {
       if (!(error instanceof DocSyntaxError)) throw error;
       return new PlanRead({
@@ -428,7 +451,7 @@ export class PlanSource {
         path,
         cause: "syntax",
         field: error.field,
-        message: error.message,
+        [READ_STATE_BRAND]: true,
       });
     }
   }

@@ -22,7 +22,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlanDocType } from "../../contract/doc.ts";
 import { type DocFs, NodeFs } from "../../contract/invariants.ts";
 import { Words } from "../../face/words.ts";
-import { PlanSource } from "../plan-source.ts";
+import { type PlanRead, PlanSource } from "../plan-source.ts";
 import { RepoRoot } from "../root.ts";
 import { type DocEntry, SlugIndex } from "../slug-index.ts";
 
@@ -198,6 +198,18 @@ describe("PlanSource.readFor — the derived face's tri-state", () => {
     expect(read.path()).toBeNull();
   });
 
+  it("seals the state — a structural literal is not a PlanRead state (type-judged)", () => {
+    // The state union carries a module-private brand, so a literal shaped like a
+    // state is NOT a state. `StateArg` is the constructor's parameter type; the
+    // conditional resolves to `false` only while the brand holds — widening the
+    // constructor makes it `true` and the pinned `false` stops `tsc`.
+    type StateArg = ConstructorParameters<typeof PlanRead>[0];
+    type ForgedLiteral = { readonly kind: "undeclared" };
+    type ForgedIsState = ForgedLiteral extends StateArg ? true : false;
+    const forgedIsState: ForgedIsState = false;
+    expect(forgedIsState).toBe(false);
+  });
+
   it("reads a slug whose derived plan file is absent as undeclared", () => {
     const repo = newRepo();
     writeDoc(repo, `${SPEC_ROOT}/prog-p1-design.md`, specHead("prog-p1"));
@@ -226,7 +238,6 @@ describe("PlanSource.readFor — the derived face's tri-state", () => {
       path: `${PLAN_ROOT}/prog-p1.md`,
       cause: "io",
       field: null,
-      message: `cannot read file: ${PLAN_ROOT}/prog-p1.md`,
     });
   });
 
@@ -241,7 +252,9 @@ describe("PlanSource.readFor — the derived face's tri-state", () => {
     expect(failure?.cause).toBe("syntax");
     expect(failure?.path).toBe(`${PLAN_ROOT}/prog-p1.md`);
     expect(failure?.field).toBe("#### Files");
-    expect(failure?.message.length).toBeGreaterThan(0);
+    // The failure carries the three facts only — the rendered sentence is composed
+    // from the word port + path + field, never copied into the value.
+    expect(Object.keys(failure ?? {}).sort()).toEqual(["cause", "field", "path"]);
     const refusal = read.refusal(WORDS);
     expect(refusal?.gate).toBe("doc-contract");
     expect(refusal?.reason).toBe("doc-contract");

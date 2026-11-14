@@ -1061,8 +1061,10 @@ export class BoardView {
   /** The node's wave segment — one line per derived wave (its ✔/▶/○ marker rides the
    *  SAME `TaskGraph.report(closedWaves())` read the board and the pre-flight gate
    *  share — the same source GraphView renders from), the wave's own `progress.json`
-   *  row spread alongside. The graph is the READ's eager derivation (spec §2.1), never
-   *  a second file read; a non-ready read has no graph and the segment is empty. */
+   *  row spread alongside. The batch list is the READ's own `waves()` (spec §2.4) and
+   *  the graph is only the `report(...)` input; both are the read's eager derivation
+   *  (spec §2.1), never a second file read. A non-ready read has no graph and the
+   *  segment is empty. */
   static #waveLines(
     read: PlanRead,
     progress: ProgressData | null,
@@ -1070,10 +1072,11 @@ export class BoardView {
   ): BoardLine[] {
     const graph = read.graph();
     if (graph === null) return [];
+    const waves = read.waves();
     const report = graph.report(ledger === null ? new Set<number>() : ledger.closedWaves());
     const done = new Set(report.done);
-    const currentIndex = report.waves.findIndex((wave) => wave.some((id) => !done.has(id)));
-    return report.waves.map((wave, index) => {
+    const currentIndex = waves.findIndex((wave) => wave.some((id) => !done.has(id)));
+    return waves.map((wave, index) => {
       const closed = wave.every((id) => done.has(id));
       const marker = closed
         ? PROGRESS_MARKERS.done

@@ -3061,6 +3061,33 @@ describe("P35 T5 — the board renders FROM the plan value, never from a second 
     expect(rowOf("prog-p4")).not.toContain("wave ");
   });
 
+  it("a short per-phase table is a caller contract break — the board never re-reads to cover it", () => {
+    overall();
+    phaseSpec("prog-p1", "docs/kairos/specs/prog-p1-design.md");
+    phaseSpec("prog-p2", "docs/kairos/specs/prog-p2-design.md");
+    const root = new RepoRoot(repo);
+    const source = new PlanSource(root);
+    const index = SlugIndex.build(repo);
+    const entry = index.overallOf("prog-overall")!;
+    // One row short of the phase list: the board answers by throwing (the same
+    // posture `PlanRead#document()` takes) instead of minting a second read.
+    const short = readTableOf(source, index, entry).slice(0, 1);
+    expect(() =>
+      BoardView.render(
+        short,
+        source,
+        index,
+        entry,
+        repo,
+        new Words(),
+        "claude",
+        ARGV_CHANNEL,
+        undefined,
+        null,
+      ),
+    ).toThrow(/per-phase plan table is shorter/);
+  });
+
   it("a `spec-absent` orphan folds every derived cell to `! no-spec` and keeps exit 0", () => {
     phaseSpec("lonely", "docs/kairos/specs/lonely-design.md");
     const planRel = "docs/kairos/plans/lonely.md";

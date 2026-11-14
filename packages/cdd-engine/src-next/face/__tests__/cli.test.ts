@@ -5405,13 +5405,23 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
     }
   });
 
-  it("both flags on one slug render ONE board shaped by the --spec document", async () => {
+  it("both flags on one slug render ONE board byte-identical to the solo --spec board", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
       seedPhaseDocs(repoRoot);
+      // The solo `--spec` board is the control: with `--spec` present the plan read
+      // comes from that entry's derived face, so adding `--plan` must change no byte
+      // on either stream — not a row, not a diagnostic.
+      expect(await command.runArgv(["board", "--spec", SPEC])).toBe(0);
+      const soloStdout = io.stdoutText;
+      const soloStderr = io.stderrText;
+      io.stdoutText = "";
+      io.stderrText = "";
       const code = await command.runArgv(["board", "--plan", PLAN, "--spec", SPEC]);
       expect(code).toBe(0);
+      expect(io.stdoutText).toBe(soloStdout);
+      expect(io.stderrText).toBe(soloStderr);
       // one header, one board — the node shape taken from the phase-spec entry
       expect(io.stdoutText.match(/^cdd board: /gm)).toHaveLength(1);
       expect(io.stdoutText).toContain("cdd board: prog-p1");
@@ -10146,6 +10156,31 @@ describe("P35 T5 — the board's ONE plan read: the table, the four semantics, `
       expect(io.stdoutText).toContain("slug: invalid (BLOCKED)");
       expect(io.stdoutText).not.toContain("! no-spec");
       expect(warnRows(io.stderrText)).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a duplicated plan slug with a broken body keeps the wave row's own literal — exit 2", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      writeDoc(repoRoot, PLAN, planLines(brokenBody()));
+      writeDoc(repoRoot, "docs/kairos/plans/prog-p1-copy.md", planLines(task(1)));
+      io.stdoutText = "";
+      io.stderrText = "";
+      // The identity marker is the plan row's fact and it still exits 2. The wave row
+      // keeps the READ's own literal: the identity face bans `! no-spec` alone, so a
+      // broken identity never hides a grammar break behind `(none)`.
+      expect(await command.runArgv(["board", "--spec", SPEC])).toBe(2);
+      expect(io.stdoutText).toContain("slug: duplicated (BLOCKED)");
+      expect(io.stdoutText).not.toContain("! no-spec");
+      expect(waveRows(io.stdoutText)).toEqual(["  wave     ! unparseable"]);
+      expect(io.stdoutText).not.toContain("  wave     (none)");
+      expect(warnRows(io.stderrText)).toEqual([
+        "! unparseable docs/kairos/plans/prog-p1.md: #### DependsOn",
+      ]);
     } finally {
       cleanup();
     }

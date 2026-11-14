@@ -749,8 +749,12 @@ export class BoardView {
     // The doc face asks the READ first and the assembler second (spec §2.4): a
     // degradation literal is the value's, the healthy row stays byte-identical to
     // today's (`waves()` + `graph.report(ledger.closedWaves())` + `#rowRounds` +
-    // `LineCarriers`). `waves()` being empty is never the `(none)` signal.
-    const degraded = planIdentityClean ? read.degradedWaveRow(words) : null;
+    // `LineCarriers`). `waves()` being empty is never the `(none)` signal. The ONE
+    // literal an identity break bans is `! no-spec` (`spec-absent` beside a rendered
+    // `(BLOCKED)` marker); `! unparseable` / `! unreadable` / `(empty plan)` still
+    // render, so a reader can tell a missing plan from a plan that does not read.
+    const specAbsent = read.orphan()?.cause === "spec-absent";
+    const degraded = specAbsent && !planIdentityClean ? null : read.degradedWaveRow(words);
     if (degraded !== null) {
       lines.push(`  ${"wave".padEnd(LABEL_WIDTH)}${degraded}`);
     } else {
@@ -840,9 +844,12 @@ export class BoardView {
     for (const [pos, phase] of phases.entries()) {
       // The phase's ONE plan value: `Cli#runBoard` builds the table in THIS row order
       // (spec §2.1), so the cell and the `CDD_WARN:` line can never describe two
-      // different documents. A caller that supplies no row gets the seam's own
-      // derived read for the phase — the value the table would have carried.
-      const read = readTable[pos] ?? plan.readFor(phase);
+      // different documents. A short table is a BROKEN caller contract — the board
+      // never mints a second read to cover it (`PlanRead#document()` sets the same
+      // posture), so the invariant answers by throwing.
+      if (pos >= readTable.length)
+        throw new Error("cdd: the board's per-phase plan table is shorter than its phase list");
+      const read = readTable[pos];
       const phaseSlug = BoardView.#validSlug(phase);
       const phaseLedger =
         phaseSlug === null ? null : BoardView.#ledgerOf(plan, phaseSlug, repoRoot);
@@ -1017,10 +1024,6 @@ export class BoardView {
     };
   }
 
-  /** The plan's task graph — GONE (spec §2.1: the board holds no second read
-   *  point). The graph is the plan value's own eager derivation (`PlanRead.graph()`),
-   *  produced from the ONE parse the injected seam performed; the board threads the
-   *  value down instead of opening the file again. */
   /** The branch line — a docless line whose rounds ride the `branch` row. */
   static #roundsLine(
     label: string,

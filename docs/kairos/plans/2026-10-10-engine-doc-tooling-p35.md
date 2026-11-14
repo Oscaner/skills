@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P35 计划：plan 读取收权（一份读取 · 一个失败值 · 一条拒绝通道）'
 doc-type: plan
-version: v0.10
+version: v0.11
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p35
 base: develop
@@ -34,12 +34,12 @@ base: develop
 
 #### Objective
 
-把「plan body 文法坏结构」从裸 `throw new Error` 升级为类型化错误，并在**有消费者的一层**物化成 `Finding`。`contract/doc.ts` 的 `DocType` 基类旁定义 `DocSyntaxError`（携带 `field` / `message` / `fix`），不设 plan 专属类；`contract/task-block-grammar.ts` 的 `TaskBlockGrammar#assertNoDuplicateKeys` 改抛它，`parse(): PlanParsed` 的签名不变，`assert` 从此只承载编程不变量。同时把 `taskHeadingPattern()` 从 `BriefRenderer` 迁回文档类型——它是**文档的属性，不是渲染器的**：`DocType` 已暴露 `readonly slices: DocSlices`（接口声明在 `contract/project.ts:172`，由 `Projector#projectDocSlices`（`:466`）从 plan registry 的 slice 表填），该访问器（`render/brief.ts:65` 的 `this.#parser.slices.slices.find((slice) => slice.anchor === "### Task N:")?.valuePattern`）搬进 `DocSlices`、经 `PlanDocType#slices` 暴露，两条断言（pattern 仍匹配 `### Task 3:` / `### Task 12:`）随访问器进 `contract/__tests__/doc.test.ts`。判定面按 D26「一事实一处」只在 `validate` / `validateLedger` 物化 `Finding`：`#contextOf` 只负责把 `DocSyntaxError` 带出来（它返回 `JudgeContext`）。
+把「plan body 文法坏结构」从裸 `throw new Error` 升级为类型化错误，并在**有消费者的一层**物化成 `Finding`。`contract/doc.ts` 的 `DocType` 基类旁定义 `DocSyntaxError`（携带 `field` / `message` / `fix`），不设 plan 专属类；`contract/task-block-grammar.ts` 的 `TaskBlockGrammar#assertNoDuplicateKeys` 改抛它，`parse(): PlanParsed` 的签名不变，`assert` 从此只承载编程不变量。同时把 `taskHeadingPattern()` 从 `BriefRenderer` 迁回文档类型——它是**文档的属性，不是渲染器的**：`DocType` 已暴露 `readonly slices: DocSlices`（接口声明在 `contract/project.ts:172`，由 `Projector#projectDocSlices`（`:466`）从 plan registry 的 slice 表填），该访问器（`render/brief.ts:65` 的 `this.#parser.slices.slices.find((slice) => slice.anchor === "### Task N:")?.valuePattern`）搬进 `DocSlices`、经 `PlanDocType#slices` 暴露，两条断言（pattern 仍匹配 `### Task 3:` / `### Task 12:`）随访问器进 `contract/__tests__/doc.test.ts`。判定面按 D26「一事实一处」只在 `validate` / `validateLedger` 物化 `Finding`：`#contextOf` 只负责把 `DocSyntaxError` 带出来（它返回 `JudgeContext`）。投影同一性不许破：`DocSlices` 每次投影都是新对象，而 `contract/__tests__/project.test.ts:441` 用 `expect(projected.slices).toEqual(PROJECTOR.slices())` 比两次独立投影，`toEqual` 按**函数同一性**比函数值——因此 `taskHeadingPattern` 的实现写成**模块作用域的箭头常量**（不在投影里新建闭包；`check:no-bare-functions` 只禁 `function` 声明，箭头常量合法），`Projector#projectDocSlices` 每次投影都塞**同一个实例**，两次投影的比较才仍成立。
 
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/contract/doc.ts`（`DocSyntaxError` 类；`PlanDocType` 继续以 `readonly slices: DocSlices` 暴露表，表本身不在此文件声明）
-- Modify: `packages/cdd-engine/src-next/contract/project.ts`（`DocSlices` 接口（`:172`）增 `taskHeadingPattern(): RegExp | undefined`；`Projector#projectDocSlices`（`:466`）从 plan registry 的 slice 表派生该值，与其余 slice 同处一处投影）
+- Modify: `packages/cdd-engine/src-next/contract/project.ts`（`DocSlices` 接口（`:172`）增 `taskHeadingPattern(): RegExp | undefined`；`Projector#projectDocSlices`（`:466`）从 plan registry 的 slice 表派生该值，与其余 slice 同处一处投影；实现是**模块作用域的箭头常量**，每次投影塞**同一个实例**（`contract/__tests__/project.test.ts:441` 的 `toEqual` 按函数同一性比））
 - Modify: `packages/cdd-engine/src-next/contract/task-block-grammar.ts`（`#assertNoDuplicateKeys` 抛 `DocSyntaxError`，`field` 为该节标题、`fix` 为既有修复提示的文字化）
 - Modify: `packages/cdd-engine/src-next/contract/judge.ts`（`#contextOf` 不捕获；`validate`（`:144`）/ `validateLedger`（`:157`）包 try/catch，`DocSyntaxError` → 一行 `Finding`，`path` 取 `ContractInput.path`）
 - Test: `packages/cdd-engine/src-next/contract/__tests__/doc.test.ts`（`PlanDocType#slices.taskHeadingPattern()` 匹配 `### Task 3:` / `### Task 12:`，两条断言从 `render/__tests__/render.test.ts:849-850` 迁入）
@@ -66,6 +66,7 @@ base: develop
 - 实现 `DocSyntaxError` 并让 `#assertNoDuplicateKeys` 抛它 — checkable: grammar 测 PASS
 - 让 `#contextOf` 不捕获、`validate` / `validateLedger` 包 try/catch 物化 `Finding` — checkable: judge 测 PASS · `contract/__tests__/judge.test.ts` 既有用例全绿
 - 实现 `DocSlices#taskHeadingPattern`，把两条断言从 render 测试迁到 `contract/__tests__/doc.test.ts` — checkable: doc 测 PASS
+- 投影同一性回归：`projectDocSlices` 两次独立投影的 `slices` 仍 `toEqual` 相等（`taskHeadingPattern` 是模块作用域箭头常量，函数值按同一性比） — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__/project.test.ts` exit 0
 - 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/contract` 与 `pnpm exec tsc --noEmit -p packages/cdd-engine` 均 exit 0
 
 #### Acceptance
@@ -73,6 +74,7 @@ base: develop
 - 坏 plan 文法抛 `DocSyntaxError`（`field` / `message` / `fix` 非空），`parse(): PlanParsed` 签名不变，既有报文措辞逐字节不变。
 - `validate` 对坏 body 产一行 `Finding`：`kind === "doc-syntax"`、`path` 等于 `ContractInput.path`、`field` 指到该节，无异常逃逸；`#contextOf` 本身不物化。
 - `PlanDocType#slices.taskHeadingPattern()` 可被外部调用并匹配 `### Task 3:` / `### Task 12:`；`render/brief.ts` 不再有该访问器的转发。
+- `contract/__tests__/project.test.ts` 在 T1 结束时绿：`taskHeadingPattern` 是模块作用域箭头常量、每次投影塞同一实例，`expect(projected.slices).toEqual(PROJECTOR.slices())` 仍成立（函数值按同一性比）。
 
 #### DependsOn
 
@@ -90,7 +92,7 @@ none
 
 #### Files
 
-- Add: `packages/cdd-engine/src-next/infra/plan-source.ts`（`PlanSource` + `PlanRead` + `PlanReadWords` 端口；不做路径校验——路径由 slug 派生，没有作者输入可校；无模块级裸函数，`catch` 不得为空）
+- Add: `packages/cdd-engine/src-next/infra/plan-source.ts`（`PlanSource` + `PlanRead` + `PlanReadWords` 端口；不做路径校验——路径由 slug 派生，没有作者输入可校；无模块级裸函数，`catch` 不得为空；另出 `static undeclared(): PlanRead` 工厂——回三态里的 `undeclared`、不触任何文件读取，供三个 doc 面装配取值）
 - Modify: `packages/cdd-engine/src-next/face/words.ts`（实现 `PlanReadWords` 七个成员：`planReadWord(cause)` 只承担 `io` / `syntax`；`planEmptyWord()` 回 `(empty plan)`；`cellEmpty` 是**新增**的未声明程序格字面（`""`），与 `planEmptyWord()` 并列而**不是**既有成员——`grep -rn cellEmpty packages/cdd-engine/src-next` 今日零命中；`planOrphanSpec(slug, specPath)` / `planSlugMissing()` / `planOrphanWord()` 三条也是本次新增；`warnPrefix` 取既有 `warn: "CDD_WARN:"` 行）
 - Test: `packages/cdd-engine/src-next/infra/__tests__/plan-source.test.ts`（三态 × 两个入口 · 派生边界（slug 为 null / 文件不存在 / 存在读不出）· 访问器语义 · 每次读取只解析一次）
 
@@ -104,6 +106,7 @@ none
 #### Produces
 
 - `class PlanSource { constructor(fs?: DocFs) ; readFor(entry: DocEntry): PlanRead ; readPath(rel: string): PlanRead }`
+- `static PlanSource#undeclared(): PlanRead`（工厂：回 `{ kind: "undeclared" }` 的那枚值，不读文件；Task 3 的 doc 面装配唯一使用方）
 - `class PlanRead { kind ; path() ; text(): string | null ; doc(): PlanParsed | null ; graph(): TaskGraph | null ; orphan(): { cause: "spec-absent" | "slug-absent"; specPath: string | null } | null ; waves(): readonly TaskBatch[] ; degradedWaveRow(words): string | null ; cell(words): string | null ; planLine(words): string | null ; specLine(words): string | null ; warnLine(words): string | null ; refusal(words): { gate: "doc-contract"; reason: "doc-contract"; message: string } | null }`
 - `interface PlanReadWords { planReadWord(cause: "io" | "syntax"): string ; planEmptyWord(): string ; planOrphanSpec(slug: string, specPath: string): string ; planSlugMissing(): string ; planOrphanWord(): string ; cellEmpty: string ; warnPrefix: string }`（七个成员一次写完，不再拆成「既有 + 新增」两处清单）
 - `orphan()` 由 `cell` / `degradedWaveRow` / `planLine` / `specLine` 折叠成同一字面 `! no-spec`（`planOrphanWord()` 是它的唯一来源；`(empty plan)` 只来自 `planEmptyWord()`，`""` 只来自 `cellEmpty`）
@@ -122,6 +125,7 @@ none
 - 写失败测（一次解析）：一次 `readPath` 只产生一次 `PlanDocType#parse`（用计数 `DocFs` + 计数解析器 spy 断言） — checkable: FAIL
 - 实现 `PlanSource` / `PlanRead`（两个入口、三态分类、eager 派生 `graph`；类上只有这两件事，不做路径校验） — checkable: 上述四组 PASS
 - 在 `face/words.ts` 实现 `PlanReadWords` 七行，`planReadWord` 不接受 `planEmpty` 语义 — checkable: 词行断言 PASS · `face/__tests__/words.test.ts` 既有用例全绿
+- 出 `PlanSource.undeclared()` 工厂（Task 3 的 doc 面装配消费它；生产者侧一条单测：回 `kind === "undeclared"` 且不调 `DocFs` 的任何方法） — checkable: `infra/__tests__/plan-source.test.ts` PASS
 - 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/infra` 与 `pnpm exec tsc --noEmit -p packages/cdd-engine` 均 exit 0
 - 写失败测（反查两因）：`plans/x.md` 的 slug 为 `y` 而 `specs/y-design.md` 不存在 → `orphan()` 回 `{cause:"spec-absent", specPath}`；`specs/y-design.md` 存在 → `orphan()` 回 `null`；plan 自身无 front matter `slug` → `{cause:"slug-absent", specPath:null}` — checkable: 定向 vitest FAIL（今日无此概念）
 - 写失败测（只探存在性）：`specs/y-design.md` **存在但 `DocFs.read` 回 `null`** → `orphan()` 仍回 `null`（不因读不出而误判成孤儿） — checkable: FAIL（用索引反向拼装会误判）
@@ -146,25 +150,27 @@ none
 
 删除 `render/brief.ts` 的第二处 plan 解析，并**在同一次原子改动里**退掉场景的第二重事实源——两者拆开则无论怎么排波次都编译不过：brief 的 `(text, doc, tasks)` 要 `PlanRead`，而 `WorkScene` 一天不换成 `plan: PlanRead`，`face/gate.ts:145` 就仍在读 `planText`（先改 brief 则取 `scene.plan` 时它还不存在，先退役字段则 `:145` 还在读它）。
 
-`BriefRenderer` 的 parser 协作者整体删除（`constructor(parser = new PlanDocType("plan"))`，默认参数一起没了），`render` / `taskBody` / `extract` 三面同形改收 `(text, doc, tasks)`，`text` 取自 `PlanRead.text()`、`doc` 取自 `PlanRead.doc()`；`#taskBody` 内的 `const parsed = this.#parser.parse(planContent.split("\n"));`（`:70`）删除，块从 `doc.taskBlocks` 取。裸行切片（按 `TaskBlock.range` 取任务段）与 `## Constraints` 节仍读 `text`——brief 被哈希（D30 / P29），按 `fields[].lines` 重建 heading 字节会让已评审波次凭空重开。场景切换与 brief 同批落地：`WorkScene.planText: string | null` 退役为 `plan: PlanRead`（`session/preflight.ts` 的场景类型），`PreFlight` 上下文的 `planText` 同批换成 `plan`；供值点五处随动——`face/gate.ts:145` 的 `render`、`face/lifecycle.ts:861` 的 `taskBody`、`session/ledger.ts:941` 的 `taskBody` 三个公开面调用，外加 `extract` / `taskBody` 两处内部委托；`session/ledger.ts` 的 `#briefRevision` 因此不再自己 `readFileSync`，改由既有调用链（`session/run.ts` 的 `#recordReviewedWaveBrief` → `recordReviewedBrief(waveKey, …)` → `#briefRevision`）把场景里的 `PlanRead` 传下去；`face/cli.ts` 的两处供值（`:674` 的 `vet` 上下文、`:1285` 的场景装配）同批换成 `plan`。切换写法写死：调用点先以 `read.kind === "ready"` 守卫，再在 `ready` 分支里取 `text()` / `doc()`（该分支里两者必非 `null`），**不写 `!` 非空断言、也不写 `?? ""`**——后者会把「读不出」伪装成空文档。
+`BriefRenderer` 的 parser 协作者整体删除（`constructor(parser = new PlanDocType("plan"))`，默认参数一起没了），`render` / `taskBody` / `extract` 三面同形改收 `(text, doc, tasks)`，`text` 取自 `PlanRead.text()`、`doc` 取自 `PlanRead.doc()`；`#taskBody` 内的 `const parsed = this.#parser.parse(planContent.split("\n"));`（`:70`）删除，块从 `doc.taskBlocks` 取。裸行切片（按 `TaskBlock.range` 取任务段）与 `## Constraints` 节仍读 `text`——brief 被哈希（D30 / P29），按 `fields[].lines` 重建 heading 字节会让已评审波次凭空重开。场景切换与 brief 同批落地：`WorkScene.planText: string | null`（字段声明在 `face/cli.ts:144-145`）退役为 `plan: PlanRead`，`PreFlightContext.planText`（`session/preflight.ts:137`）同批换成 `plan`——两处都只改值形状，闸门与判定逻辑归 Task 4、本任务不动；供值点五处随动——`face/gate.ts:145` 的 `render`、`face/lifecycle.ts:861` 的 `taskBody`、`session/ledger.ts:941` 的 `taskBody` 三个公开面调用，外加 `extract` / `taskBody` 两处内部委托；`session/ledger.ts` 的 `#briefRevision` 因此不再自己 `readFileSync`，改由既有调用链（`session/run.ts` 的 `#recordReviewedWaveBrief` → `recordReviewedBrief(waveKey, …)` → `#briefRevision`）把场景里的 `PlanRead` 传下去；`face/cli.ts` 的两处供值（`:674` 的 `vet` 上下文、`:1285` 的场景装配）同批换成 `plan`。切换写法写死：调用点先以 `read.kind === "ready"` 守卫，再在 `ready` 分支里取 `text()` / `doc()`（该分支里两者必非 `null`），**不写 `!` 非空断言、也不写 `?? ""`**——后者会把「读不出」伪装成空文档。
 
-场景面的**读取与解析转换**同属本任务（它就是「场景切换」的落点，`#sceneOf` 的两行正是本相位要收权的那两行）：`PlanSource` 在组合根 `Cli.create()` 构造**一次**、作为 `Cli` 字段持有；`#sceneOf` 按场景取 `readFor(entry)`（派生面）或 `readPath(rel)`（argv 面）得到 `PlanRead`，`face/cli.ts:1192` / `:1237` 的 `planText = this.#artifacts.readText(...)` 与 `:1262` 的 `new TaskGraph(new PlanDocType("plan").parse(planText!.split("\n")))` 三行删除。Task 4 只消费这枚已构造好的实例（不再声明构造权）。
+场景面的**读取与解析转换**同属本任务（它就是「场景切换」的落点，`#sceneOf` 的两行正是本相位要收权的那两行）：`PlanSource` 在组合根 `Cli.create()` 构造**一次**、作为 `Cli` 字段持有；`#sceneOf` 按场景取 `readFor(entry)`（派生面）或 `readPath(rel)`（argv 面）得到 `PlanRead`，`face/cli.ts:1192` / `:1237` 的 `planText = this.#artifacts.readText(...)` 与 `:1262` 的 `new TaskGraph(new PlanDocType("plan").parse(planText!.split("\n")))` 三行删除。**局部载体一并退役**：`let planText: string | null = null`（`:1184`）换成 `let plan: PlanRead = PlanSource.undeclared()`，两个 plan 取读点各自持一枚 `const read = this.#planSource.readPath(planRel)` 并把它交给场景；`#targetSlug`（`:1306`）的形参由 `content: string | null` 换成 `read: PlanRead`——`read.kind !== "ready"` 时**不做 slug 拒绝**（回 `null`），`ready` 时按既有 front-matter 提取取 `slug:` 再走 `index.slugVerdict`（今日 `content === null` 那条 `is unreadable — its declared slug: is the workspace key` 的拒绝因此退出 plan 面；拒绝改由 Task 4 的不挂门腿以 `reason: doc-contract` 说出，报文才指得准）。非 `ready` 时装配身份取索引条目 `index.entryAt(planRel)?.slug`（与 doc 面 `:1214` 的 `index.entryAt(specRel)` 同一条既有取法）：`syntax` 坏的 plan 索引收得下 front matter，场景因此照常装配、Task 4 的拒绝腿能说话；索引也给不出条目（`io` 不可读的 plan 不进索引）时才回落到既有 `#targetSlugText(index, planRel, null)`，即今日那条 unreadable 拒绝原样保留。另两个 `#targetSlug` 调用点不换语义：doc 面 `:1207` 与 `base` `:1476` 读的是 spec / 无 pre-flight 闸的 plan 目标，方法的文本入口改名 `#targetSlugText(index, rel, content: string | null)`、方法体一字不改（`base` 丢了这条报文就会静默 exit 1）。**判据写死一条：健康 plan 的 wave / plan / branch dispatch 报文逐字节不变**，尤其不得出现 `the target document <rel> is unreadable — its declared slug: is the workspace key`——一条写失败测钉住它（按字面删那两行，健康 plan 会立刻假报 unreadable）。Task 4 只消费这枚已构造好的实例（不再声明构造权）。
+
+doc 面（`phase-spec` / `overall` / `single-spec`）**不读 plan**：那三个分支把 `plan` 留在 `PlanSource.undeclared()`（Task 2 的工厂回 `{ kind: "undeclared" }`），从不派生 `plans/<slug>.md`、也不同 `index.identityDoc(slug)` 拼一条 plan 路径。这个值在 doc 面上**不可观测**（Task 4 的拒绝腿只覆盖 `wave` / `plan` / `branch`，`undeclared` 又不产拒绝），因此不为它立行为判据——「读不读」由生产者决定，不留给实现者二选一。
 
 `planText` 的读取者不止供值点，还有两处**守卫**，它们同样归本任务：`face/cli.ts:808` 的 `if (!parsed.dryRun && type === "wave" && scene.planText !== null)`（`#runWork` 里 brief 渲染的守卫）收成 `scene.plan.kind === "ready"`；`face/cli.ts:1104` 的 `if (rejection.reason === "split" && scene.planText !== null)`（`#renderLineRefusal`）同样收成 `kind === "ready"`，`:1105` 的实参改传 `scene.plan`。这两行不随供值点消失——字段退役后它们就是本任务唯一剩下的编译错误来源。随之一行**签名移交**：`#renderWaveBoard(scene, read: PlanRead)`（`face/cli.ts:1112`）的形参类型归本任务改，方法体首行 `const graph = new TaskGraph(new PlanDocType("plan").parse(planText.split("\n")))`（`:1113`）也归本任务换成 `const graph = read.graph(); if (graph === null) return;`——签名改了而首行仍按字符串解析，本任务的 `tsc` 就红在方法体未改上，所以这行必须同批；`:1114` 之后（标题 basis 与 `#graphView` 的渲值）归 Task 5，它才是这个方法的主人。
 
 `state` 的退化值由本任务写死，不留给人发明：`#sceneOf` 的 `const state = type === "wave" ? new TaskGraph(new PlanDocType("plan").parse(planText!.split("\n"))) : EMPTY_RUN_STATE`（`:1261-1262`）换成 `const graph = read.kind === "ready" ? read.graph() : null; const state = type === "wave" && graph !== null ? graph : EMPTY_RUN_STATE;`——非 ready 的 wave 场景以空状态装配，不抛。scene 在 `preflight` 之前装配，所以「空状态先出现」不是漏逻辑：Task 4 的不挂门拒绝腿在 dispatch 之前就把它拦下，真派路径到不了 `state` 的使用点。也不再包 `try/catch`：读取已收权到 `PlanRead`，装配期没有可抛的点（今日唯一可抛的点是 `planText!` 的解析，随本任务删除）。`read.graph()` 的返回型是 `TaskGraph | null`（Task 2 的值级表：`ready` 非 `null`），故先 `kind` 守卫、再按值非空收窄，不写 `!`。
 
-`Lifecycle` 的载体同批写清：构造项新增 `plan: PlanRead`（取代 `session/run.ts:357` 的 `#planPath: string | null`；需要 argv 路径字面处取 `path()`），供值点在 `face/cli.ts:812` 的 `new Lifecycle({…})`；`face/lifecycle.ts:861` 的 `#briefHashOf` 与 `session/run.ts:887-889` 的 `readFileSync` 一律改吃这份值，两处 `try/catch` 吞掉读取的分支随读取点消失而删除（stall 语义不变：非 ready 仍不记快照）。
+`Lifecycle` 的载体同批写清：构造项新增 `plan: PlanRead`（取代 `session/run.ts:357` 的 `#planPath: string | null`；需要 argv 路径字面处取 `path()`），供值点在 `face/cli.ts:812` 的 `new Lifecycle({…})`；`face/lifecycle.ts:855-869` 的 `#briefHashOf` 与 `session/run.ts:887-889` 的 `readFileSync` 一律改吃这份值：`run.ts` 侧吞掉读取的 `try/catch` 随读取点消失而删除（stall 语义不变：非 ready 仍不记快照），`face/lifecycle.ts` 侧则**保留 `catch`、只保 `BriefRenderer#taskBody` 的抛点**——`task${n} not found in the plan`（`render/brief.ts:103-110`）在「波次编译后 plan 被改动」下是合法场景，语义仍是「只记在场事实」；保留后 `session/ledger.ts:936-952` 与它对该投影的失败面一致（都回 `null`），不会一处抛、一处回 null。
 
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/render/brief.ts`（删 parser 协作者与默认参数、删 `taskHeadingPattern` 转发、删 `#taskBody` 内的解析、三面改签名）
-- Modify: `packages/cdd-engine/src-next/session/preflight.ts`（只改值形状：`WorkScene.planText` 与 `PreFlight` 上下文的 `planText` → `plan: PlanRead`；本任务不动 gate 与判定逻辑，那是 Task 4）
+- Modify: `packages/cdd-engine/src-next/session/preflight.ts`（只改值形状：`PreFlightContext.planText`（`:137`）→ `plan: PlanRead`；本任务不动 gate 与判定逻辑，那是 Task 4。`WorkScene` 的字段声明不在这个文件——见 cli.ts 条目）
 - Modify: `packages/cdd-engine/src-next/face/gate.ts`（`:145` 的 `render` 传三值：先 `read.kind === "ready"` 守卫，再取 `text()` / `doc()`，不写 `!`、不写 `?? ""`）
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`:861` 的 `taskBody` 传三值；`#briefHashOf` 改吃 `scene.plan`，删它的 `readFileSync` 与吞掉读取的 `catch`）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`:861` 的 `taskBody` 传三值；`#briefHashOf`（`:855-869`）改吃 `scene.plan`，删 `readFileSync` 与读取守卫，**保留** `BriefRenderer#taskBody` 抛点（`render/brief.ts:103-110`）的 `catch → null`——与 `session/ledger.ts:936-952` 同一条失败面）
 - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`:941` 的 `#briefRevision` 收 `PlanRead` 而不再自己读文件；`readonly #brief = new BriefRenderer();`（`:668`）不再传解析器）
 - Modify: `packages/cdd-engine/src-next/session/run.ts`（`Lifecycle` 构造项 `plan: PlanRead` 取代 `#planPath`；`#recordReviewedWaveBrief` 的调用链把这份值传给 `recordReviewedBrief`；`#recordPlanSnapshot` 改吃同一值，删 `readFileSync` 与吞掉读取的 `try/catch`——非 ready 仍不记快照，stall 语义不变）
-- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`Cli.create()` 里构造一次 `PlanSource` 并作为 `Cli` 字段持有；`#sceneOf` 改取 `readFor(entry)` / `readPath(rel)`，删 `:1192` / `:1237` 的 `planText = this.#artifacts.readText(...)` 与 `:1262` 的 `new TaskGraph(new PlanDocType("plan").parse(...))`，`state` 按退化值装配（非 ready 的 wave 场景 → `EMPTY_RUN_STATE`）；两处供值 `:674`（`vet` 上下文）与 `:1285`（场景装配）的 `planText` → `plan`；`:808` 与 `:1104` 两处守卫收成 `scene.plan.kind === "ready"`、`:1105` 实参改传 `scene.plan`，`#renderWaveBoard` 形参改 `read: PlanRead` 且首行取 `read.graph()`（渲值语义归 Task 5）；`:805` 的注释同批改称 `plan`）
+- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`WorkScene.planText: string | null`（`:144-145`）的字段声明退役为 `plan: PlanRead`；`Cli.create()` 里构造一次 `PlanSource` 并作为 `Cli` 字段持有；`#sceneOf` 改取 `readFor(entry)` / `readPath(rel)`，删 `:1192` / `:1237` 的 `planText = this.#artifacts.readText(...)`、`:1184` 的 `let planText: string | null = null` 与 `:1262` 的 `new TaskGraph(new PlanDocType("plan").parse(...))`，`state` 按退化值装配（非 ready 的 wave 场景 → `EMPTY_RUN_STATE`）；`#targetSlug`（`:1306`）形参换 `read: PlanRead`（非 ready 不做 slug 拒绝）、文本入口改名 `#targetSlugText(index, rel, content: string | null)` 供 doc 面 `:1207` 与 `base` `:1476`（方法体一字不改）；三个 doc 面分支把 `PlanSource.undeclared()` 留在场景里（不派生 `plans/<slug>.md`）；两处供值 `:674`（`vet` 上下文）与 `:1285`（场景装配）的 `planText` → `plan`；`:808` 与 `:1104` 两处守卫收成 `scene.plan.kind === "ready"`、`:1105` 实参改传 `scene.plan`，`#renderWaveBoard` 形参改 `read: PlanRead` 且首行取 `read.graph()`（渲值语义归 Task 5）；`:805` 的注释同批改称 `plan`）
 - Test: `packages/cdd-engine/src-next/render/__tests__/render.test.ts`（三面新签名的 harness 改造；`taskHeadingPattern` 两条断言已迁出，此处只留调用面；brief 字节不变量仍绿）
 - Test: `packages/cdd-engine/src-next/face/__tests__/gate.test.ts`、`packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`、`packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`（供值点各一条：`text` 与 `doc` 来自同一个 `PlanRead`；非 `ready` 时调用点走守卫分支、brief 事实不记而不是抛出）
 
@@ -180,7 +186,8 @@ none
 - `BriefRenderer#taskBody(text: string, doc: PlanParsed, tasks: readonly string[])`
 - `BriefRenderer#extract(text: string, doc: PlanParsed, tasks: readonly string[])`
 - `BriefRenderer` 无解析器协作者、无 `constructor` 默认参数
-- `WorkScene.plan: PlanRead`（`planText: string | null` 退役），`PreFlight` 上下文同形
+- `WorkScene.plan: PlanRead`（`planText: string | null` 在 `face/cli.ts:144-145` 退役），`PreFlightContext` 同形为 `plan`
+- `#targetSlug(index, rel, read: PlanRead)`（plan 面：非 ready 回 `null`、不做 slug 拒绝）与 `#targetSlugText(index, rel, content: string | null)`（doc 面与 `base`：今日报文逐字节不变）
 - `Ledger#recordReviewedBrief(waveKey, read: PlanRead)` 与 `#briefRevision(waveKey, read)` 收值（`session/run.ts` 的既有调用链传入）
 - `Cli` 的 `PlanSource` 字段（`Cli.create()` 单次构造）与 `#sceneOf` 的两入口取读（派生面 `readFor` / argv 面 `readPath`）
 - `Lifecycle` 构造项 `plan: PlanRead`（取代 `#planPath`；`face/cli.ts:812` 供值）
@@ -190,9 +197,12 @@ none
 - 写失败测（无解析可抛）：给 `render` / `taskBody` / `extract` 一份坏文法的 `text` 与一份从**另一份 plan** 取来的 `PlanParsed`，断言不抛 `cdd: task 27 carries the reserved section`（brief 不再解析）；`null` 形状不在这三面的签名里（`doc: PlanParsed`），「非 ready 不进调用点」由访问器值级表（Task 2）与调用点的 `ready` 守卫覆盖 — checkable: 定向 vitest FAIL（今日内部会解析并抛）
 - 写失败测（签名）：三面各一次调用只带 `(text, doc, tasks)`，传递的 `doc.taskBlocks` 被使用 — checkable: FAIL（今日 `taskBody` 只收 `(planContent, tasks)`）
 - 删除 parser 协作者与默认参数、改三面签名、删内部解析 — checkable: 上述两组 PASS · `render/__tests__/render.test.ts` 的 brief 字节不变量仍绿
-- `Cli.create()` 构造一次 `PlanSource` 并作为 `Cli` 字段持有；`#sceneOf` 改从它取 `PlanRead`（派生面 `readFor` / argv 面 `readPath`），删那三行自读自解析，`state` 按退化值装配（`read.kind === "ready" ? read.graph() : null`，再 `type === "wave" && graph !== null ? graph : EMPTY_RUN_STATE`） — checkable: `PlanSource#readFor` / `#readPath` 的调用点在场景装配段存在；`face/cli.ts` 里 `new PlanDocType("plan")` 与 `new TaskGraph(` 的命中面只剩 `#sceneOf`、`planIds`（`:708-709`，归 Task 4）、`#renderWaveBoard`（`:1113`，归 Task 5）三段，三者之外**零命中**
+- `Cli.create()` 构造一次 `PlanSource` 并作为 `Cli` 字段持有；`#sceneOf` 改从它取 `PlanRead`（派生面 `readFor` / argv 面 `readPath`），删那三行自读自解析，`state` 按退化值装配（`read.kind === "ready" ? read.graph() : null`，再 `type === "wave" && graph !== null ? graph : EMPTY_RUN_STATE`） — checkable: `PlanSource#readFor` / `#readPath` 的调用点在场景装配段存在；`face/cli.ts` 里 `new PlanDocType("plan")` 与 `new TaskGraph(` 的命中面只剩 `planIds`（`:708-709`，归 Task 4）与 `#renderWaveBoard`（`:1113`，归 Task 5）两段，两段之外**零命中**（`#sceneOf` 的两处构造在本任务内删净，它不再是命中面）
+- 写失败测（健康 dispatch 报文逐字节）：健康 plan 上 `implement --type wave` / `--type plan` / `--type branch`（含各自 `--dry-run`）与 `review` / `fix` 同面，报文与改动前逐字节相同，尤其**不出现** `the target document … is unreadable — its declared slug: is the workspace key` — checkable: 定向 vitest FAIL（若把非 ready 又摔回 slug 拒绝，健康 plan 会立刻假报 unreadable）
+- `#targetSlug`（`:1306`）形参换 `read: PlanRead`：非 ready 直回 `null`、不做 slug 拒绝；文本入口改名 `#targetSlugText`，doc 面 `:1207` 与 `base` `:1476` 的报文逐字节不变；`#sceneOf` 的 `let planText`（`:1184`）换成 `let plan: PlanRead = PlanSource.undeclared()`，两个取读点各持一枚 `const read = this.#planSource.readPath(planRel)`，非 ready 时装配身份取 `index.entryAt(planRel)?.slug`、索引无条目才回落到 `#targetSlugText(index, planRel, null)` — checkable: `grep -n "let planText" packages/cdd-engine/src-next/face/cli.ts` **零命中** · `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0
+- doc 面传 `PlanSource.undeclared()`：`phase-spec` / `overall` / `single-spec` 三个分支不派生 `plans/<slug>.md`、也不同 `index.identityDoc(slug)` 拼 plan 路径 — checkable: `readFor(` 的命中面只在 plan 携带面 · `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0
 - `face/cli.ts:808` 与 `:1104` 两处守卫收成 `scene.plan.kind === "ready"`，`:1105` 实参改传 `scene.plan`；`#renderWaveBoard(scene, read: PlanRead)` 的形参同批改、方法体首行换成 `const graph = read.graph(); if (graph === null) return;` — checkable: `grep -n "planText" packages/cdd-engine/src-next/face/cli.ts` 在 `:808` / `:1104` / `:1105` / `:1112` / `:1113` 上零命中 · `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0（签名、实参与首行在同一任务内改完，不留红）
-- `Lifecycle` 构造项 `plan: PlanRead` 落地（`face/cli.ts:812` 供值），`session/run.ts:887-889` 与 `face/lifecycle.ts:861` 的两处 `readFileSync` 及其 `try/catch` 删除 — checkable: 非 ready 不记快照、brief 哈希与 `#briefRevision` 取自同一份值
+- `Lifecycle` 构造项 `plan: PlanRead` 落地（`face/cli.ts:812` 供值），`session/run.ts:887-889` 与 `face/lifecycle.ts:861` 的两处 `readFileSync` 删除，`run.ts` 侧的 `try/catch` 一并删除，`face/lifecycle.ts` 的 `#briefHashOf` 保留 `catch`、只捕 `taskBody` 的抛点 — checkable: 非 ready 不记快照、brief 哈希与 `#briefRevision` 取自同一份值且对同一投影同回 `null`
 - 五个调用点传三值（含两处内部委托）：`face/gate.ts:145` 先以 `read.kind === "ready"` 守卫再取 `text()` / `doc()`；`session/ledger.ts` 的 `#briefRevision` 收 `PlanRead` 而不再自己读文件 — checkable: gate / lifecycle / ledger 三处供值测 PASS
 - `WorkScene.planText` 与 `PreFlight` 上下文的 `planText` 退役为 `plan: PlanRead`，`face/cli.ts:674` / `:1285` 两处供值同批改 — checkable: `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0（签名与最后一个消费者在同一任务内改完，不再跳任务边界）
 - 本任务归属面查残留 — checkable: `grep -rn "planText" packages/cdd-engine/src-next/face/cli.ts packages/cdd-engine/src-next/face/gate.ts packages/cdd-engine/src-next/face/lifecycle.ts packages/cdd-engine/src-next/session/ledger.ts | grep -v __tests__` **零命中**（`face/cli.ts` 只限场景装配段与 `:808` / `:1104` 两处守卫；`session/preflight.ts` 与 `face/cli.ts` 的 `planIds` / graph 门 / `#ledgerFactsOf` / `#ledgerInputOf` 段归 Task 4，`#renderWaveBoard` 的渲值段归 Task 5（首行随签名已在本任务改），整体零命中门归 Task 7）
@@ -202,12 +212,14 @@ none
 
 - `BriefRenderer` 内不再出现 plan 解析，也没有只被测试使用的构造参数；三面同形，`extract` 亦收 `doc`，块来自 `doc.taskBlocks`。
 - brief 的字节不变量保持：任务段与 `## Constraints` 节仍按 `text` 的裸行切片，已评审波次不因本改动重开。
-- `face/gate.ts` 不再有 `scene.planText!` 之类的非空断言，也不以 `?? ""` 把「读不出」伪装成空文档：调用点先以 `read.kind === "ready"` 守卫；非 `ready` 时 brief 事实不记（本地 `catch → null` 语义留在 `#briefRevision`）。
+- `face/gate.ts` 不再有 `scene.planText!` 之类的非空断言，也不以 `?? ""` 把「读不出」伪装成空文档：调用点先以 `read.kind === "ready"` 守卫；非 `ready` 时 brief 事实不记（本地 `catch → null` 语义留在 `#briefRevision`）；`face/lifecycle.ts` 的 `#briefHashOf` 保留 `catch`、只捕 `BriefRenderer#taskBody` 的抛点，两个哈希对同一投影都回 `null`。
 - `WorkScene` 与 `PreFlight` 上下文只有一份 plan 事实源（`plan: PlanRead`）；`planText` 在本任务归属面（`face/cli.ts` 场景装配段、`face/gate.ts`、`face/lifecycle.ts`、`session/ledger.ts`）零命中，`grep` 证据随本任务落地——整体零命中门在 Task 7 收口。
 - 场景面的读取与解析转换在本任务收口：`#sceneOf` 从 `Cli.create()` 落地的 `PlanSource` 取 `PlanRead`（派生面 `readFor(entry)` / argv 面 `readPath(rel)`），`planText = this.#artifacts.readText(...)` 与 `new TaskGraph(new PlanDocType("plan").parse(...))` 两行已删；`PlanSource#readFor` / `#readPath` 的调用点在 T3 结束后必须存在（否则说明构造物没接线）。
-- `face/cli.ts` 里 `new PlanDocType("plan")` 与 `new TaskGraph(` 的命中面在 T3 收尾时只有 `#sceneOf`、`planIds`（`:708-709`，归 Task 4）、`#renderWaveBoard`（`:1113`，归 Task 5）三段，三者之外**零命中**——判据不把 T4 的段落吃掉，也不改写成「只剩 `#renderWaveBoard`」。
+- `face/cli.ts` 里 `new PlanDocType("plan")` 与 `new TaskGraph(` 的命中面在 T3 收尾时只有 `planIds`（`:708-709`，归 Task 4）与 `#renderWaveBoard`（`:1113`，归 Task 5）两段，两段之外**零命中**——判据不把 T4 的段落吃掉，也不改写成「只剩 `#renderWaveBoard`」。
 - `scene.planText` 的每一处读取都在本任务内改完：`:674` / `:1285` 两处供值、`:808` 与 `:1104` 两处守卫、`:1105` 实参、`:1112` 形参；`#sceneOf` 的 `state` 装配写出退化值（非 ready 的 wave 场景 → `EMPTY_RUN_STATE`），不抛、不用 `!`，理由（scene 先于 `preflight` 装配、Task 4 的拒绝腿在 dispatch 前拦下）写在 Objective 里。
 - `render/__tests__/render.test.ts` 不再出现 `taskHeadingPattern` 的断言（已迁入 `contract/__tests__/doc.test.ts`）。
+- 健康 plan 的 wave / plan / branch dispatch 报文逐字节不变，不出现 `the target document … is unreadable — its declared slug: is the workspace key`：`#targetSlug` 的非 ready 分支回 `null` 而不发拒绝，坏 plan 的拒绝由 Task 4 的 `doc-contract` 腿说出。
+- `#sceneOf` 里没有局部 `planText` 载体（`let planText` 零命中），两个取读点各持一枚 `PlanRead`；doc 面分支留在 `PlanSource.undeclared()`，不派生 `plans/<slug>.md`，此值在 doc 面上不可观测、不立判据。
 
 #### DependsOn
 
@@ -346,7 +358,7 @@ none
 
 #### Objective
 
-按 `docTypeParsers` 的**登记行为参数**落一条守卫：每个 doc key 的构造拼写（`new` + 该型的 `DocType` 类名 + 该 key 字面量）只许出现在两处——它自己的登记行，以及该 doc 型指定的唯一读取点（plan 的是 `infra/plan-source.ts`）。规则通用，plan 只是第一个受益者：防复发靠规则，不靠再写一条 plan 专属 grep。扫描面是生产源码（`**/__tests__/**` 排除——测试合法地直接构造解析器），同一测试另禁 `infra/plan-source.ts` 出现空 `catch`。此门在**未改动文件上为绿**（Task 3 已删 brief 的第二处解析），这是它与「先落门再改代码」的分界。
+按 `docTypeParsers` 的**登记行为参数**落一条守卫：每个 doc key 的构造拼写（`new` + 该型的 `DocType` 类名 + 该 key 字面量）只许出现在两处——它自己的登记行，以及该 doc 型指定的唯一读取点（plan 的是 `infra/plan-source.ts`）。规则通用，plan 只是第一个受益者：防复发靠规则，不靠再写一条 plan 专属 grep。扫描面是生产源码（`**/__tests__/**` 排除——测试合法地直接构造解析器），同一测试另禁 `infra/plan-source.ts` 出现空 `catch`。此门在**其依赖闭包内为绿**——`plan` 的四处残余构造点（`face/cli.ts:708`、`session/preflight.ts:227`、`session/preflight.ts:509`、`face/board-view.ts:896`）全部退役之后（Task 4 收前三处、Task 5 收第四处，Task 3 已删 brief 的第二处解析）；「改动前的树上为绿」不是判据，它把一处不可能写成前提。
 
 #### Files
 
@@ -365,7 +377,7 @@ none
 
 - 写失败测（白名单）：遍历 `docTypeParsers` 的每个 key，断言其构造拼写只出现在登记行与指定读取点；在临时构造一处越界拼写的夹具上先红 — checkable: 定向 vitest PASS/FAIL 双向验证（用夹具证明这条门会红）
 - 写失败测（空 catch）：`infra/plan-source.ts` 不含空 `catch` 块 — checkable: PASS（今日无该文件新写法，File 由 Task 2 落地）
-- 实现守卫（参数化 + 源码扫描 + 测试目录排除） — checkable: 全绿，且在改动前的树上为绿
+- 实现守卫（参数化 + 源码扫描 + 测试目录排除） — checkable: 全绿，且在**其依赖闭包内**为绿（四处残余构造点退役之后）
 - 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/infra` 与 `pnpm exec tsc --noEmit -p packages/cdd-engine` 均 exit 0
 
 #### Acceptance
@@ -438,8 +450,9 @@ none
 | v0.3 | 2026-11-14 | 作者裁定（设计回填 v0.12 随动 · D91）：**新增 Task 7「反查」**——plan 的 slug 必须命名一份 `<slug>-design.md`：规则 `plan-slug-names-spec` 落 doc-contract 面（只对 `docKey === "plan"`，派生 `${ENGINE_DOC_ROOTS.specs}/<slug>-design.md` 后**只**探 `DocFs.exists`），`review`/`implement`/`fix` 一律 `CDD_BLOCKED`；板面 spec 行渲 `! no-spec` + hop-less `next:` + stderr `CDD_WARN:` 且 exit 0；旧 Task 7（三面一致性 + 验收收口）顺延为 **Task 8**、`DependsOn` 改 `5, 6, 7` 并补反查三条 AC 的写失败测；Constraints 加「正查不阻塞、反查阻塞」一条，「逐字取 spec」的版本字面校到 v0.12；Review Focus 把过时的 `plan:` 声明条换成「反查被写成内容判定」 | Claude（kairos:cdd-plan · 2026-11-14） |
 | v0.4 | 2026-11-14 | 作者裁定（设计 v0.13/v0.14 随动 · 反查的落地形态）：**取消独立的「反查」任务**，把它的三处切面还给各自的主人——`PlanRead` 携带 `orphan()`（`spec-absent` / `slug-absent`，只探 `DocFs.exists`）与三条词法归 **Task 2**；阻塞不登记 doc-contract 规则，随 `refusal(words)` 落 **Task 4** 既有不挂门腿（本就覆盖 `plan`/`wave`/`branch` + `--dry-run`）；规格行 `! no-spec`、`BoardNext` 短路谓词、`nameWidth` 保位、读源优先序（`--spec` 胜）归 **Task 5**。任务由八条回到七条，波次随依赖重排 | Claude（kairos:cdd-plan · 2026-11-14） |
 | v0.5 | 2026-11-14 | 评审轮 plan-review-1 落地（F1–F12，F1–F4 按裁决）：graph 门在非 ready 上**整段不运行**（删掉「非 ready 时立一行记账」的四处表述，判据改为 `checked:` 字节集与今日相同、`graph` 不出现在 `checked` 里）；Constraints 与 Review Focus 换成 spec v0.13/v0.14 的读值形态（`orphan()` 只探存在性、阻塞随 `refusal(words)` 落既有不挂门腿；不登记规则、不产 `Finding`、`kind` 零新增，并点明位置错判这个坑）；Task 3 与旧 Task 4 的场景切换合并为一条原子任务「brief 收值 + 场景切换」（`WorkScene.planText` 与它最后一个消费者 `face/gate.ts:145` 同批退役，五个供值点 + `face/cli.ts` 两处一并切换），原 Task 4 余下部分收窄为 dispatch 面，`grep -rn "planText"` 零命中写进 T3 验收；Task 2 的访问器清单补到十一个加 `path()`、`PlanReadWords` 七个成员一次写完、`cellEmpty` 标明为新增而非既有、删掉「类上还带路径校验」的措辞（路径由 slug 派生、没有作者输入可校）；`DocSlices` 的家改到 `contract/project.ts`；board 程序面逐相位 `CDD_WARN:`、未索引的 ready plan 行、spec 存在但读不出三条补写失败测；过期 Task 号与 `argv` 的拼写笔误同批校订 | Claude（kairos:cdd-fix · 2026-11-14） |
-| v0.7 | 2026-11-14 | 复评轮 plan-review-1（同一轮的重跑）校订两处随 F3/F4 合并而失效的任务归因：Task 5 的 Consumes 把 `scene.plan` 的产地由 Task 4 改回 **Task 3**；Task 4 的 `face/cli.ts` 文件条目拆清——`PlanSource` 的单次构造与 `Cli` 字段持有归本任务，场景两处供值归 Task 3。结构面（任务 id 集与 `DependsOn` 集）零改动，其余内容与 v0.6 一致 | Claude（kairos:cdd-fix · 2026-11-14） |
 | v0.6 | 2026-11-14 | 编排器结构面提交（fix 1 的 rejected 两半）：依赖边按 D 裁决重排——`Task 3` 的 `DependsOn` 由 `1` 改为 `1, 2`（消费 Task 2 的 `PlanRead`），`Task 4` 由 `2` 改为 `2, 3`（消费 Task 3 落地的 `scene.plan`）。结构面不属评审轮（引擎把 `DependsOn` 集当结构基线，`face/lifecycle.ts:344` 快照、`:586-604` 比对），故由编排器单独提交 | Claude（kairos:cdd-plan · 2026-11-14） |
+| v0.7 | 2026-11-14 | 复评轮 plan-review-1（同一轮的重跑）校订两处随 F3/F4 合并而失效的任务归因：Task 5 的 Consumes 把 `scene.plan` 的产地由 Task 4 改回 **Task 3**；Task 4 的 `face/cli.ts` 文件条目拆清——`PlanSource` 的单次构造与 `Cli` 字段持有归本任务，场景两处供值归 Task 3。结构面（任务 id 集与 `DependsOn` 集）零改动，其余内容与 v0.6 一致 | Claude（kairos:cdd-fix · 2026-11-14） |
 | v0.8 | 2026-11-14 | 复审轮 plan-review-2 落地（F1–F7，全部按裁决）：场景面的读取与解析转换归 **Task 3**（`PlanSource` 在 `Cli.create()` 单次构造并作为 `Cli` 字段持有，`#sceneOf` 改取 `readFor(entry)` / `readPath(rel)`，删 `planText = this.#artifacts.readText(...)` 与 `new TaskGraph(new PlanDocType("plan").parse(...))` 三行；新增 `Lifecycle` 构造项 `plan: PlanRead` 取代 `#planPath`，`session/run.ts` 与 `face/lifecycle.ts` 两处 `readFileSync` 及其 `catch` 随之消失），Task 4 只复用该实例、不再声明构造权；Task 5 的诊断行数改为**恒等于「坏 plan 数 + 孤儿数」**（`undeclared` 零行，并补反向测）；Task 2 的访问器契约升为值级表、孤儿判定先于 `(empty plan)`；Task 3 删掉 `doc: null` 的测；`planText` 零命中门按文件归属拆到 T3 / T4 / T5、整体门留 T7；全文统一改称「派生面」（旧的错误称谓清零）。结构面零改动 | Claude（kairos:cdd-fix · 2026-11-14） |
 | v0.9 | 2026-11-14 | 复审轮 plan-review-3 落地（F1–F4，全部按裁决）：`planText` 两个漏网的**读取者**（`:808` / `:1104` 两处守卫）归 **Task 3**——收成 `scene.plan.kind === "ready"`、`:1105` 实参改传 `scene.plan`，`#renderWaveBoard` 形参改 `read: PlanRead` 并附一行签名移交（方法体渲值语义仍归 Task 5，否则 T3 的 `tsc` 就红在方法体未改上）；`#sceneOf` 的 `state` 写出退化值（非 ready 的 wave 场景以 `EMPTY_RUN_STATE` 装配，不包 `try/catch`、不写 `!`，理由随句写明）；`PipelineFrontierInput.planGraph` 的退役归 **Task 4**（三处字面量与 `Lifecycle#planGraph` 单元同批改，板面经 `pipelineFacts` / `BoardNext.of` 的 `read` 形参过桥、T5 替换并删除 `BoardView.planGraph`），验收补一条 `planGraph` 残留 grep；T3 的 scoped 判据据实改（`#sceneOf` / `planIds` / `#renderWaveBoard` 三段之外零命中，不再把 T4 的段落写进 T3 的判据）。结构面零改动 | Claude（kairos:cdd-fix · 2026-11-14） |
 | v0.10 | 2026-11-14 | 编排器结构面提交（plan-review-4 F2）：**Task 6（唯一构造点门）`DependsOn` `2, 3` → `3, 5`**——参数化守卫要在 `plan` 的四处残余构造点（`face/cli.ts:708`、`session/preflight.ts:227`/`:509`、`face/board-view.ts:896`）全部退役之后才可能为绿，而它们分别归 Task 4 与 Task 5；原依赖把「此门在改动前的树上为绿」写成不可能 | Claude（kairos:cdd-plan · 2026-11-14） |
+| v0.11 | 2026-11-14 | docs-fix 轮 plan-review-4 落地（F1–F7，全按裁决）：F1 `#targetSlug` 收 `PlanRead`（非 ready 不做 slug 拒绝，改由 T4 的 `reason: doc-contract` 腿说话；文本入口改名 `#targetSlugText` 保管 doc 面与 `base` 的报文），`#sceneOf` 的 `let planText` 载体退役、健康 dispatch 报文逐字节由一条写失败测钉住；F2 T6 判据改为「此门在其依赖闭包内为绿」；F3 `#briefHashOf` 保留 `catch`、只保 `taskBody` 抛点；F4 `taskHeadingPattern` 定为模块作用域箭头常量（投影 `toEqual` 仍成立）；F5 `WorkScene` 字段归属据实落到 `face/cli.ts:144-145`；F6 doc 面传 `PlanSource.undeclared()`；F7 change history 按版本升序重排并补本行 | Claude（kairos:cdd-fix · 2026-11-14） |

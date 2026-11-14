@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P35 计划：plan 读取收权（一份读取 · 一个失败值 · 一条拒绝通道）'
 doc-type: plan
-version: v0.8
+version: v0.9
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p35
 base: develop
@@ -150,6 +150,10 @@ none
 
 场景面的**读取与解析转换**同属本任务（它就是「场景切换」的落点，`#sceneOf` 的两行正是本相位要收权的那两行）：`PlanSource` 在组合根 `Cli.create()` 构造**一次**、作为 `Cli` 字段持有；`#sceneOf` 按场景取 `readFor(entry)`（派生面）或 `readPath(rel)`（argv 面）得到 `PlanRead`，`face/cli.ts:1192` / `:1237` 的 `planText = this.#artifacts.readText(...)` 与 `:1262` 的 `new TaskGraph(new PlanDocType("plan").parse(planText!.split("\n")))` 三行删除。Task 4 只消费这枚已构造好的实例（不再声明构造权）。
 
+`planText` 的读取者不止供值点，还有两处**守卫**，它们同样归本任务：`face/cli.ts:808` 的 `if (!parsed.dryRun && type === "wave" && scene.planText !== null)`（`#runWork` 里 brief 渲染的守卫）收成 `scene.plan.kind === "ready"`；`face/cli.ts:1104` 的 `if (rejection.reason === "split" && scene.planText !== null)`（`#renderLineRefusal`）同样收成 `kind === "ready"`，`:1105` 的实参改传 `scene.plan`。这两行不随供值点消失——字段退役后它们就是本任务唯一剩下的编译错误来源。随之一行**签名移交**：`#renderWaveBoard(scene, read: PlanRead)`（`face/cli.ts:1112`）的形参类型归本任务改，方法体首行 `const graph = new TaskGraph(new PlanDocType("plan").parse(planText.split("\n")))`（`:1113`）也归本任务换成 `const graph = read.graph(); if (graph === null) return;`——签名改了而首行仍按字符串解析，本任务的 `tsc` 就红在方法体未改上，所以这行必须同批；`:1114` 之后（标题 basis 与 `#graphView` 的渲值）归 Task 5，它才是这个方法的主人。
+
+`state` 的退化值由本任务写死，不留给人发明：`#sceneOf` 的 `const state = type === "wave" ? new TaskGraph(new PlanDocType("plan").parse(planText!.split("\n"))) : EMPTY_RUN_STATE`（`:1261-1262`）换成 `const graph = read.kind === "ready" ? read.graph() : null; const state = type === "wave" && graph !== null ? graph : EMPTY_RUN_STATE;`——非 ready 的 wave 场景以空状态装配，不抛。scene 在 `preflight` 之前装配，所以「空状态先出现」不是漏逻辑：Task 4 的不挂门拒绝腿在 dispatch 之前就把它拦下，真派路径到不了 `state` 的使用点。也不再包 `try/catch`：读取已收权到 `PlanRead`，装配期没有可抛的点（今日唯一可抛的点是 `planText!` 的解析，随本任务删除）。`read.graph()` 的返回型是 `TaskGraph | null`（Task 2 的值级表：`ready` 非 `null`），故先 `kind` 守卫、再按值非空收窄，不写 `!`。
+
 `Lifecycle` 的载体同批写清：构造项新增 `plan: PlanRead`（取代 `session/run.ts:357` 的 `#planPath: string | null`；需要 argv 路径字面处取 `path()`），供值点在 `face/cli.ts:812` 的 `new Lifecycle({…})`；`face/lifecycle.ts:861` 的 `#briefHashOf` 与 `session/run.ts:887-889` 的 `readFileSync` 一律改吃这份值，两处 `try/catch` 吞掉读取的分支随读取点消失而删除（stall 语义不变：非 ready 仍不记快照）。
 
 #### Files
@@ -160,7 +164,7 @@ none
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`:861` 的 `taskBody` 传三值；`#briefHashOf` 改吃 `scene.plan`，删它的 `readFileSync` 与吞掉读取的 `catch`）
 - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`:941` 的 `#briefRevision` 收 `PlanRead` 而不再自己读文件；`readonly #brief = new BriefRenderer();`（`:668`）不再传解析器）
 - Modify: `packages/cdd-engine/src-next/session/run.ts`（`Lifecycle` 构造项 `plan: PlanRead` 取代 `#planPath`；`#recordReviewedWaveBrief` 的调用链把这份值传给 `recordReviewedBrief`；`#recordPlanSnapshot` 改吃同一值，删 `readFileSync` 与吞掉读取的 `try/catch`——非 ready 仍不记快照，stall 语义不变）
-- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`Cli.create()` 里构造一次 `PlanSource` 并作为 `Cli` 字段持有；`#sceneOf` 改取 `readFor(entry)` / `readPath(rel)`，删 `:1192` / `:1237` 的 `planText = this.#artifacts.readText(...)` 与 `:1262` 的 `new TaskGraph(new PlanDocType("plan").parse(...))`；两处供值 `:674`（`vet` 上下文）与 `:1285`（场景装配）的 `planText` → `plan`）
+- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`Cli.create()` 里构造一次 `PlanSource` 并作为 `Cli` 字段持有；`#sceneOf` 改取 `readFor(entry)` / `readPath(rel)`，删 `:1192` / `:1237` 的 `planText = this.#artifacts.readText(...)` 与 `:1262` 的 `new TaskGraph(new PlanDocType("plan").parse(...))`，`state` 按退化值装配（非 ready 的 wave 场景 → `EMPTY_RUN_STATE`）；两处供值 `:674`（`vet` 上下文）与 `:1285`（场景装配）的 `planText` → `plan`；`:808` 与 `:1104` 两处守卫收成 `scene.plan.kind === "ready"`、`:1105` 实参改传 `scene.plan`，`#renderWaveBoard` 形参改 `read: PlanRead` 且首行取 `read.graph()`（渲值语义归 Task 5）；`:805` 的注释同批改称 `plan`）
 - Test: `packages/cdd-engine/src-next/render/__tests__/render.test.ts`（三面新签名的 harness 改造；`taskHeadingPattern` 两条断言已迁出，此处只留调用面；brief 字节不变量仍绿）
 - Test: `packages/cdd-engine/src-next/face/__tests__/gate.test.ts`、`packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`、`packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`（供值点各一条：`text` 与 `doc` 来自同一个 `PlanRead`；非 `ready` 时调用点走守卫分支、brief 事实不记而不是抛出）
 
@@ -186,11 +190,12 @@ none
 - 写失败测（无解析可抛）：给 `render` / `taskBody` / `extract` 一份坏文法的 `text` 与一份从**另一份 plan** 取来的 `PlanParsed`，断言不抛 `cdd: task 27 carries the reserved section`（brief 不再解析）；`null` 形状不在这三面的签名里（`doc: PlanParsed`），「非 ready 不进调用点」由访问器值级表（Task 2）与调用点的 `ready` 守卫覆盖 — checkable: 定向 vitest FAIL（今日内部会解析并抛）
 - 写失败测（签名）：三面各一次调用只带 `(text, doc, tasks)`，传递的 `doc.taskBlocks` 被使用 — checkable: FAIL（今日 `taskBody` 只收 `(planContent, tasks)`）
 - 删除 parser 协作者与默认参数、改三面签名、删内部解析 — checkable: 上述两组 PASS · `render/__tests__/render.test.ts` 的 brief 字节不变量仍绿
-- `Cli.create()` 构造一次 `PlanSource` 并作为 `Cli` 字段持有；`#sceneOf` 改从它取 `PlanRead`（派生面 `readFor` / argv 面 `readPath`），删那三行自读自解析 — checkable: `PlanSource#readFor` / `#readPath` 的调用点在场景装配段存在；`face/cli.ts` 里 `new PlanDocType("plan")` 与 `new TaskGraph(` 只剩 `#renderWaveBoard` 段（归 Task 5）
+- `Cli.create()` 构造一次 `PlanSource` 并作为 `Cli` 字段持有；`#sceneOf` 改从它取 `PlanRead`（派生面 `readFor` / argv 面 `readPath`），删那三行自读自解析，`state` 按退化值装配（`read.kind === "ready" ? read.graph() : null`，再 `type === "wave" && graph !== null ? graph : EMPTY_RUN_STATE`） — checkable: `PlanSource#readFor` / `#readPath` 的调用点在场景装配段存在；`face/cli.ts` 里 `new PlanDocType("plan")` 与 `new TaskGraph(` 的命中面只剩 `#sceneOf`、`planIds`（`:708-709`，归 Task 4）、`#renderWaveBoard`（`:1113`，归 Task 5）三段，三者之外**零命中**
+- `face/cli.ts:808` 与 `:1104` 两处守卫收成 `scene.plan.kind === "ready"`，`:1105` 实参改传 `scene.plan`；`#renderWaveBoard(scene, read: PlanRead)` 的形参同批改、方法体首行换成 `const graph = read.graph(); if (graph === null) return;` — checkable: `grep -n "planText" packages/cdd-engine/src-next/face/cli.ts` 在 `:808` / `:1104` / `:1105` / `:1112` / `:1113` 上零命中 · `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0（签名、实参与首行在同一任务内改完，不留红）
 - `Lifecycle` 构造项 `plan: PlanRead` 落地（`face/cli.ts:812` 供值），`session/run.ts:887-889` 与 `face/lifecycle.ts:861` 的两处 `readFileSync` 及其 `try/catch` 删除 — checkable: 非 ready 不记快照、brief 哈希与 `#briefRevision` 取自同一份值
 - 五个调用点传三值（含两处内部委托）：`face/gate.ts:145` 先以 `read.kind === "ready"` 守卫再取 `text()` / `doc()`；`session/ledger.ts` 的 `#briefRevision` 收 `PlanRead` 而不再自己读文件 — checkable: gate / lifecycle / ledger 三处供值测 PASS
 - `WorkScene.planText` 与 `PreFlight` 上下文的 `planText` 退役为 `plan: PlanRead`，`face/cli.ts:674` / `:1285` 两处供值同批改 — checkable: `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0（签名与最后一个消费者在同一任务内改完，不再跳任务边界）
-- 本任务归属面查残留 — checkable: `grep -rn "planText" packages/cdd-engine/src-next/face/cli.ts packages/cdd-engine/src-next/face/gate.ts packages/cdd-engine/src-next/face/lifecycle.ts packages/cdd-engine/src-next/session/ledger.ts | grep -v __tests__` **零命中**（`face/cli.ts` 只限场景装配段；`session/preflight.ts` 与 `face/cli.ts` 的 `planIds` / graph 门 / `#ledgerFactsOf` / `#ledgerInputOf` 段归 Task 4，`#renderWaveBoard` 段归 Task 5，整体零命中门归 Task 7）
+- 本任务归属面查残留 — checkable: `grep -rn "planText" packages/cdd-engine/src-next/face/cli.ts packages/cdd-engine/src-next/face/gate.ts packages/cdd-engine/src-next/face/lifecycle.ts packages/cdd-engine/src-next/session/ledger.ts | grep -v __tests__` **零命中**（`face/cli.ts` 只限场景装配段与 `:808` / `:1104` 两处守卫；`session/preflight.ts` 与 `face/cli.ts` 的 `planIds` / graph 门 / `#ledgerFactsOf` / `#ledgerInputOf` 段归 Task 4，`#renderWaveBoard` 的渲值段归 Task 5（首行随签名已在本任务改），整体零命中门归 Task 7）
 - 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/render src-next/face src-next/session` 与 `pnpm exec tsc --noEmit -p packages/cdd-engine` 均 exit 0
 
 #### Acceptance
@@ -200,7 +205,8 @@ none
 - `face/gate.ts` 不再有 `scene.planText!` 之类的非空断言，也不以 `?? ""` 把「读不出」伪装成空文档：调用点先以 `read.kind === "ready"` 守卫；非 `ready` 时 brief 事实不记（本地 `catch → null` 语义留在 `#briefRevision`）。
 - `WorkScene` 与 `PreFlight` 上下文只有一份 plan 事实源（`plan: PlanRead`）；`planText` 在本任务归属面（`face/cli.ts` 场景装配段、`face/gate.ts`、`face/lifecycle.ts`、`session/ledger.ts`）零命中，`grep` 证据随本任务落地——整体零命中门在 Task 7 收口。
 - 场景面的读取与解析转换在本任务收口：`#sceneOf` 从 `Cli.create()` 落地的 `PlanSource` 取 `PlanRead`（派生面 `readFor(entry)` / argv 面 `readPath(rel)`），`planText = this.#artifacts.readText(...)` 与 `new TaskGraph(new PlanDocType("plan").parse(...))` 两行已删；`PlanSource#readFor` / `#readPath` 的调用点在 T3 结束后必须存在（否则说明构造物没接线）。
-- `face/cli.ts` 里 `new PlanDocType("plan")` 与 `new TaskGraph(` 在 `#sceneOf` / `#renderWaveBoard` 之外**零命中**（`#sceneOf` 段本任务已清空，`#renderWaveBoard` 段归 Task 5 的 gate）。
+- `face/cli.ts` 里 `new PlanDocType("plan")` 与 `new TaskGraph(` 的命中面在 T3 收尾时只有 `#sceneOf`、`planIds`（`:708-709`，归 Task 4）、`#renderWaveBoard`（`:1113`，归 Task 5）三段，三者之外**零命中**——判据不把 T4 的段落吃掉，也不改写成「只剩 `#renderWaveBoard`」。
+- `scene.planText` 的每一处读取都在本任务内改完：`:674` / `:1285` 两处供值、`:808` 与 `:1104` 两处守卫、`:1105` 实参、`:1112` 形参；`#sceneOf` 的 `state` 装配写出退化值（非 ready 的 wave 场景 → `EMPTY_RUN_STATE`），不抛、不用 `!`，理由（scene 先于 `preflight` 装配、Task 4 的拒绝腿在 dispatch 前拦下）写在 Objective 里。
 - `render/__tests__/render.test.ts` 不再出现 `taskHeadingPattern` 的断言（已迁入 `contract/__tests__/doc.test.ts`）。
 
 #### DependsOn
@@ -215,13 +221,18 @@ none
 
 让坏 plan 在**所有携带 plan 的面**上死在一条既有通道里，而不是死在渲染或裸崩里。`session/preflight.ts` 新增一道**不挂门的独立判定**：位置在 in-flight 之后、graph 门之前，依据场景里的 `PlanRead`（不是 `ctx.doc`——wave 面 `ctx.doc === null`、`TargetFaceTable.isDocShape` 为假、`session/faces.ts` 给它 `audit: { kind: "task-graph" }`），`wave` / `plan` / `branch` 三面都执行（`branch` 与 `plan` 共用 `case "plan"` fallthrough、`face/cli.ts:1237` 同一处读取、`#targetSlug` 消费它、`session/preflight.ts:509` 的 `#ledgerFactsOf` 对三面无 try/catch 解析）；`refusal(words)` 非 `null` → 与既有块同一 `gate: "doc-contract"` / `reason: "doc-contract"`，报文含 plan 路径与字段名。门的记账写清：doc 面本来就在 gate 计划里故这次拒绝同时入 `checked`；wave 面与 `branch` 面**不入** `checked`（它们没计划过这道门，不许声称跑过）。graph 门只在 `read.kind === "ready"` 时进入 gate 计划：`session/preflight.ts:224-226` 的守卫不成立即整段跳过——既不进 `gates`，也不进 `checked`，更不新造一行记账（`checked:` 的字节集因此与今日逐字节相同，既有 BLOCKED 报文不变）。`PlanSource` 的单次构造归 Task 3（`Cli.create()` 里作为 `Cli` 字段持有），本任务只**复用**这枚实例——场景装配、`Cli#runBoard` 与本任务的判定腿都不 new 第二个；`PlanRead` 是值、不是场景成员（场景上的 `plan: PlanRead` 由 Task 3 落地，板面不为它建 `WorkScene`），`PreFlight#vet`、`#ledgerFactsOf`、`session/pipeline.ts` 的 `#waveState` / `#wavesExhausted`、`session/dispatch-authority.ts` 的 `#waveStation` 四个判定腿改吃它——`undeclared` 保留今日语义（未进入 / 没关门 / 无站牌），两个 `unreadable` cause 在真派路径上由结构拒绝先一步拦下；`Lifecycle#recordPlanSnapshot` 的**读取替换**已在 Task 3 的载体里落地（本任务只 pin「非 ready 不记快照」「缺快照读作 stall」这两条语义）。usage 校验的 `planIds` 成员判定以 `read.kind === "ready"` 为**执行前提**（不是以「集合为空」为信号）——它今日排在 `#renderPreflightBlocked` 之前，若让非 ready 的空集跑到 `face/cli.ts:706-716`，每个请求 id 都会走 `#usage`（`error:` + exit 2），AC #3 的 `CDD_BLOCKED:` 就没机会渲出。
 
+`PipelineFrontierInput` 的图输入在本任务退役——图输入就是 `#waveState` / `#wavesExhausted` 入参的另一半，只是换了字段名：`session/pipeline.ts:57-70` 的 `readonly planGraph: TaskGraph | null`（`:69`）换成 `readonly plan: PlanRead`，`:229` 的 `const graph = input.planGraph` 改取 `input.plan.graph()`；`session/dispatch-authority.ts:353` 的 `const graph = facts.pipeline.planGraph` 同为 `facts.pipeline.plan.graph()`。所有字面量同批改：`face/cli.ts:1274-1279` 的 `planGraph: state instanceof TaskGraph ? state : BoardView.planGraph(hopPlanPath)` 换成 `plan: read`——Task 3 不改这一行（它只改场景自身的读取与字段），所以 T3 落地后该字面量仍能编译；本任务退役它之后 `BoardView.planGraph` 才真正无人调用，`session/run.ts` 的 `#planGraph`（`:366`）与 `Lifecycle` 构造项 `planGraph`（`:397` / `:414` / `:991` 的 `#pipelineInput()`）随之退役，`#pipelineInput()` 回 `plan: this.#plan`（Task 3 落地的 `Lifecycle` 构造项）；`face/cli.ts:837` 的 `planGraph: scene.pipeline.planGraph` 同删。
+
+板面只剩一处**桥**：`face/board-view.ts:883` 的 `planGraph: BoardView.planGraph(planPath)`（`static pipelineFacts(index, entry, root)` 的 input 字面量）换成 `plan: read`，`pipelineFacts` 与 `BoardNext.of` 各加一个 `read: PlanRead` 形参（`:988` 是 `pipelineFacts` 唯一的调用点），`face/cli.ts:535` 的 `BoardNext.of(index, entry, root)` 由 `this.#planSource.readFor(entry)`（Task 3 在 `Cli` 上落地的字段）供值——`BoardView.render` 是静态方法、`BoardNext` 沿 `pipelineFacts` 一起走，所以只有两处形参和一个调用点。这是本任务为「接口退役后 `tsc` 仍绿」付的移交价：Task 5 用 argv 四步归类与板面自己的读取表替掉它，`BoardView.planGraph` 的声明（`:892`）与 `#waveLines` 的调用（`:946`）留到 Task 5 整段删除。
+
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/session/preflight.ts`（新增不挂门的结构拒绝判定；graph 门 ready-only；`#ledgerFactsOf` 收 `PlanRead`；`WorkScene.plan` / `PreFlight` 上下文的 `plan` 由 Task 3 落地，本任务只消费）
-- Modify: `packages/cdd-engine/src-next/session/pipeline.ts`（`#waveState` / `#wavesExhausted` 收 `PlanRead`，`undeclared` 语义不变）
-- Modify: `packages/cdd-engine/src-next/session/dispatch-authority.ts`（`#waveStation` 收 `PlanRead`，`undeclared` 回 `null`，三 kind 不动）
-- Modify: `packages/cdd-engine/src-next/session/run.ts`（只 pin 语义，不新增构造：`#recordPlanSnapshot` 的读取替换与 `Lifecycle` 构造项已归 Task 3）
-- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`planIds` 成员判定加 `read.kind === "ready"` 前提；`PlanSource` 复用 Task 3 在 `Cli.create()` 落地的实例——本任务与 `Cli#runBoard` 都不构造第二个，场景的两处供值归 Task 3）
+- Modify: `packages/cdd-engine/src-next/session/pipeline.ts`（`PipelineFrontierInput.planGraph: TaskGraph | null` → `plan: PlanRead`（`:57-70`）；`#waveState` / `#wavesExhausted` 取 `plan.graph()`，`undeclared` 语义不变；模块头 `:12-15` 与接口注释 `:56-57` 里的 `planGraph` 提及同批改称 `plan`——管线仍零读盘、`plan` 仍是注入值）
+- Modify: `packages/cdd-engine/src-next/session/dispatch-authority.ts`（`#waveStation` 收 `PlanRead`，`undeclared` 回 `null`，三 kind 不动；`:353` 的图输入改取 `facts.pipeline.plan.graph()`）
+- Modify: `packages/cdd-engine/src-next/session/run.ts`（只 pin 语义，不新增构造：`#recordPlanSnapshot` 的读取替换与 `Lifecycle` 构造项已归 Task 3；`#planGraph` 单元随 `PipelineFrontierInput` 退役——`#pipelineInput()` 回 `plan: this.#plan`，`Lifecycle` 构造项的 `planGraph` 删掉）
+- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`planIds` 成员判定加 `read.kind === "ready"` 前提；`PlanSource` 复用 Task 3 在 `Cli.create()` 落地的实例——本任务与 `Cli#runBoard` 都不构造第二个，场景的两处供值归 Task 3；`#sceneOf` 的 `PipelineFrontierInput` 字面量（`:1274-1279`）换 `plan: read`、`#runWork` 的 `Lifecycle` 供值（`:837`）删 `planGraph`、`#runBoard` 的 `BoardNext.of`（`:535`）传 `this.#planSource.readFor(entry)`——这三处是 T5 的桥，T5 替换）
+- Modify: `packages/cdd-engine/src-next/face/board-view.ts`（移植面：`pipelineFacts` / `BoardNext.of` 各加 `read: PlanRead` 形参、`:883` 的 input 字面量换 `plan: read`；`BoardView.planGraph` 的声明与 `#waveLines` 的调用**留到 Task 5** 删除）
 - Test: `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts`（三面各一条坏 plan 拒绝、`checked` 记账、graph 门在非 `ready` 上根本不运行（`checked` 里不出现 `graph` 行））
 - Test: `packages/cdd-engine/src-next/session/__tests__/pipeline.test.ts`、`packages/cdd-engine/src-next/session/__tests__/dispatch-authority.test.ts`、`packages/cdd-engine/src-next/session/__tests__/run.test.ts`（`undeclared` 语义逐条不变；非 ready 不记快照）
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（`planIds` 在非 ready 时跳过——不出现 `task <id> not found in the plan`）
@@ -237,6 +248,7 @@ none
 
 - `PreFlight` 的不挂门结构拒绝（`gate: "doc-contract"` / `reason: "doc-contract"`，`wave` / `plan` / `branch` 三面可达）
 - `PreFlight#ledgerFactsOf` / `PipelineFrontier#waveState` / `#wavesExhausted` / `DispatchAuthority#waveStation` 的 `PlanRead` 入参
+- `PipelineFrontierInput.plan: PlanRead`（`planGraph` 字段退役，三处字面量与 `Lifecycle#planGraph` 单元同批改）
 
 #### Steps
 
@@ -247,6 +259,7 @@ none
 - 写失败测（缺证据不授权）：`undeclared` 时 `#waveState` / `#wavesExhausted` / `#waveStation` 与今日逐项相同（回归 pin）；`#recordPlanSnapshot` 非 ready 不记快照 — checkable: FAIL（今日入参不是 `PlanRead`）
 - 实现不挂门拒绝、记账、graph 门 ready-only — checkable: 前三组 PASS
 - 四个消费者（`#ledgerFactsOf` / `#waveState` / `#wavesExhausted` / `#waveStation`）改吃场景里那份 `PlanRead`，`planIds` 加 ready 前提 — checkable: 全组 PASS · `face/__tests__/cli.test.ts` 既有用例全绿
+- 退役 frontier 的图输入：`PipelineFrontierInput.planGraph` → `plan: PlanRead`，`#waveState` / `#waveStation` 取 `plan.graph()`，`Lifecycle` 的 `planGraph` 单元同批改，板面补 `read` 形参（桥） — checkable: `grep -rn "planGraph" packages/cdd-engine/src-next | grep -v __tests__` 只剩 `face/board-view.ts` 的两处——`:892` 的 `BoardView.planGraph` 声明与 `#waveLines` 的 `:946` 调用（供 Task 5 删除），frontier 输入里零命中；字段注释里的 `planGraph` 提及也同批改称 `plan`（`session/pipeline.ts` 的两段、`session/run.ts:364-365` / `:396`），否则这条 grep 不会只剩两处 · `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0
 - 本任务归属面查残留 — checkable: `grep -rn "planText" packages/cdd-engine/src-next/session/preflight.ts packages/cdd-engine/src-next/face/cli.ts | grep -v __tests__` **零命中**（`face/cli.ts` 只限 `planIds` / graph 门 / `#ledgerFactsOf` / `#ledgerInputOf` 所在段；`#renderWaveBoard` 段归 Task 5，整体零命中门归 Task 7）
 - 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/session src-next/face` 与 `pnpm exec tsc --noEmit -p packages/cdd-engine` 均 exit 0
 - 写失败测（孤儿与坏 plan 同一条腿）：孤儿 plan 上 `refusal(words)` 先回拒绝，`implement --type plan|wave|branch --plan <孤儿>`、`review --type plan`、`fix --type plan|wave|branch` 与各自 `--dry-run` 一律 `CDD_BLOCKED` + `reason: doc-contract`，报文取 `planOrphanSpec` — checkable: 定向 vitest FAIL（今日无孤儿概念）
@@ -257,7 +270,8 @@ none
 - 拒绝不依赖 doc-shape 块：wave 面（`audit: { kind: "task-graph" }`、`doc: null`）同样可达；`checked` 记账按面区分（doc 面入，wave / branch 不入）。
 - graph 门只在 `ready` 时进入 gate 计划，非 ready 时既不进 `gates` 也不进 `checked`——`checked:` 的字节集与今日相同，既有 BLOCKED 报文逐字节不变；孤儿与坏 plan 都由不挂门拒绝腿在 graph 门之前返回，因此 graph 门在三个面上只可能以 `ready` 到达。`#ledgerFactsOf` 不再有裸解析。
 - `undeclared` 的三处 frontier 语义与今日逐字节相同；`#recordPlanSnapshot` 非 ready 不记快照且 stall 语义保留。
-- 场景只有一份 plan 事实源（Task 3 落地的 `plan: PlanRead`），本任务不新增第二个读取点；`--dry-run` 与真派同批拒绝（preview 不降级）。
+- 场景只有一份 plan 事实源（Task 3 落地的 `plan: PlanRead`），本任务不新增第二个读取点——`Cli#runBoard` 的 `readFor(entry)` 是 T5 读取表的占位，与场景同一 `PlanSource` 实例，不是第二处构造；`--dry-run` 与真派同批拒绝（preview 不降级）。
+- frontier 的图输入只有一份：`PipelineFrontierInput` 不再有 `planGraph`，`plan: PlanRead` 由三处供值（`#sceneOf` 的读取、`Lifecycle#plan`、板面传进来的读取）；`face/board-view.ts` 的 `read` 形参与 `cli.ts:535` 的 `readFor(entry)` 是本任务给 T5 的移交点，T5 换成 argv 四步归类与板面读取表；`grep -rn "planGraph" packages/cdd-engine/src-next | grep -v __tests__` 在 T4 结束时只剩 `BoardView.planGraph` 的声明与 `#waveLines` 的调用两处。
 - 孤儿与文法坏 plan 走**同一条**不挂门结构腿：任一带 plan 的面（`plan` / `wave` / `branch` + `--dry-run`）都不放行，`gate` / `reason` 不新增 token。
 
 #### DependsOn
@@ -318,7 +332,7 @@ none
 - `CDD_WARN:` 由 `Cli#runBoard` 写 stderr（overall 板逐坏 plan / 逐孤儿一行带 id，程序面同理带 `slug:`），行数**恒等于坏 plan 数 + 孤儿数**，`undeclared` 与健康相位都零行，stdout 零字节变化；`BoardView.render` 仍是纯函数、不持 io 通道。
 - `undeclared` 零告警：整体板「健康 + `undeclared` + 坏 plan」三相位只出恰一行 `CDD_WARN:`；行数恒等式由测试 pin（不是「非 ready 相位数」）。
 - plan 不在索引内时 plan 行走 `planLine(words)` 的裸相对路径：不触发 `#entryMark`、不进 `#docCell` 的 blocked，波次行与 exit 0 不受影响。
-- `BoardView.planGraph` 不存在，板面没有第二个读取点。
+- `BoardView.planGraph` 不存在，板面没有第二个读取点；`pipelineFacts` / `BoardNext.of` 收到的 `read` 由 `Cli#runBoard` 自己的读取表供值（Task 4 的 `readFor(entry)` 桥已替换）。
 - 反查三条：spec 行 `! no-spec`（非阻塞通道 ⇒ exit 0）、`next:` hop-less（`BoardNext` 的短路谓词与 §2.3 同一对：`kind !== "ready" || orphan() !== null`）、一行 stderr `CDD_WARN:`；格字面只有 `! no-spec` 一个，`spec-absent` 与 `slug-absent` 只是词法差别。
 - 读源优先序：`--spec` 在场走 `readFor(specEntry)`（两旗标 slug 不同时既有 exit 2 先拦），只有 `--plan` 时走 `readPath`；`nameWidth` 的取 max 恒由 plan 行 basename 参与。
 
@@ -427,3 +441,4 @@ none
 | v0.7 | 2026-11-14 | 复评轮 plan-review-1（同一轮的重跑）校订两处随 F3/F4 合并而失效的任务归因：Task 5 的 Consumes 把 `scene.plan` 的产地由 Task 4 改回 **Task 3**；Task 4 的 `face/cli.ts` 文件条目拆清——`PlanSource` 的单次构造与 `Cli` 字段持有归本任务，场景两处供值归 Task 3。结构面（任务 id 集与 `DependsOn` 集）零改动，其余内容与 v0.6 一致 | Claude（kairos:cdd-fix · 2026-11-14） |
 | v0.6 | 2026-11-14 | 编排器结构面提交（fix 1 的 rejected 两半）：依赖边按 D 裁决重排——`Task 3` 的 `DependsOn` 由 `1` 改为 `1, 2`（消费 Task 2 的 `PlanRead`），`Task 4` 由 `2` 改为 `2, 3`（消费 Task 3 落地的 `scene.plan`）。结构面不属评审轮（引擎把 `DependsOn` 集当结构基线，`face/lifecycle.ts:344` 快照、`:586-604` 比对），故由编排器单独提交 | Claude（kairos:cdd-plan · 2026-11-14） |
 | v0.8 | 2026-11-14 | 复审轮 plan-review-2 落地（F1–F7，全部按裁决）：场景面的读取与解析转换归 **Task 3**（`PlanSource` 在 `Cli.create()` 单次构造并作为 `Cli` 字段持有，`#sceneOf` 改取 `readFor(entry)` / `readPath(rel)`，删 `planText = this.#artifacts.readText(...)` 与 `new TaskGraph(new PlanDocType("plan").parse(...))` 三行；新增 `Lifecycle` 构造项 `plan: PlanRead` 取代 `#planPath`，`session/run.ts` 与 `face/lifecycle.ts` 两处 `readFileSync` 及其 `catch` 随之消失），Task 4 只复用该实例、不再声明构造权；Task 5 的诊断行数改为**恒等于「坏 plan 数 + 孤儿数」**（`undeclared` 零行，并补反向测）；Task 2 的访问器契约升为值级表、孤儿判定先于 `(empty plan)`；Task 3 删掉 `doc: null` 的测；`planText` 零命中门按文件归属拆到 T3 / T4 / T5、整体门留 T7；全文统一改称「派生面」（旧的错误称谓清零）。结构面零改动 | Claude（kairos:cdd-fix · 2026-11-14） |
+| v0.9 | 2026-11-14 | 复审轮 plan-review-3 落地（F1–F4，全部按裁决）：`planText` 两个漏网的**读取者**（`:808` / `:1104` 两处守卫）归 **Task 3**——收成 `scene.plan.kind === "ready"`、`:1105` 实参改传 `scene.plan`，`#renderWaveBoard` 形参改 `read: PlanRead` 并附一行签名移交（方法体渲值语义仍归 Task 5，否则 T3 的 `tsc` 就红在方法体未改上）；`#sceneOf` 的 `state` 写出退化值（非 ready 的 wave 场景以 `EMPTY_RUN_STATE` 装配，不包 `try/catch`、不写 `!`，理由随句写明）；`PipelineFrontierInput.planGraph` 的退役归 **Task 4**（三处字面量与 `Lifecycle#planGraph` 单元同批改，板面经 `pipelineFacts` / `BoardNext.of` 的 `read` 形参过桥、T5 替换并删除 `BoardView.planGraph`），验收补一条 `planGraph` 残留 grep；T3 的 scoped 判据据实改（`#sceneOf` / `planIds` / `#renderWaveBoard` 三段之外零命中，不再把 T4 的段落写进 T3 的判据）。结构面零改动 | Claude（kairos:cdd-fix · 2026-11-14） |

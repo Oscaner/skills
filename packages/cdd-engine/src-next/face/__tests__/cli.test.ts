@@ -32,6 +32,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -5601,7 +5602,7 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
     }
   });
 
-  it("a plan without a paired spec renders `spec (none)` and exits 0", async () => {
+  it("a plan without a paired spec folds to `! no-spec` on every derived cell and exits 0", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
@@ -5613,8 +5614,20 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
         "---",
       ]);
       const code = await command.runArgv(["board", "--plan", "docs/kairos/plans/lonely.md"]);
+      // The reverse lookup (§2.7) is a READ fact, not an identity break: every plan
+      // derived cell folds to `! no-spec`, the spec row renders the same literal
+      // through the NON-blocking channel (so exit stays 0), and no wave route is
+      // derived (`next: (none)`, no `reason:` row).
       expect(code).toBe(0);
-      expect(io.stdoutText).toContain("  spec     (none)");
+      expect(io.stdoutText).toContain("  spec     ! no-spec");
+      expect(io.stdoutText).toContain("  plan     docs/kairos/plans/lonely.md · ! no-spec");
+      expect(io.stdoutText).toContain("  wave     ! no-spec");
+      expect(io.stdoutText).toContain("  next:    (none)");
+      expect(io.stdoutText).not.toContain("  reason:");
+      // The board is never silent about a degenerate view: exactly ONE diagnostic.
+      expect(io.stderrText.split("CDD_WARN:").length - 1).toBe(1);
+      expect(io.stderrText).toContain("lonely");
+      expect(io.stderrText).toContain("docs/kairos/specs/lonely-design.md");
     } finally {
       cleanup();
     }
@@ -9718,6 +9731,527 @@ describe("P35 T4 — the plan read refuses every plan-carrying face", () => {
       io.stderrText = "";
       expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
       expect(io.stderrText).not.toContain("CDD_BLOCKED");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P35 T5 — the board holds ONE plan read: the ordered per-phase table, the four
+// degradation semantics, the `CDD_WARN:` diagnostics (stderr) and the argv
+// classification order (existence → bytes → membership → grammar).
+// ---------------------------------------------------------------------------
+
+describe("P35 T5 — the board's ONE plan read: the table, the four semantics, `CDD_WARN:`", () => {
+  const PLAN = "docs/kairos/plans/prog-p1.md";
+  const SPEC = "docs/kairos/specs/prog-p1-design.md";
+  const OVERALL = "docs/kairos/specs/prog-overall.md";
+
+  const writeDoc = (repoRoot: string, rel: string, lines: readonly string[]): string => {
+    const file = path.join(repoRoot, rel);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${lines.join("\n")}\n`, "utf8");
+    return file;
+  };
+
+  /** One plan task block (the healthy grammar shape). */
+  const task = (id: number, dependsOn = "none"): readonly string[] => [
+    `### Task ${id}: t${id}`,
+    "- **Objective**: o",
+    "- **Files**: `a.ts`",
+    "- **Consumes**: x",
+    "- **Produces**: y",
+    "- **Steps**:",
+    "  - s — checkable: g",
+    "- **Acceptance**: ok",
+    `- **DependsOn**: ${dependsOn}`,
+    "",
+  ];
+
+  /** One plan document from a body — the head declares the plan identity. */
+  const planLines = (
+    body: readonly string[],
+    slug: string | null = "prog-p1",
+  ): readonly string[] => [
+    "---",
+    "title: Plan",
+    "version: v0.2",
+    "status: Draft",
+    "doc-type: plan",
+    ...(slug === null ? [] : [`slug: ${slug}`]),
+    "---",
+    "",
+    "## Constraints",
+    "",
+    "- c",
+    "",
+    ...body,
+  ];
+
+  /** A plan whose BODY breaks the grammar while its front matter reads out: one task
+   *  block carries the reserved `#### DependsOn` section twice. */
+  const brokenBody = (): readonly string[] => [
+    "### Task 1: t1",
+    "- **Objective**: o",
+    "#### DependsOn",
+    "none",
+    "#### DependsOn",
+    "none",
+    "",
+  ];
+
+  /** The program fixture — the overall charter + the phase spec it groups. */
+  const seedNode = (repoRoot: string): void => {
+    writeDoc(repoRoot, OVERALL, [
+      "---",
+      "title: O",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+    writeDoc(repoRoot, SPEC, [
+      "---",
+      "title: S",
+      "version: v0.1",
+      "status: Draft",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+  };
+
+  /** The healthy single-wave plan — the byte baseline of the three-row diff. */
+  const healthyPlan = (repoRoot: string): string => writeDoc(repoRoot, PLAN, planLines(task(1)));
+
+  /** Every `CDD_WARN:` line the board wrote (the prefix stripped). */
+  const warnRows = (stderr: string): string[] =>
+    stderr
+      .split("\n")
+      .filter((line) => line.startsWith("CDD_WARN:"))
+      .map((line) => line.slice("CDD_WARN: ".length));
+
+  /** The `wave` rows of one board's stdout, in layout order (the repeated label rows
+   *  included — the program face writes its cell into the `phase` row instead). */
+  const waveRows = (stdout: string): string[] =>
+    stdout.split("\n").filter((line) => line.startsWith("  wave     "));
+
+  it("the argv face's bad plan differs from the healthy board in EXACTLY three rows", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      healthyPlan(repoRoot);
+      expect(await command.runArgv(["board", "--plan", PLAN])).toBe(0);
+      const healthy = io.stdoutText;
+      expect(healthy).toContain("W1 {1}");
+      expect(healthy).toContain("  plan     prog-p1.md");
+      // The healthy control carries a reason row — the degraded board's `next:` is
+      // hop-less and writes none, so the row is dropped from the baseline comparison
+      // before the three-row diff (its removal is the third change's own face).
+      const baseline = healthy.split("\n").filter((line) => !line.startsWith("  reason:"));
+
+      writeDoc(repoRoot, PLAN, planLines(brokenBody()));
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--plan", PLAN])).toBe(0);
+      const broken = io.stdoutText.split("\n");
+
+      expect(broken).toHaveLength(baseline.length);
+      const diffs = baseline
+        .map((line, index) => [line, broken[index]!] as const)
+        .filter(([before, after]) => before !== after);
+      expect(diffs).toEqual([
+        [
+          "  plan     prog-p1.md          v0.2 · Draft",
+          "  plan     docs/kairos/plans/prog-p1.md · ! unparseable",
+        ],
+        ["  wave     W1 {1}  ▶", "  wave     ! unparseable"],
+        [
+          "  next:    review --type phase-spec --spec docs/kairos/specs/prog-p1-design.md",
+          "  next:    (none)",
+        ],
+      ]);
+      // The degraded board derives no wave route at all — no `reason:` row either.
+      expect(io.stdoutText.split("\n").some((line) => line.startsWith("  reason:"))).toBe(false);
+      // `(none)` never stands in for a read failure (the value's own literal does).
+      expect(io.stdoutText).not.toContain("  wave     (none)");
+      // ONE diagnostic, on stderr, carrying the value's own mark and the read path.
+      expect(warnRows(io.stderrText)).toEqual([
+        "! unparseable docs/kairos/plans/prog-p1.md: #### DependsOn",
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the derived face's unreadable plan folds to `! unreadable` — exit 0, one diagnostic", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      const file = healthyPlan(repoRoot);
+      chmodSync(file, 0o000);
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--spec", SPEC])).toBe(0);
+      expect(io.stdoutText).toContain("  wave     ! unreadable");
+      expect(io.stdoutText).toContain("  plan     docs/kairos/plans/prog-p1.md · ! unreadable");
+      expect(io.stdoutText).toContain("  next:    (none)");
+      expect(io.stdoutText).not.toContain("  reason:");
+      expect(warnRows(io.stderrText)).toEqual(["! unreadable docs/kairos/plans/prog-p1.md"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the four degradation semantics render four distinct doc-face rows, never mixed", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      // ① the true undeclared gap — the phase has no plan at all.
+      expect(await command.runArgv(["board", "--spec", SPEC])).toBe(0);
+      expect(waveRows(io.stdoutText)).toEqual(["  wave     (none)"]);
+      expect(io.stderrText).toBe("");
+      // ② a healthy plan with no task block yet.
+      writeDoc(repoRoot, PLAN, planLines([]));
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--spec", SPEC])).toBe(0);
+      expect(waveRows(io.stdoutText)).toEqual(["  wave     (empty plan)"]);
+      expect(io.stderrText).toBe("");
+      // ③ the body breaks the grammar (the front matter still reads out).
+      writeDoc(repoRoot, PLAN, planLines(brokenBody()));
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--spec", SPEC])).toBe(0);
+      expect(waveRows(io.stdoutText)).toEqual(["  wave     ! unparseable"]);
+      expect(warnRows(io.stderrText)).toHaveLength(1);
+      // ④ the bytes do not read at all.
+      const file = healthyPlan(repoRoot);
+      chmodSync(file, 0o000);
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--spec", SPEC])).toBe(0);
+      expect(waveRows(io.stdoutText)).toEqual(["  wave     ! unreadable"]);
+      expect(warnRows(io.stderrText)).toHaveLength(1);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("`cdd board --plan <存在但读不出>` refuses with the read-failure face — exit 2, no board", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      const file = healthyPlan(repoRoot);
+      chmodSync(file, 0o000);
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--plan", PLAN])).toBe(2);
+      // The WHOLE line, byte for byte: no cause tail (`DocFs.read` carries no errno).
+      expect(io.stderrText).toBe(`cdd board: cannot read --plan ${PLAN}\n`);
+      expect(io.stdoutText).toBe("");
+      expect(io.stderrText).not.toContain("no docs match");
+      expect(warnRows(io.stderrText)).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the argv classification order: bytes before membership (`cannot read` beats `no docs match`)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      // Readable, OUTSIDE the index (a non-`.md` name is never scanned) and its body
+      // breaks the grammar: the bytes read, so ② passes and ③ answers.
+      const ghost = writeDoc(repoRoot, "docs/kairos/plans/ghost.txt", planLines(brokenBody()));
+      expect(existsSync(ghost)).toBe(true);
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--plan", "docs/kairos/plans/ghost.txt"])).toBe(2);
+      expect(io.stderrText).toBe("cdd board: no docs match --plan docs/kairos/plans/ghost.txt\n");
+      expect(io.stdoutText).toBe("");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("`--plan X` (存在、读不出) + healthy `--spec Y`: `no docs match --plan X`, X's bytes never read", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      const file = healthyPlan(repoRoot);
+      chmodSync(file, 0o000);
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--plan", PLAN, "--spec", SPEC])).toBe(2);
+      expect(io.stderrText).toBe(`cdd board: no docs match --plan ${PLAN}\n`);
+      expect(io.stdoutText).toBe("");
+      // Two faces, two channels: the concurrent face never opens X, so it can never
+      // report a read failure of X.
+      expect(io.stderrText).not.toContain("cannot read");
+      expect(warnRows(io.stderrText)).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a program board diagnoses each bad phase ONCE and keeps the healthy cells", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      healthyPlan(repoRoot);
+      writeDoc(repoRoot, "docs/kairos/specs/prog-p2-design.md", [
+        "---",
+        "title: S2",
+        "doc-type: phase-spec",
+        "slug: prog-p2",
+        "program: prog-overall",
+        "---",
+      ]);
+      writeDoc(repoRoot, "docs/kairos/plans/prog-p2.md", planLines(brokenBody(), "prog-p2"));
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--spec", OVERALL])).toBe(0);
+      expect(io.stdoutText).toContain("phase prog-p1  Draft   wave W1…");
+      expect(io.stdoutText).toContain("wave ! unparseable");
+      const rows = warnRows(io.stderrText);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toContain("prog-p2");
+      expect(io.stderrText).not.toContain("prog-p1.md");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a program board writes ZERO lines for an `undeclared` phase — the line count is not `non-ready phases`", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      healthyPlan(repoRoot);
+      // prog-p2 has no plan at all (the standing forward gap), prog-p3's is broken.
+      writeDoc(repoRoot, "docs/kairos/specs/prog-p2-design.md", [
+        "---",
+        "title: S2",
+        "doc-type: phase-spec",
+        "slug: prog-p2",
+        "program: prog-overall",
+        "---",
+      ]);
+      writeDoc(repoRoot, "docs/kairos/specs/prog-p3-design.md", [
+        "---",
+        "title: S3",
+        "doc-type: phase-spec",
+        "slug: prog-p3",
+        "program: prog-overall",
+        "---",
+      ]);
+      writeDoc(repoRoot, "docs/kairos/plans/prog-p3.md", planLines(brokenBody(), "prog-p3"));
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--spec", OVERALL])).toBe(0);
+      const rows = warnRows(io.stderrText);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toContain("prog-p3");
+      // The undeclared phase's program cell is `""` — no `wave` token in its row.
+      const phaseRow = io.stdoutText
+        .split("\n")
+        .find((line) => line.startsWith("  phase prog-p2 "))!;
+      expect(phaseRow).not.toContain("wave ");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an overall board writes ONE line per unreadable phase, each naming its own id", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      healthyPlan(repoRoot);
+      writeDoc(repoRoot, "docs/kairos/specs/prog-p2-design.md", [
+        "---",
+        "title: S2",
+        "doc-type: phase-spec",
+        "slug: prog-p2",
+        "program: prog-overall",
+        "---",
+      ]);
+      const p2 = writeDoc(repoRoot, "docs/kairos/plans/prog-p2.md", planLines(task(1), "prog-p2"));
+      chmodSync(p2, 0o000);
+      writeDoc(repoRoot, "docs/kairos/specs/prog-p3-design.md", [
+        "---",
+        "title: S3",
+        "doc-type: phase-spec",
+        "slug: prog-p3",
+        "program: prog-overall",
+        "---",
+      ]);
+      writeDoc(repoRoot, "docs/kairos/plans/prog-p3.md", planLines(brokenBody(), "prog-p3"));
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--spec", OVERALL])).toBe(0);
+      const rows = warnRows(io.stderrText);
+      expect(rows).toHaveLength(2);
+      expect(rows.some((row) => row.includes("! unreadable") && row.includes("prog-p2"))).toBe(
+        true,
+      );
+      expect(rows.some((row) => row.includes("! unparseable") && row.includes("prog-p3"))).toBe(
+        true,
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a plan without `slug:` stays on the identity channel — exit 2, no `! no-spec`, one diagnostic", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      writeDoc(repoRoot, PLAN, planLines(task(1), null));
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--plan", PLAN])).toBe(2);
+      expect(io.stdoutText).toContain("slug: missing (BLOCKED)");
+      expect(io.stdoutText).not.toContain("! no-spec");
+      // The read value carries no fold for `slug-absent`: the wave rows and the
+      // route keep today's bytes.
+      expect(io.stdoutText).toContain("W1 {1}");
+      // The third term of the diagnostic identity, in its own word.
+      expect(warnRows(io.stderrText)).toHaveLength(1);
+      expect(io.stderrText).toContain("declares no `slug:` key");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("an illegal plan slug renders the identity marker — exit 2, no `! no-spec`, zero diagnostics", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      writeDoc(repoRoot, PLAN, planLines(task(1), '"Foo Bar"'));
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--plan", PLAN])).toBe(2);
+      expect(io.stdoutText).toContain("slug: invalid (BLOCKED)");
+      expect(io.stdoutText).not.toContain("! no-spec");
+      expect(warnRows(io.stderrText)).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a duplicated plan slug renders the identity marker — exit 2, no `! no-spec`", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      healthyPlan(repoRoot);
+      writeDoc(repoRoot, "docs/kairos/plans/prog-p1-copy.md", planLines(task(1)));
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--plan", PLAN])).toBe(2);
+      expect(io.stdoutText).toContain("slug: duplicated (BLOCKED)");
+      expect(io.stdoutText).not.toContain("! no-spec");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a healthy plan the index does not register renders its read path, with healthy wave rows", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      // The file sits on the DERIVED path and reads, but it is not a plan document
+      // (no `doc-type: plan`) — so the index names no plan for this slug.
+      writeDoc(
+        repoRoot,
+        PLAN,
+        planLines(task(1)).filter((line) => line !== "doc-type: plan"),
+      );
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--spec", SPEC])).toBe(0);
+      expect(io.stdoutText).toContain("  plan     docs/kairos/plans/prog-p1.md");
+      expect(io.stdoutText).toContain("W1 {1}");
+      expect(warnRows(io.stderrText)).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a true undeclared phase keeps its plan-face route — the short-circuit never eats it", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedNode(repoRoot);
+      // The phase-spec line is closed on a clean round; the phase holds no plan. The
+      // frontier therefore hands off to the plan face — never the hop-less shape.
+      const workspace = new Workspace(
+        new WorkspaceRoot(repoRoot, ".kairos/cdd"),
+        "prog-p1",
+      ).ensure();
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
+      ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+      ledger.recordRound("phase-spec", { op: "review" });
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--spec", SPEC])).toBe(0);
+      expect(io.stdoutText).toContain("  wave     (none)");
+      expect(io.stdoutText).toContain("  next:    route to /kairos:cdd-plan skill");
+      expect(io.stdoutText).not.toContain("  next:    (none)");
+      expect(warnRows(io.stderrText)).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the derived face never reverse-looks-up: a non-`<slug>-design.md` spec keeps a healthy row", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      // The phase spec declares `slug: prog-p1` but its file name is not the derived
+      // `prog-p1-design.md`; its plan sits on the derived path and is healthy.
+      writeDoc(repoRoot, "docs/kairos/specs/prog-p1-phase.md", [
+        "---",
+        "title: S",
+        "doc-type: phase-spec",
+        "slug: prog-p1",
+        "program: prog-overall",
+        "---",
+      ]);
+      writeDoc(repoRoot, OVERALL, [
+        "---",
+        "title: O",
+        "doc-type: overall",
+        "slug: prog-overall",
+        "---",
+      ]);
+      healthyPlan(repoRoot);
+      io.stdoutText = "";
+      io.stderrText = "";
+      expect(await command.runArgv(["board", "--spec", "docs/kairos/specs/prog-p1-phase.md"])).toBe(
+        0,
+      );
+      expect(io.stdoutText).not.toContain("! no-spec");
+      expect(io.stdoutText).toContain("W1 {1}");
+      expect(io.stdoutText).not.toContain("  next:    (none)");
+      expect(warnRows(io.stderrText)).toEqual([]);
     } finally {
       cleanup();
     }

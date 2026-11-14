@@ -58,7 +58,7 @@ import { ConfigLoader } from "../infra/config.ts";
 import { GitClient } from "../infra/git.ts";
 import { type PlanRead, PlanSource } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
-import { SlugIndex } from "../infra/slug-index.ts";
+import { type DocEntry, SlugIndex } from "../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
@@ -500,6 +500,15 @@ export class Cli {
         planMissing ? `--plan ${planArg}` : null,
         specMissing ? `--spec ${specArg}` : null,
       ]);
+    // ② the read (spec §2.4): ONLY a solo `--plan` reads X's bytes. When `--spec` is
+    // present the board's value comes from `readFor(specEntry)` (§2.1: `--spec` wins),
+    // so X's bytes are never opened — its `--plan` duties stay the ① existence probe
+    // and the ③ `no docs match` attribution. An io failure here is the ONE
+    // `cannot read` face: exit 2, no board, no cause tail (`DocFs.read` carries no
+    // errno, so a suffix would be an invented literal).
+    const soloPlanRead = specRel === null && planRel !== null ? planSource.readPath(planRel) : null;
+    if (soloPlanRead !== null && soloPlanRead.failure()?.cause === "io")
+      return this.#boardCannotRead(`--plan ${planArg}`);
     const index = SlugIndex.build(repoRoot);
     const planEntry = planRel === null ? null : index.entryAt(planRel);
     const specEntry = specRel === null ? null : index.entryAt(specRel);
@@ -536,8 +545,24 @@ export class Cli {
     // face-order rules + the six hop cells) lives in the session plane's
     // `PipelineFrontier` — the same assembly the capsule renders, so the board and the
     // capsule state one hop. Neither face judges anything here.
-    const next = BoardNext.of(planSource.readFor(entry), planSource, index, entry, root);
+    // The board's ONE ordered plan value table (spec §2.1 · §2.4): an overall board
+    // reads one value per `index.phaseSpecsOf` row, so every phase cell and every
+    // `CDD_WARN:` line speaks the same read; a single-document board is a table of
+    // length 1 (the argv face's read when `--plan` stands alone, the derived face's
+    // otherwise).
+    const readTable = this.#boardReadTable(planSource, index, entry, soloPlanRead);
+    const read = readTable[0] ?? planSource.readFor(entry);
+    const next = BoardNext.of(read, planSource, index, entry, root);
+    // The read's own diagnostics (spec §2.4): stderr, one line per bad read, printed
+    // BEFORE the board. `warnLine` answers null for a healthy plan and for the normal
+    // `undeclared` gap, so the line count is exactly (bad plans + `spec-absent`
+    // orphans + `slug-absent` facts) — never "non-ready phases".
+    for (const row of readTable) {
+      const warn = row.warnLine(this.#words);
+      if (warn !== null) this.#io.stderr(`${warn}\n`);
+    }
     const board = BoardView.render(
+      readTable,
       planSource,
       index,
       entry,
@@ -550,6 +575,32 @@ export class Cli {
     );
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;
+  }
+
+  /** The board's ordered per-phase plan value table (spec §2.1 · §2.4) — the ONE
+   *  construction point of the board's `PlanRead`s. An overall board reads each
+   *  `phaseSpecsOf` row in index order through the derived face; any other board is
+   *  one document, whose value the caller already read (the argv face when `--plan`
+   *  stands alone) or reads here through the derived face. */
+  #boardReadTable(
+    planSource: PlanSource,
+    index: SlugIndex,
+    entry: DocEntry,
+    soloPlanRead: PlanRead | null,
+  ): readonly PlanRead[] {
+    const slug = entry.slug;
+    if (entry.docType !== "overall") return [soloPlanRead ?? planSource.readFor(entry)];
+    if (slug === null || !SlugIndex.isLegalSlug(slug)) return [];
+    return index.phaseSpecsOf(slug).map((phase) => planSource.readFor(phase));
+  }
+
+  /** The board's read-failure face (spec §2.4 ②) — ONE stderr line, exit 2, no board:
+   *  the named plan's bytes did not read. The message names no cause on purpose: the
+   *  read seam returns `string | null` and carries no errno, and the `io` / `syntax`
+   *  distinction rides the `CDD_WARN:` line instead. */
+  #boardCannotRead(flag: string): number {
+    this.#io.stderr(`cdd board: cannot read ${flag}\n`);
+    return 2;
   }
 
   /** The board's not-found face (spec §3.1) — the ONE stderr line + exit 2 the

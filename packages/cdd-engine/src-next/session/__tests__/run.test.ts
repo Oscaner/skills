@@ -1897,7 +1897,11 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
     if (entry === null) throw new Error(`no identity doc for ${slug}`);
     const root = new RepoRoot(repo);
     const planSource = new PlanSource(root);
+    // The board's ONE plan read, in the ordered table shape `Cli#runBoard` builds
+    // (a single-document board is a table of length 1).
+    const read = planSource.readFor(entry);
     const board = BoardView.render(
+      [read],
       planSource,
       index,
       entry,
@@ -1906,7 +1910,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
       "claude",
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(planSource.readFor(entry), planSource, index, entry, root),
+      BoardNext.of(read, planSource, index, entry, root),
     );
     const row = (prefix: string): string => {
       const line = board.lines.find((candidate) => candidate.startsWith(prefix));

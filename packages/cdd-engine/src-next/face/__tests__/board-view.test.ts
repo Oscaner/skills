@@ -32,7 +32,7 @@ import { Ledger, type RoundRecord, RoundViolation } from "../../session/ledger.t
 import { type NextHop, NextStepRouter, REVIEW_CYCLE_CAP, type Route } from "../../session/next.ts";
 import { PipelineFrontier } from "../../session/pipeline.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
-import { BoardNext, BoardView, LineCarriers } from "../board-view.ts";
+import { BoardNext, type BoardPipelineFacts, BoardView, LineCarriers } from "../board-view.ts";
 import { Capsule } from "../capsule.ts";
 import { Cli, type CliIo, type CliOptions } from "../cli.ts";
 import { ARGV_CHANNEL } from "../declare.ts";
@@ -46,6 +46,43 @@ const planReadOf = (repo: string, planPath: string | null): PlanRead =>
   planPath === null
     ? new PlanSource(new RepoRoot(repo)).readFor(null)
     : new PlanSource(new RepoRoot(repo)).readPath(planPath);
+
+/** The board's plan read for one entry — the plan document the board's own fact
+ *  bundle names (a plan entry IS its own plan; every other shape resolves the
+ *  same-slug plan through the index), read through the caller's ONE seam instance. */
+const boardReadOf = (source: PlanSource, index: SlugIndex, entry: DocEntry): PlanRead => {
+  const slug = entry.slug === null || !SlugIndex.isLegalSlug(entry.slug) ? null : entry.slug;
+  const planPath =
+    entry.docType === "plan"
+      ? entry.path
+      : slug === null
+        ? null
+        : (index.planOf(slug)?.path ?? null);
+  return planPath === null ? source.readFor(null) : source.readPath(planPath);
+};
+
+/** `BoardNext.of` over a fixture entry — the read and its seam come from ONE
+ *  `PlanSource` instance (the board never mints a second). */
+const nextOfEntry = (repo: string, index: SlugIndex, entry: DocEntry): NextHop | null => {
+  const root = new RepoRoot(repo);
+  const source = new PlanSource(root);
+  return BoardNext.of(boardReadOf(source, index, entry), source, index, entry, root);
+};
+
+/** `BoardView.pipelineFacts` over a fixture entry — the same one-instance rule. */
+const factsOfEntry = (repo: string, index: SlugIndex, entry: DocEntry): BoardPipelineFacts => {
+  const root = new RepoRoot(repo);
+  const source = new PlanSource(root);
+  const facts = BoardView.pipelineFacts(
+    boardReadOf(source, index, entry),
+    source,
+    index,
+    entry,
+    root,
+  );
+  if (facts === null) throw new Error("expected the node's pipeline facts");
+  return facts;
+};
 
 /** One `NextHop` from the ONE derivation — a route + the frame's target, with the
  *  board's declaration-reading station discrimination injected. */
@@ -112,7 +149,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     const root = new RepoRoot(repo);
     // The board's `next:` line renders the assembly face's ONE injected `NextHop`
     // (P22 §5.2) — the same object the CLI's board command hands it.
-    const next = BoardNext.of(new PlanSource(root), index, entry, root);
+    const next = nextOfEntry(repo, index, entry);
     const board = BoardView.render(
       new PlanSource(root),
       index,
@@ -2079,7 +2116,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf(slug);
     const root = new RepoRoot(repo);
-    const next = BoardNext.of(new PlanSource(root), index, entry, root);
+    const next = nextOfEntry(repo, index, entry);
     const board = BoardView.render(
       new PlanSource(root),
       index,
@@ -2144,7 +2181,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const root = new RepoRoot(repo);
-    const facts = BoardView.pipelineFacts(new PlanSource(root), index, entry, root)!;
+    const facts = factsOfEntry(repo, index, entry);
     const hop = new PipelineFrontier(ledger).hopOf(facts.input, {
       docClassOf: (target) => BoardView.docClassOf(root, target),
     });
@@ -2173,7 +2210,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     planDoc([[1]]);
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
-    const hop = BoardNext.of(new PlanSource(new RepoRoot(repo)), index, entry, new RepoRoot(repo));
+    const hop = nextOfEntry(repo, index, entry);
     expect(hop).not.toBeNull();
     const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)).emit(
       "APPROVED",
@@ -2206,7 +2243,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       const index = SlugIndex.build(repo);
       const entry = entryOf("prog-p1");
       const root = new RepoRoot(repo);
-      const next = BoardNext.of(new PlanSource(root), index, entry, root);
+      const next = nextOfEntry(repo, index, entry);
       return BoardView.render(
         new PlanSource(root),
         index,
@@ -2338,7 +2375,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const root = new RepoRoot(repo);
-    const hop = BoardNext.of(new PlanSource(root), index, entry, root);
+    const hop = nextOfEntry(repo, index, entry);
     expect(hop).not.toBeNull();
     const boardLines = BoardView.render(
       new PlanSource(root),
@@ -2381,7 +2418,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     // The divergence state: the identity line was never reviewed, so the pipeline
     // frontier HOLDS on the spec face while the wave line is at its own point. The
     // pre-T7 capsule printed the frame-keyed wave literal here; the board printed this.
-    const facts = BoardView.pipelineFacts(new PlanSource(root), index, entry, root)!;
+    const facts = factsOfEntry(repo, index, entry);
     const hop = new PipelineFrontier(ledger).hopOf(facts.input, {
       docClassOf: (target) => BoardView.docClassOf(root, target),
     });
@@ -2444,7 +2481,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       host,
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(new PlanSource(new RepoRoot(repo)), index, entry, new RepoRoot(repo)),
+      nextOfEntry(repo, index, entry),
     ).lines;
     const nextAt = lines.findIndex((row) => row.startsWith("  next:    "));
     return {
@@ -2458,7 +2495,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     driftWaveSection(planFile);
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
-    const hop = BoardNext.of(new PlanSource(new RepoRoot(repo)), index, entry, new RepoRoot(repo));
+    const hop = nextOfEntry(repo, index, entry);
     expect(hop).not.toBeNull();
     expect(hop!.hop).toBe("review");
     // P29 §2.3 — a wave brief's task-only projection is not a document revision:
@@ -2513,7 +2550,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const root = new RepoRoot(repo);
-    const facts = BoardView.pipelineFacts(new PlanSource(root), index, entry, root)!;
+    const facts = factsOfEntry(repo, index, entry);
     const verdict = new DispatchAuthority().verdict({
       verb: "review",
       type: "branch",
@@ -2715,7 +2752,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       "claude",
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(new PlanSource(new RepoRoot(repo)), index, entry, new RepoRoot(repo)),
+      nextOfEntry(repo, index, entry),
     ).lines;
     expect(lines).toContain("  next:    done");
     expect(lines.some((row) => row.startsWith("  reason:"))).toBe(false);
@@ -2735,7 +2772,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       "claude",
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(new PlanSource(new RepoRoot(repo)), index, entry, new RepoRoot(repo)),
+      nextOfEntry(repo, index, entry),
     );
     const text = board.lines.join("\n");
     expect(text).not.toContain(repo);
@@ -2761,7 +2798,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       "claude",
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(new PlanSource(new RepoRoot(repo)), index, entry, new RepoRoot(repo)),
+      nextOfEntry(repo, index, entry),
     ).lines.join("\n");
     expect(text).toContain("review 10 ✓");
     expect(text).not.toMatch(/review 1[–-]10/);

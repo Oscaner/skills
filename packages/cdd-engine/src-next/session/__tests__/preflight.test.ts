@@ -90,6 +90,14 @@ const planReadOf = (repoRoot: string, blocks: readonly (readonly string[])[]): P
   const abs = path.join(repoRoot, rel);
   mkdirSync(path.dirname(abs), { recursive: true });
   writeFileSync(abs, planDoc(blocks), "utf8");
+  // The paired spec the read's reverse probe asks for (P35 §2.7): the fixture plan's
+  // slug is `x-p3`, so `docs/kairos/specs/x-p3-design.md` must exist or every
+  // plan-carrying face refuses the fixture as an orphan. The document declares its own
+  // slug — the probe only asks "is it there", never what it says.
+  const specRel = "docs/kairos/specs/x-p3-design.md";
+  const specAbs = path.join(repoRoot, specRel);
+  mkdirSync(path.dirname(specAbs), { recursive: true });
+  writeFileSync(specAbs, "---\ntitle: S\ndoc-type: phase-spec\nslug: x-p3-design\n---\n", "utf8");
   return new PlanSource(new RepoRoot(repoRoot)).readPath(rel);
 };
 
@@ -988,6 +996,198 @@ describe("PreFlight — the in-flight gate", () => {
         expect(verdict.checked.some((row) => row.startsWith("in-flight:"))).toBe(true);
         expect(verdict.order).toContain("in-flight");
       }
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the plan-carrier refusal — the un-gated leg (P35 §2.3)
+// ---------------------------------------------------------------------------
+
+/** The plan-carrier context of one face over an EXPLICIT plan read — the wave / plan
+ *  / branch triple the un-gated refusal leg judges (one shape, three types). */
+const carrierCtx = (
+  repoRoot: string,
+  type: "wave" | "plan" | "branch",
+  plan: PlanRead,
+): PreFlightContext => {
+  const workspace = new Workspace(
+    new WorkspaceRoot(path.join(repoRoot, ".kairos", "cdd"), "session"),
+    "preflight-slug",
+  ).ensure();
+  return {
+    type,
+    repoRoot,
+    plan,
+    ledger: new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)),
+    doc: null,
+    inflight: inflightOf(repoRoot, false),
+  };
+};
+
+/** The three plan-carrying faces — the leg's whole reachable set. */
+const CARRIER_FACES = ["wave", "plan", "branch"] as const;
+
+/** A grammar-broken plan on disk, read through the real seam: one task block carries
+ *  the reserved `#### DependsOn` section twice (the `DocSyntaxError` the parse raises).
+ *  Its front matter still reads out, so the read is `syntax` — not `io`. */
+const brokenPlanOf = (repoRoot: string): PlanRead => {
+  const rel = "docs/kairos/plans/broken.md";
+  const abs = path.join(repoRoot, rel);
+  mkdirSync(path.dirname(abs), { recursive: true });
+  writeFileSync(
+    abs,
+    [
+      "---",
+      "title: Broken Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "slug: broken",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: t1",
+      "- **Objective**: o",
+      "#### DependsOn",
+      "none",
+      "#### DependsOn",
+      "none",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  return new PlanSource(new RepoRoot(repoRoot)).readPath(rel);
+};
+
+/** A readable plan whose slug names no `<slug>-design.md` — the `spec-absent` orphan
+ *  (the reverse probe's read fact, §2.7): the document itself parses. */
+const orphanPlanOf = (repoRoot: string): PlanRead => {
+  const rel = "docs/kairos/plans/orphan-phase.md";
+  const abs = path.join(repoRoot, rel);
+  mkdirSync(path.dirname(abs), { recursive: true });
+  writeFileSync(
+    abs,
+    [
+      "---",
+      "title: Orphan Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "slug: orphan-phase",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: t1",
+      "- **Objective**: o",
+      "- **Files**: a.ts",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  return new PlanSource(new RepoRoot(repoRoot)).readPath(rel);
+};
+
+describe("PreFlight — the plan-carrier refusal (the un-gated leg, P35 §2.3)", () => {
+  it("a grammar-broken plan refuses wave / plan / branch with the doc-contract rows, naming the path and the field", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const plan = brokenPlanOf(repoRoot);
+      const failure = plan.failure();
+      expect(failure?.cause).toBe("syntax");
+      for (const type of CARRIER_FACES) {
+        const verdict = await preflightOf().vet(carrierCtx(repoRoot, type, plan));
+        expect(verdict.ok, `${type} face refuses`).toBe(false);
+        expect(verdict.gate).toBe("doc-contract");
+        expect(verdict.reason).toBe("doc-contract");
+        // The message is the read's own diagnostic: the path AND the grammar field —
+        // never the raw `cdd: task 1 carries …` parser throw.
+        expect(verdict.message).toContain(failure?.path ?? "");
+        expect(verdict.message).toContain("#### DependsOn");
+        expect(verdict.message).not.toContain("cdd: ");
+        // The refusal precedes the graph gate on every face: the row is never claimed.
+        expect(verdict.order).not.toContain("graph");
+        expect(verdict.checked).not.toContain("graph");
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("accounts the refusal by TYPE — only the plan face's own gate set holds doc-contract", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const plan = brokenPlanOf(repoRoot);
+      const planVerdict = await preflightOf().vet(carrierCtx(repoRoot, "plan", plan));
+      expect(planVerdict.checked).toContain("doc-contract");
+      expect(planVerdict.order).toContain("doc-contract");
+      // The wave and branch faces never planned this gate — they must not claim it.
+      for (const type of ["wave", "branch"] as const) {
+        const verdict = await preflightOf().vet(carrierCtx(repoRoot, type, plan));
+        expect(verdict.checked).not.toContain("doc-contract");
+        expect(verdict.order).not.toContain("doc-contract");
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("refuses a spec-absent orphan on every plan-carrying face with the plan-orphan diagnostic", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const plan = orphanPlanOf(repoRoot);
+      expect(plan.orphan()?.cause).toBe("spec-absent");
+      for (const type of CARRIER_FACES) {
+        const verdict = await preflightOf().vet(carrierCtx(repoRoot, type, plan));
+        expect(verdict.ok).toBe(false);
+        expect(verdict.reason).toBe("doc-contract");
+        expect(verdict.message).toContain("orphan-phase");
+        expect(verdict.message).toContain("docs/kairos/specs/orphan-phase-design.md");
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("never refuses a phase with no plan — `undeclared` is the normal forward gap", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const read = new PlanSource(new RepoRoot(repoRoot)).readFor(null);
+      for (const type of CARRIER_FACES) {
+        const verdict = await preflightOf().vet(carrierCtx(repoRoot, type, read));
+        expect(verdict.ok).toBe(true);
+        expect(verdict.gate).toBeUndefined();
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("does not judge a face that carries no plan (the three doc shapes)", async () => {
+    const { repoRoot, cleanup } = gitRepo();
+    try {
+      const plan = brokenPlanOf(repoRoot);
+      const verdict = await preflightOf(memoryFs(CONFORMING_SPEC)).vet({
+        ...docCtx(repoRoot, "phase-spec", "review"),
+        plan,
+      });
+      // The doc face's own doc-contract gate judges the target doc, never this leg.
+      expect(verdict.gate).toBeUndefined();
+      expect(verdict.order).toContain("doc-contract");
     } finally {
       cleanup();
     }

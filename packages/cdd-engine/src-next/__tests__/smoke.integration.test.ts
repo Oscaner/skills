@@ -11,7 +11,7 @@
 // zero-`function`-declaration discipline).
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -124,6 +124,16 @@ describe("the engine smoke — the source bin over a fixture repo", () => {
       writeFileSync(path.join(repoRoot, "fixture-plan.md"), fixturePlan(), "utf8");
       writeFileSync(path.join(repoRoot, "fixture-design.md"), fixtureSpec(), "utf8");
       writeFileSync(path.join(repoRoot, "fixture-overall.md"), fixtureOverall(), "utf8");
+      // The paired spec AT THE DERIVED PATH (P35 §2.7): the plan read's reverse probe
+      // asks `${docRoots.specs}/<slug>-design.md`, so a plan whose slug names no
+      // document there is an orphan and the preview refuses it. Committed with the
+      // rest of the fixture so the tree-clean gate still passes.
+      mkdirSync(path.join(repoRoot, "docs", "kairos", "specs"), { recursive: true });
+      writeFileSync(
+        path.join(repoRoot, "docs", "kairos", "specs", "fixture-design.md"),
+        fixtureSpec(),
+        "utf8",
+      );
       git(repoRoot, "init", "-q");
       git(
         repoRoot,

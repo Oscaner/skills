@@ -12,7 +12,7 @@
 //
 // Constructed with the node's `Ledger` (the `Ledger` / `Lifecycle` shape: one read
 // face injected, no global state). The plan is never read here — the guarded plan
-// read stays on the board side and rides in as `planGraph`, so this module holds
+// read stays on the board side and rides in as `plan`, so this module holds
 // zero file-system read and no second plan parse.
 //
 // The four rules over the ONE `PIPELINE_FACES` order:
@@ -34,6 +34,7 @@
 // Module-level exports are types / the class — zero behavior-carrying bare functions
 // (the plan's zero-bare-function discipline).
 
+import type { PlanRead } from "../infra/plan-source.ts";
 import type { RouteTarget, TargetType } from "./faces.ts";
 import type { TaskGraph } from "./graph.ts";
 import type { Ledger, OpType } from "./ledger.ts";
@@ -53,7 +54,7 @@ import {
 const WAVE_ROUND_MODES: readonly OpType[] = ["implement", "review", "fix"];
 
 /** The frontier's whole input — the node's declared identity plus the board's
- *  guarded plan read. `planGraph` is INJECTED (the board's `#planGraph`): the
+ *  guarded plan read. `plan` is INJECTED (the board's own read value): the
  *  frontier itself reads no file and parses no second plan. */
 export interface PipelineFrontierInput {
   /** The spec line's DECLARED word (the front-matter `doc-type:`). A null declaration
@@ -64,9 +65,9 @@ export interface PipelineFrontierInput {
   readonly specPath: string | null;
   /** The plan document path — the plan and branch faces' ONE identity document. */
   readonly planPath: string | null;
-  /** The plan's task graph (the board's ONE guarded plan read) — null when the plan
-   *  is absent or unreadable. */
-  readonly planGraph: TaskGraph | null;
+  /** The plan read — the board's ONE guarded plan read; its `graph()` is this
+   *  frontier's graph input (null when the plan is absent or unreadable). */
+  readonly plan: PlanRead;
 }
 
 /** The frontier's verdict — the route, the render target the literal needs, and the
@@ -226,7 +227,7 @@ export class PipelineFrontier {
    *  alone would fall into rule 2 and render the wave face's own exit
    *  (`PIPELINE_NEXT.wave`), a worse literal than the one being removed. */
   #waveState(input: PipelineFrontierInput): PipelineFaceState {
-    const graph = input.planGraph;
+    const graph = input.plan.graph();
     const waveKey = graph === null ? null : this.#waveKeyOf(graph);
     const entered = graph !== null && this.#wavesEntered(graph);
     return {

@@ -303,6 +303,12 @@ const planFor = (repoRoot: string): string => {
     ].join("\n"),
     "utf8",
   );
+  // The paired spec the plan read's reverse probe asks for (§2.7): a plan whose slug
+  // names no `<slug>-design.md` is an orphan and every plan-carrying face refuses it.
+  // The document declares its own slug — the probe only asks "is it there".
+  const specFile = path.join(repoRoot, "docs", "kairos", "specs", "p3-design.md");
+  mkdirSync(path.dirname(specFile), { recursive: true });
+  writeFileSync(specFile, "---\ntitle: Sp3\ndoc-type: phase-spec\nslug: p3-design\n---\n", "utf8");
   return file;
 };
 

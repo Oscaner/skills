@@ -350,7 +350,7 @@ export class DispatchAuthority {
    *  finished run's plan edit blocked the branch review). Only an OPEN batch's brief
    *  movement refuses the faces below the wave face. */
   #waveStation(facts: DispatchLineFacts): UpstreamStation | null {
-    const graph = facts.pipeline.planGraph;
+    const graph = facts.pipeline.plan.graph();
     if (graph === null) return null;
     const frontier = this.#frontierOf(facts);
     if (!frontier.wavesEntered(graph)) return null;

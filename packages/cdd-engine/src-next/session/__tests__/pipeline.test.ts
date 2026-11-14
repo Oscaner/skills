@@ -32,12 +32,10 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { PlanDocType } from "../../contract/doc.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { PlanSource } from "../../infra/plan-source.ts";
+import { type PlanRead, PlanSource } from "../../infra/plan-source.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
-import { TaskGraph } from "../graph.ts";
 import { Ledger } from "../ledger.ts";
 import { PIPELINE_NEXT } from "../next.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "../pipeline.ts";
@@ -114,8 +112,14 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
       ),
     ]);
 
-  const graphOf = (planPath: string): TaskGraph =>
-    new TaskGraph(new PlanDocType("plan").parse(readFileSync(planPath, "utf8").split("\n")));
+  /** The plan READ of a fixture document — the frontier's graph input IS the value's
+   *  own `graph()` (the board's ONE guarded read), so each case hands the value in
+   *  instead of parsing the document a second time. A null path is the phase with no
+   *  plan: the derived face's `undeclared` value. */
+  const readOf = (planPath: string | null): PlanRead => {
+    const source = new PlanSource(new RepoRoot(repo));
+    return planPath === null ? source.readFor(null) : source.readPath(planPath);
+  };
 
   const ledgerOf = (): Ledger =>
     new Ledger(
@@ -128,7 +132,7 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     specType: "phase-spec",
     specPath: null,
     planPath: null,
-    planGraph: null,
+    plan: readOf(null),
     ...over,
   });
 
@@ -153,7 +157,7 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
       verdict: { treeClean: true, targetAction: false },
     });
     const next = new PipelineFrontier(ledger).next(
-      inputOf({ specPath, planPath, planGraph: graphOf(planPath) }),
+      inputOf({ specPath, planPath, plan: readOf(planPath) }),
     );
     expect(next.face).toBe("wave");
     expect(next.route).toEqual({ kind: "next-wave", tasks: "1" });
@@ -169,7 +173,7 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     const ledger = ledgerOf();
     closeSpecAndPlan(ledger);
     const next = new PipelineFrontier(ledger).next(
-      inputOf({ specPath, planPath, planGraph: graphOf(planPath) }),
+      inputOf({ specPath, planPath, plan: readOf(planPath) }),
     );
     expect(next.face).toBeNull();
     expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.plan });
@@ -187,7 +191,7 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     ledger.recordRound("1", { op: "implement" });
     ledger.recordRound("1", { op: "review" });
     const frontier = new PipelineFrontier(ledger);
-    const next = frontier.next(inputOf({ specPath, planPath, planGraph: graphOf(planPath) }));
+    const next = frontier.next(inputOf({ specPath, planPath, plan: readOf(planPath) }));
     expect(next.face).toBe("wave");
     expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.wave });
     expect(next.target).toEqual({ type: "wave", id: "1", plan: planPath });
@@ -202,7 +206,7 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     // was never entered. All THREE verdict cells are asserted — clearing `active`
     // alone would fall into rule 2 and render the wave face's own exit instead.
     const frontier = new PipelineFrontier(ledger);
-    const input = inputOf({ specPath, planPath, planGraph: graphOf(planPath) });
+    const input = inputOf({ specPath, planPath, plan: readOf(planPath) });
     const next = frontier.next(input);
     expect(next.face).toBeNull();
     expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.plan });
@@ -225,7 +229,7 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
     ledger.recordRound("1", { op: "review" });
     const next = new PipelineFrontier(ledger).next(
-      inputOf({ specPath, planPath, planGraph: graphOf(planPath) }),
+      inputOf({ specPath, planPath, plan: readOf(planPath) }),
     );
     expect(next.face).toBe("wave");
     expect(next.route).toEqual({ kind: "next-wave", tasks: "2" });
@@ -238,7 +242,7 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     const ledger = ledgerOf();
     closeSpecAndPlan(ledger);
     const frontier = new PipelineFrontier(ledger);
-    const input = inputOf({ specPath, planPath, planGraph: graphOf(planPath) });
+    const input = inputOf({ specPath, planPath, plan: readOf(planPath) });
     // The SAME fixture as the fresh-plan window, one wave round later (an implement
     // dispatch whose verdict need not be a target action). A completed implement round
     // puts the wave line at its review hop — the wave face's own literal, not a handoff.
@@ -281,7 +285,7 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     ledger.persistHandoff("review", "branch", { round: 1 }, { findings: [] });
     ledger.recordRound("branch", { op: "review" });
     const next = new PipelineFrontier(ledger).next(
-      inputOf({ specPath, planPath, planGraph: graphOf(planPath) }),
+      inputOf({ specPath, planPath, plan: readOf(planPath) }),
     );
     expect(next.face).toBeNull();
     expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.branch });
@@ -310,7 +314,7 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
       "plan",
     );
     const frontier = new PipelineFrontier(ledger);
-    const input = inputOf({ specPath, planPath, planGraph: graphOf(planPath) });
+    const input = inputOf({ specPath, planPath, plan: readOf(planPath) });
     // A wave round enters the wave face (outside P25 §6's window), so the undrifted
     // frontier walks past both doc faces onto it.
     ledger.recordRound("1", {
@@ -325,5 +329,131 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     expect(drifted.face).toBe("plan");
     expect(drifted.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT.plan });
     expect(drifted.target).toEqual({ type: "plan", id: planPath, plan: planPath });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P35 §2.5 — the plan read is the frontier's ONE plan fact
+// ---------------------------------------------------------------------------
+
+describe("PipelineFrontier — the plan read drives the frontier's plan cells", () => {
+  let repo: string;
+
+  beforeEach(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "pipeline-plan-read-"));
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
+    mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  const writeDoc = (rel: string, lines: readonly string[]): string => {
+    const file = path.join(repo, rel);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${lines.join("\n")}\n`, "utf8");
+    return file;
+  };
+
+  const specDoc = (): string =>
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "---",
+    ]);
+
+  const ledgerOf = (): Ledger =>
+    new Ledger(
+      new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure(),
+      new ConfigLoader(),
+      new PlanSource(new RepoRoot(repo)),
+    );
+
+  const inputOf = (over: Partial<PipelineFrontierInput> = {}): PipelineFrontierInput => ({
+    specType: "phase-spec",
+    specPath: null,
+    planPath: null,
+    plan: new PlanSource(new RepoRoot(repo)).readFor(null),
+    ...over,
+  });
+
+  it("a `syntax` plan keeps its plan face — the PATH is present while the graph is not", () => {
+    const specPath = specDoc();
+    // The plan's front matter reads out (so the plan face assembles from the path),
+    // but the body breaks the grammar: one reserved section twice.
+    const planPath = writeDoc("docs/kairos/plans/prog-p1.md", [
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "slug: prog-p1",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: t1",
+      "- **Objective**: o",
+      "#### DependsOn",
+      "none",
+      "#### DependsOn",
+      "none",
+    ]);
+    const read = new PlanSource(new RepoRoot(repo)).readPath(planPath);
+    expect(read.kind).toBe("unreadable");
+    expect(read.stationPath()).toBe("docs/kairos/plans/prog-p1.md");
+    expect(read.graph()).toBeNull();
+    const ledger = ledgerOf();
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    const next = new PipelineFrontier(ledger).next(
+      inputOf({ specPath, planPath: read.stationPath(), plan: read }),
+    );
+    // The plan face is the frontier — never the wave face: with no graph there is no
+    // dispatchable wave, so the read's own path is what the route points at.
+    expect(next.face).toBe("plan");
+    expect(next.target).toEqual({
+      type: "plan",
+      id: "docs/kairos/plans/prog-p1.md",
+      plan: "docs/kairos/plans/prog-p1.md",
+    });
+    expect(next.route.kind).not.toBe("next-wave");
+  });
+
+  it("an `io` failure carries NO frontier path — the plan face is never entered (§2.5)", () => {
+    const specPath = specDoc();
+    const read = new PlanSource(new RepoRoot(repo)).readPath("docs/kairos/plans/ghost.md");
+    expect(read.failure()?.cause).toBe("io");
+    expect(read.stationPath()).toBeNull();
+    const ledger = ledgerOf();
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    const next = new PipelineFrontier(ledger).next(
+      inputOf({ specPath, planPath: read.stationPath(), plan: read }),
+    );
+    // Today's shape, kept byte-for-byte: no plan face, so the frontier exchanges from
+    // the preceding entered face (the spec).
+    expect(next.face).toBeNull();
+    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT["phase-spec"] });
+    expect(next.target).toEqual({ type: "phase-spec", id: specPath });
+  });
+
+  it("an `undeclared` plan keeps the forward-gap semantics — no plan face, no station", () => {
+    const specPath = specDoc();
+    const ledger = ledgerOf();
+    ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+    ledger.recordRound("phase-spec", { op: "review" });
+    const read = new PlanSource(new RepoRoot(repo)).readFor(null);
+    expect(read.kind).toBe("undeclared");
+    expect(read.stationPath()).toBeNull();
+    expect(read.graph()).toBeNull();
+    const next = new PipelineFrontier(ledger).next(
+      inputOf({ specPath, planPath: read.stationPath(), plan: read }),
+    );
+    expect(next.face).toBeNull();
+    expect(next.route).toEqual({ kind: "handoff", entry: PIPELINE_NEXT["phase-spec"] });
   });
 });

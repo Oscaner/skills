@@ -23,7 +23,6 @@ import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
 import type { PlanRead } from "../infra/plan-source.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
-import type { TaskGraph } from "./graph.ts";
 import {
   type HandoffParams,
   Ledger,
@@ -363,9 +362,6 @@ export class Lifecycle {
    *  anchor on an absent identity face, which would print a passed phase's transition. */
   readonly #specType: TargetType | null;
   readonly #specPath: string | null;
-  /** The plan's task graph — the pipeline frontier's guarded plan read, injected by
-   *  the composition root (the session plane reads no file). */
-  readonly #planGraph: TaskGraph | null;
   /** The pipeline frontier — the ONE hop assembly this lifecycle's capsule renders
    *  (the same object the board renders). */
   readonly #frontier: PipelineFrontier;
@@ -396,8 +392,6 @@ export class Lifecycle {
      *  identity cells) — absent on a bare slug or a spec-less phase. */
     specType?: TargetType | null;
     specPath?: string | null;
-    /** The plan's task graph (the pipeline frontier's guarded plan read). */
-    planGraph?: TaskGraph | null;
     /** The pipeline-station discrimination (P22 §5.2) — injected by the composition
      *  root (the declaration-reading face); the type-keyed default covers the
      *  session-plane callers. */
@@ -414,7 +408,6 @@ export class Lifecycle {
     this.#plan = opts.plan;
     this.#specType = opts.specType ?? null;
     this.#specPath = opts.specPath ?? null;
-    this.#planGraph = opts.planGraph ?? null;
     this.#frontier = new PipelineFrontier(this.#ledger);
     this.#docClassOf = opts.docClassOf ?? Lifecycle.#docClassByType;
   }
@@ -994,7 +987,7 @@ export class Lifecycle {
       specType: this.#specType,
       specPath: this.#specPath,
       planPath: this.#plan.stationPath(),
-      planGraph: this.#planGraph,
+      plan: this.#plan,
     };
   }
 

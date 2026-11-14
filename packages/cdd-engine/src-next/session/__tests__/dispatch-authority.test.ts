@@ -26,8 +26,8 @@ import { ARGV_CHANNEL } from "../../face/declare.ts";
 import { RouteRenderer } from "../../face/route-render.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { PlanSource } from "../../infra/plan-source.ts";
-import type { RepoRoot } from "../../infra/root.ts";
+import { type PlanRead, PlanSource } from "../../infra/plan-source.ts";
+import { RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import {
   DispatchAuthority,
@@ -96,6 +96,22 @@ const graphOf = (blocks: readonly (readonly string[])[]): TaskGraph => {
   return new TaskGraph(new PlanDocType("plan").parse(planDoc(blocks).split("\n")));
 };
 
+/** The plan READ over the same literal — a REAL read through the seam (the in-memory
+ *  fs serves the bytes), so the pipeline input carries the production value whose
+ *  `graph()` is the graph these cases judge. */
+const readOf = (blocks: readonly (readonly string[])[]): PlanRead => {
+  const text = planDoc(blocks);
+  const fs = { exists: () => true, read: () => text, list: () => [] };
+  return new PlanSource(new RepoRoot("/fixture"), fs).readPath("docs/kairos/plans/p3.md");
+};
+
+/** The plan READ of a document on the fixture disk — the same seam, the argv face. */
+const readAt = (basis: RepoRoot, planAbs: string): PlanRead =>
+  new PlanSource(basis).readPath(planAbs);
+
+/** The phase with no plan — the derived face's `undeclared` value (no read at all). */
+const NO_PLAN = new PlanSource(new RepoRoot("/fixture")).readFor(null);
+
 /** The structure leg's approved verdict — the case table judges the line leg, so the
  *  pre-flight face is handed in already passed. */
 const STRUCTURE_OK = { ok: true, order: [], checked: [] } as const;
@@ -104,7 +120,7 @@ const authority = new DispatchAuthority();
 
 const waveCase = (
   ledger: Ledger,
-  graph: TaskGraph,
+  blocks: readonly (readonly string[])[],
   tasks: readonly number[],
   verb: DispatchRequest["verb"],
 ): DispatchRequest => ({
@@ -114,11 +130,11 @@ const waveCase = (
   line: {
     ledger,
     words,
-    graph,
+    graph: graphOf(blocks),
     tasks: new Set(tasks),
     lineKey: null,
     doc: null,
-    pipeline: { specType: null, specPath: null, planPath: null, planGraph: graph },
+    pipeline: { specType: null, specPath: null, planPath: null, plan: readOf(blocks) },
     docClassOf: PORTS.docClassOf,
   },
 });
@@ -140,7 +156,7 @@ const docCase = (
     tasks: null,
     lineKey: type,
     doc,
-    pipeline: { specType: null, specPath: null, planPath, planGraph: null },
+    pipeline: { specType: null, specPath: null, planPath, plan: NO_PLAN },
     docClassOf: PORTS.docClassOf,
   },
 });
@@ -189,10 +205,11 @@ describe("P27 §2.4 — the wave face's five rows (each its own case)", () => {
   it("mixed-batch — a static batch mixing closed and open tasks", () => {
     const { ledger, cleanup } = fixture();
     try {
-      const graph = graphOf([task(1, "none"), task(2, "none")]);
       ledger.recordRound(1, { op: "implement" });
       cleanReviewCarrier(ledger, "1", 1);
-      expect(reasonOf(waveCase(ledger, graph, [2], "implement"))).toBe("mixed-batch");
+      expect(reasonOf(waveCase(ledger, [task(1, "none"), task(2, "none")], [2], "implement"))).toBe(
+        "mixed-batch",
+      );
     } finally {
       cleanup();
     }
@@ -201,17 +218,17 @@ describe("P27 §2.4 — the wave face's five rows (each its own case)", () => {
   it("wave-too-wide — the derived open wave is wider than the ceiling", () => {
     const { ledger, cleanup } = fixture();
     try {
-      const graph = graphOf([
+      const blocks = [
         task(1, "none"),
         task(2, "none"),
         task(3, "none"),
         task(4, "1"),
         task(5, "1"),
-      ]);
+      ] as const;
       ledger.recordRound("1", { op: "implement" });
       cleanReviewCarrier(ledger, "1", 1);
       ledger.recordPlanTasks("1", [1]);
-      expect(reasonOf(waveCase(ledger, graph, [2, 3, 4, 5], "implement"))).toBe("wave-too-wide");
+      expect(reasonOf(waveCase(ledger, blocks, [2, 3, 4, 5], "implement"))).toBe("wave-too-wide");
     } finally {
       cleanup();
     }
@@ -220,8 +237,8 @@ describe("P27 §2.4 — the wave face's five rows (each its own case)", () => {
   it("too-many-tasks — the requested set is wider than the ceiling (never `wave-too-wide`)", () => {
     const { ledger, cleanup } = fixture();
     try {
-      const graph = graphOf([task(1, "none"), task(2, "none"), task(3, "1"), task(4, "1")]);
-      expect(reasonOf(waveCase(ledger, graph, [1, 2, 3, 4], "implement"))).toBe("too-many-tasks");
+      const blocks = [task(1, "none"), task(2, "none"), task(3, "1"), task(4, "1")] as const;
+      expect(reasonOf(waveCase(ledger, blocks, [1, 2, 3, 4], "implement"))).toBe("too-many-tasks");
     } finally {
       cleanup();
     }
@@ -230,9 +247,9 @@ describe("P27 §2.4 — the wave face's five rows (each its own case)", () => {
   it("split — the requested set is neither the derived wave nor wider than the ceiling", () => {
     const { ledger, cleanup } = fixture();
     try {
-      const graph = graphOf([task(1, "none"), task(2, "none")]);
-      expect(reasonOf(waveCase(ledger, graph, [1], "implement"))).toBe("split");
-      expect(reasonOf(waveCase(ledger, graph, [1], "review"))).toBe("split");
+      const blocks = [task(1, "none"), task(2, "none")] as const;
+      expect(reasonOf(waveCase(ledger, blocks, [1], "implement"))).toBe("split");
+      expect(reasonOf(waveCase(ledger, blocks, [1], "review"))).toBe("split");
     } finally {
       cleanup();
     }
@@ -241,10 +258,10 @@ describe("P27 §2.4 — the wave face's five rows (each its own case)", () => {
   it("wrong-phase — the open wave's phase is not the requested verb", () => {
     const { ledger, cleanup } = fixture();
     try {
-      const graph = graphOf([task(1, "none")]);
+      const blocks = [task(1, "none")] as const;
       ledger.recordRound("1", { op: "implement" });
-      expect(reasonOf(waveCase(ledger, graph, [1], "implement"))).toBe("wrong-phase");
-      expect(reasonOf(waveCase(ledger, graph, [1], "review"))).toBeNull();
+      expect(reasonOf(waveCase(ledger, blocks, [1], "implement"))).toBe("wrong-phase");
+      expect(reasonOf(waveCase(ledger, blocks, [1], "review"))).toBeNull();
     } finally {
       cleanup();
     }
@@ -387,9 +404,8 @@ describe("P27 §2.1/§2.2 — the verdict's shape and the priority chain", () =>
     try {
       // The line leg would refuse this request too (the split row); the structure
       // leg is upstream, so it owns the verdict — the actionable cause.
-      const graph = graphOf([task(1, "none"), task(2, "none")]);
       const request: DispatchRequest = {
-        ...waveCase(ledger, graph, [1], "implement"),
+        ...waveCase(ledger, [task(1, "none"), task(2, "none")], [1], "implement"),
         structure: {
           ok: false,
           gate: "tree-clean",
@@ -436,7 +452,7 @@ describe("P27 §2.1/§2.2 — the verdict's shape and the priority chain", () =>
         specType: null,
         specPath: null,
         planPath: planAbs,
-        planGraph: graph,
+        plan: readAt(basis, planAbs),
       };
       const request: DispatchRequest = {
         verb: "implement",
@@ -577,6 +593,7 @@ const upstreamCase = (opts: {
   type: DispatchRequest["type"];
   verb: DispatchRequest["verb"];
   graph?: TaskGraph | null;
+  plan?: PlanRead;
   tasks?: readonly number[] | null;
   lineKey?: string | null;
   doc?: string | null;
@@ -596,7 +613,7 @@ const upstreamCase = (opts: {
       specType: null,
       specPath: null,
       planPath: null,
-      planGraph: opts.graph ?? null,
+      plan: opts.plan ?? NO_PLAN,
       ...opts.pipeline,
     },
     docClassOf: PORTS.docClassOf,
@@ -754,7 +771,6 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
       const content = planDoc([task(1, "none")]);
       const planAbs = writeAt(repo, UPSTREAM_PLAN_REL, content);
       closeDoc(ledger, "plan", UPSTREAM_PLAN_REL, content);
-      const graph = graphOf([task(1, "none")]);
       // The wave was entered by its implement round and holds no closing review.
       ledger.recordRound("1", { op: "implement" });
       const refusal = refusalOf(
@@ -768,7 +784,7 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
             specType: "phase-spec",
             specPath: specAbs,
             planPath: planAbs,
-            planGraph: graph,
+            plan: readAt(basis, planAbs),
           },
         }),
       );
@@ -801,7 +817,6 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
         planDoc([["### Task 1: task 1", "- **DependsOn**: none", "- **Acceptance**: moved"]]),
       );
       expect(ledger.briefDrifted("1")).toBe(true);
-      const graph = graphOf([task(1, "none")]);
       const verdict = authority.verdict(
         upstreamCase({
           ledger,
@@ -809,7 +824,7 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
           verb: "review",
           lineKey: "branch",
           doc: planAbs,
-          pipeline: { planPath: planAbs, planGraph: graph },
+          pipeline: { planPath: planAbs, plan: readAt(new RepoRoot(repo), planAbs) },
         }),
       );
       // §2.1 — the closed batch is filtered out of the station read, so the upstream leg
@@ -835,7 +850,6 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
       ]);
       writeAt(repo, UPSTREAM_PLAN_REL, moved);
       expect(ledger.briefDrifted("1")).toBe(true);
-      const graph = graphOf([task(1, "none")]);
       const refusal = refusalOf(
         upstreamCase({
           ledger,
@@ -843,7 +857,7 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
           verb: "review",
           lineKey: "branch",
           doc: planAbs,
-          pipeline: { planPath: planAbs, planGraph: graph },
+          pipeline: { planPath: planAbs, plan: readAt(basis, planAbs) },
         }),
       );
       // §2.3/§2.4 — the brief drift names ITS own token, and the hop points at the wave
@@ -905,7 +919,7 @@ describe("P27 §2.3 — an open upstream station refuses the faces below it", ()
           verb: "review",
           lineKey: "branch",
           doc: planAbs,
-          pipeline: { planPath: planAbs, planGraph: graph },
+          pipeline: { planPath: planAbs, plan: readAt(basis, planAbs) },
         }),
       );
       expect(refusal.leg).toBe("upstream");
@@ -1068,6 +1082,88 @@ describe("P30 T6 — the closed-wave discipline adds zero finding-routing branch
         hitsOf(planeText(plane), /closed[- ]task/i),
         `closed-task wording in ${plane}`,
       ).toEqual([]);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P35 §2.5 — the wave station reads the PLAN VALUE, not a second graph
+// ---------------------------------------------------------------------------
+
+describe("P35 §2.5 — a non-ready plan read holds no wave station", () => {
+  it("an `undeclared` read leaves the branch dispatch allowed (no graph ⇒ no station)", () => {
+    const { repo, ledger, cleanup } = fixture();
+    try {
+      const specAbs = writeAt(
+        repo,
+        "docs/kairos/specs/p3-design.md",
+        "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\n---\n",
+      );
+      // The phase has a spec and NO plan: the forward gap is a legal state, so the
+      // wave station reads no graph and refuses nothing.
+      const verdict = authority.verdict(
+        upstreamCase({
+          ledger,
+          type: "branch",
+          verb: "review",
+          lineKey: "branch",
+          pipeline: { specType: "phase-spec", specPath: specAbs, plan: NO_PLAN },
+        }),
+      );
+      expect(verdict.allowed).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a `syntax` read keeps the path but yields no graph — the wave station still reads no face", () => {
+    const { repo, basis, ledger, cleanup } = fixture();
+    try {
+      const content = [
+        "---",
+        "title: Plan",
+        "doc-type: plan",
+        "slug: p3",
+        "---",
+        "",
+        "## Constraints",
+        "",
+        "- c",
+        "",
+        "### Task 1: t1",
+        "- **Objective**: o",
+        "#### DependsOn",
+        "none",
+        "#### DependsOn",
+        "none",
+        "",
+      ].join("\n");
+      const planAbs = writeAt(repo, "docs/kairos/plans/p3.md", content);
+      const read = readAt(basis, planAbs);
+      expect(read.failure()?.cause).toBe("syntax");
+      expect(read.stationPath()).toBe("docs/kairos/plans/p3.md");
+      expect(read.graph()).toBeNull();
+      // A wave round was dispatched on the row, so the face WOULD be entered if a
+      // graph existed. With the read's graph null the station stays absent: the
+      // upstream leg holds nothing, and the structure leg owns the refusal.
+      ledger.recordRound("1", { op: "implement" });
+      const verdict = authority.verdict(
+        upstreamCase({
+          ledger,
+          type: "branch",
+          verb: "review",
+          lineKey: "branch",
+          pipeline: {
+            specType: "phase-spec",
+            specPath: null,
+            planPath: read.stationPath(),
+            plan: read,
+          },
+        }),
+      );
+      expect(verdict.allowed).toBe(true);
+    } finally {
+      cleanup();
     }
   });
 });

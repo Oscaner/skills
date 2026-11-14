@@ -1749,6 +1749,61 @@ describe("P21 §5.1 — the wave closure's plan-task snapshot (the append-vs-sta
     }
   });
 
+  it("skips the snapshot when the plan's GRAMMAR breaks too — a non-ready read records nothing", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "broken-plan.md");
+      // One task block carries the reserved `#### DependsOn` section twice, so the
+      // document reads as `unreadable`/`syntax` (front matter out, body refused).
+      writeFileSync(
+        planPath,
+        [
+          "---",
+          "title: Broken Plan",
+          "doc-type: plan",
+          "version: v1.0",
+          "date: 2026-10-09",
+          "slug: x-p3",
+          "---",
+          "",
+          "## Constraints",
+          "",
+          "- c",
+          "",
+          "### Task 1: t1",
+          "- **Objective**: o",
+          "#### DependsOn",
+          "none",
+          "#### DependsOn",
+          "none",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      const read = planReadOf(repo, planPath);
+      expect(read.failure()?.cause).toBe("syntax");
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) =>
+        frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        plan: read,
+      });
+      await run.advance(); // implement
+      await run.advance(); // review — closure, but the plan has no parsed document
+      expect(ledger.planTasksOf("1")).toBeNull();
+      const row = ledger.readProgress()?.waves.find((entry) => entry.wave === "1");
+      expect(row).toBeDefined();
+      expect("planTasks" in (row ?? {})).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("skips the snapshot when the plan path is unreadable — present facts only, never an invented []", async () => {
     const { ledger, repo, cleanup } = fixture();
     try {
@@ -1851,7 +1906,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
       "claude",
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(planSource, index, entry, root),
+      BoardNext.of(planSource.readFor(entry), planSource, index, entry, root),
     );
     const row = (prefix: string): string => {
       const line = board.lines.find((candidate) => candidate.startsWith(prefix));
@@ -1877,7 +1932,6 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
         // the board share the pipeline frontier's assembly.
         specType: "phase-spec",
         specPath,
-        planGraph: graph,
         capsule: new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)),
       });
 

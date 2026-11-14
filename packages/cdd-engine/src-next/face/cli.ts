@@ -536,7 +536,7 @@ export class Cli {
     // face-order rules + the six hop cells) lives in the session plane's
     // `PipelineFrontier` — the same assembly the capsule renders, so the board and the
     // capsule state one hop. Neither face judges anything here.
-    const next = BoardNext.of(planSource, index, entry, root);
+    const next = BoardNext.of(planSource.readFor(entry), planSource, index, entry, root);
     const board = BoardView.render(
       planSource,
       index,
@@ -849,7 +849,6 @@ export class Cli {
       plan: scene.plan,
       specType: scene.pipeline.specType,
       specPath: scene.pipeline.specPath,
-      planGraph: scene.pipeline.planGraph,
       // The hop derivation's pipeline-station discrimination (§5.2) — the ONE
       // declaration-reading judgment, injected so the session plane never imports a
       // face class.
@@ -1299,7 +1298,7 @@ export class Cli {
       specType: identity?.docType ?? null,
       specPath: identity?.path ?? null,
       planPath: plan.stationPath(),
-      planGraph: graph,
+      plan,
     };
     return {
       workspace,

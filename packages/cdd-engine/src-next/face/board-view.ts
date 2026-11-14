@@ -42,7 +42,7 @@ import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import type { DocKey } from "../contract/project.ts";
 import { DOC_KEYS } from "../contract/project.ts";
 import { ConfigLoader } from "../infra/config.ts";
-import type { PlanSource } from "../infra/plan-source.ts";
+import type { PlanRead, PlanSource } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
 import { type DocEntry, SlugIndex, type SlugRole } from "../infra/slug-index.ts";
@@ -882,13 +882,18 @@ export class BoardView {
     return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader(), plan);
   }
 
-  /** pipelineFacts(index, entry, root) — the board's FACTS about the pipeline (spec
-   *  §5.2): the node's ledger and the pipeline frontier's declared input (the spec
-   *  word and path, the plan path, the guarded plan read). The board reports facts
-   *  only — the per-face observations and the four face-order rules live in the
+  /** pipelineFacts(read, plan, index, entry, root) — the board's FACTS about the
+   *  pipeline (spec §5.2): the node's ledger and the pipeline frontier's declared
+   *  input (the spec word and path, the plan path, the plan read). The board reports
+   *  facts only — the per-face observations and the four face-order rules live in the
    *  session plane's `PipelineFrontier`. Null when the node holds no legal slug (no
-   *  workspace to observe). */
+   *  workspace to observe).
+   *
+   *  `read` is the caller's ONE plan read (the same `PlanSource` instance): the
+   *  frontier's graph input is the value's own `graph()`, so the board never reads a
+   *  plan a second time. */
   static pipelineFacts(
+    read: PlanRead,
     plan: PlanSource,
     index: SlugIndex,
     entry: DocEntry,
@@ -905,7 +910,7 @@ export class BoardView {
     const specType = BoardView.#lineWordOf(sources.spec);
     return {
       ledger,
-      input: { specType, specPath, planPath, planGraph: BoardView.planGraph(planPath) },
+      input: { specType, specPath, planPath, plan: read },
     };
   }
 
@@ -913,7 +918,7 @@ export class BoardView {
    *  segment. `readFileSync` throwing on an unreadable plan is caught here: a null
    *  plan path or an unreadable/absent file yields null, honoring the wave face's
    *  "degradation, never a throw" contract. The pipeline frontier itself reads no
-   *  file — the composition root injects this read's result as its `planGraph` cell. */
+   *  file — the composition root injects the caller's `PlanRead` as its `plan` cell. */
   static planGraph(planPath: string | null): TaskGraph | null {
     if (planPath === null) return null;
     try {
@@ -1009,9 +1014,15 @@ export class BoardNext {
   /** The board's ONE `NextHop` — null when the entry holds no legal slug (no
    *  workspace to observe) or the board is the program board (cross-phase never
    *  participates in next, spec §6.5). */
-  static of(plan: PlanSource, index: SlugIndex, entry: DocEntry, root: RepoRoot): NextHop | null {
+  static of(
+    read: PlanRead,
+    plan: PlanSource,
+    index: SlugIndex,
+    entry: DocEntry,
+    root: RepoRoot,
+  ): NextHop | null {
     const facts =
-      entry.docType === "overall" ? null : BoardView.pipelineFacts(plan, index, entry, root);
+      entry.docType === "overall" ? null : BoardView.pipelineFacts(read, plan, index, entry, root);
     return facts === null ? null : BoardNext.#hopOf(facts, root);
   }
 

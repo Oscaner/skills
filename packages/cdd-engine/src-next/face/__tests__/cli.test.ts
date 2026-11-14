@@ -289,7 +289,24 @@ const planFor = (repoRoot: string, count = 1, name = "p3.md"): string => {
     ].join("\n"),
     "utf8",
   );
+  pairedSpec(repoRoot);
   return file;
+};
+
+/** The paired spec EXISTENCE the plan read's reverse probe asks (P35 §2.7): a plan
+ *  whose slug names no `<slug>-design.md` is an orphan, and every plan-carrying face
+ *  refuses it. The fixture writes the derived path so the probe finds it; the
+ *  document declares its OWN slug so these wave-face cases keep the spec-less
+ *  pipeline shape they pin (`specPath === null` → the line's own hop) — the probe
+ *  only asks "is the document there", never what it says. */
+const pairedSpec = (repoRoot: string, slug = "p3"): void => {
+  const file = path.join(repoRoot, "docs", "kairos", "specs", `${slug}-design.md`);
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(
+    file,
+    `---\ntitle: S${slug}\ndoc-type: phase-spec\nslug: ${slug}-design\n---\n`,
+    "utf8",
+  );
 };
 
 /** Read a JSON file (the workspace artifact assertions). */
@@ -518,6 +535,7 @@ const independentPlan = (repoRoot: string, name: string, count: number, slug = "
     ].join("\n"),
     "utf8",
   );
+  pairedSpec(repoRoot, slug);
   return file;
 };
 
@@ -3255,6 +3273,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const outside = realpathSync(mkdtempSync(path.join(tmpdir(), "cli-outside-")));
       const plan = conformingPlan(outside);
+      // The reverse probe resolves `<slug>-design.md` against the repository root
+      // (§2.7), so the paired document must exist THERE — the out-of-repo plan's own
+      // sibling spec is outside the probe's basis.
+      pairedSpec(repoRoot);
       try {
         // a plan OUTSIDE the fixture repo (the absolute path relativizes to `../…`);
         // the injected dispatch keeps the run hermetic (no child spawn).
@@ -5014,6 +5036,9 @@ describe("T6 — the dispatch surface reads the workspace key from `slug:`", () 
     try {
       gitInit(repoRoot);
       const plan = slugPlan(repoRoot, { slug: "custom-key" });
+      // The paired spec the read's reverse probe asks for (§2.7) — a plan whose slug
+      // names no `<slug>-design.md` refuses every plan-carrying face.
+      pairedSpec(repoRoot, "custom-key");
       // A real run (the injected approving dispatch) — the workspace write is the
       // assertion surface (`--dry-run` is read-only by contract).
       await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
@@ -5785,6 +5810,11 @@ describe("T3 — the commander-native composition root: program parse + .action 
       expect(io.stderrText).toContain(
         `error: cannot read file: ${path.relative(repoRoot, missing)}`,
       );
+      // P35 §2.3 — the `io` cause is a REACHABILITY fact, not a fourth refusal leg:
+      // the scene stops here before any workspace key exists, so this face carries no
+      // CDD_BLOCKED line and no `reason:` row (the value's `refusal()` is never asked).
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
+      expect(io.stderrText).not.toContain("reason:");
     } finally {
       cleanup();
     }
@@ -9495,6 +9525,199 @@ describe("P31 T5 — a successful round lands both of its own carriers read-only
       // … and BOTH of this round's names are closed to writes.
       expect(sealModeOf(draft)).toBe(0o444);
       expect(sealModeOf(final)).toBe(0o444);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P35 T4 — the plan read's structure refusal on every plan-carrying face
+// ---------------------------------------------------------------------------
+
+describe("P35 T4 — the plan read refuses every plan-carrying face", () => {
+  /** A plan whose BODY breaks the grammar while its front matter reads out: one task
+   *  block carries the reserved `#### DependsOn` section twice. The scene therefore
+   *  assembles (slug `p3`), and the refusal is the plan read's own diagnostic. */
+  const brokenGrammarPlan = (repoRoot: string): string => {
+    const file = path.join(repoRoot, "docs", "kairos", "plans", "broken-task.md");
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(
+      file,
+      [
+        "---",
+        "title: Broken Task Plan",
+        "doc-type: plan",
+        "version: v1.0",
+        "date: 2026-10-09",
+        "slug: p3",
+        "---",
+        "",
+        "## Constraints",
+        "",
+        "- c",
+        "",
+        "### Task 1: t1",
+        "- **Objective**: o",
+        "#### DependsOn",
+        "none",
+        "#### DependsOn",
+        "none",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    pairedSpec(repoRoot);
+    return file;
+  };
+
+  /** A readable plan whose slug names no `<slug>-design.md` — the reverse probe's
+   *  `spec-absent` read fact (§2.7). No paired spec is written on purpose. */
+  const orphanPlan = (repoRoot: string): string => {
+    const file = path.join(repoRoot, "docs", "kairos", "plans", "orphan-phase.md");
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(
+      file,
+      [
+        "---",
+        "title: Orphan Plan",
+        "doc-type: plan",
+        "version: v1.0",
+        "date: 2026-10-09",
+        "slug: orphan-phase",
+        "---",
+        "",
+        "## Constraints",
+        "",
+        "- c",
+        "",
+        "### Task 1: t1",
+        "- **Objective**: o",
+        "- **Files**: `a.ts`",
+        "- **Consumes**: x",
+        "- **Produces**: y",
+        "- **Steps**:",
+        "  - s — checkable: g",
+        "- **Acceptance**: ok",
+        "- **DependsOn**: none",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    return file;
+  };
+
+  /** The checked face's gate rows (a bare token line, never the message's prose). */
+  const gateRow = (stderr: string, gate: string): boolean =>
+    stderr.split("\n").some((line) => line.trim() === gate);
+
+  it("cdd implement (the wave face) — CDD_BLOCKED + doc-contract, no bare grammar line, no usage rejection", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = brokenGrammarPlan(repoRoot);
+      io.stderrText = "";
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(1);
+      // The ONE refusal line: the existing reason token plus the read's diagnostic.
+      expect(io.stderrText).toContain("CDD_BLOCKED: doc-contract · ");
+      expect(io.stderrText).toContain("! unparseable");
+      expect(io.stderrText).toContain("docs/kairos/plans/broken-task.md");
+      expect(io.stderrText).toContain("#### DependsOn");
+      // The parser's raw throw never reaches the consumer face.
+      expect(io.stderrText).not.toContain("cdd: task 1 carries");
+      // The usage rejection is not the judge either — the structure refusal owns it
+      // (the `planIds` membership check skips a non-ready plan).
+      expect(io.stderrText).not.toContain("not found in the plan");
+      // The wave face never planned this gate: no gate row, and no `graph` row.
+      expect(gateRow(io.stderrText, "doc-contract")).toBe(false);
+      expect(gateRow(io.stderrText, "graph")).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("cdd review / fix on --type plan and --type branch — the same refusal, accounted per type", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = brokenGrammarPlan(repoRoot);
+      for (const verb of ["review", "fix"] as const) {
+        for (const type of ["plan", "branch"] as const) {
+          io.stderrText = "";
+          // The fix face's branch line declares `--reviews` (the review carrier it
+          // answers); the refusal under test precedes every read of it.
+          const reviews = verb === "fix" && type === "branch" ? ["--reviews", "r.json"] : [];
+          const code = await command.runArgv([verb, "--type", type, "--plan", plan, ...reviews]);
+          expect(code, `${verb} --type ${type}`).toBe(1);
+          expect(io.stderrText).toContain("CDD_BLOCKED: doc-contract · ");
+          expect(io.stderrText).not.toContain("cdd: task 1 carries");
+          // Only the plan face's own gate set holds `doc-contract`.
+          expect(gateRow(io.stderrText, "doc-contract"), `${verb} --type ${type}`).toBe(
+            type === "plan",
+          );
+          expect(gateRow(io.stderrText, "graph")).toBe(false);
+        }
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("cdd review --type wave and the --dry-run previews refuse too (the preview never degrades)", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = brokenGrammarPlan(repoRoot);
+      io.stderrText = "";
+      expect(
+        await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED: doc-contract · ");
+      io.stderrText = "";
+      expect(
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
+      ).toBe(1);
+      expect(io.stderrText).toContain("CDD_BLOCKED: doc-contract · ");
+      expect(io.stderrText).toContain("! unparseable");
+      // The preview writes nothing — no workspace, no round.
+      expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3"))).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a spec-absent orphan refuses the wave, plan and branch faces with the orphan diagnostic", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = orphanPlan(repoRoot);
+      const faces: readonly (readonly string[])[] = [
+        ["implement", "--tasks", "1", "--plan", plan],
+        ["review", "--type", "plan", "--plan", plan],
+        ["review", "--type", "branch", "--plan", plan],
+        ["fix", "--type", "wave", "--tasks", "1", "--plan", plan],
+      ];
+      for (const argv of faces) {
+        io.stderrText = "";
+        expect(await command.runArgv(argv), argv.join(" ")).toBe(1);
+        expect(io.stderrText).toContain("CDD_BLOCKED: doc-contract · ");
+        expect(io.stderrText).toContain("orphan-phase");
+        expect(io.stderrText).toContain("docs/kairos/specs/orphan-phase-design.md");
+        expect(io.stderrText).not.toContain("cdd: ");
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a phase with no plan still dispatches — `undeclared` is not a refusal", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      io.stderrText = "";
+      expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
     } finally {
       cleanup();
     }

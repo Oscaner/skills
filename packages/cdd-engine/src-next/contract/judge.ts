@@ -141,17 +141,18 @@ export class Contract {
    *  and JudgeContext.head (§2.2's delivery seam — the chain facts the head carries
    *  are the same record the invariants judge). The source stays intact. */
   validate(input: ContractInput): Finding[] {
+    return this.#docFindings(input);
+  }
+
+  /** The doc-scope judgment body — the context construction (the ONLY caught step)
+   *  plus every declared strategy of the input's doc key. */
+  #docFindings(input: ContractInput): Finding[] {
+    let context: JudgeContext;
     try {
-      return this.#docFindings(input);
+      context = this.#contextOf(input);
     } catch (error) {
       return [Contract.#syntaxFinding(input, error)];
     }
-  }
-
-  /** The doc-scope judgment body — the assembled context plus every declared
-   *  strategy of the input's doc key. */
-  #docFindings(input: ContractInput): Finding[] {
-    const context = this.#contextOf(input);
     const findings: Finding[] = [];
     for (const strategy of this.#strategies[input.docKey]) {
       findings.push(...strategy.evaluate(context));
@@ -164,17 +165,18 @@ export class Contract {
    *  `scope: "ledger"` declaration applicable to the input's doc key. Two arguments,
    *  one judgment — the doc-scope rules never run here (and vice versa). */
   validateLedger(input: ContractInput, ledger: LedgerFacts): Finding[] {
+    return this.#ledgerFindings(input, ledger);
+  }
+
+  /** The ledger-scope judgment body — the context construction (the ONLY caught
+   *  step) plus every declared `scope: "ledger"` rule of the input's doc key. */
+  #ledgerFindings(input: ContractInput, ledger: LedgerFacts): Finding[] {
+    let context: JudgeContext;
     try {
-      return this.#ledgerFindings(input, ledger);
+      context = this.#contextOf(input);
     } catch (error) {
       return [Contract.#syntaxFinding(input, error)];
     }
-  }
-
-  /** The ledger-scope judgment body — the assembled context plus every declared
-   *  `scope: "ledger"` rule of the input's doc key. */
-  #ledgerFindings(input: ContractInput, ledger: LedgerFacts): Finding[] {
-    const context = this.#contextOf(input);
     const findings: Finding[] = [];
     for (const declaration of RULE_REGISTRY) {
       if (declaration.scope !== "ledger") continue;
@@ -187,9 +189,10 @@ export class Contract {
 
   /** The document-syntax face of a judgment — the parse face throws a typed
    *  `DocSyntaxError`, the judgment materializes exactly ONE Finding bound to the
-   *  contract path (never a registered rule, never a new gate). `#contextOf` itself
-   *  never catches, so a direct context read still sees the typed throw; any
-   *  non-syntax error stays a programming break and rethrows. */
+   *  contract path (never a registered rule, never a new gate). The catch wraps the
+   *  `#contextOf` call ALONE (spec §2.2's seam): it never catches the strategy loop,
+   *  so a `DocSyntaxError` from a strategy is a programming break that rethrows
+   *  instead of discarding the findings this judgment already collected. */
   static #syntaxFinding(input: ContractInput, error: unknown): Finding {
     if (!(error instanceof DocSyntaxError)) throw error;
     return {

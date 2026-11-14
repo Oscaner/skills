@@ -305,7 +305,7 @@ export class TaskBlocksParser {
         throw new DocSyntaxError(
           anchor,
           `task ${block.id} carries the reserved section "${anchor}" more than once`,
-          `Keep one "${anchor}" section per task block — merge the duplicate bodies into the first one.`,
+          `keep one "${anchor}" section per task block — merge the duplicate bodies into the first one`,
         );
       }
       seen.add(field.key);

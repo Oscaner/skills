@@ -1545,12 +1545,13 @@ const ledgerPlanDoc = (): string => planLineage("v1.0", [ROW_100]);
 const ledgerJudge = (
   facts: Parameters<Contract["validateLedger"]>[1],
   docKey: "plan" | "phase-spec" = "plan",
+  content: string = ledgerPlanDoc(),
 ): Finding[] =>
   new Contract().validateLedger(
     {
       docKey,
       path: PLAN_PATH,
-      content: ledgerPlanDoc(),
+      content,
       root: ".",
       fs: EMPTY_FS,
     },
@@ -1776,6 +1777,22 @@ const DUPLICATE_SECTION_PLAN = [
 describe("P35 T1 — doc-syntax: a malformed body is one Finding, never an escaping error", () => {
   it("validate returns exactly one `doc-syntax` Finding bound to the contract path and the section", () => {
     const findings = judge("plan", DUPLICATE_SECTION_PLAN, EMPTY_FS);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.kind).toBe("doc-syntax");
+    expect(findings[0]?.path).toBe(PLAN_PATH);
+    expect(findings[0]?.field).toBe("#### DependsOn");
+    expect(findings[0]?.message).toBe(
+      'task 1 carries the reserved section "#### DependsOn" more than once',
+    );
+    expect(findings[0]?.fix.length).toBeGreaterThan(0);
+  });
+
+  it("validateLedger materializes the same `doc-syntax` Finding bound to the contract path", () => {
+    // The plan-ledger gate calls THIS entry (session/preflight.ts), so pinning only
+    // `validate` would let a regression drop the entry the gate actually reaches.
+    // `#contextOf` throws before any ledger rule reads the facts — `agreeingFacts`
+    // is enough.
+    const findings = ledgerJudge(agreeingFacts, "plan", DUPLICATE_SECTION_PLAN);
     expect(findings).toHaveLength(1);
     expect(findings[0]?.kind).toBe("doc-syntax");
     expect(findings[0]?.path).toBe(PLAN_PATH);

@@ -1305,8 +1305,19 @@ export class CliLifecycle {
       const recorded = this.#scene.ledger.carrierPathOf(frame.type, String(frame.key), record);
       return recorded === "" ? null : recorded;
     }
-    const reviewParams = { tasks: frame.params.tasks, round: frame.round };
-    return this.#scene.ledger.resolveHandoffPath("review", frame.type, reviewParams);
+    return this.#reviewFamilyPath(frame);
+  }
+
+  /** The review family's name for this frame's CYCLE — the one home of the
+   *  "fall back with the cycle only" rule (§2.10). It never carries the frame's
+   *  `attempt`: the review family's attempt is its own recorded one, resolved by the
+   *  central `#attemptAware` default. A re-dispatched fix frame would otherwise ask
+   *  for a `-a2` name the cycle's review never wrote. */
+  #reviewFamilyPath(frame: OpenFrame): string {
+    return this.#scene.ledger.resolveHandoffPath("review", frame.type, {
+      tasks: frame.params.tasks,
+      round: frame.round,
+    });
   }
 
   /** The same-cycle review record this fix round answers — its LATEST attempt (a
@@ -1770,16 +1781,10 @@ export class CliLifecycle {
         // The `--reviews` input is the SAME carrier the fix prompt names (P31 §2.3): one
         // four-layer resolution, never a second family spelling spliced here. The
         // fallback fires only when the recorded face resolves to `null` (a legacy record
-        // with no carrier on disk) — the never-null guard keeps a command shape. It holds
-        // only the CYCLE: the review family's attempt is its own recorded one (the central
-        // `#attemptAware` default), never this fix frame's — a fix retried at attempt 2
-        // would otherwise ask for a `-a2` name review attempt 1 never wrote.
-        const findings =
-          this.#reviewsPath(frame) ??
-          scene.ledger.resolveHandoffPath("review", frame.type, {
-            tasks: frame.params.tasks,
-            round: frame.round,
-          });
+        // with no carrier on disk) — the never-null guard keeps a command shape, and
+        // `#reviewFamilyPath` is the one home of the cycle-only rule (§2.10): a fix
+        // retried at attempt 2 would otherwise ask for a `-a2` name review never wrote.
+        const findings = this.#reviewsPath(frame) ?? this.#reviewFamilyPath(frame);
         const target =
           frame.target.kind === "plan"
             ? `--plan ${frame.target.doc}`

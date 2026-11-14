@@ -99,6 +99,10 @@ export interface BoardLine {
   /** The line's round records (identity + verdict), the aggregation's input — never
    *  a count and never a pre-grouped map (the record is the ONE read shape). */
   rounds: readonly RoundRecord[];
+  /** The line's carrier facts — the `+N` count's whole read face, bound to THIS
+   *  line's ledger + identity (the accessor, the ownership judgment, the checked
+   *  read). */
+  carriers: LineCarriers;
   /** The derived ✔/▶/○ marker — wave lines only; null otherwise. */
   marker: string | null;
 }
@@ -147,6 +151,63 @@ const PHASE_TITLE_MAX = 60;
 /** The label column of the board's line rows — `  ` + the label padded to this
  *  width (`overall` is the longest verb at 7), so every value starts in one column. */
 const LABEL_WIDTH = 9;
+
+/** One board line's carrier facts — the `+N` count's WHOLE read face (spec §2.7 ·
+ *  §2.10). The record's path comes from the ledger's ONE accessor, bound to this
+ *  line's type + key; ownership excludes a legacy record whose path a later round of
+ *  the same line overwrote (present facts, no comparison); the read is the ONE checked
+ *  seam against the record's own digest. A line with no ledger (no workspace to
+ *  observe) resolves no path, so every record counts zero. */
+export class LineCarriers {
+  readonly #records: readonly RoundRecord[];
+  readonly #pathOf: (record: RoundRecord) => string;
+
+  private constructor(records: readonly RoundRecord[], pathOf: (record: RoundRecord) => string) {
+    this.#records = records;
+    this.#pathOf = pathOf;
+  }
+
+  /** The judgment over one line's records, with the caller supplying each record's
+   *  carrier path — the board's own derivation is `ofLedger` below. */
+  static of(
+    records: readonly RoundRecord[],
+    pathOf: (record: RoundRecord) => string,
+  ): LineCarriers {
+    return new LineCarriers(records, pathOf);
+  }
+
+  /** The board's derivation — the ledger's ONE accessor, bound to this line's type +
+   *  key. No ledger (no workspace to observe) resolves no path for every record. */
+  static ofLedger(
+    ledger: Ledger | null,
+    type: string,
+    key: string,
+    records: readonly RoundRecord[],
+  ): LineCarriers {
+    return LineCarriers.of(records, (record) => ledger?.carrierPathOf(type, key, record) ?? "");
+  }
+
+  /** One record's graded findings count — zero for a record that resolves no path or
+   *  whose path a later round overwrote; a tampered carrier THROWS (the checked read). */
+  countOf(record: RoundRecord): number {
+    const path = this.#pathOf(record);
+    if (path === "" || !RoundRecords.ownerOf(this.#records, record, this.#pathOf)) return 0;
+    const text = CarrierIntegrity.read(path, record.carrierDigest ?? null);
+    return text === null ? 0 : LineCarriers.#findingsCountOf(text);
+  }
+
+  /** The `findings` array length of one carrier's bytes — zero when the payload holds
+   *  none (a work-plane carrier declares no findings) or is not JSON. */
+  static #findingsCountOf(text: string): number {
+    try {
+      const value: unknown = JSON.parse(text);
+      const findings = (value as { findings?: unknown } | null)?.findings;
+      return Array.isArray(findings) ? findings.length : 0;
+    } catch {
+      return 0;
+    }
+  }
+}
 
 /**
  * BoardView — the entry-document → board face. The identity index (`SlugIndex`)
@@ -264,19 +325,23 @@ export class BoardView {
   /** One doc line — the header facts read from the indexed entry + the row's round
    *  RECORDS keyed by the line's `progress.json` key, resolved with the line's DECLARED
    *  word as the retired-key alias basis (a charter's pre-rename `spec` row is its own
-   *  `overall` line). */
+   *  `overall` line). The ledger is the one that OWNS `progress` — a node board reads
+   *  the overall line from the program's workspace, never the node's. */
   static #lineOf(
     label: string,
     key: string,
     entry: DocEntry | null,
     progress: ProgressData | null,
+    ledger: Ledger | null,
   ): BoardLine {
+    const rounds = BoardView.#rowRounds(progress, key, entry?.docType ?? null);
     return {
       label,
       version: entry?.version ?? null,
       status: entry?.status ?? null,
       docType: entry?.docType ?? null,
-      rounds: BoardView.#rowRounds(progress, key, entry?.docType ?? null),
+      rounds,
+      carriers: LineCarriers.ofLedger(ledger, key, key, rounds),
       marker: null,
     };
   }
@@ -286,26 +351,26 @@ export class BoardView {
    *  the ANOMALY face expands one token per failed attempt. Tokens are verb-major in
    *  `VERB_ORDER`, a verb's success token before its failures, those in stored order. The
    *  range form (`review 1–10 ✓`) never renders: the aggregation IS the count. */
-  static summaryCell(records: readonly RoundRecord[]): string {
+  static summaryCell(records: readonly RoundRecord[], carriers: LineCarriers): string {
     const tokens: string[] = [];
     const extra = [...new Set(records.map((record) => record.op))].filter(
       (op) => !VERB_ORDER.includes(op),
     );
     for (const verb of [...VERB_ORDER, ...extra]) {
       const faces = BoardView.#judgementRuns(records.filter((record) => record.op === verb));
-      tokens.push(...BoardView.#verbTokens(verb, faces));
+      tokens.push(...BoardView.#verbTokens(verb, faces, carriers));
     }
     return tokens.join(" · ");
   }
 
   /** One verb's tokens — its success token (absent at zero successes) followed by one
    *  token per failed attempt, so a failure never drifts to the line's tail (P24 §12). */
-  static #verbTokens(verb: string, faces: VerdictFaces): readonly string[] {
+  static #verbTokens(verb: string, faces: VerdictFaces, carriers: LineCarriers): readonly string[] {
     const tokens: string[] = [];
-    const success = BoardView.#successToken(verb, faces);
+    const success = BoardView.#successToken(verb, faces, carriers);
     if (success !== null) tokens.push(success);
     for (const record of faces.failures) {
-      tokens.push(BoardView.#failureToken(verb, record, faces.successes));
+      tokens.push(BoardView.#failureToken(verb, record, faces.successes, carriers));
     }
     return tokens;
   }
@@ -316,7 +381,7 @@ export class BoardView {
    *  `{succeeded}/{attempts}` ratio — never a superscript — once it has one (P24 §12).
    *  Its `+N` counts the SUCCESS records' carriers alone; a failed attempt's findings
    *  already ride that attempt's own token. */
-  static #successToken(verb: string, faces: VerdictFaces): string | null {
+  static #successToken(verb: string, faces: VerdictFaces, carriers: LineCarriers): string | null {
     const count = faces.successes.length;
     if (count === 0) return null;
     const last = faces.successes[count - 1]!;
@@ -324,7 +389,7 @@ export class BoardView {
       faces.failures.length === 0
         ? `${count}${BoardView.attemptSuffix(last)}`
         : `${count}/${count + faces.failures.length}`;
-    return BoardView.#summaryToken(verb, body, JUDGEMENT_MARKERS.passed, faces.successes);
+    return BoardView.#summaryToken(verb, body, JUDGEMENT_MARKERS.passed, faces.successes, carriers);
   }
 
   /** One failed attempt's token — `{verb} {cycle}{aN} ✗{+N}`, the cycle naming the round
@@ -336,48 +401,32 @@ export class BoardView {
     verb: string,
     record: RoundRecord,
     successes: readonly RoundRecord[],
+    carriers: LineCarriers,
   ): string {
     const recovered = successes.some(
       (other) => other.cycle === record.cycle && other.attempt === record.attempt + 1,
     );
     const mark = recovered ? JUDGEMENT_MARKERS.recovered : JUDGEMENT_MARKERS.failed;
     const body = `${record.cycle}${BoardView.attemptSuffix(record)}`;
-    return BoardView.#summaryToken(verb, body, mark, [record]);
+    return BoardView.#summaryToken(verb, body, mark, [record], carriers);
   }
 
   /** One token of a verb's success face or of one failed attempt, `{verb} {body} {mark}`
    *  (P24 §12). The `+N` suffix counts the run's graded FINDINGS, read from each round's
-   *  own carrier (`carrierPath` → the handoff's `findings` array, spec §5.3) — never the
-   *  round's hard/soft contract violations, which are a different fact. A record with no
-   *  carrier (a legacy row, or a work-plane round whose carrier declares no findings)
-   *  contributes zero. */
+   *  own carrier (`LineCarriers` — the derived path + the record's own digest, spec
+   *  §2.10) — never the round's hard/soft contract violations, which are a different
+   *  fact. A record that resolves no carrier (a legacy row, or a work-plane round whose
+   *  carrier declares no findings) contributes zero. */
   static #summaryToken(
     verb: string,
     body: string,
     mark: string,
     run: readonly RoundRecord[],
+    carriers: LineCarriers,
   ): string {
-    const findings = run.reduce((total, record) => total + BoardView.#findingsCountOf(record), 0);
+    const findings = run.reduce((total, record) => total + carriers.countOf(record), 0);
     const suffix = findings === 0 ? "" : `+${findings}`;
     return `${verb} ${body} ${mark}${suffix}`;
-  }
-
-  /** One round's findings count — the `findings` array length of the carrier the round
-   *  persisted (the judge plane's declared field). Zero when the record carries no
-   *  carrier path or the file is absent (present facts only). P31 §2.2 — the read goes
-   *  through the ONE checked seam: a carrier whose bytes no longer match the recorded
-   *  digest THROWS (`carrier-mismatch` rides the CLI's blocked channel), never a
-   *  silent zero. */
-  static #findingsCountOf(record: RoundRecord): number {
-    const text = CarrierIntegrity.readFor(record);
-    if (text === null) return 0;
-    try {
-      const value: unknown = JSON.parse(text);
-      const findings = (value as { findings?: unknown } | null)?.findings;
-      return Array.isArray(findings) ? findings.length : 0;
-    } catch {
-      return 0;
-    }
   }
 
   /** attemptSuffix(record) — the re-dispatch superscript: `attempt === 1` renders
@@ -433,6 +482,7 @@ export class BoardView {
     state: InFlightState,
     orphans: readonly string[],
     words: Words,
+    crashes: readonly string[] = [],
   ): readonly string[] {
     const rows: string[] = [];
     if (state.kind === "held") {
@@ -454,7 +504,62 @@ export class BoardView {
       rows.push(`  in-flight: ${words.checkedWords().inFlight.free}`);
     }
     for (const orphan of orphans) rows.push(`  orphan: ${orphan} — no recorded round owns it`);
+    rows.push(...crashes);
     return rows;
+  }
+
+  /** crashedRows(records) — the node's CRASHED rounds as ONE board line, one token per
+   *  round: `crashed: {op} {cycle}·a{attempt} {cause} · {op} {cycle}·a{attempt} {cause}`.
+   *  A round crashed when its booked verdict withheld the target action AND at least one
+   *  of its violations is HARD; the cause is the FIRST hard entry in record order — the
+   *  round's own narrative never re-orders it. The tokens read `(cycle, attempt)` — the
+   *  session's own sequence, never the progress file's write order (spec §2.13) — and one
+   *  round identity yields ONE token even when a recovery re-booked it. The ` · ` is the
+   *  INTER-TOKEN separator alone (a cause stays space-separated, so a token never splits),
+   *  and zero crashed rounds render no line at all. The row is an observation only: it
+   *  joins no aggregation, the counts, the legend and the `next:` hop stay byte-identical
+   *  with and without it (spec §5.3 — a failed round is never hidden, never re-counted). */
+  static crashedRows(records: readonly RoundRecord[]): readonly string[] {
+    const tokens = BoardView.#crashTokens(records);
+    return tokens.length === 0 ? [] : [`  crashed: ${tokens.join(" · ")}`];
+  }
+
+  /** The crashed rounds as ordered, de-duplicated tokens — the ONE line's cells. */
+  static #crashTokens(records: readonly RoundRecord[]): readonly string[] {
+    const seen = new Set<string>();
+    const tokens: string[] = [];
+    for (const record of BoardView.#byRound(records.filter((entry) => BoardView.#crashed(entry)))) {
+      const identity = `${record.op}:${record.cycle}:${record.attempt}`;
+      if (seen.has(identity)) continue;
+      seen.add(identity);
+      const cause = record.violations.find((violation) => violation.grade === "hard")!;
+      tokens.push(`${record.op} ${record.cycle}·a${record.attempt} ${cause.cause}`);
+    }
+    return tokens;
+  }
+
+  /** The records in board order — `(cycle, attempt)`, the round identity's own sequence.
+   *  A copy: the caller's array (a progress row's records) stays untouched. */
+  static #byRound(records: readonly RoundRecord[]): readonly RoundRecord[] {
+    return [...records].sort(
+      (left, right) => left.cycle - right.cycle || left.attempt - right.attempt,
+    );
+  }
+
+  /** Whether one round crashed — the verdict withheld the target action AND a HARD
+   *  violation is booked (a soft-only failure stays the anomaly face's `✗` token). */
+  static #crashed(record: RoundRecord): boolean {
+    return (
+      record.verdict?.targetAction === false &&
+      record.violations.some((violation) => violation.grade === "hard")
+    );
+  }
+
+  /** The node's every booked round — one flat read over the progress rows' records
+   *  (the normalizer folds the legacy forms), so the crash scan needs no key grammar.
+   *  An absent progress row carries no rounds. */
+  static #nodeRecordsOf(progress: ProgressData | null): readonly RoundRecord[] {
+    return progress === null ? [] : progress.waves.flatMap((row) => RoundRecords.of(row));
   }
 
   // -------------------------------------------------------------------------
@@ -520,15 +625,20 @@ export class BoardView {
     const sources = BoardView.#nodeSources(index, entry);
     const nodeSlug = BoardView.#validSlug(entry);
     const ledger = nodeSlug === null ? null : BoardView.#ledgerOf(nodeSlug, repoRoot);
-    // The tree's dispatch fact + the node workspace's orphan drafts render before the
-    // line rows (a reader answers "is anyone working here?" before reading progress).
-    const orphans = ledger?.orphanHandoffs() ?? [];
-    for (const row of BoardView.inFlightRows(holding, orphans, words)) lines.push(row);
-    if (holding.kind !== "absent" || orphans.length > 0) lines.push("");
     const progress = ledger?.readProgress() ?? null;
     const overallSlug = BoardView.#validSlug(sources.overall);
-    const overallProgress =
-      overallSlug === null ? null : BoardView.#ledgerOf(overallSlug, repoRoot).readProgress();
+    const overallLedger = overallSlug === null ? null : BoardView.#ledgerOf(overallSlug, repoRoot);
+    const overallProgress = overallLedger?.readProgress() ?? null;
+    // The tree's dispatch fact + the node workspace's orphan drafts + the node's
+    // crashed rounds render before the line rows (a reader answers "is anyone working
+    // here?" before reading progress).
+    const orphans = ledger?.orphanHandoffs() ?? [];
+    // The node's OWN rounds — the overall document's records belong to the program
+    // board, never to this node's crash observation (a parent's failed round is not
+    // this node's work). `crashedRows` dedupes by round identity itself.
+    const crashes = BoardView.crashedRows(BoardView.#nodeRecordsOf(progress));
+    for (const row of BoardView.inFlightRows(holding, orphans, words, crashes)) lines.push(row);
+    if (holding.kind !== "absent" || orphans.length > 0 || crashes.length > 0) lines.push("");
 
     const docRows: Array<{
       readonly label: string;
@@ -539,7 +649,13 @@ export class BoardView {
       {
         label: "overall",
         entry: sources.overall,
-        line: BoardView.#lineOf("overall", "overall", sources.overall, overallProgress),
+        line: BoardView.#lineOf(
+          "overall",
+          "overall",
+          sources.overall,
+          overallProgress,
+          overallLedger,
+        ),
         mark: BoardView.#entryMark(index, sources.overall, "identity"),
       },
       {
@@ -550,6 +666,7 @@ export class BoardView {
           BoardView.#lineWordOf(sources.spec),
           sources.spec,
           progress,
+          ledger,
         ),
         mark:
           BoardView.#entryMark(index, sources.spec, "identity") ??
@@ -558,7 +675,7 @@ export class BoardView {
       {
         label: "plan",
         entry: sources.plan,
-        line: BoardView.#lineOf("plan", "plan", sources.plan, progress),
+        line: BoardView.#lineOf("plan", "plan", sources.plan, progress, ledger),
         mark: BoardView.#entryMark(index, sources.plan, "plan"),
       },
     ];
@@ -587,7 +704,7 @@ export class BoardView {
       waves.forEach((wave, index) => {
         const prefix =
           index === 0 ? `  ${"wave".padEnd(LABEL_WIDTH)}` : " ".repeat(2 + LABEL_WIDTH);
-        const cell = BoardView.summaryCell(wave.rounds);
+        const cell = BoardView.summaryCell(wave.rounds, wave.carriers);
         const label = wave.label.padEnd(labelWidth);
         lines.push(
           `${prefix}${label}  ${wave.marker ?? ""}${cell === "" ? "" : `  ${cell}`}`.trimEnd(),
@@ -595,7 +712,7 @@ export class BoardView {
       });
     }
 
-    const branchLine = BoardView.#roundsLine("branch", "branch", progress);
+    const branchLine = BoardView.#roundsLine("branch", "branch", progress, ledger);
     // The branch line's mark is the SAME drift-aware judgment its pipeline facts read
     // (`Ledger#lineStateAt`, identity document = the plan): a drifted plan reopens the
     // branch face, so the mark can never print `✔ closed` while `next:` names the
@@ -608,7 +725,7 @@ export class BoardView {
         : branchState === "reopened"
           ? `${PROGRESS_MARKERS.current} open`
           : `${PROGRESS_MARKERS.pending} open`;
-    const branchRounds = BoardView.summaryCell(branchLine.rounds);
+    const branchRounds = BoardView.summaryCell(branchLine.rounds, branchLine.carriers);
     lines.push(
       `  ${"branch".padEnd(LABEL_WIDTH)}${branchMark}${branchRounds === "" ? "" : `  ${branchRounds}`}`.trimEnd(),
     );
@@ -639,6 +756,7 @@ export class BoardView {
       "overall",
       entry,
       ledger?.readProgress() ?? null,
+      ledger,
     );
     const overallDoc = BoardView.#docCell(
       entry,
@@ -654,10 +772,10 @@ export class BoardView {
       const phaseSlug = BoardView.#validSlug(phase);
       const phaseLedger = phaseSlug === null ? null : BoardView.#ledgerOf(phaseSlug, repoRoot);
       const phaseProgress = phaseLedger?.readProgress() ?? null;
-      const specLine = BoardView.#lineOf("spec", "phase-spec", phase, phaseProgress);
+      const specLine = BoardView.#lineOf("spec", "phase-spec", phase, phaseProgress, phaseLedger);
       const planEntry = phaseSlug === null ? null : index.planOf(phaseSlug);
-      const planLine = BoardView.#lineOf("plan", "plan", planEntry, phaseProgress);
-      const branchLine = BoardView.#roundsLine("branch", "branch", phaseProgress);
+      const planLine = BoardView.#lineOf("plan", "plan", planEntry, phaseProgress, phaseLedger);
+      const branchLine = BoardView.#roundsLine("branch", "branch", phaseProgress, phaseLedger);
       const mark =
         BoardView.#entryMark(index, phase, "identity") ??
         (BoardView.#programMissing(index, phase) ? MARK_PROGRAM_MISSING : null);
@@ -671,10 +789,10 @@ export class BoardView {
       const waveCell = waves.length === 0 ? "" : `${waves[0]!.label.split(" ")[0]}…`;
       const parts: string[] = [];
       const cells: Array<[string, string]> = [
-        ["spec", BoardView.summaryCell(specLine.rounds)],
-        ["plan", BoardView.summaryCell(planLine.rounds)],
+        ["spec", BoardView.summaryCell(specLine.rounds, specLine.carriers)],
+        ["plan", BoardView.summaryCell(planLine.rounds, planLine.carriers)],
         ["wave", waveCell],
-        ["branch", BoardView.summaryCell(branchLine.rounds)],
+        ["branch", BoardView.summaryCell(branchLine.rounds, branchLine.carriers)],
       ];
       for (const [key, cell] of cells) if (cell !== "") parts.push(`${key} ${cell}`);
       const tail = parts.join(" · ");
@@ -728,7 +846,7 @@ export class BoardView {
     }
     const cells: string[] = [name];
     if (meta !== "") cells.push(meta);
-    const rounds = BoardView.summaryCell(line.rounds);
+    const rounds = BoardView.summaryCell(line.rounds, line.carriers);
     if (rounds !== "") cells.push(rounds);
     return { text: cells.join("   "), blocked: false };
   }
@@ -783,13 +901,20 @@ export class BoardView {
   }
 
   /** The branch line — a docless line whose rounds ride the `branch` row. */
-  static #roundsLine(label: string, key: string, progress: ProgressData | null): BoardLine {
+  static #roundsLine(
+    label: string,
+    key: string,
+    progress: ProgressData | null,
+    ledger: Ledger | null,
+  ): BoardLine {
+    const rounds = BoardView.#rowRounds(progress, key);
     return {
       label,
       version: null,
       status: null,
       docType: null,
-      rounds: BoardView.#rowRounds(progress, key),
+      rounds,
+      carriers: LineCarriers.ofLedger(ledger, key, key, rounds),
       marker: null,
     };
   }
@@ -830,12 +955,15 @@ export class BoardView {
         : index === currentIndex
           ? PROGRESS_MARKERS.current
           : PROGRESS_MARKERS.pending;
+      const key = wave.join(",");
+      const rounds = BoardView.#rowRounds(progress, key);
       return {
-        label: `W${index + 1} {${wave.join(",")}}`,
+        label: `W${index + 1} {${key}}`,
         version: null,
         status: null,
         docType: null,
-        rounds: BoardView.#rowRounds(progress, wave.join(",")),
+        rounds,
+        carriers: LineCarriers.ofLedger(ledger, "wave", key, rounds),
         marker,
       };
     });

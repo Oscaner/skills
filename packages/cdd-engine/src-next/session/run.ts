@@ -40,6 +40,7 @@ import { NextStepRouter } from "./next.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "./pipeline.ts";
 import type { PreFlightVerdict } from "./preflight.ts";
 import { ReviewedIdentity } from "./reviewed-identity.ts";
+import { RoundNaming } from "./round-naming.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
 
 /** The pre-flight dispatch-entry gate — the lifecycle's hard "no child on a refused
@@ -533,7 +534,7 @@ export class Lifecycle {
       phase,
       round,
       target,
-      params: this.#paramsOf({ type: "wave", phase, target, round }),
+      params: this.#paramsOf({ type: "wave", phase, target, round, attempt }),
       key,
       attempt,
     };
@@ -572,7 +573,7 @@ export class Lifecycle {
       phase,
       round,
       target,
-      params: this.#paramsOf({ type: this.#face.type, phase, target, round }),
+      params: this.#paramsOf({ type: this.#face.type, phase, target, round, attempt }),
       key,
       attempt,
     };
@@ -645,29 +646,28 @@ export class Lifecycle {
   // the frame → handoff params shaping
   // -------------------------------------------------------------------------
 
-  /** The handoff params one frame fills — the type's placeholders from the target
-   *  and round. The round rides the increment families (review / fix / branch-review
-   *  — the family name carries it); the fixed implement family stays round-less. */
+  /** The handoff params one frame fills — the type's placeholders from the target,
+   *  the round and the attempt. EVERY family carries its cycle now (P34 T1: the
+   *  implement family included, so its draft and final are two names), and every
+   *  family carries the attempt the naming face renders as `-a{n}`. */
   #paramsOf(frame: {
     type: TargetType;
     phase: DispatchPhase;
     target: AuditTarget;
     round: number;
+    attempt: number;
   }): HandoffParams {
     switch (frame.type) {
       case "wave": {
         const waveTarget = frame.target as { kind: "wave"; tasks: readonly number[] };
-        const params: HandoffParams = { tasks: waveTarget.tasks.join(",") };
-        if (frame.phase !== "implement") params.round = frame.round;
-        return params;
+        return { tasks: waveTarget.tasks.join(","), round: frame.round, attempt: frame.attempt };
       }
       case "branch":
-        return { round: frame.round };
       case "phase-spec":
       case "overall":
       case "plan":
       case "single-spec":
-        return { round: frame.round };
+        return { round: frame.round, attempt: frame.attempt };
     }
   }
 
@@ -681,19 +681,17 @@ export class Lifecycle {
    *  outcome carrying no verdict) — the engine-built fallback from the outcome fields.
    *  Either way it lands as the FINAL carrier beside the child's draft, never over it
    *  (P31 §2.3: the draft keeps the child's bytes, the final carries the engine's
-   *  materialization, and the record names both paths). A production round that wrote
-   *  no carrier is booked with `carrierPath: null` and no file at either name: the
-   *  completion criterion owns the absence (§3.3), and a re-dispatch's draft read must
-   *  see the child's own draft, never an engine synthesis of it. A failure round
-   *  WITHOUT a carrier leaves the child's draft untouched (no-overwrite on failure) but
-   *  is STILL recorded — every dispatched round lands; "completed" is the record's
-   *  verdict, never a membership test. Returns the in-register round count (the task
+   *  materialization, and the ledger DERIVES the record's path from its own identity —
+   *  the record remembers the digest, never a path). A production round that wrote no
+   *  carrier leaves no file at either name: the completion criterion owns the absence
+   *  (§3.3), and a re-dispatch's draft read must see the child's own draft, never an
+   *  engine synthesis of it. A failure round WITHOUT a carrier leaves the child's
+   *  draft untouched (no-overwrite on failure) but is STILL recorded — every dispatched
+   *  round lands; "completed" is the record's verdict, never a membership test. Returns the in-register round count (the task
    *  done-marking rides the step's C5 route — #markTerminal, after #routeNext). */
   #bookkeep(frame: OpenFrame, outcome: DispatchOutcome): number {
     const blocked = outcome.status === "BLOCKED" || outcome.status === "TIMEOUT";
-    let carrierPath: string | null = null;
     let carrierDigest: string | null = null;
-    let draftPath: string | null = null;
     if (outcome.carrier !== undefined || (outcome.verdict === undefined && !blocked)) {
       const op = this.#opOf(frame.phase);
       // T2 — the engine-built fallback rides the FRAME's op-derived plane (never the
@@ -717,13 +715,12 @@ export class Lifecycle {
       // (`HandoffSchema.conclusionOf` → rollup(findings)), never a stored field (D27).
       if (plane === "work" && carrier.status === undefined && outcome.status !== undefined)
         carrier.status = outcome.status;
-      // P31 §2.2/§2.3 — the persist hands the FINAL carrier path, the draft path it
-      // landed beside and the payload digest, so the round record can name both
-      // artifacts and replay the comparison on every later read of this carrier.
+      // P31 §2.2/§2.3 — the persist seals the round's two names and hands back the
+      // payload digest, so the record can replay the comparison on every later read of
+      // this carrier. The PATHS stay out of the record: the ledger derives them from
+      // the record's own identity.
       const persisted = this.#ledger.persistHandoff(op, frame.type, frame.params, carrier);
-      carrierPath = persisted.path;
       carrierDigest = persisted.digest;
-      draftPath = persisted.draftPath;
     } else {
       // P31 T5 §2.4 — a round that books NO carrier still owns its two names: the
       // draft the child may have written before the round failed must not stay
@@ -760,9 +757,9 @@ export class Lifecycle {
           targetAction: !blocked,
         },
         violations,
-        carrierPath,
-        carrierDigest,
-        draftPath,
+        // A round that persisted no carrier records no digest column at all — the
+        // absence is the fact, never a null placeholder.
+        ...(carrierDigest === null ? {} : { carrierDigest }),
       },
       frame.type,
     );
@@ -906,13 +903,14 @@ export class Lifecycle {
   }
 
   /** P31 §2.4 — seal one round's OWN carrier names (its draft and its final). The
-   *  derivation is the same pair the lifecycle's preflight opens; a round-less family
-   *  (implement) resolves both to one path, so the seal is idempotent by construction. */
+   *  derivation is the same pair the lifecycle's preflight opens, off the frame's own
+   *  identity (cycle + attempt): two rounds of the same line never close each other's
+   *  window. */
   #sealRoundCarriers(frame: OpenFrame): void {
     const op = this.#opOf(frame.phase);
-    const draftName = this.#ledger.handoffName(op, frame.type, frame.params);
-    CarrierSeal.seal(this.#ledger.handoffPath(op, frame.type, frame.params));
-    CarrierSeal.seal(this.#ledger.naming().finalPath(draftName, frame.params.round));
+    const artifact = RoundNaming.artifactOf(op, frame.type, frame.params);
+    CarrierSeal.seal(this.#ledger.naming().renderPath(artifact, "draft"));
+    CarrierSeal.seal(this.#ledger.naming().renderPath(artifact, "final"));
   }
 
   // -------------------------------------------------------------------------

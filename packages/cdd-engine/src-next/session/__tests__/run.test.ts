@@ -34,6 +34,7 @@ import { type TargetFace, type TargetType, targetFaces } from "../faces.ts";
 import { TaskGraph } from "../graph.ts";
 import { Ledger } from "../ledger.ts";
 import { REVIEW_CYCLE_CAP, SOFT_CAP_SUGGESTION } from "../next.ts";
+import { RoundNaming } from "../round-naming.ts";
 import type { CapsuleFace, DispatchOutcome, DispatchStep, OpenFrame, StepResult } from "../run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../run.ts";
 
@@ -185,7 +186,7 @@ describe("the task small loop — implement → review → the next ready group"
       expect(step1).not.toBeNull();
       expect(step1!.frame.phase).toBe("implement");
       expect(step1!.frame.target).toEqual({ kind: "wave", tasks: [1] });
-      expect(step1!.frame.params).toEqual({ tasks: "1" });
+      expect(step1!.frame.params).toEqual({ tasks: "1", round: 1, attempt: 1 });
       expect(step1!.round).toBe(1);
       expect(step1!.route).toEqual({ kind: "review" });
 
@@ -554,8 +555,14 @@ describe("the task small loop — implement → review → the next ready group"
       expect(ledger.completedCycles("1", "implement")).toEqual([]);
       expect(first!.route).toBeNull();
 
-      // the retry is the SAME cycle's next attempt — allocated once by the naming source
+      // the retry is the SAME cycle's next attempt — allocated once by the naming source,
+      // and the dispatch carries it: the round's params ARE its carrier identity, so the
+      // attempt-2 round writes `-a2` files and never re-uses the failed attempt's name
       expect(run.peekNext()?.frame.attempt).toBe(2);
+      expect(run.peekNext()?.frame.params).toEqual({ tasks: "1", round: 1, attempt: 2 });
+      expect(ledger.handoffName("implement", "wave", { tasks: "1", round: 1, attempt: 2 })).toBe(
+        "tasks-1-implement-1-a2.json",
+      );
       blocked = false;
       const retry = await run.advance();
       expect(
@@ -808,7 +815,7 @@ describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", 
         dispatch: dispatch.step,
       });
       await run.advance();
-      const carrier = ledger.readHandoff("implement", "wave", { tasks: "1" });
+      const carrier = ledger.readHandoff("implement", "wave", { tasks: "1", round: 1 });
       expect(carrier).not.toBeNull();
       expect(Object.keys(carrier!)).not.toContain("findings");
     } finally {
@@ -901,7 +908,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
       const review1 = await run.advance();
       expect(review1!.frame.phase).toBe("branch-review");
       expect(review1!.frame.round).toBe(1);
-      expect(review1!.frame.params).toEqual({ round: 1 });
+      expect(review1!.frame.params).toEqual({ round: 1, attempt: 1 });
       expect(review1!.route!.kind).toBe("fix");
 
       const fix = await run.advance();
@@ -2292,10 +2299,13 @@ describe("P31 T5 — the carrier-less failure face seals its own two names", () 
   /** A dispatcher that leaves BOTH of the round's names writable — what a child and a
    *  failed materialization leave behind — then concludes BLOCKED with no carrier. */
   const plantThenBlock =
-    (ledger: Ledger, workspace: Workspace, seen: number[][]) =>
+    (workspace: Workspace, seen: number[][]) =>
     (frame: OpenFrame): DispatchOutcome => {
-      const draftName = ledger.handoffName("review", frame.type, frame.params);
-      const names = [draftName, ledger.naming().finalName(draftName, frame.params.round)];
+      const artifact = RoundNaming.artifactOf("review", frame.type, frame.params);
+      const names = [
+        RoundNaming.renderName(artifact, "draft"),
+        RoundNaming.renderName(artifact, "final"),
+      ];
       for (const name of names) workspace.writeJson(name, { findings: [] });
       seen.push(names.map((name) => modeOf(workspace.resolve(name))));
       return { status: "BLOCKED" };
@@ -2305,7 +2315,7 @@ describe("P31 T5 — the carrier-less failure face seals its own two names", () 
     const { ledger, workspace, cleanup } = fixture();
     try {
       const seen: number[][] = [];
-      const dispatch = stub(plantThenBlock(ledger, workspace, seen));
+      const dispatch = stub(plantThenBlock(workspace, seen));
       const run = new Lifecycle({
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
@@ -2316,9 +2326,12 @@ describe("P31 T5 — the carrier-less failure face seals its own two names", () 
       const step = await run.advance();
       // The fixture's premise: both names were writable when the round failed.
       expect(seen).toEqual([[0o644, 0o644]]);
-      const draftName = ledger.handoffName("review", step!.frame.type, step!.frame.params);
-      const names = [draftName, ledger.naming().finalName(draftName, step!.frame.params.round)];
-      expect(names.map((name) => modeOf(workspace.resolve(name)))).toEqual([0o444, 0o444]);
+      const artifact = RoundNaming.artifactOf("review", step!.frame.type, step!.frame.params);
+      const names = [
+        ledger.naming().renderPath(artifact, "draft"),
+        ledger.naming().renderPath(artifact, "final"),
+      ];
+      expect(names.map((name) => modeOf(name))).toEqual([0o444, 0o444]);
       // The round is still recorded — the seal is bookkeeping, never a lost round.
       expect(ledger.recordsOf("phase-spec", "phase-spec")).toHaveLength(1);
     } finally {

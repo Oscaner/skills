@@ -27,11 +27,11 @@ import { CarrierIntegrity, CarrierMismatchError } from "../../session/carrier-in
 import { DispatchAuthority } from "../../session/dispatch-authority.ts";
 import { type RouteTarget, targetFaces } from "../../session/faces.ts";
 import type { InFlightRecord } from "../../session/inflight.ts";
-import { Ledger, type RoundRecord } from "../../session/ledger.ts";
+import { Ledger, type RoundRecord, RoundViolation } from "../../session/ledger.ts";
 import { type NextHop, NextStepRouter, REVIEW_CYCLE_CAP, type Route } from "../../session/next.ts";
 import { PipelineFrontier } from "../../session/pipeline.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
-import { BoardNext, BoardView } from "../board-view.ts";
+import { BoardNext, BoardView, LineCarriers } from "../board-view.ts";
 import { Capsule } from "../capsule.ts";
 import { Cli, type CliIo, type CliOptions } from "../cli.ts";
 import { ARGV_CHANNEL } from "../declare.ts";
@@ -279,6 +279,188 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
     // the wave line's aggregated cell renders the recorded round under its verb
     expect(text).toContain("review 1 ✓");
+  });
+
+  it("renders a crashed round in the top fact block without touching the counts or the hop", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", [
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "slug: prog-p1",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: a",
+      "- **Objective**: o",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+    ]);
+    const crashRow = "  crashed: implement 1·a1 no-commits";
+    // The SAME identity, the SAME anomaly token, one difference: the crash is booked
+    // by a HARD violation rather than a soft one — the crashed row is the ONLY new
+    // bytes, so the counts, the legend and the `next:` hop judge the same way.
+    const seedCrash = (grade: "hard" | "soft"): void =>
+      seed("prog-p1", [
+        {
+          wave: "1",
+          rounds: [
+            {
+              op: "implement",
+              cycle: 1,
+              attempt: 1,
+              dispatchBase: null,
+              carrierPath: null,
+              verdict: { treeClean: true, targetAction: false },
+              violations: [{ grade, cause: "no-commits", message: "the round committed nothing" }],
+            },
+          ],
+        },
+      ]);
+
+    seedCrash("hard");
+    const crashed = render("prog-p1").text;
+    seedCrash("soft");
+    const soft = render("prog-p1").text;
+
+    expect(crashed.split("\n")).toContain(crashRow);
+    expect(soft).not.toContain("crashed:");
+    // the observer claim: the crashed row is additive alone — strip it (and the blank
+    // row that separates its block from the line rows) and the two boards are
+    // byte-identical: the aggregation, the legend, the `next:` hop.
+    const substance = (text: string): string =>
+      text
+        .split("\n")
+        .filter((row) => row !== crashRow && row !== "")
+        .join("\n");
+    expect(substance(crashed)).toBe(substance(soft));
+    // the crashed row renders in the top fact block, before the first line row
+    expect(crashed.indexOf(crashRow)).toBeLessThan(crashed.indexOf("  overall "));
+    // the legend never advertises the row
+    expect(crashed.split("\n").at(-1)).toBe("progress: ✔ done · ▶ current · ○ pending");
+  });
+
+  it("renders only the NODE's own crashed rounds — the program's failure is not this node's work", () => {
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+    // The PARENT program's own round crashed; the node never dispatched one.
+    seed("prog-overall", [
+      {
+        wave: "phase-spec",
+        rounds: [
+          {
+            op: "review",
+            cycle: 1,
+            attempt: 1,
+            dispatchBase: null,
+            carrierPath: null,
+            verdict: { treeClean: true, targetAction: false },
+            violations: [{ grade: "hard", cause: "child-exit", message: "the child died" }],
+          },
+        ],
+      },
+    ]);
+    seed("prog-p1", [{ wave: "1", rounds: [] }]);
+    const { text } = render("prog-p1");
+    // the overall document's records feed the program board alone — a parent's crashed
+    // round never renders on a node board as this node's failure
+    expect(text).not.toContain("crashed:");
+    expect(text).not.toContain("child-exit");
+  });
+
+  it("the node board's overall row reads the PROGRAM workspace's own rounds — the parent's line renders once, with its own +N", () => {
+    // P34 T5 — the overall row is the program's line, never the node's: its rounds and
+    // its carriers come from the program workspace, so a node board reports the parent's
+    // progress instead of an empty row (and the node's own stray `overall` row never
+    // answers for it).
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+    const carrierAt = path.join(repo, ".kairos/cdd/prog-overall/overall-review-1.json");
+    mkdirSync(path.dirname(carrierAt), { recursive: true });
+    writeFileSync(
+      carrierAt,
+      `${JSON.stringify({ findings: [{ severity: "warn" }, { severity: "nit" }] }, null, 2)}\n`,
+      "utf8",
+    );
+    seed("prog-overall", [
+      {
+        wave: "overall",
+        rounds: [
+          {
+            op: "review",
+            cycle: 1,
+            attempt: 1,
+            dispatchBase: null,
+            carrierPath: carrierAt,
+            verdict: { treeClean: true, targetAction: true },
+            violations: [],
+          },
+        ],
+      },
+    ]);
+    // The node's own workspace carries a stray `overall` row — it must not answer: the
+    // overall line belongs to the program workspace alone.
+    seed("prog-p1", [
+      { wave: "overall", rounds: { review: [1] } },
+      { wave: "phase-spec", rounds: { review: [1] } },
+    ]);
+
+    const { text } = render("prog-p1");
+
+    const overallRows = text.split("\n").filter((row) => row.startsWith("  overall "));
+    expect(overallRows).toHaveLength(1);
+    // the program's single review round, with the findings count read from ITS carrier
+    expect(overallRows[0]).toContain("review 1 ✓+2");
+    // the node's own lines keep the node's workspace
+    expect(text).toContain("  spec     prog-p1-design.md");
   });
 
   it("phase board next: the first not-closed line renders its ACTIVE C5 hop (the spec review)", () => {
@@ -1217,12 +1399,19 @@ describe("BoardView.inFlightRows — the in-flight fact + the takeover hint", ()
     expect(rows[1]).toContain("tasks-1-review-1.json");
     expect(rows[2]).toContain("branch-fix-1.json");
   });
+
+  it("appends the crashed row after the orphan rows — the same top fact block", () => {
+    const rows = BoardView.inFlightRows({ kind: "absent" }, ["tasks-1-review-1.json"], words, [
+      "  crashed: implement 1·a1 contract-violation",
+    ]);
+    expect(rows.at(-1)).toBe("  crashed: implement 1·a1 contract-violation");
+  });
 });
 
-describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.3)", () => {
-  /** One round record fixture — the identity + verdict the aggregation reads. */
+describe("BoardView.crashedRows — the crashed round as an observation (spec §5.3)", () => {
+  /** One round record fixture — the identity, the verdict and the booked violations. */
   const record = (over: Partial<RoundRecord>): RoundRecord => ({
-    op: "review",
+    op: "implement",
     cycle: 1,
     attempt: 1,
     dispatchBase: null,
@@ -1231,6 +1420,112 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     carrierPath: null,
     ...over,
   });
+  const hard = (cause: string): RoundRecord["violations"][number] =>
+    RoundViolation.hard("the round's target action did not land", cause);
+
+  it("renders ONE line, one token per crashed round — op cycle·attempt then the FIRST hard cause", () => {
+    const rows = BoardView.crashedRows([
+      record({
+        cycle: 2,
+        attempt: 3,
+        verdict: { treeClean: true, targetAction: false },
+        violations: [hard("no-commits"), hard("hygiene")],
+      }),
+    ]);
+    expect(rows).toEqual(["  crashed: implement 2·a3 no-commits"]);
+  });
+
+  it("joins every crashed round into the ONE line the spec renders", () => {
+    // the design spec's literal row: `crashed: review 1·a1 contract-violation · review 3·a2 stalled`
+    const rows = BoardView.crashedRows([
+      record({
+        op: "review",
+        cycle: 1,
+        verdict: { treeClean: false, targetAction: false },
+        violations: [hard("contract-violation")],
+      }),
+      record({
+        op: "review",
+        cycle: 3,
+        attempt: 2,
+        verdict: { treeClean: true, targetAction: false },
+        violations: [hard("stalled")],
+      }),
+    ]);
+    expect(rows).toEqual(["  crashed: review 1·a1 contract-violation · review 3·a2 stalled"]);
+  });
+
+  it("skips a round that landed its action and a round whose failures are all SOFT", () => {
+    const rows = BoardView.crashedRows([
+      record({ cycle: 1 }),
+      record({
+        cycle: 2,
+        verdict: { treeClean: false, targetAction: false },
+        violations: [RoundViolation.soft("a dirty tree", "hygiene")],
+      }),
+    ]);
+    expect(rows).toEqual([]);
+  });
+
+  it("reads the records in (cycle, attempt) order — the session's sequence, never the file's order", () => {
+    const crashed = (cycle: number, attempt = 1): RoundRecord =>
+      record({
+        cycle,
+        attempt,
+        verdict: { treeClean: true, targetAction: false },
+        violations: [hard("child-exit")],
+      });
+    const rows = BoardView.crashedRows([
+      crashed(3),
+      record({ cycle: 1 }),
+      crashed(2),
+      crashed(1, 2),
+    ]);
+    expect(rows).toEqual([
+      "  crashed: implement 1·a2 child-exit · implement 2·a1 child-exit · implement 3·a1 child-exit",
+    ]);
+  });
+
+  it("renders ONE token per round identity — a re-booked round never doubles its token", () => {
+    const crashed: RoundRecord = record({
+      cycle: 2,
+      verdict: { treeClean: true, targetAction: false },
+      violations: [hard("child-exit")],
+    });
+    const rows = BoardView.crashedRows([crashed, crashed, { ...crashed, op: "review" }]);
+    expect(rows).toEqual(["  crashed: implement 2·a1 child-exit · review 2·a1 child-exit"]);
+  });
+});
+
+describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.3)", () => {
+  /** Each fixture record's carrier path — out of band, because a round record names no
+   *  path (P34 §2.7): the path is derived from the record's identity in production, and
+   *  these fixtures supply it the same way the ledger accessor would. */
+  const paths = new WeakMap<RoundRecord, string>();
+
+  /** One round record fixture — the identity + verdict the aggregation reads. */
+  const record = (over: Partial<RoundRecord> & { carrierPath?: string | null }): RoundRecord => {
+    const { carrierPath, ...rest } = over;
+    const built: RoundRecord = {
+      op: "review",
+      cycle: 1,
+      attempt: 1,
+      dispatchBase: null,
+      verdict: { treeClean: true, targetAction: true },
+      violations: [],
+      ...rest,
+    };
+    if (typeof carrierPath === "string") paths.set(built, carrierPath);
+    return built;
+  };
+
+  /** The aggregation under test — the line's carriers derived per record from the
+   *  fixture map (the board's own call shape). */
+  const cell = (records: readonly RoundRecord[]): string =>
+    BoardView.summaryCell(
+      records,
+      LineCarriers.of(records, (record) => paths.get(record) ?? ""),
+    );
 
   const scratchDirs: string[] = [];
 
@@ -1250,17 +1545,15 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
 
   it("(a) ten green review rounds collapse into `review 10 ✓` — the range form never renders", () => {
     const records = Array.from({ length: 10 }, (_, index) => record({ cycle: index + 1 }));
-    expect(BoardView.summaryCell(records)).toBe("review 10 ✓");
-    expect(BoardView.summaryCell(records)).not.toContain("1–10");
+    expect(cell(records)).toBe("review 10 ✓");
+    expect(cell(records)).not.toContain("1–10");
   });
 
   it("(b) the judgement glyph is mandatory — a token never renders without it", () => {
-    expect(
-      BoardView.summaryCell([record({ verdict: { treeClean: true, targetAction: true } })]),
-    ).toBe("review 1 ✓");
-    expect(
-      BoardView.summaryCell([record({ verdict: { treeClean: false, targetAction: false } })]),
-    ).toBe("review 1 ✗");
+    expect(cell([record({ verdict: { treeClean: true, targetAction: true } })])).toBe("review 1 ✓");
+    expect(cell([record({ verdict: { treeClean: false, targetAction: false } })])).toBe(
+      "review 1 ✗",
+    );
   });
 
   it("(c) the round's FINDINGS ride the +N suffix (read from its carrier, omitted at zero)", () => {
@@ -1274,11 +1567,11 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
       record({ cycle: 2 }),
       record({ cycle: 3 }),
     ];
-    expect(BoardView.summaryCell(withFindings)).toBe("review 3 ✓+2");
-    expect(BoardView.summaryCell(approved)).toBe("review 3 ✓");
-    expect(
-      BoardView.summaryCell([record({ verdict: { treeClean: true, targetAction: false } })]),
-    ).toBe("review 1 ✗");
+    expect(cell(withFindings)).toBe("review 3 ✓+2");
+    expect(cell(approved)).toBe("review 3 ✓");
+    expect(cell([record({ verdict: { treeClean: true, targetAction: false } })])).toBe(
+      "review 1 ✗",
+    );
   });
 
   it("(c2) the count is the CARRIER's findings — contract violations are a different fact", () => {
@@ -1287,17 +1580,16 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     // a carrier with two findings prints `+2`. Reading `record.violations` fails here.
     const violation = { grade: "soft" as const, cause: "c", message: "m" };
     const cleanCarrier = carrier([]);
-    const violationsOnly = record({ cycle: 1, violations: [violation, violation] });
-    expect(BoardView.summaryCell([{ ...violationsOnly, carrierPath: cleanCarrier }])).toBe(
-      "review 1 ✓",
-    );
+    expect(
+      cell([record({ cycle: 1, violations: [violation, violation], carrierPath: cleanCarrier })]),
+    ).toBe("review 1 ✓");
     const findingsOnly = record({
       cycle: 1,
       carrierPath: carrier([{ severity: "warn" }, { severity: "nit" }]),
     });
-    expect(BoardView.summaryCell([findingsOnly])).toBe("review 1 ✓+2");
+    expect(cell([findingsOnly])).toBe("review 1 ✓+2");
     // A record with no carrier (a legacy row / a work-plane round) contributes zero.
-    expect(BoardView.summaryCell([record({ cycle: 1 })])).toBe("review 1 ✓");
+    expect(cell([record({ cycle: 1 })])).toBe("review 1 ✓");
   });
 
   it("(c3) the +N read is CHECKED against the record's digest — a tampered carrier raises, an absent one counts zero", () => {
@@ -1306,35 +1598,124 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     const findings = [{ severity: "warn" }];
     const at = carrier(findings);
     const digest = CarrierIntegrity.digestOf({ findings });
-    expect(
-      BoardView.summaryCell([record({ cycle: 1, carrierPath: at, carrierDigest: digest })]),
-    ).toBe("review 1 ✓+1");
+    expect(cell([record({ cycle: 1, carrierPath: at, carrierDigest: digest })])).toBe(
+      "review 1 ✓+1",
+    );
     writeFileSync(
       at,
       `${JSON.stringify({ findings: [...findings, { severity: "blocker" }] }, null, 2)}\n`,
     );
-    expect(() =>
-      BoardView.summaryCell([record({ cycle: 1, carrierPath: at, carrierDigest: digest })]),
-    ).toThrow(CarrierMismatchError);
+    expect(() => cell([record({ cycle: 1, carrierPath: at, carrierDigest: digest })])).toThrow(
+      CarrierMismatchError,
+    );
     // An absent carrier with a recorded digest stays the zero count (absence ≠ mismatch).
     const ghost = path.join(path.dirname(at), "tasks-9-review-1.json");
-    expect(
-      BoardView.summaryCell([record({ cycle: 1, carrierPath: ghost, carrierDigest: digest })]),
-    ).toBe("review 1 ✓");
+    expect(cell([record({ cycle: 1, carrierPath: ghost, carrierDigest: digest })])).toBe(
+      "review 1 ✓",
+    );
     // A LEGACY record (no digest) over the same tampered bytes keeps the present-facts read.
-    expect(BoardView.summaryCell([record({ cycle: 1, carrierPath: at })])).toBe("review 1 ✓+2");
+    expect(cell([record({ cycle: 1, carrierPath: at })])).toBe("review 1 ✓+2");
+  });
+
+  it("(c4) a re-dispatched cycle counts EACH attempt's own carrier — never attempt 1's bytes against attempt 2's digest", () => {
+    const firstFindings = [{ severity: "warn" }];
+    const secondFindings = [{ severity: "warn" }, { severity: "nit" }];
+    const first = carrier(firstFindings);
+    const second = carrier(secondFindings);
+    const records = [
+      record({
+        op: "review",
+        cycle: 1,
+        carrierPath: first,
+        carrierDigest: CarrierIntegrity.digestOf({ findings: firstFindings }),
+        verdict: { treeClean: true, targetAction: false },
+      }),
+      record({
+        op: "review",
+        cycle: 1,
+        attempt: 2,
+        carrierPath: second,
+        carrierDigest: CarrierIntegrity.digestOf({ findings: secondFindings }),
+      }),
+    ];
+    // each attempt's digest belongs to its own carrier: no mismatch is raised, and the
+    // success token counts attempt 2 (+2) while the failed token counts attempt 1 (+1)
+    expect(cell(records)).toBe("review 1/2 ✓+2 · review 1 ✗→✓+1");
+  });
+
+  it("(c5) two legacy rounds collapsed onto ONE path count the owner alone — the overwritten record is a plain zero", () => {
+    const at = carrier([{ severity: "warn" }, { severity: "nit" }]);
+    const records = [
+      record({ op: "review", cycle: 1, carrierPath: at }),
+      record({ op: "review", cycle: 2, carrierPath: at }),
+    ];
+    // cycle 2 is the path's owner (no later round sits on it); cycle 1's bytes are gone
+    // by definition, so its derived count is zero — never a second read of the same file
+    expect(cell(records)).toBe("review 2 ✓+2");
+  });
+
+  it("(c6) the owner's read stays CHECKED — a tampered owner raises while the overwritten record reads nothing", () => {
+    const findings = [{ severity: "warn" }];
+    const at = carrier(findings);
+    const digest = CarrierIntegrity.digestOf({ findings });
+    const records = [
+      record({ op: "review", cycle: 1, carrierPath: at }),
+      record({ op: "review", cycle: 2, carrierPath: at, carrierDigest: digest }),
+    ];
+    writeFileSync(at, `${JSON.stringify({ findings: [] }, null, 2)}\n`);
+    expect(() => cell(records)).toThrow(CarrierMismatchError);
+  });
+
+  it("(c7) a pathless LEGACY record reaches its canonical carrier through the ledger's ladder — and counts", () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "board-ladder-"));
+    try {
+      const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader());
+      // Pre-P31: the carrier sits on the bare family name, the record names no path.
+      writeFileSync(
+        path.join(workspace.path, "tasks-1-review-2.json"),
+        JSON.stringify({ findings: [{ severity: "warn" }, { severity: "nit" }] }),
+        "utf8",
+      );
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [
+          {
+            wave: "1",
+            rounds: [
+              {
+                op: "review",
+                cycle: 2,
+                attempt: 1,
+                dispatchBase: null,
+                verdict: { treeClean: true, targetAction: true },
+                violations: [],
+              },
+            ],
+          },
+        ],
+      });
+      const records = ledger.recordsOf("1");
+      // Zero digest comparison (the record declares none) and the count is real: the
+      // success token's body is the run length, not the cycle.
+      expect(
+        BoardView.summaryCell(records, LineCarriers.ofLedger(ledger, "wave", "1", records)),
+      ).toBe("review 1 ✓+2");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 
   it("(d) a same-cycle re-dispatch renders a ratio plus a recovered failure token, and attempt 1 never renders `a1`", () => {
     expect(
-      BoardView.summaryCell([
+      cell([
         record({ op: "fix", verdict: { treeClean: true, targetAction: false } }),
         record({ op: "fix", attempt: 2, verdict: { treeClean: true, targetAction: true } }),
       ]),
     ).toBe("fix 1/2 ✓ · fix 1 ✗→✓");
     expect(BoardView.attemptSuffix(record({ attempt: 1 }))).toBe("");
     expect(BoardView.attemptSuffix(record({ attempt: 3 }))).toBe("a3");
-    expect(BoardView.summaryCell([record({})])).not.toContain("a1");
+    expect(cell([record({})])).not.toContain("a1");
   });
 
   it("(e) the live shape — a recovered re-dispatch renders the attempt ratio plus the failed cycle", () => {
@@ -1355,9 +1736,7 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     );
     fixes.push(record({ op: "fix", cycle: 12, attempt: 2 }));
     fixes.push(record({ op: "fix", cycle: 13 }));
-    expect(BoardView.summaryCell([...reviews, ...fixes])).toBe(
-      "review 13 ✓+74 · fix 13/14 ✓ · fix 12 ✗→✓",
-    );
+    expect(cell([...reviews, ...fixes])).toBe("review 13 ✓+74 · fix 13/14 ✓ · fix 12 ✗→✓");
   });
 
   it("(f) an unrecovered failure renders its cycle with no arrow, and an `aN` failure keeps its superscript", () => {
@@ -1366,25 +1745,25 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
       cycle: 1,
       verdict: { treeClean: true, targetAction: false },
     });
-    expect(BoardView.summaryCell([lone])).toBe("fix 1 ✗");
-    expect(BoardView.summaryCell([lone])).not.toContain("→✓");
+    expect(cell([lone])).toBe("fix 1 ✗");
+    expect(cell([lone])).not.toContain("→✓");
     const reDispatched = record({
       op: "fix",
       cycle: 1,
       attempt: 2,
       verdict: { treeClean: true, targetAction: false },
     });
-    expect(BoardView.summaryCell([reDispatched])).toBe("fix 1a2 ✗");
+    expect(cell([reDispatched])).toBe("fix 1a2 ✗");
   });
 
   it("(g) recovery reads the NEXT attempt of the SAME cycle — not another cycle, not a further attempt", () => {
     expect(
-      BoardView.summaryCell([
+      cell([
         record({ op: "fix", cycle: 1, verdict: { treeClean: true, targetAction: false } }),
         record({ op: "fix", cycle: 2 }),
       ]),
     ).toBe("fix 1/2 ✓ · fix 1 ✗");
-    const line = BoardView.summaryCell([
+    const line = cell([
       record({
         op: "fix",
         cycle: 1,
@@ -1405,7 +1784,7 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
 
   it("(h) a recovered failure keeps its own +N — the success token counts the success carriers alone", () => {
     const at = carrier([{ severity: "nit" }, { severity: "warn" }]);
-    const line = BoardView.summaryCell([
+    const line = cell([
       record({ op: "fix", cycle: 1 }),
       record({ op: "fix", cycle: 2 }),
       record({ op: "fix", cycle: 3 }),
@@ -1422,7 +1801,7 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
 
   it("(i) a failure in one verb leaves another verb's plate alone, and an all-green verb never renders a ratio", () => {
     const at = carrier([{ severity: "blocker" }]);
-    const line = BoardView.summaryCell([
+    const line = cell([
       record({ op: "review", cycle: 1, carrierPath: at }),
       record({ op: "review", cycle: 2 }),
       record({ op: "fix", cycle: 1, verdict: { treeClean: true, targetAction: false } }),
@@ -1431,16 +1810,13 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     expect(line).toBe("review 2 ✓+1 · fix 1/2 ✓ · fix 1 ✗→✓");
     expect(line).not.toContain("review 2/2");
     expect(
-      BoardView.summaryCell([
-        record({ op: "fix", cycle: 1 }),
-        record({ op: "fix", cycle: 2, attempt: 2 }),
-      ]),
+      cell([record({ op: "fix", cycle: 1 }), record({ op: "fix", cycle: 2, attempt: 2 })]),
     ).toBe("fix 2a2 ✓");
   });
 
   it("(j) the token order is verb-major and success-token-first — failure tokens never drift to the line's tail", () => {
     expect(
-      BoardView.summaryCell([
+      cell([
         record({ op: "review", cycle: 1 }),
         record({ op: "review", cycle: 2 }),
         record({ op: "review", cycle: 3, verdict: { treeClean: false, targetAction: false } }),
@@ -1453,16 +1829,12 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
   });
 
   it("(k) a verb with zero successes renders no success token at all", () => {
-    const review = BoardView.summaryCell([
-      record({ verdict: { treeClean: false, targetAction: false } }),
-    ]);
+    const review = cell([record({ verdict: { treeClean: false, targetAction: false } })]);
     expect(review).toBe("review 1 ✗");
     expect(review).not.toContain("review 0/1 ✓");
     expect(review).not.toContain("✓");
     expect(
-      BoardView.summaryCell([
-        record({ op: "implement", verdict: { treeClean: false, targetAction: false } }),
-      ]),
+      cell([record({ op: "implement", verdict: { treeClean: false, targetAction: false } })]),
     ).toBe("implement 1 ✗");
   });
 });
@@ -1570,6 +1942,37 @@ describe("cdd board — the in-flight read face (zero write)", () => {
       // §5.3 (g) — the in-flight facts are read, never written: the progress bytes stand
       expect(readFileSync(progressPath, "utf8")).toBe(progress);
       expect(JSON.stringify(readdirSync(workspace).sort())).toBe(dirBefore);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders no orphan row for a carrier a recorded round owns (P34 T4)", async () => {
+    const { repoRoot, command, stdoutText, cleanup } = fixture();
+    try {
+      const dir = path.join(repoRoot, ".kairos", "cdd");
+      const workspace = path.join(dir, "p3");
+      mkdirSync(workspace, { recursive: true });
+      // The round IS recorded, so its carrier is owned — and a second, unrecorded
+      // group on the same line stays the only true orphan.
+      writeFileSync(
+        path.join(workspace, "progress.json"),
+        `${JSON.stringify({ timeoutCount: 0, waves: [{ wave: "1", rounds: { implement: [1] } }] }, null, 2)}\n`,
+        "utf8",
+      );
+      writeFileSync(
+        path.join(workspace, "tasks-1-implement-1.json"),
+        `${JSON.stringify({ status: "BLOCKED", artifacts: {} })}\n`,
+        "utf8",
+      );
+      writeFileSync(
+        path.join(workspace, "tasks-2-implement-1.json"),
+        `${JSON.stringify({ status: "BLOCKED", artifacts: {} })}\n`,
+        "utf8",
+      );
+      expect(await command.runArgv(["board", "--plan", "docs/kairos/plans/p3.md"])).toBe(0);
+      expect(stdoutText()).not.toContain("orphan: tasks-1-implement-1.json");
+      expect(stdoutText()).toContain("orphan: tasks-2-implement-1.json");
     } finally {
       cleanup();
     }

@@ -53,6 +53,11 @@ export interface LedgerFacts {
   readonly recordedTasks: readonly number[];
   /** The ledger's CLOSED waves, each as its task-id set (the closure read face). */
   readonly closedWaves: readonly (readonly number[])[];
+  /** The ledger's OPEN waves — the wave rows that are not closed yet, each as its
+   *  task-id set. `closed-wave-fits-depends-on-layers` reads THESE (a closed wave is
+   *  settled history: its layer fit was judged at its own dispatch, and a later plan
+   *  edit must not retro-flag a wave that already shipped). */
+  readonly openWaves: readonly (readonly number[])[];
   /** The wave rows' `planTasks` snapshots (the append-vs-stall observation, §5.1). */
   readonly snapshots: readonly { readonly wave: string; readonly planTasks: readonly number[] }[];
   /** The plan's topological layers (one task-id set per layer, from `TaskGraph.batches()`)

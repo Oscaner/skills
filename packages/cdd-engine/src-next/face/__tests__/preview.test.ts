@@ -88,13 +88,13 @@ describe("Preview — the §3.3 five-row block", () => {
         phase: "implement",
         round: 1,
         target: { kind: "wave", tasks: [2, 5] },
-        params: { tasks: "2,5" },
+        params: { tasks: "2,5", round: 1, attempt: 1 },
         key: "2,5",
       }),
     );
     expect(lines[1]).toBe("  step:        implement round 1 — wave 2,5");
     expect(lines[3]).toBe(
-      "  would write: .kairos/cdd/p3/tasks-2,5-implement.json · .kairos/cdd/p3/tasks-2,5-implement-report.md · .kairos/cdd/p3/tasks-2,5-test-evidence.json",
+      "  would write: .kairos/cdd/p3/tasks-2,5-implement-1.json · .kairos/cdd/p3/tasks-2,5-implement-1-report.md · .kairos/cdd/p3/tasks-2,5-implement-1-test-evidence.json",
     );
     // the implement round is never a review: no reviewed-revision write-back leg
     expect(lines[4]).toBe(

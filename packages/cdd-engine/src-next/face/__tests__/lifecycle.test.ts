@@ -18,9 +18,11 @@
 
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   rmSync,
   statSync,
@@ -40,11 +42,15 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierRulings } from "../../session/carrier-rulings.ts";
+import { targetFaces } from "../../session/faces.ts";
 import { HoldingError, InFlight } from "../../session/inflight.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
+import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
+import { Capsule } from "../capsule.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "../lifecycle.ts";
 import type { ChildOutcome, ChildRun, ChildRunner } from "../termination.ts";
+import { Words } from "../words.ts";
 
 class CaptureIo implements CliIo {
   stdoutText = "";
@@ -148,14 +154,15 @@ const waveFrame = (key: string): OpenFrame => ({
   phase: "implement",
   round: 1,
   target: { kind: "wave", tasks: key.split(",").map(Number) },
-  params: { tasks: key },
+  params: { tasks: key, round: 1, attempt: 1 },
   key,
 });
 
-/** Write the round's canonical evidence file at the wave's own name. */
+/** Write the round's canonical evidence file at the round's own name (the identity
+ *  carries line · cycle · attempt — the implement family included). */
 const writeEvidence = (f: Fixture, key: string): void => {
   writeFileSync(
-    path.join(f.scene.workspace.path, `tasks-${key}-test-evidence.json`),
+    path.join(f.scene.workspace.path, `tasks-${key}-implement-1-test-evidence.json`),
     JSON.stringify(EVIDENCE),
     "utf8",
   );
@@ -361,7 +368,7 @@ describe("CliLifecycle.foldAbort — the `--recover` abort leg (P30 §2.1①/§2
       expect(abort?.violations).toEqual([
         { grade: "hard", cause: "interrupted", message: abort?.violations[0]?.message },
       ]);
-      expect(abort?.carrierPath).toBeNull();
+      expect(abort?.carrierPath).toBeUndefined();
       // One hard entry, zero soft: the row's soft count carries no increment.
       expect(f.scene.ledger.softViolations()).toBe(0);
       // The takeover cleared the record and its lock; no crash file was written.
@@ -472,17 +479,42 @@ class ReviewDraftRunner implements ChildRunner {
   calls: ChildRun[] = [];
 
   readonly #findings: readonly Record<string, unknown>[];
+  readonly #draft: string;
+  readonly #extra: Record<string, unknown>;
 
-  constructor(findings: readonly Record<string, unknown>[]) {
+  constructor(
+    findings: readonly Record<string, unknown>[],
+    draft = "tasks-1-review-1.json",
+    extra: Record<string, unknown> = {},
+  ) {
     this.#findings = findings;
+    this.#draft = draft;
+    this.#extra = extra;
   }
 
   async run(run: ChildRun): Promise<ChildOutcome> {
     this.calls.push(run);
     mkdirSync(path.join(run.cwd, ".kairos", "cdd", "p30"), { recursive: true });
     writeFileSync(
-      path.join(run.cwd, ".kairos", "cdd", "p30", "tasks-1-review-1.json"),
-      JSON.stringify({ findings: this.#findings }),
+      path.join(run.cwd, ".kairos", "cdd", "p30", this.#draft),
+      JSON.stringify({ findings: this.#findings, ...this.#extra }),
+      "utf8",
+    );
+    return { code: 0, stdout: "", stderr: "", termination: null };
+  }
+}
+
+/** A fix child that writes its OWN round draft — the fix carrier the criterion
+ *  refuses when absent, so a case can isolate the requesting side's read. */
+class FixDraftRunner implements ChildRunner {
+  calls: ChildRun[] = [];
+
+  async run(run: ChildRun): Promise<ChildOutcome> {
+    this.calls.push(run);
+    mkdirSync(path.join(run.cwd, ".kairos", "cdd", "p30"), { recursive: true });
+    writeFileSync(
+      path.join(run.cwd, ".kairos", "cdd", "p30", "phase-spec-fix-1.json"),
+      JSON.stringify({ status: "APPROVED", artifacts: {}, dispositions: {} }),
       "utf8",
     );
     return { code: 0, stdout: "", stderr: "", termination: null };
@@ -515,6 +547,78 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
       // Carrier order IS id order; the child's `X9` never survives materialize.
       expect(carrier.findings.map((row) => row.id)).toEqual(["F1", "F2"]);
       expect(carrier.findings.map((row) => row.summary)).toEqual(["drift", "typo"]);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("strips a finding's decorative column outside its declared shape — the row survives, one soft entry names it", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const runner = new ReviewDraftRunner([
+        { severity: "blocker", lens: "spec", summary: "drift", line: "42", section: 3 },
+      ]);
+      const { outcome } = await dispatchFrame(f, reviewFrame, runner);
+      // The REQUIRED columns keep the row; the two decorative columns break their own
+      // declaration, so the materialize's finding copy point drops them by path — the
+      // draft's mistake never costs the round (spec §2.14).
+      const carrier = outcome.carrier as { findings: Record<string, unknown>[] };
+      expect(carrier.findings[0]).toEqual({
+        id: "F1",
+        severity: "blocker",
+        lens: "spec",
+        summary: "drift",
+      });
+      expect(outcome.status).toBe("CHANGES_REQUESTED");
+      expect((outcome.violations ?? []).map((violation) => violation.grade)).toEqual(["soft"]);
+      expect(outcome.violations?.[0]?.message).toContain("findings[0].line");
+      expect(outcome.violations?.[0]?.message).toContain("findings[0].section");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("keeps the engine-stamped id when the draft's own id breaks its declared shape", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const runner = new ReviewDraftRunner([
+        { id: 0, severity: "warn", lens: "spec", summary: "drift" },
+      ]);
+      const { outcome } = await dispatchFrame(f, reviewFrame, runner);
+      const carrier = outcome.carrier as { findings: Record<string, unknown>[] };
+      // The decorative drop retires the CHILD's value, never the engine's own key:
+      // the persisted row still carries the primary key the next fix round's
+      // dispositions are keyed by (P30 §2.5).
+      expect(carrier.findings[0]?.id).toBe("F1");
+      expect((outcome.violations ?? []).map((violation) => violation.grade)).toEqual(["soft"]);
+      expect(outcome.violations?.[0]?.message).toContain("findings[0].id");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("drops a judge-plane `artifacts` / `notes` outside its declared shape — two losses, ONE soft entry, a conforming carrier", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      // The judge plane's shared slots are DECLARED, not required: a bad value costs the
+      // field alone (§2.14), exactly as the work plane's `dispositions` does.
+      const runner = new ReviewDraftRunner(
+        [{ severity: "warn", lens: "spec", summary: "drift" }],
+        "tasks-1-review-1.json",
+        { artifacts: "nope", notes: 7 },
+      );
+      const { outcome } = await dispatchFrame(f, reviewFrame, runner);
+      const carrier = outcome.carrier as { artifacts?: unknown; notes?: unknown };
+      // the copy points read the drop: neither bad value reaches the carrier, and the
+      // built carrier still conforms to the judge plane's own declaration
+      expect(carrier.artifacts).toEqual({});
+      expect(carrier.notes).toEqual([
+        "dropped decorative draft field(s) outside their declared shape: artifacts, notes — never written",
+      ]);
+      // the round survives — one soft entry, no hard one, the findings roll the status up
+      expect(outcome.status).toBe("REVIEW_FIX");
+      expect((outcome.violations ?? []).map((violation) => violation.grade)).toEqual(["soft"]);
+      expect(f.io.stderrText).not.toContain("CDD_BLOCKED");
     } finally {
       f.cleanup();
     }
@@ -629,7 +733,6 @@ describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => 
     f.scene.ledger.recordRound("phase-spec", {
       op: "review",
       cycle: 1,
-      carrierPath: persisted.path,
       carrierDigest: persisted.digest,
     });
     return persisted;
@@ -744,11 +847,124 @@ describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => 
     try {
       const at = path.join(f.scene.workspace.path, REQUEST_CARRIER);
       writeFileSync(at, JSON.stringify({ findings: [] }), "utf8");
-      f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1, carrierPath: at });
+      // No path recorded, no digest: the identity's ladder resolves the very carrier
+      // the fix leg reads, and the read stays present-facts.
+      f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1 });
       const runner = new SilentRunner();
       const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
       await runFix(f, fixFrameOf(specPath), at, runner);
       expect(runner.calls).toHaveLength(1);
+      expect(f.io.stderrText).not.toContain("carrier-mismatch");
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P34 T2 — the fix input's carrier is DERIVED from the requesting review record
+// (design spec §2.10): no record names a path, so the ledger's accessor resolves the
+// round's own attempt, and a record that resolves nothing books the soft skip.
+// ---------------------------------------------------------------------------
+
+describe("P34 T2 — a derived fix input never inherits the frame's attempt", () => {
+  /** Plant a review round at attempt 2 with its FINAL carrier + the record's digest. */
+  const seedAttemptTwo = (f: Fixture): { path: string; digest: string } =>
+    (() => {
+      const persisted = f.scene.ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1, attempt: 2 },
+        {
+          status: "CHANGES_REQUESTED",
+          findings: [
+            { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+          ],
+        },
+      );
+      f.scene.ledger.recordRound("phase-spec", {
+        op: "review",
+        cycle: 1,
+        attempt: 2,
+        carrierDigest: persisted.digest,
+      });
+      return persisted;
+    })();
+
+  /** The lifecycle with NO `--reviews` flag — the derived resolution alone. */
+  const runDerivedFix = async (f: Fixture, runner: SilentRunner): Promise<DispatchOutcome> => {
+    const lifecycle = new CliLifecycle({
+      scene: f.scene,
+      io: f.io,
+      sync: runner,
+      env: { CLAUDE_CODE_SESSION_ID: "s" },
+    });
+    const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+    return lifecycle.step()(fixFrameOf(specPath));
+  };
+
+  it("reads the attempt-2 FINAL the record resolves — the fix child sees that carrier", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = seedAttemptTwo(f);
+      const runner = new SilentRunner();
+      const outcome = await runDerivedFix(f, runner);
+      expect(runner.calls).toHaveLength(1);
+      // The prompt carries the repo-root-relative spelling of the SAME attempt-2 final.
+      expect(promptOf(runner)).toContain(
+        path.relative(f.scene.workspace.root.repoRoot, sealed.path),
+      );
+      expect(promptOf(runner)).not.toContain("phase-spec-review-1.c1.json");
+      expect(f.io.stderrText).not.toContain("carrier-mismatch");
+      expect(outcome.status).not.toBe("TIMEOUT");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("refuses a tampered attempt-2 FINAL before the child exists", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const sealed = seedAttemptTwo(f);
+      CarrierSeal.unseal(sealed.path);
+      writeFileSync(
+        sealed.path,
+        `${JSON.stringify(
+          {
+            status: "CHANGES_REQUESTED",
+            findings: [
+              { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+              { id: "F9", severity: "blocker", lens: "scope", summary: "smuggled" },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      const runner = new SilentRunner();
+      const outcome = await runDerivedFix(f, runner);
+      expect(outcome.status).toBe("BLOCKED");
+      expect(gradesOf(outcome)).toEqual(["hard"]);
+      expect(runner.calls).toHaveLength(0);
+      expect(f.io.stderrText).toContain("carrier-mismatch");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("books the soft unrecorded skip when the record resolves no carrier at all", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // The record exists but none of the ladder's rungs is on disk: the accessor
+      // resolves nothing, so the answer is `null` — the unrecorded soft skip, never a
+      // hard absent-carrier refusal on a path nobody could name.
+      f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1 });
+      const runner = new FixDraftRunner();
+      const outcome = await runDerivedFix(f, runner);
+      expect(outcome.status, f.io.stderrText).not.toBe("BLOCKED");
+      expect(runner.calls).toHaveLength(1);
+      expect(f.io.stderrText).toContain("resolves no carrier");
       expect(f.io.stderrText).not.toContain("carrier-mismatch");
     } finally {
       f.cleanup();
@@ -790,9 +1006,7 @@ describe("P31 T4 — the fix input names the FINAL carrier", () => {
     f.scene.ledger.recordRound("phase-spec", {
       op: "review",
       cycle: 1,
-      carrierPath: persisted.path,
       carrierDigest: persisted.digest,
-      draftPath: persisted.draftPath,
     });
     return persisted;
   };
@@ -1107,7 +1321,6 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
       f.scene.ledger.recordRound("phase-spec", {
         op: "review",
         cycle: 1,
-        carrierPath: seeded.path,
         carrierDigest: seeded.digest,
       });
       expect(modeOf(seeded.path)).toBe(0o444);
@@ -1126,6 +1339,288 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
       // Visible to the child AND after the round: an input carrier is never reopened.
       expect(seen).toEqual([0o444]);
       expect(modeOf(seeded.path)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P34 T3 — the round's OWN identity keys the window, the crash record and the
+// resume read: the attempt is part of the identity everywhere (design spec §2.4),
+// never a naming decoration the seal cycle and the abort fold drop.
+// ---------------------------------------------------------------------------
+
+/** The same frame on a later attempt — the shape `#paramsOf` builds (the attempt
+ *  rides both the frame and its params; the naming reads the frame first). */
+const atAttempt = (frame: OpenFrame, attempt: number): OpenFrame => ({
+  ...frame,
+  attempt,
+  params: { ...frame.params, attempt },
+});
+
+/** One carrier path inside the fixture's `.kairos/cdd/p30` workspace. */
+const carrierAt = (f: Fixture, name: string): string => path.join(f.scene.workspace.path, name);
+
+describe("P34 T3 — the attempt is the round's identity (window · crash · resume)", () => {
+  it("opens ONLY the attempt-2 pair and re-seals it at the terminal, leaving attempt 1 closed", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // Attempt 1 completed: its draft and final exist at the attempt-1 names, sealed.
+      const firstDraft = carrierAt(f, "tasks-1-review-1.json");
+      const firstFinal = carrierAt(f, "tasks-1-review-1.c1.json");
+      for (const seeded of [firstDraft, firstFinal]) {
+        writeFileSync(seeded, JSON.stringify({ findings: [] }), "utf8");
+        chmodSync(seeded, 0o444);
+      }
+      // Attempt 2's pair, left writable by a previous attempt.
+      const retryDraft = carrierAt(f, "tasks-1-review-1-a2.json");
+      const retryFinal = carrierAt(f, "tasks-1-review-1-a2.c1.json");
+      for (const leftover of [retryDraft, retryFinal]) {
+        writeFileSync(leftover, JSON.stringify({ findings: [] }), "utf8");
+      }
+      const seen: number[] = [];
+      const probe = new ModeProbeRunner([firstDraft, firstFinal, retryDraft, retryFinal], seen);
+      const draft = new ReviewDraftRunner(
+        [{ severity: "warn", lens: "scope", summary: "x" }],
+        "tasks-1-review-1-a2.json",
+      );
+      // Probe the window at the spawn instant, then die — the death face seals the pair.
+      const combined: ChildRunner = {
+        run: async (run) => {
+          await probe.run(run);
+          await draft.run(run);
+          return { code: 1, stdout: "", stderr: "", termination: null };
+        },
+      };
+      const { outcome } = await dispatchFrame(f, atAttempt(reviewFrame, 2), combined);
+      expect(outcome.status).toBe("BLOCKED");
+      // The window: attempt 1 stays read-only, ONLY the attempt-2 pair opens.
+      expect(seen).toEqual([0o444, 0o444, 0o644, 0o644]);
+      // The terminal closes the pair the round actually owned.
+      expect(modeOf(retryDraft)).toBe(0o444);
+      expect(modeOf(retryFinal)).toBe(0o444);
+      expect(modeOf(firstDraft)).toBe(0o444);
+      expect(modeOf(firstFinal)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("an attempt-2 review death writes and re-reads the attempt-2 crash record", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // Attempt 1's crash record already exists — a later attempt must not clobber it.
+      const firstCrash = carrierAt(f, "crash-tasks-1-review-1.json");
+      writeFileSync(firstCrash, "attempt-1 sentinel", "utf8");
+      const draft = new ReviewDraftRunner(
+        [{ severity: "blocker", lens: "spec", summary: "x" }],
+        "tasks-1-review-1-a2.json",
+      );
+      const dying: ChildRunner = {
+        run: async (run) => {
+          await draft.run(run);
+          return { code: 1, stdout: "", stderr: "", termination: null };
+        },
+      };
+      const frame = atAttempt(reviewFrame, 2);
+      const { outcome } = await dispatchFrame(f, frame, dying);
+      expect(outcome.status).toBe("BLOCKED");
+      // The crash face's own derivation — the same call the capsule line reads.
+      const naming = f.scene.ledger.naming();
+      expect(naming.crashName(frame)).toBe("crash-tasks-1-review-1-a2.json");
+      const crash = f.scene.ledger.readCrash(naming.crashName(frame));
+      expect(crash).not.toBeNull();
+      // The record names the attempt-2 draft — the identity rides the name, and the
+      // postmortem points back at the file the dead child was writing.
+      expect(crash?.attemptedHandoff).toBe(".kairos/cdd/p30/tasks-1-review-1-a2.json");
+      expect(crash?.cause).toBe("child-exit");
+      // The resume command is the review leg's own, off the same crash record.
+      expect(crash?.next).toContain("cdd review");
+      expect(path.basename(naming.crashPath(frame))).toBe("crash-tasks-1-review-1-a2.json");
+      // Attempt 1's crash record is untouched.
+      expect(readFileSync(firstCrash, "utf8")).toBe("attempt-1 sentinel");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("the failure face's capsule cell prints the attempt-2 crash path the round wrote", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      // Review 1 concluded CHANGES_REQUESTED, so the line awaits the fix; fix 1's first
+      // attempt died, so the SAME fix cycle re-opens on attempt 2 — the frame the crash
+      // name derives from. (The fix leg pins its round to the review's cycle, which is
+      // what makes the attempt — not the cycle — the re-dispatch coordinate here.)
+      const seeded = f.scene.ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        {
+          status: "CHANGES_REQUESTED",
+          findings: [
+            { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+          ],
+        },
+      );
+      f.scene.ledger.recordRound("phase-spec", {
+        op: "review",
+        cycle: 1,
+        attempt: 1,
+        carrierDigest: seeded.digest,
+      });
+      f.scene.ledger.recordRound("phase-spec", {
+        op: "fix",
+        cycle: 1,
+        attempt: 1,
+        verdict: { treeClean: true, targetAction: false },
+      });
+      const dying: ChildRunner = {
+        async run(): Promise<ChildOutcome> {
+          return { code: 1, stdout: "", stderr: "", termination: null };
+        },
+      };
+      // The production composition: the session lifecycle's dispatch IS the CLI
+      // lifecycle's step, so this ONE round writes the crash record and the attached
+      // capsule reads it back through its own derivation.
+      const lifecycle = new Lifecycle({
+        face: targetFaces["phase-spec"],
+        state: EMPTY_RUN_STATE,
+        ledger: f.scene.ledger,
+        dispatch: new CliLifecycle({
+          scene: f.scene,
+          io: f.io,
+          sync: dying,
+          env: { CLAUDE_CODE_SESSION_ID: "s" },
+        }).step(),
+        target: { kind: "spec", doc: specPath },
+        capsule: new Capsule(new Words()),
+      });
+      const step = await lifecycle.advance();
+      expect(step?.frame.phase).toBe("fix");
+      expect(step?.frame.attempt).toBe(2);
+      // The cell IS the attempt-2 crash record's path — the same name the write point
+      // derived, never attempt 1's record and never a hand-spelled name.
+      expect(step?.capsuleLines[0]).toBe(
+        `status: BLOCKED · handoff: ${carrierAt(f, "crash-phase-spec-fix-1-a2.json")}`,
+      );
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("a fix retry reads the review carrier its record names — never an attempt tail off its own frame", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      const seeded = f.scene.ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        {
+          status: "CHANGES_REQUESTED",
+          findings: [
+            { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
+          ],
+        },
+      );
+      f.scene.ledger.recordRound("phase-spec", {
+        op: "review",
+        cycle: 1,
+        attempt: 1,
+        carrierDigest: seeded.digest,
+      });
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const frame = atAttempt(fixFrameOf(specPath), 2);
+      const lifecycle = new CliLifecycle({
+        scene: f.scene,
+        io: f.io,
+        sync: new FailingRunner(),
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      await lifecycle.step()(frame);
+      const naming = f.scene.ledger.naming();
+      expect(naming.crashName(frame)).toBe("crash-phase-spec-fix-1-a2.json");
+      const crash = f.scene.ledger.readCrash(naming.crashName(frame));
+      // The requesting carrier is the review round's FINAL — its own attempt, not the fix's.
+      expect(crash?.next).toContain(`--reviews ${seeded.path}`);
+      expect(crash?.next).not.toContain("-a2");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("a crashed review's carrier-less record resumes on the REVIEW's attempt — never the fix frame's", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // The S2 registry row a crashed review legitimately leaves: the round is on the
+      // books, no carrier resolves (`#reviewsPath` reads null), so the fix face falls
+      // back to the family name. That fallback holds ONLY the cycle — the review's own
+      // latest attempt is attempt 1, and a fix retried at attempt 2 must not ask the
+      // review family for a `-a2` name review attempt 1 never wrote.
+      f.scene.ledger.recordRound("phase-spec", {
+        op: "review",
+        cycle: 1,
+        attempt: 1,
+        carrierDigest: "0".repeat(64),
+      });
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const frame = atAttempt(fixFrameOf(specPath), 2);
+      await dispatchFrame(f, frame, new FailingRunner());
+      const naming = f.scene.ledger.naming();
+      const crash = f.scene.ledger.readCrash(naming.crashName(frame));
+      const reviewsOf = (command: string | null | undefined): string =>
+        command?.match(/--reviews (\S+)/)?.[1] ?? "";
+      expect(reviewsOf(crash?.next)).toContain("phase-spec-review-1.json");
+      expect(reviewsOf(crash?.next)).not.toContain("-a2");
+      // The same command rides the in-flight record written before the spawn.
+      const inFlight = JSON.parse(readFileSync(recordPathOf(f), "utf8")) as { command: string };
+      expect(reviewsOf(inFlight.command)).toContain("phase-spec-review-1.json");
+      expect(reviewsOf(inFlight.command)).not.toContain("-a2");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("the abort fold seals the ATTEMPT-2 pair — attempt 1's window stays closed", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      plantStale(f, staleRecord({ phase: "review", cycle: 1, attempt: 2 }));
+      const firstDraft = carrierAt(f, "tasks-1-review-1.json");
+      writeFileSync(firstDraft, JSON.stringify({ findings: [] }), "utf8");
+      chmodSync(firstDraft, 0o444);
+      const retryDraft = carrierAt(f, "tasks-1-review-1-a2.json");
+      const retryFinal = carrierAt(f, "tasks-1-review-1-a2.c1.json");
+      for (const leftover of [retryDraft, retryFinal]) {
+        writeFileSync(leftover, JSON.stringify({ findings: [] }), "utf8");
+      }
+      expect(await lifecycleOf(f).foldAbort()).toBe(true);
+      // The record's OWN identity (cycle 1 · attempt 2) seals the pair the dead child owned.
+      expect(modeOf(retryDraft)).toBe(0o444);
+      expect(modeOf(retryFinal)).toBe(0o444);
+      expect(modeOf(firstDraft)).toBe(0o444);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("the implement family's fold lands on the cycle-bearing name, not the retired round-less one", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      plantStale(f, staleRecord({ phase: "implement", cycle: 2, attempt: 2 }));
+      // A retired-spelling leftover: the round-less name is not this round's identity.
+      const legacy = carrierAt(f, "tasks-1-implement.json");
+      writeFileSync(legacy, JSON.stringify({ status: "BLOCKED", artifacts: {} }), "utf8");
+      const own = carrierAt(f, "tasks-1-implement-2-a2.json");
+      const ownFinal = carrierAt(f, "tasks-1-implement-2-a2.c2.json");
+      for (const leftover of [own, ownFinal]) {
+        writeFileSync(leftover, JSON.stringify({ status: "BLOCKED", artifacts: {} }), "utf8");
+      }
+      expect(await lifecycleOf(f).foldAbort()).toBe(true);
+      expect(modeOf(own)).toBe(0o444);
+      expect(modeOf(ownFinal)).toBe(0o444);
+      // The retired spelling belongs to no round of this file — the fold never claims it.
+      expect(modeOf(legacy)).toBe(0o644);
     } finally {
       f.cleanup();
     }

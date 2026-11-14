@@ -266,11 +266,11 @@ export const FIX_DISPOSITIONS_EMPTY_INPUT =
 export const FIX_DISPOSITIONS_LEGACY_KEYS =
   "the requesting review carrier carries no finding `id` — the dispositions were matched by summary text, the legacy key";
 
-/** The legacy-record observation — no requesting carrier is locatable, so the
- *  judgment is skipped visibly (reading the gap as an empty input set would restore
- *  an always-passing criterion). */
+/** The legacy-record observation — the requesting round resolves no carrier and the
+ *  route handed none over, so the judgment is skipped visibly (reading the gap as an
+ *  empty input set would restore an always-passing criterion). */
 export const FIX_DISPOSITIONS_UNRECORDED =
-  "the requesting review round records no carrierPath and the route carried no --reviews path — the disposition judgment is skipped";
+  "the requesting review round resolves no carrier and the route carried no --reviews path — the disposition judgment is skipped";
 
 /** One requesting-side finding — the disposition key's provenance. `id` is the
  *  engine-written stable key (`F1`, `F2` …) of an id-bearing carrier; a LEGACY carrier
@@ -330,27 +330,20 @@ export interface DispositionCounts {
  * answers from the carrier, never from the diff.
  */
 export class FixDispositions implements CompletionCriterion {
-  /** The requesting carrier's path — the LATEST attempt of the same-cycle review of the
-   *  SAME key (the row's records are already the key's), the record whose digest the
-   *  checked read compares against; a legacy record without `carrierPath` falls back to
-   *  the route's `--reviews` path. */
-  static requesterPathOf(
-    records: readonly RoundRecord[],
-    cycle: number,
-    reviewsPath: string | null,
-  ): string | null {
-    return FixDispositions.#requesterOf(records, cycle)?.carrierPath ?? reviewsPath;
-  }
-
   /** Read the requesting carrier's input set (the findings, deduped by disposition
    *  key in carrier order). The read is synchronous on purpose: the input is ONE small
    *  carrier, and the dispatch face already reads its small inputs synchronously at
    *  the same seam.
    *
+   *  The PATH arrives from the caller (`CompletionContext.reviewsPath`) — the ledger's
+   *  single resolution of the same-cycle review record's carrier identity, or the
+   *  route's `--reviews` flag. A null path is `unrecorded`: the round recorded no
+   *  carrier and the route handed none over, so the judgment is skipped visibly.
+   *
    *  Every path resolves against `repoRoot`, never `process.cwd()`: the engine runs
-   *  from a subdirectory too, `--reviews` arrives repoRoot-relative and a record's
-   *  `carrierPath` arrives absolute — both must land on the one basis (`RepoRoot`'s
-   *  rule). The reported `path` is the resolved one, so a failure names a real file.
+   *  from a subdirectory too, `--reviews` arrives repoRoot-relative and the resolved
+   *  carrier path is absolute — both must land on the one basis (`RepoRoot`'s rule).
+   *  The reported `path` is the resolved one, so a failure names a real file.
    *
    *  P31 §2.2 — the read is the ONE checked carrier read (`CarrierIntegrity.read`):
    *  the requesting round's recorded digest decides ok / mismatch, so a tampered
@@ -361,10 +354,9 @@ export class FixDispositions implements CompletionCriterion {
     reviewsPath: string | null,
     repoRoot: string,
   ): RequesterRead {
+    if (reviewsPath === null) return { kind: "unrecorded" };
     const requester = FixDispositions.#requesterOf(records, cycle);
-    const declared = requester?.carrierPath ?? reviewsPath;
-    if (declared === null) return { kind: "unrecorded" };
-    const target = path.resolve(repoRoot, declared);
+    const target = path.resolve(repoRoot, reviewsPath);
     let carrier: unknown;
     try {
       // P31 §2.2 — the input carrier is read through the ONE checked seam: the
@@ -416,12 +408,10 @@ export class FixDispositions implements CompletionCriterion {
   }
 
   /** The digest the requesting review round recorded — read off the SAME record
-   *  `requesterPathOf` selects. Null when that record declared no path (the legacy
-   *  `--reviews` fallback carries no digest, so the read performs no comparison) or when
-   *  the record predates the digest column. */
+   *  `#requesterOf` selects. Null when the record predates the digest column: the
+   *  read performs no comparison (present facts). */
   static #requesterDigestOf(record: RoundRecord | undefined): string | null {
-    if (record === undefined || record.carrierPath === null) return null;
-    return record.carrierDigest ?? null;
+    return record?.carrierDigest ?? null;
   }
 
   /** The carrier's `dispositions` map — null when the slot is absent or not an
@@ -487,11 +477,8 @@ export class FixDispositions implements CompletionCriterion {
   #ownRefusal(ctx: CompletionContext): CompletionVerdict | null {
     const carrier = ctx.carrier;
     if (carrier === null || typeof carrier !== "object" || Array.isArray(carrier)) {
-      const at = ctx.record.carrierPath;
       return this.#hard(
-        at === null
-          ? "the fix round persisted no work carrier and recorded no carrier path"
-          : `the fix round persisted no work carrier at ${at}`,
+        "the fix round persisted no work carrier — the round identity resolves none",
       );
     }
     if (FixDispositions.dispositionsOf(carrier) === null) {

@@ -379,18 +379,21 @@ export abstract class LedgerRuleBase implements LedgerRule {
   }
 }
 
-/** closed-wave-fits-depends-on-layers — a closed wave stays inside one DependsOn layer.
- *  The wave's members must share ONE layer of the plan's topological decomposition;
- *  a wave spanning two layers was dispatched against a plan whose edges moved under
- *  the closed ledgers. The read is a SUBSET one: a wave whose members all sit in one
- *  layer fits even when it does not fill that layer (`{2}` against `[{1},{2,3}]` is
- *  green) — the append-wave dispatch relies on the same liberal read. */
+/** closed-wave-fits-depends-on-layers — an OPEN wave stays inside one DependsOn layer.
+ *  The rule reads the ledger's open waves alone: a closed wave is settled history whose
+ *  layer fit was judged at its own dispatch, so a later plan edit never retro-flags it —
+ *  only a wave still dispatchable can be corrected by the plan itself. An open wave's
+ *  members must share ONE layer of the plan's topological decomposition; a wave spanning
+ *  two layers was dispatched against a plan whose edges moved under the open ledgers.
+ *  The read is a SUBSET one: a wave whose members all sit in one layer fits even when it
+ *  does not fill that layer (`{2}` against `[{1},{2,3}]` is green) — the append-wave
+ *  dispatch relies on the same liberal read. */
 export class LedgerLayeringRule extends LedgerRuleBase {
   readonly name = "closed-wave-fits-depends-on-layers";
 
   evaluate(ctx: JudgeContext, ledger: LedgerFacts): Finding[] {
     const findings: Finding[] = [];
-    for (const wave of ledger.closedWaves) {
+    for (const wave of ledger.openWaves) {
       if (wave.length === 0) continue;
       const fits = ledger.layers.some((layer) => wave.every((id) => layer.includes(id)));
       if (fits) continue;
@@ -398,8 +401,8 @@ export class LedgerLayeringRule extends LedgerRuleBase {
       findings.push(
         this.finding(
           ctx,
-          "closed Waves",
-          `the closed wave {${wave.join(",")}} spans more than one DependsOn layer (${layers})`,
+          "open Waves",
+          `the open wave {${wave.join(",")}} spans more than one DependsOn layer (${layers})`,
           "keep a wave on one topological layer — add the missing DependsOn edges so the batch is one layer",
         ),
       );

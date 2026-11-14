@@ -23,6 +23,7 @@
 
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
+import { basename } from "node:path";
 import { DocBodyProjection } from "../contract/doc-body.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
 import type { ConfigLoader } from "../infra/config.ts";
@@ -36,7 +37,7 @@ import { type Carrier, type CarrierPlane, HandoffSchema } from "./handoff-schema
 import { LineIdentity } from "./line-identity.ts";
 import type { DocClassVerdict, NextHop, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
-import { RoundNaming } from "./round-naming.ts";
+import { type RoundArtifact, RoundNaming } from "./round-naming.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
 
 // ---------------------------------------------------------------------------
@@ -90,6 +91,11 @@ export type RoundViolation = {
   readonly message: string;
 };
 
+/** The cause a declared BLOCKED / TIMEOUT round books on the entry it synthesizes when
+ *  it authored NO fact of its own — the round's own conclusion (`round-blocked`),
+ *  never `contract-violation`: nothing about the record broke (P34 T5). */
+export const CONCLUDED_BLOCKED_CAUSE = "round-blocked";
+
 /** The graded-violation literals' ONE construction point — the cause vocabulary is
  *  a declared convergence point, so its shape is held here rather than copied per
  *  call site. `cause` defaults to `contract-violation`, the ledger's existing row
@@ -109,7 +115,7 @@ export const RoundViolation = {
 
 /** One dispatched round's record — its identity (`op` + `cycle` + `attempt`), the
  *  dispatch baseline HEAD, the terminal verdict, its graded violations and the
- *  carrier path (null when the round wrote none). A dispatched round is recorded
+ *  carrier digest (the path is DERIVED, spec §2.10). A dispatched round is recorded
  *  unconditionally; "completed" is a read of `verdict.targetAction`, never a
  *  membership test. */
 export interface RoundRecord {
@@ -119,17 +125,19 @@ export interface RoundRecord {
   readonly dispatchBase: string | null;
   readonly verdict: RoundVerdict;
   readonly violations: readonly RoundViolation[];
-  readonly carrierPath: string | null;
+  /** The LEGACY carrier path a pre-P34 row remembers — read-only history, resolved
+   *  through `Ledger#carrierPathOf`'s step ① alone. New records never carry it: the
+   *  path is a function of the record's own identity. */
+  readonly carrierPath?: string | null;
   /** The content digest the engine recorded for the carrier it wrote (P31 §2.2) —
    *  the payload rule's `CarrierIntegrity.digestOf` value, taken from the write seam's
    *  own bytes at persist time. Absent on every record written before the column
    *  existed (zero migration) and null on a round that persisted no carrier; either
    *  way the read is a present-facts read with zero comparison. */
   readonly carrierDigest?: string | null;
-  /** The child's DRAFT carrier the round wrote its final beside (P31 §2.3) — the
-   *  family-path draft the finalized carrier no longer overwrites. Absent on every
-   *  record written before the column existed (zero migration): a legacy round's one
-   *  path IS its carrier, and the read keeps the resolved family name. */
+  /** The child's DRAFT carrier the round wrote its final beside (P31 §2.3) — a
+   *  LEGACY cell (spec §2.10): the draft name is derived from the identity too, so no
+   *  write face records it. */
   readonly draftPath?: string | null;
   /** The supersede stamp (P30 §2.3) — the cycle that REPLACED this review's judgment
    *  (the `--recover` reopen dispatched `cycle` next, so this round's pending fix is no
@@ -143,10 +151,7 @@ export interface RoundRecord {
  *  judgment reads. A completion verdict must never be an input to the judgment that
  *  produces it, so the criteria see this shape, not a record whose `verdict` cell
  *  the judgment itself would fill. */
-export type RoundIdentity = Pick<
-  RoundRecord,
-  "op" | "cycle" | "attempt" | "dispatchBase" | "carrierPath"
->;
+export type RoundIdentity = Pick<RoundRecord, "op" | "cycle" | "attempt" | "dispatchBase">;
 
 /** The writable shape of one round record — the stored record with the identity
  *  facts defaultable (the seeding form still allocates the cycle from the row's
@@ -158,9 +163,7 @@ export interface RoundRecordInit {
   readonly dispatchBase?: string | null;
   readonly verdict?: RoundVerdict;
   readonly violations?: readonly RoundViolation[];
-  readonly carrierPath?: string | null;
   readonly carrierDigest?: string | null;
-  readonly draftPath?: string | null;
 }
 
 /** The round-concluding statuses the router's failure face reads. */
@@ -292,8 +295,35 @@ export class RoundRecords {
       dispatchBase: null,
       verdict: { treeClean: true, targetAction: true },
       violations: [],
-      carrierPath: null,
     };
+  }
+
+  /** Whether a record OWNS its carrier path (spec §2.7) — no other record of the same
+   *  line sits on that path with a larger `(cycle, attempt)`. New records are each
+   *  their own owner (their names are unique by identity), so the judgment only
+   *  discriminates LEGACY rows: a row whose carrier path was overwritten by a later
+   *  round is present facts, never a mismatch (the engine cannot tell a lawful
+   *  overwrite from a tamper). The path comes in as a projection — the record's own
+   *  identity, never a stored cell (`RoundRecords` has no workspace to resolve a
+   *  name). */
+  static ownerOf(
+    records: readonly RoundRecord[],
+    record: RoundRecord,
+    pathOf: (candidate: RoundRecord) => string,
+  ): boolean {
+    const path = pathOf(record);
+    if (path === "") return false;
+    return !records.some(
+      (other) => RoundRecords.#laterRound(other, record) && pathOf(other) === path,
+    );
+  }
+
+  /** Whether `other` is the later round of the two — `(cycle, attempt)` order, the
+   *  round identity's own sequence. Identical identities are not later. */
+  static #laterRound(other: RoundRecord, record: RoundRecord): boolean {
+    return other.cycle === record.cycle
+      ? other.attempt > record.attempt
+      : other.cycle > record.cycle;
   }
 
   /** The op a recorded mode key belongs to — branch-review rides the review family;
@@ -311,6 +341,19 @@ export class RoundRecords {
 
 /** The ledger lookup key — a scalar task id or the group key string. */
 export type LedgerKey = number | string;
+
+/** One handoff file's parsed round identity — the four coordinates the naming face
+ *  renders and the orphan face reads back, so the two compare identity with identity.
+ *  `type` is the line the file name declares (`wave`, a document word, `plan`,
+ *  `branch`, or the retired `spec` twin), so the claim's legacy tier can render the
+ *  owning record's own carrier path from the same coordinates the scan read. */
+interface HandoffOwner {
+  readonly type: string;
+  readonly key: string;
+  readonly op: string;
+  readonly round: number;
+  readonly attempt: number;
+}
 
 /** The retired phase-spec row key — the spelling the round records carried before the
  *  target vocabulary unified on `phase-spec` (P22 D73). Rows already on disk keep it
@@ -441,14 +484,18 @@ export interface CrashRecord {
 // handoff — the family naming params
 // ---------------------------------------------------------------------------
 
-/** Per-family handoff params — the canonical name placeholders of the handoff
- *  namespace families ({tasks}/{round}; the branch family keys by `branch-{op}-{round}`,
- *  no range token — the branch line holds no commit identity). */
+/** Per-round handoff params — the naming identity's cells the renderer reads
+ *  (`round` = the cycle, `tasks` = the wave line's task group, `attempt` = the
+ *  dispatch's re-attempt). The branch line holds no commit identity — its cycle is its
+ *  own round. */
 export interface HandoffParams {
   /** The dispatch group's key string (comma-joined task ids). */
   tasks?: string;
-  /** The round number (increment/source families). */
+  /** The round number (the identity's cycle — every family carries one now). */
   round?: number | string;
+  /** The dispatch's attempt number (1 = the first attempt; the naming face renders
+   *  `-a{n}` for every later one). Absent reads as the first attempt. */
+  attempt?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -595,8 +642,9 @@ export type ReviewGateVerdict =
 export class Ledger {
   /** The one dispatch workspace this ledger records. */
   readonly #workspace: Workspace;
-  /** The handoff-family records, keyed by `op.type` — the naming truth the ledger fills. */
-  readonly #families: Readonly<Record<string, HandoffFamily>>;
+  /** The handoff-family key set, keyed by `op.type` — the loud unknown-family check's
+   *  input (the file names are the naming face's one mint, never a table here). */
+  readonly #families: readonly HandoffFamily[];
   /** The C5 next router — the closure-side judge of the round carriers (stateless;
    *  the `closedWaves()` read face and the wave gate share the same router). */
   readonly #router = new NextStepRouter();
@@ -823,12 +871,10 @@ export class Ledger {
       dispatchBase: init.dispatchBase ?? null,
       verdict: init.verdict ?? { treeClean: true, targetAction: true },
       violations: init.violations ?? [],
-      carrierPath: init.carrierPath ?? null,
       // The digest column exists only on rounds that recorded one (a legacy record
-      // keeps no key at all — the read then compares nothing, zero migration).
+      // keeps no key at all — the read then compares nothing, zero migration). The
+      // carrier PATH is never written (spec §2.10): it is derived from this identity.
       ...(init.carrierDigest === undefined ? {} : { carrierDigest: init.carrierDigest }),
-      // …and the same for the draft path column (P31 §2.3).
-      ...(init.draftPath === undefined ? {} : { draftPath: init.draftPath }),
     };
     const existing = records.findIndex(
       (candidate) =>
@@ -1537,12 +1583,13 @@ export class Ledger {
   // handoff — naming / carrier / single-author persist
   // -------------------------------------------------------------------------
 
-  /** The family record of an op/type pair — the engine-config handoff namespace data
-   *  (loud on an unknown family: the naming table is the single truth, never a second list). */
-  #family(op: string, type: string): HandoffFamily {
-    const family = this.#families[`${op}.${type}`];
-    if (family === undefined) throw new Error(`unknown handoff family: ${op}.${type}`);
-    return family;
+  /** The family key check of an op/type pair — the engine-config handoff namespace data
+   *  (loud on an unknown family: the key set is the resolution truth, never a second list;
+   *  the NAME is the naming face's one mint). */
+  #family(op: string, type: string): void {
+    if (!this.#families.includes(`${op}.${type}` as HandoffFamily)) {
+      throw new Error(`unknown handoff family: ${op}.${type}`);
+    }
   }
 
   /** The carrier PLANE of an op — the ONE op-derived derivation (`HandoffSchema.planeOf`).
@@ -1553,11 +1600,21 @@ export class Ledger {
     return HandoffSchema.planeOf(op);
   }
 
-  /** The canonical handoff file name — the family's `{placeholder}` pattern, filled. */
+  /** The canonical handoff file name — the round identity's DRAFT, rendered by the
+   *  ONE naming rule (`RoundNaming#renderName`). The family key set still guards the
+   *  op/type pairs (a loud unknown-family throw), but it spells no name: the renderer
+   *  does, so the draft, its final, the report, the log and the crash record cannot
+   *  drift apart. */
   handoffName(op: string, type: string, params: HandoffParams = {}): string {
-    return this.#family(op, type)
-      .name.replaceAll("{tasks}", params.tasks ?? "")
-      .replaceAll("{round}", String(params.round ?? ""));
+    this.#family(op, type);
+    return RoundNaming.renderName(Ledger.#artifactOf(op, type, params), "draft");
+  }
+
+  /** The identity of one (op, type, params) triple — the ONE adapter from the
+   *  params-carrying surface onto the naming renderer. */
+  static #artifactOf(op: string, type: string, params: HandoffParams): RoundArtifact {
+    const artifactOp = (RoundRecords.opOf(op) ?? op) as RoundArtifact["op"];
+    return RoundNaming.artifactOf(artifactOp, type, params);
   }
 
   /** The canonical on-disk handoff path. */
@@ -1586,9 +1643,9 @@ export class Ledger {
   }
 
   /** Persist a handoff payload as the round's FINAL carrier — the engine's single-author
-   *  write, at a name the child's DRAFT never occupies (P31 §2.3). Returns the final
-   *  path (what the round is judged by), the draft path it landed beside, and the
-   *  payload's digest, so the round record can remember all three.
+   *  write, at a name the child's DRAFT never occupies (P31 §2.3). Writes the final,
+   *  seals the draft + final pair, returns the payload digest the record remembers — the
+   *  record names neither path, it derives both from its own identity.
    *
    *  The digest covers the PAYLOAD, never the file bytes that hold it: `H = sha256(JSON
    *  containing H)` is unsatisfiable, so the value is taken BEFORE the `contentSha256`
@@ -1600,7 +1657,7 @@ export class Ledger {
    *  P31 §2.4 — the write CLOSES the carrier: the final and the draft name beside it
    *  land at `0o444` in the same step, so a carrier is read-only from the instant the
    *  engine authored it. A name that never landed (a round whose child wrote no draft,
-   *  a round-less family whose draft IS the final) is not an error — the seal is
+   *  a legacy cycle-less name whose draft IS the final) is not an error — the seal is
    *  idempotent and absence is the round's own fact. */
   persistHandoff(
     op: string,
@@ -1608,13 +1665,14 @@ export class Ledger {
     params: HandoffParams,
     data: Record<string, unknown>,
   ): { readonly path: string; readonly draftPath: string; readonly digest: string } {
-    const draftName = this.handoffName(op, type, params);
+    const artifact = Ledger.#artifactOf(op, type, params);
+    const draftName = RoundNaming.renderName(artifact, "draft");
     const payload: Record<string, unknown> = { ...data };
     // The engine owns this key — a caller-supplied value never seeds a self-covering digest.
     delete payload.contentSha256;
     const digest = CarrierIntegrity.digestOf(payload);
     payload.contentSha256 = digest;
-    const finalName = this.#naming.finalName(draftName, params.round);
+    const finalName = RoundNaming.renderName(artifact, "final");
     this.#persist(finalName, payload);
     // The carrier is read-only the moment it exists; the draft beside it closes with it.
     CarrierSeal.seal(this.#workspace.resolve(finalName));
@@ -1636,18 +1694,49 @@ export class Ledger {
    *  shapes; it is READ-ONLY (every write goes through `persistHandoff`'s canonical
    *  spelling). */
   resolveHandoffName(op: string, type: string, params: HandoffParams = {}): string {
-    const canonical = this.handoffName(op, type, params);
+    // The attempt the read resolves is the round's LATEST recorded one unless the
+    // caller names it: a re-dispatched review lands at `-a{n}`, and its fix leg only
+    // knows the cycle. Without this the read would address attempt 1's name (or its
+    // final) while the digest gate compares the latest attempt's — a false mismatch.
+    const resolved = this.#attemptAware(op, type, params);
+    const canonical = this.handoffName(op, type, resolved);
     // P31 §2.3 — the FINAL carrier wins the read whenever the round has one: it is the
     // round's finalized answer, and the draft beside it is the child's raw input (an
-    // un-materialized payload whose findings carry no engine id). A round-less family
-    // (implement) has one name only, so `final` equals the canonical spelling.
-    const final = this.#naming.finalName(canonical, params.round);
+    // un-materialized payload whose findings carry no engine id).
+    const final = RoundNaming.renderName(Ledger.#artifactOf(op, type, resolved), "final");
     if (final !== canonical && this.#read<unknown>(final) !== null) return final;
-    if (!RETIRED_SPEC_LINE_KEYS.has(type) || this.#read<unknown>(canonical) !== null) {
-      return canonical;
+    if (!RETIRED_SPEC_LINE_KEYS.has(type)) {
+      return this.#legacyCarrierName(op, type, resolved) ?? canonical;
     }
+    if (this.#read<unknown>(canonical) !== null) return canonical;
     const retired = Ledger.#retiredCarrierName(op, params);
     return this.#read<unknown>(retired) === null ? canonical : retired;
+  }
+
+  /** The pre-P34 cycle-less spelling of the round's own family name — the ONE carrier
+   *  the P34 respelling moved (`tasks-{tasks}-implement.json` → `…-implement-{cycle}.json`),
+   *  so a folded legacy record (no recorded path, no digest) still resolves its own
+   *  bytes instead of reading as absent while the orphan scan still claims the file.
+   *  The rung is READ-ONLY and cycle-1 · attempt-1 alone: the legacy spelling carried
+   *  neither coordinate, so no later cycle or attempt may read it. null when the op is
+   *  not an implement, the round is past its first cycle/attempt, the family does not
+   *  exist, the legacy name IS the canonical one, or the file is absent. */
+  #legacyCarrierName(op: string, type: string, params: HandoffParams): string | null {
+    if (RoundRecords.opOf(op) !== "implement") return null;
+    if ((params.round ?? 1) !== 1 || (params.attempt ?? 1) !== 1) return null;
+    if (!this.#families.includes(`${op}.${type}` as HandoffFamily)) return null;
+    const legacy = this.handoffName(op, type, { tasks: params.tasks });
+    if (legacy === this.handoffName(op, type, params)) return null;
+    return this.#read<unknown>(legacy) === null ? null : legacy;
+  }
+
+  /** The params one READ resolves under — the caller's attempt when it names one, else
+   *  the round's latest recorded attempt (a fix leg knows the cycle, not the review's
+   *  attempt). Absent records leave the params untouched (the present-facts face). */
+  #attemptAware(op: string, type: string, params: HandoffParams): HandoffParams {
+    if (params.attempt !== undefined) return params;
+    const latest = this.#latestRecordOf(op, type, params)?.attempt;
+    return latest === undefined ? params : { ...params, attempt: latest };
   }
 
   /** The resolved handoff path — `resolveHandoffName`'s on-disk form (the read face's
@@ -1694,30 +1783,67 @@ export class Ledger {
   }
 
   /** The latest recorded attempt of an (op, type, round) identity — null when the line
-   *  carries no record for it (a legacy row, or a round never dispatched). ONE basis for
-   *  every "what did that round record" question (the digest the read compares against,
-   *  the carrier path `--reviews` names). */
+   *  carries no record for it (a legacy row, or a round never dispatched). When the
+   *  caller NAMES an attempt (`params.attempt`), that attempt is the one selected: the
+   *  name a read resolves and the digest it compares against come from the SAME record,
+   *  so a re-dispatched cycle (attempt 2 booked, attempt 1's final still on disk by
+   *  conservation) can never read attempt 1's bytes against attempt 2's digest. */
   #latestRecordOf(op: string, type: string, params: HandoffParams): RoundRecord | null {
     const mode = RoundRecords.opOf(op) ?? op;
     const round = params.round === undefined ? null : Number(params.round);
     return this.recordsOf(this.#roundKey(type as TargetType, params), type as TargetType)
       .filter((record) => record.op === mode)
       .filter((record) => round === null || record.cycle === round)
+      .filter((record) => params.attempt === undefined || record.attempt === params.attempt)
       .reduce<RoundRecord | null>(
         (newest, record) => (newest === null || record.attempt >= newest.attempt ? record : newest),
         null,
       );
   }
 
-  /** The review carrier a round's fix leg reads as `--reviews` — the round's OWN
-   *  recorded carrier path (the FINAL carrier, P31 §2.3) when the record names one, and
-   *  the resolved family name (the draft spelling — legacy rows, and a round that
-   *  persisted no carrier) otherwise. Record-present means final-wins: a draft sitting
-   *  beside a final never becomes the judged input. */
+  /** The review carrier a round's fix leg reads as `--reviews` — the same-cycle review
+   *  record's own carrier identity through the ONE accessor (step ① the recorded path,
+   *  step ②③ the read ladder a pre-P31 row needs). A record that resolves no carrier
+   *  (the ladder's candidates are all absent) reads `""` — the soft `unrecorded` face,
+   *  never a fabricated name. No record at all falls back to the family name of the
+   *  cycle's latest review attempt (attempt 1 when none): a fix leg knows the cycle,
+   *  never the review's attempt, so the FRAME's attempt is deliberately not inherited. */
   #reviewsPathOf(type: TargetType, params: HandoffParams, round: number): string {
-    const recorded = this.#latestRecordOf("review", type, { ...params, round })?.carrierPath;
+    const reviewParams: HandoffParams = { tasks: params.tasks, round };
+    const record = this.#latestRecordOf("review", type, reviewParams);
+    if (record === null) return this.resolveHandoffPath("review", type, reviewParams);
+    return this.carrierPathOf(type, String(this.#roundKey(type, params)), record);
+  }
+
+  /** One record's carrier PATH — the ONE read face of a record's carrier identity
+   *  (spec §2.10), so no consumer spells `record.carrierPath` itself. Step ① returns the
+   *  path the record already remembers (the historical fact — a pre-P34 row keeps its
+   *  own spelling, zero migration). Step ② otherwise resolves the read ladder
+   *  `resolveHandoffName` owns, seeded with the record's FULL identity (line · op ·
+   *  cycle · attempt) — a bare `renderPath("final")` would miss a pre-P31 row that never
+   *  minted the `.c{cycle}` spelling. Step ③ probes the ladder's answer: a ladder that
+   *  reports a never-minted name reads as "no carrier" (empty), never as a path. */
+  carrierPathOf(type: string, key: string, record: RoundRecord): string {
+    const recorded = record.carrierPath;
     if (typeof recorded === "string" && recorded !== "") return recorded;
-    return this.resolveHandoffPath("review", type, { ...params, round });
+    const name = this.#resolvedCarrierName(type, key, record);
+    return this.#read<unknown>(name) === null ? "" : this.#workspace.resolve(name);
+  }
+
+  /** Step ② of `carrierPathOf` — the NAME the record's identity resolves to: the
+   *  retired `spec-{op}-{round}.json` spelling for a migrated row (its `spec` family is
+   *  not in the live config table, so the ladder would throw), the read ladder's answer
+   *  for every live line. */
+  #resolvedCarrierName(type: string, key: string, record: RoundRecord): string {
+    if (key === RETIRED_SPEC_KEY) {
+      return Ledger.#retiredCarrierName(record.op, { round: record.cycle });
+    }
+    const params: HandoffParams = {
+      tasks: type === "wave" ? key : undefined,
+      round: record.cycle,
+      attempt: record.attempt,
+    };
+    return this.resolveHandoffName(record.op, type, params);
   }
 
   /** The retired document-line carrier name of one round — `spec-review-{round}.json` /
@@ -1727,29 +1853,52 @@ export class Ledger {
     return `${RETIRED_SPEC_KEY}-${op}-${params.round ?? ""}.json`;
   }
 
-  /** The workspace's ORPHAN handoff drafts — the `handoff` family files whose
-   *  (line key, op, round) never landed in `progress.json` (a draft written by a
-   *  round that never booked). The board and the `--dry-run` preview render them;
-   *  this is a PURE READ — the engine never writes, moves or deletes a draft. The
-   *  family names are the ledger's own single naming truth (no second pattern), and
-   *  the owning row is read through the ONE basis `rowFor` establishes — the draft's
-   *  own line word IS its declaration — so a migrated workspace's carrier resolves
-   *  its retired row instead of reading as an orphan. */
+  /** The workspace's ORPHAN handoff files — the carrier files (draft or final) whose
+   *  (line key, op, cycle, attempt) never landed in `progress.json`. The board and the
+   *  `--dry-run` preview render them; this is a PURE READ — the engine never writes,
+   *  moves or deletes a carrier. The family names are the ledger's own single naming
+   *  truth (no second pattern), and the owning row is read through the ONE basis
+   *  `rowFor` establishes — the file's own line word IS its declaration — so a
+   *  migrated workspace's carrier resolves its live row instead of reading as an
+   *  orphan.
+   *
+   *  OWNERSHIP IS THE RECORD, NEVER ITS VERDICT (spec §2.12): a round that acted and
+   *  then failed still owns the file it wrote — completion is the judgment face, and
+   *  reading it here would relabel an honest failure's carrier as an orphan and hand it
+   *  to a recovery pass that deletes child work.
+   *
+   *  The identity is the fast tier; the LEGACY tier compares the record's own carrier
+   *  path by basename (a pre-P34 row remembers an absolute path while the scan yields a
+   *  bare name), read once through `carrierPathOf` — the only accessor of the record's
+   *  carrier identity. */
   orphanHandoffs(): readonly string[] {
     const progress = this.readProgress() ?? this.emptyProgress();
     const orphans: string[] = [];
     for (const name of this.#workspaceFiles()) {
-      const owner = Ledger.#handoffOwner(name, this.#families);
+      const owner = Ledger.#handoffOwner(name);
       if (owner === null) continue;
-      const row = Ledger.rowFor(progress, owner.key, Ledger.#lineWord(owner.key));
-      const completed = RoundRecords.of(row)
-        .filter((record) => record.verdict.targetAction)
-        .map((record) => `${record.op}:${record.cycle}`);
-      if (!completed.includes(`${RoundRecords.opOf(owner.op) ?? owner.op}:${owner.round}`)) {
-        orphans.push(name);
-      }
+      const records = RoundRecords.of(Ledger.#ownerRow(progress, owner.key));
+      const identity = `${owner.op}:${owner.round}:${owner.attempt}`;
+      const claimed = records.some(
+        (record) =>
+          `${record.op}:${record.cycle}:${record.attempt}` === identity ||
+          basename(this.carrierPathOf(owner.type, owner.key, record)) === name,
+      );
+      if (!claimed) orphans.push(name);
     }
     return orphans.sort();
+  }
+
+  /** The row one carrier file's line word resolves to. The retired `spec` twin is a FILE
+   *  NAME a live row already outlived: the workspace holds ONE identity document, so the
+   *  word resolves onto whichever document word that row now declares (`phase-spec` /
+   *  `overall` / `single-spec`), never onto a row name the migration retired. Every other
+   *  word — a wave's tasks, `plan`, `branch` — reads through `rowFor`'s ONE basis. */
+  static #ownerRow(progress: ProgressData, key: string): ProgressRow | undefined {
+    if (key !== RETIRED_SPEC_KEY) return Ledger.rowFor(progress, key, Ledger.#lineWord(key));
+    const literal = Ledger.rowFor(progress, key, null);
+    if (literal !== undefined) return literal;
+    return progress.waves.find((row) => RETIRED_SPEC_LINE_KEYS.has(row.wave));
   }
 
   /** A handoff file's key as a declared line word — the three document words declare
@@ -1771,58 +1920,60 @@ export class Ledger {
     }
   }
 
-  /** Which recorded round one handoff file belongs to — the family name pattern is
-   *  the ONE naming truth, read backwards: `tasks-{tasks}-{op}[-{round}].json` /
-   *  `{line}-{op}-{round}.json`, plus a document line's retired `spec` twin (the
-   *  pre-rename name a still-unbooked draft can carry). Null for a non-handoff file. */
-  static #handoffOwner(
-    name: string,
-    families: Readonly<Record<string, HandoffFamily>>,
-  ): { readonly key: string; readonly op: string; readonly round: number } | null {
+  /** Which recorded round one handoff file belongs to — the ONE renderer read
+   *  backwards: `<line>-<op>[-<cycle>][-a<attempt>][.c<cycle>].json`, the retired
+   *  document-line `spec` twin included (a still-unbooked draft can carry it). The
+   *  parse yields the same four coordinates the naming face renders, so the orphan
+   *  test compares an identity with an identity — never a spelling with a spelling.
+   *  Null for a non-carrier file. */
+  static #handoffOwner(name: string): HandoffOwner | null {
     // A FINAL carrier (`<stem>.c{round}.json`, P31 §2.3) is the same artifact as its
     // draft — the cycle is the name's own suffix, never a second family.
     const draft = name.replace(/\.c\d+\.json$/, ".json");
-    for (const [family, record] of Object.entries(families)) {
-      const [op = "", type = ""] = family.split(".");
-      for (const spelling of Ledger.#familySpellings(record.name, type)) {
-        const captures = Ledger.#familyCaptures(spelling, draft);
-        if (captures === null) continue;
-        const key = type === "wave" ? (captures.tasks ?? "") : type;
-        // Each family carries the placeholder IT declares: a wave's review/fix name
-        // carries `{tasks}` AND `{round}`, a document / branch line carries `{round}`
-        // alone, and the fixed implement family carries `{tasks}` alone (round 1).
-        const round = captures.round === null ? 1 : Number(captures.round);
-        return { key, op, round };
-      }
+    const wave = Ledger.#WAVE_CARRIER.exec(draft);
+    if (wave !== null) {
+      const [, line = "", op = "", cycle, attempt] = wave;
+      // The wave row keys the task GROUP alone — the `tasks-` spine is the name's, not
+      // the key's. The legacy cycle-less implement spelling is the fixed family's round 1.
+      return {
+        type: "wave",
+        key: line.replace(/^tasks-/, ""),
+        op,
+        round: cycle === undefined ? 1 : Number(cycle),
+        attempt: Ledger.#attemptOf(attempt),
+      };
+    }
+    const line = Ledger.#LINE_CARRIER.exec(draft);
+    if (line !== null) {
+      const [, key = "", op = "", cycle = "", attempt] = line;
+      return {
+        type: key,
+        key,
+        op,
+        round: Number(cycle),
+        attempt: Ledger.#attemptOf(attempt),
+      };
     }
     return null;
   }
 
-  /** The name spellings one family answers to — its canonical pattern, and for a
-   *  document line the retired `spec` twin it was minted under before the rename. */
-  static #familySpellings(name: string, type: string): readonly string[] {
-    if (!RETIRED_SPEC_LINE_KEYS.has(type)) return [name];
-    return [name, name.replace(`${type}-`, `${RETIRED_SPEC_KEY}-`)];
-  }
+  /** The wave line's carrier spelling, read backwards — the task key is a lazy span,
+   *  the op one of the three words, the cycle and the attempt optional (the legacy
+   *  cycle-less implement name harvests no cycle). */
+  static readonly #WAVE_CARRIER =
+    /^(tasks-.+?)-(implement|review|fix)(?:-(\d+))?(?:-a(\d+))?\.json$/;
 
-  /** One family spelling matched against a file name — the `{tasks}` / `{round}`
-   *  tokens read backwards as NAMED captures, so a family's round is read from the
-   *  group its own name actually carries (a document family's sole group is the
-   *  round; `tasks-{tasks}-implement.json`'s is the task list, never a round). A
-   *  positional read would resolve every `{round}`-only family to 1. */
-  static #familyCaptures(
-    spelling: string,
-    name: string,
-  ): { readonly tasks: string | null; readonly round: string | null } | null {
-    const escaped = spelling.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const pattern = new RegExp(
-      `^${escaped
-        .replace("\\{tasks\\}", "(?<tasks>.+?)")
-        .replace("\\{round\\}", "(?<round>\\d+)")}$`,
-    );
-    const match = pattern.exec(name);
-    if (match === null) return null;
-    return { tasks: match.groups?.tasks ?? null, round: match.groups?.round ?? null };
+  /** The single-target lines' carrier spelling — `branch` and the doc words (the
+   *  words of the ONE target-face table, the retired `spec` twin included), every one
+   *  of which carries its cycle. */
+  static readonly #LINE_CARRIER = new RegExp(
+    `^(${[...Object.keys(targetFaces).filter((word) => word !== "wave"), RETIRED_SPEC_KEY].join("|")})-(review|fix)-(\\d+)(?:-a(\\d+))?\\.json$`,
+  );
+
+  /** An absent attempt segment is the first attempt — the naming face never renders
+   *  `-a1`, so the parse and the render agree on the identity of attempt 1. */
+  static #attemptOf(captured: string | undefined): number {
+    return captured === undefined ? 1 : Number(captured);
   }
 
   // -------------------------------------------------------------------------
@@ -1882,7 +2033,10 @@ export class Ledger {
   #consecutiveS1Run(type: string, params: HandoffParams, round: number): number {
     let run = 0;
     for (let index = round; index >= 1; index--) {
-      const carrier = this.readHandoff("review", type, { ...params, round: index });
+      // The frame's attempt belongs to the op it was allocated for — a review read
+      // resolves the review's own latest attempt (the ledger's own fallback), never
+      // the fix frame's.
+      const carrier = this.readHandoff("review", type, { tasks: params.tasks, round: index });
       if (carrier === null) break;
       if (this.#blockerCountOf(carrier) === 0) break;
       run += 1;
@@ -1941,8 +2095,11 @@ export class Ledger {
         consecutiveS1: 0,
       };
     }
+    // The review side is addressed by the CYCLE alone: an attempt belongs to the op it
+    // was allocated for, so a fix at attempt 2 must never address the review's `-a2`
+    // (the read's own attempt fallback resolves the review's latest recorded one).
+    const reviewParams: HandoffParams = { tasks: params.tasks, round };
     if (op === "review") {
-      const reviewParams = { ...params, round };
       const carrier = this.readHandoff("review", type, reviewParams);
       if (carrier === null) return null;
       return {
@@ -1952,8 +2109,8 @@ export class Ledger {
         // source shared with the fix leg below (`HandoffSchema.conclusionOf`).
         status: this.#handoffSchema.conclusionOf("judge", carrier),
         findings: this.#findingsOf(carrier),
-        reviewsPath: this.#reviewsPathOf(type, params, round),
-        consecutiveS1: this.#consecutiveS1Run(type, params, round),
+        reviewsPath: this.#reviewsPathOf(type, reviewParams, round),
+        consecutiveS1: this.#consecutiveS1Run(type, reviewParams, round),
       };
     }
     // op === "fix" — the C5-1 fingerprint: the fix round judges the source review's input
@@ -1961,9 +2118,8 @@ export class Ledger {
     // matching the review branch's contract: a fix whose blocker set was never read must
     // not be judged a clean zero-findings round — the next-hop derivation cannot close a
     // line it could not read.
-    const reviewParams = { ...params, round };
     const reviewCarrier = this.readHandoff("review", type, reviewParams);
-    const fixCarrier = this.readHandoff("fix", type, reviewParams);
+    const fixCarrier = this.readHandoff("fix", type, { ...params, round });
     if (reviewCarrier === null || fixCarrier === null) return null;
     return {
       phase: "fix",
@@ -1971,8 +2127,8 @@ export class Ledger {
       // work plane reads its status) — the same `conclusionOf` single source (D27).
       status: this.#handoffSchema.conclusionOf(this.planeOf("fix"), fixCarrier),
       findings: this.#findingsOf(reviewCarrier),
-      reviewsPath: this.#reviewsPathOf(type, params, round),
-      consecutiveS1: this.#consecutiveS1Run(type, params, round),
+      reviewsPath: this.#reviewsPathOf(type, reviewParams, round),
+      consecutiveS1: this.#consecutiveS1Run(type, reviewParams, round),
     };
   }
 }

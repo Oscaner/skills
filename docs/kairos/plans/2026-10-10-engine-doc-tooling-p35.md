@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P35 计划：plan 读取收权（一份读取 · 一个失败值 · 一条拒绝通道）'
 doc-type: plan
-version: v0.1
+version: v0.2
 date: 2026-11-14
 slug: 2026-10-10-engine-doc-tooling-p35
 base: develop
@@ -15,7 +15,7 @@ base: develop
 - **不动收敛主线**：`session/next.ts` 的 `PIPELINE_NEXT`、`NextStepRouter` 的分级判据、`TargetFaceTable` 的三 kind 与 `session/dispatch-authority.ts` 的 station 词表**零改动**。`BoardNext.of` 的短路用的是既有的 hop-less 分支（`next === null`），不是新路由。
 - **一份读取**：`new PlanDocType("plan")` 的合法构造点只留 `contract/doc.ts` 的登记行与 `infra/plan-source.ts`；`BriefRenderer` 的第二处解析**删除**，不开白名单。
 - **值携带行为**：`PlanRead` 的访问器各承担一种语义（`text` / `doc` / `graph` / `waves` / `degradedWaveRow` / `cell` / `planLine` / `warnLine` / `refusal`），消费点不写 `switch (read.kind)`；生产者的本分只是降级字面量（健康行 / 健康格返回 `null`，装配者按今日路径渲染）。
-- **不重写扫描谓词**：`infra/slug-index.ts` 的 `#scanRoot` 只多带一个已解析标量（`declaredPlan`），不接受不可读候选；`progress` 账本口径与 `recordPlanTasks` 形状不动；`session/run.ts` 的 stall 语义保留。
+- **不重写扫描谓词**：`infra/slug-index.ts` 的 `#scanRoot` 不为 plan 路径新增任何字段——路径由 slug 派生（`ENGINE_RUNTIME.docRoots.plans/<slug>.md`），索引仍不接受不可读候选；`progress` 账本口径与 `recordPlanTasks` 形状不动；`session/run.ts` 的 stall 语义保留。
 - **不新增 CLI 动词或旗标**，不重排 board 既有列与 `next:` / `reason:` 字节；`CDD_WARN:` 一律 stderr。
 - **不引入新依赖**；changeset 只 `@oscaner-skills/cdd-engine` **minor**（D74）；不发布；波宽 ≤ 3；零模块级裸函数，新类按 OOP-first 落。
 
@@ -78,81 +78,37 @@ none
 
 ---
 
-### Task 2: `plan:` 声明从 front matter 走到 index entry
+### Task 2: `infra/plan-source.ts` — 一个深类、两个入口、一个携带行为的值
 
 #### Objective
 
-给相位文档一个可选的 `plan:` 声明键，并让它以**零额外解析**进入索引。三件：`contract/frontmatter.ts` 的 `FrontMatterHead` 增 `get plan(): string | null`，沿用既有「每键一个 typed getter」的形状（`value(key)` 是通用读法，getter 是消费面）；`infra/slug-index.ts` 的 `DocEntry` 增 `declaredPlan: string | null`，`#scanRoot` 建 entry 时从它**已经解析出的那份 `head`** 取值，不第二次 parse YAML；不新增 skeleton 槽位、不新增 doc-contract 元素——`schema get --output skeleton` 不吐该键、`contract/project.ts` 的元素表不动，该键由 fixture 手写。本任务只搬运标量，**不做域校验**（域校验在 `PlanSource.readDeclared`，见 Task 3）。
-
-#### Files
-
-- Modify: `packages/cdd-engine/src-next/contract/frontmatter.ts`（`FrontMatterHead` 增 `get plan(): string | null`，与 `title` / `docType` 同形，非标量或缺失回 `null`）
-- Modify: `packages/cdd-engine/src-next/infra/slug-index.ts`（`DocEntry` 增 `declaredPlan`；`#scanRoot` 建 entry 时从同一份 head 取标量，不重解析）
-- Test: `packages/cdd-engine/src-next/contract/__tests__/frontmatter.test.ts`（`plan:` 缺失 → `null`；标量 → 该值；列表 / map → `null`；引号包裹的路径去引号）
-- Test: `packages/cdd-engine/src-next/infra/__tests__/slug-index.test.ts`（声明键进 `DocEntry.declaredPlan`；无该键的既有语料 entry 为 `null`；不可读候选仍不进索引）
-
-#### Consumes
-
-- `FrontMatterHead`（`contract/frontmatter.ts:40-80`）的 `#data` / `value(key)` / 既有 typed getter
-- `infra/slug-index.ts` 的 `#scanRoot` 与 `DocEntry` 形状
-
-#### Produces
-
-- `FrontMatterHead#plan: string | null`
-- `DocEntry.declaredPlan: string | null`
-
-#### Steps
-
-- 写失败测（head）：四档输入（缺失 / 标量 / 列表 / map）各自断言 — checkable: 定向 vitest FAIL（今日无 `plan` getter）
-- 写失败测（index）：一份带 `plan: docs/kairos/plans/x.md` 的相位文档进索引后 `declaredPlan` 为该串；同批一份不带该键的文档为 `null` — checkable: FAIL（今日 `DocEntry` 无该字段）
-- 实现 `FrontMatterHead#plan` — checkable: head 测 PASS
-- 让 `#scanRoot` 从已解析的 head 带出标量 — checkable: index 测 PASS · `infra/__tests__/slug-index.test.ts` 既有用例全绿（不可读候选仍不入索引）
-- 全量回归 — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/infra src-next/contract` 与 `pnpm exec tsc --noEmit -p packages/cdd-engine` 均 exit 0
-
-#### Acceptance
-
-- `plan:` 缺失回 `null`，标量回该值，非标量（列表 / map）回 `null`；`DocEntry.declaredPlan` 与 head 同源，索引不为它多解析一次 YAML。
-- 既有语料的全部 entry `declaredPlan` 为 `null`（今日无文档声明该键——`grep -rn "^plan:" docs/kairos` 零命中，本计划不得引入任何文档级声明）。
-- skeleton 与 doc-contract 元素表零改动：`cdd schema get phase-spec --output skeleton` 的输出逐字节不变。
-- `#scanRoot` 的不可读候选行为不变（不因新字段而放行）。
-
-#### DependsOn
-
-none
-
----
-
-### Task 3: `infra/plan-source.ts` — 一个深类、两个入口、一个携带行为的值
-
-#### Objective
-
-把 plan 的 read + parse + classify 收进一处：新增深类 `PlanSource`（家：`infra/plan-source.ts`），构造注入 `DocFs`（默认 `NodeFs`），两个入口 `readDeclared(entry, index)`（声明面：`entry.declaredPlan` 优先，缺省回落 `entry.slug === null ? null : index.planOf(entry.slug)?.rel`）与 `readPath(rel)`（argv 面），同一个 `PlanRead`。判别值三态 `undeclared` / `unreadable`（`cause: "io" | "syntax"`）/ `ready`（`path` / `text` / `doc` / `graph`，`graph` 由同一次解析 eager 派生）。spec §2.1 的三态以**类**实现（私有判别字段 + `kind` getter + 九个访问器），消费面的契约与 spec 逐条一致，不用裸判别联合让七个调用点各写一遍 `switch`。值**携带行为**：`text()` / `doc()` / `graph()` / `waves()` / `degradedWaveRow(words)` / `cell(words)` / `planLine(words)` / `warnLine(words)` / `refusal(words)`，消费点不写 `switch (read.kind)`。生产者的本分只是降级字面量：`degradedWaveRow` 与 `cell` 在 `ready` 且有波次时均返回 `null`（健康行 / 健康格归装配者）。`plan:` 的值在此处设域：**repo 相对**、经 `RepoRoot` 解析、不得绝对、不得 `..` 逃出 doc roots；越域值**不得抵达** `DocFs.read`——按 `doc-contract` 结构拒绝处理（`kind: "unreadable"`、`cause: "syntax"`、`field: "plan"`、`message` 取新增 `planPathInvalid` 词行、`path` 置空串，越域原值不回显）。`PlanReadWords` 是 `infra/plan-source.ts` 自己声明的词表端口，由 `face/words.ts` 的 `Words` 实现。
+把 plan 的 read + parse + classify 收进一处：新增深类 `PlanSource`（家：`infra/plan-source.ts`），构造注入 `DocFs`（默认 `NodeFs`），两个入口 `readFor(entry)`（派生面：`entry.slug` → `${ENGINE_RUNTIME.docRoots.plans}/${slug}.md`，先探存在性——不存在即 `undeclared`，存在才读，`read` 回 `null` 即 `unreadable`/`io`）与 `readPath(rel)`（argv 面），同一个 `PlanRead`。派生不咨询索引的内容谓词，因此「存在但读不出」零声明即可达 `cause: "io"`；slug 是唯一身份，路径不进 front matter（见 spec §2.1「没有声明键」）。判别值三态 `undeclared` / `unreadable`（`cause: "io" | "syntax"`）/ `ready`（`path` / `text` / `doc` / `graph`，`graph` 由同一次解析 eager 派生）。spec §2.1 的三态以**类**实现（私有判别字段 + `kind` getter + 九个访问器），消费面的契约与 spec 逐条一致，不用裸判别联合让七个调用点各写一遍 `switch`。值**携带行为**：`text()` / `doc()` / `graph()` / `waves()` / `degradedWaveRow(words)` / `cell(words)` / `planLine(words)` / `warnLine(words)` / `refusal(words)`，消费点不写 `switch (read.kind)`。生产者的本分只是降级字面量：`degradedWaveRow` 与 `cell` 在 `ready` 且有波次时均返回 `null`（健康行 / 健康格归装配者）。路径不来自作者：派生值天然是 repo 相对形式，因此没有域可校、没有作者输入可越界。`PlanReadWords` 是 `infra/plan-source.ts` 自己声明的词表端口，由 `face/words.ts` 的 `Words` 实现。
 
 #### Files
 
 - Add: `packages/cdd-engine/src-next/infra/plan-source.ts`（`PlanSource` + `PlanRead` + `PlanReadWords` 端口 + 域名校验；无模块级裸函数，`catch` 不得为空）
-- Modify: `packages/cdd-engine/src-next/face/words.ts`（实现 `PlanReadWords`：`planReadWord(cause)` 只承担 `io` / `syntax`；`planEmptyWord()` 与 `cellEmpty` 并列；`warnPrefix` 取既有 `warn: "CDD_WARN:"` 行；新增 `planPathInvalid` 行）
-- Test: `packages/cdd-engine/src-next/infra/__tests__/plan-source.test.ts`（三态 × 两个入口 · 访问器语义 · 越域拒绝 · 每次读取只解析一次）
+- Modify: `packages/cdd-engine/src-next/face/words.ts`（实现 `PlanReadWords`：`planReadWord(cause)` 只承担 `io` / `syntax`；`planEmptyWord()` 与 `cellEmpty` 并列；`warnPrefix` 取既有 `warn: "CDD_WARN:"` 行）
+- Test: `packages/cdd-engine/src-next/infra/__tests__/plan-source.test.ts`（三态 × 两个入口 · 派生边界（slug 为 null / 文件不存在 / 存在读不出）· 访问器语义 · 每次读取只解析一次）
 
 #### Consumes
 
 - `contract/invariants.ts` 的 `DocFs` / `NodeFs`（T1 未动，只读用）
-- `infra/slug-index.ts` 的 `DocEntry.declaredPlan` 与 `SlugIndex#planOf`（Task 2）
+- `infra/slug-index.ts` 的 `DocEntry.slug`（相位文档的身份，只读）与 `infra/doc-roots.ts` 的 `ENGINE_DOC_ROOTS.plans`（全库唯一根值，`infra/runtime.ts` 以 `ENGINE_RUNTIME.docRoots` 暴露）
 - `contract/doc.ts` 的 `DocType` 登记表 `docTypeParsers` 与 `DocSyntaxError`（Task 1）、`TaskGraph`（`contract/task-blocks.ts`）
 - `face/words.ts` 的 `Words`（被实现方）
 
 #### Produces
 
-- `class PlanSource { constructor(fs?: DocFs) ; readDeclared(entry: DocEntry, index: SlugIndex): PlanRead ; readPath(rel: string): PlanRead }`
+- `class PlanSource { constructor(fs?: DocFs) ; readFor(entry: DocEntry): PlanRead ; readPath(rel: string): PlanRead }`
 - `class PlanRead { kind ; path() ; text(): string | null ; doc(): PlanParsed | null ; graph(): TaskGraph | null ; waves(): readonly TaskBatch[] ; degradedWaveRow(words): string | null ; cell(words): string | null ; planLine(words): string | null ; warnLine(words): string | null ; refusal(words): { gate: "doc-contract"; reason: "doc-contract"; message: string } | null }`
-- `interface PlanReadWords { planReadWord(cause: "io" | "syntax"): string ; planEmptyWord(): string ; cellEmpty: string ; warnPrefix: string ; planPathInvalid: string }`
+- `interface PlanReadWords { planReadWord(cause: "io" | "syntax"): string ; planEmptyWord(): string ; cellEmpty: string ; warnPrefix: string }`
 
 #### Steps
 
 - 写失败测（三态）：不存在声明 → `undeclared`；声明了但 `DocFs.read` 回 `null` → `unreadable`/`io`；声明了、读得到、文法坏 → `unreadable`/`syntax` 且 `field` 指向重复节；读得到且合法 → `ready` 且 `graph()` 的 wave 数与 hand-count 相同 — checkable: 定向 vitest FAIL（今日无该类）
-- 写失败测（两入口同源）：同一份好 plan，`readDeclared`（经 `planOf` 回落）与 `readPath` 产出的 `path` / `waves()` 逐项相同 — checkable: FAIL
+- 写失败测（两入口同源）：同一份好 plan，`readFor`（slug 派生）与 `readPath` 产出的 `path` / `waves()` 逐项相同 — checkable: FAIL
 - 写失败测（访问器语义）：`ready` 且有波次时 `degradedWaveRow` 与 `cell` 均回 `null`；`ready` 且零 task block 时两者都回 `planEmptyWord()`；`undeclared` 时前者 `(none)`、后者 `cellEmpty`；`unreadable` 时两者为 `! unparseable` / `! unreadable`，`text()` / `doc()` 为 `null` — checkable: FAIL
-- 写失败测（越域拒绝）：`plan: /abs/path.md` 与 `plan: ../../etc/x.md` 均产 `unreadable`/`syntax`、`field === "plan"`、`path === ""`，且注入的 `DocFs` 记录到**零次 read** — checkable: FAIL
+- 写失败测（派生边界）：`entry.slug === null` → `undeclared`；slug 有值但 `plans/<slug>.md` 不存在 → `undeclared`（今日 `(none)` 的语义）；存在但 `DocFs.read` 回 `null` → `unreadable`/`io`，且该路径**从未经索引**取得（`SlugIndex` 不在 `readFor` 的入参里）— checkable: FAIL
 - 写失败测（一次解析）：一次 `readPath` 只产生一次 `PlanDocType#parse`（用计数 `DocFs` + 计数解析器 spy 断言） — checkable: FAIL
 - 实现 `PlanSource` / `PlanRead` 与域名校验 — checkable: 上述四组 PASS
 - 在 `face/words.ts` 实现 `PlanReadWords` 五行，`planReadWord` 不接受 `planEmpty` 语义 — checkable: 词行断言 PASS · `face/__tests__/words.test.ts` 既有用例全绿
@@ -160,18 +116,18 @@ none
 
 #### Acceptance
 
-- 三态与两入口：`readDeclared` / `readPath` 走同一条读 + 解析 + 分类路径，同一份 plan 产出的 `path` / `waves()` 逐项相同；每次读取只解析一次（`graph` 是 eager 派生，不是第二重惰性事实源）。
-- 越域声明：`unreadable`/`syntax`、`field === "plan"`、`path === ""`，`DocFs` 零次 read，`refusal(words)` 给出 `gate: "doc-contract"` / `reason: "doc-contract"` 与 `planPathInvalid` 报文。
+- 三态与两入口：`readFor` / `readPath` 走同一条读 + 解析 + 分类路径，同一份 plan 产出的 `path` / `waves()` 逐项相同；每次读取只解析一次（`graph` 是 eager 派生，不是第二重惰性事实源）。
+- 派生边界：slug 为 `null` 或派生路径不存在 → `undeclared`（今日字节）；派生路径存在但读不出 → `unreadable`/`io`——「存在但读不出」不靠任何作者声明即可达，`SlugIndex` 不出现在 `readFor` 的签名里。
 - `degradedWaveRow` / `cell` 在 `ready` 且有波次时均返回 `null`（健康字节归装配者）；四语义字面量各由一条断言覆盖，`(empty plan)` 取自 `planEmptyWord()`、`""` 只属 `undeclared`。
 - 文件内无空 `catch`，无模块级裸函数；消费方不需要 `switch (read.kind)` 即可拿到所需事实。
 
 #### DependsOn
 
-1, 2
+1
 
 ---
 
-### Task 4: brief 不再解析——三个公开面收 `text` + `doc`
+### Task 3: brief 不再解析——三个公开面收 `text` + `doc`
 
 #### Objective
 
@@ -219,7 +175,7 @@ none
 
 ---
 
-### Task 5: dispatch 面收口——不挂门的结构拒绝、ready-only 的 graph 门、缺证据不授权
+### Task 4: dispatch 面收口——不挂门的结构拒绝、ready-only 的 graph 门、缺证据不授权
 
 #### Objective
 
@@ -269,15 +225,15 @@ none
 
 #### DependsOn
 
-3
+2
 
 ---
 
-### Task 6: board 面收口——删掉视图面的读取权
+### Task 5: board 面收口——删掉视图面的读取权
 
 #### Objective
 
-`face/board-view.ts` 的 `BoardView.planGraph`（`catch { return null; }`）删除，板面不再自己读盘：`Cli#runBoard` 内部构造 `PlanRead`（`--plan` 走 `readPath`、`--spec` 走 `readDeclared`；overall 视图按 `index.phaseSpecsOf(slug)` 的行序形成一张有序值表），以**参数**传给 `BoardNext.of` 与 `BoardView.pipelineFacts`；`BoardView.render` / `#programBoard` / `#waveLines` 仍是静态方法，但收值不再自读。渲染按 spec §2.4 的四语义落地：doc 面先问 `degradedWaveRow(words)`（`null` 才按今日路径渲健康行：`waves()` + `graph.report(ledger.closedWaves())` + `#rowRounds` + `LineCarriers`，一字不改），程序面先问 `cell(words)`（`null` 才渲 `waves[0]!.label.split(" ")[0] + "…"`），plan 行的事实源恒为 `PlanRead.path`——该路径解析到索引 `DocEntry` 就用既有 `#docCell`（今日字节不变），否则用 `planLine(words)`（不包 `DocEntry`、不进 `#entryMark`、不进 `#docCell` blocked）。board 收到非 ready 时不派生任何波次路由：`BoardNext.of` 短路到既有 hop-less 形态 `  next:    (none)`、不出 `reason:` 行，`undeclared` 不在短路之列。诊断走 `Cli#runBoard` 写 stderr 的 `CDD_WARN:`（overall 板每个非 ready 相位各一行、行内带相位 id；程序面每个坏 plan 相位各一行、行内带 `slug:`），stdout 的 wave 块零字节变化、退出码仍 0。argv 归类顺序写死：① `SlugIndex.insideDocRoots` + `existsSync` 不过 → 既有 `#boardNotFound`（`no docs match`，exit 2）；② 存在则读字节，读失败 → `cdd board: cannot read --plan <path>: <原因>`（exit 2，不出板面）；③ 字节到手后由索引成员性裁决 → 不在索引即 `no docs match`（exit 2）；④ 只有已入索引的 plan 才走文法判决（`! unparseable` 渲板面、exit 0）。重叠取此序：存在但读不出 ∧ 不在索引 → `cannot read`；读得到 ∧ 不在索引 ∧ 文法坏 → `no docs match`。
+`face/board-view.ts` 的 `BoardView.planGraph`（`catch { return null; }`）删除，板面不再自己读盘：`Cli#runBoard` 内部构造 `PlanRead`（`--plan` 走 `readPath`、`--spec` 走 `readFor`；overall 视图按 `index.phaseSpecsOf(slug)` 的行序形成一张有序值表），以**参数**传给 `BoardNext.of` 与 `BoardView.pipelineFacts`；`BoardView.render` / `#programBoard` / `#waveLines` 仍是静态方法，但收值不再自读。渲染按 spec §2.4 的四语义落地：doc 面先问 `degradedWaveRow(words)`（`null` 才按今日路径渲健康行：`waves()` + `graph.report(ledger.closedWaves())` + `#rowRounds` + `LineCarriers`，一字不改），程序面先问 `cell(words)`（`null` 才渲 `waves[0]!.label.split(" ")[0] + "…"`），plan 行的事实源恒为 `PlanRead.path`——该路径解析到索引 `DocEntry` 就用既有 `#docCell`（今日字节不变），否则用 `planLine(words)`（不包 `DocEntry`、不进 `#entryMark`、不进 `#docCell` blocked）。board 收到非 ready 时不派生任何波次路由：`BoardNext.of` 短路到既有 hop-less 形态 `  next:    (none)`、不出 `reason:` 行，`undeclared` 不在短路之列。诊断走 `Cli#runBoard` 写 stderr 的 `CDD_WARN:`（overall 板每个非 ready 相位各一行、行内带相位 id；程序面每个坏 plan 相位各一行、行内带 `slug:`），stdout 的 wave 块零字节变化、退出码仍 0。argv 归类顺序写死：① `SlugIndex.insideDocRoots` + `existsSync` 不过 → 既有 `#boardNotFound`（`no docs match`，exit 2）；② 存在则读字节，读失败 → `cdd board: cannot read --plan <path>: <原因>`（exit 2，不出板面）；③ 字节到手后由索引成员性裁决 → 不在索引即 `no docs match`（exit 2）；④ 只有已入索引的 plan 才走文法判决（`! unparseable` 渲板面、exit 0）。重叠取此序：存在但读不出 ∧ 不在索引 → `cannot read`；读得到 ∧ 不在索引 ∧ 文法坏 → `no docs match`。
 
 #### Files
 
@@ -319,11 +275,11 @@ none
 
 #### DependsOn
 
-3, 5
+2, 4
 
 ---
 
-### Task 7: 唯一构造点门
+### Task 6: 唯一构造点门
 
 #### Objective
 
@@ -358,11 +314,11 @@ none
 
 #### DependsOn
 
-3, 4
+2, 3
 
 ---
 
-### Task 8: 三面一致性 + 验收收口
+### Task 7: 三面一致性 + 验收收口
 
 #### Objective
 
@@ -371,7 +327,7 @@ none
 #### Files
 
 - Add: `packages/cdd-engine/src-next/session/__tests__/plan-read-consistency.test.ts`（三面逐格相等，健康 / 坏各一条）
-- Modify: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（AC 剩余可见字节断言：`wave` / `branch` 面拒绝、`--dry-run` BLOCKED、越域声明的逐字面 plan 行）
+- Modify: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（AC 剩余可见字节断言：`wave` / `branch` 面拒绝、`--dry-run` BLOCKED、slug 与文件名不一致时的 `(none)` 边界）
 - Modify: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（`(empty plan)` 与 `(none)` 相邻；四语义不混同的最终 pin）
 - Add: `.changeset/p35-plan-read-authority.md`（`@oscaner-skills/cdd-engine` minor，D74——新增拒绝面与一格渲染字面属消费可见字节变化）
 
@@ -390,7 +346,7 @@ none
 
 - 写失败测（三面一致性 · 健康）：同一份好 plan，板面 wave 行标签序列、`PreFlight` 的 graph wave 集、frontier 的 wave 键逐格相等 — checkable: 定向 vitest FAIL（今日三处各读一次，无共同事实源）
 - 写失败测（三面一致性 · 坏）：坏 plan 上三面同时「不产出波次」而不是互不一致（板面 `! unparseable`、判定拒绝、frontier 不派生）— checkable: FAIL
-- 写失败测（AC 剩余字节）：`--type wave` / `--type branch` 的 `CDD_BLOCKED:` 与 `reason: doc-contract`、`--dry-run` 同批 BLOCKED、越域声明的 `  plan     ! unparseable` 逐字面对照 — checkable: FAIL（未实现前）
+- 写失败测（AC 剩余字节）：`--type wave` / `--type branch` 的 `CDD_BLOCKED:` 与 `reason: doc-contract`、`--dry-run` 同批 BLOCKED、slug 与 plan 文件名不一致时读作 `undeclared`（`  wave     (none)` + exit 0） — checkable: FAIL（未实现前）
 - 跑三面一致性 + AC 组 — checkable: 全绿
 - 补 changeset（cdd-engine minor） — checkable: `scripts/__tests__/changeset-levels.test.ts` 绿
 - 全量验收 — checkable: `pnpm run validate` exit 0（含 `emit:check`、root / kairos / engine 三套测试、typecheck ×3、`check:dist-smoke`、`version-sync`、`check:no-bare-functions`）
@@ -404,10 +360,11 @@ none
 
 #### DependsOn
 
-5, 6, 7
+4, 5, 6
 
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-14 | 初稿：按 spec v0.9 拆八个任务、五波（T1 契约面 `DocSyntaxError` + `DocSlices#taskHeadingPattern` + judge 物化；T2 `plan:` 声明进索引；T3 `PlanSource` / `PlanRead` / `PlanReadWords`；T4 brief 删解析；T5 dispatch 面不挂门拒绝 + 三步 frontier 收值；T6 board 面删 `planGraph` + 四语义 + argv 四步归类；T7 构造点门；T8 三面一致性 + 验收收口） | Claude（kairos:cdd-plan · 2026-11-14） |
+| v0.2 | 2026-11-14 | 作者裁定（设计回填 v0.10 随动）：**删除「`plan:` 声明」任务**——slug 是唯一身份，plan 路径由 `ENGINE_RUNTIME.docRoots.plans/<slug>.md` 派生，不写进 front matter；`PlanSource` 的派生面入口改名 `readFor(entry)`（不再收 `SlugIndex`、不再读 `entry.declaredPlan`），越域校验与 `planPathInvalid` 词行随之消失，「存在但读不出」改为「派生路径存在、读回 `null`」；任务由八条重排为七条（旧 T3–T8 → T2–T7），依赖边同步，波次 `W1 {1} · W2 {2,3} · W3 {4,6} · W4 {5} · W5 {7}` | Claude（kairos:cdd-plan · 2026-11-14） |

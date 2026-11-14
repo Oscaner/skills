@@ -1550,6 +1550,38 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
     }
   });
 
+  it("a crashed review's carrier-less record resumes on the REVIEW's attempt — never the fix frame's", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // The S2 registry row a crashed review legitimately leaves: the round is on the
+      // books, no carrier resolves (`#reviewsPath` reads null), so the fix face falls
+      // back to the family name. That fallback holds ONLY the cycle — the review's own
+      // latest attempt is attempt 1, and a fix retried at attempt 2 must not ask the
+      // review family for a `-a2` name review attempt 1 never wrote.
+      f.scene.ledger.recordRound("phase-spec", {
+        op: "review",
+        cycle: 1,
+        attempt: 1,
+        carrierDigest: "0".repeat(64),
+      });
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const frame = atAttempt(fixFrameOf(specPath), 2);
+      await dispatchFrame(f, frame, new FailingRunner());
+      const naming = f.scene.ledger.naming();
+      const crash = f.scene.ledger.readCrash(naming.crashName(frame));
+      const reviewsOf = (command: string | null | undefined): string =>
+        command?.match(/--reviews (\S+)/)?.[1] ?? "";
+      expect(reviewsOf(crash?.next)).toContain("phase-spec-review-1.json");
+      expect(reviewsOf(crash?.next)).not.toContain("-a2");
+      // The same command rides the in-flight record written before the spawn.
+      const inFlight = JSON.parse(readFileSync(recordPathOf(f), "utf8")) as { command: string };
+      expect(reviewsOf(inFlight.command)).toContain("phase-spec-review-1.json");
+      expect(reviewsOf(inFlight.command)).not.toContain("-a2");
+    } finally {
+      f.cleanup();
+    }
+  });
+
   it("the abort fold seals the ATTEMPT-2 pair — attempt 1's window stays closed", async () => {
     const f = fixture(planDoc([[1, []]]));
     try {

@@ -1770,10 +1770,16 @@ export class CliLifecycle {
         // The `--reviews` input is the SAME carrier the fix prompt names (P31 §2.3): one
         // four-layer resolution, never a second family spelling spliced here. The
         // fallback fires only when the recorded face resolves to `null` (a legacy record
-        // with no carrier on disk) — the never-null guard keeps a command shape.
+        // with no carrier on disk) — the never-null guard keeps a command shape. It holds
+        // only the CYCLE: the review family's attempt is its own recorded one (the central
+        // `#attemptAware` default), never this fix frame's — a fix retried at attempt 2
+        // would otherwise ask for a `-a2` name review attempt 1 never wrote.
         const findings =
           this.#reviewsPath(frame) ??
-          scene.ledger.resolveHandoffPath("review", frame.type, frame.params);
+          scene.ledger.resolveHandoffPath("review", frame.type, {
+            tasks: frame.params.tasks,
+            round: frame.round,
+          });
         const target =
           frame.target.kind === "plan"
             ? `--plan ${frame.target.doc}`

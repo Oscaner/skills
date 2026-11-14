@@ -19,6 +19,12 @@ retired spellings first — `spec-{op}-{round}.json`, and the cycle-less
 `tasks-{tasks}-implement.json` of a first-cycle implement — before reporting the carrier
 absent, so a folded legacy row and the orphan scan agree about the same file.
 
+**The fix resume names the review's own attempt.** A fix round that resumes over a
+review record whose carrier is gone falls back to the review family's name with only the
+cycle in hand: the family's attempt comes from its own recorded round, never from the
+retrying fix frame, so a crashed review is resumed on a name review attempt 1 actually
+wrote.
+
 **The board names a crash.** A round that booked a withheld target action with at least
 one hard violation renders its token in the top fact block's single `crashed:` row —
 op, cycle · attempt, and the first hard cause — with every crashed round joined by

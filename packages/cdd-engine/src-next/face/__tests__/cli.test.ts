@@ -3305,9 +3305,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     try {
       gitInit(repoRoot);
       const spec = conformingSpec(repoRoot);
-      // The same-slug plan the `--spec` round's argv never names: only the document
-      // index can supply it, and without it the frontier cannot see the plan face.
-      const planFile = path.join(repoRoot, "docs", "kairos", "plans", "s1-plan.md");
+      // The same-slug plan the `--spec` round's argv never names: the doc face derives
+      // it from the identity document's slug (`plans/<slug>.md`), and without it the
+      // frontier cannot see the plan face.
+      const planFile = path.join(repoRoot, "docs", "kairos", "plans", "s1.md");
       mkdirSync(path.dirname(planFile), { recursive: true });
       writeFileSync(
         planFile,
@@ -3334,7 +3335,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const capsuleLines = io.stdoutText.split("\n");
       const capsuleNext = capsuleLines.find((line) => line.startsWith("next: "))!;
       const capsuleReason = capsuleLines.find((line) => line.startsWith("reason: "))!;
-      const planLiteral = "review --type plan --plan docs/kairos/plans/s1-plan.md";
+      const planLiteral = "review --type plan --plan docs/kairos/plans/s1.md";
       expect(capsuleNext).toBe(`next: ${planLiteral}`);
 
       io.stdoutText = "";
@@ -3344,7 +3345,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           "--spec",
           "docs/kairos/specs/s1-design.md",
           "--plan",
-          "docs/kairos/plans/s1-plan.md",
+          "docs/kairos/plans/s1.md",
         ]),
       ).toBe(0);
       const boardNext = io.stdoutText

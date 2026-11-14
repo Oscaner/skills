@@ -505,21 +505,22 @@ export class CliLifecycle {
   /** The plan tasks whose `Files` declaration names no path — the verification-wave
    *  cell. The PLAN document is the only source (never the diff): an absent plan, a
    *  plan path pointing at no document or an unreadable one declares no empty row, so
-   *  a wave can never read as verification on a plan this dispatch could not see. */
+   *  a wave can never read as verification on a plan this dispatch could not see. A
+   *  document the grammar refuses is the same shape: it declares no row either (the
+   *  refusal leg speaks before the dispatch, and this cell never becomes a second,
+   *  louder reporter of a broken plan). */
   #emptyFileTasks(): ReadonlySet<number> {
     const planPath = this.#scene.planPath;
     if (planPath === null) return new Set();
-    let content: string;
     try {
-      content = readFileSync(planPath, "utf8");
+      const empty = new Set<number>();
+      for (const block of this.#blocks.parse(readFileSync(planPath, "utf8"))) {
+        if (this.#blocks.filePathsOf(block).length === 0) empty.add(block.id);
+      }
+      return empty;
     } catch {
       return new Set();
     }
-    const empty = new Set<number>();
-    for (const block of this.#blocks.parse(content)) {
-      if (this.#blocks.filePathsOf(block).length === 0) empty.add(block.id);
-    }
-    return empty;
   }
 
   /** The round IDENTITY the criterion judges from — its op / cycle / attempt and the

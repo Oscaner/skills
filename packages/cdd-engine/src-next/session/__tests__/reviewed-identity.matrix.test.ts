@@ -465,7 +465,10 @@ const runCell = async (
     target,
     // The SAME basis the ledger normalizes through — one basis per fixture, so the
     // recorded revision and the dispatch's path speak one shape.
-    plan: planPath === null ? null : new PlanSource(workspace.root.basis).readPath(planPath),
+    plan:
+      planPath === null
+        ? new PlanSource(workspace.root.basis).readFor(null)
+        : new PlanSource(workspace.root.basis).readPath(planPath),
   });
   const input = (): string =>
     cell.kind === "wave"

@@ -928,15 +928,18 @@ export class Ledger {
 
   /** Record a branch line's reviewed PLAN revision (P21 §4.1) — the plan
    *  document's body revision as the round LEFT it. The read rides the ledger's own
-   *  `PlanSource` (the ONE plan read point; the incoming path is repoRoot-relative),
-   *  so a round that edited its plan binds the edited bytes — never the dispatch-time
-   *  snapshot — while a non-ready read records nothing (present facts only, the
-   *  symmetric failure face to `recordReviewedBrief`). */
+   *  `PlanSource` (the ONE plan read point), so a round that edited its plan binds the
+   *  edited bytes — never the dispatch-time snapshot — while a non-ready read records
+   *  nothing (present facts only, the symmetric failure face to `recordReviewedBrief`).
+   *  The recorded path is normalized HERE, not by the caller (the same discipline
+   *  `#briefRevision` keeps): the drift comparator relativizes only its current side,
+   *  so an absolute argv-erasure shape handed in by a future caller would otherwise
+   *  read as a false drift. */
   recordReviewedPlanRevision(key: LedgerKey, planPath: string, identity: TargetType): void {
     const read = this.#plan.readPath(planPath);
     const text = read.text();
     if (text === null) return;
-    this.recordReviewedRevision(key, this.#refs.docRevision(planPath, text), identity);
+    this.recordReviewedRevision(key, this.#refs.docRevision(this.#rel(planPath), text), identity);
   }
 
   /** Record a wave line's reviewed BRIEF revision (D30) — the hash of the wave's

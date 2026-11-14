@@ -354,6 +354,17 @@ describe("PlanRead — the accessor value tables", () => {
     }
   });
 
+  it("document() hands the ready pair back and refuses every other kind", () => {
+    const { ready, empty, io, syntax, undeclared } = fixture();
+    // The ready state's contract, written in the type: the caller's `kind` guard is
+    // the only legal entry, so no call site re-narrows what the read decided.
+    expect(ready.document()).toEqual({ text: ready.text(), doc: ready.doc() });
+    expect(empty.document().text).toBe(empty.text());
+    // Any other kind is a broken invariant — loud, never "no document".
+    for (const read of [io, syntax, undeclared])
+      expect(() => read.document()).toThrow(/ready state carries no document/);
+  });
+
   it("waves() is the graph's own derivation, empty for every non-ready state", () => {
     const { ready, empty, io, syntax, undeclared } = fixture();
     expect(ready.waves()).toEqual([[1], [2]]);

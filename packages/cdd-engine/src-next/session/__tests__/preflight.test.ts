@@ -631,6 +631,8 @@ describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch
         ),
         dispatch,
         target: { kind: "spec", doc: "docs/kairos/specs/x.md" },
+        // No plan-bearing face on this frame: the `undeclared` read, never a null.
+        plan: new PlanSource(new RepoRoot(repoRoot)).readFor(null),
         preflight: { gate: () => blocked },
       });
       const step = await run.advance();

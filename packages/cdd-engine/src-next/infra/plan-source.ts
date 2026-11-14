@@ -198,6 +198,18 @@ export class PlanRead {
     return state.kind === "ready" ? state.doc : null;
   }
 
+  /** The ready read's two document values in ONE hand-off — the kind contract
+   *  written in the type, so a caller that already guarded `kind` never re-narrows
+   *  what the read decided. `text` and `doc` are non-null exactly when `kind` is
+   *  `ready`; any other kind is a BROKEN invariant (the caller's guard is the only
+   *  legal entry), so it throws instead of degrading the fact to "no document". */
+  document(): { readonly text: string; readonly doc: PlanParsed } {
+    const state = this.#state;
+    if (state.kind !== "ready")
+      throw new Error("cdd: a plan read outside the ready state carries no document");
+    return { text: state.text, doc: state.doc };
+  }
+
   /** The task graph (the gate's / frontier's / board's one graph input), derived
    *  eagerly from the same parse; null when not ready. */
   graph(): TaskGraph | null {

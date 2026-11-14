@@ -354,8 +354,9 @@ export class Lifecycle {
    *  plan snapshot's source, and the pipeline frontier's plan cells). The frontier
    *  path is `stationPath()` — the document that read out (its front matter
    *  parsed), so a `syntax` plan keeps its face while an `io` failure carries none.
-   *  Optional: a harness that dispatches no plan-bearing face passes none. */
-  readonly #plan: PlanRead | null;
+   *  REQUIRED: every command preamble holds a value (`undeclared` is a value), so no
+   *  harness can silently drop the brief hash and the plan snapshot by omission. */
+  readonly #plan: PlanRead;
   /** The pipeline frontier's declared identity — the spec line's DECLARED word (the
    *  `doc-type:` head key) and its document path. A node with no spec document
    *  (`#specPath === null`) keeps this line's own hop assembly: the frontier's rules
@@ -388,8 +389,9 @@ export class Lifecycle {
      *  on a refused frame" wiring; optional, null = unguarded). */
     preflight?: PreFlightGate | null;
     /** The plan read (P4.1 T4 — the implement `next:` literal's `--plan`; also the
-     *  pipeline frontier's plan cells and the reviewed-brief hash's source). */
-    plan?: PlanRead | null;
+     *  pipeline frontier's plan cells and the reviewed-brief hash's source). Required:
+     *  a harness with no plan document holds the `undeclared` value, never a null. */
+    plan: PlanRead;
     /** The spec line's DECLARED word and document path (the pipeline frontier's
      *  identity cells) — absent on a bare slug or a spec-less phase. */
     specType?: TargetType | null;
@@ -409,7 +411,7 @@ export class Lifecycle {
     this.#target = opts.target ?? null;
     this.#capsule = opts.capsule ?? null;
     this.#preflight = opts.preflight ?? null;
-    this.#plan = opts.plan ?? null;
+    this.#plan = opts.plan;
     this.#specType = opts.specType ?? null;
     this.#specPath = opts.specPath ?? null;
     this.#planGraph = opts.planGraph ?? null;
@@ -604,7 +606,7 @@ export class Lifecycle {
     // after the terminal branch review reopens the branch-review lead, an unchanged
     // plan keeps the line closed. Same gate, same judgment — only the doc path is
     // the line's plan (the audit target itself carries no doc).
-    const planPath = this.#plan?.stationPath() ?? null;
+    const planPath = this.#plan.stationPath();
     if (target.kind === "branch" && planPath !== null) {
       const verdict = this.#ledger.reviewGate(key, planPath, "branch");
       if (this.#ledger.docReopens(key, "branch", verdict)) return reviewLead;
@@ -831,7 +833,7 @@ export class Lifecycle {
    *  review or fix round. Null plan path / underivable brief records nothing (present
    *  facts only). */
   #recordReviewedWaveBrief(frame: OpenFrame): void {
-    const planPath = this.#plan?.stationPath() ?? null;
+    const planPath = this.#plan.stationPath();
     if (frame.target.kind !== "wave" || planPath === null) return;
     this.#ledger.recordReviewedBrief(String(frame.key), planPath);
   }
@@ -844,7 +846,7 @@ export class Lifecycle {
    *  the write-back never turns a repoRoot-relative path into a cwd-relative syscall.
    *  A null plan path records nothing (present facts only). */
   #recordReviewedBranchRevision(frame: OpenFrame): void {
-    const planPath = this.#plan?.stationPath() ?? null;
+    const planPath = this.#plan.stationPath();
     if (planPath === null) return;
     this.#ledger.recordReviewedPlanRevision(frame.key, planPath, frame.type);
   }
@@ -893,7 +895,7 @@ export class Lifecycle {
    *  fabricated `[]` (an absent snapshot reads conservatively as "stall" in the wave
    *  gate). */
   #recordPlanSnapshot(frame: OpenFrame): void {
-    const doc = this.#plan?.doc() ?? null;
+    const doc = this.#plan.doc();
     if (doc === null) return;
     this.#ledger.recordPlanTasks(
       String(frame.key),
@@ -970,7 +972,7 @@ export class Lifecycle {
    *  (its identity document, P21 §4.1); null off the doc faces. */
   #docOf(frame: OpenFrame): string | null {
     if (frame.target.kind === "plan" || frame.target.kind === "spec") return frame.target.doc;
-    if (frame.target.kind === "branch") return this.#plan?.stationPath() ?? null;
+    if (frame.target.kind === "branch") return this.#plan.stationPath();
     return null;
   }
 
@@ -991,7 +993,7 @@ export class Lifecycle {
     return {
       specType: this.#specType,
       specPath: this.#specPath,
-      planPath: this.#plan?.stationPath() ?? null,
+      planPath: this.#plan.stationPath(),
       planGraph: this.#planGraph,
     };
   }
@@ -1001,7 +1003,7 @@ export class Lifecycle {
    *  shared hop assembly's sixth cell). The lifecycle now holds no copy of the gate /
    *  route combination. */
   #branchLineOpen(): boolean | undefined {
-    return this.#frontier.branchLineOpen(this.#plan?.stationPath() ?? null);
+    return this.#frontier.branchLineOpen(this.#plan.stationPath());
   }
 
   /** The capsule lines of one step — empty unless a capsule is attached (the non-hard
@@ -1045,7 +1047,7 @@ export class Lifecycle {
         return {
           type: "wave",
           id: frame.params.tasks ?? "",
-          plan: this.#plan?.stationPath() ?? undefined,
+          plan: this.#plan.stationPath() ?? undefined,
         };
       case "branch":
         // The branch line's stable id — the workspace plan path carries the
@@ -1055,7 +1057,7 @@ export class Lifecycle {
         return {
           type: "branch",
           id: "branch",
-          plan: this.#plan?.stationPath() ?? undefined,
+          plan: this.#plan.stationPath() ?? undefined,
         };
       case "phase-spec":
       case "overall":

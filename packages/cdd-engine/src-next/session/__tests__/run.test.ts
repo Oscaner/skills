@@ -128,8 +128,17 @@ const briefHash = (planPath: string, tasks: string): string => {
 
 /** The plan read for one fixture plan — a REAL read through the seam (the value is
  *  never hand-minted: `PlanRead` has no factory). */
-const planReadOf = (repo: string, planPath: string | null): PlanRead | null =>
-  planPath === null ? null : new PlanSource(new RepoRoot(repo)).readPath(planPath);
+const planReadOf = (repo: string, planPath: string | null): PlanRead =>
+  planPath === null
+    ? new PlanSource(new RepoRoot(repo)).readFor(null)
+    : new PlanSource(new RepoRoot(repo)).readPath(planPath);
+
+/** The plan value of a harness that dispatches no plan-bearing face — the
+ *  `undeclared` read a `PlanSource` derives for a null identity (never a minted
+ *  value: `PlanRead` has no factory). The constructor item is REQUIRED, so every
+ *  harness states which plan it holds instead of silently dropping the brief hash
+ *  and the plan snapshot. */
+const NO_PLAN: PlanRead = new PlanSource(new RepoRoot("/")).readFor(null);
 const phasesOf = (steps: readonly StepResult[]): readonly (string | null)[] =>
   steps.map((step) => step.frame.phase);
 
@@ -184,6 +193,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -249,6 +259,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -296,6 +307,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -329,6 +341,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -374,6 +387,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -425,6 +439,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -458,6 +473,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
@@ -489,6 +505,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
@@ -519,6 +536,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -544,6 +562,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -597,6 +616,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -640,6 +660,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -678,6 +699,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -718,6 +740,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
           face: targetFaces[type],
           state: EMPTY_RUN_STATE,
           ledger,
+          plan: NO_PLAN,
           dispatch: dispatch.step,
           target: { kind: type === "plan" ? "plan" : "spec", doc: DOC },
         });
@@ -756,6 +779,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
@@ -789,6 +813,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
         face: targetFaces.overall,
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
@@ -821,6 +846,7 @@ describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", 
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
       await run.advance();
@@ -844,6 +870,7 @@ describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", 
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
@@ -873,6 +900,7 @@ describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", 
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
       await run.advance(); // implement 1 — the work face
@@ -910,6 +938,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
         face: targetFaces.branch,
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "branch" },
       });
@@ -943,6 +972,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
         face: targetFaces.branch,
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: stub((_frame) => ({ status: "APPROVED", findings: [] })).step,
       });
       expect(await run.advance()).toBeNull();
@@ -974,6 +1004,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
         face: targetFaces.branch,
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "branch" },
       });
@@ -1039,6 +1070,7 @@ describe("P24 §2 — a completed round advances the line's reviewed identity", 
           face: targetFaces[type],
           state: EMPTY_RUN_STATE,
           ledger,
+          plan: NO_PLAN,
           dispatch: dispatch.step,
           target: { kind: type === "plan" ? "plan" : "spec", doc },
         });
@@ -1082,6 +1114,7 @@ describe("P24 §2 — a completed round advances the line's reviewed identity", 
           face: targetFaces[type],
           state: EMPTY_RUN_STATE,
           ledger,
+          plan: NO_PLAN,
           dispatch: dispatch.step,
           target: { kind: type === "plan" ? "plan" : "spec", doc },
         });
@@ -1120,6 +1153,7 @@ describe("P24 §2 — a completed round advances the line's reviewed identity", 
           face: targetFaces[type],
           state: EMPTY_RUN_STATE,
           ledger,
+          plan: NO_PLAN,
           dispatch: dispatch.step,
           target: { kind: type === "plan" ? "plan" : "spec", doc },
         });
@@ -1311,6 +1345,7 @@ describe("P22 §5.2 — the capsule's NextHop absence on the failure face", () =
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: stub((frame) => {
           if (frame.phase === "implement")
             return blocked ? { status: "BLOCKED" } : APPROVED_IMPLEMENT;
@@ -1347,6 +1382,7 @@ describe("the capsule interaction seam — non-hard consumption", () => {
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -1426,6 +1462,7 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         // no planPath — the wave review completes with no plan fact on record
       });
@@ -1871,6 +1908,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
         face: targetFaces.wave,
         state: taskGraph([task(1, "none")]),
         ledger,
+        plan: NO_PLAN,
         dispatch: stub((frame) =>
           frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
         ).step,
@@ -1915,6 +1953,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
         target: { kind: "spec", doc: specPath },
         specType: "phase-spec",
@@ -1967,6 +2006,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
         face: targetFaces.overall,
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
         target: { kind: "spec", doc: specPath },
         specType: "overall",
@@ -2010,6 +2050,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
           face: targetFaces["single-spec"],
           state: EMPTY_RUN_STATE,
           ledger: bareLedger,
+          plan: NO_PLAN,
           dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
           target: { kind: "spec", doc: bareSpec },
           specType: "single-spec",
@@ -2078,6 +2119,7 @@ describe("P31 T6 — the write-back binds only bytes the round touched", () => {
       face: targetFaces["phase-spec"],
       state: EMPTY_RUN_STATE,
       ledger,
+      plan: NO_PLAN,
       dispatch: stub(reviewScript(doc, touchedDoc)).step,
       target: { kind: "spec", doc },
     });
@@ -2118,6 +2160,7 @@ describe("P31 T6 — the write-back binds only bytes the round touched", () => {
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc },
       });
@@ -2194,6 +2237,7 @@ describe("P32 T1 — a review binds the bytes it judged, whatever it touched", (
       face: targetFaces["phase-spec"],
       state: EMPTY_RUN_STATE,
       ledger,
+      plan: NO_PLAN,
       dispatch: dispatch.step,
       target: { kind: "spec", doc },
     });
@@ -2341,6 +2385,7 @@ describe("P31 T5 — the carrier-less failure face seals its own two names", () 
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });

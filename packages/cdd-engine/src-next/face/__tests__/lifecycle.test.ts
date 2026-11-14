@@ -1496,6 +1496,8 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
           env: { CLAUDE_CODE_SESSION_ID: "s" },
         }).step(),
         target: { kind: "spec", doc: specPath },
+        // The scene's own plan read — the same value the CLI lifecycle hashes.
+        plan: f.scene.plan ?? new PlanSource(f.scene.workspace.root.basis).readFor(null),
         capsule: new Capsule(new Words()),
       });
       const step = await lifecycle.advance();
@@ -1622,6 +1624,57 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
       expect(modeOf(ownFinal)).toBe(0o444);
       // The retired spelling belongs to no round of this file — the fold never claims it.
       expect(modeOf(legacy)).toBe(0o644);
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P35 T3 — the scene's plan read is the brief hash's ONLY source (design spec
+// §2.1): an unparseable plan records no hash and the round still runs.
+// ---------------------------------------------------------------------------
+
+/** A plan the grammar refuses — one task block carrying `#### DependsOn` twice. */
+const DUPLICATE_DEPENDS_ON_PLAN = [
+  "---",
+  "doc-type: plan",
+  "version: v0.1",
+  "---",
+  "",
+  "### Task 1: task 1",
+  "",
+  "#### DependsOn",
+  "none",
+  "",
+  "#### DependsOn",
+  "none",
+  "",
+].join("\n");
+
+describe("P35 T3 — an unparseable plan read records no brief hash", () => {
+  it("runs the round and leaves the in-flight `briefHash` null", async () => {
+    const f = fixture(DUPLICATE_DEPENDS_ON_PLAN);
+    try {
+      const planPath = f.scene.planPath;
+      // The scene's plan read is a REAL `PlanSource` read of the document on disk.
+      f.scene.plan = new PlanSource(f.scene.workspace.root.basis).readPath(planPath!);
+      expect(f.scene.plan.kind).toBe("unreadable");
+      const seen: (string | null)[] = [];
+      const probe: ChildRunner = {
+        async run(): Promise<ChildOutcome> {
+          const record = JSON.parse(readFileSync(recordPathOf(f), "utf8")) as {
+            briefHash: string | null;
+          };
+          seen.push(record.briefHash);
+          return { code: 0, stdout: "", stderr: "", termination: null };
+        },
+      };
+      const { outcome } = await dispatchFrame(f, reviewFrame, probe);
+      // The child ran (the round is not refused) and the value is the honest null —
+      // never a hash of a half-parsed document.
+      expect(seen).toEqual([null]);
+      expect(outcome.status).not.toBe("TIMEOUT");
     } finally {
       f.cleanup();
     }

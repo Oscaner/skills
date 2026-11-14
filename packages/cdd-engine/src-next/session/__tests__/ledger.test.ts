@@ -2095,6 +2095,34 @@ describe("P24 T3 — briefDrifted, the wave line's ONE drift read", () => {
     }
   });
 
+  it("reads the RECORDED plan path, never a second ready document on the observation face", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // X — the plan the review recorded (its bytes are the reviewed basis).
+      const recorded = path.join(workspace.path, "plans", "x-p3.md");
+      mkdirSync(path.dirname(recorded), { recursive: true });
+      writeFileSync(recorded, planText(), "utf8");
+      ledger.recordReviewedBrief("1", recorded);
+      // Y — a second, healthy plan, byte-different AND a different document (its own
+      // `slug:`). A hash subject taken from the scene's `PlanRead` — the observation
+      // face — would compare Y's projection against X's recorded one and report a
+      // false drift; the recorded path is the only subject.
+      writeFileSync(
+        recorded.replace("x-p3.md", "x-other.md"),
+        planText().replace("x-p3", "x-other"),
+        "utf8",
+      );
+      expect(ledger.briefDrifted("1")).toBe(false);
+      const hashes = ledger.briefDriftHashes("1");
+      expect(hashes?.recorded).toBe(hashes?.current);
+      // The recorded document's OWN section moves — the drift is X's, and only X's.
+      writeFileSync(recorded, planText(["  - extra step — checkable: green"]), "utf8");
+      expect(ledger.briefDrifted("1")).toBe(true);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("is false when the plan is unreadable — an absent fact never invents a drift", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {

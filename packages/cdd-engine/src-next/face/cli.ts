@@ -58,7 +58,7 @@ import { ConfigLoader } from "../infra/config.ts";
 import { GitClient } from "../infra/git.ts";
 import { type PlanRead, PlanSource } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
-import { type DocEntry, SlugIndex } from "../infra/slug-index.ts";
+import { SlugIndex } from "../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
@@ -819,10 +819,8 @@ export class Cli {
     // The preview skips it — the brief is a WRITE (`Workspace#writeText`), and the
     // preview names the same path through RoundNaming instead of rendering it.
     if (!parsed.dryRun && type === "wave" && scene.plan.kind === "ready") {
-      const text = scene.plan.text();
-      const doc = scene.plan.doc();
-      if (text !== null && doc !== null)
-        scene.briefPath = this.#gate.renderBrief(scene, parsed, text, doc);
+      const { text, doc } = scene.plan.document();
+      scene.briefPath = this.#gate.renderBrief(scene, parsed, text, doc);
     }
     const statuses: (RoundStatus | null)[] = [];
     const dispatch: DispatchStep = await this.#dispatchOf(scene, parsed, recovery?.harness ?? null);
@@ -1230,9 +1228,11 @@ export class Cli {
         slug = resolved;
         target = { kind: "spec", doc: specPath };
         // The plan face of a doc round is the SAME derived document every other face
-        // derives (`plans/<the identity doc's slug>.md`) — read through the derived
-        // entry, so the doc round and the plan round speak one document.
-        plan = this.#docPlanOf(planSource, index, specEntry, slug);
+        // derives (`plans/<the identity doc's slug>.md`), read through the derived
+        // entry — so the doc round and the plan round speak one document. The read
+        // is derived on EVERY face, never re-pointed at an index-registered file
+        // name: identity is the slug, the path is derived from it.
+        plan = planSource.readFor(specEntry);
         // The judged document's own `program:` — the parent charter (INPUT_OVERALL)
         // the phase-spec reviewer judges the phase against. A document without
         // `program:` (an overall charter or a single-spec) leaves the slot null; an
@@ -1318,23 +1318,6 @@ export class Cli {
     };
   }
 
-  /** The doc face's plan read — the derived document (`plans/<slug>.md`, the face's
-   *  own naming convention) first, and the index's registered plan document when the
-   *  phase's plan is filed under another name (`s1-plan.md` beside `slug: s1` is a
-   *  legal, healthy document — the index resolves identity, not the file name). Both
-   *  entries feed the SAME `PlanSource` face, so a doc round reads one plan. */
-  #docPlanOf(
-    planSource: PlanSource,
-    index: SlugIndex,
-    entry: DocEntry | null,
-    slug: string,
-  ): PlanRead {
-    const derived = planSource.readFor(entry);
-    if (derived.kind !== "undeclared") return derived;
-    const planEntry = index.planOf(slug);
-    return planEntry === null ? derived : planSource.readPath(planEntry.path);
-  }
-
   /** The argv-face plan read (the wave / plan / branch lines) — ONE read through the
    *  command preamble's `PlanSource`. An `io` failure keeps today's usage byte (the
    *  same `#usage` seam the retired `readText` rode): the workspace key has no
@@ -1364,10 +1347,7 @@ export class Cli {
     // The four-way identity gate (present · legal · indexed · unique) is the ONE
     // `SlugIndex` judgment the pre-flight gate also reads — this carrier supplies
     // only the CDD_BLOCKED channel, never a second spelling of the rule.
-    const verdict = index.slugVerdict(rel, slug);
-    return verdict.kind === "accepted"
-      ? verdict.slug
-      : this.#slugBlocked(this.#words.slugRefusal(verdict));
+    return this.#slugVerdictOf(index, rel, slug);
   }
 
   /** The text-carrier target's workspace key (the doc faces and `base`) — ONE read
@@ -1387,7 +1367,15 @@ export class Cli {
     const head = FrontMatterExtractor.split(content).head;
     const parseError = head.parseError;
     if (parseError !== null) return this.#parseErrorBlocked(parseError);
-    const verdict = index.slugVerdict(rel, head.slug);
+    return this.#slugVerdictOf(index, rel, head.slug);
+  }
+
+  /** The identity carriers' shared tail — the ONE named-key verdict pair: the four-way
+   *  `SlugIndex` judgment and its CDD_BLOCKED channel. Both carriers differ only in
+   *  where their `slug` comes from (a plan read's front matter, a target document's
+   *  text); the verdict and the refusal are one fact, never two spellings. */
+  #slugVerdictOf(index: SlugIndex, rel: RepoPath, slug: string | null): string | null {
+    const verdict = index.slugVerdict(rel, slug);
     return verdict.kind === "accepted"
       ? verdict.slug
       : this.#slugBlocked(this.#words.slugRefusal(verdict));

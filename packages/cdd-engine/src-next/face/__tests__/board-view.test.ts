@@ -42,8 +42,10 @@ import { Words } from "../words.ts";
 /** The plan read for one fixture plan — a REAL read through the seam (the value is
  *  never hand-minted: `PlanRead` has no factory), on the fixture repo's own basis so
  *  the value speaks the same path shape the ledgers normalize through. */
-const planReadOf = (repo: string, planPath: string | null): PlanRead | null =>
-  planPath === null ? null : new PlanSource(new RepoRoot(repo)).readPath(planPath);
+const planReadOf = (repo: string, planPath: string | null): PlanRead =>
+  planPath === null
+    ? new PlanSource(new RepoRoot(repo)).readFor(null)
+    : new PlanSource(new RepoRoot(repo)).readPath(planPath);
 
 /** One `NextHop` from the ONE derivation — a route + the frame's target, with the
  *  board's declaration-reading station discrimination injected. */

@@ -90,14 +90,6 @@ export class RoundNaming {
     return renderRound({ domain: "round", ...artifact }, kind);
   }
 
-  /** The carrier-name predicate's compiled pattern — a wave line takes the wave-only
-   *  `tasks-` spine, every other line word takes the round-bearing ops. The op set and
-   *  the line words come from the ONE target-face table, so neither is re-spelled here.
-   *  Only `implement` has a cycle-less spelling (the pre-P34 draft on disk); `review`
-   *  and `fix` always carry their cycle, so a `tasks-1-review.json` is no carrier at all.
-   *  The `.c{cycle}` final suffix hangs off the CYCLE-BEARING alternatives alone — a
-   *  cycle-less identity has no cycle to suffix, so `tasks-1-implement.c1.json` is a
-   *  shape the renderer can never mint. */
   /** The rendered name resolved against the workspace — the read/write syscall form. */
   renderPath(artifact: RoundArtifact, kind: ArtifactKind): string {
     return this.#workspace.resolve(RoundNaming.renderName(artifact, kind));

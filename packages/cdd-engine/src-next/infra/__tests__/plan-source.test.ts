@@ -218,7 +218,7 @@ describe("PlanSource.readFor — the derived face's tri-state", () => {
     expect(forgedIsState).toBe(false);
   });
 
-  it("reads a slug whose derived plan file is absent as undeclared", () => {
+  it("reads a slug with no plan row on a clean plans root as undeclared", () => {
     const repo = newRepo();
     writeDoc(repo, `${SPEC_ROOT}/prog-p1-design.md`, specHead("prog-p1"));
     const read = planSourceOf(new RepoRoot(repo), new CountingFs()).readFor({
@@ -282,7 +282,6 @@ describe("PlanSource.readFor — the derived face's tri-state", () => {
     const read = planSourceOf(new RepoRoot(repo), fs).readFor(specEntry!);
     expect(read.kind).toBe("ready");
     expect(read.orphan()).toBeNull();
-    // One existence probe (the plan path) and one read — zero spec probe.
     // The index answered the plan row, so the read is ONE content read: no existence
     // probe and zero spec probe (the derived face asks no identity question).
     expect(fs.existsCalls).toEqual([]);

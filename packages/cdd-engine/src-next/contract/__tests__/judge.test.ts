@@ -1545,12 +1545,13 @@ const ledgerPlanDoc = (): string => planLineage("v1.0", [ROW_100]);
 const ledgerJudge = (
   facts: Parameters<Contract["validateLedger"]>[1],
   docKey: "plan" | "phase-spec" = "plan",
+  content: string = ledgerPlanDoc(),
 ): Finding[] =>
   new Contract().validateLedger(
     {
       docKey,
       path: PLAN_PATH,
-      content: ledgerPlanDoc(),
+      content,
       root: ".",
       fs: EMPTY_FS,
     },
@@ -1742,5 +1743,63 @@ describe("P21 T2 — closed-wave-fits-depends-on-layers (the open-wave read)", (
       layers: [[1], [2, 3]],
     });
     expect(findings).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P35 T1 — a malformed plan body: the parse face throws, the judgment materializes
+// ---------------------------------------------------------------------------
+
+/** A plan whose first task block carries the reserved `#### DependsOn` section twice. */
+const DUPLICATE_SECTION_PLAN = [
+  "---",
+  "title: Test Plan",
+  "doc-type: plan",
+  "version: v1.0",
+  "date: 2026-10-09",
+  "slug: x-p3",
+  "---",
+  "",
+  "## Constraints",
+  "",
+  "- delta",
+  "",
+  "### Task 1: task",
+  "",
+  "#### DependsOn",
+  "2, 3",
+  "",
+  "#### DependsOn",
+  "4",
+  "",
+].join("\n");
+
+describe("P35 T1 — doc-syntax: a malformed body is one Finding, never an escaping error", () => {
+  it("validate returns exactly one `doc-syntax` Finding bound to the contract path and the section", () => {
+    const findings = judge("plan", DUPLICATE_SECTION_PLAN, EMPTY_FS);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.kind).toBe("doc-syntax");
+    expect(findings[0]?.path).toBe(PLAN_PATH);
+    expect(findings[0]?.field).toBe("#### DependsOn");
+    expect(findings[0]?.message).toBe(
+      'task 1 carries the reserved section "#### DependsOn" more than once',
+    );
+    expect(findings[0]?.fix.length).toBeGreaterThan(0);
+  });
+
+  it("validateLedger materializes the same `doc-syntax` Finding bound to the contract path", () => {
+    // The plan-ledger gate calls THIS entry (session/preflight.ts), so pinning only
+    // `validate` would let a regression drop the entry the gate actually reaches.
+    // `#contextOf` throws before any ledger rule reads the facts — `agreeingFacts`
+    // is enough.
+    const findings = ledgerJudge(agreeingFacts, "plan", DUPLICATE_SECTION_PLAN);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.kind).toBe("doc-syntax");
+    expect(findings[0]?.path).toBe(PLAN_PATH);
+    expect(findings[0]?.field).toBe("#### DependsOn");
+    expect(findings[0]?.message).toBe(
+      'task 1 carries the reserved section "#### DependsOn" more than once',
+    );
+    expect(findings[0]?.fix.length).toBeGreaterThan(0);
   });
 });

@@ -27,6 +27,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
+import { PlanSource } from "../../infra/plan-source.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
@@ -47,8 +48,11 @@ const WORKSPACE = new Workspace(new WorkspaceRoot(ROOT, ".kairos/cdd"), "p3");
  *  dispatch reads (one scene shape, never a second). */
 const scene = (over: Partial<DispatchScene> = {}): DispatchScene => ({
   workspace: WORKSPACE,
-  ledger: new Ledger(WORKSPACE, new ConfigLoader()),
+  ledger: new Ledger(WORKSPACE, new ConfigLoader(), new PlanSource(WORKSPACE.root.basis)),
   planPath: path.join(ROOT, "docs", "kairos", "plans", "p3.md"),
+  // The plan read is a REQUIRED scene cell: the no-disk scene declares the derived
+  // face's own "no plan yet" result — never a hand-minted value.
+  plan: new PlanSource(WORKSPACE.root.basis).readFor(null),
   briefPath: null,
   ...over,
 });
@@ -302,6 +306,12 @@ const planFor = (repoRoot: string): string => {
     ].join("\n"),
     "utf8",
   );
+  // The paired spec the plan read's reverse probe asks for (§2.7): a plan whose slug
+  // names no `<slug>-design.md` is an orphan and every plan-carrying face refuses it.
+  // The document declares its own slug — the probe only asks "is it there".
+  const specFile = path.join(repoRoot, "docs", "kairos", "specs", "p3-design.md");
+  mkdirSync(path.dirname(specFile), { recursive: true });
+  writeFileSync(specFile, "---\ntitle: Sp3\ndoc-type: phase-spec\nslug: p3-design\n---\n", "utf8");
   return file;
 };
 

@@ -19,11 +19,10 @@
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
 import { readFileSync } from "node:fs";
-import { PlanDocType } from "../contract/doc.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
+import type { PlanRead } from "../infra/plan-source.ts";
 import type { DispatchPhase, ReviewLead, RouteTarget, TargetFace, TargetType } from "./faces.ts";
-import type { TaskGraph } from "./graph.ts";
 import {
   type HandoffParams,
   Ledger,
@@ -349,21 +348,20 @@ export class Lifecycle {
   /** The dispatch-entry pre-flight gate — null = unguarded (the seam-less callers
    *  keep their existing behavior). */
   readonly #preflight: PreFlightGate | null;
-  /** The workspace plan path — the `next:` implement literal's required `--plan`
-   *  arg (P4.1 T4 — the task face's implement-consuming fact), and the plan cell of
-   *  the pipeline frontier's input. A `--spec` round fills it from the document index
-   *  (the same-slug plan the argv does not name); the plan / branch lines carry their
-   *  argv value. */
-  readonly #planPath: string | null;
+  /** The plan read this lifecycle drives (the `next:` implement literal's required
+   *  `--plan` arg, the branch line's identity document, the brief hash's and the
+   *  plan snapshot's source, and the pipeline frontier's plan cells). The frontier
+   *  path is `stationPath()` — the document that read out (its front matter
+   *  parsed), so a `syntax` plan keeps its face while an `io` failure carries none.
+   *  REQUIRED: every command preamble holds a value (`undeclared` is a value), so no
+   *  harness can silently drop the brief hash and the plan snapshot by omission. */
+  readonly #plan: PlanRead;
   /** The pipeline frontier's declared identity — the spec line's DECLARED word (the
    *  `doc-type:` head key) and its document path. A node with no spec document
    *  (`#specPath === null`) keeps this line's own hop assembly: the frontier's rules
    *  anchor on an absent identity face, which would print a passed phase's transition. */
   readonly #specType: TargetType | null;
   readonly #specPath: string | null;
-  /** The plan's task graph — the pipeline frontier's guarded plan read, injected by
-   *  the composition root (the session plane reads no file). */
-  readonly #planGraph: TaskGraph | null;
   /** The pipeline frontier — the ONE hop assembly this lifecycle's capsule renders
    *  (the same object the board renders). */
   readonly #frontier: PipelineFrontier;
@@ -386,15 +384,14 @@ export class Lifecycle {
     /** The dispatch-entry pre-flight gate (P4.1 T1 — the lifecycle's hard "no child
      *  on a refused frame" wiring; optional, null = unguarded). */
     preflight?: PreFlightGate | null;
-    /** The workspace plan path (P4.1 T4 — the implement `next:` literal's `--plan`;
-     *  also the pipeline frontier's plan cell). */
-    planPath?: string | null;
+    /** The plan read (P4.1 T4 — the implement `next:` literal's `--plan`; also the
+     *  pipeline frontier's plan cells and the reviewed-brief hash's source). Required:
+     *  a harness with no plan document holds the `undeclared` value, never a null. */
+    plan: PlanRead;
     /** The spec line's DECLARED word and document path (the pipeline frontier's
      *  identity cells) — absent on a bare slug or a spec-less phase. */
     specType?: TargetType | null;
     specPath?: string | null;
-    /** The plan's task graph (the pipeline frontier's guarded plan read). */
-    planGraph?: TaskGraph | null;
     /** The pipeline-station discrimination (P22 §5.2) — injected by the composition
      *  root (the declaration-reading face); the type-keyed default covers the
      *  session-plane callers. */
@@ -408,10 +405,9 @@ export class Lifecycle {
     this.#target = opts.target ?? null;
     this.#capsule = opts.capsule ?? null;
     this.#preflight = opts.preflight ?? null;
-    this.#planPath = opts.planPath ?? null;
+    this.#plan = opts.plan;
     this.#specType = opts.specType ?? null;
     this.#specPath = opts.specPath ?? null;
-    this.#planGraph = opts.planGraph ?? null;
     this.#frontier = new PipelineFrontier(this.#ledger);
     this.#docClassOf = opts.docClassOf ?? Lifecycle.#docClassByType;
   }
@@ -603,8 +599,9 @@ export class Lifecycle {
     // after the terminal branch review reopens the branch-review lead, an unchanged
     // plan keeps the line closed. Same gate, same judgment — only the doc path is
     // the line's plan (the audit target itself carries no doc).
-    if (target.kind === "branch" && this.#planPath !== null) {
-      const verdict = this.#ledger.reviewGate(key, this.#planPath, "branch");
+    const planPath = this.#plan.stationPath();
+    if (target.kind === "branch" && planPath !== null) {
+      const verdict = this.#ledger.reviewGate(key, planPath, "branch");
       if (this.#ledger.docReopens(key, "branch", verdict)) return reviewLead;
       if (verdict.kind === "same" && verdict.pending) return "fix";
     }
@@ -829,23 +826,29 @@ export class Lifecycle {
    *  review or fix round. Null plan path / underivable brief records nothing (present
    *  facts only). */
   #recordReviewedWaveBrief(frame: OpenFrame): void {
-    if (frame.target.kind !== "wave" || this.#planPath === null) return;
-    this.#ledger.recordReviewedBrief(String(frame.key), this.#planPath);
+    const planPath = this.#plan.stationPath();
+    if (frame.target.kind !== "wave" || planPath === null) return;
+    this.#ledger.recordReviewedBrief(String(frame.key), planPath);
   }
 
   /** The branch line's reviewed identity (P21 §4.1) — its PLAN document's
    *  `doc-revision`, the same ref kind the doc lines bind (no new ref kind, no commit
    *  sha). A later plan revision reopens the line; an unchanged plan keeps it closed.
-   *  An unreadable plan / a null plan path records nothing (present facts only). */
+   *  The document is re-read at round completion THROUGH the ledger's plan seam (the
+   *  ONE plan read point), so a fix that edited the plan binds the edited bytes and
+   *  the write-back never turns a repoRoot-relative path into a cwd-relative syscall.
+   *  A null plan path records nothing (present facts only). */
   #recordReviewedBranchRevision(frame: OpenFrame): void {
-    if (this.#planPath === null) return;
-    this.#recordDocRevisionOf(frame.key, this.#planPath, frame.type);
+    const planPath = this.#plan.stationPath();
+    if (planPath === null) return;
+    this.#ledger.recordReviewedPlanRevision(frame.key, planPath, frame.type);
   }
 
   /** The doc-revision write-back body — read the round's document and bind its
-   *  current revision to the line row (the ONE read + hash + record path the doc and
-   *  branch legs share; each passes its own path source). An unreadable input records
-   *  nothing — the line keeps the legacy closed face (present facts only). */
+   *  current revision to the line row (the ONE read + hash + record path the doc
+   *  leg owns; the branch leg binds the plan read it already judged). An unreadable
+   *  input records nothing — the line keeps the legacy closed face (present facts
+   *  only). */
   #recordDocRevisionOf(key: LedgerKey, path: string, identity: TargetType): void {
     try {
       const content = readFileSync(path, "utf8");
@@ -879,22 +882,18 @@ export class Lifecycle {
   }
 
   /** Record the closing wave's plan-task snapshot — the plan's CURRENT task-id set
-   *  read from the plan document (`#planPath`, the same source the brief renders
-   *  from) through the contract parse face. An unreadable plan or a null plan path
-   *  records nothing: the snapshot is a present fact only, never a fabricated `[]`
-   *  (an absent snapshot reads conservatively as "stall" in the wave gate). */
+   *  read from the SAME plan read the brief hashes (the injected `PlanRead`), so the
+   *  snapshot and the reviewed basis can never describe two different documents. A
+   *  non-ready plan records nothing: the snapshot is a present fact only, never a
+   *  fabricated `[]` (an absent snapshot reads conservatively as "stall" in the wave
+   *  gate). */
   #recordPlanSnapshot(frame: OpenFrame): void {
-    if (this.#planPath === null) return;
-    try {
-      const lines = readFileSync(this.#planPath, "utf8").split("\n");
-      const parsed = new PlanDocType("plan").parse(lines);
-      this.#ledger.recordPlanTasks(
-        String(frame.key),
-        parsed.taskBlocks.map((block) => block.id),
-      );
-    } catch {
-      // unreadable plan — skip the snapshot (present facts only)
-    }
+    const doc = this.#plan.doc();
+    if (doc === null) return;
+    this.#ledger.recordPlanTasks(
+      String(frame.key),
+      doc.taskBlocks.map((block) => block.id),
+    );
   }
 
   /** The handoff-family op of a phase — branch-review rides the review family. */
@@ -966,7 +965,7 @@ export class Lifecycle {
    *  (its identity document, P21 §4.1); null off the doc faces. */
   #docOf(frame: OpenFrame): string | null {
     if (frame.target.kind === "plan" || frame.target.kind === "spec") return frame.target.doc;
-    if (frame.target.kind === "branch") return this.#planPath;
+    if (frame.target.kind === "branch") return this.#plan.stationPath();
     return null;
   }
 
@@ -987,8 +986,8 @@ export class Lifecycle {
     return {
       specType: this.#specType,
       specPath: this.#specPath,
-      planPath: this.#planPath,
-      planGraph: this.#planGraph,
+      planPath: this.#plan.stationPath(),
+      plan: this.#plan,
     };
   }
 
@@ -997,7 +996,7 @@ export class Lifecycle {
    *  shared hop assembly's sixth cell). The lifecycle now holds no copy of the gate /
    *  route combination. */
   #branchLineOpen(): boolean | undefined {
-    return this.#frontier.branchLineOpen(this.#planPath);
+    return this.#frontier.branchLineOpen(this.#plan.stationPath());
   }
 
   /** The capsule lines of one step — empty unless a capsule is attached (the non-hard
@@ -1038,7 +1037,11 @@ export class Lifecycle {
   #routeTarget(frame: OpenFrame): RouteTarget | null {
     switch (frame.type) {
       case "wave":
-        return { type: "wave", id: frame.params.tasks ?? "", plan: this.#planPath ?? undefined };
+        return {
+          type: "wave",
+          id: frame.params.tasks ?? "",
+          plan: this.#plan.stationPath() ?? undefined,
+        };
       case "branch":
         // The branch line's stable id — the workspace plan path carries the
         // fix/re-review literals' `--plan` (a plan-less `#sceneOf` would resolve
@@ -1047,7 +1050,7 @@ export class Lifecycle {
         return {
           type: "branch",
           id: "branch",
-          plan: this.#planPath ?? undefined,
+          plan: this.#plan.stationPath() ?? undefined,
         };
       case "phase-spec":
       case "overall":

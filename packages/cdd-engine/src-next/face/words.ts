@@ -34,6 +34,7 @@
 
 import { DOC_TYPE_VALUES } from "../contract/declare.ts";
 import type { LocalizedWord, WordLocaleFace } from "../contract/translate.ts";
+import type { PlanReadWords } from "../infra/plan-source.ts";
 import type { SlugRefusal } from "../infra/slug-index.ts";
 import type { InFlightRecord } from "../session/inflight.ts";
 
@@ -299,6 +300,23 @@ export const CAPSULE_WORDS = {
       "discard the ones that are broken",
     ],
   } as const satisfies InFlightWords,
+  /** The plan-read rows (spec §2.1 · §2.4 · §2.7) — the vocabulary the `PlanRead`
+   *  value emits: the two read-failure marks, the healthy-but-empty mark, the
+   *  orphan mark, the program face's undeclared cell and the two orphan
+   *  diagnostics.
+   *  `planReadWord(cause)` reads only `io` / `syntax`; the remaining rows are
+   *  peers, never members of the failure vocabulary. */
+  planRead: {
+    io: "! unreadable",
+    syntax: "! unparseable",
+    empty: "(empty plan)",
+    orphan: "! no-spec",
+    orphanSpec:
+      "the plan's slug \"{slug}\" names no design spec — {specPath} is absent (every plan is written for one phase; add that phase spec or fix the plan's `slug:`)",
+    slugMissing:
+      "the plan declares no `slug:` key — add `slug: <workspace-key>` to the plan's front-matter and re-run",
+    cellEmpty: "",
+  } as const,
   /** The cut-short round's late-landing hint — every kill / timeout / crash message
    *  carries it: the child may have written more after the engine stopped watching. */
   lateLanding:
@@ -408,7 +426,7 @@ export const CHARTER_WORDS = {
  * Translator and the locale consumers read). The capsule reads its whole vocabulary
  * through this class — the second table is excluded by construction.
  */
-export class Words implements WordLocaleFace {
+export class Words implements WordLocaleFace, PlanReadWords {
   // -------------------------------------------------------------------------
   // capsule — the station-word family
   // -------------------------------------------------------------------------
@@ -580,6 +598,50 @@ export class Words implements WordLocaleFace {
    *  crash message (the child may still be writing after the engine stopped). */
   lateLandingHint(): string {
     return CAPSULE_WORDS.lateLanding;
+  }
+
+  // -------------------------------------------------------------------------
+  // plan-read — the `PlanRead` value's word port
+  // -------------------------------------------------------------------------
+
+  /** One read-failure mark (`io` / `syntax`) — the failure vocabulary, and only it. */
+  planReadWord(cause: "io" | "syntax"): string {
+    return CAPSULE_WORDS.planRead[cause];
+  }
+
+  /** The healthy plan carrying no task block yet — never folded into the failure
+   *  vocabulary (a healthy empty state is not a read failure). */
+  planEmptyWord(): string {
+    return CAPSULE_WORDS.planRead.empty;
+  }
+
+  /** The orphan mark the doc face, the program cell and the plan row fold into. */
+  planOrphanWord(): string {
+    return CAPSULE_WORDS.planRead.orphan;
+  }
+
+  /** The `spec-absent` orphan diagnostic — the plan's slug and the derived spec path,
+   *  both filled here (the row lives in the table only). */
+  planOrphanSpec(slug: string, specPath: string): string {
+    return CAPSULE_WORDS.planRead.orphanSpec
+      .replace("{slug}", slug)
+      .replace("{specPath}", specPath);
+  }
+
+  /** The `slug-absent` diagnostic — the plan parses but declares no identity key. */
+  planSlugMissing(): string {
+    return CAPSULE_WORDS.planRead.slugMissing;
+  }
+
+  /** The program face's undeclared cell — `""` belongs to that one semantic. */
+  get cellEmpty(): string {
+    return CAPSULE_WORDS.planRead.cellEmpty;
+  }
+
+  /** The stderr diagnostic prefix — delegated to the `warn` station row (one
+   *  source, no second `CDD_WARN:` literal). */
+  get warnPrefix(): string {
+    return CAPSULE_WORDS.stations.warn;
   }
 
   // -------------------------------------------------------------------------

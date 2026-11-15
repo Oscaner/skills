@@ -44,7 +44,7 @@ pnpm run biome                   # lint + format check (no writes)
 pnpm run biome:fix               # apply formatting fixes
 ```
 
-`validate` = `emit:check` → root vitest → kairos suite → engine suite → typecheck ×3 → `version-sync` → `check:no-bare-functions`. `.github/workflows/pr-validate.yml` runs those same commands as one CI job per check.
+`validate` = `emit:check` → root vitest → kairos suite → engine suite → typecheck ×3 → `check:dist-smoke` → `version-sync` → `check:no-bare-functions`. `.github/workflows/pr-validate.yml` runs those same commands as one CI job per check.
 
 ### Focused verification (use these while iterating)
 
@@ -55,10 +55,13 @@ pnpm -C packages/kairos exec vitest run tests/skill-anatomy.test.ts
 pnpm exec tsc --noEmit -p packages/cdd-engine                    # also -p scripts, -p packages/kairos/tests
 pnpm run emit:check                                              # generated products are fresh
 pnpm -C packages/cdd-engine build                                # tsc → dist/ (gitignored, publish artifact)
+pnpm run check:dist-smoke                                        # build + one command out of dist/
 pnpm -C packages/cdd-engine run smoke                            # engine black-box smoke
 ```
 
 **Trap:** bare `pnpm exec vitest run` at the root covers **only `scripts/**/__tests__/**`** (see `vitest.config.ts`). The engine and kairos suites are separate vitest projects and need the `-C` forms.
+
+**Trap:** the suites run **source** through esbuild, so anything `tsc` re-shapes on the way to `dist/` is invisible to them. `check:dist-smoke` builds and runs one command out of `dist/` for exactly that class of defect — a construct the source accepts and the emitted JavaScript does not.
 
 Prerequisites: the kairos suite hard-fails without the pi binary — `npm i -g @earendil-works/pi-coding-agent@latest` (CI installs it for that job). The engine suite's black-box dispatch tests are **dirty-tree incompatible**: they are excluded from `precommit` and are meant for CI or a clean working tree.
 

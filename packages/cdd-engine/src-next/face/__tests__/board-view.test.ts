@@ -7,6 +7,7 @@
 
 import { spawnSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -20,6 +21,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
+import { type PlanRead, PlanSource } from "../../infra/plan-source.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { type DocEntry, SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
@@ -31,12 +33,59 @@ import { Ledger, type RoundRecord, RoundViolation } from "../../session/ledger.t
 import { type NextHop, NextStepRouter, REVIEW_CYCLE_CAP, type Route } from "../../session/next.ts";
 import { PipelineFrontier } from "../../session/pipeline.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
-import { BoardNext, BoardView, LineCarriers } from "../board-view.ts";
+import { BoardNext, type BoardPipelineFacts, BoardView, LineCarriers } from "../board-view.ts";
 import { Capsule } from "../capsule.ts";
 import { Cli, type CliIo, type CliOptions } from "../cli.ts";
 import { ARGV_CHANNEL } from "../declare.ts";
 import { RouteRenderer } from "../route-render.ts";
 import { Words } from "../words.ts";
+
+/** The plan read for one fixture plan — a REAL read through the seam (the value is
+ *  never hand-minted: `PlanRead` has no factory), on the fixture repo's own basis so
+ *  the value speaks the same path shape the ledgers normalize through. */
+const planReadOf = (repo: string, planPath: string | null): PlanRead =>
+  planPath === null
+    ? new PlanSource(new RepoRoot(repo)).readFor(null)
+    : new PlanSource(new RepoRoot(repo)).readPath(planPath);
+
+/** The board's plan read for one entry — modeled on PRODUCTION's wiring, not on the
+ *  paths a fixture happens to name: `Cli#runBoard` passes `planSource.readFor(entry)`
+ *  (the derived face), so a plan file that is not `plans/<slug>.md` reads
+ *  `undeclared` here exactly as it does in a real board run. A helper that re-resolved
+ *  the index path would hide the board's own seam behind a different read. */
+const boardReadOf = (source: PlanSource, entry: DocEntry): PlanRead => source.readFor(entry);
+
+/** `BoardNext.of` over a fixture entry — the read and its seam come from ONE
+ *  `PlanSource` instance (the board never mints a second). */
+const nextOfEntry = (repo: string, index: SlugIndex, entry: DocEntry): NextHop | null => {
+  const root = new RepoRoot(repo);
+  const source = new PlanSource(root);
+  return BoardNext.of(boardReadOf(source, entry), source, index, entry, root);
+};
+
+/** The board's ORDERED per-phase plan value table — the exact shape `Cli#runBoard`
+ *  builds (spec §2.1 · §2.4): one row per `phaseSpecsOf` row for an overall
+ *  document, a length-1 table for any single-document board. A test that fed the
+ *  board one value for every phase could not tell a per-phase read from a shared
+ *  one — the table is the acceptance surface for that distinction. */
+const readTableOf = (source: PlanSource, index: SlugIndex, entry: DocEntry): PlanRead[] => {
+  const slug = entry.slug;
+  if (entry.docType !== "overall" || slug === null) return [source.readFor(entry)];
+  return index.phaseSpecsOf(slug).map((phase) => source.readFor(phase));
+};
+
+/** The same table over a fixture repo — the ONE `PlanSource` the call site mints. */
+const tableFor = (repo: string, index: SlugIndex, entry: DocEntry): PlanRead[] =>
+  readTableOf(new PlanSource(new RepoRoot(repo)), index, entry);
+
+/** `BoardView.pipelineFacts` over a fixture entry — the same one-instance rule. */
+const factsOfEntry = (repo: string, index: SlugIndex, entry: DocEntry): BoardPipelineFacts => {
+  const root = new RepoRoot(repo);
+  const source = new PlanSource(root);
+  const facts = BoardView.pipelineFacts(boardReadOf(source, entry), source, index, entry, root);
+  if (facts === null) throw new Error("expected the node's pipeline facts");
+  return facts;
+};
 
 /** One `NextHop` from the ONE derivation — a route + the frame's target, with the
  *  board's declaration-reading station discrimination injected. */
@@ -100,11 +149,12 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
   const renderEntry = (entry: DocEntry, host = "claude"): { text: string; exitCode: number } => {
     const index = SlugIndex.build(repo);
-    const root = new RepoRoot(repo);
     // The board's `next:` line renders the assembly face's ONE injected `NextHop`
     // (P22 §5.2) — the same object the CLI's board command hands it.
-    const next = BoardNext.of(index, entry, root);
+    const next = nextOfEntry(repo, index, entry);
     const board = BoardView.render(
+      tableFor(repo, index, entry),
+      new PlanSource(new RepoRoot(repo)),
       index,
       entry,
       repo,
@@ -222,7 +272,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     ]);
     // Close wave {1}: a recorded zero-findings review round.
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
     ledger.recordRound("1", { op: "review" });
 
@@ -271,7 +321,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "- **DependsOn**: none",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     // ONE record write — op · cycle · attempt — read back through RoundRecords.of
     ledger.recordRound("1", { op: "review", cycle: 1, attempt: 1 });
 
@@ -524,7 +574,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     ]);
     // Close the spec line: a recorded zero-findings spec review.
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
     ledger.recordRound("phase-spec", { op: "review" });
 
@@ -580,7 +630,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "- **DependsOn**: none",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     // spec closed (a recorded zero-findings spec review)
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
     ledger.recordRound("phase-spec", { op: "review" });
@@ -634,7 +684,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "---",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "plan", { round: 2 }, { findings: [] });
     ledger.persistHandoff("fix", "plan", { round: 2 }, { findings: [] });
     ledger.recordRound("plan", { op: "review", cycle: 1 });
@@ -781,7 +831,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "- **DependsOn**: 5",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     // Close the spec and plan lines (a recorded zero-findings review each) so the wave
     // face IS the frontier.
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
@@ -873,7 +923,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     ]);
     // Close W1 ({1}) — a recorded zero-findings review at the "1" row.
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
     ledger.recordRound("1", { op: "review" });
 
@@ -911,7 +961,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "---",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
     ledger.recordRound("phase-spec", { op: "review" });
 
@@ -948,7 +998,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "---",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
     ledger.recordRound("phase-spec", { op: "review" });
     expect(nextOf("prog-p1", "pi")).toBe("route to /skill:cdd-plan skill");
@@ -980,7 +1030,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "---",
     ]);
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
     ledger.recordRound("phase-spec", { op: "review" });
 
@@ -1282,9 +1332,13 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "---",
     ]);
 
+    const index = SlugIndex.build(repo);
+    const entry = entryFor("prog-p1");
     const board = BoardView.render(
-      SlugIndex.build(repo),
-      entryFor("prog-p1"),
+      tableFor(repo, index, entry),
+      new PlanSource(new RepoRoot(repo)),
+      index,
+      entry,
       repo,
       new Words(),
       "claude",
@@ -1670,7 +1724,11 @@ describe("BoardView.summaryCell — the verb × judgement aggregation (spec §5.
     const repo = mkdtempSync(path.join(tmpdir(), "board-ladder-"));
     try {
       const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure();
-      const ledger = new Ledger(workspace, new ConfigLoader());
+      const ledger = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       // Pre-P31: the carrier sits on the bare family name, the record names no path.
       writeFileSync(
         path.join(workspace.path, "tasks-1-review-2.json"),
@@ -2063,9 +2121,10 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
   const nextOfBoard = (slug: string, host = "claude"): string => {
     const index = SlugIndex.build(repo);
     const entry = entryOf(slug);
-    const root = new RepoRoot(repo);
-    const next = BoardNext.of(index, entry, root);
+    const next = nextOfEntry(repo, index, entry);
     const board = BoardView.render(
+      tableFor(repo, index, entry),
+      new PlanSource(new RepoRoot(repo)),
       index,
       entry,
       repo,
@@ -2086,6 +2145,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     new Ledger(
       new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1"),
       new ConfigLoader(),
+      new PlanSource(new RepoRoot(repo)),
     );
 
   /** Enter the wave face without completing a dispatch: one BLOCKED implement round on
@@ -2127,7 +2187,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const root = new RepoRoot(repo);
-    const facts = BoardView.pipelineFacts(index, entry, root)!;
+    const facts = factsOfEntry(repo, index, entry);
     const hop = new PipelineFrontier(ledger).hopOf(facts.input, {
       docClassOf: (target) => BoardView.docClassOf(root, target),
     });
@@ -2156,7 +2216,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     planDoc([[1]]);
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
-    const hop = BoardNext.of(index, entry, new RepoRoot(repo));
+    const hop = nextOfEntry(repo, index, entry);
     expect(hop).not.toBeNull();
     const capsuleNext = new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)).emit(
       "APPROVED",
@@ -2164,6 +2224,65 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       hop,
     )[1]!;
     expect(capsuleNext.slice("next: ".length)).toBe(nextOfBoard("prog-p1"));
+  });
+
+  it("(a2) a plan file that is not `plans/<slug>.md` reads `undeclared` — the frontier's path is the SAME value's `stationPath()`", () => {
+    writeDoc("docs/kairos/specs/s1-design.md", [
+      "---",
+      "title: S",
+      "doc-type: phase-spec",
+      "slug: s1",
+      "---",
+    ]);
+    // The phase's plan sits beside the derived name, not on it: the index registers
+    // it (the wave rows still render from that entry), the derived read cannot see it.
+    writeDoc("docs/kairos/plans/s1-plan.md", [
+      "---",
+      "title: Plan",
+      "doc-type: plan",
+      "slug: s1",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      ...taskBlock(1, "none"),
+    ]);
+    const index = SlugIndex.build(repo);
+    const entry = index.identityDoc("s1");
+    if (entry === null) throw new Error("expected the phase's identity document");
+    const facts = factsOfEntry(repo, index, entry);
+    // ONE fact: the read the board opened is `undeclared` (the derived path is not on
+    // disk), and the frontier's path is that same value's `stationPath()` — null, not
+    // the index's candidate. The retired pairing (index path + `undeclared` read) handed
+    // the frontier a path beside no graph, and the wave face silently lost its station.
+    expect(facts.input.plan.kind).toBe("undeclared");
+    expect(facts.input.planPath).toBeNull();
+    // The REGISTERED change (spec §2.1 · AC #4, third clause): `slug` is the whole
+    // identity, so a plan whose file name is not `<slug>.md` reads `undeclared` on the
+    // derived face. The board therefore loses the wave rows it used to re-read off the
+    // index entry (`BoardView.planGraph` is gone — the board has no second read point),
+    // the plan row falls back to the index-derived cell (`planLine` answers null for
+    // `undeclared`), and `next:` keeps the today's-bytes route (undeclared is NOT in
+    // the hop-less short-circuit). `undeclared` also writes no `CDD_WARN:` line.
+    const board = BoardView.render(
+      tableFor(repo, index, entry),
+      new PlanSource(new RepoRoot(repo)),
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      undefined,
+      nextOfEntry(repo, index, entry),
+    );
+    const text = board.lines.join("\n");
+    expect(text).toContain("  plan     s1-plan.md");
+    expect(text).toContain("  wave     (none)");
+    expect(text).not.toContain("W1 {1}");
+    expect(text).not.toContain("  next:    (none)");
   });
 
   it("(k3) the branch mark and `next:` are ONE fact — drift ⇒ `▶ open`, unchanged ⇒ `✔ closed`", () => {
@@ -2188,9 +2307,10 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const boardText = (): string => {
       const index = SlugIndex.build(repo);
       const entry = entryOf("prog-p1");
-      const root = new RepoRoot(repo);
-      const next = BoardNext.of(index, entry, root);
+      const next = nextOfEntry(repo, index, entry);
       return BoardView.render(
+        tableFor(repo, index, entry),
+        new PlanSource(new RepoRoot(repo)),
         index,
         entry,
         repo,
@@ -2240,7 +2360,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       ledger,
       dispatch: async () => ({ status: "APPROVED", findings: [] }),
       target: { kind: "spec", doc: specPath },
-      planPath: path.join(repo, "docs/kairos/plans/prog-p1.md"),
+      plan: planReadOf(repo, path.join(repo, "docs/kairos/plans/prog-p1.md")),
     });
     const peeked = run.peekNext();
     expect(peeked?.hop?.hop).toBe("review");
@@ -2278,7 +2398,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       ledger,
       dispatch: async () => ({ status: "APPROVED", findings: [] }),
       target: { kind: "branch" },
-      planPath: planFile,
+      plan: planReadOf(repo, planFile),
     });
     // Closed and drift-free: the frontier holds no frame at all.
     expect(run.peekNext()).toBeNull();
@@ -2320,9 +2440,11 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const root = new RepoRoot(repo);
-    const hop = BoardNext.of(index, entry, root);
+    const hop = nextOfEntry(repo, index, entry);
     expect(hop).not.toBeNull();
     const boardLines = BoardView.render(
+      tableFor(repo, index, entry),
+      new PlanSource(new RepoRoot(repo)),
       index,
       entry,
       repo,
@@ -2362,7 +2484,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     // The divergence state: the identity line was never reviewed, so the pipeline
     // frontier HOLDS on the spec face while the wave line is at its own point. The
     // pre-T7 capsule printed the frame-keyed wave literal here; the board printed this.
-    const facts = BoardView.pipelineFacts(index, entry, root)!;
+    const facts = factsOfEntry(repo, index, entry);
     const hop = new PipelineFrontier(ledger).hopOf(facts.input, {
       docClassOf: (target) => BoardView.docClassOf(root, target),
     });
@@ -2417,6 +2539,8 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const lines = BoardView.render(
+      tableFor(repo, index, entry),
+      new PlanSource(new RepoRoot(repo)),
       index,
       entry,
       repo,
@@ -2424,7 +2548,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       host,
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(index, entry, new RepoRoot(repo)),
+      nextOfEntry(repo, index, entry),
     ).lines;
     const nextAt = lines.findIndex((row) => row.startsWith("  next:    "));
     return {
@@ -2438,7 +2562,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     driftWaveSection(planFile);
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
-    const hop = BoardNext.of(index, entry, new RepoRoot(repo));
+    const hop = nextOfEntry(repo, index, entry);
     expect(hop).not.toBeNull();
     expect(hop!.hop).toBe("review");
     // P29 §2.3 — a wave brief's task-only projection is not a document revision:
@@ -2493,7 +2617,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const root = new RepoRoot(repo);
-    const facts = BoardView.pipelineFacts(index, entry, root)!;
+    const facts = factsOfEntry(repo, index, entry);
     const verdict = new DispatchAuthority().verdict({
       verb: "review",
       type: "branch",
@@ -2658,7 +2782,16 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     planDoc([[1]]);
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
-    const lines = BoardView.render(index, entry, repo, new Words(), "claude", ARGV_CHANNEL).lines;
+    const lines = BoardView.render(
+      tableFor(repo, index, entry),
+      new PlanSource(new RepoRoot(repo)),
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+    ).lines;
     expect(lines).toContain("  next:    (none)");
     expect(lines.some((row) => row.startsWith("  reason:"))).toBe(false);
   });
@@ -2679,6 +2812,8 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-overall");
     const lines = BoardView.render(
+      tableFor(repo, index, entry),
+      new PlanSource(new RepoRoot(repo)),
       index,
       entry,
       repo,
@@ -2686,7 +2821,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       "claude",
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(index, entry, new RepoRoot(repo)),
+      nextOfEntry(repo, index, entry),
     ).lines;
     expect(lines).toContain("  next:    done");
     expect(lines.some((row) => row.startsWith("  reason:"))).toBe(false);
@@ -2698,6 +2833,8 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const board = BoardView.render(
+      tableFor(repo, index, entry),
+      new PlanSource(new RepoRoot(repo)),
       index,
       entry,
       repo,
@@ -2705,7 +2842,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       "claude",
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(index, entry, new RepoRoot(repo)),
+      nextOfEntry(repo, index, entry),
     );
     const text = board.lines.join("\n");
     expect(text).not.toContain(repo);
@@ -2723,6 +2860,8 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     const index = SlugIndex.build(repo);
     const entry = entryOf("prog-p1");
     const text = BoardView.render(
+      tableFor(repo, index, entry),
+      new PlanSource(new RepoRoot(repo)),
       index,
       entry,
       repo,
@@ -2730,10 +2869,361 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       "claude",
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(index, entry, new RepoRoot(repo)),
+      nextOfEntry(repo, index, entry),
     ).lines.join("\n");
     expect(text).toContain("review 10 ✓");
     expect(text).not.toMatch(/review 1[–-]10/);
     expect(text).not.toMatch(/review \d+(?![a-z0-9]*\s*[✓✗])/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P35 T5 — the board's ONE plan read: the value ladder (identity → read value →
+// index), the four degradation semantics on both faces, and the frontier's path.
+// ---------------------------------------------------------------------------
+
+describe("P35 T5 — the board renders FROM the plan value, never from a second read", () => {
+  let repo: string;
+
+  beforeEach(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "board-p35-"));
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
+    mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  const writeDoc = (rel: string, lines: readonly string[]): string => {
+    const file = path.join(repo, rel);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${lines.join("\n")}\n`, "utf8");
+    return file;
+  };
+
+  const taskBlock = (id: number, dependsOn = "none"): readonly string[] => [
+    `### Task ${id}: t${id}`,
+    "- **Objective**: o",
+    "- **Files**: `a.ts`",
+    "- **Consumes**: x",
+    "- **Produces**: y",
+    "- **Steps**:",
+    "  - s — checkable: g",
+    "- **Acceptance**: ok",
+    `- **DependsOn**: ${dependsOn}`,
+    "",
+  ];
+
+  const planDoc = (rel: string, body: readonly string[], slug: string | null = "prog-p1"): string =>
+    writeDoc(rel, [
+      "---",
+      "title: Plan",
+      "version: v0.2",
+      "status: Draft",
+      "doc-type: plan",
+      ...(slug === null ? [] : [`slug: ${slug}`]),
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      ...body,
+    ]);
+
+  /** The program fixture — one overall charter plus its phase spec. */
+  const overall = (): string =>
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+
+  const phaseSpec = (slug = "prog-p1", rel = "docs/kairos/specs/prog-p1-design.md"): string =>
+    writeDoc(rel, [
+      "---",
+      "title: S",
+      "version: v0.1",
+      "status: Draft",
+      "doc-type: phase-spec",
+      `slug: ${slug}`,
+      "program: prog-overall",
+      "---",
+    ]);
+
+  const entryOf = (slug: string): DocEntry => {
+    const index = SlugIndex.build(repo);
+    const entry = index.overallOf(slug) ?? index.identityDoc(slug) ?? index.planOf(slug);
+    if (entry === null) throw new Error(`no doc for slug ${slug}`);
+    return entry;
+  };
+
+  /** The board over ONE read through the given face — the argv face when `planRel`
+   *  is named (production's solo `--plan`), the derived face otherwise. */
+  const boardOf = (slug: string, planRel?: string): { lines: string[]; exitCode: number } => {
+    const index = SlugIndex.build(repo);
+    // Production's entry synthesis: `--plan` alone boards the PLAN document itself
+    // (`entry = planEntry`), which is what the identity markers are read off.
+    const entry = planRel === undefined ? entryOf(slug) : (index.entryAt(planRel) ?? entryOf(slug));
+    const root = new RepoRoot(repo);
+    const source = new PlanSource(root);
+    const read = planRel === undefined ? source.readFor(entry) : source.readPath(planRel);
+    const board = BoardView.render(
+      [read],
+      source,
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      undefined,
+      BoardNext.of(read, source, index, entry, root),
+    );
+    return { lines: [...board.lines], exitCode: board.exitCode };
+  };
+
+  it("the four degradation semantics render four distinct rows — `(none)` is never a failure", () => {
+    overall();
+    phaseSpec();
+    // ① true undeclared
+    const undeclared = boardOf("prog-p1");
+    expect(undeclared.lines).toContain("  wave     (none)");
+    expect(undeclared.lines).toContain("  plan     (none)");
+    // ② healthy but empty
+    planDoc("docs/kairos/plans/prog-p1.md", []);
+    expect(boardOf("prog-p1").lines).toContain("  wave     (empty plan)");
+    // ③ the body breaks the grammar
+    planDoc("docs/kairos/plans/prog-p1.md", [
+      "### Task 1: t1",
+      "- **Objective**: o",
+      "#### DependsOn",
+      "none",
+      "#### DependsOn",
+      "none",
+      "",
+    ]);
+    const syntax = boardOf("prog-p1");
+    expect(syntax.lines).toContain("  wave     ! unparseable");
+    expect(syntax.lines).toContain("  plan     docs/kairos/plans/prog-p1.md · ! unparseable");
+    expect(syntax.exitCode).toBe(0);
+    // ④ the bytes do not read at all
+    const file = planDoc("docs/kairos/plans/prog-p1.md", taskBlock(1));
+    chmodSync(file, 0o000);
+    const io = boardOf("prog-p1");
+    expect(io.lines).toContain("  wave     ! unreadable");
+    expect(io.lines).toContain("  plan     docs/kairos/plans/prog-p1.md · ! unreadable");
+    expect(io.exitCode).toBe(0);
+  });
+
+  it("`(empty plan)` sits next to the true-undeclared `(none)` — two rows, never mixed", () => {
+    overall();
+    phaseSpec();
+    // The legal forward gap: the phase has no plan at all — today's pinned row.
+    const undeclared = boardOf("prog-p1");
+    expect(undeclared.lines).toContain("  wave     (none)");
+    expect(undeclared.lines).toContain("  plan     (none)");
+    // The skeleton the engine just produced: the document reads, its task block is
+    // not written yet. The cell is the port's own word, never `(none)`.
+    planDoc("docs/kairos/plans/prog-p1.md", []);
+    const empty = boardOf("prog-p1");
+    expect(empty.lines).toContain("  wave     (empty plan)");
+    expect(empty.lines).not.toContain("  wave     (none)");
+    // The empty plan still names its own document — the cell is the wave segment only.
+    expect(empty.lines.join("\n")).toContain("  plan     prog-p1.md");
+  });
+
+  it('the program face\'s four cells: `W1…` / `(empty plan)` / `! unparseable` / `""`', () => {
+    overall();
+    const index = SlugIndex.build(repo);
+    const root = new RepoRoot(repo);
+    const source = new PlanSource(root);
+    for (const slug of ["prog-p1", "prog-p2", "prog-p3", "prog-p4"]) {
+      phaseSpec(slug, `docs/kairos/specs/${slug}-design.md`);
+    }
+    planDoc("docs/kairos/plans/prog-p1.md", taskBlock(1));
+    planDoc("docs/kairos/plans/prog-p2.md", []);
+    planDoc("docs/kairos/plans/prog-p3.md", [
+      "### Task 1: t1",
+      "- **Objective**: o",
+      "#### DependsOn",
+      "none",
+      "#### DependsOn",
+      "none",
+      "",
+    ]);
+    const entry = index.overallOf("prog-overall")!;
+    const readTable = readTableOf(source, SlugIndex.build(repo), entry);
+    const board = BoardView.render(
+      readTable,
+      source,
+      SlugIndex.build(repo),
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      undefined,
+      null,
+    );
+    const rowOf = (slug: string): string =>
+      board.lines.find((line) => line.startsWith(`  phase ${slug} `))!;
+    expect(rowOf("prog-p1")).toContain("wave W1…");
+    expect(rowOf("prog-p2")).toContain("wave (empty plan)");
+    expect(rowOf("prog-p3")).toContain("wave ! unparseable");
+    // The true undeclared phase's cell is the empty string — no `wave` token at all.
+    expect(rowOf("prog-p4")).not.toContain("wave ");
+  });
+
+  it("a short per-phase table is a caller contract break — the board never re-reads to cover it", () => {
+    overall();
+    phaseSpec("prog-p1", "docs/kairos/specs/prog-p1-design.md");
+    phaseSpec("prog-p2", "docs/kairos/specs/prog-p2-design.md");
+    const root = new RepoRoot(repo);
+    const source = new PlanSource(root);
+    const index = SlugIndex.build(repo);
+    const entry = index.overallOf("prog-overall")!;
+    // One row short of the phase list: the board answers by throwing (the same
+    // posture `PlanRead#document()` takes) instead of minting a second read.
+    const short = readTableOf(source, index, entry).slice(0, 1);
+    expect(() =>
+      BoardView.render(
+        short,
+        source,
+        index,
+        entry,
+        repo,
+        new Words(),
+        "claude",
+        ARGV_CHANNEL,
+        undefined,
+        null,
+      ),
+    ).toThrow(/per-phase plan table is shorter/);
+  });
+
+  it("a `spec-absent` orphan folds every derived cell to `! no-spec` and keeps exit 0", () => {
+    phaseSpec("lonely", "docs/kairos/specs/lonely-design.md");
+    const planRel = "docs/kairos/plans/lonely.md";
+    planDoc(planRel, taskBlock(1), "lonely-orphan");
+    // The plan names a phase whose derived spec does not exist.
+    const board = boardOf("lonely-orphan", planRel);
+    expect(board.lines).toContain("  spec     ! no-spec");
+    expect(board.lines).toContain(`  plan     ${planRel} · ! no-spec`);
+    expect(board.lines).toContain("  wave     ! no-spec");
+    expect(board.lines).toContain("  next:    (none)");
+    expect(board.lines.some((line) => line.startsWith("  reason:"))).toBe(false);
+    // The non-blocking channel is the reason: the board never flips to exit 2.
+    expect(board.exitCode).toBe(0);
+  });
+
+  it("the degraded plan row still participates in `nameWidth` — the spec row keeps today's padding", () => {
+    overall();
+    phaseSpec();
+    const rel = "docs/kairos/plans/prog-p1.md";
+    planDoc(rel, taskBlock(1));
+    const healthy = boardOf("prog-p1").lines;
+    planDoc(rel, [
+      "### Task 1: t1",
+      "- **Objective**: o",
+      "#### DependsOn",
+      "none",
+      "#### DependsOn",
+      "none",
+      "",
+    ]);
+    const broken = boardOf("prog-p1").lines;
+    const rowOf = (lines: readonly string[], label: string): string =>
+      lines.find((line) => line.startsWith(`  ${label}`))!;
+    // The plan row's cell changed; its NAME still feeds the block's name column, so
+    // the spec row (the widest name) is byte-identical to the healthy board.
+    expect(rowOf(broken, "spec")).toBe(rowOf(healthy, "spec"));
+    expect(rowOf(broken, "overall")).toBe(rowOf(healthy, "overall"));
+    expect(rowOf(broken, "plan")).toBe(`  plan     ${rel} · ! unparseable`);
+  });
+
+  it("an identity break never slides into the orphan channel — `slug: invalid` / `duplicated`", () => {
+    overall();
+    phaseSpec();
+    // ① an illegal slug: the identity marker renders, exit 2, no `! no-spec` anywhere.
+    const illegal = "docs/kairos/plans/prog-p1.md";
+    planDoc(illegal, taskBlock(1), '"Foo Bar"');
+    const illegalBoard = boardOf("prog-p1", illegal);
+    expect(illegalBoard.lines.join("\n")).toContain("slug: invalid (BLOCKED)");
+    expect(illegalBoard.lines.join("\n")).not.toContain("! no-spec");
+    expect(illegalBoard.exitCode).toBe(2);
+    // ② a duplicated plan slug: same channel, same verdict.
+    planDoc("docs/kairos/plans/prog-p1.md", taskBlock(1));
+    planDoc("docs/kairos/plans/prog-p1-copy.md", taskBlock(1));
+    const duplicatedBoard = boardOf("prog-p1", "docs/kairos/plans/prog-p1.md");
+    expect(duplicatedBoard.lines.join("\n")).toContain("slug: duplicated (BLOCKED)");
+    expect(duplicatedBoard.lines.join("\n")).not.toContain("! no-spec");
+    expect(duplicatedBoard.exitCode).toBe(2);
+  });
+
+  it("a plan without `slug:` stays on the identity channel and keeps the healthy wave rows", () => {
+    overall();
+    phaseSpec();
+    const rel = "docs/kairos/plans/prog-p1.md";
+    planDoc(rel, taskBlock(1), null);
+    const board = boardOf("prog-p1", rel);
+    const text = board.lines.join("\n");
+    expect(text).toContain("slug: missing (BLOCKED)");
+    expect(text).not.toContain("! no-spec");
+    // `slug-absent` folds nothing: the wave rows stay healthy. The `(none)` route row
+    // is today's no-workspace-key degradation (a slug-less line holds no legal key to
+    // observe), NOT the read short-circuit — the hop-less shape the short-circuit owns
+    // is the same literal only because both answer "no derivable hop".
+    expect(text).toContain("W1 {1}");
+    expect(text).toContain("  next:    (none)");
+    expect(board.exitCode).toBe(2);
+  });
+
+  it("`pipelineFacts.planPath` is the read's own `stationPath()` — per cause, no index fallback", () => {
+    overall();
+    phaseSpec();
+    const rel = "docs/kairos/plans/prog-p1.md";
+    const facts = (): BoardPipelineFacts =>
+      factsOfEntry(repo, SlugIndex.build(repo), entryOf("prog-p1"));
+    // ① undeclared — no document, no frontier path.
+    expect(facts().input.planPath).toBeNull();
+    // ② ready — the document's path.
+    planDoc(rel, taskBlock(1));
+    expect(facts().input.planPath).toBe(rel);
+    // ③ syntax — the front matter read out, so the plan face assembles and the
+    // frontier MUST point at it (its own doc-contract refusal is the next face).
+    planDoc(rel, [
+      "### Task 1: t1",
+      "- **Objective**: o",
+      "#### DependsOn",
+      "none",
+      "#### DependsOn",
+      "none",
+      "",
+    ]);
+    const syntax = facts();
+    expect(syntax.input.plan.kind).toBe("unreadable");
+    expect(syntax.input.planPath).toBe(rel);
+    // ④ io — no slug key, no face, no path (never the index's candidate).
+    const file = planDoc(rel, taskBlock(1));
+    chmodSync(file, 0o000);
+    const io = facts();
+    expect(io.input.plan.kind).toBe("unreadable");
+    expect(io.input.planPath).toBeNull();
+  });
+
+  it("the derived face never reverse-looks-up — a non-`<slug>-design.md` spec never renders `! no-spec`", () => {
+    overall();
+    // The spec keeps its slug identity but not the derived file name.
+    phaseSpec("prog-p1", "docs/kairos/specs/prog-p1-phase.md");
+    planDoc("docs/kairos/plans/prog-p1.md", taskBlock(1));
+    const board = boardOf("prog-p1");
+    const text = board.lines.join("\n");
+    expect(text).not.toContain("! no-spec");
+    expect(text).toContain("W1 {1}");
+    expect(board.exitCode).toBe(0);
   });
 });

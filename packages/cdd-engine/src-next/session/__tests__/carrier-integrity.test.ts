@@ -23,6 +23,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { PlanSource } from "../../infra/plan-source.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../carrier-integrity.ts";
 import { Ledger } from "../ledger.ts";
@@ -40,7 +41,7 @@ const fixture = (): Fixture => {
     new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
     "p31",
   ).ensure();
-  const ledger = new Ledger(workspace, new ConfigLoader());
+  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
   return { ledger, workspace, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
 };
 

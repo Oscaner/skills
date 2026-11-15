@@ -174,7 +174,23 @@ export interface DocSlices {
   docType: DocType;
   /** The slice rows, in registry order. */
   slices: readonly ElementSlice[];
+  /** The `### Task N:` heading pattern of the document (undefined for a doc type
+   *  that registers no task block) — a property of the DOCUMENT, read off this
+   *  projection's own slice table, never a renderer's private forwarder. */
+  taskHeadingPattern(): RegExp | undefined;
 }
+
+/** The task-heading accessor — a module-scope `this`-typed function expression, so
+ *  every projection carries the SAME function instance (the projection-identity
+ *  assertion compares two independent projections with `toEqual`, which compares
+ *  function values by identity) while each call still reads that projection's own
+ *  `slices` (the registry slice table stays the one fact source). An arrow would
+ *  bind no `this`; a hand-written `RegExp` here would declare a second copy.
+ *  `check:no-bare-functions` only matches line-leading `function`, so the const
+ *  binding is inside the discipline. */
+const taskHeadingPatternOf = function (this: DocSlices): RegExp | undefined {
+  return this.slices.find((slice) => slice.anchor === "### Task N:")?.valuePattern;
+};
 
 // ---------------------------------------------------------------------------
 // tokens — the anchor lexicon
@@ -481,7 +497,7 @@ export class Projector {
             : new RegExp(element.valuePattern),
       });
     }
-    return { docType: registry.docType, slices };
+    return { docType: registry.docType, slices, taskHeadingPattern: taskHeadingPatternOf };
   }
 
   /** Project one registry onto its anchor-lexicon face. */

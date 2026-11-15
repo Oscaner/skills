@@ -8,6 +8,7 @@
 #   · the engine vitest suite        → engine-suite job (pnpm -C packages/cdd-engine test)
 #   · scripts unit tests             → scripts-unit job (pnpm exec vitest run)
 #   · type-check                     → typecheck job (pnpm run typecheck)
+#   · built-dist import + first command → dist-smoke job (pnpm run check:dist-smoke)
 #   · package version sync           → version-sync job (pnpm run version-sync)
 #   · zero module-level bare functions (the engine + kairos/tests + scripts .ts surfaces)
 #                                    → no-bare-functions job (pnpm run check:no-bare-functions)
@@ -68,6 +69,17 @@ jobs:
       - uses: ./.github/actions/validate
         with:
           command: pnpm run typecheck
+
+  dist-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/validate
+        with:
+          command: pnpm run check:dist-smoke
 
   emit-check:
     runs-on: ubuntu-latest

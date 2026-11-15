@@ -26,6 +26,7 @@ import { ARGV_CHANNEL } from "../../face/declare.ts";
 import { RouteRenderer } from "../../face/route-render.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
+import { type PlanRead, PlanSource } from "../../infra/plan-source.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
@@ -50,11 +51,8 @@ const fixture = (): {
   cleanup: () => void;
 } => {
   const repo = mkdtempSync(path.join(tmpdir(), "run-"));
-  const workspace = new Workspace(
-    new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
-    "test-slug",
-  );
-  const ledger = new Ledger(workspace, new ConfigLoader());
+  const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "test-slug");
+  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
   return { ledger, workspace, repo, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
 };
 
@@ -119,12 +117,28 @@ const finding = (severity: "blocker" | "warn" | "nit") => ({ severity, summary: 
  *  projection for a wave's tasks (P29 §2.2: the wave gate binds the task sections,
  *  never the whole plan and never the `## Constraints` mirror). */
 const briefHash = (planPath: string, tasks: string): string => {
+  const text = readFileSync(planPath, "utf8");
   const brief = new BriefRenderer().taskBody(
-    readFileSync(planPath, "utf8"),
+    text,
+    new PlanDocType("plan").parse(text.split("\n")),
     tasks.split(",").map(Number),
   );
   return createHash("sha1").update(brief).digest("hex");
 };
+
+/** The plan read for one fixture plan — a REAL read through the seam (the value is
+ *  never hand-minted: `PlanRead` has no factory). */
+const planReadOf = (repo: string, planPath: string | null): PlanRead =>
+  planPath === null
+    ? new PlanSource(new RepoRoot(repo)).readFor(null)
+    : new PlanSource(new RepoRoot(repo)).readPath(planPath);
+
+/** The plan value of a harness that dispatches no plan-bearing face — the
+ *  `undeclared` read a `PlanSource` derives for a null identity (never a minted
+ *  value: `PlanRead` has no factory). The constructor item is REQUIRED, so every
+ *  harness states which plan it holds instead of silently dropping the brief hash
+ *  and the plan snapshot. */
+const NO_PLAN: PlanRead = new PlanSource(new RepoRoot("/")).readFor(null);
 const phasesOf = (steps: readonly StepResult[]): readonly (string | null)[] =>
   steps.map((step) => step.frame.phase);
 
@@ -179,6 +193,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -244,6 +259,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -291,6 +307,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -324,6 +341,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -369,6 +387,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -420,6 +439,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -453,6 +473,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
@@ -484,6 +505,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
@@ -514,6 +536,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -539,6 +562,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -592,6 +616,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -635,6 +660,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -673,6 +699,7 @@ describe("the task small loop — implement → review → the next ready group"
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -713,6 +740,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
           face: targetFaces[type],
           state: EMPTY_RUN_STATE,
           ledger,
+          plan: NO_PLAN,
           dispatch: dispatch.step,
           target: { kind: type === "plan" ? "plan" : "spec", doc: DOC },
         });
@@ -751,6 +779,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
@@ -784,6 +813,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
         face: targetFaces.overall,
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
@@ -793,7 +823,11 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
       expect(fix!.frame.round).toBe(2);
       // ONE row: the round booked where the line has always been.
       expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec"]);
-      const reload = new Ledger(workspace, new ConfigLoader());
+      const reload = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       expect(reload.completedCycles("overall", "fix", "overall")).toEqual([1, 2]);
       expect(fix!.route?.kind).toBe("review");
     } finally {
@@ -812,6 +846,7 @@ describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", 
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
       await run.advance();
@@ -835,6 +870,7 @@ describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", 
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
@@ -864,6 +900,7 @@ describe("T2/D62 — the bookkeep fallback rides the frame's op-derived plane", 
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
       await run.advance(); // implement 1 — the work face
@@ -901,6 +938,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
         face: targetFaces.branch,
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "branch" },
       });
@@ -934,6 +972,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
         face: targetFaces.branch,
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: stub((_frame) => ({ status: "APPROVED", findings: [] })).step,
       });
       expect(await run.advance()).toBeNull();
@@ -965,6 +1004,7 @@ describe("the branch small loop — branch-review → fix → closure", () => {
         face: targetFaces.branch,
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "branch" },
       });
@@ -1030,6 +1070,7 @@ describe("P24 §2 — a completed round advances the line's reviewed identity", 
           face: targetFaces[type],
           state: EMPTY_RUN_STATE,
           ledger,
+          plan: NO_PLAN,
           dispatch: dispatch.step,
           target: { kind: type === "plan" ? "plan" : "spec", doc },
         });
@@ -1073,6 +1114,7 @@ describe("P24 §2 — a completed round advances the line's reviewed identity", 
           face: targetFaces[type],
           state: EMPTY_RUN_STATE,
           ledger,
+          plan: NO_PLAN,
           dispatch: dispatch.step,
           target: { kind: type === "plan" ? "plan" : "spec", doc },
         });
@@ -1111,6 +1153,7 @@ describe("P24 §2 — a completed round advances the line's reviewed identity", 
           face: targetFaces[type],
           state: EMPTY_RUN_STATE,
           ledger,
+          plan: NO_PLAN,
           dispatch: dispatch.step,
           target: { kind: type === "plan" ? "plan" : "spec", doc },
         });
@@ -1151,7 +1194,7 @@ describe("P24 §2 — a completed round advances the line's reviewed identity", 
         ledger,
         dispatch: dispatch.step,
         target: { kind: "branch" },
-        planPath,
+        plan: planReadOf(repo, planPath),
       });
       run.attachCapsule(new Capsule(new Words()));
 
@@ -1185,7 +1228,7 @@ describe("P24 §2 — a completed round advances the line's reviewed identity", 
         state: graph,
         ledger,
         dispatch: dispatch.step,
-        planPath,
+        plan: planReadOf(repo, planPath),
       });
 
       await run.advance(); // implement
@@ -1205,14 +1248,14 @@ describe("P24 §2 — a completed round advances the line's reviewed identity", 
 /** A CLOSED branch line in the fixture — a clean branch review over the plan binds the
  *  line's reviewed plan revision, so the drift-aware gate reads `same` and the line
  *  holds no active C5 hop (the §4.2 closed-station fact). */
-const closedBranchLine = async (ledger: Ledger, planPath: string): Promise<void> => {
+const closedBranchLine = async (ledger: Ledger, repo: string, planPath: string): Promise<void> => {
   const branch = new Lifecycle({
     face: targetFaces.branch,
     state: EMPTY_RUN_STATE,
     ledger,
     dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
     target: { kind: "branch" },
-    planPath,
+    plan: planReadOf(repo, planPath),
   });
   const step = await branch.advance();
   expect(step!.frame.phase).toBe("branch-review");
@@ -1223,7 +1266,11 @@ const closedBranchLine = async (ledger: Ledger, planPath: string): Promise<void>
 
 /** The wave line's closing round over a one-task plan — implement → the clean review.
  *  The capsule is attached so the `next:` judgment's render is observable. */
-const runWaveToClosure = async (ledger: Ledger, planPath: string): Promise<StepResult> => {
+const runWaveToClosure = async (
+  ledger: Ledger,
+  repo: string,
+  planPath: string,
+): Promise<StepResult> => {
   const wave = new Lifecycle({
     face: targetFaces.wave,
     state: taskGraph([task(1, "none")]),
@@ -1231,7 +1278,7 @@ const runWaveToClosure = async (ledger: Ledger, planPath: string): Promise<StepR
     dispatch: stub((frame) =>
       frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
     ).step,
-    planPath,
+    plan: planReadOf(repo, planPath),
     capsule: new Capsule(new Words()),
   });
   expect((await wave.advance())!.frame.phase).toBe("implement");
@@ -1253,8 +1300,8 @@ describe("P21 §4.2 — the wave closure's next: reads the branch line's open fa
     const { ledger, repo, cleanup } = fixture();
     try {
       const planPath = seeded(repo);
-      await closedBranchLine(ledger, planPath);
-      const closing = await runWaveToClosure(ledger, planPath);
+      await closedBranchLine(ledger, repo, planPath);
+      const closing = await runWaveToClosure(ledger, repo, planPath);
       expect(closing.frame.phase).toBe("review");
       expect(closing.route).toEqual({ kind: "done" });
       // the branch line is closed, so the wave face's own next station renders —
@@ -1269,17 +1316,19 @@ describe("P21 §4.2 — the wave closure's next: reads the branch line's open fa
     const { ledger, repo, cleanup } = fixture();
     try {
       const planPath = seeded(repo);
-      await closedBranchLine(ledger, planPath);
+      await closedBranchLine(ledger, repo, planPath);
       // the plan advances AFTER the branch review — the drift-aware gate reopens the
       // line, so the wave closure hands off to a dispatchable branch round again
       writeFileSync(
         planPath,
         `${planDoc([task(1, "none")])}\n\n## Notes\n\n- plan advanced after the branch review\n`,
       );
-      const closing = await runWaveToClosure(ledger, planPath);
+      const closing = await runWaveToClosure(ledger, repo, planPath);
       expect(closing.frame.phase).toBe("review");
       expect(closing.route).toEqual({ kind: "done" });
-      expect(closing.capsuleLines[1]).toBe(`next: review --type branch --plan ${planPath}`);
+      expect(closing.capsuleLines[1]).toBe(
+        `next: review --type branch --plan ${path.relative(repo, planPath)}`,
+      );
     } finally {
       cleanup();
     }
@@ -1296,6 +1345,7 @@ describe("P22 §5.2 — the capsule's NextHop absence on the failure face", () =
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: stub((frame) => {
           if (frame.phase === "implement")
             return blocked ? { status: "BLOCKED" } : APPROVED_IMPLEMENT;
@@ -1332,6 +1382,7 @@ describe("the capsule interaction seam — non-hard consumption", () => {
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
       });
 
@@ -1375,7 +1426,7 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
         state: graph,
         ledger,
         dispatch: dispatch.step,
-        planPath,
+        plan: planReadOf(repo, planPath),
       });
       await run.advance(); // implement
       await run.advance(); // review — the completion records the wave's RENDERED brief revision
@@ -1388,9 +1439,9 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
       expect(recorded!.kind).toBe("brief-revision");
       if (recorded!.kind !== "brief-revision") throw new Error("unreachable");
       // P9 T4 — the persisted plan layer speaks the ONE canonical shape (repoRoot-
-      // relative), so the fixture's basis (`<repo>/.kairos/cdd`) relativizes the
-      // plan to `../../plan.md` (the ledger normalizes on write + comparison).
-      expect(recorded!.plan).toBe("../../plan.md");
+      // relative): the fixture's basis IS the repo root, so `plan.md` stays `plan.md`
+      // (the ledger normalizes on write + comparison).
+      expect(recorded!.plan).toBe("plan.md");
       expect(recorded!.brief_hash).toBe(briefHash(planPath, "1"));
       // the doc-line narrowing reader never surfaces a brief ref (a wave line is not
       // a doc line)
@@ -1411,6 +1462,7 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
         face: targetFaces.wave,
         state: graph,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         // no planPath — the wave review completes with no plan fact on record
       });
@@ -1440,7 +1492,7 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
         state: graph,
         ledger,
         dispatch: dispatch.step,
-        planPath,
+        plan: planReadOf(repo, planPath),
       });
       await run.advance(); // implement
       for (let pass = 0; pass < 2; pass += 1) {
@@ -1479,7 +1531,7 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
         state: graph,
         ledger,
         dispatch: dispatch.step,
-        planPath,
+        plan: planReadOf(repo, planPath),
       });
       await run.advance(); // implement
       const review = await run.advance(); // review — the blocker awaits its fix; the brief revision binds
@@ -1515,7 +1567,7 @@ describe("T11/D30 — the wave review writes the reviewed BRIEF revision into th
         state: graph,
         ledger,
         dispatch: dispatch.step,
-        planPath,
+        plan: planReadOf(repo, planPath),
       });
       await run.advance(); // implement wave {1}
       await run.advance(); // review — binds wave {1}'s brief; the blocker awaits its fix
@@ -1553,7 +1605,7 @@ describe("P24 T3 — a drifted wave reaches the next-hop reason", () => {
           ? APPROVED_IMPLEMENT
           : { status: "APPROVED", findings: [finding("warn")] },
       ).step,
-      planPath,
+      plan: planReadOf(repo, planPath),
     });
     await run.advance(); // implement
     await run.advance(); // review — the brief binds; the warn awaits its fix
@@ -1618,7 +1670,7 @@ describe("P21 T3 — the branch line binds its plan's doc-revision", () => {
         ledger,
         dispatch: dispatch.step,
         target: { kind: "branch" },
-        planPath,
+        plan: planReadOf(repo, planPath),
       });
       const step = await run.advance();
       expect(step?.frame.phase).toBe("branch-review");
@@ -1627,13 +1679,76 @@ describe("P21 T3 — the branch line binds its plan's doc-revision", () => {
       expect(recorded?.kind).toBe("doc-revision");
       if (recorded?.kind !== "doc-revision") throw new Error("unreachable");
       // the persisted plan layer speaks the canonical repoRoot-relative shape
-      expect(recorded.doc).toBe("../../plan.md");
+      expect(recorded.doc).toBe("plan.md");
       // P26 T1: the doc-revision hashes the BODY projection (front matter and the
       // change-history section stripped), not the whole file.
       expect(recorded.doc_hash).toBe(
         createHash("sha1").update(new DocBodyProjection().project(content)).digest("hex"),
       );
       expect(ledger.reviewedRevisionOf("1")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the ready close records the SAME bytes the drift comparator hashes as its current side", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      writeFileSync(planPath, planDoc([task(1, "none")]));
+      const run = new Lifecycle({
+        face: targetFaces.branch,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+        target: { kind: "branch" },
+        plan: planReadOf(repo, planPath),
+      });
+
+      await run.advance(); // branch-review → closed
+      const recorded = ledger.reviewedRevisionOf("branch", "branch");
+      if (recorded?.kind !== "doc-revision") throw new Error("unreachable");
+      // ONE read, one hash: the recorded identity IS the comparator's current side,
+      // so an untouched plan cannot read as drifted, and a later edit moves the
+      // current side alone.
+      const pair = ledger.docDriftHashes("branch", planPath, "branch");
+      expect(pair).not.toBeNull();
+      expect(pair!.line).toBe("plan.md");
+      expect(pair!.recorded).toBe(recorded.doc_hash);
+      expect(pair!.current).toBe(recorded.doc_hash);
+      expect(ledger.reviewGate("branch", planPath, "branch").kind).toBe("same");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a plan the grammar refuses records nothing at the close — present facts only", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "plan.md");
+      // A duplicated reserved section: the read classifies `unreadable`/`syntax`.
+      writeFileSync(
+        planPath,
+        planDoc([["### Task 1: task 1", "#### DependsOn", "none", "#### DependsOn", "none"]]),
+      );
+      const plan = planReadOf(repo, planPath);
+      expect(plan.kind).toBe("unreadable");
+      expect(plan.failure()?.cause).toBe("syntax");
+      const run = new Lifecycle({
+        face: targetFaces.branch,
+        state: EMPTY_RUN_STATE,
+        ledger,
+        dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
+        target: { kind: "branch" },
+        plan,
+      });
+
+      const step = await run.advance();
+      expect(step?.frame.phase).toBe("branch-review");
+      // The branch leg re-reads the judged plan through the ONE plan seam; a
+      // non-ready read records no identity instead of inventing one.
+      expect(ledger.reviewedRevisionOf("branch", "branch")).toBeNull();
+      expect(ledger.docDriftHashes("branch", planPath, "branch")).toBeNull();
     } finally {
       cleanup();
     }
@@ -1651,7 +1766,7 @@ describe("P21 T3 — the branch line binds its plan's doc-revision", () => {
         ledger,
         dispatch: dispatch.step,
         target: { kind: "branch" },
-        planPath,
+        plan: planReadOf(repo, planPath),
       });
       await run.advance(); // branch-review → closed
       expect(ledger.reviewGate("branch", planPath, "branch").kind).toBe("same");
@@ -1684,7 +1799,7 @@ describe("P21 §5.1 — the wave closure's plan-task snapshot (the append-vs-sta
         state: graph,
         ledger,
         dispatch: dispatch.step,
-        planPath,
+        plan: planReadOf(repo, planPath),
       });
       await run.advance(); // implement
       await run.advance(); // review — the closure point takes the snapshot
@@ -1692,6 +1807,61 @@ describe("P21 §5.1 — the wave closure's plan-task snapshot (the append-vs-sta
       // The snapshot is idempotent history: the plan growing later never rewrites it.
       ledger.recordPlanTasks("1", [1, 2, 3]);
       expect(ledger.planTasksOf("1")).toEqual([1, 2]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("skips the snapshot when the plan's GRAMMAR breaks too — a non-ready read records nothing", async () => {
+    const { ledger, repo, cleanup } = fixture();
+    try {
+      const planPath = path.join(repo, "broken-plan.md");
+      // One task block carries the reserved `#### DependsOn` section twice, so the
+      // document reads as `unreadable`/`syntax` (front matter out, body refused).
+      writeFileSync(
+        planPath,
+        [
+          "---",
+          "title: Broken Plan",
+          "doc-type: plan",
+          "version: v1.0",
+          "date: 2026-10-09",
+          "slug: x-p3",
+          "---",
+          "",
+          "## Constraints",
+          "",
+          "- c",
+          "",
+          "### Task 1: t1",
+          "- **Objective**: o",
+          "#### DependsOn",
+          "none",
+          "#### DependsOn",
+          "none",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      const read = planReadOf(repo, planPath);
+      expect(read.failure()?.cause).toBe("syntax");
+      const graph = taskGraph([task(1, "none")]);
+      const dispatch = stub((frame) =>
+        frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
+      );
+      const run = new Lifecycle({
+        face: targetFaces.wave,
+        state: graph,
+        ledger,
+        dispatch: dispatch.step,
+        plan: read,
+      });
+      await run.advance(); // implement
+      await run.advance(); // review — closure, but the plan has no parsed document
+      expect(ledger.planTasksOf("1")).toBeNull();
+      const row = ledger.readProgress()?.waves.find((entry) => entry.wave === "1");
+      expect(row).toBeDefined();
+      expect("planTasks" in (row ?? {})).toBe(false);
     } finally {
       cleanup();
     }
@@ -1709,7 +1879,7 @@ describe("P21 §5.1 — the wave closure's plan-task snapshot (the append-vs-sta
         state: graph,
         ledger,
         dispatch: dispatch.step,
-        planPath: path.join(repo, "no-such-plan.md"),
+        plan: planReadOf(repo, path.join(repo, "no-such-plan.md")),
       });
       await run.advance(); // implement
       await run.advance(); // review — closure, but the plan cannot be read
@@ -1747,7 +1917,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
   } => {
     const repo = mkdtempSync(path.join(tmpdir(), "hop-parity-"));
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "x-p3").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader());
+    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
     const specPath = path.join(repo, DOC);
     mkdirSync(path.dirname(specPath), { recursive: true });
     writeFileSync(
@@ -1789,7 +1959,13 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
     const entry = index.identityDoc(slug);
     if (entry === null) throw new Error(`no identity doc for ${slug}`);
     const root = new RepoRoot(repo);
+    const planSource = new PlanSource(root);
+    // The board's ONE plan read, in the ordered table shape `Cli#runBoard` builds
+    // (a single-document board is a table of length 1).
+    const read = planSource.readFor(entry);
     const board = BoardView.render(
+      [read],
+      planSource,
       index,
       entry,
       repo,
@@ -1797,7 +1973,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
       "claude",
       ARGV_CHANNEL,
       undefined,
-      BoardNext.of(index, entry, root),
+      BoardNext.of(read, planSource, index, entry, root),
     );
     const row = (prefix: string): string => {
       const line = board.lines.find((candidate) => candidate.startsWith(prefix));
@@ -1818,12 +1994,11 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
         dispatch: stub((frame) =>
           frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
         ).step,
-        planPath,
+        plan: planReadOf(repo, planPath),
         // The node's declared identity — a spec document exists, so the capsule and
         // the board share the pipeline frontier's assembly.
         specType: "phase-spec",
         specPath,
-        planGraph: graph,
         capsule: new Capsule(new Words(), ARGV_CHANNEL, "claude", new RepoRoot(repo)),
       });
 
@@ -1854,6 +2029,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
         face: targetFaces.wave,
         state: taskGraph([task(1, "none")]),
         ledger,
+        plan: NO_PLAN,
         dispatch: stub((frame) =>
           frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
         ).step,
@@ -1878,7 +2054,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
         dispatch: stub((frame) =>
           frame.phase === "implement" ? APPROVED_IMPLEMENT : { status: "APPROVED", findings: [] },
         ).step,
-        planPath,
+        plan: planReadOf(repo, planPath),
         capsule: new Capsule(new Words()),
       });
       const step = await run.advance(); // implement wave {1}
@@ -1898,6 +2074,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
         target: { kind: "spec", doc: specPath },
         specType: "phase-spec",
@@ -1916,7 +2093,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
   });
 
   it("a closed `overall` charter with a same-slug plan names the successor plan face", async () => {
-    const { ledger, specPath, planPath, cleanup } = nodeFixture();
+    const { ledger, repo, specPath, planPath, cleanup } = nodeFixture();
     try {
       const run = new Lifecycle({
         face: targetFaces.overall,
@@ -1926,7 +2103,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
         target: { kind: "spec", doc: specPath },
         specType: "overall",
         specPath,
-        planPath,
+        plan: planReadOf(repo, planPath),
         capsule: new Capsule(new Words()),
       });
       const step = await run.advance(); // the clean charter review closes the line
@@ -1934,7 +2111,9 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
       // The identity slot is the `overall` row's (one judge, `#identityState`), so
       // the closed charter hands off to the untouched plan face rather than the
       // charter's own `done` row.
-      expect(step!.capsuleLines[1]).toBe(`next: review --type plan --plan ${planPath}`);
+      expect(step!.capsuleLines[1]).toBe(
+        `next: review --type plan --plan ${path.relative(repo, planPath)}`,
+      );
       expect(reasonTokenOf(step!.capsuleLines[2]!)).toBe("task-open");
     } finally {
       cleanup();
@@ -1948,6 +2127,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
         face: targetFaces.overall,
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
         target: { kind: "spec", doc: specPath },
         specType: "overall",
@@ -1963,7 +2143,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
   });
 
   it("a closed `single-spec` (the identity slot's third owner) shares the assembly — plan successor, plan-less handoff to `cdd-plan`", async () => {
-    const { ledger, specPath, planPath, cleanup } = nodeFixture();
+    const { ledger, repo, specPath, planPath, cleanup } = nodeFixture();
     try {
       const withPlan = new Lifecycle({
         face: targetFaces["single-spec"],
@@ -1973,11 +2153,13 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
         target: { kind: "spec", doc: specPath },
         specType: "single-spec",
         specPath,
-        planPath,
+        plan: planReadOf(repo, planPath),
         capsule: new Capsule(new Words()),
       });
       const step = await withPlan.advance();
-      expect(step!.capsuleLines[1]).toBe(`next: review --type plan --plan ${planPath}`);
+      expect(step!.capsuleLines[1]).toBe(
+        `next: review --type plan --plan ${path.relative(repo, planPath)}`,
+      );
       expect(reasonTokenOf(step!.capsuleLines[2]!)).toBe("task-open");
 
       // The same owner with no plan document: the closed spec line hands off to
@@ -1989,6 +2171,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
           face: targetFaces["single-spec"],
           state: EMPTY_RUN_STATE,
           ledger: bareLedger,
+          plan: NO_PLAN,
           dispatch: stub(() => ({ status: "APPROVED", findings: [] })).step,
           target: { kind: "spec", doc: bareSpec },
           specType: "single-spec",
@@ -2057,6 +2240,7 @@ describe("P31 T6 — the write-back binds only bytes the round touched", () => {
       face: targetFaces["phase-spec"],
       state: EMPTY_RUN_STATE,
       ledger,
+      plan: NO_PLAN,
       dispatch: stub(reviewScript(doc, touchedDoc)).step,
       target: { kind: "spec", doc },
     });
@@ -2097,6 +2281,7 @@ describe("P31 T6 — the write-back binds only bytes the round touched", () => {
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc },
       });
@@ -2173,6 +2358,7 @@ describe("P32 T1 — a review binds the bytes it judged, whatever it touched", (
       face: targetFaces["phase-spec"],
       state: EMPTY_RUN_STATE,
       ledger,
+      plan: NO_PLAN,
       dispatch: dispatch.step,
       target: { kind: "spec", doc },
     });
@@ -2266,7 +2452,7 @@ describe("P32 T1 — a review binds the bytes it judged, whatever it touched", (
         ledger,
         dispatch: dispatch.step,
         target: { kind: "branch" },
-        planPath,
+        plan: planReadOf(repo, planPath),
       });
       const step = await run.advance();
       expect(step!.frame.phase).toBe("branch-review");
@@ -2320,6 +2506,7 @@ describe("P31 T5 — the carrier-less failure face seals its own two names", () 
         face: targetFaces["phase-spec"],
         state: EMPTY_RUN_STATE,
         ledger,
+        plan: NO_PLAN,
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });

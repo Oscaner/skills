@@ -37,18 +37,17 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { PlanDocType } from "../contract/doc.ts";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import type { DocKey } from "../contract/project.ts";
 import { DOC_KEYS } from "../contract/project.ts";
 import { ConfigLoader } from "../infra/config.ts";
+import type { PlanRead, PlanSource } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
 import { type DocEntry, SlugIndex, type SlugRole } from "../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { CarrierIntegrity } from "../session/carrier-integrity.ts";
 import type { RouteTarget, TargetType } from "../session/faces.ts";
-import { TaskGraph } from "../session/graph.ts";
 import type { InFlightState } from "../session/inflight.ts";
 import { Ledger, type ProgressData, type RoundRecord, RoundRecords } from "../session/ledger.ts";
 import type { DocClassVerdict, NextHop } from "../session/next.ts";
@@ -566,20 +565,30 @@ export class BoardView {
   // the render face (spec §5.3) — the entry document → board layout + next render
   // -------------------------------------------------------------------------
 
-  /** render(index, entry, repoRoot, words, host, channels, holding, next) — the
-   *  entry document's board (spec §3.1): the entry's declared `doc-type:` picks the
-   *  shape — `overall` → the program board, every other type → the node board. The
-   *  index supplies every related node (`program:` → overall; same slug → spec /
-   *  plan), so no filename grammar participates. `next` is the INJECTED `NextHop`
-   *  the node board's `next:` row renders (null = the board holds no derivable hop,
-   *  the `(none)` degradation). The argv channel is threaded into the shared
-   *  `RouteRenderer` (the SAME channel the capsule's route render reads, so the
+  /** render(readTable, plan, index, entry, repoRoot, words, host, channels, holding,
+   *  next) — the entry document's board (spec §3.1): the entry's declared `doc-type:`
+   *  picks the shape — `overall` → the program board, every other type → the node
+   *  board. The index supplies every related node (`program:` → overall; same slug →
+   *  spec / plan), so no filename grammar participates. `next` is the INJECTED
+   *  `NextHop` the node board's `next:` row renders (null = the board holds no
+   *  derivable hop, the `(none)` degradation). The argv channel is threaded into the
+   *  shared `RouteRenderer` (the SAME channel the capsule's route render reads, so the
    *  board's `next:` and the engine's `next:` literal compose their argv from ONE
    *  flag-spelling source). A present doc line carrying a violation renders the
-   *  matching `(BLOCKED)` marker and the board exits 2 (spec §3.1 — the board's
-   *  reject face is exit 2, never the dispatch CDD_BLOCKED channel). Pure reads —
-   *  zero tree writes, zero ledger writes, zero child dispatch. */
+   *  matching `(BLOCKED)` marker and the board exits 2 (spec §3.1 — the board's reject
+   *  face is exit 2, never the dispatch CDD_BLOCKED channel). Pure reads — zero tree
+   *  writes, zero ledger writes, zero child dispatch.
+   *
+   *  `readTable` is the caller's ORDERED per-phase plan value table (spec §2.1 ·
+   *  §2.4): `Cli#runBoard` builds it once, in `index.phaseSpecsOf` row order, so an
+   *  overall board's every phase cell and every `CDD_WARN:` line reads the SAME value
+   *  the wave segment reads. A single-document board is a table of length 1 — its one
+   *  row is the argv face's read (solo `--plan`) or the derived face's (`--spec`).
+   *  The board therefore holds no plan-reading seam of its own: the ONE read point is
+   *  the injected `PlanSource`, and a value is never re-read here. */
   static render(
+    readTable: readonly PlanRead[],
+    plan: PlanSource,
     index: SlugIndex,
     entry: DocEntry,
     repoRoot: string,
@@ -598,8 +607,23 @@ export class BoardView {
     const root = new RepoRoot(repoRoot);
     const exitCode =
       entry.docType === "overall"
-        ? BoardView.#programBoard(lines, index, entry, root)
-        : BoardView.#nodeBoard(lines, index, entry, root, words, host, channels, holding, next);
+        ? BoardView.#programBoard(readTable, plan, lines, index, entry, root, words)
+        : BoardView.#nodeBoard(
+            // A node board is ONE document: the caller's single row. An empty table
+            // means no document was read at all — the seam's own undeclared value is
+            // that read result (no file is opened, so this mints no second read).
+            readTable[0] ?? plan.readFor(null),
+            plan,
+            lines,
+            index,
+            entry,
+            root,
+            words,
+            host,
+            channels,
+            holding,
+            next,
+          );
     lines.push("", PROGRESS_LEGEND.board);
     return { lines, exitCode };
   }
@@ -609,8 +633,13 @@ export class BoardView {
    *  (`program:` → overall; same slug → spec / plan); a missing link renders
    *  `(none)` and stays exit 0, while a violated line renders its marker and exits
    *  2. The repo-basis `root` is threaded alone (F2) — its `absolute` feeds the
-   *  fs-facing helpers, its value object the path renders. */
+   *  fs-facing helpers, its value object the path renders. `read` is the caller's
+   *  ONE plan value (spec §2.1): the plan row, the wave row and the `! no-spec`
+   *  spec row all take their facts from it, so the document the board names and
+   *  the document it read are one fact. */
   static #nodeBoard(
+    read: PlanRead,
+    plan: PlanSource,
     lines: string[],
     index: SlugIndex,
     entry: DocEntry,
@@ -624,10 +653,11 @@ export class BoardView {
     const repoRoot = root.absolute;
     const sources = BoardView.#nodeSources(index, entry);
     const nodeSlug = BoardView.#validSlug(entry);
-    const ledger = nodeSlug === null ? null : BoardView.#ledgerOf(nodeSlug, repoRoot);
+    const ledger = nodeSlug === null ? null : BoardView.#ledgerOf(plan, nodeSlug, repoRoot);
     const progress = ledger?.readProgress() ?? null;
     const overallSlug = BoardView.#validSlug(sources.overall);
-    const overallLedger = overallSlug === null ? null : BoardView.#ledgerOf(overallSlug, repoRoot);
+    const overallLedger =
+      overallSlug === null ? null : BoardView.#ledgerOf(plan, overallSlug, repoRoot);
     const overallProgress = overallLedger?.readProgress() ?? null;
     // The tree's dispatch fact + the node workspace's orphan drafts + the node's
     // crashed rounds render before the line rows (a reader answers "is anyone working
@@ -640,11 +670,25 @@ export class BoardView {
     for (const row of BoardView.inFlightRows(holding, orphans, words, crashes)) lines.push(row);
     if (holding.kind !== "absent" || orphans.length > 0 || crashes.length > 0) lines.push("");
 
+    // The two identity marks the read-value ladder consults (spec §2.7's first two
+    // layers): a non-empty mark keeps the EXISTING `#docCell` accounting and exit 2 —
+    // identity breakage outranks the read value, so neither the plan row nor the spec
+    // row asks a `PlanRead` accessor, and no `! no-spec` literal (the orphan fold or
+    // the degraded wave row) can appear beside a broken identity.
+    const specMark =
+      BoardView.#entryMark(index, sources.spec, "identity") ??
+      (sources.programMissing ? MARK_PROGRAM_MISSING : null);
+    const planMark = BoardView.#entryMark(index, sources.plan, "plan");
+    const planIdentityClean = planMark === null;
+    const identityClean = planIdentityClean && specMark === null;
     const docRows: Array<{
       readonly label: string;
       readonly entry: DocEntry | null;
       readonly line: BoardLine;
       readonly mark: string | null;
+      /** The cell content a `PlanRead` accessor owns; null hands the row to
+       *  `#docCell` (the index-derived bytes). */
+      readonly override: string | null;
     }> = [
       {
         label: "overall",
@@ -657,6 +701,7 @@ export class BoardView {
           overallLedger,
         ),
         mark: BoardView.#entryMark(index, sources.overall, "identity"),
+        override: null,
       },
       {
         label: "spec",
@@ -668,15 +713,18 @@ export class BoardView {
           progress,
           ledger,
         ),
-        mark:
-          BoardView.#entryMark(index, sources.spec, "identity") ??
-          (sources.programMissing ? MARK_PROGRAM_MISSING : null),
+        mark: specMark,
+        // The reverse-lookup orphan's spec row (spec §2.7 ①): the identity-clean
+        // row bypasses `#entryMark` / `#docCell` accounting — landing in the mark
+        // channel would make it `blocked: true` and flip the orphan board to exit 2.
+        override: identityClean ? read.specLine(words) : null,
       },
       {
         label: "plan",
         entry: sources.plan,
         line: BoardView.#lineOf("plan", "plan", sources.plan, progress, ledger),
-        mark: BoardView.#entryMark(index, sources.plan, "plan"),
+        mark: planMark,
+        override: BoardView.#planCellOf(read, sources.plan, planMark, words),
       },
     ];
     // The doc-name column is fixed-width: every name is padded to the widest one, so
@@ -689,27 +737,44 @@ export class BoardView {
     );
     let blocked = false;
     for (const row of docRows) {
+      if (row.override !== null) {
+        lines.push(`  ${row.label.padEnd(LABEL_WIDTH)}${row.override}`.trimEnd());
+        continue;
+      }
       const cell = BoardView.#docCell(row.entry, row.line, nameWidth, row.mark);
       lines.push(`  ${row.label.padEnd(LABEL_WIDTH)}${cell.text}`.trimEnd());
       blocked ||= cell.blocked;
     }
 
-    const waves = BoardView.#waveLines(sources.plan?.path ?? null, progress, ledger);
-    if (waves.length === 0) {
-      lines.push(`  ${"wave".padEnd(LABEL_WIDTH)}(none)`);
+    // The doc face asks the READ first and the assembler second (spec §2.4): a
+    // degradation literal is the value's, the healthy row stays byte-identical to
+    // today's (`waves()` + `graph.report(ledger.closedWaves())` + `#rowRounds` +
+    // `LineCarriers`). `waves()` being empty is never the `(none)` signal. The ONE
+    // literal an identity break bans is `! no-spec` (`spec-absent` beside a rendered
+    // `(BLOCKED)` marker); `! unparseable` / `! unreadable` / `(empty plan)` still
+    // render, so a reader can tell a missing plan from a plan that does not read.
+    const specAbsent = read.orphan()?.cause === "spec-absent";
+    const degraded = specAbsent && !planIdentityClean ? null : read.degradedWaveRow(words);
+    if (degraded !== null) {
+      lines.push(`  ${"wave".padEnd(LABEL_WIDTH)}${degraded}`);
     } else {
-      // The marker column is fixed-width: every wave label is padded to the widest
-      // label so the ✔/▶/○ markers align into one column (spec §5.3 · D40).
-      const labelWidth = Math.max(...waves.map((wave) => wave.label.length));
-      waves.forEach((wave, index) => {
-        const prefix =
-          index === 0 ? `  ${"wave".padEnd(LABEL_WIDTH)}` : " ".repeat(2 + LABEL_WIDTH);
-        const cell = BoardView.summaryCell(wave.rounds, wave.carriers);
-        const label = wave.label.padEnd(labelWidth);
-        lines.push(
-          `${prefix}${label}  ${wave.marker ?? ""}${cell === "" ? "" : `  ${cell}`}`.trimEnd(),
-        );
-      });
+      const waves = BoardView.#waveLines(read, progress, ledger);
+      if (waves.length === 0) {
+        lines.push(`  ${"wave".padEnd(LABEL_WIDTH)}(none)`);
+      } else {
+        // The marker column is fixed-width: every wave label is padded to the widest
+        // label so the ✔/▶/○ markers align into one column (spec §5.3 · D40).
+        const labelWidth = Math.max(...waves.map((wave) => wave.label.length));
+        waves.forEach((wave, index) => {
+          const prefix =
+            index === 0 ? `  ${"wave".padEnd(LABEL_WIDTH)}` : " ".repeat(2 + LABEL_WIDTH);
+          const cell = BoardView.summaryCell(wave.rounds, wave.carriers);
+          const label = wave.label.padEnd(labelWidth);
+          lines.push(
+            `${prefix}${label}  ${wave.marker ?? ""}${cell === "" ? "" : `  ${cell}`}`.trimEnd(),
+          );
+        });
+      }
     }
 
     const branchLine = BoardView.#roundsLine("branch", "branch", progress, ledger);
@@ -747,10 +812,18 @@ export class BoardView {
    *  index (`program:` grouping — no overall child-list array). A phase row's primary
    *  key is its `slug:`, annotated with the truncated `title:`; any overall/phase
    *  violation renders its marker and exits 2 (spec §3.1 — zero silent fallback). */
-  static #programBoard(lines: string[], index: SlugIndex, entry: DocEntry, root: RepoRoot): number {
+  static #programBoard(
+    readTable: readonly PlanRead[],
+    plan: PlanSource,
+    lines: string[],
+    index: SlugIndex,
+    entry: DocEntry,
+    root: RepoRoot,
+    words: Words,
+  ): number {
     const repoRoot = root.absolute;
     const overallSlug = BoardView.#validSlug(entry);
-    const ledger = overallSlug === null ? null : BoardView.#ledgerOf(overallSlug, repoRoot);
+    const ledger = overallSlug === null ? null : BoardView.#ledgerOf(plan, overallSlug, repoRoot);
     const overallLine = BoardView.#lineOf(
       "overall",
       "overall",
@@ -768,9 +841,18 @@ export class BoardView {
     lines.push("");
     let blocked = overallDoc.blocked;
     const phases = overallSlug === null ? [] : index.phaseSpecsOf(overallSlug);
-    for (const phase of phases) {
+    for (const [pos, phase] of phases.entries()) {
+      // The phase's ONE plan value: `Cli#runBoard` builds the table in THIS row order
+      // (spec §2.1), so the cell and the `CDD_WARN:` line can never describe two
+      // different documents. A short table is a BROKEN caller contract — the board
+      // never mints a second read to cover it (`PlanRead#document()` sets the same
+      // posture), so the invariant answers by throwing.
+      if (pos >= readTable.length)
+        throw new Error("cdd: the board's per-phase plan table is shorter than its phase list");
+      const read = readTable[pos];
       const phaseSlug = BoardView.#validSlug(phase);
-      const phaseLedger = phaseSlug === null ? null : BoardView.#ledgerOf(phaseSlug, repoRoot);
+      const phaseLedger =
+        phaseSlug === null ? null : BoardView.#ledgerOf(plan, phaseSlug, repoRoot);
       const phaseProgress = phaseLedger?.readProgress() ?? null;
       const specLine = BoardView.#lineOf("spec", "phase-spec", phase, phaseProgress, phaseLedger);
       const planEntry = phaseSlug === null ? null : index.planOf(phaseSlug);
@@ -785,8 +867,10 @@ export class BoardView {
       // The phase's wave summary token (spec §5.3): the wave segment's first wave
       // number + an ellipsis (`wave W1…`) — the phase's wave progress at a glance,
       // derived from the SAME wave segment the phase board renders (no second read).
-      const waves = BoardView.#waveLines(planEntry?.path ?? null, phaseProgress, phaseLedger);
-      const waveCell = waves.length === 0 ? "" : `${waves[0]!.label.split(" ")[0]}…`;
+      // The READ owns the degradation literal (spec §2.4): `cell(words)` answers
+      // `""` only for a true undeclared phase, and null hands the healthy cell back
+      // to today's derivation.
+      const waveCell = read.cell(words) ?? BoardView.#waveCellOf(read, phaseProgress, phaseLedger);
       const parts: string[] = [];
       const cells: Array<[string, string]> = [
         ["spec", BoardView.summaryCell(specLine.rounds, specLine.carriers)],
@@ -804,6 +888,49 @@ export class BoardView {
     lines.push("");
     lines.push("  next:    done");
     return blocked ? 2 : 0;
+  }
+
+  /** The plan row's cell content when the READ owns the row — the STATUS-FIRST
+   *  ladder of spec §2.1 · §2.7 (identity → read value → index):
+   *
+   *   ① `mark !== null` (`slug: invalid` / `duplicated` / `missing`) → null: the
+   *      row goes back to `#docCell`, which renders the marker and keeps exit 2.
+   *      Identity breakage outranks the read value, so no accessor is asked.
+   *   ② a non-ready read, or the `spec-absent` orphan → `planLine(words)` — the repo
+   *      relative path plus the mark, never `#docCell`. Reason: a plan whose BODY
+   *      breaks the grammar is still an indexed document (the index reads front
+   *      matter only), so an index-first ladder would render `name version · status`
+   *      and drop the `! unparseable` mark this phase's AC pins. The `slug-absent`
+   *      read lands here too and its accessor answers null — the row then falls back
+   *      to `#docCell`'s `MARK_SLUG_MISSING`, exit 2 untouched.
+   *   ③ a healthy `ready` whose path IS this node's indexed plan entry → null: the
+   *      row is today's `#docCell` bytes. A healthy `ready` the index does not name
+   *      as this node's plan renders the bare path instead of `(none)` or another
+   *      document's header — the registered `slug`-is-identity consequence.
+   *
+   *  Null therefore means "`#docCell` owns this row", never "nothing to show". */
+  static #planCellOf(
+    read: PlanRead,
+    planEntry: DocEntry | null,
+    mark: string | null,
+    words: Words,
+  ): string | null {
+    if (mark !== null) return null;
+    const unread = read.kind !== "ready" || read.orphan()?.cause === "spec-absent";
+    if (unread) return read.planLine(words);
+    const docPath = read.path();
+    // `DocEntry.path` is the absolute syscall form and the read's path is repo
+    // relative — `rel` is the ONE comparable identity (`entryAt`'s own key).
+    const indexed = planEntry !== null && planEntry.rel === docPath;
+    return indexed ? null : read.planLine(words);
+  }
+
+  /** The healthy program-face wave cell — the wave segment's first wave number plus
+   *  an ellipsis (`W1…`, spec §5.3), derived from the SAME wave segment the phase
+   *  board renders. Only a `cell(words) === null` (healthy) value reaches here. */
+  static #waveCellOf(read: PlanRead, progress: ProgressData | null, ledger: Ledger | null): string {
+    const first = BoardView.#waveLines(read, progress, ledger)[0];
+    return first === undefined ? "" : `${first.label.split(" ")[0]}…`;
   }
 
   /** The phase-spec's `program:` gate (spec §2.2): a phase-spec naming no overall
@@ -852,52 +979,49 @@ export class BoardView {
   }
 
   /** The node's ledger — the progress.json read face the render's closure/next
-   *  derivation consumes (each node reads its OWN workspace). */
-  static #ledgerOf(nodeSlug: string, repoRoot: string): Ledger {
+   *  derivation consumes (each node reads its OWN workspace). The plan read seam is
+   *  the caller's per-command instance, threaded down unchanged: the board never
+   *  mints a second `PlanSource`. */
+  static #ledgerOf(plan: PlanSource, nodeSlug: string, repoRoot: string): Ledger {
     const root = new WorkspaceRoot(repoRoot, ENGINE_RUNTIME.handoffNamespace.workspaceRoot);
-    return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader());
+    return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader(), plan);
   }
 
-  /** pipelineFacts(index, entry, root) — the board's FACTS about the pipeline (spec
-   *  §5.2): the node's ledger and the pipeline frontier's declared input (the spec
-   *  word and path, the plan path, the guarded plan read). The board reports facts
-   *  only — the per-face observations and the four face-order rules live in the
+  /** pipelineFacts(read, plan, index, entry, root) — the board's FACTS about the
+   *  pipeline (spec §5.2): the node's ledger and the pipeline frontier's declared
+   *  input (the spec word and path, the plan path, the plan read). The board reports
+   *  facts only — the per-face observations and the four face-order rules live in the
    *  session plane's `PipelineFrontier`. Null when the node holds no legal slug (no
-   *  workspace to observe). */
+   *  workspace to observe).
+   *
+   *  `read` is the caller's ONE plan read (the same `PlanSource` instance): the
+   *  frontier's graph input is the value's own `graph()`, and the declared `planPath`
+   *  is that same value's `stationPath()` — the document the board read and the path
+   *  the frontier receives are ONE fact, with no fallback to `index.planOf(slug)`.
+   *  The wave segment reads the same value through `#waveLines`; the board has no
+   *  second plan read point. */
   static pipelineFacts(
+    read: PlanRead,
+    plan: PlanSource,
     index: SlugIndex,
     entry: DocEntry,
     root: RepoRoot,
   ): BoardPipelineFacts | null {
     const nodeSlug = BoardView.#validSlug(entry);
     if (nodeSlug === null) return null;
-    const ledger = BoardView.#ledgerOf(nodeSlug, root.absolute);
+    const ledger = BoardView.#ledgerOf(plan, nodeSlug, root.absolute);
     const sources = BoardView.#nodeSources(index, entry);
     const specPath = sources.spec?.path ?? null;
-    const planPath = sources.plan?.path ?? null;
+    // The path the frontier receives IS the path of the document this read opened —
+    // never a second index-derived candidate that could name another file.
+    const planPath = read.stationPath();
     // The identity line's OWN word — the document's DECLARED `doc-type:` — keys the
     // line and names the pipeline station (`single-spec` closes onto its `done` row).
     const specType = BoardView.#lineWordOf(sources.spec);
     return {
       ledger,
-      input: { specType, specPath, planPath, planGraph: BoardView.planGraph(planPath) },
+      input: { specType, specPath, planPath, plan: read },
     };
-  }
-
-  /** The plan's task graph — the ONE guarded plan read behind the board's own wave
-   *  segment. `readFileSync` throwing on an unreadable plan is caught here: a null
-   *  plan path or an unreadable/absent file yields null, honoring the wave face's
-   *  "degradation, never a throw" contract. The pipeline frontier itself reads no
-   *  file — the composition root injects this read's result as its `planGraph` cell. */
-  static planGraph(planPath: string | null): TaskGraph | null {
-    if (planPath === null) return null;
-    try {
-      return new TaskGraph(
-        new PlanDocType("plan").parse(readFileSync(planPath, "utf8").split("\n")),
-      );
-    } catch {
-      return null;
-    }
   }
 
   /** The branch line — a docless line whose rounds ride the `branch` row. */
@@ -937,18 +1061,22 @@ export class BoardView {
   /** The node's wave segment — one line per derived wave (its ✔/▶/○ marker rides the
    *  SAME `TaskGraph.report(closedWaves())` read the board and the pre-flight gate
    *  share — the same source GraphView renders from), the wave's own `progress.json`
-   *  row spread alongside. No plan → empty segment (degradation, never a throw). */
+   *  row spread alongside. The batch list is the READ's own `waves()` (spec §2.4) and
+   *  the graph is only the `report(...)` input; both are the read's eager derivation
+   *  (spec §2.1), never a second file read. A non-ready read has no graph and the
+   *  segment is empty. */
   static #waveLines(
-    planPath: string | null,
+    read: PlanRead,
     progress: ProgressData | null,
     ledger: Ledger | null,
   ): BoardLine[] {
-    const graph = BoardView.planGraph(planPath);
+    const graph = read.graph();
     if (graph === null) return [];
+    const waves = read.waves();
     const report = graph.report(ledger === null ? new Set<number>() : ledger.closedWaves());
     const done = new Set(report.done);
-    const currentIndex = report.waves.findIndex((wave) => wave.some((id) => !done.has(id)));
-    return report.waves.map((wave, index) => {
+    const currentIndex = waves.findIndex((wave) => wave.some((id) => !done.has(id)));
+    return waves.map((wave, index) => {
       const closed = wave.every((id) => done.has(id));
       const marker = closed
         ? PROGRESS_MARKERS.done
@@ -982,10 +1110,24 @@ export class BoardView {
 // biome-ignore lint/complexity/noStaticOnlyClass: the board's assembly fact surface — the zero-bare-function discipline admits no standalone functions here.
 export class BoardNext {
   /** The board's ONE `NextHop` — null when the entry holds no legal slug (no
-   *  workspace to observe) or the board is the program board (cross-phase never
-   *  participates in next, spec §6.5). */
-  static of(index: SlugIndex, entry: DocEntry, root: RepoRoot): NextHop | null {
-    const facts = entry.docType === "overall" ? null : BoardView.pipelineFacts(index, entry, root);
+   *  workspace to observe), when the board is the program board (cross-phase never
+   *  participates in next, spec §6.5), or when the plan read carries no evidence to
+   *  route on (spec §2.3): an `unreadable` plan and a `spec-absent` orphan
+   *  short-circuit to the existing hop-less shape (`  next:    (none)`, no `reason:`
+   *  row). The predicate is the SAME pair §2.3 uses, never a third condition;
+   *  `undeclared` is NOT in it ("spec written, no plan yet" is the standing
+   *  `kairos:cdd-plan` route) and `slug-absent` is not either (the identity channel
+   *  owns its exit code). */
+  static of(
+    read: PlanRead,
+    plan: PlanSource,
+    index: SlugIndex,
+    entry: DocEntry,
+    root: RepoRoot,
+  ): NextHop | null {
+    if (read.kind === "unreadable" || read.orphan()?.cause === "spec-absent") return null;
+    const facts =
+      entry.docType === "overall" ? null : BoardView.pipelineFacts(read, plan, index, entry, root);
     return facts === null ? null : BoardNext.#hopOf(facts, root);
   }
 

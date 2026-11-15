@@ -263,6 +263,15 @@ describe("PlanDocType.parse — the task blocks + the degraded chain root", () =
   });
 });
 
+describe("PlanDocType#slices — the task-heading accessor is the document's own property", () => {
+  const plan = new PlanDocType("plan");
+
+  it("exposes the `### Task N:` value pattern through the parse face", () => {
+    expect(plan.slices.taskHeadingPattern()?.test("### Task 3:")).toBe(true);
+    expect(plan.slices.taskHeadingPattern()?.test("### Task 12:")).toBe(true);
+  });
+});
+
 describe("PhaseSpecDocType.parse — the design skeleton + the program chain root", () => {
   const parsed = parseWithHead(new PhaseSpecDocType("phase-spec"), PHASE_SPEC);
 

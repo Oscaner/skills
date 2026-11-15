@@ -16,6 +16,7 @@
 // bare functions).
 
 import process from "node:process";
+import type { PlanParsed } from "../contract/doc.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { DispatchAuthority, type LinePhaseFacts } from "../session/dispatch-authority.ts";
 import type { NextHop } from "../session/next.ts";
@@ -139,10 +140,13 @@ export class CliGate {
 
   /** Render the task group brief into the workspace (the implement dispatch's input)
    *  — the brief mirrors the current plan (its task sections + the `## Constraints`
-   *  section, re-extracted at every dispatch). */
-  renderBrief(scene: WorkScene, parsed: RunInput): string {
+   *  section, re-extracted at every dispatch). The document text and the parsed
+   *  document arrive NARROWED: the caller (`Cli#runWork`'s `ready` branch) supplies
+   *  both from the ONE plan read, so this face has no null branch — no `!`, no
+   *  `?? ""` faking a read failure as an empty document. */
+  renderBrief(scene: WorkScene, parsed: RunInput, text: string, doc: PlanParsed): string {
     const tasks = this.tasksOf(parsed);
-    const content = this.#brief.render(scene.planText!, tasks);
+    const content = this.#brief.render(text, doc, tasks);
     // The real run's workspace is built by the single write point (`Cli#runWork`'s
     // ensure, P11 · §4.2) BEFORE this render; the write still rides the workspace's
     // own text-write face (the `writeJson` mkdir-before-write pattern), never a

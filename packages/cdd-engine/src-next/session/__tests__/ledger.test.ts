@@ -28,6 +28,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ConfigLoader } from "../../infra/config.ts";
+import { PlanSource } from "../../infra/plan-source.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../carrier-integrity.ts";
 import {
@@ -48,7 +49,7 @@ const fixture = (): { ledger: Ledger; workspace: Workspace; cleanup: () => void 
     new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
     "test-slug",
   );
-  const ledger = new Ledger(workspace, new ConfigLoader());
+  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
   return { ledger, workspace, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
 };
 
@@ -117,7 +118,11 @@ describe("progress — the fixed key set", () => {
       // key stays byte-frozen (history is never rewritten).
       ledger.recordRound("phase-spec", { op: "review" });
       expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec"]);
-      const reload = new Ledger(workspace, new ConfigLoader());
+      const reload = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       expect(reload.roundCount("phase-spec", "review")).toBe(4);
     } finally {
       cleanup();
@@ -251,7 +256,11 @@ describe("progress — the fixed key set", () => {
       );
       expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec"]);
       expect(ledger.reviewedRevisionOf("overall", "overall")?.kind).toBe("doc-revision");
-      const reload = new Ledger(workspace, new ConfigLoader());
+      const reload = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       expect(reload.roundCount("overall", "review", "overall")).toBe(3);
       expect(reload.completedCycles("overall", "review", "overall")).toEqual([1, 2, 3]);
     } finally {
@@ -270,7 +279,11 @@ describe("progress — the fixed key set", () => {
       ledger.recordRound("1,2", { op: "fix" });
       expect(ledger.roundCount("1,2", "fix")).toBe(1);
       // a fresh ledger over the same workspace reads the persisted counts back (on-disk record)
-      const reload = new Ledger(workspace, new ConfigLoader());
+      const reload = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       expect(reload.roundCount("1,2", "review")).toBe(2);
       expect(reload.roundCount("1,2", "fix")).toBe(1);
       expect(reload.roundCount("7", "review")).toBe(0);
@@ -1711,7 +1724,11 @@ describe("the T7 doc-line identity record — reviewedDocRevision (the reopen-co
       ledger.recordReviewedRevision(doc, revision);
       expect(ledger.reviewedDocRevisionOf(doc)).toEqual(revision);
       // a fresh ledger over the same workspace reads the on-disk record back
-      const reload = new Ledger(workspace, new ConfigLoader());
+      const reload = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        new PlanSource(workspace.root.basis),
+      );
       expect(reload.reviewedDocRevisionOf(doc)).toEqual(revision);
       expect(reload.reviewedDocRevisionOf("docs/other.md")).toBeNull();
     } finally {
@@ -2073,6 +2090,34 @@ describe("P24 T3 — briefDrifted, the wave line's ONE drift read", () => {
       // input for the child, never part of the wave's reopen fingerprint
       writeFileSync(planPath, planText().replace("- delta", "- delta (reworded)"), "utf8");
       expect(ledger.briefDrifted("1")).toBe(false);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("reads the RECORDED plan path, never a second ready document on the observation face", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // X — the plan the review recorded (its bytes are the reviewed basis).
+      const recorded = path.join(workspace.path, "plans", "x-p3.md");
+      mkdirSync(path.dirname(recorded), { recursive: true });
+      writeFileSync(recorded, planText(), "utf8");
+      ledger.recordReviewedBrief("1", recorded);
+      // Y — a second, healthy plan, byte-different AND a different document (its own
+      // `slug:`). A hash subject taken from the scene's `PlanRead` — the observation
+      // face — would compare Y's projection against X's recorded one and report a
+      // false drift; the recorded path is the only subject.
+      writeFileSync(
+        recorded.replace("x-p3.md", "x-other.md"),
+        planText().replace("x-p3", "x-other"),
+        "utf8",
+      );
+      expect(ledger.briefDrifted("1")).toBe(false);
+      const hashes = ledger.briefDriftHashes("1");
+      expect(hashes?.recorded).toBe(hashes?.current);
+      // The recorded document's OWN section moves — the drift is X's, and only X's.
+      writeFileSync(recorded, planText(["  - extra step — checkable: green"]), "utf8");
+      expect(ledger.briefDrifted("1")).toBe(true);
     } finally {
       cleanup();
     }

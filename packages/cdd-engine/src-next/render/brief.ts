@@ -1,18 +1,24 @@
 // packages/cdd-engine/src-next/render/brief.ts
 // T12 — BriefRenderer: the task-brief renderer. The brief materializes the
-// dispatch's `### Task N:` sections from a plan: extraction rides the contract
-// parse face (doc.ts PlanDocType.parse — the same task-block parse instance the
-// graph and the dispatch reuse), the step surface carries the `— checkable:`
-// clause (the dispatch contract's evidence gate), and the rendered brief appends
-// the plan's `## Constraints` section (the complete plan mirror). The checkable
-// gate blocks step surfaces that carry a step
-// with no checkable clause; a requested task with no matching heading blocks the
-// whole render (the group-level out-of-bounds contract). The task sections are
-// also exposed alone (`taskBody`) — the wave's reviewed-basis projection (P29
-// §2.2), so the child's bytes and the reopen fingerprint share one assembly.
+// dispatch's `### Task N:` sections from a plan: the task BLOCKS ride the plan
+// read value (`PlanParsed#taskBlocks` — the same parse the graph and the dispatch
+// reuse), the step surface carries the `— checkable:` clause (the dispatch
+// contract's evidence gate), and the rendered brief appends the plan's
+// `## Constraints` section (the complete plan mirror). The brief owns no parser: a
+// second parse here would be a second fact source beside the plan read seam, so
+// the three faces take the document text AND the parsed document from the caller.
+// The checkable gate blocks step surfaces that carry a step with no checkable
+// clause; a requested task with no matching heading blocks the whole render (the
+// group-level out-of-bounds contract). The task sections are also exposed alone
+// (`taskBody`) — the wave's reviewed-basis projection (P29 §2.2), so the child's
+// bytes and the reopen fingerprint share one assembly.
+//
+// The raw line slices (a task block's `TaskBlock.range`, the `## Constraints`
+// section) still read the TEXT: the brief is hashed (D30 · P29), and rebuilding a
+// heading from `fields[].lines` would move the bytes of every already-reviewed
+// wave.
 
-import type { TaskStep } from "../contract/doc.ts";
-import { PlanDocType } from "../contract/doc.ts";
+import type { PlanParsed, TaskStep } from "../contract/doc.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 
 /** One parsed task-block field of the brief. */
@@ -48,27 +54,21 @@ export interface BriefExtraction {
 
 /**
  * The brief single renderer — pure data + content (no direct file system writes;
- * the caller/CLI writes the rendered content into the workspace).
+ * the caller/CLI writes the rendered content into the workspace). It carries no
+ * parser collaborator and no constructor: the document text and the parsed document
+ * arrive together from the caller's ONE plan read, so the brief can never judge a
+ * different parse than the graph the same round dispatched on.
  */
 export class BriefRenderer {
-  readonly #parser: PlanDocType;
-  /** The ONE task-block parse face — the block ranges and the `## Constraints`
-   *  mirror both read its AST positions (zero `^#` truncation residue). */
+  /** The ONE task-block parse face — the `## Constraints` mirror reads its AST
+   *  position (zero `^#` truncation residue). */
   readonly #reader = new PlanTaskBlocksReader();
 
-  constructor(parser = new PlanDocType("plan")) {
-    this.#parser = parser;
-  }
-
-  /** The task-heading slices of the plan parse face (the render's parse-face consumption). */
-  taskHeadingPattern(): RegExp | undefined {
-    return this.#parser.slices.slices.find((slice) => slice.anchor === "### Task N:")?.valuePattern;
-  }
-
-  /** Extract the requested task blocks from a plan's content — the brief data. */
-  extract(planContent: string, tasks: readonly number[]): BriefExtraction {
-    const parsed = this.#parser.parse(planContent.split("\n"));
-    const byId = new Map(parsed.taskBlocks.map((block) => [block.id, block]));
+  /** Extract the requested task blocks from a plan — the brief data. The blocks
+   *  come from the caller's parsed document; `text` is carried for the three-face
+   *  shape (the projections slice it) and is not read here. */
+  extract(_text: string, doc: PlanParsed, tasks: readonly number[]): BriefExtraction {
+    const byId = new Map(doc.taskBlocks.map((block) => [block.id, block]));
     const missing: number[] = [];
     const data: BriefTask[] = [];
     for (const id of new Set(tasks)) {
@@ -100,23 +100,23 @@ export class BriefRenderer {
    *  (`Ledger#briefRevision` / `#briefDrifted`) covers this projection alone (P29 §2.2
    *  — a Constraints reword is dispatch input, never a brief drift). One assembly,
    *  two consumers: zero second slicing logic. */
-  taskBody(planContent: string, tasks: readonly number[]): string {
-    const { data, missing } = this.extract(planContent, tasks);
+  taskBody(text: string, doc: PlanParsed, tasks: readonly number[]): string {
+    const { data, missing } = this.extract(text, doc, tasks);
     if (missing.length > 0) {
       throw new Error(
         `task${missing.length > 1 ? "s" : ""} ${missing.join(", ")} not found in the plan`,
       );
     }
-    const lines = planContent.split("\n");
+    const lines = text.split("\n");
     return data.map((task) => this.#slice(lines, task.range)).join("\n\n");
   }
 
   /** Render the brief content — the task-only projection + the plan's `## Constraints`
    *  section (the complete plan mirror the child reads). Any requested task without a
    *  heading blocks the whole render (out-of-bounds). */
-  render(planContent: string, tasks: readonly number[]): string {
-    const body = this.taskBody(planContent, tasks);
-    const constraints = this.#reader.section(planContent, "Constraints");
+  render(text: string, doc: PlanParsed, tasks: readonly number[]): string {
+    const body = this.taskBody(text, doc, tasks);
+    const constraints = this.#reader.section(text, "Constraints");
     return constraints === "" ? `${body}\n` : `${body}\n\n${constraints}\n`;
   }
 

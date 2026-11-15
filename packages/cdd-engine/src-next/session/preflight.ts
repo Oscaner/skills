@@ -3,15 +3,21 @@
 // converge into ONE single-entry gate a work command consults before ANY child
 // dispatch — the clean-tree hard gate (tree-clean → BLOCKED with the commit/discard
 // guidance, the skill-side claim `engine entry gate: dirty → BLOCKED` finally made
-// real), then the in-flight gate, the plan/ledger structure gate (`plan-ledger`, P21
-// §3.1/§6.4), the graph validate and the doc-side gate (Contract.validate over the
-// target doc). The dispatch's own phase — the wave face's gate and the doc/branch
-// line's — is NOT judged here: it belongs to the ONE dispatch authority
-// (`session/dispatch-authority.ts`, P27 §2), the seam's single consumer.
+// real), then the in-flight gate, the plan read's own structure refusal (the
+// un-gated plan-carrier leg, P35 §2.3), the graph validate, the plan/ledger
+// structure gate (`plan-ledger`, P21 §3.1/§6.4) and the doc-side gate
+// (Contract.validate over the target doc). The dispatch's own phase — the wave
+// face's gate and the doc/branch line's — is NOT judged here: it belongs to the ONE
+// dispatch authority (`session/dispatch-authority.ts`, P27 §2), the seam's single
+// consumer.
 //
 // Gate order (the design's pinned sequence, judgeable on every verdict):
-//   tree-clean → in-flight → graph → plan-ledger →
+//   tree-clean → in-flight → plan-carrier → graph → plan-ledger →
 //   (spec/plan faces) Contract.validate → dispatch
+// The plan-carrier leg is the readable plan's OWN refusal (P35 §2.3): an UN-GATED
+// judgment over `ctx.plan` — not a row of the doc-shape block — so the wave face
+// (no doc target, `ctx.doc === null`) is judged too. It speaks the existing
+// `doc-contract` gate id and reason token, so no token joins the table.
 // The evidence/read-back gates stay at the dispatch child face (the seam never
 // touches the round's produced artifacts — non-pre-flight by design).
 //
@@ -26,13 +32,13 @@
 // Module-level exports are types / the class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 
-import { PlanDocType } from "../contract/doc.ts";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { type DocFs, type Finding, LedgerTaskSetRule, NodeFs } from "../contract/invariants.ts";
 import { Contract, type ContractInput, type LedgerFacts } from "../contract/judge.ts";
 import type { DocKey } from "../contract/project.ts";
 import type { Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
+import type { PlanRead } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { SlugIndex } from "../infra/slug-index.ts";
 import { TargetFaceTable, type TargetType } from "./faces.ts";
@@ -98,7 +104,8 @@ export interface PreFlightVerdict {
   /** The named issue/finding lines the renderer prints under the message. */
   details?: readonly string[];
   /** The gates that ran, in order — the judgeable order (tree-clean → in-flight →
-   *  graph → plan-ledger → doc-contract, per the face's applicable set). */
+   *  plan-carrier → graph → plan-ledger → doc-contract, per the face's applicable
+   *  set). */
   order: readonly PreFlightGateName[];
   /** The checked face — one row per gate (`${gate}`) and per declared rule
    *  (`${ruleId}: ${passed|failed|skipped (reason)|info (hint)}`), derived from the
@@ -133,8 +140,10 @@ export interface PreFlightContext {
   type: TargetType;
   /** The repo root the tree-clean gate reads. */
   repoRoot: string;
-  /** The plan text (the wave/plan faces' graph gate input; null otherwise). */
-  planText: string | null;
+  /** The plan read (the wave/plan faces' graph gate input and the plan-ledger fact
+   *  source; the derived face's `undeclared` value elsewhere) — the ONE plan fact of
+   *  this dispatch, read before the seam runs. */
+  plan: PlanRead;
   /** The session ledger (the plan-ledger gate's fact source). */
   ledger: Ledger | null;
   /** The doc-contract target of a spec/plan dispatch (null on the other faces). */
@@ -173,9 +182,9 @@ export class PreFlight {
     this.#fs = opts.fs ?? new NodeFs();
   }
 
-  /** vet(ctx) — the single seam call: tree-clean → in-flight → graph → plan-ledger
-   *  → doc-contract. The first refused gate owns the verdict; the gates that ran
-   *  precede it (the judgeable order). */
+  /** vet(ctx) — the single seam call: tree-clean → in-flight → plan-carrier → graph
+   *  → plan-ledger → doc-contract. The first refused gate owns the verdict; the gates
+   *  that ran precede it (the judgeable order). */
   async vet(ctx: PreFlightContext): Promise<PreFlightVerdict> {
     const gates: PreFlightGateName[] = [];
     const checked: string[] = [];
@@ -219,22 +228,24 @@ export class PreFlight {
         { kind: "no-ledger-facts" },
       );
     }
-    // 3. graph — the wave/plan faces' structural gate.
-    let graph: TaskGraph | null = null;
-    if ((ctx.type === "wave" || ctx.type === "plan") && ctx.planText !== null) {
-      gates.push("graph");
-      checked.push("graph");
-      graph = new TaskGraph(new PlanDocType("plan").parse(ctx.planText.split("\n")));
-      const issues = graph.validate();
-      if (issues.length > 0) {
+    // 3. plan-carrier — the plan READ's own structure judgment (P35 §2.3): every face
+    //    that carries a plan read (wave / plan / branch) asks the value whether the
+    //    document it read may be dispatched. The source is `ctx.plan`, never `ctx.doc`
+    //    — the wave face reaches this point with no doc target at all. The `io` cause
+    //    never asks this leg: the scene stops at the usage seam before any workspace
+    //    key exists, so only `syntax` and the `spec-absent` orphan arrive here.
+    if (ctx.type === "wave" || ctx.type === "plan" || ctx.type === "branch") {
+      const refusal = ctx.plan.refusal(this.#words);
+      if (refusal !== null) {
+        // The plan face's own gate set already holds `doc-contract`, so its refusal
+        // accounts for the gate it PLANNED to run; the wave / branch faces never
+        // planned it and must not claim they did.
+        if (ctx.type === "plan") {
+          gates.push("doc-contract");
+          checked.push("doc-contract");
+        }
         return this.#refusal(
-          {
-            ok: false,
-            gate: "graph",
-            reason: "graph",
-            message: this.#words.preflightWords().graph.replace("{count}", String(issues.length)),
-            details: issues.map((issue) => `${issue.kind}@T${issue.task}: ${issue.message}`),
-          },
+          { ok: false, gate: refusal.gate, reason: refusal.reason, message: refusal.message },
           gates,
           checked,
           this.#docOutcomeOf(ctx),
@@ -242,7 +253,34 @@ export class PreFlight {
         );
       }
     }
-    // 4. plan-ledger — the ledger-scope rules (P21 §3.1/§6.4). Plan / wave / branch
+    // 4. graph — the wave/plan faces' structural gate, on a READY plan only: a
+    //    non-ready read never enters the gate plan, so the row is neither pushed nor
+    //    reported (`checked`'s byte set stays the healthy one).
+    let graph: TaskGraph | null = null;
+    if ((ctx.type === "wave" || ctx.type === "plan") && ctx.plan.kind === "ready") {
+      gates.push("graph");
+      checked.push("graph");
+      graph = ctx.plan.graph();
+      if (graph !== null) {
+        const issues = graph.validate();
+        if (issues.length > 0) {
+          return this.#refusal(
+            {
+              ok: false,
+              gate: "graph",
+              reason: "graph",
+              message: this.#words.preflightWords().graph.replace("{count}", String(issues.length)),
+              details: issues.map((issue) => `${issue.kind}@T${issue.task}: ${issue.message}`),
+            },
+            gates,
+            checked,
+            this.#docOutcomeOf(ctx),
+            { kind: "no-ledger-facts" },
+          );
+        }
+      }
+    }
+    // 5. plan-ledger — the ledger-scope rules (P21 §3.1/§6.4). Plan / wave / branch
     //    dispatches run it; the doc-scope rules never do (two scopes, two entries).
     //    A missing fact bundle is NOT a refusal: the rows render `skipped`.
     let ledgerOutcome: LedgerOutcome = { kind: "no-ledger-facts" };
@@ -277,7 +315,7 @@ export class PreFlight {
         }
       }
     }
-    // 5. doc-contract — the doc shapes' structural gate (the doc-scope rules).
+    // 6. doc-contract — the doc shapes' structural gate (the doc-scope rules).
     //    The four document shapes (`phase-spec` · `overall` · `plan` · `single-spec`)
     //    are judged by the SAME gate: the document's declared `doc-type:` picks the
     //    contract, never the command's `--type` spelling.
@@ -500,15 +538,15 @@ export class PreFlight {
     return rows;
   }
 
-  /** The ledger fact bundle of one dispatch — built from the ledger, the plan text
-   *  and the plan's topological layers. Null when either fact source is absent
-   *  (the gate then renders `skipped (no ledger facts)`). */
+  /** The ledger fact bundle of one dispatch — built from the ledger, the plan read
+   *  and the plan's topological layers. Null when either fact source is absent (the
+   *  gate then renders `skipped (no ledger facts)`). */
   #ledgerFactsOf(ctx: PreFlightContext, graph: TaskGraph | null): LedgerFacts | null {
     const ledger = ctx.ledger;
-    if (ledger === null || ctx.planText === null) return null;
-    const parsed = new PlanDocType("plan").parse(ctx.planText.split("\n"));
-    const planTasks = parsed.taskBlocks.map((block) => block.id);
-    const layers = (graph ?? new TaskGraph(parsed)).batches();
+    const doc = ctx.plan.doc();
+    if (ledger === null || doc === null) return null;
+    const planTasks = doc.taskBlocks.map((block) => block.id);
+    const layers = (graph ?? ctx.plan.graph() ?? new TaskGraph(doc)).batches();
     const data = ledger.readProgress();
     const recorded = this.#recordedTasksOf(data);
     const closed = ledger.closedWaves();
@@ -577,7 +615,7 @@ export class PreFlight {
     return {
       docKey: "plan",
       path: ctx.doc?.path ?? "",
-      content: ctx.planText ?? "",
+      content: ctx.plan.text() ?? "",
       root: ctx.repoRoot,
       fs: this.#fs,
     };

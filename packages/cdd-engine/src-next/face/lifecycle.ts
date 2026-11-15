@@ -23,6 +23,7 @@ import { CompletionCriteria, FixDispositions } from "../contract/completion-crit
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
 import { GitClient } from "../infra/git.ts";
+import type { PlanRead } from "../infra/plan-source.ts";
 import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
 import type { RepoRoot } from "../infra/root.ts";
 import { RoundLog } from "../infra/round-log.ts";
@@ -108,6 +109,13 @@ export interface DispatchScene {
   workspace: Workspace;
   ledger: Ledger;
   planPath: string | null;
+  /** The plan read this scene's rounds were assembled from (the argv face's plan, or
+   *  the doc face's derived same-slug plan; `undeclared` when the harness carries
+   *  none). Required, exactly like the session plane's `Lifecycle` — a harness may
+   *  not drop the brief fingerprint and the plan snapshot by omission. The
+   *  reviewed-brief hash reads THIS value — never a second file read — so the child's
+   *  bytes and the reopen fingerprint share one plan read. */
+  plan: PlanRead;
   briefPath: string | null;
   baseBranch?: string | null;
   /** The plan's design-spec reference (the `spec:` front-matter link target), read
@@ -499,21 +507,22 @@ export class CliLifecycle {
   /** The plan tasks whose `Files` declaration names no path — the verification-wave
    *  cell. The PLAN document is the only source (never the diff): an absent plan, a
    *  plan path pointing at no document or an unreadable one declares no empty row, so
-   *  a wave can never read as verification on a plan this dispatch could not see. */
+   *  a wave can never read as verification on a plan this dispatch could not see. A
+   *  document the grammar refuses is the same shape: it declares no row either (the
+   *  refusal leg speaks before the dispatch, and this cell never becomes a second,
+   *  louder reporter of a broken plan). */
   #emptyFileTasks(): ReadonlySet<number> {
     const planPath = this.#scene.planPath;
     if (planPath === null) return new Set();
-    let content: string;
     try {
-      content = readFileSync(planPath, "utf8");
+      const empty = new Set<number>();
+      for (const block of this.#blocks.parse(readFileSync(planPath, "utf8"))) {
+        if (this.#blocks.filePathsOf(block).length === 0) empty.add(block.id);
+      }
+      return empty;
     } catch {
       return new Set();
     }
-    const empty = new Set<number>();
-    for (const block of this.#blocks.parse(content)) {
-      if (this.#blocks.filePathsOf(block).length === 0) empty.add(block.id);
-    }
-    return empty;
   }
 
   /** The round IDENTITY the criterion judges from — its op / cycle / attempt and the
@@ -854,13 +863,20 @@ export class CliLifecycle {
    *  plan-less scene and when the plan is unreadable. */
   #briefHashOf(frame: OpenFrame): string | null {
     const scene = this.#scene;
-    if (frame.type !== "wave" || frame.target.kind !== "wave" || scene.planPath === null)
-      return null;
+    const plan = scene.plan;
+    if (frame.type !== "wave" || frame.target.kind !== "wave") return null;
+    const text = plan.text();
+    const doc = plan.doc();
+    const planPath = plan.stationPath();
+    if (text === null || doc === null || planPath === null) return null;
     try {
-      const plan = readFileSync(scene.planPath, "utf8");
-      const body = this.#brief.taskBody(plan, frame.target.tasks);
-      return scene.ledger.refs().briefRevision(this.#rel(scene.planPath), body).brief_hash;
+      const body = this.#brief.taskBody(text, doc, frame.target.tasks);
+      return scene.ledger.refs().briefRevision(this.#rel(planPath), body).brief_hash;
     } catch {
+      // The ONLY throw point left is the brief's own out-of-bounds gate
+      // (`task N not found in the plan` — a legal scene when the plan was amended
+      // after the wave compiled): the round then records no hash, the same failure
+      // face `Ledger#briefRevision` keeps.
       return null;
     }
   }

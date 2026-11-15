@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P36 设计：身份面收权（身份域 × 产物矩阵 · 缺席有门 · 形状可发现）'
 doc-type: phase-spec
-version: v0.7
+version: v0.8
 date: 2026-11-15
 slug: '2026-10-10-engine-doc-tooling-p36'
 program: 2026-10-10-engine-doc-tooling
@@ -179,6 +179,7 @@ interface IdentityDomain {
 ```
 
 - `RoundDomain` — `RoundNaming` 扩行 + `rulings`；`attribute` 取代 `carrierPattern` 与 `#WAVE_CARRIER` / `#LINE_CARRIER` 两套正则。
+- `DocDomain` — **身份类（identity class）由索引的集合端口回答**：`docsOf(slug): readonly DocEntry[]`（0 / 1 / n，**永不选第一份**）与 `hasIdentity(slug): boolean`（n ≥ 1）。凡是问「这个 slug 名下有没有/有哪几份身份文档」的消费者（板面的 spec 格、`planChain`）都读这个集合口，不读 `read`——`read(identity, kind)` 按**声明的 `docType`** 单值判定，而身份类跨 `overall` / `phase-spec` / `single-spec` 三型，单值读答不出「三型里共有几份」。`attribute(name)` 因此保持 `Attributed | null` 两态（名字 → 身份是一对一），歧义不在 `attribute` 上判。
 - `DocDomain` — **没有 `render`**：不是「渲染失败」，是「文档没有名字规则」这一事实；`attribute` / `locate` 委托索引（`locate` 取 `entry.rel`），`read` 委托索引 + 文档读取。plan 的路径同样来自索引：`locate({domain: "doc", slug, docType: "plan"}, "plan")` 取 `docsOf(slug)` 里那行 plan 的 `rel`；无 plan 行时按 plans 根扫描面分两格——干净 ⇒ `undeclared`，不干净 ⇒ 未判态（零拒绝，§2.7）——身份文档条目的 `rel` 是它自己的 spec 路径，**不得**当作 plan 路径（§1.3）。`render(slug, "phase-spec")` 式的推导（`<slug>-design.md`）从引擎侧铲除。
 - `WorkspaceDomain` — 三个无坐标字面量 + brief 的 `tasks` 坐标；`attribute` 认四个字面量并回出对应坐标。
 
@@ -397,10 +398,12 @@ issue 提交方那 89 个 `*.rulings.json` 全部落在推导路径外；升级�
 
 #### 4.4 同一 slug 多份身份文档
 
-判定面已有 `duplicate-identity` / `duplicate-plan`（`SlugIndex.#judge`）与 `slugVerdict.duplicated`；本相位把**读取面**补齐——`read({domain: "doc", slug, docType}, kind)` 命中 ≥2 份 ⇒ `invalid(path, found: [a, b], reason: "duplicate-identity")`，两条路径都印出。**歧义在身份这一侧**，所以它落在 `read` 的集合臂而不是 `attribute`（名字 → 身份仍是一对一，认不得才是 orphan）。
+判定面已有 `duplicate-identity` / `duplicate-plan`（`SlugIndex.#judge`）与 `slugVerdict.duplicated`；本相位把**读取面**补齐，且补在能承载集合的那一面：
 
-由此 `SlugIndex#identityDoc`（`:174`）/ `#planOf`（`:182`）**退役**——「取第一份」正是缺陷本身，索引只答集合：`docsOf(slug) → readonly DocEntry[]`（0/1/n，永不选），判读一律经 doc 域 `read`。四个消费者的新读法点名：`CrossDocChainInvariant#planChain` 问 `hasIdentity(slug)`（n ≥ 1 即真——两份以上仍回真，歧义归 `duplicate-identity` 判，不得让 chain 说出「没有身份文档」这句更假的话）；`Cli#sceneOf` 的 `specLink` / `pipeline.specPath`、`BoardView#nodeSources` 的 spec / plan 两格、以及 `BoardView#programBoard` 的 phase 板 plan 行（`face/board-view.ts:858` 的 `index.planOf(phaseSlug)` 经 `#lineOf("plan", "plan", planEntry, …)` 喂 plan 行）改吃 `read({domain: "doc", slug, docType: "plan"})`——前者的 `invalid(found)` 先被既有 `slugVerdict.duplicated` 拒（`#slugVerdictOf` 回 null ⇒ `CDD_BLOCKED` + exit 1，「取第一份」根本到不了），后两者渲既有的 `duplicate-identity` 标记而不是第一份。
-
+- `SlugIndex#docsOf(slug)` 回 0 / 1 / n，**永不取第一份**；`identityDoc` / `planOf` 退役。
+- doc 域 `read` 在同 `(slug, docType)` 命中 ≥2 份时回 `invalid(found: [a, b], reason: "duplicate-identity")`——这是**同型**歧义的唯一判定处。
+- 身份类（跨三型）的歧义由集合口回答：消费方（板面 spec 格、`planChain`）读 `docsOf(slug)` 的 0/1/n，n > 1 渲既有标记 `MARK_SLUG_DUPLICATED` + 集合内全部 `rel`，不借任何一份的 version / status。
+- `attribute(name)` **不加第三态**：名字 → 身份是一对一，歧义是「同一个身份有多份文档」，不是「名字对应多个身份」。
 #### 4.5 存在但读不出
 
 文件在推导名上但 IO 失败（权限、被删竞态）⇒ `invalid(path, "unreadable")`，不得读成 `absent`——「读不到」不得授权「没有」。
@@ -451,3 +454,4 @@ issue 提交方那 89 个 `*.rulings.json` 全部落在推导路径外；升级�
 | v0.5 | 2026-11-15 | 评审 round 2 全量落地（F1–F9）：**F1** 三态接进 `CrossDocChainInvariant#planChain`——null 身份 + 扫描面不干净 ⇒ 零 Finding（(c) 的「零拒绝」不再被 `doc-contract` 腿推翻，也删掉那句与事实相反的反查句）· **F2** `CarrierRulings` 入参保留 carrier 事实：`read(sidecarPath, carrierPath)` / `verdict(sidecarPath, carrierPath, findingIds)`，顶层 `carrier` 键仍与 carrier 的 basename 比对（本仓 51/51 个 sidecar 带该键，否则升级即全员 `invalid`），矩阵只接管名字 · **F3** §2.3 的 `ok` 行改为「只印路径行、正文归文档（§2.10）」· **F4** `ok` 加限定「该身份无其它能归主的名字」，多候选优先于 `ok`（§4.1 与 AC 同步）· **F5** `PlanOrphan#specPath` 退役（只留 `cause`）、`planOrphanSpec(slug)` 收单参，端口与报文字节进 AC · **F6** `identityDoc` / `planOf` 退役为 `docsOf(slug)` + doc 域 `read`，并点名三个消费者的新读法（`planChain` 问 `hasIdentity`）· **F7** 母契约的 Phase inventory ⑨/⑩ 已在 v3.76 配对，本相位复核通过、无需再改 · **F8** §1.1 ① 改述为「推导名随 `--reviews` 拼写漂移、写入方无从判定」（撤掉「永不等于推导路径」的过强断言）· **F9** §3.2 重测为 31 workspace / 221 行、口径写成「含本 workspace 自身」，退役键改以 workspace 计数。 | [human] 裁定 · Claude（kairos:cdd-spec-writer · 2026-11-15） |
 | v0.6 | 2026-11-15 | 评审 round 3 全量落地（F1–F6）：**F1（blocker）** `readFor` 的入参是身份文档条目、其 `rel` 是 spec 自身路径——原文「`entry.rel` 已在手却重新拼」是站不住的事实陈述（依它实现会把设计规格当 plan 解析，board 与 doc 轮的 plan 行全掉），改述为「plan 也是 slug 的派生名、索引里已有 plan 条目却不用」：plan 路径一律经 `docsOf(slug)` 的 plan 行取 `entry.rel`、无 plan 条目 ⇒ `undeclared`，`§1.3` / `§1.5` / `§1.6` / `§2.2` / AC（点名 `infra/__tests__/plan-source.test.ts:216-224` 与换源调用点 `Cli#runBoard` / `#boardReadTable` / `Cli#sceneOf`）与 Constraints 同步 · **F2** `planOf` 的第四个消费者 `BoardView#programBoard`（phase 板 plan 行）补进 §4.4 与重复身份 AC · **F3** §3.1 补两行（`Ledger.rowFor` / `#retiredSpecApplies` 的行级回退、`resolveHandoffName` / `#resolvedCarrierName` 的 doc 线 alias）并把「4 处消费」换成符号枚举，§3.3 与 legacy AC 同步点名，grep 门不再把未声明的改动面塞给 plan · **F4** round 身份保留可选坐标（`cycle` 接受 `number` 或 `string`、`attempt` 接受 `number`）——无 cycle 拼写是这两个成员的合法取值、不是待清理的例外，P34 `round-naming.test.ts:99-103` 的 pin 原样保留，`rulings` 与 `final` 仍同 stem ⇒ 无 cycle 身份 ⇔ `<line>-<op>.rulings.json`；往返 pin 与 AC 各加跑无 cycle 形态 · **F5** 迁移命令与其 `README.zh-CN.md` 镜像同批（§3.4 与迁移 AC ②）· **F6** 明写母契约行集八问的落点：`nameRule` = rendered 行的 `render` / declared 行的「无名字规则」，`归主文法` **不进类型**、住 §2.5 三条规则 + 逐行答案表 + `round-naming.test.ts` 枚举 pin。 | [human] 裁定 · Claude（kairos:cdd-spec-writer · 2026-11-15） |
 | v0.7 | 2026-11-15 | 评审 round 4 全量落地（F1–F7）：**F1** `rulings` 的身份钉成**载体的身份**（`attribute(path.basename(the --reviews 载体))`，`op` 恒为 `review`）——§2.1 / §2.4 / §2.10 与 AC 同源，删掉「按本轮身份」这个第二个表达式（按 fix 轮身份会铸出 `plan-fix-1.c1.rulings.json`）· **F2** P35 Constraints 的「plan 路径由 `ENGINE_DOC_ROOTS.plans` + slug 派生」写成显式修订（改取索引 plan 行的 `rel`；`#scanRoot` 只增按根丢弃计数、文档谓词不动）并记入 D92 ⑦，母契约 Phase inventory P36 验收 ④ 由「`readFor` 只读 `entry.rel`」改为「plan 路径取自 `docsOf(slug)` 的 plan 行 `rel`；`readFor` 的入参是身份文档条目」 · **F3** (b) 的「扫描面干净」由只数 `specs/` 改为三个 doc 根全干净（`overalls/` · `specs/` · `plans/` 各一对计数，六个值全 0），并写清为何跨三根（`#isIdentity` 接受 overall）· **F4** plan 的路径读同一套三态（plan 行 ⇒ `rel`；干净缺失 ⇒ `undeclared`；plans 根不干净 ⇒ 未判态：零拒绝 + `(none)` + 一行 `CDD_WARN:`），P35 AC ③ 的「未入册 plan」重锚为未判态（「缺 `doc-type: plan`」一半改、「新 plan 覆盖旧 entry」一半仍健康），changeset 依据点名 · **F5** 索引单建写成可判口径——scene/ctx 一处构造入口 + 两处 `?? build` 兜底（`session/preflight.ts:364` · `contract/invariants.ts:332`）允许，红 pin 是「这三处之外无 `SlugIndex.build`」（五处 → 三处）· **F6** 引用拆分：`plan-source.test.ts` 的入参在 `:213-227`、打开的派生路径在 `:173-183`；`CarrierRulings.pathFor` 行号 `:57` → `:59` · **F7** §2.1 矩阵 `rulings` 行的「与 `final` 同名」改为「与 `final` 同 stem」。 | [human] 裁定 · Claude（kairos:docs-fix · 2026-11-15） |
+| v0.8 | 2026-11-15 | **W2 修复轮的实现倒逼 spec 回填（编排者裁定 · 评审 tasks-2,3-review-2 F2 指出的正是这一点）**：计划 v0.10 把 T3 从「板面读 doc 域 `read(...)`」改成「读索引的集合端口」，理由是 `read` 按**声明的 `docType`** 单值判定，而 spec 格的**身份类**跨 `overall` / `phase-spec` / `single-spec` 三型——单值读答不出「三型里共有几份」。§2.2 因此补「身份类由集合端口回答」；§4.4 相应改写：同型歧义归 doc `read` 的 `invalid(found)`，跨型歧义归 `docsOf` 的 0/1/n（n>1 渲 `MARK_SLUG_DUPLICATED` + 全部 rel），**`attribute` 保持两态不加第三态**。这条回填是「spec 是权威」的落地：计划先动、spec 后跟，顺序记在这里而不是默默对齐。 | [human] 裁定 · Claude（编排器 in-flight 回填 · 2026-11-15） |

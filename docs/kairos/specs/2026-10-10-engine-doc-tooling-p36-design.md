@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P36 设计：身份面收权（身份域 × 产物矩阵 · 缺席有门 · 形状可发现）'
 doc-type: phase-spec
-version: v0.4
+version: v0.5
 date: 2026-11-15
 slug: '2026-10-10-engine-doc-tooling-p36'
 program: 2026-10-10-engine-doc-tooling
@@ -33,7 +33,7 @@ issue #484 说裁决 sidecar 的路径拼不出来、条目键名反直觉；iss
 
 | # | 断点 | 今日事实 | 症状 |
 | --- | --- | --- | --- |
-| ① | **路径由文件名派生** | `CarrierRulings.pathFor`（`session/carrier-rulings.ts:57`）按 `--reviews` 实参的**完整文件名**换尾；同轮 workspace 并存 `<line>-<op>-<n>.json`（draft）与 `<line>-<op>-<n>.c<N>.json`（final），按 round stem 写出的 `.rulings.json` 永不等于推导路径 | **issue 提交方那个消费仓**实测 89 个 sidecar / 位于推导路径 0 个（该仓把 sidecar 一律写成 draft stem）；**本仓是反向标定**：51 个 `*.rulings.json` 全部落在 `.c<N>` 终稿 stem（`pathFor` 的推导路径命中）——所以缺陷是**写读约定分叉**，不是「路径无处可达」 |
+| ① | **路径由文件名派生** | `CarrierRulings.pathFor`（`session/carrier-rulings.ts:57`）按 `--reviews` 实参的**完整文件名**换尾；同轮 workspace 并存 `<line>-<op>-<n>.json`（draft）与 `<line>-<op>-<n>.c<N>.json`（final），于是推导名随拼写漂移——传 draft 得 draft stem、传 final 得 `.c<N>` stem，写入方无从判定 | **issue 提交方那个消费仓**实测 89 个 sidecar / 位于推导路径 0 个（该仓把 sidecar 一律写成 draft stem）；**本仓是反向标定**：51 个 `*.rulings.json` 全部落在 `.c<N>` 终稿 stem（`pathFor` 的推导路径命中）——所以缺陷是**写读约定分叉**，不是「路径无处可达」 |
 | ② | **缺席静默** | `#rulingsInputOf`（`face/lifecycle.ts:1390`）对 `absent` 返回空串，装配器丢整行；`invalid` 才派发前硬停 | 最可能的人为错误落在唯一无痕的分支：exit 0、handoff 照常落盘 |
 | ③ | **形状无发现面** | 条目只认 `{finding, ruling, at?, by?}`，而邻接产物一律用 `id`；`schema get` 只登记 doc type | 写对路径、写错键名 ⇒ 整份拒；写错路径 ⇒ 连线索都看不到 |
 | ④ | **消费面无入口** | 六个 `cdd-*` skill 零处提 sidecar；唯一线索 `FIX_READBACK_SUFFIX` 教的是**规则**不是解析结果 | 落点知识只能来自源码考古 |
@@ -161,7 +161,7 @@ type Identity =
 
 - `tasks` 是 brief 的名字坐标，也是 workspace 域唯一会变的量：`progress` / `base` / `in-flight` 三个字面量恒取 `tasks: null`（渲染它们时 `tasks` 必须为 `null`，brief 必须非 `null`）。选这一形态而非给 `render` 加可选参数，是因为往返 pin 必须**全**：若 `tasks` 只有 `render` 看得见，`attribute("tasks-3-brief.md")` 就回不出同一身份，pin 在那一行不可满足（评审 blocker 的修法二）。
 - **行集只有一个家**：矩阵（含 doc 四行）、两个端口、`RoundDomain`、`WorkspaceDomain` 全部住 `session/round-artifacts.ts`（`RoundDomain` 即 `RoundNaming` 的扩行，旧名保留为别名）。`infra/slug-index.ts` 只是 doc 域端口的**实现**（`attribute` / `locate` 的委托对象），`DocDomain` 不再有第二个路径推导处。封闭集门按行集那一处建。
-- `CarrierRulings` 保留严格 schema 判定，路径改由矩阵渲染（`read` / `verdict` 的入参从「carrier 路径」变为「`(identity, "rulings")` 的渲染结果」）。
+- `CarrierRulings` 保留严格 schema 判定，路径改由矩阵渲染，但**入参仍带 carrier 的事实**：`read(sidecarPath, carrierPath)` / `verdict(sidecarPath, carrierPath, findingIds)`，其中 `sidecarPath` 是 `render(identity, "rulings")` 经 `Workspace#resolve` 的结果，`carrierPath` 是本轮的 `--reviews` 载体。理由是严格 schema 的一条既有判定：顶层可选键 `carrier` 必须等于 `path.basename(carrierPath)`（本仓 51/51 个 sidecar 都带该键），只拿渲染出的 sidecar 路径时这条比对永不成立 ⇒ 升级后每个合法 sidecar 都被判 `invalid`、派发前硬停，翻掉「门不变」。所以矩阵只接管**名字**，`carrier` 键继续读 carrier 自身的事实——两个方向各自只有一个来源，任一方向都不得由另一侧的字符串反推。
 
 #### 2.2 三个身份域，一个契约
 
@@ -193,7 +193,7 @@ type ArtifactRead =
 
 | 情形 | 策略 | 行为 |
 | --- | --- | --- |
-| 推导名在盘上且合法 | — | `ok`，round context 印路径 + 正文（`rulings` 现行为） |
+| 推导名在盘上、schema 合法，**且该身份没有其它能归主的名字** | — | `ok`，round context 只印一行路径（正文不进 round context，§2.10）；同身份另有一个能归主的名字 ⇒ 落 `misplaced` 臂（§4.1：一并列出、不选） |
 | 推导名在盘上但 schema 非法 | `invalid` ⇒ block | 派发前硬停（现行为，不变） |
 | 推导名缺失、同轮 stem 变体存在 | `misplaced` ⇒ **block** | 派发前硬停（§2.4） |
 | 推导名与变体都缺失 | `absent` ⇒ **永不阻断** | `rulings` 面静默（**prompt 字节与今日逐字节相同**）；其余读点各自走既有失败通道 |
@@ -257,11 +257,12 @@ Plan 的 slug 找不到身份文档时，P35 问的是**名字**（派生 `<slug
 | 层 | 事实 | `orphan()` | 派发 | board |
 | --- | --- | --- | --- | --- |
 | (a) | 索引命中该 slug 的身份文档 | `null` | **放行** | 照今日渲 spec 行 |
-| (b) | 索引未命中 **且** specs 根扫描面干净（无不可读候选、无读得出但未入册候选） | `spec-absent`（`specPath: null`） | `CDD_BLOCKED: doc-contract` | spec 行 `! no-spec` + hop-less `next:` |
+| (b) | 索引未命中 **且** specs 根扫描面干净（无不可读候选、无读得出但未入册候选） | `spec-absent`（`cause` 单值，无路径） | `CDD_BLOCKED: doc-contract` | spec 行 `! no-spec` + hop-less `next:` |
 | (c) | 索引未命中 **且** 扫描面不干净 | `null`（**未判态**） | **零拒绝，放行** | 照今日渲 `(none)`；不渲 `! no-spec` |
 
 - **扫描面干净是一个事实，不是一次猜测**：`SlugIndex#scanRoot`（`infra/slug-index.ts`）今日把「读不出」的候选静默丢掉（「an unreadable candidate is not a document」），于是「索引没有」与「盘上没有」被混成一件事——这正是 P35 §2.7 那条「不得用 `phaseSpecsOf` / `planOf` 反装」顾虑的同一个病。修法：`#scanRoot` 保留一份**丢弃计数**（不可读候选 + 读得出但 `doc-type` 不在登记表的候选），随索引一起暴露；三态读的就是这份计数，不新开扫描面、不新增第二条读取路径。
-- **派生路径整条废除**：`<slug>-design.md` 不再出现在引擎任何字符串里（§2.9 ④ 的零拼接门同时钉住它）。`spec-absent` 的报文改述为「the slug names no identity document (index clean miss)」——只印 `<slug>`、**不印任何派生路径**；`PlanOrphan.specPath` 在 (b) 与 (c) 都回 `null`。
+- **`cross-doc-chain` 吃同一对计数**：#485 的反查不止 plan-carrier 一条腿——`CrossDocChainInvariant#planChain`（`contract/invariants.ts:1622`）今日在 `#identityDocOf` 回 null 时直接产一条 Finding，而 `PreFlight#vet`（`session/preflight.ts:186`）把**任何** Finding 变成 `gate: doc-contract` 的硬拒；于是「索引未命中 + 扫描面不干净」的现场仍被拒，报文还说出一句与事实相反的话（「the plan carries no identity document with the same slug」，而扫描面里明明有候选，只是读不出或未入册）。修法：`planChain` 读**同一对**丢弃计数——null 身份 + 扫描面不干净 ⇒ **不出 Finding**（未判态，与 (c) 同一臂）；null 身份 + 扫描面干净 ⇒ 与 (b) 同一条 Finding（此时两条腿同向：plan-carrier 的 `spec-absent` 在前，chain 的 `slug` 腿在后，结论一致）。计数由 `SlugIndex` 自报（上一条），chain 不新开扫描、不新增读取路径。
+- **派生路径整条废除**：`<slug>-design.md` 不再出现在引擎任何字符串里（§2.9 ④ 的零拼接门同时钉住它）。`spec-absent` 的报文改述为「the slug names no identity document (index clean miss)」——只印 `<slug>`、**不印任何派生路径**；`PlanOrphan#specPath` 随之**退役**（`PlanOrphan` 只留 `cause`：三态下已无任何读者，(b)(c) 都没有路径可印），`PlanReadWords#planOrphanSpec(slug)` 收成单参、报文零路径片段——端口签名与 `spec-absent` 的报文字节一并进 AC 的 pin（`infra/__tests__/plan-source.test.ts`）。
 - **P35 的两条 pin 重锚**（deliberate · D74）：值 pin `infra/__tests__/plan-source.test.ts`（原「`<slug>-design.md` 存在但读不出 ⇒ 零拒绝、`(none)`」改写为 (a)(b)(c) 三格 + 「盘上存在但声明成别的 slug ⇒ (b)」），板面 pin `face/__tests__/board-view.test.ts`（`! no-spec` 只属 (b)；`(c)` 与今日逐字节相同）。三个观测点（spec 行 / hop-less `next:` / 报文）仍按 P35 §2.7 的通道选择执行，只是短路谓词从「派生路径不存在」换成「`orphan()?.cause === "spec-absent"`」。
 - **消费者可见变化**（写进 changeset 依据）：`<slug>-design.md` 存在、但它声明的 slug 不是本 plan 的 slug 时，今日放行、落地后判 (b)（身份才是判据，文件名不是）。(c) 保证这条变化不会误伤「读不出」的语料。
 
@@ -325,15 +326,15 @@ Plan 的 slug 找不到身份文档时，P35 问的是**名字**（派生 `<slug
 这族读法唯一的消费者是已关闭 workspace 的回看（`cdd board <旧 slug>`、capsule），所以判据是「这些读法今天还能到达哪些面」，而不是「盘上还有多少旧文件」。测量（2026-11-15 · 本仓根）：
 
 ```sh
-find .kairos/cdd -maxdepth 2 -name progress.json | wc -l          # 30 个 workspace
-cat $(find .kairos/cdd -maxdepth 2 -name progress.json) | grep -c '"wave"'        # 账本 220 行
-cat $(find .kairos/cdd -maxdepth 2 -name progress.json) | grep -c '"wave": "spec"' # 其中 16 行键 spec
+find .kairos/cdd -maxdepth 2 -name progress.json | wc -l          # 31 个 workspace
+cat $(find .kairos/cdd -maxdepth 2 -name progress.json) | grep -c '"wave"'        # 账本 221 行
+grep -l '"spec"' $(find .kairos/cdd -maxdepth 2 -name progress.json) | wc -l     # 16 个 workspace 仍带退役键 spec
 find .kairos/cdd -maxdepth 2 -name 'tasks-*-implement.json' | wc -l               # 125 个无 cycle implement 载体
 find .kairos/cdd -maxdepth 2 -name 'spec-*' | wc -l                               # 193 个旧拼写条目
 ```
 
 - `spec-*` 的 193 是**条目总数**，构成 = 88 个 `spec-*.json`（含 49 个 `spec-review-*.json`）+ 78 个 `spec-*-report.md` + 其余 27 个同前缀条目；不是「数百」，写「数百」是夸大证物。
-- 本相位落地时这些数字会各 +1（本 workspace 自身），口径写死为「测量时点 = 2026-11-15、命令如上」，判据不依赖数字本身。
+- 口径写死为「测量时点 = 2026-11-15、命令如上、**数字含本 workspace 自身**」：注册本 workspace 之前的同一组命令回 30 / 220，那个 +1 已经发生；此后每多一个 workspace 都会继续推高它们，所以判据不依赖数字本身。
 - 结论句因此是条件式：**这族读法的消费者只有已关闭 workspace 的回看**，它们不再被派发，新 workspace 一律写当前拼写。留着的代价是持续的：一条「哪些 type 走旧载体名」的集合在账本里决定三处行为，而每个后续面（board / orphan / seal / 矩阵）都得记得它——这正是散落的来源。
 
 #### 3.3 后果与既有裁定收窄
@@ -362,7 +363,7 @@ issue 提交方那 89 个 `*.rulings.json` 全部落在推导路径外；升级�
 
 #### 4.1 多候选
 
-同一 `(identity, kind)` 命中两个以上名字：`found` 列全部，停在这里，**引擎不选**。修复由编排器做（删多余的那个）。
+同一 `(identity, kind)` 命中两个以上名字：`found` 列全部，停在这里，**引擎不选**。修复由编排器做（删多余的那个）。这条优先于 `ok`：渲染名在盘上且合法、同时另有一个能归主的名字（§3.4 迁移做一半正是这个现场），结论仍是**停**，不因渲染名存在而放行——否则那个变体既不是 orphan（`attribute` 认得）也不会被报出，正是「猜名字」的老病。
 
 #### 4.2 缺席合法
 
@@ -374,7 +375,9 @@ issue 提交方那 89 个 `*.rulings.json` 全部落在推导路径外；升级�
 
 #### 4.4 同一 slug 多份身份文档
 
-判定面已有 `duplicate-identity` / `duplicate-plan`（`SlugIndex.#judge`）与 `slugVerdict.duplicated`；本相位把**读取面**补齐——`read({domain: "doc", slug, docType}, kind)` 命中 ≥2 份 ⇒ `invalid(path, found: [a, b], reason: "duplicate-identity")`，两条路径都印出，`identityDoc` / `planOf` 不再静默取第一份。**歧义在身份这一侧**，所以它落在 `read` 的集合臂而不是 `attribute`（名字 → 身份仍是一对一，认不得才是 orphan）。
+判定面已有 `duplicate-identity` / `duplicate-plan`（`SlugIndex.#judge`）与 `slugVerdict.duplicated`；本相位把**读取面**补齐——`read({domain: "doc", slug, docType}, kind)` 命中 ≥2 份 ⇒ `invalid(path, found: [a, b], reason: "duplicate-identity")`，两条路径都印出。**歧义在身份这一侧**，所以它落在 `read` 的集合臂而不是 `attribute`（名字 → 身份仍是一对一，认不得才是 orphan）。
+
+由此 `SlugIndex#identityDoc`（`:174`）/ `#planOf`（`:182`）**退役**——「取第一份」正是缺陷本身，索引只答集合：`docsOf(slug) → readonly DocEntry[]`（0/1/n，永不选），判读一律经 doc 域 `read`。三个消费者的新读法点名：`CrossDocChainInvariant#planChain` 问 `hasIdentity(slug)`（n ≥ 1 即真——两份以上仍回真，歧义归 `duplicate-identity` 判，不得让 chain 说出「没有身份文档」这句更假的话）；`Cli#sceneOf` 的 `specLink` / `pipeline.specPath` 与 `BoardView#nodeSources` 的 spec / plan 两格改吃 `read`——前者的 `invalid(found)` 先被既有 `slugVerdict.duplicated` 拒（`#slugVerdictOf` 回 null ⇒ `CDD_BLOCKED` + exit 1，「取第一份」根本到不了），后者渲既有的 `duplicate-identity` 标记而不是第一份。
 
 #### 4.5 存在但读不出
 
@@ -387,20 +390,20 @@ issue 提交方那 89 个 `*.rulings.json` 全部落在推导路径外；升级�
 - `misplaced = block` 成对 pin：推导路径缺而同轮 stem 变体在 ⇒ 派发前 `CDD_BLOCKED: artifact-identity`、报文四段齐、child 零 spawn、`--dry-run` 同源可见；两处都缺 ⇒ 不拦，且 absent 面 prompt 字节零变。
 - 门的作用面收窄：**盘上存在 P34 前 legacy 拼写载体**（`spec-review-1.json` / 无 cycle 的 `tasks-1-implement.json`）时派发**不被拦**——它们不归主 ⇒ orphan 观察面；`misplaced` 只在「能归主且不等于渲染名」时成立 — pin `session/__tests__/handoff-plane.guard.test.ts` 或同域结构测试。
 - 归主文法三格枚举（accepted / misplaced / orphan）各一条：`<line>-<op>-<cycle>.rulings.json`（省 `.c<cycle>`）与显式 `-a1` 落 `misplaced`；legacy 与矩阵外名字落 orphan — pin `session/__tests__/round-naming.test.ts` 与 `session/__tests__/carrier-rulings.test.ts`。
-- 多候选：同 identity × kind 两个名字并存 ⇒ 报文列全、不选、不写；child 零 spawn。
-- **#485 面（三态）**：索引有该 slug 的身份文档 ⇒ `review --type plan` / `implement --tasks` / `review --type branch` 全部放行，且 `plan-carrier` 与 `cross-doc-chain` 对同一份文档结论一致（不一致即红）；索引干净缺失 ⇒ `CDD_BLOCKED: doc-contract`，报文只印 `<slug>`（**不含任何派生路径**）、board spec 行 `! no-spec` + hop-less `next:`；索引缺失但 specs 根扫描面不干净（不可读候选或读得出未入册候选）⇒ **零拒绝**、board 照今日渲 `(none)`、`specPath` 为 `null`。`readFor` 只读 `entry.rel`（`<slug>.md` / `<slug>-design.md` 在 `infra/` 零命中）。
+- 多候选：同 identity × kind 两个名字并存（含「渲染名合法 + 同身份另有一个能归主的名字」这一格）⇒ 报文列全、不选、不写；child 零 spawn；该格优先于 `ok`（推导名在盘上不得放行）。
+- **#485 面（三态）**：索引有该 slug 的身份文档 ⇒ `review --type plan` / `implement --tasks` / `review --type branch` 全部放行，且 `plan-carrier` 与 `cross-doc-chain` 对同一份文档结论一致（不一致即红）；索引干净缺失 ⇒ `CDD_BLOCKED: doc-contract`，报文只印 `<slug>`（**不含任何派生路径**）、board spec 行 `! no-spec` + hop-less `next:`；索引缺失但 specs 根扫描面不干净（不可读候选或读得出未入册候选）⇒ **零拒绝**、board 照今日渲 `(none)`、`PlanOrphan` 只剩 `cause`（`specPath` 已退役）。**`cross-doc-chain` 同格钉**：三格各一条断言——(c) 上 `#contract.validate` 零 `cross-doc-chain@slug` Finding（因此 `PreFlight#vet` 不拒）、(b) 上该 Finding 与 plan-carrier 的 `spec-absent` 同向（两面都拒，各自说自己的事实）、(a) 上两端零 Finding。`readFor` 只读 `entry.rel`（`<slug>.md` / `<slug>-design.md` 在 `infra/` 零命中）；`planOrphanSpec(slug)` 单参、报文零路径片段（`infra/__tests__/plan-source.test.ts`）。
 - **P35 两条 pin 重锚**（deliberate · D74）：值 pin `infra/__tests__/plan-source.test.ts` 改为三格判定表（含「`<slug>-design.md` 在盘上但声明的是另一个 slug ⇒ (b)」与「不可读候选 ⇒ (c)」）；板面 pin `face/__tests__/board-view.test.ts` 钉住 `! no-spec` 只属 (b)、(c) 与今日逐字节相同；短路谓词是 `read.kind === "unreadable" || read.orphan()?.cause === "spec-absent"` 同一对。
-- **扫描面干净**由索引自报：`SlugIndex` 暴露 specs 根的两个计数（不可读候选、读得出但 `doc-type` 未登记候选），均为 0 才允许判 (b)，且这两个计数与入册结果同一次扫描产出（不新增第二次扫描）— pin `infra/__tests__/slug-index` 族。
+- **扫描面干净**由索引自报：`SlugIndex` 暴露 specs 根的两个计数（不可读候选、读得出但 `doc-type` 未登记候选），均为 0 才允许判 (b)，且这两个计数与入册结果同一次扫描产出（不新增第二次扫描）；`CrossDocChainInvariant#planChain` 读同一对计数判 (c)（不新开扫描、不新增读取路径）— pin `infra/__tests__/slug-index` 族。
 - **文档路径零拼接门**：谓词 = 以 doc root 为基的模板串 `${docRoots.<root>}/<非空>` 或 `path.join(<root|docRoot>, …)`，加回一处即红；白名单**恰三条**（`SlugIndex` 扫描根 · runtime/`RepoRoot` 组合 · `contract/invariants.ts` 的命名空间/段派生），`face/declare.ts` 的 `example` 四行不在其中、改为 `--plan <path>` / `--spec <path>` 形且零文档根插值。
 - **索引单建**：`SlugIndex.build` 调用点收敛到一处（scene/ctx 构建），`ctx.slugIndex ?? build` 之外无第二处生产入口。
-- **重复身份**：同 slug 两份身份文档 ⇒ `read({domain: "doc", slug, …}, kind)` 回 `invalid` 且 `found` 列全两路径、派发硬停；`attribute` 仍回身份（`Attributed | null` 不加第三态）；`identityDoc` 不再取第一份。
+- **重复身份**：同 slug 两份身份文档 ⇒ `read({domain: "doc", slug, …}, kind)` 回 `invalid` 且 `found` 列全两路径、派发硬停；`attribute` 仍回身份（`Attributed | null` 不加第三态）；`identityDoc` / `planOf` **退役**（`docsOf(slug)` 只答集合，判读经 `read`）——`planChain` 问 `hasIdentity(slug)`（n ≥ 1 即真，不出「没有身份文档」），`Cli#sceneOf` / `BoardView#nodeSources` 的新读法见 §4.4。
 - 归属：目录里未登记的名字 ⇒ 板面 `orphan:` 行，派发不被拦；`CarrierSeal` 不再硬编码任何后缀（`.rulings.json` 字面只在矩阵行与其夹具）。
 - board：健康树默认视图逐字节不变（`next:` / `reason:` 位置与字节不动）；有 misplaced 时仅新增 `art:` 事实行；`--artifacts` 才展开。
 - 词表：`finding` / `id` 双向兼容（内部归一 `finding`，未知键仍整份拒）；review `findings[]` / fix `dispositions` 的 `id` 零改动。
 - **读回提示印结果不印规则**：fix `next:` 行以 `(confirm the reviews handoff · if a finding needs a ruling, record it at <rendered sidecar path>)` 收尾，其中路径与门的 `derived:` 同值、由路由器按身份算出随 `Route` 下行，`RouteRenderer` 零推导；`session/next.ts` 内不出现 `.rulings.json` 字面（与「字面只在矩阵行与其夹具」不冲突：句子移的是**值**不是**拼写规则**）；重锚 pin = `face/__tests__/face.test.ts` 的 fix 行断言 · `face/__tests__/cli.test.ts` · `face/__tests__/capsule.test.ts` · `packages/kairos/tests/status-routing-convergence.test.ts`，按 D74 记为消费可见变化（`cdd-engine` minor）。
 - legacy：`RETIRED_SPEC_*` / `#retiredCarrierName` / `#legacyCarrierName` / `#ownerRow` / `#lineWord` 的退役分支零残留（grep 门）；旧 workspace 的 board 退化为缺行 + orphan，新派发零影响。
 - **迁移两条**：① 夹具 = 错位 sidecar（`<line>-<op>-<n>.rulings.json`）+ 终稿 carrier（`.c<N>.json`）——迁移前派发 `CDD_BLOCKED: artifact-identity`，改名为 `.c<N>.rulings.json` 后同一命令通过（`ok`），child 正常 spawn；② cdd-engine README 升级说明里那一行迁移命令在册，且注明改名后必须复判（条目形状除 `id` 之外的偏差由编排器修，引擎不改写）— pin `session/__tests__/carrier-rulings.test.ts` + README 断言所在的结构测试。
-- **`INPUT_RULINGS` 只印路径**：sidecar 存在时 round context 恰一行路径、零正文行；固定前缀（fix / docs-fix 两壳）含「裁定回答 finding id 并压过该 finding 自身建议、carrier 只读」一句；sidecar 缺席时该 token 零行（P31 §2.5 的另一半原样绿）；`#rulingLine` 零残留；fix / docs-fix 的 prompt 字节 pin 按 v0.4 重锚（deliberate · D74）。
+- **`INPUT_RULINGS` 只印路径**：sidecar 存在时 round context 恰一行路径、零正文行；固定前缀（fix / docs-fix 两壳）含「裁定回答 finding id 并压过该 finding 自身建议、carrier 只读」一句；sidecar 缺席时该 token 零行（P31 §2.5 的另一半原样绿）；`#rulingLine` 零残留；fix / docs-fix 的 prompt 字节 pin 按 v0.4 重锚（deliberate · D74）；**门不变**：`verdict(sidecarPath, carrierPath, findingIds)` 仍把顶层 `carrier` 键与 `path.basename(carrierPath)` 比对——带该键的合法 sidecar（本仓 51/51 都带）照旧走 `ok`，渲染路径取代的是**名字**，不是 carrier 事实。
 - 消费面：`cdd-dev` / `cdd-plan` / `cdd-spec-writer` 各**在既有 `## Invariants` 表尾加一行**（`cdd-dev` = `I6` · `cdd-plan` = `I5` · `cdd-spec-writer` = `I4`，三者同句：fix 派发若某条 finding 需要裁定，把裁定写到引擎在 `next:` 里印出的那个 sidecar 路径上，编排器永不自行推导该路径）；**不新增 `##` 节**（`contract/skill-anatomy.ts` 的 section registry 是严格白名单，新增节要同步 `sections` / `public`——本相位不加节，registry 零改动，`packages/kairos/tests/skill-anatomy.test.ts` 的 `rowPattern` 已匹配 `\| I<n> \|` 行）；skill 文本不出现 `.rulings.json` 字面，零程序史 / 零相位号。
 
 - `pnpm run validate` exit 0 · changeset `cdd-engine` **minor**（新增硬停门、prompt 字节与 fix `next:` 字面属消费可见变化 · D74）· `kairos` **minor**（skill 文本）。
@@ -422,3 +425,4 @@ issue 提交方那 89 个 `*.rulings.json` 全部落在推导路径外；升级�
 | v0.2 | 2026-11-15 | 并入 issue #485 并按其证据**修正 doc 域设计**：文档是声明物（`identityFrom: "declared"`），没有名字规则、没有 `misplaced`——v0.1 里「文件名≠slug ⇒ block」会把消费方 10 份合法文档拦下，作废。新增：`DocEntry.rel` 取代两处路径拼接 · `SlugIndex` 单建一次 · 同 slug 多份 ⇒ `invalid` · `docRoots` 拼接 grep 门 · legacy 拆族（`RETIRED_SPEC_*` / `#legacyCarrierName` / `#retiredCarrierName` / `RULINGS_SUFFIX`，依据 16 行 `/` 125 组活数据只服务已关闭 workspace）+ P34 §2.6 收窄。 | [human] 裁定 · Claude（kairos:cdd-spec-writer · 2026-11-15） |
 | v0.3 | 2026-11-15 | 评审 round 1 全量落地（F1–F15）：**doc 域反查改三态**并把 P35 §2.7 的修订写进 §2.7（问身份不问名字，`<slug>-design.md` 派生整条废除，`specPath` 回 `null`，扫描面干净由索引自报的丢弃计数给出；P35 值 pin 与板面 pin 重锚）· 矩阵**删 `absence` 列**、doc 四 kind 拆四行（缺席永不阻断）· 往返 pin 按行枚举并给 brief 一个 `tasks` 坐标（workspace 三字面量 = `tasks: null`）· 重复身份从 `attribute` 挪到 `read` 的 `invalid(found)` 集合并加宽该臂 · `misplaced` 的作用面收窄到本轮解析到的 kind、归主文法三格入列并配枚举 pin · 零拼接门写成可判谓词 + 恰三条白名单（`face/declare.ts` 四处 help 示例改为 `--spec <path>` 形）· `FIX_READBACK_SUFFIX` 改为印结果路径并点名重锚 pin · 三个 skill 的落点指令挂在既有 `## Invariants` 表尾（registry 零改动）· §3.2 换成命令 + 实测数字（193 = 88 json + 49 review json + 78 report md）、§1.1 的 89/0 显式限定为 issue 提交方那个消费仓并以本仓 51 个 `.c<N>` sidecar 作反向标定 · 迁移补两条验收（改名后派发转 `ok`、README 命令在册）并删掉「无需改内容」的断言 · 纯行号定位改符号 pin（`SlugIndex#identityDoc` :174 / `#planOf` :182 / `Ledger.#retiredCarrierName` :1882 / `#ownerRow` :1927 / `carrierPattern` :41）· `sealed` 列逐行写全 · `DocDomain` 措辞与行集单一之家。 | [human] 裁定 · Claude（kairos:cdd-spec-writer · 2026-11-15） |
 | v0.4 | 2026-11-15 | **用户裁定：`INPUT_RULINGS` 只印路径，正文不进 round context（P31 §2.5 的显式修订）**——与 `INPUT_REVIEWS` 同形：一个输入面一种读法 · 尾部字节不再随裁定长度漂移（P33 前缀稳定）· 正文入 prompt 是「文档的第二次表达」，prompt 副本没有任何门与 sidecar 对账。落法：`#rulingsInputOf` 只回路径行、`#rulingLine` 退役；`FIX_SHELL` / `DOCS_FIX_SHELL` 各补一句读法（裁定压过 finding 自身建议 · carrier 只读）；门不变（`invalid` 仍派发前硬停）；成对钉改为「present ⇒ 恰好一行路径、零正文」「absent ⇒ 零行」。 | [human] 裁定 · Claude（编排器 in-flight 回填 · 2026-11-15） |
+| v0.5 | 2026-11-15 | 评审 round 2 全量落地（F1–F9）：**F1** 三态接进 `CrossDocChainInvariant#planChain`——null 身份 + 扫描面不干净 ⇒ 零 Finding（(c) 的「零拒绝」不再被 `doc-contract` 腿推翻，也删掉那句与事实相反的反查句）· **F2** `CarrierRulings` 入参保留 carrier 事实：`read(sidecarPath, carrierPath)` / `verdict(sidecarPath, carrierPath, findingIds)`，顶层 `carrier` 键仍与 carrier 的 basename 比对（本仓 51/51 个 sidecar 带该键，否则升级即全员 `invalid`），矩阵只接管名字 · **F3** §2.3 的 `ok` 行改为「只印路径行、正文归文档（§2.10）」· **F4** `ok` 加限定「该身份无其它能归主的名字」，多候选优先于 `ok`（§4.1 与 AC 同步）· **F5** `PlanOrphan#specPath` 退役（只留 `cause`）、`planOrphanSpec(slug)` 收单参，端口与报文字节进 AC · **F6** `identityDoc` / `planOf` 退役为 `docsOf(slug)` + doc 域 `read`，并点名三个消费者的新读法（`planChain` 问 `hasIdentity`）· **F7** 母契约的 Phase inventory ⑨/⑩ 已在 v3.76 配对，本相位复核通过、无需再改 · **F8** §1.1 ① 改述为「推导名随 `--reviews` 拼写漂移、写入方无从判定」（撤掉「永不等于推导路径」的过强断言）· **F9** §3.2 重测为 31 workspace / 221 行、口径写成「含本 workspace 自身」，退役键改以 workspace 计数。 | [human] 裁定 · Claude（kairos:cdd-spec-writer · 2026-11-15） |

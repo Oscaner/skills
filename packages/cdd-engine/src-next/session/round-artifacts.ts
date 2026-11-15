@@ -199,8 +199,15 @@ const readArtifactAt = (path: string): ArtifactRead => {
 /** The identity key of one round identity — the coordinate with the renderer's two
  *  defaults applied (a missing cycle renders as no segment; a missing attempt renders
  *  as attempt 1). Two identities with the same key render the same names, so the
- *  attribution set of one (identity, kind) is well defined. */
-const roundIdentityKey = (identity: Extract<Identity, { domain: "round" }>): string =>
+ *  attribution set of one (identity, kind) is well defined.
+ *
+ *  The two defaults are NOT symmetric, and the asymmetry is the point: a missing
+ *  `attempt` is attempt 1 (the renderer never mints `-a1`, so attempt 1 and an absent
+ *  attempt ARE one identity), while a missing `cycle` is its own coordinate (it renders
+ *  no cycle segment at all, so `tasks-1-implement.json` and `tasks-1-implement-1.json`
+ *  are two identities — spec §2.2 keeps the cycle-less spelling a legal value). Every
+ *  identity comparison reads through this ONE key, never a private re-derivation. */
+export const roundIdentityKey = (identity: Extract<Identity, { domain: "round" }>): string =>
   `${identity.line}\u0000${identity.op}\u0000${identity.cycle ?? ""}\u0000${identity.attempt ?? 1}`;
 
 /** The workspace identity key — `tasks` is the whole coordinate. */

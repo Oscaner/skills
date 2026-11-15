@@ -38,7 +38,7 @@ import { type Carrier, type CarrierPlane, HandoffSchema } from "./handoff-schema
 import { LineIdentity } from "./line-identity.ts";
 import type { DocClassVerdict, NextHop, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
-import { ArtifactRegistry, type Identity } from "./round-artifacts.ts";
+import { ArtifactRegistry, type Identity, roundIdentityKey } from "./round-artifacts.ts";
 import { type RoundArtifact, RoundNaming } from "./round-naming.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
 
@@ -1817,9 +1817,10 @@ export class Ledger {
    *  recognized — tier (i) can only exist if unrecognized names are looked at.
    *
    *  Claiming keeps BOTH tiers P34/D89 delivered: the record's `(op, cycle, attempt)`
-   *  equals the name's identity (the row key derives from the identity's line), or the
-   *  record's own `carrierPath` basename equals the name (a pre-P34 record remembers an
-   *  absolute path while the scan yields a bare name — read once through
+   *  equals the name's identity read through `roundIdentityKey` (the matrix's own key, so a
+   *  cycle-less name is never claimed by a cycle-1 record — only the attempt default
+   *  folds), or the record's own `carrierPath` basename equals the name (a pre-P34 record
+   *  remembers an absolute path while the scan yields a bare name — read once through
    *  `carrierPathOf`, the only accessor of that fact). Completion is irrelevant:
    *  ownership is the record (spec §2.12), so an honestly failed round's carrier is
    *  owned. Zero writes: this is a PURE READ, the engine never moves or deletes.
@@ -1846,8 +1847,17 @@ export class Ledger {
   }
 
   /** Whether a progress record claims one attributed carrier name — the identity tier
-   *  first (the record's own `(op, cycle, attempt)`), the recorded-path tier second (a
-   *  pre-P34 record's absolute `carrierPath` compared by basename). */
+   *  first (the record's own `(op, cycle, attempt)` through the matrix's OWN identity key),
+   *  the recorded-path tier second (a pre-P34 record's absolute `carrierPath` compared by
+   *  basename).
+   *
+   *  The first tier compares with `roundIdentityKey`, so it answers exactly the question
+   *  the matrix answered when it attributed the name: a cycle-less spelling
+   *  (`tasks-<n>-implement.json`) is the cycle-less identity, NEVER a cycle-1 record's
+   *  name (the renderer mints `tasks-<n>-implement-1.json` for cycle 1 — two coordinates,
+   *  spec §2.2). Only the `attempt` default folds (attempt 1 and an absent attempt render
+   *  the same name). A cycle-less carrier therefore stays claimed only through tier two —
+   *  a record that REMEMBERS that path — which is exactly the division spec §2.5 states. */
   #claimed(
     progress: ProgressData,
     identity: Extract<Identity, { domain: "round" }>,
@@ -1855,11 +1865,16 @@ export class Ledger {
   ): boolean {
     const { type, key } = Ledger.#lineOf(identity.line);
     const records = RoundRecords.of(Ledger.rowFor(progress, key));
-    const expected = `${identity.op}:${identity.cycle ?? 1}:${identity.attempt ?? 1}`;
+    const expected = roundIdentityKey(identity);
     return records.some(
       (record) =>
-        `${record.op}:${record.cycle}:${record.attempt}` === expected ||
-        basename(this.carrierPathOf(type, key, record)) === name,
+        roundIdentityKey({
+          domain: "round",
+          line: identity.line,
+          op: record.op,
+          cycle: record.cycle,
+          attempt: record.attempt,
+        }) === expected || basename(this.carrierPathOf(type, key, record)) === name,
     );
   }
 

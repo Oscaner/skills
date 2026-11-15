@@ -45,6 +45,7 @@ import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { CarrierRulings } from "../../session/carrier-rulings.ts";
 import { targetFaces } from "../../session/faces.ts";
 import { HoldingError, InFlight } from "../../session/inflight.ts";
 import { Ledger } from "../../session/ledger.ts";
@@ -1404,6 +1405,54 @@ describe("P36 T6 — the misplaced rulings sidecar gate (spec §2.3 · §2.4)", 
       expect(f.io.stderrText).not.toContain("artifact-identity");
       chmodSync(rendered, 0o644);
     } finally {
+      f.cleanup();
+    }
+  });
+
+  it("reads the sidecar ONCE per dispatch — the gate and the round-context cell share the value", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    // the composition's one physical read: the matrix scan plus the strict schema parse
+    const verdicts = vi.spyOn(CarrierRulings, "verdict");
+    try {
+      const carrier = seedCarrier(f);
+      const rendered = path.join(f.scene.workspace.path, RENDERED_SIDECAR);
+      writeFileSync(rendered, JSON.stringify(legalSidecar(PLAN_CARRIER)), "utf8");
+      const runner = new SilentRunner();
+      await dispatchOver(f, carrier, runner);
+      expect(runner.calls).toHaveLength(1);
+      // one read, two consumers: a second read would let a writer between the gate and
+      // the prompt split their answers — the P35 failure mode the contract removes
+      expect(verdicts).toHaveBeenCalledTimes(1);
+      expect(promptOf(runner)).toContain(`- \`INPUT_RULINGS\`: ${relOf(f, rendered)}`);
+    } finally {
+      verdicts.mockRestore();
+      f.cleanup();
+    }
+  });
+
+  it("answers `invalid` when the matrix read is `ok` and the schema answers `absent` — a race is never an absence", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    const verdicts = vi.spyOn(CarrierRulings, "verdict");
+    try {
+      const carrier = seedCarrier(f);
+      writeFileSync(
+        path.join(f.scene.workspace.path, RENDERED_SIDECAR),
+        JSON.stringify(legalSidecar(PLAN_CARRIER)),
+        "utf8",
+      );
+      // The matrix already established presence on the renderer's own basis; the second
+      // level now reports `absent` — the read race the matrix's existence test cannot see.
+      verdicts.mockReturnValue({ kind: "absent" });
+      const runner = new SilentRunner();
+      const outcome = await dispatchOver(f, carrier, runner);
+      expect(outcome.status).toBe("BLOCKED");
+      expect(runner.calls).toHaveLength(0);
+      // "cannot be read" never authorizes "is not there": the round is refused instead
+      // of dispatching with an empty ruling slot and no refusal at all
+      expect(f.io.stderrText).toContain("rulings sidecar — unreadable");
+      expect(f.io.stderrText).not.toContain("artifact-identity");
+    } finally {
+      verdicts.mockRestore();
       f.cleanup();
     }
   });

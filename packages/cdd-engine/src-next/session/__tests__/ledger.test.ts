@@ -609,9 +609,11 @@ describe("rounds — the per-round records (P22 T3: record → status, one direc
       const record = ledger.recordsOf("1")[0]!;
       expect(record.cycle).toBe(1);
       expect(ledger.carrierPathOf("wave", "1", record)).toBe("");
-      // the identity tier still owns the name — a record whose `(op, cycle, attempt)`
-      // equals the parsed identity claims its carrier regardless of the ladder
-      expect(ledger.orphanHandoffs()).toEqual([]);
+      // The identity tier does not claim it either: the name parses to the CYCLE-LESS
+      // identity while the record reads cycle 1, and the matrix's own key keeps those
+      // two coordinates apart (the renderer mints `tasks-1-implement-1.json` for cycle
+      // 1). Both claim tiers miss, so the file is an observation row.
+      expect(ledger.orphanHandoffs()).toEqual(["tasks-1-implement.json"]);
     } finally {
       cleanup();
     }
@@ -890,17 +892,17 @@ describe("handoff — naming / carrier / single-author persist", () => {
     }
   });
 
-  it("orphanHandoffs keeps a round-less family's round at 1 — an implement carrier is owned", () => {
+  it("orphanHandoffs lists a cycle-less implement carrier — a cycle-1 record never claims it", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
-      // `tasks-{tasks}-implement.json` carries `{tasks}` alone: the fixed implement
-      // family is round-less, and its single group is the task list, never a round.
-      // The claim is the IDENTITY tier (P36 §2.5 (ii) ①): the name parses to a
-      // cycle-less round identity, whose default coordinate is the renderer's own
-      // (`cycle ?? 1`), so the recorded round matches it with no read-ladder rung.
+      // `tasks-{tasks}-implement.json` carries `{tasks}` alone and parses to the
+      // CYCLE-LESS identity, while the recorded implement round is cycle 1 — two
+      // coordinates, and the matrix renders them to two names (`…-implement.json` vs
+      // `…-implement-1.json`). The claim is per coordinate, so neither tier owns the
+      // file: an old spelling is an observation row, never a silently re-claimed carrier.
       ledger.recordRound("1,2", { op: "implement", cycle: 1 });
       workspace.writeJson("tasks-1,2-implement.json", { artifacts: {} });
-      expect(ledger.orphanHandoffs()).toEqual([]);
+      expect(ledger.orphanHandoffs()).toEqual(["tasks-1,2-implement.json"]);
     } finally {
       cleanup();
     }
@@ -963,18 +965,19 @@ describe("orphanHandoffs — the reverse parse reads the identity it renders (P3
     }
   });
 
-  it("claims a pathless legacy fixture's implement carrier — the folded round is attempt 1", () => {
+  it("lists a pathless legacy fixture's implement carrier — the folded round is cycle 1, the name is cycle-less", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
       // The cycle-less spelling parses to `{ op: implement, cycle: absent, attempt:
-      // absent }`; the folded record reads `implement · 1 · 1`, so the IDENTITY tier
-      // claims it — the retired read ladder never participated in this cell.
+      // absent }`; the folded record reads `implement · 1 · 1`. Only the attempt
+      // default folds (the renderer never mints `-a1`), so the identity tier leaves the
+      // name alone and the retired read ladder is not a second way back in.
       ledger.writeProgress({
         ...ledger.emptyProgress(),
         waves: [{ wave: "1", rounds: { implement: [1], review: [1] } }],
       });
       workspace.writeJson("tasks-1-implement.json", { artifacts: {} });
-      expect(ledger.orphanHandoffs()).toEqual([]);
+      expect(ledger.orphanHandoffs()).toEqual(["tasks-1-implement.json"]);
     } finally {
       cleanup();
     }

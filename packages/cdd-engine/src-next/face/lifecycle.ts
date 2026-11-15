@@ -151,6 +151,24 @@ type ArtifactReadOf = {
   readonly rulings: readonly Ruling[];
 };
 
+/** One dispatch's artifact judgment — the VALUE the gate and the prompt cell share.
+ *  Computed once per dispatch (`#artifactCellOf`), so the two consumers cannot answer
+ *  differently across a writer that lands between them (spec §2.3: 一份读取、两个消费者 —
+ *  the contract is one value, not one call count). The `mismatch` arm carries the
+ *  carrier-integrity refusal a tampered requesting carrier raises INSTEAD of a read: the
+ *  sidecar is never judged against bytes that changed. */
+type ArtifactCell =
+  | { readonly kind: "read"; readonly value: ArtifactReadOf }
+  | { readonly kind: "mismatch"; readonly message: string };
+
+/** The no-sidecar read — nothing for the matrix to judge, nothing for the schema to
+ *  parse. */
+const ABSENT_READ: ArtifactReadOf = { read: { kind: "absent" }, rulings: [] };
+
+/** The no-sidecar cell — off the fix face, an unattributable carrier, or a matrix
+ *  `absent`: the slot stays empty and the gate has nothing to refuse. */
+const NO_ARTIFACT: ArtifactCell = { kind: "read", value: ABSENT_READ };
+
 /**
  * CliLifecycle — the lifecycle's dispatch-seam production default (the split contract's
  * lifecycle face; face/cli.ts re-exports it as HarnessDispatch so the composition
@@ -688,16 +706,18 @@ export class CliLifecycle {
     }
     // P31 T2 — the ruling sidecar gate: a sidecar the strict schema refuses stops the
     // round HERE, before the in-flight record is acquired and before any child exists
-    // (a written-but-invisible ruling is the defect this gate removes). The gate reads
-    // the SAME discriminant the round-context cell reads (`#artifactReadOf`), so the
-    // `misplaced` / `invalid` / `ok` answers can never disagree between them.
-    const artifactRefusal = this.#artifactRefusal(frame);
+    // (a written-but-invisible ruling is the defect this gate removes). The judgment is
+    // ONE value computed here and handed to BOTH consumers (the gate and the prompt's
+    // round-context cell), so the `misplaced` / `invalid` / `ok` answers can never
+    // disagree between them — not even across a writer that lands mid-dispatch.
+    const artifactCell = this.#artifactCellOf(frame);
+    const artifactRefusal = this.#artifactRefusalOf(artifactCell);
     if (artifactRefusal !== null) {
       this.#sealRoundCarriers(frame);
       this.#blocked(artifactRefusal, false);
       return { status: "BLOCKED", violations: [RoundViolation.hard(artifactRefusal)] };
     }
-    const prompt = this.#template.render(this.#valuesOf(frame));
+    const prompt = this.#template.render(this.#valuesOf(frame, artifactCell));
     const row = HOSTS[host as HostId];
     const cliName = row.cli;
     const args = [...row.invoke.split(" ").filter((part) => part.length > 0)];
@@ -957,7 +977,7 @@ export class CliLifecycle {
    *  (empty-valued keys are dropped), so each mode's round context carries only the
    *  facts the mode reads. The review criteria/lens are NOT values — they fold into
    *  the review type's fixed prefix (§3.7). */
-  #valuesOf(frame: OpenFrame): TemplateValues {
+  #valuesOf(frame: OpenFrame, artifactCell: ArtifactCell): TemplateValues {
     const scene = this.#scene;
     const op = this.#opOf(frame);
     const role = this.#roleOf(frame);
@@ -985,10 +1005,11 @@ export class CliLifecycle {
       // P31 T2 — the ruling sidecar rides the fix input side alone (the review round's
       // own context has no sidecar yet). The path is the matrix's `rulings` row rendered
       // from the REVIEWED carrier's identity and the strict schema read composed beside
-      // it (`#artifactReadOf`), so this slot and the gate read ONE value; an absent,
-      // unattributable or refused sidecar leaves the slot empty and the assembler drops
-      // the line.
-      INPUT_RULINGS: this.#rulingsInputOf(frame),
+      // it (`#artifactReadOf`), handed in as the dispatch's ONE judgment: the gate that
+      // just approved this dispatch and this slot are the same value, never two reads.
+      // An absent, unattributable or refused sidecar leaves the slot empty and the
+      // assembler drops the line.
+      INPUT_RULINGS: this.#rulingsInputOf(artifactCell),
       // The kind-named judged-doc anchors (the semantic retirement of the generic
       // INPUT_DOC): the plan line carries the plan document as its judged doc
       // (INPUT_PLAN) AND its design-spec reference (INPUT_SPEC — the `spec:`
@@ -1403,14 +1424,15 @@ export class CliLifecycle {
    *  fix face, when the carrier attributes to no round identity, and when the sidecar is
    *  absent — the assembler drops the empty line).
    *
-   *  The judgment is the GATE's own `#artifactReadOf` — one discriminant value for both
-   *  consumers, so a cell can never quote a ruling set the refusal is about to reject.
+   *  The judgment is the dispatch's OWN cell — the value the gate just read — so a cell
+   *  can never quote a ruling set the refusal is about to reject, and never quotes a
+   *  second read the gate did not see.
    *  The path is the artifact matrix's `rulings` render of the REVIEWED round's
    *  identity, never a tail replacement on the carrier's name: the carrier's own
    *  spelling (draft or final) can no longer move it. */
-  #rulingsInputOf(frame: OpenFrame): string {
-    if (this.#opOf(frame) !== "fix") return "";
-    const { read, rulings } = this.#artifactReadOf(frame, "rulings");
+  #rulingsInputOf(cell: ArtifactCell): string {
+    if (cell.kind !== "read") return "";
+    const { read, rulings } = cell.value;
     if (read.kind !== "ok") return "";
     return [this.#rel(read.path), ...rulings.map((ruling) => this.#rulingLine(ruling))].join("\n");
   }
@@ -1429,7 +1451,22 @@ export class CliLifecycle {
    *  dry run can never forecast a dispatch the real run would refuse (one read, two
    *  faces). Nothing here writes: the read is the matrix's plus the strict schema's. */
   artifactRefusal(frame: OpenFrame): string | null {
-    return this.#artifactRefusal(frame);
+    return this.#artifactRefusalOf(this.#artifactCellOf(frame));
+  }
+
+  /** The dispatch's artifact judgment — computed ONCE, then consumed by the gate and by
+   *  the prompt's round-context cell. Off the fix face there is nothing to read (no
+   *  requesting carrier, no sidecar), so the cell is the no-sidecar value; otherwise the
+   *  one read is taken here, and a tampered requesting carrier becomes the integrity arm
+   *  instead of a read (its id set is not a fact this round may read). */
+  #artifactCellOf(frame: OpenFrame): ArtifactCell {
+    if (this.#opOf(frame) !== "fix") return NO_ARTIFACT;
+    try {
+      return { kind: "read", value: this.#artifactReadOf(frame, "rulings") };
+    } catch (raw) {
+      if (!(raw instanceof CarrierMismatchError)) throw raw;
+      return { kind: "mismatch", message: raw.message };
+    }
   }
 
   /** The ONE artifact read of this round's `kind` — the matrix's `read` (names ·
@@ -1440,11 +1477,10 @@ export class CliLifecycle {
    *  the CARRIER's (the reviewed round, `op` fixed to `review`), so the rendered name
    *  and the `identity:` report section share one coordinate. */
   #artifactReadOf(frame: OpenFrame, kind: Kind): ArtifactReadOf {
-    const absent: ArtifactReadOf = { read: { kind: "absent" }, rulings: [] };
     const carrier = this.#reviewsPath(frame);
-    if (carrier === null) return absent;
+    if (carrier === null) return ABSENT_READ;
     const identity = this.#rulingsIdentityOf(carrier);
-    if (identity === null) return absent;
+    if (identity === null) return ABSENT_READ;
     const read = this.#artifacts.read(identity, kind, this.#scene.workspace);
     if (read.kind !== "ok") return { read, rulings: [] };
     const verdict = CarrierRulings.verdict(
@@ -1456,17 +1492,25 @@ export class CliLifecycle {
       case "ok":
         return { read, rulings: verdict.rulings };
       case "absent":
-        return absent;
+        // The matrix ALREADY established presence on the renderer's own basis (`stat`
+        // + `access(R_OK)` at the derived name), so a second-level absence is a read
+        // RACE — the file left between the two levels — never "there is no sidecar".
+        // "Cannot be read" never authorizes "is not there" (§4.5): the round would
+        // otherwise dispatch with an empty ruling slot and no refusal.
+        return {
+          read: { kind: "invalid", path: read.path, reason: "unreadable" },
+          rulings: [],
+        };
       case "invalid":
         return { read: { kind: "invalid", path: read.path, reason: verdict.reason }, rulings: [] };
     }
   }
 
-  /** The pre-dispatch artifact gate — the refusal reason of this round's resolved
-   *  `rulings` kind, or null when the round may proceed (no fix face, no resolved
-   *  carrier, an absent sidecar, or one conforming). A refusal is HARD and lands before
-   *  the in-flight record and the child, so a broken ruling set can never be dispatched
-   *  unnoticed (§2.4).
+  /** The pre-dispatch artifact gate over the dispatch's ONE cell — the refusal reason of
+   *  this round's resolved `rulings` kind, or null when the round may proceed (no fix
+   *  face, no resolved carrier, an absent sidecar, or one conforming). A refusal is HARD
+   *  and lands before the in-flight record and the child, so a broken ruling set can
+   *  never be dispatched unnoticed (§2.4).
    *
    *  Two refusal shapes, two words: a name that attributes to the identity but is NOT
    *  its rendered name is `artifact-identity` (the four-section report — every candidate
@@ -1476,15 +1520,9 @@ export class CliLifecycle {
    *  A `carrier-mismatch` from the sidecar's id read is the integrity refusal, never a
    *  ruling reason: a tampered carrier is not judged (its id set is not a fact this
    *  round may read), so the diagnostic names the bytes that changed. */
-  #artifactRefusal(frame: OpenFrame): string | null {
-    if (this.#opOf(frame) !== "fix") return null;
-    let read: ArtifactRead;
-    try {
-      read = this.#artifactReadOf(frame, "rulings").read;
-    } catch (raw) {
-      if (!(raw instanceof CarrierMismatchError)) throw raw;
-      return raw.message;
-    }
+  #artifactRefusalOf(cell: ArtifactCell): string | null {
+    if (cell.kind === "mismatch") return cell.message;
+    const read = cell.value.read;
     if (read.kind === "invalid") return `rulings sidecar — ${read.reason}`;
     if (read.kind !== "misplaced") return null;
     return this.#words.artifactIdentity({

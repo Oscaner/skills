@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P36 计划：身份面收权（身份域 × 产物矩阵 · 缺席有门 · 形状可发现）'
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-11-15
 slug: 2026-10-10-engine-doc-tooling-p36
 base: develop
@@ -32,7 +32,7 @@ base: develop
 
 #### Objective
 
-把「名字从哪来」立成一张封闭登记表：`session/round-artifacts.ts` 落 `Kind` / `Identity` / `Attributed` / `ArtifactRead` / `IdentifierVocabulary` / `ArtifactRow` 六个值类型、`IdentityDomain` 契约与 `ArtifactRegistry` 深类（`entries()` · `rows()` · `rowOf(kind)` · `render(identity, kind)` · `attribute(name)` · `locate(identity, kind, base)` · `read(identity, kind, base)`），首批只登记 workspace 四行（`progress` · `base` · `in-flight` · `brief`），并给出往返 pin 的骨架。`brief` 的生产拼写同期改经矩阵（`briefName` / `#brief` 只做委托，两个调用点随改）——否则矩阵行与 `briefName` 就是同一个名字的两个家，而没有任何门会红。矩阵的**唯一构造点与注入面**也由本任务钉住：命令前导一次构造，向下注入**五个**读面——`Lifecycle`（opts 字段）· `Ledger`（构造器第 4 参）· `CarrierSeal#sweep` 与 `BoardView.of`（显式入参）· `NextStepRouter`（构造器注入；`Ledger#router` 与 `Run#router` 的构造点因此改为构造体内赋值——字段初始化先于构造体执行，registry 又是构造器入参，而 `erasableSyntaxOnly` 禁参数属性，T9 的算值入口挂在这条注入上）。矩阵**不绑 workspace**：`locate` / `read` 的 `base` 是读取时的坐标——一块板一次渲多个节点 workspace，绑死一处就会把别的节点的名字解析到这一处（「名字看着合法、坐标是别人的」，本相位要消的正是这一类）；这是对 spec §2.2 契约形状的**显式修订**（签名多一个 `base: Workspace`，语义不变），同笔记入 Produces 与 Acceptance。本任务**不迁移** round / doc 两域（它们是 T2 / T3），但 `Identity` 的判别联合一次写全，`ArtifactRow` 的字段面按 spec §2.1 定形（`identifier?` / `policy?` 在，**无** `attribution` 字段——归主文法不进类型，见 T5）。
+把「名字从哪来」立成一张封闭登记表：`session/round-artifacts.ts` 落 `Kind` / `Identity` / `Attributed` / `ArtifactRead` / `IdentifierVocabulary` / `ArtifactRow` 六个值类型、`IdentityDomain` 契约与 `ArtifactRegistry` 深类（`entries()` · `rows()` · `rowOf(kind)` · `render(identity, kind)` · `attribute(name)` · `locate(identity, kind, base)` · `read(identity, kind, base)`），首批只登记 workspace 四行（`progress` · `base` · `in-flight` · `brief`），并给出往返 pin 的骨架。`brief` 的生产拼写同期改经矩阵（`briefName` / `#brief` 只做委托，两个调用点随改）——否则矩阵行与 `briefName` 就是同一个名字的两个家，而没有任何门会红。矩阵的**唯一构造点与注入面**也由本任务钉住：命令前导一次构造，向下注入**五个**读面——`Lifecycle`（opts 字段）· `Ledger`（构造器第 4 参）· `CarrierSeal#sweep` 与 `BoardView.render`（显式入参）· `NextStepRouter`（构造器注入；`Ledger#router` 与 `Run#router` 的构造点因此改为构造体内赋值——字段初始化先于构造体执行，registry 又是构造器入参，而 `erasableSyntaxOnly` 禁参数属性，T9 的算值入口挂在这条注入上）。矩阵**不绑 workspace**：`locate` / `read` 的 `base` 是读取时的坐标——一块板一次渲多个节点 workspace，绑死一处就会把别的节点的名字解析到这一处（「名字看着合法、坐标是别人的」，本相位要消的正是这一类）；这是对 spec §2.2 契约形状的**显式修订**（签名多一个 `base: Workspace`，语义不变），同笔记入 Produces 与 Acceptance。本任务**不迁移** round / doc 两域（它们是 T2 / T3），但 `Identity` 的判别联合一次写全，`ArtifactRow` 的字段面按 spec §2.1 定形（`identifier?` / `policy?` 在，**无** `attribution` 字段——归主文法不进类型，见 T5）。
 
 #### Files
 
@@ -67,7 +67,7 @@ base: develop
 - `class ArtifactRegistry`：矩阵的七个对外方法（`entries` · `rows` · `rowOf` · `render` · `attribute` · `locate` · `read`），按 `Identity.domain` 分派到三个 `IdentityDomain`；构造器收域表（默认 `[new WorkspaceDomain()]`，测试可注入夹具域以看见 `sealed: true` 那一臂），**不绑 workspace**
 - `ArtifactRegistry` 的唯一构造点与注入面：命令前导一次 `new ArtifactRegistry()`——就是 `Cli` 构造器里的那一行（`CliOptions.artifacts` 让测试注入一个记录型实例，见 Acceptance），`CliArtifacts` 与 `#sceneOf` / `#runBoard` 都读同一个字段；`Lifecycle`（opts 字段）· `Ledger`（构造器第 4 参）· `NextStepRouter`（构造器）按构造器注入，静态面 `CarrierSeal#sweep` 与 `BoardView.render` 按显式入参接同一实例；`NextStepRouter` 的生产构造点（`face/cli.ts` 的 `#sceneOf` · `session/ledger.ts` 的构造体 · `session/run.ts` 的构造体）传同一实例，`Ledger` 那处从字段初始化改为构造体内赋值——**零模块级默认实例、矩阵外零构造点、无「取回注入」的公开访问器**（`Ledger#artifacts()` / `NextStepRouter#artifacts()` 不设：只为取回注入而存在的读口让「注入掉了」在类型与测试两侧都不红）
 - `brief` 的唯一渲染：`render({domain:"workspace", tasks}, "brief")`；`RoundNaming#briefName` / `#brief` 与 `CliGate#renderBrief` / `Preview#readsOf` 都是它的委托
-- `ArtifactRegistry.nameOf(kind, tasks)`：同一行渲染的**模块级入口**（无实例的读面——`InFlight.FILE` 这类静态常量、`RoundNaming`——用它），逐字委托行渲染 `renderWorkspace`，不是第二拼写；pin 断言它逐 kind 等于 `render({domain:"workspace", tasks}, kind)`
+- `ArtifactRegistry.nameOf(kind, tasks)`：同一行渲染的**模块级入口**（无实例的 workspace 读面——`InFlight.FILE` 这类静态常量——用它；`nameOf` 只服务 workspace 四行，round 行的模块级入口是 T2 的 `renderRound`），逐字委托行渲染 `renderWorkspace`，不是第二拼写；pin 断言它逐 kind 等于 `render({domain:"workspace", tasks}, kind)`
 
 #### Steps
 
@@ -81,7 +81,7 @@ base: develop
 
 #### Acceptance
 
-`ArtifactRegistry` 可实例化；`entries()` 恰四行 workspace kind（`kind` 直接可断言，不从行形状反推）；`rows()` 与 `entries()` 同序；四行往返 pin 绿；`nameOf(kind, tasks)` 与 `render({domain: "workspace", tasks}, kind)` 逐 kind 相等（同一行渲染的两个入口形态，不是第二拼写）；坐标守卫：`brief` 的 `tasks` 为 `null` / 空串、三个字面量的 `tasks` 非 `null` ⇒ 两条入口都抛错；读取面：`locate` / `read` 收 `base`（同一身份在两个 workspace 上解析到各自目录，两个账本共用一个矩阵各读各的 `progress.json`），存在但读不出的名字回 `invalid(path, "unreadable")`、存在但不是普通文件回另一条 `invalid`，外来域 / 未登记 kind 抛错（不伪装成 `absent`）；workspace 字面的**每个消费符号**（`InFlight.FILE` · `Artifacts#baseSet` / `#readBase` / `#baseGet` · `Cli#baseBranchOf` · `Ledger#readProgress` / `#writeProgress`）都经矩阵读取，且既有 pin 在 `session/__tests__/ledger.test.ts` · `face/__tests__/cli.test.ts`（base 用例）· `infra/__tests__/carrier-seal.test.ts` · `session/__tests__/round-naming.test.ts` 四处逐字节零差（守恒边界覆盖 workspace 面）；五个读面（`Lifecycle` · `Ledger` · `NextStepRouter` · `CarrierSeal#sweep` · `BoardView.render`）读到**同一实例**，且矩阵外零构造点——`new ArtifactRegistry(` 在去注释、排除 `__tests__` 的 `src-next` 生产源码内恰一处（「全树只允许一个字面」不是本门的主张：测试实例经夹具助手取）；端到端两格：① 注入一个记录型矩阵跑 `base set` 与 `board --plan`，前者记录到 `base` 渲染、后者记录到 `progress` 渲染（命令前导的实例经 board → `#ledgerOf` → 账本仍是被注入的那一个）；② `CarrierSeal.sweep(dir, [], 矩阵)` 与 `sweep(dir, [])` 对同一目录判定一致（T1 时点的 pin：无矩阵臂仍有命名谓词兜底；T5 把矩阵入参升为必填、本格由「无矩阵 ⇒ 零封印」取代，见 T5），且一个 `sealed: true` 的夹具行能让同一名字从「不是载体」变成「要封」——`sealed` 列真的被读；`brief` 名字只由矩阵渲染——`tasks-{tasks}-brief.md` 模板字面只在矩阵行，`briefName` / `CliGate#renderBrief` / `Preview#readsOf` 都是委托。
+`ArtifactRegistry` 可实例化；`entries()` 恰四行 workspace kind（`kind` 直接可断言，不从行形状反推）；`rows()` 与 `entries()` 同序；四行往返 pin 绿；`nameOf(kind, tasks)` 与 `render({domain: "workspace", tasks}, kind)` 逐 kind 相等（同一行渲染的两个入口形态，不是第二拼写）；坐标守卫：`brief` 的 `tasks` 为 `null` / 空串、三个字面量的 `tasks` 非 `null` ⇒ 两条入口都抛错；读取面：`locate` / `read` 收 `base`（同一身份在两个 workspace 上解析到各自目录，两个账本共用一个矩阵各读各的 `progress.json`），存在但读不出的名字回 `invalid(path, "unreadable")`、存在但不是普通文件回另一条 `invalid`，外来域 / 未登记 kind 抛错（不伪装成 `absent`）；workspace 字面的**每个消费符号**（`InFlight.FILE` · `Artifacts#baseSet` / `#readBase` / `#baseGet` · `Cli#baseBranchOf` · `Ledger#readProgress` / `#writeProgress`）都经矩阵读取，且既有 pin 在 `session/__tests__/ledger.test.ts` · `face/__tests__/cli.test.ts`（base 用例）· `infra/__tests__/carrier-seal.test.ts` · `session/__tests__/round-naming.test.ts` 四处逐字节零差（守恒边界覆盖 workspace 面）；五个读面（`Lifecycle` · `Ledger` · `NextStepRouter` · `CarrierSeal#sweep` · `BoardView.render`）读到**同一实例**，且矩阵外零构造点——`new ArtifactRegistry(` 在去注释、排除 `__tests__` 的 `src-next` 生产源码内恰一处（「全树只允许一个字面」不是本门的主张：测试实例经夹具助手取）；端到端两格：① 注入一个记录型矩阵跑 `base set` 与 `board --plan`，前者记录到 `base` 渲染、后者记录到 `progress` 渲染（命令前导的实例经 board → `#ledgerOf` → 账本仍是被注入的那一个）；② `CarrierSeal.sweep(dir, [], 矩阵)` 与同一目录在该名字的命名谓词下判定一致（T1 时点的 pin：无矩阵臂仍有命名谓词兜底；T5 把矩阵入参升为**必填可空**、本格由「`null` ⇒ 零封印」取代，见 T5），且一个 `sealed: true` 的夹具行能让同一名字从「不是载体」变成「要封」——`sealed` 列真的被读；`brief` 名字只由矩阵渲染——`tasks-{tasks}-brief.md` 模板字面只在矩阵行，`briefName` / `CliGate#renderBrief` / `Preview#readsOf` 都是委托。
 
 #### DependsOn
 
@@ -91,11 +91,11 @@ none
 
 #### Objective
 
-把 `RoundNaming` 的六 kind 渲染收进矩阵的 round 行（`identityFrom: "rendered"`），新增 **`rulings`** 行（`author: "orchestrator"`、`sealed: false`、与 `final` 同 stem **由身份渲染**、`identifier: {canonical:"finding", accepts:["finding","id"]}`、`policy` = 缺席合法），并删除 `CarrierRulings.pathFor`——sidecar 路径从此是 `render({domain:"round", …}, "rulings")` 的产物。`rulings` 的身份是**被评审那一轮**的坐标（`attribute(path.basename(the --reviews 载体))`，`op` 恒为 `review`），不是 fix 轮的 `(line, op)`。round 域的 **`attribute`（渲染名反解：名字 → `{identity, kind}`）也在本任务落地**——它是三域里唯一的名字反解实体，T5 只在它之上加 `misplaced` 一格，不另写第二处反解。`RoundNaming` 的旧名保留为别名，六 kind 名字逐字节不变。同任务把 T1 的两格抛错守卫重指：`rulings` 登记之后凡是矩阵声明的 kind 都有行（三域登记齐后无一缺席），「未登记 kind ⇒ 抛错」这一形态**永久不可达**，该覆盖改由只登记部分 kind 的夹具域承担（`ArtifactRegistry([sealedDomain()])` 这种注入面：`rowOf` 回 `null`、`render` 抛错），「跨域身份 ⇒ 抛错」保留一格——否则那个用例要么在 T2 悄悄转红无人拥有、要么被顺手删掉，而丢掉 `Kind` 封闭集唯一的抛错守卫。
+把 `RoundNaming` 的六 kind 渲染收进矩阵的 round 行（`identityFrom: "rendered"`），新增 **`rulings`** 行（`author: "orchestrator"`、`sealed: false`、与 `final` 同 stem **由身份渲染**、`identifier: {canonical:"finding", accepts:["finding","id"]}`、`policy` = 缺席合法），并删除 `CarrierRulings.pathFor`——sidecar 路径从此是 `render({domain:"round", …}, "rulings")` 的产物。`rulings` 的身份是**被评审那一轮**的坐标（`attribute(path.basename(the --reviews 载体))`，`op` 恒为 `review`），不是 fix 轮的 `(line, op)`。round 域的 **`attribute`（渲染名反解：名字 → `{identity, kind}`）也在本任务落地**——它是三域里唯一的名字反解实体，恒回 `Attributed | null`（两种拼写都归主、**无第三态**），`misplaced` 是 T5 在 `read` 上接的一格，不另写第二处反解。round 行另有一个**模块级渲染入口** `renderRound(identity, kind)`：`ArtifactRegistry#render` 与静态 `RoundNaming.renderName` 都逐字委托它——`renderName` 是静态方法、八个调用点全是静态调用，而矩阵只提供实例方法 `render`，不落这一个入口就只剩「静态方法里 `new ArtifactRegistry()`」（撞 T1 的零构造点门）或「把 `renderName` 改成实例方法」（要动八处调用）两条不合法路。`RoundNaming` 的旧名保留为别名，六 kind 名字逐字节不变。同任务把 T1 的两格抛错守卫重指：`rulings` 登记之后凡是矩阵声明的 kind 都有行（三域登记齐后无一缺席），「未登记 kind ⇒ 抛错」这一形态**永久不可达**，该覆盖改由只登记部分 kind 的夹具域承担（`ArtifactRegistry([sealedDomain()])` 这种注入面：`rowOf` 回 `null`、`render` 抛错），「跨域身份 ⇒ 抛错」保留一格——否则那个用例要么在 T2 悄悄转红无人拥有、要么被顺手删掉，而丢掉 `Kind` 封闭集唯一的抛错守卫。
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/session/round-artifacts.ts`（round 七行登记 + `render` 分派 + round 域 `attribute` 的渲染名反解；`rulings` 行声明 `identifier` 与 `policy`）
+- Modify: `packages/cdd-engine/src-next/session/round-artifacts.ts`（round 七行登记 + `render` 分派 + round 域 `attribute` 的渲染名反解；`rulings` 行声明 `identifier` 与 `policy`；导出 round 行的模块级入口 `renderRound(identity, kind)`——`ArtifactRegistry#render` 与 `RoundNaming.renderName` 都逐字委托它）
 - Modify: `packages/cdd-engine/src-next/session/round-naming.ts`（`renderName` 委托 registry；`RoundArtifact` 映射到 `Identity` 的 round 变体）
 - Modify: `packages/cdd-engine/src-next/session/carrier-rulings.ts`（`pathFor` 删除；`read(sidecarPath, carrierPath)` / `verdict(sidecarPath, carrierPath, findingIds)`——路径由调用方渲染，`carrier` 键校验仍以 **carrier 的 basename** 为参照）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#rulingsInputOf` / `#rulingsRefusal` 在调用处渲染 sidecar 路径，再走 `CarrierRulings.read` / `verdict`）
@@ -116,7 +116,8 @@ none
 - `rulings` 行的身份来源（唯一一句）：坐标 = `attribute(path.basename(the --reviews 载体))` 回出的 round 身份，`op` 恒为 `review`、`cycle` / `attempt` 取载体自己的坐标
 - `rulings` 行携带 `identifier: {canonical:"finding", accepts:["finding","id"]}` 与「缺席合法」的 `policy`（单源声明，读取面消费这一行，无第二处枚举）
 - `CarrierRulings.read(sidecarPath, carrierPath)` / `CarrierRulings.verdict(sidecarPath, carrierPath, findingIds)`
-- round 域 `attribute`（渲染名反解：三域里唯一的名字 → 身份实体；无 cycle 的 implement 拼写仍认作 `draft`，显式 `-a1` 与省 `.c<cycle>` 等能归主的变体由 T5 接成 `misplaced`）
+- round 域 `attribute`（渲染名反解：三域里唯一的名字 → 身份实体；无 cycle 的 implement 拼写仍认作 `draft`；显式 `-a1` 与省 `.c<cycle>` 等能归主的变体在 `attribute` 上照旧归到同一 `(identity, kind)`——两种拼写都归主、无第三态——由 T5 在 `read` 上接成 `misplaced`）
+- `renderRound(identity, kind)`：round 行的模块级渲染入口（`ArtifactRegistry#render` 与静态 `RoundNaming.renderName` 的同一本体，一个拼写、两个入口形态）
 - `pathFor` 删除后的唯一路径出口：`ArtifactRegistry#render(identity, "rulings")` + 调用方的 `Workspace#resolve`
 
 #### Steps
@@ -129,7 +130,7 @@ none
 
 #### Acceptance
 
-`rulings` 名字由**载体身份**渲染（同一 carrier 在 `fix` 轮与 `review` 轮渲染出同一个名字，`op` 段恒为 `review`）；与 `final` 同 stem（含无 cycle 形态）；`pathFor` 全仓零命中；`verdict` 仍拒 `carrier` 键不符的 sidecar；六 kind 名字逐字节不变；round 域 `attribute` 的渲染名反解在本任务落地（T5 只在它之上加 `misplaced` 一格，无第二处反解）；**往返 pin 覆盖 round 七行、每行两形态**（T1 只覆盖 workspace 四行，本任务补齐另一半；无 cycle 形态只断身份、`kind` 归一 `draft`）；`identifier` / `policy` 只在 `rulings` 行声明一次；`round-artifacts.test.ts` 的抛错守卫没有被顺手删掉——「跨域身份 ⇒ 抛错」一格保留、「未登记 kind ⇒ 抛错」改由夹具域承担（三域登记齐后那个形态已不可达）。
+`rulings` 名字由**载体身份**渲染（同一 carrier 在 `fix` 轮与 `review` 轮渲染出同一个名字，`op` 段恒为 `review`）；与 `final` 同 stem（含无 cycle 形态）；`pathFor` 全仓零命中；`verdict` 仍拒 `carrier` 键不符的 sidecar；六 kind 名字逐字节不变；round 域 `attribute` 的渲染名反解在本任务落地（恒回 `Attributed | null`、无第三态；`misplaced` 由 T5 在 `read` 上接，无第二处反解），round 行的模块级渲染入口在册——`RoundNaming.renderName` 仍为静态、逐字委托 `renderRound`，模块内零 `new ArtifactRegistry(`；**往返 pin 覆盖 round 七行、每行两形态**（T1 只覆盖 workspace 四行，本任务补齐另一半；无 cycle 形态只断身份、`kind` 归一 `draft`）；`identifier` / `policy` 只在 `rulings` 行声明一次；`round-artifacts.test.ts` 的抛错守卫没有被顺手删掉——「跨域身份 ⇒ 抛错」一格保留、「未登记 kind ⇒ 抛错」改由夹具域承担（三域登记齐后那个形态已不可达）。
 
 #### DependsOn
 
@@ -178,7 +179,7 @@ none
 
 #### Acceptance
 
-doc 行零 `render`；`DocDomain#attribute` 无第三态（`Attributed | null`），索引侧零 `attribute`（名字 → 身份端口恰一个）；同 slug 多份 ⇒ doc 域 `read` 回 `invalid(found:[a,b])`（派发面 T6 据此硬停）、`hasIdentity` 仍回真、四个消费者都读 `read` / `hasIdentity` 而不再有「取第一份」的读点（`grep -rn "identityDoc\|planOf" packages/cdd-engine/src-next` 在 `infra/` 外零命中）；`SlugIndex.build` 存活点恰三处（`cli.ts` 私有入口一处 + 两处 `?? build`），且「单建一次」= 每条命令内不再二建（`board` / `scene` / `base` 各一次，不共享对象）。
+doc 行零 `render`；`DocDomain#attribute` 无第三态（`Attributed | null`），索引侧零 `attribute`（名字 → 身份端口恰一个）；同 slug 多份 ⇒ doc 域 `read` 回 `invalid(found:[a,b])`（派发硬停由既有 `SlugIndex#slugVerdict` 的 `duplicated` → `doc-contract` 承担，本任务只补读取面、不新开派发门）、`hasIdentity` 仍回真、四个消费者都读 `read` / `hasIdentity` 而不再有「取第一份」的读点（`grep -rn "identityDoc\|planOf" packages/cdd-engine/src-next` 在 `infra/` 外零命中）；`SlugIndex.build` 存活点恰三处（`cli.ts` 私有入口一处 + 两处 `?? build`），且「单建一次」= 每条命令内不再二建（`board` / `scene` / `base` 各一次，不共享对象）。
 
 #### DependsOn
 
@@ -198,7 +199,8 @@ doc 行零 `render`；`DocDomain#attribute` 无第三态（`Attributed | null`�
 - Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（`CrossDocChainInvariant#planChain` 吃同一组计数：null 身份 + 任一 doc 根不干净 ⇒ 零 `Finding`）
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`（`PlanSource` 的两个生产构造点——`#runBoard` 内 `:498`、命令前导 `:723`——改成注入单建索引；换源调用点 `#runBoard` / `#boardReadTable` / `#sceneOf` 读同一实例）
 - Modify: `docs/kairos/specs/2026-10-10-engine-doc-tooling-p35-design.md`（Constraints 的派生条款拆两半：前半句改「plan 路径取索引 plan 行的 `rel`」、后半句与扫描谓词不动；同一条 bullet 的第三句（`-design.md` 反查 · 「只探存在性」）改为问索引三态；同批补该文件 `## Change history` 一行并同步其 front-matter `version:`——今日 v0.36，按落地的实际版本递增一版）
-- Test: `packages/cdd-engine/src-next/infra/__tests__/plan-source.test.ts`（三态六格 + 「slug 自带 `-design`」用例 + 「脏 `specs/` × 干净 `plans/` ⇒ plan 路径仍 `undeclared`」的混合格 + `planOrphanSpec` 的报文字节）
+- Test: `packages/cdd-engine/src-next/infra/__tests__/plan-source.test.ts`（三态六格 + 「slug 自带 `-design`」用例 + 「脏 `specs/` × 干净 `plans/` ⇒ plan 路径仍 `undeclared`」的混合格 + `planOrphanSpec` 的报文字节——该断言留在文件既有的 `planOrphanSpec` 格，不在 `infra/` 的派生扫描面内）
+- Test: `packages/cdd-engine/src-next/infra/__tests__/slug-index.test.ts`（`discarded()` 六值逐根的 pin 之家：overalls / specs / plans 各一对且与入册结果同一次扫描产出；外加「只在 `overalls/` 放一个不可读候选 ⇒ 身份反查落 (c)」一格）
 - Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（`! no-spec` 只属 (b)；(c) 与今日逐字节相同）
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（P35 AC ③ 重锚：缺 `doc-type: plan` ⇒ plan / wave 行 `(none)`、`next:` 回 `kairos:cdd-plan`、stderr 恰一行 `CDD_WARN:`、零拒绝、exit 0）
 
@@ -223,14 +225,15 @@ doc 行零 `render`；`DocDomain#attribute` 无第三态（`Attributed | null`�
 - 写失败测：slug 以 `-design` 结尾的相位 + plan ⇒ 正查命中、反查 (a)，**零拒绝** —— checkable: 今日必红（派生 `-design-design.md`）
 - 写三态六格测（命中 / 干净缺失 / 脏缺失 × 正查反查）+ 混合格（脏 `specs/`、干净 `plans/` ⇒ plan 路径仍 `undeclared`、零 `CDD_WARN:`） —— checkable: 跑红
 - 实现 `discarded()`（按根六值）与 `PlanSource` 重写（含未判态那行 `CDD_WARN:`） —— checkable: `plan-source.test.ts` 绿
+- 在 `infra/__tests__/slug-index.test.ts` 补两格：① 六值逐根（overalls / specs / plans 各一对：不可读候选、读得出但 `doc-type` 未入册）且与入册结果同一次扫描产出；② 只在 `overalls/` 放一个不可读候选 ⇒ 身份反查落 (c)（零拒绝、板面 `(none)`、`planChain` 零 `Finding`），而 plan 路径仍 `undeclared`（plans 根干净） —— checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/infra/__tests__/slug-index.test.ts` 绿
 - 改 `words.ts` 报文 + `planChain` 吃同一组计数 —— checkable: `contract/__tests__/judge.test.ts` 与 `contract/__tests__/lint.test.ts` 绿，且 (c) 格上 `#contract.validate` 零 `cross-doc-chain@slug` `Finding`（实现前这两文件对应腿为红：它们正是 `cross-doc-chain` 的既有家）
-- 重锚 P35 三条 pin，并跑派生零命中门 —— checkable: `face/__tests__/board-view.test.ts` + `face/__tests__/cli.test.ts` 绿，且 `grep -rn "<slug>\|-design" packages/cdd-engine/src-next/infra` 对派生拼不出命中（`planOrphanSpec` / `readFor` 里零路径拼接）
+- 重锚 P35 三条 pin，并跑派生零命中门 —— checkable: `face/__tests__/board-view.test.ts` + `face/__tests__/cli.test.ts` 绿，且派生零命中门可红可修——扫描面 = 去注释（沿用 `src-next/__tests__/support/strip-comments.ts` 的既有姿势）且排除 `__tests__` 的 `infra/`，断言「`ENGINE_RUNTIME.docRoots.*` 参与模板串或以 `path.join` 作基座」零命中（与 T10 的 `doc-path-door` 同一谓词；T4 只负责删掉 `readFor` / `#orphanOf` 的两个派生点，注释与夹具不在扫描面）
 - 修订 P35 Constraints 的派生条款（前半句换口径、后半句与扫描谓词保留、第三句改为问索引三态）+ 该文件 `## Change history` 一行与 `version:` 同步递增 —— checkable: `grep -n "slug 派生" docs/kairos/specs/2026-10-10-engine-doc-tooling-p35-design.md` 在 Constraints 段零命中、该行只剩「plan 路径取索引 plan 行的 `rel`」这一处新口径，且同一 bullet 内 `-design.md` 与「只探存在性」两处旧口径零命中
 - 构造收索引：`PlanSource` 入参加注入索引，改 `#runBoard` 与 `:723` 两个生产构造点、更新 `#boardReadTable` / `#sceneOf` 的传递，并让测试仓约 150 处 `new PlanSource(...)` 经夹具助手取索引（先红：今日构造只拿根） —— checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/infra/__tests__/plan-source.test.ts src-next/face/__tests__/board-view.test.ts src-next/face/__tests__/cli.test.ts` 绿，且证据里 `PlanSource` 的入参带索引
 
 #### Acceptance
 
-正查 / 反查各三格可判且成对 pin；`-design` 结尾 slug 放行；`(c)` 未判态零拒绝、板面字节与今日相同、恰一行 `CDD_WARN:` 带计数；`PlanOrphan` 只剩 `cause`（`specPath` 字段不存在，不是 `null`）；`planOrphanSpec(slug: string)` 单参且报文字节为零路径片段；plan 路径的「干净」只读 `plans/` 那一对计数（混合格绿）；`infra/` 内派生拼接零命中；`PlanSource` 的构造点只读注入的那一个索引、零自建 `SlugIndex.build`（换源调用点点名 `Cli#runBoard` / `#boardReadTable` / `Cli#sceneOf`）；P35 Constraints 的派生条款已是新口径（前半句「plan 路径取索引 plan 行的 `rel`」、后半句与扫描谓词原样），同一条 bullet 的第三句亦已换口径（「plan 的 slug 在索引里找不到身份文档 ⇒ 三根全干净才 `spec-absent`，否则未判态零拒绝」，`-design.md` 反查与「只探存在性」两处旧字节零命中），并随本任务补了该文件的一行 Change history。
+正查 / 反查各三格可判且成对 pin；`-design` 结尾 slug 放行；`(c)` 未判态零拒绝、板面字节与今日相同、恰一行 `CDD_WARN:` 带计数；`PlanOrphan` 只剩 `cause`（`specPath` 字段不存在，不是 `null`）；`planOrphanSpec(slug: string)` 单参且报文字节为零路径片段；plan 路径的「干净」只读 `plans/` 那一对计数（混合格绿）；`readFor` / `#orphanOf` 内零派生拼接（结构断言：扫描面去注释且排除 `__tests__`，注释与夹具不在面内），`planOrphanSpec` 的报文断言留在 `plan-source.test.ts` 的既有格；`discarded()` 六值逐根可判（`infra/__tests__/slug-index.test.ts` 的六值格 + 脏 `overalls/` 一格）；`PlanSource` 的构造点只读注入的那一个索引、零自建 `SlugIndex.build`（换源调用点点名 `Cli#runBoard` / `#boardReadTable` / `Cli#sceneOf`）；P35 Constraints 的派生条款已是新口径（前半句「plan 路径取索引 plan 行的 `rel`」、后半句与扫描谓词原样），同一条 bullet 的第三句亦已换口径（「plan 的 slug 在索引里找不到身份文档 ⇒ 三根全干净才 `spec-absent`，否则未判态零拒绝」，`-design.md` 反查与「只探存在性」两处旧字节零命中），并随本任务补了该文件的一行 Change history。
 
 #### DependsOn
 
@@ -240,40 +243,40 @@ doc 行零 `render`；`DocDomain#attribute` 无第三态（`Attributed | null`�
 
 #### Objective
 
-矩阵补两格（spec §2.5 / §2.8 / §2.9 ⑤）：**归主文法**（三条落格规则 + 逐行答案表 + 枚举 pin，**不进类型**）与 **`sealed` 列**（`CarrierSeal` 改读它，`RULINGS_SUFFIX` 退役）；同时把 `Ledger#orphanHandoffs` 泛化成**两级判据**（零写只显示）：候选集 = 目录里的全部文件（不再只扫 `carrierPattern` 认得的名字）；orphan ⇔ (i) `attribute → null`，或 (ii) 归主的是 **round 域的载体**、而目录里没有任何记录的 `(op, cycle, attempt)` 或 `carrierPathOf` 的 basename 认领它（行键由 `identity.line` 派生，认领比对照旧）——workspace / doc 两域的名字归主即非 orphan（四个工作区产物与四类文档是板面自己的账本与身份文档，不是 handoff 载体；按字面实现会让它们各自成一行 `orphan:`，并把 `session/__tests__/ledger.test.ts` 的三条精确数组断言与健康树 board 的零字节断言一起打红）。**泛化只换候选集，不删认领这一级**——第二级是 P34/D89 已交付的语义（「已写盘、未记账」的文件仍要在板上看得见），抹掉它会让这批文件既不成行也不成 `orphan:`，整条从板上消失；`attribute` 对同 `(identity, kind)` 的 ≥2 名字给 `misplaced`，并把拼写知识 #1 / #2 一并退役（`attribute` 接管归属后它们是零读者的死声明：`RoundNaming#carrierPattern` / `CARRIER` / `#isCarrierName` 与 `Ledger#WAVE_CARRIER` / `#LINE_CARRIER` / `#handoffOwner`），且立**唯一构造点门**的骨架与放行面：判定函数认「矩阵行 + 夹具」为豁免，`CarrierSeal` 零后缀字面亦在本任务验收。两条**收紧**断言（`.rulings.json` 字面集封闭、`finding` / `id` 接受集单源）不在本任务落地：它们的第二声明分别住 `session/next.ts` 的 `.rulings.json` 字面与 `session/carrier-rulings.ts` 的 `RULING_KEYS`，两处的唯一拆除者是 T9（且 T9 经 `T9 → T6 → T5` 严格晚于本任务，无依赖可加），W3 上跑全树封闭必然是红的。**`sealed` 列接管的无矩阵臂**：`CarrierSeal#sweep` 的矩阵入参升为**必填**（生产唯一调用点 `face/lifecycle.ts` 已传 `this.#artifacts`，这不是「缺能力」而是「缺一句归属」），`attribute → null` ⇒ 不封——命名谓词删掉之后，无矩阵调用没有任何答案，而 T1 自己立的「零模块级默认实例、矩阵外零构造点」也不许再造一个认名谓词来补这一格（那正是本相位要消的第二次拼写知识）。因此两文件的 `sweep(dir, [])` 调用全数改传夹具实例（`carrier-seal.test.ts` 六处以夹具矩阵触发封印、`round-artifacts.test.ts` 的两处无矩阵形态），而 T1 的「两形态判定一致」pin 被**取代**：新期望是「无矩阵 ⇒ 零封印」，`round-artifacts.test.ts` 那一格随之重指，不是被悄悄翻。
+矩阵补两格（spec §2.5 / §2.8 / §2.9 ⑤）：**归主文法**（三条落格规则 + 逐行答案表 + 枚举 pin，**不进类型**）与 **`sealed` 列**（`CarrierSeal` 改读它，`RULINGS_SUFFIX` 退役）；同时把 `Ledger#orphanHandoffs` 泛化成**两级判据**（零写只显示）：候选集 = 目录里的全部文件（不再只扫 `carrierPattern` 认得的名字）；orphan ⇔ (i) `attribute → null`，或 (ii) 归主的是 **round 域的载体**、而目录里没有任何记录的 `(op, cycle, attempt)` 或 `carrierPathOf` 的 basename 认领它（行键由 `identity.line` 派生，认领比对照旧）——workspace / doc 两域的名字归主即非 orphan（四个工作区产物与四类文档是板面自己的账本与身份文档，不是 handoff 载体；按字面实现会让它们各自成一行 `orphan:`，并把 `session/__tests__/ledger.test.ts` 的三条精确数组断言与健康树 board 的零字节断言一起打红）。**泛化只换候选集，不删认领这一级**——第二级是 P34/D89 已交付的语义（「已写盘、未记账」的文件仍要在板上看得见），抹掉它会让这批文件既不成行也不成 `orphan:`，整条从板上消失；`ArtifactRegistry#read` 对同一身份在 `base` 里出现 ≥2 个能归主的名字给 `misplaced(derived, found, identity)`（`attribute` 仍只回 `Attributed | null`：两种拼写都归主、无第三态；`read` 才拿得到 `base`，也才是看得见「同身份第二个名字」的那个读面），并把拼写知识 #1 / #2 一并退役（`attribute` 接管归属后它们是零读者的死声明：`RoundNaming#carrierPattern` / `CARRIER` / `#isCarrierName` 与 `Ledger#WAVE_CARRIER` / `#LINE_CARRIER` / `#handoffOwner`），且立**唯一构造点门**的骨架与放行面：判定函数认「矩阵行 + 夹具」为豁免，`CarrierSeal` 零后缀字面亦在本任务验收。两条**收紧**断言（`.rulings.json` 字面集封闭、`finding` / `id` 接受集单源）不在本任务落地：它们的第二声明分别住 `session/next.ts` 的 `.rulings.json` 字面与 `session/carrier-rulings.ts` 的 `RULING_KEYS`，两处的唯一拆除者是 T9（且 T9 经 `T9 → T6 → T5` 严格晚于本任务，无依赖可加），W3 上跑全树封闭必然是红的。**`sealed` 列接管的无矩阵臂**：`CarrierSeal#sweep` 的矩阵入参升为**必填但可空**（签名 `artifacts: ArtifactRegistry | null`；生产唯一调用点 `face/lifecycle.ts` 已传 `this.#artifacts`，这不是「缺能力」而是「缺一句归属」）——`null` ⇒ **零封印**（命名谓词删掉之后没有第二答案），`attribute → null` 的名字 ⇒ 不封；T1 自己立的「零模块级默认实例、矩阵外零构造点」不许再造一个认名谓词来补这一格（那正是本相位要消的第二次拼写知识）。因此两文件的 `sweep(dir, [])` 调用**全部**补第三个入参：`carrier-seal.test.ts` 的**全部 8 个** `CarrierSeal.sweep(` 调用（7 处 keep 为 `[]`、`:136` 传非空 keep）传夹具实例；`round-artifacts.test.ts` 的两处 `sweep(dir, [])` 改写成显式 `null`（与相邻那处带矩阵调用同值的一处保留为「零封印」对照格）。T1 的「两形态判定一致」pin 由此**取代**：新期望是「`null` ⇒ 零封印」＋「传入矩阵 ⇒ 按 `sealed` 列封印（`new ArtifactRegistry()` 归主 `tasks-1-review-2.c2.json` 到 round 载体行、仍封）」，`round-artifacts.test.ts` 那一格随之重指（场景名改为「seals nothing without a matrix, and follows the `sealed` column with one」），不是被悄悄翻。
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/session/round-artifacts.ts`（归主文法三条规则 + 逐行答案表 + `attribute` 的 `misplaced` 一格——反解本体在 T2；**不加 `attribution` 字段**——`identifier` / `policy` 由 T1 定形、`rulings` 行由 T2 声明）
+- Modify: `packages/cdd-engine/src-next/session/round-artifacts.ts`（归主文法三条规则 + 逐行答案表 + `read` 的 `misplaced` 一格——反解本体在 T2；**不加 `attribution` 字段**——`identifier` / `policy` 由 T1 定形、`rulings` 行由 T2 声明）
 - Modify: `packages/cdd-engine/src-next/infra/carrier-seal.ts`（删 `RULINGS_SUFFIX`；`#isStray` 读 `sealed` 列，`RoundNaming.isCarrierName` 的调用随该列接管而消失）
 - Modify: `packages/cdd-engine/src-next/session/round-naming.ts`（删拼写知识 #1：`carrierPattern` / `CARRIER` / `RoundNaming#isCarrierName`——三者全树唯一，按符号名定位、不钉行号）
 - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`orphanHandoffs` 泛化为矩阵驱动的**两级判据**；删拼写知识 #2：`#WAVE_CARRIER` / `#LINE_CARRIER` / `#handoffOwner`（全树唯一，按符号名定位），含 `#LINE_CARRIER` 的 `spec` 替代项）
 - Create: `packages/cdd-engine/src-next/__tests__/artifact-literal-door.test.ts`（结构门骨架：一个对源码样本判定的纯函数 + 判定函数层正反例——矩阵行 / 夹具放行，矩阵外样本判违例；**不**在真树上断言封闭集，两条收紧用例在 T9 补进同一文件）
-- Test: `packages/cdd-engine/src-next/session/__tests__/round-artifacts.test.ts`（归主文法三格 + 逐行答案表 + `sealed` 列的两形态格重指：场景「judges an orphan carrier the same way with and without the workspace matrix」由「判定一致」改为「无矩阵 ⇒ 零封印」，矩阵入参赛为必填）
+- Test: `packages/cdd-engine/src-next/session/__tests__/round-artifacts.test.ts`（归主文法三格 + 逐行答案表 + `sealed` 列的两形态格重指：场景「judges an orphan carrier the same way with and without the workspace matrix」由「判定一致」改为「`null` ⇒ 零封印 + 传入矩阵 ⇒ 按 `sealed` 列封印」，矩阵入参赛为必填可空）
 - Test: `packages/cdd-engine/src-next/session/__tests__/round-naming.test.ts`（枚举 pin 的家：accepted 与 orphan 两侧各枚举一条，逐行答案显式写「无此格」；原 `minted` / `neighbours` 两组断言（`:515-540`）按矩阵归属重锚——`isCarrierName` 退役后，两组断言改由 `attribute` 的 accepted / orphan 两格承担）
 - Test: `packages/cdd-engine/src-next/session/__tests__/carrier-rulings.test.ts`（`misplaced` 一侧的枚举：省 `.c<cycle>` 段 · 显式 `-a1`）
-- Test: `packages/cdd-engine/src-next/infra/__tests__/carrier-seal.test.ts`（`sealed` 列驱动；`report` / `log` / `crash` / `evidence` 一律不封；六处 `sweep(dir, [])` 改为传夹具实例——矩阵入参必填）
+- Test: `packages/cdd-engine/src-next/infra/__tests__/carrier-seal.test.ts`（`sealed` 列驱动；`report` / `log` / `crash` / `evidence` 一律不封；该文件**全部 8 个** `CarrierSeal.sweep(` 调用都补矩阵入参——7 处 keep 为 `[]`、`:136` 传非空 keep；矩阵入参必填可空）
 - Test: `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`（`orphan` 面的守恒守卫：两级判据各成一格——矩阵外名字 ⇒ `orphan:` 行、round 域载体归主但无记录认领 ⇒ 仍 `orphan:` 行；三条已交付 pin `tasks-6,8-implement-1.json`（`:1037`）· `tasks-1-fix-1-a2.json`（`:1048`）· `tasks-1-fix-1-a2.c1.json`（`:1076`）原样绿；第三格域边界：`progress.json` / `base.json` / `in-flight.json` / `tasks-<n>-brief.md` 与四类文档名归主即**不**进 `orphan:`）
 
 #### Consumes
 
-- Task 2 的 round 七行（含 `rulings` 的 `identifier` / `policy` 声明）与 round 域 `attribute` 的渲染名反解（本任务只在其上加 `misplaced` 一格）
+- Task 2 的 round 七行（含 `rulings` 的 `identifier` / `policy` 声明）与 round 域 `attribute` 的渲染名反解（本任务只在 `read` 上加 `misplaced` 一格）
 - `infra/carrier-seal.ts` 的 `sweep` / `seal` / `unseal`
 - `session/ledger.ts` 的 `#handoffOwner` 两套正则（本任务由矩阵归主文法取代，符号一并删除）
 
 #### Produces
 
 - 归主文法（三条落格规则 + spec §2.5 的逐行答案表原样 + 枚举 pin：accepted / orphan 在 `round-naming.test.ts`，`misplaced` 在 `carrier-rulings.test.ts`）；**不是字段**，不进 `ArtifactRow`
-- `ArtifactRegistry#attribute` 的 `misplaced` 产出面（同 identity × kind ≥2 名字）
+- `ArtifactRegistry#read` 的 `misplaced` 产出面（同一身份在 `base` 里出现 ≥2 个能归主的名字 ⇒ `misplaced(derived, found, identity)`；`attribute` 仍只回 `Attributed | null`、无第三态）
 - 拼写知识 #1 / #2 的退役面：`carrierPattern` · `CARRIER` · `isCarrierName` · `#WAVE_CARRIER` · `#LINE_CARRIER` · `#handoffOwner` 六个符号零残留
 - `Ledger#orphanHandoffs` 的两级判据：候选集 = 目录全部文件；orphan ⇔ `attribute → null`，或「归主的是 round 域载体但没有记录认领」（行键由 `identity.line` 派生，认领比对沿用 `carrierPathOf` 的 basename）；workspace / doc 两域的名字归主即非 orphan（它们是板面自己的账本与身份文档）；零写只显示不动
-- `CarrierSeal#sweep` 读 `sealed` 列（零后缀字面），矩阵入参必填——无矩阵臂不存在（`attribute → null` ⇒ 不封）
+- `CarrierSeal#sweep` 读 `sealed` 列（零后缀字面），矩阵入参**必填但可空**——`null` ⇒ 零封印（命名谓词已删，没有第二答案），`attribute → null` ⇒ 不封
 - `artifact-literal-door.test.ts` 的门骨架与放行面（矩阵行 / 夹具豁免）；**收紧断言不在本任务**：`.rulings.json` 字面集封闭与 `finding` / `id` 接受集单源归 T9
 
 #### Steps
 
-- 写失败测：同一 round 的 `.rulings.json` 与 `.c1.rulings.json` 并存 ⇒ `attribute` 报双候选（供 T6 组报文） —— checkable: 跑红
-- 实现归主文法 + `sealed` 列（矩阵入参升必填、无矩阵臂删除） —— checkable: `round-artifacts.test.ts` + `carrier-seal.test.ts` 绿，且两文件的 `sweep(dir, [])` 调用已全数改为传夹具实例（`carrier-seal.test.ts` 六处；`round-artifacts.test.ts` 两处无矩阵形态，其中与相邻带矩阵调用同值的一处直接删）
+- 写失败测：同一 round 的 `.rulings.json` 与 `.c1.rulings.json` 并存 ⇒ `read(identity, "rulings", base)` 回 `misplaced`、`found` 列全两条，而 `attribute` 两处都仍回同一 `(identity, "rulings")`（供 T6 组报文） —— checkable: 跑红
+- 实现归主文法 + `sealed` 列（矩阵入参升必填可空、命名谓词兜底删除） —— checkable: `round-artifacts.test.ts` + `carrier-seal.test.ts` 绿，且两文件的 `sweep(` 调用已全数补第三入参（`carrier-seal.test.ts` 的全部 8 个、`round-artifacts.test.ts` 的 2 处 `sweep(dir, [])` 改成显式 `null`），`grep -rn "sweep(dir, [])" packages/cdd-engine/src-next` 零命中
 - 泛化 `orphanHandoffs`（候选集换全目录、认领那一级保留） —— checkable: `session/__tests__/ledger.test.ts` 的 orphan 面绿，两级判据各有一格（矩阵外名字 ⇒ `orphan:` 行；round 域载体归主但无记录认领 ⇒ 仍 `orphan:` 行），并加一格域边界（同一目录里的 `progress.json` / `base.json` / `in-flight.json` / `tasks-<n>-brief.md` 与文档名**不**进 `orphan:`），且 `tasks-6,8-implement-1.json` · `tasks-1-fix-1-a2.json` · `tasks-1-fix-1-a2.c1.json` 三条已交付 pin 原样绿
 - 删两族六个符号（`carrierPattern` · `CARRIER` · `isCarrierName` · `#WAVE_CARRIER` · `#LINE_CARRIER` · `#handoffOwner`），`CarrierSeal#isStray` 改读 `sealed` 列，`round-naming.test.ts:515-540` 的 `minted` / `neighbours` 断言改由 `attribute` 的 accepted / orphan 两格承担 —— checkable: `session/__tests__/round-naming.test.ts` · `infra/__tests__/carrier-seal.test.ts` · `session/__tests__/ledger.test.ts` 绿，且**逐符号** grep 门全零命中（去注释的生产源码内，六个符号各一条）
 - 删 `RULINGS_SUFFIX` —— checkable: `grep -rn "RULINGS_SUFFIX" packages/cdd-engine/src-next` 零命中
@@ -281,7 +284,7 @@ doc 行零 `render`；`DocDomain#attribute` 无第三态（`Attributed | null`�
 
 #### Acceptance
 
-归主文法逐行声明且被枚举 pin（`progress` / `base` / `in-flight` / `brief` 四行显式写「无此格」而非留空）；`ArtifactRow` 零 `attribution` 字段；`CarrierSeal` 零后缀字面（`RULINGS_SUFFIX` 零命中），矩阵入参必填（无矩阵调用不再成立），且 T1 的「两形态判定一致」pin 已被「无矩阵 ⇒ 零封印」取代（两文件的无矩阵调用改传夹具实例）；orphan 仍零写只显示，且**两级判据都在**（`attribute → null` 一格 + 「round 域载体归主但没有记录认领」一格），第二级的域写死——workspace 四行与 doc 四行归主即非 orphan（不进 `orphan:`）：`session/__tests__/ledger.test.ts` 的三条已交付 pin——`tasks-6,8-implement-1.json` · `tasks-1-fix-1-a2.json` · `tasks-1-fix-1-a2.c1.json`——逐条仍回 `orphan:`（泛化不许把它们翻成 `[]`）；拼写知识 #1 / #2 的两族六个符号零残留（`carrierPattern` · `CARRIER` · `isCarrierName` · `#WAVE_CARRIER` · `#LINE_CARRIER` · `#handoffOwner`，逐符号 grep 门），`round-naming.test.ts` 的 `minted` / `neighbours` 断言已按矩阵归属重锚；门的**放行面**成立（矩阵行 / 夹具豁免，矩阵外样本在判定函数上判违例）；两条收紧（字面集封闭 = `session/next.ts` 值位落地后、接受集单源 = `carrier-rulings.ts` 读行声明落地后）显式归 T9，本任务不宣称它们成立。
+归主文法逐行声明且被枚举 pin（`progress` / `base` / `in-flight` / `brief` 四行显式写「无此格」而非留空）；`ArtifactRow` 零 `attribution` 字段；`CarrierSeal` 零后缀字面（`RULINGS_SUFFIX` 零命中），矩阵入参必填可空（`sweep` 零第二参调用）：`null` ⇒ 零封印、`attribute → null` ⇒ 不封，且 T1 的「两形态判定一致」pin 已被「`null` ⇒ 零封印 ＋ 传入矩阵按 `sealed` 列」取代（`carrier-seal.test.ts` 的 8 处调用全补第三参、`round-artifacts.test.ts` 的两处改写成显式 `null`）；orphan 仍零写只显示，且**两级判据都在**（`attribute → null` 一格 + 「round 域载体归主但没有记录认领」一格），第二级的域写死——workspace 四行与 doc 四行归主即非 orphan（不进 `orphan:`）：`session/__tests__/ledger.test.ts` 的三条已交付 pin——`tasks-6,8-implement-1.json` · `tasks-1-fix-1-a2.json` · `tasks-1-fix-1-a2.c1.json`——逐条仍回 `orphan:`（泛化不许把它们翻成 `[]`）；拼写知识 #1 / #2 的两族六个符号零残留（`carrierPattern` · `CARRIER` · `isCarrierName` · `#WAVE_CARRIER` · `#LINE_CARRIER` · `#handoffOwner`，逐符号 grep 门），`round-naming.test.ts` 的 `minted` / `neighbours` 断言已按矩阵归属重锚；门的**放行面**成立（矩阵行 / 夹具豁免，矩阵外样本在判定函数上判违例）；两条收紧（字面集封闭 = `session/next.ts` 值位落地后、接受集单源 = `carrier-rulings.ts` 读行声明落地后）显式归 T9，本任务不宣称它们成立。
 
 #### DependsOn
 
@@ -300,7 +303,7 @@ doc 行零 `render`；`DocDomain#attribute` 无第三态（`Attributed | null`�
 - Modify: `packages/cdd-engine/src-next/face/preview.ts`（纯读门同源）
 - Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（成对：变体在 ⇒ 停；两处都缺 ⇒ 不拦；派发轮 `fix` + 载体 `review` ⇒ 报文 `identity:` 带 `op=review`、`derived:` 不含 `fix-`；推导名在盘上但不可读 ⇒ `invalid` 且 reason 为 `unreadable`；载体拼写 `plan-review-1-a1.json`（能归主、非渲染名）⇒ 零 `CDD_BLOCKED`——门只判本轮解析到的 `rulings`，不判载体自己的 kind）
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（`--dry-run` 可见 + child 零 spawn + 迁移后一半：改名 ⇒ `ok`、prompt 一行路径、spawn 一次）
-- Test: `packages/cdd-engine/src-next/session/__tests__/carrier-rulings.test.ts`（同一载体：错位名 `attribute` 回 `misplaced`、渲染名回同一 `(identity, "rulings")`）
+- Test: `packages/cdd-engine/src-next/session/__tests__/carrier-rulings.test.ts`（同一载体：错位名 `read(identity, "rulings", base)` 回 `misplaced`（`derived` = 渲染名、`found` 列全）、渲染名回 `ok`；两者都经 `attribute` 归到同一 `(identity, "rulings")`）
 
 #### Consumes
 
@@ -338,14 +341,14 @@ doc 行零 `render`；`DocDomain#attribute` 无第三态（`Attributed | null`�
 
 #### Objective
 
-board 加**一条异常事实行** `art:`（默认零字节；健康树不新增字符；只在有 `misplaced` **或** `invalid` 时出现），与 `in-flight:` / `crashed:` / `orphan:` 同族，插在行区之后、`next:` 之前；`--artifacts` 才摊开「一 kind 一列、一轮一行」的排障视图。board **不持有名字规则**，只渲染矩阵判定结果。
+board 加**一族异常事实行** `art:`（`art:` 头行 + `derived` + `found`，字节按 spec §2.6；默认零字节，健康树不新增字符；只在有 `misplaced` **或** `invalid` 时出现），与 `in-flight:` / `crashed:` / `orphan:` 同族，插在行区之后、`next:` 之前；`--artifacts` 才摊开「一 kind 一列、一轮一行」的排障视图。board **不持有名字规则**，只渲染矩阵判定结果。
 
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/face/board-view.ts`（`art:` 事实行 + `--artifacts` 视图）
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`（旗标接线）
 - Modify: `packages/cdd-engine/src-next/face/declare.ts`（`ARGV_CHANNEL` 增 `artifacts` 行（`{ flag: "--artifacts", type: "bool", help }`），`CLI_COMMANDS` 的 `board.keys` 增该项；help / example 是否连带改在同一步判定）
-- Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（健康树逐字节不变 + 异常仅新增一行）
+- Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（健康树逐字节不变 + 异常仅新增一个 `art:` 事实块）
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（`--artifacts` 展开面）
 
 #### Consumes
@@ -363,14 +366,14 @@ board 加**一条异常事实行** `art:`（默认零字节；健康树不新增
 #### Steps
 
 - 写失败测：健康树上 board 输出逐字节等于今日（含 `next:` / `reason:` 位置） —— checkable: 先绿（作为守恒基线）
-- 写失败测：一处 misplaced ⇒ 输出恰新增 `art:` 三行 —— checkable: 跑红
+- 写失败测：一处 misplaced ⇒ 输出恰新增一个 `art:` 事实块（`art:` 头行 + `derived` + `found`，字节按 spec §2.6，块内零额外行） —— checkable: 跑红
 - 实现事实行（`misplaced` 与 `invalid` 两臂）+ 旗标 —— checkable: 两条测文件绿
 - 接线声明面：`ARGV_CHANNEL.artifacts`（`flag: "--artifacts"`）+ `board.keys`，并在此步判定 help / example 是否连带改 —— checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/channel-closure.guard.test.ts` 绿，且 `cdd board --plan … --artifacts` 不进 usage
 - 写 `invalid` 一格：schema 非法的侧车 ⇒ `art:` 行带其 reason、其余行零字节变化 —— checkable: 该断言绿
 
 #### Acceptance
 
-健康树零字节变化（P33/P34/P35 的 board pin 全绿）；异常仅新增 `art:` 事实行；`misplaced` 与 `invalid` 两臂都能落 `art:`（`invalid` 带其 reason）；`--artifacts` 默认关，且旗标宣告在 `ARGV_CHANNEL` 并被 `board` 声明（频道闭环门绿）。
+健康树零字节变化（P33/P34/P35 的 board pin 全绿）；异常仅新增 `art:` 事实块（`art:` 头行 + `derived` + `found`，字节按 spec §2.6）；`misplaced` 与 `invalid` 两臂都能落 `art:`（`invalid` 带其 reason）；`--artifacts` 默认关，且旗标宣告在 `ARGV_CHANNEL` 并被 `board` 声明（频道闭环门绿）。
 
 #### DependsOn
 
@@ -512,7 +515,7 @@ board 加**一条异常事实行** `art:`（默认零字节；健康树不新增
 
 #### Objective
 
-消费面落点与迁移说明（spec §2.10 / §3.4）：`cdd-dev` / `cdd-plan` / `cdd-spec-writer` 各一条裁决落点指令（挂既有 `## Invariants` 表尾一行，**不改** `skill-anatomy` 的 section registry）；三行编号固定且与今日表尾相邻：`cdd-dev` = `I6` · `cdd-plan` = `I5` · `cdd-spec-writer` = `I4`（今日三份 `SKILL.md` 的表尾是 `I5` / `I4` / `I3`）；**三者同句**——句子主体逐字节相同：fix 派发若某条 finding 需要裁定，把裁定写到引擎在 `next:` 里印出的那个 sidecar 路径上，编排器永不自行推导该路径；落点一律指向引擎在 `next:` 里印出的那个路径，因此 skill 文本对 `.rulings.json` 字面零命中；cdd-engine README（EN + `.zh-CN.md` **双语同源**）补迁移段：89 个错位 sidecar 的一次性改名命令 + 「改名后必须复判」一句 + 升级后首次派发会 `CDD_BLOCKED: artifact-identity` 的说明；两个 README 的 `## Migration` / `## 迁移` 段由结构测试守住（命令字面与复判句各一条，先红后绿）。母契约 Phase inventory 的 P36 plan Done 指针也由本任务拥有并随落地版登记——它今日仍写 `v0.4`，而计划已走到 v0.7，「待下一次」已经发生过一次。
+消费面落点与迁移说明（spec §2.10 / §3.4）：`cdd-dev` / `cdd-plan` / `cdd-spec-writer` 各一条裁决落点指令（挂既有 `## Invariants` 表尾一行，**不改** `skill-anatomy` 的 section registry）；三行编号固定且与今日表尾相邻：`cdd-dev` = `I6` · `cdd-plan` = `I5` · `cdd-spec-writer` = `I4`（今日三份 `SKILL.md` 的表尾是 `I5` / `I4` / `I3`）；**三者同句**——句子主体逐字节相同：fix 派发若某条 finding 需要裁定，把裁定写到引擎在 `next:` 里印出的那个 sidecar 路径上，编排器永不自行推导该路径；落点一律指向引擎在 `next:` 里印出的那个路径，因此 skill 文本对 `.rulings.json` 字面零命中；cdd-engine README（EN + `.zh-CN.md` **双语同源**）补迁移段：89 个错位 sidecar 的一次性改名命令 + 「改名后必须复判」一句 + 升级后首次派发会 `CDD_BLOCKED: artifact-identity` 的说明；两个 README 的 `## Migration` / `## 迁移` 段由结构测试守住（命令字面与复判句各一条，先红后绿）。母契约 Phase inventory 的 P36 plan Done 指针也由本任务拥有并随落地版登记——它今日随上一版走（`v0.7`，与计划同版，`4965dcbe` 已同步），落地版再升一版后随本计划的 `version:` 同步，「待下一次」已经发生过一次。
 
 #### Files
 
@@ -521,7 +524,7 @@ board 加**一条异常事实行** `art:`（默认零字节；健康树不新增
 - Modify: `packages/kairos/skills/cdd-spec-writer/SKILL.md`（同句，表尾 `I4`）
 - Modify: `packages/cdd-engine/README.md` + `packages/cdd-engine/README.zh-CN.md`（迁移段，双语同源）
 - Test: `packages/kairos/tests/skill-anatomy.test.ts`（既有强判：新行不得越出 registry）
-- Modify: `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`（Phase inventory P36 行的 plan Done 指针：`v0.4` → 本计划落地版的 `version:`（本轮 v0.7）；登记动作归编排器，但计划要有一个拥有它的任务，不再挂在 Change history 的「待下一次」里）
+- Modify: `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`（Phase inventory P36 行的 plan Done 指针：今日随上一版走（`v0.7`）→ 本计划落地版的 `version:`；登记动作归编排器，但计划要有一个拥有它的任务，不再挂在 Change history 的「待下一次」里）
 - Test: `packages/kairos/tests/presentation-surface.test.ts`（README 双语同步的既有 pin 就在此文件：镜像家庭与逐镜像标题序列；目录不是 pin，不可逐条核。本任务在同一文件补两条**迁移段结构断言**：`packages/cdd-engine/README.md` 与 `README.zh-CN.md` 的迁移段各含改名命令行（`<line>-<op>-<n>.rulings.json` → `.c<N>.rulings.json`）与「改名后必须复判」一句——既有 pin 只断镜像家庭与标题序，整段缺失时它仍是绿的）
 - Test: `packages/kairos/tests/skill-surface-consistency.test.ts`（新增两条文本门：全部 shipped skill 文本——`SKILL.md` 与 skill `docs/*.md`——对 `.rulings.json` 字面零命中；三处落点句**逐字节相同**（取三份 `SKILL.md` 的 `I6` / `I5` / `I4` 行，比行内句子主体），今日该句尚不存在，故先红）
 
@@ -541,12 +544,12 @@ board 加**一条异常事实行** `art:`（默认零字节；健康树不新增
 - 写三行指令（同一句、编号 `I6` / `I5` / `I4`） —— checkable: `pnpm -C packages/kairos exec vitest run tests/skill-anatomy.test.ts` 绿
 - 写 skill 文本门（`skill-surface-consistency.test.ts` 内两条：全树 skill 文本对 `.rulings.json` 字面零命中；三处落点句逐字节相同——今日零命中是基线、注入一处字面即红，同句门在本步先红后绿） —— checkable: 该门绿
 - 写 README EN 段 + zh-CN 镜像，并在 `presentation-surface.test.ts` 补两条迁移段结构断言（改名命令 + 「改名后必须复判」） —— checkable: 两条断言先红后绿（今日两个 README 的迁移段只有通用说明、零改名命令），双语 pin 绿
-- 登记母契约 Phase inventory 的 P36 plan 指针到本计划落地版 —— checkable: `grep -n "engine-doc-tooling-p36.md" docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md` 回落地版的 `version:`（不再是 `v0.4`）
+- 登记母契约 Phase inventory 的 P36 plan 指针到本计划落地版 —— checkable: `grep -n "engine-doc-tooling-p36.md" docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md` 回出的正是本计划落地版的 `version:`
 - 全量门 —— checkable: `pnpm run validate` exit 0
 
 #### Acceptance
 
-三 skill 各一条、编号 `I6` / `I5` / `I4`、**三者同句**（句子主体逐字节相同，由 `skill-surface-consistency.test.ts` 的文本门比对三处 `I<n>` 行），且均在 registry 既有 section 内；skill 文本对 `.rulings.json` 字面零命中（`skill-surface-consistency.test.ts` 的文本门在册，零程序史 / 零相位号同条守卫）；README 双语同源（pin = `packages/kairos/tests/presentation-surface.test.ts`），且迁移段的两条结构断言在该文件先红后绿（改名命令 + 「改名后必须复判」）；母契约 Phase inventory 的 P36 plan Done 指针已指向计划落地版（不再是 `v0.4`）；`pnpm run validate` exit 0；changeset `cdd-engine` minor + `kairos` minor 在册，且 `cdd-engine` 的理由点名**四处**消费可见变化（`artifact-identity` 硬停门 · `INPUT_RULINGS` 零正文 · fix `next:` 行改为印已解析路径（D70 裁决面 · D74） · 未入册 plan 由「健康渲出」改为未判态 `(none)` + 一行 `CDD_WARN:`）。
+三 skill 各一条、编号 `I6` / `I5` / `I4`、**三者同句**（句子主体逐字节相同，由 `skill-surface-consistency.test.ts` 的文本门比对三处 `I<n>` 行），且均在 registry 既有 section 内；skill 文本对 `.rulings.json` 字面零命中（`skill-surface-consistency.test.ts` 的文本门在册，零程序史 / 零相位号同条守卫）；README 双语同源（pin = `packages/kairos/tests/presentation-surface.test.ts`），且迁移段的两条结构断言在该文件先红后绿（改名命令 + 「改名后必须复判」）；母契约 Phase inventory 的 P36 plan Done 指针与本计划落地版的 `version:` 逐字相同（今日 `v0.7` 是上一版，本任务随落地版同步）；`pnpm run validate` exit 0；changeset `cdd-engine` minor + `kairos` minor 在册，且 `cdd-engine` 的理由点名**四处**消费可见变化（`artifact-identity` 硬停门 · `INPUT_RULINGS` 零正文 · fix `next:` 行改为印已解析路径（D70 裁决面 · D74） · 未入册 plan 由「健康渲出」改为未判态 `(none)` + 一行 `CDD_WARN:`）。
 
 #### DependsOn
 
@@ -563,3 +566,4 @@ board 加**一条异常事实行** `art:`（默认零字节；健康树不新增
 | v0.5 | 2026-11-15 | 波 1（T1）修复轮全量落地（F1–F6）：**F1** 矩阵**不再绑 workspace**——`locate` / `read` 收 `base: Workspace`（读取时的坐标），一块板一次渲多个节点 workspace 时不再把别的节点的名字解析到这一处；这是对 spec §2.2 契约形状的**显式修订**（同笔记入 T1 Objective / Produces / Acceptance），`IdentityDomain` 加一格 `entries()` 让行集带键。**F2** `ArtifactRegistry.nameOf(kind, tasks)` 显式记成同一行渲染的**模块级入口**（逐字委托 `renderWorkspace`，不是第二拼写），补「两条入口逐 kind 相等」的 pin；`BASE_NAME` 与 `Cli#baseBranchOf` 的内联缓存改经注入实例的 `render`。**F3** `workspaceName` 对「brief 缺坐标 / 三字面量带坐标」两条入口都抛错，`nameOf` 去默认值（默认值正是非法形态的入口）。**F4** 读取面按 spec §4.5 判：ENOENT ⇒ `absent`；存在但读不出、或不是普通文件 ⇒ `invalid(reason)`；外来域 / 未登记 kind 抛错（与 `render` 同面，不伪装成 `absent`）。**F5** `Lifecycle` 改走 opts 字段注入，删 `Ledger#artifacts()` / `NextStepRouter#artifacts()` 两个「取回注入」的访问器，补两条 pin：记录型矩阵端到端（`base set` 与 `board --plan` 各记录到自己的 kind）与 `CarrierSeal` 的 `sealed: true` 夹具行（`sealed` 列真的被读）。**F6** 行集加 `entries()` 投影，`kind` 可直接断言，T5/T6 不必第二次拼 kind 列表。 | [human] 裁定 · Claude（kairos:cdd-dev · 2026-11-15） |
 | v0.6 | 2026-11-15 | 计划评审 round 4 全量落地（F1–F7）：**F1（blocker）** `Ledger#orphanHandoffs` 的泛化写明**两级判据**——候选集换成目录全部文件，orphan ⇔ `attribute → null` 或「能归主但没有任何记录认领」（行键由 `identity.line` 派生、`carrierPathOf` 的 basename 照旧保留），T5 的 Objective / Files / Produces / Steps / Acceptance 同步，并把 `session/__tests__/ledger.test.ts` 加进 T5 的 `Test:` 行、点名 `tasks-6,8-implement-1.json`（`:1037`）· `tasks-1-fix-1-a2.json`（`:1048`）· `tasks-1-fix-1-a2.c1.json`（`:1076`）三条已交付 pin 为守恒守卫（照字面实现会把它们从板上抹掉，并逼实现者翻断言） · **F2** P35 Constraints 的派生条款同批修订落进 T4（Files / Objective / Produces / Step / Acceptance）：前半句改「plan 路径取索引 plan 行的 `rel`」、后半句与扫描谓词原样，并补该文件一行 Change history 与 `version:` 递增 · **F3** 门的**作用面**写进 T6（Objective / Files / Step / Acceptance）：只判本轮 `#artifactReadOf` 解析到的 kind（今日唯一 `rulings`），载体自身的 kind 不由这道门判，并补 pin「载体带显式 `-a1` 拼写不触发 `artifact-identity`」——否则它与 T9 的 F4 ① pin 在同一份输入上互斥 · **F4** T11 点名三行编号（`cdd-dev` = `I6` · `cdd-plan` = `I5` · `cdd-spec-writer` = `I4`）、「三者同句」与句子主体，并把同句断言挂进 `skill-surface-consistency.test.ts` 的文本门（与零 `.rulings.json` 字面同批） · **F5** 行号 pin 按漂移整体处置：全树唯一的符号（`carrierPattern` · `CARRIER` · `isCarrierName` · `RETIRED_SPEC_KEY` / `RETIRED_SPEC_LINE_KEYS` · `Ledger.rowFor` · `#retiredSpecApplies` · `#retiredCarrierName` · `#legacyCarrierName` · `#resolvedCarrierName` · `#ownerRow` · `#lineWord` · `#handoffOwner` · `#WAVE_CARRIER` · `#LINE_CARRIER` · `#scanRoots`）只留符号名、不钉行号，多处共现的站点刷新到今日实测值（`SlugIndex.build` 三处 → `:524` / `:1279` / `:1628` · `new PlanSource` 两处 → `:498` / `:723` · `Router#next` 的两个 fix 分支 → `:353` / `:374`）；`round-naming.test.ts:523` 改正为「`neighbours` 数组里的 `"base.json"`」，不再是「workspace 名清单」 · **F6** Change history 按版本序重排（v0.5 行移到 v0.4 之后）；母契约 Phase inventory P36 的 plan Done 指针（今日 `v0.4`）待下一次登记母契约时随本版改到 `v0.6`——登记是编排器动作，本轮不改总体 · **F7** T11 Acceptance 的 changeset 理由补上第四处（fix `next:` 行改为印已解析路径 · D70 裁决面 · D74）。 | [human] 裁定 · Claude（kairos:docs-fix · 2026-11-15） |
 | v0.7 | 2026-11-15 | 计划评审 round 5 全量落地（F1–F7）：**F1（blocker）** T5 补 `sealed` 列接管后的**无矩阵臂**——`CarrierSeal#sweep` 的矩阵入参升为必填（生产唯一调用点已传同一实例），`attribute → null` ⇒ 不封，两文件的 `sweep(dir, [])` 调用改传夹具实例，T1 的「两形态判定一致」pin 由「无矩阵 ⇒ 零封印」**取代**（T1 Acceptance 同批加注，仓里不再并存两条互斥约束）；T5 Objective / Files / Produces / Steps / Acceptance 同步 · **F2** `orphanHandoffs` 二级判据的**域**写死：只有 round 域载体可成 orphan，`progress.json` / `base.json` / `in-flight.json` / `tasks-<n>-brief.md` 与四类文档名归主即非 orphan（按字面实现会让它们各成一行 `orphan:`，并打红 `ledger.test.ts` 三条精确数组断言与健康树 board 的零字节断言），T5 补一格域边界 pin · **F3** T4 的 P35 修订面扩到同一 bullet 的**第三句**（`-design.md` 反查 · 「只探存在性」改为问索引三态），Objective / Files / Produces / Step / Acceptance 同步，checkable 改为「该 bullet 内两处旧口径零命中」 · **F4** T11 的迁移段补可红断言：`presentation-surface.test.ts` 内两条（改名命令行 + 「改名后必须复判」各一），既有 pin 只断镜像家庭与标题序、整段缺失仍绿 · **F5** T9 写明无身份臂（`attribute → null` ⇒ 不下发 `rulings` 值位、`FIX_READBACK_SUFFIX` 整段省略、零空槽、零回落规则句）并补 `--reviews spec-review-1.json` 的 pin · **F6** T2 接管 `round-artifacts.test.ts` 的两格抛错守卫（「未登记 kind ⇒ 抛错」在三域登记齐后永久不可达，改由只登记部分 kind 的夹具域承担；「跨域身份 ⇒ 抛错」保留） · **F7** 母契约 Phase inventory 的 P36 plan 指针写进 T11 的 Files / Steps / Acceptance（从 `v0.4` 改到计划落地版，不再挂在 Change history 的「待下一次」）。 | [human] 裁定 · Claude（kairos:docs-fix · 2026-11-15） |
+| v0.8 | 2026-11-15 | 计划评审 round 6 全量落地（F1–F10）：**F1（blocker）** T5 的无矩阵臂二选一写成**必填可空**（`artifacts: ArtifactRegistry \| null`）——`null` ⇒ 零封印、`attribute → null` ⇒ 不封；两文件的 `sweep(` 调用全补第三入参（`carrier-seal.test.ts` 的 8 处、`round-artifacts.test.ts` 的两处写显式 `null`），T1 Acceptance ② 与 T5 Objective / Files / Produces / Steps / Acceptance 同步，「两处无矩阵形态」与「无矩阵调用不再成立」两句话不再并存 · **F2** `misplaced` 的产出面改回 `ArtifactRegistry#read`（`attribute` 恒回 `Attributed \| null`、无第三态）；T2 Objective / Produces / Acceptance、T5 Objective / Files / Consumes / Produces / Step 1、T6 的 pin 五处同步 · **F3** T4 的派生零命中门改成可红的谓词门（扫描面去注释且排除 `__tests__`，断言 `ENGINE_RUNTIME.docRoots.*` 参与模板串或以 `path.join` 作基座零命中；原 grep 对 `infra/` 注释与 `-design` 夹具永远回不到零），`planOrphanSpec` 的报文断言移回 `plan-source.test.ts` 的既有格 · **F4** `discarded()` 六值的 pin 家落 `infra/__tests__/slug-index.test.ts`（加进 T4 Files 与一条 Step），补「只在 `overalls/` 放一个不可读候选 ⇒ 身份反查落 (c)」一格 · **F5** round 行的模块级渲染入口立名 `renderRound(identity, kind)`：`ArtifactRegistry#render` 与静态 `RoundNaming.renderName` 都逐字委托它（`renderName` 是静态方法、八处静态调用）；T1 `nameOf` 的消费方去掉 `RoundNaming`（它只服务 workspace 四行） · **F6** `carrier-seal.test.ts` 的调用点从「六处」改为符号级枚举（全部 8 个 `CarrierSeal.sweep(`，7 处 keep 为 `[]`、`:136` 非空） · **F7** T1 Objective 的 `BoardView.of` 改为树里实有的 `BoardView.render` · **F8** T3 的重复身份括注改为「派发硬停由既有 `SlugIndex#slugVerdict` 的 `duplicated` → `doc-contract` 承担」，不再要求 T6 把 doc 域读结果塞进只判 `rulings` 的门 · **F9** T11 的母契约指针陈述改为今日事实（`v0.7`，`4965dcbe` 已同步），checkable 改为「回出的正是本计划落地版的 `version:`」 · **F10** T7 的 `art:` 新增字节口径统一为一个事实块（头行 + `derived` + `found`，字节按 spec §2.6），Objective / Files / Step / Acceptance 四处同步。 | [human] 裁定 · Claude（kairos:docs-fix · 2026-11-15） |

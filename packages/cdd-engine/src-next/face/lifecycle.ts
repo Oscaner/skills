@@ -1390,8 +1390,8 @@ export class CliLifecycle {
    *  bodies it carries, the empty string otherwise (off the fix face, with no resolved
    *  carrier, when the carrier attributes to no round identity, and when the sidecar is
    *  absent — the assembler drops the empty line). The path is the artifact matrix's
-   *  `rulings` render of the REVIEWED round's identity, never `pathFor`'s tail
-   *  replacement: the carrier's own spelling (draft or final) can no longer move it.
+   *  `rulings` render of the REVIEWED round's identity, never a tail replacement on the
+   *  carrier's name: the carrier's own spelling (draft or final) can no longer move it.
    *  The strict judgment stays the dispatch gate's `#rulingsRefusal`. */
   #rulingsInputOf(frame: OpenFrame): string {
     if (this.#opOf(frame) !== "fix") return "";

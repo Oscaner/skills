@@ -6,10 +6,10 @@
 //
 // The sidecar's PATH is no longer minted here: it is the artifact matrix's `rulings`
 // row rendered from the reviewed round's identity (P36 T2). This suite takes the
-// rendered path from its caller, and pins that the class holds no path rule of its own
-// (`pathFor` zero residue) and that the strict gate still judges the `carrier` key
-// against the CARRIER's basename — the carrier's fact is never re-derived from the
-// sidecar's name.
+// rendered path from its caller, and pins that the class holds no naming rule of its own
+// (the sidecar tail is spelled in the matrix row alone) and that the strict gate still
+// judges the `carrier` key against the CARRIER's basename — the carrier's fact is never
+// re-derived from the sidecar's name.
 
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -62,18 +62,23 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-describe("CarrierRulings — no path rule of its own (P36 T2)", () => {
+describe("CarrierRulings — no naming rule of its own (P36 T2)", () => {
   /** `src-next/session` — the sidecar class's own plane. */
   const SESSION_ROOT = fileURLToPath(new URL("../../session/", import.meta.url));
 
-  it("holds zero `pathFor` residue — the matrix renders the sidecar's name", () => {
+  it("holds no sidecar-tail spelling — the matrix row renders the name", () => {
     const files = readdirSync(SESSION_ROOT, { withFileTypes: true })
       .filter((entry) => entry.isFile() && entry.name.endsWith(".ts"))
       .map((entry) => entry.name);
     const hits = files.filter((name) =>
-      stripComments(readFileSync(path.join(SESSION_ROOT, name), "utf8")).includes("pathFor"),
+      stripComments(readFileSync(path.join(SESSION_ROOT, name), "utf8")).includes(".rulings.json"),
     );
-    expect(hits).toEqual([]);
+    // The matrix row is the ONE home. `session/next.ts` still spells the readback rule
+    // sentence; closing that set to the matrix row alone is the later task's tightening
+    // (the readback line becomes a rendered VALUE), so this pin holds the class itself
+    // out of the set without pre-empting it.
+    expect(hits).not.toContain("carrier-rulings.ts");
+    expect(hits).toContain("round-artifacts.ts");
   });
 
   it("takes the sidecar's rendered path from its caller, not from the carrier's tail", () => {

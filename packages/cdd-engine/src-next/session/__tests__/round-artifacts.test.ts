@@ -40,10 +40,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { PlanSource } from "../../infra/plan-source.ts";
 import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../ledger.ts";
@@ -578,7 +578,7 @@ describe("the read face — locate + read (spec §2.2 · §2.3 · §4.5)", () =>
     try {
       const alpha = new Workspace(root, "alpha");
       const beta = new Workspace(root, "beta");
-      const plan = new PlanSource(root.basis);
+      const plan = planSourceOf(root.basis);
       const ledgerAlpha = new Ledger(alpha, new ConfigLoader(), plan, artifacts);
       const ledgerBeta = new Ledger(beta, new ConfigLoader(), plan, artifacts);
       ledgerAlpha.writeProgress({ ...ledgerAlpha.emptyProgress(), plan: "alpha.md" });
@@ -610,9 +610,9 @@ describe("one home, one instance (spec §2.1 · §2.9 ⑤)", () => {
   it("reads the `sealed` column out of the matrix, not only the naming predicate", () => {
     const { dir, file } = dirWithFile(SEALED_CARRIER);
     try {
-      // No row attributes the name and the naming predicate says "not a carrier": the
-      // workspace-only matrix recovers nothing.
-      expect(CarrierSeal.sweep(dir, [])).toEqual([]);
+      // No matrix at all: the sweep seals NOTHING (there is no second name grammar to
+      // fall back on), and the workspace-only matrix attributes the name to no row.
+      expect(CarrierSeal.sweep(dir, [], null)).toEqual([]);
       expect(CarrierSeal.sweep(dir, [], new ArtifactRegistry())).toEqual([]);
       // The injected row marks the SAME name sealed — the sweep now sees a writable
       // carrier, which is only visible through `rowOf(attributed.kind).sealed`.
@@ -639,13 +639,18 @@ describe("one home, one instance (spec §2.1 · §2.9 ⑤)", () => {
     }
   });
 
-  it("judges an orphan carrier the same way with and without the workspace matrix", () => {
+  it("seals nothing without a matrix, and follows the `sealed` column with one", () => {
     const name = "tasks-1-review-2.c2.json";
     const bare = dirWithFile(name);
     const wired = dirWithFile(name);
     try {
-      expect(CarrierSeal.sweep(bare.dir, [])).toEqual([name]);
+      // The retired naming predicate is gone: `null` is "no attribution", and "no
+      // attribution" is zero sealing — never a fallback grammar.
+      expect(CarrierSeal.sweep(bare.dir, [], null)).toEqual([]);
+      expect(statSync(bare.file).mode & 0o777).toBe(CarrierSeal.WRITABLE);
+      // The matrix's `final` row answers `sealed: true` for the same name.
       expect(CarrierSeal.sweep(wired.dir, [], new ArtifactRegistry())).toEqual([name]);
+      expect(statSync(wired.file).mode & 0o777).toBe(CarrierSeal.SEALED);
     } finally {
       rmSync(bare.dir, { recursive: true, force: true });
       rmSync(wired.dir, { recursive: true, force: true });
@@ -825,6 +830,99 @@ describe("the doc domain — declared rows, no name rule (spec §2.1 · §2.2 ·
       const plan: Identity = { domain: "doc", slug: "p36", docType: "plan" };
       expect(() => artifacts.read(round, "plan", workspace)).toThrow(/round/);
       expect(() => artifacts.read(plan, "phase-spec", workspace)).toThrow(/phase-spec/);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P36 T5 — the set-based `misplaced` judgment and its ONE directory read (spec
+// §2.5): `found` is a SET, never a count, and both consumers read the same listing
+// ---------------------------------------------------------------------------
+
+describe("the set-based `misplaced` judgment (P36 T5 · §2.5)", () => {
+  /** A real workspace holding the given names (the judgment needs the directory). */
+  const workspaceWith = (
+    names: readonly string[],
+  ): { workspace: Workspace; cleanup: () => void } => {
+    const repo = mkdtempSync(path.join(tmpdir(), "round-artifacts-grammar-"));
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "phase-spec").ensure();
+    for (const name of names) writeFileSync(workspace.resolve(name), "{}\n", "utf8");
+    return { workspace, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
+  };
+
+  const IDENTITY: Identity = { domain: "round", line: "phase-spec", op: "review", cycle: 1 };
+
+  it("answers `misplaced` when a same-identity variant sits BESIDE the rendered name", () => {
+    const { workspace, cleanup } = workspaceWith([
+      "phase-spec-review-1.c1.rulings.json",
+      "phase-spec-review-1.rulings.json",
+    ]);
+    try {
+      const read = new ArtifactRegistry().read(IDENTITY, "rulings", workspace);
+      expect(read.kind).toBe("misplaced");
+      if (read.kind !== "misplaced") return;
+      // The rendered name AND its variant, both listed: never a first pick between them.
+      expect(read.derived).toBe("phase-spec-review-1.c1.rulings.json");
+      expect(read.found).toEqual([
+        "phase-spec-review-1.c1.rulings.json",
+        "phase-spec-review-1.rulings.json",
+      ]);
+      expect(read.identity).toEqual(IDENTITY);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("answers `ok` when the rendered name is the ONLY name that attributes", () => {
+    const { workspace, cleanup } = workspaceWith([
+      "phase-spec-review-1.c1.rulings.json",
+      "phase-spec-review-1.c1.json",
+    ]);
+    try {
+      const read = new ArtifactRegistry().read(IDENTITY, "rulings", workspace);
+      expect(read).toEqual({
+        kind: "ok",
+        path: workspace.resolve("phase-spec-review-1.c1.rulings.json"),
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("answers `absent` on an empty directory — the same identity, no name", () => {
+    const { workspace, cleanup } = workspaceWith([]);
+    try {
+      expect(new ArtifactRegistry().read(IDENTITY, "rulings", workspace)).toEqual({
+        kind: "absent",
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps `attribute` at two states — both spellings answer ONE (identity, kind)", () => {
+    const artifacts = new ArtifactRegistry();
+    const rendered = artifacts.attribute("phase-spec-review-1.c1.rulings.json");
+    const variant = artifacts.attribute("phase-spec-review-1.rulings.json");
+    expect(rendered).toEqual({ identity: IDENTITY, kind: "rulings" });
+    expect(variant).toEqual({ identity: IDENTITY, kind: "rulings" });
+    // A name no row renders still answers null (no third state anywhere).
+    expect(artifacts.attribute("notes.json")).toBeNull();
+  });
+
+  it("reads the directory ONCE — `Workspace#names()` is the sole readdir of a workspace", () => {
+    // Two consumers ask the same listing (the `found` set above, the ledger's orphan
+    // scan below): a second `readdirSync` beside the workspace member would be a second
+    // snapshot, so the source plane carries no workspace listing of its own.
+    expect(hitsOf("readdirSync")).not.toContain("session/round-artifacts.ts");
+    expect(hitsOf("readdirSync")).toContain("infra/workspace.ts");
+    expect(hitsOf("readdirSync")).not.toContain("session/ledger.ts");
+    const { workspace, cleanup } = workspaceWith(["progress.json", "b.json", "a.json"]);
+    try {
+      // Stable order, files only — the ordering the two consumers share.
+      expect(workspace.names()).toEqual(["a.json", "b.json", "progress.json"]);
     } finally {
       cleanup();
     }

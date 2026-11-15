@@ -312,9 +312,11 @@ export const CAPSULE_WORDS = {
     empty: "(empty plan)",
     orphan: "! no-spec",
     orphanSpec:
-      "the plan's slug \"{slug}\" names no design spec — {specPath} is absent (every plan is written for one phase; add that phase spec or fix the plan's `slug:`)",
+      "the slug names no identity document (index clean miss): {slug} — no overall / phase-spec / single-spec declares it (every plan is written for one phase; add that document or fix the plan's `slug:`)",
     slugMissing:
       "the plan declares no `slug:` key — add `slug: <workspace-key>` to the plan's front-matter and re-run",
+    discarded:
+      "{roots} — {count} discarded candidate(s): the index cannot answer an absence from this surface — check those files (an unreadable or unregistered document hides an identity)",
     cellEmpty: "",
   } as const,
   /** The cut-short round's late-landing hint — every kill / timeout / crash message
@@ -620,12 +622,18 @@ export class Words implements WordLocaleFace, PlanReadWords {
     return CAPSULE_WORDS.planRead.orphan;
   }
 
-  /** The `spec-absent` orphan diagnostic — the plan's slug and the derived spec path,
-   *  both filled here (the row lives in the table only). */
-  planOrphanSpec(slug: string, specPath: string): string {
-    return CAPSULE_WORDS.planRead.orphanSpec
-      .replace("{slug}", slug)
-      .replace("{specPath}", specPath);
+  /** The `spec-absent` orphan diagnostic — the plan's slug alone (the identity is the
+   *  slug; the retired derived path has no consumer left). */
+  planOrphanSpec(slug: string): string {
+    return CAPSULE_WORDS.planRead.orphanSpec.replace("{slug}", slug);
+  }
+
+  /** The undecided-scan diagnostic — the dirty doc roots and the count of candidates
+   *  they dropped (the fact that forbids answering "no plan" / "no identity"). */
+  planDiscardedWord(roots: readonly string[], discarded: number): string {
+    return CAPSULE_WORDS.planRead.discarded
+      .replace("{roots}", roots.join(" · "))
+      .replace("{count}", String(discarded));
   }
 
   /** The `slug-absent` diagnostic — the plan parses but declares no identity key. */

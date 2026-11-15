@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P35 设计：plan 读取收权（一份读取 · 一个失败值 · 一条拒绝通道）'
 doc-type: phase-spec
-version: v0.36
+version: v0.37
 date: 2026-11-14
 slug: '2026-10-10-engine-doc-tooling-p35'
 program: 2026-10-10-engine-doc-tooling
@@ -248,7 +248,7 @@ usage 校验的 `planIds` 成员判定在非 ready 时**跳过**——它今日�
 - plan grammar 语义不动：`#### DependsOn` 仍只许一节，其余重复节规则与报文措辞保持
 - `doc-contract` 判定语义不动，既有拒绝报文（front-matter 行）逐字节不变；不新增 gate id 与 reason token，不新增 station kind
 - 判定面按值收 `contract/judge.ts` 的 `ContractInput.content`，读盘归 `infra/`（`infra/slug-index.ts` 同处；`contract/invariants.ts` 的 `DocFs` / `NodeFs` 是既有读缝，不是新职责）
-- slug 是唯一的文档标识：plan 路径由 `ENGINE_DOC_ROOTS.plans` + slug 派生，不在 front matter 里声明路径；不重写 `infra/slug-index.ts` 的扫描谓词；**身份的两个方向不对称**——相位没有 plan 是合法状态（正查缺失不阻塞），plan 的 slug 找不到 `<slug>-design.md` 是身份破损（反查阻塞；只探存在性，不看索引的内容谓词）
+- slug 是唯一的文档标识：plan 路径取索引 plan 行的 `rel`，不在 front matter 里声明路径；不重写 `infra/slug-index.ts` 的扫描谓词（文档谓词一字不动，只多出按根的一对丢弃计数）；**身份的两个方向不对称**——相位没有 plan 是合法状态（正查缺失不阻塞），plan 的 slug 在索引里找不到身份文档 ⇒ 三个 doc 根全干净才 `spec-absent`，否则未判态零拒绝（P36 §2.7）
 - progress 账本口径与 `recordPlanTasks` 的形状不动；`session/run.ts` 的 stall 语义保留
 - 不新增 CLI 动词或旗标，不重排 board 既有列与 `next:` / `reason:` 字节（除 `wave ! unparseable` 这一格，与派生面 `ready` 但未入册时 doc 面落到 plan 面出口这一处——后者是 §2.1「派生不咨询索引内容谓词」的必然结果，章程 D90 与 Phase-inventory P35 的非目标已登记这第二项）；板面的**身份破损（非法 / 重复 / 缺失 slug）仍由 `#entryMark` → `#docCell` → exit 2 判定**，读取值与孤儿折叠不得绕过它（优先级：身份破损 → 读取值 → 索引）
 - 规范里的可执行字面，逐条写全该面声明的必填旗标，并在同一处给出按面通则（`wave` 须带 `--tasks <ids>`，`branch` 的 `fix` 须带 `--reviews <file>`）；只给字面不给通则、或只给通则不给字面，都是同类回归。判据同处补一条：「不改行为」这类断言必须写明它管的是哪一段——拒绝腿不消费旗标 ≠ 整条命令不消费旗标（`ready` 读取上 `planIds` 成员判定先于拒绝腿，成员外的 id 吃 usage 拒绝）
@@ -294,3 +294,4 @@ usage 校验的 `planIds` 成员判定在非 ready 时**跳过**——它今日�
 | v0.34 | 2026-11-15 | 评审修复轮（phase-spec-review-25 · F1，全按裁决）：F1 AC 反查拒绝条目的 wave 腿按真实旗标面补齐——`Cli#runWork` 在 `raw.args.tasks === undefined` 时、早于 `#rootOf` / 场景装配 / 拒绝腿就以 usage 拒绝，故 `cdd review\|fix --type wave --plan <孤儿>` 产不出 `CDD_BLOCKED:`；两条 wave 腿改写为 `cdd review --type wave --tasks <ids> --plan <孤儿>` 与 `cdd fix --type wave --tasks <ids> --plan <孤儿>`，plan / branch / implement 腿只按面拆开写成独立命令（branch 的 `--reviews <file>` 保留），另加按面通则「每一条命令按该面声明的必填旗标调用（`wave` 须带 `--tasks <ids>`，`branch` 的 `fix` 须带 `--reviews <file>`），本相位不为此新增旗标」；Constraints 增一条同源规矩：可执行字面逐条写全必填旗标并与按面通则同处给出，只给其一即同类回归。拒绝腿在读到 `--tasks` / `--reviews` 之前就发生，补旗标只让字面可执行、不改任何行为 | [human] 裁定 · Claude（kairos:cdd-dev · docs-fix · 2026-11-15） |
 | v0.35 | 2026-11-15 | 评审修复轮（phase-spec-review-26 · F1，全按裁决）：F1 AC 反查拒绝条目的通则句按**它真正管的段落**重写——v0.34 的「补旗标只让字面可执行、不改任何行为（拒绝腿在读到 `--tasks` / `--reviews` 之前就发生）」把一条关于拒绝腿的真话说成了关于整条命令的真话：`spec-absent` 孤儿是 `ready` 读取（文档读得出来、只缺派生 spec），故 `Cli#runWork` 的 `planIds` 成员判定（`if (type === "wave")` + `doc !== null`）先于拒绝腿运行，`<ids>` 落成员外时吃更早的 usage 拒绝（`cdd <verb>: task <id> not found in the plan`、exit 2），`CDD_BLOCKED:` 与 `reason:` 行都不出现。改写为两条事实加一条前置条件：`<ids>` 必须是该孤儿 plan 内存在的 task id；成员判定先于拒绝腿；拒绝腿本身不消费这两个旗标（`--reviews` 在拒绝腿上从不被读，`--tasks` 在拒绝腿之前只被前置存在性检查与成员判定读）；`--dry-run` 变体继承同一前置条件。Constraints 的按面通则补一条判据：「不改行为」这类断言必须写明它管的是哪一段——拒绝腿不消费旗标 ≠ 整条命令不消费旗标 | [human] 裁定 · Claude（kairos:cdd-dev · docs-fix · 2026-11-15） |
 | v0.36 | 2026-11-15 | **收尾回填（cdd-close · 交付完成）**：七波（T1–T7）全部 `implement ✓ / review ✓ / fix ✓`，分支终审 3 轮后判 `closed-line`。相位合计 54 轮评审、225 条 finding（49 blocker / 95 warn / 81 nit）、51 轮修复轮，无一条以「不改」结案。`pnpm run validate` 在 `acf2bba9` 上 exit 0（emit:check · 根 vitest · kairos · engine · typecheck ×3 · dist-smoke · version-sync · no-bare-functions 全绿）。本行只记交付状态，不改任何设计条目。 | Oscaner M. · Claude（kairos:cdd-close · 2026-11-15） |
+| v0.37 | 2026-11-15 | P36 T4 的显式修订（deliberate · D74）：Constraints 的派生条款拆两半——前半句改为「plan 路径取索引 plan 行的 `rel`」（文件名不再派生），后半句（文档不自述路径）原样保留，「不重写 `infra/slug-index.ts` 的扫描谓词」同句保留（只多出按根的一对丢弃计数）；同一条 bullet 的第三句改为问索引的三态——plan 的 slug 在索引里找不到身份文档时，三个 doc 根全干净才 `spec-absent`，否则未判态零拒绝，`<slug>-design.md` 反查与「只探存在性」两处旧口径零命中。理由：#485 的复发形态是同一仓里并存两条互斥约束（此处说「派生」、P36 §2.7 说「取索引 `rel`」），而没有任何门会红。 | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-15） |

@@ -7,17 +7,20 @@
 //
 // The sweep is the recovery leg of the invariant: a carrier left writable by a process
 // killed outside the engine is sealed by the NEXT dispatch's preflight. Its scope is
-// the names the matrix attributes — anything else in the directory (`progress.json` ·
+// the matrix's `sealed` column, never a tail spelled here: a name the matrix attributes
+// to a row marked `sealed` is sweepable, and every neighbour (`progress.json` ·
 // `base.json` · `*-test-evidence.json` · the crash records · the orchestrator's rulings
-// sidecar) asks the matrix and is answered from its rows, so no tail is spelled a
-// second time here.
+// sidecar) answers `sealed: false` from its own row. A name no row attributes is not a
+// carrier — the naming predicate that used to answer that fallback is retired, because
+// a second name grammar beside the matrix is exactly the double expression this matrix
+// exists to retire. With no matrix at all the sweep seals NOTHING: "no attribution"
+// has no second answer.
 //
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
 import { chmodSync, type Dirent, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import type { ArtifactRegistry } from "../session/round-artifacts.ts";
-import { RoundNaming } from "../session/round-naming.ts";
 
 /**
  * CarrierSeal — the permission-bit face of the engine's carriers. Stateless by
@@ -47,18 +50,23 @@ export class CarrierSeal {
   }
 
   /** Seal every ORPHAN carrier of one directory and return the names actually sealed.
-   *  An orphan is an engine carrier (the two name shapes `RoundNaming.isCarrierName`
-   *  mints) that is still writable — left behind by a process killed outside the
-   *  engine. `keep` names files the caller holds open itself (this round's own paths);
-   *  a `.rulings.json` sidecar is never touched. Everything else in the directory is
+   *  An orphan is a name the matrix attributes to a `sealed` row that is still
+   *  writable — left behind by a process killed outside the engine. `keep` names files
+   *  the caller holds open itself (this round's own paths); a `.rulings.json` sidecar is
+   *  never touched (its row is `sealed: false`). Everything else in the directory is
    *  invisible to the sweep, and an already-sealed carrier is zero churn: not returned,
-   *  not rewritten, so an empty array means there was nothing to recover. */
+   *  not rewritten, so an empty array means there was nothing to recover.
+   *
+   *  `artifacts` is REQUIRED and nullable on purpose: `null` means "this caller holds no
+   *  matrix", and the sweep then seals nothing — the retired naming predicate is not
+   *  re-minted here as a fallback, because that would be a second name grammar beside
+   *  the matrix (the very defect P36 retires). */
   static sweep(
     directory: string,
     keep: readonly string[],
-    artifacts?: ArtifactRegistry | null,
+    artifacts: ArtifactRegistry | null,
   ): readonly string[] {
-    const strays = CarrierSeal.#strays(directory, keep, artifacts ?? null);
+    const strays = CarrierSeal.#strays(directory, keep, artifacts);
     for (const name of strays) CarrierSeal.seal(path.join(directory, name));
     return strays;
   }
@@ -109,11 +117,11 @@ export class CarrierSeal {
   /** Whether one name belongs to a row the matrix marks `sealed`. The matrix's
    *  `sealed` column is the ONE answer for every kind a domain registers — the round
    *  rows included, which is what makes `draft` / `final` sweepable and the sidecar
-   *  not. Only a name no row attributes falls back to the naming predicate, so a
-   *  matrix without a domain for the name's kind still judges the legacy spellings. */
+   *  not. A name no row attributes is not a carrier, and a caller with no matrix has no
+   *  attribution at all: both answer "not sealed", never a fallback grammar. */
   static #isSealedName(name: string, artifacts: ArtifactRegistry | null): boolean {
     const attributed = artifacts?.attribute(name) ?? null;
-    if (attributed === null) return RoundNaming.isCarrierName(name);
+    if (attributed === null) return false;
     return artifacts?.rowOf(attributed.kind)?.sealed === true;
   }
 

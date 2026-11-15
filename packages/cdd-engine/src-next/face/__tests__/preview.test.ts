@@ -26,8 +26,8 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { PlanSource } from "../../infra/plan-source.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
@@ -48,11 +48,11 @@ const WORKSPACE = new Workspace(new WorkspaceRoot(ROOT, ".kairos/cdd"), "p3");
  *  dispatch reads (one scene shape, never a second). */
 const scene = (over: Partial<DispatchScene> = {}): DispatchScene => ({
   workspace: WORKSPACE,
-  ledger: new Ledger(WORKSPACE, new ConfigLoader(), new PlanSource(WORKSPACE.root.basis)),
+  ledger: new Ledger(WORKSPACE, new ConfigLoader(), planSourceOf(WORKSPACE.root.basis)),
   planPath: path.join(ROOT, "docs", "kairos", "plans", "p3.md"),
   // The plan read is a REQUIRED scene cell: the no-disk scene declares the derived
   // face's own "no plan yet" result — never a hand-minted value.
-  plan: new PlanSource(WORKSPACE.root.basis).readFor(null),
+  plan: planSourceOf(WORKSPACE.root.basis).readFor(null),
   briefPath: null,
   ...over,
 });
@@ -306,12 +306,13 @@ const planFor = (repoRoot: string): string => {
     ].join("\n"),
     "utf8",
   );
-  // The paired spec the plan read's reverse probe asks for (§2.7): a plan whose slug
-  // names no `<slug>-design.md` is an orphan and every plan-carrying face refuses it.
-  // The document declares its own slug — the probe only asks "is it there".
+  // The paired identity document the plan read's reverse lookup asks for (§2.7): a
+  // plan whose slug names no identity document is an orphan on a clean surface, and
+  // every plan-carrying face refuses it. Identity is the DECLARED `slug:` — the file
+  // name plays no part — so the document declares the plan's own slug.
   const specFile = path.join(repoRoot, "docs", "kairos", "specs", "p3-design.md");
   mkdirSync(path.dirname(specFile), { recursive: true });
-  writeFileSync(specFile, "---\ntitle: Sp3\ndoc-type: phase-spec\nslug: p3-design\n---\n", "utf8");
+  writeFileSync(specFile, "---\ntitle: Sp3\ndoc-type: phase-spec\nslug: p3\n---\n", "utf8");
   return file;
 };
 

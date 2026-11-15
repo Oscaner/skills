@@ -23,8 +23,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import { NodeFs } from "../../contract/invariants.ts";
+import { Words } from "../../face/words.ts";
+import { RepoRoot } from "../root.ts";
 import { SlugIndex } from "../slug-index.ts";
 
 const repos: string[] = [];
@@ -444,5 +447,75 @@ describe("SlugIndex — no first-pick read point survives outside the index", ()
       }
     }
     expect(hits).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P36 T4 — the per-root discarded counts (spec §2.7): the scan's dirty surface is a
+// FACT, not a guess, and it is what forbids answering an absence
+// ---------------------------------------------------------------------------
+
+describe("SlugIndex — the per-root discarded candidates (P36 T4 · §2.7)", () => {
+  /** One root seeded with every discarded shape: a directory named `*.md` (unreadable)
+   *  and a readable document whose `doc-type:` the registry does not declare. */
+  const seedDirtyRoot = (repo: string, root: string): void => {
+    mkdirSync(path.join(repo, root, "dir.md"), { recursive: true });
+    writeDoc(repo, `${root}/unregistered.md`, { title: "Memo", "doc-type": "memo", slug: "memo" });
+  };
+
+  it("counts each root's dropped and unregistered candidates from the ONE scan", () => {
+    const repo = newRepo();
+    seedProgram(repo);
+    seedDirtyRoot(repo, OVERALLS);
+    seedDirtyRoot(repo, SPECS);
+    seedDirtyRoot(repo, PLANS);
+    const index = SlugIndex.build(repo);
+    // Six values, one pair per root, produced by the SAME scan the entries came from:
+    // every root holds one directory-named-`*.md` and one out-of-registry document.
+    expect(index.discarded()).toEqual({
+      overalls: { unreadable: 1, unregistered: 1 },
+      specs: { unreadable: 1, unregistered: 1 },
+      plans: { unreadable: 1, unregistered: 1 },
+    });
+    // The unregistered candidate is still INDEXED (its slug answers) — it just is no
+    // identity document. That is why the count cannot be read off `entries`.
+    expect(index.entryAt(`${SPECS}/unregistered.md`)?.docType).toBeNull();
+    expect(index.entries).toHaveLength(7);
+    expect(index.docRootsClean()).toBe(false);
+  });
+
+  it("reports zero on a clean tree and answers the absence question", () => {
+    const repo = newRepo();
+    seedProgram(repo);
+    const index = SlugIndex.build(repo);
+    expect(index.discarded()).toEqual({
+      overalls: { unreadable: 0, unregistered: 0 },
+      specs: { unreadable: 0, unregistered: 0 },
+      plans: { unreadable: 0, unregistered: 0 },
+    });
+    expect(index.docRootsClean()).toBe(true);
+  });
+
+  it("an unclean `overalls/` alone lands the identity reverse lookup on the undecided arm (c)", () => {
+    const repo = newRepo();
+    // The plan names a slug with NO identity document — but the overalls root dropped a
+    // candidate, so "no identity document" is not available: zero refusal, one line.
+    writeDoc(repo, `${PLANS}/lonely.md`, { title: "Lonely", "doc-type": "plan", slug: "lonely" });
+    mkdirSync(path.join(repo, OVERALLS, "stray.md"), { recursive: true });
+    const index = SlugIndex.build(repo);
+    expect(index.docRootsClean()).toBe(false);
+    expect(index.hasIdentity("lonely")).toBe(false);
+    const read = planSourceOf(new RepoRoot(repo)).readPath(`${PLANS}/lonely.md`);
+    expect(read.kind).toBe("ready");
+    expect(read.orphan()).toBeNull();
+    expect(read.refusal(new Words())).toBeNull();
+    expect(read.warnLine(new Words())).toContain(OVERALLS);
+    // The plan path reads the PLANS root alone: that surface is clean, so the phase's
+    // plan read still answers its own absence.
+    const plan = planSourceOf(new RepoRoot(repo)).readFor(
+      index.docsOf("lonely").find((doc) => doc.docType !== "plan") ?? null,
+    );
+    expect(plan.kind).toBe("undeclared");
+    expect(plan.warnLine(new Words())).toBeNull();
   });
 });

@@ -22,7 +22,7 @@
 // carrying bare functions (the plan's zero-bare-function discipline).
 
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { DocBodyProjection } from "../contract/doc-body.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
@@ -343,19 +343,6 @@ export class RoundRecords {
 
 /** The ledger lookup key — a scalar task id or the group key string. */
 export type LedgerKey = number | string;
-
-/** One handoff file's parsed round identity — the four coordinates the naming face
- *  renders and the orphan face reads back, so the two compare identity with identity.
- *  `type` is the line the file name declares (`wave`, a document word, `plan`,
- *  `branch`, or the retired `spec` twin), so the claim's legacy tier can render the
- *  owning record's own carrier path from the same coordinates the scan read. */
-interface HandoffOwner {
-  readonly type: string;
-  readonly key: string;
-  readonly op: string;
-  readonly round: number;
-  readonly attempt: number;
-}
 
 /** The retired phase-spec row key — the spelling the round records carried before the
  *  target vocabulary unified on `phase-spec` (P22 D73). Rows already on disk keep it
@@ -1907,40 +1894,82 @@ export class Ledger {
     return `${RETIRED_SPEC_KEY}-${op}-${params.round ?? ""}.json`;
   }
 
-  /** The workspace's ORPHAN handoff files — the carrier files (draft or final) whose
-   *  (line key, op, cycle, attempt) never landed in `progress.json`. The board and the
-   *  `--dry-run` preview render them; this is a PURE READ — the engine never writes,
-   *  moves or deletes a carrier. The family names are the ledger's own single naming
-   *  truth (no second pattern), and the owning row is read through the ONE basis
-   *  `rowFor` establishes — the file's own line word IS its declaration — so a
-   *  migrated workspace's carrier resolves its live row instead of reading as an
-   *  orphan.
+  /** The workspace's ORPHAN handoff files — the TWO-TIER judgment (spec §2.5, an
+   *  explicit narrowing of the single-tier "a name `attribute` does not know is an
+   *  orphan" reading):
    *
-   *  OWNERSHIP IS THE RECORD, NEVER ITS VERDICT (spec §2.12): a round that acted and
-   *  then failed still owns the file it wrote — completion is the judgment face, and
-   *  reading it here would relabel an honest failure's carrier as an orphan and hand it
-   *  to a recovery pass that deletes child work.
+   *    (i) the name does not attribute at all — a matrix-external name, an unknown
+   *        spelling. Observation, never a refusal;
+   *    (ii) the name attributes to the ROUND domain's carrier pair (`draft` /
+   *        `final`) and no progress record claims it — a carrier already on disk that
+   *        the ledger never booked stays visible, so a recovery pass can see it.
    *
-   *  The identity is the fast tier; the LEGACY tier compares the record's own carrier
-   *  path by basename (a pre-P34 row remembers an absolute path while the scan yields a
-   *  bare name), read once through `carrierPathOf` — the only accessor of the record's
-   *  carrier identity. */
+   *  Every other attributable name is NOT an orphan: the workspace literals and the
+   *  brief are the board's own bookkeeping, the four document rows are identity
+   *  documents, and `rulings` / `report` / `log` / `crash` / `evidence` are the
+   *  board's own observations and attachments, not handoff carriers. Reading tier (ii)
+   *  literally over those kinds would flood the board with `orphan:` rows for files it
+   *  wrote or the orchestrator recorded (the 51 rulings sidecars this very workspace
+   *  holds).
+   *
+   *  The candidate set is the WHOLE directory (`Workspace#names()`, the same read the
+   *  artifact matrix's `misplaced` judgment uses), not the names a carrier pattern
+   *  recognized — tier (i) can only exist if unrecognized names are looked at.
+   *
+   *  Claiming keeps BOTH tiers P34/D89 delivered: the record's `(op, cycle, attempt)`
+   *  equals the name's identity (the row key derives from the identity's line), or the
+   *  record's own `carrierPath` basename equals the name (a pre-P34 record remembers an
+   *  absolute path while the scan yields a bare name — read once through
+   *  `carrierPathOf`, the only accessor of that fact). Completion is irrelevant:
+   *  ownership is the record (spec §2.12), so an honestly failed round's carrier is
+   *  owned. Zero writes: this is a PURE READ, the engine never moves or deletes.
+   *
+   *  A ledger constructed with NO matrix answers `[]`: attribution is the matrix's, and
+   *  "no matrix" has no second name grammar to fall back on. */
   orphanHandoffs(): readonly string[] {
+    const artifacts = this.#artifacts;
+    if (artifacts === null) return [];
     const progress = this.readProgress() ?? this.emptyProgress();
     const orphans: string[] = [];
-    for (const name of this.#workspaceFiles()) {
-      const owner = Ledger.#handoffOwner(name);
-      if (owner === null) continue;
-      const records = RoundRecords.of(Ledger.#ownerRow(progress, owner.key));
-      const identity = `${owner.op}:${owner.round}:${owner.attempt}`;
-      const claimed = records.some(
-        (record) =>
-          `${record.op}:${record.cycle}:${record.attempt}` === identity ||
-          basename(this.carrierPathOf(owner.type, owner.key, record)) === name,
-      );
-      if (!claimed) orphans.push(name);
+    for (const name of this.#workspace.names()) {
+      const attributed = artifacts.attribute(name);
+      if (attributed === null) {
+        orphans.push(name);
+        continue;
+      }
+      if (attributed.kind !== "draft" && attributed.kind !== "final") continue;
+      if (attributed.identity.domain !== "round") continue;
+      if (this.#claimed(progress, attributed.identity, name)) continue;
+      orphans.push(name);
     }
     return orphans.sort();
+  }
+
+  /** Whether a progress record claims one attributed carrier name — the identity tier
+   *  first (the record's own `(op, cycle, attempt)`), the recorded-path tier second (a
+   *  pre-P34 record's absolute `carrierPath` compared by basename). */
+  #claimed(
+    progress: ProgressData,
+    identity: Extract<Identity, { domain: "round" }>,
+    name: string,
+  ): boolean {
+    const { type, key } = Ledger.#lineOf(identity.line);
+    const records = RoundRecords.of(Ledger.#ownerRow(progress, key));
+    const expected = `${identity.op}:${identity.cycle ?? 1}:${identity.attempt ?? 1}`;
+    return records.some(
+      (record) =>
+        `${record.op}:${record.cycle}:${record.attempt}` === expected ||
+        basename(this.carrierPathOf(type, key, record)) === name,
+    );
+  }
+
+  /** The progress row one carrier identity belongs to: a wave line keys the task GROUP
+   *  (the `tasks-` spine is the name's, never the key's), every other line word keys
+   *  itself. */
+  static #lineOf(line: string): { readonly type: string; readonly key: string } {
+    return line.startsWith("tasks-")
+      ? { type: "wave", key: line.slice("tasks-".length) }
+      : { type: line, key: line };
   }
 
   /** The row one carrier file's line word resolves to. The retired `spec` twin is a FILE
@@ -1960,74 +1989,6 @@ export class Ledger {
    *  and reads literally. */
   static #lineWord(key: string): TargetType | null {
     return RETIRED_SPEC_LINE_KEYS.has(key) ? (key as TargetType) : null;
-  }
-
-  /** The workspace directory's file names (an absent/unreadable directory is an
-   *  empty fact — the orphan face degrades, never throws). */
-  #workspaceFiles(): readonly string[] {
-    try {
-      return readdirSync(this.#workspace.path, { withFileTypes: true })
-        .filter((entry) => entry.isFile())
-        .map((entry) => entry.name);
-    } catch {
-      return [];
-    }
-  }
-
-  /** Which recorded round one handoff file belongs to — the ONE renderer read
-   *  backwards: `<line>-<op>[-<cycle>][-a<attempt>][.c<cycle>].json`, the retired
-   *  document-line `spec` twin included (a still-unbooked draft can carry it). The
-   *  parse yields the same four coordinates the naming face renders, so the orphan
-   *  test compares an identity with an identity — never a spelling with a spelling.
-   *  Null for a non-carrier file. */
-  static #handoffOwner(name: string): HandoffOwner | null {
-    // A FINAL carrier (`<stem>.c{round}.json`, P31 §2.3) is the same artifact as its
-    // draft — the cycle is the name's own suffix, never a second family.
-    const draft = name.replace(/\.c\d+\.json$/, ".json");
-    const wave = Ledger.#WAVE_CARRIER.exec(draft);
-    if (wave !== null) {
-      const [, line = "", op = "", cycle, attempt] = wave;
-      // The wave row keys the task GROUP alone — the `tasks-` spine is the name's, not
-      // the key's. The legacy cycle-less implement spelling is the fixed family's round 1.
-      return {
-        type: "wave",
-        key: line.replace(/^tasks-/, ""),
-        op,
-        round: cycle === undefined ? 1 : Number(cycle),
-        attempt: Ledger.#attemptOf(attempt),
-      };
-    }
-    const line = Ledger.#LINE_CARRIER.exec(draft);
-    if (line !== null) {
-      const [, key = "", op = "", cycle = "", attempt] = line;
-      return {
-        type: key,
-        key,
-        op,
-        round: Number(cycle),
-        attempt: Ledger.#attemptOf(attempt),
-      };
-    }
-    return null;
-  }
-
-  /** The wave line's carrier spelling, read backwards — the task key is a lazy span,
-   *  the op one of the three words, the cycle and the attempt optional (the legacy
-   *  cycle-less implement name harvests no cycle). */
-  static readonly #WAVE_CARRIER =
-    /^(tasks-.+?)-(implement|review|fix)(?:-(\d+))?(?:-a(\d+))?\.json$/;
-
-  /** The single-target lines' carrier spelling — `branch` and the doc words (the
-   *  words of the ONE target-face table, the retired `spec` twin included), every one
-   *  of which carries its cycle. */
-  static readonly #LINE_CARRIER = new RegExp(
-    `^(${[...Object.keys(targetFaces).filter((word) => word !== "wave"), RETIRED_SPEC_KEY].join("|")})-(review|fix)-(\\d+)(?:-a(\\d+))?\\.json$`,
-  );
-
-  /** An absent attempt segment is the first attempt — the naming face never renders
-   *  `-a1`, so the parse and the render agree on the identity of attempt 1. */
-  static #attemptOf(captured: string | undefined): number {
-    return captured === undefined ? 1 : Number(captured);
   }
 
   // -------------------------------------------------------------------------

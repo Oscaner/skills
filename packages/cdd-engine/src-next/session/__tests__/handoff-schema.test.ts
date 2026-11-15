@@ -15,8 +15,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { PlanSource } from "../../infra/plan-source.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { HandoffSchema } from "../handoff-schema.ts";
 import { Ledger } from "../ledger.ts";
@@ -32,7 +32,7 @@ const ledgerFixture = (): { ledger: Ledger; cleanup: () => void } => {
     "test-slug",
   );
   return {
-    ledger: new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)),
+    ledger: new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis)),
     cleanup: () => rmSync(repo, { recursive: true, force: true }),
   };
 };

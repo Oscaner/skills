@@ -60,6 +60,32 @@ export interface DocEntry {
   readonly title: string | null;
 }
 
+/** One doc root's DISCARDED candidates — the scan's dirty surface (spec §2.7). The
+ *  scan silently drops a candidate whose bytes do not read ("an unreadable candidate
+ *  is not a document") and indexes a candidate that reads but declares no registered
+ *  `doc-type:`. Both facts are counted per ROOT, because "the index holds nothing"
+ *  and "the disk held nothing" are different facts: a non-zero count means the root
+ *  cannot answer an absence. */
+export interface RootDiscard {
+  /** Candidates whose content did not read (permissions, a directory named `*.md`, a
+   *  broken symlink). */
+  readonly unreadable: number;
+  /** Candidates that read but declared no `doc-type:` in the registry's set — they are
+   *  indexed (a slug still answers) but they are no identity document. */
+  readonly unregistered: number;
+}
+
+/** The three doc roots' discarded counts, one pair each — the six values the plan
+ *  read's tri-state and the cross-doc chain read (spec §2.7). */
+export interface DiscardedCandidates {
+  readonly overalls: RootDiscard;
+  readonly specs: RootDiscard;
+  readonly plans: RootDiscard;
+}
+
+/** The doc roots in scan order — the ONE order `build` scans and `discarded` reports. */
+const DOC_ROOT_KEYS = ["overalls", "specs", "plans"] as const;
+
 /** The five identity violation kinds (spec §2.1/§2.2) — the closed judgment set. */
 export type SlugViolationKind =
   | "duplicate-identity"
@@ -137,9 +163,12 @@ export class SlugIndex {
   readonly #bySlug: ReadonlyMap<string, readonly DocEntry[]>;
   /** The materialized judgment over this scan. */
   readonly #violations: readonly SlugViolation[];
+  /** The per-root discarded candidates, produced by the SAME scan as `entries`. */
+  readonly #discarded: DiscardedCandidates;
 
-  private constructor(entries: readonly DocEntry[]) {
+  private constructor(entries: readonly DocEntry[], discarded: DiscardedCandidates) {
     this.entries = entries;
+    this.#discarded = discarded;
     const byRel = new Map<string, DocEntry>();
     const bySlug = new Map<string, DocEntry[]>();
     for (const entry of entries) {
@@ -158,12 +187,34 @@ export class SlugIndex {
    *  optional `fs` is the caller's scan seam (the judgment plane's in-memory
    *  `DocFs`); absent, the node:fs scan is the production default. */
   static build(repoRoot: string, fs?: SlugScanFs): SlugIndex {
-    const entries = [
-      ...SlugIndex.#scanRoot(repoRoot, ENGINE_RUNTIME.docRoots.overalls, fs),
-      ...SlugIndex.#scanRoot(repoRoot, ENGINE_RUNTIME.docRoots.specs, fs),
-      ...SlugIndex.#scanRoot(repoRoot, ENGINE_RUNTIME.docRoots.plans, fs),
-    ].sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
-    return new SlugIndex(entries);
+    const scanned = DOC_ROOT_KEYS.map((key) =>
+      SlugIndex.#scanRoot(repoRoot, ENGINE_RUNTIME.docRoots[key], fs),
+    );
+    const entries = scanned
+      .flatMap((root) => root.entries)
+      .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+    return new SlugIndex(entries, {
+      overalls: scanned[0]!.discard,
+      specs: scanned[1]!.discard,
+      plans: scanned[2]!.discard,
+    });
+  }
+
+  /** The candidates each doc root dropped or indexed without a registered doc type —
+   *  the fact "this root cannot answer an absence" (spec §2.7). Produced by the same
+   *  scan as `entries`, so a read that asks both never sees two snapshots. */
+  discarded(): DiscardedCandidates {
+    return this.#discarded;
+  }
+
+  /** Whether every doc root's scan surface is clean — the whole-doc-roots absence
+   *  question the identity reverse lookup asks (a clean miss is `spec-absent`; a
+   *  dirty surface is an UNDECIDED read, never an absence). */
+  docRootsClean(): boolean {
+    return DOC_ROOT_KEYS.every((key) => {
+      const discard = this.#discarded[key];
+      return discard.unreadable === 0 && discard.unregistered === 0;
+    });
   }
 
   /** The entry at one repo-root-relative path, or null when the path is not indexed. */
@@ -272,20 +323,33 @@ export class SlugIndex {
 
   /** Scan one doc root — the names come from `#entryNames`, the document judgment
    *  from the shared `#readDoc` predicate (a `*.md` name whose content reads). An
-   *  unreadable candidate is not a document. */
-  static #scanRoot(repoRoot: string, root: string, fs?: SlugScanFs): DocEntry[] {
+   *  unreadable candidate is not a document, and a candidate that reads without a
+   *  registered `doc-type:` is no identity document — BOTH are counted here, per root,
+   *  so the absence question of §2.7 can be told apart from an undecided surface. */
+  static #scanRoot(
+    repoRoot: string,
+    root: string,
+    fs?: SlugScanFs,
+  ): { readonly entries: DocEntry[]; readonly discard: RootDiscard } {
     const entries: DocEntry[] = [];
+    let unreadable = 0;
+    let unregistered = 0;
     for (const name of SlugIndex.#entryNames(path.join(repoRoot, root), fs)) {
       if (!name.endsWith(".md")) continue;
       const rel = path.join(root, name);
       const abs = path.join(repoRoot, rel);
       const content = SlugIndex.#readDoc(abs, fs);
-      if (content === null) continue;
+      if (content === null) {
+        unreadable++;
+        continue;
+      }
       const { head } = FrontMatterExtractor.split(content);
+      const docType = SlugIndex.#docTypeOf(head.docType);
+      if (docType === null) unregistered++;
       entries.push({
         path: abs,
         rel,
-        docType: SlugIndex.#docTypeOf(head.docType),
+        docType,
         slug: head.slug,
         program: head.program,
         version: head.version,
@@ -293,7 +357,7 @@ export class SlugIndex {
         title: head.title,
       });
     }
-    return entries;
+    return { entries, discard: { unreadable, unregistered } };
   }
 
   /** The entry names of one doc root — the ONE `readdirSync` call site (the

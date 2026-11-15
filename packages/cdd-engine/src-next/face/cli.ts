@@ -364,6 +364,12 @@ export class Cli {
   async runArgv(raw: readonly string[]): Promise<number> {
     try {
       this.#exitCode = 0;
+      // One COMMAND, one index: the memo below serves a single invocation (its two
+      // call points — the command preamble and the scene — must read one snapshot),
+      // and the next invocation re-scans. A memo carried across commands would answer
+      // from a snapshot taken before the documents this command writes or observes.
+      this.#index = null;
+      this.#indexRoot = null;
       await this.#program.parseAsync([...raw], { from: "user" });
       return this.#exitCode;
     } catch (err) {
@@ -517,10 +523,6 @@ export class Cli {
     const repoRoot = await this.#rootOf();
     if (repoRoot === null) return 1;
     const root = new RepoRoot(repoRoot);
-    // The board's plan read seam — ONE instance per command, threaded down the
-    // static render chain (the board's ledgers read their brief revisions through
-    // it; a node workspace never mints its own).
-    const planSource = new PlanSource(root);
     const planRel = planArg === undefined ? null : this.#relativizePath(root, planArg);
     const specRel = specArg === undefined ? null : this.#relativizePath(root, specArg);
     // The not-found face reads ZERO documents (spec §3.1): a path outside the two
@@ -537,6 +539,15 @@ export class Cli {
         planMissing ? `--plan ${planArg}` : null,
         specMissing ? `--spec ${specArg}` : null,
       ]);
+    // The command's ONE identity index — built BEFORE the read seam, which is handed
+    // it: the plan read asks the same scan the board renders from (a second index
+    // would be a second snapshot of the disk, and §2.7's "clean surface" answer must
+    // describe the one the board names).
+    const index = this.#indexOf(repoRoot);
+    // The board's plan read seam — ONE instance per command, threaded down the
+    // static render chain (the board's ledgers read their brief revisions through
+    // it; a node workspace never mints its own).
+    const planSource = new PlanSource(root, index);
     // ② the read (spec §2.4): ONLY a solo `--plan` reads X's bytes. When `--spec` is
     // present the board's value comes from `readFor(specEntry)` (§2.1: `--spec` wins),
     // so X's bytes are never opened — its `--plan` duties stay the ① existence probe
@@ -546,7 +557,6 @@ export class Cli {
     const soloPlanRead = specRel === null && planRel !== null ? planSource.readPath(planRel) : null;
     if (soloPlanRead !== null && soloPlanRead.failure()?.cause === "io")
       return this.#boardCannotRead(`--plan ${planArg}`);
-    const index = this.#indexOf(repoRoot);
     const planEntry = planRel === null ? null : index.entryAt(planRel);
     const specEntry = specRel === null ? null : index.entryAt(specRel);
     const unmatched = [
@@ -741,11 +751,15 @@ export class Cli {
     const repoRoot = await this.#rootOf();
     if (repoRoot === null) return 1;
     const root = new RepoRoot(repoRoot);
+    // The identity index FIRST: the plan read seam below is handed THIS scan, so the
+    // phase's plan row, the same-slug spec link and the phase list all speak one
+    // snapshot of the doc roots.
+    const index = this.#indexOf(repoRoot);
     // The plan read seam — ONE instance per command, built here in the command
-    // preamble (the repo root exists now; `Cli.create` runs before it does) and
-    // passed down as a parameter: the scene, the pre-flight context and the ledger
-    // all read their plan through this ONE seam.
-    const planSource = new PlanSource(root);
+    // preamble (the repo root and the index exist now; `Cli.create` runs before they
+    // do) and passed down as a parameter: the scene, the pre-flight context and the
+    // ledger all read their plan through this ONE seam.
+    const planSource = new PlanSource(root, index);
     const parsed = this.#funnel(root, raw);
     const assembled = await this.#sceneOf(verb, type, node, root, planSource, parsed);
     if (assembled === null) return 1;

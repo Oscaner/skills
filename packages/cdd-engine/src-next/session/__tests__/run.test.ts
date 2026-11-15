@@ -18,6 +18,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { PlanDocType } from "../../contract/doc.ts";
 import { DocBodyProjection } from "../../contract/doc-body.ts";
 import { BoardNext, BoardView } from "../../face/board-view.ts";
@@ -26,7 +27,7 @@ import { ARGV_CHANNEL } from "../../face/declare.ts";
 import { RouteRenderer } from "../../face/route-render.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { type PlanRead, PlanSource } from "../../infra/plan-source.ts";
+import type { PlanRead } from "../../infra/plan-source.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
@@ -52,7 +53,7 @@ const fixture = (): {
 } => {
   const repo = mkdtempSync(path.join(tmpdir(), "run-"));
   const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "test-slug");
-  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
   return { ledger, workspace, repo, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
 };
 
@@ -130,15 +131,15 @@ const briefHash = (planPath: string, tasks: string): string => {
  *  never hand-minted: `PlanRead` has no factory). */
 const planReadOf = (repo: string, planPath: string | null): PlanRead =>
   planPath === null
-    ? new PlanSource(new RepoRoot(repo)).readFor(null)
-    : new PlanSource(new RepoRoot(repo)).readPath(planPath);
+    ? planSourceOf(new RepoRoot(repo)).readFor(null)
+    : planSourceOf(new RepoRoot(repo)).readPath(planPath);
 
 /** The plan value of a harness that dispatches no plan-bearing face — the
  *  `undeclared` read a `PlanSource` derives for a null identity (never a minted
  *  value: `PlanRead` has no factory). The constructor item is REQUIRED, so every
  *  harness states which plan it holds instead of silently dropping the brief hash
  *  and the plan snapshot. */
-const NO_PLAN: PlanRead = new PlanSource(new RepoRoot("/")).readFor(null);
+const NO_PLAN: PlanRead = planSourceOf(new RepoRoot("/")).readFor(null);
 const phasesOf = (steps: readonly StepResult[]): readonly (string | null)[] =>
   steps.map((step) => step.frame.phase);
 
@@ -823,11 +824,7 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
       expect(fix!.frame.round).toBe(2);
       // ONE row: the round booked where the line has always been.
       expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec"]);
-      const reload = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const reload = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       expect(reload.completedCycles("overall", "fix", "overall")).toEqual([1, 2]);
       expect(fix!.route?.kind).toBe("review");
     } finally {
@@ -1917,7 +1914,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
   } => {
     const repo = mkdtempSync(path.join(tmpdir(), "hop-parity-"));
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "x-p3").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+    const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
     const specPath = path.join(repo, DOC);
     mkdirSync(path.dirname(specPath), { recursive: true });
     writeFileSync(
@@ -1960,7 +1957,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
       index.docsOf(slug).find((doc) => doc.docType !== null && doc.docType !== "plan") ?? null;
     if (entry === null) throw new Error(`no identity doc for ${slug}`);
     const root = new RepoRoot(repo);
-    const planSource = new PlanSource(root);
+    const planSource = planSourceOf(root);
     // The board's ONE plan read, in the ordered table shape `Cli#runBoard` builds
     // (a single-document board is a table of length 1).
     const read = planSource.readFor(entry);

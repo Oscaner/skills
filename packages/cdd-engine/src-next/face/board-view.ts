@@ -1210,12 +1210,14 @@ export class BoardNext {
   /** The board's ONE `NextHop` — null when the entry holds no legal slug (no
    *  workspace to observe), when the board is the program board (cross-phase never
    *  participates in next, spec §6.5), or when the plan read carries no evidence to
-   *  route on (spec §2.3): an `unreadable` plan and a `spec-absent` orphan
-   *  short-circuit to the existing hop-less shape (`  next:    (none)`, no `reason:`
-   *  row). The predicate is the SAME pair §2.3 uses, never a third condition;
-   *  `undeclared` is NOT in it ("spec written, no plan yet" is the standing
-   *  `kairos:cdd-plan` route) and `slug-absent` is not either (the identity channel
-   *  owns its exit code). */
+   *  route on (spec §2.3): an `unreadable` plan, a `spec-absent` orphan and the
+   *  `duplicated` set short-circuit to the existing hop-less shape (`  next:
+   *  (none)`, no `reason:` row). The predicate is the SAME pair §2.3 uses, never a
+   *  third condition; `undeclared` is NOT in it ("spec written, no plan yet" is the
+   *  standing `kairos:cdd-plan` route — and so is the undecided read, whose board
+   *  bytes are today's) and `slug-absent` is not either (the identity channel owns
+   *  its exit code). The duplicated set is not: two plans answer no single
+   *  document, so the plan route may not be printed (§2.7 (d)). */
   static of(
     read: PlanRead,
     plan: PlanSource,
@@ -1224,6 +1226,7 @@ export class BoardNext {
     root: RepoRoot,
     artifacts: ArtifactRegistry | null = null,
   ): NextHop | null {
+    if (read.kind === "duplicated") return null;
     if (read.kind === "unreadable" || read.orphan()?.cause === "spec-absent") return null;
     const facts =
       entry.docType === "overall"

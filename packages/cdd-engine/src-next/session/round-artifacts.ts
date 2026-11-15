@@ -196,6 +196,53 @@ const readArtifactAt = (path: string): ArtifactRead => {
   }
 };
 
+/** The identity key of one round identity — the coordinate with the renderer's two
+ *  defaults applied (a missing cycle renders as no segment; a missing attempt renders
+ *  as attempt 1). Two identities with the same key render the same names, so the
+ *  attribution set of one (identity, kind) is well defined. */
+const roundIdentityKey = (identity: Extract<Identity, { domain: "round" }>): string =>
+  `${identity.line}\u0000${identity.op}\u0000${identity.cycle ?? ""}\u0000${identity.attempt ?? 1}`;
+
+/** The workspace identity key — `tasks` is the whole coordinate. */
+const workspaceIdentityKey = (identity: { readonly tasks: string | null }): string =>
+  identity.tasks ?? "";
+
+/**
+ * The ONE read of a rendered row (spec §2.3 · §2.5) — the SET-based judgment, not a
+ * count:
+ *
+ *   · `found` = every name in `base` that attributes to this (identity, kind);
+ *   · `found` with any name other than the rendered one ⇒ `misplaced(derived, found)`
+ *     — the rendered name is the only legal spelling, and a same-identity variant
+ *     beside it is a name the engine did not mint (never a first pick between them);
+ *   · `found` exactly the rendered name ⇒ the presence read (`ok` / `invalid`);
+ *   · `found` empty ⇒ the presence read at the rendered path, whose answer is the
+ *     honest one: `absent` when nothing is there, `invalid` when something is (a
+ *     directory named like the artifact is not "missing").
+ *
+ * The two-name case is the largest instance of the rule, never its definition: a stem
+ * variant alone (the derived name never landed) is the same `misplaced` answer, which
+ * is why a count-based predicate could not answer it.
+ */
+const readRendered = (
+  identity: Identity,
+  kind: Kind,
+  base: Workspace,
+  derived: string,
+  attribute: (name: string) => Attributed | null,
+  keyOf: (candidate: Attributed) => string,
+  key: string,
+): ArtifactRead => {
+  const found = base.names().filter((name) => {
+    const attributed = attribute(name);
+    return attributed !== null && attributed.kind === kind && keyOf(attributed) === key;
+  });
+  if (found.length === 0) return readArtifactAt(base.resolve(derived));
+  if (found.some((name) => name !== derived))
+    return { kind: "misplaced", derived, found, identity };
+  return readArtifactAt(base.resolve(derived));
+};
+
 // ---------------------------------------------------------------------------
 // the round domain — the seven rows a round identity renders
 // ---------------------------------------------------------------------------
@@ -411,7 +458,19 @@ export class RoundDomain implements IdentityDomain {
   }
 
   read(identity: Identity, kind: Kind, base: Workspace): ArtifactRead {
-    return readArtifactAt(this.locate(identity, kind, base));
+    const derived = renderRound(identity, kind);
+    return readRendered(
+      identity,
+      kind,
+      base,
+      derived,
+      attributeRound,
+      (attributed) =>
+        attributed.identity.domain === "round"
+          ? roundIdentityKey(attributed.identity)
+          : "\u0000foreign",
+      identity.domain === "round" ? roundIdentityKey(identity) : "\u0000foreign",
+    );
   }
 }
 
@@ -622,7 +681,19 @@ export class WorkspaceDomain implements IdentityDomain {
   }
 
   read(identity: Identity, kind: Kind, base: Workspace): ArtifactRead {
-    return readArtifactAt(this.locate(identity, kind, base));
+    const derived = renderWorkspace(identity, kind);
+    return readRendered(
+      identity,
+      kind,
+      base,
+      derived,
+      (name) => this.attribute(name),
+      (attributed) =>
+        attributed.identity.domain === "workspace"
+          ? workspaceIdentityKey(attributed.identity)
+          : "\u0000foreign",
+      identity.domain === "workspace" ? workspaceIdentityKey(identity) : "\u0000foreign",
+    );
   }
 }
 

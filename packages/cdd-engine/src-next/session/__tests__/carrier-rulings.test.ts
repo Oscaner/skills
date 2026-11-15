@@ -18,7 +18,9 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { stripComments } from "../../__tests__/support/strip-comments.ts";
+import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierRulings } from "../carrier-rulings.ts";
+import { ArtifactRegistry, type Identity } from "../round-artifacts.ts";
 
 /** The carrier the sidecar sits beside — its basename is the `carrier` key's value. */
 const CARRIER = "phase-spec-review-1.c2.json";
@@ -203,5 +205,60 @@ describe("CarrierRulings — the nine refused shapes", () => {
     writeFileSync(sidecar, "{", "utf8");
     const verdict = CarrierRulings.verdict(sidecar, carrier, FINDING_IDS);
     expect(verdict.kind === "invalid" ? verdict.reason : "").toContain(sidecar);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P36 T5 — the `misplaced` side of the attribution grammar (spec §2.5): the
+// `rulings` row's two tolerated spellings answer `misplaced`, never `ok` and never
+// an orphan
+// ---------------------------------------------------------------------------
+
+describe("the `rulings` row's misplaced spellings (P36 T5 · §2.5)", () => {
+  /** The reviewed round's identity — the `--reviews` carrier's own coordinates. */
+  const IDENTITY: Identity = { domain: "round", line: "phase-spec", op: "review", cycle: 1 };
+
+  /** A real workspace holding the given names (the read needs the directory). */
+  const workspaceWith = (
+    names: readonly string[],
+  ): { workspace: Workspace; cleanup: () => void } => {
+    const repo = mkdtempSync(path.join(tmpdir(), "carrier-rulings-grammar-"));
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "phase-spec").ensure();
+    for (const name of names) writeFileSync(workspace.resolve(name), "{}\n", "utf8");
+    return { workspace, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
+  };
+
+  it("answers `misplaced` for the `.c<cycle>`-less spelling the 89 shipped sidecars use", () => {
+    const { workspace, cleanup } = workspaceWith(["phase-spec-review-1.rulings.json"]);
+    try {
+      const read = new ArtifactRegistry().read(IDENTITY, "rulings", workspace);
+      expect(read.kind).toBe("misplaced");
+      if (read.kind !== "misplaced") return;
+      expect(read.derived).toBe("phase-spec-review-1.c1.rulings.json");
+      expect(read.found).toEqual(["phase-spec-review-1.rulings.json"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("answers `misplaced` for an explicit `-a1` — a spelling the renderer never mints", () => {
+    const { workspace, cleanup } = workspaceWith(["phase-spec-review-1-a1.c1.rulings.json"]);
+    try {
+      const read = new ArtifactRegistry().read(IDENTITY, "rulings", workspace);
+      expect(read.kind).toBe("misplaced");
+      if (read.kind !== "misplaced") return;
+      expect(read.found).toEqual(["phase-spec-review-1-a1.c1.rulings.json"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("answers `absent` with no name on disk — absence is legal for this row", () => {
+    const { workspace, cleanup } = workspaceWith([]);
+    try {
+      expect(new ArtifactRegistry().read(IDENTITY, "rulings", workspace).kind).toBe("absent");
+    } finally {
+      cleanup();
+    }
   });
 });

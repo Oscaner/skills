@@ -32,6 +32,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import {
   type CompletionContext,
@@ -41,7 +42,6 @@ import {
 } from "../../contract/completion-criterion.ts";
 import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { PlanSource } from "../../infra/plan-source.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { targetFaces } from "../../session/faces.ts";
@@ -143,13 +143,13 @@ const fixture = (plan: string): Fixture => {
   spawnSync("git", ["add", "-A"], { cwd: repoRoot });
   spawnSync("git", ["commit", "-q", "-m", "seed"], { cwd: repoRoot });
   const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p30").ensure();
-  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
   return {
     scene: {
       workspace,
       ledger,
       planPath,
-      plan: new PlanSource(workspace.root.basis).readFor(null),
+      plan: planSourceOf(workspace.root.basis).readFor(null),
       briefPath: null,
     },
     io: new CaptureIo(),
@@ -1569,7 +1569,7 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
         }).step(),
         target: { kind: "spec", doc: specPath },
         // The scene's own plan read — the same value the CLI lifecycle hashes.
-        plan: f.scene.plan ?? new PlanSource(f.scene.workspace.root.basis).readFor(null),
+        plan: f.scene.plan ?? planSourceOf(f.scene.workspace.root.basis).readFor(null),
         capsule: new Capsule(new Words()),
       });
       const step = await lifecycle.advance();
@@ -1731,7 +1731,7 @@ describe("P35 T3 — an unparseable plan read records no brief hash", () => {
     try {
       const planPath = f.scene.planPath;
       // The scene's plan read is a REAL `PlanSource` read of the document on disk.
-      f.scene.plan = new PlanSource(f.scene.workspace.root.basis).readPath(planPath!);
+      f.scene.plan = planSourceOf(f.scene.workspace.root.basis).readPath(planPath!);
       expect(f.scene.plan.kind).toBe("unreadable");
       const seen: (string | null)[] = [];
       const probe: ChildRunner = {

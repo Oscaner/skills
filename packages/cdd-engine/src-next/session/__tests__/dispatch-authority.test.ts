@@ -21,12 +21,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { PlanDocType } from "../../contract/doc.ts";
 import { ARGV_CHANNEL } from "../../face/declare.ts";
 import { RouteRenderer } from "../../face/route-render.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { type PlanRead, PlanSource } from "../../infra/plan-source.ts";
+import type { PlanRead } from "../../infra/plan-source.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import {
@@ -64,7 +65,7 @@ const fixture = (): Fixture => {
   return {
     repo,
     basis: workspace.root.basis,
-    ledger: new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)),
+    ledger: new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis)),
     cleanup: () => rmSync(repo, { recursive: true, force: true }),
   };
 };
@@ -102,15 +103,15 @@ const graphOf = (blocks: readonly (readonly string[])[]): TaskGraph => {
 const readOf = (blocks: readonly (readonly string[])[]): PlanRead => {
   const text = planDoc(blocks);
   const fs = { exists: () => true, read: () => text, list: () => [] };
-  return new PlanSource(new RepoRoot("/fixture"), fs).readPath("docs/kairos/plans/p3.md");
+  return planSourceOf(new RepoRoot("/fixture"), fs).readPath("docs/kairos/plans/p3.md");
 };
 
 /** The plan READ of a document on the fixture disk — the same seam, the argv face. */
 const readAt = (basis: RepoRoot, planAbs: string): PlanRead =>
-  new PlanSource(basis).readPath(planAbs);
+  planSourceOf(basis).readPath(planAbs);
 
 /** The phase with no plan — the derived face's `undeclared` value (no read at all). */
-const NO_PLAN = new PlanSource(new RepoRoot("/fixture")).readFor(null);
+const NO_PLAN = planSourceOf(new RepoRoot("/fixture")).readFor(null);
 
 /** The structure leg's approved verdict — the case table judges the line leg, so the
  *  pre-flight face is handed in already passed. */

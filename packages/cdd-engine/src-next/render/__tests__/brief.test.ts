@@ -14,9 +14,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { PlanDocType } from "../../contract/doc.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { PlanSource } from "../../infra/plan-source.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
@@ -60,7 +60,7 @@ describe("BriefRenderer — the reviewed-fingerprint stability (D30)", () => {
     const refs = new Ledger(
       new Workspace(new WorkspaceRoot("/repo", ".kairos/cdd"), "p3"),
       new ConfigLoader(),
-      new PlanSource(new RepoRoot("/repo")),
+      planSourceOf(new RepoRoot("/repo")),
     ).refs();
     expect(refs.briefRevision("p.md", second).brief_hash).toBe(
       refs.briefRevision("p.md", first).brief_hash,
@@ -85,17 +85,13 @@ describe("BriefRenderer — the reviewed-fingerprint stability (D30)", () => {
       ).ensure();
       const planPath = path.join(repo, "p3.md");
       writeFileSync(planPath, PLAN, "utf8");
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.recordReviewedBrief("1", planPath);
       const recorded = ledger.reviewedRevisionOf("1");
       expect(recorded?.kind).toBe("brief-revision");
       if (recorded?.kind !== "brief-revision") return;
       const projection = new BriefRenderer().taskBody(PLAN, PLAN_DOC, [1]);
-      const direct = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis))
+      const direct = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis))
         .refs()
         .briefRevision("x", projection);
       expect(recorded.brief_hash).toBe(direct.brief_hash);
@@ -104,7 +100,7 @@ describe("BriefRenderer — the reviewed-fingerprint stability (D30)", () => {
       // reviewed hash covers the task projection alone (P29 §2.2)
       expect(new BriefRenderer().render(PLAN, PLAN_DOC, [1])).toContain("## Constraints");
       expect(recorded.brief_hash).not.toBe(
-        new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis))
+        new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis))
           .refs()
           .briefRevision("x", new BriefRenderer().render(PLAN, PLAN_DOC, [1])).brief_hash,
       );

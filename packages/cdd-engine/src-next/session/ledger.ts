@@ -1113,8 +1113,11 @@ export class Ledger {
       // The `--reviews` identity is the ROUTE's own (P31 §2.3): the round read resolves
       // the FINAL carrier the record names, so a draft beside it never becomes the input
       // — the board's `next:` and the dispatch's read the same file by construction.
+      // The router's own fix payload rides through: its `rulings` value (the rendered
+      // sidecar path) is part of the ONE fix hop, so this fallback-only repair must not
+      // rebuild the route from scratch and silently drop it.
       return {
-        kind: "fix",
+        ...route,
         reviews:
           route.reviews ??
           this.resolveHandoffPath("review", "wave", { tasks: waveKey, round: latestReview }),

@@ -24,6 +24,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { ArtifactRegistry, type IdentifierVocabulary } from "./round-artifacts.ts";
 
 /** One recorded ruling — the finding it answers and the ruling's own text. */
 export interface Ruling {
@@ -46,8 +47,11 @@ export type RulingVerdict =
 /** The top-level keys the schema declares — anything else is refused. */
 const TOP_KEYS: ReadonlySet<string> = new Set(["carrier", "rulings"]);
 
-/** The keys one ruling declares — anything else is refused. */
-const RULING_KEYS: ReadonlySet<string> = new Set(["finding", "ruling", "at", "by"]);
+/** The ruling schema's NON-identifier fields — the verdict text and the orchestrator's
+ *  optional stamp. The identifier field is deliberately absent from this list: its
+ *  acceptance set is the artifact matrix's `rulings` row declaration alone (§2.8), so
+ *  `finding` / `id` are never enumerated a second time here. */
+const RULING_FIELDS: readonly string[] = ["ruling", "at", "by"];
 
 /** A parsed-but-not-yet-judged file: present facts only. */
 type ParsedSidecar =
@@ -108,8 +112,9 @@ export class CarrierRulings {
       return CarrierRulings.#invalid(sidecarPath, "`rulings` is not an array");
     }
     const rulings: Ruling[] = [];
+    const vocabulary = CarrierRulings.#identifier();
     for (const [index, entry] of record.rulings.entries()) {
-      const ruling = CarrierRulings.#rulingOf(entry, index, findingIds);
+      const ruling = CarrierRulings.#rulingOf(entry, index, findingIds, vocabulary);
       if (typeof ruling === "string") return CarrierRulings.#invalid(sidecarPath, ruling);
       rulings.push(ruling);
     }
@@ -153,20 +158,30 @@ export class CarrierRulings {
     return null;
   }
 
-  /** One ruling entry — the narrowed record, or the refusal's reason string. */
+  /** One ruling entry — the narrowed record with its identifier NORMALIZED to the
+   *  canonical spelling, or the refusal's reason string. The accepted spellings are the
+   *  matrix row's declaration (`finding` · `id`), so a sidecar written either way is one
+   *  ruling, and an unknown key is still a whole-file refusal. */
   static #rulingOf(
     entry: unknown,
     index: number,
     findingIds: ReadonlySet<string>,
+    vocabulary: IdentifierVocabulary,
   ): Ruling | string {
     const record = CarrierRulings.#recordOf(entry);
     if (record === null) return `ruling #${index + 1} is not a JSON object`;
-    const unknown = Object.keys(record).filter((key) => !RULING_KEYS.has(key));
+    const declared = new Set([...vocabulary.accepts, ...RULING_FIELDS]);
+    const unknown = Object.keys(record).filter((key) => !declared.has(key));
     if (unknown.length > 0) {
       return `ruling #${index + 1} carries unknown key(s) — ${unknown.join(", ")}`;
     }
-    const { finding, ruling, at, by } = record;
-    if (typeof finding !== "string") return `ruling #${index + 1} carries no string \`finding\``;
+    const spelling = CarrierRulings.#identifierKeyOf(record, index, vocabulary);
+    if (typeof spelling !== "string") return spelling.reason;
+    const finding = record[spelling];
+    const { ruling, at, by } = record;
+    if (typeof finding !== "string") {
+      return `ruling #${index + 1} carries no string \`${vocabulary.canonical}\``;
+    }
     if (typeof ruling !== "string") return `ruling #${index + 1} carries no string \`ruling\``;
     if (at !== undefined && typeof at !== "string") {
       return `ruling #${index + 1} carries a non-string \`at\``;
@@ -185,16 +200,51 @@ export class CarrierRulings {
     };
   }
 
+  /** The identifier key ONE ruling carries — exactly one of the accepted spellings
+   *  (`finding` · `id`). None is a refusal naming the canonical spelling; two is an
+   *  ambiguity the schema settles by refusing the file, never by picking a winner. */
+  static #identifierKeyOf(
+    record: Record<string, unknown>,
+    index: number,
+    vocabulary: IdentifierVocabulary,
+  ): string | { readonly reason: string } {
+    const present = vocabulary.accepts.filter((key) => key in record);
+    if (present.length === 1) return present[0]!;
+    if (present.length === 0) {
+      return { reason: `ruling #${index + 1} carries no string \`${vocabulary.canonical}\`` };
+    }
+    return {
+      reason: `ruling #${index + 1} carries both ${present.map((key) => `\`${key}\``).join(" and ")} — one identifier per ruling`,
+    };
+  }
+
+  /** The `rulings` row's identifier vocabulary — the matrix's OWN declaration (§2.8).
+   *  A matrix that lost the row refuses loudly here: a second hand-written acceptance
+   *  set is exactly the double expression this consumes away. */
+  static #identifier(): IdentifierVocabulary {
+    const declared = ArtifactRegistry.identifierOf("rulings");
+    if (declared === null) {
+      throw new Error("the artifact matrix's `rulings` row declares no identifier vocabulary");
+    }
+    return declared;
+  }
+
   /** The lenient rulings read — null unless every entry carries the two required
-   *  strings (an unknown key is tolerated here; the strict gate owns that refusal). */
+   *  strings (an unknown key is tolerated here; the strict gate owns that refusal). The
+   *  identifier is read through the SAME acceptance set, so both faces accept `id` and
+   *  both hand back the canonical `finding`. */
   static #lenientRulings(value: unknown): { readonly rulings: readonly Ruling[] } | null {
     const record = CarrierRulings.#recordOf(value);
     if (record === null || !Array.isArray(record.rulings)) return null;
+    const vocabulary = CarrierRulings.#identifier();
     const rulings: Ruling[] = [];
     for (const entry of record.rulings) {
       const row = CarrierRulings.#recordOf(entry);
       if (row === null) return null;
-      const { finding, ruling, at, by } = row;
+      const spelling = CarrierRulings.#identifierKeyOf(row, rulings.length, vocabulary);
+      if (typeof spelling !== "string") return null;
+      const finding = row[spelling];
+      const { ruling, at, by } = row;
       if (typeof finding !== "string" || typeof ruling !== "string") return null;
       rulings.push({
         finding,

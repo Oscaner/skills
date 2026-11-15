@@ -626,6 +626,7 @@ export class Cli {
       await inflight.inspect(),
       next,
       artifacts,
+      parsed.args.artifacts === "true",
     );
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;

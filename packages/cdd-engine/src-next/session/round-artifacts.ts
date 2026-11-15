@@ -708,6 +708,10 @@ export class WorkspaceDomain implements IdentityDomain {
 // the registry — the matrix's public port
 // ---------------------------------------------------------------------------
 
+/** The default domain set — the registry's construction input and the module-level
+ *  vocabulary read's scan surface, so the two entry forms answer over ONE table. */
+const DEFAULT_DOMAINS: readonly IdentityDomain[] = [new RoundDomain(), new WorkspaceDomain()];
+
 /**
  * ArtifactRegistry — the matrix as one object: the closed row table plus the two
  * ports over it (`render` · `attribute`) and the read face. The instance is built ONCE
@@ -723,8 +727,21 @@ export class ArtifactRegistry {
    *  (the base face, the ledgers, the lifecycle, the board) keeps asking ONE table. */
   #domains: readonly IdentityDomain[];
 
-  constructor(domains: readonly IdentityDomain[] = [new RoundDomain(), new WorkspaceDomain()]) {
+  constructor(domains: readonly IdentityDomain[] = DEFAULT_DOMAINS) {
     this.#domains = domains;
+  }
+
+  /** One row's declared identifier vocabulary, WITHOUT an instance — the module-level
+   *  entry for the read faces that hold no registry (a sidecar schema's acceptance set
+   *  is a naming fact, not a directory fact). It reads the SAME domain instances the
+   *  constructor's default does, so the declaration has one home and no caller can grow
+   *  a second acceptance set. */
+  static identifierOf(kind: Kind): IdentifierVocabulary | null {
+    for (const domain of DEFAULT_DOMAINS) {
+      const entry = domain.entries().find((candidate) => candidate.kind === kind);
+      if (entry !== undefined) return entry.row.identifier ?? null;
+    }
+    return null;
   }
 
   /** The workspace name rule WITHOUT an instance — the module-level entry to the SAME

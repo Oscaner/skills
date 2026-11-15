@@ -217,6 +217,63 @@ describe("CarrierRulings — the nine refused shapes", () => {
 });
 
 // ---------------------------------------------------------------------------
+// P36 T9 — the identifier vocabulary (design spec §2.8): the `rulings` row declares
+// `finding` canonically and accepts `id`; this reader CONSUMES that declaration and
+// normalizes internally, so no second acceptance list lives here.
+// ---------------------------------------------------------------------------
+
+describe("the identifier vocabulary is consumed from the matrix row (P36 T9 · §2.8)", () => {
+  it("accepts `id` and hands the ruling back under the canonical `finding`", () => {
+    const verdict = verdictOf({ rulings: [{ id: "F1", ruling: "REJECTED as stated" }] });
+    expect(verdict).toEqual({
+      kind: "ok",
+      rulings: [{ finding: "F1", ruling: "REJECTED as stated" }],
+    });
+  });
+
+  it("accepts `finding` unchanged — the two spellings are one ruling", () => {
+    const verdict = verdictOf({ rulings: [{ finding: "F1", ruling: "REJECTED as stated" }] });
+    expect(verdict).toEqual({
+      kind: "ok",
+      rulings: [{ finding: "F1", ruling: "REJECTED as stated" }],
+    });
+  });
+
+  it("normalizes `id` on the lenient read too — one acceptance set, two faces", () => {
+    const { carrier, sidecar } = carrierDir();
+    writeFileSync(
+      sidecar,
+      JSON.stringify({ carrier: path.basename(carrier), rulings: [{ id: "F4", ruling: "ok" }] }),
+      "utf8",
+    );
+    expect(CarrierRulings.read(sidecar, carrier)).toEqual({
+      rulings: [{ finding: "F4", ruling: "ok" }],
+    });
+  });
+
+  it("refuses a ruling carrying BOTH spellings — one identifier per ruling, never a pick", () => {
+    const verdict = verdictOf({ rulings: [{ finding: "F1", id: "F4", ruling: "ok" }] });
+    expect(verdict.kind).toBe("invalid");
+    expect(verdict.kind === "invalid" ? verdict.reason : "").toContain("one identifier per ruling");
+  });
+
+  it("still refuses an unknown key — leniency is about the identifier, not the schema", () => {
+    const verdict = verdictOf({ rulings: [{ id: "F1", ruling: "ok", key: "x" }] });
+    expect(verdict.kind).toBe("invalid");
+    expect(verdict.kind === "invalid" ? verdict.reason : "").toContain("unknown key");
+  });
+
+  it("spells no second acceptance list — the alias lives in the matrix row alone", () => {
+    const source = stripComments(
+      readFileSync(fileURLToPath(new URL("../carrier-rulings.ts", import.meta.url)), "utf8"),
+    );
+    expect(source).not.toContain('"id"');
+    expect(source).not.toContain("'id'");
+    expect(source).toContain("ArtifactRegistry.identifierOf(");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // P36 T5 — the `misplaced` side of the attribution grammar (spec §2.5): the
 // `rulings` row's two tolerated spellings answer `misplaced`, never `ok` and never
 // an orphan

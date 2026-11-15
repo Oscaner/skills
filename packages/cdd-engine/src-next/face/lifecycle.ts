@@ -31,8 +31,8 @@ import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
+import { ABSENT_READ, type ArtifactReadOf, ArtifactReads } from "../session/artifact-reads.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
-import { CarrierRulings, type Ruling } from "../session/carrier-rulings.ts";
 import { TargetFaceTable } from "../session/faces.ts";
 import type { CarrierPlane } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
@@ -52,7 +52,7 @@ import {
   RoundViolation,
   type Termination,
 } from "../session/ledger.ts";
-import type { ArtifactRead, ArtifactRegistry, Identity, Kind } from "../session/round-artifacts.ts";
+import type { ArtifactRegistry, Kind } from "../session/round-artifacts.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { PlanStructure } from "../session/run.ts";
@@ -140,17 +140,6 @@ export interface DispatchScene {
  *  observation — while a review/fix round fails on its carrier criterion). */
 type DraftedOutcome = Omit<DispatchOutcome, "status"> & { status: RoundStatus | null };
 
-/** One artifact read of a round kind — the matrix's judgment (names · presence ·
- *  `misplaced` · `absent`) composed with the strict sidecar schema (spec §2.3). The
- *  two levels meet in ONE function, so the prompt cell and the dispatch gate read one
- *  value instead of asking one file two questions. `rulings` carries the schema's
- *  payload for the read face that quotes the ruling bodies; the gate reads `read`
- *  alone. */
-type ArtifactReadOf = {
-  readonly read: ArtifactRead;
-  readonly rulings: readonly Ruling[];
-};
-
 /** One dispatch's artifact judgment — the VALUE the gate and the prompt cell share.
  *  Computed once per dispatch (`#artifactCellOf`), so the two consumers cannot answer
  *  differently across a writer that lands between them (spec §2.3: 一份读取、两个消费者 —
@@ -160,10 +149,6 @@ type ArtifactReadOf = {
 type ArtifactCell =
   | { readonly kind: "read"; readonly value: ArtifactReadOf }
   | { readonly kind: "mismatch"; readonly message: string };
-
-/** The no-sidecar read — nothing for the matrix to judge, nothing for the schema to
- *  parse. */
-const ABSENT_READ: ArtifactReadOf = { read: { kind: "absent" }, rulings: [] };
 
 /** The no-sidecar cell — off the fix face, an unattributable carrier, or a matrix
  *  `absent`: the slot stays empty and the gate has nothing to refuse. */
@@ -1420,29 +1405,23 @@ export class CliLifecycle {
   }
 
   /** The fix round's ruling sidecar as the round-context value — the repo-relative
-   *  sidecar path plus the ruling bodies it carries, the empty string otherwise (off the
-   *  fix face, when the carrier attributes to no round identity, and when the sidecar is
-   *  absent — the assembler drops the empty line).
+   *  sidecar path alone, the empty string otherwise (off the fix face and when the
+   *  sidecar is absent — the assembler drops the empty line).
    *
-   *  The judgment is the dispatch's OWN cell — the value the gate just read — so a cell
-   *  can never quote a ruling set the refusal is about to reject, and never quotes a
-   *  second read the gate did not see.
-   *  The path is the artifact matrix's `rulings` render of the REVIEWED round's
-   *  identity, never a tail replacement on the carrier's name: the carrier's own
-   *  spelling (draft or final) can no longer move it. */
+   *  One input, one reading: the round context names WHERE the rulings live, exactly as
+   *  `INPUT_REVIEWS` names the carrier it qualifies (spec §2.10). The ruling bodies stay
+   *  in the sidecar — the child opens the file — so the prompt tail carries no text whose
+   *  length the orchestrator's ruling set decides, and the sidecar keeps its single
+   *  source. The path is the artifact matrix's `rulings` render of the REVIEWED round's
+   *  identity, never a tail replacement on the carrier's name: the carrier's own spelling
+   *  (draft or final) can no longer move it.
+   *
+   *  The judgment is the dispatch's OWN cell — the value the gate just read — so the cell
+   *  can never name a ruling set the refusal is about to reject. */
   #rulingsInputOf(cell: ArtifactCell): string {
     if (cell.kind !== "read") return "";
-    const { read, rulings } = cell.value;
-    if (read.kind !== "ok") return "";
-    return [this.#rel(read.path), ...rulings.map((ruling) => this.#rulingLine(ruling))].join("\n");
-  }
-
-  /** One rendering of a recorded ruling — the finding id it answers and the ruling's
-   *  own text VERBATIM (never re-worded: the sidecar is the orchestrator's words, and
-   *  the round context quotes them). Indented under the sidecar path's bullet so the
-   *  cell reads as one input. */
-  #rulingLine(ruling: Ruling): string {
-    return `  - \`${ruling.finding}\` — ${ruling.ruling}`;
+    const { read } = cell.value;
+    return read.kind === "ok" ? this.#rel(read.path) : "";
   }
 
   /** The artifact-identity gate as a PURE read — the `--dry-run` face's entry to the
@@ -1469,41 +1448,17 @@ export class CliLifecycle {
     }
   }
 
-  /** The ONE artifact read of this round's `kind` — the matrix's `read` (names ·
-   *  presence · `misplaced` · `absent`) composed with `CarrierRulings#verdict` (the
-   *  strict schema). The matrix never parses content and the schema never mints a name:
-   *  `ok` / `invalid`'s schema half comes from the second level alone, and
-   *  `invalid.reason` is the schema's own reason verbatim (spec §2.3). The identity is
-   *  the CARRIER's (the reviewed round, `op` fixed to `review`), so the rendered name
-   *  and the `identity:` report section share one coordinate. */
+  /** The ONE artifact read of this round's `kind` — delegated to the frame-free seam
+   *  (`session/artifact-reads.ts`), so this face keeps only the frame-level facts: the
+   *  requesting carrier and the digest its record remembered. The board reads the SAME
+   *  seam with its own workspace, so the prompt cell, the gate and the board can never
+   *  compose two different judgments (spec §2.3). */
   #artifactReadOf(frame: OpenFrame, kind: Kind): ArtifactReadOf {
-    const carrier = this.#reviewsPath(frame);
-    if (carrier === null) return ABSENT_READ;
-    const identity = this.#rulingsIdentityOf(carrier);
-    if (identity === null) return ABSENT_READ;
-    const read = this.#artifacts.read(identity, kind, this.#scene.workspace);
-    if (read.kind !== "ok") return { read, rulings: [] };
-    const verdict = CarrierRulings.verdict(
-      read.path,
-      this.#carrierPathOf(carrier),
-      this.#carrierFindingIds(frame, carrier),
+    return new ArtifactReads(this.#artifacts, this.#scene.workspace).read(
+      kind,
+      this.#reviewsPath(frame) ?? "",
+      this.#requesterDigest(frame),
     );
-    switch (verdict.kind) {
-      case "ok":
-        return { read, rulings: verdict.rulings };
-      case "absent":
-        // The matrix ALREADY established presence on the renderer's own basis (`stat`
-        // + `access(R_OK)` at the derived name), so a second-level absence is a read
-        // RACE — the file left between the two levels — never "there is no sidecar".
-        // "Cannot be read" never authorizes "is not there" (§4.5): the round would
-        // otherwise dispatch with an empty ruling slot and no refusal.
-        return {
-          read: { kind: "invalid", path: read.path, reason: "unreadable" },
-          rulings: [],
-        };
-      case "invalid":
-        return { read: { kind: "invalid", path: read.path, reason: verdict.reason }, rulings: [] };
-    }
   }
 
   /** The pre-dispatch artifact gate over the dispatch's ONE cell — the refusal reason of
@@ -1533,57 +1488,10 @@ export class CliLifecycle {
     });
   }
 
-  /** The reviewed round's identity — the ONE source of the `rulings` sidecar's name.
-   *  It is the CARRIER's coordinate (`attribute(path.basename(carrier))`): the reviewed
-   *  round, with `op` fixed to `review`. Never this fix round's `(line, op)`: that second
-   *  expression would mint `<line>-fix-<n>.c<n>.rulings.json`, a name no gate sees and
-   *  the child would faithfully write. */
-  #rulingsIdentityOf(carrier: string): Identity | null {
-    const attributed = this.#artifacts.attribute(path.basename(carrier));
-    if (attributed === null || attributed.identity.domain !== "round") return null;
-    const { line, cycle, attempt } = attributed.identity;
-    return {
-      domain: "round",
-      line,
-      op: "review",
-      ...(cycle === undefined ? {} : { cycle }),
-      ...(attempt === undefined ? {} : { attempt }),
-    };
-  }
-
   /** The carrier's absolute path — the one erasure from the repo-relative carrier
    *  faces onto the syscall form both the sidecar judgment and the digest read use. */
   #carrierPathOf(carrier: string): string {
     return path.resolve(this.#repoRootValue().absolute, carrier);
-  }
-
-  /** The requesting carrier's engine-written finding ids (`F1`, `F2` …) — the id set a
-   *  ruling must name. The read is the ONE checked carrier read (`CarrierIntegrity.read`,
-   *  the digest its review round recorded): a tampered carrier is never observed at all —
-   *  the mismatch throws and the integrity refusal wins over any ruling reason. An absent
-   *  or unparseable carrier declares no ids, so any ruling beside it is refused by the
-   *  strict schema instead of being accepted against an empty set. */
-  #carrierFindingIds(frame: OpenFrame, carrier: string): ReadonlySet<string> {
-    const ids = new Set<string>();
-    let carrierJson: unknown;
-    try {
-      const bytes = CarrierIntegrity.read(
-        this.#carrierPathOf(carrier),
-        this.#requesterDigest(frame),
-      );
-      if (bytes === null) return ids;
-      carrierJson = JSON.parse(bytes);
-    } catch (raw) {
-      if (raw instanceof CarrierMismatchError) throw raw;
-      return ids;
-    }
-    const findings = (carrierJson as { findings?: unknown } | null)?.findings;
-    if (!Array.isArray(findings)) return ids;
-    for (const finding of findings) {
-      const id = (finding as { id?: unknown } | null)?.id;
-      if (typeof id === "string") ids.add(id);
-    }
-    return ids;
   }
 
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the

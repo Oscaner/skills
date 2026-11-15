@@ -69,7 +69,12 @@ import type { RouteTarget } from "../../session/faces.ts";
 import { InFlight, type InFlightRecord } from "../../session/inflight.ts";
 import { type CrashRecord, Ledger, ReviewRefs, type SampleRecord } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
-import { FIX_READBACK_SUFFIX, MAX_TASKS_PER_WAVE, NextStepRouter } from "../../session/next.ts";
+import {
+  FIX_READBACK_SLOT,
+  FIX_READBACK_SUFFIX,
+  MAX_TASKS_PER_WAVE,
+  NextStepRouter,
+} from "../../session/next.ts";
 import type { PreFlightVerdict } from "../../session/preflight.ts";
 import { PreFlight } from "../../session/preflight.ts";
 import { ArtifactRegistry, type Identity, type Kind } from "../../session/round-artifacts.ts";
@@ -2014,7 +2019,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       // D47 — the next: literal's embedded paths are repoRoot-relative (the ONE shape).
       expect(io.stdoutText).toContain(
-        `next: fix --type wave --tasks 1 --plan ${path.relative(repoRoot, plan)} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.json"))} ${FIX_READBACK_SUFFIX}`,
+        `next: fix --type wave --tasks 1 --plan ${path.relative(repoRoot, plan)} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.json"))} ${FIX_READBACK_SUFFIX.replace(FIX_READBACK_SLOT, path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.rulings.json")))}`,
       );
     } finally {
       cleanup();
@@ -4279,12 +4284,19 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
     return lines[1]!.slice("next: ".length);
   }
 
+  /** The readback sentence with a resolved sidecar path in its value slot. */
+  const readback = (sidecar: string): string =>
+    FIX_READBACK_SUFFIX.replace(FIX_READBACK_SLOT, sidecar);
+
+  /** The readback sentence as a tail pattern — its path is a VALUE, so the parse-gate
+   *  strip matches any rendered path instead of the declared slot. */
+  const READBACK_TAIL =
+    /\s*\(confirm the reviews handoff · if a finding needs a ruling, record it at [^)]*\)$/;
+
   /** The parseable argv of a literal — the fix readback suffix is prompt prose,
-   *  never argv (the parse gate strips the declared suffix before feeding). */
+   *  never argv (the parse gate strips the declared sentence before feeding). */
   function argvOf(literal: string): string[] {
-    return literal
-      .replace(new RegExp(`\\s*\\(${FIX_READBACK_SUFFIX.slice(1, -1)}\\)$`), "")
-      .split(/\s+/);
+    return literal.replace(READBACK_TAIL, "").split(/\s+/);
   }
 
   /** The secondary-parse gate — the literal's argv must parse with zero errors
@@ -4340,30 +4352,53 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
   });
 
   it("fix × 4 types — `fix --type <type> <type-arg> --reviews <handoff>` parses", () => {
-    const waveLiteral = literalOf({ kind: "fix", reviews: "tasks-1-review-1.json" }, wave);
+    const waveLiteral = literalOf(
+      {
+        kind: "fix",
+        reviews: "tasks-1-review-1.json",
+        rulings: "tasks-1-review-1.c1.rulings.json",
+      },
+      wave,
+    );
     expect(waveLiteral).toBe(
-      "fix --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md --reviews tasks-1-review-1.json " +
-        FIX_READBACK_SUFFIX,
+      `fix --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md --reviews tasks-1-review-1.json ${readback("tasks-1-review-1.c1.rulings.json")}`,
     );
     parses(waveLiteral);
-    const specLiteral = literalOf({ kind: "fix", reviews: "s1-review-1.json" }, spec);
+    const specLiteral = literalOf(
+      { kind: "fix", reviews: "s1-review-1.json", rulings: "s1-review-1.c1.rulings.json" },
+      spec,
+    );
     expect(specLiteral).toBe(
-      "fix --type phase-spec --spec docs/kairos/specs/p3-design.md --reviews s1-review-1.json " +
-        FIX_READBACK_SUFFIX,
+      `fix --type phase-spec --spec docs/kairos/specs/p3-design.md --reviews s1-review-1.json ${readback("s1-review-1.c1.rulings.json")}`,
     );
     parses(specLiteral);
-    const planLiteral = literalOf({ kind: "fix", reviews: "p1-review-1.json" }, planT);
+    const planLiteral = literalOf(
+      { kind: "fix", reviews: "p1-review-1.json", rulings: "p1-review-1.c1.rulings.json" },
+      planT,
+    );
     expect(planLiteral).toBe(
-      `fix --type plan --plan docs/kairos/plans/p3.md --reviews p1-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `fix --type plan --plan docs/kairos/plans/p3.md --reviews p1-review-1.json ${readback("p1-review-1.c1.rulings.json")}`,
     );
     parses(planLiteral);
-    const branchLiteral = literalOf({ kind: "fix", reviews: "br1-review-1.json" }, branch);
+    const branchLiteral = literalOf(
+      { kind: "fix", reviews: "br1-review-1.json", rulings: "br1-review-1.c1.rulings.json" },
+      branch,
+    );
     // find #8 F1b — the branch fix literal carries the workspace --plan
     // (user-decided; the orchestrator provides zero fallback · spec §5.7 fix (2))
     expect(branchLiteral).toBe(
-      `fix --type branch --plan docs/kairos/plans/p3.md --reviews br1-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `fix --type branch --plan docs/kairos/plans/p3.md --reviews br1-review-1.json ${readback("br1-review-1.c1.rulings.json")}`,
     );
     parses(branchLiteral);
+  });
+
+  it("the fix literal omits the readback sentence when the route resolves no sidecar name", () => {
+    const literal = literalOf({ kind: "fix", reviews: "tasks-1-review-1.json" }, wave);
+    expect(literal).toBe(
+      "fix --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md --reviews tasks-1-review-1.json",
+    );
+    expect(literal).not.toContain(FIX_READBACK_SLOT);
+    parses(literal);
   });
 
   it("done — the bare terminal word, never fed to parse (a bare `done` is not a command)", async () => {
@@ -4427,7 +4462,7 @@ describe("P4.1 T4 — the real chain: next literals dispatch the next round (rev
         await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       ).toBe(0);
       expect(nextOf()).toBe(
-        `fix --type wave --tasks 1 --plan ${planRel} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.json"))} ${FIX_READBACK_SUFFIX}`,
+        `fix --type wave --tasks 1 --plan ${planRel} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.json"))} ${FIX_READBACK_SUFFIX.replace(FIX_READBACK_SLOT, path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.rulings.json")))}`,
       );
       io.stdoutText = "";
 
@@ -5384,6 +5419,52 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
       // P22 §5.3 — the doc column omits the directory (the label names the face).
       expect(io.stdoutText).toContain("  spec     prog-p1-design.md");
       expect(io.stdoutText.split("\n").at(-2)).toBe("progress: ✔ done · ▶ current · ○ pending");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("board --artifacts opens the inventory the daily view keeps shut — and never renders usage", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      // The node's own review round, with its carrier on disk and NO sidecar: the
+      // daily face stays silent (an absent sidecar is legal), the flag shows the row.
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "prog-p1");
+      mkdirSync(workspace, { recursive: true });
+      const carrier = path.join(workspace, "phase-spec-review-1.c1.json");
+      writeFileSync(carrier, `${JSON.stringify({ findings: [] }, null, 2)}\n`, "utf8");
+      writeFileSync(
+        path.join(workspace, "progress.json"),
+        JSON.stringify({
+          timeoutCount: 0,
+          waves: [
+            {
+              wave: "phase-spec",
+              rounds: [
+                {
+                  op: "review",
+                  cycle: 1,
+                  attempt: 1,
+                  dispatchBase: null,
+                  carrierPath: carrier,
+                  verdict: { treeClean: true, targetAction: true },
+                  violations: [],
+                },
+              ],
+            },
+          ],
+        }),
+        "utf8",
+      );
+      expect(await command.runArgv(["board", "--plan", PLAN])).toBe(0);
+      expect(io.stdoutText).not.toContain("  art:");
+      io.stdoutText = "";
+      // The flag is declared + wired: no usage face, and one row per observed round.
+      expect(await command.runArgv(["board", "--plan", PLAN, "--artifacts"])).toBe(0);
+      expect(io.stderrText).not.toContain("Usage");
+      expect(io.stdoutText).toContain("  art:     phase-spec · rulings · c1·a1   absent");
     } finally {
       cleanup();
     }

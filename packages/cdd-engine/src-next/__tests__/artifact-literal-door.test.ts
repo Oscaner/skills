@@ -14,16 +14,17 @@
 // Everything else that carries the tail in CODE (a comment naming it is prose and is
 // stripped first) is a violation with its own location.
 //
-// What this file deliberately does NOT do: assert the closure over the real tree. Two
-// occurrences still live outside the matrix (`session/next.ts`'s read-back sentence and
-// `session/carrier-rulings.ts`'s acceptance set), and their single remover lands later;
-// a whole-tree assertion today would be red for work no task in this wave owns. The
-// real-tree cases join THIS file with that removal — the predicate is ready for them.
+// The REAL TREE closure joins the predicate (P36 T9 · §2.9 ⑤): both former
+// matrix-external occurrences are gone — `session/next.ts`'s read-back sentence became a
+// value slot, and `session/carrier-rulings.ts` consumes the matrix row's identifier
+// vocabulary instead of re-declaring it. The suite therefore asserts the whole production
+// tree, not just fixtures.
 //
-// The judgment and its value types are module-local (a test file exports nothing): the
-// real-tree cases join THIS file with the removal they belong to. Zero behavior-carrying
-// bare functions — the judgment is an arrow const.
+// The judgment and its value types are module-local (a test file exports nothing). Zero
+// behavior-carrying bare functions — the judgment is an arrow const.
 
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { stripComments } from "./support/strip-comments.ts";
 
@@ -50,6 +51,25 @@ type LiteralViolation = {
   readonly file: string;
   readonly line: number;
 };
+
+/** `src-next/` — every production path resolves against the engine source root. */
+const SRC_ROOT = fileURLToPath(new URL("../", import.meta.url));
+
+/** The identifier vocabulary's ONE declaration spelling — the matrix's row answers
+ *  `canonical` plus `accepts`, and no read face may grow a second list. */
+const ACCEPTANCE_DECL = /accepts:\s*\[/g;
+
+/** The production surface: every engine TypeScript file under `src-next` that is not a
+ *  fixture, comments stripped, one deterministic order (the same scan the doc-type
+ *  constructor gate reads). */
+const loadProduction = (): readonly LiteralSample[] =>
+  readdirSync(SRC_ROOT, { recursive: true, encoding: "utf8" })
+    .filter((rel) => rel.endsWith(".ts") && !rel.split("/").includes("__tests__"))
+    .map((rel) => ({
+      file: rel,
+      source: stripComments(readFileSync(`${SRC_ROOT}${rel}`, "utf8")),
+    }))
+    .sort((left, right) => left.file.localeCompare(right.file));
 
 /** The door's judgment: every code line carrying the tail outside the two admitted
  *  surfaces. Comments are stripped first (a docstring naming the tail is prose, a
@@ -124,5 +144,39 @@ describe("the artifact-literal door — the release surface (P36 T5 · §2.9 ⑤
       { file: "session/next.ts", line: 1 },
       { file: "infra/x.ts", line: 1 },
     ]);
+  });
+});
+
+describe("the artifact-literal door — the REAL tree closure (P36 T9 · §2.9 ⑤)", () => {
+  const production = loadProduction();
+
+  it("admits no production literal outside the matrix row — the real tree is closed", () => {
+    expect(literalDoorViolations(production)).toEqual([]);
+    // the scan found a tree, not an empty directory (a broken root would pass silently)
+    expect(production.length).toBeGreaterThan(50);
+  });
+
+  it("declares the identifier acceptance set exactly once — in the matrix row", () => {
+    const declaring = production.filter(
+      (file) => [...file.source.matchAll(ACCEPTANCE_DECL)].length > 0,
+    );
+    expect(declaring.map((file) => file.file)).toEqual(["session/round-artifacts.ts"]);
+  });
+
+  it("composes the two levels at ONE seam — the schema's strict verdict has one production caller", () => {
+    // The board and the lifecycle are two CONSUMERS of one composition, never two
+    // composers: a second `CarrierRulings.verdict(` in production is the double
+    // expression the seam exists to retire.
+    const callers = production.filter((file) => file.source.includes("CarrierRulings.verdict("));
+    expect(callers.map((file) => file.file)).toEqual(["session/artifact-reads.ts"]);
+  });
+
+  it("keeps the sidecar schema's identifier read OUT of carrier-rulings — it consumes the row", () => {
+    const schema = production.find((file) => file.file.endsWith("session/carrier-rulings.ts"));
+    expect(schema).toBeDefined();
+    expect(schema?.source).toContain("ArtifactRegistry.identifierOf(");
+    // The alias spelling lives in the matrix row alone: a hand-written `id` key here
+    // would be the second acceptance list this door exists to retire.
+    expect(schema?.source).not.toContain('"id"');
   });
 });

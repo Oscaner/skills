@@ -49,11 +49,13 @@ import { CarrierRulings } from "../../session/carrier-rulings.ts";
 import { targetFaces } from "../../session/faces.ts";
 import { HoldingError, InFlight } from "../../session/inflight.ts";
 import { Ledger } from "../../session/ledger.ts";
+import { NextStepRouter } from "../../session/next.ts";
 import { ArtifactRegistry } from "../../session/round-artifacts.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "../lifecycle.ts";
+import { RouteRenderer } from "../route-render.ts";
 import type { ChildOutcome, ChildRun, ChildRunner } from "../termination.ts";
 import { Words } from "../words.ts";
 
@@ -1160,9 +1162,9 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
       const rel = path.relative(f.scene.workspace.root.repoRoot, sidecar);
       expect(promptOf(runner)).toContain(`- \`INPUT_RULINGS\`: ${rel}`);
       expect(promptOf(runner)).toContain("- `INPUT_REVIEWS`: ");
-      // The cell carries the ruling BODY too (§2.5 AC: the prompt's text matches
-      // the sidecar) — the path alone would leave the child to re-open the file.
-      expect(promptOf(runner)).toContain(LEGAL_SIDECAR.rulings[0]?.ruling ?? "");
+      // ONE input, ONE reading (spec §2.10): the cell names WHERE the rulings live and
+      // quotes no body — the sidecar is the single source, and the child opens it.
+      expect(promptOf(runner)).not.toContain(LEGAL_SIDECAR.rulings[0]?.ruling ?? "");
     } finally {
       f.cleanup();
     }
@@ -1199,18 +1201,27 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
     }
   });
 
-  it("reads the round-context cell and the gate through ONE strict verdict (P36 T2)", () => {
+  it("reads the round-context cell and the gate through ONE strict verdict — composed at the seam (P36 T2 · T7)", () => {
     // One discriminant, two consumers: a cell that read the sidecar loosely would
     // quote a ruling set the gate is about to refuse, so the prompt and the refusal
-    // would be answering two different questions about one file.
-    const source = stripComments(
+    // would be answering two different questions about one file. The composition
+    // lives at the frame-free seam (`session/artifact-reads.ts`) — this face delegates
+    // to it, and the lenient read is nobody's.
+    const seam = stripComments(
+      readFileSync(
+        fileURLToPath(new URL("../../session/artifact-reads.ts", import.meta.url)),
+        "utf8",
+      ),
+    );
+    const face = stripComments(
       readFileSync(fileURLToPath(new URL("../lifecycle.ts", import.meta.url)), "utf8"),
     );
-    expect(source).toContain("CarrierRulings.verdict(");
-    expect(source).not.toContain("CarrierRulings.read(");
+    expect(seam).toContain("CarrierRulings.verdict(");
+    expect(`${seam}\n${face}`).not.toContain("CarrierRulings.read(");
+    expect(face).toContain("ArtifactReads(this.#artifacts, this.#scene.workspace).read(");
   });
 
-  it("renders one verbatim body line per ruling of the sidecar", async () => {
+  it("renders ONE path line and zero body lines — the ruling bodies stay in the sidecar", async () => {
     const f = fixture(planDoc([[1, []]]));
     try {
       const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
@@ -1227,11 +1238,13 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
       expect(runner.calls).toHaveLength(1);
       const prompt = promptOf(runner);
       const rel = path.relative(f.scene.workspace.root.repoRoot, sidecar);
+      // exactly one round-context line, and it carries the path alone: the prompt tail
+      // is byte-stable no matter how many rulings the orchestrator records (§2.10).
+      expect(prompt.match(/^- `INPUT_RULINGS`: /gm)).toHaveLength(1);
+      expect(prompt).toContain(`- \`INPUT_RULINGS\`: ${rel}`);
       for (const ruling of rulings) {
-        expect(prompt).toContain(`\`${ruling.finding}\` — ${ruling.ruling}`);
+        expect(prompt).not.toContain(`\`${ruling.finding}\` — ${ruling.ruling}`);
       }
-      // The body rides BELOW the path line — the cell reads path then verdicts.
-      expect(prompt.indexOf(rulings[1]?.ruling ?? "")).toBeGreaterThan(prompt.indexOf(rel));
     } finally {
       f.cleanup();
     }
@@ -1246,7 +1259,8 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
       const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
       await runFix(f, fixFrameOf(specPath), carrier, runner);
       expect(runner.calls).toHaveLength(1);
-      expect(promptOf(runner)).not.toContain("INPUT_RULINGS");
+      // the fixed shell names the token; the round context carries no line for it
+      expect(promptOf(runner)).not.toContain("- `INPUT_RULINGS`: ");
     } finally {
       f.cleanup();
     }
@@ -1341,7 +1355,7 @@ describe("P36 T6 — the misplaced rulings sidecar gate (spec §2.3 · §2.4)", 
       expect(runner.calls).toHaveLength(1);
       expect(f.io.stderrText).not.toContain("artifact-identity");
       // the cell stays silent too — the prompt's bytes are today's absent face
-      expect(promptOf(runner)).not.toContain("INPUT_RULINGS");
+      expect(promptOf(runner)).not.toContain("- `INPUT_RULINGS`: ");
     } finally {
       f.cleanup();
     }
@@ -1500,6 +1514,51 @@ describe("P36 T6 — the misplaced rulings sidecar gate (spec §2.3 · §2.4)", 
     }
   });
 
+  it("prints ONE path in both faces — the fix line's sidecar value equals the gate's `derived:` row", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // The carrier the review round wrote, plus the misplaced variant the gate refuses.
+      const carrier = seedCarrier(f);
+      writeFileSync(
+        path.join(f.scene.workspace.path, MISALIGNED_SIDECAR),
+        JSON.stringify(legalSidecar(PLAN_CARRIER)),
+        "utf8",
+      );
+      const outcome = await dispatchOver(f, carrier, new SilentRunner());
+      expect(outcome.status).toBe("BLOCKED");
+      const derivedRow = f.io.stderrText.split("\n").find((row) => row.startsWith("  derived:  "));
+      expect(derivedRow).toBeDefined();
+      const derived = derivedRow!.slice("  derived:  ".length);
+      // The route the count table produces for the SAME carrier carries the same value,
+      // rendered through the ONE basis — the board's / capsule's fix line and the gate's
+      // report print one path byte for byte.
+      const route = new NextStepRouter(new ArtifactRegistry()).next(EMPTY_RUN_STATE, {
+        phase: "review",
+        findings: [{ severity: "warn", summary: "drift" }],
+        reviewsPath: carrier,
+        consecutiveS1: 0,
+      });
+      expect(route?.kind).toBe("fix");
+      const line = new RouteRenderer(
+        new Words(),
+        {},
+        "claude",
+        f.scene.workspace.root.basis,
+      ).render(route!, {
+        type: "plan",
+        id: path.join(f.scene.workspace.root.repoRoot, "docs", "k", "p.md"),
+      });
+      expect(line).toContain(`record it at ${derived}`);
+      // and no second spelling survives: the route carries the RENDERED name, never the
+      // carrier's own tail (the value is absolute; the render normalizes it)
+      expect(route !== null && "rulings" in route ? path.basename(route.rulings!) : "").toBe(
+        path.basename(derived),
+      );
+    } finally {
+      f.cleanup();
+    }
+  });
+
   it("pairs the migration: a misaligned sidecar stops the round, renaming it lets the SAME command through", async () => {
     const f = fixture(planDoc([[1, []]]));
     try {
@@ -1521,7 +1580,7 @@ describe("P36 T6 — the misplaced rulings sidecar gate (spec §2.3 · §2.4)", 
       expect(f.io.stderrText).not.toContain("artifact-identity");
       // exactly ONE path line, zero body lines (the cell names the rendered sidecar)
       const prompt = promptOf(after);
-      expect(prompt.match(/INPUT_RULINGS/g)).toHaveLength(1);
+      expect(prompt.match(/^- `INPUT_RULINGS`: /gm)).toHaveLength(1);
       expect(prompt).toContain(`- \`INPUT_RULINGS\`: ${relOf(f, rendered)}`);
     } finally {
       f.cleanup();

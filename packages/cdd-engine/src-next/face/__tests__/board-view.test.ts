@@ -3357,3 +3357,321 @@ describe("P35 T5 — the board renders FROM the plan value, never from a second 
     expect(board.exitCode).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// P36 T7 — the `art:` fact row (design spec §2.6): the board's ONE-way projection of
+// the artifact matrix's judgment. A healthy tree adds zero bytes; an anomalous name
+// adds exactly one block, placed after the line rows and before `next:` / `reason:`.
+// The observed set is the document line's own REVIEW records — never a directory scan
+// — and every name comes from the ledger's ONE accessor plus the frame-free read seam.
+// ---------------------------------------------------------------------------
+
+describe("P36 T7 — the board's `art:` fact row (spec §2.6)", () => {
+  let repo: string;
+
+  beforeEach(() => {
+    repo = mkdtempSync(path.join(tmpdir(), "board-art-"));
+    mkdirSync(path.join(repo, "docs/kairos/specs"), { recursive: true });
+    mkdirSync(path.join(repo, "docs/kairos/plans"), { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  const writeDoc = (rel: string, lines: readonly string[]): void => {
+    const file = path.join(repo, rel);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${lines.join("\n")}\n`, "utf8");
+  };
+
+  const workspace = (): string => {
+    const dir = path.join(repo, ".kairos/cdd/prog-p1");
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  };
+
+  /** The node fixture — the charter, the phase spec and a one-task plan. */
+  const seedDocs = (): void => {
+    writeDoc("docs/kairos/specs/prog-overall.md", [
+      "---",
+      "title: O",
+      "doc-type: overall",
+      "slug: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: S",
+      "version: v0.1",
+      "status: Draft",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
+    writeDoc("docs/kairos/plans/prog-p1.md", [
+      "---",
+      "title: Plan",
+      "version: v0.2",
+      "status: Draft",
+      "doc-type: plan",
+      "slug: prog-p1",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- c",
+      "",
+      "### Task 1: t1",
+      "- **Objective**: o",
+      "- **Files**: `a.ts`",
+      "- **Consumes**: x",
+      "- **Produces**: y",
+      "- **Steps**:",
+      "  - s — checkable: g",
+      "- **Acceptance**: ok",
+      "- **DependsOn**: none",
+      "",
+    ]);
+  };
+
+  /** The carrier file the review record names — one graded finding, so the `+N` cell
+   *  reads it (and the sidecar's identifier set has a member). */
+  const seedCarrier = (name: string): string => {
+    const file = path.join(workspace(), name);
+    writeFileSync(
+      file,
+      `${JSON.stringify({ findings: [{ id: "F1", severity: "warn", summary: "s" }] }, null, 2)}\n`,
+      "utf8",
+    );
+    return file;
+  };
+
+  /** The node's progress — one row per calendar line; `carriers` maps a cycle to the
+   *  carrier file the record names. */
+  const seedProgress = (carriers: readonly { cycle: number; path: string }[]): void => {
+    const waves = [
+      {
+        wave: "phase-spec",
+        rounds: carriers.map(({ cycle, path: carrierPath }) => ({
+          op: "review",
+          cycle,
+          attempt: 1,
+          dispatchBase: null,
+          carrierPath,
+          verdict: { treeClean: true, targetAction: true },
+          violations: [],
+        })),
+      },
+    ];
+    writeFileSync(
+      path.join(workspace(), "progress.json"),
+      JSON.stringify({ timeoutCount: 0, waves }, null, 2),
+      "utf8",
+    );
+  };
+
+  const renderBoard = (
+    showArtifacts: boolean,
+    artifacts: ArtifactRegistry | null = new ArtifactRegistry(),
+  ): string => {
+    const index = SlugIndex.build(repo);
+    const entry = index.docsOf("prog-p1").find((doc) => doc.docType === "phase-spec");
+    if (entry === null || entry === undefined) throw new Error("no phase-spec entry");
+    const root = new RepoRoot(repo);
+    const source = planSourceOf(root);
+    const read = source.readFor(entry);
+    return BoardView.render(
+      [read],
+      source,
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      { kind: "absent" },
+      BoardNext.of(read, source, index, entry, root),
+      artifacts,
+      showArtifacts,
+    ).lines.join("\n");
+  };
+
+  /** The `art:` block lines of one board text — the header plus its indented facts. */
+  const artBlockOf = (text: string): readonly string[] =>
+    text.split("\n").filter((line) => line.startsWith("  art:") || line.startsWith("           "));
+
+  it("adds zero bytes on a healthy tree — a conforming sidecar is not an anomaly", () => {
+    seedDocs();
+    const carrier = seedCarrier("phase-spec-review-1.c1.json");
+    writeFileSync(
+      path.join(workspace(), "phase-spec-review-1.c1.rulings.json"),
+      JSON.stringify({
+        carrier: path.basename(carrier),
+        rulings: [{ finding: "F1", ruling: "ok" }],
+      }),
+      "utf8",
+    );
+    seedProgress([{ cycle: 1, path: carrier }]);
+    const withMatrix = renderBoard(false);
+    expect(withMatrix).not.toContain("  art:");
+    // the board's bytes are the no-matrix board's bytes — the projection is additive alone
+    expect(withMatrix).toBe(renderBoard(false, null));
+  });
+
+  it("renders exactly ONE `art:` block for a misplaced sidecar, after the line rows and before next:", () => {
+    seedDocs();
+    const carrier = seedCarrier("phase-spec-review-1.c1.json");
+    seedProgress([{ cycle: 1, path: carrier }]);
+    const healthy = renderBoard(false);
+    // the 89-shipped spelling: the rendered name is missing, a same-identity variant sits
+    // in its place (the `misplaced` arm — never an `ok`, never an orphan)
+    const misaligned = path.join(workspace(), "phase-spec-review-1.rulings.json");
+    writeFileSync(
+      misaligned,
+      JSON.stringify({
+        carrier: path.basename(carrier),
+        rulings: [{ finding: "F1", ruling: "ok" }],
+      }),
+      "utf8",
+    );
+    const text = renderBoard(false);
+    const block = artBlockOf(text);
+    const derived = path.join(".kairos", "cdd", "prog-p1", "phase-spec-review-1.c1.rulings.json");
+    const found = path.join(".kairos", "cdd", "prog-p1", "phase-spec-review-1.rulings.json");
+    expect(block).toEqual([
+      "  art:     phase-spec · rulings   ! misplaced",
+      `           derived  ${derived}`,
+      `           found    ${found}`,
+    ]);
+    // the placement: after the last line row, before the two rows that stay last
+    expect(text.indexOf("  art:")).toBeGreaterThan(text.indexOf("  branch"));
+    expect(text.indexOf("  art:")).toBeLessThan(text.indexOf("  next:"));
+    // the block is additive: strip it (and its separator) and the healthy bytes return
+    const substance = (board: string): string =>
+      board
+        .split("\n")
+        .filter((line) => !line.startsWith("  art:") && !line.startsWith("           "))
+        .join("\n")
+        .replace("\n\n\n", "\n\n");
+    expect(substance(text)).toBe(healthy);
+  });
+
+  it("prints the SAME derived / found facts the dispatch gate prints — one judgment, two faces", () => {
+    seedDocs();
+    const carrier = seedCarrier("phase-spec-review-1.c1.json");
+    seedProgress([{ cycle: 1, path: carrier }]);
+    writeFileSync(
+      path.join(workspace(), "phase-spec-review-1.rulings.json"),
+      JSON.stringify({
+        carrier: path.basename(carrier),
+        rulings: [{ finding: "F1", ruling: "ok" }],
+      }),
+      "utf8",
+    );
+    const text = renderBoard(false);
+    const derived = path.join(".kairos", "cdd", "prog-p1", "phase-spec-review-1.c1.rulings.json");
+    const found = [path.join(".kairos", "cdd", "prog-p1", "phase-spec-review-1.rulings.json")];
+    // the gate's own words, rendered from the SAME identity (line=phase-spec · op=review ·
+    // cycle=1 · attempt=1) — the board's fact lines carry its value byte for byte
+    const gate = new Words().artifactIdentity({
+      kind: "rulings",
+      derived,
+      found,
+      identity: { domain: "round", line: "phase-spec", op: "review", cycle: 1 },
+    });
+    const gateRows = gate.split("\n");
+    expect(text).toContain(
+      `           derived  ${gateRows.find((row) => row.startsWith("  derived:  "))?.slice("  derived:  ".length)}`,
+    );
+    expect(text).toContain(
+      `           found    ${gateRows.find((row) => row.startsWith("  found:    "))?.slice("  found:    ".length)}`,
+    );
+  });
+
+  it("renders the `invalid` arm with the schema's own reason — the other rows stay byte-identical", () => {
+    seedDocs();
+    const carrier = seedCarrier("phase-spec-review-1.c1.json");
+    seedProgress([{ cycle: 1, path: carrier }]);
+    const healthy = renderBoard(false);
+    writeFileSync(
+      path.join(workspace(), "phase-spec-review-1.c1.rulings.json"),
+      JSON.stringify({ carrier: path.basename(carrier), rulings: [], extra: true }),
+      "utf8",
+    );
+    const text = renderBoard(false);
+    const block = artBlockOf(text);
+    expect(block[0]).toBe("  art:     phase-spec · rulings   ! invalid");
+    expect(block[1]).toBe(
+      `           derived  ${path.join(".kairos", "cdd", "prog-p1", "phase-spec-review-1.c1.rulings.json")}`,
+    );
+    expect(block[2]?.startsWith("           reason   ")).toBe(true);
+    expect(block[2]).toContain("unknown top-level key");
+    // the block is additive again: the rest of the board is the healthy board's bytes
+    expect(
+      text
+        .split("\n")
+        .filter((line) => !line.startsWith("  art:") && !line.startsWith("           "))
+        .join("\n")
+        .replace("\n\n\n", "\n\n"),
+    ).toBe(
+      healthy
+        .split("\n")
+        .filter((line) => !line.startsWith("  art:") && !line.startsWith("           "))
+        .join("\n")
+        .replace("\n\n\n", "\n\n"),
+    );
+  });
+
+  it("reads the RECORD sequence, not the directory: two review rounds render two `--artifacts` rows in c-order", () => {
+    seedDocs();
+    const first = seedCarrier("phase-spec-review-1.c1.json");
+    const second = seedCarrier("phase-spec-review-2.c2.json");
+    seedProgress([
+      { cycle: 1, path: first },
+      { cycle: 2, path: second },
+    ]);
+    for (const name of ["phase-spec-review-1.rulings.json", "phase-spec-review-2.rulings.json"]) {
+      writeFileSync(path.join(workspace(), name), JSON.stringify({ rulings: [] }), "utf8");
+    }
+    // a name NO record claims and the matrix cannot place — an observation, never an
+    // `art:` row (one name, one face)
+    writeFileSync(path.join(workspace(), "spec-review-1.c1.rulings.json"), "{}\n", "utf8");
+
+    const daily = renderBoard(false);
+    const headers = daily.split("\n").filter((line) => line.startsWith("  art:"));
+    // the daily face prints one block per anomaly; the coordinate is the expanded
+    // view's job, so two anomalies of one line + kind share the same header bytes
+    expect(headers).toHaveLength(2);
+
+    const expanded = renderBoard(true);
+    const rows = expanded.split("\n").filter((line) => line.startsWith("  art:"));
+    // one row per observed round, one column per kind, in (cycle, attempt) order
+    expect(rows).toEqual([
+      "  art:     phase-spec · rulings · c1·a1   ! misplaced",
+      "  art:     phase-spec · rulings · c2·a1   ! misplaced",
+    ]);
+    // the unclaimed, unplaceable name is the orphan face's — never the artifact inventory
+    expect(expanded).toContain(
+      "  orphan: spec-review-1.c1.rulings.json — no recorded round owns it",
+    );
+    expect(rows.some((row) => row.includes("spec-review-1.c1"))).toBe(false);
+  });
+
+  it("`--artifacts` shows a healthy round too, and the default view stays silent about it", () => {
+    seedDocs();
+    const carrier = seedCarrier("phase-spec-review-1.c1.json");
+    writeFileSync(
+      path.join(workspace(), "phase-spec-review-1.c1.rulings.json"),
+      JSON.stringify({
+        carrier: path.basename(carrier),
+        rulings: [{ finding: "F1", ruling: "ok" }],
+      }),
+      "utf8",
+    );
+    seedProgress([{ cycle: 1, path: carrier }]);
+    expect(renderBoard(false)).not.toContain("  art:");
+    expect(renderBoard(true)).toContain("  art:     phase-spec · rulings · c1·a1   ok");
+  });
+});

@@ -36,6 +36,7 @@
 // Module-level exports are types / constants / the class — zero behavior-carrying
 // bare functions (the plan's zero-bare-function discipline).
 
+import path from "node:path";
 import type { RouteTarget, TargetType } from "./faces.ts";
 import type { Round } from "./ledger.ts";
 import type { ArtifactRegistry } from "./round-artifacts.ts";
@@ -51,8 +52,13 @@ export type Route =
   | { kind: "next-wave"; tasks: string }
   /** a review hop — a review judges the live tree, carrying no commit identity. */
   | { kind: "review" }
-  /** the one-way fix hop — reviewsPath = the review handoff the fix reads (`--reviews`). */
-  | { kind: "fix"; reviews?: string }
+  /** the one-way fix hop — reviewsPath = the review handoff the fix reads (`--reviews`),
+   *  and `rulings` = the ruling sidecar's RESOLVED path beside that handoff, rendered
+   *  from the CARRIER's round identity by the router (never a tail replacement on the
+   *  handoff's name, never a name rule at the render face). Absent when the carrier
+   *  attributes to no round identity — the fix line then prints no readback suffix at
+   *  all (zero empty slot, zero fallback rule sentence). */
+  | { kind: "fix"; reviews?: string; rulings?: string }
   /** the review-cycle soft cap — the suggestion defers to user adjudication. */
   | { kind: "soft-cap"; message: string }
   /** the face-to-face handoff (D40) — the line's C5 frontier exhausted, so the next
@@ -300,18 +306,22 @@ export interface NextHopInput {
 /** The review-cycle soft-cap suggestion (the C5-0 suggestion face — user adjudicates). */
 export const SOFT_CAP_SUGGESTION = "BLOCKED: review-cycle-cap — user adjudicates";
 
-/** The fix-route readback suffix — appended verbatim to the fix findings path on the
- *  route's `next:` render (`(confirm the reviews handoff · if a finding needs a ruling,
- *  record it beside that handoff — same path with .json replaced by .rulings.json)`), a
- *  pure wording prompt: the anti-blind-fix mechanical guard is the ledger round / C5-1,
- *  the suffix only reminds the orchestrator to confirm the captured findings and, when a
- *  finding needs a user ruling, to record it in the SIDECAR beside the reviews handoff
- *  (the carrier's bytes are frozen — the ruling never edits them; P31 §2.1/§2.5).
- *  `annotate` names the carrier action alone — distinct from `backfill` (a durable fact
- *  landed into its owning doc), which stays the ruling's destination when it asserts a
- *  project-level fact. */
+/** The value slot of the fix readback sentence — the rendered sidecar path the route
+ *  carries (`Route.rulings`). The sentence is FIXED bytes and the path is a VALUE, so
+ *  the render face fills a slot instead of deriving a name (§2.10 · §2.6's "the render
+ *  plane holds no name rule"). */
+export const FIX_READBACK_SLOT = "<rendered sidecar path>";
+
+/** The fix-route readback suffix — appended to the fix findings path on the route's
+ *  `next:` render, with the sidecar path filled into `FIX_READBACK_SLOT`:
+ *  `(confirm the reviews handoff · if a finding needs a ruling, record it at
+ *  <rendered sidecar path>)`. A RESULT sentence, never a naming rule: the old wording
+ *  taught the `.json` → `.rulings.json` transformation, which is the very second
+ *  expression this phase retires (§2.8 · issue ④). The path arrives from the route (the
+ *  router renders it from the CARRIER's identity), so no reader of this constant derives
+ *  a name from it. A carrier with no round identity renders no suffix at all. */
 export const FIX_READBACK_SUFFIX =
-  "(confirm the reviews handoff · if a finding needs a ruling, record it beside that handoff — same path with .json replaced by .rulings.json)";
+  "(confirm the reviews handoff · if a finding needs a ruling, record it at <rendered sidecar path>)";
 
 /** The failure face — a BLOCKED/TIMEOUT round goes the stderr CDD_BLOCKED channel and
  *  produces no `next:` line on any op. Exported as the ONE failure-status set: the
@@ -327,8 +337,9 @@ export const FAILED_STATUS = new Set(["BLOCKED", "TIMEOUT"]);
 export class NextStepRouter {
   /** The artifact matrix this router holds — the composition root's single instance,
    *  handed down so the readback face renders the SAME name the dispatch gate judges
-   *  (the router itself derives no name). */
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: the router's name-rendering face (the ruling readback) is not built yet; the matrix is injected now so that render has ONE home the day it lands.
+   *  (the router itself derives no name). `null` — a hermetic caller — means the fix
+   *  hop carries no `rulings` value: a router without a matrix cannot render a name and
+   *  must not invent one. */
   readonly #artifacts: ArtifactRegistry | null;
 
   constructor(artifacts?: ArtifactRegistry | null) {
@@ -350,7 +361,7 @@ export class NextStepRouter {
         // One-way: any findings (any severity) → the fix round — a review never previews
         // what the fix will do (C5-1). Zero findings (approved) → the unified closure: the
         // ready batch decides whether the next wave continues or the run is exhausted.
-        if (ref.findings.length > 0) return { kind: "fix", reviews: ref.reviewsPath };
+        if (ref.findings.length > 0) return this.#fixRoute(ref);
         return this.#close(state);
       case "fix": {
         // C5-1: the fix face is the re-review / closure decision point. The soft cap
@@ -370,10 +381,44 @@ export class NextStepRouter {
       case "branch-review":
         // The branch terminal face — findings route the fix; zero findings close the line
         // through the same unified closure terminal.
-        return ref.findings.length > 0
-          ? { kind: "fix", reviews: ref.reviewsPath }
-          : this.#close(state);
+        return ref.findings.length > 0 ? this.#fixRoute(ref) : this.#close(state);
     }
+  }
+
+  /** The one-way fix hop — the carrier the fix reads plus the ruling sidecar's RESOLVED
+   *  path beside it. The path's name comes from the CARRIER's identity
+   *  (`attribute(basename(carrier))` with `op` fixed to `review`), never from this fix
+   *  round's `(line, op)` and never from a tail replacement on the handoff's own
+   *  spelling: `plan-review-1-a1.json` renders `plan-review-1.c1.rulings.json`. A carrier
+   *  the matrix cannot place (a P34-era legacy spelling) leaves the value absent, and the
+   *  render face then omits the readback sentence whole. */
+  #fixRoute(ref: Round): Route {
+    const reviews = ref.reviewsPath;
+    const rulings = this.#rulingsOf(reviews);
+    return {
+      kind: "fix",
+      ...(reviews === undefined ? {} : { reviews }),
+      ...(rulings === null ? {} : { rulings }),
+    };
+  }
+
+  /** The sidecar path beside one carrier — the matrix's `rulings` render of the carrier's
+   *  own round identity, resolved in the carrier's OWN directory (the same coordinate the
+   *  dispatch gate prints as `derived:`). Null when the router holds no matrix or the name
+   *  attributes to no round identity. */
+  #rulingsOf(carrier: string | undefined): string | null {
+    if (this.#artifacts === null || carrier === undefined || carrier === "") return null;
+    const attributed = this.#artifacts.attribute(path.basename(carrier));
+    if (attributed === null || attributed.identity.domain !== "round") return null;
+    const { line, cycle, attempt } = attributed.identity;
+    const identity = {
+      domain: "round" as const,
+      line,
+      op: "review" as const,
+      ...(cycle === undefined ? {} : { cycle }),
+      ...(attempt === undefined ? {} : { attempt }),
+    };
+    return path.join(path.dirname(carrier), this.#artifacts.render(identity, "rulings"));
   }
 
   /** The unified closure terminal (v1.20) — the single way a review/fix closure renders

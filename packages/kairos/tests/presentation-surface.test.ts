@@ -403,7 +403,9 @@ for (const [rel, pin] of Object.entries(MIGRATION_NOTES)) {
 // and section-scoped per language — (a) the one-time rename command that moves each
 // `<line>-<op>-<n>.rulings.json` to `<line>-<op>-<n>.c<N>.rulings.json`, (b) the sentence that the
 // rename must be re-judged (the name was never the only possible deviation). A migration section
-// that keeps the identity-flip bullets while dropping the rename instruction fails here.
+// that keeps the identity-flip bullets while dropping the rename instruction fails here. The
+// command must also be non-clobbering: the retired and the renamed spelling of one round can sit
+// side by side, and an unguarded rename would overwrite the sidecar already on the derived path.
 const RULING_SIDECAR_MIGRATION: Record<string, { heading: string; rejudge: RegExp }> = {
   "packages/cdd-engine/README.md": {
     heading: "## Migration",
@@ -427,7 +429,7 @@ for (const [rel, pin] of Object.entries(RULING_SIDECAR_MIGRATION)) {
       `${rel} migration section must name the renamed form \`<line>-<op>-<n>.c<N>.rulings.json\``,
     ).toMatch(/<line>-<op>-<n>\.c<N>\.rulings\.json/);
     expect(section, `${rel} migration section must carry a runnable rename command`).toMatch(
-      /mv "\$side"/,
+      /mv -n "\$side"/,
     );
   });
 

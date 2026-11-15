@@ -88,7 +88,7 @@ for side in .kairos/cdd/*/*.rulings.json; do
   for final in "$stem".c[0-9]*.json; do
     case "$final" in *.rulings.json) continue ;; esac
     [ -e "$final" ] || continue
-    mv "$side" "${final%.json}.rulings.json"
+    mv -n "$side" "${final%.json}.rulings.json"   # -n: never clobber an already-renamed sidecar
     break
   done
 done

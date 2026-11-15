@@ -192,8 +192,11 @@ export class CliLifecycle {
    *  `--recover` flag — the only takeover path). */
   readonly #recover: boolean;
   /** The artifact matrix this dispatch holds — the composition root's single instance,
-   *  handed to the seal sweep so the carrier set is read out of ONE table. */
-  readonly #artifacts: ArtifactRegistry | null;
+   *  handed to the seal sweep so the carrier set is read out of ONE table, and read by
+   *  the rulings face for the sidecar's name. Required: a dispatch that holds no table
+   *  can not answer "is there a sidecar", and the old nullable field let that wiring bug
+   *  read as a legal `absent` (the visibility rule's exact inversion). */
+  readonly #artifacts: ArtifactRegistry;
   /** The HEAD the current dispatch started from (null off a repo / before a spawn) —
    *  the postmortem baseline of `commitsSince` AND the in-flight record's
    *  `dispatchBase` cell (the killed round's group baseline a takeover restores, §2.2). */
@@ -226,7 +229,7 @@ export class CliLifecycle {
     proc?: ProcessStartReader;
     recover?: boolean;
     brief?: BriefRenderer;
-    artifacts?: ArtifactRegistry | null;
+    artifacts: ArtifactRegistry;
   }) {
     this.#env = opts.env ?? process.env;
     this.#scene = opts.scene;
@@ -236,7 +239,7 @@ export class CliLifecycle {
     this.#git = opts.git ?? new GitClient();
     this.#proc = opts.proc ?? ProcessFacts;
     this.#recover = opts.recover ?? false;
-    this.#artifacts = opts.artifacts ?? null;
+    this.#artifacts = opts.artifacts;
     this.#sync = opts.sync ?? new Terminator();
     this.#template = opts.template ?? new TemplateAssembler();
     this.#brief = opts.brief ?? new BriefRenderer();
@@ -972,9 +975,10 @@ export class CliLifecycle {
       // would be a short-circuit).
       INPUT_REVIEWS: op === "fix" ? this.#rel(this.#reviewsPath(frame) ?? "") : "",
       // P31 T2 — the ruling sidecar rides the fix input side alone (the review round's
-      // own context has no sidecar yet). The path derives from the requesting carrier
-      // by the ONE `.json` → `.rulings.json` rule; an absent sidecar leaves the slot
-      // empty, so the assembler drops the line entirely.
+      // own context has no sidecar yet). The path is the matrix's `rulings` row rendered
+      // from the REVIEWED carrier's identity (`#rulingsSidecarOf`) and judged by the
+      // strict verdict, so this slot and the gate speak one value; an absent, unattributable
+      // or refused sidecar leaves the slot empty and the assembler drops the line.
       INPUT_RULINGS: this.#rulingsInputOf(frame),
       // The kind-named judged-doc anchors (the semantic retirement of the generic
       // INPUT_DOC): the plan line carries the plan document as its judged doc
@@ -1386,22 +1390,26 @@ export class CliLifecycle {
   }
 
   /** The fix round's ruling sidecar as the round-context value — the repo-relative
-   *  sidecar path when a sidecar sits beside the requesting carrier, plus the ruling
-   *  bodies it carries, the empty string otherwise (off the fix face, with no resolved
-   *  carrier, when the carrier attributes to no round identity, and when the sidecar is
-   *  absent — the assembler drops the empty line). The path is the artifact matrix's
-   *  `rulings` render of the REVIEWED round's identity, never a tail replacement on the
-   *  carrier's name: the carrier's own spelling (draft or final) can no longer move it.
-   *  The strict judgment stays the dispatch gate's `#rulingsRefusal`. */
+   *  sidecar path plus the ruling bodies it carries, the empty string otherwise (off the
+   *  fix face, with no resolved carrier, when the carrier attributes to no round
+   *  identity, and when the sidecar is absent — the assembler drops the empty line).
+   *
+   *  The judgment is the GATE's own `#rulingsVerdict` (strict), never a second looser
+   *  read: a sidecar the dispatch refuses must not be quoted into the prompt the
+   *  refusal exists to prevent, and one discriminant value for both consumers is what
+   *  keeps a cell and a gate from answering differently about one file. The path is the
+   *  artifact matrix's `rulings` render of the REVIEWED round's identity, never a tail
+   *  replacement on the carrier's name: the carrier's own spelling (draft or final) can
+   *  no longer move it. */
   #rulingsInputOf(frame: OpenFrame): string {
     if (this.#opOf(frame) !== "fix") return "";
     const carrier = this.#reviewsPath(frame);
     if (carrier === null) return "";
+    const verdict = this.#rulingsVerdict(frame, carrier);
+    if (verdict.kind !== "ok") return "";
     const sidecar = this.#rulingsSidecarOf(carrier);
     if (sidecar === null) return "";
-    const recorded = CarrierRulings.read(sidecar, this.#carrierPathOf(carrier));
-    if (recorded === null) return "";
-    return [this.#rel(sidecar), ...recorded.rulings.map((ruling) => this.#rulingLine(ruling))].join(
+    return [this.#rel(sidecar), ...verdict.rulings.map((ruling) => this.#rulingLine(ruling))].join(
       "\n",
     );
   }
@@ -1456,7 +1464,7 @@ export class CliLifecycle {
    *  expression would mint `<line>-fix-<n>.c<n>.rulings.json`, a name no gate sees and
    *  the child would faithfully write. */
   #rulingsIdentityOf(carrier: string): Identity | null {
-    const attributed = this.#artifacts?.attribute(path.basename(carrier)) ?? null;
+    const attributed = this.#artifacts.attribute(path.basename(carrier));
     if (attributed === null || attributed.identity.domain !== "round") return null;
     const { line, cycle, attempt } = attributed.identity;
     return {
@@ -1473,7 +1481,7 @@ export class CliLifecycle {
    *  legacy spelling is an orphan observation, and an orphan answers no sidecar). */
   #rulingsSidecarOf(carrier: string): string | null {
     const identity = this.#rulingsIdentityOf(carrier);
-    if (identity === null || this.#artifacts === null) return null;
+    if (identity === null) return null;
     return this.#artifacts.locate(identity, "rulings", this.#scene.workspace);
   }
 

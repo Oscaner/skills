@@ -9,12 +9,18 @@
 //     to, or `null` for a name no row renders (an unknown name is an OBSERVATION, not
 //     a refusal).
 //
-// Registered domains: the ROUND domain (draft / final / report / log / crash /
-// evidence / the orchestrator's rulings sidecar) and the WORKSPACE domain
-// (`progress` · `base` · `in-flight` — the three coordinate-less literals — and
-// `brief`, the one workspace kind carrying a coordinate). Each is ONE class owning
-// its rows; the registry is their aggregate. A domain the matrix never registered
-// answers loudly rather than inventing a name.
+// Registered domains — three, each ONE class owning its rows; the registry is their
+// aggregate, and a domain the matrix never registered answers loudly rather than
+// inventing a name:
+//   · the ROUND domain — draft / final / report / log / crash / evidence / the
+//     orchestrator's rulings sidecar (every row rendered from a round coordinate);
+//   · the WORKSPACE domain — `progress` · `base` · `in-flight` (the three
+//     coordinate-less literals) and `brief`, the one workspace kind carrying a
+//     coordinate;
+//   · the DOC domain — the four DECLARED rows (`overall` · `phase-spec` ·
+//     `single-spec` · `plan`), identity from the front-matter `slug:` and no `render`
+//     at all. Its `read` is where a slug naming ≥2 documents of one declared type is
+//     judged: `invalid(found)` with every path listed, never a first pick.
 //
 // Three facts this file is the single home of:
 //   · the workspace name SPELLINGS (`progress.json` · `base.json` · `in-flight.json` ·
@@ -35,7 +41,7 @@
 // bare functions.
 
 import { accessSync, constants, statSync } from "node:fs";
-import type { DocKey } from "../contract/project.ts";
+import { DOC_KEYS, type DocKey } from "../contract/project.ts";
 import { type DocEntry, SlugIndex } from "../infra/slug-index.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import { targetFaces } from "./faces.ts";
@@ -413,8 +419,9 @@ export class RoundDomain implements IdentityDomain {
  *  rule" is the fact, not a failed render. */
 export type DocKind = DocKey;
 
-/** Every doc kind, in the matrix's row order. */
-const DOC_KINDS: readonly DocKind[] = ["overall", "phase-spec", "single-spec", "plan"];
+/** Every doc kind — the declaration root's OWN tuple (`DOC_KEYS`), never a second
+ *  runtime copy: a value added there can not silently skip a row here. */
+const DOC_KINDS: readonly DocKind[] = DOC_KEYS;
 
 /** Whether a kind belongs to the doc domain's declared set. */
 const isDocKind = (kind: Kind): kind is DocKind => (DOC_KINDS as readonly Kind[]).includes(kind);
@@ -437,7 +444,8 @@ const docIdentityOf = (entry: DocEntry): Extract<Identity, { domain: "doc" }> | 
  * DocDomain — the declared identity domain: the four document rows, answered entirely
  * by the command's ONE identity index. `attribute` maps a repo-relative path to the
  * document's declared identity, never to a filename-derived one; `locate` / `read`
- * take the index entry's own path. The domain never renders a name (documents name
+ * answer on the index entry's `rel` — the declared row's own home, and the basis every
+ * doc consumer compares paths on. The domain never renders a name (documents name
  * themselves), so it holds no `render` and no orphan-by-name rule.
  */
 export class DocDomain implements IdentityDomain {
@@ -464,30 +472,43 @@ export class DocDomain implements IdentityDomain {
   }
 
   /** The sole matching document's path — `null` when the slug names none of the kind
-   *  or names two of them. The path is the index entry's `rel` (its declared home),
-   *  never a rendered name. */
+   *  or names two of them. The path is the index entry's `rel` (its declared home on
+   *  the ONE repo-root-relative basis every consumer compares on), never a rendered
+   *  name and never the syscall form. */
   locate(identity: Identity, kind: Kind, _base: Workspace): string | null {
     const doc = this.#identityOf(identity, kind);
-    const found = this.#index.docsOf(doc.slug).filter((entry) => entry.docType === doc.docType);
-    return found.length === 1 ? found[0]!.path : null;
+    const found = this.#documentsOf(doc);
+    return found.length === 1 ? found[0]!.rel : null;
   }
 
   /** One read of the declared document — the ambiguity judgment's ONE home (spec §4.4):
    *  a slug naming two documents of the same declared type is `invalid(found)` and both
-   *  paths are printed; the read never selects one. */
+   *  paths are printed; the read never selects one. The `path` is the index entry's
+   *  `rel`, the same basis `locate` answers on. */
   read(identity: Identity, kind: Kind, _base: Workspace): ArtifactRead {
     const doc = this.#identityOf(identity, kind);
-    const found = this.#index.docsOf(doc.slug).filter((entry) => entry.docType === doc.docType);
+    const found = this.#documentsOf(doc);
     if (found.length > 1) {
       return {
         kind: "invalid",
-        path: found[0]!.path,
-        found: found.map((entry) => entry.path),
+        path: found[0]!.rel,
+        found: found.map((entry) => entry.rel),
         reason: "duplicate-identity",
       };
     }
     const only = found[0];
-    return only === undefined ? { kind: "absent" } : readArtifactAt(only.path);
+    if (only === undefined) return { kind: "absent" };
+    // The existence probe takes the syscall form; the ANSWER speaks the declared
+    // home, so a doc read and a doc locate never name one document two ways.
+    const at = readArtifactAt(only.path);
+    if (at.kind === "invalid") return { ...at, path: only.rel };
+    return at.kind === "ok" ? { kind: "ok", path: only.rel } : at;
+  }
+
+  /** The documents declaring this slug at this declared type — 0, 1 or n. The set is
+   *  the whole judgment: no arm of the doc domain ever picks a first document. */
+  #documentsOf(doc: Extract<Identity, { domain: "doc" }>): readonly DocEntry[] {
+    return this.#index.docsOf(doc.slug).filter((entry) => entry.docType === doc.docType);
   }
 
   /** The doc identity narrowed to this row — a foreign domain or a kind the identity
@@ -609,11 +630,15 @@ export class WorkspaceDomain implements IdentityDomain {
  * ports over it (`render` · `attribute`) and the read face. The instance is built ONCE
  * per invocation by the composition root and handed down; a face that mints its own
  * has already left the single source. It holds no directory: the same instance serves
- * every workspace one command observes.
+ * every workspace one command observes. The DECLARED domain is the one row set whose
+ * answers need an index, so it is bound onto this SAME instance once the command's
+ * index exists (`bindDocIndex`) — never built into a second registry.
  */
 export class ArtifactRegistry {
-  /** The registered domains, in registration order. */
-  readonly #domains: readonly IdentityDomain[];
+  /** The registered domains, in registration order. Replaced only by `bindDocIndex`,
+   *  which swaps the declared domain in place so every face holding this instance
+   *  (the base face, the ledgers, the lifecycle, the board) keeps asking ONE table. */
+  #domains: readonly IdentityDomain[];
 
   constructor(domains: readonly IdentityDomain[] = [new RoundDomain(), new WorkspaceDomain()]) {
     this.#domains = domains;
@@ -632,6 +657,19 @@ export class ArtifactRegistry {
   /** Every registered entry (`kind` ↔ row), in registration order. */
   entries(): readonly MatrixEntry[] {
     return this.#domains.flatMap((domain) => domain.entries());
+  }
+
+  /** Bind this command's identity index to the DECLARED domain — the ONE doc-domain
+   *  construction point, and it edits THIS instance rather than replacing it. The
+   *  binding is idempotent: a command that resolves its root twice swaps one declared
+   *  domain for the one over the newer index, and every face already holding the
+   *  registry sees the new answers (an injected registry included, so a hermetic
+   *  caller's instance answers doc reads exactly as the preamble's does). */
+  bindDocIndex(index: SlugIndex): void {
+    this.#domains = [
+      ...this.#domains.filter((domain) => domain.domain !== "doc"),
+      new DocDomain(index),
+    ];
   }
 
   /** Every registered row, in registration order. */

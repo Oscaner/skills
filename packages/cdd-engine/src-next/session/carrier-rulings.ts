@@ -61,18 +61,22 @@ type ParsedSidecar =
  *  The path itself is the artifact matrix's render — this class never derives one. */
 // biome-ignore lint/complexity/noStaticOnlyClass: the plan-mandated sidecar read surface — the zero-bare-function discipline admits no standalone predicate functions.
 export class CarrierRulings {
-  /** The sidecar's rulings as recorded — null when the file is absent, unparsable or
-   *  does not carry a rulings array. The lenient read is for callers that render a
-   *  ruling, never for the gate: the dispatch gate judges through `verdict`. The
-   *  carrier path is accepted beside the sidecar so both consumers share ONE call
-   *  shape; the `carrier` key's comparison is the strict gate's judgment. */
+  /** The sidecar's rulings as recorded — null when the file is absent, unparsable, does
+   *  not carry a rulings array, or carries a `carrier` key naming another file. The
+   *  lenient side is the TOLERANCE of unknown keys / unknown finding ids; the carrier
+   *  fact is judged here too, so neither consumer can read a sidecar that answers a
+   *  different carrier. The dispatch gate judges through `verdict`; the read face that
+   *  renders the ruling bodies takes this one. */
   static read(
     sidecarPath: string,
-    _carrierPath: string,
+    carrierPath: string,
   ): { readonly rulings: readonly Ruling[] } | null {
     const parsed = CarrierRulings.#parse(sidecarPath);
     if (parsed.kind !== "ok") return null;
-    return CarrierRulings.#lenientRulings(parsed.value);
+    const record = CarrierRulings.#recordOf(parsed.value);
+    if (record === null) return null;
+    if (CarrierRulings.#carrierRefusal(record, carrierPath) !== null) return null;
+    return CarrierRulings.#lenientRulings(record);
   }
 
   /** The strict judgment — the fix dispatch's pre-spawn gate. `findingIds` is the

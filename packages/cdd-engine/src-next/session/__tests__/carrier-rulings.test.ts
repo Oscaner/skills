@@ -110,6 +110,30 @@ describe("CarrierRulings — the three-state read", () => {
     ]);
   });
 
+  it("judges the `carrier` key in the lenient read too — the signature never lies", () => {
+    const conforming = carrierDir();
+    writeFileSync(conforming.sidecar, JSON.stringify(LEGAL), "utf8");
+    // Same body, same file: the read and the verdict agree about WHICH carrier the
+    // sidecar answers, so no caller can read a ruling set the gate would refuse.
+    expect(CarrierRulings.read(conforming.sidecar, conforming.carrier)).toEqual({
+      rulings: [
+        {
+          finding: "F4",
+          ruling: "REJECTED as stated",
+          at: "2026-11-09T00:00:00Z",
+          by: "orchestrator",
+        },
+      ],
+    });
+    const foreign = carrierDir();
+    writeFileSync(
+      foreign.sidecar,
+      JSON.stringify({ ...LEGAL, carrier: "phase-spec-review-2.c2.json" }),
+      "utf8",
+    );
+    expect(CarrierRulings.read(foreign.sidecar, foreign.carrier)).toBeNull();
+  });
+
   it("accepts a sidecar without the optional `carrier` key and without `at` / `by`", () => {
     const verdict = verdictOf({ rulings: [{ finding: "F1", ruling: "accepted" }] });
     expect(verdict).toEqual({ kind: "ok", rulings: [{ finding: "F1", ruling: "accepted" }] });

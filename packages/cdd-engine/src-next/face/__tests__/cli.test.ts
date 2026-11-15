@@ -4880,6 +4880,24 @@ describe("P36 T1 — the invocation's ONE matrix instance reaches every read fac
       cleanup();
     }
   });
+
+  it("binds the declared domain onto the injected instance — a work command's doc read answers", async () => {
+    const matrix = new RecordingRegistry();
+    const { command, io, repoRoot, cleanup } = fixture({ artifacts: matrix, dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // The scene's identity read (`read({domain: "doc", …})`) is the face an injected
+      // matrix used to answer with "the matrix holds no doc domain". The declared
+      // domain is bound ONTO the injected instance, so the branch review assembles and
+      // dispatches (exit 0, no BLOCKED line).
+      const code = await command.runArgv(["review", "--type", "branch", "--plan", plan]);
+      expect(code).toBe(0);
+      expect(io.stderrText).not.toContain("doc domain");
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -6036,7 +6054,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const dispatch = new HarnessDispatch({ scene, io, env: {} });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        env: {},
+      });
       expect(dispatch.detectHost({})).toBe("");
       expect(dispatch.detectHost({ CLAUDE_CODE_SESSION_ID: "s" })).toBe("claude");
       expect(dispatch.detectHost({ AI_AGENT: "pi" })).toBe("pi");
@@ -6095,6 +6118,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6180,7 +6204,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const io = new CaptureIo();
       const sync = new StubRunner();
       sync.stdout = "Implemented the task.\n";
-      const dispatch = new HarnessDispatch({ scene, io, sync, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync,
+        env: { AI_AGENT: "pi" },
+      });
       await dispatch.step()(implementFrame);
       expect(sync.calls.length).toBe(1);
       // The child env is the detected row's data, never a dispatcher branch: a
@@ -6212,6 +6242,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6259,6 +6290,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6298,6 +6330,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6354,6 +6387,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6426,6 +6460,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6483,6 +6518,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6530,6 +6566,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6574,6 +6611,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6625,6 +6663,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6692,6 +6731,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6749,6 +6789,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6806,6 +6847,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         key: "docs/kairos/specs/s1-design.md",
       };
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6893,6 +6935,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6917,7 +6960,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const noHost = new HarnessDispatch({ scene, io, env: {} });
+      const noHost = new HarnessDispatch({ artifacts: new ArtifactRegistry(), scene, io, env: {} });
       expect(await noHost.step()(implementFrame)).toEqual({
         status: "BLOCKED",
         // no host: the dispatch never reached its git baseline
@@ -6941,6 +6984,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // round that was never booked) contributes nothing to it.
       expect(scene.ledger.counterOf("contractViolationCount")).toBe(0);
       const failed = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync: {
@@ -6969,7 +7013,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const io = new CaptureIo();
       // a mutable env object — the dispatch reads it live, so the host marker can vanish
       const env: Record<string, string | undefined> = { CLAUDE_CODE_SESSION_ID: "s" };
-      const dispatch = new HarnessDispatch({ scene, io, sync: new StubRunner(), env });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: new StubRunner(),
+        env,
+      });
       // the first dispatch reaches its git baseline (no draft → BLOCKED, the baseline set)
       expect((await dispatch.step()(implementFrame)).dispatchBase).toBe(base);
       // the host marker is gone, so the second dispatch returns BEFORE reading the
@@ -6998,6 +7048,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "done — the handoff draft is written\n";
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7048,6 +7099,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.code = 7;
       sync.stdout = "boom — the child died before writing\n";
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7103,6 +7155,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.code = null;
       sync.termination = { cause: "stalled", idleMs: 1_800_000, lastSample };
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7154,6 +7207,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.code = 143;
       sync.termination = { cause: "over-budget", idleMs: 42, lastSample: null };
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7188,6 +7242,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7229,6 +7284,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7268,6 +7324,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const draftPath = path.join(scene.workspace.path, "tasks-1-implement-1.json");
       writeFileSync(draftPath, JSON.stringify({ artifacts: { report: "/r" } }), "utf8");
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7339,6 +7396,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7393,6 +7451,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7468,6 +7527,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7529,6 +7589,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -8290,6 +8351,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         );
         const sync = new StubRunner();
         const dispatch = new HarnessDispatch({
+          artifacts: new ArtifactRegistry(),
           scene,
           io,
           sync,
@@ -8311,6 +8373,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         // fix round: the same criterion judges it)
         const docsSync = new StubRunner();
         const docsDispatch = new HarnessDispatch({
+          artifacts: new ArtifactRegistry(),
           scene,
           io,
           sync: docsSync,
@@ -8350,6 +8413,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         });
         try {
           const review = new HarnessDispatch({
+            artifacts: new ArtifactRegistry(),
             scene,
             io,
             sync: new StubRunner(),
@@ -8367,6 +8431,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           );
           // `--reviews` present: the fix route's own carrier wins the same cell
           const fix = new HarnessDispatch({
+            artifacts: new ArtifactRegistry(),
             scene,
             io,
             sync: new StubRunner(),
@@ -8404,6 +8469,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
             "utf8",
           );
           const dispatch = new HarnessDispatch({
+            artifacts: new ArtifactRegistry(),
             scene,
             io: new CaptureIo(),
             sync: new StubRunner(),
@@ -8753,7 +8819,13 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const io = new CaptureIo();
       const runner = new RecordProbeRunner(scene.workspace.path);
       runner.commit = true;
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       const outcome = await dispatch.step()(P21_IMPLEMENT);
       expect(outcome.status).toBe("APPROVED");
       // The record existed INSIDE run() — i.e. before the child was spawned.
@@ -8788,6 +8860,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       // the dispatch instant would read a LIVE holder dead and authorize a takeover.
       const startedAt = Date.now() - 6 * 60 * 60 * 1000;
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync: runner,
@@ -8811,7 +8884,13 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const io = new CaptureIo();
       const runner = new StubRunner();
       runner.code = 1;
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       const outcome = await dispatch.step()(P21_IMPLEMENT);
       expect(outcome.status).toBe("BLOCKED");
       // The crash's postmortem fact survives: the record is not the loop's to remove.
@@ -8846,7 +8925,13 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       expect(scene.ledger.reviewedRevisionOf("1")).toBeNull();
       const io = new CaptureIo();
       const runner = new RecordProbeRunner(scene.workspace.path);
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       await dispatch.step()(P21_IMPLEMENT);
       const record = JSON.parse(runner.recordAtSpawn as string) as InFlightRecord;
       const expected = scene.ledger
@@ -8876,7 +8961,13 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       // The probe captures the record INSIDE run() — the normal end releases it, so the
       // post-run file is (correctly) gone.
       const runner = new RecordProbeRunner(scene.workspace.path);
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       const planReview: OpenFrame = {
         type: "plan",
         phase: "review",
@@ -9239,7 +9330,13 @@ describe("P21 — the crash record's identity and git facts", () => {
       const io = new CaptureIo();
       const runner = new StubRunner();
       runner.code = 1;
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       const outcome = await dispatch.step()(P21_REVIEW);
       expect(outcome.status).toBe("BLOCKED");
       const crashPath = path.join(scene.workspace.path, "crash-tasks-1-review-1.json");
@@ -9269,7 +9366,13 @@ describe("P21 — the crash record's identity and git facts", () => {
       const scene = sceneOf(repoRoot);
       const io = new CaptureIo();
       const runner = new CommittingCrashRunner();
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       const outcome = await dispatch.step()(P21_IMPLEMENT);
       expect(outcome.status).toBe("BLOCKED");
       const crash = readJson<CrashRecord>(
@@ -9296,7 +9399,13 @@ describe("P21 — the crash record's identity and git facts", () => {
       const io = new CaptureIo();
       const runner = new StubRunner();
       runner.code = 1;
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       await dispatch.step()(P21_IMPLEMENT);
       const crash = readJson<CrashRecord>(
         path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"),
@@ -9333,7 +9442,13 @@ describe("P21 — the crash record's identity and git facts", () => {
         const runner = new StubRunner();
         runner.code = entry.code;
         runner.termination = entry.termination;
-        const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+        const dispatch = new HarnessDispatch({
+          artifacts: new ArtifactRegistry(),
+          scene,
+          io,
+          sync: runner,
+          env: { AI_AGENT: "pi" },
+        });
         await dispatch.step()(P21_IMPLEMENT);
         expect(io.stderrText, `${entry.label}: the late-landing hint`).toContain(
           words.lateLandingHint(),

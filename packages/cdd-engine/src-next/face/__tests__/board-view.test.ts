@@ -3176,32 +3176,45 @@ describe("P35 T5 — the board renders FROM the plan value, never from a second 
     expect(duplicatedBoard.exitCode).toBe(2);
   });
 
-  it("a duplicated identity spec renders the duplicated marker on the spec cell (P36 T3)", () => {
+  it("a duplicated identity spec renders the marker and both paths, never one version (P36 T3)", () => {
     overall();
     phaseSpec();
-    phaseSpec("prog-p1", "docs/kairos/specs/prog-p1-second.md");
     planDoc("docs/kairos/plans/prog-p1.md", taskBlock(1));
+    const single = boardOf("prog-p1", "docs/kairos/plans/prog-p1.md");
+    const specRowOf = (lines: readonly string[]): string =>
+      lines.find((line) => line.startsWith("  spec")) ?? "";
+    // The paired half: ONE document keeps today's cell — name, version, status.
+    expect(specRowOf(single.lines)).toContain("v0.1 · Draft");
+    phaseSpec("prog-p1", "docs/kairos/specs/prog-p1-second.md");
     const board = boardOf("prog-p1", "docs/kairos/plans/prog-p1.md");
     const text = board.lines.join("\n");
+    const specRow = specRowOf(board.lines);
     // The same-slug set answers TWO identity documents: the spec cell renders the
-    // existing duplicate marker (the judgment the doc domain's `read` refuses on), and
-    // the row never degrades to `! no-spec` over a set that plainly names one.
-    expect(text).toContain("slug: duplicated (BLOCKED)");
+    // existing duplicate marker plus BOTH declared homes, and never one document's
+    // header facts — which of the two is "the" spec is exactly the question the
+    // identity does not answer.
+    expect(specRow).toContain("slug: duplicated (BLOCKED)");
+    expect(specRow).toContain("docs/kairos/specs/prog-p1-design.md");
+    expect(specRow).toContain("docs/kairos/specs/prog-p1-second.md");
+    expect(specRow).not.toContain("v0.1");
+    expect(specRow).not.toContain("Draft");
     expect(text).not.toContain("! no-spec");
     expect(board.exitCode).toBe(2);
   });
 
-  it("a duplicated plan under a phase blocks the program board's plan row (P36 T3)", () => {
+  it("a duplicated plan under a phase blocks the program board's plan cell with the set (P36 T3)", () => {
     overall();
     phaseSpec();
     planDoc("docs/kairos/plans/prog-p1.md", taskBlock(1));
     const healthy = boardOf("prog-overall");
     planDoc("docs/kairos/plans/prog-p1-copy.md", taskBlock(1));
     const duplicated = boardOf("prog-overall");
-    // The phase row's plan cell reads the SAME duplicate judgment the doc domain's
-    // `read` refuses on: the row keeps its bytes and the board turns BLOCKED (the
-    // program board's existing channel — no new column, no new marker text).
-    expect(duplicated.lines).toEqual(healthy.lines);
+    // The phase row's plan cell answers the SAME set judgment the doc domain's `read`
+    // refuses on: the marker plus both paths. The healthy row is untouched, and the
+    // board turns BLOCKED on its existing channel (no new column).
+    expect(duplicated.lines).toContain(
+      "  phase prog-p1  Draft   plan slug: duplicated (BLOCKED)   docs/kairos/plans/prog-p1-copy.md · docs/kairos/plans/prog-p1.md   title: S",
+    );
     expect(healthy.exitCode).toBe(0);
     expect(duplicated.exitCode).toBe(2);
   });

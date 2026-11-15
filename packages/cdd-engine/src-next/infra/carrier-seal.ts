@@ -7,9 +7,10 @@
 //
 // The sweep is the recovery leg of the invariant: a carrier left writable by a process
 // killed outside the engine is sealed by the NEXT dispatch's preflight. Its scope is
-// the carrier NAME shapes `RoundNaming.isCarrierName` mints — never the directory's
-// other JSON (`progress.json` · `base.json` · `*-test-evidence.json` · the crash
-// records) and never a `.rulings.json` sidecar.
+// the names the matrix attributes — anything else in the directory (`progress.json` ·
+// `base.json` · `*-test-evidence.json` · the crash records · the orchestrator's rulings
+// sidecar) asks the matrix and is answered from its rows, so no tail is spelled a
+// second time here.
 //
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
@@ -17,12 +18,6 @@ import { chmodSync, type Dirent, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import type { ArtifactRegistry } from "../session/round-artifacts.ts";
 import { RoundNaming } from "../session/round-naming.ts";
-
-/** The ruling sidecar's suffix — a sidecar is written AFTER its carrier is sealed and
- *  is never sealed itself (spec §2.1). The name rule lives with `CarrierRulings`; this
- *  is the sweep's own belt-and-braces skip, so a future widening of the carrier
- *  predicate can never sweep a sidecar. */
-const RULINGS_SUFFIX = ".rulings.json";
 
 /**
  * CarrierSeal — the permission-bit face of the engine's carriers. Stateless by
@@ -85,17 +80,18 @@ export class CarrierSeal {
   }
 
   /** Whether one directory entry is an orphan carrier the sweep must recover: a minted
-   *  carrier name, not held open by the caller, not a ruling sidecar, and NOT already
-   *  sealed. An unreadable entry (a vanished race) is not a stray — the sweep never
-   *  invents a recovery it did not make. */
+   *  carrier name, not held open by the caller, not the orchestrator's rulings sidecar,
+   *  and NOT already sealed. An unreadable entry (a vanished race) is not a stray — the
+   *  sweep never invents a recovery it did not make. */
   static #isStray(
     target: string,
     name: string,
     keep: readonly string[],
     artifacts: ArtifactRegistry | null,
   ): boolean {
+    if (CarrierSeal.#isSidecar(name, artifacts)) return false;
     if (!CarrierSeal.#isSealedName(name, artifacts)) return false;
-    if (keep.includes(name) || name.endsWith(RULINGS_SUFFIX)) return false;
+    if (keep.includes(name)) return false;
     try {
       return (statSync(target).mode & 0o777) !== CarrierSeal.SEALED;
     } catch {
@@ -103,10 +99,18 @@ export class CarrierSeal {
     }
   }
 
+  /** Whether one name is the orchestrator's rulings sidecar — asked of the matrix
+   *  (`attribute` answers the `rulings` kind for every spelling that attributes), so the
+   *  sidecar tail has ONE spelling home and the sweep holds no second copy of it. */
+  static #isSidecar(name: string, artifacts: ArtifactRegistry | null): boolean {
+    return artifacts?.attribute(name)?.kind === "rulings";
+  }
+
   /** Whether one name belongs to a row the matrix marks `sealed`. The matrix's
-   *  `sealed` column is the ONE answer once a domain registers the carrier kinds; until
-   *  then (this wave registers the workspace rows alone) the naming predicate stands in
-   *  — same judgment, one home per domain, no behaviour change either way. */
+   *  `sealed` column is the ONE answer for every kind a domain registers — the round
+   *  rows included, which is what makes `draft` / `final` sweepable and the sidecar
+   *  not. Only a name no row attributes falls back to the naming predicate, so a
+   *  matrix without a domain for the name's kind still judges the legacy spellings. */
   static #isSealedName(name: string, artifacts: ArtifactRegistry | null): boolean {
     const attributed = artifacts?.attribute(name) ?? null;
     if (attributed === null) return RoundNaming.isCarrierName(name);

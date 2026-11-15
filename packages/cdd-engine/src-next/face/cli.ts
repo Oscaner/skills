@@ -82,13 +82,7 @@ import { Ledger, type RoundStatus } from "../session/ledger.ts";
 import { NextStepRouter } from "../session/next.ts";
 import type { PipelineFrontierInput } from "../session/pipeline.ts";
 import { PreFlight, type PreFlightVerdict } from "../session/preflight.ts";
-import {
-  ArtifactRegistry,
-  DocDomain,
-  type Identity,
-  RoundDomain,
-  WorkspaceDomain,
-} from "../session/round-artifacts.ts";
+import { ArtifactRegistry } from "../session/round-artifacts.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { CliArtifacts } from "./artifacts.ts";
@@ -280,12 +274,9 @@ export class Cli {
    *  down to the scene's ledger / router / lifecycle, the board's node ledgers and the
    *  seal sweep. It binds no workspace (the matrix is naming knowledge; the workspace is
    *  the read-time coordinate), so ONE instance serves every node a command observes.
-   *  The doc domain answers through the command's identity index, so the matrix is
-   *  REBOUND at `#indexOf` (once the index exists) — unless the caller injected one. */
-  #matrix: ArtifactRegistry;
-  /** Whether the matrix was injected by the caller (the hermetic test face): an injected
-   *  instance is never replaced by the command preamble's index-bound one. */
-  readonly #injectedMatrix: boolean;
+   *  The doc domain answers through the command's identity index, which is bound ONTO
+   *  this instance at `#indexOf` — the same object, never a second registry. */
+  readonly #matrix: ArtifactRegistry;
   /** The command's ONE identity index — built once per repo root at `#indexOf`, so no
    *  two read faces of a command scan the doc roots twice. */
   #index: SlugIndex | null = null;
@@ -332,8 +323,8 @@ export class Cli {
     this.#authority = opts.authority ?? new DispatchAuthority();
     this.#gate = new CliGate({ brief: this.#brief, authority: this.#authority });
     // The invocation's ONE matrix — the command preamble's construction point. The
-    // doc domain is bound to the index at `#indexOf`; an injected instance stands as-is.
-    this.#injectedMatrix = opts.artifacts !== undefined;
+    // declared domain is bound onto this same instance at `#indexOf` (an injected one
+    // included), so no face ever holds a registry the doc reads do not answer through.
     this.#matrix = opts.artifacts ?? new ArtifactRegistry();
     this.#artifacts = new CliArtifacts({
       io: this.#io,
@@ -494,21 +485,16 @@ export class Cli {
 
   /** The command's ONE identity index — the doc-domain binding point. `board` · the
    *  scene assembly · `base` each call this once, and a second call inside one command
-   *  reuses the memo (a command never scans the doc roots twice). The matrix's doc
-   *  domain is bound here, when the index first exists — so every read face of this
-   *  command asks ONE index. */
+   *  reuses the memo (a command never scans the doc roots twice). The matrix's declared
+   *  domain is bound onto the SAME registry instance here — the base face, the ledgers,
+   *  the lifecycle and the board all keep holding it, so a doc read can not fall on a
+   *  table that never learned the index. */
   #indexOf(repoRoot: string): SlugIndex {
     if (this.#index !== null && this.#indexRoot === repoRoot) return this.#index;
     const index = SlugIndex.build(repoRoot);
     this.#index = index;
     this.#indexRoot = repoRoot;
-    if (!this.#injectedMatrix) {
-      this.#matrix = new ArtifactRegistry([
-        new RoundDomain(),
-        new WorkspaceDomain(),
-        new DocDomain(index),
-      ]);
-    }
+    this.#matrix.bindDocIndex(index);
     return index;
   }
 

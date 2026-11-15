@@ -625,6 +625,20 @@ describe("one home, one instance (spec §2.1 · §2.9 ⑤)", () => {
     }
   });
 
+  it("never sweeps the orchestrator's sidecar — the matrix names the kind", () => {
+    const name = "phase-spec-review-1.c1.rulings.json";
+    const { dir, file } = dirWithFile(name);
+    try {
+      // The sidecar is the orchestrator's and is never sealed: the sweep asks the matrix
+      // for the name's kind instead of holding a tail of its own, so the skip and the
+      // `.rulings.json` spelling home can never drift apart.
+      expect(CarrierSeal.sweep(dir, [], new ArtifactRegistry())).toEqual([]);
+      expect(statSync(file).mode & 0o777).toBe(CarrierSeal.WRITABLE);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("judges an orphan carrier the same way with and without the workspace matrix", () => {
     const name = "tasks-1-review-2.c2.json";
     const bare = dirWithFile(name);
@@ -755,16 +769,17 @@ describe("the doc domain — declared rows, no name rule (spec §2.1 · §2.2 ·
     }
   });
 
-  it("reads the sole document at its index path", () => {
-    const { artifacts, workspace, repo, cleanup } = docFixture();
+  it("reads the sole document at its declared home — the index entry's `rel`", () => {
+    const { artifacts, workspace, cleanup } = docFixture();
     try {
       const plan: Identity = { domain: "doc", slug: "p36", docType: "plan" };
-      expect(artifacts.locate(plan, "plan", workspace)).toBe(
-        path.join(repo, "docs/kairos/plans/p36.md"),
-      );
+      // One basis: the declared domain answers the repo-root-relative home, so a doc
+      // read and a doc locate never name one document two ways (the rendered domains
+      // answer the absolute form their `base` resolves).
+      expect(artifacts.locate(plan, "plan", workspace)).toBe("docs/kairos/plans/p36.md");
       expect(artifacts.read(plan, "plan", workspace)).toEqual({
         kind: "ok",
-        path: path.join(repo, "docs/kairos/plans/p36.md"),
+        path: "docs/kairos/plans/p36.md",
       });
     } finally {
       cleanup();
@@ -786,10 +801,7 @@ describe("the doc domain — declared rows, no name rule (spec §2.1 · §2.2 ·
         new DocDomain(index),
       ]);
       const identity: Identity = { domain: "doc", slug: "p36", docType: "phase-spec" };
-      const found = [
-        path.join(repo, "docs/kairos/specs/p36-again.md"),
-        path.join(repo, "docs/kairos/specs/p36-design.md"),
-      ];
+      const found = ["docs/kairos/specs/p36-again.md", "docs/kairos/specs/p36-design.md"];
       const read = artifacts.read(identity, "phase-spec", workspace);
       expect(read.kind).toBe("invalid");
       expect(read.kind === "invalid" ? read.found : []).toEqual(found);

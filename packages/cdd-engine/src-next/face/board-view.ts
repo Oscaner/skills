@@ -107,12 +107,24 @@ export interface BoardLine {
   marker: string | null;
 }
 
+/** One doc slot's source — the identity index's SET answer, narrowed by class. The
+ *  three arms are the whole judgment (spec §2.3 · §4.4): `one` is the only arm whose
+ *  entry may lend a cell its header facts, and `many` carries the whole set so the row
+ *  can NAME it instead of picking a first document. */
+type DocSlot =
+  | { readonly kind: "none" }
+  | { readonly kind: "one"; readonly entry: DocEntry }
+  | { readonly kind: "many"; readonly found: readonly DocEntry[] };
+
+/** The empty slot — one shared value, never a freshly minted arm. */
+const NO_DOC: DocSlot = { kind: "none" };
+
 /** The node's identity chain — the three indexed documents a board row set reads
  *  (spec §2.2). `programMissing` is the phase-spec hard gate, surfaced on the spec
  *  line as `program: missing (BLOCKED)`. */
 interface NodeSources {
-  readonly spec: DocEntry | null;
-  readonly plan: DocEntry | null;
+  readonly spec: DocSlot;
+  readonly plan: DocSlot;
   readonly overall: DocEntry | null;
   readonly programMissing: boolean;
 }
@@ -277,38 +289,68 @@ export class BoardView {
    *  the program overall the identity's `program:` names. An entry that is itself
    *  a plan contributes the plan and resolves its spec by the same slug. The
    *  `programMissing` fact is the phase-spec hard gate: a `program:` that names no
-   *  on-disk overall (or no `program:` at all). Zero filename derivation. */
+   *  on-disk overall (or no `program:` at all). Zero filename derivation and zero
+   *  "first document": each slot is the index's SET answer (0 / 1 / n). */
   static #nodeSources(index: SlugIndex, entry: DocEntry): NodeSources {
     const slug = BoardView.#validSlug(entry);
     const isPlan = entry.docType === "plan";
+    const own: DocSlot = { kind: "one", entry };
     const spec =
-      slug === null ? (isPlan ? null : entry) : isPlan ? BoardView.#specDocOf(index, slug) : entry;
-    const plan = isPlan ? entry : slug === null ? null : BoardView.#planDocOf(index, slug);
+      slug === null
+        ? isPlan
+          ? NO_DOC
+          : own
+        : isPlan
+          ? BoardView.#docSlotOf(index, slug, "identity")
+          : own;
+    const plan = isPlan ? own : slug === null ? NO_DOC : BoardView.#docSlotOf(index, slug, "plan");
+    const specEntry = BoardView.#slotEntry(spec);
     const overall =
-      spec?.docType === "phase-spec" && spec.program !== null
-        ? index.overallOf(spec.program)
+      specEntry?.docType === "phase-spec" && specEntry.program !== null
+        ? index.overallOf(specEntry.program)
         : null;
     return {
       spec,
       plan,
       overall,
-      programMissing: spec !== null && BoardView.#programMissing(index, spec),
+      programMissing: specEntry !== null && BoardView.#programMissing(index, specEntry),
     };
   }
 
-  /** The slug's identity document (overall / phase-spec / single-spec) — the index's
-   *  SET answer, filtered by class. The index never picks a first; when the set holds
-   *  two of them the row's marker (the same `duplicatedRolesOf` judgment the doc
-   *  domain's `read` refuses on) blocks it, so a duplicated identity is always VISIBLE
-   *  beside the document it names. */
-  static #specDocOf(index: SlugIndex, slug: string): DocEntry | null {
-    return index.docsOf(slug).find((doc) => doc.docType !== null && doc.docType !== "plan") ?? null;
+  /** One doc slot — the index's SET answer for a class, filtered and then counted,
+   *  never searched with `.find`. Two documents of the class are `many`, and every
+   *  caller renders the marker and the whole set instead of choosing one. */
+  static #docSlotOf(index: SlugIndex, slug: string, role: SlugRole): DocSlot {
+    const docs = index
+      .docsOf(slug)
+      .filter((doc) =>
+        role === "plan" ? doc.docType === "plan" : doc.docType !== null && doc.docType !== "plan",
+      );
+    if (docs.length === 0) return NO_DOC;
+    if (docs.length === 1) return { kind: "one", entry: docs[0]! };
+    return { kind: "many", found: docs };
   }
 
-  /** The slug's plan document — the same set port, filtered to the declared `plan`
-   *  class. A duplicated plan set renders the plan row with the duplicated marker. */
-  static #planDocOf(index: SlugIndex, slug: string): DocEntry | null {
-    return index.docsOf(slug).find((doc) => doc.docType === "plan") ?? null;
+  /** The single document a slot carries — `null` for both the empty and the
+   *  ambiguous arm: neither has ONE document to speak about. */
+  static #slotEntry(slot: DocSlot): DocEntry | null {
+    return slot.kind === "one" ? slot.entry : null;
+  }
+
+  /** One document slot's violation marker — the single arm asks `#entryMark` (the ONE
+   *  duplicate / identity judgment the pre-flight gate shares), and an ambiguous set
+   *  renders the same `duplicated` marker the doc domain's `read` refuses on. */
+  static #slotMark(index: SlugIndex, slot: DocSlot, role: SlugRole): string | null {
+    if (slot.kind === "one") return BoardView.#entryMark(index, slot.entry, role);
+    return slot.kind === "many" ? MARK_SLUG_DUPLICATED : null;
+  }
+
+  /** The cell of a doc row whose slug names MORE than one document of its class: the
+   *  existing duplicate marker plus every path of the set. No version, no status, no
+   *  rounds — those are facts of ONE document, and this identity has none. */
+  static #duplicateDocLine(label: string, found: readonly DocEntry[]): string {
+    const paths = found.map((doc) => doc.rel).join(" · ");
+    return `  ${label.padEnd(LABEL_WIDTH)}${MARK_SLUG_DUPLICATED}   ${paths}`;
   }
 
   /** The entry's valid slug — the workspace key, or null when the declaration is
@@ -697,14 +739,16 @@ export class BoardView {
     // row asks a `PlanRead` accessor, and no `! no-spec` literal (the orphan fold or
     // the degraded wave row) can appear beside a broken identity.
     const specMark =
-      BoardView.#entryMark(index, sources.spec, "identity") ??
+      BoardView.#slotMark(index, sources.spec, "identity") ??
       (sources.programMissing ? MARK_PROGRAM_MISSING : null);
-    const planMark = BoardView.#entryMark(index, sources.plan, "plan");
+    const planMark = BoardView.#slotMark(index, sources.plan, "plan");
+    const specEntry = BoardView.#slotEntry(sources.spec);
+    const planEntry = BoardView.#slotEntry(sources.plan);
     const planIdentityClean = planMark === null;
     const identityClean = planIdentityClean && specMark === null;
     const docRows: Array<{
       readonly label: string;
-      readonly entry: DocEntry | null;
+      readonly slot: DocSlot;
       readonly line: BoardLine;
       readonly mark: string | null;
       /** The cell content a `PlanRead` accessor owns; null hands the row to
@@ -713,7 +757,7 @@ export class BoardView {
     }> = [
       {
         label: "overall",
-        entry: sources.overall,
+        slot: sources.overall === null ? NO_DOC : { kind: "one", entry: sources.overall },
         line: BoardView.#lineOf(
           "overall",
           "overall",
@@ -726,11 +770,11 @@ export class BoardView {
       },
       {
         label: "spec",
-        entry: sources.spec,
+        slot: sources.spec,
         line: BoardView.#lineOf(
           "spec",
-          BoardView.#lineWordOf(sources.spec),
-          sources.spec,
+          BoardView.#lineWordOf(specEntry),
+          specEntry,
           progress,
           ledger,
         ),
@@ -742,27 +786,39 @@ export class BoardView {
       },
       {
         label: "plan",
-        entry: sources.plan,
-        line: BoardView.#lineOf("plan", "plan", sources.plan, progress, ledger),
+        slot: sources.plan,
+        line: BoardView.#lineOf("plan", "plan", planEntry, progress, ledger),
         mark: planMark,
-        override: BoardView.#planCellOf(read, sources.plan, planMark, words),
+        override: BoardView.#planCellOf(read, planEntry, planMark, words),
       },
     ];
     // The doc-name column is fixed-width: every name is padded to the widest one, so
     // the version column aligns down the block (spec §5.3).
     const nameWidth = Math.max(
       0,
-      ...docRows
-        .filter((row) => row.entry !== null)
-        .map((row) => path.basename(row.entry!.path).length),
+      ...docRows.flatMap((row) =>
+        row.slot.kind === "one" ? [path.basename(row.slot.entry.path).length] : [],
+      ),
     );
     let blocked = false;
     for (const row of docRows) {
+      // An ambiguous set is its own row: the marker plus every path, never one
+      // document's header facts (spec §2.3 — the read face answers a set with a set).
+      if (row.slot.kind === "many") {
+        lines.push(BoardView.#duplicateDocLine(row.label, row.slot.found));
+        blocked = true;
+        continue;
+      }
       if (row.override !== null) {
         lines.push(`  ${row.label.padEnd(LABEL_WIDTH)}${row.override}`.trimEnd());
         continue;
       }
-      const cell = BoardView.#docCell(row.entry, row.line, nameWidth, row.mark);
+      const cell = BoardView.#docCell(
+        BoardView.#slotEntry(row.slot),
+        row.line,
+        nameWidth,
+        row.mark,
+      );
       lines.push(`  ${row.label.padEnd(LABEL_WIDTH)}${cell.text}`.trimEnd());
       blocked ||= cell.blocked;
     }
@@ -803,8 +859,7 @@ export class BoardView {
     // (`Ledger#lineStateAt`, identity document = the plan): a drifted plan reopens the
     // branch face, so the mark can never print `✔ closed` while `next:` names the
     // review the gate accepts — the reopened line renders as the CURRENT face (`▶`).
-    const branchState =
-      ledger?.lineStateAt("branch", "branch", sources.plan?.path ?? null) ?? "open";
+    const branchState = ledger?.lineStateAt("branch", "branch", planEntry?.path ?? null) ?? "open";
     const branchMark =
       branchState === "closed"
         ? `${PROGRESS_MARKERS.done} closed`
@@ -878,13 +933,14 @@ export class BoardView {
         phaseSlug === null ? null : BoardView.#ledgerOf(plan, phaseSlug, repoRoot, artifacts);
       const phaseProgress = phaseLedger?.readProgress() ?? null;
       const specLine = BoardView.#lineOf("spec", "phase-spec", phase, phaseProgress, phaseLedger);
-      const planEntry = phaseSlug === null ? null : BoardView.#planDocOf(index, phaseSlug);
+      const planSlot = phaseSlug === null ? NO_DOC : BoardView.#docSlotOf(index, phaseSlug, "plan");
+      const planEntry = BoardView.#slotEntry(planSlot);
       const planLine = BoardView.#lineOf("plan", "plan", planEntry, phaseProgress, phaseLedger);
       const branchLine = BoardView.#roundsLine("branch", "branch", phaseProgress, phaseLedger);
       const mark =
         BoardView.#entryMark(index, phase, "identity") ??
         (BoardView.#programMissing(index, phase) ? MARK_PROGRAM_MISSING : null);
-      const planMark = BoardView.#entryMark(index, planEntry, "plan");
+      const planMark = BoardView.#slotMark(index, planSlot, "plan");
       blocked ||= mark !== null || planMark !== null;
       const status = mark ?? phase.status ?? "Pending";
       // The phase's wave summary token (spec §5.3): the wave segment's first wave
@@ -894,10 +950,16 @@ export class BoardView {
       // `""` only for a true undeclared phase, and null hands the healthy cell back
       // to today's derivation.
       const waveCell = read.cell(words) ?? BoardView.#waveCellOf(read, phaseProgress, phaseLedger);
+      // The plan cell of a phase whose slug names TWO plans: the marker plus both
+      // paths, never the first plan's summary (spec §2.3 — a set is answered by a set).
+      const planCell =
+        planSlot.kind === "many"
+          ? [MARK_SLUG_DUPLICATED, planSlot.found.map((doc) => doc.rel).join(" · ")].join("   ")
+          : BoardView.summaryCell(planLine.rounds, planLine.carriers);
       const parts: string[] = [];
       const cells: Array<[string, string]> = [
         ["spec", BoardView.summaryCell(specLine.rounds, specLine.carriers)],
-        ["plan", BoardView.summaryCell(planLine.rounds, planLine.carriers)],
+        ["plan", planCell],
         ["wave", waveCell],
         ["branch", BoardView.summaryCell(branchLine.rounds, branchLine.carriers)],
       ];
@@ -1040,13 +1102,13 @@ export class BoardView {
     if (nodeSlug === null) return null;
     const ledger = BoardView.#ledgerOf(plan, nodeSlug, root.absolute, artifacts);
     const sources = BoardView.#nodeSources(index, entry);
-    const specPath = sources.spec?.path ?? null;
+    const specPath = BoardView.#slotEntry(sources.spec)?.path ?? null;
     // The path the frontier receives IS the path of the document this read opened —
     // never a second index-derived candidate that could name another file.
     const planPath = read.stationPath();
     // The identity line's OWN word — the document's DECLARED `doc-type:` — keys the
     // line and names the pipeline station (`single-spec` closes onto its `done` row).
-    const specType = BoardView.#lineWordOf(sources.spec);
+    const specType = BoardView.#lineWordOf(BoardView.#slotEntry(sources.spec));
     return {
       ledger,
       input: { specType, specPath, planPath, plan: read },

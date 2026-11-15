@@ -30,7 +30,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
+import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import {
   type CompletionContext,
   CompletionCriteria,
@@ -42,7 +44,6 @@ import { ConfigLoader } from "../../infra/config.ts";
 import { PlanSource } from "../../infra/plan-source.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
-import { CarrierRulings } from "../../session/carrier-rulings.ts";
 import { targetFaces } from "../../session/faces.ts";
 import { HoldingError, InFlight } from "../../session/inflight.ts";
 import { Ledger } from "../../session/ledger.ts";
@@ -1194,6 +1195,17 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
     } finally {
       f.cleanup();
     }
+  });
+
+  it("reads the round-context cell and the gate through ONE strict verdict (P36 T2)", () => {
+    // One discriminant, two consumers: a cell that read the sidecar loosely would
+    // quote a ruling set the gate is about to refuse, so the prompt and the refusal
+    // would be answering two different questions about one file.
+    const source = stripComments(
+      readFileSync(fileURLToPath(new URL("../lifecycle.ts", import.meta.url)), "utf8"),
+    );
+    expect(source).toContain("CarrierRulings.verdict(");
+    expect(source).not.toContain("CarrierRulings.read(");
   });
 
   it("renders one verbatim body line per ruling of the sidecar", async () => {

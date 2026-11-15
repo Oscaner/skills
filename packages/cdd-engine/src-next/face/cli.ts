@@ -86,7 +86,7 @@ import { ArtifactRegistry } from "../session/round-artifacts.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { CliArtifacts } from "./artifacts.ts";
-import { BoardNext, BoardView } from "./board-view.ts";
+import { type ArtifactProjection, BoardNext, BoardView } from "./board-view.ts";
 import { Capsule } from "./capsule.ts";
 import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import { CliGate } from "./gate.ts";
@@ -605,7 +605,15 @@ export class Cli {
     // otherwise).
     const readTable = this.#boardReadTable(planSource, index, entry, soloPlanRead);
     const read = readTable[0] ?? planSource.readFor(entry);
-    const next = BoardNext.of(read, planSource, index, entry, root, artifacts);
+    // The board's artifact observation is ONE value: the matrix seam plus the
+    // `--artifacts` switch. Both the hop assembly and the render read it, so the
+    // board can never print a `next:` computed against one registry and an `art:`
+    // block read through another.
+    const projection: ArtifactProjection = {
+      registry: artifacts,
+      showAll: parsed.args.artifacts === "true",
+    };
+    const next = BoardNext.of(read, planSource, index, entry, root, projection);
     // The read's own diagnostics (spec §2.4): stderr, one line per bad read, printed
     // BEFORE the board. `warnLine` answers null for a healthy plan and for the normal
     // `undeclared` gap, so the line count is exactly (bad plans + `spec-absent`
@@ -625,8 +633,7 @@ export class Cli {
       ARGV_CHANNEL,
       await inflight.inspect(),
       next,
-      artifacts,
-      parsed.args.artifacts === "true",
+      projection,
     );
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;

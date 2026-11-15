@@ -173,7 +173,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       ARGV_CHANNEL,
       undefined,
       next,
-      artifacts,
+      { registry: artifacts, showAll: false },
     );
     return { text: board.lines.join("\n"), exitCode: board.exitCode };
   };
@@ -3482,6 +3482,7 @@ describe("P36 T7 — the board's `art:` fact row (spec §2.6)", () => {
     const root = new RepoRoot(repo);
     const source = planSourceOf(root);
     const read = source.readFor(entry);
+    const projection = { registry: artifacts, showAll: showArtifacts };
     return BoardView.render(
       [read],
       source,
@@ -3492,9 +3493,8 @@ describe("P36 T7 — the board's `art:` fact row (spec §2.6)", () => {
       "claude",
       ARGV_CHANNEL,
       { kind: "absent" },
-      BoardNext.of(read, source, index, entry, root),
-      artifacts,
-      showArtifacts,
+      BoardNext.of(read, source, index, entry, root, projection),
+      projection,
     ).lines.join("\n");
   };
 
@@ -3566,8 +3566,7 @@ describe("P36 T7 — the board's `art:` fact row (spec §2.6)", () => {
       { kind: "absent" },
       // cross-phase never participates in next (spec §6.5) — the program board holds no hop
       null,
-      artifacts,
-      showArtifacts,
+      { registry: artifacts, showAll: showArtifacts },
     ).lines.join("\n");
   };
 
@@ -3578,6 +3577,12 @@ describe("P36 T7 — the board's `art:` fact row (spec §2.6)", () => {
   it("adds zero bytes on a healthy tree — a conforming sidecar is not an anomaly", () => {
     seedDocs();
     const carrier = seedCarrier("phase-spec-review-1.c1.json");
+    seedProgress([{ cycle: 1, path: carrier }]);
+    // Both sides hold the SAME projection: the matrix seam and the `--artifacts` switch
+    // ride the render chain as one value, so comparing two different projections would
+    // measure the fix suffix's resolved path (the hop assembly reads the same seam),
+    // never the `art:` block this case is about.
+    const before = renderBoard(false);
     writeFileSync(
       path.join(workspace(), "phase-spec-review-1.c1.rulings.json"),
       JSON.stringify({
@@ -3586,11 +3591,10 @@ describe("P36 T7 — the board's `art:` fact row (spec §2.6)", () => {
       }),
       "utf8",
     );
-    seedProgress([{ cycle: 1, path: carrier }]);
     const withMatrix = renderBoard(false);
     expect(withMatrix).not.toContain("  art:");
-    // the board's bytes are the no-matrix board's bytes — the projection is additive alone
-    expect(withMatrix).toBe(renderBoard(false, null));
+    // a conforming sidecar is not an anomaly: it moves no byte at all
+    expect(withMatrix).toBe(before);
   });
 
   it("renders exactly ONE `art:` block for a misplaced sidecar, after the line rows and before next:", () => {

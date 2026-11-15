@@ -1,11 +1,11 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P36 设计：身份面收权（身份域 × 产物矩阵 · 缺席有门 · 形状可发现）'
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-11-15
 slug: '2026-10-10-engine-doc-tooling-p36'
 program: 2026-10-10-engine-doc-tooling
-parent-version: v3.75
+parent-version: v3.76
 author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-15）'
 ---
 
@@ -285,6 +285,29 @@ Plan 的 slug 找不到身份文档时，P35 问的是**名字**（派生 `<slug
 4. **文档路径零拼接门** — 谓词固定为：**任何以 doc root 为基的路径模板串或 `path.join` 组合即红**——`${docRoots.<root>}/<任意非空>` 形式的模板串、以及 `path.join(<root|docRoot>, …)`。白名单**恰三条**：① `SlugIndex` 的扫描根（`#scanRoot` 的三次调用与 `insideDocRoots`）；② runtime / `RepoRoot` 的组合（`contract/invariants.ts` 的 `#scanRoots` 把 `ENGINE_DOC_ROOTS` 的值与根组合）；③ `contract/invariants.ts` 的 `DOC_ROOT_NAMESPACE` / `DOC_ROOT_SEGMENTS` 派生（`:56` / `:61`）。`face/declare.ts` 的四个 help 示例**不在白名单**——四处全改成 `--plan <path>` / `--spec <path>` 形，文案里零文档根插值。这条把 #485 从「修一个分支」变成「结构上不允许再写出来」。
 5. **唯一构造点** — `.rulings.json` 字面只允许出现在矩阵行与其测试夹具；`finding` / `id` 的接受集同样单源。
 
+#### 2.10 `INPUT_RULINGS` 只印路径：正文归文档（P31 §2.5 的修订）
+
+今日 `#rulingsInputOf` 返回**路径 + 每条裁定的正文**（P31 §2.5 的 AC 原文：「渲染文本与 sidecar 一致」）。本相位把正文从 round context 撤出，与 `INPUT_REVIEWS` **同形**：
+
+```
+- `INPUT_REVIEWS`: .kairos/cdd/<ws>/plan-review-1.c1.json
+- `INPUT_RULINGS`: .kairos/cdd/<ws>/plan-review-1.c1.rulings.json
+```
+
+三条理由，一条比一条硬：
+
+1. **一个输入面一种读法**——`INPUT_REVIEWS` 只给路径，finding 正文由 child 打开 carrier 读；`INPUT_RULINGS` 给正文就是同一张 prompt 上的两套约定。
+2. **round context 是动态尾部**——P33 把判别符移进尾部正是为了前缀稳定；正文长度由裁定内容决定，尾部字节不可预测，且裁定越多尾部越长。
+3. **正文入 prompt = 文档的第二次表达**——本相位治的就是「同一事实有两份副本，副本没有门」。prompt 里的裁定正文没有任何门与 sidecar 对账（P31 只是在渲染时读一次），sidecar 才是真源。
+
+落法：
+
+- `#rulingsInputOf` 只返回**路径行**（`render(identity, "rulings")` 经 `#rel` 归一）；`#rulingLine` 退役。
+- **固定前缀补一句读法**（`FIX_SHELL` 与 `DOCS_FIX_SHELL` 各一句，同一句式）：`INPUT_RULINGS` 命名的编排者裁定文件必须在动 finding 之前读；每条裁定回答一个 finding id，并**压过该 finding 自己的建议**（`REJECTED` = 不采纳该 finding 的改法）；carrier 本身只读、永不改写。这是「指令住在固定前缀、事实住在 round context」这条既有分界的直接应用。
+- **门不变**：sidecar 的严格 schema 仍由派发前判定（`invalid` ⇒ `CDD_BLOCKED`，child 零 spawn）；正文撤出 prompt 不影响这道门。
+- **成对钉保留**：sidecar 缺席 ⇒ **零行**（P31 §2.5 的另一半原样绿），present ⇒ **恰好一行路径、零正文行**。
+- **这是一条对 P31 §2.5 AC 的显式修订**，与 §2.7 对 P35 §2.7 的修订同性质：记入本 spec、overall D92、并重锚 fix/docs-fix 的 prompt 字节 pin（deliberate · D74）。
+
 ### 3. legacy 拆除
 
 #### 3.1 拆什么
@@ -377,6 +400,7 @@ issue 提交方那 89 个 `*.rulings.json` 全部落在推导路径外；升级�
 - **读回提示印结果不印规则**：fix `next:` 行以 `(confirm the reviews handoff · if a finding needs a ruling, record it at <rendered sidecar path>)` 收尾，其中路径与门的 `derived:` 同值、由路由器按身份算出随 `Route` 下行，`RouteRenderer` 零推导；`session/next.ts` 内不出现 `.rulings.json` 字面（与「字面只在矩阵行与其夹具」不冲突：句子移的是**值**不是**拼写规则**）；重锚 pin = `face/__tests__/face.test.ts` 的 fix 行断言 · `face/__tests__/cli.test.ts` · `face/__tests__/capsule.test.ts` · `packages/kairos/tests/status-routing-convergence.test.ts`，按 D74 记为消费可见变化（`cdd-engine` minor）。
 - legacy：`RETIRED_SPEC_*` / `#retiredCarrierName` / `#legacyCarrierName` / `#ownerRow` / `#lineWord` 的退役分支零残留（grep 门）；旧 workspace 的 board 退化为缺行 + orphan，新派发零影响。
 - **迁移两条**：① 夹具 = 错位 sidecar（`<line>-<op>-<n>.rulings.json`）+ 终稿 carrier（`.c<N>.json`）——迁移前派发 `CDD_BLOCKED: artifact-identity`，改名为 `.c<N>.rulings.json` 后同一命令通过（`ok`），child 正常 spawn；② cdd-engine README 升级说明里那一行迁移命令在册，且注明改名后必须复判（条目形状除 `id` 之外的偏差由编排器修，引擎不改写）— pin `session/__tests__/carrier-rulings.test.ts` + README 断言所在的结构测试。
+- **`INPUT_RULINGS` 只印路径**：sidecar 存在时 round context 恰一行路径、零正文行；固定前缀（fix / docs-fix 两壳）含「裁定回答 finding id 并压过该 finding 自身建议、carrier 只读」一句；sidecar 缺席时该 token 零行（P31 §2.5 的另一半原样绿）；`#rulingLine` 零残留；fix / docs-fix 的 prompt 字节 pin 按 v0.4 重锚（deliberate · D74）。
 - 消费面：`cdd-dev` / `cdd-plan` / `cdd-spec-writer` 各**在既有 `## Invariants` 表尾加一行**（`cdd-dev` = `I6` · `cdd-plan` = `I5` · `cdd-spec-writer` = `I4`，三者同句：fix 派发若某条 finding 需要裁定，把裁定写到引擎在 `next:` 里印出的那个 sidecar 路径上，编排器永不自行推导该路径）；**不新增 `##` 节**（`contract/skill-anatomy.ts` 的 section registry 是严格白名单，新增节要同步 `sections` / `public`——本相位不加节，registry 零改动，`packages/kairos/tests/skill-anatomy.test.ts` 的 `rowPattern` 已匹配 `\| I<n> \|` 行）；skill 文本不出现 `.rulings.json` 字面，零程序史 / 零相位号。
 
 - `pnpm run validate` exit 0 · changeset `cdd-engine` **minor**（新增硬停门、prompt 字节与 fix `next:` 字面属消费可见变化 · D74）· `kairos` **minor**（skill 文本）。
@@ -397,3 +421,4 @@ issue 提交方那 89 个 `*.rulings.json` 全部落在推导路径外；升级�
 | v0.1 | 2026-11-15 | 初稿：issue #484 抽象为「身份域 × 产物矩阵」（一个身份源、两个端口、一个判别值、每 kind 声明的策略列）；`CarrierRulings.pathFor` 删除，`rulings` 成为矩阵一行；工作区四字面量收口；board 只增异常事实行。 | [human] 裁定 · Claude（kairos:cdd-spec-writer · 2026-11-15） |
 | v0.2 | 2026-11-15 | 并入 issue #485 并按其证据**修正 doc 域设计**：文档是声明物（`identityFrom: "declared"`），没有名字规则、没有 `misplaced`——v0.1 里「文件名≠slug ⇒ block」会把消费方 10 份合法文档拦下，作废。新增：`DocEntry.rel` 取代两处路径拼接 · `SlugIndex` 单建一次 · 同 slug 多份 ⇒ `invalid` · `docRoots` 拼接 grep 门 · legacy 拆族（`RETIRED_SPEC_*` / `#legacyCarrierName` / `#retiredCarrierName` / `RULINGS_SUFFIX`，依据 16 行 `/` 125 组活数据只服务已关闭 workspace）+ P34 §2.6 收窄。 | [human] 裁定 · Claude（kairos:cdd-spec-writer · 2026-11-15） |
 | v0.3 | 2026-11-15 | 评审 round 1 全量落地（F1–F15）：**doc 域反查改三态**并把 P35 §2.7 的修订写进 §2.7（问身份不问名字，`<slug>-design.md` 派生整条废除，`specPath` 回 `null`，扫描面干净由索引自报的丢弃计数给出；P35 值 pin 与板面 pin 重锚）· 矩阵**删 `absence` 列**、doc 四 kind 拆四行（缺席永不阻断）· 往返 pin 按行枚举并给 brief 一个 `tasks` 坐标（workspace 三字面量 = `tasks: null`）· 重复身份从 `attribute` 挪到 `read` 的 `invalid(found)` 集合并加宽该臂 · `misplaced` 的作用面收窄到本轮解析到的 kind、归主文法三格入列并配枚举 pin · 零拼接门写成可判谓词 + 恰三条白名单（`face/declare.ts` 四处 help 示例改为 `--spec <path>` 形）· `FIX_READBACK_SUFFIX` 改为印结果路径并点名重锚 pin · 三个 skill 的落点指令挂在既有 `## Invariants` 表尾（registry 零改动）· §3.2 换成命令 + 实测数字（193 = 88 json + 49 review json + 78 report md）、§1.1 的 89/0 显式限定为 issue 提交方那个消费仓并以本仓 51 个 `.c<N>` sidecar 作反向标定 · 迁移补两条验收（改名后派发转 `ok`、README 命令在册）并删掉「无需改内容」的断言 · 纯行号定位改符号 pin（`SlugIndex#identityDoc` :174 / `#planOf` :182 / `Ledger.#retiredCarrierName` :1882 / `#ownerRow` :1927 / `carrierPattern` :41）· `sealed` 列逐行写全 · `DocDomain` 措辞与行集单一之家。 | [human] 裁定 · Claude（kairos:cdd-spec-writer · 2026-11-15） |
+| v0.4 | 2026-11-15 | **用户裁定：`INPUT_RULINGS` 只印路径，正文不进 round context（P31 §2.5 的显式修订）**——与 `INPUT_REVIEWS` 同形：一个输入面一种读法 · 尾部字节不再随裁定长度漂移（P33 前缀稳定）· 正文入 prompt 是「文档的第二次表达」，prompt 副本没有任何门与 sidecar 对账。落法：`#rulingsInputOf` 只回路径行、`#rulingLine` 退役；`FIX_SHELL` / `DOCS_FIX_SHELL` 各补一句读法（裁定压过 finding 自身建议 · carrier 只读）；门不变（`invalid` 仍派发前硬停）；成对钉改为「present ⇒ 恰好一行路径、零正文」「absent ⇒ 零行」。 | [human] 裁定 · Claude（编排器 in-flight 回填 · 2026-11-15） |

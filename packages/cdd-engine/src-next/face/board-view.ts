@@ -281,8 +281,9 @@ export class BoardView {
   static #nodeSources(index: SlugIndex, entry: DocEntry): NodeSources {
     const slug = BoardView.#validSlug(entry);
     const isPlan = entry.docType === "plan";
-    const spec = slug === null ? (isPlan ? null : entry) : isPlan ? index.identityDoc(slug) : entry;
-    const plan = isPlan ? entry : slug === null ? null : index.planOf(slug);
+    const spec =
+      slug === null ? (isPlan ? null : entry) : isPlan ? BoardView.#specDocOf(index, slug) : entry;
+    const plan = isPlan ? entry : slug === null ? null : BoardView.#planDocOf(index, slug);
     const overall =
       spec?.docType === "phase-spec" && spec.program !== null
         ? index.overallOf(spec.program)
@@ -293,6 +294,21 @@ export class BoardView {
       overall,
       programMissing: spec !== null && BoardView.#programMissing(index, spec),
     };
+  }
+
+  /** The slug's identity document (overall / phase-spec / single-spec) — the index's
+   *  SET answer, filtered by class. The index never picks a first; when the set holds
+   *  two of them the row's marker (the same `duplicatedRolesOf` judgment the doc
+   *  domain's `read` refuses on) blocks it, so a duplicated identity is always VISIBLE
+   *  beside the document it names. */
+  static #specDocOf(index: SlugIndex, slug: string): DocEntry | null {
+    return index.docsOf(slug).find((doc) => doc.docType !== null && doc.docType !== "plan") ?? null;
+  }
+
+  /** The slug's plan document — the same set port, filtered to the declared `plan`
+   *  class. A duplicated plan set renders the plan row with the duplicated marker. */
+  static #planDocOf(index: SlugIndex, slug: string): DocEntry | null {
+    return index.docsOf(slug).find((doc) => doc.docType === "plan") ?? null;
   }
 
   /** The entry's valid slug — the workspace key, or null when the declaration is
@@ -862,7 +878,7 @@ export class BoardView {
         phaseSlug === null ? null : BoardView.#ledgerOf(plan, phaseSlug, repoRoot, artifacts);
       const phaseProgress = phaseLedger?.readProgress() ?? null;
       const specLine = BoardView.#lineOf("spec", "phase-spec", phase, phaseProgress, phaseLedger);
-      const planEntry = phaseSlug === null ? null : index.planOf(phaseSlug);
+      const planEntry = phaseSlug === null ? null : BoardView.#planDocOf(index, phaseSlug);
       const planLine = BoardView.#lineOf("plan", "plan", planEntry, phaseProgress, phaseLedger);
       const branchLine = BoardView.#roundsLine("branch", "branch", phaseProgress, phaseLedger);
       const mark =
@@ -1009,7 +1025,7 @@ export class BoardView {
    *  `read` is the caller's ONE plan read (the same `PlanSource` instance): the
    *  frontier's graph input is the value's own `graph()`, and the declared `planPath`
    *  is that same value's `stationPath()` — the document the board read and the path
-   *  the frontier receives are ONE fact, with no fallback to `index.planOf(slug)`.
+   *  the frontier receives are ONE fact, with no fallback to a second plan lookup.
    *  The wave segment reads the same value through `#waveLines`; the board has no
    *  second plan read point. */
   static pipelineFacts(

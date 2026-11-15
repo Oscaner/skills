@@ -1956,7 +1956,8 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
    *  its own layout prefixes stripped. */
   const boardRows = (repo: string, slug: string): { next: string; reason: string } => {
     const index = SlugIndex.build(repo);
-    const entry = index.identityDoc(slug);
+    const entry =
+      index.docsOf(slug).find((doc) => doc.docType !== null && doc.docType !== "plan") ?? null;
     if (entry === null) throw new Error(`no identity doc for ${slug}`);
     const root = new RepoRoot(repo);
     const planSource = new PlanSource(root);

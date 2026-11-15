@@ -412,7 +412,11 @@ describe("the crash-name single source — RoundNaming derives every crash recor
   it("builds the `crash-` name template at exactly ONE production site", () => {
     // Zero hits would strand the read/write faces (no name at all); a second hit
     // would re-seam the identity the capsule's read and the lifecycle's write share.
-    expect(hitsOf("`crash-").map((hit) => hit.split(":")[0])).toEqual(["session/round-naming.ts"]);
+    // The name rule moved into the artifact matrix's round row (P36 T2) — the static
+    // `renderName` delegates to it, so the matrix's home is the ONE site now.
+    expect(hitsOf("`crash-").map((hit) => hit.split(":")[0])).toEqual([
+      "session/round-artifacts.ts",
+    ]);
   });
 
   it("derives no crash name from the raw frame type — the retired lane form is gone", () => {
@@ -436,9 +440,13 @@ describe("the name-template single source — no second derivation site (P34 T3)
   /** The tokens that spell one artifact kind's suffix — each belongs to `renderName`. */
   const KIND_TOKENS = ["-report.md", "-test-evidence", ".c${", "-a${"];
 
-  /** Production hits minus the renderer's own home (the ONE place they may live). */
+  /** The homes of the ONE round name rule: the matrix's round row (`renderRound`) and
+   *  its static delegate (`RoundNaming.renderName`) — one spelling, two entry forms. */
+  const RENDER_HOMES: readonly string[] = ["session/round-naming.ts", "session/round-artifacts.ts"];
+
+  /** Production hits minus the renderer's own homes (the only places they may live). */
   const outsideRenderer = (token: string): string[] =>
-    hitsOf(token).filter((hit) => !hit.startsWith("session/round-naming.ts:"));
+    hitsOf(token).filter((hit) => !RENDER_HOMES.some((home) => hit.startsWith(`${home}:`)));
 
   it("keeps every kind suffix inside RoundNaming — a caller assembles no name", () => {
     // A suffix copied into a caller would let one artifact's spelling drift from its

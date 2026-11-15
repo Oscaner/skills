@@ -18,7 +18,7 @@
 import type { Workspace } from "../infra/workspace.ts";
 import { TargetFaceTable, type TargetType, targetFaces } from "./faces.ts";
 import type { HandoffParams, OpType } from "./ledger.ts";
-import { ArtifactRegistry } from "./round-artifacts.ts";
+import { ArtifactRegistry, renderRound } from "./round-artifacts.ts";
 import type { OpenFrame } from "./run.ts";
 
 /** The two carrier-name shapes this engine MINTS — the draft and its final twin.
@@ -113,34 +113,15 @@ export class RoundNaming {
     return type === "wave" ? `tasks-${params.tasks ?? ""}` : type;
   }
 
-  /** Render one round identity as one artifact name — the ONE naming rule. The four
-   *  segments (`line` · `op` · cycle · attempt) join in this order for every kind, so
-   *  a kind only picks its own prefix/suffix around the shared stem. A `final` has no
-   *  cycle to key on when the identity carries none: it renders the draft name back,
-   *  never a malformed `.cundefined` suffix. The stem's cycle segment is omitted for a
+  /** Render one round identity as one artifact name — the ONE naming rule, delegated
+   *  to the artifact matrix's round row (`renderRound`): one spelling, two entry forms
+   *  (this static method and `ArtifactRegistry#render`). A `final` has no cycle to key
+   *  on when the identity carries none: it renders the draft name back, never a
+   *  malformed `.cundefined` suffix. The stem's cycle segment is omitted for a
    *  cycle-less identity; its attempt segment is omitted on the first attempt (an
    *  `-a1` never appears). */
   static renderName(artifact: RoundArtifact, kind: ArtifactKind): string {
-    const cycle = artifact.cycle === undefined || artifact.cycle === "" ? "" : `-${artifact.cycle}`;
-    const attempt =
-      artifact.attempt === undefined || artifact.attempt <= 1 ? "" : `-a${artifact.attempt}`;
-    const stem = `${artifact.line}-${artifact.op}${cycle}${attempt}`;
-    switch (kind) {
-      case "draft":
-        return `${stem}.json`;
-      case "final":
-        return artifact.cycle === undefined || artifact.cycle === ""
-          ? `${stem}.json`
-          : `${stem}.c${artifact.cycle}.json`;
-      case "report":
-        return `${stem}-report.md`;
-      case "log":
-        return `${stem}.log`;
-      case "crash":
-        return `crash-${stem}.json`;
-      case "evidence":
-        return `${stem}-test-evidence.json`;
-    }
+    return renderRound({ domain: "round", ...artifact }, kind);
   }
 
   /** The carrier-name predicate's compiled pattern — a wave line takes the wave-only

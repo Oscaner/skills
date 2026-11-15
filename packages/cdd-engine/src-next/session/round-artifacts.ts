@@ -9,12 +9,12 @@
 //     to, or `null` for a name no row renders (an unknown name is an OBSERVATION, not
 //     a refusal).
 //
-// This wave registers the WORKSPACE domain alone: `progress` · `base` · `in-flight`
-// (the three coordinate-less literals) and `brief` (the one workspace kind carrying a
-// coordinate — its task group). The round domain (draft / final / report / log /
-// crash / evidence / rulings) and the declared doc domain are registered into the same
-// table by their own tasks; `Identity`'s discriminated union is written out in full
-// here so neither later task has to widen a public type.
+// Registered domains: the ROUND domain (draft / final / report / log / crash /
+// evidence / the orchestrator's rulings sidecar) and the WORKSPACE domain
+// (`progress` · `base` · `in-flight` — the three coordinate-less literals — and
+// `brief`, the one workspace kind carrying a coordinate). Each is ONE class owning
+// its rows; the registry is their aggregate. A domain the matrix never registered
+// answers loudly rather than inventing a name.
 //
 // Three facts this file is the single home of:
 //   · the workspace name SPELLINGS (`progress.json` · `base.json` · `in-flight.json` ·
@@ -36,7 +36,9 @@
 
 import { accessSync, constants, statSync } from "node:fs";
 import type { DocKey } from "../contract/project.ts";
+import { type DocEntry, SlugIndex } from "../infra/slug-index.ts";
 import type { Workspace } from "../infra/workspace.ts";
+import { targetFaces } from "./faces.ts";
 import type { OpType } from "./ledger.ts";
 
 // ---------------------------------------------------------------------------
@@ -56,9 +58,17 @@ export type Kind =
   | "progress"
   | "base"
   | "in-flight"
-  | "brief";
+  | "brief"
+  | "overall"
+  | "phase-spec"
+  | "single-spec"
+  | "plan";
 
-/** The workspace domain's four kinds — the rows this wave registers. */
+/** The round domain's seven kinds — a round's carrier pair, its report, log, crash
+ *  record and test-evidence file, plus the orchestrator's rulings sidecar. */
+export type RoundKind = "draft" | "final" | "report" | "log" | "crash" | "evidence" | "rulings";
+
+/** The workspace domain's four kinds. */
 export type WorkspaceKind = "progress" | "base" | "in-flight" | "brief";
 
 /** Where an artifact's identity comes from — the one source of its name. A rendered
@@ -159,8 +169,340 @@ export interface IdentityDomain {
   read(identity: Identity, kind: Kind, base: Workspace): ArtifactRead;
 }
 
+/** One artifact's presence read — the ONE existence/readability judgment every
+ *  rendered domain delegates to. Existence and readability are two questions:
+ *  `stat` answers the first even when the file cannot be opened, so the arm asks the
+ *  second explicitly (a file that is there but unreadable is `invalid`, never
+ *  `absent`, §4.5). */
+const readArtifactAt = (path: string): ArtifactRead => {
+  try {
+    if (!statSync(path).isFile()) return { kind: "invalid", path, reason: "not a regular file" };
+    accessSync(path, constants.R_OK);
+    return { kind: "ok", path };
+  } catch (raw) {
+    if ((raw as NodeJS.ErrnoException).code === "ENOENT") return { kind: "absent" };
+    return { kind: "invalid", path, reason: "unreadable" };
+  }
+};
+
 // ---------------------------------------------------------------------------
-// the workspace domain — the four rows this wave registers
+// the round domain — the seven rows a round identity renders
+// ---------------------------------------------------------------------------
+
+/** Every round kind, in the matrix's row order. */
+const ROUND_KINDS: readonly RoundKind[] = [
+  "draft",
+  "final",
+  "report",
+  "log",
+  "crash",
+  "evidence",
+  "rulings",
+];
+
+/** The round LINE words — every target-type word renders a round line except `wave`,
+ *  whose line word is the `tasks-<group>` spine instead. */
+const ROUND_LINE_WORDS: readonly string[] = Object.keys(targetFaces).filter(
+  (word) => word !== "wave",
+);
+
+/** The wave line's spine — the task group rides it. */
+const WAVE_LINE = "tasks-";
+
+/** The ops a non-wave line word can carry: `implement` belongs to the wave family
+ *  alone, so a branch/doc line never mints it. */
+const LINE_OPS = "review|fix";
+
+/** One line-word stem — the line, the op, the optional cycle and the optional
+ *  attempt. Both spellings of the round grammar are parsed back by ONE pair of
+ *  patterns. */
+const WAVE_STEM = new RegExp(
+  `^(${WAVE_LINE}.+?)-(implement|${LINE_OPS})(?:-(\\d+))?(?:-a(\\d+))?$`,
+);
+const DOC_STEM = new RegExp(
+  `^(${ROUND_LINE_WORDS.join("|")})-(${LINE_OPS})(?:-(\\d+))?(?:-a(\\d+))?$`,
+);
+
+/** The final/rulings cycle tag — `.c<cycle>`, the segment that closes a cycle. */
+const CYCLE_TAG = /^(.*)\.c(\d+)$/;
+
+/** The round suffixes whose kind the tail alone decides. */
+const ROUND_SUFFIXES: readonly { readonly suffix: string; readonly kind: RoundKind }[] = [
+  { suffix: ".rulings.json", kind: "rulings" },
+  { suffix: "-test-evidence.json", kind: "evidence" },
+  { suffix: "-report.md", kind: "report" },
+  { suffix: ".log", kind: "log" },
+];
+
+/** One on-disk round name split into its kind and the coordinate body it carries. */
+type RoundNameParts = {
+  readonly kind: RoundKind;
+  /** The body before the kind's own tail — the stem plus, for `final` / `rulings`, the
+   *  `.c<cycle>` tag stripped off. */
+  readonly body: string;
+  /** The `.c<cycle>` tag a `final` / `rulings` name carries, when it carries one. */
+  readonly cycleTag?: number;
+};
+
+/** The round stem of one identity — `line-op[-cycle][-a<n>]`, the shared body every
+ *  kind hangs its own prefix/suffix on. A cycle-less identity omits the cycle segment
+ *  (never a `-undefined` token); the first attempt omits the `-a` segment. */
+const roundStem = (identity: Extract<Identity, { domain: "round" }>): string => {
+  const { cycle, attempt } = identity;
+  const cycleSegment = cycle === undefined || cycle === "" ? "" : `-${cycle}`;
+  const attemptSegment = attempt === undefined || attempt <= 1 ? "" : `-a${attempt}`;
+  return `${identity.line}-${identity.op}${cycleSegment}${attemptSegment}`;
+};
+
+/** The round name rule — the ONE rendered name of one round identity, for every
+ *  round kind. The `rulings` sidecar shares the `final`'s stem deliberately: it is an
+ *  attachment OF the reviewed carrier's round, so the spelling of the carrier the
+ *  orchestrator handed in (`draft` or `final`) can no longer move it. */
+export const renderRound = (identity: Identity, kind: Kind): string => {
+  if (identity.domain !== "round")
+    throw new Error(`the round matrix renders no ${identity.domain} identity`);
+  if (!isRoundKind(kind)) throw new Error(`the matrix holds no round row for ${kind}`);
+  const stem = roundStem(identity);
+  const closing =
+    identity.cycle === undefined || identity.cycle === "" ? "" : `.c${identity.cycle}`;
+  switch (kind) {
+    case "draft":
+      return `${stem}.json`;
+    case "final":
+      return `${stem}${closing}.json`;
+    case "report":
+      return `${stem}-report.md`;
+    case "log":
+      return `${stem}.log`;
+    case "crash":
+      return `crash-${stem}.json`;
+    case "evidence":
+      return `${stem}-test-evidence.json`;
+    case "rulings":
+      return `${stem}${closing}.rulings.json`;
+  }
+};
+
+/** Whether a kind belongs to the round domain's registered set. */
+const isRoundKind = (kind: Kind): kind is RoundKind =>
+  (ROUND_KINDS as readonly Kind[]).includes(kind);
+
+/** Split one on-disk round name into its kind and body — `null` for a name whose
+ *  tail no round kind renders. */
+const splitRoundName = (name: string): RoundNameParts | null => {
+  if (name.startsWith("crash-") && name.endsWith(".json")) {
+    return { kind: "crash", body: name.slice("crash-".length, -".json".length) };
+  }
+  for (const { suffix, kind: tailKind } of ROUND_SUFFIXES) {
+    if (!name.endsWith(suffix)) continue;
+    const rest = name.slice(0, -suffix.length);
+    if (tailKind !== "rulings") return { kind: tailKind, body: rest };
+    const tag = CYCLE_TAG.exec(rest);
+    return tag === null
+      ? { kind: tailKind, body: rest }
+      : { kind: tailKind, body: tag[1]!, cycleTag: Number(tag[2]) };
+  }
+  if (!name.endsWith(".json")) return null;
+  const rest = name.slice(0, -".json".length);
+  const tag = CYCLE_TAG.exec(rest);
+  if (tag === null) return { kind: "draft", body: rest };
+  return { kind: "final", body: tag[1]!, cycleTag: Number(tag[2]) };
+};
+
+/** Parse a round stem back into its identity — `null` when the body is no line word
+ *  this matrix renders. */
+const roundIdentityOfStem = (body: string): Extract<Identity, { domain: "round" }> | null => {
+  const match = WAVE_STEM.exec(body) ?? DOC_STEM.exec(body);
+  if (match === null) return null;
+  const [, line, op, cycle, attempt] = match;
+  return {
+    domain: "round",
+    line: line!,
+    op: op as OpType,
+    ...(cycle === undefined ? {} : { cycle: Number(cycle) }),
+    ...(attempt === undefined ? {} : { attempt: Number(attempt) }),
+  };
+};
+
+/** The NAME → identity reverse port of the round domain: the render-name parse. It
+ *  answers `null` for a name no round line renders, and the SAME `(identity, kind)`
+ *  for every spelling that still attributes — an explicit `-a1`, a `rulings` name
+ *  written without its `.c<cycle>` tag. No third state: the `misplaced` judgment needs
+ *  the read-time workspace and belongs to `read`. */
+const attributeRound = (name: string): Attributed | null => {
+  const parts = splitRoundName(name);
+  if (parts === null) return null;
+  const identity = roundIdentityOfStem(parts.body);
+  if (identity === null) return null;
+  if (parts.cycleTag !== undefined) {
+    // A `.c<cycle>` tag is the `final`/`rulings` face of a CYCLE-BEARING identity: the
+    // tag and the stem's own cycle must agree, or the name belongs to no identity.
+    if (identity.cycle === undefined || Number(identity.cycle) !== parts.cycleTag) return null;
+  }
+  return { identity, kind: parts.kind };
+};
+
+/** The identifier vocabulary the `rulings` row declares — the ONE declaration site of
+ *  "the same identifier is spelled differently in two adjacent artifacts". */
+const RULINGS_IDENTIFIER: IdentifierVocabulary = {
+  canonical: "finding",
+  accepts: ["finding", "id"],
+};
+
+/** The `rulings` row's policy — absence is legal: a ruling not yet recorded is not a
+ *  defect (the read face stays silent; nothing is invented in its place). */
+const RULINGS_POLICY = "absence is legal — a ruling not yet recorded is not a defect";
+
+/** One round row. `sealed` is written out on every row (the matrix leaves no blank for
+ *  an implementation to invent a default); the carrier pair is the engine's sealed set,
+ *  and the sidecar is the orchestrator's — hence its own author, identifier and
+ *  absence policy. */
+const roundRow = (kind: RoundKind): ArtifactRow => ({
+  domain: "round",
+  author: kind === "rulings" ? "orchestrator" : "engine",
+  sealed: kind === "draft" || kind === "final",
+  identityFrom: "rendered",
+  render: renderRound,
+  misplaced: "block",
+  ...(kind === "rulings" ? { identifier: RULINGS_IDENTIFIER, policy: RULINGS_POLICY } : {}),
+});
+
+/** The seven round rows, in row order. */
+const ROUND_ENTRIES: readonly MatrixEntry[] = ROUND_KINDS.map((kind) => ({
+  kind,
+  row: roundRow(kind),
+}));
+
+/**
+ * RoundDomain — the round identity domain: one (line, op, cycle, attempt) renders the
+ * carrier pair, the round's report / log / crash / evidence files and the
+ * orchestrator's rulings sidecar. Stateless: the workspace a path resolves inside
+ * arrives with each `locate` / `read` call, so one instance serves every node a board
+ * renders.
+ */
+export class RoundDomain implements IdentityDomain {
+  readonly domain = "round" as const;
+
+  kinds(): readonly Kind[] {
+    return ROUND_KINDS;
+  }
+
+  entries(): readonly MatrixEntry[] {
+    return ROUND_ENTRIES;
+  }
+
+  attribute(name: string): Attributed | null {
+    return attributeRound(name);
+  }
+
+  locate(identity: Identity, kind: Kind, base: Workspace): string {
+    return base.resolve(renderRound(identity, kind));
+  }
+
+  read(identity: Identity, kind: Kind, base: Workspace): ArtifactRead {
+    return readArtifactAt(this.locate(identity, kind, base));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// the doc domain — the four declared rows (no name rule)
+// ---------------------------------------------------------------------------
+
+/** The four document kinds — the declared `doc-type:` values. A document's identity is
+ *  SELF-REPORTED (`slug:` + `doc-type:`), so these rows have no `render`: "no name
+ *  rule" is the fact, not a failed render. */
+export type DocKind = DocKey;
+
+/** Every doc kind, in the matrix's row order. */
+const DOC_KINDS: readonly DocKind[] = ["overall", "phase-spec", "single-spec", "plan"];
+
+/** Whether a kind belongs to the doc domain's declared set. */
+const isDocKind = (kind: Kind): kind is DocKind => (DOC_KINDS as readonly Kind[]).includes(kind);
+
+/** The four declared rows — human-authored documents, never sealed, no `misplaced`
+ *  (there is no rendered name to sit beside). */
+const DOC_ENTRIES: readonly MatrixEntry[] = DOC_KINDS.map((kind) => ({
+  kind,
+  row: { domain: "doc", author: "human", sealed: false, identityFrom: "declared" },
+}));
+
+/** One indexed document's DECLARED identity — `null` when the document declares no
+ *  legal `slug:` or no declared `doc-type:`. The file name plays no part. */
+const docIdentityOf = (entry: DocEntry): Extract<Identity, { domain: "doc" }> | null => {
+  if (entry.docType === null || !SlugIndex.isLegalSlug(entry.slug)) return null;
+  return { domain: "doc", slug: entry.slug, docType: entry.docType };
+};
+
+/**
+ * DocDomain — the declared identity domain: the four document rows, answered entirely
+ * by the command's ONE identity index. `attribute` maps a repo-relative path to the
+ * document's declared identity, never to a filename-derived one; `locate` / `read`
+ * take the index entry's own path. The domain never renders a name (documents name
+ * themselves), so it holds no `render` and no orphan-by-name rule.
+ */
+export class DocDomain implements IdentityDomain {
+  readonly domain = "doc" as const;
+  readonly #index: SlugIndex;
+
+  constructor(index: SlugIndex) {
+    this.#index = index;
+  }
+
+  kinds(): readonly Kind[] {
+    return DOC_KINDS;
+  }
+
+  entries(): readonly MatrixEntry[] {
+    return DOC_ENTRIES;
+  }
+
+  attribute(name: string): Attributed | null {
+    const entry = this.#index.entryAt(name);
+    if (entry === null) return null;
+    const identity = docIdentityOf(entry);
+    return identity === null ? null : { identity, kind: identity.docType };
+  }
+
+  /** The sole matching document's path — `null` when the slug names none of the kind
+   *  or names two of them. The path is the index entry's `rel` (its declared home),
+   *  never a rendered name. */
+  locate(identity: Identity, kind: Kind, _base: Workspace): string | null {
+    const doc = this.#identityOf(identity, kind);
+    const found = this.#index.docsOf(doc.slug).filter((entry) => entry.docType === doc.docType);
+    return found.length === 1 ? found[0]!.path : null;
+  }
+
+  /** One read of the declared document — the ambiguity judgment's ONE home (spec §4.4):
+   *  a slug naming two documents of the same declared type is `invalid(found)` and both
+   *  paths are printed; the read never selects one. */
+  read(identity: Identity, kind: Kind, _base: Workspace): ArtifactRead {
+    const doc = this.#identityOf(identity, kind);
+    const found = this.#index.docsOf(doc.slug).filter((entry) => entry.docType === doc.docType);
+    if (found.length > 1) {
+      return {
+        kind: "invalid",
+        path: found[0]!.path,
+        found: found.map((entry) => entry.path),
+        reason: "duplicate-identity",
+      };
+    }
+    const only = found[0];
+    return only === undefined ? { kind: "absent" } : readArtifactAt(only.path);
+  }
+
+  /** The doc identity narrowed to this row — a foreign domain or a kind the identity
+   *  does not declare is a caller bug (loud, as `render` is). */
+  #identityOf(identity: Identity, kind: Kind): Extract<Identity, { domain: "doc" }> {
+    if (identity.domain !== "doc")
+      throw new Error(`the doc matrix reads no ${identity.domain} identity`);
+    if (!isDocKind(kind) || kind !== identity.docType)
+      throw new Error(`the doc matrix holds no ${kind} row for a ${identity.docType} identity`);
+    return identity;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// the workspace domain — the four workspace rows
 // ---------------------------------------------------------------------------
 
 /** The workspace kinds in the matrix's own row order. */
@@ -254,18 +596,7 @@ export class WorkspaceDomain implements IdentityDomain {
   }
 
   read(identity: Identity, kind: Kind, base: Workspace): ArtifactRead {
-    const path = this.locate(identity, kind, base);
-    try {
-      // Existence and readability are two questions: `stat` answers the first even
-      // when the file cannot be opened, so the read arm asks the second explicitly
-      // (a file that is there but unreadable is `invalid`, never `absent`, §4.5).
-      if (!statSync(path).isFile()) return { kind: "invalid", path, reason: "not a regular file" };
-      accessSync(path, constants.R_OK);
-      return { kind: "ok", path };
-    } catch (raw) {
-      if ((raw as NodeJS.ErrnoException).code === "ENOENT") return { kind: "absent" };
-      return { kind: "invalid", path, reason: "unreadable" };
-    }
+    return readArtifactAt(this.locate(identity, kind, base));
   }
 }
 
@@ -284,7 +615,7 @@ export class ArtifactRegistry {
   /** The registered domains, in registration order. */
   readonly #domains: readonly IdentityDomain[];
 
-  constructor(domains: readonly IdentityDomain[] = [new WorkspaceDomain()]) {
+  constructor(domains: readonly IdentityDomain[] = [new RoundDomain(), new WorkspaceDomain()]) {
     this.#domains = domains;
   }
 

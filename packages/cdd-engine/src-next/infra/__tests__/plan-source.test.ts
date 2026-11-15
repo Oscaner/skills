@@ -120,7 +120,10 @@ const seedPair = (repo: string, body = TWO_TASK_BODY): void => {
 /** The plan entry the derivation face reads — the index is the entry source, and
  *  the index is NOT a PlanSource input (the signature takes one DocEntry). */
 const entryOf = (repo: string, slug: string): DocEntry => {
-  const entry = SlugIndex.build(repo).planOf(slug);
+  const entry =
+    SlugIndex.build(repo)
+      .docsOf(slug)
+      .find((doc) => doc.docType === "plan") ?? null;
   if (entry === null) throw new Error(`no indexed plan entry for ${slug}`);
   return entry;
 };
@@ -267,7 +270,8 @@ describe("PlanSource.readFor — the derived face's tri-state", () => {
     writeDoc(repo, `${SPEC_ROOT}/phase-one.md`, specHead("prog-p1"));
     writeDoc(repo, `${PLAN_ROOT}/prog-p1.md`, planHead("prog-p1"));
     const index = SlugIndex.build(repo);
-    const specEntry = index.identityDoc("prog-p1");
+    const specEntry =
+      index.docsOf("prog-p1").find((doc) => doc.docType !== null && doc.docType !== "plan") ?? null;
     expect(specEntry).not.toBeNull();
     const fs = new CountingFs();
     const read = new PlanSource(new RepoRoot(repo), fs).readFor(specEntry!);

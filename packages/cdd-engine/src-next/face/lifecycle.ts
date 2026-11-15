@@ -52,7 +52,7 @@ import {
   RoundViolation,
   type Termination,
 } from "../session/ledger.ts";
-import type { ArtifactRegistry } from "../session/round-artifacts.ts";
+import type { ArtifactRegistry, Identity } from "../session/round-artifacts.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { PlanStructure } from "../session/run.ts";
@@ -1386,21 +1386,24 @@ export class CliLifecycle {
   }
 
   /** The fix round's ruling sidecar as the round-context value — the repo-relative
-   *  sidecar path when a conforming sidecar sits beside the requesting carrier, plus the
-   *  ruling bodies it carries, the empty string otherwise (off the fix face, with no
-   *  resolved carrier, and when the sidecar is absent — the assembler drops the empty
-   *  line). The strict judgment is the dispatch gate's `#rulingsRefusal`; this cell
-   *  names the file the round may read AND states the verdicts (§2.5 AC: the rendered
-   *  text matches the sidecar), so a ruling is never merely a path the child must
-   *  re-open to discover. */
+   *  sidecar path when a sidecar sits beside the requesting carrier, plus the ruling
+   *  bodies it carries, the empty string otherwise (off the fix face, with no resolved
+   *  carrier, when the carrier attributes to no round identity, and when the sidecar is
+   *  absent — the assembler drops the empty line). The path is the artifact matrix's
+   *  `rulings` render of the REVIEWED round's identity, never `pathFor`'s tail
+   *  replacement: the carrier's own spelling (draft or final) can no longer move it.
+   *  The strict judgment stays the dispatch gate's `#rulingsRefusal`. */
   #rulingsInputOf(frame: OpenFrame): string {
     if (this.#opOf(frame) !== "fix") return "";
     const carrier = this.#reviewsPath(frame);
     if (carrier === null) return "";
-    const verdict = this.#rulingsVerdict(frame, carrier);
-    if (verdict.kind !== "ok") return "";
-    const sidecar = this.#rel(CarrierRulings.pathFor(carrier));
-    return [sidecar, ...verdict.rulings.map((ruling) => this.#rulingLine(ruling))].join("\n");
+    const sidecar = this.#rulingsSidecarOf(carrier);
+    if (sidecar === null) return "";
+    const recorded = CarrierRulings.read(sidecar, this.#carrierPathOf(carrier));
+    if (recorded === null) return "";
+    return [this.#rel(sidecar), ...recorded.rulings.map((ruling) => this.#rulingLine(ruling))].join(
+      "\n",
+    );
   }
 
   /** One rendering of a recorded ruling — the finding id it answers and the ruling's
@@ -1435,9 +1438,49 @@ export class CliLifecycle {
 
   /** The strict sidecar verdict over the requesting carrier's CHECKED id set — one call
    *  shape for the gate and the round-context cell, so neither can read the ids by a
-   *  path the other does not take. */
+   *  path the other does not take. The sidecar's path is the matrix's render; the
+   *  carrier's path is the carrier's own fact (the schema's `carrier` key speaks it). */
   #rulingsVerdict(frame: OpenFrame, carrier: string): RulingVerdict {
-    return CarrierRulings.verdict(carrier, this.#carrierFindingIds(frame, carrier));
+    const sidecar = this.#rulingsSidecarOf(carrier);
+    if (sidecar === null) return { kind: "absent" };
+    return CarrierRulings.verdict(
+      sidecar,
+      this.#carrierPathOf(carrier),
+      this.#carrierFindingIds(frame, carrier),
+    );
+  }
+
+  /** The reviewed round's identity — the ONE source of the `rulings` sidecar's name.
+   *  It is the CARRIER's coordinate (`attribute(path.basename(carrier))`): the reviewed
+   *  round, with `op` fixed to `review`. Never this fix round's `(line, op)`: that second
+   *  expression would mint `<line>-fix-<n>.c<n>.rulings.json`, a name no gate sees and
+   *  the child would faithfully write. */
+  #rulingsIdentityOf(carrier: string): Identity | null {
+    const attributed = this.#artifacts?.attribute(path.basename(carrier)) ?? null;
+    if (attributed === null || attributed.identity.domain !== "round") return null;
+    const { line, cycle, attempt } = attributed.identity;
+    return {
+      domain: "round",
+      line,
+      op: "review",
+      ...(cycle === undefined ? {} : { cycle }),
+      ...(attempt === undefined ? {} : { attempt }),
+    };
+  }
+
+  /** The rendered sidecar path of the reviewed carrier — the ONE path the prompt cell
+   *  and the gate share. Null when the carrier attributes to no round identity (a
+   *  legacy spelling is an orphan observation, and an orphan answers no sidecar). */
+  #rulingsSidecarOf(carrier: string): string | null {
+    const identity = this.#rulingsIdentityOf(carrier);
+    if (identity === null || this.#artifacts === null) return null;
+    return this.#artifacts.locate(identity, "rulings", this.#scene.workspace);
+  }
+
+  /** The carrier's absolute path — the one erasure from the repo-relative carrier
+   *  faces onto the syscall form both the sidecar judgment and the digest read use. */
+  #carrierPathOf(carrier: string): string {
+    return path.resolve(this.#repoRootValue().absolute, carrier);
   }
 
   /** The requesting carrier's engine-written finding ids (`F1`, `F2` …) — the id set a
@@ -1451,7 +1494,7 @@ export class CliLifecycle {
     let carrierJson: unknown;
     try {
       const bytes = CarrierIntegrity.read(
-        path.resolve(this.#repoRootValue().absolute, carrier),
+        this.#carrierPathOf(carrier),
         this.#requesterDigest(frame),
       );
       if (bytes === null) return ids;

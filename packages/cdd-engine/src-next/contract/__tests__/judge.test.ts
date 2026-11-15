@@ -743,6 +743,42 @@ describe("the six context-seam invariants — one negative case each", () => {
     expect(findings.filter((finding) => finding.kind === "cross-doc-chain")).toEqual([]);
   });
 
+  it("a plan whose slug names TWO identity documents carries zero cross-doc-chain findings (P36 T3)", () => {
+    // The identity question is `n ≥ 1`, never `exactly one`: a duplicated identity is
+    // `duplicate-identity`'s judgment, so the chain must not claim the plan "carries no
+    // identity document" over a set that plainly carries two.
+    const content = [
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "slug: x-p3",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      ...planTask(1),
+    ].join("\n");
+    const duplicatedFs: DocFs = {
+      exists: () => true,
+      read: (p) =>
+        p.endsWith("/x-p3-design.md") || p.endsWith("/x-p3-second.md")
+          ? "---\ntitle: S\ndoc-type: phase-spec\nslug: x-p3\nprogram: x-overall\n---\n"
+          : p.endsWith("/x-overall.md")
+            ? "---\ntitle: O\ndoc-type: overall\nslug: x-overall\nversion: v1.0\n---\n"
+            : "---\ntitle: X\ndoc-type: single-spec\nslug: x-other\n---\n",
+      list: (dir) =>
+        dir.endsWith("/specs") || dir.endsWith("specs")
+          ? ["x-overall.md", "x-p3-design.md", "x-p3-second.md"]
+          : ["x-p3.md"],
+    };
+    const findings = judge("plan", content, duplicatedFs);
+    expect(withKind(findings, "cross-doc-chain", "slug")).toBe(false);
+  });
+
   it("a plan with no same-slug identity document is reported — the Class-A negative half names the `slug` key", () => {
     // The same fixture over an EMPTY fs: nothing on disk carries the plan's slug,
     // so the plan has no design spec to dispatch against.

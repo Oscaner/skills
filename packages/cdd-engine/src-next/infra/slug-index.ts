@@ -2,7 +2,9 @@
 // The identity index (spec §2.1/§2.2): ONE scan over the doc roots
 // (`ENGINE_RUNTIME.docRoots`) groups every document by its front-matter facts.
 // The index is the single judgment surface for document identity:
-//   · lookups — `identityDoc` / `planOf` / `phaseSpecsOf` / `overallOf` / `entryAt`;
+//   · lookups — `docsOf` / `hasIdentity` / `phaseSpecsOf` / `overallOf` / `entryAt`;
+//     the slug lookups answer the SET (0 / 1 / n) and never pick a first: ambiguity is
+//     the read face's judgment, not the index's choice;
 //   · violations — duplicate identity document · duplicate plan · missing `slug:` ·
 //     illegal `slug:` value · `program:` target with no overall document.
 // Identity is the `slug:` value, never the file name; a document's class is its
@@ -169,21 +171,20 @@ export class SlugIndex {
     return this.#byRel.get(rel) ?? null;
   }
 
-  /** The identity document (overall / phase-spec / single-spec) carrying the
-   *  slug, or null when no identity document does. */
-  identityDoc(slug: string): DocEntry | null {
-    for (const entry of this.#bySlug.get(slug) ?? []) {
-      if (SlugIndex.#isIdentity(entry)) return entry;
-    }
-    return null;
+  /** Every indexed document declaring the slug, in scan order — 0, 1 or n. The index
+   *  answers the SET and NEVER selects: "the first one" is the defect this member
+   *  retires, so a caller that needs one path reads it through the doc domain
+   *  (`read({domain: "doc", …})`), which refuses an ambiguous set instead of choosing. */
+  docsOf(slug: string): readonly DocEntry[] {
+    return this.#bySlug.get(slug) ?? [];
   }
 
-  /** The plan document carrying the slug, or null when no plan does. */
-  planOf(slug: string): DocEntry | null {
-    for (const entry of this.#bySlug.get(slug) ?? []) {
-      if (entry.docType === "plan") return entry;
-    }
-    return null;
+  /** Whether any IDENTITY document (overall / phase-spec / single-spec) declares the
+   *  slug — the identity question the cross-doc chain asks. n ≥ 1 is true: a duplicated
+   *  identity is still an identity (its ambiguity is `duplicatedRolesOf`'s judgment),
+   *  so this member never lets a caller say "the slug names no identity document". */
+  hasIdentity(slug: string): boolean {
+    return this.docsOf(slug).some((entry) => SlugIndex.#isIdentity(entry));
   }
 
   /** The phase-spec documents whose `program:` names the program slug, in program

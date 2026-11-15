@@ -1,15 +1,23 @@
 // packages/cdd-engine/src-next/session/__tests__/carrier-rulings.test.ts
-// P31 T2 — the rulings sidecar (design spec §2.1/§2.6). The path rule is the one
-// orchestrator-facing convention (`<carrier>.json` → `<carrier>.rulings.json`), and
-// the strict schema is the dispatch gate: every bad shape gets its OWN case here,
-// because each one has to stop the fix round BEFORE the child is spawned — a ruling
-// that was written but refused must never read as one the round silently ignored.
+// P31 T2 — the rulings sidecar (design spec §2.1/§2.6). The strict schema is the
+// dispatch gate: every bad shape gets its OWN case here, because each one has to stop
+// the fix round BEFORE the child is spawned — a ruling that was written but refused
+// must never read as one the round silently ignored.
+//
+// The sidecar's PATH is no longer minted here: it is the artifact matrix's `rulings`
+// row rendered from the reviewed round's identity (P36 T2). This suite takes the
+// rendered path from its caller, and pins that the class holds no path rule of its own
+// (`pathFor` zero residue) and that the strict gate still judges the `carrier` key
+// against the CARRIER's basename — the carrier's fact is never re-derived from the
+// sidecar's name.
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import { CarrierRulings } from "../carrier-rulings.ts";
 
 /** The carrier the sidecar sits beside — its basename is the `carrier` key's value. */
@@ -29,46 +37,59 @@ const LEGAL = {
 /** One hermetic carrier directory per case. */
 const dirs: string[] = [];
 
+/** The sidecar's NAME for this fixture's carrier — the matrix's `final` stem with the
+ *  `.rulings` tail (`phase-spec-review-1.c2.rulings.json`). A fixture may spell the
+ *  literal; the production face may not. */
+const SIDECAR_NAME = CARRIER.replace(/\.json$/, ".rulings.json");
+
 /** Create a carrier directory and return the carrier's absolute path (the file itself
  *  is never written: only the sidecar matters to this judgment). */
 const carrierDir = (): { carrier: string; sidecar: string; cleanup: () => void } => {
   const dir = mkdtempSync(path.join(tmpdir(), "carrier-rulings-"));
   dirs.push(dir);
   const carrier = path.join(dir, CARRIER);
-  return { carrier, sidecar: CarrierRulings.pathFor(carrier), cleanup: () => {} };
+  return { carrier, sidecar: path.join(dir, SIDECAR_NAME), cleanup: () => {} };
 };
 
 /** Judge one sidecar body (a string is written verbatim, anything else as JSON). */
 const verdictOf = (body: unknown): ReturnType<typeof CarrierRulings.verdict> => {
   const { carrier, sidecar } = carrierDir();
   writeFileSync(sidecar, typeof body === "string" ? body : JSON.stringify(body), "utf8");
-  return CarrierRulings.verdict(carrier, FINDING_IDS);
+  return CarrierRulings.verdict(sidecar, carrier, FINDING_IDS);
 };
 
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-describe("CarrierRulings.pathFor — the one `.json` → `.rulings.json` rule", () => {
-  it("maps the draft name and the cycle name onto their sidecars", () => {
-    expect(CarrierRulings.pathFor("/ws/phase-spec-review-1.json")).toBe(
-      "/ws/phase-spec-review-1.rulings.json",
+describe("CarrierRulings — no path rule of its own (P36 T2)", () => {
+  /** `src-next/session` — the sidecar class's own plane. */
+  const SESSION_ROOT = fileURLToPath(new URL("../../session/", import.meta.url));
+
+  it("holds zero `pathFor` residue — the matrix renders the sidecar's name", () => {
+    const files = readdirSync(SESSION_ROOT, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".ts"))
+      .map((entry) => entry.name);
+    const hits = files.filter((name) =>
+      stripComments(readFileSync(path.join(SESSION_ROOT, name), "utf8")).includes("pathFor"),
     );
-    expect(CarrierRulings.pathFor("/ws/phase-spec-review-1.c2.json")).toBe(
-      "/ws/phase-spec-review-1.c2.rulings.json",
-    );
+    expect(hits).toEqual([]);
   });
 
-  it("appends the suffix to a path that does not end in `.json`", () => {
-    expect(CarrierRulings.pathFor("/ws/carrier")).toBe("/ws/carrier.rulings.json");
+  it("takes the sidecar's rendered path from its caller, not from the carrier's tail", () => {
+    // The two carriers of ONE round (draft, final) render ONE sidecar — that is the
+    // matrix's fact, so the same rendered path judges both.
+    const { carrier, sidecar } = carrierDir();
+    writeFileSync(sidecar, JSON.stringify({ ...LEGAL, carrier: path.basename(carrier) }), "utf8");
+    expect(CarrierRulings.verdict(sidecar, carrier, FINDING_IDS).kind).toBe("ok");
   });
 });
 
 describe("CarrierRulings — the three-state read", () => {
   it("reads absent when no sidecar exists", () => {
-    const { carrier } = carrierDir();
-    expect(CarrierRulings.verdict(carrier, FINDING_IDS)).toEqual({ kind: "absent" });
-    expect(CarrierRulings.read(carrier)).toBeNull();
+    const { carrier, sidecar } = carrierDir();
+    expect(CarrierRulings.verdict(sidecar, carrier, FINDING_IDS)).toEqual({ kind: "absent" });
+    expect(CarrierRulings.read(sidecar, carrier)).toBeNull();
   });
 
   it("reads ok on a schema-conforming sidecar, and hands the rulings back", () => {
@@ -151,7 +172,7 @@ describe("CarrierRulings — the nine refused shapes", () => {
     const { carrier, sidecar } = carrierDir();
     mkdirSync(path.dirname(sidecar), { recursive: true });
     writeFileSync(sidecar, "{", "utf8");
-    const verdict = CarrierRulings.verdict(carrier, FINDING_IDS);
+    const verdict = CarrierRulings.verdict(sidecar, carrier, FINDING_IDS);
     expect(verdict.kind === "invalid" ? verdict.reason : "").toContain(sidecar);
   });
 });

@@ -1,10 +1,11 @@
 // packages/cdd-engine/src-next/session/__tests__/round-artifacts.test.ts
-// P36 T1 — the artifact matrix's workspace domain (design spec §2.1 · §2.2 · §2.3 ·
-// §2.9). The matrix answers two questions for every artifact kind: WHERE the name comes
-// from (`identityFrom` + the row's own `render`) and WHICH identity it belongs to
-// (`attribute`). This suite pins the four WORKSPACE rows this wave registers
-// (`progress` · `base` · `in-flight` · `brief`) and the structural facts the matrix is
-// worthless without:
+// P36 T1/T2 — the artifact matrix's round and workspace domains (design spec §2.1 ·
+// §2.2 · §2.3 · §2.9). The matrix answers two questions for every artifact kind: WHERE
+// the name comes from (`identityFrom` + the row's own `render`) and WHICH identity it
+// belongs to (`attribute`). This suite pins the ROUND rows (`draft` · `final` · `report`
+// · `log` · `crash` · `evidence` · `rulings`) and the four WORKSPACE rows (`progress` ·
+// `base` · `in-flight` · `brief`), plus the structural facts the matrix is worthless
+// without:
 //
 //   · the round trip — `attribute(render(identity, kind))` answers the same identity
 //     and kind, per row, so the two ports cannot drift apart; the rendered names are
@@ -43,21 +44,59 @@ import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { PlanSource } from "../../infra/plan-source.ts";
+import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../ledger.ts";
 import {
   type ArtifactRead,
   ArtifactRegistry,
   type Attributed,
+  DocDomain,
+  type DocKind,
   type Identity,
   type IdentityDomain,
   type Kind,
   type MatrixEntry,
+  RoundDomain,
+  type RoundKind,
+  renderRound,
+  WorkspaceDomain,
   type WorkspaceKind,
 } from "../round-artifacts.ts";
+import { RoundNaming } from "../round-naming.ts";
 
-/** The four workspace kinds this wave registers, in the matrix's own row order. */
+/** The seven round kinds, in the matrix's own row order. */
+const ROUND_KINDS: readonly RoundKind[] = [
+  "draft",
+  "final",
+  "report",
+  "log",
+  "crash",
+  "evidence",
+  "rulings",
+];
+
+/** The four workspace kinds, in the matrix's own row order. */
 const WORKSPACE_KINDS: readonly WorkspaceKind[] = ["progress", "base", "in-flight", "brief"];
+
+/** The author / sealed columns each round row declares — the carrier pair is the
+ *  engine's sealed set, the sidecar is the orchestrator's unsealed one. */
+const ROUND_COLUMNS: Readonly<Record<RoundKind, { author: string; sealed: boolean }>> = {
+  draft: { author: "engine", sealed: true },
+  final: { author: "engine", sealed: true },
+  report: { author: "engine", sealed: false },
+  log: { author: "engine", sealed: false },
+  crash: { author: "engine", sealed: false },
+  evidence: { author: "engine", sealed: false },
+  rulings: { author: "orchestrator", sealed: false },
+};
+
+/** The round identity a kind renders from — cycle 1, attempt 1 (the attempt segment is
+ *  never rendered on the first attempt). */
+const ROUND_IDENTITY: Identity = { domain: "round", line: "plan", op: "review", cycle: 1 };
+
+/** The identity a cycle-less round renders from — the two optional coordinates absent. */
+const ROUND_IDENTITY_NO_CYCLE: Identity = { domain: "round", line: "tasks-1", op: "implement" };
 
 /** The name each workspace row renders TODAY — the conservation boundary: the matrix
  *  is a move of the spelling, never a rename. */
@@ -153,16 +192,17 @@ const dirWithFile = (name: string, mode = 0o644): { dir: string; file: string } 
   return { dir, file };
 };
 
-describe("the matrix — the four workspace rows (spec §2.1)", () => {
-  it("registers exactly the four workspace kinds, in row order", () => {
+describe("the matrix — the round and workspace rows (spec §2.1)", () => {
+  it("registers the seven round kinds and the four workspace kinds, in row order", () => {
     const { artifacts, cleanup } = fixture();
     try {
-      expect(artifacts.entries().map((entry) => entry.kind)).toEqual([...WORKSPACE_KINDS]);
+      expect(artifacts.entries().map((entry) => entry.kind)).toEqual([
+        ...ROUND_KINDS,
+        ...WORKSPACE_KINDS,
+      ]);
       expect(artifacts.rows().map((row) => row.domain)).toEqual([
-        "workspace",
-        "workspace",
-        "workspace",
-        "workspace",
+        ...ROUND_KINDS.map(() => "round"),
+        ...WORKSPACE_KINDS.map(() => "workspace"),
       ]);
     } finally {
       cleanup();
@@ -172,9 +212,11 @@ describe("the matrix — the four workspace rows (spec §2.1)", () => {
   it("fills author / sealed / identityFrom / render on every registered row", () => {
     const { artifacts, cleanup } = fixture();
     try {
-      for (const row of artifacts.rows()) {
-        expect(row.author).toBe("engine");
-        expect(row.sealed).toBe(false);
+      for (const entry of artifacts.entries()) {
+        const row = entry.row;
+        const round = ROUND_COLUMNS[entry.kind as RoundKind];
+        expect(row.author, entry.kind).toBe(round?.author ?? "engine");
+        expect(row.sealed, entry.kind).toBe(round?.sealed ?? false);
         expect(row.identityFrom).toBe("rendered");
         if (row.identityFrom !== "rendered") continue;
         expect(row.misplaced).toBe("block");
@@ -185,12 +227,150 @@ describe("the matrix — the four workspace rows (spec §2.1)", () => {
     }
   });
 
-  it("answers rowOf for the registered kinds and null for an unregistered one", () => {
+  it("answers rowOf for every registered kind and null for a kind no domain declares", () => {
     const { artifacts, cleanup } = fixture();
     try {
-      for (const kind of WORKSPACE_KINDS) expect(artifacts.rowOf(kind)).not.toBeNull();
-      // The round domain arrives with its own task — an unregistered kind is not a row.
-      expect(artifacts.rowOf("draft")).toBeNull();
+      for (const kind of [...ROUND_KINDS, ...WORKSPACE_KINDS]) {
+        expect(artifacts.rowOf(kind), kind).not.toBeNull();
+      }
+      // A domain that registers a PART of the closed set (the fixture injects one
+      // row): a kind it never declared answers null — the matrix mints no row.
+      const partial = new ArtifactRegistry([sealedDomain()]);
+      expect(partial.rowOf("draft")).not.toBeNull();
+      expect(partial.rowOf("rulings")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("declares the rulings row's identifier vocabulary and absence policy exactly once", () => {
+    const { artifacts, cleanup } = fixture();
+    try {
+      const rulings = artifacts.rowOf("rulings");
+      expect(rulings?.identifier).toEqual({ canonical: "finding", accepts: ["finding", "id"] });
+      expect(rulings?.policy).toContain("absence is legal");
+      // No other row declares an identifier or a policy — the single declaration site.
+      const others = artifacts.rows().filter((row) => row.identifier !== undefined);
+      expect(others).toHaveLength(1);
+      expect(artifacts.rows().filter((row) => row.policy !== undefined)).toHaveLength(1);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("the round trip over the round rows (spec §2.2 · §2.9 ① · T2)", () => {
+  it("renders the rulings sidecar at the final's stem — the reviewed round's name", () => {
+    const { artifacts, cleanup } = fixture();
+    try {
+      // Asserted from the IDENTITY (not by replacing the final's tail): both names
+      // read the same four-segment stem, the final closing it with `.c<cycle>`.
+      expect(artifacts.render(ROUND_IDENTITY, "rulings")).toBe("plan-review-1.c1.rulings.json");
+      expect(artifacts.render(ROUND_IDENTITY, "final")).toBe("plan-review-1.c1.json");
+      // The no-cycle form: the sidecar shares the final's stem with no cycle segment.
+      expect(artifacts.render(ROUND_IDENTITY_NO_CYCLE, "rulings")).toBe(
+        "tasks-1-implement.rulings.json",
+      );
+      expect(artifacts.render(ROUND_IDENTITY_NO_CYCLE, "final")).toBe("tasks-1-implement.json");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("attributes every rendered round name back to its identity — both spellings, every kind", () => {
+    const { artifacts, cleanup } = fixture();
+    try {
+      for (const kind of ROUND_KINDS) {
+        const name = artifacts.render(ROUND_IDENTITY, kind);
+        expect(artifacts.attribute(name), kind).toEqual({ identity: ROUND_IDENTITY, kind });
+      }
+      for (const kind of ROUND_KINDS) {
+        const name = artifacts.render(ROUND_IDENTITY_NO_CYCLE, kind);
+        const attributed = artifacts.attribute(name);
+        // The cycle-less form gives `draft` and `final` ONE name, so its kind reads as
+        // the draft (a cycle-less carrier is a draft, never a final) — the IDENTITY is
+        // what the round trip pins there.
+        expect(attributed?.identity, kind).toEqual(ROUND_IDENTITY_NO_CYCLE);
+        expect(attributed?.kind, kind).toBe(kind === "final" ? "draft" : kind);
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("attributes the tolerant spellings of one identity to the SAME (identity, kind)", () => {
+    const { artifacts, cleanup } = fixture();
+    try {
+      const rendered = artifacts.render(ROUND_IDENTITY, "rulings");
+      // the issue's writing convention: the `.c<cycle>` tag omitted
+      expect(artifacts.attribute("plan-review-1.rulings.json")).toEqual({
+        identity: ROUND_IDENTITY,
+        kind: "rulings",
+      });
+      // an explicit first attempt — a spelling the renderer never mints
+      expect(artifacts.attribute("plan-review-1-a1.json")).toEqual({
+        identity: { ...ROUND_IDENTITY, attempt: 1 },
+        kind: "draft",
+      });
+      expect(rendered).toBe("plan-review-1.c1.rulings.json");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("answers unknown (null) for a name no round row renders", () => {
+    const { artifacts, cleanup } = fixture();
+    try {
+      // a `.c<cycle>` tag that disagrees with the stem's own cycle belongs to no identity
+      expect(artifacts.attribute("plan-review-1.c2.rulings.json")).toBeNull();
+      // `implement` is the wave family's alone — a doc line never mints it
+      expect(artifacts.attribute("plan-implement-1.json")).toBeNull();
+      expect(artifacts.attribute("notes.json")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders the same name through the module entry and through the static delegate", () => {
+    const { artifacts, cleanup } = fixture();
+    try {
+      for (const kind of ROUND_KINDS) {
+        expect(renderRound(ROUND_IDENTITY, kind)).toBe(artifacts.render(ROUND_IDENTITY, kind));
+      }
+      // the static method reads the same body — one spelling, two entry forms
+      expect(RoundNaming.renderName({ line: "plan", op: "review", cycle: 1 }, "final")).toBe(
+        renderRound(ROUND_IDENTITY, "final"),
+      );
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("locates and reads a round artifact inside the caller's workspace", () => {
+    const { artifacts, workspace, cleanup } = fixture();
+    try {
+      expect(artifacts.locate(ROUND_IDENTITY, "rulings", workspace)).toBe(
+        workspace.resolve("plan-review-1.c1.rulings.json"),
+      );
+      expect(artifacts.read(ROUND_IDENTITY, "rulings", workspace)).toEqual({ kind: "absent" });
+      workspace.ensure();
+      workspace.writeText("plan-review-1.c1.rulings.json", "{}\n");
+      expect(artifacts.read(ROUND_IDENTITY, "rulings", workspace)).toEqual({
+        kind: "ok",
+        path: workspace.resolve("plan-review-1.c1.rulings.json"),
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("refuses a foreign identity on the round rows instead of rendering a plausible name", () => {
+    const { artifacts, workspace, cleanup } = fixture();
+    try {
+      const doc: Identity = { domain: "doc", slug: "p36", docType: "plan" };
+      expect(() => artifacts.render(doc, "draft")).toThrow(/doc/);
+      expect(() => artifacts.render(ROUND_IDENTITY, "progress")).toThrow(/workspace/);
+      expect(() => artifacts.locate(doc, "draft", workspace)).toThrow(/doc/);
     } finally {
       cleanup();
     }
@@ -238,7 +418,7 @@ describe("the round trip — render ∘ attribute = id (spec §2.2 · §2.9 ①)
   it("answers unknown (null) for a name no row renders", () => {
     const { artifacts, cleanup } = fixture();
     try {
-      expect(artifacts.attribute("plan-review-1.c1.rulings.json")).toBeNull();
+      expect(artifacts.attribute("notes.json")).toBeNull();
       expect(artifacts.attribute("spec-1.json")).toBeNull();
       // The brief's empty coordinate is not a name: nothing renders `tasks--brief.md`.
       expect(artifacts.attribute("tasks--brief.md")).toBeNull();
@@ -459,15 +639,180 @@ describe("one home, one instance (spec §2.1 · §2.9 ⑤)", () => {
   });
 });
 
-/** The literal token list stays honest: the matrix answers renders for exactly the
- *  kinds the rows declare (a kind outside the registered set throws rather than
- *  returning a made-up name). */
+/** The kind guard, re-pointed (T2): once every domain registers its rows, no kind of
+ *  the closed set is unregistered — the "kind with no row" arm is reachable only
+ *  through a domain that registers a PART of the set, so the fixture domain carries it
+ *  rather than a shape the production matrix can never produce. The cross-domain guard
+ *  stays on the production matrix. */
 describe("the matrix refuses a kind it holds no row for", () => {
-  it("throws on rendering an unregistered kind", () => {
+  it("holds no row — and refuses to render — a kind the injected domains never declare", () => {
+    const partial = new ArtifactRegistry([sealedDomain()]);
+    const identity: Identity = { domain: "round", line: "tasks-1", op: "implement" };
+    expect(partial.rowOf("rulings")).toBeNull();
+    expect(() => partial.render(identity, "rulings" as Kind)).toThrow(/rulings/);
+  });
+
+  it("still refuses a CROSS-DOMAIN render on the production matrix", () => {
     const { artifacts, cleanup } = fixture();
     try {
       const identity: Identity = { domain: "workspace", tasks: null };
-      expect(() => artifacts.render(identity, "rulings" as Kind)).toThrow(/rulings/);
+      expect(() => artifacts.render(identity, "draft")).toThrow(/workspace/);
+      const round: Identity = { domain: "round", line: "plan", op: "review", cycle: 1 };
+      expect(() => artifacts.render(round, "progress")).toThrow(/workspace/);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the doc domain (P36 T3) — declared identities, no rendered name
+// ---------------------------------------------------------------------------
+
+/** The four document kinds the doc domain declares. */
+const DOC_KINDS: readonly DocKind[] = ["overall", "phase-spec", "single-spec", "plan"];
+
+/** Write one front-matter document at its repo-relative path. */
+const writeDoc = (repo: string, rel: string, fields: Readonly<Record<string, string>>): void => {
+  const abs = path.join(repo, rel);
+  mkdirSync(path.dirname(abs), { recursive: true });
+  const head = ["---", ...Object.entries(fields).map(([key, value]) => `${key}: ${value}`), "---"];
+  writeFileSync(abs, `${head.join("\n")}\n## Body\n`, "utf8");
+};
+
+/** A hermetic repo carrying one spec + its paired plan, and the matrix bound to its
+ *  index (the doc domain answers through the index the composition root builds). */
+const docFixture = (): {
+  repo: string;
+  index: SlugIndex;
+  artifacts: ArtifactRegistry;
+  workspace: Workspace;
+  cleanup: () => void;
+} => {
+  const repo = mkdtempSync(path.join(tmpdir(), "round-artifacts-doc-"));
+  writeDoc(repo, "docs/kairos/specs/p36-design.md", {
+    "doc-type": "phase-spec",
+    slug: "p36",
+  });
+  writeDoc(repo, "docs/kairos/plans/p36.md", { "doc-type": "plan", slug: "p36" });
+  const index = SlugIndex.build(repo);
+  return {
+    repo,
+    index,
+    artifacts: new ArtifactRegistry([
+      new RoundDomain(),
+      new WorkspaceDomain(),
+      new DocDomain(index),
+    ]),
+    workspace: new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "p36"),
+    cleanup: () => rmSync(repo, { recursive: true, force: true }),
+  };
+};
+
+describe("the doc domain — declared rows, no name rule (spec §2.1 · §2.2 · §4.4)", () => {
+  it("registers the four doc rows as declared, unsealed, human-authored", () => {
+    const { artifacts, cleanup } = docFixture();
+    try {
+      for (const kind of DOC_KINDS) {
+        const row = artifacts.rowOf(kind);
+        expect(row, kind).toEqual({
+          domain: "doc",
+          author: "human",
+          sealed: false,
+          identityFrom: "declared",
+        });
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("renders no name for a declared row — the absence of a rule is the fact", () => {
+    const { artifacts, cleanup } = docFixture();
+    try {
+      const identity: Identity = { domain: "doc", slug: "p36", docType: "plan" };
+      expect(() => artifacts.render(identity, "plan")).toThrow(/no name rule/);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("attributes an indexed path to the document's DECLARED identity", () => {
+    const { artifacts, cleanup } = docFixture();
+    try {
+      expect(artifacts.attribute("docs/kairos/specs/p36-design.md")).toEqual({
+        identity: { domain: "doc", slug: "p36", docType: "phase-spec" },
+        kind: "phase-spec",
+      });
+      expect(artifacts.attribute("docs/kairos/plans/p36.md")).toEqual({
+        identity: { domain: "doc", slug: "p36", docType: "plan" },
+        kind: "plan",
+      });
+      // no filename derivation: a name the index never scanned is not a document
+      expect(artifacts.attribute("docs/kairos/specs/made-up.md")).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("reads the sole document at its index path", () => {
+    const { artifacts, workspace, repo, cleanup } = docFixture();
+    try {
+      const plan: Identity = { domain: "doc", slug: "p36", docType: "plan" };
+      expect(artifacts.locate(plan, "plan", workspace)).toBe(
+        path.join(repo, "docs/kairos/plans/p36.md"),
+      );
+      expect(artifacts.read(plan, "plan", workspace)).toEqual({
+        kind: "ok",
+        path: path.join(repo, "docs/kairos/plans/p36.md"),
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("reads a duplicated identity as invalid(found) while attribute still answers the identity", () => {
+    const { repo, workspace, cleanup } = docFixture();
+    try {
+      expect(SlugIndex.isLegalSlug("p36")).toBe(true);
+      writeDoc(repo, "docs/kairos/specs/p36-again.md", {
+        "doc-type": "phase-spec",
+        slug: "p36",
+      });
+      const index = SlugIndex.build(repo);
+      const artifacts = new ArtifactRegistry([
+        new RoundDomain(),
+        new WorkspaceDomain(),
+        new DocDomain(index),
+      ]);
+      const identity: Identity = { domain: "doc", slug: "p36", docType: "phase-spec" };
+      const found = [
+        path.join(repo, "docs/kairos/specs/p36-again.md"),
+        path.join(repo, "docs/kairos/specs/p36-design.md"),
+      ];
+      const read = artifacts.read(identity, "phase-spec", workspace);
+      expect(read.kind).toBe("invalid");
+      expect(read.kind === "invalid" ? read.found : []).toEqual(found);
+      expect(read.kind === "invalid" ? read.reason : "").toBe("duplicate-identity");
+      // the name itself is unambiguous — the ambiguity belongs to the identity side
+      expect(artifacts.attribute("docs/kairos/specs/p36-design.md")).toEqual({
+        identity,
+        kind: "phase-spec",
+      });
+      // a set of two has no single path
+      expect(artifacts.locate(identity, "phase-spec", workspace)).toBeNull();
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("refuses a foreign identity or a kind the document does not declare", () => {
+    const { artifacts, workspace, cleanup } = docFixture();
+    try {
+      const round: Identity = { domain: "round", line: "plan", op: "review", cycle: 1 };
+      const plan: Identity = { domain: "doc", slug: "p36", docType: "plan" };
+      expect(() => artifacts.read(round, "plan", workspace)).toThrow(/round/);
+      expect(() => artifacts.read(plan, "phase-spec", workspace)).toThrow(/phase-spec/);
     } finally {
       cleanup();
     }

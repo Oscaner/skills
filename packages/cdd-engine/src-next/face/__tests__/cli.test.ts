@@ -47,6 +47,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Command } from "commander";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import {
   type CompletionContext,
   CompletionCriteria,
@@ -10545,5 +10546,37 @@ describe("P35 T7 — the doc face's derived-path routing and the identity bounda
     } finally {
       cleanup();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P36 T3 — the identity index is built at the command preamble, never per read
+// ---------------------------------------------------------------------------
+
+describe("P36 T3 — `SlugIndex.build` survives at exactly three production sites", () => {
+  /** The allowed sites: the CLI's private preamble entry (one literal, shared by the
+   *  board / scene / base legs) and the two `?? build` fallbacks the judgment planes
+   *  keep for a context handed no index. */
+  const SITES: Readonly<Record<string, number>> = {
+    "face/cli.ts": 1,
+    "session/preflight.ts": 1,
+    "contract/invariants.ts": 1,
+  };
+
+  /** Each production file's `SlugIndex.build` occurrences (comments stripped: a
+   *  docstring naming the call is prose, a call is a real construction site). */
+  const buildSites = (): Record<string, number> => {
+    const counts: Record<string, number> = {};
+    for (const [name, text] of engineSourceTexts()) {
+      const hits = stripComments(text)
+        .split("\n")
+        .filter((line) => line.includes("SlugIndex.build")).length;
+      if (hits > 0) counts[name] = hits;
+    }
+    return counts;
+  };
+
+  it("keeps the three sites and no fourth", () => {
+    expect(buildSites()).toEqual(SITES);
   });
 });

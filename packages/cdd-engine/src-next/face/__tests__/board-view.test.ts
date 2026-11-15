@@ -142,7 +142,11 @@ describe("BoardView.render — the phase / program board layouts + the next deri
    *  entry that the CLI resolves by path). */
   const entryFor = (slug: string): DocEntry => {
     const index = SlugIndex.build(repo);
-    const entry = index.overallOf(slug) ?? index.identityDoc(slug) ?? index.planOf(slug);
+    const entry =
+      index.overallOf(slug) ??
+      index.docsOf(slug).find((doc) => doc.docType !== null && doc.docType !== "plan") ??
+      index.docsOf(slug).find((doc) => doc.docType === "plan") ??
+      null;
     if (entry === null) throw new Error(`no doc for slug ${slug}`);
     return entry;
   };
@@ -2113,7 +2117,11 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
 
   const entryOf = (slug: string): DocEntry => {
     const index = SlugIndex.build(repo);
-    const entry = index.overallOf(slug) ?? index.identityDoc(slug) ?? index.planOf(slug);
+    const entry =
+      index.overallOf(slug) ??
+      index.docsOf(slug).find((doc) => doc.docType !== null && doc.docType !== "plan") ??
+      index.docsOf(slug).find((doc) => doc.docType === "plan") ??
+      null;
     if (entry === null) throw new Error(`no doc for slug ${slug}`);
     return entry;
   };
@@ -2250,7 +2258,7 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
       ...taskBlock(1, "none"),
     ]);
     const index = SlugIndex.build(repo);
-    const entry = index.identityDoc("s1");
+    const entry = index.docsOf("s1").find((doc) => doc.docType === "phase-spec") ?? null;
     if (entry === null) throw new Error("expected the phase's identity document");
     const facts = factsOfEntry(repo, index, entry);
     // ONE fact: the read the board opened is `undeclared` (the derived path is not on
@@ -2956,7 +2964,11 @@ describe("P35 T5 — the board renders FROM the plan value, never from a second 
 
   const entryOf = (slug: string): DocEntry => {
     const index = SlugIndex.build(repo);
-    const entry = index.overallOf(slug) ?? index.identityDoc(slug) ?? index.planOf(slug);
+    const entry =
+      index.overallOf(slug) ??
+      index.docsOf(slug).find((doc) => doc.docType !== null && doc.docType !== "plan") ??
+      index.docsOf(slug).find((doc) => doc.docType === "plan") ??
+      null;
     if (entry === null) throw new Error(`no doc for slug ${slug}`);
     return entry;
   };
@@ -3162,6 +3174,36 @@ describe("P35 T5 — the board renders FROM the plan value, never from a second 
     expect(duplicatedBoard.lines.join("\n")).toContain("slug: duplicated (BLOCKED)");
     expect(duplicatedBoard.lines.join("\n")).not.toContain("! no-spec");
     expect(duplicatedBoard.exitCode).toBe(2);
+  });
+
+  it("a duplicated identity spec renders the duplicated marker on the spec cell (P36 T3)", () => {
+    overall();
+    phaseSpec();
+    phaseSpec("prog-p1", "docs/kairos/specs/prog-p1-second.md");
+    planDoc("docs/kairos/plans/prog-p1.md", taskBlock(1));
+    const board = boardOf("prog-p1", "docs/kairos/plans/prog-p1.md");
+    const text = board.lines.join("\n");
+    // The same-slug set answers TWO identity documents: the spec cell renders the
+    // existing duplicate marker (the judgment the doc domain's `read` refuses on), and
+    // the row never degrades to `! no-spec` over a set that plainly names one.
+    expect(text).toContain("slug: duplicated (BLOCKED)");
+    expect(text).not.toContain("! no-spec");
+    expect(board.exitCode).toBe(2);
+  });
+
+  it("a duplicated plan under a phase blocks the program board's plan row (P36 T3)", () => {
+    overall();
+    phaseSpec();
+    planDoc("docs/kairos/plans/prog-p1.md", taskBlock(1));
+    const healthy = boardOf("prog-overall");
+    planDoc("docs/kairos/plans/prog-p1-copy.md", taskBlock(1));
+    const duplicated = boardOf("prog-overall");
+    // The phase row's plan cell reads the SAME duplicate judgment the doc domain's
+    // `read` refuses on: the row keeps its bytes and the board turns BLOCKED (the
+    // program board's existing channel — no new column, no new marker text).
+    expect(duplicated.lines).toEqual(healthy.lines);
+    expect(healthy.exitCode).toBe(0);
+    expect(duplicated.exitCode).toBe(2);
   });
 
   it("a plan without `slug:` stays on the identity channel and keeps the healthy wave rows", () => {

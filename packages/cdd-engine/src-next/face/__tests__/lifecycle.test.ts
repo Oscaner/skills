@@ -46,6 +46,7 @@ import { CarrierRulings } from "../../session/carrier-rulings.ts";
 import { targetFaces } from "../../session/faces.ts";
 import { HoldingError, InFlight } from "../../session/inflight.ts";
 import { Ledger } from "../../session/ledger.ts";
+import { ArtifactRegistry } from "../../session/round-artifacts.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
@@ -197,6 +198,7 @@ const dispatchFrame = async (
   try {
     const lifecycle = new CliLifecycle({
       scene: f.scene,
+      artifacts: new ArtifactRegistry(),
       io: f.io,
       sync: runner,
       env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -349,6 +351,7 @@ const plantStale = (f: Fixture, body: string): void => {
 const lifecycleOf = (f: Fixture): CliLifecycle =>
   new CliLifecycle({
     scene: f.scene,
+    artifacts: new ArtifactRegistry(),
     io: f.io,
     sync: new SilentRunner(),
     env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -694,6 +697,20 @@ const fixFrameOf = (specPath: string): OpenFrame => ({
   key: "phase-spec",
 });
 
+/** The rendered rulings sidecar path of a carrier — the matrix's `rulings` row over
+ *  the REVIEWED round's identity (P36 T2). The fixture spells no tail of its own. */
+const sidecarOf = (workspace: Workspace, carrierPath: string): string => {
+  const registry = new ArtifactRegistry();
+  const attributed = registry.attribute(path.basename(carrierPath));
+  if (attributed === null || attributed.identity.domain !== "round") {
+    throw new Error(`the fixture carrier ${carrierPath} attributes to no round`);
+  }
+  const identity = { ...attributed.identity, op: "review" as const };
+  const sidecar = registry.locate(identity, "rulings", workspace);
+  if (sidecar === null) throw new Error("the matrix renders no rulings sidecar");
+  return sidecar;
+};
+
 /** Run one fix dispatch with the injected reviews carrier. */
 const runFix = async (
   f: Fixture,
@@ -703,6 +720,7 @@ const runFix = async (
 ): Promise<DispatchOutcome> => {
   const lifecycle = new CliLifecycle({
     scene: f.scene,
+    artifacts: new ArtifactRegistry(),
     io: f.io,
     sync: runner,
     env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -810,7 +828,7 @@ describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => 
         "utf8",
       );
       writeFileSync(
-        CarrierRulings.pathFor(sealed.path),
+        sidecarOf(f.scene.workspace, sealed.path),
         JSON.stringify({
           carrier: path.basename(sealed.path),
           rulings: [{ finding: "F4", ruling: "REJECTED as stated", by: "orchestrator" }],
@@ -902,6 +920,7 @@ describe("P34 T2 — a derived fix input never inherits the frame's attempt", ()
   const runDerivedFix = async (f: Fixture, runner: SilentRunner): Promise<DispatchOutcome> => {
     const lifecycle = new CliLifecycle({
       scene: f.scene,
+      artifacts: new ArtifactRegistry(),
       io: f.io,
       sync: runner,
       env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -1027,6 +1046,7 @@ describe("P31 T4 — the fix input names the FINAL carrier", () => {
   const runFixFrame = async (f: Fixture, runner: ChildRunner): Promise<void> => {
     const lifecycle = new CliLifecycle({
       scene: f.scene,
+      artifacts: new ArtifactRegistry(),
       io: f.io,
       sync: runner,
       env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -1045,7 +1065,7 @@ describe("P31 T4 — the fix input names the FINAL carrier", () => {
         sealed.path,
       );
       // (2) the ruling sidecar rides the FINAL's stem — never the draft's
-      const sidecar = CarrierRulings.pathFor(sealed.path);
+      const sidecar = sidecarOf(f.scene.workspace, sealed.path);
       expect(path.basename(sidecar)).toBe("phase-spec-review-1.c1.rulings.json");
       writeFileSync(
         sidecar,
@@ -1105,7 +1125,7 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
         const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
         writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
         writeFileSync(
-          CarrierRulings.pathFor(carrier),
+          sidecarOf(f.scene.workspace, carrier),
           typeof body === "string" ? body : JSON.stringify(body),
           "utf8",
         );
@@ -1128,7 +1148,7 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
     try {
       const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
       writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
-      const sidecar = CarrierRulings.pathFor(carrier);
+      const sidecar = sidecarOf(f.scene.workspace, carrier);
       writeFileSync(sidecar, JSON.stringify(LEGAL_SIDECAR), "utf8");
       const runner = new SilentRunner();
       const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
@@ -1145,12 +1165,43 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
     }
   });
 
+  it("names the REVIEWED round's sidecar on a fix dispatch — the `review` segment, never `fix`", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // A plan line's carrier, handed to a fix dispatch: the sidecar's coordinate is
+      // the CARRIER's round (line=plan · op=review), never this fix round's op. The
+      // plan round renders `plan-fix-1.c1.rulings.json`; that name is what a second
+      // expression would mint and what no gate ever sees.
+      const carrier = path.join(f.scene.workspace.path, "plan-review-1.c1.json");
+      writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
+      const sidecar = sidecarOf(f.scene.workspace, carrier);
+      writeFileSync(
+        sidecar,
+        JSON.stringify({
+          carrier: path.basename(carrier),
+          rulings: [{ finding: "F1", ruling: "ACCEPTED" }],
+        }),
+        "utf8",
+      );
+      const runner = new SilentRunner();
+      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      await runFix(f, fixFrameOf(specPath), carrier, runner);
+      expect(runner.calls).toHaveLength(1);
+      const rel = path.relative(f.scene.workspace.root.repoRoot, sidecar);
+      expect(rel).toBe(path.join(".kairos", "cdd", "p30", "plan-review-1.c1.rulings.json"));
+      expect(promptOf(runner)).toContain(`- \`INPUT_RULINGS\`: ${rel}`);
+      expect(promptOf(runner)).not.toContain("plan-fix-");
+    } finally {
+      f.cleanup();
+    }
+  });
+
   it("renders one verbatim body line per ruling of the sidecar", async () => {
     const f = fixture(planDoc([[1, []]]));
     try {
       const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
       writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
-      const sidecar = CarrierRulings.pathFor(carrier);
+      const sidecar = sidecarOf(f.scene.workspace, carrier);
       const rulings = [
         { finding: "F1", ruling: "ACCEPTED — the guard lands in W2" },
         { finding: "F4", ruling: "REJECTED as stated · wording only" },
@@ -1238,7 +1289,7 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
       // stops the round before the child exists.
       const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
       writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
-      writeFileSync(CarrierRulings.pathFor(carrier), "{ not json", "utf8");
+      writeFileSync(sidecarOf(f.scene.workspace, carrier), "{ not json", "utf8");
       const runner = new SilentRunner();
       const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
       const outcome = await runFix(f, fixFrameOf(specPath), carrier, runner);
@@ -1300,6 +1351,7 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
       });
       const lifecycle = new CliLifecycle({
         scene: f.scene,
+        artifacts: new ArtifactRegistry(),
         io: f.io,
         sync: new SilentRunner(),
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -1336,6 +1388,7 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
       const probe = new ModeProbeRunner([seeded.path], seen);
       const lifecycle = new CliLifecycle({
         scene: f.scene,
+        artifacts: new ArtifactRegistry(),
         io: f.io,
         sync: probe,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -1497,6 +1550,7 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
         ledger: f.scene.ledger,
         dispatch: new CliLifecycle({
           scene: f.scene,
+          artifacts: new ArtifactRegistry(),
           io: f.io,
           sync: dying,
           env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -1543,6 +1597,7 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
       const frame = atAttempt(fixFrameOf(specPath), 2);
       const lifecycle = new CliLifecycle({
         scene: f.scene,
+        artifacts: new ArtifactRegistry(),
         io: f.io,
         sync: new FailingRunner(),
         env: { CLAUDE_CODE_SESSION_ID: "s" },

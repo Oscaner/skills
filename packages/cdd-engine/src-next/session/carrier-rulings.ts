@@ -14,6 +14,12 @@
 // strings) and the optional `at` / `by`. A ruling's `finding` must name a finding of
 // the carrier it sits beside — the id set is the caller's fact, injected.
 //
+// The sidecar PATH is not minted here: it is the artifact matrix's `rulings` row
+// rendered from the reviewed round's identity and resolved by the caller's workspace
+// (`render(identity, "rulings")`). Only the NAME is the matrix's; the `carrier` key's
+// comparison still reads the carrier's own basename, so neither direction of the
+// relationship is derived from the other side's string.
+//
 // The sidecar is NEVER sealed by the engine: only the engine's own carriers are.
 
 import { existsSync, readFileSync } from "node:fs";
@@ -49,24 +55,22 @@ type ParsedSidecar =
   | { readonly kind: "ok"; readonly value: unknown }
   | { readonly kind: "invalid"; readonly reason: string };
 
-/** CarrierRulings — the sidecar path rule, the lenient read and the strict judgment.
- *  Stateless: every call takes the carrier path (and, for the judgment, the carrier's
- *  own finding-id set), so the class holds no per-round state. */
+/** CarrierRulings — the lenient read and the strict judgment of a rulings sidecar.
+ *  Stateless: every call takes the sidecar's own path AND the carrier it answers (the
+ *  strict schema's `carrier` key speaks the carrier's fact; the id set is the caller's).
+ *  The path itself is the artifact matrix's render — this class never derives one. */
 // biome-ignore lint/complexity/noStaticOnlyClass: the plan-mandated sidecar read surface — the zero-bare-function discipline admits no standalone predicate functions.
 export class CarrierRulings {
-  /** The sidecar path of a carrier — its trailing `.json` replaced by `.rulings.json`
-   *  (a path that does not end in `.json` gains the suffix as-is, never a guess). */
-  static pathFor(carrierPath: string): string {
-    return carrierPath.endsWith(".json")
-      ? `${carrierPath.slice(0, -".json".length)}.rulings.json`
-      : `${carrierPath}.rulings.json`;
-  }
-
   /** The sidecar's rulings as recorded — null when the file is absent, unparsable or
    *  does not carry a rulings array. The lenient read is for callers that render a
-   *  ruling, never for the gate: the dispatch gate judges through `verdict`. */
-  static read(carrierPath: string): { readonly rulings: readonly Ruling[] } | null {
-    const parsed = CarrierRulings.#parse(CarrierRulings.pathFor(carrierPath));
+   *  ruling, never for the gate: the dispatch gate judges through `verdict`. The
+   *  carrier path is accepted beside the sidecar so both consumers share ONE call
+   *  shape; the `carrier` key's comparison is the strict gate's judgment. */
+  static read(
+    sidecarPath: string,
+    _carrierPath: string,
+  ): { readonly rulings: readonly Ruling[] } | null {
+    const parsed = CarrierRulings.#parse(sidecarPath);
     if (parsed.kind !== "ok") return null;
     return CarrierRulings.#lenientRulings(parsed.value);
   }
@@ -74,32 +78,35 @@ export class CarrierRulings {
   /** The strict judgment — the fix dispatch's pre-spawn gate. `findingIds` is the
    *  carrier's own finding-id set: a ruling on a finding the carrier does not carry is
    *  refused, never carried into the round as a phantom. */
-  static verdict(carrierPath: string, findingIds: ReadonlySet<string>): RulingVerdict {
-    const sidecar = CarrierRulings.pathFor(carrierPath);
-    const parsed = CarrierRulings.#parse(sidecar);
+  static verdict(
+    sidecarPath: string,
+    carrierPath: string,
+    findingIds: ReadonlySet<string>,
+  ): RulingVerdict {
+    const parsed = CarrierRulings.#parse(sidecarPath);
     if (parsed.kind !== "ok") return parsed;
     const record = CarrierRulings.#recordOf(parsed.value);
     if (record === null) {
-      return CarrierRulings.#invalid(sidecar, "the sidecar is not a JSON object");
+      return CarrierRulings.#invalid(sidecarPath, "the sidecar is not a JSON object");
     }
     if (!CarrierRulings.#keysWithin(record, TOP_KEYS)) {
       return CarrierRulings.#invalid(
-        sidecar,
+        sidecarPath,
         `unknown top-level key(s) — the schema declares ${[...TOP_KEYS].join(" / ")}`,
       );
     }
     const carrierRefusal = CarrierRulings.#carrierRefusal(record, carrierPath);
-    if (carrierRefusal !== null) return CarrierRulings.#invalid(sidecar, carrierRefusal);
+    if (carrierRefusal !== null) return CarrierRulings.#invalid(sidecarPath, carrierRefusal);
     if (!("rulings" in record)) {
-      return CarrierRulings.#invalid(sidecar, "the sidecar carries no `rulings` array");
+      return CarrierRulings.#invalid(sidecarPath, "the sidecar carries no `rulings` array");
     }
     if (!Array.isArray(record.rulings)) {
-      return CarrierRulings.#invalid(sidecar, "`rulings` is not an array");
+      return CarrierRulings.#invalid(sidecarPath, "`rulings` is not an array");
     }
     const rulings: Ruling[] = [];
     for (const [index, entry] of record.rulings.entries()) {
       const ruling = CarrierRulings.#rulingOf(entry, index, findingIds);
-      if (typeof ruling === "string") return CarrierRulings.#invalid(sidecar, ruling);
+      if (typeof ruling === "string") return CarrierRulings.#invalid(sidecarPath, ruling);
       rulings.push(ruling);
     }
     return { kind: "ok", rulings };

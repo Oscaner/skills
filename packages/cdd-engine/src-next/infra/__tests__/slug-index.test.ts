@@ -2,7 +2,7 @@
 // T2 — the identity index pins (spec §2.1/§2.2): one scan over the doc roots
 // groups every document by its front-matter `slug:` and derives the identity
 // lookups the board and the dispatch pre-flight share. The suites pin:
-//   · the lookup surface (identityDoc / planOf / phaseSpecsOf / overallOf / entryAt);
+//   · the lookup surface (docsOf / hasIdentity / phaseSpecsOf / overallOf / entryAt);
 //   · the five violation kinds (duplicate-identity / duplicate-plan / missing-slug /
 //     invalid-slug / missing-program-target) plus the legal spec-plan pair;
 //   · the four-way identity gate the pre-flight and the dispatch carrier share
@@ -10,10 +10,20 @@
 //   · the filename-independence boundaries — a `slug:` value wins over the file
 //     name, and a document's directory never decides its identity class.
 
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
+import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import { NodeFs } from "../../contract/invariants.ts";
 import { SlugIndex } from "../slug-index.ts";
 
@@ -84,9 +94,13 @@ describe("SlugIndex — the lookup surface", () => {
     const index = SlugIndex.build(repo);
 
     expect(index.entries).toHaveLength(4);
-    expect(index.identityDoc("prog")?.rel).toBe(`${SPECS}/prog-overall.md`);
-    expect(index.identityDoc("prog-p1")?.rel).toBe(`${SPECS}/prog-p1-design.md`);
-    expect(index.planOf("prog-p1")?.rel).toBe(`${PLANS}/prog-p1.md`);
+    expect(index.docsOf("prog").map((entry) => entry.rel)).toEqual([`${SPECS}/prog-overall.md`]);
+    // scan order is rel order: `plans/` sorts before `specs/`
+    expect(index.docsOf("prog-p1").map((entry) => entry.rel)).toEqual([
+      `${PLANS}/prog-p1.md`,
+      `${SPECS}/prog-p1-design.md`,
+    ]);
+    expect(index.hasIdentity("prog-p1")).toBe(true);
     expect(index.phaseSpecsOf(PROGRAM).map((entry) => entry.rel)).toEqual([
       `${SPECS}/prog-p1-design.md`,
       `${SPECS}/prog-p2-design.md`,
@@ -118,7 +132,10 @@ describe("SlugIndex — the lookup surface", () => {
     writeDoc(repo, `${SPECS}/odd.md`, { title: "Odd", "doc-type": "memo", slug: "odd" });
     const index = SlugIndex.build(repo);
     expect(index.entryAt(`${SPECS}/odd.md`)?.docType).toBeNull();
-    expect(index.identityDoc("odd")).toBeNull();
+    // The document declares the slug, so the SET answers it — but an out-of-domain
+    // `doc-type:` is no identity document, so the identity question stays false.
+    expect(index.docsOf("odd").map((entry) => entry.rel)).toEqual([`${SPECS}/odd.md`]);
+    expect(index.hasIdentity("odd")).toBe(false);
     expect(index.violations()).toEqual([]);
   });
 
@@ -314,8 +331,9 @@ describe("SlugIndex — the uncovered input faces", () => {
     const repo = newRepo();
     writeDoc(repo, `${SPECS}/x-design.md`, { "doc-type": "overall", slug: "y" });
     const index = SlugIndex.build(repo);
-    expect(index.identityDoc("y")?.rel).toBe(`${SPECS}/x-design.md`);
-    expect(index.identityDoc("x")).toBeNull();
+    expect(index.docsOf("y").map((entry) => entry.rel)).toEqual([`${SPECS}/x-design.md`]);
+    expect(index.hasIdentity("y")).toBe(true);
+    expect(index.docsOf("x")).toEqual([]);
   });
 
   it("judges identity by doc-type, never by the directory it lives in (face ②)", () => {
@@ -336,5 +354,95 @@ describe("SlugIndex — the uncovered input faces", () => {
     const violations = SlugIndex.build(repo).violations();
     expect(violations.map((violation) => violation.kind)).toEqual(["duplicate-identity"]);
     expect(violations[0]?.rel).toBe(`${SPECS}/split-design.md`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P36 T3 — the slug lookups answer the SET and the identity QUESTION
+// ---------------------------------------------------------------------------
+
+describe("SlugIndex — the set port and the identity question (P36 T3)", () => {
+  it("answers 0 / 1 / n for one slug — never a first pick", () => {
+    const repo = newRepo();
+    seedProgram(repo);
+    // A second identity document declaring the same slug: the index answers BOTH.
+    writeDoc(repo, `${SPECS}/prog-p1-second.md`, {
+      title: "Duplicate",
+      "doc-type": "phase-spec",
+      slug: "prog-p1",
+    });
+    const index = SlugIndex.build(repo);
+    expect(index.docsOf("prog-p2").map((entry) => entry.rel)).toEqual([
+      `${SPECS}/prog-p2-design.md`,
+    ]);
+    expect(
+      index
+        .docsOf("prog-p1")
+        .filter((entry) => entry.docType === "phase-spec")
+        .map((entry) => entry.rel),
+    ).toEqual([`${SPECS}/prog-p1-design.md`, `${SPECS}/prog-p1-second.md`]);
+    expect(index.docsOf("no-such-slug")).toEqual([]);
+  });
+
+  it("answers hasIdentity true for n ≥ 1 — a duplicated identity is still an identity", () => {
+    const repo = newRepo();
+    seedProgram(repo);
+    writeDoc(repo, `${SPECS}/prog-p1-second.md`, {
+      title: "Duplicate",
+      "doc-type": "phase-spec",
+      slug: "prog-p1",
+    });
+    const index = SlugIndex.build(repo);
+    expect(index.hasIdentity("prog-p1")).toBe(true);
+    // The duplicate is a violation, never an absence — the two judgments are separate.
+    expect(index.duplicatedRolesOf("prog-p1")).toContain("identity");
+    // A plan declaring the slug is not an identity document on its own.
+    writeDoc(repo, `${PLANS}/only-plan.md`, {
+      title: "Only plan",
+      "doc-type": "plan",
+      slug: "only-plan",
+    });
+    expect(SlugIndex.build(repo).hasIdentity("only-plan")).toBe(false);
+  });
+
+  it("holds no name → identity port — the doc domain owns that direction", () => {
+    const index = SlugIndex.build(newRepo());
+    expect("attribute" in index).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P36 T3 — the retired "pick a first" read points are gone from the production face
+// ---------------------------------------------------------------------------
+
+describe("SlugIndex — no first-pick read point survives outside the index", () => {
+  /** `src-next/` — the production plane root. */
+  const SRC_ROOT = fileURLToPath(new URL("../../", import.meta.url));
+
+  /** Walk the production tree collecting `.ts` files, `__tests__` excluded. */
+  const productionFiles = (dir: string, out: string[]): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        if (entry.name === "__tests__") continue;
+        productionFiles(path.join(dir, entry.name), out);
+      } else if (entry.name.endsWith(".ts")) {
+        out.push(path.join(dir, entry.name));
+      }
+    }
+  };
+
+  it("reads the set port alone — zero `index.identityDoc` / `index.planOf` call sites", () => {
+    const files: string[] = [];
+    productionFiles(SRC_ROOT, files);
+    const hits: string[] = [];
+    for (const file of files) {
+      const lines = stripComments(readFileSync(file, "utf8")).split("\n");
+      for (const [index, line] of lines.entries()) {
+        if (/\.(identityDoc|planOf)\(/.test(line)) {
+          hits.push(`${path.relative(SRC_ROOT, file)}:${index + 1}`);
+        }
+      }
+    }
+    expect(hits).toEqual([]);
   });
 });

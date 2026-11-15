@@ -328,16 +328,11 @@ export class NextStepRouter {
   /** The artifact matrix this router holds — the composition root's single instance,
    *  handed down so the readback face renders the SAME name the dispatch gate judges
    *  (the router itself derives no name). */
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: the router's name-rendering face (the ruling readback) is not built yet; the matrix is injected now so that render has ONE home the day it lands.
   readonly #artifacts: ArtifactRegistry | null;
 
   constructor(artifacts?: ArtifactRegistry | null) {
     this.#artifacts = artifacts ?? null;
-  }
-
-  /** The artifact matrix this router holds (null when the caller wired none) — the
-   *  read face the dispatch gate and the readback prompt share. */
-  artifacts(): ArtifactRegistry | null {
-    return this.#artifacts;
   }
 
   /** next(state, ref) — the C5 derivation: the next-hop Route, or null when the round

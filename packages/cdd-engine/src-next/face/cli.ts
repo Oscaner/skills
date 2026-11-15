@@ -138,6 +138,10 @@ export interface CliOptions {
   initRunner?: StepRunner;
   /** The `cdd init` synchronous header writer (tests collect the lines). */
   initHeader?: (line: string) => void;
+  /** The artifact matrix the command preamble hands to every read face (tests inject a
+   *  recording registry to pin the single-instance wiring). Absent = the composition
+   *  root mints the invocation's ONE instance. */
+  artifacts?: ArtifactRegistry;
 }
 
 /** One work command's assembled scene — the composition the run body advances. The
@@ -266,6 +270,11 @@ export class Cli {
   /** The pure-command domain (T8 — the split contract's artifacts face,
    *  face/artifacts.ts): the schema/issue/base run bodies. */
   readonly #artifacts: CliArtifacts;
+  /** The artifact matrix of this invocation — constructed ONCE here and handed down to
+   *  the scene's ledger / router / lifecycle, the board's node ledgers and the seal
+   *  sweep. It binds no workspace (the matrix is naming knowledge; the workspace is the
+   *  read-time coordinate), so ONE instance serves every node a command observes. */
+  readonly #matrix: ArtifactRegistry;
   /** The harness plugin bootstrap (P20 — face/init.ts): the repo-independent
    *  install/update sequence face. */
   readonly #init: CliInit;
@@ -305,11 +314,14 @@ export class Cli {
       });
     this.#authority = opts.authority ?? new DispatchAuthority();
     this.#gate = new CliGate({ brief: this.#brief, authority: this.#authority });
+    // The invocation's ONE matrix — the command preamble's construction point.
+    this.#matrix = opts.artifacts ?? new ArtifactRegistry();
     this.#artifacts = new CliArtifacts({
       io: this.#io,
       projector: this.#projector,
       issue: this.#issue,
       stdinRead: this.#stdinRead,
+      matrix: this.#matrix,
       usage: (node, message) => this.#usage(node, message),
     });
     // The synchronous writer — the step header must land before the spawned
@@ -540,9 +552,11 @@ export class Cli {
       repoRoot,
       this.#config.handoffNamespace().workspaceRoot,
     );
-    // The board's ONE matrix instance — the same table the node ledgers and the seal
-    // sweep read, so the board renders facts and holds no name rule of its own.
-    const artifacts = this.#matrixOf(new Workspace(workspaceRoot, entry.slug ?? ""));
+    // The board's ONE matrix instance — the invocation's registry, the same table the
+    // node ledgers and the seal sweep read, so the board renders facts and holds no
+    // name rule of its own. Each node ledger resolves against ITS OWN workspace (the
+    // registry carries no directory), so a parent row never reads a child's names.
+    const artifacts = this.#matrix;
     const inflight = new InFlight(workspaceRoot, entry.slug ?? "");
     // The board's `next:` line renders ONE injected `NextHop` (P22 §5.2 · P24 §11):
     // the pipeline FACTS come from the board face, and the ONE hop assembly (the four
@@ -1134,7 +1148,8 @@ export class Cli {
    *  writes). "" when the artifact is absent or malformed (the slot stays empty and
    *  the assembler drops it — the wave/branch review then judges the live tree). */
   #baseBranchOf(scene: WorkScene): string {
-    const read = scene.workspace.readJson<{ base?: unknown }>(ArtifactRegistry.nameOf("base"));
+    const name = this.#matrix.render({ domain: "workspace", tasks: null }, "base");
+    const read = scene.workspace.readJson<{ base?: unknown }>(name);
     const artifact = read.kind === "ok" ? read.value : null;
     return typeof artifact?.base === "string" ? artifact.base : "";
   }
@@ -1345,10 +1360,10 @@ export class Cli {
     // normalization is the ONE heal path, covering `base.json` alongside
     // `progress.json` (a second healing point is gone).
     const workspace = new Workspace(rootPath, slug);
-    // The artifact matrix — constructed ONCE here (the command preamble) and handed
-    // down: the ledger, the router, the lifecycle's seal sweep and the board all read
-    // the same instance, so no face can spell an artifact name of its own.
-    const artifacts = this.#matrixOf(workspace);
+    // The artifact matrix — the invocation's ONE instance (the command preamble's),
+    // handed down: the ledger, the router, the lifecycle's seal sweep and the board all
+    // read the same table, so no face can spell an artifact name of its own.
+    const artifacts = this.#matrix;
     const ledger = new Ledger(workspace, config, planSource, artifacts);
     // The run state degrades to the empty state on a non-ready plan: the scene is
     // assembled BEFORE the pre-flight verdict, and the refusal leg (Task 4's
@@ -1388,14 +1403,6 @@ export class Cli {
       },
       artifacts,
     };
-  }
-
-  /** The artifact matrix of one workspace — the ONE construction point of the whole
-   *  tree, called once per command invocation by the preamble. Every read face takes
-   *  the instance as an argument; a face that builds its own has left the single
-   *  source. */
-  #matrixOf(workspace: Workspace): ArtifactRegistry {
-    return new ArtifactRegistry(workspace);
   }
 
   /** The argv-face plan read (the wave / plan / branch lines) — ONE read through the

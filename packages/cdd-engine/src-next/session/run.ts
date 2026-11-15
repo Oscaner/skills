@@ -39,6 +39,7 @@ import { NextStepRouter } from "./next.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "./pipeline.ts";
 import type { PreFlightVerdict } from "./preflight.ts";
 import { ReviewedIdentity } from "./reviewed-identity.ts";
+import type { ArtifactRegistry } from "./round-artifacts.ts";
 import { RoundNaming } from "./round-naming.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
 
@@ -377,6 +378,10 @@ export class Lifecycle {
     ledger: Ledger;
     dispatch: DispatchStep;
     router?: NextStepRouter;
+    /** The artifact matrix the router renders from — the composition root's single
+     *  instance, injected as an opts FIELD (never fetched back from a collaborator:
+     *  an injection that can only be retrieved cannot go missing visibly). */
+    artifacts?: ArtifactRegistry | null;
     /** The fixed audit target for a branch-tree / doc-path face. */
     target?: AuditTarget;
     /** The capsule face to attach at construction (optional — the seam is non-hard). */
@@ -402,9 +407,9 @@ export class Lifecycle {
     this.#ledger = opts.ledger;
     this.#dispatch = opts.dispatch;
     // The router is built in the constructor body (never a field initializer): the
-    // injected artifact matrix rides the ledger it judges against, so the readback
-    // face and this hop share ONE registry.
-    this.#router = opts.router ?? new NextStepRouter(this.#ledger.artifacts());
+    // injected artifact matrix rides the opts field, so the readback face and this
+    // hop share ONE registry.
+    this.#router = opts.router ?? new NextStepRouter(opts.artifacts ?? null);
     this.#target = opts.target ?? null;
     this.#capsule = opts.capsule ?? null;
     this.#preflight = opts.preflight ?? null;

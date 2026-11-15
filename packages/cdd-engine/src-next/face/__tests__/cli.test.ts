@@ -71,6 +71,7 @@ import type { Route } from "../../session/next.ts";
 import { FIX_READBACK_SUFFIX, MAX_TASKS_PER_WAVE, NextStepRouter } from "../../session/next.ts";
 import type { PreFlightVerdict } from "../../session/preflight.ts";
 import { PreFlight } from "../../session/preflight.ts";
+import { ArtifactRegistry, type Identity, type Kind } from "../../session/round-artifacts.ts";
 import type { DispatchStep, OpenFrame } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
@@ -234,6 +235,22 @@ const fixture = (opts: CliOptions = {}): CliFixture => {
     },
   };
 };
+
+/** The recording matrix — the real registry with one observable seam: every render it
+ *  is asked for is recorded, so a test can prove the command's ONE instance reached
+ *  the face it pins (a face that minted its own registry would record nothing). */
+class RecordingRegistry extends ArtifactRegistry {
+  readonly rendered: Kind[] = [];
+
+  override render(identity: Identity, kind: Kind): string {
+    this.rendered.push(kind);
+    return super.render(identity, kind);
+  }
+
+  reset(): void {
+    this.rendered.length = 0;
+  }
+}
 
 /** Init a git repo with one commit — the repo root the engine resolves from the
  *  working directory, and the review `next:` base. The fixture .gitignore keeps the
@@ -4821,6 +4838,43 @@ describe("the pure commands — schema / issue / base", () => {
       // pinned separately, over a plan document that IS on disk.
       expect(getMissing).toBe(1);
       expect(io.stderrText).toContain("CDD_BLOCKED");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P36 T1 — the artifact matrix's single instance: the command preamble mints ONE
+// registry and hands it down, so the base face and the board's node ledger render
+// their names through the same table (a face that built its own would answer the
+// same bytes and could not be told apart by output alone — hence the recording
+// registry: it only sees what the injected instance was actually asked).
+// ---------------------------------------------------------------------------
+
+describe("P36 T1 — the invocation's ONE matrix instance reaches every read face", () => {
+  it("hands the same matrix to the base face and to the board's node ledger", async () => {
+    const matrix = new RecordingRegistry();
+    const { command, repoRoot, cleanup } = fixture({ artifacts: matrix });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const setCode = await command.runArgv([
+        "base",
+        "set",
+        "--plan",
+        plan,
+        "--base",
+        "develop",
+        "--source",
+        "plan-field",
+      ]);
+      expect(setCode).toBe(0);
+      expect(matrix.rendered).toContain("base");
+      // The board's node ledger resolves progress.json through the SAME instance.
+      matrix.reset();
+      expect(await command.runArgv(["board", "--plan", plan])).toBe(0);
+      expect(matrix.rendered).toContain("progress");
     } finally {
       cleanup();
     }

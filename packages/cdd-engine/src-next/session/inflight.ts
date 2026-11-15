@@ -129,7 +129,7 @@ export class InFlight {
    *  `.kairos/cdd/in-flight.json` under the default configuration. The spelling lives
    *  in the artifact matrix (`WorkspaceDomain`'s `in-flight` row); this constant is the
    *  read face's answer, never a second home. */
-  static readonly FILE = ArtifactRegistry.nameOf("in-flight");
+  static readonly FILE = ArtifactRegistry.nameOf("in-flight", null);
 
   /** The lock's stale window (ms) — a FINITE value larger than the longest dispatch
    *  budget (implement, 6 h). Finiteness is deliberate: `stale: Infinity` pushes the

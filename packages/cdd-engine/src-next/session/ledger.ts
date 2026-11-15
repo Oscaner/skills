@@ -38,7 +38,7 @@ import { type Carrier, type CarrierPlane, HandoffSchema } from "./handoff-schema
 import { LineIdentity } from "./line-identity.ts";
 import type { DocClassVerdict, NextHop, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
-import { ArtifactRegistry } from "./round-artifacts.ts";
+import { ArtifactRegistry, type Identity } from "./round-artifacts.ts";
 import { type RoundArtifact, RoundNaming } from "./round-naming.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
 
@@ -697,12 +697,6 @@ export class Ledger {
     this.#router = new NextStepRouter(this.#artifacts);
   }
 
-  /** The artifact matrix this ledger holds — the same instance the composition root
-   *  handed to every other read face (null when the caller wired none). */
-  artifacts(): ArtifactRegistry | null {
-    return this.#artifacts;
-  }
-
   /** The review-reference face — the refKind three-type derivation + binding (T25). */
   refs(): ReviewRefs {
     return this.#refs;
@@ -757,12 +751,23 @@ export class Ledger {
 
   /** Read progress.json; null when missing/corrupt (the ledger never invents state). */
   readProgress(): ProgressData | null {
-    return this.#read<ProgressData>(ArtifactRegistry.nameOf("progress"));
+    return this.#read<ProgressData>(this.#progressName());
   }
 
   /** Write progress.json — the progress single-author write. */
   writeProgress(data: ProgressData): void {
-    this.#persist(ArtifactRegistry.nameOf("progress"), data);
+    this.#persist(this.#progressName(), data);
+  }
+
+  /** The progress row's name — the injected matrix's render when the composition root
+   *  wired one, else the matrix's module-level entry to the SAME row render (the
+   *  fixture plane constructs a ledger with no matrix; the spelling still has one
+   *  home and the two entry forms cannot drift — `nameOf` delegates to `render`). */
+  #progressName(): string {
+    const identity: Identity = { domain: "workspace", tasks: null };
+    return (
+      this.#artifacts?.render(identity, "progress") ?? ArtifactRegistry.nameOf("progress", null)
+    );
   }
 
   /** The ledger-row lookup single point — a scalar key (or the single-task wave key

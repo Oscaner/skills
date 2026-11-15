@@ -16,19 +16,25 @@
 // table by their own tasks; `Identity`'s discriminated union is written out in full
 // here so neither later task has to widen a public type.
 //
-// Two facts this file is the single home of:
+// Three facts this file is the single home of:
 //   · the workspace name SPELLINGS (`progress.json` · `base.json` · `in-flight.json` ·
-//     `tasks-{tasks}-brief.md`) — every read face asks `ArtifactRegistry.nameOf`
+//     `tasks-{tasks}-brief.md`) — every read face asks the matrix for the answer
 //     instead of spelling a literal, so a moved name is one edit and a second spelling
 //     cannot be smuggled back in;
-//   · the registry's construction (the composition root's command preamble) — zero
+//   · the matrix's construction (the composition root's command preamble) — zero
 //     module-level default instance, so "every read face holds the SAME instance" is a
-//     wiring fact rather than a hope.
+//     wiring fact rather than a hope;
+//   · the matrix's own scope — a row table is naming and policy KNOWLEDGE, so it binds
+//     no directory. The workspace a name resolves inside is a read-time coordinate
+//     (`locate(identity, kind, base)`): one board renders several node workspaces, and
+//     an instance bound to one of them would resolve another node's names against this
+//     node's directory — a legal-looking name that belongs to a different coordinate,
+//     which is the very defect this matrix exists to retire.
 //
-// Module-level exports are types / the row table / the classes — zero behavior-carrying
+// Module-level exports are types / the registry and its domain — zero behavior-carrying
 // bare functions.
 
-import { existsSync } from "node:fs";
+import { accessSync, constants, statSync } from "node:fs";
 import type { DocKey } from "../contract/project.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import type { OpType } from "./ledger.ts";
@@ -77,7 +83,9 @@ export type Identity =
 
 /** One judgment-time read of an artifact — the ONE discriminated value (spec §2.3).
  *  `absent` never blocks: absence is a read fact, not a row policy. `misplaced` names
- *  a name that attributes to the identity but is not its rendered name. */
+ *  a name that attributes to the identity but is not its rendered name. An artifact
+ *  that IS there but cannot be read is `invalid`, never `absent` (spec §4.5): "cannot
+ *  read" never authorizes "is not there". */
 export type ArtifactRead =
   | { readonly kind: "absent" }
   | { readonly kind: "ok"; readonly path: string }
@@ -126,18 +134,29 @@ export type ArtifactRow = {
   | { readonly identityFrom: "declared" }
 );
 
+/** One matrix entry — a row bound to the kind it names. The binding lives beside the
+ *  row so `rowOf(kind)` never has to re-derive a kind from a row's shape, and a read
+ *  face that walks the closed set reads the kind and the row as one fact. */
+export type MatrixEntry = { readonly kind: Kind; readonly row: ArtifactRow };
+
 /** One identity domain's read port — the matrix dispatches on `identity.domain`, and
- *  every domain answers the same four questions. */
+ *  every domain answers the same four questions. The workspace a path resolves inside
+ *  is a parameter, never a construction binding: a domain describes names, a command
+ *  observes many workspaces. */
 export interface IdentityDomain {
   readonly domain: "round" | "doc" | "workspace";
   kinds(): readonly Kind[];
+  /** The domain's own row table (`kind` ↔ `row`) — the registry's aggregate input. */
+  entries(): readonly MatrixEntry[];
   /** The name → (identity, kind) reverse port. `null` = unknown (never a third state). */
   attribute(name: string): Attributed | null;
-  /** Where the artifact sits — a rendered row renders its name, a declared row takes
-   *  the index entry's `rel`. `null` = the domain holds no such kind. */
-  locate(identity: Identity, kind: Kind): string | null;
+  /** Where the artifact sits inside `base` — a rendered row renders its name, a
+   *  declared row takes the index entry's `rel`. `null` = the domain holds no such
+   *  kind / no such entry; a foreign identity or an unregistered kind is a caller bug
+   *  and answers loudly, exactly as `render` does. */
+  locate(identity: Identity, kind: Kind, base: Workspace): string | null;
   /** One read of the artifact as the discriminated value. */
-  read(identity: Identity, kind: Kind): ArtifactRead;
+  read(identity: Identity, kind: Kind, base: Workspace): ArtifactRead;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,28 +166,33 @@ export interface IdentityDomain {
 /** The workspace kinds in the matrix's own row order. */
 const WORKSPACE_KINDS: readonly WorkspaceKind[] = ["progress", "base", "in-flight", "brief"];
 
+/** The three coordinate-less workspace names — the literals the conservation boundary
+ *  pins byte for byte. */
+const WORKSPACE_LITERALS = {
+  progress: "progress.json",
+  base: "base.json",
+  "in-flight": "in-flight.json",
+} as const;
+
 /** The ONE workspace name rule — every rendered workspace row and every read face's
- *  literal ask delegate here. `tasks` is read only by the brief; the three
- *  coordinate-less literals ignore it (and are rendered with `tasks: null`). */
+ *  literal ask delegate here. The coordinate is part of the identity, so an identity
+ *  the kind does not carry is refused rather than rendered into a plausible-looking
+ *  wrong name: the three literals take `tasks: null`, the brief a non-empty group. */
 const workspaceName = (kind: WorkspaceKind, tasks: string | null): string => {
-  switch (kind) {
-    case "progress":
-      return "progress.json";
-    case "base":
-      return "base.json";
-    case "in-flight":
-      return "in-flight.json";
-    case "brief":
-      return `tasks-${tasks ?? ""}-brief.md`;
+  if (kind === "brief") {
+    if (tasks === null || tasks === "")
+      throw new Error("the brief's name needs a non-empty tasks coordinate");
+    return `tasks-${tasks}-brief.md`;
   }
+  if (tasks !== null) throw new Error(`the ${kind} artifact carries no tasks coordinate`);
+  return WORKSPACE_LITERALS[kind];
 };
 
 /** A workspace row's render — the domain is the row's own, so a foreign identity is a
  *  caller bug and answers loudly rather than rendering a plausible wrong name. */
 const renderWorkspace = (identity: Identity, kind: Kind): string => {
-  if (identity.domain !== "workspace") {
+  if (identity.domain !== "workspace")
     throw new Error(`the workspace matrix renders no ${identity.domain} identity`);
-  }
   if (!isWorkspaceKind(kind)) throw new Error(`the matrix holds no workspace row for ${kind}`);
   return workspaceName(kind, identity.tasks);
 };
@@ -180,10 +204,6 @@ const isWorkspaceKind = (kind: Kind): kind is WorkspaceKind =>
 /** The brief's reverse pattern — `tasks-{tasks}-brief.md`, the ONE place the template
  *  is parsed back into its coordinate. */
 const BRIEF_NAME = /^tasks-(.+)-brief\.md$/;
-
-/** One matrix entry — a row bound to the kind it names. The binding lives beside the
- *  row so `rowOf(kind)` never has to re-derive a kind from a row's shape. */
-type MatrixEntry = { readonly kind: Kind; readonly row: ArtifactRow };
 
 /** The four workspace rows — `sealed` is written out on every row (the matrix leaves no
  *  blank for an implementation to invent a default), and no row carries a `policy`:
@@ -204,25 +224,24 @@ const ENTRIES: readonly MatrixEntry[] = WORKSPACE_KINDS.map((kind) => ({
 /**
  * WorkspaceDomain — the workspace identity domain: four engine-authored files whose
  * names carry no round coordinate. `tasks: null` addresses the three literal names;
- * the brief's own coordinate addresses it.
+ * the brief's own coordinate addresses it. The domain is stateless: the workspace a
+ * path resolves inside arrives with each `locate` / `read` call.
  */
 export class WorkspaceDomain implements IdentityDomain {
   readonly domain = "workspace" as const;
-  /** The workspace the located paths resolve against — the ONE conversion the read
-   *  face needs (a name is workspace-relative; a path is not). */
-  readonly #workspace: Workspace;
-
-  constructor(workspace: Workspace) {
-    this.#workspace = workspace;
-  }
 
   kinds(): readonly Kind[] {
     return WORKSPACE_KINDS;
   }
 
+  entries(): readonly MatrixEntry[] {
+    return ENTRIES;
+  }
+
   attribute(name: string): Attributed | null {
     for (const kind of WORKSPACE_KINDS) {
-      if (workspaceName(kind, null) !== name) continue;
+      const literal = kind === "brief" ? null : WORKSPACE_LITERALS[kind];
+      if (literal !== name) continue;
       return { identity: { domain: "workspace", tasks: null }, kind };
     }
     const tasks = BRIEF_NAME.exec(name)?.[1] ?? null;
@@ -230,16 +249,23 @@ export class WorkspaceDomain implements IdentityDomain {
     return { identity: { domain: "workspace", tasks }, kind: "brief" };
   }
 
-  locate(identity: Identity, kind: Kind): string | null {
-    if (identity.domain !== "workspace") return null;
-    if (!isWorkspaceKind(kind)) return null;
-    return this.#workspace.resolve(workspaceName(kind, identity.tasks));
+  locate(identity: Identity, kind: Kind, base: Workspace): string {
+    return base.resolve(renderWorkspace(identity, kind));
   }
 
-  read(identity: Identity, kind: Kind): ArtifactRead {
-    const path = this.locate(identity, kind);
-    if (path === null) return { kind: "absent" };
-    return existsSync(path) ? { kind: "ok", path } : { kind: "absent" };
+  read(identity: Identity, kind: Kind, base: Workspace): ArtifactRead {
+    const path = this.locate(identity, kind, base);
+    try {
+      // Existence and readability are two questions: `stat` answers the first even
+      // when the file cannot be opened, so the read arm asks the second explicitly
+      // (a file that is there but unreadable is `invalid`, never `absent`, §4.5).
+      if (!statSync(path).isFile()) return { kind: "invalid", path, reason: "not a regular file" };
+      accessSync(path, constants.R_OK);
+      return { kind: "ok", path };
+    } catch (raw) {
+      if ((raw as NodeJS.ErrnoException).code === "ENOENT") return { kind: "absent" };
+      return { kind: "invalid", path, reason: "unreadable" };
+    }
   }
 }
 
@@ -251,31 +277,40 @@ export class WorkspaceDomain implements IdentityDomain {
  * ArtifactRegistry — the matrix as one object: the closed row table plus the two
  * ports over it (`render` · `attribute`) and the read face. The instance is built ONCE
  * per invocation by the composition root and handed down; a face that mints its own
- * has already left the single source.
+ * has already left the single source. It holds no directory: the same instance serves
+ * every workspace one command observes.
  */
 export class ArtifactRegistry {
-  /** The registered domains, keyed by their own `domain` value. */
+  /** The registered domains, in registration order. */
   readonly #domains: readonly IdentityDomain[];
 
-  constructor(workspace: Workspace) {
-    this.#domains = [new WorkspaceDomain(workspace)];
+  constructor(domains: readonly IdentityDomain[] = [new WorkspaceDomain()]) {
+    this.#domains = domains;
   }
 
-  /** The workspace name rule WITHOUT an instance — the read faces that hold a
-   *  workspace-relative name (and no registry) ask here, so the spelling still has one
-   *  home. Restricted to the workspace kinds: a round name needs a round identity. */
-  static nameOf(kind: WorkspaceKind, tasks: string | null = null): string {
-    return workspaceName(kind, tasks);
+  /** The workspace name rule WITHOUT an instance — the module-level entry to the SAME
+   *  render the workspace rows carry (`renderWorkspace`), for the read faces that hold
+   *  a workspace-relative name and no registry (a static constant, the naming face).
+   *  One spelling, two entry forms: the pin `nameOf(kind, tasks)` equals
+   *  `render({domain: "workspace", tasks}, kind)` holds by construction. Restricted to
+   *  the workspace kinds — a round name needs a round identity. */
+  static nameOf(kind: WorkspaceKind, tasks: string | null): string {
+    return renderWorkspace({ domain: "workspace", tasks }, kind);
+  }
+
+  /** Every registered entry (`kind` ↔ row), in registration order. */
+  entries(): readonly MatrixEntry[] {
+    return this.#domains.flatMap((domain) => domain.entries());
   }
 
   /** Every registered row, in registration order. */
   rows(): readonly ArtifactRow[] {
-    return ENTRIES.map((entry) => entry.row);
+    return this.entries().map((entry) => entry.row);
   }
 
   /** The row one kind registers — `null` for a kind no domain registered yet. */
   rowOf(kind: Kind): ArtifactRow | null {
-    return ENTRIES.find((entry) => entry.kind === kind)?.row ?? null;
+    return this.entries().find((entry) => entry.kind === kind)?.row ?? null;
   }
 
   /** The name rule of one (identity, kind) — the rendered row's `render`. A declared
@@ -297,14 +332,17 @@ export class ArtifactRegistry {
     return null;
   }
 
-  /** Where one (identity, kind) sits — dispatched by the identity's own domain. */
-  locate(identity: Identity, kind: Kind): string | null {
-    return this.#domainOf(identity).locate(identity, kind);
+  /** Where one (identity, kind) sits inside `base` — dispatched by the identity's own
+   *  domain. The base is the caller's workspace, never the registry's: a board reads
+   *  several node workspaces through ONE matrix. */
+  locate(identity: Identity, kind: Kind, base: Workspace): string | null {
+    return this.#domainOf(identity).locate(identity, kind, base);
   }
 
-  /** One read of one (identity, kind) — the same domain dispatch, one judgment. */
-  read(identity: Identity, kind: Kind): ArtifactRead {
-    return this.#domainOf(identity).read(identity, kind);
+  /** One read of one (identity, kind) inside `base` — the same domain dispatch, one
+   *  judgment. */
+  read(identity: Identity, kind: Kind, base: Workspace): ArtifactRead {
+    return this.#domainOf(identity).read(identity, kind, base);
   }
 
   /** The domain that owns an identity — a domain the matrix never registered is a

@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P36 计划：身份面收权（身份域 × 产物矩阵 · 缺席有门 · 形状可发现）'
 doc-type: plan
-version: v0.4
+version: v0.5
 date: 2026-11-15
 slug: 2026-10-10-engine-doc-tooling-p36
 base: develop
@@ -32,7 +32,7 @@ base: develop
 
 #### Objective
 
-把「名字从哪来」立成一张封闭登记表：`session/round-artifacts.ts` 落 `Kind` / `Identity` / `Attributed` / `ArtifactRead` / `IdentifierVocabulary` / `ArtifactRow` 六个值类型、`IdentityDomain` 契约与 `ArtifactRegistry` 深类（`rows()` · `rowOf(kind)` · `render(identity, kind)` · `attribute(name)` · `locate(identity, kind)` · `read(identity, kind)`），首批只登记 workspace 四行（`progress` · `base` · `in-flight` · `brief`），并给出往返 pin 的骨架。`brief` 的生产拼写同期改经矩阵（`briefName` / `#brief` 只做委托，两个调用点随改）——否则矩阵行与 `briefName` 就是同一个名字的两个家，而没有任何门会红。矩阵的**唯一构造点与注入面**也由本任务钉住：命令前导一次构造，向下注入**五个**读面——`Lifecycle`（opts 字段）· `Ledger`（构造器第 4 参）· `CarrierSeal#sweep` 与 `BoardView.of`（显式入参）· `NextStepRouter`（构造器注入；`Ledger#router` 与 `Run#router` 的构造点因此改为构造体内赋值——字段初始化先于构造体执行，registry 又是构造器入参，而 `erasableSyntaxOnly` 禁参数属性，T9 的算值入口挂在这条注入上）。本任务**不迁移** round / doc 两域（它们是 T2 / T3），但 `Identity` 的判别联合一次写全，`ArtifactRow` 的字段面按 spec §2.1 定形（`identifier?` / `policy?` 在，**无** `attribution` 字段——归主文法不进类型，见 T5）。
+把「名字从哪来」立成一张封闭登记表：`session/round-artifacts.ts` 落 `Kind` / `Identity` / `Attributed` / `ArtifactRead` / `IdentifierVocabulary` / `ArtifactRow` 六个值类型、`IdentityDomain` 契约与 `ArtifactRegistry` 深类（`entries()` · `rows()` · `rowOf(kind)` · `render(identity, kind)` · `attribute(name)` · `locate(identity, kind, base)` · `read(identity, kind, base)`），首批只登记 workspace 四行（`progress` · `base` · `in-flight` · `brief`），并给出往返 pin 的骨架。`brief` 的生产拼写同期改经矩阵（`briefName` / `#brief` 只做委托，两个调用点随改）——否则矩阵行与 `briefName` 就是同一个名字的两个家，而没有任何门会红。矩阵的**唯一构造点与注入面**也由本任务钉住：命令前导一次构造，向下注入**五个**读面——`Lifecycle`（opts 字段）· `Ledger`（构造器第 4 参）· `CarrierSeal#sweep` 与 `BoardView.of`（显式入参）· `NextStepRouter`（构造器注入；`Ledger#router` 与 `Run#router` 的构造点因此改为构造体内赋值——字段初始化先于构造体执行，registry 又是构造器入参，而 `erasableSyntaxOnly` 禁参数属性，T9 的算值入口挂在这条注入上）。矩阵**不绑 workspace**：`locate` / `read` 的 `base` 是读取时的坐标——一块板一次渲多个节点 workspace，绑死一处就会把别的节点的名字解析到这一处（「名字看着合法、坐标是别人的」，本相位要消的正是这一类）；这是对 spec §2.2 契约形状的**显式修订**（签名多一个 `base: Workspace`，语义不变），同笔记入 Produces 与 Acceptance。本任务**不迁移** round / doc 两域（它们是 T2 / T3），但 `Identity` 的判别联合一次写全，`ArtifactRow` 的字段面按 spec §2.1 定形（`identifier?` / `policy?` 在，**无** `attribution` 字段——归主文法不进类型，见 T5）。
 
 #### Files
 
@@ -62,22 +62,26 @@ base: develop
 - `type Attributed = {identity; kind}`
 - `type IdentifierVocabulary = {canonical: string; accepts: readonly string[]}`
 - `type ArtifactRow`（spec §2.1 逐字形状）：`domain` / `author` / `sealed` / `identifier?` / `policy?` + `{identityFrom:"rendered"; render; misplaced:"block"}` | `{identityFrom:"declared"}`；**零 `attribution` 字段**、零 `absence` 列
-- `interface IdentityDomain`：`kinds()` · `attribute(name): Attributed | null`（无第三态）· `locate(identity, kind): string | null` · `read(identity, kind): ArtifactRead`
-- `class ArtifactRegistry`：矩阵的六个对外方法（`rows` · `rowOf` · `render` · `attribute` · `locate` · `read`），按 `Identity.domain` 分派到三个 `IdentityDomain`
-- `ArtifactRegistry` 的唯一构造点与注入面：命令前导一次 `new ArtifactRegistry(...)`（T3 之后与单建 `SlugIndex` 同址），`Lifecycle`（opts 字段）· `Ledger`（构造器第 4 参）· `NextStepRouter`（构造器）按构造器注入，静态面 `CarrierSeal#sweep` 与 `BoardView.of` 按显式入参接同一实例；`NextStepRouter` 的三个生产构造点（`face/cli.ts:1363` · `session/ledger.ts:651` · `session/run.ts:404`）传同一实例，`Ledger` 那处从字段初始化改为构造体内赋值——**零模块级默认实例、矩阵外零构造点**
+- `type MatrixEntry = { kind: Kind; row: ArtifactRow }`（行集带键的投影：`kind` ↔ `row` 的绑定与行同住，读面走封闭集时不必再拼一次 kind 列表）
+- `interface IdentityDomain`：`kinds()` · `entries(): readonly MatrixEntry[]` · `attribute(name): Attributed | null`（无第三态）· `locate(identity, kind, base: Workspace): string | null` · `read(identity, kind, base: Workspace): ArtifactRead`
+- `class ArtifactRegistry`：矩阵的七个对外方法（`entries` · `rows` · `rowOf` · `render` · `attribute` · `locate` · `read`），按 `Identity.domain` 分派到三个 `IdentityDomain`；构造器收域表（默认 `[new WorkspaceDomain()]`，测试可注入夹具域以看见 `sealed: true` 那一臂），**不绑 workspace**
+- `ArtifactRegistry` 的唯一构造点与注入面：命令前导一次 `new ArtifactRegistry()`——就是 `Cli` 构造器里的那一行（`CliOptions.artifacts` 让测试注入一个记录型实例，见 Acceptance），`CliArtifacts` 与 `#sceneOf` / `#runBoard` 都读同一个字段；`Lifecycle`（opts 字段）· `Ledger`（构造器第 4 参）· `NextStepRouter`（构造器）按构造器注入，静态面 `CarrierSeal#sweep` 与 `BoardView.render` 按显式入参接同一实例；`NextStepRouter` 的生产构造点（`face/cli.ts` 的 `#sceneOf` · `session/ledger.ts` 的构造体 · `session/run.ts` 的构造体）传同一实例，`Ledger` 那处从字段初始化改为构造体内赋值——**零模块级默认实例、矩阵外零构造点、无「取回注入」的公开访问器**（`Ledger#artifacts()` / `NextStepRouter#artifacts()` 不设：只为取回注入而存在的读口让「注入掉了」在类型与测试两侧都不红）
 - `brief` 的唯一渲染：`render({domain:"workspace", tasks}, "brief")`；`RoundNaming#briefName` / `#brief` 与 `CliGate#renderBrief` / `Preview#readsOf` 都是它的委托
+- `ArtifactRegistry.nameOf(kind, tasks)`：同一行渲染的**模块级入口**（无实例的读面——`InFlight.FILE` 这类静态常量、`RoundNaming`——用它），逐字委托行渲染 `renderWorkspace`，不是第二拼写；pin 断言它逐 kind 等于 `render({domain:"workspace", tasks}, kind)`
 
 #### Steps
 
 - 写失败测：`round-artifacts.test.ts` 断言 `rows()` 含四行 workspace kind、每行的 `author` / `sealed` / `identityFrom` 三格非空 —— checkable: 该文件跑红，报 `ArtifactRegistry` 未导出
-- 实现六个值类型 + `IdentityDomain` + `ArtifactRegistry` 壳 + workspace 四行 —— checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/round-artifacts.test.ts` 绿
+- 实现六个值类型 + `MatrixEntry` + `IdentityDomain` + `ArtifactRegistry` 壳 + workspace 四行 —— checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/round-artifacts.test.ts` 绿
 - 写往返 pin：四行的 `attribute(render({domain:"workspace"}, kind))` 回到同一 `kind`，且 `render` 出的名字与今日字面逐字节相等（`progress.json` / `base.json` / `in-flight.json` / `tasks-{tasks}-brief.md`） —— checkable: 该断言绿
+- 写坐标守卫 pin：`brief` 的 `tasks` 为 `null` / 空串、三个字面量的 `tasks` 非 `null` ⇒ `render` 与 `nameOf` 两条入口都抛错（`it("refuses an identity the row does not carry")`），`nameOf` 不设默认值 —— checkable: 该断言绿
+- 写读取面 pin：`locate` / `read` 收 `base`，同一身份在两个 workspace 上解析到各自目录（两个账本共用一个矩阵各读各的 `progress.json`）；存在但读不出的名字回 `invalid(path, "unreadable")`、存在但不是普通文件回另一条 `invalid`，外来域 / 未登记 kind 抛错 —— checkable: 该断言绿
 - 把 workspace 字面与 brief 模板逐符号改经 registry：`InFlight.FILE` · `Artifacts#baseSet` / `#readBase` / `#baseGet` · `Cli#baseBranchOf` · `Ledger#readProgress` / `#writeProgress` · `RoundNaming#briefName` / `#brief` · `CliGate#renderBrief` · `Preview#readsOf` —— checkable: 先在 `round-artifacts.test.ts` 写结构断言「`"base.json"` / `"progress.json"` / `"in-flight.json"` / `tasks-{tasks}-brief.md` 在 `src-next` 内只出现在 `session/round-artifacts.ts` 与夹具」（实现前红），再跑 `pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/ledger.test.ts src-next/face/__tests__/cli.test.ts src-next/infra/__tests__/carrier-seal.test.ts src-next/session/__tests__/round-naming.test.ts` 绿且零字节差
-- 接线：命令前导一次构造 registry 并向下注入五个读面（`Lifecycle` opts 字段 · `Ledger` 构造器第 4 参 · `CarrierSeal#sweep` / `BoardView.of` 显式入参 · `NextStepRouter` 构造器；`Ledger#router` 与 `Run#router` 改为构造体内赋值、传同一实例） —— checkable: `round-artifacts.test.ts` 的结构断言「`new ArtifactRegistry(` 在**生产源码**内恰一处」绿——扫描面 = 去注释并排除 `__tests__`（沿用 `src-next/__tests__/support/strip-comments.ts` 的既有姿势），测试一律经夹具助手取实例；且五个读面读到同一实例
+- 接线：命令前导一次构造 registry 并向下注入五个读面（`Lifecycle` opts 字段 · `Ledger` 构造器第 4 参 · `CarrierSeal#sweep` / `BoardView.render` 显式入参 · `NextStepRouter` 构造器；`Ledger#router` 与 `Run#router` 改为构造体内赋值、传同一实例） —— checkable: `round-artifacts.test.ts` 的结构断言「`new ArtifactRegistry(` 在**生产源码**内恰一处」绿——扫描面 = 去注释并排除 `__tests__`（沿用 `src-next/__tests__/support/strip-comments.ts` 的既有姿势），测试一律经夹具助手取实例；且五个读面读到同一实例
 
 #### Acceptance
 
-`ArtifactRegistry` 可实例化；`rows()` 恰四行 workspace kind；四行往返 pin 绿；workspace 字面的**每个消费符号**（`InFlight.FILE` · `Artifacts#baseSet` / `#readBase` / `#baseGet` · `Cli#baseBranchOf` · `Ledger#readProgress` / `#writeProgress`）都经 registry 读取，且既有 pin 在 `session/__tests__/ledger.test.ts` · `face/__tests__/cli.test.ts`（base 用例）· `infra/__tests__/carrier-seal.test.ts` · `session/__tests__/round-naming.test.ts` 四处逐字节零差（守恒边界覆盖 workspace 面）；五个读面（`Lifecycle` · `Ledger` · `NextStepRouter` · `CarrierSeal#sweep` · `BoardView.of`）读到**同一实例**，且矩阵外零构造点——`new ArtifactRegistry(` 在去注释、排除 `__tests__` 的 `src-next` 生产源码内恰一处（「全树只允许一个字面」不是本门的主张：测试实例经夹具助手取）；`brief` 名字只由矩阵渲染——`tasks-{tasks}-brief.md` 模板字面只在矩阵行，`briefName` / `CliGate#renderBrief` / `Preview#readsOf` 都是委托。
+`ArtifactRegistry` 可实例化；`entries()` 恰四行 workspace kind（`kind` 直接可断言，不从行形状反推）；`rows()` 与 `entries()` 同序；四行往返 pin 绿；`nameOf(kind, tasks)` 与 `render({domain: "workspace", tasks}, kind)` 逐 kind 相等（同一行渲染的两个入口形态，不是第二拼写）；坐标守卫：`brief` 的 `tasks` 为 `null` / 空串、三个字面量的 `tasks` 非 `null` ⇒ 两条入口都抛错；读取面：`locate` / `read` 收 `base`（同一身份在两个 workspace 上解析到各自目录，两个账本共用一个矩阵各读各的 `progress.json`），存在但读不出的名字回 `invalid(path, "unreadable")`、存在但不是普通文件回另一条 `invalid`，外来域 / 未登记 kind 抛错（不伪装成 `absent`）；workspace 字面的**每个消费符号**（`InFlight.FILE` · `Artifacts#baseSet` / `#readBase` / `#baseGet` · `Cli#baseBranchOf` · `Ledger#readProgress` / `#writeProgress`）都经矩阵读取，且既有 pin 在 `session/__tests__/ledger.test.ts` · `face/__tests__/cli.test.ts`（base 用例）· `infra/__tests__/carrier-seal.test.ts` · `session/__tests__/round-naming.test.ts` 四处逐字节零差（守恒边界覆盖 workspace 面）；五个读面（`Lifecycle` · `Ledger` · `NextStepRouter` · `CarrierSeal#sweep` · `BoardView.render`）读到**同一实例**，且矩阵外零构造点——`new ArtifactRegistry(` 在去注释、排除 `__tests__` 的 `src-next` 生产源码内恰一处（「全树只允许一个字面」不是本门的主张：测试实例经夹具助手取）；端到端两格：① 注入一个记录型矩阵跑 `base set` 与 `board --plan`，前者记录到 `base` 渲染、后者记录到 `progress` 渲染（命令前导的实例经 board → `#ledgerOf` → 账本仍是被注入的那一个）；② `CarrierSeal.sweep(dir, [], 矩阵)` 与 `sweep(dir, [])` 对同一目录判定一致，且一个 `sealed: true` 的夹具行能让同一名字从「不是载体」变成「要封」——`sealed` 列真的被读；`brief` 名字只由矩阵渲染——`tasks-{tasks}-brief.md` 模板字面只在矩阵行，`briefName` / `CliGate#renderBrief` / `Preview#readsOf` 都是委托。
 
 #### DependsOn
 

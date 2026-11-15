@@ -305,14 +305,12 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     ledger.recordReviewedRevision(
       "phase-spec",
       ledger.refs().docRevision(specPath, readFileSync(specPath, "utf8")),
-      "phase-spec",
     );
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
     ledger.recordRound("plan", { op: "review" });
     ledger.recordReviewedRevision(
       "plan",
       ledger.refs().docRevision(planPath, readFileSync(planPath, "utf8")),
-      "plan",
     );
     const frontier = new PipelineFrontier(ledger);
     const input = inputOf({ specPath, planPath, plan: readOf(planPath) });

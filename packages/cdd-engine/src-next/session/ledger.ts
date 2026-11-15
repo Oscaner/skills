@@ -344,23 +344,6 @@ export class RoundRecords {
 /** The ledger lookup key — a scalar task id or the group key string. */
 export type LedgerKey = number | string;
 
-/** The retired phase-spec row key — the spelling the round records carried before the
- *  target vocabulary unified on `phase-spec` (P22 D73). Rows already on disk keep it
- *  byte-frozen; the row read normalizes it (see `Ledger.rowFor`). */
-const RETIRED_SPEC_KEY = "spec";
-
-/** The identity-DOCUMENT line words a retired `spec` row may belong to — the words a
- *  workspace's document line keys under after the vocabulary unification. A workspace
- *  holds at most ONE identity document, so a retired `spec` row is exactly that
- *  document's line: `phase-spec` (the pre-rename default), a charter's `overall`, or a
- *  standalone `single-spec`. The plan line carried `plan` before the rename too and
- *  never lived under `spec`, so it stays out. */
-const RETIRED_SPEC_LINE_KEYS: ReadonlySet<string> = new Set([
-  "phase-spec",
-  "overall",
-  "single-spec",
-]);
-
 /** The dispatch-termination vocabulary — why a round was cut short (single source:
  *  the terminator derives the cause from the child's own result face, the crash
  *  record carries it as a postmortem fact, zero behavior fork — resume never routes
@@ -759,31 +742,13 @@ export class Ledger {
 
   /** The ledger-row lookup single point — a scalar key (or the single-task wave key
    *  `"1"`) resolves the `{ task }` row; a multi-task wave key (`"1,2"`) the `{ wave }` row.
-   *  A DOCUMENT-line lookup falls back to a row still carrying the retired `spec` key —
-   *  the read-time alias keeps an in-flight line's recorded reviews/fixes on its board
-   *  (the normalization is never written back: the stored key stays byte-frozen). The
-   *  alias keys on the workspace's DECLARED line word (`identity` — the caller's
-   *  declaration), never on the requested word alone: the retired row IS the line whose
-   *  declaration names it (`phase-spec` / `overall` / `single-spec`). A caller holding no
-   *  declaration keeps the pre-rename default (the `phase-spec` line). A row read is a
-   *  pure function of the progress data, so every face — this class and the board's
-   *  read-only line face — enters through this ONE lookup (no second key spelling). */
-  static rowFor(
-    data: ProgressData,
-    key: LedgerKey,
-    identity: TargetType | null = null,
-  ): ProgressRow | undefined {
-    const literal = data.waves.find((row) => row.wave === String(key));
-    if (literal !== undefined || !Ledger.#retiredSpecApplies(key, identity)) return literal;
-    return data.waves.find((row) => row.wave === RETIRED_SPEC_KEY);
-  }
-
-  /** Whether a retired `spec` row IS the requested line — the requested word must be a
-   *  document-line word and, when the declaration is known, BE that declaration. */
-  static #retiredSpecApplies(key: LedgerKey, identity: TargetType | null): boolean {
-    const word = String(key);
-    if (!RETIRED_SPEC_LINE_KEYS.has(word)) return false;
-    return identity === null ? word === "phase-spec" : word === identity;
+   *  The lookup is LITERAL: the pre-`phase-spec` `spec` row key is no longer recognized
+   *  (a retired workspace's document row reads as absent, and its carrier files land on
+   *  the `orphan:` observation face instead of a silent alias). A row read is a pure
+   *  function of the progress data, so every face — this class and the board's read-only
+   *  line face — enters through this ONE lookup (no second key spelling). */
+  static rowFor(data: ProgressData, key: LedgerKey): ProgressRow | undefined {
+    return data.waves.find((row) => row.wave === String(key));
   }
 
   /** The fresh row for an absent key — always the wave form (a single trivial
@@ -807,13 +772,14 @@ export class Ledger {
     ];
   }
 
-  /** The row's round records — the ONE read face the ledger's consumers share. A
-   *  caller holding the line's DECLARED word passes it, so the retired `spec` row
-   *  resolves as that line (the same basis as `rowFor`'s). */
-  recordsOf(key: LedgerKey, identity: TargetType | null = null): readonly RoundRecord[] {
+  /** The row's round records — the ONE read face the ledger's consumers share. The
+   *  read is literal (`rowFor`'s ONE basis): the retired `spec` row resolves for no
+   *  document word, so a legacy row contributes no records and the board shows its
+   *  line as missing. */
+  recordsOf(key: LedgerKey): readonly RoundRecord[] {
     const data = this.readProgress();
     if (data === null) return [];
-    return RoundRecords.of(Ledger.rowFor(data, key, identity));
+    return RoundRecords.of(Ledger.rowFor(data, key));
   }
 
   /** One op's COMPLETED cycles on a key — only `verdict.targetAction === true` records.
@@ -821,14 +787,10 @@ export class Ledger {
    *  `roundCount` (every in-register cycle). The caller holding the line's DECLARED
    *  word passes it, so a migrated row is judged as that line (one basis with
    *  `rowFor`'s). */
-  completedCycles(
-    key: LedgerKey,
-    op: OpType,
-    identity: TargetType | null = null,
-  ): readonly number[] {
+  completedCycles(key: LedgerKey, op: OpType): readonly number[] {
     const data = this.readProgress();
     if (data === null) return [];
-    return RoundRecords.of(Ledger.rowFor(data, key, identity))
+    return RoundRecords.of(Ledger.rowFor(data, key))
       .filter((record) => record.op === op && record.verdict.targetAction)
       .map((record) => record.cycle);
   }
@@ -837,10 +799,10 @@ export class Ledger {
    *  (the round COUNT: the length of the recorded cycle identity set — for a
    *  contiguous review line this equals the latest cycle, but the identity is the
    *  cycle list, never the count, and a re-attempt at an existing cycle adds none). */
-  roundCount(key: LedgerKey, mode: string, identity: TargetType | null = null): number {
+  roundCount(key: LedgerKey, mode: string): number {
     const data = this.readProgress();
     if (data === null) return 0;
-    return this.#cyclesOf(Ledger.rowFor(data, key, identity), mode).length;
+    return this.#cyclesOf(Ledger.rowFor(data, key), mode).length;
   }
 
   /** Whether a dispatch key + mode has a round REGISTERED for a given CYCLE — the
@@ -848,15 +810,10 @@ export class Ledger {
    *  its own number, not at its ordinal — D28). This is the test/seeding face: it
    *  answers register membership, NOT completion (a hard-failed round is registered),
    *  so no production completion question reads it — those read `completedCycles`. */
-  roundRecorded(
-    key: LedgerKey,
-    mode: string,
-    cycle: number,
-    identity: TargetType | null = null,
-  ): boolean {
+  roundRecorded(key: LedgerKey, mode: string, cycle: number): boolean {
     const data = this.readProgress();
     if (data === null) return false;
-    return this.#cyclesOf(Ledger.rowFor(data, key, identity), mode).includes(cycle);
+    return this.#cyclesOf(Ledger.rowFor(data, key), mode).includes(cycle);
   }
 
   /** Record a dispatched round — the on-disk round record (the ledger edge of the
@@ -870,13 +827,9 @@ export class Ledger {
    *  identity does not double it. A caller holding the line's DECLARED word passes it
    *  too, so a migrated row is APPENDED TO rather than forked into a second identity
    *  row (the same one basis `rowFor` reads by). */
-  recordRound(
-    key: LedgerKey,
-    init: RoundRecordInit,
-    identity: TargetType | null = null,
-  ): RoundRecord {
+  recordRound(key: LedgerKey, init: RoundRecordInit): RoundRecord {
     const data = this.readProgress() ?? this.emptyProgress();
-    let row = Ledger.rowFor(data, key, identity);
+    let row = Ledger.rowFor(data, key);
     if (row === undefined) {
       row = this.entryFor(key);
       data.waves.push(row);
@@ -922,13 +875,9 @@ export class Ledger {
    *  recorded revision, and BLOCKs revision-aware when unchanged). The kind IS part
    *  of the identity: a doc line binds a doc-revision (T7), a wave line a
    *  brief-revision (D30) — one row, one reviewed identity. */
-  recordReviewedRevision(
-    key: LedgerKey,
-    revision: ReviewedRevisionRef,
-    identity: TargetType | null = null,
-  ): void {
+  recordReviewedRevision(key: LedgerKey, revision: ReviewedRevisionRef): void {
     const data = this.readProgress() ?? this.emptyProgress();
-    let row = Ledger.rowFor(data, key, identity);
+    let row = Ledger.rowFor(data, key);
     if (row === undefined) {
       row = this.entryFor(key);
       data.waves.push(row);
@@ -946,11 +895,11 @@ export class Ledger {
    *  `#briefRevision` keeps): the drift comparator relativizes only its current side,
    *  so an absolute argv-erasure shape handed in by a future caller would otherwise
    *  read as a false drift. */
-  recordReviewedPlanRevision(key: LedgerKey, planPath: string, identity: TargetType): void {
+  recordReviewedPlanRevision(key: LedgerKey, planPath: string): void {
     const read = this.#plan.readPath(planPath);
     const text = read.text();
     if (text === null) return;
-    this.recordReviewedRevision(key, this.#refs.docRevision(this.#rel(planPath), text), identity);
+    this.recordReviewedRevision(key, this.#refs.docRevision(this.#rel(planPath), text));
   }
 
   /** Record a wave line's reviewed BRIEF revision (D30) — the hash of the wave's
@@ -989,13 +938,10 @@ export class Ledger {
   /** A line's recorded reviewed identity — null when none on record (a line with no
    *  reviewed identity keeps the legacy closed face). Callers narrow by `kind`: a doc
    *  line binds a doc-revision, a wave line a brief-revision (the kinds never mix). */
-  reviewedRevisionOf(
-    key: LedgerKey,
-    identity: TargetType | null = null,
-  ): ReviewedRevisionRef | null {
+  reviewedRevisionOf(key: LedgerKey): ReviewedRevisionRef | null {
     const data = this.readProgress();
     if (data === null) return null;
-    return Ledger.rowFor(data, key, identity)?.reviewedRevision ?? null;
+    return Ledger.rowFor(data, key)?.reviewedRevision ?? null;
   }
 
   /** Record a wave row's plan-task snapshot — the task set the plan carried at the
@@ -1027,8 +973,8 @@ export class Ledger {
   /** The doc line's recorded reviewed doc revision — the doc-revision narrowing of
    *  `reviewedRevisionOf` (null when none on record, or when a non-doc kind sits on
    *  the row — a doc line is never a wave line). */
-  reviewedDocRevisionOf(key: LedgerKey, identity: TargetType | null = null): DocRevisionRef | null {
-    const reviewed = this.reviewedRevisionOf(key, identity);
+  reviewedDocRevisionOf(key: LedgerKey): DocRevisionRef | null {
+    const reviewed = this.reviewedRevisionOf(key);
     return reviewed !== null && reviewed.kind === "doc-revision" ? reviewed : null;
   }
 
@@ -1040,12 +986,8 @@ export class Ledger {
    *  `same` → unchanged (the revision-aware BLOCK). Null when no reviewed revision
    *  is on record or the doc is unreadable (the legacy closed face keeps its
    *  generic message — only present facts land). */
-  docLineVerdict(
-    key: LedgerKey,
-    doc: string,
-    identity: TargetType | null = null,
-  ): "drift" | "same" | null {
-    const pair = this.#docRevisionPair(key, doc, identity);
+  docLineVerdict(key: LedgerKey, doc: string): "drift" | "same" | null {
+    const pair = this.#docRevisionPair(key, doc);
     if (pair === null) return null;
     return this.#identity.verdict(pair.reviewed, { ref: pair.current }) === "same"
       ? "same"
@@ -1060,9 +1002,8 @@ export class Ledger {
   #docRevisionPair(
     key: LedgerKey,
     doc: string,
-    identity: TargetType | null,
   ): { reviewed: DocRevisionRef; current: DocRevisionRef } | null {
-    const reviewed = this.reviewedDocRevisionOf(key, identity);
+    const reviewed = this.reviewedDocRevisionOf(key);
     if (reviewed === null) return null;
     try {
       // Both sides on ONE basis (P9 T4 §2.7): the recorded ref is repoRoot-relative;
@@ -1080,12 +1021,8 @@ export class Ledger {
    *  the review bound, on the ONE persisted basis) and both hash ends. Null when there
    *  is no recorded revision or the document is unreadable: a diagnosis never invents
    *  a fact. */
-  docDriftHashes(
-    key: LedgerKey,
-    doc: string,
-    identity: TargetType | null = null,
-  ): DriftHashPair | null {
-    const pair = this.#docRevisionPair(key, doc, identity);
+  docDriftHashes(key: LedgerKey, doc: string): DriftHashPair | null {
+    const pair = this.#docRevisionPair(key, doc);
     if (pair === null) return null;
     return {
       line: pair.reviewed.doc,
@@ -1117,10 +1054,10 @@ export class Ledger {
    *  re-review resumes the same round (nothing pre-binds). `unbound` (no identity on
    *  record / an unreadable doc) keeps the legacy round/route judgment. */
   reviewGate(key: LedgerKey, doc: string, type: TargetType): ReviewGateVerdict {
-    const verdict = this.docLineVerdict(key, doc, type);
+    const verdict = this.docLineVerdict(key, doc);
     if (verdict === "drift") return { kind: "open" };
     if (verdict === "same") {
-      const reviewed = this.reviewedDocRevisionOf(key, type);
+      const reviewed = this.reviewedDocRevisionOf(key);
       if (reviewed === null) return { kind: "unbound" };
       return { kind: "same", pending: this.#pendingFix(key, type), reviewed };
     }
@@ -1255,7 +1192,7 @@ export class Ledger {
   #pendingFix(key: LedgerKey, type: TargetType): boolean {
     const data = this.readProgress();
     if (data === null) return false;
-    const row = Ledger.rowFor(data, key, type);
+    const row = Ledger.rowFor(data, key);
     if (row === undefined) return false;
     const reviews = this.#latestLiveCycleOfRow(row, "review");
     if (reviews === 0) return false;
@@ -1359,7 +1296,7 @@ export class Ledger {
   lineClosed(key: LedgerKey, type: TargetType): boolean {
     const data = this.readProgress();
     if (data === null) return false;
-    const row = Ledger.rowFor(data, key, type);
+    const row = Ledger.rowFor(data, key);
     if (row === undefined) return false;
     return this.#rowClosed(type, type === "wave" ? { tasks: String(key) } : {}, row);
   }
@@ -1402,7 +1339,7 @@ export class Ledger {
   lineRoute(key: LedgerKey, type: TargetType): Route | null {
     const data = this.readProgress();
     if (data === null) return { kind: "review" };
-    const row = Ledger.rowFor(data, key, type);
+    const row = Ledger.rowFor(data, key);
     if (row === undefined) return { kind: "review" };
     const reviewLead = targetFaces[type].product.reviewLead;
     const reviews = this.#latestLiveCycleOfRow(row, reviewLead);
@@ -1581,10 +1518,10 @@ export class Ledger {
    *  with its requesting review's cycle (D28 unchanged). Idempotent: a second stamp of
    *  the same record is a no-op rewrite. Returns whether a completed review of that
    *  cycle was stamped. */
-  supersedeReview(key: LedgerKey, type: TargetType, cycle: number, byCycle: number): boolean {
+  supersedeReview(key: LedgerKey, cycle: number, byCycle: number): boolean {
     const data = this.readProgress();
     if (data === null) return false;
-    const row = Ledger.rowFor(data, key, type);
+    const row = Ledger.rowFor(data, key);
     if (row === undefined) return false;
     const records = [...RoundRecords.of(row)];
     const index = records.findIndex(
@@ -1725,15 +1662,13 @@ export class Ledger {
     };
   }
 
-  /** The handoff file NAME a read actually resolves — the canonical family name, or a
-   *  DOCUMENT line's retired `spec` twin when the canonical file is absent (the
-   *  one-release read alias, P22 D73). The alias reports the name it RESOLVED, not the
-   *  one it was asked for: a hop that points a later round at this carrier
-   *  (`--reviews`, `INPUT_REVIEWS`, the criterion's input set) must name the file that
-   *  exists — a read alias that renamed only the row would leave a never-minted path
-   *  behind. The alias keys on the line's declared word and never covers the node
-   *  shapes; it is READ-ONLY (every write goes through `persistHandoff`'s canonical
-   *  spelling). */
+  /** The handoff file NAME a read resolves — the canonical family name, or the round's
+   *  FINAL when that is what landed (the finalized answer, not the child's raw draft).
+   *  The retired `spec` twin and the cycle-less implement rung are gone (P36 §3): the
+   *  answer is the ladder's, never a historical spelling, so the old carriers read as
+   *  absent here and surface as `orphan:` observations instead of silent aliases. The
+   *  read is READ-ONLY — every write goes through `persistHandoff`'s canonical
+   *  spelling. */
   resolveHandoffName(op: string, type: string, params: HandoffParams = {}): string {
     // The attempt the read resolves is the round's LATEST recorded one unless the
     // caller names it: a re-dispatched review lands at `-a{n}`, and its fix leg only
@@ -1746,29 +1681,7 @@ export class Ledger {
     // un-materialized payload whose findings carry no engine id).
     const final = RoundNaming.renderName(Ledger.#artifactOf(op, type, resolved), "final");
     if (final !== canonical && this.#read<unknown>(final) !== null) return final;
-    if (!RETIRED_SPEC_LINE_KEYS.has(type)) {
-      return this.#legacyCarrierName(op, type, resolved) ?? canonical;
-    }
-    if (this.#read<unknown>(canonical) !== null) return canonical;
-    const retired = Ledger.#retiredCarrierName(op, params);
-    return this.#read<unknown>(retired) === null ? canonical : retired;
-  }
-
-  /** The pre-P34 cycle-less spelling of the round's own family name — the ONE carrier
-   *  the P34 respelling moved (`tasks-{tasks}-implement.json` → `…-implement-{cycle}.json`),
-   *  so a folded legacy record (no recorded path, no digest) still resolves its own
-   *  bytes instead of reading as absent while the orphan scan still claims the file.
-   *  The rung is READ-ONLY and cycle-1 · attempt-1 alone: the legacy spelling carried
-   *  neither coordinate, so no later cycle or attempt may read it. null when the op is
-   *  not an implement, the round is past its first cycle/attempt, the family does not
-   *  exist, the legacy name IS the canonical one, or the file is absent. */
-  #legacyCarrierName(op: string, type: string, params: HandoffParams): string | null {
-    if (RoundRecords.opOf(op) !== "implement") return null;
-    if ((params.round ?? 1) !== 1 || (params.attempt ?? 1) !== 1) return null;
-    if (!this.#families.includes(`${op}.${type}` as HandoffFamily)) return null;
-    const legacy = this.handoffName(op, type, { tasks: params.tasks });
-    if (legacy === this.handoffName(op, type, params)) return null;
-    return this.#read<unknown>(legacy) === null ? null : legacy;
+    return canonical;
   }
 
   /** The params one READ resolves under — the caller's attempt when it names one, else
@@ -1787,13 +1700,10 @@ export class Ledger {
   }
 
   /** Read a handoff carrier; null when missing/corrupt. A DOCUMENT-line read falls
-   *  back to the retired `spec` file name (the one-release read alias, P22 D73): the
-   *  rounds a line recorded before the vocabulary unification stay judgeable — the
-   *  closure walk still reads their C5 route, so a closed line does not re-open. The
-   *  alias keys on the line's declared word (`phase-spec` / `overall` / `single-spec`,
-   *  the same basis as `rowFor`'s) and never covers the node shapes. Every WRITE goes
-   *  through `persistHandoff`'s current spelling — the alias is read-only, and the name
-   *  it resolves is `resolveHandoffName`'s ONE answer.
+   *  through `resolveHandoffName`'s ONE answer, which no longer carries a historical
+   *  spelling (P36 §3): a retired `spec-<op>-<round>.json` carrier reads as absent —
+   *  the file stays on disk untouched and surfaces as an `orphan:` observation. Every
+   *  WRITE goes through `persistHandoff`'s current spelling.
    *
    *  P31 §2.2 — the read is CHECKED: the (op, type, round) round's latest recorded
    *  attempt supplies the digest the engine wrote, and `CarrierIntegrity.read` compares
@@ -1832,7 +1742,7 @@ export class Ledger {
   #latestRecordOf(op: string, type: string, params: HandoffParams): RoundRecord | null {
     const mode = RoundRecords.opOf(op) ?? op;
     const round = params.round === undefined ? null : Number(params.round);
-    return this.recordsOf(this.#roundKey(type as TargetType, params), type as TargetType)
+    return this.recordsOf(this.#roundKey(type as TargetType, params))
       .filter((record) => record.op === mode)
       .filter((record) => round === null || record.cycle === round)
       .filter((record) => params.attempt === undefined || record.attempt === params.attempt)
@@ -1871,27 +1781,17 @@ export class Ledger {
     return this.#read<unknown>(name) === null ? "" : this.#workspace.resolve(name);
   }
 
-  /** Step ② of `carrierPathOf` — the NAME the record's identity resolves to: the
-   *  retired `spec-{op}-{round}.json` spelling for a migrated row (its `spec` family is
-   *  not in the live config table, so the ladder would throw), the read ladder's answer
-   *  for every live line. */
+  /** Step ② of `carrierPathOf` — the NAME the record's identity resolves to: the read
+   *  ladder's answer, seeded with the record's full identity. A retired `spec` row's
+   *  carrier is no longer a named exception: the row itself no longer resolves, so the
+   *  files stay orphan observations. */
   #resolvedCarrierName(type: string, key: string, record: RoundRecord): string {
-    if (key === RETIRED_SPEC_KEY) {
-      return Ledger.#retiredCarrierName(record.op, { round: record.cycle });
-    }
     const params: HandoffParams = {
       tasks: type === "wave" ? key : undefined,
       round: record.cycle,
       attempt: record.attempt,
     };
     return this.resolveHandoffName(record.op, type, params);
-  }
-
-  /** The retired document-line carrier name of one round — `spec-review-{round}.json` /
-   *  `spec-fix-{round}.json`. It lives here, never in the family table: it is a read
-   *  fallback for already-recorded rounds, not a name the engine can mint. */
-  static #retiredCarrierName(op: string, params: HandoffParams): string {
-    return `${RETIRED_SPEC_KEY}-${op}-${params.round ?? ""}.json`;
   }
 
   /** The workspace's ORPHAN handoff files — the TWO-TIER judgment (spec §2.5, an
@@ -1954,7 +1854,7 @@ export class Ledger {
     name: string,
   ): boolean {
     const { type, key } = Ledger.#lineOf(identity.line);
-    const records = RoundRecords.of(Ledger.#ownerRow(progress, key));
+    const records = RoundRecords.of(Ledger.rowFor(progress, key));
     const expected = `${identity.op}:${identity.cycle ?? 1}:${identity.attempt ?? 1}`;
     return records.some(
       (record) =>
@@ -1970,25 +1870,6 @@ export class Ledger {
     return line.startsWith("tasks-")
       ? { type: "wave", key: line.slice("tasks-".length) }
       : { type: line, key: line };
-  }
-
-  /** The row one carrier file's line word resolves to. The retired `spec` twin is a FILE
-   *  NAME a live row already outlived: the workspace holds ONE identity document, so the
-   *  word resolves onto whichever document word that row now declares (`phase-spec` /
-   *  `overall` / `single-spec`), never onto a row name the migration retired. Every other
-   *  word — a wave's tasks, `plan`, `branch` — reads through `rowFor`'s ONE basis. */
-  static #ownerRow(progress: ProgressData, key: string): ProgressRow | undefined {
-    if (key !== RETIRED_SPEC_KEY) return Ledger.rowFor(progress, key, Ledger.#lineWord(key));
-    const literal = Ledger.rowFor(progress, key, null);
-    if (literal !== undefined) return literal;
-    return progress.waves.find((row) => RETIRED_SPEC_LINE_KEYS.has(row.wave));
-  }
-
-  /** A handoff file's key as a declared line word — the three document words declare
-   *  themselves; every other key (a wave's tasks, `plan`, `branch`) declares nothing
-   *  and reads literally. */
-  static #lineWord(key: string): TargetType | null {
-    return RETIRED_SPEC_LINE_KEYS.has(key) ? (key as TargetType) : null;
   }
 
   // -------------------------------------------------------------------------
@@ -2090,7 +1971,7 @@ export class Ledger {
     // cycle 2 (D28). A count comparison would flatten that to 1 and refuse the read.
     // Completion is the recorded VERDICT, never membership — every dispatched round
     // is recorded now, so a failed round's cycle is in register but reads no carrier.
-    const recorded = this.recordsOf(this.#roundKey(type, params), type)
+    const recorded = this.recordsOf(this.#roundKey(type, params))
       .filter((record) => record.op === op && record.cycle === round)
       .reduce<RoundRecord | undefined>(
         (latest, record) =>

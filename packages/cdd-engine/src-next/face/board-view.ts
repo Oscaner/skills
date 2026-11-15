@@ -399,7 +399,7 @@ export class BoardView {
     progress: ProgressData | null,
     ledger: Ledger | null,
   ): BoardLine {
-    const rounds = BoardView.#rowRounds(progress, key, entry?.docType ?? null);
+    const rounds = BoardView.#rowRounds(progress, key);
     return {
       label,
       version: entry?.version ?? null,
@@ -1142,17 +1142,13 @@ export class BoardView {
   }
 
   /** The node's round RECORDS for one key — read through the ledger's ONE row lookup
-   *  (`Ledger.rowFor`: the retired `spec` row reads as the line its workspace DECLARES)
-   *  and the ONE record normalizer (`RoundRecords.of`, legacy forms folded); the
+   *  (`Ledger.rowFor`, literal: a retired `spec` row answers no document word) and the
+   *  ONE record normalizer (`RoundRecords.of`, legacy COUNT forms folded); the
    *  aggregation and the judgement glyphs read these records, never a pre-grouped cycle
    *  map. Failed rounds stay on the board (they consumed an identity slot); an absent row
    *  yields an empty list. */
-  static #rowRounds(
-    progress: ProgressData | null,
-    key: string,
-    identity: TargetType | null = null,
-  ): readonly RoundRecord[] {
-    const row = progress === null ? undefined : Ledger.rowFor(progress, key, identity);
+  static #rowRounds(progress: ProgressData | null, key: string): readonly RoundRecord[] {
+    const row = progress === null ? undefined : Ledger.rowFor(progress, key);
     return RoundRecords.of(row);
   }
 

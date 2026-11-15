@@ -95,17 +95,13 @@ describe("the interlock — bookkeeping is `same`, body drift is `drift`", () =>
         const samples = BOOKKEEPING("plan");
         // The reviewed identity is the plan's doc-revision on the reviewed body.
         const doc = writeDoc(workspace, "plan.md", samples.before);
-        ledger.recordReviewedRevision(
-          line.key,
-          ledger.refs().docRevision(doc, samples.before),
-          line.identity,
-        );
+        ledger.recordReviewedRevision(line.key, ledger.refs().docRevision(doc, samples.before));
         // bookkeeping-only write — the reviewed line stays `same` (no spurious reopen)
         writeFileSync(doc, samples.after, "utf8");
-        expect(ledger.docLineVerdict(line.key, doc, line.identity)).toBe("same");
+        expect(ledger.docLineVerdict(line.key, doc)).toBe("same");
         // a task-body edit — the reviewed line drifts
         writeFileSync(doc, samples.edited, "utf8");
-        expect(ledger.docLineVerdict(line.key, doc, line.identity)).toBe("drift");
+        expect(ledger.docLineVerdict(line.key, doc)).toBe("drift");
       } finally {
         cleanup();
       }

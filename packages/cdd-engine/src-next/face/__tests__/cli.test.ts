@@ -1344,7 +1344,7 @@ describe("the help/--help display face — the per-command render", () => {
       expect(io.stdoutText).toContain("(required)");
       expect(io.stdoutText).toContain("run the task implement phase");
       expect(io.stdoutText).toContain("Examples:");
-      expect(io.stdoutText).toContain("cdd implement --tasks 1,2 --plan docs/kairos/plans/p3.md");
+      expect(io.stdoutText).toContain("cdd implement --tasks 1,2 --plan <path>");
     } finally {
       cleanup();
     }
@@ -1363,9 +1363,7 @@ describe("the help/--help display face — the per-command render", () => {
       expect(io.stdoutText).not.toContain("--base");
       expect(io.stdoutText).not.toContain("--head");
       expect(io.stdoutText).toContain("the target face of the round");
-      expect(io.stdoutText).toContain(
-        "cdd review --type phase-spec --spec docs/kairos/specs/p3-design.md",
-      );
+      expect(io.stdoutText).toContain("cdd review --type phase-spec --spec <path>");
     } finally {
       cleanup();
     }
@@ -1403,7 +1401,7 @@ describe("the help/--help display face — the per-command render", () => {
       expect(io.stdoutText).not.toContain("--force");
       expect(io.stdoutText).not.toContain("--source <");
       expect(io.stdoutText).toContain(
-        "cdd base set --plan docs/kairos/plans/p3.md --base develop --source plan-field",
+        "cdd base set --plan <path> --base develop --source plan-field",
       );
     } finally {
       cleanup();
@@ -1553,7 +1551,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       }
       // The Examples section heading + a P1 example sentence in the stream.
       expect(help).toContain("Examples:");
-      expect(help).toContain("cdd review --type phase-spec --spec docs/kairos/specs/p3-design.md");
+      expect(help).toContain("cdd review --type phase-spec --spec <path>");
       // The program-flag tail note: --dry-run listed ALONE — the -h/--help
       // redundant column is not written (the built-in helpOption faces Options).
       const footer = io.stdoutText.split("\n").find((line) => line.startsWith("program flags"));
@@ -5944,6 +5942,64 @@ describe("T3 — the commander-native composition root: program parse + .action 
     }
   });
 
+  it("fix --dry-run renders the artifact-identity refusal the real run would hit — and writes nothing", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const spec = conformingSpec(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "s1").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+      ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        {
+          phase: "review",
+          findings: [{ id: "F1", severity: "blocker", summary: "the guard is missing" }],
+        },
+      );
+      ledger.recordRound("phase-spec", { op: "review" });
+      // The carrier sits at its rendered name; the sidecar uses the shipped convention
+      // (the draft stem, no `.c1`) — the migration case the refusal exists for.
+      const carrier = workspace.resolve("phase-spec-review-1.c1.json");
+      writeFileSync(
+        workspace.resolve("phase-spec-review-1.rulings.json"),
+        JSON.stringify({
+          carrier: "phase-spec-review-1.c1.json",
+          rulings: [{ finding: "F1", ruling: "ACCEPTED" }],
+        }),
+        "utf8",
+      );
+      const code = await command.runArgv([
+        "fix",
+        "--type",
+        "phase-spec",
+        "--spec",
+        spec,
+        "--reviews",
+        carrier,
+        "--dry-run",
+      ]);
+      expect(code).toBe(1);
+      // the preview prints the GATE's own reason — one read, two faces
+      expect(io.stdoutText.startsWith("cdd fix: preview (no repo changes)\n")).toBe(true);
+      expect(io.stdoutText).toContain("refused:  artifact-identity");
+      expect(io.stdoutText).toContain("derived:");
+      expect(io.stdoutText).toContain("found:");
+      expect(io.stdoutText).toContain(
+        "identity: line=phase-spec · op=review · cycle=1 · attempt=1",
+      );
+      // zero write, zero round consumed: no in-flight record and no fix round booked
+      expect(existsSync(workspace.resolve("in-flight.json"))).toBe(false);
+      expect(ledger.recordsOf("phase-spec").some((record) => record.op === "fix")).toBe(false);
+      // The real-run refusal on the same file pair is pinned where the child spawn
+      // can be observed (`lifecycle.test.ts`, the migration pair); here the pin is
+      // that the preview is not silent about a dispatch the real run would refuse.
+    } finally {
+      cleanup();
+    }
+  });
+
   it("an underivable repo root BLOCKs (exit 1, never a usage 2) — a work verb from outside any git repo (§2.6)", async () => {
     // The repo root is the ONE conversion point (T2): the working directory's git
     // top level. A cwd outside any git repository cannot derive it — a missing
@@ -9011,7 +9067,7 @@ describe("P30 — `--recover` folds a stale in-flight record before the new roun
         workspace,
         new ConfigLoader(),
         planSourceOf(workspace.root.basis),
-      ).recordsOf("1", "wave");
+      ).recordsOf("1");
       // The abort fact landed FIRST, with the record's own identity and baseline.
       expect(records[0]).toMatchObject({
         op: "implement",
@@ -9127,7 +9183,7 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--recover"])).toBe(
         0,
       );
-      const records = ledger.recordsOf("plan", "plan");
+      const records = ledger.recordsOf("plan");
       expect(records[0]).toMatchObject({
         op: "review",
         cycle: 1,
@@ -9141,7 +9197,7 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
         verdict: { targetAction: true },
       });
       // No fake completed fix: the fix identity stays with its requesting review (D28).
-      expect(ledger.completedCycles("plan", "fix", "plan")).toEqual([]);
+      expect(ledger.completedCycles("plan", "fix")).toEqual([]);
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.c2.json"))).toBe(
         true,
       );
@@ -9210,7 +9266,7 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
       );
       const ledger = ledgerOf(repoRoot);
       // ① the killed round is booked with its OWN identity (the abort record)
-      const aborted = ledger.recordsOf("1", "wave");
+      const aborted = ledger.recordsOf("1");
       expect(aborted).toHaveLength(1);
       expect(aborted[0]).toMatchObject({
         op: "implement",
@@ -9221,7 +9277,7 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
       });
       expect(aborted[0]?.violations[0]).toMatchObject({ grade: "hard", cause: "interrupted" });
       // ② the supersede stamp … ③ the N+1 review round (both on the plan line)
-      const reviews = ledger.recordsOf("plan", "plan");
+      const reviews = ledger.recordsOf("plan");
       expect(reviews[0]?.supersededBy).toEqual({ cycle: 2, cause: "recover" });
       expect(reviews[1]).toMatchObject({ op: "review", cycle: 2 });
       // The stale record is gone and the new round did dispatch.
@@ -9244,10 +9300,10 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
       expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan, "--recover"])).toBe(0);
       const ledger = ledgerOf(repoRoot);
       // The abort leg booked the killed round …
-      expect(ledger.recordsOf("1", "wave")).toHaveLength(1);
+      expect(ledger.recordsOf("1")).toHaveLength(1);
       // … and the fix's own re-review is an ORDINARY round: review-1 keeps no stamp, so
       // nothing was reopened (the review verb alone owns the reopen leg).
-      const reviews = ledger.recordsOf("plan", "plan");
+      const reviews = ledger.recordsOf("plan");
       expect(reviews[0]?.supersededBy).toBeUndefined();
       expect(reviews.every((record) => record.supersededBy === undefined)).toBe(true);
     } finally {
@@ -9269,8 +9325,8 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
       // `implement` has no `--type` (the wave face) — its abort leg is face-independent.
       await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--recover"]);
       const ledger = ledgerOf(repoRoot);
-      expect(ledger.recordsOf("1", "wave")).toHaveLength(1);
-      const reviews = ledger.recordsOf("plan", "plan");
+      expect(ledger.recordsOf("1")).toHaveLength(1);
+      const reviews = ledger.recordsOf("plan");
       expect(reviews[0]?.supersededBy).toBeUndefined();
     } finally {
       cleanup();

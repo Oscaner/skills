@@ -11,7 +11,15 @@
 // judges the `carrier` key against the CARRIER's basename — the carrier's fact is never
 // re-derived from the sidecar's name.
 
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -258,6 +266,77 @@ describe("the `rulings` row's misplaced spellings (P36 T5 · §2.5)", () => {
     try {
       expect(new ArtifactRegistry().read(IDENTITY, "rulings", workspace).kind).toBe("absent");
     } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P36 T6 — the `rulings` read pair (spec §2.3 · §4.5): ONE carrier, the two
+// spellings that attribute to it, and the unreadable arm that must never read as an
+// absence. The gate and the round-context cell compose this read with the strict
+// schema; the matrix's half is what these pins fix.
+// ---------------------------------------------------------------------------
+
+describe("the `rulings` row's one read (P36 T6 · §2.3 · §4.5)", () => {
+  /** The reviewed round's identity — the carrier's own coordinate, `op` = review. */
+  const IDENTITY: Identity = { domain: "round", line: "plan", op: "review", cycle: 1 };
+
+  /** A real workspace holding the given names (the read needs the directory). */
+  const workspaceWith = (
+    names: readonly string[],
+  ): { workspace: Workspace; cleanup: () => void } => {
+    const repo = mkdtempSync(path.join(tmpdir(), "carrier-rulings-read-"));
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "plan").ensure();
+    for (const name of names) writeFileSync(workspace.resolve(name), "{}\n", "utf8");
+    return { workspace, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
+  };
+
+  it("attributes the misaligned and the rendered name to the SAME (identity, kind)", () => {
+    // One carrier, two tolerated spellings: the round's identity is the same and so is
+    // the kind, which is what makes the set-based judgment well defined.
+    const registry = new ArtifactRegistry();
+    const expected = { identity: IDENTITY, kind: "rulings" as const };
+    expect(registry.attribute("plan-review-1.rulings.json")).toEqual(expected);
+    expect(registry.attribute("plan-review-1.c1.rulings.json")).toEqual(expected);
+  });
+
+  it("answers `ok` at the rendered name and `misplaced` once the variant joins it", () => {
+    const { workspace, cleanup } = workspaceWith(["plan-review-1.c1.rulings.json"]);
+    try {
+      const registry = new ArtifactRegistry();
+      const read = registry.read(IDENTITY, "rulings", workspace);
+      expect(read.kind).toBe("ok");
+      // the rendered name is the only legal spelling; a variant beside it is a refusal
+      writeFileSync(workspace.resolve("plan-review-1.rulings.json"), "{}\n", "utf8");
+      const placed = registry.read(IDENTITY, "rulings", workspace);
+      expect(placed.kind).toBe("misplaced");
+      if (placed.kind !== "misplaced") return;
+      expect(placed.derived).toBe("plan-review-1.c1.rulings.json");
+      expect(placed.identity).toEqual(IDENTITY);
+      expect([...placed.found].sort()).toEqual([
+        "plan-review-1.c1.rulings.json",
+        "plan-review-1.rulings.json",
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("answers `invalid` with reason `unreadable` when the rendered name cannot be opened", () => {
+    // "cannot read" never authorizes "is not there" (§4.5): the arm is distinct from
+    // `absent`, and it is the arm the dispatch gate refuses on.
+    const { workspace, cleanup } = workspaceWith(["plan-review-1.c1.rulings.json"]);
+    const rendered = workspace.resolve("plan-review-1.c1.rulings.json");
+    try {
+      chmodSync(rendered, 0o000);
+      const read = new ArtifactRegistry().read(IDENTITY, "rulings", workspace);
+      expect(read.kind).toBe("invalid");
+      if (read.kind !== "invalid") return;
+      expect(read.reason).toBe("unreadable");
+      expect(read.path).toBe(rendered);
+    } finally {
+      chmodSync(rendered, 0o644);
       cleanup();
     }
   });

@@ -392,7 +392,7 @@ describe("P27 §2.4 — the doc/branch face's rows", () => {
         { phase: "branch-review", findings: [] },
       );
       ledger.recordRound("branch", { op: "review" });
-      ledger.recordReviewedRevision("branch", refs.docRevision(PLAN_REL, content), "branch");
+      ledger.recordReviewedRevision("branch", refs.docRevision(PLAN_REL, content));
       expect(reasonOf(docCase(ledger, "branch", planAbs, "review", planAbs))).toBe("face-closed");
     } finally {
       cleanup();

@@ -89,6 +89,16 @@ export class Preview {
     return lines;
   }
 
+  /** The read-only artifact-identity block — the dispatch gate REFUSED this dispatch
+   *  (`misplaced` sidecar / unreadable one / a schema violation), so the preview prints
+   *  the gate's OWN reason verbatim: one read, two faces, and a dry run can never
+   *  forecast a dispatch the real run would refuse. Exit 1 at the caller; nothing is
+   *  written, moved or deleted (the repair is the orchestrator's). */
+  artifactBlock(verb: CliVerb, reason: string): readonly string[] {
+    const [head, ...sections] = reason.split("\n");
+    return [`cdd ${verb}: preview (no repo changes)`, `  refused:  ${head ?? ""}`, ...sections];
+  }
+
   /** The `lock:` row's value — the holder's identity facts, the lock-without-record
    *  shape, or the free state (one row, three facts). */
   #lockValueOf(state: InFlightState): string {

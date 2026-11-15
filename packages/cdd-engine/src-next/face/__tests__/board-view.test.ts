@@ -33,6 +33,7 @@ import type { InFlightRecord } from "../../session/inflight.ts";
 import { Ledger, type RoundRecord, RoundViolation } from "../../session/ledger.ts";
 import { type NextHop, NextStepRouter, REVIEW_CYCLE_CAP, type Route } from "../../session/next.ts";
 import { PipelineFrontier } from "../../session/pipeline.ts";
+import { ArtifactRegistry } from "../../session/round-artifacts.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
 import { BoardNext, type BoardPipelineFacts, BoardView, LineCarriers } from "../board-view.ts";
 import { Capsule } from "../capsule.ts";
@@ -152,7 +153,11 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     return entry;
   };
 
-  const renderEntry = (entry: DocEntry, host = "claude"): { text: string; exitCode: number } => {
+  const renderEntry = (
+    entry: DocEntry,
+    host = "claude",
+    artifacts: ArtifactRegistry | null = null,
+  ): { text: string; exitCode: number } => {
     const index = SlugIndex.build(repo);
     // The board's `next:` line renders the assembly face's ONE injected `NextHop`
     // (P22 §5.2) — the same object the CLI's board command hands it.
@@ -168,12 +173,16 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       ARGV_CHANNEL,
       undefined,
       next,
+      artifacts,
     );
     return { text: board.lines.join("\n"), exitCode: board.exitCode };
   };
 
-  const render = (slug: string, host = "claude"): { text: string; exitCode: number } =>
-    renderEntry(entryFor(slug), host);
+  const render = (
+    slug: string,
+    host = "claude",
+    artifacts: ArtifactRegistry | null = null,
+  ): { text: string; exitCode: number } => renderEntry(entryFor(slug), host, artifacts);
 
   /** The board's `next:` value (the `  next:    ` row, the anchor stripped). */
   const nextOf = (slug: string, host = "claude"): string => {
@@ -1240,11 +1249,11 @@ describe("BoardView.render — the phase / program board layouts + the next deri
     expect(text).not.toContain("--type phase-spec");
   });
 
-  it("a charter's retired `spec` row IS its `overall` line — the counts render, bytes stay frozen", () => {
-    // The pre-rename charter recorded its rounds under the retired `spec` key (the
-    // only document word the enum carried). The read alias keys on the workspace's
-    // DECLARED identity word — an `overall` charter's retired row is its own line —
-    // and never rewrites the stored key.
+  it("a retired `spec` workspace degrades to a missing row + orphan rows — the bytes stay frozen", () => {
+    // The pre-rename charter recorded its rounds under the retired `spec` key. That key
+    // is no longer a document line, so the board shows the MISSING row (no counts) and
+    // the old carriers become observations — the engine refuses to read history it no
+    // longer recognizes, and it never rewrites a byte of it.
     writeDoc("docs/kairos/specs/prog-overall.md", [
       "---",
       "title: O",
@@ -1254,10 +1263,36 @@ describe("BoardView.render — the phase / program board layouts + the next deri
       "---",
     ]);
     seed("prog-overall", [{ wave: "spec", rounds: { review: [1, 2], fix: [2] } }]);
+    writeDoc("docs/kairos/specs/prog-p1-design.md", [
+      "---",
+      "title: P1",
+      "version: v1.2",
+      "doc-type: phase-spec",
+      "slug: prog-p1",
+      "program: prog-overall",
+      "---",
+    ]);
 
     const { text } = render("prog-overall");
 
-    expect(text).toContain("prog-overall.md   v2.33   review 2 ✓ · fix 1 ✓");
+    // the line's rounds are no longer read: the retired row renders no counts
+    expect(text).toContain("prog-overall.md   v2.33");
+    expect(text).not.toContain("review 2 ✓");
+    expect(text).not.toContain("fix 1 ✓");
+    // the retired CARRIER is visible on the node board, never blocking
+    const node = path.join(repo, ".kairos/cdd/prog-p1");
+    mkdirSync(node, { recursive: true });
+    writeFileSync(
+      path.join(node, "progress.json"),
+      JSON.stringify({ timeoutCount: 0, waves: [{ wave: "spec", rounds: { review: [1] } }] }),
+      "utf8",
+    );
+    writeFileSync(path.join(node, "spec-review-1.json"), "{}\n", "utf8");
+    // the observation face reads through the matrix: the board holds no name rule
+    expect(render("prog-p1", "claude", new ArtifactRegistry()).text).toContain(
+      "orphan: spec-review-1.json",
+    );
+    // history is read-only: the frozen row key survives every read
     const stored = JSON.parse(
       readFileSync(path.join(repo, ".kairos/cdd/prog-overall/progress.json"), "utf8"),
     ) as { waves: Array<{ wave: string }> };
@@ -2297,7 +2332,6 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     ledger.recordReviewedRevision(
       "branch",
       ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
-      "branch",
     );
     ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
     ledger.recordRound("1", { op: "review" });
@@ -2387,7 +2421,6 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     ledger.recordReviewedRevision(
       "branch",
       ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
-      "branch",
     );
     const run = new Lifecycle({
       face: targetFaces.branch,
@@ -2428,7 +2461,6 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     ledger.recordReviewedRevision(
       "branch",
       ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
-      "branch",
     );
     ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings: [] });
     ledger.recordRound("1", { op: "review" });
@@ -2592,7 +2624,6 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     ledger.recordReviewedRevision(
       "branch",
       ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
-      "branch",
     );
     // The wave's TASK section moves. The PLAN line is re-reviewed on the moved body
     // (its own round rebinds); the closed wave's brief stays stale — the P29 state.
@@ -2602,7 +2633,6 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     ledger.recordReviewedRevision(
       "plan",
       ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
-      "plan",
     );
     expect(ledger.briefDrifted("1")).toBe(true);
     // The board names the branch review (the D76 plan drift), never a wave brief row.
@@ -2683,7 +2713,6 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     ledger.recordReviewedRevision(
       "phase-spec",
       ledger.refs().docRevision(specFile, readFileSync(specFile, "utf8")),
-      "phase-spec",
     );
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
     ledger.recordRound("plan", { op: "review" });
@@ -2708,7 +2737,6 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     ledger.recordReviewedRevision(
       "phase-spec",
       ledger.refs().docRevision(specFile, readFileSync(specFile, "utf8")),
-      "phase-spec",
     );
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
     ledger.recordRound("plan", { op: "review" });
@@ -2721,7 +2749,6 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     ledger.recordReviewedRevision(
       "phase-spec",
       ledger.refs().docRevision(specFile, readFileSync(specFile, "utf8")),
-      "phase-spec",
     );
     expect(nextOfBoard("prog-p1")).toBe("implement --plan docs/kairos/plans/prog-p1.md --tasks 1");
   });
@@ -2744,14 +2771,12 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     ledger.recordReviewedRevision(
       "phase-spec",
       ledger.refs().docRevision(specFile, readFileSync(specFile, "utf8")),
-      "phase-spec",
     );
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
     ledger.recordRound("plan", { op: "review" });
     ledger.recordReviewedRevision(
       "plan",
       ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
-      "plan",
     );
     // Undrifted: the frontier has walked past both doc faces onto the wave's batch.
     enterWaveFace(ledger);
@@ -2769,7 +2794,6 @@ describe("P22 — the board's injected hop, the four face-order rules, the layou
     ledger.recordReviewedRevision(
       "plan",
       ledger.refs().docRevision(planFile, readFileSync(planFile, "utf8")),
-      "plan",
     );
     expect(nextOfBoard("prog-p1")).toBe("implement --plan docs/kairos/plans/prog-p1.md --tasks 1");
   });

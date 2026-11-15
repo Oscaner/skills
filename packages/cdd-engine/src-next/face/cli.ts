@@ -933,7 +933,7 @@ export class Cli {
       scene.briefPath = this.#gate.renderBrief(scene, parsed, text, doc);
     }
     const statuses: (RoundStatus | null)[] = [];
-    const dispatch: DispatchStep = await this.#dispatchOf(
+    const { step: dispatch, harness } = await this.#dispatchOf(
       scene,
       parsed,
       recovery?.harness ?? null,
@@ -1008,7 +1008,17 @@ export class Cli {
       // derivation), and the early return means no write point below ever runs
       // (`renderBrief` skipped above, `#bookkeep`/`#reject` never reached).
       if (parsed.dryRun) {
-        for (const line of new Preview({ scene }).render(verb, frame)) this.#io.stdout(`${line}\n`);
+        // The artifact-identity gate is a PURE read (the matrix's names + the strict
+        // sidecar schema), so the preview asks the SAME judgment the real dispatch
+        // applies and prints its reason verbatim — a dry run that stayed silent here
+        // would forecast a dispatch the real run refuses.
+        const refused = harness === null ? null : harness.artifactRefusal(frame);
+        const preview = new Preview({ scene, words: this.#words });
+        if (refused !== null) {
+          for (const line of preview.artifactBlock(verb, refused)) this.#io.stdout(`${line}\n`);
+          return 1;
+        }
+        for (const line of preview.render(verb, frame)) this.#io.stdout(`${line}\n`);
         return 0;
       }
       // The gate→acquire race: another dispatch took the lock between the in-flight
@@ -1082,8 +1092,8 @@ export class Cli {
     parsed: RunInput,
     recovered: CliLifecycle | null,
     artifacts: ArtifactRegistry,
-  ): Promise<DispatchStep> {
-    if (this.#dispatch !== null) return this.#dispatch;
+  ): Promise<{ step: DispatchStep; harness: CliLifecycle | null }> {
+    if (this.#dispatch !== null) return { step: this.#dispatch, harness: null };
     const harness = recovered ?? this.#lifecycleOf(scene, parsed, artifacts);
     // The abort fold already ran at the composition root's `--recover` judgment
     // (`#recoverRun`) when a harness was handed in; the injected/default face keeps
@@ -1091,7 +1101,12 @@ export class Cli {
     if (recovered === null && !parsed.dryRun && parsed.args.recover === "true") {
       await harness.foldAbort();
     }
-    return harness.step();
+    // The harness itself rides back so the `--dry-run` branch can ask it the
+    // artifact-identity gate's PURE read (the same judgment `step()` applies), and
+    // the preview can print the real run's refusal instead of forecasting a dispatch
+    // it would refuse. The injected `#dispatch` seam has no harness — a hermetic
+    // caller already replaced the whole dispatch, so there is no gate to ask.
+    return { step: harness.step(), harness };
   }
 
   /** The `--recover` judgment (spec §2.1①–③) — the two legs, judged in order and
@@ -1144,13 +1159,13 @@ export class Cli {
     const ledger = scene.ledger;
     if (ledger.reviewGate(identity.key, identity.doc, type).kind !== "open") return false;
     if (!ledger.pendingFix(identity.key, type)) return false;
-    const completed = ledger.completedCycles(identity.key, "review", type);
+    const completed = ledger.completedCycles(identity.key, "review");
     if (completed.length === 0) return false;
     // The next review cycle is the latest completed review's + 1 — allocated BEFORE
     // the stamp lands (the spec's fixed action order), and it is exactly the cycle the
     // following dispatch allocates (the register's cycle count is unchanged by a stamp).
     const latest = Math.max(...completed);
-    return ledger.supersedeReview(identity.key, type, latest, latest + 1);
+    return ledger.supersedeReview(identity.key, latest, latest + 1);
   }
 
   /** The invocation's lifecycle harness — the production dispatch face, held by the

@@ -9964,7 +9964,7 @@ describe("P35 T5 — the board's ONE plan read: the table, the four semantics, `
     }
   });
 
-  it("`cdd board --plan <存在但读不出>` refuses with the read-failure face — exit 2, no board", async () => {
+  it("`cdd board --plan <present but unreadable>` refuses with the read-failure face — exit 2, no board", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
@@ -10003,7 +10003,7 @@ describe("P35 T5 — the board's ONE plan read: the table, the four semantics, `
     }
   });
 
-  it("`--plan X` (存在、读不出) + healthy `--spec Y`: `no docs match --plan X`, X's bytes never read", async () => {
+  it("`--plan X` (present, unreadable) + a healthy `--spec Y`: `no docs match --plan X`, X's bytes never read", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);

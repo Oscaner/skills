@@ -2965,7 +2965,7 @@ describe("P35 T5 — the board renders FROM the plan value, never from a second 
    *  is named (production's solo `--plan`), the derived face otherwise. */
   const boardOf = (slug: string, planRel?: string): { lines: string[]; exitCode: number } => {
     const index = SlugIndex.build(repo);
-    // Production's entry合成: `--plan` alone boards the PLAN document itself
+    // Production's entry synthesis: `--plan` alone boards the PLAN document itself
     // (`entry = planEntry`), which is what the identity markers are read off.
     const entry = planRel === undefined ? entryOf(slug) : (index.entryAt(planRel) ?? entryOf(slug));
     const root = new RepoRoot(repo);

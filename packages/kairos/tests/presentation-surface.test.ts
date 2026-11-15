@@ -397,6 +397,53 @@ for (const [rel, pin] of Object.entries(MIGRATION_NOTES)) {
   });
 }
 
+// The rulings-sidecar migration is a consumer-facing instruction like the identity flip above:
+// a sidecar written under the retired spelling sits off the path a fix dispatch derives, so the
+// first dispatch after an upgrade stops with `CDD_BLOCKED: artifact-identity`. The pin is two-part
+// and section-scoped per language — (a) the one-time rename command that moves each
+// `<line>-<op>-<n>.rulings.json` to `<line>-<op>-<n>.c<N>.rulings.json`, (b) the sentence that the
+// rename must be re-judged (the name was never the only possible deviation). A migration section
+// that keeps the identity-flip bullets while dropping the rename instruction fails here.
+const RULING_SIDECAR_MIGRATION: Record<string, { heading: string; rejudge: RegExp }> = {
+  "packages/cdd-engine/README.md": {
+    heading: "## Migration",
+    rejudge: /re-judge after the rename/i,
+  },
+  "packages/cdd-engine/README.zh-CN.md": {
+    heading: "## 迁移",
+    rejudge: /改名后必须复判/,
+  },
+};
+
+for (const [rel, pin] of Object.entries(RULING_SIDECAR_MIGRATION)) {
+  test(`P36 ruling sidecar migration: ${rel} documents the one-time rename command`, () => {
+    const section = sectionOf(read(rel), pin.heading);
+    expect(
+      section,
+      `${rel} migration section must name the retired sidecar spelling \`<line>-<op>-<n>.rulings.json\``,
+    ).toMatch(/<line>-<op>-<n>\.rulings\.json/);
+    expect(
+      section,
+      `${rel} migration section must name the renamed form \`<line>-<op>-<n>.c<N>.rulings.json\``,
+    ).toMatch(/<line>-<op>-<n>\.c<N>\.rulings\.json/);
+    expect(section, `${rel} migration section must carry a runnable rename command`).toMatch(
+      /mv "\$side"/,
+    );
+  });
+
+  test(`P36 ruling sidecar migration: ${rel} says the rename must be re-judged`, () => {
+    const section = sectionOf(read(rel), pin.heading);
+    expect(
+      section,
+      `${rel} migration section must state that the rename is followed by a re-judgment`,
+    ).toMatch(pin.rejudge);
+    expect(
+      section,
+      `${rel} migration section must name the pre-dispatch stop an unrenamed sidecar causes`,
+    ).toMatch(/CDD_BLOCKED: artifact-identity/);
+  });
+}
+
 // The kairos README surface sentence is its own consumer-facing surface, independent of the
 // engine README CLI table: it names the runner and the full command enumeration inline.
 const KAIROS_README_SURFACES: Record<string, string> = {

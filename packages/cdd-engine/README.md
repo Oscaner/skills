@@ -74,6 +74,28 @@ Document identity is the front-matter `slug:` key. This retired the file-name-de
 - **Identity is declared, not derived.** A document is keyed by the `slug:` its front matter carries — the file name carries no identity meaning at all. The retired path keys are no longer read (leaving one in place is inert, not an error); a plan's program chain resolves through the identity document sharing its `slug:` — a phase-spec's `program:` names its overall, while an overall or single-spec is its own chain root.
 - **Per-run workspaces follow the key.** The `.kairos/cdd/<slug>/` directory is keyed by the plan document's `slug:`. A directory left under a retired file-name-derived key is **not reused** by any run — no run resumes or migrates it. A reporting session's ledger scan still reads its records, so delete it by hand once you no longer need that history.
 
+### Rulings sidecars written before this release
+
+A fix dispatch reads the orchestrator's rulings from one sidecar whose name carries the reviewed round's cycle: `<line>-<op>-<n>.c<N>.rulings.json`, in the directory of the review carrier it answers. A sidecar written under the retired spelling — `<line>-<op>-<n>.rulings.json` — sits off that path, so the first dispatch after upgrading stops with `CDD_BLOCKED: artifact-identity` and prints both paths. The engine never moves and never rewrites an artifact, so the rename is a one-time action you run by hand:
+
+```sh
+# For every <line>-<op>-<n>.rulings.json whose directory also holds the final carrier
+# <line>-<op>-<n>.c<N>.json, rename it to <line>-<op>-<n>.c<N>.rulings.json.
+for side in .kairos/cdd/*/*.rulings.json; do
+  [ -e "$side" ] || continue
+  stem=${side%.rulings.json}
+  case "$stem" in *.c[0-9]*) continue ;; esac    # already names its reviewed cycle
+  for final in "$stem".c[0-9]*.json; do
+    case "$final" in *.rulings.json) continue ;; esac
+    [ -e "$final" ] || continue
+    mv "$side" "${final%.json}.rulings.json"
+    break
+  done
+done
+```
+
+**Re-judge after the rename.** Run the same dispatch with `--dry-run` and compare what it reads back with the sidecar: a mismatch that survives the rename means the entries deviate beyond the name, and the orchestrator repairs the content — the engine only refuses.
+
 ## Development
 
 The package lives in the [Oscaner/skills](https://github.com/Oscaner/skills) monorepo at `packages/cdd-engine` (TypeScript, emitted with `tsc -p tsconfig.build.json`, tested with vitest; tests are colocated at `src-next/**/__tests__/**/*.test.ts`).

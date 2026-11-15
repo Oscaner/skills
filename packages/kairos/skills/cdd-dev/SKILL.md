@@ -59,6 +59,7 @@ flowchart TD
 | I3 | **Wave-Chain Completeness** — every dispatch wave (a singleton task or a merged wave) goes through the full implement → review → (fix if findings) chain; review is unskippable, and a fix dispatch requires a prior review handoff for that wave |
 | I4 | **No Controller Bypass** — the orchestrator must not hand-write control-flow bypasses; all task execution / review / fix dispatch go through engine CLI calls, and the engine's `next:` face decides the order — never orchestrator guesswork |
 | I5 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band; a backfill rewriting the current task's own plan/spec text routes through the orchestrator's plan write authority |
+| I6 | **Ruling Landing** — when a fix dispatch needs a ruling on a finding, the ruling lands at the sidecar path the engine prints in `next:`; the orchestrator never derives that path itself |
 
 ## Failure Modes
 

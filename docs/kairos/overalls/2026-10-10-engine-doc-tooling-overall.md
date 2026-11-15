@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 doc-type: overall
-version: v3.89
+version: v3.90
 date: 2026-11-16
 slug: 2026-10-10-engine-doc-tooling
 author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）"
@@ -183,7 +183,7 @@ Charter only, zero implementation detail. **Overall approval is not equivalent t
 
 ## Phase inventory
 
-> **登记面只记身份与闭合，不镜像版本。** Design spec / Implementation plan 两格写 `✔ Done（<文件名> · <日期>）`；注册文档的当前版本一律读它自己的 front-matter `version:`，两格既不抄这个字面，也不放占位符。这是对「格里即当前版本」旧约定的**显式反转**（P35 closeout v3.71 曾按该约定回填）：同一处「指针落后一版」在本相位触发了四次 blocker（计划评审 15 · 计划评审 16 · 分支评审 2 · 分支评审 4），每次都是某一轮推版把指针留在上一版；而没有任何机械门能判「指针是否为当前版本」——这条判据本身就是把版本镜像一份，没有唯一来源可判。这条约定今日有执行面：`packages/cdd-engine/src-next/contract/__tests__/phase-inventory.guard.test.ts` 逐行判「该行解析成七格」与「两格零 `v<major>.<minor>` 字面」——按表头位置取格的扫法在带裸竖线的行上取到的是 Scope 碎片，那正是本约定第一次登记时漏掉两格的原因，故先判行形状、再判格内容。**hotfix 行是唯一的例外形态**：没有 design/plan 文档可指的行按交付事实记（`hotfix` + 交付标识 + 日期），不写文件名。
+> **登记面只记身份与闭合，不镜像版本。** Design spec / Implementation plan 两格写 `✔ Done（<文件名> · <日期>）`；注册文档的当前版本一律读它自己的 front-matter `version:`，两格既不抄这个字面，也不放占位符。这是对「格里即当前版本」旧约定的**显式反转**（P35 closeout v3.71 曾按该约定回填）：同一处「指针落后一版」在本相位触发了四次 blocker（计划评审 15 · 计划评审 16 · 分支评审 2 · 分支评审 4），每次都是某一轮推版把指针留在上一版；而没有任何机械门能判「指针是否为当前版本」——这条判据本身就是把版本镜像一份，没有唯一来源可判。这条约定今日有执行面：`packages/cdd-engine/src-next/contract/__tests__/phase-inventory.guard.test.ts` 逐行判三条——「该行解析成七格」·「两格零 `v<major>.<minor>` 字面」·「两格写成 `✔ Done（<文件名> · <日期>）`（全角括号 · 文件名确实是个反引号内的 `.md` 名 · `[Pending]` 与本段末尾的 hotfix 行放行）」——按表头位置取格的扫法在带裸竖线的行上取到的是 Scope 碎片，那正是本约定第一次登记时漏掉两格的原因，故先判行形状、再判格内容。**hotfix 行是唯一的例外形态**：没有 design/plan 文档可指的行按交付事实记（`hotfix` + 交付标识 + 日期），不写文件名。
 
 | # | Phase | Scope | Design spec | Implementation plan | Acceptance criteria | Dependency |
 |---|---|---|---|---|---|---|
@@ -513,3 +513,4 @@ Legend:
 | v3.87 | 2026-11-15 | **P36 branch 评审第 3 轮回填（F1–F2 · 同批 spec v0.38 / plan v0.24）**：F1 是 P35 §2.7 的正文缺口——T4 只改了 Constraints 那条 bullet，规范正文仍写「派生 `<slug>-design.md` 再探存在性」、`specPath` 与已退役的 `#planOf` 禁令，与已交付的 `SlugIndex#hasIdentity` 三态逐字冲突；同批把同一组退役事实在 P35 内的其余陈述对齐（`PlanOrphan` 只留 `cause` · `planOrphanSpec` 单参零路径 · `readFor` 的 plan 路径取索引 plan 行 `rel` · 未判态按三根干净度判）。F2 是计划面：T8 的 Files 漏了唯一被签名收敛波及的 `session/dispatch-authority.ts`。两格指针随行升 v0.38 / v0.24（该格约定是当前版本）；结构面（相位 id 集、依赖边）与本轮内容面以外的条目零改动。 | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-15） |
 | v3.88 | 2026-11-16 | **登记面去版本镜像（分支评审 4 · F1 的裁定形态）**：Phase inventory 的 Design spec / Implementation plan 两格不再抄受控文档的 `version:` 字面，改记 `✔ Done（<文件名> · <日期>）`，并在 `## Phase inventory` 抬头一句话写明这条约定与它的反转来历——注册文档的当前版本一律读它自己的 front-matter `version:`，登记表只记身份与闭合。反转的理由即复现次数：同一处「指针落后一版」在本相位触发四次（计划评审 15 · 计划评审 16 · 分支评审 2 · 分支评审 4），每次都是某一轮推版把指针留在上一版，而「指针是否为当前版本」没有任何机械门可判（无唯一来源可判）。P21 / P22 两行的匿名写法（`spec` / `plan`）同批补成真实文件名，口径一致。结构面（相位 id 集 · 依赖边 · 行集）一字不动。 | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-16） |
 | v3.89 | 2026-11-16 | **登记面去版本镜像的补齐与其执行面（分支评审 5 · F1–F4 的裁定形态）**：上一轮只转到了按表头位置够得着的格——P2 / P5 / P6 / P15 / P17 / P19 / P25 这七行的某个单元里带裸竖线，该行因此解析出 8 / 9 / 10 / 13 格，Done 标记被挤出自己的列，P25 的两格于是仍留着 `✔ Done(spec v0.10 …)` 与 `✔ Done(plan v0.11 …)`。七行的裸竖线一律转义（都在行内代码里），P25 两格按本行约定改记文件名 + 日期，全表这才真正零版本镜像。F2 的执行面不再是闭任务里的一条人工 grep：新增 `contract/__tests__/phase-inventory.guard.test.ts`，逐行判「解析成七格」与「两格零 `v<major>.<minor>` 字面」，并把区段内每个 `\| P<n> \|` 原始行与表读行数对账（空行不得藏行）；F3 把 hotfix 形态写进抬头（无 design/plan 文档可指的行按交付事实记，不写文件名）；F4 是上一轮同一提交在两份文档里记了两个日期，本行把 v3.88 的日期改成落地日 2026-11-16。结构面（相位 id 集 · 依赖边 · 行集）一字不动。 | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-16） |
+| v3.90 | 2026-11-16 | **登记面的正向半句有了执行面（分支评审 6 · F2 的裁定形态）**：`## Phase inventory` 抬头声称「这条约定今日有执行面」，而门只判了约定三件事里的第二件——正句「两格写 `✔ Done（<文件名> · <日期>）`」与「不放占位符」没有腿，照门的谓词构造的四组入参全绿：`✔ Done（spec · 2026-11-05）`（无文件名）· `✔ Done（`…-p21.md`）`（无日期）· `✔ Done（<file> · <date>）`（占位符）· `✔ Done(spec · 2026-10-11)`（旧 ASCII 形）；v3.88 手工补的 P21 / P22 匿名格正是这一格的复发面，同一处方靠人眼扫到、靠人眼修掉。门因此加第三条腿（`phase-inventory.guard.test.ts` 的 `PhaseInventory.formDefectOf`：全角括号 + 反引号内的 `.md` 名 + 四位日期，`[Pending]` 与 hotfix 行放行），夹具补「无文件名 / 无日期 / 占位符 / 旧 ASCII 形」四格与两格豁免，当前在册 36 行 Done 全绿。抬头同步写明三条腿，不再让读者从门的实现推断正句有没有执行面。结构面（相位 id 集 · 依赖边 · 行集）一字不动。 | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-16） |

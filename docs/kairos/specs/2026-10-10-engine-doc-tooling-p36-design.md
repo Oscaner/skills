@@ -1,8 +1,8 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P36 设计：身份面收权（身份域 × 产物矩阵 · 缺席有门 · 形状可发现）'
 doc-type: phase-spec
-version: v0.13
-date: 2026-11-15
+version: v0.14
+date: 2026-11-16
 slug: '2026-10-10-engine-doc-tooling-p36'
 program: 2026-10-10-engine-doc-tooling
 parent-version: v3.83
@@ -209,15 +209,17 @@ type ArtifactRead =
 
 `misplaced` 不引入新扫描面：`attribute` 已在矩阵里，把「同轮同 kind 的名字」反解出来即可。这一条是 issue ① 的严格版：不是「探测存在的变体」，而是「**任何能归主的名字都必须等于渲染名**」。
 
-**一份读取、两个消费者**（P35 的教训直接适用）：判别值由 `face/lifecycle.ts` 的 `#artifactReadOf(frame, kind)` 一次算出，prompt 格（`#valuesOf`）与派发门（`#artifactRefusal`，取代 `#rulingsRefusal`）读同一个值。
+**一份读取、两个消费者**（P35 的教训直接适用）：判别值（`ArtifactCell`）由 `face/lifecycle.ts` 的 `#artifactCellOf(frame)` **每派发一次**算出——派发门（`#artifactRefusalOf(cell)`；`--dry-run` 面读公开的 `artifactRefusal(frame)`，同取这一个 cell）与 prompt 格（`#valuesOf`）读同一个值。P36 之前那道 `#rulingsRefusal` 已随本相位退役。
 
-**合成位置与两级输入**：`#artifactReadOf` = `ArtifactRegistry#read`（名字 / 在场 / `misplaced` / `absent`——矩阵零解析器，上表里这些臂全是它的事实）× `CarrierRulings#verdict`（严格 schema：`sidecarPath` 由矩阵 `locate` 渲染，`carrier` 键读 carrier 自己的事实，§2.1）。`ok` 与 `invalid` 的 schema 那一半只来自第二级，`invalid.reason` 原样就是今日门里 `rulings sidecar — <reason>` 的那段原因；矩阵因此**永不解析内容**，也不为 schema 造臂。两级在同一个函数里合成一次，prompt 格与门读的就是这个合成后的单一判别值。
+**合成位置与两级输入**：`#artifactCellOf` 只回答「本轮解析哪个 kind」（今日只有 `rulings`），它按 kind 的那一层 `#artifactReadOf(frame, kind)` 是一行委托——`session/artifact-reads.ts` 的 `ArtifactReads#read(kind, carrier, digest)`。两级在该文件里合成一次（`ArtifactReads#compose`，`read` 取到 `ok` 才进第二级）：矩阵的 `ArtifactRegistry#read`（名字 / 在场 / `misplaced` / `absent`——矩阵零解析器，上表里这些臂全是它的事实）× `CarrierRulings#verdict`（严格 schema：`sidecarPath` 由矩阵 `locate` 渲染，`carrier` 键读 carrier 自己的事实，§2.1）。`ok` 与 `invalid` 的 schema 那一半只来自第二级，`invalid.reason` 原样就是今日门里 `rulings sidecar — <reason>` 的那段原因；矩阵因此**永不解析内容**，也不为 schema 造臂。prompt 格与门读的就是这个合成后的单一判别值。
+
+**无帧的读面**：`ArtifactReads` 不持 frame——workspace 随构造进来，持帧的 `Lifecycle` 与无帧的 `BoardView` 是同一个接缝的两个消费者，各用自己的 workspace 取同一次判定。名字的归主不在接缝里：矩阵的 `ArtifactRegistry#reviewedIdentityOf(carrier)` 单点回答（`attribute(basename(carrier))` 且 `op` 固定 `review`——sidecar 属于**被评的**那一轮，不是本轮），归不了主就是 `ABSENT_READ`（`read: absent` + 零 rulings）：接缝只判它被问的那个 kind，一个矩阵放不进的名字是观察，不是拒绝。
 
 **缺席不进矩阵**：`progress` / `base` / `in-flight` / doc 四行的「文件不在」是各自读点既有的失败通道（账本缺失、base 未设、文档未声明），不给它们加一条矩阵级策略——一个命名相位不伪装成行为相位；`rulings` 的「裁决尚未记录」是**合法状态**，写在该行 policy 上（§2.1），不得因缺席拦派发、不得伪造路径（P31 §2.5 成对钉原样保留）。
 
 #### 2.4 `misplaced = block`：报文四段，只拒不改
 
-门的位置与 `#rulingsRefusal` 今日相同（`face/lifecycle.ts` 的 `#dispatch`，取在飞记录之前、seal 之前）。reason 词新增 `artifact-identity`，落在既有 `CDD_BLOCKED` 通道。
+门的位置与 P36 前的 `#rulingsRefusal`（已退役）相同（`face/lifecycle.ts` 的 `#dispatch`，取在飞记录之前、seal 之前）。reason 词新增 `artifact-identity`，落在既有 `CDD_BLOCKED` 通道。
 
 ```
 CDD_BLOCKED: artifact-identity · the round's `rulings` sidecar sits off its rendered name
@@ -472,3 +474,4 @@ issue 提交方那 89 个 `*.rulings.json` 全部落在推导路径外；升级�
 | v0.11 | 2026-11-15 | 评审 round 6 全量落地（F1–F5）：**F1** 无 cycle 的 `tasks-<n>-implement*.json` 从 §2.5 (i) 的 legacy 清单移出——矩阵的 `WAVE_STEM` 用可选 cycle 组把它解析成无 cycle 的 round 身份（其 `draft` 渲染名与它同字节），故它归 (ii) 而非「不归主」；§2.5 的两级清单、归主文法第三格、§3.3 的机械证明句与 AC「门的作用面收窄」拆成 `spec-*` / cycle-less implement 两句、各一条 pin（原文一句「它们不归主」与 AC 的往返 pin 在这一格互斥）· **F2** §1.4 的 `progress.json` / `base.json` 两行改成注册时基线 + 已交付随注（`Ledger#progressName` · `CliArtifacts#baseName` / `#readBase` · `Cli#baseBranchOf`），现状列写「字面单源 = `session/round-artifacts.ts` 的 `WORKSPACE_LITERALS`，三面均委托矩阵」，并把误写的类名 `Artifacts` 更正为 `CliArtifacts` · **F3** 母契约 D92 ④ 与 Phase inventory P36 验收 ⑥ 改成两级判据（与 scope ⑥ 同句），charter 追加 v3.82 行、Design-spec 指针升 v0.11、plan 指针升 v0.12、本 spec 的 `parent-version` 升 v3.82 · **F4** §2.5 (ii) 写明认领的第二档（记录的 `carrierPath` basename 等名）与它的 D89 来历，§3.1 补「不在拆除面的一档」，AC「归属（两级）」补两档各一条 pin——按 (ii) 的字面实现（只比身份）会把那批记录自己写出的载体重判成 `orphan:` · **F5** §2.2 的往返句补无 cycle 例外（`final` 与 `draft` 同名 ⇒ 该格 pin 判 identity 相等、`kind` 读 `draft`，其余行仍逐行严判），与交付 pin 同形。 | [human] 裁定 · Claude（kairos:docs-fix · 2026-11-15） |
 | v0.12 | 2026-11-15 | 波 4/5 修复轮：§1.3 与 AC「#485 面」的两处证据 pin 改**符号定位**。两处原文用纯行号指 `infra/__tests__/plan-source.test.ts:213-227`（入参那条 `rel: specs/prog-p1-design.md` 的格子）与 `:173-183`（健康读那格）——波 4/5 的 re-anchor 让这两个区间落到无关格（前者成了 `WORDS` 夹具与状态品牌格，后者成了 `WORDS` 夹具），按号读会把 pin 读成「缺失」。现改引格题：「reads a slug with no plan row on a clean plans root as undeclared」与「reads a healthy plan into the ready state with the eager graph」，与 v0.3 立下的「纯行号定位改符号 pin」同规，不再随文件漂移；规范面无变化。 | [human] 裁定 · Claude（kairos:cdd-dev · 2026-11-15） |
 | v0.13 | 2026-11-15 | 评审 round 7 全量落地（F1–F6）：**F1** §2.7 的 `cross-doc-chain` 一条改述为「两半均已交付」——`hasIdentity(slug)` + `SlugIndex#docRootsClean()`（`infra/slug-index.ts`），任一 doc 根不干净即零 Finding，`contract/__tests__/judge.test.ts` 只有 (a) 与重复身份两格，缺的是 (c) 那条 coverage pin；AC 的 (c) 格据此明写它补的是 `judge.test.ts` 里缺的那条断言，不是重做接线 · **F2** 一批已消失的符号 pin 按「注册时基线 + 已交付随注」处理：§1.5 的 `carrierPattern` / `CARRIER` / `#WAVE_CARRIER` / `#LINE_CARRIER` 两行并成一行并注明 `renderRound` / `attributeRound` 已接管两端，§1.5 / §1.6 的 `#orphanOf` 改 `#lookupOf`（母契约验收 ④ 同批），§3.1 / §3.3 / AC legacy 的 grep 门按现存符号重列（`#LINE_CARRIER` 那一臂注明已随归属收权消失）· **F3** AC ① 的家拆开：往返 pin（含无 cycle 形态）与封闭集门住 `session/__tests__/round-artifacts.test.ts`，归主文法三格住 `session/__tests__/round-naming.test.ts` + `session/__tests__/carrier-rulings.test.ts` · **F4** §2.3 补「合成位置与两级输入」：`#artifactReadOf` = `ArtifactRegistry#read`（名字 / 在场 / `misplaced`） × `CarrierRulings#verdict`（严格 schema），矩阵零解析器、`invalid.reason` 携带 schema 原因，判别值表的两行改写成这一分工 · **F5** 母契约 Phase inventory P36 的两格指针回填为本轮终版（spec v0.13 · plan v0.15）并追加 v3.83 行 · **F6** §4.4 的消费方清单补全为 `Cli#sceneOf` / `BoardView#nodeSources` / `BoardView#programBoard` / `planChain`，AC 那条指针重新解析得到落点。 | [human] 裁定 · Claude（kairos:docs-fix · 2026-11-15） |
+| v0.14 | 2026-11-16 | 分支评审 6 · F1 的裁定形态：§2.3 的两段按交付形改述——每派发一次的持有者是 `#artifactCellOf(frame)`（`face/lifecycle.ts`），派发门是私有 `#artifactRefusalOf(cell)` 与 `--dry-run` 面公开的 `artifactRefusal(frame)`，`#artifactRefusal` 这个拼写从未存在；`#artifactReadOf(frame, kind)` 只是它按 kind 的一层、体内一行委托；两级合成在 T7 新建的 `session/artifact-reads.ts` 的 `ArtifactReads#read` / `#compose` 里做一次（`CarrierRulings.verdict` 的生产面唯一调用点），`Lifecycle` 与 `BoardView` 是同一接缝的两个消费者；§2.4 首句的 `#rulingsRefusal` 标成已退役（它是 P36 前的门）。同批补「无帧的读面」一段，把 `reviewedIdentityOf` 与 `ABSENT_READ` 写进设计文档——该模块此前在 spec 里零命中（F1 的覆盖缺口）。 | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-16） |

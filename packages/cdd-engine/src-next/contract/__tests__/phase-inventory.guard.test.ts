@@ -10,8 +10,14 @@
 //   1. SHAPE — a row must resolve to the header's cell count (a bare pipe is a cell
 //      boundary, so an unescaped one is the defect);
 //   2. IDENTITY — the Design spec / Implementation plan cell must carry zero
-//      `v<major>.<minor>` literal.
-// The identity leg runs only on rows that resolve: on a mis-shaped row the column
+//      `v<major>.<minor>` literal;
+//   3. FORM — the same cells must write the convention's positive half,
+//      `✔ Done（`<file>.md` · <date>）`, with the header's two exemptions (`[Pending]`
+//      and the hotfix row). Without this leg only the negative half was enforced while
+//      the identity leg's two collisions with a positional scan are exactly the ones an
+//      anonymous `spec` / `plan` cell hides behind — the same asymmetry branch review 6
+//      named, measured on the two rows v3.88 repaired by hand.
+// The identity and form legs run only on rows that resolve: on a mis-shaped row the column
 // positions are not the header's, so the shape leg owns that row — and the shape leg is
 // the reason the identity leg may be positional at all. Coverage is pinned against the
 // raw section too: a blank line between rows must not hide a row from the table read
@@ -39,6 +45,30 @@ const INVENTORY_HEADING = "## Phase inventory";
 class PhaseInventory {
   /** The `v<major>.<minor>` literal grammar the identity leg forbids in a Done cell. */
   static readonly VERSION_LITERAL = /v\d+\.\d+/;
+
+  /** The Done form the charter's inventory header declares: `✔ Done（`<file>` · <date>）`
+   *  in full-width parentheses. A closeout note may follow the date, so the form is
+   *  anchored at the start; the filename and the date are not optional, and the filename
+   *  rides in backticks so a placeholder (`<file>`) cannot pass as one. */
+  static readonly DONE_FORM = /^✔ Done（`[^`\s]+\.md` · \d{4}-\d{2}-\d{2}/;
+
+  /** The two cell spellings the header exempts: a phase that has not landed, and the
+   *  hotfix row (no design/plan document to point at, so the delivery facts stand in). */
+  static readonly PENDING_CELL = "[Pending]";
+  static readonly HOTFIX_FORM = /^✔ Done（hotfix/;
+
+  /** The Done form as the header spells it — quoted verbatim in the form leg's defect. */
+  static readonly DONE_FORM_TEXT = "✔ Done（`<file>.md` · <date>）";
+
+  /** The form leg's verdict on one Done cell — undefined when the cell conforms, a named
+   *  defect otherwise. */
+  static formDefectOf(cell: string, where: string): string | undefined {
+    const trimmed = cell.trim();
+    if (trimmed === PhaseInventory.PENDING_CELL) return undefined;
+    if (PhaseInventory.HOTFIX_FORM.test(trimmed)) return undefined;
+    if (PhaseInventory.DONE_FORM.test(trimmed)) return undefined;
+    return `${where}: the cell reads ${trimmed} — a Done cell writes ${PhaseInventory.DONE_FORM_TEXT} (or the header's hotfix / [Pending] forms), so an anonymous spelling, a placeholder or a bare date is the defect`;
+  }
 
   /** Every inventory under the overall doc root, in name order — a document that
    *  carries no inventory section is skipped (the gate judges inventories, not
@@ -101,8 +131,9 @@ class PhaseInventory {
     this.rows = rows;
   }
 
-  /** Every defect of this inventory, in row order — the shape leg first, then the
-   *  identity leg. An empty array is the conforming inventory. */
+  /** The defects of this inventory, in row order — the shape leg first, then the
+   *  identity and form legs over the same two cells. An empty array is the conforming
+   *  inventory. */
   defects(): readonly string[] {
     return this.rows.flatMap((row) => this.#rowDefects(row));
   }
@@ -121,12 +152,15 @@ class PhaseInventory {
         (cell) => cell.trim().toLowerCase() === column.toLowerCase(),
       );
       if (index < 0) continue;
-      const literal = row[index]?.match(PhaseInventory.VERSION_LITERAL)?.[0];
+      const cell = row[index] ?? "";
+      const literal = cell.match(PhaseInventory.VERSION_LITERAL)?.[0];
       if (literal !== undefined) {
         defects.push(
           `${name} · ${column}: the cell carries the version literal ${literal} — the registry records identity and closure, never a mirror of \`version:\``,
         );
       }
+      const form = PhaseInventory.formDefectOf(cell, `${name} · ${column}`);
+      if (form !== undefined) defects.push(form);
     }
     return defects;
   }
@@ -164,10 +198,12 @@ describe("branch review 5 — the Phase inventory records identity, not a versio
     expect(INVENTORIES.flatMap((inventory) => inventory.defects())).toEqual([]);
   });
 
-  it("goes red on a bare pipe and on a version literal in a Done cell", () => {
-    // The predicate's own red-able pin: the fixture carries one clean row, one row split
-    // by a bare pipe (the P25 shape) and one row whose cells resolve but whose Done cell
-    // still mirrors `version:`.
+  it("goes red on a bare pipe, a version literal, and a cell that skips the declared form", () => {
+    // The predicate's own red-able pin, one row per defect class: a row split by a bare
+    // pipe (the P25 shape), a Done cell that mirrors `version:`, and the four spellings
+    // that keep the identity column but drop its identity — no filename, no date, a
+    // placeholder, and the ASCII-parens form the convention replaced. The last two rows
+    // pin the header's exemptions so the form leg cannot harden into a false red.
     const fixture = [
       INVENTORY_HEADING,
       "",
@@ -176,21 +212,43 @@ describe("branch review 5 — the Phase inventory records identity, not a versio
       "| P1 | clean | scope | ✔ Done（`a-design.md` · 2026-11-05） | ✔ Done（`a.md` · 2026-11-05） | ok | none |",
       "| P2 | bare pipe | `review | fix)` | ✔ Done（`b-design.md` · 2026-11-05） | ✔ Done（`b.md` · 2026-11-05） | ok | none |",
       "| P3 | version mirror | scope | ✔ Done(spec v0.10 · 2026-11-05) | ✔ Done（`c.md` · 2026-11-05） | ok | none |",
+      "| P4 | no filename | scope | ✔ Done（spec · 2026-11-05） | ✔ Done（`d.md` · 2026-11-05） | ok | none |",
+      "| P5 | no date | scope | ✔ Done（`e-design.md` · 2026-11-05） | ✔ Done（`e.md`） | ok | none |",
+      "| P6 | placeholder | scope | ✔ Done（<file> · <date>） | ✔ Done（`f.md` · 2026-11-05） | ok | none |",
+      "| P7 | ascii parens | scope | ✔ Done（`g-design.md` · 2026-11-05） | ✔ Done(`g.md` · 2026-11-05) | ok | none |",
+      "| P8 | hotfix | scope | ✔ Done（hotfix · delivered PR #1 2026-11-05） | ✔ Done（hotfix · delivered PR #1 2026-11-05） | ok | none |",
+      "| P9 | pending | scope | [Pending] | [Pending] | ok | none |",
       "",
       "## Next section",
       "",
     ].join("\n");
     const inventory = PhaseInventory.of("fixture.md", fixture);
-    expect(inventory?.rows.length).toBe(3);
+    expect(inventory?.rows.length).toBe(9);
     const defects = inventory?.defects() ?? [];
-    expect(defects.some((line) => line.includes("fixture.md · P1"))).toBe(false);
+    /** Whether any defect line names this row (optionally this column) — the messages
+     *  read `fixture.md · P4 · Design spec: …` (legs over a cell) or
+     *  `fixture.md · P2: …` (the shape leg). */
+    const namesRow = (id: string, column?: string): boolean =>
+      defects.some((line) =>
+        column === undefined
+          ? line.startsWith(`fixture.md · ${id} ·`) || line.startsWith(`fixture.md · ${id}:`)
+          : line.startsWith(`fixture.md · ${id} · ${column}:`),
+      );
+    expect(namesRow("P1"), "the clean row is a false red").toBe(false);
+    expect(namesRow("P8"), "the hotfix exemption is a false red").toBe(false);
+    expect(namesRow("P9"), "the [Pending] exemption is a false red").toBe(false);
     expect(
-      defects.some((line) => line.includes("fixture.md · P2") && line.includes("8 cells")),
+      defects.some((line) => line.includes("fixture.md · P2: ") && line.includes("8 cells")),
     ).toBe(true);
-    expect(
-      defects.some(
-        (line) => line.includes("fixture.md · P3 · Design spec") && line.includes("v0.10"),
-      ),
-    ).toBe(true);
+    expect(namesRow("P3", "Design spec")).toBe(true);
+    expect(defects.some((line) => line.includes("v0.10"))).toBe(true);
+    for (const [id, column] of [
+      ["P4", "Design spec"],
+      ["P5", "Implementation plan"],
+      ["P6", "Design spec"],
+      ["P7", "Implementation plan"],
+    ] as const) {
+      expect(namesRow(id, column), id).toBe(true);
+    }
   });
 });

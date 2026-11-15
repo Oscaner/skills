@@ -656,10 +656,12 @@ export class Ledger {
   /** `artifacts` is the composition root's matrix, and it is OPTIONAL here — unlike
    *  `CliLifecycle#artifacts`, which is required because a wiring bug there would read as
    *  a legal `absent` carrier. The null callers are hermetic fixtures that read the
-   *  ledger's own record face, and the one cell `null` silences (`orphanHandoffs()` ⇒
-   *  `[]`) is an OBSERVATION, never an identity judgment: it can not turn a judgment into
-   *  a visible `absent`. Production passes the single instance at every construction
-   *  point. */
+   *  ledger's own record face, and the TWO cells `null` silences stay on the observation
+   *  side of the house: `orphanHandoffs()` ⇒ `[]`, and — because the router below is
+   *  built from this same value — the fix hop's read-back hint (`Route.rulings`)
+   *  vanishes, which the render face prints as zero sentence rather than an empty slot.
+   *  Neither is an identity judgment: `null` can not turn a judgment into a visible
+   *  `absent`. Production passes the single instance at every construction point. */
   constructor(
     workspace: Workspace,
     config: ConfigLoader,

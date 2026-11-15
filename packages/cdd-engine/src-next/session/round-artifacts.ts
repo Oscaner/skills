@@ -167,9 +167,14 @@ export interface IdentityDomain {
   /** The name → (identity, kind) reverse port. `null` = unknown (never a third state). */
   attribute(name: string): Attributed | null;
   /** Where the artifact sits inside `base` — a rendered row renders its name, a
-   *  declared row takes the index entry's `rel`. `null` = the domain holds no such
-   *  kind / no such entry; a foreign identity or an unregistered kind is a caller bug
-   *  and answers loudly, exactly as `render` does. */
+   *  declared row takes the index entry's `rel`. The RETURN SHAPE follows the row's
+   *  `identityFrom`: a rendered row answers `base.resolve(<rendered name>)` — the
+   *  absolute syscall form — while a declared row answers the index entry's repo-
+   *  relative `rel`. A caller must not compare paths across domains: the same
+   *  `(identity, kind)` question answers two different bases by construction.
+   *  `null` = the domain holds no such kind / no such entry; a foreign identity or
+   *  an unregistered kind is a caller bug and answers loudly, exactly as `render`
+   *  does. */
   locate(identity: Identity, kind: Kind, base: Workspace): string | null;
   /** One read of the artifact as the discriminated value. */
   read(identity: Identity, kind: Kind, base: Workspace): ArtifactRead;

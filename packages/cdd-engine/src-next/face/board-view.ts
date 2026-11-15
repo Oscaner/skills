@@ -290,7 +290,13 @@ export class BoardView {
    *  a plan contributes the plan and resolves its spec by the same slug. The
    *  `programMissing` fact is the phase-spec hard gate: a `program:` that names no
    *  on-disk overall (or no `program:` at all). Zero filename derivation and zero
-   *  "first document": each slot is the index's SET answer (0 / 1 / n). */
+   *  "first document": each slot is the index's SET answer (0 / 1 / n).
+   *
+   *  Naming the entry document on argv (`cdd board --spec` / `--plan`) does NOT
+   *  exempt its slot from the set: the entry's identity is still its slug, so a
+   *  second same-class document makes that slot `many` and the row renders the
+   *  marker plus every declared home. `own` survives only where the set cannot be
+   *  asked — no legal slug, or an undeclared `doc-type:` that no class can hold. */
   static #nodeSources(index: SlugIndex, entry: DocEntry): NodeSources {
     const slug = BoardView.#validSlug(entry);
     const isPlan = entry.docType === "plan";
@@ -300,10 +306,11 @@ export class BoardView {
         ? isPlan
           ? NO_DOC
           : own
-        : isPlan
-          ? BoardView.#docSlotOf(index, slug, "identity")
-          : own;
-    const plan = isPlan ? own : slug === null ? NO_DOC : BoardView.#docSlotOf(index, slug, "plan");
+        : entry.docType === null
+          ? own
+          : BoardView.#docSlotOf(index, slug, "identity");
+    const plan =
+      slug === null ? (isPlan ? own : NO_DOC) : BoardView.#docSlotOf(index, slug, "plan");
     const specEntry = BoardView.#slotEntry(spec);
     const overall =
       specEntry?.docType === "phase-spec" && specEntry.program !== null

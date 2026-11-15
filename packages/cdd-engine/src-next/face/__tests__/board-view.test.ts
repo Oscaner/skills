@@ -3202,6 +3202,54 @@ describe("P35 T5 — the board renders FROM the plan value, never from a second 
     expect(board.exitCode).toBe(2);
   });
 
+  it("the argv-named spec answers the slug's set, never its own header (P36 T3)", () => {
+    overall();
+    phaseSpec();
+    planDoc("docs/kairos/plans/prog-p1.md", taskBlock(1));
+    // `cdd board --spec <path>` makes THAT document the entry (production's
+    // `entry = specEntry`), so the spec cell's source is the entry itself — not the
+    // index lookup the previous pin exercises through a plan entry.
+    const single = boardOf("prog-p1");
+    const specRowOf = (lines: readonly string[]): string =>
+      lines.find((line) => line.startsWith("  spec")) ?? "";
+    expect(specRowOf(single.lines)).toContain("v0.1 · Draft");
+    phaseSpec("prog-p1", "docs/kairos/specs/prog-p1-second.md");
+    const board = boardOf("prog-p1");
+    const specRow = specRowOf(board.lines);
+    // Naming a document on argv does not make it the slug's ONE identity: the set
+    // answers two, so the cell renders the marker and BOTH declared homes and borrows
+    // neither document's version / status.
+    expect(specRow).toContain("slug: duplicated (BLOCKED)");
+    expect(specRow).toContain("docs/kairos/specs/prog-p1-design.md");
+    expect(specRow).toContain("docs/kairos/specs/prog-p1-second.md");
+    expect(specRow).not.toContain("v0.1");
+    expect(specRow).not.toContain("Draft");
+    expect(board.lines.join("\n")).not.toContain("! no-spec");
+    expect(board.exitCode).toBe(2);
+  });
+
+  it("the plan cell under a spec entry answers the plan set, never the first plan (P36 T3)", () => {
+    overall();
+    phaseSpec();
+    planDoc("docs/kairos/plans/prog-p1.md", taskBlock(1));
+    const planRowOf = (lines: readonly string[]): string =>
+      lines.find((line) => line.startsWith("  plan")) ?? "";
+    const single = boardOf("prog-p1");
+    expect(planRowOf(single.lines)).toContain("prog-p1.md");
+    expect(planRowOf(single.lines)).toContain("v0.2 · Draft");
+    planDoc("docs/kairos/plans/prog-p1-copy.md", taskBlock(1));
+    const board = boardOf("prog-p1");
+    const planRow = planRowOf(board.lines);
+    // The identity entry's plan slot is the same 0 / 1 / n answer: two plans are the
+    // marker plus both paths — a `.find` here would be invisible to this pin's sibling
+    // above only because that sibling boards the PLAN as its entry.
+    expect(planRow).toContain("slug: duplicated (BLOCKED)");
+    expect(planRow).toContain("docs/kairos/plans/prog-p1-copy.md");
+    expect(planRow).toContain("docs/kairos/plans/prog-p1.md");
+    expect(planRow).not.toContain("v0.2");
+    expect(board.exitCode).toBe(2);
+  });
+
   it("a duplicated plan under a phase blocks the program board's plan cell with the set (P36 T3)", () => {
     overall();
     phaseSpec();

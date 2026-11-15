@@ -801,6 +801,93 @@ describe("the six context-seam invariants — one negative case each", () => {
     expect(withKind(findings, "cross-doc-chain", "slug")).toBe(true);
   });
 
+  // The plan chain's undecided arm (P36 AC「#485 面」(c)): the SAME document the (b)
+  // negative half reports over a clean scan, judged once the scan surface itself is
+  // dirty. `docRootsClean()` is the guard, and these three cells are what makes it
+  // deletable-and-not-green: without it the two dirty cells report a `spec-absent` the
+  // disk cannot answer (the defect the phase exists to close), and the clean cell pins
+  // the direction the other way (an over-wide guard that always returns [] is red too).
+  describe("the plan chain's undecided arm — a dirty doc root answers no absence (P36 AC #485 (c))", () => {
+    /** The (b) negative half's own document: a plan whose slug no identity document
+     *  carries, so a clean scan reports it. */
+    const LONELY_PLAN = [
+      "---",
+      "title: Test Plan",
+      "doc-type: plan",
+      "version: v1.0",
+      "date: 2026-10-09",
+      "slug: x-p3",
+      "---",
+      "",
+      "## Constraints",
+      "",
+      "- delta",
+      "",
+      ...planTask(1),
+    ].join("\n");
+
+    /** One candidate's content on the control scan: the plan's own file reads as a plan,
+     *  every other candidate as an unrelated — but REGISTERED — single-spec. */
+    const cleanRead = (p: string): string | null =>
+      p.endsWith("/x-p3.md")
+        ? "---\ntitle: P\ndoc-type: plan\nslug: x-p3\n---\n"
+        : "---\ntitle: X\ndoc-type: single-spec\nslug: x-other\n---\n";
+
+    /** The control scan's three roots: one registered candidate each in `overalls/` and
+     *  `specs/`, the plan itself in `plans/`. */
+    const cleanList = (dir: string): readonly string[] =>
+      dir.endsWith("plans") ? ["x-p3.md"] : ["x-other.md"];
+
+    /** The control scan: all three roots hold candidates, every one of them reads and
+     *  declares a registered `doc-type:` — no identity document carries `x-p3`, so the
+     *  absence IS answerable and the chain reports it. */
+    const CLEAN_MISS_FS: DocFs = {
+      exists: () => true,
+      read: cleanRead,
+      list: cleanList,
+    };
+
+    it("a clean three-root scan reports the absence exactly once — the control", () => {
+      const findings = judge("plan", LONELY_PLAN, CLEAN_MISS_FS).filter(
+        (finding) => finding.kind === "cross-doc-chain",
+      );
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.field).toBe("slug");
+      expect(findings[0]?.message).toBe(
+        "the plan carries no identity document with the same slug: x-p3",
+      );
+    });
+
+    it("a dirty `specs/` root (an unreadable candidate) suppresses the finding — the undecided arm", () => {
+      // The dropped candidate could be the identity document: "no identity document" is
+      // not a fact this scan can assert, so the chain produces ZERO findings (zero
+      // refusal — the pre-flight gate has nothing to block on).
+      const fs: DocFs = {
+        exists: () => true,
+        read: (p) => (p.endsWith("/stray.md") ? null : cleanRead(p)),
+        list: (dir) => (dir.endsWith("specs") ? ["x-other.md", "stray.md"] : cleanList(dir)),
+      };
+      const findings = judge("plan", LONELY_PLAN, fs);
+      expect(findings.filter((finding) => finding.kind === "cross-doc-chain")).toEqual([]);
+    });
+
+    it("a dirty `overalls/` root (a document whose `doc-type:` is unregistered) suppresses the finding", () => {
+      // The candidate READS but is no identity document (its `doc-type:` is outside the
+      // registry). It still forbids the absence answer: the root indexed a name whose
+      // class it could not judge, so the scan's silence is not the disk's.
+      const fs: DocFs = {
+        exists: () => true,
+        read: (p) =>
+          p.endsWith("/memo.md")
+            ? "---\ntitle: Memo\ndoc-type: memo\nslug: memo\n---\n"
+            : cleanRead(p),
+        list: (dir) => (dir.endsWith("overalls") ? ["memo.md", "x-other.md"] : cleanList(dir)),
+      };
+      const findings = judge("plan", LONELY_PLAN, fs);
+      expect(findings.filter((finding) => finding.kind === "cross-doc-chain")).toEqual([]);
+    });
+  });
+
   it("slug-ref: a `program:` naming no on-disk overall is reported exactly once", () => {
     // The value is a SLUG (not a path): the judgment is an identity lookup over the
     // doc roots — a slug naming no overall is the hard gate, reported on the

@@ -215,6 +215,34 @@ export const roundIdentityKey = (identity: Extract<Identity, { domain: "round" }
 const workspaceIdentityKey = (identity: { readonly tasks: string | null }): string =>
   identity.tasks ?? "";
 
+/** One rendered-row read's request — the coordinate plus the workspace it resolves in,
+ *  and the DOMAIN's `attribute` / `keyOf` pair that decides which names belong to it.
+ *  The request's own key is derived from that pair inside `readRendered`, never passed
+ *  in: a caller-supplied key would be the same coordinate spelled a second time, which
+ *  is exactly what the identity key exists to forbid. */
+type RenderedRead = {
+  readonly identity: Identity;
+  readonly kind: Kind;
+  readonly base: Workspace;
+  readonly derived: string;
+  readonly attribute: (name: string) => Attributed | null;
+  readonly keyOf: (candidate: Attributed) => string;
+};
+
+/** A candidate that attributes into ANOTHER domain never compares equal to this
+ *  domain's key — the ONE spelling of "not my identity", shared by both domains. */
+const FOREIGN_KEY = "\u0000foreign";
+
+/** The round domain's identity key for one attributed name. */
+const roundKeyOf = (candidate: Attributed): string =>
+  candidate.identity.domain === "round" ? roundIdentityKey(candidate.identity) : FOREIGN_KEY;
+
+/** The workspace domain's identity key for one attributed name. */
+const workspaceKeyOf = (candidate: Attributed): string =>
+  candidate.identity.domain === "workspace"
+    ? workspaceIdentityKey(candidate.identity)
+    : FOREIGN_KEY;
+
 /**
  * The ONE read of a rendered row (spec §2.3 · §2.5) — the SET-based judgment, not a
  * count:
@@ -232,15 +260,9 @@ const workspaceIdentityKey = (identity: { readonly tasks: string | null }): stri
  * variant alone (the derived name never landed) is the same `misplaced` answer, which
  * is why a count-based predicate could not answer it.
  */
-const readRendered = (
-  identity: Identity,
-  kind: Kind,
-  base: Workspace,
-  derived: string,
-  attribute: (name: string) => Attributed | null,
-  keyOf: (candidate: Attributed) => string,
-  key: string,
-): ArtifactRead => {
+const readRendered = (request: RenderedRead): ArtifactRead => {
+  const { identity, kind, base, derived, attribute, keyOf } = request;
+  const key = keyOf({ identity, kind });
   const found = base.names().filter((name) => {
     const attributed = attribute(name);
     return attributed !== null && attributed.kind === kind && keyOf(attributed) === key;
@@ -466,19 +488,14 @@ export class RoundDomain implements IdentityDomain {
   }
 
   read(identity: Identity, kind: Kind, base: Workspace): ArtifactRead {
-    const derived = renderRound(identity, kind);
-    return readRendered(
+    return readRendered({
       identity,
       kind,
       base,
-      derived,
-      attributeRound,
-      (attributed) =>
-        attributed.identity.domain === "round"
-          ? roundIdentityKey(attributed.identity)
-          : "\u0000foreign",
-      identity.domain === "round" ? roundIdentityKey(identity) : "\u0000foreign",
-    );
+      derived: renderRound(identity, kind),
+      attribute: attributeRound,
+      keyOf: roundKeyOf,
+    });
   }
 }
 
@@ -689,19 +706,14 @@ export class WorkspaceDomain implements IdentityDomain {
   }
 
   read(identity: Identity, kind: Kind, base: Workspace): ArtifactRead {
-    const derived = renderWorkspace(identity, kind);
-    return readRendered(
+    return readRendered({
       identity,
       kind,
       base,
-      derived,
-      (name) => this.attribute(name),
-      (attributed) =>
-        attributed.identity.domain === "workspace"
-          ? workspaceIdentityKey(attributed.identity)
-          : "\u0000foreign",
-      identity.domain === "workspace" ? workspaceIdentityKey(identity) : "\u0000foreign",
-    );
+      derived: renderWorkspace(identity, kind),
+      attribute: (name) => this.attribute(name),
+      keyOf: workspaceKeyOf,
+    });
   }
 }
 

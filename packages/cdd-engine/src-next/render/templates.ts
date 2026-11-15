@@ -524,8 +524,10 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "INPUT_SPEC", zone: "round-context" },
   { name: "INPUT_OVERALL", zone: "round-context" },
   { name: "INPUT_REVIEWS", zone: "round-context" },
-  // P31 — the fix round's ruling sidecar (the source carrier's `.rulings.json`
-  // sibling); a review writes its own draft, so its round context never carries it.
+  // P31 — the fix round's ruling sidecar; the path is the matrix's `rulings` row
+  // rendered from the REVIEWED round's identity (P36 §2.10), so it moves with that
+  // cycle, never with the carrier's own spelling. A review writes its own draft, so its
+  // round context never carries it.
   { name: "INPUT_RULINGS", zone: "round-context" },
   { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
   // find #5 — the prescribed artifact write paths (the {family}-{key}-{artifact}

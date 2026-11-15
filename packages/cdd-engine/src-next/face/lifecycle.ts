@@ -436,10 +436,11 @@ export class CliLifecycle {
    *  records, the persisted carrier, the round's baseline) plus the work plane's
    *  evidence gate, and the graded entries decide the verdict: a round with no hard
    *  entry is done. The judgment's two provider cells are supplied HERE, the single
-   *  point: `records` is the key's in-register history read with the line's DECLARED
-   *  word, and `reviewsPath` is the fix route's `--reviews` carrier or the ledger's
-   *  RESOLVED review-carrier fallback — the retired twin's name when the canonical
-   *  file is absent, never the never-minted canonical spelling.
+   *  point: `records` is the key's in-register history read LITERALLY on that key (the
+   *  row is the row — a retired spelling reads as absent, P36 §3), and `reviewsPath` is
+   *  the fix route's `--reviews` carrier, the requester record's own carrier path, or
+   *  the ledger's resolved review-carrier name — canonical, or the round's landed
+   *  `final`, never a historical twin's spelling.
    *
    *  A death face (a killed child, a non-zero exit, a rejected draft) already carries
    *  its authored hard entry and needs no second judgment — the criterion table and

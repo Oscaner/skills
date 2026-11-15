@@ -653,6 +653,13 @@ export class Ledger {
    *  artifact names derive here (zero second derivation). */
   readonly #naming: RoundNaming;
 
+  /** `artifacts` is the composition root's matrix, and it is OPTIONAL here — unlike
+   *  `CliLifecycle#artifacts`, which is required because a wiring bug there would read as
+   *  a legal `absent` carrier. The null callers are hermetic fixtures that read the
+   *  ledger's own record face, and the one cell `null` silences (`orphanHandoffs()` ⇒
+   *  `[]`) is an OBSERVATION, never an identity judgment: it can not turn a judgment into
+   *  a visible `absent`. Production passes the single instance at every construction
+   *  point. */
   constructor(
     workspace: Workspace,
     config: ConfigLoader,

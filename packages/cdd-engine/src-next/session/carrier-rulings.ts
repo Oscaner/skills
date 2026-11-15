@@ -1,18 +1,19 @@
 // packages/cdd-engine/src-next/session/carrier-rulings.ts
 // P31 T2 — the orchestrator's RULINGS sidecar: the one supported landing point for a
 // ruling on an engine-persisted carrier (design spec §2.1/§2.6). The engine's carrier
-// bytes are frozen at persist time, so a ruling never edits them: it is written beside
-// the carrier at the same stem, `<carrier>.json` → `<carrier>.rulings.json`, and read
-// back through the strict schema below. The file is the orchestrator's; the judgment
-// is the engine's — a sidecar the schema refuses is a hard stop BEFORE the fix child is
-// spawned, so a written ruling can never be silently invisible to the round that
-// consumes it.
+// bytes are frozen at persist time, so a ruling never edits them: it is its own file,
+// rendered by the artifact matrix's `rulings` row from the REVIEWED round's identity
+// (P36 §2.10), and read back through the strict schema below. The file is the
+// orchestrator's; the judgment is the engine's — a sidecar the schema refuses is a hard
+// stop BEFORE the fix child is spawned, so a written ruling can never be silently
+// invisible to the round that consumes it.
 //
 // Two levels, both strict (unknown keys are refused, never ignored): the top level
 // carries `carrier` (optional; when present it must name the carrier file) and
-// `rulings` (required array); each ruling carries `finding` + `ruling` (both required
-// strings) and the optional `at` / `by`. A ruling's `finding` must name a finding of
-// the carrier it sits beside — the id set is the caller's fact, injected.
+// `rulings` (required array); each ruling carries ONE identifier — `finding`, or its
+// `id` alias, normalized to `finding` on the way in — plus `ruling` (both required
+// strings) and the optional `at` / `by`. A ruling's identifier must name a finding of
+// the carrier it answers — the id set is the caller's fact, injected.
 //
 // The sidecar PATH is not minted here: it is the artifact matrix's `rulings` row
 // rendered from the reviewed round's identity and resolved by the caller's workspace

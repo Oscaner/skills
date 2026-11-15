@@ -342,6 +342,12 @@ export class NextStepRouter {
    *  must not invent one. */
   readonly #artifacts: ArtifactRegistry | null;
 
+  /** `artifacts` is the composition root's matrix, OPTIONAL here — unlike
+   *  `CliLifecycle#artifacts`, which is required because a wiring bug there would read as
+   *  a legal `absent` carrier. A hermetic caller passing `null` loses exactly one
+   *  decorative cell (the fix hop's read-back hint, omitted whole — never printed empty),
+   *  and no judgment becomes a visible `absent` through it. Production passes the single
+   *  instance. */
   constructor(artifacts?: ArtifactRegistry | null) {
     this.#artifacts = artifacts ?? null;
   }

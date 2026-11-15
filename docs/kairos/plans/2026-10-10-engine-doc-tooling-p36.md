@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P36 计划：身份面收权（身份域 × 产物矩阵 · 缺席有门 · 形状可发现）'
 doc-type: plan
-version: v0.26
+version: v0.27
 date: 2026-11-15
 slug: 2026-10-10-engine-doc-tooling-p36
 base: develop
@@ -198,7 +198,7 @@ doc 行零 `render`；`DocDomain#attribute` 无第三态（`Attributed | null`�
 - Modify: `packages/cdd-engine/src-next/infra/slug-index.ts`（`#scanRoot` 每根保留一对丢弃计数，随索引暴露为六个值）
 - Modify: `packages/cdd-engine/src-next/face/words.ts`（`planOrphanSpec(slug: string): string` 单参、报文字节 = `the slug names no identity document (index clean miss)`，零路径片段）
 - Modify: `packages/cdd-engine/src-next/contract/invariants.ts`（`CrossDocChainInvariant#planChain` 吃同一组计数：null 身份 + 任一 doc 根不干净 ⇒ 零 `Finding`）
-- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`PlanSource` 的两个生产构造点——`#runBoard` 内 `cli.ts:550`、命令前导 `cli.ts:763`——改成注入单建索引；换源调用点 `#runBoard` / `#boardReadTable` / `#sceneOf` 读同一实例）
+- Modify: `packages/cdd-engine/src-next/face/cli.ts`（`PlanSource` 的两个生产构造点——`Cli#runBoard` 内一处、`#runWork` 的命令前导一处——改成注入单建索引；两处按方法名定位、不钉行号，命令前导是随前置步骤增长的那一段，行号必漂；换源调用点 `#runBoard` / `#boardReadTable` / `#sceneOf` 读同一实例）
 - Modify: `docs/kairos/specs/2026-10-10-engine-doc-tooling-p35-design.md`（Constraints 的派生条款拆两半：前半句改「plan 路径取索引 plan 行的 `rel`」、后半句与扫描谓词不动；同一条 bullet 的第三句（`-design.md` 反查 · 「只探存在性」）改为问索引三态；同批补该文件 `## Change history` 一行并同步其 front-matter `version:`——**已交付随注**：这次修订已落 P35 spec（Constraints 那半句 + §2.7 正文两处），本任务只核现口径零回退，不写版本坐标）
 - Test: `packages/cdd-engine/src-next/infra/__tests__/plan-source.test.ts`（三态六格 + 「slug 自带 `-design`」用例 + 「脏 `specs/` × 干净 `plans/` ⇒ plan 路径仍 `undeclared`」的混合格 + `planOrphanSpec` 的报文字节——该断言留在文件既有的 `planOrphanSpec` 格，不在 `infra/` 的派生扫描面内；第四格：plan 行 ≥2 ⇒ `undeclared` 零命中、板面渲 `MARK_SLUG_DUPLICATED` 与集合内全部 `rel`）
 - Test: `packages/cdd-engine/src-next/infra/__tests__/slug-index.test.ts`（`discarded()` 六值逐根的 pin 之家：overalls / specs / plans 各一对且与入册结果同一次扫描产出；外加「只在 `overalls/` 放一个不可读候选 ⇒ 身份反查落 (c)」一格）
@@ -233,7 +233,7 @@ doc 行零 `render`；`DocDomain#attribute` 无第三态（`Attributed | null`�
 - 改 `words.ts` 报文 + `planChain` 吃同一组计数 —— checkable: `contract/__tests__/judge.test.ts` 与 `contract/__tests__/lint.test.ts` 绿；**(c) 格的链级 coverage pin 已交付**（分支评审第 1 轮 F1，格题「the plan chain's undecided arm — a dirty doc root answers no absence」：干净对照恰一条、脏 `specs/` 与脏 `overalls/` 各零条；删掉 `planChain` 的 `docRootsClean()` `return` ⇒ 两个脏根格红，换成无条件 `return []` ⇒ 对照格红）——本步的接线与三态计数因此有门，不再需要后续承接
 - 重锚 P35 三条 pin，并跑派生零命中门 —— checkable: `face/__tests__/board-view.test.ts` + `face/__tests__/cli.test.ts` 绿，且派生零命中门可红可修——扫描面 = 去注释（沿用 `src-next/__tests__/support/strip-comments.ts` 的既有姿势）且排除 `__tests__` 的 `infra/`，断言「`ENGINE_RUNTIME.docRoots.*` 参与模板串或以 `path.join` 作基座」零命中（与 T10 的 `doc-path-door` 同一谓词；T4 只负责删掉 `readFor` / `#lookupOf` 的两个派生点，注释与夹具不在扫描面）
 - 修订 P35 Constraints 的派生条款（前半句换口径、后半句与扫描谓词保留、第三句改为问索引三态）+ 该文件 `## Change history` 一行与 `version:` 同步递增 —— checkable: `grep -n "slug 派生" docs/kairos/specs/2026-10-10-engine-doc-tooling-p35-design.md` 在 Constraints 段零命中、该行只剩「plan 路径取索引 plan 行的 `rel`」这一处新口径，且同一 bullet 内 `-design.md` 与「只探存在性」两处旧口径零命中
-- 构造收索引：`PlanSource` 入参加注入索引，改 `#runBoard`（`cli.ts:550`）与 `#runWork` 的命令前导（`cli.ts:763`）两个生产构造点、更新 `#boardReadTable` / `#sceneOf` 的传递；全树的 `new PlanSource(` 构造点按符号枚举只有三处——上述两处生产面 + 夹具助手 `planSourceOf`（`packages/cdd-engine/src-next/__tests__/support/plan-source.ts:19` 的导出；今日已传索引，全树的 `planSourceOf(` 都经夹具助手取，测试侧不逐个改） —— checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/infra/__tests__/plan-source.test.ts src-next/face/__tests__/board-view.test.ts src-next/face/__tests__/cli.test.ts` 绿，且证据里 `PlanSource` 的入参带索引
+- 构造收索引：`PlanSource` 入参加注入索引，改 `#runBoard` 内与 `#runWork` 的命令前导（两个生产构造点按方法名定位、不钉行号——命令前导随前置步骤增长，行号必漂）两个生产构造点、更新 `#boardReadTable` / `#sceneOf` 的传递；全树的 `new PlanSource(` 构造点按符号枚举只有三处——上述两处生产面 + 夹具助手 `planSourceOf`（`packages/cdd-engine/src-next/__tests__/support/plan-source.ts:19` 的导出；今日已传索引，全树的 `planSourceOf(` 都经夹具助手取，测试侧不逐个改） —— checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/infra/__tests__/plan-source.test.ts src-next/face/__tests__/board-view.test.ts src-next/face/__tests__/cli.test.ts` 绿，且证据里 `PlanSource` 的入参带索引
 
 #### Acceptance
 
@@ -333,7 +333,7 @@ doc 行零 `render`；`DocDomain#attribute` 无第三态（`Attributed | null`�
 - 写预览同源测 —— checkable: `cli.test.ts` 的 dry-run 用例绿
 - 写多候选测（渲染名合法 + 同身份另一个能归主的名字 ⇒ 仍停） —— checkable: 报文列全、不选、不写
 - 写迁移成对夹具（同一 carrier、同一命令；前半错位 ⇒ 拦、后半改名 ⇒ `ok` 且 spawn 一次） —— checkable: `lifecycle.test.ts` + `cli.test.ts` 绿
-- 写 `unreadable` 一格：推导名在盘上但不可读（权限 / 读竞态） ⇒ `invalid` 且 reason 为 `unreadable`，`art:` 行与派发门都不许把它当缺席 —— checkable: 该断言绿（今日必红：全仓对 `unreadable` 侧车零覆盖，`carrier-rulings.test.ts` 的无效表只覆盖内容非法）
+- 写 `unreadable` 一格：推导名在盘上但不可读（权限 / 读竞态） ⇒ `invalid` 且 reason 为 `unreadable`，`art:` 行与派发门都不许把它当缺席 —— checkable: 已交付——矩阵读面在 `session/__tests__/carrier-rulings.test.ts:383`（渲染名打不开 ⇒ `invalid("unreadable")`），门面在 `face/__tests__/lifecycle.test.ts:1406`（stderr 带 `rulings sidecar — unreadable`、零 spawn）；本任务只核两处零回退
 - 写门的作用面一格：载体拼写换成 `plan-review-1-a1.json`（能归主、但不是渲染名） ⇒ 派发零 `CDD_BLOCKED`，同一轮 fix 行照 T9 的 F4 ① 印渲染名 —— checkable: 该断言绿（门的读面只解析 `rulings`）
 
 #### Acceptance
@@ -610,3 +610,4 @@ board 加**一族异常事实行** `art:`（`art:` 头行 + `derived` + `found`�
 | v0.24 | 2026-11-15 | 分支评审第 3 轮修复（F2 · nit）：T8 的 `## Files` 补上唯一被签名收敛波及、却不在任何 Files 行的生产文件 `session/dispatch-authority.ts`——`docDriftHashes(target.type, doc, target.type)` 与两处 `roundCount(…, line.type)` 的第三参在 `Ledger#rowFor` 收成两参后成死参，两处调用点同批去掉；`Produces` 补一句 `Ledger#completedCycles` / `roundCount` / `docDriftHashes` / `#docRevisionPair` / `rowFor` 的 `identity` 形参一并退役。代码侧不动（已交付、行为零变化）；本轮消费的 spec 面未变（v0.13 · 零规范增量），只补计划面的 Files / Produces 缺口。 | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-15） |
 | v0.25 | 2026-11-16 | 计划评审 round 16 全量落地（F1–F3，均为 nit，只对齐已闭合任务的陈述与导航）：**F1** 三处把退役面写成现状的句子改成**交付形态**——T1 `Workspace#names()` 记「随 T5 落地（`infra/workspace.ts:125`）、`Ledger#workspaceFiles` 与其 `readdirSync` 一并消失（`session/ledger.ts` 今日零命中）」（T1 Acceptance 的同句同批改），T2 Consumes 的 `RULING_KEYS` 换成今日接受集单源 `ArtifactRegistry.identifierOf("rulings")`（另留 `TOP_KEYS` / `#carrierRefusal` 两处），T5 的两条收紧断言记「T9 已把两处第二声明一并拆除、今日 `.rulings.json` 字面只余矩阵模块、接受集只读 `identifierOf`」，只留零命中验收 · **F2** T4 与 T11 的当轮版本字面按**判据**改写（T4 Files / Acceptance：P35 spec 的修订面是 Constraints 半句 + §2.7 正文，核零回退不写 `v0.37`；T11 Files：plan Done 指针只写判据（指针必须等于本计划 `version:`，升版即落后）、不写当轮数字）· **F3** T8 Files 的「同批调用点」删掉 `session/pipeline.ts`——它的 `roundCount(key, mode)` 早就是两参、生产代码未被签名收敛波及，且全计划无任何 Files 行拥有该文件；测试侧丢参数的三个夹具显式点名，随各自 `Test:` 行走、不另立 Files 行。任务面与 `DependsOn` 不动，代码侧不动。 | [human] 裁定 · Pi（kairos:docs-fix · 2026-11-16） |
 | v0.26 | 2026-11-16 | 分支评审第 4 轮修复（F1 的裁定形态）：母契约把「格里即当前版本」这条约定整体反转——Phase inventory 的两格改记 `✔ Done（<文件名> · <日期>）`、不带版本字面，登记表只记身份与闭合，版本由文档自己的 front-matter 承担（同一处指针落后在本相位四次 blocker 的成因即镜像本身，没有唯一来源可判）。T11 的四处（Objective / Files / Step / Acceptance）按新口径改写：判据从「指针等于本文件 `version:`」变成「该格是文件名 + 日期且零版本字面」，本计划升版因此不再产生待回填的指针。任务面与 `DependsOn` 不动，代码侧不动。 | [human] 裁定 · Claude（kairos:cdd-fix · 2026-11-16） |
+| v0.27 | 2026-11-16 | 计划评审 round 17 全量落地（F1–F2，均为 nit，只对齐已闭合任务的导航与陈述）：**F1** T4 的第二处生产 `PlanSource` 构造点不再钉行号——上一轮的修复把七行插进 `#runWork` 的前导，`cli.ts:763` 因此在同一次提交里漂到 `:770`（该导航位已两度刷新后仍然过期），Files 与 Step 8 两处改按方法名定位（`Cli#runBoard` 内一处、`#runWork` 的命令前导一处），并写明命令前导是随前置步骤增长的那一段；`new PlanSource(` 的三处符号枚举（两处生产面 + 夹具助手 `packages/cdd-engine/src-next/__tests__/support/plan-source.ts:19`）原样保留 · **F2** T6 的 `unreadable` 一格从句首的「今日必红」改述为**交付形**——矩阵读面在 `session/__tests__/carrier-rulings.test.ts:383`（渲染名打不开 ⇒ `invalid("unreadable")`），门面在 `face/__tests__/lifecycle.test.ts:1406`（stderr 带 `rulings sidecar — unreadable`、零 spawn），并删掉「全仓零覆盖 / 无效表只覆盖内容非法」半句（两处 pin 落地后它永不可能再回绿）。任务面与 `DependsOn` 不动，代码侧不动。 | [human] 裁定 · Pi（kairos:docs-fix · 2026-11-16） |

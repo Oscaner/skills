@@ -38,6 +38,7 @@
 
 import type { RouteTarget, TargetType } from "./faces.ts";
 import type { Round } from "./ledger.ts";
+import type { ArtifactRegistry } from "./round-artifacts.ts";
 import type { ExecutionState } from "./state.ts";
 
 /** The next-hop suggestion — the decision table's output (null = no next line). The
@@ -324,6 +325,21 @@ export const FAILED_STATUS = new Set(["BLOCKED", "TIMEOUT"]);
  * no hidden state: every judgment reads the execution state + the round carrier.
  */
 export class NextStepRouter {
+  /** The artifact matrix this router holds — the composition root's single instance,
+   *  handed down so the readback face renders the SAME name the dispatch gate judges
+   *  (the router itself derives no name). */
+  readonly #artifacts: ArtifactRegistry | null;
+
+  constructor(artifacts?: ArtifactRegistry | null) {
+    this.#artifacts = artifacts ?? null;
+  }
+
+  /** The artifact matrix this router holds (null when the caller wired none) — the
+   *  read face the dispatch gate and the readback prompt share. */
+  artifacts(): ArtifactRegistry | null {
+    return this.#artifacts;
+  }
+
   /** next(state, ref) — the C5 derivation: the next-hop Route, or null when the round
    *  produces no next line (the BLOCKED/TIMEOUT failure-mode face). */
   next(state: ExecutionState, ref: Round): Route | null {

@@ -401,7 +401,10 @@ export class Lifecycle {
     this.#state = opts.state;
     this.#ledger = opts.ledger;
     this.#dispatch = opts.dispatch;
-    this.#router = opts.router ?? new NextStepRouter();
+    // The router is built in the constructor body (never a field initializer): the
+    // injected artifact matrix rides the ledger it judges against, so the readback
+    // face and this hop share ONE registry.
+    this.#router = opts.router ?? new NextStepRouter(this.#ledger.artifacts());
     this.#target = opts.target ?? null;
     this.#capsule = opts.capsule ?? null;
     this.#preflight = opts.preflight ?? null;

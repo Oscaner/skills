@@ -20,6 +20,7 @@ import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import type { IssueBodyRenderer, IssueReportInput } from "../render/issue-body.ts";
 import { SkeletonAssembler } from "../render/skeleton.ts";
+import { ArtifactRegistry } from "../session/round-artifacts.ts";
 import type { RunInput } from "./cli.ts";
 import { ARGV_CHANNEL } from "./declare.ts";
 import type { CliIo } from "./lifecycle.ts";
@@ -39,6 +40,10 @@ export type BaseSource = (typeof ARGV_CHANNEL.source.values)[number];
  *  spec §3.2 ⑪). The cross-face gate (kairos suite) pins the `base.md` schema
  *  table's field set to THIS tuple, so the doc and the artifact can never drift. */
 export const BASE_ARTIFACT_FIELDS = ["base", "source", "plan", "recordedAt"] as const;
+
+/** The base artifact's workspace-relative name — the artifact matrix's `base` row is
+ *  the ONE home of the spelling; this class reads the answer, never a literal. */
+const BASE_NAME = ArtifactRegistry.nameOf("base");
 
 /** The base artifact schema — the sole CDD --plan target's read/write row (the
  *  artifact file carries the `base` face: the base branch the plan's line rides).
@@ -171,8 +176,8 @@ export class CliArtifacts {
       plan: planPath,
       recordedAt: new Date().toISOString(),
     };
-    workspace.writeJson("base.json", artifact);
-    this.#io.stdout(`${root.relativize(workspace.resolve("base.json"))}\n`);
+    workspace.writeJson(BASE_NAME, artifact);
+    this.#io.stdout(`${root.relativize(workspace.resolve(BASE_NAME))}\n`);
     return 0;
   }
 
@@ -184,7 +189,7 @@ export class CliArtifacts {
   baseGet(workspace: Workspace, root: RepoRoot): number {
     const artifact = this.#readBase(workspace);
     if (artifact === null) {
-      const path = root.relativize(workspace.resolve("base.json"));
+      const path = root.relativize(workspace.resolve(BASE_NAME));
       this.#io.stderr(`cdd base get: missing or corrupt base artifact at ${path}\n`);
       return 2;
     }
@@ -226,7 +231,7 @@ export class CliArtifacts {
    *  narrowed to the declared enum domain (a value outside the four-value set is a
    *  schema-invalid artifact → null, never a fabricated source). */
   #readBase(workspace: Workspace): BaseArtifact | null {
-    const read = workspace.readJson<unknown>("base.json");
+    const read = workspace.readJson<unknown>(BASE_NAME);
     if (read.kind !== "ok") return null;
     const parsed = read.value;
     if (parsed === null || typeof parsed !== "object") return null;

@@ -15,6 +15,7 @@
 
 import { chmodSync, type Dirent, readdirSync, statSync } from "node:fs";
 import path from "node:path";
+import type { ArtifactRegistry } from "../session/round-artifacts.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 
 /** The ruling sidecar's suffix — a sidecar is written AFTER its carrier is sealed and
@@ -57,19 +58,27 @@ export class CarrierSeal {
    *  a `.rulings.json` sidecar is never touched. Everything else in the directory is
    *  invisible to the sweep, and an already-sealed carrier is zero churn: not returned,
    *  not rewritten, so an empty array means there was nothing to recover. */
-  static sweep(directory: string, keep: readonly string[]): readonly string[] {
-    const strays = CarrierSeal.#strays(directory, keep);
+  static sweep(
+    directory: string,
+    keep: readonly string[],
+    artifacts?: ArtifactRegistry | null,
+  ): readonly string[] {
+    const strays = CarrierSeal.#strays(directory, keep, artifacts ?? null);
     for (const name of strays) CarrierSeal.seal(path.join(directory, name));
     return strays;
   }
 
   /** The directory's orphan carrier NAMES — the sweep's judgment, before any chmod. */
-  static #strays(directory: string, keep: readonly string[]): readonly string[] {
+  static #strays(
+    directory: string,
+    keep: readonly string[],
+    artifacts: ArtifactRegistry | null,
+  ): readonly string[] {
     const strays: string[] = [];
     for (const entry of CarrierSeal.#entries(directory)) {
       if (!entry.isFile()) continue;
       const target = path.join(directory, entry.name);
-      if (!CarrierSeal.#isStray(target, entry.name, keep)) continue;
+      if (!CarrierSeal.#isStray(target, entry.name, keep, artifacts)) continue;
       strays.push(entry.name);
     }
     return strays;
@@ -79,14 +88,29 @@ export class CarrierSeal {
    *  carrier name, not held open by the caller, not a ruling sidecar, and NOT already
    *  sealed. An unreadable entry (a vanished race) is not a stray — the sweep never
    *  invents a recovery it did not make. */
-  static #isStray(target: string, name: string, keep: readonly string[]): boolean {
-    if (!RoundNaming.isCarrierName(name)) return false;
+  static #isStray(
+    target: string,
+    name: string,
+    keep: readonly string[],
+    artifacts: ArtifactRegistry | null,
+  ): boolean {
+    if (!CarrierSeal.#isSealedName(name, artifacts)) return false;
     if (keep.includes(name) || name.endsWith(RULINGS_SUFFIX)) return false;
     try {
       return (statSync(target).mode & 0o777) !== CarrierSeal.SEALED;
     } catch {
       return false;
     }
+  }
+
+  /** Whether one name belongs to a row the matrix marks `sealed`. The matrix's
+   *  `sealed` column is the ONE answer once a domain registers the carrier kinds; until
+   *  then (this wave registers the workspace rows alone) the naming predicate stands in
+   *  — same judgment, one home per domain, no behaviour change either way. */
+  static #isSealedName(name: string, artifacts: ArtifactRegistry | null): boolean {
+    const attributed = artifacts?.attribute(name) ?? null;
+    if (attributed === null) return RoundNaming.isCarrierName(name);
+    return artifacts?.rowOf(attributed.kind)?.sealed === true;
   }
 
   /** The directory's entries — an unreadable directory (never created) holds no

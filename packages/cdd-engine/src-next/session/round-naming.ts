@@ -18,6 +18,7 @@
 import type { Workspace } from "../infra/workspace.ts";
 import { TargetFaceTable, type TargetType, targetFaces } from "./faces.ts";
 import type { HandoffParams, OpType } from "./ledger.ts";
+import { ArtifactRegistry } from "./round-artifacts.ts";
 import type { OpenFrame } from "./run.ts";
 
 /** The two carrier-name shapes this engine MINTS — the draft and its final twin.
@@ -181,9 +182,10 @@ export class RoundNaming {
   }
 
   /** The brief's workspace-relative NAME — the write face takes the name, the read
-   *  faces take the resolved path (one derivation, both spellings). */
+   *  faces take the resolved path (one derivation, both spellings). The template is the
+   *  artifact matrix's `brief` row; this is a delegate, never a second rendering. */
   briefName(tasks: string): string {
-    return `tasks-${tasks}-brief.md`;
+    return ArtifactRegistry.nameOf("brief", tasks);
   }
 
   /** The prescribed report path of a round — the shared stem with `-report.md`. */

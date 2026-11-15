@@ -52,6 +52,7 @@ import {
   RoundViolation,
   type Termination,
 } from "../session/ledger.ts";
+import type { ArtifactRegistry } from "../session/round-artifacts.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { PlanStructure } from "../session/run.ts";
@@ -190,6 +191,9 @@ export class CliLifecycle {
   /** Whether this invocation asked to take over a dead holder's record (the
    *  `--recover` flag — the only takeover path). */
   readonly #recover: boolean;
+  /** The artifact matrix this dispatch holds — the composition root's single instance,
+   *  handed to the seal sweep so the carrier set is read out of ONE table. */
+  readonly #artifacts: ArtifactRegistry | null;
   /** The HEAD the current dispatch started from (null off a repo / before a spawn) —
    *  the postmortem baseline of `commitsSince` AND the in-flight record's
    *  `dispatchBase` cell (the killed round's group baseline a takeover restores, §2.2). */
@@ -222,6 +226,7 @@ export class CliLifecycle {
     proc?: ProcessStartReader;
     recover?: boolean;
     brief?: BriefRenderer;
+    artifacts?: ArtifactRegistry | null;
   }) {
     this.#env = opts.env ?? process.env;
     this.#scene = opts.scene;
@@ -231,6 +236,7 @@ export class CliLifecycle {
     this.#git = opts.git ?? new GitClient();
     this.#proc = opts.proc ?? ProcessFacts;
     this.#recover = opts.recover ?? false;
+    this.#artifacts = opts.artifacts ?? null;
     this.#sync = opts.sync ?? new Terminator();
     this.#template = opts.template ?? new TemplateAssembler();
     this.#brief = opts.brief ?? new BriefRenderer();
@@ -1075,7 +1081,7 @@ export class CliLifecycle {
    *  draft of a retried round) is already closed when it is reopened here: the window
    *  is the two names, never a third file. */
   #openRoundCarriers(frame: OpenFrame): void {
-    CarrierSeal.sweep(this.#scene.workspace.path, []);
+    CarrierSeal.sweep(this.#scene.workspace.path, [], this.#artifacts);
     for (const name of this.#roundCarrierNames(frame)) CarrierSeal.unseal(name);
   }
 

@@ -38,6 +38,7 @@ import { type Carrier, type CarrierPlane, HandoffSchema } from "./handoff-schema
 import { LineIdentity } from "./line-identity.ts";
 import type { DocClassVerdict, NextHop, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
+import { ArtifactRegistry } from "./round-artifacts.ts";
 import { type RoundArtifact, RoundNaming } from "./round-naming.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
 
@@ -647,8 +648,13 @@ export class Ledger {
    *  input (the file names are the naming face's one mint, never a table here). */
   readonly #families: readonly HandoffFamily[];
   /** The C5 next router — the closure-side judge of the round carriers (stateless;
-   *  the `closedWaves()` read face and the wave gate share the same router). */
-  readonly #router = new NextStepRouter();
+   *  the `closedWaves()` read face and the wave gate share the same router). Built in
+   *  the constructor body, never as a field initializer: the injected artifact matrix
+   *  is a constructor argument, and a field initializer runs before it is assigned. */
+  readonly #router: NextStepRouter;
+  /** The artifact matrix this ledger's names resolve through — the composition root's
+   *  single instance, held (never minted) so a read face asks one table. */
+  readonly #artifacts: ArtifactRegistry | null;
   /** The handoff-schema face — the conclusion single source (`conclusionOf`), one
    *  instance per ledger (the round verdict derives from the op's carrier plane at
    *  judgment time · D27). */
@@ -677,11 +683,24 @@ export class Ledger {
    *  artifact names derive here (zero second derivation). */
   readonly #naming: RoundNaming;
 
-  constructor(workspace: Workspace, config: ConfigLoader, plan: PlanSource) {
+  constructor(
+    workspace: Workspace,
+    config: ConfigLoader,
+    plan: PlanSource,
+    artifacts?: ArtifactRegistry | null,
+  ) {
     this.#workspace = workspace;
     this.#families = config.handoffNamespace().families;
     this.#plan = plan;
     this.#naming = new RoundNaming(workspace);
+    this.#artifacts = artifacts ?? null;
+    this.#router = new NextStepRouter(this.#artifacts);
+  }
+
+  /** The artifact matrix this ledger holds — the same instance the composition root
+   *  handed to every other read face (null when the caller wired none). */
+  artifacts(): ArtifactRegistry | null {
+    return this.#artifacts;
   }
 
   /** The review-reference face — the refKind three-type derivation + binding (T25). */
@@ -738,12 +757,12 @@ export class Ledger {
 
   /** Read progress.json; null when missing/corrupt (the ledger never invents state). */
   readProgress(): ProgressData | null {
-    return this.#read<ProgressData>("progress.json");
+    return this.#read<ProgressData>(ArtifactRegistry.nameOf("progress"));
   }
 
   /** Write progress.json — the progress single-author write. */
   writeProgress(data: ProgressData): void {
-    this.#persist("progress.json", data);
+    this.#persist(ArtifactRegistry.nameOf("progress"), data);
   }
 
   /** The ledger-row lookup single point — a scalar key (or the single-task wave key

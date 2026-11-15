@@ -52,6 +52,7 @@ import type { InFlightState } from "../session/inflight.ts";
 import { Ledger, type ProgressData, type RoundRecord, RoundRecords } from "../session/ledger.ts";
 import type { DocClassVerdict, NextHop } from "../session/next.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "../session/pipeline.ts";
+import type { ArtifactRegistry } from "../session/round-artifacts.ts";
 import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
 import { type RouteChannelRow, RouteRenderer } from "./route-render.ts";
 import type { Words } from "./words.ts";
@@ -597,6 +598,7 @@ export class BoardView {
     channels: Readonly<Record<string, RouteChannelRow>> = {},
     holding: InFlightState = { kind: "absent" },
     next: NextHop | null = null,
+    artifacts: ArtifactRegistry | null = null,
   ): BoardRender {
     const lines: string[] = [`cdd board: ${entry.slug ?? "(none)"}`, ""];
     // The repo-basis value object — constructed ONCE at this boundary, the ONE
@@ -607,7 +609,7 @@ export class BoardView {
     const root = new RepoRoot(repoRoot);
     const exitCode =
       entry.docType === "overall"
-        ? BoardView.#programBoard(readTable, plan, lines, index, entry, root, words)
+        ? BoardView.#programBoard(readTable, plan, lines, index, entry, root, words, artifacts)
         : BoardView.#nodeBoard(
             // A node board is ONE document: the caller's single row. An empty table
             // means no document was read at all — the seam's own undeclared value is
@@ -623,6 +625,7 @@ export class BoardView {
             channels,
             holding,
             next,
+            artifacts,
           );
     lines.push("", PROGRESS_LEGEND.board);
     return { lines, exitCode };
@@ -649,15 +652,17 @@ export class BoardView {
     channels: Readonly<Record<string, RouteChannelRow>>,
     holding: InFlightState,
     next: NextHop | null,
+    artifacts: ArtifactRegistry | null,
   ): number {
     const repoRoot = root.absolute;
     const sources = BoardView.#nodeSources(index, entry);
     const nodeSlug = BoardView.#validSlug(entry);
-    const ledger = nodeSlug === null ? null : BoardView.#ledgerOf(plan, nodeSlug, repoRoot);
+    const ledger =
+      nodeSlug === null ? null : BoardView.#ledgerOf(plan, nodeSlug, repoRoot, artifacts);
     const progress = ledger?.readProgress() ?? null;
     const overallSlug = BoardView.#validSlug(sources.overall);
     const overallLedger =
-      overallSlug === null ? null : BoardView.#ledgerOf(plan, overallSlug, repoRoot);
+      overallSlug === null ? null : BoardView.#ledgerOf(plan, overallSlug, repoRoot, artifacts);
     const overallProgress = overallLedger?.readProgress() ?? null;
     // The tree's dispatch fact + the node workspace's orphan drafts + the node's
     // crashed rounds render before the line rows (a reader answers "is anyone working
@@ -820,10 +825,12 @@ export class BoardView {
     entry: DocEntry,
     root: RepoRoot,
     words: Words,
+    artifacts: ArtifactRegistry | null,
   ): number {
     const repoRoot = root.absolute;
     const overallSlug = BoardView.#validSlug(entry);
-    const ledger = overallSlug === null ? null : BoardView.#ledgerOf(plan, overallSlug, repoRoot);
+    const ledger =
+      overallSlug === null ? null : BoardView.#ledgerOf(plan, overallSlug, repoRoot, artifacts);
     const overallLine = BoardView.#lineOf(
       "overall",
       "overall",
@@ -852,7 +859,7 @@ export class BoardView {
       const read = readTable[pos];
       const phaseSlug = BoardView.#validSlug(phase);
       const phaseLedger =
-        phaseSlug === null ? null : BoardView.#ledgerOf(plan, phaseSlug, repoRoot);
+        phaseSlug === null ? null : BoardView.#ledgerOf(plan, phaseSlug, repoRoot, artifacts);
       const phaseProgress = phaseLedger?.readProgress() ?? null;
       const specLine = BoardView.#lineOf("spec", "phase-spec", phase, phaseProgress, phaseLedger);
       const planEntry = phaseSlug === null ? null : index.planOf(phaseSlug);
@@ -982,9 +989,14 @@ export class BoardView {
    *  derivation consumes (each node reads its OWN workspace). The plan read seam is
    *  the caller's per-command instance, threaded down unchanged: the board never
    *  mints a second `PlanSource`. */
-  static #ledgerOf(plan: PlanSource, nodeSlug: string, repoRoot: string): Ledger {
+  static #ledgerOf(
+    plan: PlanSource,
+    nodeSlug: string,
+    repoRoot: string,
+    artifacts: ArtifactRegistry | null = null,
+  ): Ledger {
     const root = new WorkspaceRoot(repoRoot, ENGINE_RUNTIME.handoffNamespace.workspaceRoot);
-    return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader(), plan);
+    return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader(), plan, artifacts);
   }
 
   /** pipelineFacts(read, plan, index, entry, root) — the board's FACTS about the
@@ -1006,10 +1018,11 @@ export class BoardView {
     index: SlugIndex,
     entry: DocEntry,
     root: RepoRoot,
+    artifacts: ArtifactRegistry | null = null,
   ): BoardPipelineFacts | null {
     const nodeSlug = BoardView.#validSlug(entry);
     if (nodeSlug === null) return null;
-    const ledger = BoardView.#ledgerOf(plan, nodeSlug, root.absolute);
+    const ledger = BoardView.#ledgerOf(plan, nodeSlug, root.absolute, artifacts);
     const sources = BoardView.#nodeSources(index, entry);
     const specPath = sources.spec?.path ?? null;
     // The path the frontier receives IS the path of the document this read opened —
@@ -1124,10 +1137,13 @@ export class BoardNext {
     index: SlugIndex,
     entry: DocEntry,
     root: RepoRoot,
+    artifacts: ArtifactRegistry | null = null,
   ): NextHop | null {
     if (read.kind === "unreadable" || read.orphan()?.cause === "spec-absent") return null;
     const facts =
-      entry.docType === "overall" ? null : BoardView.pipelineFacts(read, plan, index, entry, root);
+      entry.docType === "overall"
+        ? null
+        : BoardView.pipelineFacts(read, plan, index, entry, root, artifacts);
     return facts === null ? null : BoardNext.#hopOf(facts, root);
   }
 

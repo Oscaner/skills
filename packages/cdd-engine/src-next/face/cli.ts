@@ -78,11 +78,11 @@ import {
 } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import { HoldingError, InFlight } from "../session/inflight.ts";
-import type { RoundStatus } from "../session/ledger.ts";
-import { Ledger } from "../session/ledger.ts";
+import { Ledger, type RoundStatus } from "../session/ledger.ts";
 import { NextStepRouter } from "../session/next.ts";
 import type { PipelineFrontierInput } from "../session/pipeline.ts";
 import { PreFlight, type PreFlightVerdict } from "../session/preflight.ts";
+import { ArtifactRegistry } from "../session/round-artifacts.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { CliArtifacts } from "./artifacts.ts";
@@ -536,10 +536,14 @@ export class Cli {
     const host = HostDetect.detect(process.env);
     // The in-flight fact is TREE-level: the board inspects it (read-only — the gate
     // and the board share `InFlight.inspect()`, never a second liveness judgment).
-    const inflight = new InFlight(
-      new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
-      entry.slug ?? "",
+    const workspaceRoot = new WorkspaceRoot(
+      repoRoot,
+      this.#config.handoffNamespace().workspaceRoot,
     );
+    // The board's ONE matrix instance — the same table the node ledgers and the seal
+    // sweep read, so the board renders facts and holds no name rule of its own.
+    const artifacts = this.#matrixOf(new Workspace(workspaceRoot, entry.slug ?? ""));
+    const inflight = new InFlight(workspaceRoot, entry.slug ?? "");
     // The board's `next:` line renders ONE injected `NextHop` (P22 §5.2 · P24 §11):
     // the pipeline FACTS come from the board face, and the ONE hop assembly (the four
     // face-order rules + the six hop cells) lives in the session plane's
@@ -552,7 +556,7 @@ export class Cli {
     // otherwise).
     const readTable = this.#boardReadTable(planSource, index, entry, soloPlanRead);
     const read = readTable[0] ?? planSource.readFor(entry);
-    const next = BoardNext.of(read, planSource, index, entry, root);
+    const next = BoardNext.of(read, planSource, index, entry, root, artifacts);
     // The read's own diagnostics (spec §2.4): stderr, one line per bad read, printed
     // BEFORE the board. `warnLine` answers null for a healthy plan and for the normal
     // `undeclared` gap, so the line count is exactly (bad plans + `spec-absent`
@@ -572,6 +576,7 @@ export class Cli {
       ARGV_CHANNEL,
       await inflight.inspect(),
       next,
+      artifacts,
     );
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;
@@ -703,8 +708,9 @@ export class Cli {
     // all read their plan through this ONE seam.
     const planSource = new PlanSource(root);
     const parsed = this.#funnel(root, raw);
-    const scene = await this.#sceneOf(verb, type, node, root, planSource, parsed);
-    if (scene === null) return 1;
+    const assembled = await this.#sceneOf(verb, type, node, root, planSource, parsed);
+    if (assembled === null) return 1;
+    const { scene, artifacts } = assembled;
 
     // THE pre-flight seam (P4.1 T1 · design §1): the STRUCTURE gates —
     // tree-clean → in-flight → graph → plan-ledger → doc-contract — ONE call, the
@@ -791,7 +797,7 @@ export class Cli {
       !parsed.dryRun &&
       parsed.args.recover === "true" &&
       this.#authority.structureRefusal(preflight) === null
-        ? await this.#recoverRun(verb, type, scene, parsed, inflight)
+        ? await this.#recoverRun(verb, type, scene, parsed, inflight, artifacts)
         : null;
     if (recovery !== null && recovery.kind === "blocked") {
       this.#io.stderr(`${this.#words.station("blocked")} ${recovery.message}\n`);
@@ -874,7 +880,12 @@ export class Cli {
       scene.briefPath = this.#gate.renderBrief(scene, parsed, text, doc);
     }
     const statuses: (RoundStatus | null)[] = [];
-    const dispatch: DispatchStep = await this.#dispatchOf(scene, parsed, recovery?.harness ?? null);
+    const dispatch: DispatchStep = await this.#dispatchOf(
+      scene,
+      parsed,
+      recovery?.harness ?? null,
+      artifacts,
+    );
     const run = new Lifecycle({
       face: scene.face,
       state: scene.state,
@@ -1016,10 +1027,11 @@ export class Cli {
   async #dispatchOf(
     scene: WorkScene,
     parsed: RunInput,
-    recovered: CliLifecycle | null = null,
+    recovered: CliLifecycle | null,
+    artifacts: ArtifactRegistry,
   ): Promise<DispatchStep> {
     if (this.#dispatch !== null) return this.#dispatch;
-    const harness = recovered ?? this.#lifecycleOf(scene, parsed);
+    const harness = recovered ?? this.#lifecycleOf(scene, parsed, artifacts);
     // The abort fold already ran at the composition root's `--recover` judgment
     // (`#recoverRun`) when a harness was handed in; the injected/default face keeps
     // its own fold here, so the takeover always precedes this dispatch's own record.
@@ -1048,8 +1060,9 @@ export class Cli {
     scene: WorkScene,
     parsed: RunInput,
     inflight: InFlight,
+    artifacts: ArtifactRegistry,
   ): Promise<RecoverRun> {
-    const harness = this.#lifecycleOf(scene, parsed);
+    const harness = this.#lifecycleOf(scene, parsed, artifacts);
     const stale = (await inflight.staleState()) !== null;
     if (stale) await harness.foldAbort();
     const reopened = await this.#reopenLeg(verb, type, scene, inflight);
@@ -1090,7 +1103,7 @@ export class Cli {
   /** The invocation's lifecycle harness — the production dispatch face, held by the
    *  composition root so the abort fold can ride the SAME instance that dispatches
    *  (the takeover precedes the stamp, spec §2.1④). */
-  #lifecycleOf(scene: WorkScene, parsed: RunInput): CliLifecycle {
+  #lifecycleOf(scene: WorkScene, parsed: RunInput, artifacts: ArtifactRegistry): CliLifecycle {
     return new CliLifecycle({
       env: process.env,
       sync: this.#sync,
@@ -1111,6 +1124,8 @@ export class Cli {
       // The explicit takeover flag (`--recover`): the ONLY path that displaces a
       // standing in-flight record — and only when its holder is dead.
       recover: parsed.args.recover === "true",
+      // The same matrix instance the scene's ledger and router hold.
+      artifacts,
     });
   }
 
@@ -1119,7 +1134,7 @@ export class Cli {
    *  writes). "" when the artifact is absent or malformed (the slot stays empty and
    *  the assembler drops it — the wave/branch review then judges the live tree). */
   #baseBranchOf(scene: WorkScene): string {
-    const read = scene.workspace.readJson<{ base?: unknown }>("base.json");
+    const read = scene.workspace.readJson<{ base?: unknown }>(ArtifactRegistry.nameOf("base"));
     const artifact = read.kind === "ok" ? read.value : null;
     return typeof artifact?.base === "string" ? artifact.base : "";
   }
@@ -1228,7 +1243,7 @@ export class Cli {
     root: RepoRoot,
     planSource: PlanSource,
     parsed: RunInput,
-  ): Promise<WorkScene | null> {
+  ): Promise<{ scene: WorkScene; artifacts: ArtifactRegistry } | null> {
     const config = this.#config;
     const face = targetFaces[type];
     const repoRoot = root.absolute;
@@ -1330,7 +1345,11 @@ export class Cli {
     // normalization is the ONE heal path, covering `base.json` alongside
     // `progress.json` (a second healing point is gone).
     const workspace = new Workspace(rootPath, slug);
-    const ledger = new Ledger(workspace, config, planSource);
+    // The artifact matrix — constructed ONCE here (the command preamble) and handed
+    // down: the ledger, the router, the lifecycle's seal sweep and the board all read
+    // the same instance, so no face can spell an artifact name of its own.
+    const artifacts = this.#matrixOf(workspace);
+    const ledger = new Ledger(workspace, config, planSource, artifacts);
     // The run state degrades to the empty state on a non-ready plan: the scene is
     // assembled BEFORE the pre-flight verdict, and the refusal leg (Task 4's
     // doc-contract leg) stops the dispatch before any `state` consumer runs. No
@@ -1352,20 +1371,31 @@ export class Cli {
       plan,
     };
     return {
-      workspace,
-      ledger,
-      planPath,
-      plan,
-      type,
-      face,
-      target,
-      state,
-      router: new NextStepRouter(),
-      pipeline,
-      briefPath: null,
-      specLink,
-      overallLink,
+      scene: {
+        workspace,
+        ledger,
+        planPath,
+        plan,
+        type,
+        face,
+        target,
+        state,
+        router: new NextStepRouter(artifacts),
+        pipeline,
+        briefPath: null,
+        specLink,
+        overallLink,
+      },
+      artifacts,
     };
+  }
+
+  /** The artifact matrix of one workspace — the ONE construction point of the whole
+   *  tree, called once per command invocation by the preamble. Every read face takes
+   *  the instance as an argument; a face that builds its own has left the single
+   *  source. */
+  #matrixOf(workspace: Workspace): ArtifactRegistry {
+    return new ArtifactRegistry(workspace);
   }
 
   /** The argv-face plan read (the wave / plan / branch lines) — ONE read through the

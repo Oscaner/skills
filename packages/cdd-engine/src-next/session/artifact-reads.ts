@@ -87,21 +87,13 @@ export class ArtifactReads {
     }
   }
 
-  /** The reviewed round's identity — the ONE source of the sidecar's name
-   *  (`attribute(path.basename(carrier))`, `op` fixed to `review`), or null when the
-   *  carrier attributes to no round coordinate at all. */
+  /** The reviewed round's identity — delegated to the matrix's ONE entry
+   *  (`ArtifactRegistry#reviewedIdentityOf`: `attribute(basename(carrier))` with `op`
+   *  fixed to `review`), or null when the carrier attributes to no round coordinate at
+   *  all. The seam owns the COMPOSITION, the matrix owns the identity: neither spelling
+   *  is repeated here. */
   #identityOf(carrier: string): Identity | null {
-    if (carrier === "") return null;
-    const attributed = this.#artifacts.attribute(path.basename(carrier));
-    if (attributed === null || attributed.identity.domain !== "round") return null;
-    const { line, cycle, attempt } = attributed.identity;
-    return {
-      domain: "round",
-      line,
-      op: "review",
-      ...(cycle === undefined ? {} : { cycle }),
-      ...(attempt === undefined ? {} : { attempt }),
-    };
+    return this.#artifacts.reviewedIdentityOf(carrier);
   }
 
   /** The carrier's absolute path — the ONE erasure from the repo-relative carrier

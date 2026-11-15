@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P36 计划：身份面收权（身份域 × 产物矩阵 · 缺席有门 · 形状可发现）'
 doc-type: plan
-version: v0.19
+version: v0.20
 date: 2026-11-15
 slug: 2026-10-10-engine-doc-tooling-p36
 base: develop
@@ -356,7 +356,7 @@ board 加**一族异常事实行** `art:`（`art:` 头行 + `derived` + `found`�
 
 - Create: `packages/cdd-engine/src-next/session/artifact-reads.ts`（`ArtifactReads` 深类：**无帧**的两级合成读，构造收 `(artifacts, base)`、唯一方法 `read(kind, carrier, digest)`；`ArtifactReadOf` 值类型从 `face/lifecycle.ts` 迁入，两个消费者共用同一套臂）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#artifactReadOf` 改为委托 `new ArtifactReads(this.#artifacts, this.#scene.workspace).read(...)`，只留按 kind 的一层与帧内的摘要 / id 集取面；`#artifactCellOf` / `#artifactRefusalOf` / `artifactRefusal` 三面不动）
-- Modify: `packages/cdd-engine/src-next/face/board-view.ts`（`art:` 事实行 + `--artifacts` 视图；`#ledgerOf` 在同一处构造那个 `Workspace` 并让账本与 `ArtifactReads` 共用它——一处构造、零第二次；`#nodeBoard` 已有的 `ledger` / `progress` 就是记录来源）
+- Modify: `packages/cdd-engine/src-next/face/board-view.ts`（`art:` 事实行 + `--artifacts` 视图，**两种板面同样落块**：node board 用 `#artifactScopes` 的 node / program 两 scope，program board 把 overall 行绑到它已持有的 program seat 落一块，`showArtifacts` 贯穿 `BoardView.render` 两臂；`#ledgerOf` 在同一处构造那个 `Workspace` 并让账本与 `ArtifactReads` 共用它——一处构造、零第二次；`#nodeBoard` 已有的 `ledger` / `progress` 就是记录来源；事实行的三个 key 是板面自己的一份常量（§2.6 的字节与门报文的 `derived:  ` 是两个契约），字节由板面断言钉住）
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`（旗标接线）
 - Modify: `packages/cdd-engine/src-next/face/declare.ts`（`ARGV_CHANNEL` 增 `artifacts` 行（`{ flag: "--artifacts", type: "bool", help }`），`CLI_COMMANDS` 的 `board.keys` 增该项；help / example 是否连带改在同一步判定）
 - Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（健康树逐字节不变 + 异常仅新增一个 `art:` 事实块）
@@ -390,7 +390,7 @@ board 加**一族异常事实行** `art:`（`art:` 头行 + `derived` + `found`�
 
 #### Acceptance
 
-健康树零字节变化（P33/P34/P35 的 board pin 全绿）；异常仅新增 `art:` 事实块（`art:` 头行 + `derived` + `found`，字节按 spec §2.6）；`art:` 插在行区之后、`next:` / `reason:` 之前（后两者仍为最后两行），且 `art` 不新增列、不进尾计数格（产物盘点轴与 findings 计数轴不混）；`misplaced` 与 `invalid` 两臂都能落 `art:`（`invalid` 带其 reason）；`art:` 的判定集合 = 门的那一个 kind 集（今日唯一 `rulings`），其余 kind 的差异仍是 `orphan:`；`--artifacts` 默认关，且旗标宣告在 `ARGV_CHANNEL` 并被 `board` 声明（频道闭环门绿）；`art:` 的判别值来自**无帧接缝** `ArtifactReads`（`Lifecycle` 与 `BoardView` 两个消费者、板面零第二次合成，`CarrierRulings.verdict(` 生产源码内仍只一处），且同一 carrier 上板面的 `derived` / `found` 与门报文 `derived:` / `found` 段逐字节相等；板面的被观察轮 = 该文档线记录里 `op === "review"` 的那些轮（`--artifacts` 的「一轮一行」即这条序列，无记录认领的名字不进 `art:`）。
+健康树零字节变化（P33/P34/P35 的 board pin 全绿）；异常仅新增 `art:` 事实块（`art:` 头行 + `derived` + `found`，字节按 spec §2.6）；`art:` 插在行区之后、`next:` / `reason:` 之前（后两者仍为最后两行），且 `art` 不新增列、不进尾计数格（产物盘点轴与 findings 计数轴不混）；**program board 与 node board 同一投影**：overall 行自己的 review 轮落 `art:`，`--artifacts` 在两种板面上都展开坐标（旗标不是空转）；`misplaced` 与 `invalid` 两臂都能落 `art:`（`invalid` 带其 reason）；`art:` 的判定集合 = 门的那一个 kind 集（今日唯一 `rulings`），其余 kind 的差异仍是 `orphan:`；`--artifacts` 默认关，且旗标宣告在 `ARGV_CHANNEL` 并被 `board` 声明（频道闭环门绿）；`art:` 的判别值来自**无帧接缝** `ArtifactReads`（`Lifecycle` 与 `BoardView` 两个消费者、板面零第二次合成，`CarrierRulings.verdict(` 生产源码内仍只一处），且同一 carrier 上板面的 `derived` / `found` 与门报文 `derived:` / `found` 段逐字节相等；板面的被观察轮 = 该文档线记录里 `op === "review"` 的那些轮（`--artifacts` 的「一轮一行」即这条序列，无记录认领的名字不进 `art:`）。
 
 #### DependsOn
 
@@ -450,7 +450,8 @@ board 加**一族异常事实行** `art:`（`art:` 头行 + `derived` + `found`�
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#rulingsInputOf` 只回路径行；`#rulingLine` 删除；路径由载体身份渲染）
 - Modify: `packages/cdd-engine/src-next/session/next.ts`（`FIX_READBACK_SUFFIX` 收回规则句、改为值位模板（保留导出，`<rendered sidecar path>` 是槽位）；`Route` 的 fix 臂（`{ kind: "fix"; reviews?: string }`）新增值位字段（如 `rulings?: string`），`Router#next` 的两个 fix 分支（`:353` / `:374`）按 `attribute(path.basename(carrierPath))` → `render(identity, "rulings")` 算值写进该字段，`attribute → null` 时不写该字段（无身份臂）；文件内零 `.rulings.json` 字面）
 - Modify: `packages/cdd-engine/src-next/face/route-render.ts`（五处 fix 行填 `Route` 带来的值——与门 `derived:` 同值、由载体身份算出；`#fixText` 只填 `route.rulings`，零推导；`route.rulings === undefined` ⇒ `FIX_READBACK_SUFFIX` 整段省略，零空槽）
-- Modify: `packages/cdd-engine/src-next/__tests__/artifact-literal-door.test.ts`（把 T5 的判定函数门收紧成真树断言：`.rulings.json` 字面集 = 矩阵行 + 夹具，`finding` / `id` 接受集恰一处声明）
+- Modify: `packages/cdd-engine/src-next/session/round-artifacts.ts`（`ArtifactRegistry#reviewedIdentityOf(name)`：被评审轮身份的唯一入口——`attribute(basename(name))` + `op` 恒 `review`，`cycle` / `attempt` 取载体自己的坐标；`ArtifactReads` 与 `Router#next` 两处都调它，`op: "review"` 的身份构造在生产源码内只此一处）
+- Modify: `packages/cdd-engine/src-next/__tests__/artifact-literal-door.test.ts`（把 T5 的判定函数门收紧成真树断言：`.rulings.json` 字面集 = 矩阵行 + 夹具，`finding` / `id` 接受集恰一处声明，**被评审轮身份的 `op: "review"` 构造恰一处**（`op: "review" | "fix"` 的类型标注是另一件事实，门排除它））
 - Test: `packages/cdd-engine/src-next/session/__tests__/carrier-rulings.test.ts`（`id` 与 `finding` 双向，未知键仍拒）
 - Test: `packages/cdd-engine/src-next/render/__tests__/render.test.ts`（两壳各含读法句；`INPUT_RULINGS` 的模板面只固定前缀句，正文零行那条不在这一层断言）
 - Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（侧车**真的带** rulings 时 round context 恰一行 `- \`INPUT_RULINGS\``、零缩进正文行；同一轮里 fix 行印的路径与门报文 `derived:` 段逐字节相等）
@@ -470,7 +471,8 @@ board 加**一族异常事实行** `art:`（`art:` 头行 + `derived` + `found`�
 - `#rulingsInputOf` 的单行路径形态（`#rulingLine` 零残留）
 - `FIX_READBACK_SUFFIX` 的值位模板（保留导出；句子逐字节固定，路径由 `RouteRenderer` 从 `Route` 填）与新的 `next:` fix 行字面
 - `Route` fix 臂的值位字段（名字由 `Router#next` 按载体身份算出，不按文件名换尾）
-- 门的两条收紧用例（与 T5 的判定函数同文件）：`.rulings.json` 字面集 = 矩阵行 + 夹具、`finding` / `id` 接受集恰一处声明
+- 门的三条收紧用例（与 T5 的判定函数同文件）：`.rulings.json` 字面集 = 矩阵行 + 夹具、`finding` / `id` 接受集恰一处声明、被评审轮身份的构造恰一处
+- 被评审轮身份的唯一入口 `ArtifactRegistry#reviewedIdentityOf`（sidecar 读接缝与 `Router#next` 两个消费者共用，`op: "review"` 构造在生产源码内单源）
 - 无身份臂：`attribute → null` ⇒ `Route` 的 `rulings` 值位缺席、`FIX_READBACK_SUFFIX` 整段省略（零空槽、零回落规则句），fix 行只印 `cdd fix … --reviews <path>`
 
 #### Steps
@@ -486,7 +488,7 @@ board 加**一族异常事实行** `art:`（`art:` 头行 + `derived` + `found`�
 
 #### Acceptance
 
-`finding` / `id` 双向且未知键仍整份拒、接受集单源；两壳读法句在册且 `INPUT_RULINGS` 恰一行路径、零正文行、`#rulingLine` 零残留；fix 行印解析后路径、`session/next.ts` 零 `.rulings.json` 字面；四个 pin 站点（`face.test.ts` · `cli.test.ts` · `capsule.test.ts` · `session/__tests__/next.test.ts`，后者点名 `:186` 的整句 pin 与 `:192` 的字面类型 pin）按路径重锚；载体拼写 ≠ 渲染名时 fix 行印渲染名（非换尾名），且与门 `derived:` 逐字节相等；载体拼写是矩阵外旧名（`spec-review-1.json`）时 `rulings` 值位缺席、`FIX_READBACK_SUFFIX` 整段省略（零空槽、零回落规则句，与 T8 的 legacy 放行 pin 同一现场）；门的两条收紧断言真树绿；spec AC 第四主站点的替换（`packages/kairos/tests/status-routing-convergence.test.ts` → `session/__tests__/next.test.ts`）记入编排器的 spec 补记清单。
+`finding` / `id` 双向且未知键仍整份拒、接受集单源；两壳读法句在册且 `INPUT_RULINGS` 恰一行路径、零正文行、`#rulingLine` 零残留；fix 行印解析后路径、`session/next.ts` 零 `.rulings.json` 字面；四个 pin 站点（`face.test.ts` · `cli.test.ts` · `capsule.test.ts` · `session/__tests__/next.test.ts`，后者点名 `:186` 的整句 pin 与 `:192` 的字面类型 pin）按路径重锚；载体拼写 ≠ 渲染名时 fix 行印渲染名（非换尾名），且与门 `derived:` 逐字节相等；载体拼写是矩阵外旧名（`spec-review-1.json`）时 `rulings` 值位缺席、`FIX_READBACK_SUFFIX` 整段省略（零空槽、零回落规则句，与 T8 的 legacy 放行 pin 同一现场）；门的三条收紧断言真树绿；被评审轮身份（`op: "review"`）在生产源码内只有一处构造（`ArtifactRegistry#reviewedIdentityOf`），sidecar 读接缝与路由器都问它；spec AC 第四主站点的替换（`packages/kairos/tests/status-routing-convergence.test.ts` → `session/__tests__/next.test.ts`）记入编排器的 spec 补记清单。
 
 #### DependsOn
 
@@ -596,3 +598,4 @@ board 加**一族异常事实行** `art:`（`art:` 头行 + `derived` + `found`�
 | v0.17 | 2026-11-15 | 波 6/8/10 修复轮（F1–F4）：**F1** 认领的身份档改读矩阵自己的 `roundIdentityKey`（`session/round-artifacts.ts` 导出；`cycle` 缺席 ≠ `cycle: 1`，只有 `attempt` 缺省折成 1，因渲染器从不铸 `-a1`），无 cycle 的 `tasks-<n>-implement*.json` 不再被 cycle-1 记录静默认领——`session/__tests__/ledger.test.ts` 三格按用例名改写为「旧 cycle-less 拼写不再是认领对象」，T8 Files（增 `round-artifacts.ts`）/ Test / Step 同批 · **F2** T6 的「一次读取」落成**值**：`#artifactCellOf` 每派发算一次，门与 prompt 格吃同一个 cell（`#artifactRefusalOf` / `#rulingsInputOf` 都只读这个值），不再各读一次 sidecar · **F3** 矩阵读 `ok` 而 schema 回 `absent`（读竞态）⇒ `invalid(path, "unreadable")`，不再读成缺席（`#artifactReadOf` 的 `case "absent"`），T6 补两条 pin（`verdict` 恰一次；竞态 ⇒ 零 spawn + `rulings sidecar — unreadable`） · **F4** T6 Files 补 `face/cli.ts`（`--dry-run` 问同一纯读门；注入式 dispatch 接缝不持 harness ⇒ 无预测）。 | [human] 裁定 · Claude（kairos:cdd-dev · 2026-11-15） |
 | v0.18 | 2026-11-15 | 计划评审 round 12 全量落地（F1–F5）：**F1（blocker）** T4 的 (c) 链级 coverage pin 未随波 4/5 交付——`grep -rn docRootsClean packages/cdd-engine/src-next/contract/__tests__` 至今零命中，`planChain` 的未判态 `return` 只由 `infra/__tests__/slug-index.test.ts` 间接覆盖，而 T4 已闭合；`## Constraints` 的增量映射、T4 的 `Test:` 行 / Step 6 / Acceptance 四处改按**交付事实**记录（缺口由分支评审 / 后续 issue 承接，并入编排器的 spec 补记清单），不再宣称「(c) pin 住 `judge.test.ts`」 · **F2** 两处「对 spec 的显式修订」已被 spec 回填——spec v0.9 回填了 §2.2 的 `base` 参数、v0.10 回填了 §2.5 的两级判据与 AC「归属（两级）」，故 T1 Objective 与 T5 Objective / Produces / Acceptance 四处改述为「已回填、本任务只做对账」，删掉 T5 的「记入编排器的 spec 补记清单」一句与 Acceptance 的同批括注（§2.7 对 P35、§2.10 对 P31 两处仍与 spec 字面不同，不在本条内） · **F3** `## Review Focus` 的 legacy 段改成交付后语态 + 符号级定位：`Ledger#claimed` 的两档（身份档读 `roundIdentityKey`、路径档读 `carrierPathOf` 的 basename），`#legacyCarrierName` 梯级已随 T8（波 6/8/10）拆除，三处行号按**用例名**重列（`ledger.test.ts` 已两轮因行号漂移被判），并写明「claims a doc-line carrier … the basename tier」是正例 pin 而非待翻的反例；T5 Acceptance 里同一句陈旧断言（三格「今日回 `[]`」）同批对齐 · **F4** 波 6/8/10 之后漂移的导航位刷新：`#indexOf(...)` 四处 → `cli.ts:546` / `:757` / `:1333` / `:1716`（T3 Objective + Files 两处），夹具助手改记 `packages/cdd-engine/src-next/__tests__/support/plan-source.ts:19`、`planSourceOf(` 计数 164 → 165（T4 Step 8） · **F5** `## Review Focus` 的「同一 slug 两份身份文档」不再把归口挂在 T6 上——改为 T3 的读取面（doc 域 `read` 的 `invalid(found)`）+ 既有 `SlugIndex#slugVerdict` 的 `duplicated`。 | [human] 裁定 · Claude（kairos:docs-fix · 2026-11-15） |
 | v0.19 | 2026-11-15 | 计划评审 round 13 全量落地（F1–F4）：**F1（warn）** T7 的两样缺失同批补上——`art:` 的**读数来源**与**名字集**。合成读从持帧的 `Lifecycle` 里提出一个**无帧接缝**（`Create: session/artifact-reads.ts` 的 `ArtifactReads`：构造收 `(artifacts, base: Workspace)`、唯一方法 `read(kind, carrier, digest)`，`ArtifactReadOf` 值类型随之迁入），`Lifecycle` 与 `BoardView` 是两个消费者、板面零第二次合成；载体 id 集走 `CarrierIntegrity.read(path, digest ?? null)`（无摘要 = 既有事实读，不是第二档判定）；板面读哪一轮由记录序列定（`Ledger.readProgress()` 的 `RoundRecord` 的 `op` / `cycle` / `attempt` + `carrierPathOf` 载体路径 + `carrierDigest`，只取 `op === "review"`），`--artifacts` 的「一轮一行」= 这条序列而非目录名字集；T7 的 Objective / Files / Consumes / Produces / Steps / Acceptance 六处同步，并补两条 pin（同一 carrier 上板面 `derived` / `found` 与门报文逐字节相等 · 两轮记录渲两行、无记录认领的名字仍只落 `orphan:`） · **F2** T5 的三条已交付 orphan pin 删掉漂移的行号（`:1037` / `:1048` / `:1076` 今日落在无关格），按载荷对象名定位（`writeJson(<名>, …)` + `orphanHandoffs()` 的精确数组断言成对）——与 v0.9 F4 立的「全树唯一符号只留符号名」同口径 · **F3** T8 的 Test 与 Step 4 点名的「keeps a round-less family's round at 1」在树上已零命中（T8 交付时已按 v0.17 F1 改写），改为交付后现存的两格名（`orphanHandoffs lists a cycle-less implement carrier — a cycle-1 record never claims it` · `the cycle-less implement spelling is no longer a read rung — the ladder answers the canonical name`），并注明旧名零命中、本轮不改写已闭合块 · **F4** T6 的 Objective / Files / Produces 三处按**交付形**改述：`#artifactCellOf`（每派发一次的**唯一**读取）· `#artifactReadOf(frame, kind)`（按 kind 的一层）· `#artifactRefusalOf(cell)`（私有）· `artifactRefusal(frame)`（唯一对外纯读门），删掉「`#artifactReadOf` 是唯一读取」这句——它会让人按-kind 的那层去核「接缝是否已有」，正是 F1 那条 warn 最易被误判为已修的入口。 | [human] 裁定 · Claude（kairos:docs-fix · 2026-11-15） |
+| v0.20 | 2026-11-15 | 波 7/9 修复轮（F1–F5）：**F1** program board 与 node board 同一投影——`#programBoard` 把 overall 行绑到它已持有的 program seat 落一个 `art:` scope，`showArtifacts` 贯穿 `BoardView.render` 两臂，`cdd board --spec <overall> --artifacts` 不再是空转（T7 Files / Acceptance 同批）· **F2** `lifecycle.ts` 的死私有 `#carrierPathOf` 删除（接缝抽取后零调用者、`noUnusedLocals` 关着无人抓），并在 `#carrierRefusal` 写明两处「repo-relative → abs」是**按设计**的两种读（载体自身的摘要读 vs 侧车的 schema / id 集读），不是同一事实的两个名字 · **F3** 被评审轮身份收成一处：`ArtifactRegistry#reviewedIdentityOf(name)`（`attribute(basename(name))` + `op` 恒 `review`）成为 `session/artifact-reads.ts` 与 `session/next.ts` 的共同入口，门增第三条真树断言（`op: "review"` 的身份构造在两处生产源码内只允许一处；`op: "review" \| "fix"` 的类型标注是另一件事实，门排除它）——T9 Files / Produces / Acceptance 同批 · **F4** `art:` 事实行的三个 key 收成板面自己的一份常量并写明与 `Words#artifactIdentity` 的**刻意独立**（§2.6 的 `derived  ` 与 §2.4 的 `derived:  ` 是两个字节契约），标签由板面断言钉住 · **F5** 字面门的谓词写明接受 raw 与已剥注释两种样本（加载期剥一次、判定期再剥是幂等 no-op）。 | [human] 裁定 · Pi（kairos:cdd-dev · fix · 2026-11-15） |

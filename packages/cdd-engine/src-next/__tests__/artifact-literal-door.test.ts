@@ -59,6 +59,11 @@ const SRC_ROOT = fileURLToPath(new URL("../", import.meta.url));
  *  `canonical` plus `accepts`, and no read face may grow a second list. */
 const ACCEPTANCE_DECL = /accepts:\s*\[/g;
 
+/** The reviewed round's identity construction — `op` fixed to `review` on a round
+ *  coordinate. The union annotations (`op: "review" | "fix"`) are a different fact:
+ *  a parameter's domain, not a derived identity. */
+const REVIEWED_IDENTITY = /op: "review"(?!\s*\|)/;
+
 /** The production surface: every engine TypeScript file under `src-next` that is not a
  *  fixture, comments stripped, one deterministic order (the same scan the doc-type
  *  constructor gate reads). */
@@ -72,8 +77,10 @@ const loadProduction = (): readonly LiteralSample[] =>
     .sort((left, right) => left.file.localeCompare(right.file));
 
 /** The door's judgment: every code line carrying the tail outside the two admitted
- *  surfaces. Comments are stripped first (a docstring naming the tail is prose, a
- *  literal in code is a real name), so the door never argues with documentation. */
+ *  surfaces. Samples may arrive raw or pre-stripped — the tree scan strips at load time
+ *  (so the sibling whole-source scans over the same samples see code alone) and the
+ *  judgment strips again, which is a no-op on already-stripped text. One predicate,
+ *  both callers. */
 const literalDoorViolations = (samples: readonly LiteralSample[]): readonly LiteralViolation[] => {
   const violations: LiteralViolation[] = [];
   for (const sample of samples) {
@@ -178,5 +185,13 @@ describe("the artifact-literal door — the REAL tree closure (P36 T9 · §2.9 �
     // The alias spelling lives in the matrix row alone: a hand-written `id` key here
     // would be the second acceptance list this door exists to retire.
     expect(schema?.source).not.toContain('"id"');
+  });
+
+  it("derives the REVIEWED round's identity in ONE production file — the matrix", () => {
+    // The sidecar seam and the router both ask "which round does this carrier review?".
+    // A second construction site is the second name this phase exists to retire, so the
+    // entry (`ArtifactRegistry#reviewedIdentityOf`) is the only place allowed to write it.
+    const builders = production.filter((file) => REVIEWED_IDENTITY.test(file.source));
+    expect(builders.map((file) => file.file)).toEqual(["session/round-artifacts.ts"]);
   });
 });

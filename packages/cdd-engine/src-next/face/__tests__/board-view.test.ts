@@ -3498,6 +3498,79 @@ describe("P36 T7 — the board's `art:` fact row (spec §2.6)", () => {
     ).lines.join("\n");
   };
 
+  /** The program (overall) workspace — the seat a program board binds its OWN line to. */
+  const programWorkspace = (): string => {
+    const dir = path.join(repo, ".kairos/cdd/prog-overall");
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  };
+
+  /** The overall line's progress — one review record naming its carrier, so the
+   *  program board's `art:` scope observes a round at all. */
+  const seedProgramProgress = (carrierPath: string): void => {
+    const waves = [
+      {
+        wave: "overall",
+        rounds: [
+          {
+            op: "review",
+            cycle: 1,
+            attempt: 1,
+            dispatchBase: null,
+            carrierPath,
+            verdict: { treeClean: true, targetAction: true },
+            violations: [],
+          },
+        ],
+      },
+    ];
+    writeFileSync(
+      path.join(programWorkspace(), "progress.json"),
+      JSON.stringify({ timeoutCount: 0, waves }, null, 2),
+      "utf8",
+    );
+  };
+
+  /** The overall carrier the program board's one review record names. */
+  const seedProgramCarrier = (): string => {
+    const file = path.join(programWorkspace(), "overall-review-1.c1.json");
+    writeFileSync(
+      file,
+      `${JSON.stringify({ findings: [{ id: "F1", severity: "warn", summary: "s" }] }, null, 2)}\n`,
+      "utf8",
+    );
+    return file;
+  };
+
+  /** The program board — the overall entry, its one phase's plan read in the table. */
+  const renderProgramBoard = (
+    showArtifacts: boolean,
+    artifacts: ArtifactRegistry | null = new ArtifactRegistry(),
+  ): string => {
+    const index = SlugIndex.build(repo);
+    const entry = index.overallOf("prog-overall");
+    if (entry === null) throw new Error("no overall entry");
+    const phase = index.phaseSpecsOf("prog-overall")[0];
+    if (phase === undefined) throw new Error("no phase under the overall");
+    const root = new RepoRoot(repo);
+    const source = planSourceOf(root);
+    return BoardView.render(
+      [source.readFor(phase)],
+      source,
+      index,
+      entry,
+      repo,
+      new Words(),
+      "claude",
+      ARGV_CHANNEL,
+      { kind: "absent" },
+      // cross-phase never participates in next (spec §6.5) — the program board holds no hop
+      null,
+      artifacts,
+      showArtifacts,
+    ).lines.join("\n");
+  };
+
   /** The `art:` block lines of one board text — the header plus its indented facts. */
   const artBlockOf = (text: string): readonly string[] =>
     text.split("\n").filter((line) => line.startsWith("  art:") || line.startsWith("           "));
@@ -3673,5 +3746,72 @@ describe("P36 T7 — the board's `art:` fact row (spec §2.6)", () => {
     seedProgress([{ cycle: 1, path: carrier }]);
     expect(renderBoard(false)).not.toContain("  art:");
     expect(renderBoard(true)).toContain("  art:     phase-spec · rulings · c1·a1   ok");
+  });
+
+  it("renders the program board's OWN overall line on the `art:` face too — the flag is not a no-op there", () => {
+    seedDocs();
+    const carrier = seedProgramCarrier();
+    seedProgramProgress(carrier);
+    // healthy: no sidecar beside the overall review carrier ⇒ zero bytes, exactly as the
+    // same tree renders without a matrix
+    const healthy = renderProgramBoard(false);
+    expect(healthy).not.toContain("  art:");
+    expect(healthy).toBe(renderProgramBoard(false, null));
+    // the 89-shipped spelling beside an OVERALL review round: the program board must see
+    // the same judgment its docs-fix gate would apply before dispatch
+    writeFileSync(
+      path.join(programWorkspace(), "overall-review-1.rulings.json"),
+      JSON.stringify({
+        carrier: path.basename(carrier),
+        rulings: [{ finding: "F1", ruling: "ok" }],
+      }),
+      "utf8",
+    );
+    const text = renderProgramBoard(false);
+    const derived = path.join(".kairos", "cdd", "prog-overall", "overall-review-1.c1.rulings.json");
+    const found = path.join(".kairos", "cdd", "prog-overall", "overall-review-1.rulings.json");
+    expect(artBlockOf(text)).toEqual([
+      "  art:     overall · rulings   ! misplaced",
+      `           derived  ${derived}`,
+      `           found    ${found}`,
+    ]);
+    // the placement rule holds on this shape as well: after the phase rows, before the
+    // row that stays last (the program board has no `reason:` row)
+    expect(text.indexOf("  art:")).toBeGreaterThan(text.indexOf("  phase prog-p1"));
+    expect(text.indexOf("  art:")).toBeLessThan(text.indexOf("  next:    done"));
+    // `--artifacts` opens the same inventory here: one row per observed review round
+    expect(
+      renderProgramBoard(true)
+        .split("\n")
+        .filter((line) => line.startsWith("  art:")),
+    ).toEqual(["  art:     overall · rulings · c1·a1   ! misplaced"]);
+  });
+
+  it("keeps the `art:` fact labels as their own pinned words, not the gate's `derived:` punctuation", () => {
+    seedDocs();
+    const carrier = seedCarrier("phase-spec-review-1.c1.json");
+    seedProgress([{ cycle: 1, path: carrier }]);
+    writeFileSync(
+      path.join(workspace(), "phase-spec-review-1.rulings.json"),
+      JSON.stringify({ carrier: path.basename(carrier), rulings: [] }),
+      "utf8",
+    );
+    const keys = artBlockOf(renderBoard(false))
+      .filter((line) => line.startsWith("           "))
+      .map((line) => line.slice("           ".length, "           ".length + 9).trim());
+    // §2.6 pins the board's continuation column with bare keys; the gate's §2.4 rows
+    // carry `derived:  ` instead. Two contracts, two byte shapes — never one shared copy.
+    expect(keys).toEqual(["derived", "found"]);
+    expect(
+      new Words()
+        .artifactIdentity({
+          kind: "rulings",
+          derived: "d",
+          found: ["f"],
+          identity: { domain: "round", line: "phase-spec", op: "review", cycle: 1 },
+        })
+        .split("\n")
+        .slice(1, 3),
+    ).toEqual(["  derived:  d", "  found:    f"]);
   });
 });

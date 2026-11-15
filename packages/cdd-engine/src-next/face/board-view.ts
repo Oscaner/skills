@@ -202,6 +202,18 @@ const PHASE_TITLE_MAX = 60;
  *  width (`overall` is the longest verb at 7), so every value starts in one column. */
 const LABEL_WIDTH = 9;
 
+/** The `art:` fact block's continuation keys — the board's OWN spelling of the three
+ *  facts a judgment carries (spec §2.6). Deliberately independent of
+ *  `Words#artifactIdentity`: that row is the gate's §2.4 contract (`derived:  `,
+ *  a colon inside its own two-space column), while the board's rows are the §2.6
+ *  contract (`derived`, no colon, the board's continuation column). One source per
+ *  contract, and the board's half is pinned by its byte assertions. */
+const ARTIFACT_FACT_LABELS = {
+  derived: "derived",
+  found: "found",
+  reason: "reason",
+} as const;
+
 /** One board line's carrier facts — the `+N` count's WHOLE read face (spec §2.7 ·
  *  §2.10). The record's path comes from the ledger's ONE accessor, bound to this
  *  line's type + key; ownership excludes a legacy record whose path a later round of
@@ -715,7 +727,17 @@ export class BoardView {
     const root = new RepoRoot(repoRoot);
     const exitCode =
       entry.docType === "overall"
-        ? BoardView.#programBoard(readTable, plan, lines, index, entry, root, words, artifacts)
+        ? BoardView.#programBoard(
+            readTable,
+            plan,
+            lines,
+            index,
+            entry,
+            root,
+            words,
+            artifacts,
+            showArtifacts,
+          )
         : BoardView.#nodeBoard(
             // A node board is ONE document: the caller's single row. An empty table
             // means no document was read at all — the seam's own undeclared value is
@@ -963,7 +985,14 @@ export class BoardView {
    *  never participates in next, spec §6.5). The phase set derives from the ONE
    *  index (`program:` grouping — no overall child-list array). A phase row's primary
    *  key is its `slug:`, annotated with the truncated `title:`; any overall/phase
-   *  violation renders its marker and exits 2 (spec §3.1 — zero silent fallback). */
+   *  violation renders its marker and exits 2 (spec §3.1 — zero silent fallback).
+   *
+   *  The `art:` projection is the SAME one the node board renders (spec §2.4 · §2.6):
+   *  the overall line is dispatched from the program workspace, so its own review
+   *  rounds are the rounds a docs-fix gate judges, and the board must show that
+   *  judgment before the dispatch. The scope binds the overall line to the program
+   *  seat — the seat this render already holds — and `--artifacts` therefore opens the
+   *  same inventory view here as on a node board (never a silent no-op). */
   static #programBoard(
     readTable: readonly PlanRead[],
     plan: PlanSource,
@@ -973,13 +1002,13 @@ export class BoardView {
     root: RepoRoot,
     words: Words,
     artifacts: ArtifactRegistry | null,
+    showArtifacts: boolean,
   ): number {
     const repoRoot = root.absolute;
     const overallSlug = BoardView.#validSlug(entry);
-    const ledger =
-      overallSlug === null
-        ? null
-        : BoardView.#ledgerOf(plan, overallSlug, repoRoot, artifacts).ledger;
+    const seat =
+      overallSlug === null ? null : BoardView.#ledgerOf(plan, overallSlug, repoRoot, artifacts);
+    const ledger = seat?.ledger ?? null;
     const overallLine = BoardView.#lineOf(
       "overall",
       "overall",
@@ -1049,6 +1078,19 @@ export class BoardView {
       lines.push(
         `  phase ${phase.slug ?? "(none)"}  ${status}${tail === "" ? "" : `   ${tail}`}${note === "" ? "" : `   title: ${note}`}`,
       );
+    }
+    // The `art:` fact block, after the phase rows and before the rows that stay last
+    // (spec §2.6). One scope: the overall line, bound to the program seat — a phase's
+    // rounds belong to the phase's own board, exactly as a node board reads the
+    // program line through the program seat alone.
+    const artifactRows = BoardView.#artifactRows(
+      seat === null ? [] : [{ lines: [overallLine], seat }],
+      artifacts,
+      showArtifacts,
+    );
+    if (artifactRows.length > 0) {
+      lines.push("");
+      lines.push(...artifactRows);
     }
     lines.push("");
     lines.push("  next:    done");
@@ -1263,20 +1305,29 @@ export class BoardView {
 
   /** One `art:` block's continuation lines — the same facts the dispatch gate's
    *  `derived:` / `found:` report prints, on the board's own 9-column continuation
-   *  shape. A healthy round carries none. */
+   *  shape. A healthy round carries none.
+   *
+   *  The labels come from `ARTIFACT_FACT_LABELS`, NOT from `Words#artifactIdentity`:
+   *  the two faces are two pinned contracts with different bytes — §2.4 fixes the
+   *  gate's rows as `  derived:  <value>` (colon, two-space column) while §2.6 fixes
+   *  the board's as `           derived  <value>` (no colon, the board's own
+   *  continuation column). Sharing a label source would force one contract's bytes
+   *  into the other; the words are therefore deliberately re-declared here once and
+   *  pinned by the board's byte assertions. */
   static #artifactFactsOf(
     entry: ObservedArtifact,
     read: ArtifactReadOf["read"],
   ): readonly string[] {
+    const labels = ARTIFACT_FACT_LABELS;
     const value = (key: string, fact: string): string =>
       `           ${key.padEnd(LABEL_WIDTH)}${fact}`;
     if (read.kind === "misplaced") {
       const found = read.found.map((name) => entry.relName(name)).join(" · ");
-      return [value("derived", entry.relName(read.derived)), value("found", found)];
+      return [value(labels.derived, entry.relName(read.derived)), value(labels.found, found)];
     }
     if (read.kind === "invalid") {
-      const derived = read.path === "" ? [] : [value("derived", entry.relPath(read.path))];
-      return [...derived, value("reason", read.reason)];
+      const derived = read.path === "" ? [] : [value(labels.derived, entry.relPath(read.path))];
+      return [...derived, value(labels.reason, read.reason)];
     }
     return [];
   }

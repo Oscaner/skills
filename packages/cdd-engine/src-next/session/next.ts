@@ -404,20 +404,14 @@ export class NextStepRouter {
 
   /** The sidecar path beside one carrier — the matrix's `rulings` render of the carrier's
    *  own round identity, resolved in the carrier's OWN directory (the same coordinate the
-   *  dispatch gate prints as `derived:`). Null when the router holds no matrix or the name
-   *  attributes to no round identity. */
+   *  dispatch gate prints as `derived:`). The identity itself comes from the matrix's ONE
+   *  entry (`ArtifactRegistry#reviewedIdentityOf`), so the `op: "review"` construction
+   *  this router used to spell has one home. Null when the router holds no matrix or the
+   *  name attributes to no round identity. */
   #rulingsOf(carrier: string | undefined): string | null {
-    if (this.#artifacts === null || carrier === undefined || carrier === "") return null;
-    const attributed = this.#artifacts.attribute(path.basename(carrier));
-    if (attributed === null || attributed.identity.domain !== "round") return null;
-    const { line, cycle, attempt } = attributed.identity;
-    const identity = {
-      domain: "round" as const,
-      line,
-      op: "review" as const,
-      ...(cycle === undefined ? {} : { cycle }),
-      ...(attempt === undefined ? {} : { attempt }),
-    };
+    if (this.#artifacts === null || carrier === undefined) return null;
+    const identity = this.#artifacts.reviewedIdentityOf(carrier);
+    if (identity === null) return null;
     return path.join(path.dirname(carrier), this.#artifacts.render(identity, "rulings"));
   }
 

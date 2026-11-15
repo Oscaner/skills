@@ -1381,7 +1381,13 @@ export class CliLifecycle {
    *  already existed before this dispatch (`INPUT_REVIEWS` is its own input), so every
    *  other phase has no gate to set. A carrier with no recorded digest — a legacy round,
    *  or a resolved path no record declared — is read as present facts: no comparison,
-   *  no refusal. */
+   *  no refusal.
+   *
+   *  The repo-relative carrier → absolute erasure is spelled here, and again inside the
+   *  sidecar seam (`session/artifact-reads.ts`), BY DESIGN: this one feeds the digest
+   *  read of the carrier's own bytes, that one feeds the schema's `carrier` comparison
+   *  and the sidecar's id set. The two are different reads of different files, not two
+   *  names for one fact. */
   #carrierRefusal(frame: OpenFrame): string | null {
     if (this.#opOf(frame) !== "fix") return null;
     const carrier = this.#reviewsPath(frame);
@@ -1486,12 +1492,6 @@ export class CliLifecycle {
       found: read.found.map((name) => this.#rel(this.#scene.workspace.resolve(name))),
       identity: read.identity,
     });
-  }
-
-  /** The carrier's absolute path — the one erasure from the repo-relative carrier
-   *  faces onto the syscall form both the sidecar judgment and the digest read use. */
-  #carrierPathOf(carrier: string): string {
-    return path.resolve(this.#repoRootValue().absolute, carrier);
   }
 
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the

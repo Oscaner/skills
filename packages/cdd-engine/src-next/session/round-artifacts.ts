@@ -41,6 +41,7 @@
 // bare functions.
 
 import { accessSync, constants, statSync } from "node:fs";
+import { basename } from "node:path";
 import { DOC_KEYS, type DocKey } from "../contract/project.ts";
 import { type DocEntry, SlugIndex } from "../infra/slug-index.ts";
 import type { Workspace } from "../infra/workspace.ts";
@@ -799,6 +800,32 @@ export class ArtifactRegistry {
       if (attributed !== null) return attributed;
     }
     return null;
+  }
+
+  /** The REVIEWED round's identity for one carrier name — the ONE source of every
+   *  name derived from a `--reviews` carrier (spec §2.1: `rulings` coordinates are the
+   *  reviewed round's, `op` fixed to `review`). The caller hands the carrier's own
+   *  spelling; the identity comes from `attribute(basename(carrier))` with the carrier's
+   *  `cycle` / `attempt`, so a draft spelling and a final spelling of one round answer
+   *  ONE identity. `null` = the matrix cannot place the name (a legacy spelling, a
+   *  foreign file) — the caller then derives no name at all rather than guessing one.
+   *
+   *  Two read faces ask this question — the sidecar read seam
+   *  (`session/artifact-reads.ts`) and the router's readback value
+   *  (`session/next.ts`) — and both call THIS entry, so the `op: "review"` construction
+   *  has one production home (the door pins it). */
+  reviewedIdentityOf(name: string): Identity | null {
+    if (name === "") return null;
+    const attributed = this.attribute(basename(name));
+    if (attributed === null || attributed.identity.domain !== "round") return null;
+    const { line, cycle, attempt } = attributed.identity;
+    return {
+      domain: "round",
+      line,
+      op: "review",
+      ...(cycle === undefined ? {} : { cycle }),
+      ...(attempt === undefined ? {} : { attempt }),
+    };
   }
 
   /** Where one (identity, kind) sits inside `base` — dispatched by the identity's own

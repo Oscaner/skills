@@ -1,7 +1,7 @@
 ---
 title: 分级判据的可核化（Grading Boundary）
 doc-type: phase-spec
-version: v0.4
+version: v0.5
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 program: 2026-10-10-engine-doc-tooling
@@ -91,7 +91,7 @@ author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design grilling 裁�
 
 #### 3.2 删除两处 judgment 逃逸口
 
-wave 与 branch 的 axes guide 里两处 `(severity by your judgment)` 删除；`scope` 轴的判定改由 `scope` lens 的问句承担（wave / branch 的 `lensEnum` 现缺 `scope`，本相位补齐，使 axes guide 的轴与枚举一一对应）。
+wave 与 branch 的 axes guide 里两处 `(severity by your judgment)` 删除；`scope` 轴的判定改由 `scope` lens 的问句承担（wave / branch 的 `lensEnum` 现缺 `scope`，本相位补齐，使 axes guide 的轴与枚举一一对应）。删除后不留判档空白：每类 review 的 axes guide 末尾接一段由 `LENS_QUESTIONS` 装配的编号问句清单（§6.1 的投影面），原逃逸口那句「档位由你判断」的职责改由 `scope` 那一格的问句承担，问句随 prompt 字节下发。
 
 ### 4. wave review 的契约可见性
 
@@ -128,14 +128,16 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 新增 `contract/review-criteria.ts`，它承载两张形状不同、互不混行的表：
 
-- **判据表**——每行 `{ id, tier, body, duty, counterExample, face }`，`tier` ∈ blocker / warn / nit，`face` ∈ gate / test / numbered。`SEVERITY_RUBRIC` 由行按声明序装配（正文即行，散文不再是判据的第二份副本），因此判据表是唯一进 rubric 散文的语料。`CRITERIA.of(id)` 查不到即抛——仿 `contract/completion-criterion.ts` 的「未登记即抛」形态。
-- **lens 问句表**——每行 `{ id, reviewKind, lens, question }`（§3.1 的 19 格）。它没有 `tier`：问句不判档；没有 `duty` 与 `counterExample`：举证与反例句属于档位而不属于 lens。按 (review kind, lens) 逐格 19 条，`wave` 与 `branch` 的四格共享同一 `id` 双引用，故物理行 15 条。该表**不参与** `SEVERITY_RUBRIC` 装配，`LENS_QUESTIONS.of(reviewKind, lens)` 查不到即抛（同一「未登记即抛」形态）。
+- **判据表**——每行 `{ id, tier, body, duty, counterExample, face }`，`tier` ∈ blocker / warn / nit，`face` ∈ gate / test / numbered。`SEVERITY_RUBRIC` 由行按声明序装配（正文即行，散文不再是判据的第二份副本），因此判据表是唯一进 rubric **档位散文**的语料；标定尾段（同档一致义务、`{artifact}` / `{audience}` 视觉句、设而不用清单、收尾致谢）不在档位片段内，仍由 `reviewGuideOf` 的共享尾段承接。装配公式一格一段、三格恒序：`body` → `duty` → `counterExample`，单句之间以空格相连得到该行的 rubric 片段；同一 `tier` 的片段相邻成段（多行时按声明序），各段按 blocker → warn → nit 排成档位主体。三格都进字节，没有只作元数据的格子——`duty` 与 `counterExample` 若不渲染，举证义务与反例句就退回了长句。`CRITERIA.of(id)` 查不到即抛——仿 `contract/completion-criterion.ts` 的「未登记即抛」形态。
+- **lens 问句表**——每行 `{ id, reviewKind, lens, question, face }`（§3.1 的 19 格），`face` 恒为 `numbered`：问句的唯一执行面是渲染出的评审 prompt。它没有 `tier`：问句不判档；没有 `duty` 与 `counterExample`：举证与反例句属于档位而不属于 lens。按 (review kind, lens) 逐格 19 条，`wave` 与 `branch` 的四格共享同一 `id` 双引用，故物理行 15 条。该表**不参与** `SEVERITY_RUBRIC` 装配，`LENS_QUESTIONS.of(reviewKind, lens)` 查不到即抛（同一「未登记即抛」形态）。
+
+问句的投影面只有一处：`render/templates.ts` 每类 review 的 `axesGuide` 由该类问句装配——`LENS_QUESTIONS.forReviewKind(reviewKind)` 按声明序取行，渲染成从 1 起的编号清单（`1. <question>` 逐行），追加到该类 `axesGuide` 末尾；`reviewRow(type)` 把整段 `axesGuide` 原样折进 `**Criteria — <type>:**` 那一行，问句因此随 prompt 字节下发。五类 review 各装配自己的一段：`wave` / `branch` 行正文相同、`reviewKind` 不同，各 4 条；`plan` / `spec` 各 3 条；`overall` 5 条。表里有行不等于 prompt 里有问句，因此核对落在渲染产物上（§6.2 的 `numbered` 面），不是落在表的行数上。
 
 两表不得合并：问句塞进判据表只能带一个不存在的 `tier` 或用空 `duty` / `counterExample` 污染 rubric 散文；判据行塞进问句表则丢掉举证义务与反例句。计数按表各计一次，由 §6.2 的同一条结构测试核对。
 
 #### 6.2 边界
 
-判据表里 `face` 为 `gate` 的行必须在报文里出现其 `id`；`test` 的行必须被一条测试的格题命名；`numbered` 的行必须出现在渲染产物中。三者由一条结构测试核对，同一测试面另计 lens 问句表的 15 行 / 19 格（§7 的同一测试面）。
+判据表里 `face` 为 `gate` 的行必须在报文里出现其 `id`；`test` 的行必须被一条测试的格题命名；`numbered` 的行必须出现在渲染产物中。lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的评审 prompt：每一行问句必须逐字出现在对应 review 的 `**Criteria —` 行里，缺一条即红。以上由一条结构测试核对，同一测试面另计 lens 问句表的 15 行 / 19 格（§7 的同一测试面）。
 
 ### 7. pin 可解析性门（P28 反转的窄形态）
 
@@ -161,9 +163,9 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 ### Acceptance criteria
 
-- `三档各有一条边界定义、一条举证义务句、一条反例句，全部来自判据表（行形态含 `tier` / `duty` / `counterExample`）；判据表按 `tier` 覆盖 blocker / warn / nit 各至少一行，缺行 ⇒ 装配失败（成对 pin：完整判据表装配成功 / 删一行装配即抛）`
+- `三档各有一条边界定义、一条举证义务句、一条反例句，全部来自判据表（行形态含 `tier` / `duty` / `counterExample`）；装配公式固定为 `body` → `duty` → `counterExample`，三格全进字节——每个 `tier` 的 `duty` 句与 `counterExample` 句逐字出现在 `SEVERITY_RUBRIC` 的渲染产物里（负向 pin：删掉某档的 `counterExample` ⇒ 该句从渲染字节消失且装配即抛）；判据表按 `tier` 覆盖 blocker / warn / nit 各至少一行，缺行 ⇒ 装配失败（成对 pin：完整判据表装配成功 / 删一行装配即抛）`
 - `impact 场景成对 pin：blocker 缺 `impact.scenario` ⇒ `CDD_BLOCKED: grading-impact-missing` 由交接单回读面打出（与其它 schema 拒绝同一行、同一路径），报文列出违规 `id`；补上场景 ⇒ 通过；warn / nit 无场景 ⇒ 通过；拒绝面只有这一处（`rollup` 返回仍是 `RoundStatus`，`--dry-run` 不声称读该谓词）`
-- `wave / branch 的 axes guide 零 `(severity by your judgment)`；lens 问句表（行形态 `{ id, reviewKind, lens, question }`）按 (review kind, lens) 覆盖 19 格、物理行 15 条（`wave` / `branch` 四格共享 `id` 双引用），与判据表分开计数（判据表各 `tier` 至少一行）；把问句塞进判据表或把判据行塞进问句表 ⇒ 查表即抛`
+- `wave / branch 的 axes guide 零 `(severity by your judgment)`；lens 问句表（行形态 `{ id, reviewKind, lens, question, face }`，`face` 恒为 `numbered`）按 (review kind, lens) 覆盖 19 格、物理行 15 条（`wave` / `branch` 四格共享 `id` 双引用），与判据表分开计数（判据表各 `tier` 至少一行）；投影 pin：五类 review 渲染出的 `**Criteria —` 行逐字带上该类自己的编号问句（`wave` / `branch` 各 4 条、`plan` / `spec` 各 3 条、`overall` 5 条，`wave` 与 `branch` 字节同源），删掉表里任一问句行 ⇒ 该类 prompt 少一条编号问句；把问句塞进判据表或把判据行塞进问句表 ⇒ 查表即抛`
 - `wave review 的 round context 的 `INPUT_SPEC` / `INPUT_OVERALL` 成对 pin：`SlugIndex` 解析到身份文档与它的 `program:` 母宪章 ⇒ 两 token 均出现且路径为仓根相对、可读；任一环缺席或 `invalid` ⇒ 两 token 均不出现（负向 pin）；branch 的 prompt 字节不变`
 - `降档且上一轮同一稳定键（carrier `id`，缺失时 `summary` 原文）的行 `impact.scenario` 非空：无 `regrade` ⇒ 胶囊与板面各一条可见标记，且该标记不进 `findings[]`（负向 pin：一条这样的降档既不新增 finding，也不单独把本轮推成 `REVIEW_FIX`）；本轮省略或改写 `scenario` 不注销该义务（正向 pin：省掉场景文本仍出标记）；有 `regrade` ⇒ 两处各出现一次理由；上一轮该行 `scenario` 为空 ⇒ 不要求、不标记`
 - `pin 门可红可修，两个语料面分开 pin：注入一条指向不存在符号的 markdown pin ⇒ `PinAudit` 红并指出该 pin，在册语料 ⇒ 零 finding；一条 finding 的 `contract.path` 解析不到 ⇒ 交接单回读面追加一条 warn 级 finding 且该轮不被阻断`
@@ -185,3 +187,4 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 | v0.2 | 2026-11-16 | 结构修正：`### Acceptance criteria` 归入 `## Design`（原先误落在 `## Constraints` 之后）；每条 AC 以 `` `- ` `` 开首，对齐 `Acceptance entry` 的 valuePattern | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |
 | v0.3 | 2026-11-16 | 评审修复：wave 注入的两格收成成对判定（解析到 ⇒ 同时出现且路径可读；缺席或 `invalid` ⇒ 同时丢弃）并与 AC 的成对 + 负向 pin 对齐 · `contract.path` 的执行面点名为交接单回读的第三消费者，`PinAudit` 只扫 markdown 语料 · regrade 标记明示为显示面（不进 `findings[]`、不动 `rollup` / D70）并补负向 pin · 删除无消费者的可选 `impact.kind`，`impact.test` 留作可选加强 · `CDD_BLOCKED: grading-impact-missing` 的谓词与打印面点名（`HandoffSchema` 纯谓词 + lifecycle 回读同一行，`rollup` 返回类型不变） | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |
 | v0.4 | 2026-11-16 | 评审修复：注册表拆成两张表——判据表 `{ id, tier, body, duty, counterExample, face }` 供 `SEVERITY_RUBRIC` 装配，lens 问句表 `{ id, reviewKind, lens, question }` 以 15 行覆盖 19 格，AC 按表各计一次；删除没有执行面的 `--dry-run` 半边，`grading-impact-missing` 只由交接单回读面打印；regrade 匹配改用稳定键 + 上一轮非空场景，省略或改写场景不注销改档理由（标记仍是显示面）；明示 `gradingViolations` 为同处纯助手、`rollup` 不承接拒绝 | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |
+| v0.5 | 2026-11-16 | 评审修复：判据表补装配公式（`body` → `duty` → `counterExample` 恒序、三格全进字节），`SEVERITY_RUBRIC` 的语料范围收窄为档位散文、标定尾段仍由 `reviewGuideOf` 承接；lens 问句表补 `face: numbered` 与唯一投影面——`REVIEWS[*].axesGuide` 由 `LENS_QUESTIONS.forReviewKind` 装配编号清单、随 `**Criteria —` 行进 prompt；§6.2 的 `numbered` 核对扩到问句行，AC 增投影 pin 与档位片段进字节的 pin | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |

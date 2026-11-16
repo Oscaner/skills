@@ -3905,6 +3905,27 @@ describe("P37 T5 — the downgrade mark rides the board's verb token", () => {
     expect(line.split(" · ")).toHaveLength(1);
   });
 
+  it("keeps a reason carrying a line break or the cell separator on ONE token, one row", () => {
+    const multiline = cell([
+      withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),
+      withCarrier({ cycle: 2 }, [
+        { id: "F1", severity: "warn", summary: "drift", regrade: "first line\nsecond line" },
+      ]),
+    ]);
+    expect(multiline).toBe("review 2 ✓+2 first line second line");
+    expect(multiline.split("\n")).toHaveLength(1);
+    expect(multiline.split(" · ")).toHaveLength(1);
+    const separated = cell([
+      withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),
+      withCarrier({ cycle: 2 }, [
+        { id: "F1", severity: "warn", summary: "drift", regrade: "the bytes · the bytes stay" },
+      ]),
+    ]);
+    // the reason's own wording survives; the board's ` · ` cell shape does not
+    expect(separated).toBe("review 2 ✓+2 the bytes; the bytes stay");
+    expect(separated.split(" · ")).toHaveLength(1);
+  });
+
   it("keeps the mark when this round omits or rewrites its scenario — only the earlier row is read", () => {
     const omitted = cell([
       withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),

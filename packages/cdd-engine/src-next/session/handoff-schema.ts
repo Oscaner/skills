@@ -427,7 +427,7 @@ export class HandoffSchema {
     prior: readonly RoundFinding[],
     current: readonly RoundFinding[],
   ): readonly string[] {
-    // Rule zero (class-size limit): this file is 632 lines and predates the limit —
+    // Rule zero (class-size limit): this file is well past the limit and predates it —
     // splitting it is P39's work (design spec D95 ②), not this round's.
     const reasons: string[] = [];
     for (const row of current) {

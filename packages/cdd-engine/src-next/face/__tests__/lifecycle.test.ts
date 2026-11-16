@@ -2278,6 +2278,35 @@ describe("P37 T5 — the capsule summary slot carries the downgrade mark", () =>
     }
   });
 
+  it("keeps the stated reason on ONE capsule line even when it carries a line break", async () => {
+    const cases: readonly (readonly [string, string])[] = [
+      ["first line\nsecond line", "first line second line"],
+      ["the bytes · the bytes stay", "the bytes; the bytes stay"],
+    ];
+    for (const [regrade, expected] of cases) {
+      const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+      try {
+        seedReview(f, 1, [PRIOR_BLOCKER]);
+        const runner = new ReviewDraftRunner(
+          [{ id: "F1", severity: "warn", lens: "standards", summary: "drift", regrade }],
+          "tasks-1-review-2.json",
+        );
+        const { outcome } = await dispatchFrame(f, reviewOf(2), runner);
+        // one line, one token: the reason is folded before the wording is composed
+        expect(outcome.dispositionsSummary, regrade).toBe(expected);
+        const lines = capsuleOf(outcome);
+        expect(lines, regrade).toHaveLength(2);
+        expect(lines[1], regrade).toBe(expected);
+        expect(
+          lines.every((line) => !line.includes("\n")),
+          regrade,
+        ).toBe(true);
+      } finally {
+        f.cleanup();
+      }
+    }
+  });
+
   it("stays byte-identical when the grade did not drop or the earlier row had no scenario", async () => {
     const cases: readonly (readonly [string, readonly Record<string, unknown>[]])[] = [
       ["unchanged grade", [{ id: "F1", severity: "blocker", lens: "standards", summary: "drift" }]],

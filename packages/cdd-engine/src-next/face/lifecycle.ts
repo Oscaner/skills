@@ -1297,7 +1297,7 @@ export class CliLifecycle {
     // refused on THIS read-back path (the same one `CDD_BLOCKED` line every schema
     // refusal rides — no second reporter, no `--dry-run` claim). The round produces no
     // conclusion instead of a BLOCKED one.
-    // Rule zero (class-size limit): this file is 1857 lines and predates the limit —
+    // Rule zero (class-size limit): this file is well past the limit and predates it —
     // splitting it is P39's work (design spec D95 ②), not this round's.
     const grading = schema.gradingViolations(findings);
     if (grading.length > 0) {

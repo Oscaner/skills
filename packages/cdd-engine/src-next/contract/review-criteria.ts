@@ -85,12 +85,28 @@ export const REGRADE_MARK = "downgraded without a regrade reason";
  *  reason are two sentences, never one spliced phrase. */
 export const REGRADE_NOTE_SEPARATOR = "; ";
 
+/** The board's ` · ` cell shape — a reason carrying it would read as two cells on the
+ *  ONE token §5.2 pins as one row. */
+const BOARD_CELL_SHAPE = / *· */g;
+
+/** Whitespace runs and control characters — a reason carrying a line break would split
+ *  the capsule's one line and the board's one token into two. */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: the control-character range IS the rule here — a display token may not carry a line break or a raw C0 byte.
+const DISPLAY_BREAKS = /[\s\u0000-\u001f\u007f]+/g;
+
+/** One stated reason folded to its display form: the author's bytes stay on the carrier,
+ *  only the printed wording is collapsed so neither face can split on it. */
+const displayReason = (reason: string): string =>
+  reason.replace(BOARD_CELL_SHAPE, "; ").replace(DISPLAY_BREAKS, " ").trim();
+
 /** The downgrade note's ONE composition (design spec §5.2) — both display faces take
  *  their bytes from here, so the mark and the stated reason cannot drift apart: a row
  *  that owes its reason prints the mark, a row that states one prints the reason, and
- *  a round with neither prints nothing at all. */
+ *  a round with neither prints nothing at all. A stated reason is folded first, so a
+ *  line break or the board's own ` · ` never splits the one line / one token it rides. */
 export const regradeNote = (owing: number, reasons: readonly string[]): string | undefined => {
-  const parts = [...(owing > 0 ? [REGRADE_MARK] : []), ...reasons];
+  const stated = reasons.map(displayReason).filter((reason) => reason.length > 0);
+  const parts = [...(owing > 0 ? [REGRADE_MARK] : []), ...stated];
   return parts.length === 0 ? undefined : parts.join(REGRADE_NOTE_SEPARATOR);
 };
 

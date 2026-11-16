@@ -1947,6 +1947,8 @@ export class Ledger {
   /** The handoff findings presented as round findings — entries with an unknown severity
    *  are dropped (never invented into the judgment domain). */
   #findingsOf(carrier: Readonly<Record<string, unknown>>): readonly RoundFinding[] {
+    // Rule zero (class-size limit): this file is 2075 lines and predates the limit —
+    // splitting it is P39's work (design spec D95 ②), not this round's.
     if (!Array.isArray(carrier.findings)) return [];
     const findings: RoundFinding[] = [];
     for (const entry of carrier.findings) {

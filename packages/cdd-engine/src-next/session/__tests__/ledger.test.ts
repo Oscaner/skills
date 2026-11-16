@@ -2313,10 +2313,15 @@ describe("P37 T5 — the round finding projection and the downgrade comparison",
     expect(HandoffSchema.downgrades(prior, current)).toEqual([
       { severity: "warn", summary: "drift" },
     ]);
+    // the counterpart set: a round that owes nothing states its reason instead
+    expect(HandoffSchema.regradeReasons(prior, current)).toEqual([]);
     const reasoned = schema.findingsOf([
       { severity: "warn", summary: "drift", regrade: "the bytes a consumer gets do not move" },
     ]);
     expect(HandoffSchema.downgrades(prior, reasoned)).toEqual([]);
+    expect(HandoffSchema.regradeReasons(prior, reasoned)).toEqual([
+      "the bytes a consumer gets do not move",
+    ]);
   });
 
   it("step 2: an unchanged or raised grade is no downgrade", () => {

@@ -166,6 +166,43 @@ describe("P37 T6 — `pin-parseability`: the gate goes red on a dead pin and gre
     expect(findings[2]?.summary).toContain("carries no test titled");
   });
 
+  it("resolves DECLARATIONS, not prose — a name surviving in a comment or a guard regex is not a symbol", () => {
+    const f = fixture();
+    // the two places a deleted name outlives its declaration: the typed prose of a
+    // comment, and a retirement guard's own regex text (the measured case — five
+    // members deleted by P36 still named by the test that proves them gone)
+    f.write(
+      "packages/cdd-engine/src-next/retired.ts",
+      [
+        "// RetiredInComment",
+        "const guard = /RetiredInRegex/;",
+        'export const entry = "AWordTableEntry";',
+        "export class PresentClass {",
+        "  #presentMember(): void {}",
+        "}",
+        "",
+      ].join("\n"),
+    );
+    // a string / template literal stays a declaration: this tree declares live
+    // vocabulary that way (`face/words.ts` spells `CDD_BLOCKED:` as a literal,
+    // `contract/lint.ts` derives `DependsOn id` from one), so blanking literals would
+    // report live coordinates as dead
+    const findings = f.audit.scanText(
+      bodyOf([
+        "RetiredInComment",
+        "RetiredInRegex",
+        "PresentClass",
+        "#presentMember",
+        "AWordTableEntry",
+      ]),
+      "declarations.md",
+    );
+    expect(findings.map((finding) => [finding.pin, finding.shape])).toEqual([
+      ["RetiredInComment", "symbol"],
+      ["RetiredInRegex", "symbol"],
+    ]);
+  });
+
   it("declares the whole corpus and pins its size — the docs tree plus the README family", () => {
     const audit = new PinAudit(REPO_ROOT);
     const files = audit.filesOf(CORPUS_ROOTS);

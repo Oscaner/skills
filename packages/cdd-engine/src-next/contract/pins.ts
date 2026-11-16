@@ -21,8 +21,9 @@
 //
 // The three shapes are judged on their own terms: a path by suffix resolution (never
 // by content — content matching cannot be mechanical), a bare symbol against an
-// identifier index of the engine / kairos / scripts trees (built once, cached), and a
-// test title against the named test file's bytes.
+// identifier index of the engine / kairos / scripts trees (built once, cached, and
+// read from DECLARATIONS — `PinSource` — never from raw bytes), and a test title
+// against the named test file's bytes.
 //
 // Zero document structure and zero semantics are judged here: this is the narrow form
 // of the P28 reversal, not a docs corpus validator.
@@ -234,6 +235,97 @@ export class PinSpans {
 }
 
 /**
+ * PinSource — the declaration reader behind the symbol index (§7.1). A name resolves
+ * only when it survives in CODE: comment bodies and regex-literal bodies are blanked
+ * first (length- and line-preserving, so a later reader's position stays true) — the
+ * two places a deleted name outlives its declaration, namely the typed prose of a
+ * comment and a retirement guard's own pattern text.
+ *
+ * String and template literals are deliberately KEPT: in this tree they are where live
+ * vocabulary is declared (`face/words.ts` spells `CDD_BLOCKED:` as a literal ·
+ * `contract/lint.ts` derives `DependsOn id` from a literal · the round-context tokens
+ * are emitted from prompt literals). Blanking them reported 82 live `CDD_BLOCKED` pins
+ * and 94 `DependsOn` pins as dead, so a literal is a value the code carries, not prose
+ * about a name.
+ */
+// biome-ignore lint/complexity/noStaticOnlyClass: the declaration reader is a declared static reader set — the repo's zero-bare-function discipline admits no standalone parser.
+export class PinSource {
+  /** One source text with every comment and regex literal body blanked — the
+   *  declaration corpus the identifier index tokenizes. */
+  static codeOf(source: string): string {
+    const out = source.split("");
+    const blank = (from: number, to: number): void => {
+      for (let at = from; at < to && at < out.length; at += 1) {
+        if (out[at] !== "\n") out[at] = " ";
+      }
+    };
+    let index = 0;
+    let previous = "";
+    while (index < source.length) {
+      const char = source[index]!;
+      const next = source[index + 1];
+      if (char === "/" && next === "/") {
+        const start = index;
+        while (index < source.length && source[index] !== "\n") index += 1;
+        blank(start, index);
+      } else if (char === "/" && next === "*") {
+        const start = index;
+        index += 2;
+        while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) {
+          index += 1;
+        }
+        index += 2;
+        blank(start, index);
+      } else if (char === "'" || char === '"' || char === "`") {
+        // kept verbatim — see the class header: a literal is a value, not prose
+        const quote = char;
+        index += 1;
+        while (index < source.length && source[index] !== quote) {
+          if (source[index] === "\\") index += 1;
+          index += 1;
+        }
+        index += 1;
+      } else if (char === "/" && PinSource.#regexMayStart(previous)) {
+        const start = index;
+        index += 1;
+        let inClass = false;
+        while (index < source.length) {
+          const inner = source[index]!;
+          if (inner === "\n") break;
+          if (inner === "\\") {
+            index += 2;
+            continue;
+          }
+          if (inner === "[") {
+            inClass = true;
+            index += 1;
+            continue;
+          }
+          if (inner === "]") {
+            inClass = false;
+            index += 1;
+            continue;
+          }
+          index += 1;
+          if (inner === "/" && !inClass) break;
+        }
+        blank(start, index);
+      } else {
+        if (char.trim() !== "") previous = char;
+        index += 1;
+      }
+    }
+    return out.join("");
+  }
+
+  /** Whether a `/` at `previous` (the last non-space code char, "" at file start) may
+   *  open a regex literal rather than being a division operator. */
+  static #regexMayStart(previous: string): boolean {
+    return previous === "" || !/[A-Za-z0-9_$)\]]/.test(previous);
+  }
+}
+
+/**
  * PinIndex — the resolution face: the repo's own entry list (files and directories, for
  * suffix resolution), the identifier index of the three source trees, and the per-file
  * reads the line-count and test-title shapes need. Everything is built lazily and
@@ -256,8 +348,11 @@ export class PinIndex {
   }
 
   /** The identifier set of the engine / kairos / scripts trees — the symbol shape's
-   *  corpus. Identifiers are collected from the source bytes, so a method's private
-   *  spelling (`#artifactCellOf`) resolves as `artifactCellOf`. */
+   *  corpus. Identifiers come from DECLARATIONS (`PinSource.codeOf`), never from raw
+   *  bytes: a name kept alive only by a comment or a guard test's own regex is prose
+   *  about the name, not the name being there. A private member indexes as
+   *  `artifactCellOf` (`#` is not an identifier character), which is why `isSymbol`
+   *  strips it too. */
   symbols(): ReadonlySet<string> {
     if (this.#symbols !== null) return this.#symbols;
     const symbols = new Set<string>();
@@ -266,7 +361,9 @@ export class PinIndex {
         if (!PinIndex.#isSource(entry)) continue;
         const text = this.textOf(entry);
         if (text === null) continue;
-        for (const match of text.matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) symbols.add(match[0]);
+        for (const match of PinSource.codeOf(text).matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) {
+          symbols.add(match[0]);
+        }
       }
     }
     this.#symbols = symbols;

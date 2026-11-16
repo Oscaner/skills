@@ -396,7 +396,7 @@ export class HandoffSchema {
   /** P37 §5.1 — the cross-round downgrade judgment, a PURE predicate over the two
    *  rounds' findings projections. Returns the current rows that were graded BELOW a
    *  matching earlier row, whose earlier `impact.scenario` was non-empty, and that
-   *  carry no `regrade` reason: exactly the rows the display face mentions.
+   *  carry no `regrade` reason: exactly the rows the display face marks.
    *
    *  The four steps, in order: (1) locate the matching earlier row — `summary` is the
    *  match key (the defect's description, which survives a reworded scenario), and a
@@ -411,23 +411,51 @@ export class HandoffSchema {
     prior: readonly RoundFinding[],
     current: readonly RoundFinding[],
   ): readonly RoundFinding[] {
-    return current.filter((row) => HandoffSchema.#owesRegrade(prior, row));
+    return current.filter(
+      (row) =>
+        HandoffSchema.#downgradeReference(prior, row) !== undefined &&
+        HandoffSchema.#textOf(row.regrade) === undefined,
+    );
   }
 
-  /** Whether one finding owes its regrade reason — §5.1's steps 1 → 4 in order. */
-  static #owesRegrade(prior: readonly RoundFinding[], row: RoundFinding): boolean {
+  /** P37 §5.1 · §5.2 — the reasons the round DID state, in carrier row order. The
+   *  counterpart of `downgrades`: the same downgrade judgment, read on the rows that
+   *  carry their `regrade` cell. The two sets partition one judgment, so a display face
+   *  can print the mark and the reasons from ONE criterion instead of re-deciding which
+   *  row was downgraded. */
+  static regradeReasons(
+    prior: readonly RoundFinding[],
+    current: readonly RoundFinding[],
+  ): readonly string[] {
+    // Rule zero (class-size limit): this file is 632 lines and predates the limit —
+    // splitting it is P39's work (design spec D95 ②), not this round's.
+    const reasons: string[] = [];
+    for (const row of current) {
+      if (HandoffSchema.#downgradeReference(prior, row) === undefined) continue;
+      const reason = HandoffSchema.#textOf(row.regrade);
+      if (reason !== undefined) reasons.push(reason);
+    }
+    return reasons;
+  }
+
+  /** The earlier row a current row was graded below — §5.1's steps 1 → 4, absent for
+   *  every row that is not a downgrade. */
+  static #downgradeReference(
+    prior: readonly RoundFinding[],
+    row: RoundFinding,
+  ): RoundFinding | undefined {
     const matches = prior.filter(
       (candidate) => candidate.summary !== undefined && candidate.summary === row.summary,
     );
-    if (matches.length === 0) return false;
+    if (matches.length === 0) return undefined;
     const narrowed = matches.filter((candidate) => row.id !== undefined && candidate.id === row.id);
     const reference = (narrowed.length > 0 ? narrowed : matches)[0];
-    if (reference === undefined) return false;
+    if (reference === undefined) return undefined;
     if (HandoffSchema.#tierRankOf(row.severity) >= HandoffSchema.#tierRankOf(reference.severity)) {
-      return false;
+      return undefined;
     }
-    if (HandoffSchema.#textOf(reference.impact?.scenario) === undefined) return false;
-    return HandoffSchema.#textOf(row.regrade) === undefined;
+    if (HandoffSchema.#textOf(reference.impact?.scenario) === undefined) return undefined;
+    return reference;
   }
 
   /** The tier ladder's rank — higher is more severe (blocker 2 · warn 1 · nit 0). */

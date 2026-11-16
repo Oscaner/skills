@@ -81,6 +81,19 @@ const CELLS = ["body", "duty", "counterExample"] as const;
  *  place in the tier prose a grader calibrates against. */
 export const REGRADE_MARK = "downgraded without a regrade reason";
 
+/** The separator between two downgrade notes on ONE face — the mark and a stated
+ *  reason are two sentences, never one spliced phrase. */
+export const REGRADE_NOTE_SEPARATOR = "; ";
+
+/** The downgrade note's ONE composition (design spec §5.2) — both display faces take
+ *  their bytes from here, so the mark and the stated reason cannot drift apart: a row
+ *  that owes its reason prints the mark, a row that states one prints the reason, and
+ *  a round with neither prints nothing at all. */
+export const regradeNote = (owing: number, reasons: readonly string[]): string | undefined => {
+  const parts = [...(owing > 0 ? [REGRADE_MARK] : []), ...reasons];
+  return parts.length === 0 ? undefined : parts.join(REGRADE_NOTE_SEPARATOR);
+};
+
 /**
  * The declared criteria table. Every tier owes at least one row; the `warn` tier
  * carries two (the debt boundary and the pin parseability gate of §7.4), and the

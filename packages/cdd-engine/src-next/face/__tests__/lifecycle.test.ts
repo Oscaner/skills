@@ -2248,11 +2248,11 @@ describe("P37 T5 — the capsule summary slot carries the downgrade mark", () =>
     }
   });
 
-  it("stays byte-identical when the grade did not drop, the reason was stated, or the earlier row had no scenario", async () => {
-    const cases: readonly (readonly [string, readonly Record<string, unknown>[]])[] = [
-      ["unchanged grade", [{ id: "F1", severity: "blocker", lens: "standards", summary: "drift" }]],
-      [
-        "stated reason",
+  it("prints the stated reason on the same slot — a carried `regrade` speaks instead of the mark", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      seedReview(f, 1, [PRIOR_BLOCKER]);
+      const runner = new ReviewDraftRunner(
         [
           {
             id: "F1",
@@ -2262,7 +2262,25 @@ describe("P37 T5 — the capsule summary slot carries the downgrade mark", () =>
             regrade: "the consumed bytes do not move",
           },
         ],
-      ],
+        "tasks-1-review-2.json",
+      );
+      const { outcome } = await dispatchFrame(f, reviewOf(2), runner);
+      // the reason rides the ONE summary slot, exactly where the mark would
+      expect(outcome.dispositionsSummary).toBe("the consumed bytes do not move");
+      const lines = capsuleOf(outcome);
+      expect(lines).toHaveLength(2);
+      expect(lines[1]).toBe("the consumed bytes do not move");
+      // still display only: no synthetic finding, no mark
+      expect(outcome.dispositionsSummary).not.toBe(REGRADE_MARK);
+      expect(outcome.findings).toHaveLength(1);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("stays byte-identical when the grade did not drop or the earlier row had no scenario", async () => {
+    const cases: readonly (readonly [string, readonly Record<string, unknown>[]])[] = [
+      ["unchanged grade", [{ id: "F1", severity: "blocker", lens: "standards", summary: "drift" }]],
       [
         "no earlier scenario",
         [{ id: "F1", severity: "warn", lens: "standards", summary: "drift" }],

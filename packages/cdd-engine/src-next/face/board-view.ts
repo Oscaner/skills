@@ -40,7 +40,7 @@ import path from "node:path";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import type { DocKey } from "../contract/project.ts";
 import { DOC_KEYS } from "../contract/project.ts";
-import { REGRADE_MARK } from "../contract/review-criteria.ts";
+import { REGRADE_NOTE_SEPARATOR, regradeNote } from "../contract/review-criteria.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import type { PlanRead, PlanSource } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
@@ -294,12 +294,18 @@ export class LineCarriers {
     return this.#contentOf(record).findings;
   }
 
-  /** Whether one record's token carries the downgrade mark (P37 §5.1 · §5.2) — its
-   *  findings judged against the nearest EARLIER record on this line whose findings
-   *  projection is non-empty (an implement / fix record with no findings never resets
-   *  the reference, so a downgrade cannot slip through a clean neighbour). */
-  markedOf(record: RoundRecord): boolean {
-    return HandoffSchema.downgrades(this.#priorOf(record), this.findingsOf(record)).length > 0;
+  /** One record's downgrade note (P37 §5.1 · §5.2) — its findings judged against the
+   *  nearest EARLIER record on this line whose findings projection is non-empty (an
+   *  implement / fix record with no findings never resets the reference, so a downgrade
+   *  cannot slip through a clean neighbour). `undefined` when nothing was downgraded,
+   *  the mark when a row owes its reason, the stated reason when the row carries one. */
+  regradeNoteOf(record: RoundRecord): string | undefined {
+    const prior = this.#priorOf(record);
+    const current = this.findingsOf(record);
+    return regradeNote(
+      HandoffSchema.downgrades(prior, current).length,
+      HandoffSchema.regradeReasons(prior, current),
+    );
   }
 
   /** The earlier records of this line, newest first — the "previous round" walk's
@@ -636,13 +642,17 @@ export class BoardView {
     run: readonly RoundRecord[],
     carriers: LineCarriers,
   ): string {
+    // Rule zero (class-size limit): this file is 1615 lines and predates the limit —
+    // splitting it is P39's work (design spec D95 ②), not this round's.
     const findings = run.reduce((total, record) => total + carriers.countOf(record), 0);
     const suffix = findings === 0 ? "" : `+${findings}`;
-    // P37 §5.2 — the downgrade mark rides the SAME token, after its `+N`: the verb's
-    // run carries it when any record in the run was downgraded without a reason. One
-    // token, one line, no new entry — the mark is display, never a finding.
-    const downgraded = run.some((record) => carriers.markedOf(record));
-    return `${verb} ${body} ${mark}${suffix}${downgraded ? ` ${REGRADE_MARK}` : ""}`;
+    // P37 §5.2 — the downgrade note rides the SAME token, after its `+N`: the mark when
+    // a row owes its reason, the stated reason when the row carries one (both composed
+    // by the criteria module's ONE note). One token, one line, no new entry — the note is
+    // display, never a finding.
+    const notes = run.flatMap((record) => carriers.regradeNoteOf(record) ?? []);
+    const note = notes.length === 0 ? "" : ` ${notes.join(REGRADE_NOTE_SEPARATOR)}`;
+    return `${verb} ${body} ${mark}${suffix}${note}`;
   }
 
   /** attemptSuffix(record) — the re-dispatch superscript: `attempt === 1` renders

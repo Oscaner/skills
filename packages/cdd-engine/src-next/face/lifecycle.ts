@@ -21,7 +21,7 @@ import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
 import { PinAudit } from "../contract/pins.ts";
-import { REGRADE_MARK } from "../contract/review-criteria.ts";
+import { regradeNote } from "../contract/review-criteria.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
 import { GitClient } from "../infra/git.ts";
@@ -1316,11 +1316,11 @@ export class CliLifecycle {
     let summary: string | undefined;
     try {
       summary = this.#dispositionsSummary(frame, plane, materialized.carrier);
-      // P37 §5.2 — the downgrade mark rides the SAME capsule `summary` slot: the
+      // P37 §5.2 — the downgrade note rides the SAME capsule `summary` slot: the
       // `emit` signature and key set do not move, and a round with no downgrade leaves
       // the slot undefined, so the stdout of an ordinary review round is byte-identical
       // to before this phase.
-      summary ??= this.#downgradeMark(frame, plane, materialized.carrier);
+      summary ??= this.#downgradeNote(frame, plane, materialized.carrier);
     } catch (raw) {
       if (!(raw instanceof CarrierMismatchError)) throw raw;
       this.#blocked(raw.message, false);
@@ -1443,14 +1443,14 @@ export class CliLifecycle {
     );
   }
 
-  /** P37 §5.1 · §5.2 — the capsule's downgrade mark. The current round's findings are
+  /** P37 §5.1 · §5.2 — the capsule's downgrade note. The current round's findings are
    *  judged against the NEAREST EARLIER review record on this line whose findings
    *  projection is non-empty (a clean implement / fix record between the two never
-   *  resets the reference); a lowered grade against a non-empty earlier scenario owes a
-   *  `regrade` reason, and a missing one prints the mark. Display only: the mark is the
-   *  capsule's `summary` line, never a finding row, never a carrier entry, and it never
-   *  moves the round's conclusion. */
-  #downgradeMark(
+   *  resets the reference); a lowered grade against a non-empty earlier scenario prints
+   *  the stated `regrade` reason, and one that states none prints the mark. Display
+   *  only: the note is the capsule's `summary` line, never a finding row, never a carrier
+   *  entry, and it never moves the round's conclusion. */
+  #downgradeNote(
     frame: OpenFrame,
     plane: CarrierPlane,
     carrier: Record<string, unknown>,
@@ -1458,8 +1458,11 @@ export class CliLifecycle {
     if (plane !== "judge") return undefined;
     const current = this.#handoffSchema.findingsOf(carrier.findings);
     if (current.length === 0) return undefined;
-    const marks = HandoffSchema.downgrades(this.#priorFindings(frame), current);
-    return marks.length === 0 ? undefined : REGRADE_MARK;
+    const prior = this.#priorFindings(frame);
+    return regradeNote(
+      HandoffSchema.downgrades(prior, current).length,
+      HandoffSchema.regradeReasons(prior, current),
+    );
   }
 
   /** The "previous round" of §5.1 — the nearest earlier REVIEW record on this line

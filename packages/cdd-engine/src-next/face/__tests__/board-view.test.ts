@@ -3888,7 +3888,7 @@ describe("P37 T5 — the downgrade mark rides the board's verb token", () => {
     expect(line.split(" · ")).toHaveLength(1);
   });
 
-  it("names the stated reason instead — a carried `regrade` retires the mark", () => {
+  it("names the stated reason after the `+N` — a carried `regrade` speaks instead of the mark", () => {
     const line = cell([
       withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),
       withCarrier({ cycle: 2 }, [
@@ -3900,8 +3900,9 @@ describe("P37 T5 — the downgrade mark rides the board's verb token", () => {
         },
       ]),
     ]);
-    expect(line).toBe("review 2 ✓+2");
+    expect(line).toBe("review 2 ✓+2 the bytes a consumer gets are unchanged");
     expect(line).not.toContain(REGRADE_MARK);
+    expect(line.split(" · ")).toHaveLength(1);
   });
 
   it("keeps the mark when this round omits or rewrites its scenario — only the earlier row is read", () => {
@@ -3970,7 +3971,7 @@ describe("P37 T5 — the downgrade mark rides the board's verb token", () => {
       const carriersFace = LineCarriers.of([prior, current], (entry) => carriers.get(entry) ?? "");
       carriersFace.countOf(current);
       carriersFace.findingsOf(current);
-      carriersFace.markedOf(current);
+      carriersFace.regradeNoteOf(current);
       carriersFace.countOf(prior);
       // two records, two carriers, two reads — a second parse (or a second read of the
       // same record) would raise this count

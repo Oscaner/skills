@@ -22,11 +22,13 @@ Grading becomes checkable end to end (P37).
 - Cross-round regrade: when a finding returns one tier lower while the earlier round
   carried a non-empty `impact.scenario`, the new round owes a `regrade` reason. A
   missing reason prints one visible mark on the board's verb token and one on the
-  capsule's summary line — display only: no finding row, no carrier entry, and the
-  round's conclusion is unchanged.
+  capsule's summary line; a stated reason prints the reason itself, once on each face —
+  display only: no finding row, no carrier entry, and the round's conclusion is
+  unchanged.
 - Pin parseability gate: a document's path, bare-symbol or test-title claims must
   resolve in the tree. One criterion, three corpora: the engine suite scans the whole
   docs corpus, a document review scans the judged document's own body, and the handoff
-  read-back judges each finding's `contract.path`. A dead pin is a real `warn` finding
-  under the `consistency` lens — it never refuses a round, but it does move a review to
-  `REVIEW_FIX`.
+  read-back judges each finding's `contract.path`. A bare symbol resolves only as a code
+  declaration — a name that survives merely in a comment or a retirement guard's regex is
+  dead. A dead pin is a real `warn` finding under the `consistency` lens — it never
+  refuses a round, but it does move a review to `REVIEW_FIX`.

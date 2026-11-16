@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P37 计划：分级判据的可核化（功能影响 · 三级边界 · 生成式注册表 · pin 门）'
 doc-type: plan
-version: v0.6
+version: v0.7
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 base: develop
@@ -9,8 +9,8 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md`（slug `2026-11-16-engine-doc-tooling-p37`）在本轮被消费那一刻的 `version:` 所指的面。本 bullet 只记「哪一节落在哪个任务」，**不记版本坐标**——spec 再升一版也不需要改这一行；本计划实际消费的是哪一版，记在 `## Change history` 里本轮那一行。落点：§1 + §6.1 判据表半边 + §6.2 判据面观察者归 T1 · §3 + §6.1 lens 问句半边 + §3.2 + §6.2 问句面观察者与 15 行 / 19 格计数归 T2 · §2 全节归 T3 · §4 归 T4 · §5 归 T5 · §7.1 pin 定义与三形态 + §7.4 pin 判据行 + §7.2 的后两份语料（被审文档正文 · `contract.path`）+ §2.3 + AC⑦ changeset 归 T6 · §7.3 存量迁移归 T7。§6.2 的三种 `face` 各由创建该执行面的任务核，一律走字面量、不跨任务 import：`numbered` 与语料计数落在承载该表的测试面（T1 判据表 / T2 问句表）；`gate` 落在 T3——它打的 `CDD_BLOCKED: grading-impact-missing` 第二词就是该判据行的 `id`；`test` 落在 T6——`contract/__tests__/pins.guard.test.ts` 里一条格题以字面量点名 `pin-parseability`。§7 的测试面只承接 pin 语料。
-- **OOP / 零裸函数**：`src-next` 新增文件一律 class 或 `const` 箭头；参数 ≤4；类 ≤200 行；接口先行、协作者构造注入。注册表仿 `contract/completion-criterion.ts` 的 `of(id)` 查不到即抛。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md`（slug `2026-11-16-engine-doc-tooling-p37`）在本轮被消费那一刻的 `version:` 所指的面。本 bullet 只记「哪一节落在哪个任务」，**不记版本坐标**——spec 再升一版也不需要改这一行；本计划实际消费的是哪一版，记在 `## Change history` 里本轮那一行。落点：§1 + §6.1 判据表半边 + §6.2 判据面观察者归 T1 · §3 + §6.1 lens 问句半边 + §3.2 + §6.2 问句面观察者与 15 行 / 19 格计数归 T2 · §2 归 T3，除 §2.1 的 `RoundFinding` 三格与两个投影（→ T5）与 §2.3 的 `contract.path` 回读（→ T6）· §4 归 T4 · §5 归 T5 · §7.1 pin 定义与三形态 + §7.4 pin 判据行 + §7.2 的后两份语料（被审文档正文 · `contract.path`）+ §2.3 的 `contract.path` 回读 + AC⑦ changeset 归 T6 · §7.3 存量迁移归 T7。§6.2 的三种 `face` 各由创建该执行面的任务核，一律走字面量、不跨任务 import：`numbered` 与语料计数落在承载该表的测试面（T1 判据表 / T2 问句表）；`gate` 落在 T3——它打的 `CDD_BLOCKED: grading-impact-missing` 第二词就是该判据行的 `id`；`test` 落在 T6——`contract/__tests__/pins.guard.test.ts` 里一条格题以字面量点名 `pin-parseability`。§7 的测试面只承接 pin 语料。
+- **OOP / 零裸函数**：`src-next` 新增文件一律 class 或 `const` 箭头；参数 ≤4；类 ≤200 行；接口先行、协作者构造注入。注册表仿 `contract/completion-criterion.ts` 的 `of(id)` 查不到即抛。**类 ≤200 行的上限只约束本相位新建的类**：本相位要动的四个既有文件均超此限（`session/ledger.ts` 2057 行 · `face/lifecycle.ts` 1857 行 · `face/board-view.ts` 1523 行 · `session/handoff-schema.ts` 470 行），按 rule zero 免于该上限，每处改动写一行理由；拆分归 P39（D95 ②），本相位不拆、不借此重开它们。
 - **pin 写法**：路径 + 符号，不用行号。本计划自身遵守。
 - **非目标**：不改 D70 · 不改「任何 findings → fix」路由 · 不重审已闭合相位 · 不动 `packages/kairos/skills` · 不做 docs 全量校验 · 不引入 `impact.kind`（v0.3 ruling 已删）。
 - **changeset**：`cdd-engine` **minor**（T6 末交付）；kairos 无。
@@ -186,7 +186,7 @@ none
 - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`RoundFinding` 扩 `id?` / `impact?` / `regrade?`；`Ledger#findingsOf` 投影写入）
 - Modify: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`HandoffSchema.findingsOf` 透传三格；丢弃规则不变）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（标记的生产者：与 `#dispositionsSummary` 同处按 §5.1 比较本轮与上一条 findings 非空的记录，结果写进 `DispatchOutcome.dispositionsSummary`）
-- Modify: `packages/cdd-engine/src-next/face/board-view.ts`（`LineCarriers` 补 per-record `findingsOf`；`BoardView#summaryToken` 在 `+N` 后接标记）
+- Modify: `packages/cdd-engine/src-next/face/board-view.ts`（`LineCarriers` 补 per-record `findingsOf`，与 `countOf` 共用同一条 digest 校验读、字节只解析一次；`BoardView#summaryToken` 在 `+N` 后接标记）
 - Modify: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（胶囊 `summary` 槽的成对 pin）
 - Modify: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（板面 token 的标记与负向 pin）
 - Modify: `packages/cdd-engine/src-next/session/__tests__/ledger.test.ts`（三格投影与比较四步）
@@ -199,7 +199,7 @@ none
 #### Produces
 
 - `RoundFinding` 含 `id?` · `impact?`（其 `scenario`）· `regrade?`（或等价命名），两个投影同步带上这三格
-- `LineCarriers#findingsOf(record): readonly RoundFinding[]`（per-record findings 读面，投影复用 `HandoffSchema.findingsOf`；`countOf` 语义不动）
+- `LineCarriers#findingsOf(record): readonly RoundFinding[]`（per-record findings 读面）与 `countOf` **共用一次读**：同一条 `CarrierIntegrity.read`（含 digest 校验与 `RoundRecords.ownerOf` 归属判定）+ 一次 `JSON.parse`，随后两个投影各取一格——`countOf` 仍取原生 `findings` 数组长度（语义不动，仍是 `+N` 的数字），`findingsOf` 取经 `HandoffSchema.findingsOf` 过滤后的行（未知 severity 仍丢）。同源不同格：`#summaryToken` 的 `+N` 用前者、降档标记用后者，因此 `countOf` 不会因改用 `findingsOf` 而变成无调用者的死码，也没有第二次 carrier 解析
 - 胶囊侧走 `Capsule#emit` 既有的 `summary` 槽：`session/run.ts#capsuleLines` 已把 `DispatchOutcome.dispositionsSummary` 原样交给 `emit`，`emit` 签名与键集都不动 ⇒ `face/capsule.ts` 与 `session/run.ts` 都不是改动点；评审轮因此**恰好多一行**——「不新增行」的准确说法是**不新增 finding 行、不新增 carrier 条目、不改本轮结论**
 - 显示面标记措辞取自 T1 判据表 `regrade-mark` 行的 `body`（`CRITERIA.of("regrade-mark").body`，不另写一句）；板面把它接在 `+N` 之后，仍是同一个 token
 
@@ -207,7 +207,7 @@ none
 
 - 写失败测试：同一 `summary` 上轮 blocker+scenario、本轮 warn 无 regrade ⇒ 胶囊与板面各一记；有 regrade ⇒ 两处出现理由；本轮省略场景文本仍出标记；本轮把 `impact.scenario` 改写成本轮的新场景、`summary` 原文不变、无 `regrade` ⇒ 仍配对、仍要求 `regrade`、两处仍出标记（改写不注销义务）；上一轮同键行的 `impact.scenario` 为空、本轮降档且无 `regrade` ⇒ 胶囊该行不出现、板面 token 不带标记（「见降档就标」是假阳性，§5.1 第 4 步要挡的正是它）；中间夹一条 findings 为空的 implement 记录仍配对；标记条数不增加 `findings[]` 长度、不单独把结论打成 `REVIEW_FIX` — checkable: 红
 - 扩投影与比较：匹配键先取 `summary` 原文、多行同文时以 carrier `id` 收窄（`id` 是行号不是缺陷身份，不能作首键）；「上一轮」= 同一行上更早的、其 findings 投影非空的那条记录；比较规则按 §5.1 四步 — checkable: 匹配测试绿
-- 渲染标记（display-only）：胶囊侧在 `#dispositionsSummary` 同处产出该行、经既有 `summary` 槽渲出；板面侧在 `+N` 之后接同一句 — checkable: 无降档的评审轮 stdout 与今天逐字节相同、有降档恰好多这一行；板面 token 同样成对；标记不进 `findings[]`、不单独逼 `REVIEW_FIX`
+- 渲染标记（display-only）：胶囊侧在 `#dispositionsSummary` 同处产出该行、经既有 `summary` 槽渲出；板面侧在 `+N` 之后接同一句 — checkable: 无降档的评审轮 stdout 与今天逐字节相同、有降档恰好多这一行；板面 token 同样成对；标记不进 `findings[]`、不单独逼 `REVIEW_FIX`；板面每个 record 只解析一次 carrier 字节（`countOf` 与 `findingsOf` 共用一次 `CarrierIntegrity.read` 与一次 `JSON.parse`），把 `findingsOf` 改成第二次独立解析 ⇒ 该 pin 红
 - 提交 — checkable: commit 存在
 
 #### Acceptance
@@ -228,7 +228,7 @@ AC ⑤ 的全部腿，逐条成对 pin：降档且上一轮同键 `impact.scenar
 
 - Create: `packages/cdd-engine/src-next/contract/pins.ts`
 - Create: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（judge 面回读的两份语料都在 `#reconstruct` 判、都在 `conclusionOf` 与局部 findings 投影之前注入 `draft.findings`：扫被审文档正文 + 判 finding 行的 `contract.path`；`#materialize` 保持 carrier 写者的角色，不新增判点）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（judge 面回读的两份语料都在 `#reconstruct` 判、都在 `conclusionOf` 与局部 findings 投影之前注入 `draft.findings`：扫被审文档正文 + 判 finding 行的 `contract.path`；被审文档正文的路径取 `frame.target`（三个 doc 型为 `{ kind: "spec", doc }`）、正文走类既有的 repo 读，`#reconstruct` 不建第二个 `SlugIndex`、也不给 `DispatchScene` 加字段；`#materialize` 保持 carrier 写者的角色，不新增判点）
 - Modify: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（两份回读语料各自的成对 pin）
 - Create: `.changeset/p37-grading-boundary.md`（`cdd-engine` minor）
 
@@ -243,7 +243,7 @@ AC ⑤ 的全部腿，逐条成对 pin：降档且上一轮同键 `impact.scenar
 - 语料声明写死在测试里、**没有在册清单**：§7.1 全语料 = `docs/kairos/**/*.md` + README 家族（`README.md` · `README.zh-CN.md` · `packages/*/README*.md`），无基线 / 无白名单 / 无豁免；扫描文件数作为语料规模常量钉住——文档进入或离开语料即红
 - 门的可红可修成对 pin：播种一条指向不存在符号的 markdown pin ⇒ 红且指出该 pin ⇒ 移除 ⇒ 绿。**零 finding 不是本任务的 checkable**——语料今天非干净，那条断言由 T7 迁移后加
 - `pin-parseability` 的 `test` 面：`pins.guard.test.ts` 里一条以字面量点名 `pin-parseability` 的格题（T1 判据表那一行的 `face: "test"` 由它占位，不 import 注册表）。§6.2 / §7.4 把该执行面写作 `pins.test.ts`；本计划用 `pins.guard.test.ts`（与仓内 `doc-corpus.guard.test.ts` / `dockey.guard.test.ts` / `phase-inventory.guard.test.ts` 同惯例），这是对 spec 字面路径的有意改名，记名在 `## Change history` 的 v0.4 行
-- 语料二——文档评审回读面（§7.2 第 2 份）：judge 面且为文档评审轮（`TARGET_TYPE` 为 doc 三型）时，在 `#reconstruct` 里对**本轮被审文档的正文**跑一次 markdown 扫描；那份文档是 `SlugIndex` 解析到、本轮回读的**身份文档**——`INPUT_SPEC` / `INPUT_OVERALL` 是它的引用，**不是语料**。解析不到的 pin 折算成 `severity: warn` · `lens: consistency` 的 finding 注入 `findings[]`，`summary` 指出失效的 pin；它不新增拒绝面（不出 `CDD_BLOCKED`），但**不是结论中性**：warn 按既有语义被 `rollup` 读到，一份带死 pin 的被审文档在文档评审轮落到 `REVIEW_FIX`，而不是停在今天的 `APPROVED`
+- 语料二——文档评审回读面（§7.2 第 2 份）：judge 面且为文档评审轮（`TARGET_TYPE` 为 doc 三型）时，在 `#reconstruct` 里对**本轮被审文档的正文**跑一次 markdown 扫描。读缝点名在这里：语料的路径直取 `frame.target`——三个 doc 型（`phase-spec` / `overall` / `single-spec`）的 `frame.target` 是 `{ kind: "spec", doc }`，`doc` 就是那份文档的仓内路径；正文走本类既有的 repo 读（`readFileSync`）。等价路由是 `#artifacts.read({ domain: "doc", slug, docType }, docType, workspace)`：`slug` 来自 `workspace.slug`、`docType` 由 `frame.type` 所指的 doc 型给出，返回的 `path` 与 `frame.target.doc` 在本轮指向同一份文档（`#sceneOf` 已在派发前挡掉重复身份）。身份解析（`--spec` → slug、`SlugIndex` 建索引与回读）发生在 `face/cli.ts#sceneOf`，不属 `#reconstruct`：本条只承接那份解析结果，不重建索引、不把文档正文塞进 `DispatchScene`。`INPUT_SPEC` / `INPUT_OVERALL` 是它的引用，**不是语料**。解析不到的 pin 折算成 `severity: warn` · `lens: consistency` 的 finding 注入 `findings[]`，`summary` 指出失效的 pin；它不新增拒绝面（不出 `CDD_BLOCKED`），但**不是结论中性**：warn 按既有语义被 `rollup` 读到，一份带死 pin 的被审文档在文档评审轮落到 `REVIEW_FIX`，而不是停在今天的 `APPROVED`
 - 语料三——交接单 finding 行（§7.2 第 3 份）：有 `contract` 则解析其 `path`，失效 ⇒ 追加一条 `lens: consistency` · `severity: warn` 的 finding（只判 `contract` 这一格，`PinAudit` 的 markdown 扫描永不承接）；追加点与语料二同一处——`#reconstruct` 里、局部 `findings` 取值与 `schema.conclusionOf(plane, draft)` 之前写进 `draft.findings`，因此那一次 `rollup`、`DraftedOutcome.findings` 的投影、载体三处同源；不 BLOCK（无 `CDD_BLOCKED`），本来零 finding 的评审轮因此落到 `REVIEW_FIX` 而不是停在 `APPROVED`。**判点不在 `#materialize`**：`#reconstruct` 先算 `const status = schema.conclusionOf(plane, draft) ?? "BLOCKED"` 再调 `#materialize`，在写者里追加的 warn 会进载体而 `DraftedOutcome.status` 仍是 `APPROVED`——一轮打印一个结论、携带另一个，正是 §2.3「它按 warn 的既有语义参与 `rollup`」与 §7.2「落到 `REVIEW_FIX`，不会停在 `APPROVED`」禁止的形态
 
 #### Steps
@@ -251,7 +251,7 @@ AC ⑤ 的全部腿，逐条成对 pin：降档且上一轮同键 `impact.scenar
 - 写失败测试：注入一条指向不存在符号的 markdown pin ⇒ `PinAudit` 非空且指出该 pin，移除 ⇒ 空；扫描文件数等于 §7.1 语料声明；`pins.guard.test.ts` 有一条点名 `pin-parseability` 的格题 — checkable: 红
 - 写失败测试（pin 定义的三条排除，各一对）：`./x.ts` 或 `...` 省略形 token ⇒ 零 finding；产物词汇 token（`progress.json` · `X.md`）⇒ 零 finding；已消费的 `.changeset/*` 引用 ⇒ 零 finding；而同一位置上仓根相对、非产物词汇、非 changeset 的真死引用仍产 finding — checkable: 红于排除未实现（扫描器把词汇当主张）
 - 实现三形态解析（§7.1）与缓存符号索引，并把 §7.1 的 pin 定义（三条排除）实现为解析前的筛选；结构测试落在 §7.1 全语料（无在册清单、无基线）— checkable: 播种态红 / 移除后绿，语料规模断言绿，三条排除各一对绿；零 finding 的断言留给 T7
-- 语料二的回读（§7.2 第 2 份）：judge 面且为文档评审轮时，对 `#reconstruct` 已解析出的身份文档正文跑 `PinAudit` 的 markdown 扫描，解析不到的 pin 折算成 warn · `consistency` 追加进 `draft.findings`；随后照既有 rollup 出结论——不调用 `#reject`（无 `CDD_BLOCKED`）— checkable: 成对 pin 绿——干净的被审文档 ⇒ 零注入 finding、结论与注入前相同（`APPROVED` 仍 `APPROVED`）；文档里一条解析不到的 pin ⇒ 恰好多一条 warn、零 blocker、结论落 `REVIEW_FIX`
+- 语料二的回读（§7.2 第 2 份）：judge 面且为文档评审轮时，对 `frame.target.doc` 指向的本轮被审文档正文（类既有 `readFileSync`）跑 `PinAudit` 的 markdown 扫描，解析不到的 pin 折算成 warn · `consistency` 追加进 `draft.findings`；随后照既有 rollup 出结论——不调用 `#reject`（无 `CDD_BLOCKED`）— checkable: 成对 pin 绿——干净的被审文档 ⇒ 零注入 finding、结论与注入前相同（`APPROVED` 仍 `APPROVED`）；文档里一条解析不到的 pin ⇒ 恰好多一条 warn、零 blocker、结论落 `REVIEW_FIX`
 - 语料三的回读（§7.2 第 3 份）：在 `#reconstruct` 里、`schema.conclusionOf` 之前，有 `contract` 则解析 `path`；失败则把 `lens: consistency` · `severity: warn` 的 finding 追加进 `draft.findings`（与语料二同一注入点、同一次 `rollup`），不调用 `#reject`；`#materialize` 照常写载体并由 `#findingsList` 给注入行编 `id` — checkable: 成对 pin 绿——零 finding 的评审轮带一条失效 `contract.path` ⇒ 无 `CDD_BLOCKED`、结论 `REVIEW_FIX`（不是 `APPROVED`）；`path` 可解析 ⇒ 结论不变；把注入点挪到 `#materialize` ⇒ 结论那条 pin 红（载体里多一条 warn，而 `DraftedOutcome.status` 仍 `APPROVED`）
 - 写 changeset（minor · 简述三级边界 / impact 门 / lens 问句 / wave 注入 / regrade 标记 / pin 门）+ `pnpm run validate` — checkable: validate exit 0；changeset 在册
 - 提交 — checkable: commit 存在
@@ -308,3 +308,4 @@ AC ⑥（一条判据、三份语料、两个执行面；成对 pin 逐条：语
 | v0.4 | 2026-11-16 | docs-fix round 3（plan-review-3 · F1–F8 全受理）· 消费 spec `2026-11-16-engine-doc-tooling-p37-design` 的 `v0.8`：F1 T6 按 §7.2 重述为一条判据 · 三份语料 · 两个执行面，第 2 份语料改为**本轮被审文档正文**（`INPUT_SPEC` / `INPUT_OVERALL` 是它的引用，不是语料），两份回读语料的后果改准为 warn 进 `findings[]` ⇒ `REVIEW_FIX`（不出 `CDD_BLOCKED`，但不是结论中性），补 AC ⑥ 的三条成对 pin（干净文档零注入且结论不变 · 一条死 pin ⇒ 恰一条 warn、落 `REVIEW_FIX` · `contract.path` 失效 ⇒ 无 `CDD_BLOCKED` 且落 `REVIEW_FIX`），Acceptance 的「三个消费者」改为「一条判据、三份语料、两个执行面」；F2 T7 把已消费 `.changeset/*` 移出迁移清单与计数（§7.1 排除 3 已判其为记录），清单回到过期引用 / 迁移路径 / 行号越界三类；F3 T4 补齐 AC ④ 的四臂（single-spec 只出 `INPUT_SPEC` · `program:` 解析不到只丢 `INPUT_OVERALL`）并逐臂 pin，两格各自独立判定；F4 T1 按 §1.3 的序把反例句落到行上（blocker 行 ← 第一条 · warn 行 ← 第三条 · nit 行 ← 第四条 · 第二条作为 (a) 实例的收口句进 blocker 行 `body`）；F5 T1 补 §6.1 的两段校验契约——空白格与零行档位走装配期抛，删键走 `tsc`，两条红法不互相顶替；F6 T6 Produces 点名 §7.1 的 pin 定义（三条排除）并为每条约一条成对 pin；F7 本行记录消费的 spec 版本（`v0.8`）；F8 保留 `pins.guard.test.ts`（与仓内 `*.guard.test.ts` 同惯例），作为对 spec 字面 `pins.test.ts` 的有意改名记名于此 | Oscaner M. · Claude（kairos:cdd-plan plan-fix-3 · 2026-11-16） |
 | v0.5 | 2026-11-16 | docs-fix round 4（plan-review-4 · F1–F4）· 仍消费 spec `2026-11-16-engine-doc-tooling-p37-design` 的 `v0.8`：F1 T6 把语料三的判点从 `#materialize` 移回 `#reconstruct`——`#reconstruct` 先算 `status = conclusionOf(plane, draft)` 再调 `#materialize`，在写者里追加的 warn 会进载体而结论仍 `APPROVED`，因此两份回读语料同在 `conclusionOf` 与局部 findings 投影之前注入 `draft.findings`，`#materialize` 只留 carrier 写者的角色（注入行的 `id` 由 `#findingsList` 编），并补一条把注入点挪回写者即红的 checkable；F2 T5 补两条 checkable（上一轮同键 `impact.scenario` 为空 ⇒ 不要求 `regrade`、不标记；本轮改写 `scenario` 而 `summary` 不变 ⇒ 仍配对、仍出标记）与 Objective 的第 4 步分支，Acceptance 由「AC ⑤」改为 AC ⑤ 的全部腿逐条列出；F4 T2 的 `LensQuestionRow` 由单值 `reviewKind` 改为多值 `reviewKinds`（wave/branch 共享行正文只存一次），物理行 15 与逻辑格 19 由 `rows.length` 与 `sum(reviewKinds.length)` 两条独立断言各读一次，`forReviewKind` 按 `reviewKinds` 展开；F3 只落内容面——T5 的 Consumes 记清「哪一格由哪个前置供给」，`DependsOn` 集属结构面、本轮 `capability: may.amend = content` 不得改，T5 对 T1 的 `1` 这条边留待编排器补 | Oscaner M. · Claude（kairos:cdd-plan plan-fix-4 · 2026-11-16） |
 | v0.6 | 2026-11-16 | **结构面补齐（评审 F3 的编排器半边）**：T5 的 `DependsOn` 由 `3` 改为 `1, 3`——T5 消费 T1 的 `regrade-mark` 行（标记措辞唯一来源）与 T3 的 `impact` / `regrade` 字段，图里此前缺 T5 -> T1 这条边。fix 轮正确地把结构面交回编排器（`may.amend = content`），故由本提交落地；内容面已由 `01130594`（v0.5）完成，消费的 spec 版本为 `2026-11-16-engine-doc-tooling-p37` v0.8 | Oscaner M. · Claude（编排器 · 2026-11-16） |
+| v0.7 | 2026-11-16 | docs-fix round 5（plan-review-5 · F1–F4 全受理）· 仍消费 spec `2026-11-16-engine-doc-tooling-p37-design` 的 `v0.8`：F1 Constraints 的 OOP 上限补上 spec §Constraints 的豁免——≤200 行只约束本相位新建的类，四个既有文件（`session/ledger.ts` · `face/lifecycle.ts` · `face/board-view.ts` · `session/handoff-schema.ts`）按 rule zero 免于该上限、每处改动写一行理由、拆分归 P39（D95 ②），约束不再诱使实现者在本相位拆神对象；F2 T6 的语料二点名读缝——路径取自 `frame.target`（三个 doc 型为 `{ kind: "spec", doc }`）、正文走类既有 `readFileSync`，`#artifacts.read({ domain: "doc", … })` 为等价路由，并撤掉「`SlugIndex` 在 `#reconstruct` 解析到」的错挂（该解析在 `face/cli.ts#sceneOf`），`#reconstruct` 不建第二个索引；F3 Constraints 的落点表把「§2 全节归 T3」改准为「§2 归 T3，除 §2.1 的 `RoundFinding` 三格与两个投影 → T5、§2.3 的 `contract.path` 回读 → T6」，T6 那条同步收紧为回读面；F4 T5 点名板面那次读的两格投影——`countOf` 与 `findingsOf` 共用一次 digest 校验读与一次 `JSON.parse`，`countOf` 仍取原生 `findings` 数组长度（`+N` 的数字）、`findingsOf` 取过滤后的行，无第二次解析、也不留无调用者的死码 | Oscaner M. · Claude（kairos:cdd-plan plan-fix-5 · 2026-11-16） |

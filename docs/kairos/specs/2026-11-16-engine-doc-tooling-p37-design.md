@@ -1,7 +1,7 @@
 ---
 title: 分级判据的可核化（Grading Boundary）
 doc-type: phase-spec
-version: v0.11
+version: v0.12
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 program: 2026-10-10-engine-doc-tooling
@@ -118,9 +118,9 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 `impact.scenario` 落进 `session/ledger.ts` 的轮次 finding 投影。跨轮同一性的匹配按序判定：
 
-1. **定位上一轮对应行**：「上一轮」指**同一行上更早的、其 findings 投影非空的那条记录**——`Ledger#recordsOf` 给出整行的 implement / review / fix 记录，读法是从近到远逐条取该 review 记录自己的 carrier（`Ledger#readHandoff` 读一轮的交接单，单条读面是 `Ledger#round(op, type, params, round)`），再用 `HandoffSchema.findingsOf` 投影出 findings；implement 记录与 findings 为空的 review 记录都投影出空集，而按「紧接着的上一条记录」读则会把 review 与一条空 findings 的 implement 对比、零行匹配，降档于是静默通过，正是 D93 ④「降档买一轮」的漏洞。匹配先取 `summary` 原文相同的那一行（`summary` 是缺陷描述本身，跨轮改写比换位少见）；多行同文时再以 carrier `id` 收窄。`id` 不能作首键：`FINDING` 的 `id` 在 materialize 时按 carrier 行序写入（`F1`、`F2` …，`session/handoff-schema.ts` 该字段的注释即此），它是那一轮的行号而不是缺陷的身份——上一轮新增或删除一条 finding，后续行号整体错位，首键会把两个不相干的缺陷配成一对：对从未判过的缺陷误索 `regrade`，而真实的降档因配对失败静默通过。
+1. **定位上一轮对应行**：「上一轮」指**同一行上更早的、其 findings 投影非空的那条记录**——`Ledger#recordsOf` 给出整行的 implement / review / fix 记录，读法是从近到远逐条取该 review 记录自己的 carrier（`Ledger#readHandoff` 读一轮的交接单，单条读面是 `Ledger#round(op, type, params, round)`），再用 `HandoffSchema.findingsOf` 投影出 findings；implement 记录与 findings 为空的 review 记录都投影出空集，而按「紧接着的上一条记录」读则会把 review 与一条空 findings 的 implement 对比、零行匹配，降档于是静默通过，正是 D93 ④「降档买一轮」的漏洞。匹配先取 `summary` 原文相同的那一行（`summary` 是缺陷描述本身，跨轮改写比换位少见）；多行同文时再以 carrier `id` 收窄。`id` 不能作首键：`FINDING` 的 `id` 在 materialize 时按 carrier 行序写入（`F1`、`F2` …，`session/handoff-schema.ts` 该字段的注释即此），它是那一轮的行号而不是缺陷的身份——上一轮新增或删除一条 finding，后续行号整体错位，首键会把两个不相干的缺陷配成一对：对从未判过的缺陷误索 `regrade`，而真实的降档因配对失败静默通过。因此 `summary` 不是唯一的键：上一轮某行的 `impact.scenario` 原文与本轮某行相同也算同一行（缺陷未变、`summary` 换了说法的情形）——这是母宪章 P37 ⑥ 注册的判据（「判据是两轮场景文本是否相同」），本相位把它保留为**第二个匹配键**而不是替换第一个：两键任一命中即配对，因此「场景未变而改档」在两条路径上都必须给理由，缺陷换了说法也不会因 `summary` 改写而漏账。
 2. **档位未降低**（本轮 ≥ 上一轮）⇒ 不判，不要求 `regrade`、不标记。
-3. **档位降低且上一轮那一行的 `impact.scenario` 非空** ⇒ 本轮必须携带 `regrade: string`（改档理由）；缺理由 ⇒ 胶囊与板面各出现一条可见标记。本轮省略或改写 `scenario` 都**不注销**这条义务——降档方唯一能掌控的就是新行自己的字节，若靠省略或改写场景就能逃开，D93 点名的「blocker 降成 warn 收线」就会在可见面上静默。
+3. **档位降低且上一轮那一行的 `impact.scenario` 非空** ⇒ 本轮必须携带 `regrade: string`（改档理由）；缺理由 ⇒ 胶囊与板面各出现一条可见标记。配对一旦成立，本轮**省略或改写**自己那一行的 `scenario` 都**不注销**这条义务——降档方唯一能掌控的就是新行自己的字节，若靠改场景就能逃开，D93 点名的「blocker 降成 warn 收线」就会在可见面上静默；要切断配对得**同时**改写 `summary` 与 `scenario`，而那是「另一条缺陷」的声明，母宪章 ⑥ 的场景判据同样覆盖不到。
 4. **档位降低但上一轮那一行的 `scenario` 为空** ⇒ 没有参照场景，按缺陷已变处理，不要求 `regrade`、不标记。
 
 标记是**显示面**，不是判据：它不写入 `findings[]`、不生成合成 finding、不进 `rollup`，因此单独一条降档不会把本轮推成 `REVIEW_FIX`，也不动 D70 收敛判据（Constraints 冻结）。
@@ -147,7 +147,7 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 问句的投影面只有一处：`render/templates.ts` 每类 review 的 `axesGuide` 由该类问句装配——`LENS_QUESTIONS.forReviewKind(reviewKind)` 按声明序取行，渲染成从 1 起的编号清单（`1. <question>` 逐行），追加到该类 `axesGuide` 末尾；`reviewRow(type)` 把整段 `axesGuide` 原样折进 `**Criteria — <type>:**` 那一行，问句因此随 prompt 字节下发。五类 review 各装配自己的一段：`wave` / `branch` 行正文相同、`reviewKind` 不同，各 4 条；`plan` / `spec` 各 3 条；`overall` 5 条。表里有行不等于 prompt 里有问句，因此核对落在渲染产物上（§6.2 的 `numbered` 面），不是落在表的行数上。
 
-两表不得合并：问句塞进判据表只能带一个不存在的 `tier` 或用空 `duty` / `counterExample` 污染 rubric 散文；判据行塞进问句表则丢掉举证义务与反例句。计数按表各计一次，由 §6.2 的同一条结构测试核对。
+两表不得合并：问句塞进判据表只能带一个不存在的 `tier` 或用空 `duty` / `counterExample` 污染 rubric 散文；判据行塞进问句表则丢掉举证义务与反例句。计数按表各计一次，由 §6.2 的同一条结构测试核对；写进散文的计数带 `census:` 引用（§8），因此本段的三处数字是门核对的引用而不是手测：判据表 `census:criteria.rows = 5` 行 · 问句表 `census:questions.rows = 15` 行 / `census:questions.cells = 19` 格。
 
 #### 6.2 边界
 
@@ -165,7 +165,7 @@ lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的�
 
 `contract/pins.ts` 暴露 `PinAudit`，扫描 `docs/kairos/**/*.md` 与仓库 README 家族（`README.md` · `README.zh-CN.md` · `packages/*/README*.md`）的三类 pin：
 
-- `path.ext[:line[-line]]` —— 路径按后缀唯一解析；行号可省，省略时就是**裸路径 pin**（Constraints 的「路径 + 符号」纪律与本 spec 自己的写法都是这一形），出现时必须 ≤ 该文件的行数；**不比对内容**（内容匹配不可能机械）。
+- `path.ext[:line[-line]]` —— 路径**按固定顺序解析，不取第一个命中**：① 与仓内条目**全等**的命中胜（写 `README.md` 就只指仓根那份，不会落到 `.changeset/README.md`）；② 全等无命中时取**唯一后缀**命中（`face/declare.ts` 只有一个候选）；③ 后缀命中多于一个时**不挑**，产一条 ambiguity finding 并列出**全部候选**（裸写 `declare.ts` 今天同时命中 `contract/declare.ts` 与 `face/declare.ts`）——pin 指向哪个文件是文档的主张，门不替它选，档位与解析不到同（warn，§7.2）。行号可省，省略时就是**裸路径 pin**（Constraints 的「路径 + 符号」纪律与本 spec 自己的写法都是这一形）；出现时按**解析到的那个条目**的行数判，不是同名兄弟文件的行数；**不比对内容**（内容匹配不可能机械）。
 - 裸符号（如 `#artifactCellOf`、`PinAudit`）—— 在 `packages/cdd-engine/src-next`、`packages/kairos`、`scripts` 的符号索引中可解析。索引按运行缓存。
 - 测试格题 + 文件名 —— 该 `.test.ts` 内存在这个字符串。
 
@@ -192,6 +192,8 @@ lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的�
 
 全语料今天不干净，因此门上线前完成一次**一次性迁移**，此后不得再产生豁免机制。迁移规模不在此预登记——上一版预登记的语料计数已撤回：它们无法从公开基准复现（按「`docs/kairos/**/*.md` 与 README 家族里的反引号 token」数会得到另一组值），写成事实只会给下游一个不可验的工作量。改以一条可判的条件：**`PinAudit` 第一次全语料运行的 finding 集就是待改清单**，迁移完成的判据是同一扫描的零 finding。
 
+**上线条件的时间面（作者态红 vs 关闭时零）**：`全语料零 finding` 判在**相位关闭时**，不判在作者态——文档先于代码写，本相位自己的计划在 `Create:` 行里声明、树上尚未落地的路径在作者态必然解析不到（今天这一类共 10 条，全部指向 §8.2 那个尚未落地的计数登记模块：本 spec 两处 · 母宪章三处 · 计划 T8 五处），这是设计的形状而不是语料缺陷。跳过判据机械、无名单，三条同时成立才跳过：① 该路径按 §7.1 的后缀形态，是同一 `program:` 的计划文档某条 `Create:` 行所写路径的后缀或全等；② 树上没有这条路径；③ 母宪章 `## Phase inventory` 里该相位行的 Done 列仍是 `[Pending]`（这张表的读面已有 `packages/cdd-engine/src-next/contract/__tests__/phase-inventory.guard.test.ts` 在用）。任一条件失效——路径落地、计划删掉该行、相位标 `✔ Done`——跳过即失效。因此它是**时间面**而不是豁免机制：§7.2 的「无基线、无白名单、无豁免」逐字成立（关闭时门必须为零），而「相位已标 Done、路径仍缺席」由同一扫描判红。
+
 - **过期引用删除**——目标已按设计消失、因此今天解析不到的引用（已整目录移除的 `docs/maintainers/*` · P5 已退役的 `scripts/*`）改为不指路径的表述，保留「当时做了什么」而不留死号。
 - **迁移路径修正**——`docs/kairos/specs/<slug>-overall.md` 等已按 P17 改名/搬迁的路径改为现行路径。
 - **行号越界修正**——行号超过文件行数的 pin 改为路径 + 符号（本相位起的书写纪律），不再钉行号。
@@ -214,15 +216,20 @@ lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的�
 
 #### 8.2 登记面
 
-新增 `contract/census.ts`：登记表 `{ id, measure(): number | Record<string, number> }`。`CENSUS.of(id)` 查不到即抛（同一「未登记即抛」形态）。首个登记项是 `PinAudit.census()`——pin 普查的按形类别计数（`symbol` / `path` / 合计 / 文件数），供 §7.3 的迁移清单与计划的规模陈述引用。
+新增 `contract/census.ts`：登记表每行 `{ id, measure(): number }`——**一行一个数**，因此 §8.3 的书写形态保持单值 `census:<id> = <n>`，不需要子键语法：一个测量面要暴露几个数就登记几行，键就是 `id`。`CENSUS.of(id)` 查不到即抛（同一「未登记即抛」形态）。登记项全部由既有导出供值，登记面不二次计算：
+
+- **pin 普查四行**——`pin.symbol` · `pin.path` · `pin.total` · `pin.files`，供值面是 `PinAudit.census()`，与 §7 的 `scan` 同源（`pin.total` 就是同一次扫描的 finding 数；两处不得各算一套），供 §7.3 的迁移完成陈述与计划的规模陈述引用。
+- **两张注册表的计数三行**——`criteria.rows` · `questions.rows` · `questions.cells`，供值为 `CRITERIA_ROWS.length` · `LENS_QUESTION_ROWS.length` · 各行 `reviewKinds.length` 之和，使 §6.1 写下的计数成为被门比对的引用。
+
+消费者要有具体落点：门可以建起来、绿着、一条主张都没比过——§6.2 给每个 `face` 设了最低一行的下限，§8 同样要有一条（§8.3 的下限 pin），§6.1 的三处 `census:` 引用今天即可比对。迁移规模本身仍不预登记（§7.3 已撤回无法复现的计数），迁移完成后的数字在相位关闭时以同一形态写出。
 
 #### 8.3 门的判据
 
-结构测试扫 `docs/kairos/**/*.md` 与 README 家族：每个 `census:<id>` 解析到登记项，并把该引用所在行/表格单元里的数字与导出值比对——**不等即红，未知 id 抛**。数字的书写形态固定为 `census:<id> = <n>`，使比对不需要解析自然语言。
+结构测试扫 `docs/kairos/**/*.md` 与 README 家族：每个 `census:<id>` 解析到登记项，并把**该引用自身固定形态里的 `<n>`** 与导出值比对——`<n>` 只从 `census:<id> = <n>` 的等号右侧读，同一行 / 同一单元格里的其它数字不参与比对（不存在「把这一行里的数字拿去比」这种读法）。**不等即红，未知 id 抛**。下限同样成对：语料里必须至少有**一处**真实的 `census:<id> = <n>` 被比对，否则门在对零个引用全绿——§6.1 的三处引用是这条底座的具体实例，删光它们即红。
 
 #### 8.4 边界
 
-只核对被 `census:` 声明的关系，不判数字的字面是否"看起来合理"，也不覆盖未被声明的计数——本相位不做散文语义推断。降档/升档与 §1 的三档边界无关：这是一条一致性判据，失效时为 warn（它不改变消费者拿到的结果，只让一处规模陈述不可核）。
+只核对被 `census:` 声明的关系，不判数字的字面是否「看起来合理」，也不覆盖未被声明的计数——本相位不做散文语义推断。这条门的失效面是**红**：它不是一处「不改变消费者字节」的观察，而是让规模陈述不可虚构的那个断言，按 warn 判档的说法会把门做成永不变红的展示行（§8.3 的「不等即红」即其执行面）。
 
 ### Acceptance criteria
 
@@ -230,9 +237,9 @@ lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的�
 - `impact 场景成对 pin：blocker 缺 `impact.scenario` ⇒ `CDD_BLOCKED: grading-impact-missing` 由交接单回读面打出（与其它 schema 拒绝同一行、同一路径），报文首词固定、随后是 blocker 举证判据行的 `id`，并列出违规 finding 的 `id`；补上场景 ⇒ 通过；warn / nit 无场景 ⇒ 通过；拒绝面只有这一处（`rollup` 返回仍是 `RoundStatus`，`--dry-run` 不声称读该谓词）`
 - `wave / branch 的 axes guide 零 `(severity by your judgment)`；lens 问句表（行形态 `{ id, reviewKinds, lens, question, face }`，`reviewKinds` 多值、`face` 恒为 `numbered`）按 (review kind, lens) 覆盖 19 格、物理行 15 条（`wave` / `branch` 四行以 `reviewKinds: ["wave", "branch"]` 存一份；15 = `LENS_QUESTIONS.rows.length`，19 = 各行 `reviewKinds.length` 之和），与判据表分开计数（判据表各 `tier` 至少一行）；投影 pin：五类 review 渲染出的 `**Criteria —` 行逐字带上该类自己的编号问句（`wave` / `branch` 各 4 条、`plan` / `spec` 各 3 条、`overall` 5 条，`wave` 与 `branch` 字节同源），删掉表里任一问句行 ⇒ 该类 prompt 少一条编号问句；把问句塞进判据表或把判据行塞进问句表 ⇒ 查表即抛`
 - `wave review 的 round context 的 `INPUT_SPEC` / `INPUT_OVERALL` 按身份文档形状配对 pin：身份文档与它的 `program:` 母宪章都解析到 ⇒ 两 token 均出现且路径为仓根相对、可读；身份文档解析到但无 `program:`（single-spec）⇒ 只出 `INPUT_SPEC`，`INPUT_OVERALL` 合法缺席（负向 pin：不得因此连 spec 锚一起剥）；身份文档缺席或 `invalid` ⇒ 两 token 均不出现；`program:` 指不到母宪章 ⇒ 只丢 `INPUT_OVERALL`；branch 的 prompt 字节不变`
-- `降档且上一轮同一行（「上一轮」= 同一行上更早的、findings 投影非空的那条记录；匹配键为 `summary` 原文相同，多行同文时以 `id` 收窄）的 `impact.scenario` 非空：无 `regrade` ⇒ 板面该 verb token 与胶囊的 `summary` 行各一条可见标记（胶囊侧成对 pin：无降档的评审轮 stdout 与今天逐字节相同，有降档恰好多这一行），且该标记不进 `findings[]`（负向 pin：一条这样的降档既不新增 finding，也不单独把本轮推成 `REVIEW_FIX`）；本轮省略或改写 `scenario` 不注销该义务（正向 pin：省掉场景文本仍出标记）；有 `regrade` ⇒ 两处各出现一次理由；上一轮该行 `scenario` 为空 ⇒ 不要求、不标记；参照对象 pin：一条 review 的降档与它之前**最近一条 findings 非空的 review** 配对——中间夹一条 findings 为空的 implement 记录时仍出标记（按「紧接着的上一条记录」读则零行匹配、标记消失）`
-- `pin 门可红可修，两个执行面各 pin 自己的语料：注入一条指向不存在符号的 markdown pin ⇒ `PinAudit` 红并指出该 pin；**全语料零 finding**（无基线 / 无白名单 / 无豁免）为门的上线条件，由 §7.3 的一次性迁移达成（过期引用删除、迁移路径修正、行号越界修正）——迁移前后语料 finding 数从非零变零（成对 pin）；一条 finding 的 `contract.path` 解析不到 ⇒ 同一回读面追加一条 warn 级 finding，该轮不 BLOCK（无 `CDD_BLOCKED`），并按 warn 的既有语义进 `rollup`（成对 pin：本来零 finding 的评审轮 → `REVIEW_FIX`，不会停在 `APPROVED`）；被审文档语料（§7.2 回读面的第二份）单独成对 pin：干净的被审文档 ⇒ 零注入 finding、结论不变（`APPROVED` 仍 `APPROVED`），文档里一条解析不到的 pin ⇒ 该轮恰好多一条 warn 级 finding、零 blocker，结论落到 `REVIEW_FIX`（反向 pin：把这条注入面当成只显示而不进 `findings[]` ⇒ 红）；已消费的 `.changeset/*` 引用按 §7.1 第 3 条排除，既不产 finding 也不在迁移清单里；pin 定义的三条排除（非仓根相对 / 产物词汇 / 易逝 changeset）各有成对 pin：排除形不产 finding、真死引用产 finding；注入行的 lens 取该评审面自己声明的 `pinLens`（`render/templates.ts#pinLensOf` 与同一份 `lensEnum` 交叉校验，drift 即抛，因此载体里不会出现同轮提示词声明为不可能的 lens）：`phase-spec` / `single-spec` 面 `consistency` · `overall` 面 `inventory` · `plan` 面 `buildability` · `wave` / `branch` 面 `standards``
-- `计数面成对 pin：文档里 `census:<id> = <n>` 由门解析到 `contract/census.ts` 的登记项并与导出值比对——一致 ⇒ 绿；把 `<n>` 改一个数而不改实现 ⇒ 红；未知 id ⇒ 查表即抛；`PinAudit.census()` 是首个登记项，其返回值与 §7 的扫描结果同源（两处不得各算一套）`
+- `降档且上一轮同一行（「上一轮」= 同一行上更早的、findings 投影非空的那条记录；匹配键为 `summary` 原文相同，多行同文时以 `id` 收窄，**或**上一轮该行的 `impact.scenario` 原文相同——母宪章 P37 ⑥ 的键）的 `impact.scenario` 非空：无 `regrade` ⇒ 板面该 verb token 与胶囊的 `summary` 行各一条可见标记（胶囊侧成对 pin：无降档的评审轮 stdout 与今天逐字节相同，有降档恰好多这一行），且该标记不进 `findings[]`（负向 pin：一条这样的降档既不新增 finding，也不单独把本轮推成 `REVIEW_FIX`）；本轮省略或改写 `scenario` 不注销该义务（正向 pin：省掉场景文本仍出标记）；有 `regrade` ⇒ 两处各出现一次理由；上一轮该行 `scenario` 为空 ⇒ 不要求、不标记；参照对象 pin：一条 review 的降档与它之前**最近一条 findings 非空的 review** 配对——中间夹一条 findings 为空的 implement 记录时仍出标记（按「紧接着的上一条记录」读则零行匹配、标记消失）；第二键 pin：上一轮场景原文不变而本轮 `summary` 换了说法 ⇒ 仍配对、仍出标记`
+- `pin 门可红可修，两个执行面各 pin 自己的语料：注入一条指向不存在符号的 markdown pin ⇒ `PinAudit` 红并指出该 pin；**全语料零 finding**（无基线 / 无白名单 / 无豁免）为门的上线条件，**判在相位关闭时**（作者态的红只允许落在 §7.3 三条同时成立的待建路径上：计划 `Create:` 行声明 · 树中缺席 · 相位行仍 `[Pending]`），由 §7.3 的一次性迁移达成（过期引用删除、迁移路径修正、行号越界修正）——迁移前后语料 finding 数从非零变零（成对 pin）；一条 finding 的 `contract.path` 解析不到 ⇒ 同一回读面追加一条 warn 级 finding，该轮不 BLOCK（无 `CDD_BLOCKED`），并按 warn 的既有语义进 `rollup`（成对 pin：本来零 finding 的评审轮 → `REVIEW_FIX`，不会停在 `APPROVED`）；被审文档语料（§7.2 回读面的第二份）单独成对 pin：干净的被审文档 ⇒ 零注入 finding、结论不变（`APPROVED` 仍 `APPROVED`），文档里一条解析不到的 pin ⇒ 该轮恰好多一条 warn 级 finding、零 blocker，结论落到 `REVIEW_FIX`（反向 pin：把这条注入面当成只显示而不进 `findings[]` ⇒ 红）；已消费的 `.changeset/*` 引用按 §7.1 第 3 条排除，既不产 finding 也不在迁移清单里；pin 定义的三条排除（非仓根相对 / 产物词汇 / 易逝 changeset）各有成对 pin：排除形不产 finding、真死引用产 finding；注入行的 lens 取该评审面自己声明的 `pinLens`（`render/templates.ts#pinLensOf` 与同一份 `lensEnum` 交叉校验，drift 即抛，因此载体里不会出现同轮提示词声明为不可能的 lens）：`phase-spec` / `single-spec` 面 `consistency` · `overall` 面 `inventory` · `plan` 面 `buildability` · `wave` / `branch` 面 `standards``
+- `计数面成对 pin：文档里 `census:<id> = <n>` 由门解析到 `contract/census.ts` 的登记项并与导出值比对——一致 ⇒ 绿；把 `<n>` 改一个数而不改实现 ⇒ 红；未知 id ⇒ 查表即抛；登记表一行一个数（`measure(): number`），pin 普查登记四行 `pin.symbol` / `pin.path` / `pin.total` / `pin.files`，两张注册表登记 `criteria.rows` / `questions.rows` / `questions.cells`，供值面分别与 §7 的扫描、`CRITERIA_ROWS`、`LENS_QUESTION_ROWS` 同源（两处不得各算一套）；下限 pin：语料里至少一处真实 `census:<id> = <n>` 被比对，把 §6.1 的三处引用全删掉 ⇒ 红（零引用全绿等于没门）`
 - `validate 全绿（`pnpm run validate` exit 0）；changeset `cdd-engine` **minor**、kairos 无`
 
 ## Constraints
@@ -258,3 +265,4 @@ lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的�
 | v0.9 | 2026-11-16 | 修复轮（wave 2,5,6 · review-3 的 F1 受理）：§7.2 明确注入行的 lens **按面取、不写死**——每个判据体在 `lensEnum` 旁声明 `pinLens`，注入点读 `pinLensOf(frame.type)` 并与同一份 `lensEnum` 交叉校验（drift 即抛），因此载体里不会再出现同轮提示词声明为不可能的 lens；逐面取值 `phase-spec` / `single-spec` = `consistency` · `overall` = `inventory` · `plan` = `buildability` · `wave` / `branch` = `standards`（`contract.path` 语料在每个判据面上都会出现，故不是 spec 专用），两份语料的 lens 同源；AC ⑥ 补该交叉校验与逐面取值 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-16） |
 | v0.10 | 2026-11-16 | 评审修复（第 6 轮 F1–F11 全部采纳）：问句表行形态按树改为 `{ id, reviewKinds, lens, question, face }`，多值 `reviewKinds`，物理行 15 = `rows.length`、覆盖 19 = 各行 `reviewKinds.length` 之和（§3.1 · §6.1 · AC ③）；§6.2 / §7.4 的 `test` 面文件名改为 `contract/__tests__/pins.guard.test.ts`；§7.1 的路径形态改为 `path.ext[:line[-line]]` 并说明裸路径同样是 pin、行号出现时不得超过文件行数，裸符号的第二个例子换成 `PinAudit`；§5.1 的「上一轮」读面改指 `recordsOf` + `readHandoff` + `HandoffSchema.findingsOf`（原先点名的单条读面并不存在）；§6.1 记名显示行 `regrade-mark` 并把显示措辞的落点写清，§5.2 同步；§1.3 的普查改为每档至少一行、点出五行，第二句标为 blocker 行的 `body` 句；§6.2 的普查改指 `contract/__tests__/review-criteria.test.ts` 与 `render/__tests__/templates.test.ts`；Constraints 撤掉四个文件的行数、改为拆分时重测 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-16） |
 | v0.11 | 2026-11-16 | 并入 §8 计数的执行面（用户裁定「并入 P37」· D93 ⑨）：`count` claim 只有写作规范没有执行面，本相位的计划因手测数字三次被评审打回；规则为「数字必须带 `census:<id>` 引用并由门核对」，`contract/census.ts` 登记 `{ id, measure() }`、未知 id 即抛，首个登记项 `PinAudit.census()`；门比对固定书写形态 `census:<id> = <n>` 与导出值，不等即红；边界为只核已声明引用、不做散文语义推断 | Oscaner M. · Claude（kairos:cdd-dev 回填 · 2026-11-16） |
+| v0.12 | 2026-11-16 | 评审修复（第 7 轮 F1–F9 全部受理）：§7.1 的路径 pin 改为固定解析序（全等胜 · 否则唯一后缀 · 多候选产 ambiguity finding 并列出全部候选），行号按解析到的那个条目判；§7.3 补上线条件的时间面（作者态的红只允许落在计划 `Create:` 声明、树中缺席、相位行仍 `[Pending]` 三条同时成立的待建路径上，关闭时仍须零 finding）；§8.2 的登记表改为一行一个数 `measure(): number` 并点名七个 id（`pin.symbol` · `pin.path` · `pin.total` · `pin.files` · `criteria.rows` · `questions.rows` · `questions.cells`）；§8.3 只从固定形态读 `<n>` 并加「至少一处真实引用」的下限，§6.1 的三处计数随之带引用；§8.4 删掉 warn 档措辞（门失败即红）；§5.1 恢复母宪章 P37 ⑥ 的场景原文键为第二个匹配键，两键任一命中即配对，AC ⑤ 补第二键 pin | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-16） |

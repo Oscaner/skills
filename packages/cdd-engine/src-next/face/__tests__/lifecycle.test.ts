@@ -551,7 +551,15 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
     const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
     try {
       const runner = new ReviewDraftRunner([
-        { id: "X9", severity: "blocker", lens: "spec", summary: "drift" },
+        {
+          id: "X9",
+          severity: "blocker",
+          lens: "spec",
+          summary: "drift",
+          impact: {
+            scenario: "a legal empty wave key → the brief mirrors no task → expected a refusal",
+          },
+        },
         { severity: "warn", lens: "scope", summary: "typo" },
       ]);
       const { outcome } = await dispatchFrame(f, reviewFrame, runner);
@@ -571,7 +579,16 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
     const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
     try {
       const runner = new ReviewDraftRunner([
-        { severity: "blocker", lens: "spec", summary: "drift", line: "42", section: 3 },
+        {
+          severity: "blocker",
+          lens: "spec",
+          summary: "drift",
+          line: "42",
+          section: 3,
+          impact: {
+            scenario: "a legal empty wave key → the brief mirrors no task → expected a refusal",
+          },
+        },
       ]);
       const { outcome } = await dispatchFrame(f, reviewFrame, runner);
       // The REQUIRED columns keep the row; the two decorative columns break their own
@@ -583,6 +600,9 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
         severity: "blocker",
         lens: "spec",
         summary: "drift",
+        impact: {
+          scenario: "a legal empty wave key → the brief mirrors no task → expected a refusal",
+        },
       });
       expect(outcome.status).toBe("CHANGES_REQUESTED");
       expect((outcome.violations ?? []).map((violation) => violation.grade)).toEqual(["soft"]);
@@ -649,6 +669,61 @@ describe("CliLifecycle materialize — the finding `id` is the engine's (P30 §2
       expect(outcome.status).toBe("REVIEW_FIX");
       const carrier = outcome.carrier as { findings: { id?: string }[] };
       expect(carrier.findings[0]?.id).toBe("F1");
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P37 T3 — the blocker evidence gate (design spec §2.2): a blocker that cannot state
+// its scenario refuses the round on the SAME read-back path every schema refusal
+// rides — the criteria row's id is the message's first word, and every offending
+// finding is listed (never one of two). The paired arm: the same blocker with a
+// scenario passes and the round concludes normally.
+// ---------------------------------------------------------------------------
+
+/** One reproducible scenario — the shape the gate asks a blocker to state. */
+const IMPACT = {
+  scenario: "a legal empty wave key → the brief mirrors no task → expected a refusal",
+};
+
+describe("P37 T3 — the grading gate refuses a blocker that owes its scenario", () => {
+  it("blocks the round and lists the criterion row plus every violating finding's id and summary", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const runner = new ReviewDraftRunner([
+        { id: "F1", severity: "blocker", lens: "spec", summary: "drift" },
+        { severity: "blocker", lens: "buildability", summary: "the suite can never go red" },
+        { severity: "warn", lens: "standards", summary: "duplicated policy" },
+      ]);
+      const { outcome } = await dispatchFrame(f, reviewFrame, runner);
+      expect(outcome.status).toBe("BLOCKED");
+      const lines = f.io.stderrText.split("\n").filter((line) => line.includes("CDD_BLOCKED:"));
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain("CDD_BLOCKED: grading-impact-missing");
+      expect(lines[0]).toContain('F1 "drift"');
+      // an id-less blocker is listed too — the summary alone is the label
+      expect(lines[0]).toContain('unkeyed "the suite can never go red"');
+      // a warn owes no scenario, so it is never listed by this gate
+      expect(lines[0]).not.toContain("duplicated policy");
+      // no conclusion was produced: the read-back refused before materialize
+      expect(outcome.carrier).toBeUndefined();
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("passes the same blocker once it carries a scenario", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const runner = new ReviewDraftRunner([
+        { severity: "blocker", lens: "spec", summary: "drift", impact: IMPACT },
+      ]);
+      const { outcome } = await dispatchFrame(f, reviewFrame, runner);
+      expect(outcome.status).toBe("CHANGES_REQUESTED");
+      expect(f.io.stderrText).not.toContain("CDD_BLOCKED");
+      expect(f.io.stderrText).not.toContain("grading-impact-missing");
     } finally {
       f.cleanup();
     }

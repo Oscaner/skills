@@ -3098,6 +3098,126 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     }
   });
 
+  it("P37 T4 — a wave review reads the phase contract: `INPUT_SPEC` + `INPUT_OVERALL` judged independently (four arms)", async () => {
+    /** One plugin-free doc body for the identity document — `shape` rewrites it. */
+    const identityOf = (root: string): string =>
+      path.join(root, "docs", "kairos", "specs", "p3-design.md");
+    /** Dispatch ONE review round in a fresh repo and hand back the child prompt. Each
+     *  arm gets its own fixture: a review round that writes no draft leaves a pending
+     *  completion fact that would stop the NEXT dispatch in the same tree. */
+    const reviewPromptOf = async (
+      kind: "wave" | "branch",
+      shape: (root: string) => void = () => undefined,
+    ): Promise<string> => {
+      const sync = new StubRunner();
+      sync.stdout = "status: APPROVED\n";
+      const { command, repoRoot, cleanup } = fixture({ sync });
+      try {
+        gitInit(repoRoot);
+        const plan = conformingPlan(repoRoot);
+        // the branch review's scope anchor (BASE_BRANCH) reads this artifact
+        expect(
+          await command.runArgv([
+            "base",
+            "set",
+            "--plan",
+            plan,
+            "--base",
+            "develop",
+            "--source",
+            "plan-field",
+          ]),
+        ).toBe(0);
+        if (kind === "wave") {
+          // the wave line advances implement → review as ONE train: seed the implement
+          // round so the review hop is dispatchable (production always has it)
+          const workspace = new Workspace(
+            new WorkspaceRoot(repoRoot, ".kairos/cdd"),
+            "p3",
+          ).ensure();
+          const ledger = new Ledger(
+            workspace,
+            new ConfigLoader(),
+            planSourceOf(workspace.root.basis),
+          );
+          ledger.recordRound("1", { op: "implement" });
+          ledger.persistHandoff(
+            "implement",
+            "wave",
+            { tasks: "1" },
+            { status: "APPROVED", artifacts: {} },
+          );
+        }
+        shape(repoRoot);
+        const argv =
+          kind === "wave"
+            ? ["review", "--type", "wave", "--tasks", "1", "--plan", plan]
+            : ["review", "--type", "branch", "--plan", plan];
+        const saved = process.env.CLAUDE_CODE_SESSION_ID;
+        process.env.CLAUDE_CODE_SESSION_ID = "s";
+        try {
+          await command.runArgv([...argv]);
+        } finally {
+          if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+          else process.env.CLAUDE_CODE_SESSION_ID = saved;
+        }
+        const call = sync.calls[sync.calls.length - 1];
+        if (call === undefined) throw new Error(`no child spawned for: ${argv.join(" ")}`);
+        return call.args[call.args.length - 1]!;
+      } finally {
+        cleanup();
+      }
+    };
+
+    // ① healthy phase-spec: both anchors, repoRoot-relative, readable from cwd = repoRoot
+    const healthy = await reviewPromptOf("wave", (root) => {
+      for (const rel of ["docs/kairos/specs/p3-design.md", "docs/kairos/specs/p3-overall.md"]) {
+        expect(existsSync(path.join(root, rel)), rel).toBe(true);
+      }
+    });
+    expect(healthy).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+    expect(healthy).toContain("- `INPUT_OVERALL`: docs/kairos/specs/p3-overall.md");
+
+    // ② a single-spec identity carries no `program:` by design: only the spec anchor
+    // rides — dropping the charter must never strip the spec anchor with it
+    const singleSpec = await reviewPromptOf("wave", (root) => {
+      writeFileSync(
+        identityOf(root),
+        "---\ntitle: S\ndoc-type: single-spec\nslug: p3\n---\n",
+        "utf8",
+      );
+    });
+    expect(singleSpec).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+    expect(singleSpec).not.toContain("- `INPUT_OVERALL`");
+
+    // ③ the identity document's `program:` resolves nowhere: only the charter drops
+    const goneCharter = await reviewPromptOf("wave", (root) => {
+      writeFileSync(
+        identityOf(root),
+        "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\nprogram: gone-overall\n---\n",
+        "utf8",
+      );
+    });
+    expect(goneCharter).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+    expect(goneCharter).not.toContain("- `INPUT_OVERALL`");
+
+    // ④ the identity document's read face is INVALID (it declares `slug:` but no
+    // `doc-type:`, so the index resolves no shape for it): neither token appears — and
+    // the wave still dispatches. A slug that names no document at all is refused
+    // earlier by the doc-contract gate (a document defect the engine CAN judge), so
+    // that shape never reaches prompt assembly.
+    const invalid = await reviewPromptOf("wave", (root) => {
+      writeFileSync(identityOf(root), "---\ntitle: S\nslug: p3\n---\n", "utf8");
+    });
+    expect(invalid).not.toContain("- `INPUT_SPEC`");
+    expect(invalid).not.toContain("- `INPUT_OVERALL`");
+
+    // ⑤ the branch line's own pair is unchanged by this task
+    const branch = await reviewPromptOf("branch");
+    expect(branch).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+    expect(branch).toContain("- `INPUT_OVERALL`: docs/kairos/specs/p3-overall.md");
+  });
+
   it("D61-4 — INPUT_OVERALL carries the parent charter the spec's `program:` names", async () => {
     const sync = new StubRunner();
     sync.stdout = "status: APPROVED\n";
@@ -6702,7 +6822,17 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       writeFileSync(
         path.join(scene.workspace.path, "phase-spec-review-1.json"),
         JSON.stringify({
-          findings: [{ severity: "blocker", lens: "spec", summary: "drift" }],
+          findings: [
+            {
+              severity: "blocker",
+              lens: "spec",
+              summary: "drift",
+              impact: {
+                scenario:
+                  "the phase-spec names `INPUT_OVERALL` with a stale path → the reviewer cannot open the charter → expected a resolvable path",
+              },
+            },
+          ],
         }),
         "utf8",
       );
@@ -6725,7 +6855,18 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // carrier order — the disposition primary key, never the child's prose).
       expect(outcome.carrier).toEqual({
         artifacts: {},
-        findings: [{ id: "F1", severity: "blocker", lens: "spec", summary: "drift" }],
+        findings: [
+          {
+            id: "F1",
+            severity: "blocker",
+            lens: "spec",
+            summary: "drift",
+            impact: {
+              scenario:
+                "the phase-spec names `INPUT_OVERALL` with a stale path → the reviewer cannot open the charter → expected a resolvable path",
+            },
+          },
+        ],
       });
       expect("status" in (outcome.carrier as Record<string, unknown>)).toBe(false);
       // the URC criteria ride the review prompt's fixed prefix (the spec review has
@@ -6742,6 +6883,49 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     } finally {
       cleanup();
     }
+  });
+
+  it("P37 T3 — the grading gate refuses a blocker without a scenario on the CLI face, and passes the same draft with one", async () => {
+    // The refusal is the read-back path every schema refusal rides (one CDD_BLOCKED
+    // line, exit 1); the paired arm proves the gate judges the scenario, not the tier.
+    const draftOf = (extra: Record<string, unknown>): string =>
+      JSON.stringify({
+        findings: [{ severity: "blocker", lens: "spec", summary: "drift", ...extra }],
+      });
+    const run = async (
+      draft: string,
+    ): Promise<{ code: number; io: CaptureIo; carrier: unknown }> => {
+      const { repoRoot, cleanup } = fixture();
+      const scene = harnessScene(repoRoot);
+      const io = new CaptureIo();
+      const sync = new StubRunner();
+      sync.stdout = "status: APPROVED\n";
+      writeFileSync(path.join(scene.workspace.path, "phase-spec-review-1.json"), draft, "utf8");
+      try {
+        const dispatch = new HarnessDispatch({
+          artifacts: new ArtifactRegistry(),
+          scene,
+          io,
+          sync,
+          env: { CLAUDE_CODE_SESSION_ID: "s" },
+        });
+        const outcome = await dispatch.step()(specReviewFrame);
+        return { code: outcome.status === "BLOCKED" ? 1 : 0, io, carrier: outcome.carrier };
+      } finally {
+        cleanup();
+      }
+    };
+    const refused = await run(draftOf({}));
+    expect(refused.code).toBe(1);
+    expect(refused.io.stderrText).toContain("CDD_BLOCKED: grading-impact-missing");
+    expect(refused.io.stderrText).toContain("drift");
+    expect(refused.carrier).toBeUndefined();
+    const accepted = await run(
+      draftOf({ impact: { scenario: "a blank id → 500 → expected 404" } }),
+    );
+    expect(accepted.code).toBe(0);
+    expect(accepted.io.stderrText).not.toContain("CDD_BLOCKED");
+    expect(accepted.io.stderrText).not.toContain("grading-impact-missing");
   });
 
   it("a task review appends the review skill ref — the object {ref} row's slash form", async () => {
@@ -7898,7 +8082,17 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       writeFileSync(
         path.join(workspace.path, "tasks-1-review-1.json"),
         JSON.stringify({
-          findings: [{ severity: "blocker", lens: "code", summary: "drift" }],
+          findings: [
+            {
+              severity: "blocker",
+              lens: "code",
+              summary: "drift",
+              impact: {
+                scenario:
+                  "a legal empty task list → the wave brief mirrors no task → expected the wave to refuse the dispatch",
+              },
+            },
+          ],
         }),
         "utf8",
       );
@@ -7952,7 +8146,18 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       writeFileSync(
         path.join(workspace.path, "tasks-1-review-1.json"),
         JSON.stringify({
-          findings: [{ severity: "blocker", lens: "code", summary: "drift", line: "42" }],
+          findings: [
+            {
+              severity: "blocker",
+              lens: "code",
+              summary: "drift",
+              line: "42",
+              impact: {
+                scenario:
+                  "a legal empty task list → the wave brief mirrors no task → expected the wave to refuse the dispatch",
+              },
+            },
+          ],
         }),
         "utf8",
       );
@@ -7971,7 +8176,16 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       expect(crash.promoted).toBe(true);
       const carrier = ledger.readHandoff("review", "wave", { tasks: "1", round: 1 });
       expect(carrier?.findings).toEqual([
-        { id: "F1", severity: "blocker", lens: "code", summary: "drift" },
+        {
+          id: "F1",
+          severity: "blocker",
+          lens: "code",
+          summary: "drift",
+          impact: {
+            scenario:
+              "a legal empty task list → the wave brief mirrors no task → expected the wave to refuse the dispatch",
+          },
+        },
       ]);
     } finally {
       cleanup();
@@ -8219,7 +8433,17 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       writeFileSync(
         path.join(workspace.path, "tasks-1-review-1.json"),
         JSON.stringify({
-          findings: [{ severity: "blocker", lens: "code", summary: "drift" }],
+          findings: [
+            {
+              severity: "blocker",
+              lens: "code",
+              summary: "drift",
+              impact: {
+                scenario:
+                  "a legal empty task list → the wave brief mirrors no task → expected the wave to refuse the dispatch",
+              },
+            },
+          ],
         }),
         "utf8",
       );

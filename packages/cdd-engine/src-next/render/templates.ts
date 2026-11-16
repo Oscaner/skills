@@ -49,6 +49,7 @@
 // Module-level exports are types / the declared constant data / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
+import { CRITERIA } from "../contract/review-criteria.ts";
 import { DISPATCH } from "../face/host.ts";
 import { TerminationPolicy } from "../face/termination.ts";
 import type { TargetType } from "../session/faces.ts";
@@ -364,12 +365,24 @@ export const SEVERITY_RUBRIC_SLOTS = {
   audience: "{audience}",
 } as const;
 
+/** The rubric's opening calibration line — a stance, not criteria prose: the tier
+ *  boundaries themselves come from the criteria registry below. */
+const RUBRIC_PREAMBLE = "Calibrate findings by real severity — not everything is a blocker.";
+
+/** The calibration tail — the same-grade consistency duty, the vision
+ *  (silence-is-not-permission) sentence with its two slots, the set-aside ledger and
+ *  the closing acknowledgement. It shares the fragment with every review axes guide,
+ *  and it is NOT a second copy of the tier criteria: those are rows in
+ *  `contract/review-criteria.ts`. */
+const CALIBRATION_TAIL =
+  "Within one run, a defect already graded in the same class keeps that grade; crossing grades names its reason in the finding. The reviewed {artifact} is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable {audience} would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).";
+
 /** The severity rubric — the ONE calibration fragment every review axes guide
- *  shares: the four blocker questions, the warn/nit tiers, the same-grade
- *  consistency duty, the vision (silence-is-not-permission) sentence with its two
- *  slots, the set-aside ledger and the closing acknowledgement. */
-export const SEVERITY_RUBRIC =
-  "Calibrate findings by real severity — not everything is a blocker. A finding is a blocker when any one of these holds: (a) the declared acceptance gate, contract or prompt is violated; (b) a legal input escapes the declared failure face (a blank input returns 500, an unknown id is not a 404); (c) the gate fails or the suite can never go red (an inert grep · a dead guard · an unconditional skip); (d) a security or privacy defect. Debt inside the contract is a warn (duplicated policy · stale docstring · a missing coverage case). Style, naming and line-wrapping is a nit. Within one run, a defect already graded in the same class keeps that grade; crossing grades names its reason in the finding. The reviewed {artifact} is a vision, not an exhaustive enumeration — behavior it is silent on is judged by what a reasonable {audience} would expect; its silence is not permission, and a finding's severity grades that expectation, not whether the text mentions the trigger. Before your verdict, list every behavior you considered and set aside as outside the reviewed scope — one line each with the reason; nothing set aside is dropped silently; an empty list means you set nothing aside. Acknowledge what was done well before listing findings (accurate praise earns the rest of the report trust).";
+ *  shares. Its tier body is ASSEMBLED from the criteria registry (every row's
+ *  `body` → `duty` → `counterExample`, tiers in blocker → warn → nit order), so the
+ *  registry is the only corpus of tier prose; the calibration tail rides here, and
+ *  `reviewGuideOf` fills the two slots. */
+export const SEVERITY_RUBRIC = `${RUBRIC_PREAMBLE} ${CRITERIA.renderRubric()} ${CALIBRATION_TAIL}`;
 
 /** The slot values per criteria body — the ONE registry the filled fragment reads.
  *  `{artifact}` = the reviewed product's name; `{audience}` = the subject whose

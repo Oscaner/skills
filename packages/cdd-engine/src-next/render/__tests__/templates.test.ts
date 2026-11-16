@@ -18,6 +18,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { CRITERIA } from "../../contract/review-criteria.ts";
 import type { TargetType } from "../../session/faces.ts";
 import {
   CLOSED_WAVE_DISCIPLINE,
@@ -44,7 +45,19 @@ const TARGET_TYPES: readonly TargetType[] = [
 ];
 
 describe("SEVERITY_RUBRIC — the one shared calibration fragment", () => {
-  it("carries the four blocker questions and the warn/nit anchors", () => {
+  it("assembles its tier body from the criteria registry — every row's three cells, no second prose copy", () => {
+    // The registry IS the rubric's tier corpus (design spec §6.1): the fragment opens
+    // with the calibration stance, then carries the assembled assembly verbatim.
+    expect(SEVERITY_RUBRIC.startsWith("Calibrate findings by real severity")).toBe(true);
+    expect(SEVERITY_RUBRIC.split(CRITERIA.renderRubric()).length).toBe(2);
+    for (const row of CRITERIA.rows) {
+      for (const cell of [row.body, row.duty, row.counterExample]) {
+        expect(SEVERITY_RUBRIC, `${row.id} cell`).toContain(cell);
+      }
+    }
+  });
+
+  it("keeps the four blocker instances and the warn / nit anchors in the assembled bytes", () => {
     for (const anchor of [
       "declared acceptance gate",
       "a legal input escapes",
@@ -56,7 +69,7 @@ describe("SEVERITY_RUBRIC — the one shared calibration fragment", () => {
     for (const anchor of ["duplicated policy", "stale docstring", "missing coverage case"]) {
       expect(SEVERITY_RUBRIC).toContain(anchor);
     }
-    expect(SEVERITY_RUBRIC).toContain("Style, naming and line-wrapping");
+    expect(SEVERITY_RUBRIC).toContain("line-wrapping");
   });
 
   it("carries the vision sentence, the set-aside ledger and the two slots", () => {

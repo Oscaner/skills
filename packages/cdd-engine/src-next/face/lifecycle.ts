@@ -34,7 +34,7 @@ import { TemplateAssembler } from "../render/templates.ts";
 import { ABSENT_READ, type ArtifactReadOf, ArtifactReads } from "../session/artifact-reads.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
 import { TargetFaceTable } from "../session/faces.ts";
-import type { CarrierPlane } from "../session/handoff-schema.ts";
+import type { CarrierPlane, GradingViolation } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
 import {
@@ -1002,11 +1002,13 @@ export class CliLifecycle {
       // front-matter link target, the plan→spec conformance anchor); the branch line
       // carries the plan document (its plan-conformance reference) plus the same
       // design-spec reference, while the live tree against BASE_BRANCH is the judged
-      // object; the spec-shaped doc targets (phase-spec · single-spec) carry their
-      // spec document (INPUT_SPEC, the judged doc); the overall line's ONE charter
-      // anchor is INPUT_OVERALL, so its INPUT_SPEC stays empty (C2 — the charter is
-      // never its own spec). Empty off the off-faces (the slots are dropped by the
-      // assembler).
+      // object; the wave line carries the same-slug identity document and its
+      // `program:` charter (P37 §4.1) so a code review reads the phase contract it is
+      // judged against; the spec-shaped doc targets (phase-spec · single-spec) carry
+      // their spec document (INPUT_SPEC, the judged doc); the overall line's ONE
+      // charter anchor is INPUT_OVERALL, so its INPUT_SPEC stays empty (C2 — the
+      // charter is never its own spec). Empty off the off-faces (the slots are dropped
+      // by the assembler).
       INPUT_PLAN:
         frame.type === "plan"
           ? this.#rel(docPath ?? "")
@@ -1014,22 +1016,25 @@ export class CliLifecycle {
             ? this.#rel(scene.planPath ?? "")
             : "",
       INPUT_SPEC:
-        frame.type === "plan" || frame.type === "branch"
+        frame.type === "plan" || frame.type === "branch" || frame.type === "wave"
           ? this.#rel(scene.specLink ?? "")
-          : frame.type === "wave" || frame.type === "overall"
+          : frame.type === "overall"
             ? ""
             : // the spec-shaped doc targets (phase-spec · single-spec) carry the judged
               // document; the overall line's charter anchor is INPUT_OVERALL below.
               this.#rel(docPath ?? ""),
       // The parent charter of the spec the face reads (INPUT_OVERALL) — the overall
       // line's ONE charter anchor (the judged charter itself); the phase-spec line
-      // carries its own `program:`; plan/branch carry the same-slug identity doc's
-      // `program:`; empty off those faces and when the named program is absent (the
-      // assembler drops the empty slot).
+      // carries its own `program:`; plan / branch / wave carry the same-slug identity
+      // doc's `program:` (the wave arm landed at P37 §4.1); empty off those faces and
+      // when the named program is absent (the assembler drops the empty slot).
       INPUT_OVERALL:
         frame.type === "overall"
           ? this.#rel(docPath ?? "")
-          : frame.type === "phase-spec" || frame.type === "plan" || frame.type === "branch"
+          : frame.type === "phase-spec" ||
+              frame.type === "plan" ||
+              frame.type === "branch" ||
+              frame.type === "wave"
             ? this.#rel(scene.overallLink ?? "")
             : "",
       // The branch/wave tree-review scope anchor (BASE_BRANCH) — engine-injected
@@ -1276,6 +1281,16 @@ export class CliLifecycle {
     // The conclusion rides the ONE source (`HandoffSchema.conclusionOf`) the ledger
     // legs read too — the reconstruct never rules a work status by a second path.
     const findings = plane === "judge" ? (Array.isArray(draft.findings) ? draft.findings : []) : [];
+    // P37 §2.2 — the blocker evidence gate: a blocker that cannot state its scenario is
+    // refused on THIS read-back path (the same one `CDD_BLOCKED` line every schema
+    // refusal rides — no second reporter, no `--dry-run` claim). The round produces no
+    // conclusion instead of a BLOCKED one.
+    // Rule zero (class-size limit): this file is 1857 lines and predates the limit —
+    // splitting it is P39's work (design spec D95 ②), not this round's.
+    const grading = schema.gradingViolations(findings);
+    if (grading.length > 0) {
+      return this.#reject(frame, path, this.#gradingRefusal(grading));
+    }
     // A validated draft's conclusion is total: the judge plane rolls up its own
     // required findings, and the work plane's `status` passed the `required` gate above
     // — so the `?? "BLOCKED"` never fires here (a work draft without a status never
@@ -1303,6 +1318,19 @@ export class CliLifecycle {
       // wrong decorative field is a loss the record must show, never a silent rewrite.
       violations: materialized.violations,
     };
+  }
+
+  /** The blocker-evidence refusal (design spec §2.2): the first word after
+   *  `CDD_BLOCKED:` is the criteria row's `id` — written as a LITERAL here, because the
+   *  gate's pin is the printed byte, not an import of the registry — followed by every
+   *  offending finding's `id` and `summary` (all of them, never one of two). */
+  #gradingRefusal(violations: readonly GradingViolation[]): string {
+    const labels = violations.map((violation) => {
+      const summary = violation.summary?.trim() ?? "";
+      const quoted = summary.length === 0 ? "" : ` "${summary}"`;
+      return `${violation.id ?? "unkeyed"}${quoted}`;
+    });
+    return `grading-impact-missing: finding(s) graded blocker carry no \`impact.scenario\` — ${labels.join("; ")}`;
   }
 
   /** The fix round's ONE summary line (design spec §3.4) — computed from the PERSISTED

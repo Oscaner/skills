@@ -65,6 +65,25 @@ const FINDING: SchemaNode = {
     line: { type: "integer" },
     summary: { type: "string" },
     fix: { type: "string" },
+    // P37 §2.1 — the blocker evidence slot. Declared OPTIONAL on the schema face by
+    // design: warn / nit findings owe no scenario, so a required `impact` would BLOCK
+    // legal drafts. A blocker's obligation is judged by `gradingViolations` (the
+    // grading gate), never by the shape walk — the shape only pins what a scenario IS.
+    impact: {
+      type: "object",
+      required: ["scenario"],
+      properties: { scenario: { type: "string" }, test: { type: "string" } },
+    },
+    // P37 §5 — the cross-round downgrade reason. Optional at the schema layer: only
+    // the cross-round identity + scenario identity judgment requests it.
+    regrade: { type: "string" },
+    // P37 §2.3 — the repair anchor a fix round locates the finding by. Never read by
+    // `rollup`; its `path` is a pin judged on the handoff read-back corpus.
+    contract: {
+      type: "object",
+      required: ["path", "anchor"],
+      properties: { path: { type: "string" }, anchor: { type: "string" } },
+    },
   },
 };
 
@@ -155,6 +174,14 @@ export type CarrierValue = {
     line?: number;
     summary: string;
     fix?: string;
+    /** P37 §2.1 — the blocker's reproducible scenario (input / condition → actual →
+     *  expected), with an optional test pin that sharpens it. */
+    impact?: { scenario: string; test?: string };
+    /** P37 §5 — the cross-round downgrade reason. */
+    regrade?: string;
+    /** P37 §2.3 — the optional repair anchor (a contract document path + a section /
+     *  AC / rule id). */
+    contract?: { path: string; anchor: string };
   }[];
 };
 
@@ -166,6 +193,14 @@ export type CarrierValue = {
 export type Carrier = {
   -readonly [K in keyof (typeof CARRIER)["properties"]]: CarrierValue[K];
 };
+
+/** One finding the grading gate refuses — the identifying cells the failure face
+ *  prints (`id` is the engine-written key or absent on a legacy carrier; `summary` is
+ *  the description, absent when the draft carried none). */
+export interface GradingViolation {
+  readonly id?: string;
+  readonly summary?: string;
+}
 
 /** One formed problem of a schema violation — the `path: reason` wording. */
 export interface SchemaProblem {
@@ -288,12 +323,41 @@ export class HandoffSchema {
 
   /** The review conclusion rollup — status derived from the findings severities
    *  (the rollup the retired JSON-return channel performed; a review never carries
-   *  a child-authored status). */
+   *  a child-authored status). Unchanged by the grading gate: `rollup` counts
+   *  blockers and nothing else, so the refusal is never a fourth conclusion. */
   rollup(findings: readonly unknown[]): RoundStatus {
     const blockers = findings.filter(
       (finding) => (finding as { severity?: unknown } | null)?.severity === "blocker",
     ).length;
     return blockers > 0 ? "CHANGES_REQUESTED" : findings.length > 0 ? "REVIEW_FIX" : "APPROVED";
+  }
+
+  /** P37 §2.2 — the blocker evidence gate, a PURE predicate colocated with `rollup`.
+   *  A finding graded `blocker` owes a non-blank `impact.scenario`; every blocker that
+   *  lacks one is returned so the failure face can list them all (never one of two).
+   *  Warn / nit findings owe nothing here, and the predicate never judges severity —
+   *  the tier is the child's call, this gate only asks whether a blocker paid its
+   *  evidence. `rollup` deliberately does not call it: a review conclusion is not a
+   *  place to refuse a round, and `rollup`'s return type stays `RoundStatus`. */
+  gradingViolations(findings: unknown): readonly GradingViolation[] {
+    if (!Array.isArray(findings)) return [];
+    const violations: GradingViolation[] = [];
+    for (const entry of findings) {
+      const row = entry as {
+        severity?: unknown;
+        id?: unknown;
+        summary?: unknown;
+        impact?: { scenario?: unknown };
+      } | null;
+      if (row?.severity !== "blocker") continue;
+      const scenario = row.impact?.scenario;
+      if (typeof scenario === "string" && scenario.trim().length > 0) continue;
+      violations.push({
+        ...(typeof row.id === "string" && row.id.length > 0 ? { id: row.id } : {}),
+        ...(typeof row.summary === "string" ? { summary: row.summary } : {}),
+      });
+    }
+    return violations;
   }
 
   /** The draft findings presented as round findings — unknown severities dropped

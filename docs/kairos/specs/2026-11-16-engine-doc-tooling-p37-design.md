@@ -1,7 +1,7 @@
 ---
 title: 分级判据的可核化（Grading Boundary）
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 program: 2026-10-10-engine-doc-tooling
@@ -142,6 +142,16 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 不做 docs 全量校验——只判 pin 的每一段可解析，不判文档结构、不判语义。P28 当年撤门的理由是「docs 全量校验过重、合法性交 dispatch 门自判」，而 dispatch 门只判文档结构、不判 pin 坐标形态；本条把门装回窄形态，理由与边界记入注册表行的 `counterExample`。
 
+### Acceptance criteria
+
+- `三档各有一条边界定义、一条举证义务句、一条反例句，全部来自注册表；注册表缺行 ⇒ 装配失败（成对 pin：完整注册表装配成功 / 删一行装配即抛）`
+- `impact 场景成对 pin：blocker 缺 `impact.scenario` ⇒ `CDD_BLOCKED: grading-impact-missing` 且报文列出违规 `id`；补上场景 ⇒ 通过；warn / nit 无场景 ⇒ 通过`
+- `wave / branch 的 axes guide 零 `(severity by your judgment)`；注册表中每个 (review kind, lens) 组合各有一句影响判定问句（枚举 pin，由注册表测试计数）`
+- `wave review 的 round context 含 `INPUT_SPEC` 与 `INPUT_OVERALL`，且一条行为 pin：wave 评审的 prompt 中两 token 可读，branch 字节不变`
+- `场景文本相同而降档且无 `regrade` ⇒ 胶囊与板面各一条可见标记；有 `regrade` ⇒ 两处各出现一次理由`
+- `pin 门可红可修：注入一条指向不存在符号的 pin ⇒ 红并指出该 pin；在册语料 ⇒ 零 finding；`contract` 的 `path` 失效 ⇒ 该条 finding 为 warn`
+- `validate 全绿（`pnpm run validate` exit 0）；changeset `cdd-engine` **minor**、kairos 无`
+
 ## Constraints
 
 - 跟随仓内既有范式：注册表 + 「查不到即抛」（`contract/completion-criterion.ts`）；`src-next` 零裸函数、参数 ≤4、类 ≤200 行、接口先行、协作者构造注入。
@@ -150,18 +160,9 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 - 不重审已闭合相位的 finding 判档（P36 那 7 条只是病根证据）；`packages/kairos/skills` 文本零改动。
 - prompt 字节会变（rubric 由注册表装配），changeset 为 `cdd-engine` **minor**；kairos 无。
 
-### Acceptance criteria
-
-- ① 三档各有一条边界定义、一条举证义务句、一条反例句，全部来自注册表；注册表缺行 ⇒ 装配失败（成对 pin：完整注册表装配成功 / 删一行装配即抛）。
-- ② `impact.scenario` 成对：blocker 缺场景 ⇒ `CDD_BLOCKED: grading-impact-missing` 且报文列出违规 `id`；补上场景 ⇒ 通过；warn / nit 无场景 ⇒ 通过。
-- ③ wave / branch 的 axes guide 零 `(severity by your judgment)`；注册表中每个 (review kind, lens) 组合各有一句影响判定问句（枚举 pin，由注册表测试计数）。
-- ④ wave review 的 round context 含 `INPUT_SPEC` 与 `INPUT_OVERALL`，且一条行为 pin：wave 评审的 prompt 中两 token 可读，branch 字节不变。
-- ⑤ 场景文本相同而降档且无 `regrade` ⇒ 胶囊与板面各一条可见标记；有 `regrade` ⇒ 两处各出现一次理由。
-- ⑥ `PinAudit` 可红可修：注入一条指向不存在符号的 pin ⇒ 红并指出该 pin；在册语料 ⇒ 零 finding；`contract` 的 `path` 失效 ⇒ 该条 finding 为 warn。
-- ⑦ `pnpm run validate` exit 0；changeset `cdd-engine` **minor**、kairos 无。
-
 ## Change history
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-16 | 初稿：判档本体改为功能影响 + 三级边界（每档一条举证与反例句）· `impact` 场景字段与 `rollup` 成对门 · `contract` 降为可选锚点 · lens→影响判定问句 · wave 注入 `INPUT_SPEC`/`INPUT_OVERALL` · 跨轮改档落账 · 生成式判据注册表 · pin 三形态可解析性门（P28 窄形态反转） | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |
+| v0.2 | 2026-11-16 | 结构修正：`### Acceptance criteria` 归入 `## Design`（原先误落在 `## Constraints` 之后）；每条 AC 以 `` `- ` `` 开首，对齐 `Acceptance entry` 的 valuePattern | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |

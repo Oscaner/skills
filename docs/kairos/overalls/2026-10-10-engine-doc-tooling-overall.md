@@ -1,7 +1,7 @@
 ---
 title: 引擎文档工具（Engine Doc-Tooling）— Overall Spec
 doc-type: overall
-version: v3.90
+version: v3.91
 date: 2026-11-16
 slug: 2026-10-10-engine-doc-tooling
 author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design 元层裁定 → 独立整体注册）"

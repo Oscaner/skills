@@ -26,7 +26,7 @@ author: '[human] 裁定 · Claude（本会话 · 2026-11-06）'
 | 本行相位 · doc/branch | `lineGate`：drift 重开 · pending-fix · same-revision 拒 · face-closed（`face/gate.ts:71`） | `face/gate.ts`，**从 `face/cli.ts:764` 调** | doc / branch 面 |
 | 行事实 | `reviewGate`（`:934`）· `docReopens`（`:1311`）· `briefDrifted`（`:1023`）· `waveLineRoute`（`:964`）· `linePhase`（`:1209`）· `lineRoute`（`:1187`） | `session/ledger.ts` | 经上面两处 |
 | 帧前沿 | `peekNext` / `#openLineFrame` / `#nextWavePhase` | `session/run.ts` | 派发循环 |
-| 站牌 | `PipelineFrontier#hopOf`（`session/pipeline.ts:132`）→ `NextHop` | `session/pipeline.ts` · `session/next.ts` | **只有 board（`face/board-view.ts:867`）与 capsule（`run.ts:915`）** |
+| 站牌 | `PipelineFrontier#hopOf`（`session/pipeline.ts:132`）→ `NextHop` | `session/pipeline.ts` · `session/next.ts` | **只有 board（`face/board-view.ts:867`）与 capsule（`session/run.ts`）** |
 
 #### 1.2 三处让它散的原因
 

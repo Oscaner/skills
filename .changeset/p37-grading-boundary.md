@@ -28,11 +28,19 @@ Grading becomes checkable end to end (P37).
 - Pin parseability gate: a document's path, bare-symbol or test-title claims must
   resolve in the tree. One criterion, three corpora: the engine suite scans the whole
   docs corpus, a document review scans the judged document's own body, and the handoff
-  read-back judges each finding's `contract.path`. A bare symbol resolves only as a code
-  declaration — a name that survives merely in a comment or a retirement guard's regex is
-  dead. A dead pin is a real `warn` finding under the reviewed face's own lens —
-  `consistency` on the spec shapes, `inventory` on a charter, `buildability` on a plan,
-  `standards` on a wave or branch, always a label that face's prompt declares — it never
-  refuses a round, but it does move a review to `REVIEW_FIX`. The shipped docs corpus is
-  clean against that criterion, and the engine suite's structural test holds it there: a
-  document entering the corpus, or a claim that stops resolving, turns it red.
+  read-back judges each finding's `contract.path`. A path resolves in three ordered
+  tiers — an exact repo entry, else a unique suffix, else the gate reports an ambiguity
+  finding that names every candidate instead of silently picking a first hit. A bare
+  symbol resolves only as a code declaration — a name that survives merely in a comment
+  or a retirement guard's regex is dead. A path a plan's `Create:` line declares while
+  the tree has not landed it is pending, not dead: the judged document's own plan (its
+  `slug:`, or the `program:` its identity document declares) opens that skip, and the
+  program charter's `✔ Done（…）` row closes it. A dead pin is a real `warn` finding
+  under the reviewed face's own lens — `consistency` on the spec shapes, `inventory` on
+  a charter, `buildability` on a plan, `standards` on a wave or branch, always a label
+  that face's prompt declares — it never refuses a round, but it does move a review to
+  `REVIEW_FIX`. The shipped docs corpus is clean against that criterion — the tier ①→③
+  reading over the whole declared corpus is zero after the one-off migration — and the
+  engine suite's structural test holds it there: a document entering the corpus, a
+  claim that stops resolving, or a path that starts naming more than one entry turns it
+  red.

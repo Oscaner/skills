@@ -2592,3 +2592,109 @@ describe("P37 T6 — the pin read-back corpora inject real warn findings", () =>
     }
   });
 });
+
+/**
+ * P37 T7 — §7.3's time face at the CALL SITE. `#contractPinRows` hands `PinAudit` the
+ * judged document for the spec / plan faces and `null` for wave / branch, so one
+ * fixture reads both directions: the pending `Create:` path of the judged document's own
+ * plan injects nothing, and the same path on a wave round injects one warn.
+ */
+describe("P37 T7 — the pin time face reads the judged identity at the call site", () => {
+  /** A path a plan declares and the tree has not landed. */
+  const PENDING = "packages/cdd-engine/src-next/pending/forward.ts";
+
+  /** The plan that declares the pending path under the spec's own `slug:`. */
+  const pendingPlan = (slug: string, declares: boolean): string =>
+    [
+      "---",
+      "doc-type: plan",
+      `slug: ${slug}`,
+      "version: v0.1",
+      "---",
+      "",
+      "### Task 1: the declared work",
+      "",
+      "#### Files",
+      ...(declares ? [`- Create: \`${PENDING}\``] : []),
+      "- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`",
+      "",
+      "#### DependsOn",
+      "none",
+      "",
+    ].join("\n");
+
+  /** The judged spec — the same `slug:`, and no `program:`: its plan's declaration is
+   *  the closing boundary (§7.3 condition ③'s declaration-bounded arm). */
+  const writeSpec = (f: Fixture): string => {
+    const at = path.join(
+      f.scene.workspace.root.repoRoot,
+      "docs",
+      "kairos",
+      "specs",
+      "s1-design.md",
+    );
+    mkdirSync(path.dirname(at), { recursive: true });
+    writeFileSync(
+      at,
+      ["---", "doc-type: phase-spec", "slug: s1", "version: v0.1", "---", "", "# spec", ""].join(
+        "\n",
+      ),
+      "utf8",
+    );
+    return at;
+  };
+
+  /** The child's own row — its `contract.path` is the corpus under judgment. */
+  const FINDING = {
+    severity: "nit",
+    lens: "standards",
+    summary: "wording",
+    contract: { path: PENDING, anchor: "§1" },
+  };
+
+  const specReviewOf = (doc: string): OpenFrame => ({
+    type: "phase-spec",
+    phase: "review",
+    round: 1,
+    target: { kind: "spec", doc },
+    params: { round: 1, attempt: 1 },
+    key: "phase-spec",
+  });
+
+  it("injects nothing when the judged document's own plan declares the absent path", async () => {
+    const f = fixture(pendingPlan("s1", true));
+    try {
+      const { outcome } = await dispatchFrame(
+        f,
+        specReviewOf(writeSpec(f)),
+        new ReviewDraftRunner([FINDING], "phase-spec-review-1.json"),
+      );
+      // the child's row only: a pending declaration is not a dead pin. The nit itself
+      // still rolls the round to REVIEW_FIX — what the skip removes is the SECOND row
+      expect(outcome.findings).toHaveLength(1);
+      expect(outcome.status).toBe("REVIEW_FIX");
+      expect((outcome.carrier as { findings: unknown[] }).findings).toHaveLength(1);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("injects one warn on a wave round — `null` judged has no subject for the declaration", async () => {
+    const f = fixture(pendingPlan("s1", true));
+    try {
+      const { outcome } = await dispatchFrame(
+        f,
+        reviewFrame,
+        new ReviewDraftRunner([FINDING], "tasks-1-review-1.json"),
+      );
+      // one conclusion, one carrier: the injected row is counted by the same rollup
+      expect(outcome.findings).toHaveLength(2);
+      expect(outcome.findings?.[1]?.severity).toBe("warn");
+      expect(outcome.findings?.[1]?.summary).toContain(PENDING);
+      expect(outcome.status).toBe("REVIEW_FIX");
+      expect(f.io.stderrText).not.toContain("CDD_BLOCKED");
+    } finally {
+      f.cleanup();
+    }
+  });
+});

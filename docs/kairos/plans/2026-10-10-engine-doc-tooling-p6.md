@@ -43,7 +43,7 @@ slug: 2026-10-10-engine-doc-tooling-p6
 - **DependsOn**: none
 
 ### Task 2: single-spec doc 型 + 轻量脚手架（declare 注册表 + 三投影 + skeleton 渲染 + schema get 并入）
-- **Objective**: 引擎新增第四个 doc 型 `single-spec`——`declare.ts` 增 `SINGLE_SPEC_ELEMENTS` 注册表（独立于 phase-spec）· DocKey/DocType 并集扩（T1 已含）· Projector/Schema/skeleton 三投影同扩 · `render/skeleton.ts` 增 `#renderSingleSpec` + case 分派 · SCHEMA_TYPE_KEYS 增 `single-spec: "single-spec"` · `schema get single-spec --output skeleton <target>` 直写目标 doc（target 必填 · 复用 P5 条件必填机制）· 骨架 = 轻量脚手架（header 五元组 + 主体 `:::fill` 槽位 + Change history 表 · 无 `### N.` 双层大纲 · 无 Parent program 必填）· slot-consumption 断言覆盖全注册锚
+- **Objective**: 引擎新增第四个 doc 型 `single-spec`——`contract/declare.ts` 增 `SINGLE_SPEC_ELEMENTS` 注册表（独立于 phase-spec）· DocKey/DocType 并集扩（T1 已含）· Projector/Schema/skeleton 三投影同扩 · `render/skeleton.ts` 增 `#renderSingleSpec` + case 分派 · SCHEMA_TYPE_KEYS 增 `single-spec: "single-spec"` · `schema get single-spec --output skeleton <target>` 直写目标 doc（target 必填 · 复用 P5 条件必填机制）· 骨架 = 轻量脚手架（header 五元组 + 主体 `:::fill` 槽位 + Change history 表 · 无 `### N.` 双层大纲 · 无 Parent program 必填）· slot-consumption 断言覆盖全注册锚
 - **Files**:
   - Modify: `packages/cdd-engine/src-next/contract/declare.ts`（`SINGLE_SPEC_ELEMENTS` 注册表 · registry 增 `single-spec` 行）
   - Modify: `packages/cdd-engine/src-next/contract/project.ts`（DocKey 已并集 · SkeletonProjection/SchemaProjection 自动含单型——核对无缺）

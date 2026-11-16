@@ -40,7 +40,7 @@ base: develop
   - Test: `packages/cdd-engine/src-next/render/__tests__/skeleton.test.ts`（13 处 · renderOf/rendersNoLiteralN 调用字面 ×4 + `["overall","plan","phaseSpec"] as const`/`["overall","phaseSpec"] as const` 数组 ×8 + fixture 键 ×1 → kebab）——**F5 边界裁定：docKey 字面 pin 更替 = 词表统一触达面（word 面 · 非重组 · 与 D8 path rename 分明属主）** · render/ 源面维持零触碰
   - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（`schema get phase-spec` 新主拼 · `schema get phaseSpec` 别名归一同字节 · get/gen 两错误消息用例新字节断言：get 四键 + 未识别 type · gen 三键 + 未识别 type）· `face.test.ts`（`docWords("phaseSpec")` 调用点字面更替 → kebab（:37/41/43 断言面））
   - Test: `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts`（docKey 字面更替）
-- **Consumes**: design spec §1.4（两键系统现状）· §5（词表统一 · 五投影→六投影翻正）· doc-contract docKey 词表现状（`contract/judge.ts:37` DOC_KEYS · `declare.ts:863-865` 行键 · `Projector` 五|六投影 · `face/cli.ts` schema 面 + words docWords）· P2 的 gen 别名归一表（`phaseSpec` → `phase-spec`）
+- **Consumes**: design spec §1.4（两键系统现状）· §5（词表统一 · 五投影→六投影翻正）· doc-contract docKey 词表现状（`contract/judge.ts:37` DOC_KEYS · `contract/declare.ts` 行键 · `Projector` 五|六投影 · `face/cli.ts` schema 面 + words docWords）· P2 的 gen 别名归一表（`phaseSpec` → `phase-spec`）
 - **Produces**: 全库单一拼写 `phase-spec`（kebab）· `schema get phase-spec` 合法主拼 + `phaseSpec` 别名归一（get/gen 一表两面 · 单一 vocabulary）· 错误消息端态钉定：get 面**四键** `available: overall, plan, phase-spec, plan-graph` · gen 面**三键** `available: overall, plan, phase-spec` · P2「get 字节不变」语义随更新后的全测试 pins
 - **Steps**:
   - 契约面键拼更替（declare/judge/invariants/project/doc.ts）——**TS 推断连锁编译期收口**（索引访问全量暴露 · 六前提「OOP 统一」的编译期强约束 · spec §5.2 类型收口）；`words.docWords` 键同更 — checkable: 引擎 `tsc --noEmit` 全绿 · 契约面文件 `grep "\"phaseSpec\""` 零残留（别名归一表除外）

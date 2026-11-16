@@ -91,7 +91,7 @@ author: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁�
 ### 6. smoke-cdd 迁引擎 + emit.ts 六前提重整
 #### 6.1 smoke-cdd 迁 engine 集成测试面
 - smoke-cdd（fixture 仓库 + 真实 bin dry-run 链）迁入 engine test plane（作为引擎集成测试 / 或保留独立 runnable 入口）· 归「引擎 launch 行为」域（kairos `pi-install-smoke.test.ts` 同型先例）
-- **`--expect-version` 旗标撤除**（用户裁定 · 2026-10-12 · no-op 不迁）：现 smoke 脚本 全文件 0 命中 expect/argv/version（`SmokeCdd.run(opts)` 仅收 binPath · `run.ts:46-49` 不传 argv · `release.yml:71` 的 `--expect-version 1.0.0` 传入即弃 = no-op）——引擎 smoke **不实现版本断言** · `release.yml` post-version 门移除（两道门只指 smoke 入口 · 不再带版本断言）· maintainers 程序经验篇 的「tarball + installed package.json == expected」记载同步删 · 「released artifact = verified artifact」以 suite 全绿 + smoke 门改指收口
+- **`--expect-version` 旗标撤除**（用户裁定 · 2026-10-12 · no-op 不迁）：现 smoke 脚本 全文件 0 命中 expect/argv/version（`SmokeCdd.run(opts)` 仅收 binPath · `session/run.ts` 不传 argv · `release.yml:71` 的 `--expect-version 1.0.0` 传入即弃 = no-op）——引擎 smoke **不实现版本断言** · `release.yml` post-version 门移除（两道门只指 smoke 入口 · 不再带版本断言）· maintainers 程序经验篇 的「tarball + installed package.json == expected」记载同步删 · 「released artifact = verified artifact」以 suite 全绿 + smoke 门改指收口
 - **release.yml 两道门改指引擎 smoke 入口**（`pnpm -C packages/cdd-engine run …` 或等阶原生命令）· root `scripts/run.ts smoke-cdd` 面删除
 #### 6.2 emit.ts OOP 重整
 - emit.ts（产物生成面 · `package.json#oscaner` → 各 harness manifest）按六前提重整：零裸函数（类族收口 · §4.2）· 高内聚低耦合（映射职责分面）· 死码清理 · 声明单源投影保
@@ -99,7 +99,7 @@ author: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁�
 
 ### 7. 死码/空壳/散线清理清单
 #### 7.1 删除面（消灭清单）
-- guard 库（1067 行 · 校验逻辑全迁/撤）· 校验脚本（321 行 · 组合 runner）· `run.ts` validate/precommit/smoke-cdd 面 · guard 库的测试 + 校验脚本 的测试文件 · kairos ci-validate 测试（wiring guard 目标消失 · 断言面随迁）· PRECONTRACT_DOCS 名单
+- guard 库（1067 行 · 校验逻辑全迁/撤）· 校验脚本（321 行 · 组合 runner）· `session/run.ts` validate/precommit/smoke-cdd 面 · guard 库的测试 + 校验脚本 的测试文件 · kairos ci-validate 测试（wiring guard 目标消失 · 断言面随迁）· PRECONTRACT_DOCS 名单
 #### 7.2 迁移面
 - guard 分析器（analyzeSkill · digraph/section 抽取）→ kairos test 辅助 · channel/handoff 断言 → engine colocated pins · anatomy 契约 / 词表保持引擎导出（零搬）· smoke fixtures → engine 集成测试（§6.1）
 #### 7.3 声明单源确认

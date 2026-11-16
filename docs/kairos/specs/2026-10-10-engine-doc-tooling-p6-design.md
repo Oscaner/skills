@@ -29,7 +29,7 @@ author: Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁�
 
 ### 2. single-spec 骨架（引擎 schema 面）
 #### 2.1 single-spec doc 型新增（declare/contract 面）
-- 引擎新增第四个 doc 型 **`single-spec`**：`declare.ts` 增 `single-spec` 元素注册表（独立于 phase-spec）· `DocKey`/`DocType` 类型并集扩 `"single-spec"` · Projector 投影/Schema/skeleton 面同扩 · **骨架 = 轻量脚手架（Q3→a）**：header 五元组（title / `- **Version**: v0.1 · <date>` / `**Status**: Draft` / `**Author**` / `- **Depends on**:`）+ 主体 `:::fill` 槽位（`## Background & root cause` / `## Design decisions` / `## Acceptance` / `## Constraints` —— 用户裁定 2026-10-13 英文标题）+ `## Change history` 表（header + separator + 首行 v0.1）
+- 引擎新增第四个 doc 型 **`single-spec`**：`contract/declare.ts` 增 `single-spec` 元素注册表（独立于 phase-spec）· `DocKey`/`DocType` 类型并集扩 `"single-spec"` · Projector 投影/Schema/skeleton 面同扩 · **骨架 = 轻量脚手架（Q3→a）**：header 五元组（title / `- **Version**: v0.1 · <date>` / `**Status**: Draft` / `**Author**` / `- **Depends on**:`）+ 主体 `:::fill` 槽位（`## Background & root cause` / `## Design decisions` / `## Acceptance` / `## Constraints` —— 用户裁定 2026-10-13 英文标题）+ `## Change history` 表（header + separator + 首行 v0.1）
 - 与 phase-spec 的差异点：**无 `### N.` 双层设计大纲**（single 是修复/裁决导向自由文档 · 硬套 phase 大纲是错位）· **无 `**Parent program**` 必填**（single 无父整体 · 独立程序形态）
 - 注册表元素按 single 文档序排列（标题 · 版本行 · status · author · 主体段 · change history）· **slot-consumption 断言同款**（skeleton 渲染后逐注册锚探测 · 漂移 loud throw）
 #### 2.2 schema get 值域并入

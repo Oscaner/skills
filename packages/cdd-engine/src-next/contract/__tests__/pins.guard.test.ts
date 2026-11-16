@@ -18,6 +18,11 @@
 // keeps the other direction alive on its own — a dead pin is reported, and removing it
 // clears the gate — so the gate is proven able to go red without the corpus being dirty.
 //
+// §7.1's three tiers are pinned as three cells (exact entry · unique suffix · ambiguity),
+// and §7.3's time face has its own paired cells: the same pending `Create:` path answers
+// identically on all three corpora, and loses that answer the moment the declaration, the
+// identity or the closure changes.
+//
 // The other two corpora (the judged document's body, the finding's `contract.path`)
 // are pinned where they execute: `face/__tests__/lifecycle.test.ts`.
 
@@ -26,7 +31,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { PinAudit, PinSpans } from "../pins.ts";
+import { PinAudit, PinIndex, PinSpans } from "../pins.ts";
 
 /** The repo root of THIS checkout — the guard's corpus basis. */
 const REPO_ROOT = path.resolve(fileURLToPath(new URL("../../../../..", import.meta.url)));
@@ -60,6 +65,47 @@ const SAMPLE_SOURCE = "export const PresentSymbol = 1;\n";
 
 /** The scratch fixture's test file — the test-title shape's only corpus. */
 const SAMPLE_TEST = 'it("a declared test title", () => {});\n';
+
+/** A pending `Create:` declaration — the path a plan writes and the tree has not landed. */
+const PENDING = "packages/cdd-engine/src-next/pending/forward.ts";
+
+/** One document's front matter over the identity facts the time face reads. */
+const front = (docType: string, slug: string, program?: string): string =>
+  [
+    "---",
+    `doc-type: ${docType}`,
+    `slug: ${slug}`,
+    ...(program === undefined ? [] : [`program: ${program}`]),
+    "version: v0.1",
+    "---",
+    "",
+  ].join("\n");
+
+/** A plan body: one task block whose `Files` row declares the pending path. */
+const planBody = (slug: string, pending: string | null): string =>
+  [
+    front("plan", slug),
+    "### Task 1: the declared work",
+    "",
+    "#### Files",
+    ...(pending === null ? [] : [`- Create: \`${pending}\``]),
+    "",
+    "#### DependsOn",
+    "none",
+    "",
+  ].join("\n");
+
+/** A charter body: one `## Phase inventory` row, closed or pending by the cell text. */
+const charterBody = (planCell: string): string =>
+  [
+    front("overall", "prog"),
+    "## Phase inventory",
+    "",
+    "| Phase | Scope | Design spec | Implementation plan | Acceptance | Dependency |",
+    "| --- | --- | --- | --- | --- | --- |",
+    `| P1 | scope | design | ${planCell} | ok | none |`,
+    "",
+  ].join("\n");
 
 /** A dead reference in the migration's own shape — the `-overall.md` suffix that the
  *  template exclusion must NOT swallow (§7.3's renamed-charter path). */
@@ -274,5 +320,104 @@ describe("P37 T6 — the pin definition's three exclusions, each with its pair",
     const findings = f.audit.scan(["docs/kairos"]);
     expect(findings).toHaveLength(1);
     expect(PinSpans.tokensOf("a `one` and ``two`` end")).toEqual(["one", "two"]);
+  });
+});
+
+describe("P37 T7 — §7.1's three tiers: exact entry, unique suffix, ambiguity", () => {
+  it("tier ① — an exact entry wins, and the line bound is judged on THAT file", () => {
+    const f = fixture();
+    f.write("README.md", "one\ntwo\nthree\n");
+    f.write(".changeset/README.md", "short\n");
+    // the repo copy has three lines, so line 3 is legal there and nowhere else — a
+    // first-hit resolver lands on the shorter sibling and reports this legal pin red
+    expect(f.audit.scanText(bodyOf(["README.md:3"]), "tiers.md")).toEqual([]);
+    // …and a line past ITS end is red, never judged against the sibling's length
+    const findings = f.audit.scanText(bodyOf(["README.md:5"]), "tiers.md");
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.summary).toContain("has 4 lines");
+  });
+
+  it("tier ② — a unique suffix resolves to its one candidate", () => {
+    expect(new PinIndex(REPO_ROOT).resolve("face/declare.ts")).toEqual({
+      kind: "resolved",
+      entry: "packages/cdd-engine/src-next/face/declare.ts",
+    });
+  });
+
+  it("tier ③ — two candidates are reported, never silently chosen", () => {
+    const f = fixture();
+    f.write("packages/cdd-engine/src-next/contract/declare.ts", "export const a = 1;\n");
+    f.write("packages/cdd-engine/src-next/face/declare.ts", "export const b = 2;\n");
+    const findings = f.audit.scanText(bodyOf(["declare.ts"]), "tiers.md");
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.shape).toBe("path");
+    expect(findings[0]?.summary).toContain("packages/cdd-engine/src-next/contract/declare.ts");
+    expect(findings[0]?.summary).toContain("packages/cdd-engine/src-next/face/declare.ts");
+  });
+});
+
+describe("P37 T7 — §7.3's time face: one pending table, three corpora, one answer", () => {
+  const JUDGED = "docs/kairos/specs/s1-design.md";
+
+  /** A single-spec-shaped scratch repo: the judged spec declares `slug: s1` and carries
+   *  the pin in its own body, and one plan declares the pending path. */
+  const pendingFixture = (options: {
+    readonly planSlug?: string;
+    readonly pending?: string | null;
+    readonly program?: string;
+    readonly charter?: string;
+  }): Scratch => {
+    const f = fixture();
+    f.write(JUDGED, `${front("phase-spec", "s1", options.program)}\n# spec\n\n- \`${PENDING}\`\n`);
+    f.write(
+      "docs/kairos/plans/s1.md",
+      planBody(options.planSlug ?? "s1", options.pending === undefined ? PENDING : options.pending),
+    );
+    if (options.charter !== undefined) {
+      f.write("docs/kairos/overalls/prog.md", options.charter);
+    }
+    return f;
+  };
+
+  const pinsOf = (findings: readonly { pin: string }[]): readonly string[] =>
+    findings.map((finding) => finding.pin);
+
+  it("skips the pending path on all three corpora — scan, scanText and pathResolves agree", () => {
+    const f = pendingFixture({});
+    expect(pinsOf(f.audit.scan(["docs/kairos"]))).toEqual([]);
+    expect(f.audit.scanText(`# spec\n\n- \`${PENDING}\`\n`, JUDGED)).toEqual([]);
+    expect(f.audit.pathResolves(PENDING, JUDGED)).toBe(true);
+  });
+
+  it("answers `null` judged on the `contract.path` corpus alone — the other two readings hold", () => {
+    const f = pendingFixture({});
+    // a wave / branch round has no judged document: condition ① has no subject
+    expect(f.audit.pathResolves(PENDING, null)).toBe(false);
+    expect(f.audit.scanText(`# spec\n\n- \`${PENDING}\`\n`, JUDGED)).toEqual([]);
+    expect(pinsOf(f.audit.scan(["docs/kairos"]))).toEqual([]);
+  });
+
+  it("drops the skip when the declaring plan stops writing the line", () => {
+    const f = pendingFixture({ pending: null });
+    expect(pinsOf(f.audit.scan(["docs/kairos"]))).toEqual([PENDING]);
+    expect(f.audit.pathResolves(PENDING, JUDGED)).toBe(false);
+  });
+
+  it("drops the skip when the declaring plan shares no identity key with the judged document", () => {
+    const f = pendingFixture({ planSlug: "s2" });
+    expect(pinsOf(f.audit.scan(["docs/kairos"]))).toEqual([PENDING]);
+    expect(f.audit.pathResolves(PENDING, JUDGED)).toBe(false);
+  });
+
+  it("drops the skip once the plan's program charter names it in a `✔ Done（…）` row", () => {
+    const closed = pendingFixture({
+      program: "prog",
+      charter: charterBody("✔ Done（`s1.md` · 2026-01-01）"),
+    });
+    // closed ⇒ the skip is gone on BOTH corpora: the judged spec's body and the plan's
+    // own `Create:` line report the same absent path
+    expect(pinsOf(closed.audit.scan(["docs/kairos"]))).toEqual([PENDING, PENDING]);
+    const pending = pendingFixture({ program: "prog", charter: charterBody("[Pending]") });
+    expect(pinsOf(pending.audit.scan(["docs/kairos"]))).toEqual([]);
   });
 });

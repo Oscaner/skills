@@ -44,7 +44,7 @@ slug: 2026-10-10-engine-doc-tooling-p10
 - **DependsOn**: none
 
 ### Task 2: Home union 改名——`header` → `frontmatter`（retire，不并存）
-- **Objective**: `declare.ts` 的 `Home` union（`:42-52`）与 `HOME_VALUES`（`:100-111`）中 `"header"` 改名为 `"frontmatter"`；23 处 `home: "header"` 用例随改；`PRESENCE_HOMES`（`invariants.ts:263-273`）同步换键。plan-wave 裁定（spec §5.1「改法二选一须显式裁定」）：**`declare.test.ts` 本地 `HOME_VALUES` 副本（`:41-52`）保副本、字面量改名 `"frontmatter"`**——副本是独立于 `declare.ts` 的刻意第二份声明（断言「registry home ⊂ 封闭词表」而非「registry home ⊂ 自身」），导入会令断言自我证真。
+- **Objective**: `contract/declare.ts` 的 `Home` union（`:42-52`）与 `HOME_VALUES`（`:100-111`）中 `"header"` 改名为 `"frontmatter"`；23 处 `home: "header"` 用例随改；`PRESENCE_HOMES`（`invariants.ts:263-273`）同步换键。plan-wave 裁定（spec §5.1「改法二选一须显式裁定」）：**`declare.test.ts` 本地 `HOME_VALUES` 副本（`:41-52`）保副本、字面量改名 `"frontmatter"`**——副本是独立于 `contract/declare.ts` 的刻意第二份声明（断言「registry home ⊂ 封闭词表」而非「registry home ⊂ 自身」），导入会令断言自我证真。
 - **Files**: Modify `packages/cdd-engine/src-next/contract/declare.ts`（Home union · HOME_VALUES · 23 处 `home: "header"`）· Modify `packages/cdd-engine/src-next/contract/invariants.ts`（PRESENCE_HOMES）· Test `packages/cdd-engine/src-next/contract/__tests__/declare.test.ts`（本地副本改名）
 - **Consumes**: spec §3.1「改名 retire、非并存」裁定。
 - **Produces**: `Home` union 含 `"frontmatter"` 不含 `"header"`；`home: "frontmatter"` 为唯一头部 home 值；`PRESENCE_HOMES` 含 `"frontmatter"`；`declare.test.ts` 副本同步（`:113` home ∈ HOME_VALUES 断言对新副本成立）。
@@ -66,7 +66,7 @@ slug: 2026-10-10-engine-doc-tooling-p10
   - 写 failing 形状 pin（doc.test.ts：一段真实语料片段 → task 块数/`Task N` id/字段键/design-body 层级）— checkable: `pnpm -C packages/cdd-engine test doc` 运行（当前正则实现仍绿指实现未接管，pin 断言目标形状）。
   - 建 `home-extractors.ts` 五类（读登记表该 home 分组与 anchor 集合）— checkable: `tsc --noEmit -p packages/cdd-engine` 过。
   - `doc.ts` 四个 `parse` 改调 home 提取器，删 6 条字面正则与 markerLine/`markerValue` 家族 — checkable: 退役集 6 条逐条 grep 零命中（`grep -nF '/^### Task (\\d+):/' contract/doc.ts` 等）。
-  - `#phaseId` 改写为 `sliceOf("Phase id token")?.valuePattern` 判各 cell（形态同 `sectionConforms` `:474-478`）— checkable: `grep -Fn '/^P\\d+(\\.\\d+)*$/' contract/doc.ts` 零命中（字面只留登记表 `declare.ts:358-362`）。
+  - `#phaseId` 改写为 `sliceOf("Phase id token")?.valuePattern` 判各 cell（形态同 `sectionConforms` `:474-478`）— checkable: `grep -Fn '/^P\\d+(\\.\\d+)*$/' contract/doc.ts` 零命中（字面只留登记表 `contract/declare.ts`）。
   - 形状 pin + 全量转绿 — checkable: `pnpm -C packages/cdd-engine test doc` PASS。
 - **Acceptance**: 结构 pin(a) 的 5 条锚定正则 + `:459` 零命中；`#phaseId` 字面文法归登记表单源；保留原语集原样存活（`doc.ts` 命中 ⊆ 6 原语）；四个 `parse` 输出形状不变。
 - **DependsOn**: none

@@ -167,7 +167,7 @@ lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的�
 
 `contract/pins.ts` 暴露 `PinAudit`，扫描 `docs/kairos/**/*.md` 与仓库 README 家族（`README.md` · `README.zh-CN.md` · `packages/*/README*.md`）的三类 pin：
 
-- `path.ext[:line[-line]]` —— 路径**按固定顺序解析，不取第一个命中**：① 与仓内条目**全等**的命中胜（写 `README.md` 就只指仓根那份，不会落到 `.changeset/README.md`）；② 全等无命中时取**唯一后缀**命中（`face/declare.ts` 只有一个候选）；③ 后缀命中多于一个时**不挑**，产一条 ambiguity finding 并列出**全部候选**（裸写 `declare.ts` 今天同时命中 `contract/declare.ts` 与 `face/declare.ts`）——pin 指向哪个文件是文档的主张，门不替它选，档位与解析不到同（warn，§7.2）。行号可省，省略时就是**裸路径 pin**（Constraints 的「路径 + 符号」纪律与本 spec 自己的写法都是这一形）；出现时按**解析到的那个条目**的行数判，不是同名兄弟文件的行数；**不比对内容**（内容匹配不可能机械）。
+- `path.ext[:line[-line]]` —— 路径**按固定顺序解析，不取第一个命中**：① 与仓内条目**全等**的命中胜（写 `README.md` 就只指仓根那份，不会落到 `.changeset/README.md`）；② 全等无命中时取**唯一后缀**命中（`face/declare.ts` 只有一个候选）；③ 后缀命中多于一个时**不挑**，产一条 ambiguity finding 并列出**全部候选**（裸写 declare.ts 今天同时命中 `contract/declare.ts` 与 `face/declare.ts`）——pin 指向哪个文件是文档的主张，门不替它选，档位与解析不到同（warn，§7.2）。行号可省，省略时就是**裸路径 pin**（Constraints 的「路径 + 符号」纪律与本 spec 自己的写法都是这一形）；出现时按**解析到的那个条目**的行数判，不是同名兄弟文件的行数；**不比对内容**（内容匹配不可能机械）。
 - 裸符号（如 `#artifactCellOf`、`PinAudit`）—— 在 `packages/cdd-engine/src-next`、`packages/kairos`、`scripts` 的符号索引中可解析。索引按运行缓存。
 - 测试格题 + 文件名 —— 该 `.test.ts` 内存在这个字符串。
 

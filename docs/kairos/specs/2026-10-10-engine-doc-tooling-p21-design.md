@@ -200,7 +200,7 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 | `infra/proc.ts` | `ProcessFacts`（`ps-list` 存活/PPID 链/组去重 + `ps -g` 组 CPU 的唯一 OS 读面） |
 | `infra/atomic.ts` | `AtomicWriter`（`Workspace.writeJson` 的单一写实现） |
 | `contract/` | 登记表增**规则声明面**（`RuleDeclaration`：规则 id + 适用 docKey + 作用域 `doc / ledger`）；`Contract#buildPolicy()` 由硬编码改为遍历声明派生；跨账本两条作用域 `ledger`，由 `Contract.validateLedger(input, LedgerFacts)` 独立入口求值（`ContractInput` 零新增字段——一个入口两种判据会让两侧各自推断该不该跑 ledger 规则）；已检清单渲染同一批声明行 |
-| `session/ledger.ts` · `run.ts` · `wave.ts` · `next.ts` | 波行 `planTasks` · branch 身份写回 · 追加判据 · branch 面判 open |
+| `session/ledger.ts` · `session/run.ts` · `wave.ts` · `next.ts` | 波行 `planTasks` · branch 身份写回 · 追加判据 · branch 面判 open |
 | `face/declare.ts` · `render/skeleton.ts` | `--steal-stale` 旗标 · Task 块样例 |
 
 零裸函数：新面全是类，受既有 `check:no-bare-functions` 全树门约束。
@@ -329,7 +329,7 @@ export interface Selector {
 - 消费面 skill 文本零 `pgrep` / `stash` / `checkout --`（grep pin——**基线已绿，断言的是不引入**，回归门而非新交付），且含「能用的 commit、坏掉的丢」的恢复纪律句。
 - 新面零裸函数（`check:no-bare-functions` 零命中）· engine vitest 全绿 · typecheck ×3 · `pnpm run validate` ALL PASS · changeset cdd-engine **minor** + kairos **patch**，不发布。
 
-- Task 块的新形与旧形解析结果**逐字段相等**（`shape` / `range` 除外）；带 `####` 子节的任务块其 brief 逐字节完整（#rawSection 已删除，零 `^#` 截断残留）· 骨架只吐新形且含两条 step 样例 · 旧项目符号形在 `declare.ts` 里零独立声明（归一化只在 reader 内）· 冻结计划 `docs/kairos/plans/*` 零改动 · `mdast-util-from-markdown` 落 `package.json#dependencies`
+- Task 块的新形与旧形解析结果**逐字段相等**（`shape` / `range` 除外）；带 `####` 子节的任务块其 brief 逐字节完整（#rawSection 已删除，零 `^#` 截断残留）· 骨架只吐新形且含两条 step 样例 · 旧项目符号形在 `contract/declare.ts` 里零独立声明（归一化只在 reader 内）· 冻结计划 `docs/kairos/plans/*` 零改动 · `mdast-util-from-markdown` 落 `package.json#dependencies`
 
 - **四类文档只有一个解析入口**：`grep -rn "from-markdown" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 只命中 `contract/markdown-tree.ts` · 登记面零 `anchor`/`home`（selector 封闭集）· `doc.ts` 与 `invariants.ts` 的手写扫描面零残留 · 表格四种边界形态（转义竖线 / 反引号内竖线 / 对齐行 / 空单元格）各一 pin · 骨架往返同构 · 21 条规则判定语义不变（仅数据面换源）· 归一化只在前置一处
 

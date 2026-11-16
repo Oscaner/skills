@@ -19,11 +19,17 @@
 // IS the entry: a real `<dir>/<slug>-overall.md` reference is still a judged
 // coordinate, and it is exactly the stale-path case §7.3 migrates.
 //
-// The three shapes are judged on their own terms: a path by suffix resolution (never
-// by content — content matching cannot be mechanical), a bare symbol against an
+// The three shapes are judged on their own terms: a path by the THREE-TIER resolution
+// of §7.1 (exact entry → unique suffix → ambiguity, never a first hit) and never by
+// content — content matching cannot be mechanical; a bare symbol against an
 // identifier index of the engine / kairos / scripts trees (built once, cached, and
-// read from DECLARATIONS — `PinSource` — never from raw bytes), and a test title
+// read from DECLARATIONS — `PinSource` — never from raw bytes); and a test title
 // against the named test file's bytes.
+//
+// The time face (§7.3) rides the same judgment: a path a plan's `Create:` line
+// declares, that the tree has not landed, and that the plan has not been closed on is
+// PENDING — not dead. `ForwardPaths` computes that table once and all three corpora
+// read it, so one pending path answers identically wherever it is judged.
 //
 // Zero document structure and zero semantics are judged here: this is the narrow form
 // of the P28 reversal, not a docs corpus validator.
@@ -33,7 +39,11 @@
 
 import { readdirSync, readFileSync, type Stats, statSync } from "node:fs";
 import path from "node:path";
+import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
+import { SlugIndex } from "../infra/slug-index.ts";
 import { ArtifactRegistry } from "../session/round-artifacts.ts";
+import { docTypeParsers, type OverallParsed } from "./doc.ts";
+import { FrontMatterExtractor, type FrontMatterHead } from "./frontmatter.ts";
 
 /** Which of the three pin shapes failed to resolve (§7.1). */
 export type PinShape = "path" | "symbol" | "test";
@@ -62,6 +72,31 @@ export interface PinPath {
 export interface PinTest {
   readonly file: string;
   readonly title: string;
+}
+
+/** The three tiers of path resolution (§7.1): the exact entry wins, else the unique
+ *  suffix, else the pin is ambiguous — the gate never picks a candidate for the
+ *  document. */
+export type PathResolution =
+  | { readonly kind: "resolved"; readonly entry: string }
+  | { readonly kind: "ambiguous"; readonly candidates: readonly string[] }
+  | { readonly kind: "absent" };
+
+/** One plan's forward declarations (§7.3 condition ①): the `slug:` it declares, the
+ *  `program:` values its same-slug identity documents declare, and the paths its
+ *  `Create:` lines write. */
+interface PlanForward {
+  readonly slug: string;
+  readonly programs: readonly string[];
+  readonly paths: readonly string[];
+}
+
+/** One document of the three doc roots — its front matter plus its body, the DECLARED
+ *  facts §7.3 reads (never a file name). */
+interface DocHead {
+  readonly rel: string;
+  readonly head: FrontMatterHead;
+  readonly body: string;
 }
 
 /** The retired workspace name that no matrix row owns any more — vocabulary, never a
@@ -101,9 +136,11 @@ const SYMBOL_ROOTS: readonly string[] = [
   "scripts",
 ];
 
-/** The directories a walk never descends into — build output and VCS internals name no
- *  pin (and reading them would cost the index more than it buys). */
-const SKIP_DIRS: ReadonlySet<string> = new Set([".git", "node_modules", "dist", ".pi"]);
+/** The directories a walk never descends into — build output, VCS internals and the
+ *  machine-local workspace products name no pin (and reading them would let a local
+ *  `.kairos/` file make a coordinate resolve, which is exactly the reading §7.3's
+ *  migration exists to stop depending on). */
+const SKIP_DIRS: ReadonlySet<string> = new Set([".git", ".kairos", "node_modules", "dist", ".pi"]);
 
 /**
  * PinVocabulary — the pin DEFINITION (§7.1). A token is judged only when the three
@@ -371,15 +408,26 @@ export class PinIndex {
     return symbols;
   }
 
-  /** The repo entry a pin's path resolves to (suffix match, so a doc may write the tail
-   *  of a long path), or null when nothing in the tree ends with it. */
-  resolvePath(pinPath: string): string | null {
-    const normalized = pinPath.replace(/^\.\//, "").replace(/\/+$/, "");
-    if (normalized.length === 0) return null;
-    return (
-      this.entries().find((entry) => entry === normalized || entry.endsWith(`/${normalized}`)) ??
-      null
-    );
+  /** The repo entry a pin's path resolves to, across §7.1's three tiers. A suffix
+   *  match lets a doc write the tail of a long path; tier ① keeps an EXACT spelling
+   *  from falling into a shorter same-tailed sibling (`README.md` is the repo root
+   *  copy, never `.changeset/README.md`), and tier ③ reports every candidate instead
+   *  of silently choosing a first hit. */
+  resolve(pinPath: string): PathResolution {
+    const normalized = PinIndex.normalize(pinPath);
+    if (normalized.length === 0) return { kind: "absent" };
+    const entries = this.entries();
+    if (entries.includes(normalized)) return { kind: "resolved", entry: normalized };
+    const candidates = entries.filter((entry) => entry.endsWith(`/${normalized}`));
+    if (candidates.length === 1) return { kind: "resolved", entry: candidates[0]! };
+    if (candidates.length > 1) return { kind: "ambiguous", candidates };
+    return { kind: "absent" };
+  }
+
+  /** The ONE spelling of a pin path's normalization — a leading `./` and trailing
+   *  slashes are prose, not coordinates. */
+  static normalize(pinPath: string): string {
+    return pinPath.replace(/^\.\//, "").replace(/\/+$/, "");
   }
 
   /** One entry's text, null when it cannot be read (a directory, a vanished file). */
@@ -434,6 +482,165 @@ export class PinIndex {
 }
 
 /**
+ * ForwardPaths — §7.3's time face: the paths a plan's `Create:` lines declare while the
+ * tree has not landed them yet. The judgment lives HERE, once, and the three corpora
+ * (`scan` · `scanText` · `pathResolves`) read the same table — a pending path therefore
+ * answers identically wherever it is judged, which is what lets the pin census be one
+ * reading rather than three.
+ *
+ * Three conditions, all read from DECLARED values (§7.3): the declaring plan shares an
+ * identity key with the judged document, the path is absent from the tree (the caller
+ * asks only after resolution failed), and the plan has not been closed by its program's
+ * `## Phase inventory` row. A repository with no closure face — a single-spec, or a
+ * charter without that table — is bounded by the DECLARATION itself: a plan still on the
+ * tree and still writing the line is not closed.
+ *
+ * The identity facts are read from the documents' own front matter, never from file names
+ * and never through a second `SlugIndex`: P36's guard keeps the identity index to the
+ * command preamble's three sites, and `#reconstruct` builds none (its own note), so this
+ * face reads the same DECLARED values that index groups by. The slug grammar is still
+ * `SlugIndex.isLegalSlug` — one spelling of the value judgment.
+ */
+export class ForwardPaths {
+  readonly #index: PinIndex;
+  #heads: readonly DocHead[] | null = null;
+  #plans: readonly PlanForward[] | null = null;
+  readonly #pending = new Map<string, readonly string[]>();
+
+  constructor(index: PinIndex) {
+    this.#index = index;
+  }
+
+  /** Whether the judged document's own plan declares this absent path and has not been
+   *  closed on it (§7.3). A `null` judged document — a wave / branch round — has no
+   *  subject for condition ①, so the skip never holds there. */
+  skips(pinPath: string, judged: string | null): boolean {
+    if (judged === null) return false;
+    const normalized = PinIndex.normalize(pinPath);
+    return this.#pendingOf(judged).some(
+      (declared) => declared === normalized || declared.endsWith(`/${normalized}`),
+    );
+  }
+
+  /** The pending paths of one judged document — one table per identity, memoized, so a
+   *  corpus scan pays one computation rather than one per token. */
+  #pendingOf(judged: string): readonly string[] {
+    const cached = this.#pending.get(judged);
+    if (cached !== undefined) return cached;
+    const slug = this.#headsOf().find((head) => head.rel === judged)?.head.slug ?? null;
+    const paths =
+      slug === null
+        ? []
+        : this.#plansOf()
+            .filter((plan) => ForwardPaths.#shares(plan, slug) && !this.#isClosed(plan))
+            .flatMap((plan) => plan.paths);
+    this.#pending.set(judged, paths);
+    return paths;
+  }
+
+  /** Condition ① — the judged document's `slug:` equals the plan's, or the `program:`
+   *  its same-slug identity document declares. */
+  static #shares(plan: PlanForward, slug: string): boolean {
+    return plan.slug === slug || plan.programs.includes(slug);
+  }
+
+  /** Condition ③ — the plan's program charter names it in a `✔ Done（…）` row. */
+  #isClosed(plan: PlanForward): boolean {
+    return plan.programs.some((program) => this.#closedBy(program, plan.slug));
+  }
+
+  /** Whether one program's charter closes the plan: the `Implementation plan` cell is
+   *  written `✔ Done（`file` · date）` and that FILE NAME resolves to exactly one
+   *  indexed document whose `slug:` is the plan's. Zero or several hits read as CLOSED —
+   *  a registration that no longer resolves cannot establish "not closed", so a dead
+   *  `✔ Done` row never buys a silent skip. */
+  #closedBy(program: string, slug: string): boolean {
+    const heads = this.#headsOf();
+    const charter = heads.find(
+      (head) => head.head.slug === program && head.head.docType === "overall",
+    );
+    if (charter === undefined) return false;
+    const parsed = docTypeParsers.overall.parse(
+      charter.body.split("\n"),
+      charter.head,
+    ) as OverallParsed;
+    if (parsed.tables["Phase inventory"].headerRow === null) return false;
+    for (const phase of parsed.chain.phases) {
+      const done = /✔ Done（`(?<file>[^`]+)`/.exec(phase.planCell)?.groups?.file;
+      if (done === undefined) continue;
+      const hits = heads.filter((head) => path.basename(head.rel) === done);
+      if (hits.length !== 1 || hits[0]?.head.slug === slug) return true;
+    }
+    return false;
+  }
+
+  /** One declaration table per audit instance — every plan that writes a `Create:`
+   *  line, with the identity keys condition ① compares. */
+  #plansOf(): readonly PlanForward[] {
+    if (this.#plans !== null) return this.#plans;
+    const heads = this.#headsOf();
+    const plans: PlanForward[] = [];
+    for (const head of heads) {
+      const slug = head.head.slug;
+      if (head.head.docType !== "plan" || !SlugIndex.isLegalSlug(slug)) continue;
+      const paths = ForwardPaths.#declaredPathsOf(head.body);
+      if (paths.length === 0) continue;
+      plans.push({ slug, programs: ForwardPaths.#programsOf(heads, slug), paths });
+    }
+    this.#plans = plans;
+    return plans;
+  }
+
+  /** The `program:` values the plan's same-slug identity documents declare — the second
+   *  identity key, which lives on the identity document and never on the plan. */
+  static #programsOf(heads: readonly DocHead[], slug: string): readonly string[] {
+    const programs: string[] = [];
+    for (const head of heads) {
+      if (head.head.slug !== slug || head.head.docType === "plan") continue;
+      const program = head.head.program;
+      if (program === null || programs.includes(program)) continue;
+      programs.push(program);
+    }
+    return programs;
+  }
+
+  /** The paths one plan body's `Create:` lines write — path-shaped spans only, so the
+   *  parenthetical prose beside a declaration is never mistaken for one. */
+  static #declaredPathsOf(body: string): readonly string[] {
+    const paths: string[] = [];
+    for (const line of body.split("\n")) {
+      if (!/^\s*[-*]\s+Create:/.test(line)) continue;
+      for (const token of PinSpans.tokensOf(line)) {
+        const form = PinVocabulary.pathOf(token);
+        if (form === null || paths.includes(form.path)) continue;
+        paths.push(form.path);
+      }
+    }
+    return paths;
+  }
+
+  /** The declared heads of the three doc roots — one read pass, memoized. */
+  #headsOf(): readonly DocHead[] {
+    if (this.#heads !== null) return this.#heads;
+    const heads: DocHead[] = [];
+    for (const rel of this.#index.entries()) {
+      if (!rel.endsWith(".md") || !ForwardPaths.#inDocRoots(rel)) continue;
+      const text = this.#index.textOf(rel);
+      if (text === null) continue;
+      const { head, body } = FrontMatterExtractor.split(text);
+      heads.push({ rel, head, body });
+    }
+    this.#heads = heads;
+    return heads;
+  }
+
+  /** Whether one repo-relative path lies inside a declared doc root — path grammar only. */
+  static #inDocRoots(rel: string): boolean {
+    return Object.values(ENGINE_DOC_ROOTS).some((root) => rel.startsWith(`${root}/`));
+  }
+}
+
+/**
  * PinAudit — the gate. `scan` judges a declared corpus of markdown roots, `scanText`
  * judges one document body, and `pathResolves` judges a declared coordinate on its own
  * (the handoff `contract.path` corpus). The three entry points share one criterion and
@@ -442,10 +649,12 @@ export class PinIndex {
 export class PinAudit {
   readonly #root: string;
   readonly #index: PinIndex;
+  readonly #forward: ForwardPaths;
 
   constructor(root: string) {
     this.#root = root;
     this.#index = new PinIndex(root);
+    this.#forward = new ForwardPaths(this.#index);
   }
 
   /** The corpus the scan would read — the file list, so a structural test can pin its
@@ -474,7 +683,7 @@ export class PinAudit {
   scanText(text: string, source: string): readonly PinFinding[] {
     const findings: PinFinding[] = [];
     for (const token of PinSpans.tokensOf(text)) {
-      const finding = this.#judge(token, source);
+      const finding = this.#judge(token, source, source);
       if (finding !== null) findings.push(finding);
     }
     return findings;
@@ -482,38 +691,49 @@ export class PinAudit {
 
   /** Whether one declared coordinate resolves — the `contract.path` corpus' one
    *  question. A path with a line suffix is judged on its path alone (the handoff
-   *  anchor owns the line, the gate owns the coordinate). */
-  pathResolves(pinPath: string): boolean {
+   *  anchor owns the line, the gate owns the coordinate). §7.3's time face applies
+   *  here too: a pending `Create:` declaration of the JUDGED document's own plan is
+   *  not dead — `null` judged (a wave / branch round) has no subject for that
+   *  condition, so a pending path stays a finding there. */
+  pathResolves(pinPath: string, judged: string | null): boolean {
     const form = PinVocabulary.pathOf(pinPath);
-    return this.#index.resolvePath(form?.path ?? pinPath) !== null;
+    const path = form?.path ?? pinPath;
+    if (this.#index.resolve(path).kind === "resolved") return true;
+    return this.#forward.skips(path, judged);
   }
 
   /** One token's judgment — the test shape first (it also ends in `.ts`), then the path
-   *  shape, then the bare symbol; anything else is prose, not a pin. */
-  #judge(token: string, source: string): PinFinding | null {
+   *  shape, then the bare symbol; anything else is prose, not a pin. `judged` is the
+   *  document the round judges (§7.3 condition ①'s subject) — `scan` and `scanText`
+   *  pass their own `source`, because that source IS the judged document. */
+  #judge(token: string, source: string, judged: string | null): PinFinding | null {
     if (!PinVocabulary.isPin(token)) return null;
     const test = PinVocabulary.testOf(token);
     if (test !== null) {
-      const file = this.#index.resolvePath(test.file);
-      if (file === null)
+      const file = this.#index.resolve(test.file);
+      if (file.kind !== "resolved") {
         return PinAudit.#finding(
           token,
           "test",
           source,
-          `its test file \`${test.file}\` is not in the tree`,
+          file.kind === "ambiguous"
+            ? `its test file \`${test.file}\` matches ${file.candidates.length} entries (${file.candidates.join(" · ")})`
+            : `its test file \`${test.file}\` is not in the tree`,
         );
-      if (this.#index.testContains(file, test.title)) return null;
+      }
+      if (this.#index.testContains(file.entry, test.title)) return null;
       return PinAudit.#finding(
         token,
         "test",
         source,
-        `\`${file}\` carries no test titled \`${test.title}\``,
+        `\`${file.entry}\` carries no test titled \`${test.title}\``,
       );
     }
     const form = PinVocabulary.pathOf(token);
     if (form !== null) {
-      const entry = this.#index.resolvePath(form.path);
-      if (entry === null) {
+      const resolution = this.#index.resolve(form.path);
+      if (resolution.kind === "absent") {
+        if (this.#forward.skips(form.path, judged)) return null;
         return PinAudit.#finding(
           token,
           "path",
@@ -521,14 +741,22 @@ export class PinAudit {
           `the path \`${form.path}\` is not in the tree`,
         );
       }
+      if (resolution.kind === "ambiguous") {
+        return PinAudit.#finding(
+          token,
+          "path",
+          source,
+          `the path \`${form.path}\` names ${resolution.candidates.length} entries (${resolution.candidates.join(" · ")}), so it points at no single file`,
+        );
+      }
       const named = form.lastLine ?? form.firstLine;
-      const lines = this.#index.lineCountOf(entry);
+      const lines = this.#index.lineCountOf(resolution.entry);
       if (named !== undefined && named > lines) {
         return PinAudit.#finding(
           token,
           "path",
           source,
-          `\`${entry}\` has ${lines} lines, so line ${named} does not exist`,
+          `\`${resolution.entry}\` has ${lines} lines, so line ${named} does not exist`,
         );
       }
       return null;

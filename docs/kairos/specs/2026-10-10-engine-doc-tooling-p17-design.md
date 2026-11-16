@@ -230,7 +230,7 @@ failure_category：全仓唯一写入点是 `lifecycle.ts:721-722`（自我拷�
 - `TEMPLATE_PROMPT.$version === 15`（pin：`render/templates.ts:492` 的声明值）+ `:473-491` 版本叙事头注含 v15 行。
 - 域外 doc-type 的 preflight 报文点名该值 + 列允许域；缺 key 仍走原词（pin：`face/__tests__/cli.test.ts` 与 `session/__tests__` 的 doc-contract gate 用例，两形各一断言）。
 - 仓内 overall 迁至 `docs/kairos/overalls/` 且 `doc-type: overall`，其 `## File paths` 首行为裸相对路径 overalls/…-overall.md；`cdd review --type spec --spec <新路径> --dry-run` 通过（doc-contract 全绿）。
-- 消费面路径字面全更替：`packages/kairos/tests/{presentation-surface,skill-surface-consistency,grep-sweep-regression}.test.ts` 全绿（`presentation-surface` 为必绿面，冻结不改；后两者为编辑面）；`grep -rn "overall-spec" packages/kairos/skills packages/kairos/README.md packages/kairos/README.zh-CN.md packages/cdd-engine/README.md packages/cdd-engine/README.zh-CN.md CLAUDE.md` 零命中（`CHANGELOG.md` 冻结历史不计）。
+- 消费面路径字面全更替：`packages/kairos/tests/{presentation-surface,skill-surface-consistency,grep-sweep-regression}.test.ts` 全绿（`presentation-surface` 为必绿面，冻结不改；后两者为编辑面）；`grep -rn "overall-spec" packages/kairos/skills packages/kairos/README.md packages/kairos/README.zh-CN.md packages/cdd-engine/README.md packages/cdd-engine/README.zh-CN.md CLAUDE.md` 零命中（CHANGELOG.md 冻结历史不计）。
 - 冻结面零破：findings 载体 schema / severity 枚举 / `REVIEWS.*.lensEnum` / 结论派生规则（blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · 空 → APPROVED）/ `DISPATCH.review.*` skill ref / CLI 旗标与退出码表 —— 全部零改。
 - `pnpm run validate` ALL PASS（emit fresh · root 套件 · kairos 套件 · 引擎套件 · typecheck ×3 · version-sync · 零裸函数）。
 - changeset cdd-engine **major** + kairos 在册，不发布。

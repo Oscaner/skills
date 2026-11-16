@@ -273,7 +273,7 @@ export const PLUGINS: readonly PluginRow[] = [superpowers, "mattpocock-skills", 
 |---|---|
 | contract | 零动（无新 doc 类型 / 元素 / 词汇） |
 | session | 零动（无 ledger / round / next 面变化） |
-| face | `declare.ts`（+`harness` / `update` channel 行 · +`init` 命令行 · `CliVerb` += `init`）· `init.ts`（新 · `CliInit` + `StepRunner` / `ExecaStepRunner` + `SPAWN_FAILURE_CODE`）· `plugins.ts`（新 · `PLUGINS`）· `host.ts`（−INSTALL_ROWS · −`HostRow.install` · +`HOST_IDS` · `HostDetect.detect` 遍历改读 `HOST_IDS`）· `cli.ts`（`.action` 薄壳 + `CliInit` 装配；`init` 分支不过 `#rootOf()`） |
+| face | `contract/declare.ts`（+`harness` / `update` channel 行 · +`init` 命令行 · `CliVerb` += `init`）· `init.ts`（新 · `CliInit` + `StepRunner` / `ExecaStepRunner` + `SPAWN_FAILURE_CODE`）· `plugins.ts`（新 · `PLUGINS`）· `host.ts`（−INSTALL_ROWS · −`HostRow.install` · +`HOST_IDS` · `HostDetect.detect` 遍历改读 `HOST_IDS`）· `cli.ts`（`.action` 薄壳 + `CliInit` 装配；`init` 分支不过 `#rootOf()`） |
 | infra | −infra 进程面（ProcessRunner 整文件） |
 | render | 零动（README 渲染在 repo 文档面，不在引擎内） |
 

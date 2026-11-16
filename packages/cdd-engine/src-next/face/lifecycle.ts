@@ -1349,10 +1349,22 @@ export class CliLifecycle {
    *  `#findingsList` at materialize. */
   #injectPinFindings(frame: OpenFrame, draft: Record<string, unknown>): void {
     const lens = pinLensOf(frame.type);
-    const injected = [...this.#documentPinRows(frame, lens), ...this.#contractPinRows(draft, lens)];
+    const injected = [
+      ...this.#documentPinRows(frame, lens),
+      ...this.#contractPinRows(draft, lens, CliLifecycle.#judgedDocOf(frame)),
+    ];
     if (injected.length === 0) return;
     const rows = Array.isArray(draft.findings) ? draft.findings : [];
     draft.findings = [...rows, ...injected];
+  }
+
+  /** The document this round judges (§7.3 condition ①'s subject) — a repo-relative
+   *  path for the two doc-target kinds, `null` for a wave / branch round: those audit
+   *  no document body, so a `Create:` declaration has no identity key to match and its
+   *  pending path stays a finding (design spec §7.2's `standards` arm). */
+  static #judgedDocOf(frame: OpenFrame): string | null {
+    const target = frame.target;
+    return target.kind === "spec" || target.kind === "plan" ? target.doc : null;
   }
 
   /** Corpus ② — the JUDGED document's own body (the three doc targets only; a wave /
@@ -1376,18 +1388,22 @@ export class CliLifecycle {
 
   /** Corpus ③ — each finding's `contract.path` (design spec §2.3). `PinAudit`'s
    *  markdown scan never carries this cell: the anchor is a declared coordinate, judged
-   *  on its own. A missing path appends one warn per offending finding. */
+   *  on its own. A missing path appends one warn per offending finding. The judged
+   *  document rides in as the time face's subject (§7.3): a `Create:` declaration of
+   *  the judged document's own plan is pending, not dead. */
   #contractPinRows(
     draft: Record<string, unknown>,
     lens: string,
+    judged: string | null,
   ): readonly Record<string, unknown>[] {
     const rows = Array.isArray(draft.findings) ? draft.findings : [];
     const audit = this.#pinAudit();
+    const rel = judged === null ? null : this.#rel(judged);
     const out: Record<string, unknown>[] = [];
     for (const row of rows) {
       const pin = (row as { contract?: { path?: unknown } } | null)?.contract?.path;
       if (typeof pin !== "string" || pin.trim().length === 0) continue;
-      if (audit.pathResolves(pin.trim())) continue;
+      if (audit.pathResolves(pin.trim(), rel)) continue;
       out.push(
         CliLifecycle.#pinRow(
           `the pin \`${pin.trim()}\` resolves nowhere — the finding's \`contract.path\` anchor names no path in the tree`,

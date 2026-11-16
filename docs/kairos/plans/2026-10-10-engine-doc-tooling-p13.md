@@ -88,11 +88,11 @@ base: develop
 ### Task 6: handoff 载体 face 改名 `work` → `delivery`
 - **Objective**: 把载体 face `work` 破坏性改名为 `delivery`（`findings` 不变），并按载荷形状重写 `HandoffFamily.schema` 的注释；行为零变化。
 - **Files**: `packages/cdd-engine/src-next/session/handoff-schema.ts`（HandoffSchemaFace、CARRIER_WORK、BY_FACE、WorkCarrier、CarrierOf）；`packages/cdd-engine/src-next/session/ledger.ts`（`buildHandoff` 重载、handoffFaceOf）；`packages/cdd-engine/src-next/infra/runtime.ts`（`HandoffFamily.schema` 与 `HANDOFF_FAMILIES` 三处）；`packages/cdd-engine/src-next/face/lifecycle.ts`、`packages/cdd-engine/src-next/session/run.ts`（`buildHandoff("work", …)` 与 face 比较点）；测试 `infra/__tests__/infra.test.ts`、`session/__tests__/handoff-schema.test.ts`、`session/__tests__/ledger.test.ts`、`session/__tests__/wave.test.ts`、`session/__tests__/handoff-plane.guard.test.ts`。
-- **Consumes**: 全部前序任务（本任务最后落地，避免与 Task 3 / 4 / 5 同改 `lifecycle.ts` 与 `run.ts`）。
+- **Consumes**: 全部前序任务（本任务最后落地，避免与 Task 3 / 4 / 5 同改 `lifecycle.ts` 与 `session/run.ts`）。
 - **Produces**: `HandoffSchemaFace = "delivery" | "findings"`；DeliveryCarrier（原 WorkCarrier）；`buildHandoff(face: "delivery", init?: DeliveryInit): DeliveryCarrier`（`WorkInit` 是否同名改为 DeliveryInit 以逐处核对结果为准——仅当它确指该 face 的 init 时才改）。
 - **Steps**:
   - 先翻新测试：上述五个测试文件中指 face 的 `"work"` 字面量改为 `"delivery"`；增一条守卫断言「引擎活面（非测试）无 face 语义的 `"work"` 字面量」 — checkable: 测试因类型 / 字面量缺失而失败
-  - 逐处核对 `grep -rn '"work"\|WorkCarrier\|CARRIER_WORK\|WorkInit' packages/cdd-engine/src-next`，只改指载体 face 的，非 face 语义词保留并在提交说明里列出 — checkable: 核对清单覆盖 `handoff-schema.ts` · `ledger.ts` · `runtime.ts` · `lifecycle.ts` · `run.ts`
+  - 逐处核对 `grep -rn '"work"\|WorkCarrier\|CARRIER_WORK\|WorkInit' packages/cdd-engine/src-next`，只改指载体 face 的，非 face 语义词保留并在提交说明里列出 — checkable: 核对清单覆盖 `handoff-schema.ts` · `ledger.ts` · `runtime.ts` · `lifecycle.ts` · `session/run.ts`
   - 实施改名；重写 `HandoffFamily.schema` 注释：按「child 写什么 / 结论由谁定」两行定义 `delivery` 与 `findings`，并说明 `fix.spec` / `fix.plan` 因改文档走 `findings`；不含 spec 章节号与重构叙述 — checkable: `pnpm -C packages/cdd-engine exec tsc --noEmit` 退出 0
   - 全量回归 — checkable: `pnpm -C packages/cdd-engine test` 全绿；`pnpm run check:no-bare-functions` 通过；磁盘上的 handoff 文件格式不变（既有 handoff 夹具读回断言仍绿）
 - **Acceptance**: 引擎活面无 face 语义的 `"work"` 残留；`HandoffFamily.schema` 注释按载荷形状定义且无程序历史；行为与 CLI 面零变化；引擎 vitest 全绿。

@@ -93,10 +93,10 @@ slug: 2026-10-10-engine-doc-tooling-p9
 - **Steps**:
   - `#scanRoots` 单基准 —— `invariants.ts` 签名改 `static #scanRoots(root: string, docPath: string)`（:1072）· 调用点 :1049 改 `SiblingScanInvariant.#scanRoots(ctx.root, ctx.path)` · 体改 `[path.join(root, path.dirname(docPath)), ...Object.values(ENGINE_RUNTIME.docRoots).map((r) => path.join(root, r))]`（`root` 为绝对擦除点 · `docPath`/`docRoots` 皆 repoRoot 相对） — checkable: 单测——`#scanRoots` 返同基准绝对根集 · `grep -n "\"specs\"\|'specs'\|join(grand" contract/invariants.ts` 硬编码零命中
   - finding 消息派生 —— `:981` 的 `docs/kairos/...` 字面从 `ENGINE_RUNTIME.docRoots` 派生 — checkable: `grep -n "docs/kairos" contract/invariants.ts` 零命中（派生自单源）
-  - help example 派生 —— `declare.ts` 的 help `example`（:202/:208/:234）含 `docs/kairos/…` 者从 `docRoots` 派生 — checkable: `grep -n "docs/kairos" face/declare.ts` 零命中
+  - help example 派生 —— `contract/declare.ts` 的 help `example`（:202/:208/:234）含 `docs/kairos/…` 者从 `docRoots` 派生 — checkable: `grep -n "docs/kairos" face/declare.ts` 零命中
   - 注释 copy 清理 —— board-view / workspace / doc.ts 的 `docs/kairos`/`specs`/`plans` 注释副本随改或删 — checkable: `grep -rn "docs/kairos/specs\|docs/kairos/plans" face/board-view.ts infra/workspace.ts contract/doc.ts` 零命中（或仅存单源引用）
   - 跑引擎套件 —— checkable: `pnpm -C packages/cdd-engine test`
-- **Acceptance**: `#scanRoots` 同基准 root 解析（零独立硬编码）· `invariants.ts` / `declare.ts` 的 `docs/kairos` 硬编码零残留（读 `docRoots` 单源）· 注释 copy 清零 · 引擎 vitest 通过 · EOF 恰一 newline
+- **Acceptance**: `#scanRoots` 同基准 root 解析（零独立硬编码）· `invariants.ts` / `contract/declare.ts` 的 `docs/kairos` 硬编码零残留（读 `docRoots` 单源）· 注释 copy 清零 · 引擎 vitest 通过 · EOF 恰一 newline
 - **DependsOn**: 1, 3
 
 ### Task 6: 命令声明面字节破格 + 测试面迁移（§2.5/§2.12）
@@ -182,12 +182,12 @@ slug: 2026-10-10-engine-doc-tooling-p9
 - **DependsOn**: none
 
 ### Task 12: 单源抽取杂项——base.md schema + implement 字面 + phase-suffix 语法（⑪⑫⑬·§3.2）
-- **Objective**: ① **⑪ `base.md` schema**：`cdd-dev/docs/base.md:34-58` 的 schema（`{base, source, plan, recordedAt}`）与 `BaseArtifact`（`artifacts.ts:30-39`）对齐 + 门——**注** `base.md` :54 声明 `source` 为 `enum(4)`（`plan-field/branch-upstream/conversation-context/user-confirmed`，值源 `declare.ts:76` 的 `values`），而 `BaseArtifact.source` 类型为裸 `string`（:34）——发散点收口。② **⑫ `mattpocock-skills:implement` 字面 ×2**：`render/templates.ts:167`（`IMPLEMENT_SHELL` shell prose）从 `DISPATCH.implement`（`host.ts:219-220`）派生。③ **⑬ phase-suffix 语法 2 正则**：`workspace.ts:106`（`(?<suffix>-p\d+(?:\.\d+)*)$`）· `board-view.ts:147`（`^p\d+(?:\.\d+)*$`）——同为 slug phase-suffix 语法，共享常量 + 一致性门（**注** `contract/declare.ts:375/449` 的 `P\d+-design`（大写 + `-design` 尾）属**另一事实**，不并入）。
+- **Objective**: ① **⑪ `base.md` schema**：`cdd-dev/docs/base.md:34-58` 的 schema（`{base, source, plan, recordedAt}`）与 `BaseArtifact`（`artifacts.ts:30-39`）对齐 + 门——**注** `base.md` :54 声明 `source` 为 `enum(4)`（`plan-field/branch-upstream/conversation-context/user-confirmed`，值源 `face/declare.ts` 的 `values`），而 `BaseArtifact.source` 类型为裸 `string`（:34）——发散点收口。② **⑫ `mattpocock-skills:implement` 字面 ×2**：`render/templates.ts:167`（`IMPLEMENT_SHELL` shell prose）从 `DISPATCH.implement`（`host.ts:219-220`）派生。③ **⑬ phase-suffix 语法 2 正则**：`workspace.ts:106`（`(?<suffix>-p\d+(?:\.\d+)*)$`）· `board-view.ts:147`（`^p\d+(?:\.\d+)*$`）——同为 slug phase-suffix 语法，共享常量 + 一致性门（**注** `contract/declare.ts:375/449` 的 `P\d+-design`（大写 + `-design` 尾）属**另一事实**，不并入）。
 - **Files**: Modify `packages/kairos/skills/cdd-dev/docs/base.md`（schema 与 `BaseArtifact` 对齐 · 或去宣称）· Modify `packages/cdd-engine/src-next/face/artifacts.ts`（`BaseArtifact.source` :34 收窄为值域 union 或声明对齐）· Modify `packages/cdd-engine/src-next/render/templates.ts`（`IMPLEMENT_SHELL` :167 从 `DISPATCH.implement` 派生）· Modify `packages/cdd-engine/src-next/infra/workspace.ts`（phase-suffix 正则 :106 提为共享常量）· Modify `packages/cdd-engine/src-next/face/board-view.ts`（:147 正则改引共享常量）· Modify 相关 `__tests__`
 - **Consumes**: 无（root 任务）· spec §3.2 ⑪/⑫/⑬ 授权
 - **Produces**: `base.md` ↔ `BaseArtifact` 对齐 + 门 · `implement` 字面单源（`DISPATCH.implement`）· phase-suffix 语法共享常量 + 一致性门 · 供 T15（跨面门）
 - **Steps**:
-  - `base.md` ↔ `BaseArtifact` —— `base.md` 的 schema 与 `artifacts.ts:30-39` 字段集对齐 · `source` 的 enum(4) 与 `declare.ts:76` 值域对齐（`BaseArtifact.source` 类型收窄或门钉）：门断言字段集 + 值域一致 — checkable: 单测/门绿 · 字段集清点一致
+  - `base.md` ↔ `BaseArtifact` —— `base.md` 的 schema 与 `artifacts.ts:30-39` 字段集对齐 · `source` 的 enum(4) 与 `face/declare.ts` 值域对齐（`BaseArtifact.source` 类型收窄或门钉）：门断言字段集 + 值域一致 — checkable: 单测/门绿 · 字段集清点一致
   - `implement` 字面派生 —— `templates.ts:167` 的 `mattpocock-skills:implement` 从 `DISPATCH.implement`（`host.ts:220`）派生 — checkable: `grep -n "mattpocock-skills:implement" render/templates.ts` 零命中（派生自 `DISPATCH`）
   - phase-suffix 共享常量 —— `workspace.ts:106` 与 `board-view.ts:147` 的 slug 语法提为共享常量（如 PHASE_SUFFIX）；门断言两处一致 — checkable: `grep -rn "p\\\\d+(?:\\\\.\\\\d+)\\*" infra/workspace.ts face/board-view.ts` 单源命中 · 门绿（两处派同一常量）
   - 跑引擎套件 —— checkable: `pnpm -C packages/cdd-engine test`

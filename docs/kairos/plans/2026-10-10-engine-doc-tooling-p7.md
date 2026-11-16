@@ -128,20 +128,20 @@ slug: 2026-10-10-engine-doc-tooling-p7
 - **DependsOn**: 1, 5
 
 ### Task 7: CLI 命令面收口（declare flag 退役 · REQUIRED_GROUPS · BASE_BRANCH 注入 · 派发前无条件 extract）
-- **Objective**: CLI 命令面收口——`declare.ts` 删 `head` 通道 · `base` 改 branch-name 语义 · `"sha"` 值域型全退 · `review` keys 去 base/head · `REQUIRED_GROUPS.review.branch=["--plan"]` · `fix.branch=["--findings","--plan"]`；`cli.ts` 派发前条件 `verb==="implement"` → `type==="wave"`（三 face 无条件 renderBrief）· 删 `artifacts.brief` 注入 · BASE_BRANCH 值经 `base get` 读入
+- **Objective**: CLI 命令面收口——`contract/declare.ts` 删 `head` 通道 · `base` 改 branch-name 语义 · `"sha"` 值域型全退 · `review` keys 去 base/head · `REQUIRED_GROUPS.review.branch=["--plan"]` · `fix.branch=["--findings","--plan"]`；`cli.ts` 派发前条件 `verb==="implement"` → `type==="wave"`（三 face 无条件 renderBrief）· 删 `artifacts.brief` 注入 · BASE_BRANCH 值经 `base get` 读入
 - **Files**:
   - Modify: `packages/cdd-engine/src-next/face/declare.ts`（head 通道 :72 · base 通道语义 :71 · ShapedChannelValueType :109 删 "sha" · VALUE_SHAPES :143-146 删 sha · review keys :222-223 · REQUIRED_GROUPS :321/:327）
   - Modify: `packages/cdd-engine/src-next/face/cli.ts`（派发前条件 :415-416 · artifacts.brief 注入 :461-467 删 · BASE_BRANCH 注入路径）
 - **Consumes**: T1（branch face 装配）· T5（templates token）· spec §2.3/§4.1 授权
-- **Produces**: `declare.ts` 零 head/sha 值域型 · `REQUIRED_GROUPS` review.branch/fix.branch 新组 · CLI 三 face 无条件 extract · 供 T9（declare pin）
+- **Produces**: `face/declare.ts` 零 head/sha 值域型 · `REQUIRED_GROUPS` review.branch/fix.branch 新组 · CLI 三 face 无条件 extract · 供 T9（declare pin）
 - **Steps**:
-  - declare flag 退役 —— `declare.ts` 删 `head` 通道 · `base` 通道 `valueType` 改 branch 名 · 删 `"sha"` 值域型（ShapedChannelValueType + VALUE_SHAPES）· `review` keys 去 base/head — checkable: `grep -n '"sha"\|head.*:' face/declare.ts` 零命中
+  - declare flag 退役 —— `contract/declare.ts` 删 `head` 通道 · `base` 通道 `valueType` 改 branch 名 · 删 `"sha"` 值域型（ShapedChannelValueType + VALUE_SHAPES）· `review` keys 去 base/head — checkable: `grep -n '"sha"\|head.*:' face/declare.ts` 零命中
   - REQUIRED_GROUPS —— `review.branch` = `["--plan"]` · `fix.branch` = `["--findings","--plan"]` — checkable: declare.ts 两组新值落位
   - 派发前无条件 extract —— `cli.ts` 条件 `verb==="implement" && scene.planText!==null` → `type==="wave" && scene.planText!==null`（三 face 每次 renderBrief 覆盖）· 删 `artifacts.brief` 注入块 — checkable: `grep -n 'verb === "implement"\|artifacts.brief' face/cli.ts`（该条件）零命中
   - BASE_BRANCH 注入 —— CLI 从 `base get --plan <path>` 读分支名传入 lifecycle scene（供 `#valuesOf BASE_BRANCH`） — checkable: lifecyle scene 有 base branch 值来源 · 缺 artifact → 空槽
   - 跑引擎套件核对 —— checkable: `pnpm -C packages/cdd-engine test`（cli/declare pin 变动归 T9）
   - 提交原子 commit（`refactor(cdd-engine): CLI 命令面收口——flag 退役 · REQUIRED_GROUPS · 无条件 extract`） — checkable: git log 单原子
-- **Acceptance**: `declare.ts` 零 head/`"sha"` 值域型 · REQUIRED_GROUPS 新组 · CLI 三 face 无条件 renderBrief · 引擎 vitest 通过 · EOF 恰一 newline
+- **Acceptance**: `face/declare.ts` 零 head/`"sha"` 值域型 · REQUIRED_GROUPS 新组 · CLI 三 face 无条件 renderBrief · 引擎 vitest 通过 · EOF 恰一 newline
 - **DependsOn**: 1, 5
 
 ### Task 8: kairos 消费面同步（I7 撤除 · cdd-dev/cdd-plan 字面）

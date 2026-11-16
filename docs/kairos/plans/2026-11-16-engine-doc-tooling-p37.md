@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md`（slug `2026-11-16-engine-doc-tooling-p37`）在本轮被消费那一刻的 `version:` 所指的面。本 bullet 只记「哪一节落在哪个任务」，**不记版本坐标**——spec 再升一版也不需要改这一行；本计划实际消费的是哪一版，记在 `## Change history` 里本轮那一行。落点：§1 + §6.1 判据表半边 + §6.2 判据面观察者归 T1 · §3 + §6.1 lens 问句半边 + §3.2 + §6.2 问句面观察者与 15 行 / 19 格计数归 T2 · §2 全节归 T3 · §4 归 T4 · §5 归 T5 · §7 三形态门 + §7.2 的第 2 / 3 消费者 + §2.3 归 T6。§6.2 的那条结构测试落在承载该表的任务自己的测试面（T1 判据表 / T2 问句表），不跨任务引用别处未声明的表；§7 的测试面只承接 pin 语料。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md`（slug `2026-11-16-engine-doc-tooling-p37`）在本轮被消费那一刻的 `version:` 所指的面。本 bullet 只记「哪一节落在哪个任务」，**不记版本坐标**——spec 再升一版也不需要改这一行；本计划实际消费的是哪一版，记在 `## Change history` 里本轮那一行。落点：§1 + §6.1 判据表半边 + §6.2 判据面观察者归 T1 · §3 + §6.1 lens 问句半边 + §3.2 + §6.2 问句面观察者与 15 行 / 19 格计数归 T2 · §2 全节归 T3 · §4 归 T4 · §5 归 T5 · §7.1 pin 定义与三形态 + §7.2 第 2 / 3 消费者 + §2.3 + AC⑦ changeset 归 T6 · §7.3 存量迁移归 T7。§6.2 的那条结构测试落在承载该表的任务自己的测试面（T1 判据表 / T2 问句表），不跨任务引用别处未声明的表；§7 的测试面只承接 pin 语料。
 - **OOP / 零裸函数**：`src-next` 新增文件一律 class 或 `const` 箭头；参数 ≤4；类 ≤200 行；接口先行、协作者构造注入。注册表仿 `contract/completion-criterion.ts` 的 `of(id)` 查不到即抛。
 - **pin 写法**：路径 + 符号，不用行号。本计划自身遵守。
 - **非目标**：不改 D70 · 不改「任何 findings → fix」路由 · 不重审已闭合相位 · 不动 `packages/kairos/skills` · 不做 docs 全量校验 · 不引入 `impact.kind`（v0.3 ruling 已删）。
@@ -243,11 +243,45 @@ AC ⑤。
 
 #### Acceptance
 
-AC ⑥（两个消费者各一 pin：语料门可红可修 · 文档评审注入不阻断 · `contract.path` 失效只 warn）+ AC ⑦。
+AC ⑥（三个消费者各一 pin：语料门可红可修 · 文档评审注入不阻断 · `contract.path` 失效只 warn；pin 定义的三条排除各有成对 pin）+ AC ⑦。全语料零 finding 由 T7 交付，T6 只证明门能红（播种一条坏 pin ⇒ 红 ⇒ 移除 ⇒ 绿）。
 
 #### DependsOn
 
 3
+
+### Task 7: 存量 pin 迁移（过期引用删除 · 迁移路径 · 行号越界）
+
+#### Objective
+
+落地 spec §7.3：把全语料的 pin 清到零 finding，作为门的上线条件。只改坐标与引用句，不改任何结论、裁定或交付记录。
+
+#### Files
+
+- Modify: `docs/kairos/**/*.md` 与 README 家族中携带失效 pin 的文档（按 §7.3 三类处置）
+- Modify: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`（把「全语料零 finding」的断言从 T6 的播种态转为常绿）
+
+#### Consumes
+
+- T6 的 `PinAudit` 与 pin 定义（三条排除）
+
+#### Produces
+
+- 全语料 `PinAudit` 零 finding；迁移清单（各类处置条数）记入本任务提交信息
+
+#### Steps
+
+- 跑 `PinAudit` 全量扫描并落清单：过期引用（已消费 `.changeset/*` · 已删 `docs/maintainers/*` · 已退役 `scripts/*`）· 迁移路径（`specs/` → `overalls/` 等）· 行号越界 — checkable: 清单三类条数之和等于扫描 finding 数
+- 按类处置：过期引用改为不指路径的表述（保留「当时做了什么」）· 迁移路径改现行路径 · 行号越界改路径 + 符号 — checkable: 重扫 finding 归零
+- 跑 `pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__/pins.guard.test.ts` 与 doc 契约族 — checkable: 两者绿，且文档结构 / 变更史 / 相位标识未被迁移破坏
+- 提交 — checkable: commit 信息含三类处置条数
+
+#### Acceptance
+
+全语料零 finding（无基线 / 无白名单 / 无豁免）；doc 契约全绿；迁移未改动任何结论或交付记录。
+
+#### DependsOn
+
+6
 
 ## Change history
 

@@ -30,5 +30,7 @@ Grading becomes checkable end to end (P37).
   docs corpus, a document review scans the judged document's own body, and the handoff
   read-back judges each finding's `contract.path`. A bare symbol resolves only as a code
   declaration — a name that survives merely in a comment or a retirement guard's regex is
-  dead. A dead pin is a real `warn` finding under the `consistency` lens — it never
+  dead. A dead pin is a real `warn` finding under the reviewed face's own lens —
+  `consistency` on the spec shapes, `inventory` on a charter, `buildability` on a plan,
+  `standards` on a wave or branch, always a label that face's prompt declares — it never
   refuses a round, but it does move a review to `REVIEW_FIX`.

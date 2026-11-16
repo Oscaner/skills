@@ -39,7 +39,8 @@ import { ArtifactRegistry } from "../session/round-artifacts.ts";
 export type PinShape = "path" | "symbol" | "test";
 
 /** One dead pin — the token, the shape, the document and the finding summary the
- *  read-back injects (warn · lens `consistency`). */
+ *  read-back injects (warn · the judged face's own declared pin lens, see
+ *  `render/templates.ts#pinLensOf`). */
 export interface PinFinding {
   /** The token as the document writes it (backticks stripped). */
   readonly pin: string;

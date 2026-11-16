@@ -1950,15 +1950,11 @@ export class Ledger {
     // Rule zero (class-size limit): this file is well past the limit and predates it —
     // splitting it is P39's work (design spec D95 ②), not this round's.
     if (!Array.isArray(carrier.findings)) return [];
-    const findings: RoundFinding[] = [];
-    for (const entry of carrier.findings) {
-      // The ONE projection (P37 §2.1 · §5.1): the handoff schema's own findings row,
-      // so a consumer of this face and a consumer of the read-back face see the same
-      // cells — id / impact / regrade included.
-      const rows = this.#handoffSchema.findingsOf([entry]);
-      for (const row of rows) findings.push(row);
-    }
-    return findings;
+    // The ONE projection (P37 §2.1 · §5.1): the handoff schema's own findings row,
+    // over the whole carrier at once — a consumer of this face and a consumer of the
+    // read-back face see the same cells (id / impact / regrade included), and the
+    // unknown-severity drop is the same rule, applied once.
+    return this.#handoffSchema.findingsOf(carrier.findings);
   }
 
   /** The blocker count of a handoff carrier's findings — the C5-1 severity count. */

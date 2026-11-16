@@ -46,6 +46,7 @@ import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
+import { REVIEWS } from "../../render/templates.ts";
 import { CarrierRulings } from "../../session/carrier-rulings.ts";
 import { targetFaces } from "../../session/faces.ts";
 import { HandoffSchema } from "../../session/handoff-schema.ts";
@@ -2421,14 +2422,18 @@ describe("P37 T6 — the pin read-back corpora inject real warn findings", () =>
     return at;
   };
 
-  /** The doc review frame on one document. */
-  const docReviewOf = (doc: string): OpenFrame => ({
-    type: "phase-spec",
+  /** The doc review frame on one document — the doc shapes differ only in the word
+   *  `type` carries (`kind: "spec"` names the flag channel for all three). */
+  const docReviewOf = (
+    doc: string,
+    type: "phase-spec" | "overall" | "single-spec" = "phase-spec",
+  ): OpenFrame => ({
+    type,
     phase: "review",
     round: 1,
     target: { kind: "spec", doc },
     params: { round: 1, attempt: 1 },
-    key: "phase-spec",
+    key: type,
   });
 
   /** One review round over a document, with the child's own findings. */
@@ -2436,12 +2441,13 @@ describe("P37 T6 — the pin read-back corpora inject real warn findings", () =>
     f: Fixture,
     doc: string,
     findings: readonly Record<string, unknown>[],
+    type: "phase-spec" | "overall" | "single-spec" = "phase-spec",
   ): Promise<DispatchOutcome> =>
     (
       await dispatchFrame(
         f,
-        docReviewOf(doc),
-        new ReviewDraftRunner(findings, "phase-spec-review-1.json"),
+        docReviewOf(doc, type),
+        new ReviewDraftRunner(findings, `${type}-review-1.json`),
       )
     ).outcome;
 
@@ -2535,6 +2541,52 @@ describe("P37 T6 — the pin read-back corpora inject real warn findings", () =>
       // the write, so the two can never disagree
       expect(outcome.status).toBe(new HandoffSchema().rollup(carrier.findings));
       expect(outcome.status).not.toBe("APPROVED");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  /** The lens the carrier's injected row actually carries — the projection the child's
+   *  prompt never writes. */
+  const injectedLensOf = (outcome: DispatchOutcome, at: number): string | undefined =>
+    (outcome.carrier as { findings: { lens?: string }[] }).findings[at]?.lens;
+
+  it("carries the judged face's own lens — a charter round never injects the spec body's word", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const doc = writeDoc(f, ["# charter", "", "- `docs/kairos/specs/absent-design.md`"]);
+      const outcome = await runDocReview(f, doc, [], "overall");
+      // `consistency` belongs to the narrative spec body's menu; the charter's own menu
+      // is scope | inventory | dependency | acceptance | boundary, so the row reads as
+      // the inventory drift between the charter and the tree
+      expect(injectedLensOf(outcome, 0)).toBe("inventory");
+      expect(REVIEWS.overall.lensEnum).toContain(injectedLensOf(outcome, 0));
+      // a real warn either way: it rolls up, so the round still lands on REVIEW_FIX
+      expect(outcome.status).toBe("REVIEW_FIX");
+      expect(f.io.stderrText).not.toContain("CDD_BLOCKED");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("carries the task face's lens on a wave round — the `contract.path` corpus is not spec-only", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const { outcome } = await dispatchFrame(
+        f,
+        reviewFrame,
+        new ReviewDraftRunner([
+          {
+            severity: "nit",
+            lens: "standards",
+            summary: "wording",
+            contract: { path: "docs/kairos/specs/absent-design.md", anchor: "§1" },
+          },
+        ]),
+      );
+      // row 0 is the child's own; row 1 is the engine's injection
+      expect(injectedLensOf(outcome, 1)).toBe("standards");
+      expect(REVIEWS.wave.lensEnum).toContain(injectedLensOf(outcome, 1));
     } finally {
       f.cleanup();
     }

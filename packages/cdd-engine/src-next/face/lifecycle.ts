@@ -32,7 +32,7 @@ import { RoundLog } from "../infra/round-log.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
-import { TemplateAssembler } from "../render/templates.ts";
+import { pinLensOf, TemplateAssembler } from "../render/templates.ts";
 import { ABSENT_READ, type ArtifactReadOf, ArtifactReads } from "../session/artifact-reads.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
 import { TargetFaceTable } from "../session/faces.ts";
@@ -1338,14 +1338,18 @@ export class CliLifecycle {
   }
 
   /** P37 §7.2 — the two read-back corpora of the pin gate, injected as REAL warn-level
-   *  findings (`lens: consistency`) into `draft.findings`. They are not a refusal: no
-   *  `CDD_BLOCKED` is printed, and the round keeps its conclusions — a warn reaches
-   *  `rollup`, so a review round with a dead pin concludes `REVIEW_FIX` instead of
-   *  `APPROVED`. Nothing here is a second reporting surface: the rows enter the same
+   *  findings into `draft.findings`. The row's LENS is the judged face's own declared
+   *  `pinLens` (`render/templates.ts#pinLensOf`), never a literal here: the child's
+   *  prompt declares a lens menu per face, and an engine row outside that menu would
+   *  be unreadable as "the engine wrote it" to every later reader. They are not a
+   *  refusal: no `CDD_BLOCKED` is printed, and the round keeps its conclusions — a warn
+   *  reaches `rollup`, so a review round with a dead pin concludes `REVIEW_FIX` instead
+   *  of `APPROVED`. Nothing here is a second reporting surface: the rows enter the same
    *  `findings[]`, are projected by the same `findingsOf`, and are keyed by the same
    *  `#findingsList` at materialize. */
   #injectPinFindings(frame: OpenFrame, draft: Record<string, unknown>): void {
-    const injected = [...this.#documentPinRows(frame), ...this.#contractPinRows(draft)];
+    const lens = pinLensOf(frame.type);
+    const injected = [...this.#documentPinRows(frame, lens), ...this.#contractPinRows(draft, lens)];
     if (injected.length === 0) return;
     const rows = Array.isArray(draft.findings) ? draft.findings : [];
     draft.findings = [...rows, ...injected];
@@ -1356,7 +1360,7 @@ export class CliLifecycle {
    *  (`{ kind: "spec", doc }`, resolved at the CLI seam), and the body is read through
    *  this class's own repo read: `#reconstruct` builds no second `SlugIndex` and adds no
    *  field to `DispatchScene`. */
-  #documentPinRows(frame: OpenFrame): readonly Record<string, unknown>[] {
+  #documentPinRows(frame: OpenFrame, lens: string): readonly Record<string, unknown>[] {
     if (frame.target.kind !== "spec") return [];
     const doc = frame.target.doc;
     let body: string;
@@ -1367,13 +1371,16 @@ export class CliLifecycle {
     }
     return this.#pinAudit()
       .scanText(body, this.#rel(doc))
-      .map((finding) => CliLifecycle.#pinRow(finding.summary));
+      .map((finding) => CliLifecycle.#pinRow(finding.summary, lens));
   }
 
   /** Corpus ③ — each finding's `contract.path` (design spec §2.3). `PinAudit`'s
    *  markdown scan never carries this cell: the anchor is a declared coordinate, judged
    *  on its own. A missing path appends one warn per offending finding. */
-  #contractPinRows(draft: Record<string, unknown>): readonly Record<string, unknown>[] {
+  #contractPinRows(
+    draft: Record<string, unknown>,
+    lens: string,
+  ): readonly Record<string, unknown>[] {
     const rows = Array.isArray(draft.findings) ? draft.findings : [];
     const audit = this.#pinAudit();
     const out: Record<string, unknown>[] = [];
@@ -1384,16 +1391,17 @@ export class CliLifecycle {
       out.push(
         CliLifecycle.#pinRow(
           `the pin \`${pin.trim()}\` resolves nowhere — the finding's \`contract.path\` anchor names no path in the tree`,
+          lens,
         ),
       );
     }
     return out;
   }
 
-  /** One injected pin finding — a warn under the consistency lens, the tier and lens
-   *  §7.2 pins. */
-  static #pinRow(summary: string): Record<string, unknown> {
-    return { severity: "warn", lens: "consistency", summary };
+  /** One injected pin finding — a warn under the judged face's own declared pin lens,
+   *  the tier §7.2 pins and the lens its menu can carry. */
+  static #pinRow(summary: string, lens: string): Record<string, unknown> {
+    return { severity: "warn", lens, summary };
   }
 
   /** The one audit instance of this dispatch — the resolution index is built once and

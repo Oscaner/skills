@@ -15,7 +15,7 @@
 //     (infra/slug-index.ts).
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { type ParseError, parse } from "jsonc-parser";
 import { AtomicWriter } from "./atomic.ts";
@@ -113,6 +113,24 @@ export class Workspace {
   /** A child path inside this workspace. */
   resolve(name: string): string {
     return path.join(this.path, name);
+  }
+
+  /** The workspace directory's FILE names, in stable order — the ONE read of "what is
+   *  in this workspace" (spec §2.5). Two consumers ask it and read the same list: the
+   *  artifact matrix's `misplaced` judgment (which names attribute to one identity) and
+   *  the ledger's orphan scan (which names no recorded round owns). A second
+   *  `readdirSync` next to this one would be a second snapshot, so the orphan scan and
+   *  the attribution judgment could disagree about what is on disk. An absent or
+   *  unreadable directory is the empty fact: no workspace entry is a read failure. */
+  names(): readonly string[] {
+    try {
+      return readdirSync(this.path, { withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name)
+        .sort();
+    } catch {
+      return [];
+    }
   }
 
   /** Read a JSON child — the tri-state face: `{kind:"ok",value}` on a present,

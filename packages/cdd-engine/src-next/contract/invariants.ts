@@ -1624,7 +1624,16 @@ export class CrossDocChainInvariant extends Invariant {
     const slug = ctx.head.slug;
     // A placeholder or missing slug is presence's surface, never this arm's.
     if (slug === null || this.isPlaceholder(slug)) return [];
-    if (this.#identityDocOf(ctx, slug) !== null) return [];
+    const index = this.indexOf(ctx);
+    // An identity question, never a first pick: n ≥ 1 is an identity (two of them are
+    // `duplicate-identity`'s judgment), so the chain never claims "no identity document"
+    // over an ambiguous set.
+    if (index.hasIdentity(slug)) return [];
+    // The SAME discarded-candidate counts the plan read's tri-state reads (§2.7): a doc
+    // root that dropped a candidate, or indexed one without a registered doc type,
+    // cannot answer an absence — the index's silence is not the disk's. This is the
+    // undecided arm, and it produces ZERO findings (zero refusal, like §2.7 (c)).
+    if (!index.docRootsClean()) return [];
     return [
       this.finding(
         ctx,
@@ -1662,12 +1671,6 @@ export class CrossDocChainInvariant extends Invariant {
       }
     }
     return findings;
-  }
-
-  /** The identity document carrying the slug, or null — resolved through the one
-   *  identity index the board and the pre-flight read (zero second scan). */
-  #identityDocOf(ctx: JudgeContext, slug: string): DocEntry | null {
-    return this.indexOf(ctx).identityDoc(slug);
   }
 
   /** The overall document carrying the program slug, or null. */

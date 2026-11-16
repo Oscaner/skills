@@ -31,8 +31,8 @@ import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
 import { TemplateAssembler } from "../render/templates.ts";
+import { ABSENT_READ, type ArtifactReadOf, ArtifactReads } from "../session/artifact-reads.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
-import { CarrierRulings, type Ruling, type RulingVerdict } from "../session/carrier-rulings.ts";
 import { TargetFaceTable } from "../session/faces.ts";
 import type { CarrierPlane } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
@@ -52,6 +52,7 @@ import {
   RoundViolation,
   type Termination,
 } from "../session/ledger.ts";
+import type { ArtifactRegistry, Kind } from "../session/round-artifacts.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { PlanStructure } from "../session/run.ts";
@@ -139,6 +140,20 @@ export interface DispatchScene {
  *  observation — while a review/fix round fails on its carrier criterion). */
 type DraftedOutcome = Omit<DispatchOutcome, "status"> & { status: RoundStatus | null };
 
+/** One dispatch's artifact judgment — the VALUE the gate and the prompt cell share.
+ *  Computed once per dispatch (`#artifactCellOf`), so the two consumers cannot answer
+ *  differently across a writer that lands between them (spec §2.3: 一份读取、两个消费者 —
+ *  the contract is one value, not one call count). The `mismatch` arm carries the
+ *  carrier-integrity refusal a tampered requesting carrier raises INSTEAD of a read: the
+ *  sidecar is never judged against bytes that changed. */
+type ArtifactCell =
+  | { readonly kind: "read"; readonly value: ArtifactReadOf }
+  | { readonly kind: "mismatch"; readonly message: string };
+
+/** The no-sidecar cell — off the fix face, an unattributable carrier, or a matrix
+ *  `absent`: the slot stays empty and the gate has nothing to refuse. */
+const NO_ARTIFACT: ArtifactCell = { kind: "read", value: ABSENT_READ };
+
 /**
  * CliLifecycle — the lifecycle's dispatch-seam production default (the split contract's
  * lifecycle face; face/cli.ts re-exports it as HarnessDispatch so the composition
@@ -190,6 +205,12 @@ export class CliLifecycle {
   /** Whether this invocation asked to take over a dead holder's record (the
    *  `--recover` flag — the only takeover path). */
   readonly #recover: boolean;
+  /** The artifact matrix this dispatch holds — the composition root's single instance,
+   *  handed to the seal sweep so the carrier set is read out of ONE table, and read by
+   *  the rulings face for the sidecar's name. Required: a dispatch that holds no table
+   *  can not answer "is there a sidecar", and the old nullable field let that wiring bug
+   *  read as a legal `absent` (the visibility rule's exact inversion). */
+  readonly #artifacts: ArtifactRegistry;
   /** The HEAD the current dispatch started from (null off a repo / before a spawn) —
    *  the postmortem baseline of `commitsSince` AND the in-flight record's
    *  `dispatchBase` cell (the killed round's group baseline a takeover restores, §2.2). */
@@ -222,6 +243,7 @@ export class CliLifecycle {
     proc?: ProcessStartReader;
     recover?: boolean;
     brief?: BriefRenderer;
+    artifacts: ArtifactRegistry;
   }) {
     this.#env = opts.env ?? process.env;
     this.#scene = opts.scene;
@@ -231,6 +253,7 @@ export class CliLifecycle {
     this.#git = opts.git ?? new GitClient();
     this.#proc = opts.proc ?? ProcessFacts;
     this.#recover = opts.recover ?? false;
+    this.#artifacts = opts.artifacts;
     this.#sync = opts.sync ?? new Terminator();
     this.#template = opts.template ?? new TemplateAssembler();
     this.#brief = opts.brief ?? new BriefRenderer();
@@ -304,18 +327,14 @@ export class CliLifecycle {
     const op = RoundRecords.opOf(record.phase ?? "");
     const { wave: key, cycle, attempt } = record;
     if (op === null || key === null || cycle === null || attempt === null) return false;
-    this.#scene.ledger.recordRound(
-      key,
-      {
-        op,
-        cycle,
-        attempt,
-        dispatchBase: record.dispatchBase,
-        verdict: { treeClean: true, targetAction: false },
-        violations: [ABORT_INTERRUPTED],
-      },
-      "wave",
-    );
+    this.#scene.ledger.recordRound(key, {
+      op,
+      cycle,
+      attempt,
+      dispatchBase: record.dispatchBase,
+      verdict: { treeClean: true, targetAction: false },
+      violations: [ABORT_INTERRUPTED],
+    });
     // P31 T5 §2.4 — the killed round's carrier names close with its abort record: the
     // draft the dead child may have left writable and the final it never materialized.
     // The identity is the record's OWN (op / cycle / attempt), never a re-derivation
@@ -417,10 +436,11 @@ export class CliLifecycle {
    *  records, the persisted carrier, the round's baseline) plus the work plane's
    *  evidence gate, and the graded entries decide the verdict: a round with no hard
    *  entry is done. The judgment's two provider cells are supplied HERE, the single
-   *  point: `records` is the key's in-register history read with the line's DECLARED
-   *  word, and `reviewsPath` is the fix route's `--reviews` carrier or the ledger's
-   *  RESOLVED review-carrier fallback — the retired twin's name when the canonical
-   *  file is absent, never the never-minted canonical spelling.
+   *  point: `records` is the key's in-register history read LITERALLY on that key (the
+   *  row is the row — a retired spelling reads as absent, P36 §3), and `reviewsPath` is
+   *  the fix route's `--reviews` carrier, the requester record's own carrier path, or
+   *  the ledger's resolved review-carrier name — canonical, or the round's landed
+   *  `final`, never a historical twin's spelling.
    *
    *  A death face (a killed child, a non-zero exit, a rejected draft) already carries
    *  its authored hard entry and needs no second judgment — the criterion table and
@@ -490,7 +510,7 @@ export class CliLifecycle {
     const judged = await CompletionCriteria.of(this.#opOf(frame)).judge({
       record: this.#judgedRecordOf(frame, outcome),
       row: this.#rowOf(frame),
-      records: scene.ledger.recordsOf(frame.key, frame.type),
+      records: scene.ledger.recordsOf(frame.key),
       carrier: outcome.carrier ?? null,
       reviewsPath: this.#reviewsPath(frame),
       git: this.#git,
@@ -547,8 +567,7 @@ export class CliLifecycle {
     const ledger = this.#scene.ledger;
     const data = ledger.readProgress();
     return (
-      (data === null ? undefined : Ledger.rowFor(data, frame.key, frame.type)) ??
-      ledger.entryFor(frame.key)
+      (data === null ? undefined : Ledger.rowFor(data, frame.key)) ?? ledger.entryFor(frame.key)
     );
   }
 
@@ -673,14 +692,18 @@ export class CliLifecycle {
     }
     // P31 T2 — the ruling sidecar gate: a sidecar the strict schema refuses stops the
     // round HERE, before the in-flight record is acquired and before any child exists
-    // (a written-but-invisible ruling is the defect this gate removes).
-    const rulingsRefusal = this.#rulingsRefusal(frame);
-    if (rulingsRefusal !== null) {
+    // (a written-but-invisible ruling is the defect this gate removes). The judgment is
+    // ONE value computed here and handed to BOTH consumers (the gate and the prompt's
+    // round-context cell), so the `misplaced` / `invalid` / `ok` answers can never
+    // disagree between them — not even across a writer that lands mid-dispatch.
+    const artifactCell = this.#artifactCellOf(frame);
+    const artifactRefusal = this.#artifactRefusalOf(artifactCell);
+    if (artifactRefusal !== null) {
       this.#sealRoundCarriers(frame);
-      this.#blocked(rulingsRefusal, false);
-      return { status: "BLOCKED", violations: [RoundViolation.hard(rulingsRefusal)] };
+      this.#blocked(artifactRefusal, false);
+      return { status: "BLOCKED", violations: [RoundViolation.hard(artifactRefusal)] };
     }
-    const prompt = this.#template.render(this.#valuesOf(frame));
+    const prompt = this.#template.render(this.#valuesOf(frame, artifactCell));
     const row = HOSTS[host as HostId];
     const cliName = row.cli;
     const args = [...row.invoke.split(" ").filter((part) => part.length > 0)];
@@ -940,7 +963,7 @@ export class CliLifecycle {
    *  (empty-valued keys are dropped), so each mode's round context carries only the
    *  facts the mode reads. The review criteria/lens are NOT values — they fold into
    *  the review type's fixed prefix (§3.7). */
-  #valuesOf(frame: OpenFrame): TemplateValues {
+  #valuesOf(frame: OpenFrame, artifactCell: ArtifactCell): TemplateValues {
     const scene = this.#scene;
     const op = this.#opOf(frame);
     const role = this.#roleOf(frame);
@@ -966,10 +989,13 @@ export class CliLifecycle {
       // would be a short-circuit).
       INPUT_REVIEWS: op === "fix" ? this.#rel(this.#reviewsPath(frame) ?? "") : "",
       // P31 T2 — the ruling sidecar rides the fix input side alone (the review round's
-      // own context has no sidecar yet). The path derives from the requesting carrier
-      // by the ONE `.json` → `.rulings.json` rule; an absent sidecar leaves the slot
-      // empty, so the assembler drops the line entirely.
-      INPUT_RULINGS: this.#rulingsInputOf(frame),
+      // own context has no sidecar yet). The path is the matrix's `rulings` row rendered
+      // from the REVIEWED carrier's identity and the strict schema read composed beside
+      // it (`#artifactReadOf`), handed in as the dispatch's ONE judgment: the gate that
+      // just approved this dispatch and this slot are the same value, never two reads.
+      // An absent, unattributable or refused sidecar leaves the slot empty and the
+      // assembler drops the line.
+      INPUT_RULINGS: this.#rulingsInputOf(artifactCell),
       // The kind-named judged-doc anchors (the semantic retirement of the generic
       // INPUT_DOC): the plan line carries the plan document as its judged doc
       // (INPUT_PLAN) AND its design-spec reference (INPUT_SPEC — the `spec:`
@@ -1075,7 +1101,7 @@ export class CliLifecycle {
    *  draft of a retried round) is already closed when it is reopened here: the window
    *  is the two names, never a third file. */
   #openRoundCarriers(frame: OpenFrame): void {
-    CarrierSeal.sweep(this.#scene.workspace.path, []);
+    CarrierSeal.sweep(this.#scene.workspace.path, [], this.#artifacts);
     for (const name of this.#roundCarrierNames(frame)) CarrierSeal.unseal(name);
   }
 
@@ -1293,7 +1319,7 @@ export class CliLifecycle {
   ): string | undefined {
     if (plane !== "work" || this.#opOf(frame) !== "fix") return undefined;
     const requester = FixDispositions.requesterInputOf(
-      this.#scene.ledger.recordsOf(frame.key, frame.type),
+      this.#scene.ledger.recordsOf(frame.key),
       frame.round,
       this.#reviewsPath(frame),
       this.#repoRootValue().absolute,
@@ -1342,7 +1368,7 @@ export class CliLifecycle {
    *  requesting carrier's path and its digest. */
   #requesterRecord(frame: OpenFrame): RoundRecord | null {
     const reviewed = this.#scene.ledger
-      .recordsOf(frame.key, frame.type)
+      .recordsOf(frame.key)
       .filter((record) => record.op === "review" && record.cycle === frame.round);
     return reviewed.reduce<RoundRecord | null>(
       (newest, record) => (newest === null || record.attempt >= newest.attempt ? record : newest),
@@ -1356,7 +1382,13 @@ export class CliLifecycle {
    *  already existed before this dispatch (`INPUT_REVIEWS` is its own input), so every
    *  other phase has no gate to set. A carrier with no recorded digest — a legacy round,
    *  or a resolved path no record declared — is read as present facts: no comparison,
-   *  no refusal. */
+   *  no refusal.
+   *
+   *  The repo-relative carrier → absolute erasure is spelled here, and again inside the
+   *  sidecar seam (`session/artifact-reads.ts`), BY DESIGN: this one feeds the digest
+   *  read of the carrier's own bytes, that one feeds the schema's `carrier` comparison
+   *  and the sidecar's id set. The two are different reads of different files, not two
+   *  names for one fact. */
   #carrierRefusal(frame: OpenFrame): string | null {
     if (this.#opOf(frame) !== "fix") return null;
     const carrier = this.#reviewsPath(frame);
@@ -1380,87 +1412,87 @@ export class CliLifecycle {
   }
 
   /** The fix round's ruling sidecar as the round-context value — the repo-relative
-   *  sidecar path when a conforming sidecar sits beside the requesting carrier, plus the
-   *  ruling bodies it carries, the empty string otherwise (off the fix face, with no
-   *  resolved carrier, and when the sidecar is absent — the assembler drops the empty
-   *  line). The strict judgment is the dispatch gate's `#rulingsRefusal`; this cell
-   *  names the file the round may read AND states the verdicts (§2.5 AC: the rendered
-   *  text matches the sidecar), so a ruling is never merely a path the child must
-   *  re-open to discover. */
-  #rulingsInputOf(frame: OpenFrame): string {
-    if (this.#opOf(frame) !== "fix") return "";
-    const carrier = this.#reviewsPath(frame);
-    if (carrier === null) return "";
-    const verdict = this.#rulingsVerdict(frame, carrier);
-    if (verdict.kind !== "ok") return "";
-    const sidecar = this.#rel(CarrierRulings.pathFor(carrier));
-    return [sidecar, ...verdict.rulings.map((ruling) => this.#rulingLine(ruling))].join("\n");
+   *  sidecar path alone, the empty string otherwise (off the fix face and when the
+   *  sidecar is absent — the assembler drops the empty line).
+   *
+   *  One input, one reading: the round context names WHERE the rulings live, exactly as
+   *  `INPUT_REVIEWS` names the carrier it qualifies (spec §2.10). The ruling bodies stay
+   *  in the sidecar — the child opens the file — so the prompt tail carries no text whose
+   *  length the orchestrator's ruling set decides, and the sidecar keeps its single
+   *  source. The path is the artifact matrix's `rulings` render of the REVIEWED round's
+   *  identity, never a tail replacement on the carrier's name: the carrier's own spelling
+   *  (draft or final) can no longer move it.
+   *
+   *  The judgment is the dispatch's OWN cell — the value the gate just read — so the cell
+   *  can never name a ruling set the refusal is about to reject. */
+  #rulingsInputOf(cell: ArtifactCell): string {
+    if (cell.kind !== "read") return "";
+    const { read } = cell.value;
+    return read.kind === "ok" ? this.#rel(read.path) : "";
   }
 
-  /** One rendering of a recorded ruling — the finding id it answers and the ruling's
-   *  own text VERBATIM (never re-worded: the sidecar is the orchestrator's words, and
-   *  the round context quotes them). Indented under the sidecar path's bullet so the
-   *  cell reads as one input. */
-  #rulingLine(ruling: Ruling): string {
-    return `  - \`${ruling.finding}\` — ${ruling.ruling}`;
+  /** The artifact-identity gate as a PURE read — the `--dry-run` face's entry to the
+   *  same judgment the real dispatch applies before it takes the in-flight record and
+   *  before any child exists. The preview renders the returned reason verbatim, so a
+   *  dry run can never forecast a dispatch the real run would refuse (one read, two
+   *  faces). Nothing here writes: the read is the matrix's plus the strict schema's. */
+  artifactRefusal(frame: OpenFrame): string | null {
+    return this.#artifactRefusalOf(this.#artifactCellOf(frame));
   }
 
-  /** The pre-dispatch ruling gate — the strict sidecar verdict's refusal reason, or null
-   *  when the round may proceed (no fix face, no resolved carrier, an absent sidecar, or
-   *  a conforming one). A refusal is HARD and lands before the in-flight record and the
-   *  child, so a broken ruling set can never be dispatched unnoticed (§2.6).
+  /** The dispatch's artifact judgment — computed ONCE, then consumed by the gate and by
+   *  the prompt's round-context cell. Off the fix face there is nothing to read (no
+   *  requesting carrier, no sidecar), so the cell is the no-sidecar value; otherwise the
+   *  one read is taken here, and a tampered requesting carrier becomes the integrity arm
+   *  instead of a read (its id set is not a fact this round may read). */
+  #artifactCellOf(frame: OpenFrame): ArtifactCell {
+    if (this.#opOf(frame) !== "fix") return NO_ARTIFACT;
+    try {
+      return { kind: "read", value: this.#artifactReadOf(frame, "rulings") };
+    } catch (raw) {
+      if (!(raw instanceof CarrierMismatchError)) throw raw;
+      return { kind: "mismatch", message: raw.message };
+    }
+  }
+
+  /** The ONE artifact read of this round's `kind` — delegated to the frame-free seam
+   *  (`session/artifact-reads.ts`), so this face keeps only the frame-level facts: the
+   *  requesting carrier and the digest its record remembered. The board reads the SAME
+   *  seam with its own workspace, so the prompt cell, the gate and the board can never
+   *  compose two different judgments (spec §2.3). */
+  #artifactReadOf(frame: OpenFrame, kind: Kind): ArtifactReadOf {
+    return new ArtifactReads(this.#artifacts, this.#scene.workspace).read(
+      kind,
+      this.#reviewsPath(frame) ?? "",
+      this.#requesterDigest(frame),
+    );
+  }
+
+  /** The pre-dispatch artifact gate over the dispatch's ONE cell — the refusal reason of
+   *  this round's resolved `rulings` kind, or null when the round may proceed (no fix
+   *  face, no resolved carrier, an absent sidecar, or one conforming). A refusal is HARD
+   *  and lands before the in-flight record and the child, so a broken ruling set can
+   *  never be dispatched unnoticed (§2.4).
+   *
+   *  Two refusal shapes, two words: a name that attributes to the identity but is NOT
+   *  its rendered name is `artifact-identity` (the four-section report — every candidate
+   *  listed, never a pick), while a present-but-unreadable file or a schema violation
+   *  keeps today's `rulings sidecar — <reason>` (the reason verbatim from the read).
    *
    *  A `carrier-mismatch` from the sidecar's id read is the integrity refusal, never a
    *  ruling reason: a tampered carrier is not judged (its id set is not a fact this
    *  round may read), so the diagnostic names the bytes that changed. */
-  #rulingsRefusal(frame: OpenFrame): string | null {
-    if (this.#opOf(frame) !== "fix") return null;
-    const carrier = this.#reviewsPath(frame);
-    if (carrier === null) return null;
-    let verdict: RulingVerdict;
-    try {
-      verdict = this.#rulingsVerdict(frame, carrier);
-    } catch (raw) {
-      if (!(raw instanceof CarrierMismatchError)) throw raw;
-      return raw.message;
-    }
-    return verdict.kind === "invalid" ? `rulings sidecar — ${verdict.reason}` : null;
-  }
-
-  /** The strict sidecar verdict over the requesting carrier's CHECKED id set — one call
-   *  shape for the gate and the round-context cell, so neither can read the ids by a
-   *  path the other does not take. */
-  #rulingsVerdict(frame: OpenFrame, carrier: string): RulingVerdict {
-    return CarrierRulings.verdict(carrier, this.#carrierFindingIds(frame, carrier));
-  }
-
-  /** The requesting carrier's engine-written finding ids (`F1`, `F2` …) — the id set a
-   *  ruling must name. The read is the ONE checked carrier read (`CarrierIntegrity.read`,
-   *  the digest its review round recorded): a tampered carrier is never observed at all —
-   *  the mismatch throws and the integrity refusal wins over any ruling reason. An absent
-   *  or unparseable carrier declares no ids, so any ruling beside it is refused by the
-   *  strict schema instead of being accepted against an empty set. */
-  #carrierFindingIds(frame: OpenFrame, carrier: string): ReadonlySet<string> {
-    const ids = new Set<string>();
-    let carrierJson: unknown;
-    try {
-      const bytes = CarrierIntegrity.read(
-        path.resolve(this.#repoRootValue().absolute, carrier),
-        this.#requesterDigest(frame),
-      );
-      if (bytes === null) return ids;
-      carrierJson = JSON.parse(bytes);
-    } catch (raw) {
-      if (raw instanceof CarrierMismatchError) throw raw;
-      return ids;
-    }
-    const findings = (carrierJson as { findings?: unknown } | null)?.findings;
-    if (!Array.isArray(findings)) return ids;
-    for (const finding of findings) {
-      const id = (finding as { id?: unknown } | null)?.id;
-      if (typeof id === "string") ids.add(id);
-    }
-    return ids;
+  #artifactRefusalOf(cell: ArtifactCell): string | null {
+    if (cell.kind === "mismatch") return cell.message;
+    const read = cell.value.read;
+    if (read.kind === "invalid") return `rulings sidecar — ${read.reason}`;
+    if (read.kind !== "misplaced") return null;
+    return this.#words.artifactIdentity({
+      kind: "rulings",
+      derived: this.#rel(this.#scene.workspace.resolve(read.derived)),
+      found: read.found.map((name) => this.#rel(this.#scene.workspace.resolve(name))),
+      identity: read.identity,
+    });
   }
 
   /** The read-back rejection face — CDD_BLOCKED reason + the crash record (the

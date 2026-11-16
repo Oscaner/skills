@@ -20,7 +20,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { RepoRoot } from "../../infra/root.ts";
 import type { RouteTarget } from "../../session/faces.ts";
 import type { DocClassVerdict, NextHop, Route } from "../../session/next.ts";
-import { FIX_READBACK_SUFFIX, NextStepRouter, PIPELINE_NEXT } from "../../session/next.ts";
+import {
+  FIX_READBACK_SLOT,
+  FIX_READBACK_SUFFIX,
+  NextStepRouter,
+  PIPELINE_NEXT,
+} from "../../session/next.ts";
 import { BoardView } from "../board-view.ts";
 import { Capsule } from "../capsule.ts";
 import { CommandTreeBuilder } from "../projection.ts";
@@ -50,12 +55,20 @@ const literalOf = (route: Route, target?: RouteTarget): string => {
   return lines[1]!.slice("next: ".length);
 };
 
+/** The readback sentence with a resolved sidecar path in its value slot — the
+ *  expected bytes for a route carrying that path. */
+const readback = (sidecar: string): string =>
+  FIX_READBACK_SUFFIX.replace(FIX_READBACK_SLOT, sidecar);
+
+/** The readback sentence as a tail pattern — its path is a VALUE, so the parse-gate
+ *  strip matches any rendered path instead of the declared slot. */
+const READBACK_TAIL =
+  /\s*\(confirm the reviews handoff · if a finding needs a ruling, record it at [^)]*\)$/;
+
 /** The parseable argv of a literal — the fix readback suffix is prompt prose, never
- *  argv (the parse gate strips the declared suffix before feeding). */
+ *  argv (the parse gate strips the declared sentence before feeding). */
 const argvOf = (literal: string): string[] => {
-  return literal
-    .replace(new RegExp(`\\s*\\(${FIX_READBACK_SUFFIX.slice(1, -1)}\\)$`), "")
-    .split(/\s+/);
+  return literal.replace(READBACK_TAIL, "").split(/\s+/);
 };
 
 /** The frame-fact targets of the four types (the dispatch frame's own identity). */
@@ -190,9 +203,23 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
     }
   });
 
-  it("the fix route keeps the FIX_READBACK_SUFFIX verbatim", () => {
+  it("the fix route fills the FIX_READBACK_SUFFIX slot with the route's own path", () => {
+    const literal = literalOf(
+      {
+        kind: "fix",
+        reviews: "tasks-1-review-1.json",
+        rulings: "tasks-1-review-1.c1.rulings.json",
+      },
+      wave,
+    );
+    expect(literal).toContain(readback("tasks-1-review-1.c1.rulings.json"));
+    expect(literal).not.toContain(FIX_READBACK_SLOT);
+  });
+
+  it("a fix route with no resolved sidecar omits the readback sentence whole", () => {
     const literal = literalOf({ kind: "fix", reviews: "tasks-1-review-1.json" }, wave);
-    expect(literal).toContain(FIX_READBACK_SUFFIX);
+    expect(literal).not.toContain("confirm the reviews handoff");
+    expect(literal.endsWith("--reviews tasks-1-review-1.json")).toBe(true);
   });
 
   it("D47 — the next: literal's embedded paths render repoRoot-relative (absolute target + findings)", () => {
@@ -205,13 +232,17 @@ describe("P4.1 T7 (find #7) — the next literal's required-flag coverage (parse
       "CHANGES_REQUESTED",
       `${repo}/.kairos/cdd/p3/tasks-1-review-1.json`,
       hopOf(
-        { kind: "fix", reviews: `${repo}/.kairos/cdd/p3/tasks-1-review-1.json` },
+        {
+          kind: "fix",
+          reviews: `${repo}/.kairos/cdd/p3/tasks-1-review-1.json`,
+          rulings: `${repo}/.kairos/cdd/p3/tasks-1-review-1.c1.rulings.json`,
+        },
         { type: "plan", id: `${repo}/docs/kairos/plans/p3.md` },
       ),
     );
     const literal = lines[1]!.slice("next: ".length);
     expect(literal).toBe(
-      `fix --type plan --plan docs/kairos/plans/p3.md --reviews .kairos/cdd/p3/tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `fix --type plan --plan docs/kairos/plans/p3.md --reviews .kairos/cdd/p3/tasks-1-review-1.json ${readback(".kairos/cdd/p3/tasks-1-review-1.c1.rulings.json")}`,
     );
     expect(literal).not.toContain(repo);
     // The handoff: cell is the same basis — repoRoot-relative, never absolute.
@@ -402,8 +433,19 @@ describe("P22 §5.2 — the six-row render freeze", () => {
     expect(nextOf(derived({ kind: "next-wave", tasks: "7,9" }, wave))).toBe(
       "next: implement --plan docs/kairos/plans/p.md --tasks 7,9",
     );
-    expect(nextOf(derived({ kind: "fix", reviews: "tasks-1-review-1.json" }, wave))).toBe(
-      `next: fix --type wave --tasks 1,2 --plan docs/kairos/plans/p.md --reviews tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
+    expect(
+      nextOf(
+        derived(
+          {
+            kind: "fix",
+            reviews: "tasks-1-review-1.json",
+            rulings: "tasks-1-review-1.c1.rulings.json",
+          },
+          wave,
+        ),
+      ),
+    ).toBe(
+      `next: fix --type wave --tasks 1,2 --plan docs/kairos/plans/p.md --reviews tasks-1-review-1.json ${readback("tasks-1-review-1.c1.rulings.json")}`,
     );
   });
 

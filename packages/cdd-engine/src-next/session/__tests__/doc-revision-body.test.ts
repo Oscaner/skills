@@ -15,8 +15,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { PlanSource } from "../../infra/plan-source.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../ledger.ts";
 
@@ -56,7 +56,7 @@ const fixture = (): { ledger: Ledger; workspace: Workspace; cleanup: () => void 
     new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
     "test-slug",
   );
-  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
   return { ledger, workspace, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
 };
 
@@ -95,17 +95,13 @@ describe("the interlock — bookkeeping is `same`, body drift is `drift`", () =>
         const samples = BOOKKEEPING("plan");
         // The reviewed identity is the plan's doc-revision on the reviewed body.
         const doc = writeDoc(workspace, "plan.md", samples.before);
-        ledger.recordReviewedRevision(
-          line.key,
-          ledger.refs().docRevision(doc, samples.before),
-          line.identity,
-        );
+        ledger.recordReviewedRevision(line.key, ledger.refs().docRevision(doc, samples.before));
         // bookkeeping-only write — the reviewed line stays `same` (no spurious reopen)
         writeFileSync(doc, samples.after, "utf8");
-        expect(ledger.docLineVerdict(line.key, doc, line.identity)).toBe("same");
+        expect(ledger.docLineVerdict(line.key, doc)).toBe("same");
         // a task-body edit — the reviewed line drifts
         writeFileSync(doc, samples.edited, "utf8");
-        expect(ledger.docLineVerdict(line.key, doc, line.identity)).toBe("drift");
+        expect(ledger.docLineVerdict(line.key, doc)).toBe("drift");
       } finally {
         cleanup();
       }

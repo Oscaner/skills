@@ -46,12 +46,14 @@ import { type RepoPath, RepoRoot } from "../infra/root.ts";
 import { ENGINE_RUNTIME } from "../infra/runtime.ts";
 import { type DocEntry, SlugIndex, type SlugRole } from "../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
-import { CarrierIntegrity } from "../session/carrier-integrity.ts";
+import { type ArtifactReadOf, ArtifactReads } from "../session/artifact-reads.ts";
+import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
 import type { RouteTarget, TargetType } from "../session/faces.ts";
 import type { InFlightState } from "../session/inflight.ts";
 import { Ledger, type ProgressData, type RoundRecord, RoundRecords } from "../session/ledger.ts";
 import type { DocClassVerdict, NextHop } from "../session/next.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "../session/pipeline.ts";
+import type { ArtifactRegistry, Kind } from "../session/round-artifacts.ts";
 import { PROGRESS_LEGEND, PROGRESS_MARKERS } from "./graph-view.ts";
 import { type RouteChannelRow, RouteRenderer } from "./route-render.ts";
 import type { Words } from "./words.ts";
@@ -104,14 +106,78 @@ export interface BoardLine {
   carriers: LineCarriers;
   /** The derived ✔/▶/○ marker — wave lines only; null otherwise. */
   marker: string | null;
+  /** The line's LEDGER coordinate — the `type` its carriers resolve through
+   *  (`wave` for a wave line, the line word otherwise) and the row `key` it records
+   *  under. The `art:` projection reads its rounds and carriers off this pair, so the
+   *  board never re-derives a coordinate from a rendered label. */
+  type: string;
+  key: string;
 }
+
+/** One node's line set bound to the workspace it observes — the `art:` projection's
+ *  scope. A node board renders the program's overall line from the PROGRAM workspace
+ *  and its own lines from the node's, so the scope carries the ledger seat rather than
+ *  resolving every line against one workspace. */
+interface ArtifactScope {
+  readonly lines: readonly BoardLine[];
+  readonly seat: LedgerSeat;
+}
+
+/** The board's artifact projection — the matrix seam every ledger resolves its names
+ *  through plus whether the full inventory is open (`--artifacts`). The two facts ride
+ *  the render chain as ONE value: a board that holds the registry but loses the flag
+ *  would silently render the default view, and one that holds the flag but loses the
+ *  registry would silently render nothing (spec §2.6 — both halves fail silently, so
+ *  the pair is one parameter, never two positionals with two defaults). */
+export interface ArtifactProjection {
+  readonly registry: ArtifactRegistry | null;
+  readonly showAll: boolean;
+}
+
+/** The closed projection — no matrix, default view. The value a caller that observes
+ *  no artifacts passes (a `null` registry answers zero `art:` rows). */
+export const NO_ARTIFACTS: ArtifactProjection = { registry: null, showAll: false };
+
+/** One ledger's construction facts — the `progress.json` read face and the workspace
+ *  every name in it resolves inside. Built in ONE place (`#ledgerOf`) so the ledger and
+ *  the artifact read seam share one workspace instance instead of deriving two. */
+interface LedgerSeat {
+  readonly ledger: Ledger;
+  readonly workspace: Workspace;
+}
+
+/** One observed review round — the `art:` row source: the reviewed coordinate, the
+ *  kind the gate resolves today, the composed judgment the read seam answered, and the
+ *  TWO render closures the facts need (a workspace NAME relativized through the seat's
+ *  workspace, an absolute PATH relativized through the ONE basis). */
+interface ObservedArtifact {
+  readonly line: string;
+  readonly kind: Kind;
+  readonly cycle: number;
+  readonly attempt: number;
+  readonly read: ArtifactReadOf;
+  readonly relName: (name: string) => string;
+  readonly relPath: (value: string) => string;
+}
+
+/** One doc slot's source — the identity index's SET answer, narrowed by class. The
+ *  three arms are the whole judgment (spec §2.3 · §4.4): `one` is the only arm whose
+ *  entry may lend a cell its header facts, and `many` carries the whole set so the row
+ *  can NAME it instead of picking a first document. */
+type DocSlot =
+  | { readonly kind: "none" }
+  | { readonly kind: "one"; readonly entry: DocEntry }
+  | { readonly kind: "many"; readonly found: readonly DocEntry[] };
+
+/** The empty slot — one shared value, never a freshly minted arm. */
+const NO_DOC: DocSlot = { kind: "none" };
 
 /** The node's identity chain — the three indexed documents a board row set reads
  *  (spec §2.2). `programMissing` is the phase-spec hard gate, surfaced on the spec
  *  line as `program: missing (BLOCKED)`. */
 interface NodeSources {
-  readonly spec: DocEntry | null;
-  readonly plan: DocEntry | null;
+  readonly spec: DocSlot;
+  readonly plan: DocSlot;
   readonly overall: DocEntry | null;
   readonly programMissing: boolean;
 }
@@ -150,6 +216,18 @@ const PHASE_TITLE_MAX = 60;
 /** The label column of the board's line rows — `  ` + the label padded to this
  *  width (`overall` is the longest verb at 7), so every value starts in one column. */
 const LABEL_WIDTH = 9;
+
+/** The `art:` fact block's continuation keys — the board's OWN spelling of the three
+ *  facts a judgment carries (spec §2.6). Deliberately independent of
+ *  `Words#artifactIdentity`: that row is the gate's §2.4 contract (`derived:  `,
+ *  a colon inside its own two-space column), while the board's rows are the §2.6
+ *  contract (`derived`, no colon, the board's continuation column). One source per
+ *  contract, and the board's half is pinned by its byte assertions. */
+const ARTIFACT_FACT_LABELS = {
+  derived: "derived",
+  found: "found",
+  reason: "reason",
+} as const;
 
 /** One board line's carrier facts — the `+N` count's WHOLE read face (spec §2.7 ·
  *  §2.10). The record's path comes from the ledger's ONE accessor, bound to this
@@ -276,22 +354,75 @@ export class BoardView {
    *  the program overall the identity's `program:` names. An entry that is itself
    *  a plan contributes the plan and resolves its spec by the same slug. The
    *  `programMissing` fact is the phase-spec hard gate: a `program:` that names no
-   *  on-disk overall (or no `program:` at all). Zero filename derivation. */
+   *  on-disk overall (or no `program:` at all). Zero filename derivation and zero
+   *  "first document": each slot is the index's SET answer (0 / 1 / n).
+   *
+   *  Naming the entry document on argv (`cdd board --spec` / `--plan`) does NOT
+   *  exempt its slot from the set: the entry's identity is still its slug, so a
+   *  second same-class document makes that slot `many` and the row renders the
+   *  marker plus every declared home. `own` survives only where the set cannot be
+   *  asked — no legal slug, or an undeclared `doc-type:` that no class can hold. */
   static #nodeSources(index: SlugIndex, entry: DocEntry): NodeSources {
     const slug = BoardView.#validSlug(entry);
     const isPlan = entry.docType === "plan";
-    const spec = slug === null ? (isPlan ? null : entry) : isPlan ? index.identityDoc(slug) : entry;
-    const plan = isPlan ? entry : slug === null ? null : index.planOf(slug);
+    const own: DocSlot = { kind: "one", entry };
+    const spec =
+      slug === null
+        ? isPlan
+          ? NO_DOC
+          : own
+        : entry.docType === null
+          ? own
+          : BoardView.#docSlotOf(index, slug, "identity");
+    const plan =
+      slug === null ? (isPlan ? own : NO_DOC) : BoardView.#docSlotOf(index, slug, "plan");
+    const specEntry = BoardView.#slotEntry(spec);
     const overall =
-      spec?.docType === "phase-spec" && spec.program !== null
-        ? index.overallOf(spec.program)
+      specEntry?.docType === "phase-spec" && specEntry.program !== null
+        ? index.overallOf(specEntry.program)
         : null;
     return {
       spec,
       plan,
       overall,
-      programMissing: spec !== null && BoardView.#programMissing(index, spec),
+      programMissing: specEntry !== null && BoardView.#programMissing(index, specEntry),
     };
+  }
+
+  /** One doc slot — the index's SET answer for a class, filtered and then counted,
+   *  never searched with `.find`. Two documents of the class are `many`, and every
+   *  caller renders the marker and the whole set instead of choosing one. */
+  static #docSlotOf(index: SlugIndex, slug: string, role: SlugRole): DocSlot {
+    const docs = index
+      .docsOf(slug)
+      .filter((doc) =>
+        role === "plan" ? doc.docType === "plan" : doc.docType !== null && doc.docType !== "plan",
+      );
+    if (docs.length === 0) return NO_DOC;
+    if (docs.length === 1) return { kind: "one", entry: docs[0]! };
+    return { kind: "many", found: docs };
+  }
+
+  /** The single document a slot carries — `null` for both the empty and the
+   *  ambiguous arm: neither has ONE document to speak about. */
+  static #slotEntry(slot: DocSlot): DocEntry | null {
+    return slot.kind === "one" ? slot.entry : null;
+  }
+
+  /** One document slot's violation marker — the single arm asks `#entryMark` (the ONE
+   *  duplicate / identity judgment the pre-flight gate shares), and an ambiguous set
+   *  renders the same `duplicated` marker the doc domain's `read` refuses on. */
+  static #slotMark(index: SlugIndex, slot: DocSlot, role: SlugRole): string | null {
+    if (slot.kind === "one") return BoardView.#entryMark(index, slot.entry, role);
+    return slot.kind === "many" ? MARK_SLUG_DUPLICATED : null;
+  }
+
+  /** The cell of a doc row whose slug names MORE than one document of its class: the
+   *  existing duplicate marker plus every path of the set. No version, no status, no
+   *  rounds — those are facts of ONE document, and this identity has none. */
+  static #duplicateDocLine(label: string, found: readonly DocEntry[]): string {
+    const paths = found.map((doc) => doc.rel).join(" · ");
+    return `  ${label.padEnd(LABEL_WIDTH)}${MARK_SLUG_DUPLICATED}   ${paths}`;
   }
 
   /** The entry's valid slug — the workspace key, or null when the declaration is
@@ -333,7 +464,7 @@ export class BoardView {
     progress: ProgressData | null,
     ledger: Ledger | null,
   ): BoardLine {
-    const rounds = BoardView.#rowRounds(progress, key, entry?.docType ?? null);
+    const rounds = BoardView.#rowRounds(progress, key);
     return {
       label,
       version: entry?.version ?? null,
@@ -342,6 +473,8 @@ export class BoardView {
       rounds,
       carriers: LineCarriers.ofLedger(ledger, key, key, rounds),
       marker: null,
+      type: key,
+      key,
     };
   }
 
@@ -566,7 +699,7 @@ export class BoardView {
   // -------------------------------------------------------------------------
 
   /** render(readTable, plan, index, entry, repoRoot, words, host, channels, holding,
-   *  next) — the entry document's board (spec §3.1): the entry's declared `doc-type:`
+   *  next, projection) — the entry document's board (spec §3.1): the declared `doc-type:`
    *  picks the shape — `overall` → the program board, every other type → the node
    *  board. The index supplies every related node (`program:` → overall; same slug →
    *  spec / plan), so no filename grammar participates. `next` is the INJECTED
@@ -585,7 +718,11 @@ export class BoardView {
    *  the wave segment reads. A single-document board is a table of length 1 — its one
    *  row is the argv face's read (solo `--plan`) or the derived face's (`--spec`).
    *  The board therefore holds no plan-reading seam of its own: the ONE read point is
-   *  the injected `PlanSource`, and a value is never re-read here. */
+   *  the injected `PlanSource`, and a value is never re-read here.
+   *
+   *  `projection` is the artifact observation's ONE input (the matrix seam plus the
+   *  `--artifacts` switch) — the two halves travel together so neither can arrive
+   *  without the other. */
   static render(
     readTable: readonly PlanRead[],
     plan: PlanSource,
@@ -597,6 +734,7 @@ export class BoardView {
     channels: Readonly<Record<string, RouteChannelRow>> = {},
     holding: InFlightState = { kind: "absent" },
     next: NextHop | null = null,
+    projection: ArtifactProjection = NO_ARTIFACTS,
   ): BoardRender {
     const lines: string[] = [`cdd board: ${entry.slug ?? "(none)"}`, ""];
     // The repo-basis value object — constructed ONCE at this boundary, the ONE
@@ -607,7 +745,7 @@ export class BoardView {
     const root = new RepoRoot(repoRoot);
     const exitCode =
       entry.docType === "overall"
-        ? BoardView.#programBoard(readTable, plan, lines, index, entry, root, words)
+        ? BoardView.#programBoard(readTable, plan, lines, index, entry, root, words, projection)
         : BoardView.#nodeBoard(
             // A node board is ONE document: the caller's single row. An empty table
             // means no document was read at all — the seam's own undeclared value is
@@ -623,6 +761,7 @@ export class BoardView {
             channels,
             holding,
             next,
+            projection,
           );
     lines.push("", PROGRESS_LEGEND.board);
     return { lines, exitCode };
@@ -649,15 +788,21 @@ export class BoardView {
     channels: Readonly<Record<string, RouteChannelRow>>,
     holding: InFlightState,
     next: NextHop | null,
+    projection: ArtifactProjection,
   ): number {
     const repoRoot = root.absolute;
     const sources = BoardView.#nodeSources(index, entry);
     const nodeSlug = BoardView.#validSlug(entry);
-    const ledger = nodeSlug === null ? null : BoardView.#ledgerOf(plan, nodeSlug, repoRoot);
+    const nodeSeat =
+      nodeSlug === null ? null : BoardView.#ledgerOf(plan, nodeSlug, repoRoot, projection.registry);
+    const ledger = nodeSeat?.ledger ?? null;
     const progress = ledger?.readProgress() ?? null;
     const overallSlug = BoardView.#validSlug(sources.overall);
-    const overallLedger =
-      overallSlug === null ? null : BoardView.#ledgerOf(plan, overallSlug, repoRoot);
+    const overallSeat =
+      overallSlug === null
+        ? null
+        : BoardView.#ledgerOf(plan, overallSlug, repoRoot, projection.registry);
+    const overallLedger = overallSeat?.ledger ?? null;
     const overallProgress = overallLedger?.readProgress() ?? null;
     // The tree's dispatch fact + the node workspace's orphan drafts + the node's
     // crashed rounds render before the line rows (a reader answers "is anyone working
@@ -676,14 +821,16 @@ export class BoardView {
     // row asks a `PlanRead` accessor, and no `! no-spec` literal (the orphan fold or
     // the degraded wave row) can appear beside a broken identity.
     const specMark =
-      BoardView.#entryMark(index, sources.spec, "identity") ??
+      BoardView.#slotMark(index, sources.spec, "identity") ??
       (sources.programMissing ? MARK_PROGRAM_MISSING : null);
-    const planMark = BoardView.#entryMark(index, sources.plan, "plan");
+    const planMark = BoardView.#slotMark(index, sources.plan, "plan");
+    const specEntry = BoardView.#slotEntry(sources.spec);
+    const planEntry = BoardView.#slotEntry(sources.plan);
     const planIdentityClean = planMark === null;
     const identityClean = planIdentityClean && specMark === null;
     const docRows: Array<{
       readonly label: string;
-      readonly entry: DocEntry | null;
+      readonly slot: DocSlot;
       readonly line: BoardLine;
       readonly mark: string | null;
       /** The cell content a `PlanRead` accessor owns; null hands the row to
@@ -692,7 +839,7 @@ export class BoardView {
     }> = [
       {
         label: "overall",
-        entry: sources.overall,
+        slot: sources.overall === null ? NO_DOC : { kind: "one", entry: sources.overall },
         line: BoardView.#lineOf(
           "overall",
           "overall",
@@ -705,11 +852,11 @@ export class BoardView {
       },
       {
         label: "spec",
-        entry: sources.spec,
+        slot: sources.spec,
         line: BoardView.#lineOf(
           "spec",
-          BoardView.#lineWordOf(sources.spec),
-          sources.spec,
+          BoardView.#lineWordOf(specEntry),
+          specEntry,
           progress,
           ledger,
         ),
@@ -721,27 +868,39 @@ export class BoardView {
       },
       {
         label: "plan",
-        entry: sources.plan,
-        line: BoardView.#lineOf("plan", "plan", sources.plan, progress, ledger),
+        slot: sources.plan,
+        line: BoardView.#lineOf("plan", "plan", planEntry, progress, ledger),
         mark: planMark,
-        override: BoardView.#planCellOf(read, sources.plan, planMark, words),
+        override: BoardView.#planCellOf(read, planEntry, planMark, words),
       },
     ];
     // The doc-name column is fixed-width: every name is padded to the widest one, so
     // the version column aligns down the block (spec §5.3).
     const nameWidth = Math.max(
       0,
-      ...docRows
-        .filter((row) => row.entry !== null)
-        .map((row) => path.basename(row.entry!.path).length),
+      ...docRows.flatMap((row) =>
+        row.slot.kind === "one" ? [path.basename(row.slot.entry.path).length] : [],
+      ),
     );
     let blocked = false;
     for (const row of docRows) {
+      // An ambiguous set is its own row: the marker plus every path, never one
+      // document's header facts (spec §2.3 — the read face answers a set with a set).
+      if (row.slot.kind === "many") {
+        lines.push(BoardView.#duplicateDocLine(row.label, row.slot.found));
+        blocked = true;
+        continue;
+      }
       if (row.override !== null) {
         lines.push(`  ${row.label.padEnd(LABEL_WIDTH)}${row.override}`.trimEnd());
         continue;
       }
-      const cell = BoardView.#docCell(row.entry, row.line, nameWidth, row.mark);
+      const cell = BoardView.#docCell(
+        BoardView.#slotEntry(row.slot),
+        row.line,
+        nameWidth,
+        row.mark,
+      );
       lines.push(`  ${row.label.padEnd(LABEL_WIDTH)}${cell.text}`.trimEnd());
       blocked ||= cell.blocked;
     }
@@ -755,10 +914,12 @@ export class BoardView {
     // render, so a reader can tell a missing plan from a plan that does not read.
     const specAbsent = read.orphan()?.cause === "spec-absent";
     const degraded = specAbsent && !planIdentityClean ? null : read.degradedWaveRow(words);
+    // The wave segment is derived ONCE — the rendered rows and the `art:` projection's
+    // record set read the same lines (never a second derivation over the same read).
+    const waves = degraded === null ? BoardView.#waveLines(read, progress, ledger) : [];
     if (degraded !== null) {
       lines.push(`  ${"wave".padEnd(LABEL_WIDTH)}${degraded}`);
     } else {
-      const waves = BoardView.#waveLines(read, progress, ledger);
       if (waves.length === 0) {
         lines.push(`  ${"wave".padEnd(LABEL_WIDTH)}(none)`);
       } else {
@@ -782,8 +943,7 @@ export class BoardView {
     // (`Ledger#lineStateAt`, identity document = the plan): a drifted plan reopens the
     // branch face, so the mark can never print `✔ closed` while `next:` names the
     // review the gate accepts — the reopened line renders as the CURRENT face (`▶`).
-    const branchState =
-      ledger?.lineStateAt("branch", "branch", sources.plan?.path ?? null) ?? "open";
+    const branchState = ledger?.lineStateAt("branch", "branch", planEntry?.path ?? null) ?? "open";
     const branchMark =
       branchState === "closed"
         ? `${PROGRESS_MARKERS.done} closed`
@@ -794,6 +954,27 @@ export class BoardView {
     lines.push(
       `  ${"branch".padEnd(LABEL_WIDTH)}${branchMark}${branchRounds === "" ? "" : `  ${branchRounds}`}`.trimEnd(),
     );
+
+    // The `art:` fact block — the artifact inventory this node's rounds resolve to,
+    // rendered AFTER the line rows and BEFORE `next:` / `reason:` (the two last rows
+    // stay last, spec §2.6). A healthy tree adds zero bytes: only a `misplaced` /
+    // `invalid` judgment prints, and `--artifacts` alone opens the full inventory. The
+    // block never joins the tail counts — the findings axis and the artifact axis are
+    // two axes.
+    const artifactRows = BoardView.#artifactRows(
+      BoardView.#artifactScopes({
+        docLines: docRows.map((row) => row.line),
+        waves,
+        branchLine,
+        nodeSeat,
+        overallSeat,
+      }),
+      projection,
+    );
+    if (artifactRows.length > 0) {
+      lines.push("");
+      lines.push(...artifactRows);
+    }
 
     lines.push("");
     if (next === null) {
@@ -811,7 +992,14 @@ export class BoardView {
    *  never participates in next, spec §6.5). The phase set derives from the ONE
    *  index (`program:` grouping — no overall child-list array). A phase row's primary
    *  key is its `slug:`, annotated with the truncated `title:`; any overall/phase
-   *  violation renders its marker and exits 2 (spec §3.1 — zero silent fallback). */
+   *  violation renders its marker and exits 2 (spec §3.1 — zero silent fallback).
+   *
+   *  The `art:` projection is the SAME one the node board renders (spec §2.4 · §2.6):
+   *  the overall line is dispatched from the program workspace, so its own review
+   *  rounds are the rounds a docs-fix gate judges, and the board must show that
+   *  judgment before the dispatch. The scope binds the overall line to the program
+   *  seat — the seat this render already holds — and `--artifacts` therefore opens the
+   *  same inventory view here as on a node board (never a silent no-op). */
   static #programBoard(
     readTable: readonly PlanRead[],
     plan: PlanSource,
@@ -820,10 +1008,15 @@ export class BoardView {
     entry: DocEntry,
     root: RepoRoot,
     words: Words,
+    projection: ArtifactProjection,
   ): number {
     const repoRoot = root.absolute;
     const overallSlug = BoardView.#validSlug(entry);
-    const ledger = overallSlug === null ? null : BoardView.#ledgerOf(plan, overallSlug, repoRoot);
+    const seat =
+      overallSlug === null
+        ? null
+        : BoardView.#ledgerOf(plan, overallSlug, repoRoot, projection.registry);
+    const ledger = seat?.ledger ?? null;
     const overallLine = BoardView.#lineOf(
       "overall",
       "overall",
@@ -852,16 +1045,19 @@ export class BoardView {
       const read = readTable[pos];
       const phaseSlug = BoardView.#validSlug(phase);
       const phaseLedger =
-        phaseSlug === null ? null : BoardView.#ledgerOf(plan, phaseSlug, repoRoot);
+        phaseSlug === null
+          ? null
+          : BoardView.#ledgerOf(plan, phaseSlug, repoRoot, projection.registry).ledger;
       const phaseProgress = phaseLedger?.readProgress() ?? null;
       const specLine = BoardView.#lineOf("spec", "phase-spec", phase, phaseProgress, phaseLedger);
-      const planEntry = phaseSlug === null ? null : index.planOf(phaseSlug);
+      const planSlot = phaseSlug === null ? NO_DOC : BoardView.#docSlotOf(index, phaseSlug, "plan");
+      const planEntry = BoardView.#slotEntry(planSlot);
       const planLine = BoardView.#lineOf("plan", "plan", planEntry, phaseProgress, phaseLedger);
       const branchLine = BoardView.#roundsLine("branch", "branch", phaseProgress, phaseLedger);
       const mark =
         BoardView.#entryMark(index, phase, "identity") ??
         (BoardView.#programMissing(index, phase) ? MARK_PROGRAM_MISSING : null);
-      const planMark = BoardView.#entryMark(index, planEntry, "plan");
+      const planMark = BoardView.#slotMark(index, planSlot, "plan");
       blocked ||= mark !== null || planMark !== null;
       const status = mark ?? phase.status ?? "Pending";
       // The phase's wave summary token (spec §5.3): the wave segment's first wave
@@ -871,10 +1067,16 @@ export class BoardView {
       // `""` only for a true undeclared phase, and null hands the healthy cell back
       // to today's derivation.
       const waveCell = read.cell(words) ?? BoardView.#waveCellOf(read, phaseProgress, phaseLedger);
+      // The plan cell of a phase whose slug names TWO plans: the marker plus both
+      // paths, never the first plan's summary (spec §2.3 — a set is answered by a set).
+      const planCell =
+        planSlot.kind === "many"
+          ? [MARK_SLUG_DUPLICATED, planSlot.found.map((doc) => doc.rel).join(" · ")].join("   ")
+          : BoardView.summaryCell(planLine.rounds, planLine.carriers);
       const parts: string[] = [];
       const cells: Array<[string, string]> = [
         ["spec", BoardView.summaryCell(specLine.rounds, specLine.carriers)],
-        ["plan", BoardView.summaryCell(planLine.rounds, planLine.carriers)],
+        ["plan", planCell],
         ["wave", waveCell],
         ["branch", BoardView.summaryCell(branchLine.rounds, branchLine.carriers)],
       ];
@@ -884,6 +1086,18 @@ export class BoardView {
       lines.push(
         `  phase ${phase.slug ?? "(none)"}  ${status}${tail === "" ? "" : `   ${tail}`}${note === "" ? "" : `   title: ${note}`}`,
       );
+    }
+    // The `art:` fact block, after the phase rows and before the rows that stay last
+    // (spec §2.6). One scope: the overall line, bound to the program seat — a phase's
+    // rounds belong to the phase's own board, exactly as a node board reads the
+    // program line through the program seat alone.
+    const artifactRows = BoardView.#artifactRows(
+      seat === null ? [] : [{ lines: [overallLine], seat }],
+      projection,
+    );
+    if (artifactRows.length > 0) {
+      lines.push("");
+      lines.push(...artifactRows);
     }
     lines.push("");
     lines.push("  next:    done");
@@ -978,17 +1192,177 @@ export class BoardView {
     return { text: cells.join("   "), blocked: false };
   }
 
+  // -------------------------------------------------------------------------
+  // the artifact projection (spec §2.6) — the matrix's judgment as an `art:` fact row
+  // -------------------------------------------------------------------------
+
+  /** The `art:` projection's scopes — the node's own lines bound to the node seat and
+   *  the program's overall line bound to the program seat. The board OBSERVES names;
+   *  it never mints one: every observed round's carrier path comes from the ledger's
+   *  ONE accessor and every judgment from `ArtifactReads`. One record in, one scope set
+   *  out (the two seats are told apart by name, never by argument position). */
+  static #artifactScopes(input: {
+    readonly docLines: readonly BoardLine[];
+    readonly waves: readonly BoardLine[];
+    readonly branchLine: BoardLine;
+    readonly nodeSeat: LedgerSeat | null;
+    readonly overallSeat: LedgerSeat | null;
+  }): readonly ArtifactScope[] {
+    const scopes: ArtifactScope[] = [];
+    const overall = input.docLines[0];
+    if (input.overallSeat !== null && overall !== undefined) {
+      scopes.push({ lines: [overall], seat: input.overallSeat });
+    }
+    if (input.nodeSeat !== null) {
+      scopes.push({
+        lines: [...input.docLines.slice(1), ...input.waves, input.branchLine],
+        seat: input.nodeSeat,
+      });
+    }
+    return scopes;
+  }
+
+  /** The `art:` fact rows — one observed REVIEW round per record of each scope's lines,
+   *  in `(cycle, attempt)` order. The observed set is the record sequence, never the
+   *  workspace's name list: a `*.rulings.json` no record claims stays an `orphan:`
+   *  observation and never enters this block (one name, one face). The judgment is the
+   *  dispatch gate's own kind — `rulings` — read through the frame-free seam, so the
+   *  board composes nothing a gate would compose differently.
+   *
+   *  Default (no `--artifacts`): only the anomalous rounds render, so a healthy tree
+   *  adds zero bytes. `--artifacts` opens the whole inventory: one row per observed
+   *  round, one column per kind. */
+  static #artifactRows(
+    scopes: readonly ArtifactScope[],
+    projection: ArtifactProjection,
+  ): readonly string[] {
+    const artifacts = projection.registry;
+    if (artifacts === null) return [];
+    const reads = (seat: LedgerSeat): ArtifactReads => new ArtifactReads(artifacts, seat.workspace);
+    const observed = scopes.flatMap((scope) =>
+      BoardView.#observedOf(scope, artifacts, reads(scope.seat)),
+    );
+    observed.sort((left, right) => left.cycle - right.cycle || left.attempt - right.attempt);
+    return observed.flatMap((entry) => BoardView.#artifactBlockOf(entry, projection.showAll));
+  }
+
+  /** One scope's observed review rounds — the round records carrying a resolvable
+   *  carrier, each read through the seam. A tampered carrier (a digest mismatch) is the
+   *  `invalid` arm carrying the integrity message, never a thrown board. */
+  static #observedOf(
+    scope: ArtifactScope,
+    artifacts: ArtifactRegistry,
+    reads: ArtifactReads,
+  ): readonly ObservedArtifact[] {
+    const basis = scope.seat.workspace.root.basis;
+    const observed: ObservedArtifact[] = [];
+    for (const line of scope.lines) {
+      for (const record of line.rounds) {
+        if (record.op !== "review") continue;
+        const carrier = scope.seat.ledger.carrierPathOf(line.type, line.key, record);
+        if (carrier === "") continue;
+        observed.push({
+          line: BoardView.#artifactLineOf(artifacts, carrier, line.type),
+          kind: "rulings",
+          cycle: record.cycle,
+          attempt: record.attempt,
+          read: BoardView.#artifactReadOf(reads, carrier, record.carrierDigest ?? null),
+          relName: (name) => basis.relativize(scope.seat.workspace.resolve(name)),
+          relPath: (value) => basis.relativize(value),
+        });
+      }
+    }
+    return observed;
+  }
+
+  /** The observed round's line word — the carrier's OWN attributed identity (the
+   *  reviewed round), falling back to the rendering line's word for a name the matrix
+   *  cannot place. */
+  static #artifactLineOf(artifacts: ArtifactRegistry, carrier: string, fallback: string): string {
+    const attributed = artifacts.attribute(path.basename(carrier));
+    return attributed !== null && attributed.identity.domain === "round"
+      ? attributed.identity.line
+      : fallback;
+  }
+
+  /** One composed read, with the integrity refusal folded into the `invalid` arm: a
+   *  tampered carrier is a fact the board reports, never a crash of the read face. */
+  static #artifactReadOf(
+    reads: ArtifactReads,
+    carrier: string,
+    digest: string | null,
+  ): ArtifactReadOf {
+    try {
+      return reads.read("rulings", carrier, digest);
+    } catch (raw) {
+      if (!(raw instanceof CarrierMismatchError)) throw raw;
+      return { read: { kind: "invalid", path: "", reason: raw.message }, rulings: [] };
+    }
+  }
+
+  /** One observed round's `art:` block — the fact row plus its continuation lines. The
+   *  default face prints anomalies alone; `--artifacts` prints every observed round and
+   *  names its coordinate, so a troubleshooting view is one row per round while the
+   *  daily view keeps its bytes. */
+  static #artifactBlockOf(entry: ObservedArtifact, showAll: boolean): readonly string[] {
+    const read = entry.read.read;
+    const anomalous = read.kind === "misplaced" || read.kind === "invalid";
+    if (!showAll && !anomalous) return [];
+    const coordinate = showAll ? ` · c${entry.cycle}·a${entry.attempt}` : "";
+    const arm = anomalous ? `! ${read.kind}` : read.kind;
+    const header = `  ${"art:".padEnd(LABEL_WIDTH)}${entry.line} · ${entry.kind}${coordinate}   ${arm}`;
+    return [header, ...BoardView.#artifactFactsOf(entry, read)];
+  }
+
+  /** One `art:` block's continuation lines — the same facts the dispatch gate's
+   *  `derived:` / `found:` report prints, on the board's own 9-column continuation
+   *  shape. A healthy round carries none.
+   *
+   *  The labels come from `ARTIFACT_FACT_LABELS`, NOT from `Words#artifactIdentity`:
+   *  the two faces are two pinned contracts with different bytes — §2.4 fixes the
+   *  gate's rows as `  derived:  <value>` (colon, two-space column) while §2.6 fixes
+   *  the board's as `           derived  <value>` (no colon, the board's own
+   *  continuation column). Sharing a label source would force one contract's bytes
+   *  into the other; the words are therefore deliberately re-declared here once and
+   *  pinned by the board's byte assertions. */
+  static #artifactFactsOf(
+    entry: ObservedArtifact,
+    read: ArtifactReadOf["read"],
+  ): readonly string[] {
+    const labels = ARTIFACT_FACT_LABELS;
+    const value = (key: string, fact: string): string =>
+      `           ${key.padEnd(LABEL_WIDTH)}${fact}`;
+    if (read.kind === "misplaced") {
+      const found = read.found.map((name) => entry.relName(name)).join(" · ");
+      return [value(labels.derived, entry.relName(read.derived)), value(labels.found, found)];
+    }
+    if (read.kind === "invalid") {
+      const derived = read.path === "" ? [] : [value(labels.derived, entry.relPath(read.path))];
+      return [...derived, value(labels.reason, read.reason)];
+    }
+    return [];
+  }
+
   /** The node's ledger — the progress.json read face the render's closure/next
    *  derivation consumes (each node reads its OWN workspace). The plan read seam is
    *  the caller's per-command instance, threaded down unchanged: the board never
    *  mints a second `PlanSource`. */
-  static #ledgerOf(plan: PlanSource, nodeSlug: string, repoRoot: string): Ledger {
+  static #ledgerOf(
+    plan: PlanSource,
+    nodeSlug: string,
+    repoRoot: string,
+    artifacts: ArtifactRegistry | null = null,
+  ): LedgerSeat {
     const root = new WorkspaceRoot(repoRoot, ENGINE_RUNTIME.handoffNamespace.workspaceRoot);
-    return new Ledger(new Workspace(root, nodeSlug), new ConfigLoader(), plan);
+    // ONE workspace instance per node: the ledger resolves names inside it and the
+    // `art:` projection's read seam takes the SAME instance (`ArtifactReads` binds its
+    // base at construction), so a board never observes two spellings of one directory.
+    const workspace = new Workspace(root, nodeSlug);
+    return { ledger: new Ledger(workspace, new ConfigLoader(), plan, artifacts), workspace };
   }
 
-  /** pipelineFacts(read, plan, index, entry, root) — the board's FACTS about the
-   *  pipeline (spec §5.2): the node's ledger and the pipeline frontier's declared
+  /** pipelineFacts(read, plan, index, entry, root, projection) — the board's FACTS
+   *  about the pipeline (spec §5.2): the node's ledger and the pipeline frontier's declared
    *  input (the spec word and path, the plan path, the plan read). The board reports
    *  facts only — the per-face observations and the four face-order rules live in the
    *  session plane's `PipelineFrontier`. Null when the node holds no legal slug (no
@@ -997,7 +1371,7 @@ export class BoardView {
    *  `read` is the caller's ONE plan read (the same `PlanSource` instance): the
    *  frontier's graph input is the value's own `graph()`, and the declared `planPath`
    *  is that same value's `stationPath()` — the document the board read and the path
-   *  the frontier receives are ONE fact, with no fallback to `index.planOf(slug)`.
+   *  the frontier receives are ONE fact, with no fallback to a second plan lookup.
    *  The wave segment reads the same value through `#waveLines`; the board has no
    *  second plan read point. */
   static pipelineFacts(
@@ -1006,18 +1380,19 @@ export class BoardView {
     index: SlugIndex,
     entry: DocEntry,
     root: RepoRoot,
+    projection: ArtifactProjection = NO_ARTIFACTS,
   ): BoardPipelineFacts | null {
     const nodeSlug = BoardView.#validSlug(entry);
     if (nodeSlug === null) return null;
-    const ledger = BoardView.#ledgerOf(plan, nodeSlug, root.absolute);
+    const ledger = BoardView.#ledgerOf(plan, nodeSlug, root.absolute, projection.registry).ledger;
     const sources = BoardView.#nodeSources(index, entry);
-    const specPath = sources.spec?.path ?? null;
+    const specPath = BoardView.#slotEntry(sources.spec)?.path ?? null;
     // The path the frontier receives IS the path of the document this read opened —
     // never a second index-derived candidate that could name another file.
     const planPath = read.stationPath();
     // The identity line's OWN word — the document's DECLARED `doc-type:` — keys the
     // line and names the pipeline station (`single-spec` closes onto its `done` row).
-    const specType = BoardView.#lineWordOf(sources.spec);
+    const specType = BoardView.#lineWordOf(BoardView.#slotEntry(sources.spec));
     return {
       ledger,
       input: { specType, specPath, planPath, plan: read },
@@ -1040,21 +1415,19 @@ export class BoardView {
       rounds,
       carriers: LineCarriers.ofLedger(ledger, key, key, rounds),
       marker: null,
+      type: key,
+      key,
     };
   }
 
   /** The node's round RECORDS for one key — read through the ledger's ONE row lookup
-   *  (`Ledger.rowFor`: the retired `spec` row reads as the line its workspace DECLARES)
-   *  and the ONE record normalizer (`RoundRecords.of`, legacy forms folded); the
+   *  (`Ledger.rowFor`, literal: a retired `spec` row answers no document word) and the
+   *  ONE record normalizer (`RoundRecords.of`, legacy COUNT forms folded); the
    *  aggregation and the judgement glyphs read these records, never a pre-grouped cycle
    *  map. Failed rounds stay on the board (they consumed an identity slot); an absent row
    *  yields an empty list. */
-  static #rowRounds(
-    progress: ProgressData | null,
-    key: string,
-    identity: TargetType | null = null,
-  ): readonly RoundRecord[] {
-    const row = progress === null ? undefined : Ledger.rowFor(progress, key, identity);
+  static #rowRounds(progress: ProgressData | null, key: string): readonly RoundRecord[] {
+    const row = progress === null ? undefined : Ledger.rowFor(progress, key);
     return RoundRecords.of(row);
   }
 
@@ -1093,6 +1466,8 @@ export class BoardView {
         rounds,
         carriers: LineCarriers.ofLedger(ledger, "wave", key, rounds),
         marker,
+        type: "wave",
+        key,
       };
     });
   }
@@ -1112,22 +1487,28 @@ export class BoardNext {
   /** The board's ONE `NextHop` — null when the entry holds no legal slug (no
    *  workspace to observe), when the board is the program board (cross-phase never
    *  participates in next, spec §6.5), or when the plan read carries no evidence to
-   *  route on (spec §2.3): an `unreadable` plan and a `spec-absent` orphan
-   *  short-circuit to the existing hop-less shape (`  next:    (none)`, no `reason:`
-   *  row). The predicate is the SAME pair §2.3 uses, never a third condition;
-   *  `undeclared` is NOT in it ("spec written, no plan yet" is the standing
-   *  `kairos:cdd-plan` route) and `slug-absent` is not either (the identity channel
-   *  owns its exit code). */
+   *  route on (spec §2.3): an `unreadable` plan, a `spec-absent` orphan and the
+   *  `duplicated` set short-circuit to the existing hop-less shape (`  next:
+   *  (none)`, no `reason:` row). The predicate is the SAME pair §2.3 uses, never a
+   *  third condition; `undeclared` is NOT in it ("spec written, no plan yet" is the
+   *  standing `kairos:cdd-plan` route — and so is the undecided read, whose board
+   *  bytes are today's) and `slug-absent` is not either (the identity channel owns
+   *  its exit code). The duplicated set is not: two plans answer no single
+   *  document, so the plan route may not be printed (§2.7 (d)). */
   static of(
     read: PlanRead,
     plan: PlanSource,
     index: SlugIndex,
     entry: DocEntry,
     root: RepoRoot,
+    projection: ArtifactProjection = NO_ARTIFACTS,
   ): NextHop | null {
+    if (read.kind === "duplicated") return null;
     if (read.kind === "unreadable" || read.orphan()?.cause === "spec-absent") return null;
     const facts =
-      entry.docType === "overall" ? null : BoardView.pipelineFacts(read, plan, index, entry, root);
+      entry.docType === "overall"
+        ? null
+        : BoardView.pipelineFacts(read, plan, index, entry, root, projection);
     return facts === null ? null : BoardNext.#hopOf(facts, root);
   }
 

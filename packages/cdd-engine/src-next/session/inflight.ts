@@ -36,6 +36,7 @@ import lockfile from "proper-lockfile";
 import { AtomicWriter } from "../infra/atomic.ts";
 import { ProcessFacts } from "../infra/proc.ts";
 import type { WorkspaceRoot } from "../infra/workspace.ts";
+import { ArtifactRegistry } from "./round-artifacts.ts";
 
 /** One dispatch's in-flight record — the identity facts written before the spawn, plus
  *  the sampling trail the running dispatch overwrites. The identity fields never
@@ -125,8 +126,10 @@ export interface LivenessReader {
  */
 export class InFlight {
   /** The record's file name inside the workspace-root namespace — the tree-level
-   *  `.kairos/cdd/in-flight.json` under the default configuration. */
-  static readonly FILE = "in-flight.json";
+   *  `.kairos/cdd/in-flight.json` under the default configuration. The spelling lives
+   *  in the artifact matrix (`WorkspaceDomain`'s `in-flight` row); this constant is the
+   *  read face's answer, never a second home. */
+  static readonly FILE = ArtifactRegistry.nameOf("in-flight", null);
 
   /** The lock's stale window (ms) — a FINITE value larger than the longest dispatch
    *  budget (implement, 6 h). Finiteness is deliberate: `stale: Infinity` pushes the

@@ -19,13 +19,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import type { DocFs } from "../../contract/invariants.ts";
 import { Contract } from "../../contract/judge.ts";
 import type { DocKey } from "../../contract/project.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
-import { type PlanRead, PlanSource } from "../../infra/plan-source.ts";
+import type { PlanRead } from "../../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { targetFaces } from "../faces.ts";
@@ -90,22 +91,21 @@ const planReadOf = (repoRoot: string, blocks: readonly (readonly string[])[]): P
   const abs = path.join(repoRoot, rel);
   mkdirSync(path.dirname(abs), { recursive: true });
   writeFileSync(abs, planDoc(blocks), "utf8");
-  // The paired spec the read's reverse probe asks for (P35 §2.7): the fixture plan's
-  // slug is `x-p3`, so `docs/kairos/specs/x-p3-design.md` must exist or every
-  // plan-carrying face refuses the fixture as an orphan. The document declares its own
-  // slug — the probe only asks "is it there", never what it says.
+  // The paired identity document the read's reverse lookup asks for (§2.7): the
+  // fixture plan's slug is `x-p3`, so ONE spec must DECLARE that slug — the file name
+  // plays no part (identity is the declared `slug:`, never a `<slug>-design.md`).
   const specRel = "docs/kairos/specs/x-p3-design.md";
   const specAbs = path.join(repoRoot, specRel);
   mkdirSync(path.dirname(specAbs), { recursive: true });
-  writeFileSync(specAbs, "---\ntitle: S\ndoc-type: phase-spec\nslug: x-p3-design\n---\n", "utf8");
-  return new PlanSource(new RepoRoot(repoRoot)).readPath(rel);
+  writeFileSync(specAbs, "---\ntitle: S\ndoc-type: phase-spec\nslug: x-p3\n---\n", "utf8");
+  return planSourceOf(new RepoRoot(repoRoot)).readPath(rel);
 };
 
 /** The phase with no plan yet — the derived face over an entry that declares no
  *  slug, read for real (an absent derived path is `undeclared`; there is no
  *  `undeclared` factory to mint one). */
 const undeclaredPlanOf = (repoRoot: string): PlanRead =>
-  new PlanSource(new RepoRoot(repoRoot)).readFor({
+  planSourceOf(new RepoRoot(repoRoot)).readFor({
     path: path.join(repoRoot, "docs/kairos/specs/plan.md"),
     rel: "docs/kairos/specs/plan.md",
     docType: "plan",
@@ -283,7 +283,7 @@ const waveCtx = (
     new WorkspaceRoot(path.join(repoRoot, ".kairos", "cdd"), "session"),
     "preflight-slug",
   ).ensure();
-  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
   return {
     type: "wave",
     repoRoot,
@@ -302,7 +302,7 @@ const docCtx = (repoRoot: string, docKey: DocKey | null, _verb: CaseVerb): PreFl
     new WorkspaceRoot(path.join(repoRoot, ".kairos", "cdd"), "session"),
     "preflight-slug",
   ).ensure();
-  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
   return {
     type: docKey === "plan" ? "plan" : "phase-spec",
     repoRoot,
@@ -635,12 +635,12 @@ describe("PreFlight — the lifecycle dispatch-entry wiring (child zero dispatch
             "preflight-slug",
           ).ensure(),
           new ConfigLoader(),
-          new PlanSource(new RepoRoot(repoRoot)),
+          planSourceOf(new RepoRoot(repoRoot)),
         ),
         dispatch,
         target: { kind: "spec", doc: "docs/kairos/specs/x.md" },
         // No plan-bearing face on this frame: the `undeclared` read, never a null.
-        plan: new PlanSource(new RepoRoot(repoRoot)).readFor(null),
+        plan: planSourceOf(new RepoRoot(repoRoot)).readFor(null),
         preflight: { gate: () => blocked },
       });
       const step = await run.advance();
@@ -670,7 +670,7 @@ const branchCtx = (
     new WorkspaceRoot(path.join(repoRoot, ".kairos", "cdd"), "session"),
     "preflight-slug",
   ).ensure();
-  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
   seed(ledger);
   return {
     type: "branch",
@@ -1021,7 +1021,7 @@ const carrierCtx = (
     type,
     repoRoot,
     plan,
-    ledger: new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)),
+    ledger: new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis)),
     doc: null,
     inflight: inflightOf(repoRoot, false),
   };
@@ -1062,7 +1062,7 @@ const brokenPlanOf = (repoRoot: string): PlanRead => {
     ].join("\n"),
     "utf8",
   );
-  return new PlanSource(new RepoRoot(repoRoot)).readPath(rel);
+  return planSourceOf(new RepoRoot(repoRoot)).readPath(rel);
 };
 
 /** A readable plan whose slug names no `<slug>-design.md` — the `spec-absent` orphan
@@ -1099,7 +1099,7 @@ const orphanPlanOf = (repoRoot: string): PlanRead => {
     ].join("\n"),
     "utf8",
   );
-  return new PlanSource(new RepoRoot(repoRoot)).readPath(rel);
+  return planSourceOf(new RepoRoot(repoRoot)).readPath(rel);
 };
 
 describe("PreFlight — the plan-carrier refusal (the un-gated leg, P35 §2.3)", () => {
@@ -1155,8 +1155,11 @@ describe("PreFlight — the plan-carrier refusal (the un-gated leg, P35 §2.3)",
         const verdict = await preflightOf().vet(carrierCtx(repoRoot, type, plan));
         expect(verdict.ok).toBe(false);
         expect(verdict.reason).toBe("doc-contract");
+        // The diagnostic speaks the slug alone: the derived `<slug>-design.md` path is
+        // retired from every engine string, so no path fragment may appear here.
         expect(verdict.message).toContain("orphan-phase");
-        expect(verdict.message).toContain("docs/kairos/specs/orphan-phase-design.md");
+        expect(verdict.message).toContain("the slug names no identity document (index clean miss)");
+        expect(verdict.message).not.toContain("orphan-phase-design.md");
       }
     } finally {
       cleanup();
@@ -1166,7 +1169,7 @@ describe("PreFlight — the plan-carrier refusal (the un-gated leg, P35 §2.3)",
   it("never refuses a phase with no plan — `undeclared` is the normal forward gap", async () => {
     const { repoRoot, cleanup } = gitRepo();
     try {
-      const read = new PlanSource(new RepoRoot(repoRoot)).readFor(null);
+      const read = planSourceOf(new RepoRoot(repoRoot)).readFor(null);
       for (const type of CARRIER_FACES) {
         const verdict = await preflightOf().vet(carrierCtx(repoRoot, type, read));
         expect(verdict.ok).toBe(true);

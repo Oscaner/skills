@@ -18,6 +18,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { PlanDocType } from "../../contract/doc.ts";
 import { DocBodyProjection } from "../../contract/doc-body.ts";
 import { BoardNext, BoardView } from "../../face/board-view.ts";
@@ -26,7 +27,7 @@ import { ARGV_CHANNEL } from "../../face/declare.ts";
 import { RouteRenderer } from "../../face/route-render.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { type PlanRead, PlanSource } from "../../infra/plan-source.ts";
+import type { PlanRead } from "../../infra/plan-source.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
@@ -52,7 +53,7 @@ const fixture = (): {
 } => {
   const repo = mkdtempSync(path.join(tmpdir(), "run-"));
   const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "test-slug");
-  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
   return { ledger, workspace, repo, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
 };
 
@@ -130,15 +131,15 @@ const briefHash = (planPath: string, tasks: string): string => {
  *  never hand-minted: `PlanRead` has no factory). */
 const planReadOf = (repo: string, planPath: string | null): PlanRead =>
   planPath === null
-    ? new PlanSource(new RepoRoot(repo)).readFor(null)
-    : new PlanSource(new RepoRoot(repo)).readPath(planPath);
+    ? planSourceOf(new RepoRoot(repo)).readFor(null)
+    : planSourceOf(new RepoRoot(repo)).readPath(planPath);
 
 /** The plan value of a harness that dispatches no plan-bearing face — the
  *  `undeclared` read a `PlanSource` derives for a null identity (never a minted
  *  value: `PlanRead` has no factory). The constructor item is REQUIRED, so every
  *  harness states which plan it holds instead of silently dropping the brief hash
  *  and the plan snapshot. */
-const NO_PLAN: PlanRead = new PlanSource(new RepoRoot("/")).readFor(null);
+const NO_PLAN: PlanRead = planSourceOf(new RepoRoot("/")).readFor(null);
 const phasesOf = (steps: readonly StepResult[]): readonly (string | null)[] =>
   steps.map((step) => step.frame.phase);
 
@@ -792,12 +793,14 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
     }
   });
 
-  it("a migrated charter line books its next round on the legacy row — no forked twin", async () => {
+  it("a retired `spec` row no longer continues the charter line — the line starts its own history", async () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
-      // The pre-rename facts of a charter mid-flight: reviews 1-2 recorded, fix 1
-      // landed, and review 2 still carries an open blocker. Only the retired carriers
-      // exist — the round context and the criterion read them, the writes stay current.
+      // The pre-rename facts of a charter mid-flight stay on disk byte-for-byte: two
+      // reviews, one fix, an open blocker on review 2, and the carriers under the
+      // retired spelling. The retired row key is no longer a document word, so the
+      // line reads as having no rounds at all — its next round is a FRESH review, not a
+      // fix paired with the old row's cycle 2. Nothing is deleted or rewritten.
       ledger.writeProgress({
         ...ledger.emptyProgress(),
         waves: [{ wave: "spec", rounds: { review: [1, 2], fix: [1] } }],
@@ -817,19 +820,13 @@ describe("the spec/plan small loop — review → fix → re-review → closure"
         dispatch: dispatch.step,
         target: { kind: "spec", doc: DOC },
       });
-      const fix = await run.advance();
-      expect(fix!.frame.phase).toBe("fix");
-      // The fix pairs with review 2 — the numbering reads the retired row's cycles.
-      expect(fix!.frame.round).toBe(2);
-      // ONE row: the round booked where the line has always been.
-      expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec"]);
-      const reload = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
-      expect(reload.completedCycles("overall", "fix", "overall")).toEqual([1, 2]);
-      expect(fix!.route?.kind).toBe("review");
+      const first = await run.advance();
+      expect(first!.frame.phase).toBe("review");
+      expect(first!.frame.round).toBe(1);
+      // the frozen row is still exactly where history left it
+      expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec", "overall"]);
+      const reload = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+      expect(reload.completedCycles("overall", "review")).toEqual([1]);
     } finally {
       cleanup();
     }
@@ -1164,7 +1161,7 @@ describe("P24 §2 — a completed round advances the line's reviewed identity", 
         expect(run.peekNext()!.frame.phase).toBe("fix");
         // The baseline did not advance — it still names the reviewed content, not the
         // half-written fix.
-        const bound = ledger.reviewedDocRevisionOf(type, type)!;
+        const bound = ledger.reviewedDocRevisionOf(type)!;
         expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, original).doc_hash);
         expect(bound.doc_hash).not.toBe(ledger.refs().docRevision(doc, half).doc_hash);
       } finally {
@@ -1706,12 +1703,12 @@ describe("P21 T3 — the branch line binds its plan's doc-revision", () => {
       });
 
       await run.advance(); // branch-review → closed
-      const recorded = ledger.reviewedRevisionOf("branch", "branch");
+      const recorded = ledger.reviewedRevisionOf("branch");
       if (recorded?.kind !== "doc-revision") throw new Error("unreachable");
       // ONE read, one hash: the recorded identity IS the comparator's current side,
       // so an untouched plan cannot read as drifted, and a later edit moves the
       // current side alone.
-      const pair = ledger.docDriftHashes("branch", planPath, "branch");
+      const pair = ledger.docDriftHashes("branch", planPath);
       expect(pair).not.toBeNull();
       expect(pair!.line).toBe("plan.md");
       expect(pair!.recorded).toBe(recorded.doc_hash);
@@ -1747,8 +1744,8 @@ describe("P21 T3 — the branch line binds its plan's doc-revision", () => {
       expect(step?.frame.phase).toBe("branch-review");
       // The branch leg re-reads the judged plan through the ONE plan seam; a
       // non-ready read records no identity instead of inventing one.
-      expect(ledger.reviewedRevisionOf("branch", "branch")).toBeNull();
-      expect(ledger.docDriftHashes("branch", planPath, "branch")).toBeNull();
+      expect(ledger.reviewedRevisionOf("branch")).toBeNull();
+      expect(ledger.docDriftHashes("branch", planPath)).toBeNull();
     } finally {
       cleanup();
     }
@@ -1917,7 +1914,7 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
   } => {
     const repo = mkdtempSync(path.join(tmpdir(), "hop-parity-"));
     const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "x-p3").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+    const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
     const specPath = path.join(repo, DOC);
     mkdirSync(path.dirname(specPath), { recursive: true });
     writeFileSync(
@@ -1956,10 +1953,11 @@ describe("P24 T7 — the capsule's hop is the pipeline frontier's assembly", () 
    *  its own layout prefixes stripped. */
   const boardRows = (repo: string, slug: string): { next: string; reason: string } => {
     const index = SlugIndex.build(repo);
-    const entry = index.identityDoc(slug);
+    const entry =
+      index.docsOf(slug).find((doc) => doc.docType !== null && doc.docType !== "plan") ?? null;
     if (entry === null) throw new Error(`no identity doc for ${slug}`);
     const root = new RepoRoot(repo);
-    const planSource = new PlanSource(root);
+    const planSource = planSourceOf(root);
     // The board's ONE plan read, in the ordered table shape `Cli#runBoard` builds
     // (a single-document board is a table of length 1).
     const read = planSource.readFor(entry);
@@ -2249,12 +2247,12 @@ describe("P31 T6 — the write-back binds only bytes the round touched", () => {
   };
 
   /** The line's latest recorded round. */
-  const lastRecord = (ledger: Ledger) => ledger.recordsOf("phase-spec", "phase-spec").at(-1)!;
+  const lastRecord = (ledger: Ledger) => ledger.recordsOf("phase-spec").at(-1)!;
 
   it("`true` — the round's own bytes are bound and the line stays closed", async () => {
     const { ledger, doc, run, route, cleanup } = await review(true);
     try {
-      const bound = ledger.reviewedDocRevisionOf("phase-spec", "phase-spec")!;
+      const bound = ledger.reviewedDocRevisionOf("phase-spec")!;
       expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, REWRITTEN).doc_hash);
       expect(route).toEqual({ kind: "done" });
       expect(run.peekNext()).toBeNull();
@@ -2292,7 +2290,7 @@ describe("P31 T6 — the write-back binds only bytes the round touched", () => {
       const fixStep = await run.advance();
       expect(fixStep!.frame.phase).toBe("fix");
 
-      const bound = ledger.reviewedDocRevisionOf("phase-spec", "phase-spec")!;
+      const bound = ledger.reviewedDocRevisionOf("phase-spec")!;
       // The untouched claim keeps the pre-round bytes: the round did not deliver them.
       expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, ORIGINAL).doc_hash);
       expect(bound.doc_hash).not.toBe(ledger.refs().docRevision(doc, REWRITTEN).doc_hash);
@@ -2307,7 +2305,7 @@ describe("P31 T6 — the write-back binds only bytes the round touched", () => {
   it("`null` — the current bytes are bound and the round books ONE soft observation", async () => {
     const { ledger, doc, run, cleanup } = await review(null);
     try {
-      const bound = ledger.reviewedDocRevisionOf("phase-spec", "phase-spec")!;
+      const bound = ledger.reviewedDocRevisionOf("phase-spec")!;
       expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, REWRITTEN).doc_hash);
       const violations = lastRecord(ledger).violations;
       expect(violations).toHaveLength(1);
@@ -2324,7 +2322,7 @@ describe("P31 T6 — the write-back binds only bytes the round touched", () => {
   it("absent — the injected dispatcher keeps today's behaviour: bind current, no observation", async () => {
     const { ledger, doc, run, cleanup } = await review(undefined);
     try {
-      const bound = ledger.reviewedDocRevisionOf("phase-spec", "phase-spec")!;
+      const bound = ledger.reviewedDocRevisionOf("phase-spec")!;
       expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, REWRITTEN).doc_hash);
       expect(lastRecord(ledger).violations).toEqual([]);
       expect(run.peekNext()).toBeNull();
@@ -2378,18 +2376,18 @@ describe("P32 T1 — a review binds the bytes it judged, whatever it touched", (
       const run = line(doc, dispatch, ledger);
       const first = await run.advance();
       expect(first!.frame.phase).toBe("review");
-      expect(ledger.docLineVerdict("phase-spec", doc, "phase-spec")).toBe("same");
+      expect(ledger.docLineVerdict("phase-spec", doc)).toBe("same");
 
       // The edit lands OUTSIDE every round — the round never sees it as its own work.
       writeFileSync(doc, REWRITTEN);
-      expect(ledger.docLineVerdict("phase-spec", doc, "phase-spec")).toBe("drift");
+      expect(ledger.docLineVerdict("phase-spec", doc)).toBe("drift");
       expect(ledger.lineStateAt("phase-spec", "phase-spec", doc)).toBe("reopened");
 
       const second = await run.advance();
       expect(second!.frame.phase).toBe("review");
-      const bound = ledger.reviewedDocRevisionOf("phase-spec", "phase-spec")!;
+      const bound = ledger.reviewedDocRevisionOf("phase-spec")!;
       expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, REWRITTEN).doc_hash);
-      expect(ledger.docLineVerdict("phase-spec", doc, "phase-spec")).toBe("same");
+      expect(ledger.docLineVerdict("phase-spec", doc)).toBe("same");
       expect(ledger.reviewGate("phase-spec", doc, "phase-spec").kind).toBe("same");
       expect(ledger.lineStateAt("phase-spec", "phase-spec", doc)).toBe("closed");
 
@@ -2421,15 +2419,15 @@ describe("P32 T1 — a review binds the bytes it judged, whatever it touched", (
       expect(reviewStep!.frame.phase).toBe("review");
       // Today's regression: a judge round claiming "touched nothing" left the line
       // unbound, so the blocker-carrying conclusion left no identity behind.
-      const bound = ledger.reviewedDocRevisionOf("phase-spec", "phase-spec")!;
+      const bound = ledger.reviewedDocRevisionOf("phase-spec")!;
       expect(bound.doc_hash).toBe(ledger.refs().docRevision(doc, ORIGINAL).doc_hash);
-      expect(ledger.docLineVerdict("phase-spec", doc, "phase-spec")).toBe("same");
+      expect(ledger.docLineVerdict("phase-spec", doc)).toBe("same");
 
       const fixStep = await run.advance();
       expect(fixStep!.frame.phase).toBe("fix");
       // The fix-gated write-back keeps the review's bytes: the fix edit re-drifts and
       // the P24 fix→review chain is not narrowed.
-      expect(ledger.docLineVerdict("phase-spec", doc, "phase-spec")).toBe("drift");
+      expect(ledger.docLineVerdict("phase-spec", doc)).toBe("drift");
       expect(run.peekNext()!.frame.phase).toBe("review");
     } finally {
       cleanup();
@@ -2520,7 +2518,7 @@ describe("P31 T5 — the carrier-less failure face seals its own two names", () 
       ];
       expect(names.map((name) => modeOf(name))).toEqual([0o444, 0o444]);
       // The round is still recorded — the seal is bookkeeping, never a lost round.
-      expect(ledger.recordsOf("phase-spec", "phase-spec")).toHaveLength(1);
+      expect(ledger.recordsOf("phase-spec")).toHaveLength(1);
     } finally {
       cleanup();
     }

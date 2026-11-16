@@ -24,12 +24,13 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { Contract } from "../../contract/judge.ts";
 import { BoardNext, BoardView } from "../../face/board-view.ts";
 import { Words } from "../../face/words.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
-import { type PlanRead, PlanSource } from "../../infra/plan-source.ts";
+import type { PlanRead } from "../../infra/plan-source.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { SlugIndex } from "../../infra/slug-index.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
@@ -161,7 +162,7 @@ describe("P35 T7 — the board, the pre-flight graph and the frontier read ONE p
   /** The derived read of the phase's plan — the doc face's ONE read. */
   const derivedRead = (): PlanRead => {
     const index = SlugIndex.build(repo);
-    const source = new PlanSource(new RepoRoot(repo));
+    const source = planSourceOf(new RepoRoot(repo));
     const specEntry = index.entryAt(SPEC_REL);
     if (specEntry === null) throw new Error("fixture: the phase spec did not register");
     return source.readFor(specEntry);
@@ -171,7 +172,7 @@ describe("P35 T7 — the board, the pre-flight graph and the frontier read ONE p
    *  read table, the injected hop), so the wave rows are the board's own bytes. */
   const boardOf = (read: PlanRead): { lines: string[]; exitCode: number } => {
     const root = new RepoRoot(repo);
-    const source = new PlanSource(root);
+    const source = planSourceOf(root);
     const index = SlugIndex.build(repo);
     const entry = index.entryAt(SPEC_REL);
     if (entry === null) throw new Error("fixture: the phase spec did not register");
@@ -195,7 +196,7 @@ describe("P35 T7 — the board, the pre-flight graph and the frontier read ONE p
     new Ledger(
       new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), SLUG).ensure(),
       new ConfigLoader(),
-      new PlanSource(new RepoRoot(repo)),
+      planSourceOf(new RepoRoot(repo)),
     );
 
   /** Close the two doc lines (a zero-findings review each) so the wave face is the

@@ -1120,31 +1120,46 @@ const FIX_VALUES: Record<string, string> = {
   INPUT_REVIEWS: "/ws/tasks-1-review-1.json",
 };
 
-describe("P31 T2 — INPUT_RULINGS rides the fix input side alone", () => {
-  it("renders the sidecar line and its rulings body when the fix round carries one", () => {
+describe("P36 T9 — INPUT_RULINGS names a path, and both fix shells state the reading", () => {
+  it("renders the sidecar PATH alone — the ruling bodies stay in the file (§2.10)", () => {
     const out = new TemplateAssembler().render({
       ...FIX_VALUES,
-      INPUT_RULINGS: [
-        "/ws/tasks-1-review-1.rulings.json",
-        "  - `F1` — ACCEPTED, the guard lands in W2",
-        "  - `F2` — REJECTED as stated",
-      ].join("\n"),
+      INPUT_RULINGS: "/ws/tasks-1-review-1.rulings.json",
     });
     expect(out).toContain("- `INPUT_REVIEWS`: /ws/tasks-1-review-1.json");
     expect(out).toContain("- `INPUT_RULINGS`: /ws/tasks-1-review-1.rulings.json");
-    // The body rides the same bullet, indented below the path (§2.5 AC).
-    expect(out).toContain("  - `F1` — ACCEPTED, the guard lands in W2");
-    expect(out).toContain("  - `F2` — REJECTED as stated");
-    // The rendered position is adjacent to INPUT_REVIEWS — the pair reads as one input.
-    expect(out.indexOf("INPUT_RULINGS")).toBeGreaterThan(out.indexOf("INPUT_REVIEWS"));
+    // The value is a path; the template layer emits no continuation line of its own —
+    // the cell is ONE line, so the prompt tail's length never follows the ruling set.
+    expect(out.match(/^- `INPUT_RULINGS`: .*$/gm)).toHaveLength(1);
   });
 
-  it("emits no INPUT_RULINGS line on a fix round with no sidecar (the empty slot is dropped)", () => {
+  it("states the reading in both fix shells — one sentence, the same words", () => {
+    const fix = new TemplateAssembler().render(FIX_VALUES);
+    const docsFix = new TemplateAssembler().render({
+      ...ALL_VALUES,
+      ROLE: "docs-fix",
+      TARGET_TYPE: "phase-spec",
+      INPUT_SPEC: "docs/kairos/specs/p-design.md",
+      INPUT_REVIEWS: "/ws/p1-review-1.json",
+    });
+    for (const out of [fix, docsFix]) {
+      expect(out).toContain("read the orchestrator's ruling file named by `INPUT_RULINGS`");
+      expect(out).toContain("overrides that finding's own suggestion");
+      expect(out).toContain("the carrier itself is read-only, never rewritten");
+    }
+    // The sentence lives in the FIXED prefix, above `## Round context` — the reading is
+    // an instruction, the path is the fact.
+    expect(fix.indexOf("named by `INPUT_RULINGS`")).toBeLessThan(
+      fix.lastIndexOf("## Round context"),
+    );
+  });
+
+  it("emits no INPUT_RULINGS value line on a fix round with no sidecar (the empty slot is dropped)", () => {
     const out = new TemplateAssembler().render(FIX_VALUES);
-    expect(out).not.toContain("INPUT_RULINGS");
+    expect(out).not.toContain("- `INPUT_RULINGS`: ");
   });
 
-  it("emits no INPUT_RULINGS line on a review round (the sidecar does not exist yet)", () => {
+  it("emits no INPUT_RULINGS value line on a review round (the sidecar does not exist yet)", () => {
     const out = new TemplateAssembler().render({
       ...ALL_VALUES,
       ROLE: "review",
@@ -1152,6 +1167,6 @@ describe("P31 T2 — INPUT_RULINGS rides the fix input side alone", () => {
       INPUT_WAVE_BRIEF: "/ws/tasks-1-brief.md",
       INPUT_RULINGS: "/ws/tasks-1-review-1.rulings.json",
     });
-    expect(out).not.toContain("INPUT_RULINGS");
+    expect(out).not.toContain("- `INPUT_RULINGS`: ");
   });
 });

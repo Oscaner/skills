@@ -1,23 +1,31 @@
 // packages/cdd-engine/src-next/session/carrier-rulings.ts
 // P31 T2 — the orchestrator's RULINGS sidecar: the one supported landing point for a
 // ruling on an engine-persisted carrier (design spec §2.1/§2.6). The engine's carrier
-// bytes are frozen at persist time, so a ruling never edits them: it is written beside
-// the carrier at the same stem, `<carrier>.json` → `<carrier>.rulings.json`, and read
-// back through the strict schema below. The file is the orchestrator's; the judgment
-// is the engine's — a sidecar the schema refuses is a hard stop BEFORE the fix child is
-// spawned, so a written ruling can never be silently invisible to the round that
-// consumes it.
+// bytes are frozen at persist time, so a ruling never edits them: it is its own file,
+// rendered by the artifact matrix's `rulings` row from the REVIEWED round's identity
+// (P36 §2.10), and read back through the strict schema below. The file is the
+// orchestrator's; the judgment is the engine's — a sidecar the schema refuses is a hard
+// stop BEFORE the fix child is spawned, so a written ruling can never be silently
+// invisible to the round that consumes it.
 //
 // Two levels, both strict (unknown keys are refused, never ignored): the top level
 // carries `carrier` (optional; when present it must name the carrier file) and
-// `rulings` (required array); each ruling carries `finding` + `ruling` (both required
-// strings) and the optional `at` / `by`. A ruling's `finding` must name a finding of
-// the carrier it sits beside — the id set is the caller's fact, injected.
+// `rulings` (required array); each ruling carries ONE identifier — `finding`, or its
+// `id` alias, normalized to `finding` on the way in — plus `ruling` (both required
+// strings) and the optional `at` / `by`. A ruling's identifier must name a finding of
+// the carrier it answers — the id set is the caller's fact, injected.
+//
+// The sidecar PATH is not minted here: it is the artifact matrix's `rulings` row
+// rendered from the reviewed round's identity and resolved by the caller's workspace
+// (`render(identity, "rulings")`). Only the NAME is the matrix's; the `carrier` key's
+// comparison still reads the carrier's own basename, so neither direction of the
+// relationship is derived from the other side's string.
 //
 // The sidecar is NEVER sealed by the engine: only the engine's own carriers are.
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { ArtifactRegistry, type IdentifierVocabulary } from "./round-artifacts.ts";
 
 /** One recorded ruling — the finding it answers and the ruling's own text. */
 export interface Ruling {
@@ -40,8 +48,11 @@ export type RulingVerdict =
 /** The top-level keys the schema declares — anything else is refused. */
 const TOP_KEYS: ReadonlySet<string> = new Set(["carrier", "rulings"]);
 
-/** The keys one ruling declares — anything else is refused. */
-const RULING_KEYS: ReadonlySet<string> = new Set(["finding", "ruling", "at", "by"]);
+/** The ruling schema's NON-identifier fields — the verdict text and the orchestrator's
+ *  optional stamp. The identifier field is deliberately absent from this list: its
+ *  acceptance set is the artifact matrix's `rulings` row declaration alone (§2.8), so
+ *  `finding` / `id` are never enumerated a second time here. */
+const RULING_FIELDS: readonly string[] = ["ruling", "at", "by"];
 
 /** A parsed-but-not-yet-judged file: present facts only. */
 type ParsedSidecar =
@@ -49,57 +60,63 @@ type ParsedSidecar =
   | { readonly kind: "ok"; readonly value: unknown }
   | { readonly kind: "invalid"; readonly reason: string };
 
-/** CarrierRulings — the sidecar path rule, the lenient read and the strict judgment.
- *  Stateless: every call takes the carrier path (and, for the judgment, the carrier's
- *  own finding-id set), so the class holds no per-round state. */
+/** CarrierRulings — the lenient read and the strict judgment of a rulings sidecar.
+ *  Stateless: every call takes the sidecar's own path AND the carrier it answers (the
+ *  strict schema's `carrier` key speaks the carrier's fact; the id set is the caller's).
+ *  The path itself is the artifact matrix's render — this class never derives one. */
 // biome-ignore lint/complexity/noStaticOnlyClass: the plan-mandated sidecar read surface — the zero-bare-function discipline admits no standalone predicate functions.
 export class CarrierRulings {
-  /** The sidecar path of a carrier — its trailing `.json` replaced by `.rulings.json`
-   *  (a path that does not end in `.json` gains the suffix as-is, never a guess). */
-  static pathFor(carrierPath: string): string {
-    return carrierPath.endsWith(".json")
-      ? `${carrierPath.slice(0, -".json".length)}.rulings.json`
-      : `${carrierPath}.rulings.json`;
-  }
-
-  /** The sidecar's rulings as recorded — null when the file is absent, unparsable or
-   *  does not carry a rulings array. The lenient read is for callers that render a
-   *  ruling, never for the gate: the dispatch gate judges through `verdict`. */
-  static read(carrierPath: string): { readonly rulings: readonly Ruling[] } | null {
-    const parsed = CarrierRulings.#parse(CarrierRulings.pathFor(carrierPath));
+  /** The sidecar's rulings as recorded — null when the file is absent, unparsable, does
+   *  not carry a rulings array, or carries a `carrier` key naming another file. The
+   *  lenient side is the TOLERANCE of unknown keys / unknown finding ids; the carrier
+   *  fact is judged here too, so neither consumer can read a sidecar that answers a
+   *  different carrier. The dispatch gate judges through `verdict`; the read face that
+   *  renders the ruling bodies takes this one. */
+  static read(
+    sidecarPath: string,
+    carrierPath: string,
+  ): { readonly rulings: readonly Ruling[] } | null {
+    const parsed = CarrierRulings.#parse(sidecarPath);
     if (parsed.kind !== "ok") return null;
-    return CarrierRulings.#lenientRulings(parsed.value);
+    const record = CarrierRulings.#recordOf(parsed.value);
+    if (record === null) return null;
+    if (CarrierRulings.#carrierRefusal(record, carrierPath) !== null) return null;
+    return CarrierRulings.#lenientRulings(record);
   }
 
   /** The strict judgment — the fix dispatch's pre-spawn gate. `findingIds` is the
    *  carrier's own finding-id set: a ruling on a finding the carrier does not carry is
    *  refused, never carried into the round as a phantom. */
-  static verdict(carrierPath: string, findingIds: ReadonlySet<string>): RulingVerdict {
-    const sidecar = CarrierRulings.pathFor(carrierPath);
-    const parsed = CarrierRulings.#parse(sidecar);
+  static verdict(
+    sidecarPath: string,
+    carrierPath: string,
+    findingIds: ReadonlySet<string>,
+  ): RulingVerdict {
+    const parsed = CarrierRulings.#parse(sidecarPath);
     if (parsed.kind !== "ok") return parsed;
     const record = CarrierRulings.#recordOf(parsed.value);
     if (record === null) {
-      return CarrierRulings.#invalid(sidecar, "the sidecar is not a JSON object");
+      return CarrierRulings.#invalid(sidecarPath, "the sidecar is not a JSON object");
     }
     if (!CarrierRulings.#keysWithin(record, TOP_KEYS)) {
       return CarrierRulings.#invalid(
-        sidecar,
+        sidecarPath,
         `unknown top-level key(s) — the schema declares ${[...TOP_KEYS].join(" / ")}`,
       );
     }
     const carrierRefusal = CarrierRulings.#carrierRefusal(record, carrierPath);
-    if (carrierRefusal !== null) return CarrierRulings.#invalid(sidecar, carrierRefusal);
+    if (carrierRefusal !== null) return CarrierRulings.#invalid(sidecarPath, carrierRefusal);
     if (!("rulings" in record)) {
-      return CarrierRulings.#invalid(sidecar, "the sidecar carries no `rulings` array");
+      return CarrierRulings.#invalid(sidecarPath, "the sidecar carries no `rulings` array");
     }
     if (!Array.isArray(record.rulings)) {
-      return CarrierRulings.#invalid(sidecar, "`rulings` is not an array");
+      return CarrierRulings.#invalid(sidecarPath, "`rulings` is not an array");
     }
     const rulings: Ruling[] = [];
+    const vocabulary = CarrierRulings.#identifier();
     for (const [index, entry] of record.rulings.entries()) {
-      const ruling = CarrierRulings.#rulingOf(entry, index, findingIds);
-      if (typeof ruling === "string") return CarrierRulings.#invalid(sidecar, ruling);
+      const ruling = CarrierRulings.#rulingOf(entry, index, findingIds, vocabulary);
+      if (typeof ruling === "string") return CarrierRulings.#invalid(sidecarPath, ruling);
       rulings.push(ruling);
     }
     return { kind: "ok", rulings };
@@ -142,20 +159,30 @@ export class CarrierRulings {
     return null;
   }
 
-  /** One ruling entry — the narrowed record, or the refusal's reason string. */
+  /** One ruling entry — the narrowed record with its identifier NORMALIZED to the
+   *  canonical spelling, or the refusal's reason string. The accepted spellings are the
+   *  matrix row's declaration (`finding` · `id`), so a sidecar written either way is one
+   *  ruling, and an unknown key is still a whole-file refusal. */
   static #rulingOf(
     entry: unknown,
     index: number,
     findingIds: ReadonlySet<string>,
+    vocabulary: IdentifierVocabulary,
   ): Ruling | string {
     const record = CarrierRulings.#recordOf(entry);
     if (record === null) return `ruling #${index + 1} is not a JSON object`;
-    const unknown = Object.keys(record).filter((key) => !RULING_KEYS.has(key));
+    const declared = new Set([...vocabulary.accepts, ...RULING_FIELDS]);
+    const unknown = Object.keys(record).filter((key) => !declared.has(key));
     if (unknown.length > 0) {
       return `ruling #${index + 1} carries unknown key(s) — ${unknown.join(", ")}`;
     }
-    const { finding, ruling, at, by } = record;
-    if (typeof finding !== "string") return `ruling #${index + 1} carries no string \`finding\``;
+    const spelling = CarrierRulings.#identifierKeyOf(record, index, vocabulary);
+    if (typeof spelling !== "string") return spelling.reason;
+    const finding = record[spelling];
+    const { ruling, at, by } = record;
+    if (typeof finding !== "string") {
+      return `ruling #${index + 1} carries no string \`${vocabulary.canonical}\``;
+    }
     if (typeof ruling !== "string") return `ruling #${index + 1} carries no string \`ruling\``;
     if (at !== undefined && typeof at !== "string") {
       return `ruling #${index + 1} carries a non-string \`at\``;
@@ -174,16 +201,51 @@ export class CarrierRulings {
     };
   }
 
+  /** The identifier key ONE ruling carries — exactly one of the accepted spellings
+   *  (`finding` · `id`). None is a refusal naming the canonical spelling; two is an
+   *  ambiguity the schema settles by refusing the file, never by picking a winner. */
+  static #identifierKeyOf(
+    record: Record<string, unknown>,
+    index: number,
+    vocabulary: IdentifierVocabulary,
+  ): string | { readonly reason: string } {
+    const present = vocabulary.accepts.filter((key) => key in record);
+    if (present.length === 1) return present[0]!;
+    if (present.length === 0) {
+      return { reason: `ruling #${index + 1} carries no string \`${vocabulary.canonical}\`` };
+    }
+    return {
+      reason: `ruling #${index + 1} carries both ${present.map((key) => `\`${key}\``).join(" and ")} — one identifier per ruling`,
+    };
+  }
+
+  /** The `rulings` row's identifier vocabulary — the matrix's OWN declaration (§2.8).
+   *  A matrix that lost the row refuses loudly here: a second hand-written acceptance
+   *  set is exactly the double expression this consumes away. */
+  static #identifier(): IdentifierVocabulary {
+    const declared = ArtifactRegistry.identifierOf("rulings");
+    if (declared === null) {
+      throw new Error("the artifact matrix's `rulings` row declares no identifier vocabulary");
+    }
+    return declared;
+  }
+
   /** The lenient rulings read — null unless every entry carries the two required
-   *  strings (an unknown key is tolerated here; the strict gate owns that refusal). */
+   *  strings (an unknown key is tolerated here; the strict gate owns that refusal). The
+   *  identifier is read through the SAME acceptance set, so both faces accept `id` and
+   *  both hand back the canonical `finding`. */
   static #lenientRulings(value: unknown): { readonly rulings: readonly Ruling[] } | null {
     const record = CarrierRulings.#recordOf(value);
     if (record === null || !Array.isArray(record.rulings)) return null;
+    const vocabulary = CarrierRulings.#identifier();
     const rulings: Ruling[] = [];
     for (const entry of record.rulings) {
       const row = CarrierRulings.#recordOf(entry);
       if (row === null) return null;
-      const { finding, ruling, at, by } = row;
+      const spelling = CarrierRulings.#identifierKeyOf(row, rulings.length, vocabulary);
+      if (typeof spelling !== "string") return null;
+      const finding = row[spelling];
+      const { ruling, at, by } = row;
       if (typeof finding !== "string" || typeof ruling !== "string") return null;
       rulings.push({
         finding,

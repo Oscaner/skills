@@ -74,6 +74,7 @@ flowchart TD
 | I1 | **Review Convergence** — a review closes by its conclusion (APPROVED / CHANGES_REQUESTED / REVIEW_FIX); the loop advances by the engine's `next:` face, never by orchestrator guesswork. A mid-backfill or a user adjudication that lands governs over the suggestion (current world state wins). Fixes always dispatch via the fix round; the orchestrator must not edit in place as a substitute; a fix commit opens a new review, never a re-run of a closed one |
 | I2 | **Spec commit discipline** — the authored spec commits before the first review round; each fix round commits its own changes — approval closes the loop on a committed state; do not wait for dev merge |
 | I3 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band; a backfill rewriting the current task's own plan/spec text routes through the orchestrator's plan write authority |
+| I4 | **Ruling Landing** — when a fix dispatch needs a ruling on a finding, the ruling lands at the sidecar path the engine prints in `next:`; the orchestrator never derives that path itself |
 
 ## Failure Modes
 

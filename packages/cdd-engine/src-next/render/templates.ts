@@ -200,6 +200,13 @@ const IMPLEMENT_SHELL: readonly string[] = [
   ...SCHEMA_SECTION,
 ];
 
+/** The fix face's ONE rulings reading instruction (spec §2.10) — the fixed prefix
+ *  names where the orchestrator's rulings live and what they outrank; the SIDECAR PATH
+ *  itself rides the round context (`INPUT_RULINGS`), never this sentence. Both fix
+ *  shells carry the same words: one reading, one meaning. */
+const RULINGS_READING =
+  "**Rulings:** read the orchestrator's ruling file named by `INPUT_RULINGS` before touching a finding — each ruling answers one finding id and overrides that finding's own suggestion (`REJECTED` = do not adopt that finding's fix); the carrier itself is read-only, never rewritten.";
+
 /** The fix row's fixed prefix — header + instructions + the shared work tail. */
 const FIX_TYPED_INSTRUCTIONS: readonly string[] = [
   "**Verify-then-apply:** verify each finding against the codebase's actual state before changing anything — apply a finding only when it is technically sound; a finding that does not hold up stays open with a note (never blind adoption). Apply findings one at a time and test each one before moving on.",
@@ -217,6 +224,7 @@ const FIX_SHELL: readonly string[] = [
   ...FIX_TYPED_INSTRUCTIONS,
   "**fix:** read `INPUT_REVIEWS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_PLAN` on the branch line — the plan document; `INPUT_SPEC` on the branch line — the design spec, a conformance reference, never the judged document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_REVIEWS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   '**Dispositions:** every requested finding needs a disposition keyed by its `id` exactly as the requesting carrier prints it (`F1`, `F2`, … — the summary is description only), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` — a missing or mis-keyed disposition fails the round.',
+  RULINGS_READING,
   EVIDENCE_ITEM,
   ...LICENSE_ITEMS,
   // T5 (v0.3) — The work plane's ONE strict-schema sentence: every top-level draft
@@ -244,6 +252,7 @@ const DOCS_FIX_SHELL: readonly string[] = [
   "**Table cells:** never hard-wrap a table cell — a wrapped continuation parses as a row whose cell count disagrees with the header, and the lineage row it was meant to be stops registering.",
   "**Escaped pipes:** a `## Change history` summary cell that needs a literal vertical bar carries `\\|` — a bare `|` splits the cell in two and the row stops matching the declared header.",
   '**Dispositions:** every requested finding needs a disposition keyed by its `id` exactly as the requesting carrier prints it (`F1`, `F2`, … — the summary is description only), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` — a missing or mis-keyed disposition fails the round.',
+  RULINGS_READING,
   ...LICENSE_ITEMS,
   // The generic strict-schema sentence — the SAME one the work shells carry: the
   // injected declaration is the draft's single field source, zero per-mode field
@@ -515,8 +524,10 @@ const TOKENS: readonly TemplateToken[] = [
   { name: "INPUT_SPEC", zone: "round-context" },
   { name: "INPUT_OVERALL", zone: "round-context" },
   { name: "INPUT_REVIEWS", zone: "round-context" },
-  // P31 — the fix round's ruling sidecar (the source carrier's `.rulings.json`
-  // sibling); a review writes its own draft, so its round context never carries it.
+  // P31 — the fix round's ruling sidecar; the path is the matrix's `rulings` row
+  // rendered from the REVIEWED round's identity (P36 §2.10), so it moves with that
+  // cycle, never with the carrier's own spelling. A review writes its own draft, so its
+  // round context never carries it.
   { name: "INPUT_RULINGS", zone: "round-context" },
   { name: "INPUT_WAVE_BRIEF", zone: "round-context" },
   // find #5 — the prescribed artifact write paths (the {family}-{key}-{artifact}

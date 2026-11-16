@@ -14,6 +14,13 @@
 //   ⑮ SKILL path literal ↔ ENGINE_RUNTIME — the `docs/kairos/…` and `.kairos/cdd`
 //      literals a SKILL names must match the engine's declared doc roots / workspace
 //      segment (a renamed root fails here, never silently drifting).
+//   ⑯ ruling landing sentence — the three orchestrators that dispatch a fix round each
+//      carry the landing instruction at their own invariant table tail, and the sentence
+//      is ONE sentence: the three land at the same engineered path, so three slightly
+//      different instructions would be three different contracts.
+//   ⑰ sidecar file-name literal — the landing instruction points at the path the engine
+//      prints, never at a file name the orchestrator would have to derive; a literal
+//      spelling in shipped prose teaches the second expression we retired.
 
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -120,6 +127,79 @@ test("⑮ every SKILL doc-root / workspace literal matches ENGINE_RUNTIME", () =
         `${path.relative(SKILLS_DIR, file)} names the path literal ${literal}, which no ENGINE_RUNTIME doc root / workspace segment covers`,
       ).toBe(true);
     }
+  }
+});
+
+/** Every `.md` file in one skill's optional `docs/` directory (absent ⇒ no files). */
+const docsOf = (docsDir: string): string[] => {
+  try {
+    return readdirSync(docsDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+      .map((entry) => path.join(docsDir, entry.name));
+  } catch {
+    return [];
+  }
+};
+
+/** Every shipped skill `docs/*.md` companion, sorted (`docs/` is optional per skill). */
+const skillDocsFiles = (): string[] => {
+  const files: string[] = [];
+  for (const dir of readdirSync(SKILLS_DIR, { withFileTypes: true })) {
+    if (dir.isDirectory()) files.push(...docsOf(path.join(SKILLS_DIR, dir.name, "docs")));
+  }
+  return files.sort();
+};
+
+/** Every shipped skill prose file — the SKILL.md roster plus its doc companions. */
+const skillProseFiles = (): string[] => [...skillFiles(), ...skillDocsFiles()].sort();
+
+/** The invariant row the ruling landing instruction sits at, per skill. The row id is
+ *  fixed where the instruction became a contract; it is the table's tail there, so only a
+ *  renumbering of that table can lose it. */
+const RULING_LANDING_ROWS: Record<string, string> = {
+  "cdd-dev": "I6",
+  "cdd-plan": "I5",
+  "cdd-spec-writer": "I4",
+};
+
+/** The `| I<n> | body |` rows of a document, keyed by row id (the invariant table shape). */
+const invariantRowsOf = (text: string): Map<string, string> => {
+  const rows = new Map<string, string>();
+  for (const match of text.matchAll(/^\|\s*(I\d+)\s*\|(.+)\|\s*$/gm)) {
+    rows.set(match[1]!, match[2]!.trim());
+  }
+  return rows;
+};
+
+test("⑯ the ruling landing instruction is ONE sentence across the three orchestrators", () => {
+  const bodies = new Map<string, string>();
+  for (const [skill, row] of Object.entries(RULING_LANDING_ROWS)) {
+    const rows = invariantRowsOf(readFileSync(path.join(SKILLS_DIR, skill, "SKILL.md"), "utf8"));
+    const body = rows.get(row);
+    expect(
+      body,
+      `${skill}/SKILL.md carries no ${row} invariant row — the ruling landing instruction is missing`,
+    ).toBeTruthy();
+    bodies.set(skill, body!);
+  }
+  const [leadSkill, leadBody] = [...bodies.entries()][0]!;
+  for (const [skill, body] of bodies) {
+    expect(
+      body,
+      `${skill}/SKILL.md's ${RULING_LANDING_ROWS[skill]} sentence drifted from ${leadSkill}/SKILL.md's — one landing path, one sentence`,
+    ).toBe(leadBody);
+  }
+});
+
+test("⑰ shipped skill prose carries zero sidecar file-name literal", () => {
+  // The instruction says WHERE the ruling goes by naming the path the engine prints in
+  // `next:` — a file-name literal here would restore the derivation the engine retired.
+  for (const file of skillProseFiles()) {
+    const text = readFileSync(file, "utf8");
+    expect(
+      text.includes(".rulings.json"),
+      `${path.relative(SKILLS_DIR, file)} spells the sidecar artifact file name — the landing instruction points at the printed path, never at a name to derive`,
+    ).toBe(false);
   }
 });
 

@@ -18,7 +18,12 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { ArtifactRegistry } from "../../session/round-artifacts.ts";
 import { CarrierSeal } from "../carrier-seal.ts";
+
+/** The matrix every sweep is handed — the `sealed` column's ONLY answer (§2.5). A
+ *  sweep without one seals nothing (pinned in `round-artifacts.test.ts`). */
+const MATRIX = new ArtifactRegistry();
 
 /** The permission bits of one path (the group/other/sticky bits are noise here). */
 const modeOf = (target: string): number => statSync(target).mode & 0o777;
@@ -80,16 +85,23 @@ describe("CarrierSeal.sweep — the orphan recovery of one workspace", () => {
     "tasks-1-review-2-report.md": "report\n",
     "tasks-1-review-2.log": "log\n",
     "crash-tasks-1-review-2.json": '{"cause":"child-exit"}\n',
-    "tasks-1-review.json": "{}\n",
-    "tasks-1-fix.json": "{}\n",
   };
+
+  it("seals a cycle-less `draft` name too — the matrix renders it, so the sweep owns it", () => {
+    const dir = directoryOf({
+      "tasks-1-review.json": "{}\n",
+      "tasks-1-fix.json": "{}\n",
+    });
+    const sealed = CarrierSeal.sweep(dir, [], MATRIX);
+    expect([...sealed].sort()).toEqual(["tasks-1-fix.json", "tasks-1-review.json"]);
+  });
 
   it("seals a writable draft and a writable final — the recovery's own names", () => {
     const dir = directoryOf({
       "tasks-1-review-2.json": '{"findings":[]}\n',
       "tasks-1-review-2.c2.json": '{"findings":[]}\n',
     });
-    const sealed = CarrierSeal.sweep(dir, []);
+    const sealed = CarrierSeal.sweep(dir, [], MATRIX);
     expect([...sealed].sort()).toEqual(["tasks-1-review-2.c2.json", "tasks-1-review-2.json"]);
     expect(modeOf(path.join(dir, "tasks-1-review-2.json"))).toBe(0o444);
     expect(modeOf(path.join(dir, "tasks-1-review-2.c2.json"))).toBe(0o444);
@@ -103,7 +115,7 @@ describe("CarrierSeal.sweep — the orphan recovery of one workspace", () => {
     const sealedAlready = path.join(dir, "overall-review-2.c2.json");
     CarrierSeal.seal(sealedAlready);
     const before = statSync(sealedAlready).mtimeMs;
-    const sealed = CarrierSeal.sweep(dir, []);
+    const sealed = CarrierSeal.sweep(dir, [], MATRIX);
     // Only the reopened carrier is returned; the sealed one is zero churn.
     expect([...sealed]).toEqual(["overall-review-1.c1.json"]);
     expect(modeOf(path.join(dir, "overall-review-1.c1.json"))).toBe(0o444);
@@ -113,13 +125,13 @@ describe("CarrierSeal.sweep — the orphan recovery of one workspace", () => {
 
   it("is a no-op on a second sweep — an empty return IS the nothing-to-do fact", () => {
     const dir = directoryOf({ "plan-fix-1.json": "{}\n" });
-    expect([...CarrierSeal.sweep(dir, [])]).toEqual(["plan-fix-1.json"]);
-    expect(CarrierSeal.sweep(dir, [])).toEqual([]);
+    expect([...CarrierSeal.sweep(dir, [], MATRIX)]).toEqual(["plan-fix-1.json"]);
+    expect(CarrierSeal.sweep(dir, [], MATRIX)).toEqual([]);
   });
 
   it("never touches a non-carrier JSON, a sidecar, a report or a crash record — mode and bytes", () => {
     const dir = directoryOf(NEIGHBOURS);
-    const sealed = CarrierSeal.sweep(dir, []);
+    const sealed = CarrierSeal.sweep(dir, [], MATRIX);
     expect(sealed).toEqual([]);
     for (const [name, body] of Object.entries(NEIGHBOURS)) {
       const target = path.join(dir, name);
@@ -133,14 +145,16 @@ describe("CarrierSeal.sweep — the orphan recovery of one workspace", () => {
       "tasks-1-review-2.json": "{}\n",
       "tasks-1-review-2.c2.json": "{}\n",
     });
-    const sealed = CarrierSeal.sweep(dir, ["tasks-1-review-2.json"]);
+    const sealed = CarrierSeal.sweep(dir, ["tasks-1-review-2.json"], MATRIX);
     expect([...sealed]).toEqual(["tasks-1-review-2.c2.json"]);
     expect(modeOf(path.join(dir, "tasks-1-review-2.json"))).toBe(0o644);
     expect(modeOf(path.join(dir, "tasks-1-review-2.c2.json"))).toBe(0o444);
   });
 
   it("treats an unreadable directory as no orphans at all", () => {
-    expect(CarrierSeal.sweep(path.join(tmpdir(), "cdd-never-created-dir", "nope"), [])).toEqual([]);
+    expect(
+      CarrierSeal.sweep(path.join(tmpdir(), "cdd-never-created-dir", "nope"), [], MATRIX),
+    ).toEqual([]);
   });
 
   it("recognizes both carrier shapes across the line families and nothing else", () => {
@@ -159,7 +173,7 @@ describe("CarrierSeal.sweep — the orphan recovery of one workspace", () => {
     const dir = directoryOf(Object.fromEntries(minted.map((name) => [name, "{}\n"])));
     // An external chmod is what makes a stale carrier an orphan (a sealed one is not).
     for (const name of minted) chmodSync(path.join(dir, name), 0o644);
-    const sealed = CarrierSeal.sweep(dir, []);
+    const sealed = CarrierSeal.sweep(dir, [], MATRIX);
     expect([...sealed].sort()).toEqual([...minted].sort());
   });
 });

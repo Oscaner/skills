@@ -78,15 +78,15 @@ import {
 } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
 import { HoldingError, InFlight } from "../session/inflight.ts";
-import type { RoundStatus } from "../session/ledger.ts";
-import { Ledger } from "../session/ledger.ts";
+import { Ledger, type RoundStatus } from "../session/ledger.ts";
 import { NextStepRouter } from "../session/next.ts";
 import type { PipelineFrontierInput } from "../session/pipeline.ts";
 import { PreFlight, type PreFlightVerdict } from "../session/preflight.ts";
+import { ArtifactRegistry } from "../session/round-artifacts.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { CliArtifacts } from "./artifacts.ts";
-import { BoardNext, BoardView } from "./board-view.ts";
+import { type ArtifactProjection, BoardNext, BoardView } from "./board-view.ts";
 import { Capsule } from "./capsule.ts";
 import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import { CliGate } from "./gate.ts";
@@ -138,6 +138,10 @@ export interface CliOptions {
   initRunner?: StepRunner;
   /** The `cdd init` synchronous header writer (tests collect the lines). */
   initHeader?: (line: string) => void;
+  /** The artifact matrix the command preamble hands to every read face (tests inject a
+   *  recording registry to pin the single-instance wiring). Absent = the composition
+   *  root mints the invocation's ONE instance. */
+  artifacts?: ArtifactRegistry;
 }
 
 /** One work command's assembled scene — the composition the run body advances. The
@@ -266,6 +270,19 @@ export class Cli {
   /** The pure-command domain (T8 — the split contract's artifacts face,
    *  face/artifacts.ts): the schema/issue/base run bodies. */
   readonly #artifacts: CliArtifacts;
+  /** The artifact matrix of this invocation — constructed ONCE per command and handed
+   *  down to the scene's ledger / router / lifecycle, the board's node ledgers and the
+   *  seal sweep. It binds no workspace (the matrix is naming knowledge; the workspace is
+   *  the read-time coordinate), so ONE instance serves every node a command observes.
+   *  The doc domain answers through the command's identity index, which is bound ONTO
+   *  this instance at `#indexOf` — the same object, never a second registry. */
+  readonly #matrix: ArtifactRegistry;
+  /** The command's ONE identity index — built once per repo root at `#indexOf`, so no
+   *  two read faces of a command scan the doc roots twice. */
+  #index: SlugIndex | null = null;
+  /** The repo root `#index` was built over — the memo's key (a Cli may serve several
+   *  commands, and a fixture several repos). */
+  #indexRoot: string | null = null;
   /** The harness plugin bootstrap (P20 — face/init.ts): the repo-independent
    *  install/update sequence face. */
   readonly #init: CliInit;
@@ -305,11 +322,16 @@ export class Cli {
       });
     this.#authority = opts.authority ?? new DispatchAuthority();
     this.#gate = new CliGate({ brief: this.#brief, authority: this.#authority });
+    // The invocation's ONE matrix — the command preamble's construction point. The
+    // declared domain is bound onto this same instance at `#indexOf` (an injected one
+    // included), so no face ever holds a registry the doc reads do not answer through.
+    this.#matrix = opts.artifacts ?? new ArtifactRegistry();
     this.#artifacts = new CliArtifacts({
       io: this.#io,
       projector: this.#projector,
       issue: this.#issue,
       stdinRead: this.#stdinRead,
+      matrix: this.#matrix,
       usage: (node, message) => this.#usage(node, message),
     });
     // The synchronous writer — the step header must land before the spawned
@@ -342,6 +364,12 @@ export class Cli {
   async runArgv(raw: readonly string[]): Promise<number> {
     try {
       this.#exitCode = 0;
+      // One COMMAND, one index: the memo below serves a single invocation (its two
+      // call points — the command preamble and the scene — must read one snapshot),
+      // and the next invocation re-scans. A memo carried across commands would answer
+      // from a snapshot taken before the documents this command writes or observes.
+      this.#index = null;
+      this.#indexRoot = null;
       await this.#program.parseAsync([...raw], { from: "user" });
       return this.#exitCode;
     } catch (err) {
@@ -461,6 +489,21 @@ export class Cli {
     });
   }
 
+  /** The command's ONE identity index — the doc-domain binding point. `board` · the
+   *  scene assembly · `base` each call this once, and a second call inside one command
+   *  reuses the memo (a command never scans the doc roots twice). The matrix's declared
+   *  domain is bound onto the SAME registry instance here — the base face, the ledgers,
+   *  the lifecycle and the board all keep holding it, so a doc read can not fall on a
+   *  table that never learned the index. */
+  #indexOf(repoRoot: string): SlugIndex {
+    if (this.#index !== null && this.#indexRoot === repoRoot) return this.#index;
+    const index = SlugIndex.build(repoRoot);
+    this.#index = index;
+    this.#indexRoot = repoRoot;
+    this.#matrix.bindDocIndex(index);
+    return index;
+  }
+
   /** `cdd board --plan <path> / --spec <path>` — the entry document's progress board
    *  (spec §3.1): a PURE READ — zero preflight gate, zero tree writes, zero ledger
    *  writes, zero child dispatch. At least one path flag is required (missing →
@@ -480,10 +523,6 @@ export class Cli {
     const repoRoot = await this.#rootOf();
     if (repoRoot === null) return 1;
     const root = new RepoRoot(repoRoot);
-    // The board's plan read seam — ONE instance per command, threaded down the
-    // static render chain (the board's ledgers read their brief revisions through
-    // it; a node workspace never mints its own).
-    const planSource = new PlanSource(root);
     const planRel = planArg === undefined ? null : this.#relativizePath(root, planArg);
     const specRel = specArg === undefined ? null : this.#relativizePath(root, specArg);
     // The not-found face reads ZERO documents (spec §3.1): a path outside the two
@@ -500,6 +539,15 @@ export class Cli {
         planMissing ? `--plan ${planArg}` : null,
         specMissing ? `--spec ${specArg}` : null,
       ]);
+    // The command's ONE identity index — built BEFORE the read seam, which is handed
+    // it: the plan read asks the same scan the board renders from (a second index
+    // would be a second snapshot of the disk, and §2.7's "clean surface" answer must
+    // describe the one the board names).
+    const index = this.#indexOf(repoRoot);
+    // The board's plan read seam — ONE instance per command, threaded down the
+    // static render chain (the board's ledgers read their brief revisions through
+    // it; a node workspace never mints its own).
+    const planSource = new PlanSource(root, index);
     // ② the read (spec §2.4): ONLY a solo `--plan` reads X's bytes. When `--spec` is
     // present the board's value comes from `readFor(specEntry)` (§2.1: `--spec` wins),
     // so X's bytes are never opened — its `--plan` duties stay the ① existence probe
@@ -509,7 +557,6 @@ export class Cli {
     const soloPlanRead = specRel === null && planRel !== null ? planSource.readPath(planRel) : null;
     if (soloPlanRead !== null && soloPlanRead.failure()?.cause === "io")
       return this.#boardCannotRead(`--plan ${planArg}`);
-    const index = SlugIndex.build(repoRoot);
     const planEntry = planRel === null ? null : index.entryAt(planRel);
     const specEntry = specRel === null ? null : index.entryAt(specRel);
     const unmatched = [
@@ -536,10 +583,16 @@ export class Cli {
     const host = HostDetect.detect(process.env);
     // The in-flight fact is TREE-level: the board inspects it (read-only — the gate
     // and the board share `InFlight.inspect()`, never a second liveness judgment).
-    const inflight = new InFlight(
-      new WorkspaceRoot(repoRoot, this.#config.handoffNamespace().workspaceRoot),
-      entry.slug ?? "",
+    const workspaceRoot = new WorkspaceRoot(
+      repoRoot,
+      this.#config.handoffNamespace().workspaceRoot,
     );
+    // The board's ONE matrix instance — the invocation's registry, the same table the
+    // node ledgers and the seal sweep read, so the board renders facts and holds no
+    // name rule of its own. Each node ledger resolves against ITS OWN workspace (the
+    // registry carries no directory), so a parent row never reads a child's names.
+    const artifacts = this.#matrix;
+    const inflight = new InFlight(workspaceRoot, entry.slug ?? "");
     // The board's `next:` line renders ONE injected `NextHop` (P22 §5.2 · P24 §11):
     // the pipeline FACTS come from the board face, and the ONE hop assembly (the four
     // face-order rules + the six hop cells) lives in the session plane's
@@ -552,7 +605,15 @@ export class Cli {
     // otherwise).
     const readTable = this.#boardReadTable(planSource, index, entry, soloPlanRead);
     const read = readTable[0] ?? planSource.readFor(entry);
-    const next = BoardNext.of(read, planSource, index, entry, root);
+    // The board's artifact observation is ONE value: the matrix seam plus the
+    // `--artifacts` switch. Both the hop assembly and the render read it, so the
+    // board can never print a `next:` computed against one registry and an `art:`
+    // block read through another.
+    const projection: ArtifactProjection = {
+      registry: artifacts,
+      showAll: parsed.args.artifacts === "true",
+    };
+    const next = BoardNext.of(read, planSource, index, entry, root, projection);
     // The read's own diagnostics (spec §2.4): stderr, one line per bad read, printed
     // BEFORE the board. `warnLine` answers null for a healthy plan and for the normal
     // `undeclared` gap, so the line count is exactly (bad plans + `spec-absent`
@@ -572,6 +633,7 @@ export class Cli {
       ARGV_CHANNEL,
       await inflight.inspect(),
       next,
+      projection,
     );
     for (const line of board.lines) this.#io.stdout(`${line}\n`);
     return board.exitCode;
@@ -697,14 +759,19 @@ export class Cli {
     const repoRoot = await this.#rootOf();
     if (repoRoot === null) return 1;
     const root = new RepoRoot(repoRoot);
+    // The identity index FIRST: the plan read seam below is handed THIS scan, so the
+    // phase's plan row, the same-slug spec link and the phase list all speak one
+    // snapshot of the doc roots.
+    const index = this.#indexOf(repoRoot);
     // The plan read seam — ONE instance per command, built here in the command
-    // preamble (the repo root exists now; `Cli.create` runs before it does) and
-    // passed down as a parameter: the scene, the pre-flight context and the ledger
-    // all read their plan through this ONE seam.
-    const planSource = new PlanSource(root);
+    // preamble (the repo root and the index exist now; `Cli.create` runs before they
+    // do) and passed down as a parameter: the scene, the pre-flight context and the
+    // ledger all read their plan through this ONE seam.
+    const planSource = new PlanSource(root, index);
     const parsed = this.#funnel(root, raw);
-    const scene = await this.#sceneOf(verb, type, node, root, planSource, parsed);
-    if (scene === null) return 1;
+    const assembled = await this.#sceneOf(verb, type, node, root, planSource, parsed);
+    if (assembled === null) return 1;
+    const { scene, artifacts } = assembled;
 
     // THE pre-flight seam (P4.1 T1 · design §1): the STRUCTURE gates —
     // tree-clean → in-flight → graph → plan-ledger → doc-contract — ONE call, the
@@ -791,7 +858,7 @@ export class Cli {
       !parsed.dryRun &&
       parsed.args.recover === "true" &&
       this.#authority.structureRefusal(preflight) === null
-        ? await this.#recoverRun(verb, type, scene, parsed, inflight)
+        ? await this.#recoverRun(verb, type, scene, parsed, inflight, artifacts)
         : null;
     if (recovery !== null && recovery.kind === "blocked") {
       this.#io.stderr(`${this.#words.station("blocked")} ${recovery.message}\n`);
@@ -874,7 +941,12 @@ export class Cli {
       scene.briefPath = this.#gate.renderBrief(scene, parsed, text, doc);
     }
     const statuses: (RoundStatus | null)[] = [];
-    const dispatch: DispatchStep = await this.#dispatchOf(scene, parsed, recovery?.harness ?? null);
+    const { step: dispatch, harness } = await this.#dispatchOf(
+      scene,
+      parsed,
+      recovery?.harness ?? null,
+      artifacts,
+    );
     const run = new Lifecycle({
       face: scene.face,
       state: scene.state,
@@ -944,7 +1016,17 @@ export class Cli {
       // derivation), and the early return means no write point below ever runs
       // (`renderBrief` skipped above, `#bookkeep`/`#reject` never reached).
       if (parsed.dryRun) {
-        for (const line of new Preview({ scene }).render(verb, frame)) this.#io.stdout(`${line}\n`);
+        // The artifact-identity gate is a PURE read (the matrix's names + the strict
+        // sidecar schema), so the preview asks the SAME judgment the real dispatch
+        // applies and prints its reason verbatim — a dry run that stayed silent here
+        // would forecast a dispatch the real run refuses.
+        const refused = harness === null ? null : harness.artifactRefusal(frame);
+        const preview = new Preview({ scene, words: this.#words });
+        if (refused !== null) {
+          for (const line of preview.artifactBlock(verb, refused)) this.#io.stdout(`${line}\n`);
+          return 1;
+        }
+        for (const line of preview.render(verb, frame)) this.#io.stdout(`${line}\n`);
         return 0;
       }
       // The gate→acquire race: another dispatch took the lock between the in-flight
@@ -1016,17 +1098,23 @@ export class Cli {
   async #dispatchOf(
     scene: WorkScene,
     parsed: RunInput,
-    recovered: CliLifecycle | null = null,
-  ): Promise<DispatchStep> {
-    if (this.#dispatch !== null) return this.#dispatch;
-    const harness = recovered ?? this.#lifecycleOf(scene, parsed);
+    recovered: CliLifecycle | null,
+    artifacts: ArtifactRegistry,
+  ): Promise<{ step: DispatchStep; harness: CliLifecycle | null }> {
+    if (this.#dispatch !== null) return { step: this.#dispatch, harness: null };
+    const harness = recovered ?? this.#lifecycleOf(scene, parsed, artifacts);
     // The abort fold already ran at the composition root's `--recover` judgment
     // (`#recoverRun`) when a harness was handed in; the injected/default face keeps
     // its own fold here, so the takeover always precedes this dispatch's own record.
     if (recovered === null && !parsed.dryRun && parsed.args.recover === "true") {
       await harness.foldAbort();
     }
-    return harness.step();
+    // The harness itself rides back so the `--dry-run` branch can ask it the
+    // artifact-identity gate's PURE read (the same judgment `step()` applies), and
+    // the preview can print the real run's refusal instead of forecasting a dispatch
+    // it would refuse. The injected `#dispatch` seam has no harness — a hermetic
+    // caller already replaced the whole dispatch, so there is no gate to ask.
+    return { step: harness.step(), harness };
   }
 
   /** The `--recover` judgment (spec §2.1①–③) — the two legs, judged in order and
@@ -1048,8 +1136,9 @@ export class Cli {
     scene: WorkScene,
     parsed: RunInput,
     inflight: InFlight,
+    artifacts: ArtifactRegistry,
   ): Promise<RecoverRun> {
-    const harness = this.#lifecycleOf(scene, parsed);
+    const harness = this.#lifecycleOf(scene, parsed, artifacts);
     const stale = (await inflight.staleState()) !== null;
     if (stale) await harness.foldAbort();
     const reopened = await this.#reopenLeg(verb, type, scene, inflight);
@@ -1078,19 +1167,19 @@ export class Cli {
     const ledger = scene.ledger;
     if (ledger.reviewGate(identity.key, identity.doc, type).kind !== "open") return false;
     if (!ledger.pendingFix(identity.key, type)) return false;
-    const completed = ledger.completedCycles(identity.key, "review", type);
+    const completed = ledger.completedCycles(identity.key, "review");
     if (completed.length === 0) return false;
     // The next review cycle is the latest completed review's + 1 — allocated BEFORE
     // the stamp lands (the spec's fixed action order), and it is exactly the cycle the
     // following dispatch allocates (the register's cycle count is unchanged by a stamp).
     const latest = Math.max(...completed);
-    return ledger.supersedeReview(identity.key, type, latest, latest + 1);
+    return ledger.supersedeReview(identity.key, latest, latest + 1);
   }
 
   /** The invocation's lifecycle harness — the production dispatch face, held by the
    *  composition root so the abort fold can ride the SAME instance that dispatches
    *  (the takeover precedes the stamp, spec §2.1④). */
-  #lifecycleOf(scene: WorkScene, parsed: RunInput): CliLifecycle {
+  #lifecycleOf(scene: WorkScene, parsed: RunInput, artifacts: ArtifactRegistry): CliLifecycle {
     return new CliLifecycle({
       env: process.env,
       sync: this.#sync,
@@ -1111,6 +1200,8 @@ export class Cli {
       // The explicit takeover flag (`--recover`): the ONLY path that displaces a
       // standing in-flight record — and only when its holder is dead.
       recover: parsed.args.recover === "true",
+      // The same matrix instance the scene's ledger and router hold.
+      artifacts,
     });
   }
 
@@ -1119,7 +1210,8 @@ export class Cli {
    *  writes). "" when the artifact is absent or malformed (the slot stays empty and
    *  the assembler drops it — the wave/branch review then judges the live tree). */
   #baseBranchOf(scene: WorkScene): string {
-    const read = scene.workspace.readJson<{ base?: unknown }>("base.json");
+    const name = this.#matrix.render({ domain: "workspace", tasks: null }, "base");
+    const read = scene.workspace.readJson<{ base?: unknown }>(name);
     const artifact = read.kind === "ok" ? read.value : null;
     return typeof artifact?.base === "string" ? artifact.base : "";
   }
@@ -1228,7 +1320,7 @@ export class Cli {
     root: RepoRoot,
     planSource: PlanSource,
     parsed: RunInput,
-  ): Promise<WorkScene | null> {
+  ): Promise<{ scene: WorkScene; artifacts: ArtifactRegistry } | null> {
     const config = this.#config;
     const face = targetFaces[type];
     const repoRoot = root.absolute;
@@ -1246,13 +1338,16 @@ export class Cli {
     // The identity index — the ONE slug judgment (spec §2.1/§2.2). The workspace
     // key is the target document's declared `slug:`; the same index supplies the
     // same-slug spec link and the duplicate gates.
-    const index = SlugIndex.build(repoRoot);
+    const index = this.#indexOf(repoRoot);
 
     let slug: string;
     let plan: PlanRead;
     let specLink: string | null = null;
     let overallLink: string | null = null;
     let target: WorkScene["target"] = null;
+    /** The slug's declared identity document, when the face looks one up — the plan
+     *  and branch lines carry it as the round context's spec anchor. */
+    let specDoc: DocEntry | null = null;
     switch (type) {
       case "wave": {
         if (planPath === null || planRel === null)
@@ -1297,26 +1392,25 @@ export class Cli {
       case "branch": {
         // The plan-doc seam (shared by the plan + branch lines): the target plan
         // must exist (a required fact for both — the branch review/fix faces carry
-        // `--plan`), its text is read ONCE, and the same-slug identity document
-        // (the index's `identityDoc` — never a path scalar) supplies the round
-        // context's extra read input. The link is rebased to repoRoot-relative
-        // (D46 · T3) so every round-context path token speaks ONE basis (the child
-        // is spawned at cwd = repoRoot). The plan review judges the plan doc; the
-        // branch line carries no commit identity (the audit target is the branch
-        // itself, its workspace identity is the plan path, and the review's scope
-        // anchor BASE_BRANCH is engine-injected from the base artifact) — both
-        // faces carry the plan + its same-slug spec anchor.
+        // `--plan`), its text is read ONCE, and the same-slug identity document (the
+        // index's SET answer — never a path scalar) supplies the round context's
+        // extra read input. Its PATH is read through the doc domain after the
+        // workspace exists (below), so the path and the identity come from one read.
+        // The plan review judges the plan doc; the branch line carries no commit
+        // identity (the audit target is the branch itself, its workspace identity is
+        // the plan path, and the review's scope anchor BASE_BRANCH is engine-injected
+        // from the base artifact) — both faces carry the plan + its same-slug spec
+        // anchor.
         if (planPath === null || planRel === null)
           this.#usage(node, `cdd ${verb} --type ${type}: missing required --plan <path>`);
         plan = this.#argvPlanOf(node, planSource, planRel);
         const resolved = this.#targetSlug(index, planRel, plan);
         if (resolved === null) return null;
         slug = resolved;
-        const specEntry = index.identityDoc(slug);
-        specLink = specEntry === null ? null : root.relativize(specEntry.path);
+        specDoc = this.#specDocOf(index, slug);
         // The plan/branch line reads the same-slug identity document's `program:` —
         // the parent charter (INPUT_OVERALL) the reviewer judges the plan against.
-        const overallEntry = specEntry?.program == null ? null : index.overallOf(specEntry.program);
+        const overallEntry = specDoc?.program == null ? null : index.overallOf(specDoc.program);
         overallLink = overallEntry === null ? null : root.relativize(overallEntry.path);
         target = type === "plan" ? { kind: "plan", doc: planPath } : { kind: "branch" };
         break;
@@ -1330,41 +1424,68 @@ export class Cli {
     // normalization is the ONE heal path, covering `base.json` alongside
     // `progress.json` (a second healing point is gone).
     const workspace = new Workspace(rootPath, slug);
-    const ledger = new Ledger(workspace, config, planSource);
+    // The artifact matrix — the invocation's ONE instance (the command preamble's),
+    // handed down: the ledger, the router, the lifecycle's seal sweep and the board all
+    // read the same table, so no face can spell an artifact name of its own.
+    const artifacts = this.#matrix;
+    const ledger = new Ledger(workspace, config, planSource, artifacts);
     // The run state degrades to the empty state on a non-ready plan: the scene is
     // assembled BEFORE the pre-flight verdict, and the refusal leg (Task 4's
     // doc-contract leg) stops the dispatch before any `state` consumer runs. No
     // try/catch: the read has already happened, so assembly has no throw point.
     const graph = plan.graph();
     const state: RunState = type === "wave" && graph !== null ? graph : EMPTY_RUN_STATE;
+    // The identity document the pipeline frontier names — the plan/branch faces already
+    // looked it up; the wave and doc-target faces look it up from their own slug.
+    specDoc ??= this.#specDocOf(index, slug);
+    // ONE read of that document, through the doc domain: a duplicated identity
+    // (`invalid(found)`) supplies NO path — the slug carrier has already refused that
+    // shape, so this face never picks a first document to hand downstream.
+    const identityRead =
+      specDoc === null || specDoc.docType === null
+        ? null
+        : artifacts.read(
+            { domain: "doc", slug, docType: specDoc.docType },
+            specDoc.docType,
+            workspace,
+          );
+    const identityPath = identityRead?.kind === "ok" ? identityRead.path : null;
+    // The spec link is the SAME read's path rebased to repoRoot-relative (D46 · T3), so
+    // every round-context path token speaks ONE basis (the child spawns at cwd = the
+    // repo root) and the anchor and the frontier can never name two documents.
+    if (type === "plan" || type === "branch") {
+      specLink = identityPath === null ? null : root.relativize(identityPath);
+    }
     // The pipeline frontier's four declared cells (§11) — the composition root's ONE
-    // collection point. The identity word + path come from the document index (never
-    // the argv `--type` spelling): every non-plan declared document owns the identity
-    // slot, so `phase-spec` / `single-spec` / `overall` all reach the same assembly.
-    // The plan path is the read value's OWN frontier path (`stationPath()`): a
-    // command has ONE plan path carrier, so the authority's verdict and this line's
+    // collection point. The identity word + path come from the document index's read
+    // (never the argv `--type` spelling): every non-plan declared document owns the
+    // identity slot, so `phase-spec` / `single-spec` / `overall` all reach the same
+    // assembly. The plan path is the read value's OWN frontier path (`stationPath()`):
+    // a command has ONE plan path carrier, so the authority's verdict and this line's
     // hop can never name two different documents.
-    const identity = index.identityDoc(slug);
     const pipeline: PipelineFrontierInput = {
-      specType: identity?.docType ?? null,
-      specPath: identity?.path ?? null,
+      specType: specDoc?.docType ?? null,
+      specPath: identityPath,
       planPath: plan.stationPath(),
       plan,
     };
     return {
-      workspace,
-      ledger,
-      planPath,
-      plan,
-      type,
-      face,
-      target,
-      state,
-      router: new NextStepRouter(),
-      pipeline,
-      briefPath: null,
-      specLink,
-      overallLink,
+      scene: {
+        workspace,
+        ledger,
+        planPath,
+        plan,
+        type,
+        face,
+        target,
+        state,
+        router: new NextStepRouter(artifacts),
+        pipeline,
+        briefPath: null,
+        specLink,
+        overallLink,
+      },
+      artifacts,
     };
   }
 
@@ -1377,6 +1498,18 @@ export class Cli {
     const plan = planSource.readPath(rel);
     if (plan.failure()?.cause === "io") this.#usage(node, `cannot read file: ${rel}`);
     return plan;
+  }
+
+  /** The slug's declared identity document — the sole index entry of an identity class
+   *  (`null` when the slug names none, or when it carries two: an ambiguous set is the
+   *  doc domain `read`'s refusal, and this face never picks a first). The returned
+   *  entry supplies the declared `docType:` and `program:`; its PATH comes from the doc
+   *  domain's read, so a filename is never an identity. */
+  #specDocOf(index: SlugIndex, slug: string): DocEntry | null {
+    const docs = index
+      .docsOf(slug)
+      .filter((entry) => entry.docType !== null && entry.docType !== "plan");
+    return docs.length === 1 ? docs[0]! : null;
   }
 
   /** The plan-carrier target's workspace key (the wave / plan / branch lines) — the
@@ -1588,7 +1721,7 @@ export class Cli {
     // so a missing / illegal / duplicated slug or an unreadable target stops HERE:
     // CDD_BLOCKED + exit 1 (never a filename-derived key).
     const slug = this.#targetSlugText(
-      SlugIndex.build(repoRoot),
+      this.#indexOf(repoRoot),
       planPath,
       this.#readTarget(root, planPath),
     );

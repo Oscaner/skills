@@ -27,8 +27,8 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { PlanSource } from "../../infra/plan-source.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../carrier-integrity.ts";
 import {
@@ -39,6 +39,7 @@ import {
   RoundRecords,
   RoundViolation,
 } from "../ledger.ts";
+import { ArtifactRegistry } from "../round-artifacts.ts";
 import { RoundNaming } from "../round-naming.ts";
 import type { OpenFrame } from "../run.ts";
 
@@ -49,7 +50,14 @@ const fixture = (): { ledger: Ledger; workspace: Workspace; cleanup: () => void 
     new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
     "test-slug",
   );
-  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  // The matrix the orphan face asks for every name's (identity, kind). It is the
+  // command's ONE registry; a ledger without one answers no orphan at all (§2.5).
+  const ledger = new Ledger(
+    workspace,
+    new ConfigLoader(),
+    planSourceOf(workspace.root.basis),
+    new ArtifactRegistry(),
+  );
   return { ledger, workspace, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
 };
 
@@ -102,167 +110,76 @@ describe("progress — the fixed key set", () => {
     }
   });
 
-  it("a retired `spec`-keyed row reads as the phase-spec line (`spec` ⇒ `phase-spec`, never rewritten)", () => {
+  it("a retired `spec`-keyed row is no longer any document line — the row reads absent, the bytes stay frozen", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
-      // A row recorded under the retired spelling — the legacy round-shape map included.
+      // The pre-`phase-spec` spelling is HISTORY: the row keeps its bytes on disk, but
+      // the engine no longer reads it as a document line. The board shows the missing
+      // row and the old carriers land on the orphan observation face — the narrow
+      // "history stays readable" promise is retired, "history is never rewritten" holds.
       ledger.writeProgress({
         ...ledger.emptyProgress(),
         waves: [{ wave: "spec", rounds: { review: [1, 2, 3], fix: [2, 3] } }],
       });
-      expect(ledger.roundCount("phase-spec", "review")).toBe(3);
-      expect(ledger.roundCount("phase-spec", "fix")).toBe(2);
-      expect(ledger.roundRecorded("phase-spec", "review", 3)).toBe(true);
-      expect(ledger.completedCycles("phase-spec", "review")).toEqual([1, 2, 3]);
-      // The alias is read-time only: a new round lands on that SAME row and the stored
-      // key stays byte-frozen (history is never rewritten).
+      expect(ledger.roundCount("phase-spec", "review")).toBe(0);
+      expect(ledger.roundRecorded("phase-spec", "review", 1)).toBe(false);
+      expect(ledger.completedCycles("phase-spec", "review")).toEqual([]);
+      expect(ledger.recordsOf("phase-spec")).toEqual([]);
+      // the lookup is LITERAL: the frozen row still answers its own key, and the
+      // document word answers nothing
+      expect(Ledger.rowFor(ledger.readProgress()!, "spec")?.wave).toBe("spec");
+      expect(Ledger.rowFor(ledger.readProgress()!, "phase-spec")).toBeUndefined();
+      expect(Ledger.rowFor(ledger.readProgress()!, "overall")).toBeUndefined();
+      expect(Ledger.rowFor(ledger.readProgress()!, "single-spec")).toBeUndefined();
+      // a new round lands on a NEW row — the retired row is never adopted
       ledger.recordRound("phase-spec", { op: "review" });
-      expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec"]);
-      const reload = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
-      expect(reload.roundCount("phase-spec", "review")).toBe(4);
+      expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec", "phase-spec"]);
+      const reload = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+      expect(reload.roundCount("phase-spec", "review")).toBe(1);
     } finally {
       cleanup();
     }
   });
 
-  it("a retired `spec` row reads as the line its workspace DECLARES (`overall` / `single-spec` included)", () => {
-    const { ledger, cleanup } = fixture();
-    try {
-      // One identity document per workspace, so the retired `spec` row is exactly that
-      // document's line — the declaration names which line word reads it. Without a
-      // declared word the legacy default (the `phase-spec` line) is the only alias.
-      const data = {
-        ...ledger.emptyProgress(),
-        waves: [{ wave: "spec", rounds: { review: [1, 2] } }],
-      };
-      expect(Ledger.rowFor(data, "overall", "overall")?.wave).toBe("spec");
-      expect(Ledger.rowFor(data, "single-spec", "single-spec")?.wave).toBe("spec");
-      expect(Ledger.rowFor(data, "phase-spec", "phase-spec")?.wave).toBe("spec");
-      expect(Ledger.rowFor(data, "phase-spec")?.wave).toBe("spec");
-      // A library row of another word is never this row: the declaration gates it.
-      expect(Ledger.rowFor(data, "overall", "phase-spec")).toBeUndefined();
-      expect(Ledger.rowFor(data, "single-spec", "overall")).toBeUndefined();
-      expect(Ledger.rowFor(data, "overall")).toBeUndefined();
-      expect(Ledger.rowFor(data, "plan", "plan")).toBeUndefined();
-    } finally {
-      cleanup();
-    }
-  });
-
-  it("a charter's retired carrier still closes its `overall` line — the alias follows the declared word", () => {
+  it("a retired `spec-review-1.json` carrier is an orphan observation — never a resolved name", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
-      // The same pre-rename facts on a charter: the row under `spec`, the review
-      // carrier under `spec-review-1.json`. The line word is `overall`, so both read
-      // aliases resolve it while every WRITE keeps the current spelling.
       ledger.writeProgress({
         ...ledger.emptyProgress(),
         waves: [{ wave: "spec", rounds: { review: [1] } }],
       });
-      workspace.writeJson("spec-review-1.json", { artifacts: {} });
-      expect(ledger.lineClosed("overall", "overall")).toBe(true);
-      expect(ledger.lineRoute("overall", "overall")).toBeNull();
-      expect(ledger.handoffName("review", "overall", { round: 1 })).toBe("overall-review-1.json");
-    } finally {
-      cleanup();
-    }
-  });
-
-  it("a round recorded under the retired carrier name still closes the phase-spec line", () => {
-    const { ledger, workspace, cleanup } = fixture();
-    try {
-      // The pre-unification facts of a closed phase-spec line: the row under `spec`,
-      // the review carrier under `spec-review-1.json` — a clean review (zero findings).
-      ledger.writeProgress({
-        ...ledger.emptyProgress(),
-        waves: [{ wave: "spec", rounds: { review: [1] } }],
-      });
-      workspace.writeJson("spec-review-1.json", { artifacts: {} });
-      expect(ledger.lineClosed("phase-spec", "phase-spec")).toBe(true);
-      expect(ledger.lineRoute("phase-spec", "phase-spec")).toBeNull();
-      // The alias never mints a carrier: the retired name is read, never written.
-      expect(ledger.handoffName("review", "phase-spec", { round: 1 })).toBe(
+      workspace.writeJson("spec-review-1.json", { findings: [] });
+      // the read ladder answers the canonical spelling alone: the retired name is no
+      // alias any more, and the canonical twin was never minted
+      expect(ledger.resolveHandoffName("review", "phase-spec", { round: 1 })).toBe(
         "phase-spec-review-1.json",
       );
+      expect(ledger.readHandoff("review", "phase-spec", { round: 1 })).toBeNull();
+      // outside the matrix ⇒ the (i) tier: visible, never blocking
+      expect(ledger.orphanHandoffs()).toContain("spec-review-1.json");
+      // the line reads as unclosed (no carrier), never as closed by an alias
+      expect(ledger.lineClosed("phase-spec", "phase-spec")).toBe(false);
     } finally {
       cleanup();
     }
   });
 
-  it("a legacy carrier's fix hop names the file that EXISTS — the alias reports the name it resolved", () => {
+  it("the cycle-less implement spelling is no longer a read rung — the ladder answers the canonical name", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
-      // A pre-rename line mid-flight: two reviews recorded, fix 1 landed, and review 2
-      // still carries an open blocker. Only the retired carrier exists on disk.
+      workspace.writeJson("tasks-1-implement.json", { status: "APPROVED" });
+      // a folded legacy record: the row carries the cycle, the record carries no path
       ledger.writeProgress({
         ...ledger.emptyProgress(),
-        waves: [{ wave: "spec", rounds: { review: [1, 2], fix: [1] } }],
+        waves: [{ wave: "1", rounds: { implement: [1] } }],
       });
-      workspace.writeJson("spec-review-2.json", {
-        artifacts: {},
-        findings: [{ severity: "blocker", summary: "the line is unread" }],
-      });
-      // The hop's `--reviews` names the carrier on disk, never the never-minted
-      // canonical twin (which would render an unreadable directive → BLOCKED).
-      expect(ledger.lineRoute("phase-spec", "phase-spec")).toEqual({
-        kind: "fix",
-        reviews: workspace.resolve("spec-review-2.json"),
-      });
-      // The charter line resolves through its own declared word and the SAME carrier.
-      expect(ledger.lineRoute("overall", "overall")).toEqual({
-        kind: "fix",
-        reviews: workspace.resolve("spec-review-2.json"),
-      });
-      // The round's own reviews path is the resolved name too (the fix criterion and
-      // INPUT_REVIEWS read this cell).
-      expect(ledger.round("review", "phase-spec", { round: 2 }, 2)?.reviewsPath).toBe(
-        workspace.resolve("spec-review-2.json"),
+      const record = ledger.recordsOf("1")[0]!;
+      // step ② of the path read resolves the ladder's ONE answer — and the ladder no
+      // longer probes the pre-P34 spelling, so the path reads "no carrier"
+      expect(ledger.carrierPathOf("wave", "1", record)).toBe("");
+      expect(ledger.resolveHandoffName("implement", "wave", { tasks: "1", round: 1 })).toBe(
+        ledger.handoffName("implement", "wave", { tasks: "1", round: 1 }),
       );
-      // Never minted: every WRITE keeps the canonical spelling.
-      expect(ledger.handoffName("review", "phase-spec", { round: 2 })).toBe(
-        "phase-spec-review-2.json",
-      );
-      expect(ledger.handoffName("fix", "overall", { round: 2 })).toBe("overall-fix-2.json");
-    } finally {
-      cleanup();
-    }
-  });
-
-  it("a migrated row is appended to and numbered from — the declared word rides every access", () => {
-    const { ledger, workspace, cleanup } = fixture();
-    try {
-      // A charter mid-flight across the rename: the row under `spec`, the reviews 1-2
-      // and fix 2 recorded there.
-      ledger.writeProgress({
-        ...ledger.emptyProgress(),
-        waves: [{ wave: "spec", rounds: { review: [1, 2], fix: [2] } }],
-      });
-      expect(ledger.roundCount("overall", "review", "overall")).toBe(2);
-      expect(ledger.completedCycles("overall", "review", "overall")).toEqual([1, 2]);
-      expect(ledger.roundRecorded("overall", "review", 2, "overall")).toBe(true);
-      expect(ledger.recordsOf("overall", "overall")).toHaveLength(3);
-      // The post-rename round books on that SAME row and numbers from its cycles —
-      // the legacy counts are never shadowed by a forked identity row.
-      const recorded = ledger.recordRound("overall", { op: "review" }, "overall");
-      expect(recorded.cycle).toBe(3);
-      ledger.recordReviewedRevision(
-        "overall",
-        { kind: "doc-revision", doc: "docs/x.md", doc_hash: "abc" },
-        "overall",
-      );
-      expect(ledger.readProgress()?.waves.map((row) => row.wave)).toEqual(["spec"]);
-      expect(ledger.reviewedRevisionOf("overall", "overall")?.kind).toBe("doc-revision");
-      const reload = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
-      expect(reload.roundCount("overall", "review", "overall")).toBe(3);
-      expect(reload.completedCycles("overall", "review", "overall")).toEqual([1, 2, 3]);
     } finally {
       cleanup();
     }
@@ -279,11 +196,7 @@ describe("progress — the fixed key set", () => {
       ledger.recordRound("1,2", { op: "fix" });
       expect(ledger.roundCount("1,2", "fix")).toBe(1);
       // a fresh ledger over the same workspace reads the persisted counts back (on-disk record)
-      const reload = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const reload = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       expect(reload.roundCount("1,2", "review")).toBe(2);
       expect(reload.roundCount("1,2", "fix")).toBe(1);
       expect(reload.roundCount("7", "review")).toBe(0);
@@ -683,23 +596,24 @@ describe("rounds — the per-round records (P22 T3: record → status, one direc
     }
   });
 
-  it("carrierPathOf resolves a pathless legacy IMPLEMENT record's cycle-less file — the one spelling P34 moved", () => {
+  it('carrierPathOf reads `""` for a pathless cycle-less IMPLEMENT record — the pre-P34 rung is gone', () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
       // The folded row: `rounds: { implement: [1] }`, no recorded path, no digest. Its
-      // carrier is the pre-P34 spelling — the canonical `…-implement-1.json` and the
-      // `.c1` final were never minted, so the ladder must probe the legacy name or the
-      // board reads an absent carrier while the orphan scan still claims the file.
-      const legacy = workspace.resolve("tasks-1-implement.json");
+      // bytes sit at the pre-P34 cycle-less spelling; the read ladder no longer probes
+      // that spelling, so the path read answers "no carrier" rather than a name the
+      // engine can no longer mint (the file itself stays on the orphan observation
+      // face — zero writes, zero blocking).
       workspace.writeJson("tasks-1-implement.json", { status: "APPROVED" });
       seedRaw(ledger, { wave: "1", rounds: { implement: [1] } });
       const record = ledger.recordsOf("1")[0]!;
       expect(record.cycle).toBe(1);
-      expect(ledger.carrierPathOf("wave", "1", record)).toBe(legacy);
-      expect(ledger.orphanHandoffs()).toEqual([]);
-      // the rung is cycle-1 alone: the legacy name carried no coordinate, so cycle 2's
-      // never-minted canonical name stays the absent read
-      expect(ledger.carrierPathOf("wave", "1", { ...record, cycle: 2 })).toBe("");
+      expect(ledger.carrierPathOf("wave", "1", record)).toBe("");
+      // The identity tier does not claim it either: the name parses to the CYCLE-LESS
+      // identity while the record reads cycle 1, and the matrix's own key keeps those
+      // two coordinates apart (the renderer mints `tasks-1-implement-1.json` for cycle
+      // 1). Both claim tiers miss, so the file is an observation row.
+      expect(ledger.orphanHandoffs()).toEqual(["tasks-1-implement.json"]);
     } finally {
       cleanup();
     }
@@ -941,23 +855,20 @@ describe("handoff — naming / carrier / single-author persist", () => {
     }
   });
 
-  it("orphanHandoffs attributes a migrated line's carrier to its retired row — a recorded round is no orphan", () => {
+  it("orphanHandoffs lists a migrated line's carrier — the retired row no longer claims it", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
-      // A line mid-flight across the rename: the row stays under `spec`, the carrier
-      // it owns is already minted under the current spelling. Cycle 1 is NOT recorded
-      // and cycle 3 IS — a document family carries no `{tasks}` group, so the round
-      // must be read from its own `{round}` group (reading the absent second group
-      // would resolve every doc carrier to round 1 and call this landed draft an
-      // orphan).
+      // A line mid-flight across the rename: the row stays under `spec`, and the
+      // carrier it once owned sits under the CURRENT spelling. Until P36 the row read
+      // as a document line and the recorded round claimed the file; the retired key is
+      // no longer a document word, so the row reads absent and the carrier falls to the
+      // observation face — visible, never blocking.
       ledger.writeProgress({
         ...ledger.emptyProgress(),
         waves: [{ wave: "spec", rounds: { review: [3] } }],
       });
       workspace.writeJson("phase-spec-review-3.json", { artifacts: {}, findings: [] });
-      // The file's own line word IS its declaration, so the row resolves and the
-      // recorded round owns its carrier.
-      expect(ledger.orphanHandoffs()).toEqual([]);
+      expect(ledger.orphanHandoffs()).toEqual(["phase-spec-review-3.json"]);
     } finally {
       cleanup();
     }
@@ -981,14 +892,17 @@ describe("handoff — naming / carrier / single-author persist", () => {
     }
   });
 
-  it("orphanHandoffs keeps a round-less family's round at 1 — an implement carrier is owned", () => {
+  it("orphanHandoffs lists a cycle-less implement carrier — a cycle-1 record never claims it", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
-      // `tasks-{tasks}-implement.json` carries `{tasks}` alone: the fixed implement
-      // family is round-less, and its single group is the task list, never a round.
+      // `tasks-{tasks}-implement.json` carries `{tasks}` alone and parses to the
+      // CYCLE-LESS identity, while the recorded implement round is cycle 1 — two
+      // coordinates, and the matrix renders them to two names (`…-implement.json` vs
+      // `…-implement-1.json`). The claim is per coordinate, so neither tier owns the
+      // file: an old spelling is an observation row, never a silently re-claimed carrier.
       ledger.recordRound("1,2", { op: "implement", cycle: 1 });
       workspace.writeJson("tasks-1,2-implement.json", { artifacts: {} });
-      expect(ledger.orphanHandoffs()).toEqual([]);
+      expect(ledger.orphanHandoffs()).toEqual(["tasks-1,2-implement.json"]);
     } finally {
       cleanup();
     }
@@ -1051,15 +965,19 @@ describe("orphanHandoffs — the reverse parse reads the identity it renders (P3
     }
   });
 
-  it("claims a pathless legacy fixture's implement carrier — the folded round is attempt 1", () => {
+  it("lists a pathless legacy fixture's implement carrier — the folded round is cycle 1, the name is cycle-less", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
+      // The cycle-less spelling parses to `{ op: implement, cycle: absent, attempt:
+      // absent }`; the folded record reads `implement · 1 · 1`. Only the attempt
+      // default folds (the renderer never mints `-a1`), so the identity tier leaves the
+      // name alone and the retired read ladder is not a second way back in.
       ledger.writeProgress({
         ...ledger.emptyProgress(),
         waves: [{ wave: "1", rounds: { implement: [1], review: [1] } }],
       });
       workspace.writeJson("tasks-1-implement.json", { artifacts: {} });
-      expect(ledger.orphanHandoffs()).toEqual([]);
+      expect(ledger.orphanHandoffs()).toEqual(["tasks-1-implement.json"]);
     } finally {
       cleanup();
     }
@@ -1115,9 +1033,11 @@ describe("orphanHandoffs — the reverse parse reads the identity it renders (P3
   it("never rewrites progress while reading — a doc-line claim is a pure read", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
+      // The LIVE spelling (a `phase-spec` row): the claim is real, and reading it must
+      // leave the bytes untouched — the orphan scan is a pure read, never a migration.
       ledger.writeProgress({
         ...ledger.emptyProgress(),
-        waves: [{ wave: "spec", rounds: { review: [1] } }],
+        waves: [{ wave: "phase-spec", rounds: { review: [1] } }],
       });
       workspace.writeJson("phase-spec-review-1.json", { artifacts: {} });
       const before = readFileSync(workspace.resolve("progress.json"), "utf8");
@@ -1128,20 +1048,20 @@ describe("orphanHandoffs — the reverse parse reads the identity it renders (P3
     }
   });
 
-  it("resolves a retired `spec` row for its OWN `spec-{op}-{round}.json` spelling — one live identity, both names", () => {
+  it("lists a retired `spec-{op}-{round}.json` spelling as the OBSERVATION it now is", () => {
     const { ledger, workspace, cleanup } = fixture();
     try {
       // A migrated workspace: the row already moved to the live `phase-spec` key, and
-      // only the pre-rename carrier spelling remains on disk. The literal `spec` key
-      // finds no row, so the read falls to the ONE live identity-document row — a
-      // word-only lookup (`#lineWord("spec")` reads null) would call this file an
-      // orphan while it is the row's own round.
+      // only the pre-rename carrier spelling remains on disk. `spec` is no row of the
+      // artifact matrix, so the name does not attribute — tier (i) of §2.5's two-tier
+      // predicate — and the board now SHOWS it instead of translating it back onto the
+      // row. Zero writes: the file is neither moved nor renamed.
       ledger.writeProgress({
         ...ledger.emptyProgress(),
         waves: [{ wave: "phase-spec", rounds: { review: [3] } }],
       });
       workspace.writeJson("spec-review-3.json", { findings: [] });
-      expect(ledger.orphanHandoffs()).toEqual([]);
+      expect(ledger.orphanHandoffs()).toEqual(["spec-review-3.json"]);
     } finally {
       cleanup();
     }
@@ -1724,11 +1644,7 @@ describe("the T7 doc-line identity record — reviewedDocRevision (the reopen-co
       ledger.recordReviewedRevision(doc, revision);
       expect(ledger.reviewedDocRevisionOf(doc)).toEqual(revision);
       // a fresh ledger over the same workspace reads the on-disk record back
-      const reload = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const reload = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       expect(reload.reviewedDocRevisionOf(doc)).toEqual(revision);
       expect(reload.reviewedDocRevisionOf("docs/other.md")).toBeNull();
     } finally {
@@ -1839,11 +1755,7 @@ describe("nextHopOf — the drift-reopened line's hop (the ONE assembly entry)",
       mkdirSync(path.dirname(doc), { recursive: true });
       writeFileSync(doc, "v1.0 body", "utf8");
       // the branch line's reviewed identity is its PLAN's doc-revision (P21 §3/§4.1)
-      ledger.recordReviewedRevision(
-        "branch",
-        ledger.refs().docRevision(doc, "v1.0 body"),
-        "branch",
-      );
+      ledger.recordReviewedRevision("branch", ledger.refs().docRevision(doc, "v1.0 body"));
       const hop = (route: Parameters<typeof ledger.nextHopOf>[0]["route"]) =>
         ledger.nextHopOf({
           type: "branch",
@@ -1983,11 +1895,7 @@ describe("lineClosed — the single line-closure judge (the board + closedWaves 
       writeFileSync(doc, "v1.0 body", "utf8");
       ledger.persistHandoff("review", "branch", { round: 1 }, { findings: [] });
       ledger.recordRound("branch", { op: "review" });
-      ledger.recordReviewedRevision(
-        "branch",
-        ledger.refs().docRevision(doc, "v1.0 body"),
-        "branch",
-      );
+      ledger.recordReviewedRevision("branch", ledger.refs().docRevision(doc, "v1.0 body"));
       // the rounds/routes fact says closed, and the bound document still matches
       expect(ledger.lineClosed("branch", "branch")).toBe(true);
       expect(ledger.lineStateAt("branch", "branch", doc)).toBe("closed");
@@ -2169,9 +2077,9 @@ describe("supersedeReview — the reopen stamp, the two skip readers and the clo
       expect(ledger.pendingFix("phase-spec", "phase-spec")).toBe(true);
       expect(ledger.lineRoute("phase-spec", "phase-spec")).toMatchObject({ kind: "fix" });
 
-      expect(ledger.supersedeReview("phase-spec", "phase-spec", 1, 2)).toBe(true);
+      expect(ledger.supersedeReview("phase-spec", 1, 2)).toBe(true);
 
-      const [stamped] = ledger.recordsOf("phase-spec", "phase-spec");
+      const [stamped] = ledger.recordsOf("phase-spec");
       expect(stamped?.supersededBy).toEqual({ cycle: 2, cause: "recover" });
       // A stamp is not a failure: the record keeps its own verdict.
       expect(stamped?.verdict.targetAction).toBe(true);
@@ -2179,7 +2087,7 @@ describe("supersedeReview — the reopen stamp, the two skip readers and the clo
       expect(ledger.pendingFix("phase-spec", "phase-spec")).toBe(false);
       expect(ledger.lineRoute("phase-spec", "phase-spec")).toMatchObject({ kind: "review" });
       // … and no completed fix was invented (the fix identity stays D28's).
-      expect(ledger.completedCycles("phase-spec", "fix", "phase-spec")).toEqual([]);
+      expect(ledger.completedCycles("phase-spec", "fix")).toEqual([]);
     } finally {
       cleanup();
     }
@@ -2190,9 +2098,9 @@ describe("supersedeReview — the reopen stamp, the two skip readers and the clo
     try {
       const doc = path.join(workspace.path, "docs", "s-spec.md");
       pendingDocLine(ledger, doc);
-      expect(ledger.supersedeReview("phase-spec", "phase-spec", 9, 10)).toBe(false);
-      expect(ledger.recordsOf("phase-spec", "phase-spec")[0]?.supersededBy).toBeUndefined();
-      expect(ledger.supersedeReview("missing", "phase-spec", 1, 2)).toBe(false);
+      expect(ledger.supersedeReview("phase-spec", 9, 10)).toBe(false);
+      expect(ledger.recordsOf("phase-spec")[0]?.supersededBy).toBeUndefined();
+      expect(ledger.supersedeReview("missing", 1, 2)).toBe(false);
     } finally {
       cleanup();
     }
@@ -2206,7 +2114,7 @@ describe("supersedeReview — the reopen stamp, the two skip readers and the clo
       ledger.recordRound("plan", { op: "review", cycle: 1 });
       expect(ledger.lineClosed("plan", "plan")).toBe(true);
 
-      expect(ledger.supersedeReview("plan", "plan", 1, 2)).toBe(true);
+      expect(ledger.supersedeReview("plan", 1, 2)).toBe(true);
 
       // `#rowClosed` keeps the UNFILTERED latest-completed read: the stamp never
       // reopens a closed line (only `#pendingFix` and `lineRoute` skip superseded rounds).
@@ -2214,6 +2122,118 @@ describe("supersedeReview — the reopen stamp, the two skip readers and the clo
       expect(ledger.lineStateAt("plan", "plan", null)).toBe("closed");
     } finally {
       cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P36 T5 — the TWO-TIER orphan predicate (spec §2.5): attribution first, ownership
+// second, and the domain boundary that keeps the board's own files off the list
+// ---------------------------------------------------------------------------
+
+describe("orphanHandoffs — the two-tier predicate and its domain boundary (P36 T5)", () => {
+  it("tier (i): a name no matrix row renders is an OBSERVATION, never a refusal", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // A matrix-external name sits in the workspace: the sweep SHOWS it (the old
+      // carrier-pattern scan could not see it at all) and writes nothing.
+      workspace.writeJson("notes.json", { kept: true });
+      workspace.writeJson("spec-review-3.json", { findings: [] });
+      expect(ledger.orphanHandoffs()).toEqual(["notes.json", "spec-review-3.json"]);
+      // The candidate set is the whole directory, exactly as `Workspace#names()` reads it.
+      expect(workspace.names()).toContain("notes.json");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("tier (ii): a round-domain carrier IS on disk but no record claims it — still an orphan", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      workspace.writeJson("tasks-1-review-1.c1.json", { findings: [] });
+      expect(ledger.orphanHandoffs()).toEqual(["tasks-1-review-1.c1.json"]);
+      // The positive half of the SAME tier: one identity-equal record claims it.
+      ledger.recordRound("1", { op: "review", cycle: 1, attempt: 1 });
+      expect(ledger.orphanHandoffs()).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps the recorded-path claim — an identity mismatch is rescued by the basename tier", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // The record's own coordinates drifted from the file's (attempt 2 recorded, the
+      // attempt-less name on disk) and only its recorded ABSOLUTE path names the file.
+      // Dropping this tier would turn every pre-P34 record's carrier into an orphan.
+      ledger.writeProgress({
+        ...ledger.emptyProgress(),
+        waves: [
+          {
+            wave: "plan",
+            rounds: [
+              {
+                op: "fix",
+                cycle: 2,
+                attempt: 2,
+                dispatchBase: null,
+                verdict: { treeClean: true, targetAction: true },
+                violations: [],
+                carrierPath: workspace.resolve("plan-fix-2.json"),
+              },
+            ],
+          },
+        ],
+      });
+      workspace.writeJson("plan-fix-2.json", { artifacts: {} });
+      expect(ledger.orphanHandoffs()).toEqual([]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps the board's own files off the list — the workspace rows and the non-carrier kinds", () => {
+    const { ledger, workspace, cleanup } = fixture();
+    try {
+      // The four workspace rows and the five round-domain non-carriers: every one
+      // ATTRIBUTES (so it is no orphan), and none of them is a handoff carrier. Reading
+      // tier (ii) over these kinds would flood the board with `orphan:` rows for files
+      // the engine wrote itself or the orchestrator recorded — the 51 sidecars of this
+      // repo's own workspace among them.
+      for (const name of [
+        "progress.json",
+        "base.json",
+        "in-flight.json",
+        "tasks-3-brief.md",
+        "tasks-1-review-1-report.md",
+        "tasks-1-review-1.log",
+        "crash-tasks-1-review-1.json",
+        "tasks-1-review-1-test-evidence.json",
+        "tasks-1-review-1.c1.rulings.json",
+      ])
+        workspace.writeJson(name, {});
+      expect(ledger.orphanHandoffs()).toEqual([]);
+      // The four DOC rows are outside this face by construction: a declared identity is
+      // the document's own `slug:`, resolved against the doc roots — a bare workspace
+      // file name never attributes, so the clause "an attributed doc name is no orphan"
+      // holds without a case to enumerate here.
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("answers no orphan at all when the ledger holds no matrix — no fallback grammar", () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "ledger-nomatrix-"));
+    try {
+      const workspace = new Workspace(
+        new WorkspaceRoot(path.join(repo, ".kairos", "cdd"), "session"),
+        "test-slug",
+      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+      workspace.writeJson("tasks-1-review-1.json", { findings: [] });
+      expect(ledger.orphanHandoffs()).toEqual([]);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 });

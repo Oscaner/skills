@@ -32,8 +32,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { type PlanRead, PlanSource } from "../../infra/plan-source.ts";
+import type { PlanRead } from "../../infra/plan-source.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../ledger.ts";
@@ -117,7 +118,7 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
    *  instead of parsing the document a second time. A null path is the phase with no
    *  plan: the derived face's `undeclared` value. */
   const readOf = (planPath: string | null): PlanRead => {
-    const source = new PlanSource(new RepoRoot(repo));
+    const source = planSourceOf(new RepoRoot(repo));
     return planPath === null ? source.readFor(null) : source.readPath(planPath);
   };
 
@@ -125,7 +126,7 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     new Ledger(
       new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure(),
       new ConfigLoader(),
-      new PlanSource(new RepoRoot(repo)),
+      planSourceOf(new RepoRoot(repo)),
     );
 
   const inputOf = (over: Partial<PipelineFrontierInput> = {}): PipelineFrontierInput => ({
@@ -304,14 +305,12 @@ describe("PipelineFrontier — the four face-order rules at their session-plane 
     ledger.recordReviewedRevision(
       "phase-spec",
       ledger.refs().docRevision(specPath, readFileSync(specPath, "utf8")),
-      "phase-spec",
     );
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
     ledger.recordRound("plan", { op: "review" });
     ledger.recordReviewedRevision(
       "plan",
       ledger.refs().docRevision(planPath, readFileSync(planPath, "utf8")),
-      "plan",
     );
     const frontier = new PipelineFrontier(ledger);
     const input = inputOf({ specPath, planPath, plan: readOf(planPath) });
@@ -369,14 +368,14 @@ describe("PipelineFrontier — the plan read drives the frontier's plan cells", 
     new Ledger(
       new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1").ensure(),
       new ConfigLoader(),
-      new PlanSource(new RepoRoot(repo)),
+      planSourceOf(new RepoRoot(repo)),
     );
 
   const inputOf = (over: Partial<PipelineFrontierInput> = {}): PipelineFrontierInput => ({
     specType: "phase-spec",
     specPath: null,
     planPath: null,
-    plan: new PlanSource(new RepoRoot(repo)).readFor(null),
+    plan: planSourceOf(new RepoRoot(repo)).readFor(null),
     ...over,
   });
 
@@ -402,7 +401,7 @@ describe("PipelineFrontier — the plan read drives the frontier's plan cells", 
       "#### DependsOn",
       "none",
     ]);
-    const read = new PlanSource(new RepoRoot(repo)).readPath(planPath);
+    const read = planSourceOf(new RepoRoot(repo)).readPath(planPath);
     expect(read.kind).toBe("unreadable");
     expect(read.stationPath()).toBe("docs/kairos/plans/prog-p1.md");
     expect(read.graph()).toBeNull();
@@ -425,7 +424,7 @@ describe("PipelineFrontier — the plan read drives the frontier's plan cells", 
 
   it("an `io` failure carries NO frontier path — the plan face is never entered (§2.5)", () => {
     const specPath = specDoc();
-    const read = new PlanSource(new RepoRoot(repo)).readPath("docs/kairos/plans/ghost.md");
+    const read = planSourceOf(new RepoRoot(repo)).readPath("docs/kairos/plans/ghost.md");
     expect(read.failure()?.cause).toBe("io");
     expect(read.stationPath()).toBeNull();
     const ledger = ledgerOf();
@@ -446,7 +445,7 @@ describe("PipelineFrontier — the plan read drives the frontier's plan cells", 
     const ledger = ledgerOf();
     ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
     ledger.recordRound("phase-spec", { op: "review" });
-    const read = new PlanSource(new RepoRoot(repo)).readFor(null);
+    const read = planSourceOf(new RepoRoot(repo)).readFor(null);
     expect(read.kind).toBe("undeclared");
     expect(read.stationPath()).toBeNull();
     expect(read.graph()).toBeNull();

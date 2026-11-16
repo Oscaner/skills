@@ -438,7 +438,7 @@ export class DispatchAuthority {
     facts: DispatchLineFacts,
   ): { line: string; recorded: string; current: string } | null {
     const doc = target.type === "branch" ? (target.plan ?? null) : target.id;
-    return doc === null ? null : facts.ledger.docDriftHashes(target.type, doc, target.type);
+    return doc === null ? null : facts.ledger.docDriftHashes(target.type, doc);
   }
 
   /** The refusal line's reason head — the token alone, or the token plus the mandatory
@@ -627,9 +627,6 @@ export class DispatchAuthority {
    *  holds no station: the request face is the pipeline's own first entry. */
   static #docEntered(ledger: Ledger, line: UpstreamDocLine): boolean {
     const lead = targetFaces[line.type].product.reviewLead;
-    return (
-      ledger.roundCount(line.key, lead, line.type) > 0 ||
-      ledger.roundCount(line.key, "fix", line.type) > 0
-    );
+    return ledger.roundCount(line.key, lead) > 0 || ledger.roundCount(line.key, "fix") > 0;
   }
 }

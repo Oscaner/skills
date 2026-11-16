@@ -81,6 +81,28 @@ fix 轮逐条回答请求方 review 载体的 finding：每条 finding 一条处
 - **身份是声明出来的，不是推演出来的**：文档由 front-matter 所写的 `slug:` 定位，文件名不承载任何身份含义。旧路径键不再被读取（留着是惰性的，不报错）；plan 的程序链经「与它同 slug 的身份文档」解析——phase-spec 的 `program:` 指向其 overall，而 overall / single-spec 自身即链根。
 - **按 run 的工作区随键走**：`.kairos/cdd/<slug>/` 目录以 plan 文档的 `slug:` 为键。遗留在旧键命名下的目录**不复用**——没有 run 会续用或迁移它。但报告会话的台账扫描仍会读其记录，故在不再需要那段历史时手动删除。
 
+### 旧拼写的裁定 sidecar
+
+fix 派发只从一个 sidecar 读编排者的裁定，其名字携带被评审那一轮的 cycle：`<line>-<op>-<n>.c<N>.rulings.json`，与被它回答的 review 载体同目录。按退役拼写写下的 sidecar——`<line>-<op>-<n>.rulings.json`——落在该路径之外，升级后的首次派发会以 `CDD_BLOCKED: artifact-identity` 停下，并同时印出两条路径。引擎从不移动、也不改写产物，故改名是你手工执行的一次性动作：
+
+```sh
+# 对每个 <line>-<op>-<n>.rulings.json，若同目录存在终稿载体 <line>-<op>-<n>.c<N>.json，
+# 改名为 <line>-<op>-<n>.c<N>.rulings.json。
+for side in .kairos/cdd/*/*.rulings.json; do
+  [ -e "$side" ] || continue
+  stem=${side%.rulings.json}
+  case "$stem" in *.c[0-9]*) continue ;; esac    # already names its reviewed cycle
+  for final in "$stem".c[0-9]*.json; do
+    case "$final" in *.rulings.json) continue ;; esac
+    [ -e "$final" ] || continue
+    mv -n "$side" "${final%.json}.rulings.json"   # -n: never clobber an already-renamed sidecar
+    break
+  done
+done
+```
+
+**改名后必须复判。** 用 `--dry-run` 跑同一条派发，把它读回的内容与 sidecar 比对：改名后仍然不一致，说明条目除名字之外还有偏差——内容归编排器修，引擎只拒不改。
+
 ## 开发说明
 
 包位于 [Oscaner/skills](https://github.com/Oscaner/skills) monorepo 的 `packages/cdd-engine`（TypeScript，`tsc -p tsconfig.build.json` 发布构建，vitest 测试；测试与源码同地放置于 `src-next/**/__tests__/**/*.test.ts`）。

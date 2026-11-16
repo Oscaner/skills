@@ -47,6 +47,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Command } from "commander";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
+import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import {
   type CompletionContext,
   CompletionCriteria,
@@ -58,7 +60,6 @@ import { Contract } from "../../contract/judge.ts";
 import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { GitClient } from "../../infra/git.ts";
-import { PlanSource } from "../../infra/plan-source.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { RepoRoot } from "../../infra/root.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
@@ -68,9 +69,15 @@ import type { RouteTarget } from "../../session/faces.ts";
 import { InFlight, type InFlightRecord } from "../../session/inflight.ts";
 import { type CrashRecord, Ledger, ReviewRefs, type SampleRecord } from "../../session/ledger.ts";
 import type { Route } from "../../session/next.ts";
-import { FIX_READBACK_SUFFIX, MAX_TASKS_PER_WAVE, NextStepRouter } from "../../session/next.ts";
+import {
+  FIX_READBACK_SLOT,
+  FIX_READBACK_SUFFIX,
+  MAX_TASKS_PER_WAVE,
+  NextStepRouter,
+} from "../../session/next.ts";
 import type { PreFlightVerdict } from "../../session/preflight.ts";
 import { PreFlight } from "../../session/preflight.ts";
+import { ArtifactRegistry, type Identity, type Kind } from "../../session/round-artifacts.ts";
 import type { DispatchStep, OpenFrame } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
@@ -235,6 +242,22 @@ const fixture = (opts: CliOptions = {}): CliFixture => {
   };
 };
 
+/** The recording matrix — the real registry with one observable seam: every render it
+ *  is asked for is recorded, so a test can prove the command's ONE instance reached
+ *  the face it pins (a face that minted its own registry would record nothing). */
+class RecordingRegistry extends ArtifactRegistry {
+  readonly rendered: Kind[] = [];
+
+  override render(identity: Identity, kind: Kind): string {
+    this.rendered.push(kind);
+    return super.render(identity, kind);
+  }
+
+  reset(): void {
+    this.rendered.length = 0;
+  }
+}
+
 /** Init a git repo with one commit — the repo root the engine resolves from the
  *  working directory, and the review `next:` base. The fixture .gitignore keeps the
  *  dispatch's own writes (the `.kairos` workspace) and the fixture's synthetic docs
@@ -294,20 +317,47 @@ const planFor = (repoRoot: string, count = 1, name = "p3.md"): string => {
   return file;
 };
 
-/** The paired spec EXISTENCE the plan read's reverse probe asks (P35 §2.7): a plan
- *  whose slug names no `<slug>-design.md` is an orphan, and every plan-carrying face
- *  refuses it. The fixture writes the derived path so the probe finds it; the
- *  document declares its OWN slug so these wave-face cases keep the spec-less
- *  pipeline shape they pin (`specPath === null` → the line's own hop) — the probe
- *  only asks "is the document there", never what it says. */
+/** The paired identity document the plan read's reverse lookup asks (§2.7): a plan
+ *  whose slug names no identity document is an orphan on a clean surface, and every
+ *  plan-carrying face refuses it. The document must DECLARE the plan's slug — the file
+ *  name plays no part, and a `<slug>-design.md` declaring some other slug is exactly
+ *  the shape that used to pass and now reads `spec-absent`. */
 const pairedSpec = (repoRoot: string, slug = "p3"): void => {
   const file = path.join(repoRoot, "docs", "kairos", "specs", `${slug}-design.md`);
   mkdirSync(path.dirname(file), { recursive: true });
+  // The phase-spec names its program overall — the board's `program:` gate (an
+  // identity document with no resolvable parent is `program: missing (BLOCKED)`), which
+  // only becomes observable once the identity document is the plan's OWN.
   writeFileSync(
     file,
-    `---\ntitle: S${slug}\ndoc-type: phase-spec\nslug: ${slug}-design\n---\n`,
+    `---\ntitle: S${slug}\ndoc-type: phase-spec\nslug: ${slug}\nprogram: ${slug}-overall\n---\n`,
     "utf8",
   );
+  writeFileSync(
+    path.join(repoRoot, "docs", "kairos", "specs", `${slug}-overall.md`),
+    `---\ntitle: O${slug}\ndoc-type: overall\nslug: ${slug}-overall\n---\n`,
+    "utf8",
+  );
+};
+
+/** Seed the DOC preamble of one phase — the two rounds the pipeline puts before any
+ *  wave dispatch, recorded through the engine's own ledger API (a carrier + its
+ *  round record for the identity document and for the plan). Production always has
+ *  them (a phase-spec and its plan are reviewed before the plan's waves run), so a
+ *  wave fixture that starts at `implement` records them — otherwise the frontier
+ *  announces the doc face first, which is a different pipeline shape. */
+const seedDocRounds = (repoRoot: string, slug = "p3"): void => {
+  const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), slug).ensure();
+  const ledger = new Ledger(
+    workspace,
+    new ConfigLoader(),
+    planSourceOf(new RepoRoot(repoRoot)),
+    new ArtifactRegistry(),
+  );
+  for (const type of ["phase-spec", "plan"]) {
+    ledger.persistHandoff("review", type, { round: 1 }, { findings: [] });
+    ledger.recordRound(type, { op: "review" });
+  }
 };
 
 /** Read a JSON file (the workspace artifact assertions). */
@@ -1299,7 +1349,7 @@ describe("the help/--help display face — the per-command render", () => {
       expect(io.stdoutText).toContain("(required)");
       expect(io.stdoutText).toContain("run the task implement phase");
       expect(io.stdoutText).toContain("Examples:");
-      expect(io.stdoutText).toContain("cdd implement --tasks 1,2 --plan docs/kairos/plans/p3.md");
+      expect(io.stdoutText).toContain("cdd implement --tasks 1,2 --plan <path>");
     } finally {
       cleanup();
     }
@@ -1318,9 +1368,7 @@ describe("the help/--help display face — the per-command render", () => {
       expect(io.stdoutText).not.toContain("--base");
       expect(io.stdoutText).not.toContain("--head");
       expect(io.stdoutText).toContain("the target face of the round");
-      expect(io.stdoutText).toContain(
-        "cdd review --type phase-spec --spec docs/kairos/specs/p3-design.md",
-      );
+      expect(io.stdoutText).toContain("cdd review --type phase-spec --spec <path>");
     } finally {
       cleanup();
     }
@@ -1358,7 +1406,7 @@ describe("the help/--help display face — the per-command render", () => {
       expect(io.stdoutText).not.toContain("--force");
       expect(io.stdoutText).not.toContain("--source <");
       expect(io.stdoutText).toContain(
-        "cdd base set --plan docs/kairos/plans/p3.md --base develop --source plan-field",
+        "cdd base set --plan <path> --base develop --source plan-field",
       );
     } finally {
       cleanup();
@@ -1508,7 +1556,7 @@ describe("the T4 commander-native help acceptance — the projected help face (�
       }
       // The Examples section heading + a P1 example sentence in the stream.
       expect(help).toContain("Examples:");
-      expect(help).toContain("cdd review --type phase-spec --spec docs/kairos/specs/p3-design.md");
+      expect(help).toContain("cdd review --type phase-spec --spec <path>");
       // The program-flag tail note: --dry-run listed ALONE — the -h/--help
       // redundant column is not written (the built-in helpOption faces Options).
       const footer = io.stdoutText.split("\n").find((line) => line.startsWith("program flags"));
@@ -1735,6 +1783,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
+      seedDocRounds(repoRoot);
       const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED · handoff: ");
@@ -1858,6 +1907,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
+      seedDocRounds(repoRoot);
       expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
       io.stdoutText = "";
       const code = await command.runArgv([
@@ -1898,11 +1948,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       mkdirSync(path.dirname(spec), { recursive: true });
       writeFileSync(spec, "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\n---\n\nspec\n", "utf8");
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.persistHandoff(
         "review",
         "phase-spec",
@@ -1953,6 +1999,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
+      seedDocRounds(repoRoot);
       expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
       io.stdoutText = "";
       const code = await command.runArgv([
@@ -1972,7 +2019,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       // D47 — the next: literal's embedded paths are repoRoot-relative (the ONE shape).
       expect(io.stdoutText).toContain(
-        `next: fix --type wave --tasks 1 --plan ${path.relative(repoRoot, plan)} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.json"))} ${FIX_READBACK_SUFFIX}`,
+        `next: fix --type wave --tasks 1 --plan ${path.relative(repoRoot, plan)} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.json"))} ${FIX_READBACK_SUFFIX.replace(FIX_READBACK_SLOT, path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.rulings.json")))}`,
       );
     } finally {
       cleanup();
@@ -1984,13 +2031,10 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
+      seedDocRounds(repoRoot);
       // Seed the implement + a blocker review round (the fix's C5-1 input).
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
         "review",
@@ -2031,11 +2075,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
         "review",
@@ -2094,11 +2134,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
         "review",
@@ -2135,11 +2171,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.recordRound(1, { op: "implement" });
       // The routing source (the review handoff) carries findings, so the hop is `fix`;
       // the fix route's `--reviews` input is a DIFFERENT carrier with an EMPTY findings
@@ -2215,7 +2247,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         const ledger = new Ledger(
           workspace,
           new ConfigLoader(),
-          new PlanSource(workspace.root.basis),
+          planSourceOf(workspace.root.basis),
         );
         ledger.recordRound(1, { op: "implement" });
         ledger.persistHandoff(
@@ -2312,7 +2344,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         const ledger = new Ledger(
           workspace,
           new ConfigLoader(),
-          new PlanSource(workspace.root.basis),
+          planSourceOf(workspace.root.basis),
         );
         ledger.recordRound(1, { op: "implement" });
         ledger.persistHandoff(
@@ -2379,11 +2411,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           .replace("- delta", "- delta (amended)")
           .replace("  - step — checkable: green", "  - step — checkable: green (amended)");
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
         "review",
@@ -2435,11 +2463,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // find #9 — the branch line's workspace is the plan-slug (the fix dispatch's
       // --plan); the handoff file is the spine name `branch-review-{round}.json`.
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       const params = { round: 1 };
       ledger.persistHandoff("review", "branch", params, {
         phase: "branch-review",
@@ -2491,7 +2515,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // so the PIPELINE frontier — the assembly the capsule now renders (P24 §11) —
       // sits on the branch face this review closes.
       const node = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const seed = new Ledger(node, new ConfigLoader(), new PlanSource(node.root.basis));
+      const seed = new Ledger(node, new ConfigLoader(), planSourceOf(node.root.basis));
       seed.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
       seed.recordRound("phase-spec", { op: "review" });
       seed.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
@@ -2583,11 +2607,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // anchor — the state a finished run reaches.
       expect(await command.runArgv(["review", "--type", "branch", "--plan", plan])).toBe(0);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
       ledger.recordRound("phase-spec", { op: "review" });
       ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
@@ -2657,7 +2677,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       const ledger = new Ledger(
         new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure(),
         new ConfigLoader(),
-        new PlanSource(new RepoRoot(repoRoot)),
+        planSourceOf(new RepoRoot(repoRoot)),
       );
       ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
       ledger.recordRound("phase-spec", { op: "review" });
@@ -2767,11 +2787,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // seed the wave's implement round so the review face is dispatchable (the wave
       // line advances implement → review as ONE train)
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.recordRound("1", { op: "implement" });
       ledger.persistHandoff(
         "implement",
@@ -2859,7 +2875,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         const ledger = new Ledger(
           workspace,
           new ConfigLoader(),
-          new PlanSource(workspace.root.basis),
+          planSourceOf(workspace.root.basis),
         );
         const findings = [{ severity: "blocker", lens: "code", summary: "drift" }];
         ledger.persistHandoff(
@@ -2972,7 +2988,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         const ledger = new Ledger(
           workspace,
           new ConfigLoader(),
-          new PlanSource(workspace.root.basis),
+          planSourceOf(workspace.root.basis),
         );
         const findings = [{ severity: "warn", lens: "scope", summary: "drift" }];
         const reviews = path.join(workspace.path, "overall-review-1.json");
@@ -3527,11 +3543,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // line-type constant (§3.7), zero reviewed revision bound. The line's identity
       // is the line type, never the argv path.
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "s1").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.persistHandoff(
         "review",
         "phase-spec",
@@ -3574,11 +3586,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // doc-contract clean, and this pin is about the hop, not the dispatch gate) so
       // the plan IS the pipeline frontier the board observes.
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
       ledger.recordRound("phase-spec", { op: "review" });
       // The plan line has not started its C5 — asking for a `fix` round is refused,
@@ -3858,11 +3866,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       expect(ledger.counterOf("timeoutCount")).toBe(0);
       const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       // The failure face — exit 1 with the capsule naming the TIMEOUT status…
@@ -3888,11 +3892,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
       expect(ledger.counterOf("timeoutCount")).toBe(1);
@@ -3914,11 +3914,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       // a recorded implement + blocker review round → the line awaits its fix
       ledger.recordRound(1, { op: "implement" });
       ledger.persistHandoff(
@@ -3984,7 +3980,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // the WAVE row carries the implement round — review is the open phase for the whole
       // wave (the retired per-task build could never hold a mixed-phase wave-unitary row).
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "two").ensure();
-      new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)).recordRound(
+      new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis)).recordRound(
         "1,2",
         { op: "implement" },
       );
@@ -4025,6 +4021,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
+      seedDocRounds(repoRoot);
       const code = await command.runArgv(["implement", "--tasks", "1", "--plan", plan]);
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("status: APPROVED");
@@ -4230,11 +4227,7 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       // dispatch reads a finding-bearing review carrier back and still lands its
       // final carrier on the work face (the fix-will-not-mirror-findings probe)
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.persistHandoff(
         "review",
         "wave",
@@ -4291,12 +4284,19 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
     return lines[1]!.slice("next: ".length);
   }
 
+  /** The readback sentence with a resolved sidecar path in its value slot. */
+  const readback = (sidecar: string): string =>
+    FIX_READBACK_SUFFIX.replace(FIX_READBACK_SLOT, sidecar);
+
+  /** The readback sentence as a tail pattern — its path is a VALUE, so the parse-gate
+   *  strip matches any rendered path instead of the declared slot. */
+  const READBACK_TAIL =
+    /\s*\(confirm the reviews handoff · if a finding needs a ruling, record it at [^)]*\)$/;
+
   /** The parseable argv of a literal — the fix readback suffix is prompt prose,
-   *  never argv (the parse gate strips the declared suffix before feeding). */
+   *  never argv (the parse gate strips the declared sentence before feeding). */
   function argvOf(literal: string): string[] {
-    return literal
-      .replace(new RegExp(`\\s*\\(${FIX_READBACK_SUFFIX.slice(1, -1)}\\)$`), "")
-      .split(/\s+/);
+    return literal.replace(READBACK_TAIL, "").split(/\s+/);
   }
 
   /** The secondary-parse gate — the literal's argv must parse with zero errors
@@ -4352,30 +4352,53 @@ describe("P4.1 T4 — the next literal is a complete executable command (zero-er
   });
 
   it("fix × 4 types — `fix --type <type> <type-arg> --reviews <handoff>` parses", () => {
-    const waveLiteral = literalOf({ kind: "fix", reviews: "tasks-1-review-1.json" }, wave);
+    const waveLiteral = literalOf(
+      {
+        kind: "fix",
+        reviews: "tasks-1-review-1.json",
+        rulings: "tasks-1-review-1.c1.rulings.json",
+      },
+      wave,
+    );
     expect(waveLiteral).toBe(
-      "fix --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md --reviews tasks-1-review-1.json " +
-        FIX_READBACK_SUFFIX,
+      `fix --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md --reviews tasks-1-review-1.json ${readback("tasks-1-review-1.c1.rulings.json")}`,
     );
     parses(waveLiteral);
-    const specLiteral = literalOf({ kind: "fix", reviews: "s1-review-1.json" }, spec);
+    const specLiteral = literalOf(
+      { kind: "fix", reviews: "s1-review-1.json", rulings: "s1-review-1.c1.rulings.json" },
+      spec,
+    );
     expect(specLiteral).toBe(
-      "fix --type phase-spec --spec docs/kairos/specs/p3-design.md --reviews s1-review-1.json " +
-        FIX_READBACK_SUFFIX,
+      `fix --type phase-spec --spec docs/kairos/specs/p3-design.md --reviews s1-review-1.json ${readback("s1-review-1.c1.rulings.json")}`,
     );
     parses(specLiteral);
-    const planLiteral = literalOf({ kind: "fix", reviews: "p1-review-1.json" }, planT);
+    const planLiteral = literalOf(
+      { kind: "fix", reviews: "p1-review-1.json", rulings: "p1-review-1.c1.rulings.json" },
+      planT,
+    );
     expect(planLiteral).toBe(
-      `fix --type plan --plan docs/kairos/plans/p3.md --reviews p1-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `fix --type plan --plan docs/kairos/plans/p3.md --reviews p1-review-1.json ${readback("p1-review-1.c1.rulings.json")}`,
     );
     parses(planLiteral);
-    const branchLiteral = literalOf({ kind: "fix", reviews: "br1-review-1.json" }, branch);
+    const branchLiteral = literalOf(
+      { kind: "fix", reviews: "br1-review-1.json", rulings: "br1-review-1.c1.rulings.json" },
+      branch,
+    );
     // find #8 F1b — the branch fix literal carries the workspace --plan
     // (user-decided; the orchestrator provides zero fallback · spec §5.7 fix (2))
     expect(branchLiteral).toBe(
-      `fix --type branch --plan docs/kairos/plans/p3.md --reviews br1-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `fix --type branch --plan docs/kairos/plans/p3.md --reviews br1-review-1.json ${readback("br1-review-1.c1.rulings.json")}`,
     );
     parses(branchLiteral);
+  });
+
+  it("the fix literal omits the readback sentence when the route resolves no sidecar name", () => {
+    const literal = literalOf({ kind: "fix", reviews: "tasks-1-review-1.json" }, wave);
+    expect(literal).toBe(
+      "fix --type wave --tasks 1,2 --plan docs/kairos/plans/p3.md --reviews tasks-1-review-1.json",
+    );
+    expect(literal).not.toContain(FIX_READBACK_SLOT);
+    parses(literal);
   });
 
   it("done — the bare terminal word, never fed to parse (a bare `done` is not a command)", async () => {
@@ -4421,6 +4444,7 @@ describe("P4.1 T4 — the real chain: next literals dispatch the next round (rev
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot, 2);
+      seedDocRounds(repoRoot);
       const planRel = path.relative(repoRoot, plan);
       const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
       const nextOf = (): string | null => {
@@ -4438,7 +4462,7 @@ describe("P4.1 T4 — the real chain: next literals dispatch the next round (rev
         await command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       ).toBe(0);
       expect(nextOf()).toBe(
-        `fix --type wave --tasks 1 --plan ${planRel} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.json"))} ${FIX_READBACK_SUFFIX}`,
+        `fix --type wave --tasks 1 --plan ${planRel} --reviews ${path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.json"))} ${FIX_READBACK_SUFFIX.replace(FIX_READBACK_SLOT, path.relative(repoRoot, path.join(workspace, "tasks-1-review-1.c1.rulings.json")))}`,
       );
       io.stdoutText = "";
 
@@ -4821,6 +4845,61 @@ describe("the pure commands — schema / issue / base", () => {
       // pinned separately, over a plan document that IS on disk.
       expect(getMissing).toBe(1);
       expect(io.stderrText).toContain("CDD_BLOCKED");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P36 T1 — the artifact matrix's single instance: the command preamble mints ONE
+// registry and hands it down, so the base face and the board's node ledger render
+// their names through the same table (a face that built its own would answer the
+// same bytes and could not be told apart by output alone — hence the recording
+// registry: it only sees what the injected instance was actually asked).
+// ---------------------------------------------------------------------------
+
+describe("P36 T1 — the invocation's ONE matrix instance reaches every read face", () => {
+  it("hands the same matrix to the base face and to the board's node ledger", async () => {
+    const matrix = new RecordingRegistry();
+    const { command, repoRoot, cleanup } = fixture({ artifacts: matrix });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const setCode = await command.runArgv([
+        "base",
+        "set",
+        "--plan",
+        plan,
+        "--base",
+        "develop",
+        "--source",
+        "plan-field",
+      ]);
+      expect(setCode).toBe(0);
+      expect(matrix.rendered).toContain("base");
+      // The board's node ledger resolves progress.json through the SAME instance.
+      matrix.reset();
+      expect(await command.runArgv(["board", "--plan", plan])).toBe(0);
+      expect(matrix.rendered).toContain("progress");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("binds the declared domain onto the injected instance — a work command's doc read answers", async () => {
+    const matrix = new RecordingRegistry();
+    const { command, io, repoRoot, cleanup } = fixture({ artifacts: matrix, dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // The scene's identity read (`read({domain: "doc", …})`) is the face an injected
+      // matrix used to answer with "the matrix holds no doc domain". The declared
+      // domain is bound ONTO the injected instance, so the branch review assembles and
+      // dispatches (exit 0, no BLOCKED line).
+      const code = await command.runArgv(["review", "--type", "branch", "--plan", plan]);
+      expect(code).toBe(0);
+      expect(io.stderrText).not.toContain("doc domain");
     } finally {
       cleanup();
     }
@@ -5345,6 +5424,52 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
     }
   });
 
+  it("board --artifacts opens the inventory the daily view keeps shut — and never renders usage", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      seedPhaseDocs(repoRoot);
+      // The node's own review round, with its carrier on disk and NO sidecar: the
+      // daily face stays silent (an absent sidecar is legal), the flag shows the row.
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "prog-p1");
+      mkdirSync(workspace, { recursive: true });
+      const carrier = path.join(workspace, "phase-spec-review-1.c1.json");
+      writeFileSync(carrier, `${JSON.stringify({ findings: [] }, null, 2)}\n`, "utf8");
+      writeFileSync(
+        path.join(workspace, "progress.json"),
+        JSON.stringify({
+          timeoutCount: 0,
+          waves: [
+            {
+              wave: "phase-spec",
+              rounds: [
+                {
+                  op: "review",
+                  cycle: 1,
+                  attempt: 1,
+                  dispatchBase: null,
+                  carrierPath: carrier,
+                  verdict: { treeClean: true, targetAction: true },
+                  violations: [],
+                },
+              ],
+            },
+          ],
+        }),
+        "utf8",
+      );
+      expect(await command.runArgv(["board", "--plan", PLAN])).toBe(0);
+      expect(io.stdoutText).not.toContain("  art:");
+      io.stdoutText = "";
+      // The flag is declared + wired: no usage face, and one row per observed round.
+      expect(await command.runArgv(["board", "--plan", PLAN, "--artifacts"])).toBe(0);
+      expect(io.stderrText).not.toContain("Usage");
+      expect(io.stdoutText).toContain("  art:     phase-spec · rulings · c1·a1   absent");
+    } finally {
+      cleanup();
+    }
+  });
+
   it("an overall --spec path renders the program board", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
@@ -5439,11 +5564,7 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
         new WorkspaceRoot(repoRoot, ".kairos/cdd"),
         "prog-p1",
       ).ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       const persisted = ledger.persistHandoff(
         "review",
         "plan",
@@ -5636,8 +5757,10 @@ describe("T5 — cdd board --plan/--spec: the pure-read board command", () => {
       expect(io.stdoutText).not.toContain("  reason:");
       // The board is never silent about a degenerate view: exactly ONE diagnostic.
       expect(io.stderrText.split("CDD_WARN:").length - 1).toBe(1);
-      expect(io.stderrText).toContain("lonely");
-      expect(io.stderrText).toContain("docs/kairos/specs/lonely-design.md");
+      // The sentence names the SLUG alone — the retired `<slug>-design.md` derivation
+      // is gone from every engine string, so the diagnostic carries no path.
+      expect(io.stderrText).toContain("the slug names no identity document (index clean miss)");
+      expect(io.stderrText).not.toContain("lonely-design.md");
     } finally {
       cleanup();
     }
@@ -5900,6 +6023,64 @@ describe("T3 — the commander-native composition root: program parse + .action 
     }
   });
 
+  it("fix --dry-run renders the artifact-identity refusal the real run would hit — and writes nothing", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    try {
+      gitInit(repoRoot);
+      const spec = conformingSpec(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "s1").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+      ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        {
+          phase: "review",
+          findings: [{ id: "F1", severity: "blocker", summary: "the guard is missing" }],
+        },
+      );
+      ledger.recordRound("phase-spec", { op: "review" });
+      // The carrier sits at its rendered name; the sidecar uses the shipped convention
+      // (the draft stem, no `.c1`) — the migration case the refusal exists for.
+      const carrier = workspace.resolve("phase-spec-review-1.c1.json");
+      writeFileSync(
+        workspace.resolve("phase-spec-review-1.rulings.json"),
+        JSON.stringify({
+          carrier: "phase-spec-review-1.c1.json",
+          rulings: [{ finding: "F1", ruling: "ACCEPTED" }],
+        }),
+        "utf8",
+      );
+      const code = await command.runArgv([
+        "fix",
+        "--type",
+        "phase-spec",
+        "--spec",
+        spec,
+        "--reviews",
+        carrier,
+        "--dry-run",
+      ]);
+      expect(code).toBe(1);
+      // the preview prints the GATE's own reason — one read, two faces
+      expect(io.stdoutText.startsWith("cdd fix: preview (no repo changes)\n")).toBe(true);
+      expect(io.stdoutText).toContain("refused:  artifact-identity");
+      expect(io.stdoutText).toContain("derived:");
+      expect(io.stdoutText).toContain("found:");
+      expect(io.stdoutText).toContain(
+        "identity: line=phase-spec · op=review · cycle=1 · attempt=1",
+      );
+      // zero write, zero round consumed: no in-flight record and no fix round booked
+      expect(existsSync(workspace.resolve("in-flight.json"))).toBe(false);
+      expect(ledger.recordsOf("phase-spec").some((record) => record.op === "fix")).toBe(false);
+      // The real-run refusal on the same file pair is pinned where the child spawn
+      // can be observed (`lifecycle.test.ts`, the migration pair); here the pin is
+      // that the preview is not silent about a dispatch the real run would refuse.
+    } finally {
+      cleanup();
+    }
+  });
+
   it("an underivable repo root BLOCKs (exit 1, never a usage 2) — a work verb from outside any git repo (§2.6)", async () => {
     // The repo root is the ONE conversion point (T2): the working directory's git
     // top level. A cwd outside any git repository cannot derive it — a missing
@@ -5930,12 +6111,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
   /** A hermetic harness scene (workspace + ledger) for frame dispatch tests. */
   function harnessScene(repoRoot: string, slug = "p3"): DispatchScene {
     const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), slug).ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+    const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
     return {
       workspace,
       ledger,
       planPath: null,
-      plan: new PlanSource(workspace.root.basis).readFor(null),
+      plan: planSourceOf(workspace.root.basis).readFor(null),
       briefPath: null,
     };
   }
@@ -5981,7 +6162,12 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const dispatch = new HarnessDispatch({ scene, io, env: {} });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        env: {},
+      });
       expect(dispatch.detectHost({})).toBe("");
       expect(dispatch.detectHost({ CLAUDE_CODE_SESSION_ID: "s" })).toBe("claude");
       expect(dispatch.detectHost({ AI_AGENT: "pi" })).toBe("pi");
@@ -6040,6 +6226,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6125,7 +6312,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const io = new CaptureIo();
       const sync = new StubRunner();
       sync.stdout = "Implemented the task.\n";
-      const dispatch = new HarnessDispatch({ scene, io, sync, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync,
+        env: { AI_AGENT: "pi" },
+      });
       await dispatch.step()(implementFrame);
       expect(sync.calls.length).toBe(1);
       // The child env is the detected row's data, never a dispatcher branch: a
@@ -6141,22 +6334,19 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       const scene: DispatchScene = {
         workspace,
         ledger,
         planPath: null,
-        plan: new PlanSource(workspace.root.basis).readFor(null),
+        plan: planSourceOf(workspace.root.basis).readFor(null),
         briefPath: path.join(workspace.path, "tasks-1-brief.md"),
       };
       const io = new CaptureIo();
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6185,11 +6375,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       const briefPath = path.join(workspace.path, "tasks-1-brief.md");
       // The scene carries the brief path but NO brief file is written to disk — the
       // read is the scene's fact, not the filesystem's (the retired existsSync guard).
@@ -6197,13 +6383,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         workspace,
         ledger,
         planPath: null,
-        plan: new PlanSource(workspace.root.basis).readFor(null),
+        plan: planSourceOf(workspace.root.basis).readFor(null),
         briefPath,
       };
       const io = new CaptureIo();
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6227,22 +6414,19 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       const scene: DispatchScene = {
         workspace,
         ledger,
         planPath: null,
-        plan: new PlanSource(workspace.root.basis).readFor(null),
+        plan: planSourceOf(workspace.root.basis).readFor(null),
         briefPath: null,
       };
       const io = new CaptureIo();
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6299,6 +6483,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6371,6 +6556,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6428,6 +6614,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6475,6 +6662,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6519,6 +6707,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6570,6 +6759,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6637,6 +6827,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6694,6 +6885,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6751,6 +6943,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         key: "docs/kairos/specs/s1-design.md",
       };
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6838,6 +7031,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6862,7 +7056,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const noHost = new HarnessDispatch({ scene, io, env: {} });
+      const noHost = new HarnessDispatch({ artifacts: new ArtifactRegistry(), scene, io, env: {} });
       expect(await noHost.step()(implementFrame)).toEqual({
         status: "BLOCKED",
         // no host: the dispatch never reached its git baseline
@@ -6886,6 +7080,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // round that was never booked) contributes nothing to it.
       expect(scene.ledger.counterOf("contractViolationCount")).toBe(0);
       const failed = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync: {
@@ -6914,7 +7109,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const io = new CaptureIo();
       // a mutable env object — the dispatch reads it live, so the host marker can vanish
       const env: Record<string, string | undefined> = { CLAUDE_CODE_SESSION_ID: "s" };
-      const dispatch = new HarnessDispatch({ scene, io, sync: new StubRunner(), env });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: new StubRunner(),
+        env,
+      });
       // the first dispatch reaches its git baseline (no draft → BLOCKED, the baseline set)
       expect((await dispatch.step()(implementFrame)).dispatchBase).toBe(base);
       // the host marker is gone, so the second dispatch returns BEFORE reading the
@@ -6943,6 +7144,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const sync = new StubRunner();
       sync.stdout = "done — the handoff draft is written\n";
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -6993,6 +7195,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.code = 7;
       sync.stdout = "boom — the child died before writing\n";
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7048,6 +7251,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.code = null;
       sync.termination = { cause: "stalled", idleMs: 1_800_000, lastSample };
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7099,6 +7303,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       sync.code = 143;
       sync.termination = { cause: "over-budget", idleMs: 42, lastSample: null };
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7133,6 +7338,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7174,6 +7380,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7213,6 +7420,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const draftPath = path.join(scene.workspace.path, "tasks-1-implement-1.json");
       writeFileSync(draftPath, JSON.stringify({ artifacts: { report: "/r" } }), "utf8");
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7284,6 +7492,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7338,6 +7547,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7413,6 +7623,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7474,6 +7685,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         "utf8",
       );
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync,
@@ -7520,7 +7732,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
     return {
       workspace,
-      ledger: new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)),
+      ledger: new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis)),
     };
   }
 
@@ -8057,6 +8269,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       try {
         gitInit(repoRoot);
         const plan = planFor(repoRoot);
+        seedDocRounds(repoRoot);
         const { workspace, ledger } = cliScene(repoRoot);
         // a valid draft + evidence, ZERO commits — the empty-round face
         const runner = new RecordProbeRunner(workspace.path);
@@ -8235,6 +8448,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         );
         const sync = new StubRunner();
         const dispatch = new HarnessDispatch({
+          artifacts: new ArtifactRegistry(),
           scene,
           io,
           sync,
@@ -8256,6 +8470,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         // fix round: the same criterion judges it)
         const docsSync = new StubRunner();
         const docsDispatch = new HarnessDispatch({
+          artifacts: new ArtifactRegistry(),
           scene,
           io,
           sync: docsSync,
@@ -8295,6 +8510,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         });
         try {
           const review = new HarnessDispatch({
+            artifacts: new ArtifactRegistry(),
             scene,
             io,
             sync: new StubRunner(),
@@ -8312,6 +8528,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           );
           // `--reviews` present: the fix route's own carrier wins the same cell
           const fix = new HarnessDispatch({
+            artifacts: new ArtifactRegistry(),
             scene,
             io,
             sync: new StubRunner(),
@@ -8349,6 +8566,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
             "utf8",
           );
           const dispatch = new HarnessDispatch({
+            artifacts: new ArtifactRegistry(),
             scene,
             io: new CaptureIo(),
             sync: new StubRunner(),
@@ -8487,10 +8705,10 @@ const sceneOf = (
   briefPath: string | null = null,
 ): DispatchScene => {
   const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
   // The plan-less scene takes the derived face's own "no plan yet" result (the ONE
   // producer of `undeclared`), never a hand-minted value.
-  const plan = new PlanSource(workspace.root.basis);
+  const plan = planSourceOf(workspace.root.basis);
   return {
     workspace,
     ledger,
@@ -8698,7 +8916,13 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const io = new CaptureIo();
       const runner = new RecordProbeRunner(scene.workspace.path);
       runner.commit = true;
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       const outcome = await dispatch.step()(P21_IMPLEMENT);
       expect(outcome.status).toBe("APPROVED");
       // The record existed INSIDE run() — i.e. before the child was spawned.
@@ -8733,6 +8957,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       // the dispatch instant would read a LIVE holder dead and authorize a takeover.
       const startedAt = Date.now() - 6 * 60 * 60 * 1000;
       const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
         scene,
         io,
         sync: runner,
@@ -8756,7 +8981,13 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const io = new CaptureIo();
       const runner = new StubRunner();
       runner.code = 1;
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       const outcome = await dispatch.step()(P21_IMPLEMENT);
       expect(outcome.status).toBe("BLOCKED");
       // The crash's postmortem fact survives: the record is not the loop's to remove.
@@ -8791,7 +9022,13 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       expect(scene.ledger.reviewedRevisionOf("1")).toBeNull();
       const io = new CaptureIo();
       const runner = new RecordProbeRunner(scene.workspace.path);
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       await dispatch.step()(P21_IMPLEMENT);
       const record = JSON.parse(runner.recordAtSpawn as string) as InFlightRecord;
       const expected = scene.ledger
@@ -8821,7 +9058,13 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       // The probe captures the record INSIDE run() — the normal end releases it, so the
       // post-run file is (correctly) gone.
       const runner = new RecordProbeRunner(scene.workspace.path);
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       const planReview: OpenFrame = {
         type: "plan",
         phase: "review",
@@ -8904,8 +9147,8 @@ describe("P30 — `--recover` folds a stale in-flight record before the new roun
       const records = new Ledger(
         workspace,
         new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      ).recordsOf("1", "wave");
+        planSourceOf(workspace.root.basis),
+      ).recordsOf("1");
       // The abort fact landed FIRST, with the record's own identity and baseline.
       expect(records[0]).toMatchObject({
         op: "implement",
@@ -8993,7 +9236,7 @@ const plantStaleRecord = (repoRoot: string): void => {
 /** The fixture's ledger read (the assertions' one read face). */
 const ledgerOf = (repoRoot: string): Ledger => {
   const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
-  return new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  return new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
 };
 
 describe("P30 §2.3 — the `--recover` reopen leg", () => {
@@ -9021,7 +9264,7 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
       expect(await command.runArgv(["review", "--type", "plan", "--plan", plan, "--recover"])).toBe(
         0,
       );
-      const records = ledger.recordsOf("plan", "plan");
+      const records = ledger.recordsOf("plan");
       expect(records[0]).toMatchObject({
         op: "review",
         cycle: 1,
@@ -9035,7 +9278,7 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
         verdict: { targetAction: true },
       });
       // No fake completed fix: the fix identity stays with its requesting review (D28).
-      expect(ledger.completedCycles("plan", "fix", "plan")).toEqual([]);
+      expect(ledger.completedCycles("plan", "fix")).toEqual([]);
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "plan-review-2.c2.json"))).toBe(
         true,
       );
@@ -9104,7 +9347,7 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
       );
       const ledger = ledgerOf(repoRoot);
       // ① the killed round is booked with its OWN identity (the abort record)
-      const aborted = ledger.recordsOf("1", "wave");
+      const aborted = ledger.recordsOf("1");
       expect(aborted).toHaveLength(1);
       expect(aborted[0]).toMatchObject({
         op: "implement",
@@ -9115,7 +9358,7 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
       });
       expect(aborted[0]?.violations[0]).toMatchObject({ grade: "hard", cause: "interrupted" });
       // ② the supersede stamp … ③ the N+1 review round (both on the plan line)
-      const reviews = ledger.recordsOf("plan", "plan");
+      const reviews = ledger.recordsOf("plan");
       expect(reviews[0]?.supersededBy).toEqual({ cycle: 2, cause: "recover" });
       expect(reviews[1]).toMatchObject({ op: "review", cycle: 2 });
       // The stale record is gone and the new round did dispatch.
@@ -9138,10 +9381,10 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
       expect(await command.runArgv(["fix", "--type", "plan", "--plan", plan, "--recover"])).toBe(0);
       const ledger = ledgerOf(repoRoot);
       // The abort leg booked the killed round …
-      expect(ledger.recordsOf("1", "wave")).toHaveLength(1);
+      expect(ledger.recordsOf("1")).toHaveLength(1);
       // … and the fix's own re-review is an ORDINARY round: review-1 keeps no stamp, so
       // nothing was reopened (the review verb alone owns the reopen leg).
-      const reviews = ledger.recordsOf("plan", "plan");
+      const reviews = ledger.recordsOf("plan");
       expect(reviews[0]?.supersededBy).toBeUndefined();
       expect(reviews.every((record) => record.supersededBy === undefined)).toBe(true);
     } finally {
@@ -9163,8 +9406,8 @@ describe("P30 §2.3 — the `--recover` reopen leg", () => {
       // `implement` has no `--type` (the wave face) — its abort leg is face-independent.
       await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--recover"]);
       const ledger = ledgerOf(repoRoot);
-      expect(ledger.recordsOf("1", "wave")).toHaveLength(1);
-      const reviews = ledger.recordsOf("plan", "plan");
+      expect(ledger.recordsOf("1")).toHaveLength(1);
+      const reviews = ledger.recordsOf("plan");
       expect(reviews[0]?.supersededBy).toBeUndefined();
     } finally {
       cleanup();
@@ -9184,7 +9427,13 @@ describe("P21 — the crash record's identity and git facts", () => {
       const io = new CaptureIo();
       const runner = new StubRunner();
       runner.code = 1;
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       const outcome = await dispatch.step()(P21_REVIEW);
       expect(outcome.status).toBe("BLOCKED");
       const crashPath = path.join(scene.workspace.path, "crash-tasks-1-review-1.json");
@@ -9214,7 +9463,13 @@ describe("P21 — the crash record's identity and git facts", () => {
       const scene = sceneOf(repoRoot);
       const io = new CaptureIo();
       const runner = new CommittingCrashRunner();
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       const outcome = await dispatch.step()(P21_IMPLEMENT);
       expect(outcome.status).toBe("BLOCKED");
       const crash = readJson<CrashRecord>(
@@ -9241,7 +9496,13 @@ describe("P21 — the crash record's identity and git facts", () => {
       const io = new CaptureIo();
       const runner = new StubRunner();
       runner.code = 1;
-      const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       await dispatch.step()(P21_IMPLEMENT);
       const crash = readJson<CrashRecord>(
         path.join(scene.workspace.path, "crash-tasks-1-implement-1.json"),
@@ -9278,7 +9539,13 @@ describe("P21 — the crash record's identity and git facts", () => {
         const runner = new StubRunner();
         runner.code = entry.code;
         runner.termination = entry.termination;
-        const dispatch = new HarnessDispatch({ scene, io, sync: runner, env: { AI_AGENT: "pi" } });
+        const dispatch = new HarnessDispatch({
+          artifacts: new ArtifactRegistry(),
+          scene,
+          io,
+          sync: runner,
+          env: { AI_AGENT: "pi" },
+        });
         await dispatch.step()(P21_IMPLEMENT);
         expect(io.stderrText, `${entry.label}: the late-landing hint`).toContain(
           words.lateLandingHint(),
@@ -9737,7 +10004,9 @@ describe("P35 T4 — the plan read refuses every plan-carrying face", () => {
         expect(await command.runArgv(argv), argv.join(" ")).toBe(1);
         expect(io.stderrText).toContain("CDD_BLOCKED: doc-contract · ");
         expect(io.stderrText).toContain("orphan-phase");
-        expect(io.stderrText).toContain("docs/kairos/specs/orphan-phase-design.md");
+        // The identity sentence names the slug alone — zero derived-path bytes (§2.7).
+        expect(io.stderrText).toContain("the slug names no identity document (index clean miss)");
+        expect(io.stderrText).not.toContain("orphan-phase-design.md");
         expect(io.stderrText).not.toContain("cdd: ");
       }
     } finally {
@@ -9908,7 +10177,7 @@ describe("P35 T5 — the board's ONE plan read: the table, the four semantics, `
     }
   });
 
-  it("the derived face's unreadable plan folds to `! unreadable` — exit 0, one diagnostic", async () => {
+  it("the derived face's unreadable plan is the UNDECIDED arm — `(none)` today's bytes, one counted diagnostic", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
@@ -9918,11 +10187,18 @@ describe("P35 T5 — the board's ONE plan read: the table, the four semantics, `
       io.stdoutText = "";
       io.stderrText = "";
       expect(await command.runArgv(["board", "--spec", SPEC])).toBe(0);
-      expect(io.stdoutText).toContain("  wave     ! unreadable");
-      expect(io.stdoutText).toContain("  plan     docs/kairos/plans/prog-p1.md · ! unreadable");
-      expect(io.stdoutText).toContain("  next:    (none)");
-      expect(io.stdoutText).not.toContain("  reason:");
-      expect(warnRows(io.stderrText)).toEqual(["! unreadable docs/kairos/plans/prog-p1.md"]);
+      // The SCAN meets the bytes first (§2.7): the index holds no plan row and the
+      // plans root reports a discarded candidate, so the phase may not be answered
+      // "no plan" — the cell keeps today's `(none)` and the diagnostic carries the
+      // count. The `! unreadable` mark belongs to the argv face, which opens the
+      // bytes itself.
+      expect(io.stdoutText).toContain("  wave     (none)");
+      expect(io.stdoutText).toContain("  plan     (none)");
+      expect(io.stdoutText).not.toContain("! unreadable");
+      const rows = warnRows(io.stderrText);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toContain("docs/kairos/plans");
+      expect(rows[0]).toContain("discarded candidate(s)");
     } finally {
       cleanup();
     }
@@ -9951,14 +10227,18 @@ describe("P35 T5 — the board's ONE plan read: the table, the four semantics, `
       expect(await command.runArgv(["board", "--spec", SPEC])).toBe(0);
       expect(waveRows(io.stdoutText)).toEqual(["  wave     ! unparseable"]);
       expect(warnRows(io.stderrText)).toHaveLength(1);
-      // ④ the bytes do not read at all.
+      // ④ the bytes do not read at all — the scan drops the candidate, so the plan row
+      // is absent on a surface that cannot say "no plan": today's `(none)` bytes plus
+      // one counted diagnostic (§2.7 (c)).
       const file = healthyPlan(repoRoot);
       chmodSync(file, 0o000);
       io.stdoutText = "";
       io.stderrText = "";
       expect(await command.runArgv(["board", "--spec", SPEC])).toBe(0);
-      expect(waveRows(io.stdoutText)).toEqual(["  wave     ! unreadable"]);
-      expect(warnRows(io.stderrText)).toHaveLength(1);
+      expect(waveRows(io.stdoutText)).toEqual(["  wave     (none)"]);
+      const rows = warnRows(io.stderrText);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toContain("discarded candidate(s)");
     } finally {
       cleanup();
     }
@@ -10122,10 +10402,10 @@ describe("P35 T5 — the board's ONE plan read: the table, the four semantics, `
       io.stderrText = "";
       expect(await command.runArgv(["board", "--spec", OVERALL])).toBe(0);
       const rows = warnRows(io.stderrText);
+      // prog-p2's plan is unreadable to the SCAN ⇒ the plans root is dirty ⇒ one counted
+      // diagnostic (§2.7 (c)); prog-p3's plan parses badly ⇒ the value's own mark.
       expect(rows).toHaveLength(2);
-      expect(rows.some((row) => row.includes("! unreadable") && row.includes("prog-p2"))).toBe(
-        true,
-      );
+      expect(rows.some((row) => row.includes("docs/kairos/plans"))).toBe(true);
       expect(rows.some((row) => row.includes("! unparseable") && row.includes("prog-p3"))).toBe(
         true,
       );
@@ -10182,17 +10462,15 @@ describe("P35 T5 — the board's ONE plan read: the table, the four semantics, `
       writeDoc(repoRoot, "docs/kairos/plans/prog-p1-copy.md", planLines(task(1)));
       io.stdoutText = "";
       io.stderrText = "";
-      // The identity marker is the plan row's fact and it still exits 2. The wave row
-      // keeps the READ's own literal: the identity face bans `! no-spec` alone, so a
-      // broken identity never hides a grammar break behind `(none)`.
+      // The identity marker is the plan row's fact and it still exits 2. TWO plan rows
+      // are the SET answer (§2.7 (d)): `locate` returns null for n ≥ 2 as well as for
+      // 0, so the read never picks a first document to grade — the wave segment keeps
+      // today's `(none)` and the plan cell carries the marker plus both paths.
       expect(await command.runArgv(["board", "--spec", SPEC])).toBe(2);
       expect(io.stdoutText).toContain("slug: duplicated (BLOCKED)");
       expect(io.stdoutText).not.toContain("! no-spec");
-      expect(waveRows(io.stdoutText)).toEqual(["  wave     ! unparseable"]);
-      expect(io.stdoutText).not.toContain("  wave     (none)");
-      expect(warnRows(io.stderrText)).toEqual([
-        "! unparseable docs/kairos/plans/prog-p1.md: #### DependsOn",
-      ]);
+      expect(waveRows(io.stdoutText)).toEqual(["  wave     (none)"]);
+      expect(warnRows(io.stderrText)).toEqual([]);
     } finally {
       cleanup();
     }
@@ -10215,24 +10493,41 @@ describe("P35 T5 — the board's ONE plan read: the table, the four semantics, `
     }
   });
 
-  it("a healthy plan the index does not register renders its read path, with healthy wave rows", async () => {
+  it("a plan the index cannot register leaves the plan row `(none)` — exit 0, zero refusal, one diagnostic", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
       seedNode(repoRoot);
-      // The file sits on the DERIVED path and reads, but it is not a plan document
-      // (no `doc-type: plan`) — so the index names no plan for this slug.
+      // The file reads, but it is not a plan document (no `doc-type: plan`) — so the
+      // index names no plan for this slug AND the plans root reports the candidate it
+      // could not register (P35 AC ③'s re-anchored half, spec §2.7 (c)).
       writeDoc(
         repoRoot,
         PLAN,
         planLines(task(1)).filter((line) => line !== "doc-type: plan"),
       );
+      // The phase-spec line is closed on a clean round, so the announcement falls to the
+      // plan face (`kairos:cdd-plan`) — the route the read's absence must NOT swallow.
+      const seedWorkspace = new Workspace(
+        new WorkspaceRoot(repoRoot, ".kairos/cdd"),
+        "prog-p1",
+      ).ensure();
+      const seedLedger = new Ledger(
+        seedWorkspace,
+        new ConfigLoader(),
+        planSourceOf(seedWorkspace.root.basis),
+      );
+      seedLedger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
+      seedLedger.recordRound("phase-spec", { op: "review" });
       io.stdoutText = "";
       io.stderrText = "";
       expect(await command.runArgv(["board", "--spec", SPEC])).toBe(0);
-      expect(io.stdoutText).toContain("  plan     docs/kairos/plans/prog-p1.md");
-      expect(io.stdoutText).toContain("W1 {1}");
-      expect(warnRows(io.stderrText)).toEqual([]);
+      expect(io.stdoutText).toContain("  plan     (none)");
+      expect(io.stdoutText).toContain("  wave     (none)");
+      expect(io.stdoutText).toContain("  next:    route to /kairos:cdd-plan skill");
+      expect(warnRows(io.stderrText)).toHaveLength(1);
+      expect(warnRows(io.stderrText)[0]).toContain("docs/kairos/plans");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED");
     } finally {
       cleanup();
     }
@@ -10249,11 +10544,7 @@ describe("P35 T5 — the board's ONE plan read: the table, the four semantics, `
         new WorkspaceRoot(repoRoot, ".kairos/cdd"),
         "prog-p1",
       ).ensure();
-      const ledger = new Ledger(
-        workspace,
-        new ConfigLoader(),
-        new PlanSource(workspace.root.basis),
-      );
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
       ledger.persistHandoff("review", "phase-spec", { round: 1 }, { findings: [] });
       ledger.recordRound("phase-spec", { op: "review" });
       io.stdoutText = "";
@@ -10384,7 +10675,7 @@ describe("P35 T7 — the doc face's derived-path routing and the identity bounda
    *  the plan-review hop. A real document, a recorded zero-findings review. */
   const closePlanLine = (repoRoot: string): void => {
     const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "s1").ensure();
-    const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+    const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
     ledger.persistHandoff("review", "plan", { round: 1 }, { findings: [] });
     ledger.recordRound("plan", { op: "review" });
   };
@@ -10429,39 +10720,43 @@ describe("P35 T7 — the doc face's derived-path routing and the identity bounda
     }
   });
 
-  it("③ a derived plan that reads but the index never registered still routes to the plan exit", async () => {
+  it("③ a derived plan the index never registered is the UNDECIDED arm — the doc face returns to the plan exit", async () => {
     const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
     try {
       gitInit(repoRoot);
       const spec = conformingSpec(repoRoot);
       // Readable and parseable, but no `doc-type: plan` — the index names no plan for
-      // this slug. The read value still carries the path (`stationPath()`), which is
-      // the registered change: today's index fallback answered null here.
+      // this slug while the plans root holds the candidate it could not register, so
+      // the phase may not be answered "no plan": `stationPath()` is null (no document
+      // to hand the plan face) and the doc face returns to `kairos:cdd-plan`. Zero
+      // refusal — the undecided read is not a contract break (§2.7 (c)).
       planAt(repoRoot, PLAN_REL, task(1), null);
       closePlanLine(repoRoot);
       io.stdoutText = "";
       io.stderrText = "";
       expect(await command.runArgv(["review", "--type", "phase-spec", "--spec", spec])).toBe(0);
-      expect(nextLineOf(io.stdoutText)).toBe("next: route to /kairos:cdd-dev skill");
+      expect(nextLineOf(io.stdoutText)).toBe("next: route to /kairos:cdd-plan skill");
       expect(io.stderrText).not.toContain("CDD_BLOCKED");
     } finally {
       cleanup();
     }
   });
 
-  it("a phase slug that names no `<slug>.md` reads `undeclared` — `(none)`, exit 0, zero guessing", async () => {
+  it("a plan file that is not `<slug>.md` IS the plan — identity, never a file name (§2.7)", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
       const spec = conformingSpec(repoRoot);
-      // The plan is healthy and registered — but its file name is not the derived
-      // `<slug>.md`, so `slug` alone is the identity: the phase holds no plan.
+      // The plan declares the phase's slug and sits beside the derived name: the
+      // identity answers, so the derived face reads the index's plan row at ITS `rel`
+      // and the wave rows render. The retired `<slug>.md` probe would have answered
+      // `undeclared` here — exactly the #485 defect.
       planAt(repoRoot, "docs/kairos/plans/s1-plan.md", task(1));
       io.stdoutText = "";
       io.stderrText = "";
       expect(await command.runArgv(["board", "--spec", spec])).toBe(0);
-      expect(io.stdoutText).toContain("  wave     (none)");
-      expect(io.stdoutText).not.toContain("W1 {1}");
+      expect(io.stdoutText).toContain("  plan     s1-plan.md");
+      expect(io.stdoutText).toContain("W1 {1}");
       expect(io.stdoutText).not.toContain("! no-spec");
       expect(io.stderrText).not.toContain("CDD_WARN:");
     } finally {
@@ -10487,9 +10782,49 @@ describe("P35 T7 — the doc face's derived-path routing and the identity bounda
       expect(io.stdoutText).toContain("  plan     s1.md   v1.0");
       expect(io.stdoutText).toContain("W1 {1}");
       expect(io.stdoutText).not.toContain("! no-spec");
-      expect(io.stderrText).not.toContain("CDD_WARN:");
+      // ONE counted diagnostic: the specs root dropped the unreadable candidate, which
+      // is the fact that forbids answering `spec-absent` (§2.7 (c)).
+      const rows = io.stderrText
+        .split("\n")
+        .filter((line) => line.startsWith("CDD_WARN:"))
+        .map((line) => line.slice("CDD_WARN: ".length));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toContain("docs/kairos/specs");
+      expect(rows[0]).toContain("discarded candidate(s)");
     } finally {
       cleanup();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P36 T3 — the identity index is built at the command preamble, never per read
+// ---------------------------------------------------------------------------
+
+describe("P36 T3 — `SlugIndex.build` survives at exactly three production sites", () => {
+  /** The allowed sites: the CLI's private preamble entry (one literal, shared by the
+   *  board / scene / base legs) and the two `?? build` fallbacks the judgment planes
+   *  keep for a context handed no index. */
+  const SITES: Readonly<Record<string, number>> = {
+    "face/cli.ts": 1,
+    "session/preflight.ts": 1,
+    "contract/invariants.ts": 1,
+  };
+
+  /** Each production file's `SlugIndex.build` occurrences (comments stripped: a
+   *  docstring naming the call is prose, a call is a real construction site). */
+  const buildSites = (): Record<string, number> => {
+    const counts: Record<string, number> = {};
+    for (const [name, text] of engineSourceTexts()) {
+      const hits = stripComments(text)
+        .split("\n")
+        .filter((line) => line.includes("SlugIndex.build")).length;
+      if (hits > 0) counts[name] = hits;
+    }
+    return counts;
+  };
+
+  it("keeps the three sites and no fourth", () => {
+    expect(buildSites()).toEqual(SITES);
   });
 });

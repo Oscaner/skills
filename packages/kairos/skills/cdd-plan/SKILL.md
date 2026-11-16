@@ -80,6 +80,7 @@ flowchart TD
 | I2 | **Plan commit discipline** — the authored plan commits before the first review round; each fix round commits its own changes — approval closes the loop on a committed state; do not wait for dev merge |
 | I3 | **Plan write authority** — the plan's writes discriminate by trigger: review findings land through the fix round dispatch only; a user adjudication or durable backfill lands through the orchestrator's own standalone commit, amending the target task's data fields directly; fix/implement agents hold zero plan-structure authority (their content-face amendment right is the write-authority clause above) |
 | I4 | **Mid-Flight Backfill** — a user-raised backfill of overall/spec/plan docs surfaced while a dispatch is in flight lands through four ordered steps on the current call's return: (1) **land immediately** — hot context, no deferral; (2) **commit on its own** — a standalone change, never mixed with implementation commits; (3) **pause the loop until clean** — an uncommitted backfill trips the next review's entry gate (dirty → BLOCKED); (4) **audit in-band on resume** — the next review audits the backfill in-band |
+| I5 | **Ruling Landing** — when a fix dispatch needs a ruling on a finding, the ruling lands at the sidecar path the engine prints in `next:`; the orchestrator never derives that path itself |
 
 ## Failure Modes
 

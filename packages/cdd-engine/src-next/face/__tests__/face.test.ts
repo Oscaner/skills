@@ -22,6 +22,7 @@ import { describe, expect, it } from "vitest";
 import { Translator } from "../../contract/translate.ts";
 import type { RouteTarget } from "../../session/faces.ts";
 import {
+  FIX_READBACK_SLOT,
   FIX_READBACK_SUFFIX,
   NEXT_HOP_REASON,
   type NextHop,
@@ -34,6 +35,11 @@ import { CAPSULE_WORDS, GUARD_BAN_WORDS, Words } from "../words.ts";
 
 const words = new Words();
 const capsule = new Capsule(words);
+
+/** The readback sentence with a resolved sidecar path in its value slot — the expected
+ *  bytes a route carrying that path renders (the route owns the value, never a rule). */
+const readback = (sidecar: string): string =>
+  FIX_READBACK_SUFFIX.replace(FIX_READBACK_SLOT, sidecar);
 
 /** The capsule's ONE input object — a `NextHop` produced by the ONE derivation
  *  (never a hand-built shape), so the render pins the derivation's own product. */
@@ -152,11 +158,15 @@ describe("the capsule byte pin — the single output face", () => {
       capsule.emit(
         "CHANGES_REQUESTED",
         "/h.json",
-        hopOf({ kind: "fix", reviews: "tasks-1-review-1.json" }),
+        hopOf({
+          kind: "fix",
+          reviews: "tasks-1-review-1.json",
+          rulings: "tasks-1-review-1.c1.rulings.json",
+        }),
       ),
     ).toEqual([
       "status: CHANGES_REQUESTED · handoff: /h.json",
-      `next: fix --reviews tasks-1-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `next: fix --reviews tasks-1-review-1.json ${readback("tasks-1-review-1.c1.rulings.json")}`,
       "reason: pending-fix",
     ]);
     // a fix route without its input renders the bare classifier
@@ -194,11 +204,18 @@ describe("the capsule byte pin — the single output face", () => {
       capsule.emit(
         "CHANGES_REQUESTED",
         "/h.json",
-        hopOf({ kind: "fix", reviews: "tasks-1,2-review-1.json" }, target),
+        hopOf(
+          {
+            kind: "fix",
+            reviews: "tasks-1,2-review-1.json",
+            rulings: "tasks-1,2-review-1.c1.rulings.json",
+          },
+          target,
+        ),
       ),
     ).toEqual([
       "status: CHANGES_REQUESTED · handoff: /h.json",
-      `next: fix --type wave --tasks 1,2 --plan docs/kairos/plans/p.md --reviews tasks-1,2-review-1.json ${FIX_READBACK_SUFFIX}`,
+      `next: fix --type wave --tasks 1,2 --plan docs/kairos/plans/p.md --reviews tasks-1,2-review-1.json ${readback("tasks-1,2-review-1.c1.rulings.json")}`,
       "reason: pending-fix",
     ]);
     // the other target types render their discriminator arg — branch (the

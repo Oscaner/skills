@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P37 计划：分级判据的可核化（功能影响 · 三级边界 · 生成式注册表 · pin 门）'
 doc-type: plan
-version: v0.3
+version: v0.4
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 base: develop
@@ -9,7 +9,7 @@ base: develop
 
 ## Constraints
 
-- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md`（slug `2026-11-16-engine-doc-tooling-p37`）在本轮被消费那一刻的 `version:` 所指的面。本 bullet 只记「哪一节落在哪个任务」，**不记版本坐标**——spec 再升一版也不需要改这一行；本计划实际消费的是哪一版，记在 `## Change history` 里本轮那一行。落点：§1 + §6.1 判据表半边 + §6.2 判据面观察者归 T1 · §3 + §6.1 lens 问句半边 + §3.2 + §6.2 问句面观察者与 15 行 / 19 格计数归 T2 · §2 全节归 T3 · §4 归 T4 · §5 归 T5 · §7.1 pin 定义与三形态 + §7.4 pin 判据行 + §7.2 第 2 / 3 消费者 + §2.3 + AC⑦ changeset 归 T6 · §7.3 存量迁移归 T7。§6.2 的三种 `face` 各由创建该执行面的任务核，一律走字面量、不跨任务 import：`numbered` 与语料计数落在承载该表的测试面（T1 判据表 / T2 问句表）；`gate` 落在 T3——它打的 `CDD_BLOCKED: grading-impact-missing` 第二词就是该判据行的 `id`；`test` 落在 T6——`contract/__tests__/pins.guard.test.ts` 里一条格题以字面量点名 `pin-parseability`。§7 的测试面只承接 pin 语料。
+- **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-11-16-engine-doc-tooling-p37-design.md`（slug `2026-11-16-engine-doc-tooling-p37`）在本轮被消费那一刻的 `version:` 所指的面。本 bullet 只记「哪一节落在哪个任务」，**不记版本坐标**——spec 再升一版也不需要改这一行；本计划实际消费的是哪一版，记在 `## Change history` 里本轮那一行。落点：§1 + §6.1 判据表半边 + §6.2 判据面观察者归 T1 · §3 + §6.1 lens 问句半边 + §3.2 + §6.2 问句面观察者与 15 行 / 19 格计数归 T2 · §2 全节归 T3 · §4 归 T4 · §5 归 T5 · §7.1 pin 定义与三形态 + §7.4 pin 判据行 + §7.2 的后两份语料（被审文档正文 · `contract.path`）+ §2.3 + AC⑦ changeset 归 T6 · §7.3 存量迁移归 T7。§6.2 的三种 `face` 各由创建该执行面的任务核，一律走字面量、不跨任务 import：`numbered` 与语料计数落在承载该表的测试面（T1 判据表 / T2 问句表）；`gate` 落在 T3——它打的 `CDD_BLOCKED: grading-impact-missing` 第二词就是该判据行的 `id`；`test` 落在 T6——`contract/__tests__/pins.guard.test.ts` 里一条格题以字面量点名 `pin-parseability`。§7 的测试面只承接 pin 语料。
 - **OOP / 零裸函数**：`src-next` 新增文件一律 class 或 `const` 箭头；参数 ≤4；类 ≤200 行；接口先行、协作者构造注入。注册表仿 `contract/completion-criterion.ts` 的 `of(id)` 查不到即抛。
 - **pin 写法**：路径 + 符号，不用行号。本计划自身遵守。
 - **非目标**：不改 D70 · 不改「任何 findings → fix」路由 · 不重审已闭合相位 · 不动 `packages/kairos/skills` · 不做 docs 全量校验 · 不引入 `impact.kind`（v0.3 ruling 已删）。
@@ -36,7 +36,9 @@ none
 
 - `CriteriaRegistry`（或等价类名）· `CRITERIA.of(id: string): CriteriaRow`（查不到即抛）· `CRITERIA.renderRubric(): string`
 - `CriteriaRow = { id, tier: "blocker"|"warn"|"nit", body, duty, counterExample, face: "gate"|"test"|"numbered" }`
-- 判据表五行，三档都有行（§1.1–§1.3）：blocker 行覆盖功能影响边界 + 场景举证 + 「条款被违反但字节不变 ⇒ warn」反例；warn 档行覆盖后果举证与自己的反例；nit 档行覆盖「为什么不是 warn」；`regrade-mark`（nit）与 `pin-parseability`（warn · §7.4）各占一行
+- 判据表五行，三档都有行（§1.1–§1.3），反例句按 §1.3 的序落到**行**上（`counterExample` 是行的格子，不是档位的格子）：blocker 行（`id: "grading-impact-missing"`）覆盖功能影响边界 + 场景举证，其 `counterExample` 是 §1.3 第一条「说得出一处偏离预期，却举不出『哪条合法输入 → 实际是什么 → 预期是什么』⇒ warn」；warn 档行覆盖后果举证，其 `counterExample` 取 §1.3 第三条「一段死码当前无人调用、也不影响任何输出 ⇒ warn，不是 nit」（warn 行承担 warn / nit 的界线，正是 §1 开头点名缺失的那条分界）；nit 档行覆盖「为什么不是 warn」，其 `counterExample` 是 §1.3 第四条「一处命名不一致但同一文件内自洽 ⇒ nit」；`regrade-mark`（nit）与 `pin-parseability`（warn · §7.4）各占一行，后者的 `counterExample` 按 §7.4 写 P28 的反转理由与边界
+- §1.3 的第二条「违反了一句写着的话，但消费者拿到的字节不变 ⇒ warn」不独行：§1.4 已把 (a) 降为 blocker 档的典型实例，而这一句正是封住 (a) 那句漏洞的收口句，因此它是 blocker 行 `body` 的末句、随 `body` 进字节，不占 `counterExample` 格
+- §6.1 的两段校验契约缺一不可：**行形态是类型**——每行是 `readonly` 字面行，`id` / `tier` / `body` / `duty` / `counterExample` / `face` 六格全必填，删掉任一键是 `tsc` 红（类型层，不是运行时抛）；**格子内容是装配期校验**——装配时任一必填格 `trim()` 后为空即 `renderRubric()` 抛，某一 `tier` 无任何行也抛。两段各自拦一种形态，都不会渲染出少一句的档位片段
 - 本相位的 `face` 面额登记在册（§6.2 要求每个非 `numbered` 的值都有行占位）：`numbered` 3 行（warn 档行 · nit 档行 · `regrade-mark`）· `gate` 1 行（blocker 档行，`id: "grading-impact-missing"`——`CDD_BLOCKED: grading-impact-missing` 的第二词就是它，T3 打这个字面量）· `test` 1 行（`pin-parseability`，执行面是 T6 的 `pins.guard.test.ts` 里一条点名它的格题）。`face` 只声明该行额外接上的执行面；三格正文按 §6.1 对**每一行**装配进 rubric 字节，与 `face` 无关
 - `pin-parseability` 行：`tier: "warn"` · `face: "test"` · `counterExample` 写 §7.4 的反转理由与边界（只判 pin 的每一段可解析，不判文档结构、不判语义、不做 docs 全量校验；`contract.path` 归交接单回读面的语料，`PinAudit` 永不承接）
 - `regrade-mark` 行：`tier: "nit"` · `face: "numbered"` · `body` 即 §5.2 的改档标记措辞（T5 的唯一措辞来源，`CRITERIA.of("regrade-mark").body`）；`duty` 与 `counterExample` 照常进 nit 段
@@ -44,15 +46,16 @@ none
 
 #### Steps
 
-- 写失败测试：`CRITERIA.of("missing")` 抛；完整表装配出的字符串含每档 `duty` 与 `counterExample` 原文；删掉某档 `counterExample` 后装配抛且该句从渲染字节消失 — checkable: 红于「of / renderRubric 未定义」
-- 实现 `contract/review-criteria.ts`：判据表 + `of` + `renderRubric`（装配公式：每行 `body + " " + duty + " " + counterExample`，同 tier 相邻，段序 blocker → warn → nit）— checkable: 上面三条测试绿
+- 写失败测试（运行期那一段）：`CRITERIA.of("missing")` 抛；完整表装配出的字符串含每行 `duty` 与 `counterExample` 原文；把某行的 `counterExample` 置 `""`、`body` 与 `duty` 各置空白串 ⇒ `renderRubric()` 抛且该行片段不进字节；让某个 `tier` 零行 ⇒ 装配抛 — checkable: 红于「of / renderRubric 未定义」
+- 实现 `contract/review-criteria.ts`：判据表 + `of` + `renderRubric`（装配公式：每行 `body + " " + duty + " " + counterExample`，同 tier 相邻，段序 blocker → warn → nit；装配前逐行逐格 `trim()` 校验，空白格与零行档位即抛）— checkable: 上面运行期那几条测试绿
+- 类型层那一段的 pin（不进 vitest）：临时从一行的字面量里删掉 `counterExample` 键，`pnpm exec tsc --noEmit -p packages/cdd-engine` 红；恢复即绿。它是 buildability 证据，不在测试里冒充「装配抛」——套件走 esbuild（AGENTS.md 的 trap），删键在运行期只是 `undefined`，抛的是 `TypeError`，两条红法不能互相顶替 — checkable: `tsc --noEmit` 删键前绿 / 删键后红
 - 改 `render/templates.ts`：`SEVERITY_RUBRIC` 改为 `CRITERIA.renderRubric()` 的返回值（或由其填充档位主体，尾段仍拼接 `reviewGuideOf` 既有契约）；(a)–(d) 降为 blocker 档 `body` 内的典型实例，不再是独立触发器 — checkable: `templates.test.ts` 的 rubric 锚点重锚后绿；`(severity by your judgment)` 仍在（T2 删）
 - 加 §6.2 判据面结构测试（`contract/__tests__/review-criteria.test.ts`）：逐行核对三格进字节，并把相位 `face` 面额钉成常量（`numbered` 三 id · `gate` 一 id · `test` 一 id，逐 id 列出）— checkable: 观察者绿；把任一行 `face` 改成别的值、删掉一行、或往表里加一行 ⇒ 该测试红（报文面与格题面不在这条测试里冒充，各自在 T3 / T6 的测试面上钉）
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 
-AC ① 的判据表半边：三档边界 / 举证 / 反例进字节；缺行装配即抛；`duty` / `counterExample` 删掉即从渲染字节消失。§6.2 判据面观察者在册（`numbered` 进字节 · `gate` / `test` 各一行，并各自指向报文面 / 格题面）。
+AC ① 的判据表半边：三档边界 / 举证 / 反例进字节，§1.3 的四条反例句各有落点（三行 `counterExample` + blocker 行 `body` 末句）；缺行装配即抛；`duty` / `counterExample` 置空串即从渲染字节消失且装配抛，删键则由 `tsc` 拦——§6.1 的两段校验契约各一条 pin，红法不互相顶替。§6.2 判据面观察者在册（`numbered` 进字节 · `gate` / `test` 各一行，并各自指向报文面 / 格题面）。
 
 #### DependsOn
 
@@ -141,7 +144,7 @@ none
 
 #### Objective
 
-落地 §4：wave 与 branch 对齐——解析到身份文档与其 `program:` ⇒ 两 token 均出现且路径仓根相对可读；缺席或 `invalid` ⇒ 两 token 均不出现；branch 字节不变。
+落地 §4：wave 与 branch 对齐，四臂按身份文档的形状配对（不强行成对）：身份文档与其 `program:` 母宪章都解析到 ⇒ 两 token 均出现且路径仓根相对可读；身份文档解析到但无 `program:`（身份文档是 single-spec）⇒ 只出 `INPUT_SPEC`，`INPUT_OVERALL` 合法缺席，**不得因此连 spec 锚一起剥**；身份文档缺席或读面为 `invalid` ⇒ 两 token 均不出现；`program:` 指不到母宪章 ⇒ 只丢 `INPUT_OVERALL`（`INPUT_SPEC` 仍在）；branch 字节不变。
 
 #### Files
 
@@ -155,18 +158,18 @@ none
 
 #### Produces
 
-- wave 场景上 `specLink` / `overallLink` 与 branch 同源取值规则
+- wave 场景上 `specLink` / `overallLink` 与 branch 同源取值规则，且两格各自独立判定：`specLink` 只看身份文档是否解析到，`overallLink` 再看它的 `program:` 是否指得到母宪章（不互相拖带——否则 single-spec 相位会连 spec 锚一起被剥）
 
 #### Steps
 
-- 写失败测试：健康 fixture 下 wave prompt 含 `INPUT_SPEC` 与 `INPUT_OVERALL` 两行且路径可读；身份缺席 / `invalid` 时两 token 均不出现；branch prompt 字节与本任务前快照一致 — checkable: 红于 wave 两格仍空
+- 写失败测试：健康 fixture 下 wave prompt 含 `INPUT_SPEC` 与 `INPUT_OVERALL` 两行且路径可读；single-spec 身份文档（有身份、无 `program:`）下 `INPUT_SPEC` 在而 `INPUT_OVERALL` 不在；身份文档的 `program:` 指不到母宪章时 `INPUT_SPEC` 在而 `INPUT_OVERALL` 不在；身份缺席 / `invalid` 时两 token 均不出现；branch prompt 字节与本任务前快照一致 — checkable: 红于 wave 两格仍空
 - 改 `#sceneOf` 的 wave 臂：与 plan/branch 一样经 `docsOf` / `program:` 取链接；`invalid` 或缺席 ⇒ 保持 null（装配器丢行）— checkable: 成对 / 负向 pin 绿；branch 快照绿
 - 改 `#valuesOf` 的两臂：`INPUT_SPEC` 的 `plan` / `branch` 臂并入 `wave`，`INPUT_OVERALL` 的 `phase-spec` / `plan` / `branch` 臂并入 `wave` — checkable: 与 `#sceneOf` 的改动配对后两行出现；只改 `#sceneOf` 则两格的原子仍缺、成对 pin 红
 - 提交 — checkable: commit 存在
 
 #### Acceptance
 
-AC ④。
+AC ④ 的四臂全部成对 pin（健康两 token · single-spec 只 `INPUT_SPEC` · `program:` 解析不到只丢 `INPUT_OVERALL` · 身份缺席或 `invalid` 两 token 均无），且「任一环缺席 ⇒ 两 token 均不出现」不作反向 pin；branch 字节不变。
 
 #### DependsOn
 
@@ -215,18 +218,18 @@ AC ⑤。
 
 3
 
-### Task 6: pin 可解析性门 + `contract.path` 回读消费者 + changeset
+### Task 6: pin 可解析性门 + 两份回读语料 + changeset
 
 #### Objective
 
-落地 §7 与 §7.2 的两个回读消费者（外加 §2.3 的第三消费者）：`PinAudit` 扫 markdown 三形态；文档评审回读把同一份语料 finding 注入该轮（不阻断）；交接单回读校验 finding 的 `contract.path`（失效 ⇒ 追加 warn、不阻断）；交付 `cdd-engine` minor changeset。
+落地 §7 与 §7.2：pin 可解析性**只有一条判据**，喂给它的是**三份语料**，执行面**两处**。语料一 = §7.1 全语料（`docs/kairos/**/*.md` + README 家族），执行面是引擎套件的结构测试；语料二 = 本轮被审文档的正文，执行面是 `face/lifecycle.ts` 的 `#reconstruct`；语料三 = 交接单 finding 行上的 `contract.path`（§2.3），执行面是同文件回读的 `#materialize`——两个回读面今天就在 `#reconstruct` / `#materialize`，树里没有第三个文档评审回读面。后两份语料注入的都是真实的 warn 级 finding：进 `findings[]`、被 `rollup` 读到，因此它们的可见后果是文档评审轮落到 `REVIEW_FIX`，而不是停在 `APPROVED`——「不新增拒绝面」说的是不出 `CDD_BLOCKED`，**不是**结论中性。另交付 `cdd-engine` minor changeset。
 
 #### Files
 
 - Create: `packages/cdd-engine/src-next/contract/pins.ts`
 - Create: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（judge 面回读的两个消费者：文档评审注入 pin finding · `contract.path` 判定）
-- Modify: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（两个消费者各一条测试）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（judge 面回读的两份语料：`#reconstruct` 扫被审文档正文 · `#materialize` 判 `contract.path`）
+- Modify: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（两份回读语料各自的成对 pin）
 - Create: `.changeset/p37-grading-boundary.md`（`cdd-engine` minor）
 
 #### Consumes
@@ -236,24 +239,26 @@ AC ⑤。
 #### Produces
 
 - `PinAudit.scan(roots): readonly PinFinding[]`（路径解析 + 符号索引 + 测试格题）
+- **pin 的定义（§7.1，门的一部分）**：一个反引号 token 只在三条同时成立时才是 pin，否则它是散文词汇、不受本门管辖——① **仓根相对**：`path` 不以 `./` / `../` 开头，也不以 `...` 省略号开头；② **不是产物词汇**：workspace 产物名（`progress.json` · `base.json` · `in-flight.json` · `liveness.json` · `tasks-<N>-<op>.json`）、后缀（`.rulings.json`）、模板（`X.md` · `-overall.md` · `-design.md`）；③ **不是易逝物**：按设计在发布时被消费删除的 `.changeset/*.md` 引用是记录而非主张。三条排除就是语料能被 T7 清到零的充分条件，因此它们必须随实现落地
 - 语料声明写死在测试里、**没有在册清单**：§7.1 全语料 = `docs/kairos/**/*.md` + README 家族（`README.md` · `README.zh-CN.md` · `packages/*/README*.md`），无基线 / 无白名单 / 无豁免；扫描文件数作为语料规模常量钉住——文档进入或离开语料即红
 - 门的可红可修成对 pin：播种一条指向不存在符号的 markdown pin ⇒ 红且指出该 pin ⇒ 移除 ⇒ 绿。**零 finding 不是本任务的 checkable**——语料今天非干净，那条断言由 T7 迁移后加
-- `pin-parseability` 的 `test` 面：`pins.guard.test.ts` 里一条以字面量点名 `pin-parseability` 的格题（T1 判据表那一行的 `face: "test"` 由它占位，不 import 注册表）
-- 文档评审回读面：`PinAudit` 的语料 finding 逐条追加进该轮 `findings`（`severity: warn` · `lens: consistency`），不改该轮结论
-- 交接单回读面：finding 行 `contract.path` 失效 ⇒ 追加一条 warn finding（只判 `contract` 这一格，`PinAudit` 永不承接）
+- `pin-parseability` 的 `test` 面：`pins.guard.test.ts` 里一条以字面量点名 `pin-parseability` 的格题（T1 判据表那一行的 `face: "test"` 由它占位，不 import 注册表）。§6.2 / §7.4 把该执行面写作 `pins.test.ts`；本计划用 `pins.guard.test.ts`（与仓内 `doc-corpus.guard.test.ts` / `dockey.guard.test.ts` / `phase-inventory.guard.test.ts` 同惯例），这是对 spec 字面路径的有意改名，记名在 `## Change history` 的 v0.4 行
+- 语料二——文档评审回读面（§7.2 第 2 份）：judge 面且为文档评审轮（`TARGET_TYPE` 为 doc 三型）时，在 `#reconstruct` 里对**本轮被审文档的正文**跑一次 markdown 扫描；那份文档是 `SlugIndex` 解析到、本轮回读的**身份文档**——`INPUT_SPEC` / `INPUT_OVERALL` 是它的引用，**不是语料**。解析不到的 pin 折算成 `severity: warn` · `lens: consistency` 的 finding 注入 `findings[]`，`summary` 指出失效的 pin；它不新增拒绝面（不出 `CDD_BLOCKED`），但**不是结论中性**：warn 按既有语义被 `rollup` 读到，一份带死 pin 的被审文档在文档评审轮落到 `REVIEW_FIX`，而不是停在今天的 `APPROVED`
+- 语料三——交接单回读面（§7.2 第 3 份）：finding 行 `contract.path` 失效 ⇒ 追加一条 `lens: consistency` · `severity: warn` 的 finding（只判 `contract` 这一格，`PinAudit` 的 markdown 扫描永不承接）；不 BLOCK（无 `CDD_BLOCKED`），但按 warn 的既有语义进 `rollup`——本来零 finding 的评审轮因此落到 `REVIEW_FIX`，不会停在 `APPROVED`
 
 #### Steps
 
-- 写失败测试：注入一条指向不存在符号的 markdown pin ⇒ `PinAudit` 非空且指出该 pin，移除 ⇒ 空；扫描文件数等于 §7.1 语料声明；`pins.guard.test.ts` 有一条点名 `pin-parseability` 的格题；文档评审轮遇一条坏 pin ⇒ 该轮 `findings` 出现一条 warn / `consistency` 且结论不被推成 BLOCKED；finding 带坏 `contract.path` ⇒ 回读追加 warn 且轮次不 BLOCK — checkable: 红
-- 实现三形态解析（§7.1）与缓存符号索引；结构测试落在 §7.1 全语料（无在册清单、无基线）— checkable: 播种态红 / 移除后绿，语料规模断言绿；零 finding 的断言留给 T7
-- 文档评审回读消费者（§7.2 第 2 条）：judge 面且为文档评审轮（plan / spec / overall review）时，把 `PinAudit.scan` 的语料 finding 逐条追加进 `draft.findings`（warn · `consistency`）再走既有 rollup——不新增拒绝面、不改该轮结论 — checkable: 注入测试绿
-- 交接单回读消费者（§7.2 第 3 条）：有 `contract` 则解析 `path`；失败则追加 lens=`consistency` · severity=`warn` 的 finding，不调用 `#reject` — checkable: 回读测试绿
+- 写失败测试：注入一条指向不存在符号的 markdown pin ⇒ `PinAudit` 非空且指出该 pin，移除 ⇒ 空；扫描文件数等于 §7.1 语料声明；`pins.guard.test.ts` 有一条点名 `pin-parseability` 的格题 — checkable: 红
+- 写失败测试（pin 定义的三条排除，各一对）：`./x.ts` 或 `...` 省略形 token ⇒ 零 finding；产物词汇 token（`progress.json` · `X.md`）⇒ 零 finding；已消费的 `.changeset/*` 引用 ⇒ 零 finding；而同一位置上仓根相对、非产物词汇、非 changeset 的真死引用仍产 finding — checkable: 红于排除未实现（扫描器把词汇当主张）
+- 实现三形态解析（§7.1）与缓存符号索引，并把 §7.1 的 pin 定义（三条排除）实现为解析前的筛选；结构测试落在 §7.1 全语料（无在册清单、无基线）— checkable: 播种态红 / 移除后绿，语料规模断言绿，三条排除各一对绿；零 finding 的断言留给 T7
+- 语料二的回读（§7.2 第 2 份）：judge 面且为文档评审轮时，对 `#reconstruct` 已解析出的身份文档正文跑 `PinAudit` 的 markdown 扫描，解析不到的 pin 折算成 warn · `consistency` 追加进 `draft.findings`；随后照既有 rollup 出结论——不调用 `#reject`（无 `CDD_BLOCKED`）— checkable: 成对 pin 绿——干净的被审文档 ⇒ 零注入 finding、结论与注入前相同（`APPROVED` 仍 `APPROVED`）；文档里一条解析不到的 pin ⇒ 恰好多一条 warn、零 blocker、结论落 `REVIEW_FIX`
+- 语料三的回读（§7.2 第 3 份）：有 `contract` 则解析 `path`；失败则追加 `lens: consistency` · `severity: warn` 的 finding，不调用 `#reject` — checkable: 成对 pin 绿——零 finding 的评审轮带一条失效 `contract.path` ⇒ 无 `CDD_BLOCKED`、结论 `REVIEW_FIX`（不是 `APPROVED`）；`path` 可解析 ⇒ 结论不变
 - 写 changeset（minor · 简述三级边界 / impact 门 / lens 问句 / wave 注入 / regrade 标记 / pin 门）+ `pnpm run validate` — checkable: validate exit 0；changeset 在册
 - 提交 — checkable: commit 存在
 
 #### Acceptance
 
-AC ⑥（三个消费者各一 pin：语料门可红可修 · 文档评审注入不阻断 · `contract.path` 失效只 warn；pin 定义的三条排除各有成对 pin）+ AC ⑦。语料声明与规模 pin 在册。全语料零 finding 由 T7 交付，T6 只证明门能红（播种一条坏 pin ⇒ 红 ⇒ 移除 ⇒ 绿）。
+AC ⑥（一条判据、三份语料、两个执行面；成对 pin 逐条：语料一的门可红可修 · 干净的被审文档 ⇒ 零注入且结论不变 · 一条死 pin ⇒ 恰一条 warn、零 blocker、落 `REVIEW_FIX` · `contract.path` 失效 ⇒ 无 `CDD_BLOCKED` 且落 `REVIEW_FIX` 而非 `APPROVED`；pin 定义的三条排除各有成对 pin）+ AC ⑦。语料声明与规模 pin 在册。全语料零 finding 由 T7 交付，T6 只证明门能红（播种一条坏 pin ⇒ 红 ⇒ 移除 ⇒ 绿）。
 
 #### DependsOn
 
@@ -267,7 +272,7 @@ AC ⑥（三个消费者各一 pin：语料门可红可修 · 文档评审注入
 
 #### Files
 
-- Modify: `docs/kairos/**/*.md` 与 README 家族中携带失效 pin 的文档（按 §7.3 三类处置）
+- Modify: `docs/kairos/**/*.md` 与 README 家族中携带失效 pin 的文档（按 §7.3 三类处置；已消费 `.changeset/*` 不在其中）
 - Modify: `packages/cdd-engine/src-next/contract/__tests__/pins.guard.test.ts`（在 T6 的播种态之上补「§7.1 全语料零 finding」的常绿断言：无基线 / 无白名单 / 无豁免）
 
 #### Consumes
@@ -280,7 +285,7 @@ AC ⑥（三个消费者各一 pin：语料门可红可修 · 文档评审注入
 
 #### Steps
 
-- 跑 `PinAudit` 全量扫描并落清单：过期引用（已消费 `.changeset/*` · 已删 `docs/maintainers/*` · 已退役 `scripts/*`）· 迁移路径（`specs/` → `overalls/` 等）· 行号越界 — checkable: 清单三类条数之和等于扫描 finding 数
+- 跑 `PinAudit` 全量扫描并落清单：过期引用（已删 `docs/maintainers/*` · 已退役 `scripts/*`）· 迁移路径（`specs/` → `overalls/` 等）· 行号越界 — checkable: 清单三类条数之和等于扫描 finding 数。已按设计被消费的 `.changeset/*` 引用**不在清单里**：§7.1 的第 3 条排除已把它们定义成记录而非主张，它们产不了 finding，删它们买不到门上的任何一条红——因此它们既不出现在清单里，也不进上面的计数
 - 按类处置：过期引用改为不指路径的表述（保留「当时做了什么」）· 迁移路径改现行路径 · 行号越界改路径 + 符号 — checkable: 重扫 finding 归零
 - 跑 `pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__/pins.guard.test.ts` 与 doc 契约族 — checkable: 两者绿，且文档结构 / 变更史 / 相位标识未被迁移破坏
 - 提交 — checkable: commit 信息含三类处置条数
@@ -300,3 +305,4 @@ AC ⑥（三个消费者各一 pin：语料门可红可修 · 文档评审注入
 | v0.1 | 2026-11-16 | 初稿：六任务两波——T1 判据表+rubric 装配 · T2 lens 问句+axesGuide 投影（DependsOn 1）· T3 impact/regrade/contract+gradingViolations · T4 wave 注入 · T5 改档显示面（DependsOn 3）· T6 pin 门+contract.path 回读+changeset（DependsOn 3）；消费 spec `2026-11-16-engine-doc-tooling-p37` 当时 `version:` | Oscaner M. · Claude（kairos:cdd-plan · 2026-11-16） |
 | v0.2 | 2026-11-16 | docs-fix round 1（plan-review-1 · F1–F3 全受理）：F1 Constraints 落点补 §6.2 并显式声明本相位判据表的 `face` 用法（`numbered` 进字节 · `test` 有格题 · `gate` 空集）⇒ T1 增判据面结构测试、T2 增问句逐字投影与 15 行 / 19 格计数；F2 T1 产出 `regrade-mark`（`nit` · `numbered`）行，T5 Consumes 取该行 `body` 作改档标记唯一措辞来源；F3 T6 补 §7.2 第 2 消费者（文档评审回读注入 `PinAudit` 语料 finding、不改结论），Files/Steps 为两个消费者各点名 colocated 测试 | Oscaner M. · Claude（kairos:cdd-plan plan-fix-1 · 2026-11-16） |
 | v0.3 | 2026-11-16 | docs-fix round 2（plan-review-2 · F1–F6 全受理）：F1 T6 撤掉不存在的「在册」概念——语料写死为 §7.1 全语料、扫描文件数作规模 pin、零 finding 归 T7，T6 的 checkable 改为播种可红可修；F2+F4 判据表补 `pin-parseability`（warn · `test`）行承载 §7.4 的理由与边界，`face` 面额补成 `numbered` 3 · `gate` 1（blocker 行 `id` 即报文第二词）· `test` 1，T1 的结构测试改钉面额与字节，`gate` / `test` 各自在 T3 / T6 的测试面成对钉；F3 T5 点名标记的四处缝（ledger 投影 → lifecycle 生产者 → `DispatchOutcome.dispositionsSummary` → `run.ts#capsuleLines` 的既有 `summary` 槽），胶囊那行明示为设计里唯一新增可见字节，`capsule.ts` / `run.ts` 因此不是改动点；F5 T4 把 `#valuesOf` 的 `INPUT_SPEC` / `INPUT_OVERALL` 两臂点名为必改点，删掉条件对冲；F6 T3 点名 `lifecycle.test.ts` / `cli.test.ts` 两个具体测试文件 | Oscaner M. · Claude（kairos:cdd-plan plan-fix-2 · 2026-11-16） |
+| v0.4 | 2026-11-16 | docs-fix round 3（plan-review-3 · F1–F8 全受理）· 消费 spec `2026-11-16-engine-doc-tooling-p37-design` 的 `v0.8`：F1 T6 按 §7.2 重述为一条判据 · 三份语料 · 两个执行面，第 2 份语料改为**本轮被审文档正文**（`INPUT_SPEC` / `INPUT_OVERALL` 是它的引用，不是语料），两份回读语料的后果改准为 warn 进 `findings[]` ⇒ `REVIEW_FIX`（不出 `CDD_BLOCKED`，但不是结论中性），补 AC ⑥ 的三条成对 pin（干净文档零注入且结论不变 · 一条死 pin ⇒ 恰一条 warn、落 `REVIEW_FIX` · `contract.path` 失效 ⇒ 无 `CDD_BLOCKED` 且落 `REVIEW_FIX`），Acceptance 的「三个消费者」改为「一条判据、三份语料、两个执行面」；F2 T7 把已消费 `.changeset/*` 移出迁移清单与计数（§7.1 排除 3 已判其为记录），清单回到过期引用 / 迁移路径 / 行号越界三类；F3 T4 补齐 AC ④ 的四臂（single-spec 只出 `INPUT_SPEC` · `program:` 解析不到只丢 `INPUT_OVERALL`）并逐臂 pin，两格各自独立判定；F4 T1 按 §1.3 的序把反例句落到行上（blocker 行 ← 第一条 · warn 行 ← 第三条 · nit 行 ← 第四条 · 第二条作为 (a) 实例的收口句进 blocker 行 `body`）；F5 T1 补 §6.1 的两段校验契约——空白格与零行档位走装配期抛，删键走 `tsc`，两条红法不互相顶替；F6 T6 Produces 点名 §7.1 的 pin 定义（三条排除）并为每条约一条成对 pin；F7 本行记录消费的 spec 版本（`v0.8`）；F8 保留 `pins.guard.test.ts`（与仓内 `*.guard.test.ts` 同惯例），作为对 spec 字面 `pins.test.ts` 的有意改名记名于此 | Oscaner M. · Claude（kairos:cdd-plan plan-fix-3 · 2026-11-16） |

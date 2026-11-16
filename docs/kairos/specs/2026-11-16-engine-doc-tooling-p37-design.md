@@ -1,7 +1,7 @@
 ---
 title: 分级判据的可核化（Grading Boundary）
 doc-type: phase-spec
-version: v0.3
+version: v0.4
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 program: 2026-10-10-engine-doc-tooling
@@ -49,15 +49,15 @@ author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design grilling 裁�
 - `scenario: string` —— 输入 / 条件 → 实际 → 预期。这是唯一被 `rollup` 要求的槽。
 - `test?: string` —— 可选加强：一条能红的测试 pin（格题或路径）。它的消费者是下一位评审者（能当场重跑），因此不需要聚合面承接。
 
-同一处声明新增可选 `regrade: string` —— 跨轮改档的理由（§5）。它同样在 schema 层可选：只有「本轮档位低于上一轮且场景文本相同」时才由 `rollup` 要求。
+同一处声明新增可选 `regrade: string` —— 跨轮改档的理由（§5）。它同样在 schema 层可选：只有 §5.1 的**稳定键 + 场景同一性**判据成立（降档，且上一轮同一稳定键的行带着非空场景）时才要求。
 
 `impact` 在 schema 层可选（warn / nit 不需要它），**blocker 的必填性由 `rollup` 判**——schema 层强制会连带 BLOCK 掉合法的 warn / nit finding。
 
 #### 2.2 `rollup` 的判据
 
-`session/handoff-schema.ts` 的 `rollup` 只多判一件事：`severity === "blocker"` 的每一条，`impact.scenario` 必须是非空字符串。谓词写成 `rollup` 同处的纯面（`HandoffSchema.gradingViolations(findings)`，`rollup` 复用它），**不**扩 `rollup` 的返回类型——它仍只回 `RoundStatus`，成对门不是第四种结论。
+`session/handoff-schema.ts` 的 `rollup` 只多判一件事：`severity === "blocker"` 的每一条，`impact.scenario` 必须是非空字符串。该判据写成与 `rollup` 同处（colocated）的纯助手 `HandoffSchema.gradingViolations(findings)`：交接单回读面调用它，`rollup` 本身**不承接**这次拒绝——返回类型不扩，它仍只回 `RoundStatus`，成对门不是第四种结论。
 
-面由谁打印：失败面不动——`face/lifecycle.ts` 的交接单回读（`#reconstruct` → `#reject` → §3.3 那唯一一行 `CDD_BLOCKED`），与其它 schema 拒绝同一条路径，不新开第二个报错者、不在 `face/cli.ts` 另设一道门。不满足 ⇒ 该轮不产生结论（不是产出一个值为 `BLOCKED` 的结论），报文为 `CDD_BLOCKED: grading-impact-missing` 并列出违规 finding 的 `id` 与 `summary`（多条目全列，不二选一）。`--dry-run` 读同一纯谓词、走同一措辞行，不另设判据。
+面由谁打印：失败面不动——`face/lifecycle.ts` 的交接单回读（`#reconstruct` → `#reject` → §3.3 那唯一一行 `CDD_BLOCKED`），与其它 schema 拒绝同一条路径，不新开第二个报错者、不在 `face/cli.ts` 另设一道门。这是唯一的拒绝面：`--dry-run` 在派发前预览、不进 `#reconstruct`，因此**不**声称读这个谓词，也不另设预览面。不满足 ⇒ 该轮不产生结论（不是产出一个值为 `BLOCKED` 的结论），报文为 `CDD_BLOCKED: grading-impact-missing` 并列出违规 finding 的 `id` 与 `summary`（多条目全列，不二选一）。
 
 #### 2.3 `contract` 降为可选修复锚点
 
@@ -67,7 +67,7 @@ author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design grilling 裁�
 
 #### 3.1 规则
 
-每类 lens 在注册表里声明**一句影响判定问句**——「这个 lens 下，什么算跨进功能影响」，而不是「这个 lens 一律落哪一档」。硬映射与按影响判档互斥，注册原文的 ② 由此改写。问句形态取每个 lens 的消费者可见后果；下表是全部 19 组 (review kind, lens)，注册表逐行登记，不得缺格：
+每类 lens 在注册表里声明**一句影响判定问句**——「这个 lens 下，什么算跨进功能影响」，而不是「这个 lens 一律落哪一档」。硬映射与按影响判档互斥，注册原文的 ② 由此改写。问句形态取每个 lens 的消费者可见后果；下表是全部 19 组 (review kind, lens)。这些问句登记在注册表的**第二张表**（§6.1 的 lens 问句表），行形态 `{ id, reviewKind, lens, question }`——不带 `tier`、不带举证义务、不带反例句，因此**不参与** `SEVERITY_RUBRIC` 的装配：问句本身不判档，档位由回答它的评审者按 §1 的阶梯定。逐格登记，不得缺格：
 
 | kind | lens | 影响判定问句（跨进功能影响的条件） |
 | --- | --- | --- |
@@ -87,7 +87,7 @@ author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design grilling 裁�
 | overall | acceptance | 验收格在相位关闭时无法判定 |
 | overall | boundary | 非目标画得过松，等于不过滤任何东西 |
 
-`wave` 与 `branch` 行的问句逐字相同（两者的受审对象不同、判据同源）；注册表按 kind × lens 逐格登记，共同句以同一 `id` 的两次引用表达，不复制正文。
+`wave` 与 `branch` 行的问句逐字相同（两者的受审对象不同、判据同源）；lens 问句表按 kind × lens 逐格登记，共同句以同一 `id` 的两次引用表达，不复制正文——因此该表物理行 15 条、覆盖 19 格。两张表不得合并：判据表承载 `tier` / `duty` / `counterExample`，问句表三者皆无，合并只能靠空值或伪造档位。
 
 #### 3.2 删除两处 judgment 逃逸口
 
@@ -107,9 +107,14 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 ### 5. 跨轮改档落账
 
-#### 5.1 判据：场景文本同一性
+#### 5.1 判据：稳定键 + 场景同一性
 
-`impact.scenario` 落进 `session/ledger.ts` 的轮次 finding 投影。当本轮某条 finding 的档位低于上一轮、且两轮的 `impact.scenario` **文本完全相同**时，该条 finding 必须携带 `regrade: string`（改档理由）；缺理由 ⇒ 胶囊与板面各出现一条可见标记。场景文本不同 ⇒ 视为缺陷已变，不标记。
+`impact.scenario` 落进 `session/ledger.ts` 的轮次 finding 投影。跨轮同一性的匹配按序判定：
+
+1. **定位上一轮对应行**：先取 carrier 出口的 finding `id` 相同者；取不到则退到 `summary` 原文相同的那一行。
+2. **档位未降低**（本轮 ≥ 上一轮）⇒ 不判，不要求 `regrade`、不标记。
+3. **档位降低且上一轮那一行的 `impact.scenario` 非空** ⇒ 本轮必须携带 `regrade: string`（改档理由）；缺理由 ⇒ 胶囊与板面各出现一条可见标记。本轮省略或改写 `scenario` 都**不注销**这条义务——降档方唯一能掌控的就是新行自己的字节，若靠省略或改写场景就能逃开，D93 点名的「blocker 降成 warn 收线」就会在可见面上静默。
+4. **档位降低但上一轮那一行的 `scenario` 为空** ⇒ 没有参照场景，按缺陷已变处理，不要求 `regrade`、不标记。
 
 标记是**显示面**，不是判据：它不写入 `findings[]`、不生成合成 finding、不进 `rollup`，因此单独一条降档不会把本轮推成 `REVIEW_FIX`，也不动 D70 收敛判据（Constraints 冻结）。
 
@@ -119,13 +124,18 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 ### 6. 生成式判据注册表
 
-#### 6.1 行形态
+#### 6.1 两张表的行形态
 
-新增 `contract/review-criteria.ts`：每行 `{ id, tier, body, duty, counterExample, face }`，`tier` ∈ blocker / warn / nit，`face` ∈ gate / test / numbered。`SEVERITY_RUBRIC` 由行按声明序装配（正文即行，散文不再是判据的第二份副本）；`CRITERIA.of(id)` 查不到即抛——仿 `contract/completion-criterion.ts` 的「未登记即抛」形态。
+新增 `contract/review-criteria.ts`，它承载两张形状不同、互不混行的表：
+
+- **判据表**——每行 `{ id, tier, body, duty, counterExample, face }`，`tier` ∈ blocker / warn / nit，`face` ∈ gate / test / numbered。`SEVERITY_RUBRIC` 由行按声明序装配（正文即行，散文不再是判据的第二份副本），因此判据表是唯一进 rubric 散文的语料。`CRITERIA.of(id)` 查不到即抛——仿 `contract/completion-criterion.ts` 的「未登记即抛」形态。
+- **lens 问句表**——每行 `{ id, reviewKind, lens, question }`（§3.1 的 19 格）。它没有 `tier`：问句不判档；没有 `duty` 与 `counterExample`：举证与反例句属于档位而不属于 lens。按 (review kind, lens) 逐格 19 条，`wave` 与 `branch` 的四格共享同一 `id` 双引用，故物理行 15 条。该表**不参与** `SEVERITY_RUBRIC` 装配，`LENS_QUESTIONS.of(reviewKind, lens)` 查不到即抛（同一「未登记即抛」形态）。
+
+两表不得合并：问句塞进判据表只能带一个不存在的 `tier` 或用空 `duty` / `counterExample` 污染 rubric 散文；判据行塞进问句表则丢掉举证义务与反例句。计数按表各计一次，由 §6.2 的同一条结构测试核对。
 
 #### 6.2 边界
 
-`face` 为 `gate` 的行必须在报文里出现其 `id`；`test` 的行必须被一条测试的格题命名；`numbered` 的行必须出现在渲染产物中。三者由一条结构测试核对（§7 的同一测试面）。
+判据表里 `face` 为 `gate` 的行必须在报文里出现其 `id`；`test` 的行必须被一条测试的格题命名；`numbered` 的行必须出现在渲染产物中。三者由一条结构测试核对，同一测试面另计 lens 问句表的 15 行 / 19 格（§7 的同一测试面）。
 
 ### 7. pin 可解析性门（P28 反转的窄形态）
 
@@ -151,11 +161,11 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 ### Acceptance criteria
 
-- `三档各有一条边界定义、一条举证义务句、一条反例句，全部来自注册表；注册表缺行 ⇒ 装配失败（成对 pin：完整注册表装配成功 / 删一行装配即抛）`
-- `impact 场景成对 pin：blocker 缺 `impact.scenario` ⇒ `CDD_BLOCKED: grading-impact-missing` 由交接单回读面打出（与其它 schema 拒绝同一行、同一路径），报文列出违规 `id`；补上场景 ⇒ 通过；warn / nit 无场景 ⇒ 通过；`--dry-run` 走同一谓词、同一措辞`
-- `wave / branch 的 axes guide 零 `(severity by your judgment)`；注册表中每个 (review kind, lens) 组合各有一句影响判定问句（枚举 pin，由注册表测试计数）`
+- `三档各有一条边界定义、一条举证义务句、一条反例句，全部来自判据表（行形态含 `tier` / `duty` / `counterExample`）；判据表按 `tier` 覆盖 blocker / warn / nit 各至少一行，缺行 ⇒ 装配失败（成对 pin：完整判据表装配成功 / 删一行装配即抛）`
+- `impact 场景成对 pin：blocker 缺 `impact.scenario` ⇒ `CDD_BLOCKED: grading-impact-missing` 由交接单回读面打出（与其它 schema 拒绝同一行、同一路径），报文列出违规 `id`；补上场景 ⇒ 通过；warn / nit 无场景 ⇒ 通过；拒绝面只有这一处（`rollup` 返回仍是 `RoundStatus`，`--dry-run` 不声称读该谓词）`
+- `wave / branch 的 axes guide 零 `(severity by your judgment)`；lens 问句表（行形态 `{ id, reviewKind, lens, question }`）按 (review kind, lens) 覆盖 19 格、物理行 15 条（`wave` / `branch` 四格共享 `id` 双引用），与判据表分开计数（判据表各 `tier` 至少一行）；把问句塞进判据表或把判据行塞进问句表 ⇒ 查表即抛`
 - `wave review 的 round context 的 `INPUT_SPEC` / `INPUT_OVERALL` 成对 pin：`SlugIndex` 解析到身份文档与它的 `program:` 母宪章 ⇒ 两 token 均出现且路径为仓根相对、可读；任一环缺席或 `invalid` ⇒ 两 token 均不出现（负向 pin）；branch 的 prompt 字节不变`
-- `场景文本相同而降档：无 `regrade` ⇒ 胶囊与板面各一条可见标记，且该标记不进 `findings[]`（负向 pin：一条这样的降档既不新增 finding，也不单独把本轮推成 `REVIEW_FIX`）；有 `regrade` ⇒ 两处各出现一次理由`
+- `降档且上一轮同一稳定键（carrier `id`，缺失时 `summary` 原文）的行 `impact.scenario` 非空：无 `regrade` ⇒ 胶囊与板面各一条可见标记，且该标记不进 `findings[]`（负向 pin：一条这样的降档既不新增 finding，也不单独把本轮推成 `REVIEW_FIX`）；本轮省略或改写 `scenario` 不注销该义务（正向 pin：省掉场景文本仍出标记）；有 `regrade` ⇒ 两处各出现一次理由；上一轮该行 `scenario` 为空 ⇒ 不要求、不标记`
 - `pin 门可红可修，两个语料面分开 pin：注入一条指向不存在符号的 markdown pin ⇒ `PinAudit` 红并指出该 pin，在册语料 ⇒ 零 finding；一条 finding 的 `contract.path` 解析不到 ⇒ 交接单回读面追加一条 warn 级 finding 且该轮不被阻断`
 - `validate 全绿（`pnpm run validate` exit 0）；changeset `cdd-engine` **minor**、kairos 无`
 
@@ -174,3 +184,4 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 | v0.1 | 2026-11-16 | 初稿：判档本体改为功能影响 + 三级边界（每档一条举证与反例句）· `impact` 场景字段与 `rollup` 成对门 · `contract` 降为可选锚点 · lens→影响判定问句 · wave 注入 `INPUT_SPEC`/`INPUT_OVERALL` · 跨轮改档落账 · 生成式判据注册表 · pin 三形态可解析性门（P28 窄形态反转） | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |
 | v0.2 | 2026-11-16 | 结构修正：`### Acceptance criteria` 归入 `## Design`（原先误落在 `## Constraints` 之后）；每条 AC 以 `` `- ` `` 开首，对齐 `Acceptance entry` 的 valuePattern | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |
 | v0.3 | 2026-11-16 | 评审修复：wave 注入的两格收成成对判定（解析到 ⇒ 同时出现且路径可读；缺席或 `invalid` ⇒ 同时丢弃）并与 AC 的成对 + 负向 pin 对齐 · `contract.path` 的执行面点名为交接单回读的第三消费者，`PinAudit` 只扫 markdown 语料 · regrade 标记明示为显示面（不进 `findings[]`、不动 `rollup` / D70）并补负向 pin · 删除无消费者的可选 `impact.kind`，`impact.test` 留作可选加强 · `CDD_BLOCKED: grading-impact-missing` 的谓词与打印面点名（`HandoffSchema` 纯谓词 + lifecycle 回读同一行，`rollup` 返回类型不变） | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |
+| v0.4 | 2026-11-16 | 评审修复：注册表拆成两张表——判据表 `{ id, tier, body, duty, counterExample, face }` 供 `SEVERITY_RUBRIC` 装配，lens 问句表 `{ id, reviewKind, lens, question }` 以 15 行覆盖 19 格，AC 按表各计一次；删除没有执行面的 `--dry-run` 半边，`grading-impact-missing` 只由交接单回读面打印；regrade 匹配改用稳定键 + 上一轮非空场景，省略或改写场景不注销改档理由（标记仍是显示面）；明示 `gradingViolations` 为同处纯助手、`rollup` 不承接拒绝 | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |

@@ -1,7 +1,7 @@
 ---
 title: 分级判据的可核化（Grading Boundary）
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 program: 2026-10-10-engine-doc-tooling
@@ -46,9 +46,8 @@ author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design grilling 裁�
 
 `session/handoff-schema.ts` 的 `FINDING` 声明新增可选 `impact`：
 
-- `scenario: string` —— 输入 / 条件 → 实际 → 预期。
-- `kind?: "crash" | "wrong-output" | "silent-miss" | "security" | "evidence"` —— 影响类别，供胶囊与板面聚合。
-- `test?: string` —— 可选加强：一条能红的测试 pin（格题或路径）。
+- `scenario: string` —— 输入 / 条件 → 实际 → 预期。这是唯一被 `rollup` 要求的槽。
+- `test?: string` —— 可选加强：一条能红的测试 pin（格题或路径）。它的消费者是下一位评审者（能当场重跑），因此不需要聚合面承接。
 
 同一处声明新增可选 `regrade: string` —— 跨轮改档的理由（§5）。它同样在 schema 层可选：只有「本轮档位低于上一轮且场景文本相同」时才由 `rollup` 要求。
 
@@ -56,11 +55,13 @@ author: "[human] · Claude Opus 5 (1M context)（kairos:cdd-design grilling 裁�
 
 #### 2.2 `rollup` 的判据
 
-`session/handoff-schema.ts` 的 `rollup` 只多判一件事：`severity === "blocker"` 的每一条，`impact.scenario` 必须是非空字符串。不满足 ⇒ 该轮不产生结论，按既有失败面报 `CDD_BLOCKED: grading-impact-missing`，报文列出违规 finding 的 `id` 与 `summary`（多条目全列，不二选一）。`--dry-run` 同源。
+`session/handoff-schema.ts` 的 `rollup` 只多判一件事：`severity === "blocker"` 的每一条，`impact.scenario` 必须是非空字符串。谓词写成 `rollup` 同处的纯面（`HandoffSchema.gradingViolations(findings)`，`rollup` 复用它），**不**扩 `rollup` 的返回类型——它仍只回 `RoundStatus`，成对门不是第四种结论。
+
+面由谁打印：失败面不动——`face/lifecycle.ts` 的交接单回读（`#reconstruct` → `#reject` → §3.3 那唯一一行 `CDD_BLOCKED`），与其它 schema 拒绝同一条路径，不新开第二个报错者、不在 `face/cli.ts` 另设一道门。不满足 ⇒ 该轮不产生结论（不是产出一个值为 `BLOCKED` 的结论），报文为 `CDD_BLOCKED: grading-impact-missing` 并列出违规 finding 的 `id` 与 `summary`（多条目全列，不二选一）。`--dry-run` 读同一纯谓词、走同一措辞行，不另设判据。
 
 #### 2.3 `contract` 降为可选修复锚点
 
-`FINDING` 声明新增可选 `contract: { path: string; anchor: string }`——`path` 为契约文档或门的模块路径，`anchor` 为节号 / AC 编号 / 规则 id。它**不参与 `rollup`**，语义是「这条 finding 的修复落在哪」，供 fix 轮定位。`contract.path` 是一个 pin，因此受 §7 的可解析性门约束（解析不到产一条 warn 级 finding，不阻断）。
+`FINDING` 声明新增可选 `contract: { path: string; anchor: string }`——`path` 为契约文档或门的模块路径，`anchor` 为节号 / AC 编号 / 规则 id。它**不参与 `rollup`**，语义是「这条 finding 的修复落在哪」，供 fix 轮定位。`contract.path` 是一个 pin，因此受 §7 的可解析性门约束（解析不到产一条 warn 级 finding，不阻断）。但它的执行面**不在** §7.1 的 markdown 语料扫描里：`contract` 只出现在 judge 交接单的 finding 行上，因此由 §7.2 的第三个消费者（交接单回读面）判，`PinAudit` 永远不承接这一格。
 
 ### 3. lens → 影响判定问句（替代硬映射）
 
@@ -98,7 +99,7 @@ wave 与 branch 的 axes guide 里两处 `(severity by your judgment)` 删除；
 
 wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的设计 spec）与 `INPUT_OVERALL`（其 `program:` 指向的母宪章），与 branch 对齐。今天 `face/cli.ts` 的场景装配只为 `plan` / `branch` 设 `specLink` / `overallLink`，wave 两格为空——这是「代码评审读不到相位契约」的构造性盲区。
 
-身份文档缺席或读面为 `invalid` 时（无 `spec:` 链接、同 slug 多份、文档不可读），两格留空并由装配器丢弃该行——wave 评审照常派发，不因此拒绝：引擎只拒它能判的形态（P36 的 `misplaced` 纪律），链路缺口由既有 `doc-contract` 面报，不在本相位新增第二个报告者。
+身份文档缺席或读面为 `invalid` 时（无 `spec:` 链接、同 slug 多份、文档不可读），或 `program:` 指不到母宪章时，两行由装配器成对丢弃——丢弃指该行**不出现在** round context 里，不是出现一个空值。wave 评审照常派发，不因此拒绝：引擎只拒它能判的形态（P36 的 `misplaced` 纪律），链路缺口由既有 `doc-contract` 面报，不在本相位新增第二个报告者。两格因此只有两种形态：同时出现且路径为仓根相对、可读；或同时不出现。
 
 #### 4.2 取源与 branch 同路
 
@@ -110,9 +111,11 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 `impact.scenario` 落进 `session/ledger.ts` 的轮次 finding 投影。当本轮某条 finding 的档位低于上一轮、且两轮的 `impact.scenario` **文本完全相同**时，该条 finding 必须携带 `regrade: string`（改档理由）；缺理由 ⇒ 胶囊与板面各出现一条可见标记。场景文本不同 ⇒ 视为缺陷已变，不标记。
 
+标记是**显示面**，不是判据：它不写入 `findings[]`、不生成合成 finding、不进 `rollup`，因此单独一条降档不会把本轮推成 `REVIEW_FIX`，也不动 D70 收敛判据（Constraints 冻结）。
+
 #### 5.2 落点
 
-`face/capsule.ts` 的轮次小计与 `face/board-view.ts` 的 finding 行各加一处可见标记（措辞取自注册表，不另写一句）。这是 ③ 的「同类降档须写理由」与 ⑤ 的「降档落账」合并后的**唯一**执行面。
+`face/capsule.ts` 的轮次小计与 `face/board-view.ts` 的 finding 行各加一处可见标记（措辞取自注册表，不另写一句）。这是 ③ 的「同类降档须写理由」与 ⑤ 的「降档落账」合并后的**唯一**执行面。两处标记只显影已有 finding 行上的那个字段：不新增行、不新增条目、不改本轮结论。
 
 ### 6. 生成式判据注册表
 
@@ -136,7 +139,11 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 #### 7.2 解析不到的处理
 
-解析不到 ⇒ 该 pin 自身产一条 finding（lens `consistency`，档位 **warn**：失效 pin 不改变消费者拿到的结果，只让一处主张不可核）。两个消费者：引擎套件的结构测试（在册语料必须零 finding）与文档评审的回读面（把同一份 finding 注入该轮）。
+解析不到 ⇒ 该 pin 自身产一条 finding（lens `consistency`，档位 **warn**：失效 pin 不改变消费者拿到的结果，只让一处主张不可核）。判据只有一条，消费者有三个，各自把自己的语料喂给它：
+
+- 引擎套件的结构测试——§7.1 的三形态，入口 `PinAudit`，在册 markdown 语料必须零 finding。
+- 文档评审的回读面——同一语料面，把同一份 finding 注入该轮。
+- 交接单回读面（`face/lifecycle.ts` 的 read-back / materialize）——只判 finding 行上的 `contract.path`：路径解析不到 ⇒ 追加一条 warn 级 finding（lens `consistency`，`summary` 指出失效的 `path`），不阻断该轮、不升档、不改它的结论。`PinAudit` 只扫 markdown 语料，永不承接这一格：三个消费者各判自己的语料，不得合并成一处。
 
 #### 7.3 边界（显式反转）
 
@@ -145,11 +152,11 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 ### Acceptance criteria
 
 - `三档各有一条边界定义、一条举证义务句、一条反例句，全部来自注册表；注册表缺行 ⇒ 装配失败（成对 pin：完整注册表装配成功 / 删一行装配即抛）`
-- `impact 场景成对 pin：blocker 缺 `impact.scenario` ⇒ `CDD_BLOCKED: grading-impact-missing` 且报文列出违规 `id`；补上场景 ⇒ 通过；warn / nit 无场景 ⇒ 通过`
+- `impact 场景成对 pin：blocker 缺 `impact.scenario` ⇒ `CDD_BLOCKED: grading-impact-missing` 由交接单回读面打出（与其它 schema 拒绝同一行、同一路径），报文列出违规 `id`；补上场景 ⇒ 通过；warn / nit 无场景 ⇒ 通过；`--dry-run` 走同一谓词、同一措辞`
 - `wave / branch 的 axes guide 零 `(severity by your judgment)`；注册表中每个 (review kind, lens) 组合各有一句影响判定问句（枚举 pin，由注册表测试计数）`
-- `wave review 的 round context 含 `INPUT_SPEC` 与 `INPUT_OVERALL`，且一条行为 pin：wave 评审的 prompt 中两 token 可读，branch 字节不变`
-- `场景文本相同而降档且无 `regrade` ⇒ 胶囊与板面各一条可见标记；有 `regrade` ⇒ 两处各出现一次理由`
-- `pin 门可红可修：注入一条指向不存在符号的 pin ⇒ 红并指出该 pin；在册语料 ⇒ 零 finding；`contract` 的 `path` 失效 ⇒ 该条 finding 为 warn`
+- `wave review 的 round context 的 `INPUT_SPEC` / `INPUT_OVERALL` 成对 pin：`SlugIndex` 解析到身份文档与它的 `program:` 母宪章 ⇒ 两 token 均出现且路径为仓根相对、可读；任一环缺席或 `invalid` ⇒ 两 token 均不出现（负向 pin）；branch 的 prompt 字节不变`
+- `场景文本相同而降档：无 `regrade` ⇒ 胶囊与板面各一条可见标记，且该标记不进 `findings[]`（负向 pin：一条这样的降档既不新增 finding，也不单独把本轮推成 `REVIEW_FIX`）；有 `regrade` ⇒ 两处各出现一次理由`
+- `pin 门可红可修，两个语料面分开 pin：注入一条指向不存在符号的 markdown pin ⇒ `PinAudit` 红并指出该 pin，在册语料 ⇒ 零 finding；一条 finding 的 `contract.path` 解析不到 ⇒ 交接单回读面追加一条 warn 级 finding 且该轮不被阻断`
 - `validate 全绿（`pnpm run validate` exit 0）；changeset `cdd-engine` **minor**、kairos 无`
 
 ## Constraints
@@ -166,3 +173,4 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-16 | 初稿：判档本体改为功能影响 + 三级边界（每档一条举证与反例句）· `impact` 场景字段与 `rollup` 成对门 · `contract` 降为可选锚点 · lens→影响判定问句 · wave 注入 `INPUT_SPEC`/`INPUT_OVERALL` · 跨轮改档落账 · 生成式判据注册表 · pin 三形态可解析性门（P28 窄形态反转） | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |
 | v0.2 | 2026-11-16 | 结构修正：`### Acceptance criteria` 归入 `## Design`（原先误落在 `## Constraints` 之后）；每条 AC 以 `` `- ` `` 开首，对齐 `Acceptance entry` 的 valuePattern | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |
+| v0.3 | 2026-11-16 | 评审修复：wave 注入的两格收成成对判定（解析到 ⇒ 同时出现且路径可读；缺席或 `invalid` ⇒ 同时丢弃）并与 AC 的成对 + 负向 pin 对齐 · `contract.path` 的执行面点名为交接单回读的第三消费者，`PinAudit` 只扫 markdown 语料 · regrade 标记明示为显示面（不进 `findings[]`、不动 `rollup` / D70）并补负向 pin · 删除无消费者的可选 `impact.kind`，`impact.test` 留作可选加强 · `CDD_BLOCKED: grading-impact-missing` 的谓词与打印面点名（`HandoffSchema` 纯谓词 + lifecycle 回读同一行，`rollup` 返回类型不变） | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |

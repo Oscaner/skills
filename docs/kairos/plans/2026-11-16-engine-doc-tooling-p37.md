@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P37 计划：分级判据的可核化（功能影响 · 三级边界 · 生成式注册表 · pin 门）'
 doc-type: plan
-version: v0.17
+version: v0.18
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 base: develop
@@ -338,7 +338,8 @@ AC ⑥（一条判据、三份语料、两个执行面；成对 pin 逐条：语
 
 #### Steps
 
-- 写失败测试：改一个数字不改实现 ⇒ 红；未知 id ⇒ 抛；`PinAudit.census()` 的合计等于 `scan` 的 length（同源 pin）；在册语料 ⇒ 绿 — checkable: 红于 `contract/census.ts` 不存在
+- 写失败测试：改一个数字不改实现 ⇒ 红；未知 id ⇒ 抛；`PinAudit.census()` 的合计等于 `scan` 的 length（同源 pin）；在册语料 ⇒ 绿 — checkable: 红于计数登记面不存在
+- 时间面的消费者成对 pin（§7.3 钉 `slug:` 而非 `program:`）：构造一份 **single-spec + 同 slug 计划**的 fixture，计划 `Create:` 行声明一条树上不存在的路径 ⇒ 三份语料（`scan` / `scanText` / `pathResolves`）**都不产** finding；把该 slug 标为关闭（无 `program:` 时用 slug 关闭标记）⇒ 同一路径**产** finding — checkable: 两格方向相反，任一格绿另一格红即失败
 - 实现登记表与 `PinAudit.census()`（复用同一扫描，不二次解析）— checkable: 上面四条绿
 - 在 spec §7.3 与 plan 的规模陈述处改为 `census:<id> = <n>` 形态 — checkable: 门绿且两处数字与导出值一致
 - 提交 — checkable: `git log -1 --oneline` 含 census
@@ -372,3 +373,4 @@ AC ⑦（计数面成对 pin）；`pnpm run validate` exit 0。
 | v0.15 | 2026-11-16 | docs-fix round 11（plan-review-11 · F1–F4 全受理）· 仍消费 spec `2026-11-16-engine-doc-tooling-p37-design` 的 `v0.10`：F1+F2 T6 的路径解析补上三级优序——① 精确条目命中优先（`README.md` ⇒ 仓根那份，不是 51 行的 `.changeset/README.md`）→ ② 唯一后缀命中（`face/declare.ts`）→ ③ 歧义（一条点名两个候选的 finding），次序本身写进判据；歧义因此有了归属：T7 新增规则 ⑧（歧义 basename 写全现行路径，remedy 与 ③ 同形、触发词判「同时有多份现存候选」），任务标题与 Files / Produces / Steps / 提交 / Acceptance 由七条、七类改为八条、八类；T6 Steps 的 fixture 原来要求「同 basename 根与嵌套各一份 ⇒ 唯一命中」，与同一句的「命中多条即歧义」互斥，改写成三格（`README.md` 精确优先 · `face/declare.ts` 唯一尾形 · `declare.ts` 真歧义），AC ⑥ 同步用同一次序。F3 把唯一 / 歧义两半记成欠账的代码面：`PinIndex.resolvePath` 仍是首条命中、无歧义分支，`pins.guard.test.ts` 也无一条格题点名它，于是 T6 Files 补两行 Modify（欠账面 · 修复轮）并把它与规则 ⑧ 绑定同一轮，避免只修解析器让零断言红在未迁移的 token 上、只做 ⑧ 又触发不了；AC ⑥ 与 T7 Acceptance 的「全语料零 finding」拆成两级——首条命中判据下的零已随迁移交付，三级优序判据下的零待那一轮，两者不再合成一句。F4 T7 规则 ⑥ 删掉「按首条命中截掉的行号必须还原」，只留它真正建立的判据：行号不是越界证据，判越界只按 ①→③ 解析出的那份文件的行数。本行随 fix 轮的 `capability: may.amend = content` 落地，`DependsOn` 集未动 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-16） |
 | v0.16 | 2026-11-16 | docs-fix round 12（plan-review-12 · F1–F7 全受理）· 仍消费 spec `2026-11-16-engine-doc-tooling-p37-design` 的 `v0.10`：F1 T6 的歧义普查改按 **remedy** 分簇并改准读数——⑧ 簇 159 处 / 4 个 basename（`run.ts` 74 · `declare.ts` 60 · `SKILL.md` 20 · `CHANGELOG.md` 5，各含自己的 `:line` 形）· ⑤ 簇 22 处 / 4 个 token（`spec-review-1.json` 12 · `tasks-1-test-evidence.json` 4 · `branch-test-evidence.json` 3 · `spec-fix-1.json` 3）；「最大四组」的说法撤下（旧行把四个 basename 的计数与四个机器本地名混排，且把 ⑤ 簇整个漏掉），规则 ⑧ 的「机器本地名由 ⑤ 先认领」改成「⑤ 必须按三级优序普查重跑」——首条命中那一轮的 ⑤ 只处置了 7 处，这批在首条命中普查下各自静默解析到第一个候选、从未被报出；F2 解析器升级的归属从 T6 的「欠账面 · 修复轮」移到 T7 的 Files（唯一开着的块），连同级 ①→③ 的三格、普查步与 AC ⑥ 的三条解析腿一起搬到 T7（T6 的波次已闭合，再也派发不了一次「解析器 + 迁移」；升级单落 T6 会让已交付的语料零断言红在 181 处未重处置的歧义词上），「同一轮」的说法改为指向 T7 自己；F3 T6 Files 补 `render/templates.ts` 与 `render/__tests__/templates.test.ts`，Acceptance 补一条 checkable（drifted `lensEnum` ⇒ `pinLensOf` 抛；每个判据面的注入行恰带 `pinLensOf(type)`）；F4 提交 checkable 的八类条数改成 ⑧ 的零也要明写（「⑧ 0 处 · 歧义普查 N 个 token」），deferral 与漏项不再同一副面孔；F5 T7 Produces 的报告名义务改为「计划点名、交接单与本轮报告互指」——提交信息只承条数与残留段落，不再承诺一个它没有的槽；F6 changeset 的 pin 门段落收口到 T7（Files 加 `.changeset/p37-grading-boundary.md`、Acceptance 加一条发布说明腿），发布说明宣称的零必须是包真正度量的那一级；F7 T7 的两组数字分开命名——规则仍 ①–⑧，解析优序一律写「层级 ① / 层级 ② / 层级 ③」。本行随 fix 轮的 `capability: may.amend = content` 落地，`DependsOn` 集与 Task id 集未动 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-16） |
 | v0.17 | 2026-11-16 | 新增 T8 计数的执行面（并入 P37 的 ⑨ · 独立第 4 波 · `DependsOn 7`）：`contract/census.ts` 登记 `{ id, measure() }`、未登记即抛；`PinAudit.census()` 与 `scan` 同源；门核对 `census:<id> = <n>` 与导出值（不等即红）；doc 侧把 spec §7.3 与本计划的规模陈述改成带引用形态。消费 spec v0.11 | Oscaner M. · Claude（编排器 · 2026-11-16） |
+| v0.18 | 2026-11-16 | T8 补时间面的消费者成对 pin（用户裁定：时间面钉 `slug:` 而非 `program:`）：single-spec + 同 slug 计划的 fixture 下，待建路径在三份语料都不产 finding；该 slug 关闭后同一路径产 finding。消费 spec v0.15 | Oscaner M. · Claude（编排器 · 2026-11-16） |

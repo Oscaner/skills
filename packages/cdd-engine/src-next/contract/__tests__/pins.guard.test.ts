@@ -12,10 +12,11 @@
 //   · the declared corpus is the whole docs corpus plus the README family, and its
 //     file count is a constant: a document entering or leaving the corpus goes red.
 //
-// The corpus is NOT clean today and this file never claims it is: zero findings is the
-// AFTER-migration condition (§7.3), delivered by the corpus migration. What is pinned
-// here is that the gate judges the corpus at all — a scan whose file list differs from
-// the declared corpus, or a scanner that reports nothing anywhere, goes red.
+// The corpus IS clean, and this file holds it there: the scan over the declared corpus
+// reports zero findings (§7.3's AFTER-migration condition), the file list is a pinned
+// constant, and a document entering or leaving the corpus goes red. The seeded case below
+// keeps the other direction alive on its own — a dead pin is reported, and removing it
+// clears the gate — so the gate is proven able to go red without the corpus being dirty.
 //
 // The other two corpora (the judged document's body, the finding's `contract.path`)
 // are pinned where they execute: `face/__tests__/lifecycle.test.ts`.
@@ -203,14 +204,15 @@ describe("P37 T6 — `pin-parseability`: the gate goes red on a dead pin and gre
     ]);
   });
 
-  it("declares the whole corpus and pins its size — the docs tree plus the README family", () => {
+  it("declares the whole corpus, pins its size, and holds it at zero findings", () => {
     const audit = new PinAudit(REPO_ROOT);
     const files = audit.filesOf(CORPUS_ROOTS);
     expect(files).toHaveLength(CORPUS_SIZE);
     for (const file of files) expect(file.endsWith(".md"), file).toBe(true);
     // the corpus is judged by the same criterion the read-back uses — a scan reads
-    // exactly the declared files (no second corpus, no exemption list)
-    expect(audit.scan(CORPUS_ROOTS).length).toBeGreaterThan(0);
+    // exactly the declared files (no second corpus, no baseline, no exemption list) —
+    // and every pin in it resolves: the migration's delivery condition, held from now on.
+    expect(audit.scan(CORPUS_ROOTS).length).toBe(0);
   });
 });
 

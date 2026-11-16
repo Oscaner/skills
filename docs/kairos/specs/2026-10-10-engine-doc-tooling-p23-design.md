@@ -20,7 +20,7 @@ author: "[human] · Claude（kairos:cdd-design [P23] grilling → 本会话落 s
 
 #### 1.1 三包装完 ≠ kairos 跑得动
 
-Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 `@ff-labs/pi-fff` 的 fff 检索工具、`@juicesharp/rpiv-todo` 的 `todo`、`@juicesharp/rpiv-ask-user-question` 的 `ask_user_question`、`pi-web-access` 的取用工具、`pi-background-tasks` 的 `bg_*` 与 `pi-agentsmd` 的指令注入才走得通。装完三包就起 `cdd-design` 的 pi 消费者，会在第一个需要提问或检索的节点上缺工具——而缺工具不是报错，是**静默降级**：编排者改用散文猜测，评审轮没有 `ask_user_question` 就自己替作者裁定。
+Claude Code 原生带着六类能力，pi 不带：本仓的 pi 会话正是靠 `@ff-labs/pi-fff` 的 fff 检索工具、`@juicesharp/rpiv-todo` 的 `todo`、`@juicesharp/rpiv-ask-user-question` 的 ask_user_question、`pi-web-access` 的取用工具、`pi-background-tasks` 的 `bg_*` 与 `pi-agentsmd` 的指令注入才走得通。装完三包就起 `cdd-design` 的 pi 消费者，会在第一个需要提问或检索的节点上缺工具——而缺工具不是报错，是**静默降级**：编排者改用散文猜测，评审轮没有 ask_user_question 就自己替作者裁定。
 
 反过来说，claude 侧今天**一条推荐包都没有**，这不是遗漏：Claude Code 里这六类能力是原生的，装插件反而是噪音。
 

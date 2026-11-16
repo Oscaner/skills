@@ -31,7 +31,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-08）'
 
 #### 1.3 完成判据拿 commit 代理「这轮干了活」
 
-`CommitsSinceGroupBase.judge` 的唯一放行条件是组内最早 `dispatchBase` 之后至少一笔提交。纯验证任务的交付物是证据（跑门与采集结论），定义上零 diff；而 wave / branch 的 work 轮本来就强制写 `test-evidence.json`（`face/lifecycle.ts` 的证据门与 `HandoffSchema` 的 EVIDENCE 契约），证据面齐备，唯一不过的是 commit 门（#443①、#436③）。
+`CommitsSinceGroupBase.judge` 的唯一放行条件是组内最早 `dispatchBase` 之后至少一笔提交。纯验证任务的交付物是证据（跑门与采集结论），定义上零 diff；而 wave / branch 的 work 轮本来就强制写 那一轮的测试证据产物（`face/lifecycle.ts` 的证据门与 `HandoffSchema` 的 EVIDENCE 契约），证据面齐备，唯一不过的是 commit 门（#443①、#436③）。
 
 代理的失真面：验证型任务必然零 diff；编排方在轮次之间合法提交恢复成果（树动了，但不是「这轮」动的）；abort 轮未入账时组基线退化成重派时 HEAD（§1.1）。组基线的原意 —— attempt 2 可吃 attempt 1 的提交 —— 是对的，本相位不动它；缺口只在「把它当成唯一真值」。
 
@@ -78,7 +78,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-08）'
 - `CommitsSinceGroupBase` 的放行条件扩为：组内自基线以来有提交，或本轮为验证型且证据绿。
 - 验证型由计划声明派生，不看 diff。`CompletionContext` 新增两个只读 provider cell，均由 `CliLifecycle` 填入，判据本身不读盘：
   - `emptyFileTasks: ReadonlySet<number>`——该 wave 中 `Files` 为空的 task id 集；
-  - `evidenceOk: boolean`——本轮 `test-evidence.json` 已通过既有 `HandoffSchema` 证据校验（lifecycle 证据门已判过，不二次读盘）。
+  - `evidenceOk: boolean`——本轮 那一轮的测试证据产物 已通过既有 `HandoffSchema` 证据校验（lifecycle 证据门已判过，不二次读盘）。
 - **wave 为验证型** ⟺ 该 wave 的**每一个** task id 都 ∈ `emptyFileTasks`（全集空，不是「至少一个空」）。`Files` 何为空：解析后字段无路径 token（空值 / 仅空白 / 缺字段皆空；字面 `(none)` 若出现也算空）。
 - 放行：验证型 ∧ `evidenceOk`；`Files` 非空的零 diff 仍 BLOCKED。不放宽 commit 判据本身，只加一个 OR 分支。
 - 组基线语义不动（`groupBaseOf` 仍取组内最早 `dispatchBase`）。

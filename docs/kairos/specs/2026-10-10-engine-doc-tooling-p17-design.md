@@ -19,8 +19,8 @@ parent-version: v2.72
 
 #### 1.1 类别名与目录的误称
 
-- `docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md:13` 自陈 `Charter only, zero implementation detail`；:3 却声明 `doc-type: overall-spec`，与 phase-spec / single-spec 同一命名族。
-- 引擎侧该拼写已渗透到**值 / 类型 / 注册表键 / 流水线键 / 判据**五层，共 **47 处 / 10 文件**：`contract/declare.ts:27`（`DocType` 联合）· `:109`（`DOC_TYPE_VALUES`）· `:178`（`OVERALL_SPEC_ELEMENTS`）· `:1060`（注册表键）· `contract/doc.ts:550`（`OverallDocType.docTypeName`）· `:802`（解析器表键）· `contract/project.ts:408`（投影记录键）· `contract/invariants.ts:131/266/291/465/586/763/1027/1144/1318/1418/1434`（11 处 `docKey === "overall-spec"` 判据与类型映射）· `infra/slug-index.ts:199/383` · `face/board-view.ts:254`（板型路由）· `face/words.ts:124`（缺 key 报文词）· `session/next.ts:80/98/107`（`PipelineKey` / `PIPELINE_NEXT` / `PhaseFaceKey` 的 `Exclude`）· `render/skeleton.ts:117/166` · `face/declare.ts:289`（schema 类型词表的注释面）。
+- `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md` 自陈 `Charter only, zero implementation detail`；:3 却声明 `doc-type: overall-spec`，与 phase-spec / single-spec 同一命名族。
+- 引擎侧该拼写已渗透到**值 / 类型 / 注册表键 / 流水线键 / 判据**五层，共 **47 处 / 10 文件**：`contract/declare.ts:27`（`DocType` 联合）· `:109`（`DOC_TYPE_VALUES`）· `:178`（OVERALL_SPEC_ELEMENTS）· `:1060`（注册表键）· `contract/doc.ts:550`（`OverallDocType.docTypeName`）· `:802`（解析器表键）· `contract/project.ts:408`（投影记录键）· `contract/invariants.ts:131/266/291/465/586/763/1027/1144/1318/1418/1434`（11 处 `docKey === "overall-spec"` 判据与类型映射）· `infra/slug-index.ts:199/383` · `face/board-view.ts:254`（板型路由）· `face/words.ts:124`（缺 key 报文词）· `session/next.ts:80/98/107`（`PipelineKey` / `PIPELINE_NEXT` / `PhaseFaceKey` 的 `Exclude`）· `render/skeleton.ts:117/166` · `face/declare.ts:289`（schema 类型词表的注释面）。
 - 目录侧：`docs/kairos/specs/` 是**同类混放**——18 篇里 1 篇是 charter、17 篇是 phase-spec；`ENGINE_DOC_ROOTS`（`infra/doc-roots.ts:17-29`）只声明两根 `specs` / `plans`。
 
 #### 1.2 评审读面缺链
@@ -39,7 +39,7 @@ parent-version: v2.72
 
 一条类别名，引擎内**零残留**——值 · 类型联合 · 注册表键 · schema CLI 键 · 流水线键 · docKey 判据，一处不留（一事实一处）。四处 `valuePattern`（`contract/declare.ts:191/518/740/952`）由 `DOC_TYPE_VALUES` 插值派生，自动跟随，无需手改。
 
-**随改清理（死名随行）**：`contract/declare.ts:178` `OVERALL_SPEC_ELEMENTS` → `OVERALL_ELEMENTS` · `render/skeleton.ts:166` `#renderOverallSpec` → `#renderOverall`——两处常量/方法名里的 `Spec` 随本次改名一并收正，不留「值改了、名还叫 Spec」的中间态。类名 `OverallDocType`（`contract/doc.ts:549`）**不改**：它本就只说 Overall，不含 `Spec` 字样。
+**随改清理（死名随行）**：`contract/declare.ts:178` OVERALL_SPEC_ELEMENTS → `OVERALL_ELEMENTS` · `render/skeleton.ts:166` #renderOverallSpec → `#renderOverall`——两处常量/方法名里的 `Spec` 随本次改名一并收正，不留「值改了、名还叫 Spec」的中间态。类名 `OverallDocType`（`contract/doc.ts:549`）**不改**：它本就只说 Overall，不含 `Spec` 字样。
 
 **报文与注释面同扫**：退役拼写不止活在值/键面——`contract/invariants.ts:1291-1292` 的两处 finding 文案（`names no on-disk overall-spec document` → `overall`）与 `:1360` 的允许域列表（`its doc-type is overall-spec / phase-spec / single-spec` → `overall / phase-spec / single-spec`）是同类值/域误称，本 phase 一并收正。引擎源码里点名该类别的注释随值同更（`contract/declare.ts:4/16/176` · `face/declare.ts:289` · `face/board-view.ts:4/229` · `contract/invariants.ts:1346/1400` · `infra/slug-index.ts:170/196` · `render/skeleton.ts:162/165` · `session/next.ts:105`）——注释点名的是活类别名，不留旧拼写。零残留的扫描面因此是全部非测试行（含模板字面与注释），而非仅双引号字面（见 Acceptance）。
 
@@ -65,12 +65,12 @@ parent-version: v2.72
 
 **硬破、无双读窗口**（提前例：P10 front-matter 化 · P15 slug 身份化，两役均以 major 落地）。落地点：
 
-- **仓内 overall 一份随迁**：`docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md` → `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`，其 `doc-type:` 改 `overall`，其 `## File paths` 表首行改 `overalls/2026-10-10-engine-doc-tooling-overall.md`（该格的实际机判只有 `File path row` 的 `valuePattern`——反引号包裹的裸路径形，`contract/declare.ts:449-455`，`refKind: "none"`；link-shape 判据 `contract/invariants.ts:1076/1106` 只判 chain link，不触达此格。裸相对路径是文档约定，不是该判据的约束）。
+- **仓内 overall 一份随迁**：docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md → `docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md`，其 `doc-type:` 改 `overall`，其 `## File paths` 表首行改 `overalls/2026-10-10-engine-doc-tooling-overall.md`（该格的实际机判只有 `File path row` 的 `valuePattern`——反引号包裹的裸路径形，`contract/declare.ts:449-455`，`refKind: "none"`；link-shape 判据 `contract/invariants.ts:1076/1106` 只判 chain link，不触达此格。裸相对路径是文档约定，不是该判据的约束）。
 - **文件名保留 `-overall.md`**：doc-type 已改叫 `overall`，后缀不再误称 spec；改名零语义收益，且 `*-overall.md` 的引用面由引擎测试夹具、冻结 spec/plan 正文与骨架占位示例构成——其中没有必须随文件改名的活面（判据是引用面的构成，不是其条数）。
 - **消费面（shipped）全更替**：`packages/kairos/skills/{cdd-design,cdd-spec-writer,cdd-plan,cdd-report}/SKILL.md` · `packages/kairos/README.md` + `README.zh-CN.md` · `packages/cdd-engine/README.md:44` + `README.zh-CN.md:46`（镜像同步）· `CLAUDE.md:75`（Strategy B 的 `docs/kairos/specs/*.md` 句补 `overalls/`）。
 - **不在编辑面**：`packages/kairos/tests/presentation-surface.test.ts` 无本 phase 的 SKILL 文本 pin——其唯一的 `overall-spec` 出现是 `OLD_KAIROS_SKILL_NAMES`（`:419-429`）里的 `writing-overall-spec`，属退役 skill 身份的封禁行，**冻结不改**；该文件只作验收必绿面，非编辑目标。
 - **冻结历史不动**：过往 16 篇 phase-spec / 16 篇 plan 正文里的路径与拼写引用是 Strategy B 内部文档的历史面，零改（P15 的窄授权先例）。
-- **`contract/invariants.ts:1076/1106` 的示例路径**更替为 `docs/kairos/overalls/…-overall.md`。
+- **`contract/invariants.ts:1076/1106` 的示例路径**更替为 docs/kairos/overalls/…-overall.md。
 
 **原子性约束（判据面硬理由）**：拼写变更与 overall 迁移**必须同一次提交落地**。引擎一旦不再认 `overall-spec`，`SlugIndex.overallOf`（`infra/slug-index.ts:197-201`）对未迁移的 overall 读 `null`，则**仓内每一篇** phase-spec 的 `program:` slug-ref 判据（`contract/invariants.ts:1305`）当场转红、preflight doc-contract 全线 BLOCK——分两次提交会造出一个自伤的中间态。
 
@@ -136,7 +136,7 @@ parent-version: v2.72
 
 #### 3.1 D62-1 一份声明，两条投影
 
-现状：`CARRIER_DELIVERY`（`handoff-schema.ts:69-78`）与 `CARRIER_FINDINGS`（`:85-93`）是两张互斥表，`BY_FACE`（`:124-127`）选择，`HandoffSchemaFace`（`:33`）是二者的联合。
+现状：CARRIER_DELIVERY（`handoff-schema.ts:69-78`）与 CARRIER_FINDINGS（`:85-93`）是两张互斥表，BY_FACE（`:124-127`）选择，HandoffSchemaFace（`:33`）是二者的联合。
 
 改为：单份 `CARRIER` 声明四槽 `status` / `findings` / `artifacts` / `notes`（**声明序即投影序**：`status` · `findings` · `artifacts` · `notes`），`#writable(plane)` 按平面投影出可写子集（properties ∩ 平面槽 + 平面 required）。**prompt fence · `violations` · `droppedKeys` 三处同读这一投影**——零第二份表。
 
@@ -165,7 +165,7 @@ parent-version: v2.72
 
 `fix.spec` / `fix.plan` 现可写 `status`，`docs-fix` 前缀改报本轮结论；**残余 findings 的编码整条删除**。
 
-今天 `templates.ts:209` 同时要求「残余 findings 推结论」与「draft 写失败 → `status: BLOCKED`」，而 `CARRIER_FINDINGS` 没有 `status` 槽（写了会被 `materialize` 当未声明键丢弃）——自相矛盾随本条消灭。
+今天 `templates.ts:209` 同时要求「残余 findings 推结论」与「draft 写失败 → `status: BLOCKED`」，而 CARRIER_FINDINGS 没有 `status` 槽（写了会被 `materialize` 当未声明键丢弃）——自相矛盾随本条消灭。
 
 #### 3.6 D62-6 证据门按 scope 派生
 
@@ -175,7 +175,7 @@ parent-version: v2.72
 
 #### 3.7 D62-7 死字段清理
 
-`failure_category`：全仓唯一写入点是 `lifecycle.ts:721-722`（自我拷贝）与 `:727`（常量），**零消费者**。删除声明槽（`handoff-schema.ts:74`）、`CarrierValue` 条目（`:135`）、搬运代码与 `IMPLEMENT_SHELL`（`templates.ts:168`）的 `+ \`failure_category\`` 子句。BLOCKED 的理由已由 `notes` 承载（`reason` 入 `draftNotes`）。
+failure_category：全仓唯一写入点是 `lifecycle.ts:721-722`（自我拷贝）与 `:727`（常量），**零消费者**。删除声明槽（`handoff-schema.ts:74`）、`CarrierValue` 条目（`:135`）、搬运代码与 `IMPLEMENT_SHELL`（`templates.ts:168`）的 `+ \`failure_category\`` 子句。BLOCKED 的理由已由 `notes` 承载（`reason` 入 `draftNotes`）。
 
 #### 3.8 D62-8 文本与契约版本
 
@@ -191,7 +191,7 @@ parent-version: v2.72
   > **Draft fields:** every top-level field of the draft comes from the `## Handoff schema` declared `properties` — the declaration is the field source, zero extra keys.
 
 - `TEMPLATE_PROMPT.$version`（`:492`）15 → 16，版本叙事头注（`:473-491`）补 v16 行（`handoff carrier 单平面（op 派生 work/judge）· docs-fix 拿到 status`）。
-- **review 面前缀与 fence 字节不变**：judge 投影的槽集与顺序（`findings` · `artifacts` · `notes`）与今日 `CARRIER_FINDINGS` 一致。
+- **review 面前缀与 fence 字节不变**：judge 投影的槽集与顺序（`findings` · `artifacts` · `notes`）与今日 CARRIER_FINDINGS 一致。
 
 #### 3.9 非目标
 
@@ -220,7 +220,7 @@ parent-version: v2.72
 
 - 引擎源码 `overall-spec` 零残留：`grep -rn "overall-spec" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 零命中——扫描面含模板字面与注释（注释随值同更，见 2.1）；命中面覆盖值 · `DocType` 联合 :27 · `DOC_TYPE_VALUES` :109 · 注册表键 :1060 · `docTypeName` doc.ts:550 · 解析器表键 :802 · 投影键 project.ts:408 · 11 处 docKey 判据 · slug-index :199/:383 · board-view :254 · words :124 · next.ts :80/:98/:107 · skeleton :117 · 允许域与 finding 文案 invariants.ts:1291-1292/:1360。
 - 快照面随键更替：`grep -rn "overall-spec" packages/cdd-engine/src-next --include='*.snap'` 零命中；`contract/__tests__/__snapshots__/` 下无 `project.{schema,shape}.overall-spec.snap` 孤儿，旧档已删、`project.{schema,shape}.overall.snap` 已生成，`pnpm -C packages/cdd-engine test` 通过。
-- `OVERALL_SPEC_ELEMENTS`（declare.ts:178）与 `#renderOverallSpec`（skeleton.ts:166）两处死名随行收正（`OVERALL_ELEMENTS` / `#renderOverall`），`grep -rn "OVERALL_SPEC_ELEMENTS\|renderOverallSpec" packages/cdd-engine/src-next` 零命中。
+- OVERALL_SPEC_ELEMENTS（declare.ts:178）与 #renderOverallSpec（skeleton.ts:166）两处死名随行收正（`OVERALL_ELEMENTS` / `#renderOverall`），`grep -rn "OVERALL_SPEC_ELEMENTS\|renderOverallSpec" packages/cdd-engine/src-next` 零命中。
 - `ENGINE_DOC_ROOTS.overalls === "docs/kairos/overalls"`；`SlugIndex.build` 扫描三根、`insideDocRoots` 认三根（pin 落 `infra/__tests__` 既有 doc-roots/索引用例旁）。
 - `cdd schema get overall` 可用，`overall-spec` 落 `unknown schema type` 拒绝面（pin：`face/__tests__` 既有 schema 值域用例 + `SCHEMA_PRIMARY_KEYS` 派生自 `SCHEMA_TYPE_KEYS`，`face/projection.ts:41/234`）。
 - 真实仓冒烟：`node packages/cdd-engine/src-next/bin.ts review --type spec --spec docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md --dry-run` 与 `... board --spec docs/kairos/overalls/2026-10-10-engine-doc-tooling-overall.md` 均通过（前者四门纯读、后者渲染 program 板）——三根扫描 + `insideDocRoots` 的端到端证据。
@@ -229,7 +229,7 @@ parent-version: v2.72
 - `REVIEW_ITEM` 含 `the parent charter at \`INPUT_OVERALL\``；四腿固定前缀均含（pin：`render/__tests__/render.test.ts` 四腿 `toContain`）。
 - `TEMPLATE_PROMPT.$version === 15`（pin：`render/templates.ts:492` 的声明值）+ `:473-491` 版本叙事头注含 v15 行。
 - 域外 doc-type 的 preflight 报文点名该值 + 列允许域；缺 key 仍走原词（pin：`face/__tests__/cli.test.ts` 与 `session/__tests__` 的 doc-contract gate 用例，两形各一断言）。
-- 仓内 overall 迁至 `docs/kairos/overalls/` 且 `doc-type: overall`，其 `## File paths` 首行为裸相对路径 `overalls/…-overall.md`；`cdd review --type spec --spec <新路径> --dry-run` 通过（doc-contract 全绿）。
+- 仓内 overall 迁至 `docs/kairos/overalls/` 且 `doc-type: overall`，其 `## File paths` 首行为裸相对路径 overalls/…-overall.md；`cdd review --type spec --spec <新路径> --dry-run` 通过（doc-contract 全绿）。
 - 消费面路径字面全更替：`packages/kairos/tests/{presentation-surface,skill-surface-consistency,grep-sweep-regression}.test.ts` 全绿（`presentation-surface` 为必绿面，冻结不改；后两者为编辑面）；`grep -rn "overall-spec" packages/kairos/skills packages/kairos/README.md packages/kairos/README.zh-CN.md packages/cdd-engine/README.md packages/cdd-engine/README.zh-CN.md CLAUDE.md` 零命中（`CHANGELOG.md` 冻结历史不计）。
 - 冻结面零破：findings 载体 schema / severity 枚举 / `REVIEWS.*.lensEnum` / 结论派生规则（blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · 空 → APPROVED）/ `DISPATCH.review.*` skill ref / CLI 旗标与退出码表 —— 全部零改。
 - `pnpm run validate` ALL PASS（emit fresh · root 套件 · kairos 套件 · 引擎套件 · typecheck ×3 · version-sync · 零裸函数）。
@@ -237,7 +237,7 @@ parent-version: v2.72
 - **承载面统一（D62）**：handoff carrier 只有一份声明——`grep -rn "CARRIER_DELIVERY\|CARRIER_FINDINGS\|BY_FACE\|HandoffSchemaFace" packages/cdd-engine/src-next` 零命中；`HandoffFamily` 只余 `name`（`grep -n "schema" packages/cdd-engine/src-next/infra/runtime.ts` 零命中）；`planeOf` 由 op 派生（`implement` / `fix` → work · `review` → judge；pin：`session/__tests__/handoff-schema.test.ts` 三值断言）。
 - 文档修复 carrier 落 `status`、不再写残余 findings（pin：`face/__tests__/cli.test.ts` 的 docs-fix 轮 carrier 键集 + `conclusionOf("work", …)` 的缺省 / 越域两形）。
 - 证据门行为不变：wave / branch 轮缺证据 → BLOCKED，spec / plan 轮无证据文件仍按声明 status 收口（pin：`face/__tests__/cli.test.ts` 既有 evidence 用例 + docs-fix 无证据新用例）。
-- `failure_category` 零残留（`grep -rn "failure_category" packages/cdd-engine/src-next` 零命中，抽查面含模板与测试）。
+- failure_category 零残留（`grep -rn "failure_category" packages/cdd-engine/src-next` 零命中，抽查面含模板与测试）。
 - review 面 `## Handoff schema` fence 与 review 前缀**字节不变**（pin：既有 render / cli 用例不改即绿）。
 - `TEMPLATE_PROMPT.$version === 16`（pin：`render/__tests__/render.test.ts`）。
 - **波门静态批次守卫（D63）**：任一静态批次不得开闭混合——`vet` 返回 `mixed-batch` 且报文点名批次与两侧成员（pin：`session/__tests__/wave.test.ts` 两用例：混合批次 → BLOCK · 整批开放 → 放行）；`WaveGateReason` 含 `"mixed-batch"`；`WaveGateWords` 含 `mixedBatch` 行。
@@ -256,8 +256,8 @@ parent-version: v2.72
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
-| v0.1 | 2026-10-21 | 初稿——P17 承接用户 mandate 两项（doc-type `overall-spec` → `overall` + 目录 `specs/` → `overalls/`；phase spec review 补 `INPUT_OVERALL`）。定案六条：D61-1 全拼写一次改到底（含 `OVERALL_SPEC_ELEMENTS` / `#renderOverallSpec` 两处死名随行）· D61-2 `overalls` 第三 doc root（四读者派生 + 两处手改 + `DOC_ROOT_SEGMENTS` 文案 pin break）· D61-3 硬破迁移与消费面更替（含拼写+迁移的原子性硬理由）· D61-4 `INPUT_OVERALL` 镜像 `INPUT_SPEC` · D61-5 spec 轴 program conformance 判据句 · D61-6 退役拼写报文拆分；模板 `$version` 14 → 15；changeset cdd-engine major + kairos | Oscaner M. · Claude（kairos:cdd-spec-writer [P17]）|
+| v0.1 | 2026-10-21 | 初稿——P17 承接用户 mandate 两项（doc-type `overall-spec` → `overall` + 目录 `specs/` → `overalls/`；phase spec review 补 `INPUT_OVERALL`）。定案六条：D61-1 全拼写一次改到底（含 OVERALL_SPEC_ELEMENTS / #renderOverallSpec 两处死名随行）· D61-2 `overalls` 第三 doc root（四读者派生 + 两处手改 + `DOC_ROOT_SEGMENTS` 文案 pin break）· D61-3 硬破迁移与消费面更替（含拼写+迁移的原子性硬理由）· D61-4 `INPUT_OVERALL` 镜像 `INPUT_SPEC` · D61-5 spec 轴 program conformance 判据句 · D61-6 退役拼写报文拆分；模板 `$version` 14 → 15；changeset cdd-engine major + kairos | Oscaner M. · Claude（kairos:cdd-spec-writer [P17]）|
 | v0.2 | 2026-10-21 | **spec-fix-1（review-1 findings 收口 · 7 warn + 4 nit）**：① warn——§2.4 落表补 `DispatchScene`（`face/lifecycle.ts:67-78`）与 `#dispatchOf` hand-off（`face/cli.ts:744-751`），`WorkScene` pin 改 `:125-135`；② warn——§2.3 `File paths` 格改引 `contract/declare.ts:449-455`（`File path row` · `refKind: "none"`），link-shape 判据不触达该格、裸相对路径降为约定；③ warn——D61-1 纳入报文/注释面（`invariants.ts:1291-1292/:1360` + 引擎注释行），Acceptance 零残留 grep 放宽到全非测试行；④ warn——D61-3 消费面补 `packages/cdd-engine/README.zh-CN.md:46` 并进验收 grep；⑤ warn——快照面入 D61-1/Acceptance（两档 `*.overall-spec.snap` 改名并手工删旧、四份 schema snap 的 pattern 行重生成）；⑥ warn——`presentation-surface.test.ts` 移出编辑面（`OLD_KAIROS_SKILL_NAMES` 冻结），只作必绿面；⑦ warn——§2.2 `build` 由自动跟随表移入手改清单（「需手改三处」），漏改即静默失败；⑧ nit——§2.5 轴句写明插入点（`+` 链末项、两句元说明之前）；⑨ nit——两处 pin 校正（overall.md:13 · doc.ts:549）；⑩ nit——AC 的 `INPUT_OVERALL` 断言改为「声明槽 + 条件渲染」；⑪ nit——目录计数 18/1/17，删去「61 处」改记引用面构成 | Oscaner M. · Claude（kairos:cdd-spec-writer [P17] spec-fix-1）|
-| v0.3 | 2026-10-21 | **范围扩并：承载面统一（D62 · 用户裁定 · cdd-dev 实施期并入）**。新增 §3 九条定案：D62-1 一份 `CARRIER` 声明 + `#writable(plane)` 唯一投影（删 `CARRIER_DELIVERY` / `CARRIER_FINDINGS` / `BY_FACE` / `HandoffSchemaFace`）· D62-2 `CarrierPlane = work \| judge` 由 op 派生，`HandoffFamily` 退化为 `{ name }`，`handoffFaceOf(op, type)` → `planeOf(op)` · D62-3 必填集 / 可写槽按平面 · D62-4 结论派生语义不变 · D62-5 文档修复获得 `status`（残余 findings 死路径删除、`templates.ts:209` 自相矛盾消灭）· D62-6 证据门按 scope（wave / branch）派生，行为零变 · D62-7 死字段 `failure_category` 删除 · D62-8 两份前缀逐字改写 + `$version` 15 → 16 · §3.9 非目标（不合并 op · status 仍自报 · 特效面零改 · 无兼容读）。取证三条钉在 `next.ts:169-205` / `ledger.ts:1096+1104` / `lifecycle.ts:557+798`。Acceptance 补六条、Constraints 的冻结面与原子落地随之修订。`parent-version` v2.70 → v2.71 | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定并入 · I4 backfill）|
+| v0.3 | 2026-10-21 | **范围扩并：承载面统一（D62 · 用户裁定 · cdd-dev 实施期并入）**。新增 §3 九条定案：D62-1 一份 `CARRIER` 声明 + `#writable(plane)` 唯一投影（删 CARRIER_DELIVERY / CARRIER_FINDINGS / BY_FACE / HandoffSchemaFace）· D62-2 `CarrierPlane = work \| judge` 由 op 派生，`HandoffFamily` 退化为 `{ name }`，`handoffFaceOf(op, type)` → `planeOf(op)` · D62-3 必填集 / 可写槽按平面 · D62-4 结论派生语义不变 · D62-5 文档修复获得 `status`（残余 findings 死路径删除、`templates.ts:209` 自相矛盾消灭）· D62-6 证据门按 scope（wave / branch）派生，行为零变 · D62-7 死字段 failure_category 删除 · D62-8 两份前缀逐字改写 + `$version` 15 → 16 · §3.9 非目标（不合并 op · status 仍自报 · 特效面零改 · 无兼容读）。取证三条钉在 `next.ts:169-205` / `ledger.ts:1096+1104` / `lifecycle.ts:557+798`。Acceptance 补六条、Constraints 的冻结面与原子落地随之修订。`parent-version` v2.70 → v2.71 | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定并入 · I4 backfill）|
 | v0.4 | 2026-10-21 | **hotfix 并入：波门静态批次守卫（D63 · 用户裁定）**。新增 §4：`WaveGate.vet` 的 open wave 是动态前沿 `frontier(closedWaves())`，当 plan 修订把新任务放进已部分闭合的静态批次（`TaskGraph.batches()`）时，余下任务会被当作独立 wave 放行（本 phase 实测：Task 3 闭合后 Task 4 被单独派发）。定案：`vet` 在 exact 判定前先判静态批次，开闭混合 → 新增 `mixed-batch` BLOCK（`WaveGateReason` + `WaveGateWords.mixedBatch` 词表行，报文逐字在 §4）；未入批任务不触发、整批开放放行。同一裁定把 Task 4 的 `DependsOn` 由 `1, 2` 改为 `1, 2, 3`（消灭混合态源头）。Acceptance 补两条。`parent-version` v2.71 → v2.72 | Oscaner M. · Claude（kairos:cdd-dev [P17] · 用户裁定 hotfix）|
 | v0.5 | 2026-10-22 | **closeout（cdd-close）**：P17 全链闭合——三块定案（D61 类别面收口 · D62 承载面统一 · D63 波门守卫）全部落地并经评审：六任务六波全绿（W1 `115714b0` · W2 `bdd0c1c6` · W3 `6926baab` · W4 `e869714e` + wave-fix `9b8e7e72` · W5 `f07fcc04` · W6 `6e72cd86` + wave-fix `5e46c064`）· 分支终审 branch-review-1 REVIEW_FIX（1 nit：changeset 的 legacy-path 承诺超出引擎实际行为——`SlugIndex.build` 三根均匀扫描、身份只认 front-matter `doc-type:`）→ branch-fix-1 APPROVED（`1ebcf3f0`）· 本文档链：v0.1 `2ac4f246` → spec-fix-1 `8d6304ad`（v0.2）→ D62 并入 `d3434a1a`（v0.3）→ D63 并入 `f24a3cd7`（v0.4）· 验收 `pnpm run validate` exit 0（cdd-engine 44 files/815 tests · kairos 87/87 · root 10/10 · typecheck ×3 · emit fresh · version-sync）· changeset cdd-engine **major** + kairos **minor** pending · 不发布 | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill）|

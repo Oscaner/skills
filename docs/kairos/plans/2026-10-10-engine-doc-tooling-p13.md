@@ -74,7 +74,7 @@ base: develop
 
 ### Task 5: 终止时 idle 可见性与交付
 - **Objective**: 终止时把 `idleMs` 与末样本写入 TIMEOUT 的 stderr 与 crash record；补 changeset；全量验证收口。
-- **Files**: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#reject` 的终止分支，stderr 的唯一发射点；CLI 层不输出，故不改 `cli.ts`）；`packages/cdd-engine/src-next/face/words.ts`（终止诊断词条）；`.changeset/` 下新增 changeset 文件（slug 如 `engine-child-termination-followup.md`）；测试 `face/__tests__/cli.test.ts`。
+- **Files**: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#reject` 的终止分支，stderr 的唯一发射点；CLI 层不输出，故不改 `cli.ts`）；`packages/cdd-engine/src-next/face/words.ts`（终止诊断词条）；`.changeset/` 下新增 changeset 文件（slug 如 engine-child-termination-followup）；测试 `face/__tests__/cli.test.ts`。
 - **Consumes**: Task 2 的 `termination.idleMs` / `lastSample`；Task 3 的升格 `CDD_WARN`（本任务不重复输出）；Task 4 的失败摘要行。
 - **Produces**: 非升格终止轮的终止诊断——不新增 stderr 行，而是在 `lifecycle.ts` `#reject` 终止分支已打印的那一条 `CDD_BLOCKED` / `TIMEOUT` 行上扩展，追加原因、`idleMs` 与末样本裁决（升格轮的同类信息已在 Task 3 的唯一 `CDD_WARN` 中，不重复输出，故每轮 stderr 至多一行，可直接计数断言）；cdd-engine minor changeset；交付态可发布。
 - **Steps**:
@@ -87,9 +87,9 @@ base: develop
 
 ### Task 6: handoff 载体 face 改名 `work` → `delivery`
 - **Objective**: 把载体 face `work` 破坏性改名为 `delivery`（`findings` 不变），并按载荷形状重写 `HandoffFamily.schema` 的注释；行为零变化。
-- **Files**: `packages/cdd-engine/src-next/session/handoff-schema.ts`（`HandoffSchemaFace`、`CARRIER_WORK`、`BY_FACE`、`WorkCarrier`、`CarrierOf`）；`packages/cdd-engine/src-next/session/ledger.ts`（`buildHandoff` 重载、`handoffFaceOf`）；`packages/cdd-engine/src-next/infra/runtime.ts`（`HandoffFamily.schema` 与 `HANDOFF_FAMILIES` 三处）；`packages/cdd-engine/src-next/face/lifecycle.ts`、`packages/cdd-engine/src-next/session/run.ts`（`buildHandoff("work", …)` 与 face 比较点）；测试 `infra/__tests__/infra.test.ts`、`session/__tests__/handoff-schema.test.ts`、`session/__tests__/ledger.test.ts`、`session/__tests__/wave.test.ts`、`session/__tests__/handoff-plane.guard.test.ts`。
+- **Files**: `packages/cdd-engine/src-next/session/handoff-schema.ts`（HandoffSchemaFace、CARRIER_WORK、BY_FACE、WorkCarrier、CarrierOf）；`packages/cdd-engine/src-next/session/ledger.ts`（`buildHandoff` 重载、handoffFaceOf）；`packages/cdd-engine/src-next/infra/runtime.ts`（`HandoffFamily.schema` 与 `HANDOFF_FAMILIES` 三处）；`packages/cdd-engine/src-next/face/lifecycle.ts`、`packages/cdd-engine/src-next/session/run.ts`（`buildHandoff("work", …)` 与 face 比较点）；测试 `infra/__tests__/infra.test.ts`、`session/__tests__/handoff-schema.test.ts`、`session/__tests__/ledger.test.ts`、`session/__tests__/wave.test.ts`、`session/__tests__/handoff-plane.guard.test.ts`。
 - **Consumes**: 全部前序任务（本任务最后落地，避免与 Task 3 / 4 / 5 同改 `lifecycle.ts` 与 `run.ts`）。
-- **Produces**: `HandoffSchemaFace = "delivery" | "findings"`；`DeliveryCarrier`（原 `WorkCarrier`）；`buildHandoff(face: "delivery", init?: DeliveryInit): DeliveryCarrier`（`WorkInit` 是否同名改为 `DeliveryInit` 以逐处核对结果为准——仅当它确指该 face 的 init 时才改）。
+- **Produces**: `HandoffSchemaFace = "delivery" | "findings"`；DeliveryCarrier（原 WorkCarrier）；`buildHandoff(face: "delivery", init?: DeliveryInit): DeliveryCarrier`（`WorkInit` 是否同名改为 DeliveryInit 以逐处核对结果为准——仅当它确指该 face 的 init 时才改）。
 - **Steps**:
   - 先翻新测试：上述五个测试文件中指 face 的 `"work"` 字面量改为 `"delivery"`；增一条守卫断言「引擎活面（非测试）无 face 语义的 `"work"` 字面量」 — checkable: 测试因类型 / 字面量缺失而失败
   - 逐处核对 `grep -rn '"work"\|WorkCarrier\|CARRIER_WORK\|WorkInit' packages/cdd-engine/src-next`，只改指载体 face 的，非 face 语义词保留并在提交说明里列出 — checkable: 核对清单覆盖 `handoff-schema.ts` · `ledger.ts` · `runtime.ts` · `lifecycle.ts` · `run.ts`

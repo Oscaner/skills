@@ -25,27 +25,27 @@ author: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁�
 
 ### 2. 校验归域（验证逻辑迁入所属 package test plane）
 #### 2.1 归域图（checks → 归属判定）
-- `checkAnatomy`（SKILL 结构合约 · 扫 `packages/kairos/skills/*/SKILL.md` · 判压基础 = 引擎导出 `skill-anatomy` 契约）→ **kairos test plane**（kairos 拥有产物 · 契约引擎单源导出 · workspace: 依赖消费）
-- `checkWords`（词表禁令审计 · 技能散文 + 引擎字面）→ **分域拆**：技能散文面 → kairos · 引擎字面面 → engine · 词表单源保留 `face/words.ts` 导出
-- `checkChannels`（CLI 通道闭包 + host-marker 闭包 · 扫 `face/declare.ts` + `face/host.ts`）→ **engine test plane**（colocated vitest · P3 既有 channel-closure 单面自检同族）
-- `checkHandoffPlane`（P4 扩项 · 扫 `session/handoff-schema.ts` + 写平面声明派生）→ **engine test plane**（colocated vitest）
-- `checkClaimedPins`（声称→pin lint · 扫 docs）→ **撤销**（docs 不验 · 语义判断已在引擎 review lens · root 机器 lint 删除）
-- `checkDocContract`（引擎 `Contract` 判压全部 docs/kairos）→ **撤销**（docs 不验 · PRECONTRACT_DOCS 豁免窗同撤 · 合法性交 workflow）
+- checkAnatomy（SKILL 结构合约 · 扫 `packages/kairos/skills/*/SKILL.md` · 判压基础 = 引擎导出 `skill-anatomy` 契约）→ **kairos test plane**（kairos 拥有产物 · 契约引擎单源导出 · workspace: 依赖消费）
+- checkWords（词表禁令审计 · 技能散文 + 引擎字面）→ **分域拆**：技能散文面 → kairos · 引擎字面面 → engine · 词表单源保留 `face/words.ts` 导出
+- checkChannels（CLI 通道闭包 + host-marker 闭包 · 扫 `face/declare.ts` + `face/host.ts`）→ **engine test plane**（colocated vitest · P3 既有 channel-closure 单面自检同族）
+- checkHandoffPlane（P4 扩项 · 扫 `session/handoff-schema.ts` + 写平面声明派生）→ **engine test plane**（colocated vitest）
+- checkClaimedPins（声称→pin lint · 扫 docs）→ **撤销**（docs 不验 · 语义判断已在引擎 review lens · root 机器 lint 删除）
+- checkDocContract（引擎 `Contract` 判压全部 docs/kairos）→ **撤销**（docs 不验 · PRECONTRACT_DOCS 豁免窗同撤 · 合法性交 workflow）
 #### 2.2 kairos test plane 承接（skill 解剖 + 技能词面）
-- **skill-anatomy 检查迁入 kairos tests**：新 test（如 `skill-anatomy.test.ts`）以 node:test 扫 `packages/kairos/skills/*/SKILL.md` —— 判压实现 = 引擎导出的 `skill-anatomy` 契约（kairos package.json 已依赖 cdd-engine `workspace:*`）· 走查器（analyzeSkill · digraph/section 抽取）落 kairos test 辅助层 · **root `checkAnatomy` 删除**
+- **skill-anatomy 检查迁入 kairos tests**：新 test（如 `skill-anatomy.test.ts`）以 node:test 扫 `packages/kairos/skills/*/SKILL.md` —— 判压实现 = 引擎导出的 `skill-anatomy` 契约（kairos package.json 已依赖 cdd-engine `workspace:*`）· 走查器（analyzeSkill · digraph/section 抽取）落 kairos test 辅助层 · **root checkAnatomy 删除**
 - **技能散文词面审计迁入 kairos**：以引擎 `GUARD_BAN_WORDS` 导出为基准 · 引擎源字面/注释对应检查落 engine（分域拆）
 #### 2.3 engine test plane 承接（channel/handoff 闭包 + 引擎词面）
-- **checkChannels 迁 engine colocated vitest**：channel 闭包（command keys × flag channels）+ host-marker 闭包（detect env keys ∪ PATH）落 `face/__tests__/`（P3 已建 channel-closure 单面内自检同族）· **root `checkChannels` 删除**
-- **checkHandoffPlane 迁 engine colocated vitest**：声明面闭合 · engineOnly 卫生 · 写平面声明派生（P4 §3.1 机件）落 `session/__tests__/` · **root `checkHandoffPlane` 删除**
+- **checkChannels 迁 engine colocated vitest**：channel 闭包（command keys × flag channels）+ host-marker 闭包（detect env keys ∪ PATH）落 `face/__tests__/`（P3 已建 channel-closure 单面内自检同族）· **root checkChannels 删除**
+- **checkHandoffPlane 迁 engine colocated vitest**：声明面闭合 · engineOnly 卫生 · 写平面声明派生（P4 §3.1 机件）落 `session/__tests__/` · **root checkHandoffPlane 删除**
 #### 2.4 docs 不验（三 docs 门撤销 · 合法性交 workflow）
-- **checkDocContract 撤销**：`PRECONTRACT_DOCS`（33 个 pre-contract 豁免窗）同撤 · 根零 docs 扫描 · 文档结构合法性由引擎 review/fix dispatch 门**用时自判**（`cdd review --type spec/plan` 的 doc-contract 判定保留——它是引擎能力，非 root verify 实现）
+- **checkDocContract 撤销**：PRECONTRACT_DOCS（33 个 pre-contract 豁免窗）同撤 · 根零 docs 扫描 · 文档结构合法性由引擎 review/fix dispatch 门**用时自判**（`cdd review --type spec/plan` 的 doc-contract 判定保留——它是引擎能力，非 root verify 实现）
 - **checkClaimedPins 撤销**：声称→pin 判断留在引擎 review lens（P4 已入契约行）· root 机器 lint 删除 · 零平行实现
 - **连带删除**：docs 校验不再入 CI / precommit 步骤 · 验收证据改以「任一新建规范/计划文档 dispatch 时被引擎判压」为口径
 
 ### 3. CI 原生分身（validate.ts 解散 · GH Actions 原生 job）
 #### 3.1 pr-validate.yml 原生 job 矩阵
 - 从单一 `node scripts/run.ts validate` 改列原生 job/step：`pnpm -C packages/cdd-engine test`（引擎 suite）· `node --test packages/kairos/tests/*.test.ts`（kairos suite）· `pnpm run typecheck` · `pnpm run emit:check` · 版本 sync 薄步——各在 action log **原生可见** · 失败归因到具体 job
-- `scripts/validate.ts` 组合 runner（ValidateRunner / CheckBlock / SubprocessBlock / steps / precommitSteps）**解散** · `scripts/__tests__/validate.test.ts` + `scripts/__tests__/guard.test.ts` 随删（断言面随目标迁/撤）
+- 校验脚本 组合 runner（ValidateRunner / CheckBlock / SubprocessBlock / steps / precommitSteps）**解散** · 校验脚本 的测试文件 + guard 库的测试 随删（断言面随目标迁/撤）
 #### 3.2 package.json scripts 收敛
 - root `validate` 脚本改指原生命令序列（或直列 GH steps 不设 wrapper）· `precommit`（lint-staged catch-all `*`）改写为**原生命令序列**（tree-independent 子集：kairos suite + 包装门 + 引擎树无关步）· 局部 commit 门语义不降
 - `scripts/run.ts` 收敛：`validate` / `precommit` / `smoke-cdd` 面删除 · `emit` / `emit-check` 保留（原生产物生成面）
@@ -60,10 +60,10 @@ author: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁�
 - `lib/scan.ts` → `WalkTarget` / `ScanToken` 类族（walkTarget · scanToken · isQuotedDataRow 收 static 成员）
 - `lib/first-party.ts` → 类成员（firstPartyNames）
 - `emit.ts` → manifest 映射类族（deriveFirstPartyPlugin · normalizeAuthor · repoUrl · stripVcs · claudeManifest · cursorManifest … 收成员 · 声明单源投影）
-- `validate.ts` 残余 / `run.ts main` → 收类或随面删除（§3.1）· 迁移辅助随迁（§6.1）
+- 校验脚本 残余 / `run.ts main` → 收类或随面删除（§3.1）· 迁移辅助随迁（§6.1）
 #### 4.3 零命中门禁
 - **全局 pin**：引擎 + scripts 全部 `.ts`（含测试面）模块级 `function` / `export function` / `async function` 声明**零命中**（统一正则 `^(export )?(async )?function `——async 形态同入 · `run.ts:17 async function main` 在面内）· **组合根不豁免**（用户「只要留了口，必然会在未来逐渐变厚 · 语义边界无法稳定划分」）· 门禁 = 结构性 grep pin 入 CI + 局部 commit 面
-- **测试面全量纳入（零豁免）**：引擎 **15 个 test 文件现存 53 枚**模块级裸函数（`face/__tests__` 14 · `session/__tests__` 24 · `contract/__tests__` 7 · `render/__tests__` 1 · `src-next/__tests__` 7）+ scripts 测试辅助 2 枚（`scripts/__tests__/helpers/anatomy-fixture.ts`）均在门禁 scope 内 · 处置 = 逐文件迁移：test 辅助函数收为 describe/it 作用域内局部函数或 `const` 箭头形态（字节 pin `^(export )?(async )?function ` 以模块级声明为断言面——async 形态同入正则）· 随面销毁文件（§7.1）的裸函数随删 · **AC 计数以全员枚举为基**（源码面引擎 2 枚 + scripts 38 枚 · 测试面引擎 53 枚 + scripts 2 枚）
+- **测试面全量纳入（零豁免）**：引擎 **15 个 test 文件现存 53 枚**模块级裸函数（`face/__tests__` 14 · `session/__tests__` 24 · `contract/__tests__` 7 · `render/__tests__` 1 · `src-next/__tests__` 7）+ scripts 测试辅助 2 枚（anatomy fixture）均在门禁 scope 内 · 处置 = 逐文件迁移：test 辅助函数收为 describe/it 作用域内局部函数或 `const` 箭头形态（字节 pin `^(export )?(async )?function ` 以模块级声明为断言面——async 形态同入正则）· 随面销毁文件（§7.1）的裸函数随删 · **AC 计数以全员枚举为基**（源码面引擎 2 枚 + scripts 38 枚 · 测试面引擎 53 枚 + scripts 2 枚）
 
 ### 5. 字节语义 major（next: 字面冻结 · 功能语义不变）
 #### 5.1 字节许可面 vs 冻结面
@@ -91,7 +91,7 @@ author: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁�
 ### 6. smoke-cdd 迁引擎 + emit.ts 六前提重整
 #### 6.1 smoke-cdd 迁 engine 集成测试面
 - smoke-cdd（fixture 仓库 + 真实 bin dry-run 链）迁入 engine test plane（作为引擎集成测试 / 或保留独立 runnable 入口）· 归「引擎 launch 行为」域（kairos `pi-install-smoke.test.ts` 同型先例）
-- **`--expect-version` 旗标撤除**（用户裁定 · 2026-10-12 · no-op 不迁）：现 `scripts/smoke-cdd.ts` 全文件 0 命中 expect/argv/version（`SmokeCdd.run(opts)` 仅收 `binPath` · `run.ts:46-49` 不传 argv · `release.yml:71` 的 `--expect-version 1.0.0` 传入即弃 = no-op）——引擎 smoke **不实现版本断言** · `release.yml` post-version 门移除（两道门只指 smoke 入口 · 不再带版本断言）· `docs/maintainers/04-program-experience.md:89` 的「tarball + installed package.json == expected」记载同步删 · 「released artifact = verified artifact」以 suite 全绿 + smoke 门改指收口
+- **`--expect-version` 旗标撤除**（用户裁定 · 2026-10-12 · no-op 不迁）：现 smoke 脚本 全文件 0 命中 expect/argv/version（`SmokeCdd.run(opts)` 仅收 binPath · `run.ts:46-49` 不传 argv · `release.yml:71` 的 `--expect-version 1.0.0` 传入即弃 = no-op）——引擎 smoke **不实现版本断言** · `release.yml` post-version 门移除（两道门只指 smoke 入口 · 不再带版本断言）· maintainers 程序经验篇 的「tarball + installed package.json == expected」记载同步删 · 「released artifact = verified artifact」以 suite 全绿 + smoke 门改指收口
 - **release.yml 两道门改指引擎 smoke 入口**（`pnpm -C packages/cdd-engine run …` 或等阶原生命令）· root `scripts/run.ts smoke-cdd` 面删除
 #### 6.2 emit.ts OOP 重整
 - emit.ts（产物生成面 · `package.json#oscaner` → 各 harness manifest）按六前提重整：零裸函数（类族收口 · §4.2）· 高内聚低耦合（映射职责分面）· 死码清理 · 声明单源投影保
@@ -99,7 +99,7 @@ author: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁�
 
 ### 7. 死码/空壳/散线清理清单
 #### 7.1 删除面（消灭清单）
-- `scripts/lib/guard.ts`（1067 行 · 校验逻辑全迁/撤）· `scripts/validate.ts`（321 行 · 组合 runner）· `run.ts` validate/precommit/smoke-cdd 面 · `scripts/__tests__/guard.test.ts` + `validate.test.ts` · kairos `tests/ci-validate.test.ts`（wiring guard 目标消失 · 断言面随迁）· `PRECONTRACT_DOCS` 名单
+- guard 库（1067 行 · 校验逻辑全迁/撤）· 校验脚本（321 行 · 组合 runner）· `run.ts` validate/precommit/smoke-cdd 面 · guard 库的测试 + 校验脚本 的测试文件 · kairos ci-validate 测试（wiring guard 目标消失 · 断言面随迁）· PRECONTRACT_DOCS 名单
 #### 7.2 迁移面
 - guard 分析器（analyzeSkill · digraph/section 抽取）→ kairos test 辅助 · channel/handoff 断言 → engine colocated pins · anatomy 契约 / 词表保持引擎导出（零搬）· smoke fixtures → engine 集成测试（§6.1）
 #### 7.3 声明单源确认
@@ -146,7 +146,7 @@ author: Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁�
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-12 | P5 设计 v0.1——整引擎 + repo CI 验证脚本重整（六前提 · grilling 九裁定 D18）：目标面二合一（非终审 · 用户「最大心智负担：仓库根脚本只是跑 tests 做 ci 门」）· 校验归域（checkAnatomy→kairos · checkChannels/checkHandoffPlane→engine · checkWords 分域拆 · 根零验证逻辑）· docs 不验（三 docs 门撤下根 · 合法性交 workflow）· CI 原生分身（validate.ts 解散 · GH Actions 原生 job · precommit 原生命令序列）· 字面零裸函数（含组合根 · 全局零命中 pin）· 字节语义 major（两层全开 · next: 字面冻结 · 功能语义不变 · kairos 消费面同步）· smoke-cdd 迁引擎（release 门改指）· emit.ts 六前提重整（产物字节零 drift）· 死码/空壳清单（guard.ts/validate.ts 删除面 · 迁移面）· 变更集 major + patch 归并不发布 · 单 phase-spec 收口 | Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 用户裁定 · 2026-10-12） |
 | v0.2 | 2026-10-12 | P5 设计 v0.2——用户 in-flight 需求 backfill（§5.4 · 六前提⑤ 消费者心智负担）：schema gen 并入 schema get · `--output <json|skeleton>` · **根因修正（用户 2026-10-12 澄清）：痛根是 `<path>` 零约束而非 `>` vs 传参机制**——`--output skeleton <target>` 把 target 升为引擎声明必需参数（引擎直写目标 doc · 就地生成 · 填 in place · 异路径中转结构性不可行）· `--output json` 无需 target · schema gen leaf 消灭 · cdd-spec-writer 消费面 dispatch 字面同步 | Oscar M. · Claude Opus 5（kairos:cdd-spec-writer [P5] 会话 · 用户 backfill · 2026-10-12） |
-| v0.3 | 2026-10-12 | P5 设计 v0.3——spec-review-1 修复轮（3 warn + 3 nit 全数落地 · 零残）：PRECONTRACT_DOCS 计数 35→33（§2.4 · pin 核到 `scripts/validate.ts:182-216`）· `--expect-version` **撤旗标**（§6.1/AC · 用户裁定 option ② —— no-op 不迁 · release.yml post-version 门移除 · `docs/maintainers/04-program-experience.md:89` 记载删）· 零裸函数门测试面处置（§4.3 · 引擎 15 个 test 文件 53 枚 + scripts 测试辅助 2 枚全量迁移 · AC 全员枚举基）· scripts 面计数逐文件清单（37 = 收类 16 + 迁/撤 21）· 变更集区分 P5 changeset 类型 vs 净 bump（kairos 净 bump 已 major）· D19 引用入链（§1.1/Design/§5.4） | 引擎 spec-fix 轮 · Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 2026-10-12） |
+| v0.3 | 2026-10-12 | P5 设计 v0.3——spec-review-1 修复轮（3 warn + 3 nit 全数落地 · 零残）：PRECONTRACT_DOCS 计数 35→33（§2.4 · pin 核到 校验脚本里定义它的那一段）· `--expect-version` **撤旗标**（§6.1/AC · 用户裁定 option ② —— no-op 不迁 · release.yml post-version 门移除 · maintainers 程序经验篇 记载删）· 零裸函数门测试面处置（§4.3 · 引擎 15 个 test 文件 53 枚 + scripts 测试辅助 2 枚全量迁移 · AC 全员枚举基）· scripts 面计数逐文件清单（37 = 收类 16 + 迁/撤 21）· 变更集区分 P5 changeset 类型 vs 净 bump（kairos 净 bump 已 major）· D19 引用入链（§1.1/Design/§5.4） | 引擎 spec-fix 轮 · Oscar M. · Claude Opus 5（kairos:cdd-design [P5] 会话 · 2026-10-12） |
 | v0.4 | 2026-10-13 | P5 设计 v0.4——用户 in-flight 消费面需求 backfill（§5.5 · 六前提⑤ · D20）：**三编排器 skill NEXT-LOOP 不复述 `next:` 具体字面**（含 I1 不变体同简 · 只留规则句 · 字面由 review 输出携带）· **fix 派发父句 `(read file back to confirm)` → `(confirm the findings · backfill user adjudications into the carrier)`**（读回确认 + 用户裁定回填 carrier · 用户 3 裁定推荐 A）· 落点 = kairos 消费面 skill 文本（cdd-spec-writer/design/plan）· 随字节语义 major 落地 · AC 增补 · 行为树 pins 翻新 | Oscar M. · Claude Opus 5（kairos:cdd-spec-writer [P5] 会话 · 用户 backfill · 2026-10-13） |
 | v0.5 | 2026-10-13 | P5 设计 v0.5——**D20 scope 校正确认（用户追问「cdd-dev 面为什么不动」→ 原「三编排器」收敛范围误判）**：D20 ①②面 **扩至四个带 NEXT-LOOP 的 skill**（cdd-spec-writer · cdd-plan · **cdd-dev** · cdd-design——cdd-dev L53 `fix --type wave…`+`implement --plan…`+`done` 三字面全复述为最重面 · design I2 不变体同简）· cdd-close/cdd-report 无 NEXT-LOOP 零动 · fix 父句全量 7 处（dev L53/L85 同句在面内）· AC pin 同步扩四文件 | Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 用户 scope 追问 · 2026-10-13） |
 | v0.6 | 2026-10-13 | **P5 计划 v0.3 → v0.4 修复轮回填（plan-review-1 · 8 warn + 2 nit · 内核到实码）**：scripts 面计数 **37 → 38 枚**（§4.3/AC · 收类 16 → 17：实测 grep guard.ts 9 + validate 5 + smoke-cdd 7 = 21 迁/撤 · scan 3 + first-party 1 + run.ts main 1 + emit 12 = 17 收类）· **零裸函数正则统一**（`^function |^export function ` → `^(export )?(async )?function `——async 形态同入 · `run.ts:17 async function main` 在面内 · §4.1/§4.3 全局 + 铁律行同步）· **scan.test 覆盖承接**（scanToken 现覆盖仅在 guard.test.ts:15,102-128 · 随 T5 删除 → 移 §4.3 为「新建 scan.test.ts 承接」）· **smoke 迁面修正**（烟链实为 implement+review 二命令 + `--help` face · 非五命令 · §5.4 无 schema 锚可同步 · schema skeleton 集成断言面 = engine vitest cli/projection）——文本修正 · AC 原子推进 | 引擎 plan-fix 轮 · Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 2026-10-13） |

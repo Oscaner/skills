@@ -18,7 +18,7 @@ parent-version: v1.1
 
 #### 1.1 schema 动词现状（新 leaf 的接线面）
 
-`schema` 动词已存在（`face/cli.ts`）：`CliVerb = implement | review | fix | schema | issue | base` · `CLI_USAGE.schema = "usage: cdd schema get <type>"` · 嵌套 leaf 面 = `CliLeafName` + `LEAF_COMMANDS`（现含 `base set|get` · `schema get` · `issue render`）· `#runSchema` 读 `parsed.positionals[0]`，`plan-graph` 特殊路由，其余经 `#docKeys` 校验后 `JSON.stringify(#projector.schema()[type])` 到 stdout（发现读 · 零 enforcement）。typeName 大小写坑实证：`schema get phase-spec` 报 unknown（合法键 = `overall/plan/phaseSpec`）——D3 记为本程序的同型面。**新 leaf 属既有动词面扩展，不是新顶层子命令**（「零新子命令」pin 的例外扩写语义 · CLAUDE.md pin 修订 §6.2）。
+`schema` 动词已存在（`face/cli.ts`）：`CliVerb = implement | review | fix | schema | issue | base` · `CLI_USAGE.schema = "usage: cdd schema get <type>"` · 嵌套 leaf 面 = `CliLeafName` + LEAF_COMMANDS（现含 `base set|get` · `schema get` · `issue render`）· `#runSchema` 读 `parsed.positionals[0]`，`plan-graph` 特殊路由，其余经 `#docKeys` 校验后 `JSON.stringify(#projector.schema()[type])` 到 stdout（发现读 · 零 enforcement）。typeName 大小写坑实证：`schema get phase-spec` 报 unknown（合法键 = `overall/plan/phaseSpec`）——D3 记为本程序的同型面。**新 leaf 属既有动词面扩展，不是新顶层子命令**（「零新子命令」pin 的例外扩写语义 · CLAUDE.md pin 修订 §6.2）。
 
 #### 1.2 Projector 投影面（派生的单一源）
 
@@ -38,7 +38,7 @@ CLAUDE.md 顶级节 = Repository purpose · ⚠️ emit products are derived · 
 
 #### 2.1 leaf 注册
 
-`schema` 动词下新增 `gen` leaf（接线面 = §1.1）：`CliLeafName` 扩 `"gen"` · `LEAF_COMMANDS` 加 `{ name: "gen", usage, description }` · `CLI_USAGE.schema` 更新为列两 leaf（`usage: cdd schema <get|gen> <type>`）· `#runSchema` 按 `parsed.leaf` 分派（`get` 走现状 → `gen` 走骨架渲染）。**零新顶层动词**——与「零新子命令」pin 语义一致（leaf 扩展，非动词面扩容）。word-face / channel audit guard 随新 leaf 词表同步（零回归 · §7.2）。
+`schema` 动词下新增 `gen` leaf（接线面 = §1.1）：`CliLeafName` 扩 `"gen"` · LEAF_COMMANDS 加 `{ name: "gen", usage, description }` · `CLI_USAGE.schema` 更新为列两 leaf（`usage: cdd schema <get|gen> <type>`）· `#runSchema` 按 `parsed.leaf` 分派（`get` 走现状 → `gen` 走骨架渲染）。**零新顶层动词**——与「零新子命令」pin 语义一致（leaf 扩展，非动词面扩容）。word-face / channel audit guard 随新 leaf 词表同步（零回归 · §7.2）。
 
 #### 2.2 类型词表（DocType 词表 · 不自造第二份列表）
 
@@ -114,7 +114,7 @@ CLAUDE.md 顶级节 = Repository purpose · ⚠️ emit products are derived · 
 #### 6.2 「零新子命令」pin 不随散文消失（约束的语法面落点）
 
 CLAUDE.md 散文 pin 删除 ≠ 约束删除——「CDD CLI 零新子命令」的**语法面强制**本身不依赖散文：
-- `CliVerb` 联合 + `LEAF_COMMANDS` 闭集 = 引擎语法层面的动词/leaf 枚举（新增顶层动词必须改 `CliVerb` 型面——编译即显形）
+- `CliVerb` 联合 + LEAF_COMMANDS 闭集 = 引擎语法层面的动词/leaf 枚举（新增顶层动词必须改 `CliVerb` 型面——编译即显形）
 - validate 的 channel audit guard 对 CLI × runtime 词表做关卡（word-face · engine channel audit——零回归 §7.2）
 - 「文档先行」义务（overall Constraints「不可只实现不改文」）落点 = 本 spec（P2 设计文档先行）+ SKILL.md 消费面文本（§5）——散文 pin 的规范性由代码型面 + 本文档 + skills 三处接管
 
@@ -172,7 +172,7 @@ CLAUDE.md 收缩后，不新增「引擎使用引导」替代节——引擎使�
 
 | Overall assumption | Phase decision | Overall updated? |
 |---|---|---|
-| 「CLAUDE.md pin 连带修订（例外面扩 schema gen · 文档先行）」字面 = 在 CLAUDE.md 里改一行例外 | 修订落点 = **语法面 + 本文档 + skills 三处接管**，CLAUDE.md 散文块（含 pin）按 Q3→c **直接删除**（Q3→c 用户裁定盖过「改一行」字面）——「零新子命令」约束由 `CliVerb`/`LEAF_COMMANDS` 闭集 + channel audit guard 保有，`schema gen` = schema 动词下 leaf 扩展（非新顶层动词 · 例外语义一致） | Yes（overall v1.1 D7 已记「pin 修订 + 去流程化直接删除」） |
+| 「CLAUDE.md pin 连带修订（例外面扩 schema gen · 文档先行）」字面 = 在 CLAUDE.md 里改一行例外 | 修订落点 = **语法面 + 本文档 + skills 三处接管**，CLAUDE.md 散文块（含 pin）按 Q3→c **直接删除**（Q3→c 用户裁定盖过「改一行」字面）——「零新子命令」约束由 `CliVerb`/LEAF_COMMANDS 闭集 + channel audit guard 保有，`schema gen` = schema 动词下 leaf 扩展（非新顶层动词 · 例外语义一致） | Yes（overall v1.1 D7 已记「pin 修订 + 去流程化直接删除」） |
 | 「骨架 = 声明面派生（标题树/表列/版本脚手架）」 | 完整结构 = **每个 required 元素齐备 + 占位符槽位**（`:::fill <slot>` · my call 定式）· 填后 `:::fill` 零残留 pin——body/description 用占位符而非空节（Q1 延伸裁定） | Yes（overall v1.1 Q1 延伸已记） |
 
 ## Notes for downstream

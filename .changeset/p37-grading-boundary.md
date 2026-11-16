@@ -33,4 +33,6 @@ Grading becomes checkable end to end (P37).
   dead. A dead pin is a real `warn` finding under the reviewed face's own lens —
   `consistency` on the spec shapes, `inventory` on a charter, `buildability` on a plan,
   `standards` on a wave or branch, always a label that face's prompt declares — it never
-  refuses a round, but it does move a review to `REVIEW_FIX`.
+  refuses a round, but it does move a review to `REVIEW_FIX`. The shipped docs corpus is
+  clean against that criterion, and the engine suite's structural test holds it there: a
+  document entering the corpus, or a claim that stops resolving, turns it red.

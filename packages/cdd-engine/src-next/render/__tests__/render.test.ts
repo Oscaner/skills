@@ -362,8 +362,10 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // The I / J / K fixes change criteria BODIES; the labels that identify a row stay
     // byte-frozen, and so do the first-line titles of the three work shells.
     const reviewFaces = [
-      ["wave", "**Criteria — wave:**", "standards | spec | buildability"],
-      ["branch", "**Criteria — branch:**", "standards | spec | buildability"],
+      // P37 T2 — the wave / branch len enums gain `scope` (design spec §3.2: the
+      // `scope` axis the guides already judged had no enum value to carry the finding).
+      ["wave", "**Criteria — wave:**", "standards | spec | buildability | scope"],
+      ["branch", "**Criteria — branch:**", "standards | spec | buildability | scope"],
       ["phase-spec", "**Criteria — phase-spec:**", "completeness | consistency | clarity"],
       ["single-spec", "**Criteria — single-spec:**", "completeness | consistency | clarity"],
       ["plan", "**Criteria — plan:**", "completeness | decomposition | buildability"],

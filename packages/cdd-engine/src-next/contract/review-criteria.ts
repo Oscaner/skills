@@ -29,7 +29,23 @@
 // it rides `REGRADE_MARK` below, so the nit tier's prose stays a run of sentences and
 // a display fragment can never splice into it.
 //
-// Module-level exports are types / the declared table / the registry instance — zero
+// P37 T2 — the SECOND table (design spec §3.1, §6.1): the lens question rows. One row
+// asks what counts as crossing into functional impact under one lens; the row carries
+// no `tier`, no `duty` and no `counterExample`, because a question never grades — the
+// reviewer answers it along the tier ladder above. `wave` and `branch` share their four
+// questions by declaring both kinds on ONE row (`reviewKinds`), so the shared text is
+// stored once: 15 physical rows cover 19 (review kind, lens) cells.
+//
+// `face` is `numbered` on every row: the question's only execution surface is the
+// rendered review prompt. `LENS_QUESTIONS.forReviewKind` expands each shared row per
+// declared kind in declaration order, and `render/templates.ts` folds that projection
+// into the review's `**Criteria —` line as a `1. …` list.
+//
+// The two tables never merge: a question carries no verdict columns, and a criteria row
+// carries no question — asking one table for the other's row is an unregistered lookup
+// and throws.
+//
+// Module-level exports are types / the declared tables / the registry instances — zero
 // behavior-carrying bare functions.
 
 /** One grading tier, in ascending order of harm. */
@@ -183,3 +199,195 @@ export class CriteriaRegistry {
 
 /** The process-wide registry — the one table every consumer reads. */
 export const CRITERIA = new CriteriaRegistry();
+
+/** The review kinds this plane's lens table keys on — the five criteria bodies a
+ *  review target selects among. Declared HERE rather than imported from the render
+ *  plane: `contract/` never imports `render/` (the dependency edge P39 puts under
+ *  test). The value set equals `ReviewKey` structurally, and the two are assignable to
+ *  each other, so no import is needed in either direction. */
+export type ReviewKind = "wave" | "branch" | "plan" | "overall" | "spec";
+
+/** One lens question row — the `(review kind, lens)` cells it answers. `reviewKinds`
+ *  is multi-valued exactly where kinds share one question: the wave / branch four
+ *  carry both, so their text is stored once and expanded per kind on projection. */
+export interface LensQuestionRow {
+  /** The row's stable identity — shared rows are referenced by both their kinds. */
+  readonly id: string;
+  /** The kinds this question answers, in projection order. */
+  readonly reviewKinds: readonly ReviewKind[];
+  /** The lens the question judges under (the label every finding carries). */
+  readonly lens: string;
+  /** The question — what counts as crossing into functional impact under this lens. */
+  readonly question: string;
+  /** The question's execution surface — always the rendered review prompt. */
+  readonly face: "numbered";
+}
+
+/** The declared lens question table (§3.1's nineteen cells). The four wave / branch
+ *  rows lead (shared text, one copy), then plan, spec and the charter's five. */
+export const LENS_QUESTION_ROWS: readonly LensQuestionRow[] = [
+  {
+    id: "standards-lens",
+    reviewKinds: ["wave", "branch"],
+    lens: "standards",
+    question:
+      "Does the change break the repository's own standard on a surface a consumer reads — a public shape, prompt bytes, a documented command, or a contract an existing test pins?",
+    face: "numbered",
+  },
+  {
+    id: "spec-lens",
+    reviewKinds: ["wave", "branch"],
+    lens: "spec",
+    question:
+      "Does the change depart from the reviewed contract (the wave brief / plan / design spec) while the behaviour a consumer receives changes with it?",
+    face: "numbered",
+  },
+  {
+    id: "buildability-lens",
+    reviewKinds: ["wave", "branch"],
+    lens: "buildability",
+    question:
+      "Is the reviewer's own typecheck / test run red, or would it go red on a path the plan declares?",
+    face: "numbered",
+  },
+  {
+    id: "scope-lens",
+    reviewKinds: ["wave", "branch"],
+    lens: "scope",
+    question:
+      "Does the change land outside the wave brief's `**Files:**` surface and the plan's intent, and is that out-of-scope change consumed?",
+    face: "numbered",
+  },
+  {
+    id: "plan-completeness",
+    reviewKinds: ["plan"],
+    lens: "completeness",
+    question:
+      "Is a spec requirement owned by no task, so implementation skips it silently and the requirement never ships?",
+    face: "numbered",
+  },
+  {
+    id: "plan-decomposition",
+    reviewKinds: ["plan"],
+    lens: "decomposition",
+    question:
+      "Does the task granularity make a step impossible to verify on its own, so a defect crosses steps with nobody noticing?",
+    face: "numbered",
+  },
+  {
+    id: "plan-buildability",
+    reviewKinds: ["plan"],
+    lens: "buildability",
+    question:
+      "Is a step of the plan not executable against the tree as it stands — a missing prerequisite, a command that does not exist, an order no edge permits?",
+    face: "numbered",
+  },
+  {
+    id: "spec-completeness",
+    reviewKinds: ["spec"],
+    lens: "completeness",
+    question:
+      "Is a condition that must hold left unwritten, so the downstream author can only guess — and guessing wrong changes behaviour?",
+    face: "numbered",
+  },
+  {
+    id: "spec-consistency",
+    reviewKinds: ["spec"],
+    lens: "consistency",
+    question:
+      "Do two places state the same fact differently, so the downstream reader goes wrong whichever one is taken?",
+    face: "numbered",
+  },
+  {
+    id: "spec-clarity",
+    reviewKinds: ["spec"],
+    lens: "clarity",
+    question:
+      "Can a statement be read two reasonable ways, and do the two readings derive different implementations?",
+    face: "numbered",
+  },
+  {
+    id: "overall-scope",
+    reviewKinds: ["overall"],
+    lens: "scope",
+    question:
+      "Does the phase's scope descend to implementation detail, leaving the increment that phase delivers undecidable?",
+    face: "numbered",
+  },
+  {
+    id: "overall-inventory",
+    reviewKinds: ["overall"],
+    lens: "inventory",
+    question: 'Does the registry disagree with the tree, so "delivered" stops being credible?',
+    face: "numbered",
+  },
+  {
+    id: "overall-dependency",
+    reviewKinds: ["overall"],
+    lens: "dependency",
+    question:
+      "Does a dependency edge disagree with the actual serial order, so the schedule collides?",
+    face: "numbered",
+  },
+  {
+    id: "overall-acceptance",
+    reviewKinds: ["overall"],
+    lens: "acceptance",
+    question: "Is an acceptance cell undecidable when the phase closes?",
+    face: "numbered",
+  },
+  {
+    id: "overall-boundary",
+    reviewKinds: ["overall"],
+    lens: "boundary",
+    question: "Is a non-goal drawn so loosely that it filters nothing?",
+    face: "numbered",
+  },
+];
+
+/**
+ * The lens question registry — the lookup face (`of`, unregistered throws) and the
+ * per-kind projection (`forReviewKind`, a shared row expanded once per declared kind).
+ * Both preserve declaration order, and a blank question throws on projection rather
+ * than rendering an empty list item.
+ */
+export class LensQuestionRegistry {
+  readonly #rows: readonly LensQuestionRow[];
+
+  constructor(rows: readonly LensQuestionRow[] = LENS_QUESTION_ROWS) {
+    this.#rows = rows;
+  }
+
+  /** The declared rows, in declaration order — the structural test's row census. */
+  get rows(): readonly LensQuestionRow[] {
+    return this.#rows;
+  }
+
+  /** One cell by (review kind, lens) — an unregistered pair throws, so a review’s
+   *  criteria line can never read a question that was never declared. */
+  of(reviewKind: ReviewKind, lens: string): LensQuestionRow {
+    const row = this.#rows.find(
+      (candidate) => candidate.reviewKinds.includes(reviewKind) && candidate.lens === lens,
+    );
+    if (row === undefined) {
+      throw new Error(`no lens question is registered for ${reviewKind} · ${lens}`);
+    }
+    return row;
+  }
+
+  /** One review kind's questions in rendering order — every row whose `reviewKinds`
+   *  names the kind, in declaration order, a shared row expanded once per kind. A
+   *  blank question throws: the list is prompt bytes, never an empty item. */
+  forReviewKind(reviewKind: ReviewKind): readonly LensQuestionRow[] {
+    const rows = this.#rows.filter((row) => row.reviewKinds.includes(reviewKind));
+    for (const row of rows) {
+      if (row.question.trim().length === 0) {
+        throw new Error(`lens question "${row.id}" is blank — every row reaches the prompt`);
+      }
+    }
+    return rows;
+  }
+}
+
+/** The process-wide lens question registry — the one table the prompt plane reads. */
+export const LENS_QUESTIONS = new LensQuestionRegistry();

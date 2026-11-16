@@ -49,7 +49,7 @@
 // Module-level exports are types / the declared constant data / the class — zero
 // behavior-carrying bare functions (the plan's zero-bare-function discipline).
 
-import { CRITERIA } from "../contract/review-criteria.ts";
+import { CRITERIA, LENS_QUESTIONS, type ReviewKind } from "../contract/review-criteria.ts";
 import { DISPATCH } from "../face/host.ts";
 import { TerminationPolicy } from "../face/termination.ts";
 import type { TargetType } from "../session/faces.ts";
@@ -411,6 +411,15 @@ export const reviewGuideOf = (key: ReviewKey): string => {
   );
 };
 
+/** One review kind's numbered lens question list (design spec §3.2 · §6.1) — the
+ *  `LENS_QUESTIONS.forReviewKind` projection rendered as `1. …` lines, appended to
+ *  that kind's axes guide so the questions ride the `**Criteria —` bytes. The list is
+ *  the table's projection, never a second copy: deleting a row shortens this list. */
+const lensQuestionBlock = (kind: ReviewKind): string =>
+  LENS_QUESTIONS.forReviewKind(kind)
+    .map((row, index) => `${index + 1}. ${row.question}`)
+    .join("\n");
+
 /** The closed-wave discipline's ONE sentence (P30 §2.7) — the document review axes'
  *  shared body: a finding on an already-closed task block's content face is answered
  *  by the document, never by moving the work. Both document criteria bodies select
@@ -446,24 +455,34 @@ const docCharterAxes = (guide: string): string =>
  *  copy. */
 export const REVIEWS = {
   wave: {
-    lensEnum: ["standards", "spec", "buildability"],
-    axesGuide: `Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run \`git diff origin/<BASE_BRANCH>..HEAD\` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (\`**Files:**\` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding (severity by your judgment). The reviewer is the changed-surface judge — the engine reconciles nothing. ${reviewGuideOf("wave")}`,
+    lensEnum: ["standards", "spec", "buildability", "scope"],
+    axesGuide: `Standards axis (repo coding standards + code-review smell baseline) + Spec axis (wave brief / plan requirements) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): run \`git diff origin/<BASE_BRANCH>..HEAD\` yourself (BASE_BRANCH as named in the round context; on a missing artifact judge the working tree) — every changed file must fall within the wave brief's file surface (\`**Files:**\` seams) or be attributable to the plan / reviewed intent; an unattributable changed file is a candidate finding. The reviewer is the changed-surface judge — the engine reconciles nothing. ${reviewGuideOf("wave")}
+
+${lensQuestionBlock("wave")}`,
   },
   branch: {
-    lensEnum: ["standards", "spec", "buildability"],
-    axesGuide: `Same four axes as the wave review (branch-wide health: run \`git diff origin/<BASE_BRANCH>..HEAD\` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding (severity by your judgment), normal finding → fix loop. ${reviewGuideOf("branch")} Three things a green run cannot show you: design — does the changed structure fit this codebase and is it the simplest structure that solves the plan's problem (over-engineering is a finding, not a preference); test adequacy — would these tests fail if the code broke (a run that cannot go red is not evidence); migration — does every breaking change name the path a not-yet-migrated consumer takes.`,
+    lensEnum: ["standards", "spec", "buildability", "scope"],
+    axesGuide: `Same four axes as the wave review (branch-wide health: run \`git diff origin/<BASE_BRANCH>..HEAD\` + plan conformance) + Buildability axis (the reviewer explicitly runs the repository's typecheck command — \`tsc --noEmit\`, or the repo equivalent — AND its test command; every buildability finding self-reports the dual evidence, both commands ran) + Scope axis (changed-surface reasonableness): branch review IS the full diff — every changed file must be attributable to a finding, a plan requirement, or the reviewed intent; unrelated surface = candidate finding, normal finding → fix loop. ${reviewGuideOf("branch")} Three things a green run cannot show you: design — does the changed structure fit this codebase and is it the simplest structure that solves the plan's problem (over-engineering is a finding, not a preference); test adequacy — would these tests fail if the code broke (a run that cannot go red is not evidence); migration — does every breaking change name the path a not-yet-migrated consumer takes.
+
+${lensQuestionBlock("branch")}`,
   },
   spec: {
     lensEnum: ["completeness", "consistency", "clarity"],
-    axesGuide: docNarrativeAxes(reviewGuideOf("spec")),
+    axesGuide: `${docNarrativeAxes(reviewGuideOf("spec"))}
+
+${lensQuestionBlock("spec")}`,
   },
   overall: {
     lensEnum: ["scope", "inventory", "dependency", "acceptance", "boundary"],
-    axesGuide: docCharterAxes(reviewGuideOf("overall")),
+    axesGuide: `${docCharterAxes(reviewGuideOf("overall"))}
+
+${lensQuestionBlock("overall")}`,
   },
   plan: {
     lensEnum: ["completeness", "decomposition", "buildability"],
-    axesGuide: `Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at \`INPUT_SPEC\` (the plan's \`spec\` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ${CLOSED_WAVE_DISCIPLINE} ${reviewGuideOf("plan")}`,
+    axesGuide: `Follow URC: single-cycle, lens-tagged findings (completeness/decomposition/buildability) + spec conformance — the plan is judged against its design spec at \`INPUT_SPEC\` (the plan's \`spec\` front-matter target): every spec requirement must map to a task, and a spec requirement with no owning task is a completeness finding + the writing-plans self-check + verification evidence — the reviewer runs the repository's typecheck and test commands and self-reports the dual evidence + Claimed→pin: every behavior claim (usage-line attribution · semantic contract · byte face) must cite a colocated pin (path:line + the assertion face) — the review checks every claim against its pin, claim by claim; a pinless claim is a lens-tagged finding. ${CLOSED_WAVE_DISCIPLINE} ${reviewGuideOf("plan")}
+
+${lensQuestionBlock("plan")}`,
   },
 } as const satisfies ReviewGuides;
 

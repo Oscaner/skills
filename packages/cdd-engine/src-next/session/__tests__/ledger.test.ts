@@ -31,6 +31,7 @@ import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../carrier-integrity.ts";
+import { HandoffSchema } from "../handoff-schema.ts";
 import {
   Ledger,
   type ProgressData,
@@ -2235,5 +2236,151 @@ describe("orphanHandoffs — the two-tier predicate and its domain boundary (P36
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * P37 T5 — the cross-round regrade judgment (design spec §5.1 · §5.2). Two claims, one
+ * section: the round-finding projection carries the three cells the judgment reads
+ * (`id` / `impact.scenario` / `regrade`), and the comparison walks the four steps in
+ * order — summary first, `id` only to narrow a same-summary match, the earlier row's
+ * scenario as the reference, and the new round's `regrade` as the only escape.
+ */
+describe("P37 T5 — the round finding projection and the downgrade comparison", () => {
+  const schema = new HandoffSchema();
+
+  /** One prior row — a blocker with the scenario the downgrade is judged against. */
+  const PRIOR = {
+    id: "F1",
+    severity: "blocker",
+    summary: "drift",
+    impact: { scenario: "an empty wave key → no task mirrored → expected a refusal" },
+    regrade: "a stale reason from the earlier round",
+  };
+
+  it("projects the three cells through the ledger's round read", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      ledger.persistHandoff(
+        "review",
+        "wave",
+        { tasks: "1", round: 1 },
+        {
+          findings: [
+            PRIOR,
+            { severity: "warn", summary: "smell", regrade: "graded down: bytes unchanged" },
+            { severity: "nit", summary: "wording" },
+          ],
+        },
+      );
+      ledger.recordRound("1", {
+        op: "review",
+        cycle: 1,
+        verdict: { treeClean: true, targetAction: true },
+      });
+      const round = ledger.round("review", "wave", { tasks: "1" }, 1);
+      expect(round?.findings).toEqual([
+        {
+          id: "F1",
+          severity: "blocker",
+          summary: "drift",
+          impact: { scenario: "an empty wave key → no task mirrored → expected a refusal" },
+          regrade: "a stale reason from the earlier round",
+        },
+        { severity: "warn", summary: "smell", regrade: "graded down: bytes unchanged" },
+        { severity: "nit", summary: "wording" },
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("drops a cell that breaks its declared shape — the row survives with the cells it kept", () => {
+    const rows = schema.findingsOf([
+      { severity: "warn", summary: "smell", id: 7, impact: "nope", regrade: "   " },
+      { severity: "blocker", summary: "drift", impact: { scenario: "" } },
+      { severity: "bogus", summary: "dropped" },
+    ]);
+    expect(rows).toEqual([
+      { severity: "warn", summary: "smell" },
+      { severity: "blocker", summary: "drift" },
+    ]);
+  });
+
+  it("step 1 + 3: a lowered grade against a matching earlier scenario owes its reason", () => {
+    const prior = schema.findingsOf([PRIOR]);
+    const current = schema.findingsOf([{ severity: "warn", summary: "drift" }]);
+    expect(HandoffSchema.downgrades(prior, current)).toEqual([
+      { severity: "warn", summary: "drift" },
+    ]);
+    const reasoned = schema.findingsOf([
+      { severity: "warn", summary: "drift", regrade: "the bytes a consumer gets do not move" },
+    ]);
+    expect(HandoffSchema.downgrades(prior, reasoned)).toEqual([]);
+  });
+
+  it("step 2: an unchanged or raised grade is no downgrade", () => {
+    const prior = schema.findingsOf([PRIOR]);
+    for (const severity of ["blocker", "warn", "nit"] as const) {
+      expect(
+        HandoffSchema.downgrades(prior, schema.findingsOf([{ severity, summary: "drift" }])),
+      ).toHaveLength(severity === "blocker" ? 0 : 1);
+    }
+    const nitPrior = schema.findingsOf([
+      { severity: "nit", summary: "drift", impact: { scenario: "s" } },
+    ]);
+    expect(
+      HandoffSchema.downgrades(
+        nitPrior,
+        schema.findingsOf([{ severity: "warn", summary: "drift" }]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("step 4: an empty earlier scenario is no reference — the defect is read as changed", () => {
+    const prior = schema.findingsOf([{ id: "F1", severity: "blocker", summary: "drift" }]);
+    expect(
+      HandoffSchema.downgrades(prior, schema.findingsOf([{ severity: "nit", summary: "drift" }])),
+    ).toEqual([]);
+  });
+
+  it("matches on the summary first and narrows a same-summary set by the engine-written id", () => {
+    const prior = schema.findingsOf([
+      { id: "F1", severity: "blocker", summary: "drift", impact: { scenario: "first" } },
+      { id: "F2", severity: "blocker", summary: "drift" },
+    ]);
+    // F2 is the same-summary row WITHOUT a scenario: the id narrows to it, so the
+    // downgrade has no reference
+    expect(
+      HandoffSchema.downgrades(
+        prior,
+        schema.findingsOf([{ id: "F2", severity: "nit", summary: "drift" }]),
+      ),
+    ).toEqual([]);
+    expect(
+      HandoffSchema.downgrades(prior, schema.findingsOf([{ severity: "nit", summary: "drift" }])),
+    ).toHaveLength(1);
+    // a re-worded summary is a different defect — never a pair
+    expect(
+      HandoffSchema.downgrades(prior, schema.findingsOf([{ severity: "nit", summary: "drift " }])),
+    ).toEqual([]);
+  });
+
+  it("never reads this round's scenario — omission or a rewrite does not retire the duty", () => {
+    const prior = schema.findingsOf([PRIOR]);
+    const omitted = schema.findingsOf([{ severity: "warn", summary: "drift" }]);
+    const rewritten = schema.findingsOf([
+      { severity: "warn", summary: "drift", impact: { scenario: "a brand new scenario" } },
+    ]);
+    expect(HandoffSchema.downgrades(prior, omitted)).toHaveLength(1);
+    expect(HandoffSchema.downgrades(prior, rewritten)).toHaveLength(1);
+  });
+
+  it("the mark is no finding — the judgment returns rows, it never appends one", () => {
+    const current = [{ id: "F1", severity: "warn", summary: "drift" }];
+    const projected = schema.findingsOf(current);
+    expect(HandoffSchema.downgrades(schema.findingsOf([PRIOR]), projected)).toHaveLength(1);
+    // the projection is unchanged by the judgment (no synthetic row, no rewritten cell)
+    expect(projected).toEqual([{ id: "F1", severity: "warn", summary: "drift" }]);
   });
 });

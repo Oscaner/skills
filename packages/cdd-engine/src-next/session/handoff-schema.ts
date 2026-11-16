@@ -361,20 +361,92 @@ export class HandoffSchema {
   }
 
   /** The draft findings presented as round findings — unknown severities dropped
-   *  (the capsule's blocker count + the outcome's face, never the judgment domain). */
+   *  (the capsule's blocker count + the outcome's face, never the judgment domain).
+   *  The three cells the cross-round regrade judgment reads ride along (P37 §2.1 ·
+   *  §5.1): the engine-written `id`, the blocker's `impact` and the round's own
+   *  `regrade`. Each cell is projected only when it keeps its declared shape — a
+   *  malformed cell reads as absent, never as a fabricated value. */
   findingsOf(findings: unknown): readonly RoundFinding[] {
     if (!Array.isArray(findings)) return [];
     const rows: RoundFinding[] = [];
     for (const entry of findings) {
-      const severity = (entry as { severity?: unknown } | null)?.severity;
+      const row = entry as {
+        severity?: unknown;
+        summary?: unknown;
+        id?: unknown;
+        impact?: { scenario?: unknown; test?: unknown } | null;
+        regrade?: unknown;
+      } | null;
+      const severity = row?.severity;
       if (severity !== "blocker" && severity !== "warn" && severity !== "nit") continue;
-      const summary = (entry as { summary?: unknown } | null)?.summary;
+      const id = HandoffSchema.#textOf(row?.id);
+      const impact = HandoffSchema.#impactOf(row?.impact);
+      const regrade = HandoffSchema.#textOf(row?.regrade);
       rows.push({
         severity: severity as FindingSeverity,
-        summary: typeof summary === "string" ? summary : undefined,
+        summary: HandoffSchema.#textOf(row?.summary),
+        ...(id === undefined ? {} : { id }),
+        ...(impact === undefined ? {} : { impact }),
+        ...(regrade === undefined ? {} : { regrade }),
       });
     }
     return rows;
+  }
+
+  /** P37 §5.1 — the cross-round downgrade judgment, a PURE predicate over the two
+   *  rounds' findings projections. Returns the current rows that were graded BELOW a
+   *  matching earlier row, whose earlier `impact.scenario` was non-empty, and that
+   *  carry no `regrade` reason: exactly the rows the display face mentions.
+   *
+   *  The four steps, in order: (1) locate the matching earlier row — `summary` is the
+   *  match key (the defect's description, which survives a reworded scenario), and a
+   *  non-unique summary is narrowed by the engine-written `id`, never matched on `id`
+   *  first (it is a row number, so a re-numbered carrier would pair unrelated
+   *  defects); (2) an unchanged or raised grade is no downgrade; (3) a lowered grade
+   *  against a non-empty scenario owes a `regrade` reason; (4) a lowered grade whose
+   *  earlier scenario was empty has no reference, so the defect is read as changed.
+   *  Omission or rewriting of THIS round's scenario never retires the duty — only the
+   *  earlier row's scenario is read. */
+  static downgrades(
+    prior: readonly RoundFinding[],
+    current: readonly RoundFinding[],
+  ): readonly RoundFinding[] {
+    return current.filter((row) => HandoffSchema.#owesRegrade(prior, row));
+  }
+
+  /** Whether one finding owes its regrade reason — §5.1's steps 1 → 4 in order. */
+  static #owesRegrade(prior: readonly RoundFinding[], row: RoundFinding): boolean {
+    const matches = prior.filter(
+      (candidate) => candidate.summary !== undefined && candidate.summary === row.summary,
+    );
+    if (matches.length === 0) return false;
+    const narrowed = matches.filter((candidate) => row.id !== undefined && candidate.id === row.id);
+    const reference = (narrowed.length > 0 ? narrowed : matches)[0];
+    if (reference === undefined) return false;
+    if (HandoffSchema.#tierRankOf(row.severity) >= HandoffSchema.#tierRankOf(reference.severity)) {
+      return false;
+    }
+    if (HandoffSchema.#textOf(reference.impact?.scenario) === undefined) return false;
+    return HandoffSchema.#textOf(row.regrade) === undefined;
+  }
+
+  /** The tier ladder's rank — higher is more severe (blocker 2 · warn 1 · nit 0). */
+  static #tierRankOf(severity: FindingSeverity): number {
+    return severity === "blocker" ? 2 : severity === "warn" ? 1 : 0;
+  }
+
+  /** A non-blank string cell, else undefined — the projection's ONE blank test. */
+  static #textOf(value: unknown): string | undefined {
+    return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+  }
+
+  /** The blocker's scenario cell when it keeps its declared shape — a scenario-less
+   *  impact is absent, never a row carrying an empty reference. */
+  static #impactOf(value: { scenario?: unknown; test?: unknown } | null | undefined) {
+    const scenario = HandoffSchema.#textOf(value?.scenario);
+    if (scenario === undefined) return undefined;
+    const test = HandoffSchema.#textOf(value?.test);
+    return test === undefined ? { scenario } : { scenario, test };
   }
 
   /** The plane's writable subset — the ONE projection every consumer reads (prompt

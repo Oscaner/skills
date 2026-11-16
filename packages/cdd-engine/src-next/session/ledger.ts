@@ -61,15 +61,32 @@ type JudgeInit = {
   artifacts?: Record<string, string>;
 };
 
-/** The review-finding severity vocabulary — the handoff findings severity enum, single-typed. */
+/** The review-finding severity vocabulary — the handoff findings severity enum,
+ *  single-typed. The tier order (`blocker` > `warn` > `nit`) is the §1 ladder the
+ *  cross-round downgrade judgment walks. */
 export type FindingSeverity = "blocker" | "warn" | "nit";
 
-/** One review finding the round carrier judges — severity + the summary prose. */
+/** One review finding the round carrier judges — severity + the summary prose, plus
+ *  the three cells the cross-round regrade judgment reads (P37 §5.1): the engine-written
+ *  `id` (the round's row number, used only to narrow a same-summary match), the
+ *  blocker's `impact` (whose `scenario` is the reference the downgrade is judged
+ *  against) and the round's own `regrade` reason. */
 export interface RoundFinding {
   /** The severity the next-hop derivation keys on. */
   severity: FindingSeverity;
-  /** The one-line finding summary (message attribution; the router reads only severity). */
+  /** The one-line finding summary (message attribution; the router reads only severity).
+   *  It is also the cross-round MATCH KEY — the finding's description is what survives
+   *  a reworded scenario, a moved line or a re-numbered id. */
   summary?: string;
+  /** The engine-written row key (`F1`, `F2` … in carrier order) — a ROW NUMBER, never a
+   *  defect identity: it narrows a same-summary match, it never leads the match. */
+  id?: string;
+  /** The blocker's reproducible scenario (P37 §2.1) — the previous round's non-empty
+   *  `scenario` is the reference §5.1's downgrade judgment holds a new grade against. */
+  impact?: { scenario: string; test?: string };
+  /** The round's own reason for changing the grade (P37 §5) — its presence retires the
+   *  downgrade mark. */
+  regrade?: string;
 }
 
 /** The dispatch phases the round carrier distinguishes (the handoff phase vocabulary). */
@@ -1933,10 +1950,11 @@ export class Ledger {
     if (!Array.isArray(carrier.findings)) return [];
     const findings: RoundFinding[] = [];
     for (const entry of carrier.findings) {
-      const severity = (entry as { severity?: unknown } | null)?.severity;
-      if (severity !== "blocker" && severity !== "warn" && severity !== "nit") continue;
-      const summary = (entry as { summary?: unknown } | null)?.summary;
-      findings.push({ severity, summary: typeof summary === "string" ? summary : undefined });
+      // The ONE projection (P37 §2.1 · §5.1): the handoff schema's own findings row,
+      // so a consumer of this face and a consumer of the read-back face see the same
+      // cells — id / impact / regrade included.
+      const rows = this.#handoffSchema.findingsOf([entry]);
+      for (const row of rows) findings.push(row);
     }
     return findings;
   }

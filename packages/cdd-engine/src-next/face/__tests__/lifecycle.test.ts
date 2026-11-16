@@ -41,12 +41,14 @@ import {
   IMPLEMENT_CARRIER_ABSENT,
   IMPLEMENT_VERIFICATION_WAVE,
 } from "../../contract/completion-criterion.ts";
+import { REGRADE_MARK } from "../../contract/review-criteria.ts";
 import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierRulings } from "../../session/carrier-rulings.ts";
 import { targetFaces } from "../../session/faces.ts";
+import { HandoffSchema } from "../../session/handoff-schema.ts";
 import { HoldingError, InFlight } from "../../session/inflight.ts";
 import { Ledger } from "../../session/ledger.ts";
 import { NextStepRouter } from "../../session/next.ts";
@@ -2160,6 +2162,332 @@ describe("P35 T3 — an unparseable plan read records no brief hash", () => {
       // never a hash of a half-parsed document.
       expect(seen).toEqual([null]);
       expect(outcome.status).not.toBe("TIMEOUT");
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+/**
+ * P37 T5 — the downgrade mark on the capsule's `summary` slot (design spec §5.1 ·
+ * §5.2). Every arm is paired: a review round with no downgrade leaves the slot
+ * undefined, so the capsule's stdout is byte-identical to before this phase; a
+ * downgrade without a `regrade` reason fills the SAME slot with the ONE mark token, so
+ * the round prints exactly one more line. The mark never becomes a finding, never
+ * enters the carrier, and never moves the conclusion.
+ */
+describe("P37 T5 — the capsule summary slot carries the downgrade mark", () => {
+  /** The prior round's blocker — the scenario the new grade is compared against. */
+  const PRIOR_BLOCKER = {
+    id: "F1",
+    severity: "blocker",
+    summary: "drift",
+    impact: { scenario: "an empty wave key → no task mirrored → expected a refusal" },
+  };
+
+  /** Seed one completed review round's carrier into the fixture line. */
+  const seedReview = (
+    f: Fixture,
+    cycle: number,
+    findings: readonly Record<string, unknown>[],
+  ): void => {
+    f.scene.ledger.persistHandoff(
+      "review",
+      "wave",
+      { tasks: "1", round: cycle },
+      { findings: [...findings] },
+    );
+    f.scene.ledger.recordRound("1", {
+      op: "review",
+      cycle,
+      verdict: { treeClean: true, targetAction: true },
+    });
+  };
+
+  /** The review frame of one cycle — the fixture's standing line key. */
+  const reviewOf = (cycle: number): OpenFrame => ({
+    ...reviewFrame,
+    round: cycle,
+    params: { tasks: "1", round: cycle, attempt: 1 },
+  });
+
+  /** The capsule lines of one outcome — the SAME emit the session lifecycle calls, so
+   *  the `summary` slot's byte is the displayed byte. */
+  const capsuleOf = (outcome: DispatchOutcome): readonly string[] =>
+    new Capsule(new Words()).emit(
+      outcome.status ?? "",
+      "handoff.json",
+      null,
+      false,
+      outcome.dispositionsSummary,
+    );
+
+  it("prints one extra line for a downgrade with no reason — never a finding, never a new entry", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      seedReview(f, 1, [PRIOR_BLOCKER]);
+      const runner = new ReviewDraftRunner(
+        [{ id: "F1", severity: "warn", lens: "standards", summary: "drift" }],
+        "tasks-1-review-2.json",
+      );
+      const { outcome } = await dispatchFrame(f, reviewOf(2), runner);
+      // the mark rides the ONE summary slot
+      expect(outcome.status).toBe("REVIEW_FIX");
+      expect(outcome.dispositionsSummary).toBe(REGRADE_MARK);
+      const lines = capsuleOf(outcome);
+      expect(lines).toHaveLength(2);
+      expect(lines[1]).toBe(REGRADE_MARK);
+      // display only: the carrier holds the child's ONE finding, no synthetic row
+      const carrier = outcome.carrier as { findings: { severity?: string }[] };
+      expect(carrier.findings).toHaveLength(1);
+      expect(outcome.findings).toHaveLength(1);
+      // the conclusion is the warn's own rollup, not a mark-driven failure
+      expect(outcome.status).toBe("REVIEW_FIX");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("stays byte-identical when the grade did not drop, the reason was stated, or the earlier row had no scenario", async () => {
+    const cases: readonly (readonly [string, readonly Record<string, unknown>[]])[] = [
+      ["unchanged grade", [{ id: "F1", severity: "blocker", lens: "standards", summary: "drift" }]],
+      [
+        "stated reason",
+        [
+          {
+            id: "F1",
+            severity: "warn",
+            lens: "standards",
+            summary: "drift",
+            regrade: "the consumed bytes do not move",
+          },
+        ],
+      ],
+      [
+        "no earlier scenario",
+        [{ id: "F1", severity: "warn", lens: "standards", summary: "drift" }],
+      ],
+    ];
+    for (const [label, current] of cases) {
+      const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+      try {
+        const prior =
+          label === "no earlier scenario"
+            ? [{ ...PRIOR_BLOCKER, impact: undefined }]
+            : [PRIOR_BLOCKER];
+        seedReview(f, 1, prior);
+        const runner = new ReviewDraftRunner(current, "tasks-1-review-2.json");
+        const { outcome } = await dispatchFrame(f, reviewOf(2), runner);
+        expect(outcome.dispositionsSummary, label).toBeUndefined();
+        expect(capsuleOf(outcome), label).toHaveLength(1);
+      } finally {
+        f.cleanup();
+      }
+    }
+  });
+
+  it("keeps the mark when the current round omits or rewrites its scenario", async () => {
+    for (const current of [
+      { id: "F1", severity: "warn", lens: "standards", summary: "drift" },
+      {
+        id: "F1",
+        severity: "warn",
+        lens: "standards",
+        summary: "drift",
+        impact: { scenario: "a fresh sentence" },
+      },
+    ]) {
+      const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+      try {
+        seedReview(f, 1, [PRIOR_BLOCKER]);
+        const runner = new ReviewDraftRunner([current], "tasks-1-review-2.json");
+        const { outcome } = await dispatchFrame(f, reviewOf(2), runner);
+        expect(outcome.dispositionsSummary).toBe(REGRADE_MARK);
+      } finally {
+        f.cleanup();
+      }
+    }
+  });
+
+  it("pairs across a findings-free implement record — the nearest non-empty review is the reference", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      seedReview(f, 1, [PRIOR_BLOCKER]);
+      // a clean implement round sits between the two reviews: its projection is empty,
+      // so reading "the previous record" would find nothing and drop the mark
+      f.scene.ledger.recordRound("1", {
+        op: "implement",
+        cycle: 2,
+        verdict: { treeClean: true, targetAction: true },
+      });
+      const runner = new ReviewDraftRunner(
+        [{ id: "F1", severity: "warn", lens: "standards", summary: "drift" }],
+        "tasks-1-review-3.json",
+      );
+      const { outcome } = await dispatchFrame(f, reviewOf(3), runner);
+      expect(outcome.dispositionsSummary).toBe(REGRADE_MARK);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("prints nothing on a first review round — no earlier findings, no reference", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const runner = new ReviewDraftRunner(
+        [{ id: "F1", severity: "warn", lens: "standards", summary: "drift" }],
+        "tasks-1-review-1.json",
+      );
+      const { outcome } = await dispatchFrame(f, reviewFrame, runner);
+      expect(outcome.dispositionsSummary).toBeUndefined();
+      expect(capsuleOf(outcome)).toHaveLength(1);
+    } finally {
+      f.cleanup();
+    }
+  });
+});
+
+/**
+ * P37 T6 — the pin gate's two read-back corpora (design spec §7.1 · §7.2). Both are
+ * judged in `#reconstruct` BEFORE `conclusionOf`, so ONE rollup reads them, the
+ * outcome's findings project them and `#materialize` persists them. The pairs:
+ *
+ *   · the judged document's own body — a clean document injects nothing and keeps its
+ *     conclusion; one dead pin adds exactly one warn and lands the round on
+ *     `REVIEW_FIX` (never a `CDD_BLOCKED` refusal);
+ *   · a finding's `contract.path` — resolvable adds nothing; dead adds one warn, the
+ *     carrier and the conclusion agreeing row for row (an injection at the writer
+ *     would leave `status` the child's while the carrier carried the extra row).
+ */
+describe("P37 T6 — the pin read-back corpora inject real warn findings", () => {
+  /** The judged document — a spec body the round reads from `frame.target.doc`. */
+  const writeDoc = (f: Fixture, body: readonly string[]): string => {
+    const at = path.join(
+      f.scene.workspace.root.repoRoot,
+      "docs",
+      "kairos",
+      "specs",
+      "s1-design.md",
+    );
+    mkdirSync(path.dirname(at), { recursive: true });
+    writeFileSync(at, body.join("\n"), "utf8");
+    return at;
+  };
+
+  /** The doc review frame on one document. */
+  const docReviewOf = (doc: string): OpenFrame => ({
+    type: "phase-spec",
+    phase: "review",
+    round: 1,
+    target: { kind: "spec", doc },
+    params: { round: 1, attempt: 1 },
+    key: "phase-spec",
+  });
+
+  /** One review round over a document, with the child's own findings. */
+  const runDocReview = async (
+    f: Fixture,
+    doc: string,
+    findings: readonly Record<string, unknown>[],
+  ): Promise<DispatchOutcome> =>
+    (
+      await dispatchFrame(
+        f,
+        docReviewOf(doc),
+        new ReviewDraftRunner(findings, "phase-spec-review-1.json"),
+      )
+    ).outcome;
+
+  it("a clean judged document injects nothing and keeps its conclusion", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      // both pins resolve in THIS fixture: the seed file and the plan document
+      const doc = writeDoc(f, ["# spec", "", "- `seed.txt`", "- `docs/kairos/plans/p30.md`"]);
+      const outcome = await runDocReview(f, doc, []);
+      expect(outcome.findings).toEqual([]);
+      expect(outcome.status).toBe("APPROVED");
+      expect(f.io.stderrText).not.toContain("CDD_BLOCKED");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("one dead pin in the judged document adds exactly one warn and lands the round on REVIEW_FIX", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const doc = writeDoc(f, ["# spec", "", "- `docs/kairos/specs/absent-design.md`"]);
+      const outcome = await runDocReview(f, doc, []);
+      expect(outcome.findings).toHaveLength(1);
+      expect(outcome.findings?.[0]?.severity).toBe("warn");
+      expect(outcome.findings?.[0]?.summary).toContain("docs/kairos/specs/absent-design.md");
+      // a warn is a real finding: it rolls up, so the round is REVIEW_FIX — never the
+      // APPROVED it would have declared with no findings at all
+      expect(outcome.status).toBe("REVIEW_FIX");
+      // and never a refusal: no CDD_BLOCKED line, no fourth conclusion
+      expect(f.io.stderrText).not.toContain("CDD_BLOCKED");
+      // the injected row is persisted with the child's rows, keyed by the engine
+      const carrier = outcome.carrier as { findings: { id?: string; lens?: string }[] };
+      expect(carrier.findings).toHaveLength(1);
+      expect(carrier.findings[0]?.lens).toBe("consistency");
+      expect(carrier.findings[0]?.id).toBe("F1");
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("a resolvable `contract.path` adds nothing — a dead one adds one warn and no refusal", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const doc = writeDoc(f, ["# spec"]);
+      const resolved = await runDocReview(f, doc, [
+        {
+          severity: "nit",
+          lens: "standards",
+          summary: "wording",
+          contract: { path: "seed.txt", anchor: "§1" },
+        },
+      ]);
+      expect(resolved.findings).toHaveLength(1);
+      expect(resolved.findings?.[0]?.severity).toBe("nit");
+    } finally {
+      f.cleanup();
+    }
+    const g = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const doc = writeDoc(g, ["# spec"]);
+      const dead = await runDocReview(g, doc, [
+        {
+          severity: "nit",
+          lens: "standards",
+          summary: "wording",
+          contract: { path: "docs/kairos/specs/absent-design.md", anchor: "§1" },
+        },
+      ]);
+      // display-only would leave ONE row; the read-back injects a real warn
+      expect(dead.findings).toHaveLength(2);
+      expect(dead.findings?.[1]?.severity).toBe("warn");
+      expect(dead.findings?.[1]?.summary).toContain("docs/kairos/specs/absent-design.md");
+      expect(g.io.stderrText).not.toContain("CDD_BLOCKED");
+      // one conclusion, one carrier: the injected row is counted by the same rollup
+      expect(dead.status).toBe("REVIEW_FIX");
+      const carrier = dead.carrier as { findings: unknown[] };
+      expect(carrier.findings).toHaveLength(2);
+      expect(dead.findings).toHaveLength(carrier.findings.length);
+    } finally {
+      g.cleanup();
+    }
+  });
+
+  it("the conclusion reads the injected rows — an injection at the writer would print APPROVED over a warn carrier", async () => {
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      const doc = writeDoc(f, ["# spec", "", "- `docs/kairos/specs/absent-design.md`"]);
+      const outcome = await runDocReview(f, doc, []);
+      const carrier = outcome.carrier as { findings: { severity: string }[] };
+      // the round's status IS the rollup of the rows the carrier holds — judged before
+      // the write, so the two can never disagree
+      expect(outcome.status).toBe(new HandoffSchema().rollup(carrier.findings));
+      expect(outcome.status).not.toBe("APPROVED");
     } finally {
       f.cleanup();
     }

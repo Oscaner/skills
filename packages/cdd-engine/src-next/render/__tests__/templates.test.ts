@@ -18,7 +18,13 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CRITERIA } from "../../contract/review-criteria.ts";
+import {
+  CRITERIA,
+  LENS_QUESTION_ROWS,
+  LENS_QUESTIONS,
+  LensQuestionRegistry,
+  type ReviewKind,
+} from "../../contract/review-criteria.ts";
 import type { TargetType } from "../../session/faces.ts";
 import {
   CLOSED_WAVE_DISCIPLINE,
@@ -186,7 +192,7 @@ describe("P28 T3 — the narrative body names the claim shapes, not today's shap
     // The closed-wave discipline (P30 §2.7) is the ONE body both document variants
     // select, so it rides between the frozen prefix and the shared rubric.
     expect(REVIEWS.plan.axesGuide).toBe(
-      `${PLAN_GUIDE_PREFIX}${CLOSED_WAVE_DISCIPLINE} ${reviewGuideOf("plan")}`,
+      `${PLAN_GUIDE_PREFIX}${CLOSED_WAVE_DISCIPLINE} ${reviewGuideOf("plan")}\n\n${questionsOf("plan")}`,
     );
   });
 });
@@ -240,5 +246,90 @@ describe("P31 T1 — the docs-fix row names the escaped-pipe duty", () => {
     const shell = TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n");
     expect(shell).toContain("carries `\\|`");
     expect(shell).toContain("splits the cell in two");
+  });
+});
+
+/**
+ * P37 T2 — the lens questions reach the review prompt bytes (design spec §3.2 · §6.1 ·
+ * §6.2). The table's own census lives in `contract/__tests__/review-criteria.test.ts`;
+ * this face pins the PROJECTION: each kind's axes guide ends with its numbered list,
+ * every question appears verbatim in that kind's `**Criteria —` line, the two judgment
+ * escapes are gone, and the wave / branch lens enums name the `scope` axis their guide
+ * already judged.
+ */
+const REVIEW_KIND_KEYS: readonly ReviewKind[] = ["wave", "branch", "plan", "spec", "overall"];
+
+/** The numbered list one kind's axes guide must end with — the rendered projection. */
+const questionsOf = (kind: ReviewKind): string =>
+  LENS_QUESTIONS.forReviewKind(kind)
+    .map((row, index) => `${index + 1}. ${row.question}`)
+    .join("\n");
+
+const numberedLinesOf = (guide: string): readonly string[] =>
+  guide.split("\n").filter((line) => /^\d+\. /.test(line));
+
+describe("P37 T2 — the lens questions ride the review prompt bytes", () => {
+  it("ends every kind's axes guide with its own numbered list — 4 · 4 · 3 · 3 · 5", () => {
+    for (const kind of REVIEW_KIND_KEYS) {
+      const guide = REVIEWS[kind].axesGuide;
+      expect(guide.endsWith(questionsOf(kind)), `${kind} list`).toBe(true);
+      expect(numberedLinesOf(guide), `${kind} count`).toHaveLength(
+        LENS_QUESTIONS.forReviewKind(kind).length,
+      );
+    }
+  });
+
+  it("folds every question verbatim into that kind's `**Criteria —` line", () => {
+    for (const type of TARGET_TYPES) {
+      const kind = reviewBodyOf(type);
+      const shell = TEMPLATE_PROMPT.reviews[type].shell.join("\n");
+      const line = `**Criteria — ${type}:** ${REVIEWS[kind].axesGuide}`;
+      expect(shell).toContain(line);
+      for (const row of LENS_QUESTIONS.forReviewKind(kind)) {
+        expect(line, `${type} · ${row.id}`).toContain(row.question);
+      }
+    }
+  });
+
+  it("shares the wave / branch questions byte-for-byte — the projection, not a copy", () => {
+    expect(numberedLinesOf(REVIEWS.branch.axesGuide)).toEqual(
+      numberedLinesOf(REVIEWS.wave.axesGuide),
+    );
+  });
+
+  it("carries zero `(severity by your judgment)` escape", () => {
+    for (const kind of REVIEW_KIND_KEYS) {
+      expect(REVIEWS[kind].axesGuide, kind).not.toContain("(severity by your judgment)");
+    }
+    const source = readFileSync(fileURLToPath(new URL("../templates.ts", import.meta.url)), "utf8");
+    expect(source).not.toContain("severity by your judgment");
+  });
+
+  it("names `scope` in the wave / branch lens enums — every axis has its enum value", () => {
+    for (const kind of ["wave", "branch"] as const) {
+      expect(REVIEWS[kind].lensEnum).toContain("scope");
+    }
+    for (const kind of REVIEW_KIND_KEYS) {
+      expect([...REVIEWS[kind].lensEnum].sort(), `${kind} enum`).toEqual(
+        LENS_QUESTIONS.forReviewKind(kind)
+          .map((row) => row.lens)
+          .sort(),
+      );
+    }
+  });
+
+  it("drops the numbered line the table drops — a deleted row shortens the projection", () => {
+    // The question list is a projection: one row removed leaves one fewer numbered line
+    // for that kind, so a hand-written list could not fake the pin.
+    const missingScope = new LensQuestionRegistry(
+      LENS_QUESTION_ROWS.filter((row) => row.id !== "scope-lens"),
+    );
+    const projected = missingScope
+      .forReviewKind("wave")
+      .map((row, index) => `${index + 1}. ${row.question}`)
+      .join("\n");
+    expect(projected.split("\n")).toHaveLength(3);
+    expect(projected).not.toContain(LENS_QUESTIONS.of("wave", "scope").question);
+    expect(numberedLinesOf(REVIEWS.wave.axesGuide)).toHaveLength(4);
   });
 });

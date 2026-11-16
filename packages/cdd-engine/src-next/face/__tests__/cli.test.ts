@@ -6918,7 +6918,17 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       // the rollup (v1.9: a review never declares its own status) + the findings from
       // the FILE — the read-back is the fix loop's only content channel
       expect(outcome.status).toBe("CHANGES_REQUESTED");
-      expect(outcome.findings).toEqual([{ severity: "blocker", summary: "drift" }]);
+      // P37 §2.1 · §5.1 — the round-finding projection carries the blocker's scenario
+      expect(outcome.findings).toEqual([
+        {
+          severity: "blocker",
+          summary: "drift",
+          impact: {
+            scenario:
+              "the phase-spec names `INPUT_OVERALL` with a stale path → the reviewer cannot open the charter → expected a resolvable path",
+          },
+        },
+      ]);
       // the persisted findings carrier holds NO status field (D27 — the conclusion is
       // derived at judgment time, never stored on the findings plane); the conclusion
       // still rides the outcome.status above, derived from the findings

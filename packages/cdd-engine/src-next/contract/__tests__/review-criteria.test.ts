@@ -22,7 +22,11 @@ import {
   CRITERIA_ROWS,
   CriteriaRegistry,
   type CriteriaRow,
+  LENS_QUESTION_ROWS,
+  LENS_QUESTIONS,
+  LensQuestionRegistry,
   REGRADE_MARK,
+  type ReviewKind,
   TIER_ORDER,
 } from "../review-criteria.ts";
 
@@ -172,5 +176,98 @@ describe("P37 T1 — the registry's lookup and its assembly-time validation", ()
     const broken = new CriteriaRegistry(withCell("expression-only", "duty", "  "));
     expect(() => broken.renderRubric()).toThrow();
     expect(CRITERIA.renderRubric()).toContain(CRITERIA.of("expression-only").duty);
+  });
+});
+
+/**
+ * P37 T2 — the lens question table (design spec §3.1 · §6.1 · §6.2). The pins are the
+ * three independent readings of one table: 15 declared rows (`rows.length`), 19
+ * (review kind, lens) cells (`sum(reviewKinds.length)`), and the five per-kind
+ * projections (4 / 4 / 3 / 3 / 5). Only a multi-valued `reviewKinds` on the shared
+ * wave / branch rows satisfies all three at once.
+ */
+const REVIEW_KINDS: readonly ReviewKind[] = ["wave", "branch", "plan", "spec", "overall"];
+
+describe("P37 T2 — the lens question table's rows and cells", () => {
+  it("declares 15 physical rows and covers 19 (review kind, lens) cells", () => {
+    expect(LENS_QUESTIONS.rows.length).toBe(15);
+    expect(LENS_QUESTIONS.rows.reduce((sum, row) => sum + row.reviewKinds.length, 0)).toBe(19);
+  });
+
+  it("shares the wave / branch four questions byte-identically — one row, two kinds", () => {
+    const shared = LENS_QUESTIONS.rows.filter((row) => row.reviewKinds.length > 1);
+    expect(shared).toHaveLength(4);
+    for (const row of shared) expect([...row.reviewKinds].sort()).toEqual(["branch", "wave"]);
+    const wave = LENS_QUESTIONS.forReviewKind("wave");
+    const branch = LENS_QUESTIONS.forReviewKind("branch");
+    expect(branch.map((row) => row.question)).toEqual(wave.map((row) => row.question));
+    expect(branch.map((row) => row.id)).toEqual(wave.map((row) => row.id));
+  });
+
+  it("projects each kind in declaration order — 4 · 4 · 3 · 3 · 5", () => {
+    expect(REVIEW_KINDS.map((kind) => LENS_QUESTIONS.forReviewKind(kind).length)).toEqual([
+      4, 4, 3, 3, 5,
+    ]);
+    for (const kind of REVIEW_KINDS) {
+      for (const row of LENS_QUESTIONS.forReviewKind(kind)) {
+        expect(row.reviewKinds, `${kind} · ${row.lens}`).toContain(kind);
+      }
+    }
+  });
+
+  it("gives every row a unique id, a lens and the `numbered` face", () => {
+    const ids = LENS_QUESTIONS.rows.map((row) => row.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const row of LENS_QUESTIONS.rows) {
+      expect(row.face, row.id).toBe("numbered");
+      expect(row.lens.trim().length, row.id).toBeGreaterThan(0);
+      expect(row.question.trim().length, row.id).toBeGreaterThan(0);
+    }
+  });
+
+  it("has no duplicate (kind, lens) cell across rows", () => {
+    const cells = LENS_QUESTION_ROWS.flatMap((row) =>
+      row.reviewKinds.map((kind) => `${kind} · ${row.lens}`),
+    );
+    expect(new Set(cells).size).toBe(cells.length);
+  });
+
+  it("looks a cell up and throws on an unregistered one", () => {
+    for (const kind of REVIEW_KINDS) {
+      for (const row of LENS_QUESTIONS.forReviewKind(kind)) {
+        expect(LENS_QUESTIONS.of(kind, row.lens)).toBe(row);
+      }
+    }
+    expect(() => LENS_QUESTIONS.of("wave", "clarity")).toThrow(
+      /no lens question is registered for wave · clarity/,
+    );
+    // a criteria id is no lens, and a question is no grading criterion — the two tables
+    // never answer for each other
+    expect(() => LENS_QUESTIONS.of("wave", "grading-impact-missing")).toThrow();
+    expect(() => CRITERIA.of("standards-lens")).toThrow(/no grading criterion/);
+  });
+
+  it("renders no blank question — a blank row throws on projection", () => {
+    const blanked = new LensQuestionRegistry(
+      LENS_QUESTION_ROWS.map((row) => (row.id === "scope-lens" ? { ...row, question: "  " } : row)),
+    );
+    expect(() => blanked.forReviewKind("wave")).toThrow(/is blank/);
+    // the branch cell shares that row, so it goes red too — one table, one failure
+    expect(() => blanked.forReviewKind("branch")).toThrow(/is blank/);
+  });
+
+  it("keeps the document kinds' questions on their own rows — never a shared row", () => {
+    for (const [kind, lens, id] of [
+      ["plan", "buildability", "plan-buildability"],
+      ["spec", "completeness", "spec-completeness"],
+      ["overall", "scope", "overall-scope"],
+    ] as const) {
+      const row = LENS_QUESTIONS.of(kind, lens);
+      expect(row.id).toBe(id);
+      expect(row.reviewKinds).toEqual([kind]);
+    }
+    // the same lens word under a wave / branch cell is the shared row, not this one
+    expect(LENS_QUESTIONS.of("wave", "buildability").id).toBe("buildability-lens");
+    expect(LENS_QUESTIONS.of("wave", "scope").id).toBe("scope-lens");
   });
 });

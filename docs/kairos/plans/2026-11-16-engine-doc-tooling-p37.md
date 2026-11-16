@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P37 计划：分级判据的可核化（功能影响 · 三级边界 · 生成式注册表 · pin 门）'
 doc-type: plan
-version: v0.8
+version: v0.9
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 base: develop
@@ -83,6 +83,7 @@ none
 #### Produces
 
 - `LensQuestionRow = { id, reviewKinds: readonly ReviewKind[], lens, question, face: "numbered" }`——§3.1 的「同一 `id` 的两次引用」在行形态上就是这一格多值：共享行把 `wave` 与 `branch` 一起写进 `reviewKinds`，正文只存一次；单类行是单元素数组，`face` 恒为 `numbered`
+- `ReviewKind` 由 `contract/review-criteria.ts` 自己声明，是本平面自己的五 kind 词汇（`"wave" | "branch" | "plan" | "overall" | "spec"`）——`contract/` 不 import `render/`（D95 ① 的边方向，P39 会上门），因此不复用 `render/templates.ts` 的 `ReviewKey`；两处值集相同，`templates.ts` 现有的 `ReviewKey` 值（`REVIEWS` 的键、`reviewGuideOf` / `reviewBodyOf` 的入参）与 `ReviewKind` 结构上互相可赋值，T2 对 `REVIEWS` 的改动照旧用 `ReviewKey` 落地，因此既不需要反向边、也不需要第二处 import
 - `LENS_QUESTIONS.of(reviewKind, lens)` / `forReviewKind(reviewKind)`（查不到即抛）：`of` 按 `row.reviewKinds.includes(reviewKind) && row.lens === lens` 命中；`forReviewKind` 把每条共享行按 `reviewKinds` 展开成一类一格，声明序即渲染序
 - 物理行 15 · 逻辑格 19，两个数各从一格读、不共用同一个数：物理行 = `LENS_QUESTIONS.rows.length === 15`（15 条声明行，wave/branch 共享行只算一条）；逻辑格 = `rows.reduce((sum, row) => sum + row.reviewKinds.length, 0) === 19`（共享行按 `reviewKinds` 计两次）。`forReviewKind` 的五个投影是同一事实的第三种读法——`wave` 4 条与 `branch` 4 条（同一条共享行在两边各展开一次）、`plan` / `spec` 各 3 条、`overall` 5 条；单值 `reviewKind` 的 15 行表无法让 `forReviewKind("branch")` 非空，因此这一格多值不是可选写法
 - §6.2 问句面结构测试（落在 `contract/__tests__/review-criteria.test.ts` 与 `render/__tests__/templates.test.ts`）：每条问句逐字出现在其 `reviewKind` 的 `**Criteria —` 行里；同一测试面另计物理行 15 / 逻辑格 19
@@ -244,7 +245,8 @@ AC ⑤ 的全部腿，逐条成对 pin：降档且上一轮同键 `impact.scenar
 #### Produces
 
 - `PinAudit.scan(roots): readonly PinFinding[]`（路径解析 + 符号索引 + 测试格题）
-- **pin 的定义（§7.1，门的一部分）**：一个反引号 token 只在三条同时成立时才是 pin，否则它是散文词汇、不受本门管辖——① **仓根相对**：`path` 不以 `./` / `../` 开头，也不以 `...` 省略号开头；② **不是产物词汇**：workspace 产物名（`progress.json` · `base.json` · `in-flight.json` · `liveness.json` · `tasks-<N>-<op>.json`）、后缀（`.rulings.json`）、模板（`X.md` · `-overall.md` · `-design.md`）；③ **不是易逝物**：按设计在发布时被消费删除的 `.changeset/*.md` 引用是记录而非主张。三条排除就是语料能被 T7 清到零的充分条件，因此它们必须随实现落地
+- **pin 的定义（§7.1，门的一部分）**：一个反引号 token 只在三条同时成立时才是 pin，否则它是散文词汇、不受本门管辖——① **仓根相对**：`path` 不以 `./` / `../` 开头，也不以 `...` 省略号开头；② **不是产物词汇**：workspace 产物名（`progress.json` · `base.json` · `in-flight.json` · `liveness.json` · `tasks-<N>-<op>.json`）、后缀（`.rulings.json`）、模板（`X.md` · `-overall.md` · `-design.md`）**都是词表条目，不是坐标**；③ **不是易逝物**：按设计在发布时被消费删除的 `.changeset/*.md` 引用是记录而非主张。三条排除就是语料能被 T7 清到零的充分条件，因此它们必须随实现落地
+- **排除 ② 的两族匹配规则不同，必须分写**：**产物族**（`progress.json` / `base.json` / `in-flight.json` / `liveness.json` / `tasks-<N>-<op>.json` / `*.rulings.json`）按**形状**匹配——它的具体实例是机器本地路径（`plan-fix-1.c1.rulings.json`、`tasks-1-fix-1-a2.c1.json`、`<workspace>/progress.json`），在别的 clone 里永远不会解析，因此凡以这些名字收尾的 token 都不判；**模板族**（`X.md` / `-overall.md` / `-design.md`）只在该 token **就是**该词表条目时排除——一个真实的 `<dir>/<slug>-design.md` 路径仍是被判的坐标，因为它是本轮注入 `INPUT_SPEC` / `INPUT_OVERALL` 的那一份。用后缀规则扫模板族会让 §7.3 的迁移路径类被静默清空：`docs/kairos/plans/2026-10-10-engine-doc-tooling-p17.md` 里的 `docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md` 以 `-overall.md` 收尾，而它正是过期坐标（P17 已把该档迁到 `overalls/`），必须产出 finding 并被 T7 改写成现行路径
 - 语料声明写死在测试里、**没有在册清单**：§7.1 全语料 = `docs/kairos/**/*.md` + README 家族（`README.md` · `README.zh-CN.md` · `packages/*/README*.md`），无基线 / 无白名单 / 无豁免；扫描文件数作为语料规模常量钉住——文档进入或离开语料即红
 - 门的可红可修成对 pin：播种一条指向不存在符号的 markdown pin ⇒ 红且指出该 pin ⇒ 移除 ⇒ 绿。**零 finding 不是本任务的 checkable**——语料今天非干净，那条断言由 T7 迁移后加
 - `pin-parseability` 的 `test` 面：`pins.guard.test.ts` 里一条以字面量点名 `pin-parseability` 的格题（T1 判据表那一行的 `face: "test"` 由它占位，不 import 注册表）。§6.2 / §7.4 把该执行面写作 `pins.test.ts`；本计划用 `pins.guard.test.ts`（与仓内 `doc-corpus.guard.test.ts` / `dockey.guard.test.ts` / `phase-inventory.guard.test.ts` 同惯例），这是对 spec 字面路径的有意改名，记名在 `## Change history` 的 v0.4 行
@@ -254,7 +256,7 @@ AC ⑤ 的全部腿，逐条成对 pin：降档且上一轮同键 `impact.scenar
 #### Steps
 
 - 写失败测试：注入一条指向不存在符号的 markdown pin ⇒ `PinAudit` 非空且指出该 pin，移除 ⇒ 空；扫描文件数等于 §7.1 语料声明；`pins.guard.test.ts` 有一条点名 `pin-parseability` 的格题 — checkable: 红
-- 写失败测试（pin 定义的三条排除，各一对）：`./x.ts` 或 `...` 省略形 token ⇒ 零 finding；产物词汇 token（`progress.json` · `X.md`）⇒ 零 finding；已消费的 `.changeset/*` 引用 ⇒ 零 finding；而同一位置上仓根相对、非产物词汇、非 changeset 的真死引用仍产 finding — checkable: 红于排除未实现（扫描器把词汇当主张）
+- 写失败测试（pin 定义的三条排除，各一对）：`./x.ts` 或 `...` 省略形 token ⇒ 零 finding；产物族 token（`progress.json` · `plan-fix-1.c1.rulings.json`）⇒ 零 finding；模板族的裸词（`X.md`）⇒ 零 finding，而同一位置上的真实死引用 `docs/kairos/specs/2026-10-10-engine-doc-tooling-overall.md` ⇒ 恰一条 finding（两族规则不同，这一对就是分界：模板族按后缀匹配会让它是零 finding）；已消费的 `.changeset/*` 引用 ⇒ 零 finding；而同一位置上仓根相对、非产物词汇、非 changeset 的真死引用仍产 finding — checkable: 红于排除未实现（扫描器把词汇当主张）
 - 实现三形态解析（§7.1）与缓存符号索引，并把 §7.1 的 pin 定义（三条排除）实现为解析前的筛选；结构测试落在 §7.1 全语料（无在册清单、无基线）— checkable: 播种态红 / 移除后绿，语料规模断言绿，三条排除各一对绿；零 finding 的断言留给 T7
 - 语料二的回读（§7.2 第 2 份）：judge 面且为文档评审轮时，对 `frame.target.doc` 指向的本轮被审文档正文（类既有 `readFileSync`）跑 `PinAudit` 的 markdown 扫描，解析不到的 pin 折算成 warn · `consistency` 追加进 `draft.findings`；随后照既有 rollup 出结论——不调用 `#reject`（无 `CDD_BLOCKED`）— checkable: 成对 pin 绿——干净的被审文档 ⇒ 零注入 finding、结论与注入前相同（`APPROVED` 仍 `APPROVED`）；文档里一条解析不到的 pin ⇒ 恰好多一条 warn、零 blocker、结论落 `REVIEW_FIX`
 - 语料三的回读（§7.2 第 3 份）：在 `#reconstruct` 里、`schema.conclusionOf` 之前，有 `contract` 则解析 `path`；失败则把 `lens: consistency` · `severity: warn` 的 finding 追加进 `draft.findings`（与语料二同一注入点、同一次 `rollup`），不调用 `#reject`；`#materialize` 照常写载体并由 `#findingsList` 给注入行编 `id` — checkable: 成对 pin 绿——零 finding 的评审轮带一条失效 `contract.path` ⇒ 无 `CDD_BLOCKED`、结论 `REVIEW_FIX`（不是 `APPROVED`）；`path` 可解析 ⇒ 结论不变；把注入点挪到 `#materialize` ⇒ 结论那条 pin 红（载体里多一条 warn，而 `DraftedOutcome.status` 仍 `APPROVED`）
@@ -263,7 +265,7 @@ AC ⑤ 的全部腿，逐条成对 pin：降档且上一轮同键 `impact.scenar
 
 #### Acceptance
 
-AC ⑥（一条判据、三份语料、两个执行面；成对 pin 逐条：语料一的门可红可修 · 干净的被审文档 ⇒ 零注入且结论不变 · 一条死 pin ⇒ 恰一条 warn、零 blocker、落 `REVIEW_FIX` · `contract.path` 失效 ⇒ 无 `CDD_BLOCKED` 且落 `REVIEW_FIX` 而非 `APPROVED`——两份回读语料同在 `#reconstruct`、同在 `conclusionOf` 之前注入 `draft.findings`，判与写分属 `#reconstruct` / `#materialize` 而同属一条回读面；pin 定义的三条排除各有成对 pin）+ AC ⑦。语料声明与规模 pin 在册。全语料零 finding 由 T7 交付，T6 只证明门能红（播种一条坏 pin ⇒ 红 ⇒ 移除 ⇒ 绿）。
+AC ⑥（一条判据、三份语料、两个执行面；成对 pin 逐条：语料一的门可红可修 · 干净的被审文档 ⇒ 零注入且结论不变 · 一条死 pin ⇒ 恰一条 warn、零 blocker、落 `REVIEW_FIX` · `contract.path` 失效 ⇒ 无 `CDD_BLOCKED` 且落 `REVIEW_FIX` 而非 `APPROVED`——两份回读语料同在 `#reconstruct`、同在 `conclusionOf` 之前注入 `draft.findings`，判与写分属 `#reconstruct` / `#materialize` 而同属一条回读面；pin 定义的三条排除各有成对 pin——排除 ② 的两族各一条：产物族按形状、模板族只判裸词本身，真实 `<dir>/<slug>-overall.md` 死引用仍产 finding）+ AC ⑦。语料声明与规模 pin 在册。全语料零 finding 由 T7 交付，T6 只证明门能红（播种一条坏 pin ⇒ 红 ⇒ 移除 ⇒ 绿）。
 
 #### DependsOn
 
@@ -315,3 +317,4 @@ AC ⑥（一条判据、三份语料、两个执行面；成对 pin 逐条：语
 | v0.6 | 2026-11-16 | **结构面补齐（评审 F3 的编排器半边）**：T5 的 `DependsOn` 由 `3` 改为 `1, 3`——T5 消费 T1 的 `regrade-mark` 行（标记措辞唯一来源）与 T3 的 `impact` / `regrade` 字段，图里此前缺 T5 -> T1 这条边。fix 轮正确地把结构面交回编排器（`may.amend = content`），故由本提交落地；内容面已由 `01130594`（v0.5）完成，消费的 spec 版本为 `2026-11-16-engine-doc-tooling-p37` v0.8 | Oscaner M. · Claude（编排器 · 2026-11-16） |
 | v0.7 | 2026-11-16 | docs-fix round 5（plan-review-5 · F1–F4 全受理）· 仍消费 spec `2026-11-16-engine-doc-tooling-p37-design` 的 `v0.8`：F1 Constraints 的 OOP 上限补上 spec §Constraints 的豁免——≤200 行只约束本相位新建的类，四个既有文件（`session/ledger.ts` · `face/lifecycle.ts` · `face/board-view.ts` · `session/handoff-schema.ts`）按 rule zero 免于该上限、每处改动写一行理由、拆分归 P39（D95 ②），约束不再诱使实现者在本相位拆神对象；F2 T6 的语料二点名读缝——路径取自 `frame.target`（三个 doc 型为 `{ kind: "spec", doc }`）、正文走类既有 `readFileSync`，`#artifacts.read({ domain: "doc", … })` 为等价路由，并撤掉「`SlugIndex` 在 `#reconstruct` 解析到」的错挂（该解析在 `face/cli.ts#sceneOf`），`#reconstruct` 不建第二个索引；F3 Constraints 的落点表把「§2 全节归 T3」改准为「§2 归 T3，除 §2.1 的 `RoundFinding` 三格与两个投影 → T5、§2.3 的 `contract.path` 回读 → T6」，T6 那条同步收紧为回读面；F4 T5 点名板面那次读的两格投影——`countOf` 与 `findingsOf` 共用一次 digest 校验读与一次 `JSON.parse`，`countOf` 仍取原生 `findings` 数组长度（`+N` 的数字）、`findingsOf` 取过滤后的行，无第二次解析、也不留无调用者的死码 | Oscaner M. · Claude（kairos:cdd-plan plan-fix-5 · 2026-11-16） |
 | v0.8 | 2026-11-16 | fix round 1（wave 1,3,4 · review-1 的 F1–F3 全受理）· 仍消费 spec `2026-11-16-engine-doc-tooling-p37-design` 的 `v0.8`：F1（§6.1 / §5.2）改档标记的措辞不再充当判据行的 `body`——`body` 换成 nit 档的判据句，标记措辞改由同一模块导出的 `REGRADE_MARK` 承接（T5 的措辞来源随之改为读该常量），并新增一条档位连续性 pin：每档片段是一条连续句子串、每格首字母大写且以句末标点收尾，把一个从句片段写回 `body` 即红；F2（T4）branch 的字节 pin 由两根锚点的 `toContain` 改为「`## Round context` 整段记录后逐字比对」，加一行或换序即红；F3（T4）fix 壳的子句把 `INPUT_SPEC` / `INPUT_OVERALL` 写到 wave 与 branch 两行上（wave fix 轮此前带两格而指令只归 branch 行），`TEMPLATE_PROMPT.$version` 23 → 24，并补 wave fix 轮的 dispatch pin；本行随 fix 轮的 `capability: may.amend = content` 落地，`DependsOn` 集未动 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-16） |
+| v0.9 | 2026-11-16 | docs-fix round 6（plan-review-6 · F1–F2 全受理）· 仍消费 spec `2026-11-16-engine-doc-tooling-p37-design` 的 `v0.8`：F1 T6 的 pin 定义补回 §7.1 的收口句「都是词表条目，不是坐标」，并把排除 ② 拆成两族规则——产物族（`progress.json` / `base.json` / `in-flight.json` / `liveness.json` / `tasks-<N>-<op>.json` / `*.rulings.json`）按形状匹配，因为它的实例是机器本地路径；模板族（`X.md` / `-overall.md` / `-design.md`）只在该 token 就是词表条目时排除，一个真实的 `<dir>/<slug>-overall.md` 路径仍是坐标，否则 §7.3 的迁移路径类会被后缀规则静默清空（`2026-10-10-engine-doc-tooling-p17.md` 里指向 `specs/2026-10-10-engine-doc-tooling-overall.md` 的过期坐标就是那一类），Steps 与 Acceptance 各补一条让差异变红的成对 pin；F2 T2 的 Produces 点明 `ReviewKind` 由 `contract/review-criteria.ts` 自己声明（`contract/` 不 import `render/`，D95 ① 的边方向），`templates.ts` 的 `ReviewKey` 与之结构互 assign、不需要反向边 | Oscaner M. · Claude（kairos:cdd-plan plan-fix-6 · 2026-11-16） |

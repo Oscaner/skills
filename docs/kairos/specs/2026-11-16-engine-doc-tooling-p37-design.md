@@ -1,7 +1,7 @@
 ---
 title: 分级判据的可核化（Grading Boundary）
 doc-type: phase-spec
-version: v0.5
+version: v0.6
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 program: 2026-10-10-engine-doc-tooling
@@ -141,23 +141,39 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 ### 7. pin 可解析性门（P28 反转的窄形态）
 
-#### 7.1 三形态判定
+#### 7.1 三形态判定与「什么是 pin」
 
-`contract/pins.ts` 暴露 `PinAudit`，扫描 `docs/kairos/**/*.md` 与 `packages/*/README.md` 的三类 pin：
+`contract/pins.ts` 暴露 `PinAudit`，扫描 `docs/kairos/**/*.md` 与仓库 README 家族（`README.md` · `README.zh-CN.md` · `packages/*/README*.md`）的三类 pin：
 
 - `path.ext:line[-line]` —— 路径按后缀唯一解析，行号 ≤ 文件行数；**不比对内容**（内容匹配不可能机械）。
 - 裸符号（如 `#artifactCellOf`、`SymbolName`）—— 在 `packages/cdd-engine/src-next`、`packages/kairos`、`scripts` 的符号索引中可解析。索引按运行缓存。
 - 测试格题 + 文件名 —— 该 `.test.ts` 内存在这个字符串。
 
+**pin 的定义是门的一部分**（否则扫描器会把词汇当主张）。一个反引号 token 只在下列条件同时成立时才是 pin，否则它是散文词汇，不受本门管辖：
+
+1. **仓根相对**——`path` 不以 `./` / `../` 开头，也不以 `...` 省略号开头；相对简写与省略形是行文习惯，不是可核对的主张。
+2. **不是产物词汇**——workspace 产物名（`progress.json` / `base.json` / `in-flight.json` / `liveness.json` / `tasks-<N>-<op>.json`）、后缀（`.rulings.json`）、模板（`X.md` / `-overall.md` / `-design.md`）都是词表条目，不是坐标。
+3. **不是易逝物**——`.changeset/*.md` 按设计在发布时被消费删除，引用它们不是主张而是记录；同理不判。
+
 #### 7.2 解析不到的处理
 
 解析不到 ⇒ 该 pin 自身产一条 finding（lens `consistency`，档位 **warn**：失效 pin 不改变消费者拿到的结果，只让一处主张不可核）。判据只有一条，消费者有三个，各自把自己的语料喂给它：
 
-- 引擎套件的结构测试——§7.1 的三形态，入口 `PinAudit`，在册 markdown 语料必须零 finding。
+- 引擎套件的结构测试——§7.1 三形态加 pin 定义，入口 `PinAudit`，**全语料必须零 finding**（无基线、无白名单、无豁免：门的范围是一句定义，不是一份数据）。
 - 文档评审的回读面——同一语料面，把同一份 finding 注入该轮。
 - 交接单回读面（`face/lifecycle.ts` 的 read-back / materialize）——只判 finding 行上的 `contract.path`：路径解析不到 ⇒ 追加一条 warn 级 finding（lens `consistency`，`summary` 指出失效的 `path`），不阻断该轮、不升档、不改它的结论。`PinAudit` 只扫 markdown 语料，永不承接这一格：三个消费者各判自己的语料，不得合并成一处。
 
-#### 7.3 边界（显式反转）
+#### 7.3 存量迁移（门上线的前置，一次性）
+
+全语料今天不干净，因此门上线前完成一次**一次性迁移**，此后不得再产生豁免机制：
+
+- **过期引用删除**——目标已按设计消失的引用（已消费 `.changeset/*` · 已整目录移除的 `docs/maintainers/*` · P5 已退役的 `scripts/*`）改为不指路径的表述，保留「当时做了什么」而不留死号。
+- **迁移路径修正**——`docs/kairos/specs/<slug>-overall.md` 等已按 P17 改名/搬迁的路径改为现行路径。
+- **行号越界修正**——行号超过文件行数的 pin 改为路径 + 符号（本相位起的书写纪律），不再钉行号。
+
+迁移只改坐标与引用句，**不改任何结论、裁定或交付记录**；迁移后全语料零 finding 即为门的上线条件。
+
+#### 7.4 边界（显式反转）
 
 不做 docs 全量校验——只判 pin 的每一段可解析，不判文档结构、不判语义。P28 当年撤门的理由是「docs 全量校验过重、合法性交 dispatch 门自判」，而 dispatch 门只判文档结构、不判 pin 坐标形态；本条把门装回窄形态，理由与边界记入注册表行的 `counterExample`。
 
@@ -168,7 +184,7 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 - `wave / branch 的 axes guide 零 `(severity by your judgment)`；lens 问句表（行形态 `{ id, reviewKind, lens, question, face }`，`face` 恒为 `numbered`）按 (review kind, lens) 覆盖 19 格、物理行 15 条（`wave` / `branch` 四格共享 `id` 双引用），与判据表分开计数（判据表各 `tier` 至少一行）；投影 pin：五类 review 渲染出的 `**Criteria —` 行逐字带上该类自己的编号问句（`wave` / `branch` 各 4 条、`plan` / `spec` 各 3 条、`overall` 5 条，`wave` 与 `branch` 字节同源），删掉表里任一问句行 ⇒ 该类 prompt 少一条编号问句；把问句塞进判据表或把判据行塞进问句表 ⇒ 查表即抛`
 - `wave review 的 round context 的 `INPUT_SPEC` / `INPUT_OVERALL` 成对 pin：`SlugIndex` 解析到身份文档与它的 `program:` 母宪章 ⇒ 两 token 均出现且路径为仓根相对、可读；任一环缺席或 `invalid` ⇒ 两 token 均不出现（负向 pin）；branch 的 prompt 字节不变`
 - `降档且上一轮同一稳定键（carrier `id`，缺失时 `summary` 原文）的行 `impact.scenario` 非空：无 `regrade` ⇒ 胶囊与板面各一条可见标记，且该标记不进 `findings[]`（负向 pin：一条这样的降档既不新增 finding，也不单独把本轮推成 `REVIEW_FIX`）；本轮省略或改写 `scenario` 不注销该义务（正向 pin：省掉场景文本仍出标记）；有 `regrade` ⇒ 两处各出现一次理由；上一轮该行 `scenario` 为空 ⇒ 不要求、不标记`
-- `pin 门可红可修，两个语料面分开 pin：注入一条指向不存在符号的 markdown pin ⇒ `PinAudit` 红并指出该 pin，在册语料 ⇒ 零 finding；一条 finding 的 `contract.path` 解析不到 ⇒ 交接单回读面追加一条 warn 级 finding 且该轮不被阻断`
+- `pin 门可红可修，两个语料面分开 pin：注入一条指向不存在符号的 markdown pin ⇒ `PinAudit` 红并指出该 pin；**全语料零 finding**（无基线 / 无白名单 / 无豁免）为门的上线条件，由 §7.3 的一次性迁移达成（过期引用删除、迁移路径修正、行号越界修正）——迁移前后语料 finding 数从非零变零（成对 pin）；一条 finding 的 `contract.path` 解析不到 ⇒ 交接单回读面追加一条 warn 级 finding 且该轮不被阻断；pin 定义的三条排除（非仓根相对 / 产物词汇 / 易逝 changeset）各有成对 pin：排除形不产 finding、真死引用产 finding`
 - `validate 全绿（`pnpm run validate` exit 0）；changeset `cdd-engine` **minor**、kairos 无`
 
 ## Constraints
@@ -188,3 +204,4 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 | v0.3 | 2026-11-16 | 评审修复：wave 注入的两格收成成对判定（解析到 ⇒ 同时出现且路径可读；缺席或 `invalid` ⇒ 同时丢弃）并与 AC 的成对 + 负向 pin 对齐 · `contract.path` 的执行面点名为交接单回读的第三消费者，`PinAudit` 只扫 markdown 语料 · regrade 标记明示为显示面（不进 `findings[]`、不动 `rollup` / D70）并补负向 pin · 删除无消费者的可选 `impact.kind`，`impact.test` 留作可选加强 · `CDD_BLOCKED: grading-impact-missing` 的谓词与打印面点名（`HandoffSchema` 纯谓词 + lifecycle 回读同一行，`rollup` 返回类型不变） | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |
 | v0.4 | 2026-11-16 | 评审修复：注册表拆成两张表——判据表 `{ id, tier, body, duty, counterExample, face }` 供 `SEVERITY_RUBRIC` 装配，lens 问句表 `{ id, reviewKind, lens, question }` 以 15 行覆盖 19 格，AC 按表各计一次；删除没有执行面的 `--dry-run` 半边，`grading-impact-missing` 只由交接单回读面打印；regrade 匹配改用稳定键 + 上一轮非空场景，省略或改写场景不注销改档理由（标记仍是显示面）；明示 `gradingViolations` 为同处纯助手、`rollup` 不承接拒绝 | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |
 | v0.5 | 2026-11-16 | 评审修复：判据表补装配公式（`body` → `duty` → `counterExample` 恒序、三格全进字节），`SEVERITY_RUBRIC` 的语料范围收窄为档位散文、标定尾段仍由 `reviewGuideOf` 承接；lens 问句表补 `face: numbered` 与唯一投影面——`REVIEWS[*].axesGuide` 由 `LENS_QUESTIONS.forReviewKind` 装配编号清单、随 `**Criteria —` 行进 prompt；§6.2 的 `numbered` 核对扩到问句行，AC 增投影 pin 与档位片段进字节的 pin | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-16） |
+| v0.6 | 2026-11-16 | 存量迁移裁定（用户：「过期档案删除，没过期档案修」）：§7.1 把**pin 的定义**写进门内（三条排除：非仓根相对的 `./` / `...` 省略形 · 产物词汇如 `progress.json` / `.rulings.json` / `X.md` · 按设计被消费的 `.changeset/*`），使 165 条行文词汇不再被误判为坐标；§7.2 语料面改为**全语料零 finding，无基线 / 无白名单 / 无豁免**（门的范围是一句定义，不是一份数据）；新增 §7.3 一次性存量迁移——过期引用删除（194 条：117 已消费 changeset · 32 已删 `docs/maintainers` · 45 已退役 `scripts/*`）· 迁移路径修正（7 条）· 行号越界修正（13 条改路径 + 符号），迁移只改坐标与引用句、不改任何结论；AC ⑥ 重写为成对 pin（迁移前后 finding 数非零→零 + 三条排除各一对） | Oscaner M. · Claude（kairos:cdd-plan 回填 · 2026-11-16） |

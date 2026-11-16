@@ -215,6 +215,11 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const fix = TEMPLATE_PROMPT.modes.fix.shell.join("\n");
     expect(fix).not.toContain("the spec line");
     expect(fix).toContain("never the judged document");
+    // P37 §4.1 — the wave line carries the same two anchors as the branch line, so the
+    // fix shell names BOTH lines and both anchors: a wave fix child never meets a path
+    // token its own instruction text attributes to another line (or omits entirely)
+    expect(fix).toContain("`INPUT_SPEC` on the wave and branch lines");
+    expect(fix).toContain("`INPUT_OVERALL` on those two lines");
     // D — the docs-fix shell marks the plan-doc line's spec reference un-editable in
     // this round and names the overall line's own anchor
     const docsFix = TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n");
@@ -634,8 +639,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // criteria body + the explicit criteria-body selection: 19 → 20; P33 T1 — the
     // target discriminant rendered as a round-context line on every targeted face: 20 → 21;
     // P33 T2 — the three referent sentences (§2.5 A · B · D): 21 → 22;
-    // P33 T3 — the shared body's five calibrations (§2.6 G · H · I · J · K): 22 → 23)
-    expect(TEMPLATE_PROMPT.$version).toBe(23);
+    // P33 T3 — the shared body's five calibrations (§2.6 G · H · I · J · K): 22 → 23;
+    // P37 §4.1 — the fix shell names the wave line's two anchors: 23 → 24)
+    expect(TEMPLATE_PROMPT.$version).toBe(24);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
     // review carries neither judged-doc anchor (the empty slots are dropped by the
     // assembler)

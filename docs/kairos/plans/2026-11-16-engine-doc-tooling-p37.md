@@ -1,7 +1,7 @@
 ---
 title: '引擎文档工具（Engine Doc-Tooling）— P37 计划：分级判据的可核化（功能影响 · 三级边界 · 生成式注册表 · pin 门）'
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 base: develop
@@ -41,8 +41,9 @@ none
 - §6.1 的两段校验契约缺一不可：**行形态是类型**——每行是 `readonly` 字面行，`id` / `tier` / `body` / `duty` / `counterExample` / `face` 六格全必填，删掉任一键是 `tsc` 红（类型层，不是运行时抛）；**格子内容是装配期校验**——装配时任一必填格 `trim()` 后为空即 `renderRubric()` 抛，某一 `tier` 无任何行也抛。两段各自拦一种形态，都不会渲染出少一句的档位片段
 - 本相位的 `face` 面额登记在册（§6.2 要求每个非 `numbered` 的值都有行占位）：`numbered` 3 行（warn 档行 · nit 档行 · `regrade-mark`）· `gate` 1 行（blocker 档行，`id: "grading-impact-missing"`——`CDD_BLOCKED: grading-impact-missing` 的第二词就是它，T3 打这个字面量）· `test` 1 行（`pin-parseability`，执行面是 T6 的 `pins.guard.test.ts` 里一条点名它的格题）。`face` 只声明该行额外接上的执行面；三格正文按 §6.1 对**每一行**装配进 rubric 字节，与 `face` 无关
 - `pin-parseability` 行：`tier: "warn"` · `face: "test"` · `counterExample` 写 §7.4 的反转理由与边界（只判 pin 的每一段可解析，不判文档结构、不判语义、不做 docs 全量校验；`contract.path` 归交接单回读面的语料，`PinAudit` 永不承接）
-- `regrade-mark` 行：`tier: "nit"` · `face: "numbered"` · `body` 即 §5.2 的改档标记措辞（T5 的唯一措辞来源，`CRITERIA.of("regrade-mark").body`）；`duty` 与 `counterExample` 照常进 nit 段
+- `regrade-mark` 行：`tier: "nit"` · `face: "numbered"` · `body` 是 nit 档的判据句（同一缺陷降档却没写理由 ⇒ 读者分不清这是重判还是换了一个缺陷，而本轮结论不变），因此 nit 段整体读起来是连续的句子；§5.2 的改档标记措辞**不进判据表**，由同一模块导出的 `REGRADE_MARK` 常量承接（T5 的唯一措辞来源，读 `REGRADE_MARK`）——标记是显示面 token、不是判据句，把它当 `body` 只会让一个从句片段插进段落中间；`duty` 与 `counterExample` 照常进 nit 段
 - §6.2 判据面结构测试（T1 自己的面）：每行三格逐字出现在 `CRITERIA.renderRubric()` 字节里；`face` 面额钉成常量（`numbered` 三 id · `gate` 一 id · `test` 一 id）——改某行 `face`、删一行或加一行即红。`gate` 的报文面与 `test` 的格题面各在 T3 / T6 自己的测试面成对钉
+- 档位连续性 pin（T1 自己的面，§6.1「不会渲染出少一句的档位片段」的第二半）：每档片段是**一条连续串**——按该档声明序把每行 `body` / `duty` / `counterExample` 以单空格拼成期望值，再与 `renderRubric()` 里从该档首行 `body` 起、长度相等的切片逐字相等；且每行每格以大写字母开头、以句末标点收尾。把某行某格换成一个从句片段（例如把标记措辞写回 `body`）⇒ 该 pin 红
 
 #### Steps
 
@@ -51,11 +52,12 @@ none
 - 类型层那一段的 pin（不进 vitest）：临时从一行的字面量里删掉 `counterExample` 键，`pnpm exec tsc --noEmit -p packages/cdd-engine` 红；恢复即绿。它是 buildability 证据，不在测试里冒充「装配抛」——套件走 esbuild（AGENTS.md 的 trap），删键在运行期只是 `undefined`，抛的是 `TypeError`，两条红法不能互相顶替 — checkable: `tsc --noEmit` 删键前绿 / 删键后红
 - 改 `render/templates.ts`：`SEVERITY_RUBRIC` 改为 `CRITERIA.renderRubric()` 的返回值（或由其填充档位主体，尾段仍拼接 `reviewGuideOf` 既有契约）；(a)–(d) 降为 blocker 档 `body` 内的典型实例，不再是独立触发器 — checkable: `templates.test.ts` 的 rubric 锚点重锚后绿；`(severity by your judgment)` 仍在（T2 删）
 - 加 §6.2 判据面结构测试（`contract/__tests__/review-criteria.test.ts`）：逐行核对三格进字节，并把相位 `face` 面额钉成常量（`numbered` 三 id · `gate` 一 id · `test` 一 id，逐 id 列出）— checkable: 观察者绿；把任一行 `face` 改成别的值、删掉一行、或往表里加一行 ⇒ 该测试红（报文面与格题面不在这条测试里冒充，各自在 T3 / T6 的测试面上钉）
+- 加档位连续性 pin（同一条测试面）：按档拼出期望串、与渲染产物里该档切片逐字相等，并钉每格的开头大写与句末标点 — checkable: 把 `regrade-mark` 行的 `body` 换回标记措辞（或在段中插入一个从句片段）⇒ 该 pin 红；恢复 ⇒ 绿。同一处钉 `REGRADE_MARK` 是显示措辞：无任何判据格等于它、`renderRubric()` 不含「句末标点 + 标记 + 空格」那种拼接形态
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
 
-AC ① 的判据表半边：三档边界 / 举证 / 反例进字节，§1.3 的四条反例句各有落点（三行 `counterExample` + blocker 行 `body` 末句）；缺行装配即抛；`duty` / `counterExample` 置空串即从渲染字节消失且装配抛，删键则由 `tsc` 拦——§6.1 的两段校验契约各一条 pin，红法不互相顶替。§6.2 判据面观察者在册（`numbered` 进字节 · `gate` / `test` 各一行，并各自指向报文面 / 格题面）。
+AC ① 的判据表半边：三档边界 / 举证 / 反例进字节，§1.3 的四条反例句各有落点（三行 `counterExample` + blocker 行 `body` 末句）；缺行装配即抛；`duty` / `counterExample` 置空串即从渲染字节消失且装配抛，删键则由 `tsc` 拦——§6.1 的两段校验契约各一条 pin，红法不互相顶替。§6.2 判据面观察者在册（`numbered` 进字节 · `gate` / `test` 各一行，并各自指向报文面 / 格题面）；另有一条档位连续性 pin 钉住「每档片段是一条连续句子串」与「显示措辞不进 rubric」，`REGRADE_MARK` 是 §5.2 标记的唯一措辞来源。
 
 #### DependsOn
 
@@ -144,13 +146,15 @@ none
 
 #### Objective
 
-落地 §4：wave 与 branch 对齐，四臂按身份文档的形状配对（不强行成对）：身份文档与其 `program:` 母宪章都解析到 ⇒ 两 token 均出现且路径仓根相对可读；身份文档解析到但无 `program:`（身份文档是 single-spec）⇒ 只出 `INPUT_SPEC`，`INPUT_OVERALL` 合法缺席，**不得因此连 spec 锚一起剥**；身份文档缺席或读面为 `invalid` ⇒ 两 token 均不出现；`program:` 指不到母宪章 ⇒ 只丢 `INPUT_OVERALL`（`INPUT_SPEC` 仍在）；branch 字节不变。
+落地 §4：wave 与 branch 对齐，四臂按身份文档的形状配对（不强行成对）：身份文档与其 `program:` 母宪章都解析到 ⇒ 两 token 均出现且路径仓根相对可读；身份文档解析到但无 `program:`（身份文档是 single-spec）⇒ 只出 `INPUT_SPEC`，`INPUT_OVERALL` 合法缺席，**不得因此连 spec 锚一起剥**；身份文档缺席或读面为 `invalid` ⇒ 两 token 均不出现；`program:` 指不到母宪章 ⇒ 只丢 `INPUT_OVERALL`（`INPUT_SPEC` 仍在）；branch round-context 整段字节不变。同一个 `#valuesOf` 还供给 wave 的 fix 轮，因此 fix 壳的子句要把这两个锚点写到 wave 行上，不再只归 branch 行。
 
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`（`#sceneOf` 的 wave 臂与 `plan` / `branch` 同路设 `specLink` / `overallLink`）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#valuesOf` 的两臂各并入 `wave`：`INPUT_SPEC` 今天对 `wave` 短路成空串，`INPUT_OVERALL` 的 `phase-spec` / `plan` / `branch` 臂不含 `wave`——只改 `#sceneOf` 会让两格仍缺，装配器丢行）
-- Modify: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（wave 成对 pin + 负向 pin）
+- Modify: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（wave 成对 pin + 负向 pin + wave fix 轮的成对 pin + branch round-context 整段字节 pin）
+- Modify: `packages/cdd-engine/src-next/render/templates.ts`（fix 壳的子句把两个锚点写到 wave 行上；壳字节改动随之升 `TEMPLATE_PROMPT.$version`）
+- Modify: `packages/cdd-engine/src-next/render/__tests__/render.test.ts`（fix 壳子句的措辞 pin 与 `$version` pin）
 
 #### Consumes
 
@@ -162,14 +166,15 @@ none
 
 #### Steps
 
-- 写失败测试：健康 fixture 下 wave prompt 含 `INPUT_SPEC` 与 `INPUT_OVERALL` 两行且路径可读；single-spec 身份文档（有身份、无 `program:`）下 `INPUT_SPEC` 在而 `INPUT_OVERALL` 不在；身份文档的 `program:` 指不到母宪章时 `INPUT_SPEC` 在而 `INPUT_OVERALL` 不在；身份缺席 / `invalid` 时两 token 均不出现；branch prompt 字节与本任务前快照一致 — checkable: 红于 wave 两格仍空
-- 改 `#sceneOf` 的 wave 臂：与 plan/branch 一样经 `docsOf` / `program:` 取链接；`invalid` 或缺席 ⇒ 保持 null（装配器丢行）— checkable: 成对 / 负向 pin 绿；branch 快照绿
+- 写失败测试：健康 fixture 下 wave prompt 含 `INPUT_SPEC` 与 `INPUT_OVERALL` 两行且路径可读；single-spec 身份文档（有身份、无 `program:`）下 `INPUT_SPEC` 在而 `INPUT_OVERALL` 不在；身份文档的 `program:` 指不到母宪章时 `INPUT_SPEC` 在而 `INPUT_OVERALL` 不在；身份缺席 / `invalid` 时两 token 均不出现；branch 的 `## Round context` **整段记录下来逐字比对**（不是两根锚点的 `toContain`——那样加一行或换序仍绿）— checkable: 红于 wave 两格仍空；把 branch round-context 的任两行换序 ⇒ 整段 pin 红
+- 改 `#sceneOf` 的 wave 臂：与 plan/branch 一样经 `docsOf` / `program:` 取链接；`invalid` 或缺席 ⇒ 保持 null（装配器丢行）— checkable: 成对 / 负向 pin 绿；branch round-context 整段 pin 绿
+- 改 fix 壳的子句：`INPUT_SPEC` 与 `INPUT_OVERALL` 都写到 wave / branch 两行上（这两行同源取值），并补一条 wave fix 轮的 dispatch pin（两 token 都在、壳子句点名 wave 行）— checkable: 删掉壳子句里 wave 那半句 ⇒ render.test.ts 的措辞 pin 与 wave fix pin 各红
 - 改 `#valuesOf` 的两臂：`INPUT_SPEC` 的 `plan` / `branch` 臂并入 `wave`，`INPUT_OVERALL` 的 `phase-spec` / `plan` / `branch` 臂并入 `wave` — checkable: 与 `#sceneOf` 的改动配对后两行出现；只改 `#sceneOf` 则两格的原子仍缺、成对 pin 红
 - 提交 — checkable: commit 存在
 
 #### Acceptance
 
-AC ④ 的四臂全部成对 pin（健康两 token · single-spec 只 `INPUT_SPEC` · `program:` 解析不到只丢 `INPUT_OVERALL` · 身份缺席或 `invalid` 两 token 均无），且「任一环缺席 ⇒ 两 token 均不出现」不作反向 pin；branch 字节不变。
+AC ④ 的四臂全部成对 pin（健康两 token · single-spec 只 `INPUT_SPEC` · `program:` 解析不到只丢 `INPUT_OVERALL` · 身份缺席或 `invalid` 两 token 均无），且「任一环缺席 ⇒ 两 token 均不出现」不作反向 pin；branch 的 `## Round context` 整段与本任务前的记录逐字相等（换序或增删一行即红）；wave fix 轮同样带两个锚点，且 fix 壳子句把两者写到 wave 行上。
 
 #### DependsOn
 
@@ -194,14 +199,14 @@ none
 #### Consumes
 
 - T3 的 `impact` / `regrade` 字段与 carrier 读面——`impact.scenario` 是 §5.1 第 3、4 步的参照格，`regrade` 是「本轮写没写理由」的那一格，两者都在同一条 findings 投影上读出
-- T1 判据表的 `regrade-mark` 行——`CRITERIA.of("regrade-mark").body` 是标记措辞的唯一来源（本任务不另写一句，也不复制正文）
+- T1 判据表旁的 `REGRADE_MARK` 常量——它是标记措辞的唯一来源（本任务不另写一句，也不复制正文）
 
 #### Produces
 
 - `RoundFinding` 含 `id?` · `impact?`（其 `scenario`）· `regrade?`（或等价命名），两个投影同步带上这三格
 - `LineCarriers#findingsOf(record): readonly RoundFinding[]`（per-record findings 读面）与 `countOf` **共用一次读**：同一条 `CarrierIntegrity.read`（含 digest 校验与 `RoundRecords.ownerOf` 归属判定）+ 一次 `JSON.parse`，随后两个投影各取一格——`countOf` 仍取原生 `findings` 数组长度（语义不动，仍是 `+N` 的数字），`findingsOf` 取经 `HandoffSchema.findingsOf` 过滤后的行（未知 severity 仍丢）。同源不同格：`#summaryToken` 的 `+N` 用前者、降档标记用后者，因此 `countOf` 不会因改用 `findingsOf` 而变成无调用者的死码，也没有第二次 carrier 解析
 - 胶囊侧走 `Capsule#emit` 既有的 `summary` 槽：`session/run.ts#capsuleLines` 已把 `DispatchOutcome.dispositionsSummary` 原样交给 `emit`，`emit` 签名与键集都不动 ⇒ `face/capsule.ts` 与 `session/run.ts` 都不是改动点；评审轮因此**恰好多一行**——「不新增行」的准确说法是**不新增 finding 行、不新增 carrier 条目、不改本轮结论**
-- 显示面标记措辞取自 T1 判据表 `regrade-mark` 行的 `body`（`CRITERIA.of("regrade-mark").body`，不另写一句）；板面把它接在 `+N` 之后，仍是同一个 token
+- 显示面标记措辞取自 T1 模块导出的 `REGRADE_MARK`（不另写一句，也不把标记写进任何判据格）；板面把它接在 `+N` 之后，仍是同一个 token
 
 #### Steps
 
@@ -309,3 +314,4 @@ AC ⑥（一条判据、三份语料、两个执行面；成对 pin 逐条：语
 | v0.5 | 2026-11-16 | docs-fix round 4（plan-review-4 · F1–F4）· 仍消费 spec `2026-11-16-engine-doc-tooling-p37-design` 的 `v0.8`：F1 T6 把语料三的判点从 `#materialize` 移回 `#reconstruct`——`#reconstruct` 先算 `status = conclusionOf(plane, draft)` 再调 `#materialize`，在写者里追加的 warn 会进载体而结论仍 `APPROVED`，因此两份回读语料同在 `conclusionOf` 与局部 findings 投影之前注入 `draft.findings`，`#materialize` 只留 carrier 写者的角色（注入行的 `id` 由 `#findingsList` 编），并补一条把注入点挪回写者即红的 checkable；F2 T5 补两条 checkable（上一轮同键 `impact.scenario` 为空 ⇒ 不要求 `regrade`、不标记；本轮改写 `scenario` 而 `summary` 不变 ⇒ 仍配对、仍出标记）与 Objective 的第 4 步分支，Acceptance 由「AC ⑤」改为 AC ⑤ 的全部腿逐条列出；F4 T2 的 `LensQuestionRow` 由单值 `reviewKind` 改为多值 `reviewKinds`（wave/branch 共享行正文只存一次），物理行 15 与逻辑格 19 由 `rows.length` 与 `sum(reviewKinds.length)` 两条独立断言各读一次，`forReviewKind` 按 `reviewKinds` 展开；F3 只落内容面——T5 的 Consumes 记清「哪一格由哪个前置供给」，`DependsOn` 集属结构面、本轮 `capability: may.amend = content` 不得改，T5 对 T1 的 `1` 这条边留待编排器补 | Oscaner M. · Claude（kairos:cdd-plan plan-fix-4 · 2026-11-16） |
 | v0.6 | 2026-11-16 | **结构面补齐（评审 F3 的编排器半边）**：T5 的 `DependsOn` 由 `3` 改为 `1, 3`——T5 消费 T1 的 `regrade-mark` 行（标记措辞唯一来源）与 T3 的 `impact` / `regrade` 字段，图里此前缺 T5 -> T1 这条边。fix 轮正确地把结构面交回编排器（`may.amend = content`），故由本提交落地；内容面已由 `01130594`（v0.5）完成，消费的 spec 版本为 `2026-11-16-engine-doc-tooling-p37` v0.8 | Oscaner M. · Claude（编排器 · 2026-11-16） |
 | v0.7 | 2026-11-16 | docs-fix round 5（plan-review-5 · F1–F4 全受理）· 仍消费 spec `2026-11-16-engine-doc-tooling-p37-design` 的 `v0.8`：F1 Constraints 的 OOP 上限补上 spec §Constraints 的豁免——≤200 行只约束本相位新建的类，四个既有文件（`session/ledger.ts` · `face/lifecycle.ts` · `face/board-view.ts` · `session/handoff-schema.ts`）按 rule zero 免于该上限、每处改动写一行理由、拆分归 P39（D95 ②），约束不再诱使实现者在本相位拆神对象；F2 T6 的语料二点名读缝——路径取自 `frame.target`（三个 doc 型为 `{ kind: "spec", doc }`）、正文走类既有 `readFileSync`，`#artifacts.read({ domain: "doc", … })` 为等价路由，并撤掉「`SlugIndex` 在 `#reconstruct` 解析到」的错挂（该解析在 `face/cli.ts#sceneOf`），`#reconstruct` 不建第二个索引；F3 Constraints 的落点表把「§2 全节归 T3」改准为「§2 归 T3，除 §2.1 的 `RoundFinding` 三格与两个投影 → T5、§2.3 的 `contract.path` 回读 → T6」，T6 那条同步收紧为回读面；F4 T5 点名板面那次读的两格投影——`countOf` 与 `findingsOf` 共用一次 digest 校验读与一次 `JSON.parse`，`countOf` 仍取原生 `findings` 数组长度（`+N` 的数字）、`findingsOf` 取过滤后的行，无第二次解析、也不留无调用者的死码 | Oscaner M. · Claude（kairos:cdd-plan plan-fix-5 · 2026-11-16） |
+| v0.8 | 2026-11-16 | fix round 1（wave 1,3,4 · review-1 的 F1–F3 全受理）· 仍消费 spec `2026-11-16-engine-doc-tooling-p37-design` 的 `v0.8`：F1（§6.1 / §5.2）改档标记的措辞不再充当判据行的 `body`——`body` 换成 nit 档的判据句，标记措辞改由同一模块导出的 `REGRADE_MARK` 承接（T5 的措辞来源随之改为读该常量），并新增一条档位连续性 pin：每档片段是一条连续句子串、每格首字母大写且以句末标点收尾，把一个从句片段写回 `body` 即红；F2（T4）branch 的字节 pin 由两根锚点的 `toContain` 改为「`## Round context` 整段记录后逐字比对」，加一行或换序即红；F3（T4）fix 壳的子句把 `INPUT_SPEC` / `INPUT_OVERALL` 写到 wave 与 branch 两行上（wave fix 轮此前带两格而指令只归 branch 行），`TEMPLATE_PROMPT.$version` 23 → 24，并补 wave fix 轮的 dispatch pin；本行随 fix 轮的 `capability: may.amend = content` 落地，`DependsOn` 集未动 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-16） |

@@ -24,6 +24,11 @@
 // The face is a declaration about wiring; the three prose cells reach the rubric
 // bytes for EVERY row regardless of face.
 //
+// Display wording is NOT a rubric cell. The downgrade mark (design spec §5.2) is a
+// token the board and the capsule print, not a sentence a grader calibrates against:
+// it rides `REGRADE_MARK` below, so the nit tier's prose stays a run of sentences and
+// a display fragment can never splice into it.
+//
 // Module-level exports are types / the declared table / the registry instance — zero
 // behavior-carrying bare functions.
 
@@ -52,6 +57,13 @@ export interface CriteriaRow {
 
 /** The cell names, in assembly order — the message names the blank cell. */
 const CELLS = ["body", "duty", "counterExample"] as const;
+
+/** The downgrade mark's ONE spelling (design spec §5.2) — the display wording the
+ *  board's verb token and the capsule summary line print. It is declared here beside
+ *  the criteria table because the mark has exactly one source (never a second copy at
+ *  a render site), and it is deliberately NOT a rubric cell: a display token has no
+ *  place in the tier prose a grader calibrates against. */
+export const REGRADE_MARK = "downgraded without a regrade reason";
 
 /**
  * The declared criteria table. Every tier owes at least one row; the `warn` tier
@@ -98,7 +110,7 @@ export const CRITERIA_ROWS: readonly CriteriaRow[] = [
   {
     id: "regrade-mark",
     tier: "nit",
-    body: "downgraded without a regrade reason",
+    body: "A finding is downgraded without a regrade reason when the same defect returns one tier lower and the new round states no reason for the change: the reader can no longer tell a re-grade from a changed defect, while the round's own conclusion stays what it was.",
     duty: "The mark is a display fact: it rides the board's verb token after its `+N` count and the capsule summary line, never a finding row, never a carrier entry, and never the round's conclusion.",
     counterExample:
       "A downgrade whose previous round carried no scenario has no reference to hold it against, so the finding is read as a changed defect and carries no mark.",

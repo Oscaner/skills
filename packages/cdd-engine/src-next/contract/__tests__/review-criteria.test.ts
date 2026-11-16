@@ -22,6 +22,7 @@ import {
   CRITERIA_ROWS,
   CriteriaRegistry,
   type CriteriaRow,
+  REGRADE_MARK,
   TIER_ORDER,
 } from "../review-criteria.ts";
 
@@ -79,6 +80,38 @@ describe("P37 T1 — the criteria registry's rows carry the three-tier boundary,
     expect(pin.tier).toBe("warn");
     expect(pin.counterExample).toContain("P28");
     expect(pin.counterExample).toContain("`PinAudit` never carries");
+  });
+
+  it("assembles each tier as ONE contiguous run of sentences — no fragment splices in", () => {
+    // The nit tier is where a display fragment would splice: the regrade mark is a
+    // token the board prints, not a criterion sentence, so it never reaches the tier
+    // prose (a lowercase fragment mid-paragraph is the failure this pin forbids).
+    const rubric = CRITERIA.renderRubric();
+    for (const tier of TIER_ORDER) {
+      const rows = CRITERIA.rows.filter((row) => row.tier === tier);
+      const run = rows.map((row) => `${row.body} ${row.duty} ${row.counterExample}`).join(" ");
+      const start = rubric.indexOf(rows[0]?.body ?? "");
+      expect(start, `${tier} run start`).toBeGreaterThan(-1);
+      expect(rubric.slice(start, start + run.length), `${tier} run`).toBe(run);
+      for (const row of rows) {
+        for (const cell of [row.body, row.duty, row.counterExample]) {
+          expect(cell, `${row.id} cell opens as a sentence`).toMatch(/^[A-Z]/);
+          expect(cell, `${row.id} cell closes as a sentence`).toMatch(/[.!?]$/);
+        }
+      }
+    }
+  });
+
+  it("keeps the downgrade mark's wording out of the rubric prose — it is a display token", () => {
+    // §5.2: the mark is a display fact. Its wording lives beside the table, so the
+    // table has one mark source and no cell of it is the token itself.
+    expect(REGRADE_MARK).toBe("downgraded without a regrade reason");
+    for (const row of CRITERIA.rows) {
+      for (const cell of [row.body, row.duty, row.counterExample]) {
+        expect(cell, `${row.id} cell is not the mark token`).not.toBe(REGRADE_MARK);
+      }
+    }
+    expect(CRITERIA.renderRubric()).not.toContain(`. ${REGRADE_MARK} `);
   });
 
   it("pins the face census by id — numbered three, gate one, test one", () => {

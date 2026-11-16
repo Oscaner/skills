@@ -223,7 +223,7 @@ const FIX_SHELL: readonly string[] = [
   ...FRAME_ITEMS,
   WORK_CAPABILITY,
   ...FIX_TYPED_INSTRUCTIONS,
-  "**fix:** read `INPUT_REVIEWS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_PLAN` on the branch line — the plan document; `INPUT_SPEC` on the branch line — the design spec, a conformance reference, never the judged document). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_REVIEWS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
+  "**fix:** read `INPUT_REVIEWS` (open findings) + the plan context (`INPUT_WAVE_BRIEF` on a wave line — the complete plan mirror; `INPUT_PLAN` on the branch line — the plan document; `INPUT_SPEC` on the wave and branch lines — the design spec, a conformance reference, never the judged document; `INPUT_OVERALL` on those two lines — that spec's parent charter, a conformance reference too). Fix ALL findings (blocker/warn/nit), verifying against `INPUT_REVIEWS` none remain open. Fix + write the draft at `OUTPUT_HANDOFF` per `## Handoff schema` in one process; draft write failure → `status: BLOCKED`; retry = full re-run (idempotent).",
   '**Dispositions:** every requested finding needs a disposition keyed by its `id` exactly as the requesting carrier prints it (`F1`, `F2`, … — the summary is description only), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` — a missing or mis-keyed disposition fails the round.',
   RULINGS_READING,
   EVIDENCE_ITEM,
@@ -581,7 +581,11 @@ export const CLAUSES = {
     "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 23
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 24
+ *  names the wave line in the fix shell's anchor clause (P37 §4.1): the wave line now
+ *  carries the same `INPUT_SPEC` conformance reference and the `INPUT_OVERALL` parent
+ *  charter as the branch line, so the clause a maintainer reads can no longer
+ *  attribute those anchors to the branch line alone. $version 23
  *  calibrates the shared body's five faces (§2.6 G · H · I · J · K): the freeze
  *  clause limits itself to the round's declared `capability: may.amend` scope and
  *  the commit clause names the read-only round's absent commit; the capability
@@ -644,7 +648,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 23,
+  $version: 24,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,

@@ -3212,10 +3212,81 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     expect(invalid).not.toContain("- `INPUT_SPEC`");
     expect(invalid).not.toContain("- `INPUT_OVERALL`");
 
-    // ⑤ the branch line's own pair is unchanged by this task
+    // ⑤ the branch line's own pair is unchanged by this task — RECORDED WHOLE, not as
+    // two anchors: the region is the branch dispatch's entire dynamic face, so a later
+    // round that adds, drops or reorders one of its lines goes red here. The fixed
+    // prefix above it is pinned separately (render.test.ts owns the shared bytes).
     const branch = await reviewPromptOf("branch");
-    expect(branch).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
-    expect(branch).toContain("- `INPUT_OVERALL`: docs/kairos/specs/p3-overall.md");
+    expect(branch.slice(branch.lastIndexOf("## Round context"))).toBe(
+      [
+        "## Round context",
+        "",
+        "- `ROLE`: review",
+        "- `TARGET_TYPE`: branch",
+        "- `INPUT_PLAN`: docs/kairos/plans/p3.md",
+        "- `INPUT_SPEC`: docs/kairos/specs/p3-design.md",
+        "- `INPUT_OVERALL`: docs/kairos/specs/p3-overall.md",
+        "- `BASE_BRANCH`: develop",
+        "- `OUTPUT_REPORT`: .kairos/cdd/p3/branch-review-1-report.md",
+        "- `OUTPUT_HANDOFF`: .kairos/cdd/p3/branch-review-1.json",
+        "- `WORKSPACE_DIR`: .kairos/cdd/p3",
+        "- `WORKSPACE_ID`: p3",
+      ].join("\n"),
+    );
+  });
+
+  it("P37 T4 — a wave fix round carries the same two anchors, and its shell names them", async () => {
+    const sync = new StubRunner();
+    sync.stdout = "status: APPROVED\n";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+      const findings = [{ severity: "warn", lens: "spec", summary: "drift" }];
+      ledger.persistHandoff(
+        "implement",
+        "wave",
+        { tasks: "1" },
+        { status: "APPROVED", artifacts: {} },
+      );
+      ledger.recordRound(1, { op: "implement" });
+      const reviews = path.join(workspace.path, "tasks-1-review-1.json");
+      writeFileSync(reviews, JSON.stringify({ findings }), "utf8");
+      ledger.persistHandoff("review", "wave", { tasks: "1", round: 1 }, { findings });
+      ledger.recordRound(1, { op: "review" });
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv([
+          "fix",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+          "--reviews",
+          reviews,
+        ]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const call = sync.calls[sync.calls.length - 1];
+      if (call === undefined) throw new Error("no child spawned for the wave fix round");
+      const prompt = call.args[call.args.length - 1]!;
+      // the two anchors reach the fix round exactly as they reach the review round
+      expect(prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+      expect(prompt).toContain("- `INPUT_OVERALL`: docs/kairos/specs/p3-overall.md");
+      // and the fix shell announces them on the wave line — the child reads no path
+      // token its own instruction text attributes to another line or omits
+      expect(prompt).toContain("`INPUT_SPEC` on the wave and branch lines");
+      expect(prompt).toContain("`INPUT_OVERALL` on those two lines");
+    } finally {
+      cleanup();
+    }
   });
 
   it("D61-4 — INPUT_OVERALL carries the parent charter the spec's `program:` names", async () => {

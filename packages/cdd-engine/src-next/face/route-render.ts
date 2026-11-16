@@ -21,7 +21,13 @@
 
 import type { RepoRoot } from "../infra/root.ts";
 import type { RouteTarget } from "../session/faces.ts";
-import { FIX_READBACK_SUFFIX, NEXT_HOP_REASON, type NextHop, type Route } from "../session/next.ts";
+import {
+  FIX_READBACK_SLOT,
+  FIX_READBACK_SUFFIX,
+  NEXT_HOP_REASON,
+  type NextHop,
+  type Route,
+} from "../session/next.ts";
 import { REFS } from "./host.ts";
 import type { Words } from "./words.ts";
 
@@ -174,28 +180,44 @@ export class RouteRenderer {
    *  <readback>` (the readback suffix the declared constant, rendered by reference).
    *  Every embedded path value (the doc-id for the doc shapes · `--reviews`)
    *  is normalized to the repoRoot-relative shape (D47); the wave face's `<type-arg>`
-   *  is a task key, not a path — passed through as-is. */
+   *  is a task key, not a path — passed through as-is.
+   *
+   *  The readback sentence's PATH is a value the route carries (`Route.rulings`, rendered
+   *  by the router from the carrier's own round identity): this face fills the declared
+   *  slot and derives nothing. A route with no `rulings` value — a carrier the matrix
+   *  cannot place — omits the sentence whole, so the line never prints an empty slot nor
+   *  falls back to the naming rule the sentence used to teach. */
   #fixText(route: Extract<Route, { kind: "fix" }>, target?: RouteTarget | null): string {
     if (route.reviews === undefined) return this.#words.routeWord("fix");
     const verb = this.#words.routeWord("fix");
     const type = target?.type ?? null;
     const id = target?.id ?? "";
     const reviews = this.#rel(route.reviews);
+    const readback = this.#readbackOf(route);
     if (type === "wave") {
-      return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${id} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
+      return `${verb} ${this.#flag("type")} wave ${this.#flag("tasks")} ${id} ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews}${readback}`;
     }
     if (type === "plan") {
-      return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${this.#rel(id)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
+      return `${verb} ${this.#flag("type")} plan ${this.#flag("plan")} ${this.#rel(id)} ${this.#flag("reviews")} ${reviews}${readback}`;
     }
     if (type === "branch") {
       // The branch fix literal carries the workspace-identity `--plan` (isomorphic
       // with the wave fix branch — a plan-less target resolves to the empty
       // ref.short() directory, the workspace double identity).
-      return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
+      return `${verb} ${this.#flag("type")} branch ${this.#flag("plan")} ${this.#planOf(target)} ${this.#flag("reviews")} ${reviews}${readback}`;
     }
-    if (type === null) return `${verb} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
+    if (type === null) return `${verb} ${this.#flag("reviews")} ${reviews}${readback}`;
     // phase-spec · overall · single-spec — the declared shapes ride `--spec`.
-    return `${verb} ${this.#flag("type")} ${type} ${this.#flag("spec")} ${this.#rel(id)} ${this.#flag("reviews")} ${reviews} ${FIX_READBACK_SUFFIX}`;
+    return `${verb} ${this.#flag("type")} ${type} ${this.#flag("spec")} ${this.#rel(id)} ${this.#flag("reviews")} ${reviews}${readback}`;
+  }
+
+  /** The fix readback sentence with the route's sidecar path in its value slot — the
+   *  empty string when the route carries none (zero slot, zero sentence). The path is
+   *  normalized through the ONE basis, exactly as the gate's `derived:` row is, so the
+   *  two faces print one path byte for byte. */
+  #readbackOf(route: Extract<Route, { kind: "fix" }>): string {
+    if (route.rulings === undefined) return "";
+    return ` ${FIX_READBACK_SUFFIX.replace(FIX_READBACK_SLOT, this.#rel(route.rulings))}`;
   }
 
   /** The face-to-face handoff render — the pipeline entry: a `ref` fills the declared

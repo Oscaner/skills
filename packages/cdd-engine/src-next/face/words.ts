@@ -37,6 +37,7 @@ import type { LocalizedWord, WordLocaleFace } from "../contract/translate.ts";
 import type { PlanReadWords } from "../infra/plan-source.ts";
 import type { SlugRefusal } from "../infra/slug-index.ts";
 import type { InFlightRecord } from "../session/inflight.ts";
+import type { Identity } from "../session/round-artifacts.ts";
 
 // ---------------------------------------------------------------------------
 // capsule — the station-word family (the declared steady word face)
@@ -105,6 +106,17 @@ export interface PreflightWords {
   /** The plan-ledger BLOCK — the plan and the ledger disagree structurally. */
   planLedger: string;
 }
+
+/** One `artifact-identity` refusal's facts (spec §2.4) — the kind whose rendered name
+ *  the on-disk file misses, that rendered name, every name that attributes to the same
+ *  identity, and the identity itself. The wording is the word table's; the facts are
+ *  the read's. */
+export type ArtifactIdentityFacts = {
+  readonly kind: string;
+  readonly derived: string;
+  readonly found: readonly string[];
+  readonly identity: Identity;
+};
 
 /** The in-flight wording rows — the held-report / takeover / corrupt-record / recovery
  *  vocabulary (P21 §2.2). The held row's braces are fill slots ({pid} · {command} ·
@@ -280,6 +292,20 @@ export const CAPSULE_WORDS = {
    *  spec §3.3): the round still concludes, and this line names what was booked.
    *  Fill slot: {message}. */
   softViolation: "round soft violation: {message}",
+  /** The `misplaced = block` report (spec §2.4) — the reason word plus the four
+   *  sections: the rendered name, every name found in its place, the identity itself
+   *  and the repair the orchestrator owns. Fill slots: {kind} / {derived} /
+   *  {found} / {identity}; the repair sentence is fixed (the engine only refuses). */
+  artifactIdentity: {
+    reason: "artifact-identity · the round's `{kind}` sidecar sits off its rendered name",
+    derived: "  derived:  {derived}",
+    found: "  found:    {found}",
+    identity: "  identity: {identity}",
+    repair: [
+      "  repair:   rename the found file to the derived name — the engine never moves,",
+      "            rewrites or deletes an artifact; the workspace is yours",
+    ],
+  },
   /** The in-flight rows (P21 §2.2) — the held report, the takeover hint, the two
    *  corrupt shapes and the three canonical recovery sentences. */
   inFlight: {
@@ -312,9 +338,11 @@ export const CAPSULE_WORDS = {
     empty: "(empty plan)",
     orphan: "! no-spec",
     orphanSpec:
-      "the plan's slug \"{slug}\" names no design spec — {specPath} is absent (every plan is written for one phase; add that phase spec or fix the plan's `slug:`)",
+      "the slug names no identity document (index clean miss): {slug} — no overall / phase-spec / single-spec declares it (every plan is written for one phase; add that document or fix the plan's `slug:`)",
     slugMissing:
       "the plan declares no `slug:` key — add `slug: <workspace-key>` to the plan's front-matter and re-run",
+    discarded:
+      "{roots} — {count} discarded candidate(s): the index cannot answer an absence from this surface — check those files (an unreadable or unregistered document hides an identity)",
     cellEmpty: "",
   } as const,
   /** The cut-short round's late-landing hint — every kill / timeout / crash message
@@ -539,6 +567,33 @@ export class Words implements WordLocaleFace, PlanReadWords {
     return CAPSULE_WORDS.softViolation.replace("{message}", message);
   }
 
+  /** The `misplaced = block` report (spec §2.4) — the reason word over the four
+   *  fact sections. Every candidate is printed (never a first pick) and the identity
+   *  section is the SAME identity the rendered name came from, so `derived:` and
+   *  `identity:` can never name two different coordinates. */
+  artifactIdentity(facts: ArtifactIdentityFacts): string {
+    const row = CAPSULE_WORDS.artifactIdentity;
+    return [
+      row.reason.replace("{kind}", facts.kind),
+      row.derived.replace("{derived}", facts.derived),
+      row.found.replace("{found}", facts.found.length === 0 ? "(none)" : facts.found.join(" · ")),
+      row.identity.replace("{identity}", this.#identityWords(facts.identity)),
+      ...row.repair,
+    ].join("\n");
+  }
+
+  /** One identity as the report's `identity:` value — the round coordinates with the
+   *  renderer's own attempt default (a missing attempt is attempt 1, so the printed
+   *  coordinate never contradicts the rendered name). */
+  #identityWords(identity: Identity): string {
+    if (identity.domain === "round") {
+      const cycle = identity.cycle === undefined ? "" : ` · cycle=${identity.cycle}`;
+      return `line=${identity.line} · op=${identity.op}${cycle} · attempt=${identity.attempt ?? 1}`;
+    }
+    if (identity.domain === "doc") return `slug=${identity.slug} · doc-type=${identity.docType}`;
+    return `tasks=${identity.tasks ?? "(none)"}`;
+  }
+
   /** The in-flight wording rows — the held report, the takeover hint, the two corrupt
    *  shapes and the canonical recovery sentences (one source; the CLI fills the held
    *  slots, never re-types a row). */
@@ -620,12 +675,18 @@ export class Words implements WordLocaleFace, PlanReadWords {
     return CAPSULE_WORDS.planRead.orphan;
   }
 
-  /** The `spec-absent` orphan diagnostic — the plan's slug and the derived spec path,
-   *  both filled here (the row lives in the table only). */
-  planOrphanSpec(slug: string, specPath: string): string {
-    return CAPSULE_WORDS.planRead.orphanSpec
-      .replace("{slug}", slug)
-      .replace("{specPath}", specPath);
+  /** The `spec-absent` orphan diagnostic — the plan's slug alone (the identity is the
+   *  slug; the retired derived path has no consumer left). */
+  planOrphanSpec(slug: string): string {
+    return CAPSULE_WORDS.planRead.orphanSpec.replace("{slug}", slug);
+  }
+
+  /** The undecided-scan diagnostic — the dirty doc roots and the count of candidates
+   *  they dropped (the fact that forbids answering "no plan" / "no identity"). */
+  planDiscardedWord(roots: readonly string[], discarded: number): string {
+    return CAPSULE_WORDS.planRead.discarded
+      .replace("{roots}", roots.join(" · "))
+      .replace("{count}", String(discarded));
   }
 
   /** The `slug-absent` diagnostic — the plan parses but declares no identity key. */

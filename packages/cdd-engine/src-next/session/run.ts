@@ -39,6 +39,7 @@ import { NextStepRouter } from "./next.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "./pipeline.ts";
 import type { PreFlightVerdict } from "./preflight.ts";
 import { ReviewedIdentity } from "./reviewed-identity.ts";
+import type { ArtifactRegistry } from "./round-artifacts.ts";
 import { RoundNaming } from "./round-naming.ts";
 import type { ExecutionState, Frontier } from "./state.ts";
 
@@ -377,6 +378,10 @@ export class Lifecycle {
     ledger: Ledger;
     dispatch: DispatchStep;
     router?: NextStepRouter;
+    /** The artifact matrix the router renders from — the composition root's single
+     *  instance, injected as an opts FIELD (never fetched back from a collaborator:
+     *  an injection that can only be retrieved cannot go missing visibly). */
+    artifacts?: ArtifactRegistry | null;
     /** The fixed audit target for a branch-tree / doc-path face. */
     target?: AuditTarget;
     /** The capsule face to attach at construction (optional — the seam is non-hard). */
@@ -401,7 +406,10 @@ export class Lifecycle {
     this.#state = opts.state;
     this.#ledger = opts.ledger;
     this.#dispatch = opts.dispatch;
-    this.#router = opts.router ?? new NextStepRouter();
+    // The router is built in the constructor body (never a field initializer): the
+    // injected artifact matrix rides the opts field, so the readback face and this
+    // hop share ONE registry.
+    this.#router = opts.router ?? new NextStepRouter(opts.artifacts ?? null);
     this.#target = opts.target ?? null;
     this.#capsule = opts.capsule ?? null;
     this.#preflight = opts.preflight ?? null;
@@ -465,7 +473,7 @@ export class Lifecycle {
       if (verdict !== null && !verdict.ok) {
         return {
           frame,
-          round: this.#ledger.roundCount(frame.key, frame.phase, frame.type),
+          round: this.#ledger.roundCount(frame.key, frame.phase),
           route: null,
           capsuleLines: [],
           preflight: verdict,
@@ -540,9 +548,7 @@ export class Lifecycle {
    *  records (`RoundNaming#attemptOf`, the naming single source) and shared by the
    *  round record and the round log's name. */
   #attemptFor(phase: DispatchPhase, key: LedgerKey, round: number): number {
-    return this.#ledger
-      .naming()
-      .attemptOf(this.#ledger.recordsOf(key, this.#face.type), this.#opOf(phase), round);
+    return this.#ledger.naming().attemptOf(this.#ledger.recordsOf(key), this.#opOf(phase), round);
   }
 
   /** The next phase of one wave line — the SAME single derivation the wave gate reads
@@ -615,7 +621,7 @@ export class Lifecycle {
   #roundFor(phase: DispatchPhase, key: LedgerKey): number {
     if (phase === "implement") return 1;
     if (phase === "fix") {
-      const completed = this.#ledger.completedCycles(key, "review", this.#face.type);
+      const completed = this.#ledger.completedCycles(key, "review");
       return completed.length > 0 ? Math.max(...completed) : 1;
     }
     return this.#reviewCount(key) + 1;
@@ -624,7 +630,7 @@ export class Lifecycle {
   /** The review-lead round count of a key (branch counts its branch-review mode,
    *  the others the review mode — the face row's single source). */
   #reviewCount(key: LedgerKey): number {
-    return this.#ledger.roundCount(key, this.#face.product.reviewLead, this.#face.type);
+    return this.#ledger.roundCount(key, this.#face.product.reviewLead);
   }
 
   /** The progress key of a single-target line — the line's STABLE key (find #9 ·
@@ -739,27 +745,23 @@ export class Lifecycle {
       ...(outcome.violations ?? []),
       ...(outcome.touchedDoc === null ? [RoundViolation.soft(WRITE_BACK_UNMEASURED)] : []),
     ];
-    const record = this.#ledger.recordRound(
-      frame.key,
-      {
-        op: this.#opOf(frame.phase),
-        cycle: frame.round,
-        attempt: frame.attempt ?? 1,
-        dispatchBase: outcome.dispatchBase ?? null,
-        // The verdict is the dispatch's own judgment when it carries one (the
-        // production lifecycle's `#verdictOf`); the injected dispatchers keep the
-        // status-derived fallback.
-        verdict: outcome.verdict ?? {
-          treeClean: outcome.treeClean ?? true,
-          targetAction: !blocked,
-        },
-        violations,
-        // A round that persisted no carrier records no digest column at all — the
-        // absence is the fact, never a null placeholder.
-        ...(carrierDigest === null ? {} : { carrierDigest }),
+    const record = this.#ledger.recordRound(frame.key, {
+      op: this.#opOf(frame.phase),
+      cycle: frame.round,
+      attempt: frame.attempt ?? 1,
+      dispatchBase: outcome.dispatchBase ?? null,
+      // The verdict is the dispatch's own judgment when it carries one (the
+      // production lifecycle's `#verdictOf`); the injected dispatchers keep the
+      // status-derived fallback.
+      verdict: outcome.verdict ?? {
+        treeClean: outcome.treeClean ?? true,
+        targetAction: !blocked,
       },
-      frame.type,
-    );
+      violations,
+      // A round that persisted no carrier records no digest column at all — the
+      // absence is the fact, never a null placeholder.
+      ...(carrierDigest === null ? {} : { carrierDigest }),
+    });
     // The completed-round revision write-back is gated on the round's VERDICT (a
     // hard-failed round must not bind the current revision — that would silently
     // close the drift identity the round never delivered). WHICH reviewed input the
@@ -803,7 +805,7 @@ export class Lifecycle {
           break;
       }
     }
-    return this.#ledger.roundCount(frame.key, frame.phase, frame.type);
+    return this.#ledger.roundCount(frame.key, frame.phase);
   }
 
   /** The reviewed-revision write-back — bind the completed round's input revision to
@@ -817,7 +819,7 @@ export class Lifecycle {
    *  legacy closed face (only present facts land, never an invented identity). */
   #recordReviewedDocRevision(frame: OpenFrame): void {
     if (frame.target.kind !== "plan" && frame.target.kind !== "spec") return;
-    this.#recordDocRevisionOf(frame.key, frame.target.doc, frame.type);
+    this.#recordDocRevisionOf(frame.key, frame.target.doc);
   }
 
   /** The wave line's reviewed-brief write-back (D30 · P29 §2.2) — bind the wave's
@@ -841,7 +843,7 @@ export class Lifecycle {
   #recordReviewedBranchRevision(frame: OpenFrame): void {
     const planPath = this.#plan.stationPath();
     if (planPath === null) return;
-    this.#ledger.recordReviewedPlanRevision(frame.key, planPath, frame.type);
+    this.#ledger.recordReviewedPlanRevision(frame.key, planPath);
   }
 
   /** The doc-revision write-back body — read the round's document and bind its
@@ -849,14 +851,10 @@ export class Lifecycle {
    *  leg owns; the branch leg binds the plan read it already judged). An unreadable
    *  input records nothing — the line keeps the legacy closed face (present facts
    *  only). */
-  #recordDocRevisionOf(key: LedgerKey, path: string, identity: TargetType): void {
+  #recordDocRevisionOf(key: LedgerKey, path: string): void {
     try {
       const content = readFileSync(path, "utf8");
-      this.#ledger.recordReviewedRevision(
-        key,
-        this.#ledger.refs().docRevision(path, content),
-        identity,
-      );
+      this.#ledger.recordReviewedRevision(key, this.#ledger.refs().docRevision(path, content));
     } catch {
       // unreadable input — no reviewed identity recorded (present facts only)
     }

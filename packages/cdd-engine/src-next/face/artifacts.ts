@@ -20,6 +20,7 @@ import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import type { IssueBodyRenderer, IssueReportInput } from "../render/issue-body.ts";
 import { SkeletonAssembler } from "../render/skeleton.ts";
+import type { ArtifactRegistry } from "../session/round-artifacts.ts";
 import type { RunInput } from "./cli.ts";
 import { ARGV_CHANNEL } from "./declare.ts";
 import type { CliIo } from "./lifecycle.ts";
@@ -67,6 +68,9 @@ export class CliArtifacts {
   readonly #projector: Projector;
   readonly #issue: IssueBodyRenderer;
   readonly #stdinRead: () => string;
+  /** The composition root's artifact matrix — the ONE home of the `base` row's
+   *  spelling; every read/write in this class asks it, never a memoized literal. */
+  readonly #matrix: ArtifactRegistry;
   /** The composition-root usage throw — commander's OWN CommanderError (the root's
    *  exit-normalization face; the split never re-implements the usage byte). */
   readonly #usage: (node: Command, message: string) => never;
@@ -76,6 +80,7 @@ export class CliArtifacts {
     projector?: Projector;
     issue: IssueBodyRenderer;
     stdinRead: () => string;
+    matrix: ArtifactRegistry;
     usage: (node: Command, message: string) => never;
   }) {
     this.#io = opts.io ?? {
@@ -85,6 +90,7 @@ export class CliArtifacts {
     this.#projector = opts.projector ?? new Projector(declaredRegistries);
     this.#issue = opts.issue;
     this.#stdinRead = opts.stdinRead;
+    this.#matrix = opts.matrix;
     this.#usage = opts.usage;
   }
 
@@ -171,8 +177,8 @@ export class CliArtifacts {
       plan: planPath,
       recordedAt: new Date().toISOString(),
     };
-    workspace.writeJson("base.json", artifact);
-    this.#io.stdout(`${root.relativize(workspace.resolve("base.json"))}\n`);
+    workspace.writeJson(this.#baseName(), artifact);
+    this.#io.stdout(`${root.relativize(workspace.resolve(this.#baseName()))}\n`);
     return 0;
   }
 
@@ -184,7 +190,7 @@ export class CliArtifacts {
   baseGet(workspace: Workspace, root: RepoRoot): number {
     const artifact = this.#readBase(workspace);
     if (artifact === null) {
-      const path = root.relativize(workspace.resolve("base.json"));
+      const path = root.relativize(workspace.resolve(this.#baseName()));
       this.#io.stderr(`cdd base get: missing or corrupt base artifact at ${path}\n`);
       return 2;
     }
@@ -217,6 +223,12 @@ export class CliArtifacts {
     return `${now.getFullYear()}-${month}-${day}`;
   }
 
+  /** The base artifact's workspace-relative name — the matrix's `base` row renders it
+   *  (one spelling, one home; this class never carries a copy). */
+  #baseName(): string {
+    return this.#matrix.render({ domain: "workspace", tasks: null }, "base");
+  }
+
   /** Read + validate the base artifact; null when missing or malformed — a total
    *  read (never a throw). The read rides `Workspace.readJson` (P11 · §4.2) — the
    *  read/write single normalization path, so a legacy absolute `plan` field reads
@@ -226,7 +238,7 @@ export class CliArtifacts {
    *  narrowed to the declared enum domain (a value outside the four-value set is a
    *  schema-invalid artifact → null, never a fabricated source). */
   #readBase(workspace: Workspace): BaseArtifact | null {
-    const read = workspace.readJson<unknown>("base.json");
+    const read = workspace.readJson<unknown>(this.#baseName());
     if (read.kind !== "ok") return null;
     const parsed = read.value;
     if (parsed === null || typeof parsed !== "object") return null;

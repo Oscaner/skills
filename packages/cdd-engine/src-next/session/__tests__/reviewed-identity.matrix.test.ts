@@ -48,12 +48,12 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { PlanDocType } from "../../contract/doc.ts";
 import type { DispatchScene } from "../../face/cli.ts";
 import type { CliVerb } from "../../face/declare.ts";
 import { Preview } from "../../face/preview.ts";
 import { ConfigLoader } from "../../infra/config.ts";
-import { PlanSource } from "../../infra/plan-source.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { BriefRenderer } from "../../render/brief.ts";
 import type { TargetFace } from "../faces.ts";
@@ -365,9 +365,9 @@ const previewWordOf = (cell: Cell): LegWord | null => {
   const workspace = new Workspace(new WorkspaceRoot(PREVIEW_ROOT, ".kairos/cdd"), "p25");
   const scene: DispatchScene = {
     workspace,
-    ledger: new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis)),
+    ledger: new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis)),
     planPath: planPathOf(cell),
-    plan: new PlanSource(workspace.root.basis).readFor(null),
+    plan: planSourceOf(workspace.root.basis).readFor(null),
     briefPath: null,
   };
   const lines = new Preview({ scene, env: {} }).render(verbOf(cell), frameOf(cell));
@@ -421,7 +421,7 @@ const runCell = async (
     new WorkspaceRoot(path.join(root, ".kairos", "cdd"), "session"),
     "p25",
   );
-  const ledger = new Ledger(workspace, new ConfigLoader(), new PlanSource(workspace.root.basis));
+  const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
   const planPath = cell.planPath === "yes" ? path.join(root, "plan.md") : null;
   const docPath =
     docPathOf(cell) === null ? null : path.join(root, path.basename(docPathOf(cell) as string));
@@ -468,8 +468,8 @@ const runCell = async (
     // recorded revision and the dispatch's path speak one shape.
     plan:
       planPath === null
-        ? new PlanSource(workspace.root.basis).readFor(null)
-        : new PlanSource(workspace.root.basis).readPath(planPath),
+        ? planSourceOf(workspace.root.basis).readFor(null)
+        : planSourceOf(workspace.root.basis).readPath(planPath),
   });
   const input = (): string =>
     cell.kind === "wave"

@@ -30,6 +30,7 @@ import type { Round, RoundPhase } from "../ledger.ts";
 import type { Route } from "../next.ts";
 import {
   DISPATCH_REASON,
+  FIX_READBACK_SLOT,
   FIX_READBACK_SUFFIX,
   NEXT_HOP_REASON,
   type NextHopInput,
@@ -41,6 +42,7 @@ import {
   SOFT_CAP_SUGGESTION,
   WAVE_GATE_REASON,
 } from "../next.ts";
+import { ArtifactRegistry } from "../round-artifacts.ts";
 import type { ExecutionState } from "../state.ts";
 
 /** A minimal execution-state stub — the router reads only readyBatch(). */
@@ -183,16 +185,21 @@ describe("the pinned surface — Route/soft-cap constants (the brief's type-chec
     expect(SOFT_CAP_SUGGESTION).toBe("BLOCKED: review-cycle-cap — user adjudicates");
   });
 
-  it("the fix-route readback suffix is the declared single-source wording", () => {
+  it("the fix-route readback suffix is the declared single-source wording — a VALUE slot, never a naming rule", () => {
+    // The sentence is FIXED bytes; the sidecar path is the route's value. The old
+    // wording taught the `.json` → `.rulings.json` transformation, which is the second
+    // expression §2.8 retires — the template names the slot and nothing else.
     expect(FIX_READBACK_SUFFIX).toBe(
-      "(confirm the reviews handoff · if a finding needs a ruling, record it beside that handoff — same path with .json replaced by .rulings.json)",
+      "(confirm the reviews handoff · if a finding needs a ruling, record it at <rendered sidecar path>)",
     );
+    expect(FIX_READBACK_SUFFIX).toContain(FIX_READBACK_SLOT);
+    expect(FIX_READBACK_SUFFIX).not.toContain(".rulings.json");
   });
 
   it("the readback suffix keeps its literal type at compile time", () => {
     // Compile-time pin — fails under `tsc --noEmit` if the constant's declared type
-    // drifts from the render the capsule appends verbatim (exact suffix wording).
-    const suffix: "(confirm the reviews handoff · if a finding needs a ruling, record it beside that handoff — same path with .json replaced by .rulings.json)" =
+    // drifts from the render the capsule appends verbatim (exact template wording).
+    const suffix: "(confirm the reviews handoff · if a finding needs a ruling, record it at <rendered sidecar path>)" =
       FIX_READBACK_SUFFIX;
     expect(suffix).toBe(FIX_READBACK_SUFFIX);
   });
@@ -866,5 +873,86 @@ describe("P27 §2.5 — the reason table: 14 non-structure tokens with a leg par
     for (const token of WAVE_TOKENS) {
       expect(source, `wave.ts restates the ${token} spelling`).not.toContain(`"${token}"`);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the fix hop's ruling readback value (P36 T9 · spec §2.8 / §2.10)
+// ---------------------------------------------------------------------------
+
+describe("the fix hop carries the rendered sidecar path — a value, never a name rule", () => {
+  /** A router holding the matrix — the composition root's own wiring. */
+  const matrixRouter = new NextStepRouter(new ArtifactRegistry());
+
+  /** The fix hop for one review round reading one carrier. */
+  const fixOf = (carrier: string): Extract<Route, { kind: "fix" }> | null => {
+    const route = matrixRouter.next(
+      state([]),
+      round({ phase: "review", findings: [finding("warn")], reviewsPath: carrier }),
+    );
+    return route !== null && route.kind === "fix" ? route : null;
+  };
+
+  it("renders the REVIEWED round's sidecar beside the carrier it reads", () => {
+    expect(fixOf("tasks-7,9-review-1.json")).toEqual({
+      kind: "fix",
+      reviews: "tasks-7,9-review-1.json",
+      rulings: "tasks-7,9-review-1.c1.rulings.json",
+    });
+  });
+
+  it("renders the matrix's name, not a tail swap — an explicit `-a1` carrier still reads the rendered name", () => {
+    // The carrier attributes to (plan, review, cycle 1, attempt 1); the renderer never
+    // mints `-a1`, so the sidecar is `plan-review-1.c1.rulings.json` — NOT the
+    // `plan-review-1-a1.rulings.json` a tail replacement would spell.
+    expect(fixOf("plan-review-1-a1.json")?.rulings).toBe("plan-review-1.c1.rulings.json");
+  });
+
+  it("keeps the carrier's own directory — the sidecar sits BESIDE the carrier", () => {
+    expect(fixOf(".kairos/cdd/p1/plan-review-1.c1.json")?.rulings).toBe(
+      ".kairos/cdd/p1/plan-review-1.c1.rulings.json",
+    );
+  });
+
+  it("omits the value when the carrier attributes to no round identity — no name is invented", () => {
+    // `spec-<op>-<round>.json` is a P34-era legacy carrier: it is on disk and readable,
+    // and its line word is outside the matrix, so the hop carries no sidecar value at
+    // all — the render face then drops the readback sentence whole.
+    const route = fixOf("spec-review-1.json");
+    expect(route).not.toBeNull();
+    expect(route !== null && "rulings" in route).toBe(false);
+    // The rendered line is the bare `--reviews <path>`: zero empty slot, zero rule
+    // sentence, zero sidecar spelling.
+    const line = new RouteRenderer(new Words(), {}, "claude").render(route!, null);
+    expect(line).toBe("fix --reviews spec-review-1.json");
+    expect(line).not.toContain(".rulings.json");
+    expect(line).not.toContain("record it at");
+  });
+
+  it("omits the value when the router holds no matrix — a hermetic caller invents nothing", () => {
+    const route = new NextStepRouter().next(
+      state([]),
+      round({ phase: "review", findings: [finding("warn")], reviewsPath: "plan-review-1.c1.json" }),
+    );
+    expect(route !== null && "rulings" in route).toBe(false);
+  });
+
+  it("renders the path through the ONE basis — the capsule's fix line and the gate's `derived:` print one value", () => {
+    const rendered = new RouteRenderer(new Words(), {}, "claude").render(
+      { kind: "fix", reviews: "p1-review-1.json", rulings: "p1-review-1.c1.rulings.json" },
+      null,
+    );
+    expect(rendered).toBe(
+      `fix --reviews p1-review-1.json (confirm the reviews handoff · if a finding needs a ruling, record it at p1-review-1.c1.rulings.json)`,
+    );
+  });
+
+  it("drops the readback sentence whole when the route carries no path — zero empty slot", () => {
+    const rendered = new RouteRenderer(new Words(), {}, "claude").render(
+      { kind: "fix", reviews: "p1-review-1.json" },
+      null,
+    );
+    expect(rendered).toBe("fix --reviews p1-review-1.json");
+    expect(rendered).not.toContain("ruling");
   });
 });

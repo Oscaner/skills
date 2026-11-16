@@ -1,10 +1,10 @@
 // packages/cdd-engine/src-next/infra/plan-source.ts
-// Task 2 — the plan read + parse + classify seam (design spec §2.1 · §2.4 · §2.7):
-// ONE deep class (`PlanSource`) with TWO entries — the derived face (`readFor`,
-// `entry.slug` → `${docRoots.plans}/<slug>.md`) and the argv face (`readPath`) —
-// and ONE value (`PlanRead`) that carries the behaviour the seven call sites used
-// to re-spell. The tri-state is a class (a private discriminant field + a `kind`
-// getter + the accessors), never a bare discriminated union: no consumer writes
+// The plan read + parse + classify seam (design spec §2.1 · §2.4 · §2.7): ONE deep
+// class (`PlanSource`) with TWO entries — the derived face (`readFor`,
+// `entry.slug` → the index's plan row) and the argv face (`readPath`) — and ONE value
+// (`PlanRead`) that carries the behaviour the seven call sites used to re-spell. The
+// tri-state is a class (a private discriminant field + a `kind` getter + the
+// accessors), never a bare discriminated union: no consumer writes
 // `switch (read.kind)` to recover a fact the value already owns.
 //
 //   · The path basis is the `RepoRoot` conversion pair: every `DocFs` call takes
@@ -12,20 +12,26 @@
 //     directory reads against the injected root — never `process.cwd()` (NodeFs
 //     resolves a literal against the process cwd, which would silently read a
 //     healthy plan as unreadable).
-//   · `undeclared` has exactly one producer — the derived face's own read (a null
-//     slug, or a derived path that is not on disk). There is no `undeclared`
-//     factory: "this phase has no plan yet" is a real read result, not a value a
-//     caller can mint. `readPath` never probes existence, so an absent argv path
-//     is an io read failure — the dispatch face keeps today's usage bytes.
-//   · The reverse lookup is part of the READ (§2.7): whether `<slug>-design.md`
-//     exists decides if this plan names a phase. It is a read fact, not a doc-shape
-//     violation — zero rules registered, zero `Finding`, zero new `kind` token. It
-//     runs on the argv face only (`readFor`'s entry IS the identity document, so
-//     `spec-absent` is structurally unreachable there) and it only probes
-//     existence (`DocFs.exists`), never a content predicate. The probe sits in the
-//     `readPath` entry itself, NOT in the shared read tail: the derived face passes
-//     `null`, so "the derived face never reverse-looks-up" is a fact of the seam
-//     rather than a flag each call site has to keep straight.
+//   · IDENTITY, NEVER A NAME (§2.7): both legs ask the injected `SlugIndex`. The
+//     derived face takes the slug's plan ROW (`docsOf(slug)`, the plan `doc-type`)
+//     and reads that row's declared `rel`; it derives no `<slug>.md`. The reverse
+//     lookup asks whether the index holds an IDENTITY document for the slug, and
+//     whether the three doc roots' scan surface is clean enough to answer an
+//     absence at all. Zero filename derivation survives in this file.
+//   · The tri-state is `undeclared` / `unreadable` / `ready`. `undeclared` carries
+//     its REASON (`clean` — the root's surface answered "no plan"; `indeterminate` —
+//     the plans root dropped or failed to register candidates, so "no plan" is not
+//     available and the assembly face says so in one `CDD_WARN:` line). The
+//     undecided identity lookup rides the ready state the same way (`undecided`).
+//     The fourth shape, `duplicated`, is NOT part of that tri-state: `locate` answers
+//     `null` for both zero and two plans, so a caller reading `null` as "no plan"
+//     would answer "there is none" about a set of two — the one licence §2.7 forbids.
+//     It carries the found set instead, and the board's identity marker face renders
+//     it (never a first pick).
+//   · `undeclared` has exactly one producer family — `readFor`'s set question. There
+//     is no `undeclared` factory: "this phase has no plan yet" is a real read result,
+//     not a value a caller can mint. `readPath` never asks the plans root, so an
+//     absent argv path is an io read failure — the dispatch face keeps today's bytes.
 //
 // Module-level exports are types / the class family — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
@@ -36,7 +42,7 @@ import { type DocFs, NodeFs } from "../contract/invariants.ts";
 import { TaskGraph } from "../session/graph.ts";
 import type { RepoRoot } from "./root.ts";
 import { ENGINE_RUNTIME } from "./runtime.ts";
-import { type DocEntry, SlugIndex } from "./slug-index.ts";
+import { type DiscardedCandidates, type DocEntry, SlugIndex } from "./slug-index.ts";
 
 /** One topological wave of task ids — the plan's `waves()` element (the same
  *  shape `TaskGraph#batches()` derives, named here so the port reads as the spec
@@ -53,12 +59,16 @@ export interface PlanReadWords {
   planReadWord(cause: "io" | "syntax"): string;
   /** The healthy plan that carries no task block yet (`(empty plan)`). */
   planEmptyWord(): string;
-  /** The spec-absent orphan diagnostic — the plan's slug and the derived spec path. */
-  planOrphanSpec(slug: string, specPath: string): string;
+  /** The spec-absent orphan diagnostic — the plan's slug, and NO derived path (the
+   *  identity is the slug; there is no file name to print). */
+  planOrphanSpec(slug: string): string;
   /** The slug-absent diagnostic — the plan parses but declares no identity key. */
   planSlugMissing(): string;
   /** The orphan mark the doc face, the program cell and the plan row fold into. */
   planOrphanWord(): string;
+  /** The undecided-scan diagnostic — the doc roots that dropped candidates and the
+   *  count of them (the fact that forbids answering "no plan" / "no identity"). */
+  planDiscardedWord(roots: readonly string[], discarded: number): string;
   /** The program face's undeclared cell (`""` — the "no plan" program cell only). */
   readonly cellEmpty: string;
   /** The stderr diagnostic prefix (`CDD_WARN:`), delegated to the station row. */
@@ -85,12 +95,11 @@ export interface PlanFailure {
 /** The reverse-lookup read fact (§2.7): does this plan name a phase? `spec-absent`
  *  is the foldable cause (`! no-spec` + the doc-contract refusal); `slug-absent` is
  *  only a read fact — the identity channel owns its exit code, so this value never
- *  folds it. */
+ *  folds it. There is NO path here: the identity is the slug, and the retired
+ *  `<slug>-design.md` derivation has no consumer left to print it for. */
 export interface PlanOrphan {
   /** The two causes. */
   readonly cause: "spec-absent" | "slug-absent";
-  /** The derived spec path (`spec-absent`), or null when no slug existed to derive from. */
-  readonly specPath: string | null;
 }
 
 /** The doc-contract refusal — the plan-carrier refusal leg's input (§2.3): the
@@ -104,9 +113,34 @@ export interface PlanRefusal {
   readonly message: string;
 }
 
-/** The `undeclared` state — the phase carries no plan (the normal forward gap). */
+/** The surfaces that dropped candidates — the undecided read's observable fact. */
+interface Undecided {
+  /** The doc-root paths whose scan surface was not clean. */
+  readonly roots: readonly string[];
+  /** How many candidates those roots dropped or could not register. */
+  readonly discarded: number;
+}
+
+/** Why no plan document answered the derived face's set question. */
+type UndeclaredReason =
+  /** The plans root's surface is clean: "this phase has no plan" is a fact. */
+  | { readonly kind: "clean" }
+  /** The plans root dropped or failed to register candidates: the absence is not
+   *  available, only the undecided read. */
+  | { readonly kind: "indeterminate"; readonly undecided: Undecided };
+
+/** The `undeclared` state — the phase carries no plan (the normal forward gap), plus
+ *  the reason the absence was (or was not) answerable. */
 interface UndeclaredState {
   readonly kind: "undeclared";
+  readonly reason: UndeclaredReason;
+}
+
+/** The `duplicated` state — the slug names TWO plans: no single document answers, and
+ *  "no plan" is a licence this read does not hold (§2.7 (d)). */
+interface DuplicatedState {
+  readonly kind: "duplicated";
+  readonly found: readonly string[];
 }
 
 /** The `unreadable` state — a plan file exists (or was named by argv) but did not
@@ -127,19 +161,24 @@ interface ReadyState {
   readonly doc: PlanParsed;
   readonly graph: TaskGraph;
   readonly orphan: PlanOrphan | null;
+  readonly undecided: Undecided | null;
 }
 
 /** The state brand: a module-private symbol key that `PlanRead`'s constructor
  *  requires, so "exactly one producer family" is judged by `tsc` rather than by a
  *  comment. The symbol is not exported, therefore no other module can spell the key
  *  and a structural object literal there fails to type-check; every mint lives in
- *  this file (`PlanSource`'s three states and the fallbacks it threads). */
+ *  this file (`PlanSource`'s states and the fallbacks it threads). */
 const READ_STATE_BRAND: unique symbol = Symbol("cdd.plan-read-state");
 
-/** The module-private tri-state carried by `PlanRead`, sealed by the brand above. */
-type PlanReadState = (UndeclaredState | UnreadableState | ReadyState) & {
+/** The module-private state union carried by `PlanRead`, sealed by the brand above. */
+type PlanReadState = (UndeclaredState | DuplicatedState | UnreadableState | ReadyState) & {
   readonly [READ_STATE_BRAND]: true;
 };
+
+/** The read's discriminant — the tri-state plus the duplicated set (which is not a
+ *  fourth absence, it is the refusal to answer an absence). */
+type PlanReadKind = PlanReadState["kind"];
 
 /** The undeclared doc-face wave row (`(none)` — today's bytes for "no plan yet"). */
 const UNDECLARED_WAVE = "(none)";
@@ -164,25 +203,29 @@ export class PlanRead {
     this.#state = state;
   }
 
-  /** The tri-state discriminant (`undeclared` / `unreadable` / `ready`). */
-  get kind(): PlanReadState["kind"] {
+  /** The read's discriminant (`undeclared` / `unreadable` / `ready`, plus the
+   *  `duplicated` set that answers no absence). */
+  get kind(): PlanReadKind {
     return this.#state.kind;
   }
 
-  /** The plan row's fact (§2.1): `undeclared` → null; `unreadable` and `ready` →
-   *  the path (unreadable does not mean pathless). An empty string would disguise
-   *  "no document" as "an empty path" and render half a plan row. */
+  /** The plan row's fact (§2.1): `undeclared` and `duplicated` → null (no single
+   *  document); `unreadable` and `ready` → the path (unreadable does not mean
+   *  pathless). An empty string would disguise "no document" as "an empty path" and
+   *  render half a plan row. */
   path(): string | null {
     const state = this.#state;
-    return state.kind === "undeclared" ? null : state.path;
+    if (state.kind === "undeclared" || state.kind === "duplicated") return null;
+    return state.path;
   }
 
   /** The frontier's path (§2.1 · §2.5): the document reads out (its front matter
-   *  parsed), NOT "it parses into a graph". `undeclared` → null (no document);
-   *  `io` → null (no slug key, so no face is assemblable); `syntax` → the path (the
-   *  front matter read out, the plan face assembles, and its doc-contract refusal
-   *  is exactly the next face to point at); `ready` → the path. This is today's
-   *  per-cause distribution, now a value behaviour. */
+   *  parsed), NOT "it parses into a graph". `undeclared` / `duplicated` → null (no
+   *  document, and no single one to follow); `io` → null (no slug key, so no face is
+   *  assemblable); `syntax` → the path (the front matter read out, the plan face
+   *  assembles, and its doc-contract refusal is exactly the next face to point at);
+   *  `ready` → the path. This is today's per-cause distribution, now a value
+   *  behaviour. */
   stationPath(): string | null {
     const state = this.#state;
     if (state.kind === "ready") return state.path;
@@ -236,6 +279,14 @@ export class PlanRead {
     return state.kind === "ready" ? state.orphan : null;
   }
 
+  /** The plan rows the slug names when TWO or more answered — the set the identity
+   *  marker face renders; empty for every other read. This is the one accessor that
+   *  makes "two plans" distinguishable from "no plan" (§2.7 (d)). */
+  found(): readonly string[] {
+    const state = this.#state;
+    return state.kind === "duplicated" ? state.found : [];
+  }
+
   /** The board's wave data; the empty set when not ready (an empty set is NOT a
    *  render signal — `degradedWaveRow` / `cell` own the literals). */
   waves(): readonly TaskBatch[] {
@@ -244,7 +295,9 @@ export class PlanRead {
   }
 
   /** The doc-face wave row's degradation literal (§2.4 + the §2.7 fold); null means
-   *  "the healthy row is the assembler's", never "nothing to show". */
+   *  "the healthy row is the assembler's", never "nothing to show". A duplicated set
+   *  keeps today's `(none)` here: the plan CELL carries the marker, the wave segment
+   *  carries no plan fact. */
   degradedWaveRow(words: PlanReadWords): string | null {
     return this.#degradedWord(words, UNDECLARED_WAVE);
   }
@@ -256,11 +309,11 @@ export class PlanRead {
   }
 
   /** The plan row's cell content (§2.1): the degraded shapes carry the path plus
-   *  the mark; a healthy `ready` is the bare path; `undeclared` / `slug-absent`
-   *  return null (the row falls back to the existing identity bookkeeping). */
+   *  the mark; a healthy `ready` is the bare path; `undeclared` / `slug-absent` /
+   *  `duplicated` return null (the identity bookkeeping owns those rows). */
   planLine(words: PlanReadWords): string | null {
     const state = this.#state;
-    if (state.kind === "undeclared") return null;
+    if (state.kind === "undeclared" || state.kind === "duplicated") return null;
     if (state.kind === "unreadable")
       return `${state.path}${MARK_SEPARATOR}${words.planReadWord(state.cause)}`;
     const cause = this.#orphanCause();
@@ -270,22 +323,27 @@ export class PlanRead {
   }
 
   /** The spec row's cell content — the spec-absent orphan only; every other state
-   *  (healthy, non-ready, `slug-absent`, undecided) returns null. */
+   *  (healthy, non-ready, `slug-absent`, undecided) returns null. The undecided read
+   *  is exactly the case that may NOT print `! no-spec`: the index held nothing, but
+   *  a doc root could not be read. */
   specLine(words: PlanReadWords): string | null {
     return this.#orphanCause() === "spec-absent" ? words.planOrphanWord() : null;
   }
 
   /** The board's `CDD_WARN:` line (stderr): the two unreadable causes, the
-   *  `spec-absent` orphan and the `slug-absent` fact each produce one; `undeclared`
-   *  and a healthy `ready` produce null ("no plan yet" is normal, not a failure). */
+   *  `spec-absent` orphan, the `slug-absent` fact and the UNDECIDED scan each
+   *  produce one; `undeclared`-clean, `duplicated` and a healthy `ready` produce null
+   *  ("no plan yet" is normal, not a failure; the duplicated set is an identity
+   *  marker on stdout, not a read diagnostic). */
   warnLine(words: PlanReadWords): string | null {
-    const diagnostic = this.#diagnostic(words);
+    const diagnostic = this.#diagnostic(words) ?? this.#undecidedWords(words);
     return diagnostic === null ? null : `${words.warnPrefix} ${diagnostic}`;
   }
 
   /** The pre-flight refusal (§2.3): the two unreadable causes and the spec-absent
-   *  orphan; `slug-absent` is stopped earlier by the identity channel and the
-   *  healthy / undeclared states have nothing to refuse. */
+   *  orphan; `slug-absent` is stopped earlier by the identity channel, the undecided
+   *  scan refuses nothing (§2.7 (c): zero refusal), the duplicated set is the
+   *  identity gate's, and the healthy / undeclared states have nothing to refuse. */
   refusal(words: PlanReadWords): PlanRefusal | null {
     const state = this.#state;
     const message =
@@ -305,7 +363,7 @@ export class PlanRead {
    *  the two faces spell differently (`(none)` vs the empty program cell). */
   #degradedWord(words: PlanReadWords, undeclared: string): string | null {
     const state = this.#state;
-    if (state.kind === "undeclared") return undeclared;
+    if (state.kind === "undeclared" || state.kind === "duplicated") return undeclared;
     if (state.kind === "unreadable") return words.planReadWord(state.cause);
     const cause = this.#orphanCause();
     if (cause === "spec-absent") return words.planOrphanWord();
@@ -334,16 +392,31 @@ export class PlanRead {
     return state.field === null ? head : `${head}: ${state.field}`;
   }
 
-  /** The orphan diagnostic of the ready state — the `spec-absent` sentence (slug +
-   *  derived path) or the `slug-absent` one; null when neither applies. */
+  /** The orphan diagnostic of the ready state — the `spec-absent` sentence (the slug
+   *  alone, zero derived path) or the `slug-absent` one; null when neither applies. */
   #orphanWords(words: PlanReadWords): string | null {
     const orphan = this.orphan();
     if (orphan === null) return null;
     if (orphan.cause === "slug-absent") return words.planSlugMissing();
     const slug = this.#slugOf();
-    const specPath = orphan.specPath;
-    if (slug === null || specPath === null) return null;
-    return words.planOrphanSpec(slug, specPath);
+    return slug === null ? null : words.planOrphanSpec(slug);
+  }
+
+  /** The undecided-scan diagnostic — one line naming the dirty doc roots and their
+   *  discarded count; null for every decided read. */
+  #undecidedWords(words: PlanReadWords): string | null {
+    const state = this.#state;
+    const undecided =
+      state.kind === "undeclared"
+        ? state.reason.kind === "indeterminate"
+          ? state.reason.undecided
+          : null
+        : state.kind === "ready"
+          ? state.undecided
+          : null;
+    return undecided === null
+      ? null
+      : words.planDiscardedWord(undecided.roots, undecided.discarded);
   }
 
   /** The one diagnostic source `warnLine` and `refusal` share. */
@@ -356,39 +429,52 @@ export class PlanRead {
 
 /**
  * PlanSource — the plan read seam: one instance per command, constructed in the
- * command preamble (after the repo root resolves) and passed down as a parameter.
- * It owns the read + parse + classify path both entries share; the reverse lookup
- * rides the argv entry only.
+ * command preamble (after the repo root AND the command's ONE identity index exist)
+ * and passed down as a parameter. It owns the read + parse + classify path both
+ * entries share; BOTH of its questions are identity questions and both are answered
+ * by the injected index. It never builds one: a second index would be a second
+ * snapshot of the disk, and the tri-state's "clean or not" answer must come from the
+ * same scan the rest of the command reads.
  */
 export class PlanSource {
   /** The path basis — the injected repo root (required: the root is a per-command fact). */
   readonly #root: RepoRoot;
+  /** The command's ONE identity index — both legs ask it (zero self-built scan). */
+  readonly #index: SlugIndex;
   /** The filesystem seam (defaults to node:fs). */
   readonly #fs: DocFs;
   /** The ONE plan parser this source reads through (the plan doc type's single
    *  read point, beside the `docTypeParsers` registry row). */
   readonly #parser = new PlanDocType("plan");
 
-  constructor(root: RepoRoot, fs: DocFs = new NodeFs()) {
+  constructor(root: RepoRoot, index: SlugIndex, fs: DocFs = new NodeFs()) {
     this.#root = root;
+    this.#index = index;
     this.#fs = fs;
   }
 
-  /** The derived face: `entry.slug` is the whole identity, the path is derived from
-   *  it. An absent derived path is `undeclared` (this phase has no plan yet); an
-   *  existing path whose bytes do not read is `unreadable`/`io`. No reverse lookup
-   *  and no index: the entry IS the identity document. A null entry (an identity the
-   *  index did not register) carries no slug, so it reads exactly like a slug-less
-   *  entry: `undeclared` — never a minted value. */
+  /** The derived face — the slug's PLAN ROW, never a derived file name (§2.7). The
+   *  set answers, and only its single element is read: zero rows is the clean
+   *  `undeclared` gap when the plans root's surface can answer an absence, the
+   *  undecided read when it cannot; two or more rows is the `duplicated` set (a
+   *  first pick here would answer "the plan" about a document the slug does not
+   *  single out). A null entry (an identity the index did not register) carries no
+   *  slug, so it reads exactly like a slug-less entry: `undeclared`, clean. */
   readFor(entry: DocEntry | null): PlanRead {
     const slug = entry?.slug ?? null;
-    if (slug === null) return new PlanRead({ kind: "undeclared", [READ_STATE_BRAND]: true });
-    const rel = `${ENGINE_RUNTIME.docRoots.plans}/${slug}.md`;
-    if (!this.#fs.exists(this.#abs(rel)))
-      return new PlanRead({ kind: "undeclared", [READ_STATE_BRAND]: true });
+    if (slug === null || !SlugIndex.isLegalSlug(slug)) return this.#undeclaredClean();
+    const plans = this.#index.docsOf(slug).filter((doc) => doc.docType === "plan");
+    if (plans.length === 0) return this.#undeclaredAtPlansRoot();
+    if (plans.length > 1)
+      return new PlanRead({
+        kind: "duplicated",
+        found: plans.map((doc) => doc.rel),
+        [READ_STATE_BRAND]: true,
+      });
+    const rel = plans[0]!.rel;
     const content = this.#fs.read(this.#abs(rel));
     if (content === null) return this.#ioFailure(rel);
-    return this.#classify(rel, content, null);
+    return this.#classify(rel, content, null, null);
   }
 
   /** The argv face: the caller names the path, so a failed read is NEVER
@@ -400,7 +486,8 @@ export class PlanSource {
     const content = this.#fs.read(this.#root.resolve(path));
     if (content === null) return this.#ioFailure(path);
     const { head } = FrontMatterExtractor.split(content);
-    return this.#classify(path, content, this.#orphanOf(head));
+    const lookup = this.#lookupOf(head);
+    return this.#classify(path, content, lookup.orphan, lookup.undecided);
   }
 
   // -------------------------------------------------------------------------
@@ -411,6 +498,31 @@ export class PlanSource {
    *  every `DocFs` call goes through (never a bare path resolved by the process cwd). */
   #abs(rel: string): string {
     return this.#root.resolve(this.#root.relativize(rel));
+  }
+
+  /** The clean undeclared read — the phase carries no plan and the surface said so. */
+  #undeclaredClean(): PlanRead {
+    return new PlanRead({
+      kind: "undeclared",
+      reason: { kind: "clean" },
+      [READ_STATE_BRAND]: true,
+    });
+  }
+
+  /** The undeclared read at the plans root: a clean surface is the real gap, a dirty
+   *  one only the undecided reading of it (spec §2.7). */
+  #undeclaredAtPlansRoot(): PlanRead {
+    const discard = this.#index.discarded().plans;
+    const discarded = discard.unreadable + discard.unregistered;
+    if (discarded === 0) return this.#undeclaredClean();
+    return new PlanRead({
+      kind: "undeclared",
+      reason: {
+        kind: "indeterminate",
+        undecided: { roots: [ENGINE_RUNTIME.docRoots.plans], discarded },
+      },
+      [READ_STATE_BRAND]: true,
+    });
   }
 
   /** The io read failure — the bytes did not read. `DocFs.read` carries no errno,
@@ -427,10 +539,15 @@ export class PlanSource {
   }
 
   /** The shared read tail: front-matter split, ONE parse, the eager graph. The
-   *  reverse-lookup result arrives as a parameter (`null` on the derived face), so
+   *  reverse-lookup result arrives as parameters (`null` on the derived face), so
    *  this tail contains no probe. A grammar break is the typed `DocSyntaxError` and
    *  becomes the `syntax` failure; any other throw is a programming break. */
-  #classify(path: string, content: string, orphan: PlanOrphan | null): PlanRead {
+  #classify(
+    path: string,
+    content: string,
+    orphan: PlanOrphan | null,
+    undecided: Undecided | null,
+  ): PlanRead {
     const { head } = FrontMatterExtractor.split(content);
     try {
       const doc = this.#parser.parse(content.split("\n"), head);
@@ -442,6 +559,7 @@ export class PlanSource {
         doc,
         graph,
         orphan,
+        undecided,
         [READ_STATE_BRAND]: true,
       });
     } catch (error) {
@@ -456,16 +574,41 @@ export class PlanSource {
     }
   }
 
-  /** The reverse lookup (§2.7) — existence only. A legal slug derives
-   *  `<slug>-design.md` and the probe answers "does this plan name a phase"; an
-   *  illegal slug derives nothing (that is an identity break, not an orphan), and
-   *  an absent slug is the `slug-absent` read fact. */
-  #orphanOf(head: FrontMatterHead): PlanOrphan | null {
+  /** The reverse lookup (§2.7) — an IDENTITY question, never a name probe: does the
+   *  index hold an identity document for this slug, and if not, may the three doc
+   *  roots answer that absence? A legal slug is the only shape worth asking (an
+   *  illegal one is the identity channel's judgment, not an orphan); an absent slug
+   *  is the `slug-absent` read fact. */
+  #lookupOf(head: FrontMatterHead): {
+    readonly orphan: PlanOrphan | null;
+    readonly undecided: Undecided | null;
+  } {
     const slug = head.slug;
-    if (slug === null) return { cause: "slug-absent", specPath: null };
-    if (!SlugIndex.isLegalSlug(slug)) return null;
-    const specRel = `${ENGINE_RUNTIME.docRoots.specs}/${slug}-design.md`;
-    if (this.#fs.exists(this.#abs(specRel))) return null;
-    return { cause: "spec-absent", specPath: specRel };
+    if (slug === null) return { orphan: { cause: "slug-absent" }, undecided: null };
+    if (!SlugIndex.isLegalSlug(slug)) return { orphan: null, undecided: null };
+    if (this.#index.hasIdentity(slug)) return { orphan: null, undecided: null };
+    const undecided = PlanSource.#undecidedOf(this.#index.discarded());
+    if (undecided !== null) return { orphan: null, undecided };
+    return { orphan: { cause: "spec-absent" }, undecided: null };
+  }
+
+  /** The dirty doc roots of one scan — null when every root could answer an absence.
+   *  A root that dropped a candidate, or indexed one without a registered doc type,
+   *  cannot: its silence is not the disk's (spec §2.7). */
+  static #undecidedOf(discarded: DiscardedCandidates): Undecided | null {
+    const rows: readonly (readonly [string, { unreadable: number; unregistered: number }])[] = [
+      [ENGINE_RUNTIME.docRoots.overalls, discarded.overalls],
+      [ENGINE_RUNTIME.docRoots.specs, discarded.specs],
+      [ENGINE_RUNTIME.docRoots.plans, discarded.plans],
+    ];
+    const roots: string[] = [];
+    let total = 0;
+    for (const [root, discard] of rows) {
+      const count = discard.unreadable + discard.unregistered;
+      if (count === 0) continue;
+      roots.push(root);
+      total += count;
+    }
+    return roots.length === 0 ? null : { roots, discarded: total };
   }
 }

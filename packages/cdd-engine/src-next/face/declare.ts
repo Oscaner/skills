@@ -24,7 +24,6 @@ import { InvalidArgumentError } from "commander";
 
 import type { DocKey } from "../contract/project.ts";
 import { MAX_TASKS_PER_WAVE } from "../contract/wave-width.ts";
-import { ENGINE_DOC_ROOTS } from "../infra/doc-roots.ts";
 import { HOST_IDS } from "./host.ts";
 
 /** The component-value types of the argv channel (the CLI parse validates by these). */
@@ -117,6 +116,11 @@ export const ARGV_CHANNEL = {
     type: "bool",
     scope: "program",
     help: "show this help",
+  },
+  artifacts: {
+    flag: "--artifacts",
+    type: "bool",
+    help: "expand the board's artifact inventory — one row per observed review round (a troubleshooting view, off by default)",
   },
   output: {
     flag: "--output",
@@ -230,13 +234,13 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "implement",
     description: `run the task implement phase — at most ${MAX_TASKS_PER_WAVE} tasks per wave`,
-    example: `cdd implement --tasks 1,2 --plan ${ENGINE_DOC_ROOTS.plans}/p3.md`,
+    example: "cdd implement --tasks 1,2 --plan <path>",
     keys: [{ key: "tasks", required: true }, { key: "plan", required: true }, { key: "recover" }],
   },
   {
     name: "review",
     description: "run a review — wave | branch | phase-spec | overall | plan | single-spec",
-    example: `cdd review --type phase-spec --spec ${ENGINE_DOC_ROOTS.specs}/p3-design.md`,
+    example: "cdd review --type phase-spec --spec <path>",
     keys: [
       { key: "type", required: true },
       { key: "tasks" },
@@ -262,7 +266,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "base",
     description: "read/write base.json (single CDD --plan target)",
-    example: `cdd base set --plan ${ENGINE_DOC_ROOTS.plans}/p3.md --base develop --source plan-field`,
+    example: "cdd base set --plan <path> --base develop --source plan-field",
     keys: [],
     leaves: [
       {
@@ -314,8 +318,8 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
     name: "board",
     description:
       "render the progress board from a --plan or --spec entry (overall/phase-spec/single-spec/plan/wave/branch)",
-    example: `cdd board --plan ${ENGINE_DOC_ROOTS.plans}/p3.md`,
-    keys: [{ key: "plan" }, { key: "spec" }],
+    example: "cdd board --plan <path>",
+    keys: [{ key: "plan" }, { key: "spec" }, { key: "artifacts" }],
   },
   {
     name: "init",

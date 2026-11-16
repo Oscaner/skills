@@ -1,8 +1,10 @@
 // packages/cdd-engine/src-next/session/round-naming.ts
 // P34 T1 — the naming single source: ONE round identity renders every artifact name
-// (draft · final · report · log · crash · evidence) through `renderName`, so a kind's
-// spelling and its siblings' can never drift, and the reverse attribution
-// (`Ledger#handoffOwner`) parses back exactly the identity this face renders.
+// (draft · final · report · log · crash · evidence · the orchestrator's rulings) through
+// `renderName`, so a kind's spelling and its siblings' can never drift. The REVERSE
+// direction (name → identity) is the artifact matrix's (`session/round-artifacts.ts`
+// `attribute`), never a second predicate here: a carrier-name grammar kept beside the
+// matrix would be the second spelling this phase retires (P36 §2.5).
 //
 // The identity is a triple: the LINE (`tasks-{tasks}` · `branch` · the doc word), the
 // OP (`implement` · `review` · `fix` — branch-review rides the review family), the
@@ -13,47 +15,12 @@
 // cycle segment too, never a `-undefined` token.
 //
 // Module-level exports are types / the class — zero behavior-carrying bare functions.
-// One module-level value: the compiled carrier predicate below (`CARRIER`).
 
 import type { Workspace } from "../infra/workspace.ts";
-import { TargetFaceTable, type TargetType, targetFaces } from "./faces.ts";
+import { TargetFaceTable, type TargetType } from "./faces.ts";
 import type { HandoffParams, OpType } from "./ledger.ts";
+import { ArtifactRegistry, renderRound } from "./round-artifacts.ts";
 import type { OpenFrame } from "./run.ts";
-
-/** The two carrier-name shapes this engine MINTS — the draft and its final twin.
- *  Both accept the `-a{n}` attempt segment and the final's `.c{cycle}` suffix; every
- *  other artifact (report · log · crash · evidence) is deliberately outside the
- *  predicate, so the seal sweep can never touch it. The legacy cycle-less implement
- *  spelling (`tasks-{tasks}-implement.json`) stays accepted for the drafts a
- *  pre-P34 engine left on disk.
- *
- *  Module scope, not a `static readonly #CARRIER` field: tsc down-levels a static
- *  field initializer that reads the class's own private static member into a temp
- *  (`static #CARRIER = _a.#carrierPattern()`) assigned only AFTER the class body, so
- *  the module threw `Receiver must be class RoundNaming` at import. Reading a plain
- *  const keeps the pattern out of that transform's reach.
- *
- *  A wave line takes the wave-only `tasks-` spine, every other line word takes the
- *  round-bearing ops; the op set and the line words come from the ONE target-face
- *  table, so neither is re-spelled here. The `.c{cycle}` final suffix hangs off the
- *  CYCLE-BEARING alternatives alone — a cycle-less identity has no cycle to suffix, so
- *  `tasks-1-implement.c1.json` is a shape the renderer can never mint. */
-const carrierPattern = (): RegExp => {
-  const lines = Object.keys(targetFaces).filter((word) => word !== "wave");
-  const attempt = "(?:-a\\d+)?";
-  const final = "(?:\\.c\\d+)?";
-  const cycleBearing = [
-    "tasks-.+?-implement-\\d+",
-    "tasks-.+?-(?:review|fix)-\\d+",
-    `(?:${lines.join("|")})-(?:review|fix)-\\d+`,
-  ].join("|");
-  // The legacy cycle-less implement draft: a draft on disk, never a final and never
-  // an attempt — this engine mints neither on a cycle-less identity.
-  const legacy = "tasks-.+?-implement";
-  return new RegExp(`^(?:(?:${cycleBearing})${attempt}${final}|${legacy})\\.json$`);
-};
-
-const CARRIER = carrierPattern();
 
 /** One round's attempt-allocation slice — `RoundRecord` structurally satisfies it,
  *  so the naming table reads the ledger's records without depending on the ledger's
@@ -112,57 +79,20 @@ export class RoundNaming {
     return type === "wave" ? `tasks-${params.tasks ?? ""}` : type;
   }
 
-  /** Render one round identity as one artifact name — the ONE naming rule. The four
-   *  segments (`line` · `op` · cycle · attempt) join in this order for every kind, so
-   *  a kind only picks its own prefix/suffix around the shared stem. A `final` has no
-   *  cycle to key on when the identity carries none: it renders the draft name back,
-   *  never a malformed `.cundefined` suffix. The stem's cycle segment is omitted for a
+  /** Render one round identity as one artifact name — the ONE naming rule, delegated
+   *  to the artifact matrix's round row (`renderRound`): one spelling, two entry forms
+   *  (this static method and `ArtifactRegistry#render`). A `final` has no cycle to key
+   *  on when the identity carries none: it renders the draft name back, never a
+   *  malformed `.cundefined` suffix. The stem's cycle segment is omitted for a
    *  cycle-less identity; its attempt segment is omitted on the first attempt (an
    *  `-a1` never appears). */
   static renderName(artifact: RoundArtifact, kind: ArtifactKind): string {
-    const cycle = artifact.cycle === undefined || artifact.cycle === "" ? "" : `-${artifact.cycle}`;
-    const attempt =
-      artifact.attempt === undefined || artifact.attempt <= 1 ? "" : `-a${artifact.attempt}`;
-    const stem = `${artifact.line}-${artifact.op}${cycle}${attempt}`;
-    switch (kind) {
-      case "draft":
-        return `${stem}.json`;
-      case "final":
-        return artifact.cycle === undefined || artifact.cycle === ""
-          ? `${stem}.json`
-          : `${stem}.c${artifact.cycle}.json`;
-      case "report":
-        return `${stem}-report.md`;
-      case "log":
-        return `${stem}.log`;
-      case "crash":
-        return `crash-${stem}.json`;
-      case "evidence":
-        return `${stem}-test-evidence.json`;
-    }
+    return renderRound({ domain: "round", ...artifact }, kind);
   }
 
-  /** The carrier-name predicate's compiled pattern — a wave line takes the wave-only
-   *  `tasks-` spine, every other line word takes the round-bearing ops. The op set and
-   *  the line words come from the ONE target-face table, so neither is re-spelled here.
-   *  Only `implement` has a cycle-less spelling (the pre-P34 draft on disk); `review`
-   *  and `fix` always carry their cycle, so a `tasks-1-review.json` is no carrier at all.
-   *  The `.c{cycle}` final suffix hangs off the CYCLE-BEARING alternatives alone — a
-   *  cycle-less identity has no cycle to suffix, so `tasks-1-implement.c1.json` is a
-   *  shape the renderer can never mint. */
   /** The rendered name resolved against the workspace — the read/write syscall form. */
   renderPath(artifact: RoundArtifact, kind: ArtifactKind): string {
     return this.#workspace.resolve(RoundNaming.renderName(artifact, kind));
-  }
-
-  /** Whether a workspace file name is one of the two carrier shapes this engine mints.
-   *  Every neighbouring artifact — `progress.json` · `base.json` · the test-evidence
-   *  sibling · a carrier's `.rulings.json` sidecar · a report · a crash record — is NOT
-   *  a carrier, so the sweep that seals carriers can never touch them. Static: the
-   *  judgment reads a NAME and nothing else, so the seal sweep (`CarrierSeal`) applies
-   *  the same predicate without holding a workspace. */
-  static isCarrierName(name: string): boolean {
-    return CARRIER.test(name);
   }
 
   /** The handoff-family op of a frame — branch-review rides the review family. The
@@ -181,9 +111,10 @@ export class RoundNaming {
   }
 
   /** The brief's workspace-relative NAME — the write face takes the name, the read
-   *  faces take the resolved path (one derivation, both spellings). */
+   *  faces take the resolved path (one derivation, both spellings). The template is the
+   *  artifact matrix's `brief` row; this is a delegate, never a second rendering. */
   briefName(tasks: string): string {
-    return `tasks-${tasks}-brief.md`;
+    return ArtifactRegistry.nameOf("brief", tasks);
   }
 
   /** The prescribed report path of a round — the shared stem with `-report.md`. */

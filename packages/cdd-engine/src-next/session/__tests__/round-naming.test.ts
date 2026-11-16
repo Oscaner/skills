@@ -11,13 +11,15 @@
 // (the pins guard the derivation, never an unrelated `${frame.type}` form such as
 // the resume command's).
 
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import type { OpType } from "../ledger.ts";
+import { ArtifactRegistry, type Identity, type Kind } from "../round-artifacts.ts";
 import { type ArtifactKind, RoundNaming } from "../round-naming.ts";
 import type { OpenFrame } from "../run.ts";
 
@@ -412,7 +414,11 @@ describe("the crash-name single source — RoundNaming derives every crash recor
   it("builds the `crash-` name template at exactly ONE production site", () => {
     // Zero hits would strand the read/write faces (no name at all); a second hit
     // would re-seam the identity the capsule's read and the lifecycle's write share.
-    expect(hitsOf("`crash-").map((hit) => hit.split(":")[0])).toEqual(["session/round-naming.ts"]);
+    // The name rule moved into the artifact matrix's round row (P36 T2) — the static
+    // `renderName` delegates to it, so the matrix's home is the ONE site now.
+    expect(hitsOf("`crash-").map((hit) => hit.split(":")[0])).toEqual([
+      "session/round-artifacts.ts",
+    ]);
   });
 
   it("derives no crash name from the raw frame type — the retired lane form is gone", () => {
@@ -436,9 +442,13 @@ describe("the name-template single source — no second derivation site (P34 T3)
   /** The tokens that spell one artifact kind's suffix — each belongs to `renderName`. */
   const KIND_TOKENS = ["-report.md", "-test-evidence", ".c${", "-a${"];
 
-  /** Production hits minus the renderer's own home (the ONE place they may live). */
+  /** The homes of the ONE round name rule: the matrix's round row (`renderRound`) and
+   *  its static delegate (`RoundNaming.renderName`) — one spelling, two entry forms. */
+  const RENDER_HOMES: readonly string[] = ["session/round-naming.ts", "session/round-artifacts.ts"];
+
+  /** Production hits minus the renderer's own homes (the only places they may live). */
   const outsideRenderer = (token: string): string[] =>
-    hitsOf(token).filter((hit) => !hit.startsWith("session/round-naming.ts:"));
+    hitsOf(token).filter((hit) => !RENDER_HOMES.some((home) => hit.startsWith(`${home}:`)));
 
   it("keeps every kind suffix inside RoundNaming — a caller assembles no name", () => {
     // A suffix copied into a caller would let one artifact's spelling drift from its
@@ -494,8 +504,9 @@ describe("RoundNaming — the carrier's two names (the draft never holds the fin
     expect(NAMING.renderPath(artifact, "final")).toBe(inWorkspace("tasks-1-review-2-a2.c2.json"));
   });
 
-  it("recognizes the engine's two minted carrier shapes and nothing else", () => {
-    // draft and final, with and without the attempt segment, legacy implement included
+  it("enumerates the sealed carrier rows the matrix attributes — and the names it does not", () => {
+    const artifacts = new ArtifactRegistry();
+    // ACCEPTED side: every name a `sealed` row renders attributes to that kind.
     const minted = [
       "tasks-1-implement-1.json",
       "tasks-1-implement-1.c1.json",
@@ -512,30 +523,152 @@ describe("RoundNaming — the carrier's two names (the draft never holds the fin
       "plan-fix-1.c1.json",
       "plan-review-2-a2.json",
       "single-spec-review-1.json",
-      // the pre-P34 cycle-less implement spelling a draft on disk may still carry
+      // the cycle-less identities: a draft and its final are ONE name (no `.c` segment)
       "tasks-1-implement.json",
+      "tasks-1-review.json",
+      "tasks-1-fix.json",
     ];
-    for (const name of minted) expect(RoundNaming.isCarrierName(name)).toBe(true);
-    // the four neighbours the seal sweep must never touch, plus the family table's
-    // retired shapes that were never carriers
-    const neighbours = [
+    for (const name of minted) {
+      const attributed = artifacts.attribute(name);
+      expect(attributed, name).not.toBeNull();
+      expect(["draft", "final"], name).toContain(attributed!.kind);
+      expect(artifacts.rowOf(attributed!.kind)?.sealed, name).toBe(true);
+    }
+    // ORPHAN side (`attribute → null`): a name no row renders — the retired cycle-less
+    // final, `implement` on a non-wave line, an unknown file.
+    const orphans = [
+      "tasks-1-implement.c1.json",
+      "branch-implement-1.json",
+      "spec-review-3.json",
+      "notes.json",
+    ];
+    for (const name of orphans) expect(artifacts.attribute(name), name).toBeNull();
+    // ATTRIBUTED but NOT sealed: the engine's own observations and the orchestrator's
+    // sidecar — they attribute (so they are no orphan) and their row is `sealed: false`.
+    const observations = [
       "progress.json",
       "base.json",
+      "in-flight.json",
+      "tasks-1-brief.md",
       "tasks-1-implement-1-test-evidence.json",
       "branch-fix-1-test-evidence.json",
-      "tasks-1-review-2.c2.rulings.json",
       "tasks-1-review-2-report.md",
       "tasks-1-implement-1.log",
       "crash-tasks-1-review-2.json",
       "crash-tasks-1-implement-1.json",
-      "tasks-1-brief.md",
-      "notes.json",
-      // implement is the wave-only family — a branch/doc line never mints it
-      "branch-implement-1.json",
-      // a cycle-less name has no cycle to suffix: `.c{n}` is only ever the final of a
-      // cycle-bearing identity, so this shape is never minted
-      "tasks-1-implement.c1.json",
+      "tasks-1-review-2.c2.rulings.json",
     ];
-    for (const name of neighbours) expect(RoundNaming.isCarrierName(name)).toBe(false);
+    for (const name of observations) {
+      const attributed = artifacts.attribute(name);
+      expect(attributed, name).not.toBeNull();
+      expect(artifacts.rowOf(attributed!.kind)?.sealed, name).toBe(false);
+    }
   });
 });
+
+// ---------------------------------------------------------------------------
+// the attribution grammar — the per-row answer table (spec §2.5)
+// ---------------------------------------------------------------------------
+
+describe("the attribution grammar — every rendered row answers its cell (§2.5)", () => {
+  /** A real workspace directory: `read` asks the matrix for the names that attribute
+   *  to one identity, so the variants have to sit ON DISK. */
+  const workspaceDir = (
+    names: readonly string[],
+  ): { workspace: Workspace; cleanup: () => void } => {
+    const repo = mkdtempSync(path.join(tmpdir(), "round-naming-grammar-"));
+    const workspace = new Workspace(new WorkspaceRoot(repo, ".kairos/cdd"), "p3").ensure();
+    for (const name of names) writeFileSync(workspace.resolve(name), "{}\n", "utf8");
+    return { workspace, cleanup: () => rmSync(repo, { recursive: true, force: true }) };
+  };
+
+  const CARRIER: Identity = { domain: "round", line: "tasks-1", op: "review", cycle: 2 };
+
+  it("the six rendered round rows: an explicit `-a1` is the misplaced spelling", () => {
+    const { workspace, cleanup } = workspaceDir([
+      "tasks-1-review-2-a1.json",
+      "tasks-1-review-2-a1.c2.json",
+      "tasks-1-review-2-a1-report.md",
+      "tasks-1-review-2-a1.log",
+      "crash-tasks-1-review-2-a1.json",
+      "tasks-1-review-2-a1-test-evidence.json",
+    ]);
+    try {
+      const artifacts = new ArtifactRegistry();
+      for (const kind of ["draft", "final", "report", "log", "crash", "evidence"] as const) {
+        const read = artifacts.read(CARRIER, kind, workspace);
+        expect(read.kind, kind).toBe("misplaced");
+        if (read.kind !== "misplaced") continue;
+        expect(read.derived, kind).toBe(artifacts.render(CARRIER, kind));
+        expect(read.found, kind).toEqual([readArtifactNameOf(kind)]);
+        expect(read.identity, kind).toEqual(CARRIER);
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the `rulings` row: the `.c<cycle>` segment may be omitted, and `-a1` may be spelled out", () => {
+    const { workspace, cleanup } = workspaceDir([
+      "tasks-1-review-2.rulings.json",
+      "tasks-1-review-2-a1.rulings.json",
+    ]);
+    try {
+      const artifacts = new ArtifactRegistry();
+      const read = artifacts.read(CARRIER, "rulings", workspace);
+      expect(read.kind).toBe("misplaced");
+      if (read.kind !== "misplaced") return;
+      expect(read.derived).toBe("tasks-1-review-2.c2.rulings.json");
+      expect(read.found).toEqual([
+        "tasks-1-review-2-a1.rulings.json",
+        "tasks-1-review-2.rulings.json",
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the five coordinate-free rows answer NO such cell — a variant cannot exist", () => {
+    const { workspace, cleanup } = workspaceDir([
+      "progress.json",
+      "base.json",
+      "in-flight.json",
+      "tasks-3-brief.md",
+    ]);
+    try {
+      const artifacts = new ArtifactRegistry();
+      const rows: ReadonlyArray<[Identity, "progress" | "base" | "in-flight" | "brief"]> = [
+        [{ domain: "workspace", tasks: null }, "progress"],
+        [{ domain: "workspace", tasks: null }, "base"],
+        [{ domain: "workspace", tasks: null }, "in-flight"],
+        [{ domain: "workspace", tasks: "3" }, "brief"],
+      ];
+      for (const [identity, kind] of rows) {
+        // Exactly one name attributes to the identity — the rendered one — so the set
+        // rule can never answer `misplaced` for these rows.
+        expect(artifacts.read(identity, kind, workspace).kind, kind).toBe("ok");
+      }
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+/** The one variant name a `-a1` fixture writes, per kind (the misplaced side's own
+ *  spelling of the same identity). */
+const readArtifactNameOf = (kind: Kind): string => {
+  switch (kind) {
+    case "final":
+      return "tasks-1-review-2-a1.c2.json";
+    case "report":
+      return "tasks-1-review-2-a1-report.md";
+    case "log":
+      return "tasks-1-review-2-a1.log";
+    case "crash":
+      return "crash-tasks-1-review-2-a1.json";
+    case "evidence":
+      return "tasks-1-review-2-a1-test-evidence.json";
+    default:
+      return "tasks-1-review-2-a1.json";
+  }
+};

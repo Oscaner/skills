@@ -20,7 +20,7 @@ P21 收口四个 issue（#391 · #394 · #393 · #386）。它们不是四条补
 | 抽象 | 归口 | 收口的 issue |
 |---|---|---|
 | `InFlight` — 在飞记录 + 互斥 + 存活 | `session/inflight.ts` | #391 |
-| `ConsistencyRules` — 登记表（规则声明面）派生的结构规则族 | `contract/` | #394 |
+| ConsistencyRules — 登记表（规则声明面）派生的结构规则族 | `contract/` | #394 |
 | `LineIdentity` — 三种行一个身份面 | `session/line-identity.ts` | #393 |
 | 波行 `planTasks` 快照 — 追加 vs 滞留的观测事实 | `session/ledger.ts` | #386 |
 
@@ -67,9 +67,9 @@ P21 收口四个 issue（#391 · #394 · #393 · #386）。它们不是四条补
 
 #### 2.3 进程事实收进一个读面
 
-OS 读面收进 `ProcessFacts`（`infra/proc.ts`）一处：`Sampler` 只向它取两条腿，判官（`StallJudge`）与阈值零动。
+OS 读面收进 `ProcessFacts`（`infra/proc.ts`）一处：`Sampler` 只向它取两条腿，判官（StallJudge）与阈值零动。
 
-- **组 CPU 保留 `ps -g` 读法**（今日 `face/termination.ts:262-290` 的 `ps -o time= -g <pgid>` + 全组成员求和），迁进 `ProcessFacts` 作为唯一 OS 读面。这是「OS 面优先第三方包」原则的**唯一例外**（据实登记）：没有跨平台成熟包提供进程组累计 CPU——`pidusage` 按单 pid 计，`ps-list` 的 `ProcessDescriptor` 无 `pgid` 字段。用「PPID 下降 + `pidusage`」替代组读法会漏成员：组长先退则成员被 reparent，`setsid` 的孙进程根本不在这棵树里（P13/D56 的「孙进程占管道」正是这类形态）。方向是**假 stall → 杀活进程**，代价远高于收益，**故 `pidusage` 不引入**。
+- **组 CPU 保留 `ps -g` 读法**（今日 `face/termination.ts:262-290` 的 `ps -o time= -g <pgid>` + 全组成员求和），迁进 `ProcessFacts` 作为唯一 OS 读面。这是「OS 面优先第三方包」原则的**唯一例外**（据实登记）：没有跨平台成熟包提供进程组累计 CPU——`pidusage` 按单 pid 计，`ps-list` 的 ProcessDescriptor 无 `pgid` 字段。用「PPID 下降 + `pidusage`」替代组读法会漏成员：组长先退则成员被 reparent，`setsid` 的孙进程根本不在这棵树里（P13/D56 的「孙进程占管道」正是这类形态）。方向是**假 stall → 杀活进程**，代价远高于收益，**故 `pidusage` 不引入**。
 - **`ps-list` 只承接非 CPU 面**：存活、PPID 链、进程组去重（「在跑吗」与「跑了几个」由同一份记录回答，`npm exec` 包装不计第二个任务）。
 - **组的定义钉在这里**：`ProcessFacts` 的组成员 = `ps -g <pgid>` 的成员集合（真进程组，货源与今日同一），`startedAt` 兜 pid 复用。于是组的语义、CPU 腿的读数、真值表与今日一致；PPID 下降仅服务 `ps-list` 侧的存活/去重面，**绝不参与 CPU 腿**。
 - 两个既有实测形态进验收作样本 pin：**组长先退**（成员被 reparent）与 **`setsid` 孙进程**——两者在新 `ProcessFacts` 下的组 CPU 读数必须与今日 `ps -g` 相同。
@@ -80,7 +80,7 @@ OS 读面收进 `ProcessFacts`（`infra/proc.ts`）一处：`Sampler` 只向它�
 - 中断恢复指导语改成三句，写进引擎报文与消费面 skill：**先看工作树** · **能用的改动就 commit** · **坏掉的改动就丢弃**。三句的**字节主源是英文**（引擎报文面 `words.ts` 与英文主导的 SKILL.md 同读一串）：`look at the working tree first` · `commit the changes that work` · `discard the ones that are broken`；本 spec 的中文句是它对译，不是另一份真源。现存消费面已是**零** `stash` / `checkout --` 建议（`face/words.ts:155` 的 dirty-tree 报文即「commit or discard your changes」），故本 phase 只补这三句纪律，并留一条 grep pin 防回归——断言的是**不引入**（`stash` 制造第二个真相，`checkout --` 已实测丢掉过一整个纵切实现）。
 - kill / 超时 / 崩溃后报文显式提示「可能有迟到落盘，先检查工作树再进评审」（同一根因曾一次会话内三次把评审挡在 dirty-tree 上）。
 
-### 3. 定案：`ConsistencyRules`（#394）
+### 3. 定案：ConsistencyRules（#394）
 
 #### 3.1 一个登记表派生的规则族
 
@@ -102,7 +102,7 @@ doc-contract 与「账本↔计划」不再是 `PreFlight` 里的两个分支，
 - **变更记录行不得落进其它表格**：`## Change history` 之外的任意表格行，其首列匹配 `v\d+\.\d+` 即违例。违例样例：`## Design` 的落点表里出现一行首列为 `v0.2` 的表行（单元格序列 `v0.2 · 2026-10-27 · …`）。fix = 把该行移回 `## Change history`。
 - **列表标记不得双写**：列表项内容以另一枚列表标记开头（`- - x` · `* + y` · `- * z`）即违例。违例样例：`- - **status:** Draft`。fix = 合并为单枚标记。
 
-**一规则一策略**是这条声明面的硬约束：清单里每一行必须对应且只对应一个可独立判定的策略，否则「查过哪条」与「判了什么」两件事会错位。因此今天两条**多表面策略要拆腿**——`UniquenessInvariant`（一条策略同时判变更记录版本、任务 id、阶段 id）拆成 `change-history-version-unique` / `task-id-unique` / `phase-id-unique` 三条，`OrderInvariant`（同时判小节序与变更记录升序）拆成 `section-order` / `change-history-version-ascending` 两条。声明面因此共 **21 行**：doc 作用域 **19** · ledger 作用域 **2**。doc 侧的算术：既有 15 条 → `UniquenessInvariant` 拆三腿（+2）→ 17；`OrderInvariant` 的版本序腿与 `SelfBoundedInvariant` 的「header=末行」腿按上面的事实裁定**各撤一条**（拆出的单腿即本 phase 的公共面，净 0）→ 17；本 phase 新增 2（变更行落位 · 列表标记双写）→ **19**。上表 6 行是本 phase 的**公共面**（消费者能读懂的规则名），其余 16 行是既有策略的声明化，同一套机制、同一份清单。
+**一规则一策略**是这条声明面的硬约束：清单里每一行必须对应且只对应一个可独立判定的策略，否则「查过哪条」与「判了什么」两件事会错位。因此今天两条**多表面策略要拆腿**——UniquenessInvariant（一条策略同时判变更记录版本、任务 id、阶段 id）拆成 `change-history-version-unique` / `task-id-unique` / `phase-id-unique` 三条，OrderInvariant（同时判小节序与变更记录升序）拆成 `section-order` / `change-history-version-ascending` 两条。声明面因此共 **21 行**：doc 作用域 **19** · ledger 作用域 **2**。doc 侧的算术：既有 15 条 → UniquenessInvariant 拆三腿（+2）→ 17；OrderInvariant 的版本序腿与 SelfBoundedInvariant 的「header=末行」腿按上面的事实裁定**各撤一条**（拆出的单腿即本 phase 的公共面，净 0）→ 17；本 phase 新增 2（变更行落位 · 列表标记双写）→ **19**。上表 6 行是本 phase 的**公共面**（消费者能读懂的规则名），其余 16 行是既有策略的声明化，同一套机制、同一份清单。
 
 **版本序这条腿整体不落地**（事实裁定）：仓内 P3/P4/P5/P7 的冻结计划与 P4/P5/P7 的 spec 的变更记录本身**非单调**（实测 p3 计划为 `v0.2, v0.3, v0.1, v0.4, …`），三篇的 header 也不在端点。既然「历史行不可变」是铁律，任何「方向必须一致」的判据对这些历史都**没有管辖权**——它只会产出一个禁止执行的 fix。因此本 phase 只留两条**真不变量**：**版本唯一**（重复 = 违例）与 **header 必须在 lineage 里**（header 版本未出现在变更记录 = 违例，端点不限、方向不限）。排序是作者的呈现选择，不是数据完整性；把它降级为本 phase 的显式非目标（§3.2 同款理由：不发明没有管辖权的判据）。
 
@@ -174,7 +174,7 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 
 #### 5.4 轮号读法
 
-`progress.json` 的 `rounds` 记的是**周期号**（fix-K ⟷ review-K，D28），不是序号：`rounds.fix = [2,3]` 读作「修的是 review-2 与 review-3」。**记账零改**——被拒派发本来就不入账。要收的是读面：`board` 的轮次列显式按周期语义渲染（`review×1,2,3 · fix×2,3`），词表写明「周期号 ≠ 序号」。今日 `roundsCell` 只渲 `${verb}×${value.length}`，且注释明写 never the stored number（`face/board-view.ts:209-220`，裁定句在 `:210-211`）——本 phase **反转该既有裁定**，这是 deliberate pin break，不是顺带改动。
+`progress.json` 的 `rounds` 记的是**周期号**（fix-K ⟷ review-K，D28），不是序号：`rounds.fix = [2,3]` 读作「修的是 review-2 与 review-3」。**记账零改**——被拒派发本来就不入账。要收的是读面：`board` 的轮次列显式按周期语义渲染（`review×1,2,3 · fix×2,3`），词表写明「周期号 ≠ 序号」。今日 roundsCell 只渲 `${verb}×${value.length}`，且注释明写 never the stored number（`face/board-view.ts:209-220`，裁定句在 `:210-211`）——本 phase **反转该既有裁定**，这是 deliberate pin break，不是顺带改动。
 
 #### 5.5 崩溃身份与迟到落盘
 
@@ -200,7 +200,7 @@ D63 的 `mixed-batch` 拦的是**滞留**（plan 修订把新任务塞进已部�
 | `infra/proc.ts` | `ProcessFacts`（`ps-list` 存活/PPID 链/组去重 + `ps -g` 组 CPU 的唯一 OS 读面） |
 | `infra/atomic.ts` | `AtomicWriter`（`Workspace.writeJson` 的单一写实现） |
 | `contract/` | 登记表增**规则声明面**（`RuleDeclaration`：规则 id + 适用 docKey + 作用域 `doc / ledger`）；`Contract#buildPolicy()` 由硬编码改为遍历声明派生；跨账本两条作用域 `ledger`，由 `Contract.validateLedger(input, LedgerFacts)` 独立入口求值（`ContractInput` 零新增字段——一个入口两种判据会让两侧各自推断该不该跑 ledger 规则）；已检清单渲染同一批声明行 |
-| `session/ledger.ts` · `run.ts` · `wave.ts` · `next.ts` | 波行 `planTasks` · branch 身份写回 · 追加判据 · branch 面判 open |
+| `session/ledger.ts` · `session/run.ts` · `wave.ts` · `next.ts` | 波行 `planTasks` · branch 身份写回 · 追加判据 · branch 面判 open |
 | `face/declare.ts` · `render/skeleton.ts` | `--steal-stale` 旗标 · Task 块样例 |
 
 零裸函数：新面全是类，受既有 `check:no-bare-functions` 全树门约束。
@@ -253,7 +253,7 @@ Task 块从「字段项目符号」改为「标题分节」，并把这一面的
 
 `PlanTaskBlocksReader`（`contract/task-blocks.ts`，`mdast-util-from-markdown`）是 Task 块结构的**唯一**解析面；三个读者全部换源：`session/graph.ts`（`DependsOn`）· `render/brief.ts`（任务段切片）· `render/skeleton.ts`（骨架渲染）。
 
-**地基缺陷**：`render/brief.ts#rawSection` 今日「遇到任何 `^#` 行即截断」——`####` 子节会把 brief 静默截成一行标题。该函数随节点区间（`position.start/end`）一起删除，brief 切片改按 AST 节点取区间。这一条是格式改造的前置，漏了 brief 会静默变空而门全绿。
+**地基缺陷**：render/brief.ts#rawSection 今日「遇到任何 `^#` 行即截断」——`####` 子节会把 brief 静默截成一行标题。该函数随节点区间（`position.start/end`）一起删除，brief 切片改按 AST 节点取区间。这一条是格式改造的前置，漏了 brief 会静默变空而门全绿。
 
 #### 7.4 影响面与发行
 
@@ -304,7 +304,7 @@ export interface Selector {
 - **一个解析入口**：`MarkdownTree`（`contract/markdown-tree.ts`）是四类文档唯一的 `mdast` 入口，扩展集 = `gfm` + `frontmatter`；`yaml` 只解析 head 的值。
 - **归一化前置**：`translate.ts` 的逐行 canonicalize 改为解析前一次性作用于内存文本（源文件零改），解析后零后处理。
 - **骨架往返 pin**：骨架输出 → 解析 → 结构同构。
-- **删除面**：`doc.ts` 的 `#tableSection` / `tableRowCells` / `tableLinesOf` / `#docSections` / 图边扫描；`invariants.ts` 的 `this.overall(ctx)` 一类手写取数；`translate.ts` 的逐行 API；`project.ts` 被 tree 取代的 slice 机件。
+- **删除面**：`doc.ts` 的 `#tableSection` / tableRowCells / tableLinesOf / #docSections / 图边扫描；`invariants.ts` 的 `this.overall(ctx)` 一类手写取数；`translate.ts` 的逐行 API；`project.ts` 被 tree 取代的 slice 机件。
 - **交付切分**：**T9 是第一步**（树 + 块级 + `graph`/`brief`/`skeleton` 换源，已实现），**T10 收口**。终态只有一个模型，不留中间态。
 
 ### Acceptance criteria
@@ -329,7 +329,7 @@ export interface Selector {
 - 消费面 skill 文本零 `pgrep` / `stash` / `checkout --`（grep pin——**基线已绿，断言的是不引入**，回归门而非新交付），且含「能用的 commit、坏掉的丢」的恢复纪律句。
 - 新面零裸函数（`check:no-bare-functions` 零命中）· engine vitest 全绿 · typecheck ×3 · `pnpm run validate` ALL PASS · changeset cdd-engine **minor** + kairos **patch**，不发布。
 
-- Task 块的新形与旧形解析结果**逐字段相等**（`shape` / `range` 除外）；带 `####` 子节的任务块其 brief 逐字节完整（`#rawSection` 已删除，零 `^#` 截断残留）· 骨架只吐新形且含两条 step 样例 · 旧项目符号形在 `declare.ts` 里零独立声明（归一化只在 reader 内）· 冻结计划 `docs/kairos/plans/*` 零改动 · `mdast-util-from-markdown` 落 `package.json#dependencies`
+- Task 块的新形与旧形解析结果**逐字段相等**（`shape` / `range` 除外）；带 `####` 子节的任务块其 brief 逐字节完整（#rawSection 已删除，零 `^#` 截断残留）· 骨架只吐新形且含两条 step 样例 · 旧项目符号形在 `contract/declare.ts` 里零独立声明（归一化只在 reader 内）· 冻结计划 `docs/kairos/plans/*` 零改动 · `mdast-util-from-markdown` 落 `package.json#dependencies`
 
 - **四类文档只有一个解析入口**：`grep -rn "from-markdown" packages/cdd-engine/src-next --include='*.ts' | grep -v __tests__` 只命中 `contract/markdown-tree.ts` · 登记面零 `anchor`/`home`（selector 封闭集）· `doc.ts` 与 `invariants.ts` 的手写扫描面零残留 · 表格四种边界形态（转义竖线 / 反引号内竖线 / 对齐行 / 空单元格）各一 pin · 骨架往返同构 · 21 条规则判定语义不变（仅数据面换源）· 归一化只在前置一处
 
@@ -359,17 +359,17 @@ pipeline 的 **skill-ref** 渲染为 `route to {ref} skill`（`literal` 命令�
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-10-27 | P21 首版设计：在飞事实单一源 · 五条 intra-doc 规则上位且规模散文零门 · 账本↔计划结构门与已检规则清单 · branch 线补修订身份并修掉 `next:` 与门禁的矛盾 · 中途追加以 `Introduced in` 判别 · 崩溃身份单源 · 孤儿零写只显示 | [human] · Claude（kairos:cdd-design [P21] grilling → cdd-spec-writer · 2026-10-27） |
-| v0.2 | 2026-10-27 | 七前提重审：四处收敛为三个抽象（`InFlight` · `ConsistencyRules` · `LineIdentity`）+ 一个观测快照——① **撤 `Introduced in`**，改波行闭合时的 `planTasks` 快照（引擎观测事实，零新增作者字段，`Ref plan version` 判为不可行不必要）② **锁提到工作树级**并交 `proper-lockfile`（`stale: Infinity`），`--steal-stale` 为唯一刻意不精简项，`board` / `--dry-run` 主动报可接管 ③ **进程事实外包** `ps-list` + `pidusage`，`Sampler` 的 `ps` 解析退役 ④ **写面原子化** `write-file-atomic`（`Workspace.writeJson` 单一缝）⑤ 两套漂移判定合为 `LineIdentity`（branch 复用 plan 的 doc-revision）⑥ 两类结构门合为 registry 派生的一族，已检清单自 `declaredRegistries` 派生 ⑦ 消灭写而无读的 `liveness.json` 独立面 ⑧ §1 取证压缩为表 | [human] · Claude（kairos:cdd-design [P21] → cdd-spec-writer · 2026-10-27） |
+| v0.2 | 2026-10-27 | 七前提重审：四处收敛为三个抽象（`InFlight` · ConsistencyRules · `LineIdentity`）+ 一个观测快照——① **撤 `Introduced in`**，改波行闭合时的 `planTasks` 快照（引擎观测事实，零新增作者字段，`Ref plan version` 判为不可行不必要）② **锁提到工作树级**并交 `proper-lockfile`（`stale: Infinity`），`--steal-stale` 为唯一刻意不精简项，`board` / `--dry-run` 主动报可接管 ③ **进程事实外包** `ps-list` + `pidusage`，`Sampler` 的 `ps` 解析退役 ④ **写面原子化** `write-file-atomic`（`Workspace.writeJson` 单一缝）⑤ 两套漂移判定合为 `LineIdentity`（branch 复用 plan 的 doc-revision）⑥ 两类结构门合为 registry 派生的一族，已检清单自 `declaredRegistries` 派生 ⑦ 消灭写而无读的 `liveness.json` 独立面 ⑧ §1 取证压缩为表 | [human] · Claude（kairos:cdd-design [P21] → cdd-spec-writer · 2026-10-27） |
 | v0.3 | 2026-10-27 | review-1 修订（全部 findings + 编排器裁定）：① 已检清单来源钉成登记表新增的 **规则声明面**（规则 id + 适用 docKey + 作用域 doc 或 ledger），`Contract#buildPolicy()` 由硬编码改派生，跨账本两条作用域 ledger、由 `ContractInput` 可选账本事实包求值，「元素面 ≠ 规则面」写死 ② **组 CPU 保留 `ps -g`**，收进 `infra/proc.ts` 唯一 OS 读面；`ps-list` 只接存活 / PPID 链 / 组去重，**不引 `pidusage`**（reparent / setsid 会假 stall），依赖 5→8 ③ `InFlight` 在第一次写之前自发布 `.kairos/.gitignore`（标记是记录的前置条件），补门序旁注与「全新命名空间被 kill 后树不脏」pin ④ 两条无形状规则给出判据 + 违例样例 ⑤ §4.2 判据改为 drift-aware 的「该线有可派发 open round」，事实由 Run / Lifecycle 入参传给 `NextStepRouter.resolve` ⑥ §4.1 收窄为「不在账本身份 / 评测面引 commit sha」，`CrashRecord` 两项标为事后诊断面（D24 零影响） ⑦ §3.2 动词统一为「不落地」 ⑧ pin 精度修正（`preflight.ts:136-277` · `SampleRecord` 改指 `session/ledger.ts:170-173` · §5.5 补 `ledger.ts:959-960` + `lifecycle.ts:643,649`） ⑨ EOF 换行纪律入 Constraints；parent-version → v2.83 | [human] · Claude（kairos:cdd-design [P21] → cdd-spec-writer · review-1 fix · 2026-10-27） |
 | v0.4 | 2026-10-27 | review-2 修订（全部 findings + 编排器裁定）：① **门禁判据从「持锁」改为「记录存在」**（锁只承担取锁互斥，其生命周期归库）；「不自动释放」的对象点明为意图记录，SIGKILL 留锁与记录、其余退出路径只留记录，AC 同步限定 ② `proper-lockfile` 三配置显式钉死（`stale: 12h` · `update: 60s` · `realpath: false`），「永不自动抢」改由记录 + pid 判据保证，有限 `stale` 不违背该原则；§2.2 与 §6.2 同登记 ③ 损坏记录由 fail-open 收窄为**三态**，损坏 + 活锁按持有处理且不得静默清掉 ④ §6.4 给出 `plan-ledger` 门定义（两条 ledger 规则 · plan / wave / branch 派发 · gate/reason 词 `no-ledger-facts` / `plan-ahead` · 与 doc-contract 按作用域分工、清单合并渲染一次）；§3.4 补 `skipped (no doc target)` 配对句 ⑤ §5.6 删掉「版本信息在内容首行」的错误括号，改为账本 `brief-revision` 承担且正文不得引入头行 ⑥ §5.3 残余交付点名为「骨架渲两条 step 样例」与「Task 字段键序钉死」，不加 continuation 行，并补现况 pin ⑦ §2.4 改写为「现存零 stash / checkout -- 建议，本 phase 只补三句纪律」，grep pin 降为回归门（基线已绿） ⑧ 剩余现状主张补行 pin（`contract/declare.ts:53-78,1059-1064` · `contract/judge.ts:133-150` · `session/preflight.ts:56-75` · `face/board-view.ts:209-220`），并点明反转 `board-view.ts:210-211` 的既有裁定 ⑨ 措辞统一为「唯一例外（据实登记）」；parent-version → v2.84 | [human] · Claude（kairos:cdd-design [P21] → cdd-spec-writer · review-2 fix · 2026-10-27） |
 | v0.5 | 2026-10-28 | 计划期的设计回填（`backfill-design`）：两个作用域各持唯一入口——`Contract.validate` 只跑 `doc` 作用域，跨账本两条由 `Contract.validateLedger(input, LedgerFacts)` 独立入口求值（取代「`ContractInput` 带可选账本包」的写法：一个入口两种判据会让调用侧与读取侧各自推断该不该跑 ledger 规则）。零行为变化，仅接口面收敛 | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
 | v0.6 | 2026-10-28 | plan-review-1 blocker 触发的自相矛盾收敛（§6.1 残留句）：落点表仍写「`ContractInput` 增可选账本事实包」，与 §3.1 与 v0.5 的「每作用域一个入口」相反；改为 `Contract.validateLedger(input, LedgerFacts)` 双参入口、`ContractInput` 零新增字段。零行为变化 | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
-| v0.7 | 2026-10-28 | plan-review-2 触发的两处设计收敛：① **一规则一策略**写死——清单每行对应一个可独立判定的策略，故 `UniquenessInvariant` / `OrderInvariant` 拆腿（声明面 = doc 21 + ledger 2 = 23 行，本 phase 公共面 7 行），`checked` 取值补 `info (提示)` 形态 ② 恢复三句的**字节主源定为英文**（`words.ts` 与 SKILL.md 同读一串，中文为对译）；「计划领先账本」落 `info` 行而非 `PreFlightReason`（reason 只在失败面出现，零死值） | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
+| v0.7 | 2026-10-28 | plan-review-2 触发的两处设计收敛：① **一规则一策略**写死——清单每行对应一个可独立判定的策略，故 UniquenessInvariant / OrderInvariant 拆腿（声明面 = doc 21 + ledger 2 = 23 行，本 phase 公共面 7 行），`checked` 取值补 `info (提示)` 形态 ② 恢复三句的**字节主源定为英文**（`words.ts` 与 SKILL.md 同读一串，中文为对译）；「计划领先账本」落 `info` 行而非 `PreFlightReason`（reason 只在失败面出现，零死值） | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
 | v0.8 | 2026-10-28 | plan-review-3 触发的三处收敛：① AC 的「五条 doc 规则」改成「21 条 doc 作用域声明」（与 §3.4/§6.4 的 21 行算术一致，两个数不得并存）② **in-flight 门只判不写**——取锁与写意图收归真派发路径，预览面因此天然零写、`--steal-stale` 在 `--dry-run` 下作废（门通过到 `acquire` 的竞态走同一条 `held` BLOCK 通道）③ 删掉 `no-ledger-facts` 这个无产出点的 reason 值（skipped 行即全部事实） | [human] · Claude（kairos:cdd-plan backfill · 2026-10-28） |
 | v0.9 | 2026-10-28 | W1 评审触发的判据收敛（存量文档冲突）：仓内 P3–P7/P10 的十篇计划与 P4–P7 的四篇 spec 是 newest-first（降序）历史，而「历史行不可变」是铁律——只认升序会让这些文档被判红并给出一个禁止执行的 fix。两条 lineage 规则改为**方向无关**：`change-history-version-ascending` → `change-history-version-monotone`（同向贯穿，来回 = 违例）· `front-matter-version-matches-last-row` → `front-matter-version-matches-lineage-end`（header 与首行或末行一致，须恰为某一端）。重复版本 / 来回跳 / header 与两端皆不符仍全数捕获 | [human] · Claude（kairos:cdd-dev W1 review backfill · 2026-10-28） |
 | v0.10 | 2026-10-28 | W1 review-2 的事实纠正：v0.9 的前提不完整——p3/p4/p5/p7 的冻结计划与 p4/p5/p7 的 spec 的 lineage **本身非单调**（p3 计划实测 `v0.2, v0.3, v0.1, v0.4`），三篇 header 也不在端点，于是「方向必须一致」对历史没有管辖权，只会产出禁止执行的 fix。**版本序这条腿整体撤销**（降级为显式非目标：排序是呈现选择，不是数据完整性）；只留两条真不变量——`change-history-version-unique`（重复 = 违例）与 `front-matter-version-in-lineage`（header 未出现在变更记录 = 违例，端点/方向不限）。声明面 23 → **22 行**（doc 20 + ledger 2），公共面 7 → **6** 条 | [human] · Claude（kairos:cdd-dev W1 review-2 backfill · 2026-10-28） |
-| v0.11 | 2026-10-28 | 行数算术自纠（W1 review-3 查出 v0.10 少算一条腿）：撤「版本序」时同时撤掉的还有 `SelfBoundedInvariant` 的「header=末行」腿——两条腿撤净后 doc 侧 = 既有 15 → Uniqueness 拆三腿 +2 → 17，Order 与 SelfBounded 各撤一腿（净 0）→ 17，新增 2 → **19**；声明面 **21 行**（doc 19 + ledger 2），公共面 6 条不变 | [human] · Claude（kairos:cdd-dev W1 review-3 backfill · 2026-10-28） |
-| v0.12 | 2026-10-28 | **scope 追加 §7：计划 Task 块契约面（用户裁定 append 进 P21）**——Task 块改为标题分节（七个 `####` 保留键 + 任意扩展节），块结构解析换成 `mdast-util-from-markdown` 的块级 reader（`contract/task-blocks.ts`，一份声明 + 一个旧形归一化方法），`graph` / `brief` / `skeleton` 三读者换源，`brief.ts#rawSection` 的 `^#` 截断随 AST 节点区间删除；兼容窗口保证冻结计划与消费侧存量文档零迁移，骨架只吐新形；只动块级面，其余契约面零改 | [human] · Claude（kairos:cdd-dev · scope append · 2026-10-28） |
+| v0.11 | 2026-10-28 | 行数算术自纠（W1 review-3 查出 v0.10 少算一条腿）：撤「版本序」时同时撤掉的还有 SelfBoundedInvariant 的「header=末行」腿——两条腿撤净后 doc 侧 = 既有 15 → Uniqueness 拆三腿 +2 → 17，Order 与 SelfBounded 各撤一腿（净 0）→ 17，新增 2 → **19**；声明面 **21 行**（doc 19 + ledger 2），公共面 6 条不变 | [human] · Claude（kairos:cdd-dev W1 review-3 backfill · 2026-10-28） |
+| v0.12 | 2026-10-28 | **scope 追加 §7：计划 Task 块契约面（用户裁定 append 进 P21）**——Task 块改为标题分节（七个 `####` 保留键 + 任意扩展节），块结构解析换成 `mdast-util-from-markdown` 的块级 reader（`contract/task-blocks.ts`，一份声明 + 一个旧形归一化方法），`graph` / `brief` / `skeleton` 三读者换源，brief.ts#rawSection 的 `^#` 截断随 AST 节点区间删除；兼容窗口保证冻结计划与消费侧存量文档零迁移，骨架只吐新形；只动块级面，其余契约面零改 | [human] · Claude（kairos:cdd-dev · scope append · 2026-10-28） |
 | v0.13 | 2026-10-28 | **W2 派发被自己的规则拦下（dogfood 缺陷）：`planned-tasks-vs-recorded-tasks` 误把任务编号当执行顺序**——实况：账本已记 `{1,2,3}` `{4,5,7}`，计划里 Task 6（`DependsOn 2,4` → 层 3）尚未开工，规则按 `id > maxRecordedTask` 判「Task 6 缺失而更高任务已记录」→ 该波及后续所有派发全部 BLOCKED。**判据改为只看依赖**：未入账的计划任务当且仅当其全部 `DependsOn` 都已入账才构成缺口（滞留）；只要还有依赖未入账，它就是待开工任务、放行。「编号大于账本最大任务号」的窗口读法**撤销**（它假设了编号即顺序 —— #386 早已指出这一假设是错的） | [human] · Claude（kairos:cdd-dev · dogfood backfill · 2026-10-28） |
 | v0.14 | 2026-10-28 | **判据再收敛（v0.13 的依赖判据仍不成立）**：任务 6 的依赖（2、4）都已入账，按依赖判据它仍是「滞留」——但它是**下一波**，计划天然领先账本。任何「计划有、账本没有」的判据都无法把「下一波」与「滞留」分开，故该方向**彻底零判压**（只出 info 行）；结构一致性只保留一个方向——**账本记录的每个任务必须仍在计划里** | [human] · Claude（kairos:cdd-dev · dogfood backfill 其二 · 2026-10-28） |
 | v0.15 | 2026-10-28 | **§7.5 全契约面迁移（用户裁定 append 并「一次做掉」）**：T9 的块级 AST 只是第一步，其余契约面的手写行扫描（表格 `|` 解析 / 分节树 / 图边 / `this.overall(ctx)` 取数）一次收口到同一棵树——一个解析入口 · 登记面 selector 封闭集 · 归一化前置 · 骨架往返 pin · 删除面清单。**理由**：两套解析模型并存 = 本 phase 判死的那类债；终态只留一个模型。代价约 2000 行 + 900 余条用例重锚，交付切成 T9（已实现）+ T10（收口）两个完整测试周期 | [human] · Claude（kairos:cdd-dev · scope append 其二 · 2026-10-28） |

@@ -41,7 +41,7 @@ P30 实测：编排器用 `jq … > carrier` 把已 APPROVED 的 review 载体�
 
 #### 2.1 载体归引擎，裁定归编排者（#444 · ①）
 
-- 引擎产物载体（draft 与定稿，见 §2.3）落盘后**字节冻结**；编排者的裁写进同目录 sidecar——路径 = **本轮载体路径把结尾 `.json` 换成 `.rulings.json`**（例 `phase-spec-review-1.c2.json` → `phase-spec-review-1.c2.rulings.json`），即与 fix 输入 `--reviews` 同一个 stem。
+- 引擎产物载体（draft 与定稿，见 §2.3）落盘后**字节冻结**；编排者的裁写进同目录 sidecar——路径 = **本轮载体路径把结尾 `.json` 换成 `.rulings.json`**（例 phase-spec-review-1.c2.json → phase-spec-review-1.c2.rulings.json），即与 fix 输入 `--reviews` 同一个 stem。
 - sidecar 形状（严格 schema，见 §2.6）：
 
 ```json
@@ -72,7 +72,7 @@ carrier-mismatch · line=<path> · recorded=<sha 前缀> · current=<sha 前缀>
 #### 2.3 draft 与 final 分路径（#444 · ③）
 
 - draft 留在派发原路径（例：`phase-spec-review-1.json`），child 仍写该路径。
-- final 写周期名：`<stem>.c<N>.json`（例：`phase-spec-review-1.c2.json`）；**内容 sha 在文件内字段 + RoundRecord，不进文件名**（grilling Q6″）。
+- final 写周期名：`<stem>.c<N>.json`（例：phase-spec-review-1.c2.json）；**内容 sha 在文件内字段 + RoundRecord，不进文件名**（grilling Q6″）。
 - `RoundRecord.carrierPath` 指向 final；另记 `draftPath`（draft→final 路径对）。bookkeep **禁止**对同一路径整文件替换定稿。
 - 效果：即使 final 被毁，draft 仍在盘上可作 postmortem（对症 P30 事故里 artifacts 槽无副本）。
 

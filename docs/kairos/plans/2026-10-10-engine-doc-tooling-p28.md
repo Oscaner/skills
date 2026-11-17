@@ -59,9 +59,9 @@ base: develop
 
 #### Steps
 
-- [ ] **Step 1: 写红 pin（派生集 + `index.html` 排除 + 全有或全无 + 缺 bin 报错）** — checkable: `scripts/__tests__/diagrams.test.ts` 用桩渲染器断言：`list()` 的 `outRel` 多重集恰为六条 `meta.output`；`list()` 的路径集合不含 `docs/diagrams/index.html`；桩对第五份抛错时 `emit` 后 `outRoot` 内零图 HTML、`generatedPaths` 不增图路径；**不注入 `render`**（走默认渲染器）而把 `repoRoot` 指到缺 `node_modules/archify/bin/archify.mjs` 的临时目录时，`emit` 抛「Archify missing — run pnpm install」类错误且 `outRoot` / `generatedPaths` 零写盘（不静默跳过）；今日无 `DiagramProducts` ⇒ 红
-- [ ] **Step 2: 实现 `DiagramProducts`** — checkable: Step 1 的四条转绿；默认渲染器走 `process.execPath` + `node_modules/archify/bin/archify.mjs`（源码 pin：调用面不经 PATH / shell 垫片），bin 缺失时抛错而非返回
-- [ ] **Step 3: 钉根依赖并安装** — checkable: 根 `package.json#devDependencies` 含 `github:tt-a1i/archify#208acba8d412335185b2056fedf54b3405df43fb&path:/archify`；`pnpm install` 后 `node_modules/archify/bin/archify.mjs` 存在（装好后的 happy-path 对照，补 Step 1 的缺 bin 红 pin）；`pnpm-lock.yaml` 记同一 sha
+- [ ] **Step 1: 写红 pin（派生集 + `index.html` 排除 + 全有或全无 + 缺 bin 报错）** — checkable: `scripts/__tests__/diagrams.test.ts` 用桩渲染器断言：`list()` 的 `outRel` 多重集恰为六条 `meta.output`；`list()` 的路径集合不含 `docs/diagrams/index.html`；桩对第五份抛错时 `emit` 后 `outRoot` 内零图 HTML、`generatedPaths` 不增图路径；**不注入 `render`**（走默认渲染器）而把 `repoRoot` 指到缺 archify 包的 bin 入口 的临时目录时，`emit` 抛「Archify missing — run pnpm install」类错误且 `outRoot` / `generatedPaths` 零写盘（不静默跳过）；今日无 `DiagramProducts` ⇒ 红
+- [ ] **Step 2: 实现 `DiagramProducts`** — checkable: Step 1 的四条转绿；默认渲染器走 `process.execPath` + archify 包的 bin 入口（源码 pin：调用面不经 PATH / shell 垫片），bin 缺失时抛错而非返回
+- [ ] **Step 3: 钉根依赖并安装** — checkable: 根 `package.json#devDependencies` 含 `github:tt-a1i/archify#208acba8d412335185b2056fedf54b3405df43fb&path:/archify`；`pnpm install` 后 archify 包的 bin 入口 存在（装好后的 happy-path 对照，补 Step 1 的缺 bin 红 pin）；`pnpm-lock.yaml` 记同一 sha
 - [ ] **Step 4: 接入 `emitAll` + 孤儿腿** — checkable: `EmitService.emitAll` 末尾调用图档；孤儿腿只挂在 `EmitService.findStaleCommittedFiles` 内——在 `generatedSet` 之外对 `docs/diagrams/*.html` 跑 `DiagramProducts.orphanHtml`（豁免 `index.html`），`EmitComparer.compareTrees` 不新增调用点（它已委托该方法）；手改一份产物一行后 `pnpm run emit:check` 红并点名该文件；删一份源（测试用临时改名/夹具）后孤儿腿红
 - [ ] **Step 5: 真渲染回归** — checkable: `pnpm run emit` 后 `git status --porcelain docs/diagrams` 空；`pnpm run emit:check` exit 0；`pnpm exec vitest run scripts/__tests__/diagrams.test.ts scripts/__tests__/emit.test.ts` 全绿
 - [ ] **Step 6: 提交** — checkable: commit `feat(scripts): emit owns diagram regeneration via Archify render`

@@ -19,8 +19,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
+import { REGRADE_MARK } from "../../contract/review-criteria.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import type { PlanRead, PlanSource } from "../../infra/plan-source.ts";
 import { RepoRoot } from "../../infra/root.ts";
@@ -3817,5 +3818,217 @@ describe("P36 T7 — the board's `art:` fact row (spec §2.6)", () => {
         .split("\n")
         .slice(1, 3),
     ).toEqual(["  derived:  d", "  found:    f"]);
+  });
+});
+
+/**
+ * P37 T5 — the downgrade mark on the board's verb token (design spec §5.1 · §5.2).
+ * The mark is display only: it rides the SAME `{verb} {body} {mark}+N` token after its
+ * `+N`, adds no finding and no entry, and every arm is paired — a matching downgrade
+ * prints it, a raised / unchanged grade, a stated reason, an empty earlier scenario or
+ * an unrelated defect prints nothing.
+ */
+describe("P37 T5 — the downgrade mark rides the board's verb token", () => {
+  const scratch: string[] = [];
+  const carriers = new Map<RoundRecord, string>();
+
+  /** One round record fixture — the identity + verdict the aggregation reads. */
+  const record = (over: Partial<RoundRecord>): RoundRecord => ({
+    op: "review",
+    cycle: 1,
+    attempt: 1,
+    dispatchBase: null,
+    verdict: { treeClean: true, targetAction: true },
+    violations: [],
+    ...over,
+  });
+
+  /** One real carrier file holding the given findings. */
+  const writeCarrier = (findings: readonly unknown[]): string => {
+    const dir = mkdtempSync(path.join(tmpdir(), "board-regrade-"));
+    scratch.push(dir);
+    const at = path.join(dir, "carrier.json");
+    writeFileSync(at, `${JSON.stringify({ findings }, null, 2)}\n`, "utf8");
+    return at;
+  };
+
+  /** One record bound to its own carrier bytes. */
+  const withCarrier = (over: Partial<RoundRecord>, findings: readonly unknown[]): RoundRecord => {
+    const built = record(over);
+    carriers.set(built, writeCarrier(findings));
+    return built;
+  };
+
+  const cell = (records: readonly RoundRecord[]): string =>
+    BoardView.summaryCell(
+      records,
+      LineCarriers.of(records, (entry) => carriers.get(entry) ?? ""),
+    );
+
+  /** The prior round's blocker — its scenario is the reference §5.1 holds the new
+   *  grade against. */
+  const PRIOR_BLOCKER = {
+    id: "F1",
+    severity: "blocker",
+    summary: "drift",
+    impact: { scenario: "an empty wave key → the brief mirrors no task → expected a refusal" },
+  };
+
+  afterEach(() => {
+    for (const dir of scratch.splice(0)) rmSync(dir, { recursive: true, force: true });
+    carriers.clear();
+  });
+
+  it("marks a downgrade with no reason after the `+N` — same token, one line", () => {
+    const line = cell([
+      withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),
+      withCarrier({ cycle: 2 }, [{ id: "F1", severity: "warn", summary: "drift" }]),
+    ]);
+    expect(line).toBe(`review 2 ✓+2 ${REGRADE_MARK}`);
+    expect(line.split(" · ")).toHaveLength(1);
+  });
+
+  it("names the stated reason after the `+N` — a carried `regrade` speaks instead of the mark", () => {
+    const line = cell([
+      withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),
+      withCarrier({ cycle: 2 }, [
+        {
+          id: "F1",
+          severity: "warn",
+          summary: "drift",
+          regrade: "the bytes a consumer gets are unchanged",
+        },
+      ]),
+    ]);
+    expect(line).toBe("review 2 ✓+2 the bytes a consumer gets are unchanged");
+    expect(line).not.toContain(REGRADE_MARK);
+    expect(line.split(" · ")).toHaveLength(1);
+  });
+
+  it("keeps a reason carrying a line break or the cell separator on ONE token, one row", () => {
+    const multiline = cell([
+      withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),
+      withCarrier({ cycle: 2 }, [
+        { id: "F1", severity: "warn", summary: "drift", regrade: "first line\nsecond line" },
+      ]),
+    ]);
+    expect(multiline).toBe("review 2 ✓+2 first line second line");
+    expect(multiline.split("\n")).toHaveLength(1);
+    expect(multiline.split(" · ")).toHaveLength(1);
+    const separated = cell([
+      withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),
+      withCarrier({ cycle: 2 }, [
+        { id: "F1", severity: "warn", summary: "drift", regrade: "the bytes · the bytes stay" },
+      ]),
+    ]);
+    // the reason's own wording survives; the board's ` · ` cell shape does not
+    expect(separated).toBe("review 2 ✓+2 the bytes; the bytes stay");
+    expect(separated.split(" · ")).toHaveLength(1);
+  });
+
+  it("keeps the mark when this round omits or rewrites its scenario — only the earlier row is read", () => {
+    const omitted = cell([
+      withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),
+      withCarrier({ cycle: 2 }, [{ severity: "nit", summary: "drift" }]),
+    ]);
+    expect(omitted).toContain(REGRADE_MARK);
+    const rewritten = cell([
+      withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),
+      withCarrier({ cycle: 2 }, [
+        { severity: "warn", summary: "drift", impact: { scenario: "a fresh scenario sentence" } },
+      ]),
+    ]);
+    expect(rewritten).toContain(REGRADE_MARK);
+  });
+
+  it("marks nothing when the earlier row had no scenario — the defect is read as changed", () => {
+    const line = cell([
+      withCarrier({ cycle: 1 }, [{ id: "F1", severity: "blocker", summary: "drift" }]),
+      withCarrier({ cycle: 2 }, [{ id: "F1", severity: "warn", summary: "drift" }]),
+    ]);
+    expect(line).toBe("review 2 ✓+2");
+  });
+
+  it("marks nothing on an unchanged or raised grade, and nothing for an unrelated summary", () => {
+    const sameGrade = cell([
+      withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),
+      withCarrier({ cycle: 2 }, [{ id: "F1", severity: "blocker", summary: "drift" }]),
+    ]);
+    expect(sameGrade).not.toContain(REGRADE_MARK);
+    const unrelated = cell([
+      withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),
+      withCarrier({ cycle: 2 }, [{ severity: "warn", summary: "another defect entirely" }]),
+    ]);
+    expect(unrelated).not.toContain(REGRADE_MARK);
+  });
+
+  it("pairs across a findings-free implement record — the nearest NON-EMPTY record is the reference", () => {
+    const line = cell([
+      withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]),
+      withCarrier({ op: "implement", cycle: 2 }, []),
+      withCarrier({ cycle: 3 }, [{ id: "F1", severity: "warn", summary: "drift" }]),
+    ]);
+    expect(line).toContain(REGRADE_MARK);
+    expect(line).toContain("review 2 ✓+2");
+  });
+
+  it("marks a key-2 downgrade — the scenario stands verbatim while the summary is re-worded", () => {
+    const scenario = "an empty wave key → the brief mirrors no task → expected a refusal";
+    const line = cell([
+      withCarrier({ cycle: 1 }, [
+        { id: "F1", severity: "blocker", summary: "drift", impact: { scenario } },
+      ]),
+      withCarrier({ cycle: 2 }, [
+        { id: "F1", severity: "warn", summary: "the brief mirrors no task", impact: { scenario } },
+      ]),
+    ]);
+    // the mark reads the ONE criterion (`HandoffSchema.downgrades`), so the board needs no
+    // pairing rule of its own — and cutting key 2 takes this mark away
+    expect(line).toBe(`review 2 ✓+2 ${REGRADE_MARK}`);
+    // the opposite direction: rewrite the scenario too ⇒ no pair, no mark
+    const both = cell([
+      withCarrier({ cycle: 1 }, [
+        { id: "F1", severity: "blocker", summary: "drift", impact: { scenario } },
+      ]),
+      withCarrier({ cycle: 2 }, [
+        {
+          id: "F1",
+          severity: "warn",
+          summary: "the brief mirrors no task",
+          impact: { scenario: "a fresh sentence" },
+        },
+      ]),
+    ]);
+    expect(both).toBe("review 2 ✓+2");
+  });
+
+  it("adds no finding and no entry — the count is the carrier's own rows", () => {
+    const current = withCarrier({ cycle: 2 }, [{ id: "F1", severity: "warn", summary: "drift" }]);
+    const prior = withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]);
+    const line = cell([prior, current]);
+    expect(line).toContain("+2");
+    const carriersFace = LineCarriers.of([prior, current], (entry) => carriers.get(entry) ?? "");
+    expect(carriersFace.countOf(current)).toBe(1);
+    expect(carriersFace.findingsOf(current)).toEqual([
+      { id: "F1", severity: "warn", summary: "drift" },
+    ]);
+  });
+
+  it("reads each record's carrier ONCE — the count and the projection share one digest-checked read", () => {
+    const read = vi.spyOn(CarrierIntegrity, "read");
+    try {
+      const prior = withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]);
+      const current = withCarrier({ cycle: 2 }, [{ id: "F1", severity: "warn", summary: "drift" }]);
+      const carriersFace = LineCarriers.of([prior, current], (entry) => carriers.get(entry) ?? "");
+      carriersFace.countOf(current);
+      carriersFace.findingsOf(current);
+      carriersFace.regradeNoteOf(current);
+      carriersFace.countOf(prior);
+      // two records, two carriers, two reads — a second parse (or a second read of the
+      // same record) would raise this count
+      expect(read).toHaveBeenCalledTimes(2);
+    } finally {
+      read.mockRestore();
+    }
   });
 });

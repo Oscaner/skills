@@ -18,10 +18,19 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import {
+  CRITERIA,
+  LENS_QUESTION_ROWS,
+  LENS_QUESTIONS,
+  LensQuestionRegistry,
+  type ReviewKind,
+} from "../../contract/review-criteria.ts";
 import type { TargetType } from "../../session/faces.ts";
 import {
   CLOSED_WAVE_DISCIPLINE,
+  pinLensOf,
   REVIEWS,
+  type ReviewGuides,
   type ReviewKey,
   reviewBodyOf,
   reviewGuideOf,
@@ -44,7 +53,19 @@ const TARGET_TYPES: readonly TargetType[] = [
 ];
 
 describe("SEVERITY_RUBRIC — the one shared calibration fragment", () => {
-  it("carries the four blocker questions and the warn/nit anchors", () => {
+  it("assembles its tier body from the criteria registry — every row's three cells, no second prose copy", () => {
+    // The registry IS the rubric's tier corpus (design spec §6.1): the fragment opens
+    // with the calibration stance, then carries the assembled assembly verbatim.
+    expect(SEVERITY_RUBRIC.startsWith("Calibrate findings by real severity")).toBe(true);
+    expect(SEVERITY_RUBRIC.split(CRITERIA.renderRubric()).length).toBe(2);
+    for (const row of CRITERIA.rows) {
+      for (const cell of [row.body, row.duty, row.counterExample]) {
+        expect(SEVERITY_RUBRIC, `${row.id} cell`).toContain(cell);
+      }
+    }
+  });
+
+  it("keeps the four blocker instances and the warn / nit anchors in the assembled bytes", () => {
     for (const anchor of [
       "declared acceptance gate",
       "a legal input escapes",
@@ -56,7 +77,7 @@ describe("SEVERITY_RUBRIC — the one shared calibration fragment", () => {
     for (const anchor of ["duplicated policy", "stale docstring", "missing coverage case"]) {
       expect(SEVERITY_RUBRIC).toContain(anchor);
     }
-    expect(SEVERITY_RUBRIC).toContain("Style, naming and line-wrapping");
+    expect(SEVERITY_RUBRIC).toContain("line-wrapping");
   });
 
   it("carries the vision sentence, the set-aside ledger and the two slots", () => {
@@ -173,7 +194,7 @@ describe("P28 T3 — the narrative body names the claim shapes, not today's shap
     // The closed-wave discipline (P30 §2.7) is the ONE body both document variants
     // select, so it rides between the frozen prefix and the shared rubric.
     expect(REVIEWS.plan.axesGuide).toBe(
-      `${PLAN_GUIDE_PREFIX}${CLOSED_WAVE_DISCIPLINE} ${reviewGuideOf("plan")}`,
+      `${PLAN_GUIDE_PREFIX}${CLOSED_WAVE_DISCIPLINE} ${reviewGuideOf("plan")}\n\n${questionsOf("plan")}`,
     );
   });
 });
@@ -227,5 +248,135 @@ describe("P31 T1 — the docs-fix row names the escaped-pipe duty", () => {
     const shell = TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n");
     expect(shell).toContain("carries `\\|`");
     expect(shell).toContain("splits the cell in two");
+  });
+});
+
+/**
+ * P37 T2 — the lens questions reach the review prompt bytes (design spec §3.2 · §6.1 ·
+ * §6.2). The table's own census lives in `contract/__tests__/review-criteria.test.ts`;
+ * this face pins the PROJECTION: each kind's axes guide ends with its numbered list,
+ * every question appears verbatim in that kind's `**Criteria —` line, the two judgment
+ * escapes are gone, and the wave / branch lens enums name the `scope` axis their guide
+ * already judged.
+ */
+const REVIEW_KIND_KEYS: readonly ReviewKind[] = ["wave", "branch", "plan", "spec", "overall"];
+
+/** The numbered list one kind's axes guide must end with — the rendered projection. */
+const questionsOf = (kind: ReviewKind): string =>
+  LENS_QUESTIONS.forReviewKind(kind)
+    .map((row, index) => `${index + 1}. ${row.question}`)
+    .join("\n");
+
+const numberedLinesOf = (guide: string): readonly string[] =>
+  guide.split("\n").filter((line) => /^\d+\. /.test(line));
+
+describe("P37 T2 — the lens questions ride the review prompt bytes", () => {
+  it("ends every kind's axes guide with its own numbered list — 4 · 4 · 3 · 3 · 5", () => {
+    for (const kind of REVIEW_KIND_KEYS) {
+      const guide = REVIEWS[kind].axesGuide;
+      expect(guide.endsWith(questionsOf(kind)), `${kind} list`).toBe(true);
+      expect(numberedLinesOf(guide), `${kind} count`).toHaveLength(
+        LENS_QUESTIONS.forReviewKind(kind).length,
+      );
+    }
+  });
+
+  it("folds every question verbatim into that kind's `**Criteria —` line", () => {
+    for (const type of TARGET_TYPES) {
+      const kind = reviewBodyOf(type);
+      const shell = TEMPLATE_PROMPT.reviews[type].shell.join("\n");
+      const line = `**Criteria — ${type}:** ${REVIEWS[kind].axesGuide}`;
+      expect(shell).toContain(line);
+      for (const row of LENS_QUESTIONS.forReviewKind(kind)) {
+        expect(line, `${type} · ${row.id}`).toContain(row.question);
+      }
+    }
+  });
+
+  it("shares the wave / branch questions byte-for-byte — the projection, not a copy", () => {
+    expect(numberedLinesOf(REVIEWS.branch.axesGuide)).toEqual(
+      numberedLinesOf(REVIEWS.wave.axesGuide),
+    );
+  });
+
+  it("carries zero `(severity by your judgment)` escape", () => {
+    for (const kind of REVIEW_KIND_KEYS) {
+      expect(REVIEWS[kind].axesGuide, kind).not.toContain("(severity by your judgment)");
+    }
+    const source = readFileSync(fileURLToPath(new URL("../templates.ts", import.meta.url)), "utf8");
+    expect(source).not.toContain("severity by your judgment");
+  });
+
+  it("names `scope` in the wave / branch lens enums — every axis has its enum value", () => {
+    for (const kind of ["wave", "branch"] as const) {
+      expect(REVIEWS[kind].lensEnum).toContain("scope");
+    }
+    for (const kind of REVIEW_KIND_KEYS) {
+      expect([...REVIEWS[kind].lensEnum].sort(), `${kind} enum`).toEqual(
+        LENS_QUESTIONS.forReviewKind(kind)
+          .map((row) => row.lens)
+          .sort(),
+      );
+    }
+  });
+
+  it("drops the numbered line the table drops — a deleted row shortens the projection", () => {
+    // The question list is a projection: one row removed leaves one fewer numbered line
+    // for that kind, so a hand-written list could not fake the pin.
+    const missingScope = new LensQuestionRegistry(
+      LENS_QUESTION_ROWS.filter((row) => row.id !== "scope-lens"),
+    );
+    const projected = missingScope
+      .forReviewKind("wave")
+      .map((row, index) => `${index + 1}. ${row.question}`)
+      .join("\n");
+    expect(projected.split("\n")).toHaveLength(3);
+    expect(projected).not.toContain(LENS_QUESTIONS.of("wave", "scope").question);
+    expect(numberedLinesOf(REVIEWS.wave.axesGuide)).toHaveLength(4);
+  });
+});
+
+/**
+ * P37 §7.2 — the lens an engine-AUTHORED pin row carries (fix round 3). The child's
+ * prompt declares a lens menu per face and the read-back injects its own pin rows
+ * into the same carrier, so the two surfaces must name the same vocabulary: the row
+ * is written for a reader (the next fix round, the maintainer) who cannot otherwise
+ * tell an engine row from a child that ignored the enum. The gate lives at
+ * `pinLensOf`, which throws on a drifted pair; the pair's exact values are pinned
+ * here because they are the carrier bytes a consumer reads.
+ */
+describe("P37 §7.2 — the injected pin row carries the face's own declared lens", () => {
+  it("declares every face's pin lens inside that face's own menu", () => {
+    for (const key of CRITERIA_KEYS) {
+      expect(REVIEWS[key].lensEnum, `${key} menu`).toContain(REVIEWS[key].pinLens);
+    }
+  });
+
+  it("derives the per-face value from the target type — the two spec shapes share one word", () => {
+    const byType: Readonly<Record<TargetType, string>> = {
+      wave: "standards",
+      branch: "standards",
+      plan: "buildability",
+      overall: "inventory",
+      "phase-spec": "consistency",
+      "single-spec": "consistency",
+    };
+    for (const type of TARGET_TYPES) {
+      expect(pinLensOf(type), type).toBe(byType[type]);
+      // the value is a label of the menu the SAME round's prompt prints
+      expect(REVIEWS[reviewBodyOf(type)].lensEnum, type).toContain(pinLensOf(type));
+    }
+  });
+
+  it("throws when a face's pin lens drifts off its menu — the gate, not a silent carrier row", () => {
+    const drifted: ReviewGuides = {
+      ...REVIEWS,
+      overall: { ...REVIEWS.overall, pinLens: "consistency" },
+    };
+    expect(() => pinLensOf("overall", drifted)).toThrow(
+      /the pin lens "consistency" is not declared by the overall lens menu/,
+    );
+    // the declared table is untouched: the throw reads the argument, never mutates it
+    expect(pinLensOf("overall")).toBe("inventory");
   });
 });

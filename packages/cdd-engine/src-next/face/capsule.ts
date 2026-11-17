@@ -17,9 +17,9 @@
 // count is exactly the number the review criterion rules undisplayed. The key set is
 // still the word table's single source (`Words.capsuleKeys(status, withHandoff)`) —
 // a failure status keeps the handoff cell only when the round wrote a crash record.
-// The fix round's disposition summary rides the SAME render, placed so the
-// dispatchable `next:` literal keeps its line: `status` → summary → `next:` →
-// `reason:`.
+// The `summary` slot — the fix round's disposition summary, or the review round's
+// downgrade note — rides the SAME render, placed so the dispatchable `next:` literal
+// keeps its line: `status` → summary → `next:` → `reason:`.
 //
 // The byte face is v1-pinned: the key words (status · handoff) are pin-enforced by
 // the CapsuleKey type and the emit signature — a data-only change cannot reshape
@@ -101,8 +101,10 @@ export class Capsule {
   /** emit(status, handoff, hop, withHandoff, summary) → the capsule stdout lines:
    *  the status-class key set from the word table (a success status renders
    *  `status · handoff`; a failure status renders `status`, plus `handoff` only when
-   *  the round wrote a crash record), then the fix round's optional summary line,
-   *  then the optional `next:` row followed by its `reason:` row — the dispatchable
+   *  the round wrote a crash record), then the optional `summary` line — the fix
+   *  round's disposition summary, or the review round's downgrade note (both fill the
+   *  ONE slot; there is no second render path for either), then the optional `next:`
+   *  row followed by its `reason:` row — the dispatchable
    *  literal keeps its exact bytes and the diagnostic fact lands on the line after
    *  it. `hop` is the ONE injected `NextHop` object — its ABSENCE (null: the
    *  BLOCKED / TIMEOUT failure face) prints neither row, while a present object

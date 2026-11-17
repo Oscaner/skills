@@ -1000,9 +1000,11 @@ export class Lifecycle {
   /** The capsule lines of one step — empty unless a capsule is attached (the non-hard
    *  interaction point). A success round carries the handoff carrier path; a failure
    *  round (TIMEOUT / BLOCKED) carries the crash record as its handoff cell, emitted
-   *  only when that record exists (a no-host BLOCKED writes none). The fix round's
-   *  disposition summary is handed to the capsule as its `summary` — the render places
-   *  it between the status line and the `next:` row (P22 §10). */
+   *  only when that record exists (a no-host BLOCKED writes none). The round's
+   *  `dispositionsSummary` — the fix round's disposition summary, or the review round's
+   *  downgrade note — is handed to the capsule as its `summary` (the ONE slot both
+   *  fillers share); the render places it between the status line and the `next:` row
+   *  (P22 §10). */
   #capsuleLines(
     frame: OpenFrame,
     outcome: DispatchOutcome,

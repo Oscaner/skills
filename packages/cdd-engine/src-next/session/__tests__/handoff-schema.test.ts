@@ -436,6 +436,103 @@ describe("the status rollup + the findings normalization", () => {
   });
 });
 
+describe("P37 T3 — the blocker evidence slot and the grading predicate", () => {
+  it("declares `impact` / `regrade` / `contract` as optional columns on the shared finding row", () => {
+    const row = schema.planeSchema("judge").properties?.findings?.items;
+    expect(Object.keys(row?.properties ?? {})).toEqual([
+      "id",
+      "severity",
+      "lens",
+      "section",
+      "line",
+      "summary",
+      "fix",
+      "impact",
+      "regrade",
+      "contract",
+    ]);
+    // optional on the shape face: warn / nit owe no scenario, so a required slot would
+    // BLOCK legal drafts — the blocker obligation is the grading predicate's
+    expect(row?.required).toEqual(["severity", "lens", "summary"]);
+    expect(row?.properties?.impact).toEqual({
+      type: "object",
+      required: ["scenario"],
+      properties: { scenario: { type: "string" }, test: { type: "string" } },
+    });
+    expect(row?.properties?.contract).toEqual({
+      type: "object",
+      required: ["path", "anchor"],
+      properties: { path: { type: "string" }, anchor: { type: "string" } },
+    });
+    expect(row?.properties?.regrade).toEqual({ type: "string" });
+  });
+
+  it("reads a populated impact / regrade / contract without refusing the draft", () => {
+    const draft = {
+      findings: [
+        {
+          severity: "blocker",
+          lens: "spec",
+          summary: "drift",
+          impact: { scenario: "a blank id → 500 → expected 404", test: "the 404 test" },
+          regrade: "the consumer-visible byte stayed unchanged",
+          contract: { path: "docs/kairos/specs/p37-design.md", anchor: "§2.2" },
+        },
+      ],
+    };
+    expect(schema.readBack("judge", draft)).toEqual({ problems: [], dropped: [] });
+  });
+
+  it("drops a malformed impact / contract as decorative columns — the row survives", () => {
+    const draft = {
+      findings: [
+        { severity: "warn", lens: "spec", summary: "drift", impact: {}, contract: "nope" },
+      ],
+    };
+    expect(schema.readBack("judge", draft)).toEqual({
+      problems: [],
+      dropped: ["findings[0].impact", "findings[0].contract"],
+    });
+  });
+
+  it("refuses every blocker without a scenario, listing each one's id and summary", () => {
+    const violations = schema.gradingViolations([
+      { id: "F1", severity: "blocker", lens: "spec", summary: "drift" },
+      { id: "F2", severity: "blocker", lens: "code", summary: "the guard is gone" },
+      { id: "F3", severity: "warn", lens: "code", summary: "typo" },
+    ]);
+    expect(violations).toEqual([
+      { id: "F1", summary: "drift" },
+      { id: "F2", summary: "the guard is gone" },
+    ]);
+  });
+
+  it("accepts a blocker with a non-blank scenario and ignores warn / nit rows", () => {
+    expect(
+      schema.gradingViolations([
+        { severity: "blocker", impact: { scenario: "a legal input → 500 → expected 404" } },
+        { severity: "warn", summary: "debt nobody verifies" },
+        { severity: "nit", impact: { scenario: "   " } },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("reads a blank scenario as missing and a non-array payload as nothing to judge", () => {
+    expect(
+      schema.gradingViolations([{ severity: "blocker", summary: "x", impact: { scenario: "  " } }]),
+    ).toEqual([{ summary: "x" }]);
+    expect(schema.gradingViolations(undefined)).toEqual([]);
+    expect(schema.gradingViolations({ severity: "blocker" })).toEqual([]);
+  });
+
+  it("leaves the rollup untouched — the refusal is a separate, colocated predicate", () => {
+    const findings = [{ severity: "blocker", summary: "no scenario" }];
+    expect(schema.gradingViolations(findings)).toHaveLength(1);
+    expect(schema.rollup(findings)).toBe("CHANGES_REQUESTED");
+    expect(schema.rollup([])).toBe("APPROVED");
+  });
+});
+
 describe("the derived carrier types — buildHandoff per-plane shaping", () => {
   it("the work carrier's runtime keys equal the work projection's declared properties set, zero findings", () => {
     const { ledger, cleanup } = ledgerFixture();

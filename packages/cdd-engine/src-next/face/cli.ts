@@ -1452,9 +1452,21 @@ export class Cli {
     const identityPath = identityRead?.kind === "ok" ? identityRead.path : null;
     // The spec link is the SAME read's path rebased to repoRoot-relative (D46 · T3), so
     // every round-context path token speaks ONE basis (the child spawns at cwd = the
-    // repo root) and the anchor and the frontier can never name two documents.
-    if (type === "plan" || type === "branch") {
+    // repo root) and the anchor and the frontier can never name two documents. The wave
+    // line reads it on the same rule as the plan / branch lines (P37 §4.1): a code
+    // review that cannot open the phase contract is the constructive blind spot the
+    // phase closes.
+    if (type === "plan" || type === "branch" || type === "wave") {
       specLink = identityPath === null ? null : root.relativize(identityPath);
+    }
+    // P37 §4.1 — the wave line's charter anchor. The two anchors are judged
+    // INDEPENDENTLY: the spec anchor follows the identity document's own resolution
+    // (a single-spec resolves fine and owns no `program:` by design), the charter
+    // anchor follows that document's `program:` alone. Coupling them would strip a
+    // single-spec phase's spec anchor — the blind spot this phase closes.
+    if (type === "wave" && identityPath !== null && specDoc?.program != null) {
+      const overallEntry = index.overallOf(specDoc.program);
+      overallLink = overallEntry === null ? null : root.relativize(overallEntry.path);
     }
     // The pipeline frontier's four declared cells (§11) — the composition root's ONE
     // collection point. The identity word + path come from the document index's read

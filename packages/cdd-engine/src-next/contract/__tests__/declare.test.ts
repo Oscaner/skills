@@ -16,11 +16,13 @@
 // The legal value vocabularies are pinned here as the spec-side source of truth
 // (an independent authority from the implementation): the guard or the data may
 // never drift outside these domains. The negative type checks (a missing home,
-// a missing elements surface) are pinned by expectTypeOf(...).not.toMatchTypeOf
-// assertions: if a required field ever stopped being required, the incomplete
-// shapes below would satisfy the type and the assertion itself would become a
-// compile error, which the `tsc -p packages/cdd-engine --noEmit` gate fails on —
+// a missing elements surface) are pinned as `tsc`-evaluated refusals
+// (`type-refusal.ts`): if a required field ever stopped being required, the
+// incomplete shape would become assignable, the `Refuses` alias would turn into
+// `never`, and `tsc -p packages/cdd-engine --noEmit` would fail on the assignment —
 // so the compile surface is pinned even though vitest transforms types away.
+// (`expectTypeOf(...).not.toMatchTypeOf` cannot carry this: its mismatch is
+// reported only by `vitest --typecheck`, which this package does not run.)
 
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type {
@@ -32,6 +34,7 @@ import type {
   RegistryElement,
 } from "../declare.ts";
 import { declaredRegistries, RegistryGuard } from "../declare.ts";
+import type { Refuses } from "./type-refusal.ts";
 
 const PRESENCE_VALUES = [
   "required",
@@ -486,12 +489,14 @@ describe("type-level contract", () => {
   });
 
   it("rejects incomplete shapes at the type level (home and elements are required)", () => {
-    expectTypeOf({
-      anchor: "## Goal",
-      presence: "required",
-      valuePattern: "^## Goal$",
-      refKind: "none",
-    }).not.toMatchTypeOf<RegistryElement>();
-    expectTypeOf({ docType: "overall" }).not.toMatchTypeOf<ElementRegistry>();
+    // A shape carrying every required field EXCEPT one is not the row type. `tsc` is the
+    // gate that reads this: make the dropped field optional and `Refuses` turns into
+    // `never`, so the assignment stops compiling (the runtime twins below keep the
+    // fixture honest, but the refusal itself is compile-time)
+    type WithoutHome = Omit<RegistryElement, "home">;
+    const refusedHome: Refuses<WithoutHome, RegistryElement> = true;
+    type WithoutElements = Omit<ElementRegistry, "elements">;
+    const refusedElements: Refuses<WithoutElements, ElementRegistry> = true;
+    expect([refusedHome, refusedElements]).toEqual([true, true]);
   });
 });

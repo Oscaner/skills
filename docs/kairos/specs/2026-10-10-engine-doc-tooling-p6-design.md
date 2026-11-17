@@ -29,7 +29,7 @@ author: Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁�
 
 ### 2. single-spec 骨架（引擎 schema 面）
 #### 2.1 single-spec doc 型新增（declare/contract 面）
-- 引擎新增第四个 doc 型 **`single-spec`**：`declare.ts` 增 `single-spec` 元素注册表（独立于 phase-spec）· `DocKey`/`DocType` 类型并集扩 `"single-spec"` · Projector 投影/Schema/skeleton 面同扩 · **骨架 = 轻量脚手架（Q3→a）**：header 五元组（title / `- **Version**: v0.1 · <date>` / `**Status**: Draft` / `**Author**` / `- **Depends on**:`）+ 主体 `:::fill` 槽位（`## Background & root cause` / `## Design decisions` / `## Acceptance` / `## Constraints` —— 用户裁定 2026-10-13 英文标题）+ `## Change history` 表（header + separator + 首行 v0.1）
+- 引擎新增第四个 doc 型 **`single-spec`**：`contract/declare.ts` 增 `single-spec` 元素注册表（独立于 phase-spec）· `DocKey`/`DocType` 类型并集扩 `"single-spec"` · Projector 投影/Schema/skeleton 面同扩 · **骨架 = 轻量脚手架（Q3→a）**：header 五元组（title / `- **Version**: v0.1 · <date>` / `**Status**: Draft` / `**Author**` / `- **Depends on**:`）+ 主体 `:::fill` 槽位（`## Background & root cause` / `## Design decisions` / `## Acceptance` / `## Constraints` —— 用户裁定 2026-10-13 英文标题）+ `## Change history` 表（header + separator + 首行 v0.1）
 - 与 phase-spec 的差异点：**无 `### N.` 双层设计大纲**（single 是修复/裁决导向自由文档 · 硬套 phase 大纲是错位）· **无 `**Parent program**` 必填**（single 无父整体 · 独立程序形态）
 - 注册表元素按 single 文档序排列（标题 · 版本行 · status · author · 主体段 · change history）· **slot-consumption 断言同款**（skeleton 渲染后逐注册锚探测 · 漂移 loud throw）
 #### 2.2 schema get 值域并入
@@ -42,7 +42,7 @@ author: Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁�
 
 ### 3. 命名统一（single-spec + overall-spec 词表）
 #### 3.1 词表值域层落点（Q1→a）
-- `overall` → **`overall-spec`**：`DocKey = "single-spec" | "phase-spec" | "overall-spec" | "plan"` · declare 元素注册表键（`OVERALL_ELEMENTS` → `OVERALL_SPEC_ELEMENTS` 锚位 · declare.ts:162 · registry 行键 declare.ts:863）· schema get **doc-key 值域**（`single-spec | phase-spec | overall-spec | plan` · **plan-graph 显示型与 phaseSpec 输入别名保留**）· judge `DOC_KEYS` 数组（judge.ts:38）· skeleton 渲染分派（`case "overall"` → `case "overall-spec"` · render/skeleton.ts:112）· Projector 投影键（contract/project.ts:265-275）
+- `overall` → **`overall-spec`**：`DocKey = "single-spec" | "phase-spec" | "overall-spec" | "plan"` · declare 元素注册表键（`OVERALL_ELEMENTS` → OVERALL_SPEC_ELEMENTS 锚位 · declare.ts:162 · registry 行键 declare.ts:863）· schema get **doc-key 值域**（`single-spec | phase-spec | overall-spec | plan` · **plan-graph 显示型与 phaseSpec 输入别名保留**）· judge `DOC_KEYS` 数组（judge.ts:38）· skeleton 渲染分派（`case "overall"` → `case "overall-spec"` · render/skeleton.ts:112）· Projector 投影键（contract/project.ts:265-275）
 - **judge 派生映射**（contract/judge.ts:101）：`-overall.md → overall` 改为 **`-overall.md → overall-spec`**——历史 4 份 `*-overall.md` 物理文件名不变 · 推导结果与词表对齐
 - **`plan` 裸名**（Q2→a）· **`phase-spec` 不变**（已在 `-spec` 系内）
 #### 3.2 测试 pins 处置（deliberate byte sync）
@@ -70,11 +70,11 @@ author: Oscar M. · Claude Opus 5（kairos:cdd-design [P6] 会话 · 用户裁�
 - `CLAUDE.md:43` — `- scripts/run.ts validate — Node validation orchestration`（仓库布局行 → 删除/改写为 validate 原生链 + pr-validate.yml 矩阵）
 - `CLAUDE.md:109` — `pnpm run precommit (node scripts/run.ts precommit, i.e. precommitSteps in scripts/validate.ts)`（两处过时：run.ts precommit verb + scripts/validate.ts 文件均已解散 → 改写为 package.json 原生命令链描述 · smoke-cdd 引用同步撤）
 #### 5.2 maintainers 运维文档激进收编（用户裁定 2026-10-13 · 项目即 best sample）
-- **家族形态**：五篇正文 + index（48,555B）→ **三篇正文 + index（~13KB）**——收编后 `01-doctrine.md`（模板 doctrine 精髓 + skill-node 原则 + 程序经验非机械项 ~8 条 + smoke-cdd 定位句 pin）· `02-naming.md`（术语注册表）· `03-cache-doctrine.md`（六公理 + C1–C7 契约），index 随新家族重写
-- **删**：`01-template-doctrine.md`（10,866B —— 机制地图替代 doctrine）· `04-program-experience.md`（15,488B → 非机械项 ~8 条并入 01）· `06-skill-node-discipline.md`（1,900B 原则并入 01）· **更名** `02-naming-conventions.md → 02-naming.md` · `03-context-caching-doctrine.md → 03-cache-doctrine.md`
-- **判定依据**：机制/测试已收编的事实从文档消失（`emit:check`/`validateTemplateStructure`/`maintainers-docs.test` 即 enforcement，文档复述即冗余）· 保留非机械强制的判断/公理/注册表（六公理 · C1–C7 · 术语仲裁 · banned 表 · 非机械经验项）· 测试 pin 重锚随家族更替（`maintainers-docs.test.ts` CONTENT_DOCS 集改 · smoke 句落 01 · ledger After 字节随真值）
-- **测试改造**：`maintainers-docs.test.ts` 的 CONTENT_DOCS 集 = `[01-doctrine.md, 02-naming.md, 03-cache-doctrine.md]` · ledger 行随新家族（Before 存原值记录收编前字节）· 02 四词 pin 落新名 · **≤ 56,000 锚与 After==live 断言保持**
-- **引用面同步**：`CLAUDE.md:54` template-doctrine 链接 → 新 01 · `packages/kairos/README(.zh).md` 的 program-experience/template-doctrine 链接 → 新家族名 · `04/06` 相关 references（12/13/19/24-25 内部链接）随文重指向
+- **家族形态**：五篇正文 + index（48,555B）→ **三篇正文 + index（~13KB）**——收编后 maintainers doctrine 篇（模板 doctrine 精髓 + skill-node 原则 + 程序经验非机械项 ~8 条 + smoke-cdd 定位句 pin）· maintainers 命名登记篇（术语注册表）· maintainers 缓存 doctrine 篇（六公理 + C1–C7 契约），index 随新家族重写
+- **删**：maintainers 模板 doctrine 篇（10,866B —— 机制地图替代 doctrine）· maintainers 程序经验篇（15,488B → 非机械项 ~8 条并入 01）· maintainers skill-node 篇（1,900B 原则并入 01）· **更名** `02-naming-conventions.md → 02-naming.md` · `03-context-caching-doctrine.md → 03-cache-doctrine.md`
+- **判定依据**：机制/测试已收编的事实从文档消失（`emit:check`/validateTemplateStructure/`maintainers-docs.test` 即 enforcement，文档复述即冗余）· 保留非机械强制的判断/公理/注册表（六公理 · C1–C7 · 术语仲裁 · banned 表 · 非机械经验项）· 测试 pin 重锚随家族更替（maintainers 文档集测试 CONTENT_DOCS 集改 · smoke 句落 01 · ledger After 字节随真值）
+- **测试改造**：maintainers 文档集测试 的 CONTENT_DOCS 集 = `[01-doctrine.md, 02-naming.md, 03-cache-doctrine.md]` · ledger 行随新家族（Before 存原值记录收编前字节）· 02 四词 pin 落新名 · **≤ 56,000 锚与 After==live 断言保持**
+- **引用面同步**：`CLAUDE.md:54` template-doctrine 链接 → 新 01 · packages/kairos/README(.zh).md 的 program-experience/template-doctrine 链接 → 新家族名 · `04/06` 相关 references（12/13/19/24-25 内部链接）随文重指向
 #### 5.3 frozen 历史面零动
 - `docs/kairos/{specs,plans}` 不清理（recon 实证 grep-sweep 已显式排除 · 历史记录的 P5-stale 机制字面属合法留置）· 消费面 README/base.md 零 outdated 不需改
 

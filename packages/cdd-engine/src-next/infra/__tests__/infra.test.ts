@@ -176,7 +176,7 @@ describe("config — the typed accessor facade (one no-I/O route per face)", () 
     expect(REVIEWS.branch.axesGuide).toContain("design —");
     expect(REVIEWS.branch.axesGuide).toContain("test adequacy —");
     expect(REVIEWS.branch.axesGuide).toContain("migration —");
-    expect(REVIEWS.branch.lensEnum).toEqual(["standards", "spec", "buildability"]);
+    expect(REVIEWS.branch.lensEnum).toEqual(["standards", "spec", "buildability", "scope"]);
     // P16/D60 — the two hard review disciplines ride REVIEW_ITEM, so all four review
     // shells carry them (the data-plane side of the render suite's assembled-face pins).
     for (const type of [

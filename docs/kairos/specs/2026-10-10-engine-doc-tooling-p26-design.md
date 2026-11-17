@@ -86,7 +86,7 @@ P24 的实证（同一分支）：`41bf1406`（branch fix 1）⇒ plan 行 drift
 
 1. 波宽「至多三个任务」 ⇄ `contract/wave-width.ts:16` 的 `MAX_TASKS_PER_WAVE`（由源文本解析出数字再与常量比较，与 `next-loop-twin` 的周期数同一手法）；
 2. `--type` 词表 ⇄ `session/faces.ts:26` 的 `TargetType` 联合（含已退役的 `spec` 不在其中）；
-3. 每轮派发的日志落在 `.kairos/cdd/…/logs/` ⇄ 两个具名符号：`face/lifecycle.ts:130` 的 `CliLifecycle.LOGS_DIR`（`"logs"`）与 `infra/runtime.ts:127` 的 `ENGINE_RUNTIME.handoffNamespace.workspaceRoot`（`.kairos/cdd`）。
+3. 每轮派发的日志落在 `.kairos/cdd/…/logs/` ⇄ 两个具名符号：`face/lifecycle.ts:130` 的 `CliLifecycle.LOGS_DIR`（`"logs"`）与 `infra/runtime.ts` 的 `ENGINE_RUNTIME.handoffNamespace.workspaceRoot`（`.kairos/cdd`）。
 
 任一侧改动即红；三条各配一条反向红用例。
 

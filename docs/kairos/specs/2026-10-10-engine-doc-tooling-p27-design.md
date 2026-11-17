@@ -26,7 +26,7 @@ author: '[human] 裁定 · Claude（本会话 · 2026-11-06）'
 | 本行相位 · doc/branch | `lineGate`：drift 重开 · pending-fix · same-revision 拒 · face-closed（`face/gate.ts:71`） | `face/gate.ts`，**从 `face/cli.ts:764` 调** | doc / branch 面 |
 | 行事实 | `reviewGate`（`:934`）· `docReopens`（`:1311`）· `briefDrifted`（`:1023`）· `waveLineRoute`（`:964`）· `linePhase`（`:1209`）· `lineRoute`（`:1187`） | `session/ledger.ts` | 经上面两处 |
 | 帧前沿 | `peekNext` / `#openLineFrame` / `#nextWavePhase` | `session/run.ts` | 派发循环 |
-| 站牌 | `PipelineFrontier#hopOf`（`session/pipeline.ts:132`）→ `NextHop` | `session/pipeline.ts` · `session/next.ts` | **只有 board（`face/board-view.ts:867`）与 capsule（`run.ts:915`）** |
+| 站牌 | `PipelineFrontier#hopOf`（`session/pipeline.ts:132`）→ `NextHop` | `session/pipeline.ts` · `session/next.ts` | **只有 board（`face/board-view.ts:867`）与 capsule（`session/run.ts`）** |
 
 #### 1.2 三处让它散的原因
 
@@ -137,4 +137,4 @@ D30 保的是「plan 里不涉及本波任务段的改动，不作废已审的 w
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-06 | 初版（含作者追加的硬约束 §4：判收敛主线一字不动）：病根取证（十三处判断 · 三个权威 · 站牌无派发读者 · P26 实证）· 一个 `DispatchAuthority`（三腿 + 优先级）· 上游腿按面序派生（身份面含 `single-spec`）· 五规则入表 · reason 表 13 行分区（计数更正）· 报文统一 · 与 D30 的澄清 | [human] 裁定 · Claude（本会话 · 2026-11-06） |
 | v0.2 | 2026-11-06 | 按首轮评审更正内容面：§2.3 上游两条判据改述为「reviewed identity 陈旧（doc `reviewGate` / wave `briefDrifted`）」与「该面未闭合（doc `lineStateAt` / wave `#wavesExhausted` over `closedWaves()`）」，并点名 `waveLineRoute !== null` 不是闭合判据（面未进入时 `active` 本就 null）；§2.5 补「本表即 pin 面」与 `closed-line` / `face-closed` 沿用 `NEXT_HOP_REASON` 拼写只加 `leg`；「13 行」口径统一为「13 个 token」 | Claude（本会话 · 2026-11-06） |
-| v0.3 | 2026-11-06 | **closeout 登记（cdd-close）**：P27 全链闭合——三波实现链全绿（W1 = {1} 词表合一零行为 · W2 = {2} authority + leg L 行为保持 · W3 = {3} leg U 行为变化；每波 implement → wave review → fix 全 APPROVED）+ 分支终审 → branch-fix 闭环（branch-review-1 两条 warn：`docLineBlock`/`pendingFixBlock` 成死面 → 删；父 overall 的 P27 scope/AC 口径落后 → `c4d5fdbe` 回填）。交付：`DISPATCH_REASON` 13 token + `leg` 分区 · `DispatchAuthority` 三腿短路 · 上游站牌的成对判据（① 身份陈旧 ② 未闭合，`waveLineRoute !== null` 不作判据）· 两个平行调用点消失 · 报文 `reason · next:` 一行。**判收敛主线零变化**（`#close` / `#blockerCount` / `REVIEW_CYCLE_CAP` 与 `next-loop-twin` 零重锚）。`pnpm run validate` exit 0（引擎 67 files / 1407 tests）| Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-06） |
+| v0.3 | 2026-11-06 | **closeout 登记（cdd-close）**：P27 全链闭合——三波实现链全绿（W1 = {1} 词表合一零行为 · W2 = {2} authority + leg L 行为保持 · W3 = {3} leg U 行为变化；每波 implement → wave review → fix 全 APPROVED）+ 分支终审 → branch-fix 闭环（branch-review-1 两条 warn：docLineBlock/pendingFixBlock 成死面 → 删；父 overall 的 P27 scope/AC 口径落后 → `c4d5fdbe` 回填）。交付：`DISPATCH_REASON` 13 token + `leg` 分区 · `DispatchAuthority` 三腿短路 · 上游站牌的成对判据（① 身份陈旧 ② 未闭合，`waveLineRoute !== null` 不作判据）· 两个平行调用点消失 · 报文 `reason · next:` 一行。**判收敛主线零变化**（`#close` / `#blockerCount` / `REVIEW_CYCLE_CAP` 与 `next-loop-twin` 零重锚）。`pnpm run validate` exit 0（引擎 67 files / 1407 tests）| Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-06） |

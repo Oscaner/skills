@@ -19,7 +19,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 
 #### 1.1 类型事实没有声明面
 
-三个壳的标题都是常量（review / fix / docs-fix 各一条，居于 `render/templates.ts` 的 `reviewRow`、`FIX_SHELL`、`DOCS_FIX_SHELL`），`WorkMode` 词汇表只有 `implement` / `fix` / `review` / `docs-fix` 四值（`WORK_MODES`），与 target type 是两个正交轴。判别符 `REVIEW_TYPE` 是「supplied but never rendered」的 review 专用槽：它参与行选择（`TemplateAssembler` 的 `#rowOf` 与 `#reviewRow`），却从不进 prompt；且 `face/lifecycle.ts` 的 `#valuesOf` 在非 review 面注入空串。于是 fix / docs-fix 的 prompt 里没有任何一处声明 target type。
+三个壳的标题都是常量（review / fix / docs-fix 各一条，居于 `render/templates.ts` 的 `reviewRow`、`FIX_SHELL`、`DOCS_FIX_SHELL`），`WorkMode` 词汇表只有 `implement` / `fix` / `review` / `docs-fix` 四值（`WORK_MODES`），与 target type 是两个正交轴。判别符 REVIEW_TYPE 是「supplied but never rendered」的 review 专用槽：它参与行选择（`TemplateAssembler` 的 `#rowOf` 与 `#reviewRow`），却从不进 prompt；且 `face/lifecycle.ts` 的 `#valuesOf` 在非 review 面注入空串。于是 fix / docs-fix 的 prompt 里没有任何一处声明 target type。
 
 可用的只剩三处旁证，且都不可靠：哪些 `INPUT_*` 槽有值（同一 doc 型彼此几乎一致）、`OUTPUT_HANDOFF` 的文件名（wave 线是 `tasks-…`，不含 `wave` 字样）、wave 线的 `WAVE` 键。
 
@@ -35,7 +35,7 @@ author: '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）'
 
 #### 2.1 判别符改名并渲染
 
-`REVIEW_TYPE` → `TARGET_TYPE`。渲染之后 **token 名就是 child 读到的标签**，fix 轮的 round context 里印一行 `REVIEW_TYPE` 是错语义，故改名不是洁癖而是正确性。
+REVIEW_TYPE → `TARGET_TYPE`。渲染之后 **token 名就是 child 读到的标签**，fix 轮的 round context 里印一行 REVIEW_TYPE 是错语义，故改名不是洁癖而是正确性。
 
 渲染位置：round context 第一段，紧跟 `ROLE`——身份事实聚拢在一处。落点是 `render/templates.ts` 的 `REVIEW_CONTEXT`、以及 `MODE_PROMPTS` 里 fix / docs-fix 两行的 `roundContext` 数组，三处同一行位。
 
@@ -94,7 +94,7 @@ round-context 渲染器对空值**丢行而不报错**。若注入面回退成�
 
 #### 3.2 改名残留
 
-`REVIEW_TYPE` 的改写面就是 Acceptance criteria 里「零残留」那条判据的全部范围，不多不少：token 登记表（`TOKENS`）· 装配器的行选择与门与报错路径（`TemplateAssembler#rowOf` / `#gate` / `#reviewRow`）· 注入面（`face/lifecycle.ts#valuesOf`）· 以及与之同址的 render / infra 测试夹具。改名须在这个范围里全量同步，否则报错文本指向一个不存在的 token，把下一次真缺陷的定位成本抬高。
+REVIEW_TYPE 的改写面就是 Acceptance criteria 里「零残留」那条判据的全部范围，不多不少：token 登记表（`TOKENS`）· 装配器的行选择与门与报错路径（`TemplateAssembler#rowOf` / `#gate` / `#reviewRow`）· 注入面（`face/lifecycle.ts#valuesOf`）· 以及与之同址的 render / infra 测试夹具。改名须在这个范围里全量同步，否则报错文本指向一个不存在的 token，把下一次真缺陷的定位成本抬高。
 
 #### 3.3 结构门看不见名字所指
 
@@ -105,7 +105,7 @@ round-context 渲染器对空值**丢行而不报错**。若注入面回退成�
 - `cdd review --type phase-spec|overall|plan|single-spec|wave|branch` 的 dispatch prompt round context 含 `- \`TARGET_TYPE\`: 该词`；`cdd fix --type wave|branch` 与 docs-fix 的四 doc 型同理。
 - implement 轮的 prompt 不含 `TARGET_TYPE` 行。
 - 标题零字节变更；`**Criteria — <type>:**` 的标签与 `**Lens labels:**` 行零字节变更；criteria 体可在 I / J / K 要求处改，且对共享该体的变体一致；§2.5 与 §2.6 的句子修改对同模式内全类型一致，故跨型共享前缀复用保持。
-- `TARGET_TYPE` 命名单源：装配器与生命周期内 `REVIEW_TYPE` 零残留；非 review 面不再注入空串。
+- `TARGET_TYPE` 命名单源：装配器与生命周期内 REVIEW_TYPE 零残留；非 review 面不再注入空串。
 - 引擎 vitest 全绿（新增按型的 round-context 行 pins）；`pnpm run validate` exit 0。
 - changeset `cdd-engine` **minor**；不发布。
 - **A**：fix 面的句子不再声称 `INPUT_SPEC` 是被判文档——branch 线把它定性为设计 spec 参考，wave 线连提都不提。
@@ -129,7 +129,7 @@ round-context 渲染器对空值**丢行而不报错**。若注入面回退成�
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
-| v0.1 | 2026-11-13 | P33 初稿：判别符 `REVIEW_TYPE` → `TARGET_TYPE` 并渲染进 round context；全轮注入真实 type；implement 单成员不渲染；标题与 shell 零改动（D85）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
+| v0.1 | 2026-11-13 | P33 初稿：判别符 REVIEW_TYPE → `TARGET_TYPE` 并渲染进 round context；全轮注入真实 type；implement 单成员不渲染；标题与 shell 零改动（D85）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.2 | 2026-11-13 | 并入参照面四处校准（D86）：A `FIX_SHELL` 的 `INPUT_SPEC` 子句改按面点名；B `REVIEW_ITEM` 把 branch 从 plan review 拆出；C2 overall 面只留 `INPUT_OVERALL`、`INPUT_SPEC` 置空（补完 P17 的改名）；D docs-fix plan 面给 `INPUT_SPEC` 定性。§3.3 记明结构门看不见名字所指，本相位不新增门。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.3 | 2026-11-13 | 并入 phase-spec-review-1 全部四条：F1 §1.2 的 LCP 实测值撤出正文，改述为必须成立的条件（标题与 `**Criteria — …:**` 行零字节 · §2.5 句子同模式内全类型一致）；F2 §3.2 的改名残留面改按 AC「零残留」判据全量列出（`TOKENS` · `#rowOf`/`#gate`/`#reviewRow` · `#valuesOf` · 测试夹具）；F3 parent-version 对齐 v3.54（overall 侧已由编排器回填）；F4 新增 §3.3 标题，结构门盲区说明独立成节。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |
 | v0.4 | 2026-11-13 | 并入主体面五处（D87）：G docs-fix 的 freeze/capability/指令三句互斥 · H review 的 commit/只读对冲 · I single-spec 被要求对照被丢弃的 `INPUT_OVERALL` · J branch 判据体的退役词 task · K overall rubric 槽仍是 spec。修法取 α（clause 自我限定，保住 `LICENSE_ITEMS` 单一共享块）。 | '[human] 裁定 · Claude（kairos:cdd-design · 2026-11-13）' |

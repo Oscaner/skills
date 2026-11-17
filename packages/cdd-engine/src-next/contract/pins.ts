@@ -21,10 +21,12 @@
 //
 // The three shapes are judged on their own terms: a path by the THREE-TIER resolution
 // of §7.1 (exact entry → unique suffix → ambiguity, never a first hit) and never by
-// content — content matching cannot be mechanical; a bare symbol against an
-// identifier index of the engine / kairos / scripts trees (built once, cached, and
-// read from DECLARATIONS — `PinSource` — never from raw bytes); and a test title
-// against the named test file's bytes.
+// content — content matching cannot be mechanical; a bare symbol against an identifier
+// index of the reviewed repo's OWN sources (built once, cached, and read from the code
+// body — `PinSource` — never from raw bytes); and a test title against the named test
+// file's bytes. The symbol corpus is the repo the judge runs in, because the engine is
+// installed into consumer trees that carry none of this repo's paths: a hard-wired root
+// list would leave the index empty there and report every live symbol-shaped pin dead.
 //
 // The time face (§7.3) rides the same judgment: a path a plan's `Create:` line
 // declares, that the tree has not landed, and that the plan has not been closed on is
@@ -167,18 +169,12 @@ const FILE_EXTENSIONS: ReadonlySet<string> = new Set([
   "html",
 ]);
 
-/** The trees the symbol index reads (§7.1) — engine source, the skills package and
- *  the repo automation. A symbol outside them is unresolvable by definition. */
-const SYMBOL_ROOTS: readonly string[] = [
-  "packages/cdd-engine/src-next",
-  "packages/kairos",
-  "scripts",
-];
-
 /** The directories a walk never descends into — build output, VCS internals and the
  *  machine-local workspace products name no pin (and reading them would let a local
  *  `.kairos/` file make a coordinate resolve, which is exactly the reading §7.3's
- *  migration exists to stop depending on). */
+ *  migration exists to stop depending on). The same list keeps an installed copy of the
+ *  engine out of the symbol index: `node_modules/` is a dependency, not a declaration of
+ *  the reviewed tree. */
 const SKIP_DIRS: ReadonlySet<string> = new Set([".git", ".kairos", "node_modules", "dist", ".pi"]);
 
 /** The README family's package half — every `packages/<dir>/README*.md`, expanded from
@@ -454,9 +450,9 @@ export class PinSource {
 
 /**
  * PinIndex — the resolution face: the repo's own entry list (files and directories, for
- * suffix resolution), the identifier index of the three source trees, and the per-file
- * reads the line-count and test-title shapes need. Everything is built lazily and
- * cached, so one audit instance pays the walk once.
+ * suffix resolution and the symbol index's source files), and the per-file reads the
+ * line-count and test-title shapes need. Everything is built lazily and cached, so one
+ * audit instance pays the walk once.
  */
 export class PinIndex {
   readonly #root: string;
@@ -474,8 +470,12 @@ export class PinIndex {
     return this.#entries;
   }
 
-  /** The identifier set of the engine / kairos / scripts trees — the symbol shape's
-   *  corpus. Identifiers come from DECLARATIONS (`PinSource.codeOf`), never from raw
+  /** The identifier set of the reviewed repo's own sources — the symbol shape's corpus.
+   *  It rides the entry walk the path shape already pays for, so the symbols the gate
+   *  accepts are declared in the tree the judged documents describe; no root list is
+   *  hard-wired, because the engine runs inside consumer repos whose sources live under
+   *  paths this repo never names (`src/`, `lib/`), and an index built from such a list is
+   *  empty there. Identifiers come from the code body (`PinSource.codeOf`), never from raw
    *  bytes: a name kept alive only by a comment or a guard test's own regex is prose
    *  about the name, not the name being there. A private member indexes as
    *  `artifactCellOf` (`#` is not an identifier character), which is why `isSymbol`
@@ -483,14 +483,12 @@ export class PinIndex {
   symbols(): ReadonlySet<string> {
     if (this.#symbols !== null) return this.#symbols;
     const symbols = new Set<string>();
-    for (const root of SYMBOL_ROOTS) {
-      for (const entry of PinIndex.#walk(path.join(this.#root, root), this.#root)) {
-        if (!PinIndex.#isSource(entry)) continue;
-        const text = this.textOf(entry);
-        if (text === null) continue;
-        for (const match of PinSource.codeOf(text).matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) {
-          symbols.add(match[0]);
-        }
+    for (const entry of this.entries()) {
+      if (!PinIndex.#isSource(entry)) continue;
+      const text = this.textOf(entry);
+      if (text === null) continue;
+      for (const match of PinSource.codeOf(text).matchAll(/[A-Za-z_$][A-Za-z0-9_$]*/g)) {
+        symbols.add(match[0]);
       }
     }
     this.#symbols = symbols;
@@ -734,6 +732,11 @@ export class ForwardPaths {
  * judges one document body, and `pathResolves` judges a declared coordinate on its own
  * (the handoff `contract.path` corpus). The three entry points share one criterion and
  * one index; each corpus keeps its own read point.
+ *
+ * Rule zero (over the 200-line class limit): the gate stays one class because the three
+ * entry points are ONE criterion over ONE index and ONE pending-path table — `census`
+ * reads `scan`'s own length (§8.2), and splitting along the judge / resolve / read seams
+ * would hand that same index through a second seam without removing a variation.
  */
 export class PinAudit {
   readonly #root: string;
@@ -757,8 +760,6 @@ export class PinAudit {
    *  The roots are the caller's already-resolved corpus (`corpusOf(root)`); this class
    *  never names a root of its own. */
   census(roots: readonly string[]): PinCensus {
-    // Rule zero (class-size limit): this file is past the limit and predates it —
-    // splitting it is P39's work (design spec D95 ②), not this round's.
     const findings = this.scan(roots);
     const files = this.filesOf(roots);
     const symbol = findings.filter((finding) => finding.shape === "symbol").length;
@@ -879,7 +880,7 @@ export class PinAudit {
         token,
         "symbol",
         source,
-        `no symbol named \`${name}\` exists in the engine, kairos or scripts trees`,
+        `no symbol named \`${name}\` exists in the sources of this tree`,
       );
     }
     const member = PinVocabulary.memberOf(token);
@@ -917,7 +918,7 @@ export class PinAudit {
       "symbol",
       source,
       carrier
-        ? `no symbol named \`${member.member}\` exists in the engine, kairos or scripts trees`
+        ? `no symbol named \`${member.member}\` exists in the sources of this tree`
         : `its carrier \`${member.carrier}\` resolves nowhere in the tree`,
     );
   }

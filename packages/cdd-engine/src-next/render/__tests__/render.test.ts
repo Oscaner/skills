@@ -644,9 +644,11 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // P33 T3 — the shared body's five calibrations (§2.6 G · H · I · J · K): 22 → 23;
     // P37 §4.1 — the fix shell names the wave line's two anchors: 23 → 24)
     expect(TEMPLATE_PROMPT.$version).toBe(24);
-    // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
-    // review carries neither judged-doc anchor (the empty slots are dropped by the
-    // assembler)
+    // the spec review's judged doc IS the spec — carries INPUT_SPEC only. A wave review
+    // DOES carry both judged-doc anchors (§4.1: `INPUT_SPEC` is the phase's identity
+    // document, `INPUT_OVERALL` the charter its `program:` reaches); this render's scene
+    // resolved no identity document, so the assembler drops its empty slots — the
+    // assertions below show that drop, not a policy that the wave face owns neither.
     const wave = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",

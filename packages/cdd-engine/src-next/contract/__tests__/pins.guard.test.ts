@@ -125,6 +125,15 @@ const MEMBER_SOURCE = [
   "",
 ].join("\n");
 
+/** One scratch root's write face — the ONE place a fixture file lands. */
+const writerOf =
+  (root: string): Scratch["write"] =>
+  (rel, text) => {
+    const at = path.join(root, rel);
+    mkdirSync(path.dirname(at), { recursive: true });
+    writeFileSync(at, text, "utf8");
+  };
+
 /** A hermetic repo — a docs tree, one source file and one test file. */
 const scratch = (): Scratch => {
   const root = mkdtempSync(path.join(tmpdir(), "pin-gate-"));
@@ -142,15 +151,7 @@ const scratch = (): Scratch => {
     SAMPLE_TEST,
     "utf8",
   );
-  return {
-    root,
-    audit: new PinAudit(root),
-    write: (rel, text) => {
-      const at = path.join(root, rel);
-      mkdirSync(path.dirname(at), { recursive: true });
-      writeFileSync(at, text, "utf8");
-    },
-  };
+  return { root, audit: new PinAudit(root), write: writerOf(root) };
 };
 
 let scratchDirs: string[] = [];
@@ -168,6 +169,22 @@ const memberFixture = (): Scratch => {
   // the audit is rebuilt over the file just written — the index reads the tree lazily,
   // but the fixture's first audit predates the write
   return { ...f, audit: new PinAudit(f.root) };
+};
+
+/** A consumer tree's own source — the symbol corpus there names no `packages/` path. */
+const CONSUMER_SOURCE = "export const ordersOf = (id: string): number => Number(id);\n";
+
+/** The shape the engine is INSTALLED into: `@oscaner-skills/cdd-engine` lands in a
+ *  consumer's `node_modules`, so the reviewed root has no `packages/cdd-engine/src-next`,
+ *  no `packages/kairos` and no `scripts` — its own sources live wherever its authors put
+ *  them (`src/` here). */
+const consumerFixture = (): Scratch => {
+  const root = mkdtempSync(path.join(tmpdir(), "pin-gate-consumer-"));
+  scratchDirs.push(root);
+  const write = writerOf(root);
+  write("src/orders.ts", CONSUMER_SOURCE);
+  // built after the write for the same laziness reason as `memberFixture`
+  return { root, audit: new PinAudit(root), write };
 };
 
 afterEach(() => {
@@ -603,5 +620,49 @@ describe("P37 T8 — §7.1's member spelling: carrier and member judged in ONE t
     const audit = new PinAudit(REPO_ROOT);
     expect(audit.scanText(bodyOf(["HandoffSchema.gradingViolations"]), "member.md")).toEqual([]);
     expect(audit.scanText(bodyOf(["BoardView#summaryToken()"]), "member.md")).toEqual([]);
+  });
+});
+
+describe("P37 — the symbol corpus is the reviewed repo's own sources, not this repo's trees", () => {
+  it("resolves a consumer tree's live symbol and still reports the dead one beside it", () => {
+    const f = consumerFixture();
+    f.write("docs/kairos/specs/c1-design.md", bodyOf(["ordersOf", "ordersAbsent"]));
+    // the pair: a symbol live in the tree the review RUNS IN is not dead, and a symbol
+    // nobody declares still is. An index built from this repo's three tree names is empty
+    // in a consumer root, which would report BOTH as dead and land the round REVIEW_FIX
+    expect(f.audit.scan(["docs/kairos"]).map((finding) => [finding.pin, finding.shape])).toEqual([
+      ["ordersAbsent", "symbol"],
+    ]);
+  });
+
+  it("judges a consumer tree's member spelling against the same corpus", () => {
+    const f = consumerFixture();
+    f.write(
+      "src/schema.ts",
+      "export class HandoffSchema {\n  static gradingViolations(): void {}\n}\n",
+    );
+    const audit = new PinAudit(f.root);
+    expect(audit.scanText(bodyOf(["HandoffSchema.gradingViolations"]), "c1-design.md")).toEqual([]);
+    const dead = audit.scanText(bodyOf(["HandoffSchema.gradingGone"]), "c1-design.md");
+    expect(dead.map((finding) => [finding.pin, finding.shape])).toEqual([
+      ["HandoffSchema.gradingGone", "symbol"],
+    ]);
+  });
+
+  it("reads a tree's own source files, not its build output or its workspace products", () => {
+    const f = consumerFixture();
+    f.write(
+      "node_modules/@oscaner-skills/cdd-engine/dist/pins.ts",
+      "export const zzPackedQq = 1;\n",
+    );
+    f.write(".kairos/cdd/ws/tasks-1-implement.json", '{"zzProductQq": 1}\n');
+    const findings = f.audit.scanText(bodyOf(["zzPackedQq", "zzProductQq"]), "c1-design.md");
+    // both are dead: a vendored copy of the engine and a machine-local product name are
+    // not declarations of the reviewed tree, and reading them would let an installed
+    // copy resolve a pin the consumer's own sources never make
+    expect(findings.map((finding) => [finding.pin, finding.shape])).toEqual([
+      ["zzPackedQq", "symbol"],
+      ["zzProductQq", "symbol"],
+    ]);
   });
 });

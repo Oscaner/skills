@@ -32,7 +32,9 @@ Grading becomes checkable end to end (P37).
   tiers — an exact repo entry, else a unique suffix, else the gate reports an ambiguity
   finding that names every candidate instead of silently picking a first hit. A bare
   symbol resolves only as a code declaration — a name that survives merely in a comment
-  or a retirement guard's regex is dead. A path a plan's `Create:` line declares while
+  or a retirement guard's regex is dead, and the index is the reviewed repo's own
+  sources rather than a fixed list of tree names, so the gate judges a consumer
+  repository's declarations instead of reading an empty index there. A path a plan's `Create:` line declares while
   the tree has not landed it is pending, not dead: the judged document's own plan (its
   `slug:`, or the `program:` its identity document declares) opens that skip, and the
   program charter's `✔ Done（…）` row closes it. A dead pin is a real `warn` finding

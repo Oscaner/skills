@@ -13,9 +13,10 @@ read judges the values about to be rendered — before the round exists:
   is each row's real target-type set — the base the dead-cell criterion compares against,
   never the union of that row's own arms.
 - `TemplateAssembler#assertDeclarations` judges those declarations once, at construction:
-  a shell token no layout carries, a `requiredOn` naming a type the row does not serve, or
-  a row declaring nothing stops the assembler from being built. The post-render
-  `#assertShellLayout` check is gone.
+  a shell token no layout carries, a `requiredOn` naming a type the row does not serve, a
+  layout slot no round-context token registers, or a registered round-context token that no
+  row carries stops the assembler from being built. The post-render `#assertShellLayout`
+  check is gone.
 - `dispatch-input` is the new pre-dispatch gate. It reads the values, the two DECLARED
   scene cells (`program:` / `doc-type:` — never the resolved links, so a broken chain
   cannot read as an absence) and, for `path: true` cells only, the file system. It answers

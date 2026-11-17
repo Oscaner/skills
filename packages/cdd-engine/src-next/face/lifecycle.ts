@@ -187,13 +187,6 @@ export class CliLifecycle {
    *  `RoundLog.create` on first use, never by the workspace's own mkdir. */
   static readonly LOGS_DIR = "logs";
 
-  /** The one cell whose preview answer is its naming line's (§2.4) — the brief, the
-   *  single artifact `renderBrief` writes at dispatch alone. Any other cell that ever
-   *  declares `preview: "satisfied"` has no naming answer in this engine and therefore
-   *  falls back to the empty-value arm, which is the honest read rather than a default
-   *  "satisfied". */
-  static readonly NAMED_BRIEF_CELL = "INPUT_WAVE_BRIEF";
-
   readonly #env: ProcessEnvLike;
   readonly #sync: ChildRunner;
   readonly #template: TemplateAssembler;
@@ -1010,8 +1003,10 @@ export class CliLifecycle {
    *  environment · BASE_BRANCH scope anchor). Every declared token supplied — a mode's
    *  non-consumed slots stay empty and are NOT emitted by the assembler
    *  (empty-valued keys are dropped), so each mode's round context carries only the
-   *  facts the mode reads. The review criteria/lens are NOT values — they fold into
-   *  the review type's fixed prefix (§3.7). */
+   *  facts the mode reads — with the one declared exception: the `INPUT_RULINGS` cell
+   *  is `absent: "none"`, so its line is always present and an empty value renders the
+   *  bare literal `none` (§2.3 reversal ③). The review criteria/lens are NOT values —
+   *  they fold into the review type's fixed prefix (§3.7). */
   #valuesOf(frame: OpenFrame, artifactCell: ArtifactCell): TemplateValues {
     const scene = this.#scene;
     const op = this.#opOf(frame);
@@ -1042,8 +1037,11 @@ export class CliLifecycle {
       // from the REVIEWED carrier's identity and the strict schema read composed beside
       // it (`#artifactReadOf`), handed in as the dispatch's ONE judgment: the gate that
       // just approved this dispatch and this slot are the same value, never two reads.
-      // An absent, unattributable or refused sidecar leaves the slot empty and the
-      // assembler drops the line.
+      // WAS: an absent, unattributable or refused sidecar left the slot empty and the
+      // assembler dropped the line. NOW: P38 §2.3 reversal ③ — the cell is declared
+      // `absent: "none"`, so the line is always present and an empty value renders the
+      // bare literal `none` (the round reads "no ruling was recorded" instead of a
+      // missing row).
       INPUT_RULINGS: this.#rulingsInputOf(artifactCell),
       // The kind-named judged-doc anchors (the semantic retirement of the generic
       // INPUT_DOC): the plan line carries the plan document as its judged doc
@@ -1076,7 +1074,11 @@ export class CliLifecycle {
       // line's ONE charter anchor (the judged charter itself); the phase-spec line
       // carries its own `program:`; plan / branch / wave carry the same-slug identity
       // doc's `program:` (the wave arm landed at P37 §4.1); empty off those faces and
-      // when the named program is absent (the assembler drops the empty slot).
+      // when the named program is absent. WAS: that empty value always dropped the
+      // slot. NOW: P38 §2.3 reversal ① — where the `program:` arm hits, the empty value
+      // is `target-absent` at the dispatch-input gate (the declaration names a charter
+      // that did not resolve); the drop remains only on the faces the cell does not
+      // serve (the `overall`-only arm).
       INPUT_OVERALL:
         frame.type === "overall"
           ? this.#rel(docPath ?? "")
@@ -1573,10 +1575,13 @@ export class CliLifecycle {
    *  same-cycle review record's carrier identity through the ledger's ONE accessor
    *  (the recorded path, then the read ladder a pre-P31 row needs), or the ledger's
    *  resolved family name when the line records no review for this cycle. A record
-   *  that resolves no carrier reads `null` — the UNRECORDED face, which the criterion
-   *  books as a visible skip instead of failing the round on a hard absent-carrier
-   *  refusal. Record-present means the record's own final wins: a draft sitting beside
-   *  it never becomes the judged input. */
+   *  that resolves no carrier reads `null`. Record-present means the record's own final
+   *  wins: a draft sitting beside it never becomes the judged input.
+   *
+   *  WAS: a `null` here was the UNRECORDED face, which the criterion booked as a visible
+   *  skip and the fix round dispatched without a review input. NOW: P38 §2.3 reversal ② —
+   *  `INPUT_REVIEWS` is `always`-required, so that value is `empty-value` at the
+   *  dispatch-input gate and the round stops before the child exists. */
   #reviewsPath(frame: OpenFrame): string | null {
     if (this.#reviews !== null) return this.#reviews;
     const record = this.#requesterRecord(frame);
@@ -1657,7 +1662,9 @@ export class CliLifecycle {
 
   /** The fix round's ruling sidecar as the round-context value — the repo-relative
    *  sidecar path alone, the empty string otherwise (off the fix face and when the
-   *  sidecar is absent — the assembler drops the empty line).
+   *  sidecar is absent). WAS: the empty value made the assembler drop the whole line.
+   *  NOW: P38 §2.3 reversal ③ — the cell is declared `absent: "none"`, so the line is
+   *  always present and an empty value renders the bare literal `none`.
    *
    *  One input, one reading: the round context names WHERE the rulings live, exactly as
    *  `INPUT_REVIEWS` names the carrier it qualifies (spec §2.10). The ruling bodies stay
@@ -1757,9 +1764,12 @@ export class CliLifecycle {
    *  is the answer's source: the brief is the one cell `renderBrief` writes at dispatch
    *  alone, so a wave that names its task group names its brief, and a wave that names
    *  none falls back to the empty-value arm. The exemption covers the existence leg too:
-   *  a preview never asks a file it would not write. */
+   *  a preview never asks a file it would not write. The token guard is the second half
+   *  of one rule: the assembler refuses any OTHER cell declaring `satisfied` at
+   *  construction (#assertPreviewAnswer), so a declaration the naming row cannot answer
+   *  never reaches a preview. */
   #answeredByNaming(decl: ContextLine, token: string, frame: OpenFrame): boolean {
-    if (decl.preview !== "satisfied" || token !== CliLifecycle.NAMED_BRIEF_CELL) return false;
+    if (decl.preview !== "satisfied" || token !== TemplateAssembler.NAMED_BRIEF_CELL) return false;
     const tasks = frame.params.tasks ?? "";
     return tasks !== "" && this.#naming.briefName(tasks) !== "";
   }

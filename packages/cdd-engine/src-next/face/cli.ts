@@ -1237,8 +1237,13 @@ export class Cli {
 
   /** The branch scope anchor (BASE_BRANCH) — the base artifact's branch name read
    *  from the line's own workspace (`base.json`, the same `base get` source the CLI
-   *  writes). "" when the artifact is absent or malformed (the slot stays empty and
-   *  the assembler drops it — the wave/branch review then judges the live tree). */
+   *  writes). "" when the artifact is absent or malformed.
+   *
+   *  WAS: the empty slot was dropped and the wave / branch review silently fell back
+   *  to judging the live tree. NOW: P38 §2.3 reversal ④ — `BASE_BRANCH` is required on
+   *  every wave / branch face, so an empty value is `empty-value` at the
+   *  dispatch-input gate: the round stops before the child exists (the recovery is
+   *  `cdd base set`, the orchestrator's action, never the gate's). */
   #baseBranchOf(scene: WorkScene): string {
     const name = this.#matrix.render({ domain: "workspace", tasks: null }, "base");
     const read = scene.workspace.readJson<{ base?: unknown }>(name);

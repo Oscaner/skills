@@ -988,9 +988,16 @@ export const WORK_MODES: readonly WorkMode[] = ["implement", "fix", "review", "d
  *
  * Class size: the 200-line cap is exceeded by the construction-time declaration
  * criteria living beside the renderer they guard — the P39 split owns the
- * extraction, and a second home for these four criteria would be a second truth.
+ * extraction, and a second home for these five criteria would be a second truth.
  */
 export class TemplateAssembler {
+  /** The ONE cell whose preview answer is its naming line's (§1.1 · §2.4) — the
+   *  brief, the single artifact `renderBrief` writes at dispatch alone. Any other
+   *  cell declaring `preview: "satisfied"` has no naming answer in this engine, so
+   *  the declaration is refused at construction (#assertPreviewAnswer) rather than
+   *  silently read as `value`. */
+  static readonly NAMED_BRIEF_CELL = "INPUT_WAVE_BRIEF";
+
   readonly #contract: TemplatePrompt;
 
   constructor(contract: TemplatePrompt = TEMPLATE_PROMPT) {
@@ -1071,13 +1078,15 @@ export class TemplateAssembler {
   /** The construction-time declaration criteria (§1.1 · §1.3 · §4.2) — ONE home, run
    *  once per construction over every row: a dead cell (a) · an unregistered slot
    *  (b) · a shell naming a cell its layout never carries (c) · a registered
-   *  round-context token no row carries (d). A violation means the assembler cannot
-   *  be built, so no dispatch can ever reach it — the per-render re-run is gone. */
+   *  round-context token no row carries (d) · a preview answer declared on a cell the
+   *  naming row cannot answer (e). A violation means the assembler cannot be built, so
+   *  no dispatch can ever reach it — the per-render re-run is gone. */
   #assertDeclarations(): void {
     for (const row of this.#rows()) {
       for (const decl of row.roundContext) {
         this.#assertServed(row, decl);
         this.#assertRegistered(row, decl);
+        this.#assertPreviewAnswer(row, decl);
       }
       this.#assertShellCarries(row);
     }
@@ -1131,6 +1140,19 @@ export class TemplateAssembler {
         `template mode ${row.mode} shell references ${name} not carried by its round context`,
       );
     }
+  }
+
+  /** (e) the preview answer — only the brief cell may declare `preview: "satisfied"`.
+   *  The exemption synthesises the one cell whose value the naming row writes
+   *  (`RoundNaming#briefName`), so a second `satisfied` cell would be declared, then
+   *  silently judged as `value`; refusing it at construction keeps the declaration
+   *  error at build time instead of on the one path that happens to take it. */
+  #assertPreviewAnswer(row: ModePromptRow, decl: ContextLine): void {
+    if (decl.preview !== "satisfied") return;
+    if (TemplateAssembler.slotOf(decl.line) === TemplateAssembler.NAMED_BRIEF_CELL) return;
+    throw new Error(
+      `template mode ${row.mode} declares preview "satisfied" for ${TemplateAssembler.#labelOf(decl)} — only ${TemplateAssembler.NAMED_BRIEF_CELL} may (the one cell the naming row answers)`,
+    );
   }
 
   /** (d) the zone coverage — every registered round-context token is carried by at

@@ -3,11 +3,12 @@
 //
 // Two faces under test, and they must stay two: the CONSTRUCTION-time criteria
 // (a dead cell · a shell naming a cell its layout never carries · an unregistered
-// slot · a registered round-context token no row carries) and the RENDER-time truth
-// table (a value renders; an absent `drop` cell disappears whole; an absent `none`
-// cell renders the bare literal `none`). The rendering layer has three states, never
-// a fourth: exigibility is judged upstream by the dispatch-input gate, so the
-// "empty but required" branch is not representable here.
+// slot · a registered round-context token no row carries · a preview answer on a cell
+// the naming row cannot answer) and the RENDER-time truth table (a value renders; an
+// absent `drop` cell disappears whole; an absent `none` cell renders the bare literal
+// `none`). The rendering layer has three states, never a fourth: exigibility is judged
+// upstream by the dispatch-input gate, so the "empty but required" branch is not
+// representable here.
 //
 // The `never` form is a legal declaration, not a missing one: `{ types: [] }` names
 // no type at all, and the two cells that carry it (the fix rows' `INPUT_RULINGS` and
@@ -169,7 +170,22 @@ describe("TemplateAssembler — the construction-time declaration criteria (§1.
     expect(() => new TemplateAssembler()).not.toThrow();
   });
 
-  it("(f) accepts the registered contract — every row is declaratively self-consistent", () => {
+  it("(f) refuses a `satisfied` preview answer on any cell but the brief — and names the permitted one", () => {
+    const draft = draftOf();
+    const row = draft.reviews["phase-spec"];
+    // A REPLACEMENT declaration, never an in-place mutation: `draftOf` clones the
+    // layout arrays, so the declaration objects themselves are the module's own.
+    row.roundContext = row.roundContext.map((decl) =>
+      decl.line.includes("INPUT_SPEC") ? { ...decl, preview: "satisfied" as const } : decl,
+    );
+    // The exemption has exactly one answer (the naming row writes the brief, nothing
+    // else): a second `satisfied` cell would be declared and then silently judged as
+    // `value`, so the declaration is refused where the assembler is built.
+    expect(() => new TemplateAssembler(contractOf(draft))).toThrow(/INPUT_SPEC/);
+    expect(() => new TemplateAssembler(contractOf(draft))).toThrow(/INPUT_WAVE_BRIEF/);
+  });
+
+  it("(g) accepts the registered contract — every row is declaratively self-consistent", () => {
     expect(() => new TemplateAssembler(TEMPLATE_PROMPT)).not.toThrow();
     for (const rowCase of ROW_CASES) {
       expect(() =>

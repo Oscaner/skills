@@ -1872,6 +1872,17 @@ const atAttempt = (frame: OpenFrame, attempt: number): OpenFrame => ({
 /** One carrier path inside the fixture's `.kairos/cdd/p30` workspace. */
 const carrierAt = (f: Fixture, name: string): string => path.join(f.scene.workspace.path, name);
 
+/** The wave line's fix frame — the frame whose review family name carries the cycle
+ *  (`tasks-1-review-1.json`), the spelling §2.10's fallback must compose. */
+const waveFixFrame: OpenFrame = {
+  type: "wave",
+  phase: "fix",
+  round: 1,
+  target: { kind: "wave", tasks: [1] },
+  params: { tasks: "1", round: 1, attempt: 1 },
+  key: "1",
+};
+
 describe("P34 T3 — the attempt is the round's identity (window · crash · resume)", () => {
   it("opens ONLY the attempt-2 pair and re-seals it at the terminal, leaving attempt 1 closed", async () => {
     const f = fixture(planDoc([[1, []]]));
@@ -2114,6 +2125,36 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
       expect(absent.scene.ledger.readCrash("crash-phase-spec-fix-1-a2.json")).toBeNull();
     } finally {
       absent.cleanup();
+    }
+  });
+
+  it("composes the cycle-only family name for a record-less cycle — the family never takes the frame's attempt", async () => {
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      // The cycle records NO review, so the carrier falls to the review family's own
+      // name (§2.10): that name carries the cycle alone. `tasks-1-review-1.json` is the
+      // file on disk — `-a2` is a name the review round never wrote, so a fallback that
+      // took the fix frame's attempt would compose an absent path and refuse a round
+      // that stands today.
+      const family = carrierAt(f, "tasks-1-review-1.json");
+      writeFileSync(family, JSON.stringify({ findings: [] }), "utf8");
+      chmodSync(family, 0o444);
+      const runner = new FailingRunner();
+      const { outcome } = await dispatchFrame(f, atAttempt(waveFixFrame, 2), runner);
+      // The round stands at the gate: the child was spawned (its own exit is the
+      // round's verdict, never the input gate's).
+      expect(f.io.stderrText).not.toContain("dispatch-input");
+      expect(runner.calls).toHaveLength(1);
+      // The round context and the resume command name the SAME cycle-only spelling.
+      const spelled = path.relative(f.scene.workspace.root.repoRoot, family);
+      expect(runner.calls[0]?.args.join(" ")).toContain(spelled);
+      expect(runner.calls[0]?.args.join(" ")).not.toContain("tasks-1-review-1-a2.json");
+      const crash = f.scene.ledger.readCrash("crash-tasks-1-fix-1-a2.json");
+      expect(crash?.next).toContain(`--reviews ${family}`);
+      expect(crash?.next).not.toContain("-a2.json");
+      expect(outcome.status).not.toBe("TIMEOUT");
+    } finally {
+      f.cleanup();
     }
   });
 

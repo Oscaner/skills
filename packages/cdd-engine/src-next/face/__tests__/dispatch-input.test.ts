@@ -7,7 +7,7 @@
 // The pins are the DECLARATION, never a hand-written table of today's values:
 //   · (a)–(g) one behaviour per arm — the reported row/token, the absolute existence
 //     read, the closed two-word reason set, the two structural preconditions;
-//   · (h) a data-driven sweep over the twelve reachable (row, type) pairs: every
+//   · (h) a data-driven sweep over the thirteen reachable (row, type) pairs: every
 //     exigible cell that can be emptied is emptied once and must be named, so a new
 //     required cell can never land without a pin;
 //   · (i)–(l) the reversals the phase turns over and the two row-selector slots the

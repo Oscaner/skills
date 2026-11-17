@@ -20,6 +20,8 @@ import path from "node:path";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
+import { PinAudit } from "../contract/pins.ts";
+import { regradeNote } from "../contract/review-criteria.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
 import { CarrierSeal } from "../infra/carrier-seal.ts";
 import { GitClient } from "../infra/git.ts";
@@ -30,11 +32,11 @@ import { RoundLog } from "../infra/round-log.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import type { TemplateValues, WorkMode } from "../render/templates.ts";
-import { TemplateAssembler } from "../render/templates.ts";
+import { pinLensOf, TemplateAssembler } from "../render/templates.ts";
 import { ABSENT_READ, type ArtifactReadOf, ArtifactReads } from "../session/artifact-reads.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
 import { TargetFaceTable } from "../session/faces.ts";
-import type { CarrierPlane } from "../session/handoff-schema.ts";
+import type { CarrierPlane, GradingViolation } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
 import {
@@ -44,6 +46,7 @@ import {
   Ledger,
   type OpType,
   type ProgressRow,
+  type RoundFinding,
   type RoundIdentity,
   type RoundRecord,
   RoundRecords,
@@ -229,6 +232,9 @@ export class CliLifecycle {
    *  when the channel opened — the record face must see a channel that never opened,
    *  not only the stderr notice. */
   #logUnavailable: RoundViolation | null = null;
+  /** The pin gate of this dispatch (P37 §7.2) — built on first use so the resolution
+   *  index is walked once per process, never once per read. */
+  #pinIndex: PinAudit | null = null;
 
   constructor(opts: {
     env?: ProcessEnvLike;
@@ -1002,11 +1008,13 @@ export class CliLifecycle {
       // front-matter link target, the plan→spec conformance anchor); the branch line
       // carries the plan document (its plan-conformance reference) plus the same
       // design-spec reference, while the live tree against BASE_BRANCH is the judged
-      // object; the spec-shaped doc targets (phase-spec · single-spec) carry their
-      // spec document (INPUT_SPEC, the judged doc); the overall line's ONE charter
-      // anchor is INPUT_OVERALL, so its INPUT_SPEC stays empty (C2 — the charter is
-      // never its own spec). Empty off the off-faces (the slots are dropped by the
-      // assembler).
+      // object; the wave line carries the same-slug identity document and its
+      // `program:` charter (P37 §4.1) so a code review reads the phase contract it is
+      // judged against; the spec-shaped doc targets (phase-spec · single-spec) carry
+      // their spec document (INPUT_SPEC, the judged doc); the overall line's ONE
+      // charter anchor is INPUT_OVERALL, so its INPUT_SPEC stays empty (C2 — the
+      // charter is never its own spec). Empty off the off-faces (the slots are dropped
+      // by the assembler).
       INPUT_PLAN:
         frame.type === "plan"
           ? this.#rel(docPath ?? "")
@@ -1014,22 +1022,25 @@ export class CliLifecycle {
             ? this.#rel(scene.planPath ?? "")
             : "",
       INPUT_SPEC:
-        frame.type === "plan" || frame.type === "branch"
+        frame.type === "plan" || frame.type === "branch" || frame.type === "wave"
           ? this.#rel(scene.specLink ?? "")
-          : frame.type === "wave" || frame.type === "overall"
+          : frame.type === "overall"
             ? ""
             : // the spec-shaped doc targets (phase-spec · single-spec) carry the judged
               // document; the overall line's charter anchor is INPUT_OVERALL below.
               this.#rel(docPath ?? ""),
       // The parent charter of the spec the face reads (INPUT_OVERALL) — the overall
       // line's ONE charter anchor (the judged charter itself); the phase-spec line
-      // carries its own `program:`; plan/branch carry the same-slug identity doc's
-      // `program:`; empty off those faces and when the named program is absent (the
-      // assembler drops the empty slot).
+      // carries its own `program:`; plan / branch / wave carry the same-slug identity
+      // doc's `program:` (the wave arm landed at P37 §4.1); empty off those faces and
+      // when the named program is absent (the assembler drops the empty slot).
       INPUT_OVERALL:
         frame.type === "overall"
           ? this.#rel(docPath ?? "")
-          : frame.type === "phase-spec" || frame.type === "plan" || frame.type === "branch"
+          : frame.type === "phase-spec" ||
+              frame.type === "plan" ||
+              frame.type === "branch" ||
+              frame.type === "wave"
             ? this.#rel(scene.overallLink ?? "")
             : "",
       // The branch/wave tree-review scope anchor (BASE_BRANCH) — engine-injected
@@ -1269,6 +1280,12 @@ export class CliLifecycle {
         `the handoff draft at ${path} violates the ${plane} schema: ${readBack.problems.join("; ")}`,
       );
     }
+    // P37 §7.2 — the pin read-back corpora ② and ③ are judged HERE, before the local
+    // findings projection and before `conclusionOf`, so that ONE `rollup` reads them,
+    // `DraftedOutcome.findings` projects them and `#materialize` persists them. The
+    // judgment lives here and the write there: a warn injected at the writer would
+    // reach the carrier while the round still concluded `APPROVED`.
+    if (plane === "judge") this.#injectPinFindings(frame, draft);
     // T2 — the plane-aware read: the judge plane ALONE reads `draft.findings` (its
     // own declared required field — rolled up to the conclusion); the work plane
     // derives its status from the draft's declared status, never the findings slot
@@ -1276,6 +1293,16 @@ export class CliLifecycle {
     // The conclusion rides the ONE source (`HandoffSchema.conclusionOf`) the ledger
     // legs read too — the reconstruct never rules a work status by a second path.
     const findings = plane === "judge" ? (Array.isArray(draft.findings) ? draft.findings : []) : [];
+    // P37 §2.2 — the blocker evidence gate: a blocker that cannot state its scenario is
+    // refused on THIS read-back path (the same one `CDD_BLOCKED` line every schema
+    // refusal rides — no second reporter, no `--dry-run` claim). The round produces no
+    // conclusion instead of a BLOCKED one.
+    // Rule zero (class-size limit): this file is well past the limit and predates it —
+    // splitting it is P39's work (design spec D95 ②), not this round's.
+    const grading = schema.gradingViolations(findings);
+    if (grading.length > 0) {
+      return this.#reject(frame, path, this.#gradingRefusal(grading));
+    }
     // A validated draft's conclusion is total: the judge plane rolls up its own
     // required findings, and the work plane's `status` passed the `required` gate above
     // — so the `?? "BLOCKED"` never fires here (a work draft without a status never
@@ -1289,6 +1316,11 @@ export class CliLifecycle {
     let summary: string | undefined;
     try {
       summary = this.#dispositionsSummary(frame, plane, materialized.carrier);
+      // P37 §5.2 — the downgrade note rides the SAME capsule `summary` slot: the
+      // `emit` signature and key set do not move, and a round with no downgrade leaves
+      // the slot undefined, so the stdout of an ordinary review round is byte-identical
+      // to before this phase.
+      summary ??= this.#downgradeNote(frame, plane, materialized.carrier);
     } catch (raw) {
       if (!(raw instanceof CarrierMismatchError)) throw raw;
       this.#blocked(raw.message, false);
@@ -1303,6 +1335,109 @@ export class CliLifecycle {
       // wrong decorative field is a loss the record must show, never a silent rewrite.
       violations: materialized.violations,
     };
+  }
+
+  /** P37 §7.2 — the two read-back corpora of the pin gate, injected as REAL warn-level
+   *  findings into `draft.findings`. The row's LENS is the judged face's own declared
+   *  `pinLens` (`render/templates.ts#pinLensOf`), never a literal here: the child's
+   *  prompt declares a lens menu per face, and an engine row outside that menu would
+   *  be unreadable as "the engine wrote it" to every later reader. They are not a
+   *  refusal: no `CDD_BLOCKED` is printed, and the round keeps its conclusions — a warn
+   *  reaches `rollup`, so a review round with a dead pin concludes `REVIEW_FIX` instead
+   *  of `APPROVED`. Nothing here is a second reporting surface: the rows enter the same
+   *  `findings[]`, are projected by the same `findingsOf`, and are keyed by the same
+   *  `#findingsList` at materialize. */
+  #injectPinFindings(frame: OpenFrame, draft: Record<string, unknown>): void {
+    const lens = pinLensOf(frame.type);
+    const injected = [
+      ...this.#documentPinRows(frame, lens),
+      ...this.#contractPinRows(draft, lens, CliLifecycle.#judgedDocOf(frame)),
+    ];
+    if (injected.length === 0) return;
+    const rows = Array.isArray(draft.findings) ? draft.findings : [];
+    draft.findings = [...rows, ...injected];
+  }
+
+  /** The document this round judges (§7.3 condition ①'s subject) — a repo-relative
+   *  path for the two doc-target kinds, `null` for a wave / branch round: those audit
+   *  no document body, so a `Create:` declaration has no identity key to match and its
+   *  pending path stays a finding (design spec §7.2's `standards` arm). */
+  static #judgedDocOf(frame: OpenFrame): string | null {
+    const target = frame.target;
+    return target.kind === "spec" || target.kind === "plan" ? target.doc : null;
+  }
+
+  /** Corpus ② — the JUDGED document's own body (the three doc targets only; a wave /
+   *  branch / plan round judges no document body). The path comes from `frame.target`
+   *  (`{ kind: "spec", doc }`, resolved at the CLI seam), and the body is read through
+   *  this class's own repo read: `#reconstruct` builds no second `SlugIndex` and adds no
+   *  field to `DispatchScene`. */
+  #documentPinRows(frame: OpenFrame, lens: string): readonly Record<string, unknown>[] {
+    if (frame.target.kind !== "spec") return [];
+    const doc = frame.target.doc;
+    let body: string;
+    try {
+      body = readFileSync(path.resolve(this.#repoRootValue().absolute, doc), "utf8");
+    } catch {
+      return [];
+    }
+    return this.#pinAudit()
+      .scanText(body, this.#rel(doc))
+      .map((finding) => CliLifecycle.#pinRow(finding.summary, lens));
+  }
+
+  /** Corpus ③ — each finding's `contract.path` (design spec §2.3). `PinAudit`'s
+   *  markdown scan never carries this cell: the anchor is a declared coordinate, judged
+   *  on its own. A missing path appends one warn per offending finding. The judged
+   *  document rides in as the time face's subject (§7.3): a `Create:` declaration of
+   *  the judged document's own plan is pending, not dead. */
+  #contractPinRows(
+    draft: Record<string, unknown>,
+    lens: string,
+    judged: string | null,
+  ): readonly Record<string, unknown>[] {
+    const rows = Array.isArray(draft.findings) ? draft.findings : [];
+    const audit = this.#pinAudit();
+    const rel = judged === null ? null : this.#rel(judged);
+    const out: Record<string, unknown>[] = [];
+    for (const row of rows) {
+      const pin = (row as { contract?: { path?: unknown } } | null)?.contract?.path;
+      if (typeof pin !== "string" || pin.trim().length === 0) continue;
+      if (audit.pathResolves(pin.trim(), rel)) continue;
+      out.push(
+        CliLifecycle.#pinRow(
+          `the pin \`${pin.trim()}\` resolves nowhere — the finding's \`contract.path\` anchor names no path in the tree`,
+          lens,
+        ),
+      );
+    }
+    return out;
+  }
+
+  /** One injected pin finding — a warn under the judged face's own declared pin lens,
+   *  the tier §7.2 pins and the lens its menu can carry. */
+  static #pinRow(summary: string, lens: string): Record<string, unknown> {
+    return { severity: "warn", lens, summary };
+  }
+
+  /** The one audit instance of this dispatch — the resolution index is built once and
+   *  shared by both corpora (and by every round this instance drives). */
+  #pinAudit(): PinAudit {
+    this.#pinIndex ??= new PinAudit(this.#repoRootValue().absolute);
+    return this.#pinIndex;
+  }
+
+  /** The blocker-evidence refusal (design spec §2.2): the first word after
+   *  `CDD_BLOCKED:` is the criteria row's `id` — written as a LITERAL here, because the
+   *  gate's pin is the printed byte, not an import of the registry — followed by every
+   *  offending finding's `id` and `summary` (all of them, never one of two). */
+  #gradingRefusal(violations: readonly GradingViolation[]): string {
+    const labels = violations.map((violation) => {
+      const summary = violation.summary?.trim() ?? "";
+      const quoted = summary.length === 0 ? "" : ` "${summary}"`;
+      return `${violation.id ?? "unkeyed"}${quoted}`;
+    });
+    return `grading-impact-missing: finding(s) graded blocker carry no \`impact.scenario\` — ${labels.join("; ")}`;
   }
 
   /** The fix round's ONE summary line (design spec §3.4) — computed from the PERSISTED
@@ -1330,6 +1465,65 @@ export class CliLifecycle {
       "{rejected}",
       String(counts.rejected),
     );
+  }
+
+  /** P37 §5.1 · §5.2 — the capsule's downgrade note. The current round's findings are
+   *  judged against the NEAREST EARLIER review record on this line whose findings
+   *  projection is non-empty (a clean implement / fix record between the two never
+   *  resets the reference); a lowered grade against a non-empty earlier scenario prints
+   *  the stated `regrade` reason, and one that states none prints the mark. Display
+   *  only: the note is the capsule's `summary` line, never a finding row, never a carrier
+   *  entry, and it never moves the round's conclusion. */
+  #downgradeNote(
+    frame: OpenFrame,
+    plane: CarrierPlane,
+    carrier: Record<string, unknown>,
+  ): string | undefined {
+    if (plane !== "judge") return undefined;
+    const current = this.#handoffSchema.findingsOf(carrier.findings);
+    if (current.length === 0) return undefined;
+    const prior = this.#priorFindings(frame);
+    return regradeNote(
+      HandoffSchema.downgrades(prior, current).length,
+      HandoffSchema.regradeReasons(prior, current),
+    );
+  }
+
+  /** The "previous round" of §5.1 — the nearest earlier REVIEW record on this line
+   *  whose findings projection is non-empty. `id` is never the match key (it is the
+   *  engine-written row number), so the reference is a whole findings set, not a row
+   *  picked by position. The read is the ledger's ONE checked carrier read. */
+  #priorFindings(frame: OpenFrame): readonly RoundFinding[] {
+    const current = { cycle: frame.round, attempt: frame.attempt ?? 1 };
+    const earlier = this.#scene.ledger
+      .recordsOf(frame.key)
+      .filter((record) => record.op === "review")
+      .filter((record) => CliLifecycle.#before(record, current))
+      .sort((left, right) =>
+        left.cycle === right.cycle ? right.attempt - left.attempt : right.cycle - left.cycle,
+      );
+    for (const record of earlier) {
+      const previous = this.#scene.ledger.readHandoff("review", frame.type, {
+        tasks: frame.params.tasks,
+        round: record.cycle,
+        attempt: record.attempt,
+      });
+      if (previous === null) continue;
+      const findings = this.#handoffSchema.findingsOf(previous.findings);
+      if (findings.length > 0) return findings;
+    }
+    return [];
+  }
+
+  /** Whether `record` precedes the current round — the `(cycle, attempt)` order the
+   *  round identity itself uses. */
+  static #before(
+    record: RoundRecord,
+    current: { readonly cycle: number; readonly attempt: number },
+  ): boolean {
+    return record.cycle === current.cycle
+      ? record.attempt < current.attempt
+      : record.cycle < current.cycle;
   }
 
   /** The requesting review carrier's path — the fix round's `--reviews` input, or the

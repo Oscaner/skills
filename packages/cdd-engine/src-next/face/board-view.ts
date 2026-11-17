@@ -40,6 +40,7 @@ import path from "node:path";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import type { DocKey } from "../contract/project.ts";
 import { DOC_KEYS } from "../contract/project.ts";
+import { REGRADE_NOTE_SEPARATOR, regradeNote } from "../contract/review-criteria.ts";
 import { ConfigLoader } from "../infra/config.ts";
 import type { PlanRead, PlanSource } from "../infra/plan-source.ts";
 import { type RepoPath, RepoRoot } from "../infra/root.ts";
@@ -49,8 +50,15 @@ import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { type ArtifactReadOf, ArtifactReads } from "../session/artifact-reads.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
 import type { RouteTarget, TargetType } from "../session/faces.ts";
+import { HandoffSchema } from "../session/handoff-schema.ts";
 import type { InFlightState } from "../session/inflight.ts";
-import { Ledger, type ProgressData, type RoundRecord, RoundRecords } from "../session/ledger.ts";
+import {
+  Ledger,
+  type ProgressData,
+  type RoundFinding,
+  type RoundRecord,
+  RoundRecords,
+} from "../session/ledger.ts";
 import type { DocClassVerdict, NextHop } from "../session/next.ts";
 import { PipelineFrontier, type PipelineFrontierInput } from "../session/pipeline.ts";
 import type { ArtifactRegistry, Kind } from "../session/round-artifacts.ts";
@@ -238,6 +246,13 @@ const ARTIFACT_FACT_LABELS = {
 export class LineCarriers {
   readonly #records: readonly RoundRecord[];
   readonly #pathOf: (record: RoundRecord) => string;
+  /** The ONE per-record read's cache — the carrier bytes are read (and parsed) once
+   *  per record, then both projections (`countOf` / `findingsOf`) take their cell from
+   *  the same value (P37 §5.2). */
+  readonly #content = new Map<RoundRecord, LineCarrierContent>();
+  /** The findings projection's schema face — the SAME `HandoffSchema.findingsOf` the
+   *  round read-back uses (one projection, two consumers). */
+  readonly #schema = new HandoffSchema();
 
   private constructor(records: readonly RoundRecord[], pathOf: (record: RoundRecord) => string) {
     this.#records = records;
@@ -267,24 +282,95 @@ export class LineCarriers {
   /** One record's graded findings count — zero for a record that resolves no path or
    *  whose path a later round overwrote; a tampered carrier THROWS (the checked read). */
   countOf(record: RoundRecord): number {
-    const path = this.#pathOf(record);
-    if (path === "" || !RoundRecords.ownerOf(this.#records, record, this.#pathOf)) return 0;
-    const text = CarrierIntegrity.read(path, record.carrierDigest ?? null);
-    return text === null ? 0 : LineCarriers.#findingsCountOf(text);
+    return this.#contentOf(record).count;
   }
 
-  /** The `findings` array length of one carrier's bytes — zero when the payload holds
-   *  none (a work-plane carrier declares no findings) or is not JSON. */
-  static #findingsCountOf(text: string): number {
+  /** One record's findings as the round-finding projection (P37 §5.2) — the board's
+   *  per-record read face, sharing `countOf`'s ONE carrier read and ONE parse. The
+   *  projection is `HandoffSchema.findingsOf` (unknown severities still dropped), so
+   *  the count's native array length and this filtered row set are two cells of the
+   *  same read, never two reads. */
+  findingsOf(record: RoundRecord): readonly RoundFinding[] {
+    return this.#contentOf(record).findings;
+  }
+
+  /** One record's downgrade note (P37 §5.1 · §5.2) — its findings judged against the
+   *  nearest EARLIER record on this line whose findings projection is non-empty (an
+   *  implement / fix record with no findings never resets the reference, so a downgrade
+   *  cannot slip through a clean neighbour). `undefined` when nothing was downgraded,
+   *  the mark when a row owes its reason, the stated reason when the row carries one. */
+  regradeNoteOf(record: RoundRecord): string | undefined {
+    const prior = this.#priorOf(record);
+    const current = this.findingsOf(record);
+    return regradeNote(
+      HandoffSchema.downgrades(prior, current).length,
+      HandoffSchema.regradeReasons(prior, current),
+    );
+  }
+
+  /** The earlier records of this line, newest first — the "previous round" walk's
+   *  candidate list (the nearest one with a non-empty findings projection wins). */
+  #priorOf(record: RoundRecord): readonly RoundFinding[] {
+    const earlier = this.#records
+      .filter((other) => LineCarriers.#earlierRound(other, record))
+      .sort((left, right) =>
+        left.cycle === right.cycle ? right.attempt - left.attempt : right.cycle - left.cycle,
+      );
+    for (const other of earlier) {
+      const findings = this.findingsOf(other);
+      if (findings.length > 0) return findings;
+    }
+    return [];
+  }
+
+  /** Whether `other` precedes `record` on the line — the `(cycle, attempt)` order. */
+  static #earlierRound(other: RoundRecord, record: RoundRecord): boolean {
+    return other.cycle === record.cycle
+      ? other.attempt < record.attempt
+      : other.cycle < record.cycle;
+  }
+
+  /** One record's carrier content, read ONCE — the path guard, the ownership judgment,
+   *  the digest-checked read and the JSON parse all live here, so a second projection
+   *  can never become a second read. */
+  #contentOf(record: RoundRecord): LineCarrierContent {
+    const cached = this.#content.get(record);
+    if (cached !== undefined) return cached;
+    const content = this.#readFresh(record);
+    this.#content.set(record, content);
+    return content;
+  }
+
+  /** The read behind `#contentOf` — zeroes for a record with no path or an overwritten
+   *  one, and for bytes that hold no findings array or are not JSON. */
+  #readFresh(record: RoundRecord): LineCarrierContent {
+    const path = this.#pathOf(record);
+    if (path === "" || !RoundRecords.ownerOf(this.#records, record, this.#pathOf)) {
+      return EMPTY_CARRIER_CONTENT;
+    }
+    const text = CarrierIntegrity.read(path, record.carrierDigest ?? null);
+    if (text === null) return EMPTY_CARRIER_CONTENT;
     try {
       const value: unknown = JSON.parse(text);
       const findings = (value as { findings?: unknown } | null)?.findings;
-      return Array.isArray(findings) ? findings.length : 0;
+      if (!Array.isArray(findings)) return EMPTY_CARRIER_CONTENT;
+      return { count: findings.length, findings: this.#schema.findingsOf(findings) };
     } catch {
-      return 0;
+      return EMPTY_CARRIER_CONTENT;
     }
   }
 }
+
+/** One record's carrier content — the TWO cells the board reads from one read (P37
+ *  §5.2): the native findings count (`+N`) and the projected rows (the downgrade mark). */
+interface LineCarrierContent {
+  readonly count: number;
+  readonly findings: readonly RoundFinding[];
+}
+
+/** The unreadable / findings-free content — a shared frozen value (no allocation per
+ *  empty record). */
+const EMPTY_CARRIER_CONTENT: LineCarrierContent = { count: 0, findings: [] };
 
 /**
  * BoardView — the entry-document → board face. The identity index (`SlugIndex`)
@@ -556,9 +642,17 @@ export class BoardView {
     run: readonly RoundRecord[],
     carriers: LineCarriers,
   ): string {
+    // Rule zero (class-size limit): this file is well past the limit and predates it —
+    // splitting it is P39's work (design spec D95 ②), not this round's.
     const findings = run.reduce((total, record) => total + carriers.countOf(record), 0);
     const suffix = findings === 0 ? "" : `+${findings}`;
-    return `${verb} ${body} ${mark}${suffix}`;
+    // P37 §5.2 — the downgrade note rides the SAME token, after its `+N`: the mark when
+    // a row owes its reason, the stated reason when the row carries one (both composed
+    // by the criteria module's ONE note). One token, one line, no new entry — the note is
+    // display, never a finding.
+    const notes = run.flatMap((record) => carriers.regradeNoteOf(record) ?? []);
+    const note = notes.length === 0 ? "" : ` ${notes.join(REGRADE_NOTE_SEPARATOR)}`;
+    return `${verb} ${body} ${mark}${suffix}${note}`;
   }
 
   /** attemptSuffix(record) — the re-dispatch superscript: `attempt === 1` renders

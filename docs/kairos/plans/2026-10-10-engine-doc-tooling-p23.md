@@ -16,7 +16,7 @@ base: develop
 - **引擎零 harness 输出解析**：不得据子进程输出判断「已安装 / 可跳过 / 可继续」；推荐档失败 = 首败即停 + exit 1。
 - **claude 列空是事实而非占位**：claude 推荐列写空数组、README 写 `—`；不得为表好看编造 claude 推荐包。
 - **门必须可红**：新增的消费面泄漏门只许 `-e` 形命令（`grep -rn --include="*.md" -e "<字面>" …`），**禁**裸内插与 `\-\-` 转义形（落在 TS 模板字符串里 `\-` 求值成 `-`，等同裸内插）；正控必须是本身以 `--` 开头的在册 token（`--plan`，今日 13 命中），断言 ≥1。不可红的门不算门。
-- **消费面 purity**：六份 README 只承载旗标用法与「为什么推荐这六条」，不装载程序历史与相位编号；七份 skill 面 markdown（六份 `SKILL.md` + `cdd-dev/docs/base.md`）零变更。
+- **消费面 purity**：六份 README 只承载旗标用法与「为什么推荐这六条」，不装载程序历史与相位编号；七份 skill 面 markdown（六份 SKILL.md + `cdd-dev/docs/base.md`）零变更。
 - **零新依赖 / 零新命令 / 零环境变量**：不引入运行时探测依赖，不加 CLI 动词，不用环境变量控制档位。
 - **调用与提交纪律**：引擎一律本地 `node packages/cdd-engine/src-next/bin.ts`；每任务提交过 `pnpm run precommit`；末任务跑 `env -u AI_AGENT pnpm run validate`（`AI_AGENT` 在场会让 5 条既有注入派发 E2E 误红）；changeset `cdd-engine` **minor** + `kairos` **patch**（D74），不发布。
 
@@ -90,10 +90,10 @@ Task 1 的 `InitRequest` / `#stepsOf` / `PLUGINS` 与 `tier` · spec §3.1（`AR
 
 #### Steps
 - [ ] **Step 1: 先写红用例（命令面）** —— `--harness=pi --include-recommends` 得 9 步、`--harness=claude --include-recommends` 得 6 步 + info 行、不带 `--harness` 带旗标 exit 2 零 spawn、`--dry-run --include-recommends` 预览 9 行 `would run:` 且零 spawn；`--update --include-recommends` 成功面两档各一条：`preview({ host: "pi", shape: "update", recommended: true })` = 9 条 update argv、`preview({ host: "claude", shape: "update", recommended: true })` = 6 条 update argv，argv 序列按名册 update 列独立取期望并与同行 install argv 零交集（不从 install 列反推），claude 同时出 info 行。 — checkable: 先红（commander 现在把该旗标当未知选项拒绝）
-- [ ] **Step 2: 让旗标存在** —— `declare.ts` 增 `ARGV_CHANNEL` 行与 `CLI_COMMANDS` init 行 `keys` 项；`cli.ts` 增 `RunInput.includeRecommends?` 与 `#runInput` 映射，init 节点读一次后透传进 `InitRequest.recommended`。 — checkable: Step 1 的四条用例里命令面三条转绿，`channel-closure.guard.test.ts` 绿
+- [ ] **Step 2: 让旗标存在** —— `face/declare.ts` 增 `ARGV_CHANNEL` 行与 `CLI_COMMANDS` init 行 `keys` 项；`cli.ts` 增 `RunInput.includeRecommends?` 与 `#runInput` 映射，init 节点读一次后透传进 `InitRequest.recommended`。 — checkable: Step 1 的四条用例里命令面三条转绿，`channel-closure.guard.test.ts` 绿
 - [ ] **Step 3: 档位随步骤旅行** —— `InitStep` 增 `tier`，`#stepsOf` 填它；`run()` / `preview()` 只读展平产物，零 `PLUGINS` 回查。 — checkable: 源码面 `grep` 显示 `run()`/`preview()` 体内零 `PLUGINS` 引用（`tier` 判据只住 `#stepsOf`）
 - [ ] **Step 4: 输出面三句** —— 分档汇总（含预览）、空档 info 行走 `#header` 排汇总后、推荐档失败补行按 shape 分形走 `io.stderr`；无旗标路径零字节改动。 — checkable: `init.test.ts` 的既有输出面用例全绿未改；新增用例覆盖三句字节与两形行序
-- [ ] **Step 5: 第一笔提交（源码面）—— 本步故意不是绿态** —— 提交本任务的源码面（`declare.ts` / `cli.ts` / `init.ts` 与三个测试文件），**不带**任何 `docs/diagrams/` 改动。`cli.ts` 的 `RunInput.includeRecommends` 与 `#runInput` 映射各添一行后，init 节点首行从 387 下移，旧 citation 387 落在新 span 之外，`diagrams.guard.test.ts` 的 containment 腿**明知为红**——不是回归；`pnpm run precommit` 照常过（它只跑 `channel-closure.guard` / `words.guard` / `handoff-plane.guard`，不含 `diagrams.guard.test.ts`）。 — checkable: `git log -1 --stat` 只含源码面文件；`git show HEAD:docs/diagrams/src/architecture.en.json` 仍是旧 citation 与旧 `revision`；`pnpm run precommit` exit 0
+- [ ] **Step 5: 第一笔提交（源码面）—— 本步故意不是绿态** —— 提交本任务的源码面（`face/declare.ts` / `cli.ts` / `init.ts` 与三个测试文件），**不带**任何 `docs/diagrams/` 改动。`cli.ts` 的 `RunInput.includeRecommends` 与 `#runInput` 映射各添一行后，init 节点首行从 387 下移，旧 citation 387 落在新 span 之外，`diagrams.guard.test.ts` 的 containment 腿**明知为红**——不是回归；`pnpm run precommit` 照常过（它只跑 `channel-closure.guard` / `words.guard` / `handoff-plane.guard`，不含 `diagrams.guard.test.ts`）。 — checkable: `git log -1 --stat` 只含源码面文件；`git show HEAD:docs/diagrams/src/architecture.en.json` 仍是旧 citation 与旧 `revision`；`pnpm run precommit` exit 0
 - [ ] **Step 6: 第二笔提交（证据面）—— 绿态只在这一笔** —— 按 `diagrams.guard.test.ts:133-137` 的同源锚点重算 `engine` 节点 citation 的 `line` / `end_line`（`^ {4}commandNode\("init"\)\.action\(` → `^ {4}\}\);$`，今日 387-402，落 `RunInput.includeRecommends` 与 `#runInput` 映射后首行下移），en `:208-210` 与 zh-CN `:208-210` 各一处；把 `meta.repository.revision` 重钉到**同时含两处新锚点**的 Step 5 那笔提交（40-hex，须已在本地 clone），再按 `docs/diagrams/README.md:16` 的 Archify finalize 命令重生成两份 HTML——产物里的证据链接随 citation 走，**禁止手改 HTML**；这一笔只放两份 JSON 与两份 HTML。**禁止 `--amend` Step 5 那笔**：amend 改写刚 pin 的 sha，`revision` 腿当场自毁。 — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/diagrams.guard.test.ts` 四条腿全绿（含 `revision` 腿），且 `git log --oneline -2` 里的 Step 5 sha 与 JSON 的 `revision` 相等
 - [ ] **Step 7: 全量跑绿 + 收尾** —— `pnpm -C packages/cdd-engine test` → PASS（`git status --porcelain` 空）。 — checkable: 套件 exit 0（含 `diagrams.guard.test.ts` 四条腿），`pnpm run precommit` 在第二笔上 exit 0
 
@@ -158,7 +158,7 @@ spec §6.2（七份消费面 markdown、`-e` 形命令、`--plan` 正控）· §
 - [ ] **Step 3: 全量验收 + 提交** —— `env -u AI_AGENT pnpm run validate` → ALL PASS，`pnpm run emit:check` fresh。 — checkable: validate exit 0（emit · root · kairos · engine · typecheck ×3 · version-sync · 零裸函数），然后提交
 
 #### Acceptance
-泄漏门已随 Task 3 在册且本轮拿到**可红证明**（临时探针红 → 移除后绿；`--plan` 正控 ≥1、七条字面 0、命令形状只许 `-e` 形）· 七份消费面 markdown（六份 `SKILL.md` + `cdd-dev/docs/base.md`）零命中 · changeset `cdd-engine` minor + `kairos` patch 在册 · `env -u AI_AGENT pnpm run validate` exit 0 · `pnpm run emit:check` fresh · `cdd` 仍八命令（结构 pin 不变）。
+泄漏门已随 Task 3 在册且本轮拿到**可红证明**（临时探针红 → 移除后绿；`--plan` 正控 ≥1、七条字面 0、命令形状只许 `-e` 形）· 七份消费面 markdown（六份 SKILL.md + `cdd-dev/docs/base.md`）零命中 · changeset `cdd-engine` minor + `kairos` patch 在册 · `env -u AI_AGENT pnpm run validate` exit 0 · `pnpm run emit:check` fresh · `cdd` 仍八命令（结构 pin 不变）。
 
 #### DependsOn
 3

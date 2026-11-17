@@ -28,7 +28,7 @@ branch 面另外派发 `mattpocock-skills:code-review`（`face/host.ts:199`）�
 
 #### 1.2 缺口与冲突（调查证据）
 
-调查面：superpowers 7.0.0（`requesting-code-review` 的 SKILL + `code-reviewer.md` · `receiving-code-review` · `finishing-a-development-branch`）· mattpocock-skills 1.3.1（`code-review` · `pr`）· [Google eng-practices 评审清单](https://google.github.io/eng-practices/review/reviewer/looking-for.html)，共 92 条处方。
+调查面：superpowers 7.0.0（`requesting-code-review` 的 SKILL + 评审清单 · `receiving-code-review` · `finishing-a-development-branch`）· mattpocock-skills 1.3.1（`code-review` · `pr`）· [Google eng-practices 评审清单](https://google.github.io/eng-practices/review/reviewer/looking-for.html)，共 92 条处方。
 
 - **缺口 A · 只读纪律零覆盖**：评审子代理没有任何约束禁止改工作树 / index / HEAD（`templates.ts` 内 `read-only` grep 零命中）。上游是硬纪律——"Review is read-only… never move HEAD on this checkout"。
 - **缺口 B · 单代理纪律只在 wave 轴**：wave 轴尾有「Single agent, four axes.」，branch / spec / plan 三面无；而 branch 面派发的 mattpocock skill **硬性要求并行子代理**（Standards 与 Spec 各派一个）。同一份 prompt 里没有任何一处裁决谁说了算。

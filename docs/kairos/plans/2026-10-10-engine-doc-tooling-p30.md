@@ -25,7 +25,7 @@ base: develop
 - **`--recover` 盖戳后 review 仍被拒**：`supersededBy` 若只在 `#pendingFix` 生效而 `lineRoute` 仍读旧 review，派发门会以 `hop` 拒——两处必须同改，且 `#rowClosed` 不得被波及（改了会让已闭合线看起来还开着）。
 - **reopen 变成万能后门**：条件写松（无 drift 也放行、或有在飞轮次也放行）会绕过 fix——红测要覆盖「无条件调用 → BLOCKED」。
 - **验证型判据被当成零 diff 豁免**：`Files` 非空却零 diff 必须仍 `committed nothing`；「至少一个 task 空」不得算验证型。
-- **flag 面残留**：`--steal-stale` 只在 declare/words/cli 三处不彻底——`lifecycle.ts` 的传递链、`inflight.ts` 的 holding message、`preflight.ts` 的 `DispatchFacts`，以及 preview / board-view / preflight / inflight 四个测试文件都会漏字面（`stealable` 是键名不是字面，键名不改）。
+- **flag 面残留**：`--steal-stale` 只在 declare/words/cli 三处不彻底——`lifecycle.ts` 的传递链、`inflight.ts` 的 holding message、`preflight.ts` 的 DispatchFacts，以及 preview / board-view / preflight / inflight 四个测试文件都会漏字面（`stealable` 是键名不是字面，键名不改）。
 - **finding id 双向差集只打一侧**：改写 summary 的失败报文若仍只 print unknown，`#443④` 的可读性没修。
 - **折行续行被静默丢弃**：列数不一致的行必须报一条 shape finding；静默过滤等于把假绿换成漏报。
 - **版本头交叉校验误伤存量**：新增不变量上线时仓内 spec / plan / overall 不得被误伤；这条全量判定由 Task 3 的 corpus guard 测钉住，口径是**每文档具名 ceiling**下的「无新增漂移」而非「全绿」——存量文档在某条 lineage 腿上的 finding 数涨过它的 ceiling 即该测红并点名文件，修好降到 ceiling 以下则绿；而存量在既有判定面上的旧红（`p19-design` 的 `presence`）不在本测断言面内。
@@ -38,29 +38,29 @@ base: develop
 
 #### Files
 
-- Modify: `packages/cdd-engine/src-next/face/declare.ts`（旗标行 `stealStale` 改名 `recover`、`flag: "--recover"`；三个动词的旗标引用同步）
+- Modify: `packages/cdd-engine/src-next/face/declare.ts`（旗标行 stealStale 改名 `recover`、`flag: "--recover"`；三个动词的旗标引用同步）
 - Modify: `packages/cdd-engine/src-next/face/words.ts`（`stale` / `stealable` / `corruptLocked` / `corruptUnlocked` 四行报文的 `--steal-stale` 字面与注释改词；`InFlightWords` 键名不变——`stealable` 是标识符，不属字面门）
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`（两处 `parsed.args.stealStale` 读取点与 `--steal-stale` 注释改键名改词）
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#stealStale` 字段 / `opts.stealStale` / `acquire({ stealStale })` 传参与 `--steal-stale` 注释——旗标面的唯一传递链，不改行为）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（#stealStale 字段 / `opts.stealStale` / `acquire({ stealStale })` 传参与 `--steal-stale` 注释——旗标面的唯一传递链，不改行为）
 - Modify: `packages/cdd-engine/src-next/face/preview.ts`（`--steal-stale` 注释改词；`words.inFlightWords().stealable` 键引用不变）
-- Modify: `packages/cdd-engine/src-next/session/inflight.ts`（`acquire` 的 `stealStale` 选项、`#stealIfDead` 注释、`holdingMessage` 里的 `--steal-stale` 字面——用户可见的接管语）
-- Modify: `packages/cdd-engine/src-next/session/preflight.ts`（`DispatchFacts.stealStale` 与 `#inFlightRefusal` 形参、`--steal-stale` 注释改键名改词）
+- Modify: `packages/cdd-engine/src-next/session/inflight.ts`（`acquire` 的 stealStale 选项、`#stealIfDead` 注释、`holdingMessage` 里的 `--steal-stale` 字面——用户可见的接管语）
+- Modify: `packages/cdd-engine/src-next/session/preflight.ts`（DispatchFacts.stealStale 与 `#inFlightRefusal` 形参、`--steal-stale` 注释改键名改词）
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（帮助面与拒绝语零 `--steal-stale`；`words.inFlightWords()` 三行字面重锚）
 - Test: `packages/cdd-engine/src-next/face/__tests__/words.guard.test.ts`
 - Test: `packages/cdd-engine/src-next/face/__tests__/preview.test.ts`（`--steal-stale --dry-run` 用例与 `not.toContain("--steal-stale")` 断言重锚到 `--recover`）
 - Test: `packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`（`toContain("--steal-stale")` 字面锚点重锚；`.stealable` 键引用不变）
-- Test: `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts`（拒绝语字面 `stale holder — pid 4242 (re-run with …)` 与 `toContain` / `not.toContain` 用例重锚；`stealStale` 选项名随改）
-- Test: `packages/cdd-engine/src-next/session/__tests__/inflight.test.ts`（`stealStale` 选项名与注释重锚；Task 4 在同一文件追加密钥面 pin——Task 4 DependsOn 1，串行，无并行写同一文件）
+- Test: `packages/cdd-engine/src-next/session/__tests__/preflight.test.ts`（拒绝语字面 `stale holder — pid 4242 (re-run with …)` 与 `toContain` / `not.toContain` 用例重锚；stealStale 选项名随改）
+- Test: `packages/cdd-engine/src-next/session/__tests__/inflight.test.ts`（stealStale 选项名与注释重锚；Task 4 在同一文件追加密钥面 pin——Task 4 DependsOn 1，串行，无并行写同一文件）
 
 #### Consumes
 
-- `face/declare.ts` 的 `FlagRow` 表与 `CLI_COMMANDS` 行
-- `face/words.ts` 的 `WORD_TABLE`（`steal` 家族行）
+- `face/declare.ts` 的 FlagRow 表与 `CLI_COMMANDS` 行
+- `face/words.ts` 的 WORD_TABLE（`steal` 家族行）
 - `face/cli.ts` 的旗标读取点
 
 #### Produces
 
-- 旗标键 `recover`（`flag: "--recover"`），`ParsedArgs` 上可用
+- 旗标键 `recover`（`flag: "--recover"`），ParsedArgs 上可用
 - 帮助面、拒绝语、capsule、`words` 表零 `--steal-stale` 字面
 
 #### Steps
@@ -144,7 +144,7 @@ none
 - Modify: `packages/cdd-engine/src-next/contract/doc.ts`（`tableSection` 保留表头与表体原样，行形状判定留给不变量层）
 - Modify: `packages/cdd-engine/src-next/contract/declare.ts`（change-history 行 selector 锚定首列版本）
 - Modify: `packages/cdd-engine/src-next/render/templates.ts`（docs-fix 变体两句：追加行必须 bump front-matter；表格单元格不得硬折行）
-- Test: `packages/cdd-engine/src-next/contract/__tests__/invariants.test.ts`（或既有 lint/invariants 测文件）
+- Test: packages/cdd-engine/src-next/contract/__tests__/invariants.test.ts（或既有 lint/invariants 测文件）
 - Test: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`
 - Test: `packages/cdd-engine/src-next/contract/__tests__/doc-corpus.guard.test.ts`（corpus guard：遍历 `docs/kairos/{specs,plans,overalls}`，按 front-matter `doc-type` 取 doc key，以**每文档具名 ceiling** 断言「存量不得更加红」——`change-history-row-shape` 的冻结基线（15 篇历史文档，overall 单篇 110 行，p24 对为 spec 26 / plan 24）由测内常量具名并写明「历史零迁移」理由；`change-history-latest-matches-front-matter` 对 p24 对**各 1**（`docs/kairos/specs/2026-10-10-engine-doc-tooling-p24-design.md` 与 `docs/kairos/plans/2026-10-10-engine-doc-tooling-p24.md`），其余文档 0——这两篇的最新表行正是自身形状折行的行，历史零迁移下不修表，故非零 ceiling 具名而非掩盖；`change-history-version-unique` 全部为 0；P30 自身文档一律零 finding；断言面不扩到既有 `presence` 等判定面）
 
@@ -167,7 +167,7 @@ none
 
 - 写失败测：折行夹具（表格单元格硬换行且续行含管道符）→ 今日产出 `duplicate change-history version`，期望改为「一条 shape finding，且无 duplicate」 — checkable: 定向 vitest FAIL（今日报 duplicate）
 - 写失败测：front-matter `v0.4` + lineage 数值最大 `v0.5` → 新不变量红；`v0.5` + `v0.5` → 绿 — checkable: FAIL（今日成员制通过）
-- 写失败测：行内正文含 `spec vX.Y` 但首列不是版本 → 不产生 lineage 行 — checkable: FAIL（今日 `firstVersion` 会读该行）
+- 写失败测：行内正文含 `spec vX.Y` 但首列不是版本 → 不产生 lineage 行 — checkable: FAIL（今日 firstVersion 会读该行）
 - 写失败测：表头 4 列、最新表行为形状折行（3 列）且首列携带 header 版本 → 成员判定仍绿（不落 `version outside the document's own lineage`），同时该行不被生重与 latest-matches 读成 lineage 行 — checkable: FAIL（今日成员读面只读表头列宽一致的行集，该行落下即误红）
 - 实现锚定读面与两条不变量（成员读面取全部表体行、生重与 latest-matches 取表头列宽行集）；docs-fix 模板加两句 — checkable: 上四测 PASS；`pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__` 全绿
 - 仓内全量自检：`node packages/cdd-engine/src-next/bin.ts review --type phase-spec --spec docs/kairos/specs/2026-10-10-engine-doc-tooling-p30-design.md --dry-run` 与 plan 同形各跑一次 — checkable: 两次 exit 0（两个抽样目标不被新不变量误伤）

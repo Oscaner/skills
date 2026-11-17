@@ -48,7 +48,7 @@ base: develop
 
 #### Produces
 
-- `BriefRenderer` 上单源 **task-only** 投影（建议名 `taskBody` / `renderTasks`——实现自定，但必须是 `render` 与 hash 共用的 task 段拼装，禁止第二份切片逻辑）
+- `BriefRenderer` 上单源 **task-only** 投影（建议名 `taskBody` / renderTasks——实现自定，但必须是 `render` 与 hash 共用的 task 段拼装，禁止第二份切片逻辑）
 - `Ledger#briefRevision` 对投影结果做 `ReviewRefs#briefRevision`；`render(...)` 仍 = task 段 + Constraints
 - colocated pins：① `render` 输出含 Constraints 标题/正文；② 同 Task、只改 Constraints → `briefDrifted` false；③ 改该波 Task 段 → true
 
@@ -107,7 +107,7 @@ none
 - 写失败测（红）：重锚既有「closed wave with a moved brief」夹具——全 wave 已闭合 + 该 batch 的 Task 段（Acceptance/正文）改写使 task-only `brief_hash` 陈旧后，`verdict(branch review)` 仍 allowed — checkable: 今日 upstream `doc-drift` 拒 → FAIL；`#waveStation` 滤闭合后 PASS。前置断言 `briefDrifted` 为 true——只改 `## Constraints` 的夹具在 Task 1 后恒绿，禁用
 - 写失败测：一未闭合 batch Task 漂移后拒 branch，`reason==="brief-drift"` 且 message/next 含该 batch 的 wave review 字面 — checkable: 今日 reason 为 doc-drift 或 next 为 branch → FAIL
 - 写失败测：上述 `brief-drift` 拒绝 message 含 layer/line/recorded/current（或规范键名）— checkable: FAIL until 诊断落地
-- 写失败测（**doc 侧独立红测**，不得以「P22 T17 仍绿」代替）：既有 upstream `doc-drift` 拒绝——`dispatch-authority.test.ts` 的 stale-plan-identity 用例（`docs/kairos/plans/p3.md` 一族）或 `cli.test.ts` P22 T17 branch 重开——其 message/诊断字段含 `layer=doc`（或规范键名）、该文档行键、recorded/current hash 前缀 — checkable: 今日拒绝语仅 `doc-drift · next: …`（或 `doc-drift · next: review --type branch`）→ 断言 FAIL until doc 侧诊断落地；只在 brief 分支加诊断时本测仍 FAIL
+- 写失败测（**doc 侧独立红测**，不得以「P22 T17 仍绿」代替）：既有 upstream `doc-drift` 拒绝——`dispatch-authority.test.ts` 的 stale-plan-identity 用例（`docs/kairos/plans/2026-10-10-engine-doc-tooling-p3.md` 一族）或 `cli.test.ts` P22 T17 branch 重开——其 message/诊断字段含 `layer=doc`（或规范键名）、该文档行键、recorded/current hash 前缀 — checkable: 今日拒绝语仅 `doc-drift · next: …`（或 `doc-drift · next: review --type branch`）→ 断言 FAIL until doc 侧诊断落地；只在 brief 分支加诊断时本测仍 FAIL
 - 扩展 reason 表 + 拆 `#reasonOf` / gate 输入；改 `#waveStation` 与 `#upstreamLeg` next 组装；message 附诊断 — checkable: 上列测 PASS（含 brief 与 doc 两条诊断测）
 - 重锚 board/cli 中 wave brief 的 `doc-drift` 期望为 `brief-drift`；跑 P22 T17 branch doc-drift 夹具确认仍绿 — checkable: 定向 vitest PASS
 - board↔dispatch 成对夹具（仅闭合 Task 段陈旧）— checkable: 两者都不以漂移拒 branch / 或以同一 token 同意开放

@@ -21,7 +21,7 @@ parent-version: v2.62
 
 #### 1.1 设计输入与授权
 
-- 输入：overall D55（注册）与 D56（Q1–Q11 全裁定）；P12 spec v0.8 的终止面（`face/termination.ts` 的 `Terminator` / `StallJudge` / `Sampler` / `SamplingLoop`）。
+- 输入：overall D55（注册）与 D56（Q1–Q11 全裁定）；P12 spec v0.8 的终止面（`face/termination.ts` 的 `Terminator` / StallJudge / `Sampler` / `SamplingLoop`）。
 - 授权：六前提 + 第七前提「不造轮子，优先第三方 pkg」整评；破坏性变更许可，不保守、不打补丁。
 - 尺寸 `fit`，单 phase-spec，无内部拆 phase。
 
@@ -125,7 +125,7 @@ parent-version: v2.62
 
 - `HandoffFamily.schema` 选的是 child 草稿的**数据形状**：`findings` = child 写发现列表、不写 `status`，结论由引擎 `rollup(findings)` 汇总（review 与改文档的 fix 轮）；原 `work` = child 交付产物并自己声明 `status`（APPROVED / BLOCKED）（implement 与改代码的 fix 轮）。
 - 原名 `work` 描述场景而非形状（review 发现问题同样是在工作），与 `findings` 并列时区分不出两者。**改名为 `delivery`**，`findings` 不变（D57）。
-- 破坏性改名，范围：`HandoffSchemaFace` 取值 · `CARRIER_WORK` / `WorkCarrier` · `buildHandoff` 的重载 · `HANDOFF_FAMILIES` 三处 `schema: "work"` · `handoffFaceOf` 调用点 · 相关测试。非 face 语义的 `work` 词（如 `WorkInit`、变量名）逐处核对，不全局替换。
+- 破坏性改名，范围：HandoffSchemaFace 取值 · CARRIER_WORK / WorkCarrier · `buildHandoff` 的重载 · `HANDOFF_FAMILIES` 三处 `schema: "work"` · handoffFaceOf 调用点 · 相关测试。非 face 语义的 `work` 词（如 `WorkInit`、变量名）逐处核对，不全局替换。
 - `HandoffFamily.schema` 的注释按载荷形状重写，并清除其中的 spec 章节号与重构叙述（程序历史不进代码注释）。
 - 不改 CLI 面、不改磁盘上的 handoff 文件格式（face 名不落盘）；changeset 仍 cdd-engine **minor**。
 

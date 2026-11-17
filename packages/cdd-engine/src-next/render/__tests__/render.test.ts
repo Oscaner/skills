@@ -215,6 +215,11 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     const fix = TEMPLATE_PROMPT.modes.fix.shell.join("\n");
     expect(fix).not.toContain("the spec line");
     expect(fix).toContain("never the judged document");
+    // P37 §4.1 — the wave line carries the same two anchors as the branch line, so the
+    // fix shell names BOTH lines and both anchors: a wave fix child never meets a path
+    // token its own instruction text attributes to another line (or omits entirely)
+    expect(fix).toContain("`INPUT_SPEC` on the wave and branch lines");
+    expect(fix).toContain("`INPUT_OVERALL` on those two lines");
     // D — the docs-fix shell marks the plan-doc line's spec reference un-editable in
     // this round and names the overall line's own anchor
     const docsFix = TEMPLATE_PROMPT.modes["docs-fix"].shell.join("\n");
@@ -357,8 +362,10 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // The I / J / K fixes change criteria BODIES; the labels that identify a row stay
     // byte-frozen, and so do the first-line titles of the three work shells.
     const reviewFaces = [
-      ["wave", "**Criteria — wave:**", "standards | spec | buildability"],
-      ["branch", "**Criteria — branch:**", "standards | spec | buildability"],
+      // P37 T2 — the wave / branch len enums gain `scope` (design spec §3.2: the
+      // `scope` axis the guides already judged had no enum value to carry the finding).
+      ["wave", "**Criteria — wave:**", "standards | spec | buildability | scope"],
+      ["branch", "**Criteria — branch:**", "standards | spec | buildability | scope"],
       ["phase-spec", "**Criteria — phase-spec:**", "completeness | consistency | clarity"],
       ["single-spec", "**Criteria — single-spec:**", "completeness | consistency | clarity"],
       ["plan", "**Criteria — plan:**", "completeness | decomposition | buildability"],
@@ -634,11 +641,14 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // criteria body + the explicit criteria-body selection: 19 → 20; P33 T1 — the
     // target discriminant rendered as a round-context line on every targeted face: 20 → 21;
     // P33 T2 — the three referent sentences (§2.5 A · B · D): 21 → 22;
-    // P33 T3 — the shared body's five calibrations (§2.6 G · H · I · J · K): 22 → 23)
-    expect(TEMPLATE_PROMPT.$version).toBe(23);
-    // the spec review's judged doc IS the spec — carries INPUT_SPEC only; the wave
-    // review carries neither judged-doc anchor (the empty slots are dropped by the
-    // assembler)
+    // P33 T3 — the shared body's five calibrations (§2.6 G · H · I · J · K): 22 → 23;
+    // P37 §4.1 — the fix shell names the wave line's two anchors: 23 → 24)
+    expect(TEMPLATE_PROMPT.$version).toBe(24);
+    // the spec review's judged doc IS the spec — carries INPUT_SPEC only. A wave review
+    // DOES carry both judged-doc anchors (§4.1: `INPUT_SPEC` is the phase's identity
+    // document, `INPUT_OVERALL` the charter its `program:` reaches); this render's scene
+    // resolved no identity document, so the assembler drops its empty slots — the
+    // assertions below show that drop, not a policy that the wave face owns neither.
     const wave = assembler.render({
       ...ALL_VALUES,
       ROLE: "review",

@@ -10,8 +10,8 @@ slug: 2026-10-10-engine-doc-tooling-p5
 
 - 字面零裸函数（D18② · Q2→a）：引擎 + scripts 全部 `.ts`（含测试面）模块级 `function` / `export function` / `async function` 零命中（统一正则 `^(export )?(async )?function ` · 含组合根 · 含迁移面 kairos tests——`scripts/run.ts:17 async function main` 与 `packages/kairos/tests/ci-validate.test.ts:28 async function capture` 均入面（后者随 T5 删除））——收类成员/static 类族 · 不留豁免口
 - 校验归域（用户域模型）：每个 check 只有一处（所属 package test plane）· 根 `scripts/` 零验证逻辑实现 · 零平行实现 · 词表/anatomy 契约/通道声明保持引擎单源导出（kairos 以 `workspace:*` 包依赖消费 · kairos tests `node --test` 直跑 `.ts` → 相对路径直引引擎契约源——引擎 `exports` 仅开 CLI 入口 `bin.ts` · 消费面零子路径导出扩张）
-- docs 不验（D18⑥）：`checkDocContract`/`PRECONTRACT_DOCS`/`checkClaimedPins` 撤下根 · 根零 docs 扫描 · docs 合法性交引擎 review/fix dispatch 门用时自判
-- CI 原生（D18⑧ · Q8→a）：`validate.ts` 组合 runner 解散 · GH Actions 原生 job · precommit 原生命令序列 · 局部 commit 门语义不降
+- docs 不验（D18⑥）：checkDocContract/PRECONTRACT_DOCS/checkClaimedPins 撤下根 · 根零 docs 扫描 · docs 合法性交引擎 review/fix dispatch 门用时自判
+- CI 原生（D18⑧ · Q8→a）：校验脚本 组合 runner 解散 · GH Actions 原生 job · precommit 原生命令序列 · 局部 commit 门语义不降
 - 字节语义 major（D18④ · Q3→a/Q5→a）：命令/旗标/退出码可 deliberate 更替（逐项 pin 重锚 + 锚同步）· **`next:` 字面冻结**（可执行命令字面化 · 不简洁化 · I2）· 功能语义不变（六命令领域 run 语义零动）
 - 不发布（D18⑤ · Q6）：变更集归并到 pending · tag/publish 独立动作 · `changeset status` 无 empty 条目
 - smoke 新入口（D18⑨ · Q7a→a）：smoke 归 engine test plane · release 两门改指引擎 smoke 入口 · `--expect-version` 撤旗标（D19 用户裁定 · option ② · no-op 不迁）
@@ -21,13 +21,13 @@ slug: 2026-10-10-engine-doc-tooling-p5
 - 引擎开发调用一律本地源 `node packages/cdd-engine/src-next/bin.ts <subcommand>`（非 `npx @latest`）
 
 ### Task 1: Engine 侧校验归域——channel/handoff/引擎词面 checks 迁 engine colocated vitest
-- **Objective**: 把 `scripts/lib/guard.ts` 的 `checkChannels`（CLI×runtime 通道闭包 + host-marker 闭包）、`checkHandoffPlane`（P4 扩项 · 声明面闭合 · engineOnly 卫生 · 写平面声明派生）与 `checkWords` 的引擎字面面，从 root 抽取为 engine test plane 的 colocated vitest pins（`face/__tests__/` + `session/__tests__/`），消费引擎自身声明单源（`face/declare.ts` · `face/host.ts` · `session/handoff-schema.ts` · `face/words.ts`）——校验实现随产物归位，root 同一断言不再重复持有
+- **Objective**: 把 guard 库 的 checkChannels（CLI×runtime 通道闭包 + host-marker 闭包）、checkHandoffPlane（P4 扩项 · 声明面闭合 · engineOnly 卫生 · 写平面声明派生）与 checkWords 的引擎字面面，从 root 抽取为 engine test plane 的 colocated vitest pins（`face/__tests__/` + `session/__tests__/`），消费引擎自身声明单源（`face/declare.ts` · `face/host.ts` · `session/handoff-schema.ts` · `face/words.ts`）——校验实现随产物归位，root 同一断言不再重复持有
 - **Files**:
   - Create: `packages/cdd-engine/src-next/face/__tests__/channel-closure.guard.test.ts`（P3 channel-closure 单面自检同族的归域承接面）
   - Create: `packages/cdd-engine/src-next/session/__tests__/handoff-plane.guard.test.ts`
   - Create: `packages/cdd-engine/src-next/face/__tests__/words.guard.test.ts`（引擎字面面禁令词审计）
   - Modify: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（channel pins 若有 duplicate 断言并归）
-- **Consumes**: guard 三 check 的现断言位址（`scripts/lib/guard.ts` · 归域源）· `face/declare.ts` CLI_COMMANDS · `face/host.ts` env-marker 表 · `face/words.ts` GUARD_BAN_WORDS 导出 · `session/handoff-schema.ts` 声明面
+- **Consumes**: guard 三 check 的现断言位址（guard 库 · 归域源）· `face/declare.ts` CLI_COMMANDS · `face/host.ts` env-marker 表 · `face/words.ts` GUARD_BAN_WORDS 导出 · `session/handoff-schema.ts` 声明面
 - **Produces**: engine test plane 内三个自含 colocated pins（vitest · 断言面对准归域后语义），供 T5 拆除 root check 时零平行差
 - **Steps**:
   - 读 specs 归域定案 §2.3 与 guard 三 check 现断言，逐 check 提取断言面（channel 闭包 = command keys × flag channels · host 闭包 = detect env keys ∪ PATH · handoff-plane = 声明面闭合 + engineOnly 卫生 + 写平面声明派生） — checkable: 三 check 各自断言核心行位址清单落盘
@@ -39,7 +39,7 @@ slug: 2026-10-10-engine-doc-tooling-p5
 - **DependsOn**: none
 
 ### Task 2: Kairos 侧校验归域——skill-anatomy + 技能词面 checks 迁 kairos test plane
-- **Objective**: 把 root `checkAnatomy`（SKILL.md 结构合约判压）与 `checkWords` 的技能散文面，迁入 kairos test plane（`packages/kairos/tests/`）——判压实现 = 引擎导出的 `skill-anatomy` 契约（`workspace:*` 包依赖 · `node --test` 直跑 `.ts` 相对路径直引引擎契约源——引擎 `exports` 仅开 CLI 入口 `bin.ts` · 消费面零子路径导出依赖）· 走查器（analyzeSkill · digraph/section 抽取）落 kairos 测试辅助 · 技能散文词面以引擎 `GUARD_BAN_WORDS` 导出为基准——kairos 拥有自身产物（six SKILL.md）的校验
+- **Objective**: 把 root checkAnatomy（SKILL.md 结构合约判压）与 checkWords 的技能散文面，迁入 kairos test plane（`packages/kairos/tests/`）——判压实现 = 引擎导出的 `skill-anatomy` 契约（`workspace:*` 包依赖 · `node --test` 直跑 `.ts` 相对路径直引引擎契约源——引擎 `exports` 仅开 CLI 入口 `bin.ts` · 消费面零子路径导出依赖）· 走查器（analyzeSkill · digraph/section 抽取）落 kairos 测试辅助 · 技能散文词面以引擎 `GUARD_BAN_WORDS` 导出为基准——kairos 拥有自身产物（six SKILL.md）的校验
 - **Files**:
   - Create: `packages/kairos/tests/skill-anatomy.test.ts`（node:test · analyzeSkill 走查 + 契约判压）
   - Create: `packages/kairos/tests/words.test.ts`（技能散文词面审计）
@@ -57,19 +57,19 @@ slug: 2026-10-10-engine-doc-tooling-p5
 - **DependsOn**: none
 
 ### Task 3: Docs 不验——checkDocContract/PRECONTRACT_DOCS/checkClaimedPins 撤下根
-- **Objective**: 把 root `scripts/validate.ts` 的 `checkDocContract` 步（含 `PRECONTRACT_DOCS` 33 个豁免窗名单）与 claimed→pin right lint 步移除——docs 是开发产物，其结构合法性由引擎 review/fix dispatch 门用时自判（`cdd review --type spec/plan` 的 doc-contract 判定保留——引擎能力，非 root verify 实现）；根零 docs 扫描
+- **Objective**: 把 root 校验脚本 的 checkDocContract 步（含 PRECONTRACT_DOCS 33 个豁免窗名单）与 claimed→pin right lint 步移除——docs 是开发产物，其结构合法性由引擎 review/fix dispatch 门用时自判（`cdd review --type spec/plan` 的 doc-contract 判定保留——引擎能力，非 root verify 实现）；根零 docs 扫描
 - **Files**:
-  - Modify: `scripts/validate.ts`（`checkDocContract` 步移除 · `PRECONTRACT_DOCS` 集合删除 · checkClaimedPins 步移除 · steps 表相关行删）
-  - Remove: `scripts/lib/guard.ts` 中 `checkClaimedPins` 与其专属分析器（若 checkDocContract 实现在 guard 的则同删）
-- **Consumes**: specs §2.4 · validate.ts 步表 `PRECONTRACT_DOCS` Set（33 个）· guard checkClaimedPins 实现位址
-- **Produces**: root validate 步表不再含任何 docs 扫描口径 · `PRECONTRACT_DOCS` 名单零残留 grep 可证
+  - Modify: 校验脚本（checkDocContract 步移除 · PRECONTRACT_DOCS 集合删除 · checkClaimedPins 步移除 · steps 表相关行删）
+  - Remove: guard 库 中 checkClaimedPins 与其专属分析器（若 checkDocContract 实现在 guard 的则同删）
+- **Consumes**: specs §2.4 · validate.ts 步表 PRECONTRACT_DOCS Set（33 个）· guard checkClaimedPins 实现位址
+- **Produces**: root validate 步表不再含任何 docs 扫描口径 · PRECONTRACT_DOCS 名单零残留 grep 可证
 - **Steps**:
-  - candidate 验证 `scripts/validate.ts:182-216` 的 PRECONTRACT_DOCS 实为 33 个（spec v0.3 §2.4 已核）——从预置名单确认后随行删除 — checkable: 文件中 PRECONTRACT_DOCS 定义行存在且计数 33
+  - candidate 验证 校验脚本里定义它的那一段 的 PRECONTRACT_DOCS 实为 33 个（spec v0.3 §2.4 已核）——从预置名单确认后随行删除 — checkable: 文件中 PRECONTRACT_DOCS 定义行存在且计数 33
   - 移除 checkDocContract 步（含 gate 实现调用）与 checkClaimedPins 步，步表相关行列清除 — checkable: validate 步表 docs 三口径零残留
-  - 全库 grep `PRECONTRACT_DOCS` — checkable: 零命中（除 change-history 的历史记载文本）
+  - 全库 grep PRECONTRACT_DOCS — checkable: 零命中（除 change-history 的历史记载文本）
   - 跑 `pnpm -C packages/cdd-engine test` + `node --test packages/kairos/tests/*.test.ts` + `pnpm run emit:check` — checkable: 全绿（docs 不验不影响其他门）
   - 提交（`chore: 校验归域（三）——checkDocContract/PRECONTRACT_DOCS/checkClaimedPins 撤下根`） — checkable: git log 单原子
-- **Acceptance**: validate 步表 docs 三口径零残留 · `PRECONTRACT_DOCS` grep 零命中（历史记载除外）· 引擎/kairos/emit-check 全绿 · 不 pending 新功能
+- **Acceptance**: validate 步表 docs 三口径零残留 · PRECONTRACT_DOCS grep 零命中（历史记载除外）· 引擎/kairos/emit-check 全绿 · 不 pending 新功能
 - **DependsOn**: none
 
 ### Task 4: schema gen→get 并入（D19 · 引擎字节面）
@@ -77,7 +77,7 @@ slug: 2026-10-10-engine-doc-tooling-p5
 - **Files**:
   - Modify: `packages/cdd-engine/src-next/face/declare.ts`（schema 命令 leaves 表：`gen` 行删除 · `get` 行新增 `--output` option + target positional）
   - Modify: `packages/cdd-engine/src-next/face/cli.ts`（schema leaf 注册/命令构造 · target 条件必填判定（仅 `--output skeleton` 时要求）· 骨架渲染直写 target 路径的实现接线）
-  - Modify: `packages/cdd-engine/src-next/face/artifacts.ts`（**`runSchemaGen` 并入 `get --output skeleton` 直写面** + usage 字面 `cdd schema gen: missing <type>` 迁移/消灭）
+  - Modify: `packages/cdd-engine/src-next/face/artifacts.ts`（**runSchemaGen 并入 `get --output skeleton` 直写面** + usage 字面 `cdd schema gen: missing <type>` 迁移/消灭）
   - Modify: `packages/cdd-engine/src-next/face/__tests__/projection.test.ts`（**schema 叶表 `["get","gen"]` → `["get"]` · positionals 断言重锚为 get 单 leaf——gen 删则红**）
   - Modify: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（schema gen 相关 pins 重锚为 get --output skeleton · did-you-mean `schema g` 候选 pin）
 - **Consumes**: specs §5.4（根因：`<path>` 零约束 → target 升引擎声明必需参数 · 直写目标 doc 就地填 in place）· D19 · `face/declare.ts` SCHEMA_TYPE_KEYS · `schema gen` 现骨架渲染器（从渲染迁移接线）
@@ -96,23 +96,23 @@ slug: 2026-10-10-engine-doc-tooling-p5
 - **DependsOn**: none
 
 ### Task 5: 校验归域收口——root guard.ts + validate.ts 解散（根零验证逻辑）
-- **Objective**: 三个归域 task（T1/T2/T3）落地后，root `scripts/lib/guard.ts`（1067 行）与 `scripts/validate.ts`（321 行）的组合 runner 解散——check 实现全迁/撤的残余代码清除 · `run.ts` 的 `validate`/`precommit` face 删除 · 关联测试（`scripts/__tests__/guard.test.ts` · `validate.test.ts` · kairos `tests/ci-validate.test.ts` wiring guard）随目标删除——「校验逻辑按产物归属」的归域闭环，根零验证逻辑实现，零平行实现
+- **Objective**: 三个归域 task（T1/T2/T3）落地后，root guard 库（1067 行）与 校验脚本（321 行）的组合 runner 解散——check 实现全迁/撤的残余代码清除 · `scripts/run.ts` 的 `validate`/`precommit` face 删除 · 关联测试（guard 库的测试 · 校验脚本 的测试文件 · kairos ci-validate 测试 wiring guard）随目标删除——「校验逻辑按产物归属」的归域闭环，根零验证逻辑实现，零平行实现
 - **Files**:
-  - Remove: `scripts/lib/guard.ts` · `scripts/validate.ts` · `scripts/__tests__/guard.test.ts` · `scripts/__tests__/validate.test.ts` · `packages/kairos/tests/ci-validate.test.ts`
-  - Modify: `scripts/run.ts`（`validate`/`precommit` verb 分支删除 · `ValidateRunner` 引用清除）· `scripts/__tests__/` 残余引用（smoke 相关另归 T7）
+  - Remove: guard 库 · 校验脚本 · guard 库的测试 · 校验脚本 的测试文件 · ci-validate 测试
+  - Modify: `scripts/run.ts`（`validate`/`precommit` verb 分支删除 · ValidateRunner 引用清除）· `scripts/__tests__/` 残余引用（smoke 相关另归 T7）
 - **Consumes**: specs §2（归域图）· §3（CI 原生：validate.ts 解散）· §7.1 删除面清单 · T1/T2/T3 的新 pins
 - **Produces**: root scripts 只剩原生产物生成面（emit/emit-check/run.ts main）与 CI 门壳 · 可供 T6 收类零裸函数、T8 的 package.json 原生序列接管
 - **Steps**:
   - 确认 T1/T2/T3 已双绿并存解析——全库 grep 确认 guard 五 check 断言面已在 package suites（零平行差） — checkable: 五 check 断言面 root 零残留（历史记载除外）
   - 删除 guard.ts/validate.ts 及三关联测试文件 · run.ts 删 validate/precommit verb 分支 — checkable: §7.1 删除面五文件全部删除
-  - grep 验证残面零命中：guard 五 check 的引擎侧声明定义在 root 零残留 · `run.ts validate` 调用面零残留 — checkable: `ValidateRunner`/`CheckBlock`/`SubprocessBlock`/`steps`/`precommitSteps` grep 零命中
+  - grep 验证残面零命中：guard 五 check 的引擎侧声明定义在 root 零残留 · `run.ts validate` 调用面零残留 — checkable: ValidateRunner/CheckBlock/SubprocessBlock/`steps`/precommitSteps grep 零命中
   - 跑 `pnpm -C packages/cdd-engine test` + `node --test packages/kairos/tests/*.test.ts` + `pnpm run emit:check` — checkable: 全绿
   - 提交（`refactor: 校验归域收口——root guard/validate 解散 · 零平行验证逻辑`） — checkable: git log 单原子
-- **Acceptance**: §7.1 删除面五文件全部删除 · `ValidateRunner`/`CheckBlock`/`SubprocessBlock`/`steps`/`precommitSteps` grep 零命中 · 引擎五 check 断言在 root 零残留（归域后每 check 仅所处 package suite 一处）· 三 suite 全绿 · precommit 形态待 T8 化（现阶段 validate face 已删 · precommit 由 T8 原生序列接管）
+- **Acceptance**: §7.1 删除面五文件全部删除 · ValidateRunner/CheckBlock/SubprocessBlock/`steps`/precommitSteps grep 零命中 · 引擎五 check 断言在 root 零残留（归域后每 check 仅所处 package suite 一处）· 三 suite 全绿 · precommit 形态待 T8 化（现阶段 validate face 已删 · precommit 由 T8 原生序列接管）
 - **DependsOn**: 1, 2, 3
 
 ### Task 6: scripts 源码面零裸函数收类（scan/first-party/run.ts main/emit 类族起点）
-- **Objective**: scripts 非测试面 38 枚模块级裸函数全处置——`lib/scan.ts`（walkTarget/scanToken/isQuotedDataRow 3）· `lib/first-party.ts`（firstPartyNames 1）· `run.ts` main（1）收为类成员/static 类族 · `emit.ts`（12）为 T12 的类族重整铺起点（本任务只做零裸函数收口 · 不改产物字节）· guard/validate/smoke 随 T5/T7 已删 21 枚（guard.ts 9 · validate.ts 5 · smoke-cdd.ts 7）——「字面零裸函数」scripts 源码面达成
+- **Objective**: scripts 非测试面 38 枚模块级裸函数全处置——`lib/scan.ts`（walkTarget/scanToken/isQuotedDataRow 3）· `lib/first-party.ts`（firstPartyNames 1）· `scripts/run.ts` main（1）收为类成员/static 类族 · `emit.ts`（12）为 T12 的类族重整铺起点（本任务只做零裸函数收口 · 不改产物字节）· guard/validate/smoke 随 T5/T7 已删 21 枚（guard.ts 9 · validate.ts 5 · smoke-cdd.ts 7）——「字面零裸函数」scripts 源码面达成
 - **Files**:
   - Modify: `scripts/lib/scan.ts`（`WalkTarget`/`ScanToken` 类族 · walkTarget/scanToken/isQuotedDataRow 收 static/类成员）· `scripts/lib/first-party.ts`（类成员 firstPartyNames）· `scripts/run.ts`（main 收类成员 + emit/emit-check 面保留）· `scripts/emit.ts`（12 枚收类族 · 产物字节零变）
   - Create: `scripts/__tests__/scan.test.ts`（scanToken 现有覆盖仅在 guard.test.ts:15,102-128，而 guard.test.ts 随 T5 删除 → **本任务新建 scan.test.ts 承接 walkTarget/scanToken/isQuotedDataRow 收类后的调用等价断言**）
@@ -131,11 +131,11 @@ slug: 2026-10-10-engine-doc-tooling-p5
 - **DependsOn**: 5
 
 ### Task 7: smoke-cdd 迁 engine test plane + release 两门改指 + --expect-version 撤除
-- **Objective**: `scripts/smoke-cdd.ts`（fixture 仓库 + 真实 bin dry-run 链）迁入 engine test plane（作为引擎集成测试 / 或独立 runnable 入口 · 归「引擎 launch 行为」域）· `release.yml` 两道门改指引擎 smoke 入口 · root `run.ts smoke-cdd` face 删除 · **`--expect-version` 撤旗标**（D19 用户裁定 option ②：现 smoke-cdd.ts 全文件 0 命中 expect/argv/version · no-op 不迁 → 引擎 smoke 不实现版本断言 · release post-version 门移除 · `docs/maintainers/04-program-experience.md` 对应记载删）
+- **Objective**: smoke 脚本（fixture 仓库 + 真实 bin dry-run 链）迁入 engine test plane（作为引擎集成测试 / 或独立 runnable 入口 · 归「引擎 launch 行为」域）· `release.yml` 两道门改指引擎 smoke 入口 · root `run.ts smoke-cdd` face 删除 · **`--expect-version` 撤旗标**（D19 用户裁定 option ②：现 smoke-cdd.ts 全文件 0 命中 expect/argv/version · no-op 不迁 → 引擎 smoke 不实现版本断言 · release post-version 门移除 · maintainers 程序经验篇 对应记载删）
 - **Files**:
   - Create: `packages/cdd-engine/src-next/__tests__/smoke.integration.test.ts`（fixture + dry-run 链 · 或独立 runnable 入口）
-  - Remove: `scripts/smoke-cdd.ts` · `scripts/__tests__/smoke.test.ts`（imports `../smoke-cdd.ts`（smoke.test.ts:8）· 随 smoke-cdd.ts 删除 import 解析即断 → **同 T7 删除面进出** · 其 capsule-contract 断言面并入新 smoke.integration.test.ts）
-  - Modify: `packages/cdd-engine/package.json`（**产出 smoke script**——`smoke.integration.test.ts` 的 vitest 定向跑入口（如 `vitest run src-next/__tests__/smoke.integration.test.ts`）· release.yml 与本地跑统一锚定）· `.github/workflows/release.yml`（pre-version smoke 门 + post-version `--expect-version` 门 → 引擎 smoke 入口 · post-version 门移除）· `scripts/run.ts`（smoke-cdd face 删除）· `docs/maintainers/04-program-experience.md`（--expect-version 记载删）
+  - Remove: smoke 脚本 · smoke 脚本的测试文件（imports `../smoke-cdd.ts`（smoke.test.ts:8）· 随 smoke-cdd.ts 删除 import 解析即断 → **同 T7 删除面进出** · 其 capsule-contract 断言面并入新 smoke.integration.test.ts）
+  - Modify: `packages/cdd-engine/package.json`（**产出 smoke script**——`smoke.integration.test.ts` 的 vitest 定向跑入口（如 `vitest run src-next/__tests__/smoke.integration.test.ts`）· release.yml 与本地跑统一锚定）· `.github/workflows/release.yml`（pre-version smoke 门 + post-version `--expect-version` 门 → 引擎 smoke 入口 · post-version 门移除）· `scripts/run.ts`（smoke-cdd face 删除）· maintainers 程序经验篇（--expect-version 记载删）
 - **Consumes**: specs §6.1（—expect-version 撤旗标处置）· smoke-cdd.ts 现 run 逻辑 · release.yml 双门 · kairos `pi-install-smoke.test.ts` 同型先例 · `--expect-version` 全库调用位址
 - **Produces**: 引擎 test plane 的 smoke 集成入口 + release.yml 双门改指 + root smoke face 删除 · 供 T8 的 CI 原生外壳无 smoke 残留
 - **Steps**:
@@ -152,7 +152,7 @@ slug: 2026-10-10-engine-doc-tooling-p5
 - **DependsOn**: 5
 
 ### Task 8: CI 原生分身——GH Actions 原生 job + package.json scripts 原生命令序列
-- **Objective**: 把 `scripts/validate.ts` 组合 runner 解散后的校验面用 GitHub Actions 原生 job + `package.json` scripts 原生命令序列重构——`pr-validate.yml` 改列原生 job（engine suite · kairos suite · typecheck · emit-check · 版本 sync 薄步 · 各自 action log 原生可见 · 失败归因到具体 job）· root `validate`/`precommit` 脚本改写为原生命令序列（局部 commit 门语义不降）· `run.ts` 的 `validate`/`precommit` 面已随 T5 删除 · `package.json` 含 kairos `test` script 接住
+- **Objective**: 把 校验脚本 组合 runner 解散后的校验面用 GitHub Actions 原生 job + `package.json` scripts 原生命令序列重构——`pr-validate.yml` 改列原生 job（engine suite · kairos suite · typecheck · emit-check · 版本 sync 薄步 · 各自 action log 原生可见 · 失败归因到具体 job）· root `validate`/`precommit` 脚本改写为原生命令序列（局部 commit 门语义不降）· `scripts/run.ts` 的 `validate`/`precommit` 面已随 T5 删除 · `package.json` 含 kairos `test` script 接住
 - **Files**:
   - Modify: `.github/workflows/pr-validate.yml`（原生 job 矩阵）· `.github/actions/validate/action.yml`（原生 step 化）· `package.json`（root `validate`/`precommit` → 原生序列）· `.github/workflows/release.yml`（若有版本 sync 门改指）
 - **Consumes**: specs §3（CI 原生分身）· T2 的 kairos `test` script · T5 root 解散后 face · T7 smoke 入口
@@ -277,4 +277,4 @@ slug: 2026-10-10-engine-doc-tooling-p5
 | v0.4 | 2026-10-13 | **P5 计划 v0.4——plan-review-1 修复轮（8 warn + 2 nit · 全数落地 · 零残 · spec v0.6）**：T4（runSchemaGen/artifacts·projection 断言并入 Files · `--output` 默认 json pin · smoke 锚复核 = 无锚可同步）· T6（计数 37→38 总 = 收类 17 + 迁/撤 21 · 新建 scan.test.ts 承接 scanToken 覆盖 · 统一正则含 async）· T7（smoke.test.ts 随删面 · engine package.json `smoke` script 产出 pinn · dry-run 链 = implement+review 二命令 + `--help` face）· T10 gate 统一 `^(export )?(async )?function ` · T11（cdd-design NEXT-LOOP Do `done` 行 pin L96→L97）· T12（`.version-bump` = 版本同步审计配置 · 消费非产出 · 不入生成面）· 约束行 async 形态纳入 | 引擎 plan-fix 轮 · Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 2026-10-13） |
 | v0.5 | 2026-10-13 | **P5 计划 v0.5——plan-review-2 修复轮（1 warn + 1 nit · 全数落地 · 零残）**：T10 零裸函数门禁 scope 收敛 engine + scripts 两面（kairos tests 迁移面 = ci-validate 随 T5 删 · 与约束行 8/§4.3 测试面枚举一致 · 步 4/5 + AC 措辞同步 · T13 证据 grep 随同步）· T11 cdd-design NEXT-LOOP 头行 pin 差 1 修正（L96 → L95 · 现场核对 cdd-design SKILL.md L95 头 + L97 Do） | 引擎 plan-fix 轮 · Oscar M. · Claude Opus 5（kairos:cdd-plan [P5] 会话 · 2026-10-13） |
 | v0.7 | 2026-10-13 | **P5 计划 v0.7——D20② 引擎面补足（用户 closeout 后置报告 · 2026-10-13 · spec v0.8 · overall v2.16）**：`FIX_READBACK_SUFFIX`（session/next.ts · fix 路线 `next:` 渲染字面源）字面 `(read file back to confirm)` → `(confirm the findings · backfill user adjudications into the carrier)`——T11 D20② 落点扩引擎面（消费面 7 处已在 v0.6 前全改 · 引擎字面源未随 · 用户后置发现）· D20② 步/AC + 引擎面 checkable · 引擎 src 旧父句零残留（next.ts · capsule.ts doc 注释 · next.test 冻结 pin + 编译期字面翻新）· 引擎 vitest 529/529 全绿 | [human] · Claude Fable 5（2026-10-13 · 用户报告修正） |
-| v0.6 | 2026-10-13 | **P5 计划 v0.6——P5 closeout（cdd-close）**：七 wave 实现链全闭合（W1={1,2,3,4} 校验归域+schema 并入 → W2={5,9} root 解散+引擎零裸面 → W3={6,7} scripts 收类+smoke 迁引擎 → W4={8,10,12} CI 原生+测试面迁移+emit 重整 → W5={11} 消费面同步 → W6={13} 验收证据 → W7={14} 变更集归并 · 每波 implement→review→fix 各 APPROVED）+ 分支终审 → 分支 fix 闭环（branch-review-1 8 findings（1 warn + 7 nit）→                              branch-fix-1：F3/F4/F5/F6 落地 + CLAUDE.md 死链清扫 + README 收敛账本随行 · F1/F2/F7 上报编排器）· 编排器三项回填（closeout 轮）：**F1** `b67fc66b` 删除兄弟程序 upgrade-dependencies-and-src-rename 三文档（3 files · 337 deletions · 零注册）→ 本行登记 + overall 依赖图跨程序行重指向；**F7** Task 4 did-you-mean 措辞实铆（`schema g` 单字符 0.333 < commander 0.4 相似度地板 → 静默零建议 · 绝无 phantom dispatch）；**F2** Task 2 `workspace:*` 消费通道措辞实铆（kairos `node --test` 直跑 `.ts` 相对路径引引擎契约源 · 引擎 `exports` 仅开 CLI 入口 `bin.ts` · 消费面零子路径导出扩张）· 验收全项交付（`.kairos/cdd/.../tasks-13-test-evidence.json`：`pnpm run validate` exit 0 · typecheck ×3 · 引擎 529/529 · kairos 77/77 · emit-check fresh · 零裸函数 grep 零命中 · version-sync kairos 0.2.0 · cdd-engine 1.0.0）· 不发布 · 父 overall v2.15 登记 P5 → Done | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |
+| v0.6 | 2026-10-13 | **P5 计划 v0.6——P5 closeout（cdd-close）**：七 wave 实现链全闭合（W1={1,2,3,4} 校验归域+schema 并入 → W2={5,9} root 解散+引擎零裸面 → W3={6,7} scripts 收类+smoke 迁引擎 → W4={8,10,12} CI 原生+测试面迁移+emit 重整 → W5={11} 消费面同步 → W6={13} 验收证据 → W7={14} 变更集归并 · 每波 implement→review→fix 各 APPROVED）+ 分支终审 → 分支 fix 闭环（branch-review-1 8 findings（1 warn + 7 nit）→                              branch-fix-1：F3/F4/F5/F6 落地 + CLAUDE.md 死链清扫 + README 收敛账本随行 · F1/F2/F7 上报编排器）· 编排器三项回填（closeout 轮）：**F1** `b67fc66b` 删除兄弟程序 upgrade-dependencies-and-src-rename 三文档（3 files · 337 deletions · 零注册）→ 本行登记 + overall 依赖图跨程序行重指向；**F7** Task 4 did-you-mean 措辞实铆（`schema g` 单字符 0.333 < commander 0.4 相似度地板 → 静默零建议 · 绝无 phantom dispatch）；**F2** Task 2 `workspace:*` 消费通道措辞实铆（kairos `node --test` 直跑 `.ts` 相对路径引引擎契约源 · 引擎 `exports` 仅开 CLI 入口 `bin.ts` · 消费面零子路径导出扩张）· 验收全项交付（.kairos/cdd/.../tasks-13-test-evidence.json：`pnpm run validate` exit 0 · typecheck ×3 · 引擎 529/529 · kairos 77/77 · emit-check fresh · 零裸函数 grep 零命中 · version-sync kairos 0.2.0 · cdd-engine 1.0.0）· 不发布 · 父 overall v2.15 登记 P5 → Done | [human] · Claude Opus 5（kairos:cdd-close · closeout-backfill） |

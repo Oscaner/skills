@@ -99,7 +99,7 @@ parent-version: v2.64
 
 #### 3.2 计数写点
 
-- 在 `Ledger` 增对称写点（命名与 `incrementTimeoutCount` 同族，例如 `incrementContractViolationCount`）——**唯一**生产写入 `contractViolationCount` 的方法；禁止散落 `data.contractViolationCount += 1`。
+- 在 `Ledger` 增对称写点（命名与 `incrementTimeoutCount` 同族，例如 incrementContractViolationCount）——**唯一**生产写入 `contractViolationCount` 的方法；禁止散落 `data.contractViolationCount += 1`。
 - **唯一记账缝裁定**：现有 `DispatchOutcome` 仅有 `status` + 可选 `termination`，**无** `cause` 字段——CLI 收口若只看 `status === "BLOCKED"` 会误计无 crash-cause 的 BLOCKED（如 host 未检出）以及 evidence-gate 改写的 BLOCKED，无法与 TIMEOUT（靠 `termination` 观察）对称。裁定优先落点：在 `#reject` / `#writeCrash` 内，当写入的 crash `cause ∈ {handoff-absent, contract-violation}` 时调用该唯一 Ledger 写点（lifecycle 已持有 cause，观察面完整）。备选：扩展 `DispatchOutcome` 显式携带该 cause/旗标后再在 CLI 收口递增——本 phase 二选一即可，但必须单一缝、必须按 cause 观察，**禁止**只靠 status 字面递增。
 - 明确排除：无 crash-cause 的 BLOCKED、evidence-gate 改写的 BLOCKED、升格终止轮、普通成功轮、纯 `child-exit`、纯 TIMEOUT 失败面——**不**递增 `contractViolationCount`。
 - 计数是 postmortem / 观测面，**零行为分叉**：resume 路由不读该计数（与既有 crash cause「零行为分叉」同款）。

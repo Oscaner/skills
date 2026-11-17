@@ -44,7 +44,7 @@ parent-version: v2.92
 
 #### 1.4 「下一轮是什么」三处各算一遍，且计数表可被绕过
 
-今日三处读法（实测，全在 `packages/cdd-engine/src-next/`）：`face/capsule.ts` 的 `Capsule#routeText` → `NextStepRouter.resolve`（本轮 `next:` 的现实渲染面，`emit` 的 `next:` 分支在 `:118-121`）· `face/gate.ts#lineGate`（`:52`，用命令自己的 face 推 `reviewLead` 再比动词，自指）· `face/board-view.ts` 的 `NextStepRouter.walk`（`:555`，每线 walk 到 `next:` 行）。三者共享输入却不共享事实，同一棵树上可以同时印出互相矛盾的下一步。`NextStepRouter.resolve(active, key, targetLineOpen?)` 那个补丁参数（`targetLineOpen` 的声明、传递与唯一使用点都在 capsule：`:103` / `:120` / `:131` / `:141`）就是分裂的物证。
+今日三处读法（实测，全在 `packages/cdd-engine/src-next/`）：`face/capsule.ts` 的 `Capsule#routeText` → `NextStepRouter.resolve`（本轮 `next:` 的现实渲染面，`emit` 的 `next:` 分支在 `:118-121`）· `face/gate.ts#lineGate`（`:52`，用命令自己的 face 推 `reviewLead` 再比动词，自指）· `face/board-view.ts` 的 `NextStepRouter.walk`（`:555`，每线 walk 到 `next:` 行）。三者共享输入却不共享事实，同一棵树上可以同时印出互相矛盾的下一步。`NextStepRouter.resolve(active, key, targetLineOpen?)` 那个补丁参数（targetLineOpen 的声明、传递与唯一使用点都在 capsule：`:103` / `:120` / `:131` / `:141`）就是分裂的物证。
 
 **旧链的教训（本相位必须写进验收）**：被 reset 的旧 P22 把 `next:` 改成由 route kind 反推（`hopOf(route.kind)`），于是 **Loop-vs-converge 不再由 blocker/warn/nit 数量决定**——这正是用户点名的「被改坏」之处。本相位把转移表逐行进 pin，收敛只做「同一答案渲染四处」。
 
@@ -70,7 +70,7 @@ parent-version: v2.92
 
 #### 2.2 同档一致性（义务层，零新字段）
 
-同一 run 内**同一类缺陷已判过的档为前档**，跨档必须在该 finding 里点名理由。落成 2.1 片段的**一句**，位置在 ④「先承认做对了什么」**之前**（片段的末句仍归 ④，§2.1 的收尾顺序不动）——**不引入 `category` / `class` 字段**，不做跨轮定级比对机件（旧链的 `rounds` scope 漂移规则、`SummaryFingerprint` 归一化、用户裁定清除路径，全部不进本相位）。理由：reviewer 声明类别 = 声明再抄，且换措辞即可绕开；误报（合法改档）还必须给豁免口，最终仍回人裁。
+同一 run 内**同一类缺陷已判过的档为前档**，跨档必须在该 finding 里点名理由。落成 2.1 片段的**一句**，位置在 ④「先承认做对了什么」**之前**（片段的末句仍归 ④，§2.1 的收尾顺序不动）——**不引入 `category` / `class` 字段**，不做跨轮定级比对机件（旧链的 `rounds` scope 漂移规则、SummaryFingerprint 归一化、用户裁定清除路径，全部不进本相位）。理由：reviewer 声明类别 = 声明再抄，且换措辞即可绕开；误报（合法改档）还必须给豁免口，最终仍回人裁。
 
 #### 2.3 回读后缀的词面对齐
 
@@ -172,7 +172,7 @@ hard 的后果：`exit` 非零 · `verdict.targetAction === false` · **照常�
 
 #### 4.3 撤 workspace-mtime 腿，及其连带的排除面
 
-- 删 `Sample.newestMtimeMs` 与 `Sampler` 的树步进（`#newestMtimeMs` · `MAX_DEPTH` / `VCS_DIR` 扫描面）；删 `Sampler.excludesFor` 与排除集——它们只为树扫描而存在。**副作用是好的**：「引擎自己的写入不得自证 progress」从此是**结构事实**（两条腿都不看树），不再是一条声明。
+- 删 `Sample.newestMtimeMs` 与 `Sampler` 的树步进（#newestMtimeMs · MAX_DEPTH / VCS_DIR 扫描面）；删 `Sampler.excludesFor` 与排除集——它们只为树扫描而存在。**副作用是好的**：「引擎自己的写入不得自证 progress」从此是**结构事实**（两条腿都不看树），不再是一条声明。
 - `CpuAdvance` 读 `infra/proc.ts` 的组 CPU，`ps` 仍只住那一处，边界不扩。
 - **接受的限制**（写进验收）：阻塞在单次长网络调用上、30 分钟不产出任何字节的子进程会被杀；该情形不视为合法任务。烧 CPU 但不写文件的长轮次**不会**被杀（CPU 腿仍算前进）。
 
@@ -213,7 +213,7 @@ NextHop {                                   // session/next.ts 的新增类型
 }
 ```
 
-- 两个类型都**复用既有声明**：`face` 用 `PipelineKey`，`to` 用 `PipelineEntry`（`session/next.ts` 已声明，就是 `PIPELINE_NEXT` 的行类型）——不引入 `StationRef` / `PipelineFace` 这类新名字。
+- 两个类型都**复用既有声明**：`face` 用 `PipelineKey`，`to` 用 `PipelineEntry`（`session/next.ts` 已声明，就是 `PIPELINE_NEXT` 的行类型）——不引入 StationRef / PipelineFace 这类新名字。
 - `hop` 与 `to` **互斥**（面内 vs 面间），两条轴不拍平。
 - **`route` 是渲染载荷，不是第二份判据**：`next:` 字面由 capsule 与 board 共用的唯一渲染器 `face/route-render.ts` 从这条 `Route` 渲染（capsule `face/capsule.ts:141` · board `face/board-view.ts:522`），`next-wave` 的 `--tasks <ids>`（`route-render.ts:88`）与 `fix` 的 `--reviews <path>`（`:151`）都住在这条 Route 上——故载荷不复制进 `hop`（`hop` 只是 `route.kind` 的读出），`to` 只承载面间交接。
 - **判据仍在 `NextStepRouter.next`**（§5.1 的计数表）；`hop` 由它产出的 `Route` 的动词**读出**，映射表按 `Route` 的六值**逐值钉死、零漏分支**：
@@ -240,9 +240,9 @@ NextHop {                                   // session/next.ts 的新增类型
   | 连续 `REVIEW_CYCLE_CAP` 个 blocker 周期 | `soft-cap` / `null` | `soft-cap` |
   | doc-class 判别 `blocked` / `terminal` | `null` / `null`（`to: null`） | `doc-class-blocked` / `face-closed` |
 
-  三个输入源：① 该线 **drift 感知的 gate 裁决**——今日由 `Run#targetLineOpen` 经 `Ledger#reviewGate` 现算（`session/run.ts:285` · `:630-637`），派生器读同一裁决、不复制判据；② 该线**最新完成轮**（§3.5 ③ 的 `completedCycles` 口径，硬失败轮不当承载轮）；③ **计数状态**（§5.1 的 blocker/warn/nit 计数 + `REVIEW_CYCLE_CAP`）。`targetLineOpen` 这个补丁参数随 `resolve` 一并消失（§5.4），但**它承载的事实不消失**——事实迁进派生器的输入面，`doc-drift` / `pending-fix` 因此仍有产出者。
+  三个输入源：① 该线 **drift 感知的 gate 裁决**——今日由 `Run#targetLineOpen` 经 `Ledger#reviewGate` 现算（`session/run.ts:285` · `:630-637`），派生器读同一裁决、不复制判据；② 该线**最新完成轮**（§3.5 ③ 的 `completedCycles` 口径，硬失败轮不当承载轮）；③ **计数状态**（§5.1 的 blocker/warn/nit 计数 + `REVIEW_CYCLE_CAP`）。targetLineOpen 这个补丁参数随 `resolve` 一并消失（§5.4），但**它承载的事实不消失**——事实迁进派生器的输入面，`doc-drift` / `pending-fix` 因此仍有产出者。
 - **四读面 + 一处报文，同一个对象**：
-  - ① `Capsule#routeText` / `emit`（今日走 `NextStepRouter.resolve`，带 `targetLineOpen` 补丁参数）：改读注入的 `NextHop` 渲染 `next:` 行，`targetLineOpen` 参数消失。
+  - ① `Capsule#routeText` / `emit`（今日走 `NextStepRouter.resolve`，带 targetLineOpen 补丁参数）：改读注入的 `NextHop` 渲染 `next:` 行，targetLineOpen 参数消失。
   - ② `face/gate.ts#lineGate`（今日自指推演）：删自指，读同一 `NextHop` 的 `hop`。
   - ③ `face/board-view.ts` 的每线 `next:` 行（今日 `NextStepRouter.walk`）：接收注入的 `NextHop` 并渲染（不持账本、不自推、不比修订）。
   - ④ 生命周期前沿 `Run#peekNext`：读 `hop`。
@@ -263,9 +263,9 @@ NextHop {                                   // session/next.ts 的新增类型
 
 #### 5.4 删除面
 
-- `NextStepRouter.resolve` 与 `walk` 两个入口塌成一个派生（`targetLineOpen` 补丁参数随之消失——合并后派生器自己去问 branch 线）。
+- `NextStepRouter.resolve` 与 `walk` 两个入口塌成一个派生（targetLineOpen 补丁参数随之消失——合并后派生器自己去问 branch 线）。
 - `face/gate.ts#lineGate` 的自指推演（用命令自己的 face 推 `reviewLead` 再比动词）删除，改读同一个 `NextHop`。
-- `#targetPhase` / `#lineFixRoute` 一类的二次推导删除。
+- #targetPhase / #lineFixRoute 一类的二次推导删除。
 
 #### 5.5 pin
 
@@ -315,7 +315,7 @@ NextHop {                                   // session/next.ts 的新增类型
 | 日志通道 | `face/lifecycle.ts`（stdio pipe + spawn 前建日志 + drain/close + `#cutShort` 的 `CDD_BLOCKED` 行点名该轮日志路径；hard 裁决同行走这一行）+ `infra/round-log.ts`（append 流封装）+ `session/round-naming.ts`（log stem 派生，含 `-a{attempt}`） |
 | 活性 | `face/termination.ts`（`Sampler` 换两腿 + 四态真值表）+ `contract/liveness-signal.ts`（契约 + `LogGrowth` / `CpuAdvance` 注册表，`workspace-mtime` 键退役）+ `session/ledger.ts`（`Sample.newestMtimeMs` 随腿退役） |
 | 波内上限 | `contract/wave-width.ts`（`MAX_TASKS_PER_WAVE` 的**声明**——计划面规则与派发面同读它，故 `contract/` 无需反向导入 `session/`）· `session/next.ts`（同一常量的 **re-export**，派发面进口面不变）+ `session/wave.ts`（`WaveGate.vet` 两条拒绝：`wave-too-wide` / `too-many-tasks`，两者在 `mixed-batch` 之后、`exact` 之前）+ `contract/rules.ts`（`doc` scope 规则 `wave-width-at-most-three`，`docKeys: ["plan"]`）+ `face/words.ts`（两条报文，点名任务 id 与 `DependsOn` 修法） |
-| Next 派生 | `session/next.ts`（`NextHop` 类型（含 `route` 渲染载荷）+ `NextStepRouter#nextHop` 唯一派生（每次调用、每线一个）+ doc-class 判别注入 + `PIPELINE_NEXT` 降数据 + 删 `resolve`/`walk`）+ `face/route-render.ts`（`next:` 字面的唯一渲染器，capsule 与 board 共用，读 `NextHop.route`）+ `face/capsule.ts`（读注入的 `NextHop` · 删 `targetLineOpen` 与 `NextStepRouter.resolve` 调用 · `#routeText` 的 doc-class 分支改读注入对象）+ `face/gate.ts`（删 `#lineGate` 自指推演、读同一 `NextHop`）+ `face/board-view.ts`（删 `NextStepRouter.walk`、接收注入）+ `face/cli.ts`（拒绝报文按 `reason` / `hop` / `to` 渲染） |
+| Next 派生 | `session/next.ts`（`NextHop` 类型（含 `route` 渲染载荷）+ `NextStepRouter#nextHop` 唯一派生（每次调用、每线一个）+ doc-class 判别注入 + `PIPELINE_NEXT` 降数据 + 删 `resolve`/`walk`）+ `face/route-render.ts`（`next:` 字面的唯一渲染器，capsule 与 board 共用，读 `NextHop.route`）+ `face/capsule.ts`（读注入的 `NextHop` · 删 targetLineOpen 与 `NextStepRouter.resolve` 调用 · #routeText 的 doc-class 分支改读注入对象）+ `face/gate.ts`（删 `#lineGate` 自指推演、读同一 `NextHop`）+ `face/board-view.ts`（删 `NextStepRouter.walk`、接收注入）+ `face/cli.ts`（拒绝报文按 `reason` / `hop` / `to` 渲染） |
 | 板面 | `face/board-view.ts`（注入 `NextHop` + 逐轮裁决 + 聚合令牌 / `+N` / attempt 上标 / 路径省略 / 列对齐 / 在飞身份）+ `face/preview.ts`（`--dry-run` 只描述将追加的那条轮记录，既读面不增删） |
 | 结构面规则 | `face/lifecycle.ts`（派发时快照 · 收工比对 · 判败自书该轮 `violations` 的 hard 条目）+ `render/templates.ts`（work-plane capability 行；`contract/rules.ts` 零登记行） |
 | 消费面文本 | `packages/kairos/skills/cdd-spec-writer` / `cdd-plan`（self-review 指针 · 审批门）· `cdd-dev`（审批门 · 日志指路一句）· `packages/kairos/tests/` 的 grep pin + `contract/skill-anatomy.ts` 的四问登记项（结构 pin） |
@@ -326,7 +326,7 @@ NextHop {                                   // session/next.ts 的新增类型
 
 ### 9. 非目标
 
-- **旧链架构面整退**：波 = 派发组（`DispatchGroup`）· 「一个事实 → 访问器 → 一条求值缝 → 一个投影」· 单一派发目标（`DispatchTarget`）· `RunFacts` 事实包 · 全库「a line is a task, not a wave」改名 · 删 `--reviews` 旗标 · 值域类型 `RoundPhase → Hop` 改名。
+- **旧链架构面整退**：波 = 派发组（DispatchGroup）· 「一个事实 → 访问器 → 一条求值缝 → 一个投影」· 单一派发目标（DispatchTarget）· RunFacts 事实包 · 全库「a line is a task, not a wave」改名 · 删 `--reviews` 旗标 · 值域类型 `RoundPhase → Hop` 改名。
 - **载体内定级漂移机检**（`rounds` scope 规则 · 归一化指纹类 · 用户裁定清除路径）。
 - **不新增 `--verbose` 旗标**（默认面区间形零出现；整板排版重设按 D69 ③ 取回，`--verbose` 网格留在 charter 的非目标里）· **不重新裁定 `REVIEW_CYCLE_CAP` 的值**（其值以章程裁定为准——v2.94 / D70 已抬至 50；spec 只引用常量名、不抄数字） · **不新增 `cdd` 命令**（仍八命令）· **不动 P21 的 `InFlight` 门与互斥语义**（记录形状不动）· **不复活 child 自述通道** · **不做日志轮转** · **不改预算阈值** · **不判 skill 侧动作**（合并 / 关 issue 属 skill 面） · **不新增审批状态文件**（审批门是消费面义务） · **不为文档创作面设引擎门**（创作不经引擎）。
 
@@ -351,7 +351,7 @@ NextHop {                                   // session/next.ts 的新增类型
 - `日志通道`：spawn 前文件已存在且为 0 字节 · 只增不改 · 重派带 `-a{attempt}` 不撞名 · close 之后可读 · `--dry-run` 零日志 · **stdout / capsule 面零变化**（child 文本不进 stdout/stderr · `next:` 行与 `status · handoff` 两键字节不变）且 stderr 的 `CDD_BLOCKED` 行点名日志路径（cut-short 行 `face/lifecycle.ts:715`；hard 裁决轮同行走同一行，各一条 pin）
 - `活性`：撤 mtime 腿后三条红 pin——仓库他处写入 + child 零输出零 CPU 30min → `stalled` · CPU 读不到但日志在增长 → `progress` · 整窗无腿可读 → `unknown`（不杀）；另两条真值表 pin——CPU 腿不可读 · 日志零增长 · idle 满 30min → `stalled`（组杀）· **CPU 腿可读时**，烧 CPU 不写文件的长轮次不被杀；阈值 60s / 30min 与四态词零变化；`infra/proc.ts` 之外零 `ps` 调用（既有 grep pin 保持绿）
 - `分级判收敛`：§5.1 转移表逐行 pin 之外，新增**仓库级孪生 pin**（落 `scripts/__tests__/`）——**第三条陈述与周期数只住在 `next-loop.{en,zh-CN}.json`**（`architecture.{en,zh-CN}.json` 只携带前两条：blocker 回合与 `REVIEW_FIX` 收敛）；孪生 pin 断言四份图**合起来覆盖三条**、`next-loop` 的周期数**等于** `REVIEW_CYCLE_CAP`，并锚定 `next.ts` 的 `#blockerCount` / `#close` / `REVIEW_CYCLE_CAP` 三个来源；任一常数或图侧措辞改动，两侧断言同时红
-- `Next`：§5.1 转移表逐行 pin（含 warn/nit-only fix 后 next 不得为 `review`；未闭合线上的 blocker 不被 drift 抢走）· §5.5 四条 pin（含跨面一致性）· §5.2 映射表六值逐值 pin（含 `handoff` → `hop: null` + `to` = `entry`）· `reason` 七值逐值有产出者（`doc-drift` / `pending-fix` 各一条红 pin，闭合后改文档 ⇒ `doc-drift`）· `hop: null` 的报文两形各一条 pin（`to` 非空 / 皆空）· `NextHop.route` 载荷 pin（`next-wave` 的 `--tasks` 与 `fix` 的 `--reviews` 由同一条 `route` 经 `face/route-render.ts` 渲染，capsule 与 board 字节一致）· `PIPELINE_NEXT` 仅作数据（判断逻辑零命中）· `resolve` / `walk` / `#lineGate` / `targetLineOpen` 零残留 · 四读面（capsule · `#lineGate` · board · 生命周期前沿）读同一 `NextHop`（跨面 pin）
+- `Next`：§5.1 转移表逐行 pin（含 warn/nit-only fix 后 next 不得为 `review`；未闭合线上的 blocker 不被 drift 抢走）· §5.5 四条 pin（含跨面一致性）· §5.2 映射表六值逐值 pin（含 `handoff` → `hop: null` + `to` = `entry`）· `reason` 七值逐值有产出者（`doc-drift` / `pending-fix` 各一条红 pin，闭合后改文档 ⇒ `doc-drift`）· `hop: null` 的报文两形各一条 pin（`to` 非空 / 皆空）· `NextHop.route` 载荷 pin（`next-wave` 的 `--tasks` 与 `fix` 的 `--reviews` 由同一条 `route` 经 `face/route-render.ts` 渲染，capsule 与 board 字节一致）· `PIPELINE_NEXT` 仅作数据（判断逻辑零命中）· `resolve` / `walk` / `#lineGate` / targetLineOpen 零残留 · 四读面（capsule · `#lineGate` · board · 生命周期前沿）读同一 `NextHop`（跨面 pin）
 - `板面`：默认面聚合令牌裁决符不可省 · findings 数不进默认面 · 区间形零出现（本相位无 `--verbose`，`review 1–10 ✓` 即红）· `attempt === 1` 零 `a1` 后缀 · 绝对路径零出现（`next:` 相对）· 在飞行只留身份 · `board` 对在飞事实零写（运行前后字节不变）
 - `波内上限`：计划面——某一依赖层 5 个任务 → 计划评审报 `wave-width-at-most-three` 红并点名该层 id；改成链式 `DependsOn`（后两个依赖第三个）后转绿（红/绿各一 pin）· 派发面——frontier 5 个时任何 `--tasks` 都被拒且原因 `wave-too-wide`、报文点名任务 id 与 `DependsOn` 修法（**不得**被报成 `split`）；`--tasks` 列 4 个 → 原因 `too-many-tasks` · **门序 pin**：混合批次形态仍报 `mixed-batch`（新拒绝在其后、`exact` 之前）· 引擎零重排（`TaskGraph#batches()` / `frontier` 语义零变化：既有波次用例全绿）· 跨面两条——完整层并集上的闭合集 ⇒ `next-wave` 字面恒被波门接受；部分闭合的跨层 frontier（append 形态）⇒ `wave-too-wide` 显式拒绝（不是 `split`）· 已入账的超 3 波行读取零报错
 - `消费面义务`：四问在 `contract/skill-anatomy.ts` 登记一次 + 两份指针 grep pin · digraph 零变更（`cdd-design` 节点/边数不动）· 审批门三句与写作权三句 grep pin · 轮内改结构面两条红 pin（Task id 集 / `DependsOn` 集 → 该轮 `violations` 一条 hard · `board` 可见）+ `contract/rules.ts` 零 `plan-structure-frozen` 登记行（零残留 pin）

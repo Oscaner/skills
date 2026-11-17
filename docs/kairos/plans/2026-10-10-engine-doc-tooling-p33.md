@@ -24,7 +24,7 @@ base: develop
 - **`#rowOf` 与注入面共用一个 token**：implement 注入空串后，若某个分支把空串当未知类型抛错，`#gate` 会在 implement 轮炸；空串必须仍满足「token 有值」。
 - **共享句里的 `BASE_BRANCH` 被改成无条件引用**：非 branch 面该槽为空、行被丢——既有 pin（branch 渲出 `BASE_BRANCH`、spec / wave 面不渲）是本条的回归面；句子本身必须保留条件式（「the branch review judges … against `BASE_BRANCH`」）。
 - **overall 面 `INPUT_SPEC` 置空后取错目标**：docs-fix 的「judged doc」若仍按 `INPUT_SPEC` 取路径，overall 的 docs-fix 会拿到空串或改错文件——overall 行的目标必须是 `INPUT_OVERALL`。
-- **只改 pin 不改 prose**：`$version` 与 `REVIEW_TYPE` 的注释/报错文案若只改测试不改实现侧文案，模板契约的文件级说明与实际 token 表不符，下一轮改名会再踩一次。
+- **只改 pin 不改 prose**：`$version` 与 REVIEW_TYPE 的注释/报错文案若只改测试不改实现侧文案，模板契约的文件级说明与实际 token 表不符，下一轮改名会再踩一次。
 - **自我限定写成反向收窄**：把 freeze 改成「任何轮都不得改」或把 capability 一起限定，会让 docs-fix 自己拒绝工作（本轮的全部工作就是原地改文档）。限定只能加在 freeze 一侧。
 - **program-conformance 句限定过宽**：若把「phase-spec only」写成对整个 `spec` 体的限定，phase-spec 自己的 program conformance 也会被摘掉——限定必须只包住那一句。
 
@@ -34,15 +34,15 @@ base: develop
 
 #### Objective
 
-把 `REVIEW_TYPE` 改名为 `TARGET_TYPE` 并渲染成 round context 的一行，位置紧跟 `ROLE`。注入按 work-mode 分键：implement 注入空串（该行由其 layout 不携带 + 空值丢行双重保证不出现），其余轮注入 `frame.type`。标题与判据行一字不动。
+把 REVIEW_TYPE 改名为 `TARGET_TYPE` 并渲染成 round context 的一行，位置紧跟 `ROLE`。注入按 work-mode 分键：implement 注入空串（该行由其 layout 不携带 + 空值丢行双重保证不出现），其余轮注入 `frame.type`。标题与判据行一字不动。
 
 #### Files
 
 - Modify: `packages/cdd-engine/src-next/render/templates.ts`（`TOKENS` 登记项改名，`zone` 保持 `round-context` · `REVIEW_CONTEXT` 与 `MODE_PROMPTS.fix` / `MODE_PROMPTS["docs-fix"]` 的 `roundContext` 各加一行 · `#rowOf` / `#reviewRow` / `#gate` 读 `values.TARGET_TYPE` · 两处报错文案与**六处**注释同改（:96 区说明、:499 `TOKENS` 的「supplied but never rendered」行、:604 / :643 / :675 / :730）· `$version` 20 → 21）
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#valuesOf` 的 `REVIEW_TYPE` 槽改 `TARGET_TYPE`，取值按 `#roleOf` 分键）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#valuesOf` 的 REVIEW_TYPE 槽改 `TARGET_TYPE`，取值按 `#roleOf` 分键）
 - Test: `packages/cdd-engine/src-next/render/__tests__/render.test.ts`（十二变体矩阵 + implement 缺席 + `$version` pin）
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（四条注入面端到端）
-- Test: `packages/cdd-engine/src-next/infra/__tests__/infra.test.ts`（:122 夹具注释里的 `REVIEW_TYPE` 同改——spec §3.2 把 infra 测试夹具算在改名面内）
+- Test: `packages/cdd-engine/src-next/infra/__tests__/infra.test.ts`（:122 夹具注释里的 REVIEW_TYPE 同改——spec §3.2 把 infra 测试夹具算在改名面内）
 
 #### Consumes
 
@@ -52,7 +52,7 @@ base: develop
 
 #### Produces
 
-- `TOKENS` 项 `{ name: "TARGET_TYPE", zone: "round-context" }`（替下 `REVIEW_TYPE`；该 token 随 round context 渲染，与今日 `REVIEW_TYPE` 同区）
+- `TOKENS` 项 `{ name: "TARGET_TYPE", zone: "round-context" }`（替下 REVIEW_TYPE；该 token 随 round context 渲染，与今日 REVIEW_TYPE 同区）
 - round-context 行 `- \`TARGET_TYPE\`: {{TARGET_TYPE}}`，位置紧跟 `- \`ROLE\`: {{ROLE}}`，携带者 = `REVIEW_CONTEXT` + `MODE_PROMPTS.fix` + `MODE_PROMPTS["docs-fix"]`（`MODE_PROMPTS.implement` 不携）
 - `#valuesOf` 的槽值 = `role === "implement" ? "" : frame.type`
 - `TEMPLATE_PROMPT.$version` = 21
@@ -73,7 +73,7 @@ base: develop
 
 - 六型 review、两型 fix、四型 docs-fix 的 dispatch prompt round context 均含 `- \`TARGET_TYPE\`: 该型词`，值等于 CLI `--type`。
 - implement 的 prompt 不含该行。
-- `REVIEW_TYPE` 在 `packages/cdd-engine/src-next` 零残留（含注释、测试夹具注释与报错文案）——与零残留核查步的 grep 同域。
+- REVIEW_TYPE 在 `packages/cdd-engine/src-next` 零残留（含注释、测试夹具注释与报错文案）——与零残留核查步的 grep 同域。
 - 三个壳的首行标题、`**Criteria — …:**` 行的标签与 `**Lens labels:**` 行三者均零字节变更。
 - `$version` = 21；引擎 vitest 与 typecheck 全绿。
 

@@ -74,8 +74,12 @@ export interface CensusReport {
 }
 
 /** The reference grammar (§8.3) — a dotted lowercase id and a decimal integer on the
- *  right of the fixed `=` form. A `census:` word outside it is prose about the form. */
-const REFERENCE = /census:(?<id>[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+)\s*=\s*(?<n>\d+)(?![0-9])/g;
+ *  right of the fixed `=` form. A `census:` word outside it is prose about the form.
+ *  The value's terminator says the whole number must be digits: guarding only the next
+ *  digit would truncate `3.5` to `3` and judge a form (§8.3's `^\d+$`) the grammar puts
+ *  outside the gate — a false red for `3.5`, a false green for `0.5`. */
+const REFERENCE =
+  /census:(?<id>[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+)\s*=\s*(?<n>\d+)(?![0-9A-Za-z.])/g;
 
 /** The census registry — `of(id)` throws for a row nobody registered. */
 export class CensusTable {

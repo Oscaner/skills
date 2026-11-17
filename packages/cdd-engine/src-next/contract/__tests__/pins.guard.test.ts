@@ -110,7 +110,6 @@ interface Scratch {
   readonly root: string;
   readonly audit: PinAudit;
   readonly write: (rel: string, text: string) => void;
-  readonly cleanup: () => void;
 }
 
 /** The fixture's carrier declaration — the two halves the member cells judge are
@@ -151,7 +150,6 @@ const scratch = (): Scratch => {
       mkdirSync(path.dirname(at), { recursive: true });
       writeFileSync(at, text, "utf8");
     },
-    cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
 };
 
@@ -532,6 +530,23 @@ describe("P37 T8 — §7.1's member spelling: carrier and member judged in ONE t
     // the member resolves; the carrier does not — still one finding for the one token
     expect(findings.map((finding) => [finding.pin, finding.shape])).toEqual([[token, "symbol"]]);
     expect(findings[0]?.summary).toContain("ZzNoCarrierQq");
+    // an ABSENT carrier keeps the "nowhere" wording — the pair for the ambiguous cell
+    expect(findings[0]?.summary).toContain("resolves nowhere in the tree");
+  });
+
+  it("names EVERY candidate when the carrier half is AMBIGUOUS — tier ③ does not pick one", () => {
+    const audit = new PinAudit(REPO_ROOT);
+    const token = "declare.ts#SCHEMA_TYPE_KEYS";
+    // `declare.ts` names two entries, and the member is live in both — reporting
+    // "resolves nowhere" here would invite deleting a live pin instead of qualifying
+    // its basename
+    const findings = audit.scanText(bodyOf([token]), "member.md");
+    expect(findings.map((finding) => [finding.pin, finding.shape])).toEqual([[token, "symbol"]]);
+    const summary = findings[0]?.summary ?? "";
+    expect(summary).toContain("contract/declare.ts");
+    expect(summary).toContain("face/declare.ts");
+    expect(summary).toContain("names 2 entries");
+    expect(summary).not.toContain("its carrier `declare.ts` resolves nowhere");
   });
 
   it("reads a lowercase member name as prose — the separator never rewrites the shape test", () => {

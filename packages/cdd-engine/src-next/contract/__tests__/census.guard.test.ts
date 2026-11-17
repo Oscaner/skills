@@ -26,9 +26,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, expectTypeOf, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { CensusGate, type CensusRow, censusTableOf } from "../census.ts";
 import { corpusOf, PinAudit } from "../pins.ts";
+import type { Refuses } from "./type-refusal.ts";
 
 /** The repo root of THIS checkout — the shipped-corpus basis. */
 const REPO_ROOT = path.resolve(fileURLToPath(new URL("../../../../..", import.meta.url)));
@@ -56,7 +57,6 @@ interface Scratch {
   readonly root: string;
   readonly audit: PinAudit;
   readonly write: (rel: string, text: string) => void;
-  readonly cleanup: () => void;
 }
 
 let scratchDirs: string[] = [];
@@ -86,7 +86,6 @@ const fixture = (): Scratch => {
       mkdirSync(path.dirname(at), { recursive: true });
       writeFileSync(at, text, "utf8");
     },
-    cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
 };
 
@@ -152,13 +151,12 @@ describe("P37 T8 — the census registry: one row, one number", () => {
   it("refuses a row measuring a record at the TYPE layer, not at runtime", () => {
     // A `measure()` returning a record would leave the gate's single `<n>` comparison
     // without a meaning (§8.2) — so the row type is ONE number, and a record-returning
-    // `measure` is not a row. This assertion is checked by `tsc`, not by esbuild: widen
-    // the cell to a record and it stops holding
-    expectTypeOf({
-      id: "fixture.record",
-      measure: () => ({ symbol: 1 }),
-    }).not.toMatchTypeOf<CensusRow>();
-    expectTypeOf({ id: "fixture.number", measure: () => 1 }).toMatchTypeOf<CensusRow>();
+    // `measure` is not a row. `tsc` is the gate that reads this: widen `CensusRow` to
+    // accept a record and `Refuses` turns into `never`, so the assignment below stops
+    // compiling
+    type RecordRow = { readonly id: string; measure(): { readonly symbol: number } };
+    const refused: Refuses<RecordRow, CensusRow> = true;
+    expect(refused).toBe(true);
     // the runtime twin: a row is read for its one number
     const row: CensusRow = { id: "fixture.number", measure: () => 1 };
     expect(row.measure()).toBe(1);
@@ -209,6 +207,22 @@ describe("P37 T8 — the gate: compare the fixed form, throw on an unregistered 
     // the gate's own corpus
     const report = gateOf(f).report();
     expect(report).toEqual({ compared: 0, mismatches: [] });
+  });
+
+  it("reads a fractional or qualified value as prose — `<n>` is a decimal integer", () => {
+    // §8.3's grammar reads `<n>` as `^\d+$`. A value that carries anything after its
+    // digits is a different form: truncating it to the leading digits would judge a
+    // sentence the grammar puts outside the gate — `3.5` would read as `3` and go red,
+    // `0.5` would read as `0` and go green
+    expect(CensusGate.referencesOf("`census:pin.total = 3.5`", "form.md")).toEqual([]);
+    expect(CensusGate.referencesOf("`census:pin.total = 3abc`", "form.md")).toEqual([]);
+    expect(CensusGate.referencesOf("`census:pin.total = 0x10`", "form.md")).toEqual([]);
+    const f = fixture();
+    f.write("docs/form.md", "# form\n\n- `census:pin.total = 3.5`\n- `census:pin.total = 3abc`\n");
+    expect(gateOf(f).report()).toEqual({ compared: 0, mismatches: [] });
+    // the pair: the integer form beside those is a reference and IS compared
+    f.write("docs/form.md", "# form\n\n- `census:pin.total = 0`\n");
+    expect(gateOf(f).report()).toEqual({ compared: 1, mismatches: [] });
   });
 
   it("reads `<n>` only from the right-hand side of the form — a neighbouring number is no second reading", () => {

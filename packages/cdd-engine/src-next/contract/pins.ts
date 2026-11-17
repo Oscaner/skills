@@ -99,10 +99,10 @@ export interface PinMember {
   readonly member: string;
 }
 
-/** The four census readings (§8.2) — one number each, taken off ONE scan and ONE
- *  corpus walk: `symbol` and `path` are the finding counts by shape (`path` covers the
- *  test pins too), `total` is that scan's finding count, and `files` is the corpus
- *  SIZE — a volume, never a fifth finding count. */
+/** The four census readings (§8.2) — one number each, taken off ONE scan and one file
+ *  listing: `symbol` and `path` are the finding counts by shape (`path` covers the test
+ *  pins too), `total` is that scan's finding count, and `files` is the corpus SIZE — a
+ *  volume, never a fifth finding count. */
 export interface PinCensus {
   readonly symbol: number;
   readonly path: number;
@@ -749,7 +749,7 @@ export class PinAudit {
     return this.#index.textOf(entry);
   }
 
-  /** The four census readings (§8.2) — one scan and one corpus walk, so `total` is
+  /** The four census readings (§8.2) — one scan and one file listing, so `total` is
    *  that scan's length rather than a second count and `files` is the corpus volume.
    *  The roots are the caller's already-resolved corpus (`corpusOf(root)`); this class
    *  never names a root of its own. */
@@ -881,10 +881,23 @@ export class PinAudit {
     }
     const member = PinVocabulary.memberOf(token);
     if (member === null) return null;
+    // the carrier half is sieved by the bare path form, whose three tiers are explicit:
+    // an ambiguous basename names EVERY candidate instead of resolving nowhere (tier ③
+    // never picks one), exactly as the bare-path branch above reads it
+    const carrierResolution =
+      PinVocabulary.pathOf(member.carrier) === null ? null : this.#index.resolve(member.carrier);
+    if (carrierResolution?.kind === "ambiguous") {
+      return PinAudit.#finding(
+        token,
+        "symbol",
+        source,
+        `its carrier \`${member.carrier}\` names ${carrierResolution.candidates.length} entries (${carrierResolution.candidates.join(" · ")}), so it points at no single file`,
+      );
+    }
     const carrier =
-      PinVocabulary.pathOf(member.carrier) !== null
-        ? this.#index.resolve(member.carrier).kind === "resolved"
-        : this.#index.symbols().has(member.carrier);
+      carrierResolution === null
+        ? this.#index.symbols().has(member.carrier)
+        : carrierResolution.kind === "resolved";
     const memberExists = this.#index.symbols().has(member.member);
     if (carrier && memberExists) return null;
     return PinAudit.#finding(

@@ -1,7 +1,7 @@
 ---
 title: 'P38 · 派发输入契约：必填表、`none` 表示法与 `dispatch-input` 门'
 doc-type: plan
-version: v0.12
+version: v0.13
 date: 2026-11-17
 slug: 2026-11-17-engine-doc-tooling-p38-design
 base: develop
@@ -307,3 +307,4 @@ none
 | v0.10 | 2026-11-17 | branch-fix-1 轮（F1–F5 全部落地，F1 与 F4 的裁定均 ACCEPTED）：Task 1 的构造期判据由四条增至五条——`preview: "satisfied"` 只准挂在 `INPUT_WAVE_BRIEF` 那一格上（第二个 `satisfied` 格在装配器建不起来时红，报文点名该格与 `INPUT_WAVE_BRIEF`），Step 1 由六条增至七条（新增 (f) 那个方向，原在册契约臂顺延为 (g)），Acceptance 同批改（F4） · Task 5 的语料起点订正为 79 → 81——phase-spec 与 plan 都在本相位落仓，起点不是 80，落地的 81 与它自己的 pin 不变（F5） · F1 的三处 docblock（`#baseBranchOf` · `#valuesOf` 的 `INPUT_RULINGS` 注释 · `#reviewsPath`）改写成 `WAS: … NOW: …` 形态并点名 ② ③ ④ 三处反转，同一标准下同族的另三处一并订正（`#valuesOf` 头注的「空值一律丢行」 · `#rulingsInputOf` 对同一格的描述 · `INPUT_OVERALL` 注释里「空值即丢格」）；F2 在 `lifecycle.test.ts` 补回 P34 §2.10 的 attempt ≥ 2 臂（记录无评审 ⇒ 家族名只拼 cycle，`tasks-1-review-1.json` 在盘 ⇒ 本轮成立），F3 订正 `dispatch-input.test.ts` 表头为十三条 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |
 | v0.11 | 2026-11-17 | plan-review-8 docs-fix 轮（F1–F3 全部落地）：Task 5 由 `v4.09` 对齐到 `v4.10`——标题 · Objective · Files · Consumes · Produces · Steps · Acceptance 一并改名，并把 spec §6 第 10、11 项写进拥有它们的任务（`79b34aae`：`v4.08` 行旁的 `spec-absent` 更正与验收 ① 的穷尽性方向），Step 1 的 checkable 改钉 `overall … v4.10`、并写明任何其他版本值都是漂移（报得更高要读新行、报 `v4.09` 或更低说明两项被回退），改写章程旧版本为漂移只是把 `v4.10` 行删掉（F1） · Task 2 Step 5(h) 与 Acceptance 把本任务翻新的臂由一条补齐为两条：反转 ① 的 `INPUT_OVERALL` 臂与反转 ② 的 `(f2)` 臂（可见软跳过 `FIX_DISPOSITIONS_UNRECORDED` 改为 child 存在之前的硬 BLOCK），并写明 P37 T4 的臂号与反转号是两套编号（F2） · Task 1 Acceptance 由「构造期四判据均在 `618417b8`」改为五条并拆开坐标：四条在 `618417b8`、预览唯一性判据在 `229f35f4`（F3） | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |
 | v0.12 | 2026-11-17 | plan-review-9 docs-fix 轮（F1–F2 全部落地）：Task 2 Step 1 的两个臂按交付的测试体重分——分类循环归 (h) 的第一段（一张没归类的携带槽让 (h) 红，三个豁免在 (h) 里只是分类谓词、不是 sweep 的静默跳过），(h2) 只留降级守卫（清单里每个 token 仍被某条 row 携带、且没有配方），Acceptance 的落红地址同批改（F1） · Step 1 的臂清单由十三条补齐为十九条——新增 (m) 门序在 artifact 门之前 · (n) 一次合成 · (o) reason 闭集两条 · (p) 预览 brief 格由命名行回答且存在性读不发起，并点名 `the refused round (§2.1)` 的两条归 Step 4 认领，与 Step 2 那句 `19 skipped` 的计数对齐（F2） | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |
+| v0.13 | 2026-11-17 | **交付 · 六任务四波全闭环**：W1 `618417b8`（T1 声明与构造期判据 + T4 四段 shell/`$version` 25 + T5 章程 v4.08）· W2 `14fe3d12`（T2 纯读门与门序、fixture 真实化）· W3 `692f0ac7`（T3 `--dry-run` 同源）· W4 `c75b7d61`（T6 changeset）。各波 fix：`e4054fb9` · `7e9efa3c` · `4c31018a` · `21c79888`；分支 fix：`229f35f4` · `a8f51d8f`。评审：plan 9 轮 54 条、波评审 9 条、分支 2 轮 8 条，全部受理。`pnpm run validate` exit 0。 | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |

@@ -1,7 +1,7 @@
 ---
 title: 'P38 · 派发输入契约：必填表、`none` 表示法与 `dispatch-input` 门'
 doc-type: phase-spec
-version: v0.11
+version: v0.12
 date: 2026-11-17
 slug: 2026-11-17-engine-doc-tooling-p38-design
 program: 2026-10-10-engine-doc-tooling
@@ -340,3 +340,4 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 | v0.9 | 2026-11-17 | docs-fix 第七轮（phase-spec review-7 · F1–F5 全部接纳，F1 / F3 两条按裁定落地）：§6 第八项的括注改记为 `spec-absent`（`PlanRead#refusal` 先拒、那一轮不派发），并新增第十项把章程 `v4.08` 行的 `undeclared` 措辞登记为 `v4.10` 的更正（历史行不改）；新增第十一项把章程验收 ① 的穷尽性方向一并回填（F1）；§4.2 的穷尽性论域由「`TOKENS` 的 round-context zone ∩ 该 row 自己那份 layout」改为「zone 里每个已登记 token 必须被某份 row 的 layout 携带」，反方向的槽登记写在旁边，§4.3 的「漏一格可红」改指 `#assertEveryCellHasCarrier`（F2）；验收的声明期判据由两种增至三种——补上 shell↔layout 的 `#assertShellCarries`（F3）；§5.2 的 `<round-id>` 定义为 `(line, op, cycle)` 上的轮次 identity，`renderName` 的 attempt 段由剥离规则给出（F4）；§1.1 的 `#assertPreviewAnswer` 补模块路径 `render/templates.ts`（F5）；章程同批递增 `v4.10` | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
 | v0.10 | 2026-11-17 | branch-fix-2 轮（F2 / F3 按裁定落地）：§2.3 反转 ② 的 after-column 补上恢复动作——重派那一轮评审让载体重现，或给 `--reviews` 一个在仓库根下真实存在的路径，并写明 fix 轮造不出自己的输入（F2 的裁定 ACCEPTED：硬拒绝欠一条编排器可读的修法，与反转 ④ 的 `cdd base set` 同形；同一句进 changeset）· 验收的声明期可红判据由三种改为**五种**——点名槽注册（`#assertRegistered`）与 zone 覆盖（`#assertEveryCellHasCarrier`）两个方向，与 plan Task 1 的五条对齐（F3） | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |
 | v0.11 | 2026-11-17 | docs-fix 第八轮（phase-spec review-8 · F1–F5 全部接纳）：一格的多条臂改述为**并列**（取并集，任一条命中即 exigible）——§1.1 围栏注与正文、§1.4 表尾、验收三处去掉「合取」并写明合取读法会让 `review` / `docs-fix` 的 `INPUT_OVERALL` 永不可 exigible、反转 ① 随之失效，§6 新增第十二项登记章程两处「几条合取臂」与 `render/templates.ts` 两处 docblock 的并列措辞更正（章程侧待应用 `v4.11`）（F1）；§1.3 的 argv 面 pin 由 `PlanRead#readPath` 改回 `PlanSource#readPath`（`infra/plan-source.ts`）（F2）；§5.4 删去不可复现的 16 条 `orphan:` 实测计数，只留结构性判据与成对 pin（F3）；§1.3 的 P33 T2 ② 臂改述为它真正钉住的两格（`INPUT_OVERALL` 在场、`INPUT_SPEC` 不在），并写明 `ROLE: docs-fix` 只在 `--type plan` 臂上被点名、`--type overall` 轮没有独立 pin（F4）；§6 标题的版本范围改为 `v4.05`–`v4.10` 并标第十二项待应用，两处「本轮」deictic 改为 spec 版本（F5） | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
+| v0.12 | 2026-11-17 | **交付 · 相位关闭**：六任务四波全部落地——声明形状与三条构造期判据（`#assertDeclarations`）· 四态渲染 · 纯读门 `dispatch-input` 与门序 · `--dry-run` 字节等价与三门镜像 · 四段 `scratch/` 与两句 `none`（`$version` 25）· 章程 v4.05–v4.10 十一项回填。评审 8 轮 51 条全受理；四波 9 条、分支 2 轮 8 条；`pnpm run validate` exit 0；changeset `cdd-engine` minor。 | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |

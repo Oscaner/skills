@@ -167,6 +167,14 @@ export interface WorkScene extends DispatchScene {
    *  repoRoot-relative path) — the review/fix round context's charter anchor; null
    *  when the line's spec names no program. */
   overallLink: string | null;
+  /** The identity document's DECLARED `program:` literal (`DocEntry.program`) — the
+   *  dispatch-input gate's `when: "program"` declaration source (P38 §1.3).
+   *  Required here so a scene assembled by this root can never be handed to the gate
+   *  with the declaration silently missing: null IS the "not declared" answer. */
+  program: string | null;
+  /** The identity document's DECLARED `doc-type:` shape (`DocEntry.docType`) — the
+   *  `when: "identity"` declaration source, same shape as `program` beside it. */
+  docType: DocEntry["docType"];
 }
 /** The path-typed argv values (T3 §2.3) — split out of the generic `args` record
  *  so the funnel's normalized `RepoPath` brand reaches the scene/read faces with
@@ -215,10 +223,10 @@ export interface RunInput {
 const RECOVER_NOTHING =
   "--recover has nothing to take over and nothing to reopen — no stale in-flight record stands on this tree (①), and this line is not at drift ∧ pending-fix (②); nothing was dispatched";
 
-/** The `--recover` judgment's answer: the harness to dispatch through (its abort leg
- *  already ran), or the refusal to print. */
+/** The `--recover` judgment's answer: taken over (the abort leg already ran, so the
+ *  dispatch must not fold again), or the refusal to print. */
 type RecoverRun =
-  | { readonly kind: "allowed"; readonly harness: CliLifecycle }
+  | { readonly kind: "allowed" }
   | { readonly kind: "blocked"; readonly message: string };
 
 /**
@@ -944,7 +952,7 @@ export class Cli {
     const { step: dispatch, harness } = await this.#dispatchOf(
       scene,
       parsed,
-      recovery?.harness ?? null,
+      recovery !== null,
       artifacts,
     );
     const run = new Lifecycle({
@@ -1098,15 +1106,15 @@ export class Cli {
   async #dispatchOf(
     scene: WorkScene,
     parsed: RunInput,
-    recovered: CliLifecycle | null,
+    recovered: boolean,
     artifacts: ArtifactRegistry,
   ): Promise<{ step: DispatchStep; harness: CliLifecycle | null }> {
     if (this.#dispatch !== null) return { step: this.#dispatch, harness: null };
-    const harness = recovered ?? this.#lifecycleOf(scene, parsed, artifacts);
+    const harness = this.#lifecycleOf(scene, parsed, artifacts);
     // The abort fold already ran at the composition root's `--recover` judgment
-    // (`#recoverRun`) when a harness was handed in; the injected/default face keeps
-    // its own fold here, so the takeover always precedes this dispatch's own record.
-    if (recovered === null && !parsed.dryRun && parsed.args.recover === "true") {
+    // (`#recoverRun`) when `recovered`; the injected/default face keeps its own fold
+    // here, so the takeover always precedes this dispatch's own record.
+    if (!recovered && !parsed.dryRun && parsed.args.recover === "true") {
       await harness.foldAbort();
     }
     // The harness itself rides back so the `--dry-run` branch can ask it the
@@ -1138,11 +1146,14 @@ export class Cli {
     inflight: InFlight,
     artifacts: ArtifactRegistry,
   ): Promise<RecoverRun> {
-    const harness = this.#lifecycleOf(scene, parsed, artifacts);
+    // The fold rides a throwaway harness: this judgment runs BEFORE the wave brief is
+    // rendered, and the DISPATCHING harness must be built afterwards (its scene snapshot
+    // carries `briefPath` — the dispatch-input gate reads it). `foldAbort` touches only
+    // the in-flight record and the ledger, so a pre-brief instance is enough.
     const stale = (await inflight.staleState()) !== null;
-    if (stale) await harness.foldAbort();
+    if (stale) await this.#lifecycleOf(scene, parsed, artifacts).foldAbort();
     const reopened = await this.#reopenLeg(verb, type, scene, inflight);
-    if (stale || reopened) return { kind: "allowed", harness };
+    if (stale || reopened) return { kind: "allowed" };
     return { kind: "blocked", message: RECOVER_NOTHING };
   }
 
@@ -1195,6 +1206,8 @@ export class Cli {
         baseBranch: this.#baseBranchOf(scene),
         specLink: scene.specLink,
         overallLink: scene.overallLink,
+        program: scene.program,
+        docType: scene.docType,
       },
       reviews: parsed.paths.reviews,
       // The explicit takeover flag (`--recover`): the ONLY path that displaces a
@@ -1496,6 +1509,12 @@ export class Cli {
         briefPath: null,
         specLink,
         overallLink,
+        // P38 §2.1 — the two DECLARED cells the dispatch-input gate reads instead of
+        // parsing a document at dispatch: the identity document's `program:` literal
+        // and its `doc-type:` shape, taken from the SAME index entry `specLink` and
+        // `overallLink` were resolved from (one read, three facts).
+        program: specDoc?.program ?? null,
+        docType: specDoc?.docType ?? null,
       },
       artifacts,
     };

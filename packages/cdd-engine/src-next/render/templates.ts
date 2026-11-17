@@ -1060,7 +1060,7 @@ export class TemplateAssembler {
   #contextLines(decls: readonly ContextLine[], values: TemplateValues): string {
     const lines: string[] = [];
     for (const decl of decls) {
-      const slot = TemplateAssembler.#slotOf(decl.line);
+      const slot = TemplateAssembler.slotOf(decl.line);
       if (slot === undefined) lines.push(decl.line);
       else if (values[slot] !== "") lines.push(decl.line);
       else if (decl.absent === "none") lines.push(decl.line.replace(/\{\{[A-Z0-9_]+\}\}/, "none"));
@@ -1148,7 +1148,10 @@ export class TemplateAssembler {
     }
   }
 
-  static #slotOf(line: string): string | undefined {
+  /** The `{{TOKEN}}` slot a declared line carries — `undefined` for a value-less line
+   *  (the heading, the separator blank line). The ONE slot-grammar reader: the gate
+   *  that judges a layout's cells reads it here rather than re-spelling the braces. */
+  static slotOf(line: string): string | undefined {
     return /\{\{([A-Z0-9_]+)\}\}/.exec(line)?.[1];
   }
 
@@ -1161,7 +1164,7 @@ export class TemplateAssembler {
   }
 
   static #labelOf(decl: ContextLine): string {
-    return TemplateAssembler.#slotOf(decl.line) ?? "a value-less line";
+    return TemplateAssembler.slotOf(decl.line) ?? "a value-less line";
   }
 
   /** The hard gates — a known ROLE (+ its TARGET_TYPE for reviews), every declared

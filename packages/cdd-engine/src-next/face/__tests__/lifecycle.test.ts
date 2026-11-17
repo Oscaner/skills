@@ -151,13 +151,26 @@ const fixture = (plan: string): Fixture => {
   spawnSync("git", ["commit", "-q", "-m", "seed"], { cwd: repoRoot });
   const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p30").ensure();
   const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+  // P38 T2 — the dispatch-input gate judges real inputs, so the fixture supplies them:
+  // the brief a wave rendezvous reads (the real dispatch's `renderBrief` lands it before
+  // the child exists), the base branch a tree review narrows against, and the spec /
+  // plan documents the docs-fix frames repair. A fixture that names absent files would be
+  // refused before the child it is testing.
+  const briefPath = path.join(workspace.path, "tasks-1-brief.md");
+  writeFileSync(briefPath, "# brief\n", "utf8");
+  for (const name of ["s.md", "p.md"]) {
+    const doc = path.join(repoRoot, "docs", "k", name);
+    mkdirSync(path.dirname(doc), { recursive: true });
+    writeFileSync(doc, "# doc\n", "utf8");
+  }
   return {
     scene: {
       workspace,
       ledger,
       planPath,
       plan: planSourceOf(workspace.root.basis).readFor(null),
-      briefPath: null,
+      briefPath,
+      baseBranch: "develop",
     },
     io: new CaptureIo(),
     cleanup: () => rmSync(repoRoot, { recursive: true, force: true }),
@@ -972,7 +985,7 @@ describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => 
 // ---------------------------------------------------------------------------
 // P34 T2 — the fix input's carrier is DERIVED from the requesting review record
 // (design spec §2.10): no record names a path, so the ledger's accessor resolves the
-// round's own attempt, and a record that resolves nothing books the soft skip.
+// round's own attempt.
 // ---------------------------------------------------------------------------
 
 describe("P34 T2 — a derived fix input never inherits the frame's attempt", () => {
@@ -1062,19 +1075,26 @@ describe("P34 T2 — a derived fix input never inherits the frame's attempt", ()
     }
   });
 
-  it("books the soft unrecorded skip when the record resolves no carrier at all", async () => {
+  it("refuses the round when the record resolves no carrier — reversal ②, never a silent skip", async () => {
     const f = fixture(planDoc([[1, []]]));
     try {
       // The record exists but none of the ladder's rungs is on disk: the accessor
-      // resolves nothing, so the answer is `null` — the unrecorded soft skip, never a
-      // hard absent-carrier refusal on a path nobody could name.
+      // resolves nothing, so `#reviewsPath` is null and `INPUT_REVIEWS` has no value at
+      // all. WAS: a soft `resolves no carrier` skip and the round dispatched anyway
+      // (P34 T2). NOW: P38 §2.3 reversal ② — a fix round with no review input can not
+      // stand, so the gate refuses it before the child exists. The criterion's
+      // unrecorded-skip observation stays reachable through the criterion's OWN provider
+      // (pinned in `cli.test.ts` (f2)), never through this dispatch.
       f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1 });
       const runner = new FixDraftRunner();
       const outcome = await runDerivedFix(f, runner);
-      expect(outcome.status, f.io.stderrText).not.toBe("BLOCKED");
-      expect(runner.calls).toHaveLength(1);
-      expect(f.io.stderrText).toContain("resolves no carrier");
+      expect(outcome.status).toBe("BLOCKED");
+      expect(runner.calls).toHaveLength(0);
+      expect(f.io.stderrText).toContain(
+        "CDD_BLOCKED: dispatch-input · docs-fix · INPUT_REVIEWS · empty-value",
+      );
       expect(f.io.stderrText).not.toContain("carrier-mismatch");
+      expect(f.io.stderrText).not.toContain("resolves no carrier");
     } finally {
       f.cleanup();
     }
@@ -2044,35 +2064,56 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
     }
   });
 
-  it("a crashed review's carrier-less record resumes on the REVIEW's attempt — never the fix frame's", async () => {
-    const f = fixture(planDoc([[1, []]]));
+  it("refuses both halves of reversal ② — no silent family fallback, no composed-but-absent name", async () => {
+    const empty = fixture(planDoc([[1, []]]));
     try {
       // The S2 registry row a crashed review legitimately leaves: the round is on the
-      // books, no carrier resolves (`#reviewsPath` reads null), so the fix face falls
-      // back to the family name. That fallback holds ONLY the cycle — the review's own
-      // latest attempt is attempt 1, and a fix retried at attempt 2 must not ask the
-      // review family for a `-a2` name review attempt 1 never wrote.
-      f.scene.ledger.recordRound("phase-spec", {
+      // books, no carrier resolves (`#reviewsPath` reads null). WAS: the fix face fell
+      // back to the family name, so the resume command asked the review family for a
+      // cycle-only name. NOW: P38 §2.3 reversal ② — the empty value is `empty-value`,
+      // so the round stops before the child and before any `--reviews` command exists.
+      empty.scene.ledger.recordRound("phase-spec", {
         op: "review",
         cycle: 1,
         attempt: 1,
         carrierDigest: "0".repeat(64),
       });
-      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
-      const frame = atAttempt(fixFrameOf(specPath), 2);
-      await dispatchFrame(f, frame, new FailingRunner());
-      const naming = f.scene.ledger.naming();
-      const crash = f.scene.ledger.readCrash(naming.crashName(frame));
-      const reviewsOf = (command: string | null | undefined): string =>
-        command?.match(/--reviews (\S+)/)?.[1] ?? "";
-      expect(reviewsOf(crash?.next)).toContain("phase-spec-review-1.json");
-      expect(reviewsOf(crash?.next)).not.toContain("-a2");
-      // The same command rides the in-flight record written before the spawn.
-      const inFlight = JSON.parse(readFileSync(recordPathOf(f), "utf8")) as { command: string };
-      expect(reviewsOf(inFlight.command)).toContain("phase-spec-review-1.json");
-      expect(reviewsOf(inFlight.command)).not.toContain("-a2");
+      const specPath = path.join(empty.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const { outcome } = await dispatchFrame(
+        empty,
+        atAttempt(fixFrameOf(specPath), 2),
+        new FailingRunner(),
+      );
+      expect(outcome.status).toBe("BLOCKED");
+      expect(empty.io.stderrText).toContain(
+        "CDD_BLOCKED: dispatch-input · docs-fix · INPUT_REVIEWS · empty-value",
+      );
+      // Zero round consumed: no in-flight record and no crash record was written.
+      expect(existsSync(recordPathOf(empty))).toBe(false);
+      expect(empty.scene.ledger.readCrash("crash-phase-spec-fix-1-a2.json")).toBeNull();
     } finally {
-      f.cleanup();
+      empty.cleanup();
+    }
+
+    const absent = fixture(planDoc([[1, []]]));
+    try {
+      // The other half: no record at all, so the family name IS composed — and the file
+      // is not there. The path cell answers `target-absent`, and again no command, no
+      // in-flight record, no crash record: the round never happened.
+      const specPath = path.join(absent.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+      const { outcome } = await dispatchFrame(
+        absent,
+        atAttempt(fixFrameOf(specPath), 2),
+        new FailingRunner(),
+      );
+      expect(outcome.status).toBe("BLOCKED");
+      expect(absent.io.stderrText).toContain(
+        "CDD_BLOCKED: dispatch-input · docs-fix · INPUT_REVIEWS · target-absent",
+      );
+      expect(existsSync(recordPathOf(absent))).toBe(false);
+      expect(absent.scene.ledger.readCrash("crash-phase-spec-fix-1-a2.json")).toBeNull();
+    } finally {
+      absent.cleanup();
     }
   });
 

@@ -6489,6 +6489,71 @@ describe("cdd <verb> --dry-run — the dispatch-input gate (P38 T3)", () => {
     }
   });
 
+  it("prints the carrier-integrity refusal the real run hits — the requesting digest, judged", async () => {
+    /** The carrier gate's preview pin. The frame hands `--reviews` a copy of the
+     *  requesting carrier whose bytes moved after the review round recorded its digest:
+     *  the ledger's own read (the phase derivation) opens the RECORDED carrier and finds
+     *  it intact, so this frame reaches the preview block — where the carrier judgment
+     *  is the only refusal it earns (no sidecar, every dispatch-input cell supplied).
+     *  Before the preview asked that gate, a dry run printed the forecast and exited 0
+     *  for a dispatch the real run refuses. */
+    const { command, io, repoRoot, cleanup } = fixture({ sync: new StubRunner() });
+    try {
+      gitInit(repoRoot);
+      const spec = conformingSpec(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "s1").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+      const sealed = ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        {
+          status: "CHANGES_REQUESTED",
+          findings: [{ id: "F1", severity: "blocker", summary: "the guard is missing" }],
+        },
+      );
+      ledger.recordRound("phase-spec", { op: "review", carrierDigest: sealed.digest });
+      // the tamper is an EXTERNAL writer on the file this frame is handed: the recorded
+      // carrier keeps its bytes, so the phase derivation's own read stays green, and the
+      // handed name attributes to no round identity, so the artifact gate has nothing to
+      // judge — the carrier judgment is the only refusal left
+      const handed = path.join(workspace.path, "handed-carrier.json");
+      writeFileSync(
+        handed,
+        `${JSON.stringify(
+          {
+            status: "CHANGES_REQUESTED",
+            findings: [
+              { id: "F1", severity: "blocker", summary: "the guard is missing" },
+              { id: "F9", severity: "blocker", summary: "smuggled" },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      const faces = await bothFaces(command, io, [
+        "fix",
+        "--type",
+        "phase-spec",
+        "--spec",
+        spec,
+        "--reviews",
+        handed,
+      ]);
+      expect(faces.preview).toBe(1);
+      expect(faces.real).toBe(1);
+      expect(faces.previewValue).toContain("carrier-mismatch");
+      expect(faces.previewValue).toContain("recorded=");
+      expect(faces.previewValue).toContain("current=");
+      // one judgment, two consumers: the preview's row IS the real run's message
+      expect(faces.previewValue).toBe(faces.realValue);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("is satisfied by the brief's NAMING — a preview never reds the brief it would have rendered itself", async () => {
     const { command, io, repoRoot, cleanup } = fixture({ sync: new StubRunner() });
     try {

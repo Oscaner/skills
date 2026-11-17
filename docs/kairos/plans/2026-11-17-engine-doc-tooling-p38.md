@@ -1,7 +1,7 @@
 ---
 title: 'P38 · 派发输入契约：必填表、`none` 表示法与 `dispatch-input` 门'
 doc-type: plan
-version: v0.7
+version: v0.8
 date: 2026-11-17
 slug: 2026-11-17-engine-doc-tooling-p38-design
 base: develop
@@ -158,7 +158,9 @@ dispatchInput(facts: { segments: readonly DispatchInputSegment[] }): string;
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`（`--dry-run` 的拒绝串读取点，与 `artifactRefusal` 并列，按 `mode: "preview"` 调用）
-- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（追加两批：① 字节等价三臂；② 预览帧的基准与期望——`--dry-run` 同样读这道门，无 `base.json` 的 wave / branch 预览会被 `BASE_BRANCH` 的 `empty-value` 拒，见 Step 4）
+- Modify: `packages/cdd-engine/src-next/face/preview.ts`（`Preview#artifactBlock` 的 docblock 认领三臂——carrier-integrity · dispatch-input · artifact-identity；方法本身已是通用的：一条 reason 串加首行拆分）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`CliLifecycle#carrierRefusal` 由私有升为公开纯读——与 `artifactRefusal` / `inputRefusal` 同一形态，判定只有一处，两面共用）
+- Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（追加三批：① 字节等价三臂；② 预览帧的基准与期望——`--dry-run` 同样读这道门，无 `base.json` 的 wave / branch 预览会被 `BASE_BRANCH` 的 `empty-value` 拒，见 Step 4；③ carrier 面的字节等价臂——同一 fix 帧，预览 `refused:` 行的值 === 真派发 `RoundViolation.message`）
 - Test: `packages/cdd-engine/src-next/face/__tests__/preview.test.ts`（本任务只在这一文件里种基准与补期望——那条走到预览块的 review `--dry-run` 帧，见 Step 4；预览路径的实现只在 `cli.ts` 一处）
 
 #### Consumes
@@ -171,13 +173,14 @@ dispatchInput(facts: { segments: readonly DispatchInputSegment[] }): string;
 
 #### Steps
 - **Step 1**：写失败测试——(a) 同一违例帧，预览 `refused:` 行的值 === 真派发 `RoundViolation.message`（逐字节 `toBe`；`RoundViolation` 的字段是 `grade` · `cause` · `message`，没有 `reason`）；(b) wave 帧在 brief 尚未落盘时预览 **不** 报 `target-absent`；(c) 预览的输出行集与改动前一致（无新增行）。— checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/cli.test.ts -t "dispatch-input"` 三条红。
-- **Step 2**：在 `cli.ts` 的预览路径上取 `harness.inputRefusal(frame, "preview")`（与既有 `artifactRefusal` 同一处、同一写法的相邻调用），把返回值原样渲染。— checkable: (a)(c) 转绿。
+- **Step 2**：在 `cli.ts` 的预览路径上按真派发的顺序取门——`harness.carrierRefusal(frame)` → `harness.inputRefusal(frame, "preview")` → `harness.artifactRefusal(frame)`（三道纯读，与 `#runDispatch` 的判定顺序逐一同序），把第一个非空返回值原样渲染。— checkable: (a)(c) 转绿，且 carrier 面的字节等价臂转绿。
 - **Step 3**：确认预览路径不另起一次判定：`mode: "preview"` 是门上的唯一差异位，预览不合成第二个 `TemplateValues`、不写盘、不 extract brief。— checkable: (b) 转绿，且既有 `--dry-run` 零写入断言仍绿。
 - **Step 4**：种预览帧的基准（第三类派发面，Task 2 Step 6 登记的那一类）：枚举 `cli.test.ts` 与 `preview.test.ts` 里**真正走到预览块**的 wave / branch `--dry-run` 帧（pre-flight 通过的帧），派发前先 `cdd base set`（写下的就是 `base.json`，恢复动作本身就是它），并给每帧补**退出码 + 渲染行**两条期望：wave 评审帧仍是 exit 0 且无 `refused:` 行。**预期被拒的帧不在此列**：「the clean-tree gate blocks the three verbs on a dirty tree」那条里的 review / fix 两臂由 pre-flight 在预览块之前拒（`!verdict.allowed` 先返回），期望一个字节都不改（`CDD_BLOCKED` + 「commit or discard」），也不种基准——种了既不改变判据，还让「谁在拒」说不清。判据是这一类，不是这张名单：任何走到预览块、缺基准的 wave / branch 帧都会在 Task 6 的 `validate` 里红。— checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/cli.test.ts src-next/face/__tests__/preview.test.ts` 全绿，且每条被种基准的帧都带退出码与渲染行期望。
 - **Step 5**：提交。— checkable: `git log --oneline -1` 显示本任务提交，`git status --short` 为空。
 
 #### Acceptance
 - 字节等价 pin 存在且真能红：把 inputRefusal 的返回值篡改一个字节 ⇒ 该测试红。
+- 三面同序：同一个 `fix` 帧两面被 carrier-integrity 与 dispatch-input 同时判时，两面拒绝串逐字节相同（carrier 先判），预览不会预报一个真派发会拒的轮次。
 - 预览零新增输出行、零写入（既有 `--dry-run` 零写入断言仍绿）。
 - wave 帧在 brief 未落盘时预览不误报；`satisfied` 只豁免存在性腿，空值腿照判。
 - 预览帧的基准：每一个走到预览块、且是 wave / branch 面的 `--dry-run` 帧都在派发前 `cdd base set`，并带退出码与渲染行期望——这一类由本任务修，不留到 Task 6 的 `validate`；pre-flight 先拒的帧（`!verdict.allowed` 在预览块之前返回）不在此列，它们的拒绝归属与期望值一个字节都不改。
@@ -292,3 +295,4 @@ none
 | v0.5 | 2026-11-17 | plan-review-4 docs-fix 轮（F1–F7 全部落地，F4 与 F5 的裁定均 ACCEPTED）：守恒条款改为清单的补集形态——除 spec §2.3 点名的四处反转与 spec §3.3 / §5.1 两句 shell 新文本外逐字节不变，与 spec 的 Constraints 同形（F4） · Task 2 Step 5 拆成两类派发面：真 CLI 的 `runArgv` 帧派发前 `cdd base set` 种基准（wave-face brief 重抽 · live-tree branch 面 · P22 T17 的 (a)(b)(c)），行为被反转的 P37 T4 ③ 臂在同一任务内翻新为 `INPUT_OVERALL` 的 `target-absent` 且 child 零 spawn、标题与四臂注释重述，「不给测试开后门」收窄为「没有 scene 因本该交出去的输入被挡」（F1） · Task 1 把 shell↔layout 的 per-render 旧钉改写成构造期臂（注入带 rogue row 的契约、断言构造函数抛），并点名 `roundContext` 四处形状 pin 改读逐行声明对象的 `.line`（含反面臂，否则真空绿）（F2 · F3） · 场景两格声明为可选且可空（`program` 与 `docType` 都带问号与 null），预览 fixture 同补两格与 `baseBranch`（F5） · `preview` 域补回 `value`（F6） · `$version` 翻新落在它唯一的家 `render.test.ts`，不在 `templates.test.ts` 另开第二个（F7） | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
 | v0.6 | 2026-11-17 | plan-review-5 docs-fix 轮（F1–F4 全部落地，F1 与 F4 的裁定均 ACCEPTED）：Task 5 由「重发 `v4.08` 写入」改为**对齐块**——`618417b8` 已落 spec §6 第八项与章程 `v4.08`，phase-spec 轮随后落 `v4.09`（第九项），判据改钉当前字节（`board` 报 `overall … v4.09` · `CORPUS_SIZE === 81` · 「三处反转」零次），不重发旧版本、不把验证搬进别的任务（F1） · Task 1 / Task 4 的 Step 1–2 记为 `618417b8` 已交付，checkable 改钉交付后状态（构造期 `#assertDeclarations` · `TEMPLATE_PROMPT` 的 `$version` 为 25），并把「判据逐字搬自旧 shell↔layout 方法」那句换成判据自身的描述——该方法已随声明升格退役（F2） · Task 2 Step 5 与 Task 3 补第三类派发面：`--dry-run` 预览帧，wave / branch 帧先 `cdd base set`、每帧带退出码与渲染行期望，修复归让它红的 Task 3 而不留到 `validate`（F3） · `when` 命中而值为空按**臂的种类**分腿——`program` ⇒ `target-absent`、`identity` ⇒ `empty-value`（spec §2.3），Step 1 补 (k) 臂，两条腿只靠 reason 词区分（F4） | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
 | v0.7 | 2026-11-17 | plan-review-6 docs-fix 轮（F1–F4 全部落地，F1 的裁定 ACCEPTED）：Task 2 Step 1 的 (h) 把论域收为「两个行选择槽之外的全部 exigible 格」——`ROLE` 与 review 行的 `TARGET_TYPE` 由 `layoutOf(values)` 选行、空掉即在建行之前抛，改由新增的 (l) 臂钉装配器既有报文（`work-mode not declared` / `review type not declared`）那条前置条件，门不新增第三条 reason，Step 1 由十一条增至十二条（F1） · 预览帧这一类删去「clean-tree 门那条 review / fix 两臂」并写明它们是 pre-flight 先拒、走不到预览块，改举 `preview.test.ts` 的「consumes no round」帧为可见成员（Task 2 Step 6 · Task 3 Step 4）（F2） · `preview.test.ts` 的 Files 注与 Acceptance 由 `scene()` 工厂格改指 `runArgv` 帧：真派发帧种基准，工厂格只在 wave 帧自己的格参与断言时才动（F3） · 预览帧由 Step 5 的兄弟项升为自带 checkable 的 Step 6，提交步顺延为 Step 7，Acceptance 改点名 (i)(j)(k)（F4） | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
+| v0.8 | 2026-11-17 | wave-3 review-fix 轮（F1–F3 全部落地，F1 与 F2 的裁定均 ACCEPTED）：预览与真派发共用三道预派发门而非两道——`CliLifecycle#carrierRefusal` 升为公开纯读（判定仍只有一处），预览按 `#runDispatch` 的顺序取 carrier-integrity → dispatch-input → artifact-identity，carrier 面补一条字节等价臂（F2） · `Cli#runWork` 的 harness 回传注释与 `Preview#artifactBlock` 的 docblock 同述三臂与判定顺序，`mode: "preview"` 由「更强的一臂」改正为「唯一更宽松的一臂」（F1 · F3） · Files 增补 `preview.ts`（docblock）与 `lifecycle.ts`（纯读升格） | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |

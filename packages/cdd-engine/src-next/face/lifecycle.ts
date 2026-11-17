@@ -716,8 +716,10 @@ export class CliLifecycle {
     // the child, so a tampered input never reaches a child (the read-back and the CLI
     // catch are the fallbacks, never the gate). It runs BEFORE the ruling gate: the
     // integrity diagnostic is the fact, and a sidecar judged against tampered bytes
-    // would name a ruling reason for a carrier whose bytes simply changed.
-    const carrierRefusal = this.#carrierRefusal(frame);
+    // would name a ruling reason for a carrier whose bytes simply changed. It also runs
+    // before the dispatch-input gate below — the FIRST of the three pre-dispatch
+    // judgments, and the order the `--dry-run` face mirrors.
+    const carrierRefusal = this.carrierRefusal(frame);
     if (carrierRefusal !== null) {
       this.#sealRoundCarriers(frame);
       this.#blocked(carrierRefusal, false);
@@ -1623,8 +1625,15 @@ export class CliLifecycle {
    *  sidecar seam (`session/artifact-reads.ts`), BY DESIGN: this one feeds the digest
    *  read of the carrier's own bytes, that one feeds the schema's `carrier` comparison
    *  and the sidecar's id set. The two are different reads of different files, not two
-   *  names for one fact. */
-  #carrierRefusal(frame: OpenFrame): string | null {
+   *  names for one fact.
+   *
+   *  A PURE read, so it is also the `--dry-run` face's first pre-dispatch entry, beside
+   *  `inputRefusal` / `artifactRefusal` and in the order `#runDispatch` applies the three
+   *  (carrier-integrity → dispatch-input → artifact-identity): the preview renders the
+   *  returned reason verbatim, so a dry run can never forecast a dispatch the real run
+   *  would refuse — the tampered carrier included, whichever other gate the frame also
+   *  fails. */
+  carrierRefusal(frame: OpenFrame): string | null {
     if (this.#opOf(frame) !== "fix") return null;
     const carrier = this.#reviewsPath(frame);
     if (carrier === null) return null;

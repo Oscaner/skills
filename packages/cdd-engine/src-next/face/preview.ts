@@ -89,10 +89,12 @@ export class Preview {
     return lines;
   }
 
-  /** The read-only artifact-identity block — the dispatch gate REFUSED this dispatch
-   *  (`misplaced` sidecar / unreadable one / a schema violation), so the preview prints
-   *  the gate's OWN reason verbatim: one read, two faces, and a dry run can never
-   *  forecast a dispatch the real run would refuse. Exit 1 at the caller; nothing is
+  /** The read-only refusal block for a pre-dispatch gate — one of the three the real
+   *  dispatch applies before the round exists REFUSED this dispatch (a `carrier-mismatch`
+   *  on a tampered requesting carrier; a dispatch-input cell the frame requires but left
+   *  empty or absent; a `misplaced` sidecar / unreadable one / a schema violation), so the
+   *  preview prints the gate's OWN reason verbatim: one read, two faces, and a dry run can
+   *  never forecast a dispatch the real run would refuse. Exit 1 at the caller; nothing is
    *  written, moved or deleted (the repair is the orchestrator's). */
   artifactBlock(verb: CliVerb, reason: string): readonly string[] {
     const [head, ...sections] = reason.split("\n");

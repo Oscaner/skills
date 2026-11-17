@@ -1024,17 +1024,21 @@ export class Cli {
       // derivation), and the early return means no write point below ever runs
       // (`renderBrief` skipped above, `#bookkeep`/`#reject` never reached).
       if (parsed.dryRun) {
-        // The dispatch-input and artifact-identity gates are PURE reads (the layout's
-        // supplied cells + the matrix's names + the strict sidecar schema), so the
-        // preview asks the SAME judgment the real dispatch applies, in the same order,
-        // and prints its reason verbatim — a dry run that stayed silent here would
-        // forecast a dispatch the real run refuses. `mode: "preview"` is the gate's
-        // ONE stronger arm (a brief it would render itself is answered by its naming
-        // line, never by an existence read); every other cell is judged identically.
+        // The three pre-dispatch gates — carrier-integrity, dispatch-input and
+        // artifact-identity — are PURE reads (a digest comparison, the layout's supplied
+        // cells + the matrix's names + the strict sidecar schema), so the preview asks
+        // the SAME judgments the real dispatch applies, in the same order, and prints
+        // the first refusal verbatim — a dry run that stayed silent here would forecast
+        // a dispatch the real run refuses. `mode: "preview"` is the dispatch-input
+        // gate's ONE weaker (permissive) arm: a brief it would render itself is answered
+        // by its naming line, never by an existence read; every other cell is judged
+        // identically.
         const refused =
           harness === null
             ? null
-            : (harness.inputRefusal(frame, "preview") ?? harness.artifactRefusal(frame));
+            : (harness.carrierRefusal(frame) ??
+              harness.inputRefusal(frame, "preview") ??
+              harness.artifactRefusal(frame));
         const preview = new Preview({ scene, words: this.#words });
         if (refused !== null) {
           for (const line of preview.artifactBlock(verb, refused)) this.#io.stdout(`${line}\n`);
@@ -1123,11 +1127,13 @@ export class Cli {
     if (!recovered && !parsed.dryRun && parsed.args.recover === "true") {
       await harness.foldAbort();
     }
-    // The harness itself rides back so the `--dry-run` branch can ask it the
-    // artifact-identity gate's PURE read (the same judgment `step()` applies), and
-    // the preview can print the real run's refusal instead of forecasting a dispatch
-    // it would refuse. The injected `#dispatch` seam has no harness — a hermetic
-    // caller already replaced the whole dispatch, so there is no gate to ask.
+    // The harness itself rides back so the `--dry-run` branch can ask it the three
+    // pre-dispatch gates' PURE reads — the carrier-integrity judgment, then the
+    // dispatch-input judgment, then the artifact-identity one, the order this face's own
+    // dispatch applies them in (the same judgments `step()` applies), and the preview can
+    // print the real run's refusal instead of forecasting a dispatch it would refuse. The
+    // injected `#dispatch` seam has no harness — a hermetic caller already replaced the
+    // whole dispatch, so there is no gate to ask.
     return { step: harness.step(), harness };
   }
 

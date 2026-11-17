@@ -440,6 +440,26 @@ describe("P37 T7 — §7.3's time face: one pending table, three corpora, one an
     expect(f.audit.pathResolves(PENDING, JUDGED)).toBe(true);
   });
 
+  it("skips the pending path as a MEMBER carrier too — one pending path, one answer", () => {
+    const f = pendingFixture({});
+    // §7.1 sieves the carrier half by the bare path form, so the carrier IS the pending
+    // path: the bare spelling and the member spelling are the same coordinate and must
+    // answer alike, or one corpus answers a pending path two ways
+    expect(f.audit.scanText(bodyOf(["pending/forward.ts#PresentSymbol"]), JUDGED)).toEqual([]);
+    expect(f.audit.scanText(bodyOf([`${PENDING}#PresentSymbol`]), JUDGED)).toEqual([]);
+    // the pair: with no `Create:` declaration the same member carrier is reported, exactly
+    // as the bare path is — the skip belongs to the plan, never to the spelling
+    const undeclared = pendingFixture({ pending: null });
+    const findings = undeclared.audit.scanText(
+      bodyOf(["pending/forward.ts#PresentSymbol"]),
+      JUDGED,
+    );
+    expect(findings.map((finding) => [finding.pin, finding.shape])).toEqual([
+      ["pending/forward.ts#PresentSymbol", "symbol"],
+    ]);
+    expect(findings[0]?.summary).toContain("resolves nowhere in the tree");
+  });
+
   it("answers `null` judged on the `contract.path` corpus alone — the other two readings hold", () => {
     const f = pendingFixture({});
     // a wave / branch round has no judged document: condition ① has no subject

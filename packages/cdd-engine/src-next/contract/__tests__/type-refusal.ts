@@ -2,7 +2,7 @@
 // The compile-time twin of a refusal — the negative direction a runtime `expect` cannot
 // hold. `expectTypeOf(...).not.toMatchTypeOf` reports its mismatch only under
 // `vitest --typecheck`, which this package does not run, and the TS "expect an error"
-// pragma is a banned token on the engine source face (`contract/../face/words.ts`
+// pragma is a banned token on the engine source face (`face/words.ts`
 // GUARD_BAN_WORDS). A refusal is therefore written the way this tree already pins a
 // compile-time fact — as an ASSIGNMENT that `tsc -p packages/cdd-engine --noEmit`
 // evaluates: `Refuses<T, U>` is `true` while `T` stays outside `U`, and `never` once `T`

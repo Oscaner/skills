@@ -35,10 +35,13 @@
 // the symbol index is a flat identifier set, so a member written with its carrier in one
 // token (`HandoffSchema.gradingViolations` · `BoardView#summaryToken`) is judged in two
 // halves — the carrier by the bare path / bare symbol sieve, the member by the same
-// symbol shape test — and either half failing to resolve is one finding. The shape stays
-// `symbol`, so the census reading is unchanged by this spelling. An empty carrier is not
-// a member reference (`#reconstruct` names its own symbol, `#` is its prefix), so that
-// token falls back to the whole-token symbol judgment.
+// symbol shape test — and either half failing to resolve is one finding. §7.3's time face
+// rides the carrier half unchanged: §7.1 sieves that half by the bare path form, so the
+// carrier IS the pending path a plan's `Create:` line declares, and it answers here as it
+// answers there (the member half is not consulted — a path the tree has not landed
+// declares no members). The shape stays `symbol`, so the census reading is unchanged by
+// this spelling. An empty carrier is not a member reference (`#reconstruct` names its own
+// symbol, `#` is its prefix), so that token falls back to the whole-token symbol judgment.
 //
 // The corpus declaration (§7.1) lives HERE as `corpusOf(root)`, so the scan, the
 // structural test and the census read one declaration rather than three copies of a
@@ -893,6 +896,15 @@ export class PinAudit {
         source,
         `its carrier \`${member.carrier}\` names ${carrierResolution.candidates.length} entries (${carrierResolution.candidates.join(" · ")}), so it points at no single file`,
       );
+    }
+    // §7.3's time face rides this half too: §7.1 sieves a member's carrier by the bare
+    // path form, so the carrier IS that path — a pending `Create:` declaration of the
+    // judged document's own plan must answer here exactly as the bare-path branch above
+    // answers it, or one pending path answers two ways inside one corpus. The member half
+    // is not consulted: a path the tree has not landed declares no members, so demanding
+    // one would ask for exactly the coordinate loss the skip exists to prevent.
+    if (carrierResolution?.kind === "absent" && this.#forward.skips(member.carrier, judged)) {
+      return null;
     }
     const carrier =
       carrierResolution === null

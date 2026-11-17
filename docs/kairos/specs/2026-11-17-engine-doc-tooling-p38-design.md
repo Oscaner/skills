@@ -1,7 +1,7 @@
 ---
 title: 'P38 · 派发输入契约：必填表、`none` 表示法与 `dispatch-input` 门'
 doc-type: phase-spec
-version: v0.9
+version: v0.10
 date: 2026-11-17
 slug: 2026-11-17-engine-doc-tooling-p38-design
 program: 2026-10-10-engine-doc-tooling
@@ -177,7 +177,7 @@ CDD_BLOCKED: dispatch-input · <row> · <TOKEN> · <reason>; <row> · <TOKEN> ·
 | # | 今日 | 之后 |
 |---|---|---|
 | 1 | 身份文档声明了 `program:` 而章程解析不到 ⇒ `scene.overallLink` 为 `null`、行静静消失 | `CDD_BLOCKED: dispatch-input · <row> · INPUT_OVERALL · target-absent` |
-| 2 | fix 轮拿不到 review 载体（`resolveHandoffPath` 只拼名不查存在）⇒ 静默 | `INPUT_REVIEWS` 空值 ⇒ `empty-value`；拼出的路径不在盘上 ⇒ `target-absent` |
+| 2 | fix 轮拿不到 review 载体（`resolveHandoffPath` 只拼名不查存在）⇒ 静默 | `INPUT_REVIEWS` 空值 ⇒ `empty-value`；拼出的路径不在盘上 ⇒ `target-absent`。恢复动作归编排器：重派那一轮评审让载体重现，或给 `--reviews` 一个在仓库根下真实存在的路径——**fix 轮造不出自己的输入** |
 | 3 | `INPUT_RULINGS` 缺席 ⇒ 行消失 | 渲染裸词 `none` |
 | 4 | 无 `base.json` 的树评审 ⇒ `BASE_BRANCH` 空、静默降级为「评审现场树」 | `CDD_BLOCKED: dispatch-input · <row> · BASE_BRANCH · empty-value`（恢复动作 `cdd base set`） |
 
@@ -309,7 +309,7 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 - `INPUT_OVERALL` 的 exigibility 是结构前提：`overall` 面恒 exigible；其余面按身份文档的**声明**（`DocEntry.program` 那个字面量，而非派生链接 `ChainRoot.programLink` 、也非已解析值 `scene.overallLink`）决定——声明了而章程解析不到 ⇒ `target-absent`；未声明 ⇒ 该格不存在、派发照常（P37 T4 的 ② 臂保持绿；`single-spec` 的类型声明里没有 `program` 锚，它不在 `when: program` 的 `types` 集里，该面因此没有这一格）。
 - fix 与 docs-fix 的 `INPUT_RULINGS` **恒在**：有 sidecar ⇒ 路径；无 sidecar ⇒ 裸词 `none`（字节 pin）；P31 §2.5 的「absent ⇒ 零行」旧钉翻新并注明 deliberate（D74）。
 - 必填值为空串 ⇒ 同一门的 `empty-value`（不得靠装配器丢行掩盖）。
-- 逐格成对 pin 全覆盖 + 一条穷尽性断言（`TOKENS` 的 round-context zone 里每个已登记的 round-context token 都必须被某份 row 的 layout 携带，一个携带者也没有即红；shell zone 的 `HANDOFF_SCHEMA` 不是格）；声明期的可红判据三种，同由 `TemplateAssembler#assertDeclarations`（`render/templates.ts`）在建类时一次判完——要求集死格（requiredOn 命名了该 row 从不服务的 type）⇒ 构造期红；shell↔layout 一致性（shell 正文点名的 cell 不被该 row 的 layout 携带）⇒ 构造期红（`#assertShellCarries`）；`preview: satisfied` 挂在 `INPUT_WAVE_BRIEF` 之外的格上 ⇒ 构造期红且报文点名该格与 `INPUT_WAVE_BRIEF`（豁免只答命名行写下的那一格）；`always` 与全覆盖下的 `none` 是惰性列（可断言、不红）。
+- 逐格成对 pin 全覆盖 + 一条穷尽性断言（`TOKENS` 的 round-context zone 里每个已登记的 round-context token 都必须被某份 row 的 layout 携带，一个携带者也没有即红；shell zone 的 `HANDOFF_SCHEMA` 不是格）；声明期的可红判据**五种**，同由 `TemplateAssembler#assertDeclarations`（`render/templates.ts`）在建类时一次判完——要求集死格（requiredOn 命名了该 row 从不服务的 type，`#assertServed`）⇒ 构造期红；槽注册（某 row 的 layout 携带的槽必须是已登记的 round-context token，`#assertRegistered`）⇒ 构造期红；shell↔layout 一致性（shell 正文点名的 cell 不被该 row 的 layout 携带）⇒ 构造期红（`#assertShellCarries`）；zone 覆盖（上面那条穷尽性断言，`#assertEveryCellHasCarrier`）⇒ 构造期红；`preview: satisfied` 挂在 `INPUT_WAVE_BRIEF` 之外的格上 ⇒ 构造期红且报文点名该格与 `INPUT_WAVE_BRIEF`（`#assertPreviewAnswer`，豁免只答命名行写下的那一格）；`always` 与全覆盖下的 `none` 是惰性列（可断言、不红）。
 - `scratch` 面的成对 pin：工作区根播一个裸临时文件 ⇒ `board` 落一条 `orphan:`；同一文件移入 `scratch/<round-id>/` ⇒ 该行消失、其余行不变；四份 shell 正文各带那句话的字节 pin。
 - `pnpm run validate` exit 0 · changeset `cdd-engine` **minor** · kairos 无。
 
@@ -338,3 +338,4 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 | v0.7 | 2026-11-17 | docs-fix 第六轮（phase-spec review-6 · F1–F6 全部接纳，F1 / F3 / F5 三条按裁定改法落地）：「没有同 slug 身份文档」改记为文档契约腿的 `spec-absent` 孤儿（`PlanRead#refusal` 先拒、该轮不派发），不再叫「合法前向缺口」（v0.6 行保留当时的措辞，以本轮为准）——`undecided` 也不再是第三条臂：读不出形状的那份 `unregistered` 丢弃正是弄脏文档根的那个读，该格因此只有两种非 exigible 形态（§1.1 · §1.3 · §2.3 行与反转 ① · 验收 · Constraints）（F1）；§6 第八项改记为 `v4.08` 已落地，删去两处「待应用 / `v4.07`」字节（F2）；新增第九项并落地章程 `v4.09`：验收 ① 删去对「缺任一必填行」不可达的 `CDD_BLOCKED: dispatch-input` 后果，改为「缺一格归构造期判据、空一格归 `empty-value`」（F3）；§1.1 围栏块声明 `ModePromptRow.serves`（四行服务集），§1.3 死格判据与 §1.4 表尾改指该列、不从臂的并集推（F4）；intro 与 §2.2 改述本相位**已强制**的形态，并点名 `TemplateAssembler#assertDeclarations`（那条 shell↔layout 断言已随声明升格退役）（F5）；§1.3 的 `single-spec` 键集补 `slug`，七个键、`slug` 必填（F6） | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
 | v0.8 | 2026-11-17 | branch-fix-1 轮（F4 裁定 ACCEPTED）：`preview: "satisfied"` 的唯一性由散文升为构造期断言——`TemplateAssembler#assertPreviewAnswer` 把第二个 `satisfied` 格拦在建类之前（报文点名该格与该格的规范载体），§1.1 与验收的「声明期可红判据」由一种增至两种；§1.3／§4.2 的其余判据与全部派发字节不变 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |
 | v0.9 | 2026-11-17 | docs-fix 第七轮（phase-spec review-7 · F1–F5 全部接纳，F1 / F3 两条按裁定落地）：§6 第八项的括注改记为 `spec-absent`（`PlanRead#refusal` 先拒、那一轮不派发），并新增第十项把章程 `v4.08` 行的 `undeclared` 措辞登记为 `v4.10` 的更正（历史行不改）；新增第十一项把章程验收 ① 的穷尽性方向一并回填（F1）；§4.2 的穷尽性论域由「`TOKENS` 的 round-context zone ∩ 该 row 自己那份 layout」改为「zone 里每个已登记 token 必须被某份 row 的 layout 携带」，反方向的槽登记写在旁边，§4.3 的「漏一格可红」改指 `#assertEveryCellHasCarrier`（F2）；验收的声明期判据由两种增至三种——补上 shell↔layout 的 `#assertShellCarries`（F3）；§5.2 的 `<round-id>` 定义为 `(line, op, cycle)` 上的轮次 identity，`renderName` 的 attempt 段由剥离规则给出（F4）；§1.1 的 `#assertPreviewAnswer` 补模块路径 `render/templates.ts`（F5）；章程同批递增 `v4.10` | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
+| v0.10 | 2026-11-17 | branch-fix-2 轮（F2 / F3 按裁定落地）：§2.3 反转 ② 的 after-column 补上恢复动作——重派那一轮评审让载体重现，或给 `--reviews` 一个在仓库根下真实存在的路径，并写明 fix 轮造不出自己的输入（F2 的裁定 ACCEPTED：硬拒绝欠一条编排器可读的修法，与反转 ④ 的 `cdd base set` 同形；同一句进 changeset）· 验收的声明期可红判据由三种改为**五种**——点名槽注册（`#assertRegistered`）与 zone 覆盖（`#assertEveryCellHasCarrier`）两个方向，与 plan Task 1 的五条对齐（F3） | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |

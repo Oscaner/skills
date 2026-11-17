@@ -253,7 +253,7 @@ export const CLI_COMMANDS: readonly CliCommandSpec[] = [
   {
     name: "fix",
     description: "fix review findings — wave | branch | phase-spec | overall | plan | single-spec",
-    example: "cdd fix --type wave --tasks 1 --reviews tasks-1-review-1.json",
+    example: "cdd fix --type wave --tasks 1 --reviews .kairos/cdd/<slug>/tasks-1-review-1.json",
     keys: [
       { key: "type", required: true },
       { key: "tasks" },

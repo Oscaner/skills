@@ -1432,8 +1432,12 @@ describe("the help/--help display face — the per-command render", () => {
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("--reviews <path>");
       expect(io.stdoutText).toContain("the source review handoff JSON path");
+      // The example must be the spelling the engine RESOLVES, not a bare carrier
+      // name: `--reviews` is absolutized against the repo root (`RepoRoot#relativize`),
+      // and carriers live under `.kairos/cdd/<slug>/` (branch-review-2 F1), so a bare
+      // `tasks-1-review-1.json` would name a file at the repo root that cannot exist.
       expect(io.stdoutText).toContain(
-        "cdd fix --type wave --tasks 1 --reviews tasks-1-review-1.json",
+        "cdd fix --type wave --tasks 1 --reviews .kairos/cdd/<slug>/tasks-1-review-1.json",
       );
     } finally {
       cleanup();

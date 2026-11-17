@@ -26,11 +26,16 @@ read judges the values about to be rendered — before the round exists:
   record.
 - Four behaviours reverse, all named: a declared `program:` whose charter does not resolve
   is `target-absent`; a fix round whose review carrier is empty, or whose composed family
-  name is not on disk, is `empty-value` / `target-absent`; `INPUT_RULINGS` renders the bare
-  word `none` instead of dropping its line, and the fix and docs-fix shells say so in one
+  name is not on disk, is `empty-value` / `target-absent` (recover by re-dispatching the
+  review round so a carrier exists, or by giving `--reviews` a path that exists at the repo
+  root — a fix round cannot supply its own input); `INPUT_RULINGS` renders the bare word
+  `none` instead of dropping its line, and the fix and docs-fix shells say so in one
   half-sentence; a tree review with no `base.json` is `BASE_BRANCH · empty-value` (recover
   with `cdd base set`) instead of silently reviewing the working tree. Every other cell
   renders the bytes it rendered before.
+- The `cdd fix --help` example now spells `--reviews` repo-root-relative
+  (`.kairos/cdd/<slug>/tasks-1-review-1.json`), the base the engine resolves against,
+  instead of a bare carrier name that could never exist there.
 - `--dry-run` asks the same judgment by name and prints the first refusal the real run
   would print, in the same order — carrier integrity, then dispatch input, then artifact
   identity. The one exception is the brief the preview does not write: `preview:

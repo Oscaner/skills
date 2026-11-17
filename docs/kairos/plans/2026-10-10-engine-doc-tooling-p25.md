@@ -162,7 +162,7 @@ none
 #### Consumes
 
 - `Ledger#roundCount(key, mode, identity?)`（`session/ledger.ts:716-719`）——**key 用每一批自己的行键**：逐批取该批的 joined key（`graph.batches()[i].join(",")`，与 `#waveKeyOf` 的 ready-batch 拼法一致）**再各自求和**（面层判据要扫全部批次，不是只取 ready batch 那一个键）；`identity` **不传**（wave 行不带 type identity，传了会走 `rowFor` 的 retired-spec 回退）
-- `TaskGraph#batches()` / `#frontier`（既有，经 `PipelineFrontierInput.planGraph`）· `Ledger#waveLineRoute(waveKey)`（既有）
+- `TaskGraph#batches()` / `#frontier`（既有，经 PipelineFrontierInput.planGraph）· `Ledger#waveLineRoute(waveKey)`（既有）
 
 #### Produces
 

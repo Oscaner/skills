@@ -26,41 +26,33 @@
 // several — because the last two must read as CLOSED: a registration that no longer
 // resolves cannot establish "not closed".
 //
+// P37 T8 adds three legs to this face: the member spelling of the bare-symbol shape
+// (§7.1) with its paired cells, the corpus identity pin that holds `pin.files` and
+// `pin.total` to the SAME declaration and the same scan, and §7.1's reverse test-shape
+// leg — a path token and a title token are two tokens, so only the path is judged.
+//
 // The other two corpora (the judged document's body, the finding's `contract.path`)
 // are pinned where they execute: `face/__tests__/lifecycle.test.ts`.
 
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { PinAudit, PinIndex, PinSpans } from "../pins.ts";
+import { corpusOf, PinAudit, PinIndex, PinSpans } from "../pins.ts";
 
 /** The repo root of THIS checkout — the guard's corpus basis. */
 const REPO_ROOT = path.resolve(fileURLToPath(new URL("../../../../..", import.meta.url)));
 
-/** The README family's package half (the `packages` tree's README files), expanded
- *  from the tree so the declaration stays a rule, never a list. */
-const PACKAGE_READMES: readonly string[] = readdirSync(path.join(REPO_ROOT, "packages"), {
-  withFileTypes: true,
-})
-  .filter((entry) => entry.isDirectory())
-  .flatMap((entry) =>
-    readdirSync(path.join(REPO_ROOT, "packages", entry.name))
-      .filter((name) => /^README.*\.md$/.test(name))
-      .map((name) => `packages/${entry.name}/${name}`),
-  );
+/** The corpus declaration (§7.1) — read from `contract/pins.ts`, the ONE place it is
+ *  written. This file declares no list of its own, so the scan, the structural test and
+ *  `PinAudit.census` cannot disagree about what the corpus is. */
+const CORPUS_ROOTS: readonly string[] = corpusOf(REPO_ROOT);
 
-/** The corpus declaration (§7.1) — the docs tree plus the README family, and nothing
- *  else: no baseline, no allowlist, no exemption. */
-const CORPUS_ROOTS: readonly string[] = [
-  "docs/kairos",
-  "README.md",
-  "README.zh-CN.md",
-  ...PACKAGE_READMES,
-];
-
-/** The corpus size — pinned, so a document entering or leaving the corpus is red. */
+/** The corpus size — pinned HERE, as a literal, so a document entering or leaving the
+ *  corpus is red. It is deliberately not derived from `filesOf`: a number computed out
+ *  of the same walk would agree with any corpus the walk returned, and re-emitting it
+ *  could never turn this file red. */
 const CORPUS_SIZE = 79;
 
 /** The scratch fixture's source file — the symbol index's only corpus in these cases. */
@@ -121,6 +113,19 @@ interface Scratch {
   readonly cleanup: () => void;
 }
 
+/** The fixture's carrier declaration — the two halves the member cells judge are
+ *  declared HERE, inside the scratch tree, so the dead halves stay names the test writes
+ *  rather than names the scan's own corpus would resolve (a string literal in a suite
+ *  file IS a declaration to `PinSource`, so a dead name must live outside that tree). */
+const MEMBER_SOURCE = [
+  "export class HandoffSchema {",
+  "  static gradingViolations(): void {}",
+  "  #summaryToken = 1;",
+  "  #reconstruct(): void {}",
+  "}",
+  "",
+].join("\n");
+
 /** A hermetic repo — a docs tree, one source file and one test file. */
 const scratch = (): Scratch => {
   const root = mkdtempSync(path.join(tmpdir(), "pin-gate-"));
@@ -156,6 +161,15 @@ const fixture = (): Scratch => {
   const f = scratch();
   scratchDirs.push(f.root);
   return f;
+};
+
+/** One hermetic repo whose symbol corpus declares a carrier with its members. */
+const memberFixture = (): Scratch => {
+  const f = fixture();
+  f.write("packages/cdd-engine/src-next/members.ts", MEMBER_SOURCE);
+  // the audit is rebuilt over the file just written — the index reads the tree lazily,
+  // but the fixture's first audit predates the write
+  return { ...f, audit: new PinAudit(f.root) };
 };
 
 afterEach(() => {
@@ -262,6 +276,42 @@ describe("P37 T6 — `pin-parseability`: the gate goes red on a dead pin and gre
     // exactly the declared files (no second corpus, no baseline, no exemption list) —
     // and every pin in it resolves: the migration's delivery condition, held from now on.
     expect(audit.scan(CORPUS_ROOTS).length).toBe(0);
+  });
+
+  it("reads the corpus ONE way — its file count is the size pin, its total the same scan", () => {
+    const audit = new PinAudit(REPO_ROOT);
+    const census = audit.census(CORPUS_ROOTS);
+    // §7.1's declaration is imported, not restated: the size pin and `pin.files` are two
+    // readings of ONE declaration, and `pin.total` is the length of the scan the same
+    // audit runs over it — never a third count
+    expect(census.files).toBe(CORPUS_SIZE);
+    expect(census.total).toBe(audit.scan(CORPUS_ROOTS).length);
+    expect(census.total).toBe(census.symbol + census.path);
+    // a corpus of nothing measures nothing: on an empty corpus the same readings fall
+    // away from the declared size, so a census that never reaches a file is red
+    const empty = audit.census([]);
+    expect(empty.files).toBe(0);
+    expect(empty.files).not.toBe(CORPUS_SIZE);
+    expect(empty.total).toBe(0);
+  });
+
+  it("judges a test pin only when file and title share ONE token — a title of its own is never a pin", () => {
+    const f = fixture();
+    const test = "packages/cdd-engine/src-next/__tests__/sample.test.ts";
+    // a resolvable path token plus an independent title token: only the path is judged
+    const findings = f.audit.scanText(bodyOf([test, "a declared test title"]), "reverse.md");
+    expect(findings).toEqual([]);
+    expect(findings.some((finding) => finding.shape === "test")).toBe(false);
+    // rewriting the title token leaves the result byte-identical — the title never enters
+    // the judgment's input. Broadening `testOf` into a two-token pair, or letting the
+    // classifier take a bare title first, is exactly what turns this cell red
+    const rewritten = f.audit.scanText(bodyOf([test, "a retired test title"]), "reverse.md");
+    expect(rewritten).toEqual(findings);
+    // the pair that gives the leg its meaning: inside ONE token the same title IS judged
+    const joined = f.audit.scanText(bodyOf([`${test}::a retired test title`]), "reverse.md");
+    expect(joined.map((finding) => [finding.pin, finding.shape])).toEqual([
+      [`${test}::a retired test title`, "test"],
+    ]);
   });
 });
 
@@ -453,5 +503,70 @@ describe("P37 T7 — §7.3's time face: one pending table, three corpora, one an
     expect(pins.filter((pin) => pin === PENDING)).toHaveLength(2);
     expect(pins).toContain("s1.md");
     expect(f.audit.pathResolves(PENDING, JUDGED)).toBe(false);
+  });
+});
+
+describe("P37 T8 — §7.1's member spelling: carrier and member judged in ONE token", () => {
+  it("reads a carrier + member token whose halves both resolve as a pin", () => {
+    const f = memberFixture();
+    // both halves are declarations in the fixture, so the token is one coordinate rather
+    // than two words — the flat identifier set is what makes the member spelling work
+    expect(f.audit.scanText(bodyOf(["HandoffSchema.gradingViolations"]), "member.md")).toEqual([]);
+    // the private-member separator and the trailing arguments are spellings, not shapes
+    expect(f.audit.scanText(bodyOf(["HandoffSchema#summaryToken"]), "member.md")).toEqual([]);
+  });
+
+  it("reports exactly ONE finding when the member half is not in the index", () => {
+    const f = memberFixture();
+    const token = "HandoffSchema.ZzNoMemberQq";
+    const findings = f.audit.scanText(bodyOf([token]), "member.md");
+    expect(findings.map((finding) => [finding.pin, finding.shape])).toEqual([[token, "symbol"]]);
+    // the summary names the dead half, not the whole token twice
+    expect(findings[0]?.summary).toContain("ZzNoMemberQq");
+  });
+
+  it("reports exactly ONE finding when the carrier half is not in the index", () => {
+    const f = memberFixture();
+    const token = "ZzNoCarrierQq#summaryToken";
+    const findings = f.audit.scanText(bodyOf([token]), "member.md");
+    // the member resolves; the carrier does not — still one finding for the one token
+    expect(findings.map((finding) => [finding.pin, finding.shape])).toEqual([[token, "symbol"]]);
+    expect(findings[0]?.summary).toContain("ZzNoCarrierQq");
+  });
+
+  it("reads a lowercase member name as prose — the separator never rewrites the shape test", () => {
+    const f = memberFixture();
+    // `impact.scenario` and a bare lowercase word are judged by the SAME rule: prose.
+    // Reading the member half as a name merely because a separator precedes it would
+    // make every dotted phrase in the corpus a claim
+    expect(f.audit.scanText(bodyOf(["impact.scenario", "wave"]), "member.md")).toEqual([]);
+  });
+
+  it("peels trailing call arguments before the split", () => {
+    const f = memberFixture();
+    const bare = f.audit.scanText(bodyOf(["HandoffSchema#summaryToken"]), "member.md");
+    const called = f.audit.scanText(bodyOf(["HandoffSchema#summaryToken()"]), "member.md");
+    expect(called).toEqual(bare);
+    // the peel is a peel, not a pass: the same token with a dead member still reports
+    const dead = f.audit.scanText(bodyOf(["HandoffSchema#ZzNoMemberQq()"]), "member.md");
+    expect(dead.map((finding) => finding.pin)).toEqual(["HandoffSchema#ZzNoMemberQq()"]);
+  });
+
+  it("reads an EMPTY carrier as no member reference — `#` is that symbol's own prefix", () => {
+    const f = memberFixture();
+    // the pair: a `#`-prefixed dead name is one symbol finding, a live one is none.
+    // Splitting at the last `#` and calling the empty half a carrier would read BOTH as
+    // prose, and a batch of such tokens would silently lose its judgment
+    const dead = f.audit.scanText(bodyOf(["#ZzNoMemberQq"]), "member.md");
+    expect(dead.map((finding) => [finding.pin, finding.shape])).toEqual([
+      ["#ZzNoMemberQq", "symbol"],
+    ]);
+    expect(f.audit.scanText(bodyOf(["#reconstruct"]), "member.md")).toEqual([]);
+  });
+
+  it("resolves the spelling against the REAL corpus too — it is not a fixture-only shape", () => {
+    const audit = new PinAudit(REPO_ROOT);
+    expect(audit.scanText(bodyOf(["HandoffSchema.gradingViolations"]), "member.md")).toEqual([]);
+    expect(audit.scanText(bodyOf(["BoardView#summaryToken()"]), "member.md")).toEqual([]);
   });
 });

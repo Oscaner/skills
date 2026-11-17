@@ -44,7 +44,7 @@ base: develop
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（#stealStale 字段 / `opts.stealStale` / `acquire({ stealStale })` 传参与 `--steal-stale` 注释——旗标面的唯一传递链，不改行为）
 - Modify: `packages/cdd-engine/src-next/face/preview.ts`（`--steal-stale` 注释改词；`words.inFlightWords().stealable` 键引用不变）
 - Modify: `packages/cdd-engine/src-next/session/inflight.ts`（`acquire` 的 stealStale 选项、`#stealIfDead` 注释、`holdingMessage` 里的 `--steal-stale` 字面——用户可见的接管语）
-- Modify: `packages/cdd-engine/src-next/session/preflight.ts`（`DispatchFacts.stealStale` 与 `#inFlightRefusal` 形参、`--steal-stale` 注释改键名改词）
+- Modify: `packages/cdd-engine/src-next/session/preflight.ts`（DispatchFacts.stealStale 与 `#inFlightRefusal` 形参、`--steal-stale` 注释改键名改词）
 - Test: `packages/cdd-engine/src-next/face/__tests__/cli.test.ts`（帮助面与拒绝语零 `--steal-stale`；`words.inFlightWords()` 三行字面重锚）
 - Test: `packages/cdd-engine/src-next/face/__tests__/words.guard.test.ts`
 - Test: `packages/cdd-engine/src-next/face/__tests__/preview.test.ts`（`--steal-stale --dry-run` 用例与 `not.toContain("--steal-stale")` 断言重锚到 `--recover`）

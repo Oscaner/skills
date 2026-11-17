@@ -122,7 +122,7 @@ parent-version: v2.66
 
 #### 3.3 退役面（运行时零残留）
 
-- `Workspace.docsOfSlug` / slugFromDoc / phaseSuffixOf / `PHASE_SUFFIX_*` / `BoardView.scanPhases`（及一切「文件名像不像 `-pN`」判据）。
+- `Workspace.docsOfSlug` / slugFromDoc / phaseSuffixOf / `PHASE_SUFFIX_*` / BoardView.scanPhases（及一切「文件名像不像 `-pN`」判据）。
 - front-matter 路径键 **`spec:`**、**`parent-program:`** 整键退役（登记表 · skeleton · judge · 消费面字面同步）。
 - board help/example/README 从 `cdd board <slug>` 改为路径入口。
 

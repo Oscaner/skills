@@ -109,13 +109,13 @@ base: develop
 - **DependsOn**: 1, 2
 
 ### Task 7: 退役文件名推演面
-- **Objective**: 删除 `Workspace.slugFromDoc` / phaseSuffixOf / docsOfSlug / #nearestOverall、PHASE_SUFFIX_CORE / PHASE_SUFFIX_TAIL / PHASE_SUFFIX_BARE、SlugDocs 接口、`BoardView.scanPhases`，连同其全部测试（含 phase-suffix guard 测试 整文件）；`infra/runtime.ts` 与 `board-view.ts` 中引用旧推演的注释同步改写。
+- **Objective**: 删除 `Workspace.slugFromDoc` / phaseSuffixOf / docsOfSlug / #nearestOverall、PHASE_SUFFIX_CORE / PHASE_SUFFIX_TAIL / PHASE_SUFFIX_BARE、SlugDocs 接口、BoardView.scanPhases，连同其全部测试（含 phase-suffix guard 测试 整文件）；`infra/runtime.ts` 与 `board-view.ts` 中引用旧推演的注释同步改写。
 - **Files**: `packages/cdd-engine/src-next/infra/workspace.ts`；`packages/cdd-engine/src-next/face/board-view.ts`；`packages/cdd-engine/src-next/infra/runtime.ts`；删除 phase-suffix guard 测试；测试 `packages/cdd-engine/src-next/infra/__tests__/infra.test.ts`、`packages/cdd-engine/src-next/face/__tests__/board-view.test.ts`。
 - **Consumes**: Task 5 / 6 已完成的换线（活面零调用）。
 - **Produces**: `Workspace` 只剩根 / 路径 / IO 面；文件名推演符号与相位后缀文法在引擎零命中。
 - **Steps**:
   - 删 `workspace.ts` 的六个符号与 SlugDocs；`infra.test.ts:246` 的 slugFromDoc 用例同批删 — checkable: typecheck 绿；`grep -rn 'slugFromDoc\|phaseSuffixOf\|docsOfSlug\|PHASE_SUFFIX' packages/cdd-engine --include=*.ts` 零命中
-  - 删 `BoardView.scanPhases` 与其 PHASE_SUFFIX_BARE import；`board-view.test.ts` 的两个 `describe`（`:26` · `:105`，共 9 用例）整段删除 — checkable: `grep -rn 'scanPhases' packages/cdd-engine --include=*.ts` 零命中
+  - 删 BoardView.scanPhases 与其 PHASE_SUFFIX_BARE import；`board-view.test.ts` 的两个 `describe`（`:26` · `:105`，共 9 用例）整段删除 — checkable: `grep -rn 'scanPhases' packages/cdd-engine --include=*.ts` 零命中
   - 删 phase-suffix guard 测试 整文件；改写 `runtime.ts:17` 与 `board-view.ts` 头部引用旧算法的注释 — checkable: 文件不存在；注释人工核对零旧算法描述
   - 跑 `pnpm -C packages/cdd-engine test` — checkable: 全绿、零 skip / 零孤儿用例
 - **Acceptance**: 文件名推演符号与相位后缀文法零残留；死码零遗留；注释与代码同实况；测试面无孤儿。

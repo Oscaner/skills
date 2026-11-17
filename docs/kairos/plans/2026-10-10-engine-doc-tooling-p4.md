@@ -62,7 +62,7 @@ slug: 2026-10-10-engine-doc-tooling-p4
 - **DependsOn**: 1
 
 ### Task 3: 产物 ⊆ 声明机器判（guard 平面审计 + validate 接线）
-- **Objective**: `GuardLibrary#checkHandoffPlane()`——声明 face 属性集闭合 + **写平面声明派生**（engineOnly 引擎专属键 · `HANDOFF_WRITE_PLANE` 销毁）+ 提示面-声明面单源一致性 · 入 `pnpm run validate` 与 precommit（scripts/validate.ts steps 增 CheckBlock）
+- **Objective**: GuardLibrary#checkHandoffPlane()——声明 face 属性集闭合 + **写平面声明派生**（engineOnly 引擎专属键 · `HANDOFF_WRITE_PLANE` 销毁）+ 提示面-声明面单源一致性 · 入 `pnpm run validate` 与 precommit（scripts/validate.ts steps 增 CheckBlock）
 - **Files**: Modify: scripts/lib/guard.ts（新审计方法，checkChannels :672 同族）；Modify: scripts/validate.ts steps（新 CheckBlock 于 channel audit 之后）；Modify: session/handoff-schema.ts（findings 声明节点增 `engineOnly: ["status"]` · `HANDOFF_WRITE_PLANE` 销毁 · `schemaText`/`violations` 按 engineOnly 过滤）；Test: scripts/__tests__/guard 相关、session/__tests__/handoff-schema.test.ts（投影一致性 + engineOnly 过滤 pin）
 - **Consumes**: T1 BY_FACE/faceSchema/`schemaText` 数据面 · scripts validate steps 数据结构（:270-305 · `precommitSteps = steps.filter(step !== engineSuiteStep)`）
 - **Produces**: `checkHandoffPlane(): GuardFinding[]`——① 声明 face 属性集闭合 + 写平面声明派生：work/findings **角色专属互斥**（findings ∉ work 声明 · status/failure_category/changes ∉ findings 声明——共享行 artifacts/commits/notes 双面声明为设计 · 交集空字面不可实现）· **引擎写平面 = `keyof properties ∪ engineOnly[face]`**（engineOnly 为声明节点携带的引擎专属键——findings 节点 `engineOnly: ["status"]` 声明滚动结论（引擎权威 · 孩子永不自写持久结论）· work `engineOnly: []` · **`HANDOFF_WRITE_PLANE` 平行表销毁**）· **投影①②按 engineOnly 过滤**（child 可见 fence = 声明节点 minus engineOnly · child draft 写 engineOnly 键 → 校验拒 · 提示面-声明面单源 check 即 fence == 声明 minus engineOnly）· **⑥ authority 卫生**（每个声明的 engineOnly 键均被引擎写路径消费 · 不进 child 投影——非重言式）② 投影一致性（`schemaText(face, …)` fence 字节解析后 == `BY_FACE[face]` 声明节点 minus engineOnly——prompt 不能展示引擎不执法的 schema）· validate step `name: "engine handoff plane audit"` 于 channel audit 之后
@@ -77,7 +77,7 @@ slug: 2026-10-10-engine-doc-tooling-p4
 - **DependsOn**: 1
 
 ### Task 4: 声称→pin 把门（machine lint + review lens 契约行）
-- **Objective**: `GuardLibrary#checkClaimedPins()`——扫描 specs/plans 树中声称→pin 引用（`path:line`）· 断言引用存在 + 断言非空 · 入 validate；review vars（templates REVIEWS spec/plan axesGuide）增 claimed→pin 义务条款（D13 缺陷②修法）
+- **Objective**: GuardLibrary#checkClaimedPins()——扫描 specs/plans 树中声称→pin 引用（`path:line`）· 断言引用存在 + 断言非空 · 入 validate；review vars（templates REVIEWS spec/plan axesGuide）增 claimed→pin 义务条款（D13 缺陷②修法）
 - **Files**: Modify: scripts/lib/guard.ts（新 lint）；Modify: scripts/validate.ts（新 step）；Modify: render/templates.ts（REVIEWS.spec/plan axesGuide 追加条款）；Test: scripts/__tests__/guard、render/__tests__/render.test.ts（条款字节 pin）
 - **Consumes**: doc-contract gate 既有的 docs 树扫描先例（scripts/validate.ts checkDocContract）· REVIEWS 四型（templates.ts :298-323）
 - **Produces**: `checkClaimedPins(): GuardFinding[]`——正则扫 `docs/kairos/specs|plans` 下 `.md` 的 `path:line(-line)?` 声称引用（格式如 `cli.test.ts:2715-2733`）→ 每个引用：路径存在（repo 相对）+ 引用行域含测试断言字面（`test(`/`describe(`/`expect(` 任一）——不存在/空断言 = finding · 误报豁免：非 `.test.ts` 路径及非「声称→pin」语境引用不判 · validate step `name: "claimed→pin lint（声称→pin 引用存在 + 断言非空）"`

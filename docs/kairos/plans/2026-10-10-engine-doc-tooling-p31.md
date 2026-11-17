@@ -114,7 +114,7 @@ none
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
 #### Acceptance
-- `CarrierRulings.pathFor` 与 spec §2.1 的 `.json → .rulings.json` 规则一致（成对 pin：draft 名与 `.cN` 名两种输入）。
+- CarrierRulings.pathFor 与 spec §2.1 的 `.json → .rulings.json` 规则一致（成对 pin：draft 名与 `.cN` 名两种输入）。
 - 有 sidecar 的 fix 渲染含裁定正文；无 sidecar 时 prompt 内零 `INPUT_RULINGS` 字面（成对 pin）。
 - sidecar 九种坏形态（缺 `rulings` · 非 JSON · `rulings` 非数组 · 条目缺 `finding` · 条目缺 `ruling` · 未知顶层键 · 条目未知键 · `finding` 不在 carrier id 集 · `carrier` ≠ 载体文件名）各自单独一枚用例，均在派发前 `CDD_BLOCKED` 且 dispatcher 零调用（逐例单独断言，不合并成一枚）。
 - review 轮（`op !== "fix"`）的 round-context 零 `INPUT_RULINGS`。
@@ -146,7 +146,7 @@ none
 - `infra/workspace.ts#writeJson`：`ensure()` → `#normalizePaths` → `#atomic.write(resolve(name), JSON.stringify(normalized, null, 2) + "\n")`
 - `session/run.ts#bookkeep`：`carrierPath = this.#ledger.persistHandoff(op, frame.type, frame.params, carrier)`
 - `session/ledger.ts#readHandoff`（`:1606-1608`）：今日经私有 `#read<T>` 裸读载体，无摘要比对
-- `contract/completion-criterion.ts#requesterInputOf`（`:358-392`）与 `face/board-view.ts#findingsCountOf`（`:368-380`）：今日各自 `readFileSync` + `JSON.parse` 裸读 `carrierPath`（分别为 `--reviews` / 记录路径），两处都绕过 `readHandoff`
+- `contract/completion-criterion.ts#requesterInputOf`（`:358-392`）与 face/board-view.ts#findingsCountOf（`:368-380`）：今日各自 `readFileSync` + `JSON.parse` 裸读 `carrierPath`（分别为 `--reviews` / 记录路径），两处都绕过 `readHandoff`
 - `face/lifecycle.ts#runDispatch`（`:585-609`）：`#inflight.acquire`（`:609`）之前只渲染 prompt，无任何载体读 —— 今日 tamper 只能在 child 返回后的 `#reconstruct` 才被看见，而 `#reconstruct` 今日连摘要面都没有
 
 #### Produces
@@ -212,7 +212,7 @@ none
 
 #### Produces
 - `RoundNaming.finalName(op: string, type: string, params: HandoffParams): string` — 把 `handoffName` 结尾的 `.json` 换成 `.c<N>.json`，`N = params.round`
-- `RoundNaming.finalPath(...)` — resolve 后的绝对路径
+- RoundNaming.finalPath(...) — resolve 后的绝对路径
 - `RoundNaming.isCarrierName(name: string): boolean` — 只认本引擎 mint 的两类名字（draft 家族 `<stem>-<op>-<round>.json` 与 final `<stem>-<op>-<round>.c<N>.json`，即 `handoffName` 尾部加可选 `.c<N>`）；`progress.json` / `base.json` / `*-test-evidence.json` / `*.rulings.json` 一律 `false`（Task 5 的 sweep 谓词单点）
 - `Round.reviewsPath`（`session/ledger.ts#round` 两个分支）= 该轮 review 记录已记的 `carrierPath`（final 绝对路径）；记录缺失或该值为 `null`（legacy 行）才回落 `resolveHandoffPath` 的草稿家族名 —— 记录存在即 final 胜出
 - `face/lifecycle.ts#reviewsPath(frame)` 四层同源：显式 `--reviews` 旗标 → 同轮 review 记录的 `carrierPath` → 今日的 `resolveHandoffPath` + `existsSync` 回落 → legacy `null`
@@ -229,7 +229,7 @@ none
 - `RoundNaming` 加 `finalName` / finalPath（`params.round` 拼 `.c<N>`，缺 `round` 回落）— checkable: 命名两例 PASS
 - `persistHandoff` 一次组装 final 载荷：先 `digest = CarrierIntegrity.digestOf(payload)`（payload 尚无该字段）→ 把 `contentSha256: digest` 作为**最后追加键**并入 payload 并一次落盘 → 返回 `{ path, draftPath, digest }`（不二次重算）；**不写不删草稿**（代码注释写明「摘要覆盖 payload 而非含该字段的文件字节——`H = sha256(JSON 含 H)` 不可满足」）— checkable: 共存三处同值例 PASS
 - `RoundRecord` 加 `draftPath?: string | null`，`#bookkeep` 与 `carrierDigest` 同笔落记录 — checkable: 记录两路径例 PASS，typecheck exit 0
-- 写失败测（reviews 身份，成对 pin）：同轮 draft 与 `<stem>.c<N>.json` 并存时，`ledger.round("review", …).reviewsPath`、`next` 渲染的 `--reviews`、fix prompt 的 `INPUT_REVIEWS`、`#reviewsPath`、`#resumeOf` 生成的 `cdd fix … --reviews <path>` 五者都指 `.c<N>.json`，故 `CarrierRulings.pathFor` 得 `.c<N>.rulings.json`；删掉 final 后五者回落草稿名（legacy 回落例）— checkable: 定向 vitest FAIL（今日前三面指草稿，resume 另走自拼路径）
+- 写失败测（reviews 身份，成对 pin）：同轮 draft 与 `<stem>.c<N>.json` 并存时，`ledger.round("review", …).reviewsPath`、`next` 渲染的 `--reviews`、fix prompt 的 `INPUT_REVIEWS`、`#reviewsPath`、`#resumeOf` 生成的 `cdd fix … --reviews <path>` 五者都指 `.c<N>.json`，故 CarrierRulings.pathFor 得 `.c<N>.rulings.json`；删掉 final 后五者回落草稿名（legacy 回落例）— checkable: 定向 vitest FAIL（今日前三面指草稿，resume 另走自拼路径）
 - 接线：`session/ledger.ts#round` 两条 `reviewsPath` 改为「记录 `carrierPath` 为字符串 → 用它；缺记录或为 `null` → 今日的 `resolveHandoffPath` 回落」；`face/lifecycle.ts#reviewsPath` 按 Produces 的四层顺序接线（`existsSync(draft)` 只在记录未给 final 时参与）；`#resumeOf` 的 fix 分支改读 `#reviewsPath(frame)`（走同一次四层顺序，只在得 `null` 时回落 `resolveHandoffPath`）— checkable: 上一步 PASS，`cli.test.ts` 与 `next.test.ts` 的 `--reviews` 断言重锚后全绿，typecheck exit 0
 - 提交 — checkable: `git log -1 --oneline` 含本任务主题
 
@@ -260,12 +260,12 @@ none
 - 修改：`packages/cdd-engine/src-next/session/run.ts`（`#bookkeep` 失败面：`carrierPath === null` 时仍 seal 本轮草稿名）
 
 #### Consumes
-- Task 4 的 `RoundNaming.finalPath`、`RoundNaming.finalName`、`RoundNaming.isCarrierName` 与 `Ledger.handoffPath`
+- Task 4 的 RoundNaming.finalPath、`RoundNaming.finalName`、RoundNaming.isCarrierName 与 `Ledger.handoffPath`
 - `infra/workspace.ts#resolve`（工作区路径解析）
 - slug 工作区里的非 carrier JSON（`progress.json` / `base.json` / `*-test-evidence.json` / 崩溃与日志邻接 JSON）——只作「必须零触碰」的反例夹具，不进 seal 面
 
 #### Produces
-- `export class CarrierSeal`，静态方法：`static seal(target: string): void`（存在则 `chmodSync(target, 0o444)`）、`static unseal(target: string): void`（存在则 `chmodSync(target, 0o644)`）、`static sweep(directory: string, keep: readonly string[]): readonly string[]`（只处理该目录下**名字被 `RoundNaming.isCarrierName` 认可**、且**未 seal**——模式非 `0o444`、即被外部 `chmod` 过的可写文件——的引擎 carrier，跳过 `keep` 与 `*.rulings.json`；`progress.json` / `base.json` / `*-test-evidence.json` 等非 carrier JSON **零触碰**。返回**实际被 seal 的文件名**；已 `0o444` 的不计入，返回空数组即无事可做）
+- `export class CarrierSeal`，静态方法：`static seal(target: string): void`（存在则 `chmodSync(target, 0o444)`）、`static unseal(target: string): void`（存在则 `chmodSync(target, 0o644)`）、`static sweep(directory: string, keep: readonly string[]): readonly string[]`（只处理该目录下**名字被 RoundNaming.isCarrierName 认可**、且**未 seal**——模式非 `0o444`、即被外部 `chmod` 过的可写文件——的引擎 carrier，跳过 `keep` 与 `*.rulings.json`；`progress.json` / `base.json` / `*-test-evidence.json` 等非 carrier JSON **零触碰**。返回**实际被 seal 的文件名**；已 `0o444` 的不计入，返回空数组即无事可做）
 
 
 
@@ -273,7 +273,7 @@ none
 
 - 写失败测 `carrier-seal.test.ts`：`seal` 后 `stat.mode & 0o777 === 0o444`、`unseal` 后 `0o644`、不存在路径两方法不抛 — checkable: 定向 vitest FAIL（模块不存在）
 - 写失败测（终态四条 + 一条范围）：成功 bookkeep · `#reject` · spawn 前门禁拒 · `--recover` abort 各自收工后本轮草稿与 final 均 `0o444`；fix 派发全程作为输入的上一轮 review 载体仍 `0o444` — checkable: 定向 vitest FAIL
-- 实现 `infra/carrier-seal.ts`：`seal`/`unseal` 走 `chmodSync` 并吞 `ENOENT`；`sweep(directory, keep)` 只处理 `RoundNaming.isCarrierName(name)` 为真**且可写**（模式非 `0o444`）的文件、跳过 `keep` 与 `*.rulings.json`，seal 后把该文件名计入返回值（已 `0o444` 的零改动、不返回）— checkable: 权限三例 PASS + 「644 恢复」一例 + 「非 carrier JSON 零触碰」一例（`progress.json` / `base.json` / 一份轮次测试证据产物 置 `0o644` 后 sweep 完仍 `0o644` 且不出现在返回值中）
+- 实现 `infra/carrier-seal.ts`：`seal`/`unseal` 走 `chmodSync` 并吞 `ENOENT`；`sweep(directory, keep)` 只处理 RoundNaming.isCarrierName(name) 为真**且可写**（模式非 `0o444`）的文件、跳过 `keep` 与 `*.rulings.json`，seal 后把该文件名计入返回值（已 `0o444` 的零改动、不返回）— checkable: 权限三例 PASS + 「644 恢复」一例 + 「非 carrier JSON 零触碰」一例（`progress.json` / `base.json` / 一份轮次测试证据产物 置 `0o644` 后 sweep 完仍 `0o644` 且不出现在返回值中）
 - 写失败测（seal 面宽度）：上述非 carrier JSON 在 `sweep(workspaceDir, [])` 后模式与内容零变化，`.rulings.json` 同；同目录一枚被 `chmod 644` 的 final 与一枚无主 draft 则被收口 — checkable: 定向 vitest FAIL（今日 sweep 无名字谓词）
 - preflight 接线：`#runDispatch` 在 `#inflight.acquire` 之前 `sweep(workspaceDir, [])` + `unseal(handoffPath)` + `unseal(finalPath)` — checkable: 范围例 PASS（输入载体未被解封）
 - 收工与终态接线：`persistHandoff` 写完 seal final 与草稿名；`#reject`／门禁拒／abort 折账／`#bookkeep` 的 `carrierPath === null` 分支各 seal 一次 — checkable: 终态四条 PASS
@@ -283,7 +283,7 @@ none
 - 四条终态（成功 / stall-reject / 门禁拒 / recover-abort）收工后本轮载体均 `0o444`（四条独立 pin）。
 - 输入载体在 fix 全程 `0o444`（范围不过宽 pin）。
 - `sweep` 不触碰 `.rulings.json`（sidecar 永不 seal pin）。
-- `sweep` 的作用域只到引擎 carrier 名（`RoundNaming.isCarrierName`）：`progress.json` / `base.json` / `*-test-evidence.json` 在 `0o644` 下零改动、不出现在返回值中（spec §2.4 的 seal 面即 draft/final，宽面 pin）。
+- `sweep` 的作用域只到引擎 carrier 名（RoundNaming.isCarrierName）：`progress.json` / `base.json` / `*-test-evidence.json` 在 `0o644` 下零改动、不出现在返回值中（spec §2.4 的 seal 面即 draft/final，宽面 pin）。
 - 下一轮 preflight 能恢复一个被外部 `chmod 644` 的旧载体（sweep 有效性 pin：其名出现在返回值中，且模式回到 `0o444`；同目录已 `0o444` 的载体模式不变、不出现在返回值中）。
 
 #### DependsOn
@@ -374,6 +374,6 @@ none
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-09 | 初版：七任务（表头列集门 · sidecar+INPUT_RULINGS · 摘要与 mismatch · draft/final 分路径 · seal/sweep · 条件写回 · changeset 与全门）· 波序 W1{1,2,6}/W2{3}/W3{4}/W4{5}/W5{7} 对应 spec 落地序 · Review Focus 六条 | Claude（kairos:cdd-plan · 2026-11-09） |
 | v0.2 | 2026-11-09 | 评审回填（plan-review-1 F1–F5）：Task 2 坏 schema 用例扩到九面并补 `carrier` ≠ 文件名的派发前硬停 pin · Task 3 立 `CarrierIntegrity.digestOf` 单点摘要规则、Task 4 摘要改覆盖「删 `contentSha256` 后的载荷」以消循环（文件字节口径作废）· Task 5 `sweep` 改为处理未 seal 的 `*.json` 并返回实际 sealed 名 · Task 6 `pathsSince` 以 `null` 区分不可读与零命中、`touchedDoc: null` 保留 soft 观察 | Claude（kairos:cdd-dev · plan-fix-1 · 2026-11-09） |
-| v0.3 | 2026-11-09 | 评审回填（plan-review-2 F1–F2）：Task 4 补 fix 输入身份接线——`Round.reviewsPath` / `#reviewsPath` 改取记录 `carrierPath`（final），`existsSync(draft)` 不再是胜者，sidecar 随同落 `.c<N>.rulings.json`，并补四者同名的成对 pin；Task 5 `sweep` 收窄到 `RoundNaming.isCarrierName` 认可的 draft/final 家族，`progress.json` / `base.json` / `*-test-evidence.json` 零触碰 | Claude（kairos:cdd-dev · plan-fix-2 · 2026-11-09） |
+| v0.3 | 2026-11-09 | 评审回填（plan-review-2 F1–F2）：Task 4 补 fix 输入身份接线——`Round.reviewsPath` / `#reviewsPath` 改取记录 `carrierPath`（final），`existsSync(draft)` 不再是胜者，sidecar 随同落 `.c<N>.rulings.json`，并补四者同名的成对 pin；Task 5 `sweep` 收窄到 RoundNaming.isCarrierName 认可的 draft/final 家族，`progress.json` / `base.json` / `*-test-evidence.json` 零触碰 | Claude（kairos:cdd-dev · plan-fix-2 · 2026-11-09） |
 | v0.4 | 2026-11-09 | 评审回填（plan-review-3 F1–F3）：Task 3 立单点校验读 `CarrierIntegrity.read` / `readFor`，`readHandoff` · fix 裁定读 · board 计数读三面统一接线，spawn 前门放进 `#runDispatch`（`#inflight.acquire` 之前硬停、dispatcher 零调用、未 acquire），逐面行为 pin 取代结构性 pin；Task 4 把 `#resumeOf` 的 `--reviews` 与 `#reviewsPath` 同源到 final，身份 pin 扩到五面 | Claude（kairos:cdd-dev · plan-fix-3 · 2026-11-09） |
 | v0.5 | 2026-11-09 | **closeout 登记（cdd-close）**：七任务五波全部交付——W1{1,2,6} `ad0f4181`/`c9cfe177`/`212c453e` + fix `d471f2ee` · W2{3} `19b56e7a`/`1fa59b2b` + fix `76f27d55`（review-2 零 finding）· W3{4} `8f2e1aa4`（零 finding） · W4{5} `5dbb8ad3` + fix `68ed5436` · W5{7} `b1fb2abf`（零 finding）· 分支终审 0 finding。实现期计划回填仅一处：Task 7 的 spec 行「追加 v0.3 若有」判为 **none**（spec 正文未动；加行会触发 `change-history-latest-matches-front-matter` 并逼 bump spec 版本，反过来证伪 Constraints 的「只实现 v0.2 所指的面」）。`pnpm run validate` exit 0（engine 73/1594）· changeset `cdd-engine` minor | Oscaner M. · Claude（kairos:cdd-close · closeout-backfill · 2026-11-09） |

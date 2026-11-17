@@ -2365,10 +2365,37 @@ describe("P37 T5 — the round finding projection and the downgrade comparison",
     expect(
       HandoffSchema.downgrades(prior, schema.findingsOf([{ severity: "nit", summary: "drift" }])),
     ).toHaveLength(1);
-    // a re-worded summary is a different defect — never a pair
+    // a re-worded summary is still a pair while the earlier row's scenario stands
+    // verbatim (that is the second key below) — this row carries no scenario at all, so
+    // neither key hits and no pair is made
     expect(
       HandoffSchema.downgrades(prior, schema.findingsOf([{ severity: "nit", summary: "drift " }])),
     ).toEqual([]);
+  });
+
+  it("key 2: an unchanged earlier scenario pairs a re-worded summary — rewriting both cuts it", () => {
+    const prior = schema.findingsOf([PRIOR]);
+    const scenario = "an empty wave key → no task mirrored → expected a refusal";
+    // the defect did not move (the scenario text is the earlier row's, verbatim) while the
+    // summary changed its words: the second key pairs it, and the returned face is THIS
+    // round's row set — the earlier reference row stays private to the judgment
+    const reworded = schema.findingsOf([
+      { severity: "warn", summary: "the wave brief mirrors no task", impact: { scenario } },
+    ]);
+    expect(HandoffSchema.downgrades(prior, reworded)).toEqual([
+      { severity: "warn", summary: "the wave brief mirrors no task", impact: { scenario } },
+    ]);
+    expect(HandoffSchema.regradeReasons(prior, reworded)).toEqual([]);
+    // the opposite direction: rewrite the scenario as well ⇒ neither key hits, zero rows.
+    // Cutting key 2 empties the cell above and leaves this one unchanged
+    const both = schema.findingsOf([
+      {
+        severity: "warn",
+        summary: "the wave brief mirrors no task",
+        impact: { scenario: "a fresh sentence about something else" },
+      },
+    ]);
+    expect(HandoffSchema.downgrades(prior, both)).toEqual([]);
   });
 
   it("never reads this round's scenario — omission or a rewrite does not retire the duty", () => {

@@ -74,7 +74,7 @@ JSON, or any fixed block.
 
 | 位置 | 删除物 | 理由 |
 |---|---|---|
-| `face/lifecycle.ts#parseBlockReturn`（`:414`） | 整个方法 | 死数据解析 |
+| face/lifecycle.ts#parseBlockReturn（`:414`） | 整个方法 | 死数据解析 |
 | `face/lifecycle.ts#dispatch`（`:211-214`） | `if (!/^status:\s*\S+/m.test(result.stdout)) → BLOCKED` 门 | 冗余门（草稿缺失已由 `#reject` 更准确拦截） |
 | `face/lifecycle.ts#reconstruct` | 第二参 `block: DispatchOutcome` + `:526` 的 `artifacts: block.artifacts` | 随 #parseBlockReturn 删除——调用形状变为 `#reconstruct(frame)` |
 | `session/run.ts` `DispatchOutcome.artifacts`（`:104`，消费点 `:452`/`:455`） | 字段 + `#bookkeep` 的两处 `artifacts:` 传参 | 生产路径零消费者；hermetic 注入 dispatch 不再需要该槽（见 §2.3） |

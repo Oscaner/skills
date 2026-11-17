@@ -2357,6 +2357,38 @@ describe("P37 T5 — the capsule summary slot carries the downgrade mark", () =>
     }
   });
 
+  it("prints the mark for a key-2 downgrade — same fixture, same criterion, one extra line", async () => {
+    const scenario = "an empty wave key → no task mirrored → expected a refusal";
+    const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
+    try {
+      seedReview(f, 1, [{ id: "F1", severity: "blocker", summary: "drift", impact: { scenario } }]);
+      // the summary is re-worded; the scenario is the earlier row's, verbatim
+      const runner = new ReviewDraftRunner(
+        [
+          {
+            id: "F1",
+            severity: "warn",
+            lens: "standards",
+            summary: "the wave brief mirrors no task",
+            impact: { scenario },
+          },
+        ],
+        "tasks-1-review-2.json",
+      );
+      const { outcome } = await dispatchFrame(f, reviewOf(2), runner);
+      // both display faces read the same criterion: the board cell and this capsule line
+      // lose their mark together the moment the second key goes
+      expect(outcome.dispositionsSummary).toBe(REGRADE_MARK);
+      expect(capsuleOf(outcome)).toHaveLength(2);
+      expect(capsuleOf(outcome)[1]).toBe(REGRADE_MARK);
+      // still display only — no synthetic row, one finding, the warn's own conclusion
+      expect(outcome.findings).toHaveLength(1);
+      expect(outcome.status).toBe("REVIEW_FIX");
+    } finally {
+      f.cleanup();
+    }
+  });
+
   it("pairs across a findings-free implement record — the nearest non-empty review is the reference", async () => {
     const f = fixture(planDoc([[1, [CHANGE_ROW]]]));
     try {

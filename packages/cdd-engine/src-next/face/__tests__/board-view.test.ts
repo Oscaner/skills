@@ -3972,6 +3972,36 @@ describe("P37 T5 — the downgrade mark rides the board's verb token", () => {
     expect(line).toContain("review 2 ✓+2");
   });
 
+  it("marks a key-2 downgrade — the scenario stands verbatim while the summary is re-worded", () => {
+    const scenario = "an empty wave key → the brief mirrors no task → expected a refusal";
+    const line = cell([
+      withCarrier({ cycle: 1 }, [
+        { id: "F1", severity: "blocker", summary: "drift", impact: { scenario } },
+      ]),
+      withCarrier({ cycle: 2 }, [
+        { id: "F1", severity: "warn", summary: "the brief mirrors no task", impact: { scenario } },
+      ]),
+    ]);
+    // the mark reads the ONE criterion (`HandoffSchema.downgrades`), so the board needs no
+    // pairing rule of its own — and cutting key 2 takes this mark away
+    expect(line).toBe(`review 2 ✓+2 ${REGRADE_MARK}`);
+    // the opposite direction: rewrite the scenario too ⇒ no pair, no mark
+    const both = cell([
+      withCarrier({ cycle: 1 }, [
+        { id: "F1", severity: "blocker", summary: "drift", impact: { scenario } },
+      ]),
+      withCarrier({ cycle: 2 }, [
+        {
+          id: "F1",
+          severity: "warn",
+          summary: "the brief mirrors no task",
+          impact: { scenario: "a fresh sentence" },
+        },
+      ]),
+    ]);
+    expect(both).toBe("review 2 ✓+2");
+  });
+
   it("adds no finding and no entry — the count is the carrier's own rows", () => {
     const current = withCarrier({ cycle: 2 }, [{ id: "F1", severity: "warn", summary: "drift" }]);
     const prior = withCarrier({ cycle: 1 }, [PRIOR_BLOCKER]);

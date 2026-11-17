@@ -25,7 +25,7 @@ base: develop
 
 - **implement 的 cycle 恒 1 被当成「没有 cycle」**：`Lifecycle#roundFor`（`session/run.ts:617`）对该相位返回固定值，而 `#stem`（`session/round-naming.ts:165`）今天正是据此省掉 round 令牌；最省事的写法就是保留这两处的默契，在渲染处继续省掉 round 令牌——那会让 implement 的五个 kind 依次落回同一格，单射性在 cycle 维度上无声退化。网格 pin 只比较「两个不同身份」，抓不到「所有身份都渲成 cycle 1」。
 - **legacy 行的 attempt 缺省读错文件**：由记录反查路径时若把 `attempt` 缺省成 1 而记录实际是 2，会读 attempt 1 的文件、比对 attempt 2 的摘要——假 `carrier-mismatch`，与要治的症状同形。
-- **owner 判据拿不到行内全量记录**：`BoardView#findingsCountOf` 是单记录 static，若判定输入退化成「只有这一条」，legacy 行永远判 owner → 老 slug 回到整块拒渲染。
+- **owner 判据拿不到行内全量记录**：BoardView#findingsCountOf 是单记录 static，若判定输入退化成「只有这一条」，legacy 行永远判 owner → 老 slug 回到整块拒渲染。
 - **seal 窗口与本轮 attempt 不同源**：preflight 打开无 attempt 的名字时，历史那一对在整个窗口内可写。断言面是「attempt-1 的一对在 attempt-2 的窗口内**不可写**」，不是「能写但不该写」。
 - **isCarrierName 放宽成「任何产物」**：`-report.md` / `.log` / `-test-evidence.json` / `crash-` 四种形状一旦入判定，sweep 会把报告当载体 seal、board 会把崩溃记录当孤儿列出来。
 

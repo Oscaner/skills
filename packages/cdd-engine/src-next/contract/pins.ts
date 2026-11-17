@@ -31,6 +31,24 @@
 // PENDING — not dead. `ForwardPaths` computes that table once and all three corpora
 // read it, so one pending path answers identically wherever it is judged.
 //
+// A MEMBER reference is a spelling of the bare-symbol shape, not a fourth shape (§7.1):
+// the symbol index is a flat identifier set, so a member written with its carrier in one
+// token (`HandoffSchema.gradingViolations` · `BoardView#summaryToken`) is judged in two
+// halves — the carrier by the bare path / bare symbol sieve, the member by the same
+// symbol shape test — and either half failing to resolve is one finding. The shape stays
+// `symbol`, so the census reading is unchanged by this spelling. An empty carrier is not
+// a member reference (`#reconstruct` names its own symbol, `#` is its prefix), so that
+// token falls back to the whole-token symbol judgment.
+//
+// The corpus declaration (§7.1) lives HERE as `corpusOf(root)`, so the scan, the
+// structural test and the census read one declaration rather than three copies of a
+// list. The README half expands `packages/` at CALL time: `face/lifecycle.ts` imports
+// this module on every `cdd` command, and a consumer's installed tree has no
+// `packages/` directory, so a module-scope file-system read would throw on load.
+//
+// `PinAudit.census` is the ONE census accessor (§8.2): four readings off the same scan,
+// never a second parse. The registry that exposes them is `contract/census.ts`.
+//
 // Zero document structure and zero semantics are judged here: this is the narrow form
 // of the P28 reversal, not a docs corpus validator.
 //
@@ -45,7 +63,8 @@ import { ArtifactRegistry } from "../session/round-artifacts.ts";
 import { docTypeParsers, type OverallParsed } from "./doc.ts";
 import { FrontMatterExtractor, type FrontMatterHead } from "./frontmatter.ts";
 
-/** Which of the three pin shapes failed to resolve (§7.1). */
+/** Which of the three pin shapes failed to resolve (§7.1). A member reference is
+ *  reported as `symbol` — it is that shape written across two halves. */
 export type PinShape = "path" | "symbol" | "test";
 
 /** One dead pin — the token, the shape, the document and the finding summary the
@@ -72,6 +91,23 @@ export interface PinPath {
 export interface PinTest {
   readonly file: string;
   readonly title: string;
+}
+
+/** One member reference: the carrier half and the member half of one symbol token. */
+export interface PinMember {
+  readonly carrier: string;
+  readonly member: string;
+}
+
+/** The four census readings (§8.2) — one number each, taken off ONE scan and ONE
+ *  corpus walk: `symbol` and `path` are the finding counts by shape (`path` covers the
+ *  test pins too), `total` is that scan's finding count, and `files` is the corpus
+ *  SIZE — a volume, never a fifth finding count. */
+export interface PinCensus {
+  readonly symbol: number;
+  readonly path: number;
+  readonly total: number;
+  readonly files: number;
 }
 
 /** The three tiers of path resolution (§7.1): the exact entry wins, else the unique
@@ -141,6 +177,36 @@ const SYMBOL_ROOTS: readonly string[] = [
  *  `.kairos/` file make a coordinate resolve, which is exactly the reading §7.3's
  *  migration exists to stop depending on). */
 const SKIP_DIRS: ReadonlySet<string> = new Set([".git", ".kairos", "node_modules", "dist", ".pi"]);
+
+/** The README family's package half — every `packages/<dir>/README*.md`, expanded from
+ *  the tree at CALL time so the declaration stays a rule and never a list. A caller
+ *  whose root carries no `packages/` directory (a consumer's installed tree) gets no
+ *  package READMEs instead of a throw: the expansion is a corpus question, not a load
+ *  precondition. */
+const packageReadmesOf = (root: string): readonly string[] => {
+  try {
+    return readdirSync(path.join(root, "packages"), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .flatMap((entry) =>
+        readdirSync(path.join(root, "packages", entry.name))
+          .filter((name) => /^README.*\.md$/.test(name))
+          .map((name) => `packages/${entry.name}/${name}`),
+      );
+  } catch {
+    return [];
+  }
+};
+
+/** The §7.1 corpus declaration — the ONE place the judged markdown roots are written:
+ *  the docs tree plus the README family, no baseline, no allowlist, no exemption. The
+ *  root comes from the caller (`face/cli.ts#rootOf()` in production, the test's own
+ *  `import.meta.url` root in the suite); this module never resolves one for itself. */
+export const corpusOf = (root: string): readonly string[] => [
+  "docs/kairos",
+  "README.md",
+  "README.zh-CN.md",
+  ...packageReadmesOf(root),
+];
 
 /**
  * PinVocabulary — the pin DEFINITION (§7.1). A token is judged only when the three
@@ -216,6 +282,26 @@ export class PinVocabulary {
     const title = token.slice(at + 2).trim();
     if (/[*<>{}|]/.test(file) || !file.endsWith(".test.ts") || title.length === 0) return null;
     return { file, title };
+  }
+
+  /** A member reference — the bare-symbol shape written across two halves (§7.1). The
+   *  trailing call arguments are prose about the call, so they are peeled first. A token
+   *  carrying a `#` splits at its LAST `#` (a path carrier carries dots of its own),
+   *  otherwise at its FIRST `.`. An EMPTY carrier is not a member reference: a token that
+   *  starts with `#` puts the boundary at index 0, and there `#` is the symbol's own
+   *  prefix — the caller falls back to the whole-token symbol judgment rather than
+   *  reading an empty carrier. Both halves must pass their own sieve; a half that is
+   *  prose makes the whole token prose.
+   */
+  static memberOf(token: string): PinMember | null {
+    const head = token.replace(/\([^()]*\)$/, "");
+    const boundary = head.lastIndexOf("#") !== -1 ? head.lastIndexOf("#") : head.indexOf(".");
+    if (boundary <= 0) return null;
+    const carrier = head.slice(0, boundary);
+    const member = head.slice(boundary + 1);
+    if (PinVocabulary.pathOf(carrier) === null && !PinVocabulary.isSymbol(carrier)) return null;
+    if (!PinVocabulary.isSymbol(member)) return null;
+    return { carrier, member };
   }
 
   /** A bare symbol — a code identifier, not an English word. The shape admits three
@@ -657,6 +743,28 @@ export class PinAudit {
     this.#forward = new ForwardPaths(this.#index);
   }
 
+  /** One corpus file's text — the read the scan and the census gate share, so a second
+   *  reader never opens the corpus through a mechanism of its own. */
+  textOf(entry: string): string | null {
+    return this.#index.textOf(entry);
+  }
+
+  /** The four census readings (§8.2) — one scan and one corpus walk, so `total` is
+   *  that scan's length rather than a second count and `files` is the corpus volume.
+   *  The roots are the caller's already-resolved corpus (`corpusOf(root)`); this class
+   *  never names a root of its own. */
+  census(roots: readonly string[]): PinCensus {
+    // Rule zero (class-size limit): this file is past the limit and predates it —
+    // splitting it is P39's work (design spec D95 ②), not this round's.
+    const findings = this.scan(roots);
+    const files = this.filesOf(roots);
+    const symbol = findings.filter((finding) => finding.shape === "symbol").length;
+    const path = findings.filter(
+      (finding) => finding.shape === "path" || finding.shape === "test",
+    ).length;
+    return { symbol, path, total: findings.length, files: files.length };
+  }
+
   /** The corpus the scan would read — the file list, so a structural test can pin its
    *  size instead of hoping the glob is stable. */
   filesOf(roots: readonly string[]): readonly string[] {
@@ -771,7 +879,22 @@ export class PinAudit {
         `no symbol named \`${name}\` exists in the engine, kairos or scripts trees`,
       );
     }
-    return null;
+    const member = PinVocabulary.memberOf(token);
+    if (member === null) return null;
+    const carrier =
+      PinVocabulary.pathOf(member.carrier) !== null
+        ? this.#index.resolve(member.carrier).kind === "resolved"
+        : this.#index.symbols().has(member.carrier);
+    const memberExists = this.#index.symbols().has(member.member);
+    if (carrier && memberExists) return null;
+    return PinAudit.#finding(
+      token,
+      "symbol",
+      source,
+      carrier
+        ? `no symbol named \`${member.member}\` exists in the engine, kairos or scripts trees`
+        : `its carrier \`${member.carrier}\` resolves nowhere in the tree`,
+    );
   }
 
   /** One finding's summary — the ONE wording the guard test and the round's injected

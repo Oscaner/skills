@@ -398,15 +398,17 @@ export class HandoffSchema {
    *  matching earlier row, whose earlier `impact.scenario` was non-empty, and that
    *  carry no `regrade` reason: exactly the rows the display face marks.
    *
-   *  The four steps, in order: (1) locate the matching earlier row — `summary` is the
-   *  match key (the defect's description, which survives a reworded scenario), and a
-   *  non-unique summary is narrowed by the engine-written `id`, never matched on `id`
-   *  first (it is a row number, so a re-numbered carrier would pair unrelated
-   *  defects); (2) an unchanged or raised grade is no downgrade; (3) a lowered grade
-   *  against a non-empty scenario owes a `regrade` reason; (4) a lowered grade whose
-   *  earlier scenario was empty has no reference, so the defect is read as changed.
-   *  Omission or rewriting of THIS round's scenario never retires the duty — only the
-   *  earlier row's scenario is read. */
+   *  The four steps, in order: (1) locate the matching earlier row on EITHER of two
+   *  keys — the `summary` text (the defect's description, which survives a reworded
+   *  scenario), or the earlier row's `impact.scenario` verbatim (the scenario did not
+   *  change, so the defect did not either — the key §5.1 registers alongside the first
+   *  one, not instead of it); a multi-row hit is narrowed by the engine-written `id`,
+   *  never keyed on `id` (it is a row number, so a re-numbered carrier would pair
+   *  unrelated defects); (2) an unchanged or raised grade is no downgrade; (3) a
+   *  lowered grade against a non-empty scenario owes a `regrade` reason; (4) a lowered
+   *  grade whose earlier scenario was empty has no reference, so the defect is read as
+   *  changed. Omission or rewriting of THIS round's scenario never retires the duty once
+   *  a pair is made — only the earlier row's scenario is read for the reference. */
   static downgrades(
     prior: readonly RoundFinding[],
     current: readonly RoundFinding[],
@@ -439,13 +441,19 @@ export class HandoffSchema {
   }
 
   /** The earlier row a current row was graded below — §5.1's steps 1 → 4, absent for
-   *  every row that is not a downgrade. */
+   *  every row that is not a downgrade. Step 1 compares TWO keys: the `summary` text and
+   *  the earlier row's `impact.scenario` verbatim. Either hit pairs; a multi-row hit is
+   *  narrowed by `id`. Rewriting BOTH the summary and this round's scenario is the only
+   *  way to cut a pair, and that is a declaration that the defect changed. */
   static #downgradeReference(
     prior: readonly RoundFinding[],
     row: RoundFinding,
   ): RoundFinding | undefined {
     const matches = prior.filter(
-      (candidate) => candidate.summary !== undefined && candidate.summary === row.summary,
+      (candidate) =>
+        (candidate.summary !== undefined && candidate.summary === row.summary) ||
+        (candidate.impact?.scenario !== undefined &&
+          candidate.impact.scenario === row.impact?.scenario),
     );
     if (matches.length === 0) return undefined;
     const narrowed = matches.filter((candidate) => row.id !== undefined && candidate.id === row.id);

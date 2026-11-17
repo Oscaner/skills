@@ -54,15 +54,15 @@ base: develop
 - **DependsOn**: 1
 
 ### Task 3: B 组采样循环 + 心跳落盘（60s unref · 终态清理）
-- **Objective**: 在 `Terminator` 内接采样循环：spawn 后**立即先采一次**，此后 `setInterval`（**unref**，不阻父进程退出）每 `policy.sampleIntervalMs`（60s）；每 tick **覆写** `ChildRun.heartbeatPath` 指定的心跳文件（由 `CliLifecycle` 于 `face/lifecycle.ts:216` 派生的 `<scene.workspace.path>/liveness.json`，`.kairos/` 域内）= **`SampleRecord`** = `Sample & { sampledAt: number; verdict: StallVerdict }`（即 `{ sampledAt: number; groupCpuMs: number | null; newestMtimeMs: number | null; verdict: StallVerdict }`；`SampleRecord` = `Sample`（T2）扩展记录面两字段，一处命名、两处引用；名固定——引擎是「一次派发、一次推进」，无并发派发）。**生命周期**：派发**正常完成**（child 自行退出）→ **删除**心跳文件；**被终止** → **保留**（供**人事后读**，末样本由 T4 走 `termination.lastSample` 随因同行并入 crash record、**零回读**）。心跳文件的精确路径（= `ChildRun.heartbeatPath`）= T2 树腿的显式排除项（不写 stderr：后台 dispatch 的 stderr 不保证被看且每 60s 一行噪声高；不并进 `progress.json`：那是轮次账本，采样噪声会撑大其 schema）。
+- **Objective**: 在 `Terminator` 内接采样循环：spawn 后**立即先采一次**，此后 `setInterval`（**unref**，不阻父进程退出）每 `policy.sampleIntervalMs`（60s）；每 tick **覆写** ChildRun.heartbeatPath 指定的心跳文件（由 `CliLifecycle` 于 `face/lifecycle.ts:216` 派生的 `<scene.workspace.path>/liveness.json`，`.kairos/` 域内）= **`SampleRecord`** = `Sample & { sampledAt: number; verdict: StallVerdict }`（即 `{ sampledAt: number; groupCpuMs: number | null; newestMtimeMs: number | null; verdict: StallVerdict }`；`SampleRecord` = `Sample`（T2）扩展记录面两字段，一处命名、两处引用；名固定——引擎是「一次派发、一次推进」，无并发派发）。**生命周期**：派发**正常完成**（child 自行退出）→ **删除**心跳文件；**被终止** → **保留**（供**人事后读**，末样本由 T4 走 `termination.lastSample` 随因同行并入 crash record、**零回读**）。心跳文件的精确路径（= ChildRun.heartbeatPath）= T2 树腿的显式排除项（不写 stderr：后台 dispatch 的 stderr 不保证被看且每 60s 一行噪声高；不并进 `progress.json`：那是轮次账本，采样噪声会撑大其 schema）。
 - **Files**: Modify `packages/cdd-engine/src-next/face/termination.ts`（循环 + 心跳读写）· Modify `packages/cdd-engine/src-next/face/__tests__/termination.test.ts`
 - **Consumes**: Task 2（判官 + `Sampler`）· spec §3.4
-- **Produces**: 采样循环（`Terminator` 驱动其 `Sampler` 实例：立即首采 + 每 60s unref tick）；心跳落盘于 `ChildRun.heartbeatPath`（`CliLifecycle` 于 `face/lifecycle.ts:216` 派生的 `<scene.workspace.path>/liveness.json`）/ tick 覆写 `SampleRecord` / 正常完成删除 / 终止保留（供人事后读；末样本由 T4 随因同行并入 crash record，零回读）
+- **Produces**: 采样循环（`Terminator` 驱动其 `Sampler` 实例：立即首采 + 每 60s unref tick）；心跳落盘于 ChildRun.heartbeatPath（`CliLifecycle` 于 `face/lifecycle.ts:216` 派生的 `<scene.workspace.path>/liveness.json`）/ tick 覆写 `SampleRecord` / 正常完成删除 / 终止保留（供人事后读；末样本由 T4 随因同行并入 crash record，零回读）
 - **Steps**:
   - 写 failing test（注入极小 `sampleIntervalMs` → 派发期心跳文件存在且被多 tick 覆写）— checkable: `pnpm -C packages/cdd-engine test termination` FAIL→PASS
   - 实现循环 + 心跳落盘 — checkable: pin「立即首采 + 多 tick 覆写（`SampleRecord` 四字段）」PASS
   - 终态清理 — checkable: pin「正常完成 → 心跳删除」PASS；pin「被终止 → 心跳保留」PASS
-- **Acceptance**: spawn 后立即首采；tick 间隔 = `policy.sampleIntervalMs` 且 `setInterval` unref；每 tick 覆写 `ChildRun.heartbeatPath` 的 `SampleRecord`（四字段：`sampledAt` / `groupCpuMs` / newestMtimeMs / `verdict`）；正常完成删除 · 被终止保留（末样本由 T4 取 `termination.lastSample`，零回读）；心跳精确路径（= `ChildRun.heartbeatPath`）= 树腿排除项
+- **Acceptance**: spawn 后立即首采；tick 间隔 = `policy.sampleIntervalMs` 且 `setInterval` unref；每 tick 覆写 ChildRun.heartbeatPath 的 `SampleRecord`（四字段：`sampledAt` / `groupCpuMs` / newestMtimeMs / `verdict`）；正常完成删除 · 被终止保留（末样本由 T4 取 `termination.lastSample`，零回读）；心跳精确路径（= ChildRun.heartbeatPath）= 树腿排除项
 - **DependsOn**: 2
 
 ### Task 4: C 组终止落地面——kill 触发 → `TIMEOUT` · crash record（含末样本）· `timeoutCount` 递增 · 失败面无 `next:`

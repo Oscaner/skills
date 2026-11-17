@@ -44,3 +44,16 @@ Grading becomes checkable end to end (P37).
   engine suite's structural test holds it there: a document entering the corpus, a
   claim that stops resolving, or a path that starts naming more than one entry turns it
   red.
+- Counts become checkable. A measured number in a document now carries a
+  `census:<id> = <n>` reference, and a gate compares that `<n>` with the registered row's
+  export — unequal is red, and an id nobody registered throws instead of reading as a
+  number without a producer. Seven rows are registered: the pin census (`pin.symbol` ·
+  `pin.path` · `pin.total` · `pin.files` — four readings off ONE scan, with `pin.path`
+  covering the test pins too and `pin.files` the corpus volume rather than a finding
+  count) and the two shipped registries (`criteria.rows` · `questions.rows` ·
+  `questions.cells`). The reference grammar is half the judgment: a `census:` word
+  outside the fixed form is prose about the form, while a well-formed but unregistered
+  id still throws, so the gate's floor is not weakened by skipping metacharacters. A
+  gate that compared zero references is red rather than silently green. At this point it
+  measures one level — a document's count against the code that produces that number:
+  the pin corpus and the two criteria tables, nothing inferred from prose.

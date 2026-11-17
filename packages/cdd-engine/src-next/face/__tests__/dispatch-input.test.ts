@@ -351,26 +351,38 @@ describe("the dispatch-input gate — the reported cell (§2.2)", () => {
 // (h) the data-driven sweep — every emptyable exigible cell, one at a time
 // ---------------------------------------------------------------------------
 
-/** The cells no row requires under either declaration set — computed, never listed: a
- *  `{ types: [] }` arm names no type, so no frame can make it exigible. */
-const NEVER_CELLS: ReadonlySet<string> = (() => {
-  const all = new Set<string>();
-  const required = new Set<string>();
+/** Every slot some row's layout carries — the domain the classification below reads, and
+ *  the liveness face of every hand list it holds. */
+const CARRIED: ReadonlySet<string> = (() => {
+  const carried = new Set<string>();
   for (const [role, type] of ROWS) {
     for (const decl of layoutOf(role, type)) {
       const token = tokenOf(decl);
-      if (token === undefined) continue;
-      all.add(token);
-      if (exigibleTokens(role, type, { program: true, identity: true }).includes(token)) {
-        required.add(token);
-      }
-      if (exigibleTokens(role, type, { program: false, identity: false }).includes(token)) {
-        required.add(token);
-      }
+      if (token !== undefined) carried.add(token);
     }
   }
-  return new Set([...all].filter((token) => !required.has(token)));
+  return carried;
 })();
+
+/** Every slot some row REQUIRES under at least one declaration set. */
+const REQUIRED_CELLS: ReadonlySet<string> = (() => {
+  const required = new Set<string>();
+  for (const [role, type] of ROWS) {
+    for (const token of exigibleTokens(role, type, { program: true, identity: true })) {
+      required.add(token);
+    }
+    for (const token of exigibleTokens(role, type, { program: false, identity: false })) {
+      required.add(token);
+    }
+  }
+  return required;
+})();
+
+/** The cells no row requires under either declaration set — computed, never listed: a
+ *  `{ types: [] }` arm names no type, so no frame can make it exigible. */
+const NEVER_CELLS: ReadonlySet<string> = new Set(
+  [...CARRIED].filter((token) => !REQUIRED_CELLS.has(token)),
+);
 
 describe("the dispatch-input gate — the declaration sweep (§4.1 · §4.2)", () => {
   it("(h) names every exigible cell that can be emptied, one cell per arm", () => {
@@ -391,17 +403,8 @@ describe("the dispatch-input gate — the declaration sweep (§4.1 · §4.2)", (
       }
     }
     // And every recipe is live: a recipe no row requires is a stale arm.
-    const declared = new Set<string>();
-    for (const [role, type] of ROWS) {
-      for (const token of exigibleTokens(role, type, { program: true, identity: true })) {
-        declared.add(token);
-      }
-      for (const token of exigibleTokens(role, type, { program: false, identity: false })) {
-        declared.add(token);
-      }
-    }
     for (const token of Object.keys(EMPTY_RECIPES)) {
-      expect(declared.has(token), `recipe ${token} is required by no row`).toBe(true);
+      expect(REQUIRED_CELLS.has(token), `recipe ${token} is required by no row`).toBe(true);
     }
 
     for (const [role, type] of ROWS) {
@@ -423,6 +426,21 @@ describe("the dispatch-input gate — the declaration sweep (§4.1 · §4.2)", (
           `${role} · ${token} · `,
         );
       }
+    }
+  });
+
+  it("(h2) the engine-computed exemption is live and no recipe can empty it", () => {
+    // The inverse of the recipe liveness above: a hand list is only honest while every
+    // token on it is still carried by a row and still unemptyable. A renamed or retired
+    // cell left sitting here is a hole in the sweep, and a cell that BECOMES emptyable is
+    // an input cell — the only way in is a recipe, so a recipe beside an exemption is
+    // exactly the demotion this pin refuses to leave unread.
+    for (const token of ENGINE_COMPUTED) {
+      expect(CARRIED.has(token), `ENGINE_COMPUTED names ${token}, which no row carries`).toBe(true);
+      expect(
+        token in EMPTY_RECIPES,
+        `ENGINE_COMPUTED ${token} is emptyable — demote it to a recipe`,
+      ).toBe(false);
     }
   });
 });

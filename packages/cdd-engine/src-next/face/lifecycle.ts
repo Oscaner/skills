@@ -2142,11 +2142,15 @@ export class CliLifecycle {
         return `cdd review --type ${frame.type} --spec ${this.#docOf(frame)}`;
       case "fix": {
         // The `--reviews` input is the SAME carrier the fix prompt names (P31 §2.3): one
-        // four-layer resolution, never a second family spelling spliced here. The
-        // fallback fires only when the recorded face resolves to `null` (a legacy record
-        // with no carrier on disk) — the never-null guard keeps a command shape, and
-        // `#reviewFamilyPath` is the one home of the cycle-only rule (§2.10): a fix
-        // retried at attempt 2 would otherwise ask for a `-a2` name review never wrote.
+        // four-layer resolution, never a second family spelling spliced here. The `??`
+        // arm is a DEFENSIVE never-taken guard that keeps the command a string: the shape
+        // it would cover — a recorded cycle whose carrier resolves to `null` (a legacy
+        // record with no carrier on disk) — is refused by the dispatch-input gate as
+        // `INPUT_REVIEWS · empty-value` before any command exists (P38 §2.3 reversal ②),
+        // and the composed-but-absent sibling is refused there as `target-absent`. If
+        // `#reviewsPath` ever answers `null` again, `#reviewFamilyPath` is the one home of
+        // the cycle-only rule (§2.10): a fix retried at attempt 2 would otherwise ask for
+        // a `-a2` name review never wrote.
         const findings = this.#reviewsPath(frame) ?? this.#reviewFamilyPath(frame);
         const target =
           frame.target.kind === "plan"

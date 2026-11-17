@@ -1187,9 +1187,14 @@ export class Cli {
     return ledger.supersedeReview(identity.key, latest, latest + 1);
   }
 
-  /** The invocation's lifecycle harness — the production dispatch face, held by the
-   *  composition root so the abort fold can ride the SAME instance that dispatches
-   *  (the takeover precedes the stamp, spec §2.1④). */
+  /** The invocation's lifecycle harness — the production dispatch face, built at the
+   *  point of use and never held across the brief render. The scene snapshot it copies
+   *  carries `briefPath`, which `CliGate#renderBrief` writes and the dispatch-input gate
+   *  reads, so the dispatching instance must be built AFTER the brief lands — building
+   *  it earlier snapshots `briefPath: null` and refuses every dispatch. The `--recover`
+   *  abort fold (the takeover that precedes the stamp, spec §2.1④) therefore rides its
+   *  own throwaway instance in `#recoverRun`: it touches only the in-flight record and
+   *  the ledger, so a pre-brief instance is enough. */
   #lifecycleOf(scene: WorkScene, parsed: RunInput, artifacts: ArtifactRegistry): CliLifecycle {
     return new CliLifecycle({
       env: process.env,

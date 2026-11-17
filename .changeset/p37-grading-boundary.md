@@ -30,7 +30,11 @@ Grading becomes checkable end to end (P37).
   docs corpus, a document review scans the judged document's own body, and the handoff
   read-back judges each finding's `contract.path`. A path resolves in three ordered
   tiers — an exact repo entry, else a unique suffix, else the gate reports an ambiguity
-  finding that names every candidate instead of silently picking a first hit. A bare
+  finding that names every candidate instead of silently picking a first hit. A line bound is
+  judged on the file's own real lines, so a claim one line past the end is dead rather than
+  lenient by one. A token carrying a `/` is a path whatever its extension (an asset
+  coordinate is a claim like any other), while a dotted member name such as `process.env`
+  stays a symbol. A bare
   symbol resolves only as a code declaration — a name that survives merely in a comment
   or a retirement guard's regex is dead, and the index is the reviewed repo's own
   sources rather than a fixed list of tree names, so the gate judges a consumer

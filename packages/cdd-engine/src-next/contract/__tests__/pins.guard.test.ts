@@ -402,7 +402,8 @@ describe("P37 T7 — §7.1's three tiers: exact entry, unique suffix, ambiguity"
     // …and a line past ITS end is red, never judged against the sibling's length
     const findings = f.audit.scanText(bodyOf(["README.md:5"]), "tiers.md");
     expect(findings).toHaveLength(1);
-    expect(findings[0]?.summary).toContain("has 4 lines");
+    // three real lines: the trailing newline closes the third, it does not open a fourth
+    expect(findings[0]?.summary).toContain("has 3 lines");
   });
 
   it("tier ② — a unique suffix resolves to its one candidate", () => {
@@ -421,6 +422,37 @@ describe("P37 T7 — §7.1's three tiers: exact entry, unique suffix, ambiguity"
     expect(findings[0]?.shape).toBe("path");
     expect(findings[0]?.summary).toContain("packages/cdd-engine/src-next/contract/declare.ts");
     expect(findings[0]?.summary).toContain("packages/cdd-engine/src-next/face/declare.ts");
+  });
+});
+
+describe("P37 branch-fix 3 — the path shape's extension rule and the line bound's real count", () => {
+  it("judges an asset coordinate behind a separator, while a dotted member name stays prose", () => {
+    const f = fixture();
+    // the SEPARATOR, not a closed extension vocabulary, is what makes a token a path: a
+    // document citing an asset is making a claim, and the gate has to be able to report it
+    const findings = f.audit.scanText(bodyOf(["docs/diagrams/src/absent.png"]), "ext.md");
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.shape).toBe("path");
+    expect(findings[0]?.summary).toContain("not in the tree");
+    f.write("docs/diagrams/src/present.svg", "<svg/>\n");
+    // rebuilt after the write — the index memoizes the tree it was built over
+    expect(
+      new PinAudit(f.root).scanText(bodyOf(["docs/diagrams/src/present.svg"]), "ext.md"),
+    ).toEqual([]);
+    // the allowlist's real job: a dotted member name carries no separator and is a symbol
+    expect(
+      f.audit.scanText(bodyOf(["process.env", "HOSTS.env", "pnpm-lock.lock"]), "ext.md"),
+    ).toEqual([]);
+  });
+
+  it("counts REAL lines — one line past the last is dead, the last line is legal", () => {
+    const f = fixture();
+    f.write("README.md", "one\ntwo\nthree\n");
+    // a trailing newline closes the last line instead of opening a phantom one
+    expect(f.audit.scanText(bodyOf(["README.md:3"]), "lines.md")).toEqual([]);
+    const findings = f.audit.scanText(bodyOf(["README.md:4"]), "lines.md");
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.summary).toContain("has 3 lines");
   });
 });
 

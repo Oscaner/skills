@@ -150,8 +150,11 @@ const RETIRED_PRODUCT_NAMES: ReadonlySet<string> = new Set(["liveness.json"]);
  *  `docs/kairos/specs/<slug>-overall.md` is still a judged path. */
 const TEMPLATE_WORDS: ReadonlySet<string> = new Set(["X.md", "-overall.md", "-design.md"]);
 
-/** The extensions a path-shaped token may carry — a dotted member name
- *  (`HandoffSchema.findingsOf`) is a symbol, not a file. */
+/** The extensions a SEPARATOR-LESS token must carry to be a path — a dotted member name
+ *  (`process.env` · `HOSTS.env`) is a symbol, not a file. A token carrying `/` is a path
+ *  whatever its extension: the separator already says it names a location, so an asset
+ *  coordinate (`docs/diagrams/src/architecture.png`) is judged rather than slipping into
+ *  prose. */
 const FILE_EXTENSIONS: ReadonlySet<string> = new Set([
   "ts",
   "tsx",
@@ -246,8 +249,17 @@ export class PinVocabulary {
   }
 
   /** The path shape `path.ext[:line[-line]]`, or null when the token is not
-   *  path-shaped. The extension is required — `BLOCKED/TIMEOUT`, `--spec/--plan` and
-   *  `findings/artifacts/notes` are prose compounds, and `ReviewKey` is a symbol. */
+   *  path-shaped. An extension is required — `BLOCKED/TIMEOUT`, `--spec/--plan` and
+   *  `findings/artifacts/notes` are prose compounds, and `ReviewKey` is a symbol. The
+   *  extension VOCABULARY, however, only gates a token with no separator: behind a `/`,
+   *  "the asset I cite" is a judged claim whatever the asset's extension
+   *  (`docs/diagrams/src/architecture.png`), while `process.env` carries no separator
+   *  and needs its extension in the vocabulary to be a file at all. What still decides
+   *  is the SHAPE, not the vocabulary: `#` marks a member half
+   *  (`session/ledger.ts#Round.findingsPath`), a segment opening with `.` is a dotfile
+   *  name (`.kairos/.gitignore`), and an extension must look like one (lowercase, letter
+   *  first) — which leaves `@scope/pkg@1.3.0` and `REVIEWS.wave/branch.axesGuide` prose
+   *  where they belong. */
   static pathOf(token: string): PinPath | null {
     if (PinVocabulary.isPattern(token)) return null;
     const match = /^(?<file>[^\s:]+)(?::(?<first>\d+)(?:-(?<last>\d+))?)?$/.exec(token);
@@ -260,8 +272,17 @@ export class PinVocabulary {
     // (`.github/workflows/x.yml`, `docs/kairos/specs/<slug>-overall.md`) still carries
     // its separator and stays a coordinate.
     if ((file.startsWith(".") || file.startsWith("-")) && !file.includes("/")) return null;
+    // `#` is a member separator, never a byte of a tree path: the member branch judges
+    // these, and reading one as a path would report a carrier/link as a missing file.
+    if (file.includes("#")) return null;
     const extension = /\.([A-Za-z0-9]+)$/.exec(file)?.[1] ?? "";
-    if (!FILE_EXTENSIONS.has(extension)) return null;
+    // An extension is a lowercase name (`ts` · `md` · `png`), not a version tail
+    // (`@scope/pkg@1.3.0` → `0`) nor a dotted prose compound (`REVIEWS.wave/branch.axesGuide`).
+    if (!/^[a-z][a-z0-9]*$/.test(extension)) return null;
+    if (!FILE_EXTENSIONS.has(extension) && !file.includes("/")) return null;
+    // A final segment opening with `.` is a dotfile NAME (`.kairos/.gitignore`), a
+    // configuration word rather than a coordinate the migration can chase.
+    if ((file.split("/").pop() ?? file).startsWith(".")) return null;
     const first = groups.first === undefined ? undefined : Number(groups.first);
     const last = groups.last === undefined ? undefined : Number(groups.last);
     return {
@@ -526,14 +547,24 @@ export class PinIndex {
     }
   }
 
-  /** One entry's line count — 0 when it cannot be read. */
+  /** One entry's line count — 0 when it cannot be read. A closing newline ENDS the last
+   *  line instead of opening a phantom one, so a pin naming `last + 1` is dead rather
+   *  than one-line lenient. */
   lineCountOf(entry: string): number {
     const cached = this.#lineCounts.get(entry);
     if (cached !== undefined) return cached;
     const text = this.textOf(entry);
-    const count = text === null ? 0 : text.split("\n").length;
+    const count = text === null ? 0 : PinIndex.#linesOf(text);
     this.#lineCounts.set(entry, count);
     return count;
+  }
+
+  /** The real lines of one text — its newlines, plus a tail only when the tail is not
+   *  empty (`""` has none, `"a\\n"` has one, `"a"` has one). */
+  static #linesOf(text: string): number {
+    if (text.length === 0) return 0;
+    const lines = text.split("\n").length;
+    return text.endsWith("\n") ? lines - 1 : lines;
   }
 
   /** Whether one test file contains the named title's bytes. */

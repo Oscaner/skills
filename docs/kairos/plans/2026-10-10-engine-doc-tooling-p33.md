@@ -12,7 +12,7 @@ base: develop
 - **逐字取 spec**：本计划只实现 `docs/kairos/specs/2026-10-10-engine-doc-tooling-p33-design.md` **现行 `version` v0.5** 所指的面；spec 版本一变，本约束的字面同笔改。
 - **标题与标签行零字节**：`reviewRow` / `FIX_SHELL` / `DOCS_FIX_SHELL` 的首行标题一字不动；`**Criteria — …:**` 的**标签**与 `**Lens labels:**` 行零字节；而 criteria **体**可在 I/J/K 需要处改（改动对共享该体的变体一致）。§2.5 允许改的句子是 `REVIEW_ITEM`、`FIX_SHELL` 的 fix 句、`DOCS_FIX_SHELL` 的 docs-fix 句。
 - **不动四模式词汇表**：`WORK_MODES`、`TEMPLATE_PROMPT.modes` 的表键、`#rowOf` 的行选择结构保持（D85 否决 ROLE 拆值）。
-- **不新增门**：`#assertShellLayout` 只保留「名字 ⊆ layout」这一条结构校验，不引入名字↔所指的语义门（P28 同向）。
+- **不新增门**：#assertShellLayout 只保留「名字 ⊆ layout」这一条结构校验，不引入名字↔所指的语义门（P28 同向）。
 - **`TEMPLATE_PROMPT.$version` 20 → 21**：token 登记表与 round-context 面变更按既有惯例 bump；`render.test.ts` 的版本 pin 同步。
 - **不改 `session/next.ts`**（D70 收敛主线），不改 `next:` 字面。
 - changeset 只 `@oscaner-skills/cdd-engine` **minor**；不发布；波宽 ≤ 3；零模块级裸函数。

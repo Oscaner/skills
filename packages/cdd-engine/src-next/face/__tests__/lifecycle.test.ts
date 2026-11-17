@@ -1328,7 +1328,7 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
     }
   });
 
-  it("leaves the fix round context without the line when no sidecar exists", async () => {
+  it("renders the literal `none` on the fix round context when no sidecar exists", async () => {
     const f = fixture(planDoc([[1, []]]));
     try {
       const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
@@ -1337,8 +1337,10 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
       const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
       await runFix(f, fixFrameOf(specPath), carrier, runner);
       expect(runner.calls).toHaveLength(1);
-      // the fixed shell names the token; the round context carries no line for it
-      expect(promptOf(runner)).not.toContain("- `INPUT_RULINGS`: ");
+      // Deliberate pin flip (P38 §2.3 reversal ③ · D74): the cell is ALWAYS present on
+      // a fix round — no sidecar is a fact written as the bare literal `none`, never a
+      // dropped line (a dropped line cannot be told apart from a lost path).
+      expect(promptOf(runner)).toContain("- `INPUT_RULINGS`: none");
     } finally {
       f.cleanup();
     }
@@ -1432,8 +1434,9 @@ describe("P36 T6 — the misplaced rulings sidecar gate (spec §2.3 · §2.4)", 
       await dispatchOver(f, carrier, runner);
       expect(runner.calls).toHaveLength(1);
       expect(f.io.stderrText).not.toContain("artifact-identity");
-      // the cell stays silent too — the prompt's bytes are today's absent face
-      expect(promptOf(runner)).not.toContain("- `INPUT_RULINGS`: ");
+      // the cell renders the bare literal `none` — deliberate pin flip (P38 §2.3
+      // reversal ③ · D74): absence is a value, never a dropped line
+      expect(promptOf(runner)).toContain("- `INPUT_RULINGS`: none");
     } finally {
       f.cleanup();
     }

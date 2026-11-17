@@ -772,11 +772,6 @@ export const pinLensOf = (type: TargetType, guides: ReviewGuides = REVIEWS): str
   return row.pinLens;
 };
 
-/** One review variant row (§3.7) — the fixed prefix folds the SELECTED criteria
- *  body + its lens INLINE (the `INPUT_CRITERIA`/`INPUT_LENS` round-context tokens
- *  are gone) and shares the REVIEW_CONTEXT dynamic tail. The target word labels the
- *  criteria line, so the row speaks the same vocabulary the CLI's `--type`
- *  declares while the body comes from the criteria selection. */
 /** The six target types every review variant renders — the review row's `serves`
  *  set (§1.1): one criteria body per type, one shared dynamic tail. */
 const REVIEW_SERVES: readonly TargetType[] = [
@@ -788,6 +783,11 @@ const REVIEW_SERVES: readonly TargetType[] = [
   "single-spec",
 ];
 
+/** One review variant row (§3.7) — the fixed prefix folds the SELECTED criteria
+ *  body + its lens INLINE (the `INPUT_CRITERIA`/`INPUT_LENS` round-context tokens
+ *  are gone) and shares the REVIEW_CONTEXT dynamic tail. The target word labels the
+ *  criteria line, so the row speaks the same vocabulary the CLI's `--type`
+ *  declares while the body comes from the criteria selection. */
 const reviewRow = (type: TargetType): ModePromptRow => {
   const criteria = REVIEWS[reviewBodyOf(type)];
   return {
@@ -892,10 +892,15 @@ export const CLAUSES = {
 } as const;
 
 /** The dispatch-prompt data plane — the typed template-contract surface. $version 25
- *  carries the P38 dispatch-contract batch (§3.3 · §5.1): the `scratch/<round-id>/`
- *  discipline sentence in all four shell texts (implement · review · fix · docs-fix)
- *  and the `INPUT_RULINGS` `none` half-sentence in the two fix shells — the prompt
- *  bytes changed here, and this counter is their one mechanical signal. $version 24
+ *  carries the P38 dispatch-contract batch (§2.3 · §3.1 · §3.3 · §5.1), three byte
+ *  changes over 24: the `scratch/<round-id>/` discipline sentence in all four shell
+ *  texts (implement · review · fix · docs-fix); the `INPUT_RULINGS` `none`
+ *  half-sentence in the two fix shells (§3.3); and the fix / docs-fix
+ *  `INPUT_RULINGS` cell rendering the bare literal `none` instead of vanishing when
+ *  the round has no ruling sidecar — reversal ③, carried by the line-level
+ *  declaration (`absent: "none"`) that replaced the old empty-drop (§2.3 · §3.1).
+ *  The prompt bytes changed here, and this counter is their one mechanical signal.
+ *  $version 24
  *  names the wave line in the fix shell's anchor clause (P37 §4.1): the wave line now
  *  carries the same `INPUT_SPEC` conformance reference and the `INPUT_OVERALL` parent
  *  charter as the branch line, so the clause a maintainer reads can no longer

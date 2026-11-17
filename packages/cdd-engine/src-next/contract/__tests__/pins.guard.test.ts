@@ -21,7 +21,10 @@
 // §7.1's three tiers are pinned as three cells (exact entry · unique suffix · ambiguity),
 // and §7.3's time face has its own paired cells: the same pending `Create:` path answers
 // identically on all three corpora, and loses that answer the moment the declaration, the
-// identity or the closure changes.
+// identity or the closure changes. Condition ③'s closure is read three ways — an
+// exactly-one-hit `✔ Done` row, a row naming no indexed document, and a row naming
+// several — because the last two must read as CLOSED: a registration that no longer
+// resolves cannot establish "not closed".
 //
 // The other two corpora (the judged document's body, the finding's `contract.path`)
 // are pinned where they execute: `face/__tests__/lifecycle.test.ts`.
@@ -419,5 +422,36 @@ describe("P37 T7 — §7.3's time face: one pending table, three corpora, one an
     expect(pinsOf(closed.audit.scan(["docs/kairos"]))).toEqual([PENDING, PENDING]);
     const pending = pendingFixture({ program: "prog", charter: charterBody("[Pending]") });
     expect(pinsOf(pending.audit.scan(["docs/kairos"]))).toEqual([]);
+  });
+
+  it("reads a `✔ Done` row naming ZERO indexed documents as CLOSED — registration rot never buys a skip", () => {
+    const dead = pendingFixture({
+      program: "prog",
+      charter: charterBody("✔ Done（`gone.md` · 2026-01-01）"),
+    });
+    // the row's FILE NAME resolves to nothing, so it cannot establish "not closed": the
+    // skip is lost and the pending path is reported on BOTH corpora — the judged spec's
+    // body and the plan's own `Create:` line. The dead registration's own name is a dead
+    // pin as well, which is the same fact read from the other side. The intuitive refactor
+    // (`hits.length === 1 && hits[0].head.slug === slug`) turns this row into a silent skip
+    // instead — the failure condition ③ exists to stop
+    const pins = pinsOf(dead.audit.scan(["docs/kairos"]));
+    expect(pins.filter((pin) => pin === PENDING)).toHaveLength(2);
+    expect(pins).toContain("gone.md");
+    expect(dead.audit.pathResolves(PENDING, JUDGED)).toBe(false);
+  });
+
+  it("reads a `✔ Done` row naming SEVERAL indexed documents as CLOSED — no single plan is named", () => {
+    const f = pendingFixture({
+      program: "prog",
+      charter: charterBody("✔ Done（`s1.md` · 2026-01-01）"),
+    });
+    // a second indexed document carries the same FILE NAME, so the cell names no ONE
+    // plan — several hits read as CLOSED, exactly like zero
+    f.write("docs/kairos/specs/s1.md", front("phase-spec", "s1-other"));
+    const pins = pinsOf(f.audit.scan(["docs/kairos"]));
+    expect(pins.filter((pin) => pin === PENDING)).toHaveLength(2);
+    expect(pins).toContain("s1.md");
+    expect(f.audit.pathResolves(PENDING, JUDGED)).toBe(false);
   });
 });

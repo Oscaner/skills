@@ -112,7 +112,7 @@ slug: 2026-10-10-engine-doc-tooling-p5
 - **DependsOn**: 1, 2, 3
 
 ### Task 6: scripts 源码面零裸函数收类（scan/first-party/run.ts main/emit 类族起点）
-- **Objective**: scripts 非测试面 38 枚模块级裸函数全处置——`lib/scan.ts`（walkTarget/scanToken/isQuotedDataRow 3）· `lib/first-party.ts`（firstPartyNames 1）· `session/run.ts` main（1）收为类成员/static 类族 · `emit.ts`（12）为 T12 的类族重整铺起点（本任务只做零裸函数收口 · 不改产物字节）· guard/validate/smoke 随 T5/T7 已删 21 枚（guard.ts 9 · validate.ts 5 · smoke-cdd.ts 7）——「字面零裸函数」scripts 源码面达成
+- **Objective**: scripts 非测试面 38 枚模块级裸函数全处置——`lib/scan.ts`（walkTarget/scanToken/isQuotedDataRow 3）· `lib/first-party.ts`（firstPartyNames 1）· `scripts/run.ts` main（1）收为类成员/static 类族 · `emit.ts`（12）为 T12 的类族重整铺起点（本任务只做零裸函数收口 · 不改产物字节）· guard/validate/smoke 随 T5/T7 已删 21 枚（guard.ts 9 · validate.ts 5 · smoke-cdd.ts 7）——「字面零裸函数」scripts 源码面达成
 - **Files**:
   - Modify: `scripts/lib/scan.ts`（`WalkTarget`/`ScanToken` 类族 · walkTarget/scanToken/isQuotedDataRow 收 static/类成员）· `scripts/lib/first-party.ts`（类成员 firstPartyNames）· `scripts/run.ts`（main 收类成员 + emit/emit-check 面保留）· `scripts/emit.ts`（12 枚收类族 · 产物字节零变）
   - Create: `scripts/__tests__/scan.test.ts`（scanToken 现有覆盖仅在 guard.test.ts:15,102-128，而 guard.test.ts 随 T5 删除 → **本任务新建 scan.test.ts 承接 walkTarget/scanToken/isQuotedDataRow 收类后的调用等价断言**）

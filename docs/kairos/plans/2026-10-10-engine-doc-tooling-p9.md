@@ -93,7 +93,7 @@ slug: 2026-10-10-engine-doc-tooling-p9
 - **Steps**:
   - `#scanRoots` 单基准 —— `invariants.ts` 签名改 `static #scanRoots(root: string, docPath: string)`（:1072）· 调用点 :1049 改 `SiblingScanInvariant.#scanRoots(ctx.root, ctx.path)` · 体改 `[path.join(root, path.dirname(docPath)), ...Object.values(ENGINE_RUNTIME.docRoots).map((r) => path.join(root, r))]`（`root` 为绝对擦除点 · `docPath`/`docRoots` 皆 repoRoot 相对） — checkable: 单测——`#scanRoots` 返同基准绝对根集 · `grep -n "\"specs\"\|'specs'\|join(grand" contract/invariants.ts` 硬编码零命中
   - finding 消息派生 —— `:981` 的 `docs/kairos/...` 字面从 `ENGINE_RUNTIME.docRoots` 派生 — checkable: `grep -n "docs/kairos" contract/invariants.ts` 零命中（派生自单源）
-  - help example 派生 —— `contract/declare.ts` 的 help `example`（:202/:208/:234）含 `docs/kairos/…` 者从 `docRoots` 派生 — checkable: `grep -n "docs/kairos" face/declare.ts` 零命中
+  - help example 派生 —— `face/declare.ts` 的 help `example`（:202/:208/:234）含 `docs/kairos/…` 者从 `docRoots` 派生 — checkable: `grep -n "docs/kairos" face/declare.ts` 零命中
   - 注释 copy 清理 —— board-view / workspace / doc.ts 的 `docs/kairos`/`specs`/`plans` 注释副本随改或删 — checkable: `grep -rn "docs/kairos/specs\|docs/kairos/plans" face/board-view.ts infra/workspace.ts contract/doc.ts` 零命中（或仅存单源引用）
   - 跑引擎套件 —— checkable: `pnpm -C packages/cdd-engine test`
 - **Acceptance**: `#scanRoots` 同基准 root 解析（零独立硬编码）· `invariants.ts` / `contract/declare.ts` 的 `docs/kairos` 硬编码零残留（读 `docRoots` 单源）· 注释 copy 清零 · 引擎 vitest 通过 · EOF 恰一 newline

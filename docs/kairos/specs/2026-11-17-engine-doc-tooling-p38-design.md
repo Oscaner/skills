@@ -1,7 +1,7 @@
 ---
 title: 'P38 · 派发输入契约：必填表、`none` 表示法与 `dispatch-input` 门'
 doc-type: phase-spec
-version: v0.1
+version: v0.2
 date: 2026-11-17
 slug: 2026-11-17-engine-doc-tooling-p38-design
 program: 2026-10-10-engine-doc-tooling
@@ -24,9 +24,12 @@ layout 行升格为对象，声明与它管的那一行同处一地：
 ContextLine = {
   line: string,                                  // 含 {{TOKEN}} 槽的渲染行
   absent: "drop" | "none",                       // 不成立以外的那些 type，缺席长什么样
-  requiredOn: "never" | "always" | TargetType[], // 哪些 target type 缺了它这一轮就不成立
+  requiredOn: "never" | "always" | TargetType[]  // 哪些 target type 缺了它这一轮就不成立
+    | { types: TargetType[], when: "program" },  // 同上，且命中还须过一条结构前提（§1.3）
 }
 ```
+
+结构前提不新开一维：它答的仍是同一个问题（「哪些 type 缺了它不成立」），只是把答案再限定在「身份文档声明了 `program:`」的那些轮次上——判它的来源与 `#valuesOf` 取该值同源（`scene.overallLink`），不是第二条判据。
 
 `TemplatePrompt` 的每个 `ModePromptRow.roundContext` 从 `readonly string[]` 变为 `readonly ContextLine[]`；非槽行（`## Round context` 标题、空行）用 `requiredOn: "never"` + `absent: "drop"` 表达，它们没有值可比。
 
@@ -39,7 +42,7 @@ ContextLine = {
 | 空 | ∉ requiredOn · `absent: drop` | 整行消失 |
 | 空 | ∉ requiredOn · `absent: none` | 渲染裸词 `none` |
 
-requiredOn 必须是**按 target type 收窄的集合**，因为 `fix` 与 `review` 各只有一份 layout，而它服务六种 `TargetType`（`phase-spec` · `single-spec` · `plan` · `branch` · `wave` · `overall`）。把必填性表达成「行上的 type 集合」而非「每 type 一份 layout」，避免同一份 12 行常量被复制成六份、其中五份只差必填性。
+requiredOn 必须是**按 target type 收窄的集合**，因为 `fix` 与 `review` 各只有一份 layout，而它服务六种 `TargetType`（`phase-spec` · `single-spec` · `plan` · `branch` · `wave` · `overall`）。把必填性表达成「行上的 type 集合」而非「每 type 一份 layout」，理由是条件而非计数：**每个 mode 一份 layout、必填性落在行上**；每 type 一份会让唯一的差别（这一轮缺了它成不成立）被复制成 N 份 layout 逐份维护。
 
 #### 1.2 每个字段只回答一个问题
 
@@ -47,37 +50,49 @@ requiredOn 回答「哪些 type 缺了它这一轮不成立」；absent 回答�
 
 两个字段正交，不是冗余：`requiredOn: never` 且需要丢行的格将来完全可能出现，而 absent 恰好能表达它。
 
-#### 1.3 死格与合法缺席
+#### 1.3 死格、惰性列与结构前提
 
-- **死格判据**：`absent: "drop"` 的行，requiredOn 不得覆盖它服务的**全部** target type——否则 `drop` 分支永远走不到，声明了一个不存在的状态。这是声明期的红线，不是运行期的告警。
-- **合法缺席不是 optional**：`overall` 面的 `INPUT_SPEC` 不是一个「可选格」，是**没有这一格**（章程不是自己的 spec，C2）；`single-spec` 面的 `INPUT_OVERALL` 同理（单 spec 无父程序）。两者的区别必须在声明里可读——前者不写该行的 requiredOn 集合，后者由「该 type 没有父程序」结构决定，而不是靠 `absent: none` 软化。
-- **requiredOn 的抖动面**：一个 `phase-spec` 若缺 `program:`、一个 `plan` 若缺 `spec:`，此后是**硬红**（`target-absent`），修法是补 front-matter，不是绕过门。这是本相位最大的一次行为反转，见 §2.3。
+- **死格判据**：requiredOn 命名了一个该 row **从不服务**的 target type ⇒ 声明期红（构造期断言，不是运行期告警）。这是唯一的死格：它声明的是一个永远不会被问到的状态。
+- **惰性列不是死格**：`requiredOn: "always"` 让 `absent` 列在该行上失效——空值恒红，「不成立时缺席长什么样」再也不会被问到；`absent: "none"` 在 requiredOn 覆盖全部服务 type 时是同一类惰性。两者都是**合法声明**（`OUTPUT_*` · `WORKSPACE_*` 与 `implement` 的 `WAVE` 就落在这一格），写出来是为了让「这一行的缺席没有第二种形态」可读，不构成缺陷。
+- **结构前提**：`INPUT_OVERALL` 的 exigibility 由结构决定，不由用户选择——`overall` 面它就是判对象（恒 exigible）；其余面**当且仅当**身份文档声明了 `program:` 才 exigible。两臂分开处理：`program:` **声明了却解析不到章程** ⇒ 硬红 `target-absent`（真断裂，§2.3 反转 ①）；**根本没有 `program:`** 的独立 `single-spec` 面 ⇒ 该格不存在、行消失（P37 T4 的 ② 臂就是这一臂）。
+- **合法缺席不是 optional**：`overall` 面的 `INPUT_SPEC` 不是一个「可选格」，是**没有这一格**（章程不是自己的 spec，C2）。这个区别必须在声明里可读——不写该行的 requiredOn 集合，而不是靠 `absent: none` 软化。
+- **requiredOn 的抖动面**：一个 `plan` 若声明了 `spec:` 而解析不到文档，此后是**硬红**（`target-absent`）；声明本身缺席同样是红（`empty-value`）。修法是补 front-matter，不是绕过门。这是本相位最大的一次行为反转，见 §2.3。
 
 #### 1.4 表本体
 
-requiredOn 按「这一轮缺了它还能不能judged」推出，不按「今天恰好取了什么值」。absent 除 `INPUT_RULINGS` 外一律 `drop`：
+requiredOn 按「这一轮缺了它还能不能判」推出，不按「今天恰好取了什么值」。absent 除 `INPUT_RULINGS` 外一律 `drop`。行序与各 mode 的 layout 同序，便于逐行对账：
 
 | row | 格 | absent | requiredOn | 依据 |
 |---|---|---|---|---|
+| implement | `ROLE` | drop | always | 身份恒有值；`always` 使 `absent` 列惰性（§1.3） |
 | implement | `WAVE` · `INPUT_WAVE_BRIEF` | drop | always | brief 是 implement 唯一的计划面（完整镜像） |
-| review | `INPUT_WAVE_BRIEF` | drop | [wave] | 只有 wave 评审judged 的是 brief |
-| review | `INPUT_PLAN` | drop | [plan, branch] | plan 面 judged 它；branch 面是计划一致性参照 |
+| review | `ROLE` | drop | always | 恒有值；`always` 使 `absent` 列惰性 |
+| review | `TARGET_TYPE` | drop | always | P33 的判别符：没有「无类型的评审」 |
+| review | `WAVE` | drop | [wave] | 只有 wave 评审带 wave id |
+| review | `INPUT_WAVE_BRIEF` | drop | [wave] | 只有 wave 评审判的是 brief |
+| review | `INPUT_PLAN` | drop | [plan, branch] | plan 面判它；branch 面是计划一致性参照 |
 | review | `INPUT_SPEC` | drop | [phase-spec, single-spec, plan, branch, wave] | 每个面都要验「代码/计划是否兑现设计」 |
-| review | `INPUT_OVERALL` | drop | [overall, phase-spec, plan, branch, wave] | overall 面 judged 它；其余面是父章程一致性 |
+| review | `INPUT_OVERALL` | drop | `[overall]` · `[phase-spec, single-spec, plan, branch, wave] when program` | overall 面判它；其余面是父章程一致性，由 `program:` 结构决定（§1.3） |
 | review | `BASE_BRANCH` | drop | [branch, wave] | 树评审的比对基准 |
-| fix | `INPUT_REVIEWS` | drop | always | 没有评审输入的 fix 轮不成立 |
-| fix | `INPUT_RULINGS` | **none** | never | 可以真没有，且这一事实值得写在 prompt 上 |
+| fix | `ROLE` | drop | always | 恒有值 |
+| fix | `TARGET_TYPE` | drop | always | 判别符区分 spec 面与 plan 面 |
+| fix | `WAVE` | drop | [wave] | wave 的 fix 才带 wave id |
 | fix | `INPUT_WAVE_BRIEF` | drop | [wave] | wave 的 fix 靠 brief |
 | fix | `INPUT_PLAN` | drop | [plan, branch] | wave 面已由 brief 整份承载，再给 `INPUT_PLAN` 是同一事实的第二份 |
 | fix | `INPUT_SPEC` | drop | [phase-spec, single-spec, plan, branch, wave] | overall 面没有这一格（C2） |
-| fix | `INPUT_OVERALL` | drop | [phase-spec, plan, branch, wave] | overall 面没有这一格 |
+| fix | `INPUT_OVERALL` | drop | `[phase-spec, single-spec, plan, branch, wave] when program` | overall 面没有这一格 |
+| fix | `INPUT_REVIEWS` | drop | always | 没有评审输入的 fix 轮不成立 |
+| fix | `INPUT_RULINGS` | **none** | never | 可以真没有，且这一事实值得写在 prompt 上 |
+| docs-fix | `ROLE` | drop | always | 恒有值 |
+| docs-fix | `TARGET_TYPE` | drop | always | 判别符区分被修的文档面 |
+| docs-fix | `WAVE` | drop | never | docs-fix 服务的 type 里没有 `wave`，该行永不成立——声明它，不是漏掉它 |
+| docs-fix | `INPUT_PLAN` | drop | [plan] | 只有 plan 文档是判对象；branch 不是文档修复面 |
+| docs-fix | `INPUT_SPEC` | drop | [phase-spec, single-spec, plan] | plan 面 = 设计参考；spec 面 = judged；overall 面没有这一格 |
+| docs-fix | `INPUT_OVERALL` | drop | `[overall]` · `[phase-spec, single-spec, plan] when program` | overall 面 = judged 本身；其余面由 `program:` 结构决定 |
 | docs-fix | `INPUT_REVIEWS` | drop | always | 同 fix |
 | docs-fix | `INPUT_RULINGS` | **none** | never | 同 fix |
-| docs-fix | `INPUT_PLAN` | drop | [plan] | 只有 plan 文档是judged 对象；branch 不是文档修复面 |
-| docs-fix | `INPUT_SPEC` | drop | [phase-spec, single-spec, plan] | plan 面 = 设计参考；spec 面 = judged；overall 面没有这一格 |
-| docs-fix | `INPUT_OVERALL` | drop | [overall, phase-spec, plan] | overall 面 = judged 本身；`single-spec` 无父程序 |
 
-`OUTPUT_*` 与 `WORKSPACE_*` 格不参与本维度：写出路径**本轮才创建**（存在性不可判），work-mode 事实由引擎计算（永不缺席）。它们的 requiredOn 恒为 `always`、absent 恒为 `drop`，判决只落在读入路径格上。
+`OUTPUT_*` 与 `WORKSPACE_*` 格不参与本维度：写出路径**本轮才创建**（存在性不可判），work-mode 事实由引擎计算（永不缺席）。它们的 requiredOn 恒为 `always`、absent 恒为 `drop`——`always` 使 `absent` 列在它们上面惰性（§1.3），判决只落在读入路径格上。**这一段就是它们的声明**：§4.2 的穷尽性断言把本段算作这些格的覆盖。
 
 ### 2. `dispatch-input` 门
 
@@ -97,7 +112,9 @@ requiredOn 按「这一轮缺了它还能不能judged」推出，不按「今天
 CDD_BLOCKED: dispatch-input · <row> · <TOKEN> · <reason>
 ```
 
-`reason` 是闭集三条：`missing-line`（声明要求该格而 layout 未携带——声明自身被改坏）· `empty-value`（值被要求而非空却为空）· `target-absent`（值非空但路径不存在）。
+`reason` 是闭集两条：`empty-value`（值被要求而为空）· `target-absent`（该格指向的文档路径不存在，或结构前提（§1.3）声明了 `program:` 而章程解析不到）。
+
+「声明要求该格而 layout 未携带」不在这份闭集里，且在派发期**不可表示**：声明骑在它管的那一行上（§1.1），没有行就没有声明——这个状态只能是构造期的 shell↔layout 断言（`#assertShellLayout`）红了，装配器根本建不起来，谈不上派发。章程里的「必填行缺失」因此由那条构造期断言兜住，不由本门兜。
 
 「一次报全部」与 P37 的 `grading-impact-missing` 同形（那条也是点名每一个）：一次派发被拒，编排器要一轮修完；只报第一条会让「修一格、再撞下一格」重复 N 轮。
 
@@ -105,11 +122,13 @@ CDD_BLOCKED: dispatch-input · <row> · <TOKEN> · <reason>
 
 | # | 今日 | 之后 |
 |---|---|---|
-| 1 | `spec:` / `program:` 链接缺席 ⇒ 静默丢行 | `CDD_BLOCKED: dispatch-input · <row> · INPUT_SPEC · target-absent` |
+| 1 | `spec:` / `program:` 已声明而解析不到 ⇒ 静默丢行 | `CDD_BLOCKED: dispatch-input · <row> · INPUT_SPEC · target-absent` |
 | 2 | fix 轮拿不到 review 载体（`resolveHandoffPath` 只拼名不查存在）⇒ 静默 | 硬红（`INPUT_REVIEWS` = `always`） |
 | 3 | `INPUT_RULINGS` 缺席 ⇒ 行消失 | 渲染裸词 `none` |
 
-**声明的其余部分是惰性的**：它只声明「缺了就不成立」，不改任何今天能正常工作的派发字节。除了 prompt 因 §3.3 与 §5.4 新增的两句话与 `$version` 递增，三处反转之外的派发字节不变。
+**声明的其余部分是惰性的**：它只声明「缺了就不成立」，不改任何今天能正常工作的派发字节。除了 prompt 因 §3.3 与 §5.1 新增的两句话与 `$version` 递增，三处反转之外的派发字节不变。
+
+反转 ① 只管「**声明了**却解析不到」；根本没有 `program:` 的独立 `single-spec` 面不在反转之列——它没有这一格（§1.3 结构前提），P37 T4 的 ② 臂因此保持绿。
 
 #### 2.4 与 `--dry-run` 的同源
 
@@ -127,7 +146,7 @@ CDD_BLOCKED: dispatch-input · <row> · <TOKEN> · <reason>
 
 #### 3.2 三态可分辨
 
-- requiredOn 命中 + 空 ⇒ 门红（引擎漏传）
+- requiredOn 命中（结构前提成立）+ 空 ⇒ 门红（引擎漏传）
 - 未命中 + 空 + `absent: none` ⇒ 渲染 `none`（本轮没有）
 - 有值 ⇒ 渲染路径，且要求它存在
 
@@ -153,7 +172,7 @@ CDD_BLOCKED: dispatch-input · <row> · <TOKEN> · <reason>
 
 #### 4.2 穷尽性断言
 
-`TOKENS` 与各 row 服务过的 type 之积，每一格必须被某条声明覆盖；未覆盖即红。这一条补的是逐格成对的盲区（漏声明一个格），与本仓既有的成对 pin 纪律一致。
+穷尽性的论域是 **`TOKENS` 的 round-context zone ∩ 该 row 自己那份 layout** 里出现的每一格，必须被某条声明覆盖；未覆盖即红。`HANDOFF_SCHEMA` 在 shell zone，不坐任何 round-context layout，也不是格；某 row 从不携带的行同理不是它的格。这一条补的是逐格成对的盲区（漏声明一个格），与本仓既有的成对 pin 纪律一致。
 
 #### 4.3 不加 `census:<id>`
 
@@ -175,7 +194,7 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 
 #### 5.2 `<round-id>`
 
-取 `{family}-{key}`——`#naming` 已有的轮次 identity，与 `handoff` / `report` / `evidence` 同前缀。同一轮的三份产物本就共前缀，scratch 跟着走才「可追溯到轮次」；带上 cycle/attempt 会让同一轮的分析分裂到多个目录。
+取**轮次命名 identity**——`RoundNaming.renderName`（`session/round-naming.ts`）从 `(line, op, cycle, attempt)` 渲出的那个 stem，`handoff` / `report` / `evidence` 三份产物都从它渲。cycle 在内：同一行的不同 cycle 是不同轮次，scratch 跟着轮次走才「可追溯到轮次」；attempt 段不在内：一次重试要继续它那一轮的分析，另开目录就是把同一轮拆散。
 
 #### 5.3 「不得作为证据」是散文，不是判据
 
@@ -191,11 +210,15 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 
 ### 6. 章程回填（与本文同批提交，由本 spec 的评审一并审）
 
-三项，逐条给出原文与改法——评审若只审散文，会漏掉章程那三处字节：
+七项，逐条给出原文与改法，位置按章程自己的表名写——评审若只审散文，会漏掉这几处字节。第 1 项与第 2 项的前两处已在先前提交落地，本批补第 2 项的第三处与第 3–7 项：
 
-1. **⑤ 降为样本行**。原文：「⑤ **与 P33 对账**——「名字带了、语义错了」类缺陷由 required 表兜住（overall 面 `INPUT_SPEC` 自指示为样本）。」改为：「⑤ **与 P33 对账**（**不新增验收**）——overall 面 `INPUT_SPEC` 自指示作 ①④ pin 的**样本行**……」；验收表**不加** ⑤ 编号。
-2. **⑥ 三改四**。原文「三个 shell（implement / review / fix）各加一句」与「三个 shell 各加一句」两处，均改为「**四个** shell（含 `docs-fix`）」；D94 行与 P38 详情行各一处。
-3. **两维改名**。D94 行与 P38 条目行/详情行的 `render: always | when-present` × `target: required | optional` 改为 `{absent: drop | none, requiredOn: never | always | TargetType[]}`，并补死格判据与「按 target type 收窄」的理由。
+1. **⑤ 降为样本行**。位置：Phase inventory 的 P38 行详情格。原文：「⑤ **与 P33 对账**——…」改为：「⑤ **与 P33 对账**（**不新增验收**）——overall 面 `INPUT_SPEC` 自指示作 ①④ pin 的**样本行**……」；验收表**不加** ⑤ 编号。
+2. **⑥ 三改四**。「三个 shell」在章程里共三处：设计决策留存表的 **D94 行** · **Issue inventory 的 P38 行** · **Phase inventory 的 P38 行验收 ⑥**。三处均改「**四个** shell（含 `docs-fix`）」——`docs-fix` 是第四份独立 shell 正文，漏它则该 mode 的临时脚本照旧沉到工作区根。
+3. **两维改名**（`render` × `target` → `{absent, requiredOn}`）。四处：设计决策留存表的 **D94 行** · **Phase inventory 的 P38 行详情格** · **Dependency graph 的 `P36 -> P38` 条款** · **执行序的 P38 条款**。
+4. **死格判据重述**。位置：设计决策留存表的 D94 行与 Phase inventory 的 P38 行详情格各一处。原文「`absent: drop` 的行，requiredOn 不得覆盖它服务的全部 type」改为「requiredOn 命名了该行从不服务的 type ⇒ 声明期红」，并写明 `always`（及全覆盖下的 `none`）使 `absent` 列惰性——惰性列是合法声明（§1.3）。
+5. **原因闭集收为两条**。位置：Phase inventory 的 P38 行详情格。原文「必填行缺失 / 目标路径不存在 / 必填值为空 ⇒ `CDD_BLOCKED: dispatch-input`」与「原因闭集 `missing-line` / `empty-value` / `target-absent`」两处：`missing-line` 退场（声明骑在行上，该状态只能由装配器构造期的 shell↔layout 断言兜住），闭集收为 `empty-value` / `target-absent`。
+6. **`<round-id>` 派生**。位置：Phase inventory 的 P38 行详情格。原文「`<round-id>` = `{family}-{key}`（`#naming` 已有的轮次 identity，与 `handoff`/`report`/`evidence` 同前缀）」改为轮次命名 identity 的同一 stem（含 cycle、不含 attempt，§5.2）。
+7. **穷尽性论域与验收措辞**。位置：Phase inventory 的 P38 行验收 ①②⑥。验收 ① 的「`TOKENS` × 各 row 每格必须被声明覆盖」改为「`TOKENS` 的 round-context zone × 各 row 自己的 layout」；验收 ② 的「`target: optional` 的行不受此判」改为「requiredOn 未命中的格不受此判」；验收 ⑥ 的「三个 shell」改为「四个 shell」（同第 2 项）。
 
 同时：非目标两处挖洞为「shell 正文的**其余**指令，`scratch/` 与 `none` 两句除外」；母宪章 `version` 递增并追加一条 change-history 行。
 
@@ -203,9 +226,10 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 
 - `dispatch-input` 门可红可修：每个 requiredOn 命中的格播空值 ⇒ `CDD_BLOCKED: dispatch-input` 且报文点名该 row 与该 token、child 零 spawn、不占轮次、不留 in-flight 记录；在册树 ⇒ 绿。`--dry-run` 与真派发对同一帧报出的拒绝串逐字节相同。
 - 目标路径不存在 ⇒ 同一门的 `target-absent`；requiredOn 未命中的格不受此判。
+- `INPUT_OVERALL` 的 exigibility 是结构前提：`overall` 面恒 exigible；其余面按身份文档是否声明 `program:` 决定——声明了而章程解析不到 ⇒ `target-absent`；未声明 ⇒ 该格不存在、派发照常（P37 T4 的 ② 臂保持绿）。
 - fix 与 docs-fix 的 `INPUT_RULINGS` **恒在**：有 sidecar ⇒ 路径；无 sidecar ⇒ 裸词 `none`（字节 pin）；P31 §2.5 的「absent ⇒ 零行」旧钉翻新并注明 deliberate（D74）。
 - 必填值为空串 ⇒ 同一门的 `empty-value`（不得靠装配器丢行掩盖）。
-- 逐格成对 pin 全覆盖 + 一条穷尽性断言（`TOKENS` × 各 row 服务的 type，每格必须被声明覆盖）；死格判据可红（`absent: drop` 的行若 requiredOn 覆盖全部服务 type ⇒ 声明期红）。
+- 逐格成对 pin 全覆盖 + 一条穷尽性断言（`TOKENS` 的 round-context zone × 各 row 自己的 layout，每格必须被某条声明覆盖，shell zone 的 `HANDOFF_SCHEMA` 不是格）；声明期的可红判据只有一种——requiredOn 命名了该 row 从不服务的 type ⇒ 构造期红；`always` 与全覆盖下的 `none` 是惰性列（可断言、不红）。
 - `scratch` 面的成对 pin：工作区根播一个裸临时文件 ⇒ `board` 落一条 `orphan:`；同一文件移入 `scratch/<round-id>/` ⇒ 该行消失、其余行不变；四个 shell 各带那句话的字节 pin。
 - `pnpm run validate` exit 0 · changeset `cdd-engine` **minor** · kairos 无。
 
@@ -216,9 +240,9 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 - **`$version` 递增**：prompt 数据面因两句 shell 新文本与声明形状变化而递增一版；它是「prompt 字节已变」的唯一机械信号。
 - **`--dry-run` 不新增输出行**：判据可核的最低形态是同一返回值的两个消费者，不是多印一份。
 - **不加白名单、不加 census、不写全表快照**：三者都是「用登记代替结构」或「用计数代替判据」。
-- **pin 写法**：路径 + 符号，不用行号。**尚未在源树里出现的词汇不能写成行内 pin**——pin 门的符号语料是源码里的标识符全集，一个还没落地的名字解析不到（本次草稿的 requiredOn 就是 24 条 unresolvable）。本文因此只在 §1.1 的围栏块里声明新词汇，行内一律用裸词：围栏块是例子，不是断言。
+- **pin 写法**：路径 + 符号，不用行号。**尚未在源树里出现的词汇不能写成行内 pin**——pin 门的符号语料是源码里的标识符全集，一个还没落地的名字解析不到。这条约束由 pin 门自己的行为钉住（在册语料零 finding、未落地名字即红），不靠计数。本文因此只在 §1.1 的围栏块里声明新词汇，行内一律用裸词：围栏块是例子，不是断言。
 - **引擎只拒不改**：`dispatch-input` 拒绝后不移动、不改写、不删除任何产物；恢复动作归编排器。
-- **合法缺席与漏传必须可区分**：`overall` 面的 `INPUT_SPEC`、`single-spec` 面的 `INPUT_OVERALL` 是「没有这一格」，不是「可有可无」。
+- **合法缺席与漏传必须可区分**：`overall` 面的 `INPUT_SPEC`、无 `program:` 的身份面（独立 `single-spec`）上的 `INPUT_OVERALL` 是「没有这一格」，不是「可有可无」。
 - **边界**：`render/templates.ts` 的形状重构属 P39（god objects 分波次拆），本相位只改声明与门，不拆类。
 
 ## Change history
@@ -226,3 +250,4 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 | Version | date | summary | author |
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-17 | 初稿：grilling Q1–Q27 裁定落成正文——两维声明 `{absent, requiredOn}` 与真值表 · 表本体（按功能面推，不按今日取值）· 纯读门与门序、报文原因闭集 · 三处行为反转与「其余惰性」主张 · `none` 为渲染字面量 + shell 半句 · 逐格成对 + 穷尽性断言（不写快照、不加 census）· `scratch/` 四 shell 与结构不可见 · 章程三项回填（⑤ 降样本行 · ⑥ 三→四 · 两维改名） | Oscaner M. · Claude（kairos:cdd-spec-writer · 2026-11-17） |
+| v0.2 | 2026-11-17 | docs-fix 第一轮（phase-spec review-1 · F1–F7 全部接纳）：死格判据重述为「requiredOn 命名了该 row 从不服务的 type」——`always` 与全覆盖下的 `none` 只是 `absent` 列惰性，属合法声明（§1.3 · 验收）· `INPUT_OVERALL` 的 exigibility 改为结构前提 `when program`（声明、两臂与验收）· `missing-line` 退场，原因闭集收为 `empty-value` / `target-absent` 两条，shell↔layout 一致性归 `#assertShellLayout` 的构造期断言（§2.2）· §1.4 补齐 `ROLE` · `TARGET_TYPE` · `WAVE` 三族格与 docs-fix 的 `never` 格 · §4.2 论域收为「`TOKENS` 的 round-context zone ∩ 各 row 自己的 layout」· §5.2 的 `<round-id>` 改用轮次命名 stem 并改正理由 · §6 改为逐条枚举七项章程字节（含验收 ②⑥ 与 Dependency graph / 执行序条款）· 章程回填同批落地（v4.07） | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |

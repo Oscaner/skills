@@ -1,7 +1,7 @@
 ---
 title: 分级判据的可核化（Grading Boundary）
 doc-type: phase-spec
-version: v0.22
+version: v0.23
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 program: 2026-10-10-engine-doc-tooling
@@ -262,7 +262,7 @@ lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的�
 
 ## Constraints
 
-- 跟随仓内既有范式：注册表 + 「查不到即抛」（`contract/completion-criterion.ts`）；`src-next` 零裸函数、参数 ≤4、类 ≤200 行、接口先行、协作者构造注入。类 ≤200 行的上限**只约束本相位新建的类**；本相位要动的四个既有文件（`session/ledger.ts` · `face/lifecycle.ts` · `face/board-view.ts` · `session/handoff-schema.ts`）今天均超此限，按 rule zero 免于该上限——行数在拆分时重测，本 spec 不登记具体数字（本相位自己的交付会改动它们）。每处改动写一行理由，拆分归 P39（D95 ②）。
+- 跟随仓内既有范式：注册表 + 「查不到即抛」（`contract/completion-criterion.ts`）；`src-next` 零裸函数、参数 ≤4、类 ≤200 行、接口先行、协作者构造注入。类 ≤200 行的上限**只约束本相位新建的类**；本相位要动的五个既有文件（`session/ledger.ts` · `face/lifecycle.ts` · `face/board-view.ts` · `session/handoff-schema.ts` · `face/cli.ts`）今天均超此限，按 rule zero 免于该上限——行数在拆分时重测，本 spec 不登记具体数字（本相位自己的交付会改动它们）。每处改动写一行理由；`face/cli.ts` 那一处的理由就是它改的那一处位置——`#sceneOf` 的 wave 臂与 plan / branch 臂在同一条派发链上取同一个值。拆分归 P39（D95 ②）。
 - pin 写法：§7.1 的三形态——路径（行号只在路径上出现，且不超解析到那份文件的行数）· 裸符号 · 测试格题；成员引用按 §7.1 的连写规则落在裸符号形态上，符号永不带行号。本 spec 自身遵守此纪律。
 - 不改 D70 收敛判据（`blocker > 0 ⇔ CHANGES_REQUESTED`）与「任何 findings → fix」路由。
 - 不重审已闭合相位的 finding 判档（P36 那 7 条只是病根证据）；`packages/kairos/skills` 文本零改动。
@@ -294,3 +294,4 @@ lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的�
 | v0.20 | 2026-11-17 | 评审修复（第 13 轮 F1 / F3 / F4 / F5 全部受理）：§7.1 的成员引用基础句改为门真正读的语料——符号索引取三棵源树的**代码体**（注释体与正则字面量体抹掉、字符串 / 模板字面量有意保留，因为胶囊的 `CDD_BLOCKED:` 与任务块 `DependsOn` 家族只在字面量里声明），不是「只按声明收集」的标识符集；§5.2 的板面标记改写成它实际是的那次判定——`LineCarriers#regradeNoteOf` 从 `findingsOf` 往回取最近一条非空记录，交给 `HandoffSchema.downgrades` / `HandoffSchema.regradeReasons` 合成，标记恰在「降档而无理由」时出；§8.2 的查表面改为树里真有的 `CensusTable.of(id)`（表由 `censusTableOf` 在装配点建出），并把「新增唯一一个访问器」改成两个（`census()` 供 finding 读数、`filesOf()` 供语料体积） | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |
 | v0.21 | 2026-11-17 | 分支修复（branch-review-1 · F1 受理）：§7.1 的裸符号语料由本仓三棵源树（引擎源 · 技能包 · `scripts`）改为**被审仓库自身的源文件**——引擎装进消费方仓库运行，那棵树里没有这三棵，写死树名会让符号索引在消费方为空、把每一条活着的符号 pin 判成死 pin，该轮因此落到 `REVIEW_FIX`，而红源在语料的声明方式上、任何文档改动能清掉它——§7.3 为路径形消掉的正是这个环；成员段的同一句随之改为「被审仓库自身源文件的代码体」，构建输出与机器本地目录不进索引。判据、三份语料与全部成对 pin 一概不变 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |
 | v0.22 | 2026-11-17 | 评审修复（第 14 轮 F1–F3 全部受理）：§7.3 的两条机制句改为门真正读的面——条件 ① 的两个身份键读 `ForwardPaths#headsOf` 自建的头表（`PinIndex.entries` 逐份 `FrontMatterExtractor.split` 出 `slug:` / `docType:` / `program:`），`#reconstruct` 里不建第二个 `SlugIndex`（唯一共享的 `SlugIndex.isLegalSlug` 只是拼写判定，P36 把身份索引限在命令前导三处），宪章是头表里 `docType: overall` 且 `slug:` 等于计划身份文档 `program:` 的那一份；条件 ③ 的闭合文件名改为与头表里每份文档 `rel` 的文件名部分比对；§5.2 写清标记措辞的落点——`REGRADE_MARK` 与判据表同模块导出、`regrade-mark` 行只登记显示事实（`body` / `duty` 照常进 rubric）、表里没有任何一格是标记本身（`review-criteria.test.ts` 逐格反证、`renderRubric` 不带该 token）；§8.3 补写引用语法（小写点分 id · 等号右侧十进制整数且终止符非数字 / 字母 / 点），形态外的 `census:` 词为散文，AC ⑦ 同步收窄「未知 id 抛」 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |
+| v0.23 | 2026-11-17 | 分支修复（branch-review-2 · F1 受理）：§Constraints 的既有文件豁免补齐第五个——`face/cli.ts` 随本相位的交付进场（`#sceneOf` 的 wave 臂与 plan / branch 臂在同一条派发链上取同一个值），此前只列四个，读者按本节核对交付树时只能把一处已批准的改动读成越限、或在本相位拆 `Cli`（那是 P39 的工作）。本轮补入该文件与它那一行 rule-zero 理由，正文、本行与 front-matter 的 `version:` 三处同批落地。判据、语料与成对 pin 一概不动 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |

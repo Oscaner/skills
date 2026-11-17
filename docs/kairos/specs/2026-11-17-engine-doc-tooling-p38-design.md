@@ -1,7 +1,7 @@
 ---
 title: 'P38 · 派发输入契约：必填表、`none` 表示法与 `dispatch-input` 门'
 doc-type: phase-spec
-version: v0.8
+version: v0.9
 date: 2026-11-17
 slug: 2026-11-17-engine-doc-tooling-p38-design
 program: 2026-10-10-engine-doc-tooling
@@ -55,7 +55,7 @@ requiredOn 只有一种形态：一条臂是「`types`，可能再叠 `when`」�
 
 **预览答案也是声明的一格**：`preview` 只答「`--dry-run` 拿什么答这一格」，取值两种——`value`（缺省）读同一帧的值、`path: true` 照常问存在性；`satisfied` 只用于「值在预览期还不存在、而它的名字已由命名行写出」的格，含义两条：命名行点名 ⇒ 预览视为满足；未点名 ⇒ 落回 requiredOn 的空值臂 ⇒ `empty-value`。它不做存在性读、也不写盘。**唯一取 `satisfied` 的格是 `INPUT_WAVE_BRIEF`**（§1.4 三行标记）：`renderBrief` 只在真派发落盘（§2.4），预览若没有这一位，就只能在「照 `path: true` 问一个自己不会写下的文件」与「在门里硬编一格例外」之间选一个。
 
-`TemplatePrompt` 的每个 `ModePromptRow.roundContext` 从 `readonly string[]` 变为 `readonly ContextLine[]`；非槽行（`## Round context` 标题、空行）用 `never`（= `{ types: [] }`）+ `absent: "drop"` 表达，它们没有值可比；`preview: satisfied` 的唯一性不是一句散文：装配器构造期的一次断言（`TemplateAssembler#assertPreviewAnswer`）把任何第二个 `satisfied` 格拦在建类之前。
+`TemplatePrompt` 的每个 `ModePromptRow.roundContext` 从 `readonly string[]` 变为 `readonly ContextLine[]`；非槽行（`## Round context` 标题、空行）用 `never`（= `{ types: [] }`）+ `absent: "drop"` 表达，它们没有值可比；`preview: satisfied` 的唯一性不是一句散文：装配器构造期的一次断言（`TemplateAssembler#assertPreviewAnswer`，`render/templates.ts`）把任何第二个 `satisfied` 格拦在建类之前。
 
 四种状态全覆盖：
 
@@ -235,11 +235,11 @@ CDD_BLOCKED: dispatch-input · <row> · <TOKEN> · <reason>; <row> · <TOKEN> ·
 
 #### 4.2 穷尽性断言
 
-穷尽性的论域是 **`TOKENS` 的 round-context zone ∩ 该 row 自己那份 layout** 里出现的每一格，必须被某条声明覆盖；未覆盖即红。`HANDOFF_SCHEMA` 在 shell zone，不坐任何 round-context layout，也不是格；某 row 从不携带的行同理不是它的格。这一条补的是逐格成对的盲区（漏声明一个格），与本仓既有的成对 pin 纪律一致。
+穷尽性的论域是 **`TOKENS` 的 round-context zone**：其中每一个已登记的 round-context token，都必须被**某一份 row 的 layout 携带**，一个携带者也没有即红——判据是 `TemplateAssembler#assertEveryCellHasCarrier`（`render/templates.ts`），一次构造跑一遍全部 row。反方向写在它旁边、不并进这一条：每一份 layout 携带的槽都必须是一个已登记的 round-context token（`#assertRegistered`）——两个方向的断言不同（「登记了而没有携带者」与「携带了而没有登记」），合成一条就只剩一个方向的盲区。`HANDOFF_SCHEMA` 在 shell zone，不坐任何 round-context layout，也不是格；某 row 从不携带的行同理不是它的格。这一条补的是逐格成对的盲区（漏声明一个格），与本仓既有的成对 pin 纪律一致。
 
 #### 4.3 不加 `census:<id>`
 
-覆盖事实**只有一处**（声明表本身），§4.2 已让「漏一格」可红。加计数只会让每一次正当的格增删都要改一个数字——与拒绝全表快照同一条理由：红得没有信息量的门，会教人去无脑更新它。
+覆盖事实**只有一处**（声明表本身），§4.2 的 `TemplateAssembler#assertEveryCellHasCarrier` 已让「登记了而没有携带者」可红。加计数只会让每一次正当的格增删都要改一个数字——与拒绝全表快照同一条理由：红得没有信息量的门，会教人去无脑更新它。
 
 ### 5. 派发输出面：`scratch/`
 
@@ -259,7 +259,7 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 
 #### 5.2 `<round-id>`
 
-取**轮次命名 identity**——`RoundNaming.renderName`（`session/round-naming.ts`）从 `(line, op, cycle, attempt)` 渲出的那个 stem，`handoff` / `report` / `evidence` 三份产物都从它渲。cycle 在内：同一行的不同 cycle 是不同轮次，scratch 跟着轮次走才「可追溯到轮次」；attempt 段不在内：一次重试要继续它那一轮的分析，另开目录就是把同一轮拆散。
+取**轮次命名 identity**——按 `(line, op, cycle)` 定的那一轮，`handoff` / `report` / `evidence` 三份产物都从它渲。cycle 在内：同一行的不同 cycle 是不同轮次，scratch 跟着轮次走才「可追溯到轮次」；attempt 段不在内：一次重试要继续它那一轮的分析，另开目录就是把同一轮拆散。**渲染器不替你做这次剥离**：`RoundNaming.renderName`（`session/round-naming.ts`）渲的是某一 kind 的完整文件名，其 stem 为 `line-op[-cycle][-a<n>]`（`session/round-artifacts.ts` 的 `roundStem` 在 attempt ≥ 2 时加 `-a<n>` 段），`session/__tests__/round-naming.test.ts` 的「renders the six artifact kinds of one round off ONE stem — the literal grid」把这条钉住（`{line: "tasks-1", op: "implement", cycle: 2, attempt: 3}` ⇒ `tasks-1-implement-2-a3-report.md`）。所以 `<round-id>` 是那个 stem **剥掉** `-a<n>` 之后的样子：剥离是唯一派生，不是把渲出来的 stem 原样当 attempt-free 用。
 
 但 `OUTPUT_HANDOFF` 的 stem **带着** attempt 段：它是 `renderRound(…, "draft")` 渲出的 `…-a<n>.json`，`session/round-artifacts.ts` 的 `roundStem` 在 attempt ≥ 2 时加 `-a<n>`。所以「从 `OUTPUT_HANDOFF` 的 stem 推」必须与「剥掉 `-a<n>`」成对读——§5.1 的 shipped 句子写的就是这条剥离规则，本节是同一规则的 spec 说法；两处只能有一个派生，不能一处按 stem、一处按剥后的 stem。
 
@@ -275,9 +275,9 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 
 实测依据：P37 工作区（`.kairos/cdd/2026-11-16-engine-doc-tooling-p37/scratch/{tasks-7,tasks-7-fix-1,tasks-8}/`）的 16 个临时脚本，原报 16 条 `orphan:`，移入三个子目录后归零、零代码改动。
 
-### 6. 章程回填（九项已全部落地：章程 `v4.08` · `v4.09`）
+### 6. 章程回填（十一项已全部落地：章程 `v4.08` · `v4.09` · `v4.10`）
 
-前八项回填**已全部落地**（第一至七项见 `v4.05`–`v4.07`，第八项见章程 `v4.08` 的 change-history 行）；第九项由本轮回填（章程 `v4.09`）。逐条保留原文与改法作为审计轨迹，位置按章程自己的表名写——评审若只审散文，会漏掉这几处字节；每项后的版本号与章程自己的 change history 行对得上，条款对账就是逐项去章程里读那个位置的当前字节。
+前八项回填**已全部落地**（第一至七项见 `v4.05`–`v4.07`，第八项见章程 `v4.08` 的 change-history 行）；第九项由第六轮回填（章程 `v4.09`），第十、十一项由本轮回填（章程 `v4.10`）。逐条保留原文与改法作为审计轨迹，位置按章程自己的表名写——评审若只审散文，会漏掉这几处字节；每项后的版本号与章程自己的 change history 行对得上，条款对账就是逐项去章程里读那个位置的当前字节。
 
 1. **⑤ 降为样本行**（落地：v4.06）。位置：Phase inventory 的 P38 行详情格。原文：「⑤ **与 P33 对账**——…」改为：「⑤ **与 P33 对账**（**不新增验收**）——overall 面 `INPUT_SPEC` 自指示作 ①④ pin 的**样本行**……」；验收表**不加** ⑤ 编号。
 2. **⑥ 三改四**（落地：v4.05 登记 · v4.06 统一为「四个」）。「三个 shell」在章程里共三处：设计决策留存表的 **D94 行** · **Issue inventory 的 P38 行** · **Phase inventory 的 P38 行验收 ⑥**。三处均改「**四个** shell」——只统一「四个 shell」这个词组，括注保留各处的原有字节（`D94` 行是「（implement / review / fix / docs-fix）」，验收 ⑥ 是「（含 `docs-fix`）」，Issue inventory 行没有括注）；`docs-fix` 是第四份独立 shell 正文，漏它则该 mode 的临时脚本照旧沉到工作区根。
@@ -287,13 +287,17 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 6. **`<round-id>` 派生**（落地：v4.07）。位置：Phase inventory 的 P38 行详情格。原文「`<round-id>` = `{family}-{key}`（`#naming` 已有的轮次 identity，与 `handoff`/`report`/`evidence` 同前缀）」改为轮次命名 identity 的同一 stem（含 cycle、不含 attempt，§5.2）。
 7. **穷尽性论域与验收措辞**（落地：v4.07）。位置：Phase inventory 的 P38 行验收 ①②⑥。验收 ① 的「`TOKENS` × 各 row 每格必须被声明覆盖」改为「`TOKENS` 的 round-context zone × 各 row 自己的 layout」；验收 ② 的「`target: optional` 的行不受此判」改为「requiredOn 未命中的格不受此判」；验收 ⑥ 的「三个 shell」改为「四个 shell」（同第 2 项）。
 
-8. **臂形态 · 路径位 · 反转数字**（落地：`v4.08`，即章程 change-history 的 `v4.08` 行）。位置同第 4 项的两处：设计决策留存表的 **D94 行** 与 **Phase inventory 的 P38 行详情格**。三笔字节：① requiredOn 的域由 `never | always | TargetType[]` 改为「一格一条臂，或几条合取臂」——一条臂是 `types` 再可叠一个 `when` 结构前提，今日的域装不下 `INPUT_OVERALL` 的同格两臂；② 声明对象新增 `path: true` 位，`target-absent` 只读这一位，路径格由声明说出、不由名字的 INPUT_ 前缀推出（`BASE_BRANCH` 是分支名，不是路径格）；③ 反转计数 3 → 4——这个计数在章程里只有**一处**字节：Phase inventory 的 P38 行 Scope 格的 ① 段（「**三处反转除外**（`spec:`/`program:` 已声明而解析不到、fix 拿不到 review 载体、`INPUT_RULINGS` 缺席）」）；该处改为**四处**，并点名第四个：无 `base.json` 时的 `BASE_BRANCH` `empty-value`（恢复动作 `cdd base set`），同时撤掉该处的 `spec:` 一半（`INPUT_SPEC` 没有可声明的标量，缺身份文档归文档契约腿的 `undeclared` 状态）。**D94 行与该 Scope 格的 ③ 段不载这个计数**，因此不在 ③ 的坐标里：那里的计数若也要出现，是**新写一句**，不是改一句已存在的字节。章程 `version:` 递增至 `v4.08` 并追加 change-history 行（已落地）。
+8. **臂形态 · 路径位 · 反转数字**（落地：`v4.08`，即章程 change-history 的 `v4.08` 行）。位置同第 4 项的两处：设计决策留存表的 **D94 行** 与 **Phase inventory 的 P38 行详情格**。三笔字节：① requiredOn 的域由 `never | always | TargetType[]` 改为「一格一条臂，或几条合取臂」——一条臂是 `types` 再可叠一个 `when` 结构前提，今日的域装不下 `INPUT_OVERALL` 的同格两臂；② 声明对象新增 `path: true` 位，`target-absent` 只读这一位，路径格由声明说出、不由名字的 INPUT_ 前缀推出（`BASE_BRANCH` 是分支名，不是路径格）；③ 反转计数 3 → 4——这个计数在章程里只有**一处**字节：Phase inventory 的 P38 行 Scope 格的 ① 段（「**三处反转除外**（`spec:`/`program:` 已声明而解析不到、fix 拿不到 review 载体、`INPUT_RULINGS` 缺席）」）；该处改为**四处**，并点名第四个：无 `base.json` 时的 `BASE_BRANCH` `empty-value`（恢复动作 `cdd base set`），同时撤掉该处的 `spec:` 一半（`INPUT_SPEC` 没有可声明的标量，缺身份文档不是本门的臂——那是文档契约腿的 `spec-absent` 孤儿，`PlanRead#refusal` 先拒、那一轮不派发，登记是 `spec-absent`，从来不是 `undeclared`；§1.3 · §2.3）。**D94 行与该 Scope 格的 ③ 段不载这个计数**，因此不在 ③ 的坐标里：那里的计数若也要出现，是**新写一句**，不是改一句已存在的字节。章程 `version:` 递增至 `v4.08` 并追加 change-history 行（已落地）。
 
 9. **验收 ① 的缺行后果**（落地：`v4.09`，即章程 change-history 的 `v4.09` 行）。位置：Phase inventory 的 P38 行**验收 ①**。原文「缺任一必填行 ⇒ `CDD_BLOCKED: dispatch-input`、child 零 spawn、`--dry-run` 同源可见（同一返回值的两个消费者，报文逐字节相同）」这条后果对「缺一格」**不可达**：声明骑在它管的那一行上（§1.1），没有行就没有声明，该状态在派发期不可表示、只能由装配器的构造期判据一次性判红（§2.2）；照它实现会补出一条永不触发的 `missing-line` 臂。该处改为把**缺一格**与**空一格**分属两条判据：缺行归构造期判据（装配器根本建不起来），空值归同一门的 `empty-value`，被拒 ⇒ child 零 spawn、`--dry-run` 同源可见（同一返回值的两个消费者，报文逐字节相同）。章程 `version:` 递增至 `v4.09` 并追加 change-history 行。
 
-同时：非目标两处挖洞为「shell 正文的**其余**指令，`scratch/` 与 `none` 两句除外」（v4.05）；母宪章 `version` 递增并追加 change-history 行（v4.05 · v4.06 · v4.07 · v4.08 · v4.09）。
+10. **`undeclared` 改为 `spec-absent`**（落地：章程 `v4.10`，即章程 change-history 的 `v4.10` 行）。位置：章程 change-history 的 **`v4.08` 行**。该行的 ③ 把撤掉的 `spec:` 一半收在「缺身份文档归文档契约腿的 `undeclared` 状态」——错在状态名：缺同 slug 身份文档的计划是文档契约腿的 `spec-absent` 孤儿，`PlanRead#refusal` 先拒、那一轮不派发（§1.3），`undeclared` 是「相位还没有 plan」的正查状态，不是这一形态。**`v4.08` 行不改**——历史行记录的是当时被相信的字节，改历史行等于伪造审计轨迹；更正写成新的 `v4.10` 行，明说 `v4.08` 的措辞是 `undeclared`、正确登记是 `spec-absent`。
 
-章程 `version:` 现为 `v4.09`，九项均已落地；后续评审若要改章程，开新一轮回填并递增版本，不静默改字节。
+11. **穷尽性断言的方向**（落地：章程 `v4.10`，同一行）。位置：Phase inventory 的 P38 行**验收 ①**。原文「一条穷尽性断言（`TOKENS` 的 round-context zone × 各 row 自己的 layout，每格必须被声明覆盖，漏一格即红）」读成「某 row 自己那份 layout 里出现的每一格」时永远为真——layout 里的格就是它声明的格——而它要拦的是「登记了这个 token、却没有任何 row 携带它」。该处改为「`TOKENS` 的 round-context zone 里每个已登记的 round-context token 都必须被某份 row 的 layout 携带，一个携带者也没有即红」，即交付的 `TemplateAssembler#assertEveryCellHasCarrier`（`render/templates.ts`，§4.2）。
+
+同时：非目标两处挖洞为「shell 正文的**其余**指令，`scratch/` 与 `none` 两句除外」（v4.05）；母宪章 `version` 递增并追加 change-history 行（v4.05 · v4.06 · v4.07 · v4.08 · v4.09 · v4.10）。
+
+章程 `version:` 现为 `v4.10`，十一项均已落地；后续评审若要改章程，开新一轮回填并递增版本，不静默改字节。
 
 ### Acceptance criteria
 
@@ -305,7 +309,7 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 - `INPUT_OVERALL` 的 exigibility 是结构前提：`overall` 面恒 exigible；其余面按身份文档的**声明**（`DocEntry.program` 那个字面量，而非派生链接 `ChainRoot.programLink` 、也非已解析值 `scene.overallLink`）决定——声明了而章程解析不到 ⇒ `target-absent`；未声明 ⇒ 该格不存在、派发照常（P37 T4 的 ② 臂保持绿；`single-spec` 的类型声明里没有 `program` 锚，它不在 `when: program` 的 `types` 集里，该面因此没有这一格）。
 - fix 与 docs-fix 的 `INPUT_RULINGS` **恒在**：有 sidecar ⇒ 路径；无 sidecar ⇒ 裸词 `none`（字节 pin）；P31 §2.5 的「absent ⇒ 零行」旧钉翻新并注明 deliberate（D74）。
 - 必填值为空串 ⇒ 同一门的 `empty-value`（不得靠装配器丢行掩盖）。
-- 逐格成对 pin 全覆盖 + 一条穷尽性断言（`TOKENS` 的 round-context zone × 各 row 自己的 layout，每格必须被某条声明覆盖，shell zone 的 `HANDOFF_SCHEMA` 不是格）；声明期的可红判据两种——requiredOn 命名了该 row 从不服务的 type ⇒ 构造期红；`preview: satisfied` 挂在 `INPUT_WAVE_BRIEF` 之外的格上 ⇒ 构造期红且报文点名该格与 `INPUT_WAVE_BRIEF`（豁免只答命名行写下的那一格）；`always` 与全覆盖下的 `none` 是惰性列（可断言、不红）。
+- 逐格成对 pin 全覆盖 + 一条穷尽性断言（`TOKENS` 的 round-context zone 里每个已登记的 round-context token 都必须被某份 row 的 layout 携带，一个携带者也没有即红；shell zone 的 `HANDOFF_SCHEMA` 不是格）；声明期的可红判据三种，同由 `TemplateAssembler#assertDeclarations`（`render/templates.ts`）在建类时一次判完——要求集死格（requiredOn 命名了该 row 从不服务的 type）⇒ 构造期红；shell↔layout 一致性（shell 正文点名的 cell 不被该 row 的 layout 携带）⇒ 构造期红（`#assertShellCarries`）；`preview: satisfied` 挂在 `INPUT_WAVE_BRIEF` 之外的格上 ⇒ 构造期红且报文点名该格与 `INPUT_WAVE_BRIEF`（豁免只答命名行写下的那一格）；`always` 与全覆盖下的 `none` 是惰性列（可断言、不红）。
 - `scratch` 面的成对 pin：工作区根播一个裸临时文件 ⇒ `board` 落一条 `orphan:`；同一文件移入 `scratch/<round-id>/` ⇒ 该行消失、其余行不变；四份 shell 正文各带那句话的字节 pin。
 - `pnpm run validate` exit 0 · changeset `cdd-engine` **minor** · kairos 无。
 
@@ -333,3 +337,4 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 | v0.6 | 2026-11-17 | docs-fix 第五轮（phase-spec review-5 · F1–F5 全部接纳，五条裁定均 ACCEPTED）：`INPUT_SPEC` 的臂改为结构前提 `when: identity`——同 slug 身份文档声明了形状（`DocEntry.docType`）才 exigible，没有身份文档归文档契约腿 `undeclared` · `clean` 的零拒绝状态（合法前向缺口），读不出形状（P37 T4 的 ④ 臂）则该格无可判载体，§2.3 的「不变」因此成立（F1）；`single-spec` 从 `INPUT_OVERALL` 的 `when: program` type 集里撤下（该 type 的键集里没有 `program` 锚，臂与值在那一面上一致），§1.3 的 `single-spec` 断言改写为「门读声明的字面量 vs 类型保证了什么」的结构陈述（F2）；预览答案升格为声明字段 `preview`（`value` / `satisfied` 两值，`INPUT_WAVE_BRIEF` 是唯一 `satisfied` 格，§1.1 声明一次 · §1.4 三行标记 · §2.4 只讲这一位），删掉「填上值而 `path: true` 位仍在」那句（它写的正是 §2.4 否定的存在性读）（F3）；§6 第八项 ③ 的坐标收为唯一载有该计数的一处（Phase inventory 的 P38 行 Scope 格 ① 段），D94 与 Scope ③ 退出坐标（F4）；§5.1 改称「四份 shell 正文」并写明 review 正文按 type 由前缀 + `REVIEW_ITEM` + 共享尾段拼成（F5） | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
 | v0.7 | 2026-11-17 | docs-fix 第六轮（phase-spec review-6 · F1–F6 全部接纳，F1 / F3 / F5 三条按裁定改法落地）：「没有同 slug 身份文档」改记为文档契约腿的 `spec-absent` 孤儿（`PlanRead#refusal` 先拒、该轮不派发），不再叫「合法前向缺口」（v0.6 行保留当时的措辞，以本轮为准）——`undecided` 也不再是第三条臂：读不出形状的那份 `unregistered` 丢弃正是弄脏文档根的那个读，该格因此只有两种非 exigible 形态（§1.1 · §1.3 · §2.3 行与反转 ① · 验收 · Constraints）（F1）；§6 第八项改记为 `v4.08` 已落地，删去两处「待应用 / `v4.07`」字节（F2）；新增第九项并落地章程 `v4.09`：验收 ① 删去对「缺任一必填行」不可达的 `CDD_BLOCKED: dispatch-input` 后果，改为「缺一格归构造期判据、空一格归 `empty-value`」（F3）；§1.1 围栏块声明 `ModePromptRow.serves`（四行服务集），§1.3 死格判据与 §1.4 表尾改指该列、不从臂的并集推（F4）；intro 与 §2.2 改述本相位**已强制**的形态，并点名 `TemplateAssembler#assertDeclarations`（那条 shell↔layout 断言已随声明升格退役）（F5）；§1.3 的 `single-spec` 键集补 `slug`，七个键、`slug` 必填（F6） | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
 | v0.8 | 2026-11-17 | branch-fix-1 轮（F4 裁定 ACCEPTED）：`preview: "satisfied"` 的唯一性由散文升为构造期断言——`TemplateAssembler#assertPreviewAnswer` 把第二个 `satisfied` 格拦在建类之前（报文点名该格与该格的规范载体），§1.1 与验收的「声明期可红判据」由一种增至两种；§1.3／§4.2 的其余判据与全部派发字节不变 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |
+| v0.9 | 2026-11-17 | docs-fix 第七轮（phase-spec review-7 · F1–F5 全部接纳，F1 / F3 两条按裁定落地）：§6 第八项的括注改记为 `spec-absent`（`PlanRead#refusal` 先拒、那一轮不派发），并新增第十项把章程 `v4.08` 行的 `undeclared` 措辞登记为 `v4.10` 的更正（历史行不改）；新增第十一项把章程验收 ① 的穷尽性方向一并回填（F1）；§4.2 的穷尽性论域由「`TOKENS` 的 round-context zone ∩ 该 row 自己那份 layout」改为「zone 里每个已登记 token 必须被某份 row 的 layout 携带」，反方向的槽登记写在旁边，§4.3 的「漏一格可红」改指 `#assertEveryCellHasCarrier`（F2）；验收的声明期判据由两种增至三种——补上 shell↔layout 的 `#assertShellCarries`（F3）；§5.2 的 `<round-id>` 定义为 `(line, op, cycle)` 上的轮次 identity，`renderName` 的 attempt 段由剥离规则给出（F4）；§1.1 的 `#assertPreviewAnswer` 补模块路径 `render/templates.ts`（F5）；章程同批递增 `v4.10` | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |

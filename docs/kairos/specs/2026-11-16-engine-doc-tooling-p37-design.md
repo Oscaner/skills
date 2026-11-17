@@ -1,7 +1,7 @@
 ---
 title: 分级判据的可核化（Grading Boundary）
 doc-type: phase-spec
-version: v0.19
+version: v0.20
 date: 2026-11-16
 slug: 2026-11-16-engine-doc-tooling-p37
 program: 2026-10-10-engine-doc-tooling
@@ -131,7 +131,7 @@ wave review 的 round context 必须携带 `INPUT_SPEC`（本计划同 slug 的�
 
 落点两处，都挂在既有渲染面上。标记的措辞取自注册表里它自己的那一行（§6.1 的 `regrade-mark`），不另写一句；该行在 §6.1 里是**显示行**：`tier` 格只为行形态必填（删键即类型红，见 §6.1）而填，不是给某类 finding 定档——标记没有 finding 可判——它的 `duty` 句就紧随 `body` 句写进 rubric 字节，明写「标记是显示事实，永不是 finding 行、不是 carrier 条目、也不动本轮结论」。因此读这段散文的子代理拿到的是一句更正，而且标记不是 review 轮的产物：它由渲染面从记录里读出（§5.1 末段的显示面纪律）。这是 ③ 的「同类降档须写理由」与 ⑤ 的「降档落账」合并后的**唯一**执行面。
 
-- **板面**——`face/board-view.ts` 的每 verb token（`BoardView#summaryToken` 渲的 `{verb} {body} {mark}+N`）在 `+N` 之后接降档标记，仍是同一个 token：不新增行、不新增条目。板面今天没有 per-finding 行（`LineCarriers` 只供 `+N` 计数），因此本相位给它补一个 per-record 的 findings 读面 `findingsOf(record): readonly RoundFinding[]`——同一条 digest 校验过的 carrier 读，投影直接用 `HandoffSchema.findingsOf`（§2.1 的同一个投影，丢弃规则不变）；`countOf` 的语义不动（仍数 carrier `findings` 数组的长度），两个读面同源不同格。`BoardView#summaryToken` 由 `findingsOf` 判「本轮是否有非空 `regrade`」，因此板面标记不新开第二个读面、也不第二次解析 carrier 字节。
+- **板面**——`face/board-view.ts` 的每 verb token（`BoardView#summaryToken` 渲的 `{verb} {body} {mark}+N`）在 `+N` 之后接降档标记，仍是同一个 token：不新增行、不新增条目。板面今天没有 per-finding 行（`LineCarriers` 只供 `+N` 计数），因此本相位给它补一个 per-record 的 findings 读面 `findingsOf(record): readonly RoundFinding[]`——同一条 digest 校验过的 carrier 读，投影直接用 `HandoffSchema.findingsOf`（§2.1 的同一个投影，丢弃规则不变）；`countOf` 的语义不动（仍数 carrier `findings` 数组的长度），两个读面同源不同格。`BoardView#summaryToken` 的标记**不是**由本轮记录自己的 findings 判出来的：§5.1 的判据要三个事实——本轮比上一轮低一档、上一轮那一行的 `impact.scenario` 在 `trim()` 后非空、本轮没写 `regrade`——前两个不在本轮记录的 findings 里。因此板面在同一条 carrier 读上再补一个 per-record 的判定面 `LineCarriers#regradeNoteOf`：它从 `findingsOf` 往回走，取最近一条 findings 投影非空的更早记录（§5.1 步骤 1 的「上一轮」），把这一对交给 `HandoffSchema.downgrades` 与 `HandoffSchema.regradeReasons`（同一判据的标记侧与理由侧），交给 `regradeNote` 合成一行——标记恰在「降档而无理由」时出现、理由恰在有理由时出现。因此板面标记不新开第二个读面、也不第二次解析 carrier 字节；本轮 findings 里的 `regrade` 格不是判据的输入，配对成立之后它才被读。
 - **胶囊**——`face/capsule.ts` 的 `summary` 槽：`Capsule#emit` 早已把调用方给的一行渲在 status 行与 `next:` 之间，今天只由 fix 轮的 `dispositionsSummary` 填。降档标记走同一槽，`emit` 的签名与键集都不动；但它**确实会让评审轮的 stdout 多一行**（今天评审轮只有 `status · handoff`，加上可选的 `next:` 与 `reason:`）。这一行是显式声明的新字节，带自己的成对 pin：无降档 ⇒ 该行不出现，评审轮 stdout 与今天逐字节相同；有一条降档 ⇒ 恰好多这一行。
 
 因此「不新增行」不能作概括：准确的说法是**不新增 finding 行、不新增 carrier 条目、不改本轮结论**，胶囊那一行是设计里唯一新增的可见字节。
@@ -177,7 +177,7 @@ lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的�
 2. **不是产物词汇**——workspace 产物名（`progress.json` / `base.json` / `in-flight.json` / `liveness.json` / `tasks-<N>-<op>.json`）、后缀（`.rulings.json`）、模板（`X.md` / `-overall.md` / `-design.md`）都是词表条目，不是坐标。
 3. **不是易逝物**——`.changeset/*.md` 按设计在发布时被消费删除，引用它们不是主张而是记录；同理不判。
 
-**成员引用的写法**（不是第四形态，是裸符号形态的连写）：符号索引是**平坦的标识符集**（按声明收集，成员名与类名同处一集，`#` 不是标识符字符），因此一个成员与承载它的类 / 模块写在**同一枚 token** 里、以 `.` 或 `#` 连写（`HandoffSchema.gradingViolations` · `BoardView#summaryToken` · `render/templates.ts#pinLensOf`），判定法与裸符号同一套，只是分两半：尾随的 `(...)` 实参先剥掉；token 里有 `#` 时以**最后一个** `#` 为界（路径载体自己带点），否则以**第一个** `.` 为界。前半是载体，按裸路径或裸符号形态**过筛**（路径仍走三级优序，过不了筛即散文）；后半是成员，过**同一套**裸符号形状判据（过不了筛即散文）。两半都过筛而任一半解析不到 ⇒ 该 token 产一条 finding。形状判据因此不被分隔符改写：小写成员名（`impact.scenario` · `chain.phases`）与裸小写词（`wave`）同判为散文，本相位新增、树中尚不存在的成员（§8.2 的访问器）也就写不成假 pin。
+**成员引用的写法**（不是第四形态，是裸符号形态的连写）：符号索引是**平坦的标识符集**，语料是那三棵源树的**代码体**——注释体与正则字面量体先被抹掉（长度与行号保持，后续读者的位置仍然真），字符串 / 模板字面量**有意保留**：本树的活词汇就声明在字面量里，胶囊的 `CDD_BLOCKED:` 与任务块的 `DependsOn` 家族都只以字面量出现，抹掉它们会把 `CDD_BLOCKED` 一族与 `DependsOn` 家族一并判成死 pin。代码体里每一段标识符连写都进集（不限声明位置），成员名与类名同处一集，`#` 不是标识符字符，因此索引不是「只收声明」——判据是「名字在代码里活着」，声明只是它最常见的位置。一个成员与承载它的类 / 模块写在**同一枚 token** 里、以 `.` 或 `#` 连写（`HandoffSchema.gradingViolations` · `BoardView#summaryToken` · `render/templates.ts#pinLensOf`），判定法与裸符号同一套，只是分两半：尾随的 `(...)` 实参先剥掉；token 里有 `#` 时以**最后一个** `#` 为界（路径载体自己带点），否则以**第一个** `.` 为界。前半是载体，按裸路径或裸符号形态**过筛**（路径仍走三级优序，过不了筛即散文）；后半是成员，过**同一套**裸符号形状判据（过不了筛即散文）。两半都过筛而任一半解析不到 ⇒ 该 token 产一条 finding。形状判据因此不被分隔符改写：小写成员名（`impact.scenario` · `chain.phases`）与裸小写词（`wave`）同判为散文，本相位新增、树中尚不存在的成员（§8.2 的访问器）也就写不成假 pin。
 
 #### 7.2 解析不到的处理
 
@@ -230,9 +230,9 @@ lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的�
 
 #### 8.2 登记面
 
-新增一个计数登记面：一个注册表模块，其文件路径由本相位计划的 `Create:` 行声明，本 spec 只写它现在就能声明的契约（登记表 + 「查不到即抛」），不写尚未落地的坐标。登记表每行 `{ id, measure(): number }`——**一行一个数**，因此 §8.3 的书写形态保持单值 `census:<id> = <n>`，不需要子键语法：一个测量面要暴露几个数就登记几行，键就是 `id`。`CENSUS.of(id)` 查不到即抛（同一「未登记即抛」形态）。登记项的供值面是既有导出，外加本相位新增的**一个**访问器——pin 普查那一行组的 `PinAudit.census()`（见下）；登记面不二次计算：
+新增一个计数登记面：一个注册表模块，其文件路径由本相位计划的 `Create:` 行声明，本 spec 只写它现在就能声明的契约（登记表 + 「查不到即抛」），不写尚未落地的坐标。登记表每行 `{ id, measure(): number }`——**一行一个数**，因此 §8.3 的书写形态保持单值 `census:<id> = <n>`，不需要子键语法：一个测量面要暴露几个数就登记几行，键就是 `id`。登记表的查表面是 `CensusTable.of(id)`，查不到即抛（同一「未登记即抛」形态），表由 `censusTableOf` 在装配点建出——`CENSUS` 不是一个导出，它只是调用方给那个实例起的名字。登记项的供值面是既有导出，外加本相位新增的两个 `PinAudit` 访问器——`census()` 供 pin 普查的三个 finding 读数、`filesOf()` 供语料体积（见下）；登记面不二次计算：
 
-- **pin 普查四行**——`pin.symbol` · `pin.path` · `pin.total` · `pin.files`，供值面是本相位新增的那个访问器 `PinAudit.census()`（`contract/pins.ts` 今天没有这个导出，它是本相位加上的唯一一个），与 §7 的 `scan` 同一次扫描；四行各是一个可复述的读数，不是四种猜法：`pin.symbol` = §7.1 符号形态的 finding 数，`pin.path` = §7.1 路径形态（含测试 pin）的 finding 数，`pin.total` = 全语料 finding 数，也就是那一次扫描在 §7.3 的时间面判定之后剩下的 finding 数（= `pin.symbol` + `pin.path`，作者态零 · 关闭时零，同一个函数的一次读数，不是第二个计算；两处不得各算一套），`pin.files` 则是体积不是 finding 数：`PinAudit.filesOf` 给出的 §7.1 语料文件数。供 §7.3 的迁移完成陈述与计划的规模陈述引用。
+- **pin 普查四行**——`pin.symbol` · `pin.path` · `pin.total` · `pin.files`，供值面是 `PinAudit.census()` 的三个 finding 读数、外加 `PinAudit.filesOf()` 给出的语料文件数（两个访问器都是本相位新增的公开成员，`contract/pins.ts` 今天两个都没有），与 §7 的 `scan` 同一次扫描；四行各是一个可复述的读数，不是四种猜法：`pin.symbol` = §7.1 符号形态的 finding 数，`pin.path` = §7.1 路径形态（含测试 pin）的 finding 数，`pin.total` = 全语料 finding 数，也就是那一次扫描在 §7.3 的时间面判定之后剩下的 finding 数（= `pin.symbol` + `pin.path`，作者态零 · 关闭时零，同一个函数的一次读数，不是第二个计算；两处不得各算一套），`pin.files` 则是体积不是 finding 数：`PinAudit.filesOf` 给出的 §7.1 语料文件数。供 §7.3 的迁移完成陈述与计划的规模陈述引用。
 - **两张注册表的计数三行**——`criteria.rows` · `questions.rows` · `questions.cells`，供值为 `CRITERIA_ROWS.length` · `LENS_QUESTION_ROWS.length` · 各行 `reviewKinds.length` 之和，使 §6.1 写下的计数成为被门比对的引用。
 
 消费者要有具体落点：门可以建起来、绿着、一条主张都没比过——§6.2 给每个 `face` 设了最低一行的下限，§8 同样要有一条（§8.3 的下限 pin），§6.1 的三处 `census:` 引用已是可核形态，登记面落地即可比对。迁移规模本身仍不预登记（§7.3 已撤回无法复现的计数），迁移完成后的数字在相位关闭时以同一形态写出。
@@ -287,3 +287,4 @@ lens 问句表的行同为 `numbered`，其渲染产物是该 `reviewKind` 的�
 | v0.17 | 2026-11-16 | 评审修复（第 11 轮 F1–F6 全部受理）：条件 ③ 的闭合面在两处写成同一格——AC ⑥ 的三处与 §7.3 收尾句的「`✔ Done` 格」改为「`Implementation plan` 格的 `✔ Done`」，与 §7.3 正文一致；条件 ③ 的「文件名 → 文档」一跳补上具名读面（`SlugIndex#entries` 里每个 `DocEntry.rel` 的文件名部分全等比对，不拼接路径、不按文件名推演身份），并声明零命中与不唯一命中同判「已关闭」——登记烂掉不能换来跳过；条件 ① 的第二支改用 AC ⑥ 的写法「该计划身份文档声明的 `program:`」；§5.1 的行号语义指针改指符号（`HandoffSchema` 的 `downgrades` 与 `RoundFinding`），不再指 `id` 字段不存在的注释；§4.1 补验收落点（只钉锚的出现与可读，不钉「被引用」，与母宪章 P37 验收 ④ 同一形态）；母宪章 D93 ⑨ 附注已按本节回填（v4.00）——相位 `Done` 后追加 `Create:` 行的一类不再写作「无解除路径」，改按 §7.3 的代价陈述 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-16） |
 | v0.18 | 2026-11-16 | 评审修复（第 12 轮 F1–F5 全部受理）：§7.1 补测试 pin 的书写形态——`<file>.test.ts::<格题>` 两半同 token、`::` 前是文件半（须落在树里且以 `.test.ts` 结尾）、后是格题原文，路径一枚加题名另一枚不算这一形，AC ⑥ 补其成对 pin；§7.1 补成员引用的写法——索引是平坦标识符集，成员与载体同 token 以 `.` / `#` 连写、尾随实参先剥、有 `#` 取最后一个否则取第一个 `.`，前半按裸路径 / 裸符号过筛、后半过同一套符号形状判据，两半过筛而任一解析不到即产 finding（小写成员名与树上尚不存在的成员同判散文），Constraints 的「路径 + 符号」改为指向 §7.1 的三形态并删掉与正文不符的断言，AC ⑥ 补成员的成对 pin；AC ⑦ 的三行供值面改为 `CRITERIA_ROWS.length` · `LENS_QUESTION_ROWS.length` · 各行 `reviewKinds.length` 之和，pin 扫描读数只落在 `pin.*` 四行；§2.2 的举证谓词改为 `trim()` 后非空（与 §6.1 的空白格同一判据），§2.1 · §5.1 步骤 3–4 · AC ⑤ 同步；§2.2 删掉不存在的 `§3.3` 指针 | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-16） |
 | v0.19 | 2026-11-17 | 实现期对齐（§8.2 的供值面落地 · AC ⑦）：§7.3 的作者态读数由散文里的「零」写成可核引用 `census:pin.total = 0`——门读的是语料整体而不是本 spec 一份，因此这条引用在成员形态上线的那一刻就已既定（语料里另有九处同 id 引用），本次只把它对齐成同一形态；正文、本行与 front-matter 的 `version:` 三处同批落地（doc 契约腿不比正文与血缘，漏写不红，而 Constraints 按 `version:` 消费本 spec 的面） | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
+| v0.20 | 2026-11-17 | 评审修复（第 13 轮 F1 / F3 / F4 / F5 全部受理）：§7.1 的成员引用基础句改为门真正读的语料——符号索引取三棵源树的**代码体**（注释体与正则字面量体抹掉、字符串 / 模板字面量有意保留，因为胶囊的 `CDD_BLOCKED:` 与任务块 `DependsOn` 家族只在字面量里声明），不是「只按声明收集」的标识符集；§5.2 的板面标记改写成它实际是的那次判定——`LineCarriers#regradeNoteOf` 从 `findingsOf` 往回取最近一条非空记录，交给 `HandoffSchema.downgrades` / `HandoffSchema.regradeReasons` 合成，标记恰在「降档而无理由」时出；§8.2 的查表面改为树里真有的 `CensusTable.of(id)`（表由 `censusTableOf` 在装配点建出），并把「新增唯一一个访问器」改成两个（`census()` 供 finding 读数、`filesOf()` 供语料体积） | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |

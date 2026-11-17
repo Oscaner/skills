@@ -319,6 +319,24 @@ const planFor = (repoRoot: string): string => {
 const porcelain = (repoRoot: string): string =>
   spawnSync("git", ["status", "--porcelain"], { cwd: repoRoot }).stdout.toString();
 
+/** Plant the tree's baseline — the artifact `cdd base set` writes. A wave review's
+ *  scope anchor (`BASE_BRANCH`) is engine-injected from it, so every tree-review frame
+ *  that reaches the preview block plants one first (P38 §2.3 reversal ④). */
+const baseSet = async (command: Cli, plan: string): Promise<void> => {
+  expect(
+    await command.runArgv([
+      "base",
+      "set",
+      "--plan",
+      plan,
+      "--base",
+      "develop",
+      "--source",
+      "plan-field",
+    ]),
+  ).toBe(0);
+};
+
 const progressPath = (repoRoot: string): string =>
   path.join(repoRoot, ".kairos", "cdd", "p3", "progress.json");
 
@@ -353,11 +371,14 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
 
   it("consumes no round — the same line's real review still dispatches afterwards", async () => {
     const dispatch = async (): Promise<DispatchOutcome> => ({ status: "APPROVED", findings: [] });
-    const { command, cleanup, repoRoot } = fixture({ dispatch });
+    const { command, io, cleanup, repoRoot } = fixture({ dispatch });
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       expect(await command.runArgv(["implement", "--tasks", "1", "--plan", plan])).toBe(0);
+      // the wave review's scope anchor reads the base artifact before the preview runs
+      await baseSet(command, plan);
+      io.stdoutText = "";
       // the preview of the next round: no write, no ledger row
       expect(
         await command.runArgv([
@@ -371,6 +392,11 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
           "--dry-run",
         ]),
       ).toBe(0);
+      // the frame reaches the preview block — the gate refused nothing, so the five-row
+      // forecast renders and the output set stays what it was (zero added rows)
+      expect(io.stdoutText).not.toContain("refused:");
+      expect(io.stdoutText.split("\n").filter((line) => line !== "")).toHaveLength(6);
+      expect(io.stdoutText).toContain("  step:        review round 1 — wave 1");
       expect(existsSync(path.join(repoRoot, ".kairos", "cdd", "p3", "tasks-1-review-1.json"))).toBe(
         false,
       );

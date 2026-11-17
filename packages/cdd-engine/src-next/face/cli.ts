@@ -1024,11 +1024,17 @@ export class Cli {
       // derivation), and the early return means no write point below ever runs
       // (`renderBrief` skipped above, `#bookkeep`/`#reject` never reached).
       if (parsed.dryRun) {
-        // The artifact-identity gate is a PURE read (the matrix's names + the strict
-        // sidecar schema), so the preview asks the SAME judgment the real dispatch
-        // applies and prints its reason verbatim — a dry run that stayed silent here
-        // would forecast a dispatch the real run refuses.
-        const refused = harness === null ? null : harness.artifactRefusal(frame);
+        // The dispatch-input and artifact-identity gates are PURE reads (the layout's
+        // supplied cells + the matrix's names + the strict sidecar schema), so the
+        // preview asks the SAME judgment the real dispatch applies, in the same order,
+        // and prints its reason verbatim — a dry run that stayed silent here would
+        // forecast a dispatch the real run refuses. `mode: "preview"` is the gate's
+        // ONE stronger arm (a brief it would render itself is answered by its naming
+        // line, never by an existence read); every other cell is judged identically.
+        const refused =
+          harness === null
+            ? null
+            : (harness.inputRefusal(frame, "preview") ?? harness.artifactRefusal(frame));
         const preview = new Preview({ scene, words: this.#words });
         if (refused !== null) {
           for (const line of preview.artifactBlock(verb, refused)) this.#io.stdout(`${line}\n`);

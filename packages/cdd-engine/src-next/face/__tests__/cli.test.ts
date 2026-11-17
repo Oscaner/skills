@@ -4240,6 +4240,9 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         "1,2",
         { op: "implement" },
       );
+      // the wave review's scope anchor reads the base artifact, so the frame that
+      // reaches the preview block plants one first (P38 §2.3 reversal ④)
+      await baseSet(command, planPath);
       io.stderrText = "";
       // review on the implemented multi-task wave passes the gate (the preview renders).
       expect(
@@ -4254,6 +4257,8 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           "--dry-run",
         ]),
       ).toBe(0);
+      expect(io.stdoutText).toContain("  step:        review round 1 — wave 1,2");
+      expect(io.stdoutText).not.toContain("refused:");
       // a re-implement on the at-review wave is the wrong-phase BLOCK, not a silent split.
       io.stderrText = "";
       expect(
@@ -6355,6 +6360,173 @@ describe("T3 — the commander-native composition root: program parse + .action 
     } finally {
       process.chdir(savedCwd);
       rmSync(nonRepo, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P38 T3 — the preview reads the dispatch-input gate (one judgment, two faces)
+// ---------------------------------------------------------------------------
+
+/** The `refused:` row's VALUE as the preview printed it — the row's own column, never
+ *  the whole line, so the comparison is the reason's bytes alone. */
+const refusedValueOf = (stdout: string): string =>
+  /^ {2}refused: {2}(.*)$/m.exec(stdout)?.[1] ?? "(no refused row)";
+
+/** The real dispatch's `CDD_BLOCKED` value — the gate's message as the block channel
+ *  printed it (the `CDD_BLOCKED: ` prefix belongs to `#blocked`, never to the reason). */
+const blockedValueOf = (stderr: string): string =>
+  /^CDD_BLOCKED: (.*)$/m.exec(stderr)?.[1] ?? "(no CDD_BLOCKED line)";
+
+describe("cdd <verb> --dry-run — the dispatch-input gate (P38 T3)", () => {
+  /** The fixture's identity document — the file a `program:` arm rewrites. */
+  const identityOf = (repoRoot: string): string =>
+    path.join(repoRoot, "docs", "kairos", "specs", "p3-design.md");
+
+  /** One preview + one real run over the SAME frame on the SAME tree: the preview
+   *  first (it writes nothing), then the real dispatch that must refuse. The injected
+   *  child runner keeps the real leg hermetic — the gate refuses before any spawn — and
+   *  the ambient host marker is what the real leg's own detection reads. */
+  const bothFaces = async (
+    command: Cli,
+    io: CaptureIo,
+    argv: readonly string[],
+  ): Promise<{ preview: number; real: number; previewValue: string; realValue: string }> => {
+    io.stdoutText = "";
+    io.stderrText = "";
+    const preview = await command.runArgv([...argv, "--dry-run"]);
+    const previewValue = refusedValueOf(io.stdoutText);
+    io.stdoutText = "";
+    io.stderrText = "";
+    const saved = process.env.CLAUDE_CODE_SESSION_ID;
+    process.env.CLAUDE_CODE_SESSION_ID = "s";
+    let real: number;
+    try {
+      real = await command.runArgv([...argv]);
+    } finally {
+      if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+      else process.env.CLAUDE_CODE_SESSION_ID = saved;
+    }
+    return { preview, real, previewValue, realValue: blockedValueOf(io.stderrText) };
+  };
+
+  it("renders the gate's own reason on the `refused:` row — three violation arms, byte for byte", async () => {
+    /** The three reachable violation shapes: one empty cell, one absent target, and the
+     *  one-line multi-cell fold (`; `-joined). Each arm compares the preview's reason
+     *  with the real dispatch's `RoundViolation.message` — a one-byte drift either side
+     *  goes red. */
+    const arms: readonly {
+      readonly name: string;
+      readonly expected: string;
+      readonly base: boolean;
+      readonly shape?: (repoRoot: string) => void;
+    }[] = [
+      {
+        name: "empty-value",
+        expected: "dispatch-input · review · BASE_BRANCH · empty-value",
+        base: false,
+      },
+      {
+        name: "target-absent",
+        expected: "dispatch-input · review · INPUT_OVERALL · target-absent",
+        base: true,
+        // A DECLARED `program:` whose charter resolves nowhere is a broken resolution,
+        // not an absence — the round is refused before the child exists.
+        shape: (repoRoot) =>
+          writeFileSync(
+            identityOf(repoRoot),
+            "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\nprogram: gone-overall\n---\n",
+            "utf8",
+          ),
+      },
+      {
+        name: "multi-cell",
+        expected:
+          "dispatch-input · review · INPUT_OVERALL · target-absent; review · BASE_BRANCH · empty-value",
+        base: false,
+        shape: (repoRoot) =>
+          writeFileSync(
+            identityOf(repoRoot),
+            "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\nprogram: gone-overall\n---\n",
+            "utf8",
+          ),
+      },
+    ];
+    for (const arm of arms) {
+      // the real harness (no injected dispatch seam) — the gate the preview asks is the
+      // SAME instance the real run judges with
+      const { command, io, repoRoot, cleanup } = fixture({ sync: new StubRunner() });
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot);
+        if (arm.base) await baseSet(command, plan);
+        arm.shape?.(repoRoot);
+        // the wave line advances implement → review as ONE train: the review hop is
+        // dispatchable only after the implement round was recorded
+        const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+        new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis)).recordRound(
+          "1",
+          { op: "implement" },
+        );
+        const faces = await bothFaces(command, io, [
+          "review",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+        ]);
+        expect(faces.preview, `${arm.name}: preview exit`).toBe(1);
+        expect(faces.real, `${arm.name}: real exit`).toBe(1);
+        // the one judgment, two consumers: the preview's row IS the real run's message
+        expect(faces.previewValue, `${arm.name}: preview reason`).toBe(arm.expected);
+        expect(faces.realValue, `${arm.name}: real reason`).toBe(arm.expected);
+        expect(faces.previewValue, `${arm.name}: byte equivalence`).toBe(faces.realValue);
+      } finally {
+        cleanup();
+      }
+    }
+  });
+
+  it("is satisfied by the brief's NAMING — a preview never reds the brief it would have rendered itself", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ sync: new StubRunner() });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      await baseSet(command, plan);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis)).recordRound(
+        "1",
+        { op: "implement" },
+      );
+      const brief = path.join(workspace.path, "tasks-1-brief.md");
+      expect(existsSync(brief)).toBe(false);
+      io.stdoutText = "";
+
+      const code = await command.runArgv([
+        "review",
+        "--type",
+        "wave",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+        "--dry-run",
+      ]);
+      expect(code).toBe(0);
+      // the preview writes nothing, so the brief it names is still absent
+      expect(existsSync(brief)).toBe(false);
+      expect(io.stdoutText).not.toContain("refused:");
+      expect(io.stdoutText).not.toContain("target-absent");
+      // the block gained no row: the header + the five forecast rows, nothing else
+      expect(io.stdoutText.split("\n").filter((line) => line !== "")).toHaveLength(6);
+      expect(io.stdoutText).toContain("  step:        review round 1 — wave 1");
+      expect(io.stdoutText).toContain(
+        "  reads:       .kairos/cdd/p3/tasks-1-brief.md (would re-render from the current plan)",
+      );
+    } finally {
+      cleanup();
     }
   });
 });

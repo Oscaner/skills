@@ -23,6 +23,15 @@
 // raw section too: a blank line between rows must not hide a row from the table read
 // (the section's merged read is the one the doc parsers use, and a row it drops is a row
 // no gate judges).
+// Overall review 1 / F1 — the shape leg and the form leg were each half a gate, and the
+// two halves let one row live: the P20 row dropped a separator while its acceptance text
+// carried an unescaped `|`, so the cell count still matched the header (the stray pipe
+// paid for the dropped one) and the form leg — anchored at `^` — accepted a Done cell that
+// swallowed the rest of the row as trailing body. A parse looser than the format it guards
+// is not a gate, so the form leg now requires the WHOLE trimmed cell (`startsWith` the
+// declared form AND `endsWith` its closing paren), and a fixture row pins the green side of
+// the other half: a `\|` inside a cell is content, not a cell boundary, so an escape that
+// keeps the count right cannot be mistaken for the defect.
 
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -47,27 +56,34 @@ class PhaseInventory {
   static readonly VERSION_LITERAL = /v\d+\.\d+/;
 
   /** The Done form the charter's inventory header declares: `✔ Done（`<file>` · <date>）`
-   *  in full-width parentheses. A closeout note may follow the date, so the form is
-   *  anchored at the start; the filename and the date are not optional, and the filename
-   *  rides in backticks so a placeholder (`<file>`) cannot pass as one. */
-  static readonly DONE_FORM = /^✔ Done（`[^`\s]+\.md` · \d{4}-\d{2}-\d{2}/;
+   *  in full-width parentheses, judged WHOLE. A closeout note may follow the date inside
+   *  the parens (the P5 row carries one), so the note is `[^）]*` — a note cannot itself
+   *  contain a closing paren — and the cell must end at its own closing paren. That is the
+   *  half a `^`-anchored prefix left open: the swallowed-tail row passed it because a
+   *  dropped separator leaves the next column's body sitting inside the Done cell, and that
+   *  body may well end with a paren of its own. The filename and the date are not optional,
+   *  and the filename rides in backticks so a placeholder (`<file>`) cannot pass as one. */
+  static readonly DONE_FORM = /^✔ Done（`[^`\s]+\.md` · \d{4}-\d{2}-\d{2}[^）]*）$/;
 
   /** The two cell spellings the header exempts: a phase that has not landed, and the
-   *  hotfix row (no design/plan document to point at, so the delivery facts stand in). */
+   *  hotfix row (no design/plan document to point at, so the delivery facts stand in). The
+   *  hotfix form is anchored at both ends by the same rule as the Done form. */
   static readonly PENDING_CELL = "[Pending]";
-  static readonly HOTFIX_FORM = /^✔ Done（hotfix/;
+  static readonly HOTFIX_FORM = /^✔ Done（hotfix[^）]*）$/;
 
   /** The Done form as the header spells it — quoted verbatim in the form leg's defect. */
   static readonly DONE_FORM_TEXT = "✔ Done（`<file>.md` · <date>）";
 
   /** The form leg's verdict on one Done cell — undefined when the cell conforms, a named
-   *  defect otherwise. */
+   *  defect otherwise. The cell is judged WHOLE: a prefix match plus a stray closing paren
+   *  was enough to accept a cell whose tail carried the next column's body, which is the
+   *  defect a dropped separator leaves behind (`^`-anchored alone is not a form). */
   static formDefectOf(cell: string, where: string): string | undefined {
     const trimmed = cell.trim();
     if (trimmed === PhaseInventory.PENDING_CELL) return undefined;
     if (PhaseInventory.HOTFIX_FORM.test(trimmed)) return undefined;
     if (PhaseInventory.DONE_FORM.test(trimmed)) return undefined;
-    return `${where}: the cell reads ${trimmed} — a Done cell writes ${PhaseInventory.DONE_FORM_TEXT} (or the header's hotfix / [Pending] forms), so an anonymous spelling, a placeholder or a bare date is the defect`;
+    return `${where}: the cell reads ${trimmed} — a Done cell writes ${PhaseInventory.DONE_FORM_TEXT} and nothing else (the header's hotfix / [Pending] forms aside), so a trailing body after the closing paren, an anonymous spelling, a placeholder or a bare date is the defect`;
   }
 
   /** Every inventory under the overall doc root, in name order — a document that
@@ -198,12 +214,16 @@ describe("branch review 5 — the Phase inventory records identity, not a versio
     expect(INVENTORIES.flatMap((inventory) => inventory.defects())).toEqual([]);
   });
 
-  it("goes red on a bare pipe, a version literal, and a cell that skips the declared form", () => {
+  it("goes red on a bare pipe, a version literal, a cell that skips the declared form, and a Done cell with a trailing body", () => {
     // The predicate's own red-able pin, one row per defect class: a row split by a bare
     // pipe (the P25 shape), a Done cell that mirrors `version:`, and the four spellings
     // that keep the identity column but drop its identity — no filename, no date, a
     // placeholder, and the ASCII-parens form the convention replaced. The last two rows
-    // pin the header's exemptions so the form leg cannot harden into a false red.
+    // pin the header's exemptions so the form leg cannot harden into a false red, the
+    // P10 row pins the green side of the escape (`\|` is content, not a boundary, so the
+    // row still resolves), and the P11 row pins the whole-cell anchor: its Done cell
+    // carries the NEXT column's body after the closing paren, which is what a dropped
+    // separator leaves behind.
     const fixture = [
       INVENTORY_HEADING,
       "",
@@ -218,12 +238,19 @@ describe("branch review 5 — the Phase inventory records identity, not a versio
       "| P7 | ascii parens | scope | ✔ Done（`g-design.md` · 2026-11-05） | ✔ Done(`g.md` · 2026-11-05) | ok | none |",
       "| P8 | hotfix | scope | ✔ Done（hotfix · delivered PR #1 2026-11-05） | ✔ Done（hotfix · delivered PR #1 2026-11-05） | ok | none |",
       "| P9 | pending | scope | [Pending] | [Pending] | ok | none |",
+      "| P10 | escaped pipe | `cdd init --harness=<claude\\|pi>` | ✔ Done（`j-design.md` · 2026-11-05） | ✔ Done（`j.md` · 2026-11-05） | ok | none |",
+      "| P11 | swallowed tail | scope | ✔ Done（`k-design.md` · 2026-11-05）  acceptance body 蚕食 | ✔ Done（`k.md` · 2026-11-05） | ok | none |",
+      "| P12 | tail ends in a paren | scope | ✔ Done（`l-design.md` · 2026-11-05）  body（note） | ✔ Done（`l.md` · 2026-11-05） | ok | none |",
       "",
       "## Next section",
       "",
     ].join("\n");
     const inventory = PhaseInventory.of("fixture.md", fixture);
-    expect(inventory?.rows.length).toBe(9);
+    expect(inventory?.rows.length).toBe(12);
+    // The three new rows all resolve: each defect below is a cell-level verdict, not a count.
+    expect(inventory?.rows[9]?.length).toBe(7);
+    expect(inventory?.rows[10]?.length).toBe(7);
+    expect(inventory?.rows[11]?.length).toBe(7);
     const defects = inventory?.defects() ?? [];
     /** Whether any defect line names this row (optionally this column) — the messages
      *  read `fixture.md · P4 · Design spec: …` (legs over a cell) or
@@ -237,6 +264,11 @@ describe("branch review 5 — the Phase inventory records identity, not a versio
     expect(namesRow("P1"), "the clean row is a false red").toBe(false);
     expect(namesRow("P8"), "the hotfix exemption is a false red").toBe(false);
     expect(namesRow("P9"), "the [Pending] exemption is a false red").toBe(false);
+    expect(namesRow("P10"), "the escaped pipe is a false red").toBe(false);
+    expect(namesRow("P11", "Design spec"), "the swallowed tail is a false green").toBe(true);
+    expect(namesRow("P12", "Design spec"), "a tail that ends in a paren is a false green").toBe(
+      true,
+    );
     expect(
       defects.some((line) => line.includes("fixture.md · P2: ") && line.includes("8 cells")),
     ).toBe(true);

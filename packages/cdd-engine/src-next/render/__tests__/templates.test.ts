@@ -28,6 +28,7 @@ import {
 import type { TargetType } from "../../session/faces.ts";
 import {
   CLOSED_WAVE_DISCIPLINE,
+  type ContextLine,
   type ModePromptRow,
   pinLensOf,
   REVIEWS,
@@ -40,7 +41,6 @@ import {
   TEMPLATE_PROMPT,
   TemplateAssembler,
 } from "../templates.ts";
-import { contractOf, draftOf } from "./contract-draft.ts";
 
 /** The criteria keys — the five distinct bodies one target type selects among. */
 const CRITERIA_KEYS: readonly ReviewKey[] = ["wave", "branch", "plan", "spec", "overall"];
@@ -470,51 +470,38 @@ const ROWS: readonly ModePromptRow[] = [
   ...Object.values(TEMPLATE_PROMPT.reviews),
 ];
 
+/** The brief declaration a row carries — the one cell `NAMED_BRIEF_CELL` owns. */
+const briefOf = (row: ModePromptRow): ContextLine | undefined =>
+  row.roundContext.find(
+    (decl) => TemplateAssembler.slotOf(decl.line) === TemplateAssembler.NAMED_BRIEF_CELL,
+  );
+
+// The refusal leg (an engine-written declaration on any OTHER slot) is pinned by
+// `context-lines.test.ts` (f), where the construction criteria (a)–(g) live; this block
+// owns the P40-specific claims and does not restate it.
+
 describe('P40 T1 — `written: "engine"` marks the one artifact the engine writes itself', () => {
   it("declares the brief cell engine-written on every row that carries it — the contract builds", () => {
-    const carriers = ROWS.filter((row) =>
-      row.roundContext.some(
-        (decl) => TemplateAssembler.slotOf(decl.line) === TemplateAssembler.NAMED_BRIEF_CELL,
-      ),
-    );
-    // three declarations: the review tail (six rows share it), implement, fix
-    expect(carriers.length).toBeGreaterThanOrEqual(3);
+    const carriers = ROWS.filter((row) => briefOf(row) !== undefined);
+    // three declaration OBJECTS, not three rows: the review tail's declaration is shared
+    // by the six review rows, so the eight carrier rows ride three declarations
+    expect(new Set(carriers.map((row) => briefOf(row))).size).toBe(3);
     for (const row of carriers) {
-      const brief = row.roundContext.find(
-        (decl) => TemplateAssembler.slotOf(decl.line) === TemplateAssembler.NAMED_BRIEF_CELL,
-      );
-      expect(brief?.written, row.mode).toBe("engine");
+      expect(briefOf(row)?.written, row.mode).toBe("engine");
     }
     expect(() => new TemplateAssembler()).not.toThrow();
   });
 
-  it("refuses an engine-written declaration on any OTHER slot — naming that slot and the permitted one", () => {
-    const draft = draftOf();
-    draft.reviews["phase-spec"].roundContext = draft.reviews["phase-spec"].roundContext.map(
-      (decl) => (decl.line.includes("INPUT_SPEC") ? { ...decl, written: "engine" as const } : decl),
+  it("reduces the engine-written declarations to ONE slot per SLOT, not one per row", () => {
+    // `engineWrittenSlots` IS the reduction the construction-time criterion consumes:
+    // three declarations answer one slot, so deleting it (per-declaration judgment) turns
+    // this pin red instead of leaving the suite green on a rule nobody guards.
+    expect(TemplateAssembler.engineWrittenSlots(ROWS)).toEqual([
+      TemplateAssembler.NAMED_BRIEF_CELL,
+    ]);
+    const declarations = ROWS.flatMap((row) => row.roundContext).filter(
+      (decl) => decl.written === "engine",
     );
-    // A replacement declaration, never an in-place mutation: the engine guarantees the
-    // brief exists and guarantees nothing about a spec path, so the second declaration
-    // is refused where the assembler is built.
-    expect(() => new TemplateAssembler(contractOf(draft))).toThrow(/INPUT_SPEC/);
-    expect(() => new TemplateAssembler(contractOf(draft))).toThrow(/INPUT_WAVE_BRIEF/);
-  });
-
-  it("judges one declaration per SLOT — a rogue slot carried by two rows is reported once", () => {
-    const draft = draftOf();
-    for (const type of ["phase-spec", "plan"] as const) {
-      draft.reviews[type].roundContext = draft.reviews[type].roundContext.map((decl) =>
-        decl.line.includes("INPUT_SPEC") ? { ...decl, written: "engine" as const } : decl,
-      );
-    }
-    let message = "";
-    try {
-      new TemplateAssembler(contractOf(draft));
-    } catch (raw) {
-      message = (raw as Error).message;
-    }
-    expect(message).toContain("INPUT_SPEC");
-    // the judgment is per slot: two rows declaring the same slot earn one message
-    expect(message.split("INPUT_SPEC")).toHaveLength(2);
+    expect(declarations.length).toBeGreaterThanOrEqual(3);
   });
 });

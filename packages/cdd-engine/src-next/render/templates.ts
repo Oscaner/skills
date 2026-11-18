@@ -1083,18 +1083,16 @@ export class TemplateAssembler {
    *  other than the brief (e). A violation means the assembler cannot be built, so no
    *  dispatch can ever reach it — the per-render re-run is gone. */
   #assertDeclarations(): void {
-    const judged = new Set<string>();
+    // (e) judges the SLOT, never the row: `engineWrittenSlots` is that reduction, and
+    // each slot's first carrier spends its entry — the brief's three declarations earn
+    // one judgment, and a rogue slot carried by two rows is still refused once.
+    const unjudged = new Set(TemplateAssembler.engineWrittenSlots(this.#rows()));
     for (const row of this.#rows()) {
       for (const decl of row.roundContext) {
         this.#assertServed(row, decl);
         this.#assertRegistered(row, decl);
-        // (e) judges the SLOT: the brief rides three declarations, and one slot
-        // declared on several rows is one judgment, never three.
         const slot = decl.written === "engine" ? TemplateAssembler.slotOf(decl.line) : undefined;
-        if (slot !== undefined) {
-          if (judged.has(slot)) continue;
-          judged.add(slot);
-        }
+        if (slot !== undefined && !unjudged.delete(slot)) continue;
         this.#assertEngineWritten(row, decl);
       }
       this.#assertShellCarries(row);
@@ -1156,7 +1154,8 @@ export class TemplateAssembler {
    *  reads it, so the declaration carries exactly one meaning: no existence read on
    *  any path. A second slot declaring it would claim a file this engine never writes;
    *  refusing it at construction keeps the declaration error at build time instead of
-   *  on the one path that happens to take it. */
+   *  on the one path that happens to take it. The caller runs this once per SLOT (the
+   *  `engineWrittenSlots` reduction), never once per declaring row. */
   #assertEngineWritten(row: ModePromptRow, decl: ContextLine): void {
     if (decl.written !== "engine") return;
     if (TemplateAssembler.slotOf(decl.line) === TemplateAssembler.NAMED_BRIEF_CELL) return;
@@ -1185,6 +1184,22 @@ export class TemplateAssembler {
    *  that judges a layout's cells reads it here rather than re-spelling the braces. */
   static slotOf(line: string): string | undefined {
     return /\{\{([A-Z0-9_]+)\}\}/.exec(line)?.[1];
+  }
+
+  /** The distinct slots declaring `written: "engine"` — ONE entry per slot, never one
+   *  per row. The declaration rides three carriers (implement, fix, and the review
+   *  tail's single declaration shared by six review rows), so the row count overcounts
+   *  what the rule judges; the construction-time criterion reads this reduction. */
+  static engineWrittenSlots(rows: readonly ModePromptRow[]): readonly string[] {
+    const slots = new Set<string>();
+    for (const row of rows) {
+      for (const decl of row.roundContext) {
+        if (decl.written !== "engine") continue;
+        const slot = TemplateAssembler.slotOf(decl.line);
+        if (slot !== undefined) slots.add(slot);
+      }
+    }
+    return [...slots];
   }
 
   static #slotsOf(line: string): readonly string[] {

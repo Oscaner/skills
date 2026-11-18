@@ -1,7 +1,7 @@
 ---
 title: 'P40 · 派发前拒绝的记账面：四门并入 structure 腿 + 树级拒绝事实'
 doc-type: plan
-version: v0.14
+version: v0.15
 date: 2026-11-18
 slug: 2026-11-17-engine-doc-tooling-p40-design
 base: develop
@@ -27,7 +27,7 @@ base: develop
 brief 是引擎自己写的格：它的名字就是答案，文件由引擎在 spawn 之前写好，所以任何路径都不做存在性读。把这条从「仅预览的按模式豁免」改成声明面上的一档 `written: "engine"`，并使构造期断言按**槽**（不是按行）守它——三张 mode 表的同一格因此共享一条判据。
 
 #### Files
-- Modify: `packages/cdd-engine/src-next/render/templates.ts`（`ContextLine` 的声明格、三处 `preview: "satisfied"` 声明、两段描述该档的注释 prose、`TemplateAssembler#assertEngineWritten`，由原 assertPreviewAnswer 改名）
+- Modify: `packages/cdd-engine/src-next/render/templates.ts`（`ContextLine` 的声明格、三处 `preview: "satisfied"` 声明、两段描述该档的注释 prose、`TemplateAssembler#assertEngineWritten`，由原 assertPreviewAnswer 改名；判槽的归约 `TemplateAssembler.engineWrittenSlots` 与它同批落地，断言消费它）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#answeredByNaming` 的读取字段由 `decl.preview` 换成 `decl.written`，一行加两段注释；不换行为——实施轮实测：该字段若留到 Task 3 才换，则 `ContextLine` 的 `preview` 档与唯一的读者同时存在、声明面已无载体，预览豁免静默失效，face 侧测试在 Task 1 与 Task 3 之间转红）
 - Test: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`
 - Test: `packages/cdd-engine/src-next/render/__tests__/context-lines.test.ts`（`preview: "satisfied"` 的两处既有字面量同批改写为 `written: "engine"`）
@@ -42,17 +42,19 @@ brief 是引擎自己写的格：它的名字就是答案，文件由引擎在 s
 readonly written?: "engine";
 // 构造期断言改名并改判据：判「声明了 engine 的槽必须是 NAMED_BRIEF_CELL」，判槽不判行
 #assertEngineWritten(row: ModePromptRow, decl: ContextLine): void;
+// 判槽的归约：三处声明（implement · fix · review 尾）答一槽，断言消费它
+static engineWrittenSlots(rows: readonly ModePromptRow[]): readonly string[];
 ```
 
 #### Steps
-- **Step 1: 写三条失败测试**（三张 mode 表接受 brief 行 · 非 brief 槽声明 engine 期间红 · 同槽跨行只判一次） — checkable: `render/__tests__/templates.test.ts` 多出三条用例
+- **Step 1: 写两条失败测试**（三张 mode 表接受 brief 行 · `engineWrittenSlots` 把三处声明归约成一槽） — checkable: `render/__tests__/templates.test.ts` 多出两条用例；非 brief 槽的拒绝只有一份，住在 `render/__tests__/context-lines.test.ts` 的 (f)（构造期判据 (a)–(g) 的家），两个文件不再各写一遍
 - **Step 2: 跑测试确认红** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/render/__tests__/templates.test.ts` 报红，原因指向缺失的 `written` 档
-- **Step 3: 加类型档 · 改三处声明 · 断言改名 `#assertEngineWritten` 并按槽判** — checkable: `rg -n 'preview: "satisfied"' packages/cdd-engine/src-next/render` 零命中（`templates.ts` 的三处声明与其两段注释 prose · 本任务声明的两个测试文件，均同批换词）
+- **Step 3: 加类型档 · 改三处声明 · 断言改名 `#assertEngineWritten` 并消费 `TemplateAssembler.engineWrittenSlots` 的按槽归约** — checkable: `rg -n 'preview: "satisfied"' packages/cdd-engine/src-next/render` 零命中（`templates.ts` 的三处声明与其两段注释 prose · 本任务声明的两个测试文件，均同批换词）
 - **Step 4: 跑测试确认绿** — checkable: 同 Step 2 命令 0 failed
-- **Step 5: 提交** — checkable: `git show --stat HEAD` 只含 `templates.ts`、两个测试文件与 `face/lifecycle.ts`（后者一行读取字段，见 Files 的订正理由）
+- **Step 5: 提交** — checkable: `git show --stat HEAD` 只含 `templates.ts`、两个测试文件、`face/lifecycle.ts`（后者一行读取字段，见 Files 的订正理由）与本 plan 自己的 `v0.4` 回填（实施轮为把 `face/lifecycle.ts` 拉进 Task 1 而改的 Files 行与改史行）
 
 #### Acceptance
-三张 mode 表的 brief 格声明为 `written: "engine"`；非 brief 槽声明它时构造期红且报文点名该槽；`src-next/render/` 全绿；`rg -n 'preview: "satisfied"' packages/cdd-engine/src-next/render` 零命中（`templates.ts` 的三处声明与两段注释 prose、`templates.test.ts` · `context-lines.test.ts` 的既有字面量同批换词；全树零命中是 Task 3 的判据——`face/lifecycle.ts` 与 `dispatch-input.test.ts` 里的旧字面量到那时才换）。
+三张 mode 表的 brief 格声明为 `written: "engine"`；非 brief 槽声明它时构造期红且报文点名该槽（拒绝只有一份用例：`context-lines.test.ts` 的 (f)）；判槽的归约可测——`TemplateAssembler.engineWrittenSlots` 在三处声明上答一槽，删掉归约该用例即转红；`src-next/render/` 全绿；`rg -n 'preview: "satisfied"' packages/cdd-engine/src-next/render` 零命中（`templates.ts` 的三处声明与两段注释 prose、`templates.test.ts` · `context-lines.test.ts` 的既有字面量同批换词；全树零命中是 Task 3 的判据——`face/lifecycle.ts` 与 `dispatch-input.test.ts` 里的旧字面量到那时才换）。
 
 #### DependsOn
 none
@@ -617,6 +619,7 @@ pre-commit:
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.15 | 2026-11-18 | 第八轮 fix 轮（F1–F4 全采纳）：① **判槽的归约变成可观测的一条**——`TemplateAssembler.engineWrittenSlots` 把三处 `written: "engine"` 声明归约成一槽，构造期断言消费它，每个槽的首个载体花掉一条待判项；测试改钉归约本身（三处声明 → `[INPUT_WAVE_BRIEF]`），删掉归约即红（实测：把 Set 换成 push 的副本上该用例 1 failed / 32 passed），原先那条「同槽跨行只判一次」的用例因 `#assertEngineWritten` 首个违例即抛、永不能为它所指的性质转红，随归约的 pin 到位而退役（F1）；② **Step 5 的提交形状补上 plan 回填**——实施提交 `8eb54813` 含第五个路径 `docs/kairos/plans/2026-11-17-engine-doc-tooling-p40.md`（v0.4 回填 +3/−1），判据原写四个路径，与树不符（F2）；③ **重复用例退役其一**——`templates.test.ts` 的拒绝用例与 `context-lines.test.ts` 的 (f) 是同一份；拒绝留在构造期判据 (a)–(g) 的家，`templates.test.ts` 只留 P40 专属的声明覆盖与归约两条（F3）；④ **声明计数按对象钉**——用例 1 的 `>= 3` 按行计（8 行）而其注释按声明计（3 处），现补一条声明对象的计数 pin 并把注释写成实测值（F4）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |
 | v0.14 | 2026-11-18 | 第七轮 fix 轮（F1–F5 全采纳）：① **判据的 `naming` 一格由缝合自答**——Task 4 写明 `PreFlight#vet` 传常量 `{ answered: false }`（`#answeredByNaming` 唯一的读者是预览臂的那道 `mode === "preview"` 守卫，引擎写的格的存在性腿已由 `written: "engine"` 抑制），它不占 context 的第六格：`PreFlightContext` 仍是五格，Step 3 的 checkable 与 Acceptance 因此与实现同形（F1）；② **`join` 规则收窄到路径面**——Task 3 的 Acceptance 与 repoRoot 那条从「`join` 零命中」改为「`path.join` 零命中且无 `node:path` 的 import」，`Array#join` 明确合规（`detail` 的续行与 artifact 两句 `repair` 正要用它，`face/words.ts` 今日同形）（F2）；③ **`details` 收首条之后的各条**——`#renderPreflightBlocked` 先印 `message` 再逐条印 `details`，收全部四条会让首条句子在块里印两遍；Task 4 的 Produces、Step 1 与 Acceptance 改为此形状并钉一条多违纪块的整块字节断言（F3）；④ **Task 9 的三次实测提交搬进临时树**——交付分支只留 Step 7 的一次原子提交，`git worktree` 又被规则禁止，Step 5 因此写明把工作树连 `.git` 复制到临时目录再跑（F4）；⑤ **两处单命中 grep 的 docstring 同批改述**——`#artifactRefusalOf` 与 `CarrierIntegrity` 的 docstring 各自把那条格式再念一遍，进 Task 3 的 Files 与搬家的字面同批改述，单命中判据因此成立（F5）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |
 | v0.13 | 2026-11-18 | 第六轮 fix 轮（F1–F8 全采纳）：① **缝合的五格输入各有生产者**——`PreFlightContext` 由四格改五格（`host` · `values` · `declarations` · `scene` · `artifact`），后两格由组合根交值（`#template.layoutOf(values)` 与 `scene.program` / `scene.docType` 布尔化），`(cycle, attempt)` 不随 context 走（它不喂任何一行，只进拒绝记录）——`session/` 因此不新增 `render/` 的 import（`render/templates.ts` 反过来 import `session/faces.ts`，那条边会成环）（F1）；② **board 行的轮标识与 `crashed:` 同拼写**——Task 7 的围栏改回 `{op} {cycle}·a{attempt} {station} · {detail}`，首条用例钉字节（F2）；③ **context 构造器的真实清单**——`waveCtx` · `docCtx` · `branchCtx` · `carrierCtx` 四个加一条，`plan-read-consistency.test.ts` 的 `preflightCtxOf` 进 Task 4 Files，计数改为五个构造器 / 43 处 `vet` 调用（F3）；④ **artifact 行的两个臂都有字面之家**——`RowWording.artifact` 增 `invalid` 格，present-but-unreadable 那句 `rulings sidecar — {reason}` 从 `face/lifecycle.ts` 迁进 `CAPSULE_WORDS.artifactIdentity`，并补一条单命中 grep（F4）；⑤ **死格与死词汇不登台**——判据的事实类型只留它自己读的两格（`type` · `host`），composer 的 scene 格少一格（rulings 路径改为由快照的 `read` 臂派生），`PreFlightReason` 不扩（四新行的措辞来自行的 detail）（F5）；⑥ **退役的私有机械逐个点名**——`#inputRefusalOf` · `#artifactRefusalOf` · `#artifactCellOf` · `#artifactReadOf` · `#requesterDigest` · `#rulingsInputOf` · `#answeredByNaming` 与 `ArtifactCell` · `NO_ARTIFACT` · `artifact-reads` 的三个 import 进 Task 5，并补一条零命中 grep（F6）；⑦ **(i) 的两半分开落定**——`inputRefusal(reviewFrameOf())` 随纯判据搬迁，只有 `step()` 断言留下（F7）；⑧ **平面句收窄**——`contract/` 不 import `session/` 只声明本任务两个新模块，既有三条 contract→session 边归 P39（F8）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |
 | v0.1 | 2026-11-18 | 首稿：八任务 / 六波（{1} → {3} → {2,4} → {5,7} → {6} → {8}）。判据抽 `contract/` 以避免 session→face 的新环（RowStation 是站名域的唯一声明，`PreFlightGateName` 以它扩四值）；brief 改记引擎写先行；记录晚于判据、早于接线；board 独立于接线；优先级位移与 `--recover` 各自成对验收；changeset 收尾 | Oscaner M. · Claude |

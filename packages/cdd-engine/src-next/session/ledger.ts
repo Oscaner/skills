@@ -33,7 +33,7 @@ import type { HandoffFamily } from "../infra/runtime.ts";
 import type { Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { CarrierIntegrity } from "./carrier-integrity.ts";
-import { type RouteTarget, type TargetType, targetFaces } from "./faces.ts";
+import { type DispatchPhase, type RouteTarget, type TargetType, targetFaces } from "./faces.ts";
 import { type Carrier, type CarrierPlane, HandoffSchema } from "./handoff-schema.ts";
 import { LineIdentity } from "./line-identity.ts";
 import type { DocClassVerdict, NextHop, Route } from "./next.ts";
@@ -352,6 +352,20 @@ export class RoundRecords {
     return mode === "implement" || mode === "review" || mode === "fix" ? mode : null;
   }
 
+  /** One op's CYCLE REGISTER over a record slice — the distinct cycles, in first-seen
+   *  order. The ONE derivation of "how many rounds of this op are on record": the
+   *  ledger's `roundCount` reads it over the stored row, the pre-frame identity
+   *  allocation reads it over that row PLUS the round `--recover` is about to book. The
+   *  two slices are the only difference between the readers, never the rule — which is
+   *  why a fold that opens a cycle moves the frame's round and the composed one alike. */
+  static cyclesOf(records: readonly AttemptIdentity[], op: OpType): readonly number[] {
+    const cycles: number[] = [];
+    for (const record of records) {
+      if (record.op === op && !cycles.includes(record.cycle)) cycles.push(record.cycle);
+    }
+    return cycles;
+  }
+
   /** `n` as the contiguous identity list `1..n` (the retired numeric-count form). */
   static #contiguous(count: number): readonly number[] {
     return Array.from({ length: count }, (_unused, index) => index + 1);
@@ -407,6 +421,49 @@ export class AbortFold {
     key: LedgerKey,
   ): readonly AttemptIdentity[] {
     return booked !== null && booked.key === String(key) ? [...records, booked] : records;
+  }
+}
+
+/**
+ * ConsumedRound — the `(cycle, attempt)` one dispatch takes, allocated over the records
+ * it will actually see.
+ *
+ * The frame builder (`Lifecycle`'s `#roundFor` · `#attemptFor`) reads a ledger that
+ * already holds the round the `--recover` abort fold booked; the pre-frame value
+ * assembly runs BEFORE that fold (P30 §2.1④ — a dirty tree is never displaced by an
+ * argument) and therefore reads the row PLUS the round the fold is about to write
+ * (`AbortFold.withPending`). BOTH cells are computed over that one slice: the
+ * review-lead cycle is the register's length there, not over the bare row — a fold that
+ * opens a new review cycle moves the round the frame will take, so a cycle read off the
+ * pre-fold row names the killed round's own cycle while the frame dispatches the next
+ * one. `implement` is the fixed family and `fix` reads COMPLETED review cycles only
+ * (an abort record is never `targetAction`), so the fold leaves both where they were.
+ */
+// biome-ignore lint/complexity/noStaticOnlyClass: the allocation's single read — the zero-bare-function discipline admits no standalone function.
+export class ConsumedRound {
+  /** The round this dispatch consumes, over the row plus the fold's pending round. */
+  static of(
+    ledger: Ledger,
+    phase: DispatchPhase,
+    key: LedgerKey,
+    folded: BookedAbort | null,
+  ): { cycle: number; attempt: number } {
+    const op = RoundRecords.opOf(phase) ?? "review";
+    const records = AbortFold.withPending(ledger.recordsOf(key), folded, key);
+    const cycle =
+      phase === "implement"
+        ? 1
+        : phase === "fix"
+          ? ConsumedRound.#fixCycleOf(ledger, key)
+          : RoundRecords.cyclesOf(records, op).length + 1;
+    return { cycle, attempt: ledger.naming().attemptOf(records, op, cycle) };
+  }
+
+  /** The fix cycle: the source review-lead's latest COMPLETED cycle. A failed fix never
+   *  pushes it forward — a retry is that cycle's attempt + 1, never a phantom cycle. */
+  static #fixCycleOf(ledger: Ledger, key: LedgerKey): number {
+    const completed = ledger.completedCycles(key, "review");
+    return completed.length > 0 ? Math.max(...completed) : 1;
   }
 }
 
@@ -841,13 +898,7 @@ export class Ledger {
   #cyclesOf(row: ProgressRow | undefined, mode: string): readonly number[] {
     const op = RoundRecords.opOf(mode);
     if (op === null) return [];
-    return [
-      ...new Set(
-        RoundRecords.of(row)
-          .filter((record) => record.op === op)
-          .map((record) => record.cycle),
-      ),
-    ];
+    return RoundRecords.cyclesOf(RoundRecords.of(row), op);
   }
 
   /** The row's round records — the ONE read face the ledger's consumers share. The

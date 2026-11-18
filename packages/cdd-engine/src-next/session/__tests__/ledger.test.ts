@@ -34,6 +34,7 @@ import { CarrierIntegrity, CarrierMismatchError } from "../carrier-integrity.ts"
 import { HandoffSchema } from "../handoff-schema.ts";
 import {
   AbortFold,
+  ConsumedRound,
   type FoldableRecord,
   Ledger,
   type ProgressData,
@@ -2467,5 +2468,118 @@ describe("AbortFold — the fold's identity, readable before the fold runs", () 
     } finally {
       cleanup();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P40 T4 — ConsumedRound, the (cycle, attempt) the dispatch takes over the fold
+// ---------------------------------------------------------------------------
+
+describe("ConsumedRound — the cell pair the fold leaves the frame", () => {
+  /** The frame builder's OWN allocation (`Lifecycle`'s `#roundFor` · `#attemptFor`),
+   *  replayed over a ledger that ALREADY holds the folded round — the value the
+   *  dispatched prompt and the round record are built from. */
+  const frameOf = (ledger: Ledger, key: string) => {
+    const cycle = ledger.roundCount(key, "review") + 1;
+    return { cycle, attempt: ledger.naming().attemptOf(ledger.recordsOf(key), "review", cycle) };
+  };
+
+  it("opens the next review cycle when the fold books a NEW cycle", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // The killed review never reached the ledger: the fold is about to book 1·a1.
+      const booked = AbortFold.bookedOf({ wave: "1", phase: "review", cycle: 1, attempt: 1 });
+      const composed = ConsumedRound.of(ledger, "review", "1", booked);
+      // Reading the cycle off the bare row would compose 1·a2 — the KILLED cycle with the
+      // killed round's attempt bumped — while the frame dispatches 2·a1.
+      expect(composed).not.toEqual({ cycle: 1, attempt: 2 });
+      // The fold lands, and the frame allocates over the post-fold ledger.
+      ledger.recordRound("1", {
+        op: "review",
+        cycle: 1,
+        attempt: 1,
+        verdict: { treeClean: true, targetAction: false },
+      });
+      expect(composed).toEqual(frameOf(ledger, "1"));
+      expect(composed).toEqual({ cycle: 2, attempt: 1 });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("folds `branch-review` onto the review register — the branch line's own count", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const booked = AbortFold.bookedOf({
+        wave: "1",
+        phase: "branch-review",
+        cycle: 1,
+        attempt: 1,
+      });
+      // The phase word counts the same register `#reviewCount` counts (the face row's
+      // `reviewLead`), so the branch line composes the cycle its frame takes.
+      expect(ConsumedRound.of(ledger, "branch-review", "1", booked)).toEqual({
+        cycle: 2,
+        attempt: 1,
+      });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("a re-attempt fold lands on the cycle already on record — one cycle, next attempt", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      ledger.recordRound("1", {
+        op: "review",
+        cycle: 1,
+        attempt: 1,
+        verdict: { treeClean: true, targetAction: false },
+      });
+      const booked = AbortFold.bookedOf({ wave: "1", phase: "review", cycle: 1, attempt: 2 });
+      expect(ConsumedRound.of(ledger, "review", "1", booked)).toEqual({ cycle: 2, attempt: 1 });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("keeps implement and fix where the fold put them", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      // implement — the fixed family: the cycle never moves, the attempt counts the fold.
+      const implement = AbortFold.bookedOf({ wave: "1", phase: "implement", cycle: 1, attempt: 1 });
+      expect(ConsumedRound.of(ledger, "implement", "1", implement)).toEqual({
+        cycle: 1,
+        attempt: 2,
+      });
+      // fix — the latest COMPLETED review cycle; the abort record is never completed, so
+      // it shifts the attempt alone.
+      ledger.recordRound("1", { op: "review", cycle: 1, attempt: 1 });
+      const fix = AbortFold.bookedOf({ wave: "1", phase: "fix", cycle: 1, attempt: 1 });
+      expect(ConsumedRound.of(ledger, "fix", "1", fix)).toEqual({ cycle: 1, attempt: 2 });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("another key's pending round shifts neither cell", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const booked = AbortFold.bookedOf({ wave: "2", phase: "review", cycle: 1, attempt: 1 });
+      expect(ConsumedRound.of(ledger, "review", "1", booked)).toEqual({ cycle: 1, attempt: 1 });
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("the cycle register is the distinct cycles of ONE op, first-seen order", () => {
+    const records = [
+      { op: "review" as const, cycle: 2, attempt: 1 },
+      { op: "implement" as const, cycle: 1, attempt: 1 },
+      { op: "review" as const, cycle: 1, attempt: 1 },
+      { op: "review" as const, cycle: 1, attempt: 2 },
+    ];
+    // A re-attempt at an existing cycle adds no cycle — the count is the identity set.
+    expect(RoundRecords.cyclesOf(records, "review")).toEqual([2, 1]);
   });
 });

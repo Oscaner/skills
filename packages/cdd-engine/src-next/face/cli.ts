@@ -84,8 +84,8 @@ import { HoldingError, InFlight } from "../session/inflight.ts";
 import {
   AbortFold,
   type BookedAbort,
+  ConsumedRound,
   Ledger,
-  type LedgerKey,
   type OpType,
   RoundRecords,
   type RoundStatus,
@@ -271,6 +271,19 @@ interface BeforeParts {
   readonly phase: DispatchPhase;
   readonly parsed: RunInput;
   readonly folded: BookedAbort | null;
+}
+
+/** The dispatch seam's inputs. One object rather than five positionals: `recovered`
+ *  (the composition root already ran the `--recover` legs, so the harness must not fold
+ *  again) and `recover` (the SAME derived value every other reader takes — the harness's
+ *  takeover permission included) are two different facts about one flag, and passing
+ *  them apart is what let four spellings of it drift. */
+interface DispatchParts {
+  readonly scene: WorkScene;
+  readonly parsed: RunInput;
+  readonly recovered: boolean;
+  readonly recover: boolean;
+  readonly artifacts: ArtifactRegistry;
 }
 
 /**
@@ -874,14 +887,20 @@ export class Cli {
     // exactly what this assembly retires. The seam's four rows and the renderer read the
     // SAME record.
     //
+    // The `--recover` flag's ONE derived value: `--dry-run` VOIDS it — the preview never
+    // takes over, never folds and never reopens, so it also judges the in-flight row as
+    // an ordinary invocation does. Every reader below (the stale read, the seam's
+    // `recover` input, the recovery legs, the dispatch seam's own fold and the harness's
+    // acquire permission) takes THIS value: four spellings of the conjunction are four
+    // chances for the composer to allocate over a round the fold never books.
+    const recover = !parsed.dryRun && parsed.args.recover === "true";
+
     // The round `--recover` is about to fold: the recovery legs run AFTER the verdict
     // (P30 §2.1④ — a dirty tree is never displaced by an argument), so at this instant
     // the ledger does not hold the killed round yet, while the dispatch that follows
-    // will allocate over it. `AbortFold` is the fold's OWN reader, so the attempt the
-    // prompt names and the attempt the round record lands on are one number. `--dry-run`
-    // voids the flag exactly as the seam's `recover` input does: the preview never folds.
-    const stale =
-      !parsed.dryRun && parsed.args.recover === "true" ? await inflight.staleState() : null;
+    // will allocate over it. `AbortFold` is the fold's OWN reader, so the cycle and the
+    // attempt the prompt names and the round record lands on are one pair of numbers.
+    const stale = recover ? await inflight.staleState() : null;
     const folded = stale?.kind === "held" ? AbortFold.bookedOf(stale.record) : null;
     const before = this.#beforeOf({ scene, type, phase: expected, parsed, folded });
 
@@ -922,10 +941,10 @@ export class Cli {
           }
         : null,
       inflight,
-      // The explicit takeover flag — VOID under --dry-run: the preview face never
-      // acquires, so a takeover there would have no write channel at all. The
-      // preview still judges the same gate, sees the same holder facts, and exits 1.
-      recover: !parsed.dryRun && parsed.args.recover === "true",
+      // The explicit takeover flag — VOID under --dry-run (the ONE derived value): the
+      // preview face never acquires, so a takeover there would have no write channel at
+      // all. The preview still judges the same gate, sees the same holder facts, exits 1.
+      recover,
       // P40 T4's five inputs — each with a producer at THIS root, none imported from
       // another plane: the value record and the snapshot are the assembly above, the
       // host probe is the ONE value `HostDetect.detect` answers, the declarations are the
@@ -944,9 +963,7 @@ export class Cli {
     // A STRUCTURE refusal keeps its own face: the recovery legs are skipped, so a dirty
     // tree or a live holder is never displaced by an argument.
     const recovery =
-      !parsed.dryRun &&
-      parsed.args.recover === "true" &&
-      this.#authority.structureRefusal(preflight) === null
+      recover && this.#authority.structureRefusal(preflight) === null
         ? await this.#recoverRun(verb, type, scene, parsed, inflight, artifacts)
         : null;
     if (recovery !== null && recovery.kind === "blocked") {
@@ -1030,12 +1047,13 @@ export class Cli {
       scene.briefPath = this.#gate.renderBrief(scene, parsed, text, doc);
     }
     const statuses: (RoundStatus | null)[] = [];
-    const { step: dispatch, harness } = await this.#dispatchOf(
+    const { step: dispatch, harness } = await this.#dispatchOf({
       scene,
       parsed,
-      recovery !== null,
+      recovered: recovery !== null,
+      recover,
       artifacts,
-    );
+    });
     const run = new Lifecycle({
       face: scene.face,
       state: scene.state,
@@ -1194,18 +1212,18 @@ export class Cli {
    *  retired synthetic approval (`() => ({ status: "APPROVED", findings: [] })`)
    *  has no remaining caller: a preview books no round and fabricates no
    *  conclusion. */
-  async #dispatchOf(
-    scene: WorkScene,
-    parsed: RunInput,
-    recovered: boolean,
-    artifacts: ArtifactRegistry,
-  ): Promise<{ step: DispatchStep; harness: CliLifecycle | null }> {
+  async #dispatchOf(parts: DispatchParts): Promise<{
+    step: DispatchStep;
+    harness: CliLifecycle | null;
+  }> {
+    const { scene, parsed, recovered, recover, artifacts } = parts;
     if (this.#dispatch !== null) return { step: this.#dispatch, harness: null };
-    const harness = this.#lifecycleOf(scene, parsed, artifacts);
+    const harness = this.#lifecycleOf(scene, parsed, artifacts, recover);
     // The abort fold already ran at the composition root's `--recover` judgment
     // (`#recoverRun`) when `recovered`; the injected/default face keeps its own fold
-    // here, so the takeover always precedes this dispatch's own record.
-    if (!recovered && !parsed.dryRun && parsed.args.recover === "true") {
+    // here, so the takeover always precedes this dispatch's own record. `recover` is
+    // the composition root's ONE derived value — never a second reading of the flag.
+    if (!recovered && recover) {
       await harness.foldAbort();
     }
     // The harness itself rides back so the `--dry-run` branch can ask it the three
@@ -1244,7 +1262,9 @@ export class Cli {
     // carries `briefPath` — the dispatch-input gate reads it). `foldAbort` touches only
     // the in-flight record and the ledger, so a pre-brief instance is enough.
     const stale = (await inflight.staleState()) !== null;
-    if (stale) await this.#lifecycleOf(scene, parsed, artifacts).foldAbort();
+    // `true`: this judgment runs ONLY under the derived `--recover` (the caller's guard),
+    // so the harness it builds holds the takeover permission by construction.
+    if (stale) await this.#lifecycleOf(scene, parsed, artifacts, true).foldAbort();
     const reopened = await this.#reopenLeg(verb, type, scene, inflight);
     if (stale || reopened) return { kind: "allowed" };
     return { kind: "blocked", message: RECOVER_NOTHING };
@@ -1288,7 +1308,12 @@ export class Cli {
    *  abort fold (the takeover that precedes the stamp, spec §2.1④) therefore rides its
    *  own throwaway instance in `#recoverRun`: it touches only the in-flight record and
    *  the ledger, so a pre-brief instance is enough. */
-  #lifecycleOf(scene: WorkScene, parsed: RunInput, artifacts: ArtifactRegistry): CliLifecycle {
+  #lifecycleOf(
+    scene: WorkScene,
+    parsed: RunInput,
+    artifacts: ArtifactRegistry,
+    recover: boolean,
+  ): CliLifecycle {
     return new CliLifecycle({
       env: process.env,
       sync: this.#sync,
@@ -1309,8 +1334,9 @@ export class Cli {
       },
       reviews: parsed.paths.reviews,
       // The explicit takeover flag (`--recover`): the ONLY path that displaces a
-      // standing in-flight record — and only when its holder is dead.
-      recover: parsed.args.recover === "true",
+      // standing in-flight record — and only when its holder is dead. The caller's ONE
+      // derived value (void under `--dry-run`, which never dispatches this harness).
+      recover,
       // The same matrix instance the scene's ledger and router hold.
       artifacts,
     });
@@ -1354,7 +1380,7 @@ export class Cli {
     // rendered artifact names and the attempt allocation all read this value, so the
     // refusal record and the prompt cannot name two different verbs.
     const op = RoundRecords.opOf(phase) ?? "review";
-    const { cycle, attempt } = this.#consumedRoundOf(scene.ledger, key, phase, folded);
+    const { cycle, attempt } = ConsumedRound.of(scene.ledger, phase, key, folded);
     const identity: DispatchIdentity = { op, type, phase, tasks, cycle, attempt };
     const carrier = { type, key, cycle, tasks };
     const carrierPath = RequestingCarrier.path(scene.ledger, parsed.paths.reviews, carrier);
@@ -1388,35 +1414,6 @@ export class Cli {
       ),
     };
     return { identity, values: DispatchValues.compose(identity, sceneFacts, artifact), artifact };
-  }
-
-  /** The round this dispatch will consume — the frame-free twin of `Lifecycle`'s own
-   *  allocation (`#roundFor` · `#attemptFor`): implement is always round 1, fix the
-   *  latest COMPLETED review cycle, the review lead the recorded cycle count + 1; the
-   *  attempt is then allocated ON that cycle by the naming face's ONE allocator, over the
-   *  records the dispatch will actually see — the ledger's own PLUS the round the
-   *  `--recover` abort fold is about to book on THIS key (`folded`). The fold runs after
-   *  the verdict, so without it the composed attempt would trail the frame's by one and
-   *  the prompt's `OUTPUT_*` / handoff names would point at the killed attempt while the
-   *  round record and the carrier landed at the next one. */
-  #consumedRoundOf(
-    ledger: Ledger,
-    key: LedgerKey,
-    phase: DispatchPhase,
-    folded: BookedAbort | null,
-  ): { cycle: number; attempt: number } {
-    const completed = ledger.completedCycles(key, "review");
-    const cycle =
-      phase === "implement"
-        ? 1
-        : phase === "fix"
-          ? completed.length > 0
-            ? Math.max(...completed)
-            : 1
-          : ledger.roundCount(key, phase) + 1;
-    const op = RoundRecords.opOf(phase) ?? "review";
-    const records = AbortFold.withPending(ledger.recordsOf(key), folded, key);
-    return { cycle, attempt: ledger.naming().attemptOf(records, op, cycle) };
   }
 
   /** The test-evidence path of this dispatch — the round's own name on the evidence

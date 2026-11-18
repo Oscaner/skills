@@ -495,6 +495,11 @@ describe("DispatchValues.compose — the pre-frame record is the rendered one", 
       const { facts } = sceneFactsOf(fixture, "implement", "wave");
       const values = DispatchValues.compose(identity, facts, ABSENT_ARTIFACT);
       expect(values.WAVE).toBe("1");
+      // The pair's FIRST half is the RECORD, cell by cell: a cell the role's declaration
+      // drops from the prompt (`INPUT_REVIEWS` off the fix face, the review face's
+      // `WAVE`) is invisible in the bytes, so only the two records can witness the
+      // agreement the seam and the renderer rely on.
+      expect(values).toEqual(lifecycle.valuesOf(waveFrame()));
       const prompt = new TemplateAssembler().render(values);
       // The child's ONE positional is the prompt with the host's skill-ref prefix in
       // front of it; the PREFIX is the host channel's, the prompt bytes are the values'.
@@ -539,6 +544,9 @@ describe("DispatchValues.compose — the pre-frame record is the rendered one", 
       const values = DispatchValues.compose(identity, facts, artifact);
       expect(values.INPUT_REVIEWS).toBe(reviewsPath);
       expect(values.ROLE).toBe("docs-fix");
+      // The record pair on the fix face — the second of the two faces `WAVE` and
+      // `INPUT_REVIEWS` are carried by.
+      expect(values).toEqual(lifecycle.valuesOf(fixFrame()));
       const prompt = new TemplateAssembler().render(values);
       expect(runner.calls[0]!.args.at(-1)!.endsWith(prompt)).toBe(true);
     } finally {
@@ -617,6 +625,33 @@ const splitRequest = (fixture: Fixture, structure: PreFlightVerdict): DispatchRe
 };
 
 describe("the priority shift — the structure rows sit ahead of the line leg", () => {
+  it("stands the four rows down where a wave dispatch has no batch — the line leg answers", async () => {
+    const fixture = fixtureOf();
+    try {
+      // The plan's only wave is closed: the predicted batch is the open frontier, which is
+      // empty — so the record carries neither `WAVE` nor `INPUT_WAVE_BRIEF`. Both cells
+      // are the engine's own derivation (`DispatchIdentity.tasks`), never an input the
+      // orchestrator could supply, so refusing on their emptiness would mask the real
+      // answer: the line leg's `split` (the plan has no open wave to dispatch).
+      const values = waveValuesOf({ WAVE: "", INPUT_WAVE_BRIEF: "" });
+      const verdict = await preflightOf().vet(
+        waveCtxOf(fixture, { values, declarations: new TemplateAssembler().layoutOf(values) }),
+      );
+      expect(verdict.ok).toBe(true);
+      // The four pre-dispatch rows never ran: there is no input face to judge.
+      expect(verdict.order).toEqual(["tree-clean", "in-flight", "graph", "plan-ledger"]);
+      expect(new DispatchAuthority().structureRefusal(verdict)).toBeNull();
+      // …and the same dispatch then reaches the line leg, which owns the refusal.
+      const line = new DispatchAuthority().verdict(splitRequest(fixture, verdict));
+      expect(line.allowed).toBe(false);
+      if (line.allowed) throw new Error("expected a line refusal");
+      expect(line.leg).toBe("line");
+      expect(line.reason).toBe("split");
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
   it("reports the gate's row while both legs are broken, and the line's row once it clears", async () => {
     const fixture = fixtureOf();
     try {

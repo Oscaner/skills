@@ -52,6 +52,7 @@ import type { CarrierPlane, GradingViolation } from "../session/handoff-schema.t
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
 import {
+  AbortFold,
   CONCLUDED_BLOCKED_CAUSE,
   type CrashCause,
   type HandoffParams,
@@ -61,7 +62,6 @@ import {
   type RoundFinding,
   type RoundIdentity,
   type RoundRecord,
-  RoundRecords,
   type RoundStatus,
   type RoundVerdict,
   RoundViolation,
@@ -375,11 +375,13 @@ export class CliLifecycle {
    *  A record that cannot name its whole identity — the row key, the op, the cycle or the
    *  attempt — is NOT booked: the takeover happens, and no identity is made up for it. An
    *  allocated cycle or a defaulted attempt would be invented facts, and either could
-   *  overwrite a real round's record on the same `(op, cycle, attempt)`. */
+   *  overwrite a real round's record on the same `(op, cycle, attempt)`. The identity read
+   *  is `AbortFold.bookedOf` — the SAME reader the pre-frame value assembly allocates the
+   *  attempt over, so the abort record and the dispatch that follows never disagree. */
   #bookAbort(record: InFlightRecord): boolean {
-    const op = RoundRecords.opOf(record.phase ?? "");
-    const { wave: key, cycle, attempt } = record;
-    if (op === null || key === null || cycle === null || attempt === null) return false;
+    const booked = AbortFold.bookedOf(record);
+    if (booked === null) return false;
+    const { key, op, cycle, attempt } = booked;
     this.#scene.ledger.recordRound(key, {
       op,
       cycle,
@@ -1025,6 +1027,16 @@ export class CliLifecycle {
    *  plain form passes the prompt verbatim. */
   #childPrompt(form: "ref-prefixed" | "plain", ref: string | null, prompt: string): string {
     return form === "ref-prefixed" && ref !== null ? `${ref} ${prompt}` : prompt;
+  }
+
+  /** The frame-bound value record the dispatch renders — the ONE public read of the
+   *  private assembly below. `DispatchValues.compose` answers the same record frame-free,
+   *  and the two must agree CELL BY CELL (P40 T4's pair assertion): the prompt bytes alone
+   *  cannot witness a cell the role's own declaration drops (`INPUT_REVIEWS` off the fix
+   *  face, the review face's `WAVE`), so the pair compares records. This accessor retires
+   *  with `#valuesOf` once the renderer reads the composer (P40 T5). */
+  valuesOf(frame: OpenFrame): TemplateValues {
+    return this.#valuesOf(frame, this.#artifactCellOf(frame));
   }
 
   /** The round-context zone values of the dispatch prompt (the naming contract:

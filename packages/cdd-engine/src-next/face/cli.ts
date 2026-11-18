@@ -82,6 +82,8 @@ import { TaskGraph } from "../session/graph.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { HoldingError, InFlight } from "../session/inflight.ts";
 import {
+  AbortFold,
+  type BookedAbort,
   Ledger,
   type LedgerKey,
   type OpType,
@@ -257,6 +259,19 @@ const ABSENT_SNAPSHOT_READ: ArtifactSnapshotRead = {
  *  dispatch must not fold again), or the refusal to print. */ type RecoverRun =
   | { readonly kind: "allowed" }
   | { readonly kind: "blocked"; readonly message: string };
+
+/** The pre-frame value assembly's inputs. One object rather than five positionals: the
+ *  assembly reads exactly these five facts and its only caller writes them at one call
+ *  site. `folded` is the round `--recover` is about to book — the recovery legs run after
+ *  the verdict by spec order, so the ledger does not hold it yet when the values are
+ *  composed (`AbortFold` answers what the fold will write). */
+interface BeforeParts {
+  readonly scene: WorkScene;
+  readonly type: TargetType;
+  readonly phase: DispatchPhase;
+  readonly parsed: RunInput;
+  readonly folded: BookedAbort | null;
+}
 
 /**
  * The Cli — the command face's parse/run surface over the assembled object graph.
@@ -846,12 +861,29 @@ export class Cli {
       for (const id of scene.ledger.closedWaves()) scene.state.markDone(id);
     }
 
+    // The in-flight handle of this tree — ONE instance per invocation, built at the
+    // tree root (not the slug workspace: the collision domain is the tree). The gate
+    // only inspects it; the lifecycle's real dispatch path acquires it after the gate.
+    // It is built HERE, before the value assembly, because the `--recover` abort fold
+    // books a round the assembly must already count (see `folded` below).
+    const inflight = new InFlight(scene.workspace.root, scene.workspace.slug);
+
     // P40 T4 — the dispatch's value record and artifact snapshot, assembled ONCE here
     // and handed to the seam: the frames `Lifecycle#peekNext()` would build do not exist
     // yet (the run is constructed only after the verdict), and a frame-bound producer is
     // exactly what this assembly retires. The seam's four rows and the renderer read the
     // SAME record.
-    const before = this.#beforeOf(scene, type, expected, parsed);
+    //
+    // The round `--recover` is about to fold: the recovery legs run AFTER the verdict
+    // (P30 §2.1④ — a dirty tree is never displaced by an argument), so at this instant
+    // the ledger does not hold the killed round yet, while the dispatch that follows
+    // will allocate over it. `AbortFold` is the fold's OWN reader, so the attempt the
+    // prompt names and the attempt the round record lands on are one number. `--dry-run`
+    // voids the flag exactly as the seam's `recover` input does: the preview never folds.
+    const stale =
+      !parsed.dryRun && parsed.args.recover === "true" ? await inflight.staleState() : null;
+    const folded = stale?.kind === "held" ? AbortFold.bookedOf(stale.record) : null;
+    const before = this.#beforeOf({ scene, type, phase: expected, parsed, folded });
 
     // THE pre-flight seam (P4.1 T1 · design §1): the STRUCTURE gates —
     // tree-clean → in-flight → plan-carrier → graph → plan-ledger → doc-contract, then
@@ -873,10 +905,7 @@ export class Cli {
         ? scene.target.doc
         : "",
     );
-    // The in-flight handle of this tree — ONE instance per invocation, built at the
-    // tree root (not the slug workspace: the collision domain is the tree). The gate
-    // only inspects it; the lifecycle's real dispatch path acquires it after the gate.
-    const inflight = new InFlight(scene.workspace.root, scene.workspace.slug);
+    // The in-flight handle of this tree is built above, with the value assembly.
     const preflight = await this.#preflight.vet({
       type,
       repoRoot: scene.workspace.root.repoRoot,
@@ -1303,22 +1332,19 @@ export class Cli {
     return typeof artifact?.base === "string" ? artifact.base : "";
   }
 
-  /** P40 T4 — the pre-frame dispatch assembly: the identity, the flat value record and
-   *  the artifact snapshot the seam judges (and, after Task 5, the renderer renders). It
+  /** The pre-frame dispatch assembly: the identity, the flat value record and the
+   *  artifact snapshot the seam judges (and, after Task 5, the renderer renders). It
    *  runs BEFORE `PreFlight#vet` because the frames `Lifecycle#peekNext()` builds do not
    *  exist yet — every fact here is a flat, frame-free value: the ledger's recorded
    *  rounds, the argv's parsed paths, the workspace's own directory, the naming face's
-   *  rendered names. ONE assembly, two consumers. */
-  #beforeOf(
-    scene: WorkScene,
-    type: TargetType,
-    phase: DispatchPhase,
-    parsed: RunInput,
-  ): {
+   *  rendered names. ONE assembly, two consumers. The five inputs ride one object: the
+   *  assembly reads exactly five facts and its only caller writes them once. */
+  #beforeOf(parts: BeforeParts): {
     identity: DispatchIdentity;
     values: Readonly<Record<string, string>>;
     artifact: ArtifactSnapshot;
   } {
+    const { scene, type, phase, parsed, folded } = parts;
     // The wave's task group is the OPEN batch the frame builder will read — the SAME
     // `frontier(doneTasks())` call `Lifecycle#openWaveFrame` makes, taken after the
     // closed waves were mirrored into the run state above.
@@ -1328,7 +1354,7 @@ export class Cli {
     // rendered artifact names and the attempt allocation all read this value, so the
     // refusal record and the prompt cannot name two different verbs.
     const op = RoundRecords.opOf(phase) ?? "review";
-    const { cycle, attempt } = this.#consumedRoundOf(scene.ledger, key, phase);
+    const { cycle, attempt } = this.#consumedRoundOf(scene.ledger, key, phase, folded);
     const identity: DispatchIdentity = { op, type, phase, tasks, cycle, attempt };
     const carrier = { type, key, cycle, tasks };
     const carrierPath = RequestingCarrier.path(scene.ledger, parsed.paths.reviews, carrier);
@@ -1367,11 +1393,17 @@ export class Cli {
   /** The round this dispatch will consume — the frame-free twin of `Lifecycle`'s own
    *  allocation (`#roundFor` · `#attemptFor`): implement is always round 1, fix the
    *  latest COMPLETED review cycle, the review lead the recorded cycle count + 1; the
-   *  attempt is then allocated ON that cycle by the naming face's ONE allocator. */
+   *  attempt is then allocated ON that cycle by the naming face's ONE allocator, over the
+   *  records the dispatch will actually see — the ledger's own PLUS the round the
+   *  `--recover` abort fold is about to book on THIS key (`folded`). The fold runs after
+   *  the verdict, so without it the composed attempt would trail the frame's by one and
+   *  the prompt's `OUTPUT_*` / handoff names would point at the killed attempt while the
+   *  round record and the carrier landed at the next one. */
   #consumedRoundOf(
     ledger: Ledger,
     key: LedgerKey,
     phase: DispatchPhase,
+    folded: BookedAbort | null,
   ): { cycle: number; attempt: number } {
     const completed = ledger.completedCycles(key, "review");
     const cycle =
@@ -1383,7 +1415,8 @@ export class Cli {
             : 1
           : ledger.roundCount(key, phase) + 1;
     const op = RoundRecords.opOf(phase) ?? "review";
-    return { cycle, attempt: ledger.naming().attemptOf(ledger.recordsOf(key), op, cycle) };
+    const records = AbortFold.withPending(ledger.recordsOf(key), folded, key);
+    return { cycle, attempt: ledger.naming().attemptOf(records, op, cycle) };
   }
 
   /** The test-evidence path of this dispatch — the round's own name on the evidence

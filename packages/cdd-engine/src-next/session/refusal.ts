@@ -34,10 +34,21 @@ import { readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { AtomicWriter } from "../infra/atomic.ts";
 import type { WorkspaceRoot } from "../infra/workspace.ts";
-import type { TargetType } from "./faces.ts";
-import type { OpType } from "./ledger.ts";
+import { type TargetType, targetFaces } from "./faces.ts";
+import { type OpType, RoundRecords } from "./ledger.ts";
+import { DISPATCH_REASON } from "./next.ts";
 import type { PreFlightGateName } from "./preflight.ts";
 import { ArtifactRegistry } from "./round-artifacts.ts";
+
+/** The structure leg's station vocabulary as a runtime set — read from the ONE table the
+ *  words already live in (`DISPATCH_REASON`'s `leg: "structure"` rows ARE
+ *  `PreFlightGateName`, the four pre-dispatch rows included). A second list here would
+ *  be the vocabulary's second home and could drift from the gate's own row set. */
+const STATIONS: ReadonlySet<string> = new Set(
+  Object.values(DISPATCH_REASON)
+    .filter((row) => row.leg === "structure")
+    .map((row) => row.token),
+);
 
 /** The eight cells of one recorded refusal — the whole fact, with no ninth cell and no
  *  second name for any of them (spec §2.1). */
@@ -71,6 +82,12 @@ export type RefusalState =
   | { readonly kind: "absent" }
   | { readonly kind: "corrupt"; readonly reason: string }
   | { readonly kind: "standing"; readonly facts: RefusalFacts };
+
+/** One read of the record's own bytes — the shape leg and the vocabulary leg answer in
+ *  one shape, so a caller never sees "no facts" and "illegal word" as two returns. */
+type FactsRead =
+  | { readonly kind: "ok"; readonly facts: RefusalFacts }
+  | { readonly kind: "bad"; readonly reason: string };
 
 /**
  * PreFlightRefusal — the tree's ONE refusal record. Constructed with the tree's
@@ -154,35 +171,60 @@ export class PreFlightRefusal {
     } catch {
       return { kind: "corrupt", reason: "the refusal record is not JSON" };
     }
-    const facts = PreFlightRefusal.#factsOf(parsed);
-    return facts === null
-      ? { kind: "corrupt", reason: "the refusal record holds no refusal facts" }
-      : { kind: "standing", facts };
+    const read = PreFlightRefusal.#factsOf(parsed);
+    return read.kind === "ok"
+      ? { kind: "standing", facts: read.facts }
+      : { kind: "corrupt", reason: read.reason };
   }
 
-  /** The eight cells read off a parsed value, or null when any cell is missing or of the
-   *  wrong primitive kind. The closed sets (`op` · `type` · `station`) are carried by the
-   *  TYPE, never re-spelled as a second runtime list here — a second list would be the
-   *  vocabulary's second home, and the cell would still be a string at read time. */
-  static #factsOf(value: unknown): RefusalFacts | null {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  /** The eight cells read off a parsed value: `ok` with the facts, or `bad` with the ONE
+   *  reason the read face reports. The shape leg (missing cell / wrong primitive kind) and
+   *  the vocabulary leg (a closed-set cell holding a word outside its own table) are the
+   *  same judgment on the same boundary — the bytes came off disk, so neither the TYPE
+   *  nor a reader's good faith may stand in for the check (spec §4.2: a swallowed refusal
+   *  is worse than a mislabelled one, and a `station: "tree-claen"` read as `standing` is
+   *  exactly the swallow). Each closed set is validated against the runtime table that
+   *  already holds it — `STATIONS` · `RoundRecords.opOf` · `targetFaces` — never a second
+   *  spelling of any of the three. */
+  static #factsOf(value: unknown): FactsRead {
+    const shapeless: FactsRead = {
+      kind: "bad",
+      reason: "the refusal record holds no refusal facts",
+    };
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return shapeless;
     const record = value as Record<string, unknown>;
     const texts = ["at", "slug", "op", "type", "station", "detail"] as const;
     for (const key of texts) {
-      if (typeof record[key] !== "string") return null;
+      if (typeof record[key] !== "string") return shapeless;
     }
     for (const key of ["cycle", "attempt"] as const) {
-      if (typeof record[key] !== "number" || !Number.isFinite(record[key])) return null;
+      if (typeof record[key] !== "number" || !Number.isFinite(record[key])) return shapeless;
     }
+    const illegal = PreFlightRefusal.#illegalWordOf(record);
+    if (illegal !== null) return { kind: "bad", reason: illegal };
     return {
-      at: record.at as string,
-      slug: record.slug as string,
-      op: record.op as OpType,
-      type: record.type as TargetType,
-      cycle: record.cycle as number,
-      attempt: record.attempt as number,
-      station: record.station as PreFlightGateName,
-      detail: record.detail as string,
+      kind: "ok",
+      facts: {
+        at: record.at as string,
+        slug: record.slug as string,
+        op: record.op as OpType,
+        type: record.type as TargetType,
+        cycle: record.cycle as number,
+        attempt: record.attempt as number,
+        station: record.station as PreFlightGateName,
+        detail: record.detail as string,
+      },
     };
+  }
+
+  /** The first closed-set cell whose word its own table does not declare, or null when
+   *  all three stand — the reason names the damaging cell, so the reader is pointed at
+   *  the hand-edited word instead of at the record as a whole. */
+  static #illegalWordOf(record: Record<string, unknown>): string | null {
+    const { station, op, type } = record as { station: string; op: string; type: string };
+    if (!STATIONS.has(station)) return `its \`station\` names no pre-flight row`;
+    if (RoundRecords.opOf(op) !== op) return `its \`op\` names no round verb`;
+    if (!Object.hasOwn(targetFaces, type)) return `its \`type\` names no target face`;
+    return null;
   }
 }

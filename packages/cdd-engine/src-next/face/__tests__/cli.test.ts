@@ -9832,6 +9832,72 @@ describe("P30 — `--recover` folds a stale in-flight record before the new roun
       cleanup();
     }
   });
+
+  it("names the recovered dispatch at the attempt the fold leaves it — never the killed one", async () => {
+    const sync = new StubRunner();
+    sync.commit = "feat: the recovered round's work";
+    const { command, repoRoot, cleanup } = fixture({ sync });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      const base = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot })
+        .stdout.toString()
+        .trim();
+      // A killed implement round of THIS wave, at the identity it died on.
+      const recordPath = path.join(repoRoot, ".kairos", "cdd", "in-flight.json");
+      mkdirSync(path.dirname(recordPath), { recursive: true });
+      writeFileSync(
+        recordPath,
+        `${JSON.stringify(
+          {
+            pid: 4_000_002,
+            command: "cdd implement --tasks 1 --plan docs/kairos/plans/p3.md",
+            slug: "p3",
+            startedAt: Date.parse("2026-11-08T05:00:00.000Z"),
+            wave: "1",
+            phase: "implement",
+            cycle: 1,
+            attempt: 1,
+            briefHash: null,
+            plan: "docs/kairos/plans/p3.md",
+            dispatchBase: base,
+            sampledAt: null,
+            verdict: null,
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      const saved = process.env.CLAUDE_CODE_SESSION_ID;
+      process.env.CLAUDE_CODE_SESSION_ID = "s";
+      try {
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--recover"]);
+      } finally {
+        if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+        else process.env.CLAUDE_CODE_SESSION_ID = saved;
+      }
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3");
+      const records = new Ledger(
+        workspace,
+        new ConfigLoader(),
+        planSourceOf(workspace.root.basis),
+      ).recordsOf("1");
+      // The fold booked the KILLED attempt; the dispatch that follows is the next one.
+      expect(records.map((record) => [record.op, record.attempt])).toEqual([
+        ["implement", 1],
+        ["implement", 2],
+      ]);
+      // …and the prompt the child received names THAT round: the pre-frame assembly (P40
+      // T4) and the frame's own allocation answer one attempt, so the `OUTPUT_*` names the
+      // child is given are the names its round record and carrier will land on.
+      const prompt = sync.calls[0]?.args.at(-1) ?? "";
+      expect(prompt).toContain("`OUTPUT_HANDOFF`: .kairos/cdd/p3/tasks-1-implement-1-a2.json");
+      expect(prompt).not.toContain("`OUTPUT_HANDOFF`: .kairos/cdd/p3/tasks-1-implement-1.json");
+    } finally {
+      cleanup();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

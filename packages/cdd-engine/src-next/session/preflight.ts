@@ -472,49 +472,68 @@ export class PreFlight {
     //    document it belongs to is qualified) and therefore ahead of the line leg in the
     //    dispatch authority's chain: a dispatch that breaks a gate AND its line reports
     //    the gate's row.
-    gates.push(...DISPATCH_ROWS);
-    checked.push(...DISPATCH_ROWS);
-    const rows = PreFlightRows.judge({
-      facts: { type: ctx.type, host: ctx.host },
-      values: ctx.values,
-      declarations: ctx.declarations,
-      scene: ctx.scene,
-      artifact: ctx.artifact,
-      // The path-basis value object: the existence reads resolve through it, so a
-      // dispatch started from a subdirectory never reads every landed path as missing.
-      repoRoot: new RepoRoot(ctx.repoRoot),
-      // The seam hands down the port it was constructed with — the judgment constructs
-      // no concrete fs (a recording fake pins the read).
-      fs: this.#fs,
-      wording: this.#words.preflightWording(),
-      // The naming cell is the seam's OWN answer, never a context slot: the dispatch
-      // path never asks it (only the preview's weaker arm does), so the dispatch answer
-      // IS `answered: false`.
-      naming: { answered: false },
-    });
-    if (rows.length > 0) {
-      const first = rows[0]!;
-      return this.#refusal(
-        {
-          ok: false,
-          gate: first.station,
-          message: this.#withoutStation(first),
-          // `details` is "the rows under `message`" — the same meaning the graph and
-          // plan-ledger rows already carry. Collecting all four would print the first
-          // row's sentence twice in one block.
-          details: rows.slice(1).map((row) => row.detail),
-        },
-        gates,
-        checked,
-        docOutcome,
-        ledgerOutcome,
-      );
+    //    The one face with NO input face is a wave dispatch whose predicted batch is
+    //    empty: `WAVE` and `INPUT_WAVE_BRIEF` are then the engine's own derivations from
+    //    an open frontier that does not exist (`DispatchIdentity.tasks` = ""), so the
+    //    orchestrator cannot supply them and refusing on their emptiness would mask the
+    //    line leg's real answer (`split` — the plan has no open wave to dispatch). The
+    //    rows therefore judge an input face only where one exists; a batch-less wave
+    //    dispatch is handed back unchanged and the line leg owns it.
+    if (PreFlight.#hasInputFace(ctx)) {
+      gates.push(...DISPATCH_ROWS);
+      checked.push(...DISPATCH_ROWS);
+      const rows = PreFlightRows.judge({
+        facts: { type: ctx.type, host: ctx.host },
+        values: ctx.values,
+        declarations: ctx.declarations,
+        scene: ctx.scene,
+        artifact: ctx.artifact,
+        // The path-basis value object: the existence reads resolve through it, so a
+        // dispatch started from a subdirectory never reads every landed path as missing.
+        repoRoot: new RepoRoot(ctx.repoRoot),
+        // The seam hands down the port it was constructed with — the judgment constructs
+        // no concrete fs (a recording fake pins the read).
+        fs: this.#fs,
+        wording: this.#words.preflightWording(),
+        // The naming cell is the seam's OWN answer, never a context slot: the dispatch
+        // path never asks it (only the preview's weaker arm does), so the dispatch answer
+        // IS `answered: false`.
+        naming: { answered: false },
+      });
+      if (rows.length > 0) {
+        const first = rows[0]!;
+        return this.#refusal(
+          {
+            ok: false,
+            gate: first.station,
+            message: this.#withoutStation(first),
+            // `details` is "the rows under `message`" — the same meaning the graph and
+            // plan-ledger rows already carry. Collecting all four would print the first
+            // row's sentence twice in one block.
+            details: rows.slice(1).map((row) => row.detail),
+          },
+          gates,
+          checked,
+          docOutcome,
+          ledgerOutcome,
+        );
+      }
     }
     return {
       ok: true,
       order: gates,
       checked: [...checked, ...this.#ruleRows(docOutcome, ledgerOutcome)],
     };
+  }
+
+  /** Whether this dispatch has an input face at all — the four pre-dispatch rows' own
+   *  subject. Every face does except a wave dispatch with no predicted batch: the `WAVE`
+   *  cell IS the batch (`DispatchIdentity.tasks`, the open frontier the frame builder
+   *  reads), so an empty one means the plan has no wave for this command to run. The
+   *  cell is read off the assembled record, never re-derived here — the seam judges the
+   *  values it was handed. */
+  static #hasInputFace(ctx: PreFlightContext): boolean {
+    return ctx.type !== "wave" || (ctx.values.WAVE ?? "") !== "";
   }
 
   /** The verdict's `message`: the refusing row's detail with its OWN station word (and

@@ -33,6 +33,8 @@ import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../carrier-integrity.ts";
 import { HandoffSchema } from "../handoff-schema.ts";
 import {
+  AbortFold,
+  type FoldableRecord,
   Ledger,
   type ProgressData,
   type RefKind,
@@ -2414,5 +2416,56 @@ describe("P37 T5 — the round finding projection and the downgrade comparison",
     expect(HandoffSchema.downgrades(schema.findingsOf([PRIOR]), projected)).toHaveLength(1);
     // the projection is unchanged by the judgment (no synthetic row, no rewritten cell)
     expect(projected).toEqual([{ id: "F1", severity: "warn", summary: "drift" }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P40 T4 — AbortFold, the ONE read of what the `--recover` abort fold books
+// ---------------------------------------------------------------------------
+
+describe("AbortFold — the fold's identity, readable before the fold runs", () => {
+  /** One stale in-flight record's foldable cells (the record's own identity). */
+  const staleOf = (over: Partial<FoldableRecord> = {}): FoldableRecord => ({
+    wave: "1",
+    phase: "implement",
+    cycle: 1,
+    attempt: 1,
+    ...over,
+  });
+
+  it("books the killed round's own identity and folds `branch-review` into `review`", () => {
+    expect(AbortFold.bookedOf(staleOf())).toEqual({
+      key: "1",
+      op: "implement",
+      cycle: 1,
+      attempt: 1,
+    });
+    expect(AbortFold.bookedOf(staleOf({ phase: "branch-review" }))?.op).toBe("review");
+  });
+
+  it("books nothing when the record cannot name its whole identity", () => {
+    expect(AbortFold.bookedOf(null)).toBeNull();
+    expect(AbortFold.bookedOf(staleOf({ wave: null }))).toBeNull();
+    expect(AbortFold.bookedOf(staleOf({ cycle: null }))).toBeNull();
+    expect(AbortFold.bookedOf(staleOf({ attempt: null }))).toBeNull();
+    expect(AbortFold.bookedOf(staleOf({ phase: "not-a-phase" }))).toBeNull();
+  });
+
+  it("allocates this dispatch's attempt over the records PLUS the round the fold books", () => {
+    const { ledger, cleanup } = fixture();
+    try {
+      const naming = ledger.naming();
+      const booked = AbortFold.bookedOf(staleOf());
+      // The killed round is not on the ledger yet: without the pending record the next
+      // dispatch would be allocated at a1 — the killed attempt — while the fold lands at
+      // a1 and the round after it takes a2.
+      expect(naming.attemptOf([], "implement", 1)).toBe(1);
+      expect(naming.attemptOf(AbortFold.withPending([], booked, "1"), "implement", 1)).toBe(2);
+      // A stale round of ANOTHER key must not shift this dispatch: the pending record
+      // joins the slice only on its own row.
+      expect(naming.attemptOf(AbortFold.withPending([], booked, "2"), "implement", 1)).toBe(1);
+    } finally {
+      cleanup();
+    }
   });
 });

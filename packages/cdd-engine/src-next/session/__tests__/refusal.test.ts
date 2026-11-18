@@ -177,6 +177,37 @@ describe("PreFlightRefusal — one record, written and read back", () => {
     }
   });
 
+  it("answers corrupt for a right-shaped record whose closed-set word is illegal", async () => {
+    const { root, cleanup } = treeOf();
+    try {
+      const refusal = new PreFlightRefusal(root, "p40-slug");
+      // Publish the workspace first — the hand-edited record below replaces the writer's
+      // own output, so the class's `ensure()` leg is not the case's subject.
+      await refusal.write(factsOf());
+      // Every cell is of the declared primitive kind; only the WORD is outside the set
+      // its table declares. The read face judges the vocabulary at the same boundary the
+      // shape is judged (spec §4.2), so the damage is never handed on as a legal fact.
+      const illegal = [
+        { over: { station: "tree-claen" }, names: "`station`" },
+        { over: { op: "branch-review" }, names: "`op`" },
+        { over: { type: "task" }, names: "`type`" },
+      ];
+      for (const { over, names } of illegal) {
+        writeFileSync(
+          refusal.path(),
+          `${JSON.stringify({ ...factsOf(), ...over }, null, 2)}\n`,
+          "utf8",
+        );
+        const read = refusal.readRaw();
+        expect(read.kind).toBe("corrupt");
+        expect(read.kind === "corrupt" ? read.reason : "").toContain(names);
+        expect(refusal.read().kind).toBe("corrupt");
+      }
+    } finally {
+      cleanup();
+    }
+  });
+
   it("pairs the two read faces: another workspace's record is absent to `read`, standing to `readRaw`", async () => {
     const { root, cleanup } = treeOf();
     try {
@@ -202,7 +233,10 @@ describe("PreFlightRefusal — one record, written and read back", () => {
     try {
       const refusal = new PreFlightRefusal(root, "p40-slug");
       for (const station of STATIONS) {
-        const facts = factsOf({ station, detail: `${station} · a one-line reason` });
+        // The fixture's `detail` is neutral on purpose: a record's `detail` never starts
+        // with its station word (the writer strips it), so an example that did would
+        // teach the shape spec §2.1 forbids.
+        const facts = factsOf({ station, detail: "a one-line reason" });
         await refusal.write(facts);
         expect(refusal.read()).toEqual({ kind: "standing", facts });
       }

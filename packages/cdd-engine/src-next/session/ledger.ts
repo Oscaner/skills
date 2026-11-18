@@ -39,7 +39,7 @@ import { LineIdentity } from "./line-identity.ts";
 import type { DocClassVerdict, NextHop, Route } from "./next.ts";
 import { NextStepRouter } from "./next.ts";
 import { ArtifactRegistry, type Identity, roundIdentityKey } from "./round-artifacts.ts";
-import { type RoundArtifact, RoundNaming } from "./round-naming.ts";
+import { type AttemptIdentity, type RoundArtifact, RoundNaming } from "./round-naming.ts";
 import { EMPTY_RUN_STATE } from "./run.ts";
 
 // ---------------------------------------------------------------------------
@@ -355,6 +355,58 @@ export class RoundRecords {
   /** `n` as the contiguous identity list `1..n` (the retired numeric-count form). */
   static #contiguous(count: number): readonly number[] {
     return Array.from({ length: count }, (_unused, index) => index + 1);
+  }
+}
+
+/** The cells of a written in-flight record the abort fold reads — a STRUCTURAL subset,
+ *  so this file names no other module's type and the record's owner
+ *  (`session/inflight.ts#InFlightRecord`) satisfies it without an edge back here. */
+export interface FoldableRecord {
+  readonly wave: string | null;
+  readonly phase: string | null;
+  readonly cycle: number | null;
+  readonly attempt: number | null;
+}
+
+/** The round an abort fold books, with the row key it lands on. */
+export interface BookedAbort extends AttemptIdentity {
+  readonly key: string;
+}
+
+/**
+ * AbortFold — WHAT the `--recover` abort fold books: the killed round's own identity
+ * (op · key · cycle · attempt), or null when the record cannot name it whole (a corrupt
+ * record, a lock-only state, a record written before the identity cells existed).
+ *
+ * ONE reader for two sides that must agree. `CliLifecycle#bookAbort` writes this record;
+ * the pre-frame identity allocation (`Cli#beforeOf`) allocates the attempt this dispatch
+ * consumes over the ledger's records PLUS the record the fold is about to write — the
+ * fold runs AFTER the pre-flight verdict by spec order (P30 §2.1④: a dirty tree is never
+ * displaced by an argument), so at assembly time the ledger is one round behind the
+ * dispatch. Two derivations of the same fact would let the prompt's `OUTPUT_*` names and
+ * the round record land at two different attempts.
+ */
+// biome-ignore lint/complexity/noStaticOnlyClass: the fold's identity read — the zero-bare-function discipline admits no standalone predicate functions.
+export class AbortFold {
+  /** The round one taken-over record books, or null when it names no whole identity. */
+  static bookedOf(record: FoldableRecord | null): BookedAbort | null {
+    if (record === null) return null;
+    const op = RoundRecords.opOf(record.phase ?? "");
+    const { wave, cycle, attempt } = record;
+    if (op === null || wave === null || cycle === null || attempt === null) return null;
+    return { key: wave, op, cycle, attempt };
+  }
+
+  /** The records a dispatch allocates its attempt over: the key's own, PLUS the round the
+   *  fold is about to book when it lands on that same key. `RoundNaming#attemptOf` reads
+   *  the attempt per `(op, cycle)`, so a stale round of another key must not shift this
+   *  one — the pending record joins the slice only on its own row. */
+  static withPending(
+    records: readonly AttemptIdentity[],
+    booked: BookedAbort | null,
+    key: LedgerKey,
+  ): readonly AttemptIdentity[] {
+    return booked !== null && booked.key === String(key) ? [...records, booked] : records;
   }
 }
 

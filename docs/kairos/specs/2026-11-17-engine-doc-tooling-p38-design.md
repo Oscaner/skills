@@ -1,7 +1,7 @@
 ---
 title: 'P38 · 派发输入契约：必填表、`none` 表示法与 `dispatch-input` 门'
 doc-type: phase-spec
-version: v0.12
+version: v0.13
 date: 2026-11-17
 slug: 2026-11-17-engine-doc-tooling-p38-design
 program: 2026-10-10-engine-doc-tooling
@@ -199,6 +199,8 @@ CDD_BLOCKED: dispatch-input · <row> · <TOKEN> · <reason>; <row> · <TOKEN> ·
 
 `--dry-run` **不新增输出行**：把读格渲染出来会新增一条渲染面，而渲染面每多一处就多一处「预览与真派发各说各话」的机会。整段 prompt 的字节等价属 P39 的守恒面，不在此越界。
 
+> **换向记录（2026-11-18 · P40）**：本节那条 per-mode 例外已由 P40 作废——`INPUT_WAVE_BRIEF` 在声明面上改记为引擎写的（`preview: "satisfied"` 退出），任何路径都不再做存在性读，于是预览与真派发在这一格上不再分歧，`#answeredByNaming` 与 `inputRefusal` 的 `mode` 参数一并退场。本节正文按交付时的字节保留（不改写历史），改向以本条为准；本节其余判据（门序 · 报文原因闭集 · 逐格成对 pin）不动。
+
 ### 3. `none` 的语义
 
 #### 3.1 它是渲染字面量，不是值
@@ -341,3 +343,4 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 | v0.10 | 2026-11-17 | branch-fix-2 轮（F2 / F3 按裁定落地）：§2.3 反转 ② 的 after-column 补上恢复动作——重派那一轮评审让载体重现，或给 `--reviews` 一个在仓库根下真实存在的路径，并写明 fix 轮造不出自己的输入（F2 的裁定 ACCEPTED：硬拒绝欠一条编排器可读的修法，与反转 ④ 的 `cdd base set` 同形；同一句进 changeset）· 验收的声明期可红判据由三种改为**五种**——点名槽注册（`#assertRegistered`）与 zone 覆盖（`#assertEveryCellHasCarrier`）两个方向，与 plan Task 1 的五条对齐（F3） | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |
 | v0.11 | 2026-11-17 | docs-fix 第八轮（phase-spec review-8 · F1–F5 全部接纳）：一格的多条臂改述为**并列**（取并集，任一条命中即 exigible）——§1.1 围栏注与正文、§1.4 表尾、验收三处去掉「合取」并写明合取读法会让 `review` / `docs-fix` 的 `INPUT_OVERALL` 永不可 exigible、反转 ① 随之失效，§6 新增第十二项登记章程两处「几条合取臂」与 `render/templates.ts` 两处 docblock 的并列措辞更正（章程侧待应用 `v4.11`）（F1）；§1.3 的 argv 面 pin 由 `PlanRead#readPath` 改回 `PlanSource#readPath`（`infra/plan-source.ts`）（F2）；§5.4 删去不可复现的 16 条 `orphan:` 实测计数，只留结构性判据与成对 pin（F3）；§1.3 的 P33 T2 ② 臂改述为它真正钉住的两格（`INPUT_OVERALL` 在场、`INPUT_SPEC` 不在），并写明 `ROLE: docs-fix` 只在 `--type plan` 臂上被点名、`--type overall` 轮没有独立 pin（F4）；§6 标题的版本范围改为 `v4.05`–`v4.10` 并标第十二项待应用，两处「本轮」deictic 改为 spec 版本（F5） | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
 | v0.12 | 2026-11-17 | **交付 · 相位关闭**：六任务四波全部落地——声明形状与三条构造期判据（`#assertDeclarations`）· 四态渲染 · 纯读门 `dispatch-input` 与门序 · `--dry-run` 字节等价与三门镜像 · 四段 `scratch/` 与两句 `none`（`$version` 25）· 章程 v4.05–v4.10 十一项回填。评审 8 轮 51 条全受理；四波 9 条、分支 2 轮 8 条；`pnpm run validate` exit 0；changeset `cdd-engine` minor。 | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
+| v0.13 | 2026-11-18 | **换向记录（P40 回填）**：§2.4 末尾追加一条指向 P40 的记录——该节那条 per-mode 例外已由 P40 作废（`INPUT_WAVE_BRIEF` 改记为引擎写的，任何路径都不再做存在性读，`#answeredByNaming` 与 `inputRefusal` 的 `mode` 参数退场）。本节正文与其余判据按交付时的字节保留，不动；本条只指向，不重写。 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-18） |

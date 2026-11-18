@@ -100,12 +100,12 @@ no-host · carrier · dispatch-input · artifact
 
 ### Acceptance criteria
 
-- ① **拒绝不写轮记录**：在没有 `base.json` 的工作区派发一次 wave 评审 ⇒ 命令输出 `CDD_BLOCKED` 且站名为 structure 腿的四值之一；随后 `board` 无 `crashed:` 行、`waves[n].rounds` 长度与派发前相等、重派仍是 `review 1·1`。同一断言在改前必须红（今天读作 `review 2·1`）。
-- ② **拒绝写树级事实**：同一派发后 refusal.json 存在且字段完整（`op` · `type` · `cycle` · `attempt` · `station` · `detail`）；`board` 出现 refused 行，形状合 3.1，位置在 `in-flight:` 之后。
-- ③ **互斥不变量两向可核**：拒绝后跑一次合法派发 ⇒ refused 行消失、`in-flight:` 出现；该派发正常结束 ⇒ `in-flight:` 消失且 refused 行不出现。两条方向各一条断言。
-- ④ **四站闭集与穷尽断言**：四道门各实测一次拒绝，落下的 `station` 分别是四值之一；穷尽断言对「structure 腿新增一行未给站名」报红（构造期或编译期，一处）。
-- ⑤ **`--recover` 无可接管**：对一次被拒的派发执行 `--recover` ⇒ 报「无可接管」，不认领、`cycle` 不推进；`--dry-run` 中途被拒 ⇒ 零写入（refusal.json 既不出现也不消失）。
-- ⑥ **门控**：`pnpm run validate` exit 0；changeset 为 `cdd-engine` **minor**（board 新增一行 · refusal.json 为新增产物 · structure 腿多四行，均为消费面可见）；kairos 未动。
+- `dispatch-input` **拒绝不写轮记录**：在没有 `base.json` 的工作区派发一次 wave 评审 ⇒ 命令输出 `CDD_BLOCKED` 且站名为 structure 腿的四值之一；随后 `board` 无 `crashed:` 行、`waves[n].rounds` 长度与派发前相等、重派仍是 `review 1·1`。同一断言在改前必须红（今天读作 `review 2·1`）。
+- `board` **拒绝写树级事实**：同一派发后 refusal.json 存在且字段完整（`op` · `type` · `cycle` · `attempt` · `station` · `detail`）；`board` 出现 refused 行，形状合 3.1，位置在 `in-flight:` 之后。
+- `in-flight` **互斥不变量两向可核**：拒绝后跑一次合法派发 ⇒ refused 行消失、`in-flight:` 出现；该派发正常结束 ⇒ `in-flight:` 消失且 refused 行不出现。两条方向各一条断言。
+- `DispatchAuthority` **四站闭集与穷尽断言**：四道门各实测一次拒绝，落下的 `station` 分别是四值之一；穷尽断言对「structure 腿新增一行未给站名」报红（构造期或编译期，一处）。
+- `InFlight` **`--recover` 无可接管**：对一次被拒的派发执行 `--recover` ⇒ 报「无可接管」，不认领、`cycle` 不推进；`--dry-run` 中途被拒 ⇒ 零写入（refusal.json 既不出现也不消失）。
+- `.changeset/` **门控**：`pnpm run validate` exit 0；changeset 为 `cdd-engine` **minor**（board 新增一行 · refusal.json 为新增产物 · structure 腿多四行，均为消费面可见）；kairos 未动。
 
 ## Constraints
 

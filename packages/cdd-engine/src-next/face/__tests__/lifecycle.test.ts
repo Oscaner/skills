@@ -24,7 +24,6 @@ import {
   mkdtempSync,
   readFileSync,
   realpathSync,
-  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -44,23 +43,19 @@ import {
 } from "../../contract/completion-criterion.ts";
 import { PreFlightRows } from "../../contract/preflight-rows.ts";
 import { REGRADE_MARK } from "../../contract/review-criteria.ts";
-import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { REVIEWS } from "../../render/templates.ts";
-import { CarrierRulings } from "../../session/carrier-rulings.ts";
 import { targetFaces } from "../../session/faces.ts";
 import { HandoffSchema } from "../../session/handoff-schema.ts";
 import { HoldingError, InFlight } from "../../session/inflight.ts";
 import { Ledger } from "../../session/ledger.ts";
-import { NextStepRouter } from "../../session/next.ts";
 import { ArtifactRegistry } from "../../session/round-artifacts.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
 import { type CliIo, CliLifecycle, type DispatchScene } from "../lifecycle.ts";
-import { RouteRenderer } from "../route-render.ts";
 import type { ChildOutcome, ChildRun, ChildRunner } from "../termination.ts";
 import { Words } from "../words.ts";
 
@@ -540,23 +535,6 @@ class ReviewDraftRunner implements ChildRunner {
     writeFileSync(
       path.join(run.cwd, ".kairos", "cdd", "p30", this.#draft),
       JSON.stringify({ findings: this.#findings, ...this.#extra }),
-      "utf8",
-    );
-    return { code: 0, stdout: "", stderr: "", termination: null };
-  }
-}
-
-/** A fix child that writes its OWN round draft — the fix carrier the criterion
- *  refuses when absent, so a case can isolate the requesting side's read. */
-class FixDraftRunner implements ChildRunner {
-  calls: ChildRun[] = [];
-
-  async run(run: ChildRun): Promise<ChildOutcome> {
-    this.calls.push(run);
-    mkdirSync(path.join(run.cwd, ".kairos", "cdd", "p30"), { recursive: true });
-    writeFileSync(
-      path.join(run.cwd, ".kairos", "cdd", "p30", "phase-spec-fix-1.json"),
-      JSON.stringify({ status: "APPROVED", artifacts: {}, dispositions: {} }),
       "utf8",
     );
     return { code: 0, stdout: "", stderr: "", termination: null };
@@ -1175,7 +1153,7 @@ class ModeProbeRunner implements ChildRunner {
 
 describe("P31 T5 — the seal cycle: every terminal closes the round's own window", () => {
   /** The fix round's own draft name of the fixture's spec line. */
-  const FIX_DRAFT = "phase-spec-fix-1.json";
+  const _FIX_DRAFT = "phase-spec-fix-1.json";
 
   it("a child death (#reject) seals the draft the child left behind", async () => {
     const f = fixture(planDoc([[1, []]]));

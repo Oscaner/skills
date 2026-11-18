@@ -32,7 +32,7 @@ import { RoundLog } from "../infra/round-log.ts";
 import type { DocEntry } from "../infra/slug-index.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
-import type { TemplateValues, WorkMode } from "../render/templates.ts";
+import type { TemplateValues } from "../render/templates.ts";
 import { pinLensOf, TemplateAssembler } from "../render/templates.ts";
 import { CarrierMismatchError } from "../session/carrier-integrity.ts";
 import { TargetFaceTable } from "../session/faces.ts";
@@ -908,15 +908,6 @@ export class CliLifecycle {
    *  the lifecycle's read of that single source. */
   #opOf(frame: OpenFrame): OpType {
     return this.#naming.op(frame);
-  }
-
-  /** The dispatch-table work-mode (ROLE) of a frame — the doc shapes' fix faces ride
-   *  the docs-fix mode; everything else maps by its phase (§3.5's four-mode table). */
-  #roleOf(frame: OpenFrame): WorkMode {
-    if (frame.phase === "fix") {
-      return TargetFaceTable.isDocShape(frame.type) ? "docs-fix" : "fix";
-    }
-    return frame.phase === "implement" ? "implement" : "review";
   }
 
   /** The phase's skill-ref slash form for the detected host ("/mattpocock-skills:implement"

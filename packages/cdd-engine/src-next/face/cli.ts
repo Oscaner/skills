@@ -51,7 +51,7 @@ import { type Command, CommanderError } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import { FrontMatterExtractor, type FrontMatterParseError } from "../contract/frontmatter.ts";
 import { Contract } from "../contract/judge.ts";
-import type { ArtifactSnapshot, ArtifactSnapshotRead } from "../contract/preflight-rows.ts";
+import type { ArtifactSnapshot } from "../contract/preflight-rows.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
 import { Translator } from "../contract/translate.ts";
@@ -64,7 +64,6 @@ import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
 import { TemplateAssembler } from "../render/templates.ts";
-import { ArtifactReads } from "../session/artifact-reads.ts";
 import { CarrierMismatchError } from "../session/carrier-integrity.ts";
 import {
   DispatchAuthority,
@@ -86,7 +85,6 @@ import {
   type BookedAbort,
   ConsumedRound,
   Ledger,
-  type OpType,
   RoundRecords,
   type RoundStatus,
 } from "../session/ledger.ts";
@@ -94,7 +92,7 @@ import { NextStepRouter } from "../session/next.ts";
 import type { PipelineFrontierInput } from "../session/pipeline.ts";
 import { PreFlight, type PreFlightVerdict } from "../session/preflight.ts";
 import { PreFlightRefusal } from "../session/refusal.ts";
-import { type ArtifactRead, ArtifactRegistry, type Kind } from "../session/round-artifacts.ts";
+import { ArtifactRegistry } from "../session/round-artifacts.ts";
 import { type RoundArtifact, RoundNaming } from "../session/round-naming.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
@@ -242,20 +240,6 @@ export interface RunInput {
  *  dispatch is exactly the silent fallback §2.1③ forbids. */
 const RECOVER_NOTHING =
   "--recover has nothing to take over and nothing to reopen — no stale in-flight record stands on this tree (①), and this line is not at drift ∧ pending-fix (②); nothing was dispatched";
-
-/** The ONE artifact kind the pre-dispatch artifact row judges (the fix round's ruling
- *  sidecar) — named once so the read and the snapshot's `sidecarKind` cannot drift. */
-const RULINGS_KIND: Kind = "rulings";
-
-/** The no-sidecar snapshot read — off the fix face the judgment has nothing to refuse. */
-const ABSENT_SNAPSHOT_READ: ArtifactSnapshotRead = {
-  kind: "absent",
-  path: null,
-  reason: null,
-  found: [],
-  identity: null,
-  sidecarKind: null,
-};
 
 /** The `--recover` judgment's answer: taken over (the abort leg already ran, so the
  *  dispatch must not fold again), or the refusal to print. */ type RecoverRun =

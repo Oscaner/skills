@@ -13,7 +13,11 @@
 //
 // Gate order (the design's pinned sequence, judgeable on every verdict):
 //   tree-clean → in-flight → plan-carrier → graph → plan-ledger →
-//   (spec/plan faces) Contract.validate → dispatch
+//   (spec/plan faces) Contract.validate → the four pre-dispatch rows → dispatch
+// The four pre-dispatch rows (`no-host` · `carrier` · `dispatch-input` · `artifact`,
+// P40 T4) are the structure leg's 6th–9th rows: they judge every face, all four in one
+// pass, and they live here — not in the dispatch body — because the input face's quality
+// must be judged before the dispatch it would run exists (and before any write).
 // The plan-carrier leg is the readable plan's OWN refusal (P35 §2.3): an UN-GATED
 // judgment over `ctx.plan` — not a row of the doc-shape block — so the wave face
 // (no doc target, `ctx.doc === null`) is judged too. It speaks the existing
@@ -32,9 +36,16 @@
 // Module-level exports are types / the class — zero behavior-carrying bare
 // functions (the plan's zero-bare-function discipline).
 
+import type { ContextLine, SceneFacts } from "../contract/context-declarations.ts";
 import { FrontMatterExtractor } from "../contract/frontmatter.ts";
 import { type DocFs, type Finding, LedgerTaskSetRule, NodeFs } from "../contract/invariants.ts";
 import { Contract, type ContractInput, type LedgerFacts } from "../contract/judge.ts";
+import {
+  type ArtifactSnapshot,
+  PreFlightRows,
+  type RowRefusal,
+  type RowStation,
+} from "../contract/preflight-rows.ts";
 import type { DocKey } from "../contract/project.ts";
 import type { Words } from "../face/words.ts";
 import type { GitClient } from "../infra/git.ts";
@@ -50,18 +61,30 @@ import { RoundRecords } from "./ledger.ts";
 /** The named gates the seam composes — the run evidence + the blocking gate label.
  *  Each name is also the structure leg's reason token in the ONE reason table
  *  (`DISPATCH_REASON`, §2.5), so the dispatch authority reuses this word list rather
- *  than spelling the gate ids a second time. */
+ *  than spelling the gate ids a second time. The last four are the PRE-DISPATCH rows'
+ *  own station words (`RowStation`): they join this set rather than form a second one,
+ *  so the reason table's structure leg is this type and nothing else. */
 export type PreFlightGateName =
   | "tree-clean"
   | "in-flight"
   | "graph"
   | "plan-ledger"
-  | "doc-contract";
+  | "doc-contract"
+  | RowStation;
+
+/** The four pre-dispatch rows in judgment order — the seam's 6th–9th rows, after the
+ *  document gate (an input face's quality only means something once the document it
+ *  belongs to is qualified). They are judged on EVERY face, all four in one pass. */
+const DISPATCH_ROWS: readonly RowStation[] = ["no-host", "carrier", "dispatch-input", "artifact"];
 
 /** The named refusal rows — the BLOCK reason the CDD_BLOCKED wording fills.
  *  Refusals exist only on the failure face (`ok: true` carries no `reason`), so the
  *  enum has zero dead values: "the plan leads the ledger" is a `checked` info row, and
- *  a missing ledger fact bundle is a `checked` skipped row — neither is a refusal. */
+ *  a missing ledger fact bundle is a `checked` skipped row — neither is a refusal. The
+ *  four pre-dispatch rows carry NO word from this set: their wording is the row's own
+ *  `RowRefusal.detail`, and the verdict's `gate` already names the station — a fourth
+ *  vocabulary here would name one refusal twice.
+ *  (P40 T4 keeps this enum at five values.) */
 export type PreFlightReason = "dirty-tree" | "held" | "corrupt-record" | "graph" | "doc-contract";
 
 /** The doc-scope judgment outcome of one dispatch — what the checked list renders.
@@ -104,8 +127,11 @@ export interface PreFlightVerdict {
   /** The named issue/finding lines the renderer prints under the message. */
   details?: readonly string[];
   /** The gates that ran, in order — the judgeable order (tree-clean → in-flight →
-   *  plan-carrier → graph → plan-ledger → doc-contract, per the face's applicable
-   *  set). */
+   *  plan-carrier → graph → plan-ledger → doc-contract → the four pre-dispatch rows,
+   *  per the face's applicable set). The four pre-dispatch rows run on every face, so
+   *  the row count is a function of the face (a plan dispatch reaches nine, a wave
+   *  eight, a branch or spec/overall dispatch seven) — never "every dispatch carries
+   *  nine rows"). */
   order: readonly PreFlightGateName[];
   /** The checked face — one row per gate (`${gate}`) and per declared rule
    *  (`${ruleId}: ${passed|failed|skipped (reason)|info (hint)}`), derived from the
@@ -157,6 +183,21 @@ export interface PreFlightContext {
    *  dispatch's `acquire(record, { recover })` — the gate only judges. Under
    *  `--dry-run` this flag is void (the preview never acquires). */
   readonly recover?: boolean;
+  /** The host probe's ONE value (the composition root probes once; the seam judges, so
+   *  no second probe can answer differently). The empty string is "no host harness". */
+  readonly host: string;
+  /** The dispatch's assembled value record — the SAME record the renderer renders. */
+  readonly values: Readonly<Record<string, string>>;
+  /** The round's resolved declaration row (`TemplateAssembler#layoutOf(values)`) — the
+   *  judgment's definition of which cells are exigible. */
+  readonly declarations: readonly ContextLine[];
+  /** The two DECLARED scene facts (`program` / `doc-type:`), booleanized at the
+   *  composition root: a declared program whose charter did not resolve and a program
+   *  never declared are different facts. */
+  readonly scene: SceneFacts;
+  /** This dispatch's artifact judgment as the contract plane's snapshot — the ONE read
+   *  the artifact and carrier rows judge (never a second read inside the seam). */
+  readonly artifact: ArtifactSnapshot;
 }
 
 /**
@@ -183,8 +224,10 @@ export class PreFlight {
   }
 
   /** vet(ctx) — the single seam call: tree-clean → in-flight → plan-carrier → graph
-   *  → plan-ledger → doc-contract. The first refused gate owns the verdict; the gates
-   *  that ran precede it (the judgeable order). */
+   *  → plan-ledger → doc-contract → the four pre-dispatch rows. The existing five judge
+   *  in sequence and the first violation refuses; the four pre-dispatch rows run after
+   *  them, all four at once, and report every violation in one pass. The first refused
+   *  row owns the verdict; the gates that ran precede it (the judgeable order). */
   async vet(ctx: PreFlightContext): Promise<PreFlightVerdict> {
     const gates: PreFlightGateName[] = [];
     const checked: string[] = [];
@@ -423,11 +466,68 @@ export class PreFlight {
         docOutcome = { kind: "unreadable" };
       }
     }
+    // 7–10. the four PRE-DISPATCH rows (P40 T4) — every face judges all four, in one
+    //    pass: a refused round is repaired once instead of one row per dispatch. They
+    //    sit AFTER the document gate on purpose (an input face is judged only once the
+    //    document it belongs to is qualified) and therefore ahead of the line leg in the
+    //    dispatch authority's chain: a dispatch that breaks a gate AND its line reports
+    //    the gate's row.
+    gates.push(...DISPATCH_ROWS);
+    checked.push(...DISPATCH_ROWS);
+    const rows = PreFlightRows.judge({
+      facts: { type: ctx.type, host: ctx.host },
+      values: ctx.values,
+      declarations: ctx.declarations,
+      scene: ctx.scene,
+      artifact: ctx.artifact,
+      // The path-basis value object: the existence reads resolve through it, so a
+      // dispatch started from a subdirectory never reads every landed path as missing.
+      repoRoot: new RepoRoot(ctx.repoRoot),
+      // The seam hands down the port it was constructed with — the judgment constructs
+      // no concrete fs (a recording fake pins the read).
+      fs: this.#fs,
+      wording: this.#words.preflightWording(),
+      // The naming cell is the seam's OWN answer, never a context slot: the dispatch
+      // path never asks it (only the preview's weaker arm does), so the dispatch answer
+      // IS `answered: false`.
+      naming: { answered: false },
+    });
+    if (rows.length > 0) {
+      const first = rows[0]!;
+      return this.#refusal(
+        {
+          ok: false,
+          gate: first.station,
+          message: this.#withoutStation(first),
+          // `details` is "the rows under `message`" — the same meaning the graph and
+          // plan-ledger rows already carry. Collecting all four would print the first
+          // row's sentence twice in one block.
+          details: rows.slice(1).map((row) => row.detail),
+        },
+        gates,
+        checked,
+        docOutcome,
+        ledgerOutcome,
+      );
+    }
     return {
       ok: true,
       order: gates,
       checked: [...checked, ...this.#ruleRows(docOutcome, ledgerOutcome)],
     };
+  }
+
+  /** The verdict's `message`: the refusing row's detail with its OWN station word (and
+   *  the separator behind it) stripped off the string's start. `gate` carries the
+   *  station, and `DispatchAuthority#message` is the ONE place that puts it back — the
+   *  command face and the preview therefore each have exactly one station head. A detail
+   *  whose first word is not the station is left whole: `carrier` is the station while
+   *  `carrier-mismatch` is that row's reason word, and `artifact-identity` is the
+   *  artifact row's. */
+  #withoutStation(row: RowRefusal): string {
+    const join = this.#words.preflightWording().dispatchInput.stationJoin;
+    const prefix = `${row.station}${join}`;
+    return row.detail.startsWith(prefix) ? row.detail.slice(prefix.length) : row.detail;
   }
 
   /** The in-flight gate's refusal — the three-state judgment + the explicit takeover

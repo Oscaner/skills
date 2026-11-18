@@ -51,6 +51,7 @@ import { type Command, CommanderError } from "commander";
 import { declaredRegistries } from "../contract/declare.ts";
 import { FrontMatterExtractor, type FrontMatterParseError } from "../contract/frontmatter.ts";
 import { Contract } from "../contract/judge.ts";
+import type { ArtifactSnapshot, ArtifactSnapshotRead } from "../contract/preflight-rows.ts";
 import type { DocKey } from "../contract/project.ts";
 import { Projector } from "../contract/project.ts";
 import { Translator } from "../contract/translate.ts";
@@ -63,6 +64,7 @@ import { Workspace, WorkspaceRoot } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
 import { IssueBodyRenderer } from "../render/issue-body.ts";
 import { TemplateAssembler } from "../render/templates.ts";
+import { ArtifactReads } from "../session/artifact-reads.ts";
 import { CarrierMismatchError } from "../session/carrier-integrity.ts";
 import {
   DispatchAuthority,
@@ -77,18 +79,32 @@ import {
   targetFaces,
 } from "../session/faces.ts";
 import { TaskGraph } from "../session/graph.ts";
+import { HandoffSchema } from "../session/handoff-schema.ts";
 import { HoldingError, InFlight } from "../session/inflight.ts";
-import { Ledger, type RoundStatus } from "../session/ledger.ts";
+import {
+  Ledger,
+  type LedgerKey,
+  type OpType,
+  RoundRecords,
+  type RoundStatus,
+} from "../session/ledger.ts";
 import { NextStepRouter } from "../session/next.ts";
 import type { PipelineFrontierInput } from "../session/pipeline.ts";
 import { PreFlight, type PreFlightVerdict } from "../session/preflight.ts";
-import { ArtifactRegistry } from "../session/round-artifacts.ts";
+import { type ArtifactRead, ArtifactRegistry, type Kind } from "../session/round-artifacts.ts";
+import { type RoundArtifact, RoundNaming } from "../session/round-naming.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
 import { EMPTY_RUN_STATE, Lifecycle } from "../session/run.ts";
 import { CliArtifacts } from "./artifacts.ts";
 import { type ArtifactProjection, BoardNext, BoardView } from "./board-view.ts";
 import { Capsule } from "./capsule.ts";
 import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
+import {
+  type DispatchIdentity,
+  type DispatchSceneFacts,
+  DispatchValues,
+  RequestingCarrier,
+} from "./dispatch-values.ts";
 import { CliGate } from "./gate.ts";
 import { GraphView } from "./graph-view.ts";
 import { HOST_IDS, HostDetect, type HostId } from "./host.ts";
@@ -223,9 +239,22 @@ export interface RunInput {
 const RECOVER_NOTHING =
   "--recover has nothing to take over and nothing to reopen — no stale in-flight record stands on this tree (①), and this line is not at drift ∧ pending-fix (②); nothing was dispatched";
 
+/** The ONE artifact kind the pre-dispatch artifact row judges (the fix round's ruling
+ *  sidecar) — named once so the read and the snapshot's `sidecarKind` cannot drift. */
+const RULINGS_KIND: Kind = "rulings";
+
+/** The no-sidecar snapshot read — off the fix face the judgment has nothing to refuse. */
+const ABSENT_SNAPSHOT_READ: ArtifactSnapshotRead = {
+  kind: "absent",
+  path: null,
+  reason: null,
+  found: [],
+  identity: null,
+  sidecarKind: null,
+};
+
 /** The `--recover` judgment's answer: taken over (the abort leg already ran, so the
- *  dispatch must not fold again), or the refusal to print. */
-type RecoverRun =
+ *  dispatch must not fold again), or the refusal to print. */ type RecoverRun =
   | { readonly kind: "allowed" }
   | { readonly kind: "blocked"; readonly message: string };
 
@@ -781,50 +810,12 @@ export class Cli {
     if (assembled === null) return 1;
     const { scene, artifacts } = assembled;
 
-    // THE pre-flight seam (P4.1 T1 · design §1): the STRUCTURE gates —
-    // tree-clean → in-flight → graph → plan-ledger → doc-contract — ONE call, the
-    // whole sequence lives in the seam (session/preflight.ts), the CLI orchestrates
-    // the call + the verdict render (zero re-implemented gate here). The dispatch's
-    // own phase is the authority's verdict below (P27 §2), never a second seam. A
-    // refused verdict returns before any brief/lifecycle: no child dispatch ever
-    // runs. The dirty-tree / doc-contract refusals ride the CDD_BLOCKED channel; the
-    // graph / plan-ledger refusals keep the pre-existing refusal face. The doc-face read
-    // path is the repoRoot-relative branded `RepoPath` (T4 §2.2 — a bare `string`
-    // never reaches the read faces `BoardView.readDocType`/`PreFlightDoc.path`; the
-    // CLI feeds the funnel-shaped relative value, each read face erasing to the
-    // absolute syscall form through its OWN `RepoRoot`). Both branches yield the
-    // brand through the ONE conversion entry (`relativize` of the doc path; the
-    // empty path relativizes to the empty `RepoPath`) — no cast (F3).
-    const docRel = root.relativize(
-      scene.target !== null && (scene.target.kind === "plan" || scene.target.kind === "spec")
-        ? scene.target.doc
-        : "",
-    );
-    // The in-flight handle of this tree — ONE instance per invocation, built at the
-    // tree root (not the slug workspace: the collision domain is the tree). The gate
-    // only inspects it; the lifecycle's real dispatch path acquires it after the gate.
-    const inflight = new InFlight(scene.workspace.root, scene.workspace.slug);
-    const preflight = await this.#preflight.vet({
-      type,
-      repoRoot: scene.workspace.root.repoRoot,
-      plan: scene.plan,
-      ledger: scene.ledger,
-      doc: TargetFaceTable.isDocShape(type)
-        ? {
-            // The ONE declaration reading face (spec §12 · D34) — every doc shape
-            // dispatch reads the doc's front-matter `doc-type:` key;
-            // a key-less doc reads null and the seam BLOCKs (zero command-type
-            // carve-out, zero filename-suffix fallback).
-            docKey: BoardView.readDocType(root, docRel),
-            path: docRel,
-          }
-        : null,
-      inflight,
-      // The explicit takeover flag — VOID under --dry-run: the preview face never
-      // acquires, so a takeover there would have no write channel at all. The
-      // preview still judges the same gate, sees the same holder facts, and exits 1.
-      recover: !parsed.dryRun && parsed.args.recover === "true",
-    });
+    // The phase this dispatch expects — the verb's own word, or the face's review
+    // lead (the branch line's `branch-review`). Every face reads it (the values, the
+    // dispatch verdict, the lookahead refusal).
+    const expected: DispatchPhase =
+      verb === "implement" ? "implement" : verb === "fix" ? "fix" : scene.face.product.reviewLead;
+
     // The per-invocation batch cursor: the in-memory done set mirrors the on-disk
     // ledger's closed waves (the C5 closure single face) — NOT a "every non-group
     // task pre-done" shortcut. The old shortcut made the frontier yield exactly the
@@ -854,8 +845,69 @@ export class Cli {
       }
       for (const id of scene.ledger.closedWaves()) scene.state.markDone(id);
     }
-    const expected =
-      verb === "implement" ? "implement" : verb === "fix" ? "fix" : scene.face.product.reviewLead;
+
+    // P40 T4 — the dispatch's value record and artifact snapshot, assembled ONCE here
+    // and handed to the seam: the frames `Lifecycle#peekNext()` would build do not exist
+    // yet (the run is constructed only after the verdict), and a frame-bound producer is
+    // exactly what this assembly retires. The seam's four rows and the renderer read the
+    // SAME record.
+    const before = this.#beforeOf(scene, type, expected, parsed);
+
+    // THE pre-flight seam (P4.1 T1 · design §1): the STRUCTURE gates —
+    // tree-clean → in-flight → plan-carrier → graph → plan-ledger → doc-contract, then
+    // the four pre-dispatch rows (P40 T4) — ONE call, the whole sequence lives in the
+    // seam (session/preflight.ts), the CLI orchestrates the call + the verdict render
+    // (zero re-implemented gate here). The dispatch's own phase is the authority's
+    // verdict below (P27 §2), never a second seam. A refused verdict returns before any
+    // brief/lifecycle: no child dispatch ever runs. The dirty-tree / doc-contract
+    // refusals ride the CDD_BLOCKED channel; the graph / plan-ledger refusals keep the
+    // pre-existing refusal face. The doc-face read path is the repoRoot-relative branded
+    // `RepoPath` (T4 §2.2 — a bare `string` never reaches the read faces
+    // `BoardView.readDocType`/`PreFlightDoc.path`; the CLI feeds the funnel-shaped
+    // relative value, each read face erasing to the absolute syscall form through its OWN
+    // `RepoRoot`). Both branches yield the brand through the ONE conversion entry
+    // (`relativize` of the doc path; the empty path relativizes to the empty `RepoPath`)
+    // — no cast (F3).
+    const docRel = root.relativize(
+      scene.target !== null && (scene.target.kind === "plan" || scene.target.kind === "spec")
+        ? scene.target.doc
+        : "",
+    );
+    // The in-flight handle of this tree — ONE instance per invocation, built at the
+    // tree root (not the slug workspace: the collision domain is the tree). The gate
+    // only inspects it; the lifecycle's real dispatch path acquires it after the gate.
+    const inflight = new InFlight(scene.workspace.root, scene.workspace.slug);
+    const preflight = await this.#preflight.vet({
+      type,
+      repoRoot: scene.workspace.root.repoRoot,
+      plan: scene.plan,
+      ledger: scene.ledger,
+      doc: TargetFaceTable.isDocShape(type)
+        ? {
+            // The ONE declaration reading face (spec §12 · D34) — every doc shape
+            // dispatch reads the doc's front-matter `doc-type:` key;
+            // a key-less doc reads null and the seam BLOCKs (zero command-type
+            // carve-out, zero filename-suffix fallback).
+            docKey: BoardView.readDocType(root, docRel),
+            path: docRel,
+          }
+        : null,
+      inflight,
+      // The explicit takeover flag — VOID under --dry-run: the preview face never
+      // acquires, so a takeover there would have no write channel at all. The
+      // preview still judges the same gate, sees the same holder facts, and exits 1.
+      recover: !parsed.dryRun && parsed.args.recover === "true",
+      // P40 T4's five inputs — each with a producer at THIS root, none imported from
+      // another plane: the value record and the snapshot are the assembly above, the
+      // host probe is the ONE value `HostDetect.detect` answers, the declarations are the
+      // renderer's own row selection over that record, and the two scene facts are the
+      // DECLARED documents' cells booleanized.
+      host: HostDetect.detect(process.env),
+      values: before.values,
+      declarations: this.#template.layoutOf(before.values),
+      scene: { program: scene.program != null, docType: scene.docType != null },
+      artifact: before.artifact,
+    });
 
     // THE `--recover` judgment (P30 §2.1①–③), at the composition root and BEFORE the
     // dispatch verdict: the takeover lands first, the supersede stamp second and the
@@ -1251,6 +1303,174 @@ export class Cli {
     return typeof artifact?.base === "string" ? artifact.base : "";
   }
 
+  /** P40 T4 — the pre-frame dispatch assembly: the identity, the flat value record and
+   *  the artifact snapshot the seam judges (and, after Task 5, the renderer renders). It
+   *  runs BEFORE `PreFlight#vet` because the frames `Lifecycle#peekNext()` builds do not
+   *  exist yet — every fact here is a flat, frame-free value: the ledger's recorded
+   *  rounds, the argv's parsed paths, the workspace's own directory, the naming face's
+   *  rendered names. ONE assembly, two consumers. */
+  #beforeOf(
+    scene: WorkScene,
+    type: TargetType,
+    phase: DispatchPhase,
+    parsed: RunInput,
+  ): {
+    identity: DispatchIdentity;
+    values: Readonly<Record<string, string>>;
+    artifact: ArtifactSnapshot;
+  } {
+    // The wave's task group is the OPEN batch the frame builder will read — the SAME
+    // `frontier(doneTasks())` call `Lifecycle#openWaveFrame` makes, taken after the
+    // closed waves were mirrored into the run state above.
+    const tasks = type === "wave" ? scene.state.frontier(scene.state.doneTasks()).join(",") : "";
+    const key = this.#gate.lineIdentity(scene).key ?? tasks;
+    // The round verb is folded ONCE (`branch-review` → `review`): the identity's `op`, the
+    // rendered artifact names and the attempt allocation all read this value, so the
+    // refusal record and the prompt cannot name two different verbs.
+    const op = RoundRecords.opOf(phase) ?? "review";
+    const { cycle, attempt } = this.#consumedRoundOf(scene.ledger, key, phase);
+    const identity: DispatchIdentity = { op, type, phase, tasks, cycle, attempt };
+    const carrier = { type, key, cycle, tasks };
+    const carrierPath = RequestingCarrier.path(scene.ledger, parsed.paths.reviews, carrier);
+    const reviewsPath = carrierPath === null ? null : this.#relativeOf(scene, carrierPath);
+    const digest = RequestingCarrier.requesterRecord(scene.ledger, carrier)?.carrierDigest ?? null;
+    const artifact = this.#artifactSnapshotOf(scene, op, reviewsPath, digest);
+    const roundArtifact = RoundNaming.artifactOf(op, type, { tasks, round: cycle, attempt });
+    const plane = HandoffSchema.planeOf(op);
+    const sceneFacts: DispatchSceneFacts = {
+      repoRoot: scene.workspace.root.basis,
+      docPath:
+        scene.target !== null && (scene.target.kind === "plan" || scene.target.kind === "spec")
+          ? scene.target.doc
+          : null,
+      planPath: scene.planPath,
+      specLink: scene.specLink,
+      overallLink: scene.overallLink,
+      baseBranch: this.#baseBranchOf(scene),
+      // The engine-written brief: the exact name `CliGate#renderBrief` lands, derived
+      // here so the value exists BEFORE the file does (the seam judges the declaration —
+      // the engine guarantees that file — never the disk).
+      briefPath: tasks === "" ? "" : scene.ledger.naming().brief(tasks),
+      workspaceDir: scene.workspace.path,
+      workspaceId: scene.workspace.slug,
+      reportPath: path.join(scene.workspace.path, RoundNaming.renderName(roundArtifact, "report")),
+      evidencePath: this.#evidencePathOf(scene, phase, type, roundArtifact),
+      handoffPath: scene.ledger.handoffPath(op, type, { tasks, round: cycle, attempt }),
+      handoffSchema: new HandoffSchema().schemaText(
+        plane,
+        plane === "work" && (type === "wave" || type === "branch"),
+      ),
+    };
+    return { identity, values: DispatchValues.compose(identity, sceneFacts, artifact), artifact };
+  }
+
+  /** The round this dispatch will consume — the frame-free twin of `Lifecycle`'s own
+   *  allocation (`#roundFor` · `#attemptFor`): implement is always round 1, fix the
+   *  latest COMPLETED review cycle, the review lead the recorded cycle count + 1; the
+   *  attempt is then allocated ON that cycle by the naming face's ONE allocator. */
+  #consumedRoundOf(
+    ledger: Ledger,
+    key: LedgerKey,
+    phase: DispatchPhase,
+  ): { cycle: number; attempt: number } {
+    const completed = ledger.completedCycles(key, "review");
+    const cycle =
+      phase === "implement"
+        ? 1
+        : phase === "fix"
+          ? completed.length > 0
+            ? Math.max(...completed)
+            : 1
+          : ledger.roundCount(key, phase) + 1;
+    const op = RoundRecords.opOf(phase) ?? "review";
+    return { cycle, attempt: ledger.naming().attemptOf(ledger.recordsOf(key), op, cycle) };
+  }
+
+  /** The test-evidence path of this dispatch — the round's own name on the evidence
+   *  rounds (implement / fix on a non-doc face), "" everywhere else (the doc shapes and
+   *  the review rounds prescribe none). The frame-free twin of `RoundNaming#evidence`. */
+  #evidencePathOf(
+    scene: WorkScene,
+    phase: DispatchPhase,
+    type: TargetType,
+    roundArtifact: RoundArtifact,
+  ): string {
+    if (TargetFaceTable.isDocShape(type)) return "";
+    if (phase !== "implement" && phase !== "fix") return "";
+    return path.join(scene.workspace.path, RoundNaming.renderName(roundArtifact, "evidence"));
+  }
+
+  /** This dispatch's artifact judgment as the contract plane's snapshot — the ONE read
+   *  the `carrier` and `artifact` rows judge. The sidecar is judged on the fix face ALONE
+   *  (the review round's own context has no sidecar yet), so every other face hands in
+   *  the no-sidecar value. A requesting carrier whose bytes no longer digest to the
+   *  recorded value becomes the integrity arm INSTEAD of a read: its id set is not a fact
+   *  this round may read. The shortening and the line's format stay in their own homes
+   *  (`CarrierIntegrity` · `CarrierLine`), never here. */
+  #artifactSnapshotOf(
+    scene: WorkScene,
+    op: OpType,
+    reviewsPath: string | null,
+    digest: string | null,
+  ): ArtifactSnapshot {
+    if (op !== "fix") return { kind: "read", reviewsPath, read: ABSENT_SNAPSHOT_READ };
+    try {
+      const read = new ArtifactReads(this.#matrix, scene.workspace).read(
+        RULINGS_KIND,
+        reviewsPath ?? "",
+        digest,
+      );
+      return { kind: "read", reviewsPath, read: this.#snapshotReadOf(scene, read.read) };
+    } catch (raw) {
+      if (!(raw instanceof CarrierMismatchError)) throw raw;
+      return { kind: "mismatch", reviewsPath, carrier: raw.facts() };
+    }
+  }
+
+  /** One `ArtifactRead` flattened into the contract plane's value — every path on the ONE
+   *  basis, the identity words rendered by the words plane, the `misplaced` report's kind
+   *  word named once. */
+  #snapshotReadOf(scene: WorkScene, read: ArtifactRead): ArtifactSnapshotRead {
+    if (read.kind === "ok") {
+      return {
+        kind: "ok",
+        path: this.#relativeOf(scene, read.path),
+        reason: null,
+        found: [],
+        identity: null,
+        sidecarKind: null,
+      };
+    }
+    if (read.kind === "invalid") {
+      return {
+        kind: "invalid",
+        path: this.#relativeOf(scene, read.path),
+        reason: read.reason,
+        found: [],
+        identity: null,
+        sidecarKind: null,
+      };
+    }
+    if (read.kind === "misplaced") {
+      return {
+        kind: "misplaced",
+        path: this.#relativeOf(scene, scene.workspace.resolve(read.derived)),
+        reason: null,
+        found: read.found.map((name) => this.#relativeOf(scene, scene.workspace.resolve(name))),
+        identity: this.#words.identityWords(read.identity),
+        sidecarKind: RULINGS_KIND,
+      };
+    }
+    return ABSENT_SNAPSHOT_READ;
+  }
+
+  /** The ONE repo-basis conversion on this root — `RepoRoot.relativize` reads an absolute
+   *  value as itself and a relative value as repoRoot-relative, collapsing both to one
+   *  basis; an empty value stays empty (never a `"."`). */
+  #relativeOf(scene: WorkScene, value: string): string {
+    return value === "" ? "" : scene.workspace.root.basis.relativize(value);
+  }
+
   /** Render a refused STRUCTURE-leg verdict — the work command's BLOCK face (P4.1
    *  T1). The structure leg's ONE line (§2.6) is `<reason> · <the seam's own
    *  wording>`: the dirty-tree / doc-contract rows ride the CDD_BLOCKED channel (the
@@ -1263,10 +1483,20 @@ export class Cli {
     preflight: PreFlightVerdict,
   ): void {
     const message = this.#authority.message(rejection, { detail: preflight.message });
+    // The channel-ownership condition is the SECOND place a gate row is added (the
+    // first is `PreFlightGateName`): the CDD_BLOCKED channel owns `tree-clean` ·
+    // `in-flight` · `doc-contract` and the four pre-dispatch rows; the `cdd <verb>: …`
+    // channel keeps `graph` · `plan-ledger`. A row added to the type but not here would
+    // be printed on the wrong channel — `cdd review: dispatch-input · …` instead of
+    // `CDD_BLOCKED: dispatch-input · …`.
     if (
       preflight.gate === "tree-clean" ||
       preflight.gate === "in-flight" ||
-      preflight.gate === "doc-contract"
+      preflight.gate === "doc-contract" ||
+      preflight.gate === "no-host" ||
+      preflight.gate === "carrier" ||
+      preflight.gate === "dispatch-input" ||
+      preflight.gate === "artifact"
     ) {
       this.#io.stderr(`${this.#words.station("blocked")} ${message}\n`);
       for (const detail of preflight.details ?? []) this.#io.stderr(`  ${detail}\n`);

@@ -71,6 +71,7 @@ import type { ArtifactRegistry, Kind } from "../session/round-artifacts.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { PlanStructure } from "../session/run.ts";
+import { RequestingCarrier, type RequestingCarrierFacts } from "./dispatch-values.ts";
 import { DISPATCH, HOSTS, HostDetect, type HostId, type HostReferenceTable, REFS } from "./host.ts";
 import {
   type ChildOutcome,
@@ -1600,36 +1601,28 @@ export class CliLifecycle {
   }
 
   /** The requesting review carrier's path — the fix round's `--reviews` input, or the
-   *  same-cycle review record's carrier identity through the ledger's ONE accessor
-   *  (the recorded path, then the read ladder a pre-P31 row needs), or the ledger's
-   *  resolved family name when the line records no review for this cycle. A record
-   *  that resolves no carrier reads `null`. Record-present means the record's own final
-   *  wins: a draft sitting beside it never becomes the judged input.
+   *  same-cycle review record's carrier identity (the recorded path, then the read ladder
+   *  a pre-P31 row needs), or the ledger's resolved family name when the line records no
+   *  review for this cycle. A record that resolves no carrier reads `null`.
+   *
+   *  The three-branch priority — and the judgments behind it — live in ONE home
+   *  (`RequestingCarrier.path`, P40 T4): the composition root asks the same entry to
+   *  produce `INPUT_REVIEWS`, so the fix input's path cannot be derived two ways.
    *
    *  WAS: a `null` here was the UNRECORDED face, which the criterion booked as a visible
    *  skip and the fix round dispatched without a review input. NOW: P38 §2.3 reversal ② —
    *  `INPUT_REVIEWS` is `always`-required, so that value is `empty-value` at the
    *  dispatch-input gate and the round stops before the child exists. */
   #reviewsPath(frame: OpenFrame): string | null {
-    if (this.#reviews !== null) return this.#reviews;
-    const record = this.#requesterRecord(frame);
-    if (record !== null) {
-      const recorded = this.#scene.ledger.carrierPathOf(frame.type, String(frame.key), record);
-      return recorded === "" ? null : recorded;
-    }
-    return this.#reviewFamilyPath(frame);
+    return RequestingCarrier.path(this.#scene.ledger, this.#reviews, this.#carrierFactsOf(frame));
   }
 
   /** The review family's name for this frame's CYCLE — the one home of the
-   *  "fall back with the cycle only" rule (§2.10). It never carries the frame's
-   *  `attempt`: the review family's attempt is its own recorded one, resolved by the
-   *  central `#attemptAware` default. A re-dispatched fix frame would otherwise ask
-   *  for a `-a2` name the cycle's review never wrote. */
+   *  "fall back with the cycle only" rule (§2.10) stays `RequestingCarrier.familyPath`.
+   *  It never carries the frame's `attempt`: the review family's attempt is its own
+   *  recorded one, resolved by the central `#attemptAware` default. */
   #reviewFamilyPath(frame: OpenFrame): string {
-    return this.#scene.ledger.resolveHandoffPath("review", frame.type, {
-      tasks: frame.params.tasks,
-      round: frame.round,
-    });
+    return RequestingCarrier.familyPath(this.#scene.ledger, this.#carrierFactsOf(frame));
   }
 
   /** The same-cycle review record this fix round answers — its LATEST attempt (a
@@ -1637,13 +1630,19 @@ export class CliLifecycle {
    *  applies). Null when the line records no review for this cycle. ONE basis for the
    *  requesting carrier's path and its digest. */
   #requesterRecord(frame: OpenFrame): RoundRecord | null {
-    const reviewed = this.#scene.ledger
-      .recordsOf(frame.key)
-      .filter((record) => record.op === "review" && record.cycle === frame.round);
-    return reviewed.reduce<RoundRecord | null>(
-      (newest, record) => (newest === null || record.attempt >= newest.attempt ? record : newest),
-      null,
-    );
+    return RequestingCarrier.requesterRecord(this.#scene.ledger, this.#carrierFactsOf(frame));
+  }
+
+  /** The frame's four flat carrier facts — the ONE adapter from the frame onto the
+   *  frame-free priority (`RequestingCarrierFacts`): the ledger key, the cycle, the
+   *  wave's task group and the target type. */
+  #carrierFactsOf(frame: OpenFrame): RequestingCarrierFacts {
+    return {
+      type: frame.type,
+      key: String(frame.key),
+      cycle: frame.round,
+      tasks: frame.params.tasks ?? "",
+    };
   }
 
   /** The fix input's carrier-integrity gate — the `carrier-mismatch` refusal when the

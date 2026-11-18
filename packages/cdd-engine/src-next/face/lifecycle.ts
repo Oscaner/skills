@@ -1698,8 +1698,9 @@ export class CliLifecycle {
    *  never forecast a dispatch the real run would refuse. Nothing here writes and no
    *  document is parsed at dispatch — exigibility reads the two DECLARED scene cells.
    *
-   *  `mode` defaults to `dispatch`: the preview's one weaker arm (`preview: satisfied`)
-   *  must be asked for by name, so no caller silently takes it. */
+   *  `mode` defaults to `dispatch`: the preview's one weaker arm (an engine-written cell
+   *  is answered by its naming line) must be asked for by name, so no caller silently
+   *  takes it. */
   inputRefusal(frame: OpenFrame, mode: "dispatch" | "preview" = "dispatch"): string | null {
     return this.#inputRefusalOf(this.#valuesOf(frame, this.#artifactCellOf(frame)), frame, mode);
   }
@@ -1759,17 +1760,17 @@ export class CliLifecycle {
     return hits.some((arm) => arm.when === "program") ? "target-absent" : "empty-value";
   }
 
-  /** Whether the preview's `satisfied` answer applies to this cell (§2.4) — the ONLY
-   *  reader of `preview: "satisfied"`. The naming line that writes this cell's artifact
+  /** Whether the preview's naming answer applies to this cell (§2.4) — the ONLY
+   *  reader of `written: "engine"`. The naming line that writes this cell's artifact
    *  is the answer's source: the brief is the one cell `renderBrief` writes at dispatch
    *  alone, so a wave that names its task group names its brief, and a wave that names
    *  none falls back to the empty-value arm. The exemption covers the existence leg too:
    *  a preview never asks a file it would not write. The token guard is the second half
-   *  of one rule: the assembler refuses any OTHER cell declaring `satisfied` at
-   *  construction (#assertPreviewAnswer), so a declaration the naming row cannot answer
+   *  of one rule: the assembler refuses any OTHER cell declaring `written: "engine"` at
+   *  construction (#assertEngineWritten), so a declaration the naming row cannot answer
    *  never reaches a preview. */
   #answeredByNaming(decl: ContextLine, token: string, frame: OpenFrame): boolean {
-    if (decl.preview !== "satisfied" || token !== TemplateAssembler.NAMED_BRIEF_CELL) return false;
+    if (decl.written !== "engine" || token !== TemplateAssembler.NAMED_BRIEF_CELL) return false;
     const tasks = frame.params.tasks ?? "";
     return tasks !== "" && this.#naming.briefName(tasks) !== "";
   }

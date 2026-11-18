@@ -106,9 +106,10 @@ export interface ContextLine {
   readonly absent: "drop" | "none";
   /** The types the cell is exigible on — one arm, or several conjunctive arms. */
   readonly requiredOn: readonly RequiredArm[];
-  /** What `--dry-run` answers for this cell (§2.4): `value` (the default) reads the
-   *  same frame's value; `satisfied` answers "the naming line named it ⇒ satisfied". */
-  readonly preview?: "value" | "satisfied";
+  /** The engine writes this cell's file itself before the child reads it (§1: the
+   *  brief). The name is the whole answer — no path on an engine-written cell ever
+   *  takes an existence read, and `NAMED_BRIEF_CELL` is the ONE slot allowed to say so. */
+  readonly written?: "engine";
 }
 
 /** One dispatch-table row — a mode's fixed prefix + its reduced dynamic tail. */
@@ -360,7 +361,7 @@ const REVIEW_CONTEXT: readonly ContextLine[] = [
     path: true,
     absent: "drop",
     requiredOn: [{ types: ["wave"] }],
-    preview: "satisfied",
+    written: "engine",
   },
   {
     line: "- `INPUT_PLAN`: {{INPUT_PLAN}}",
@@ -428,7 +429,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
         path: true,
         absent: "drop",
         requiredOn: [{ types: "always" }],
-        preview: "satisfied",
+        written: "engine",
       },
       {
         line: "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
@@ -476,7 +477,7 @@ const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
         path: true,
         absent: "drop",
         requiredOn: [{ types: ["wave"] }],
-        preview: "satisfied",
+        written: "engine",
       },
       {
         line: "- `INPUT_PLAN`: {{INPUT_PLAN}}",
@@ -991,11 +992,11 @@ export const WORK_MODES: readonly WorkMode[] = ["implement", "fix", "review", "d
  * extraction, and a second home for these five criteria would be a second truth.
  */
 export class TemplateAssembler {
-  /** The ONE cell whose preview answer is its naming line's (§1.1 · §2.4) — the
-   *  brief, the single artifact `renderBrief` writes at dispatch alone. Any other
-   *  cell declaring `preview: "satisfied"` has no naming answer in this engine, so
-   *  the declaration is refused at construction (#assertPreviewAnswer) rather than
-   *  silently read as `value`. */
+  /** The ONE cell the engine writes itself (§1 · §2.4) — the brief, the single
+   *  artifact `renderBrief` writes before the child reads it. Its name is its whole
+   *  answer, so no path is read for existence; any other cell declaring
+   *  `written: "engine"` names a file this engine never writes, so the declaration is
+   *  refused at construction (#assertEngineWritten) rather than silently read as a path. */
   static readonly NAMED_BRIEF_CELL = "INPUT_WAVE_BRIEF";
 
   readonly #contract: TemplatePrompt;
@@ -1078,15 +1079,23 @@ export class TemplateAssembler {
   /** The construction-time declaration criteria (§1.1 · §1.3 · §4.2) — ONE home, run
    *  once per construction over every row: a dead cell (a) · an unregistered slot
    *  (b) · a shell naming a cell its layout never carries (c) · a registered
-   *  round-context token no row carries (d) · a preview answer declared on a cell the
-   *  naming row cannot answer (e). A violation means the assembler cannot be built, so
-   *  no dispatch can ever reach it — the per-render re-run is gone. */
+   *  round-context token no row carries (d) · an engine-written declaration on a cell
+   *  other than the brief (e). A violation means the assembler cannot be built, so no
+   *  dispatch can ever reach it — the per-render re-run is gone. */
   #assertDeclarations(): void {
+    const judged = new Set<string>();
     for (const row of this.#rows()) {
       for (const decl of row.roundContext) {
         this.#assertServed(row, decl);
         this.#assertRegistered(row, decl);
-        this.#assertPreviewAnswer(row, decl);
+        // (e) judges the SLOT: the brief rides three declarations, and one slot
+        // declared on several rows is one judgment, never three.
+        const slot = decl.written === "engine" ? TemplateAssembler.slotOf(decl.line) : undefined;
+        if (slot !== undefined) {
+          if (judged.has(slot)) continue;
+          judged.add(slot);
+        }
+        this.#assertEngineWritten(row, decl);
       }
       this.#assertShellCarries(row);
     }
@@ -1142,16 +1151,17 @@ export class TemplateAssembler {
     }
   }
 
-  /** (e) the preview answer — only the brief cell may declare `preview: "satisfied"`.
-   *  The exemption synthesises the one cell whose value the naming row writes
-   *  (`RoundNaming#briefName`), so a second `satisfied` cell would be declared, then
-   *  silently judged as `value`; refusing it at construction keeps the declaration
-   *  error at build time instead of on the one path that happens to take it. */
-  #assertPreviewAnswer(row: ModePromptRow, decl: ContextLine): void {
-    if (decl.preview !== "satisfied") return;
+  /** (e) the engine-written declaration — only the brief slot may declare
+   *  `written: "engine"`. The engine renders that one file itself before the child
+   *  reads it, so the declaration carries exactly one meaning: no existence read on
+   *  any path. A second slot declaring it would claim a file this engine never writes;
+   *  refusing it at construction keeps the declaration error at build time instead of
+   *  on the one path that happens to take it. */
+  #assertEngineWritten(row: ModePromptRow, decl: ContextLine): void {
+    if (decl.written !== "engine") return;
     if (TemplateAssembler.slotOf(decl.line) === TemplateAssembler.NAMED_BRIEF_CELL) return;
     throw new Error(
-      `template mode ${row.mode} declares preview "satisfied" for ${TemplateAssembler.#labelOf(decl)} — only ${TemplateAssembler.NAMED_BRIEF_CELL} may (the one cell the naming row answers)`,
+      `template mode ${row.mode} declares written "engine" for ${TemplateAssembler.#labelOf(decl)} — only ${TemplateAssembler.NAMED_BRIEF_CELL} may (the one artifact the engine writes itself)`,
     );
   }
 

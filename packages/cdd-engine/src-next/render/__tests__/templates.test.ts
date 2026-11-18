@@ -28,6 +28,8 @@ import {
 import type { TargetType } from "../../session/faces.ts";
 import {
   CLOSED_WAVE_DISCIPLINE,
+  type ContextLine,
+  type ModePromptRow,
   pinLensOf,
   REVIEWS,
   type ReviewGuides,
@@ -38,6 +40,7 @@ import {
   SEVERITY_RUBRIC_SLOTS,
   TEMPLATE_PROMPT,
   TemplateAssembler,
+  type TemplatePrompt,
 } from "../templates.ts";
 
 /** The criteria keys — the five distinct bodies one target type selects among. */
@@ -449,5 +452,98 @@ describe("P38 T4 — the `none` half-sentence belongs to the two fix shells only
     for (const type of TARGET_TYPES) {
       expect(assembler.render(frameOf("review", type)), type).not.toContain(NONE_HALF);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P40 T1 — the brief cell is the ENGINE's own artifact (design spec §1: `written:
+// "engine"`). The cell's name is its whole answer: the file is rendered by the engine
+// before the child reads it, so no path takes an existence read. The declaration face
+// says so once, and the construction-time criterion judges the SLOT (one judgment per
+// slot across every row), not the line that happens to carry it.
+// ---------------------------------------------------------------------------
+
+/** A mutable copy of the declared contract — the layout arrays cloned, so a case can
+ *  replace one declaration without leaking into the module's own data. */
+interface ContractDraft {
+  readonly modes: Record<string, { roundContext: ContextLine[] }>;
+  readonly reviews: Record<string, { roundContext: ContextLine[] }>;
+  readonly tokens: { name: string; zone: string }[];
+}
+
+const draftOf = (): ContractDraft => ({
+  modes: Object.fromEntries(
+    Object.entries(TEMPLATE_PROMPT.modes).map(([key, row]) => [
+      key,
+      { ...row, roundContext: [...row.roundContext] },
+    ]),
+  ),
+  reviews: Object.fromEntries(
+    Object.entries(TEMPLATE_PROMPT.reviews).map(([key, row]) => [
+      key,
+      { ...row, roundContext: [...row.roundContext] },
+    ]),
+  ),
+  tokens: TEMPLATE_PROMPT.tokens.map((token) => ({ name: token.name, zone: token.zone })),
+});
+
+/** The mutated draft as the injected contract. */
+const contractOf = (draft: ContractDraft): TemplatePrompt =>
+  ({ ...TEMPLATE_PROMPT, ...draft }) as unknown as TemplatePrompt;
+
+/** Every row the assembler can render — the three work rows plus the six review rows. */
+const ROWS: readonly ModePromptRow[] = [
+  TEMPLATE_PROMPT.modes.implement,
+  TEMPLATE_PROMPT.modes.fix,
+  TEMPLATE_PROMPT.modes["docs-fix"],
+  ...Object.values(TEMPLATE_PROMPT.reviews),
+];
+
+describe('P40 T1 — `written: "engine"` marks the one artifact the engine writes itself', () => {
+  it("declares the brief cell engine-written on every row that carries it — the contract builds", () => {
+    const carriers = ROWS.filter((row) =>
+      row.roundContext.some(
+        (decl) => TemplateAssembler.slotOf(decl.line) === TemplateAssembler.NAMED_BRIEF_CELL,
+      ),
+    );
+    // three declarations: the review tail (six rows share it), implement, fix
+    expect(carriers.length).toBeGreaterThanOrEqual(3);
+    for (const row of carriers) {
+      const brief = row.roundContext.find(
+        (decl) => TemplateAssembler.slotOf(decl.line) === TemplateAssembler.NAMED_BRIEF_CELL,
+      );
+      expect(brief?.written, row.mode).toBe("engine");
+    }
+    expect(() => new TemplateAssembler()).not.toThrow();
+  });
+
+  it("refuses an engine-written declaration on any OTHER slot — naming that slot and the permitted one", () => {
+    const draft = draftOf();
+    draft.reviews["phase-spec"].roundContext = draft.reviews["phase-spec"].roundContext.map(
+      (decl) => (decl.line.includes("INPUT_SPEC") ? { ...decl, written: "engine" as const } : decl),
+    );
+    // A replacement declaration, never an in-place mutation: the engine guarantees the
+    // brief exists and guarantees nothing about a spec path, so the second declaration
+    // is refused where the assembler is built.
+    expect(() => new TemplateAssembler(contractOf(draft))).toThrow(/INPUT_SPEC/);
+    expect(() => new TemplateAssembler(contractOf(draft))).toThrow(/INPUT_WAVE_BRIEF/);
+  });
+
+  it("judges one declaration per SLOT — a rogue slot carried by two rows is reported once", () => {
+    const draft = draftOf();
+    for (const type of ["phase-spec", "plan"] as const) {
+      draft.reviews[type].roundContext = draft.reviews[type].roundContext.map((decl) =>
+        decl.line.includes("INPUT_SPEC") ? { ...decl, written: "engine" as const } : decl,
+      );
+    }
+    let message = "";
+    try {
+      new TemplateAssembler(contractOf(draft));
+    } catch (raw) {
+      message = (raw as Error).message;
+    }
+    expect(message).toContain("INPUT_SPEC");
+    // the judgment is per slot: two rows declaring the same slot earn one message
+    expect(message.split("INPUT_SPEC")).toHaveLength(2);
   });
 });

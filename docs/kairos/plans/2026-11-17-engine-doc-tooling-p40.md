@@ -28,6 +28,7 @@ brief 是引擎自己写的格：它的名字就是答案，文件由引擎在 s
 
 #### Files
 - Modify: `packages/cdd-engine/src-next/render/templates.ts`（`ContextLine` 的声明格、三处 `preview: "satisfied"` 声明、两段描述该档的注释 prose、`TemplateAssembler#assertPreviewAnswer`）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`#answeredByNaming` 的读取字段由 `decl.preview` 换成 `decl.written`，一行加两段注释；不换行为——实施轮实测：该字段若留到 Task 3 才换，则 `ContextLine` 的 `preview` 档与唯一的读者同时存在、声明面已无载体，预览豁免静默失效，face 侧测试在 Task 1 与 Task 3 之间转红）
 - Test: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`
 - Test: `packages/cdd-engine/src-next/render/__tests__/context-lines.test.ts`（`preview: "satisfied"` 的两处既有字面量同批改写为 `written: "engine"`）
 
@@ -48,7 +49,7 @@ readonly written?: "engine";
 - **Step 2: 跑测试确认红** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/render/__tests__/templates.test.ts` 报红，原因指向缺失的 `written` 档
 - **Step 3: 加类型档 · 改三处声明 · 断言改名 `#assertEngineWritten` 并按槽判** — checkable: `rg -n 'preview: "satisfied"' packages/cdd-engine/src-next/render` 零命中（`templates.ts` 的三处声明与其两段注释 prose · 本任务声明的两个测试文件，均同批换词）
 - **Step 4: 跑测试确认绿** — checkable: 同 Step 2 命令 0 failed
-- **Step 5: 提交** — checkable: `git show --stat HEAD` 只含 `templates.ts` 与两个测试文件
+- **Step 5: 提交** — checkable: `git show --stat HEAD` 只含 `templates.ts`、两个测试文件与 `face/lifecycle.ts`（后者一行读取字段，见 Files 的订正理由）
 
 #### Acceptance
 三张 mode 表的 brief 格声明为 `written: "engine"`；非 brief 槽声明它时构造期红且报文点名该槽；`src-next/render/` 全绿；`rg -n 'preview: "satisfied"' packages/cdd-engine/src-next/render` 零命中（`templates.ts` 的三处声明与两段注释 prose、`templates.test.ts` · `context-lines.test.ts` 的既有字面量同批换词；全树零命中是 Task 3 的判据——`face/lifecycle.ts` 与 `dispatch-input.test.ts` 里的旧字面量到那时才换）。
@@ -372,3 +373,4 @@ static refusalRows(state: RefusalState, words: Words): readonly string[];
 | v0.1 | 2026-11-18 | 首稿：八任务 / 六波（{1} → {3} → {2,4} → {5,7} → {6} → {8}）。判据抽 `contract/` 以避免 session→face 的新环（`RowStation` 是站名域的唯一声明，`PreFlightGateName` 以它扩四值）；brief 改记引擎写先行；记录晚于判据、早于接线；board 独立于接线；优先级位移与 `--recover` 各自成对验收；changeset 收尾 | Oscaner M. · Claude |
 | v0.2 | 2026-11-18 | 评审修复一轮（F1–F5 全采纳）：判据的输入改为契约层自声明值（`ArtifactSnapshot` 两臂 + 平值记录），face 在调用点适配，Task 3 的 Consumes 改成真模块路径（F1）；`#inflight.release()` 的唯一调用点钉到 `face/lifecycle.ts` 派发体并加入 Task 6 Files（F2）；宿主值的三处读者与 `#runDispatch` 的 no-host 字面、`Preview` 的 `child:` 空值分支退役并入 Task 6（F3）；封名退场改写为谓词并点名存活的 abort 记账调用（F4）；`refusal` 名字扩为 `round-artifacts.ts` 的四个登记点（F5） | Oscaner M. · Claude |
 | v0.3 | 2026-11-18 | 第二轮评审修复（F1–F3 全采纳）：① Task 1 的零命中判据收窄到 `render/` 切片（`templates.ts` 的声明与注释 prose + 两个测试文件，`render/__tests__/context-lines.test.ts` 补进 Files），全树零命中移入 Task 3——`face/lifecycle.ts#answeredByNaming` 要到 Task 3 才换判据，且 `face/__tests__/dispatch-input.test.ts` 的注释里也有一份旧字面量（该文件因此以「仅改注释、断言零改动」进 Task 3 Files），两处都到齐后全树判据才可转绿（F1）；② Task 5 的封名退场改成点名两条存活调用（`#bookAbort` 的 `#sealRoundCarriersOf` 与终止处理器的死亡路径封名），退役范围按谓词限定在四门拒绝分支，死亡路径封名写明必须保留（F2）；③ Task 6 补第七条测试与验收：approved 派发的 `checked:` 面在 implement / review / fix 三个 fixture 上各断言一次九行行名集合（spec 具名变更④此前无归属）（F3） | Oscaner M. · Claude |
+| v0.4 | 2026-11-18 | 实施轮订正（Task 1）：`preview` 字段退场后 `face/lifecycle.ts#answeredByNaming` 的读取字段必须在同一提交内换成 `written: "engine"`，否则声明面与唯一读者脱节、预览豁免静默失效——该文件因此进 Task 1 Files（v0.3 的「Task 3 才换判据」作废）；本任务仍只换读取字段，不动 `mode` 守卫与 per-mode 例外，行为逐字节不变。Task 3 的其余职责（判据抽 `contract/preflight-rows.ts`、`mode` 守卫退场、`dispatch-input.test.ts` 的旧字面量）不变 | Oscaner M. · Claude |

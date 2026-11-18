@@ -3,8 +3,8 @@
 //
 // Two faces under test, and they must stay two: the CONSTRUCTION-time criteria
 // (a dead cell · a shell naming a cell its layout never carries · an unregistered
-// slot · a registered round-context token no row carries · a preview answer on a cell
-// the naming row cannot answer) and the RENDER-time truth table (a value renders; an
+// slot · a registered round-context token no row carries · an engine-written declaration
+// on a cell other than the brief) and the RENDER-time truth table (a value renders; an
 // absent `drop` cell disappears whole; an absent `none` cell renders the bare literal
 // `none`). The rendering layer has three states, never a fourth: exigibility is judged
 // upstream by the dispatch-input gate, so the "empty but required" branch is not
@@ -170,17 +170,17 @@ describe("TemplateAssembler — the construction-time declaration criteria (§1.
     expect(() => new TemplateAssembler()).not.toThrow();
   });
 
-  it("(f) refuses a `satisfied` preview answer on any cell but the brief — and names the permitted one", () => {
+  it('(f) refuses a `written: "engine"` declaration on any cell but the brief — and names the permitted one', () => {
     const draft = draftOf();
     const row = draft.reviews["phase-spec"];
     // A REPLACEMENT declaration, never an in-place mutation: `draftOf` clones the
     // layout arrays, so the declaration objects themselves are the module's own.
     row.roundContext = row.roundContext.map((decl) =>
-      decl.line.includes("INPUT_SPEC") ? { ...decl, preview: "satisfied" as const } : decl,
+      decl.line.includes("INPUT_SPEC") ? { ...decl, written: "engine" as const } : decl,
     );
-    // The exemption has exactly one answer (the naming row writes the brief, nothing
-    // else): a second `satisfied` cell would be declared and then silently judged as
-    // `value`, so the declaration is refused where the assembler is built.
+    // The declaration has exactly one answer (the engine writes the brief, nothing
+    // else): a second engine-written cell names a file this engine never writes, so the
+    // declaration is refused where the assembler is built.
     expect(() => new TemplateAssembler(contractOf(draft))).toThrow(/INPUT_SPEC/);
     expect(() => new TemplateAssembler(contractOf(draft))).toThrow(/INPUT_WAVE_BRIEF/);
   });
@@ -259,15 +259,15 @@ describe("TemplateAssembler — the declaration table's own shape (§1.4)", () =
     }
   });
 
-  it("keeps `INPUT_RULINGS` the only `none` cell and `INPUT_WAVE_BRIEF` the only preview", () => {
+  it("keeps `INPUT_RULINGS` the only `none` cell and `INPUT_WAVE_BRIEF` the only engine-written one", () => {
     const noneCells = new Set(
       CELLS.filter((cell) => cell.decl.absent === "none").map((cell) => slotOf(cell.decl)),
     );
     expect([...noneCells]).toEqual(["INPUT_RULINGS"]);
-    const previews = new Set(
-      CELLS.filter((cell) => cell.decl.preview === "satisfied").map((cell) => slotOf(cell.decl)),
+    const engineWritten = new Set(
+      CELLS.filter((cell) => cell.decl.written === "engine").map((cell) => slotOf(cell.decl)),
     );
-    expect([...previews]).toEqual(["INPUT_WAVE_BRIEF"]);
+    expect([...engineWritten]).toEqual(["INPUT_WAVE_BRIEF"]);
   });
 
   it("hangs the `never` form on `INPUT_RULINGS` (both fix rows) and docs-fix's `WAVE` — nowhere else", () => {

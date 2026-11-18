@@ -167,6 +167,14 @@ export interface WorkScene extends DispatchScene {
    *  repoRoot-relative path) — the review/fix round context's charter anchor; null
    *  when the line's spec names no program. */
   overallLink: string | null;
+  /** The identity document's DECLARED `program:` literal (`DocEntry.program`) — the
+   *  dispatch-input gate's `when: "program"` declaration source (P38 §1.3).
+   *  Required here so a scene assembled by this root can never be handed to the gate
+   *  with the declaration silently missing: null IS the "not declared" answer. */
+  program: string | null;
+  /** The identity document's DECLARED `doc-type:` shape (`DocEntry.docType`) — the
+   *  `when: "identity"` declaration source, same shape as `program` beside it. */
+  docType: DocEntry["docType"];
 }
 /** The path-typed argv values (T3 §2.3) — split out of the generic `args` record
  *  so the funnel's normalized `RepoPath` brand reaches the scene/read faces with
@@ -215,10 +223,10 @@ export interface RunInput {
 const RECOVER_NOTHING =
   "--recover has nothing to take over and nothing to reopen — no stale in-flight record stands on this tree (①), and this line is not at drift ∧ pending-fix (②); nothing was dispatched";
 
-/** The `--recover` judgment's answer: the harness to dispatch through (its abort leg
- *  already ran), or the refusal to print. */
+/** The `--recover` judgment's answer: taken over (the abort leg already ran, so the
+ *  dispatch must not fold again), or the refusal to print. */
 type RecoverRun =
-  | { readonly kind: "allowed"; readonly harness: CliLifecycle }
+  | { readonly kind: "allowed" }
   | { readonly kind: "blocked"; readonly message: string };
 
 /**
@@ -944,7 +952,7 @@ export class Cli {
     const { step: dispatch, harness } = await this.#dispatchOf(
       scene,
       parsed,
-      recovery?.harness ?? null,
+      recovery !== null,
       artifacts,
     );
     const run = new Lifecycle({
@@ -1016,11 +1024,21 @@ export class Cli {
       // derivation), and the early return means no write point below ever runs
       // (`renderBrief` skipped above, `#bookkeep`/`#reject` never reached).
       if (parsed.dryRun) {
-        // The artifact-identity gate is a PURE read (the matrix's names + the strict
-        // sidecar schema), so the preview asks the SAME judgment the real dispatch
-        // applies and prints its reason verbatim — a dry run that stayed silent here
-        // would forecast a dispatch the real run refuses.
-        const refused = harness === null ? null : harness.artifactRefusal(frame);
+        // The three pre-dispatch gates — carrier-integrity, dispatch-input and
+        // artifact-identity — are PURE reads (a digest comparison, the layout's supplied
+        // cells + the matrix's names + the strict sidecar schema), so the preview asks
+        // the SAME judgments the real dispatch applies, in the same order, and prints
+        // the first refusal verbatim — a dry run that stayed silent here would forecast
+        // a dispatch the real run refuses. `mode: "preview"` is the dispatch-input
+        // gate's ONE weaker (permissive) arm: a brief it would render itself is answered
+        // by its naming line, never by an existence read; every other cell is judged
+        // identically.
+        const refused =
+          harness === null
+            ? null
+            : (harness.carrierRefusal(frame) ??
+              harness.inputRefusal(frame, "preview") ??
+              harness.artifactRefusal(frame));
         const preview = new Preview({ scene, words: this.#words });
         if (refused !== null) {
           for (const line of preview.artifactBlock(verb, refused)) this.#io.stdout(`${line}\n`);
@@ -1098,22 +1116,24 @@ export class Cli {
   async #dispatchOf(
     scene: WorkScene,
     parsed: RunInput,
-    recovered: CliLifecycle | null,
+    recovered: boolean,
     artifacts: ArtifactRegistry,
   ): Promise<{ step: DispatchStep; harness: CliLifecycle | null }> {
     if (this.#dispatch !== null) return { step: this.#dispatch, harness: null };
-    const harness = recovered ?? this.#lifecycleOf(scene, parsed, artifacts);
+    const harness = this.#lifecycleOf(scene, parsed, artifacts);
     // The abort fold already ran at the composition root's `--recover` judgment
-    // (`#recoverRun`) when a harness was handed in; the injected/default face keeps
-    // its own fold here, so the takeover always precedes this dispatch's own record.
-    if (recovered === null && !parsed.dryRun && parsed.args.recover === "true") {
+    // (`#recoverRun`) when `recovered`; the injected/default face keeps its own fold
+    // here, so the takeover always precedes this dispatch's own record.
+    if (!recovered && !parsed.dryRun && parsed.args.recover === "true") {
       await harness.foldAbort();
     }
-    // The harness itself rides back so the `--dry-run` branch can ask it the
-    // artifact-identity gate's PURE read (the same judgment `step()` applies), and
-    // the preview can print the real run's refusal instead of forecasting a dispatch
-    // it would refuse. The injected `#dispatch` seam has no harness — a hermetic
-    // caller already replaced the whole dispatch, so there is no gate to ask.
+    // The harness itself rides back so the `--dry-run` branch can ask it the three
+    // pre-dispatch gates' PURE reads — the carrier-integrity judgment, then the
+    // dispatch-input judgment, then the artifact-identity one, the order this face's own
+    // dispatch applies them in (the same judgments `step()` applies), and the preview can
+    // print the real run's refusal instead of forecasting a dispatch it would refuse. The
+    // injected `#dispatch` seam has no harness — a hermetic caller already replaced the
+    // whole dispatch, so there is no gate to ask.
     return { step: harness.step(), harness };
   }
 
@@ -1138,11 +1158,14 @@ export class Cli {
     inflight: InFlight,
     artifacts: ArtifactRegistry,
   ): Promise<RecoverRun> {
-    const harness = this.#lifecycleOf(scene, parsed, artifacts);
+    // The fold rides a throwaway harness: this judgment runs BEFORE the wave brief is
+    // rendered, and the DISPATCHING harness must be built afterwards (its scene snapshot
+    // carries `briefPath` — the dispatch-input gate reads it). `foldAbort` touches only
+    // the in-flight record and the ledger, so a pre-brief instance is enough.
     const stale = (await inflight.staleState()) !== null;
-    if (stale) await harness.foldAbort();
+    if (stale) await this.#lifecycleOf(scene, parsed, artifacts).foldAbort();
     const reopened = await this.#reopenLeg(verb, type, scene, inflight);
-    if (stale || reopened) return { kind: "allowed", harness };
+    if (stale || reopened) return { kind: "allowed" };
     return { kind: "blocked", message: RECOVER_NOTHING };
   }
 
@@ -1176,9 +1199,14 @@ export class Cli {
     return ledger.supersedeReview(identity.key, latest, latest + 1);
   }
 
-  /** The invocation's lifecycle harness — the production dispatch face, held by the
-   *  composition root so the abort fold can ride the SAME instance that dispatches
-   *  (the takeover precedes the stamp, spec §2.1④). */
+  /** The invocation's lifecycle harness — the production dispatch face, built at the
+   *  point of use and never held across the brief render. The scene snapshot it copies
+   *  carries `briefPath`, which `CliGate#renderBrief` writes and the dispatch-input gate
+   *  reads, so the dispatching instance must be built AFTER the brief lands — building
+   *  it earlier snapshots `briefPath: null` and refuses every dispatch. The `--recover`
+   *  abort fold (the takeover that precedes the stamp, spec §2.1④) therefore rides its
+   *  own throwaway instance in `#recoverRun`: it touches only the in-flight record and
+   *  the ledger, so a pre-brief instance is enough. */
   #lifecycleOf(scene: WorkScene, parsed: RunInput, artifacts: ArtifactRegistry): CliLifecycle {
     return new CliLifecycle({
       env: process.env,
@@ -1195,6 +1223,8 @@ export class Cli {
         baseBranch: this.#baseBranchOf(scene),
         specLink: scene.specLink,
         overallLink: scene.overallLink,
+        program: scene.program,
+        docType: scene.docType,
       },
       reviews: parsed.paths.reviews,
       // The explicit takeover flag (`--recover`): the ONLY path that displaces a
@@ -1207,8 +1237,13 @@ export class Cli {
 
   /** The branch scope anchor (BASE_BRANCH) — the base artifact's branch name read
    *  from the line's own workspace (`base.json`, the same `base get` source the CLI
-   *  writes). "" when the artifact is absent or malformed (the slot stays empty and
-   *  the assembler drops it — the wave/branch review then judges the live tree). */
+   *  writes). "" when the artifact is absent or malformed.
+   *
+   *  WAS: the empty slot was dropped and the wave / branch review silently fell back
+   *  to judging the live tree. NOW: P38 §2.3 reversal ④ — `BASE_BRANCH` is required on
+   *  every wave / branch face, so an empty value is `empty-value` at the
+   *  dispatch-input gate: the round stops before the child exists (the recovery is
+   *  `cdd base set`, the orchestrator's action, never the gate's). */
   #baseBranchOf(scene: WorkScene): string {
     const name = this.#matrix.render({ domain: "workspace", tasks: null }, "base");
     const read = scene.workspace.readJson<{ base?: unknown }>(name);
@@ -1496,6 +1531,12 @@ export class Cli {
         briefPath: null,
         specLink,
         overallLink,
+        // P38 §2.1 — the two DECLARED cells the dispatch-input gate reads instead of
+        // parsing a document at dispatch: the identity document's `program:` literal
+        // and its `doc-type:` shape, taken from the SAME index entry `specLink` and
+        // `overallLink` were resolved from (one read, three facts).
+        program: specDoc?.program ?? null,
+        docType: specDoc?.docType ?? null,
       },
       artifacts,
     };

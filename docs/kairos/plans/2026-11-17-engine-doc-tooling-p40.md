@@ -42,11 +42,12 @@ readonly written?: "engine";
 #assertEngineWritten(row: ModePromptRow, decl: ContextLine): void;
 ```
 
-- [ ] **Step 1: 写失败测试**——在 `templates.test.ts` 追加三条：① 三张 mode 表的 brief 行都接受 `written: "engine"`（构造不抛）；② 一个非 brief 槽声明 `written: "engine"` ⇒ 构造期抛，报文点名该槽；③ 同一槽在两行声明 ⇒ 仍只判一次（槽是单位，不是行）。
-- [ ] **Step 2: 跑它，确认红**——`pnpm -C packages/cdd-engine exec vitest run src-next/render/__tests__/templates.test.ts`，期待 `written` 不存在 / 断言未改名导致的失败。
-- [ ] **Step 3: 改类型与三处声明**——`ContextLine` 增 `written?: "engine"`，删 `preview` 档；三处 brief 声明改 `written: "engine"`；`#assertPreviewAnswer` 改名 `#assertEngineWritten`，判据改为「带 `written: "engine"` 的声明，其 `token` 必须是 `NAMED_BRIEF_CELL`」，以槽去重。
-- [ ] **Step 4: 跑测试确认绿**——同 Step 2 的命令。
-- [ ] **Step 5: Commit**——`git add packages/cdd-engine/src-next/render/templates.ts packages/cdd-engine/src-next/render/__tests__/templates.test.ts && git commit -m "feat(render): declare the brief cell engine-written instead of preview-satisfied"`。
+#### Steps
+- **Step 1: 写三条失败测试**（三张 mode 表接受 brief 行 · 非 brief 槽声明 engine 期间红 · 同槽跨行只判一次） — checkable: `render/__tests__/templates.test.ts` 多出三条用例
+- **Step 2: 跑测试确认红** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/render/__tests__/templates.test.ts` 报红，原因指向缺失的 `written` 档
+- **Step 3: 加类型档 · 改三处声明 · 断言改名 `#assertEngineWritten` 并按槽判** — checkable: `grep -rn 'preview: "satisfied"' packages/cdd-engine/src-next` 零命中
+- **Step 4: 跑测试确认绿** — checkable: 同 Step 2 命令 0 failed
+- **Step 5: 提交** — checkable: `git show --stat HEAD` 只含 `templates.ts` 与该测试文件
 
 #### Acceptance
 三张 mode 表的 brief 格声明为 `written: "engine"`；非 brief 槽声明它时构造期红且报文点名该槽；`src-next/render/__tests__/` 全绿；`grep -rn 'preview: "satisfied"' packages/cdd-engine/src-next` 零命中（既有测试字面量同步改写）。
@@ -98,12 +99,13 @@ export class PreFlightRefusal {
 }
 ```
 
-- [ ] **Step 1: 写失败测试**——`refusal.test.ts` 五条：① `write` 之后 `path()` 存在且 `read()` 得 `standing`，字段逐项相等；② 在没有 `.kairos` 的临时仓里 `write` ⇒ 命名空间与其 `.gitignore`（内容 `*`）同时落地（用 `GitClient#isClean` 或 `git status --porcelain` 断言树仍干净，这是 F2 的回归钉）；③ 二次 `write` 覆盖而非追加；④ 手写畸形 JSON ⇒ `read()` 得 `corrupt` 且带原因，不抛；⑤ `clear()` 幂等（缺席时调用不抛）。
-- [ ] **Step 2: 跑红**——`pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/refusal.test.ts`。
-- [ ] **Step 3: 加名字拼写行**——`session/round-artifacts.ts` 的拼写表加 `refusal: "refusal.json"`（与 `in-flight` 并列，矩阵是名字的唯一语法）。
-- [ ] **Step 4: 实现类**——`write` 先 `root.ensure()` 再 `AtomicWriter`；`read` 三态；`clear` 用 `rmSync({force:true})`。守「一棵树最多一条」这一条不变量，不持轮状态、不参与轮判定。
-- [ ] **Step 5: 跑绿**——同 Step 2。
-- [ ] **Step 6: Commit**——`feat(session): add the tree-level refusal record beside in-flight`。
+#### Steps
+- **Step 1: 写五条失败测试**（写读往返 · 无 `.kairos` 的仓里写后树仍干净 · 覆盖不追加 · 畸形 JSON 得 corrupt · clear 幂等） — checkable: `session/__tests__/refusal.test.ts` 存在且五条用例齐
+- **Step 2: 跑测试确认红** — checkable: 该文件报 `Cannot find module .../refusal.ts`
+- **Step 3: 加名字拼写行** — checkable: 名字拼写表含 `refusal: "refusal.json"` 一行
+- **Step 4: 实现类**（`write` 先 `ensure()` 后原子写 · `read` 三态永不抛 · `clear` force-remove） — checkable: 类落地且 `check:no-bare-functions` 对 `src-next/session` 为绿
+- **Step 5: 跑测试确认绿** — checkable: 五条全过
+- **Step 6: 提交** — checkable: `git show --stat HEAD` 含类、测试与拼写表三文件
 
 #### Acceptance
 五条测试全绿；写入后仓库仍 `tree-clean`（F2 的直接回归）；`refusal.json` 是通过 `ArtifactRegistry` 拼出的名字（无第二处字面量）；`read()` 对畸形文件返回 `corrupt` 而不抛。
@@ -154,11 +156,12 @@ export class PreFlightRows {
 }
 ```
 
-- [ ] **Step 1: 写失败测试**——`preflight-rows.test.ts` 六条：① `host === ""` ⇒ 一条 `no-host`；② artifact 为 `mismatch` ⇒ 一条 `carrier`；③ 必填格空值 ⇒ 一条 `dispatch-input` 且 detail 点名 row 与 token；④ 路径格不存在 ⇒ 同站名、原因为 `target-absent`；⑤ 三处同时违纪 ⇒ **三条一次报完**（顺序：no-host → carrier → dispatch-input → artifact）；⑥ 声明 `written: "engine"` 的 brief 格在任何 `host` 取值下都不产生存在性读（直接对着 values 断言，不碰盘）。
-- [ ] **Step 2: 跑红**——`pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__/preflight-rows.test.ts`。
-- [ ] **Step 3: 搬判据**——把 `#inputRefusalOf` / `#answeredByNaming` / artifact 与 carrier 的判定搬进 `PreFlightRows.judge`，face 侧只留取值与委托；`detail` 保持今日的多行形状。
-- [ ] **Step 4: 跑绿 + 跑既有面测试，确认字节未变**——`pnpm -C packages/cdd-engine exec vitest run src-next/contract/__tests__/preflight-rows.test.ts src-next/face/__tests__/lifecycle.test.ts src-next/face/__tests__/dispatch-input.test.ts`。
-- [ ] **Step 5: Commit**——`refactor(contract): extract the four pre-dispatch judgments into a pure module`。
+#### Steps
+- **Step 1: 写六条失败测试**（no-host · carrier · 必填格空 · 路径格缺失 · 三处同时三条一次报完且顺序固定 · engine 写的槽零存在性读） — checkable: `contract/__tests__/preflight-rows.test.ts` 六条用例齐
+- **Step 2: 跑测试确认红** — checkable: 该文件报 `Cannot find module .../preflight-rows.ts`
+- **Step 3: 搬判据进纯模块，face 侧改为取值与委托** — checkable: `face/lifecycle.ts` import 该模块，四道门的判定式不再出现在 face
+- **Step 4: 跑绿 + 跑既有面测试确认字节未变** — checkable: 三个测试文件全绿且 `lifecycle.test.ts`、`dispatch-input.test.ts` 零改动
+- **Step 5: 提交** — checkable: `git show --stat HEAD` 含新模块、新测试与 `lifecycle.ts`
 
 #### Acceptance
 六条测试全绿；`lifecycle.test.ts` 与 `dispatch-input.test.ts` 无改动即绿（本任务不改行为）；`contract/preflight-rows.ts` 不 import `face/` 或 `session/` 的任何符号（依赖方向可 grep 断言）。
@@ -197,12 +200,13 @@ export interface PreFlightContext {
 - `PreFlight#vet` 的判定序：既有五行（原序，逐行判定、首个违纪即拒）→ 四新行（no-host → carrier → dispatch-input → artifact，**四条全判、一次报完**）。verdict 的 `gate` 取四条里的第一条违纪站名，`details` 收全部四条。
 - 优先级位移（spec 的第六项具名变更）：四行排在 line 腿**之前**，因此同一个 fixture 同时犯门与线两条时，报的是门的行；门通过之后，线的拒绝仍可达。
 
-- [ ] **Step 1: 写失败测试**——`session/__tests__/preflight-rows.test.ts` 四条：① 缺宿主 ⇒ verdict 的 `gate` 是 `no-host` 且 `order` 里九行齐；② 值坏 ⇒ `gate === "dispatch-input"`，`message` 首行是 `dispatch-input · …`（站名在首行，Task 5 之前也成立）；③ 三处同时违纪 ⇒ `details` 三条且顺序固定；④ 文档坏且值也坏 ⇒ `doc-contract` 先拒（四行排在它之后）。
-- [ ] **Step 2: 跑红**——`pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/preflight-rows.test.ts`。
-- [ ] **Step 3: 扩类型与判定**——`PreFlightGateName` / `PreFlightReason` 扩值；`PreFlightContext` 增四个输入（`host` 必填，不留类型级默认——未接线的门不能静默通过）；`vet` 在 `doc-contract` 之后调 `PreFlightRows.judge`，把 `RowRefusal` 映射成 `gate` / `reason` / `message` / `details`。
-- [ ] **Step 5: 优先级位移的成对测试**——同一 fixture 既缺必填格又缺少线面输入 ⇒ 报门的行；补齐门所需的格后再跑 ⇒ 报线的行（`DispatchLeg` 为 `line`）。此条写进 `preflight-rows.test.ts`。
-- [ ] **Step 4: 跑绿 + 跑既有缝合测试**——`pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/`.
-- [ ] **Step 6: Commit**——`feat(preflight): judge the four dispatch-input rows inside the structure leg`。
+#### Steps
+- **Step 1: 写四条失败测试**（缺宿主 · 值坏 · 三处同时 details 三条 · 文档坏与值坏并存时 doc-contract 先拒） — checkable: `session/__tests__/preflight-rows.test.ts` 四条用例齐
+- **Step 2: 跑测试确认红** — checkable: 该文件报红，原因指向未扩的九值或缺失的 context 输入
+- **Step 3: 扩类型与判定**（九值 · 四原因 · context 四输入必填 · 四行全判一次报完） — checkable: `PreFlightGateName` 的声明含 `RowStation`；`PreFlightContext` 含 `host`/`values`/`artifact`/`round`
+- **Step 4: 写优先级位移的成对测试**（门与线同犯 ⇒ 报门的行；补齐门之后再跑 ⇒ 报线的行） — checkable: 该对断言同文件内可红可绿
+- **Step 5: 跑绿 + 跑既有缝合测试** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/` 全绿
+- **Step 6: 提交** — checkable: `git show --stat HEAD` 含 `session/preflight.ts` 与两个测试文件
 
 #### Acceptance
 九值闭集且 `order` 恒含九行；`session/preflight.ts` 不 import `face/`（grep 断言）；四行全报而非逐条短路；`doc-contract` 仍排在四行之前；优先级位移有成对断言（门的行在前、线的行在门通过后仍可达）。
@@ -229,11 +233,12 @@ export interface PreFlightContext {
 - `CliLifecycle` 的派发前判定面只剩「值装配 + 交付」：`#valuesOf` 与 artifact cell 仍在此处（它们是装配，不是判定），判定一律来自缝合。
 - `Preview` 的 `--dry-run` 分支只渲染五行预报 + 判定块，不再自己做门判定。
 
-- [ ] **Step 1: 写失败测试**——`lifecycle.test.ts` 追加两条：① 派发体里不再存在第二次判定（spy `PreFlightRows.judge` 的调用次数在一次派发中为 1）；② 拒绝路径不再封 carrier（对一个尚未开名的轮，拒绝后 `CarrierSeal` 零调用）。`preview.test.ts` 追加一条：三个门的预览与被拒真的同源（同输入 ⇒ 预览块与命令面块的原因逐字节相同）。
-- [ ] **Step 2: 跑红**——`pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/lifecycle.test.ts src-next/face/__tests__/preview.test.ts`。
-- [ ] **Step 3: 删两处**——派发体四门与 `#sealRoundCarriers` 的拒绝调用、预览的三门镜像；`mode` 参数退场，`preview` 侧改为读 verdict。
-- [ ] **Step 4: 跑绿 + 全 face 面**——`pnpm -C packages/cdd-engine exec vitest run src-next/face/`。
-- [ ] **Step 5: Commit**——`refactor(face): retire the in-round gates and the preview mirror`。
+#### Steps
+- **Step 1: 写三条失败测试**（一次派发只判一次 · 拒绝路径零封名调用 · 预览块与被拒同源逐字节相同） — checkable: `lifecycle.test.ts` 与 `preview.test.ts` 各多出对应用例
+- **Step 2: 跑测试确认红** — checkable: 两个面测试文件报红，原因指向仍在的第二次判定
+- **Step 3: 删派发体四门 · 删拒绝路径的封名 · 预览改为读 verdict** — checkable: 拒绝路径上对封名方法的调用零命中
+- **Step 4: 跑绿 + 全 face 面** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/` 全绿
+- **Step 5: 提交** — checkable: `git show --stat HEAD` 含 `lifecycle.ts`、`preview.ts` 与两个测试文件
 
 #### Acceptance
 一次派发只判一次（spy 计数 = 1）；拒绝路径零 `CarrierSeal` 调用；预览块与命令面同源；`src-next/face/` 全绿。
@@ -260,11 +265,12 @@ export interface PreFlightContext {
 - `Cli#runWork` 的三段：探宿主 → `vet` → 拒则写 / 通则清 → `#renderChecked` → `ensure()` → `renderBrief`。
 - 释放点清除：`release()` 之后读记录，`station === "in-flight"` 才清。
 
-- [ ] **Step 1: 写失败测试**——`cli.test.ts` 追加六条：① 无 `base.json` 的 wave 评审 ⇒ 命令输出 `CDD_BLOCKED` 且站名在首行；`waves[n].rounds` 长度不变；重派仍 `review 1·1`（**成对：改前红**）；② 同一派发后 `refusal.json` 存在且八字段齐；③ 拒绝后跑一次合法派发 ⇒ 记录消失；④ `--dry-run` 中途被拒 ⇒ 零写入（记录不出现也不消失）；⑤ 记录站名为 `tree-clean` 时，另一次派发释放后记录仍在（谓词不是「有记录就清」）；⑥ 对一次被拒的派发执行 `--recover` ⇒ 不认领、零恢复写入、`cycle` 不动、不写轮记录，同一拒绝复发（`无可接管` 那句在这条路径上不可达，测试断言的是这四件事而非某句措辞）。
-- [ ] **Step 2: 跑红**——`pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/cli.test.ts`。
-- [ ] **Step 3: 接线**——探针一次并交值；写/清三段按 6.1；释放点按谓词清除。
-- [ ] **Step 4: 跑绿 + 派发面全量**——`pnpm -C packages/cdd-engine exec vitest run src-next/face/ src-next/session/`。
-- [ ] **Step 5: Commit**——`feat(cli): write and clear the refusal record at the composition root`。
+#### Steps
+- **Step 1: 写六条失败测试**（拒绝不写轮记录且重派仍 `review 1·1` · 记录八字段齐 · 通过即清 · `--dry-run` 零写零清 · `tree-clean` 站名不被释放清掉 · `--recover` 不认领） — checkable: `cli.test.ts` 多出六条用例
+- **Step 2: 跑测试确认红** — checkable: 该文件报红，首条用例的失败信息即改前实况（`crashed:` 行仍在）
+- **Step 3: 接线**（探针一次 · 拒则写 / 通则清 · 释放点按 `in-flight` 谓词清） — checkable: 写与清在 `runWork` 同一段内且共用 `!parsed.dryRun`
+- **Step 4: 跑绿 + 派发面全量** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/ src-next/session/` 全绿
+- **Step 5: 提交** — checkable: `git show --stat HEAD` 含 `cli.ts`、`dispatch-authority.ts` 与 `cli.test.ts`
 
 #### Acceptance
 六条测试全绿；写与清在同一处、同一 `!parsed.dryRun` 守卫；`--dry-run` 零写零清；`tree-clean` 站名的记录不被一次释放清掉；重派仍是 `review 1·1`。
@@ -295,11 +301,12 @@ static refusalRows(state: RefusalState, words: Words): readonly string[];
 //   refused: unreadable refusal record
 ```
 
-- [ ] **Step 1: 写失败测试**——四条：① `standing` ⇒ 一行 `  refused: {op} {cycle}·a{attempt} {station} · {detail}`，位置紧接 `in-flight:` 之后；② `corrupt` ⇒ 一行 corrupt 词、无 `refused:` 行、board 仍 exit 0；③ `absent` ⇒ 零新行，且既有 `in-flight:` / `crashed:` 行逐字节不变；④ 记录里的 `slug` 是**另一个**工作区 ⇒ 本 board 不渲染该行，而在它自己的 board 上照常渲染（同一条记录、两处观察，一条断言两个方向）。
-- [ ] **Step 2: 跑红**——`pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/board-view.test.ts`。
-- [ ] **Step 3: 实现两行**——`refusalRows` 三态分派；词面进 `words.ts` 一处构造；装配点紧跟 `inFlightRows`。
-- [ ] **Step 4: 跑绿 + board 面**——`pnpm -C packages/cdd-engine exec vitest run src-next/face/__tests__/board-view.test.ts src-next/face/__tests__/face.test.ts`。
-- [ ] **Step 5: Commit**——`feat(board): render the tree's standing refusal beside in-flight`。
+#### Steps
+- **Step 1: 写四条失败测试**（standing 的形状与位置 · corrupt 行且 exit 0 · absent 零新行且既有行逐字节不变 · 跨工作区两向） — checkable: `board-view.test.ts` 多出四条用例
+- **Step 2: 跑测试确认红** — checkable: 该文件报红，原因指向缺失的 `refusalRows`
+- **Step 3: 实现两行与词面**（三态分派 · 词进一处） — checkable: board 输出里 `refused:` 紧跟 `in-flight:`
+- **Step 4: 跑绿 + board 面** — checkable: `board-view.test.ts` 与 `face.test.ts` 全绿
+- **Step 5: 提交** — checkable: `git show --stat HEAD` 含 `board-view.ts`、`words.ts` 与 `board-view.test.ts`
 
 #### Acceptance
 三态各自可核，含跨工作区的一对方向；`refused:` 紧跟 `in-flight:`；corrupt 不静默、不 exit 1；`absent` 时既有行逐字节不变。
@@ -325,10 +332,11 @@ static refusalRows(state: RefusalState, words: Words): readonly string[];
 - `.changeset/p40-preflight-refusal.md`：`cdd-engine: minor`，正文点名四项消费面变化（board 两行 · 新产物 refusal.json · 三行报文新增站名 · 预览块收缩）。
 - 章程 P40 两格与文档版本同步到交付后的状态。
 
-- [ ] **Step 1: 写 changeset**——`cdd-engine: minor`，正文四行分别对应四项消费面变化，并指向 spec 的六项具名变更。
-- [ ] **Step 2: 回填章程与文档版本**——P40 的 Design spec / Implementation plan 两格改为 `✔ Done（<文件名> · <日期>）`，章程版本 +1 并追加 change-history 行；spec / plan 各自版本 +1 与历史行。
-- [ ] **Step 3: 全量门禁**——`pnpm run validate`，期待 exit 0。
-- [ ] **Step 4: 提交**——`chore(release): declare cdd-engine minor for P40`。
+#### Steps
+- **Step 1: 写 changeset**（`cdd-engine: minor`，正文四行对应四项消费面变化） — checkable: `.changeset/p40-preflight-refusal.md` 存在且含四行变化
+- **Step 2: 回填章程与文档版本**（P40 两格 Done · 章程与 spec/plan 各 +1 与历史行） — checkable: 三份文档的 front-matter 版本与最新历史行一致
+- **Step 3: 全量门禁** — checkable: `pnpm run validate` exit 0
+- **Step 4: 提交** — checkable: `git show --stat HEAD` 含 changeset 与三份文档
 
 #### Acceptance
 `pnpm run validate` exit 0；`pnpm run emit:check` 无漂移；changeset 级别为 `minor`；章程与两份文档的版本、历史行与交付事实一致。

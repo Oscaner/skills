@@ -219,7 +219,7 @@ const dispatchFrame = async (
       artifacts: new ArtifactRegistry(),
       io: f.io,
       sync: runner,
-      env: { CLAUDE_CODE_SESSION_ID: "s" },
+      host: "claude",
       // The record the composition root would compose for THIS frame (P40 T5): the
       // requesting carrier is the ledger's own derivation, exactly as the flag-less
       // `cdd fix` invocation resolves it.
@@ -380,7 +380,7 @@ const lifecycleOf = (f: Fixture): CliLifecycle =>
     artifacts: new ArtifactRegistry(),
     io: f.io,
     sync: new SilentRunner(),
-    env: { CLAUDE_CODE_SESSION_ID: "s" },
+    host: "claude",
     values: {},
   });
 
@@ -795,7 +795,7 @@ const runFix = async (
     artifacts: new ArtifactRegistry(),
     io: f.io,
     sync: runner,
-    env: { CLAUDE_CODE_SESSION_ID: "s" },
+    host: "claude",
     reviews,
     values: TestDispatchValues.of(f.scene, frame, { reviews }),
   });
@@ -844,7 +844,7 @@ describe("P34 T2 — a derived fix input never inherits the frame's attempt", ()
       artifacts: new ArtifactRegistry(),
       io: f.io,
       sync: runner,
-      env: { CLAUDE_CODE_SESSION_ID: "s" },
+      host: "claude",
       // The derived resolution (no `--reviews` flag): the record names the carrier the
       // ledger's own ladder resolves, exactly as the composition root produces it.
       values: TestDispatchValues.of(f.scene, frame, {
@@ -926,7 +926,7 @@ describe("P31 T4 — the fix input names the FINAL carrier", () => {
       artifacts: new ArtifactRegistry(),
       io: f.io,
       sync: runner,
-      env: { CLAUDE_CODE_SESSION_ID: "s" },
+      host: "claude",
       values: TestDispatchValues.of(f.scene, frame, {
         reviews: TestDispatchValues.reviewsOf(f.scene, frame),
       }),
@@ -1204,7 +1204,7 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
         artifacts: new ArtifactRegistry(),
         io: f.io,
         sync: new SilentRunner(),
-        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        host: "claude",
         inflight: holding,
         values: TestDispatchValues.of(f.scene, reviewFrame),
       });
@@ -1243,7 +1243,7 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
         artifacts: new ArtifactRegistry(),
         io: f.io,
         sync: probe,
-        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        host: "claude",
         reviews: seeded.path,
         values: TestDispatchValues.of(f.scene, frame, { reviews: seeded.path }),
       });
@@ -1417,7 +1417,7 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
           artifacts: new ArtifactRegistry(),
           io: f.io,
           sync: dying,
-          env: { CLAUDE_CODE_SESSION_ID: "s" },
+          host: "claude",
           // The frame the session lifecycle is about to advance: the attempt-2 fix.
           values: TestDispatchValues.of(f.scene, atAttempt(fixFrameOf(specPath), 2), {
             reviews: TestDispatchValues.reviewsOf(f.scene, atAttempt(fixFrameOf(specPath), 2)),
@@ -1468,7 +1468,7 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
         artifacts: new ArtifactRegistry(),
         io: f.io,
         sync: new FailingRunner(),
-        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        host: "claude",
         values: TestDispatchValues.of(f.scene, frame, {
           reviews: TestDispatchValues.reviewsOf(f.scene, frame),
         }),

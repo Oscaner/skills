@@ -197,7 +197,7 @@ none
 
 - Modify: `packages/cdd-engine/src-next/session/inflight.ts`（`InFlightRecord.dispatchBase`；`acquire` 记录时写入；`foldAbort` 分支的事实来源即 `inspect()` 的三形态与 `steal()` 的返回值——`held` 回记录，`corrupt` 与锁残留回 `null`）
 - Modify: `packages/cdd-engine/src-next/session/ledger.ts`（`CrashCause` 增 `interrupted`；`RoundRecord` 读面无需新增字段）
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（acquire 传 HEAD；新增**公开**成员 `foldAbort(): Promise<boolean>`——`InFlight#inspect` 判陈旧后按三形态分支接管（`held ∧ ¬alive` → `steal("the holder is dead")` 取回记录 → `ledger.recordRound` 折账；`corrupt` 与锁残留 → 对应 steal reason 只接管），返回本次是否落了一条 abort 记录。必须是公开入口：`CliLifecycle` 今日只对外露 `detectHost` / `step()`，而接管发生在 `step()` 内部的 `#runDispatch` → `#inflight.acquire(..., { recover })`，`#` 私有成员在 composition root 无法先折账再盖戳）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（acquire 传 HEAD；新增**公开**成员 `foldAbort(): Promise<boolean>`——`InFlight#inspect` 判陈旧后按三形态分支接管（`held ∧ ¬alive` → `steal("the holder is dead")` 取回记录 → `ledger.recordRound` 折账；`corrupt` 与锁残留 → 对应 steal reason 只接管），返回本次是否落了一条 abort 记录。必须是公开入口：`CliLifecycle` 今日只对外露 detectHost / `step()`，而接管发生在 `step()` 内部的 `#runDispatch` → `#inflight.acquire(..., { recover })`，`#` 私有成员在 composition root 无法先折账再盖戳）
 - Modify: `packages/cdd-engine/src-next/face/cli.ts`（`#dispatchOf` 拆出 `#lifecycleOf(scene, parsed)`，由 composition root 持有 harness 实例；`--recover` 判定里先 `await lifecycle.foldAbort()`，再进 `step()`——`step()` 不承担 abort 折账）
 - Test: `packages/cdd-engine/src-next/session/__tests__/inflight.test.ts`
 - Test: `packages/cdd-engine/src-next/face/__tests__/lifecycle.test.ts`（`foldAbort` 三形态的 colocated pin：`held ∧ ¬alive` 折一条 abort 记录；`corrupt` 与锁残留两形态只接管、零新增 `RoundRecord`；Task 4 DependsOn 2，与该任务串行，不并行写同一文件）

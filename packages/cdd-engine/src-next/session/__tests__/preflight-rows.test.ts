@@ -489,7 +489,7 @@ describe("DispatchValues.compose — the pre-frame record is the rendered one", 
         artifacts: new ArtifactRegistry(),
         io: new CaptureIo(),
         sync: runner,
-        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        host: "claude",
         values,
       });
       await lifecycle.step()(waveFrame());
@@ -536,7 +536,7 @@ describe("DispatchValues.compose — the pre-frame record is the rendered one", 
         artifacts: new ArtifactRegistry(),
         io: new CaptureIo(),
         sync: runner,
-        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        host: "claude",
         reviews: carrier,
         values,
       });

@@ -13,19 +13,20 @@
 // write-back and read-back share (T4): the preview and the real dispatch name the
 // same files by one rule. The `child:` row is the harness contract's own data
 // (face/host.ts) — the host id + the row's invoke argument string — never a
-// detection-dependent spawn.
+// detection-dependent spawn. The host id is INJECTED (P40 T6): the composition root
+// probes once and hands the one value to the seam, the lifecycle and this renderer, so a
+// preview can never forecast against a harness the other two did not see.
 //
 // Module-level exports are the class — zero behavior-carrying bare functions.
 
-import process from "node:process";
 import type { RepoRoot } from "../infra/root.ts";
 import type { InFlightState } from "../session/inflight.ts";
 import { ReviewedIdentity, type ReviewedLeg } from "../session/reviewed-identity.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { OpenFrame } from "../session/run.ts";
 import type { CliVerb } from "./declare.ts";
-import { HOSTS, HostDetect, type HostId } from "./host.ts";
-import type { DispatchScene, ProcessEnvLike } from "./lifecycle.ts";
+import { HOSTS, type HostId } from "./host.ts";
+import type { DispatchScene } from "./lifecycle.ts";
 import { Words } from "./words.ts";
 
 /** The preview row's label column width — `  ` + the label padded to this width +
@@ -35,26 +36,26 @@ const LABEL_WIDTH = 12;
 
 /**
  * Preview — the `--dry-run` read-only preview renderer. One instance renders one
- * invocation's block over the scene the work command already assembled; the host is
- * detected once at construction (the injectable-env adapter over the harness
- * contract's own judgment). Nothing in this class writes, dispatches or records.
+ * invocation's block over the scene the work command already assembled; the host id is
+ * the value the composition root's ONE probe answered. Nothing in this class writes,
+ * dispatches or records.
  */
 export class Preview {
   readonly #scene: DispatchScene;
   /** The round-naming single source (P11 T4) — the same derivations the lifecycle's
    *  write-back and read-back read, so the preview never invents a name. */
   readonly #naming: RoundNaming;
-  /** The detected host id ("" when no harness marker matched) — read by the `child:`
-   *  row only. */
+  /** The host id the composition root's ONE probe answered ("" when no harness marker
+   *  matched) — read by the `child:` row only. */
   readonly #host: HostId | "";
   /** The held-face wording rows (the lock row + the takeover hint) — the SAME rows
    *  the pre-flight gate and the board fill, never a preview-only paraphrase. */
   readonly #words: Words;
 
-  constructor(opts: { scene: DispatchScene; env?: ProcessEnvLike; words?: Words }) {
+  constructor(opts: { scene: DispatchScene; host: HostId | ""; words?: Words }) {
     this.#scene = opts.scene;
     this.#naming = new RoundNaming(opts.scene.workspace);
-    this.#host = HostDetect.detect(opts.env ?? process.env);
+    this.#host = opts.host;
     this.#words = opts.words ?? new Words();
   }
 
@@ -200,11 +201,12 @@ export class Preview {
 
   /** The child invocation the real run would spawn — `<HostId> <invoke>`: the host
    *  id then the harness row's invoke argument string verbatim (the binary name is a
-   *  separate row column and never rides the invoke value). With no host detected the
-   *  real run would BLOCK before any spawn — the row states that literal rather than
-   *  indexing an absent host row. */
+   *  separate row column and never rides the invoke value). A host-less tree never
+   *  reaches a forecast at all — the seam's `no-host` row refuses that dispatch before
+   *  any step exists (P40 T6) — so the row reads the host table directly, with no
+   *  second sentence for the empty probe. */
   #childOf(): string {
-    if (this.#host === "") return "(no host detected — real run would BLOCK)";
+    if (this.#host === "") return "";
     return `${this.#host} ${HOSTS[this.#host].invoke}`;
   }
 

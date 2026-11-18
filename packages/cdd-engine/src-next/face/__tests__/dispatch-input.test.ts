@@ -110,7 +110,7 @@ describe("the dispatch face after the judgment left it (P40 T5)", () => {
         artifacts: new ArtifactRegistry(),
         io,
         sync: runner,
-        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        host: "claude",
         values: TestDispatchValues.of(scene, reviewFrameOf()),
       });
       await lifecycle.step()(reviewFrameOf());
@@ -145,7 +145,7 @@ describe("the dispatch face after the judgment left it (P40 T5)", () => {
         artifacts: new ArtifactRegistry(),
         io,
         sync: runner,
-        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        host: "claude",
         values: TestDispatchValues.of(scene, reviewFrameOf()),
       });
       await lifecycle.step()(reviewFrameOf());

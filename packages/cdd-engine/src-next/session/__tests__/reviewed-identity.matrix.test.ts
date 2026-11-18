@@ -370,7 +370,7 @@ const previewWordOf = (cell: Cell): LegWord | null => {
     plan: planSourceOf(workspace.root.basis).readFor(null),
     briefPath: null,
   };
-  const lines = new Preview({ scene, env: {} }).render(verbOf(cell), frameOf(cell));
+  const lines = new Preview({ scene, host: "" }).render(verbOf(cell), frameOf(cell));
   const row = lines.find((line) => line.trimStart().startsWith("would record:"));
   if (row === undefined) throw new Error("the preview printed no `would record:` row");
   const match = /reviewedRevision\((doc|brief)\)/.exec(row);

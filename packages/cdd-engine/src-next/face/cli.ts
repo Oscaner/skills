@@ -273,6 +273,9 @@ interface DispatchParts {
   /** The seam's own value record (P40 T5) — handed to the harness so the renderer reads
    *  the record the gate judged instead of re-assembling a second one. */
   readonly values: Readonly<Record<string, string>>;
+  /** The invocation's ONE host probe (P40 T6) — handed to the harness so the spawn reads
+   *  the table row the seam judged the `no-host` row against. */
+  readonly host: HostId | "";
 }
 
 /**
@@ -877,6 +880,12 @@ export class Cli {
     // books a round the assembly must already count (see `folded` below).
     const inflight = new InFlight(scene.workspace.root, scene.workspace.slug);
 
+    // THE host probe (P40 T6) — ONCE per invocation, handed to the three readers that
+    // judge, spawn and forecast this dispatch: the pre-flight seam's `no-host` row, the
+    // lifecycle harness's host row, and the preview's `child:` row. A second probe
+    // could answer differently and make the three disagree about the same invocation.
+    const host = HostDetect.detect(process.env);
+
     // P40 T4 — the dispatch's value record and artifact snapshot, assembled ONCE here
     // and handed to the seam: the frames `Lifecycle#peekNext()` would build do not exist
     // yet (the run is constructed only after the verdict), and a frame-bound producer is
@@ -943,15 +952,25 @@ export class Cli {
       recover,
       // P40 T4's five inputs — each with a producer at THIS root, none imported from
       // another plane: the value record and the snapshot are the assembly above, the
-      // host probe is the ONE value `HostDetect.detect` answers, the declarations are the
-      // renderer's own row selection over that record, and the two scene facts are the
-      // DECLARED documents' cells booleanized.
-      host: HostDetect.detect(process.env),
+      // host cell is the ONE value HostDetect.detect answers above, the declarations
+      // are the renderer's own row selection over that record, and the two scene facts
+      // are the DECLARED documents' cells booleanized.
+      host,
       values: before.values,
       declarations: this.#template.layoutOf(before.values),
       scene: { program: scene.program != null, docType: scene.docType != null },
       artifact: before.artifact,
     });
+
+    // THE GATE-CLEAR anchor (P40 §2.2's first expiry trigger) — an anchor, not a span:
+    // it sits AFTER `vet` returned and BEFORE the `--recover` takeover judgment below,
+    // because a dispatch whose nine rows all pass has invalidated every structure
+    // refusal this tree carried (the record names a fact that no longer holds). Putting
+    // the clear after the verdict would leave a `tree-clean` record standing through a
+    // dispatch that passed the whole structure leg and only failed to find a takeover —
+    // the record would then outlive the fact it stated.
+    const structure = this.#authority.structureRefusal(preflight);
+    if (structure === null && !parsed.dryRun) this.#refusalOf(scene).clear();
 
     // THE `--recover` judgment (P30 §2.1①–③), at the composition root and BEFORE the
     // dispatch verdict: the takeover lands first, the supersede stamp second and the
@@ -959,8 +978,17 @@ export class Cli {
     // A STRUCTURE refusal keeps its own face: the recovery legs are skipped, so a dirty
     // tree or a live holder is never displaced by an argument.
     const recovery =
-      recover && this.#authority.structureRefusal(preflight) === null
-        ? await this.#recoverRun(verb, type, scene, parsed, inflight, artifacts, before.values)
+      recover && structure === null
+        ? await this.#recoverRun({
+            verb,
+            type,
+            scene,
+            parsed,
+            inflight,
+            artifacts,
+            values: before.values,
+            host,
+          })
         : null;
     if (recovery !== null && recovery.kind === "blocked") {
       this.#io.stderr(`${this.#words.station("blocked")} ${recovery.message}\n`);
@@ -994,17 +1022,44 @@ export class Cli {
     });
     if (!verdict.allowed) {
       if (verdict.leg === "structure") {
+        // THE GATE-WRITE anchor (P40 §2.1 · §2.3) — an anchor, not a span: it sits in
+        // this arm and BEFORE the render, so the record exists the moment the tree
+        // refuses. A dry run writes nothing (the preview is a pure read).
+        if (!parsed.dryRun)
+          await this.#recordRefusal({
+            scene,
+            refusal: verdict,
+            preflight,
+            type,
+            identity: before.identity,
+          });
         if (parsed.dryRun && preflight.gate === "in-flight" && preflight.holding !== undefined) {
-          // The preview's read-only held face: the SAME gate verdict, rendered as the
-          // lock row + the takeover hint, exit 1. Zero write (the preview never
-          // acquires / steals / releases).
-          for (const line of new Preview({ scene, words: this.#words }).heldBlock(
+          // The preview's read-only held face — kept by PREDICATE, not by label: it
+          // covers a live holder, a dead holder and a corrupt record with its lock
+          // behind it (all three carry `holding`), each with its own `lock:` row and
+          // hint and no `refused:` row. Zero write (the preview never acquires / steals
+          // / releases).
+          for (const line of new Preview({ scene, host, words: this.#words }).heldBlock(
             verb,
             preflight.holding,
           ))
             this.#io.stdout(`${line}\n`);
           // The checked face rides the SAME stdout stream here: every dry-run shape
           // (pass / dirty / held / blocked) reports which gates ran.
+          this.#renderChecked(preflight, (text) => this.#io.stdout(text));
+          return 1;
+        }
+        if (parsed.dryRun) {
+          // The preview's refusal face (P40 T6) — the STRUCTURE leg's ONE refusal
+          // renderer, on stdout: the block, the seam's details rows, then the checked
+          // face. `CDD_BLOCKED:` rides no stream here, so a forecast can never print a
+          // sentence the real run's channel does not own.
+          for (const line of new Preview({ scene, host, words: this.#words }).artifactBlock(
+            verb,
+            this.#authority.message(verdict, { detail: preflight.message }),
+          ))
+            this.#io.stdout(`${line}\n`);
+          for (const detail of preflight.details ?? []) this.#io.stdout(`  ${detail}\n`);
           this.#renderChecked(preflight, (text) => this.#io.stdout(text));
           return 1;
         }
@@ -1050,6 +1105,7 @@ export class Cli {
       recover,
       artifacts,
       values: before.values,
+      host,
     });
     const run = new Lifecycle({
       face: scene.face,
@@ -1126,7 +1182,7 @@ export class Cli {
         // same judgment, and a refused dispatch never reaches the preview at all (the
         // seam's verdict returned at the composition root). The `--dry-run` arm is
         // therefore a pure forecast: read the frame, render the five rows.
-        const preview = new Preview({ scene, words: this.#words });
+        const preview = new Preview({ scene, host, words: this.#words });
         for (const line of preview.render(verb, frame)) this.#io.stdout(`${line}\n`);
         return 0;
       }
@@ -1197,9 +1253,9 @@ export class Cli {
    *  has no remaining caller: a preview books no round and fabricates no
    *  conclusion. */
   async #dispatchOf(parts: DispatchParts): Promise<{ step: DispatchStep }> {
-    const { scene, parsed, recovered, recover, artifacts, values } = parts;
+    const { scene, parsed, recovered, recover, artifacts, values, host } = parts;
     if (this.#dispatch !== null) return { step: this.#dispatch };
-    const harness = this.#lifecycleOf(scene, parsed, artifacts, recover, values);
+    const harness = this.#lifecycleOf({ scene, parsed, artifacts, recover, values, host });
     // The abort fold already ran at the composition root's `--recover` judgment
     // (`#recoverRun`) when `recovered`; the injected/default face keeps its own fold
     // here, so the takeover always precedes this dispatch's own record. `recover` is
@@ -1226,15 +1282,17 @@ export class Cli {
    *  `N+1` dispatch third — it lives here, not in `step()`'s internals. `fix --recover`
    *  and `implement --recover` take leg ① only (never a reopen), wave lines likewise
    *  (their reopen face stays P29's brief-drift). */
-  async #recoverRun(
-    verb: CliVerb,
-    type: TargetType,
-    scene: WorkScene,
-    parsed: RunInput,
-    inflight: InFlight,
-    artifacts: ArtifactRegistry,
-    values: Readonly<Record<string, string>>,
-  ): Promise<RecoverRun> {
+  async #recoverRun(parts: {
+    verb: CliVerb;
+    type: TargetType;
+    scene: WorkScene;
+    parsed: RunInput;
+    inflight: InFlight;
+    artifacts: ArtifactRegistry;
+    values: Readonly<Record<string, string>>;
+    host: HostId | "";
+  }): Promise<RecoverRun> {
+    const { verb, type, scene, parsed, inflight, artifacts, values, host } = parts;
     // The fold rides a throwaway harness: this judgment runs BEFORE the wave brief is
     // rendered, and the DISPATCHING harness must be built afterwards (its scene snapshot
     // carries `briefPath` — the dispatch-input gate reads it). `foldAbort` touches only
@@ -1244,7 +1302,15 @@ export class Cli {
     const stale = (await inflight.staleState()) !== null;
     // `true`: this judgment runs ONLY under the derived `--recover` (the caller's guard),
     // so the harness it builds holds the takeover permission by construction.
-    if (stale) await this.#lifecycleOf(scene, parsed, artifacts, true, values).foldAbort();
+    if (stale)
+      await this.#lifecycleOf({
+        scene,
+        parsed,
+        artifacts,
+        recover: true,
+        values,
+        host,
+      }).foldAbort();
     const reopened = await this.#reopenLeg(verb, type, scene, inflight);
     if (stale || reopened) return { kind: "allowed" };
     return { kind: "blocked", message: RECOVER_NOTHING };
@@ -1288,15 +1354,16 @@ export class Cli {
    *  abort fold (the takeover that precedes the stamp, spec §2.1④) therefore rides its
    *  own throwaway instance in `#recoverRun`: it touches only the in-flight record and
    *  the ledger, so a pre-brief instance is enough. */
-  #lifecycleOf(
-    scene: WorkScene,
-    parsed: RunInput,
-    artifacts: ArtifactRegistry,
-    recover: boolean,
-    values: Readonly<Record<string, string>>,
-  ): CliLifecycle {
+  #lifecycleOf(parts: {
+    scene: WorkScene;
+    parsed: RunInput;
+    artifacts: ArtifactRegistry;
+    recover: boolean;
+    values: Readonly<Record<string, string>>;
+    host: HostId | "";
+  }): CliLifecycle {
+    const { scene, parsed, artifacts, recover, values, host } = parts;
     return new CliLifecycle({
-      env: process.env,
       sync: this.#sync,
       template: this.#template,
       io: this.#io,
@@ -1323,6 +1390,8 @@ export class Cli {
       // The dispatch's value record — composed ONCE at this root, judged by the seam and
       // rendered here: one assembly, two consumers (P40 T5).
       values,
+      // The host id the root probed ONCE — the spawn's table row (P40 T6).
+      host,
     });
   }
 
@@ -1428,6 +1497,45 @@ export class Cli {
    *  basis; an empty value stays empty (never a `"."`). */
   #relativeOf(scene: WorkScene, value: string): string {
     return value === "" ? "" : scene.workspace.root.basis.relativize(value);
+  }
+
+  /** The tree's refusal record handle — stateless: the record is the state, so a fresh
+   *  handle per use cannot disagree with another one over the same root. */
+  #refusalOf(scene: WorkScene): PreFlightRefusal {
+    return new PreFlightRefusal(scene.workspace.root, scene.workspace.slug);
+  }
+
+  /** Publish the refusal record (P40 §2.1) — this tree's ONE persistent fact about a
+   *  dispatch the structure leg refused: the station that refused plus the verdict's
+   *  FIRST line with its station word stripped off (the station is a cell of its own).
+   *  The identity cells are the SAME `DispatchIdentity` the composer assembled and the
+   *  seam judged — never a second derivation here, so the record names the exact round
+   *  the next dispatch will consume. The continuation lines (`derived:` · `found:` ·
+   *  `identity:` · `repair:`) describe the work this refusal did not do and never land
+   *  in the file (§2.1: eight cells, one line). */
+  async #recordRefusal(parts: {
+    scene: WorkScene;
+    refusal: DispatchRefusal;
+    preflight: PreFlightVerdict;
+    type: TargetType;
+    identity: DispatchIdentity;
+  }): Promise<void> {
+    const station = parts.preflight.gate;
+    if (station === undefined) return;
+    const line = this.#authority.message(parts.refusal, { detail: parts.preflight.message });
+    const join = this.#words.preflightWording().dispatchInput.stationJoin;
+    const prefix = `${station}${join}`;
+    const head = line.split("\n")[0] ?? "";
+    await this.#refusalOf(parts.scene).write({
+      at: new Date().toISOString(),
+      slug: parts.scene.workspace.slug,
+      op: parts.identity.op,
+      type: parts.type,
+      cycle: parts.identity.cycle,
+      attempt: parts.identity.attempt,
+      station,
+      detail: head.startsWith(prefix) ? head.slice(prefix.length) : head,
+    });
   }
 
   /** Render a refused STRUCTURE-leg verdict — the work command's BLOCK face (P4.1

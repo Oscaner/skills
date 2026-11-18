@@ -2,9 +2,10 @@
 // P11 T5 — the `--dry-run` preview pins. Two faces:
 //
 //   · the renderer (face/preview.ts) — the §3.3 five-row block, byte for byte, over
-//     the four target faces; the `child:` row's detected-host and no-host forms.
-//     The renderer touches no disk for these (the names are pure path arithmetic),
-//     so the scene is constructed inline and the env is injected.
+//     the four target faces; the `child:` row reads the INJECTED host id (P40 T6 — the
+//     no-host form retired with the branch it printed: the seam's `no-host` row refuses
+//     such a dispatch before a forecast exists). The renderer touches no disk for these
+//     (the names are pure path arithmetic), so the scene is constructed inline.
 //   · the CLI face — the preview's zero-write semantics on a real fixture repo
 //     (`.kairos/` absent, `git status --porcelain` byte-identical, no round
 //     consumed), the pre-flight refusal face's identity with the real run's, the
@@ -37,6 +38,7 @@ import { BoardView } from "../board-view.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
 import { Cli } from "../cli.ts";
 import { DispatchValues } from "../dispatch-values.ts";
+import type { HostId } from "../host.ts";
 import type { StepRunner } from "../init.ts";
 import { Preview } from "../preview.ts";
 import { Words } from "../words.ts";
@@ -72,10 +74,9 @@ const frame = (over: Partial<OpenFrame> = {}): OpenFrame => ({
   ...over,
 });
 
-/** A preview over the inline scene with a pinned env — `{}` detects no host, so
- *  the test process's own markers never leak into the `child:` row. */
-const preview = (env: Record<string, string | undefined> = {}): Preview =>
-  new Preview({ scene: scene(), env });
+/** A preview over the inline scene with a pinned HOST value (P40 T6: the id is
+ *  injected, so the test process's own markers never leak into the `child:` row). */
+const preview = (host: HostId = "claude"): Preview => new Preview({ scene: scene(), host });
 
 describe("Preview — the §3.3 five-row block", () => {
   it("renders the wave review block byte for byte", () => {
@@ -85,7 +86,7 @@ describe("Preview — the §3.3 five-row block", () => {
       "  reads:       .kairos/cdd/p3/tasks-1-brief.md (would re-render from the current plan)",
       "  would write: .kairos/cdd/p3/tasks-1-review-1.json · .kairos/cdd/p3/tasks-1-review-1-report.md",
       '  would record: progress.waves["1"].rounds += { op: review, cycle: 1, attempt: 1 } · reviewedRevision(brief)',
-      "  child:       (no host detected — real run would BLOCK)",
+      "  child:       claude -p --output-format text --dangerously-skip-permissions --exclude-dynamic-system-prompt-sections",
     ]);
   });
 
@@ -157,7 +158,7 @@ describe("Preview — the §3.3 five-row block", () => {
     // The branch leg's plan path is an INPUT of the write-back, not part of the
     // judgment: with no plan fact the real round records nothing, so the preview
     // states no reviewed-revision leg and names no plan document to read.
-    const lines = new Preview({ scene: scene({ planPath: null }), env: {} }).render(
+    const lines = new Preview({ scene: scene({ planPath: null }), host: "" }).render(
       "review",
       frame({
         type: "branch",
@@ -193,10 +194,10 @@ describe("Preview — the §3.3 five-row block", () => {
     );
   });
 
-  it("the child row names the detected host id + the row's invoke string, never the detect marker", () => {
+  it("the child row names the injected host id + the row's invoke string, never the detect marker", () => {
     const lines = new Preview({
       scene: scene(),
-      env: { CLAUDE_CODE_SESSION_ID: "s" },
+      host: "claude",
     }).render("review", frame());
     // the leading token is the HOST ID ("claude"); the harness row's binary name
     // (the `cli` column) is a separate fact and never rides this row
@@ -351,7 +352,7 @@ describe("Preview.artifactBlock — the structure leg's ONE refusal renderer", (
       "dispatch-input · docs-fix · INPUT_REVIEWS · empty-value",
       "  derived:  .kairos/cdd/p3/phase-spec-review-1.c1.rulings.json",
     ].join("\n");
-    expect(new Preview({ scene: scene(), env: {}, words }).artifactBlock("fix", reason)).toEqual([
+    expect(new Preview({ scene: scene(), host: "", words }).artifactBlock("fix", reason)).toEqual([
       "cdd fix: preview (no repo changes)",
       "  refused:  dispatch-input · docs-fix · INPUT_REVIEWS · empty-value",
       "  derived:  .kairos/cdd/p3/phase-spec-review-1.c1.rulings.json",
@@ -359,14 +360,14 @@ describe("Preview.artifactBlock — the structure leg's ONE refusal renderer", (
     // ONE word, two faces (§3.1): the token and its two-space gap are the table's own
     // row — the preview adds nothing but its two-space indent.
     const row = words.refusalWords();
-    expect(new Preview({ scene: scene(), env: {}, words }).artifactBlock("fix", reason)[1]).toBe(
+    expect(new Preview({ scene: scene(), host: "", words }).artifactBlock("fix", reason)[1]).toBe(
       `  ${row.token}${row.gap}dispatch-input · docs-fix · INPUT_REVIEWS · empty-value`,
     );
   });
 
   it("keeps the token the board's refusal row reads — same word, each face's own outer layer", () => {
     const words = new Words();
-    const previewLine = new Preview({ scene: scene(), env: {}, words }).artifactBlock(
+    const previewLine = new Preview({ scene: scene(), host: "", words }).artifactBlock(
       "fix",
       "x",
     )[1];
@@ -511,20 +512,27 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
     }
   });
 
-  it("a refused pre-flight renders the real run's refusal face verbatim and prints no preview", async () => {
+  it("a refused pre-flight renders the seam's ONE sentence on each face's own channel", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
       writeFileSync(path.join(repoRoot, "dirty.txt"), "dirty\n", "utf8");
       const argv = ["implement", "--tasks", "1", "--plan", plan];
+      const reason = new Words().preflightWords().dirtyTree;
+      // P40 T6 — the dry run's refusal rides the PREVIEW face: the block plus the
+      // `refused:` row on stdout, and the `CDD_BLOCKED:` station on neither stream.
       expect(await command.runArgv([...argv, "--dry-run"])).toBe(1);
-      const previewStderr = io.stderrText;
-      expect(io.stdoutText).not.toContain("preview");
+      expect(io.stdoutText.startsWith("cdd implement: preview (no repo changes)\n")).toBe(true);
+      expect(io.stdoutText).toContain(`  refused:  tree-clean · ${reason}`);
+      expect(io.stdoutText).not.toContain("CDD_BLOCKED:");
+      expect(io.stderrText).not.toContain("CDD_BLOCKED:");
+      // …and the real run prints the SAME sentence behind its own station: one
+      // judgment, two faces (the sentence is the seam's, never a face's).
       io.stdoutText = "";
       io.stderrText = "";
       expect(await command.runArgv(argv)).toBe(1);
-      expect(io.stderrText).toBe(previewStderr);
+      expect(io.stderrText).toContain(`CDD_BLOCKED: tree-clean · ${reason}`);
     } finally {
       cleanup();
     }

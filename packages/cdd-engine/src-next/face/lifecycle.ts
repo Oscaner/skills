@@ -55,12 +55,13 @@ import {
   RoundViolation,
   type Termination,
 } from "../session/ledger.ts";
+import { PreFlightRefusal } from "../session/refusal.ts";
 import type { ArtifactRegistry } from "../session/round-artifacts.ts";
 import { RoundNaming } from "../session/round-naming.ts";
 import type { DispatchOutcome, DispatchStep, OpenFrame } from "../session/run.ts";
 import { PlanStructure } from "../session/run.ts";
 import { RequestingCarrier, type RequestingCarrierFacts } from "./dispatch-values.ts";
-import { DISPATCH, HOSTS, HostDetect, type HostId, type HostReferenceTable, REFS } from "./host.ts";
+import { DISPATCH, HOSTS, type HostId, type HostReferenceTable, REFS } from "./host.ts";
 import {
   type ChildOutcome,
   type ChildRunner,
@@ -103,7 +104,8 @@ export interface CliIo {
 // the harness dispatch (the production dispatch default)
 // ---------------------------------------------------------------------------
 
-/** The environment face the harness dispatch detects the host against. */
+/** The environment face the harness dispatch reads its inherited env from (the
+ *  composition root's `process.env`; tests inject a recording stand-in). */
 export type ProcessEnvLike = Record<string, string | undefined>;
 
 /** One dispatch scene — the per-invocation composition the work commands assemble
@@ -172,8 +174,12 @@ export class CliLifecycle {
    *  `RoundLog.create` on first use, never by the workspace's own mkdir. */
   static readonly LOGS_DIR = "logs";
 
-  readonly #env: ProcessEnvLike;
+  /** The child-process seam (the terminator by default) — the ONE spawn point. */
   readonly #sync: ChildRunner;
+  /** The host id the composition root's ONE probe answered. Injected, not detected here
+   *  (P40 T6): the `no-host` row refuses a dispatch with no harness before this face is
+   *  ever asked, so the dispatch body reads the value it was handed. */
+  readonly #host: HostId | "";
   readonly #template: TemplateAssembler;
   readonly #io: CliIo;
   readonly #scene: DispatchScene;
@@ -242,7 +248,6 @@ export class CliLifecycle {
   readonly #values: Readonly<Record<string, string>>;
 
   constructor(opts: {
-    env?: ProcessEnvLike;
     sync?: ChildRunner;
     template?: TemplateAssembler;
     io?: CliIo;
@@ -256,8 +261,10 @@ export class CliLifecycle {
     brief?: BriefRenderer;
     values: Readonly<Record<string, string>>;
     artifacts: ArtifactRegistry;
+    /** The host id the composition root probed ONCE — required, no default: a default
+     *  would re-open the second detection path this seam retired (P40 T6). */
+    host: HostId | "";
   }) {
-    this.#env = opts.env ?? process.env;
     this.#scene = opts.scene;
     this.#naming = new RoundNaming(opts.scene.workspace);
     this.#inflight =
@@ -267,6 +274,7 @@ export class CliLifecycle {
     this.#recover = opts.recover ?? false;
     this.#artifacts = opts.artifacts;
     this.#sync = opts.sync ?? new Terminator();
+    this.#host = opts.host;
     this.#template = opts.template ?? new TemplateAssembler();
     this.#brief = opts.brief ?? new BriefRenderer();
     this.#values = opts.values;
@@ -276,14 +284,6 @@ export class CliLifecycle {
       stderr: (t) => process.stderr.write(t),
     };
     this.#reviews = opts.reviews ?? null;
-  }
-
-  /** The host-harness id detected from the env — "claude" | "pi" | "" —
-   *  a delegation to the module-level judgment (HostDetect.detect, face/host.ts —
-   *  the detection's single home; this instance method is the injectable-env
-   *  adapter the lifecycle face rides, behavior unchanged). */
-  detectHost(env: ProcessEnvLike = this.#env): string {
-    return HostDetect.detect(env);
   }
 
   /** The DispatchStep the lifecycle runs — one frame → the outcome. */
@@ -679,15 +679,11 @@ export class CliLifecycle {
     this.#dispatchBase = null;
     this.#roundLogPath = null;
     this.#logUnavailable = null;
-    const host = this.detectHost();
-    if (host === "") {
-      // The sentence's ONE home is the words table (P40 §1.3 moved it out of this
-      // method); the channel anchor is the table's `blocked` row, not a second literal.
-      this.#io.stderr(
-        `${this.#words.station("blocked")} ${this.#words.preflightWording().noHost}\n`,
-      );
-      return { status: "BLOCKED" };
-    }
+    // The host id the composition root probed ONCE (P40 T6). The `no-host` row is the
+    // seam's sixth row now, and it refuses a host-less dispatch before any frame exists
+    // — so this body has no second probe and no second no-host face: a tree with no
+    // harness never reaches a spawn point at all.
+    const host = this.#host;
     // P31 T5 §2.4 — the preflight half of the seal cycle: the workspace's ORPHAN
     // carriers first (a process killed outside the engine leaves a writable carrier
     // behind), then this round's OWN two names become writable — its draft for the
@@ -813,7 +809,26 @@ export class CliLifecycle {
     // record exists for.
     const outcome = this.#reconstruct(frame);
     await this.#inflight.release();
+    // The SECOND expiry trigger (spec §2.2 · §4.2): the facts a refusal records stop
+    // holding when the holder this tree was occupied by lets go. The read is TREE-level
+    // (`readRaw`) — the record it expires belongs to whichever workspace was refused,
+    // not to this one. The predicate reads the STATION: only an `in-flight` row names
+    // the occupancy this release invalidates, and a `corrupt` record has no station at
+    // all — no expiry condition can hold for it, so it is left on disk (deleting it
+    // would decide a fact that could not be read).
+    this.#expireInFlightRefusal();
     return outcome;
+  }
+
+  /** Clear the tree's refusal record when — and only when — it names the in-flight
+   *  occupancy the release just ended. Idempotent: an absent record, another station
+   *  and an unreadable record are all no-ops. */
+  #expireInFlightRefusal(): void {
+    const refusal = new PreFlightRefusal(this.#scene.workspace.root, this.#scene.workspace.slug);
+    const state = refusal.readRaw();
+    if (state.kind !== "standing") return;
+    if (state.facts.station !== "in-flight") return;
+    refusal.clear();
   }
 
   /** The in-flight record of one frame — the identity facts written before the spawn.

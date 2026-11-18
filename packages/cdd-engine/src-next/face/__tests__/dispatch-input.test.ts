@@ -630,7 +630,9 @@ describe("the dispatch-input gate — order and shape (§2.1 · §2.2)", () => {
     // One composition, two consumers (spec §2.3's "一份读取、两个消费者"): a second
     // `#valuesOf` call would let the gate judge a value the child never receives.
     expect(reads).toHaveLength(1);
-    expect(body).toContain('this.#inputRefusalOf(values, frame, "dispatch")');
+    // The cell is the dispatch's OWN (`#artifactCellOf` ran once, above): the judgment is
+    // handed this dispatch's facts, never a placeholder snapshot.
+    expect(body).toContain('this.#inputRefusalOf(artifactCell, values, frame, "dispatch")');
     expect(body).toContain("this.#template.render(values)");
   });
 

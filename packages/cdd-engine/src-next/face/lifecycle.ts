@@ -749,9 +749,9 @@ export class CliLifecycle {
     // P31 T2 — the ruling sidecar gate: a sidecar the strict schema refuses stops the
     // round HERE, before the in-flight record is acquired and before any child exists
     // (a written-but-invisible ruling is the defect this gate removes). The judgment is
-    // ONE value computed here and handed to BOTH consumers (the gate and the prompt's
-    // round-context cell), so the `misplaced` / `invalid` / `ok` answers can never
-    // disagree between them — not even across a writer that lands mid-dispatch.
+    // ONE value computed here and handed to EVERY consumer (the two gates beside it and
+    // the prompt's round-context cell), so the `misplaced` / `invalid` / `ok` answers can
+    // never disagree between them — not even across a writer that lands mid-dispatch.
     const artifactCell = this.#artifactCellOf(frame);
     // P38 §2.1 — the dispatch-input gate: does this round stand at all (every required
     // cell supplied, every read path on disk)? It runs BEFORE the artifact gate, which
@@ -759,7 +759,7 @@ export class CliLifecycle {
     // both the gate and the prompt render: one value, two consumers, never two
     // compositions that could answer differently.
     const values = this.#valuesOf(frame, artifactCell);
-    const inputRefusal = this.#inputRefusalOf(values, frame, "dispatch");
+    const inputRefusal = this.#inputRefusalOf(artifactCell, values, frame, "dispatch");
     if (inputRefusal !== null) {
       // Same exit shape as the two gates beside it: the preflight already opened this
       // round's own two names, so a refusal seals them before it blocks.
@@ -1731,15 +1731,23 @@ export class CliLifecycle {
    *  is answered by its naming line) must be asked for by name, so no caller silently
    *  takes it. */
   inputRefusal(frame: OpenFrame, mode: "dispatch" | "preview" = "dispatch"): string | null {
-    return this.#inputRefusalOf(this.#valuesOf(frame, this.#artifactCellOf(frame)), frame, mode);
+    const cell = this.#artifactCellOf(frame);
+    return this.#inputRefusalOf(cell, this.#valuesOf(frame, cell), frame, mode);
   }
 
   /** The dispatch-input judgment over the values about to be rendered (§2.1–§2.3) — the
    *  definition is given by the declaration, never by a second table: the judged cells
    *  are resolved from `layoutOf(values)`, the same row selection the renderer reads.
    *  The judgment itself lives on the contract plane (P40 T3); this method only selects
-   *  the row it produces. */
+   *  the row it produces.
+   *
+   *  The artifact cell is the dispatch's OWN — the one `#artifactCellOf` computed for the
+   *  gates beside it — so the judgment sees this dispatch's facts even though only the
+   *  `dispatch-input` row is read back: a snapshot asserting the artifact slot is absent
+   *  while the real cell is `misplaced` / `invalid` / `mismatch` would be a row selection
+   *  reading a fact that is not true of this dispatch. */
   #inputRefusalOf(
+    cell: ArtifactCell,
     values: TemplateValues,
     frame: OpenFrame,
     mode: "dispatch" | "preview",
@@ -1747,9 +1755,7 @@ export class CliLifecycle {
     const rows = this.#rowsOf({
       frame,
       values,
-      // The input row reads no artifact fact (the snapshot feeds the artifact gate),
-      // so the no-sidecar value is the truthful input here — one read, one consumer.
-      artifactCell: NO_ARTIFACT,
+      artifactCell: cell,
       host: this.detectHost(),
       naming: mode === "preview" && this.#namingAnswer(values, frame),
     });

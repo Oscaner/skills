@@ -59,7 +59,7 @@ implement 的类型集只有一个成员：它唯一的产出点是 `session/led
 
 #### 2.5 参照面四处校准（D86）
 
-全类型注入矩阵（六 review · 两 fix · 四 docs-fix · implement，按 `#valuesOf` 真实槽规则渲染）选出四处「round context 的名字都带了、但映射到错的对象」。四处的共同盲区：`TemplateAssembler#assertShellLayout` 只校验「shell 提到的名字是否被该 mode 的 layout 携带」，不校验名字所指——结构门对这类缺陷恒绿。
+全类型注入矩阵（六 review · 两 fix · 四 docs-fix · implement，按 `#valuesOf` 真实槽规则渲染）选出四处「round context 的名字都带了、但映射到错的对象」。四处的共同盲区：TemplateAssembler#assertShellLayout 只校验「shell 提到的名字是否被该 mode 的 layout 携带」，不校验名字所指——结构门对这类缺陷恒绿。
 
 **A · `FIX_SHELL` 的 `INPUT_SPEC` 子句指向一个到不了的面。** 文档型 fix 走 `DOCS_FIX_SHELL`，故 fix 面永不出现 spec line。而 branch fix 确实带 `INPUT_SPEC`，值是设计 spec 参考（`#valuesOf` 的 `specLink`），不是被判文档。现句子把参考说成 the spec document——孩子可能越界编辑它，触发 doc-revision drift 重审。改为按面点名：wave 线带 `INPUT_WAVE_BRIEF`；branch 线带 `INPUT_PLAN`（计划文档）与 `INPUT_SPEC`（设计 spec，conformance 参考而非被判对象）。
 
@@ -98,7 +98,7 @@ REVIEW_TYPE 的改写面就是 Acceptance criteria 里「零残留」那条判�
 
 #### 3.3 结构门看不见名字所指
 
-`#assertShellLayout` 是「名字 ⊆ layout」的结构校验。本轮四处缺陷的名字全部被携带，因此门恒绿。**本相位不新增门**（与 P28「易变事实不设门」同向）：校准后的句子由评审读，pins 只钉可机器判的两件事——每个变体的 round context 行集（§2.1 / §2.2 / §2.5 的锤名与类型行），以及 shell 里出现的 `INPUT_*` / `BASE_BRANCH` 名字仍在其 layout 内（既有门）。名字↔对象的正确性不设门。
+#assertShellLayout 是「名字 ⊆ layout」的结构校验。本轮四处缺陷的名字全部被携带，因此门恒绿。**本相位不新增门**（与 P28「易变事实不设门」同向）：校准后的句子由评审读，pins 只钉可机器判的两件事——每个变体的 round context 行集（§2.1 / §2.2 / §2.5 的锤名与类型行），以及 shell 里出现的 `INPUT_*` / `BASE_BRANCH` 名字仍在其 layout 内（既有门）。名字↔对象的正确性不设门。
 
 ### Acceptance criteria
 

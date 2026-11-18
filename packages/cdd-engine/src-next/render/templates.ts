@@ -76,6 +76,41 @@ export type WorkMode = "implement" | "fix" | "review" | "docs-fix";
  *  keyed by `ReviewKey`). */
 export type WorkModeRowKey = Exclude<WorkMode, "review">;
 
+/** The arm shape of one round-context cell's exigibility declaration (P38 §1.1) —
+ *  one arm is a type set, optionally narrowed by a structural precondition, and a
+ *  cell may hang several CONJUNCTIVE arms: each is judged on its own, and any hit
+ *  makes the cell exigible. `types: []` is the `never` spelling — the cell is never
+ *  exigible, which is a legal declaration (not a missing one). */
+export interface RequiredArm {
+  /** The target types this arm covers — `"always"` (the row's whole served set) or a
+   *  subset of it; an empty array names no type at all (`never`). */
+  readonly types: "always" | readonly TargetType[];
+  /** A structural precondition stacked on the same arm (§1.3): the identity document
+   *  declared `program:` / its shape (`doc-type:`) — the DECLARATION, never the
+   *  resolved value the frame carries. */
+  readonly when?: "program" | "identity";
+}
+
+/** One round-context line's declaration (P38 §1.1) — the line with its `{{TOKEN}}`
+ *  slot plus the facts a caller must be able to read off it. A line without a slot
+ *  (the `## Round context` heading, the separator blank line) carries the `never`
+ *  form: it has no value to compare, so it is never exigible and never dropped. */
+export interface ContextLine {
+  /** The rendered line — a heading, a blank line, or a `- \`TOKEN\`: {{TOKEN}}` cell. */
+  readonly line: string;
+  /** The cell's value names a file that must exist — the ONLY bit `target-absent`
+   *  reads (§1.1: read paths are declared, never inferred from an `INPUT_` prefix). */
+  readonly path?: true;
+  /** What absence looks like away from `requiredOn`: drop the whole line, or render
+   *  the bare literal `none`. */
+  readonly absent: "drop" | "none";
+  /** The types the cell is exigible on — one arm, or several conjunctive arms. */
+  readonly requiredOn: readonly RequiredArm[];
+  /** What `--dry-run` answers for this cell (§2.4): `value` (the default) reads the
+   *  same frame's value; `satisfied` answers "the naming line named it ⇒ satisfied". */
+  readonly preview?: "value" | "satisfied";
+}
+
 /** One dispatch-table row — a mode's fixed prefix + its reduced dynamic tail. */
 export interface ModePromptRow {
   /** The work-mode identity (the ROLE vocabulary). */
@@ -84,9 +119,14 @@ export interface ModePromptRow {
    *  section (with the {{HANDOFF_SCHEMA}} slot at the tail — the injected
    *  writable-subset fence): byte-identical for every dispatch of the mode. */
   shell: readonly string[];
-  /** The mode's REDUCED round-context subset — the only dynamic region; a key
-   *  whose value is empty is not emitted (empty-valued keys are dropped). */
-  roundContext: readonly string[];
+  /** The target types this row actually renders (§1.1: `implement` → `wave`;
+   *  `fix` → `wave` · `branch`; `docs-fix` → the four document faces; `review` →
+   *  all six). A declaration naming a type outside this set is a dead cell. */
+  serves: readonly TargetType[];
+  /** The mode's REDUCED round-context subset — the only dynamic region, declared
+   *  line by line: a value-less slot is dropped or rendered as `none` per its own
+   *  `absent` declaration (§1.1's truth table). */
+  roundContext: readonly ContextLine[];
 }
 
 /** The template prompt data plane — the work-mode rows + the review-per-type rows +
@@ -146,6 +186,17 @@ const FRAME_ITEMS: readonly string[] = [
   "**Scope lock:** use only this round's inputs in `## Round context`. No full plan reads. No extra features, no tangential refactors, no scope creep.",
 ];
 
+/** The dispatch OUTPUT plane's ONE discipline cell (design spec §5.1) — the same
+ *  bytes in all four shell texts (`IMPLEMENT_SHELL` · `REVIEW_ITEM` · `FIX_SHELL` ·
+ *  `DOCS_FIX_SHELL`). It is self-sufficient by construction: the base is the round
+ *  context's `WORKSPACE_DIR`, `<round-id>` is derived from this round's own
+ *  `OUTPUT_HANDOFF` stem with its `-a<n>` attempt segment stripped (§5.2), `mkdir -p`
+ *  is written out (the engine creates no directory, §5.4), and the artifact set is
+ *  named by pointing at the round context — the shell sits ABOVE it, so "above"
+ *  would point the wrong way. */
+const SCRATCH_DISCIPLINE =
+  "Anything that is not a round artifact — analysis scripts, one-off scans, intermediate JSON/TSV — goes under the round context's `WORKSPACE_DIR` in `scratch/<round-id>/` (create it with `mkdir -p` before writing), never at the workspace root, where `<round-id>` is the stem your `OUTPUT_HANDOFF` path in that same round context carries with its `-a<n>` attempt segment stripped, nothing there is evidence, nothing there is read back, and this round's artifacts are exactly the `OUTPUT_*` paths that round context lists.";
+
 /** The shared work-mode tail cell — the evidence gate (implement/fix carry it;
  *  docs-fix carries no evidence file — zero per-mode duplication, §3.7). The
  *  evidence file's concrete name rides the injected schema's preamble (per-family
@@ -203,6 +254,7 @@ const IMPLEMENT_SHELL: readonly string[] = [
   WORK_CAPABILITY,
   `**implement:** read \`INPUT_WAVE_BRIEF\` (the complete plan mirror — every \`### Task N:\` of the wave + the plan's \`## Constraints\` section, fresh-extracted at dispatch). \`WAVE\` = this round's wave (the task list); implement ALL tasks of the wave, never a subset. \`CONFIRMED_SEAMS\` in the brief → apply as-is; else propose test boundaries in the report, then invoke **\`${DISPATCH.implement}\`**. Write the handoff draft at \`OUTPUT_HANDOFF\` per \`## Handoff schema\` BEFORE the return block: \`status\` (APPROVED once applied, else BLOCKED + the reason in \`notes\`) and \`artifacts\` (the prescribed \`OUTPUT_REPORT\`/\`OUTPUT_EVIDENCE\` paths from the round context — the \`{family}-{key}-\` canonical names, zero free naming).`,
   EVIDENCE_ITEM,
+  SCRATCH_DISCIPLINE,
   ...LICENSE_ITEMS,
   ...SCHEMA_SECTION,
 ];
@@ -212,7 +264,7 @@ const IMPLEMENT_SHELL: readonly string[] = [
  *  itself rides the round context (`INPUT_RULINGS`), never this sentence. Both fix
  *  shells carry the same words: one reading, one meaning. */
 const RULINGS_READING =
-  "**Rulings:** read the orchestrator's ruling file named by `INPUT_RULINGS` before touching a finding — each ruling answers one finding id and overrides that finding's own suggestion (`REJECTED` = do not adopt that finding's fix); the carrier itself is read-only, never rewritten.";
+  "**Rulings:** read the orchestrator's ruling file named by `INPUT_RULINGS` before touching a finding — each ruling answers one finding id and overrides that finding's own suggestion (`REJECTED` = do not adopt that finding's fix); the carrier itself is read-only, never rewritten. `INPUT_RULINGS` is a path, or the literal `none` when this round has no ruling sidecar.";
 
 /** The fix row's fixed prefix — header + instructions + the shared work tail. */
 const FIX_TYPED_INSTRUCTIONS: readonly string[] = [
@@ -233,6 +285,7 @@ const FIX_SHELL: readonly string[] = [
   '**Dispositions:** every requested finding needs a disposition keyed by its `id` exactly as the requesting carrier prints it (`F1`, `F2`, … — the summary is description only), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` — a missing or mis-keyed disposition fails the round.',
   RULINGS_READING,
   EVIDENCE_ITEM,
+  SCRATCH_DISCIPLINE,
   ...LICENSE_ITEMS,
   // T5 (v0.3) — The work plane's ONE strict-schema sentence: every top-level draft
   // field comes from the `## Handoff schema` declared properties (the fields'
@@ -260,6 +313,7 @@ const DOCS_FIX_SHELL: readonly string[] = [
   "**Escaped pipes:** a `## Change history` summary cell that needs a literal vertical bar carries `\\|` — a bare `|` splits the cell in two and the row stops matching the declared header.",
   '**Dispositions:** every requested finding needs a disposition keyed by its `id` exactly as the requesting carrier prints it (`F1`, `F2`, … — the summary is description only), valued `{ "status": "fixed" | "rejected", "reason"?: "…" }` — a missing or mis-keyed disposition fails the round.',
   RULINGS_READING,
+  SCRATCH_DISCIPLINE,
   ...LICENSE_ITEMS,
   // The generic strict-schema sentence — the SAME one the work shells carry: the
   // injected declaration is the draft's single field source, zero per-mode field
@@ -269,9 +323,19 @@ const DOCS_FIX_SHELL: readonly string[] = [
 ];
 
 /** The review variants' shared instruction text — the review's mode rule (the
- *  criteria body + the lens vocabulary ride per-type fixed items below). */
-const REVIEW_ITEM =
+ *  criteria body + the lens vocabulary ride per-type fixed items below). Its tail is
+ *  the dispatch OUTPUT discipline: the review face has no separate "review body"
+ *  array — every one of the six rows folds this block in, so one injection reaches
+ *  all six (§5.1: four shell texts, not four modes). */
+const REVIEW_ITEM_HEAD =
   "**review:** review the criteria below against the reference face named in the round context. A wave review judges `INPUT_WAVE_BRIEF` (the complete plan mirror); the plan review judges the plan at `INPUT_PLAN`; the branch review judges the live tree against its base branch (`INPUT_PLAN` is its plan-conformance reference); the spec review judges the spec at `INPUT_SPEC`; the overall review judges the charter at `INPUT_OVERALL`; and a face whose spec carries a `program:` also carries the parent charter at `INPUT_OVERALL`. Write findings into the draft at `OUTPUT_HANDOFF` per `## Handoff schema` (never print them); empty `findings` = approved. The engine derives the conclusion from the draft's findings (blocker → CHANGES_REQUESTED · warn/nit → REVIEW_FIX · none → APPROVED) — a review never declares its own status. **Read-only:** never mutate tracked content, the index, HEAD, or branch state — the prescribed `OUTPUT_*` artifacts are a review's only writes, and committing belongs to the orchestrator — read history through `git show` / `git diff` / `git log`, and inspect another revision in a separate directory rather than moving HEAD here; repairs belong to the fix round, never to a review. **Single agent:** do the whole review yourself — never spawn a subagent for part of the diff or for a second opinion; this overrides any dispatched skill's parallel-sub-agent default.";
+
+const REVIEW_ITEM = `${REVIEW_ITEM_HEAD}\n\n${SCRATCH_DISCIPLINE}`;
+
+/** The `never` declaration — a cell (or a slot-less line) that is never exigible.
+ *  §1.3: this is a legal declaration, not an empty one; `absent` stays writable on
+ *  it, because `never` + drop is a shape a future cell may legitimately need. */
+const NEVER: readonly RequiredArm[] = [{ types: [] }];
 
 /** The review mode's shared reduced tail — the only dynamic region of every review
  *  variant (the criteria/lens are fixed-prefix per type, never here). Each review
@@ -279,86 +343,265 @@ const REVIEW_ITEM =
  *  `INPUT_PLAN` as the judged doc, with `INPUT_SPEC` as its plan→spec conformance
  *  reference; branch → the live tree against `BASE_BRANCH`, with `INPUT_PLAN` as its
  *  plan-conformance reference and the same `INPUT_SPEC` design-spec reference; spec →
- *  `INPUT_SPEC`; overall → `INPUT_OVERALL`); empty slots are dropped by the
- *  assembler, so a face renders only the anchors it reads. */
-const REVIEW_CONTEXT: readonly string[] = [
-  "## Round context",
-  "",
-  "- `ROLE`: {{ROLE}}",
-  "- `TARGET_TYPE`: {{TARGET_TYPE}}",
-  "- `WAVE`: {{WAVE}}",
-  "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
-  "- `INPUT_PLAN`: {{INPUT_PLAN}}",
-  "- `INPUT_SPEC`: {{INPUT_SPEC}}",
-  "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
-  "- `BASE_BRANCH`: {{BASE_BRANCH}}",
-  "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
-  "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
-  "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
-  "- `WORKSPACE_ID`: {{WORKSPACE_ID}}",
+ *  `INPUT_SPEC`; overall → `INPUT_OVERALL`); a cell away from its `requiredOn` set
+ *  is dropped (§1.4), so a face renders only the anchors it reads. */
+const REVIEW_CONTEXT: readonly ContextLine[] = [
+  { line: "## Round context", absent: "drop", requiredOn: NEVER },
+  { line: "", absent: "drop", requiredOn: NEVER },
+  { line: "- `ROLE`: {{ROLE}}", absent: "drop", requiredOn: [{ types: "always" }] },
+  {
+    line: "- `TARGET_TYPE`: {{TARGET_TYPE}}",
+    absent: "drop",
+    requiredOn: [{ types: "always" }],
+  },
+  { line: "- `WAVE`: {{WAVE}}", absent: "drop", requiredOn: [{ types: ["wave"] }] },
+  {
+    line: "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
+    path: true,
+    absent: "drop",
+    requiredOn: [{ types: ["wave"] }],
+    preview: "satisfied",
+  },
+  {
+    line: "- `INPUT_PLAN`: {{INPUT_PLAN}}",
+    path: true,
+    absent: "drop",
+    requiredOn: [{ types: ["plan", "branch"] }],
+  },
+  {
+    line: "- `INPUT_SPEC`: {{INPUT_SPEC}}",
+    path: true,
+    absent: "drop",
+    requiredOn: [
+      { types: ["phase-spec", "single-spec"] },
+      { types: ["plan", "branch", "wave"], when: "identity" },
+    ],
+  },
+  {
+    line: "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
+    path: true,
+    absent: "drop",
+    requiredOn: [
+      { types: ["overall"] },
+      { types: ["phase-spec", "plan", "branch", "wave"], when: "program" },
+    ],
+  },
+  {
+    line: "- `BASE_BRANCH`: {{BASE_BRANCH}}",
+    absent: "drop",
+    requiredOn: [{ types: ["branch", "wave"] }],
+  },
+  {
+    line: "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
+    absent: "drop",
+    requiredOn: [{ types: "always" }],
+  },
+  {
+    line: "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
+    absent: "drop",
+    requiredOn: [{ types: "always" }],
+  },
+  {
+    line: "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
+    absent: "drop",
+    requiredOn: [{ types: "always" }],
+  },
+  { line: "- `WORKSPACE_ID`: {{WORKSPACE_ID}}", absent: "drop", requiredOn: [{ types: "always" }] },
 ];
 
 /** The work-mode dispatch rows — implement / fix / docs-fix (§3.5; the review rows
- *  are REVIEW_VARIANTS). */
+ *  are REVIEW_VARIANTS). Each row's `serves` is the set its declarations are judged
+ *  against (§1.1) — the `fix` row serves two types, never the `fix` verb's six-word
+ *  `--type` set: the four document faces render the `docs-fix` row instead. */
 const MODE_PROMPTS: Readonly<Record<WorkModeRowKey, ModePromptRow>> = {
   implement: {
     mode: "implement",
     shell: IMPLEMENT_SHELL,
+    serves: ["wave"],
     roundContext: [
-      "## Round context",
-      "",
-      "- `ROLE`: {{ROLE}}",
-      "- `WAVE`: {{WAVE}}",
-      "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
-      // find #4 + #5 — the plan's ## Constraints rides the wave brief mirror;
-      // the OUTPUT_* write paths are prescribed (the {family}-{key}- canonical names)
-      "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
-      "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
-      "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
-      "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
-      "- `WORKSPACE_ID`: {{WORKSPACE_ID}}",
+      { line: "## Round context", absent: "drop", requiredOn: NEVER },
+      { line: "", absent: "drop", requiredOn: NEVER },
+      { line: "- `ROLE`: {{ROLE}}", absent: "drop", requiredOn: [{ types: "always" }] },
+      { line: "- `WAVE`: {{WAVE}}", absent: "drop", requiredOn: [{ types: "always" }] },
+      {
+        line: "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
+        path: true,
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+        preview: "satisfied",
+      },
+      {
+        line: "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `WORKSPACE_ID`: {{WORKSPACE_ID}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
     ],
   },
   fix: {
     mode: "fix",
     shell: FIX_SHELL,
+    serves: ["wave", "branch"],
     roundContext: [
-      "## Round context",
-      "",
-      "- `ROLE`: {{ROLE}}",
-      "- `TARGET_TYPE`: {{TARGET_TYPE}}",
-      "- `WAVE`: {{WAVE}}",
-      "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
-      "- `INPUT_PLAN`: {{INPUT_PLAN}}",
-      "- `INPUT_SPEC`: {{INPUT_SPEC}}",
-      "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
-      "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
-      "- `INPUT_RULINGS`: {{INPUT_RULINGS}}",
-      "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
-      "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
-      "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
-      "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
-      "- `WORKSPACE_ID`: {{WORKSPACE_ID}}",
+      { line: "## Round context", absent: "drop", requiredOn: NEVER },
+      { line: "", absent: "drop", requiredOn: NEVER },
+      { line: "- `ROLE`: {{ROLE}}", absent: "drop", requiredOn: [{ types: "always" }] },
+      {
+        line: "- `TARGET_TYPE`: {{TARGET_TYPE}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      { line: "- `WAVE`: {{WAVE}}", absent: "drop", requiredOn: [{ types: ["wave"] }] },
+      {
+        line: "- `INPUT_WAVE_BRIEF`: {{INPUT_WAVE_BRIEF}}",
+        path: true,
+        absent: "drop",
+        requiredOn: [{ types: ["wave"] }],
+        preview: "satisfied",
+      },
+      {
+        line: "- `INPUT_PLAN`: {{INPUT_PLAN}}",
+        path: true,
+        absent: "drop",
+        requiredOn: [{ types: ["branch"] }],
+      },
+      {
+        line: "- `INPUT_SPEC`: {{INPUT_SPEC}}",
+        path: true,
+        absent: "drop",
+        requiredOn: [{ types: ["branch", "wave"], when: "identity" }],
+      },
+      {
+        line: "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
+        path: true,
+        absent: "drop",
+        requiredOn: [{ types: ["branch", "wave"], when: "program" }],
+      },
+      {
+        line: "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
+        path: true,
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `INPUT_RULINGS`: {{INPUT_RULINGS}}",
+        path: true,
+        absent: "none",
+        requiredOn: NEVER,
+      },
+      {
+        line: "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `OUTPUT_EVIDENCE`: {{OUTPUT_EVIDENCE}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `WORKSPACE_ID`: {{WORKSPACE_ID}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
     ],
   },
   "docs-fix": {
     mode: "docs-fix",
     shell: DOCS_FIX_SHELL,
+    serves: ["phase-spec", "single-spec", "plan", "overall"],
     roundContext: [
-      "## Round context",
-      "",
-      "- `ROLE`: {{ROLE}}",
-      "- `TARGET_TYPE`: {{TARGET_TYPE}}",
-      "- `WAVE`: {{WAVE}}",
-      "- `INPUT_PLAN`: {{INPUT_PLAN}}",
-      "- `INPUT_SPEC`: {{INPUT_SPEC}}",
-      "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
-      "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
-      "- `INPUT_RULINGS`: {{INPUT_RULINGS}}",
-      "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
-      "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
-      "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
-      "- `WORKSPACE_ID`: {{WORKSPACE_ID}}",
+      { line: "## Round context", absent: "drop", requiredOn: NEVER },
+      { line: "", absent: "drop", requiredOn: NEVER },
+      { line: "- `ROLE`: {{ROLE}}", absent: "drop", requiredOn: [{ types: "always" }] },
+      {
+        line: "- `TARGET_TYPE`: {{TARGET_TYPE}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      { line: "- `WAVE`: {{WAVE}}", absent: "drop", requiredOn: NEVER },
+      {
+        line: "- `INPUT_PLAN`: {{INPUT_PLAN}}",
+        path: true,
+        absent: "drop",
+        requiredOn: [{ types: ["plan"] }],
+      },
+      {
+        line: "- `INPUT_SPEC`: {{INPUT_SPEC}}",
+        path: true,
+        absent: "drop",
+        requiredOn: [
+          { types: ["phase-spec", "single-spec"] },
+          { types: ["plan"], when: "identity" },
+        ],
+      },
+      {
+        line: "- `INPUT_OVERALL`: {{INPUT_OVERALL}}",
+        path: true,
+        absent: "drop",
+        requiredOn: [{ types: ["overall"] }, { types: ["phase-spec", "plan"], when: "program" }],
+      },
+      {
+        line: "- `INPUT_REVIEWS`: {{INPUT_REVIEWS}}",
+        path: true,
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `INPUT_RULINGS`: {{INPUT_RULINGS}}",
+        path: true,
+        absent: "none",
+        requiredOn: NEVER,
+      },
+      {
+        line: "- `OUTPUT_REPORT`: {{OUTPUT_REPORT}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `OUTPUT_HANDOFF`: {{OUTPUT_HANDOFF}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `WORKSPACE_DIR`: {{WORKSPACE_DIR}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
+      {
+        line: "- `WORKSPACE_ID`: {{WORKSPACE_ID}}",
+        absent: "drop",
+        requiredOn: [{ types: "always" }],
+      },
     ],
   },
 };
@@ -529,6 +772,17 @@ export const pinLensOf = (type: TargetType, guides: ReviewGuides = REVIEWS): str
   return row.pinLens;
 };
 
+/** The six target types every review variant renders — the review row's `serves`
+ *  set (§1.1): one criteria body per type, one shared dynamic tail. */
+const REVIEW_SERVES: readonly TargetType[] = [
+  "wave",
+  "branch",
+  "phase-spec",
+  "overall",
+  "plan",
+  "single-spec",
+];
+
 /** One review variant row (§3.7) — the fixed prefix folds the SELECTED criteria
  *  body + its lens INLINE (the `INPUT_CRITERIA`/`INPUT_LENS` round-context tokens
  *  are gone) and shares the REVIEW_CONTEXT dynamic tail. The target word labels the
@@ -550,6 +804,7 @@ const reviewRow = (type: TargetType): ModePromptRow => {
       ...LICENSE_ITEMS,
       ...SCHEMA_SECTION,
     ],
+    serves: REVIEW_SERVES,
     roundContext: REVIEW_CONTEXT,
   };
 };
@@ -636,7 +891,16 @@ export const CLAUSES = {
     "This dispatch is one-shot and non-interactive: end your turn with anything still running and the process exits — the work and the handoff die with it. So do not end your turn — a background command, a background subagent, or any yield-and-wait path such as `bg_run` / `bg_delegate` — before the handoff draft is written. Finish nested work in this same turn: complete it synchronously in this process turn, then write the handoff and finish.",
 } as const;
 
-/** The dispatch-prompt data plane — the typed template-contract surface. $version 24
+/** The dispatch-prompt data plane — the typed template-contract surface. $version 25
+ *  carries the P38 dispatch-contract batch (§2.3 · §3.1 · §3.3 · §5.1), three byte
+ *  changes over 24: the `scratch/<round-id>/` discipline sentence in all four shell
+ *  texts (implement · review · fix · docs-fix); the `INPUT_RULINGS` `none`
+ *  half-sentence in the two fix shells (§3.3); and the fix / docs-fix
+ *  `INPUT_RULINGS` cell rendering the bare literal `none` instead of vanishing when
+ *  the round has no ruling sidecar — reversal ③, carried by the line-level
+ *  declaration (`absent: "none"`) that replaced the old empty-drop (§2.3 · §3.1).
+ *  The prompt bytes changed here, and this counter is their one mechanical signal.
+ *  $version 24
  *  names the wave line in the fix shell's anchor clause (P37 §4.1): the wave line now
  *  carries the same `INPUT_SPEC` conformance reference and the `INPUT_OVERALL` parent
  *  charter as the branch line, so the clause a maintainer reads can no longer
@@ -703,7 +967,7 @@ export const CLAUSES = {
  *  prose return contract (`RETURN_PROSE` — nothing downstream parses the child's
  *  stdout), and the per-type review criterion shells. */
 export const TEMPLATE_PROMPT = {
-  $version: 24,
+  $version: 25,
   modes: MODE_PROMPTS,
   reviews: REVIEW_VARIANTS,
   return: RETURN_ZONE,
@@ -717,15 +981,28 @@ export const WORK_MODES: readonly WorkMode[] = ["implement", "fix", "review", "d
 /**
  * The template assembler — the ONE renderer over the typed template-prompt data
  * plane. Construction reads the typed contract (the module's declared data —
- * no file reads, no second copy). render(values) selects the row by the ROLE value
- * (the review mode by ROLE + TARGET_TYPE) — the row's fixed prefix + the single
- * return contract + its reduced round context (empty-value keys not emitted).
+ * no file reads, no second copy) and asserts the declarations it carries.
+ * render(values) selects the row by the ROLE value (the review mode by ROLE +
+ * TARGET_TYPE) — the row's fixed prefix + the single return contract + its
+ * declared round context.
+ *
+ * Class size: the 200-line cap is exceeded by the construction-time declaration
+ * criteria living beside the renderer they guard — the P39 split owns the
+ * extraction, and a second home for these five criteria would be a second truth.
  */
 export class TemplateAssembler {
+  /** The ONE cell whose preview answer is its naming line's (§1.1 · §2.4) — the
+   *  brief, the single artifact `renderBrief` writes at dispatch alone. Any other
+   *  cell declaring `preview: "satisfied"` has no naming answer in this engine, so
+   *  the declaration is refused at construction (#assertPreviewAnswer) rather than
+   *  silently read as `value`. */
+  static readonly NAMED_BRIEF_CELL = "INPUT_WAVE_BRIEF";
+
   readonly #contract: TemplatePrompt;
 
-  constructor() {
-    this.#contract = TEMPLATE_PROMPT;
+  constructor(contract: TemplatePrompt = TEMPLATE_PROMPT) {
+    this.#contract = contract;
+    this.#assertDeclarations();
   }
 
   /** The tokens the contract declares (the union across every mode — all zones). */
@@ -738,18 +1015,23 @@ export class TemplateAssembler {
     return WORK_MODES;
   }
 
+  /** The line selection and the declarations of the selected row — the ONE read
+   *  surface for "which row is this round, and what does that row declare". The
+   *  dispatch-input gate reads this and never writes a second row selection. */
+  layoutOf(values: TemplateValues): readonly ContextLine[] {
+    return this.#rowOf(values).roundContext;
+  }
+
   /** Assemble the full dispatch template for a role with the slot values — the
-   *  row's fixed prefix + the single return contract + its reduced round context
-   *  (empty-value keys omitted). */
+   *  row's fixed prefix + the single return contract + its declared round context. */
   render(values: TemplateValues): string {
     this.#gate(values);
-    const row = this.#rowOf(values);
-    const zones: Record<string, string> = {
-      shell: this.#joinLines(row.shell),
-      return: this.#joinLines(this.#contract.return.RETURN_PROSE),
-      "round-context": this.#contextLines(row, values),
-    };
-    return this.#fill([zones.shell, zones.return, zones["round-context"]].join("\n\n"), values);
+    const zones: string[] = [
+      this.#joinLines(this.#rowOf(values).shell),
+      this.#joinLines(this.#contract.return.RETURN_PROSE),
+      this.#contextLines(this.layoutOf(values), values),
+    ];
+    return this.#fill(zones.join("\n\n"), values);
   }
 
   #joinLines(lines: readonly string[]): string {
@@ -777,23 +1059,141 @@ export class TemplateAssembler {
     return row;
   }
 
-  /** The reduced round-context section — the row's subset, a key whose value is
-   *  empty omitted (only present facts land in the dynamic region). */
-  #contextLines(row: ModePromptRow, values: TemplateValues): string {
+  /** The reduced round-context section — each declared line resolved off its own
+   *  declaration: a non-empty value renders the value, an empty one drops the line
+   *  (`absent: "drop"`) or renders the bare literal `none` (`absent: "none"`). The
+   *  rendering layer has THREE states, never a fourth: exigibility is judged upstream
+   *  by the dispatch-input gate, so no "empty but required" branch exists here. */
+  #contextLines(decls: readonly ContextLine[], values: TemplateValues): string {
     const lines: string[] = [];
-    for (const line of row.roundContext) {
-      const slot = line.match(/\{\{([A-Z0-9_]+)\}\}/)?.[1];
-      if (slot !== undefined && values[slot] === "") continue;
-      lines.push(line);
+    for (const decl of decls) {
+      const slot = TemplateAssembler.slotOf(decl.line);
+      if (slot === undefined) lines.push(decl.line);
+      else if (values[slot] !== "") lines.push(decl.line);
+      else if (decl.absent === "none") lines.push(decl.line.replace(/\{\{[A-Z0-9_]+\}\}/, "none"));
     }
     return lines.join("\n");
   }
 
+  /** The construction-time declaration criteria (§1.1 · §1.3 · §4.2) — ONE home, run
+   *  once per construction over every row: a dead cell (a) · an unregistered slot
+   *  (b) · a shell naming a cell its layout never carries (c) · a registered
+   *  round-context token no row carries (d) · a preview answer declared on a cell the
+   *  naming row cannot answer (e). A violation means the assembler cannot be built, so
+   *  no dispatch can ever reach it — the per-render re-run is gone. */
+  #assertDeclarations(): void {
+    for (const row of this.#rows()) {
+      for (const decl of row.roundContext) {
+        this.#assertServed(row, decl);
+        this.#assertRegistered(row, decl);
+        this.#assertPreviewAnswer(row, decl);
+      }
+      this.#assertShellCarries(row);
+    }
+    this.#assertEveryCellHasCarrier();
+  }
+
+  #rows(): readonly ModePromptRow[] {
+    return [...Object.values(this.#contract.modes), ...Object.values(this.#contract.reviews)];
+  }
+
+  /** (a) the dead cell — an arm naming a type the row never serves. `always` and the
+   *  `never` form (`{ types: [] }`) declare nothing about a type, so they never die. */
+  #assertServed(row: ModePromptRow, decl: ContextLine): void {
+    for (const arm of decl.requiredOn) {
+      if (arm.types === "always") continue;
+      for (const type of arm.types) {
+        if (row.serves.includes(type)) continue;
+        throw new Error(
+          `template mode ${row.mode} declares requiredOn type ${type} for ${TemplateAssembler.#labelOf(decl)} — a type this row never serves`,
+        );
+      }
+    }
+  }
+
+  /** (b) the slot registration — every `{{TOKEN}}` a row carries is a registered
+   *  round-context token; an unregistered slot points at a value never supplied. */
+  #assertRegistered(row: ModePromptRow, decl: ContextLine): void {
+    for (const slot of TemplateAssembler.#slotsOf(decl.line)) {
+      const declared = this.#contract.tokens.some(
+        (token) => token.name === slot && token.zone === "round-context",
+      );
+      if (declared) continue;
+      throw new Error(
+        `template mode ${row.mode} round context carries undeclared slot {{${slot}}}`,
+      );
+    }
+  }
+
+  /** (c) shell↔layout — every round-context name the row's shell prose references
+   *  (`INPUT_*` / `OUTPUT_*` / `BASE_BRANCH`) is carried by that row's layout ∪ the
+   *  shared return tail. The shell prose is not `{{slot}}`-templated, so this is the
+   *  only face that can see "claimed but not carried". */
+  #assertShellCarries(row: ModePromptRow): void {
+    const allowed = new Set<string>([
+      ...row.roundContext.flatMap((decl) => TemplateAssembler.#namesIn(decl.line)),
+      ...TemplateAssembler.#namesIn(this.#joinLines(this.#contract.return.RETURN_PROSE)),
+    ]);
+    for (const name of new Set(TemplateAssembler.#namesIn(this.#joinLines(row.shell)))) {
+      if (allowed.has(name)) continue;
+      throw new Error(
+        `template mode ${row.mode} shell references ${name} not carried by its round context`,
+      );
+    }
+  }
+
+  /** (e) the preview answer — only the brief cell may declare `preview: "satisfied"`.
+   *  The exemption synthesises the one cell whose value the naming row writes
+   *  (`RoundNaming#briefName`), so a second `satisfied` cell would be declared, then
+   *  silently judged as `value`; refusing it at construction keeps the declaration
+   *  error at build time instead of on the one path that happens to take it. */
+  #assertPreviewAnswer(row: ModePromptRow, decl: ContextLine): void {
+    if (decl.preview !== "satisfied") return;
+    if (TemplateAssembler.slotOf(decl.line) === TemplateAssembler.NAMED_BRIEF_CELL) return;
+    throw new Error(
+      `template mode ${row.mode} declares preview "satisfied" for ${TemplateAssembler.#labelOf(decl)} — only ${TemplateAssembler.NAMED_BRIEF_CELL} may (the one cell the naming row answers)`,
+    );
+  }
+
+  /** (d) the zone coverage — every registered round-context token is carried by at
+   *  least one row's layout; the inverse of (b), and a distinct direction: (b) asks
+   *  "is the slot registered", (d) asks "has the registered token a carrier". */
+  #assertEveryCellHasCarrier(): void {
+    const carried = new Set<string>(
+      this.#rows().flatMap((row) =>
+        row.roundContext.flatMap((decl) => TemplateAssembler.#slotsOf(decl.line)),
+      ),
+    );
+    for (const token of this.#contract.tokens) {
+      if (token.zone !== "round-context" || carried.has(token.name)) continue;
+      throw new Error(`template token ${token.name} (round-context) is carried by no row layout`);
+    }
+  }
+
+  /** The `{{TOKEN}}` slot a declared line carries — `undefined` for a value-less line
+   *  (the heading, the separator blank line). The ONE slot-grammar reader: the gate
+   *  that judges a layout's cells reads it here rather than re-spelling the braces. */
+  static slotOf(line: string): string | undefined {
+    return /\{\{([A-Z0-9_]+)\}\}/.exec(line)?.[1];
+  }
+
+  static #slotsOf(line: string): readonly string[] {
+    return [...line.matchAll(/\{\{([A-Z0-9_]+)\}\}/g)].map((match) => match[1]);
+  }
+
+  static #namesIn(text: string): readonly string[] {
+    return text.match(/\b(?:INPUT_[A-Z0-9_]+|OUTPUT_[A-Z0-9_]+|BASE_BRANCH)\b/g) ?? [];
+  }
+
+  static #labelOf(decl: ContextLine): string {
+    return TemplateAssembler.slotOf(decl.line) ?? "a value-less line";
+  }
+
   /** The hard gates — a known ROLE (+ its TARGET_TYPE for reviews), every declared
    *  token supplied (empty allowed — a mode's non-consumed slots are legitimately
-   *  empty and merely not emitted), no undeclared values, the single return
-   *  contract declared, and every round-context name the mode's shell prose
-   *  references carried by that mode's layout (shell↔layout consistency). */
+   *  empty and merely not emitted on render), no undeclared values, and the single
+   *  return contract declared. Declaration consistency is a construction-time
+   *  criterion (§1.1), never a per-render one. */
   #gate(values: TemplateValues): void {
     const role = values.ROLE;
     const row =
@@ -817,29 +1217,6 @@ export class TemplateAssembler {
     for (const name of Object.keys(values)) {
       if (!this.#contract.tokens.some((token) => token.name === name)) {
         throw new Error(`template value provided for undeclared token ${name}`);
-      }
-    }
-    this.#assertShellLayout(row);
-  }
-
-  /** The shell↔layout consistency assertion (§3.6): every round-context name the
-   *  mode's shell prose references (`INPUT_*` / `OUTPUT_*` / `BASE_BRANCH`) must be
-   *  carried by that mode's round-context layout ∪ the shared return tail — a shell
-   *  claiming a slot its layout never carries is a construction error. This closes
-   *  the "claimed but not carried" blind spot the token gates cannot see (the shell
-   *  prose is not `{{slot}}`-templated). */
-  #assertShellLayout(row: ModePromptRow): void {
-    const naming = /\b(?:INPUT_[A-Z0-9_]+|OUTPUT_[A-Z0-9_]+|BASE_BRANCH)\b/g;
-    const namesOf = (text: string): string[] => text.match(naming) ?? [];
-    const allowed = new Set<string>([
-      ...row.roundContext.flatMap((line) => namesOf(line)),
-      ...namesOf(this.#joinLines(this.#contract.return.RETURN_PROSE)),
-    ]);
-    for (const name of new Set(namesOf(this.#joinLines(row.shell)))) {
-      if (!allowed.has(name)) {
-        throw new Error(
-          `template mode ${row.mode} shell references ${name} not carried by its round context`,
-        );
       }
     }
   }

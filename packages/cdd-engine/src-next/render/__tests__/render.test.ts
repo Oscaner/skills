@@ -17,11 +17,13 @@ import { Words } from "../../face/words.ts";
 import { BriefRenderer } from "../brief.ts";
 import { IssueBodyRenderer, type IssueReportInput } from "../issue-body.ts";
 import {
+  type ModePromptRow,
   REVIEW_BODY_TEXT,
   REVIEWS,
   reviewGuideOf,
   TEMPLATE_PROMPT,
   TemplateAssembler,
+  type TemplatePrompt,
 } from "../templates.ts";
 
 /** The full per-dispatch slot values — every declared template token (the v1.8
@@ -48,6 +50,12 @@ const ALL_VALUES: Record<string, string> = {
   HANDOFF_SCHEMA: "$$SCHEMA$$",
 };
 
+/** The rendered lines of one row's round-context layout — the declarations' `line`
+ *  face. The layout is an object array now (P38 §1.1), so `join` on it would yield
+ *  `[object Object]` and turn every `not.toContain` pin vacuously green. */
+const layoutText = (row: { readonly roundContext: readonly { readonly line: string }[] }): string =>
+  row.roundContext.map((decl) => decl.line).join("\n");
+
 describe("TemplateAssembler — the template assembly + hard gates", () => {
   const assembler = new TemplateAssembler();
 
@@ -72,9 +80,9 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // D61-4 — the four review legs share REVIEW_CONTEXT; fix / docs-fix declare the
     // same slot beside INPUT_SPEC (implement carries no spec anchor, so no slot)
     for (const mode of ["fix", "docs-fix"] as const) {
-      expect(TEMPLATE_PROMPT.modes[mode].roundContext.join("\n")).toContain("{{INPUT_OVERALL}}");
+      expect(layoutText(TEMPLATE_PROMPT.modes[mode])).toContain("{{INPUT_OVERALL}}");
     }
-    expect(TEMPLATE_PROMPT.modes.implement.roundContext.join("\n")).not.toContain("INPUT_OVERALL");
+    expect(layoutText(TEMPLATE_PROMPT.modes.implement)).not.toContain("INPUT_OVERALL");
     expect(assembler.declaredTokens()).not.toContain("FIX_BASE");
     expect(assembler.declaredTokens()).not.toContain("OUTPUT_BRIEF");
     expect(assembler.declaredTokens()).not.toContain("INPUT_CRITERIA");
@@ -246,8 +254,8 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     }
     // the slot IS declared on both faces — the missing line comes from the empty
     // value (C2), never from a hole in the layout
-    expect(TEMPLATE_PROMPT.reviews.overall.roundContext.join("\n")).toContain("{{INPUT_SPEC}}");
-    expect(TEMPLATE_PROMPT.modes["docs-fix"].roundContext.join("\n")).toContain("{{INPUT_SPEC}}");
+    expect(layoutText(TEMPLATE_PROMPT.reviews.overall)).toContain("{{INPUT_SPEC}}");
+    expect(layoutText(TEMPLATE_PROMPT.modes["docs-fix"])).toContain("{{INPUT_SPEC}}");
     for (const { role, type } of [
       { role: "review", type: "plan" },
       { role: "review", type: "branch" },
@@ -642,8 +650,10 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     // target discriminant rendered as a round-context line on every targeted face: 20 → 21;
     // P33 T2 — the three referent sentences (§2.5 A · B · D): 21 → 22;
     // P33 T3 — the shared body's five calibrations (§2.6 G · H · I · J · K): 22 → 23;
-    // P37 §4.1 — the fix shell names the wave line's two anchors: 23 → 24)
-    expect(TEMPLATE_PROMPT.$version).toBe(24);
+    // P37 §4.1 — the fix shell names the wave line's two anchors: 23 → 24;
+    // P38 §3.3 / §5.1 — the scratch discipline in four shells + the `none` half-sentence
+    // in the two fix shells: 24 → 25)
+    expect(TEMPLATE_PROMPT.$version).toBe(25);
     // the spec review's judged doc IS the spec — carries INPUT_SPEC only. A wave review
     // DOES carry both judged-doc anchors (§4.1: `INPUT_SPEC` is the phase's identity
     // document, `INPUT_OVERALL` the charter its `program:` reaches); this render's scene
@@ -778,25 +788,30 @@ describe("TemplateAssembler — the template assembly + hard gates", () => {
     expect(() => assembler.render({ ...ALL_VALUES, BOGUS: "x" })).toThrow(/undeclared/);
   });
 
-  it("the shell↔layout consistency assertion — a shell naming a slot its layout never carries throws", () => {
-    // construct a rogue mode whose shell references INPUT_PLAN but whose layout
-    // carries it nowhere (the "claimed but not carried" gap the assertion closes)
-    const modes = TEMPLATE_PROMPT.modes as Record<string, unknown>;
-    const saved = modes.bogus;
-    modes.bogus = {
+  it("the shell↔layout criterion is a construction-time assertion — a rogue contract cannot be built", () => {
+    // P38 T1 §1.1 — the criterion moved into the constructor: a rogue row whose shell
+    // references INPUT_PLAN but whose layout carries it nowhere is refused when the
+    // assembler is built, never on a later render (the class-level `assembler` was
+    // already constructed, so a render-time assertion would never fire for it again).
+    const modes = TEMPLATE_PROMPT.modes as unknown as Record<string, ModePromptRow>;
+    const rogue = {
       mode: "bogus",
       shell: ["# rogue", "**rogue:** read `INPUT_PLAN`"],
-      roundContext: ["## Round context", "- `ROLE`: {{ROLE}}"],
-    };
-    try {
-      expect(() => assembler.render({ ...ALL_VALUES, ROLE: "bogus" })).toThrow(
-        /references INPUT_PLAN not carried by its round context/,
-      );
-    } finally {
-      if (saved === undefined) delete modes.bogus;
-      else modes.bogus = saved;
-    }
-    // every real declared mode renders cleanly under the assertion
+      serves: ["wave"],
+      roundContext: [
+        { line: "## Round context", absent: "drop", requiredOn: [{ types: [] }] },
+        { line: "- `ROLE`: {{ROLE}}", absent: "drop", requiredOn: [{ types: "always" }] },
+      ],
+    } as unknown as ModePromptRow;
+    const injected = {
+      ...TEMPLATE_PROMPT,
+      modes: { ...modes, bogus: rogue },
+    } as unknown as TemplatePrompt;
+    expect(() => new TemplateAssembler(injected)).toThrow(
+      /references INPUT_PLAN not carried by its round context/,
+    );
+    // every real declared mode renders cleanly under the same criterion
+    expect(() => new TemplateAssembler()).not.toThrow();
     expect(() => assembler.render(ALL_VALUES)).not.toThrow();
     expect(() =>
       assembler.render({ ...ALL_VALUES, ROLE: "fix", INPUT_REVIEWS: "/f.json" }),
@@ -1164,9 +1179,13 @@ describe("P36 T9 — INPUT_RULINGS names a path, and both fix shells state the r
     );
   });
 
-  it("emits no INPUT_RULINGS value line on a fix round with no sidecar (the empty slot is dropped)", () => {
+  it("renders the bare literal `none` on a fix round with no sidecar (P31 §2.5 flipped — deliberate, D74)", () => {
+    // Deliberate pin flip (P38 §2.3 reversal ③): the line is ALWAYS present on a fix
+    // round. Absence of a ruling sidecar is a fact worth writing on the prompt, and a
+    // dropped line cannot be told apart from the engine having lost the path.
     const out = new TemplateAssembler().render(FIX_VALUES);
-    expect(out).not.toContain("- `INPUT_RULINGS`: ");
+    expect(out).toContain("- `INPUT_RULINGS`: none");
+    expect(out.match(/^- `INPUT_RULINGS`: .*$/gm)).toHaveLength(1);
   });
 
   it("emits no INPUT_RULINGS value line on a review round (the sidecar does not exist yet)", () => {

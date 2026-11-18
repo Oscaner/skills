@@ -118,6 +118,25 @@ export type ArtifactIdentityFacts = {
   readonly identity: Identity;
 };
 
+/** The two reasons one `dispatch-input` segment can carry (spec §2.2's closed set) —
+ *  `empty-value`: the cell was required and the engine supplied nothing; `target-absent`:
+ *  the value names a document that is not on disk, or a declared `program:` whose
+ *  charter does not resolve. A third reason is not representable: the two row-selector
+ *  slots (`ROLE` · review's `TARGET_TYPE`) are the assembler's precondition, and an
+ *  undeclared cell has no line to be judged on. */
+export type DispatchInputReason = "empty-value" | "target-absent";
+
+/** One segment of the `dispatch-input` refusal (spec §2.2) — the row the cell sits on,
+ *  the cell's `{{TOKEN}}`, and the reason that cell failed. One cell, one segment. */
+export interface DispatchInputSegment {
+  /** The dispatched row's ROLE word (`implement` · `review` · `fix` · `docs-fix`). */
+  readonly row: string;
+  /** The failed cell's token name (`INPUT_OVERALL` · `BASE_BRANCH` · …). */
+  readonly token: string;
+  /** Why the cell failed — the closed two-word set. */
+  readonly reason: DispatchInputReason;
+}
+
 /** The in-flight wording rows — the held-report / takeover / corrupt-record / recovery
  *  vocabulary (P21 §2.2). The held row's braces are fill slots ({pid} · {command} ·
  *  {startedAt} · {uptime} · {wave} · {slug}); the recovery rows are the phase's three
@@ -292,6 +311,15 @@ export const CAPSULE_WORDS = {
    *  spec §3.3): the round still concludes, and this line names what was booked.
    *  Fill slot: {message}. */
   softViolation: "round soft violation: {message}",
+  /** The `dispatch-input` refusal rows (P38 §2.2) — the station word, the one segment
+   *  template (`{row} · {token} · {reason}`) and the segment separator. One line names
+   *  every failing cell, so a refused round is repaired in one pass instead of one
+   *  cell per dispatch. */
+  dispatchInput: {
+    station: "dispatch-input",
+    segment: "{row} · {token} · {reason}",
+    separator: "; ",
+  },
   /** The `misplaced = block` report (spec §2.4) — the reason word plus the four
    *  sections: the rendered name, every name found in its place, the identity itself
    *  and the repair the orchestrator owns. Fill slots: {kind} / {derived} /
@@ -565,6 +593,21 @@ export class Words implements WordLocaleFace, PlanReadWords {
    *  filler of its slot. */
   softViolation(message: string): string {
     return CAPSULE_WORDS.softViolation.replace("{message}", message);
+  }
+
+  /** The `dispatch-input` refusal (P38 §2.2) — the station word plus every failing
+   *  cell's segment, `; ` between segments and ` · ` inside one. The `CDD_BLOCKED: `
+   *  prefix is the block channel's, never this row's, so a dry-run consumer and a real
+   *  dispatch read the same bytes. */
+  dispatchInput(facts: { segments: readonly DispatchInputSegment[] }): string {
+    const row = CAPSULE_WORDS.dispatchInput;
+    const segments = facts.segments.map((segment) =>
+      row.segment
+        .replace("{row}", segment.row)
+        .replace("{token}", segment.token)
+        .replace("{reason}", segment.reason),
+    );
+    return [row.station, segments.join(row.separator)].join(CAPSULE_WORDS.separator);
   }
 
   /** The `misplaced = block` report (spec §2.4) — the reason word over the four

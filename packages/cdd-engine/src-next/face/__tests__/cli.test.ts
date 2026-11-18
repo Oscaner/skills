@@ -52,7 +52,6 @@ import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import {
   type CompletionContext,
   CompletionCriteria,
-  FIX_DISPOSITIONS_UNRECORDED,
   IMPLEMENT_CARRIER_ABSENT,
 } from "../../contract/completion-criterion.ts";
 import { PlanDocType } from "../../contract/doc.ts";
@@ -338,6 +337,58 @@ const pairedSpec = (repoRoot: string, slug = "p3"): void => {
     `---\ntitle: O${slug}\ndoc-type: overall\nslug: ${slug}-overall\n---\n`,
     "utf8",
   );
+};
+
+/** The spec document a spec-shaped frame judges — one coordinate for the fixture's
+ *  synthetic phase spec (the gate reads the cell's file, P38 §2.1). */
+const SPEC_DOC_REL = path.join("docs", "kairos", "specs", "s1-design.md");
+
+/** Write the spec-shaped frames' judged document and hand back its absolute path. A
+ *  document a case already wrote at that coordinate is left untouched — the fixture's
+ *  own body is what its arm judges. */
+const writeSpecDoc = (repoRoot: string): string => {
+  const file = path.join(repoRoot, SPEC_DOC_REL);
+  if (existsSync(file)) return file;
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, "---\ntitle: S1\ndoc-type: phase-spec\nslug: s1\n---\n", "utf8");
+  return file;
+};
+
+/** Write the wave brief the dispatch-input gate must find (the real dispatch's
+ *  `renderBrief` lands it before the child exists) and hand back its path. */
+const writeWaveBrief = (workspace: Workspace): string => {
+  const brief = path.join(workspace.path, "tasks-1-brief.md");
+  mkdirSync(path.dirname(brief), { recursive: true });
+  writeFileSync(brief, "# brief\n", "utf8");
+  return brief;
+};
+
+/** Write the wave fix round's requesting carrier at the family name the derived
+ *  resolution reads (P38 §2.3 reversal ② — a fix round with no review input can not
+ *  stand) and hand back its path. */
+const writeReviewCarrier = (workspace: Workspace): string => {
+  const carrier = path.join(workspace.path, "tasks-1-review-1.json");
+  mkdirSync(path.dirname(carrier), { recursive: true });
+  writeFileSync(carrier, JSON.stringify({ status: "CHANGES_REQUESTED", findings: [] }), "utf8");
+  return carrier;
+};
+
+/** Plant the tree's baseline — the artifact `cdd base set` writes (P38 §2.3 reversal
+ *  ④: a wave / branch review with no `base.json` has no scope anchor, so every real
+ *  dispatch frame of those faces plants one first). */
+const baseSet = async (command: Cli, plan: string): Promise<void> => {
+  expect(
+    await command.runArgv([
+      "base",
+      "set",
+      "--plan",
+      plan,
+      "--base",
+      "develop",
+      "--source",
+      "plan-field",
+    ]),
+  ).toBe(0);
 };
 
 /** Seed the DOC preamble of one phase — the two rounds the pipeline puts before any
@@ -1381,8 +1432,12 @@ describe("the help/--help display face — the per-command render", () => {
       expect(code).toBe(0);
       expect(io.stdoutText).toContain("--reviews <path>");
       expect(io.stdoutText).toContain("the source review handoff JSON path");
+      // The example must be the spelling the engine RESOLVES, not a bare carrier
+      // name: `--reviews` is absolutized against the repo root (`RepoRoot#relativize`),
+      // and carriers live under `.kairos/cdd/<slug>/` (branch-review-2 F1), so a bare
+      // `tasks-1-review-1.json` would name a file at the repo root that cannot exist.
       expect(io.stdoutText).toContain(
-        "cdd fix --type wave --tasks 1 --reviews tasks-1-review-1.json",
+        "cdd fix --type wave --tasks 1 --reviews .kairos/cdd/<slug>/tasks-1-review-1.json",
       );
     } finally {
       cleanup();
@@ -3102,16 +3157,18 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
     /** One plugin-free doc body for the identity document — `shape` rewrites it. */
     const identityOf = (root: string): string =>
       path.join(root, "docs", "kairos", "specs", "p3-design.md");
-    /** Dispatch ONE review round in a fresh repo and hand back the child prompt. Each
-     *  arm gets its own fixture: a review round that writes no draft leaves a pending
-     *  completion fact that would stop the NEXT dispatch in the same tree. */
-    const reviewPromptOf = async (
+    /** Dispatch ONE review round in a fresh repo and hand back what the command
+     *  produced — the child prompt (null when the round never spawned) plus the exit
+     *  code and the block channel's bytes. Each arm gets its own fixture: a review round
+     *  that writes no draft leaves a pending completion fact that would stop the NEXT
+     *  dispatch in the same tree. */
+    const reviewOf = async (
       kind: "wave" | "branch",
       shape: (root: string) => void = () => undefined,
-    ): Promise<string> => {
+    ): Promise<{ prompt: string | null; code: number; stderr: string }> => {
       const sync = new StubRunner();
       sync.stdout = "status: APPROVED\n";
-      const { command, repoRoot, cleanup } = fixture({ sync });
+      const { command, io, repoRoot, cleanup } = fixture({ sync });
       try {
         gitInit(repoRoot);
         const plan = conformingPlan(repoRoot);
@@ -3155,69 +3212,81 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
             : ["review", "--type", "branch", "--plan", plan];
         const saved = process.env.CLAUDE_CODE_SESSION_ID;
         process.env.CLAUDE_CODE_SESSION_ID = "s";
+        let code = 0;
         try {
-          await command.runArgv([...argv]);
+          code = await command.runArgv([...argv]);
         } finally {
           if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
           else process.env.CLAUDE_CODE_SESSION_ID = saved;
         }
         const call = sync.calls[sync.calls.length - 1];
-        if (call === undefined) throw new Error(`no child spawned for: ${argv.join(" ")}`);
-        return call.args[call.args.length - 1]!;
+        const prompt = call === undefined ? null : (call.args[call.args.length - 1] ?? "");
+        return { prompt, code, stderr: io.stderrText };
       } finally {
         cleanup();
       }
     };
 
     // ① healthy phase-spec: both anchors, repoRoot-relative, readable from cwd = repoRoot
-    const healthy = await reviewPromptOf("wave", (root) => {
+    const healthy = await reviewOf("wave", (root) => {
       for (const rel of ["docs/kairos/specs/p3-design.md", "docs/kairos/specs/p3-overall.md"]) {
         expect(existsSync(path.join(root, rel)), rel).toBe(true);
       }
     });
-    expect(healthy).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
-    expect(healthy).toContain("- `INPUT_OVERALL`: docs/kairos/specs/p3-overall.md");
+    expect(healthy.prompt).not.toBeNull();
+    expect(healthy.prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+    expect(healthy.prompt).toContain("- `INPUT_OVERALL`: docs/kairos/specs/p3-overall.md");
 
     // ② a single-spec identity carries no `program:` by design: only the spec anchor
     // rides — dropping the charter must never strip the spec anchor with it
-    const singleSpec = await reviewPromptOf("wave", (root) => {
+    const singleSpec = await reviewOf("wave", (root) => {
       writeFileSync(
         identityOf(root),
         "---\ntitle: S\ndoc-type: single-spec\nslug: p3\n---\n",
         "utf8",
       );
     });
-    expect(singleSpec).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
-    expect(singleSpec).not.toContain("- `INPUT_OVERALL`");
+    expect(singleSpec.prompt).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
+    expect(singleSpec.prompt).not.toContain("- `INPUT_OVERALL`");
 
-    // ③ the identity document's `program:` resolves nowhere: only the charter drops
-    const goneCharter = await reviewPromptOf("wave", (root) => {
+    // ③ the identity document's `program:` resolves nowhere. WAS: only the charter line
+    // dropped and the wave dispatched anyway (P37 T4's ③ arm). NOW: P38 §2.3 reversal ①
+    // — a DECLARED `program:` whose charter does not resolve is a broken resolution, not
+    // an absence, so the round is refused before the child exists.
+    const goneCharter = await reviewOf("wave", (root) => {
       writeFileSync(
         identityOf(root),
         "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\nprogram: gone-overall\n---\n",
         "utf8",
       );
     });
-    expect(goneCharter).toContain("- `INPUT_SPEC`: docs/kairos/specs/p3-design.md");
-    expect(goneCharter).not.toContain("- `INPUT_OVERALL`");
+    expect(goneCharter.code).toBe(1);
+    expect(goneCharter.stderr).toContain(
+      "CDD_BLOCKED: dispatch-input · review · INPUT_OVERALL · target-absent",
+    );
+    expect(goneCharter.prompt).toBeNull();
 
     // ④ the identity document's read face is INVALID (it declares `slug:` but no
     // `doc-type:`, so the index resolves no shape for it): neither token appears — and
-    // the wave still dispatches. A slug that names no document at all is refused
-    // earlier by the doc-contract gate (a document defect the engine CAN judge), so
-    // that shape never reaches prompt assembly.
-    const invalid = await reviewPromptOf("wave", (root) => {
+    // the wave still dispatches. The declaration is absent, so neither structural
+    // precondition holds and the cells simply do not exist (P38 §1.3's non-exigible
+    // form). A slug that names no document at all is refused earlier by the
+    // doc-contract gate (a document defect the engine CAN judge), so that shape never
+    // reaches prompt assembly.
+    const invalid = await reviewOf("wave", (root) => {
       writeFileSync(identityOf(root), "---\ntitle: S\nslug: p3\n---\n", "utf8");
     });
-    expect(invalid).not.toContain("- `INPUT_SPEC`");
-    expect(invalid).not.toContain("- `INPUT_OVERALL`");
+    // (the round's own conclusion is a separate face: the child wrote no draft)
+    expect(invalid.prompt).not.toBeNull();
+    expect(invalid.prompt).not.toContain("- `INPUT_SPEC`");
+    expect(invalid.prompt).not.toContain("- `INPUT_OVERALL`");
 
     // ⑤ the branch line's own pair is unchanged by this task — RECORDED WHOLE, not as
     // two anchors: the region is the branch dispatch's entire dynamic face, so a later
     // round that adds, drops or reorders one of its lines goes red here. The fixed
     // prefix above it is pinned separately (render.test.ts owns the shared bytes).
-    const branch = await reviewPromptOf("branch");
-    expect(branch.slice(branch.lastIndexOf("## Round context"))).toBe(
+    const branch = await reviewOf("branch");
+    expect(branch.prompt?.slice(branch.prompt.lastIndexOf("## Round context"))).toBe(
       [
         "## Round context",
         "",
@@ -4175,6 +4244,9 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
         "1,2",
         { op: "implement" },
       );
+      // the wave review's scope anchor reads the base artifact, so the frame that
+      // reaches the preview block plants one first (P38 §2.3 reversal ④)
+      await baseSet(command, planPath);
       io.stderrText = "";
       // review on the implemented multi-task wave passes the gate (the preview renders).
       expect(
@@ -4189,6 +4261,8 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
           "--dry-run",
         ]),
       ).toBe(0);
+      expect(io.stdoutText).toContain("  step:        review round 1 — wave 1,2");
+      expect(io.stdoutText).not.toContain("refused:");
       // a re-implement on the at-review wave is the wrong-phase BLOCK, not a silent split.
       io.stderrText = "";
       expect(
@@ -6295,6 +6369,238 @@ describe("T3 — the commander-native composition root: program parse + .action 
 });
 
 // ---------------------------------------------------------------------------
+// P38 T3 — the preview reads the dispatch-input gate (one judgment, two faces)
+// ---------------------------------------------------------------------------
+
+/** The `refused:` row's VALUE as the preview printed it — the row's own column, never
+ *  the whole line, so the comparison is the reason's bytes alone. */
+const refusedValueOf = (stdout: string): string =>
+  /^ {2}refused: {2}(.*)$/m.exec(stdout)?.[1] ?? "(no refused row)";
+
+/** The real dispatch's `CDD_BLOCKED` value — the gate's message as the block channel
+ *  printed it (the `CDD_BLOCKED: ` prefix belongs to `#blocked`, never to the reason). */
+const blockedValueOf = (stderr: string): string =>
+  /^CDD_BLOCKED: (.*)$/m.exec(stderr)?.[1] ?? "(no CDD_BLOCKED line)";
+
+describe("cdd <verb> --dry-run — the dispatch-input gate (P38 T3)", () => {
+  /** The fixture's identity document — the file a `program:` arm rewrites. */
+  const identityOf = (repoRoot: string): string =>
+    path.join(repoRoot, "docs", "kairos", "specs", "p3-design.md");
+
+  /** One preview + one real run over the SAME frame on the SAME tree: the preview
+   *  first (it writes nothing), then the real dispatch that must refuse. The injected
+   *  child runner keeps the real leg hermetic — the gate refuses before any spawn — and
+   *  the ambient host marker is what the real leg's own detection reads. */
+  const bothFaces = async (
+    command: Cli,
+    io: CaptureIo,
+    argv: readonly string[],
+  ): Promise<{ preview: number; real: number; previewValue: string; realValue: string }> => {
+    io.stdoutText = "";
+    io.stderrText = "";
+    const preview = await command.runArgv([...argv, "--dry-run"]);
+    const previewValue = refusedValueOf(io.stdoutText);
+    io.stdoutText = "";
+    io.stderrText = "";
+    const saved = process.env.CLAUDE_CODE_SESSION_ID;
+    process.env.CLAUDE_CODE_SESSION_ID = "s";
+    let real: number;
+    try {
+      real = await command.runArgv([...argv]);
+    } finally {
+      if (saved === undefined) delete process.env.CLAUDE_CODE_SESSION_ID;
+      else process.env.CLAUDE_CODE_SESSION_ID = saved;
+    }
+    return { preview, real, previewValue, realValue: blockedValueOf(io.stderrText) };
+  };
+
+  it("renders the gate's own reason on the `refused:` row — three violation arms, byte for byte", async () => {
+    /** The three reachable violation shapes: one empty cell, one absent target, and the
+     *  one-line multi-cell fold (`; `-joined). Each arm compares the preview's reason
+     *  with the real dispatch's `RoundViolation.message` — a one-byte drift either side
+     *  goes red. */
+    const arms: readonly {
+      readonly name: string;
+      readonly expected: string;
+      readonly base: boolean;
+      readonly shape?: (repoRoot: string) => void;
+    }[] = [
+      {
+        name: "empty-value",
+        expected: "dispatch-input · review · BASE_BRANCH · empty-value",
+        base: false,
+      },
+      {
+        name: "target-absent",
+        expected: "dispatch-input · review · INPUT_OVERALL · target-absent",
+        base: true,
+        // A DECLARED `program:` whose charter resolves nowhere is a broken resolution,
+        // not an absence — the round is refused before the child exists.
+        shape: (repoRoot) =>
+          writeFileSync(
+            identityOf(repoRoot),
+            "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\nprogram: gone-overall\n---\n",
+            "utf8",
+          ),
+      },
+      {
+        name: "multi-cell",
+        expected:
+          "dispatch-input · review · INPUT_OVERALL · target-absent; review · BASE_BRANCH · empty-value",
+        base: false,
+        shape: (repoRoot) =>
+          writeFileSync(
+            identityOf(repoRoot),
+            "---\ntitle: S\ndoc-type: phase-spec\nslug: p3\nprogram: gone-overall\n---\n",
+            "utf8",
+          ),
+      },
+    ];
+    for (const arm of arms) {
+      // the real harness (no injected dispatch seam) — the gate the preview asks is the
+      // SAME instance the real run judges with
+      const { command, io, repoRoot, cleanup } = fixture({ sync: new StubRunner() });
+      try {
+        gitInit(repoRoot);
+        const plan = planFor(repoRoot);
+        if (arm.base) await baseSet(command, plan);
+        arm.shape?.(repoRoot);
+        // the wave line advances implement → review as ONE train: the review hop is
+        // dispatchable only after the implement round was recorded
+        const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+        new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis)).recordRound(
+          "1",
+          { op: "implement" },
+        );
+        const faces = await bothFaces(command, io, [
+          "review",
+          "--type",
+          "wave",
+          "--tasks",
+          "1",
+          "--plan",
+          plan,
+        ]);
+        expect(faces.preview, `${arm.name}: preview exit`).toBe(1);
+        expect(faces.real, `${arm.name}: real exit`).toBe(1);
+        // the one judgment, two consumers: the preview's row IS the real run's message
+        expect(faces.previewValue, `${arm.name}: preview reason`).toBe(arm.expected);
+        expect(faces.realValue, `${arm.name}: real reason`).toBe(arm.expected);
+        expect(faces.previewValue, `${arm.name}: byte equivalence`).toBe(faces.realValue);
+      } finally {
+        cleanup();
+      }
+    }
+  });
+
+  it("prints the carrier-integrity refusal the real run hits — the requesting digest, judged", async () => {
+    /** The carrier gate's preview pin. The frame hands `--reviews` a copy of the
+     *  requesting carrier whose bytes moved after the review round recorded its digest:
+     *  the ledger's own read (the phase derivation) opens the RECORDED carrier and finds
+     *  it intact, so this frame reaches the preview block — where the carrier judgment
+     *  is the only refusal it earns (no sidecar, every dispatch-input cell supplied).
+     *  Before the preview asked that gate, a dry run printed the forecast and exited 0
+     *  for a dispatch the real run refuses. */
+    const { command, io, repoRoot, cleanup } = fixture({ sync: new StubRunner() });
+    try {
+      gitInit(repoRoot);
+      const spec = conformingSpec(repoRoot);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "s1").ensure();
+      const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+      const sealed = ledger.persistHandoff(
+        "review",
+        "phase-spec",
+        { round: 1 },
+        {
+          status: "CHANGES_REQUESTED",
+          findings: [{ id: "F1", severity: "blocker", summary: "the guard is missing" }],
+        },
+      );
+      ledger.recordRound("phase-spec", { op: "review", carrierDigest: sealed.digest });
+      // the tamper is an EXTERNAL writer on the file this frame is handed: the recorded
+      // carrier keeps its bytes, so the phase derivation's own read stays green, and the
+      // handed name attributes to no round identity, so the artifact gate has nothing to
+      // judge — the carrier judgment is the only refusal left
+      const handed = path.join(workspace.path, "handed-carrier.json");
+      writeFileSync(
+        handed,
+        `${JSON.stringify(
+          {
+            status: "CHANGES_REQUESTED",
+            findings: [
+              { id: "F1", severity: "blocker", summary: "the guard is missing" },
+              { id: "F9", severity: "blocker", summary: "smuggled" },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+        "utf8",
+      );
+      const faces = await bothFaces(command, io, [
+        "fix",
+        "--type",
+        "phase-spec",
+        "--spec",
+        spec,
+        "--reviews",
+        handed,
+      ]);
+      expect(faces.preview).toBe(1);
+      expect(faces.real).toBe(1);
+      expect(faces.previewValue).toContain("carrier-mismatch");
+      expect(faces.previewValue).toContain("recorded=");
+      expect(faces.previewValue).toContain("current=");
+      // one judgment, two consumers: the preview's row IS the real run's message
+      expect(faces.previewValue).toBe(faces.realValue);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("is satisfied by the brief's NAMING — a preview never reds the brief it would have rendered itself", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ sync: new StubRunner() });
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      await baseSet(command, plan);
+      const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
+      new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis)).recordRound(
+        "1",
+        { op: "implement" },
+      );
+      const brief = path.join(workspace.path, "tasks-1-brief.md");
+      expect(existsSync(brief)).toBe(false);
+      io.stdoutText = "";
+
+      const code = await command.runArgv([
+        "review",
+        "--type",
+        "wave",
+        "--tasks",
+        "1",
+        "--plan",
+        plan,
+        "--dry-run",
+      ]);
+      expect(code).toBe(0);
+      // the preview writes nothing, so the brief it names is still absent
+      expect(existsSync(brief)).toBe(false);
+      expect(io.stdoutText).not.toContain("refused:");
+      expect(io.stdoutText).not.toContain("target-absent");
+      // the block gained no row: the header + the five forecast rows, nothing else
+      expect(io.stdoutText.split("\n").filter((line) => line !== "")).toHaveLength(6);
+      expect(io.stdoutText).toContain("  step:        review round 1 — wave 1");
+      expect(io.stdoutText).toContain(
+        "  reads:       .kairos/cdd/p3/tasks-1-brief.md (would re-render from the current plan)",
+      );
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // the HarnessDispatch — host detection · the template prompt · the return read-back
 // ---------------------------------------------------------------------------
 
@@ -6303,12 +6609,18 @@ describe("the HarnessDispatch — the production dispatch default", () => {
   function harnessScene(repoRoot: string, slug = "p3"): DispatchScene {
     const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), slug).ensure();
     const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+    // P38 T2 — the dispatch-input gate asks the wave face for its brief on disk (the real
+    // dispatch's `renderBrief` lands it before the child exists), its tree reviews for the
+    // base branch they narrow against, and the spec-shaped faces for the document they
+    // judge. A fixture naming absent files would be refused before the child it tests.
+    writeSpecDoc(repoRoot);
     return {
       workspace,
       ledger,
       planPath: null,
       plan: planSourceOf(workspace.root.basis).readFor(null),
-      briefPath: null,
+      briefPath: writeWaveBrief(workspace),
+      baseBranch: "develop",
     };
   }
 
@@ -6531,7 +6843,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         ledger,
         planPath: null,
         plan: planSourceOf(workspace.root.basis).readFor(null),
-        briefPath: path.join(workspace.path, "tasks-1-brief.md"),
+        briefPath: writeWaveBrief(workspace),
       };
       const io = new CaptureIo();
       const sync = new StubRunner();
@@ -6562,20 +6874,25 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     }
   });
 
-  it("§4.2 — every wave frame (implement/review/fix) carries the scene's brief as INPUT_WAVE_BRIEF, never a disk-existence read", async () => {
+  it("§4.2 — every wave frame (implement/review/fix) carries the scene's brief as INPUT_WAVE_BRIEF", async () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
       const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
-      const briefPath = path.join(workspace.path, "tasks-1-brief.md");
-      // The scene carries the brief path but NO brief file is written to disk — the
-      // read is the scene's fact, not the filesystem's (the retired existsSync guard).
+      // The scene's brief is the round's read input — the fixture lands it because the
+      // dispatch's own `renderBrief` does. (The guard this pin retired was a SECOND
+      // existsSync inside the assembler; P38's dispatch-input gate is a different read:
+      // it judges the input the dispatch is about to be refused for, and it asks the
+      // filesystem only for a `path: true` cell whose value the scene already carries.)
+      const briefPath = writeWaveBrief(workspace);
+      writeReviewCarrier(workspace);
       const scene: DispatchScene = {
         workspace,
         ledger,
         planPath: null,
         plan: planSourceOf(workspace.root.basis).readFor(null),
         briefPath,
+        baseBranch: "develop",
       };
       const io = new CaptureIo();
       const sync = new StubRunner();
@@ -6606,6 +6923,8 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     try {
       const workspace = new Workspace(new WorkspaceRoot(repoRoot, ".kairos/cdd"), "p3").ensure();
       const ledger = new Ledger(workspace, new ConfigLoader(), planSourceOf(workspace.root.basis));
+      // the spec-shaped face judges the document at INPUT_SPEC — the gate reads its file.
+      writeSpecDoc(repoRoot);
       const scene: DispatchScene = {
         workspace,
         ledger,
@@ -7913,6 +8232,9 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     const { repoRoot, cleanup } = fixture();
     try {
       const scene = harnessScene(repoRoot);
+      // the branch fix's plan-conformance reference (INPUT_PLAN) is a read cell: the
+      // document it names has to be on disk before the round can stand (P38 §2.1).
+      scene.planPath = planFor(repoRoot);
       const io = new CaptureIo();
       const sync = new StubRunner();
       // the child returns prose — the engine zero-parses stdout (the draft
@@ -8013,15 +8335,16 @@ describe("the HarnessDispatch — the production dispatch default", () => {
   }
 
   /** Seed the wave's fix phase — the implement + blocker review rounds recorded. */
-  function seedReview(ledger: Ledger): void {
+  function seedReview(ledger: Ledger): { path: string; digest: string } {
     seedImplement(ledger);
-    ledger.persistHandoff(
+    const sealed = ledger.persistHandoff(
       "review",
       "wave",
       { tasks: "1", round: 1 },
       { findings: [{ severity: "blocker", lens: "code", summary: "drift" }] },
     );
     ledger.recordRound(1, { op: "review" });
+    return sealed;
   }
 
   /** Run one CLI invocation with the ambient host marker the production dispatch
@@ -8064,6 +8387,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         JSON.stringify({ findings: [] }),
         "utf8",
       );
+      await baseSet(command, plan);
       const code = await withHost(() =>
         command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       );
@@ -8114,6 +8438,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       );
       // a regular file occupies the `logs/` path, so creating the round log fails
       writeFileSync(path.join(workspace.path, "logs"), "not a directory\n", "utf8");
+      await baseSet(command, plan);
       const code = await withHost(() =>
         command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       );
@@ -8177,6 +8502,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         }),
         "utf8",
       );
+      await baseSet(command, plan);
       const code = await withHost(() =>
         command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       );
@@ -8242,6 +8568,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         }),
         "utf8",
       );
+      await baseSet(command, plan);
       const code = await withHost(() =>
         command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       );
@@ -8363,8 +8690,10 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         gitInit(repoRoot);
         const plan = planFor(repoRoot);
         const { workspace, ledger } = cliScene(repoRoot);
-        seedReview(ledger);
-        const reviews = path.join(workspace.path, "tasks-1-review-1.json");
+        const sealedReview = seedReview(ledger);
+        // the requesting carrier is the review round's FINAL (P31 T4): the fixture names
+        // the carrier the review actually wrote, never a draft spelling nobody landed.
+        const reviews = sealedReview.path;
         const code = await withHost(() =>
           command.runArgv([
             "fix",
@@ -8405,6 +8734,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         const plan = planFor(repoRoot);
         const { workspace, ledger } = cliScene(repoRoot);
         seedImplement(ledger);
+        await baseSet(command, plan);
         const code = await withHost(() =>
           command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
         );
@@ -8443,6 +8773,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           '{"findings": [{"severity": "blocker", "lens": "code", "summary": "drift"',
           "utf8",
         );
+        await baseSet(command, plan);
         const code = await withHost(() =>
           command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
         );
@@ -8478,6 +8809,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           JSON.stringify({ findings: [] }),
           "utf8",
         );
+        await baseSet(command, plan);
         const code = await withHost(() =>
           command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
         );
@@ -8528,6 +8860,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         }),
         "utf8",
       );
+      await baseSet(command, plan);
       const promoted = await withHost(() =>
         command.runArgv(["review", "--type", "wave", "--tasks", "1", "--plan", plan]),
       );
@@ -8772,7 +9105,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         );
         expect(fixPrompt).toContain("a missing or mis-keyed disposition fails the round");
         // … and the docs-fix shell carries the same obligation (a docs-fix round is a
-        // fix round: the same criterion judges it)
+        // fix round: the same criterion judges it). Its review input is the docs face's
+        // own carrier — a read cell, so the file exists (P38 §2.3 reversal ②).
+        writeFileSync(
+          path.join(scene.workspace.path, "phase-spec-review-1.json"),
+          JSON.stringify({ findings: [] }),
+          "utf8",
+        );
         const docsSync = new StubRunner();
         const docsDispatch = new HarnessDispatch({
           artifacts: new ArtifactRegistry(),
@@ -8806,6 +9145,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         const io = new CaptureIo();
         // the register's history: one implement round booked BEFORE this dispatch
         scene.ledger.recordRound("1", { op: "implement" });
+        // the review round's carrier the criterion reads (its own OUTPUT_HANDOFF) — the
+        // derived resolution names it, and the dispatch-input gate asks if it is there.
+        writeFileSync(
+          path.join(scene.workspace.path, "tasks-1-review-1.json"),
+          JSON.stringify({ findings: [] }),
+          "utf8",
+        );
         const seen: CompletionContext[] = [];
         const spy = vi.spyOn(CompletionCriteria, "of").mockReturnValue({
           judge: async (ctx: CompletionContext) => {
@@ -8831,17 +9177,24 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           expect(seen[0]?.reviewsPath).toBe(
             scene.ledger.handoffPath("review", "wave", { tasks: "1", round: 1 }),
           );
-          // `--reviews` present: the fix route's own carrier wins the same cell
+          // `--reviews` present: the fix route's own carrier wins the same cell. The value
+          // is the funnel's repoRoot-relative `RepoPath` (P38 §2.1 reads `path: true`
+          // against exactly that basis), so the fixture passes the same spelling the CLI
+          // would hand down.
+          const reviewsRel = path.relative(
+            repoRoot,
+            path.join(scene.workspace.path, "tasks-1-review-1.json"),
+          );
           const fix = new HarnessDispatch({
             artifacts: new ArtifactRegistry(),
             scene,
             io,
             sync: new StubRunner(),
             env: { CLAUDE_CODE_SESSION_ID: "s" },
-            reviews: "tasks-1-review-1.json",
+            reviews: reviewsRel,
           });
           await fix.step()(fixFrame);
-          expect(seen[1]?.reviewsPath).toBe("tasks-1-review-1.json");
+          expect(seen[1]?.reviewsPath).toBe(reviewsRel);
           expect(seen[1]?.records).toEqual(scene.ledger.recordsOf("1"));
         } finally {
           spy.mockRestore();
@@ -8851,7 +9204,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       }
     });
 
-    it("(f2) the legacy skip is REACHABLE through the provider — a review record whose identity resolves no carrier and no --reviews path gives the criterion no input", async () => {
+    it("(f2) reversal ② — neither a carrier-less legacy record nor an absent one reaches the criterion", async () => {
       const { repoRoot, cleanup } = fixture();
       try {
         gitInit(repoRoot);
@@ -8880,17 +9233,19 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           return dispatch.step()(fixFrame);
         };
         const skipped = await run(legacy);
-        // VISIBLE SKIP — soft, the round still concludes
-        expect(skipped.verdict).toEqual({ treeClean: true, targetAction: true });
-        expect(skipped.violations).toEqual([
-          expect.objectContaining({ grade: "soft", message: FIX_DISPOSITIONS_UNRECORDED }),
-        ]);
-        // The same round with NO review record at all is still refused hard: the
-        // skip covers the legacy row alone, never an absent requesting carrier.
+        // WAS: a VISIBLE soft skip (`FIX_DISPOSITIONS_UNRECORDED`) and the round concluded.
+        // NOW: P38 §2.3 reversal ② closes the silent face at the gate — `INPUT_REVIEWS` has
+        // no value at all, so the criterion is never asked. The skip row stays reachable at
+        // the criterion plane alone (`contract/__tests__/completion-criterion.test.ts`).
+        expect(skipped.status).toBe("BLOCKED");
+        expect(skipped.violations?.[0]?.grade).toBe("hard");
+        expect(skipped.violations?.[0]?.message).toContain("INPUT_REVIEWS · empty-value");
+        // The other half: no review record at all composes the family name, and the file is
+        // not there — `target-absent`, again before the child.
         const absent = await run(harnessScene(repoRoot, "p3-absent"));
-        expect(absent.verdict?.targetAction).toBe(false);
+        expect(absent.status).toBe("BLOCKED");
         expect(absent.violations?.[0]?.grade).toBe("hard");
-        expect(absent.violations?.[0]?.message).toContain("requesting review carrier");
+        expect(absent.violations?.[0]?.message).toContain("INPUT_REVIEWS · target-absent");
       } finally {
         cleanup();
       }
@@ -9019,7 +9374,11 @@ const sceneOf = (
     ledger,
     planPath,
     plan: planPath === null ? plan.readFor(null) : plan.readPath(planPath),
-    briefPath,
+    // P38 T2 — the dispatch-input gate asks a wave frame for its brief on disk (the real
+    // dispatch's `renderBrief` lands it) and a tree review for the base branch it narrows
+    // against. The fixture hands both, so an arm tests its own subject.
+    briefPath: briefPath ?? writeWaveBrief(workspace),
+    baseBranch: "develop",
   };
 };
 
@@ -10114,6 +10473,7 @@ describe("P31 T5 — a successful round lands both of its own carriers read-only
       const { workspace, ledger } = sceneOf(repoRoot);
       // The wave's review phase is open once the implement round is recorded.
       ledger.recordRound("1", { op: "implement" });
+      await baseSet(command, plan);
       const saved = process.env.CLAUDE_CODE_SESSION_ID;
       process.env.CLAUDE_CODE_SESSION_ID = "s";
       try {

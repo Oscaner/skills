@@ -37,6 +37,7 @@ import {
   SEVERITY_RUBRIC,
   SEVERITY_RUBRIC_SLOTS,
   TEMPLATE_PROMPT,
+  TemplateAssembler,
 } from "../templates.ts";
 
 /** The criteria keys — the five distinct bodies one target type selects among. */
@@ -378,5 +379,75 @@ describe("P37 §7.2 — the injected pin row carries the face's own declared len
     );
     // the declared table is untouched: the throw reads the argument, never mutates it
     expect(pinLensOf("overall")).toBe("inventory");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P38 T4 — the dispatch OUTPUT plane's ONE sentence, and the `none` half-sentence
+// (design spec §3.3 · §5.1). Four shell texts carry the scratch discipline — one
+// per rendered face, not one per mode: the review face folds the same bytes in
+// through its shared instruction item, so all six review rows carry them too.
+// ---------------------------------------------------------------------------
+
+/** The scratch discipline's exact bytes (spec §5.1) — one sentence, four homes. */
+const SCRATCH_SENTENCE =
+  "Anything that is not a round artifact — analysis scripts, one-off scans, intermediate JSON/TSV — goes under the round context's `WORKSPACE_DIR` in `scratch/<round-id>/` (create it with `mkdir -p` before writing), never at the workspace root, where `<round-id>` is the stem your `OUTPUT_HANDOFF` path in that same round context carries with its `-a<n>` attempt segment stripped, nothing there is evidence, nothing there is read back, and this round's artifacts are exactly the `OUTPUT_*` paths that round context lists.";
+
+/** The `none` half-sentence (spec §3.3) — the two fix shells' reading instruction. */
+const NONE_HALF =
+  "`INPUT_RULINGS` is a path, or the literal `none` when this round has no ruling sidecar.";
+
+/** A complete value frame — every declared token present (the gate refuses a missing
+ *  one, never an empty one). */
+const frameOf = (role: string, type: string): Record<string, string> => {
+  const values: Record<string, string> = {};
+  for (const token of TEMPLATE_PROMPT.tokens) values[token.name] = `<${token.name}>`;
+  return { ...values, ROLE: role, TARGET_TYPE: type };
+};
+
+describe("P38 T4 — the `scratch/<round-id>/` discipline in all four shell texts (§5.1)", () => {
+  it("carries the sentence in the implement, fix and docs-fix shells", () => {
+    const assembler = new TemplateAssembler();
+    for (const [role, type] of [
+      ["implement", ""],
+      ["fix", "wave"],
+      ["docs-fix", "plan"],
+    ] as const) {
+      const out = assembler.render(frameOf(role, type));
+      expect(out, role).toContain(SCRATCH_SENTENCE);
+      // the two conditions the pin must not collapse into one word
+      expect(out, role).toContain("scratch/<round-id>/");
+      expect(out, role).toContain("`OUTPUT_HANDOFF`");
+    }
+  });
+
+  it("carries the same sentence on every review row's fixed prefix", () => {
+    const assembler = new TemplateAssembler();
+    for (const type of TARGET_TYPES) {
+      expect(assembler.render(frameOf("review", type)), type).toContain(SCRATCH_SENTENCE);
+    }
+  });
+
+  it("puts the sentence ABOVE `## Round context` — the discipline is instruction, the paths are facts", () => {
+    const out = new TemplateAssembler().render(frameOf("implement", ""));
+    expect(out.indexOf(SCRATCH_SENTENCE)).toBeLessThan(out.lastIndexOf("## Round context"));
+  });
+});
+
+describe("P38 T4 — the `none` half-sentence belongs to the two fix shells only (§3.3)", () => {
+  it("states the literal `none` in the fix and docs-fix reading instruction", () => {
+    const assembler = new TemplateAssembler();
+    expect(assembler.render(frameOf("fix", "branch"))).toContain(NONE_HALF);
+    expect(assembler.render(frameOf("docs-fix", "phase-spec"))).toContain(NONE_HALF);
+  });
+
+  it("keeps the half-sentence out of the implement and review shells", () => {
+    const assembler = new TemplateAssembler();
+    // neither face carries an `INPUT_RULINGS` cell, so naming `none` there would
+    // describe a word the round context can never show
+    expect(assembler.render(frameOf("implement", ""))).not.toContain(NONE_HALF);
+    for (const type of TARGET_TYPES) {
+      expect(assembler.render(frameOf("review", type)), type).not.toContain(NONE_HALF);
+    }
   });
 });

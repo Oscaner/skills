@@ -20,6 +20,7 @@ import path from "node:path";
 import process from "node:process";
 import { printParseErrorCode } from "jsonc-parser";
 import { CompletionCriteria, FixDispositions } from "../contract/completion-criterion.ts";
+import { type DocFs, NodeFs } from "../contract/invariants.ts";
 import { PinAudit } from "../contract/pins.ts";
 import { regradeNote } from "../contract/review-criteria.ts";
 import { PlanTaskBlocksReader } from "../contract/task-blocks.ts";
@@ -27,15 +28,16 @@ import { CarrierSeal } from "../infra/carrier-seal.ts";
 import { GitClient } from "../infra/git.ts";
 import type { PlanRead } from "../infra/plan-source.ts";
 import { ProcessFacts, type ProcessStartReader } from "../infra/proc.ts";
-import type { RepoRoot } from "../infra/root.ts";
+import type { RepoPath, RepoRoot } from "../infra/root.ts";
 import { RoundLog } from "../infra/round-log.ts";
+import type { DocEntry } from "../infra/slug-index.ts";
 import type { JsonRead, Workspace } from "../infra/workspace.ts";
 import { BriefRenderer } from "../render/brief.ts";
-import type { TemplateValues, WorkMode } from "../render/templates.ts";
+import type { ContextLine, RequiredArm, TemplateValues, WorkMode } from "../render/templates.ts";
 import { pinLensOf, TemplateAssembler } from "../render/templates.ts";
 import { ABSENT_READ, type ArtifactReadOf, ArtifactReads } from "../session/artifact-reads.ts";
 import { CarrierIntegrity, CarrierMismatchError } from "../session/carrier-integrity.ts";
-import { TargetFaceTable } from "../session/faces.ts";
+import { TargetFaceTable, type TargetType } from "../session/faces.ts";
 import type { CarrierPlane, GradingViolation } from "../session/handoff-schema.ts";
 import { HandoffSchema } from "../session/handoff-schema.ts";
 import { InFlight, type InFlightRecord } from "../session/inflight.ts";
@@ -66,7 +68,7 @@ import {
   TerminationPolicy,
   Terminator,
 } from "./termination.ts";
-import { FIX_DISPOSITIONS_SUMMARY, Words } from "./words.ts";
+import { type DispatchInputSegment, FIX_DISPOSITIONS_SUMMARY, Words } from "./words.ts";
 
 /** The crash-record stdout-tail cap (P11 T2) — the child's last STDOUT_TAIL_MAX
  *  non-empty stdout lines ride the crash record's `stdoutTail` (the diagnostic
@@ -133,6 +135,18 @@ export interface DispatchScene {
    *  line's spec carries no `program:` (the slot stays empty and the assembler
    *  drops it). */
   overallLink?: string | null;
+  /** The identity document's DECLARED `program:` literal (`DocEntry.program`) — the
+   *  `when: "program"` arm's declaration source (P38 §1.3 · §2.1), never the resolved
+   *  `overallLink` above: a declared program whose charter does not resolve is exactly
+   *  the divergence the gate's `target-absent` reason names, and reading the resolved
+   *  value would flatten it into "not declared". Optional and nullable like the two
+   *  links beside it: absent means "not declared", which is how the gate reads it. */
+  program?: string | null;
+  /** The identity document's DECLARED `doc-type:` shape (`DocEntry.docType`) — the
+   *  `when: "identity"` arm's declaration source, never the resolved `specLink`. Same
+   *  shape as `program`: null means the document exists but declared no shape, which
+   *  is the one non-exigible form the gate sees. */
+  docType?: DocEntry["docType"];
 }
 
 /** One dispatch's PRE-VERDICT outcome — the round's read-back facts before the
@@ -235,6 +249,10 @@ export class CliLifecycle {
   /** The pin gate of this dispatch (P37 §7.2) — built on first use so the resolution
    *  index is walked once per process, never once per read. */
   #pinIndex: PinAudit | null = null;
+  /** The existence read of the dispatch-input gate (P38 §2.1) — the ONE fact the
+   *  `target-absent` reason takes from the filesystem. Injected like `git` / `proc` /
+   *  `env` so a test judges the gate without touching the real tree. */
+  readonly #fs: DocFs;
 
   constructor(opts: {
     env?: ProcessEnvLike;
@@ -249,6 +267,7 @@ export class CliLifecycle {
     proc?: ProcessStartReader;
     recover?: boolean;
     brief?: BriefRenderer;
+    fs?: DocFs;
     artifacts: ArtifactRegistry;
   }) {
     this.#env = opts.env ?? process.env;
@@ -263,6 +282,7 @@ export class CliLifecycle {
     this.#sync = opts.sync ?? new Terminator();
     this.#template = opts.template ?? new TemplateAssembler();
     this.#brief = opts.brief ?? new BriefRenderer();
+    this.#fs = opts.fs ?? new NodeFs();
     this.#words = opts.words ?? new Words();
     this.#io = opts.io ?? {
       stdout: (t) => process.stdout.write(t),
@@ -689,8 +709,10 @@ export class CliLifecycle {
     // the child, so a tampered input never reaches a child (the read-back and the CLI
     // catch are the fallbacks, never the gate). It runs BEFORE the ruling gate: the
     // integrity diagnostic is the fact, and a sidecar judged against tampered bytes
-    // would name a ruling reason for a carrier whose bytes simply changed.
-    const carrierRefusal = this.#carrierRefusal(frame);
+    // would name a ruling reason for a carrier whose bytes simply changed. It also runs
+    // before the dispatch-input gate below — the FIRST of the three pre-dispatch
+    // judgments, and the order the `--dry-run` face mirrors.
+    const carrierRefusal = this.carrierRefusal(frame);
     if (carrierRefusal !== null) {
       this.#sealRoundCarriers(frame);
       this.#blocked(carrierRefusal, false);
@@ -703,13 +725,27 @@ export class CliLifecycle {
     // round-context cell), so the `misplaced` / `invalid` / `ok` answers can never
     // disagree between them — not even across a writer that lands mid-dispatch.
     const artifactCell = this.#artifactCellOf(frame);
+    // P38 §2.1 — the dispatch-input gate: does this round stand at all (every required
+    // cell supplied, every read path on disk)? It runs BEFORE the artifact gate, which
+    // judges the quality of those inputs. The values are composed ONCE here and read by
+    // both the gate and the prompt render: one value, two consumers, never two
+    // compositions that could answer differently.
+    const values = this.#valuesOf(frame, artifactCell);
+    const inputRefusal = this.#inputRefusalOf(values, frame, "dispatch");
+    if (inputRefusal !== null) {
+      // Same exit shape as the two gates beside it: the preflight already opened this
+      // round's own two names, so a refusal seals them before it blocks.
+      this.#sealRoundCarriers(frame);
+      this.#blocked(inputRefusal, false);
+      return { status: "BLOCKED", violations: [RoundViolation.hard(inputRefusal)] };
+    }
     const artifactRefusal = this.#artifactRefusalOf(artifactCell);
     if (artifactRefusal !== null) {
       this.#sealRoundCarriers(frame);
       this.#blocked(artifactRefusal, false);
       return { status: "BLOCKED", violations: [RoundViolation.hard(artifactRefusal)] };
     }
-    const prompt = this.#template.render(this.#valuesOf(frame, artifactCell));
+    const prompt = this.#template.render(values);
     const row = HOSTS[host as HostId];
     const cliName = row.cli;
     const args = [...row.invoke.split(" ").filter((part) => part.length > 0)];
@@ -967,8 +1003,10 @@ export class CliLifecycle {
    *  environment · BASE_BRANCH scope anchor). Every declared token supplied — a mode's
    *  non-consumed slots stay empty and are NOT emitted by the assembler
    *  (empty-valued keys are dropped), so each mode's round context carries only the
-   *  facts the mode reads. The review criteria/lens are NOT values — they fold into
-   *  the review type's fixed prefix (§3.7). */
+   *  facts the mode reads — with the one declared exception: the `INPUT_RULINGS` cell
+   *  is `absent: "none"`, so its line is always present and an empty value renders the
+   *  bare literal `none` (§2.3 reversal ③). The review criteria/lens are NOT values —
+   *  they fold into the review type's fixed prefix (§3.7). */
   #valuesOf(frame: OpenFrame, artifactCell: ArtifactCell): TemplateValues {
     const scene = this.#scene;
     const op = this.#opOf(frame);
@@ -999,8 +1037,11 @@ export class CliLifecycle {
       // from the REVIEWED carrier's identity and the strict schema read composed beside
       // it (`#artifactReadOf`), handed in as the dispatch's ONE judgment: the gate that
       // just approved this dispatch and this slot are the same value, never two reads.
-      // An absent, unattributable or refused sidecar leaves the slot empty and the
-      // assembler drops the line.
+      // WAS: an absent, unattributable or refused sidecar left the slot empty and the
+      // assembler dropped the line. NOW: P38 §2.3 reversal ③ — the cell is declared
+      // `absent: "none"`, so the line is always present and an empty value renders the
+      // bare literal `none` (the round reads "no ruling was recorded" instead of a
+      // missing row).
       INPUT_RULINGS: this.#rulingsInputOf(artifactCell),
       // The kind-named judged-doc anchors (the semantic retirement of the generic
       // INPUT_DOC): the plan line carries the plan document as its judged doc
@@ -1033,7 +1074,11 @@ export class CliLifecycle {
       // line's ONE charter anchor (the judged charter itself); the phase-spec line
       // carries its own `program:`; plan / branch / wave carry the same-slug identity
       // doc's `program:` (the wave arm landed at P37 §4.1); empty off those faces and
-      // when the named program is absent (the assembler drops the empty slot).
+      // when the named program is absent. WAS: that empty value always dropped the
+      // slot. NOW: P38 §2.3 reversal ① — where the `program:` arm hits, the empty value
+      // is `target-absent` at the dispatch-input gate (the declaration names a charter
+      // that did not resolve); the drop remains only on the faces the cell does not
+      // serve (the `overall`-only arm).
       INPUT_OVERALL:
         frame.type === "overall"
           ? this.#rel(docPath ?? "")
@@ -1530,10 +1575,13 @@ export class CliLifecycle {
    *  same-cycle review record's carrier identity through the ledger's ONE accessor
    *  (the recorded path, then the read ladder a pre-P31 row needs), or the ledger's
    *  resolved family name when the line records no review for this cycle. A record
-   *  that resolves no carrier reads `null` — the UNRECORDED face, which the criterion
-   *  books as a visible skip instead of failing the round on a hard absent-carrier
-   *  refusal. Record-present means the record's own final wins: a draft sitting beside
-   *  it never becomes the judged input. */
+   *  that resolves no carrier reads `null`. Record-present means the record's own final
+   *  wins: a draft sitting beside it never becomes the judged input.
+   *
+   *  WAS: a `null` here was the UNRECORDED face, which the criterion booked as a visible
+   *  skip and the fix round dispatched without a review input. NOW: P38 §2.3 reversal ② —
+   *  `INPUT_REVIEWS` is `always`-required, so that value is `empty-value` at the
+   *  dispatch-input gate and the round stops before the child exists. */
   #reviewsPath(frame: OpenFrame): string | null {
     if (this.#reviews !== null) return this.#reviews;
     const record = this.#requesterRecord(frame);
@@ -1582,8 +1630,15 @@ export class CliLifecycle {
    *  sidecar seam (`session/artifact-reads.ts`), BY DESIGN: this one feeds the digest
    *  read of the carrier's own bytes, that one feeds the schema's `carrier` comparison
    *  and the sidecar's id set. The two are different reads of different files, not two
-   *  names for one fact. */
-  #carrierRefusal(frame: OpenFrame): string | null {
+   *  names for one fact.
+   *
+   *  A PURE read, so it is also the `--dry-run` face's first pre-dispatch entry, beside
+   *  `inputRefusal` / `artifactRefusal` and in the order `#runDispatch` applies the three
+   *  (carrier-integrity → dispatch-input → artifact-identity): the preview renders the
+   *  returned reason verbatim, so a dry run can never forecast a dispatch the real run
+   *  would refuse — the tampered carrier included, whichever other gate the frame also
+   *  fails. */
+  carrierRefusal(frame: OpenFrame): string | null {
     if (this.#opOf(frame) !== "fix") return null;
     const carrier = this.#reviewsPath(frame);
     if (carrier === null) return null;
@@ -1607,7 +1662,9 @@ export class CliLifecycle {
 
   /** The fix round's ruling sidecar as the round-context value — the repo-relative
    *  sidecar path alone, the empty string otherwise (off the fix face and when the
-   *  sidecar is absent — the assembler drops the empty line).
+   *  sidecar is absent). WAS: the empty value made the assembler drop the whole line.
+   *  NOW: P38 §2.3 reversal ③ — the cell is declared `absent: "none"`, so the line is
+   *  always present and an empty value renders the bare literal `none`.
    *
    *  One input, one reading: the round context names WHERE the rulings live, exactly as
    *  `INPUT_REVIEWS` names the carrier it qualifies (spec §2.10). The ruling bodies stay
@@ -1632,6 +1689,89 @@ export class CliLifecycle {
    *  faces). Nothing here writes: the read is the matrix's plus the strict schema's. */
   artifactRefusal(frame: OpenFrame): string | null {
     return this.#artifactRefusalOf(this.#artifactCellOf(frame));
+  }
+
+  /** The `dispatch-input` gate as a PURE read (P38 §2.1) — whether THIS round can stand
+   *  at all: every cell its layout requires was supplied, and every read path it names
+   *  is on disk. It sits beside `artifactRefusal` for the same reason (one judgment, two
+   *  consumers): the `--dry-run` face renders this answer verbatim, so a preview can
+   *  never forecast a dispatch the real run would refuse. Nothing here writes and no
+   *  document is parsed at dispatch — exigibility reads the two DECLARED scene cells.
+   *
+   *  `mode` defaults to `dispatch`: the preview's one weaker arm (`preview: satisfied`)
+   *  must be asked for by name, so no caller silently takes it. */
+  inputRefusal(frame: OpenFrame, mode: "dispatch" | "preview" = "dispatch"): string | null {
+    return this.#inputRefusalOf(this.#valuesOf(frame, this.#artifactCellOf(frame)), frame, mode);
+  }
+
+  /** The dispatch-input judgment over the values about to be rendered (§2.1–§2.3) — the
+   *  definition is given by the declaration, never by a second table: the judged cells
+   *  are `layoutOf(values)`, the same row selection the renderer reads. Every failing
+   *  cell becomes one segment, all of them reported in one pass (`; `-joined), so a
+   *  refused round is repaired once instead of one cell per dispatch. */
+  #inputRefusalOf(
+    values: TemplateValues,
+    frame: OpenFrame,
+    mode: "dispatch" | "preview",
+  ): string | null {
+    const row = values.ROLE;
+    const segments: DispatchInputSegment[] = [];
+    for (const decl of this.#template.layoutOf(values)) {
+      const token = TemplateAssembler.slotOf(decl.line);
+      if (token === undefined) continue;
+      const hits = decl.requiredOn.filter((arm) => this.#armHits(arm, frame));
+      if (hits.length === 0) continue;
+      const satisfied = mode === "preview" && this.#answeredByNaming(decl, token, frame);
+      const value = values[token] ?? "";
+      if (value === "") {
+        if (satisfied) continue;
+        segments.push({ row, token, reason: CliLifecycle.#emptyReasonOf(hits) });
+        continue;
+      }
+      if (decl.path !== true || satisfied) continue;
+      // The value is a repoRoot-relative read path (§1.1) — the ONE erasure point turns
+      // it absolute before the existence read, so a dispatch started from a subdirectory
+      // never reads every landed path as absent.
+      const absolute = this.#repoRootValue().resolve(value as RepoPath);
+      if (!this.#fs.exists(absolute)) segments.push({ row, token, reason: "target-absent" });
+    }
+    return segments.length === 0 ? null : this.#words.dispatchInput({ segments });
+  }
+
+  /** Whether one declared arm is exigible on this frame (§1.3) — the type hit plus, when
+   *  the arm carries one, its structural precondition. Both preconditions read the two
+   *  DECLARED scene cells (`program` · `docType`), never the resolved links: a declared
+   *  program whose charter does not resolve and a program never declared are different
+   *  facts, and only the declaration can tell them apart. */
+  #armHits(arm: RequiredArm, frame: OpenFrame): boolean {
+    const typed = arm.types === "always" || arm.types.includes(frame.type as TargetType);
+    if (!typed) return false;
+    if (arm.when === "program") return this.#scene.program != null;
+    if (arm.when === "identity") return this.#scene.docType != null;
+    return true;
+  }
+
+  /** The reason an exigible cell's EMPTY value earns (§2.2's closed set): an arm whose
+   *  precondition is the declared `program:` that hit means the charter the declaration
+   *  names did not resolve (`target-absent`); every other empty value is the engine's own
+   *  omission (`empty-value`). The two `when` legs are told apart by this word alone. */
+  static #emptyReasonOf(hits: readonly RequiredArm[]): DispatchInputSegment["reason"] {
+    return hits.some((arm) => arm.when === "program") ? "target-absent" : "empty-value";
+  }
+
+  /** Whether the preview's `satisfied` answer applies to this cell (§2.4) — the ONLY
+   *  reader of `preview: "satisfied"`. The naming line that writes this cell's artifact
+   *  is the answer's source: the brief is the one cell `renderBrief` writes at dispatch
+   *  alone, so a wave that names its task group names its brief, and a wave that names
+   *  none falls back to the empty-value arm. The exemption covers the existence leg too:
+   *  a preview never asks a file it would not write. The token guard is the second half
+   *  of one rule: the assembler refuses any OTHER cell declaring `satisfied` at
+   *  construction (#assertPreviewAnswer), so a declaration the naming row cannot answer
+   *  never reaches a preview. */
+  #answeredByNaming(decl: ContextLine, token: string, frame: OpenFrame): boolean {
+    if (decl.preview !== "satisfied" || token !== TemplateAssembler.NAMED_BRIEF_CELL) return false;
+    const tasks = frame.params.tasks ?? "";
+    return tasks !== "" && this.#naming.briefName(tasks) !== "";
   }
 
   /** The dispatch's artifact judgment — computed ONCE, then consumed by the gate and by
@@ -2021,11 +2161,15 @@ export class CliLifecycle {
         return `cdd review --type ${frame.type} --spec ${this.#docOf(frame)}`;
       case "fix": {
         // The `--reviews` input is the SAME carrier the fix prompt names (P31 §2.3): one
-        // four-layer resolution, never a second family spelling spliced here. The
-        // fallback fires only when the recorded face resolves to `null` (a legacy record
-        // with no carrier on disk) — the never-null guard keeps a command shape, and
-        // `#reviewFamilyPath` is the one home of the cycle-only rule (§2.10): a fix
-        // retried at attempt 2 would otherwise ask for a `-a2` name review never wrote.
+        // four-layer resolution, never a second family spelling spliced here. The `??`
+        // arm is a DEFENSIVE never-taken guard that keeps the command a string: the shape
+        // it would cover — a recorded cycle whose carrier resolves to `null` (a legacy
+        // record with no carrier on disk) — is refused by the dispatch-input gate as
+        // `INPUT_REVIEWS · empty-value` before any command exists (P38 §2.3 reversal ②),
+        // and the composed-but-absent sibling is refused there as `target-absent`. If
+        // `#reviewsPath` ever answers `null` again, `#reviewFamilyPath` is the one home of
+        // the cycle-only rule (§2.10): a fix retried at attempt 2 would otherwise ask for
+        // a `-a2` name review never wrote.
         const findings = this.#reviewsPath(frame) ?? this.#reviewFamilyPath(frame);
         const target =
           frame.target.kind === "plan"

@@ -13,6 +13,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -2068,6 +2069,39 @@ describe("cdd board — the in-flight read face (zero write)", () => {
       expect(await command.runArgv(["board", "--plan", "docs/kairos/plans/p3.md"])).toBe(0);
       expect(stdoutText()).not.toContain("orphan: tasks-1-implement-1.json");
       expect(stdoutText()).toContain("orphan: tasks-2-implement-1.json");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P38 §5.4 — a bare root file is an orphan; the same file under `scratch/<round-id>/` is invisible (structure, not a whitelist)", async () => {
+    // A characterization pin: `Workspace#names()` returns files only and never recurses,
+    // so a subdirectory's contents are already structurally out of `orphanHandoffs()`'s
+    // reach — no code change, no exemption list. It goes red the day `names()` starts
+    // recursing, and that is the whole point: the criterion is the structure.
+    const { repoRoot, command, stdoutText, cleanup } = fixture();
+    try {
+      const workspace = path.join(repoRoot, ".kairos", "cdd", "p3");
+      mkdirSync(workspace, { recursive: true });
+      const bareName = "tasks-1-scan.tsv";
+      writeFileSync(path.join(workspace, bareName), "a\tb\n", "utf8");
+      expect(await command.runArgv(["board", "--plan", "docs/kairos/plans/p3.md"])).toBe(0);
+      const bareRun = stdoutText();
+      expect(bareRun).toContain(`  orphan: ${bareName} — no recorded round owns it`);
+
+      // the child's mkdir -p, then the move — the engine creates no directory itself
+      const scratchDir = path.join(workspace, "scratch", "tasks-1-implement-1");
+      mkdirSync(scratchDir, { recursive: true });
+      renameSync(path.join(workspace, bareName), path.join(scratchDir, bareName));
+
+      expect(await command.runArgv(["board", "--plan", "docs/kairos/plans/p3.md"])).toBe(0);
+      const movedRun = stdoutText().slice(bareRun.length);
+      expect(movedRun).not.toContain(bareName);
+      // every other fact row is unchanged — the move removed exactly one orphan fact
+      // (the orphan block's own separator blank line goes with it)
+      const factsOf = (text: string): readonly string[] =>
+        text.split("\n").filter((line) => line.trim() !== "" && !line.includes("orphan: "));
+      expect(factsOf(movedRun)).toEqual(factsOf(bareRun));
     } finally {
       cleanup();
     }

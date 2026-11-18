@@ -36,6 +36,7 @@ import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
 import { BoardView } from "../board-view.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
 import { Cli } from "../cli.ts";
+import { DispatchValues } from "../dispatch-values.ts";
 import type { StepRunner } from "../init.ts";
 import { Preview } from "../preview.ts";
 import { Words } from "../words.ts";
@@ -479,6 +480,9 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
   it("judges the dispatch ONCE through the loop — the seam, and no face-side mirror", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
     const judge = vi.spyOn(PreFlightRows, "judge");
+    // The composition root's ONE assembly, taken once per dispatch (P40 T5): the gate's
+    // values and the renderer's values are the same object because the composer ran once.
+    const compose = vi.spyOn(DispatchValues, "compose");
     try {
       gitInit(repoRoot);
       const plan = planFor(repoRoot);
@@ -490,6 +494,10 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
       // `--dry-run` arm renders the frame and asks nothing. A second count would mean a
       // second source of truth for the same dispatch.
       expect(judge).toHaveBeenCalledTimes(1);
+      // …and ONE assembly: a second `compose` call inside the same dispatch would give
+      // the gate and the renderer two equal records instead of one record, which is the
+      // defect `#valuesOf` reads away from.
+      expect(compose).toHaveBeenCalledTimes(1);
       // …and the preview is the five-row forecast, unchanged by the mirror's retirement
       // (the `checked:` block the passing verdict renders sits above it, never inside).
       expect(io.stdoutText).toContain("cdd implement: preview (no repo changes)");
@@ -498,6 +506,7 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
       }
     } finally {
       judge.mockRestore();
+      compose.mockRestore();
       cleanup();
     }
   });

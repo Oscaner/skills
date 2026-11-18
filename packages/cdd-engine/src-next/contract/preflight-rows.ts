@@ -2,9 +2,9 @@
 // P40 T3 — the four pre-dispatch judgments as a PURE value judgment. `no-host` ·
 // `carrier` · `dispatch-input` · `artifact` used to be four instance methods of the
 // face's `CliLifecycle`; they are judgments over VALUES (the dispatched values, the
-// row's declarations, two declared scene facts, one artifact snapshot, the host probe
-// and the engine's own naming answer), so they belong on the contract plane, where the
-// seam that will call them (P40 T4) is allowed to read.
+// row's declarations, two declared scene facts, one artifact snapshot and the host
+// probe), so they belong on the contract plane, where the seam that will call them
+// (P40 T4) is allowed to read.
 //
 // The judgment's definition comes from the DECLARATION, never from a second table: the
 // cells it judges are the ones `ExigibleCells.resolve` derives from the row's

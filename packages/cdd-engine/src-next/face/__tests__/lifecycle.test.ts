@@ -1152,9 +1152,6 @@ class ModeProbeRunner implements ChildRunner {
 }
 
 describe("P31 T5 — the seal cycle: every terminal closes the round's own window", () => {
-  /** The fix round's own draft name of the fixture's spec line. */
-  const _FIX_DRAFT = "phase-spec-fix-1.json";
-
   it("a child death (#reject) seals the draft the child left behind", async () => {
     const f = fixture(planDoc([[1, []]]));
     try {

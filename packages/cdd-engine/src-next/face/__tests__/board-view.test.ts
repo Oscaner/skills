@@ -484,7 +484,7 @@ describe("BoardView.render — the phase / program board layouts + the next deri
 
   /** The tree's ONE record, written through the record's own API (the board never
    *  composes one): the writer is the production seam's, the read is the board's. */
-  const record = (_over: Partial<RefusalFacts> = {}): PreFlightRefusal =>
+  const record = (): PreFlightRefusal =>
     new PreFlightRefusal(new WorkspaceRoot(repo, ".kairos/cdd"), "prog-p1");
 
   const REFUSAL_ROW = "  refused: review 1·a1 dispatch-input · review · BASE_BRANCH · empty-value";

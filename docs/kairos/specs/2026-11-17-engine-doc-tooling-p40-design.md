@@ -1,7 +1,7 @@
 ---
 title: 'P40 · 派发前拒绝的记账面：拒绝属树，不属轮'
 doc-type: phase-spec
-version: v0.11
+version: v0.12
 date: 2026-11-18
 slug: '2026-11-17-engine-doc-tooling-p40-design'
 program: 2026-10-10-engine-doc-tooling
@@ -43,7 +43,7 @@ author: Oscaner M. · Claude
 
 #### 2.1 形状与位置
 - 位置：工作区根的 `.kairos/cdd/` 下，`in-flight.json` 的邻居，文件名 refusal.json（裸词：本相位新建，落地前不构成 pin 坐标）。
-- 形状：一条记录对象，字段为 `at`（写入时刻）· `slug`（相位工作区名）· `op`（`implement` / `review` / `fix`——九行记录的 `op` 一律取**这次派发本将消费的那一轮**：前沿帧的 phase，经 `session/ledger.ts#Ledger#roundCount` 加 `session/round-naming.ts#RoundNaming#attemptOf` 推得，应用于全部九行的记录，没有任何行自造身份规则）· `type`（面）· `cycle` · `attempt` · `station`（闭集，见 3.2）· `detail`（站内原因，自由文本，**不以站名开头**——站名已由这一行自己印出，串首再重复一遍就是同一事实说两次；站名出现在句子中间不在本相位可改的范围：`face/words.ts#CAPSULE_WORDS` 的 `inFlight.corruptLocked` / `corruptUnlocked` / `lockOnly` 三条措辞把 `in-flight` 写在句中，而措辞按章程非目标冻结）。八格就是全部，没有第九格，也没有第二个名字：`detail` 是这一格在章程、本相位与 board 行里唯一的名（站内原因，自由文本）。
+- 形状：一条记录对象，字段为 `at`（写入时刻）· `slug`（相位工作区名）· `op`（`implement` / `review` / `fix`——九行记录的 `op` 一律取**这次派发本将消费的那一轮**：`face/cli.ts#Cli#runWork` 在裁决之前就已算出的那个 `expected` 相位（`verb` 是 `implement` / `fix` 时即该动词，其余面取本面的 `reviewLead`），**不是任何已开的帧**——pre-flight 点上还没有帧，2.4 也不许为一个拒绝造第二个帧源；`cycle` 取 `session/ledger.ts#Ledger#roundCount`，`attempt` 取 `session/round-naming.ts#RoundNaming#attemptOf` 按同一 `op` 与那个 `cycle` 过滤得出的号，应用于全部九行的记录，没有任何行自造身份规则）· `type`（面）· `cycle` · `attempt` · `station`（闭集，见 3.2）· `detail`（站内原因，自由文本，**不以站名开头**——站名已由这一行自己印出，串首再重复一遍就是同一事实说两次；站名出现在句子中间不在本相位可改的范围：`face/words.ts#CAPSULE_WORDS` 的 `inFlight.corruptLocked` / `corruptUnlocked` / `lockOnly` 三条措辞把 `in-flight` 写在句中，而措辞按章程非目标冻结）。八格就是全部，没有第九格，也没有第二个名字：`detail` 是这一格在章程、本相位与 board 行里唯一的名（站内原因，自由文本）。
 - `detail` 是**派生的单行**：写入时取 seam 那一刻判词的**首行**、剥掉它已印出的串首站名（dispatch-input 门的报文以它自己的站名开头，剥后 `detail` 从 `review · INPUT_OVERALL · target-absent` 起算；carrier 门的 `carrier-mismatch` 与 artifact 门的 `artifact-identity` **不是站名**——3.2 已把它们判为这两道门的原因词面——因此留在 `detail` 里），行内换行折叠为空格，` · ` 视作行内分隔符而非第二个 token。判词的**后续行**（`derived:` · `found:` · `identity:` · `repair:`——artifact 门的四段修法报告就在其中）**不进文件**：它们陈述的是这次拒绝没做的事，属活判词，不属于这棵树的持久事实。
 - 两个值，三个消费者：seam 的**活判词**是一条多行报文，首行已是 `station · detail`，后续行原样跟随——命令面与预览面逐字渲染这一条；记录的**对**（`station` + 单行 `detail`）由 board 渲染。一次已声明的派生（活判词首行 → 记录的两格），没有第二处拼装，也没有 per-face 抑制规则（3.3）。站名只在一处**补回**：四行的 `PreFlightVerdict.message` 是**剥掉站名的余下部分**（`dispatch-input` 的词面 `face/words.ts#Words#dispatchInput` 本身仍以它自己的站名开头——那张词面不改，站名在装配判词时剥掉），`DispatchAuthority#message` 是把 `station · ` 放回串首的**唯一**位置。于是命令面与预览面念的是同一条值（`message()` 的首行），而 `dispatch-input` 的命令行与预览行都与今天逐字节相同：既不会「站名重复一次」，也不会「预览行丢掉 `dispatch-input` 这个头」。
 - 归属类：一个新类 tree-refusal，住在 session/refusal.ts（两者都是裸词：本相位新建，落地前不构成 pin 坐标），与 `InFlight`（`session/inflight.ts`）同构——一条记录、一次原子写、一个 `inspect` 式的状态读——守「一棵树任一时刻最多一条拒绝事实」。它不持有轮的状态，也不参与轮的任何判定；写入与清除都是别的面的动作（2.2），它只交出事实的读写与那一行（`station · detail`，3.1 · 3.3）。
@@ -57,7 +57,7 @@ author: Oscaner M. · Claude
 - 第二个到期触发点：**派发体的释放点**——`session/inflight.ts#InFlight#release` 的唯一调用点（`face/lifecycle.ts#CliLifecycle` 的派发体，紧接 `#reconstruct` 之后），持有解除处清除。理由与上一条同样可判：一条记录陈述的是「这棵树**此刻**未通过门前判定」，而「树被占」（`in-flight`，腿的第 2 行）正是最常见的拒绝原因之一；持有者一释放，这句话就不成立，而凭它写下的那条记录会让 board 在同一张板上同时念 `in-flight: free — no dispatch holds this tree` 与 `refused: … in-flight · …`。这一处**不是**把门口的清除挪进派发体：门口那次按整条结构腿判（九行全过、随即被 line 腿拒掉的那一次仍必须在门口清，见上一条），释放点只收回它自己那次持有带来的树状态。释放点的清除带一个谓词：**只清 `station` 为 `in-flight` 的那条**——释放唯一会证伪的树事实就是「这棵树正在被占」，其余站名的记录它管不着：持有者运行期间任何并发派发都被门口拒下（九行全过才进得了派发体），其中一次 `tree-clean` 拒绝写下的记录陈述的是「树此刻是脏的」，持有者释放并不让这句话变假——它要站到下一次派发通过结构腿、在门口被清为止（上一条）。所以这里不是「有记录就清，无条件」：释放点不是豁免层（「不留豁免层」管的是拒绝路径，每一条结构腿拒绝都照样写事实），它只是陈述了站着的各站记录里，哪一站的寿命由释放终结。
 - 两处触发点各管一次树的状态变动：结构腿通过（门前判定被证明通过）与持有解除（树的占用状态改变）。因此一条记录的寿命不超过它所陈述的那次树状态。
 - 边界（**具名**，不是遗漏）：引擎只在它自己跑的时候观测这棵树。两次调用之间由作者 commit 掉一条 `tree-clean` 拒绝的成因，那条记录会站到下一次派发真正通过结构腿为止（门口的清除点）——本相位不给它造第三条触发点：一次开命令即做的树状态重判会让 board 成为第二个判官，而判据面属于 pre-flight（P21 · P35）。所以语义句读作「**引擎最近一次判定时**这棵树未通过门前判定」：门一过、或写下它的那次持有被释放，这句话就不成立。
-- 因此任一时刻最多一条，且**不留下历史**。拒绝的历史在命令输出里逐次可见（`CDD_BLOCKED` 行），轮的历史在 `rounds` 里（拒绝不在其中）。第三个历史源是禁止的：它会与 `rounds` 永不同步。
+- 因此任一时刻最多一条，且**不留下历史**。拒绝的历史在命令输出里逐次可见（每条拒绝行都把自己的站名印在第一个位置，行外层按 3.3 的通道归属），轮的历史在 `rounds` 里（拒绝不在其中）。第三个历史源是禁止的：它会与 `rounds` 永不同步。
 
 #### 2.3 不变量：最多一条 · 两个到期触发点
 - 三条可核不变量：① 任一时刻最多一条拒绝事实（覆盖写入 + 两个到期触发点共同保证）；② 一次结构腿九行全过、真跑（非 `--dry-run`）的派发之后，拒绝事实不存在——**含**九行全过、随即被 line 腿拒掉的那一次（清除在门口已经发生，不等派发体，2.2）；③ 一次持有 in-flight 的派发**正常结束（释放）**之后，不存在以 `in-flight` 为站名的拒绝事实——`in-flight: free` 与 `refused: … in-flight · …` 不得同时在场（释放点的清除，2.2）。
@@ -87,7 +87,7 @@ author: Oscaner M. · Claude
 ```
 
 - 为什么这一行可以直接含 ` · `：这一行只有**一个轮标识**（`{cycle}·a{attempt}`），`station` 取自九值闭集、永远先于第一个 ` · ` 出现，因此行内的 ` · ` 只是「站名 / 原因」与原因自身片段之间的分隔；`crashed:` 的 ` · ` 是**跨轮**分隔符（多个 token 之间），两者的活儿不同。行也不靠切分解析：站名从闭集取，`detail` 是剥掉站名与规范化（2.1）之后剩下的部分。
-- 构造点：两个值、三个消费者，各自说清念哪个。`session/dispatch-authority.ts#DispatchAuthority#message` 在结构腿今天做的就是 `reason · detail` 这件事，而结构腿的 reason 就是行 id；本相位让它念的 reason 与记录里的 `station` 是同一个值。**值一 · 活判词**：`DispatchAuthority#message` 产出的那条多行报文，首行即 `station · detail`，后续行（`derived:` · `found:` · `identity:` · `repair:`）原样跟随——命令面的 `CDD_BLOCKED:` 行与预览的 `refused:` 行渲染这一条，逐字，不改写、不折叠：它们判的是一次活派发，后续行描述的是那次判定没做的工作。**值二 · 记录的对**：tree-refusal 存的两格（`station` + 单行 `detail`，2.1 由活判词首行剥掉前缀派生），board 念这一对。三个面各自只加自己的**外层**（`CDD_BLOCKED: ` / `  refused:  ` / `  refused: {op} {cycle}·a{attempt} `）。一份存储、一次派生、三个外层；记录里没有第二份报文，活判词不进文件。
+- 构造点：两个值、三个消费者，各自说清念哪个。`session/dispatch-authority.ts#DispatchAuthority#message` 在结构腿今天做的就是 `reason · detail` 这件事，而结构腿的 reason 就是行 id；本相位让它念的 reason 与记录里的 `station` 是同一个值。**值一 · 活判词**：`DispatchAuthority#message` 产出的那条多行报文，首行即 `station · detail`，后续行（`derived:` · `found:` · `identity:` · `repair:`）原样跟随——命令面的 `CDD_BLOCKED:` 行与预览的 `refused:` 行渲染这一条，逐字，不改写、不折叠：它们判的是一次活派发，后续行描述的是那次判定没做的工作。**值二 · 记录的对**：tree-refusal 存的两格（`station` + 单行 `detail`，2.1 由活判词首行剥掉前缀派生），board 念这一对。三个面各自只加自己的**外层**（命令面的 `CDD_BLOCKED: …`——`graph` · `plan-ledger` 两行另有 `cdd <verb>: …` 一支，通道归属见 3.3 / 预览的 `  refused:  ` / board 的 `  refused: {op} {cycle}·a{attempt} `）。一份存储、一次派生、三个外层；记录里没有第二份报文，活判词不进文件。
 - 渲染归属：board 只在拒绝事实的 `slug` 与本次观察的工作区相同时渲染它。别的相位工作区的拒绝不是本次观察对象——但它在自己的 board 上照常可见，且被下一次写入覆盖即消失。读取点就在渲染 `in-flight:` 行的同一处（`face/board-view.ts`），不新开第二次扫描。
 
 #### 3.2 站名闭集与穷尽断言
@@ -101,14 +101,14 @@ tree-clean · in-flight · graph · plan-ledger · doc-contract · no-host · ca
 - 一条穷尽断言守它：structure 腿的每一行都必须给得出闭集内的站名与一条 detail 来源（今天的 `CDD_BLOCKED` 报文字面就是那来源）；新增一行而不给站名、或给不出原因来源，是构造期红。新增站名因此触发一次有意识的决定，而不是随手多一个字符串。
 
 #### 3.3 一行共享，三个面各自的外层
-- 先改正一处事实：`face/cli.ts#Cli#renderPreflightBlocked` 今天念的**就是** `<站名> · <报文>`。它的插值来自 `session/dispatch-authority.ts#DispatchAuthority#message`，后者在结构腿上返回 `<reason> · <detail>`，而结构腿的 reason 正是拒绝的行 id（`structureRefusal` 把 `preflight.gate` 原样重述）。两个分支的差别只在**行外层**：`tree-clean` · `in-flight` · `doc-contract` 念 `CDD_BLOCKED: …`（`Words#station` 的 blocked 行首），`graph` · `plan-ledger` 念 `cdd <verb>: …`。因此「这一支不带站名」是错的——站名今天就在第一个位置（`CDD_BLOCKED: tree-clean · the working tree is dirty …`），`session/__tests__/dispatch-authority.test.ts` 与 `face/__tests__/cli.test.ts` 各有一枚 pin 钉着这个字节。
+- 先改正一处事实：`face/cli.ts#Cli#renderPreflightBlocked` 今天念的**就是** `<站名> · <报文>`。它的插值来自 `session/dispatch-authority.ts#DispatchAuthority#message`，后者在结构腿上返回 `<reason> · <detail>`，而结构腿的 reason 正是拒绝的行 id（`structureRefusal` 把 `preflight.gate` 原样重述）。两个分支的差别只在**行外层**，而某个站名走哪一支由 `face/cli.ts#Cli#renderPreflightBlocked` 的 gate 名条件唯一决定——通道归属的家就是那里，与 3.2 给站名闭集的家是同一种写法。九行逐站写清：`CDD_BLOCKED: …`（`Words#station` 的 blocked 行首）是 `tree-clean` · `in-flight` · `doc-contract` **与四条迁移行** `no-host` · `carrier` · `dispatch-input` · `artifact`；`cdd <verb>: …` 是 `graph` · `plan-ledger` 两行。因此加行的动作有两处、缺一即错：在 `session/preflight.ts#PreFlightGateName` 上添行，同时在那个 gate 名条件里添同一个名字——漏掉第二处，`dispatch-input` 的拒绝就会落到 `cdd <verb>: dispatch-input · …` 上，而验收钉的是 `CDD_BLOCKED: dispatch-input · …` 的字节。因此「这一支不带站名」是错的——站名今天就在第一个位置（`CDD_BLOCKED: tree-clean · the working tree is dirty …`），`session/__tests__/dispatch-authority.test.ts` 与 `face/__tests__/cli.test.ts` 各有一枚 pin 钉着这个字节。
 - 合成规则：记录只存两格（`station` + `detail`，2.1），三个面**共享的是那一行** `station · detail`——命令面的 `CDD_BLOCKED:` 行与预览的 `refused:` 行念在活判词的首行（后续行原样跟随），board 的 `refused:` 行念记录派生的那一行。共享的是行，不是整条 payload：board 因此从不印后续行，命令面与预览也从不缺少它。没有 per-face 抑制规则，也没有第二份报文来源。旧稿曾想让三行「不带站名」，那需要一条「报文已自带身份就抑制前缀」的判定，而这条判定在 dispatch-input 上无法同时满足两个面：它带站名的串会与命令行重复，它不带站名的串会从预览那一行里丢掉 `dispatch-input` 这个头。站名因此只在一处补回（2.1）：`PreFlightVerdict.message` 是剥掉站名的余下部分，`DispatchAuthority#message` 再把它放回串首——三个面念的仍是那一行，而不是各拼一份。
 - 字节账（**具名变更**，与 changeset 同批）：
   - `dispatch-input`：今天的报文以它自己的站名开头，`station · detail` 逐字节复现 `CDD_BLOCKED: dispatch-input · review · INPUT_OVERALL · target-absent`，预览的 `  refused:  dispatch-input · …` 同样不变。
   - 五行既有行（`tree-clean` · `in-flight` · `graph` · `plan-ledger` · `doc-contract`）：今天已是 `station · detail`，逐字节不变。
   - `no-host` · `carrier` · `artifact`：今天念的是不带站名的句子，合成后**多一段站名前缀**——`CDD_BLOCKED: no-host · no host harness detected (run cdd from within a supported harness)` · `CDD_BLOCKED: carrier · carrier-mismatch · line=… · recorded=… · current=…` · `CDD_BLOCKED: artifact · artifact-identity · …`；预览的 `refused:` 行同步多这一段。**detail 的文本一个字不改**（措辞不动），改的只是行首多了它自己的站名。代价换来的是：一行共享、零抑制规则、`carrier` 与 `artifact` 两条不同的修法在输出里可分辨；记录因此不必存一段多行报文，也不会在两个面之间各派一份。
 - 与章程的关系：章程的非目标是「改 `CDD_BLOCKED` 报文**措辞**」——本相位不改任何一句措辞，只在三行行首补站名，那条非目标因此不是「字节不变」的承诺。这条变更按章程同批登记为在册增量（D96 与 Phase inventory 的同句），验收里写成对（改前三行不带站名 · 改后带）。
-- 三个面各守自己的外层：`CDD_BLOCKED: ` / `  refused:  ` / `  refused: {op} {cycle}·a{attempt} `。外层不是那一行的一部分——把外层也并进一处，board 就会印出 `CDD_BLOCKED:`，预览就会印出轮标识。消费面的守恒因此逐项：五行既有行 + `dispatch-input` 一行逐字节不变；`no-host` · `carrier` · `artifact` 三行的首行加前缀、后续行不动；`--dry-run` 上的整条腿改由预览面陈述（2.4），含无 harness 时的 exit 1；`checked:` 面每次派发多四行（1.1：四道门在每一面都跑，故一律 always）；board 多两行（`refused:` 行 3.1 · 不可读记录的 corrupt 行 4.2）；两腿同时不合格时的报文从 line 腿改归结构腿（Constraints ⑥）。
+- 三个面各守自己的外层：命令面的 `CDD_BLOCKED: `（`graph` · `plan-ledger` 两行走 `cdd <verb>: …`，通道归属见上） / 预览的 `  refused:  ` / board 的 `  refused: {op} {cycle}·a{attempt} `。外层不是那一行的一部分——把外层也并进一处，board 就会印出 `CDD_BLOCKED:`，预览就会印出轮标识。消费面的守恒因此逐项：五行既有行 + `dispatch-input` 一行逐字节不变；`no-host` · `carrier` · `artifact` 三行的首行加前缀、后续行不动；`--dry-run` 上的整条腿改由预览面陈述（2.4），含无 harness 时的 exit 1；`checked:` 面每次派发多四行（1.1：四道门在每一面都跑，故一律 always）；board 多两行（`refused:` 行 3.1 · 不可读记录的 corrupt 行 4.2）；两腿同时不合格时的报文从 line 腿改归结构腿（Constraints ⑥）。
 
 ### 4. 边界
 
@@ -144,11 +144,11 @@ targetAction: !violations.some(v => v.grade === "hard")
 #### 5.2 等价性必须逐条断言，不靠「看起来一样」
 - **暂存文件集**：lefthook 与 lint-staged 对**已删除**文件的处理不同——`biome check` 拿到不存在的路径会报错。等价性由**一次真实提交**判定（删除一个 `.ts` 后提交必须不红），不为它新增自动测试文件；不等价则在命令里过滤存在性。
 - **全量那一条**：`pnpm run precommit` 挂在 `*` 上、每次提交跑一次，两套机制都如此；这条等价不需要新判据，但需要一次真实提交证明它确实跑了。
-- **顺序**：`biome check` 先于 `pnpm run precommit`（今天的 lint-staged 任务序），迁移后 must 保持同一顺序，否则一条格式违规会在全量测试跑完之后才被发现。
+- **顺序**：`biome check` 先于 `pnpm run precommit`（今天的 lint-staged 任务序），迁移后 must 保持同一顺序，否则一条格式违规会在全量测试跑完之后才被发现。这条不是意图而是被验收钉住的条件：同一次真实提交里放一条格式违规 ⇒ 运行停在 `biome check`，该次提交的日志里**没有** `pnpm run precommit` 的运行记录（提交门等价那一行，见 Acceptance criteria）。顺序因此可核，不靠「看起来一样」。
 
 #### 5.3 移除面与文档面
 - 移除：`.husky/` 目录（含 shim）、lint-staged.config.ts、`husky` 与 `lint-staged` 两个 devDependency；`prepare` 改为 `lefthook install`，`lefthook` 的 devDependency 一面见 5.1。依赖面因此**读两个方向**：两个旧名字零命中，一个新名字有命中。
-- 文档面：`AGENTS.md` 里描述提交钩子的那句随机制更新，**规则不变**（`biome check` 不带 `--write`）。
+- 文档面：**不改**。`AGENTS.md` 的两句提交钩子（Commands 下的 `pnpm run precommit` 一行、约定下的 `biome check` 不带 `--write` 一行）只写规则、不写机制名，机制换了它们也不动；规则本身不变（`biome check` 不带 `--write`）。这是可核的事实而不是省略：交付后那两句逐字节不变，且三个机制名 `husky` · `lint-staged` · `lefthook` 在 `AGENTS.md` 里零命中。
 - 本条不产生 changeset：它不改任何 first-party package 的行为，改的是仓库自身的提交门。
 
 ### Acceptance criteria
@@ -160,7 +160,7 @@ targetAction: !violations.some(v => v.grade === "hard")
 - **两腿同时不合格时报告结构腿**：一条夹具同时让某道门与 line 腿不合格（例：在 `implement` 相位的 wave 上跑 `cdd fix --type wave --tasks 1`，而 fix 面的 `INPUT_REVIEWS` 解析不到任何文件）⇒ 改后念 `CDD_BLOCKED: dispatch-input · fix · INPUT_REVIEWS · target-absent`，改前念 line 腿的 `cdd fix: cannot dispatch a fix round — <hop>`（成对，同一夹具）；把门修好之后 line 腿的拒绝照旧可达。这是具名变更⑥（Constraints）：门的顺序变化因此不是隐含的。
 - **不可读的拒绝事实**：把 refusal.json 截断或写成非法 JSON ⇒ board 印一条自己的 corrupt 行（`unreadable refusal record`）、**不**印 `refused:` 行、仍 exit 0（4.2），board 其余行不受影响；同一夹具上写回一条合法记录后 `refused:` 行恢复。
 - `--recover` **不认领被拒的派发**：对一次被拒的派发执行 `--recover` ⇒ 不认领、无恢复写入、不写轮记录（`waves[n].rounds` 长度不变）、`cycle` 不推进、无接管戳，且同一拒绝再次出现（`face/cli.ts#Cli#runWork` 在结构腿拒绝上不调 `#recoverRun`，所以既有「无可接管」文案在这条路径上不可达——测的是不认领 + 无恢复写入 + 同一拒绝，不是那句话）；同时 refusal.json 仍在、`station` 与被拒那一刻相同——一条断言一件事，拒绝记录既不否认也不隐藏，也不借 `--recover` 开豁免。`--dry-run` 中途被拒 ⇒ 零写入（refusal.json 既不出现也不消失）。
-- `lefthook.yml` **提交门等价**：暂存一个格式违规的 `.ts` ⇒ 提交被拦且文件**未被写回**；删除一个 `.ts` 后提交 ⇒ 不红；干净提交通过且日志里出现 `pnpm run precommit` 那一次的运行记录。
+- `lefthook.yml` **提交门等价**：暂存一个格式违规的 `.ts` ⇒ 提交被拦且文件**未被写回**，且同一次提交的日志里**没有** `pnpm run precommit` 的运行记录（违规必须停在 `biome check`，§5.2 的顺序由此成为可核的条件而不是意图）；删除一个 `.ts` 后提交 ⇒ 不红；干净提交通过且日志里出现 `pnpm run precommit` 那一次的运行记录。
 - `lefthook.yml` **移除面与依赖面**：`.husky/` 与 lint-staged.config.ts 不在树上，`husky` / `lint-staged` 在 `package.json` 与 `pnpm-lock.yaml` 的依赖面零命中；**且** `lefthook` 在 `package.json` 的 devDependencies 里出现、在 `pnpm-lock.yaml` 里有条目，`prepare` 跑 `lefthook install`（依赖面读两个方向，不只读零命中）；`pnpm run validate` exit 0。
 - `.changeset/` **门控**：`pnpm run validate` exit 0；changeset 为 `cdd-engine` **minor**（board 新增两行 · refusal.json 为新增产物 · structure 腿多四行 · `checked:` 面每次派发多四行 · 无 harness 树里 `--dry-run` 的拒绝 · 两腿同时不合格时报文归属改变，均为消费面可见）；kairos 未动。
 - `INPUT_WAVE_BRIEF` **是引擎写的格子**：在一个还没有 `tasks-<n>-brief.md` 的全新工作区派发一次 wave 评审 ⇒ 四道门全过（不是 `target-absent`），真跑路径随后渲染出 brief；同一状态下 `cdd implement --type wave` 的首次派发同样不拒（implement 行的声明同改）；同一状态加 `--dry-run` ⇒ 同一裁决（门不因面而换判据）。构造期断言按**槽**判：三行声明同一槽时绿（引擎写的槽集合恰好 `{NAMED_BRIEF_CELL}`），而「另一格也声明引擎写」即红——一个断言点，不是三个计数器。
@@ -175,7 +175,7 @@ targetAction: !violations.some(v => v.grade === "hard")
 - **零裸函数**：`packages/cdd-engine/src-next` 下不新增 `function` 声明，状态与行为落进类（`check:no-bare-functions` 是门）。
 - **pin 写法**：行为断言引模块路径 + 符号名，不引行号；尚未在源树出现的词汇写裸词或进围栏块——反引号即成 pin，未落地即红。
 - **单事实单份**：拒绝事实只有一个家（树级记录）；命令面与预览面念 seam 的活判词（首行即 `station · detail`，后续行原样跟随），board 念记录派生的那一对（3.3），三处只各自加外层，不各自持有第三份副本。
-- **消费面守恒（逐项列举，不给计数）**：逐字节不变的是五行既有 `CDD_BLOCKED` 行（`tree-clean` · `in-flight` · `graph` · `plan-ledger` · `doc-contract`）· `dispatch-input` 一行（含预览那一行）· 既有 `crashed:` 语义 · `in-flight` 有活主那一臂的 `lock:` 面。具名变更六处，逐项：① `no-host` · `carrier` · `artifact` 三行的首行多一段站名（3.3），后续行不动；② `--dry-run` 上的结构腿拒绝改由 stdout 的预览块陈述（2.4）；③ 无 harness 树里的 `--dry-run` 因此从「五行预报 + exit 0」变成「预览块 + exit 1」（2.4）；④ 每次派发的 `checked:` 面各多四行，适用面一律 always——门跑过就记一行，`carrier` 与 `artifact` 在非 fix 面上空格短路仍是跑过（1.1）——于是既有 `checked:` 的钉读字节随之移动，这是具名变更而不是回归；⑤ board 的两行：`refused:` 行（3.1）与不可读记录的 corrupt 行（4.2）；⑥ 两腿同时不合格时的报文归属：四门并入结构腿后排在 line 腿之前，一条同时不合格的派发从念 line 腿改为念结构腿那一行（改前 line 腿先判），line 腿的拒绝在九行通过之后照旧可达。新增的读面因此是：board 的两行 · 新产物文件（refusal.json，2.1）· 三个拒绝行的一个前缀 · `--dry-run` 上一个入口与一条流 · 每个面新增的 `checked:` 行（四道门四行）。① · ④ · ⑤ · ⑥ 同批登记进章程的在册增量（D96 与 Phase inventory 的同句）与 changeset。
+- **消费面守恒（逐项列举，不给计数）**：逐字节不变的是五行既有拒绝行（`tree-clean` · `in-flight` · `doc-contract` 在 `CDD_BLOCKED: ` 通道上，`graph` · `plan-ledger` 在 `cdd <verb>: ` 通道上——通道归属的家是 3.3，这里只列名、不重述规则）· `dispatch-input` 一行（含预览那一行）· 既有 `crashed:` 语义 · `in-flight` 有活主那一臂的 `lock:` 面。具名变更六处，逐项：① `no-host` · `carrier` · `artifact` 三行的首行多一段站名（3.3），后续行不动；② `--dry-run` 上的结构腿拒绝改由 stdout 的预览块陈述（2.4）；③ 无 harness 树里的 `--dry-run` 因此从「五行预报 + exit 0」变成「预览块 + exit 1」（2.4）；④ 每次派发的 `checked:` 面各多四行，适用面一律 always——门跑过就记一行，`carrier` 与 `artifact` 在非 fix 面上空格短路仍是跑过（1.1）——于是既有 `checked:` 的钉读字节随之移动，这是具名变更而不是回归；⑤ board 的两行：`refused:` 行（3.1）与不可读记录的 corrupt 行（4.2）；⑥ 两腿同时不合格时的报文归属：四门并入结构腿后排在 line 腿之前，一条同时不合格的派发从念 line 腿改为念结构腿那一行（改前 line 腿先判），line 腿的拒绝在九行通过之后照旧可达。新增的读面因此是：board 的两行 · 新产物文件（refusal.json，2.1）· 三个拒绝行的一个前缀 · `--dry-run` 上一个入口与一条流 · 每个面新增的 `checked:` 行（四道门四行）。① · ④ · ⑤ · ⑥ 同批登记进章程的在册增量（D96 与 Phase inventory 的同句）与 changeset。
 - **不留豁免层**：不引入「pre-flight 拒绝走一条特殊路径」的分支——门前的返回本身就是普通路径，拒绝不需要例外。
 - **引擎只拒不改**：拒绝不移动、不改写、不删除任何既有产物；门的前移不得让任何已被写的文件变成孤儿。
 - **类的规模**：新增类守一条不变量（一树最多一条拒绝事实），方法读作 ≤10 行，参数 ≤4；超过即说明它守了两件事。
@@ -195,3 +195,4 @@ targetAction: !violations.some(v => v.grade === "hard")
 | v0.9 | 2026-11-18 | **符号改名回填（P40 第一波 · fix 轮 F1）**：第一波的 Task 1 把构造期断言改名为 `#assertEngineWritten`，v0.5 行血缘记录里的旧名引用随本轮迁到今日符号名；正文与本轮判据的字节面不变，改的只是让已改名的符号重新可解析（`pins.guard` 的语料扫描因此归零）。 | Oscaner M. · Claude |
 | v0.10 | 2026-11-18 | **并入第二件交付（用户裁定 · 2026-11-18）**：新增 §5 提交钩子迁移（husky + lint-staged → lefthook），并给出三条等价性断言（暂存文件集的删除语义 · 全量那一条每次一跑 · 顺序先 biome 后 precommit）与移除面；本节与 §1–§4 无契约关联，不参与拒绝归属判据 | Oscaner M. · Claude |
 | v0.11 | 2026-11-18 | 第九轮评审回填（F1–F4 全采纳）：① §5 的移除面把要删的文件名写成裸词（lint-staged.config.ts 三处不再成 pin），落地后 pins 守卫的语料扫描不为一个已删路径报红（F1）；② 依赖面双向登记——`lefthook` 作为 devDependency 加入、`prepare` 跑 `lefthook install`，验收新增「新名字有命中」这一方向（F2）；③ §5.2 的暂存文件集等价性改由**一次真实提交**判定，并写明不新增自动测试文件，两种读法只留一种（F3）；④ change-history 行按版本次序排，v0.10 回到 v0.9 之后（F4） | Oscaner M. · Claude |
+| v0.12 | 2026-11-18 | 第十轮评审回填（F1–F4 全采纳）：① 命令面的通道归属写成九行逐站的一张账，家落在 `face/cli.ts#Cli#renderPreflightBlocked` 的 gate 名条件上——四条迁移行入 `CDD_BLOCKED: ` 一支，`graph` · `plan-ledger` 留在 `cdd <verb>: ` 一支，加行因此是两处一起改；§2.2 · §3.3 · Constraints 三处把它们一概称作 `CDD_BLOCKED` 行的句子改为只称「拒绝行」并指向那一处（F1）；② §5.2 的顺序腿从「must 保持」改成被验收钉住的条件——暂存格式违规的那次提交日志里不得出现 `pnpm run precommit` 的运行记录（F2）；③ §2.1 记录的 `op` 来源从「前沿帧的 phase」搬到 pre-flight 可读的那个 `expected` 相位，并显式排除已开的帧，与 2.4 的「pre-flight 点上没有任何帧」说同一件事（F3）；④ §5.3 的文档面改成可核的事实：两句提交钩子不写机制名、三个机制名零命中、规则句逐字节不变，因此不需要改（F4） | Oscaner M. · Claude |

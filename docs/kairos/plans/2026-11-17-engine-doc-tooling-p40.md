@@ -1,7 +1,7 @@
 ---
 title: 'P40 · 派发前拒绝的记账面：四门并入 structure 腿 + 树级拒绝事实'
 doc-type: plan
-version: v0.13
+version: v0.14
 date: 2026-11-18
 slug: 2026-11-17-engine-doc-tooling-p40-design
 base: develop
@@ -136,8 +136,8 @@ export class PreFlightRefusal {
 - Modify: `packages/cdd-engine/src-next/session/faces.ts`（定义改为从 `contract/target-type.ts` 的 re-export，`session/` 与 `render/` 的既有读者零改动——方向是 session → contract）
 - Modify: `packages/cdd-engine/src-next/render/templates.ts`（声明类型反向 import：`RequiredArm` / `ContextLine` 的定义移到 contract，本文件 import 回来；三张 mode 表、`TemplateAssembler`、`#assertEngineWritten` 与其余类型不动，零行为搬家）
 - Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`CliLifecycle#inputRefusalOf` 与 `#artifactCellOf` 的调用点改为委托；`#answeredByNaming` 只剩注释 prose 换词——它的判据已在 Task 1 换成读 `decl.written`，本任务不动这个判定，只换描述它的那句话）
-- Modify: `packages/cdd-engine/src-next/face/words.ts`（四新行词面的字节之家：`no-host` 那句从 `face/lifecycle.ts` 迁进 `CAPSULE_WORDS.preflight`（spec §1.3 的措辞搬家），并由一个访问器把四行的词面交给调用点；`dispatchInput` 与 `artifactIdentity` 是 `CAPSULE_WORDS` 的既有两行，原样转发；`artifactIdentity` 增一格 `invalid`（`rulings sidecar — {reason}`，自 `face/lifecycle.ts` 的 `#artifactRefusalOf` 迁入——那一臂今天是一条裸字面，spec §3.3 的字节不变），artifact 行的两臂因此都落在同一张表里）
-- Modify: `packages/cdd-engine/src-next/session/carrier-integrity.ts`（报文改由 CarrierLine 合成——抛错的 message 与拒绝行念同一条格式，不改字节、不加第二份拼装；并给出 `facts()`：carrier 路径与两个 sha8，供快照携带**事实**而不是携带已渲染的句子）
+- Modify: `packages/cdd-engine/src-next/face/words.ts`（四新行词面的字节之家：`no-host` 那句从 `face/lifecycle.ts` 迁进 `CAPSULE_WORDS.preflight`（spec §1.3 的措辞搬家），并由一个访问器把四行的词面交给调用点；`dispatchInput` 与 `artifactIdentity` 是 `CAPSULE_WORDS` 的既有两行，原样转发；`artifactIdentity` 增一格 `invalid`（`rulings sidecar — {reason}`，自 `face/lifecycle.ts` 的 `#artifactRefusalOf` 迁入——那一臂今天是一条裸字面，spec §3.3 的字节不变），artifact 行的两臂因此都落在同一张表里；同批改述 `#artifactRefusalOf` 的 docstring——它今天把 `rulings sidecar — <reason>` 再念一遍（同一文件里那是个 docstring，不是第二处字面），不改则本任务那条单命中 grep 命中两处）
+- Modify: `packages/cdd-engine/src-next/session/carrier-integrity.ts`（报文改由 CarrierLine 合成——抛错的 message 与拒绝行念同一条格式，不改字节、不加第二份拼装；并给出 `facts()`：carrier 路径与两个 sha8，供快照携带**事实**而不是携带已渲染的句子；同批改述它自己的格式 docstring——那一句逐字写着 `carrier-mismatch · line=…`，不改则载体行模块那条单命中 grep 命中两处）
 - Test: `packages/cdd-engine/src-next/face/__tests__/dispatch-input.test.ts`（仅换掉注释里那句旧字面量；断言零改动）
 
 #### Consumes
@@ -267,7 +267,7 @@ export interface PreFlightRowsInput {
   readonly declarations: readonly ContextLine[]; // 那一轮解析后的声明行（面侧 layoutOf 的产物）
   readonly scene: SceneFacts; // 两个已声明场景事实
   readonly artifact: ArtifactSnapshot; // 面侧 `ArtifactCell` 的映射结果
-  readonly repoRoot: RepoRoot; // 路径基值对象：存在性读只经 resolve，绝不 join
+  readonly repoRoot: RepoRoot; // 路径基值对象：存在性读只经 resolve，绝不 path.join
   readonly wording: RowWording; // 四行的词面，由调用点注入
   /** 引擎写的格在这一次判定上的命名答案：Task 3 期间只有预览面问它（行为不变），
    *  Task 5 退役 `mode` 之后这一格整体退场——声明面自己就是答案。 */
@@ -278,7 +278,7 @@ export class PreFlightRows {
 }
 ```
 
-- `repoRoot` 收既有的路径基值对象 `RepoRoot`（`infra/root.ts`），不是裸字符串：声明格里的路径是 repoRoot-relative（spec §1.1），存在性读只经 `RepoRoot` 的 `relativize` / `resolve` 这一对转换落成绝对路径——模块内不许用 `join` 自己拼一段绝对路径（今天 `#inputRefusalOf` 的注释点名的正是「从子目录派发把每条落地路径读成缺失」那个缺陷）。
+- `repoRoot` 收既有的路径基值对象 `RepoRoot`（`infra/root.ts`），不是裸字符串：声明格里的路径是 repoRoot-relative（spec §1.1），存在性读只经 `RepoRoot` 的 `relativize` / `resolve` 这一对转换落成绝对路径——模块内不许用 `path.join`（或任何裸字符串拼装）自己拼一段路径（今天 `#inputRefusalOf` 的注释点名的正是「从子目录派发把每条落地路径读成缺失」那个缺陷）。这条只管**路径**：本模块的正式工作之一是合成多行 detail，`RowRefusal.detail` 的续行、`RowWording.dispatchInput.separator` 与 artifact 的 `repair` 两句都用 `Array#join` 拼字符串，与 `face/words.ts` 今日同形。
 
 #### Steps
 - **Step 1: 写七条失败测试**（no-host · carrier · 必填格空 · 路径格缺失 · 三处同时三条一次报完且顺序固定 · engine 写的槽零存在性读 · 声明表驱动的 exigibility：`always` / 类型集 / `when: program|identity` 三臂各判一次，判据只读声明行与两个场景事实） — checkable: `contract/__tests__/preflight-rows.test.ts` 七条用例齐
@@ -288,7 +288,7 @@ export class PreFlightRows {
 - **Step 5: 提交** — checkable: `git show --stat HEAD` 含四个新模块（判据 · 声明类型 · carrier 行 · 目标面的家）、新测试、`render/templates.ts`、`session/faces.ts`、`session/carrier-integrity.ts`、`face/lifecycle.ts` 与 `dispatch-input.test.ts`
 
 #### Acceptance
-七条测试全绿；`lifecycle.test.ts` 与 `dispatch-input.test.ts` 的断言零改动即绿（本任务不改行为；`dispatch-input.test.ts` 只改一句注释里的旧字面量——它的 `CliLifecycle` 构造调用随构造器改动由 Task 6 同批迁移，它的三个门方法入口随 Task 5 的退场迁移，本任务不碰）；`contract/preflight-rows.ts` 与 `contract/context-declarations.ts` 不 import `face/` · `render/` · `session/` 的任何符号（依赖方向可 grep 断言：`TargetType` 因此有自己的 contract 家，不是这条规则的一个例外），模块内零句四行措辞（全部经注入的词面抵达），四行词面各有一处字节之家（`no-host` 在 `face/words.ts` · carrier 只有一处**格式**，住新建的 carrier 行模块，抛错的 message 与拒绝行念同一条 · `dispatchInput` 与 `artifactIdentity` 在 `CAPSULE_WORDS`，且 artifact 的**两个**臂都在那张表里：`misplaced` 的四段续行与 present-but-unreadable 那句 `rulings sidecar — {reason}`（快照 `read` 臂的 `invalid` 一格不再是裸字面，它有自己的格做家））；**判据的输入是它自己声明的契约形状，且包含它真正读的那几格**——值、声明行、两个已声明场景事实、目标面（`resolve` 的第三个参数 `type`，`judge` 传 `facts.type`）、快照（不是场景对象、不是第二张声明表、零 face / render 类型）；引擎写的格在判据里只有一个读点（声明行上的 `written: "engine"`），它使该格在任何面、任何模式下都不做存在性读；空值那一腿在 Task 3 仍按今天的形状只在预览面被命名行豁免（`dispatch-input.test.ts` 的 dispatch 断言因此零改动即绿），Task 5 退役 `mode` 之后豁免与声明合一，该格在四个面、两种模式下同一个判据；存在性读只经 `RepoRoot` 的 `relativize` / `resolve` 转换对（`contract/preflight-rows.ts` 里 `join` 零命中——路径基不从裸字符串拼）；全树 `rg -n 'preview: "satisfied"' packages/cdd-engine/src-next` 零命中（三处声明、三处注释 prose 与两个测试文件的字面量均在 Task 1 与本任务后到齐；`dispatch-input.test.ts` 是该清单里唯一只动注释的文件）。
+七条测试全绿；`lifecycle.test.ts` 与 `dispatch-input.test.ts` 的断言零改动即绿（本任务不改行为；`dispatch-input.test.ts` 只改一句注释里的旧字面量——它的 `CliLifecycle` 构造调用随构造器改动由 Task 6 同批迁移，它的三个门方法入口随 Task 5 的退场迁移，本任务不碰）；`contract/preflight-rows.ts` 与 `contract/context-declarations.ts` 不 import `face/` · `render/` · `session/` 的任何符号（依赖方向可 grep 断言：`TargetType` 因此有自己的 contract 家，不是这条规则的一个例外），模块内零句四行措辞（全部经注入的词面抵达），四行词面各有一处字节之家（`no-host` 在 `face/words.ts` · carrier 只有一处**格式**，住新建的 carrier 行模块，抛错的 message 与拒绝行念同一条 · `dispatchInput` 与 `artifactIdentity` 在 `CAPSULE_WORDS`，且 artifact 的**两个**臂都在那张表里：`misplaced` 的四段续行与 present-but-unreadable 那句 `rulings sidecar — {reason}`（快照 `read` 臂的 `invalid` 一格不再是裸字面，它有自己的格做家））；**判据的输入是它自己声明的契约形状，且包含它真正读的那几格**——值、声明行、两个已声明场景事实、目标面（`resolve` 的第三个参数 `type`，`judge` 传 `facts.type`）、快照（不是场景对象、不是第二张声明表、零 face / render 类型）；引擎写的格在判据里只有一个读点（声明行上的 `written: "engine"`），它使该格在任何面、任何模式下都不做存在性读；空值那一腿在 Task 3 仍按今天的形状只在预览面被命名行豁免（`dispatch-input.test.ts` 的 dispatch 断言因此零改动即绿），Task 5 退役 `mode` 之后豁免与声明合一，该格在四个面、两种模式下同一个判据；存在性读只经 `RepoRoot` 的 `relativize` / `resolve` 转换对（`contract/preflight-rows.ts` 里 `path.join` 零命中、且无 `node:path` 的 import——路径基不从裸字符串拼；`Array#join` 不在那条规则里，它正是这个模块合成 detail 续行与 artifact 两句 `repair` 的工具）；全树 `rg -n 'preview: "satisfied"' packages/cdd-engine/src-next` 零命中（三处声明、三处注释 prose 与两个测试文件的字面量均在 Task 1 与本任务后到齐；`dispatch-input.test.ts` 是该清单里唯一只动注释的文件）。
 
 #### DependsOn
 1
@@ -378,28 +378,32 @@ export interface PreFlightContext {
   readonly artifact: ArtifactSnapshot; // face 侧映射后的契约值，不是私有 ArtifactCell
 }
 
+// session/preflight.ts —— 判据的 `naming` 一格由缝合自答，不占 context 的第六格：
+// PreFlightRows.judge({ …ctx, naming: { answered: false } })  // 派发模式的答案（预览臂是它唯一的读者）
+
 // session/next.ts —— DISPATCH_REASON 的四条新 structure 行（token 即站名）
 // noHost: { token: "no-host", leg: "structure" }
 // carrier: { token: "carrier", leg: "structure" }
 // dispatchInput: { token: "dispatch-input", leg: "structure" }
 // artifact: { token: "artifact", leg: "structure" }
 ```
-- `PreFlight#vet` 的判定序：既有五行（原序，逐行判定、首个违纪即拒）→ 四新行（no-host → carrier → dispatch-input → artifact，**四条全判、一次报完**）。verdict 的 `gate` 取四条里的第一条违纪站名，`details` 收全部四条。
+- `PreFlight#vet` 的判定序：既有五行（原序，逐行判定、首个违纪即拒）→ 四新行（no-host → carrier → dispatch-input → artifact，**四条全判、一次报完**）。verdict 的 `gate` 与 `message` 取四条里的**第一条**违纪行（`message` 已经是 `station · detail` 那一句），`details` 只收**它之后**的各条（三条违纪 ⇒ 两条 details）。这不是口味：`face/cli.ts#Cli#renderPreflightBlocked` 先印 `message` 再逐条印 `details`，收全部四条会让首条的句子在同一个块里出现两遍；而既有 `details` 的语义本来就是「`message` 之下的各条」（`graph` / `plan-ledger` 的 issue / finding 行），四行沿用同一条，不新开第二个意思。
 - 既有五行按面取舍，`order` 的行数是面的函数：`graph` 只在 `wave` / `plan` 的 ready 读上（非 ready 的读既不推也不报）· `plan-ledger` 只在 `plan` / `wave` / `branch` 上 · `doc-contract` 只在四个 doc 面上（`phase-spec` · `overall` · `plan` · `single-spec`）。四新行不受面影响、每一面都判都记——spec 的 `checked:` 具名变更 ④ 承诺的正是这四行 always，不是九行 always。
 - 优先级位移（spec 的第六项具名变更）：四行排在 line 腿**之前**，因此同一个 fixture 同时犯门与线两条时，报的是门的行；门通过之后，线的拒绝仍可达。
 - 单源保证：`PreFlightRowsInput.values` 与渲染器读的那份值来自同一个 composer 的同一次调用（Task 4 期间两条调用点同时在场：`cli.ts` 的 `vet` 前一次，`CliLifecycle` 侧的旧 `#valuesOf` 仍在；Task 5 把后者换成前者的输出，两个消费者就只剩一次装配）。
 - 缝合侧的五格输入各有生产者，**没有一格靠 import 补**：`values` / `artifact` 是 composer 与快照的输出，`host` 是组合根那一次探测的值，`declarations` 是 `#template.layoutOf(values)` 的返回，`scene` 是 `scene.program` / `scene.docType` 两个布尔——后两格今天就在组合根手上。`session/` 因此不新增对 `render/` 或 `face/` 的 import（`render/templates.ts` 反过来 import `session/faces.ts`，那条边会把 `session/preflight.ts → render/templates.ts → session/faces.ts` 连成环）。`(cycle, attempt)` 不进 context：它不喂任何一行（spec §1.1 把它判给拒绝事实自己的身份），组合根直接把它写进拒绝记录的两格。
+- **判据的 `naming` 一格由缝合自己作答，不增第六格**：`PreFlight#vet` 传常量 `naming: { answered: false }`。理由可核而不靠猜——`face/lifecycle.ts#CliLifecycle` 的 `#answeredByNaming` 唯一的读者是 `#inputRefusalOf` 的 `mode === "preview"` 那一臂（派发模式从不问它），而引擎写的格的存在性那一腿已由声明面的 `written: "engine"` 抑制，命名只影响「空值是否被豁免」——派发路径上仍是拒绝。因此这一格在每一面都等于派发模式的答案，且它是判据自己的输入格、不是 `PreFlightContext` 的一格（进 context 会与 Step 3 的 checkable 和 Acceptance 的五格相抵）；Task 5 退役 `mode` 时整格随豁免一起退场。
 
 #### Steps
-- **Step 1: 写六条失败测试**（缺宿主 · 值坏 · 三处同时 details 三条 · 文档坏与值坏并存时 doc-contract 先拒 · 预帧装配可独立调用（composer 不 import 帧类型、不读 workspace）且它产出的记录与 `CliLifecycle` 今日从帧推得的值**逐字相同**（成对，证明两条路径同源；Task 5 把后者换成前者）——成对断言在 wave 面与 fix 面各跑一次，因此含 `WAVE`（读 `identity.tasks`）与 `INPUT_REVIEWS`（读快照的 `reviewsPath`）两格 · 九值门名与 reason 表的四个 token 一一对应） — checkable: `session/__tests__/preflight-rows.test.ts` 六条用例齐
+- **Step 1: 写六条失败测试**（缺宿主 · 值坏 · 三个站同时违纪：`message` 念首条、`details` 两条、拼出的整块里三句各出现一次（首条不得重复） · 文档坏与值坏并存时 doc-contract 先拒 · 预帧装配可独立调用（composer 不 import 帧类型、不读 workspace）且它产出的记录与 `CliLifecycle` 今日从帧推得的值**逐字相同**（成对，证明两条路径同源；Task 5 把后者换成前者）——成对断言在 wave 面与 fix 面各跑一次，因此含 `WAVE`（读 `identity.tasks`）与 `INPUT_REVIEWS`（读快照的 `reviewsPath`）两格 · 九值门名与 reason 表的四个 token 一一对应） — checkable: `session/__tests__/preflight-rows.test.ts` 六条用例齐
 - **Step 2: 跑测试确认红** — checkable: 该文件报红，原因指向未扩的九值或缺失的 context 输入
-- **Step 3: 扩类型、四行 reason 表、预帧 composer 与判定**（九值 · `DISPATCH_REASON` 四行 · context 五输入必填 · 四行全判一次报完 · composer 无帧无 workspace · `cli.ts` 那次 `vet` 的五格输入齐） — checkable: `PreFlightGateName` 的声明含 RowStation；`PreFlightContext` 含 `host` / `values` / `declarations` / `scene` / `artifact`，且不含 `round`（`rg -n 'round:' packages/cdd-engine/src-next/session/preflight.ts` 零命中——身份不喂任何一行）；`DISPATCH_REASON` 含四个新 `leg: "structure"` 行，`PreFlightReason` 仍是五值；composer 的文件里 `OpenFrame` 零命中；`DispatchValues.compose` 是三个参数（identity · scene · 快照），identity 含 `tasks` / `cycle` / `attempt`，快照两臂均带 reviewsPath 且 `read` 臂的 `path` 是 `INPUT_RULINGS` 的唯一来源
+- **Step 3: 扩类型、四行 reason 表、预帧 composer 与判定**（九值 · `DISPATCH_REASON` 四行 · context 五输入必填 · 四行全判一次报完 · composer 无帧无 workspace · `cli.ts` 那次 `vet` 的五格输入齐） — checkable: `PreFlightGateName` 的声明含 RowStation；`PreFlightContext` 含 `host` / `values` / `declarations` / `scene` / `artifact`，且不含 `round`（`rg -n 'round:' packages/cdd-engine/src-next/session/preflight.ts` 零命中——身份不喂任何一行）；`DISPATCH_REASON` 含四个新 `leg: "structure"` 行，`PreFlightReason` 仍是五值；composer 的文件里 `OpenFrame` 零命中；`DispatchValues.compose` 是三个参数（identity · scene · 快照），identity 含 `tasks` / `cycle` / `attempt`，快照两臂均带 reviewsPath 且 `read` 臂的 `path` 是 `INPUT_RULINGS` 的唯一来源；`naming` 由 `PreFlight#vet` 以常量 `{ answered: false }` 传给 `judge`，而 `PreFlightContext` 的接口体里 `naming` 零命中（六格会让五格那条断言与它自己的生产者互相矛盾）
 - **Step 4: 写优先级位移的成对测试**（门与线同犯 ⇒ 报门的行；补齐门之后再跑 ⇒ 报线的行） — checkable: 该对断言同文件内可红可绿
 - **Step 5: 跑绿 + 跑既有缝合测试 + 类型门** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/session/__tests__/` 全绿（含新输入下断言零改动的 `preflight.test.ts` · `plan-read-consistency.test.ts`），且 `pnpm exec tsc --noEmit -p packages/cdd-engine` exit 0（四行 reason 进表后 `structureRefusal` 的 `reason: gate` 仍成立；生产侧那次 `vet` 与两个测试文件的五个 context 构造器（`preflight.test.ts` 的四个 · `plan-read-consistency.test.ts` 的 `preflightCtxOf`）均已补齐输入，43 处 `vet` 调用零改动）
 - **Step 6: 提交** — checkable: `git show --stat HEAD` 含 `session/preflight.ts`、`session/next.ts`、`face/dispatch-values.ts`、`face/cli.ts` 与四个测试文件
 
 #### Acceptance
-九值闭集；`order` 按面取既有行（`graph` 仅 `wave` / `plan` 的 ready 读 · `plan-ledger` 仅 `plan` / `wave` / `branch` · `doc-contract` 仅四个 doc 面），四新行在每一面都在、都记（故 `plan` 面九行、`wave` 面八行、`branch` 面与其余三个 doc 面七行——九行是 `plan` 面的行数，不是「每次派发恒含九行」）；`session/preflight.ts` 不新增 `face/` 的 import（既有那条 type-only `Words` 保留，grep 断言是「无新增」而不是「零命中」）；四行全报而非逐条短路；`doc-contract` 仍排在四行之前；优先级位移有成对断言（门的行在前、线的行在门通过后仍可达）；**值的装配有无帧的单一入口**（composer 不 import 帧类型、不读 workspace 对象，测试直接调它即得一份可用值），composer 的输入是它自己声明的三格（identity · scene · 快照，每格都在 Produces 里点名，没有「Objective 列了而类型不接」的格：`tasks` 与 `(cycle, attempt)` 在 identity，fix 面的请求载体路径在快照的 `reviewsPath`），且门判的值与渲染的值是它的同一份输出（成对断言，覆盖 wave 与 fix 两个面）；**九值门名没有破 reason 表**（`DISPATCH_REASON` 的四条新行 token 即站名，`structureRefusal` 的 `reason: gate` 无需 cast 即过 `tsc --noEmit`；`PreFlightReason` 保持五值，四新行不带它——它们的措辞来自 `RowRefusal.detail`，不发生第四个词汇表）；**缝合侧的判定输入都有生产者**（`host` · `values` · `declarations` · `scene` · `artifact` 五格，每格在 Files 里点名一个来源，`session/` 零新增 `render/` / `face/` 的 import）；生产侧唯一 `vet` 调用与两个测试文件的五个 context 构造器（`preflight.test.ts` 的 `waveCtx` · `docCtx` · `branchCtx` · `carrierCtx`，`plan-read-consistency.test.ts` 的 `preflightCtxOf`）在同一提交内补齐，43 处 `vet` 调用零改动。
+九值闭集；`order` 按面取既有行（`graph` 仅 `wave` / `plan` 的 ready 读 · `plan-ledger` 仅 `plan` / `wave` / `branch` · `doc-contract` 仅四个 doc 面），四新行在每一面都在、都记（故 `plan` 面九行、`wave` 面八行、`branch` 面与其余三个 doc 面七行——九行是 `plan` 面的行数，不是「每次派发恒含九行」）；`session/preflight.ts` 不新增 `face/` 的 import（既有那条 type-only `Words` 保留，grep 断言是「无新增」而不是「零命中」）；四行全报而非逐条短路，`message` 取首条、`details` 只收其后的各条（多违纪块里每句各出现一次，首条不重复）；`doc-contract` 仍排在四行之前；优先级位移有成对断言（门的行在前、线的行在门通过后仍可达）；**值的装配有无帧的单一入口**（composer 不 import 帧类型、不读 workspace 对象，测试直接调它即得一份可用值），composer 的输入是它自己声明的三格（identity · scene · 快照，每格都在 Produces 里点名，没有「Objective 列了而类型不接」的格：`tasks` 与 `(cycle, attempt)` 在 identity，fix 面的请求载体路径在快照的 `reviewsPath`），且门判的值与渲染的值是它的同一份输出（成对断言，覆盖 wave 与 fix 两个面）；**九值门名没有破 reason 表**（`DISPATCH_REASON` 的四条新行 token 即站名，`structureRefusal` 的 `reason: gate` 无需 cast 即过 `tsc --noEmit`；`PreFlightReason` 保持五值，四新行不带它——它们的措辞来自 `RowRefusal.detail`，不发生第四个词汇表）；**缝合侧的判定输入都有生产者**（`host` · `values` · `declarations` · `scene` · `artifact` 五格，每格在 Files 里点名一个来源，`session/` 零新增 `render/` / `face/` 的 import；判据自己的 `naming` 一格由缝合以 `{ answered: false }` 自答——派发模式的答案，不进 context、不增第六格）；生产侧唯一 `vet` 调用与两个测试文件的五个 context 构造器（`preflight.test.ts` 的 `waveCtx` · `docCtx` · `branchCtx` · `carrierCtx`，`plan-read-consistency.test.ts` 的 `preflightCtxOf`）在同一提交内补齐，43 处 `vet` 调用零改动。
 
 #### DependsOn
 1, 3
@@ -599,12 +603,12 @@ pre-commit:
 - **Step 2: 换依赖与 prepare**（删 husky/lint-staged，加 lefthook，`prepare: lefthook install`） — checkable: `node -e` 读 `package.json` 得 prepare 与 devDependencies 三态正确，且 `pnpm install` 更新 lockfile 无冲突
 - **Step 3: 删两处旧机制**（`.husky/` 整目录、`lint-staged.config.ts`） — checkable: 两者在树上都不存在（`ls` 与 `rg --files` 各零命中）
 - **Step 4: 安装钩子** — checkable: `git config core.hooksPath` 不再是 `.husky/_`，且 `.git/hooks/pre-commit` 存在
-- **Step 5: 三条等价性实测**（坏 `.ts` 被拦且文件未被写回 · 删一个 `.ts` 后提交不红 · 干净提交的日志里出现 `pnpm run precommit` 那一次） — checkable: 三次真实提交的 exit code 分别为 1 / 0 / 0，且第一次之后 `git status` 显示该文件仍被修改
+- **Step 5: 三条等价性实测（在临时树里跑）**（坏 `.ts` 被拦且文件未被写回 · 删一个 `.ts` 后提交不红 · 干净提交的日志里出现 `pnpm run precommit` 那一次）——三条都要真实提交才证明得了，而交付分支只应留 Step 7 的一次原子提交，`git worktree` 又被本仓规则禁止：因此把当前工作树连 `.git` 整棵复制到临时目录（`cp -R`——Step 1–4 的改动还没提交，`git clone` 只带已提交内容），在那里跑 `lefthook install` 并摆夹具，三次提交落在临时树里。 — checkable: 三次真实提交的 exit code 分别为 1 / 0 / 0（日志取自临时树），且第一次之后该临时树的 `git status` 显示该文件仍被修改；交付树上 `git log --oneline` 因此只有 Step 7 那一次提交
 - **Step 6: 全量门禁** — checkable: `pnpm run validate` exit 0
-- **Step 7: 提交** — checkable: `git show --stat HEAD` 含 lefthook.yml · package.json · pnpm-lock.yaml 与两处删除
+- **Step 7: 提交** — checkable: `git show --stat HEAD` 含 lefthook.yml · package.json · pnpm-lock.yaml 与两处删除（Step 5 的三次提交不在本树，不在这条 —stat 里）
 
 #### Acceptance
-坏格式的 `.ts` 被拦且**未被写回**（`biome check` 不带 `--write`）；删除一个 `.ts` 后提交不红；干净提交通过且日志含 `pnpm run precommit` 的运行；`.husky/` 与 `lint-staged.config.ts` 不在树上、`husky` / `lint-staged` 在 `package.json` 与 `pnpm-lock.yaml` 的依赖面零命中；`prepare` 安装 lefthook；`AGENTS.md` 零改动（它不指名机制，规则迁移后仍成立——由 grep `husky\|lint-staged` 在 AGENTS.md 零命中断言）；`pnpm run validate` exit 0；无 changeset（本任务不改任何 first-party package 的行为）。
+坏格式的 `.ts` 被拦且**未被写回**（`biome check` 不带 `--write`）；删除一个 `.ts` 后提交不红；干净提交通过且日志含 `pnpm run precommit` 的运行（三条实测在临时树里跑，交付分支只留一次原子提交）；`.husky/` 与 `lint-staged.config.ts` 不在树上、`husky` / `lint-staged` 在 `package.json` 与 `pnpm-lock.yaml` 的依赖面零命中；`prepare` 安装 lefthook；`AGENTS.md` 零改动（它不指名机制，规则迁移后仍成立——由 grep `husky\|lint-staged` 在 AGENTS.md 零命中断言）；`pnpm run validate` exit 0；无 changeset（本任务不改任何 first-party package 的行为）。
 
 #### DependsOn
 1, 2, 3, 4, 5, 6, 7, 8
@@ -613,6 +617,7 @@ pre-commit:
 
 | Version | date | summary | author |
 | --- | --- | --- | --- |
+| v0.14 | 2026-11-18 | 第七轮 fix 轮（F1–F5 全采纳）：① **判据的 `naming` 一格由缝合自答**——Task 4 写明 `PreFlight#vet` 传常量 `{ answered: false }`（`#answeredByNaming` 唯一的读者是预览臂的那道 `mode === "preview"` 守卫，引擎写的格的存在性腿已由 `written: "engine"` 抑制），它不占 context 的第六格：`PreFlightContext` 仍是五格，Step 3 的 checkable 与 Acceptance 因此与实现同形（F1）；② **`join` 规则收窄到路径面**——Task 3 的 Acceptance 与 repoRoot 那条从「`join` 零命中」改为「`path.join` 零命中且无 `node:path` 的 import」，`Array#join` 明确合规（`detail` 的续行与 artifact 两句 `repair` 正要用它，`face/words.ts` 今日同形）（F2）；③ **`details` 收首条之后的各条**——`#renderPreflightBlocked` 先印 `message` 再逐条印 `details`，收全部四条会让首条句子在块里印两遍；Task 4 的 Produces、Step 1 与 Acceptance 改为此形状并钉一条多违纪块的整块字节断言（F3）；④ **Task 9 的三次实测提交搬进临时树**——交付分支只留 Step 7 的一次原子提交，`git worktree` 又被规则禁止，Step 5 因此写明把工作树连 `.git` 复制到临时目录再跑（F4）；⑤ **两处单命中 grep 的 docstring 同批改述**——`#artifactRefusalOf` 与 `CarrierIntegrity` 的 docstring 各自把那条格式再念一遍，进 Task 3 的 Files 与搬家的字面同批改述，单命中判据因此成立（F5）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |
 | v0.13 | 2026-11-18 | 第六轮 fix 轮（F1–F8 全采纳）：① **缝合的五格输入各有生产者**——`PreFlightContext` 由四格改五格（`host` · `values` · `declarations` · `scene` · `artifact`），后两格由组合根交值（`#template.layoutOf(values)` 与 `scene.program` / `scene.docType` 布尔化），`(cycle, attempt)` 不随 context 走（它不喂任何一行，只进拒绝记录）——`session/` 因此不新增 `render/` 的 import（`render/templates.ts` 反过来 import `session/faces.ts`，那条边会成环）（F1）；② **board 行的轮标识与 `crashed:` 同拼写**——Task 7 的围栏改回 `{op} {cycle}·a{attempt} {station} · {detail}`，首条用例钉字节（F2）；③ **context 构造器的真实清单**——`waveCtx` · `docCtx` · `branchCtx` · `carrierCtx` 四个加一条，`plan-read-consistency.test.ts` 的 `preflightCtxOf` 进 Task 4 Files，计数改为五个构造器 / 43 处 `vet` 调用（F3）；④ **artifact 行的两个臂都有字面之家**——`RowWording.artifact` 增 `invalid` 格，present-but-unreadable 那句 `rulings sidecar — {reason}` 从 `face/lifecycle.ts` 迁进 `CAPSULE_WORDS.artifactIdentity`，并补一条单命中 grep（F4）；⑤ **死格与死词汇不登台**——判据的事实类型只留它自己读的两格（`type` · `host`），composer 的 scene 格少一格（rulings 路径改为由快照的 `read` 臂派生），`PreFlightReason` 不扩（四新行的措辞来自行的 detail）（F5）；⑥ **退役的私有机械逐个点名**——`#inputRefusalOf` · `#artifactRefusalOf` · `#artifactCellOf` · `#artifactReadOf` · `#requesterDigest` · `#rulingsInputOf` · `#answeredByNaming` 与 `ArtifactCell` · `NO_ARTIFACT` · `artifact-reads` 的三个 import 进 Task 5，并补一条零命中 grep（F6）；⑦ **(i) 的两半分开落定**——`inputRefusal(reviewFrameOf())` 随纯判据搬迁，只有 `step()` 断言留下（F7）；⑧ **平面句收窄**——`contract/` 不 import `session/` 只声明本任务两个新模块，既有三条 contract→session 边归 P39（F8）。Task id 集与 `DependsOn` 集未动 | Oscaner M. · Claude |
 | v0.1 | 2026-11-18 | 首稿：八任务 / 六波（{1} → {3} → {2,4} → {5,7} → {6} → {8}）。判据抽 `contract/` 以避免 session→face 的新环（RowStation 是站名域的唯一声明，`PreFlightGateName` 以它扩四值）；brief 改记引擎写先行；记录晚于判据、早于接线；board 独立于接线；优先级位移与 `--recover` 各自成对验收；changeset 收尾 | Oscaner M. · Claude |
 | v0.2 | 2026-11-18 | 评审修复一轮（F1–F5 全采纳）：判据的输入改为契约层自声明值（ArtifactSnapshot 两臂 + 平值记录），face 在调用点适配，Task 3 的 Consumes 改成真模块路径（F1）；`#inflight.release()` 的唯一调用点钉到 `face/lifecycle.ts` 派发体并加入 Task 6 Files（F2）；宿主值的三处读者与 `#runDispatch` 的 no-host 字面、`Preview` 的 `child:` 空值分支退役并入 Task 6（F3）；封名退场改写为谓词并点名存活的 abort 记账调用（F4）；`refusal` 名字扩为 `round-artifacts.ts` 的四个登记点（F5） | Oscaner M. · Claude |

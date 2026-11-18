@@ -470,20 +470,10 @@ const sceneOf = (fixture: Fixture) => ({
 });
 
 describe("DispatchValues.compose — the pre-frame record is the rendered one", () => {
-  it("renders the same wave prompt the frame-bound lifecycle renders (WAVE included)", async () => {
+  it("renders the wave prompt from the ONE record the composition root injected (WAVE included)", async () => {
     const fixture = fixtureOf();
     try {
       const runner = new PromptRunner();
-      const lifecycle = new CliLifecycle({
-        scene: sceneOf(fixture),
-        artifacts: new ArtifactRegistry(),
-        io: new CaptureIo(),
-        sync: runner,
-        env: { CLAUDE_CODE_SESSION_ID: "s" },
-      });
-      await lifecycle.step()(waveFrame());
-      expect(runner.calls).toHaveLength(1);
-
       const identity: DispatchIdentity = {
         op: "implement",
         type: "wave",
@@ -494,12 +484,22 @@ describe("DispatchValues.compose — the pre-frame record is the rendered one", 
       };
       const { facts } = sceneFactsOf(fixture, "implement", "wave");
       const values = DispatchValues.compose(identity, facts, ABSENT_ARTIFACT);
+      const lifecycle = new CliLifecycle({
+        scene: sceneOf(fixture),
+        artifacts: new ArtifactRegistry(),
+        io: new CaptureIo(),
+        sync: runner,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        values,
+      });
+      await lifecycle.step()(waveFrame());
+      expect(runner.calls).toHaveLength(1);
       expect(values.WAVE).toBe("1");
-      // The pair's FIRST half is the RECORD, cell by cell: a cell the role's declaration
-      // drops from the prompt (`INPUT_REVIEWS` off the fix face, the review face's
-      // `WAVE`) is invisible in the bytes, so only the two records can witness the
-      // agreement the seam and the renderer rely on.
-      expect(values).toEqual(lifecycle.valuesOf(waveFrame()));
+      // The renderer holds the injected record ITSELF (P40 T5): not an equal copy — the
+      // one object. `toEqual` here would be a tautology once the body reads the field, so
+      // the assertion is identity, and this pair is the only witness that the values have
+      // ONE production point.
+      expect(lifecycle.valuesOf(waveFrame())).toBe(values);
       const prompt = new TemplateAssembler().render(values);
       // The child's ONE positional is the prompt with the host's skill-ref prefix in
       // front of it; the PREFIX is the host channel's, the prompt bytes are the values'.
@@ -509,7 +509,7 @@ describe("DispatchValues.compose — the pre-frame record is the rendered one", 
     }
   });
 
-  it("renders the same fix prompt the frame-bound lifecycle renders (INPUT_REVIEWS included)", async () => {
+  it("renders the fix prompt from the ONE record the composition root injected (INPUT_REVIEWS included)", async () => {
     const fixture = fixtureOf();
     try {
       const specDoc = path.join(fixture.repo, "docs", "k", "s.md");
@@ -519,17 +519,6 @@ describe("DispatchValues.compose — the pre-frame record is the rendered one", 
       const carrier = fixture.workspace.writeText("phase-spec-review-1.json", "{}\n");
       fixture.ledger.recordRound("phase-spec", { op: "review", cycle: 1 });
       const runner = new PromptRunner();
-      const lifecycle = new CliLifecycle({
-        scene: sceneOf(fixture),
-        artifacts: new ArtifactRegistry(),
-        io: new CaptureIo(),
-        sync: runner,
-        env: { CLAUDE_CODE_SESSION_ID: "s" },
-        reviews: carrier,
-      });
-      await lifecycle.step()(fixFrame());
-      expect(runner.calls).toHaveLength(1);
-
       const identity: DispatchIdentity = {
         op: "fix",
         type: "phase-spec",
@@ -542,11 +531,22 @@ describe("DispatchValues.compose — the pre-frame record is the rendered one", 
       const reviewsPath = fixture.workspace.root.basis.relativize(carrier);
       const artifact: ArtifactSnapshot = { kind: "read", reviewsPath, read: ABSENT_SNAPSHOT };
       const values = DispatchValues.compose(identity, facts, artifact);
+      const lifecycle = new CliLifecycle({
+        scene: sceneOf(fixture),
+        artifacts: new ArtifactRegistry(),
+        io: new CaptureIo(),
+        sync: runner,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+        reviews: carrier,
+        values,
+      });
+      await lifecycle.step()(fixFrame());
+      expect(runner.calls).toHaveLength(1);
       expect(values.INPUT_REVIEWS).toBe(reviewsPath);
       expect(values.ROLE).toBe("docs-fix");
       // The record pair on the fix face — the second of the two faces `WAVE` and
-      // `INPUT_REVIEWS` are carried by.
-      expect(values).toEqual(lifecycle.valuesOf(fixFrame()));
+      // `INPUT_REVIEWS` are carried by. ONE object, not two equal ones.
+      expect(lifecycle.valuesOf(fixFrame())).toBe(values);
       const prompt = new TemplateAssembler().render(values);
       expect(runner.calls[0]!.args.at(-1)!.endsWith(prompt)).toBe(true);
     } finally {

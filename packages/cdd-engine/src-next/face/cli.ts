@@ -93,6 +93,7 @@ import {
 import { NextStepRouter } from "../session/next.ts";
 import type { PipelineFrontierInput } from "../session/pipeline.ts";
 import { PreFlight, type PreFlightVerdict } from "../session/preflight.ts";
+import { PreFlightRefusal } from "../session/refusal.ts";
 import { type ArtifactRead, ArtifactRegistry, type Kind } from "../session/round-artifacts.ts";
 import { type RoundArtifact, RoundNaming } from "../session/round-naming.ts";
 import type { DispatchStep, RunState } from "../session/run.ts";
@@ -102,6 +103,7 @@ import { type ArtifactProjection, BoardNext, BoardView } from "./board-view.ts";
 import { Capsule } from "./capsule.ts";
 import { ARGV_CHANNEL, type CliLeafName, type CliVerb } from "./declare.ts";
 import {
+  ArtifactSnapshots,
   type DispatchIdentity,
   type DispatchSceneFacts,
   DispatchValues,
@@ -284,6 +286,9 @@ interface DispatchParts {
   readonly recovered: boolean;
   readonly recover: boolean;
   readonly artifacts: ArtifactRegistry;
+  /** The seam's own value record (P40 T5) — handed to the harness so the renderer reads
+   *  the record the gate judged instead of re-assembling a second one. */
+  readonly values: Readonly<Record<string, string>>;
 }
 
 /**
@@ -658,6 +663,12 @@ export class Cli {
     // registry carries no directory), so a parent row never reads a child's names.
     const artifacts = this.#matrix;
     const inflight = new InFlight(workspaceRoot, entry.slug ?? "");
+    // The tree's refusal record, read ONCE here and handed to the render as a value: the
+    // board judges nothing and constructs no workspace of its own, so the `slug` filter
+    // (`read()` answers `absent` for another phase workspace's record) is applied at its
+    // ONE producer. The read is REQUIRED at the render — a defaulted `absent` would let a
+    // board that forgot the parameter print nothing while every unit case stayed green.
+    const refusal = new PreFlightRefusal(workspaceRoot, entry.slug ?? "").read();
     // The board's `next:` line renders ONE injected `NextHop` (P22 §5.2 · P24 §11):
     // the pipeline FACTS come from the board face, and the ONE hop assembly (the four
     // face-order rules + the six hop cells) lives in the session plane's
@@ -695,6 +706,7 @@ export class Cli {
       repoRoot,
       this.#words,
       host,
+      refusal,
       ARGV_CHANNEL,
       await inflight.inspect(),
       next,
@@ -964,7 +976,7 @@ export class Cli {
     // tree or a live holder is never displaced by an argument.
     const recovery =
       recover && this.#authority.structureRefusal(preflight) === null
-        ? await this.#recoverRun(verb, type, scene, parsed, inflight, artifacts)
+        ? await this.#recoverRun(verb, type, scene, parsed, inflight, artifacts, before.values)
         : null;
     if (recovery !== null && recovery.kind === "blocked") {
       this.#io.stderr(`${this.#words.station("blocked")} ${recovery.message}\n`);
@@ -1047,12 +1059,13 @@ export class Cli {
       scene.briefPath = this.#gate.renderBrief(scene, parsed, text, doc);
     }
     const statuses: (RoundStatus | null)[] = [];
-    const { step: dispatch, harness } = await this.#dispatchOf({
+    const { step: dispatch } = await this.#dispatchOf({
       scene,
       parsed,
       recovered: recovery !== null,
       recover,
       artifacts,
+      values: before.values,
     });
     const run = new Lifecycle({
       face: scene.face,
@@ -1123,26 +1136,13 @@ export class Cli {
       // derivation), and the early return means no write point below ever runs
       // (`renderBrief` skipped above, `#bookkeep`/`#reject` never reached).
       if (parsed.dryRun) {
-        // The three pre-dispatch gates — carrier-integrity, dispatch-input and
-        // artifact-identity — are PURE reads (a digest comparison, the layout's supplied
-        // cells + the matrix's names + the strict sidecar schema), so the preview asks
-        // the SAME judgments the real dispatch applies, in the same order, and prints
-        // the first refusal verbatim — a dry run that stayed silent here would forecast
-        // a dispatch the real run refuses. `mode: "preview"` is the dispatch-input
-        // gate's ONE weaker (permissive) arm: a brief it would render itself is answered
-        // by its naming line, never by an existence read; every other cell is judged
-        // identically.
-        const refused =
-          harness === null
-            ? null
-            : (harness.carrierRefusal(frame) ??
-              harness.inputRefusal(frame, "preview") ??
-              harness.artifactRefusal(frame));
+        // The pre-flight seam already judged this dispatch ONCE, before this loop: the
+        // four pre-dispatch rows are the seam's (P40 T4/T5), so the preview holds no
+        // gate mirror — a second ask here would be a second source of truth for the
+        // same judgment, and a refused dispatch never reaches the preview at all (the
+        // seam's verdict returned at the composition root). The `--dry-run` arm is
+        // therefore a pure forecast: read the frame, render the five rows.
         const preview = new Preview({ scene, words: this.#words });
-        if (refused !== null) {
-          for (const line of preview.artifactBlock(verb, refused)) this.#io.stdout(`${line}\n`);
-          return 1;
-        }
         for (const line of preview.render(verb, frame)) this.#io.stdout(`${line}\n`);
         return 0;
       }
@@ -1212,13 +1212,10 @@ export class Cli {
    *  retired synthetic approval (`() => ({ status: "APPROVED", findings: [] })`)
    *  has no remaining caller: a preview books no round and fabricates no
    *  conclusion. */
-  async #dispatchOf(parts: DispatchParts): Promise<{
-    step: DispatchStep;
-    harness: CliLifecycle | null;
-  }> {
-    const { scene, parsed, recovered, recover, artifacts } = parts;
-    if (this.#dispatch !== null) return { step: this.#dispatch, harness: null };
-    const harness = this.#lifecycleOf(scene, parsed, artifacts, recover);
+  async #dispatchOf(parts: DispatchParts): Promise<{ step: DispatchStep }> {
+    const { scene, parsed, recovered, recover, artifacts, values } = parts;
+    if (this.#dispatch !== null) return { step: this.#dispatch };
+    const harness = this.#lifecycleOf(scene, parsed, artifacts, recover, values);
     // The abort fold already ran at the composition root's `--recover` judgment
     // (`#recoverRun`) when `recovered`; the injected/default face keeps its own fold
     // here, so the takeover always precedes this dispatch's own record. `recover` is
@@ -1226,14 +1223,10 @@ export class Cli {
     if (!recovered && recover) {
       await harness.foldAbort();
     }
-    // The harness itself rides back so the `--dry-run` branch can ask it the three
-    // pre-dispatch gates' PURE reads — the carrier-integrity judgment, then the
-    // dispatch-input judgment, then the artifact-identity one, the order this face's own
-    // dispatch applies them in (the same judgments `step()` applies), and the preview can
-    // print the real run's refusal instead of forecasting a dispatch it would refuse. The
-    // injected `#dispatch` seam has no harness — a hermetic caller already replaced the
-    // whole dispatch, so there is no gate to ask.
-    return { step: harness.step(), harness };
+    // The harness stays private to this method: the `--dry-run` branch asks it nothing
+    // (P40 T5 retired the gate mirror — the seam is the ONE ask), so the ONLY reader of
+    // a built harness is the dispatch step itself.
+    return { step: harness.step() };
   }
 
   /** The `--recover` judgment (spec §2.1①–③) — the two legs, judged in order and
@@ -1256,15 +1249,18 @@ export class Cli {
     parsed: RunInput,
     inflight: InFlight,
     artifacts: ArtifactRegistry,
+    values: Readonly<Record<string, string>>,
   ): Promise<RecoverRun> {
     // The fold rides a throwaway harness: this judgment runs BEFORE the wave brief is
     // rendered, and the DISPATCHING harness must be built afterwards (its scene snapshot
     // carries `briefPath` — the dispatch-input gate reads it). `foldAbort` touches only
-    // the in-flight record and the ledger, so a pre-brief instance is enough.
+    // the in-flight record and the ledger, so a pre-brief instance is enough. The value
+    // record is the root's ONE assembly (P40 T5) — the fold renders nothing, so the
+    // throwaway instance carries the SAME object the dispatching one will.
     const stale = (await inflight.staleState()) !== null;
     // `true`: this judgment runs ONLY under the derived `--recover` (the caller's guard),
     // so the harness it builds holds the takeover permission by construction.
-    if (stale) await this.#lifecycleOf(scene, parsed, artifacts, true).foldAbort();
+    if (stale) await this.#lifecycleOf(scene, parsed, artifacts, true, values).foldAbort();
     const reopened = await this.#reopenLeg(verb, type, scene, inflight);
     if (stale || reopened) return { kind: "allowed" };
     return { kind: "blocked", message: RECOVER_NOTHING };
@@ -1313,6 +1309,7 @@ export class Cli {
     parsed: RunInput,
     artifacts: ArtifactRegistry,
     recover: boolean,
+    values: Readonly<Record<string, string>>,
   ): CliLifecycle {
     return new CliLifecycle({
       env: process.env,
@@ -1339,6 +1336,9 @@ export class Cli {
       recover,
       // The same matrix instance the scene's ledger and router hold.
       artifacts,
+      // The dispatch's value record — composed ONCE at this root, judged by the seam and
+      // rendered here: one assembly, two consumers (P40 T5).
+      values,
     });
   }
 
@@ -1386,7 +1386,16 @@ export class Cli {
     const carrierPath = RequestingCarrier.path(scene.ledger, parsed.paths.reviews, carrier);
     const reviewsPath = carrierPath === null ? null : this.#relativeOf(scene, carrierPath);
     const digest = RequestingCarrier.requesterRecord(scene.ledger, carrier)?.carrierDigest ?? null;
-    const artifact = this.#artifactSnapshotOf(scene, op, reviewsPath, digest);
+    // The snapshot is the assembly's third cell (P40 T5 lifted it beside the composer):
+    // ONE read of the sidecar, the same value the seam judges and the record names.
+    const artifact = ArtifactSnapshots.of({
+      artifacts: this.#matrix,
+      workspace: scene.workspace,
+      words: this.#words,
+      op,
+      reviewsPath,
+      digest,
+    });
     const roundArtifact = RoundNaming.artifactOf(op, type, { tasks, round: cycle, attempt });
     const plane = HandoffSchema.planeOf(op);
     const sceneFacts: DispatchSceneFacts = {
@@ -1428,70 +1437,6 @@ export class Cli {
     if (TargetFaceTable.isDocShape(type)) return "";
     if (phase !== "implement" && phase !== "fix") return "";
     return path.join(scene.workspace.path, RoundNaming.renderName(roundArtifact, "evidence"));
-  }
-
-  /** This dispatch's artifact judgment as the contract plane's snapshot — the ONE read
-   *  the `carrier` and `artifact` rows judge. The sidecar is judged on the fix face ALONE
-   *  (the review round's own context has no sidecar yet), so every other face hands in
-   *  the no-sidecar value. A requesting carrier whose bytes no longer digest to the
-   *  recorded value becomes the integrity arm INSTEAD of a read: its id set is not a fact
-   *  this round may read. The shortening and the line's format stay in their own homes
-   *  (`CarrierIntegrity` · `CarrierLine`), never here. */
-  #artifactSnapshotOf(
-    scene: WorkScene,
-    op: OpType,
-    reviewsPath: string | null,
-    digest: string | null,
-  ): ArtifactSnapshot {
-    if (op !== "fix") return { kind: "read", reviewsPath, read: ABSENT_SNAPSHOT_READ };
-    try {
-      const read = new ArtifactReads(this.#matrix, scene.workspace).read(
-        RULINGS_KIND,
-        reviewsPath ?? "",
-        digest,
-      );
-      return { kind: "read", reviewsPath, read: this.#snapshotReadOf(scene, read.read) };
-    } catch (raw) {
-      if (!(raw instanceof CarrierMismatchError)) throw raw;
-      return { kind: "mismatch", reviewsPath, carrier: raw.facts() };
-    }
-  }
-
-  /** One `ArtifactRead` flattened into the contract plane's value — every path on the ONE
-   *  basis, the identity words rendered by the words plane, the `misplaced` report's kind
-   *  word named once. */
-  #snapshotReadOf(scene: WorkScene, read: ArtifactRead): ArtifactSnapshotRead {
-    if (read.kind === "ok") {
-      return {
-        kind: "ok",
-        path: this.#relativeOf(scene, read.path),
-        reason: null,
-        found: [],
-        identity: null,
-        sidecarKind: null,
-      };
-    }
-    if (read.kind === "invalid") {
-      return {
-        kind: "invalid",
-        path: this.#relativeOf(scene, read.path),
-        reason: read.reason,
-        found: [],
-        identity: null,
-        sidecarKind: null,
-      };
-    }
-    if (read.kind === "misplaced") {
-      return {
-        kind: "misplaced",
-        path: this.#relativeOf(scene, scene.workspace.resolve(read.derived)),
-        reason: null,
-        found: read.found.map((name) => this.#relativeOf(scene, scene.workspace.resolve(name))),
-        identity: this.#words.identityWords(read.identity),
-        sidecarKind: RULINGS_KIND,
-      };
-    }
-    return ABSENT_SNAPSHOT_READ;
   }
 
   /** The ONE repo-basis conversion on this root — `RepoRoot.relativize` reads an absolute

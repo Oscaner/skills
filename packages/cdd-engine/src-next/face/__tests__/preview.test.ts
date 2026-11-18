@@ -25,17 +25,20 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
+import { PreFlightRows } from "../../contract/preflight-rows.ts";
 import { ConfigLoader } from "../../infra/config.ts";
 import { ProcessFacts } from "../../infra/proc.ts";
 import { Workspace, WorkspaceRoot } from "../../infra/workspace.ts";
 import { Ledger } from "../../session/ledger.ts";
 import type { DispatchOutcome, OpenFrame } from "../../session/run.ts";
+import { BoardView } from "../board-view.ts";
 import type { CliIo, CliOptions, DispatchScene } from "../cli.ts";
 import { Cli } from "../cli.ts";
 import type { StepRunner } from "../init.ts";
 import { Preview } from "../preview.ts";
+import { Words } from "../words.ts";
 
 // ---------------------------------------------------------------------------
 // the renderer's inline scene (no disk)
@@ -340,6 +343,58 @@ const baseSet = async (command: Cli, plan: string): Promise<void> => {
 const progressPath = (repoRoot: string): string =>
   path.join(repoRoot, ".kairos", "cdd", "p3", "progress.json");
 
+describe("Preview.artifactBlock — the structure leg's ONE refusal renderer", () => {
+  it("lays the seam's verdict out verbatim under the word table's `refused:` row", () => {
+    const words = new Words();
+    const reason = [
+      "dispatch-input · docs-fix · INPUT_REVIEWS · empty-value",
+      "  derived:  .kairos/cdd/p3/phase-spec-review-1.c1.rulings.json",
+    ].join("\n");
+    expect(new Preview({ scene: scene(), env: {}, words }).artifactBlock("fix", reason)).toEqual([
+      "cdd fix: preview (no repo changes)",
+      "  refused:  dispatch-input · docs-fix · INPUT_REVIEWS · empty-value",
+      "  derived:  .kairos/cdd/p3/phase-spec-review-1.c1.rulings.json",
+    ]);
+    // ONE word, two faces (§3.1): the token and its two-space gap are the table's own
+    // row — the preview adds nothing but its two-space indent.
+    const row = words.refusalWords();
+    expect(new Preview({ scene: scene(), env: {}, words }).artifactBlock("fix", reason)[1]).toBe(
+      `  ${row.token}${row.gap}dispatch-input · docs-fix · INPUT_REVIEWS · empty-value`,
+    );
+  });
+
+  it("keeps the token the board's refusal row reads — same word, each face's own outer layer", () => {
+    const words = new Words();
+    const previewLine = new Preview({ scene: scene(), env: {}, words }).artifactBlock(
+      "fix",
+      "x",
+    )[1];
+    const boardLine = BoardView.refusalRows(
+      {
+        kind: "standing",
+        facts: {
+          at: "2026-11-17T00:00:00.000Z",
+          slug: "p3",
+          op: "fix",
+          type: "phase-spec",
+          cycle: 1,
+          attempt: 1,
+          station: "dispatch-input",
+          detail: "docs-fix · INPUT_REVIEWS · empty-value",
+        },
+      },
+      words,
+    )[0];
+    expect(previewLine?.startsWith(`  ${words.refusalWords().token}`)).toBe(true);
+    expect(boardLine?.startsWith(`  ${words.refusalWords().token}`)).toBe(true);
+    // The preview's outer layer is the two-space gap; the board's is the record identity.
+    expect(previewLine).toBe(`  ${words.refusalWords().token}${words.refusalWords().gap}x`);
+    expect(boardLine).toBe(
+      `  ${words.refusalWords().token} fix 1·a1 dispatch-input · docs-fix · INPUT_REVIEWS · empty-value`,
+    );
+  });
+});
+
 describe("cdd <verb> --dry-run — the read-only preview", () => {
   it("writes nothing: `.kairos/` stays absent and the tree is byte-identical", async () => {
     const { command, io, repoRoot, cleanup } = fixture();
@@ -417,6 +472,32 @@ describe("cdd <verb> --dry-run — the read-only preview", () => {
           ?.rounds?.map((record) => `${record.op}:${record.cycle}`),
       ).toEqual(["implement:1", "review:1"]);
     } finally {
+      cleanup();
+    }
+  });
+
+  it("judges the dispatch ONCE through the loop — the seam, and no face-side mirror", async () => {
+    const { command, io, repoRoot, cleanup } = fixture();
+    const judge = vi.spyOn(PreFlightRows, "judge");
+    try {
+      gitInit(repoRoot);
+      const plan = planFor(repoRoot);
+      await baseSet(command, plan);
+      expect(
+        await command.runArgv(["implement", "--tasks", "1", "--plan", plan, "--dry-run"]),
+      ).toBe(0);
+      // ONE judgment for ONE dispatch (P40 T5): the seam runs the four rows, the
+      // `--dry-run` arm renders the frame and asks nothing. A second count would mean a
+      // second source of truth for the same dispatch.
+      expect(judge).toHaveBeenCalledTimes(1);
+      // …and the preview is the five-row forecast, unchanged by the mirror's retirement
+      // (the `checked:` block the passing verdict renders sits above it, never inside).
+      expect(io.stdoutText).toContain("cdd implement: preview (no repo changes)");
+      for (const label of ["step:", "reads:", "would write:", "would record:", "child:"]) {
+        expect(io.stdoutText).toContain(`  ${label}`);
+      }
+    } finally {
+      judge.mockRestore();
       cleanup();
     }
   });

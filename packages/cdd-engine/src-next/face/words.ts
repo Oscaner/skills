@@ -123,23 +123,21 @@ export type ArtifactIdentityFacts = {
   readonly identity: Identity;
 };
 
-/** The two reasons one `dispatch-input` segment can carry (spec §2.2's closed set) —
- *  `empty-value`: the cell was required and the engine supplied nothing; `target-absent`:
- *  the value names a document that is not on disk, or a declared `program:` whose
- *  charter does not resolve. A third reason is not representable: the two row-selector
- *  slots (`ROLE` · review's `TARGET_TYPE`) are the assembler's precondition, and an
- *  undeclared cell has no line to be judged on. */
-export type DispatchInputReason = "empty-value" | "target-absent";
-
-/** One segment of the `dispatch-input` refusal (spec §2.2) — the row the cell sits on,
- *  the cell's `{{TOKEN}}`, and the reason that cell failed. One cell, one segment. */
-export interface DispatchInputSegment {
-  /** The dispatched row's ROLE word (`implement` · `review` · `fix` · `docs-fix`). */
-  readonly row: string;
-  /** The failed cell's token name (`INPUT_OVERALL` · `BASE_BRANCH` · …). */
+/** The `refused:` row's words — ONE row, TWO faces (spec §3.1: 同词，不是同形). The
+ *  token and its two-space value gap live together, so the preview face and the board
+ *  read one cell and each adds only its own outer layer: the preview prints
+ *  `  ` + token + gap + the live verdict's first line; the board prints
+ *  `  ` + token + ` ` + the recorded identity cells. A second literal in either face
+ *  would let the next reword stop at one of them. */
+export interface RefusalWords {
+  /** The row's token — `refused:`. */
   readonly token: string;
-  /** Why the cell failed — the closed two-word set. */
-  readonly reason: DispatchInputReason;
+  /** The two-space value gap the preview face prints between the token and the verdict's
+   *  first line (today's bytes, unchanged). */
+  readonly gap: string;
+  /** The board's second shape — a record on disk that cannot be read is a fact, never
+   *  "no refusal stands". */
+  readonly corrupt: string;
 }
 
 /** The in-flight wording rows — the held-report / takeover / corrupt-record / recovery
@@ -317,6 +315,14 @@ export const CAPSULE_WORDS = {
    *  spec §3.3): the round still concludes, and this line names what was booked.
    *  Fill slot: {message}. */
   softViolation: "round soft violation: {message}",
+  /** The `refused:` row (P40 T7) — the ONE word the preview block and the board's
+   *  refusal row share. The live verdict's body is the caller's (the preview prints the
+   *  seam's own first line); the board composes its identity cells from the record. */
+  refusal: {
+    token: "refused:",
+    gap: "  ",
+    corrupt: "unreadable refusal record",
+  },
   /** The `dispatch-input` refusal rows (P38 §2.2) — the station word, the one segment
    *  template (`{row} · {token} · {reason}`) and the segment separator. One line names
    *  every failing cell, so a refused round is repaired in one pass instead of one
@@ -572,6 +578,12 @@ export class Words implements WordLocaleFace, PlanReadWords {
     return CAPSULE_WORDS.preflight;
   }
 
+  /** The `refused:` row's words (P40 T7) — the preview block and the board's refusal
+   *  row read this ONE cell and add their own outer layer. */
+  refusalWords(): RefusalWords {
+    return CAPSULE_WORDS.refusal;
+  }
+
   /** The checked-list wording rows — the per-rule outcome vocabulary (single source:
    *  the seam renders these rows, never a CLI literal). */
   checkedWords(): CheckedWords {
@@ -605,21 +617,6 @@ export class Words implements WordLocaleFace, PlanReadWords {
    *  filler of its slot. */
   softViolation(message: string): string {
     return CAPSULE_WORDS.softViolation.replace("{message}", message);
-  }
-
-  /** The `dispatch-input` refusal (P38 §2.2) — the station word plus every failing
-   *  cell's segment, `; ` between segments and ` · ` inside one. The `CDD_BLOCKED: `
-   *  prefix is the block channel's, never this row's, so a dry-run consumer and a real
-   *  dispatch read the same bytes. */
-  dispatchInput(facts: { segments: readonly DispatchInputSegment[] }): string {
-    const row = CAPSULE_WORDS.dispatchInput;
-    const segments = facts.segments.map((segment) =>
-      row.segment
-        .replace("{row}", segment.row)
-        .replace("{token}", segment.token)
-        .replace("{reason}", segment.reason),
-    );
-    return [row.station, segments.join(row.separator)].join(CAPSULE_WORDS.separator);
   }
 
   /** The four pre-dispatch rows' wording (P40 T3) — the ONE injection point of the

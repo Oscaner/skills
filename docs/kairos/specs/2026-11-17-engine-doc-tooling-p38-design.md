@@ -133,7 +133,7 @@ requiredOn 按「这一轮缺了它还能不能判」推出，不按「今天恰
 - **声明**：身份文档**解析头里的两处声明**——`program:` 的那个词（`DocEntry.program`，`infra/slug-index.ts`：null 当且仅当这份文档没有写 `program:`）与 `doc-type:` 的那个形状（`DocEntry.docType`：null 当且仅当这份文档没有声明形状）。两者都是**声明的字面量**，场景装配把它们作为格交出（与 `specLink` · `overallLink` 并列，承载解析头本身），`#sceneOf`（`face/cli.ts`）从文档域读到它们：`when: program` 读 `program` 那一格，`when: identity` 读 `docType` 那一格。它们既不是一次新读、也不是已解析值：门在派发期不解析任何文档，只读这两格。**三个候选名字只有一个能答「声明了没有」**：`DocEntry.program` 是那个字面量（本门的唯一来源）；`ChainRoot.programLink`（`contract/doc.ts`）是它派生的链接，而 `SingleSpecDocType` · `PlanDocType` · `OverallDocType` 的 chainRoot 按设计**恒交 `null`**，于是它在单 spec / 计划 / 章程面上与「没声明」不可分辨；`scene.overallLink` 是**已解析**值，断链与未声明在它上面同样塌成 `null`。因此声明读 `DocEntry.program`、值读 `scene.overallLink`，两者在断链的轮次上分岔（前者非空、后者为 `null`），只读后者会把「声明了而解析不到」读成「没声明」（§1.3 两臂）；`when: identity` 走同一分工：声明读 `DocEntry.docType`、值读 `scene.specLink`。
 - **存在性**：目标路径在不在——由 P36 的矩阵面 `DocFs` 读（`contract/invariants.ts`）回答，是 `target-absent` 的唯一来源；它只对 §1.1 声明了 `path: true` 的格发问。
 
-它挂在既有 `artifactRefusal` 的同一形状旁边——`face/lifecycle.ts` 已有先例（`artifactRefusal(frame)` 供 `--dry-run` 读，`#artifactRefusalOf(cell)` 供真派发拒，两者是同一判定的两个消费者）。
+它挂在既有 artifactRefusal 的同一形状旁边——`face/lifecycle.ts` 已有先例（artifactRefusal(frame) 供 `--dry-run` 读，#artifactRefusalOf(cell) 供真派发拒，两者是同一判定的两个消费者）。
 
 位置在 **artifact 门之前**：它判「这一轮能不能成立」（读的路径在不在），artifact 门判「输入的质量」（sidecar 合规否）。前者更基本，且不读文件内容。
 
@@ -191,7 +191,7 @@ CDD_BLOCKED: dispatch-input · <row> · <TOKEN> · <reason>; <row> · <TOKEN> ·
 
 #### 2.4 与 `--dry-run` 的同源
 
-`--dry-run` 的门入口是 `face/cli.ts` 里 `harness.artifactRefusal(frame)` 那处，`dispatch-input` 挂在它旁边。判据可核的最低形态是**同一返回值的两个消费者**：pin 断言同一帧下 `--dry-run` 报的拒绝串与真派发 `CDD_BLOCKED` 的 reason 逐字节相同——只有一格例外，即下面写明的引擎合成格。
+`--dry-run` 的门入口是 `face/cli.ts` 里 harness.artifactRefusal(frame) 那处，`dispatch-input` 挂在它旁边。判据可核的最低形态是**同一返回值的两个消费者**：pin 断言同一帧下 `--dry-run` 报的拒绝串与真派发 `CDD_BLOCKED` 的 reason 逐字节相同——只有一格例外，即下面写明的引擎合成格。
 
 `--dry-run` 与真派发共用同一个帧，只有一格由引擎现造：`INPUT_WAVE_BRIEF`。真派发面由 `CliGate#renderBrief` 落盘后把路径写进场景；预览面**不写**（预览是纯读，§5.4），它拿的是这一格**声明出来的答案**——`preview: satisfied`（§1.1 声明一次、§1.4 记在该行），读的是同一行的命名 `RoundNaming#briefName`（`renderBrief` 落盘写的就是这个名字）。`satisfied` 的含义只有两条：命名行点名 ⇒ 该格在预览里视为满足；未点名 ⇒ 落回 requiredOn 的空值臂 ⇒ `empty-value`。它既不做存在性读、也不写盘——`path: true` 的读只发生在真派发那侧，那时文件已经落盘。
 
@@ -199,7 +199,7 @@ CDD_BLOCKED: dispatch-input · <row> · <TOKEN> · <reason>; <row> · <TOKEN> ·
 
 `--dry-run` **不新增输出行**：把读格渲染出来会新增一条渲染面，而渲染面每多一处就多一处「预览与真派发各说各话」的机会。整段 prompt 的字节等价属 P39 的守恒面，不在此越界。
 
-> **换向记录（2026-11-18 · P40）**：本节那条 per-mode 例外已由 P40 作废——`INPUT_WAVE_BRIEF` 在声明面上改记为引擎写的（`preview: "satisfied"` 退出），任何路径都不再做存在性读，于是预览与真派发在这一格上不再分歧，`#answeredByNaming` 与 `inputRefusal` 的 `mode` 参数一并退场。本节正文按交付时的字节保留（不改写历史），改向以本条为准；本节其余判据（门序 · 报文原因闭集 · 逐格成对 pin）不动。
+> **换向记录（2026-11-18 · P40）**：本节那条 per-mode 例外已由 P40 作废——`INPUT_WAVE_BRIEF` 在声明面上改记为引擎写的（`preview: "satisfied"` 退出），任何路径都不再做存在性读，于是预览与真派发在这一格上不再分歧，#answeredByNaming 与 inputRefusal 的 `mode` 参数一并退场。本节正文按交付时的字节保留（不改写历史），改向以本条为准；本节其余判据（门序 · 报文原因闭集 · 逐格成对 pin）不动。
 
 ### 3. `none` 的语义
 
@@ -295,7 +295,7 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 
 11. **穷尽性断言的方向**（落地：章程 `v4.10`，同一行）。位置：Phase inventory 的 P38 行**验收 ①**。原文「一条穷尽性断言（`TOKENS` 的 round-context zone × 各 row 自己的 layout，每格必须被声明覆盖，漏一格即红）」读成「某 row 自己那份 layout 里出现的每一格」时永远为真——layout 里的格就是它声明的格——而它要拦的是「登记了这个 token、却没有任何 row 携带它」。该处改为「`TOKENS` 的 round-context zone 里每个已登记的 round-context token 都必须被某份 row 的 layout 携带，一个携带者也没有即红」，即交付的 `TemplateAssembler#assertEveryCellHasCarrier`（`render/templates.ts`，§4.2）。
 
-12. **臂的组合是并列，不是合取**（待应用：章程 `v4.11`）。位置：设计决策留存表的 **D94 行** 与 **Phase inventory 的 P38 行详情格**，两处今日都写着「几条合取臂」（第八项 ① 的措辞即此出处，那条落地记录保留不改）。合取与交付的判据相反——`#armHits`（`face/lifecycle.ts`）逐臂判，`#inputRefusalOf` 只在 `hits.length === 0` 时跳过该格，即**任一条命中即 exigible**；读成合取时 `review` / `docs-fix` 的 `INPUT_OVERALL` 两臂（`[overall]` 与 `[phase-spec, plan, branch, wave]`，type 集互斥）在任何 frame 上都不 exigible，反转 ① 随之失效（§1.1）。两处改为「一格一条臂，或几条**并列**臂（任一条命中即 exigible）」。源码面同批两处 docblock：`RequiredArm` 与 `ContextLine` 的 `requiredOn`（`render/templates.ts`）把「several conjunctive arms」改为并列措辞——判据的字节在 `face/lifecycle.ts`，docblock 只是跟随。章程 change-history 的 `v4.08` 行**不改**（历史行，同第十项的理由），措辞更正由本项的 `v4.11` 行说出。章程 `version:` 递增至 `v4.11` 并追加 change-history 行。
+12. **臂的组合是并列，不是合取**（待应用：章程 `v4.11`）。位置：设计决策留存表的 **D94 行** 与 **Phase inventory 的 P38 行详情格**，两处今日都写着「几条合取臂」（第八项 ① 的措辞即此出处，那条落地记录保留不改）。合取与交付的判据相反——`#armHits`（`face/lifecycle.ts`）逐臂判，#inputRefusalOf 只在 `hits.length === 0` 时跳过该格，即**任一条命中即 exigible**；读成合取时 `review` / `docs-fix` 的 `INPUT_OVERALL` 两臂（`[overall]` 与 `[phase-spec, plan, branch, wave]`，type 集互斥）在任何 frame 上都不 exigible，反转 ① 随之失效（§1.1）。两处改为「一格一条臂，或几条**并列**臂（任一条命中即 exigible）」。源码面同批两处 docblock：`RequiredArm` 与 `ContextLine` 的 `requiredOn`（`render/templates.ts`）把「several conjunctive arms」改为并列措辞——判据的字节在 `face/lifecycle.ts`，docblock 只是跟随。章程 change-history 的 `v4.08` 行**不改**（历史行，同第十项的理由），措辞更正由本项的 `v4.11` 行说出。章程 `version:` 递增至 `v4.11` 并追加 change-history 行。
 
 同时：非目标两处挖洞为「shell 正文的**其余**指令，`scratch/` 与 `none` 两句除外」（v4.05）；母宪章 `version` 递增并追加 change-history 行（v4.05 · v4.06 · v4.07 · v4.08 · v4.09 · v4.10）。
 
@@ -343,5 +343,5 @@ Anything that is not a round artifact — analysis scripts, one-off scans, inter
 | v0.10 | 2026-11-17 | branch-fix-2 轮（F2 / F3 按裁定落地）：§2.3 反转 ② 的 after-column 补上恢复动作——重派那一轮评审让载体重现，或给 `--reviews` 一个在仓库根下真实存在的路径，并写明 fix 轮造不出自己的输入（F2 的裁定 ACCEPTED：硬拒绝欠一条编排器可读的修法，与反转 ④ 的 `cdd base set` 同形；同一句进 changeset）· 验收的声明期可红判据由三种改为**五种**——点名槽注册（`#assertRegistered`）与 zone 覆盖（`#assertEveryCellHasCarrier`）两个方向，与 plan Task 1 的五条对齐（F3） | Oscaner M. · Claude（kairos:cdd-fix · 2026-11-17） |
 | v0.11 | 2026-11-17 | docs-fix 第八轮（phase-spec review-8 · F1–F5 全部接纳）：一格的多条臂改述为**并列**（取并集，任一条命中即 exigible）——§1.1 围栏注与正文、§1.4 表尾、验收三处去掉「合取」并写明合取读法会让 `review` / `docs-fix` 的 `INPUT_OVERALL` 永不可 exigible、反转 ① 随之失效，§6 新增第十二项登记章程两处「几条合取臂」与 `render/templates.ts` 两处 docblock 的并列措辞更正（章程侧待应用 `v4.11`）（F1）；§1.3 的 argv 面 pin 由 `PlanRead#readPath` 改回 `PlanSource#readPath`（`infra/plan-source.ts`）（F2）；§5.4 删去不可复现的 16 条 `orphan:` 实测计数，只留结构性判据与成对 pin（F3）；§1.3 的 P33 T2 ② 臂改述为它真正钉住的两格（`INPUT_OVERALL` 在场、`INPUT_SPEC` 不在），并写明 `ROLE: docs-fix` 只在 `--type plan` 臂上被点名、`--type overall` 轮没有独立 pin（F4）；§6 标题的版本范围改为 `v4.05`–`v4.10` 并标第十二项待应用，两处「本轮」deictic 改为 spec 版本（F5） | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
 | v0.12 | 2026-11-17 | **交付 · 相位关闭**：六任务四波全部落地——声明形状与三条构造期判据（`#assertDeclarations`）· 四态渲染 · 纯读门 `dispatch-input` 与门序 · `--dry-run` 字节等价与三门镜像 · 四段 `scratch/` 与两句 `none`（`$version` 25）· 章程 v4.05–v4.10 十一项回填。评审 8 轮 51 条全受理；四波 9 条、分支 2 轮 8 条；`pnpm run validate` exit 0；changeset `cdd-engine` minor。 | Oscaner M. · Claude（kairos:cdd-dev · 2026-11-17） |
-| v0.13 | 2026-11-18 | **换向记录（P40 回填）**：§2.4 末尾追加一条指向 P40 的记录——该节那条 per-mode 例外已由 P40 作废（`INPUT_WAVE_BRIEF` 改记为引擎写的，任何路径都不再做存在性读，`#answeredByNaming` 与 `inputRefusal` 的 `mode` 参数退场）。本节正文与其余判据按交付时的字节保留，不动；本条只指向，不重写。 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-18） |
+| v0.13 | 2026-11-18 | **换向记录（P40 回填）**：§2.4 末尾追加一条指向 P40 的记录——该节那条 per-mode 例外已由 P40 作废（`INPUT_WAVE_BRIEF` 改记为引擎写的，任何路径都不再做存在性读，#answeredByNaming 与 inputRefusal 的 `mode` 参数退场）。本节正文与其余判据按交付时的字节保留，不动；本条只指向，不重写。 | Oscaner M. · Claude（kairos:docs-fix · 2026-11-18） |
 | v0.14 | 2026-11-18 | **符号改名回填（P40 第一波 · fix 轮 F1）**：P40 的 Task 1 把本 spec 两处判据引用的构造期断言由 assertPreviewAnswer 改名为 `#assertEngineWritten`，§1.1 与 §4.2 的引用随之改记今日符号名，v0.8 / v0.9 两行血缘记录里的同一引用一并迁名；判据的形状与字节面不变（本轮只让已改名的符号重新可解析，`pins.guard` 的语料扫描因此归零）。 | Oscaner M. · Claude |

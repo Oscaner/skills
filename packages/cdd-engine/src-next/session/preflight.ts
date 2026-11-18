@@ -495,10 +495,6 @@ export class PreFlight {
         // no concrete fs (a recording fake pins the read).
         fs: this.#fs,
         wording: this.#words.preflightWording(),
-        // The naming cell is the seam's OWN answer, never a context slot: the dispatch
-        // path never asks it (only the preview's weaker arm does), so the dispatch answer
-        // IS `answered: false`.
-        naming: { answered: false },
       });
       if (rows.length > 0) {
         const first = rows[0]!;

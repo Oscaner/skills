@@ -47,6 +47,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Command } from "commander";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TestDispatchValues } from "../../__tests__/support/dispatch-values.ts";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import {
@@ -76,6 +77,7 @@ import {
 } from "../../session/next.ts";
 import type { PreFlightVerdict } from "../../session/preflight.ts";
 import { PreFlight } from "../../session/preflight.ts";
+import { PreFlightRefusal } from "../../session/refusal.ts";
 import { ArtifactRegistry, type Identity, type Kind } from "../../session/round-artifacts.ts";
 import type { DispatchStep, OpenFrame } from "../../session/run.ts";
 import { Capsule } from "../capsule.ts";
@@ -89,6 +91,14 @@ import { CommandTreeBuilder } from "../projection.ts";
 import type { ChildOutcome, ChildRun, ChildRunner, Termination } from "../termination.ts";
 import { Words } from "../words.ts";
 import { negatedOf } from "./negation.ts";
+
+/** The dispatch's value record for one fixture (P40 T5) — the SAME pre-frame assembly
+ *  the composition root hands the lifecycle, composed from the fixture scene and the
+ *  frame the case dispatches (the requesting carrier being the ledger's own derivation).
+ *  The lifecycle renders this record and derives nothing, so a fixture that skipped it
+ *  would assert the fixture's empty map instead of the engine's prompt. */
+const valuesFor = (scene: DispatchScene, frame: OpenFrame): Readonly<Record<string, string>> =>
+  TestDispatchValues.of(scene, frame, { reviews: TestDispatchValues.reviewsOf(scene, frame) });
 
 /** The roster narrowed to its CORE rows — the flag-less face's plan source. `cdd init`
  *  without the recommended-tier flag flattens the core rows only, so the flag-less
@@ -2623,6 +2633,42 @@ describe("the work commands run the lifecycle/capsule/ledger — injected-dispat
       }>(path.join(workspace, "progress.json"));
       const branchRow = progress.waves.find((row) => row.wave === "branch");
       expect(roundTokens(branchRow)).toEqual(["review:1:a1:true", "review:2:a1:true"]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("P40 T7 — `cdd board` prints the tree's standing refusal, and stops once it is cleared", async () => {
+    const { command, io, repoRoot, cleanup } = fixture({ dispatch: APPROVING });
+    try {
+      gitInit(repoRoot);
+      const plan = conformingPlan(repoRoot);
+      // The tree's ONE record, written through the record's own API — the board renders
+      // the fact, it never writes it (the writer is the seam's).
+      const root = new WorkspaceRoot(repoRoot, ".kairos/cdd");
+      const record = new PreFlightRefusal(root, "p3");
+      await record.write({
+        at: "2026-11-17T09:00:00.000Z",
+        slug: "p3",
+        op: "review",
+        type: "branch",
+        cycle: 1,
+        attempt: 1,
+        station: "dispatch-input",
+        detail: "review · BASE_BRANCH · empty-value",
+      });
+
+      io.stdoutText = "";
+      expect(await command.runArgv(["board", "--plan", plan])).toBe(0);
+      // The row is on stdout, in the tree-level block, in the record's own spelling.
+      expect(io.stdoutText.split("\n")).toContain(
+        "  refused: review 1·a1 dispatch-input · review · BASE_BRANCH · empty-value",
+      );
+
+      record.clear();
+      io.stdoutText = "";
+      expect(await command.runArgv(["board", "--plan", plan])).toBe(0);
+      expect(io.stdoutText).not.toContain("refused:");
     } finally {
       cleanup();
     }
@@ -6668,6 +6714,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: {},
         io,
         env: {},
       });
@@ -6731,6 +6778,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -6818,6 +6866,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { AI_AGENT: "pi" },
@@ -6851,6 +6900,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -6900,6 +6950,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, taskReviewFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -6938,18 +6989,31 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, specReviewFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
       });
       await dispatch.step()(specReviewFrame);
       const first = sync.calls[0]!.args[sync.calls[0]!.args.length - 1];
-      await dispatch.step()({ ...specReviewFrame, round: 2, params: { round: 2 } });
-      const second = sync.calls[1]!.args[sync.calls[1]!.args.length - 1];
+      // P40 T5 — the value record is the INVOCATION's (composed from the round it is about
+      // to consume), so a second round rides a second instance: one record per dispatch is
+      // the assembly's shape, not a fixture detail.
+      const roundTwo: OpenFrame = { ...specReviewFrame, round: 2, params: { round: 2 } };
+      const second = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        values: valuesFor(scene, roundTwo),
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
+      await second.step()(roundTwo);
+      const secondPrompt = sync.calls[1]!.args[sync.calls[1]!.args.length - 1];
       // D46 — the token is repoRoot-relative (the child spawned at cwd = repoRoot).
       const wsRel = path.relative(repoRoot, workspace.path);
       expect(first).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/phase-spec-review-1-report.md`);
-      expect(second).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/phase-spec-review-2-report.md`);
+      expect(secondPrompt).toContain(`- \`OUTPUT_REPORT\`: ${wsRel}/phase-spec-review-2-report.md`);
       // the round-keyed names never collide — a re-review cannot overwrite its predecessor
       expect(path.join(workspace.path, "phase-spec-review-1-report.md")).not.toBe(
         path.join(workspace.path, "phase-spec-review-2-report.md"),
@@ -6995,6 +7059,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7068,6 +7133,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7126,6 +7192,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7174,6 +7241,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, specReviewFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7229,6 +7297,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, specReviewFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7305,6 +7374,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         const dispatch = new HarnessDispatch({
           artifacts: new ArtifactRegistry(),
           scene,
+          values: valuesFor(scene, specReviewFrame),
           io,
           sync,
           env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7345,6 +7415,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, taskReviewFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7413,6 +7484,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, fixFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7471,6 +7543,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, fixFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7529,6 +7602,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, docsFixFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7617,6 +7691,10 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        // One record per instance: the loop below drives three frames through ONE
+        // lifecycle, so this fixture stands the FIRST frame's record in (the engine's
+        // own dispatch builds one per invocation).
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7640,7 +7718,13 @@ describe("the HarnessDispatch — the production dispatch default", () => {
     try {
       const scene = harnessScene(repoRoot);
       const io = new CaptureIo();
-      const noHost = new HarnessDispatch({ artifacts: new ArtifactRegistry(), scene, io, env: {} });
+      const noHost = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        values: {},
+        io,
+        env: {},
+      });
       expect(await noHost.step()(implementFrame)).toEqual({
         status: "BLOCKED",
         // no host: the dispatch never reached its git baseline
@@ -7666,6 +7750,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const failed = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync: {
           run: async () => ({ code: 1, stdout: "", stderr: "boom", termination: null }),
@@ -7696,6 +7781,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync: new StubRunner(),
         env,
@@ -7730,6 +7816,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7781,6 +7868,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7837,6 +7925,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7889,6 +7978,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7924,6 +8014,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -7966,6 +8057,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -8006,6 +8098,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -8078,6 +8171,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -8133,6 +8227,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -8209,6 +8304,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, implementFrame),
         io,
         sync,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -8271,13 +8367,6 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         }),
         "utf8",
       );
-      const dispatch = new HarnessDispatch({
-        artifacts: new ArtifactRegistry(),
-        scene,
-        io,
-        sync,
-        env: { CLAUDE_CODE_SESSION_ID: "s" },
-      });
       const frame: OpenFrame = {
         type: "branch",
         phase: "fix",
@@ -8288,6 +8377,14 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         params: { round: 1 },
         key: "branch",
       };
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        values: valuesFor(scene, frame),
+        io,
+        sync,
+        env: { CLAUDE_CODE_SESSION_ID: "s" },
+      });
       const outcome = await dispatch.step()(frame);
       // the empty input set is a SOFT observation (P22 T7) — a CDD_WARN line, never a
       // CDD_BLOCKED one: the round still concludes
@@ -9088,6 +9185,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
         const dispatch = new HarnessDispatch({
           artifacts: new ArtifactRegistry(),
           scene,
+          values: valuesFor(scene, fixFrame),
           io,
           sync,
           env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -9113,21 +9211,23 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           "utf8",
         );
         const docsSync = new StubRunner();
-        const docsDispatch = new HarnessDispatch({
-          artifacts: new ArtifactRegistry(),
-          scene,
-          io,
-          sync: docsSync,
-          env: { CLAUDE_CODE_SESSION_ID: "s" },
-        });
-        await docsDispatch.step()({
+        const docsFrame: OpenFrame = {
           type: "phase-spec",
           phase: "fix",
           round: 1,
           target: { kind: "spec", doc: "docs/kairos/specs/s1-design.md" },
           params: { round: 1 },
           key: "docs/kairos/specs/s1-design.md",
+        };
+        const docsDispatch = new HarnessDispatch({
+          artifacts: new ArtifactRegistry(),
+          scene,
+          values: valuesFor(scene, docsFrame),
+          io,
+          sync: docsSync,
+          env: { CLAUDE_CODE_SESSION_ID: "s" },
         });
+        await docsDispatch.step()(docsFrame);
         const docsPrompt = docsSync.calls[0]!.args[docsSync.calls[0]!.args.length - 1];
         expect(docsPrompt).toContain("a missing or mis-keyed disposition fails the round");
         expect(docsPrompt).toContain(
@@ -9163,6 +9263,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           const review = new HarnessDispatch({
             artifacts: new ArtifactRegistry(),
             scene,
+            values: valuesFor(scene, taskReviewFrame),
             io,
             sync: new StubRunner(),
             env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -9188,6 +9289,7 @@ describe("the HarnessDispatch — the production dispatch default", () => {
           const fix = new HarnessDispatch({
             artifacts: new ArtifactRegistry(),
             scene,
+            values: valuesFor(scene, fixFrame),
             io,
             sync: new StubRunner(),
             env: { CLAUDE_CODE_SESSION_ID: "s" },
@@ -9204,48 +9306,32 @@ describe("the HarnessDispatch — the production dispatch default", () => {
       }
     });
 
-    it("(f2) reversal ② — neither a carrier-less legacy record nor an absent one reaches the criterion", async () => {
+    it("(f2) reversal ② — the record carries no `INPUT_REVIEWS` when the record resolves no carrier, and the family name when no record exists", () => {
       const { repoRoot, cleanup } = fixture();
       try {
-        gitInit(repoRoot);
         // The pre-rename legacy row: the review round landed but recorded no carrier
-        // path, and no carrier exists at the canonical spelling or the retired twin.
+        // path, and no carrier exists at the canonical spelling or the retired twin —
+        // the accessor resolves nothing, so the cell has no value at all.
         const legacy = harnessScene(repoRoot, "p3-legacy");
         legacy.ledger.recordRound("1", { op: "review", cycle: 1 });
-        const run = async (scene: DispatchScene) => {
-          writeFileSync(
-            path.join(scene.workspace.path, "tasks-1-fix-1.json"),
-            JSON.stringify({ status: "APPROVED", artifacts: {}, dispositions: {} }),
-            "utf8",
-          );
-          writeFileSync(
-            path.join(scene.workspace.path, "tasks-1-fix-1-test-evidence.json"),
-            JSON.stringify(P21_EVIDENCE),
-            "utf8",
-          );
-          const dispatch = new HarnessDispatch({
-            artifacts: new ArtifactRegistry(),
-            scene,
-            io: new CaptureIo(),
-            sync: new StubRunner(),
-            env: { CLAUDE_CODE_SESSION_ID: "s" },
-          });
-          return dispatch.step()(fixFrame);
+        const fixWave: OpenFrame = {
+          type: "wave",
+          phase: "fix",
+          round: 1,
+          target: { kind: "wave", tasks: [1] },
+          params: { tasks: "1", round: 1, attempt: 1 },
+          key: "1",
         };
-        const skipped = await run(legacy);
-        // WAS: a VISIBLE soft skip (`FIX_DISPOSITIONS_UNRECORDED`) and the round concluded.
-        // NOW: P38 §2.3 reversal ② closes the silent face at the gate — `INPUT_REVIEWS` has
-        // no value at all, so the criterion is never asked. The skip row stays reachable at
-        // the criterion plane alone (`contract/__tests__/completion-criterion.test.ts`).
-        expect(skipped.status).toBe("BLOCKED");
-        expect(skipped.violations?.[0]?.grade).toBe("hard");
-        expect(skipped.violations?.[0]?.message).toContain("INPUT_REVIEWS · empty-value");
-        // The other half: no review record at all composes the family name, and the file is
-        // not there — `target-absent`, again before the child.
-        const absent = await run(harnessScene(repoRoot, "p3-absent"));
-        expect(absent.status).toBe("BLOCKED");
-        expect(absent.violations?.[0]?.grade).toBe("hard");
-        expect(absent.violations?.[0]?.message).toContain("INPUT_REVIEWS · target-absent");
+        expect(valuesFor(legacy, fixWave).INPUT_REVIEWS).toBe("");
+        // The other half: no record at all composes the REVIEW family's name (the cycle
+        // only, never this fix frame's attempt) — the cell names a path, which the
+        // seam's `dispatch-input` row then judges on disk (`target-absent` when absent).
+        const absent = harnessScene(repoRoot, "p3-absent");
+        const named = valuesFor(absent, fixWave).INPUT_REVIEWS;
+        expect(named).toBe(".kairos/cdd/p3-absent/tasks-1-review-1.json");
+        // P40 T5 — the row that refuses both halves lives at the seam
+        // (`contract/__tests__/preflight-rows.test.ts` (P38 h) for the empty value and
+        // the declared-path arm for the absent one); the FACE judges nothing.
       } finally {
         cleanup();
       }
@@ -9583,6 +9669,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, P21_IMPLEMENT),
         io,
         sync: runner,
         env: { AI_AGENT: "pi" },
@@ -9623,6 +9710,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, P21_IMPLEMENT),
         io,
         sync: runner,
         env: { AI_AGENT: "pi" },
@@ -9648,6 +9736,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, P21_IMPLEMENT),
         io,
         sync: runner,
         env: { AI_AGENT: "pi" },
@@ -9689,6 +9778,7 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, P21_IMPLEMENT),
         io,
         sync: runner,
         env: { AI_AGENT: "pi" },
@@ -9722,13 +9812,6 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
       // The probe captures the record INSIDE run() — the normal end releases it, so the
       // post-run file is (correctly) gone.
       const runner = new RecordProbeRunner(scene.workspace.path);
-      const dispatch = new HarnessDispatch({
-        artifacts: new ArtifactRegistry(),
-        scene,
-        io,
-        sync: runner,
-        env: { AI_AGENT: "pi" },
-      });
       const planReview: OpenFrame = {
         type: "plan",
         phase: "review",
@@ -9737,6 +9820,14 @@ describe("P21 — the in-flight record (the intent before the spawn, the release
         params: { round: 1 },
         key: path.relative(repoRoot, planPath),
       };
+      const dispatch = new HarnessDispatch({
+        artifacts: new ArtifactRegistry(),
+        scene,
+        values: valuesFor(scene, planReview),
+        io,
+        sync: runner,
+        env: { AI_AGENT: "pi" },
+      });
       await dispatch.step()(planReview);
       const record = JSON.parse(runner.recordAtSpawn as string) as InFlightRecord;
       expect(record.briefHash).toBeNull();
@@ -10160,6 +10251,7 @@ describe("P21 — the crash record's identity and git facts", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, P21_REVIEW),
         io,
         sync: runner,
         env: { AI_AGENT: "pi" },
@@ -10196,6 +10288,7 @@ describe("P21 — the crash record's identity and git facts", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, P21_IMPLEMENT),
         io,
         sync: runner,
         env: { AI_AGENT: "pi" },
@@ -10229,6 +10322,7 @@ describe("P21 — the crash record's identity and git facts", () => {
       const dispatch = new HarnessDispatch({
         artifacts: new ArtifactRegistry(),
         scene,
+        values: valuesFor(scene, P21_IMPLEMENT),
         io,
         sync: runner,
         env: { AI_AGENT: "pi" },
@@ -10272,6 +10366,7 @@ describe("P21 — the crash record's identity and git facts", () => {
         const dispatch = new HarnessDispatch({
           artifacts: new ArtifactRegistry(),
           scene,
+          values: valuesFor(scene, P21_IMPLEMENT),
           io,
           sync: runner,
           env: { AI_AGENT: "pi" },

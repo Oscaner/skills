@@ -89,16 +89,22 @@ export class Preview {
     return lines;
   }
 
-  /** The read-only refusal block for a pre-dispatch gate — one of the three the real
-   *  dispatch applies before the round exists REFUSED this dispatch (a `carrier-mismatch`
-   *  on a tampered requesting carrier; a dispatch-input cell the frame requires but left
-   *  empty or absent; a `misplaced` sidecar / unreadable one / a schema violation), so the
-   *  preview prints the gate's OWN reason verbatim: one read, two faces, and a dry run can
-   *  never forecast a dispatch the real run would refuse. Exit 1 at the caller; nothing is
-   *  written, moved or deleted (the repair is the orchestrator's). */
+  /** The read-only refusal block — the STRUCTURE leg's ONE refusal renderer: it prints
+   *  the reason it is handed, verbatim, and judges nothing itself (the pre-flight seam
+   *  owns the judgment; this class only lays the sentence out). One renderer, two faces:
+   *  the command face prints the same seam verdict on `CDD_BLOCKED`, so a dry run can
+   *  never forecast a dispatch the real run would refuse. The row's token and its
+   *  two-space value gap are the words table's ONE cell (the board's refusal row reads
+   *  the same one, each face adding only its own outer layer). Exit 1 at the caller;
+   *  nothing is written, moved or deleted (the repair is the orchestrator's). */
   artifactBlock(verb: CliVerb, reason: string): readonly string[] {
+    const row = this.#words.refusalWords();
     const [head, ...sections] = reason.split("\n");
-    return [`cdd ${verb}: preview (no repo changes)`, `  refused:  ${head ?? ""}`, ...sections];
+    return [
+      `cdd ${verb}: preview (no repo changes)`,
+      `  ${row.token}${row.gap}${head ?? ""}`,
+      ...sections,
+    ];
   }
 
   /** The `lock:` row's value — the holder's identity facts, the lock-without-record

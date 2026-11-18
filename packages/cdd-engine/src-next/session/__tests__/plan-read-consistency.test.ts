@@ -196,6 +196,7 @@ describe("P35 T7 — the board, the pre-flight graph and the frontier read ONE p
       repo,
       new Words(),
       "claude",
+      { kind: "absent" },
       {},
       undefined,
       BoardNext.of(read, source, index, entry, root),

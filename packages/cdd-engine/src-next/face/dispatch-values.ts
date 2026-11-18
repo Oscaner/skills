@@ -31,10 +31,15 @@
 // Module-level exports are types / the two classes — zero behavior-carrying bare
 // functions.
 
-import type { ArtifactSnapshot } from "../contract/preflight-rows.ts";
+import type { ArtifactSnapshot, ArtifactSnapshotRead } from "../contract/preflight-rows.ts";
 import type { RepoRoot } from "../infra/root.ts";
+import type { Workspace } from "../infra/workspace.ts";
+import { ArtifactReads } from "../session/artifact-reads.ts";
+import { CarrierMismatchError } from "../session/carrier-integrity.ts";
 import { TargetFaceTable, type TargetType } from "../session/faces.ts";
 import type { Ledger, OpType, RoundRecord } from "../session/ledger.ts";
+import type { ArtifactRead, ArtifactRegistry } from "../session/round-artifacts.ts";
+import type { Words } from "./words.ts";
 
 /** The dispatch's identity — the one cell that is not a path, a hash or a sentence.
  *  `cycle` / `attempt` are the round this dispatch would consume: they name the
@@ -265,5 +270,104 @@ export class RequestingCarrier {
       (newest, record) => (newest === null || record.attempt >= newest.attempt ? record : newest),
       null,
     );
+  }
+}
+
+/** The no-sidecar snapshot read — the value every non-fix face hands in. */
+const ABSENT_SNAPSHOT_READ: ArtifactSnapshotRead = {
+  kind: "absent",
+  path: null,
+  reason: null,
+  found: [],
+  identity: null,
+  sidecarKind: null,
+};
+
+/** The ONE artifact kind the dispatch judges (the fix round's ruling sidecar) — named
+ *  once so the read and the snapshot's `sidecarKind` cannot drift. */
+const RULINGS_KIND = "rulings" as const;
+
+/**
+ * ArtifactSnapshots — this dispatch's artifact judgment as the contract plane's
+ * snapshot: the ONE read the seam's `carrier` and `artifact` rows judge, and the cell
+ * the value record names (`INPUT_RULINGS`). It lives beside the composer because it is
+ * the third of the assembly's input cells, and because two producers need it: the
+ * composition root (`Cli#beforeOf`) and a fixture that dispatches a frame.
+ *
+ * The sidecar is judged on the fix face ALONE (a review round's own context has no
+ * sidecar yet), so every other face answers the no-sidecar value. A requesting carrier
+ * whose bytes no longer digest to the recorded value becomes the integrity arm INSTEAD
+ * of a read: its id set is not a fact this round may read.
+ */
+// biome-ignore lint/complexity/noStaticOnlyClass: the snapshot's single entry — the zero-bare-function discipline admits no standalone functions.
+export class ArtifactSnapshots {
+  /** The snapshot of one dispatch: the face's own read, flattened into plane-legal
+   *  values (no `session/` type crosses the plane). */
+  static of(opts: {
+    readonly artifacts: ArtifactRegistry;
+    readonly workspace: Workspace;
+    readonly words: Words;
+    readonly op: OpType;
+    readonly reviewsPath: string | null;
+    readonly digest: string | null;
+  }): ArtifactSnapshot {
+    const { reviewsPath } = opts;
+    if (opts.op !== "fix") return { kind: "read", reviewsPath, read: ABSENT_SNAPSHOT_READ };
+    try {
+      const read = new ArtifactReads(opts.artifacts, opts.workspace).read(
+        RULINGS_KIND,
+        reviewsPath ?? "",
+        opts.digest,
+      );
+      return { kind: "read", reviewsPath, read: ArtifactSnapshots.#readOf(opts, read.read) };
+    } catch (raw) {
+      if (!(raw instanceof CarrierMismatchError)) throw raw;
+      return { kind: "mismatch", reviewsPath, carrier: raw.facts() };
+    }
+  }
+
+  /** One `ArtifactRead` flattened into the contract plane's value — every path on the ONE
+   *  basis, the identity words rendered by the words plane, the `misplaced` report's kind
+   *  word named once. */
+  static #readOf(
+    opts: {
+      readonly workspace: Workspace;
+      readonly words: Words;
+    },
+    read: ArtifactRead,
+  ): ArtifactSnapshotRead {
+    const rel = (value: string): string =>
+      value === "" ? "" : opts.workspace.root.basis.relativize(value);
+    if (read.kind === "ok") {
+      return {
+        kind: "ok",
+        path: rel(read.path),
+        reason: null,
+        found: [],
+        identity: null,
+        sidecarKind: null,
+      };
+    }
+    if (read.kind === "invalid") {
+      return {
+        kind: "invalid",
+        path: rel(read.path),
+        reason: read.reason,
+        found: [],
+        identity: null,
+        sidecarKind: null,
+      };
+    }
+    if (read.kind === "misplaced") {
+      return {
+        kind: "misplaced",
+        path: rel(opts.workspace.resolve(read.derived)),
+        reason: null,
+        found: read.found.map((name) => rel(opts.workspace.resolve(name))),
+        identity: opts.words.identityWords(read.identity),
+        sidecarKind: RULINGS_KIND,
+      };
+    }
+    return ABSENT_SNAPSHOT_READ;
   }
 }

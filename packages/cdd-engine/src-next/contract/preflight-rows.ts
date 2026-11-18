@@ -173,10 +173,6 @@ export interface PreFlightRowsInput {
    *  and a recording fake is enough to pin the read. */
   readonly fs: DocFs;
   readonly wording: RowWording;
-  /** The engine-written cell's naming answer for THIS judgment. In P40 T3 only the
-   *  preview face asks it (zero behavior change); once the mode parameter retires the
-   *  declaration alone is the answer. */
-  readonly naming: { readonly answered: boolean };
 }
 
 /** The four judgments over one dispatch's values — every violation in one pass (no
@@ -241,14 +237,14 @@ export class PreFlightRows {
   }
 
   /** Why one exigible cell fails, or null when it stands: an empty value earns the
-   *  declaration's own word (unless the preview's naming answered the engine-written
-   *  cell), a non-empty path cell is read ONCE through the injected port, and an
-   *  engine-written cell is never read at all — the engine guarantees that file, so the
-   *  declaration (`written: "engine"`) is the whole answer on the existence leg too. */
+   *  declaration's own word UNLESS the declaration says the engine writes that file
+   *  (`written: "engine"` — the engine guarantees it, so the cell is answered on every
+   *  face without a second ask), a non-empty path cell is read ONCE through the injected
+   *  port, and an engine-written cell takes no existence read at all. The declaration is
+   *  the whole answer on both legs: one judgment, one reading, four faces. */
   static #reasonOfCell(cell: ExigibleCell, input: PreFlightRowsInput): ExigibleReason | null {
     const value = input.values[cell.token] ?? "";
-    const answered = cell.written === "engine" && input.naming.answered;
-    if (value === "") return answered ? null : cell.reason;
+    if (value === "") return cell.written === "engine" ? null : cell.reason;
     if (cell.path !== true || cell.written === "engine") return null;
     const absolute = input.repoRoot.resolve(value as RepoPath);
     return input.fs.exists(absolute) ? null : "target-absent";

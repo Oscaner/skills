@@ -33,6 +33,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
+import { TestDispatchValues } from "../../__tests__/support/dispatch-values.ts";
 import { planSourceOf } from "../../__tests__/support/plan-source.ts";
 import { stripComments } from "../../__tests__/support/strip-comments.ts";
 import {
@@ -41,6 +42,7 @@ import {
   IMPLEMENT_CARRIER_ABSENT,
   IMPLEMENT_VERIFICATION_WAVE,
 } from "../../contract/completion-criterion.ts";
+import { PreFlightRows } from "../../contract/preflight-rows.ts";
 import { REGRADE_MARK } from "../../contract/review-criteria.ts";
 import { CarrierSeal } from "../../infra/carrier-seal.ts";
 import { ConfigLoader } from "../../infra/config.ts";
@@ -223,6 +225,12 @@ const dispatchFrame = async (
       io: f.io,
       sync: runner,
       env: { CLAUDE_CODE_SESSION_ID: "s" },
+      // The record the composition root would compose for THIS frame (P40 T5): the
+      // requesting carrier is the ledger's own derivation, exactly as the flag-less
+      // `cdd fix` invocation resolves it.
+      values: TestDispatchValues.of(f.scene, frame, {
+        reviews: TestDispatchValues.reviewsOf(f.scene, frame),
+      }),
     });
     return { seen, outcome: await lifecycle.step()(frame) };
   } finally {
@@ -368,7 +376,9 @@ const plantStale = (f: Fixture, body: string): void => {
   writeFileSync(recordPathOf(f), body, "utf8");
 };
 
-/** One lifecycle over a fixture — the production liveness reader (a dead pid reads dead). */
+/** One lifecycle over a fixture — the production liveness reader (a dead pid reads dead).
+ *  The abort fold renders no prompt, so it reads no value record: an empty map is the
+ *  honest fixture (the required `values` slot documents the wiring, nothing more). */
 const lifecycleOf = (f: Fixture): CliLifecycle =>
   new CliLifecycle({
     scene: f.scene,
@@ -376,6 +386,7 @@ const lifecycleOf = (f: Fixture): CliLifecycle =>
     io: f.io,
     sync: new SilentRunner(),
     env: { CLAUDE_CODE_SESSION_ID: "s" },
+    values: {},
   });
 
 describe("CliLifecycle.foldAbort — the `--recover` abort leg (P30 §2.1①/§2.2)", () => {
@@ -770,19 +781,6 @@ const LEGAL_SIDECAR = {
   rulings: [{ finding: "F4", ruling: "REJECTED as stated", by: "orchestrator" }],
 };
 
-/** The nine refused shapes — each its own case (one broken fact per row). */
-const BAD_SIDECARS: readonly (readonly [string, unknown])[] = [
-  ["not JSON", "not json at all"],
-  ["no `rulings` key", { carrier: CARRIER_NAME }],
-  ["`rulings` not an array", { rulings: { F1: "no" } }],
-  ["a ruling without `finding`", { rulings: [{ ruling: "accepted" }] }],
-  ["a ruling without `ruling`", { rulings: [{ finding: "F1" }] }],
-  ["an unknown top-level key", { ...LEGAL_SIDECAR, extra: true }],
-  ["an unknown key inside a ruling", { rulings: [{ finding: "F1", ruling: "ok", extra: 1 }] }],
-  ["a ruling on a finding the carrier lacks", { rulings: [{ finding: "F9", ruling: "ok" }] }],
-  ["a `carrier` key naming another file", { ...LEGAL_SIDECAR, carrier: "other.c2.json" }],
-];
-
 /** The fix frame on the fixture's spec line (the `--reviews` seam injects the carrier). */
 const fixFrameOf = (specPath: string): OpenFrame => ({
   type: "phase-spec",
@@ -821,166 +819,13 @@ const runFix = async (
     sync: runner,
     env: { CLAUDE_CODE_SESSION_ID: "s" },
     reviews,
+    values: TestDispatchValues.of(f.scene, frame, { reviews }),
   });
   return lifecycle.step()(frame);
 };
 
 /** The prompt the child stand-in received (the joined argv). */
 const promptOf = (runner: SilentRunner): string => (runner.calls[0]?.args ?? []).join(" ");
-
-// ---------------------------------------------------------------------------
-// P31 T3 — the carrier-integrity gate (design spec §2.2): a fix round whose
-// requesting review carrier no longer digests to the value its round recorded stops
-// BEFORE the in-flight record and the child — the tamper never reaches a child.
-// ---------------------------------------------------------------------------
-
-/** The requesting review round's carrier name (the fix input's own file). */
-const REQUEST_CARRIER = "phase-spec-review-1.json";
-
-describe("P31 T3 — the carrier-integrity gate guards the fix dispatch", () => {
-  /** Plant a completed review round whose carrier + digest the ledger recorded. */
-  const seedReview = (f: Fixture): { path: string; digest: string } => {
-    const persisted = f.scene.ledger.persistHandoff(
-      "review",
-      "phase-spec",
-      { round: 1 },
-      {
-        status: "CHANGES_REQUESTED",
-        findings: [
-          { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
-        ],
-      },
-    );
-    f.scene.ledger.recordRound("phase-spec", {
-      op: "review",
-      cycle: 1,
-      carrierDigest: persisted.digest,
-    });
-    return persisted;
-  };
-
-  it("refuses a tampered input carrier before the child exists — no spawn, no acquire", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const sealed = seedReview(f);
-      // The tamper is an EXTERNAL writer: the carrier lands 0o444 (P31 §2.4), so the
-      // bytes move only after the permission bit is reopened — the smuggled blocker.
-      CarrierSeal.unseal(sealed.path);
-      writeFileSync(
-        sealed.path,
-        `${JSON.stringify(
-          {
-            status: "CHANGES_REQUESTED",
-            findings: [
-              { id: "F1", severity: "blocker", summary: "the guard is missing" },
-              { id: "F9", severity: "blocker", summary: "smuggled" },
-            ],
-          },
-          null,
-          2,
-        )}\n`,
-        "utf8",
-      );
-      const runner = new SilentRunner();
-      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
-      const outcome = await runFix(f, fixFrameOf(specPath), sealed.path, runner);
-      expect(outcome.status).toBe("BLOCKED");
-      expect(gradesOf(outcome)).toEqual(["hard"]);
-      // The gate is BEFORE the spawn and BEFORE the in-flight record's acquisition.
-      expect(runner.calls).toHaveLength(0);
-      expect(f.io.stderrText).toContain("CDD_BLOCKED");
-      expect(f.io.stderrText).toContain("carrier-mismatch");
-      expect(f.io.stderrText).toContain("recorded=");
-      expect(f.io.stderrText).toContain("current=");
-      const inFlight = await new InFlight(f.scene.workspace.root, f.scene.workspace.slug).inspect();
-      expect(inFlight.kind).toBe("absent");
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("names the carrier-mismatch, never a rulings reason, when a tampered carrier meets a sidecar", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const sealed = seedReview(f);
-      // The tamper drops the finding the sidecar rules on (F4) and smuggles F9: judged
-      // against the tampered bytes the ruling set reads as broken, which would hide the
-      // integrity refusal the round actually owes. The seal is reopened first — the
-      // external writer's own step.
-      CarrierSeal.unseal(sealed.path);
-      writeFileSync(
-        sealed.path,
-        `${JSON.stringify(
-          {
-            status: "CHANGES_REQUESTED",
-            findings: [
-              { id: "F1", severity: "blocker", summary: "the guard is missing" },
-              { id: "F9", severity: "blocker", summary: "smuggled" },
-            ],
-          },
-          null,
-          2,
-        )}\n`,
-        "utf8",
-      );
-      writeFileSync(
-        sidecarOf(f.scene.workspace, sealed.path),
-        JSON.stringify({
-          carrier: path.basename(sealed.path),
-          rulings: [{ finding: "F4", ruling: "REJECTED as stated", by: "orchestrator" }],
-        }),
-        "utf8",
-      );
-      const runner = new SilentRunner();
-      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
-      const outcome = await runFix(f, fixFrameOf(specPath), sealed.path, runner);
-      expect(outcome.status).toBe("BLOCKED");
-      expect(runner.calls).toHaveLength(0);
-      expect(f.io.stderrText).toContain("CDD_BLOCKED");
-      expect(f.io.stderrText).toContain("carrier-mismatch");
-      expect(f.io.stderrText).toContain("recorded=");
-      expect(f.io.stderrText).toContain("current=");
-      expect(f.io.stderrText).not.toContain("rulings sidecar");
-      expect(gradesOf(outcome)).toEqual(["hard"]);
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("lets the untampered carrier through — the child is spawned and the gate stays silent", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const sealed = seedReview(f);
-      const runner = new SilentRunner();
-      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
-      const outcome = await runFix(f, fixFrameOf(specPath), sealed.path, runner);
-      expect(runner.calls).toHaveLength(1);
-      expect(f.io.stderrText).not.toContain("carrier-mismatch");
-      // The silent child wrote no draft — the criterion owns the absence, never a crash.
-      expect(outcome.status).not.toBe("TIMEOUT");
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("reads a LEGACY review round (no digest) as present facts — the tamper is not refused", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const at = path.join(f.scene.workspace.path, REQUEST_CARRIER);
-      writeFileSync(at, JSON.stringify({ findings: [] }), "utf8");
-      // No path recorded, no digest: the identity's ladder resolves the very carrier
-      // the fix leg reads, and the read stays present-facts.
-      f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1 });
-      const runner = new SilentRunner();
-      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
-      await runFix(f, fixFrameOf(specPath), at, runner);
-      expect(runner.calls).toHaveLength(1);
-      expect(f.io.stderrText).not.toContain("carrier-mismatch");
-    } finally {
-      f.cleanup();
-    }
-  });
-});
 
 // ---------------------------------------------------------------------------
 // P34 T2 — the fix input's carrier is DERIVED from the requesting review record
@@ -1014,15 +859,21 @@ describe("P34 T2 — a derived fix input never inherits the frame's attempt", ()
 
   /** The lifecycle with NO `--reviews` flag — the derived resolution alone. */
   const runDerivedFix = async (f: Fixture, runner: SilentRunner): Promise<DispatchOutcome> => {
+    const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
+    const frame = fixFrameOf(specPath);
     const lifecycle = new CliLifecycle({
       scene: f.scene,
       artifacts: new ArtifactRegistry(),
       io: f.io,
       sync: runner,
       env: { CLAUDE_CODE_SESSION_ID: "s" },
+      // The derived resolution (no `--reviews` flag): the record names the carrier the
+      // ledger's own ladder resolves, exactly as the composition root produces it.
+      values: TestDispatchValues.of(f.scene, frame, {
+        reviews: TestDispatchValues.reviewsOf(f.scene, frame),
+      }),
     });
-    const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
-    return lifecycle.step()(fixFrameOf(specPath));
+    return lifecycle.step()(frame);
   };
 
   it("reads the attempt-2 FINAL the record resolves — the fix child sees that carrier", async () => {
@@ -1039,62 +890,6 @@ describe("P34 T2 — a derived fix input never inherits the frame's attempt", ()
       expect(promptOf(runner)).not.toContain("phase-spec-review-1.c1.json");
       expect(f.io.stderrText).not.toContain("carrier-mismatch");
       expect(outcome.status).not.toBe("TIMEOUT");
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("refuses a tampered attempt-2 FINAL before the child exists", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const sealed = seedAttemptTwo(f);
-      CarrierSeal.unseal(sealed.path);
-      writeFileSync(
-        sealed.path,
-        `${JSON.stringify(
-          {
-            status: "CHANGES_REQUESTED",
-            findings: [
-              { id: "F1", severity: "blocker", lens: "scope", summary: "the guard is missing" },
-              { id: "F9", severity: "blocker", lens: "scope", summary: "smuggled" },
-            ],
-          },
-          null,
-          2,
-        )}\n`,
-        "utf8",
-      );
-      const runner = new SilentRunner();
-      const outcome = await runDerivedFix(f, runner);
-      expect(outcome.status).toBe("BLOCKED");
-      expect(gradesOf(outcome)).toEqual(["hard"]);
-      expect(runner.calls).toHaveLength(0);
-      expect(f.io.stderrText).toContain("carrier-mismatch");
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("refuses the round when the record resolves no carrier — reversal ②, never a silent skip", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      // The record exists but none of the ladder's rungs is on disk: the accessor
-      // resolves nothing, so `#reviewsPath` is null and `INPUT_REVIEWS` has no value at
-      // all. WAS: a soft `resolves no carrier` skip and the round dispatched anyway
-      // (P34 T2). NOW: P38 §2.3 reversal ② — a fix round with no review input can not
-      // stand, so the gate refuses it before the child exists. The criterion's
-      // unrecorded-skip observation stays reachable through the criterion's OWN provider
-      // (pinned in `cli.test.ts` (f2)), never through this dispatch.
-      f.scene.ledger.recordRound("phase-spec", { op: "review", cycle: 1 });
-      const runner = new FixDraftRunner();
-      const outcome = await runDerivedFix(f, runner);
-      expect(outcome.status).toBe("BLOCKED");
-      expect(runner.calls).toHaveLength(0);
-      expect(f.io.stderrText).toContain(
-        "CDD_BLOCKED: dispatch-input · docs-fix · INPUT_REVIEWS · empty-value",
-      );
-      expect(f.io.stderrText).not.toContain("carrier-mismatch");
-      expect(f.io.stderrText).not.toContain("resolves no carrier");
     } finally {
       f.cleanup();
     }
@@ -1147,14 +942,18 @@ describe("P31 T4 — the fix input names the FINAL carrier", () => {
     path.relative(f.scene.workspace.root.repoRoot, at);
 
   const runFixFrame = async (f: Fixture, runner: ChildRunner): Promise<void> => {
+    const frame = fixFrameOf(specPathOf(f));
     const lifecycle = new CliLifecycle({
       scene: f.scene,
       artifacts: new ArtifactRegistry(),
       io: f.io,
       sync: runner,
       env: { CLAUDE_CODE_SESSION_ID: "s" },
+      values: TestDispatchValues.of(f.scene, frame, {
+        reviews: TestDispatchValues.reviewsOf(f.scene, frame),
+      }),
     });
-    await lifecycle.step()(fixFrameOf(specPathOf(f)));
+    await lifecycle.step()(frame);
   };
 
   it("names the final on every face while the child's draft sits beside it", async () => {
@@ -1198,7 +997,7 @@ describe("P31 T4 — the fix input names the FINAL carrier", () => {
     const f = fixture(planDoc([[1, []]]));
     try {
       // the legacy shape: the carrier sits at the family name, the record names none
-      const draftPath = path.join(f.scene.workspace.path, REQUEST_CARRIER);
+      const draftPath = path.join(f.scene.workspace.path, CARRIER_NAME);
       writeFileSync(
         draftPath,
         JSON.stringify({
@@ -1220,32 +1019,7 @@ describe("P31 T4 — the fix input names the FINAL carrier", () => {
   });
 });
 
-describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
-  for (const [label, body] of BAD_SIDECARS) {
-    it(`refuses ${label} before the child is spawned`, async () => {
-      const f = fixture(planDoc([[1, []]]));
-      try {
-        const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
-        writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
-        writeFileSync(
-          sidecarOf(f.scene.workspace, carrier),
-          typeof body === "string" ? body : JSON.stringify(body),
-          "utf8",
-        );
-        const runner = new SilentRunner();
-        const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
-        const outcome = await runFix(f, fixFrameOf(specPath), carrier, runner);
-        expect(outcome.status).toBe("BLOCKED");
-        expect(runner.calls).toHaveLength(0);
-        expect(f.io.stderrText).toContain("CDD_BLOCKED");
-        expect(f.io.stderrText).toContain("rulings sidecar");
-        expect(gradesOf(outcome)).toEqual(["hard"]);
-      } finally {
-        f.cleanup();
-      }
-    });
-  }
-
+describe("P31 T2 — the ruling sidecar rides the fix round context", () => {
   it("names the sidecar in the fix round context when one conforms", async () => {
     const f = fixture(planDoc([[1, []]]));
     try {
@@ -1311,12 +1085,14 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
         "utf8",
       ),
     );
-    const face = stripComments(
-      readFileSync(fileURLToPath(new URL("../lifecycle.ts", import.meta.url)), "utf8"),
+    const snapshot = stripComments(
+      readFileSync(fileURLToPath(new URL("../dispatch-values.ts", import.meta.url)), "utf8"),
     );
     expect(seam).toContain("CarrierRulings.verdict(");
-    expect(`${seam}\n${face}`).not.toContain("CarrierRulings.read(");
-    expect(face).toContain("ArtifactReads(this.#artifacts, this.#scene.workspace).read(");
+    expect(`${seam}\n${snapshot}`).not.toContain("CarrierRulings.read(");
+    // P40 T5 — the ONE read of the dispatch's artifact is the assembly's snapshot
+    // (`ArtifactSnapshots.of`), the value the seam judges and the record names.
+    expect(snapshot).toContain("new ArtifactReads(opts.artifacts, opts.workspace).read(");
   });
 
   it("renders ONE path line and zero body lines — the ruling bodies stay in the sidecar", async () => {
@@ -1368,328 +1144,6 @@ describe("P31 T2 — the ruling sidecar gates the fix dispatch", () => {
 });
 
 // ---------------------------------------------------------------------------
-// P36 T6 — the `misplaced = block` gate (design spec §2.3 · §2.4): ONE read of the
-// round's `rulings` kind (the matrix's names · presence · `misplaced` · `absent`
-// composed with the strict sidecar schema) feeds both the round-context cell and the
-// pre-dispatch gate. A sidecar that sits off its rendered name stops the round before
-// the in-flight record and the child; absence never blocks; a file that is there but
-// unreadable is a refusal, never an absence; and the gate judges the kind this round
-// resolved — never the carrier's own spelling.
-// ---------------------------------------------------------------------------
-
-describe("P36 T6 — the misplaced rulings sidecar gate (spec §2.3 · §2.4)", () => {
-  /** The reviewed round's carrier — the plan line's FINAL, at its rendered name. */
-  const PLAN_CARRIER = "plan-review-1.c1.json";
-
-  /** The rendered sidecar name that carrier's identity mints. */
-  const RENDERED_SIDECAR = "plan-review-1.c1.rulings.json";
-
-  /** The conventional (pre-migration) spelling: the same stem without `.c1`. */
-  const MISALIGNED_SIDECAR = "plan-review-1.rulings.json";
-
-  /** The legal sidecar body over the plan carrier — one ruling on `F1`. */
-  const legalSidecar = (carrier: string): Record<string, unknown> => ({
-    carrier,
-    rulings: [{ finding: "F1", ruling: "ACCEPTED — the guard lands in W2" }],
-  });
-
-  /** The repo-relative form of a fixture path (the report's `derived:` / `found:`). */
-  const relOf = (f: Fixture, at: string): string =>
-    path.relative(f.scene.workspace.root.repoRoot, at);
-
-  /** Write the reviewed carrier and return its absolute path. */
-  const seedCarrier = (f: Fixture, name = PLAN_CARRIER): string => {
-    const carrier = path.join(f.scene.workspace.path, name);
-    writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
-    return carrier;
-  };
-
-  /** One fix dispatch over the fixture's spec line, with `carrier` as `--reviews`. */
-  const dispatchOver = async (
-    f: Fixture,
-    carrier: string,
-    runner: SilentRunner,
-  ): Promise<DispatchOutcome> =>
-    runFix(
-      f,
-      fixFrameOf(path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md")),
-      carrier,
-      runner,
-    );
-
-  it("refuses a misaligned sidecar with the four-section report and zero spawn", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const carrier = seedCarrier(f);
-      const misaligned = path.join(f.scene.workspace.path, MISALIGNED_SIDECAR);
-      writeFileSync(misaligned, JSON.stringify(legalSidecar(PLAN_CARRIER)), "utf8");
-      const runner = new SilentRunner();
-      const outcome = await dispatchOver(f, carrier, runner);
-      expect(outcome.status).toBe("BLOCKED");
-      expect(gradesOf(outcome)).toEqual(["hard"]);
-      // child zero spawn — the refusal lands before the in-flight record and the host
-      expect(runner.calls).toHaveLength(0);
-      const stderr = f.io.stderrText;
-      expect(stderr).toContain("CDD_BLOCKED: artifact-identity");
-      // four sections: the name the identity renders, what sits in its place, the
-      // identity itself, and the repair the orchestrator owns
-      expect(stderr).toContain(
-        `  derived:  ${relOf(f, path.join(f.scene.workspace.path, RENDERED_SIDECAR))}`,
-      );
-      expect(stderr).toContain(`  found:    ${relOf(f, misaligned)}`);
-      expect(stderr).toContain("  identity: line=plan · op=review · cycle=1 · attempt=1");
-      expect(stderr).toContain("  repair:   rename the found file to the derived name");
-      // the engine only refuses: the file is still exactly where the orchestrator left it
-      expect(readFileSync(misaligned, "utf8")).toBe(JSON.stringify(legalSidecar(PLAN_CARRIER)));
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("does not refuse when neither the rendered name nor a variant exists — absence is legal", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const carrier = seedCarrier(f);
-      const runner = new SilentRunner();
-      await dispatchOver(f, carrier, runner);
-      expect(runner.calls).toHaveLength(1);
-      expect(f.io.stderrText).not.toContain("artifact-identity");
-      // the cell renders the bare literal `none` — deliberate pin flip (P38 §2.3
-      // reversal ③ · D74): absence is a value, never a dropped line
-      expect(promptOf(runner)).toContain("- `INPUT_RULINGS`: none");
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("renders `derived:` and `identity:` from the CARRIER's identity — never this fix round's op", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const carrier = seedCarrier(f);
-      writeFileSync(
-        path.join(f.scene.workspace.path, MISALIGNED_SIDECAR),
-        JSON.stringify(legalSidecar(PLAN_CARRIER)),
-        "utf8",
-      );
-      await dispatchOver(f, carrier, new SilentRunner());
-      const stderr = f.io.stderrText;
-      expect(stderr).toContain("identity: line=plan · op=review");
-      // the fix round's own coordinate would mint `plan-fix-1…` — a name no gate sees
-      expect(stderr).not.toContain("plan-fix-");
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("lists BOTH candidates when the rendered name is legal and a variant sits beside it", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const carrier = seedCarrier(f);
-      const rendered = path.join(f.scene.workspace.path, RENDERED_SIDECAR);
-      const misaligned = path.join(f.scene.workspace.path, MISALIGNED_SIDECAR);
-      writeFileSync(rendered, JSON.stringify(legalSidecar(PLAN_CARRIER)), "utf8");
-      writeFileSync(misaligned, JSON.stringify(legalSidecar(PLAN_CARRIER)), "utf8");
-      const runner = new SilentRunner();
-      await dispatchOver(f, carrier, runner);
-      // the set-based rule, not a count: a legal rendered name does NOT rescue the round
-      expect(runner.calls).toHaveLength(0);
-      const found = f.io.stderrText.split("\n").find((line) => line.includes("  found:")) ?? "";
-      expect(found).toContain(relOf(f, rendered));
-      expect(found).toContain(relOf(f, misaligned));
-      // neither candidate is chosen, rewritten or deleted
-      expect(existsSync(rendered)).toBe(true);
-      expect(existsSync(misaligned)).toBe(true);
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("refuses a rendered name that is on disk but unreadable — `invalid`, never `absent`", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const carrier = seedCarrier(f);
-      const rendered = path.join(f.scene.workspace.path, RENDERED_SIDECAR);
-      writeFileSync(rendered, JSON.stringify(legalSidecar(PLAN_CARRIER)), "utf8");
-      chmodSync(rendered, 0o000);
-      const runner = new SilentRunner();
-      const outcome = await dispatchOver(f, carrier, runner);
-      expect(outcome.status).toBe("BLOCKED");
-      expect(runner.calls).toHaveLength(0);
-      // "cannot read" never authorizes "is not there": the gate blocks naming the reason
-      expect(f.io.stderrText).toContain("rulings sidecar — unreadable");
-      expect(f.io.stderrText).not.toContain("artifact-identity");
-      chmodSync(rendered, 0o644);
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("reads the sidecar ONCE per dispatch — the gate and the round-context cell share the value", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    // the composition's one physical read: the matrix scan plus the strict schema parse
-    const verdicts = vi.spyOn(CarrierRulings, "verdict");
-    try {
-      const carrier = seedCarrier(f);
-      const rendered = path.join(f.scene.workspace.path, RENDERED_SIDECAR);
-      writeFileSync(rendered, JSON.stringify(legalSidecar(PLAN_CARRIER)), "utf8");
-      const runner = new SilentRunner();
-      await dispatchOver(f, carrier, runner);
-      expect(runner.calls).toHaveLength(1);
-      // one read, two consumers: a second read would let a writer between the gate and
-      // the prompt split their answers — the P35 failure mode the contract removes
-      expect(verdicts).toHaveBeenCalledTimes(1);
-      expect(promptOf(runner)).toContain(`- \`INPUT_RULINGS\`: ${relOf(f, rendered)}`);
-    } finally {
-      verdicts.mockRestore();
-      f.cleanup();
-    }
-  });
-
-  it("answers `invalid` when the matrix read is `ok` and the schema answers `absent` — a race is never an absence", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    const verdicts = vi.spyOn(CarrierRulings, "verdict");
-    try {
-      const carrier = seedCarrier(f);
-      writeFileSync(
-        path.join(f.scene.workspace.path, RENDERED_SIDECAR),
-        JSON.stringify(legalSidecar(PLAN_CARRIER)),
-        "utf8",
-      );
-      // The matrix already established presence on the renderer's own basis; the second
-      // level now reports `absent` — the read race the matrix's existence test cannot see.
-      verdicts.mockReturnValue({ kind: "absent" });
-      const runner = new SilentRunner();
-      const outcome = await dispatchOver(f, carrier, runner);
-      expect(outcome.status).toBe("BLOCKED");
-      expect(runner.calls).toHaveLength(0);
-      // "cannot be read" never authorizes "is not there": the round is refused instead
-      // of dispatching with an empty ruling slot and no refusal at all
-      expect(f.io.stderrText).toContain("rulings sidecar — unreadable");
-      expect(f.io.stderrText).not.toContain("artifact-identity");
-    } finally {
-      verdicts.mockRestore();
-      f.cleanup();
-    }
-  });
-
-  it("judges the kind this round resolved, not the carrier's own spelling — an explicit `-a1` passes", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      // the carrier attributes to the same round identity but is not its rendered
-      // `draft` name: the gate reads the `rulings` kind, so the carrier's own
-      // spelling never refuses the dispatch
-      const carrier = seedCarrier(f, "plan-review-1-a1.json");
-      const rendered = path.join(f.scene.workspace.path, RENDERED_SIDECAR);
-      writeFileSync(rendered, JSON.stringify(legalSidecar("plan-review-1-a1.json")), "utf8");
-      const runner = new SilentRunner();
-      await dispatchOver(f, carrier, runner);
-      expect(f.io.stderrText).not.toContain("artifact-identity");
-      expect(runner.calls).toHaveLength(1);
-      expect(promptOf(runner)).toContain(`- \`INPUT_RULINGS\`: ${relOf(f, rendered)}`);
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("dispatches past P34-era legacy carriers — they are observations, never a refusal", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const carrier = seedCarrier(f);
-      // the rendered sidecar conforms — the gate has nothing to refuse here
-      writeFileSync(
-        path.join(f.scene.workspace.path, RENDERED_SIDECAR),
-        JSON.stringify(legalSidecar(PLAN_CARRIER)),
-        "utf8",
-      );
-      // both pre-P36 spellings sit in the same workspace: `spec-<op>-<round>.json`
-      // attributes to no row word, the cycle-less implement name to a cycle-less draft
-      // identity — neither is a `misplaced` for the kind this round resolved
-      writeFileSync(path.join(f.scene.workspace.path, "spec-review-1.json"), "{}\n", "utf8");
-      writeFileSync(path.join(f.scene.workspace.path, "tasks-1-implement.json"), "{}\n", "utf8");
-      const runner = new SilentRunner();
-      await dispatchOver(f, carrier, runner);
-      expect(f.io.stderrText).not.toContain("artifact-identity");
-      expect(runner.calls).toHaveLength(1);
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("prints ONE path in both faces — the fix line's sidecar value equals the gate's `derived:` row", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      // The carrier the review round wrote, plus the misplaced variant the gate refuses.
-      const carrier = seedCarrier(f);
-      writeFileSync(
-        path.join(f.scene.workspace.path, MISALIGNED_SIDECAR),
-        JSON.stringify(legalSidecar(PLAN_CARRIER)),
-        "utf8",
-      );
-      const outcome = await dispatchOver(f, carrier, new SilentRunner());
-      expect(outcome.status).toBe("BLOCKED");
-      const derivedRow = f.io.stderrText.split("\n").find((row) => row.startsWith("  derived:  "));
-      expect(derivedRow).toBeDefined();
-      const derived = derivedRow!.slice("  derived:  ".length);
-      // The route the count table produces for the SAME carrier carries the same value,
-      // rendered through the ONE basis — the board's / capsule's fix line and the gate's
-      // report print one path byte for byte.
-      const route = new NextStepRouter(new ArtifactRegistry()).next(EMPTY_RUN_STATE, {
-        phase: "review",
-        findings: [{ severity: "warn", summary: "drift" }],
-        reviewsPath: carrier,
-        consecutiveS1: 0,
-      });
-      expect(route?.kind).toBe("fix");
-      const line = new RouteRenderer(
-        new Words(),
-        {},
-        "claude",
-        f.scene.workspace.root.basis,
-      ).render(route!, {
-        type: "plan",
-        id: path.join(f.scene.workspace.root.repoRoot, "docs", "k", "p.md"),
-      });
-      expect(line).toContain(`record it at ${derived}`);
-      // and no second spelling survives: the route carries the RENDERED name, never the
-      // carrier's own tail (the value is absolute; the render normalizes it)
-      expect(route !== null && "rulings" in route ? path.basename(route.rulings!) : "").toBe(
-        path.basename(derived),
-      );
-    } finally {
-      f.cleanup();
-    }
-  });
-
-  it("pairs the migration: a misaligned sidecar stops the round, renaming it lets the SAME command through", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const carrier = seedCarrier(f);
-      const rendered = path.join(f.scene.workspace.path, RENDERED_SIDECAR);
-      const misaligned = path.join(f.scene.workspace.path, MISALIGNED_SIDECAR);
-      writeFileSync(misaligned, JSON.stringify(legalSidecar(PLAN_CARRIER)), "utf8");
-      const before = new SilentRunner();
-      await dispatchOver(f, carrier, before);
-      expect(before.calls).toHaveLength(0);
-      expect(f.io.stderrText).toContain("CDD_BLOCKED: artifact-identity");
-      // the migration's whole repair: the orchestrator renames the file, the engine
-      // is untouched — and the same command now dispatches
-      renameSync(misaligned, rendered);
-      f.io.stderrText = "";
-      const after = new SilentRunner();
-      await dispatchOver(f, carrier, after);
-      expect(after.calls).toHaveLength(1);
-      expect(f.io.stderrText).not.toContain("artifact-identity");
-      // exactly ONE path line, zero body lines (the cell names the rendered sidecar)
-      const prompt = promptOf(after);
-      expect(prompt.match(/^- `INPUT_RULINGS`: /gm)).toHaveLength(1);
-      expect(prompt).toContain(`- \`INPUT_RULINGS\`: ${relOf(f, rendered)}`);
-    } finally {
-      f.cleanup();
-    }
-  });
-});
-
-// ---------------------------------------------------------------------------
 // P31 T5 — the seal cycle (design spec §2.4): the preflight opens THIS round's own
 // two names, every terminal closes them again, and the round's INPUT carriers are
 // never opened. The success leg (bookkeep → persist → seal) is pinned at the
@@ -1722,35 +1176,6 @@ class ModeProbeRunner implements ChildRunner {
 describe("P31 T5 — the seal cycle: every terminal closes the round's own window", () => {
   /** The fix round's own draft name of the fixture's spec line. */
   const FIX_DRAFT = "phase-spec-fix-1.json";
-
-  /** Plant the round's own draft, writable — a previous attempt's leftover. */
-  const plantWritableDraft = (f: Fixture): string => {
-    const draft = path.join(f.scene.workspace.path, FIX_DRAFT);
-    writeFileSync(draft, JSON.stringify({ status: "APPROVED", artifacts: {} }), "utf8");
-    expect(modeOf(draft)).toBe(0o644);
-    return draft;
-  };
-
-  it("a pre-spawn gate refusal re-seals the round's own draft", async () => {
-    const f = fixture(planDoc([[1, []]]));
-    try {
-      const draft = plantWritableDraft(f);
-      // The requesting carrier + a sidecar the strict schema refuses: the P31 T2 gate
-      // stops the round before the child exists.
-      const carrier = path.join(f.scene.workspace.path, CARRIER_NAME);
-      writeFileSync(carrier, JSON.stringify(CARRIER_BODY), "utf8");
-      writeFileSync(sidecarOf(f.scene.workspace, carrier), "{ not json", "utf8");
-      const runner = new SilentRunner();
-      const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
-      const outcome = await runFix(f, fixFrameOf(specPath), carrier, runner);
-      expect(outcome.status).toBe("BLOCKED");
-      expect(runner.calls).toHaveLength(0);
-      // The window the preflight opened is closed by the refusal itself.
-      expect(modeOf(draft)).toBe(0o444);
-    } finally {
-      f.cleanup();
-    }
-  });
 
   it("a child death (#reject) seals the draft the child left behind", async () => {
     const f = fixture(planDoc([[1, []]]));
@@ -1806,6 +1231,7 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
         sync: new SilentRunner(),
         env: { CLAUDE_CODE_SESSION_ID: "s" },
         inflight: holding,
+        values: TestDispatchValues.of(f.scene, reviewFrame),
       });
       await expect(lifecycle.step()(reviewFrame)).rejects.toBeInstanceOf(HoldingError);
       // The refused dispatch leaves no writable carrier behind.
@@ -1836,6 +1262,7 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
       const seen: number[] = [];
       const specPath = path.join(f.scene.workspace.root.repoRoot, "docs", "k", "s.md");
       const probe = new ModeProbeRunner([seeded.path], seen);
+      const frame = fixFrameOf(specPath);
       const lifecycle = new CliLifecycle({
         scene: f.scene,
         artifacts: new ArtifactRegistry(),
@@ -1843,8 +1270,9 @@ describe("P31 T5 — the seal cycle: every terminal closes the round's own windo
         sync: probe,
         env: { CLAUDE_CODE_SESSION_ID: "s" },
         reviews: seeded.path,
+        values: TestDispatchValues.of(f.scene, frame, { reviews: seeded.path }),
       });
-      await lifecycle.step()(fixFrameOf(specPath));
+      await lifecycle.step()(frame);
       expect(probe.calls).toHaveLength(1);
       // Visible to the child AND after the round: an input carrier is never reopened.
       expect(seen).toEqual([0o444]);
@@ -2015,6 +1443,10 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
           io: f.io,
           sync: dying,
           env: { CLAUDE_CODE_SESSION_ID: "s" },
+          // The frame the session lifecycle is about to advance: the attempt-2 fix.
+          values: TestDispatchValues.of(f.scene, atAttempt(fixFrameOf(specPath), 2), {
+            reviews: TestDispatchValues.reviewsOf(f.scene, atAttempt(fixFrameOf(specPath), 2)),
+          }),
         }).step(),
         target: { kind: "spec", doc: specPath },
         // The scene's own plan read — the same value the CLI lifecycle hashes.
@@ -2062,6 +1494,9 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
         io: f.io,
         sync: new FailingRunner(),
         env: { CLAUDE_CODE_SESSION_ID: "s" },
+        values: TestDispatchValues.of(f.scene, frame, {
+          reviews: TestDispatchValues.reviewsOf(f.scene, frame),
+        }),
       });
       await lifecycle.step()(frame);
       const naming = f.scene.ledger.naming();
@@ -2072,59 +1507,6 @@ describe("P34 T3 — the attempt is the round's identity (window · crash · res
       expect(crash?.next).not.toContain("-a2");
     } finally {
       f.cleanup();
-    }
-  });
-
-  it("refuses both halves of reversal ② — no silent family fallback, no composed-but-absent name", async () => {
-    const empty = fixture(planDoc([[1, []]]));
-    try {
-      // The S2 registry row a crashed review legitimately leaves: the round is on the
-      // books, no carrier resolves (`#reviewsPath` reads null). WAS: the fix face fell
-      // back to the family name, so the resume command asked the review family for a
-      // cycle-only name. NOW: P38 §2.3 reversal ② — the empty value is `empty-value`,
-      // so the round stops before the child and before any `--reviews` command exists.
-      empty.scene.ledger.recordRound("phase-spec", {
-        op: "review",
-        cycle: 1,
-        attempt: 1,
-        carrierDigest: "0".repeat(64),
-      });
-      const specPath = path.join(empty.scene.workspace.root.repoRoot, "docs", "k", "s.md");
-      const { outcome } = await dispatchFrame(
-        empty,
-        atAttempt(fixFrameOf(specPath), 2),
-        new FailingRunner(),
-      );
-      expect(outcome.status).toBe("BLOCKED");
-      expect(empty.io.stderrText).toContain(
-        "CDD_BLOCKED: dispatch-input · docs-fix · INPUT_REVIEWS · empty-value",
-      );
-      // Zero round consumed: no in-flight record and no crash record was written.
-      expect(existsSync(recordPathOf(empty))).toBe(false);
-      expect(empty.scene.ledger.readCrash("crash-phase-spec-fix-1-a2.json")).toBeNull();
-    } finally {
-      empty.cleanup();
-    }
-
-    const absent = fixture(planDoc([[1, []]]));
-    try {
-      // The other half: no record at all, so the family name IS composed — and the file
-      // is not there. The path cell answers `target-absent`, and again no command, no
-      // in-flight record, no crash record: the round never happened.
-      const specPath = path.join(absent.scene.workspace.root.repoRoot, "docs", "k", "s.md");
-      const { outcome } = await dispatchFrame(
-        absent,
-        atAttempt(fixFrameOf(specPath), 2),
-        new FailingRunner(),
-      );
-      expect(outcome.status).toBe("BLOCKED");
-      expect(absent.io.stderrText).toContain(
-        "CDD_BLOCKED: dispatch-input · docs-fix · INPUT_REVIEWS · target-absent",
-      );
-      expect(existsSync(recordPathOf(absent))).toBe(false);
-      expect(absent.scene.ledger.readCrash("crash-phase-spec-fix-1-a2.json")).toBeNull();
-    } finally {
-      absent.cleanup();
     }
   });
 
@@ -2813,5 +2195,69 @@ describe("P37 T7 — the pin time face reads the judged identity at the call sit
     } finally {
       f.cleanup();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P40 T5 — the face holds no pre-dispatch judgment: one ask (the seam) per dispatch
+// ---------------------------------------------------------------------------
+
+/** The retired names — the three public entries, the private machinery that served only
+ *  them, and the artifact cell the gates shared. Zero hits in the face, by file. */
+const RETIRED_FACE_NAMES: readonly string[] = [
+  "carrierRefusal",
+  "artifactRefusal",
+  "inputRefusal",
+  "inputRefusalOf",
+  "artifactRefusalOf",
+  "artifactCellOf",
+  "artifactReadOf",
+  "requesterDigest",
+  "rulingsInputOf",
+  "answeredByNaming",
+  "rowsOf",
+  "snapshotOf",
+  "snapshotReadOf",
+  "firstRowOf",
+  "RowJudgment",
+  "NO_ARTIFACT",
+  "ArtifactCell",
+  "artifact-reads",
+];
+
+describe("P40 T5 — the dispatch face judges nothing", () => {
+  it("asks the four-row judgment ZERO times — the seam's verdict is the only ask", async () => {
+    const judge = vi.spyOn(PreFlightRows, "judge");
+    const f = fixture(planDoc([[1, []]]));
+    try {
+      writeEvidence(f, "1");
+      await dispatch(f, "1");
+      // One dispatch, one ask — and the ask is the SEAM's (pinned in the session suite
+      // and in the preview loop). A face-side count would be the second source of truth
+      // this round removed.
+      expect(judge).not.toHaveBeenCalled();
+    } finally {
+      judge.mockRestore();
+      f.cleanup();
+    }
+  });
+
+  it("carries no gate entry, no gate machinery and no gate-branch seal — the file's shape", () => {
+    const face = stripComments(
+      readFileSync(fileURLToPath(new URL("../lifecycle.ts", import.meta.url)), "utf8"),
+    );
+    for (const name of RETIRED_FACE_NAMES) {
+      expect(face.includes(name), `${name} is still on the face`).toBe(false);
+    }
+    // The three surviving seal sites, by SPELLING: the definition pair plus the two
+    // frame-shaped terminals the retired gates never owned (the lost-lock dispatch and
+    // the death face) — the abort fold seals through the `…Of` twin.
+    const frameSeals = face.split("\n").filter((line) => line.includes("#sealRoundCarriers("));
+    expect(frameSeals).toHaveLength(3);
+    expect(face.match(/#sealRoundCarriersOf\(/g)).toHaveLength(3);
+    // The composed record's ONE write point and ONE read point — `#valuesOf` derives
+    // nothing, so a second `this.#values` would be a second producer.
+    expect(face.match(/this\.#values\b/g)).toHaveLength(2);
+    expect(face).not.toContain("values?:");
   });
 });

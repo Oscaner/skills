@@ -1,7 +1,7 @@
 ---
 title: 'P40 · 派发前拒绝的记账面：拒绝属树，不属轮'
 doc-type: phase-spec
-version: v0.2
+version: v0.3
 date: 2026-11-18
 slug: '2026-11-17-engine-doc-tooling-p40-design'
 program: 2026-10-10-engine-doc-tooling
@@ -21,10 +21,11 @@ author: Oscaner M. · Claude
 #### 1.1 四门成为 structure 腿的第 6–9 行
 - structure 腿的行集是一张闭集：`session/preflight.ts#PreFlightGateName` 今天给五行（`tree-clean` · `in-flight` · `graph` · `plan-ledger` · `doc-contract`），`session/dispatch-authority.ts#DispatchAuthority.structureRefusal` 把拒绝的 gate 原样重述为腿的 reason。四道门并入为它的第 6–9 行，行 id 即拒绝的站名——no-host · carrier · dispatch-input · artifact。行集因此由五扩到九，而**站名闭集就是这张行集**（3.2）：站名不是与行并存的第二套词汇。
 - 判定顺序：四行排在 `doc-contract` 之后。输入面是否合格，需先有合格的文档；一条判据的门槛若低于它依赖的判据，它给出的绿是空的。
-- 判定输入（值来源）：四行的判据今天读的是装配好的派发输入——`TemplateValues`（`INPUT_WAVE_BRIEF` 的路径值由 `session/round-naming.ts#RoundNaming` 的 `brief()` 命名，与 `--dry-run` 预览同一条推演）、`ArtifactCell`（fix 面的 `--reviews` 路径与 requesting carrier 取自本行已记录的上游轮）与将落的 `(cycle, attempt)`（同一命名面从 ledger 的下一轮参数渲染）。三者都是**只读推演**，不建工作区、不写 brief、不开本轮 carrier 名、不取 in-flight 记录。
-- 判定点不后移（条件）：门必须在轮记录被写之前、也在 `--recover` 的接管判定之前给出结构腿的裁决（4.1）。把工作区创建或 brief 渲染提到门之前，会让一条被拒的派发留下工作区与 brief，并让接管判定先于拒绝读到一条陈旧的持有者——两条都是本相位要消除的形状。因此 `PreFlightContext` 多收这份输入，而不是门自己去读场景。
+- 判定输入（值来源）：四行各读一格，全部由装配好的派发输入推得，门自己去读场景不在其中——① `TemplateValues`（`INPUT_WAVE_BRIEF` 的路径值由 `session/round-naming.ts#RoundNaming` 的 `brief()` 命名，与 `--dry-run` 预览同一条推演）；② `ArtifactCell`（fix 面的 `--reviews` 路径与 requesting carrier 取自本行已记录的上游轮）；③ 将落的 `(cycle, attempt)`（同一命名面从 ledger 的下一轮参数渲染）；④ 主机探测事实（`no-host` 行的唯一输入，今天由 `face/lifecycle.ts#CliLifecycle#detectHost` 在 `#runDispatch` 顶部现算）。前三格是**只读推演**：不建相位工作区目录、不写 brief、不开本轮 carrier 名、不取 in-flight 记录。第四格是 composition root 填进 `PreFlightContext` 的**已判事实**（一个值，不是一次调用）：seam 读事实，绝不 import face 的 host 模块——否则这条接缝在落地第一天就破了本程序要立的 plane 方向（P39）。发布命名空间的 keep-out 标记（`infra/workspace.ts#WorkspaceRoot#ensure`，见 2.2）不算「建工作区」：它只写 `<repoRoot>/.kairos/.gitignore` 与 `.kairos/cdd/`，不建 `<slug>` 目录、不写 brief。
+- 判定点不后移（条件）：门必须在轮记录被写之前、也在 `--recover` 的接管判定之前给出结构腿的裁决（4.1）。把工作区创建或 brief 渲染提到门之前，会让一条被拒的派发留下工作区与 brief，并让接管判定先于拒绝读到一条陈旧的持有者——两条都是本相位要消除的形状。因此 `PreFlightContext` 多收这些输入格，而不是门自己去读场景。
 - 复用既有值类型与适配器，不新增：`DispatchRefusal`（`leg` 仍取 `structure`）与 `DispatchAuthority.structureRefusal`。`DispatchLeg` 的三值闭集不动——分腿的依据是**问题不同**（树是否就绪 / 上游面是否到达 / 这一行在哪），不是代码放在哪。
-- 门判据本体不动：`dispatch-input` 的判据（`requiredOn` 与 `absent` 两维声明、`when` 臂、四态渲染）由 P38 交付且正确；本相位只改它被判定的位置与失败后的归属。
+- 判定本体里唯一被本相位改动的一格是 `INPUT_WAVE_BRIEF`，且这条改动是具名的：门要判的是**编排者欠的输入**，不是**引擎自己要写的产物**——brief 的路径名就是这一格的完整答案，而那个文件由引擎在 child 读它之前自己渲染（`face/cli.ts#CliGate#renderBrief`，在门之后、`scene.workspace.ensure()` 之后）。因此这一格在声明面上改成它真实的意思：**引擎写的**（`render/templates.ts` 的 `REVIEW_CONTEXT` 中该格由 `preview: "satisfied"` 改为 `written: "engine"`），释义只有一条——引擎保证该文件存在，因此**任何**路径都不做存在性读。随之：`#inputRefusalOf` 的 `mode === "preview"` 守卫与 `#answeredByNaming` 的 `decl.preview !== "satisfied"` 守卫一并消失（只剩「这一格是不是命名行写的那一格」的 token 守卫），`inputRefusal` 的 `mode` 参数退场；`TemplateAssembler` 的构造期断言保留，它从此证明「全表恰好一格声明为引擎写的，且那一格就是 `NAMED_BRIEF_CELL`」。这条与「判定点不后移」不冲突：门仍在 brief 渲染之前，判的不是文件在不在，而是编排者有没有欠它的名字；于是 P38 §2.4 在这一格上的 per-mode 例外作废，同帧镜像规则收紧成「两面对同一帧报出逐字节相同的拒绝串」。
+- 门判据本体不动（唯一例外是上一条的 `INPUT_WAVE_BRIEF` 一格）：`dispatch-input` 的判据（`requiredOn` 与 `absent` 两维声明、`when` 臂、四态渲染）由 P38 交付且正确；本相位只改它被判定的位置与失败后的归属。
 
 #### 1.2 拒绝在轮记录被写之前返回
 - 轮记录的写入点是 `Ledger.recordRound`，经 `session/run.ts` 的无条件记账。structure 腿的拒绝发生在它之前，因此一条被拒的派发**不产生** `RoundRecord`：无 crash 记录、`cycle` 不推进、`attempt` 不递增、`waves[n].rounds` 长度不变。
@@ -38,13 +39,14 @@ author: Oscaner M. · Claude
 
 #### 2.1 形状与位置
 - 位置：工作区根的 `.kairos/cdd/` 下，`in-flight.json` 的邻居，文件名 refusal.json（裸词：本相位新建，落地前不构成 pin 坐标）。
-- 形状：一条记录对象，字段为 `at`（写入时刻）· `slug`（相位工作区名）· `op`（`implement` / `review` / `fix`）· `type`（面）· `cycle` · `attempt` · `station`（闭集，见 3.2）· `detail`（站内原因，自由文本，**不含站名**——站名与原因各存一份，不互相复述）。八格就是全部：父章程写的 reason 是 `detail` 这一格的旧名，本相位以 `detail` 为准。
-- `detail` 的规范化：单行（行内换行折叠为空格）、不重复站名（今日本部分原因串以该门自己的原因词开头，写入前剥掉——carrier 门的 `carrier-mismatch`、artifact 门的 `artifact-identity`、dispatch-input 门的段串）、` · ` 视作行内分隔符而非第二个 token。规范化只作用于**拒绝事实与 board / 预览的合成串**；`CDD_BLOCKED` 仍念它自己的既有渲染（3.3），不读这份合成。
+- 形状：一条记录对象，字段为 `at`（写入时刻）· `slug`（相位工作区名）· `op`（`implement` / `review` / `fix`）· `type`（面）· `cycle` · `attempt` · `station`（闭集，见 3.2）· `detail`（站内原因，自由文本，**不含站名**——站名与原因各存一份，不互相复述）。八格就是全部，没有第九格，也没有第二个名字：`detail` 是这一格在章程、本相位与 board 行里唯一的名（站内原因，自由文本）。
+- `detail` 的规范化：单行（行内换行折叠为空格）、不重复站名（今日本部分原因串以该门自己的原因词开头，写入前剥掉——carrier 门的 `carrier-mismatch`、artifact 门的 `artifact-identity`、dispatch-input 门的段串）、` · ` 视作行内分隔符而非第二个 token。规范化只作用于**拒绝事实与 board 行的合成串**；`CDD_BLOCKED` 与预览的 `refused:` 行仍念各自的既有渲染（2.4 · 3.3），不读这份合成。
 - 归属类：与 `InFlight` 同构的一个类，守「一棵树任一时刻最多一条拒绝事实」。它不持有轮的状态，也不参与轮的任何判定。
 - 名字进 `round-artifacts.ts` 的拼写矩阵，与 `in-flight` 行并列——矩阵是名字的唯一语法，不在矩阵里的名字对清扫与判定都是隐形的。
 
 #### 2.2 生命周期：一条，整条腿一通过就清
 - 写入：**任一** structure 腿拒绝时覆盖写入——九行一视同仁，不留豁免。`tree-clean` · `in-flight` · `graph` · `plan-ledger` · `doc-contract` 的拒绝与四道门的拒绝同样写：本相位要治的正是「一次拒绝不留痕」，而「只让迁移过来的四行写」是给旧行开的豁免层（Constraints 禁止）。
+- 写入的顺序与 `InFlight` 同一条：先发布命名空间的 keep-out 标记（`infra/workspace.ts#WorkspaceRoot#ensure` 写 `<repoRoot>/.kairos/.gitignore` = `*` 与 `.kairos/cdd/`），再做原子写。理由是一条拒绝的前置条件：它是唯一跑在 `scene.workspace.ensure()` 之前的路径，没有这条，一次拒绝就会成为某棵树的第一个 `.kairos` 条目；而 `infra/git.ts#GitClient#isClean` 读 git 自己的判断、零引擎侧排除，untracked 的 `.kairos/` 立刻弄脏这棵树——下一次派发被 `tree-clean` 拒并覆盖同一份记录，这棵树从此为引擎自己的一个文件拒绝每一次派发。发布标记不是「建工作区」（1.1）：不建 `<slug>` 目录、不写 brief。
 - 清除：一次派发通过**整条**结构腿（九行全过）、即将进入派发体时清除。语义是「这棵树此刻未通过门前判定」——门过了，这句话就不成立。
 - 因此任一时刻最多一条，且**不留下历史**。拒绝的历史在命令输出里逐次可见（`CDD_BLOCKED` 行），轮的历史在 `rounds` 里（拒绝不在其中）。第三个历史源是禁止的：它会与 `rounds` 永不同步。
 
@@ -55,12 +57,13 @@ author: Oscaner M. · Claude
 
 #### 2.4 预览：镜像判定，不写不清
 - `--dry-run` 走同一批门前判定（P38 §2.3 的镜像规则），渲染「如果你真跑，会在这里被拒」，但**不写、不清**拒绝事实：预览不是一次派发，无权宣布这棵树通过了门，也无权覆盖一条真实拒绝。
+- 预览路径上渲染结构腿拒绝的面是 **preview 面**，且九行一视同仁。今天 `--dry-run` 的结构拒绝分支（`face/cli.ts#Cli#runWork` 的 `verdict.leg === "structure"` 那一支）已经把每一种结构拒绝送进同一个渲染器——`in-flight` 且有活主走 `Preview#heldBlock`，其余走 `#renderPreflightBlocked`；本相位把入口收成一个：`--dry-run` 上的结构腿拒绝一律由 preview 面渲染，即五行的预报 + 它自己的 `refused:` 行，理由取自**同一份** pre-flight 裁决（不是第二次判定）。覆盖的是整条腿，不止迁移过来的四行——因此旧五行在 `--dry-run` 上的拒绝从 `CDD_BLOCKED` 行改为预览的 `refused:` 行（真跑路径的字节见 3.3，不动）；预览的 `refused:` 行保持自己的既有形状（`  refused:  <该门自己的原因>`，两空格、无轮标识），board 的形状见 3.1，两个面不共用拼装。
 
 ### 3. 露面：board 的一行与命令的一行
 
 #### 3.1 board 行：复用 preview 已经说出的那个词
 
-- 词不是本相位新造的。`Preview.artifactBlock` 今天已经在为**同一批门**渲染一条 `refused:  <原因>` 行——预览说「如果你真跑，会在这里被拒」。这里要说清「同一批」是几道：预览镜像的是 **carrier · dispatch-input · artifact 三道**；no-host 不在预览面上（它在 `face/lifecycle.ts#CliLifecycle` 的 `#runDispatch` 顶部返回，预览没有这一格）。board 要加的是**同一个词在持久面上的那一份**：同义、同形、三道镜像 + no-host 说明。新造一个词反而会让两个面各说各话。
+- 词不是本相位新造的。`Preview.artifactBlock` 今天已经在为**同一批门**渲染一条 `refused:  <原因>` 行——预览说「如果你真跑，会在这里被拒」。这里要说清「同一批」是几道：预览镜像的是 **carrier · dispatch-input · artifact 三道**；no-host 没有它的预览格（它在 `face/lifecycle.ts#CliLifecycle` 的 `#runDispatch` 顶部返回，预览的预报里没有这一格）；`--dry-run` 上它照样以 `refused:` 行露面（2.4），只是没有一行预报可镜像。board 要加的是**同一个词在持久面上的那一份**：**同词**，不是同形——两个面共用的只有词面，行内 payload 由下面的形状块定，预览的 `refused:  <原因>` 不被改写（2.4 · 3.3）；三道镜像 + no-host 说明。新造一个词反而会让两个面各说各话。
 - 位置：`in-flight:` 行的下一行。两行回答同一个问题（这棵树能开跑吗）；`crashed:` 回答另一个问题（跑过的轮里哪些坏了），因此不与它并排。
 - 形状：
 
@@ -69,7 +72,7 @@ refused: {op} {cycle}·a{attempt} {station} · {detail}
 ```
 
 - 为什么这一行可以直接含 ` · `：这一行只有**一个轮标识**（`{cycle}·a{attempt}`），`station` 取自九值闭集、永远先于第一个 ` · ` 出现，因此行内的 ` · ` 只是「站名 / 原因」与原因自身片段之间的分隔；`crashed:` 的 ` · ` 是**跨轮**分隔符（多个 token 之间），两者的活儿不同。行也不靠切分解析：站名从闭集取，`detail` 是剥掉站名与规范化（2.1）之后剩下的部分。
-- 构造点：`station` 与 `detail` 在一处拼成 **board / 预览** 的合成串；`CDD_BLOCKED` **不**读这份合成，它念自己既有的报文（3.3）——三个读者共用一份会改掉 `CDD_BLOCKED` 的字节，而 3.3 声明那不可能。两个面各自一次拼装，就是两份会漂移的字面；两边各守自己已声明的字节则是两件事。
+- 构造点：board 行在**一处**由记录的两格拼成（`station` · `detail`）；预览的 `refused:` 行不是这份拼装——它今天就把该门自己的原因原样打出来，2.4 之后仍如此，只是理由来自同一份 pre-flight 裁决；`CDD_BLOCKED` **不**读任何一份合成，它念自己既有的报文（3.3）。让三方共用一处拼装，`CDD_BLOCKED` 的字节就会跟着变，而 3.3 声明那不可能；让 board 与预览共用一处拼装，则必须重排预览这一行的字节，而它今天已是消费面。两个面各守自己已声明的字节，是两件事，不是两份会漂移的字面：真正只有一份的是**存储**（记录里的 `station` + `detail`）。
 - 渲染归属：board 只在拒绝事实的 `slug` 与本次观察的工作区相同时渲染它。别的相位工作区的拒绝不是本次观察对象——但它在自己的 board 上照常可见，且被下一次写入覆盖即消失。
 
 #### 3.2 站名闭集与穷尽断言
@@ -79,11 +82,12 @@ refused: {op} {cycle}·a{attempt} {station} · {detail}
 tree-clean · in-flight · graph · plan-ledger · doc-contract · no-host · carrier · dispatch-input · artifact
 ```
 
-- 后四个里只有 dispatch-input 已成词（`face/words.ts` 的 station 行）；no-host · carrier · artifact 是本相位新立的判别值，落地前不构成 pin 坐标。`carrier` 是站名，报文里的 `carrier-mismatch` 是这道门的原因词面，不是第二个站名。
+- 后四个里只有 dispatch-input 已成词，且它是 `face/words.ts#CAPSULE_WORDS` 的 `dispatchInput.station`（拒绝行的行首，不是 `stations` 那张前缀表——那张表是 `next` · `reason` · `blocked` · `warn` · `cliMissing` 的行首锚）；no-host · carrier · artifact 是本相位新立的判别值，落地前不构成 pin 坐标。`carrier` 是站名，报文里的 `carrier-mismatch` 是这道门的原因词面，不是第二个站名。
 - 一条穷尽断言守它：structure 腿的每一行都必须给得出闭集内的站名与一条 detail 来源（今天的 `CDD_BLOCKED` 报文字面就是那来源）；新增一行而不给站名、或给不出原因来源，是构造期红。新增站名因此触发一次有意识的决定，而不是随手多一个字符串。
 
-#### 3.3 命令输出不变
-- `CDD_BLOCKED:` 行逐字节不变。拒绝的报文与原因仍由既有的 station 词面渲染；本相位只改变「拒绝之后写什么账」，不改「拒绝时说什么话」。这是消费面守恒的一半。
+#### 3.3 命令输出不变：一份事实，两条已声明的渲染
+- 真跑路径上的 `CDD_BLOCKED:` 行逐字节不变，条件是渲染入口按 gate id 取键：`face/cli.ts#Cli#renderPreflightBlocked` 的分支表今天按 `preflight.gate` 分两支——`tree-clean` · `in-flight` · `doc-contract` 一支念 `CDD_BLOCKED: <报文>`（无站名前缀），`graph` · `plan-ledger` 一支念 `cdd <verb>: <报文>`。四道门的 gate id 加入前一支，报文仍由各门自己的既有词面给出（no-host 的 `no host harness detected` · carrier 的 `carrier-mismatch · …` · dispatch-input 的段串 · artifact 的 `artifact-identity · …`），因此不会多出一段站名前缀。不写这条，三行会从 `CDD_BLOCKED: carrier-mismatch · …` 变成 `CDD_BLOCKED: carrier · carrier-mismatch · …`——一次消费面可见的字节变更。
+- 一份存储事实，两条已声明的渲染：seam 的命令行念 `CDD_BLOCKED: <它自己的报文>`；board 面念 `{station} · {detail}`（3.1）。`station` + `detail` 是这份事实的唯一存储来源，但两个面各按自己已声明的字节渲染，谁都不从另一条渲染的文本反推——「一份事实」不等于「一处拼装」，合并拼装会改掉 `CDD_BLOCKED` 的字节。这是消费面守恒的一半；另一半是 `--dry-run` 上的整条腿改由预览面渲染（2.4）。
 
 ### 4. 边界
 
@@ -97,7 +101,7 @@ targetAction: !violations.some(v => v.grade === "hard")
 ```
 
 软档即 `true`，等于把拒绝记成「本轮完成了任务」——所以拒绝不借软档。
-- `--recover` 的措辞不动，但**行为面按改后形面重述**：接管判定跑在结构腿裁决之后（`face/cli.ts#Cli#step`：结构腿一拒，`#recoverRun` 不被调用），而四门并入后正是结构腿在拒绝。因此一次被拒的派发上执行 `--recover`：不认领任何东西、不写、`cycle` 不动，同一拒绝再次出现。今天那句「无可接管」（`RECOVER_NOTHING`，住 `face/cli.ts` 的 `#recoverRun`）在这条路径上**不可达**——本相位不承诺那句话，也不改它：它仍属于「结构腿通过、但没有陈旧锁可接管」的另一条路径。
+- `--recover` 的措辞不动，但**行为面按改后形面重述**：接管判定跑在结构腿裁决之后（`face/cli.ts#Cli#runWork`：只有 `this.#authority.structureRefusal(preflight) === null` 才进 `#recoverRun`，结构腿一拒它不被调用），而四门并入后正是结构腿在拒绝。因此一次被拒的派发上执行 `--recover`：不认领任何东西、不写、`cycle` 不动，同一拒绝再次出现。今天那句「无可接管」（`RECOVER_NOTHING`，住 `face/cli.ts` 的 `#recoverRun`）在这条路径上**不可达**——本相位不承诺那句话，也不改它：它仍属于「结构腿通过、但没有陈旧锁可接管」的另一条路径。
 - `#reject` 族不动：那里孩子确实存在（draft 在盘上、形状不合格），`contract-violation` 是真话。
 
 #### 4.2 不可读的拒绝事实
@@ -114,15 +118,18 @@ targetAction: !violations.some(v => v.grade === "hard")
 - `board` **拒绝写树级事实**：同一派发后 refusal.json 存在且八格齐全（`at` · `slug` · `op` · `type` · `cycle` · `attempt` · `station` · `detail`，缺任一格即红）；`board` 出现 refused 行，形状合 3.1，位置在 `in-flight:` 之后。同一条 pin 带跨工作区方向：`slug` 指向别的工作区的拒绝事实在本树的 board 上不渲染，而在它自己的 board 上照常渲染。
 - `refused` 事实**最多一条 · 通过即清**：拒绝后跑一次合法派发 ⇒ refused 行消失、`in-flight:` 出现；该派发正常结束 ⇒ `in-flight:` 消失且 refused 行不因结束而出现。第三条方向：树被 `in-flight` 门拒绝（有活主）之后，board 上 `in-flight:` 与 `refused:` **同时**存在——改前结构上不可能（拒绝不写事实），两行各自只陈述自己的事实。
 - `DispatchAuthority` **行集即站名闭集 · 穷尽断言**：四道门各实测一次拒绝，落下的 `station` 分别是 no-host · carrier · dispatch-input · artifact 之一，且取自 `session/preflight.ts#PreFlightGateName` 这张九值表；穷尽断言对「structure 腿新增一行未给站名、或给不出 detail 来源」报红（构造期或编译期，一处）。
-- `--recover` **不认领被拒的派发**：对一次被拒的派发执行 `--recover` ⇒ 不认领任何东西、无写入、`cycle` 不推进，且同一拒绝再次出现（`face/cli.ts#Cli#step` 在结构腿拒绝上不调 `#recoverRun`，所以既有「无可接管」文案在这条路径上不可达——测的是不认领 + 无写入 + 同一拒绝，不是那句话）；`--dry-run` 中途被拒 ⇒ 零写入（refusal.json 既不出现也不消失）。
+- `--recover` **不认领被拒的派发**：对一次被拒的派发执行 `--recover` ⇒ 不认领任何东西、无写入、`cycle` 不推进，且同一拒绝再次出现（`face/cli.ts#Cli#runWork` 在结构腿拒绝上不调 `#recoverRun`，所以既有「无可接管」文案在这条路径上不可达——测的是不认领 + 无写入 + 同一拒绝，不是那句话）；`--dry-run` 中途被拒 ⇒ 零写入（refusal.json 既不出现也不消失）。
 - `.changeset/` **门控**：`pnpm run validate` exit 0；changeset 为 `cdd-engine` **minor**（board 新增一行 · refusal.json 为新增产物 · structure 腿多四行，均为消费面可见）；kairos 未动。
+- `INPUT_WAVE_BRIEF` **是引擎写的格子**：在一个还没有 `tasks-<n>-brief.md` 的全新工作区派发一次 wave 评审 ⇒ 四道门全过（不是 `target-absent`），真跑路径随后渲染出 brief；同一状态加 `--dry-run` ⇒ 同一裁决（门不因面而换判据）。构造期断言对「多于一格声明为引擎写的」报红，且那一格必须就是 `NAMED_BRIEF_CELL`。
+- `CDD_BLOCKED` **字节不变**：四道门各拒绝一次，真跑分别念 `CDD_BLOCKED: no host harness detected` · `CDD_BLOCKED: carrier-mismatch · …` · `CDD_BLOCKED: dispatch-input · …` · `CDD_BLOCKED: artifact-identity · …`，与改前逐字节相同（不多一段站名前缀）；同一拒绝在 `--dry-run` 上渲染为预览的 `refused:` 行，不是 `CDD_BLOCKED` 行。
+- refusal.json **落在被忽略的命名空间里**：在一棵 `.gitignore` 不含 `.kairos` 的临时仓库里拒绝一次 ⇒ `.kairos/cdd/` 下出现 refusal.json（裸词，见 2.1）且 `git status` 干净（标记先于写入发布）；紧接着的第二次派发仍按自己的事实判定，而不是在 `tree-clean` 上被引擎自己写的文件拒掉。
 
 ## Constraints
 
 - **零裸函数**：`packages/cdd-engine/src-next` 下不新增 `function` 声明，状态与行为落进类（`check:no-bare-functions` 是门）。
 - **pin 写法**：行为断言引模块路径 + 符号名，不引行号；尚未在源树出现的词汇写裸词或进围栏块——反引号即成 pin，未落地即红。
-- **单事实单份**：拒绝事实只有一个家（树级记录）；board 行与预览从它派生，`CDD_BLOCKED` 念自己既有的报文（3.3），两边不各自持有第三份副本。
-- **消费面守恒**：`CDD_BLOCKED` 行与既有 `crashed:` 语义逐字节不变；本相位新增的消费面只有 board 的一行与新产物文件。
+- **单事实单份**：拒绝事实只有一个家（树级记录）；board 行从它派生，命令面与预览念各自既有的报文（2.4 · 3.3），三方不各自持有第三份副本。
+- **消费面守恒**：真跑路径上的 `CDD_BLOCKED` 行与既有 `crashed:` 语义逐字节不变；`--dry-run` 上的结构腿拒绝统一由预览面渲染（2.4）——那是把一个已有入口收到一处，不是新增面；本相位新增的消费面只有 board 的一行与新产物文件。
 - **不留豁免层**：不引入「pre-flight 拒绝走一条特殊路径」的分支——门前的返回本身就是普通路径，拒绝不需要例外。
 - **引擎只拒不改**：拒绝不移动、不改写、不删除任何既有产物；门的前移不得让任何已被写的文件变成孤儿。
 - **类的规模**：新增类守一条不变量（一树最多一条拒绝事实），方法读作 ≤10 行，参数 ≤4；超过即说明它守了两件事。
@@ -133,3 +140,4 @@ targetAction: !violations.some(v => v.grade === "hard")
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-18 | 首稿：S1 归属落定（四门并入 structure 腿 · 拒绝在 recordRound 之前返回 · 树级 refusal 事实 · board 一行 · 四站闭集 · 互斥不变量） | Oscaner M. · Claude |
 | v0.2 | 2026-11-18 | 首轮评审回填（F1–F12 全采纳）：① 站名闭集改为 structure 腿的行集（九值，`session/preflight.ts#PreFlightGateName`），九行一视同仁写事实，互斥不变量换成「最多一条 · 通过即清」；② 四行的判定输入与判定点写成条件（只读推演，不建工作区、不写 brief、不在 `--recover` 之后）；③ `--recover` 按改后形面重述（不认领 · 无写入 · 同一拒绝复发）；④ `detail` 规范化 + `CDD_BLOCKED` 自有渲染分离；⑤ 封回与预览镜像的门数写实（三道 + no-host 例外）；⑥ corrupt 行自成一词；⑦ `RoundStatus` 五值 pin 到 `session/ledger.ts#RoundStatus`；⑧ 腿行集加 pin、三个未落地词写裸词；⑨ AC② 八格 + 跨工作区渲染、AC③ 通过即清、AC④ 九值表、AC⑤ 改后形面 | Oscaner M. · Claude |
+| v0.3 | 2026-11-18 | 第二轮评审回填（F1–F9 全采纳）：① `INPUT_WAVE_BRIEF` 在声明面上改成它真实的意思——`preview: "satisfied"` 换成 `written: "engine"`，`#inputRefusalOf` 的 `mode` 守卫与 `#answeredByNaming` 的 per-mode 例外一并退场，任何路径都不做存在性读，构造期断言改证「恰好一格引擎写的」；② 四行的输入补齐第四格（主机探测事实由 composition root 注入，seam 不 import face 的 host 模块）；③ 拒绝写入先发布命名空间 keep-out 标记，并声明发布标记不是「建工作区」；④ `--dry-run` 上的结构腿拒绝统一由预览面渲染（整条腿九行，`refused:` 行字节不动）；⑤ `CDD_BLOCKED` 与 board 行改成「一份事实、两条已声明的渲染」，渲染入口按 `preflight.gate` 取键；⑥ `Cli#step` 改 pin 到 `face/cli.ts#Cli#runWork`；⑦ 「同义、同形」改回「同词」；⑧ dispatch-input 的词 pin 到 `CAPSULE_WORDS.dispatchInput.station`；⑨ 去掉 `detail` 的旧名考古；AC 增三条（引擎写的格子 · `CDD_BLOCKED` 字节 · 命名空间标记） | Oscaner M. · Claude |

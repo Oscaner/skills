@@ -1,7 +1,7 @@
 ---
 title: 'P40 · 派发前拒绝的记账面：四门并入 structure 腿 + 树级拒绝事实'
 doc-type: plan
-version: v0.2
+version: v0.3
 date: 2026-11-18
 slug: 2026-11-17-engine-doc-tooling-p40-design
 base: develop
@@ -27,8 +27,9 @@ base: develop
 brief 是引擎自己写的格：它的名字就是答案，文件由引擎在 spawn 之前写好，所以任何路径都不做存在性读。把这条从「仅预览的按模式豁免」改成声明面上的一档 `written: "engine"`，并使构造期断言按**槽**（不是按行）守它——三张 mode 表的同一格因此共享一条判据。
 
 #### Files
-- Modify: `packages/cdd-engine/src-next/render/templates.ts`（`ContextLine` 的声明格、三处 `preview: "satisfied"` 声明、`TemplateAssembler#assertPreviewAnswer`）
+- Modify: `packages/cdd-engine/src-next/render/templates.ts`（`ContextLine` 的声明格、三处 `preview: "satisfied"` 声明、两段描述该档的注释 prose、`TemplateAssembler#assertPreviewAnswer`）
 - Test: `packages/cdd-engine/src-next/render/__tests__/templates.test.ts`
+- Test: `packages/cdd-engine/src-next/render/__tests__/context-lines.test.ts`（`preview: "satisfied"` 的两处既有字面量同批改写为 `written: "engine"`）
 
 #### Consumes
 - `TemplateAssembler.NAMED_BRIEF_CELL`（既有常量，`render/templates.ts`）
@@ -45,12 +46,12 @@ readonly written?: "engine";
 #### Steps
 - **Step 1: 写三条失败测试**（三张 mode 表接受 brief 行 · 非 brief 槽声明 engine 期间红 · 同槽跨行只判一次） — checkable: `render/__tests__/templates.test.ts` 多出三条用例
 - **Step 2: 跑测试确认红** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/render/__tests__/templates.test.ts` 报红，原因指向缺失的 `written` 档
-- **Step 3: 加类型档 · 改三处声明 · 断言改名 `#assertEngineWritten` 并按槽判** — checkable: `grep -rn 'preview: "satisfied"' packages/cdd-engine/src-next` 零命中
+- **Step 3: 加类型档 · 改三处声明 · 断言改名 `#assertEngineWritten` 并按槽判** — checkable: `rg -n 'preview: "satisfied"' packages/cdd-engine/src-next/render` 零命中（`templates.ts` 的三处声明与其两段注释 prose · 本任务声明的两个测试文件，均同批换词）
 - **Step 4: 跑测试确认绿** — checkable: 同 Step 2 命令 0 failed
-- **Step 5: 提交** — checkable: `git show --stat HEAD` 只含 `templates.ts` 与该测试文件
+- **Step 5: 提交** — checkable: `git show --stat HEAD` 只含 `templates.ts` 与两个测试文件
 
 #### Acceptance
-三张 mode 表的 brief 格声明为 `written: "engine"`；非 brief 槽声明它时构造期红且报文点名该槽；`src-next/render/__tests__/` 全绿；`grep -rn 'preview: "satisfied"' packages/cdd-engine/src-next` 零命中（既有测试字面量同步改写）。
+三张 mode 表的 brief 格声明为 `written: "engine"`；非 brief 槽声明它时构造期红且报文点名该槽；`src-next/render/` 全绿；`rg -n 'preview: "satisfied"' packages/cdd-engine/src-next/render` 零命中（`templates.ts` 的三处声明与两段注释 prose、`templates.test.ts` · `context-lines.test.ts` 的既有字面量同批换词；全树零命中是 Task 3 的判据——`face/lifecycle.ts` 与 `dispatch-input.test.ts` 里的旧字面量到那时才换）。
 
 #### DependsOn
 none
@@ -123,7 +124,8 @@ export class PreFlightRefusal {
 #### Files
 - Create: `packages/cdd-engine/src-next/contract/preflight-rows.ts`
 - Create: `packages/cdd-engine/src-next/contract/__tests__/preflight-rows.test.ts`
-- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`CliLifecycle#inputRefusalOf` 与 `#artifactCellOf` 的调用点改为委托；`#answeredByNaming` 的判据改为读 `written: "engine"`）
+- Modify: `packages/cdd-engine/src-next/face/lifecycle.ts`（`CliLifecycle#inputRefusalOf` 与 `#artifactCellOf` 的调用点改为委托；`#answeredByNaming` 的判据改为读 `written: "engine"`，其注释 prose 一并换词）
+- Test: `packages/cdd-engine/src-next/face/__tests__/dispatch-input.test.ts`（仅换掉注释里那句旧字面量；断言零改动）
 
 #### Consumes
 - Task 1 的 `ContextLine.written` 与 `NAMED_BRIEF_CELL`
@@ -172,12 +174,12 @@ export class PreFlightRows {
 #### Steps
 - **Step 1: 写六条失败测试**（no-host · carrier · 必填格空 · 路径格缺失 · 三处同时三条一次报完且顺序固定 · engine 写的槽零存在性读） — checkable: `contract/__tests__/preflight-rows.test.ts` 六条用例齐
 - **Step 2: 跑测试确认红** — checkable: 该文件报 `Cannot find module .../preflight-rows.ts`
-- **Step 3: 搬判据进纯模块，face 侧改为取值、映射与委托**（`values` 直接以平值记录传；`ArtifactCell` → `ArtifactSnapshot` 的映射写在 face 的调用点） — checkable: `face/lifecycle.ts` import 该模块，四道门的判定式不再出现在 face，且 `contract/preflight-rows.ts` 的 import 列表里没有 `face/` 与 `render/`
-- **Step 4: 跑绿 + 跑既有面测试确认字节未变** — checkable: 三个测试文件全绿且 `lifecycle.test.ts`、`dispatch-input.test.ts` 零改动
-- **Step 5: 提交** — checkable: `git show --stat HEAD` 含新模块、新测试与 `lifecycle.ts`
+- **Step 3: 搬判据进纯模块，face 侧改为取值、映射与委托**（`values` 直接以平值记录传；`ArtifactCell` → `ArtifactSnapshot` 的映射写在 face 的调用点） — checkable: `face/lifecycle.ts` import 该模块，四道门的判定式不再出现在 face，且 `contract/preflight-rows.ts` 的 import 列表里没有 `face/` 与 `render/`；`rg -n 'preview: "satisfied"' packages/cdd-engine/src-next` 零命中（全树：Task 1 收掉 `render/` 切片，本任务改写 `#answeredByNaming` 的判据与其注释、并换掉 `dispatch-input.test.ts` 的旧注释）
+- **Step 4: 跑绿 + 跑既有面测试确认字节未变** — checkable: 三个测试文件全绿且 `lifecycle.test.ts` · `dispatch-input.test.ts` 的断言零改动（后者只改了一句注释里的旧字面量）
+- **Step 5: 提交** — checkable: `git show --stat HEAD` 含新模块、新测试、`lifecycle.ts` 与 `dispatch-input.test.ts`
 
 #### Acceptance
-六条测试全绿；`lifecycle.test.ts` 与 `dispatch-input.test.ts` 无改动即绿（本任务不改行为）；`contract/preflight-rows.ts` 不 import `face/` 或 `session/` 的任何符号，也不 import `render/`（依赖方向可 grep 断言）；判据的三个输入全部是本模块自己声明的契约值。
+六条测试全绿；`lifecycle.test.ts` 与 `dispatch-input.test.ts` 的断言零改动即绿（本任务不改行为；`dispatch-input.test.ts` 只改一句注释里的旧字面量）；`contract/preflight-rows.ts` 不 import `face/` 或 `session/` 的任何符号，也不 import `render/`（依赖方向可 grep 断言）；判据的三个输入全部是本模块自己声明的契约值；全树 `rg -n 'preview: "satisfied"' packages/cdd-engine/src-next` 零命中（三处声明、三处注释 prose 与两个测试文件的字面量均在 Task 1 与本任务后到齐；`dispatch-input.test.ts` 是该清单里唯一只动注释的文件）。
 
 #### DependsOn
 1
@@ -249,12 +251,12 @@ export interface PreFlightContext {
 #### Steps
 - **Step 1: 写三条失败测试**（一次派发只判一次 · 拒绝路径零封名调用 · 预览块与被拒同源逐字节相同） — checkable: `lifecycle.test.ts` 与 `preview.test.ts` 各多出对应用例
 - **Step 2: 跑测试确认红** — checkable: 两个面测试文件报红，原因指向仍在的第二次判定
-- **Step 3: 删派发体四门 · 删拒绝路径的封名 · 预览改为读 verdict** — checkable: `rg -n 'sealRoundCarriers' packages/cdd-engine/src-next/face/lifecycle.ts` 只剩 abort 记账（`#bookAbort`）里那条非拒绝路径的 `#sealRoundCarriersOf` 调用——拒绝分支上的 `#sealRoundCarriers` 零命中
+- **Step 3: 删派发体四门 · 删拒绝路径的封名 · 预览改为读 verdict** — checkable: `rg -n 'sealRoundCarriers' packages/cdd-engine/src-next/face/lifecycle.ts` 只剩两条**非拒绝**调用——abort 记账（`#bookAbort`）里的 `#sealRoundCarriersOf(op, "wave", …)` 与终止处理器里的死亡路径封名（P31 T5 §2.4：kill / timeout / crash 之后仍须封，必须保留）；四门拒绝分支（今天 `#runDispatch` 前半段的四处调用）零命中
 - **Step 4: 跑绿 + 全 face 面** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/` 全绿
 - **Step 5: 提交** — checkable: `git show --stat HEAD` 含 `lifecycle.ts`、`preview.ts` 与两个测试文件
 
 #### Acceptance
-一次派发只判一次（spy 计数 = 1）；拒绝路径零 `CarrierSeal` 调用（按谓词核，不按条数：`rg -n 'sealRoundCarriers'` 在 `face/lifecycle.ts` 只余 `#bookAbort` 的非拒绝调用）；预览块与命令面同源；`src-next/face/` 全绿。
+一次派发只判一次（spy 计数 = 1）；**四门拒绝分支**零 `CarrierSeal` 调用（按谓词核，不按条数：`rg -n 'sealRoundCarriers'` 在 `face/lifecycle.ts` 只余两条非拒绝调用——`#bookAbort` 的 `#sealRoundCarriersOf` 与终止处理器的死亡路径封名，后者正是 P31 T5 §2.4 的晚落地保证，不得随本任务退役）；预览块与命令面同源；`src-next/face/` 全绿。
 
 #### DependsOn
 4
@@ -285,14 +287,14 @@ export interface PreFlightContext {
 - 释放点清除：`release()` 之后读记录，`station === "in-flight"` 才清。
 
 #### Steps
-- **Step 1: 写六条失败测试**（拒绝不写轮记录且重派仍 `review 1·1` · 记录八字段齐 · 通过即清 · `--dry-run` 零写零清 · `tree-clean` 站名不被释放清掉 · `--recover` 不认领） — checkable: `cli.test.ts` 多出六条用例
+- **Step 1: 写七条失败测试**（拒绝不写轮记录且重派仍 `review 1·1` · 记录八字段齐 · 通过即清 · `--dry-run` 零写零清 · `tree-clean` 站名不被释放清掉 · `--recover` 不认领 · approved 派发的 `checked:` 面在 implement / review / fix 三个 fixture 上各断言一次九行行名集合、一律 always） — checkable: `cli.test.ts` 多出七条用例
 - **Step 2: 跑测试确认红** — checkable: 该文件报红，首条用例的失败信息即改前实况（`crashed:` 行仍在）
 - **Step 3: 接线**（探针一次并把值交给三处 · 派发体与预览改读值 · 拒则写 / 通则清 · 释放点按 `in-flight` 谓词清） — checkable: 写与清在 `runWork` 同一段内且共用 `!parsed.dryRun`；`rg -n 'HostDetect.detect' packages/cdd-engine/src-next -g '!**/__tests__/**'` 只剩组合根与三处具名面外读者（共四命中），`CliLifecycle#detectHost` 零命中
 - **Step 4: 跑绿 + 派发面全量** — checkable: `pnpm -C packages/cdd-engine exec vitest run src-next/face/ src-next/session/` 全绿
 - **Step 5: 提交** — checkable: `git show --stat HEAD` 含 `cli.ts`、`lifecycle.ts`、`preview.ts`、`dispatch-authority.ts` 与 `cli.test.ts`
 
 #### Acceptance
-六条测试全绿；写与清在同一处、同一 `!parsed.dryRun` 守卫；`--dry-run` 零写零清；`tree-clean` 站名的记录不被一次释放清掉；重派仍是 `review 1·1`；**派发路径上恰好一次宿主探测**（`rg -n 'HostDetect.detect' packages/cdd-engine/src-next -g '!**/__tests__/**'` 四命中：组合根 + `CliGate` 的 `#renderer` + `Cli#runBoard` + `Cli#runWork` 的 `Capsule`），`#runDispatch` 顶部那份 no-host 字面与 `Preview` 的 `child:` 空值分支均已退役。
+七条测试全绿；写与清在同一处、同一 `!parsed.dryRun` 守卫；三面各有一条 `checked:` 行名集合断言（`tree-clean` · `in-flight` · `graph` · `plan-ledger` · `doc-contract` · `no-host` · `carrier` · `dispatch-input` · `artifact`，写行名与适用面、不写整块快照）；`--dry-run` 零写零清；`tree-clean` 站名的记录不被一次释放清掉；重派仍是 `review 1·1`；**派发路径上恰好一次宿主探测**（`rg -n 'HostDetect.detect' packages/cdd-engine/src-next -g '!**/__tests__/**'` 四命中：组合根 + `CliGate` 的 `#renderer` + `Cli#runBoard` + `Cli#runWork` 的 `Capsule`），`#runDispatch` 顶部那份 no-host 字面与 `Preview` 的 `child:` 空值分支均已退役。
 
 #### DependsOn
 2, 4, 5
@@ -369,3 +371,4 @@ static refusalRows(state: RefusalState, words: Words): readonly string[];
 | --- | --- | --- | --- |
 | v0.1 | 2026-11-18 | 首稿：八任务 / 六波（{1} → {3} → {2,4} → {5,7} → {6} → {8}）。判据抽 `contract/` 以避免 session→face 的新环（`RowStation` 是站名域的唯一声明，`PreFlightGateName` 以它扩四值）；brief 改记引擎写先行；记录晚于判据、早于接线；board 独立于接线；优先级位移与 `--recover` 各自成对验收；changeset 收尾 | Oscaner M. · Claude |
 | v0.2 | 2026-11-18 | 评审修复一轮（F1–F5 全采纳）：判据的输入改为契约层自声明值（`ArtifactSnapshot` 两臂 + 平值记录），face 在调用点适配，Task 3 的 Consumes 改成真模块路径（F1）；`#inflight.release()` 的唯一调用点钉到 `face/lifecycle.ts` 派发体并加入 Task 6 Files（F2）；宿主值的三处读者与 `#runDispatch` 的 no-host 字面、`Preview` 的 `child:` 空值分支退役并入 Task 6（F3）；封名退场改写为谓词并点名存活的 abort 记账调用（F4）；`refusal` 名字扩为 `round-artifacts.ts` 的四个登记点（F5） | Oscaner M. · Claude |
+| v0.3 | 2026-11-18 | 第二轮评审修复（F1–F3 全采纳）：① Task 1 的零命中判据收窄到 `render/` 切片（`templates.ts` 的声明与注释 prose + 两个测试文件，`render/__tests__/context-lines.test.ts` 补进 Files），全树零命中移入 Task 3——`face/lifecycle.ts#answeredByNaming` 要到 Task 3 才换判据，且 `face/__tests__/dispatch-input.test.ts` 的注释里也有一份旧字面量（该文件因此以「仅改注释、断言零改动」进 Task 3 Files），两处都到齐后全树判据才可转绿（F1）；② Task 5 的封名退场改成点名两条存活调用（`#bookAbort` 的 `#sealRoundCarriersOf` 与终止处理器的死亡路径封名），退役范围按谓词限定在四门拒绝分支，死亡路径封名写明必须保留（F2）；③ Task 6 补第七条测试与验收：approved 派发的 `checked:` 面在 implement / review / fix 三个 fixture 上各断言一次九行行名集合（spec 具名变更④此前无归属）（F3） | Oscaner M. · Claude |
